@@ -1,0 +1,132 @@
+# AutoTrader Observation Packet Contract v1
+#
+# PURPOSE: Validate that the normalized observation packet consumed by the
+# auto-trader/KRR shell has a coherent trusted-vs-advisory split.
+#
+# i1 = primary_source_kind_code (bv[32])    # 1=route,2=local,3=attested,4=advisory
+# i2 = primary_trust_tier_code (bv[32])     # 0=advisory,1=attested,2=verified,3=protocol
+# i3 = primary_quote_receipt_present (sbf)
+# i4 = primary_quote_receipt_verified (sbf)
+# i5 = primary_quote_epoch_present (sbf)
+# i6 = primary_source_available (sbf)
+# i7 = primary_auth_ok (sbf)
+# i8 = primary_binding_ok (sbf)
+# i9 = external_signal_count (bv[32])
+# i10 = advisory_external_count (bv[32])
+# i11 = trusted_external_count (bv[32])
+# o1 = primary_mode_ok
+# o2 = trusted_primary_ok
+# o3 = primary_packet_ok
+# o4 = external_counts_ok
+# o5 = observation_packet_ok
+
+set charvar off
+
+always
+  (
+    o1[t]:sbf = 1:sbf <->
+    (
+      (
+        (i1[t]:bv[32] = { #x00000001 }:bv[32]) &&
+        (
+          (i2[t]:bv[32] = { #x00000002 }:bv[32]) ||
+          (i2[t]:bv[32] = { #x00000003 }:bv[32])
+        )
+      ) ||
+      (
+        (i1[t]:bv[32] = { #x00000002 }:bv[32]) &&
+        (i2[t]:bv[32] = { #x00000003 }:bv[32])
+      ) ||
+      (
+        (i1[t]:bv[32] = { #x00000003 }:bv[32]) &&
+        (
+          (i2[t]:bv[32] = { #x00000001 }:bv[32]) ||
+          (i2[t]:bv[32] = { #x00000002 }:bv[32])
+        )
+      ) ||
+      (
+        (i1[t]:bv[32] = { #x00000004 }:bv[32]) &&
+        (i2[t]:bv[32] = { #x00000000 }:bv[32])
+      )
+    )
+  ) &&
+  (
+    o2[t]:sbf = 1:sbf <->
+    (
+      (
+        (i1[t]:bv[32] = { #x00000001 }:bv[32]) &&
+        (
+          (i2[t]:bv[32] = { #x00000002 }:bv[32]) ||
+          (i2[t]:bv[32] = { #x00000003 }:bv[32])
+        )
+      ) ||
+      (
+        (i1[t]:bv[32] = { #x00000002 }:bv[32]) &&
+        (i2[t]:bv[32] = { #x00000003 }:bv[32])
+      ) ||
+      (
+        (i1[t]:bv[32] = { #x00000003 }:bv[32]) &&
+        (
+          (i2[t]:bv[32] = { #x00000001 }:bv[32]) ||
+          (i2[t]:bv[32] = { #x00000002 }:bv[32])
+        )
+      )
+    )
+  ) &&
+  (
+    o3[t]:sbf = 1:sbf <->
+    (
+      (i3[t]:sbf = 1:sbf) &&
+      (i4[t]:sbf = 1:sbf) &&
+      (i5[t]:sbf = 1:sbf) &&
+      (i6[t]:sbf = 1:sbf) &&
+      (i7[t]:sbf = 1:sbf) &&
+      (i8[t]:sbf = 1:sbf)
+    )
+  ) &&
+  (
+    o4[t]:sbf = 1:sbf <->
+    (
+      (i10[t]:bv[32] <= i9[t]:bv[32]) &&
+      (i11[t]:bv[32] <= i9[t]:bv[32]) &&
+      ((i10[t]:bv[32] + i11[t]:bv[32]) = i9[t]:bv[32])
+    )
+  ) &&
+  (
+    o5[t]:sbf = 1:sbf <->
+    (
+      (
+        (
+          (i1[t]:bv[32] = { #x00000001 }:bv[32]) &&
+          (
+            (i2[t]:bv[32] = { #x00000002 }:bv[32]) ||
+            (i2[t]:bv[32] = { #x00000003 }:bv[32])
+          )
+        ) ||
+        (
+          (i1[t]:bv[32] = { #x00000002 }:bv[32]) &&
+          (i2[t]:bv[32] = { #x00000003 }:bv[32])
+        ) ||
+        (
+          (i1[t]:bv[32] = { #x00000003 }:bv[32]) &&
+          (
+            (i2[t]:bv[32] = { #x00000001 }:bv[32]) ||
+            (i2[t]:bv[32] = { #x00000002 }:bv[32])
+          )
+        ) ||
+        (
+          (i1[t]:bv[32] = { #x00000004 }:bv[32]) &&
+          (i2[t]:bv[32] = { #x00000000 }:bv[32])
+        )
+      ) &&
+      (i3[t]:sbf = 1:sbf) &&
+      (i4[t]:sbf = 1:sbf) &&
+      (i5[t]:sbf = 1:sbf) &&
+      (i6[t]:sbf = 1:sbf) &&
+      (i7[t]:sbf = 1:sbf) &&
+      (i8[t]:sbf = 1:sbf) &&
+      (i10[t]:bv[32] <= i9[t]:bv[32]) &&
+      (i11[t]:bv[32] <= i9[t]:bv[32]) &&
+      ((i10[t]:bv[32] + i11[t]:bv[32]) = i9[t]:bv[32])
+    )
+  ).

@@ -1,0 +1,59 @@
+schema: zenodex/deployment_profile/v1
+profile_id: production-strict
+threat_model: live-value production operation
+allowed_routes:
+  - health
+  - signed_intents
+  - peer_check
+required_auth:
+  public_api: bearer_token_or_reverse_proxy
+  write_api: signed_intent_and_production_key_receipt
+key_policy:
+  raw_private_key_flags_allowed: false
+  production_key_receipts_required: true
+  browser_key_generation_allowed: false
+  external_signer_required: true
+  signer_user_approval_required: true
+  allowed_signer_security_profiles:
+    - native-desktop-loopback-signer-v0
+proof_policy:
+  proof_metadata_required: true
+upba_policy: conservative
+peer_policy:
+  public_peer_admission_allowed: true
+  dynamic_peer_cap_required: true
+gossip_policy:
+  transport_auth_required: true
+observability_policy:
+  metrics_required: true
+oracle_policy:
+  dex_routing_oracle_adapter_required: true
+  zusd_oracle_adapter_required: true
+  zusd_oracle_authorization_required: true
+  zusd_monetary_wallet_oracle_authorization_required: true
+  perps_clearinghouse_settle_oracle_adapter_required: true
+  perps_clearinghouse_settle_oracle_authorization_required: true
+  perps_isolated_settle_oracle_adapter_required: true
+  perps_isolated_partial_liquidate_oracle_adapter_required: true
+  perps_isolated_settle_oracle_authorization_required: true
+runtime_policy:
+  allow_path_lookup: false
+  plaintext_fixture_keys_allowed: false
+  local_only_routes_allowed: false
+  proof_mining_payout_template_enabled: false
+  env_config_file_allowlist_required: true
+  dependency_sbom_required: true
+  secret_scan_required: true
+  external_static_analysis_required_in_ci: true
+runtime_authority_policy:
+  schema: zenodex/runtime_authority_policy/v1
+  # Python is the sole authority for every surface. No surface is promoted to
+  # Rust authority. Under this strict profile a per-surface
+  # rust_authority_with_python_shadow entry is rejected unless the surface is
+  # also listed in promoted_surfaces (the half-configured-authority guard), pure
+  # rust_authority is rejected by the current schema, and a blanket rust default
+  # is rejected outright. See
+  # docs/runtime/RUST_AUTHORITY_PROMOTION_GATE.md.
+  default: python_authority
+  per_surface: {}
+  promoted_surfaces: []

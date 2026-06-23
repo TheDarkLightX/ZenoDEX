@@ -1,0 +1,27 @@
+# Oracle Epoch Equivocation Guard v1
+#
+# PURPOSE:
+# Admit an oracle epoch commit only when chain binding, epoch continuity,
+# committee version, no-equivocation, quorum signature, source diversity, price
+# envelope, and replay checks all hold.
+#
+# i1 = commit_requested (sbf)
+# i2 = chain_id_binds (sbf)
+# i3 = epoch_is_next (sbf)
+# i4 = committee_version_current (sbf)
+# i5 = no_equivocation_for_epoch (sbf)
+# i6 = quorum_signature_valid (sbf)
+# i7 = source_diversity_ok (sbf)
+# i8 = price_envelope_ok (sbf)
+# i9 = replay_frontier_clear (sbf)
+# i10 = proof_ok (sbf)
+# i11 = binding_ok (sbf)
+#
+# o1 = oracle_commit_admissible
+# o2 = proof_gated_oracle_commit_admissible
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf))) &&
+  (o2[t]:sbf = 1:sbf <-> ((o1[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf) && (i11[t]:sbf = 1:sbf))).

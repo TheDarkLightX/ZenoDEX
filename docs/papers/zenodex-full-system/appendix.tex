@@ -1,0 +1,183 @@
+\documentclass[9pt]{extarticle}
+
+\usepackage[margin=0.64in]{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs}
+\usepackage{array}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{microtype}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  urlcolor=blue,
+  pdftitle={ZenoDEX Full-System Appendix},
+  pdfauthor={Dana Edwards}
+}
+\setlist[enumerate]{nosep,leftmargin=5mm}
+\setlength{\abovedisplayskip}{6pt}
+\setlength{\belowdisplayskip}{6pt}
+
+\newcommand{\code}[1]{\path{#1}}
+\newcommand{\Key}{\mathsf{Key}}
+\newcommand{\Winner}{\mathsf{Winner}}
+\newcommand{\argmin}{\operatorname*{arg\,min}}
+\title{ZenoDEX Full-System Appendix: Public Artifact Map and Claim Ledger}
+\author{Dana Edwards}
+\date{April 2026}
+
+\begin{document}
+\maketitle
+
+\section{Purpose}
+This appendix is the audit companion to the main public whitepaper. Its job is
+to pin each major public claim family to concrete repo-local artifacts.
+
+The governing evidence rule is
+\[
+\mathtt{proved} > \mathtt{contract} > \mathtt{implemented} > \mathtt{replay\_backed} > \mathtt{hypothesis}.
+\]
+Plain English: the tables below are claim-to-artifact maps, not marketing
+summaries.
+Practical consequence: a reviewer can audit the public package without relying
+on non-public development notes or unpublished implementation tooling details.
+
+\section{Spot theorem map}
+\begin{table}[h]
+\centering
+\scriptsize
+\begin{tabular}{@{}L{34mm}L{24mm}L{79mm}@{}}
+\toprule
+Claim family & Evidence class & Primary public artifacts \\
+\midrule
+Canonical batch winner & proved & \code{lean-mathlib/Proofs/BatchAuctionCanonical.lean}; related batch objective files under \code{lean-mathlib/Proofs/} \\
+Exact-in canonical winner shell & proved & \code{lean-mathlib/Proofs/ZenoDEXExactInTrueKeyWinner.lean}; route certificate companion files under \code{lean-mathlib/Proofs/} \\
+CPMM reserve and K safety & proved & \code{lean-mathlib/Proofs/CPMMInvariants.lean}; supporting settlement algebra under \code{lean-mathlib/Proofs/CPMMSettlement.lean} \\
+Fee conservation with dust carry & proved & \code{lean-mathlib/Proofs/FeeDustCarryConservation.lean}; \code{lean-mathlib/Proofs/FeeAwareBatchKGap.lean} \\
+Order noncommutativity boundary & proved & \code{lean-mathlib/Proofs/OppositeDirectionNoncommutativity.lean} \\
+\bottomrule
+\end{tabular}
+\caption{Main theorem-bearing spot artifacts.}
+\end{table}
+
+\section{Settlement and certificate map}
+\begin{table}[h]
+\centering
+\scriptsize
+\begin{tabular}{@{}L{35mm}L{22mm}L{80mm}@{}}
+\toprule
+Surface & Evidence class & Primary public artifacts \\
+\midrule
+End-to-end settlement packet & contract + proved helper shells & \code{src/integration/settlement_end_to_end_certificate_packet.py}; packet kernel under \code{src/kernels/dex/}; supporting Lean packet proofs \\
+Settlement strong certificate & contract + tests & \code{src/integration/settlement_strong_certificate.py}; integration tests under \code{tests/integration/} \\
+Spot / LP value contracts & contract & \code{src/integration/settlement_value_contract.py}; \code{src/integration/settlement_lp_value_contract.py} \\
+Price provenance and attestation & contract + tests & \code{src/integration/settlement_price_attestation.py}; \code{src/integration/settlement_price_provenance.py}; packet tests under \code{tests/integration/} \\
+Quote receipt verification & contract + tests & \code{src/core/quote_receipts.py}; receipt gates under \code{src/kernels/dex/quote_receipt_*}; integration tests under \code{tests/integration/} \\
+\bottomrule
+\end{tabular}
+\caption{Settlement and certificate surfaces.}
+\end{table}
+
+\section{Runtime, release, and replay map}
+\begin{table}[h]
+\centering
+\scriptsize
+\begin{tabular}{@{}L{35mm}L{22mm}L{80mm}@{}}
+\toprule
+Surface & Evidence class & Primary public artifacts \\
+\midrule
+Kernel composition contract & contract & \code{docs/KERNEL_ABI_AND_COMPOSITION.md}; \code{src/kernels/dex/zenodex_system_compose_v2.yaml} \\
+Public RC1 surface matrix & contract & \code{docs/RC1_VERIFIED_SURFACE_MATRIX.md}; \code{docs/RC1_SCOPE.md} \\
+Public replay contract & contract + replay evidence & \code{docs/PUBLIC_ASSURANCE_REPLAY.md}; \code{tools/permissionless_assurance.py} \\
+Bounded TLA claim surface & public formal claim & \code{docs/TLA_CLAIM_SUMMARY.md}; \code{tools/run_tla_models.py} \\
+Supported HTTP boundary & contract & \code{docs/RC1_SUPPORTED_RUNTIME_PATH.md}; \code{src/integration/api_server.py} \\
+Snapshot recovery and deterministic serialization & implementation + tests & \code{src/integration/dex_snapshot.py}; \code{tests/integration/test_dex_snapshot.py} \\
+\bottomrule
+\end{tabular}
+\caption{Runtime and release-boundary artifacts.}
+\end{table}
+
+\section{Risk and monetary map}
+\begin{table}[h]
+\centering
+\scriptsize
+\begin{tabular}{@{}L{35mm}L{22mm}L{80mm}@{}}
+\toprule
+Surface & Evidence class & Primary public artifacts \\
+\midrule
+Perp epoch safety posture & mixed: contract, kernels, replay evidence & \code{docs/derivatives/PERP_EPOCH_SAFETY_V1.md}; perps kernels under \code{src/kernels/dex/}; \code{src/integration/perp_engine.py} \\
+Funding witness public settlement lane & contract & public funding witness kernels and replay notes under \code{docs/PUBLIC_ASSURANCE_REPLAY.md} \\
+ZUSD balance-law helper theorems & mixed with strong helper proofs & \code{lean-mathlib/Proofs/ZUSDDualConservation.lean}; \code{lean-mathlib/Proofs/ZUSDCollateralFlowAlgebra.lean}; \code{lean-mathlib/Proofs/ZUSDDebtHomomorphism.lean} \\
+ZUSD oracle safety contract & contract + tests & \code{src/integration/zusd_oracle_contracts.py}; \code{tests/integration/test_zusd_oracle_contracts.py} \\
+\bottomrule
+\end{tabular}
+\caption{Risk and monetary artifacts.}
+\end{table}
+
+\section{Reference algorithm skeletons}
+\paragraph{A. Canonical bounded route selection.}
+\[
+\Winner(C) := \argmin_{c \in C} \Key(c).
+\]
+Plain English: once a bounded candidate family is emitted, the chosen route
+is the unique minimum under the explicit total key.
+Practical consequence: public runtime selectors should be audited as
+certificate-carrying argmin procedures rather than loop-order heuristics.
+
+Operational skeleton:
+\begin{enumerate}
+  \item emit a bounded candidate family $C$ from the current admitted route domain;
+  \item compute the explicit runtime key for each candidate;
+  \item select $w = \Winner(C)$;
+  \item build the route certificate or packet around $w$;
+  \item expose the result as canonical only when the guarded packet verifies.
+\end{enumerate}
+
+\paragraph{B. Settlement packet composition.}
+\[
+\mathsf{packet\_ok} \leftrightarrow \mathsf{strong\_certificate\_ok} \wedge \mathsf{value\_lane\_ok} \wedge \mathsf{provenance\_ok}.
+\]
+Plain English: an end-to-end settlement packet is accepted only when each
+constituent lane verifies and the bundle remains coherent.
+Practical consequence: settlement bundling is fail-closed composition, not
+best-effort aggregation.
+
+Operational skeleton:
+\begin{enumerate}
+  \item build the strong settlement certificate on the canonical delta table;
+  \item attach value-lane and provenance packet material;
+  \item serialize the combined packet;
+  \item verify the packet by re-checking each component gate and the bundle-level shell.
+\end{enumerate}
+
+\paragraph{C. Runtime release replay.}
+\[
+\mathsf{ReleaseClaimOK} := \mathsf{CleanTree} \wedge \mathsf{ScopeFrozen} \wedge \mathsf{ReplayGreen} \wedge \mathsf{ExclusionsHonest}.
+\]
+Plain English: the public release claim is valid only on a clean tree with a
+frozen documented scope and green replay lanes.
+Practical consequence: the release process is itself a public artifact, not only
+a private operator habit.
+
+Primary public replay entry points are:
+\begin{itemize}
+  \item \code{python3 tools/permissionless_assurance.py status}
+  \item \code{python3 tools/permissionless_assurance.py replay public}
+  \item \code{python3 tools/permissionless_assurance.py replay critical}
+  \item \code{python3 tools/permissionless_assurance.py replay full}
+\end{itemize}
+
+\section{How to read the claim boundary}
+The public package uses a three-level distinction:
+\[
+\mathsf{FullTargetArchitecture} \supset \mathsf{CurrentPublicEvidenceFrontier} \supset \mathsf{CurrentRC1Claim}.
+\]
+Plain English: the complete intended architecture is broader than the public
+evidence frontier, and the evidence frontier is broader than the current RC1
+public claim.
+Practical consequence: the appendix helps reviewers see exactly which artifacts
+support which class of claim today.
+
+\end{document}

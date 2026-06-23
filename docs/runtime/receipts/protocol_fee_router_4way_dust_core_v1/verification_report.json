@@ -1,0 +1,141 @@
+{
+  "model_id": "protocol_fee_router_4way_dust_core_v1",
+  "ir_hash": "84de72755e172239",
+  "timestamp": "2026-05-31T06:52:26.033261+00:00",
+  "scope": {
+    "kind": "inductive",
+    "time": "unbounded",
+    "k": 1,
+    "solver_timeout_ms": 30000,
+    "solver_seed": 0,
+    "fail_closed": true,
+    "badge": "Inductive(k=1)",
+    "domain_caps": {
+      "state_vars": {
+        "dust": {
+          "kind": "int",
+          "min": 0,
+          "max": 3
+        },
+        "last_buyburn": {
+          "kind": "int",
+          "min": 0,
+          "max": 1003
+        },
+        "last_hosts": {
+          "kind": "int",
+          "min": 0,
+          "max": 1003
+        },
+        "last_reserve": {
+          "kind": "int",
+          "min": 0,
+          "max": 1003
+        },
+        "last_stakers": {
+          "kind": "int",
+          "min": 0,
+          "max": 1003
+        },
+        "rem_buyburn": {
+          "kind": "int",
+          "min": 0,
+          "max": 9999
+        },
+        "rem_hosts": {
+          "kind": "int",
+          "min": 0,
+          "max": 9999
+        },
+        "rem_reserve": {
+          "kind": "int",
+          "min": 0,
+          "max": 9999
+        },
+        "rem_stakers": {
+          "kind": "int",
+          "min": 0,
+          "max": 9999
+        },
+        "total_input": {
+          "kind": "int",
+          "min": 0,
+          "max": 10000
+        },
+        "total_routed": {
+          "kind": "int",
+          "min": 0,
+          "max": 10000
+        }
+      },
+      "params": {
+        "route": {
+          "amount": {
+            "kind": "int",
+            "min": 0,
+            "max": 1000
+          },
+          "buyburn_bps": {
+            "kind": "int",
+            "min": 0,
+            "max": 10000
+          },
+          "hosts_bps": {
+            "kind": "int",
+            "min": 0,
+            "max": 10000
+          },
+          "reserve_bps": {
+            "kind": "int",
+            "min": 0,
+            "max": 10000
+          },
+          "stakers_bps": {
+            "kind": "int",
+            "min": 0,
+            "max": 10000
+          }
+        }
+      },
+      "log2_state_space_upper_bound": 121.61273701768198
+    }
+  },
+  "environment_model": {
+    "scheduler": "sequential",
+    "adversary": "may choose any declared command each step with any in-domain parameters",
+    "command_space": [
+      "route"
+    ],
+    "notes": [
+      "No concurrency, reordering, or interleaving beyond repeated calls to step(state, command).",
+      "All behavior is defined by the ESSO kernel semantics (guards, simultaneous updates, canonicalizer, invariants)."
+    ]
+  },
+  "tool_versions": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "python": "3.12.3 (main, Mar 23 2026, 19:04:32) [GCC 13.3.0]",
+    "platform": "Linux-6.17.0-29-generic-x86_64-with-glibc2.39",
+    "solvers": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    },
+    "cargo": "cargo 1.87.0 (99624be96 2025-05-06)",
+    "rustfmt": "rustfmt 1.8.0-stable (17067e9ac6 2025-05-09)"
+  },
+  "z3_passed": true,
+  "cvc5_available": true,
+  "cvc5_passed": true,
+  "solvers_agreed": true,
+  "total_queries": 2,
+  "passed_queries": 2,
+  "failed_queries": 0,
+  "inconclusive_queries": 0,
+  "disagreements": [],
+  "lean_path": null,
+  "kani_path": null,
+  "smtlib_path": "/tmp/esso_fee4/smtlib",
+  "verdict": "VERIFIED",
+  "notes": [
+    "Cross-verified by Z3 and CVC5"
+  ]
+}

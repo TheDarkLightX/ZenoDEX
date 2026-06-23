@@ -1,0 +1,232 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "confidential_extension_receipt_gate_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: normalized confidential-extension receipt admission law.
+
+    Purpose:
+      - Make the numeric/flag gate behind confidential extension receipts explicit
+        and replayable.
+      - Cover attestation freshness, execute-time host-guard admissibility, and
+        fee/accounting invariants after string canonicalization and allowlist
+        membership have already been checked.
+
+    Scope:
+      - Models only normalized ints and bounded numeric fields.
+      - Does not model receipt hashing, policy digest parsing, or measurement
+        allowlist membership.
+
+observables:
+  state_vars:
+    [
+      "do_execute",
+      "policy_ok",
+      "nonce_unused",
+      "output_bound_ok",
+      "current_epoch",
+      "attestation_epoch",
+      "max_attestation_age",
+      "fee_charged",
+      "receipt_fee",
+      "credit_before",
+      "credit_after",
+      "provider_balance_before",
+      "provider_balance_after",
+    ]
+  effects:
+    [
+      "fresh_attestation_ok",
+      "host_guards_ok",
+      "accounting_ok",
+      "receipt_admissible",
+    ]
+
+types: []
+
+state_vars:
+  - id: "do_execute"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "policy_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "nonce_unused"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "output_bound_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "current_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4294967295 }
+  - id: "attestation_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4294967295 }
+  - id: "max_attestation_age"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+  - id: "fee_charged"
+    role: "data"
+    type: { kind: "int", min: 0, max: 32767 }
+  - id: "receipt_fee"
+    role: "data"
+    type: { kind: "int", min: 0, max: 32767 }
+  - id: "credit_before"
+    role: "data"
+    type: { kind: "int", min: 0, max: 65535 }
+  - id: "credit_after"
+    role: "data"
+    type: { kind: "int", min: 0, max: 65535 }
+  - id: "provider_balance_before"
+    role: "data"
+    type: { kind: "int", min: 0, max: 65535 }
+  - id: "provider_balance_after"
+    role: "data"
+    type: { kind: "int", min: 0, max: 65535 }
+
+init:
+  - var: "do_execute"
+    expr: { const: 0 }
+  - var: "policy_ok"
+    expr: { const: 0 }
+  - var: "nonce_unused"
+    expr: { const: 0 }
+  - var: "output_bound_ok"
+    expr: { const: 0 }
+  - var: "current_epoch"
+    expr: { const: 0 }
+  - var: "attestation_epoch"
+    expr: { const: 0 }
+  - var: "max_attestation_age"
+    expr: { const: 0 }
+  - var: "fee_charged"
+    expr: { const: 0 }
+  - var: "receipt_fee"
+    expr: { const: 0 }
+  - var: "credit_before"
+    expr: { const: 0 }
+  - var: "credit_after"
+    expr: { const: 0 }
+  - var: "provider_balance_before"
+    expr: { const: 0 }
+  - var: "provider_balance_after"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_bool_inputs"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "do_execute" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "do_execute" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "policy_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "policy_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "nonce_unused" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "nonce_unused" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "output_bound_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "output_bound_ok" }, { const: 1 }] }
+
+actions:
+  - id: "evaluate_confidential_extension_receipt_gate"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      fresh_attestation_ok:
+        op: "and"
+        args:
+          - { op: ">=", args: [{ var: "current_epoch" }, { var: "attestation_epoch" }] }
+          - op: "<="
+            args:
+              - op: "-"
+                args: [{ var: "current_epoch" }, { var: "attestation_epoch" }]
+              - { var: "max_attestation_age" }
+      host_guards_ok:
+        op: "or"
+        args:
+          - { op: "=", args: [{ var: "do_execute" }, { const: 0 }] }
+          - op: "and"
+            args:
+              - { op: "=", args: [{ var: "policy_ok" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "nonce_unused" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "output_bound_ok" }, { const: 1 }] }
+      accounting_ok:
+        op: "ite"
+        cond: { op: "=", args: [{ var: "do_execute" }, { const: 0 }] }
+        then:
+          op: "and"
+          args:
+            - { op: "=", args: [{ var: "fee_charged" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "receipt_fee" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "credit_after" }, { var: "credit_before" }] }
+            - { op: "=", args: [{ var: "provider_balance_after" }, { var: "provider_balance_before" }] }
+        else:
+          op: "and"
+          args:
+            - { op: ">", args: [{ var: "fee_charged" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "fee_charged" }, { var: "receipt_fee" }] }
+            - { op: ">=", args: [{ var: "credit_before" }, { var: "fee_charged" }] }
+            - op: "="
+              args:
+                - { var: "credit_after" }
+                - op: "-"
+                  args: [{ var: "credit_before" }, { var: "fee_charged" }]
+            - op: "="
+              args:
+                - { var: "provider_balance_after" }
+                - op: "+"
+                  args: [{ var: "provider_balance_before" }, { var: "fee_charged" }]
+      receipt_admissible:
+        op: "and"
+        args:
+          - op: "and"
+            args:
+              - { op: ">=", args: [{ var: "current_epoch" }, { var: "attestation_epoch" }] }
+              - op: "<="
+                args:
+                  - op: "-"
+                    args: [{ var: "current_epoch" }, { var: "attestation_epoch" }]
+                  - { var: "max_attestation_age" }
+          - op: "or"
+            args:
+              - { op: "=", args: [{ var: "do_execute" }, { const: 0 }] }
+              - op: "and"
+                args:
+                  - { op: "=", args: [{ var: "policy_ok" }, { const: 1 }] }
+                  - { op: "=", args: [{ var: "nonce_unused" }, { const: 1 }] }
+                  - { op: "=", args: [{ var: "output_bound_ok" }, { const: 1 }] }
+          - op: "ite"
+            cond: { op: "=", args: [{ var: "do_execute" }, { const: 0 }] }
+            then:
+              op: "and"
+              args:
+                - { op: "=", args: [{ var: "fee_charged" }, { const: 0 }] }
+                - { op: "=", args: [{ var: "receipt_fee" }, { const: 0 }] }
+                - { op: "=", args: [{ var: "credit_after" }, { var: "credit_before" }] }
+                - { op: "=", args: [{ var: "provider_balance_after" }, { var: "provider_balance_before" }] }
+            else:
+              op: "and"
+              args:
+                - { op: ">", args: [{ var: "fee_charged" }, { const: 0 }] }
+                - { op: "=", args: [{ var: "fee_charged" }, { var: "receipt_fee" }] }
+                - { op: ">=", args: [{ var: "credit_before" }, { var: "fee_charged" }] }
+                - op: "="
+                  args:
+                    - { var: "credit_after" }
+                    - op: "-"
+                      args: [{ var: "credit_before" }, { var: "fee_charged" }]
+                - op: "="
+                  args:
+                    - { var: "provider_balance_after" }
+                    - op: "+"
+                      args: [{ var: "provider_balance_before" }, { var: "fee_charged" }]

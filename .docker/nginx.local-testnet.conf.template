@@ -1,0 +1,433 @@
+# ZenoDEX Local-Testnet Nginx Configuration (template)
+#
+# This template is rendered by `tools/zenoctl_testnet_local/nginx.py` into
+# the user's out-dir at `<out_dir>/rendered/nginx.local-testnet.conf`
+# (NOT committed; contains the live writer/runtime bearer tokens for this
+# stack). The rendered file is mounted read-only into the nginx container
+# as `/etc/nginx/conf.d/zenodex.conf`.
+#
+# Path split (must match `src/integration/api_server.py` and
+# `tools/zeno_ledger_node.py serve` HTTP route ownership):
+#
+#   /api/pools, /api/swap, /tx            → ZenoLedger writer (bearer auth injected)
+#   /api/liquidity/create, /api/liquidity/add, /api/liquidity/remove → ZenoLedger writer
+#   /api/testnet/faucet, /api/tokenomics/*      → ZenoLedger writer
+#   /live, /live/*                         → ZenoLedger writer read-only live follow API
+#   /api/oracle/*                         → Zeno Oracle service
+#   /api/*  (everything else)             → stdlib API (bearer auth injected)
+#
+# Template placeholders (substituted at render time):
+#   ${WRITER_UPSTREAM}      e.g. "zeno-ledger-writer:8787"
+#   ${STDLIB_UPSTREAM}      e.g. "zenodex-api:8000"
+#   ${ORACLE_UPSTREAM}      e.g. "zenodex-oracle:9100"
+#   ${WRITER_TOKEN}         raw bearer token for writer mutations
+#   ${STDLIB_TOKEN}         raw bearer token for stdlib API
+#
+# The rendered file contains both raw tokens. It is loopback-only mounted;
+# it is never persisted into the operator release bundle or git. The
+# manifest stores only the sha256 of WRITER_TOKEN, never the raw value.
+
+limit_req_zone $binary_remote_addr zone=zenodex_api_per_ip:10m rate=10r/s;
+limit_conn_zone $binary_remote_addr zone=zenodex_addr:10m;
+
+map $http_origin $zenodex_origin_ok {
+    "" 1;
+    "~^https?://(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?$" 1;
+    "~*^https://[a-z0-9-]+\.trycloudflare\.com$" 1;
+    default 0;
+}
+
+map "$request_method:$http_content_type" $zenodex_write_content_type_ok {
+    "~^(GET|HEAD):" 1;
+    "~^POST:application/json($|;)" 1;
+    default 0;
+}
+
+# Combined mutation-origin check: avoids nested `if` (which nginx rejects).
+# Returns 1 when the request is a non-mutation (GET/HEAD) OR a same-origin
+# mutation. Returns 0 when a mutation (POST) arrives from a disallowed origin.
+map "$request_method:$zenodex_allowed_origin" $zenodex_mutation_origin_ok {
+    "~^(GET|HEAD):" 1;
+    "~^POST:1" 1;
+    default 0;
+}
+
+server {
+    listen 8080;
+    server_name _;
+    limit_req_status 429;
+    limit_conn_status 429;
+    client_header_timeout 10s;
+    client_body_timeout 10s;
+    keepalive_timeout 15s;
+    send_timeout 30s;
+
+    root /var/www/zenodex;
+    index index.html;
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
+    gzip_min_length 1000;
+
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), usb=(), payment=()" always;
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
+    add_header Cross-Origin-Resource-Policy "same-site" always;
+    # Same-origin policy: oracle is reverse-proxied via /api/oracle/, so
+    # connect-src 'self' is sufficient. Google Fonts are explicitly allow-listed
+    # for the design-system typography (Inter, IBM Plex Serif, JetBrains Mono):
+    # stylesheet from fonts.googleapis.com, woff2 files from fonts.gstatic.com.
+    add_header Content-Security-Policy "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'" always;
+
+
+    # Local CSRF defense: only accept same-origin mutation requests.
+    set $zenodex_allowed_origin 0;
+    if ($http_origin = "") {
+        set $zenodex_allowed_origin 1;
+    }
+    if ($http_origin ~* '^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$') {
+        set $zenodex_allowed_origin 1;
+    }
+
+    location /health {
+        access_log off;
+        return 200 '{"status":"healthy","service":"zenodex-local-testnet-nginx"}';
+        add_header Content-Type application/json;
+    }
+
+    location = /api/health {
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        proxy_pass http://${STDLIB_UPSTREAM}/health;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization "Bearer ${STDLIB_TOKEN}";
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+
+    # --- Public writer/node read routes -----------------------------------
+    location = /status {
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        proxy_pass http://${WRITER_UPSTREAM}/status;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+    location = /features {
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        proxy_pass http://${WRITER_UPSTREAM}/features;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+    location = /tokens {
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        proxy_pass http://${WRITER_UPSTREAM}/tokens;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+    location = /network {
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        proxy_pass http://${WRITER_UPSTREAM}/network;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+    location = /public_network_config.json {
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        proxy_pass http://${WRITER_UPSTREAM}/public_network_config.json;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+    location ^~ /ledger-bundle/ {
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        proxy_pass http://${WRITER_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+    location = /live {
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        proxy_pass http://${WRITER_UPSTREAM}/live;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+    location ^~ /live/ {
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        proxy_pass http://${WRITER_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+
+    # --- Writer-owned mutation routes (ledger node) -----------------------
+    location = /api/pools {
+        if ($zenodex_mutation_origin_ok = 0) { return 403; }
+        if ($zenodex_write_content_type_ok = 0) { return 415; }
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        client_max_body_size 512k;
+        proxy_pass http://${WRITER_UPSTREAM}/api/pools;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # Browser never holds the writer token; nginx injects it.
+        proxy_set_header Authorization "Bearer ${WRITER_TOKEN}";
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+    location = /api/swap {
+        if ($zenodex_mutation_origin_ok = 0) { return 403; }
+        if ($zenodex_write_content_type_ok = 0) { return 415; }
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        client_max_body_size 512k;
+        if ($zenodex_origin_ok = 0) { return 403; }
+        if ($zenodex_write_content_type_ok = 0) { return 415; }
+        proxy_pass http://${WRITER_UPSTREAM}/api/swap;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization "Bearer ${WRITER_TOKEN}";
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+    location = /api/liquidity/add {
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        client_max_body_size 512k;
+        if ($zenodex_origin_ok = 0) { return 403; }
+        if ($zenodex_write_content_type_ok = 0) { return 415; }
+        proxy_pass http://${WRITER_UPSTREAM}/api/liquidity/add;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization "Bearer ${WRITER_TOKEN}";
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+    location = /api/liquidity/create {
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        client_max_body_size 512k;
+        if ($zenodex_origin_ok = 0) { return 403; }
+        if ($zenodex_write_content_type_ok = 0) { return 415; }
+        proxy_pass http://${WRITER_UPSTREAM}/api/liquidity/create;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization "Bearer ${WRITER_TOKEN}";
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+    location = /api/liquidity/remove {
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        client_max_body_size 512k;
+        if ($zenodex_origin_ok = 0) { return 403; }
+        if ($zenodex_write_content_type_ok = 0) { return 415; }
+        proxy_pass http://${WRITER_UPSTREAM}/api/liquidity/remove;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization "Bearer ${WRITER_TOKEN}";
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+    location = /api/testnet/faucet {
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        client_max_body_size 512k;
+        if ($zenodex_origin_ok = 0) { return 403; }
+        if ($zenodex_write_content_type_ok = 0) { return 415; }
+        proxy_pass http://${WRITER_UPSTREAM}/faucet;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization "Bearer ${WRITER_TOKEN}";
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+    location = /api/tokenomics/status {
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        client_max_body_size 128k;
+        proxy_pass http://${WRITER_UPSTREAM}/api/tokenomics/status;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization "Bearer ${WRITER_TOKEN}";
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+    location = /api/tokenomics/active-participant/claim {
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        client_max_body_size 512k;
+        if ($zenodex_origin_ok = 0) { return 403; }
+        if ($zenodex_write_content_type_ok = 0) { return 415; }
+        proxy_pass http://${WRITER_UPSTREAM}/api/tokenomics/active-participant/claim;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization "Bearer ${WRITER_TOKEN}";
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+    location = /tx {
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        client_max_body_size 1m;
+        if ($zenodex_origin_ok = 0) { return 403; }
+        if ($zenodex_write_content_type_ok = 0) { return 415; }
+        proxy_pass http://${WRITER_UPSTREAM}/tx;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization "Bearer ${WRITER_TOKEN}";
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+
+    # --- Oracle routes -----------------------------------------------------
+    location ^~ /api/oracle/ {
+        if ($zenodex_mutation_origin_ok = 0) { return 403; }
+        if ($zenodex_write_content_type_ok = 0) { return 415; }
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        client_max_body_size 512k;
+        proxy_pass http://${ORACLE_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+
+    # --- Stdlib API (everything else) -------------------------------------
+    location ^~ /api/ {
+        limit_req zone=zenodex_api_per_ip burst=30 nodelay;
+        limit_conn zenodex_addr 20;
+        client_max_body_size 512k;
+        if ($zenodex_origin_ok = 0) { return 403; }
+        proxy_pass http://${STDLIB_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # Browser never holds the stdlib API token; nginx injects it.
+        proxy_set_header Authorization "Bearer ${STDLIB_TOKEN}";
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 60s;
+    }
+
+    # SPA routing - serve index.html for all non-file routes
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Cache static assets
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        add_header X-Frame-Options "DENY" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), usb=(), payment=()" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        add_header Cross-Origin-Resource-Policy "same-site" always;
+        add_header Content-Security-Policy "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'" always;
+    }
+}

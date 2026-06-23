@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenodex.dev/fire/spec/fire-replay-input.schema.json",
+  "title": "FIRE Replay Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "object_name",
+    "object_version",
+    "object_family",
+    "object_hash",
+    "instance_hash",
+    "holder_posted",
+    "writer_posted",
+    "holder_balance",
+    "writer_balance",
+    "witness_inputs"
+  ],
+  "properties": {
+    "schema": {
+      "const": "zenodex/fire-replay-input/v1"
+    },
+    "object_name": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "object_version": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "object_family": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "object_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "instance_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "holder_posted": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "writer_posted": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "holder_balance": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "writer_balance": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "witness_inputs": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer"
+      }
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

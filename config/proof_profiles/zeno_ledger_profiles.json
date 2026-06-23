@@ -1,0 +1,85 @@
+{
+  "schema": "zenodex/zeno_ledger/proof_profiles/v1",
+  "coverage_matrix_path": "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json",
+  "coverage_matrix_sha256": "bafc5178eddec5c15c0c8c1a1374d9bf9c1ae5f0ec075761811650d485dd2bab",
+  "profiles": [
+    {
+      "profile_id": "spot_v1_single_pool_success",
+      "covered": [
+        "create_pool",
+        "swap_exact_in",
+        "add_liquidity",
+        "remove_liquidity",
+        "liquidity_cycle_block",
+        "nonce_sequencing",
+        "accepted_receipts_root"
+      ],
+      "not_covered": [
+        "rejected_receipts",
+        "swap_exact_out",
+        "upba_batch_clearing",
+        "multi_hop",
+        "native_assets"
+      ],
+      "non_claims": [
+        "does_not_claim_rejected_receipt_execution",
+        "does_not_claim_spot_v1_exact_out_zk_execution",
+        "does_not_claim_upba_zk_execution",
+        "does_not_claim_multi_hop_execution",
+        "does_not_claim_native_asset_sync"
+      ]
+    },
+    {
+      "profile_id": "spot_v2_upba",
+      "covered": [
+        "upba_batch_clearing_inside_guest",
+        "bounded_grid_certificate_verification",
+        "fill_vector_root_binding",
+        "candidate_root_binding"
+      ],
+      "not_covered": [
+        "unbounded_rational_optimality",
+        "oracle_truth",
+        "fair_inclusion"
+      ],
+      "non_claims": [
+        "does_not_claim_unbounded_rational_optimality",
+        "does_not_claim_oracle_truth_or_governance",
+        "does_not_claim_fair_inclusion"
+      ]
+    },
+    {
+      "profile_id": "ingress_v1",
+      "covered": [
+        "rejected_receipts",
+        "production_admission_semantics",
+        "api_envelope_validation",
+        "nonce_replay_rejection"
+      ],
+      "not_covered": [
+        "wallet_key_custody",
+        "external_oracle_truth"
+      ],
+      "non_claims": [
+        "does_not_claim_wallet_key_custody",
+        "does_not_claim_external_oracle_truth"
+      ]
+    },
+    {
+      "profile_id": "recursive_block_v1",
+      "covered": [
+        "transaction_proof_aggregation",
+        "block_level_receipt",
+        "recursive_profile_metadata_binding"
+      ],
+      "not_covered": [
+        "production_finality",
+        "open_validator_network_liveness"
+      ],
+      "non_claims": [
+        "does_not_claim_light_client_finality",
+        "does_not_claim_open_validator_network_liveness"
+      ]
+    }
+  ]
+}

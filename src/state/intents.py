@@ -7,9 +7,11 @@ that are collected and settled in batches.
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from .balances import PubKey
+from .canonical import canonical_hex_fixed_allow_0x
+from .pools import normalize_pool_asset_pair
 
 
 class IntentKind(Enum):
@@ -19,6 +21,8 @@ class IntentKind(Enum):
     REMOVE_LIQUIDITY = "REMOVE_LIQUIDITY"
     SWAP_EXACT_IN = "SWAP_EXACT_IN"
     SWAP_EXACT_OUT = "SWAP_EXACT_OUT"
+    ROUTE_EXACT_IN = "ROUTE_EXACT_IN"
+    ROUTE_EXACT_OUT = "ROUTE_EXACT_OUT"
 
 
 @dataclass
@@ -51,9 +55,11 @@ class Intent:
         """Validate intent structure."""
         if self.module != "TauSwap":
             raise ValueError(f"Invalid module: {self.module}")
-        
-        if not self.intent_id.startswith("0x") or len(self.intent_id) != 66:
-            raise ValueError(f"Invalid intent_id format: {self.intent_id}")
+
+        try:
+            self.intent_id = canonical_hex_fixed_allow_0x(self.intent_id, nbytes=32, name="intent_id")
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid intent_id format: {self.intent_id}") from exc
         
         if self.fields is None:
             self.fields = {}
@@ -112,6 +118,120 @@ class SwapIntent(Intent):
 
 
 @dataclass
+class RouteIntent(Intent):
+    """
+    Atomic route settlement intent (exact-in or exact-out).
+
+    A RouteIntent binds a single quoted multi-leg route to one signature: every
+    leg validates and applies, or the whole route is rejected with no state
+    change. This model validates only the *shape* of the route request; the
+    full-coverage-vs-receipt check, pool-fingerprint binding, replay/deadline,
+    and totals enforcement are engine-side (see
+    docs/ATOMIC_ROUTE_SETTLEMENT_DESIGN.md).
+
+    Fields (stored in the `.fields` dict):
+        quote_receipt_hash: 32-byte hex hash binding the exact quoted route.
+        asset_in, asset_out: route endpoints (non-empty, distinct).
+        leg_indices: the receipt leg indices covered by this route — a
+            non-empty list of non-negative ints, strictly ascending (sorted,
+            no duplicates).
+        ROUTE_EXACT_IN:  total_amount_in (>0) + total_min_amount_out (>=0).
+        ROUTE_EXACT_OUT: total_amount_out (>0) + total_max_amount_in (>=0,
+            REQUIRED — fail-closed against unbounded total input).
+    """
+
+    def __post_init__(self):
+        """Validate route intent fields (shape only; engine validates the rest)."""
+        super().__post_init__()
+
+        if self.kind not in (IntentKind.ROUTE_EXACT_IN, IntentKind.ROUTE_EXACT_OUT):
+            raise ValueError(f"Invalid kind for RouteIntent: {self.kind}")
+
+        # quote_receipt_hash: required, valid 32-byte hash hex (same convention
+        # as intent_id). A present-but-None value must also fail closed.
+        quote_receipt_hash = self.get_field("quote_receipt_hash")
+        try:
+            quote_receipt_hash = canonical_hex_fixed_allow_0x(
+                quote_receipt_hash, nbytes=32, name="quote_receipt_hash"
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Invalid quote_receipt_hash format: {quote_receipt_hash}"
+            ) from exc
+        self.set_field("quote_receipt_hash", quote_receipt_hash)
+
+        # Route endpoints: non-empty distinct strings (recipient idiom — a bare
+        # `if not x` would let a truthy non-string through).
+        asset_in = self.get_field("asset_in")
+        asset_out = self.get_field("asset_out")
+        if not isinstance(asset_in, str) or not asset_in:
+            raise ValueError("asset_in must be a non-empty string")
+        if not isinstance(asset_out, str) or not asset_out:
+            raise ValueError("asset_out must be a non-empty string")
+        if asset_in == asset_out:
+            raise ValueError("asset_in must differ from asset_out")
+
+        # leg_indices: non-empty list of non-negative ints, strictly ascending
+        # (rejects both unsorted and duplicates). Check list-ness FIRST so a
+        # str is not iterated char-by-char.
+        leg_indices = self.get_field("leg_indices")
+        if not isinstance(leg_indices, list) or not leg_indices:
+            raise ValueError("leg_indices must be a non-empty list")
+        for idx in leg_indices:
+            if not isinstance(idx, int) or isinstance(idx, bool) or idx < 0:
+                raise ValueError("leg_indices must be non-negative ints")
+        if not all(a < b for a, b in zip(leg_indices, leg_indices[1:])):
+            raise ValueError("leg_indices must be strictly ascending with no duplicates")
+
+        # Totals: kind-specific required fields, with the opposite kind's amount
+        # fields forbidden (fail-closed against mixed exact-in/exact-out).
+        if self.kind == IntentKind.ROUTE_EXACT_IN:
+            total_amount_in = self.get_field("total_amount_in")
+            total_min_amount_out = self.get_field("total_min_amount_out")
+            if (
+                total_amount_in is None
+                or not isinstance(total_amount_in, int)
+                or isinstance(total_amount_in, bool)
+                or total_amount_in <= 0
+            ):
+                raise ValueError("total_amount_in must be positive")
+            if (
+                total_min_amount_out is None
+                or not isinstance(total_min_amount_out, int)
+                or isinstance(total_min_amount_out, bool)
+                or total_min_amount_out < 0
+            ):
+                raise ValueError("total_min_amount_out must be non-negative")
+            if "total_amount_out" in self.fields or "total_max_amount_in" in self.fields:
+                raise ValueError(
+                    "ROUTE_EXACT_IN must not carry exact-out fields "
+                    "(total_amount_out, total_max_amount_in)"
+                )
+        else:  # ROUTE_EXACT_OUT
+            total_amount_out = self.get_field("total_amount_out")
+            total_max_amount_in = self.get_field("total_max_amount_in")
+            if (
+                total_amount_out is None
+                or not isinstance(total_amount_out, int)
+                or isinstance(total_amount_out, bool)
+                or total_amount_out <= 0
+            ):
+                raise ValueError("total_amount_out must be positive")
+            if (
+                total_max_amount_in is None
+                or not isinstance(total_max_amount_in, int)
+                or isinstance(total_max_amount_in, bool)
+                or total_max_amount_in < 0
+            ):
+                raise ValueError("total_max_amount_in must be non-negative")
+            if "total_amount_in" in self.fields or "total_min_amount_out" in self.fields:
+                raise ValueError(
+                    "ROUTE_EXACT_OUT must not carry exact-in fields "
+                    "(total_amount_in, total_min_amount_out)"
+                )
+
+
+@dataclass
 class CreatePoolIntent(Intent):
     """Create pool intent."""
     
@@ -131,9 +251,13 @@ class CreatePoolIntent(Intent):
         if not asset0 or not asset1:
             raise ValueError("Missing required fields: asset0, asset1")
         
-        # Canonical ordering
-        if asset0 >= asset1:
-            raise ValueError(f"Assets must be in canonical order: {asset0} < {asset1}")
+        try:
+            asset0_norm, asset1_norm = normalize_pool_asset_pair(asset0, asset1)
+        except Exception:
+            raise ValueError(f"Assets must be in canonical order: {asset0} < {asset1}") from None
+        if self.fields is not None:
+            self.fields["asset0"] = asset0_norm
+            self.fields["asset1"] = asset1_norm
         
         if fee_bps is None or not (0 <= fee_bps <= 10000):
             raise ValueError(f"fee_bps must be in [0, 10000]: {fee_bps}")

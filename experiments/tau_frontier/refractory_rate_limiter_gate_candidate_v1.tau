@@ -1,0 +1,24 @@
+# CATEGORY: recurrence-loops / refractory rate-limiter candidate
+# CLAIM: a stateful one-bit admission gate that accepts only rising-edge requests.
+#
+# Stream mapping:
+#   i1 = request pulse for a scarce/disaster-sensitive action
+#   o1 = admitted pulse
+#
+# Contract:
+#   o1[t] = i1[t] & ~i1[t-1]
+#
+# The output is accepted only when the current request is present and the prior
+# input was absent. In both supported Tau builds, the t<0 history for this
+# input-lag pattern behaves fail-closed for a high first input, so the gate
+# requires one observed quiet step before the first accept. A continuously high
+# request stream is rejected until a quiet step rearms the gate.
+#
+# This is a candidate, not a recommended spec yet. Promotion should wait until
+# the recommended Tau proof-plan registry is clean and can assign a profile/rule
+# without increasing semantic-view drift.
+set charvar off
+
+always
+  (o1[t]:sbf = (i1[t]:sbf & (i1[t-1]:sbf)')).
+end

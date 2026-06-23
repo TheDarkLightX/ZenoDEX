@@ -1,51 +1,44 @@
 #![no_std]
+#![no_main]
 
 extern crate alloc;
 
+use alloc::vec;
 use risc0_zkvm::guest::env;
 use tau_state_proof_risc0_shared::{
-    txs_commitment_v1, DexStateV1, StateProofInputV1, StateProofJournalV1, JOURNAL_VERSION,
+    execute_perps_np_transition_v1, execute_state_proof_input_v1, execute_zusd_transition_v1,
+    ZenoProofInputV1,
 };
 
 risc0_zkvm::guest::entry!(main);
 
 pub fn main() {
-    let input: StateProofInputV1 = env::read();
-
-    let mut state = DexStateV1::from_snapshot(input.pre_state)
-        .expect("invalid pre_state (snapshot decode/validation failed)");
-
-    let computed_pre = state.canonical_app_hash_sha256();
-    if input.pre_app_hash_present {
-        assert_eq!(
-            computed_pre, input.pre_app_hash,
-            "pre_app_hash mismatch (pre_state hash does not match expected)"
-        );
+    let mut input_len = 0u32;
+    env::read_slice(core::slice::from_mut(&mut input_len));
+    let mut input_bytes = vec![0u8; input_len as usize];
+    env::read_slice(&mut input_bytes);
+    let input: ZenoProofInputV1 =
+        postcard::from_bytes(&input_bytes).expect("failed to decode postcard proof input");
+    match input {
+        ZenoProofInputV1::Spot(input) => {
+            let journal =
+                execute_state_proof_input_v1(input).expect("tauswap proof transition rejected");
+            commit_journal(&journal);
+        }
+        ZenoProofInputV1::PerpsNp(input) => {
+            let journal =
+                execute_perps_np_transition_v1(input).expect("perps np proof transition rejected");
+            commit_journal(&journal);
+        }
+        ZenoProofInputV1::Zusd(input) => {
+            let journal =
+                execute_zusd_transition_v1(input).expect("zusd proof transition rejected");
+            commit_journal(&journal);
+        }
     }
+}
 
-    let txs_commitment = txs_commitment_v1(&input.txs);
-    for tx in &input.txs {
-        state
-            .apply_tx(tx, input.block_timestamp)
-            .expect("tx rejected by tauswap proof transition");
-    }
-
-    // Final native sync to match the app-bridge behavior.
-    state.sync_native_balances_post(&input.chain_balances_post);
-
-    let post = state.canonical_app_hash_sha256();
-    assert_eq!(
-        post, input.expected_post_app_hash,
-        "post_app_hash mismatch (computed app hash does not match expected)"
-    );
-
-    let journal = StateProofJournalV1 {
-        journal_version: JOURNAL_VERSION,
-        state_hash: input.state_hash,
-        txs_commitment,
-        pre_app_hash_present: input.pre_app_hash_present,
-        pre_app_hash: input.pre_app_hash,
-        post_app_hash: post,
-    };
-    env::commit(&journal);
+fn commit_journal<T: serde::Serialize>(journal: &T) {
+    let journal_bytes = postcard::to_allocvec(journal).expect("failed to encode postcard journal");
+    env::commit_slice(&journal_bytes);
 }

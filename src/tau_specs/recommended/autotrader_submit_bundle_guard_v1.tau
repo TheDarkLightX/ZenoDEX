@@ -1,0 +1,67 @@
+# AutoTrader Submit Bundle Guard v1
+#
+# PURPOSE: Validate the final signed-intent bundle and optional Tau tx payload
+# emitted by the live auto-trader shell.
+#
+# i1 = emit_requested
+# i2 = signed_intents_present
+# i3 = signatures_present
+# i4 = signatures_verify
+# i5 = sender_binding_ok
+# i6 = quote_receipts_present
+# i7 = operations_roundtrip_ok
+# i8 = tx_requested
+# i9 = tx_payload_ok
+# o1 = signed_intents_ok
+# o2 = submission_binding_ok
+# o3 = transport_roundtrip_ok
+# o4 = effective_tx_payload_ok
+# o5 = submit_bundle_ok
+
+set charvar off
+
+always
+  (
+    o1[t]:sbf = 1:sbf <->
+    (
+      (i2[t]:sbf = 1:sbf) &&
+      (i3[t]:sbf = 1:sbf) &&
+      (i4[t]:sbf = 1:sbf)
+    )
+  ) &&
+  (
+    o2[t]:sbf = 1:sbf <->
+    (
+      (i5[t]:sbf = 1:sbf) &&
+      (i6[t]:sbf = 1:sbf)
+    )
+  ) &&
+  (
+    o3[t]:sbf = 1:sbf <->
+    (i7[t]:sbf = 1:sbf)
+  ) &&
+  (
+    o4[t]:sbf = 1:sbf <->
+    (
+      (i8[t]:sbf = 0:sbf) ||
+      (i9[t]:sbf = 1:sbf)
+    )
+  ) &&
+  (
+    o5[t]:sbf = 1:sbf <->
+    (
+      (i1[t]:sbf = 0:sbf) ||
+      (
+        (i2[t]:sbf = 1:sbf) &&
+        (i3[t]:sbf = 1:sbf) &&
+        (i4[t]:sbf = 1:sbf) &&
+        (i5[t]:sbf = 1:sbf) &&
+        (i6[t]:sbf = 1:sbf) &&
+        (i7[t]:sbf = 1:sbf) &&
+        (
+          (i8[t]:sbf = 0:sbf) ||
+          (i9[t]:sbf = 1:sbf)
+        )
+      )
+    )
+  ).

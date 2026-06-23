@@ -1,0 +1,287 @@
+{
+  "model_id": "perp_epoch_isolated_v2",
+  "ir_hash": "fda07ba1e3a9d0fe",
+  "timestamp": "2026-05-31T13:33:45.624134+00:00",
+  "scope": {
+    "kind": "inductive",
+    "time": "unbounded",
+    "k": 1,
+    "solver_timeout_ms": 30000,
+    "solver_seed": 0,
+    "fail_closed": true,
+    "badge": "Inductive(k=1)",
+    "domain_caps": {
+      "state_vars": {
+        "breaker_active": {
+          "kind": "bool"
+        },
+        "breaker_last_trigger_epoch": {
+          "kind": "int",
+          "min": 0,
+          "max": 1000000
+        },
+        "claims_paid": {
+          "kind": "int",
+          "min": 0,
+          "max": 1000000000000000
+        },
+        "clearing_price_e8": {
+          "kind": "int",
+          "min": 0,
+          "max": 1000000000000
+        },
+        "clearing_price_epoch": {
+          "kind": "int",
+          "min": 0,
+          "max": 1000000
+        },
+        "clearing_price_seen": {
+          "kind": "bool"
+        },
+        "collateral_quote": {
+          "kind": "int",
+          "min": 0,
+          "max": 1000000000000000
+        },
+        "depeg_buffer_bps": {
+          "kind": "int",
+          "min": 0,
+          "max": 5000
+        },
+        "entry_price_e8": {
+          "kind": "int",
+          "min": 0,
+          "max": 1000000000000
+        },
+        "fee_income": {
+          "kind": "int",
+          "min": 0,
+          "max": 1000000000000000
+        },
+        "fee_pool_quote": {
+          "kind": "int",
+          "min": 0,
+          "max": 1000000000000000
+        },
+        "funding_cap_bps": {
+          "kind": "int",
+          "min": 1,
+          "max": 10000
+        },
+        "funding_last_applied_epoch": {
+          "kind": "int",
+          "min": 0,
+          "max": 1000000
+        },
+        "funding_paid_cumulative": {
+          "kind": "int",
+          "min": -1000000000000000,
+          "max": 1000000000000000
+        },
+        "funding_rate_bps": {
+          "kind": "int",
+          "min": -10000,
+          "max": 10000
+        },
+        "index_price_e8": {
+          "kind": "int",
+          "min": 0,
+          "max": 1000000000000
+        },
+        "initial_insurance": {
+          "kind": "int",
+          "min": 0,
+          "max": 1000000000000000
+        },
+        "initial_margin_bps": {
+          "kind": "int",
+          "min": 0,
+          "max": 10000
+        },
+        "insurance_balance": {
+          "kind": "int",
+          "min": 0,
+          "max": 1000000000000000
+        },
+        "liquidated_this_step": {
+          "kind": "bool"
+        },
+        "liquidation_penalty_bps": {
+          "kind": "int",
+          "min": 0,
+          "max": 10000
+        },
+        "maintenance_margin_bps": {
+          "kind": "int",
+          "min": 0,
+          "max": 10000
+        },
+        "max_oracle_move_bps": {
+          "kind": "int",
+          "min": 0,
+          "max": 10000
+        },
+        "max_oracle_staleness_epochs": {
+          "kind": "int",
+          "min": 1,
+          "max": 1000000
+        },
+        "max_position_abs": {
+          "kind": "int",
+          "min": 1,
+          "max": 1000000
+        },
+        "min_notional_for_bounty": {
+          "kind": "int",
+          "min": 0,
+          "max": 1000000000000
+        },
+        "now_epoch": {
+          "kind": "int",
+          "min": 0,
+          "max": 1000000
+        },
+        "oracle_last_update_epoch": {
+          "kind": "int",
+          "min": 0,
+          "max": 1000000
+        },
+        "oracle_seen": {
+          "kind": "bool"
+        },
+        "position_base": {
+          "kind": "int",
+          "min": -1000000,
+          "max": 1000000
+        }
+      },
+      "params": {
+        "advance_epoch": {
+          "delta": {
+            "kind": "int",
+            "min": 1,
+            "max": 10000
+          }
+        },
+        "apply_funding": {
+          "auth_ok": {
+            "kind": "bool"
+          },
+          "new_rate_bps": {
+            "kind": "int",
+            "min": -10000,
+            "max": 10000
+          }
+        },
+        "apply_insurance_claim": {
+          "auth_ok": {
+            "kind": "bool"
+          },
+          "claim_amount": {
+            "kind": "int",
+            "min": 1,
+            "max": 1000000000000
+          }
+        },
+        "clear_breaker": {
+          "auth_ok": {
+            "kind": "bool"
+          }
+        },
+        "deposit_collateral": {
+          "amount": {
+            "kind": "int",
+            "min": 1,
+            "max": 1000000000000
+          },
+          "auth_ok": {
+            "kind": "bool"
+          }
+        },
+        "deposit_insurance": {
+          "amount": {
+            "kind": "int",
+            "min": 1,
+            "max": 1000000000000
+          }
+        },
+        "publish_clearing_price": {
+          "price_e8": {
+            "kind": "int",
+            "min": 1,
+            "max": 1000000000000
+          }
+        },
+        "set_position": {
+          "auth_ok": {
+            "kind": "bool"
+          },
+          "new_position_base": {
+            "kind": "int",
+            "min": -1000000,
+            "max": 1000000
+          }
+        },
+        "settle_epoch": {},
+        "withdraw_collateral": {
+          "amount": {
+            "kind": "int",
+            "min": 1,
+            "max": 1000000000000
+          },
+          "auth_ok": {
+            "kind": "bool"
+          }
+        }
+      },
+      "log2_state_space_upper_bound": 766.7224793563021
+    }
+  },
+  "environment_model": {
+    "scheduler": "sequential",
+    "adversary": "may choose any declared command each step with any in-domain parameters",
+    "command_space": [
+      "advance_epoch",
+      "apply_funding",
+      "apply_insurance_claim",
+      "clear_breaker",
+      "deposit_collateral",
+      "deposit_insurance",
+      "publish_clearing_price",
+      "set_position",
+      "settle_epoch",
+      "withdraw_collateral"
+    ],
+    "notes": [
+      "No concurrency, reordering, or interleaving beyond repeated calls to step(state, command).",
+      "All behavior is defined by the ESSO kernel semantics (guards, simultaneous updates, canonicalizer, invariants)."
+    ]
+  },
+  "tool_versions": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "python": "3.12.3 (main, Mar 23 2026, 19:04:32) [GCC 13.3.0]",
+    "platform": "Linux-6.17.0-29-generic-x86_64-with-glibc2.39",
+    "solvers": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    },
+    "cargo": "cargo 1.87.0 (99624be96 2025-05-06)",
+    "rustfmt": "rustfmt 1.8.0-stable (17067e9ac6 2025-05-09)"
+  },
+  "z3_passed": true,
+  "cvc5_available": true,
+  "cvc5_passed": true,
+  "solvers_agreed": true,
+  "total_queries": 11,
+  "passed_queries": 11,
+  "failed_queries": 0,
+  "inconclusive_queries": 0,
+  "disagreements": [],
+  "lean_path": null,
+  "kani_path": null,
+  "smtlib_path": null,
+  "verdict": "VERIFIED",
+  "notes": [
+    "Cross-verified by Z3 and CVC5"
+  ]
+}

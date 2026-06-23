@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chaos_campaign_state_v1.schema.json",
+  "title": "Chaos Campaign State",
+  "description": "Aggregated campaign state for regret-aware chaos experiment scheduling.",
+  "type": "object",
+  "required": [
+    "schema",
+    "generated_at",
+    "runs_root",
+    "experiments_dir",
+    "context_key",
+    "experiments"
+  ],
+  "properties": {
+    "schema": {
+      "const": "chaos/campaign_state/v1"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "runs_root": {
+      "type": "string"
+    },
+    "experiments_dir": {
+      "type": "string"
+    },
+    "context_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "selected_experiment": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "total_experiments": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "total_runs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "experiments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "priority",
+          "stats",
+          "current_context",
+          "oracle",
+          "scenario",
+          "safety_budget"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "perturbation_type": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "severity": {
+            "type": "number"
+          },
+          "blast_radius": {
+            "type": "number"
+          },
+          "cost_estimate_s": {
+            "type": "number"
+          },
+          "oracle": {
+            "type": "object",
+            "required": [
+              "kind",
+              "source",
+              "metrics",
+              "stop_conditions"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "metrics": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "stop_conditions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "scenario": {
+            "type": "object",
+            "required": [
+              "faults",
+              "state_axes",
+              "composition",
+              "scope"
+            ],
+            "properties": {
+              "faults": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "state_axes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "composition": {
+                "type": "string"
+              },
+              "scope": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          "safety_budget": {
+            "type": "object",
+            "required": [
+              "max_blast_radius",
+              "max_duration_s",
+              "max_error_budget_burn_rate",
+              "production_slice_percent",
+              "requires_rollback",
+              "stop_conditions"
+            ],
+            "properties": {
+              "max_blast_radius": {
+                "type": "number"
+              },
+              "max_duration_s": {
+                "type": "number"
+              },
+              "max_error_budget_burn_rate": {
+                "type": "number"
+              },
+              "production_slice_percent": {
+                "type": "number"
+              },
+              "requires_rollback": {
+                "type": "boolean"
+              },
+              "stop_conditions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "stats": {
+            "type": "object"
+          },
+          "current_context": {
+            "type": "object"
+          },
+          "priority": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

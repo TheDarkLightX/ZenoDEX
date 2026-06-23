@@ -1,0 +1,149 @@
+{
+  "schema": "zenodex/tau/spec-contract/v1",
+  "spec_id": "nonce_replay_guard_v1",
+  "spec_path": "src/tau_specs/recommended/nonce_replay_guard_v1.tau",
+  "kind": "combinational_guard",
+  "contract_status": "active",
+  "proof_scope": "bounded_assurance_domain",
+  "human_summary": "Strict sequential nonce guard with an externally supplied expected nonce under bv32 wraparound arithmetic.",
+  "assumptions": [
+    "The caller provides expected_nonce as an input rather than deriving it inside Tau.",
+    "All arithmetic is unsigned bv32 arithmetic with wraparound semantics.",
+    "The contract reflects exact current behavior, including the wraparound edge when last_used_nonce = 0xFFFFFFFF."
+  ],
+  "input_domain": {
+    "streams": [
+      {
+        "name": "i1",
+        "type": "bv32",
+        "role": "intent_nonce",
+        "bounds": {
+          "min": 0,
+          "max": 4294967295
+        }
+      },
+      {
+        "name": "i2",
+        "type": "bv32",
+        "role": "last_used_nonce",
+        "bounds": {
+          "min": 0,
+          "max": 4294967295
+        }
+      },
+      {
+        "name": "i3",
+        "type": "bv32",
+        "role": "expected_nonce",
+        "bounds": {
+          "min": 0,
+          "max": 4294967295
+        }
+      }
+    ],
+    "domain_model": "total_bitvector_product",
+    "intended_preconditions": [
+      "The current v1 public contract treats o2 and o3 as independent standalone outputs.",
+      "Sequentiality alone is not claimed to imply freshness."
+    ],
+    "analysis_partitions": [
+      {
+        "id": "expected_matches_but_intent_not_fresh",
+        "formula": "(i3 == ((i2 + 1) & 0xFFFFFFFF)) && !(i1 > i2) && (i1 == i3)",
+        "intent": "Wraparound and equality edge cases where o1 and o3 may hold without o2."
+      },
+      {
+        "id": "fresh_but_not_sequential",
+        "formula": "(i1 > i2) && !(i1 == i3)",
+        "intent": "Freshness is weaker than strict sequentiality."
+      }
+    ]
+  },
+  "outputs": [
+    {
+      "name": "o1",
+      "type": "sbf",
+      "meaning": "expected_ok",
+      "contract_formula": "o1 = 1 iff (i3 == ((i2 + 1) & 0xFFFFFFFF))",
+      "contract_expr": "1 if i3 == ((i2 + 1) & 0xFFFFFFFF) else 0"
+    },
+    {
+      "name": "o2",
+      "type": "sbf",
+      "meaning": "nonce_fresh",
+      "contract_formula": "o2 = 1 iff (i1 > i2)",
+      "contract_expr": "1 if i1 > i2 else 0"
+    },
+    {
+      "name": "o3",
+      "type": "sbf",
+      "meaning": "nonce_sequential",
+      "contract_formula": "o3 = 1 iff (i1 == i3)",
+      "contract_expr": "1 if i1 == i3 else 0"
+    },
+    {
+      "name": "o4",
+      "type": "sbf",
+      "meaning": "nonce_replay_valid",
+      "contract_formula": "o4 = 1 iff (o1 = 1 && o2 = 1 && o3 = 1)",
+      "contract_expr": "1 if (i3 == ((i2 + 1) & 0xFFFFFFFF) and i1 > i2 and i1 == i3) else 0"
+    }
+  ],
+  "behavior_partition": {
+    "partition_basis": "output_vector",
+    "coverage_goal": "promotion_gate",
+    "reachable_vectors_must_be_witnessed": true,
+    "unreachable_vectors_must_be_proved": true
+  },
+  "theorems": [
+    {
+      "id": "o4_exact",
+      "kind": "exactness",
+      "statement": "For all inputs, o4 is exactly the conjunction of expected_ok, nonce_fresh, and nonce_sequential.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact",
+        "tau_differential_exec"
+      ]
+    },
+    {
+      "id": "o3_not_imply_o2",
+      "kind": "reachability",
+      "statement": "There exists an explicit input where o3 = 1 but o2 = 0, disproving the stronger review claim.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact",
+        "tau_differential_exec"
+      ]
+    },
+    {
+      "id": "atlas_disjoint",
+      "kind": "partition_disjointness",
+      "statement": "Distinct nonce_replay_guard_v1 output-vector regions are pairwise disjoint over the explicit input domain.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact"
+      ]
+    },
+    {
+      "id": "atlas_exhaustive",
+      "kind": "partition_exhaustiveness",
+      "statement": "The nonce_replay_guard_v1 behavior atlas covers the explicit input domain.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact"
+      ]
+    },
+    {
+      "id": "tau_interpreter_equiv",
+      "kind": "interpreter_equivalence",
+      "statement": "The contract semantics and the Tau binary agree on the bounded assurance domain for nonce_replay_guard_v1.",
+      "preferred_mechanization": [
+        "tau_differential_exec"
+      ]
+    }
+  ],
+  "evidence_links": [
+    {
+      "kind": "bounded_assurance",
+      "path": "tests/tau/spec_assurance_registry.json",
+      "note": "The assurance registry already carries the o3-does-not-imply-o2 counterexample posture."
+    }
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "schema": "zenodex.zeno_ledger.proof_coverage_matrix.v0",
+  "supported_surfaces": [
+    {
+      "id": "zk_tee_metadata_composition",
+      "claim_id": "lean:zeno_ledger:zk_tee_proof_composition_v1",
+      "coverage": "Lean model for accepted proof metadata binding, TEE/recursive/zkVM field discipline, and digest uniqueness under an explicit injectivity assumption.",
+      "proof_kind": "model"
+    },
+    {
+      "id": "risc0_spot_transition_metadata_adapter",
+      "claim_id": "py:zeno_ledger:risc0_proof_metadata_adapter_v0",
+      "coverage": "Risc0 spot-transition proof envelope to ZenoLedger proof metadata, including header binding, optional verifier-command acceptance, optional proof app-hash to header state-root checks, and metadata binding for ingress, nonce, and accepted-receipt roots.",
+      "proof_kind": "risc0_zkvm_v0"
+    },
+    {
+      "id": "risc0_spot_fixture_equivalence",
+      "claim_id": "rust_py:zeno_ledger:risc0_zenodex_spot_v1_fixture_equivalence_v0",
+      "coverage": "Rust shared transition and Python spot fixtures agree for CPMM pool-id hashing, create-pool, faucet mint, swap-exact-in, add-liquidity, and remove-liquidity fixture semantics.",
+      "proof_kind": "risc0_zkvm_v0"
+    },
+    {
+      "id": "risc0_supported_transition_real_proof_smoke",
+      "claim_id": "rust:zeno_ledger:risc0_supported_transition_real_proof_smoke_v0",
+      "coverage": "Opt-in real Risc0 proof smoke for empty transition plus faucet mint, create-pool, swap-exact-in, add-liquidity, remove-liquidity, and one multi-transaction spot liquidity-cycle block over the supported spot v1 operation families, with guest nonce sequencing, accepted-receipt roots, and emitted ZenoLedger body/header/proof-metadata bindings checked by the archive checker.",
+      "proof_kind": "risc0_zkvm_v0"
+    },
+    {
+      "id": "proof_required_range_replay",
+      "claim_id": "py:zeno_ledger:proof_required_profile_metadata_replay_v0",
+      "coverage": "ZenoLedger range verifier requires proof metadata per checked height when the active profile or bridge policy requires proof journals.",
+      "proof_kind": "metadata_replay"
+    },
+    {
+      "id": "proof_verification_report_replay",
+      "claim_id": "py:zeno_ledger:proof_verification_report_replay_v0",
+      "coverage": "ZenoLedger range verifier can require per-height proof-verification reports that match header-bound proof metadata.",
+      "proof_kind": "metadata_replay"
+    },
+    {
+      "id": "light_client_checkpoint_quorum",
+      "claim_id": "py:zeno_ledger:light_client_checkpoint_quorum_v0",
+      "coverage": "Local light-client checkpoint verifier binds verified header/body/checkpoint replay to a signer-registry signature-set root and BLS checkpoint quorum.",
+      "proof_kind": "checkpoint_quorum_replay"
+    }
+  ],
+  "gap_surfaces": [
+    {
+      "id": "uniform_batch_upba_v2_v3_real_proof",
+      "required_for": "UPBA proof coverage",
+      "gap": "No real zkVM proof currently covers UPBA v2/v3 batch clearing, exact-out, or candidate-grid optimality."
+    },
+    {
+      "id": "oracle_critical_action_real_proof",
+      "required_for": "Oracle-backed settlement proof coverage",
+      "gap": "No real zkVM proof currently covers ZenoOracle critical-action packets or oracle truth/governance assumptions."
+    },
+    {
+      "id": "zusd_lifecycle_real_proof",
+      "required_for": "zUSD proof coverage",
+      "gap": "No real zkVM proof currently covers zUSD mint, liquidation, recovery, or supply-conservation lifecycle transitions."
+    },
+    {
+      "id": "perps_settlement_real_proof",
+      "required_for": "Perps proof coverage",
+      "gap": "No real zkVM proof currently covers perps settlement, liquidation, ADL, funding, or insurance transitions."
+    },
+    {
+      "id": "proof_market_reward_real_proof",
+      "required_for": "Proof-market proof coverage",
+      "gap": "No real zkVM proof currently covers proof-mining manager rewards, claimability, or reward payout bridge execution."
+    },
+    {
+      "id": "light_client_production_finality",
+      "required_for": "Production light-client finality",
+      "gap": "Local checkpoint quorum replay now binds one verified chain segment to a signer registry and BLS quorum, but production validator rotation, fork-choice, slashing, peer discovery, and adversarial network finality remain out of scope."
+    },
+    {
+      "id": "recursive_epoch_real_proof",
+      "required_for": "Recursive proof coverage",
+      "gap": "Recursive proof metadata fields are modeled and validated, but no real recursive epoch receipt aggregation is implemented."
+    }
+  ],
+  "non_claims": [
+    "does_not_claim_complete_spot_block_zk_proof",
+    "does_not_claim_upba_zk_execution",
+    "does_not_claim_oracle_truth_or_governance",
+    "does_not_claim_zusd_or_perps_zk_execution",
+    "does_not_claim_proof_market_zk_execution",
+    "does_not_claim_light_client_finality",
+    "does_not_claim_recursive_epoch_proof_soundness"
+  ]
+}

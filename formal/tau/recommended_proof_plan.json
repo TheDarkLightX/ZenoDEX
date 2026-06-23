@@ -1,0 +1,345 @@
+{
+  "schema": "zenodex/tau/formal-proof-plan/v1",
+  "root": "src/tau_specs/recommended",
+  "goal": "Every recommended Tau spec must be assigned to an explicit formal-proof profile before promotion.",
+  "profiles": [
+    {
+      "id": "exact_combinational_guard",
+      "required_artifacts": [
+        "contract",
+        "behavior_atlas",
+        "tau_differential_report"
+      ],
+      "required_theorems": [
+        "exactness",
+        "partition_disjointness",
+        "partition_exhaustiveness",
+        "interpreter_equivalence"
+      ],
+      "mechanization_stack": [
+        "smt_bitvector_exact",
+        "tau_differential_exec"
+      ]
+    },
+    {
+      "id": "multi_limb_word_arithmetic",
+      "required_artifacts": [
+        "contract",
+        "behavior_atlas",
+        "carry_borrow_lemma_set",
+        "tau_differential_report"
+      ],
+      "required_theorems": [
+        "exactness",
+        "partition_disjointness",
+        "partition_exhaustiveness",
+        "interpreter_equivalence"
+      ],
+      "mechanization_stack": [
+        "lean_rechecked",
+        "smt_bitvector_exact",
+        "tau_differential_exec"
+      ]
+    },
+    {
+      "id": "proof_gate_or_certificate",
+      "required_artifacts": [
+        "contract",
+        "behavior_atlas",
+        "kernel_or_witness_link",
+        "tau_differential_report"
+      ],
+      "required_theorems": [
+        "soundness",
+        "completeness",
+        "partition_disjointness",
+        "partition_exhaustiveness",
+        "interpreter_equivalence"
+      ],
+      "mechanization_stack": [
+        "smt_bitvector_exact",
+        "lean_rechecked",
+        "tau_differential_exec"
+      ]
+    },
+    {
+      "id": "bundle_or_composition",
+      "required_artifacts": [
+        "contract",
+        "behavior_atlas",
+        "assume_guarantee_map",
+        "tau_differential_report"
+      ],
+      "required_theorems": [
+        "soundness",
+        "completeness",
+        "partition_disjointness",
+        "partition_exhaustiveness",
+        "interpreter_equivalence"
+      ],
+      "mechanization_stack": [
+        "smt_bitvector_exact",
+        "lean_rechecked",
+        "tau_differential_exec"
+      ]
+    },
+    {
+      "id": "stateful_policy_guard",
+      "required_artifacts": [
+        "contract",
+        "behavior_atlas",
+        "state_transition_notes",
+        "tau_differential_report"
+      ],
+      "required_theorems": [
+        "exactness",
+        "partition_disjointness",
+        "partition_exhaustiveness",
+        "interpreter_equivalence"
+      ],
+      "mechanization_stack": [
+        "smt_bitvector_exact",
+        "lean_rechecked",
+        "tau_differential_exec"
+      ]
+    },
+    {
+      "id": "default_combinational_guard",
+      "required_artifacts": [
+        "contract",
+        "behavior_atlas"
+      ],
+      "required_theorems": [
+        "exactness",
+        "partition_disjointness",
+        "partition_exhaustiveness"
+      ],
+      "mechanization_stack": [
+        "smt_bitvector_exact"
+      ]
+    }
+  ],
+  "seed_artifacts": [
+    {
+      "spec_id": "oracle_freshness_v2",
+      "spec_path": "src/tau_specs/recommended/oracle_freshness_v2.tau",
+      "contract_path": "formal/tau/contracts/oracle_freshness_v2.contract.json",
+      "atlas_path": "formal/tau/atlases/oracle_freshness_v2.atlas.json"
+    },
+    {
+      "spec_id": "rate_limiter_v1",
+      "spec_path": "src/tau_specs/recommended/rate_limiter_v1.tau",
+      "contract_path": "formal/tau/contracts/rate_limiter_v1.contract.json",
+      "atlas_path": "formal/tau/atlases/rate_limiter_v1.atlas.json"
+    },
+    {
+      "spec_id": "nonce_replay_guard_v1",
+      "spec_path": "src/tau_specs/recommended/nonce_replay_guard_v1.tau",
+      "contract_path": "formal/tau/contracts/nonce_replay_guard_v1.contract.json",
+      "atlas_path": "formal/tau/atlases/nonce_replay_guard_v1.atlas.json"
+    },
+    {
+      "spec_id": "sandwich_detection_v1",
+      "spec_path": "src/tau_specs/recommended/sandwich_detection_v1.tau",
+      "contract_path": "formal/tau/contracts/sandwich_detection_v1.contract.json",
+      "atlas_path": "formal/tau/atlases/sandwich_detection_v1.atlas.json"
+    }
+  ],
+  "rules": [
+    {
+      "id": "seed_disputed_specs",
+      "priority": "wave0",
+      "profile": "exact_combinational_guard",
+      "include": [
+        "oracle_freshness_v2.tau",
+        "rate_limiter_v1.tau",
+        "nonce_replay_guard_v1.tau",
+        "sandwich_detection_v1.tau"
+      ]
+    },
+    {
+      "id": "multi_limb_arithmetic_specs",
+      "priority": "wave1",
+      "profile": "multi_limb_word_arithmetic",
+      "include": [
+        "balance_transition_v1.tau",
+        "protocol_token_policy_v1.tau",
+        "protocol_token_v1.tau",
+        "swap_exact_in_v1.tau",
+        "swap_exact_out_v1.tau",
+        "settlement_v4_buyback_floor_rebate_lock.tau"
+      ]
+    },
+    {
+      "id": "proof_gates_and_certificates",
+      "priority": "wave2",
+      "profile": "proof_gate_or_certificate",
+      "include_globs": [
+        "*proof_gate*.tau",
+        "*certificate*.tau"
+      ]
+    },
+    {
+      "id": "bundles_and_compositions",
+      "priority": "wave2",
+      "profile": "bundle_or_composition",
+      "include_globs": [
+        "*bundle*.tau",
+        "*compose*.tau"
+      ]
+    },
+    {
+      "id": "autotrader_suite",
+      "priority": "wave3",
+      "profile": "bundle_or_composition",
+      "include_globs": [
+        "autotrader_*.tau"
+      ]
+    },
+    {
+      "id": "resource_and_service_suite",
+      "priority": "wave3",
+      "profile": "stateful_policy_guard",
+      "include_globs": [
+        "resource_*.tau",
+        "service_proof_registry_v1.tau"
+      ]
+    },
+    {
+      "id": "perp_suite",
+      "priority": "wave3",
+      "profile": "stateful_policy_guard",
+      "include_globs": [
+        "perp_*.tau"
+      ]
+    },
+    {
+      "id": "zusd_suite",
+      "priority": "wave3",
+      "profile": "stateful_policy_guard",
+      "include_globs": [
+        "zusd_*.tau"
+      ]
+    },
+    {
+      "id": "governance_and_policy_suite",
+      "priority": "wave4",
+      "profile": "stateful_policy_guard",
+      "include": [
+        "epoch_monotonic_step_gate_v1.tau",
+        "intent_oneshot_admission_gate_v1.tau",
+        "oracle_sustained_freshness_2epoch_gate_v1.tau",
+        "quiet_window_request_gate_v1.tau",
+        "withdrawal_dispute_window_gate_v1.tau"
+      ],
+      "include_globs": [
+        "governance_*.tau",
+        "proposal_*.tau",
+        "quorum_validator_v1.tau",
+        "emergency_pause_v1.tau",
+        "timelock_enforcement_v1.tau",
+        "revision_policy_*.tau",
+        "parameter_*.tau",
+        "nonce_*.tau",
+        "role_transition_guard_v1.tau",
+        "vote_weight_v1.tau",
+        "treasury_*.tau"
+      ]
+    },
+    {
+      "id": "batching_and_settlement_suite",
+      "priority": "wave4",
+      "profile": "bundle_or_composition",
+      "include_globs": [
+        "batch*.tau",
+        "settlement_*.tau"
+      ]
+    },
+    {
+      "id": "token_and_protocol_suite",
+      "priority": "wave4",
+      "profile": "exact_combinational_guard",
+      "include_globs": [
+        "token*.tau",
+        "tokenomics*.tau",
+        "protocol_token*.tau",
+        "protocol_fee_*.tau",
+        "supply_cap_v1.tau",
+        "tdex_*.tau"
+      ]
+    },
+    {
+      "id": "amm_and_orderflow_suite",
+      "priority": "wave5",
+      "profile": "exact_combinational_guard",
+      "include_globs": [
+        "add_liquidity_*.tau",
+        "remove_liquidity_*.tau",
+        "arbitrage_bounds_v1.tau",
+        "balance_safety_v1.tau",
+        "burn_receipt_*.tau",
+        "circuit_breaker_v1.tau",
+        "concentrated_liquidity_range_v1.tau",
+        "cpmm_v1.tau",
+        "create_pool_*.tau",
+        "fee_accrual_proof_v1.tau",
+        "fee_distribution_v1.tau",
+        "fhe_sealed_bid_alpha_guard_v1.tau",
+        "flash_loan_guard_v1.tau",
+        "intent_expiry_guard_v1.tau",
+        "limit_order_bounds_v1.tau",
+        "liquidity_utilization_cap_v1.tau",
+        "lp_*.tau",
+        "mev_protection_v1.tau",
+        "oracle_bounded_move_gate_v1.tau",
+        "oracle_freshness_*.tau",
+        "partial_fill_guard_v1.tau",
+        "pool_params_binding_guard_v1.tau",
+        "position_limit_v1.tau",
+        "order_route_decision_table_v1.tau",
+        "price_*.tau",
+        "reserve_*.tau",
+        "route_path_valid_v1.tau",
+        "sandwich_*.tau",
+        "slippage_*.tau",
+        "swap_*.tau",
+        "test_orchestrator_v1.tau",
+        "transfer_hook_guard_v1.tau",
+        "usage_rebate_tiered_v1.tau",
+        "volume_anomaly_guard_v1.tau"
+      ]
+    },
+    {
+      "id": "frontier_backfill_stateful_gates",
+      "priority": "wave6",
+      "profile": "stateful_policy_guard",
+      "include": [
+        "atomic_batch_commit_guard_v1.tau",
+        "commit_reveal_binding_guard_v1.tau",
+        "confidential_extension_live_admission_v1.tau",
+        "cross_module_conservation_consistency_v1.tau",
+        "disaster_axis_safe_noop_guard_v1.tau",
+        "dispute_window_finality_guard_v1.tau",
+        "idempotency_window_guard_v1.tau",
+        "incident_latch_reset_quorum_guard_v1.tau",
+        "isolated_margin_no_cascade_guard_v1.tau",
+        "key_rotation_admission_guard_v1.tau",
+        "mev_batch_atomic_replay_guard_v1.tau",
+        "optimizer_audited_bounds_liveness_v1.tau",
+        "optimizer_audited_bounds_liveness_v2.tau",
+        "oracle_committee_commit_admission_v1.tau",
+        "oracle_epoch_equivocation_guard_v1.tau",
+        "payout_template_age_replay_envelope_v1.tau",
+        "proof_mining_payout_replay_guard_v1.tau",
+        "public_testnet_node_admission_guard_v1.tau",
+        "release_artifact_manifest_binding_guard_v1.tau",
+        "routing_decision_tree_guard_v1.tau",
+        "runtime_action_capability_envelope_v1.tau",
+        "secure_signer_operation_admission_v1.tau",
+        "sss_recovery_share_quorum_guard_v1.tau",
+        "tau_policy_shadow_migration_gate_v1.tau",
+        "wallet_recovery_envelope_guard_v1.tau"
+      ]
+    }
+  ]
+}

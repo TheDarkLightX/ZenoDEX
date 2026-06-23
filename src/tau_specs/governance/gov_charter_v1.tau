@@ -1,0 +1,37 @@
+# gov_charter_v1.tau  --  ZenoDEX governance: autonomy CHARTER validity bit (standing approval)
+# MUTABILITY: UPDATABLE (the gate logic); TTL_MAX is an IMMUTABLE constitutional constant
+# SHAPE: dead-man-switch standing approval. Real autonomy cannot use per-revision human
+# approval (that is what it replaces); instead a CHARTER -- a governed, revocable,
+# EXPIRING grant -- is the `approved` source for the autonomous lane. This bit says
+# whether the charter is valid AT `now`:
+#   not revoked, ttl within the constitutional cap, granted in the past (wrap-guard),
+#   and now still strictly inside the ttl window.
+# If humans stop renewing, the charter expires and the autonomous lane halts to HOLD --
+# autonomy fails CLOSED, it does not run forever on a stale grant.
+#
+# Inputs:
+#   i1 = revoked       (sbf)     -- guardian/governance revocation flag (committed)
+#   i2 = granted_epoch (bv[16])  -- epoch the charter was granted/renewed (committed)
+#   i3 = now_epoch     (bv[16])  -- current epoch
+#   i4 = ttl           (bv[16])  -- epochs of validity granted
+# Output:
+#   o1 = charter_ok (sbf) -- 1 iff !revoked AND ttl <= TTL_MAX AND granted <= now
+#                            AND now - granted < ttl
+#
+# IMMUTABLE guardrail (changeable only by a spec-version bump, never by revision --
+# and NEVER by the autonomous lane itself: no self-amendment):
+#   TTL_MAX = 4096 ({ #x1000 }) -- no perpetual charter; every grant must expire.
+#
+# Notes: `now - granted < ttl` is STRICT -- a charter of ttl T is valid for epochs
+# granted .. granted+T-1, expired at granted+T. ttl = 0 is never valid (dead at birth).
+# Wrap-safety: `granted <= now` guards the subtraction; without it a future-dated
+# `granted` near 2^16 would modular-wrap `now - granted` into a small in-ttl value.
+
+always
+  (o1[t]:sbf = 1:sbf <->
+    ( (i1[t]:sbf = 0:sbf)
+      && (i4[t]:bv[16] <= { #x1000 }:bv[16])
+      && (i3[t]:bv[16] >= i2[t]:bv[16])
+      && ((i3[t]:bv[16] - i2[t]:bv[16]) < i4[t]:bv[16])
+    )
+  ).

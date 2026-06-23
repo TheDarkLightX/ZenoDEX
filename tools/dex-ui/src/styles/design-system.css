@@ -1,161 +1,442 @@
-/* ZenoDEX Design System */
+/* ZenoDEX Design System
+ *
+ * Two themes, sharing the same structure (typography, spacing, radii,
+ * motion). Color tokens live in [data-theme="*"] blocks so the toggle
+ * in the header can swap palettes at runtime by setting `data-theme`
+ * on <html>.
+ *
+ *   - dark   (default) — the ZenoDEX brand: cyan + purple on slate.
+ *   - light            — paper-white on warm off-white, same brand
+ *                        accents tuned for AA contrast on light bg.
+ */
+
+/* ---------------------------------------------------------------- */
+/* Structure tokens — shared across all themes                       */
+/* ---------------------------------------------------------------- */
 :root {
-  /* Colors - Dark Theme */
-  --bg-primary: #0f0f12;
-  --bg-secondary: #1c1c22;
-  --bg-tertiary: #2a2a33;
-  --bg-panel: rgba(28, 28, 34, 0.95);
-  
-  /* Text */
-  --text-primary: #f2f2f2;
-  --text-secondary: #9aa0a6;
-  --text-muted: #6b7280;
-  
-  /* Accent Colors */
-  --accent-cyan: #4cc9f0;
-  --accent-cyan-dim: #3ba8cc;
-  --accent-orange: #f4a261;
-  --accent-green: #22c55e;
-  --accent-red: #ef4444;
-  --accent-purple: #a78bfa;
-  
-  /* Gradients */
-  --gradient-bg: radial-gradient(ellipse 1200px 600px at 10% 0%, #16202a, #0f0f12);
-  --gradient-accent: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
-  --gradient-panel: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0));
-  
-  /* Borders */
-  --border-primary: #2a2a33;
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
-  --shadow-glow: 0 0 20px rgba(76, 201, 240, 0.15);
-  
-  /* Spacing */
+  /* Spacing (8px scale) */
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 16px;
   --space-lg: 24px;
   --space-xl: 32px;
   --space-2xl: 48px;
-  
-  /* Border Radius */
+
+  /* Border radius (kept moderately rounded — the brand identity) */
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
   --radius-xl: 24px;
   --radius-full: 9999px;
-  
-  /* Typography */
-  --font-sans: "SF Pro Text", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: "SF Mono", "Fira Code", "Consolas", monospace;
-  
+
+  /* Typography pairing */
+  --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-serif: "IBM Plex Serif", "Iowan Old Style", Georgia, serif;
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", "SF Mono", "Fira Code", "Consolas", monospace;
+
   --font-size-xs: 11px;
   --font-size-sm: 13px;
   --font-size-base: 15px;
+  --font-size-md: 14px;
   --font-size-lg: 18px;
   --font-size-xl: 22px;
   --font-size-2xl: 28px;
   --font-size-3xl: 36px;
-  
-  /* Transitions */
+
+  --tracking-tight: -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.06em;
+  --tracking-widest: 0.12em;
+
+  /* Motion */
   --transition-fast: 150ms ease;
   --transition-base: 250ms ease;
   --transition-slow: 400ms ease;
 }
 
+/* ---------------------------------------------------------------- */
+/* Theme: DARK (default — original ZenoDEX brand)                    */
+/* ---------------------------------------------------------------- */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg-base: #0f0f12;
+  --bg-primary: #0f0f12;
+  --bg-secondary: #1c1c22;
+  --bg-tertiary: #2a2a33;
+  --bg-elev-1: #1c1c22;
+  --bg-elev-2: #2a2a33;
+  --bg-panel: rgba(25, 25, 30, 0.7);
+  /* --card-bg / --panel-bg are referenced by the older modal/history/skeleton
+     CSS modules with hardcoded dark fallbacks. Defining them in both themes
+     is what flips those surfaces when the user switches mode instead of
+     pinning them to the dark default the fallback baked in. */
+  --card-bg: #15151a;
+  --card-border: rgba(255, 255, 255, 0.08);
+  --panel-bg: #1c1c22;
+
+  --text-primary: #f2f2f2;
+  --text-secondary: #9aa0a6;
+  --text-muted: #6b7280;
+  --text-faint: #4b5159;
+
+  /* Brand accents — restored cyan + purple */
+  --accent-cyan: #4cc9f0;
+  --accent-cyan-dim: #3ba8cc;
+  --accent-purple: #a78bfa;
+  --accent-orange: #f4a261;
+  --accent-green: #22c55e;
+  --accent-red: #ef4444;
+
+  /* RGB tuples — for rgba(var(--*-rgb), alpha) patterns. Keep in sync
+   * with the hex values above. */
+  --accent-cyan-rgb: 76, 201, 240;
+  --accent-purple-rgb: 167, 139, 250;
+  --accent-orange-rgb: 244, 162, 97;
+  --accent-green-rgb: 34, 197, 94;
+  --accent-red-rgb: 239, 68, 68;
+  --accent-signal-rgb: var(--accent-cyan-rgb);
+  --accent-confirm-rgb: var(--accent-green-rgb);
+
+  /* Signal aliases used by Pass-1 components */
+  --accent-signal: var(--accent-cyan);
+  --accent-signal-soft: rgba(var(--accent-signal-rgb), 0.12);
+  --accent-confirm: var(--accent-green);
+  --accent-confirm-soft: rgba(var(--accent-confirm-rgb), 0.12);
+  --accent-warn: #f59e0b;
+  --accent-warn-soft: rgba(245, 158, 11, 0.12);
+  --accent-danger: var(--accent-red);
+  --accent-danger-soft: rgba(var(--accent-red-rgb), 0.12);
+
+  /* On-accent text — used as `color` on filled accent buttons. */
+  --btn-primary-text: #061018;
+
+  /* Perpetuals semantic colors */
+  --perp-long: #22c55e;
+  --perp-short: #ef4444;
+  --perp-long-bg: rgba(34, 197, 94, 0.10);
+  --perp-short-bg: rgba(239, 68, 68, 0.10);
+  --perp-warning: #f59e0b;
+  --perp-warning-bg: rgba(245, 158, 11, 0.10);
+  --perp-extreme: #dc2626;
+  --perp-extreme-bg: rgba(220, 38, 38, 0.15);
+
+  /* Atmosphere — the original radial vignette + cyan-purple gradient */
+  --gradient-bg: radial-gradient(ellipse 1200px 600px at 10% 0%, #16202a, #0f0f12);
+  --gradient-accent: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+  --gradient-panel: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0));
+
+  --border-primary: rgba(255, 255, 255, 0.08);
+  --border-subtle: rgba(255, 255, 255, 0.04);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 20px rgba(76, 201, 240, 0.15);
+  --shadow-glow-strong: 0 0 30px rgba(76, 201, 240, 0.25), 0 0 60px rgba(76, 201, 240, 0.08);
+
+  /* Film grain intensity (overridden per theme) */
+  /* Premium Glassmorphism & UI variables */
+  --panel-bg-glass: rgba(15, 15, 18, 0.6);
+  --border-glass: rgba(255, 255, 255, 0.08);
+  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  --input-bg-glass: rgba(0, 0, 0, 0.2);
+  --input-border-glass: rgba(255, 255, 255, 0.1);
+  --header-gradient: linear-gradient(to right, #ffffff, var(--text-secondary));
+  --toolbar-bg: rgba(15, 15, 18, 0.8);
+  --header-bg: rgba(10, 10, 12, 0.92);
+
+  --grain-opacity: 0.025;
+  --grain-blend: overlay;
+}
+
+/* ---------------------------------------------------------------- */
+/* Theme: LIGHT — warm paper + same brand accents                    */
+/* ---------------------------------------------------------------- */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-base: #f8f9fa;
+  --bg-primary: #ffffff;
+  --bg-secondary: #f1f3f5;
+  --bg-tertiary: #e9ecef;
+  --bg-elev-1: #ffffff;
+  --bg-elev-2: #f8f9fa;
+  --bg-panel: rgba(255, 255, 255, 0.85);
+  /* Light-theme card / panel surfaces. Older CSS modules rely on --card-bg
+     and --panel-bg with #12131a / #1a1b23 baked in as fallbacks. Defining
+     both here is what flips them when the user switches to light. */
+  --card-bg: #ffffff;
+  --card-border: rgba(26, 26, 31, 0.12);
+  --panel-bg: #f4f5f7;
+
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
+  --text-faint: #9ca3af;
+
+  /* Brand accents — adjusted for sharp AA contrast on pure white/grey */
+  --accent-cyan: #0284c7;
+  --accent-cyan-dim: #0369a1;
+  --accent-purple: #7c3aed;
+  --accent-orange: #ea580c;
+  --accent-green: #059669;
+  --accent-red: #dc2626;
+
+  /* RGB tuples — keep in sync with hexes above */
+  --accent-cyan-rgb: 8, 145, 178;
+  --accent-purple-rgb: 124, 58, 237;
+  --accent-orange-rgb: 234, 88, 12;
+  --accent-green-rgb: 21, 128, 61;
+  --accent-red-rgb: 185, 28, 28;
+  --accent-signal-rgb: var(--accent-cyan-rgb);
+  --accent-confirm-rgb: var(--accent-green-rgb);
+
+  --accent-signal: var(--accent-cyan);
+  --accent-signal-soft: rgba(var(--accent-signal-rgb), 0.10);
+  --accent-confirm: var(--accent-green);
+  --accent-confirm-soft: rgba(var(--accent-confirm-rgb), 0.10);
+  --accent-warn: #c2410c;
+  --accent-warn-soft: rgba(194, 65, 12, 0.10);
+  --accent-danger: var(--accent-red);
+  --accent-danger-soft: rgba(var(--accent-red-rgb), 0.10);
+
+  /* On-accent text — white reads on the deeper cyan/orange/green light-mode accents. */
+  --btn-primary-text: #ffffff;
+
+  --perp-long: var(--accent-green);
+  --perp-short: var(--accent-red);
+  --perp-long-bg: rgba(21, 128, 61, 0.08);
+  --perp-short-bg: rgba(185, 28, 28, 0.08);
+  --perp-warning: #c2410c;
+  --perp-warning-bg: rgba(194, 65, 12, 0.10);
+  --perp-extreme: #991b1b;
+  --perp-extreme-bg: rgba(153, 27, 27, 0.10);
+
+  /* Atmosphere — pure, clean workspace */
+  --gradient-bg: radial-gradient(ellipse 1200px 600px at 10% 0%, #f1f3f5, #f8f9fa);
+  --gradient-accent: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+  --gradient-panel: linear-gradient(180deg, rgba(0, 0, 0, 0.01), rgba(0, 0, 0, 0));
+
+  --border-primary: rgba(26, 26, 31, 0.10);
+  --border-subtle: rgba(26, 26, 31, 0.06);
+  --border-strong: rgba(26, 26, 31, 0.20);
+
+  --shadow-sm: 0 1px 2px rgba(20, 20, 30, 0.05);
+  --shadow-md: 0 4px 16px rgba(20, 20, 30, 0.08);
+  --shadow-lg: 0 12px 40px rgba(20, 20, 30, 0.12);
+  --shadow-glow: 0 0 16px rgba(8, 145, 178, 0.18);
+  --shadow-glow-strong: 0 0 24px rgba(8, 145, 178, 0.28);
+
+  /* Premium Glassmorphism & UI variables */
+  --panel-bg-glass: rgba(255, 255, 255, 0.65);
+  --border-glass: rgba(0, 0, 0, 0.08);
+  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.05);
+  --input-bg-glass: rgba(255, 255, 255, 0.8);
+  --input-border-glass: rgba(0, 0, 0, 0.1);
+  --header-gradient: linear-gradient(to right, var(--text-primary), var(--text-secondary));
+  --toolbar-bg: rgba(255, 255, 255, 0.8);
+  --header-bg: rgba(255, 255, 255, 0.92);
+
+  --grain-opacity: 0.018;
+  --grain-blend: multiply;
+}
+
 /* CSS Reset */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
 html {
+  min-height: 100%;
+  background-color: var(--bg-base);
+  background-attachment: fixed;
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body {
   font-family: var(--font-sans);
-  background: var(--gradient-bg);
+  /* Tabular lining figures globally — single biggest fintech-UI
+   * credibility lift. Every digit takes the same width so prices and
+   * sizes don't shift on update. tnum + lnum together. */
+  font-variant-numeric: lining-nums tabular-nums;
+  font-feature-settings: "tnum", "lnum", "ss01", "cv11";
+  background-color: var(--bg-base);
   color: var(--text-primary);
   line-height: 1.5;
+  letter-spacing: var(--tracking-normal);
   min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--bg-base);
+  pointer-events: none;
+}
+
+/* Subtle film-grain overlay to add atmosphere without competing with
+ * content. Generated via SVG noise filter; ~3KB inline. Opacity and
+ * blend mode are theme-aware (overlay reads as light on dark; multiply
+ * reads as dark on light). */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: var(--grain-opacity, 0.025);
+  mix-blend-mode: var(--grain-blend, overlay);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background-size: 200px 200px;
+}
+
+/* Editorial headings — serif for gravitas. Numerics still in mono. */
+h1, h2, h3 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.15;
+}
+
+h4, h5, h6 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: var(--tracking-normal);
+}
+
+/* Inline mono for any number / hash / identifier. */
+code, kbd, samp, .mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "ss01", "ss02", "tnum";
+}
+
+/* Tabular numerals everywhere by default — financial UI. */
+.num,
+input[type="number"],
+input[inputmode="decimal"],
+input[inputmode="numeric"] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }
 
 /* Global Link Styles */
 a {
-  color: var(--accent-cyan);
+  color: var(--accent-signal);
   text-decoration: none;
-  transition: color var(--transition-fast);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
 }
 
 a:hover {
-  color: var(--accent-cyan-dim);
+  border-bottom-color: currentColor;
 }
 
-/* Panel Component */
+a:focus-visible {
+  outline: 2px solid var(--accent-signal);
+  outline-offset: 2px;
+}
+
+/* Panel Component — hairline borders, near-square, no backdrop-blur. */
 .panel {
   background: var(--bg-panel);
   border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
-  padding: var(--space-lg);
-  backdrop-filter: blur(12px);
-  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+}
+
+[data-theme="light"] .panel {
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.panel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(var(--accent-signal-rgb), 0.3) inset;
+}
+
+[data-theme="light"] .panel {
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .panel:hover {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(var(--accent-signal-rgb), 0.3) inset;
 }
 
 .panel-glass {
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.08),
-    rgba(255, 255, 255, 0.02)
-  );
+  background: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.03),
+      rgba(255, 255, 255, 0));
   border: 1px solid var(--border-subtle);
 }
 
-/* Button Styles */
+/* Button Styles — sharp, low-radius, hairline borders.
+   `min-height: 32px` keeps every primary/secondary button above the WCAG 2.2
+   24×24 target-size floor; densely packed text buttons (`.btn-xs`) override
+   this with a still-comfortable 28px floor. */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-sm);
+  min-height: 32px;
   padding: var(--space-sm) var(--space-md);
+  font-family: var(--font-sans);
   font-size: var(--font-size-sm);
   font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
   border-radius: var(--radius-md);
-  border: none;
+  border: 1px solid transparent;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast),
+              color var(--transition-fast), transform var(--transition-fast);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--accent-signal);
+  outline-offset: 2px;
 }
 
 .btn-primary {
-  background: var(--accent-cyan);
-  color: #061018;
+  background: var(--accent-signal);
+  color: var(--btn-primary-text);
+  border-color: var(--accent-signal);
 }
 
 .btn-primary:hover {
-  filter: brightness(1.1);
-  box-shadow: var(--shadow-glow);
+  background: #ff8556;
+  border-color: #ff8556;
 }
 
 .btn-primary:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .btn-secondary {
-  background: var(--bg-tertiary);
+  background: transparent;
   color: var(--text-primary);
-  border: 1px solid var(--border-primary);
+  border: 1px solid var(--border-strong);
 }
 
 .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(245, 240, 230, 0.04);
+  border-color: var(--text-secondary);
 }
 
 .btn-large {
@@ -164,23 +445,46 @@ a:hover {
   border-radius: var(--radius-lg);
 }
 
-/* Input Styles */
+/* Input Styles — institutional, no soft glow on focus. */
 .input {
   width: 100%;
   padding: var(--space-sm) var(--space-md);
   font-size: var(--font-size-base);
   font-family: var(--font-sans);
   color: var(--text-primary);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-primary);
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   outline: none;
-  transition: all var(--transition-fast);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-.input:focus {
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 0 3px rgba(76, 201, 240, 0.15);
+.input:hover {
+  border-color: var(--text-muted);
+}
+
+[data-theme="light"] .input {
+  background: rgba(0, 0, 0, 0.02);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .input:hover {
+  border-color: rgba(0, 0, 0, 0.3);
+}
+
+.input:focus,
+.input:focus:hover {
+  border-color: var(--accent-signal);
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0 0 1px var(--accent-signal), inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .input:focus,
+[data-theme="light"] .input:focus:hover {
+  background: #ffffff;
+  box-shadow: 0 0 0 1px var(--accent-signal), inset 0 2px 4px rgba(0, 0, 0, 0.02);
 }
 
 .input::placeholder {
@@ -191,6 +495,32 @@ a:hover {
   padding: var(--space-md);
   font-size: var(--font-size-xl);
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Native <select> dropdowns — GLOBAL fix.
+ * Two dark-mode defects: (1) `.input`'s semi-transparent `rgba(0,0,0,0.2)`
+ * background reads grey on a select (not the intended near-black), and (2) the
+ * browser-rendered option popup ignores the ancestor color-scheme, so the list
+ * paints with the light UA palette (grey-on-white) in dark mode. Give selects an
+ * opaque themed surface, set color-scheme on the control itself, and paint the
+ * <option> rows explicitly. `--bg-elev-1` resolves per-theme (dark #1c1c22 /
+ * light #ffffff), so the popup matches the active theme. */
+select.input,
+select {
+  color-scheme: dark;
+  background-color: var(--bg-elev-1);
+}
+
+select.input option,
+select option {
+  background-color: var(--bg-elev-1);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] select.input,
+[data-theme="light"] select {
+  color-scheme: light;
 }
 
 /* Label */
@@ -231,12 +561,13 @@ a:hover {
   font-size: var(--font-size-xs);
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.05em;
 }
 
 .stat-value {
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-2xl);
   font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
 .stat-change {
@@ -286,43 +617,73 @@ a:hover {
   justify-content: space-between;
 }
 
-.gap-sm { gap: var(--space-sm); }
-.gap-md { gap: var(--space-md); }
-.gap-lg { gap: var(--space-lg); }
+.gap-sm {
+  gap: var(--space-sm);
+}
+
+.gap-md {
+  gap: var(--space-md);
+}
+
+.gap-lg {
+  gap: var(--space-lg);
+}
 
 /* Animations */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
-  from { 
+  from {
     opacity: 0;
     transform: translateY(10px);
   }
-  to { 
+
+  to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.6;
+  }
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
+/* NOTE: the --transition-* tokens carry a timing function (e.g. "250ms ease"),
+   so using them in the `animation` shorthand alongside a second easing produced
+   "fadeIn 250ms ease ease-out" — an invalid shorthand that silently disabled
+   these entrance animations entirely. Use explicit durations here. */
 .animate-fade-in {
-  animation: fadeIn var(--transition-base) ease-out;
+  animation: fadeIn 250ms ease-out;
 }
 
 .animate-slide-up {
-  animation: slideUp var(--transition-slow) ease-out;
+  animation: slideUp 400ms ease-out;
 }
 
 .animate-pulse {
@@ -333,9 +694,91 @@ a:hover {
   animation: spin 1s linear infinite;
 }
 
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-scale-in {
+  animation: scaleIn 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Button Press Feedback */
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+  transition: transform 80ms ease;
+}
+
+/* Global Scrollbar — Dark Theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
-  .grid-2, .grid-3, .grid-4 {
+
+  .grid-2,
+  .grid-3,
+  .grid-4 {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Reduced motion — respect the OS/browser accessibility preference.
+   Entrance animations (fade/slide/scale), looping animations (pulse/spin), and
+   transitions collapse to near-instant so update flashes and idle spinners do
+   not move for users who request reduced motion. Final visual states are
+   preserved (no layout change). */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

@@ -1,0 +1,40 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_signer_binding_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Fail-closed signer/owner binding guard for the live auto-trader emit path.
+observables:
+  state_vars: []
+  effects:
+    [
+      "signer_pubkey_ok",
+      "owner_pubkey_ok",
+      "binding_ok",
+      "signer_binding_ok",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "validate_signer_binding"
+    params:
+      - id: "signer_pubkey_ok"
+        type: { kind: "bool" }
+      - id: "owner_pubkey_ok"
+        type: { kind: "bool" }
+      - id: "binding_ok"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      signer_pubkey_ok: { param: "signer_pubkey_ok" }
+      owner_pubkey_ok: { param: "owner_pubkey_ok" }
+      binding_ok: { param: "binding_ok" }
+      signer_binding_ok:
+        op: "and"
+        args:
+          - { param: "signer_pubkey_ok" }
+          - { param: "owner_pubkey_ok" }
+          - { param: "binding_ok" }

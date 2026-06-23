@@ -1,0 +1,184 @@
+# [FORGE] Perp Tau Ingress Stream v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "perp_tau_ingress_stream_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: Tau app-bridge perps stream selector.
+
+    Purpose:
+      - Make the perps stream dispatch policy at the Tau app-bridge boundary
+        explicit and replayable.
+      - Cover the fail-closed legacy fallback from stream "5" to perps only
+        when the payload does not collide with DEX intents and actually looks
+        like a perps packet.
+
+    Assume/guarantee split:
+      - Assumes the host already classified the legacy stream payload with
+        `_looks_like_dex_intents(...)` and `_looks_like_perp_ops(...)`.
+      - Assumes downstream perps parsing, signature checks, and nonce handling
+        are handled by the perps engine.
+      - Guarantees only deterministic stream-selection and the reject reason for
+        the legacy fallback path.
+
+    Non-goals:
+      - perps op parsing
+      - BLS signature verification
+      - market admission / replay protection
+
+observables:
+  state_vars:
+    [
+      "upstream_stream_present",
+      "legacy_stream_present",
+      "legacy_dex_stream_present",
+      "legacy_candidate_dex_like",
+      "legacy_candidate_perp_like",
+    ]
+  effects:
+    [
+      "upstream_stream_selected",
+      "legacy_fallback_used",
+      "legacy_dex_conflict",
+      "legacy_candidate_dex_like",
+      "legacy_candidate_perp_like",
+      "selected",
+      "reject_code",
+    ]
+
+types:
+  - id: "t_reject_code"
+    type:
+      kind: "enum"
+      symbols:
+        [
+          "Ok",
+          "NoPerpStream",
+          "LegacyDexConflict",
+          "LegacyLooksLikeDex",
+          "LegacyNotPerp",
+        ]
+
+state_vars:
+  - id: "upstream_stream_present"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "legacy_stream_present"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "legacy_dex_stream_present"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "legacy_candidate_dex_like"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "legacy_candidate_perp_like"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+
+init:
+  - var: "upstream_stream_present"
+    expr: { const: 0 }
+  - var: "legacy_stream_present"
+    expr: { const: 0 }
+  - var: "legacy_dex_stream_present"
+    expr: { const: 0 }
+  - var: "legacy_candidate_dex_like"
+    expr: { const: 0 }
+  - var: "legacy_candidate_perp_like"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_bool_inputs"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "upstream_stream_present" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "upstream_stream_present" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "legacy_stream_present" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "legacy_stream_present" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "legacy_dex_stream_present" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "legacy_dex_stream_present" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "legacy_candidate_dex_like" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "legacy_candidate_dex_like" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "legacy_candidate_perp_like" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "legacy_candidate_perp_like" }, { const: 1 }] }
+
+actions:
+  - id: "select_perp_stream"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      upstream_stream_selected:
+        op: "="
+        args: [{ var: "upstream_stream_present" }, { const: 1 }]
+      legacy_fallback_used:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "upstream_stream_present" }, { const: 0 }] }
+          - { op: "=", args: [{ var: "legacy_stream_present" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "legacy_dex_stream_present" }, { const: 0 }] }
+          - { op: "=", args: [{ var: "legacy_candidate_dex_like" }, { const: 0 }] }
+          - { op: "=", args: [{ var: "legacy_candidate_perp_like" }, { const: 1 }] }
+      legacy_dex_conflict:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "upstream_stream_present" }, { const: 0 }] }
+          - { op: "=", args: [{ var: "legacy_stream_present" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "legacy_dex_stream_present" }, { const: 1 }] }
+      legacy_candidate_dex_like:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "upstream_stream_present" }, { const: 0 }] }
+          - { op: "=", args: [{ var: "legacy_stream_present" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "legacy_dex_stream_present" }, { const: 0 }] }
+          - { op: "=", args: [{ var: "legacy_candidate_dex_like" }, { const: 1 }] }
+      legacy_candidate_perp_like:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "legacy_stream_present" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "legacy_candidate_perp_like" }, { const: 1 }] }
+      selected:
+        op: "or"
+        args:
+          - { op: "=", args: [{ var: "upstream_stream_present" }, { const: 1 }] }
+          - op: "and"
+            args:
+              - { op: "=", args: [{ var: "upstream_stream_present" }, { const: 0 }] }
+              - { op: "=", args: [{ var: "legacy_stream_present" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "legacy_dex_stream_present" }, { const: 0 }] }
+              - { op: "=", args: [{ var: "legacy_candidate_dex_like" }, { const: 0 }] }
+              - { op: "=", args: [{ var: "legacy_candidate_perp_like" }, { const: 1 }] }
+      reject_code:
+        op: "ite"
+        cond: { op: "=", args: [{ var: "upstream_stream_present" }, { const: 1 }] }
+        then: { enum: "Ok" }
+        else:
+          op: "ite"
+          cond: { op: "=", args: [{ var: "legacy_stream_present" }, { const: 0 }] }
+          then: { enum: "NoPerpStream" }
+          else:
+            op: "ite"
+            cond: { op: "=", args: [{ var: "legacy_dex_stream_present" }, { const: 1 }] }
+            then: { enum: "LegacyDexConflict" }
+            else:
+              op: "ite"
+              cond: { op: "=", args: [{ var: "legacy_candidate_dex_like" }, { const: 1 }] }
+              then: { enum: "LegacyLooksLikeDex" }
+              else:
+                op: "ite"
+                cond: { op: "=", args: [{ var: "legacy_candidate_perp_like" }, { const: 1 }] }
+                then: { enum: "Ok" }
+                else: { enum: "LegacyNotPerp" }

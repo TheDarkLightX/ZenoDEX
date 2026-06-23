@@ -30,11 +30,11 @@ from src.core.perp_v2.state import state_to_dict
 
 def _import_generated_ref() -> Any:
     root = Path(__file__).resolve().parents[3]
-    ref_path = root / "generated" / "perp_python" / "perp_epoch_isolated_v2_ref.py"
+    ref_path = root / "generated" / "perp_python" / "perp_epoch_isolated_v3_ref.py"
     if not ref_path.exists():
         pytest.skip(f"generated ref not found at {ref_path}", allow_module_level=True)
 
-    module_name = "generated.perp_python.perp_epoch_isolated_v2_ref"
+    module_name = "generated.perp_python.perp_epoch_isolated_v3_ref"
     spec = importlib.util.spec_from_file_location(module_name, ref_path)
     assert spec and spec.loader, f"could not load spec from {ref_path}"
     module = importlib.util.module_from_spec(spec)
@@ -55,15 +55,13 @@ def ref_state_to_dict(s) -> dict[str, bool | int]:
 
 
 def _our_state_dict_for_ref(s) -> dict[str, Any]:
-    """state_to_dict minus fields the ref model doesn't know about yet."""
+    """Convert our state_to_dict to the ref model's encoding."""
     d = state_to_dict(s)
-    d.pop("epoch_phase", None)
+    ep = d.get("epoch_phase")
+    if isinstance(ep, str):
+        # Ref model uses int encoding: Open=0, PricePublished=1, Settled=2.
+        d["epoch_phase"] = {"Open": 0, "PricePublished": 1, "Settled": 2}[ep]
     return d
-
-
-_REF_HAS_EPOCH_PHASE = hasattr(ref, "State") and "epoch_phase" in getattr(
-    ref.State, "__dataclass_fields__", {}
-)
 
 
 def params_to_command(params: ActionParams):
@@ -207,7 +205,7 @@ class TestSingleActionEquivalence:
         )
 
         if our_result.accepted and ref_result.ok:
-            our_post = state_to_dict(our_result.state)
+            our_post = _our_state_dict_for_ref(our_result.state)
             ref_post = ref_state_to_dict(ref_result.state)
             for key in sorted(ref_post):
                 assert our_post[key] == ref_post[key], (
@@ -225,10 +223,6 @@ class TestSingleActionEquivalence:
 class TestActionSequenceEquivalence:
     """Fuzz multi-step action sequences."""
 
-    @pytest.mark.skipif(
-        not _REF_HAS_EPOCH_PHASE,
-        reason="generated ref model does not have epoch_phase; regenerate to re-enable",
-    )
     @given(actions=st.lists(action_params_strategy(), min_size=1, max_size=30))
     @settings(max_examples=200, deadline=5000)
     def test_sequence(self, actions: list[ActionParams]):
@@ -247,7 +241,7 @@ class TestActionSequenceEquivalence:
             )
 
             if our_result.accepted and ref_result.ok:
-                our_post = state_to_dict(our_result.state)
+                our_post = _our_state_dict_for_ref(our_result.state)
                 ref_post = ref_state_to_dict(ref_result.state)
                 for key in sorted(ref_post):
                     assert our_post[key] == ref_post[key], (
@@ -273,10 +267,6 @@ class TestActionSequenceEquivalence:
 class TestLifecycleEquivalence:
     """Deterministic lifecycle: advance -> price -> deposit -> position -> settle."""
 
-    @pytest.mark.skipif(
-        not _REF_HAS_EPOCH_PHASE,
-        reason="generated ref model does not have epoch_phase; regenerate to re-enable",
-    )
     def test_full_lifecycle(self):
         our_s = initial_state()
         ref_s = ref.init_state()
@@ -307,7 +297,7 @@ class TestLifecycleEquivalence:
             )
 
             if our_result.accepted:
-                our_post = state_to_dict(our_result.state)
+                our_post = _our_state_dict_for_ref(our_result.state)
                 ref_post = ref_state_to_dict(ref_result.state)
                 assert our_post == ref_post, (
                     f"step {i}: state diverged: "
@@ -331,3 +321,39 @@ class TestLifecycleEquivalence:
 
                 our_s = our_result.state
                 ref_s = ref_result.state
+
+
+def test_regression_stale_oracle_settle_epoch_accept_reject_parity() -> None:
+    """
+    Regression for a ref/native mismatch found by Hypothesis shrinking.
+
+    Scenario:
+    1) Settle epoch 1 to establish an oracle snapshot.
+    2) Advance by a large delta so the last oracle update is far in the past.
+    3) Publish a clearing price and attempt to settle again.
+
+    Expected: accept/reject parity with the generated ref model.
+    """
+    actions = [
+        ActionParams(action=Action.ADVANCE_EPOCH, delta=1),
+        ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=1),
+        ActionParams(action=Action.SETTLE_EPOCH),
+        ActionParams(action=Action.ADVANCE_EPOCH, delta=101),
+        ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=1),
+        ActionParams(action=Action.SETTLE_EPOCH),
+    ]
+
+    our_s = initial_state()
+    ref_s = ref.init_state()
+    for i, params in enumerate(actions):
+        our_result = step(our_s, params)
+        ref_result = ref.step(ref_s, params_to_command(params))
+        assert our_result.accepted == ref_result.ok, (
+            f"step {i} ({params.action.value}): "
+            f"accept/reject mismatch: "
+            f"ours={our_result.accepted} (rejection={our_result.rejection}), "
+            f"ref={ref_result.ok} (error={ref_result.error})"
+        )
+        if our_result.accepted and ref_result.ok:
+            our_s = our_result.state
+            ref_s = ref_result.state

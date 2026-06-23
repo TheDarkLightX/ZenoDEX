@@ -1,0 +1,124 @@
+/* PerpEpochIndicator */
+.perp-epoch-indicator {
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md);
+}
+
+.perp-epoch-header {
+    margin-bottom: var(--space-md);
+}
+
+.perp-epoch-label {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.perp-epoch-steps {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+}
+
+.perp-epoch-step-wrapper {
+    display: flex;
+    align-items: center;
+    flex: 1;
+}
+
+.perp-epoch-connector {
+    flex: 0 0 24px;
+    height: 2px;
+    background: var(--border-primary);
+    transition: background var(--transition-base);
+}
+
+.perp-epoch-connector.filled {
+    background: var(--accent-cyan);
+}
+
+.perp-epoch-step {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.perp-epoch-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    flex-shrink: 0;
+    transition: all var(--transition-fast);
+}
+
+/* Pending state */
+.perp-epoch-step.pending .perp-epoch-dot {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    border: 2px solid var(--border-primary);
+}
+
+/* Active state */
+.perp-epoch-step.active .perp-epoch-dot {
+    background: var(--accent-cyan);
+    color: var(--btn-primary-text);
+    border: 2px solid var(--accent-cyan);
+    box-shadow: 0 0 8px rgba(var(--accent-signal-rgb), 0.3);
+}
+
+/* Done state */
+.perp-epoch-step.done .perp-epoch-dot {
+    background: var(--perp-long);
+    color: white;
+    border: 2px solid var(--perp-long);
+}
+
+.perp-epoch-step-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.perp-epoch-step-label {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.perp-epoch-step-desc {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.perp-epoch-step.pending .perp-epoch-step-label {
+    color: var(--text-muted);
+}
+
+.perp-epoch-step.active .perp-epoch-step-label {
+    color: var(--accent-cyan);
+}
+
+@media (max-width: 768px) {
+    .perp-epoch-steps {
+        flex-direction: column;
+        gap: var(--space-sm);
+    }
+
+    .perp-epoch-connector {
+        width: 2px;
+        height: 16px;
+        flex: 0 0 16px;
+        margin-left: 13px;
+    }
+
+    .perp-epoch-step-wrapper {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

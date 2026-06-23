@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# build/screenshot artifacts (not source)
+test-results/
+public/assets/
+*.css.patch

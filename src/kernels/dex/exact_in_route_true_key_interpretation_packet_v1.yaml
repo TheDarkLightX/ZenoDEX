@@ -1,0 +1,146 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "exact_in_route_true_key_interpretation_packet_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded acceptance shell for the witness-preserving exact-in true-key
+    interpretation packet.
+
+    Scope boundary:
+    - does not model exact-in routing arithmetic
+    - does not model candidate generation completeness
+    - only checks the deterministic packet shell over the declared boolean facts
+
+observables:
+  state_vars:
+    [
+      "rank_projection_packet_ok",
+      "winner_index_in_range",
+      "candidate_indices_match_stream",
+      "candidate_route_keys_match_quotes",
+      "winner_matches_certificate_candidate",
+      "winner_true_key_minimal",
+      "packet_ok",
+    ]
+  effects: ["packet_ok"]
+
+types: []
+
+state_vars:
+  - id: "rank_projection_packet_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "winner_index_in_range"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "candidate_indices_match_stream"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "candidate_route_keys_match_quotes"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "winner_matches_certificate_candidate"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "winner_true_key_minimal"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "packet_ok"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "rank_projection_packet_ok"
+    expr: { bool: false }
+  - var: "winner_index_in_range"
+    expr: { bool: false }
+  - var: "candidate_indices_match_stream"
+    expr: { bool: false }
+  - var: "candidate_route_keys_match_quotes"
+    expr: { bool: false }
+  - var: "winner_matches_certificate_candidate"
+    expr: { bool: false }
+  - var: "winner_true_key_minimal"
+    expr: { bool: false }
+  - var: "packet_ok"
+    expr: { bool: false }
+
+invariants:
+  - id: "inv_packet_ok_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "packet_ok" }
+        - op: "and"
+          args:
+            - { var: "rank_projection_packet_ok" }
+            - op: "and"
+              args:
+                - { var: "winner_index_in_range" }
+                - op: "and"
+                  args:
+                    - { var: "candidate_indices_match_stream" }
+                    - op: "and"
+                      args:
+                        - { var: "candidate_route_keys_match_quotes" }
+                        - op: "and"
+                          args:
+                            - { var: "winner_matches_certificate_candidate" }
+                            - { var: "winner_true_key_minimal" }
+
+actions:
+  - id: "rebuild_true_key_interpretation_packet"
+    params:
+      - id: "rank_projection_packet_ok_in"
+        type: { kind: "bool" }
+      - id: "winner_index_in_range_in"
+        type: { kind: "bool" }
+      - id: "candidate_indices_match_stream_in"
+        type: { kind: "bool" }
+      - id: "candidate_route_keys_match_quotes_in"
+        type: { kind: "bool" }
+      - id: "winner_matches_certificate_candidate_in"
+        type: { kind: "bool" }
+      - id: "winner_true_key_minimal_in"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates:
+      - var: "rank_projection_packet_ok"
+        expr: { param: "rank_projection_packet_ok_in" }
+      - var: "winner_index_in_range"
+        expr: { param: "winner_index_in_range_in" }
+      - var: "candidate_indices_match_stream"
+        expr: { param: "candidate_indices_match_stream_in" }
+      - var: "candidate_route_keys_match_quotes"
+        expr: { param: "candidate_route_keys_match_quotes_in" }
+      - var: "winner_matches_certificate_candidate"
+        expr: { param: "winner_matches_certificate_candidate_in" }
+      - var: "winner_true_key_minimal"
+        expr: { param: "winner_true_key_minimal_in" }
+      - var: "packet_ok"
+        expr:
+          op: "and"
+          args:
+            - { param: "rank_projection_packet_ok_in" }
+            - op: "and"
+              args:
+                - { param: "winner_index_in_range_in" }
+                - op: "and"
+                  args:
+                    - { param: "candidate_indices_match_stream_in" }
+                    - op: "and"
+                      args:
+                        - { param: "candidate_route_keys_match_quotes_in" }
+                        - op: "and"
+                          args:
+                            - { param: "winner_matches_certificate_candidate_in" }
+                            - { param: "winner_true_key_minimal_in" }
+    effects:
+      packet_ok: { var: "packet_ok" }
+
+checks:
+  - id: "init_implies_inv"
+    kind: "invariant"
+  - id: "inductive_rebuild_true_key_interpretation_packet"
+    kind: "inductive"

@@ -30,12 +30,13 @@ from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from src.core.batch_clearing import compute_settlement, validate_settlement  # noqa: E402
+from src.core.batch_clearing import compute_settlement  # noqa: E402
 from src.core.intent_normal_form import IntentNormalFormError, require_normal_form  # noqa: E402
+from src.core.settlement_strong_validator import validate_settlement_strong  # noqa: E402
 from src.integration.dex_snapshot import state_from_snapshot  # noqa: E402
 from src.integration.operations import create_settlement_operation, parse_intents, parse_settlement  # noqa: E402
 from src.state.canonical import CANONICAL_ENCODING_VERSION, canonical_json_bytes, domain_sep_bytes, sha256_hex  # noqa: E402
-from src.state.support_root import compute_support_state_root_for_batch  # noqa: E402
+from src.state.support_root import compute_support_state_root_for_batch, derive_batch_state_support  # noqa: E402
 
 MAX_DECOMPRESSED_SNAPSHOT_BYTES = 2_000_000
 MAX_DECOMPRESSED_OPERATIONS_BYTES = 2_000_000
@@ -85,20 +86,26 @@ def _zlib_decompress_limited(data: bytes, *, name: str, max_out: int) -> bytes:
     out = bytearray()
     view = memoryview(data)
 
-    for off in range(0, len(view), _ZLIB_CHUNK):
-        chunk = view[off : off + _ZLIB_CHUNK]
-        buf = bytes(chunk)
-        while buf:
-            remaining = max_out - len(out)
-            if remaining <= 0:
-                raise ValueError(f"{name} decompressed too large")
-            out += d.decompress(buf, remaining)
-            buf = d.unconsumed_tail
+    try:
+        for off in range(0, len(view), _ZLIB_CHUNK):
+            chunk = view[off : off + _ZLIB_CHUNK]
+            buf = bytes(chunk)
+            while buf:
+                remaining = max_out - len(out)
+                if remaining <= 0:
+                    raise ValueError(f"{name} decompressed too large")
+                out += d.decompress(buf, remaining)
+                buf = d.unconsumed_tail
 
-    remaining = max_out - len(out)
-    if remaining <= 0:
-        raise ValueError(f"{name} decompressed too large")
-    out += d.flush(remaining)
+        remaining = max_out - len(out)
+        if remaining <= 0:
+            raise ValueError(f"{name} decompressed too large")
+        out += d.flush(remaining)
+    except zlib.error as exc:
+        # A corrupt (vs merely truncated) zlib stream raises zlib.error mid-
+        # decompress; convert it to a typed ValueError so the verifier returns a
+        # structured rejection (fail-closed) instead of crashing with a traceback.
+        raise ValueError(f"{name} invalid zlib stream") from exc
     if len(out) > max_out:
         raise ValueError(f"{name} decompressed too large")
     if not d.eof:
@@ -176,6 +183,46 @@ def _load_witness(proof: Mapping[str, Any]) -> Tuple[Mapping[str, Any], Mapping[
     return snapshot, operations
 
 
+def _projected_snapshot_scope_error(state: Any, intents: Sequence[Any]) -> Optional[str]:
+    fee_acc = getattr(state, "fee_accumulator", None)
+    if int(getattr(fee_acc, "dust", 0)) != 0:
+        return "projected pre_state_snapshot carries unbound fee_accumulator dust"
+    if getattr(state, "vault", None) is not None:
+        return "projected pre_state_snapshot carries unbound vault state"
+    if getattr(state, "oracle", None) is not None:
+        return "projected pre_state_snapshot carries unbound oracle state"
+    support = derive_batch_state_support(intents, pools=state.pools)
+    balance_keys = set(support.balance_keys)
+    for key, amount in state.balances.get_all_balances().items():
+        if int(amount) != 0 and key not in balance_keys:
+            return "projected pre_state_snapshot carries unbound balance state"
+    pool_ids = set(support.pool_ids)
+    for pool_id in state.pools:
+        if pool_id not in pool_ids:
+            return "projected pre_state_snapshot carries unbound pool state"
+    lp_keys = set(support.lp_keys)
+    for key, amount in state.lp_balances.get_all_balances().items():
+        if int(amount) != 0 and key not in lp_keys:
+            return "projected pre_state_snapshot carries unbound lp balance state"
+    for key, timestamp in state.lp_balances.get_all_last_mint_timestamps().items():
+        if timestamp is not None and key not in lp_keys:
+            return "projected pre_state_snapshot carries unbound lp_mint_timestamps state"
+    for key, metadata in state.lp_balances.get_all_duration_risk_metadata().items():
+        if key in lp_keys:
+            continue
+        if (
+            metadata.last_remove_timestamp is not None
+            or int(metadata.churn_tier) != 0
+            or metadata.last_churn_update_timestamp is not None
+        ):
+            return "projected pre_state_snapshot carries unbound lp_duration_risk state"
+    nonce_keys = set(support.nonce_keys)
+    for pubkey, last_nonce in state.nonces.get_all().items():
+        if int(last_nonce) != 0 and pubkey not in nonce_keys:
+            return "projected pre_state_snapshot carries unbound nonce state"
+    return None
+
+
 def _verify(payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     schema = payload.get("schema")
     if schema != "zenodex_proof":
@@ -199,13 +246,15 @@ def _verify(payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     if proof_batch != batch_commitment:
         return False, "proof/batch_commitment mismatch"
 
-    snapshot, operations = _load_witness(proof)
+    try:
+        snapshot, operations = _load_witness(proof)
+    except (TypeError, ValueError) as exc:
+        return False, f"invalid embedded witness: {exc}"
 
     try:
         state = state_from_snapshot(snapshot)
     except Exception as exc:
         return False, f"invalid pre_state_snapshot: {exc}"
-
     try:
         intents = parse_intents(dict(operations))
         claimed_settlement = parse_settlement(dict(operations))
@@ -213,6 +262,9 @@ def _verify(payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
         return False, f"invalid operations: {exc}"
     if claimed_settlement is None:
         return False, "missing settlement"
+    scope_error = _projected_snapshot_scope_error(state, intents)
+    if scope_error is not None:
+        return False, scope_error
 
     try:
         require_normal_form(intents, strict_lp_order=False)
@@ -225,6 +277,7 @@ def _verify(payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
             balances=state.balances,
             pools=state.pools,
             lp_balances=state.lp_balances,
+            nonces=state.nonces,
         )
     except Exception as exc:
         return False, f"failed to compute support root: {exc}"
@@ -253,7 +306,14 @@ def _verify(payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     except Exception as exc:
         return False, f"settlement recomputation failed: {exc}"
 
-    ok, err = validate_settlement(recomputed, state.balances, state.pools, state.lp_balances)
+    ok, err = validate_settlement_strong(
+        settlement=recomputed,
+        intents=intents,
+        pre_balances=state.balances,
+        pre_pools=state.pools,
+        pre_lp_balances=state.lp_balances,
+        mode="strong_replay",
+    )
     if not ok:
         return False, f"recomputed settlement invalid: {err or 'rejected'}"
 
@@ -286,4 +346,3 @@ def main(argv: Sequence[str]) -> None:
 
 if __name__ == "__main__":
     main(sys.argv[1:])
-

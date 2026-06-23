@@ -1,0 +1,55 @@
+{
+  "schema": "zenodex/lean-proof-receipt/v1",
+  "receipt_id": "fire_zpl_language_soundness_v1",
+  "checker": "lean",
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "commands": [
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs/CertifiedFinancialMathObjects.lean"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs/CALCoreSoundness.lean"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs/ZenoPayoffLanguage.lean"
+    }
+  ],
+  "modules": [
+    {
+      "module": "Proofs.CertifiedFinancialMathObjects",
+      "path": "lean-mathlib/Proofs/CertifiedFinancialMathObjects.lean",
+      "sha256": "sha256:d5f2dc8bb3b83221b74ead3dcd19fa8756be2cfc0b612c48dc7f36992c2bcedb",
+      "theorems": [
+        "CertifiedPayoff.bilateral_no_default",
+        "bilateral_no_default_after_run"
+      ]
+    },
+    {
+      "module": "Proofs.CALCoreSoundness",
+      "path": "lean-mathlib/Proofs/CALCoreSoundness.lean",
+      "sha256": "sha256:f8c5b61f84e8efd746ab693774f1cc9dd299bfcddfc6a362db9e1661b5667a6c",
+      "theorems": [
+        "collateral_two_party_no_default",
+        "integerEvalOK_within_bounds",
+        "fireV_accept_soundness"
+      ]
+    },
+    {
+      "module": "Proofs.ZenoPayoffLanguage",
+      "path": "lean-mathlib/Proofs/ZenoPayoffLanguage.lean",
+      "sha256": "sha256:7cfb0901997f54b30111285294973e894a9224727d3f6c752c55f3aa9c5f5303",
+      "theorems": [
+        "compile_correct",
+        "compile_no_default",
+        "VerifiedPayoff.settlement_safe",
+        "firev_accept_settlement_safe",
+        "twoPartyObject_conserves"
+      ]
+    }
+  ],
+  "claim": "The ZPL/FIRE payoff-language proof surface is machine checked and binds successful compilation to value preservation, interval soundness, collateral-safe settlement under posted-collateral obligations, and two-party conservation for paired holder/writer payoffs.",
+  "result": "proved"
+}

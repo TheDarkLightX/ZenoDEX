@@ -1,0 +1,54 @@
+{
+  "schema": "zenodex.dependency_pinning_status.v1",
+  "python_requirement_files": [
+    "requirements-core.txt",
+    "requirements-agents.txt",
+    "requirements-dev.txt",
+    "requirements.txt"
+  ],
+  "known_unpinned_python_requirements": [
+    "requirements-agents.txt:openai-agents>=0.1.0",
+    "requirements-agents.txt:openai>=1.40.0",
+    "requirements-agents.txt:python-dotenv>=1.0.0",
+    "requirements-core.txt:canonicaljson>=1.6.0",
+    "requirements-core.txt:py-ecc>=6.1.0",
+    "requirements-core.txt:pyyaml>=6.0",
+    "requirements-core.txt:typing-extensions>=4.8.0",
+    "requirements-dev.txt:hypothesis>=6.135,<7",
+    "requirements-dev.txt:mypy>=1.13,<2",
+    "requirements-dev.txt:pip-audit>=2.7,<3",
+    "requirements-dev.txt:pre-commit>=4,<5",
+    "requirements-dev.txt:pytest-cov>=4.1.0",
+    "requirements-dev.txt:pytest>=7.4.0",
+    "requirements-dev.txt:ruff>=0.8,<1",
+    "requirements-dev.txt:z3-solver>=4.15.4,<5",
+    "requirements.txt:pytest-cov>=4.1.0",
+    "requirements.txt:pytest>=7.4.0"
+  ],
+  "required_lock_artifacts": [
+    "requirements-core.lock.txt",
+    "requirements-agents.lock.txt",
+    "requirements-dev.lock.txt",
+    "lean-mathlib/lean-toolchain",
+    "lean-mathlib/lakefile.lean",
+    "tools/confidential_attestation_verifier_rust/Cargo.lock",
+    "tools/dex-ui/package-lock.json",
+    "zk/state_proof_risc0/Cargo.lock"
+  ],
+  "required_lock_artifact_sha256": {
+    "requirements-core.lock.txt": "5eb655035d6277b1ce9819880bad15e612d06cb82ede7b7076413eac807581da",
+    "requirements-agents.lock.txt": "6873f7be8fe8ba655bba4fc475808e373e6d1bac7cb8b9007e70c92d0dec3fdf",
+    "requirements-dev.lock.txt": "fd1507a436a0bdcf1e393c1fae8ff7698bb96b471df49a72d311fb0dfb90d2b0",
+    "lean-mathlib/lean-toolchain": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb",
+    "lean-mathlib/lakefile.lean": "d34c0792dcb7073fcf4cbaf63fc582931f6bcd885c7df6ff9f3d8537d94a42d2",
+    "tools/confidential_attestation_verifier_rust/Cargo.lock": "a50820080531e3f60e075e050287279f808ad7a3daba0682399e2fa9c90a23f5",
+    "tools/dex-ui/package-lock.json": "f3eb2cbe5d1809f61438a803b829de8188ba5eb2ce1230dabb932a745c7b4be2",
+    "zk/state_proof_risc0/Cargo.lock": "fe4f0f9bd29409f23b13e942b279d2e4e046dc06f5b84d2b3eb72f160fa9afb9"
+  },
+  "exact_python_pins_required": [],
+  "residual_limits": [
+    "Python runtime and dev hash-pinned lockfiles are present and tracked by committed SHA-256 hashes.",
+    "This ratchet prevents new unpinned Python source requirements and confirms current proof-toolchain lock artifacts exist with committed SHA-256 hashes.",
+    "Production install helpers and docs use pip require-hashes over the committed Python lockfiles; source requirement files remain local convenience and lock-refresh inputs."
+  ]
+}

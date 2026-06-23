@@ -1,0 +1,159 @@
+{
+  "schema": "zenodex/tau/spec-contract/v1",
+  "spec_id": "autotrader_nonce_guard_v1",
+  "spec_path": "src/tau_specs/recommended/autotrader_nonce_guard_v1.tau",
+  "kind": "bundle_or_composition",
+  "contract_status": "active",
+  "proof_scope": "bounded_assurance_domain",
+  "human_summary": "Strict sequential nonce guard for the live autotrader lane with externally supplied expected nonce and explicit bv32 wraparound semantics.",
+  "assumptions": [
+    "The host computes expected_nonce from live session state before invoking Tau.",
+    "All arithmetic is unsigned bv32 arithmetic with wraparound semantics.",
+    "The bounded assurance domain exercises representative boundary values including 0, 1, 2, and 0xFFFFFFFF for each input stream."
+  ],
+  "input_domain": {
+    "streams": [
+      {
+        "name": "i1",
+        "type": "bv32",
+        "role": "intent_nonce",
+        "bounds": {
+          "min": 0,
+          "max": 4294967295
+        }
+      },
+      {
+        "name": "i2",
+        "type": "bv32",
+        "role": "last_used_nonce",
+        "bounds": {
+          "min": 0,
+          "max": 4294967295
+        }
+      },
+      {
+        "name": "i3",
+        "type": "bv32",
+        "role": "expected_nonce",
+        "bounds": {
+          "min": 0,
+          "max": 4294967295
+        }
+      }
+    ],
+    "domain_model": "bounded_explicit_enumeration",
+    "intended_preconditions": [
+      "The live submit lane treats o4 as the authoritative acceptance bit.",
+      "Sparse or out-of-order nonce schemes are out of scope for this v1 contract."
+    ],
+    "analysis_partitions": [
+      {
+        "id": "expected_nonce_mismatch",
+        "formula": "i3 != ((i2 + 1) & 0xFFFFFFFF)",
+        "intent": "The host-provided expected nonce disagrees with the strict next-nonce relation."
+      },
+      {
+        "id": "expected_matches_but_not_fresh",
+        "formula": "(i3 == ((i2 + 1) & 0xFFFFFFFF)) && !(i1 > i2)",
+        "intent": "Wraparound and stale/equal intent-nonce cases block freshness even if expected nonce is locally consistent."
+      },
+      {
+        "id": "fresh_but_not_sequential",
+        "formula": "(i1 > i2) && (i1 != i3)",
+        "intent": "A nonce can be fresh without matching the exact expected next nonce."
+      }
+    ]
+  },
+  "outputs": [
+    {
+      "name": "o1",
+      "type": "sbf",
+      "meaning": "params_ok",
+      "contract_formula": "o1 = 1 iff (i3 == ((i2 + 1) & 0xFFFFFFFF))",
+      "contract_expr": "1 if i3 == ((i2 + 1) & 0xFFFFFFFF) else 0"
+    },
+    {
+      "name": "o2",
+      "type": "sbf",
+      "meaning": "nonce_fresh",
+      "contract_formula": "o2 = 1 iff (i1 > i2)",
+      "contract_expr": "1 if i1 > i2 else 0"
+    },
+    {
+      "name": "o3",
+      "type": "sbf",
+      "meaning": "nonce_sequential",
+      "contract_formula": "o3 = 1 iff (i1 == i3)",
+      "contract_expr": "1 if i1 == i3 else 0"
+    },
+    {
+      "name": "o4",
+      "type": "sbf",
+      "meaning": "nonce_guard_ok",
+      "contract_formula": "o4 = 1 iff (o1 = 1 && o2 = 1 && o3 = 1)",
+      "contract_expr": "1 if (i3 == ((i2 + 1) & 0xFFFFFFFF) and i1 > i2 and i1 == i3) else 0"
+    }
+  ],
+  "behavior_partition": {
+    "partition_basis": "output_vector",
+    "coverage_goal": "promotion_gate",
+    "reachable_vectors_must_be_witnessed": true,
+    "unreachable_vectors_must_be_proved": true
+  },
+  "theorems": [
+    {
+      "id": "nonce_guard_sound",
+      "kind": "soundness",
+      "statement": "For all inputs in the explicit domain, o4 = 1 implies the expected-next relation, freshness, and strict sequentiality all hold.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact",
+        "tau_differential_exec"
+      ]
+    },
+    {
+      "id": "nonce_guard_complete",
+      "kind": "completeness",
+      "statement": "For all inputs in the explicit domain, if the expected-next relation, freshness, and strict sequentiality all hold, then o4 = 1.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact",
+        "tau_differential_exec"
+      ]
+    },
+    {
+      "id": "nonce_guard_partition_disjoint",
+      "kind": "partition_disjointness",
+      "statement": "Distinct autotrader_nonce_guard_v1 output-vector regions are pairwise disjoint over the explicit domain.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact"
+      ]
+    },
+    {
+      "id": "nonce_guard_partition_exhaustive",
+      "kind": "partition_exhaustiveness",
+      "statement": "The autotrader_nonce_guard_v1 behavior atlas covers the explicit domain.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact"
+      ]
+    },
+    {
+      "id": "nonce_guard_interpreter_equiv",
+      "kind": "interpreter_equivalence",
+      "statement": "The contract semantics and the Tau binary agree on the explicit autotrader_nonce_guard_v1 assurance domain.",
+      "preferred_mechanization": [
+        "tau_differential_exec"
+      ]
+    }
+  ],
+  "evidence_links": [
+    {
+      "kind": "bounded_assurance",
+      "path": "tests/tau/spec_assurance_registry.json",
+      "note": "Explicit-domain parity cases for the nonce guard."
+    },
+    {
+      "kind": "shadow_model",
+      "path": "formal/tla/AutoTraderNonceGuardShadow.tla",
+      "note": "Independent shadow semantics for strict sequential nonce acceptance."
+    }
+  ]
+}

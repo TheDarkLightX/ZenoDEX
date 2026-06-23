@@ -230,7 +230,7 @@ def test_settle_prediction() -> None:
         epochs_since_start=10,
         settlement_epoch_interval=10,
     )
-    r = step(s, CSActionParams(action=CSAction.SETTLE_PREDICTION))
+    r = step(s, CSActionParams(action=CSAction.SETTLE_PREDICTION, auth_ok=True))
     assert r.accepted
     assert r.state is not None
     # Curve 1 has highest revenue → becomes active
@@ -253,7 +253,19 @@ def test_settle_prediction() -> None:
 
 def test_settle_before_interval_rejected() -> None:
     s = CSState(epochs_since_start=5, settlement_epoch_interval=10)
-    r = step(s, CSActionParams(action=CSAction.SETTLE_PREDICTION))
+    r = step(s, CSActionParams(action=CSAction.SETTLE_PREDICTION, auth_ok=True))
+    assert not r.accepted
+
+
+def test_settle_without_auth_rejected() -> None:
+    s = CSState(
+        stakes_0=1000,
+        total_staked=1000,
+        revenue_0=1,
+        epochs_since_start=10,
+        settlement_epoch_interval=10,
+    )
+    r = step(s, CSActionParams(action=CSAction.SETTLE_PREDICTION, auth_ok=False))
     assert not r.accepted
 
 
@@ -272,7 +284,7 @@ def test_settle_conservation() -> None:
     pre_total = s.total_staked
     pre_protocol = s.protocol_fee_pool
 
-    r = step(s, CSActionParams(action=CSAction.SETTLE_PREDICTION))
+    r = step(s, CSActionParams(action=CSAction.SETTLE_PREDICTION, auth_ok=True))
     assert r.accepted
     ns = r.state
 
@@ -362,7 +374,7 @@ def test_full_lifecycle() -> None:
     assert s.epochs_since_start == 10
 
     # Settle
-    r = step(s, CSActionParams(action=CSAction.SETTLE_PREDICTION))
+    r = step(s, CSActionParams(action=CSAction.SETTLE_PREDICTION, auth_ok=True))
     assert r.accepted
     s = r.state
 
@@ -390,7 +402,7 @@ def test_settle_tiebreak_lowest_id() -> None:
         epochs_since_start=10,
         settlement_epoch_interval=10,
     )
-    r = step(s, CSActionParams(action=CSAction.SETTLE_PREDICTION))
+    r = step(s, CSActionParams(action=CSAction.SETTLE_PREDICTION, auth_ok=True))
     assert r.accepted
     assert r.state.active_curve == 0  # lower id wins tie
     # Winner (0) stake preserved, loser (3) zeroed
@@ -418,16 +430,14 @@ def test_unstake_effect_reports_returned() -> None:
 # Edge cases
 # ---------------------------------------------------------------------------
 
-def test_negative_revenue_delta_clamped() -> None:
-    """Negative revenue deltas are clamped to zero."""
+def test_negative_revenue_delta_rejected() -> None:
+    """Negative revenue deltas are rejected (kernel domain is non-negative deltas)."""
     s = CSState(revenue_0=100)
     r = step(s, CSActionParams(
         action=CSAction.ADVANCE_EPOCH,
         revenue_deltas=(-50, 0, 0, 0, 0),
     ))
-    assert r.accepted
-    # Negative delta clamped to 0 → revenue stays at 100
-    assert r.state.get_revenue(0) == 100
+    assert not r.accepted
 
 
 def test_stake_max_amount_boundary() -> None:

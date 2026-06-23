@@ -1,0 +1,27 @@
+{
+  "artifacts": [
+    "tools/check_zenoenergy_replay_source_manifest.py",
+    "tests/energy/test_zenoenergy_replay_source_manifest.py",
+    "docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST.md"
+  ],
+  "claim": "ZenoEnergy has a fail-closed replay source manifest checker that binds real replay reports to source kind, descriptor, market-day coverage, source hashes, deterministic replay, and secret-scan status.",
+  "limits": [
+    "The manifest check cannot prove external data custody or truthful collection by itself.",
+    "The checker rejects obvious synthetic, fixture, built-in, and generated markers in source descriptors.",
+    "Production promotion still requires the promotion gate thresholds in addition to this manifest check."
+  ],
+  "negative_knowledge": [
+    "A real-report JSON without a passing replay source manifest check is insufficient for production promotion.",
+    "A passing manifest check is still weaker than an audited custody chain."
+  ],
+  "safety": {
+    "model_output_in_state_root": false,
+    "policy_guards_authoritative": true,
+    "scorer_authorizes_settlement_or_trade": false,
+    "verifier_authoritative": true
+  },
+  "schema": "zenodex/energy/replay_source_manifest_receipt/v1",
+  "source_manifest_schema": "zenodex/energy/replay_source_manifest/v1",
+  "source_manifest_check_schema": "zenodex/energy/replay_source_manifest_check/v1",
+  "supported_status": "supported"
+}

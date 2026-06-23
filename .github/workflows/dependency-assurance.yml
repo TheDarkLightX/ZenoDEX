@@ -1,0 +1,88 @@
+name: dependency-assurance
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python-dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pip-audit
+        run: |
+          python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Audit Python lockfiles
+        run: |
+          python -m pip_audit -r requirements-core.lock.txt
+          python -m pip_audit -r requirements-agents.lock.txt
+          python -m pip_audit -r requirements-dev.lock.txt
+
+      - name: Run dependency parser tests
+        run: |
+          pytest -q \
+            tests/integration/test_check_dex_ui_dependency_audit.py \
+            tests/integration/test_check_risc0_dependency_audit.py \
+            tests/integration/test_check_github_workflow_permissions.py
+
+      - name: Enforce workflow token permissions
+        run: python3 tools/check_github_workflow_permissions.py
+
+  dex-ui-dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tools/dex-ui/package-lock.json
+
+      - name: Install DEX UI dependencies
+        working-directory: tools/dex-ui
+        run: npm ci
+
+      - name: Enforce zero DEX UI dependency vulnerabilities
+        run: python3 tools/check_dex_ui_dependency_audit.py
+
+      - name: Lint DEX UI
+        working-directory: tools/dex-ui
+        run: npm run lint
+
+      - name: Build DEX UI
+        working-directory: tools/dex-ui
+        run: npm run build
+
+      - name: Enforce covered UI text posture
+        run: python3 tools/covered_ui_lint.py --strict
+
+  risc0-dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --version 0.22.1 --locked
+
+      - name: Enforce clean RISC0 dependency audit
+        run: python3 tools/check_risc0_dependency_audit.py

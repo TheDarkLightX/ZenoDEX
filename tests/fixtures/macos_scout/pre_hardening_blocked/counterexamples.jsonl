@@ -1,0 +1,3 @@
+{"id":1,"path":1,"step":1,"reason":"liquidity_floor_breach_under_oracle_gap","price":1.2,"oracle":1.0,"insurance":1000000.0,"liquidity":0.2,"drawdown":0.0}
+{"id":2,"path":1,"step":2,"reason":"payout_cap_exceeded_initial_budget","price":1.3,"oracle":1.0,"insurance":1000000.0,"liquidity":0.4,"drawdown":0.0}
+{"id":3,"path":1,"step":3,"reason":"funding_too_aggressive_in_thin_liquidity","price":1.4,"oracle":1.0,"insurance":1000000.0,"liquidity":0.09,"drawdown":0.0}

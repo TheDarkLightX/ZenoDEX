@@ -1,0 +1,709 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage{enumitem}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  citecolor=black,
+  urlcolor=blue,
+  pdftitle={ZenoEnergy: Verifier-Preserving Learned Candidate Ordering for UPBA v2 Settlement Search},
+  pdfauthor={Dana Edwards},
+  pdfkeywords={ZenoEnergy, UPBA, energy-based ranking, deterministic verification, AutoTrader}
+}
+
+\title{\textbf{ZenoEnergy: Verifier-Preserving Learned Candidate Ordering for UPBA v2 Settlement Search}}
+\author{Dana Edwards}
+\date{May 20, 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+ZenoEnergy studies whether learned energy scorers can reduce candidate search
+cost for UPBA v2 partial-fill exact-in settlement search while preserving
+deterministic verification. The system follows the rule: model proposes,
+verifier decides. The first stable checkpoint was a 97-parameter CPU-only
+linear ranker trained on synthetic, verifier-labeled bounded candidate sets.
+The current preferred research checkpoint is
+\texttt{gemini\_mlp\_v6\_seed20260519}, a 6,273-parameter pure-Python MLP. On a
+held-out synthetic corpus with 1,983 winner-bearing batches and approximately
+20 candidates per batch, v6 places the exact verifier winner first in 99.75
+percent of batches and in the top 5 and top 10 in 100.0 percent of batches.
+Mean winner position falls from 19.995 under exhaustive ordering to 1.0025
+under v6 learned ordering, while invalid accepts remain zero. The paper records
+the empirical result, the formal safety boundary, the blockers to production
+readiness, and a transfer path for applying the same advisory-energy pattern to
+AutoTrader candidate planning. The current production-adjacent path is an
+evidence bundle rather than a release claim: source-manifested and
+coverage-profiled real replay reports are assembled and passed through a
+fail-closed advisory ranking promotion gate. The latest leaderboard compares
+seven UPBA v2 advisory rankers and promotes v6 as the current research
+checkpoint. The AutoTraderEnergy hard synthetic cross-seed receipt records
+learned mean guard calls of 1.010 versus 4.312 for hand energy, with zero
+invalid accepts; real shadow replay remains the next AutoTrader milestone.
+The checked AutoTrader refiner records a 12.00 mean synthetic objective gain
+across 160 contexts with zero policy-invalid selections; the preconditioned
+refiner replay improves this to 13.01. The JEPA/ZenoLogic boundary receipt
+records future-tension scoring and the hazard that energy negation can invert
+hard safety barriers. The source-level AutoTrader JEPA UX receipt now records
+future-risk and UX evidence: later-policy-failure AUC 0.8144, slippage, budget,
+and drawdown stress correlations of 0.6133, 0.5592, and 0.5556, zero invalid
+accepts over 96 generated contexts, and explicit fields showing that neither
+the model nor the UX card authorizes execution.
+\end{abstract}
+
+\noindent\textbf{Keywords:} energy-based ranking, deterministic verification,
+DeFi settlement, candidate search, bounded optimality, UPBA, AutoTrader,
+advisory machine learning.
+
+\section{Introduction}
+
+ZenoDEX settlement search is a finite candidate-selection problem once a pool,
+intent set, price grid, and fill-vector family have been fixed. The verifier can
+check a submitted certificate deterministically, yet exhaustive candidate
+ordering may waste verifier calls when the winning candidate appears late in the
+candidate list. ZenoEnergy v0 asks a narrow empirical question:
+
+\begin{quote}
+Can a small learned energy scorer reduce UPBA v2 candidate-search cost while
+leaving deterministic certificate verification unchanged?
+\end{quote}
+
+The answer on the current bounded synthetic benchmark is affirmative. The
+learned score is useful because it moves high-quality candidates earlier in the
+verification schedule. It does not establish settlement validity, candidate
+set completeness, bounded-grid optimality, or permission to stop early without a
+deterministic suffix certificate.
+
+\section{Problem Statement}
+
+For a settlement context $x$, let $C(x)$ be a finite candidate set, let
+$V_x(c)$ be the deterministic verifier result for candidate $c$, and let
+$J_x(c)$ be the deterministic settlement objective ordered lexicographically by
+executed volume and surplus. The exhaustive verifier winner is
+\[
+  c^\star(x) := \arg\max \{ J_x(c) \mid c \in C(x),\; V_x(c)=\mathrm{accept}\}.
+\]
+
+ZenoEnergy learns a scalar energy
+\[
+  E_\theta(x,c) \rightarrow \mathbb{R}.
+\]
+Lower energy means earlier verification priority. The optimization target is
+the expected position of $c^\star(x)$ after sorting by energy:
+\[
+  \min_\theta\; \mathbb{E}_x[\mathrm{position}_{\mathrm{sort}(E_\theta)}(c^\star(x))].
+\]
+
+The settlement rule is unchanged:
+\[
+  \mathrm{accepted}(c) := V_x(c).
+\]
+
+\section{Safety Boundary}
+
+The implementation keeps the energy module outside the consensus-critical
+trusted computing base. The dependency direction is one-way:
+\[
+  \texttt{src.energy} \rightarrow \texttt{src.core.uniform\_batch\_clearing}.
+\]
+Verifier modules do not import \texttt{src.energy}. Energy code may import
+verifier APIs for offline labeling, benchmark construction, and tests.
+
+The core safety property is:
+\[
+  \mathrm{LowEnergy}_\theta(x,c) \wedge V_x(c)=\mathrm{reject}
+  \Rightarrow \mathrm{SettlementRejected}.
+\]
+
+Thus an attractive model score can change order only. It cannot authorize a
+settlement, mutate ledger state, enter a state root, modify replay, or replace
+certificate verification.
+
+\section{Relation to Energy-Based Reasoning}
+
+ZenoEnergy follows the structured-output energy-based learning lineage
+developed by LeCun and collaborators. In that formulation, an EBM assigns a
+scalar energy to configurations of observed and predicted variables; inference
+searches for low-energy configurations, and training shapes the energy surface
+so desired configurations have lower energy than undesired configurations
+\cite{lecun2006tutorial}. LeCun and Huang also frame discriminative EBM training
+around loss functions that can compare candidate configurations without requiring
+the full probabilistic normalization cost \cite{lecunhuang2005}.
+
+Song and Kingma describe classical energy-based models as non-normalized models
+whose probability density or mass is specified up to an unknown normalizing
+constant, which makes likelihood training difficult and motivates alternatives
+such as score matching and noise-contrastive estimation \cite{song2021train}.
+ZenoEnergy adopts the discriminative, structured-output part of this lineage. It
+uses an energy as a ranking function:
+\[
+  E_\theta(\mathrm{context}, \mathrm{candidate}) \rightarrow \mathrm{scalar}.
+\]
+
+This is closer to the reasoning-energy framing in which an energy score is used
+to evaluate partial states, constraints, objectives, and progress during
+planning \cite{logical2026ebrm}. It is also compatible with LeCun's broader
+view of EBMs as scalar compatibility functions for predictive world models and
+planning under uncertainty \cite{lecun2022path}. In ZenoEnergy, the partial
+state is a candidate settlement, the constraints are verifier obligations, and
+the objective is early discovery of the deterministic winner.
+
+\section{Model and Training}
+
+The retained linear baseline is a ranker with 96 feature weights and one bias:
+\[
+  E_\theta(x,c) = w^\top \phi(x,c) + b.
+\]
+It has 97 parameters and runs without PyTorch. The promoted v6 research
+checkpoint uses a pure-Python MLP with shape
+$96 \rightarrow 64 \rightarrow 1$ and 6,273 parameters. The MLP remains an
+advisory ranker. Its output cannot authorize settlement, mutate state, enter a
+state root, or replace deterministic verification.
+
+Training uses pairwise hinge ranking over candidates from the same batch:
+\[
+  L = \max(0,\; m + E_\theta(\mathrm{good}) - E_\theta(\mathrm{bad})).
+\]
+The preferred linear checkpoint uses weighted pair updates:
+\[
+\begin{aligned}
+  \mathrm{pairWeight} ={}& \mathbf{1}_{\mathrm{winnerPair}}\lambda_w
+  + \lambda_v \cdot \mathrm{normalizedVolumeGap} \\
+  &+ \lambda_s \cdot \mathrm{normalizedSurplusGapWhenVolumeTies},
+\end{aligned}
+\]
+clipped to a fixed maximum. This places more training pressure on the remaining
+hard cases: valid candidates ranked ahead of slightly better valid winners.
+The corrected Gemini evaluation path applies each model's declared feature
+surface before scoring; streaming cross-seed and hard-case evidence now uses
+that same adapter.
+
+\section{Synthetic Candidate Generation}
+
+The synthetic generator creates single-pool CPMM exact-in UPBA v2 batches. It
+samples reserves, fees, users, balances, exact-in intents, candidate price
+ratios, and deterministic fill vectors. Candidate families include valid
+candidates, suboptimal valid candidates, balance failures, limit-price
+violations, negative-reserve cases, invariant failures, noncanonical fill
+vectors, all-zero candidates, random noisy candidates, attractive output
+mismatches, unreduced price ratios, and schema/policy mismatches.
+
+Every candidate is labeled by deterministic verifier execution. Each row stores
+the 96-dimensional feature vector, candidate hash, generator provenance,
+verifier validity, objective volume, objective surplus, hand energy, target
+energy, and winner label.
+
+\section{Formal Contracts}
+
+The Lean development records three layers of safety.
+
+\paragraph{Exact generation.}
+Generated data supports a mathematical optimality claim only when the candidate
+corpus is sound and complete for the bounded family:
+\[
+  \mathrm{GeneratedCorpusExact}(G,F) :=
+  \mathrm{CompleteAuditSet}(G,F) \wedge \mathrm{SoundAuditSet}(G,F).
+\]
+
+\paragraph{Advisory reordering.}
+If ranked order is a permutation of an exact candidate set, a deterministic
+verifier certificate over the reordered list proves the same bounded global
+weak optimum. The corresponding Lean theorem is recorded in
+\texttt{UniformBatchOptimality.lean} as the advisory-reordering certificate
+theorem.
+
+\paragraph{Full fallback.}
+Full fallback is exhaustive-equivalent when the checked order is a permutation
+of the original finite candidate set:
+\[
+  \mathrm{FullFallbackEquivalentOrder}(C,O) := O.\mathrm{Perm}(C).
+\]
+The theorem
+\texttt{full\_fallback\_equivalent\_order\_preserves\_weak\_optimality\_iff}
+states:
+\[
+  \mathrm{WeaklyOptimalIn}(w,O)
+  \Longleftrightarrow
+  \mathrm{WeaklyOptimalIn}(w,C).
+\]
+
+\paragraph{Early stop.}
+Stopping before full fallback requires more than a low energy score. The Lean
+definition \texttt{CheckedStopCertificate} requires the current winner to be in
+the checked set and to weakly dominate both checked candidates and the
+unchecked suffix. The exact-full checked-stop theorem lifts that certificate to
+global weak optimality when the full candidate set is exact and the checked
+prefix plus suffix is a permutation of the full list.
+
+\section{Experimental Results}
+
+The stored training corpus contains 199,860 candidate rows from 10,000 synthetic
+batches. The holdout corpus contains 39,979 candidate rows from 2,000 synthetic
+batches, with 1,983 batches containing at least one verifier-valid candidate.
+Metrics below are computed over those 1,983 winner-bearing batches.
+
+\begin{table}[h]
+\centering
+\caption{Current UPBA v2 advisory model leaderboard.}
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Model & Holdout & Top-1 & Cross & Worst top-1 & Hard top-1 & Misses \\
+\midrule
+Gemini MLP v6 & 1.0025 & 0.9975 & 1.0036 & 0.9839 & 0.9940 & 9 \\
+Gemini highwinner linear & 1.0066 & 0.9934 & 1.0076 & 0.9839 & 0.9919 & 12 \\
+Gap-weighted linear & 1.0166 & 0.9834 & 1.0175 & 0.9677 & 0.9854 & 65 \\
+Gemini linear v5 & 1.0217 & 0.9788 & 1.0202 & 0.9637 & 0.9839 & 24 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The v6 checkpoint is the current preferred UPBA v2 research artifact. It beats
+the retained linear checkpoints on the selected verifier-facing metrics used by
+the leaderboard. Gemini v5 is negative evidence: it underperformed the
+gap-weighted linear baseline. The remaining synthetic headroom is small under
+the current candidate family because v6 already has complete top-5 and top-10
+recall, p99 holdout calls of 1, and 9 hard-case top-1 misses across 1,489
+winner-bearing hard batches.
+
+\begin{table}[h]
+\centering
+\caption{Retained gap-weighted linear holdout candidate-ordering performance.}
+\begin{tabular}{lrrrrrr}
+\toprule
+Mode & Top-1 & Top-5 & Top-10 & Mean calls & P99 & Invalid accepts \\
+\midrule
+Random & 0.045 & 0.245 & 0.507 & 10.467 & 20 & 0 \\
+Hand energy & 0.763 & 0.996 & 1.000 & 1.362 & 4 & 0 \\
+Learned & 0.983 & 1.000 & 1.000 & 1.017 & 2 & 0 \\
+Hybrid & 0.983 & 1.000 & 1.000 & 1.017 & 2 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Mean winner position falls from 19.995 under exhaustive order to 1.0166 under
+learned ordering, a reduction of approximately 94.9 percent. Compared with the
+hand-coded energy baseline, the learned model reduces mean winner position by
+approximately 25 percent.
+
+\begin{table}[h]
+\centering
+\caption{Top-$k$ sweep on the holdout corpus. Values are checked-stop audit rates.}
+\begin{tabular}{lrrrrrr}
+\toprule
+Mode & $k=1$ & $k=2$ & $k=3$ & $k=5$ & $k=10$ & $k=25$ \\
+\midrule
+Random & 0.045 & 0.091 & 0.144 & 0.245 & 0.507 & 1.000 \\
+Hand energy & 0.763 & 0.919 & 0.969 & 0.996 & 1.000 & 1.000 \\
+Learned & 0.983 & 1.000 & 1.000 & 1.000 & 1.000 & 1.000 \\
+Hybrid & 0.983 & 1.000 & 1.000 & 1.000 & 1.000 & 1.000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The checked-stop audit is computed offline after suffix labels are known. It
+measures whether a deterministic suffix certificate would have justified
+stopping at that $k$ in the same case.
+
+A later suffix-bound benchmark replaces that offline audit with a deterministic
+early-stop certificate over the unchecked suffix. A checked verifier winner may
+stop only when it dominates the checked prefix and every unchecked candidate has
+a deterministic objective upper bound no better than the winner. On the
+committed bounded synthetic run with seed 20260541, learned and hybrid ordering
+each achieved mean verifier calls of 1.0084, p99 verifier calls of 1, zero
+invalid accepts, and zero full fallback cases across 119 evaluated batches.
+Hand energy averaged 1.4202 verifier calls, and random ordering averaged
+13.1849.
+
+The cross-seed suffix-bound stress then repeated the benchmark across seeds
+20260541, 20260542, and 20260543 with 20, 32, and 50 candidates per batch.
+
+\begin{table}[h]
+\centering
+\caption{Suffix-bound cross-seed stress.}
+\begin{tabular}{lrrrrrr}
+\toprule
+Mode & Configs & Mean calls & P95 max & P99 max & Fallbacks & Invalid accepts \\
+\midrule
+Exhaustive & 9 & 2.3631 & 5.0000 & 7.0000 & 0 & 0 \\
+Hand energy & 9 & 1.3935 & 4.0000 & 6.0000 & 0 & 0 \\
+Learned & 9 & 1.0132 & 1.0000 & 4.0000 & 0 & 0 \\
+Hybrid & 9 & 1.0132 & 1.0000 & 4.0000 & 0 & 0 \\
+Random & 9 & 17.1010 & 48.0000 & 50.0000 & 16 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Learned and hybrid ordering kept objective-equivalent acceptance, suffix-stop,
+and certificate-ok rates at 1.0 across all nine configs. This strengthens the
+bounded synthetic utility claim while leaving the same candidate-family
+coverage and real replay obligations.
+
+The adversarial suffix stress then injected high-declared-output invalid
+candidates into the unchecked suffix after the verifier winner was checked.
+
+\begin{table}[h]
+\centering
+\caption{Suffix-bound adversarial stress.}
+\begin{tabular}{lr}
+\toprule
+Metric & Value \\
+\midrule
+Evaluated batches & 119 \\
+Adversary invalid count & 119 \\
+Adversary disqualified count & 119 \\
+With-disqualifiers certificate ok & 119 \\
+Without-disqualifiers certificate ok & 0 \\
+Declared-output-only forced fail & 119 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The follow-up adversarial family stress generated 944 verifier-invalid suffix
+cases across 8 invalidity families. Every case was deterministically
+disqualified, every with-disqualifier suffix certificate passed, and
+high-declared-output cases still failed under declared-output-only bounds.
+
+\begin{table}[h]
+\centering
+\caption{Suffix-bound adversarial family stress.}
+\begin{tabular}{lr}
+\toprule
+Metric & Value \\
+\midrule
+Evaluated batches & 118 \\
+Adversarial families & 8 \\
+Total adversarial cases & 944 \\
+Adversary invalid count & 944 \\
+Adversary disqualified count & 944 \\
+With-disqualifiers certificate ok & 944 \\
+Without-disqualifiers certificate ok & 590 \\
+Observed disqualifier count & 8 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This supports a sharper design lesson: suffix certificates need
+verifier-derived deterministic invalidity signals. Raw declared outputs are too
+weak against attractive invalid suffixes.
+
+\section{Langevin Discovery Boundary}
+
+The internal Gemini work also introduced Langevin-style candidate refinement:
+\[
+  x_{t+1} = x_t - \eta \nabla E(x_t) + \sqrt{2\eta}\epsilon.
+\]
+This is proposal search. It can lower learned energy, but lower learned energy
+does not imply verifier acceptance. The committed receipt records the critical
+negative case:
+\[
+\begin{array}{ll}
+\mathrm{seed\_verifier\_ok} & \mathrm{true}\\
+\mathrm{refined\_verifier\_ok} & \mathrm{false}\\
+\mathrm{accepted\_refinement} & \mathrm{false}\\
+\mathrm{fallback\_to\_seed} & \mathrm{true}\\
+\mathrm{selected\_verifier\_ok} & \mathrm{true}.
+\end{array}
+\]
+The implementation selects a refined proposal only when deterministic
+verification accepts it and the learned energy improves. Otherwise it falls
+back to the verifier-backed seed when the seed is valid. ZenoGuard remains a
+soft advisory prior; it is not a validity proof, a settlement authorization
+rule, or a replacement for the UPBA verifier.
+
+\section{AutoTrader Refiner And JEPA Boundary}
+
+The AutoTrader refiner applies bounded Langevin-style proposal search to
+adjustable execution features. The refined feature map is canonicalized and
+rechecked by deterministic policy labels before selection. The committed
+baseline receipt records 160 evaluated contexts, 160 accepted refinements, zero
+selected invalid proposals, mean selected objective gain of 12.0035, and mean
+selected energy delta of -4.6224. The optimizer replay for the preconditioned
+refiner records mean selected objective gain of 13.0087, mean selected energy
+delta of -4.6852, and winning settings
+\texttt{precondition\_decay=0.9}, \texttt{lr=0.04}. This is hard synthetic
+evidence. It shows the correct proposal path, while real shadow replay remains
+required before promotion.
+
+ZenoJEPA and ZenoLogic are also bounded advisory surfaces. The JEPA receipt
+shows a latent future-tension score ranking a balanced action below a draining
+action, with tensions 0.3094 and 1.3516 respectively. The same receipt records
+a ZenoLogic hazard: \texttt{EnergyNot} can make a hard-barrier violation lower
+energy than a valid case. ZenoLogic can compose advisory energies, but it does
+not create a formal verifier, and \texttt{EnergyNot} must not be used over hard
+safety predicates.
+
+The source-level JEPA/UX pass moves the useful part of future-tension scoring
+into \texttt{src.energy}. The default AutoTrader JEPA model projects candidate
+features into liquidity, drawdown, execution, and operational fragility
+latents. The UX helper then turns policy labels, future-tension diagnostics,
+and suggested controls into compact advisory cards. The committed receipt
+records 96 generated contexts, future weight 0.1, later-policy-failure AUC
+0.8144, slippage, budget, and drawdown stress correlations of 0.6133, 0.5592,
+and 0.5556, suggested-control best reduction rate of 1.0000, blocked-status
+match rate of 1.0000, future-warning match rate of 1.0000, zero invalid
+accepts, balanced future tension of 0.9103, and fragile future tension of
+4.7643. The old JEPA-over-hand ordering is recorded as negative evidence:
+hand+JEPA top-5 recall is 0.8021 on this receipt, while learned+JEPA top-5
+recall is 1.0000. Future tension is best used as a risk explanation, warning
+signal, and counterfactual-control score layered behind learned AutoTraderEnergy.
+The UX improvement is practical: blocked actions can show the exact
+deterministic policy guard reason, while policy-valid fragile actions can be
+shown as risk-review candidates with controls such as refreshing quote
+receipts, lowering notional, tightening route selection, or waiting for budget
+recovery. The card is an explanation wrapper around advisory scores and policy
+labels; it is not an approval.
+
+\section{Model Audit}
+
+The retained gap-weighted linear checkpoint has no forbidden label-like feature
+names and no nonzero reserved-feature weights. Its largest positive weights are hard
+verifier-shaped penalties inherited from hand initialization: negative reserves,
+CPMM invariant failures, limit-price violations, balance violations, malformed
+fill vectors, schema/policy mismatches, and output mismatches. Its largest
+negative weights reward executed volume and surplus:
+\[
+\begin{array}{lr}
+\mathrm{candidate\_normalized\_executed\_volume} & -58.0118 \\
+\mathrm{candidate\_normalized\_surplus} & -28.7780 \\
+\mathrm{candidate\_volume\_log1p} & -9.7421 \\
+\mathrm{candidate\_surplus\_signed} & -7.6317.
+\end{array}
+\]
+This supports the intended interpretation: malformed candidates stay expensive,
+while higher-objective valid-looking candidates move earlier.
+
+\section{Why This Is Not Production Ready}
+
+ZenoEnergy v0 is research-useful and operationally small, yet several blockers
+prevent production readiness.
+
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Synthetic bounded evidence.} The current results come from a
+synthetic generator. This is appropriate for a controlled benchmark, but it does
+not show distributional fit to real orderflow.
+\item \textbf{No privacy-approved replay corpus.} A production-adjacent claim
+needs non-private or properly redacted replay data with verifier-backed labels.
+\item \textbf{Candidate-family exactness is still a proof obligation.} The
+synthetic corpus is an experiment. Production needs exact candidate generation
+or a certificate that the bounded family under discussion is sound and complete.
+\item \textbf{UPBA v2 bounded-grid optimality evidence is incomplete.} The
+scorer helps rank v2 candidates, while production settlement claims still need
+the v2 bounded-grid optimality verifier or an equivalent certificate.
+\item \textbf{Live early stopping requires production-grade suffix evidence.}
+Top-k recall is an empirical accelerator. The current suffix-bound certificate
+is a deterministic prototype over generated finite lists. The adversarial
+stress shows that declared-output-only bounds are insufficient and that
+deterministic disqualifiers are part of the certificate design. The
+multi-family stress broadens that result across schema/policy, fill coverage,
+all-zero, limit-price, price-objective, reserve/invariant, and output-mismatch
+failures. Production early stop still requires candidate-family coverage, real
+replay, and source-manifested evidence that the bound remains useful on
+representative traffic.
+\item \textbf{Scope is narrow.} The experiment covers a single pool, CPMM,
+exact-in swaps, fixed admitted intents, and partial fills. Multi-pool routing,
+exact-out, confidential orderflow, latency races, and adversarial live behavior
+remain outside the measured surface.
+\item \textbf{Operational controls are missing.} A production deployment needs
+model artifact signing, version pinning, rollback policy, drift detection,
+resource bounds, replay conformance, incident response, and governance review.
+\end{enumerate}
+
+These are engineering and assurance blockers. They do not undermine the
+research result. They define the next release gate.
+
+\section{Production Gate and Evidence Bundle}
+
+ZenoEnergy now has a production-adjacent evidence path:
+\[
+  \texttt{tools/build\_zenoenergy\_production\_evidence\_bundle.py}.
+\]
+The bundle composes five deterministic artifacts:
+\[
+\begin{array}{l}
+\texttt{zenodex/energy/upba\_real\_replay\_report/v1},\\
+\texttt{zenodex/energy/autotrader\_real\_shadow\_report/v1},\\
+\texttt{zenodex/energy/replay\_source\_manifest\_check/v1},\\
+\texttt{zenodex/energy/replay\_coverage\_profile\_check/v1},\\
+\texttt{zenodex/energy/production\_promotion\_gate/v1}.
+\end{array}
+\]
+The bundle itself uses schema
+\[
+  \texttt{zenodex/energy/production\_evidence\_bundle/v1}.
+\]
+
+Operators build source manifests with
+\[
+  \texttt{tools/build\_zenoenergy\_replay\_source\_manifest.py}.
+\]
+That command computes canonical source-report hashes, attaches deterministic
+replay and no-live-secrets attestations, records the secret-scan result, runs
+the manifest checker, and writes the manifest only when the check passes.
+Operators can generate the secret-scan report with
+\[
+  \texttt{tools/check\_zenoenergy\_replay\_secret\_scan.py}.
+\]
+The scanner writes
+\[
+  \texttt{zenodex/energy/replay\_secret\_scan/v1},
+\]
+catches obvious key material and sensitive JSON keys, and can be supplied to the
+manifest builder with \texttt{--secret-scan-report}. Dirty scans and
+source-count mismatches fail closed. A clean scan is a packaging guardrail;
+production promotion still requires the production gate and source-manifested
+real replay reports.
+
+The coverage-profile checker writes
+\[
+  \texttt{zenodex/energy/replay\_coverage\_profile\_check/v1}.
+\]
+It requires UPBA replay breadth across pools, intent-size buckets, candidate
+families, hard-negative families, and market days. It requires AutoTrader
+shadow replay breadth across strategy, guard, and decision families. The profile
+is a breadth guard against aggregate-count-only promotion; it does not prove
+representativeness of future traffic.
+
+The release predicate is:
+\[
+\begin{aligned}
+\mathrm{ProductionEvidenceBundle} := {}&
+  \mathrm{UPBARealReplayReport}\\
+  &\wedge\; \mathrm{AutoTraderRealShadowReport}\\
+  &\wedge\; \mathrm{ReplaySourceManifestChecks}\\
+  &\wedge\; \mathrm{ReplayCoverageProfileChecks}\\
+  &\wedge\; \mathrm{ProductionPromotionGate}.
+\end{aligned}
+\]
+
+The production gate requires at least 1,000 real UPBA replay batches, 20,000
+real UPBA candidates, 500 real AutoTrader shadow contexts, 5,000 AutoTrader
+shadow rows, seven market days, top-25 recall at least 0.99, zero invalid
+accepts, deterministic replay, no live secrets, source manifest checks, and
+coverage profile checks. It also requires learned mean verifier or guard calls
+below hand energy.
+
+Malformed evidence fails closed. Well-formed but insufficient evidence produces
+\texttt{decision: blocked}. A passing bundle can only support advisory ranking:
+\[
+  \mathrm{LowEnergy}(c) \wedge \mathrm{VerifierRejects}(c)
+  \Rightarrow \mathrm{SettlementRejected}.
+\]
+
+The current gate remains blocked because the repository contains synthetic and
+fixture evidence, plus the tooling needed to evaluate real evidence, while the
+required real replay reports have not yet been supplied.
+
+\section{AutoTrader Transfer}
+
+The ZenoEnergy pattern applies naturally to AutoTrader if AutoTrader decisions
+are represented as finite candidate plans. Let $A(s)$ be a candidate action or
+strategy set for trading state $s$, let $G_s(a)$ be the deterministic policy,
+risk, authorization, and budget gate, and let $U_s(a)$ be the deterministic
+utility or risk-adjusted objective used by the verifier. An advisory scorer can
+rank candidates:
+\[
+  E_\phi(s,a) \rightarrow \mathbb{R},
+\]
+while the execution rule remains
+\[
+  \mathrm{executable}(a) := G_s(a).
+\]
+
+This would let AutoTrader use learned energy for ordering candidate strategies,
+repairing low-quality plans, and reducing evaluation cost. The same safety
+rules carry over:
+
+\begin{itemize}[leftmargin=*]
+\item the model ranks strategies but cannot authorize trades;
+\item deterministic policy gates decide execution;
+\item model output does not enter balances, positions, state roots, or signed
+orders;
+\item full fallback checks a permutation of the original candidate plans;
+\item early stop requires a deterministic certificate for unexamined candidate
+plans.
+\end{itemize}
+
+The best first AutoTrader experiment is not live trading. It is a replayed,
+non-private candidate-plan benchmark with deterministic risk labels. The metric
+should mirror ZenoEnergy: does learned ordering place the gate-accepted,
+highest-utility plan in the first few verifier checks without changing any
+execution predicate?
+
+\section{Conclusion}
+
+ZenoEnergy v0 provides strong evidence that small energy rankers can reduce
+candidate-search cost while preserving deterministic settlement verification.
+The current v6 MLP moves the winner to position 1.0025 on average on the
+holdout corpus and keeps top-5 and top-10 recall complete across the measured
+lanes. The result is useful because the model is still small, CPU-friendly, and
+isolated from consensus-critical paths.
+
+The UPBA ranker is near a synthetic-distribution plateau for the current
+candidate family. Further UPBA work should target the remaining valid-vs-valid
+misses, production-shadow replay, and suffix-certificate utility rather than
+raw parameter scaling. The release path stays the same: keep the scorer
+advisory, add real replay evidence, finish exact candidate-generation and v2
+optimality certificates, require a deterministic suffix certificate for live
+early stop, and pass the production evidence bundle gate. AutoTraderEnergy now
+deserves the larger share of modeling work because its synthetic gains are
+large, its checked refiner has the right policy-gated shape, and its real
+shadow evidence is still missing. The next UX milestone is real shadow replay
+that verifies cards surface the correct guard reason, risk level,
+future-tension warning, and operator control without hiding the deterministic
+authority boundary.
+
+\begin{thebibliography}{9}
+
+\bibitem{lecunhuang2005}
+Yann LeCun and Fu Jie Huang.
+\newblock \emph{Loss Functions for Discriminative Training of Energy-Based
+Models}.
+\newblock Proceedings of the Tenth International Workshop on Artificial
+Intelligence and Statistics, PMLR R5:206--213, 2005.
+\newblock \url{https://proceedings.mlr.press/r5/lecun05a.html}.
+
+\bibitem{lecun2006tutorial}
+Yann LeCun, Sumit Chopra, Raia Hadsell, Marc'Aurelio Ranzato, and Fu Jie
+Huang.
+\newblock \emph{A Tutorial on Energy-Based Learning}.
+\newblock In G. Bakir, T. Hofmann, B. Sch\"olkopf, A. Smola, and B. Taskar,
+editors, \emph{Predicting Structured Data}, MIT Press, 2006.
+\newblock \url{https://yann.lecun.org/exdb/publis/pdf/lecun-06.pdf}.
+
+\bibitem{lecun2022path}
+Yann LeCun.
+\newblock \emph{A Path Towards Autonomous Machine Intelligence}.
+\newblock Version 0.9.2, 2022.
+\newblock \url{https://openreview.net/pdf/315d43ba26f55357a84cec9a7ed15a6610094f79.pdf}.
+
+\bibitem{song2021train}
+Yang Song and Diederik P. Kingma.
+\newblock \emph{How to Train Your Energy-Based Models}.
+\newblock arXiv:2101.03288, 2021.
+\newblock \url{https://arxiv.org/abs/2101.03288}.
+
+\bibitem{logical2026ebrm}
+Eve Bodnia and Boris Hanin.
+\newblock \emph{Energy-Based Models for Reasoning, LLMs for the Interface:
+Scaling Reasoning with Agentic AI}.
+\newblock Logical Intelligence, January 21, 2026.
+\newblock \url{https://logicalintelligence.com/blog/energy-based-models-for-reasoning}.
+
+\bibitem{zenodex2026}
+Dana Edwards.
+\newblock \emph{ZenoEnergy v0 Results and Formal Receipts}.
+\newblock Autonomous Tau DEX repository, 2026.
+
+\end{thebibliography}
+
+\end{document}

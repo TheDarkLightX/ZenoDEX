@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import shlex
 import sqlite3
@@ -47,6 +48,20 @@ def _rand_intent_id() -> str:
     return "0x" + os.urandom(32).hex()
 
 
+def _ordered_random_asset_pair() -> Tuple[str, str]:
+    """
+    Return two distinct random asset ids in canonical lexical order.
+
+    CREATE_POOL requires asset0 < asset1 in the DEX core.
+    """
+    while True:
+        a0 = "0x" + os.urandom(32).hex()
+        a1 = "0x" + os.urandom(32).hex()
+        if a0 == a1:
+            continue
+        return (a0, a1) if a0 < a1 else (a1, a0)
+
+
 def _must_load_json(text: str, *, name: str) -> Dict[str, Any]:
     try:
         obj = json.loads(text)
@@ -55,6 +70,30 @@ def _must_load_json(text: str, *, name: str) -> Dict[str, Any]:
     if not isinstance(obj, dict):
         raise RuntimeError(f"{name} must be a JSON object")
     return obj
+
+
+def _try_load_json_object(text: str) -> Optional[Dict[str, Any]]:
+    try:
+        obj = json.loads(text)
+    except Exception:
+        return None
+    if not isinstance(obj, dict):
+        return None
+    return obj
+
+
+def _supports_app_bridge(client: TauNetTcpClient) -> bool:
+    """
+    Detect whether the connected Tau node exposes app-bridge RPCs.
+
+    Upstream Tau Testnet at commit 2deccad supports custom operation inputs
+    but does not expose getappstate/getstateproof.
+    """
+    resp = client.rpc("getappstate full").strip()
+    obj = _try_load_json_object(resp)
+    if obj is not None and "app_hash" in obj:
+        return True
+    return False
 
 
 def _find_pool(state: Dict[str, Any], *, pool_id: str) -> Dict[str, Any]:
@@ -69,14 +108,16 @@ def _find_pool(state: Dict[str, Any], *, pool_id: str) -> Dict[str, Any]:
 
 def _bool_env(name: str, *, default: bool) -> bool:
     raw = os.environ.get(name)
-    if raw is None:
+    if raw is None or not raw.strip():
         return bool(default)
     v = raw.strip().lower()
     if v in {"1", "true", "yes", "on"}:
         return True
     if v in {"0", "false", "no", "off"}:
         return False
-    return bool(default)
+    raise RuntimeError(
+        f"{name} must be one of 1,true,yes,on,0,false,no,off; got {raw!r}"
+    )
 
 
 def _require_env(name: str, *, hint: str) -> str:
@@ -92,11 +133,26 @@ def _float_env(name: str, *, default: float) -> float:
         return float(default)
     try:
         value = float(str(raw).strip())
-    except Exception as exc:
+    except ValueError as exc:
         raise RuntimeError(f"{name} must be a float") from exc
-    if value <= 0:
+    if not math.isfinite(value) or value <= 0:
         raise RuntimeError(f"{name} must be positive")
     return value
+
+
+def _int_env(name: str, *, default: int, minimum: int, maximum: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or not str(raw).strip():
+        return int(default)
+    try:
+        value = int(str(raw).strip())
+    except ValueError as exc:
+        raise RuntimeError(f"{name} must be an integer") from exc
+    if value < minimum:
+        raise RuntimeError(f"{name} must be >= {minimum}")
+    if value > maximum:
+        raise RuntimeError(f"{name} must be <= {maximum}")
+    return int(value)
 
 
 def _parse_cmd(cmd: str) -> list[str]:
@@ -133,8 +189,18 @@ class _VerifierSubprocessConfig:
 def _verifier_subprocess_config() -> _VerifierSubprocessConfig:
     return _VerifierSubprocessConfig(
         timeout_s=_float_env("TAU_STATE_PROOF_SUBPROCESS_TIMEOUT_S", default=10.0),
-        max_stdout_bytes=int(os.environ.get("TAU_STATE_PROOF_MAX_STDOUT_BYTES", "2000000")),
-        max_stderr_bytes=int(os.environ.get("TAU_STATE_PROOF_MAX_STDERR_BYTES", "16000")),
+        max_stdout_bytes=_int_env(
+            "TAU_STATE_PROOF_MAX_STDOUT_BYTES",
+            default=2_000_000,
+            minimum=1,
+            maximum=100_000_000,
+        ),
+        max_stderr_bytes=_int_env(
+            "TAU_STATE_PROOF_MAX_STDERR_BYTES",
+            default=16_000,
+            minimum=1,
+            maximum=10_000_000,
+        ),
     )
 
 
@@ -255,26 +321,33 @@ def _get_app_state(client: TauNetTcpClient) -> Tuple[str, Dict[str, Any]]:
     app_resp = client.getappstate(full=True)
     payload = _must_load_json(app_resp, name="getappstate")
     app_hash = payload.get("app_hash") or ""
-    app_state = payload.get("app_state")
+    # Fresh DBs can return app_hash + no materialized app_state yet.
+    app_state = payload.get("app_state") if "app_state" in payload else {}
+    if app_state is None:
+        app_state = {}
 
-    if not isinstance(app_hash, str) or not app_hash:
-        raise RuntimeError("missing app_hash (is TAU_APP_BRIDGE_MODULE enabled?)")
+    if not isinstance(app_hash, str):
+        raise RuntimeError("invalid app_hash type from getappstate")
     if not isinstance(app_state, dict):
-        raise RuntimeError("missing app_state object (bridge enabled but no state?)")
+        raise RuntimeError("invalid app_state type from getappstate")
     return app_hash, app_state
 
 
-def _extract_first_pool_id(app_state: Dict[str, Any]) -> str:
+def _find_pool_for_assets(app_state: Dict[str, Any], *, asset_a: str, asset_b: str) -> Dict[str, Any]:
     pools = app_state.get("pools")
-    if not isinstance(pools, list) or not pools:
-        raise RuntimeError("expected at least one pool in app_state.pools")
-    pool0 = pools[0]
-    if not isinstance(pool0, dict):
-        raise RuntimeError("pool entry must be an object")
-    pool_id = pool0.get("pool_id")
-    if not isinstance(pool_id, str) or not pool_id:
-        raise RuntimeError("pool entry missing pool_id")
-    return pool_id
+    if not isinstance(pools, list):
+        raise RuntimeError("app_state.pools missing or not a list")
+    target = {asset_a, asset_b}
+    for p in pools:
+        if not isinstance(p, dict):
+            continue
+        p0 = p.get("asset0")
+        p1 = p.get("asset1")
+        if not isinstance(p0, str) or not isinstance(p1, str):
+            continue
+        if {p0, p1} == target:
+            return p
+    raise RuntimeError("pool for requested asset pair not found in app_state")
 
 
 def _balances_from_app_state(app_state: Dict[str, Any]) -> BalanceMap:
@@ -298,6 +371,33 @@ def _balances_from_app_state(app_state: Dict[str, Any]) -> BalanceMap:
     return out
 
 
+def _next_intent_nonce(app_state: Dict[str, Any], *, sender_pubkey: str) -> int:
+    raw = app_state.get("nonces") or []
+    if not isinstance(raw, list):
+        raise RuntimeError("app_state.nonces must be a list")
+    last_nonce = 0
+    sender_norm = str(sender_pubkey).lower()
+    if sender_norm.startswith("0x"):
+        sender_norm = sender_norm[2:]
+
+    for i, entry in enumerate(raw):
+        if not isinstance(entry, dict):
+            raise RuntimeError(f"app_state.nonces[{i}] must be an object")
+        pk = entry.get("pubkey")
+        if not isinstance(pk, str):
+            continue
+        pk_norm = pk.lower()
+        if pk_norm.startswith("0x"):
+            pk_norm = pk_norm[2:]
+        if pk_norm != sender_norm:
+            continue
+        ln = entry.get("last_nonce", 0)
+        if not isinstance(ln, int) or isinstance(ln, bool) or ln < 0:
+            raise RuntimeError(f"app_state.nonces[{i}].last_nonce invalid")
+        last_nonce = int(ln)
+    return last_nonce + 1
+
+
 def _send_and_mine(
     client: TauNetTcpClient,
     *,
@@ -313,6 +413,10 @@ def _send_and_mine(
     mine_resp = client.createblock()
     mine_first = mine_resp.splitlines()[0] if mine_resp else mine_resp
     print(f"[smoke] createblock{print_suffix} -> {mine_first!r}")
+    if isinstance(mine_first, str):
+        lower = mine_first.lower()
+        if "all transactions rejected" in lower or "mempool is empty" in lower:
+            raise RuntimeError(f"createblock{print_suffix} did not include tx: {mine_first}")
 
     if _bool_env("TAU_EXPECT_STATE_PROOF", default=False):
         _check_state_proof(client, label=proof_label, prev_app_hash=prev_app_hash)
@@ -339,10 +443,12 @@ def _assert_swap_changed_balances(
 
 
 def _init_smoke_ctx(params: _SmokeParams) -> _SmokeCtx:
-    client = TauNetTcpClient(TauNetTcpConfig(host=params.host, port=params.port, timeout_s=5.0))
+    # createblock can legitimately take >5s on cold start (DHT/network bootstrap, Tau warmup).
+    client = TauNetTcpClient(TauNetTcpConfig(host=params.host, port=params.port, timeout_s=30.0))
     sender_pubkey = bls_pubkey_hex_from_privkey(params.privkey_hex)
-    asset0 = _hex32(0x11)
-    asset1 = _hex32(0x22)
+    # Use per-run assets so pool creation is not polluted by prior local runs.
+    # Keep canonical order to satisfy CREATE_POOL kernel preconditions.
+    asset0, asset1 = _ordered_random_asset_pair()
     return _SmokeCtx(
         params=params,
         client=client,
@@ -360,6 +466,9 @@ def _step_hello(ctx: _SmokeCtx) -> _SmokeCtx:
 
 
 def _step_create_pool(ctx: _SmokeCtx) -> _SmokeCtx:
+    app_hash_before, app_state_before = _get_app_state(ctx.client)
+    create_nonce = _next_intent_nonce(app_state_before, sender_pubkey=ctx.sender_pubkey)
+
     intent: Dict[str, Any] = {
         "module": "TauSwap",
         "version": "0.1",
@@ -367,6 +476,7 @@ def _step_create_pool(ctx: _SmokeCtx) -> _SmokeCtx:
         "intent_id": _rand_intent_id(),
         "sender_pubkey": ctx.sender_pubkey,
         "deadline": _now() + 3600,
+        "nonce": create_nonce,
         "asset0": ctx.asset0,
         "asset1": ctx.asset1,
         "fee_bps": 30,
@@ -375,9 +485,10 @@ def _step_create_pool(ctx: _SmokeCtx) -> _SmokeCtx:
     }
     sig = sign_dex_intent_for_engine(intent, privkey=ctx.params.privkey_hex, chain_id=ctx.params.chain_id)
     ops: Dict[str, Any] = {
-        # Test-only: mint assets inside DEX state for local dev.
-        "4": {"mint": [[ctx.sender_pubkey, ctx.asset0, 10_000], [ctx.sender_pubkey, ctx.asset1, 10_000]]},
-        "2": [[intent, sig]],
+        # Upstream-safe app streams: 5=intents, 7=faucet-mint.
+        # (2/3/4 are reserved in tau-testnet commit 2deccad)
+        "7": {"mint": [[ctx.sender_pubkey, ctx.asset0, 10_000], [ctx.sender_pubkey, ctx.asset1, 10_000]]},
+        "5": [[intent, sig]],
     }
     _send_and_mine(
         ctx.client,
@@ -385,17 +496,19 @@ def _step_create_pool(ctx: _SmokeCtx) -> _SmokeCtx:
         operations=ops,
         print_suffix="",
         proof_label="after create_pool",
-        prev_app_hash="",
+        prev_app_hash=str(app_hash_before),
     )
 
     app_hash, app_state = _get_app_state(ctx.client)
     print(f"[smoke] app_hash={app_hash}")
 
-    pool_id = _extract_first_pool_id(app_state)
+    pool = _find_pool_for_assets(app_state, asset_a=ctx.asset0, asset_b=ctx.asset1)
+    pool_id = str(pool.get("pool_id") or "")
+    if not pool_id:
+        raise RuntimeError("matched pool missing pool_id")
     print(f"[smoke] pool_id={pool_id}")
-    pool0 = _find_pool(app_state, pool_id=pool_id)
     print(
-        f"[smoke] pool reserves after create: reserve0={pool0.get('reserve0')} reserve1={pool0.get('reserve1')} fee_bps={pool0.get('fee_bps')}"
+        f"[smoke] pool reserves after create: reserve0={pool.get('reserve0')} reserve1={pool.get('reserve1')} fee_bps={pool.get('fee_bps')}"
     )
 
     balances_before = _balances_from_app_state(app_state)
@@ -412,6 +525,9 @@ def _step_swap(ctx: _SmokeCtx) -> _SmokeCtx:
     if ctx.balances_before is None:
         raise RuntimeError("internal error: missing balances_before")
 
+    app_hash_before, app_state_before = _get_app_state(ctx.client)
+    swap_nonce = _next_intent_nonce(app_state_before, sender_pubkey=ctx.sender_pubkey)
+
     intent: Dict[str, Any] = {
         "module": "TauSwap",
         "version": "0.1",
@@ -419,6 +535,7 @@ def _step_swap(ctx: _SmokeCtx) -> _SmokeCtx:
         "intent_id": _rand_intent_id(),
         "sender_pubkey": ctx.sender_pubkey,
         "deadline": _now() + 3600,
+        "nonce": swap_nonce,
         "pool_id": ctx.pool_id,
         "asset_in": ctx.asset0,
         "asset_out": ctx.asset1,
@@ -430,10 +547,10 @@ def _step_swap(ctx: _SmokeCtx) -> _SmokeCtx:
     _send_and_mine(
         ctx.client,
         privkey_hex=ctx.params.privkey_hex,
-        operations={"2": [[intent, sig]]},
+        operations={"5": [[intent, sig]]},
         print_suffix=" (swap)",
         proof_label="after swap",
-        prev_app_hash=str(ctx.app_hash),
+        prev_app_hash=str(app_hash_before),
     )
 
     _app_hash2, app_state2 = _get_app_state(ctx.client)
@@ -454,6 +571,68 @@ def _step_swap(ctx: _SmokeCtx) -> _SmokeCtx:
     return replace(ctx, before_in=before_in, before_out=before_out)
 
 
+def _step_upstream_custom_input_probe(ctx: _SmokeCtx) -> None:
+    """
+    Upstream Tau Testnet probe (no app bridge):
+    - submit a tx with custom operation stream >=5
+    - mine a block
+    - verify inclusion via getblocks
+    """
+    sequence_before = ctx.client.get_sequence(ctx.sender_pubkey)
+    ops: Dict[str, Any] = {"5": ["dex_probe", "v1", 42]}
+    send_resp = ctx.client.send_signed_tx(
+        privkey=ctx.params.privkey_hex,
+        operations=ops,
+        expiration_seconds=3600,
+        sequence_number=sequence_before,
+    )
+    print(f"[smoke] sendtx (upstream custom op) -> {send_resp}")
+    if not send_resp.startswith("SUCCESS"):
+        raise RuntimeError(f"custom-op transaction rejected: {send_resp}")
+
+    mine_resp = ctx.client.createblock()
+    mine_first = mine_resp.splitlines()[0] if mine_resp else mine_resp
+    print(f"[smoke] createblock (upstream custom op) -> {mine_first!r}")
+
+    blocks_resp = ctx.client.rpc("getblocks").strip()
+    blocks_payload = _must_load_json(blocks_resp, name="getblocks")
+    blocks = blocks_payload.get("blocks")
+    if not isinstance(blocks, list) or not blocks:
+        raise RuntimeError("getblocks returned no blocks")
+
+    found = False
+    for blk in reversed(blocks):
+        if not isinstance(blk, dict):
+            continue
+        txs = blk.get("transactions")
+        if not isinstance(txs, list):
+            continue
+        for tx in txs:
+            if not isinstance(tx, dict):
+                continue
+            if tx.get("sender_pubkey") != ctx.sender_pubkey:
+                continue
+            if int(tx.get("sequence_number", -1)) != int(sequence_before):
+                continue
+            tx_ops = tx.get("operations")
+            if isinstance(tx_ops, dict) and tx_ops.get("5") == ops["5"]:
+                found = True
+                break
+        if found:
+            break
+
+    if not found:
+        raise RuntimeError("custom-op tx not found in recent blocks")
+
+    sequence_after = ctx.client.get_sequence(ctx.sender_pubkey)
+    if sequence_after != sequence_before + 1:
+        raise RuntimeError(
+            f"sequence number did not advance after mined tx: before={sequence_before}, after={sequence_after}"
+        )
+
+    print("[smoke] upstream mode OK: custom operation input tx mined and indexed")
+
+
 def run_smoke(
     *,
     host: str,
@@ -464,8 +643,15 @@ def run_smoke(
     params = _SmokeParams(host=host, port=port, privkey_hex=privkey_hex, chain_id=chain_id)
     ctx = _init_smoke_ctx(params)
     ctx = _step_hello(ctx)
-    ctx = _step_create_pool(ctx)
-    _ = _step_swap(ctx)
+
+    if _supports_app_bridge(ctx.client):
+        print("[smoke] detected app-bridge mode")
+        ctx = _step_create_pool(ctx)
+        _ = _step_swap(ctx)
+        return
+
+    print("[smoke] detected upstream mode (no getappstate); running custom-input probe")
+    _step_upstream_custom_input_probe(ctx)
 
 
 def main(argv: Optional[list[str]] = None) -> int:

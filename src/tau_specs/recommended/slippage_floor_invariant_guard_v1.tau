@@ -1,0 +1,32 @@
+# Slippage Floor Invariant Guard v1
+#
+# PURPOSE:
+# Ensure the min-out floor signed by the user is the min-out floor used by the
+# runtime, and the delivered amount is not below that floor.
+#
+# i1 = user_signed_min_out (bv[64])
+# i2 = runtime_observed_min_out (bv[64])
+# i3 = delivered_amount_out (bv[64])
+# i4 = proof_ok (sbf)
+# i5 = binding_ok (sbf)
+#
+# o1 = floor_unchanged
+# o2 = floor_honored
+# o3 = floor_locked_and_honored
+# o4 = proof_gated_floor_locked_and_honored
+
+set charvar off
+
+floor_unchanged(user_signed_min_out : bv[64], runtime_observed_min_out : bv[64]) := user_signed_min_out = runtime_observed_min_out.
+
+floor_honored(runtime_observed_min_out : bv[64], delivered_amount_out : bv[64]) := delivered_amount_out >= runtime_observed_min_out.
+
+floor_locked_and_honored(user_signed_min_out : bv[64], runtime_observed_min_out : bv[64], delivered_amount_out : bv[64]) := floor_unchanged(user_signed_min_out, runtime_observed_min_out) && floor_honored(runtime_observed_min_out, delivered_amount_out).
+
+proof_gated_floor_locked_and_honored(user_signed_min_out : bv[64], runtime_observed_min_out : bv[64], delivered_amount_out : bv[64], proof_ok : sbf, binding_ok : sbf) := floor_locked_and_honored(user_signed_min_out, runtime_observed_min_out, delivered_amount_out) && (proof_ok = 1:sbf) && (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> floor_unchanged(i1[t]:bv[64], i2[t]:bv[64])) &&
+  (o2[t]:sbf = 1:sbf <-> floor_honored(i2[t]:bv[64], i3[t]:bv[64])) &&
+  (o3[t]:sbf = 1:sbf <-> floor_locked_and_honored(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64])) &&
+  (o4[t]:sbf = 1:sbf <-> proof_gated_floor_locked_and_honored(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:sbf, i5[t]:sbf)).

@@ -1,0 +1,184 @@
+{
+  "schema": "zenodex/tau/spec-contract/v1",
+  "spec_id": "oracle_freshness_v2",
+  "spec_path": "src/tau_specs/recommended/oracle_freshness_v2.tau",
+  "kind": "combinational_guard",
+  "contract_status": "active",
+  "proof_scope": "bounded_assurance_domain",
+  "human_summary": "Oracle freshness guard with explicit parameter validity, standalone guarded sub-outputs, monotonicity, and bounded jump constraints.",
+  "assumptions": [
+    "Tau bitvector arithmetic is unsigned wraparound arithmetic.",
+    "The public contract includes standalone meanings for o1, o2, o3, and the aggregate o4.",
+    "Inputs are single-step snapshots; this contract does not model temporal histories beyond the provided previous oracle timestamp."
+  ],
+  "input_domain": {
+    "streams": [
+      {
+        "name": "i1",
+        "type": "bv32",
+        "role": "oracle_timestamp",
+        "bounds": {
+          "min": 0,
+          "max": 4294967295
+        }
+      },
+      {
+        "name": "i2",
+        "type": "bv32",
+        "role": "current_timestamp",
+        "bounds": {
+          "min": 0,
+          "max": 4294967295
+        }
+      },
+      {
+        "name": "i3",
+        "type": "bv32",
+        "role": "max_staleness",
+        "bounds": {
+          "min": 0,
+          "max": 4294967295
+        }
+      },
+      {
+        "name": "i4",
+        "type": "bv32",
+        "role": "max_jump",
+        "bounds": {
+          "min": 0,
+          "max": 4294967295
+        }
+      },
+      {
+        "name": "i5",
+        "type": "bv32",
+        "role": "prev_oracle_timestamp",
+        "bounds": {
+          "min": 0,
+          "max": 4294967295
+        }
+      }
+    ],
+    "domain_model": "total_bitvector_product",
+    "intended_preconditions": [
+      "Standalone output o2 is only allowed to be 1 when params are valid.",
+      "Standalone output o4 is only allowed to be 1 when o1, o2, and o3 are all 1."
+    ],
+    "analysis_partitions": [
+      {
+        "id": "params_fail",
+        "formula": "!(i3 > 0 && i4 > 0 && i2 >= i1)",
+        "intent": "Parameter gate blocks every stronger output."
+      },
+      {
+        "id": "params_pass_fresh_fail",
+        "formula": "(i3 > 0 && i4 > 0 && i2 >= i1) && !((i2 - i1) <= i3)",
+        "intent": "Freshness rejects even though parameter gate passes."
+      },
+      {
+        "id": "params_pass_monotonic_fail",
+        "formula": "(i3 > 0 && i4 > 0 && i2 >= i1) && !((i1 > i5) && ((i1 - i5) <= i4))",
+        "intent": "Monotonic or jump check rejects while params are valid."
+      }
+    ]
+  },
+  "outputs": [
+    {
+      "name": "o1",
+      "type": "sbf",
+      "meaning": "params_ok",
+      "contract_formula": "o1 = 1 iff (i3 > 0 && i4 > 0 && i2 >= i1)",
+      "contract_expr": "1 if (i3 > 0 and i4 > 0 and i2 >= i1) else 0"
+    },
+    {
+      "name": "o2",
+      "type": "sbf",
+      "meaning": "freshness_ok_guarded",
+      "contract_formula": "o2 = 1 iff (i3 > 0 && i4 > 0 && i2 >= i1 && ((i2 - i1) <= i3))",
+      "contract_expr": "1 if (i3 > 0 and i4 > 0 and i2 >= i1 and (i2 - i1) <= i3) else 0"
+    },
+    {
+      "name": "o3",
+      "type": "sbf",
+      "meaning": "monotonic_and_bounded_jump",
+      "contract_formula": "o3 = 1 iff ((i1 > i5) && ((i1 - i5) <= i4))",
+      "contract_expr": "1 if (i1 > i5 and (i1 - i5) <= i4) else 0"
+    },
+    {
+      "name": "o4",
+      "type": "sbf",
+      "meaning": "oracle_v2_valid",
+      "contract_formula": "o4 = 1 iff (o1 = 1 && o2 = 1 && o3 = 1)",
+      "contract_expr": "1 if (i3 > 0 and i4 > 0 and i2 >= i1 and (i2 - i1) <= i3 and i1 > i5 and (i1 - i5) <= i4) else 0"
+    }
+  ],
+  "behavior_partition": {
+    "partition_basis": "output_vector",
+    "coverage_goal": "promotion_gate",
+    "reachable_vectors_must_be_witnessed": true,
+    "unreachable_vectors_must_be_proved": true
+  },
+  "theorems": [
+    {
+      "id": "o1_exact",
+      "kind": "exactness",
+      "statement": "For all inputs, o1 is exactly the parameter-validity predicate.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact",
+        "tau_differential_exec"
+      ]
+    },
+    {
+      "id": "o2_exact",
+      "kind": "exactness",
+      "statement": "For all inputs, o2 is 1 exactly when params are valid and the freshness inequality holds without standalone underflow exposure.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact",
+        "tau_differential_exec"
+      ]
+    },
+    {
+      "id": "o4_sound_complete",
+      "kind": "exactness",
+      "statement": "For all inputs, o4 is 1 exactly when the aggregate contract holds: valid params, guarded freshness, monotonic increase, and bounded jump.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact",
+        "lean_rechecked",
+        "tau_differential_exec"
+      ]
+    },
+    {
+      "id": "atlas_disjoint",
+      "kind": "partition_disjointness",
+      "statement": "Distinct output-vector regions are pairwise disjoint over the explicit input domain.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact",
+        "lean_rechecked"
+      ]
+    },
+    {
+      "id": "atlas_exhaustive",
+      "kind": "partition_exhaustiveness",
+      "statement": "The behavior atlas covers the entire explicit input domain.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact",
+        "lean_rechecked"
+      ]
+    },
+    {
+      "id": "tau_interpreter_equiv",
+      "kind": "interpreter_equivalence",
+      "statement": "The trusted bitvector mirror used for proofs agrees with the Tau binary on the supported oracle_freshness_v2 subset.",
+      "preferred_mechanization": [
+        "tau_differential_exec"
+      ]
+    }
+  ],
+  "evidence_links": [
+    {
+      "kind": "bounded_assurance",
+      "path": "tests/tau/spec_assurance_registry.json",
+      "note": "Current regression lane already contains oracle output semantics and property probes."
+    }
+  ]
+}

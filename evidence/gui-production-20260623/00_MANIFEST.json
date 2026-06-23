@@ -1,0 +1,62 @@
+{
+  "schema": "zenodex.evidence.gui_production_manifest.v1",
+  "timestamp": "2026-06-23",
+  "branch": "feat/gui-production-20260623",
+  "base": "origin/main (83566dd0) + ported zenodex-complete UI delta",
+  "verdict": "PASS - feature complete, polished, secure, high performance",
+  "artifacts": [
+    {
+      "file": "01_ledger_smoke.json",
+      "verdict": "PASS",
+      "detail": "ZenoLedger 2-node network smoke: ok=true, status=accepted, swap_height=7, final_height=12. Faucet, create pool, add liquidity, swap, remove liquidity all replayed + peer-synced."
+    },
+    {
+      "file": "02_zusd_peg.json",
+      "verdict": "PASS",
+      "detail": "zUSD CDP peg: bootstrap oracle -> deposit 10 AGRS -> mint 500 zUSD -> redeem 100 zUSD at peg ($1:$1) -> repay. TCR 200% > MCR 110%. All invariants hold."
+    },
+    {
+      "file": "03_swap_workflow.json",
+      "verdict": "PASS",
+      "detail": "Live /api/dex/quote exact_in 10000 AGRS -> 9969 zUSD via CPMM 30bps. Receipt + route binding emitted."
+    },
+    {
+      "file": "04_ui_production.json",
+      "verdict": "PASS",
+      "detail": "UI build 783ms, lint 0/0, 90 tests pass, 0 npm audit vulns, 9 tabs render live, swap quote 100 AGRS -> 193 ZDEX from live ledger pool."
+    }
+  ],
+  "commits": [
+    "009725e3 feat(ui): port route intent signer + proof-mining payout endpoint onto production base",
+    "9dae5b14 feat: port atomic route settlement onto production base",
+    "fbe8e924 fix(ui): use production-facing network language in zUSD surfaces",
+    "da98b72c feat(ui): mirror production nginx split-routing in the Vite dev proxy",
+    "be81da05 fix(ui): patch vite 7.3.3 -> 7.3.5 and @babel/js-yaml audit advisories",
+    "e054f3ad polish(ui): clear all 9 react-hooks/exhaustive-deps lint warnings"
+  ],
+  "production_gates": {
+    "ui_contract": "zenodex.dex_ui.surface_contract.v2 ok (all required + no forbidden markers)",
+    "dependency_audit": "0 vulnerabilities (npm audit clean)",
+    "lint": "0 errors, 0 warnings",
+    "tests_ui": "90 pass / 0 fail / 0 skip",
+    "tests_backend": "1977 pass / 9 skip / 0 fail (core + integration)",
+    "build": "vite build 783ms, largest chunk vendor-react 192KB (gzip 60KB)"
+  },
+  "live_verification": {
+    "ledger_node": "ZenoLedger node served /api/pools (200) from live ledger height 12",
+    "api_server": "stdlib api_server on :8000 with dex+perps+zusd+autotrader+autogov+confidential enabled",
+    "ui_live": "Vite dev server on :5173 with split proxy (node :8787 + api :8000) mirroring production nginx",
+    "swap_live": "100 AGRS -> 193 ZDEX, rate 1.9606, price impact 0.56%, min received 193, fee 1 AGRS",
+    "tabs": [
+      "Swap",
+      "Pools",
+      "ZDEX Stats",
+      "Perpetuals",
+      "Strategy",
+      "zUSD",
+      "Oracle",
+      "Confidential",
+      "Keys"
+    ]
+  }
+}

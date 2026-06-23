@@ -99,7 +99,13 @@ def main(argv: Sequence[str]) -> None:
 
     try:
         state = state_from_snapshot(snapshot)
-        pre_state_commitment = compute_state_root(balances=state.balances, pools=state.pools, lp_balances=state.lp_balances)
+        pre_state_commitment = compute_state_root(
+            balances=state.balances,
+            pools=state.pools,
+            lp_balances=state.lp_balances,
+            nonces=state.nonces,
+            fee_accumulator=state.fee_accumulator,
+        )
         intents = parse_intents(dict(ops))
         settlement = parse_settlement(dict(ops))
         if settlement is None:
@@ -125,4 +131,3 @@ def main(argv: Sequence[str]) -> None:
 
 if __name__ == "__main__":
     main(sys.argv[1:])
-

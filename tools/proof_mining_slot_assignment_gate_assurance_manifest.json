@@ -1,0 +1,97 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the bounded proof-mining slot assignment micro-kernel. Update only alongside a successful run of tools/run_proof_mining_slot_assignment_gate_assurance_gate.sh and tools/check_proof_mining_slot_assignment_gate_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/kernels/dex/proof_mining_slot_assignment_gate_v1.yaml",
+      "sha256": "f1d60c747882ebc9b15bece855922e346738f92118fc08c99570c7903a2d0bf4"
+    },
+    {
+      "path": "src/core/proof_mining_slot_assignment_gate.py",
+      "sha256": "56e2e06cad986572be69befee88bfeec8079f60be74dbed843dff1781b3418ed"
+    },
+    {
+      "path": "src/core/proof_mining_manager.py",
+      "sha256": "3330e6018f595964c69e9a43eef587d3196a8360b2ae18d6f5b9a3f8fb38bc9f"
+    },
+    {
+      "path": "src/kernels/python/proof_mining_slot_assignment_gate_v1_native_adapter.py",
+      "sha256": "580c25561c7b166e8e2e176ffb8737359dc90a6e7575fb11cebd0b5658bf7a2a"
+    },
+    {
+      "path": "tests/core/test_proof_mining_slot_assignment_gate.py",
+      "sha256": "f01098be58d4645254b4391d1f16686f71535b12e2151c6aff6f962fa2b3238e"
+    },
+    {
+      "path": "tests/kernels/test_proof_mining_slot_assignment_gate_v1_native_adapter.py",
+      "sha256": "79ae2a02f7d8d013d4a367636f6e7f17526b2e48ed35351b7dd8c9279e1d4804"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/proof_mining_slot_assignment_gate_v1/validate.json",
+    "model_path": "src/kernels/dex/proof_mining_slot_assignment_gate_v1.yaml",
+    "ir_hash": "sha256:cce3593d3b389d66a5b6fab479631438dfdfa6de835d199d8018a87330730e24"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/proof_mining_slot_assignment_gate_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.proof_mining_slot_assignment_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:cce3593d3b389d66a5b6fab479631438dfdfa6de835d199d8018a87330730e24",
+    "actions": [
+      "evaluate_slot_assignment"
+    ],
+    "effects": [
+      "assigned_slot",
+      "assigned_slot_free",
+      "free_found"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/proof_mining_slot_assignment_gate_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/proof_mining_slot_assignment_gate_v1.yaml",
+    "adapter_spec": "src.kernels.python.proof_mining_slot_assignment_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:cce3593d3b389d66a5b6fab479631438dfdfa6de835d199d8018a87330730e24",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:e2a604870f5f215b1f7fee73d91a029c0945d9dcd579c7d90db3f70c71ec12b1"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/proof_mining_slot_assignment_gate_v1/verification_report.json",
+    "model_id": "proof_mining_slot_assignment_gate_v1",
+    "ir_hash_short": "cce3593d3b389d66",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/kernels/test_proof_mining_slot_assignment_gate_v1_native_adapter.py"
+  ]
+}

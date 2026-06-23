@@ -1,0 +1,548 @@
+# [FORGE] Settlement Swap Apply (proof-carrying witness) v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "settlement_swap_apply_witness_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: apply a single exact-in swap against a pool with reserve witnesses.
+
+    Purpose:
+      - Provide a small, verifiable "certificate-checking" primitive for settlement.
+      - If the witness reserves match the pre-state and the claimed output matches the CPMM formula,
+        the step applies deterministically and preserves conservation and k-monotonicity.
+
+    This kernel is intentionally small and bounded to keep Z3/CVC5 verification tractable.
+
+observables:
+  state_vars:
+    ["trader_in", "recipient_out", "reserve_in", "reserve_out", "fee_bps", "total_in_const", "total_out_const"]
+  effects: ["amount_out", "fee_paid", "net_in", "k_before", "k_after", "witness_ok", "slippage_ok"]
+
+types: []
+
+state_vars:
+  # User/pool accounting model (single trader + single recipient + one pool; two assets).
+  - id: "trader_in"
+    role: "data"
+    type: { kind: "int", min: 0, max: 50 }
+
+  - id: "recipient_out"
+    role: "data"
+    type: { kind: "int", min: 0, max: 150 }
+
+  - id: "reserve_in_before"
+    role: "data"
+    type: { kind: "int", min: 1, max: 50 }
+
+  - id: "reserve_in"
+    role: "data"
+    type: { kind: "int", min: 1, max: 50 }
+
+  - id: "reserve_out_before"
+    role: "data"
+    type: { kind: "int", min: 1, max: 50 }
+
+  - id: "reserve_out"
+    role: "data"
+    type: { kind: "int", min: 1, max: 50 }
+
+  - id: "fee_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+
+  # Conservation witnesses (fixed across all steps).
+  - id: "total_in_const"
+    role: "data"
+    type: { kind: "int", min: 1, max: 100 }
+
+  - id: "total_out_const"
+    role: "data"
+    type: { kind: "int", min: 1, max: 200 }
+
+init:
+  - var: "trader_in"
+    expr: { const: 10 }
+  - var: "recipient_out"
+    expr: { const: 0 }
+  - var: "reserve_in_before"
+    expr: { const: 25 }
+  - var: "reserve_in"
+    expr: { const: 25 }
+  - var: "reserve_out_before"
+    expr: { const: 25 }
+  - var: "reserve_out"
+    expr: { const: 25 }
+  - var: "fee_bps"
+    expr: { const: 30 }
+  - var: "total_in_const"
+    expr: { const: 35 } # trader_in + reserve_in
+  - var: "total_out_const"
+    expr: { const: 25 } # recipient_out + reserve_out
+
+invariants:
+  - id: "inv_conserve_in_asset"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args: [{ var: "trader_in" }, { var: "reserve_in" }]
+        - { var: "total_in_const" }
+
+  - id: "inv_conserve_out_asset"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args: [{ var: "recipient_out" }, { var: "reserve_out" }]
+        - { var: "total_out_const" }
+
+actions:
+  - id: "swap_exact_in_apply"
+    params:
+      - id: "amount_in"
+        type: { kind: "int", min: 1, max: 50 }
+      - id: "min_amount_out"
+        type: { kind: "int", min: 0, max: 50 }
+      - id: "witness_reserve_in"
+        type: { kind: "int", min: 1, max: 50 }
+      - id: "witness_reserve_out"
+        type: { kind: "int", min: 1, max: 50 }
+    guard:
+      op: "and"
+      args:
+        # Witness freshness: must match the pre-state reserves.
+        - { op: "=", args: [{ param: "witness_reserve_in" }, { var: "reserve_in" }] }
+        - { op: "=", args: [{ param: "witness_reserve_out" }, { var: "reserve_out" }] }
+        # Balance feasibility.
+        - { op: ">=", args: [{ var: "trader_in" }, { param: "amount_in" }] }
+        # Post-state boundedness.
+        - { op: "<=", args: [{ op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }, { const: 50 }] }
+        - { op: "<=",
+            args: [
+              { op: "+",
+                args: [
+                  { var: "recipient_out" },
+                  { op: "div",
+                    args: [
+                      { op: "*",
+                        args: [
+                          { var: "reserve_out" },
+                          { op: "-",
+                            args: [
+                              { param: "amount_in" },
+                              { op: "div",
+                                args: [
+                                  { op: "+",
+                                    args: [
+                                      { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                      { const: 9999 }
+                                    ]
+                                  },
+                                  { const: 10000 }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      { op: "+",
+                        args: [
+                          { var: "reserve_in" },
+                          { op: "-",
+                            args: [
+                              { param: "amount_in" },
+                              { op: "div",
+                                args: [
+                                  { op: "+",
+                                    args: [
+                                      { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                      { const: 9999 }
+                                    ]
+                                  },
+                                  { const: 10000 }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { const: 150 }
+            ]
+          }
+        # fee_total = ceil(amount_in * fee_bps / 10_000)
+        - { op: "<=",
+            args: [
+              { op: "div",
+                args: [
+                  { op: "+",
+                    args: [
+                      { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                      { const: 9999 }
+                    ]
+                  },
+                  { const: 10000 }
+                ]
+              },
+              { param: "amount_in" }
+            ]
+          }
+        # net_in > 0
+        - { op: ">",
+            args: [
+              { op: "-",
+                args: [
+                  { param: "amount_in" },
+                  { op: "div",
+                    args: [
+                      { op: "+",
+                        args: [
+                          { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                          { const: 9999 }
+                        ]
+                      },
+                      { const: 10000 }
+                    ]
+                  }
+                ]
+              },
+              { const: 0 }
+            ]
+          }
+        # Require non-degenerate output.
+        - { op: ">=",
+            args: [
+              { op: "div",
+                args: [
+                  { op: "*",
+                    args: [
+                      { var: "reserve_out" },
+                      { op: "-",
+                        args: [
+                          { param: "amount_in" },
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                  { const: 9999 }
+                                ]
+                              },
+                              { const: 10000 }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  { op: "+",
+                    args: [
+                      { var: "reserve_in" },
+                      { op: "-",
+                        args: [
+                          { param: "amount_in" },
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                  { const: 9999 }
+                                ]
+                              },
+                              { const: 10000 }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { const: 1 }
+            ]
+          }
+        # Maintain reserve_out >= 1 (type domain min=1).
+        - { op: ">=",
+            args: [
+              { op: "-",
+                args: [
+                  { var: "reserve_out" },
+                  { op: "div",
+                    args: [
+                      { op: "*",
+                        args: [
+                          { var: "reserve_out" },
+                          { op: "-",
+                            args: [
+                              { param: "amount_in" },
+                              { op: "div",
+                                args: [
+                                  { op: "+",
+                                    args: [
+                                      { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                      { const: 9999 }
+                                    ]
+                                  },
+                                  { const: 10000 }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      { op: "+",
+                        args: [
+                          { var: "reserve_in" },
+                          { op: "-",
+                            args: [
+                              { param: "amount_in" },
+                              { op: "div",
+                                args: [
+                                  { op: "+",
+                                    args: [
+                                      { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                      { const: 9999 }
+                                    ]
+                                  },
+                                  { const: 10000 }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { const: 1 }
+            ]
+          }
+        # Slippage bound.
+        - { op: ">=",
+            args: [
+              { op: "div",
+                args: [
+                  { op: "*",
+                    args: [
+                      { var: "reserve_out" },
+                      { op: "-",
+                        args: [
+                          { param: "amount_in" },
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                  { const: 9999 }
+                                ]
+                              },
+                              { const: 10000 }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  { op: "+",
+                    args: [
+                      { var: "reserve_in" },
+                      { op: "-",
+                        args: [
+                          { param: "amount_in" },
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                  { const: 9999 }
+                                ]
+                              },
+                              { const: 10000 }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { param: "min_amount_out" }
+            ]
+          }
+    updates:
+      - var: "reserve_in_before"
+        expr: { var: "reserve_in" }
+      - var: "reserve_out_before"
+        expr: { var: "reserve_out" }
+      - var: "trader_in"
+        expr:
+          op: "-"
+          args: [{ var: "trader_in" }, { param: "amount_in" }]
+      - var: "recipient_out"
+        expr:
+          op: "+"
+          args:
+            - { var: "recipient_out" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - { var: "reserve_out" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+                - op: "+"
+                  args:
+                    - { var: "reserve_in" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+      - var: "reserve_in"
+        expr:
+          op: "+"
+          args: [{ var: "reserve_in" }, { param: "amount_in" }]
+      - var: "reserve_out"
+        expr:
+          op: "-"
+          args:
+            - { var: "reserve_out" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - { var: "reserve_out" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+                - op: "+"
+                  args:
+                    - { var: "reserve_in" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+    effects:
+      amount_out:
+        op: "div"
+        args:
+          - op: "*"
+            args:
+              - { var: "reserve_out_before" }
+              - op: "-"
+                args:
+                  - { param: "amount_in" }
+                  - op: "div"
+                    args:
+                      - op: "+"
+                        args:
+                          - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                          - { const: 9999 }
+                      - { const: 10000 }
+          - op: "+"
+            args:
+              - { var: "reserve_in_before" }
+              - op: "-"
+                args:
+                  - { param: "amount_in" }
+                  - op: "div"
+                    args:
+                      - op: "+"
+                        args:
+                          - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                          - { const: 9999 }
+                      - { const: 10000 }
+      fee_paid:
+        op: "div"
+        args:
+          - op: "+"
+            args:
+              - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+              - { const: 9999 }
+          - { const: 10000 }
+      net_in:
+        op: "-"
+        args:
+          - { param: "amount_in" }
+          - op: "div"
+            args:
+              - op: "+"
+                args:
+                  - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                  - { const: 9999 }
+              - { const: 10000 }
+      k_before:
+        op: "*"
+        args: [{ var: "reserve_in_before" }, { var: "reserve_out_before" }]
+      k_after:
+        op: "*"
+        args: [{ var: "reserve_in" }, { var: "reserve_out" }]
+      witness_ok:
+        op: "and"
+        args:
+          - { op: "=", args: [{ param: "witness_reserve_in" }, { var: "reserve_in_before" }] }
+          - { op: "=", args: [{ param: "witness_reserve_out" }, { var: "reserve_out_before" }] }
+      slippage_ok:
+        op: ">="
+        args:
+          - op: "div"
+            args:
+              - op: "*"
+                args:
+                  - { var: "reserve_out_before" }
+                  - op: "-"
+                    args:
+                      - { param: "amount_in" }
+                      - op: "div"
+                        args:
+                          - op: "+"
+                            args:
+                              - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                              - { const: 9999 }
+                          - { const: 10000 }
+              - op: "+"
+                args:
+                  - { var: "reserve_in_before" }
+                  - op: "-"
+                    args:
+                      - { param: "amount_in" }
+                      - op: "div"
+                        args:
+                          - op: "+"
+                            args:
+                              - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                              - { const: 9999 }
+                          - { const: 10000 }
+          - { param: "min_amount_out" }

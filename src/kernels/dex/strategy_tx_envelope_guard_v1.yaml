@@ -1,0 +1,98 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_tx_envelope_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless transport-envelope guard for the live auto-trader shell.
+
+    This module constrains the final Tau transaction envelope:
+    - optional tx payloads must provide paired sequence/expiration arguments
+    - sequence, expiration, and fee fields must be structurally valid
+    - the custom operation surface must stay scoped to the DEX intent stream
+observables:
+  state_vars: []
+  effects:
+    [
+      "tx_args_paired_ok",
+      "tx_bounds_ok",
+      "tx_stream_scope_ok",
+      "tx_envelope_ok",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "validate_tx_envelope"
+    params:
+      - id: "tx_requested"
+        type: { kind: "bool" }
+      - id: "sequence_present"
+        type: { kind: "bool" }
+      - id: "expiration_present"
+        type: { kind: "bool" }
+      - id: "sequence_valid"
+        type: { kind: "bool" }
+      - id: "expiration_valid"
+        type: { kind: "bool" }
+      - id: "fee_limit_valid"
+        type: { kind: "bool" }
+      - id: "intent_stream_present"
+        type: { kind: "bool" }
+      - id: "settlement_stream_absent"
+        type: { kind: "bool" }
+      - id: "extra_custom_streams_absent"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      tx_args_paired_ok:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ param: "tx_requested" }]
+          - op: "and"
+            args:
+              - { param: "sequence_present" }
+              - { param: "expiration_present" }
+      tx_bounds_ok:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ param: "tx_requested" }]
+          - op: "and"
+            args:
+              - { param: "sequence_valid" }
+              - { param: "expiration_valid" }
+              - { param: "fee_limit_valid" }
+      tx_stream_scope_ok:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ param: "tx_requested" }]
+          - op: "and"
+            args:
+              - { param: "intent_stream_present" }
+              - { param: "settlement_stream_absent" }
+              - { param: "extra_custom_streams_absent" }
+      tx_envelope_ok:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ param: "tx_requested" }]
+          - op: "and"
+            args:
+              - op: "and"
+                args:
+                  - { param: "sequence_present" }
+                  - { param: "expiration_present" }
+              - op: "and"
+                args:
+                  - { param: "sequence_valid" }
+                  - { param: "expiration_valid" }
+                  - { param: "fee_limit_valid" }
+              - op: "and"
+                args:
+                  - { param: "intent_stream_present" }
+                  - { param: "settlement_stream_absent" }
+                  - { param: "extra_custom_streams_absent" }

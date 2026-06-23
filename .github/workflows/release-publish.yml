@@ -1,0 +1,382 @@
+name: release-publish
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version without the leading v. Defaults to dev-<sha> for manual dry packaging."
+        required: false
+        type: string
+      publish_github_release:
+        description: "Create or update a GitHub Release and attach artifacts."
+        required: true
+        default: false
+        type: boolean
+      publish_containers:
+        description: "Push production and operator images to GHCR."
+        required: true
+        default: false
+        type: boolean
+      publish_npm:
+        description: "Publish @zenodex/proof-client to npm. Requires NPM_TOKEN."
+        required: true
+        default: false
+        type: boolean
+      prerelease:
+        description: "Mark manually-created GitHub Releases as prereleases."
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  resolve-version:
+    name: Resolve Release Version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release_tag: ${{ steps.version.outputs.release_tag }}
+    steps:
+      - name: Resolve release version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_tag="${GITHUB_REF_NAME}"
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="${INPUT_VERSION:-}"
+            if [[ -z "${version}" ]]; then
+              version="dev-${GITHUB_SHA::12}"
+            fi
+            release_tag="v${version}"
+          fi
+          if [[ ! "${version}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]; then
+            echo "unsafe release version: ${version}" >&2
+            exit 2
+          fi
+          {
+            echo "version=${version}"
+            echo "release_tag=${release_tag}"
+          } >> "${GITHUB_OUTPUT}"
+
+  build-native-launchers:
+    name: Build Native Launcher (${{ matrix.asset_suffix }})
+    needs: resolve-version
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset_suffix: linux-x86_64
+            binary_name: zenodex
+          - os: macos-15-intel
+            asset_suffix: macos-x86_64
+            binary_name: zenodex
+          - os: windows-latest
+            asset_suffix: windows-x86_64
+            binary_name: zenodex.exe
+    defaults:
+      run:
+        working-directory: rust-runtime
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Toolchain fingerprint
+        run: |
+          rustc --version
+          cargo --version
+
+      - name: Test native launcher
+        run: cargo test -p zenodex-launcher
+
+      - name: Build release launcher
+        run: cargo build --release -p zenodex-launcher
+
+      - name: Stage native launcher asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p native-dist
+          source="target/release/${{ matrix.binary_name }}"
+          target="native-dist/zenodex-${{ needs.resolve-version.outputs.version }}-${{ matrix.asset_suffix }}"
+          if [[ "${{ matrix.binary_name }}" == *.exe ]]; then
+            target="${target}.exe"
+          fi
+          cp "${source}" "${target}"
+          if [[ "${target}" != *.exe ]]; then
+            chmod 755 "${target}"
+          fi
+
+      - name: Upload native launcher asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: zenodex-native-launcher-${{ matrix.asset_suffix }}
+          path: rust-runtime/native-dist/*
+          if-no-files-found: error
+
+  build-artifacts:
+    name: Build Release Artifacts
+    needs:
+      - resolve-version
+      - build-native-launchers
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ needs.resolve-version.outputs.version }}
+      release_tag: ${{ needs.resolve-version.outputs.release_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install locked Python dependencies
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Run packaging readiness checks
+        run: |
+          python -m py_compile \
+            tools/build_operator_release_bundle.py \
+            tools/build_zenodex_oracle_release.py
+          python tools/check_operator_packaging.py --pretty
+          python tools/check_release_publication_workflow.py --pretty
+
+      - name: Build operator bundle
+        run: |
+          mkdir -p dist
+          python tools/build_operator_release_bundle.py build \
+            --version "${{ needs.resolve-version.outputs.version }}" \
+            --out-dir dist \
+            --json | tee "dist/zenodex-operator-${{ needs.resolve-version.outputs.version }}.build.json"
+
+      - name: Build Zeno Oracle Python-local bundle
+        run: |
+          python tools/build_zenodex_oracle_release.py \
+            --json \
+            --out-dir dist \
+            --bundle-name "zenodex-oracle-${{ needs.resolve-version.outputs.version }}-python-local" \
+            --zip \
+            --force | tee "dist/zenodex-oracle-${{ needs.resolve-version.outputs.version }}-python-local.build.json"
+
+      - name: Pack browser proof-client SDK
+        run: |
+          cd packages/zeno-proof-client
+          npm ci
+          npm version --no-git-tag-version --allow-same-version "${{ needs.resolve-version.outputs.version }}"
+          npm test
+          npm pack --pack-destination ../../dist --json | tee "../../dist/zenodex-proof-client-${{ needs.resolve-version.outputs.version }}.pack.json"
+
+      - name: Download native launcher assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: zenodex-native-launcher-*
+          path: dist
+          merge-multiple: true
+
+      - name: Generate release SBOMs
+        run: |
+          python tools/build_release_sboms.py --out-dir dist --pretty
+
+      - name: Generate release manifest and checksums
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          dist = Path("dist")
+          files = []
+          for path in sorted(p for p in dist.iterdir() if p.is_file()):
+              if path.name in {"SHA256SUMS", "zenodex-release-manifest.json"}:
+                  continue
+              data = path.read_bytes()
+              files.append(
+                  {
+                      "path": path.name,
+                      "size_bytes": len(data),
+                      "sha256": "sha256:" + hashlib.sha256(data).hexdigest(),
+                  }
+              )
+
+          manifest = {
+              "schema": "zenodex.release_manifest.v0",
+              "version": os.environ["ZENODEX_RELEASE_VERSION"],
+              "git_commit": os.environ["GITHUB_SHA"],
+              "release_tag": os.environ["ZENODEX_RELEASE_TAG"],
+              "files": files,
+              "publish_targets": {
+                  "github_release": True,
+                  "ghcr": "tag-push-or-manual-opt-in",
+                  "npm": "manual-opt-in",
+              },
+              "not_claimed": [
+                  "tau_net_node_binary_distribution",
+                  "production_code_signing_certificate",
+                  "mobile_app_store_distribution",
+              ],
+          }
+          (dist / "zenodex-release-manifest.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          (cd dist && find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%P\0' | sort -z | xargs -0 sha256sum > SHA256SUMS)
+        env:
+          ZENODEX_RELEASE_VERSION: ${{ needs.resolve-version.outputs.version }}
+          ZENODEX_RELEASE_TAG: ${{ needs.resolve-version.outputs.release_tag }}
+
+      - name: Upload release artifact set
+        uses: actions/upload-artifact@v4
+        with:
+          name: zenodex-release-${{ needs.resolve-version.outputs.version }}
+          path: dist/
+          if-no-files-found: error
+
+  publish-github-release:
+    name: Publish GitHub Release
+    needs: build-artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: ${{ github.event_name == 'push' || inputs.publish_github_release }}
+    permissions:
+      contents: write
+    steps:
+      - name: Download release artifact set
+        uses: actions/download-artifact@v4
+        with:
+          name: zenodex-release-${{ needs.build-artifacts.outputs.version }}
+          path: dist
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build-artifacts.outputs.release_tag }}
+          target_commitish: ${{ github.sha }}
+          name: ZenoDEX ${{ needs.build-artifacts.outputs.version }}
+          prerelease: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease }}
+          fail_on_unmatched_files: true
+          files: |
+            dist/*
+
+  publish-containers:
+    name: Publish GHCR Images
+    needs: build-artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: ${{ github.event_name == 'push' || inputs.publish_containers }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve image owner
+        id: owner
+        run: |
+          owner="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          echo "owner=${owner}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push production image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.production-hashlocked
+          push: true
+          provenance: true
+          sbom: true
+          tags: |
+            ghcr.io/${{ steps.owner.outputs.owner }}/zenodex:${{ needs.build-artifacts.outputs.version }}
+            ghcr.io/${{ steps.owner.outputs.owner }}/zenodex:sha-${{ github.sha }}
+
+      - name: Build and push operator tools image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.operator-tools
+          push: true
+          provenance: true
+          sbom: true
+          tags: |
+            ghcr.io/${{ steps.owner.outputs.owner }}/zenodex-operator-tools:${{ needs.build-artifacts.outputs.version }}
+            ghcr.io/${{ steps.owner.outputs.owner }}/zenodex-operator-tools:sha-${{ github.sha }}
+
+  publish-npm:
+    name: Publish npm SDK
+    needs: build-artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_npm }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Publish package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${NODE_AUTH_TOKEN:-}" ]]; then
+            echo "NPM_TOKEN is required when publish_npm is enabled" >&2
+            exit 2
+          fi
+          cd packages/zeno-proof-client
+          npm ci
+          npm version --no-git-tag-version --allow-same-version "${{ needs.build-artifacts.outputs.version }}"
+          npm test
+          npm publish --access public --provenance

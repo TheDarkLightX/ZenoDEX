@@ -1,0 +1,31 @@
+{
+  "checker": "cd lean-mathlib && lake env lean Proofs/RevenueSurfaceSafety.lean",
+  "claim": "Core FIRE revenue-surface algebra: fee-capped user charges leave nonnegative net value, fee-capped rebates make wash loops nonprofitable under nonnegative execution drag, supply decreases only when burn exceeds emissions, evidence-meet caps cannot loosen a safe source cap, over-cap launch/config acceptance requires an explicit override branch, and proof-gated token rewards below the budget meet are below each individual cap.",
+  "file": "lean-mathlib/Proofs/RevenueSurfaceSafety.lean",
+  "non_claims": [
+    "Does not prove measured user value is truthful.",
+    "Does not prove production fee parameters are optimal.",
+    "Does not prove wash trading impossible outside the stated fee/reward/drag assumptions.",
+    "Does not prove token price appreciation."
+  ],
+  "status": "checked",
+  "theorems": [
+    "Proofs.RevenueSurfaceSafety.user_net_nonnegative_of_fee_le_value",
+    "Proofs.RevenueSurfaceSafety.wash_profit_nonpositive_of_reward_le_fee",
+    "Proofs.RevenueSurfaceSafety.wash_profit_nonpositive_of_combined_rewards_le_fee",
+    "Proofs.RevenueSurfaceSafety.supply_decreases_of_burn_gt_emission",
+    "Proofs.RevenueSurfaceSafety.supply_nonincreasing_of_burn_ge_emission",
+    "Proofs.RevenueSurfaceSafety.lock_reward_spend_le_pool",
+    "Proofs.RevenueSurfaceSafety.cap_meet_le_left",
+    "Proofs.RevenueSurfaceSafety.cap_meet_le_right",
+    "Proofs.RevenueSurfaceSafety.user_net_nonnegative_of_fee_le_cap_meet_left",
+    "Proofs.RevenueSurfaceSafety.user_net_nonnegative_of_fee_le_cap_meet_right",
+    "Proofs.RevenueSurfaceSafety.cap_meet3_le_first",
+    "Proofs.RevenueSurfaceSafety.launch_overcap_requires_override",
+    "Proofs.RevenueSurfaceSafety.launch_user_net_nonnegative_without_override",
+    "Proofs.RevenueSurfaceSafety.reward_le_value_of_reward_le_budget_meet",
+    "Proofs.RevenueSurfaceSafety.reward_le_budget_of_reward_le_budget_meet",
+    "Proofs.RevenueSurfaceSafety.reward_le_sybil_adjusted_of_reward_le_budget_meet",
+    "Proofs.RevenueSurfaceSafety.reward_le_treasury_of_reward_le_budget_meet"
+  ]
+}

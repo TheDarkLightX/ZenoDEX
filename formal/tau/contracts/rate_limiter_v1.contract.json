@@ -1,0 +1,149 @@
+{
+  "schema": "zenodex/tau/spec-contract/v1",
+  "spec_id": "rate_limiter_v1",
+  "spec_path": "src/tau_specs/recommended/rate_limiter_v1.tau",
+  "kind": "combinational_guard",
+  "contract_status": "active",
+  "proof_scope": "bounded_assurance_domain",
+  "human_summary": "Current v1 transaction-rate limiter with an explicit reset bypass branch.",
+  "assumptions": [
+    "The reset signal is provided as input i3 by the caller or host projection.",
+    "The current v1 public contract allows a reset signal to satisfy the aggregate guard even when count_within_limit is false.",
+    "This contract is about exact current behavior, not about whether the reset semantics are sufficient for production policy."
+  ],
+  "input_domain": {
+    "streams": [
+      {
+        "name": "i1",
+        "type": "bv32",
+        "role": "tx_count_current",
+        "bounds": {
+          "min": 0,
+          "max": 4294967295
+        }
+      },
+      {
+        "name": "i2",
+        "type": "bv32",
+        "role": "tx_limit",
+        "bounds": {
+          "min": 0,
+          "max": 4294967295
+        }
+      },
+      {
+        "name": "i3",
+        "type": "sbf",
+        "role": "window_elapsed"
+      }
+    ],
+    "domain_model": "total_bitvector_product",
+    "intended_preconditions": [
+      "Standalone outputs o1, o2, and o3 expose partial state and are allowed to disagree with the aggregate branch when reset is asserted."
+    ],
+    "analysis_partitions": [
+      {
+        "id": "limit_invalid",
+        "formula": "!(i2 > 0)",
+        "intent": "The aggregate must reject when the limit itself is invalid."
+      },
+      {
+        "id": "limit_valid_count_fail_reset_clear",
+        "formula": "(i2 > 0) && !(i1 <= i2) && !(i3 == 1)",
+        "intent": "No reset and count overflow should reject."
+      },
+      {
+        "id": "limit_valid_count_fail_reset_set",
+        "formula": "(i2 > 0) && !(i1 <= i2) && (i3 == 1)",
+        "intent": "Current v1 reset branch permits acceptance."
+      }
+    ]
+  },
+  "outputs": [
+    {
+      "name": "o1",
+      "type": "sbf",
+      "meaning": "limit_ok",
+      "contract_formula": "o1 = 1 iff (i2 > 0)",
+      "contract_expr": "1 if i2 > 0 else 0"
+    },
+    {
+      "name": "o2",
+      "type": "sbf",
+      "meaning": "count_within_limit",
+      "contract_formula": "o2 = 1 iff (i1 <= i2)",
+      "contract_expr": "1 if i1 <= i2 else 0"
+    },
+    {
+      "name": "o3",
+      "type": "sbf",
+      "meaning": "window_reset",
+      "contract_formula": "o3 = 1 iff (i3 == 1)",
+      "contract_expr": "1 if i3 == 1 else 0"
+    },
+    {
+      "name": "o4",
+      "type": "sbf",
+      "meaning": "rate_limit_satisfied_v1",
+      "contract_formula": "o4 = 1 iff (i2 > 0 && ((i1 <= i2) || (i3 == 1)))",
+      "contract_expr": "1 if (i2 > 0 and ((i1 <= i2) or (i3 == 1))) else 0"
+    }
+  ],
+  "behavior_partition": {
+    "partition_basis": "output_vector",
+    "coverage_goal": "promotion_gate",
+    "reachable_vectors_must_be_witnessed": true,
+    "unreachable_vectors_must_be_proved": true
+  },
+  "theorems": [
+    {
+      "id": "o4_exact",
+      "kind": "exactness",
+      "statement": "For all inputs, o4 is exactly the current v1 reset-aware aggregate guard.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact",
+        "tau_differential_exec"
+      ]
+    },
+    {
+      "id": "reset_bypass_is_real_behavior",
+      "kind": "reachability",
+      "statement": "There exists an explicit input where o4 = 1, o3 = 1, and o2 = 0.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact",
+        "tau_differential_exec"
+      ]
+    },
+    {
+      "id": "atlas_disjoint",
+      "kind": "partition_disjointness",
+      "statement": "Distinct rate_limiter_v1 output-vector regions are pairwise disjoint over the explicit input domain.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact"
+      ]
+    },
+    {
+      "id": "atlas_exhaustive",
+      "kind": "partition_exhaustiveness",
+      "statement": "The rate_limiter_v1 behavior atlas covers the explicit input domain.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact"
+      ]
+    },
+    {
+      "id": "tau_interpreter_equiv",
+      "kind": "interpreter_equivalence",
+      "statement": "The contract semantics and the Tau binary agree on the bounded assurance domain for rate_limiter_v1.",
+      "preferred_mechanization": [
+        "tau_differential_exec"
+      ]
+    }
+  ],
+  "evidence_links": [
+    {
+      "kind": "bounded_assurance",
+      "path": "tests/tau/spec_assurance_registry.json",
+      "note": "The assurance registry already records the reset-bypass counterexample posture as current v1 behavior."
+    }
+  ]
+}

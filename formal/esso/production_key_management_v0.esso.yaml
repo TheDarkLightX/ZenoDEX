@@ -1,0 +1,116 @@
+schema: esso.ir.v1
+model_id: production_key_management_v0
+status: equivalent_finite_model_backed
+description: >
+  Finite-domain production key-management admission model for ZenoDEX and
+  ZenoLedger. This file remains ESSO-ready for validation/sweep once ESSO is
+  available in the runner. The executable finite-model twin is
+  formal/property/production_key_management_v0.json plus
+  tools/check_production_key_management_spec.py.
+
+finite_domains:
+  environment:
+    values: [testnet, production]
+  key_status:
+    values: [active, revoked, expired]
+  storage_class:
+    values: [software, hardware, hsm, mpc]
+  role:
+    values: [treasury, config, validator, oracle, verifier, release, emergency]
+  action:
+    values:
+      - protocol_treasury_spend
+      - dao_treasury_grant
+      - public_network_config_update
+      - validator_set_update
+      - oracle_reporter_registry_update
+      - verifier_registry_update
+      - release_artifact_publish
+      - emergency_pause
+      - emergency_unpause
+      - key_revocation
+      - signer_rotation
+      - routine_node_heartbeat
+  bool:
+    values: [false, true]
+  bounded_count:
+    min: 0
+    max: 5
+
+state:
+  action: action
+  environment: environment
+  required_role: role
+  signer_count: bounded_count
+  threshold: bounded_count
+  distinct_custodian_count: bounded_count
+  min_distinct_custodians: bounded_count
+  all_signers_active: bool
+  all_signers_production: bool
+  all_signers_role_authorized: bool
+  hardware_requirement_met: bool
+  timelock_required: bool
+  timelock_satisfied: bool
+  break_glass_used: bool
+  transparency_required: bool
+  transparency_receipt_bound: bool
+  admitted: bool
+
+derived_predicates:
+  quorum_met: signer_count >= threshold
+  distinct_custodians_met: distinct_custodian_count >= min_distinct_custodians
+  timelock_ok: timelock_required == false or timelock_satisfied == true
+  transparency_ok: transparency_required == false or transparency_receipt_bound == true
+  break_glass_scope_ok: break_glass_used == false or action == emergency_pause
+  production_env_ok: environment == testnet or all_signers_production == true
+  signer_health_ok: all_signers_active == true
+  role_ok: all_signers_role_authorized == true
+  storage_ok: hardware_requirement_met == true
+  admission_guard: >
+    production_env_ok and signer_health_ok and role_ok and quorum_met and
+    distinct_custodians_met and storage_ok and timelock_ok and
+    break_glass_scope_ok and transparency_ok
+
+transition_relation:
+  admit:
+    assigns:
+      admitted: admission_guard
+  reject:
+    assigns:
+      admitted: false
+
+invariants:
+  - id: PKM-ESSO-001-prod-keys-only
+    property: admitted and environment == production -> all_signers_production
+  - id: PKM-ESSO-002-no-revoked-or-expired
+    property: admitted -> all_signers_active
+  - id: PKM-ESSO-003-role-authorized
+    property: admitted -> all_signers_role_authorized
+  - id: PKM-ESSO-004-quorum
+    property: admitted -> signer_count >= threshold
+  - id: PKM-ESSO-005-distinct-custodians
+    property: admitted -> distinct_custodian_count >= min_distinct_custodians
+  - id: PKM-ESSO-006-storage
+    property: admitted -> hardware_requirement_met
+  - id: PKM-ESSO-007-timelock
+    property: admitted and timelock_required -> timelock_satisfied
+  - id: PKM-ESSO-008-break-glass-scope
+    property: admitted and break_glass_used -> action == emergency_pause
+  - id: PKM-ESSO-009-transparency
+    property: admitted and transparency_required -> transparency_receipt_bound
+  - id: PKM-ESSO-010-no-single-key-critical
+    property: >
+      admitted and action != routine_node_heartbeat ->
+      threshold >= 2 and min_distinct_custodians >= 2
+
+recommended_esso_commands:
+  validate: python3 -m ESSO validate formal/esso/production_key_management_v0.esso.yaml
+  guide: python3 -m ESSO guide --input formal/esso/production_key_management_v0.esso.yaml --goal verify --profile ci
+  verify: python3 -m ESSO verify --input formal/esso/production_key_management_v0.esso.yaml --output runs/esso/production_key_management_v0
+
+notes:
+  - Treat ESSO missing, timeout, or solver unknown as release failure.
+  - Keep this ESSO surface in lockstep with formal/property/production_key_management_v0.json.
+  - Do not add unbounded integers, strings, network calls, or wall-clock time to the model.
+  - Model `mpc` as a non-software live signing custody class. Model Shamir Secret Sharing
+    outside the admission transition as backup/recovery evidence, never as a live signer.

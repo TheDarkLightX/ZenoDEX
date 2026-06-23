@@ -1,0 +1,11 @@
+schema: zenodex/fire-evidence-lattice/v1
+levels:
+  - proved
+  - contract
+  - implemented
+  - tested_discovery
+  - hypothesis
+meet_rule: weakest_required_claim
+notes:
+  - Aggregate evidence floor is the meet across required claims.
+  - Per-claim labels must be preserved; the floor is not a replacement for the vector.

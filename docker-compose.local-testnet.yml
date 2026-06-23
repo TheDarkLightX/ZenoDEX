@@ -1,0 +1,474 @@
+# ZenoDEX Local-Testnet Compose Overlay
+#
+# Brings up a real local-testnet stack:
+#   3-node ZenoLedger (bootstrap + writer + forwarder + readonly)
+#   tau-local (local Tau node)
+#   zenodex-oracle (Zeno Oracle dashboard/API)
+#   zenodex-api   (stdlib API with live local lanes enabled)
+#   zenodex-nginx (UI + nginx, only host-exposed service)
+#
+# This overlay is self-contained. Do NOT compose it with the upstream
+# `docker-compose.multimachine.yml` or `docker-compose.permissionless.yml`
+# (it reuses their images but defines services independently to avoid
+# silent drift). The orchestrator at `tools/zenoctl_testnet_local/`
+# launches and tears down this stack.
+#
+# Required env (injected by the orchestrator):
+#   - ZENO_LEDGER_WRITER_TOKEN   bearer token for writer mutation auth
+#   - ZENODEX_API_BEARER_TOKEN   bearer token for stdlib API auth
+#   - RENDERED_NGINX_CONF_PATH   abs path to rendered nginx.local-testnet.conf
+#   - RENDERED_RUNTIME_CONFIG_PATH abs path to rendered zenodex-config.json
+#   - FIXTURES_DIR               abs path to generated fixtures
+#   - ORACLE_HOME_DIR            abs path to generated Oracle home
+#   - HOST_UID, HOST_GID         host user/group ids for bind-mounted artifacts
+#   - UI_PORT                    host TCP port for the UI nginx (default 18080)
+#   - CHAIN_ID, NETWORK_ID       ledger identifiers
+#   - ZENO_LEDGER_TOKEN_SYMBOL   local protocol-token symbol (default tZDEX)
+
+services:
+  zeno-ledger-bootstrap:
+    build:
+      context: .
+      dockerfile: Dockerfile.operator-tools
+    image: zenodex/operator-tools:local
+    command:
+      - tools/zeno_ledger_multidocker_scenario.py
+      - bootstrap
+      - --bundle-root
+      - /app/data/local-testnet/bundle
+      - --network-id
+      - ${NETWORK_ID:-zeno-ledger-localtest-v0}
+      - --chain-id
+      - ${CHAIN_ID:-zeno-ledger-localtest-v0}
+      - --token-symbol
+      - ${ZENO_LEDGER_TOKEN_SYMBOL:-tZDEX}
+      - --fixture-key-bundle
+      - /app/fixtures/role_pubkeys.json
+      - --report-out
+      - /app/data/local-testnet/reports/bootstrap.json
+      - --bundle-tar-out
+      - /app/data/local-testnet/bundle.tar.gz
+      - --stay-alive
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      ZENO_LEDGER_WRITER_TOKEN: ${ZENO_LEDGER_WRITER_TOKEN:?ZENO_LEDGER_WRITER_TOKEN must be set by the orchestrator}
+      ZENO_LEDGER_TOKEN_SYMBOL: ${ZENO_LEDGER_TOKEN_SYMBOL:-tZDEX}
+    volumes:
+      - zeno-local-testnet-data:/app/data
+      - ${FIXTURES_DIR:?FIXTURES_DIR must be set by the orchestrator}:/app/fixtures:ro
+    networks: [zenodex-local-testnet]
+    security_opt: &security_opts
+      - no-new-privileges:true
+    init: true
+    cap_drop: &cap_drop
+      - ALL
+    pids_limit: 256
+    mem_limit: 768m
+    read_only: true
+    tmpfs: &tmpfs
+      - /tmp:mode=1777,noexec,nosuid,nodev,size=128m
+
+  zeno-ledger-writer:
+    image: zenodex/operator-tools:local
+    depends_on:
+      zeno-ledger-bootstrap:
+        condition: service_started
+    command:
+      - tools/zeno_ledger_multidocker_scenario.py
+      - serve-node
+      - --role
+      - writer
+      - --bundle-root
+      - /app/data/local-testnet/bundle
+      - --data-dir
+      - /app/data/local-testnet/node-writer
+      - --network-id
+      - ${NETWORK_ID:-zeno-ledger-localtest-v0}
+      - --chain-id
+      - ${CHAIN_ID:-zeno-ledger-localtest-v0}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8787"
+      - --enable-testnet-intake
+      - --enable-testnet-faucet
+      - --expose-testnet-faucet-http
+      - --write-auth-token-env
+      - ZENO_LEDGER_WRITER_TOKEN
+      - --min-lp-position-age-seconds
+      - ${ZENO_LEDGER_MIN_LP_POSITION_AGE_SECONDS:-300}
+      - --lp-duration-risk-policy
+      - ${ZENO_LEDGER_LP_DURATION_RISK_POLICY:-zeno-oracle}
+    environment: &node_env
+      PYTHONDONTWRITEBYTECODE: "1"
+      ZENO_LEDGER_WRITER_TOKEN: ${ZENO_LEDGER_WRITER_TOKEN:?ZENO_LEDGER_WRITER_TOKEN must be set by the orchestrator}
+      TAU_DEX_CHAIN_ID: ${CHAIN_ID:-zeno-ledger-localtest-v0}
+      TAU_DEX_TOKEN_SYMBOL: ${ZENO_LEDGER_TOKEN_SYMBOL:-tZDEX}
+      TAU_DEX_PROOF_MINING_POOL_PUBKEY: ${TAU_DEX_PROOF_MINING_POOL_PUBKEY:-}
+      TAU_DEX_ALLOW_EXTERNAL_TOOLS: ${TAU_DEX_ALLOW_EXTERNAL_TOOLS:-}
+      TAU_DEX_CONSENSUS_MODE: ${TAU_DEX_CONSENSUS_MODE:-}
+      TAU_DEX_PROOF_VERIFIER_CMD_JSON: ${TAU_DEX_PROOF_VERIFIER_CMD_JSON:-}
+      TAU_DEX_PROOF_VERIFIER_TIMEOUT_S: ${TAU_DEX_PROOF_VERIFIER_TIMEOUT_S:-}
+      TAU_DEX_PROOF_VERIFIER_MAX_PROOF_BYTES: ${TAU_DEX_PROOF_VERIFIER_MAX_PROOF_BYTES:-}
+      TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP: ${TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP:-}
+      TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON: ${TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON:-}
+      TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON: ${TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON:-}
+      TAU_DEX_PROOF_VERIFIER_ARTIFACT_FILE: ${TAU_DEX_PROOF_VERIFIER_ARTIFACT_FILE:-}
+      TAU_DEX_PROOF_CIRCUIT_ARTIFACT_FILE: ${TAU_DEX_PROOF_CIRCUIT_ARTIFACT_FILE:-}
+    volumes:
+      - zeno-local-testnet-data:/app/data
+    networks: [zenodex-local-testnet]
+    security_opt: *security_opts
+    init: true
+    cap_drop: *cap_drop
+    pids_limit: 256
+    mem_limit: 768m
+    read_only: true
+    tmpfs: *tmpfs
+
+  zeno-ledger-forwarder:
+    image: zenodex/operator-tools:local
+    depends_on:
+      zeno-ledger-writer:
+        condition: service_started
+    command:
+      - tools/zeno_ledger_multidocker_scenario.py
+      - serve-node
+      - --role
+      - forwarder
+      - --bundle-root
+      - /app/data/local-testnet/bundle
+      - --data-dir
+      - /app/data/local-testnet/node-forwarder
+      - --network-id
+      - ${NETWORK_ID:-zeno-ledger-localtest-v0}
+      - --chain-id
+      - ${CHAIN_ID:-zeno-ledger-localtest-v0}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8787"
+      - --peer-url
+      - http://zeno-ledger-writer:8787
+      - --poll-seconds
+      - "1"
+      - --enable-testnet-intake
+      - --enable-testnet-faucet
+      - --expose-testnet-faucet-http
+      - --submit-peer-url
+      - http://zeno-ledger-writer:8787
+      - --write-auth-token-env
+      - ZENO_LEDGER_WRITER_TOKEN
+      - --submit-peer-auth-token-env
+      - ZENO_LEDGER_WRITER_TOKEN
+      - --min-lp-position-age-seconds
+      - ${ZENO_LEDGER_MIN_LP_POSITION_AGE_SECONDS:-300}
+      - --lp-duration-risk-policy
+      - ${ZENO_LEDGER_LP_DURATION_RISK_POLICY:-zeno-oracle}
+    environment: *node_env
+    volumes:
+      - zeno-local-testnet-data:/app/data
+    networks: [zenodex-local-testnet]
+    security_opt: *security_opts
+    init: true
+    cap_drop: *cap_drop
+    pids_limit: 256
+    mem_limit: 768m
+    read_only: true
+    tmpfs: *tmpfs
+
+  zeno-ledger-readonly:
+    image: zenodex/operator-tools:local
+    depends_on:
+      zeno-ledger-writer:
+        condition: service_started
+    command:
+      - tools/zeno_ledger_multidocker_scenario.py
+      - serve-node
+      - --role
+      - readonly
+      - --bundle-root
+      - /app/data/local-testnet/bundle
+      - --data-dir
+      - /app/data/local-testnet/node-readonly
+      - --network-id
+      - ${NETWORK_ID:-zeno-ledger-localtest-v0}
+      - --chain-id
+      - ${CHAIN_ID:-zeno-ledger-localtest-v0}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8787"
+      - --peer-url
+      - http://zeno-ledger-writer:8787
+      - --poll-seconds
+      - "1"
+      - --write-auth-token-env
+      - ZENO_LEDGER_WRITER_TOKEN
+      - --min-lp-position-age-seconds
+      - ${ZENO_LEDGER_MIN_LP_POSITION_AGE_SECONDS:-300}
+      - --lp-duration-risk-policy
+      - ${ZENO_LEDGER_LP_DURATION_RISK_POLICY:-zeno-oracle}
+    environment: *node_env
+    volumes:
+      - zeno-local-testnet-data:/app/data
+    networks: [zenodex-local-testnet]
+    security_opt: *security_opts
+    init: true
+    cap_drop: *cap_drop
+    pids_limit: 256
+    mem_limit: 768m
+    read_only: true
+    tmpfs: *tmpfs
+
+  tau-local:
+    build:
+      context: .
+      dockerfile: .docker/Dockerfile.tau-local
+    image: zenodex/tau-local:local-testnet
+    working_dir: /work
+    command: ["bash", "tools/run_local_tau_node_container.sh"]
+    environment:
+      TAU_PORT: "65432"
+      TAU_DEX_CHAIN_ID: ${CHAIN_ID:-zeno-ledger-localtest-v0}
+      TAU_DEX_TOKEN_SYMBOL: ${ZENO_LEDGER_TOKEN_SYMBOL:-tZDEX}
+      TAU_DEX_TOKEN_OPERATOR_PUBKEY: ${TAU_DEX_TOKEN_OPERATOR_PUBKEY:?TAU_DEX_TOKEN_OPERATOR_PUBKEY must be set by the orchestrator}
+      TAU_DEX_ORACLE_PUBKEY: ${TAU_DEX_ORACLE_PUBKEY:?TAU_DEX_ORACLE_PUBKEY must be set by the orchestrator}
+      TAU_DEX_ZUSD_ORACLE_PUBKEY: ${TAU_DEX_ZUSD_ORACLE_PUBKEY:?TAU_DEX_ZUSD_ORACLE_PUBKEY must be set by the orchestrator}
+      TAU_DEX_PROOF_MINING_POOL_PUBKEY: ${TAU_DEX_PROOF_MINING_POOL_PUBKEY:-}
+      TAU_ENABLE_FAUCET: "1"
+      TAU_DEX_FAUCET: "1"
+      TAU_DEX_ALLOW_MISSING_SETTLEMENT: "1"
+      TAU_DEX_CONFIDENTIAL_SEALED_BID_TAU_GUARD: "1"
+      TAU_APP_BRIDGE_ALLOW_BALANCE_PATCH: "1"
+      TAU_BIN_PROFILE: runtime
+      TAU_RUNTIME_BIN: /work/external/tau-lang-bitblasting-prev-eea8fb1f/build-Release/tau
+      TAU_RUNTIME_LIBRARY_PATH: /tau-cvc5-lib
+      TAU_NODE_VENV_DIR: /opt/zenodex-tau-venv
+      TAU_DB_PATH: /data/tau-local.sqlite
+      TAU_FORCE_TEST: "1"
+    volumes:
+      - .:/work
+      - ${TAU_TESTNET_DIR:?TAU_TESTNET_DIR must be set by the orchestrator}:/work/external/tau-testnet:ro
+      - ${TAU_CVC5_LIB_DIR:?TAU_CVC5_LIB_DIR must be set by the orchestrator (host path to cvc5 shared libraries)}:/tau-cvc5-lib:ro
+      - tau-local-testnet-venv:/opt/zenodex-tau-venv
+      - tau-local-testnet-db:/data
+    networks: [zenodex-local-testnet]
+    security_opt: *security_opts
+    cap_drop: *cap_drop
+    pids_limit: 256
+    mem_limit: 768m
+    init: true
+    tmpfs: *tmpfs
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os, socket; s=socket.create_connection(('127.0.0.1', int(os.environ.get('TAU_PORT', '65432'))), timeout=2); s.sendall(b'hello version=1\\r\\n'); s.recv(1024); s.close()"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  zenodex-oracle:
+    image: zenodex/operator-tools:local
+    user: "${HOST_UID:?HOST_UID must be set by the orchestrator}:${HOST_GID:?HOST_GID must be set by the orchestrator}"
+    command:
+      - tools/zenodex_oracle.py
+      - serve
+      - --home
+      - /app/data/oracle-home
+      - --allow-writes
+      - --host
+      - 0.0.0.0
+      - --port
+      - "9100"
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - zeno-local-testnet-data:/app/data
+      - ${ORACLE_HOME_DIR:?ORACLE_HOME_DIR must be set by the orchestrator}:/app/data/oracle-home
+    networks: [zenodex-local-testnet]
+    security_opt: *security_opts
+    init: true
+    cap_drop: *cap_drop
+    pids_limit: 256
+    mem_limit: 512m
+    read_only: true
+    tmpfs: *tmpfs
+
+  zenodex-api:
+    image: zenodex/operator-tools:local
+    user: "${HOST_UID:?HOST_UID must be set by the orchestrator}:${HOST_GID:?HOST_GID must be set by the orchestrator}"
+    depends_on:
+      zeno-ledger-writer:
+        condition: service_started
+      tau-local:
+        condition: service_started
+    command:
+      - -m
+      - src.integration.api_server
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      API_HOST: "0.0.0.0"
+      API_PORT: "8000"
+      ZENODEX_ENV: "local"
+      TAU_DEX_CHAIN_ID: ${CHAIN_ID:-zeno-ledger-localtest-v0}
+      TAU_DEX_TOKEN_SYMBOL: ${ZENO_LEDGER_TOKEN_SYMBOL:-tZDEX}
+      ZUSD_TAU_WALLET_CHAIN_ID: ${CHAIN_ID:-zeno-ledger-localtest-v0}
+      ZUSD_MONETARY_WALLET_CHAIN_ID: ${CHAIN_ID:-zeno-ledger-localtest-v0}
+      PERPS_WALLET_CHAIN_ID: ${CHAIN_ID:-zeno-ledger-localtest-v0}
+      AUTOTRADER_LIVE_CHAIN_ID: ${CHAIN_ID:-zeno-ledger-localtest-v0}
+      DEX_API_ENABLED: "true"
+      PERPS_API_ENABLED: "false"
+      PERPS_WALLET_API_ENABLED: "true"
+      PERPS_WALLET_ALLOW_LOCAL_SIGNING: "true"
+      PERPS_WALLET_AUTO_MINE: "true"
+      PERPS_WALLET_TESTNET_FAUCET_ENABLED: "true"
+      PERPS_WALLET_TESTNET_FAUCET_AUTHORITY_PUBKEY: ${TAU_DEX_TOKEN_OPERATOR_PUBKEY:?TAU_DEX_TOKEN_OPERATOR_PUBKEY must be set by the orchestrator}
+      PERPS_WALLET_TESTNET_FAUCET_MAX_AMOUNT: "100000"
+      PERPS_WALLET_TAU_HOST: "tau-local"
+      PERPS_WALLET_TAU_PORT: "65432"
+      PERPS_WALLET_TAU_TIMEOUT_S: "10"
+      PERPS_WALLET_APP_HASH_WAIT_S: "5"
+      PERPS_WALLET_AUTHORITY_PROFILE_FILE: /app/fixtures/perps_wallet_authority_profile.json
+      PERPS_WALLET_RECOVERY_EXERCISE_FILE: /app/fixtures/perps_wallet_recovery_exercise.json
+      PERPS_WALLET_ROTATION_EXERCISE_FILE: /app/fixtures/perps_wallet_rotation_exercise.json
+      PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_FILE: /app/fixtures/perps_wallet_device_approval_exercise.json
+      PERPS_WALLET_SIGNER_DEVICE_INTEGRATION_FILE: /app/fixtures/perps_wallet_signer_device_integration.json
+      PERPS_WALLET_SIGNER_PROMPT_CAPTURE_FILE: /app/fixtures/perps_wallet_signer_prompt_capture.json
+      PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_FILE: /app/fixtures/perps_wallet_signer_execution_exercise.json
+      PERPS_WALLET_ENCRYPTED_SSS_BACKUP_FILE: /app/fixtures/perps_wallet_encrypted_sss_backup.json
+      PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_FILE: /app/fixtures/perps_wallet_encrypted_sss_recipient_keys.json
+      PERPS_WALLET_PROOF_VERIFIER_CMD_JSON: ${PERPS_WALLET_PROOF_VERIFIER_CMD_JSON:-}
+      PERPS_WALLET_PROOF_VERIFIER_TIMEOUT_S: ${PERPS_WALLET_PROOF_VERIFIER_TIMEOUT_S:-}
+      PERPS_WALLET_PROOF_VERIFIER_MAX_PROOF_BYTES: ${PERPS_WALLET_PROOF_VERIFIER_MAX_PROOF_BYTES:-}
+      PERPS_WALLET_PROOF_VERIFIER_ALLOW_PATH_LOOKUP: ${PERPS_WALLET_PROOF_VERIFIER_ALLOW_PATH_LOOKUP:-}
+      PERPS_WALLET_PROOF_VERIFIER_ARTIFACT_JSON: ${PERPS_WALLET_PROOF_VERIFIER_ARTIFACT_JSON:-}
+      PERPS_WALLET_PROOF_CIRCUIT_ARTIFACT_JSON: ${PERPS_WALLET_PROOF_CIRCUIT_ARTIFACT_JSON:-}
+      PERPS_ORACLE_AUTHORITY_PROFILE_FILE: /app/fixtures/oracle_authority_profile.json
+      ZENO_ORACLE_PRODUCTION_AUTHORITY_PROFILE_FILE: /app/fixtures/oracle_authority_profile.json
+      TAU_DEX_REQUIRE_LIVE_ZK_PROOF: ${TAU_DEX_REQUIRE_LIVE_ZK_PROOF:-false}
+      TAU_DEX_PROOF_VERIFIER_CMD_JSON: ${TAU_DEX_PROOF_VERIFIER_CMD_JSON:-}
+      TAU_DEX_PROOF_VERIFIER_TIMEOUT_S: ${TAU_DEX_PROOF_VERIFIER_TIMEOUT_S:-}
+      TAU_DEX_PROOF_VERIFIER_MAX_PROOF_BYTES: ${TAU_DEX_PROOF_VERIFIER_MAX_PROOF_BYTES:-}
+      TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP: ${TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP:-}
+      TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON: ${TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON:-}
+      TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON: ${TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON:-}
+      TAU_DEX_PROOF_VERIFIER_ARTIFACT_FILE: ${TAU_DEX_PROOF_VERIFIER_ARTIFACT_FILE:-}
+      TAU_DEX_PROOF_CIRCUIT_ARTIFACT_FILE: ${TAU_DEX_PROOF_CIRCUIT_ARTIFACT_FILE:-}
+      TAU_DEX_PROOF_MINING_POOL_PUBKEY: ${TAU_DEX_PROOF_MINING_POOL_PUBKEY:-}
+      ZENO_LEDGER_WRITER_SNAPSHOT_URL: http://zeno-ledger-writer:8787/api/dex/snapshot
+      TAU_DEX_PERP_ORACLE_PUBKEY: ${TAU_DEX_ORACLE_PUBKEY:?TAU_DEX_ORACLE_PUBKEY must be set by the orchestrator}
+      ZUSD_API_ENABLED: "false"
+      ZUSD_TAU_WALLET_API_ENABLED: "true"
+      ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING: "true"
+      ZUSD_TAU_WALLET_AUTO_MINE: "true"
+      ZUSD_TAU_WALLET_TAU_HOST: "tau-local"
+      ZUSD_TAU_WALLET_TAU_PORT: "65432"
+      ZUSD_TAU_WALLET_TAU_TIMEOUT_S: "10"
+      ZUSD_MONETARY_WALLET_API_ENABLED: "true"
+      ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING: "true"
+      ZUSD_MONETARY_WALLET_AUTO_MINE: "true"
+      ZUSD_MONETARY_WALLET_TAU_HOST: "tau-local"
+      ZUSD_MONETARY_WALLET_TAU_PORT: "65432"
+      ZUSD_MONETARY_WALLET_TAU_TIMEOUT_S: "10"
+      ZUSD_MONETARY_WALLET_TESTNET_FAUCET_ENABLED: "true"
+      ZUSD_MONETARY_WALLET_TESTNET_FAUCET_AUTHORITY_PUBKEY: ${TAU_DEX_TOKEN_OPERATOR_PUBKEY:?TAU_DEX_TOKEN_OPERATOR_PUBKEY must be set by the orchestrator}
+      ZUSD_MONETARY_WALLET_TESTNET_FAUCET_SIGNER_PRIVKEY: ${TAU_DEX_TOKEN_OPERATOR_PRIVKEY:?TAU_DEX_TOKEN_OPERATOR_PRIVKEY must be set by the orchestrator}
+      ZUSD_MONETARY_WALLET_TESTNET_FAUCET_MAX_AMOUNT_E8: "1000"
+      ZUSD_MONETARY_WALLET_PROOF_VERIFIER_CMD_JSON: ${ZUSD_MONETARY_WALLET_PROOF_VERIFIER_CMD_JSON:-}
+      ZUSD_MONETARY_WALLET_PROOF_VERIFIER_TIMEOUT_S: ${ZUSD_MONETARY_WALLET_PROOF_VERIFIER_TIMEOUT_S:-}
+      ZUSD_MONETARY_WALLET_PROOF_VERIFIER_MAX_PROOF_BYTES: ${ZUSD_MONETARY_WALLET_PROOF_VERIFIER_MAX_PROOF_BYTES:-}
+      ZUSD_MONETARY_WALLET_PROOF_VERIFIER_ALLOW_PATH_LOOKUP: ${ZUSD_MONETARY_WALLET_PROOF_VERIFIER_ALLOW_PATH_LOOKUP:-}
+      ZUSD_MONETARY_WALLET_PROOF_VERIFIER_ARTIFACT_JSON: ${ZUSD_MONETARY_WALLET_PROOF_VERIFIER_ARTIFACT_JSON:-}
+      ZUSD_MONETARY_WALLET_PROOF_CIRCUIT_ARTIFACT_JSON: ${ZUSD_MONETARY_WALLET_PROOF_CIRCUIT_ARTIFACT_JSON:-}
+      TAU_DEX_TOKEN_OPERATOR_PUBKEY: ${TAU_DEX_TOKEN_OPERATOR_PUBKEY:?TAU_DEX_TOKEN_OPERATOR_PUBKEY must be set by the orchestrator}
+      TAU_DEX_ORACLE_PUBKEY: ${TAU_DEX_ORACLE_PUBKEY:?TAU_DEX_ORACLE_PUBKEY must be set by the orchestrator}
+      TAU_DEX_ZUSD_ORACLE_PUBKEY: ${TAU_DEX_ZUSD_ORACLE_PUBKEY:?TAU_DEX_ZUSD_ORACLE_PUBKEY must be set by the orchestrator}
+      TAU_DEX_OPERATOR_PUBKEY: ${TAU_DEX_TOKEN_OPERATOR_PUBKEY:?TAU_DEX_TOKEN_OPERATOR_PUBKEY must be set by the orchestrator}
+      AUTOTRADER_LIVE_API_ENABLED: "true"
+      AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING: "true"
+      AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION: "true"
+      AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED: "true"
+      AUTOTRADER_LIVE_SUPERVISOR_ENABLED: "true"
+      AUTOTRADER_LIVE_AUTO_MINE: "true"
+      AUTOTRADER_LIVE_TAU_HOST: "tau-local"
+      AUTOTRADER_LIVE_TAU_PORT: "65432"
+      AUTOTRADER_LIVE_TAU_TIMEOUT_S: "10"
+      AUTOTRADER_LIVE_EXECUTION_JOURNAL_PATH: /tmp/autotrader_execution_journal.jsonl
+      AUTOTRADER_LIVE_SUPERVISOR_PROFILE_FILE: /app/fixtures/autotrader_supervisor_profile.json
+      CONFIDENTIAL_ATTESTATION_API_ENABLED: "true"
+      CONFIDENTIAL_SEALED_BID_STATE_FILE: /tmp/confidential_sealed_bid_state.json
+      CONFIDENTIAL_SEALED_BID_LOCAL_LEDGER_SETTLEMENT_ENABLED: "true"
+      CONFIDENTIAL_SEALED_BID_AUTO_MINE: "true"
+      CONFIDENTIAL_SEALED_BID_TAU_HOST: "tau-local"
+      CONFIDENTIAL_SEALED_BID_TAU_PORT: "65432"
+      CONFIDENTIAL_SEALED_BID_TAU_TIMEOUT_S: "10"
+      CONFIDENTIAL_OPERATOR_CONTACT: "https://ops.zenodex.local"
+      CONFIDENTIAL_APPROVED_MEASUREMENTS: ${CONFIDENTIAL_APPROVED_MEASUREMENTS:?CONFIDENTIAL_APPROVED_MEASUREMENTS must be set by the orchestrator}
+      CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED: "true"
+      CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON: ${CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON:?CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON must be set by the orchestrator}
+      ZENODEX_API_BEARER_TOKEN: ${ZENODEX_API_BEARER_TOKEN:?ZENODEX_API_BEARER_TOKEN must be set by the orchestrator}
+      # Nginx front door enforces bearer-token auth as an external boundary,
+      # so the stdlib API server can start with protected lanes enabled.
+      ZENODEX_EXTERNAL_AUTH_ENFORCED: "true"
+    volumes:
+      - zeno-local-testnet-data:/app/data
+      - ${FIXTURES_DIR:?FIXTURES_DIR must be set by the orchestrator}:/app/fixtures:ro
+    networks: [zenodex-local-testnet]
+    security_opt: *security_opts
+    init: true
+    cap_drop: *cap_drop
+    pids_limit: 512
+    mem_limit: 768m
+    read_only: true
+    tmpfs: *tmpfs
+
+  zenodex-nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: zenodex:local
+    user: "${HOST_UID:?HOST_UID must be set by the orchestrator}:${HOST_GID:?HOST_GID must be set by the orchestrator}"
+    depends_on:
+      zenodex-api:
+        condition: service_started
+      zenodex-oracle:
+        condition: service_started
+      zeno-ledger-writer:
+        condition: service_started
+    entrypoint: []
+    command:
+      - sh
+      - -c
+      - >
+        mkdir -p /tmp/nginx/client_body /tmp/nginx/proxy /tmp/nginx/fastcgi /tmp/nginx/uwsgi /tmp/nginx/scgi
+        && exec nginx -g 'daemon off;'
+    ports:
+      - "127.0.0.1:${UI_PORT:-18080}:8080"
+    volumes:
+      - ${RENDERED_NGINX_CONF_PATH:?RENDERED_NGINX_CONF_PATH must be set by the orchestrator}:/etc/nginx/conf.d/zenodex.conf:ro
+      - ${RENDERED_RUNTIME_CONFIG_PATH:?RENDERED_RUNTIME_CONFIG_PATH must be set by the orchestrator}:/var/www/zenodex/zenodex-config.json:ro
+    networks: [zenodex-local-testnet]
+    security_opt: *security_opts
+    init: true
+    cap_drop: *cap_drop
+    pids_limit: 256
+    mem_limit: 256m
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,noexec,nosuid,nodev,size=64m
+      - /var/run:uid=10001,gid=10001,mode=755,noexec,nosuid,nodev,size=16m
+      - /var/cache/nginx:uid=10001,gid=10001,mode=755,noexec,nosuid,nodev,size=64m
+      - /var/log/nginx:uid=10001,gid=10001,mode=755,noexec,nosuid,nodev,size=16m
+
+networks:
+  zenodex-local-testnet:
+    driver: bridge
+
+volumes:
+  zeno-local-testnet-data:
+  tau-local-testnet-venv:
+  tau-local-testnet-db:

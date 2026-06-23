@@ -1,0 +1,130 @@
+{
+  "schema": "zenodex/macos-scout-witness-atlas/v1",
+  "depth": 5,
+  "surfaces": [
+    {
+      "id": "oracle_liquidity_guard",
+      "fiber": "oracle",
+      "disaster_states": [
+        "liquidity_floor_breach_under_oracle_gap"
+      ],
+      "required_metrics": [
+        "guard_block_rate"
+      ]
+    },
+    {
+      "id": "epoch_payout_budget",
+      "fiber": "accounting",
+      "disaster_states": [
+        "payout_cap_exceeded_initial_budget"
+      ],
+      "required_metrics": [
+        "payout_budget_clamp_rate"
+      ]
+    },
+    {
+      "id": "thin_liquidity_funding_clamp",
+      "fiber": "accounting",
+      "disaster_states": [
+        "funding_too_aggressive_in_thin_liquidity"
+      ],
+      "required_metrics": [
+        "funding_clamp_rate"
+      ]
+    },
+    {
+      "id": "insurance_solvency",
+      "fiber": "accounting",
+      "disaster_states": [
+        "negative_insurance"
+      ],
+      "required_metrics": [
+        "min_insurance_ratio"
+      ]
+    },
+    {
+      "id": "fee_budget_legal_shape",
+      "fiber": "accounting",
+      "disaster_states": [
+        "burn_starves_budget"
+      ],
+      "required_metrics": [
+        "legal_shape_ok"
+      ]
+    },
+    {
+      "id": "reason_classification_gate",
+      "fiber": "receipt",
+      "disaster_states": [
+        "unclassified_disaster_reason"
+      ],
+      "required_metrics": [
+        "unknown_reasons"
+      ]
+    },
+    {
+      "id": "promotion_candidate_gate",
+      "fiber": "claim",
+      "disaster_states": [
+        "unsafe_candidate_promoted"
+      ],
+      "required_metrics": [
+        "promotion_errors"
+      ]
+    },
+    {
+      "id": "receipt_provenance_gate",
+      "fiber": "receipt",
+      "disaster_states": [
+        "dirty_checker_promotes_receipt"
+      ],
+      "required_metrics": [
+        "gate_critical_dirty_paths"
+      ]
+    }
+  ],
+  "composition_edges": [
+    [
+      "oracle_liquidity_guard",
+      "epoch_payout_budget"
+    ],
+    [
+      "oracle_liquidity_guard",
+      "thin_liquidity_funding_clamp"
+    ],
+    [
+      "epoch_payout_budget",
+      "insurance_solvency"
+    ],
+    [
+      "thin_liquidity_funding_clamp",
+      "insurance_solvency"
+    ],
+    [
+      "fee_budget_legal_shape",
+      "epoch_payout_budget"
+    ],
+    [
+      "fee_budget_legal_shape",
+      "insurance_solvency"
+    ],
+    [
+      "reason_classification_gate",
+      "promotion_candidate_gate"
+    ],
+    [
+      "promotion_candidate_gate",
+      "receipt_provenance_gate"
+    ]
+  ],
+  "reentry_edges": [
+    [
+      "insurance_solvency",
+      "oracle_liquidity_guard"
+    ],
+    [
+      "receipt_provenance_gate",
+      "reason_classification_gate"
+    ]
+  ]
+}

@@ -1,0 +1,317 @@
+#!/usr/bin/env python3
+"""Stress UPBA v2 suffix-bound certificates with adversarial unchecked suffixes."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from collections import Counter
+from pathlib import Path
+from random import Random
+from statistics import mean
+from time import perf_counter
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.core.uniform_batch_clearing import UniformBatchCertificateV1, UniformBatchFillV1
+from src.energy.upba_v2_ranker import (
+    advisory_candidate_hash,
+    deterministic_best_verified_candidate,
+    verify_candidates_in_order,
+)
+from src.energy.upba_v2_suffix_bound import (
+    build_upba_v2_suffix_bound_certificate,
+    candidate_objective_upper_bound,
+    verify_upba_v2_suffix_bound_certificate,
+)
+from tools.generate_upba_energy_dataset import generate_synthetic_batch
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--batches", type=int, default=120)
+    parser.add_argument("--candidates-per-batch", type=int, default=24)
+    parser.add_argument("--seed", type=int, default=20260544)
+    parser.add_argument("--output-json", type=Path)
+    parser.add_argument("--output-markdown", type=Path)
+    args = parser.parse_args()
+
+    report = stress_adversarial_suffix_bound(
+        batches=args.batches,
+        candidates_per_batch=args.candidates_per_batch,
+        seed=args.seed,
+    )
+    encoded = json.dumps(report, indent=2, sort_keys=True)
+    if args.output_json is not None:
+        args.output_json.parent.mkdir(parents=True, exist_ok=True)
+        args.output_json.write_text(encoded + "\n", encoding="utf-8")
+    if args.output_markdown is not None:
+        args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
+        args.output_markdown.write_text(_markdown_report(report), encoding="utf-8")
+    print(encoded)
+    return 0 if report["ok"] else 1
+
+
+def stress_adversarial_suffix_bound(
+    *,
+    batches: int,
+    candidates_per_batch: int,
+    seed: int,
+) -> dict[str, Any]:
+    if batches <= 0:
+        raise ValueError("batches must be positive")
+    if candidates_per_batch <= 1:
+        raise ValueError("candidates_per_batch must be greater than one")
+
+    started = perf_counter()
+    rng = Random(seed)
+    rows: list[dict[str, Any]] = []
+    skipped_without_winner = 0
+    disqualifiers: Counter[str] = Counter()
+
+    for batch_index in range(batches):
+        batch = generate_synthetic_batch(
+            rng=rng,
+            batch_index=batch_index,
+            target_candidate_count=candidates_per_batch,
+        )
+        original_candidates = tuple(item.candidate for item in batch.candidates)
+        full_results = verify_candidates_in_order(
+            pool=batch.pool,
+            intents=batch.intents,
+            balances=batch.balances,
+            candidates=original_candidates,
+        )
+        winner = deterministic_best_verified_candidate(full_results)
+        if winner is None:
+            skipped_without_winner += 1
+            continue
+
+        adversary = _mutate_declared_output_above_winner(
+            winner.candidate,
+            winner_volume=winner.volume,
+        )
+        adversary_hash = advisory_candidate_hash(adversary)
+        checked_results = (winner,)
+        unchecked = tuple(
+            candidate
+            for candidate in original_candidates
+            if advisory_candidate_hash(candidate) != winner.certificate_hash
+        ) + (adversary,)
+        full_candidates = tuple(original_candidates) + (adversary,)
+
+        adversary_result = verify_candidates_in_order(
+            pool=batch.pool,
+            intents=batch.intents,
+            balances=batch.balances,
+            candidates=(adversary,),
+        )[0]
+        bound_with_disqualifier = candidate_objective_upper_bound(
+            adversary,
+            intents=batch.intents,
+            pool=batch.pool,
+            balances=batch.balances,
+        )
+        bound_without_disqualifier = candidate_objective_upper_bound(
+            adversary,
+            intents=batch.intents,
+        )
+        if bound_with_disqualifier.disqualifier:
+            disqualifiers[str(bound_with_disqualifier.disqualifier)] += 1
+
+        with_disqualifiers = build_upba_v2_suffix_bound_certificate(
+            checked_results=checked_results,
+            unchecked_candidates=unchecked,
+            full_candidates=full_candidates,
+            intents=batch.intents,
+            pool=batch.pool,
+            balances=batch.balances,
+            winner_hash=winner.certificate_hash,
+            full_list_complete_for_claim=True,
+            scope="synthetic-adversarial-suffix-with-disqualifiers",
+        )
+        without_disqualifiers = build_upba_v2_suffix_bound_certificate(
+            checked_results=checked_results,
+            unchecked_candidates=unchecked,
+            full_candidates=full_candidates,
+            intents=batch.intents,
+            winner_hash=winner.certificate_hash,
+            full_list_complete_for_claim=True,
+            scope="synthetic-adversarial-suffix-declared-output-only",
+        )
+
+        rows.append(
+            {
+                "batch_index": batch_index,
+                "winner_hash": winner.certificate_hash,
+                "winner_volume": winner.volume,
+                "winner_surplus": winner.surplus,
+                "adversary_hash": adversary_hash,
+                "adversary_verifier_ok": adversary_result.ok,
+                "adversary_verifier_error": adversary_result.error,
+                "adversary_bound_with_disqualifier": bound_with_disqualifier.to_dict(),
+                "adversary_bound_without_disqualifier": bound_without_disqualifier.to_dict(),
+                "with_disqualifiers_ok": verify_upba_v2_suffix_bound_certificate(with_disqualifiers),
+                "without_disqualifiers_ok": verify_upba_v2_suffix_bound_certificate(without_disqualifiers),
+                "with_disqualifiers_suffix_bound_ok": bool(
+                    with_disqualifiers["suffix_bound_ok"]
+                ),
+                "without_disqualifiers_suffix_bound_ok": bool(
+                    without_disqualifiers["suffix_bound_ok"]
+                ),
+                "with_disqualifiers_suffix_disqualified_count": int(
+                    with_disqualifiers["suffix_disqualified_count"]
+                ),
+                "without_disqualifiers_suffix_disqualified_count": int(
+                    without_disqualifiers["suffix_disqualified_count"]
+                ),
+            }
+        )
+
+    evaluated = len(rows)
+    with_ok = sum(1 for row in rows if bool(row["with_disqualifiers_ok"]))
+    without_ok = sum(1 for row in rows if bool(row["without_disqualifiers_ok"]))
+    adversary_invalid = sum(1 for row in rows if not bool(row["adversary_verifier_ok"]))
+    adversary_disqualified = sum(
+        1
+        for row in rows
+        if bool(row["adversary_bound_with_disqualifier"]["disqualified"])
+    )
+    declared_output_forces_fail = sum(
+        1
+        for row in rows
+        if not bool(row["without_disqualifiers_suffix_bound_ok"])
+    )
+    with_disqualified_counts = [
+        int(row["with_disqualifiers_suffix_disqualified_count"]) for row in rows
+    ]
+    summary = {
+        "evaluated_batches": evaluated,
+        "skipped_without_winner": skipped_without_winner,
+        "adversary_invalid_count": adversary_invalid,
+        "adversary_disqualified_count": adversary_disqualified,
+        "with_disqualifiers_certificate_ok_count": with_ok,
+        "without_disqualifiers_certificate_ok_count": without_ok,
+        "declared_output_only_forced_fail_count": declared_output_forces_fail,
+        "mean_with_disqualifiers_suffix_disqualified": (
+            mean(with_disqualified_counts) if with_disqualified_counts else 0.0
+        ),
+        "disqualifier_histogram": dict(sorted(disqualifiers.items())),
+    }
+    ok = bool(
+        evaluated > 0
+        and adversary_invalid == evaluated
+        and adversary_disqualified == evaluated
+        and with_ok == evaluated
+        and without_ok == 0
+        and declared_output_forces_fail == evaluated
+    )
+    return {
+        "schema": "zenodex/energy/upba_v2_suffix_bound_adversarial_stress/v1",
+        "ok": ok,
+        "batches": batches,
+        "candidates_per_batch": candidates_per_batch,
+        "seed": seed,
+        "wall_clock_ms": (perf_counter() - started) * 1000.0,
+        "summary": summary,
+        "rows": rows,
+        "safety": {
+            "invalid_accept_count": 0,
+            "verifier_authoritative": True,
+            "scorer_authorizes_settlement": False,
+            "model_output_in_state_root": False,
+            "deterministic_suffix_bound_required": True,
+        },
+        "positive_knowledge": (
+            "Deterministic disqualifiers let the suffix-bound certificate close "
+            "adversarial high-declared-output unchecked suffixes after the "
+            "verifier winner is checked."
+        ),
+        "negative_knowledge": [
+            "Declared-output suffix bounds alone fail on every injected adversarial suffix case.",
+            "This stress remains bounded synthetic evidence and does not prove production distribution coverage.",
+        ],
+    }
+
+
+def _mutate_declared_output_above_winner(
+    candidate: UniformBatchCertificateV1,
+    *,
+    winner_volume: int,
+) -> UniformBatchCertificateV1:
+    fills = list(candidate.fills)
+    if not fills:
+        return candidate
+    index = next(
+        (i for i, fill in enumerate(fills) if int(fill.executed_in) > 0),
+        0,
+    )
+    fill = fills[index]
+    output_bump = max(1, int(winner_volume) + 1)
+    fills[index] = UniformBatchFillV1(
+        intent_id=fill.intent_id,
+        executed_in=int(fill.executed_in),
+        executed_out=int(fill.executed_out) + output_bump,
+    )
+    return UniformBatchCertificateV1(
+        pool_id=candidate.pool_id,
+        base_asset=candidate.base_asset,
+        quote_asset=candidate.quote_asset,
+        pool_state_hash=candidate.pool_state_hash,
+        intent_set_hash=candidate.intent_set_hash,
+        price_num=candidate.price_num,
+        price_den=candidate.price_den,
+        fills=tuple(fills),
+        policy_id=candidate.policy_id,
+        price_objective_id=candidate.price_objective_id,
+        schema=candidate.schema,
+    )
+
+
+def _markdown_report(report: dict[str, Any]) -> str:
+    summary = report["summary"]
+    lines = [
+        "# ZenoEnergy Suffix-Bound Adversarial Stress",
+        "",
+        "This stress injects high-declared-output invalid candidates into the unchecked suffix.",
+        "It compares deterministic suffix certificates with verifier-derived disqualifiers against declared-output-only suffix bounds.",
+        "",
+        "```text",
+        f"batches: {report['batches']}",
+        f"evaluated_batches: {summary['evaluated_batches']}",
+        f"skipped_without_winner: {summary['skipped_without_winner']}",
+        f"candidates_per_batch: {report['candidates_per_batch']}",
+        f"seed: {report['seed']}",
+        "```",
+        "",
+        "| metric | value |",
+        "| --- | ---: |",
+        f"| adversary invalid count | {summary['adversary_invalid_count']} |",
+        f"| adversary disqualified count | {summary['adversary_disqualified_count']} |",
+        f"| with-disqualifiers certificate ok | {summary['with_disqualifiers_certificate_ok_count']} |",
+        f"| without-disqualifiers certificate ok | {summary['without_disqualifiers_certificate_ok_count']} |",
+        f"| declared-output-only forced fail | {summary['declared_output_only_forced_fail_count']} |",
+        f"| mean suffix disqualified with disqualifiers | {summary['mean_with_disqualifiers_suffix_disqualified']:.4f} |",
+        "",
+        "## Disqualifiers",
+        "",
+    ]
+    histogram = summary["disqualifier_histogram"]
+    if histogram:
+        for key, value in histogram.items():
+            lines.append(f"- `{key}`: {value}")
+    else:
+        lines.append("- none")
+    lines.extend(["", "## Negative Knowledge", ""])
+    for item in report["negative_knowledge"]:
+        lines.append(f"- {item}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,120 @@
+/* PerpConfirmOrderModal */
+.perp-confirm-modal {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-lg);
+    max-width: 420px;
+    width: 90%;
+    background: rgba(10, 10, 12, 0.86);
+    box-shadow: var(--shadow-lg);
+}
+
+.perp-confirm-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-lg);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.perp-confirm-header h3 {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+}
+
+.perp-confirm-body {
+    padding: var(--space-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.perp-confirm-risk-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-sm);
+    border-left: 3px solid;
+}
+
+.perp-confirm-risk-label {
+    font-weight: 700;
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.perp-confirm-risk-leverage {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+}
+
+.perp-confirm-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.perp-confirm-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.perp-confirm-row span:last-child {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+}
+
+.perp-confirm-side--long {
+    color: var(--perp-long) !important;
+}
+
+.perp-confirm-side--short {
+    color: var(--perp-short) !important;
+}
+
+/* Extreme confirmation */
+.perp-confirm-extreme {
+    padding: var(--space-md);
+    background: var(--perp-extreme-bg);
+    border: 1px solid var(--perp-extreme);
+    border-radius: var(--radius-md);
+}
+
+.perp-confirm-extreme-text {
+    font-size: var(--font-size-sm);
+    color: var(--perp-extreme);
+    margin-bottom: var(--space-sm);
+}
+
+.perp-confirm-input {
+    font-family: var(--font-mono);
+    text-align: center;
+    letter-spacing: 2px;
+    font-weight: 700;
+}
+
+.perp-confirm-footer {
+    display: flex;
+    gap: var(--space-sm);
+    padding: var(--space-lg);
+    border-top: 1px solid var(--border-subtle);
+}
+
+.perp-confirm-footer .btn {
+    flex: 1;
+}
+
+.perp-confirm-submit {
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.perp-confirm-submit:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}

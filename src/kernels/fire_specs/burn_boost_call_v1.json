@@ -1,0 +1,144 @@
+{
+  "cli_help": "Build a BurnBoostCall FIRE object",
+  "expression": {
+    "kind": "mul",
+    "left": {
+      "kind": "exact_param",
+      "name": "n_notional"
+    },
+    "right": {
+      "inner": {
+        "inner": {
+          "kind": "sub",
+          "left": {
+            "kind": "source_bound",
+            "name": "burn_final"
+          },
+          "right": {
+            "kind": "exact_param",
+            "name": "strike_index"
+          }
+        },
+        "kind": "positive_part"
+      },
+      "kind": "cap",
+      "upper": {
+        "kind": "exact_param",
+        "name": "cap_index"
+      }
+    }
+  },
+  "imports": [
+    {
+      "contract": {
+        "name": "burn_contract",
+        "role": "import:burn_index_v1.burn_final"
+      },
+      "interface_object_id": "burn_index_v1",
+      "interface_output": "burn_final",
+      "lower": {
+        "kind": "const",
+        "value": 0
+      },
+      "name": "burn_final",
+      "unit": "Index",
+      "upper": {
+        "kind": "term",
+        "term": "source_upper"
+      }
+    }
+  ],
+  "ir_hash": "sha256:b26b68dbadb3313ef59399eeb2f7f180ea9775bffd3e797c27186a0d5daddc61",
+  "object_family": "capped_index_call",
+  "object_id": "burn_boost_call_v1",
+  "object_name": "BurnBoostCall",
+  "object_version": "v1",
+  "outputs": [
+    {
+      "description": "Certified settlement payoff bound",
+      "expression": {
+        "kind": "mul",
+        "left": {
+          "kind": "exact_param",
+          "name": "n_notional"
+        },
+        "right": {
+          "inner": {
+            "inner": {
+              "kind": "sub",
+              "left": {
+                "kind": "source_bound",
+                "name": "burn_final"
+              },
+              "right": {
+                "kind": "exact_param",
+                "name": "strike_index"
+              }
+            },
+            "kind": "positive_part"
+          },
+          "kind": "cap",
+          "upper": {
+            "kind": "exact_param",
+            "name": "cap_index"
+          }
+        }
+      },
+      "name": "settlement_payoff",
+      "unit": "Amount[zUSD]"
+    }
+  ],
+  "payoff_summary": "N * min(max(BurnIndex_T - K, 0), Cap)",
+  "schema": "zenodex/fire-math-object-spec/v1",
+  "settlement_asset": "zUSD",
+  "source_bounds": [],
+  "term_fields": [
+    {
+      "description": "Notional amount",
+      "maximum": 1000,
+      "minimum": 0,
+      "name": "n_notional",
+      "unit": "Amount[zUSD]"
+    },
+    {
+      "description": "Strike index",
+      "maximum": 1000,
+      "minimum": 0,
+      "name": "strike_index",
+      "unit": "Index"
+    },
+    {
+      "description": "Payoff cap index",
+      "maximum": 1000,
+      "minimum": 0,
+      "name": "cap_index",
+      "unit": "Index"
+    },
+    {
+      "description": "Certified source upper bound",
+      "maximum": 1000,
+      "minimum": 0,
+      "name": "source_upper",
+      "unit": "Index"
+    }
+  ],
+  "witnesses": [
+    {
+      "contract": {
+        "name": "burn_contract",
+        "role": "witness:BurnCertificate[TDEX]"
+      },
+      "freshness": "1 epoch",
+      "lower": {
+        "kind": "const",
+        "value": 0
+      },
+      "name": "BurnCertificate[TDEX]",
+      "unit": "Index",
+      "upper": {
+        "kind": "term",
+        "term": "source_upper"
+      }
+    }
+  ]
+}

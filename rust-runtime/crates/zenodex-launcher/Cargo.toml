@@ -1,0 +1,12 @@
+[package]
+name = "zenodex-launcher"
+description = "Native launcher for ZenoDEX local testnet and operator workflows."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "zenodex"
+path = "src/main.rs"

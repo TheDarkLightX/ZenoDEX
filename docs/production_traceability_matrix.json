@@ -1,0 +1,369 @@
+{
+  "schema": "zenodex.production_traceability_matrix.v1",
+  "entries": [
+    {
+      "id": "dex_nonce_replay_protection",
+      "status": "supported",
+      "invariant": "Every value-moving DEX intent accepted by the production shell must carry a nonce and advance the nonce table exactly once.",
+      "runtime_guard_paths": [
+        "src/core/dex.py",
+        "src/integration/dex_engine.py",
+        "src/integration/deployment_profiles.py",
+        "src/state/nonces.py"
+      ],
+      "test_paths": [
+        "tests/integration/test_dex_engine_helpers.py",
+        "tests/integration/test_deployment_profiles.py",
+        "tests/core/test_dex_step.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/integration/test_dex_engine_helpers.py tests/integration/test_deployment_profiles.py tests/core/test_dex_step.py",
+        "python3 tools/check_dex_deployment_profiles.py"
+      ],
+      "residual_limits": "Legacy replay fixtures require an explicit core compatibility flag. Production config and deployment profile validation reject nonce-free or legacy-compat production/testnet postures."
+    },
+    {
+      "id": "dex_value_moving_entrypoint_guard",
+      "status": "supported",
+      "invariant": "Runtime value-moving DEX entrypoints must use apply_ops or an explicitly allowlisted verifier/certificate helper, rather than adding new direct pure-core settlement application paths.",
+      "runtime_guard_paths": [
+        "tools/check_dex_value_moving_entrypoints.py",
+        "tools/run_release_gate.sh"
+      ],
+      "test_paths": [
+        "tests/integration/test_dex_value_moving_entrypoints_check.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/integration/test_dex_value_moving_entrypoints_check.py",
+        "python3 tools/check_dex_value_moving_entrypoints.py"
+      ],
+      "residual_limits": "This is a syntactic guard over src/ and tools/ for accidental new direct calls. It complements runtime config checks and code review; it is not a semantic proof that every future adapter is production-safe."
+    },
+    {
+      "id": "dex_strong_settlement_replay",
+      "status": "supported",
+      "invariant": "Accepted settlements are replayed from supplied intents and pre-state, then compared to canonical deltas and events before application.",
+      "runtime_guard_paths": [
+        "src/core/settlement_strong_validator.py",
+        "src/integration/validation.py",
+        "src/integration/dex_engine.py"
+      ],
+      "test_paths": [
+        "tests/core/test_settlement_strong_validator.py",
+        "tests/integration/test_settlement_strong_certificate.py",
+        "tests/integration/test_dex_engine_helpers.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/core/test_settlement_strong_validator.py tests/integration/test_settlement_strong_certificate.py tests/integration/test_dex_engine_helpers.py"
+      ],
+      "residual_limits": "The guarantee applies to paths using the strong replay validator. Direct legacy conservation-only validation remains a test/backcompat posture."
+    },
+    {
+      "id": "dex_intent_normal_form_boundary",
+      "status": "supported",
+      "invariant": "Parsed DEX intents must satisfy the normal-form field rules for their kind before settlement validation or signature-bound proof construction relies on them.",
+      "runtime_guard_paths": [
+        "src/core/intent_normal_form.py",
+        "src/integration/operations.py",
+        "src/integration/dex_engine.py"
+      ],
+      "test_paths": [
+        "tests/core/test_intent_normal_form.py",
+        "tests/integration/test_operations_parsing.py",
+        "tests/integration/test_operations_fuzz.py",
+        "tests/integration/test_operations_grammar_fuzz.py",
+        "tests/integration/test_dex_engine_helpers.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/core/test_intent_normal_form.py tests/integration/test_operations_parsing.py tests/integration/test_operations_fuzz.py tests/integration/test_operations_grammar_fuzz.py tests/integration/test_dex_engine_helpers.py"
+      ],
+      "residual_limits": "The operations parser returns a ValidatedIntent marker and rejects unknown kind-specific fields. Internally generated base Intent fixtures remain available for direct unit/proof tests and must still pass the downstream strong validator before value movement."
+    },
+    {
+      "id": "dex_deployment_profile_postures",
+      "status": "supported",
+      "invariant": "Local, public-testnet, and production-strict DEX engine profiles must fail closed on unsafe boundary switches before node/bootstrap admission.",
+      "runtime_guard_paths": [
+        "src/integration/deployment_profiles.py",
+        "src/integration/dex_engine.py",
+        "src/integration/upba_production_config.py"
+      ],
+      "test_paths": [
+        "tests/integration/test_deployment_profiles.py",
+        "tests/integration/test_dex_engine_helpers.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/integration/test_deployment_profiles.py tests/integration/test_dex_engine_helpers.py",
+        "python3 tools/check_dex_deployment_profiles.py"
+      ],
+      "residual_limits": "The profile helpers must be called by bootstrap/node code. The checker validates the named postures and is wired into the public-testnet candidate gate."
+    },
+    {
+      "id": "upba_fixed_admission_price_grid",
+      "status": "supported_scoped",
+      "invariant": "For the current UPBA bounded price-grid surface, accepted certificates must bind the admitted intent set, pool state, fills, uniform price, and complete price-grid evidence.",
+      "runtime_guard_paths": [
+        "src/core/uniform_batch_clearing.py",
+        "src/core/uniform_batch_price_grid_table.py",
+        "src/core/uniform_batch_optimality.py",
+        "src/integration/dex_engine.py"
+      ],
+      "test_paths": [
+        "tests/core/test_uniform_batch_clearing.py",
+        "tests/core/test_uniform_batch_optimality.py",
+        "tests/core/test_uniform_batch_price_grid_table.py",
+        "tests/integration/test_dex_engine_uniform_batch_certificate.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/core/test_uniform_batch_clearing.py tests/core/test_uniform_batch_optimality.py tests/core/test_uniform_batch_price_grid_table.py tests/integration/test_dex_engine_uniform_batch_certificate.py"
+      ],
+      "residual_limits": "Current optimality evidence is scoped to bounded fixed-admission surfaces. Exact-out, multi-hop, inclusion fairness, and adaptive-grid sufficiency remain open work."
+    },
+    {
+      "id": "zenoledger_public_testnet_rehearsal",
+      "status": "supported_replay",
+      "invariant": "A public-testnet candidate run must rebuild matching feature-suite, watcher, status-root, bundle, dual-operator, and live-intake evidence from the local checkout. When required, public network configs must carry BLS signer-registry quorum over the hash-bound writer and peer URL list before a node treats them as joinable, derive a hash-bound peer registry admission receipt from the writer and peer URLs, allow node HTTP surfaces to require operator-local bearer authentication for peer reads and testnet submissions, convert checkpoint/watcher equivocation into hash-bound slashing evidence packets plus bounded bonded slashing receipts, admit pushed block gossip only through the opt-in next-height local-replay path with bounded seen-envelope replay protection, and admit dynamic peer announcements only through opt-in locally peer-checked cap-bounded admission.",
+      "runtime_guard_paths": [
+        "tools/run_public_testnet_candidate_gate.sh",
+        "tools/check_zeno_ledger_anti_equivocation.py",
+        "tools/check_zeno_ledger_bonded_slashing.py",
+        "tools/check_zeno_ledger_block_gossip.py",
+        "tools/check_zeno_ledger_dynamic_peers.py",
+        "tools/check_zeno_ledger_peer_discovery.py",
+        "src/integration/zeno_ledger_anti_equivocation_v0.py",
+        "src/integration/zeno_ledger_bonded_slashing_v0.py",
+        "src/integration/zeno_ledger_block_gossip_v0.py",
+        "src/integration/zeno_ledger_dynamic_peers_v0.py",
+        "src/integration/zeno_ledger_peer_discovery_v0.py",
+        "tools/zeno_ledger_make_public_testnet_bundle.py",
+        "tools/zeno_ledger_node.py",
+        "tools/zeno_ledger_machine_b_acceptance.py",
+        "tools/zeno_ledger_dual_operator_rehearsal.py",
+        "tools/zeno_ledger_public_network_smoke.py"
+      ],
+      "test_paths": [
+        "tests/integration/test_zeno_ledger_v0.py",
+        "tests/integration/test_zeno_ledger_node.py",
+        "tests/integration/test_zeno_ledger_node_transport_auth.py",
+        "tests/integration/test_zeno_ledger_public_network_config_quorum.py",
+        "tests/integration/test_zeno_ledger_machine_a_host.py",
+        "tests/integration/test_zeno_ledger_machine_b_acceptance.py",
+        "tests/integration/test_zeno_ledger_anti_equivocation_v0.py",
+        "tests/integration/test_zeno_ledger_bonded_slashing_v0.py",
+        "tests/integration/test_zeno_ledger_block_gossip_v0.py",
+        "tests/integration/test_zeno_ledger_dynamic_peer_exchange_v0.py",
+        "tests/integration/test_zeno_ledger_peer_discovery_v0.py"
+      ],
+      "evidence_commands": [
+        "python3 tools/check_zeno_ledger_anti_equivocation.py",
+        "python3 tools/check_zeno_ledger_bonded_slashing.py",
+        "python3 tools/check_zeno_ledger_block_gossip.py",
+        "python3 tools/check_zeno_ledger_dynamic_peers.py",
+        "python3 tools/check_zeno_ledger_peer_discovery.py",
+        "python3 -m pytest -q tests/integration/test_zeno_ledger_node_transport_auth.py",
+        "python3 -m pytest -q tests/integration/test_zeno_ledger_public_network_config_quorum.py",
+        "python3 -m pytest -q tests/integration/test_zeno_ledger_machine_b_acceptance.py",
+        "PYTHON=python3 ZENO_PUBLIC_TESTNET_GATE_OUT=/tmp/zenodex_public_testnet_candidate_gate tools/run_public_testnet_candidate_gate.sh"
+      ],
+      "residual_limits": "This is same-machine replay, anti-equivocation sample evidence, hash-bound slashing evidence construction, bounded bonded slashing receipt construction, optional signed public-network config admission, hash-bound peer registry admission, opt-in block-gossip admission, opt-in dynamic peer admission, optional bearer-authenticated node transport, and local public-network smoke evidence. A fresh two-machine Machine A/B run remains a separate operator test."
+    },
+    {
+      "id": "zenoledger_validator_schedule_fork_choice",
+      "status": "supported_scoped",
+      "invariant": "A scheduled ZenoLedger header is admitted only when it binds the active validator set hash and the claimed proposer matches the deterministic weighted round-robin duty; node peer checks accept candidate tips only when the deterministic fork-choice report says the peer extends the local tip, is the same tip, or is a known local prefix under the same validator set. When live checkpoint quorum is configured, pulled live heights require BLS checkpoint signer quorum before admission. When public peer discovery is present, the peer registry must be hash-bound and exactly derived from the signed public config URL set. When equivocation evidence is slashed, the receipt requires an active bond, fresh evidence hash, in-window evidence height, and a slash amount no larger than the available bond. Pushed gossip blocks are admitted only through the opt-in route when their header/body/checkpoint envelope is hash-bound, extends the local tip by one height, matches the local tip hash, local replay reproduces the gossiped header and checkpoint, the envelope has not already been seen, and the transaction count is within the local cap. Dynamic peer candidates are admitted only through the opt-in route when candidate URLs are canonical, same-network, same-chain, locally peer-checked, fork-choice compatible, and within the configured final peer-count cap.",
+      "runtime_guard_paths": [
+        "src/integration/zeno_ledger_bonded_slashing_v0.py",
+        "src/integration/zeno_ledger_block_gossip_v0.py",
+        "src/integration/zeno_ledger_dynamic_peers_v0.py",
+        "src/integration/zeno_ledger_live_quorum_v0.py",
+        "src/integration/zeno_ledger_peer_discovery_v0.py",
+        "src/integration/zeno_ledger_validator_schedule_v0.py",
+        "tools/check_zeno_ledger_bonded_slashing.py",
+        "tools/check_zeno_ledger_block_gossip.py",
+        "tools/check_zeno_ledger_dynamic_peers.py",
+        "tools/check_zeno_ledger_peer_discovery.py",
+        "tools/zeno_ledger_node.py",
+        "tools/run_release_gate.sh"
+      ],
+      "test_paths": [
+        "tests/integration/test_zeno_ledger_bonded_slashing_v0.py",
+        "tests/integration/test_zeno_ledger_block_gossip_v0.py",
+        "tests/integration/test_zeno_ledger_dynamic_peer_exchange_v0.py",
+        "tests/integration/test_zeno_ledger_live_quorum_v0.py",
+        "tests/integration/test_zeno_ledger_peer_discovery_v0.py",
+        "tests/integration/test_zeno_ledger_validator_schedule_v0.py",
+        "tests/integration/test_zeno_ledger_node_fork_choice.py"
+      ],
+      "evidence_commands": [
+        "python3 tools/check_zeno_ledger_bonded_slashing.py",
+        "python3 tools/check_zeno_ledger_block_gossip.py",
+        "python3 tools/check_zeno_ledger_dynamic_peers.py",
+        "python3 tools/check_zeno_ledger_peer_discovery.py",
+        "python3 -m pytest -q tests/integration/test_zeno_ledger_bonded_slashing_v0.py tests/integration/test_zeno_ledger_block_gossip_v0.py tests/integration/test_zeno_ledger_dynamic_peer_exchange_v0.py tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_peer_discovery_v0.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py"
+      ],
+      "residual_limits": "This is a deterministic policy, peer-check replay, opt-in live checkpoint quorum surface, hash-bound peer registry admission surface, opt-in block-gossip admission surface, opt-in dynamic peer admission surface, bounded duplicate-gossip replay protection, and bounded slashing receipt surface. Live custody integration, appeal/governance policy, automatic production key management, and internet-scale gossip scoring remain follow-up work."
+    },
+    {
+      "id": "zk_risc0_metadata_binding",
+      "status": "supported_scoped",
+      "invariant": "RISC0 proof metadata must bind nonzero conflict-schedule, feature-suite, dependency-lock, guest, image, receipt, and checkpoint roots before ledger admission.",
+      "runtime_guard_paths": [
+        "tools/zeno_ledger_risc0_proof_metadata.py",
+        "src/integration/zeno_ledger_verifier_registry_v0.py",
+        "src/integration/zeno_ledger_v0.py"
+      ],
+      "test_paths": [
+        "tests/integration/test_zeno_ledger_risc0_proof_metadata.py",
+        "tests/integration/test_zeno_ledger_verifier_registry_v0.py",
+        "tests/integration/test_zeno_ledger_verify_cli.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/integration/test_zeno_ledger_risc0_proof_metadata.py tests/integration/test_zeno_ledger_verifier_registry_v0.py tests/integration/test_zeno_ledger_verify_cli.py::test_verify_can_require_proof_verification_report_replay"
+      ],
+      "residual_limits": "This is metadata binding plus an admitted verifier registry policy. Full proof-of-execution still needs broader guest coverage, reproducible inputs, and a governed public registry release process."
+    },
+    {
+      "id": "dependency_pinning_ratchet",
+      "status": "supported_ratchet",
+      "invariant": "The release gate must detect newly introduced unpinned Python requirements and confirm required proof-toolchain lock artifacts are present with committed content hashes.",
+      "runtime_guard_paths": [
+        "tools/check_dependency_pinning_status.py",
+        "tools/check_python_hash_locks.py",
+        "tools/check_python_hash_lock_install_surface.py",
+        "tools/install_python_hash_locked_deps.sh",
+        "tools/run_release_gate.sh",
+        "docs/dependency_pinning_status.json",
+        "docs/PYTHON_HASH_LOCK_INSTALL.md"
+      ],
+      "test_paths": [
+        "tests/integration/test_dependency_pinning_status_check.py",
+        "tests/test_check_python_hash_locks.py",
+        "tests/test_check_python_hash_lock_install_surface.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/integration/test_dependency_pinning_status_check.py",
+        "python3 -m pytest -q tests/test_check_python_hash_locks.py",
+        "python3 -m pytest -q tests/test_check_python_hash_lock_install_surface.py",
+        "python3 tools/check_dependency_pinning_status.py",
+        "python3 tools/check_python_hash_locks.py",
+        "python3 tools/check_python_hash_lock_install_surface.py"
+      ],
+      "residual_limits": "This is a ratchet over the current dependency posture. It blocks new unpinned Python source requirements, checks required Python, Lean, Rust, and UI lock artifacts by committed SHA-256 hash, and keeps the production install helper/documentation tied to pip require-hashes. The unhashed source requirements remain local convenience and lock-refresh inputs."
+    },
+    {
+      "id": "tee_metadata_binding",
+      "status": "supported_scoped",
+      "invariant": "TEE proof metadata must bind quote and policy roots before ledger admission when a TEE attestation path is used.",
+      "runtime_guard_paths": [
+        "src/integration/confidential_attestation.py",
+        "src/integration/confidential_attestation_verifier.py",
+        "src/integration/zeno_ledger_verifier_registry_v0.py",
+        "src/integration/zeno_ledger_v0.py"
+      ],
+      "test_paths": [
+        "tests/integration/test_zeno_ledger_tee_proof_metadata.py",
+        "tests/integration/test_zeno_ledger_verifier_registry_v0.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/integration/test_zeno_ledger_tee_proof_metadata.py tests/integration/test_zeno_ledger_verifier_registry_v0.py"
+      ],
+      "residual_limits": "TEE metadata checks and registry admission are narrower than full quote verification and enclave supply-chain policy."
+    },
+    {
+      "id": "oracle_critical_authorization",
+      "status": "supported",
+      "invariant": "Protected swaps and critical settlements that require oracle authorization must reject missing, stale, wrong-profile, or mismatched authorization bundles.",
+      "runtime_guard_paths": [
+        "src/integration/zeno_oracle_routing_authorization.py",
+        "src/integration/zeno_oracle_settlement_authorization.py",
+        "src/integration/dex_engine.py"
+      ],
+      "test_paths": [
+        "tests/integration/test_oracle_authorization_semantic_binding.py",
+        "tests/integration/test_dex_engine_helpers.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/integration/test_oracle_authorization_semantic_binding.py tests/integration/test_dex_engine_helpers.py"
+      ],
+      "residual_limits": "Authorization checks depend on profile-specific caller configuration. Production-strict deployment profile requires the DEX-side oracle authorization flags."
+    },
+    {
+      "id": "proof_mining_claimability",
+      "status": "supported",
+      "invariant": "Proof-mining claimability must be policy-gated by manager/runtime checks before public status and claim flows accept a claim.",
+      "runtime_guard_paths": [
+        "src/core/proof_mining_claimability_gate.py",
+        "src/core/proof_mining_manager.py",
+        "src/integration/proof_mining_claimability.py",
+        "src/integration/proof_mining_runtime.py"
+      ],
+      "test_paths": [
+        "tests/core/test_proof_mining_claimability_gate.py",
+        "tests/core/test_proof_mining_manager.py",
+        "tests/integration/test_proof_mining_runtime.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/core/test_proof_mining_claimability_gate.py tests/core/test_proof_mining_manager.py tests/integration/test_proof_mining_runtime.py"
+      ],
+      "residual_limits": "Mechanism-design refinements and external economic audits remain separate from the current claimability gate."
+    },
+    {
+      "id": "api_surface_profiles",
+      "status": "supported",
+      "invariant": "Production-strict API bootstrap must refuse demo/value-moving route groups, and public-testnet API bootstrap must require bearer-token auth for those routes.",
+      "runtime_guard_paths": [
+        "src/integration/api_surface_profiles.py",
+        "src/integration/api_server.py"
+      ],
+      "test_paths": [
+        "tests/integration/test_api_surface_profiles.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/integration/test_api_surface_profiles.py",
+        "python3 tools/check_api_surface_profiles.py"
+      ],
+      "residual_limits": "This separates API exposure profiles from the monolithic stdlib handler. The handler file itself still needs future route-module decomposition."
+    },
+    {
+      "id": "production_key_management_admission",
+      "status": "supported_scoped",
+      "invariant": "Production privileged actions must be represented as hash-bound action packets and accepted only when a role-scoped active production signer quorum, distinct-custodian quorum, non-software custody requirement, timelock requirement, break-glass scope rule, and transparency receipt requirement are satisfied.",
+      "runtime_guard_paths": [
+        "src/integration/production_key_management_v0.py",
+        "src/integration/zeno_ledger_production_key_gates_v0.py",
+        "tools/check_production_key_management_spec.py",
+        "tools/check_production_key_management_config.py",
+        "tools/check_production_key_management_bypasses.py",
+        "tools/check_production_key_management_esso_equivalent.py",
+        "tools/check_production_key_material_absence.py",
+        "tools/check_production_key_management_completion.py",
+        "formal/esso/production_key_management_v0.esso.yaml",
+        "tools/run_release_gate.sh",
+        "tools/run_public_testnet_candidate_gate.sh",
+        "docs/PRODUCTION_KEY_MANAGEMENT_RUNBOOK.md",
+        "lean-mathlib/Proofs/ZenoLedgerProductionKeyManagement.lean",
+        "lean-mathlib/proof_receipts/zeno_ledger_production_key_management_v0.md"
+      ],
+      "test_paths": [
+        "tests/test_production_key_management_spec.py",
+        "tests/integration/test_production_key_management_v0.py",
+        "tests/integration/test_zeno_ledger_production_key_gates_v0.py",
+        "tests/test_check_production_key_management_config.py",
+        "tests/test_check_production_key_management_esso_equivalent.py",
+        "tests/test_check_production_key_material_absence.py",
+        "tests/test_check_production_key_management_completion.py",
+        "tests/test_security_posture_files.py"
+      ],
+      "evidence_commands": [
+        "python3 tools/check_production_key_management_spec.py",
+        "python3 tools/check_production_key_management_bypasses.py",
+        "python3 tools/check_production_key_management_esso_equivalent.py",
+        "python3 tools/check_production_key_material_absence.py",
+        "python3 tools/check_production_key_management_completion.py",
+        "lake env lean lean-mathlib/Proofs/ZenoLedgerProductionKeyManagement.lean",
+        "python3 -m pytest -q tests/test_production_key_management_spec.py tests/integration/test_production_key_management_v0.py tests/integration/test_zeno_ledger_production_key_gates_v0.py tests/test_check_production_key_management_config.py tests/test_check_production_key_management_esso_equivalent.py tests/test_check_production_key_material_absence.py tests/test_check_production_key_management_completion.py tests/test_security_posture_files.py"
+      ],
+      "residual_limits": "This is the pure admission, finite-model/property-checker, ESSO-equivalent model, config-validation, ZenoLedger production-gate, release-gate bypass-check, tracked-file secret-material scan, operator-runbook, and completion-audit layer. Real signature scheme adapters, hardware/HSM/MPC vendor assurance, and live operator ceremony evidence remain follow-up work."
+    }
+  ]
+}

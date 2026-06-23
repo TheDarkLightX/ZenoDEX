@@ -1,0 +1,115 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_route_economic_sanity_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless route economic sanity guard for auto-trader quote receipts.
+
+    Receipt parsing, quote verification, and pool replay stay in the host layer.
+    This kernel only classifies bounded booleans and bounded risk metrics:
+    - receipt must already be verified
+    - route shape must be supported for current direct-intent execution
+    - extreme route stress is threshold-based on bounded bps metrics
+observables:
+  state_vars: []
+  effects:
+    [
+      "route_shape_supported_for_intents",
+      "extreme_input_stress_present",
+      "extreme_output_depletion_present",
+      "extreme_price_impact_present",
+      "route_economic_sanity_ok",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "validate_route_economic_sanity"
+    params:
+      - id: "receipt_verified"
+        type: { kind: "bool" }
+      - id: "route_kind_supported"
+        type: { kind: "bool" }
+      - id: "body_pair_valid"
+        type: { kind: "bool" }
+      - id: "legs_present"
+        type: { kind: "bool" }
+      - id: "all_legs_single_hop"
+        type: { kind: "bool" }
+      - id: "all_legs_match_body_pair"
+        type: { kind: "bool" }
+      - id: "multi_hop_present"
+        type: { kind: "bool" }
+      - id: "max_hop_input_vs_reserve_bps"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "max_hop_output_vs_reserve_bps"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "max_hop_price_impact_bps"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "input_stress_extreme_bps"
+        type: { kind: "int", min: 1, max: 4294967295 }
+      - id: "output_depletion_extreme_bps"
+        type: { kind: "int", min: 1, max: 4294967295 }
+      - id: "price_impact_extreme_bps"
+        type: { kind: "int", min: 1, max: 4294967295 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ param: "max_hop_input_vs_reserve_bps" }, { const: 0 }] }
+        - { op: ">=", args: [{ param: "max_hop_output_vs_reserve_bps" }, { const: 0 }] }
+        - { op: ">=", args: [{ param: "max_hop_price_impact_bps" }, { const: 0 }] }
+        - { op: ">=", args: [{ param: "input_stress_extreme_bps" }, { const: 1 }] }
+        - { op: ">=", args: [{ param: "output_depletion_extreme_bps" }, { const: 1 }] }
+        - { op: ">=", args: [{ param: "price_impact_extreme_bps" }, { const: 1 }] }
+    updates: []
+    effects:
+      route_shape_supported_for_intents:
+        op: "and"
+        args:
+          - { param: "receipt_verified" }
+          - { param: "route_kind_supported" }
+          - { param: "body_pair_valid" }
+          - { param: "legs_present" }
+          - { param: "all_legs_single_hop" }
+          - { param: "all_legs_match_body_pair" }
+          - op: "not"
+            args: [{ param: "multi_hop_present" }]
+      extreme_input_stress_present:
+        op: ">="
+        args:
+          - { param: "max_hop_input_vs_reserve_bps" }
+          - { param: "input_stress_extreme_bps" }
+      extreme_output_depletion_present:
+        op: ">="
+        args:
+          - { param: "max_hop_output_vs_reserve_bps" }
+          - { param: "output_depletion_extreme_bps" }
+      extreme_price_impact_present:
+        op: ">="
+        args:
+          - { param: "max_hop_price_impact_bps" }
+          - { param: "price_impact_extreme_bps" }
+      route_economic_sanity_ok:
+        op: "and"
+        args:
+          - { param: "receipt_verified" }
+          - { param: "route_kind_supported" }
+          - { param: "body_pair_valid" }
+          - { param: "legs_present" }
+          - { param: "all_legs_single_hop" }
+          - { param: "all_legs_match_body_pair" }
+          - op: "not"
+            args: [{ param: "multi_hop_present" }]
+          - op: "<"
+            args:
+              - { param: "max_hop_input_vs_reserve_bps" }
+              - { param: "input_stress_extreme_bps" }
+          - op: "<"
+            args:
+              - { param: "max_hop_output_vs_reserve_bps" }
+              - { param: "output_depletion_extreme_bps" }
+          - op: "<"
+            args:
+              - { param: "max_hop_price_impact_bps" }
+              - { param: "price_impact_extreme_bps" }

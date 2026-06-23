@@ -1,0 +1,37 @@
+# LP Burn Floor Math Guard v1 (proof-gated) - Deterministic Remove Liquidity Math (DEX)
+#
+# Purpose: a Tau-executable gate compatible with host-side verified computation.
+# - Tau enforces basic structural constraints.
+# - Host/verifier supplies `proof_ok` and `binding_ok` (fail-closed flags) for the
+#   heavy arithmetic:
+#     amount0_out = floor(lp_amount * reserve0 / lp_supply)
+#     amount1_out = floor(lp_amount * reserve1 / lp_supply)
+#
+# Rationale:
+# - In this Tau build, bitvector multiplication/division chains are too slow/flaky
+#   for CI budgets. Keep Tau enforcement deterministic and small.
+#
+# Stream mapping:
+# i1 = lp_amount (bv[32])
+# i2 = reserve0 (bv[32])
+# i3 = reserve1 (bv[32])
+# i4 = lp_supply (bv[32])
+# i5 = amount0_out (bv[32])       # externally computed
+# i6 = amount1_out (bv[32])       # externally computed
+# i7 = proof_ok (sbf)
+# i8 = binding_ok (sbf)
+# o1 = lp_burn_floor_math_ok
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <->
+  ((i7[t]:sbf = 1:sbf) &&
+   (i8[t]:sbf = 1:sbf) &&
+   (i1[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i2[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i3[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i4[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i1[t]:bv[32] <= i4[t]:bv[32]) &&
+   (i5[t]:bv[32] <= i2[t]:bv[32]) &&
+   (i6[t]:bv[32] <= i3[t]:bv[32]))).
+

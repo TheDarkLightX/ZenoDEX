@@ -1,0 +1,457 @@
+{
+  "kernel": "perp_settle_epoch",
+  "version": 1,
+  "cases": [
+    {
+      "now_epoch": 3,
+      "epoch_phase": 1,
+      "clearing_price_seen": true,
+      "clearing_price_epoch": 3,
+      "clearing_price_e8": 100000000,
+      "oracle_last_update_epoch": 2,
+      "oracle_seen": true,
+      "index_price_e8": 100000000,
+      "max_oracle_move_bps": 500,
+      "maintenance_margin_bps": 500,
+      "depeg_buffer_bps": 100,
+      "liquidation_penalty_bps": 50,
+      "min_notional_for_bounty": 100000000,
+      "fee_pool_quote": 0,
+      "fee_income": 0,
+      "initial_insurance": 0,
+      "claims_paid": 0,
+      "breaker_active": false,
+      "breaker_last_trigger_epoch": 0,
+      "accounts": []
+    },
+    {
+      "now_epoch": 3,
+      "epoch_phase": 1,
+      "clearing_price_seen": true,
+      "clearing_price_epoch": 3,
+      "clearing_price_e8": 100000000,
+      "oracle_last_update_epoch": 2,
+      "oracle_seen": true,
+      "index_price_e8": 100000000,
+      "max_oracle_move_bps": 500,
+      "maintenance_margin_bps": 500,
+      "depeg_buffer_bps": 100,
+      "liquidation_penalty_bps": 50,
+      "min_notional_for_bounty": 100000000,
+      "fee_pool_quote": 0,
+      "fee_income": 0,
+      "initial_insurance": 0,
+      "claims_paid": 0,
+      "breaker_active": false,
+      "breaker_last_trigger_epoch": 0,
+      "accounts": [
+        {
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": 1000000,
+          "collateral_quote": 200000,
+          "entry_price_e8": 100000000,
+          "liquidated_this_step": false
+        }
+      ]
+    },
+    {
+      "now_epoch": 3,
+      "epoch_phase": 1,
+      "clearing_price_seen": true,
+      "clearing_price_epoch": 3,
+      "clearing_price_e8": 101000000,
+      "oracle_last_update_epoch": 2,
+      "oracle_seen": true,
+      "index_price_e8": 100000000,
+      "max_oracle_move_bps": 500,
+      "maintenance_margin_bps": 500,
+      "depeg_buffer_bps": 100,
+      "liquidation_penalty_bps": 50,
+      "min_notional_for_bounty": 100000000,
+      "fee_pool_quote": 0,
+      "fee_income": 0,
+      "initial_insurance": 0,
+      "claims_paid": 0,
+      "breaker_active": false,
+      "breaker_last_trigger_epoch": 0,
+      "accounts": [
+        {
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": 1000000,
+          "collateral_quote": 200000,
+          "entry_price_e8": 100000000,
+          "liquidated_this_step": false
+        }
+      ]
+    },
+    {
+      "now_epoch": 3,
+      "epoch_phase": 1,
+      "clearing_price_seen": true,
+      "clearing_price_epoch": 3,
+      "clearing_price_e8": 99000000,
+      "oracle_last_update_epoch": 2,
+      "oracle_seen": true,
+      "index_price_e8": 100000000,
+      "max_oracle_move_bps": 500,
+      "maintenance_margin_bps": 500,
+      "depeg_buffer_bps": 100,
+      "liquidation_penalty_bps": 50,
+      "min_notional_for_bounty": 100000000,
+      "fee_pool_quote": 0,
+      "fee_income": 0,
+      "initial_insurance": 0,
+      "claims_paid": 0,
+      "breaker_active": false,
+      "breaker_last_trigger_epoch": 0,
+      "accounts": [
+        {
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": 1000000,
+          "collateral_quote": 200000,
+          "entry_price_e8": 100000000,
+          "liquidated_this_step": false
+        }
+      ]
+    },
+    {
+      "now_epoch": 3,
+      "epoch_phase": 1,
+      "clearing_price_seen": true,
+      "clearing_price_epoch": 3,
+      "clearing_price_e8": 104000000,
+      "oracle_last_update_epoch": 2,
+      "oracle_seen": true,
+      "index_price_e8": 100000000,
+      "max_oracle_move_bps": 500,
+      "maintenance_margin_bps": 500,
+      "depeg_buffer_bps": 100,
+      "liquidation_penalty_bps": 50,
+      "min_notional_for_bounty": 100000000,
+      "fee_pool_quote": 0,
+      "fee_income": 0,
+      "initial_insurance": 0,
+      "claims_paid": 0,
+      "breaker_active": false,
+      "breaker_last_trigger_epoch": 0,
+      "accounts": [
+        {
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": -1000000,
+          "collateral_quote": 200000,
+          "entry_price_e8": 100000000,
+          "liquidated_this_step": false
+        }
+      ]
+    },
+    {
+      "now_epoch": 3,
+      "epoch_phase": 1,
+      "clearing_price_seen": true,
+      "clearing_price_epoch": 3,
+      "clearing_price_e8": 50000000,
+      "oracle_last_update_epoch": 2,
+      "oracle_seen": true,
+      "index_price_e8": 100000000,
+      "max_oracle_move_bps": 500,
+      "maintenance_margin_bps": 500,
+      "depeg_buffer_bps": 100,
+      "liquidation_penalty_bps": 50,
+      "min_notional_for_bounty": 100000000,
+      "fee_pool_quote": 0,
+      "fee_income": 0,
+      "initial_insurance": 0,
+      "claims_paid": 0,
+      "breaker_active": false,
+      "breaker_last_trigger_epoch": 0,
+      "accounts": [
+        {
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": 1000000,
+          "collateral_quote": 105000,
+          "entry_price_e8": 100000000,
+          "liquidated_this_step": false
+        }
+      ]
+    },
+    {
+      "now_epoch": 3,
+      "epoch_phase": 1,
+      "clearing_price_seen": true,
+      "clearing_price_epoch": 3,
+      "clearing_price_e8": 150000000,
+      "oracle_last_update_epoch": 2,
+      "oracle_seen": true,
+      "index_price_e8": 100000000,
+      "max_oracle_move_bps": 500,
+      "maintenance_margin_bps": 500,
+      "depeg_buffer_bps": 100,
+      "liquidation_penalty_bps": 50,
+      "min_notional_for_bounty": 100000000,
+      "fee_pool_quote": 0,
+      "fee_income": 0,
+      "initial_insurance": 0,
+      "claims_paid": 0,
+      "breaker_active": false,
+      "breaker_last_trigger_epoch": 0,
+      "accounts": [
+        {
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": 1000000,
+          "collateral_quote": 200000,
+          "entry_price_e8": 100000000,
+          "liquidated_this_step": false
+        }
+      ]
+    },
+    {
+      "now_epoch": 3,
+      "epoch_phase": 1,
+      "clearing_price_seen": true,
+      "clearing_price_epoch": 3,
+      "clearing_price_e8": 98000000,
+      "oracle_last_update_epoch": 2,
+      "oracle_seen": true,
+      "index_price_e8": 100000000,
+      "max_oracle_move_bps": 500,
+      "maintenance_margin_bps": 500,
+      "depeg_buffer_bps": 100,
+      "liquidation_penalty_bps": 50,
+      "min_notional_for_bounty": 100000000,
+      "fee_pool_quote": 0,
+      "fee_income": 0,
+      "initial_insurance": 0,
+      "claims_paid": 0,
+      "breaker_active": false,
+      "breaker_last_trigger_epoch": 0,
+      "accounts": [
+        {
+          "key": "121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212",
+          "position_base": 500000,
+          "collateral_quote": 200000,
+          "entry_price_e8": 100000000,
+          "liquidated_this_step": false
+        },
+        {
+          "key": "343434343434343434343434343434343434343434343434343434343434343434343434343434343434343434343434",
+          "position_base": -700000,
+          "collateral_quote": 200000,
+          "entry_price_e8": 100000000,
+          "liquidated_this_step": false
+        }
+      ]
+    },
+    {
+      "now_epoch": 3,
+      "epoch_phase": 2,
+      "clearing_price_seen": true,
+      "clearing_price_epoch": 3,
+      "clearing_price_e8": 100000000,
+      "oracle_last_update_epoch": 3,
+      "oracle_seen": true,
+      "index_price_e8": 100000000,
+      "max_oracle_move_bps": 500,
+      "maintenance_margin_bps": 500,
+      "depeg_buffer_bps": 100,
+      "liquidation_penalty_bps": 50,
+      "min_notional_for_bounty": 100000000,
+      "fee_pool_quote": 0,
+      "fee_income": 0,
+      "initial_insurance": 0,
+      "claims_paid": 0,
+      "breaker_active": false,
+      "breaker_last_trigger_epoch": 0,
+      "accounts": [
+        {
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": 1000000,
+          "collateral_quote": 200000,
+          "entry_price_e8": 100000000,
+          "liquidated_this_step": false
+        }
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "index": 0,
+      "ok": true,
+      "epoch_phase": "2",
+      "oracle_last_update_epoch": "3",
+      "oracle_seen": true,
+      "index_price_e8": "100000000",
+      "breaker_active": false,
+      "breaker_last_trigger_epoch": "0",
+      "fee_pool_quote": "0",
+      "fee_income": "0",
+      "insurance_balance": "0",
+      "accounts": []
+    },
+    {
+      "index": 1,
+      "ok": true,
+      "epoch_phase": "2",
+      "oracle_last_update_epoch": "3",
+      "oracle_seen": true,
+      "index_price_e8": "100000000",
+      "breaker_active": false,
+      "breaker_last_trigger_epoch": "0",
+      "fee_pool_quote": "0",
+      "fee_income": "0",
+      "insurance_balance": "0",
+      "accounts": [
+        {
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": "1000000",
+          "collateral_quote": "200000",
+          "entry_price_e8": "100000000",
+          "liquidated_this_step": false
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "ok": true,
+      "epoch_phase": "2",
+      "oracle_last_update_epoch": "3",
+      "oracle_seen": true,
+      "index_price_e8": "101000000",
+      "breaker_active": false,
+      "breaker_last_trigger_epoch": "0",
+      "fee_pool_quote": "0",
+      "fee_income": "0",
+      "insurance_balance": "0",
+      "accounts": [
+        {
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": "1000000",
+          "collateral_quote": "210000",
+          "entry_price_e8": "101000000",
+          "liquidated_this_step": false
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "ok": true,
+      "epoch_phase": "2",
+      "oracle_last_update_epoch": "3",
+      "oracle_seen": true,
+      "index_price_e8": "99000000",
+      "breaker_active": false,
+      "breaker_last_trigger_epoch": "0",
+      "fee_pool_quote": "0",
+      "fee_income": "0",
+      "insurance_balance": "0",
+      "accounts": [
+        {
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": "1000000",
+          "collateral_quote": "190000",
+          "entry_price_e8": "99000000",
+          "liquidated_this_step": false
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "ok": true,
+      "epoch_phase": "2",
+      "oracle_last_update_epoch": "3",
+      "oracle_seen": true,
+      "index_price_e8": "104000000",
+      "breaker_active": false,
+      "breaker_last_trigger_epoch": "0",
+      "fee_pool_quote": "0",
+      "fee_income": "0",
+      "insurance_balance": "0",
+      "accounts": [
+        {
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": "-1000000",
+          "collateral_quote": "160000",
+          "entry_price_e8": "104000000",
+          "liquidated_this_step": false
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "ok": true,
+      "epoch_phase": "2",
+      "oracle_last_update_epoch": "3",
+      "oracle_seen": true,
+      "index_price_e8": "95000000",
+      "breaker_active": true,
+      "breaker_last_trigger_epoch": "3",
+      "fee_pool_quote": "0",
+      "fee_income": "0",
+      "insurance_balance": "0",
+      "accounts": [
+        {
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": "0",
+          "collateral_quote": "55000",
+          "entry_price_e8": "0",
+          "liquidated_this_step": true
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "ok": true,
+      "epoch_phase": "2",
+      "oracle_last_update_epoch": "3",
+      "oracle_seen": true,
+      "index_price_e8": "105000000",
+      "breaker_active": true,
+      "breaker_last_trigger_epoch": "3",
+      "fee_pool_quote": "0",
+      "fee_income": "0",
+      "insurance_balance": "0",
+      "accounts": [
+        {
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": "1000000",
+          "collateral_quote": "250000",
+          "entry_price_e8": "105000000",
+          "liquidated_this_step": false
+        }
+      ]
+    },
+    {
+      "index": 7,
+      "ok": true,
+      "epoch_phase": "2",
+      "oracle_last_update_epoch": "3",
+      "oracle_seen": true,
+      "index_price_e8": "98000000",
+      "breaker_active": false,
+      "breaker_last_trigger_epoch": "0",
+      "fee_pool_quote": "0",
+      "fee_income": "0",
+      "insurance_balance": "0",
+      "accounts": [
+        {
+          "key": "121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212",
+          "position_base": "500000",
+          "collateral_quote": "190000",
+          "entry_price_e8": "98000000",
+          "liquidated_this_step": false
+        },
+        {
+          "key": "343434343434343434343434343434343434343434343434343434343434343434343434343434343434343434343434",
+          "position_base": "-700000",
+          "collateral_quote": "214000",
+          "entry_price_e8": "98000000",
+          "liquidated_this_step": false
+        }
+      ]
+    },
+    {
+      "index": 8,
+      "ok": false,
+      "code": "settle_epoch_guard"
+    }
+  ]
+}

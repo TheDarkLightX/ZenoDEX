@@ -1,0 +1,125 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_external_signal_contract_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless contract for user-supplied external signals that may feed KRR.
+
+    This kernel keeps the intake rules small and fail-closed:
+    - only advisory_external and attested_external source kinds are accepted
+    - advisory_external must remain advisory-only with advisory trust
+    - attested_external must carry attested/verified trust
+    - any non-advisory attested signal must also be fresh and authenticated
+observables:
+  state_vars: []
+  effects:
+    [
+      "source_kind_ok",
+      "trust_tier_ok",
+      "advisory_external_ok",
+      "attested_external_ok",
+      "external_signal_ok",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "validate_external_signal"
+    params:
+      - id: "source_kind_code"
+        type: { kind: "int", min: 0, max: 255 }
+      - id: "trust_tier_code"
+        type: { kind: "int", min: 0, max: 255 }
+      - id: "freshness_ok"
+        type: { kind: "bool" }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+      - id: "advisory_only"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      source_kind_ok:
+        op: "or"
+        args:
+          - { op: "=", args: [{ param: "source_kind_code" }, { const: 1 }] }
+          - { op: "=", args: [{ param: "source_kind_code" }, { const: 2 }] }
+      trust_tier_ok:
+        op: "or"
+        args:
+          - { op: "=", args: [{ param: "trust_tier_code" }, { const: 0 }] }
+          - op: "or"
+            args:
+              - { op: "=", args: [{ param: "trust_tier_code" }, { const: 1 }] }
+              - { op: "=", args: [{ param: "trust_tier_code" }, { const: 2 }] }
+      advisory_external_ok:
+        op: "or"
+        args:
+          - op: "not"
+            args:
+              - { op: "=", args: [{ param: "source_kind_code" }, { const: 1 }] }
+          - op: "and"
+            args:
+              - { param: "advisory_only" }
+              - { op: "=", args: [{ param: "trust_tier_code" }, { const: 0 }] }
+      attested_external_ok:
+        op: "or"
+        args:
+          - op: "not"
+            args:
+              - { op: "=", args: [{ param: "source_kind_code" }, { const: 2 }] }
+          - op: "and"
+            args:
+              - op: "or"
+                args:
+                  - { op: "=", args: [{ param: "trust_tier_code" }, { const: 1 }] }
+                  - { op: "=", args: [{ param: "trust_tier_code" }, { const: 2 }] }
+              - op: "or"
+                args:
+                  - { param: "advisory_only" }
+                  - op: "and"
+                    args:
+                      - { param: "auth_ok" }
+                      - { param: "freshness_ok" }
+      external_signal_ok:
+        op: "and"
+        args:
+          - op: "or"
+            args:
+              - { op: "=", args: [{ param: "source_kind_code" }, { const: 1 }] }
+              - { op: "=", args: [{ param: "source_kind_code" }, { const: 2 }] }
+          - op: "or"
+            args:
+              - { op: "=", args: [{ param: "trust_tier_code" }, { const: 0 }] }
+              - op: "or"
+                args:
+                  - { op: "=", args: [{ param: "trust_tier_code" }, { const: 1 }] }
+                  - { op: "=", args: [{ param: "trust_tier_code" }, { const: 2 }] }
+          - op: "or"
+            args:
+              - op: "not"
+                args:
+                  - { op: "=", args: [{ param: "source_kind_code" }, { const: 1 }] }
+              - op: "and"
+                args:
+                  - { param: "advisory_only" }
+                  - { op: "=", args: [{ param: "trust_tier_code" }, { const: 0 }] }
+          - op: "or"
+            args:
+              - op: "not"
+                args:
+                  - { op: "=", args: [{ param: "source_kind_code" }, { const: 2 }] }
+              - op: "and"
+                args:
+                  - op: "or"
+                    args:
+                      - { op: "=", args: [{ param: "trust_tier_code" }, { const: 1 }] }
+                      - { op: "=", args: [{ param: "trust_tier_code" }, { const: 2 }] }
+                  - op: "or"
+                    args:
+                      - { param: "advisory_only" }
+                      - op: "and"
+                        args:
+                          - { param: "auth_ok" }
+                          - { param: "freshness_ok" }

@@ -54,7 +54,9 @@ The "verified" set is now **formally complete** per the tool:
 
 ## Decision: Are We Ready to Build on Tau Net Alpha?
 
-**Answer:** **Yes for core DEX + buyback/burn.** We now have complete specs for swap validation, balances, protocol token transitions, and settlement (with and without buyback burn). We can proceed with Tau Net Alpha integration using `settlement_v1.tau` (core) or `settlement_v2_buyback.tau` (PulseX-style buyback). The new fee-rebate and lock-weight specs are complete but not yet wired into settlement.
+**Answer:** **Specification coverage is sufficient to keep building the core DEX + buyback/burn path on Tau Net Alpha, but this document is not a production-readiness signoff.** We now have complete specs for swap validation, balances, protocol token transitions, and settlement (with and without buyback burn). We can proceed with Tau Net Alpha integration using `settlement_v1.tau` (core) or `settlement_v2_buyback.tau` (PulseX-style buyback). The new fee-rebate and lock-weight specs are complete but not yet wired into settlement.
+
+Production readiness still depends on the release gate, manifest-backed kernel assurance coverage, a clean pinned ESSO toolchain, and supply-chain/security checks. Treat this report as a Tau-spec completeness snapshot only.
 
 ## Immediate Next Actions
 

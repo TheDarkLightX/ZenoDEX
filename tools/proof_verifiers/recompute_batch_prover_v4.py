@@ -23,8 +23,17 @@ sys.path.insert(0, str(REPO_ROOT))
 from src.core.intent_normal_form import IntentNormalFormError, require_normal_form  # noqa: E402
 from src.core.settlement_normal_form import normalize_settlement_op_for_commitment  # noqa: E402
 from src.integration.dex_snapshot import DEX_SNAPSHOT_VERSION, state_from_snapshot  # noqa: E402
-from src.integration.operations import create_settlement_operation, parse_intents, parse_settlement  # noqa: E402
-from src.state.canonical import CANONICAL_ENCODING_VERSION, canonical_json_bytes, domain_sep_bytes, sha256_hex  # noqa: E402
+from src.integration.operations import (  # noqa: E402
+    create_settlement_operation,
+    parse_intents,
+    parse_settlement,
+)
+from src.state.canonical import (  # noqa: E402
+    CANONICAL_ENCODING_VERSION,
+    canonical_json_bytes,
+    domain_sep_bytes,
+    sha256_hex,
+)
 from src.state.support_root import (  # noqa: E402
     BatchStateSupport,
     compute_support_state_root,
@@ -101,45 +110,69 @@ def _project_snapshot(state: Any, support: BatchStateSupport) -> Dict[str, Any]:
                 "lp_supply": int(pool.lp_supply),
                 "status": pool.status.value,
                 "created_at": int(pool.created_at),
+                "curve_tag": pool.curve_tag,
+                "curve_params": pool.curve_params,
             }
         )
     pools_entries.sort(key=lambda e: e["pool_id"])
 
     lp_entries = []
+    lp_mint_timestamp_entries = []
+    lp_duration_risk_entries = []
     for pubkey, pool_id in support.lp_keys:
         amount = state.lp_balances.get(pubkey, pool_id)
-        if amount == 0:
-            continue
-        lp_entries.append({"pubkey": pubkey, "pool_id": pool_id, "amount": int(amount)})
+        if amount != 0:
+            lp_entries.append({"pubkey": pubkey, "pool_id": pool_id, "amount": int(amount)})
+        timestamp = state.lp_balances.get_last_mint_timestamp(pubkey, pool_id)
+        if amount != 0 and timestamp is not None:
+            lp_mint_timestamp_entries.append(
+                {
+                    "pubkey": pubkey,
+                    "pool_id": pool_id,
+                    "last_mint_timestamp": int(timestamp),
+                }
+            )
+        metadata = state.lp_balances.get_duration_risk_metadata(pubkey, pool_id)
+        if (
+            metadata.last_remove_timestamp is not None
+            or metadata.churn_tier > 0
+            or metadata.last_churn_update_timestamp is not None
+        ):
+            lp_duration_risk_entries.append(
+                {
+                    "pubkey": pubkey,
+                    "pool_id": pool_id,
+                    "last_remove_timestamp": metadata.last_remove_timestamp,
+                    "churn_tier": int(metadata.churn_tier),
+                    "last_churn_update_timestamp": metadata.last_churn_update_timestamp,
+                }
+            )
     lp_entries.sort(key=lambda e: (e["pubkey"], e["pool_id"]))
+    lp_mint_timestamp_entries.sort(key=lambda e: (e["pubkey"], e["pool_id"]))
+    lp_duration_risk_entries.sort(key=lambda e: (e["pubkey"], e["pool_id"]))
 
-    fee_acc = state.fee_accumulator
-    fee_acc_obj: Dict[str, Any] = {"dust": int(getattr(fee_acc, "dust", 0))}
-
-    vault_obj = None
-    if getattr(state, "vault", None) is not None:
-        v = state.vault
-        vault_obj = {
-            "acc_reward_per_share": int(v.acc_reward_per_share),
-            "last_update_acc": int(v.last_update_acc),
-            "pending_rewards": int(v.pending_rewards),
-            "reward_balance": int(v.reward_balance),
-            "staked_lp_shares": int(v.staked_lp_shares),
-        }
-
-    oracle_obj = None
-    if getattr(state, "oracle", None) is not None:
-        o = state.oracle
-        oracle_obj = {"price_timestamp": int(o.price_timestamp), "max_staleness_seconds": int(o.max_staleness_seconds)}
+    nonce_entries = []
+    for pubkey in support.nonce_keys:
+        last_nonce = state.nonces.get_last(pubkey)
+        if last_nonce == 0:
+            continue
+        nonce_entries.append({"pubkey": pubkey, "last_nonce": int(last_nonce)})
+    nonce_entries.sort(key=lambda e: e["pubkey"])
 
     return {
         "version": DEX_SNAPSHOT_VERSION,
         "balances": balances_entries,
         "pools": pools_entries,
         "lp_balances": lp_entries,
-        "fee_accumulator": fee_acc_obj,
-        "vault": vault_obj,
-        "oracle": oracle_obj,
+        "lp_mint_timestamps": lp_mint_timestamp_entries,
+        "lp_duration_risk": lp_duration_risk_entries,
+        "nonces": nonce_entries,
+        # v4 support proofs bind only the projected settlement read-set. Keep
+        # required snapshot-only sections canonical so the witness cannot carry
+        # unbound live accounting or oracle/vault state.
+        "fee_accumulator": {"dust": 0},
+        "vault": None,
+        "oracle": None,
     }
 
 
@@ -170,6 +203,7 @@ def main(argv: Sequence[str]) -> None:
             pools=state.pools,
             lp_balances=state.lp_balances,
             support=support,
+            nonces=state.nonces,
         )
 
         projected_snapshot = _project_snapshot(state, support)
@@ -197,4 +231,3 @@ def main(argv: Sequence[str]) -> None:
 
 if __name__ == "__main__":
     main(sys.argv[1:])
-

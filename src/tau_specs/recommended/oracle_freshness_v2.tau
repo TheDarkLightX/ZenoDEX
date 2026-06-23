@@ -55,7 +55,7 @@ always
   # @section: Parameter validation
   (o1[t]:sbf = 1:sbf <-> params_ok(i3[t]:bv[32], i4[t]:bv[32], i1[t]:bv[32], i2[t]:bv[32])) &&
   # @section: Freshness check
-  (o2[t]:sbf = 1:sbf <-> freshness_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  (o2[t]:sbf = 1:sbf <-> (params_ok(i3[t]:bv[32], i4[t]:bv[32], i1[t]:bv[32], i2[t]:bv[32]) && freshness_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]))) &&
   # @section: Monotonic + bounded jump
   (o3[t]:sbf = 1:sbf <-> (monotonic_ok(i1[t]:bv[32], i5[t]:bv[32]) && jump_bounded(i1[t]:bv[32], i5[t]:bv[32], i4[t]:bv[32]))) &&
   # @section: Aggregated oracle v2 validity

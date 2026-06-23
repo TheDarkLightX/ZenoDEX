@@ -30,25 +30,40 @@ Algorithm Design:
 
 from __future__ import annotations
 
-from dataclasses import replace
 import itertools
-from typing import Any, List, Dict, Tuple, Optional
 from collections import defaultdict
+from dataclasses import dataclass, replace
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
+from ..kernels.python.settlement_swap_runtime_v1 import (
+    quote_cpmm_swap_exact_in,
+    quote_cpmm_swap_exact_out,
+)
+from ..state.balances import Amount, AssetId, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
-from ..state.pools import PoolState, PoolStatus
-from ..state.balances import BalanceTable, PubKey, AssetId, Amount
 from ..state.lp import LPTable
+from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from .cpmm import MIN_LP_LOCK, compute_fee_total
-from .liquidity import create_pool, add_liquidity, remove_liquidity
+from .domain_limits import DEX_LP_AMOUNT_MAX, is_strict_int
+from .liquidity import add_liquidity, create_pool, remove_liquidity
+from .route_settlement import (
+    ROUTE_REJECT_BINDING_MISSING,
+    ROUTE_REJECT_INSUFFICIENT_BALANCE,
+    ROUTE_REJECT_INVALID_PARAMS,
+    RouteBinding,
+    is_route_intent_kind,
+    replay_route_legs,
+    route_totals_violation,
+    validate_route_intent_against_binding,
+)
 from .settlement import (
-    Settlement,
+    BalanceDelta,
     Fill,
     FillAction,
-    BalanceDelta,
-    ReserveDelta,
     LPDelta,
+    ReserveDelta,
+    Settlement,
 )
 
 LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
@@ -58,12 +73,25 @@ _SWAP_ORDERING_OPTIMAL_AB_BOUNDED = "optimal_ab_bounded"
 _SWAP_ORDERING_GREEDY_AB = "greedy_ab"
 _SWAP_ORDERING_GREEDY_AB_REFINED = "greedy_ab_refined"
 _SWAP_ORDERING_GREEDY_AB_GLOBAL = "greedy_ab_global"
+_SWAP_ORDERING_MCI_AB_GLOBAL = "mci_ab_global"
+_SWAP_ORDERING_COW_PAIR_NETTING_V1 = "cow_pair_netting_v1"
+_SWAP_ORDERING_COW_PAIR_NETTING_EXACT_UNCOUPLED_V2 = "cow_pair_netting_exact_uncoupled_v2"
 _SWAP_ORDERING_CHOICES = frozenset({
     _SWAP_ORDERING_LIMIT_PRICE,
     _SWAP_ORDERING_OPTIMAL_AB_BOUNDED,
     _SWAP_ORDERING_GREEDY_AB,
     _SWAP_ORDERING_GREEDY_AB_REFINED,
     _SWAP_ORDERING_GREEDY_AB_GLOBAL,
+    _SWAP_ORDERING_MCI_AB_GLOBAL,
+    _SWAP_ORDERING_COW_PAIR_NETTING_V1,
+    _SWAP_ORDERING_COW_PAIR_NETTING_EXACT_UNCOUPLED_V2,
+})
+_CowPairNettingProfile = Literal["legacy_v1", "exact_uncoupled_v2"]
+_COW_PAIR_NETTING_MATCH_LEGACY_V1: _CowPairNettingProfile = "legacy_v1"
+_COW_PAIR_NETTING_MATCH_EXACT_UNCOUPLED_V2: _CowPairNettingProfile = "exact_uncoupled_v2"
+_COW_PAIR_NETTING_MATCH_CHOICES = frozenset({
+    _COW_PAIR_NETTING_MATCH_LEGACY_V1,
+    _COW_PAIR_NETTING_MATCH_EXACT_UNCOUPLED_V2,
 })
 
 # Bounded brute-force safety cap for AB-optimal ordering.
@@ -71,8 +99,23 @@ _SWAP_ORDERING_CHOICES = frozenset({
 _MAX_SWAP_ORDERING_BRUTE_FORCE_N = 12
 # Global pair-swap refinement can be expensive; cap intent count for this mode.
 _MAX_SWAP_ORDERING_GLOBAL_REFINE_N = 24
+# MCI insertion is heavier than greedy seeding; keep it opt-in and bounded.
+_MAX_SWAP_ORDERING_MCI_N = 18
+# Exact CoW matching is polynomial, but its lex tie-break re-solves the assignment
+# problem once per feasible edge. Keep the exact path bounded and preserve the
+# existing deterministic greedy fallback for larger valid batches.
+_MAX_COW_EXACT_MATCH_TOTAL_CANDIDATES = 32
+_MAX_COW_EXACT_MATCH_FEASIBLE_EDGES = 256
 # Chunk size for settlement delta aggregation (invariant chunking promotion).
 _DELTA_AGG_CHUNK_SIZE = 128
+
+
+def is_cow_pair_netting_ordering(swap_ordering: str) -> bool:
+    """Return true for profiles whose settlements may contain COW_NETTED fills."""
+    return str(swap_ordering) in {
+        _SWAP_ORDERING_COW_PAIR_NETTING_V1,
+        _SWAP_ORDERING_COW_PAIR_NETTING_EXACT_UNCOUPLED_V2,
+    }
 
 
 def compute_settlement(
@@ -81,7 +124,10 @@ def compute_settlement(
     balances: BalanceTable,
     lp_balances: Optional[LPTable] = None,
     *,
-    swap_ordering: str = _SWAP_ORDERING_LIMIT_PRICE,
+    swap_ordering: str = _SWAP_ORDERING_GREEDY_AB_REFINED,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Optional[PubKey] = None,
+    route_bindings: Optional[Dict[str, RouteBinding]] = None,
 ) -> Settlement:
     """
     Compute settlement for a batch of intents.
@@ -103,6 +149,10 @@ def compute_settlement(
     """
     if swap_ordering not in _SWAP_ORDERING_CHOICES:
         raise ValueError(f"unsupported swap_ordering: {swap_ordering!r}")
+    if not is_strict_int(protocol_fee_share_bps) or not (0 <= protocol_fee_share_bps <= 10000):
+        raise ValueError("protocol_fee_share_bps must be an int in [0, 10000]")
+    if protocol_fee_share_bps > 0 and not protocol_fee_recipient_pubkey:
+        raise ValueError("protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0")
     # Work on local copies (functional core / imperative shell).
     pool_states: Dict[str, PoolState] = {pool_id: replace(pool) for pool_id, pool in pools.items()}
     balances_local = _copy_balance_table(balances)
@@ -113,11 +163,16 @@ def compute_settlement(
     # Group intents by pool
     intents_by_pool: Dict[str, List[Intent]] = defaultdict(list)
     create_pool_intents: List[Intent] = []
+    route_intents: List[Intent] = []
     non_pool_intents: List[Intent] = []
 
     for intent in intents:
         if intent.kind == IntentKind.CREATE_POOL:
             create_pool_intents.append(intent)
+            continue
+
+        if is_route_intent_kind(intent.kind):
+            route_intents.append(intent)
             continue
 
         pool_id = intent.get_field("pool_id")
@@ -142,7 +197,12 @@ def compute_settlement(
         if fill.action != FillAction.FILL:
             continue
 
-        assert pool_id is not None and created_pool is not None
+        # Invariant: _try_create_pool returns a FILL only on success, which sets both
+        # pool_id and created_pool. Explicit fail-closed check (not `assert`) so it
+        # survives `python -O` and any future regression of that contract.
+        if pool_id is None or created_pool is None:
+            raise AssertionError(
+                "internal: _try_create_pool returned FILL without pool_id/created_pool")
         _apply_create_pool_to_locals(
             intent=intent,
             pool_id=pool_id,
@@ -154,6 +214,21 @@ def compute_settlement(
             lp_deltas=all_lp_deltas,
             events=events,
         )
+
+    # Process atomic route intents (snapshot-bound; before per-pool clearing,
+    # whose fills would otherwise invalidate the receipt-pinned pool states).
+    # Deterministic order: intent_id ascending.
+    for intent in sorted(route_intents, key=lambda i: i.intent_id):
+        fill = _clear_route_intent_against_locals(
+            intent=intent,
+            binding=(route_bindings or {}).get(intent.intent_id),
+            pool_states=pool_states,
+            balances=balances_local,
+            balance_deltas=all_balance_deltas,
+            reserve_deltas=all_reserve_deltas,
+        )
+        included_intents.append((intent.intent_id, fill.action))
+        all_fills.append(fill)
 
     # Process pool intents
     for pool_id in sorted(intents_by_pool.keys()):
@@ -176,6 +251,8 @@ def compute_settlement(
             balances_local,
             lp_local,
             swap_ordering=swap_ordering,
+            protocol_fee_share_bps=protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
         )
 
         for fill in fills:
@@ -196,6 +273,7 @@ def compute_settlement(
                 balance_deltas=all_balance_deltas,
                 reserve_deltas=all_reserve_deltas,
                 lp_deltas=all_lp_deltas,
+                protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
             )
 
         pool_states[pool_id] = pool_state
@@ -244,7 +322,43 @@ def _copy_lp_table(lp_balances: LPTable) -> LPTable:
     copied = LPTable()
     for (pubkey, pool_id), amount in lp_balances.get_all_balances().items():
         copied.set(pubkey, pool_id, amount)
+    for (pubkey, pool_id), timestamp in lp_balances.get_all_last_mint_timestamps().items():
+        if copied.get(pubkey, pool_id) > 0:
+            copied.set_last_mint_timestamp(pubkey, pool_id, timestamp)
     return copied
+
+
+def _parse_create_pool_event_payload(
+    event: dict[str, Any],
+) -> tuple[str, str, str, int, str, str, PoolStatus, int]:
+    pool_id = event.get("pool_id")
+    asset0 = event.get("asset0")
+    asset1 = event.get("asset1")
+    fee_bps = event.get("fee_bps")
+    curve_tag = event.get("curve_tag", CURVE_TAG_CPMM)
+    curve_params = event.get("curve_params", "")
+    status_str = event.get("status", PoolStatus.ACTIVE.value)
+    created_at = event.get("created_at", 0)
+
+    if not isinstance(pool_id, str) or not pool_id:
+        raise ValueError("Invalid CREATE_POOL event: missing pool_id")
+    if not isinstance(asset0, str) or not isinstance(asset1, str):
+        raise ValueError(f"Invalid CREATE_POOL assets for pool: {pool_id}")
+    if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
+        raise ValueError(f"Invalid CREATE_POOL fee_bps for pool: {pool_id}")
+    if not isinstance(curve_tag, str) or not curve_tag:
+        raise ValueError(f"Invalid CREATE_POOL curve_tag for pool: {pool_id}")
+    if not isinstance(curve_params, str):
+        raise ValueError(f"Invalid CREATE_POOL curve_params for pool: {pool_id}")
+    if not isinstance(created_at, int) or isinstance(created_at, bool) or created_at < 0:
+        raise ValueError(f"Invalid CREATE_POOL created_at for pool: {pool_id}")
+
+    try:
+        status = PoolStatus(str(status_str))
+    except ValueError as exc:
+        raise ValueError(f"Invalid CREATE_POOL status for pool: {pool_id}") from exc
+
+    return pool_id, asset0, asset1, fee_bps, curve_tag, curve_params, status, created_at
 
 
 def _aggregate_balance_deltas_chunked(
@@ -348,6 +462,42 @@ def _try_create_pool(
             "missing params",
         )
 
+    if not isinstance(asset0, str) or not isinstance(asset1, str):
+        return (
+            Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS"),
+            None,
+            None,
+            "asset ids must be strings",
+        )
+    if not is_strict_int(fee_bps) or not (0 <= fee_bps <= 10000):
+        return (
+            Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS"),
+            None,
+            None,
+            "fee_bps out of domain",
+        )
+    if not is_strict_int(amount0) or not (1 <= amount0 <= DEX_LP_AMOUNT_MAX):
+        return (
+            Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS"),
+            None,
+            None,
+            "amount0 out of domain",
+        )
+    if not is_strict_int(amount1) or not (1 <= amount1 <= DEX_LP_AMOUNT_MAX):
+        return (
+            Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS"),
+            None,
+            None,
+            "amount1 out of domain",
+        )
+    if created_at is not None and (not is_strict_int(created_at) or created_at < 0):
+        return (
+            Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS"),
+            None,
+            None,
+            "created_at out of domain",
+        )
+
     if balances.get(sender, asset0) < amount0 or balances.get(sender, asset1) < amount1:
         return (
             Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INSUFFICIENT_BALANCE"),
@@ -355,6 +505,8 @@ def _try_create_pool(
             None,
             "insufficient balance",
         )
+
+    created_at_value = 0 if created_at is None else created_at
 
     try:
         pool_id, pool_state, lp_minted = create_pool(
@@ -364,7 +516,7 @@ def _try_create_pool(
             amount1=amount1,
             fee_bps=fee_bps,
             creator_pubkey=sender,
-            created_at=created_at,
+            created_at=created_at_value,
             curve_tag=curve_tag,
             curve_params=curve_params,
         )
@@ -421,7 +573,8 @@ def _apply_create_pool_to_locals(
     amount1 = intent.get_field("amount1")
     created_at = intent.get_field("created_at", created_pool.created_at)
 
-    assert asset0 is not None and asset1 is not None and amount0 is not None and amount1 is not None
+    if asset0 is None or asset1 is None or amount0 is None or amount1 is None:
+        raise ValueError("CREATE_POOL intent missing required liquidity fields")
 
     lp_minted = created_pool.lp_supply - MIN_LP_LOCK
 
@@ -456,6 +609,77 @@ def _apply_create_pool_to_locals(
     lp_deltas.append(LPDelta(pubkey=LP_LOCK_PUBKEY, pool_id=pool_id, delta_add=MIN_LP_LOCK, delta_sub=0))
 
 
+def _clear_route_intent_against_locals(
+    *,
+    intent: Intent,
+    binding: Optional[RouteBinding],
+    pool_states: Dict[str, PoolState],
+    balances: BalanceTable,
+    balance_deltas: List[BalanceDelta],
+    reserve_deltas: List[ReserveDelta],
+) -> Fill:
+    """
+    Clear one atomic route intent against the local candidate state.
+
+    Two-phase (atomic by construction): replay EVERY leg first against the
+    current locals (pure, no mutation), then apply all legs only on full
+    success. Any failure returns a REJECT fill with a stable reason and the
+    locals untouched.
+    """
+
+    def _reject(reason: str) -> Fill:
+        return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason=reason)
+
+    if binding is None:
+        return _reject(ROUTE_REJECT_BINDING_MISSING)
+
+    err = validate_route_intent_against_binding(intent, binding)
+    if err is not None:
+        return _reject(ROUTE_REJECT_INVALID_PARAMS)
+
+    sender = intent.sender_pubkey
+    recipient = intent.get_field("recipient", sender)
+
+    replay = replay_route_legs(binding=binding, pools=pool_states)
+    if not replay.ok:
+        return _reject(replay.reject_reason or ROUTE_REJECT_INVALID_PARAMS)
+
+    totals_err = route_totals_violation(intent, replay)
+    if totals_err is not None:
+        return _reject(totals_err)
+
+    if balances.get(sender, binding.asset_in) < int(replay.total_amount_in):
+        return _reject(ROUTE_REJECT_INSUFFICIENT_BALANCE)
+
+    # All legs replayed; commit to the locals.
+    for leg in replay.legs:
+        balances.subtract(sender, leg.asset_in, int(leg.amount_in))
+        balances.add(recipient, leg.asset_out, int(leg.amount_out))
+        balance_deltas.append(
+            BalanceDelta(pubkey=sender, asset=leg.asset_in, delta_add=0, delta_sub=int(leg.amount_in))
+        )
+        balance_deltas.append(
+            BalanceDelta(pubkey=recipient, asset=leg.asset_out, delta_add=int(leg.amount_out), delta_sub=0)
+        )
+        reserve_deltas.append(
+            ReserveDelta(pool_id=leg.pool_id, asset=leg.asset_in, delta_add=int(leg.amount_in), delta_sub=0)
+        )
+        reserve_deltas.append(
+            ReserveDelta(pool_id=leg.pool_id, asset=leg.asset_out, delta_add=0, delta_sub=int(leg.amount_out))
+        )
+        pool_state = pool_states[leg.pool_id]
+        pool_state.reserve0 = int(leg.new_reserve0)
+        pool_state.reserve1 = int(leg.new_reserve1)
+
+    return Fill(
+        intent_id=intent.intent_id,
+        action=FillAction.FILL,
+        amount_in_filled=int(replay.total_amount_in),
+        amount_out_filled=int(replay.total_amount_out),
+        fee_paid=int(replay.total_fee_paid),
+    )
+
+
 def _apply_filled_intent_to_locals(
     intent: Intent,
     fill: Fill,
@@ -466,6 +690,7 @@ def _apply_filled_intent_to_locals(
     balance_deltas: List[BalanceDelta],
     reserve_deltas: List[ReserveDelta],
     lp_deltas: List[LPDelta],
+    protocol_fee_recipient_pubkey: Optional[PubKey] = None,
 ) -> None:
     sender = intent.sender_pubkey
     recipient = intent.get_field("recipient", sender)
@@ -475,21 +700,44 @@ def _apply_filled_intent_to_locals(
         asset_out = intent.get_field("asset_out")
         amount_in = fill.amount_in_filled or 0
         amount_out = fill.amount_out_filled or 0
+        protocol_fee = fill.protocol_fee_paid or 0
 
         balances.subtract(sender, asset_in, amount_in)
         balances.add(recipient, asset_out, amount_out)
+        if protocol_fee:
+            protocol_fee_recipient = protocol_fee_recipient_pubkey
+            if not protocol_fee_recipient:
+                raise ValueError("protocol_fee_recipient_pubkey is required for protocol fee capture")
+            balances.add(protocol_fee_recipient, asset_in, protocol_fee)
 
         balance_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=amount_in))
         balance_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=amount_out, delta_sub=0))
+        if protocol_fee:
+            protocol_fee_recipient = protocol_fee_recipient_pubkey
+            if not protocol_fee_recipient:
+                raise ValueError("protocol_fee_recipient_pubkey is required for protocol fee capture")
+            balance_deltas.append(
+                BalanceDelta(
+                    pubkey=protocol_fee_recipient,
+                    asset=asset_in,
+                    delta_add=protocol_fee,
+                    delta_sub=0,
+                )
+            )
 
-        reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_in, delta_add=amount_in, delta_sub=0))
+        # CoW-style netting: do not touch pool reserves/deltas.
+        if fill.reason == "COW_NETTED":
+            return
+
+        reserve_amount_in = amount_in - protocol_fee
+        reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_in, delta_add=reserve_amount_in, delta_sub=0))
         reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_out, delta_add=0, delta_sub=amount_out))
 
         if asset_in == pool_state.asset0:
-            pool_state.reserve0 += amount_in
+            pool_state.reserve0 += reserve_amount_in
             pool_state.reserve1 -= amount_out
         else:
-            pool_state.reserve1 += amount_in
+            pool_state.reserve1 += reserve_amount_in
             pool_state.reserve0 -= amount_out
         return
 
@@ -542,12 +790,15 @@ def clear_batch_single_pool(
     balances: BalanceTable,
     lp_balances: LPTable,
     *,
-    swap_ordering: str = _SWAP_ORDERING_LIMIT_PRICE,
+    swap_ordering: str = _SWAP_ORDERING_GREEDY_AB_REFINED,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Optional[PubKey] = None,
 ) -> List[Fill]:
     """
     Process batch of intents for a single pool.
     
-    Deterministic: sort by limit price, process sequentially.
+    Deterministic: clear swaps under the selected ordering and process
+    liquidity intents in receive order.
     
     Args:
         intents: List of intents for this pool
@@ -558,6 +809,10 @@ def clear_batch_single_pool(
     """
     if swap_ordering not in _SWAP_ORDERING_CHOICES:
         raise ValueError(f"unsupported swap_ordering: {swap_ordering!r}")
+    if not is_strict_int(protocol_fee_share_bps) or not (0 <= protocol_fee_share_bps <= 10000):
+        raise ValueError("protocol_fee_share_bps must be an int in [0, 10000]")
+    if protocol_fee_share_bps > 0 and not protocol_fee_recipient_pubkey:
+        raise ValueError("protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0")
     # Sort intents deterministically
     # For swaps: sort by effective limit price (best first)
     # For liquidity: process in order received
@@ -574,22 +829,49 @@ def clear_batch_single_pool(
 
     balances_scratch = _copy_balance_table(balances)
     lp_scratch = _copy_lp_table(lp_balances)
-    
+
+    # Optional CoW-style pre-netting pass (EXPERIMENTAL): match opposite-direction
+    # exact-in swaps directly between users when both sides' min_out constraints are met.
+    #
+    # This is *not* a lattice/LLL solver; it is a deterministic, certificate-friendly
+    # primitive that can be extended later.
+    post_swap_ordering = swap_ordering
+    if is_cow_pair_netting_ordering(swap_ordering):
+        matching_profile = (
+            _COW_PAIR_NETTING_MATCH_EXACT_UNCOUPLED_V2
+            if swap_ordering == _SWAP_ORDERING_COW_PAIR_NETTING_EXACT_UNCOUPLED_V2
+            else _COW_PAIR_NETTING_MATCH_LEGACY_V1
+        )
+        netted_fills, remaining_swaps = _cow_pair_netting_exact_in_v1(
+            swap_intents,
+            pool_state=pool_state,
+            balances=balances_scratch,
+            matching_profile=matching_profile,
+        )
+        fills.extend(netted_fills)
+        swap_intents = remaining_swaps
+        # After netting, clear the remainder using AB-optimal bounded when possible.
+        post_swap_ordering = (
+            _SWAP_ORDERING_OPTIMAL_AB_BOUNDED
+            if len(swap_intents) <= _MAX_SWAP_ORDERING_BRUTE_FORCE_N
+            else _SWAP_ORDERING_GREEDY_AB_REFINED
+        )
+
     # Process swap intents first.
-    if swap_ordering == _SWAP_ORDERING_OPTIMAL_AB_BOUNDED:
+    if post_swap_ordering == _SWAP_ORDERING_OPTIMAL_AB_BOUNDED:
         sorted_swaps = _order_swaps_optimal_ab_bounded(
             swap_intents,
             pool_state=pool_state,
             balances=balances_scratch,
             reserves=current_reserves,
         )
-    elif swap_ordering == _SWAP_ORDERING_GREEDY_AB:
+    elif post_swap_ordering == _SWAP_ORDERING_GREEDY_AB:
         sorted_swaps = _order_swaps_greedy_ab(
             swap_intents,
             pool_state=pool_state,
             reserves=current_reserves,
         )
-    elif swap_ordering == _SWAP_ORDERING_GREEDY_AB_REFINED:
+    elif post_swap_ordering == _SWAP_ORDERING_GREEDY_AB_REFINED:
         greedy = _order_swaps_greedy_ab(
             swap_intents,
             pool_state=pool_state,
@@ -600,7 +882,7 @@ def clear_batch_single_pool(
             pool_state=pool_state,
             reserves=current_reserves,
         )
-    elif swap_ordering == _SWAP_ORDERING_GREEDY_AB_GLOBAL:
+    elif post_swap_ordering == _SWAP_ORDERING_GREEDY_AB_GLOBAL:
         greedy = _order_swaps_greedy_ab(
             swap_intents,
             pool_state=pool_state,
@@ -616,11 +898,28 @@ def clear_batch_single_pool(
             pool_state=pool_state,
             reserves=current_reserves,
         )
+    elif post_swap_ordering == _SWAP_ORDERING_MCI_AB_GLOBAL:
+        mci = _order_swaps_mci_ab(
+            swap_intents,
+            pool_state=pool_state,
+            reserves=current_reserves,
+        )
+        sorted_swaps = _refine_ab_ordering_global(
+            mci,
+            pool_state=pool_state,
+            reserves=current_reserves,
+        )
     else:
         sorted_swaps = _order_swaps_limit_price(swap_intents)
     
     for intent in sorted_swaps:
-        fill = _process_swap_intent(intent, current_reserves, pool_state, balances_scratch)
+        fill = _process_swap_intent(
+            intent,
+            current_reserves,
+            pool_state,
+            balances_scratch,
+            protocol_fee_share_bps=protocol_fee_share_bps,
+        )
         fills.append(fill)
         
         if fill.action == FillAction.FILL:
@@ -629,35 +928,75 @@ def clear_batch_single_pool(
             if asset_in == pool_state.asset0:
                 # Swapping asset0 -> asset1
                 if intent.kind == IntentKind.SWAP_EXACT_IN:
-                    _, (new_r0, new_r1) = swap_exact_in_for_pool(
-                        pool_state,
-                        reserve_in=current_reserves[0],
-                        reserve_out=current_reserves[1],
-                        amount_in=fill.amount_in_filled or 0,
-                    )
+                    if pool_state.curve_tag == CURVE_TAG_CPMM:
+                        quote = quote_cpmm_swap_exact_in(
+                            reserve_in=current_reserves[0],
+                            reserve_out=current_reserves[1],
+                            amount_in=fill.amount_in_filled or 0,
+                            fee_bps=pool_state.fee_bps,
+                            protocol_fee_share_bps=protocol_fee_share_bps,
+                        )
+                        new_r0, new_r1 = quote.reserve_in_after, quote.reserve_out_after
+                    else:
+                        _, (new_r0, new_r1) = swap_exact_in_for_pool(
+                            pool_state,
+                            reserve_in=current_reserves[0],
+                            reserve_out=current_reserves[1],
+                            amount_in=fill.amount_in_filled or 0,
+                        )
                 else:  # SWAP_EXACT_OUT
-                    _, (new_r0, new_r1) = swap_exact_out_for_pool(
-                        pool_state,
-                        reserve_in=current_reserves[0],
-                        reserve_out=current_reserves[1],
-                        amount_out=fill.amount_out_filled or 0,
-                    )
+                    if pool_state.curve_tag == CURVE_TAG_CPMM:
+                        quote = quote_cpmm_swap_exact_out(
+                            reserve_in=current_reserves[0],
+                            reserve_out=current_reserves[1],
+                            amount_out=fill.amount_out_filled or 0,
+                            fee_bps=pool_state.fee_bps,
+                            protocol_fee_share_bps=protocol_fee_share_bps,
+                        )
+                        new_r0, new_r1 = quote.reserve_in_after, quote.reserve_out_after
+                    else:
+                        _, (new_r0, new_r1) = swap_exact_out_for_pool(
+                            pool_state,
+                            reserve_in=current_reserves[0],
+                            reserve_out=current_reserves[1],
+                            amount_out=fill.amount_out_filled or 0,
+                        )
                 current_reserves = (new_r0, new_r1)
             else:  # asset_in == asset1, swapping asset1 -> asset0
                 if intent.kind == IntentKind.SWAP_EXACT_IN:
-                    _, (new_r1, new_r0) = swap_exact_in_for_pool(
-                        pool_state,
-                        reserve_in=current_reserves[1],
-                        reserve_out=current_reserves[0],
-                        amount_in=fill.amount_in_filled or 0,
-                    )
+                    if pool_state.curve_tag == CURVE_TAG_CPMM:
+                        quote = quote_cpmm_swap_exact_in(
+                            reserve_in=current_reserves[1],
+                            reserve_out=current_reserves[0],
+                            amount_in=fill.amount_in_filled or 0,
+                            fee_bps=pool_state.fee_bps,
+                            protocol_fee_share_bps=protocol_fee_share_bps,
+                        )
+                        new_r1, new_r0 = quote.reserve_in_after, quote.reserve_out_after
+                    else:
+                        _, (new_r1, new_r0) = swap_exact_in_for_pool(
+                            pool_state,
+                            reserve_in=current_reserves[1],
+                            reserve_out=current_reserves[0],
+                            amount_in=fill.amount_in_filled or 0,
+                        )
                 else:  # SWAP_EXACT_OUT
-                    _, (new_r1, new_r0) = swap_exact_out_for_pool(
-                        pool_state,
-                        reserve_in=current_reserves[1],
-                        reserve_out=current_reserves[0],
-                        amount_out=fill.amount_out_filled or 0,
-                    )
+                    if pool_state.curve_tag == CURVE_TAG_CPMM:
+                        quote = quote_cpmm_swap_exact_out(
+                            reserve_in=current_reserves[1],
+                            reserve_out=current_reserves[0],
+                            amount_out=fill.amount_out_filled or 0,
+                            fee_bps=pool_state.fee_bps,
+                            protocol_fee_share_bps=protocol_fee_share_bps,
+                        )
+                        new_r1, new_r0 = quote.reserve_in_after, quote.reserve_out_after
+                    else:
+                        _, (new_r1, new_r0) = swap_exact_out_for_pool(
+                            pool_state,
+                            reserve_in=current_reserves[1],
+                            reserve_out=current_reserves[0],
+                            amount_out=fill.amount_out_filled or 0,
+                        )
                 current_reserves = (new_r0, new_r1)
 
             # Apply to scratch balances for subsequent intents.
@@ -666,6 +1005,12 @@ def clear_batch_single_pool(
             recipient = intent.get_field("recipient", intent.sender_pubkey)
             balances_scratch.subtract(intent.sender_pubkey, asset_in, fill.amount_in_filled or 0)
             balances_scratch.add(recipient, asset_out, fill.amount_out_filled or 0)
+            protocol_fee = int(fill.protocol_fee_paid or 0)
+            if protocol_fee:
+                protocol_fee_recipient = protocol_fee_recipient_pubkey
+                if not protocol_fee_recipient:
+                    raise ValueError("protocol_fee_recipient_pubkey is required for protocol fee capture")
+                balances_scratch.add(protocol_fee_recipient, asset_in, protocol_fee)
     
     # Process liquidity intents (in order received)
     for intent in liquidity_intents:
@@ -790,12 +1135,22 @@ def _order_swaps_optimal_ab_bounded(
                 if bal_in.get(sender, 0) < amount_in:
                     continue
                 try:
-                    amount_out, (new_r_in, new_r_out) = swap_exact_in_for_pool(
-                        pool_state,
-                        reserve_in=r_in,
-                        reserve_out=r_out,
-                        amount_in=amount_in,
-                    )
+                    if pool_state.curve_tag == CURVE_TAG_CPMM:
+                        quote = quote_cpmm_swap_exact_in(
+                            reserve_in=r_in,
+                            reserve_out=r_out,
+                            amount_in=amount_in,
+                            fee_bps=pool_state.fee_bps,
+                        )
+                        amount_out = quote.amount_out
+                        new_r_in, new_r_out = quote.reserve_in_after, quote.reserve_out_after
+                    else:
+                        amount_out, (new_r_in, new_r_out) = swap_exact_in_for_pool(
+                            pool_state,
+                            reserve_in=r_in,
+                            reserve_out=r_out,
+                            amount_in=amount_in,
+                        )
                 except Exception:
                     continue
                 if amount_out < min_amount_out:
@@ -815,12 +1170,22 @@ def _order_swaps_optimal_ab_bounded(
                 if not isinstance(max_amount_in, int) or isinstance(max_amount_in, bool) or max_amount_in < 0:
                     continue
                 try:
-                    amount_in, (new_r_in, new_r_out) = swap_exact_out_for_pool(
-                        pool_state,
-                        reserve_in=r_in,
-                        reserve_out=r_out,
-                        amount_out=amount_out,
-                    )
+                    if pool_state.curve_tag == CURVE_TAG_CPMM:
+                        quote = quote_cpmm_swap_exact_out(
+                            reserve_in=r_in,
+                            reserve_out=r_out,
+                            amount_out=amount_out,
+                            fee_bps=pool_state.fee_bps,
+                        )
+                        amount_in = quote.amount_in
+                        new_r_in, new_r_out = quote.reserve_in_after, quote.reserve_out_after
+                    else:
+                        amount_in, (new_r_in, new_r_out) = swap_exact_out_for_pool(
+                            pool_state,
+                            reserve_in=r_in,
+                            reserve_out=r_out,
+                            amount_out=amount_out,
+                        )
                 except Exception:
                     continue
                 if amount_in > max_amount_in:
@@ -842,14 +1207,9 @@ def _order_swaps_optimal_ab_bounded(
     best_order: Tuple[Intent, ...] | None = None
 
     for perm in itertools.permutations(intents):
-        A, B, order_ids = _objective_for_order(perm)
-        if best_order is None:
-            best_A, best_B, best_order_ids, best_order = A, B, order_ids, perm
-            continue
-
-        assert best_order_ids is not None
-        if A > best_A or (A == best_A and (B > best_B or (B == best_B and order_ids < best_order_ids))):
-            best_A, best_B, best_order_ids, best_order = A, B, order_ids, perm
+        cand_key = _ab_ordering_key(A_B_order=_objective_for_order(perm))
+        if best_order is None or _is_better_ab_key(cand_key, (best_A, best_B, best_order_ids or tuple())):
+            best_A, best_B, best_order_ids, best_order = cand_key[0], cand_key[1], cand_key[2], perm
 
     return list(best_order) if best_order is not None else _order_swaps_limit_price(intents)
 
@@ -877,6 +1237,8 @@ def _process_swap_intent(
     reserves: Tuple[Amount, Amount],
     pool_state: PoolState,
     balances: BalanceTable,
+    *,
+    protocol_fee_share_bps: int = 0,
 ) -> Fill:
     """Process a single swap intent against a pool snapshot."""
     reserve0, reserve1 = reserves
@@ -912,25 +1274,42 @@ def _process_swap_intent(
 
             if balances.get(sender, asset_in) < amount_in:
                 return _reject("INSUFFICIENT_BALANCE")
-            
-            amount_out, _new_reserves = swap_exact_in_for_pool(
-                pool_state,
-                reserve_in=reserve_in,
-                reserve_out=reserve_out,
-                amount_in=amount_in,
-            )
+
+            if pool_state.curve_tag == CURVE_TAG_CPMM:
+                quote = quote_cpmm_swap_exact_in(
+                    reserve_in=reserve_in,
+                    reserve_out=reserve_out,
+                    amount_in=amount_in,
+                    fee_bps=pool_state.fee_bps,
+                    protocol_fee_share_bps=protocol_fee_share_bps,
+                )
+                amount_out = quote.amount_out
+                fee = quote.fee_paid
+                protocol_fee = quote.protocol_fee_paid
+            else:
+                if protocol_fee_share_bps:
+                    return _reject("PROTOCOL_FEE_UNSUPPORTED_CURVE")
+                amount_out, _new_reserves = swap_exact_in_for_pool(
+                    pool_state,
+                    reserve_in=reserve_in,
+                    reserve_out=reserve_out,
+                    amount_in=amount_in,
+                )
+                fee = compute_fee_total(amount_in, pool_state.fee_bps)
+                protocol_fee = 0
             
             # Check slippage constraint
             if amount_out < min_amount_out:
                 return _reject("SLIPPAGE")
-
-            fee = compute_fee_total(amount_in, pool_state.fee_bps)
             return Fill(
                 intent_id=intent.intent_id,
                 action=FillAction.FILL,
                 amount_in_filled=amount_in,
                 amount_out_filled=amount_out,
                 fee_paid=fee,
+                protocol_fee_paid=protocol_fee,
+                reserve_in_before=int(reserve_in),
+                reserve_out_before=int(reserve_out),
             )
         
         elif intent.kind == IntentKind.SWAP_EXACT_OUT:
@@ -940,13 +1319,29 @@ def _process_swap_intent(
                 return _reject("MISSING_PARAMS")
             if not isinstance(max_amount_in, int) or isinstance(max_amount_in, bool) or max_amount_in < 0:
                 return _reject("MISSING_PARAMS")
-            
-            amount_in, _new_reserves = swap_exact_out_for_pool(
-                pool_state,
-                reserve_in=reserve_in,
-                reserve_out=reserve_out,
-                amount_out=amount_out,
-            )
+
+            if pool_state.curve_tag == CURVE_TAG_CPMM:
+                quote = quote_cpmm_swap_exact_out(
+                    reserve_in=reserve_in,
+                    reserve_out=reserve_out,
+                    amount_out=amount_out,
+                    fee_bps=pool_state.fee_bps,
+                    protocol_fee_share_bps=protocol_fee_share_bps,
+                )
+                amount_in = quote.amount_in
+                fee = quote.fee_paid
+                protocol_fee = quote.protocol_fee_paid
+            else:
+                if protocol_fee_share_bps:
+                    return _reject("PROTOCOL_FEE_UNSUPPORTED_CURVE")
+                amount_in, _new_reserves = swap_exact_out_for_pool(
+                    pool_state,
+                    reserve_in=reserve_in,
+                    reserve_out=reserve_out,
+                    amount_out=amount_out,
+                )
+                fee = compute_fee_total(amount_in, pool_state.fee_bps)
+                protocol_fee = 0
 
             if balances.get(sender, asset_in) < amount_in:
                 return _reject("INSUFFICIENT_BALANCE")
@@ -954,20 +1349,491 @@ def _process_swap_intent(
             # Check slippage constraint
             if amount_in > max_amount_in:
                 return _reject("SLIPPAGE")
-
-            fee = compute_fee_total(amount_in, pool_state.fee_bps)
             return Fill(
                 intent_id=intent.intent_id,
                 action=FillAction.FILL,
                 amount_in_filled=amount_in,
                 amount_out_filled=amount_out,
                 fee_paid=fee,
+                protocol_fee_paid=protocol_fee,
+                reserve_in_before=int(reserve_in),
+                reserve_out_before=int(reserve_out),
             )
     
     except (ValueError, ZeroDivisionError) as e:
         return _reject(f"COMPUTATION_ERROR: {str(e)}")
     
     return _reject("UNKNOWN_INTENT_TYPE")
+
+
+@dataclass(frozen=True)
+class _CowCandidateExactIn:
+    intent: Intent
+    amount_in: int
+    min_amount_out: int
+    sender: PubKey
+    recipient: PubKey
+    asset_in: AssetId
+    asset_out: AssetId
+
+
+def _cow_feasible(x: "_CowCandidateExactIn", y: "_CowCandidateExactIn") -> bool:
+    return y.amount_in >= x.min_amount_out and x.amount_in >= y.min_amount_out
+
+
+def _cow_pair_ab(x: "_CowCandidateExactIn", y: "_CowCandidateExactIn") -> tuple[int, int]:
+    """(A, B) contribution of matching pair (x, y). B >= 0 by feasibility."""
+    a = int(x.amount_in + y.amount_in)
+    b = int((y.amount_in - x.min_amount_out) + (x.amount_in - y.min_amount_out))
+    return a, b
+
+
+def _cow_max_weight_assignment(w: List[List[int]]) -> List[int]:
+    """Max-weight perfect assignment on a square integer matrix, via Kuhn-Munkres on
+    negated weights (O(n^3), deterministic). Returns ``match[i] = j``."""
+    n = len(w)
+    if n == 0:
+        return []
+    cost = [[-w[i][j] for j in range(n)] for i in range(n)]  # minimize -w  <=>  maximize w
+    # INF must exceed any reduced cost the algorithm forms. Python ints are unbounded,
+    # so derive it from the actual weights (a fixed 1<<62 overflows for large amounts).
+    INF = 1 + sum(abs(cost[i][j]) for i in range(n) for j in range(n))
+    u = [0] * (n + 1)
+    v = [0] * (n + 1)
+    p = [0] * (n + 1)
+    way = [0] * (n + 1)
+    for i in range(1, n + 1):
+        p[0] = i
+        j0 = 0
+        minv = [INF] * (n + 1)
+        used = [False] * (n + 1)
+        while True:
+            used[j0] = True
+            i0 = p[j0]
+            delta = INF
+            j1 = -1
+            for j in range(1, n + 1):
+                if not used[j]:
+                    cur = cost[i0 - 1][j - 1] - u[i0] - v[j]
+                    if cur < minv[j]:
+                        minv[j] = cur
+                        way[j] = j0
+                    if minv[j] < delta:
+                        delta = minv[j]
+                        j1 = j
+            for j in range(n + 1):
+                if used[j]:
+                    u[p[j]] += delta
+                    v[j] -= delta
+                else:
+                    minv[j] -= delta
+            j0 = j1
+            if p[j0] == 0:
+                break
+        while True:
+            j1 = way[j0]
+            p[j0] = p[j1]
+            j0 = j1
+            if j0 == 0:
+                break
+    match = [-1] * n
+    for j in range(1, n + 1):
+        if p[j] != 0:
+            match[p[j] - 1] = j - 1
+    return match
+
+
+def _cow_max_weight_pairs(
+    side_01: List["_CowCandidateExactIn"],
+    side_10: List["_CowCandidateExactIn"],
+    scale: int,
+    *,
+    forced: set,
+    banned: set,
+) -> tuple[int, set] | None:
+    """Max total ``A*scale + B`` feasible matching that includes ``forced`` and excludes
+    ``banned``. Returns ``(weight, pairs)`` or ``None`` if ``forced`` cannot be realized."""
+    n0, n1 = len(side_01), len(side_10)
+    n = max(n0, n1)
+    if n == 0:
+        return 0, set()
+    # Dynamic sentinels (Python ints are unbounded -> no fixed-width overflow): `big`
+    # exceeds any matching's total real weight, so an infeasible/banned cell is never
+    # chosen over leaving a row unmatched, and each forced edge's bonus dominates.
+    big = 1
+    for i in range(n0):
+        for j in range(n1):
+            if (i, j) not in banned and _cow_feasible(side_01[i], side_10[j]):
+                a, b = _cow_pair_ab(side_01[i], side_10[j])
+                big += a * scale + b
+    w = [[0] * n for _ in range(n)]
+    for i in range(n0):
+        for j in range(n1):
+            if (i, j) in banned or not _cow_feasible(side_01[i], side_10[j]):
+                w[i][j] = -big
+            else:
+                a, b = _cow_pair_ab(side_01[i], side_10[j])
+                w[i][j] = a * scale + b
+    for (i, j) in forced:
+        w[i][j] += big
+    match = _cow_max_weight_assignment(w)
+    pairs: set = set()
+    real = 0
+    for i in range(n):
+        j = match[i]
+        if j < 0 or i >= n0 or j >= n1 or w[i][j] < 0:  # skip dummy / infeasible / banned
+            continue
+        pairs.add((i, j))
+        a, b = _cow_pair_ab(side_01[i], side_10[j])
+        real += a * scale + b
+    if not forced.issubset(pairs):
+        return None
+    return real, pairs
+
+
+def _cow_exact_match_uncoupled(
+    side_01: List["_CowCandidateExactIn"],
+    side_10: List["_CowCandidateExactIn"],
+) -> List[tuple["_CowCandidateExactIn", "_CowCandidateExactIn"]]:
+    """Exact ``(A, B, lex-max-of-ascending-pair-ids)`` matching for the uncoupled case,
+    in polynomial time. Bit-identical to the capped brute force where they overlap; for
+    larger batches it returns the true optimum (which the greedy fallback does not)."""
+    scale = 1
+    for x in side_01:
+        for y in side_10:
+            if _cow_feasible(x, y):
+                _, b = _cow_pair_ab(x, y)
+                scale += max(0, b)
+    base = _cow_max_weight_pairs(side_01, side_10, scale, forced=set(), banned=set())
+    if base is None or not base[1]:
+        return []
+    max_w = base[0]
+    # lex-max of the ASCENDING-sorted pair-id tuple == maximize the smallest pair, then
+    # the next, ...  Greedy: process candidate pairs ascending by (x_id, y_id); BAN each
+    # if the optimum is still reachable without it (pushing the min pair up); else force it.
+    edges = sorted(
+        (
+            (side_01[i].intent.intent_id, side_10[j].intent.intent_id, i, j)
+            for i in range(len(side_01))
+            for j in range(len(side_10))
+            if _cow_feasible(side_01[i], side_10[j])
+        ),
+        key=lambda t: (t[0], t[1]),
+    )
+    banned: set = set()
+    forced: set = set()
+    used_i: set = set()
+    used_j: set = set()
+    for (_xid, _yid, i, j) in edges:
+        if (i, j) in banned or i in used_i or j in used_j:
+            continue
+        res = _cow_max_weight_pairs(side_01, side_10, scale, forced=forced, banned=banned | {(i, j)})
+        if res is not None and res[0] == max_w:
+            banned = banned | {(i, j)}
+        else:
+            forced = forced | {(i, j)}
+            used_i.add(i)
+            used_j.add(j)
+    return [
+        (side_01[i], side_10[j])
+        for (i, j) in sorted(
+            forced,
+            key=lambda ij: (
+                side_01[ij[0]].intent.intent_id,
+                side_10[ij[1]].intent.intent_id,
+            ),
+        )
+    ]
+
+
+def _cow_exact_match_work_within_cap(
+    side_01: List["_CowCandidateExactIn"],
+    side_10: List["_CowCandidateExactIn"],
+) -> bool:
+    """Return true when the exact uncoupled matcher is within the local work cap.
+
+    The exact algorithm's objective is useful, but the lex tie-break calls the
+    O(n^3) assignment solver once per feasible edge. This cheap precheck keeps
+    the core bounded even if a caller bypasses the integration-layer intent cap.
+    """
+    if len(side_01) + len(side_10) > _MAX_COW_EXACT_MATCH_TOTAL_CANDIDATES:
+        return False
+    feasible_edges = 0
+    for x in side_01:
+        for y in side_10:
+            if _cow_feasible(x, y):
+                feasible_edges += 1
+                if feasible_edges > _MAX_COW_EXACT_MATCH_FEASIBLE_EDGES:
+                    return False
+    return True
+
+
+def _cow_uncoupled(
+    side_01: List["_CowCandidateExactIn"],
+    side_10: List["_CowCandidateExactIn"],
+    balances: BalanceTable,
+    a0: AssetId,
+    a1: AssetId,
+) -> bool:
+    """True when no per-sender balance constraint can bind: for every sender, the sum of
+    ALL their candidate debits (on each side) is within their balance. Then the matching
+    is an unconstrained max-weight bipartite matching and the exact poly matcher applies."""
+    need0: Dict[PubKey, int] = defaultdict(int)
+    need1: Dict[PubKey, int] = defaultdict(int)
+    for c in side_01:
+        need0[c.sender] += int(c.amount_in)
+    for c in side_10:
+        need1[c.sender] += int(c.amount_in)
+    for sender, need in need0.items():
+        if need > int(balances.get(sender, a0)):
+            return False
+    for sender, need in need1.items():
+        if need > int(balances.get(sender, a1)):
+            return False
+    return True
+
+
+def _cow_pair_netting_exact_in_v1(
+    swap_intents: List[Intent],
+    *,
+    pool_state: PoolState,
+    balances: BalanceTable,
+    matching_profile: Literal["legacy_v1", "exact_uncoupled_v2"] = _COW_PAIR_NETTING_MATCH_LEGACY_V1,
+) -> tuple[List[Fill], List[Intent]]:
+    """Try to net opposite-direction exact-in swaps directly between users.
+
+    A pair (a: asset0->asset1, b: asset1->asset0) is matchable if:
+    - b.amount_in >= a.min_amount_out
+    - a.amount_in >= b.min_amount_out
+    - aggregate per-sender debits are feasible on the pre-netting balances snapshot
+
+    Outputs for a matched pair:
+    - a.amount_out_filled = b.amount_in
+    - b.amount_out_filled = a.amount_in
+    - fee_paid = 0, reason = "COW_NETTED"
+
+    This is an experimental, certificate-friendly primitive; it is *not* intended
+    to be AB-optimal globally.
+    """
+    if matching_profile not in _COW_PAIR_NETTING_MATCH_CHOICES:
+        raise ValueError(f"unsupported CoW matching_profile: {matching_profile!r}")
+
+    a0 = pool_state.asset0
+    a1 = pool_state.asset1
+
+    side_01: List[_CowCandidateExactIn] = []
+    side_10: List[_CowCandidateExactIn] = []
+    remaining: List[Intent] = []
+
+    for it in swap_intents:
+        if it.kind != IntentKind.SWAP_EXACT_IN:
+            remaining.append(it)
+            continue
+        asset_in = it.get_field("asset_in")
+        asset_out = it.get_field("asset_out")
+        amount_in = it.get_field("amount_in")
+        min_out = it.get_field("min_amount_out", 0)
+        if not isinstance(asset_in, str) or not isinstance(asset_out, str):
+            remaining.append(it)
+            continue
+        if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
+            remaining.append(it)
+            continue
+        if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
+            remaining.append(it)
+            continue
+
+        sender = it.sender_pubkey
+        recipient = it.get_field("recipient", sender)
+        if not isinstance(recipient, str) or not recipient:
+            remaining.append(it)
+            continue
+
+        if asset_in == a0 and asset_out == a1:
+            side_01.append(
+                _CowCandidateExactIn(
+                    intent=it,
+                    amount_in=int(amount_in),
+                    min_amount_out=int(min_out),
+                    sender=sender,
+                    recipient=recipient,
+                    asset_in=a0,
+                    asset_out=a1,
+                )
+            )
+        elif asset_in == a1 and asset_out == a0:
+            side_10.append(
+                _CowCandidateExactIn(
+                    intent=it,
+                    amount_in=int(amount_in),
+                    min_amount_out=int(min_out),
+                    sender=sender,
+                    recipient=recipient,
+                    asset_in=a1,
+                    asset_out=a0,
+                )
+            )
+        else:
+            remaining.append(it)
+
+    side_01.sort(key=lambda c: c.intent.intent_id)
+    side_10.sort(key=lambda c: c.intent.intent_id)
+
+    # Brute-force best matching under a simple (A,B)+lex key, capped for safety.
+    brute_cap = 8
+    use_bruteforce = len(side_01) + len(side_10) <= brute_cap
+
+    def _pair_feasible(x: _CowCandidateExactIn, y: _CowCandidateExactIn) -> bool:
+        return y.amount_in >= x.min_amount_out and x.amount_in >= y.min_amount_out
+
+    best_pairs: List[tuple[_CowCandidateExactIn, _CowCandidateExactIn]] = []
+    best_key: tuple[int, int, Tuple[Tuple[str, str], ...]] | None = None
+
+    use_exact_uncoupled = (
+        matching_profile == _COW_PAIR_NETTING_MATCH_EXACT_UNCOUPLED_V2
+        and _cow_exact_match_work_within_cap(side_01, side_10)
+        and _cow_uncoupled(side_01, side_10, balances, a0, a1)
+    )
+    if use_exact_uncoupled:
+        # Uncoupled => the per-sender balance constraint cannot bind, so the matching is
+        # an unconstrained max-weight bipartite matching. This is a versioned profile:
+        # `cow_pair_netting_v1` keeps its legacy greedy fallback for replay stability.
+        best_pairs = _cow_exact_match_uncoupled(side_01, side_10)
+    elif use_bruteforce:
+        # Track per-sender debit feasibility in the recursion to prune.
+        bal0: Dict[PubKey, int] = {}
+        bal1: Dict[PubKey, int] = {}
+        for c in side_01:
+            bal0[c.sender] = int(balances.get(c.sender, a0))
+        for c in side_10:
+            bal1[c.sender] = int(balances.get(c.sender, a1))
+
+        def rec(
+            i: int,
+            used_j: set[int],
+            deb0: Dict[PubKey, int],
+            deb1: Dict[PubKey, int],
+            acc: List[tuple[_CowCandidateExactIn, _CowCandidateExactIn]],
+        ) -> None:
+            nonlocal best_pairs, best_key
+            if i >= len(side_01):
+                A = sum(int(x.amount_in + y.amount_in) for x, y in acc)
+                B = sum(int(y.amount_in - x.min_amount_out + x.amount_in - y.min_amount_out) for x, y in acc)
+                pair_ids = tuple(sorted((x.intent.intent_id, y.intent.intent_id) for x, y in acc))
+                key = (A, B, pair_ids)
+                if best_key is None or key > best_key:
+                    best_key = key
+                    best_pairs = list(acc)
+                return
+
+            # Option: leave side_01[i] unmatched.
+            rec(i + 1, used_j, deb0, deb1, acc)
+
+            x = side_01[i]
+            # Quick sender balance check for x (aggregate).
+            cur_deb0 = int(deb0.get(x.sender, 0))
+            if cur_deb0 + x.amount_in > int(bal0.get(x.sender, 0)):
+                return
+
+            for j, y in enumerate(side_10):
+                if j in used_j:
+                    continue
+                if not _pair_feasible(x, y):
+                    continue
+                cur_deb1 = int(deb1.get(y.sender, 0))
+                if cur_deb1 + y.amount_in > int(bal1.get(y.sender, 0)):
+                    continue
+
+                used_j2 = set(used_j)
+                used_j2.add(j)
+                deb0_2 = dict(deb0)
+                deb1_2 = dict(deb1)
+                deb0_2[x.sender] = cur_deb0 + x.amount_in
+                deb1_2[y.sender] = cur_deb1 + y.amount_in
+                acc.append((x, y))
+                rec(i + 1, used_j2, deb0_2, deb1_2, acc)
+                acc.pop()
+
+        rec(0, set(), {}, {}, [])
+    else:
+        # Deterministic greedy fallback (constraint-first).
+        # Order by stricter min_out first, then lex id.
+        side_01_sorted = sorted(side_01, key=lambda c: (-c.min_amount_out, c.intent.intent_id))
+        side_10_pool = list(side_10)
+        deb0: Dict[PubKey, int] = defaultdict(int)
+        deb1: Dict[PubKey, int] = defaultdict(int)
+
+        for x in side_01_sorted:
+            if deb0[x.sender] + x.amount_in > int(balances.get(x.sender, a0)):
+                continue
+            best_j: int | None = None
+            best_y: _CowCandidateExactIn | None = None
+            for j, y in enumerate(side_10_pool):
+                if not _pair_feasible(x, y):
+                    continue
+                if deb1[y.sender] + y.amount_in > int(balances.get(y.sender, a1)):
+                    continue
+                if best_y is None or (y.amount_in, y.intent.intent_id) < (best_y.amount_in, best_y.intent.intent_id):
+                    best_j, best_y = j, y
+            if best_j is None or best_y is None:
+                continue
+            deb0[x.sender] += x.amount_in
+            deb1[best_y.sender] += best_y.amount_in
+            best_pairs.append((x, best_y))
+            side_10_pool.pop(best_j)
+
+    matched_ids = {c.intent.intent_id for p in best_pairs for c in p}
+
+    # Apply to balances snapshot atomically: subtract all debits, then add all credits.
+    debit_by_sender_asset: Dict[Tuple[PubKey, AssetId], int] = defaultdict(int)
+    credit_by_recipient_asset: Dict[Tuple[PubKey, AssetId], int] = defaultdict(int)
+    for x, y in best_pairs:
+        # x receives y.amount_in of asset1; y receives x.amount_in of asset0
+        debit_by_sender_asset[(x.sender, x.asset_in)] += int(x.amount_in)
+        debit_by_sender_asset[(y.sender, y.asset_in)] += int(y.amount_in)
+        credit_by_recipient_asset[(x.recipient, x.asset_out)] += int(y.amount_in)
+        credit_by_recipient_asset[(y.recipient, y.asset_out)] += int(x.amount_in)
+
+    for (sender, asset), amt in debit_by_sender_asset.items():
+        if balances.get(sender, asset) < amt:
+            # Fail-closed: if balances are insufficient for the aggregate debits, do not mutate
+            # the balances snapshot and fall back to "no netting" for this batch.
+            swap_intents_sorted = sorted(list(swap_intents), key=lambda it: it.intent_id)
+            return [], swap_intents_sorted
+
+    for (sender, asset), amt in debit_by_sender_asset.items():
+        balances.subtract(sender, asset, int(amt))
+    for (rcpt, asset), amt in credit_by_recipient_asset.items():
+        balances.add(rcpt, asset, int(amt))
+
+    fills: List[Fill] = []
+    for x, y in best_pairs:
+        fills.append(
+            Fill(
+                intent_id=x.intent.intent_id,
+                action=FillAction.FILL,
+                reason="COW_NETTED",
+                amount_in_filled=int(x.amount_in),
+                amount_out_filled=int(y.amount_in),
+                fee_paid=0,
+            )
+        )
+        fills.append(
+            Fill(
+                intent_id=y.intent.intent_id,
+                action=FillAction.FILL,
+                reason="COW_NETTED",
+                amount_in_filled=int(y.amount_in),
+                amount_out_filled=int(x.amount_in),
+                fee_paid=0,
+            )
+        )
+
+    fills.sort(key=lambda f: f.intent_id)
+    remaining.extend([c.intent for c in side_01 if c.intent.intent_id not in matched_ids])
+    remaining.extend([c.intent for c in side_10 if c.intent.intent_id not in matched_ids])
+    remaining.sort(key=lambda it: it.intent_id)
+    return fills, remaining
 
 
 def _process_liquidity_intent(
@@ -988,6 +1854,14 @@ def _process_liquidity_intent(
 
             if any(v is None for v in (amount0_desired, amount1_desired)):
                 return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="MISSING_PARAMS")
+            if not (is_strict_int(amount0_desired) and amount0_desired > 0):
+                return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
+            if not (is_strict_int(amount1_desired) and amount1_desired > 0):
+                return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
+            if not (is_strict_int(amount0_min) and amount0_min >= 0):
+                return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
+            if not (is_strict_int(amount1_min) and amount1_min >= 0):
+                return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
 
             amount0_used, amount1_used, lp_minted = add_liquidity(
                 pool_state=pool_state,
@@ -1018,6 +1892,12 @@ def _process_liquidity_intent(
 
             if lp_amount is None:
                 return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="MISSING_PARAMS")
+            if not (is_strict_int(lp_amount) and lp_amount > 0):
+                return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
+            if not (is_strict_int(amount0_min) and amount0_min >= 0):
+                return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
+            if not (is_strict_int(amount1_min) and amount1_min >= 0):
+                return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
 
             if lp_balances.get(sender, pool_state.pool_id) < lp_amount:
                 return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INSUFFICIENT_LP")
@@ -1038,7 +1918,7 @@ def _process_liquidity_intent(
                 lp_burned=lp_amount,
             )
 
-    except (ValueError, ZeroDivisionError) as exc:
+    except (ValueError, TypeError, ZeroDivisionError) as exc:
         return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason=f"COMPUTATION_ERROR: {exc}")
 
     return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="UNKNOWN_INTENT_TYPE")
@@ -1051,7 +1931,13 @@ def validate_settlement(
     pre_lp_balances: Optional[LPTable] = None,
 ) -> Tuple[bool, Optional[str]]:
     """
-    Validate a settlement proposal.
+    Validate a settlement proposal (LEGACY: conservation/non-negativity only).
+
+    WARNING:
+    This function does *not* bind the deltas to the user intents or to the swap
+    kernels (e.g., it cannot detect "k decreases" / impossible swap fills that
+    still conserve assets). Do not use this as an acceptance gate for untrusted
+    settlements. Prefer `src/core/settlement_strong_validator.validate_settlement_strong`.
     
     Checks:
     1. All balance deltas result in non-negative balances
@@ -1073,29 +1959,16 @@ def validate_settlement(
         for event in settlement.events:
             if event.get("type") != "CREATE_POOL":
                 continue
-            pool_id = event.get("pool_id")
-            asset0 = event.get("asset0")
-            asset1 = event.get("asset1")
-            fee_bps = event.get("fee_bps")
-            status_str = event.get("status", PoolStatus.ACTIVE.value)
-            created_at = event.get("created_at", 0)
-
-            if not isinstance(pool_id, str) or not pool_id:
-                return False, "Invalid CREATE_POOL event: missing pool_id"
+            try:
+                pool_id, asset0, asset1, fee_bps, curve_tag, curve_params, status, created_at = (
+                    _parse_create_pool_event_payload(event)
+                )
+            except ValueError as exc:
+                return False, str(exc)
             if pool_id in pre_pools:
                 return False, f"CREATE_POOL conflicts with existing pool: {pool_id}"
             if pool_id in created_pools:
                 return False, f"Duplicate CREATE_POOL event for pool: {pool_id}"
-            if not isinstance(asset0, str) or not isinstance(asset1, str):
-                return False, f"Invalid CREATE_POOL event assets for pool: {pool_id}"
-            if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
-                return False, f"Invalid CREATE_POOL fee_bps for pool: {pool_id}"
-            if not isinstance(created_at, int) or isinstance(created_at, bool) or created_at < 0:
-                return False, f"Invalid CREATE_POOL created_at for pool: {pool_id}"
-            try:
-                status = PoolStatus(status_str)
-            except ValueError:
-                return False, f"Invalid CREATE_POOL status for pool: {pool_id}"
             try:
                 created_pools[pool_id] = PoolState(
                     pool_id=pool_id,
@@ -1107,6 +1980,8 @@ def validate_settlement(
                     lp_supply=0,
                     status=status,
                     created_at=created_at,
+                    curve_tag=str(curve_tag),
+                    curve_params=str(curve_params),
                 )
             except Exception as exc:
                 return False, f"Invalid CREATE_POOL event for pool {pool_id}: {exc}"
@@ -1116,8 +1991,8 @@ def validate_settlement(
 
     # Aggregate balance deltas per (pubkey, asset) and check non-negativity.
     balance_net: Dict[Tuple[PubKey, AssetId], Amount] = defaultdict(int)
-    for d in settlement.balance_deltas:
-        balance_net[(d.pubkey, d.asset)] += d.net_delta()
+    for balance_delta in settlement.balance_deltas:
+        balance_net[(balance_delta.pubkey, balance_delta.asset)] += balance_delta.net_delta()
     for (pubkey, asset), net in balance_net.items():
         current = pre_balances.get(pubkey, asset)
         if current + net < 0:
@@ -1125,8 +2000,8 @@ def validate_settlement(
 
     # Aggregate reserve deltas per (pool_id, asset) and check non-negativity.
     reserve_net: Dict[Tuple[str, AssetId], Amount] = defaultdict(int)
-    for d in settlement.reserve_deltas:
-        reserve_net[(d.pool_id, d.asset)] += d.net_delta()
+    for reserve_delta in settlement.reserve_deltas:
+        reserve_net[(reserve_delta.pool_id, reserve_delta.asset)] += reserve_delta.net_delta()
     for (pool_id, asset), net in reserve_net.items():
         if pool_id not in pools_view:
             return False, f"Pool not found: {pool_id}"
@@ -1140,8 +2015,8 @@ def validate_settlement(
 
     # Aggregate LP deltas per (pubkey, pool_id) and check non-negativity.
     lp_net: Dict[Tuple[PubKey, str], Amount] = defaultdict(int)
-    for d in settlement.lp_deltas:
-        lp_net[(d.pubkey, d.pool_id)] += d.net_delta()
+    for lp_delta in settlement.lp_deltas:
+        lp_net[(lp_delta.pubkey, lp_delta.pool_id)] += lp_delta.net_delta()
     for (pubkey, pool_id), net in lp_net.items():
         current = lp_view.get(pubkey, pool_id)
         if current + net < 0:
@@ -1149,18 +2024,18 @@ def validate_settlement(
 
     # Asset conservation (per asset): Σ_account_deltas + Σ_pool_deltas = 0.
     asset_net: Dict[AssetId, Amount] = defaultdict(int)
-    for d in settlement.balance_deltas:
-        asset_net[d.asset] += d.net_delta()
-    for d in settlement.reserve_deltas:
-        asset_net[d.asset] += d.net_delta()
+    for balance_delta in settlement.balance_deltas:
+        asset_net[balance_delta.asset] += balance_delta.net_delta()
+    for reserve_delta in settlement.reserve_deltas:
+        asset_net[reserve_delta.asset] += reserve_delta.net_delta()
     for asset, net in asset_net.items():
         if net != 0:
             return False, f"Asset conservation violation: {asset}, net_delta = {net}"
 
     # LP supply must remain non-negative; for created pools, supply must be established via lp_deltas.
     supply_net: Dict[str, Amount] = defaultdict(int)
-    for d in settlement.lp_deltas:
-        supply_net[d.pool_id] += d.net_delta()
+    for lp_delta in settlement.lp_deltas:
+        supply_net[lp_delta.pool_id] += lp_delta.net_delta()
     for pool_id, net in supply_net.items():
         if pool_id not in pools_view:
             return False, f"LP delta references unknown pool: {pool_id}"
@@ -1195,27 +2070,11 @@ def apply_settlement(
         for event in settlement.events:
             if event.get("type") != "CREATE_POOL":
                 continue
-            pool_id = event.get("pool_id")
-            asset0 = event.get("asset0")
-            asset1 = event.get("asset1")
-            fee_bps = event.get("fee_bps")
-            status_str = event.get("status", PoolStatus.ACTIVE.value)
-            created_at = event.get("created_at", 0)
-
-            if not isinstance(pool_id, str) or not pool_id:
-                raise ValueError("Invalid CREATE_POOL event: missing pool_id")
+            pool_id, asset0, asset1, fee_bps, curve_tag, curve_params, status, created_at = (
+                _parse_create_pool_event_payload(event)
+            )
             if pool_id in pools:
                 raise ValueError(f"Pool already exists: {pool_id}")
-            if not isinstance(asset0, str) or not isinstance(asset1, str):
-                raise ValueError(f"Invalid CREATE_POOL assets for pool: {pool_id}")
-            if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
-                raise ValueError(f"Invalid CREATE_POOL fee_bps for pool: {pool_id}")
-            if not isinstance(created_at, int) or isinstance(created_at, bool) or created_at < 0:
-                raise ValueError(f"Invalid CREATE_POOL created_at for pool: {pool_id}")
-            try:
-                status = PoolStatus(status_str)
-            except ValueError as exc:
-                raise ValueError(f"Invalid CREATE_POOL status for pool: {pool_id}") from exc
 
             pools[pool_id] = PoolState(
                 pool_id=pool_id,
@@ -1227,12 +2086,14 @@ def apply_settlement(
                 lp_supply=0,
                 status=status,
                 created_at=created_at,
+                curve_tag=str(curve_tag),
+                curve_params=str(curve_params),
             )
 
     # Apply balance deltas (order-independent): net per (pubkey, asset).
     balance_net: Dict[Tuple[PubKey, AssetId], Amount] = defaultdict(int)
-    for d in settlement.balance_deltas:
-        balance_net[(d.pubkey, d.asset)] += d.net_delta()
+    for balance_delta in settlement.balance_deltas:
+        balance_net[(balance_delta.pubkey, balance_delta.asset)] += balance_delta.net_delta()
     for (pubkey, asset), net in sorted(balance_net.items(), key=lambda t: (t[0][0], t[0][1])):
         if net > 0:
             balances.add(pubkey, asset, net)
@@ -1241,8 +2102,8 @@ def apply_settlement(
 
     # Apply reserve deltas (order-independent): net per (pool_id, asset).
     reserve_net: Dict[Tuple[str, AssetId], Amount] = defaultdict(int)
-    for d in settlement.reserve_deltas:
-        reserve_net[(d.pool_id, d.asset)] += d.net_delta()
+    for reserve_delta in settlement.reserve_deltas:
+        reserve_net[(reserve_delta.pool_id, reserve_delta.asset)] += reserve_delta.net_delta()
     for (pool_id, asset), net in sorted(reserve_net.items(), key=lambda t: (t[0][0], t[0][1])):
         if pool_id not in pools:
             raise ValueError(f"Pool not found: {pool_id}")
@@ -1253,17 +2114,16 @@ def apply_settlement(
             raise ValueError(f"Negative reserve: {pool_id}, {asset}, {current} + {net}")
         if asset == pool.asset0:
             pool.reserve0 = new_reserve
-        elif asset == pool.asset1:
-            pool.reserve1 = new_reserve
         else:
-            raise ValueError(f"Asset {asset} not in pool {pool_id}")
+            # `get_reserve(asset)` above already guarantees membership.
+            pool.reserve1 = new_reserve
 
     # Apply LP deltas (order-independent): net per pool for supply, per (pubkey, pool_id) for balances.
     supply_net: Dict[str, Amount] = defaultdict(int)
     lp_net: Dict[Tuple[PubKey, str], Amount] = defaultdict(int)
-    for d in settlement.lp_deltas:
-        supply_net[d.pool_id] += d.net_delta()
-        lp_net[(d.pubkey, d.pool_id)] += d.net_delta()
+    for lp_delta in settlement.lp_deltas:
+        supply_net[lp_delta.pool_id] += lp_delta.net_delta()
+        lp_net[(lp_delta.pubkey, lp_delta.pool_id)] += lp_delta.net_delta()
 
     for pool_id, net in sorted(supply_net.items(), key=lambda t: t[0]):
         if pool_id not in pools:
@@ -1345,12 +2205,22 @@ def _simulate_swap_reserves(
         return 0, 0, reserves
 
     try:
-        amount_out, (new_r_in, new_r_out) = swap_exact_in_for_pool(
-            pool_state,
-            reserve_in=reserve_in,
-            reserve_out=reserve_out,
-            amount_in=amount_in,
-        )
+        if pool_state.curve_tag == CURVE_TAG_CPMM:
+            quote = quote_cpmm_swap_exact_in(
+                reserve_in=reserve_in,
+                reserve_out=reserve_out,
+                amount_in=amount_in,
+                fee_bps=pool_state.fee_bps,
+            )
+            amount_out = quote.amount_out
+            new_r_in, new_r_out = quote.reserve_in_after, quote.reserve_out_after
+        else:
+            amount_out, (new_r_in, new_r_out) = swap_exact_in_for_pool(
+                pool_state,
+                reserve_in=reserve_in,
+                reserve_out=reserve_out,
+                amount_in=amount_in,
+            )
     except Exception:
         return 0, 0, reserves
 
@@ -1384,6 +2254,35 @@ def _eval_ordering_ab(
             total_b += b
             current_reserves = new_r
     return total_a, total_b
+
+
+def _ab_ordering_key(
+    ordering: List[Intent] | None = None,
+    pool_state: PoolState | None = None,
+    reserves: Tuple[Amount, Amount] | None = None,
+    *,
+    A_B_order: Tuple[Amount, Amount, Tuple[str, ...]] | None = None,
+) -> Tuple[int, int, Tuple[str, ...]]:
+    if A_B_order is not None:
+        return int(A_B_order[0]), int(A_B_order[1]), tuple(str(x) for x in A_B_order[2])
+    if ordering is None or pool_state is None or reserves is None:
+        raise ValueError("_ab_ordering_key requires ordering, pool_state, and reserves")
+    A, B = _eval_ordering_ab(ordering, pool_state, reserves)
+    return int(A), int(B), tuple(it.intent_id for it in ordering)
+
+
+def _is_better_ab_key(candidate: Tuple[int, int, Tuple[str, ...]], best: Tuple[int, int, Tuple[str, ...]]) -> bool:
+    cand_a, cand_b, cand_ids = candidate
+    best_a, best_b, best_ids = best
+    if cand_a > best_a:
+        return True
+    if cand_a < best_a:
+        return False
+    if cand_b > best_b:
+        return True
+    if cand_b < best_b:
+        return False
+    return cand_ids < best_ids
 
 
 def _greedy_marginal_ab(
@@ -1490,6 +2389,71 @@ def _order_swaps_greedy_ab(
     return limit_ordered
 
 
+def _order_swaps_mci_ab(
+    intents: List[Intent],
+    *,
+    pool_state: PoolState,
+    reserves: Tuple[Amount, Amount],
+) -> List[Intent]:
+    """Marginal-contribution insertion seed for AB ordering.
+
+    Build the ordering incrementally by trying every remaining intent at every
+    insertion position and selecting the candidate with the best full `(A, B,
+    lex-order)` key. This is an experimental, bounded heuristic intended to
+    seed the existing global refinement pass with a stronger starting point
+    than the slippage-first greedy order.
+    """
+    if len(intents) <= 1:
+        return list(intents)
+    if len(intents) > _MAX_SWAP_ORDERING_MCI_N:
+        greedy = _order_swaps_greedy_ab(intents, pool_state=pool_state, reserves=reserves)
+        return _refine_b_ordering(greedy, pool_state=pool_state, reserves=reserves)
+
+    first_asset_in = intents[0].get_field("asset_in")
+    first_asset_out = intents[0].get_field("asset_out")
+    if not isinstance(first_asset_in, str) or not isinstance(first_asset_out, str):
+        return _order_swaps_limit_price(intents)
+    if first_asset_in == first_asset_out:
+        return _order_swaps_limit_price(intents)
+    if not (
+        (first_asset_in == pool_state.asset0 and first_asset_out == pool_state.asset1)
+        or (first_asset_in == pool_state.asset1 and first_asset_out == pool_state.asset0)
+    ):
+        return _order_swaps_limit_price(intents)
+    for it in intents[1:]:
+        if it.get_field("asset_in") != first_asset_in or it.get_field("asset_out") != first_asset_out:
+            return _order_swaps_limit_price(intents)
+
+    remaining = sorted(intents, key=lambda it: it.intent_id)
+    ordered: List[Intent] = []
+
+    while remaining:
+        best_idx = -1
+        best_order: List[Intent] | None = None
+        best_key: Tuple[int, int, Tuple[str, ...]] | None = None
+        for rem_idx, candidate in enumerate(remaining):
+            for pos in range(len(ordered) + 1):
+                trial = ordered[:pos] + [candidate] + ordered[pos:]
+                trial_key = _ab_ordering_key(trial, pool_state, reserves)
+                if best_order is None or _is_better_ab_key(
+                    trial_key,
+                    best_key if best_key is not None else (-1, -1, tuple()),
+                ):
+                    best_idx = rem_idx
+                    best_order = trial
+                    best_key = trial_key
+        # Invariant: `remaining` is non-empty (while guard) so the inner loops run at
+        # least once and the first iteration sets best_order/best_idx. Explicit guard
+        # (not `assert`) so it survives `python -O`.
+        if best_order is None or best_idx < 0:
+            raise AssertionError(
+                "internal: ab-ordering search left best_order unset on a non-empty set")
+        ordered = best_order
+        remaining.pop(best_idx)
+
+    return ordered
+
+
 def _refine_b_ordering(
     ordering: List[Intent],
     *,
@@ -1587,11 +2551,6 @@ def _refine_ab_ordering_global(
 
                 if not better:
                     continue
-
-                # Deterministic tie-break: prefer smallest (i, j) for equal (A, B).
-                if cand_a == best_a and cand_b == best_b and best_pair is not None:
-                    if (i, j) >= best_pair:
-                        continue
 
                 best_pair = (i, j)
                 best_a = cand_a

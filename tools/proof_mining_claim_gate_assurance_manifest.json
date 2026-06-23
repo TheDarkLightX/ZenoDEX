@@ -1,0 +1,116 @@
+{
+  "manifest_version": 1,
+  "notes": [
+    "Pinned proof-mining claim gate assurance bundle.",
+    "Covers the reward-schedule, budget, and admissibility micro-kernel that backs proof_mining_claims.py."
+  ],
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/kernels/dex/proof_mining_claim_gate_v1.yaml",
+      "sha256": "6f76bcbb5bc7051394f0b32e89e5070fb75937b288598bbd8c7e8250781849bc"
+    },
+    {
+      "path": "src/core/proof_mining_claim_gate.py",
+      "sha256": "f432a457586d3d1ad93cb2f1fc114afe5c26245666b113fc9d20ac314155dbae"
+    },
+    {
+      "path": "src/core/proof_mining_claims.py",
+      "sha256": "afcdd923795cac340664b2921ac444cccd0215367857846e2010c48bf95a6419"
+    },
+    {
+      "path": "src/kernels/python/proof_mining_claim_gate_v1_native_adapter.py",
+      "sha256": "ae16c19d1d0ebbf2f30a18932e9bb854633fa72c2d2b3db993c80279de0bbd16"
+    },
+    {
+      "path": "tests/tools/test_permissionless_solver_proof_mining_claim.py",
+      "sha256": "48a2ee14ca409debc1c9f086d4a8b6c8a78c204f3a0c5790d7e7fc98157614a9"
+    },
+    {
+      "path": "tests/core/test_proof_mining_claim_gate.py",
+      "sha256": "616f97726c1d81889b3049c899f48e14a290d742bbf91199d57c80e918470373"
+    },
+    {
+      "path": "tests/kernels/test_proof_mining_claim_gate_v1_native_adapter.py",
+      "sha256": "990148151d9354362bdcb5386938bc4564b5c05693cbd9171cbc02e1ee096dd5"
+    },
+    {
+      "path": "tools/check_proof_mining_claim_gate_assurance_manifest.py",
+      "sha256": "2dd372b1f28a8f051cc858a6f6be50966bfdf28afd2f0515491538d67a721f7a"
+    },
+    {
+      "path": "tools/run_proof_mining_claim_gate_assurance_gate.sh",
+      "sha256": "02ff2b7c992777382457d2a1558eac0cc193edf3f2b7a046e827c48a5cac4f1c"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/proof_mining_claim_gate_v1/validate.json",
+    "model_path": "src/kernels/dex/proof_mining_claim_gate_v1.yaml",
+    "ir_hash": "sha256:8f08d30f233d21ca97580e8366ff84c1d55fdb6ecdc95e1874d2857901b318c2"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/proof_mining_claim_gate_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.proof_mining_claim_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:8f08d30f233d21ca97580e8366ff84c1d55fdb6ecdc95e1874d2857901b318c2",
+    "actions": [
+      "check_claim_gate"
+    ],
+    "effects": [
+      "admissible",
+      "budget_ok",
+      "flags_ok",
+      "reward_amount",
+      "reward_pool_after"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/proof_mining_claim_gate_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/proof_mining_claim_gate_v1.yaml",
+    "adapter_spec": "src.kernels.python.proof_mining_claim_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:8f08d30f233d21ca97580e8366ff84c1d55fdb6ecdc95e1874d2857901b318c2",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:4ac2ce1b4e24d22f2ac3ff5deb9f1459d2eb532c54cd87794be78fede31c2485"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/proof_mining_claim_gate_v1/verification_report.json",
+    "model_id": "proof_mining_claim_gate_v1",
+    "ir_hash_short": "8f08d30f233d21ca",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/core/test_proof_mining_claim_gate.py",
+    "tests/tools/test_permissionless_solver_proof_mining_claim.py",
+    "tests/kernels/test_proof_mining_claim_gate_v1_native_adapter.py"
+  ]
+}

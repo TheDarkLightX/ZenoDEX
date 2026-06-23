@@ -21,6 +21,29 @@ from src.state.lp import LPTable
 from src.state.pools import PoolState, PoolStatus
 
 
+_PK = "0x" + "aa" * 48
+_PK_CASE = "0x" + "AA" * 48
+_ASSET0 = "0x" + "11" * 32
+_ASSET1 = "0x" + "22" * 32
+_POOL_ID = "0x" + "bb" * 32
+_POOL_ID_CASE = "0x" + "BB" * 32
+
+
+def _snapshot_base(**overrides: object) -> dict:
+    snap = {
+        "version": 1,
+        "balances": [],
+        "pools": [],
+        "lp_balances": [],
+        "nonces": [],
+        "fee_accumulator": {"dust": 0},
+        "vault": None,
+        "oracle": None,
+    }
+    snap.update(overrides)
+    return snap
+
+
 def test_snapshot_roundtrip_is_deterministic() -> None:
     balances = BalanceTable()
     lp = LPTable()
@@ -130,6 +153,96 @@ def test_state_from_snapshot_rejects_unknown_version() -> None:
         "oracle": None,
     }
     with pytest.raises(ValueError):
+        state_from_snapshot(snap)
+
+
+def test_state_from_snapshot_rejects_decoded_duplicate_balances() -> None:
+    snap = _snapshot_base(
+        balances=[
+            {"pubkey": _PK, "asset": _ASSET0, "amount": 1},
+            {"pubkey": _PK_CASE, "asset": _ASSET0, "amount": 2},
+        ],
+    )
+
+    with pytest.raises(ValueError, match="duplicate decoded balance entry"):
+        state_from_snapshot(snap)
+
+
+def test_state_from_snapshot_rejects_decoded_duplicate_pool_ids() -> None:
+    snap = _snapshot_base(
+        pools=[
+            {
+                "pool_id": _POOL_ID,
+                "asset0": _ASSET0,
+                "asset1": _ASSET1,
+                "fee_bps": 30,
+            },
+            {
+                "pool_id": _POOL_ID_CASE,
+                "asset0": _ASSET0,
+                "asset1": _ASSET1,
+                "fee_bps": 30,
+            },
+        ],
+    )
+
+    with pytest.raises(ValueError, match="duplicate decoded pool entry"):
+        state_from_snapshot(snap)
+
+
+def test_state_from_snapshot_rejects_decoded_duplicate_lp_balances() -> None:
+    snap = _snapshot_base(
+        lp_balances=[
+            {"pubkey": _PK, "pool_id": _POOL_ID, "amount": 1},
+            {"pubkey": _PK_CASE, "pool_id": _POOL_ID, "amount": 2},
+        ],
+    )
+
+    with pytest.raises(ValueError, match="duplicate decoded lp entry"):
+        state_from_snapshot(snap)
+
+
+def test_state_from_snapshot_rejects_decoded_duplicate_lp_mint_timestamps() -> None:
+    snap = _snapshot_base(
+        version=3,
+        perps=None,
+        lp_balances=[
+            {"pubkey": _PK, "pool_id": _POOL_ID, "amount": 1},
+        ],
+        lp_mint_timestamps=[
+            {"pubkey": _PK, "pool_id": _POOL_ID, "last_mint_timestamp": 1},
+            {"pubkey": _PK_CASE, "pool_id": _POOL_ID, "last_mint_timestamp": 2},
+        ],
+    )
+
+    with pytest.raises(ValueError, match="duplicate decoded lp_mint_timestamps entry"):
+        state_from_snapshot(snap)
+
+
+def test_state_from_snapshot_rejects_decoded_duplicate_lp_duration_risk() -> None:
+    snap = _snapshot_base(
+        version=4,
+        perps=None,
+        lp_mint_timestamps=[],
+        lp_duration_risk=[
+            {"pubkey": _PK, "pool_id": _POOL_ID, "churn_tier": 1},
+            {"pubkey": _PK_CASE, "pool_id": _POOL_ID, "churn_tier": 2},
+        ],
+    )
+
+    with pytest.raises(ValueError, match="duplicate decoded lp_duration_risk entry"):
+        state_from_snapshot(snap)
+
+
+def test_state_from_snapshot_rejects_decoded_duplicate_nonces() -> None:
+    snap = _snapshot_base(
+        nonces=[
+            {"pubkey": _PK, "last_nonce": 1},
+            {"pubkey": _PK_CASE, "last_nonce": 2},
+        ],
+    )
+
+    with pytest.raises(ValueError, match="duplicate decoded nonce entry"):
         state_from_snapshot(snap)
 
 
@@ -370,3 +483,34 @@ def test_state_from_snapshot_rejects_fee_bps_above_10000() -> None:
     }
     with pytest.raises(ValueError):
         state_from_snapshot(snap)
+
+
+def test_snapshot_roundtrip_preserves_curve_configuration() -> None:
+    asset0 = "0x" + "11" * 32
+    asset1 = "0x" + "22" * 32
+    pool_id = "0x" + "aa" * 32
+    state = DexState(
+        balances=BalanceTable(),
+        pools={
+            pool_id: PoolState(
+                pool_id=pool_id,
+                asset0=asset0,
+                asset1=asset1,
+                reserve0=1_000,
+                reserve1=2_000,
+                fee_bps=30,
+                lp_supply=10,
+                status=PoolStatus.ACTIVE,
+                created_at=1,
+                curve_tag="SUM_BOOST_V1",
+                curve_params='{"mu_num":1,"mu_den":2}',
+            )
+        },
+        lp_balances=LPTable(),
+    )
+
+    snap = snapshot_from_state(state)
+    restored = state_from_snapshot(snap.data)
+    restored_pool = restored.pools[pool_id]
+    assert restored_pool.curve_tag == "SUM_BOOST_V1"
+    assert restored_pool.curve_params == '{"mu_den":2,"mu_num":1}'

@@ -59,6 +59,21 @@ theorem key_le_iff (v₁ v₂ s₁ s₂ : Nat) (o₁ o₂ : Order) :
   simp [key, Prod.Lex.toLex_le_toLex, Prod.Lex.toLex_lt_toLex]
   tauto
 
+/-- Every key is the `key` of its components (eta for the 3-level lex triple). -/
+theorem key_eta (k : Key) : key (vol k) (sur k) (ord k) = k := rfl
+
+/-- **DESTRUCTOR FORM OF THE KEY ORDER**: unfold `k₁ ≤ k₂` for arbitrary keys
+    into the volume/surplus/order case analysis. This is `key_le_iff`
+    transported along `key_eta`; consumers use it to read off
+    "key-minimum ⟹ volume-maximum, then surplus-maximum, then order-minimum". -/
+theorem key_le_components {k₁ k₂ : Key} (h : k₁ ≤ k₂) :
+    (vol k₂ < vol k₁) ∨
+      (vol k₁ = vol k₂ ∧ ((sur k₂ < sur k₁) ∨ (sur k₁ = sur k₂ ∧ ord k₁ ≤ ord k₂))) := by
+  have h' : key (vol k₁) (sur k₁) (ord k₁) ≤ key (vol k₂) (sur k₂) (ord k₂) := by
+    rw [key_eta, key_eta]
+    exact h
+  exact (key_le_iff _ _ _ _ _ _).1 h'
+
 theorem exists_unique_min_of_finset_nonempty {α : Type} [LinearOrder α] (S : Finset α) (hS : S.Nonempty) :
     ∃! m, m ∈ S ∧ ∀ x ∈ S, m ≤ x := by
   classical
@@ -84,54 +99,21 @@ theorem canonical_dominates (S : Finset Key) (hS : S.Nonempty) :
   intro k
   refine ⟨Finset.min'_mem S hS, ?_, ?_, ?_⟩
   · intro x hx
-    have hkx : k ≤ x := Finset.min'_le S x hx
-    -- From key ordering, k ≤ x implies vol k ≥ vol x.
-    -- We expand `k ≤ x` to the lex statement.
-    have : (vol x < vol k) ∨ (vol k = vol x ∧ ((sur x < sur k) ∨ (sur k = sur x ∧ ord k ≤ ord x))) := by
-      simpa [vol, sur, ord, key] using
-        (key_le_iff (v₁ := vol k) (v₂ := vol x) (s₁ := sur k) (s₂ := sur x) (o₁ := ord k) (o₂ := ord x)).1 (by
-          simpa [key, vol, sur, ord] using hkx)
-    cases this with
-    | inl hlt =>
-        exact Nat.le_of_lt hlt
-    | inr hrest =>
-        exact Nat.le_of_eq hrest.1.symm
+    rcases key_le_components (Finset.min'_le S x hx) with hvol_lt | ⟨hvol_eq, _⟩
+    · exact Nat.le_of_lt hvol_lt
+    · exact Nat.le_of_eq hvol_eq.symm
   · intro x hx hv
-    have hkx : k ≤ x := Finset.min'_le S x hx
-    have : (vol x < vol k) ∨ (vol k = vol x ∧ ((sur x < sur k) ∨ (sur k = sur x ∧ ord k ≤ ord x))) := by
-      simpa [vol, sur, ord, key] using
-        (key_le_iff (v₁ := vol k) (v₂ := vol x) (s₁ := sur k) (s₂ := sur x) (o₁ := ord k) (o₂ := ord x)).1 (by
-          simpa [key, vol, sur, ord] using hkx)
-    have : (sur x < sur k) ∨ (sur k = sur x ∧ ord k ≤ ord x) := by
-      cases this with
-      | inl hvol_lt =>
-          -- contradicts hv
-          exact False.elim ((Nat.lt_irrefl (vol k)) (by simpa [hv] using hvol_lt))
-      | inr hvol_eq =>
-          -- v equal; extract the surplus/order part
-          have h' := hvol_eq.2
-          cases h' with
-          | inl hsur_lt => exact Or.inl hsur_lt
-          | inr hsur_eq => exact Or.inr hsur_eq
-    cases this with
-    | inl hsur_lt => exact Nat.le_of_lt hsur_lt
-    | inr hsur_eq => exact Nat.le_of_eq hsur_eq.1.symm
+    rcases key_le_components (Finset.min'_le S x hx) with hvol_lt | ⟨_, htail⟩
+    · exact absurd (hv ▸ hvol_lt) (Nat.lt_irrefl _)
+    · rcases htail with hsur_lt | ⟨hsur_eq, _⟩
+      · exact Nat.le_of_lt hsur_lt
+      · exact Nat.le_of_eq hsur_eq.symm
   · intro x hx hv hs
-    have hkx : k ≤ x := Finset.min'_le S x hx
-    have : (vol x < vol k) ∨ (vol k = vol x ∧ ((sur x < sur k) ∨ (sur k = sur x ∧ ord k ≤ ord x))) := by
-      simpa [vol, sur, ord, key] using
-        (key_le_iff (v₁ := vol k) (v₂ := vol x) (s₁ := sur k) (s₂ := sur x) (o₁ := ord k) (o₂ := ord x)).1 (by
-          simpa [key, vol, sur, ord] using hkx)
-    cases this with
-    | inl hvol_lt =>
-        exact False.elim ((Nat.lt_irrefl (vol k)) (by simpa [hv] using hvol_lt))
-    | inr hvol_eq =>
-        have h' := hvol_eq.2
-        cases h' with
-        | inl hsur_lt =>
-            exact False.elim ((Nat.lt_irrefl (sur k)) (by simpa [hs] using hsur_lt))
-        | inr hsur_eq =>
-            exact hsur_eq.2
+    rcases key_le_components (Finset.min'_le S x hx) with hvol_lt | ⟨_, htail⟩
+    · exact absurd (hv ▸ hvol_lt) (Nat.lt_irrefl _)
+    · rcases htail with hsur_lt | ⟨_, hord⟩
+      · exact absurd (hs ▸ hsur_lt) (Nat.lt_irrefl _)
+      · exact hord
 
 end Batch
 end TauSwap

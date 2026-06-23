@@ -1,0 +1,173 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "exact_out_many_pool_repaired_prefilter_contract_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded acceptance shell for the repaired many-pool exact-out prefilter
+    contract.
+
+    Purpose:
+    - mechanically check the deterministic boolean relation around the repaired
+      prefilter boundary
+    - keep the candidate replacement explicit: contract_ok means the repaired
+      selected pool ids are sorted, within budget, subset-aligned with the
+      feasible pool ids, and the repaired selected domain both matches the full
+      bounded canonical winner and satisfies the contraction audit
+
+    Scope boundary:
+    - does not model exact-out routing arithmetic or prove runtime adoption
+    - does not prove global generator completeness
+    - treats the repaired-prefilter facts as externally supplied bounded booleans
+    - only checks the deterministic packet shell over those booleans
+
+observables:
+  state_vars:
+    [
+      "current_selected_matches_full_canonical",
+      "repaired_selected_pool_ids_sorted_unique",
+      "repaired_selected_pool_ids_within_budget",
+      "repaired_selected_pool_ids_subset_of_feasible",
+      "repaired_selected_domain_matches_full_canonical",
+      "repaired_contraction_holds",
+      "contract_ok",
+    ]
+  effects:
+    [
+      "current_selected_matches_full_canonical",
+      "repaired_selected_pool_ids_sorted_unique",
+      "repaired_selected_pool_ids_within_budget",
+      "repaired_selected_pool_ids_subset_of_feasible",
+      "repaired_selected_domain_matches_full_canonical",
+      "repaired_contraction_holds",
+      "contract_ok",
+    ]
+
+types: []
+
+state_vars:
+  - id: "current_selected_matches_full_canonical"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "repaired_selected_pool_ids_sorted_unique"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "repaired_selected_pool_ids_within_budget"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "repaired_selected_pool_ids_subset_of_feasible"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "repaired_selected_domain_matches_full_canonical"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "repaired_contraction_holds"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "contract_ok"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "current_selected_matches_full_canonical"
+    expr: { bool: false }
+  - var: "repaired_selected_pool_ids_sorted_unique"
+    expr: { bool: true }
+  - var: "repaired_selected_pool_ids_within_budget"
+    expr: { bool: true }
+  - var: "repaired_selected_pool_ids_subset_of_feasible"
+    expr: { bool: true }
+  - var: "repaired_selected_domain_matches_full_canonical"
+    expr: { bool: true }
+  - var: "repaired_contraction_holds"
+    expr: { bool: true }
+  - var: "contract_ok"
+    expr: { bool: true }
+
+invariants:
+  - id: "inv_contract_ok_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "contract_ok" }
+        - op: "and"
+          args:
+            - { var: "repaired_selected_pool_ids_sorted_unique" }
+            - op: "and"
+              args:
+                - { var: "repaired_selected_pool_ids_within_budget" }
+                - op: "and"
+                  args:
+                    - { var: "repaired_selected_pool_ids_subset_of_feasible" }
+                    - op: "and"
+                      args:
+                        - { var: "repaired_selected_domain_matches_full_canonical" }
+                        - { var: "repaired_contraction_holds" }
+  - id: "inv_contract_ok_implies_repaired_contraction"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "not"
+          args:
+            - { var: "contract_ok" }
+        - { var: "repaired_contraction_holds" }
+
+actions:
+  - id: "rebuild_repaired_prefilter_contract"
+    params:
+      - id: "current_selected_matches_full_canonical_in"
+        type: { kind: "bool" }
+      - id: "repaired_selected_pool_ids_sorted_unique_in"
+        type: { kind: "bool" }
+      - id: "repaired_selected_pool_ids_within_budget_in"
+        type: { kind: "bool" }
+      - id: "repaired_selected_pool_ids_subset_of_feasible_in"
+        type: { kind: "bool" }
+      - id: "repaired_selected_domain_matches_full_canonical_in"
+        type: { kind: "bool" }
+      - id: "repaired_contraction_holds_in"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates:
+      - var: "current_selected_matches_full_canonical"
+        expr: { param: "current_selected_matches_full_canonical_in" }
+      - var: "repaired_selected_pool_ids_sorted_unique"
+        expr: { param: "repaired_selected_pool_ids_sorted_unique_in" }
+      - var: "repaired_selected_pool_ids_within_budget"
+        expr: { param: "repaired_selected_pool_ids_within_budget_in" }
+      - var: "repaired_selected_pool_ids_subset_of_feasible"
+        expr: { param: "repaired_selected_pool_ids_subset_of_feasible_in" }
+      - var: "repaired_selected_domain_matches_full_canonical"
+        expr: { param: "repaired_selected_domain_matches_full_canonical_in" }
+      - var: "repaired_contraction_holds"
+        expr: { param: "repaired_contraction_holds_in" }
+      - var: "contract_ok"
+        expr:
+          op: "and"
+          args:
+            - { param: "repaired_selected_pool_ids_sorted_unique_in" }
+            - op: "and"
+              args:
+                - { param: "repaired_selected_pool_ids_within_budget_in" }
+                - op: "and"
+                  args:
+                    - { param: "repaired_selected_pool_ids_subset_of_feasible_in" }
+                    - op: "and"
+                      args:
+                        - { param: "repaired_selected_domain_matches_full_canonical_in" }
+                        - { param: "repaired_contraction_holds_in" }
+    effects:
+      current_selected_matches_full_canonical: { var: "current_selected_matches_full_canonical" }
+      repaired_selected_pool_ids_sorted_unique: { var: "repaired_selected_pool_ids_sorted_unique" }
+      repaired_selected_pool_ids_within_budget: { var: "repaired_selected_pool_ids_within_budget" }
+      repaired_selected_pool_ids_subset_of_feasible: { var: "repaired_selected_pool_ids_subset_of_feasible" }
+      repaired_selected_domain_matches_full_canonical: { var: "repaired_selected_domain_matches_full_canonical" }
+      repaired_contraction_holds: { var: "repaired_contraction_holds" }
+      contract_ok: { var: "contract_ok" }
+
+checks:
+  - id: "init_implies_inv"
+    kind: "invariant"
+  - id: "inductive_rebuild_repaired_prefilter_contract"
+    kind: "inductive"

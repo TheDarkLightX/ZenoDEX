@@ -1,0 +1,23 @@
+[package]
+name = "zenodex-runtime-core"
+description = "Deterministic, integer-only runtime kernels for ZenoDEX (consensus-critical core)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+sha2.workspace = true
+thiserror.workspace = true
+hex.workspace = true
+num-bigint.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+# `cfg(kani)` gates the CBC verification harnesses (see balance_kernel.rs).
+# It is set by `cargo kani`; declare it so normal `cargo build`/`clippy` do not
+# emit `unexpected_cfgs` warnings for the gated modules.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }

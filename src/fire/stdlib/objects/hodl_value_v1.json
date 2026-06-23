@@ -1,0 +1,79 @@
+{
+  "cli_help": "Load a HODLValue FIRE interface object",
+  "expression": {
+    "kind": "source_bound",
+    "name": "hodl_final"
+  },
+  "ir_hash": "sha256:7f0ea8efd30f6e647ad4f9ec3fcc70d712e30ad7772df4fc9e72be7433aeb64b",
+  "object_family": "value_source",
+  "object_id": "hodl_value_v1",
+  "object_name": "HODLValue",
+  "object_version": "v1",
+  "outputs": [
+    {
+      "description": "Certified HODL value interval",
+      "expression": {
+        "kind": "source_bound",
+        "name": "hodl_final"
+      },
+      "name": "hodl_final",
+      "unit": "Amount[zUSD]"
+    }
+  ],
+  "payoff_summary": "HODLValue_T",
+  "schema": "zenodex/fire-math-object-spec/v1",
+  "settlement_asset": "zUSD",
+  "source_bounds": [
+    {
+      "contract": {
+        "name": "hodl_contract",
+        "role": "source:hodl_final"
+      },
+      "lower": {
+        "kind": "term",
+        "term": "hodl_lower"
+      },
+      "name": "hodl_final",
+      "unit": "Amount[zUSD]",
+      "upper": {
+        "kind": "term",
+        "term": "hodl_upper"
+      }
+    }
+  ],
+  "term_fields": [
+    {
+      "description": "Certified lower HODL value bound",
+      "maximum": 1000,
+      "minimum": 0,
+      "name": "hodl_lower",
+      "unit": "Amount[zUSD]"
+    },
+    {
+      "description": "Certified upper HODL value bound",
+      "maximum": 1000,
+      "minimum": 0,
+      "name": "hodl_upper",
+      "unit": "Amount[zUSD]"
+    }
+  ],
+  "witnesses": [
+    {
+      "contract": {
+        "name": "hodl_contract",
+        "role": "witness:HODLValuePacket"
+      },
+      "freshness": "1 epoch",
+      "lower": {
+        "kind": "term",
+        "term": "hodl_lower"
+      },
+      "name": "HODLValuePacket",
+      "unit": "Amount[zUSD]",
+      "upper": {
+        "kind": "term",
+        "term": "hodl_upper"
+      }
+    }
+  ]
+}

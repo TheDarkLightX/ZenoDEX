@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenodex.dev/fire/spec/fire-kernel-replay-receipt.schema.json",
+  "title": "FIRE Kernel Replay Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "object_id",
+    "object_name",
+    "object_version",
+    "object_family",
+    "object_hash",
+    "instance_hash",
+    "cert_sha256",
+    "ir_hash",
+    "kernel_model_id",
+    "kernel_ir_hash",
+    "compile_receipt_sha256",
+    "kernel_receipt_sha256",
+    "kernel_eval_receipt_sha256",
+    "kernel_settlement_receipt_sha256",
+    "replay_input_sha256",
+    "compile_command_tag",
+    "compile_command_args",
+    "compile_state_sha256",
+    "compile_effects_sha256",
+    "settlement_command_tag",
+    "settlement_command_args",
+    "settlement_state_sha256",
+    "settlement_effects_sha256",
+    "transcript_sha256",
+    "delta_sha256",
+    "holder_delta",
+    "writer_delta",
+    "payoff_out",
+    "firev_accept"
+  ],
+  "properties": {
+    "schema": {
+      "const": "zenodex/fire-kernel-replay-receipt/v1"
+    },
+    "object_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "object_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "object_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "object_family": {
+      "type": "string",
+      "minLength": 1
+    },
+    "object_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "instance_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "cert_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "ir_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "kernel_model_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kernel_ir_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "compile_receipt_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "kernel_receipt_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "kernel_eval_receipt_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "kernel_settlement_receipt_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "replay_input_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "compile_command_tag": {
+      "type": "string",
+      "minLength": 1
+    },
+    "compile_command_args": {
+      "$ref": "#/$defs/scalarMap"
+    },
+    "compile_state_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "compile_effects_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "settlement_command_tag": {
+      "type": "string",
+      "minLength": 1
+    },
+    "settlement_command_args": {
+      "$ref": "#/$defs/scalarMap"
+    },
+    "settlement_state_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "settlement_effects_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "transcript_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "delta_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "holder_delta": {
+      "type": "integer"
+    },
+    "writer_delta": {
+      "type": "integer"
+    },
+    "payoff_out": {
+      "type": "integer"
+    },
+    "firev_accept": {
+      "type": "boolean"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "scalarMap": {
+      "type": "object",
+      "propertyNames": {
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "boolean"
+          }
+        ]
+      }
+    }
+  }
+}

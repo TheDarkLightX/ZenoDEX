@@ -1,0 +1,55 @@
+schema: zenodex/deployment_profile/v1
+profile_id: local-dev
+threat_model: loopback developer operation
+allowed_routes:
+  - health
+  - local_demo
+  - signed_intents
+required_auth:
+  public_api: optional_loopback_only
+  write_api: optional_loopback_only
+key_policy:
+  raw_private_key_flags_allowed: true
+  production_key_receipts_required: false
+  browser_key_generation_allowed: true
+  external_signer_required: false
+  signer_user_approval_required: false
+  allowed_signer_security_profiles:
+    - native-desktop-loopback-signer-v0
+proof_policy:
+  proof_metadata_required: false
+upba_policy: fast
+peer_policy:
+  public_peer_admission_allowed: false
+  dynamic_peer_cap_required: false
+gossip_policy:
+  transport_auth_required: false
+observability_policy:
+  metrics_required: false
+oracle_policy:
+  dex_routing_oracle_adapter_required: false
+  zusd_oracle_adapter_required: false
+  zusd_oracle_authorization_required: false
+  zusd_monetary_wallet_oracle_authorization_required: false
+  perps_clearinghouse_settle_oracle_adapter_required: false
+  perps_clearinghouse_settle_oracle_authorization_required: false
+  perps_isolated_settle_oracle_adapter_required: false
+  perps_isolated_partial_liquidate_oracle_adapter_required: false
+  perps_isolated_settle_oracle_authorization_required: false
+runtime_policy:
+  allow_path_lookup: true
+  plaintext_fixture_keys_allowed: true
+  local_only_routes_allowed: true
+  proof_mining_payout_template_enabled: true
+  env_config_file_allowlist_required: false
+  dependency_sbom_required: false
+  secret_scan_required: false
+  external_static_analysis_required_in_ci: false
+runtime_authority_policy:
+  schema: zenodex/runtime_authority_policy/v1
+  # Dev loopback: Python authority by default. This is not a strict profile, so
+  # the selector permits experimenting with rust_shadow / rust_authority modes
+  # per surface (advisory validation only).
+  default: python_authority
+  per_surface: {}
+  promoted_surfaces: []

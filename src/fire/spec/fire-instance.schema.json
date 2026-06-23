@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenodex.dev/fire/spec/fire-instance.schema.json",
+  "title": "FIRE Object Instance Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "object_hash",
+    "lock_hash",
+    "object_name",
+    "object_version",
+    "object_family",
+    "parameters",
+    "parties",
+    "nonce",
+    "instance_hash"
+  ],
+  "properties": {
+    "schema": {
+      "const": "zenodex/fire-object-instance/v1"
+    },
+    "object_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "lock_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "object_name": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "object_version": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "object_family": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "parameters": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/parameterValue"
+      }
+    },
+    "parties": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/partyBinding"
+      }
+    },
+    "nonce": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "maturity": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "settlement_window": {
+      "$ref": "#/$defs/settlementWindow"
+    },
+    "instance_hash": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "parameterValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "value"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "value": {
+          "type": "integer"
+        }
+      }
+    },
+    "partyBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "party_id"
+      ],
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "party_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "settlementWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

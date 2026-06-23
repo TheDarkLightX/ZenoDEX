@@ -1,0 +1,63 @@
+[package]
+name = "zenodex-runtime-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+# ADVISORY: this crate requires a nightly toolchain (cargo-fuzz / libFuzzer) and
+# is intentionally excluded from the stable workspace. See README.md.
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = { version = "1", features = ["derive"] }
+
+[dependencies.zenodex-runtime-core]
+path = "../crates/zenodex-runtime-core"
+
+[[bin]]
+name = "fee_router"
+path = "fuzz_targets/fee_router.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "replay_guard"
+path = "fuzz_targets/replay_guard.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "balance_kernel"
+path = "fuzz_targets/balance_kernel.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "zusd"
+path = "fuzz_targets/zusd.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "burn_receipts"
+path = "fuzz_targets/burn_receipts.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "cpmm_swap"
+path = "fuzz_targets/cpmm_swap.rs"
+test = false
+doc = false
+bench = false
+
+[profile.release]
+debug = 1

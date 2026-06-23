@@ -20,12 +20,17 @@ from ..core.zusd import (
     ZUSDStepResult,
     in_multi_recovery_mode,
     in_recovery_mode,
+)
+from ..core.zusd import (
     step as zusd_step,
+)
+from ..core.zusd import (
     step_multi as zusd_step_multi,
 )
+from ..core.zusd_multi_oracle_commit_mcr import check_multi_oracle_commit_mcr
+from ..core.zusd_multi_redeem_selector import select_multi_redeem_vault
 from .tau_runner import find_tau_bin, run_tau_spec_steps
 from .tau_witness import (
-    TauSpecRef,
     ZUSD_DEPOSIT_SP_GUARD_V1,
     ZUSD_LIQUIDATION_GUARD_V2,
     ZUSD_MINT_GUARD_V1,
@@ -35,6 +40,7 @@ from .tau_witness import (
     ZUSD_SUPPLY_CONSERVATION_V2,
     ZUSD_WITHDRAW_COLLATERAL_GUARD_V1,
     ZUSD_WITHDRAW_SP_GUARD_V1,
+    TauSpecRef,
     build_zusd_deposit_sp_guard_v1_step,
     build_zusd_liquidation_guard_v2_step,
     build_zusd_mint_guard_v1_step,
@@ -59,6 +65,9 @@ class ZUSDTauGateConfig:
     timeout_s: float = 2.0
     tau_bin: Optional[str] = None
     allow_path_lookup: bool = False
+
+
+DEFAULT_ZUSD_TAU_GATE_CONFIG = ZUSDTauGateConfig()
 
 
 def _is_oracle_fresh(*, now_epoch: int, last_update_epoch: int, max_staleness_epochs: int, oracle_seen: bool) -> bool:
@@ -393,12 +402,35 @@ def _infer_multi_redeem_vault(pre_state: ZUSDMultiState, post_state: ZUSDMultiSt
     raise ValueError("unable to infer redeemed vault from state delta")
 
 
+def _expected_multi_redeem_vault(pre_state: ZUSDMultiState, *, amount_e8: int) -> str:
+    selection = select_multi_redeem_vault(
+        amount_e8=amount_e8,
+        price_e8=pre_state.price_e8,
+        mcr_bps=pre_state.mcr_bps,
+        vault_a_collateral_e8=pre_state.vault_a.collateral_e8,
+        vault_a_debt_e8=pre_state.vault_a.debt_e8,
+        vault_b_collateral_e8=pre_state.vault_b.collateral_e8,
+        vault_b_debt_e8=pre_state.vault_b.debt_e8,
+    )
+    if selection.selected_vault is None:
+        raise ValueError("no redeemable vault for amount under policy")
+    return str(selection.selected_vault)
+
+
 def _multi_checks(
     *, pre_state: ZUSDMultiState, cmd: ZUSDMultiCommand, post_state: ZUSDMultiState
 ) -> List[Tuple[TauSpecRef, Dict[str, int]]]:
     checks: List[Tuple[TauSpecRef, Dict[str, int]]] = []
 
     if cmd.tag == "oracle_commit":
+        mcr_pending = check_multi_oracle_commit_mcr(
+            price_pending_e8=pre_state.price_pending_e8,
+            mcr_bps=pre_state.mcr_bps,
+            vault_a_collateral_e8=pre_state.vault_a.collateral_e8,
+            vault_a_debt_e8=pre_state.vault_a.debt_e8,
+            vault_b_collateral_e8=pre_state.vault_b.collateral_e8,
+            vault_b_debt_e8=pre_state.vault_b.debt_e8,
+        )
         checks.append(
             (
                 ZUSD_ORACLE_COMMIT_GUARD_V2,
@@ -416,22 +448,7 @@ def _multi_checks(
                     )
                     else 0,
                     auth_ok=1 if bool(cmd.args.get("auth_ok", False)) else 0,
-                    mcr_ok_at_pending=1
-                    if (
-                        _mcr_ok(
-                            collateral_e8=pre_state.vault_a.collateral_e8,
-                            debt_e8=pre_state.vault_a.debt_e8,
-                            price_e8=pre_state.price_pending_e8,
-                            mcr_bps=pre_state.mcr_bps,
-                        )
-                        and _mcr_ok(
-                            collateral_e8=pre_state.vault_b.collateral_e8,
-                            debt_e8=pre_state.vault_b.debt_e8,
-                            price_e8=pre_state.price_pending_e8,
-                            mcr_bps=pre_state.mcr_bps,
-                        )
-                    )
-                    else 0,
+                    mcr_ok_at_pending=1 if mcr_pending.mcr_ok_at_pending else 0,
                 ),
             )
         )
@@ -488,7 +505,13 @@ def _multi_checks(
         if raw in ("a", "b"):
             vault_for_redeem = str(raw)
         elif raw is None:
-            vault_for_redeem = _infer_multi_redeem_vault(pre_state, post_state)
+            expected_vault = _expected_multi_redeem_vault(pre_state, amount_e8=amount)
+            actual_vault = _infer_multi_redeem_vault(pre_state, post_state)
+            if actual_vault != expected_vault:
+                raise ValueError(
+                    f"auto redeem selected wrong vault: expected {expected_vault!r}, got {actual_vault!r}"
+                )
+            vault_for_redeem = expected_vault
         else:
             raise ValueError("vault must be 'a' or 'b'")
 
@@ -657,7 +680,7 @@ def validate_zusd_transition(
     pre_state: ZUSDState,
     cmd: ZUSDCommand,
     post_state: ZUSDState,
-    config: ZUSDTauGateConfig = ZUSDTauGateConfig(),
+    config: ZUSDTauGateConfig = DEFAULT_ZUSD_TAU_GATE_CONFIG,
 ) -> tuple[bool, Optional[str]]:
     """Validate one successful single-vault zUSD transition with Tau."""
     if not config.enabled:
@@ -667,7 +690,8 @@ def validate_zusd_transition(
         ok, tau_bin, err = _resolve_tau_bin(config)
         if not ok:
             return False, err
-        assert tau_bin is not None
+        if tau_bin is None:
+            return False, "tau binary resolution failed"
         for spec_ref, step in checks:
             outputs = run_tau_spec_steps(
                 tau_bin=tau_bin,
@@ -688,7 +712,7 @@ def validate_zusd_multi_transition(
     pre_state: ZUSDMultiState,
     cmd: ZUSDMultiCommand,
     post_state: ZUSDMultiState,
-    config: ZUSDTauGateConfig = ZUSDTauGateConfig(),
+    config: ZUSDTauGateConfig = DEFAULT_ZUSD_TAU_GATE_CONFIG,
 ) -> tuple[bool, Optional[str]]:
     """Validate one successful multi-vault zUSD transition with Tau."""
     if not config.enabled:
@@ -698,7 +722,8 @@ def validate_zusd_multi_transition(
         ok, tau_bin, err = _resolve_tau_bin(config)
         if not ok:
             return False, err
-        assert tau_bin is not None
+        if tau_bin is None:
+            return False, "tau binary resolution failed"
         for spec_ref, step in checks:
             outputs = run_tau_spec_steps(
                 tau_bin=tau_bin,
@@ -718,7 +743,7 @@ def step_with_tau(
     state: ZUSDState,
     cmd: ZUSDCommand,
     *,
-    config: ZUSDTauGateConfig = ZUSDTauGateConfig(),
+    config: ZUSDTauGateConfig = DEFAULT_ZUSD_TAU_GATE_CONFIG,
 ) -> ZUSDStepResult:
     """
     Execute one single-vault zUSD step and then enforce Tau transition checks.
@@ -738,7 +763,7 @@ def step_multi_with_tau(
     state: ZUSDMultiState,
     cmd: ZUSDMultiCommand,
     *,
-    config: ZUSDTauGateConfig = ZUSDTauGateConfig(),
+    config: ZUSDTauGateConfig = DEFAULT_ZUSD_TAU_GATE_CONFIG,
 ) -> ZUSDMultiStepResult:
     """
     Execute one multi-vault zUSD step and then enforce Tau transition checks.

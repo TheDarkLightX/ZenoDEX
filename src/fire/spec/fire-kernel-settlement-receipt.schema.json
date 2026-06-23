@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenodex.dev/fire/spec/fire-kernel-settlement-receipt.schema.json",
+  "title": "FIRE Kernel Settlement Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "object_id",
+    "object_name",
+    "object_version",
+    "object_family",
+    "object_hash",
+    "instance_hash",
+    "cert_sha256",
+    "ir_hash",
+    "kernel_model_id",
+    "kernel_ir_hash",
+    "kernel_receipt_sha256",
+    "kernel_eval_receipt_sha256",
+    "replay_input_sha256",
+    "settlement_command_tag",
+    "settlement_command_args",
+    "settlement_state",
+    "settlement_effects",
+    "holder_delta",
+    "writer_delta",
+    "payoff_out",
+    "firev_accept"
+  ],
+  "properties": {
+    "schema": {
+      "const": "zenodex/fire-kernel-settlement-receipt/v1"
+    },
+    "object_id": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "object_name": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "object_version": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "object_family": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "object_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "instance_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "cert_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "ir_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "kernel_model_id": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "kernel_ir_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "kernel_receipt_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "kernel_eval_receipt_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "replay_input_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "settlement_command_tag": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "settlement_command_args": {
+      "$ref": "#/$defs/scalarObject"
+    },
+    "settlement_state": {
+      "$ref": "#/$defs/scalarObject"
+    },
+    "settlement_effects": {
+      "$ref": "#/$defs/scalarObject"
+    },
+    "holder_delta": {
+      "type": "integer"
+    },
+    "writer_delta": {
+      "type": "integer"
+    },
+    "payoff_out": {
+      "type": "integer"
+    },
+    "firev_accept": {
+      "type": "boolean"
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "scalarValue": {
+      "oneOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        }
+      ]
+    },
+    "scalarObject": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/scalarValue"
+      },
+      "propertyNames": {
+        "$ref": "#/$defs/nonEmptyString"
+      }
+    }
+  }
+}

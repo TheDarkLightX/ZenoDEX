@@ -1,0 +1,38 @@
+# Secure Signer Operation Admission v1
+#
+# PURPOSE:
+# Admit local Keys/signer operations only when host-projected operation decode,
+# capability scope, signer context, and private-key non-export facts all hold.
+# The host computes enum one-hotness and mask subset proofs; Tau binds those
+# facts into a small fail-closed admission envelope.
+#
+# i1  = operation_requested (sbf)
+# i2  = operation_one_hot_ok (sbf)
+# i3  = operation_kind_allowed (sbf)
+# i4  = requested_capability_mask_bound (sbf)
+# i5  = capability_subset_ok (sbf)
+# i6  = user_confirmed (sbf)
+# i7  = chain_genesis_bound (sbf)
+# i8  = nonce_fresh (sbf)
+# i9  = private_key_export_absent (sbf)
+# i10 = secure_channel_bound (sbf)
+# i11 = local_device_attested (sbf)
+# i12 = proof_ok (sbf)
+# i13 = binding_ok (sbf)
+#
+# o1 = operation_decode_ok
+# o2 = capability_scope_ok
+# o3 = signer_context_ok
+# o4 = key_non_export_ok
+# o5 = operation_admissible
+# o6 = proof_gated_operation_admissible
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> ((i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf))) &&
+  (o2[t]:sbf = 1:sbf <-> ((i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf))) &&
+  (o3[t]:sbf = 1:sbf <-> ((i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf) && (i11[t]:sbf = 1:sbf))) &&
+  (o4[t]:sbf = 1:sbf <-> (i9[t]:sbf = 1:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf) && (i11[t]:sbf = 1:sbf))) &&
+  (o6[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf) && (i11[t]:sbf = 1:sbf) && (i12[t]:sbf = 1:sbf) && (i13[t]:sbf = 1:sbf))).

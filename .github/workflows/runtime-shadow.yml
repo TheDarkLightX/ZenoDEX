@@ -1,0 +1,235 @@
+name: runtime-shadow
+
+# Deterministic-runtime migration gate: Python reference tests, the Rust core
+# (test/clippy/fmt), golden-trace export/replay determinism, and the Python/Rust
+# shadow differential. Tau/ESSO/Lean obligations are exercised by their own
+# workflows and are intentionally not duplicated or weakened here.
+
+on:
+  pull_request:
+    paths:
+      - "src/core/fee_router.py"
+      - "src/core/replay_guard.py"
+      - "src/core/balance_kernel.py"
+      - "src/core/zusd.py"
+      - "src/core/burn_receipts.py"
+      - "src/core/dex_intent_auth_message.py"
+      - "src/core/dex_intent_auth_shape_gate.py"
+      - "src/core/perp_v2/**"
+      - "src/kernels/python/settlement_swap_runtime_v1.py"
+      - "src/state/canonical.py"
+      - "src/state/state_root.py"
+      - "src/state/balances.py"
+      - "src/state/lp.py"
+      - "src/state/nonces.py"
+      - "src/state/pools.py"
+      - "config/deploy/**"
+      - "src/integration/api_server.py"
+      - "src/integration/deploy_profile.py"
+      - "tools/runtime/**"
+      - "tools/check_deployment_profiles.py"
+      - "tests/runtime/**"
+      - "tests/integration/test_deployment_profiles.py"
+      - "rust-runtime/**"
+      - "ocaml-runtime/**"
+      - "spark-kernels/**"
+      - ".github/workflows/runtime-shadow.yml"
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "src/core/fee_router.py"
+      - "src/core/replay_guard.py"
+      - "src/core/balance_kernel.py"
+      - "src/core/zusd.py"
+      - "src/core/burn_receipts.py"
+      - "src/core/dex_intent_auth_message.py"
+      - "src/core/dex_intent_auth_shape_gate.py"
+      - "src/core/perp_v2/**"
+      - "src/kernels/python/settlement_swap_runtime_v1.py"
+      - "src/state/canonical.py"
+      - "src/state/state_root.py"
+      - "src/state/balances.py"
+      - "src/state/lp.py"
+      - "src/state/nonces.py"
+      - "src/state/pools.py"
+      - "config/deploy/**"
+      - "src/integration/api_server.py"
+      - "src/integration/deploy_profile.py"
+      - "tools/runtime/**"
+      - "tools/check_deployment_profiles.py"
+      - "tests/runtime/**"
+      - "tests/integration/test_deployment_profiles.py"
+      - "rust-runtime/**"
+      - "ocaml-runtime/**"
+      - "spark-kernels/**"
+      - ".github/workflows/runtime-shadow.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-runtime:
+    name: Python runtime tests + golden traces
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install deps
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Python runtime tests (reference + golden trace + semantic invariants)
+        run: |
+          python -m pytest tests/runtime -q \
+            --ignore=tests/runtime/test_fee_router_conformance.py \
+            --ignore=tests/runtime/test_replay_guard_conformance.py \
+            --ignore=tests/runtime/test_balance_kernel_conformance.py \
+            --ignore=tests/runtime/test_zusd_conformance.py \
+            --ignore=tests/runtime/test_burn_receipts_conformance.py \
+            --ignore=tests/runtime/test_cpmm_settlement_conformance.py \
+            --ignore=tests/runtime/test_canonical_primitives_vectors.py \
+            --ignore=tests/runtime/test_state_root_vectors.py \
+            --ignore=tests/runtime/test_tx_receipt_hash_vectors.py \
+            --ignore=tests/runtime/test_perp_math_vectors.py
+
+      - name: Golden traces export deterministically (byte-stable)
+        run: |
+          python3 tools/runtime/export_golden_trace.py --scenario all --out-dir /tmp/gt
+          for f in smoke replay_guard_smoke balance_smoke zusd_smoke burn_smoke cpmm_smoke; do
+            diff -u "tests/runtime/golden_traces/$f.json" "/tmp/gt/$f.json"
+          done
+
+      - name: Golden traces replay cleanly
+        run: |
+          for f in smoke replay_guard_smoke balance_smoke zusd_smoke burn_smoke cpmm_smoke; do
+            python3 tools/runtime/replay_golden_trace.py "tests/runtime/golden_traces/$f.json"
+          done
+
+  rust-runtime:
+    name: Rust core (test / clippy / fmt)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust-runtime
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Toolchain fingerprint
+        run: |
+          rustc --version
+          cargo --version
+
+      - name: cargo fmt --check
+        run: cargo fmt --check
+
+      - name: cargo clippy -D warnings
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo test
+        run: cargo test
+
+  python-rust-shadow:
+    name: Python/Rust shadow differential
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Build Rust shadow CLI
+        working-directory: rust-runtime
+        run: cargo build --bin zenodex-runtime
+
+      - name: Python/Rust conformance + cross-language vectors differential
+        run: |
+          python -m pytest -q \
+            tests/runtime/test_fee_router_conformance.py \
+            tests/runtime/test_replay_guard_conformance.py \
+            tests/runtime/test_balance_kernel_conformance.py \
+            tests/runtime/test_zusd_conformance.py \
+            tests/runtime/test_burn_receipts_conformance.py \
+            tests/runtime/test_cpmm_settlement_conformance.py \
+            tests/runtime/test_canonical_primitives_vectors.py \
+            tests/runtime/test_state_root_vectors.py \
+            tests/runtime/test_tx_receipt_hash_vectors.py \
+            tests/runtime/test_perp_math_vectors.py
+
+      - name: Shadow replay (Rust must agree with Python)
+        run: |
+          for f in smoke replay_guard_smoke balance_smoke zusd_smoke burn_smoke cpmm_smoke; do
+            python3 tools/runtime/rust_shadow_replay.py "tests/runtime/golden_traces/$f.json"
+          done
+
+  deploy-profile-policy:
+    name: Deployment profile fail-closed policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Deployment profiles are internally consistent
+        run: python3 tools/check_deployment_profiles.py
+
+      - name: Deployment profile regressions
+        run: |
+          python -m pytest -q \
+            tests/runtime/test_deploy_profile_enforced_at_startup.py \
+            tests/runtime/test_deploy_profile_unknown_keys.py \
+            tests/integration/test_deployment_profiles.py
+
+  ocaml-spec:
+    name: OCaml spec oracle (dune build/test)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Vectors are in sync with the Python authority
+        run: python3 tools/runtime/ocaml_spec_vectors.py --check
+
+      - name: Set up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "5"
+
+      - name: Install dune
+        run: opam install -y dune
+
+      - name: dune build && dune test
+        working-directory: ocaml-runtime
+        run: |
+          opam exec -- dune build
+          opam exec -- dune test

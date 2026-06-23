@@ -1,0 +1,33 @@
+{
+  "checker": "cd lean-mathlib && lake env lean Proofs/TWALYieldVampireDefense.lean && lake env lean Proofs/PerpADLSybilBankruptcyClosure.lean",
+  "claim": "Promotes scoped Campaign 5 model closures for TWAL yield-vampire defense and two-leg perp ADL sybil-bankruptcy closure. TWAL is modeled as integrated liquidity exposure, and ADL is modeled as deficit haircut before treasury draw.",
+  "files": [
+    "lean-mathlib/Proofs/TWALYieldVampireDefense.lean",
+    "lean-mathlib/Proofs/PerpADLSybilBankruptcyClosure.lean"
+  ],
+  "focused_tests": [
+    "pytest -q tests/formal/test_lean_twal_yield_vampire_defense.py",
+    "pytest -q tests/formal/test_lean_perp_adl_sybil_bankruptcy_closure.py"
+  ],
+  "non_claims": [
+    "Does not prove runtime TWAL accounting is implemented.",
+    "Does not prove runtime ADL queue design or perp settlement integration.",
+    "Does not prove sybil identity linkage, multi-party socialization, oracle truth, backend refinement, or production liveness.",
+    "Does not prove every yield or insurance disaster state is closed."
+  ],
+  "status": "checked",
+  "theorems": [
+    "Proofs.TWALYieldVampireDefense.twal_share_bounded_by_snapshot_for_no_longer_duration",
+    "Proofs.TWALYieldVampireDefense.twal_share_strictly_below_snapshot_for_shorter_duration",
+    "Proofs.TWALYieldVampireDefense.twal_reward_bounded_by_epoch_reward",
+    "Proofs.TWALYieldVampireDefense.campaign5_twal_reduces_jit_witness",
+    "Proofs.TWALYieldVampireDefense.campaign5_twal_reward_floor",
+    "Proofs.TWALYieldVampireDefense.campaign5_snapshot_reward_floor",
+    "Proofs.PerpADLSybilBankruptcyClosure.adl_deficit_haircut_is_covered",
+    "Proofs.PerpADLSybilBankruptcyClosure.adl_treasury_draw_zero",
+    "Proofs.PerpADLSybilBankruptcyClosure.standard_sybil_profit_equals_insurance_draw",
+    "Proofs.PerpADLSybilBankruptcyClosure.adl_blocks_sybil_bankruptcy_profit",
+    "Proofs.PerpADLSybilBankruptcyClosure.adl_treasury_draw_zero_for_offsetting_sybil",
+    "Proofs.PerpADLSybilBankruptcyClosure.campaign5_sybil_bankruptcy_witness"
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "schema": "zenodex.zenocover.attack_query_manifest.v0",
+  "surface_id": "zenocover_internal_attack_queries_v0",
+  "max_unsafe_examples": 8,
+  "reserve_solvency_manifest": {
+    "schema": "zenodex.zenocover.reserve_solvency_manifest.v0",
+    "reserve": {
+      "asset": "zUSD",
+      "balance": 1000,
+      "existing_locked": 0,
+      "min_surplus": 300
+    },
+    "positions": [
+      {
+        "id": "lp-loss-cover-devnet-v1",
+        "status": "active",
+        "bundle_dir": "docs/fire_registry/devnet_v1/lp_loss_cover_v1"
+      }
+    ]
+  },
+  "claim_verifier_model": {
+    "schema": "zenodex.zenocover.claim_verifier_model.v0",
+    "policy": {
+      "settlement_asset": "zUSD",
+      "reserve_available": 1000,
+      "min_reserve_after_payout": 300,
+      "aggregate_payout_cap": 500,
+      "per_claim_cap": 100,
+      "verifier_bond": 250,
+      "verifier_slash_amount": 150,
+      "verifier_future_value_lost": 50,
+      "max_invalid_claim_gain": 200,
+      "allowed_failure_kinds": [
+        "ledger_replay_failure",
+        "oracle_policy_failure",
+        "proof_metadata_binding_failure",
+        "settlement_invariant_failure"
+      ]
+    },
+    "claims": [
+      {
+        "id": "settlement-failure-1",
+        "claim_key": "policy-1:event-1",
+        "failure_kind": "settlement_invariant_failure",
+        "requested_payout": 120,
+        "coverage_limit": 90,
+        "loss_amount": 110,
+        "expected_authorized_payout": 90,
+        "event_evidence": {
+          "policy_active": true,
+          "within_claim_window": true,
+          "already_paid": false,
+          "exclusion_applies": false,
+          "ledger_header_body_bound": true,
+          "settlement_replay_ok": true,
+          "failure_certificate_valid": true,
+          "invariant_breach_confirmed": true
+        }
+      }
+    ]
+  },
+  "reserve_withdrawal_safety": {
+    "schema": "zenodex.zenocover.reserve_withdrawal_safety.v0",
+    "pool": {
+      "reserve_asset": "zUSD",
+      "reserve_balance": 1000,
+      "active_liability": 80,
+      "pending_claim_window_liability": 500,
+      "min_surplus": 300
+    },
+    "withdrawal_requests": [
+      {
+        "id": "safe-withdrawal",
+        "amount": 100,
+        "cooldown_complete": true,
+        "claim_window_closed": false,
+        "expected_accepted": true,
+        "expected_post_reserve": 900
+      }
+    ]
+  }
+}

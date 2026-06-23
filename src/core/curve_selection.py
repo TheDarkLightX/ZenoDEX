@@ -24,6 +24,8 @@ BPS_DENOM = 10_000
 MAX_AMOUNT = 1_000_000_000_000
 NUM_CURVES = 5
 EARLY_EXIT_PENALTY_BPS = 500  # 5% penalty for early exit
+MAX_EPOCHS = 1_000_000_000
+MAX_SETTLEMENT_INTERVAL = 1000
 
 
 @unique
@@ -171,17 +173,28 @@ def _guard_unstake(state: CSState, params: CSActionParams) -> bool:
 def _guard_advance(state: CSState, params: CSActionParams) -> bool:
     if len(params.revenue_deltas) != NUM_CURVES:
         return False
+    # Match the v1 kernel's bounded, non-negative revenue update domain.
+    if not (0 <= state.epochs_since_start < MAX_EPOCHS):
+        return False
+    for cid in range(NUM_CURVES):
+        delta = params.revenue_deltas[cid]
+        if not isinstance(delta, int) or isinstance(delta, bool):
+            return False
+        if delta < 0 or delta > MAX_AMOUNT:
+            return False
+        if state.get_revenue(cid) + delta > MAX_AMOUNT:
+            return False
     return True
 
 
 def _guard_settle(state: CSState, params: CSActionParams) -> bool:
-    return state.epochs_since_start >= state.settlement_epoch_interval
+    return params.auth_ok and state.epochs_since_start >= state.settlement_epoch_interval
 
 
 def _guard_admin_set(state: CSState, params: CSActionParams) -> bool:
     if not params.auth_ok:
         return False
-    return params.new_interval > 0
+    return 1 <= params.new_interval <= MAX_SETTLEMENT_INTERVAL
 
 
 # ---------------------------------------------------------------------------
@@ -209,8 +222,8 @@ def _update_advance(state: CSState, params: CSActionParams) -> CSState:
     s = state
     for cid in range(NUM_CURVES):
         old_rev = s.get_revenue(cid)
-        delta = params.revenue_deltas[cid] if cid < len(params.revenue_deltas) else 0
-        s = _set_revenue(s, cid, old_rev + max(0, delta))
+        delta = params.revenue_deltas[cid]
+        s = _set_revenue(s, cid, old_rev + int(delta))
     return replace(s, epochs_since_start=s.epochs_since_start + 1)
 
 
@@ -285,7 +298,6 @@ def _effect_settle(state: CSState, params: CSActionParams) -> CSEffect:
     return CSEffect(
         event=CSEvent.PREDICTION_SETTLED,
         winning_curve=state.active_curve,
-        payout_amount=state.winner_payout_pool,
         new_active_curve=state.active_curve,
     )
 
@@ -302,8 +314,18 @@ def _check_invariants(state: CSState) -> list[str]:
     violations: list[str] = []
     if not (0 <= state.active_curve < NUM_CURVES):
         violations.append("curve_valid")
+    if not (0 <= state.protocol_fee_bps <= BPS_DENOM):
+        violations.append("protocol_fee_bps_range")
+    if not (0 <= state.epochs_since_start <= MAX_EPOCHS):
+        violations.append("epochs_since_start_range")
+    if not (0 <= state.prediction_epoch <= MAX_EPOCHS):
+        violations.append("prediction_epoch_range")
+    if not (1 <= state.settlement_epoch_interval <= MAX_SETTLEMENT_INTERVAL):
+        violations.append("settlement_epoch_interval_range")
     if state.total_staked < 0:
         violations.append("total_staked_nonneg")
+    if state.total_staked > MAX_AMOUNT:
+        violations.append("total_staked_overflow")
     # total_staked must equal sum of individual stakes
     sum_stakes = sum(state.get_stake(cid) for cid in range(NUM_CURVES))
     if state.total_staked != sum_stakes:
@@ -311,13 +333,21 @@ def _check_invariants(state: CSState) -> list[str]:
     for cid in range(NUM_CURVES):
         if state.get_stake(cid) < 0:
             violations.append(f"stake_{cid}_nonneg")
+        if state.get_stake(cid) > MAX_AMOUNT:
+            violations.append(f"stake_{cid}_overflow")
     if state.protocol_fee_pool < 0:
         violations.append("protocol_fee_nonneg")
+    if state.protocol_fee_pool > MAX_AMOUNT:
+        violations.append("protocol_fee_overflow")
     if state.winner_payout_pool < 0:
         violations.append("winner_payout_nonneg")
+    if state.winner_payout_pool > MAX_AMOUNT:
+        violations.append("winner_payout_overflow")
     for cid in range(NUM_CURVES):
         if state.get_revenue(cid) < 0:
             violations.append(f"revenue_{cid}_nonneg")
+        if state.get_revenue(cid) > MAX_AMOUNT:
+            violations.append(f"revenue_{cid}_overflow")
     return violations
 
 

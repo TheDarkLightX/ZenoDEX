@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from src.state.volatility import TierState, tier_effects
 from src.core.volatility_tier import (
     TierAction,
     TierActionParams,
@@ -12,7 +11,7 @@ from src.core.volatility_tier import (
     max_trade_amount,
     step,
 )
-
+from src.state.volatility import TierState, tier_effects
 
 # ---------------------------------------------------------------------------
 # TierState validation
@@ -323,6 +322,68 @@ def test_configure_above_max_rejected() -> None:
         new_t3_bps=15000,
     ))
     assert not r.accepted
+
+
+def test_observe_invalid_epoch_type_rejected_fail_closed() -> None:
+    s = TierState()
+    r = step(  # type: ignore[arg-type]
+        s,
+        TierActionParams(
+            action=TierAction.OBSERVE,
+            epoch="1",
+            volatility_bps=1000,
+            data_ok=True,
+        ),
+    )
+    assert not r.accepted
+    assert r.rejection == "invalid_param:epoch"
+
+
+def test_observe_invalid_bool_payload_rejected_fail_closed() -> None:
+    s = TierState()
+    r = step(  # type: ignore[arg-type]
+        s,
+        TierActionParams(
+            action=TierAction.OBSERVE,
+            epoch=1,
+            volatility_bps=1000,
+            data_ok=1,
+        ),
+    )
+    assert not r.accepted
+    assert r.rejection == "invalid_param:data_ok"
+
+
+def test_configure_invalid_admin_bool_like_rejected_fail_closed() -> None:
+    s = TierState()
+    r = step(  # type: ignore[arg-type]
+        s,
+        TierActionParams(
+            action=TierAction.CONFIGURE,
+            caller_is_admin=1,
+            new_t1_bps=3000,
+            new_t2_bps=6000,
+            new_t3_bps=8000,
+        ),
+    )
+    assert not r.accepted
+    assert r.rejection == "invalid_param:caller_is_admin"
+
+
+def test_configure_invalid_threshold_type_rejected_fail_closed() -> None:
+    s = TierState()
+    r = step(  # type: ignore[arg-type]
+        s,
+        TierActionParams(
+            action=TierAction.CONFIGURE,
+            caller_is_admin=True,
+            new_t1_bps="3000",
+            new_t2_bps=6000,
+            new_t3_bps=8000,
+        ),
+    )
+    assert not r.accepted
+    assert r.rejection == "invalid_param:new_t1_bps"
 
 
 def test_threshold_equality_boundary() -> None:

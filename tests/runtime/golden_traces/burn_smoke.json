@@ -1,0 +1,292 @@
+{
+  "final_state_root": "0x993995834be1a4b77fa79f391804aba5a70e3e0397849685ebb025cac09d12bb",
+  "initial_state_root": "0x993995834be1a4b77fa79f391804aba5a70e3e0397849685ebb025cac09d12bb",
+  "kernel": "burn_receipts",
+  "steps": [
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x993995834be1a4b77fa79f391804aba5a70e3e0397849685ebb025cac09d12bb",
+      "receipt_hash": "0x532cc4b88352c3d0d770988cef923cd6ab17b0b90afbf56d8e792dbdec9c7994",
+      "tx": {
+        "batch_burn_sum_after": 0,
+        "batch_burn_sum_before": 0,
+        "burn_amount": 0,
+        "burn_budget": 0,
+        "do_burn": 0,
+        "nullifier_unused": 0,
+        "policy_ok": 0,
+        "receipt_amount": 0,
+        "receipt_bound": 0,
+        "supply_after": 100,
+        "supply_before": 100
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x993995834be1a4b77fa79f391804aba5a70e3e0397849685ebb025cac09d12bb",
+      "receipt_hash": "0x73f5ac45a45cbb8534e09d665be844aa9b43060ece5213522561f498881e4909",
+      "tx": {
+        "batch_burn_sum_after": 10,
+        "batch_burn_sum_before": 0,
+        "burn_amount": 10,
+        "burn_budget": 10,
+        "do_burn": 1,
+        "nullifier_unused": 1,
+        "policy_ok": 1,
+        "receipt_amount": 10,
+        "receipt_bound": 1,
+        "supply_after": 90,
+        "supply_before": 100
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x993995834be1a4b77fa79f391804aba5a70e3e0397849685ebb025cac09d12bb",
+      "receipt_hash": "0x05dab64d2c783384d0dfdb389a996302adfdea46b20f7011a76c8135ab661f88",
+      "tx": {
+        "batch_burn_sum_after": 10,
+        "batch_burn_sum_before": 0,
+        "burn_amount": 10,
+        "burn_budget": 50,
+        "do_burn": 1,
+        "nullifier_unused": 1,
+        "policy_ok": 1,
+        "receipt_amount": 10,
+        "receipt_bound": 1,
+        "supply_after": 90,
+        "supply_before": 100
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "replay_guard_failed",
+      "post_state_root": "0x993995834be1a4b77fa79f391804aba5a70e3e0397849685ebb025cac09d12bb",
+      "receipt_hash": null,
+      "tx": {
+        "batch_burn_sum_after": 10,
+        "batch_burn_sum_before": 0,
+        "burn_amount": 10,
+        "burn_budget": 10,
+        "do_burn": 1,
+        "nullifier_unused": 1,
+        "policy_ok": 1,
+        "receipt_amount": 10,
+        "receipt_bound": 0,
+        "supply_after": 90,
+        "supply_before": 100
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "replay_guard_failed",
+      "post_state_root": "0x993995834be1a4b77fa79f391804aba5a70e3e0397849685ebb025cac09d12bb",
+      "receipt_hash": null,
+      "tx": {
+        "batch_burn_sum_after": 10,
+        "batch_burn_sum_before": 0,
+        "burn_amount": 10,
+        "burn_budget": 10,
+        "do_burn": 2,
+        "nullifier_unused": 1,
+        "policy_ok": 1,
+        "receipt_amount": 10,
+        "receipt_bound": 1,
+        "supply_after": 90,
+        "supply_before": 100
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "amount_guard_failed",
+      "post_state_root": "0x993995834be1a4b77fa79f391804aba5a70e3e0397849685ebb025cac09d12bb",
+      "receipt_hash": null,
+      "tx": {
+        "batch_burn_sum_after": 10,
+        "batch_burn_sum_before": 0,
+        "burn_amount": 10,
+        "burn_budget": 5,
+        "do_burn": 1,
+        "nullifier_unused": 1,
+        "policy_ok": 1,
+        "receipt_amount": 10,
+        "receipt_bound": 1,
+        "supply_after": 90,
+        "supply_before": 100
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "amount_guard_failed",
+      "post_state_root": "0x993995834be1a4b77fa79f391804aba5a70e3e0397849685ebb025cac09d12bb",
+      "receipt_hash": null,
+      "tx": {
+        "batch_burn_sum_after": 0,
+        "batch_burn_sum_before": 0,
+        "burn_amount": 5,
+        "burn_budget": 0,
+        "do_burn": 0,
+        "nullifier_unused": 0,
+        "policy_ok": 0,
+        "receipt_amount": 0,
+        "receipt_bound": 0,
+        "supply_after": 100,
+        "supply_before": 100
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "amount_guard_failed",
+      "post_state_root": "0x993995834be1a4b77fa79f391804aba5a70e3e0397849685ebb025cac09d12bb",
+      "receipt_hash": null,
+      "tx": {
+        "batch_burn_sum_after": 10,
+        "batch_burn_sum_before": 0,
+        "burn_amount": 10,
+        "burn_budget": 10,
+        "do_burn": 1,
+        "nullifier_unused": 1,
+        "policy_ok": 1,
+        "receipt_amount": 9,
+        "receipt_bound": 1,
+        "supply_after": 90,
+        "supply_before": 100
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "amount_guard_failed",
+      "post_state_root": "0x993995834be1a4b77fa79f391804aba5a70e3e0397849685ebb025cac09d12bb",
+      "receipt_hash": null,
+      "tx": {
+        "batch_burn_sum_after": 32768,
+        "batch_burn_sum_before": 0,
+        "burn_amount": 32768,
+        "burn_budget": 32768,
+        "do_burn": 1,
+        "nullifier_unused": 1,
+        "policy_ok": 1,
+        "receipt_amount": 32768,
+        "receipt_bound": 1,
+        "supply_after": -32668,
+        "supply_before": 100
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "supply_guard_failed",
+      "post_state_root": "0x993995834be1a4b77fa79f391804aba5a70e3e0397849685ebb025cac09d12bb",
+      "receipt_hash": null,
+      "tx": {
+        "batch_burn_sum_after": 10,
+        "batch_burn_sum_before": 0,
+        "burn_amount": 10,
+        "burn_budget": 10,
+        "do_burn": 1,
+        "nullifier_unused": 1,
+        "policy_ok": 1,
+        "receipt_amount": 10,
+        "receipt_bound": 1,
+        "supply_after": 95,
+        "supply_before": 100
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "supply_guard_failed",
+      "post_state_root": "0x993995834be1a4b77fa79f391804aba5a70e3e0397849685ebb025cac09d12bb",
+      "receipt_hash": null,
+      "tx": {
+        "batch_burn_sum_after": 10,
+        "batch_burn_sum_before": 0,
+        "burn_amount": 10,
+        "burn_budget": 10,
+        "do_burn": 1,
+        "nullifier_unused": 1,
+        "policy_ok": 1,
+        "receipt_amount": 10,
+        "receipt_bound": 1,
+        "supply_after": -5,
+        "supply_before": 5
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "batch_sum_guard_failed",
+      "post_state_root": "0x993995834be1a4b77fa79f391804aba5a70e3e0397849685ebb025cac09d12bb",
+      "receipt_hash": null,
+      "tx": {
+        "batch_burn_sum_after": 5,
+        "batch_burn_sum_before": 0,
+        "burn_amount": 10,
+        "burn_budget": 10,
+        "do_burn": 1,
+        "nullifier_unused": 1,
+        "policy_ok": 1,
+        "receipt_amount": 10,
+        "receipt_bound": 1,
+        "supply_after": 90,
+        "supply_before": 100
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x993995834be1a4b77fa79f391804aba5a70e3e0397849685ebb025cac09d12bb",
+      "receipt_hash": "0x8362bddf0293ef186b6022ce6636fe236a99b13c927ed40a088d4fd10ec1c9f2",
+      "tx": {
+        "batch_burn_sum_after": 120,
+        "batch_burn_sum_before": 100,
+        "burn_amount": 20,
+        "burn_budget": 20,
+        "do_burn": 1,
+        "nullifier_unused": 1,
+        "policy_ok": 1,
+        "receipt_amount": 20,
+        "receipt_bound": 1,
+        "supply_after": 80,
+        "supply_before": 100
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "bad_numeric_field",
+      "post_state_root": "0x993995834be1a4b77fa79f391804aba5a70e3e0397849685ebb025cac09d12bb",
+      "receipt_hash": null,
+      "tx": {
+        "batch_burn_sum_after": 10,
+        "batch_burn_sum_before": 0,
+        "burn_amount": 10,
+        "do_burn": 1,
+        "nullifier_unused": 1,
+        "policy_ok": 1,
+        "receipt_amount": 10,
+        "receipt_bound": 1,
+        "supply_after": 90,
+        "supply_before": 100
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "bad_numeric_field",
+      "post_state_root": "0x993995834be1a4b77fa79f391804aba5a70e3e0397849685ebb025cac09d12bb",
+      "receipt_hash": null,
+      "tx": {
+        "batch_burn_sum_after": 10,
+        "batch_burn_sum_before": 0,
+        "burn_amount": "10",
+        "burn_budget": 10,
+        "do_burn": 1,
+        "nullifier_unused": 1,
+        "policy_ok": 1,
+        "receipt_amount": 10,
+        "receipt_bound": 1,
+        "supply_after": 90,
+        "supply_before": 100
+      }
+    }
+  ],
+  "version": 1
+}

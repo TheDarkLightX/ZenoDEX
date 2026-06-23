@@ -1,0 +1,35 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/zenodex-runtime-core",
+    "crates/zenodex-runtime-cli",
+    "crates/zenodex-launcher",
+    "crates/zenodex-governance-gate",
+]
+# The cargo-fuzz crate needs a nightly toolchain (libFuzzer); keep it out of the
+# stable workspace so `cargo test/clippy/fmt` never depend on it. See fuzz/README.md.
+exclude = ["fuzz"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+rust-version = "1.74"
+repository = "https://github.com/TheDarkLightX/ZenoDEX"
+
+# Pinned, audited dependencies. The consensus-critical core
+# (zenodex-runtime-core) keeps its surface tiny: sha2 for hashing, thiserror
+# for typed errors, hex for encoding. serde/serde_json live only in the CLI
+# tooling crate. See rust-runtime/README.md for the dependency rationale.
+[workspace.dependencies]
+sha2 = "0.10"
+thiserror = "2"
+hex = "0.4"
+# num-bigint is used ONLY by the zUSD kernel for CDP ratio intermediates
+# (collateral*price*bps style products) that exceed u128 at the authority's
+# 1e30 amount bound, mirroring Python's arbitrary-precision int semantics so the
+# Rust shadow never diverges on large values. Pure-integer, deterministic.
+num-bigint = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["arbitrary_precision"] }
+proptest = "1"

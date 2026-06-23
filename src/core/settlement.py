@@ -5,10 +5,10 @@ A settlement represents a proposed execution of a set of intents in a batch.
 """
 
 from dataclasses import dataclass
-from typing import List, Dict, Optional, Any
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
-from ..state.balances import PubKey, AssetId, Amount
+from ..state.balances import Amount, AssetId, PubKey
 
 # Type alias
 PoolId = str  # 32-byte hex string
@@ -33,6 +33,7 @@ class Fill:
         amount_in_filled: Optional amount in (for swaps)
         amount_out_filled: Optional amount out (for swaps)
         fee_paid: Optional fee paid (for swaps)
+        protocol_fee_paid: Optional protocol fee removed from pool reserves
         # Liquidity-specific fields
         amount0_used: Optional amount0 used (for add liquidity)
         amount1_used: Optional amount1 used (for add liquidity)
@@ -40,6 +41,9 @@ class Fill:
         amount0_out: Optional amount0 out (for remove liquidity)
         amount1_out: Optional amount1 out (for remove liquidity)
         lp_burned: Optional LP burned (for remove liquidity)
+        # Optional proof-carrying witnesses (for strong settlement validation)
+        reserve_in_before: Optional reserve of input asset before a pool swap
+        reserve_out_before: Optional reserve of output asset before a pool swap
     """
     intent_id: str
     action: FillAction
@@ -49,6 +53,7 @@ class Fill:
     amount_in_filled: Optional[Amount] = None
     amount_out_filled: Optional[Amount] = None
     fee_paid: Optional[Amount] = None
+    protocol_fee_paid: Optional[Amount] = None
     
     # Liquidity fields
     amount0_used: Optional[Amount] = None
@@ -57,6 +62,10 @@ class Fill:
     amount0_out: Optional[Amount] = None
     amount1_out: Optional[Amount] = None
     lp_burned: Optional[Amount] = None
+
+    # Proof-carrying witnesses (optional; required only in strict modes).
+    reserve_in_before: Optional[Amount] = None
+    reserve_out_before: Optional[Amount] = None
 
 
 @dataclass
@@ -152,6 +161,22 @@ class Settlement:
         """Validate settlement structure."""
         if self.module != "TauSwap":
             raise ValueError(f"Invalid module: {self.module}")
+
+        # Reject duplicate intent ids (ambiguous semantics).
+        included_ids = [intent_id for intent_id, _action in self.included_intents]
+        if len(included_ids) != len(set(included_ids)):
+            raise ValueError("included_intents contains duplicate intent_id entries")
+
+        # Reject duplicate fill ids (ambiguous semantics).
+        fill_ids = [fill.intent_id for fill in self.fills]
+        if len(fill_ids) != len(set(fill_ids)):
+            raise ValueError("fills contains duplicate intent_id entries")
+
+        # Any fill record must correspond to an included intent.
+        included_set = set(included_ids)
+        extra_fills = set(fill_ids) - included_set
+        if extra_fills:
+            raise ValueError(f"fills contains intent_ids not in included_intents: {sorted(extra_fills)}")
         
         # Verify all filled intents have corresponding fill details
         # Only check FILL actions; REJECT actions don't need fill details
@@ -167,4 +192,3 @@ class Settlement:
             raise ValueError(
                 f"Fill mismatch: missing {missing}, extra {extra}"
             )
-

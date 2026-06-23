@@ -56,6 +56,7 @@ def _to_ref_cmd(params: FRMActionParams):
         args["amount"] = int(params.amount)
         args["auth_ok"] = bool(params.auth_ok)
     elif params.action is FRMAction.SETTLE_RATE_EPOCH:
+        args["auth_ok"] = bool(params.auth_ok)
         args["mark_price_e8"] = int(params.mark_price_e8)
         args["index_price_e8"] = int(params.index_price_e8)
     elif params.action is FRMAction.ADVANCE_RATE_EPOCH:
@@ -97,7 +98,7 @@ def _random_action_params(rng: random.Random) -> FRMActionParams:
         index = rng.randint(1, 2_000_000_000)
         # Allow both positive and negative basis.
         mark = max(1, index + rng.randint(-200_000_000, 200_000_000))
-        return FRMActionParams(action=action, mark_price_e8=mark, index_price_e8=index)
+        return FRMActionParams(action=action, auth_ok=True, mark_price_e8=mark, index_price_e8=index)
     if action is FRMAction.ADVANCE_RATE_EPOCH:
         return FRMActionParams(action=action)
     if action is FRMAction.EMERGENCY_FREEZE:

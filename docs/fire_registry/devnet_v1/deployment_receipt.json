@@ -1,0 +1,74 @@
+{
+  "contract_hash": "d9290c684c2bedbd750c63bc640f8ca3095d53d66b24fac2513b56e0c0612be7",
+  "contract_id": "fire.registry.deploy.devnet_v1.v1",
+  "contract_path": "deployment_contract.json",
+  "contract_sha256": "cbaec9fbf6ca755c10e7ce51542f7fb2de9056b3bc44217f821865fb37dfa264",
+  "contracts": [
+    {
+      "name": "burn_contract",
+      "object_refs": [
+        "BurnBoostCall@v1"
+      ],
+      "roles": [
+        "import:burn_index_v1.burn_final",
+        "witness:BurnCertificate[TDEX]"
+      ],
+      "use_sites": [
+        "BurnBoostCall@v1:import:burn_final",
+        "BurnBoostCall@v1:witness:BurnCertificate[TDEX]"
+      ]
+    },
+    {
+      "name": "fee_contract",
+      "object_refs": [
+        "FeeNote@v1"
+      ],
+      "roles": [
+        "import:fee_index_v1.fee_final",
+        "witness:FeeIndexPacket"
+      ],
+      "use_sites": [
+        "FeeNote@v1:import:fee_final",
+        "FeeNote@v1:witness:FeeIndexPacket"
+      ]
+    },
+    {
+      "name": "hodl_contract",
+      "object_refs": [
+        "LPLossCover@v1"
+      ],
+      "roles": [
+        "import:hodl_value_v1.hodl_final",
+        "witness:HODLValuePacket"
+      ],
+      "use_sites": [
+        "LPLossCover@v1:import:hodl_final",
+        "LPLossCover@v1:witness:HODLValuePacket"
+      ]
+    },
+    {
+      "name": "lpv_contract",
+      "object_refs": [
+        "LPLossCover@v1"
+      ],
+      "roles": [
+        "import:lp_value_v1.lpv_final",
+        "witness:LPValuePacket"
+      ],
+      "use_sites": [
+        "LPLossCover@v1:import:lpv_final",
+        "LPLossCover@v1:witness:LPValuePacket"
+      ]
+    }
+  ],
+  "index_file_sha256": "sha256:b3d076768754b302cd3860fe86cb59308119620b5e9345b7cdb82dd1bce1a8bc",
+  "index_hash": "sha256:5433c22052bdbe1f2d98c5fdd15cb28e860b8fcfa902845db6e1fc7e4a3750bf",
+  "receipt_sha256": "683b2c903f26ec4e83456ea40263ffe60304ad7ddd2a8d1a5c058da3b8480889",
+  "release_metadata_path": "release_metadata.json",
+  "release_metadata_sha256": "0a4628971a1c977ca2c2102b76986acbaf0d91e915399382de1b67504139871f",
+  "require_signature": true,
+  "required_signer_pubkey": "0x8e0b26637a9bc464c5a9ac490f6e673a0fb6279d7918c46a870307cf1f96109abf975d8453dc77273f9aba47c8eb68c2",
+  "schema": "zenodex/fire-registry-deployment-receipt/v1",
+  "signer_pubkey": "0x8e0b26637a9bc464c5a9ac490f6e673a0fb6279d7918c46a870307cf1f96109abf975d8453dc77273f9aba47c8eb68c2",
+  "snapshot_name": "devnet_v1"
+}

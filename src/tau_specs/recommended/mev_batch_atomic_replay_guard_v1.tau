@@ -1,0 +1,27 @@
+# MEV Batch Atomic Replay Guard v1
+#
+# PURPOSE:
+# Admit a batch only when the input set binds, canonical ordering holds, replay
+# is clear, and execution is atomic with no double spend, pool bypass, or
+# slippage break.
+#
+# i1 = batch_requested (sbf)
+# i2 = input_set_digest_binds (sbf)
+# i3 = canonical_order_ok (sbf)
+# i4 = replay_frontier_clear (sbf)
+# i5 = no_double_spend (sbf)
+# i6 = all_or_none_execution (sbf)
+# i7 = slippage_all_honored (sbf)
+# i8 = no_pool_bypass (sbf)
+# i9 = reveal_window_ok (sbf)
+# i10 = proof_ok (sbf)
+# i11 = binding_ok (sbf)
+#
+# o1 = batch_admissible
+# o2 = proof_gated_batch_admissible
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf))) &&
+  (o2[t]:sbf = 1:sbf <-> ((o1[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf) && (i11[t]:sbf = 1:sbf))).

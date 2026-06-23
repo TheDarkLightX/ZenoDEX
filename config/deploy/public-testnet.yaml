@@ -1,0 +1,75 @@
+schema: zenodex/deployment_profile/v1
+profile_id: public-testnet
+threat_model: public testnet with signed writes and operator evidence
+allowed_routes:
+  - health
+  - signed_intents
+  - public_bundle
+  - peer_check
+required_auth:
+  public_api: bearer_token
+  write_api: signed_intent_or_operator_token
+key_policy:
+  raw_private_key_flags_allowed: false
+  production_key_receipts_required: false
+  browser_key_generation_allowed: false
+  external_signer_required: true
+  signer_user_approval_required: true
+  allowed_signer_security_profiles:
+    - native-desktop-loopback-signer-v0
+proof_policy:
+  proof_metadata_required: true
+upba_policy: balanced
+peer_policy:
+  public_peer_admission_allowed: true
+  dynamic_peer_cap_required: true
+gossip_policy:
+  transport_auth_required: true
+observability_policy:
+  metrics_required: true
+oracle_policy:
+  dex_routing_oracle_adapter_required: true
+  zusd_oracle_adapter_required: true
+  zusd_oracle_authorization_required: true
+  zusd_monetary_wallet_oracle_authorization_required: true
+  perps_clearinghouse_settle_oracle_adapter_required: true
+  perps_clearinghouse_settle_oracle_authorization_required: true
+  perps_isolated_settle_oracle_adapter_required: true
+  perps_isolated_partial_liquidate_oracle_adapter_required: true
+  perps_isolated_settle_oracle_authorization_required: true
+runtime_policy:
+  allow_path_lookup: false
+  plaintext_fixture_keys_allowed: false
+  local_only_routes_allowed: false
+  proof_mining_payout_template_enabled: false
+  env_config_file_allowlist_required: true
+  dependency_sbom_required: true
+  secret_scan_required: true
+  external_static_analysis_required_in_ci: true
+runtime_authority_policy:
+  schema: zenodex/runtime_authority_policy/v1
+  # Python authority by default. Promoted low-risk runtime surfaces run Rust
+  # authority with Python shadow on public testnet. `rust_shadow` is the
+  # opposite direction: Python remains authority and Rust checks after the fact.
+  default: python_authority
+  per_surface:
+    balances: rust_authority_with_python_shadow
+    burn_receipts: rust_authority_with_python_shadow
+    canonical: rust_authority_with_python_shadow
+    cpmm_settlement: rust_authority_with_python_shadow
+    fee_router: rust_authority_with_python_shadow
+    perp_math: rust_authority_with_python_shadow
+    perp_stateful: rust_shadow
+    replay_guard: rust_authority_with_python_shadow
+    state_root: rust_authority_with_python_shadow
+    zusd: rust_authority_with_python_shadow
+  promoted_surfaces:
+    - balances
+    - burn_receipts
+    - canonical
+    - cpmm_settlement
+    - fee_router
+    - perp_math
+    - replay_guard
+    - state_root
+    - zusd

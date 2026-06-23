@@ -50,6 +50,12 @@ class SwapExactInResult:
 class SwapExactOutResult:
     amount_in: int
     amount_out: int
+    # Exact-in output for the quoted `amount_in`; may exceed requested `amount_out`
+    # under integer rounding semantics.
+    amount_out_quote: int
+    # Non-negative "overdelivery gap" under exact-in semantics:
+    #   amount_out_quote - amount_out
+    overdelivery_gap: int
     fee_total: int
     protocol_fee: int
     lp_fee: int
@@ -171,13 +177,15 @@ def swap_exact_out(
     reserve_out: int,
     amount_out: int,
     fee_bps: int,
+    protocol_fee_share_bps: int = 0,
 ) -> SwapExactOutResult:
-    """Exact-out swap quote + post-state (protocol fee share fixed at 0 for now)."""
+    """Exact-out swap quote + post-state."""
     for name, v in (
         ("reserve_in", reserve_in),
         ("reserve_out", reserve_out),
         ("amount_out", amount_out),
         ("fee_bps", fee_bps),
+        ("protocol_fee_share_bps", protocol_fee_share_bps),
     ):
         _require_int(name, v)
 
@@ -191,6 +199,8 @@ def swap_exact_out(
         raise ValueError("cannot drain full reserve_out")
     if not (0 <= fee_bps <= BPS_DENOM):
         raise ValueError(f"fee_bps must be in [0, {BPS_DENOM}]")
+    if not (0 <= protocol_fee_share_bps <= BPS_DENOM):
+        raise ValueError(f"protocol_fee_share_bps must be in [0, {BPS_DENOM}]")
     if fee_bps == BPS_DENOM:
         raise ValueError("cannot compute with 100% fee")
 
@@ -218,6 +228,10 @@ def swap_exact_out(
     net_in_actual = amount_in - fee_total
     if net_in_actual <= 0:
         raise ValueError("net_in must be positive after fees")
+    protocol_fee = compute_protocol_fee(fee_total=fee_total, protocol_fee_share_bps=protocol_fee_share_bps)
+    if protocol_fee > fee_total:
+        raise ValueError("protocol_fee exceeds fee_total")
+    lp_fee = fee_total - protocol_fee
 
     denom_price = reserve_in + net_in_actual
     if denom_price <= 0:
@@ -226,8 +240,10 @@ def swap_exact_out(
     if amount_out_quote < amount_out:
         raise ValueError("computed amount_in insufficient for desired amount_out")
 
-    new_reserve_in = reserve_in + amount_in
+    new_reserve_in = reserve_in + amount_in - protocol_fee
     new_reserve_out = reserve_out - amount_out
+    if new_reserve_in < 0:
+        raise ValueError("post-swap reserve_in must be non-negative")
     if new_reserve_out < 0:
         raise ValueError("amount_out exceeds reserve_out")
     k_after = new_reserve_in * new_reserve_out
@@ -235,9 +251,11 @@ def swap_exact_out(
     return SwapExactOutResult(
         amount_in=amount_in,
         amount_out=amount_out,
+        amount_out_quote=amount_out_quote,
+        overdelivery_gap=max(0, amount_out_quote - amount_out),
         fee_total=fee_total,
-        protocol_fee=0,
-        lp_fee=fee_total,
+        protocol_fee=protocol_fee,
+        lp_fee=lp_fee,
         net_in=net_in_actual,
         gross_in=amount_in,
         new_reserve_in=new_reserve_in,

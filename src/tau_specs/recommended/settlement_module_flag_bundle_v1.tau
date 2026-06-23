@@ -1,0 +1,16 @@
+# Experimental settlement module flag bundle
+#
+# Purpose:
+# - compose the aligned settlement checklist from smaller reviewed bundles;
+# - keep the top-level settlement shell fail-closed while making the semantics
+#   of core, feature, and proof requirements explicit.
+#
+# Inputs:
+# i1 = core_module_ok
+# i2 = feature_extension_ok
+# i3 = proof_binding_ok
+# o1 = module_bundle_ok
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf))).

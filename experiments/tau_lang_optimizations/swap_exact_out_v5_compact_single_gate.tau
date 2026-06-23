@@ -1,0 +1,23 @@
+# Experimental swap exact-out v5, compact single-gate form
+#
+# Optimization idea:
+# - keep a single acceptance output;
+# - flatten the gate directly instead of composing intermediate outputs;
+# - replace heavy fee/k arithmetic with host-computed flags.
+#
+# Stream mapping:
+# i1 = reserve_in
+# i2 = reserve_out
+# i3 = amount_out
+# i4 = fee_bps
+# i5 = max_amount_in
+# i6 = amount_in
+# i7 = new_reserve_in
+# i8 = new_reserve_out
+# i9 = host_fee_math_ok
+# i10 = host_k_monotone_ok
+# o1 = swap_exact_out_valid
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <-> ((i1[t]:bv[32] > { #x00000000 }:bv[32]) && (i2[t]:bv[32] > { #x00000000 }:bv[32]) && (i3[t]:bv[32] > { #x00000000 }:bv[32]) && (i6[t]:bv[32] > { #x00000000 }:bv[32]) && (i4[t]:bv[32] <= { #x00002710 }:bv[32]) && (i3[t]:bv[32] < i2[t]:bv[32]) && (i6[t]:bv[32] <= i5[t]:bv[32]) && (i7[t]:bv[32] = i1[t]:bv[32] + i6[t]:bv[32]) && (i8[t]:bv[32] = i2[t]:bv[32] - i3[t]:bv[32]) && (i1[t]:bv[32] <= { #x0000FFFF }:bv[32]) && (i2[t]:bv[32] <= { #x0000FFFF }:bv[32]) && (i6[t]:bv[32] <= { #x0000FFFF }:bv[32]) && (i3[t]:bv[32] <= { #x0000FFFF }:bv[32]) && (i7[t]:bv[32] <= { #x0000FFFF }:bv[32]) && (i8[t]:bv[32] <= { #x0000FFFF }:bv[32]) && (i9[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf))).

@@ -1,0 +1,30 @@
+# Burn receipt amount/budget guard v1.
+# i1 = do_burn (sbf)
+# i2 = burn_amount (bv[32])
+# i3 = receipt_amount (bv[32])
+# i4 = burn_budget (bv[32])
+# o1 = amount_guard_valid
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <->
+    (
+      (i2[t]:bv[32] <= { #x00007FFF }:bv[32]) &&
+      (i3[t]:bv[32] <= { #x00007FFF }:bv[32]) &&
+      (i4[t]:bv[32] <= { #x00007FFF }:bv[32]) &&
+      (
+        (
+          (i1[t]:sbf = 0:sbf) &&
+          (i2[t]:bv[32] = { #x00000000 }:bv[32]) &&
+          (i3[t]:bv[32] = { #x00000000 }:bv[32])
+        ) ||
+        (
+          (i1[t]:sbf = 1:sbf) &&
+          (i2[t]:bv[32] > { #x00000000 }:bv[32]) &&
+          (i2[t]:bv[32] = i3[t]:bv[32]) &&
+          (i4[t]:bv[32] >= i2[t]:bv[32])
+        )
+      )
+    )
+  ).

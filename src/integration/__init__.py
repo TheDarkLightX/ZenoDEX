@@ -3,15 +3,12 @@ Tau Testnet Alpha integration layer
 """
 
 from .operations import (
-    parse_intents,
-    parse_settlement,
     create_intent_operation,
     create_settlement_operation,
+    parse_intents,
+    parse_settlement,
 )
-from .validation import (
-    validate_operations,
-    apply_operations,
-)
+from .validation import validate_operations
 
 __all__ = [
     "parse_intents",
@@ -19,6 +16,4 @@ __all__ = [
     "create_intent_operation",
     "create_settlement_operation",
     "validate_operations",
-    "apply_operations",
 ]
-

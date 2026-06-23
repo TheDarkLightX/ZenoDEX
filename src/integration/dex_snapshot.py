@@ -19,25 +19,34 @@ from ..core.oracle import OracleState
 from ..core.perps import (
     PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1,
     PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1,
+    PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1,
     PERP_MARKET_KIND_ISOLATED_V2,
     PERPS_STATE_VERSION_V5,
-    PerpAnyMarketState,
     PerpAccountState,
+    PerpAnyMarketState,
     PerpClearinghouse2pMarketState,
     PerpClearinghouse3pTransferMarketState,
+    PerpClearinghouseNpAccount,
+    PerpClearinghouseNpMarketState,
+    PerpClearinghouseNpPendingIntent,
     PerpMarketState,
     PerpsState,
     _infer_epoch_phase,
 )
 from ..core.vault import VaultState
 from ..state.balances import BalanceTable
-from ..state.canonical import bounded_json_utf8_size, canonical_json_bytes, domain_sep_bytes, sha256_hex
+from ..state.canonical import (
+    bounded_json_utf8_size,
+    canonical_hex_fixed_allow_0x,
+    canonical_json_bytes,
+    domain_sep_bytes,
+    sha256_hex,
+)
 from ..state.lp import LPTable
 from ..state.nonces import NonceTable
 from ..state.pools import PoolState, PoolStatus
 
-
-DEX_SNAPSHOT_VERSION = 2
+DEX_SNAPSHOT_VERSION = 4
 
 
 def _require_str(value: Any, *, name: str, non_empty: bool = True, max_len: int = 4096) -> str:
@@ -62,6 +71,23 @@ def _require_bool(value: Any, *, name: str) -> bool:
     if not isinstance(value, bool):
         raise TypeError(f"{name} must be a bool")
     return bool(value)
+
+
+def _snapshot_identity_key(value: str, *, nbytes: int, name: str) -> tuple[str, str]:
+    """Key used only for duplicate detection at snapshot boundaries.
+
+    Explicit ``0x`` fixed-width hex identifiers are compared by their decoded
+    identity (represented by canonical lowercase hex), matching the state-root
+    encoder. Symbolic dev/test identifiers and raw hex strings keep their raw
+    spelling for compatibility with local snapshot paths.
+    """
+
+    if not value.startswith("0x"):
+        return ("raw", value)
+    try:
+        return ("hex", canonical_hex_fixed_allow_0x(value, nbytes=nbytes, name=name))
+    except (TypeError, ValueError):
+        return ("raw", value)
 
 
 @dataclass(frozen=True)
@@ -110,6 +136,8 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
                 "lp_supply": int(pool.lp_supply),
                 "status": pool.status.value,
                 "created_at": int(pool.created_at),
+                "curve_tag": pool.curve_tag,
+                "curve_params": pool.curve_params,
             }
         )
     pools_entries.sort(key=lambda e: e["pool_id"])
@@ -119,6 +147,25 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
         for (pk, pool_id), amount in state.lp_balances.get_all_balances().items()
     ]
     lp_entries.sort(key=lambda e: (e["pubkey"], e["pool_id"]))
+
+    lp_mint_timestamp_entries = [
+        {"pubkey": pk, "pool_id": pool_id, "last_mint_timestamp": int(timestamp)}
+        for (pk, pool_id), timestamp in state.lp_balances.get_all_last_mint_timestamps().items()
+    ]
+    lp_mint_timestamp_entries.sort(key=lambda e: (e["pubkey"], e["pool_id"]))
+
+    lp_duration_risk_entries = []
+    for (pk, pool_id), metadata in state.lp_balances.get_all_duration_risk_metadata().items():
+        lp_duration_risk_entries.append(
+            {
+                "pubkey": pk,
+                "pool_id": pool_id,
+                "last_remove_timestamp": metadata.last_remove_timestamp,
+                "churn_tier": int(metadata.churn_tier),
+                "last_churn_update_timestamp": metadata.last_churn_update_timestamp,
+            }
+        )
+    lp_duration_risk_entries.sort(key=lambda e: (e["pubkey"], e["pool_id"]))
 
     nonce_entries = [{"pubkey": pk, "last_nonce": int(last)} for pk, last in state.nonces.get_all().items()]
     nonce_entries.sort(key=lambda e: e["pubkey"])
@@ -161,7 +208,7 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
                             "liquidated_this_step": bool(acct.liquidated_this_step),
                         }
                     )
-                acct_entries.sort(key=lambda e: e["pubkey"])
+                acct_entries.sort(key=lambda e: str(e["pubkey"]))
                 out_entry: Dict[str, Any] = {
                     "market_id": str(market_id),
                     "quote_asset": str(market.quote_asset),
@@ -198,6 +245,42 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
                 markets_entries.append(out_entry)
                 continue
 
+            if isinstance(market, PerpClearinghouseNpMarketState):
+                acct_entries = [
+                    {
+                        "pubkey": str(acct.pubkey),
+                        "position_base": int(acct.position_base),
+                        "entry_price_e8": int(acct.entry_price_e8),
+                        "collateral_e8": int(acct.collateral_e8),
+                        "funding_paid_cum_e8": int(acct.funding_paid_cum_e8),
+                        "nonce": int(acct.nonce),
+                    }
+                    for acct in market.accounts
+                ]
+                acct_entries.sort(key=lambda e: str(e["pubkey"]))
+                pending_entries = [
+                    {
+                        "pubkey": str(intent.pubkey),
+                        "target_base": int(intent.target_base),
+                        "limit_price_e8": int(intent.limit_price_e8),
+                        "min_fill_base": int(intent.min_fill_base),
+                        "expiry_epoch": int(intent.expiry_epoch),
+                        "nonce": int(intent.nonce),
+                    }
+                    for intent in market.pending_intents
+                ]
+                pending_entries.sort(key=lambda e: str(e["pubkey"]))
+                out_entry = {
+                    "market_id": str(market_id),
+                    "kind": str(getattr(market, "kind", PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1)),
+                    "quote_asset": str(market.quote_asset),
+                    "global_state": dict(market.global_state),
+                    "accounts": acct_entries,
+                    "pending_intents": pending_entries,
+                }
+                markets_entries.append(out_entry)
+                continue
+
             raise TypeError(f"unsupported perps market type: {type(market)}")
         markets_entries.sort(key=lambda e: e["market_id"])
         perps_obj = {"version": int(perps.version), "markets": markets_entries}
@@ -207,6 +290,8 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
         "balances": balances_entries,
         "pools": pools_entries,
         "lp_balances": lp_entries,
+        "lp_mint_timestamps": lp_mint_timestamp_entries,
+        "lp_duration_risk": lp_duration_risk_entries,
         "nonces": nonce_entries,
         "fee_accumulator": fee_acc_obj,
         "vault": vault_obj,
@@ -215,6 +300,27 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
     if int(version) >= 2:
         data["perps"] = perps_obj
     return DexSnapshot(version=version, data=data)
+
+
+def snapshot_with_legacy_lp_metadata_defaults(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
+    """Backfill optional LP metadata rails for legacy live app-state snapshots.
+
+    ``state_from_snapshot`` remains strict for persisted snapshot artifacts:
+    version 3+ snapshots must contain ``lp_mint_timestamps`` and version 4
+    snapshots must contain ``lp_duration_risk``. Some live Tau app-state views
+    predate those rails but are still used by non-LP surfaces such as perps and
+    zUSD status. Those callers can use this boundary helper before parsing.
+    """
+    if not isinstance(snapshot, Mapping):
+        raise TypeError("snapshot must be a mapping")
+    normalized = dict(snapshot)
+    version = normalized.get("version", DEX_SNAPSHOT_VERSION)
+    if isinstance(version, int) and not isinstance(version, bool):
+        if version >= 3 and "lp_mint_timestamps" not in normalized:
+            normalized["lp_mint_timestamps"] = []
+        if version >= 4 and "lp_duration_risk" not in normalized:
+            normalized["lp_duration_risk"] = []
+    return normalized
 
 
 def state_from_snapshot(
@@ -228,6 +334,7 @@ def state_from_snapshot(
     max_perp_markets: int = 10_000,
     max_perp_accounts: int = 200_000,
     max_str_len: int = 4096,
+    require_lp_mint_timestamps: bool = False,
 ) -> DexState:
     if not isinstance(snapshot, Mapping):
         raise TypeError("snapshot must be a mapping")
@@ -255,7 +362,7 @@ def state_from_snapshot(
     version = snapshot.get("version", DEX_SNAPSHOT_VERSION)
     if not isinstance(version, int) or isinstance(version, bool) or version <= 0:
         raise ValueError("snapshot.version must be a positive int")
-    if version not in (1, 2):
+    if version not in (1, 2, 3, 4):
         raise ValueError(f"unsupported snapshot version: {version}")
 
     balances = BalanceTable()
@@ -266,7 +373,7 @@ def state_from_snapshot(
         raise TypeError("snapshot.balances must be a list")
     if len(balances_entries) > max_balances:
         raise ValueError(f"too many balances entries: {len(balances_entries)} > {max_balances}")
-    seen_balances: set[tuple[str, str]] = set()
+    seen_balances: set[tuple[tuple[str, str], tuple[str, str]]] = set()
     for entry in balances_entries:
         if not isinstance(entry, Mapping):
             raise TypeError("snapshot.balances entries must be objects")
@@ -277,9 +384,12 @@ def state_from_snapshot(
         asset_s = _require_str(asset, name="balance.asset", non_empty=True, max_len=min(256, max_str_len))
         if not isinstance(amount, int) or isinstance(amount, bool) or amount < 0:
             raise ValueError("invalid balance entry (amount)")
-        key = (pk_s, asset_s)
+        key = (
+            _snapshot_identity_key(pk_s, nbytes=48, name="balance.pubkey"),
+            _snapshot_identity_key(asset_s, nbytes=32, name="balance.asset"),
+        )
         if key in seen_balances:
-            raise ValueError("duplicate balance entry (pubkey, asset)")
+            raise ValueError("duplicate decoded balance entry (pubkey, asset)")
         seen_balances.add(key)
         balances.set(pk_s, asset_s, amount)
 
@@ -291,12 +401,15 @@ def state_from_snapshot(
         raise TypeError("snapshot.pools must be a list")
     if len(pools_entries) > max_pools:
         raise ValueError(f"too many pools entries: {len(pools_entries)} > {max_pools}")
+    seen_pool_ids: set[tuple[str, str]] = set()
     for entry in pools_entries:
         if not isinstance(entry, Mapping):
             raise TypeError("snapshot.pools entries must be objects")
         pool_id = _require_str(entry.get("pool_id"), name="pool.pool_id", non_empty=True, max_len=min(256, max_str_len))
-        if pool_id in pools:
-            raise ValueError("duplicate pool entry (pool_id)")
+        pool_key = _snapshot_identity_key(pool_id, nbytes=32, name="pool.pool_id")
+        if pool_key in seen_pool_ids:
+            raise ValueError("duplicate decoded pool entry (pool_id)")
+        seen_pool_ids.add(pool_key)
         asset0 = entry.get("asset0")
         asset1 = entry.get("asset1")
         asset0_s = _require_str(asset0, name="pool.asset0", non_empty=True, max_len=min(256, max_str_len))
@@ -319,6 +432,8 @@ def state_from_snapshot(
             lp_supply=_require_int(entry.get("lp_supply", 0), name="lp_supply"),
             status=status,
             created_at=_require_int(entry.get("created_at", 0), name="created_at"),
+            curve_tag=_require_str(entry.get("curve_tag", "CPMM"), name="pool.curve_tag", non_empty=True, max_len=min(256, max_str_len)),
+            curve_params=_require_str(entry.get("curve_params", ""), name="pool.curve_params", non_empty=False, max_len=min(max_snapshot_bytes, max_str_len)),
         )
 
     lp_balances = LPTable()
@@ -329,22 +444,117 @@ def state_from_snapshot(
         raise TypeError("snapshot.lp_balances must be a list")
     if len(lp_entries) > max_lp_balances:
         raise ValueError(f"too many lp_balances entries: {len(lp_entries)} > {max_lp_balances}")
-    seen_lp: set[tuple[str, str]] = set()
+    seen_lp: set[tuple[tuple[str, str], tuple[str, str]]] = set()
     for entry in lp_entries:
         if not isinstance(entry, Mapping):
             raise TypeError("snapshot.lp_balances entries must be objects")
         pk = entry.get("pubkey")
-        pool_id = entry.get("pool_id")
+        pool_id_raw = entry.get("pool_id")
         amount = entry.get("amount")
         pk_s = _require_str(pk, name="lp.pubkey", non_empty=True, max_len=min(512, max_str_len))
-        pool_id_s = _require_str(pool_id, name="lp.pool_id", non_empty=True, max_len=min(256, max_str_len))
+        pool_id_s = _require_str(pool_id_raw, name="lp.pool_id", non_empty=True, max_len=min(256, max_str_len))
         if not isinstance(amount, int) or isinstance(amount, bool) or amount < 0:
             raise ValueError("invalid lp entry (amount)")
-        key = (pk_s, pool_id_s)
+        key = (
+            _snapshot_identity_key(pk_s, nbytes=48, name="lp.pubkey"),
+            _snapshot_identity_key(pool_id_s, nbytes=32, name="lp.pool_id"),
+        )
         if key in seen_lp:
-            raise ValueError("duplicate lp entry (pubkey, pool_id)")
+            raise ValueError("duplicate decoded lp entry (pubkey, pool_id)")
         seen_lp.add(key)
         lp_balances.set(pk_s, pool_id_s, amount)
+
+    lp_mint_timestamp_entries = snapshot.get("lp_mint_timestamps")
+    if version >= 3 and lp_mint_timestamp_entries is None:
+        raise ValueError("snapshot.lp_mint_timestamps is required for snapshot v3+")
+    if lp_mint_timestamp_entries is None:
+        lp_mint_timestamp_entries = []
+    if not isinstance(lp_mint_timestamp_entries, list):
+        raise TypeError("snapshot.lp_mint_timestamps must be a list")
+    if len(lp_mint_timestamp_entries) > max_lp_balances:
+        raise ValueError(
+            f"too many lp_mint_timestamps entries: {len(lp_mint_timestamp_entries)} > {max_lp_balances}"
+        )
+    seen_lp_mint: set[tuple[tuple[str, str], tuple[str, str]]] = set()
+    for entry in lp_mint_timestamp_entries:
+        if not isinstance(entry, Mapping):
+            raise TypeError("snapshot.lp_mint_timestamps entries must be objects")
+        pk = entry.get("pubkey")
+        pool_id_raw = entry.get("pool_id")
+        timestamp = entry.get("last_mint_timestamp")
+        pk_s = _require_str(pk, name="lp_mint.pubkey", non_empty=True, max_len=min(512, max_str_len))
+        pool_id_s = _require_str(
+            pool_id_raw,
+            name="lp_mint.pool_id",
+            non_empty=True,
+            max_len=min(256, max_str_len),
+        )
+        if not isinstance(timestamp, int) or isinstance(timestamp, bool) or timestamp < 0:
+            raise ValueError("invalid lp_mint_timestamps entry (last_mint_timestamp)")
+        key = (
+            _snapshot_identity_key(pk_s, nbytes=48, name="lp_mint.pubkey"),
+            _snapshot_identity_key(pool_id_s, nbytes=32, name="lp_mint.pool_id"),
+        )
+        if key in seen_lp_mint:
+            raise ValueError("duplicate decoded lp_mint_timestamps entry (pubkey, pool_id)")
+        seen_lp_mint.add(key)
+        lp_balances.set_last_mint_timestamp(pk_s, pool_id_s, timestamp)
+
+    lp_duration_risk_entries = snapshot.get("lp_duration_risk")
+    if version >= 4 and lp_duration_risk_entries is None:
+        raise ValueError("snapshot.lp_duration_risk is required for snapshot v4")
+    if lp_duration_risk_entries is None:
+        lp_duration_risk_entries = []
+    if not isinstance(lp_duration_risk_entries, list):
+        raise TypeError("snapshot.lp_duration_risk must be a list")
+    if len(lp_duration_risk_entries) > max_lp_balances:
+        raise ValueError(f"too many lp_duration_risk entries: {len(lp_duration_risk_entries)} > {max_lp_balances}")
+    seen_lp_duration: set[tuple[tuple[str, str], tuple[str, str]]] = set()
+    for entry in lp_duration_risk_entries:
+        if not isinstance(entry, Mapping):
+            raise TypeError("snapshot.lp_duration_risk entries must be objects")
+        pk = entry.get("pubkey")
+        pool_id_raw = entry.get("pool_id")
+        pk_s = _require_str(pk, name="lp_duration.pubkey", non_empty=True, max_len=min(512, max_str_len))
+        pool_id_s = _require_str(
+            pool_id_raw,
+            name="lp_duration.pool_id",
+            non_empty=True,
+            max_len=min(256, max_str_len),
+        )
+        key = (
+            _snapshot_identity_key(pk_s, nbytes=48, name="lp_duration.pubkey"),
+            _snapshot_identity_key(pool_id_s, nbytes=32, name="lp_duration.pool_id"),
+        )
+        if key in seen_lp_duration:
+            raise ValueError("duplicate decoded lp_duration_risk entry (pubkey, pool_id)")
+        seen_lp_duration.add(key)
+        last_remove = entry.get("last_remove_timestamp")
+        if last_remove is not None:
+            lp_balances.set_last_remove_timestamp(
+                pk_s,
+                pool_id_s,
+                _require_int(last_remove, name="lp_duration.last_remove_timestamp"),
+            )
+        churn_tier = _require_int(entry.get("churn_tier", 0), name="lp_duration.churn_tier")
+        lp_balances.set_churn_tier(pk_s, pool_id_s, churn_tier)
+        last_churn_update = entry.get("last_churn_update_timestamp")
+        if last_churn_update is not None:
+            lp_balances.set_last_churn_update_timestamp(
+                pk_s,
+                pool_id_s,
+                _require_int(last_churn_update, name="lp_duration.last_churn_update_timestamp"),
+            )
+
+    if require_lp_mint_timestamps:
+        missing_lp_age = [
+            (pk, pool_id)
+            for (pk, pool_id), amount in lp_balances.get_all_balances().items()
+            if amount > 0 and lp_balances.get_last_mint_timestamp(pk, pool_id) is None
+        ]
+        if missing_lp_age:
+            pk, pool_id = sorted(missing_lp_age)[0]
+            raise ValueError(f"missing lp_mint_timestamps entry for positive LP balance: {pk}:{pool_id}")
 
     nonces = NonceTable()
     nonce_entries = snapshot.get("nonces")
@@ -354,7 +564,7 @@ def state_from_snapshot(
         raise TypeError("snapshot.nonces must be a list")
     if len(nonce_entries) > max_nonces:
         raise ValueError(f"too many nonces entries: {len(nonce_entries)} > {max_nonces}")
-    seen_nonce_pks: set[str] = set()
+    seen_nonce_pks: set[tuple[str, str]] = set()
     for entry in nonce_entries:
         if not isinstance(entry, Mapping):
             raise TypeError("snapshot.nonces entries must be objects")
@@ -364,9 +574,10 @@ def state_from_snapshot(
             raise ValueError("invalid nonce entry (last_nonce)")
         if last_nonce > 0xFFFFFFFF:
             raise ValueError("invalid nonce entry (last_nonce out of u32 range)")
-        if pk in seen_nonce_pks:
-            raise ValueError("duplicate nonce entry (pubkey)")
-        seen_nonce_pks.add(pk)
+        nonce_key = _snapshot_identity_key(pk, nbytes=48, name="nonce.pubkey")
+        if nonce_key in seen_nonce_pks:
+            raise ValueError("duplicate decoded nonce entry (pubkey)")
+        seen_nonce_pks.add(nonce_key)
         nonces.set_last(pk, int(last_nonce))
 
     missing = object()
@@ -607,6 +818,116 @@ def state_from_snapshot(
                         account_b_pubkey=account_b,
                         account_c_pubkey=account_c,
                         state=state_dict,
+                    )
+                    continue
+
+                if kind == PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1:
+                    quote_asset = _require_str(
+                        entry.get("quote_asset"),
+                        name="perps.quote_asset",
+                        non_empty=True,
+                        max_len=min(256, max_str_len),
+                    )
+                    global_state = entry.get("global_state")
+                    if not isinstance(global_state, Mapping):
+                        raise TypeError("perps.chnp.global_state must be an object")
+                    global_state_dict = dict(global_state)
+
+                    acct_entries = entry.get("accounts")
+                    if acct_entries is None:
+                        acct_entries = []
+                    if not isinstance(acct_entries, list):
+                        raise TypeError("perps.chnp.accounts must be a list")
+                    if len(acct_entries) > max_perp_accounts:
+                        raise ValueError(
+                            f"too many perps accounts in market {market_id}: {len(acct_entries)} > {max_perp_accounts}"
+                        )
+                    np_accounts: list[PerpClearinghouseNpAccount] = []
+                    for acct in acct_entries:
+                        if not isinstance(acct, Mapping):
+                            raise TypeError("perps.chnp.accounts entries must be objects")
+                        np_accounts.append(
+                            PerpClearinghouseNpAccount(
+                                pubkey=_require_str(
+                                    acct.get("pubkey"),
+                                    name="perps.chnp.account.pubkey",
+                                    non_empty=True,
+                                    max_len=min(512, max_str_len),
+                                ),
+                                position_base=_require_int(
+                                    acct.get("position_base", 0),
+                                    name="perps.chnp.account.position_base",
+                                    non_negative=False,
+                                ),
+                                entry_price_e8=_require_int(
+                                    acct.get("entry_price_e8", 0),
+                                    name="perps.chnp.account.entry_price_e8",
+                                ),
+                                collateral_e8=_require_int(
+                                    acct.get("collateral_e8", 0),
+                                    name="perps.chnp.account.collateral_e8",
+                                ),
+                                funding_paid_cum_e8=_require_int(
+                                    acct.get("funding_paid_cum_e8", 0),
+                                    name="perps.chnp.account.funding_paid_cum_e8",
+                                    non_negative=False,
+                                ),
+                                nonce=_require_int(acct.get("nonce", 0), name="perps.chnp.account.nonce"),
+                            )
+                        )
+
+                    pending_entries = entry.get("pending_intents")
+                    if pending_entries is None:
+                        pending_entries = []
+                    if not isinstance(pending_entries, list):
+                        raise TypeError("perps.chnp.pending_intents must be a list")
+                    if len(pending_entries) > max_perp_accounts:
+                        raise ValueError(
+                            "too many perps pending intents in market "
+                            f"{market_id}: {len(pending_entries)} > {max_perp_accounts}"
+                        )
+                    pending_intents: list[PerpClearinghouseNpPendingIntent] = []
+                    for intent in pending_entries:
+                        if not isinstance(intent, Mapping):
+                            raise TypeError("perps.chnp.pending_intents entries must be objects")
+                        pending_intents.append(
+                            PerpClearinghouseNpPendingIntent(
+                                pubkey=_require_str(
+                                    intent.get("pubkey"),
+                                    name="perps.chnp.pending_intent.pubkey",
+                                    non_empty=True,
+                                    max_len=min(512, max_str_len),
+                                ),
+                                target_base=_require_int(
+                                    intent.get("target_base", 0),
+                                    name="perps.chnp.pending_intent.target_base",
+                                    non_negative=False,
+                                ),
+                                limit_price_e8=_require_int(
+                                    intent.get("limit_price_e8", 0),
+                                    name="perps.chnp.pending_intent.limit_price_e8",
+                                ),
+                                min_fill_base=_require_int(
+                                    intent.get("min_fill_base", 0),
+                                    name="perps.chnp.pending_intent.min_fill_base",
+                                ),
+                                expiry_epoch=_require_int(
+                                    intent.get("expiry_epoch", 1 << 62),
+                                    name="perps.chnp.pending_intent.expiry_epoch",
+                                ),
+                                nonce=_require_int(
+                                    intent.get("nonce"),
+                                    name="perps.chnp.pending_intent.nonce",
+                                ),
+                            )
+                        )
+
+                    markets[market_id] = PerpClearinghouseNpMarketState(
+                        kind=PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1,
+                        quote_asset=quote_asset,
+                        global_state=global_state_dict,
+                        accounts=tuple(np_accounts),
+                        pending_intents=tuple(pending_intents),
                     )
                     continue
 

@@ -1,0 +1,313 @@
+ir_version: "esso-ir/v1"
+
+meta:
+  model_id: "fire_fee_note_v1"
+  description: "FIRE reference kernel for a capped fee-index note"
+  tags: ["fire", "zpl", "derivatives", "fee-index", "collateral", "admission"]
+  notes: |
+    Scope:
+      - Models one FIRE object class: a capped linear note on a fee index.
+      - Separates compiler output (`artifact_lower`, `artifact_upper`) from
+        verifier/runtime acceptance (`writer_posted`, `holder_posted`).
+      - Verifies the core public theorem:
+          FIRE-V accept -> bounded, zero-sum, no-default settlement.
+
+    FeeNote payoff:
+      holder_delta = N * min(F_final, Cap)
+      writer_delta = -holder_delta
+
+    The compiled artifact is:
+      artifact_lower = 0
+      artifact_upper = N * min(SourceUpper, Cap)
+
+    This kernel is intentionally small. It exercises a second FIRE family on
+    the shared certificate checker without widening the verifier surface.
+
+observables:
+  state_vars:
+    [
+      "phase",
+      "artifact_lower",
+      "artifact_upper",
+      "holder_delta",
+      "writer_delta",
+      "holder_posted",
+      "writer_posted",
+    ]
+  effects: ["firev_accept", "payoff_out", "compiled_upper"]
+
+types:
+  - id: "t_phase"
+    type:
+      kind: "enum"
+      symbols: ["Idle", "Compiled", "Settled"]
+
+state_vars:
+  - id: "phase"
+    role: "control"
+    type: { kind: "enum", symbols: ["Idle", "Compiled", "Settled"] }
+
+  - id: "n_notional"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+
+  - id: "cap_index"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+
+  - id: "source_upper"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+
+  - id: "artifact_lower"
+    role: "data"
+    type: { kind: "int", min: 0, max: 0 }
+
+  - id: "artifact_upper"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  - id: "witness_final"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+
+  - id: "holder_delta"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  - id: "writer_delta"
+    role: "data"
+    type: { kind: "int", min: -1000000, max: 0 }
+
+  - id: "holder_posted"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  - id: "writer_posted"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+init:
+  - var: "phase"
+    expr: { enum: "Idle" }
+  - var: "n_notional"
+    expr: { const: 0 }
+  - var: "cap_index"
+    expr: { const: 0 }
+  - var: "source_upper"
+    expr: { const: 0 }
+  - var: "artifact_lower"
+    expr: { const: 0 }
+  - var: "artifact_upper"
+    expr: { const: 0 }
+  - var: "witness_final"
+    expr: { const: 0 }
+  - var: "holder_delta"
+    expr: { const: 0 }
+  - var: "writer_delta"
+    expr: { const: 0 }
+  - var: "holder_posted"
+    expr: { const: 0 }
+  - var: "writer_posted"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_compiled_lower_is_zero"
+    kind: "safety"
+    expr:
+      op: "ite"
+      cond: { op: "=", args: [{ var: "phase" }, { enum: "Idle" }] }
+      then: { bool: true }
+      else: { op: "=", args: [{ var: "artifact_lower" }, { const: 0 }] }
+
+  - id: "inv_compiled_upper_matches_n_min_source_cap"
+    kind: "safety"
+    expr:
+      op: "ite"
+      cond: { op: "=", args: [{ var: "phase" }, { enum: "Idle" }] }
+      then: { bool: true }
+      else:
+        op: "="
+        args:
+          - { var: "artifact_upper" }
+          - op: "*"
+            args:
+              - { var: "n_notional" }
+              - op: "ite"
+                cond:
+                  op: "<="
+                  args: [{ var: "source_upper" }, { var: "cap_index" }]
+                then: { var: "source_upper" }
+                else: { var: "cap_index" }
+
+  - id: "inv_settled_holder_delta_nonnegative"
+    kind: "safety"
+    expr:
+      op: "ite"
+      cond: { op: "=", args: [{ var: "phase" }, { enum: "Settled" }] }
+      then: { op: ">=", args: [{ var: "holder_delta" }, { const: 0 }] }
+      else: { bool: true }
+
+  - id: "inv_settled_holder_delta_bounded"
+    kind: "safety"
+    expr:
+      op: "ite"
+      cond: { op: "=", args: [{ var: "phase" }, { enum: "Settled" }] }
+      then: { op: "<=", args: [{ var: "holder_delta" }, { var: "artifact_upper" }] }
+      else: { bool: true }
+
+  - id: "inv_settled_writer_is_neg_holder"
+    kind: "safety"
+    expr:
+      op: "ite"
+      cond: { op: "=", args: [{ var: "phase" }, { enum: "Settled" }] }
+      then:
+        op: "="
+        args:
+          - { var: "writer_delta" }
+          - op: "-"
+            args: [{ const: 0 }, { var: "holder_delta" }]
+      else: { bool: true }
+
+  - id: "inv_delta_conservation"
+    kind: "safety"
+    expr:
+      op: "ite"
+      cond: { op: "=", args: [{ var: "phase" }, { enum: "Settled" }] }
+      then:
+        op: "="
+        args:
+          - op: "+"
+            args: [{ var: "holder_delta" }, { var: "writer_delta" }]
+          - { const: 0 }
+      else: { bool: true }
+
+  - id: "inv_holder_solvent_after_accept"
+    kind: "safety"
+    expr:
+      op: "ite"
+      cond: { op: "=", args: [{ var: "phase" }, { enum: "Settled" }] }
+      then:
+        op: ">="
+        args:
+          - op: "+"
+            args: [{ var: "holder_posted" }, { var: "holder_delta" }]
+          - { const: 0 }
+      else: { bool: true }
+
+  - id: "inv_writer_solvent_after_accept"
+    kind: "safety"
+    expr:
+      op: "ite"
+      cond: { op: "=", args: [{ var: "phase" }, { enum: "Settled" }] }
+      then:
+        op: ">="
+        args:
+          - op: "+"
+            args: [{ var: "writer_posted" }, { var: "writer_delta" }]
+          - { const: 0 }
+      else: { bool: true }
+
+actions:
+  - id: "compile_fee_note"
+    description: "Compiler emits the FIRE interval artifact [0, N * min(SourceUpper, Cap)]"
+    params:
+      - id: "n_in"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "cap_in"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "source_upper_in"
+        type: { kind: "int", min: 0, max: 1000 }
+    guard:
+      op: "="
+      args: [{ var: "phase" }, { enum: "Idle" }]
+    updates:
+      - var: "n_notional"
+        expr: { param: "n_in" }
+      - var: "cap_index"
+        expr: { param: "cap_in" }
+      - var: "source_upper"
+        expr: { param: "source_upper_in" }
+      - var: "artifact_lower"
+        expr: { const: 0 }
+      - var: "artifact_upper"
+        expr:
+          op: "*"
+          args:
+            - { param: "n_in" }
+            - op: "ite"
+              cond:
+                op: "<="
+                args: [{ param: "source_upper_in" }, { param: "cap_in" }]
+              then: { param: "source_upper_in" }
+              else: { param: "cap_in" }
+      - var: "phase"
+        expr: { enum: "Compiled" }
+    effects:
+      firev_accept: { bool: false }
+      payoff_out: { const: 0 }
+      compiled_upper:
+        op: "*"
+        args:
+          - { param: "n_in" }
+          - op: "ite"
+            cond:
+              op: "<="
+              args: [{ param: "source_upper_in" }, { param: "cap_in" }]
+            then: { param: "source_upper_in" }
+            else: { param: "cap_in" }
+
+  - id: "firev_accept_and_settle"
+    description: "Small verifier accepts the certificate and settles the object"
+    params:
+      - id: "witness_final_in"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "holder_posted_in"
+        type: { kind: "int", min: 0, max: 1000000 }
+      - id: "writer_posted_in"
+        type: { kind: "int", min: 0, max: 1000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "Compiled" }] }
+        - { op: "<=", args: [{ param: "witness_final_in" }, { var: "source_upper" }] }
+        - { op: ">=", args: [{ param: "holder_posted_in" }, { var: "artifact_lower" }] }
+        - { op: ">=", args: [{ param: "writer_posted_in" }, { var: "artifact_upper" }] }
+    updates:
+      - var: "witness_final"
+        expr: { param: "witness_final_in" }
+      - var: "holder_posted"
+        expr: { param: "holder_posted_in" }
+      - var: "writer_posted"
+        expr: { param: "writer_posted_in" }
+      - var: "holder_delta"
+        expr:
+          op: "*"
+          args:
+            - { var: "n_notional" }
+            - op: "ite"
+              cond:
+                op: "<="
+                args: [{ param: "witness_final_in" }, { var: "cap_index" }]
+              then: { param: "witness_final_in" }
+              else: { var: "cap_index" }
+      - var: "writer_delta"
+        expr:
+          op: "-"
+          args:
+            - { const: 0 }
+            - op: "*"
+              args:
+                - { var: "n_notional" }
+                - op: "ite"
+                  cond:
+                    op: "<="
+                    args: [{ param: "witness_final_in" }, { var: "cap_index" }]
+                  then: { param: "witness_final_in" }
+                  else: { var: "cap_index" }
+      - var: "phase"
+        expr: { enum: "Settled" }
+    effects:
+      firev_accept: { bool: true }
+      payoff_out: { var: "holder_delta" }
+      compiled_upper: { var: "artifact_upper" }

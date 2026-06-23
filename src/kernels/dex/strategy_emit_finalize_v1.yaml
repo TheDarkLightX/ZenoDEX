@@ -1,0 +1,37 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_emit_finalize_v1"
+  created_by: "zenodex"
+  notes: |
+    Final one-bit compose for the live auto-trader emit path.
+
+    This stays intentionally tiny: actual emission is allowed only when the
+    higher-order system compose passes and the concrete submit bundle also passes.
+observables:
+  state_vars: []
+  effects: ["emit_finalize_ok"]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "finalize_emit"
+    params:
+      - id: "emit_requested"
+        type: { kind: "bool" }
+      - id: "system_compose_ok"
+        type: { kind: "bool" }
+      - id: "submit_bundle_ok"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      emit_finalize_ok:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ param: "emit_requested" }]
+          - op: "and"
+            args:
+              - { param: "system_compose_ok" }
+              - { param: "submit_bundle_ok" }

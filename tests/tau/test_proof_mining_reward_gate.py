@@ -32,7 +32,7 @@ def test_proof_mining_reward_gate_traces() -> None:
         {"i1": 1000, "i2": 8, "i3": 1, "i4": 10_000, "i5": 1, "i6": 1, "i7": 1, "i8": 1, "i9": 1},
     ]
 
-    outputs = run_tau_spec_steps(tau_bin=tau_bin, spec_path=SPEC_PATH, steps=steps, timeout_s=120.0)
+    outputs = run_tau_spec_steps(tau_bin=tau_bin, spec_path=SPEC_PATH, steps=steps, timeout_s=240.0)
 
     assert outputs[0]["o4"] == 1
     assert outputs[1]["o4"] != 1

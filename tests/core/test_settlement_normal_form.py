@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from src.core.settlement_normal_form import normalize_settlement_op_for_commitment
 
 
@@ -69,3 +71,30 @@ def test_normalize_settlement_op_sorts_fills_deterministically() -> None:
 
     assert normalize_settlement_op_for_commitment(op1) == normalize_settlement_op_for_commitment(op2)
 
+
+def test_normalize_settlement_op_rejects_unknown_delta_fields() -> None:
+    op = {
+        "included_intents": [],
+        "fills": [],
+        "balance_deltas": [
+            {"pubkey": "alice", "asset": "ETH", "delta_add": 1, "vault": {"hidden": 1}},
+        ],
+        "reserve_deltas": [],
+        "lp_deltas": [],
+    }
+
+    with pytest.raises(TypeError, match="balance_deltas entries have unknown fields: vault"):
+        normalize_settlement_op_for_commitment(op)
+
+
+def test_normalize_settlement_op_rejects_negative_delta_amounts() -> None:
+    op = {
+        "included_intents": [],
+        "fills": [],
+        "balance_deltas": [{"pubkey": "alice", "asset": "ETH", "delta_add": -1}],
+        "reserve_deltas": [],
+        "lp_deltas": [],
+    }
+
+    with pytest.raises(ValueError, match="balance_deltas.delta_add must be non-negative"):
+        normalize_settlement_op_for_commitment(op)

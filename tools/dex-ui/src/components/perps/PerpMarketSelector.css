@@ -1,0 +1,81 @@
+/* PerpMarketSelector */
+.perp-market-selector {
+    display: flex;
+    gap: var(--space-sm);
+    overflow-x: auto;
+    padding-bottom: var(--space-sm);
+    scrollbar-width: thin;
+}
+
+.perp-market-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    padding: var(--space-sm) var(--space-md);
+    min-width: 160px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: border-color var(--transition-fast), background var(--transition-fast);
+    text-align: left;
+    font-family: var(--font-sans);
+    color: var(--text-primary);
+}
+
+.perp-market-card:hover {
+    background: var(--bg-elev-1);
+    border-color: var(--text-muted);
+}
+
+.perp-market-card.selected {
+    border-color: var(--accent-signal);
+    background: var(--accent-signal-soft);
+    box-shadow: inset 3px 0 0 var(--accent-signal);
+}
+
+.perp-market-card-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.perp-market-icon {
+    font-size: var(--font-size-lg);
+}
+
+.perp-market-id {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+}
+
+.perp-market-breaker-badge {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 4px;
+    background: var(--perp-extreme-bg);
+    color: var(--perp-extreme);
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: auto;
+}
+
+.perp-market-card-price {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    font-family: var(--font-mono);
+}
+
+.perp-market-card-funding {
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+}
+
+.perp-market-card-funding.positive {
+    color: var(--perp-long);
+}
+
+.perp-market-card-funding.negative {
+    color: var(--perp-short);
+}

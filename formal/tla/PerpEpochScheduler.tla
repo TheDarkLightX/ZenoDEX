@@ -1,5 +1,5 @@
 ---- MODULE PerpEpochScheduler ----
-EXTENDS Naturals, FiniteSets
+EXTENDS Integers, FiniteSets
 
 (*
 Perp epoch scheduler (liveness-first) — abstract model.
@@ -19,13 +19,13 @@ If you want a more concrete model later, refine this by adding:
 - oracle staleness + bounded-move clamp/breaker triggers.
 *)
 
-CONSTANTS
-  ACCOUNTS,     \* finite set of trader accounts
-  POS_SET,      \* finite set of allowed positions (ints)
-  EPOCH_MAX     \* small bound for TLC exploration
+ACCOUNTS == {0, 1}   \* finite set of trader accounts
+POS_SET == {-2, -1, 0, 1, 2}
+EPOCH_MAX == 3
 
 VARIABLES
   nowEpoch,
+  oracleLastUpdateEpoch,
   clearingSeen,
   breakerActive,
   pos
@@ -35,6 +35,8 @@ Abs(x) == IF x < 0 THEN -x ELSE x
 
 TypeOK ==
   /\ nowEpoch \in 0..EPOCH_MAX
+  /\ oracleLastUpdateEpoch \in 0..EPOCH_MAX
+  /\ oracleLastUpdateEpoch <= nowEpoch
   /\ clearingSeen \in BOOLEAN
   /\ breakerActive \in BOOLEAN
   /\ pos \in [ACCOUNTS -> POS_SET]
@@ -48,24 +50,28 @@ ReduceOnlyOK(a, newPos) ==
 
 Init ==
   /\ nowEpoch = 0
+  /\ oracleLastUpdateEpoch = 0
   /\ clearingSeen = FALSE
   /\ breakerActive = FALSE
   /\ pos = [a \in ACCOUNTS |-> 0]
 
 AdvanceEpoch ==
   /\ ~clearingSeen
+  /\ oracleLastUpdateEpoch = nowEpoch
   /\ nowEpoch < EPOCH_MAX
   /\ nowEpoch' = nowEpoch + 1
-  /\ UNCHANGED <<clearingSeen, breakerActive, pos>>
+  /\ UNCHANGED <<oracleLastUpdateEpoch, clearingSeen, breakerActive, pos>>
 
 PublishClearing ==
   /\ ~clearingSeen
-  /\ nowEpoch > 0
+  /\ oracleLastUpdateEpoch < nowEpoch
   /\ clearingSeen' = TRUE
-  /\ UNCHANGED <<nowEpoch, breakerActive, pos>>
+  /\ UNCHANGED <<nowEpoch, oracleLastUpdateEpoch, breakerActive, pos>>
 
 SettleEpoch ==
   /\ clearingSeen
+  /\ oracleLastUpdateEpoch < nowEpoch
+  /\ oracleLastUpdateEpoch' = nowEpoch
   /\ clearingSeen' = FALSE
   \* The breaker may toggle based on an out-of-bounds move in the concrete engine.
   /\ breakerActive' \in BOOLEAN
@@ -75,14 +81,14 @@ ClearBreaker ==
   /\ breakerActive
   /\ \A a \in ACCOUNTS: pos[a] = 0
   /\ breakerActive' = FALSE
-  /\ UNCHANGED <<nowEpoch, clearingSeen, pos>>
+  /\ UNCHANGED <<nowEpoch, oracleLastUpdateEpoch, clearingSeen, pos>>
 
 SetPosition ==
   \E a \in ACCOUNTS:
     \E newPos \in POS_SET:
       /\ ReduceOnlyOK(a, newPos)
       /\ pos' = [pos EXCEPT ![a] = newPos]
-      /\ UNCHANGED <<nowEpoch, clearingSeen, breakerActive>>
+      /\ UNCHANGED <<nowEpoch, oracleLastUpdateEpoch, clearingSeen, breakerActive>>
 
 Next ==
   AdvanceEpoch
@@ -92,15 +98,36 @@ Next ==
   \/ SetPosition
 
 Spec ==
-  Init /\ [][Next]_<<nowEpoch, clearingSeen, breakerActive, pos>>
+  Init /\ [][Next]_<<nowEpoch, oracleLastUpdateEpoch, clearingSeen, breakerActive, pos>>
+
+PendingEpoch ==
+  oracleLastUpdateEpoch < nowEpoch
+
+PendingPublish ==
+  PendingEpoch /\ ~clearingSeen
 
 \* Liveness: under weak fairness of settling, we never get stuck with a pending clearing price.
 EventuallySettles ==
-  [](clearingSeen => <> ~clearingSeen)
+  [](PendingEpoch => <> (oracleLastUpdateEpoch = nowEpoch))
+
+EventuallyPublishes ==
+  [](PendingPublish => <> clearingSeen)
+
+PublishedEventuallySettles ==
+  [](clearingSeen => <> (oracleLastUpdateEpoch = nowEpoch /\ ~clearingSeen))
 
 \* Typical fairness assumption for the operator path:
 Fair ==
-  WF_<<nowEpoch, clearingSeen, breakerActive, pos>>(SettleEpoch)
+  /\ WF_<<nowEpoch, oracleLastUpdateEpoch, clearingSeen, breakerActive, pos>>(PublishClearing)
+  /\ WF_<<nowEpoch, oracleLastUpdateEpoch, clearingSeen, breakerActive, pos>>(SettleEpoch)
+
+FairImpliesEventuallySettles ==
+  Fair => EventuallySettles
+
+FairImpliesEventuallyPublishes ==
+  Fair => EventuallyPublishes
+
+FairImpliesPublishedEventuallySettles ==
+  Fair => PublishedEventuallySettles
 
 ==== 
-

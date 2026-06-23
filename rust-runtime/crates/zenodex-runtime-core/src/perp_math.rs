@@ -1,0 +1,748 @@
+//! Stateless perp risk arithmetic — shadow of `src/core/perp_v2/math.py`.
+//!
+//! These are pure integer functions (oracle freshness, price clamp, margin,
+//! PnL, liquidation eligibility, funding). They are the smallest self-contained
+//! perps slice: no state, no epoch lifecycle. The stateful engine
+//! (`perp_v2/engine.py`, `updates.py`) is a later, larger slice.
+//!
+//! Signedness & rounding (the parity-critical part):
+//! * Values are **signed** (`i128`): `position_base` (long>0/short<0),
+//!   `rate_bps`, price differences, `collateral_after_pnl`, and the PnL/funding
+//!   outputs. So this module uses `i128`, unlike the unsigned kernels.
+//! * The Python authority computes every floor-division on **non-negative
+//!   magnitudes** where possible. A few stateless-math probes still permit
+//!   negative price inputs, so signed divisions use Python-compatible floor
+//!   division instead of Rust's truncating `/`.
+//! * Inputs are domain-bounded by the caller (the CLI bridge rejects magnitude
+//!   args outside ±[`MAX_ABS`] and bps args outside ±[`MAX_BPS`]). Within those
+//!   bounds the worst intermediate product is
+//!   `(MAX_ABS·MAX_ABS / PRICE_SCALE)·MAX_BPS = 1e35 < i128::MAX (≈1.7e38)`, so
+//!   no multiplication can overflow.
+
+/// Price fixed-point scale (1e8), matching `PRICE_SCALE` in Python.
+pub const PRICE_SCALE: i128 = 100_000_000;
+/// Basis-point scale (1e4), matching `BPS_SCALE` in Python.
+pub const BPS_SCALE: i128 = 10_000;
+
+/// Conservative magnitude bound for price/position/collateral/epoch inputs.
+/// Real perp domain values (collateral ≤ 1e15, prices/positions far smaller)
+/// sit well inside this.
+pub const MAX_ABS: i128 = 1_000_000_000_000_000_000; // 1e18
+/// Bound for basis-point inputs. Real rates/margins are ≤ a few ×1e4; this
+/// keeps `notional·bps` (≤ 1e28·1e7 = 1e35) safely inside `i128`.
+pub const MAX_BPS: i128 = 10_000_000; // 1e7
+/// Largest absolute notional from the public bridge domain.
+pub const MAX_NOTIONAL_QUOTE: i128 = (MAX_ABS * MAX_ABS) / PRICE_SCALE;
+/// Largest absolute PnL from the public bridge domain.
+pub const MAX_PNL_QUOTE: i128 = (MAX_ABS * (2 * MAX_ABS)) / PRICE_SCALE;
+/// Largest absolute margin/funding value from the public bridge domain.
+pub const MAX_MARGIN_QUOTE: i128 = (MAX_NOTIONAL_QUOTE * (2 * MAX_BPS)) / BPS_SCALE;
+
+#[inline]
+pub fn in_abs_domain(value: i128) -> bool {
+    matches!(value.checked_abs(), Some(abs) if abs <= MAX_ABS)
+}
+
+#[inline]
+pub fn in_bps_domain(value: i128) -> bool {
+    matches!(value.checked_abs(), Some(abs) if abs <= MAX_BPS)
+}
+
+#[inline]
+fn floor_div_const(numerator: i128, denominator: i128) -> i128 {
+    crate::arith::floor_div_i128(numerator, denominator)
+        .expect("perp math denominators are positive constants")
+}
+
+#[inline]
+pub fn abs_val(x: i128) -> i128 {
+    if x >= 0 {
+        x
+    } else {
+        -x
+    }
+}
+
+// -- Oracle helpers ----------------------------------------------------------
+
+pub fn is_oracle_fresh(
+    now_epoch: i128,
+    oracle_last_update_epoch: i128,
+    max_oracle_staleness_epochs: i128,
+    oracle_seen: bool,
+) -> bool {
+    if !oracle_seen {
+        return false;
+    }
+    if now_epoch < oracle_last_update_epoch {
+        return false;
+    }
+    (now_epoch - oracle_last_update_epoch) <= max_oracle_staleness_epochs
+}
+
+pub fn oracle_move_violated(
+    clearing_price_e8: i128,
+    index_price_e8: i128,
+    max_oracle_move_bps: i128,
+    oracle_seen: bool,
+) -> bool {
+    if !oracle_seen {
+        return false;
+    }
+    let diff = abs_val(clearing_price_e8 - index_price_e8);
+    diff * BPS_SCALE > max_oracle_move_bps * index_price_e8
+}
+
+pub fn settle_price(
+    clearing_price_e8: i128,
+    index_price_e8: i128,
+    max_oracle_move_bps: i128,
+    oracle_seen: bool,
+) -> i128 {
+    if !oracle_move_violated(
+        clearing_price_e8,
+        index_price_e8,
+        max_oracle_move_bps,
+        oracle_seen,
+    ) {
+        return clearing_price_e8;
+    }
+    // Ceil-div clamp band so a non-zero intended move cannot collapse to width 0.
+    let max_delta = floor_div_const(
+        (index_price_e8 * max_oracle_move_bps) + (BPS_SCALE - 1),
+        BPS_SCALE,
+    );
+    if clearing_price_e8 >= index_price_e8 {
+        index_price_e8 + max_delta
+    } else {
+        index_price_e8 - max_delta
+    }
+}
+
+// -- Position / margin helpers -----------------------------------------------
+
+pub fn notional_quote(position_base: i128, price_e8: i128) -> i128 {
+    floor_div_const(abs_val(position_base) * price_e8, PRICE_SCALE)
+}
+
+pub fn margin_requirement(notional: i128, margin_bps: i128) -> i128 {
+    floor_div_const(notional * margin_bps, BPS_SCALE)
+}
+
+pub fn maint_margin_req(
+    position_base: i128,
+    price_e8: i128,
+    maint_bps: i128,
+    depeg_bps: i128,
+) -> i128 {
+    margin_requirement(
+        notional_quote(position_base, price_e8),
+        maint_bps + depeg_bps,
+    )
+}
+
+pub fn init_margin_req(position_base: i128, price_e8: i128, init_bps: i128) -> i128 {
+    margin_requirement(notional_quote(position_base, price_e8), init_bps)
+}
+
+// -- Checked variants -------------------------------------------------------
+// The plain helpers above use unchecked `*` and `abs`, which is sound ONLY when
+// callers pre-bound every operand to [-MAX_ABS, MAX_ABS] / [-MAX_BPS, MAX_BPS]
+// (true on every kernel path, which validates its input domain first). The
+// materializer's *effect* path, however, reads some globals (notably
+// initial_margin_bps) that a given op's kernel never validates — e.g.
+// partial_liquidate does not carry initial_margin_bps — so the effect must use
+// these checked variants and fail closed on overflow rather than panic.
+// PRICE_SCALE / BPS_SCALE are positive constants, so the divisions cannot
+// divide by zero or overflow; only the abs/mul need checking.
+
+pub fn checked_notional_quote(position_base: i128, price_e8: i128) -> Option<i128> {
+    let product = position_base.checked_abs()?.checked_mul(price_e8)?;
+    crate::arith::floor_div_i128(product, PRICE_SCALE)
+}
+
+pub fn checked_margin_requirement(notional: i128, margin_bps: i128) -> Option<i128> {
+    let product = notional.checked_mul(margin_bps)?;
+    crate::arith::floor_div_i128(product, BPS_SCALE)
+}
+
+pub fn checked_maint_margin_req(
+    position_base: i128,
+    price_e8: i128,
+    maint_bps: i128,
+    depeg_bps: i128,
+) -> Option<i128> {
+    let notional = checked_notional_quote(position_base, price_e8)?;
+    let bps = maint_bps.checked_add(depeg_bps)?;
+    checked_margin_requirement(notional, bps)
+}
+
+pub fn checked_init_margin_req(
+    position_base: i128,
+    price_e8: i128,
+    init_bps: i128,
+) -> Option<i128> {
+    let notional = checked_notional_quote(position_base, price_e8)?;
+    checked_margin_requirement(notional, init_bps)
+}
+
+// -- PnL helpers (symmetric) -------------------------------------------------
+
+pub fn pnl_magnitude(position_base: i128, settle_price_e8: i128, index_price_e8: i128) -> i128 {
+    (abs_val(position_base) * abs_val(settle_price_e8 - index_price_e8)) / PRICE_SCALE
+}
+
+pub fn pnl_same_sign(position_base: i128, settle_price_e8: i128, index_price_e8: i128) -> bool {
+    (position_base >= 0) == (settle_price_e8 >= index_price_e8)
+}
+
+pub fn pnl_quote(position_base: i128, settle_price_e8: i128, index_price_e8: i128) -> i128 {
+    let mag = pnl_magnitude(position_base, settle_price_e8, index_price_e8);
+    if pnl_same_sign(position_base, settle_price_e8, index_price_e8) {
+        mag
+    } else {
+        -mag
+    }
+}
+
+// -- Liquidation helpers -----------------------------------------------------
+
+pub fn is_liquidatable(
+    position_base: i128,
+    collateral_after_pnl: i128,
+    settle_price_e8: i128,
+    maintenance_margin_bps: i128,
+    depeg_buffer_bps: i128,
+) -> bool {
+    if position_base == 0 {
+        return false;
+    }
+    collateral_after_pnl
+        < maint_margin_req(
+            position_base,
+            settle_price_e8,
+            maintenance_margin_bps,
+            depeg_buffer_bps,
+        )
+}
+
+/// Liquidation penalty in quote; `0` below the anti-bounty-farming notional floor.
+pub fn liq_penalty(
+    position_base: i128,
+    settle_price_e8: i128,
+    liquidation_penalty_bps: i128,
+    min_notional_for_bounty: i128,
+) -> i128 {
+    let notional = notional_quote(position_base, settle_price_e8);
+    if notional < min_notional_for_bounty {
+        return 0;
+    }
+    margin_requirement(notional, liquidation_penalty_bps)
+}
+
+/// Liquidation penalty capped at the remaining collateral after PnL.
+pub fn liq_penalty_capped(
+    collateral_after_pnl: i128,
+    position_base: i128,
+    settle_price_e8: i128,
+    liquidation_penalty_bps: i128,
+    min_notional_for_bounty: i128,
+) -> i128 {
+    let raw = liq_penalty(
+        position_base,
+        settle_price_e8,
+        liquidation_penalty_bps,
+        min_notional_for_bounty,
+    );
+    collateral_after_pnl.min(raw)
+}
+
+// -- Partial-liquidation helpers ---------------------------------------------
+
+/// Unsigned base units closed by `fraction_bps/10000` of `|position|`.
+pub fn partial_close_base(position_abs: i128, fraction_bps: i128) -> i128 {
+    (position_abs * fraction_bps) / BPS_SCALE
+}
+
+/// Remaining (signed) position after closing `fraction_bps/10000`.
+pub fn remaining_position_signed(position_base: i128, fraction_bps: i128) -> i128 {
+    if fraction_bps >= BPS_SCALE {
+        return 0;
+    }
+    if fraction_bps <= 0 {
+        return position_base;
+    }
+    let pos_abs = abs_val(position_base);
+    let remaining_abs = pos_abs - partial_close_base(pos_abs, fraction_bps);
+    if position_base >= 0 {
+        remaining_abs
+    } else {
+        -remaining_abs
+    }
+}
+
+/// Liquidation penalty for the closed portion of the position.
+pub fn partial_liq_penalty(
+    position_base: i128,
+    fraction_bps: i128,
+    settle_price_e8: i128,
+    liquidation_penalty_bps: i128,
+    min_notional_for_bounty: i128,
+) -> i128 {
+    if fraction_bps >= BPS_SCALE {
+        return liq_penalty(
+            position_base,
+            settle_price_e8,
+            liquidation_penalty_bps,
+            min_notional_for_bounty,
+        );
+    }
+    let closed = partial_close_base(abs_val(position_base), fraction_bps);
+    if closed == 0 {
+        return 0;
+    }
+    liq_penalty(
+        closed,
+        settle_price_e8,
+        liquidation_penalty_bps,
+        min_notional_for_bounty,
+    )
+}
+
+/// Partial-close penalty capped at remaining collateral (clamped non-negative).
+pub fn partial_liq_penalty_capped(
+    collateral_after_pnl: i128,
+    position_base: i128,
+    fraction_bps: i128,
+    settle_price_e8: i128,
+    liquidation_penalty_bps: i128,
+    min_notional_for_bounty: i128,
+) -> i128 {
+    let raw = partial_liq_penalty(
+        position_base,
+        fraction_bps,
+        settle_price_e8,
+        liquidation_penalty_bps,
+        min_notional_for_bounty,
+    );
+    collateral_after_pnl.max(0).min(raw)
+}
+
+/// True if closing `fraction_bps/10000` restores the remaining position to maint margin.
+#[allow(clippy::too_many_arguments)]
+fn is_partial_fraction_sufficient(
+    position_base: i128,
+    collateral_after_pnl: i128,
+    fraction_bps: i128,
+    settle_price_e8: i128,
+    maintenance_margin_bps: i128,
+    depeg_buffer_bps: i128,
+    liquidation_penalty_bps: i128,
+    min_notional_for_bounty: i128,
+) -> bool {
+    let remaining = remaining_position_signed(position_base, fraction_bps);
+    let penalty = partial_liq_penalty_capped(
+        collateral_after_pnl,
+        position_base,
+        fraction_bps,
+        settle_price_e8,
+        liquidation_penalty_bps,
+        min_notional_for_bounty,
+    );
+    let coll_after = collateral_after_pnl - penalty;
+    if remaining == 0 {
+        return true;
+    }
+    coll_after
+        >= maint_margin_req(
+            remaining,
+            settle_price_e8,
+            maintenance_margin_bps,
+            depeg_buffer_bps,
+        )
+}
+
+/// Minimum fraction in `[1, BPS_SCALE]` to close to restore maint margin; `0` if
+/// not liquidatable, `BPS_SCALE` if a full close is needed. Binary search.
+#[allow(clippy::too_many_arguments)]
+pub fn compute_partial_close_fraction(
+    position_base: i128,
+    collateral_after_pnl: i128,
+    settle_price_e8: i128,
+    maintenance_margin_bps: i128,
+    depeg_buffer_bps: i128,
+    liquidation_penalty_bps: i128,
+    min_notional_for_bounty: i128,
+) -> i128 {
+    if position_base == 0 {
+        return 0;
+    }
+    if !is_liquidatable(
+        position_base,
+        collateral_after_pnl,
+        settle_price_e8,
+        maintenance_margin_bps,
+        depeg_buffer_bps,
+    ) {
+        return 0;
+    }
+    if !is_partial_fraction_sufficient(
+        position_base,
+        collateral_after_pnl,
+        BPS_SCALE - 1,
+        settle_price_e8,
+        maintenance_margin_bps,
+        depeg_buffer_bps,
+        liquidation_penalty_bps,
+        min_notional_for_bounty,
+    ) {
+        return BPS_SCALE;
+    }
+    let (mut lo, mut hi) = (1i128, BPS_SCALE);
+    while lo < hi {
+        let mid = (lo + hi) / 2;
+        if is_partial_fraction_sufficient(
+            position_base,
+            collateral_after_pnl,
+            mid,
+            settle_price_e8,
+            maintenance_margin_bps,
+            depeg_buffer_bps,
+            liquidation_penalty_bps,
+            min_notional_for_bounty,
+        ) {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    lo
+}
+
+// -- Funding helpers (symmetric) ---------------------------------------------
+
+pub fn funding_magnitude(position_base: i128, index_price_e8: i128, rate_bps: i128) -> i128 {
+    floor_div_const(
+        notional_quote(position_base, index_price_e8) * abs_val(rate_bps),
+        BPS_SCALE,
+    )
+}
+
+pub fn funding_same_sign(position_base: i128, rate_bps: i128) -> bool {
+    (position_base >= 0) == (rate_bps >= 0)
+}
+
+pub fn funding_payment(position_base: i128, index_price_e8: i128, rate_bps: i128) -> i128 {
+    let mag = funding_magnitude(position_base, index_price_e8, rate_bps);
+    if funding_same_sign(position_base, rate_bps) {
+        mag
+    } else {
+        -mag
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    #[test]
+    fn oracle_freshness_fail_closed() {
+        assert!(!is_oracle_fresh(5, 0, 10, false)); // not seen
+        assert!(!is_oracle_fresh(3, 5, 10, true)); // update in the future
+        assert!(is_oracle_fresh(5, 0, 10, true));
+        assert!(!is_oracle_fresh(20, 0, 10, true)); // stale
+    }
+
+    #[test]
+    fn settle_price_clamp_band_never_zero() {
+        // index=100, move=1bps -> raw delta floor = 0, ceil-div keeps band >=1.
+        let p = settle_price(1_000_000, 100, 1, true);
+        // clearing 1e6 far above index 100 -> violated -> clamp to index+delta.
+        assert!(p > 100);
+        // No violation -> raw clearing returned.
+        assert_eq!(settle_price(100, 100, 50, true), 100);
+    }
+
+    #[test]
+    fn negative_price_divisions_match_python_flooring() {
+        assert_eq!(settle_price(-20_000, -10_000, 1, true), -9_999);
+        assert_eq!(notional_quote(5, -150_000_001), -8);
+        assert_eq!(margin_requirement(-8, 500), -1);
+        assert_eq!(maint_margin_req(5, -150_000_001, 500, 0), -1);
+        assert_eq!(funding_magnitude(5, -150_000_001, 1), -1);
+    }
+
+    #[test]
+    fn pnl_sign_symmetry() {
+        // Long, price up -> profit (+).
+        assert!(pnl_quote(1_000_000_000, 110 * PRICE_SCALE, 100 * PRICE_SCALE) > 0);
+        // Long, price down -> loss (-).
+        assert!(pnl_quote(1_000_000_000, 90 * PRICE_SCALE, 100 * PRICE_SCALE) < 0);
+        // Short mirrors long.
+        let long = pnl_quote(1_000, 110 * PRICE_SCALE, 100 * PRICE_SCALE);
+        let short = pnl_quote(-1_000, 110 * PRICE_SCALE, 100 * PRICE_SCALE);
+        assert_eq!(long, -short);
+    }
+
+    #[test]
+    fn funding_sign_symmetry() {
+        let long_pos_pos_rate = funding_payment(1_000, 100 * PRICE_SCALE, 50);
+        let short_pos_rate = funding_payment(-1_000, 100 * PRICE_SCALE, 50);
+        // Long pays when rate>0; short receives -> opposite signs, equal magnitude.
+        assert_eq!(long_pos_pos_rate, -short_pos_rate);
+        assert!(long_pos_pos_rate > 0);
+    }
+
+    #[test]
+    fn liquidatable_flat_is_false() {
+        assert!(!is_liquidatable(0, -100, 100 * PRICE_SCALE, 500, 0));
+        // Tiny collateral, real position -> liquidatable.
+        assert!(is_liquidatable(1_000_000, 0, 100 * PRICE_SCALE, 500, 0));
+    }
+
+    #[test]
+    fn checked_margin_helpers_match_unchecked_in_range() {
+        // For in-domain operands the checked variants equal the plain ones.
+        let pos = 500_000;
+        let price = 100 * PRICE_SCALE;
+        assert_eq!(
+            checked_notional_quote(pos, price),
+            Some(notional_quote(pos, price))
+        );
+        assert_eq!(
+            checked_maint_margin_req(pos, price, 500, 100),
+            Some(maint_margin_req(pos, price, 500, 100))
+        );
+        assert_eq!(
+            checked_init_margin_req(pos, price, 1000),
+            Some(init_margin_req(pos, price, 1000))
+        );
+    }
+
+    #[test]
+    fn checked_margin_helpers_return_none_on_overflow() {
+        // Degenerate operands (the unchecked helpers would panic/wrap) -> None.
+        assert_eq!(checked_margin_requirement(1_000_000, i128::MAX), None);
+        assert_eq!(
+            checked_init_margin_req(500_000, 100 * PRICE_SCALE, i128::MAX),
+            None
+        );
+        assert_eq!(
+            checked_maint_margin_req(500_000, 100 * PRICE_SCALE, i128::MAX, 1),
+            None
+        );
+        // notional overflow: |pos| * price before the divide.
+        assert_eq!(checked_notional_quote(i128::MAX, i128::MAX), None);
+        // abs of i128::MIN must not panic -> None.
+        assert_eq!(checked_notional_quote(i128::MIN, 1), None);
+    }
+
+    proptest! {
+        #[test]
+        fn checked_margin_helpers_match_plain_on_bounded_domain(
+            position in -MAX_ABS..=MAX_ABS,
+            price in -MAX_ABS..=MAX_ABS,
+            notional in -MAX_ABS..=MAX_ABS,
+            margin_bps in -MAX_BPS..=MAX_BPS,
+            maint_bps in -MAX_BPS..=MAX_BPS,
+            depeg_bps in -MAX_BPS..=MAX_BPS,
+            init_bps in -MAX_BPS..=MAX_BPS,
+        ) {
+            prop_assert_eq!(
+                checked_notional_quote(position, price),
+                Some(notional_quote(position, price))
+            );
+            prop_assert_eq!(
+                checked_margin_requirement(notional, margin_bps),
+                Some(margin_requirement(notional, margin_bps))
+            );
+            prop_assert_eq!(
+                checked_maint_margin_req(position, price, maint_bps, depeg_bps),
+                Some(maint_margin_req(position, price, maint_bps, depeg_bps))
+            );
+            prop_assert_eq!(
+                checked_init_margin_req(position, price, init_bps),
+                Some(init_margin_req(position, price, init_bps))
+            );
+        }
+
+        #[test]
+        fn partial_close_remaining_preserves_bounds_on_bounded_domain(
+            position in -MAX_ABS..=MAX_ABS,
+            fraction_bps in 0i128..=BPS_SCALE,
+        ) {
+            let remaining = remaining_position_signed(position, fraction_bps);
+            let position_abs = abs_val(position);
+            let remaining_abs = abs_val(remaining);
+
+            prop_assert!(remaining_abs <= position_abs);
+            if fraction_bps == 0 {
+                prop_assert_eq!(remaining, position);
+            }
+            if fraction_bps == BPS_SCALE || position == 0 {
+                prop_assert_eq!(remaining, 0);
+            }
+            if position > 0 && fraction_bps < BPS_SCALE {
+                prop_assert!(remaining >= 0);
+            }
+            if position < 0 && fraction_bps < BPS_SCALE {
+                prop_assert!(remaining <= 0);
+            }
+        }
+    }
+}
+
+// CBC_CORE_V0 — Kani contracts on the stateless perps arithmetic boundary.
+//
+// The plain helpers are intentionally small and Python-parity shaped; kernel
+// callers pre-bound their operands before using them. The materializer effect
+// path uses the checked variants because it can observe globals that a specific
+// op did not validate. These harnesses pin that boundary: checked helpers are
+// total for any i128 input, and the success/overflow paths are reachable. Their
+// equivalence to the plain helpers over the bounded runtime domain is covered
+// by Rust proptests and Python/Rust differentials.
+#[cfg(kani)]
+mod kani_contracts {
+    use super::*;
+
+    fn any_abs_domain() -> i128 {
+        let value: i128 = kani::any();
+        kani::assume(in_abs_domain(value));
+        value
+    }
+
+    fn any_bps_domain() -> i128 {
+        let value: i128 = kani::any();
+        kani::assume(in_bps_domain(value));
+        value
+    }
+
+    #[kani::proof]
+    fn domain_classifiers_are_total_and_exact() {
+        let value: i128 = kani::any();
+
+        assert_eq!(
+            in_abs_domain(value),
+            matches!(value.checked_abs(), Some(abs) if abs <= MAX_ABS)
+        );
+        assert_eq!(
+            in_bps_domain(value),
+            matches!(value.checked_abs(), Some(abs) if abs <= MAX_BPS)
+        );
+        assert!(!in_abs_domain(i128::MIN));
+        assert!(!in_bps_domain(i128::MIN));
+    }
+
+    #[kani::proof]
+    fn abs_val_is_total_on_bridge_domain() {
+        let value = any_abs_domain();
+
+        let abs = abs_val(value);
+        assert!(abs >= 0);
+        assert!(abs <= MAX_ABS);
+        if value >= 0 {
+            assert_eq!(abs, value);
+        } else {
+            assert_eq!(abs, -value);
+        }
+    }
+
+    #[kani::proof]
+    fn oracle_helpers_are_total_on_bridge_domain() {
+        let now_epoch = any_abs_domain();
+        let oracle_last_update_epoch = any_abs_domain();
+        let max_oracle_staleness_epochs = any_abs_domain();
+        let clearing_price_e8 = any_abs_domain();
+        let index_price_e8 = any_abs_domain();
+        let max_oracle_move_bps = any_bps_domain();
+        let oracle_seen: bool = kani::any();
+
+        let _ = is_oracle_fresh(
+            now_epoch,
+            oracle_last_update_epoch,
+            max_oracle_staleness_epochs,
+            oracle_seen,
+        );
+        let _ = oracle_move_violated(
+            clearing_price_e8,
+            index_price_e8,
+            max_oracle_move_bps,
+            oracle_seen,
+        );
+        let _ = settle_price(
+            clearing_price_e8,
+            index_price_e8,
+            max_oracle_move_bps,
+            oracle_seen,
+        );
+    }
+
+    #[kani::proof]
+    fn sign_classifiers_are_exact_on_bridge_domain() {
+        let position = any_abs_domain();
+        let settle = any_abs_domain();
+        let index = any_abs_domain();
+        let rate_bps = any_bps_domain();
+
+        assert_eq!(
+            pnl_same_sign(position, settle, index),
+            (position >= 0) == (settle >= index)
+        );
+        assert_eq!(
+            funding_same_sign(position, rate_bps),
+            (position >= 0) == (rate_bps >= 0)
+        );
+    }
+
+    #[kani::proof]
+    fn flat_positions_are_never_liquidatable_on_bridge_domain() {
+        let collateral_after_pnl = any_abs_domain();
+        let settle = any_abs_domain();
+        let maint_bps = any_bps_domain();
+        let depeg_bps = any_bps_domain();
+
+        assert!(!is_liquidatable(
+            0,
+            collateral_after_pnl,
+            settle,
+            maint_bps,
+            depeg_bps
+        ));
+    }
+
+    #[kani::proof]
+    fn remaining_position_signed_boundary_cases_are_exact() {
+        let position = any_abs_domain();
+
+        assert_eq!(remaining_position_signed(position, -1), position);
+        assert_eq!(remaining_position_signed(position, 0), position);
+        assert_eq!(remaining_position_signed(position, BPS_SCALE), 0);
+        assert_eq!(remaining_position_signed(position, BPS_SCALE + 1), 0);
+    }
+
+    #[kani::proof]
+    fn checked_margin_helpers_are_total_for_any_i128() {
+        let position: i128 = kani::any();
+        let price: i128 = kani::any();
+        let notional: i128 = kani::any();
+        let maint_bps: i128 = kani::any();
+        let depeg_bps: i128 = kani::any();
+        let init_bps: i128 = kani::any();
+
+        let _ = checked_notional_quote(position, price);
+        let _ = checked_margin_requirement(notional, init_bps);
+        let _ = checked_maint_margin_req(position, price, maint_bps, depeg_bps);
+        let _ = checked_init_margin_req(position, price, init_bps);
+    }
+
+    #[kani::proof]
+    fn covers_are_reachable() {
+        kani::cover!(checked_notional_quote(1_000, PRICE_SCALE) == Some(1_000));
+        kani::cover!(checked_notional_quote(i128::MIN, 1).is_none());
+        kani::cover!(checked_margin_requirement(1_000, 500) == Some(50));
+        kani::cover!(checked_maint_margin_req(1_000, PRICE_SCALE, 500, 100) == Some(60));
+        kani::cover!(partial_close_base(10_000, 2_500) == 2_500);
+        kani::cover!(remaining_position_signed(-10_000, 2_500) == -7_500);
+    }
+}

@@ -1,0 +1,366 @@
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / "tools"))
+
+from zenodex_oracle import receipt_content_hash, sample_hash, verify_bundle  # noqa: E402
+from zenodex_oracle_adapter import (  # noqa: E402
+    profile_content_hash,
+    sample_action_and_bundle,
+    sample_action_bundle_profile,
+)
+
+
+def _run_verify(tmp_path: Path, action: dict, bundle: dict) -> tuple[int, dict]:
+    action_path = tmp_path / "action.json"
+    bundle_path = tmp_path / "bundle.json"
+    action_path.write_text(json.dumps(action, indent=2, sort_keys=True), encoding="utf-8")
+    bundle_path.write_text(json.dumps(bundle, indent=2, sort_keys=True), encoding="utf-8")
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "tools/zenodex_oracle_adapter.py",
+            "verify",
+            "--action",
+            str(action_path),
+            "--bundle",
+            str(bundle_path),
+        ],
+        cwd=REPO,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.stderr == ""
+    return proc.returncode, json.loads(proc.stdout)
+
+
+def _run_verify_with_profile(tmp_path: Path, action: dict, bundle: dict, profile: dict) -> tuple[int, dict]:
+    action_path = tmp_path / "action.json"
+    bundle_path = tmp_path / "bundle.json"
+    profile_path = tmp_path / "profile.json"
+    action_path.write_text(json.dumps(action, indent=2, sort_keys=True), encoding="utf-8")
+    bundle_path.write_text(json.dumps(bundle, indent=2, sort_keys=True), encoding="utf-8")
+    profile_path.write_text(json.dumps(profile, indent=2, sort_keys=True), encoding="utf-8")
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "tools/zenodex_oracle_adapter.py",
+            "verify",
+            "--action",
+            str(action_path),
+            "--bundle",
+            str(bundle_path),
+            "--profile",
+            str(profile_path),
+        ],
+        cwd=REPO,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.stderr == ""
+    return proc.returncode, json.loads(proc.stdout)
+
+
+def test_oracle_adapter_accepts_matching_action_and_bundle(tmp_path: Path) -> None:
+    action, bundle = sample_action_and_bundle()
+    code, result = _run_verify(tmp_path, action, bundle)
+    assert code == 0
+    assert result["ok"] is True
+    assert result["status"] == "accepted"
+    assert result["consumer_module"] == action["consumer_module"]
+    assert result["action_kind"] == action["action_kind"]
+    assert result["action_id"] == action["action_id"]
+    assert result["query_id"] == action["query_id"]
+    assert result["value_hash"] == action["value_hash"]
+    assert result["evidence_class"] == "O3"
+    assert result["required_evidence_floor"] == "O3"
+    assert result["errors"] == []
+
+
+def test_oracle_adapter_accepts_matching_action_bundle_and_profile(tmp_path: Path) -> None:
+    action, bundle, profile = sample_action_bundle_profile()
+    code, result = _run_verify_with_profile(tmp_path, action, bundle, profile)
+    assert code == 0
+    assert result["ok"] is True
+    assert result["status"] == "accepted"
+    assert result["profile_id"] == profile["profile_id"]
+    assert result["profile_required_evidence_floor"] == "O3"
+    assert result["profile_max_freshness_window_epochs"] == 4
+    assert result["errors"] == []
+
+
+def test_oracle_adapter_rejects_unaccepted_bundle(tmp_path: Path) -> None:
+    action, bundle = sample_action_and_bundle()
+    bundle["receipts"][0]["fresh"] = False
+    code, result = _run_verify(tmp_path, action, bundle)
+    assert code == 2
+    assert "oracle_bundle_not_accepted" in result["errors"]
+    assert any(error.startswith("bundle:") for error in result["errors"])
+
+
+def test_oracle_adapter_rejects_consumer_module_mismatch(tmp_path: Path) -> None:
+    action, bundle = sample_action_and_bundle()
+    action["consumer_module"] = "zenodex.perps"
+    code, result = _run_verify(tmp_path, action, bundle)
+    assert code == 2
+    assert "adapter_consumer_module_mismatch" in result["errors"]
+
+
+def test_oracle_adapter_rejects_action_kind_mismatch(tmp_path: Path) -> None:
+    action, bundle = sample_action_and_bundle()
+    action["action_kind"] = "liquidate_account"
+    code, result = _run_verify(tmp_path, action, bundle)
+    assert code == 2
+    assert "adapter_action_kind_mismatch" in result["errors"]
+
+
+def test_oracle_adapter_rejects_action_id_mismatch(tmp_path: Path) -> None:
+    action, bundle = sample_action_and_bundle()
+    action["action_id"] = sample_hash("other-action")
+    code, result = _run_verify(tmp_path, action, bundle)
+    assert code == 2
+    assert "adapter_action_id_mismatch" in result["errors"]
+
+
+def test_oracle_adapter_rejects_accepted_bundle_borrowed_across_action(tmp_path: Path) -> None:
+    action, bundle = sample_action_and_bundle()
+    borrowed_bundle = json.loads(json.dumps(bundle))
+    borrowed_action_receipt = next(
+        receipt for receipt in borrowed_bundle["receipts"] if receipt["type"] == "consumer_action_receipt"
+    )
+    borrowed_action_receipt["action_id"] = sample_hash("borrowed-downstream-action")
+    borrowed_action_receipt["id"] = receipt_content_hash(borrowed_action_receipt)
+    borrowed_bundle["terminal"]["consumer_action_receipt_id"] = borrowed_action_receipt["id"]
+
+    assert verify_bundle(borrowed_bundle).status == "accepted"
+
+    code, result = _run_verify(tmp_path, action, borrowed_bundle)
+
+    assert code == 2
+    assert "adapter_action_id_mismatch" in result["errors"]
+    assert "adapter_consumer_action_receipt_id_mismatch" in result["errors"]
+
+
+def test_oracle_adapter_rejects_action_epoch_mismatch(tmp_path: Path) -> None:
+    action, bundle = sample_action_and_bundle()
+    action["action_epoch"] += 1
+    code, result = _run_verify(tmp_path, action, bundle)
+    assert code == 2
+    assert "adapter_action_epoch_mismatch" in result["errors"]
+
+
+def test_oracle_adapter_rejects_query_mismatch(tmp_path: Path) -> None:
+    action, bundle = sample_action_and_bundle()
+    action["query_id"] = sample_hash("other-query")
+    code, result = _run_verify(tmp_path, action, bundle)
+    assert code == 2
+    assert "adapter_query_id_mismatch" in result["errors"]
+
+
+def test_oracle_adapter_rejects_value_mismatch(tmp_path: Path) -> None:
+    action, bundle = sample_action_and_bundle()
+    action["value_hash"] = sample_hash("other-value")
+    code, result = _run_verify(tmp_path, action, bundle)
+    assert code == 2
+    assert "adapter_value_hash_mismatch" in result["errors"]
+
+
+def test_oracle_adapter_rejects_read_receipt_mismatch(tmp_path: Path) -> None:
+    action, bundle = sample_action_and_bundle()
+    action["read_receipt_id"] = sample_hash("other-read")
+    code, result = _run_verify(tmp_path, action, bundle)
+    assert code == 2
+    assert "adapter_read_receipt_id_mismatch" in result["errors"]
+
+
+def test_oracle_adapter_rejects_consumer_action_receipt_mismatch(tmp_path: Path) -> None:
+    action, bundle = sample_action_and_bundle()
+    action["consumer_action_receipt_id"] = sample_hash("other-consumer-action")
+    code, result = _run_verify(tmp_path, action, bundle)
+    assert code == 2
+    assert "adapter_consumer_action_receipt_id_mismatch" in result["errors"]
+
+
+def test_oracle_adapter_rejects_evidence_below_action_floor(tmp_path: Path) -> None:
+    action, bundle = sample_action_and_bundle()
+    action["required_evidence_floor"] = "O4"
+    code, result = _run_verify(tmp_path, action, bundle)
+    assert code == 2
+    assert "adapter_evidence_below_required_floor" in result["errors"]
+
+
+def test_oracle_adapter_rejects_looser_bundle_freshness_window(tmp_path: Path) -> None:
+    action, bundle = sample_action_and_bundle()
+    action["max_freshness_window_epochs"] = 3
+    code, result = _run_verify(tmp_path, action, bundle)
+    assert code == 2
+    assert "adapter_freshness_window_exceeds_action_limit" in result["errors"]
+
+
+def test_oracle_adapter_rejects_noncritical_action_descriptor(tmp_path: Path) -> None:
+    action, bundle = sample_action_and_bundle()
+    action["critical"] = False
+    code, result = _run_verify(tmp_path, action, bundle)
+    assert code == 2
+    assert "action_must_be_critical" in result["errors"]
+
+
+def test_oracle_adapter_rejects_weak_required_evidence_floor(tmp_path: Path) -> None:
+    action, bundle = sample_action_and_bundle()
+    action["required_evidence_floor"] = "O2"
+    code, result = _run_verify(tmp_path, action, bundle)
+    assert code == 2
+    assert "required_evidence_floor_below_critical_minimum" in result["errors"]
+
+
+def test_oracle_adapter_rejects_hidden_action_field(tmp_path: Path) -> None:
+    action, bundle = sample_action_and_bundle()
+    action["admin_override"] = True
+    code, result = _run_verify(tmp_path, action, bundle)
+    assert code == 2
+    assert "unknown_action_field:admin_override" in result["errors"]
+
+
+def test_oracle_adapter_rejects_profile_content_hash_mismatch(tmp_path: Path) -> None:
+    action, bundle, profile = sample_action_bundle_profile()
+    forged_profile_id = profile["profile_id"]
+    profile["max_freshness_window_epochs"] = 3
+    code, result = _run_verify_with_profile(tmp_path, action, bundle, profile)
+    assert code == 2
+    assert f"profile_content_hash_mismatch:{forged_profile_id}" in result["errors"]
+
+
+def test_oracle_adapter_rejects_profile_consumer_module_mismatch(tmp_path: Path) -> None:
+    action, bundle, profile = sample_action_bundle_profile()
+    profile["consumer_module"] = "zenodex.perps"
+    profile["profile_id"] = profile_content_hash(profile)
+    code, result = _run_verify_with_profile(tmp_path, action, bundle, profile)
+    assert code == 2
+    assert "profile_consumer_module_mismatch" in result["errors"]
+
+
+def test_oracle_adapter_rejects_profile_action_kind_mismatch(tmp_path: Path) -> None:
+    action, bundle, profile = sample_action_bundle_profile()
+    profile["action_kind"] = "settle_epoch"
+    profile["profile_id"] = profile_content_hash(profile)
+    code, result = _run_verify_with_profile(tmp_path, action, bundle, profile)
+    assert code == 2
+    assert "profile_action_kind_mismatch" in result["errors"]
+
+
+def test_oracle_adapter_rejects_profile_query_mismatch(tmp_path: Path) -> None:
+    action, bundle, profile = sample_action_bundle_profile()
+    profile["query_id"] = sample_hash("other-query")
+    profile["profile_id"] = profile_content_hash(profile)
+    code, result = _run_verify_with_profile(tmp_path, action, bundle, profile)
+    assert code == 2
+    assert "profile_query_id_mismatch" in result["errors"]
+
+
+def test_oracle_adapter_rejects_action_evidence_floor_below_profile(tmp_path: Path) -> None:
+    action, bundle, profile = sample_action_bundle_profile()
+    profile["required_evidence_floor"] = "O4"
+    profile["profile_id"] = profile_content_hash(profile)
+    code, result = _run_verify_with_profile(tmp_path, action, bundle, profile)
+    assert code == 2
+    assert "action_evidence_floor_below_profile" in result["errors"]
+
+
+def test_oracle_adapter_rejects_action_freshness_window_above_profile(tmp_path: Path) -> None:
+    action, bundle, profile = sample_action_bundle_profile()
+    profile["max_freshness_window_epochs"] = 3
+    profile["profile_id"] = profile_content_hash(profile)
+    code, result = _run_verify_with_profile(tmp_path, action, bundle, profile)
+    assert code == 2
+    assert "action_freshness_window_exceeds_profile" in result["errors"]
+
+
+def test_oracle_adapter_rejects_noncritical_profile(tmp_path: Path) -> None:
+    action, bundle, profile = sample_action_bundle_profile()
+    profile["critical"] = False
+    profile["profile_id"] = profile_content_hash(profile)
+    code, result = _run_verify_with_profile(tmp_path, action, bundle, profile)
+    assert code == 2
+    assert "profile_must_be_critical" in result["errors"]
+
+
+def test_oracle_adapter_verify_inconclusive_on_oversized_action(tmp_path: Path) -> None:
+    action_path = tmp_path / "oversized-action.json"
+    bundle_path = tmp_path / "bundle.json"
+    _, bundle = sample_action_and_bundle()
+    action_path.write_text('{"padding":"' + ("x" * 250_001) + '"}', encoding="utf-8")
+    bundle_path.write_text(json.dumps(bundle, indent=2, sort_keys=True), encoding="utf-8")
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "tools/zenodex_oracle_adapter.py",
+            "verify",
+            "--action",
+            str(action_path),
+            "--bundle",
+            str(bundle_path),
+        ],
+        cwd=REPO,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 3
+    assert proc.stderr == ""
+    result = json.loads(proc.stdout)
+    assert result["status"] == "inconclusive"
+    assert any(error.startswith("adapter_load_failed:action_file_too_large:") for error in result["errors"])
+
+
+def test_oracle_adapter_sample_cli_emits_verifiable_action_and_bundle(tmp_path: Path) -> None:
+    action_path = tmp_path / "sample-action.json"
+    bundle_path = tmp_path / "sample-bundle.json"
+    profile_path = tmp_path / "sample-profile.json"
+    sample = subprocess.run(
+        [
+            sys.executable,
+            "tools/zenodex_oracle_adapter.py",
+            "sample",
+            "--action-output",
+            str(action_path),
+            "--bundle-output",
+            str(bundle_path),
+            "--profile-output",
+            str(profile_path),
+        ],
+        cwd=REPO,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert sample.returncode == 0, sample.stderr
+    assert sample.stdout == ""
+
+    verify = subprocess.run(
+        [
+            sys.executable,
+            "tools/zenodex_oracle_adapter.py",
+            "verify",
+            "--action",
+            str(action_path),
+            "--bundle",
+            str(bundle_path),
+            "--profile",
+            str(profile_path),
+        ],
+        cwd=REPO,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert verify.returncode == 0, verify.stderr
+    result = json.loads(verify.stdout)
+    assert result["status"] == "accepted"

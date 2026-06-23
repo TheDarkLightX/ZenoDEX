@@ -1,0 +1,26 @@
+{
+  "checker": "cd lean-mathlib && lake env lean Proofs/ZenoDEXSTierDisasterMath.lean",
+  "claim": "Promotes the latest S-tier Aristotle disaster-state packet into public Lean: corrected reserve-first payout, zero-surplus outflow collapse, canonical same-work deduplication, raw inequality counterexample, oracle bridge gate exposure, and code-signing revocation fail-closed admission.",
+  "file": "lean-mathlib/Proofs/ZenoDEXSTierDisasterMath.lean",
+  "focused_test": "pytest -q tests/formal/test_lean_zenodex_s_tier_disaster_math.py",
+  "source_job": "internal Aristotle job b71cd526-5f7c-48a5-b164-4fabf16204cc, audited as an internal proposal and adapted into repo-local proof style",
+  "non_claims": [
+    "Does not prove legal compliance.",
+    "Does not prove cryptographic signature security or oracle truth.",
+    "Does not prove Wasm, native, or zkVM backend refinement.",
+    "Does not prove runtime liveness or production deployment readiness.",
+    "Does not prove that every runtime field already instantiates every abstract theorem assumption."
+  ],
+  "status": "checked",
+  "theorems": [
+    "Proofs.ZenoDEXSTierDisasterMath.counterexample_original_target1",
+    "Proofs.ZenoDEXSTierDisasterMath.admitted_source_blocks_bad_funding",
+    "Proofs.ZenoDEXSTierDisasterMath.passive_or_future_source_not_admitted",
+    "Proofs.ZenoDEXSTierDisasterMath.positive_payout_implies_reserve_source_and_surplus_bound",
+    "Proofs.ZenoDEXSTierDisasterMath.zero_surplus_forces_zero_outflow",
+    "Proofs.ZenoDEXSTierDisasterMath.same_work_pay_once_under_canonicalizer",
+    "Proofs.ZenoDEXSTierDisasterMath.raw_inequality_is_not_work_uniqueness",
+    "Proofs.ZenoDEXSTierDisasterMath.bridge_admission_exposes_all_settlement_gates",
+    "Proofs.ZenoDEXSTierDisasterMath.revoked_code_signing_record_not_admitted"
+  ]
+}

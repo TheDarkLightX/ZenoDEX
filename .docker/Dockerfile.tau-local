@@ -1,0 +1,7 @@
+FROM python:3.11-slim-bookworm@sha256:a2c44ea455da75ce149a1aacb0e48d859277be1e206cfafaba58ef81374d1af1
+
+RUN apt-get update -o Acquire::Retries=3 \
+  && apt-get install -y --no-install-recommends gcc g++ make libgmp-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work

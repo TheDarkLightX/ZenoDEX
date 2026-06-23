@@ -23,17 +23,45 @@
         {
           "variant_id": "proof_gate_v1",
           "profile": "fast_proof_gated",
-          "spec_path": "src/tau_specs/recommended/swap_exact_in_proof_gate_v1.tau"
+          "spec_path": "src/tau_specs/recommended/swap_exact_in_proof_gate_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_host_transition_flag",
+            "runtime_admission": true,
+            "reason": "latest Tau 401d756b rejects direct stream add/sub; this proof-gate variant now uses host-verified reserve_transition_ok plus Tau structural checks"
+          }
+        },
+        {
+          "variant_id": "proof_gate_v1_plus_safe_range_guard",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/swap_exact_in_proof_gate_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_host_transition_flag",
+            "runtime_admission": true,
+            "reason": "latest Tau 401d756b rejects direct stream add/sub; this composed variant uses host-verified reserve_transition_ok plus the independent safe-range guard"
+          },
+          "supplemental_spec_paths": [
+            "src/tau_specs/recommended/swap_bv32_safe_range_guard_v1.tau"
+          ]
         },
         {
           "variant_id": "structural_v1",
           "profile": "tau_only_structural",
-          "spec_path": "src/tau_specs/recommended/swap_exact_in_v1.tau"
+          "spec_path": "src/tau_specs/recommended/swap_exact_in_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         },
         {
           "variant_id": "strict_v4",
           "profile": "tau_only_strict",
-          "spec_path": "src/tau_specs/swap_exact_in_v4.tau"
+          "spec_path": "src/tau_specs/swap_exact_in_v4.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         }
       ]
     },
@@ -42,17 +70,45 @@
         {
           "variant_id": "proof_gate_v1",
           "profile": "fast_proof_gated",
-          "spec_path": "src/tau_specs/recommended/swap_exact_out_proof_gate_v1.tau"
+          "spec_path": "src/tau_specs/recommended/swap_exact_out_proof_gate_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_host_transition_flag",
+            "runtime_admission": true,
+            "reason": "latest Tau 401d756b rejects direct stream add/sub; this proof-gate variant now uses host-verified reserve_transition_ok plus Tau structural checks"
+          }
+        },
+        {
+          "variant_id": "proof_gate_v1_plus_safe_range_guard",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/swap_exact_out_proof_gate_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_host_transition_flag",
+            "runtime_admission": true,
+            "reason": "latest Tau 401d756b rejects direct stream add/sub; this composed variant uses host-verified reserve_transition_ok plus the independent safe-range guard"
+          },
+          "supplemental_spec_paths": [
+            "src/tau_specs/recommended/swap_bv32_safe_range_guard_v1.tau"
+          ]
         },
         {
           "variant_id": "structural_v1",
           "profile": "tau_only_structural",
-          "spec_path": "src/tau_specs/recommended/swap_exact_out_v1.tau"
+          "spec_path": "src/tau_specs/recommended/swap_exact_out_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         },
         {
           "variant_id": "strict_v4",
           "profile": "tau_only_strict",
-          "spec_path": "src/tau_specs/swap_exact_out_v4.tau"
+          "spec_path": "src/tau_specs/swap_exact_out_v4.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         }
       ]
     },
@@ -61,27 +117,126 @@
         {
           "variant_id": "proof_gate_v1",
           "profile": "fast_proof_gated",
-          "spec_path": "src/tau_specs/recommended/settlement_v1_proof_gate.tau"
+          "spec_path": "src/tau_specs/recommended/settlement_v1_proof_gate.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_runtime_tau_profile_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
+          }
         },
         {
           "variant_id": "proof_gate_v2_buyback",
           "profile": "fast_proof_gated",
-          "spec_path": "src/tau_specs/recommended/settlement_v2_buyback_proof_gate.tau"
+          "spec_path": "src/tau_specs/recommended/settlement_v2_buyback_proof_gate.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_runtime_tau_profile_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
+          }
         },
         {
           "variant_id": "proof_gate_v3_buyback_floor",
           "profile": "fast_proof_gated",
-          "spec_path": "src/tau_specs/recommended/settlement_v3_buyback_floor_proof_gate.tau"
+          "spec_path": "src/tau_specs/recommended/settlement_v3_buyback_floor_proof_gate.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_runtime_tau_profile_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
+          }
         },
         {
           "variant_id": "proof_gate_v4_buyback_floor_rebate_lock",
           "profile": "fast_proof_gated",
-          "spec_path": "src/tau_specs/recommended/settlement_v4_buyback_floor_rebate_lock_proof_gate.tau"
+          "spec_path": "src/tau_specs/recommended/settlement_v4_buyback_floor_rebate_lock_proof_gate.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_runtime_tau_profile_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
+          }
+        },
+        {
+          "variant_id": "aligned_compact_bundle_v5",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/settlement_v5_aligned_compact_bundle.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_runtime_tau_profile_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
+          }
+        },
+        {
+          "variant_id": "price_stability_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/settlement_price_stability_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_runtime_tau_profile_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
+          }
+        },
+        {
+          "variant_id": "price_rails_aligned_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/settlement_price_rails_aligned_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_runtime_tau_profile_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
+          }
+        },
+        {
+          "variant_id": "core_module_bundle_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/settlement_core_module_bundle_v1.tau"
+        },
+        {
+          "variant_id": "feature_extension_bundle_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/settlement_feature_extension_bundle_v1.tau"
+        },
+        {
+          "variant_id": "proof_binding_bundle_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/settlement_proof_binding_bundle_v1.tau"
+        },
+        {
+          "variant_id": "module_flag_bundle_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/settlement_module_flag_bundle_v1.tau"
         },
         {
           "variant_id": "full_v4_buyback_floor_rebate_lock",
           "profile": "tau_only_full_settlement",
-          "spec_path": "src/tau_specs/recommended/settlement_v4_buyback_floor_rebate_lock.tau"
+          "spec_path": "src/tau_specs/recommended/settlement_v4_buyback_floor_rebate_lock.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_runtime_tau_profile_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
+          }
+        }
+      ]
+    },
+    "batching": {
+      "variants": [
+        {
+          "variant_id": "compact_single_gate_v1_5",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/batching_v1_5_compact_single_gate.tau"
+        },
+        {
+          "variant_id": "all_distinct_4_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/batching_all_distinct_4_v1.tau"
+        },
+        {
+          "variant_id": "left_in_right_4_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/batching_left_in_right_4_v1.tau"
+        },
+        {
+          "variant_id": "executed_sorted_4_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/batching_executed_sorted_4_v1.tau"
         }
       ]
     },
@@ -90,12 +245,22 @@
         {
           "variant_id": "nonce_replay_guard_v1",
           "profile": "tau_only_structural",
-          "spec_path": "src/tau_specs/recommended/nonce_replay_guard_v1.tau"
+          "spec_path": "src/tau_specs/recommended/nonce_replay_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         },
         {
           "variant_id": "intent_expiry_guard_v1",
           "profile": "tau_only_structural",
-          "spec_path": "src/tau_specs/recommended/intent_expiry_guard_v1.tau"
+          "spec_path": "src/tau_specs/recommended/intent_expiry_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         }
       ]
     },
@@ -118,7 +283,12 @@
         {
           "variant_id": "tau_only_v1",
           "profile": "tau_only_structural",
-          "spec_path": "src/tau_specs/recommended/revision_policy_v1.tau"
+          "spec_path": "src/tau_specs/recommended/revision_policy_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         },
         {
           "variant_id": "proof_gated_v2",
@@ -132,7 +302,12 @@
         {
           "variant_id": "lock_weighted_rewards_32_v1",
           "profile": "tau_only_structural",
-          "spec_path": "src/tau_specs/recommended/token_archetype_lock_weighted_rewards_32_v1.tau"
+          "spec_path": "src/tau_specs/recommended/token_archetype_lock_weighted_rewards_32_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         },
         {
           "variant_id": "lock_weighted_rewards_32_v2",
@@ -142,7 +317,12 @@
         {
           "variant_id": "vesting_cliff_32_v1",
           "profile": "tau_only_structural",
-          "spec_path": "src/tau_specs/recommended/token_archetype_vesting_cliff_32_v1.tau"
+          "spec_path": "src/tau_specs/recommended/token_archetype_vesting_cliff_32_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         },
         {
           "variant_id": "vesting_cliff_32_v2",
@@ -170,22 +350,47 @@
         {
           "variant_id": "buyback_burn_v2",
           "profile": "fast_proof_gated",
-          "spec_path": "src/tau_specs/recommended/tokenomics_buyback_burn_v2.tau"
+          "spec_path": "src/tau_specs/recommended/tokenomics_buyback_burn_v2.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
+        },
+        {
+          "variant_id": "protocol_token_distribution_guard_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/protocol_token_distribution_guard_v1.tau"
         },
         {
           "variant_id": "tdex_fee_rebate_v1",
           "profile": "tau_only_structural",
-          "spec_path": "src/tau_specs/recommended/tdex_fee_rebate_v1.tau"
+          "spec_path": "src/tau_specs/tdex_fee_rebate_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         },
         {
           "variant_id": "tdex_buyback_floor_v2",
           "profile": "fast_proof_gated",
-          "spec_path": "src/tau_specs/recommended/tdex_buyback_floor_v2.tau"
+          "spec_path": "src/tau_specs/recommended/tdex_buyback_floor_v2.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         },
         {
           "variant_id": "tdex_buyback_floor_fixedpoint_v2",
           "profile": "fast_proof_gated",
-          "spec_path": "src/tau_specs/recommended/tdex_buyback_floor_fixedpoint_v2.tau"
+          "spec_path": "src/tau_specs/recommended/tdex_buyback_floor_fixedpoint_v2.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         }
       ]
     },
@@ -209,12 +414,22 @@
         {
           "variant_id": "liquidation_guard_v1",
           "profile": "tau_only_structural",
-          "spec_path": "src/tau_specs/recommended/zusd_liquidation_guard_v1.tau"
+          "spec_path": "src/tau_specs/recommended/zusd_liquidation_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         },
         {
           "variant_id": "supply_conservation_v1",
           "profile": "tau_only_structural",
-          "spec_path": "src/tau_specs/recommended/zusd_supply_conservation_v1.tau"
+          "spec_path": "src/tau_specs/recommended/zusd_supply_conservation_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         },
         {
           "variant_id": "oracle_commit_guard_v2",
@@ -224,37 +439,430 @@
         {
           "variant_id": "liquidation_guard_v2",
           "profile": "tau_only_structural",
-          "spec_path": "src/tau_specs/recommended/zusd_liquidation_guard_v2.tau"
+          "spec_path": "src/tau_specs/recommended/zusd_liquidation_guard_v2.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         },
         {
           "variant_id": "supply_conservation_v2",
           "profile": "tau_only_structural",
-          "spec_path": "src/tau_specs/recommended/zusd_supply_conservation_v2.tau"
+          "spec_path": "src/tau_specs/recommended/zusd_supply_conservation_v2.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         },
         {
           "variant_id": "mint_guard_v1",
           "profile": "tau_only_structural",
-          "spec_path": "src/tau_specs/recommended/zusd_mint_guard_v1.tau"
+          "spec_path": "src/tau_specs/recommended/zusd_mint_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         },
         {
           "variant_id": "repay_guard_v1",
           "profile": "tau_only_structural",
-          "spec_path": "src/tau_specs/recommended/zusd_repay_guard_v1.tau"
+          "spec_path": "src/tau_specs/recommended/zusd_repay_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         },
         {
           "variant_id": "withdraw_collateral_guard_v1",
           "profile": "tau_only_structural",
-          "spec_path": "src/tau_specs/recommended/zusd_withdraw_collateral_guard_v1.tau"
+          "spec_path": "src/tau_specs/recommended/zusd_withdraw_collateral_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         },
         {
           "variant_id": "deposit_sp_guard_v1",
           "profile": "tau_only_structural",
-          "spec_path": "src/tau_specs/recommended/zusd_deposit_sp_guard_v1.tau"
+          "spec_path": "src/tau_specs/recommended/zusd_deposit_sp_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
         },
         {
           "variant_id": "withdraw_sp_guard_v1",
           "profile": "tau_only_structural",
-          "spec_path": "src/tau_specs/recommended/zusd_withdraw_sp_guard_v1.tau"
+          "spec_path": "src/tau_specs/recommended/zusd_withdraw_sp_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
+        }
+      ]
+    },
+    "perp_liquidation_oracle_sanity": {
+      "variants": [
+        {
+          "variant_id": "proof_gated_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/perp_liquidation_oracle_sanity_guard_v1.tau"
+        }
+      ]
+    },
+    "perp_market_param_velocity": {
+      "variants": [
+        {
+          "variant_id": "proof_gated_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/perp_market_param_velocity_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
+        }
+      ]
+    },
+    "swap_execution_regret": {
+      "variants": [
+        {
+          "variant_id": "proof_gated_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/swap_execution_regret_guard_v1.tau"
+        }
+      ]
+    },
+    "resource_budget": {
+      "variants": [
+        {
+          "variant_id": "proof_gated_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/resource_budget_guard_v1.tau"
+        }
+      ]
+    },
+    "resource_artifact_binding": {
+      "variants": [
+        {
+          "variant_id": "proof_gated_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/resource_artifact_binding_guard_v1.tau"
+        }
+      ]
+    },
+    "resource_load_shedding_regret": {
+      "variants": [
+        {
+          "variant_id": "proof_gated_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/resource_load_shedding_regret_guard_v1.tau"
+        }
+      ]
+    },
+    "settlement_disaster_envelope": {
+      "variants": [
+        {
+          "variant_id": "proof_gated_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/settlement_disaster_envelope_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_host_projection",
+            "runtime_admission": true,
+            "reason": "latest Tau 401d756b executed the trace-backed disaster envelope quickly when arithmetic, signatures, proofs, and bindings are projected as fail-closed host facts"
+          }
+        }
+      ]
+    },
+    "proof_mining_payout_replay": {
+      "variants": [
+        {
+          "variant_id": "proof_gated_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/proof_mining_payout_replay_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_host_replay_frontier",
+            "runtime_admission": true,
+            "reason": "latest Tau 401d756b timed out on a temporal self-reference variant; this guard keeps the same replay disaster facts as explicit host-projected claim and tx_id frontier flags"
+          }
+        }
+      ]
+    },
+    "oracle_committee_commit_admission": {
+      "variants": [
+        {
+          "variant_id": "proof_gated_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/oracle_committee_commit_admission_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_bv32_thresholds",
+            "runtime_admission": true,
+            "reason": "latest Tau 401d756b executed bv32 quorum, fault-budget, price-envelope, and host-projected authority checks under the current trace budget"
+          }
+        }
+      ]
+    },
+    "governance_multisig_timelock": {
+      "variants": [
+        {
+          "variant_id": "proof_gated_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/governance_multisig_timelock_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_bv32_thresholds",
+            "runtime_admission": true,
+            "reason": "latest Tau 401d756b executed committee threshold, one-hot action, timelock, and policy-binding checks under the current trace budget"
+          }
+        }
+      ]
+    },
+    "advanced_disaster_guards": {
+      "variants": [
+        {
+          "variant_id": "commit_reveal_binding_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/commit_reveal_binding_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_trace_backed",
+            "runtime_admission": true,
+            "reason": "latest Tau 401d756b executed digest binding with host-projected reveal-window predicates under the current trace budget"
+          }
+        },
+        {
+          "variant_id": "idempotency_window_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/idempotency_window_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_trace_backed",
+            "runtime_admission": true,
+            "reason": "latest Tau 401d756b executed same-key replay checks with a host-projected idempotency-window predicate under the current trace budget"
+          }
+        },
+        {
+          "variant_id": "isolated_margin_no_cascade_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/isolated_margin_no_cascade_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_host_projection",
+            "runtime_admission": true,
+            "reason": "latest Tau 401d756b produced symbolic non-integer output for direct bitvector inequality; this guard checks host-projected account and balance-preservation facts fail-closed"
+          }
+        },
+        {
+          "variant_id": "routing_decision_tree_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/routing_decision_tree_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_trace_backed",
+            "runtime_admission": true,
+            "reason": "latest Tau 401d756b executed canonical route-choice traces under the current trace budget"
+          }
+        },
+        {
+          "variant_id": "slippage_floor_invariant_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/slippage_floor_invariant_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_trace_backed",
+            "runtime_admission": true,
+            "reason": "latest Tau 401d756b executed signed min-out binding and floor-honoring traces under the current trace budget"
+          }
+        }
+      ]
+    },
+    "wallet_key_management_guards": {
+      "variants": [
+        {
+          "variant_id": "wallet_recovery_envelope_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/wallet_recovery_envelope_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_host_projection",
+            "runtime_admission": true,
+            "reason": "old/runtime Tau hit a solver cliff on direct threshold arithmetic; this guard checks host-projected recovery quorum, delay, binding, replay, and anti-bricking facts fail-closed"
+          }
+        },
+        {
+          "variant_id": "key_rotation_admission_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/key_rotation_admission_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_host_projection",
+            "runtime_admission": true,
+            "reason": "dual-profile traces execute old-key authorization, new-key binding, no pending recovery, replay frontier, and live-path preservation as projected admission facts"
+          }
+        },
+        {
+          "variant_id": "sss_recovery_share_quorum_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/sss_recovery_share_quorum_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_host_projection",
+            "runtime_admission": true,
+            "reason": "dual-profile traces execute host-projected SSS threshold sanity, share uniqueness, commitment binding, receipt freshness, and replay frontier facts"
+          }
+        }
+      ]
+    },
+    "mev_batch_atomic_replay": {
+      "variants": [
+        {
+          "variant_id": "proof_gated_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/mev_batch_atomic_replay_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_host_projection",
+            "runtime_admission": true,
+            "reason": "dual-profile traces execute batch identity, canonical ordering, replay, atomic execution, slippage, and pool-bypass facts fail-closed"
+          }
+        }
+      ]
+    },
+    "oracle_epoch_equivocation": {
+      "variants": [
+        {
+          "variant_id": "proof_gated_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/oracle_epoch_equivocation_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_host_projection",
+            "runtime_admission": true,
+            "reason": "dual-profile traces execute chain binding, epoch continuity, no-equivocation, quorum signature, diversity, price-envelope, and replay facts fail-closed"
+          }
+        }
+      ]
+    },
+    "gemini_promoted_composition_guards": {
+      "variants": [
+        {
+          "variant_id": "cross_module_conservation_consistency_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/cross_module_conservation_consistency_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_host_conservation_projection",
+            "runtime_admission": true,
+            "reason": "rewritten from exp_cross_module_conservation_v1 after dual-profile trace; requires complete module witness set, combined witness consistency, proof, and binding"
+          }
+        },
+        {
+          "variant_id": "atomic_batch_commit_guard_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/atomic_batch_commit_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_abort_containment",
+            "runtime_admission": true,
+            "reason": "rewritten from exp_atomic_batch_commit_v1 after dual-profile trace; requires aggregate commit consistency and contained abort with unchanged state root and no external effects"
+          }
+        },
+        {
+          "variant_id": "dispute_window_finality_guard_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/dispute_window_finality_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_host_epoch_projection",
+            "runtime_admission": true,
+            "reason": "rewritten from exp_dispute_window_v1 after dual-profile trace; moves epoch arithmetic to bounded host facts and checks finality, challenge, proof, and binding fail-closed"
+          }
+        }
+      ]
+    },
+    "power_technique_runtime_guards": {
+      "variants": [
+        {
+          "variant_id": "secure_signer_operation_admission_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/secure_signer_operation_admission_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_host_capability_projection",
+            "runtime_admission": true,
+            "reason": "uses one-hot operation decoding, host-projected capability subset and mask-binding facts, private-key non-export, signer context, and proof/binding facts without high-width arithmetic"
+          }
+        },
+        {
+          "variant_id": "runtime_action_capability_envelope_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/runtime_action_capability_envelope_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_host_capability_projection",
+            "runtime_admission": true,
+            "reason": "uses one-hot action decoding, host-projected capability subset and mask-binding facts, replay facts, runtime context, and proof/binding facts as a reusable action-admission envelope"
+          }
+        },
+        {
+          "variant_id": "incident_latch_reset_quorum_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/incident_latch_reset_quorum_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_host_latch_state",
+            "runtime_admission": true,
+            "reason": "computes next latch state from host-provided prior latch and requires quorum, timelock, incident evidence, monitoring, proof, and binding before reset"
+          }
+        },
+        {
+          "variant_id": "tau_policy_shadow_migration_gate_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/tau_policy_shadow_migration_gate_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_shadow_equivalence",
+            "runtime_admission": true,
+            "reason": "checks old/new checker agreement, artifact binding, trace evidence, fallback availability, and proof/binding facts for Tau policy migration"
+          }
+        },
+        {
+          "variant_id": "disaster_axis_safe_noop_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/disaster_axis_safe_noop_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_disaster_axis_projection",
+            "runtime_admission": true,
+            "reason": "requires named disaster axes to be absent for action admission or absorbed as safe no-ops with unchanged state and no external effect"
+          }
+        },
+        {
+          "variant_id": "payout_template_age_replay_envelope_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/payout_template_age_replay_envelope_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_timestamp_and_replay_projection",
+            "runtime_admission": true,
+            "reason": "requires exactly one real timestamp source, bounded age, replay-frontier facts, payout identity binding, and proof/binding facts"
+          }
+        },
+        {
+          "variant_id": "public_testnet_node_admission_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/public_testnet_node_admission_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_host_capability_projection",
+            "runtime_admission": true,
+            "reason": "checks public-testnet chain identity, runtime profile, host-projected peer capability subset and mask-binding facts, service identity, no-demo posture, and proof/binding facts"
+          }
+        },
+        {
+          "variant_id": "release_artifact_manifest_binding_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/release_artifact_manifest_binding_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "runtime_executable_with_manifest_binding",
+            "runtime_admission": true,
+            "reason": "checks binary/spec/image hash binding, CI evidence, release posture, provenance, public install docs, and proof/binding facts"
+          }
+        }
+      ]
+    },
+    "confidential_extension_admission": {
+      "variants": [
+        {
+          "variant_id": "live_admission_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/confidential_extension_live_admission_v1.tau"
         }
       ]
     }

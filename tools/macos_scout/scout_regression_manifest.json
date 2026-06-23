@@ -1,0 +1,62 @@
+{
+  "schema": "zenodex/macos-scout-regression-manifest/v1",
+  "updated_at": "2026-05-08",
+  "reason_classes": [
+    {
+      "reason": "liquidity_floor_breach_under_oracle_gap",
+      "status": "repeat_regression_target",
+      "hazard": "Risk transfer continues while liquidity is below the candidate floor and the mark/oracle gap is material.",
+      "hardening": "Fail-closed oracle-gap/liquidity guard must block payout-bearing transitions before this can be treated as non-disaster evidence.",
+      "proof_target": "If liquidity < floor and abs(mark/oracle - 1) > gap_bound, accepted payout and liquidation transitions are zero or rejected."
+    },
+    {
+      "reason": "payout_cap_exceeded_initial_budget",
+      "status": "repeat_regression_target",
+      "hazard": "A payout cap tied to current insurance can exceed the initial epoch budget after fee accrual.",
+      "hardening": "Payout caps must bind to an explicit epoch budget, not inflated current insurance.",
+      "proof_target": "For every accepted payout transition, payout <= payout_cap_share * initial_epoch_insurance_budget."
+    },
+    {
+      "reason": "funding_too_aggressive_in_thin_liquidity",
+      "status": "repeat_regression_target",
+      "hazard": "Funding remains high while executable liquidity is thin.",
+      "hardening": "Thin-liquidity funding clamp must reduce absolute funding before risk transfer is accepted.",
+      "proof_target": "If liquidity < thin_liquidity_bound, abs(funding) <= thin_liquidity_funding_cap."
+    },
+    {
+      "reason": "negative_insurance",
+      "status": "declared_simulator_sentinel",
+      "hazard": "Insurance can become negative under accepted stress transitions.",
+      "hardening": "Budget caps and fail-closed guards should keep this unreachable in bounded scout runs.",
+      "proof_target": "Insurance balance remains nonnegative under accepted bounded transitions."
+    },
+    {
+      "reason": "burn_starves_budget",
+      "status": "declared_simulator_sentinel",
+      "hazard": "Fee burn consumes more than the allowed budget share.",
+      "hardening": "Legal-shape gate must cap burn plus insurance shares before promotion.",
+      "proof_target": "Burn share stays below the configured maximum for every accepted fee transition."
+    },
+    {
+      "reason": "unclassified_disaster_reason",
+      "status": "declared_process_sentinel",
+      "hazard": "A scout run emits a new disaster reason that is not mapped to a tracked hardening or proof target.",
+      "hardening": "The regression gate must reject any unclassified reason before the run can become evidence.",
+      "proof_target": "Every emitted counterexample reason is a member of the tracked reason-class manifest."
+    },
+    {
+      "reason": "unsafe_candidate_promoted",
+      "status": "declared_process_sentinel",
+      "hazard": "A candidate is promoted despite nonzero disaster rate, illegal shape, underfunded insurance, or excessive guard reliance.",
+      "hardening": "Promotion candidates must pass strict no-disaster, legal-shape, insurance, and guard-use filters.",
+      "proof_target": "Every promotion candidate satisfies the strict candidate predicate checked by the regression gate."
+    },
+    {
+      "reason": "dirty_checker_promotes_receipt",
+      "status": "declared_process_sentinel",
+      "hazard": "A witness-space receipt is treated as authoritative while gate-critical checker or atlas files are dirty.",
+      "hardening": "Use --require-clean for release evidence and reject receipts with gate-critical dirty paths.",
+      "proof_target": "A release-bound witness-space receipt has no dirty gate-critical checker, manifest, or atlas paths."
+    }
+  ]
+}

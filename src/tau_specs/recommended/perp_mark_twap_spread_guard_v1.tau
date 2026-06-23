@@ -1,0 +1,50 @@
+# Perp Mark/TWAP/Spread Guard v1
+#
+# PURPOSE:
+# Enforce bounded mark-vs-TWAP divergence and bounded order-book spread.
+#
+# i1 = mark_price (bv[32])
+# i2 = twap_price (bv[32])
+# i3 = best_bid (bv[32])
+# i4 = best_ask (bv[32])
+# i5 = max_mark_twap_gap_abs (bv[32])
+# i6 = max_spread_abs (bv[32])
+# i7 = proof_ok (sbf)
+# i8 = binding_ok (sbf)
+#
+# o1 = mark_twap_gap_ok
+# o2 = book_order_ok
+# o3 = spread_ok
+# o4 = pricing_safe
+# o5 = proof_gated_pricing_safe
+
+set charvar off
+
+within_gap(curr : bv[32], ref : bv[32], max_gap : bv[32]) :=
+  ((curr >= ref) && ((curr - ref) <= max_gap)) ||
+  ((curr < ref) && ((ref - curr) <= max_gap)).
+
+mark_twap_gap_ok(mark_price : bv[32], twap_price : bv[32], max_mark_twap_gap_abs : bv[32]) :=
+  within_gap(mark_price, twap_price, max_mark_twap_gap_abs).
+
+book_order_ok(best_bid : bv[32], best_ask : bv[32]) := best_bid <= best_ask.
+
+spread_ok(best_bid : bv[32], best_ask : bv[32], max_spread_abs : bv[32]) :=
+  (best_ask >= best_bid) && ((best_ask - best_bid) <= max_spread_abs).
+
+pricing_safe(mark_price : bv[32], twap_price : bv[32], best_bid : bv[32], best_ask : bv[32], max_mark_twap_gap_abs : bv[32], max_spread_abs : bv[32]) :=
+  mark_twap_gap_ok(mark_price, twap_price, max_mark_twap_gap_abs) &&
+  book_order_ok(best_bid, best_ask) &&
+  spread_ok(best_bid, best_ask, max_spread_abs).
+
+proof_gated_pricing_safe(mark_price : bv[32], twap_price : bv[32], best_bid : bv[32], best_ask : bv[32], max_mark_twap_gap_abs : bv[32], max_spread_abs : bv[32], proof_ok : sbf, binding_ok : sbf) :=
+  pricing_safe(mark_price, twap_price, best_bid, best_ask, max_mark_twap_gap_abs, max_spread_abs) &&
+  (proof_ok = 1:sbf) &&
+  (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> mark_twap_gap_ok(i1[t]:bv[32], i2[t]:bv[32], i5[t]:bv[32])) &&
+  (o2[t]:sbf = 1:sbf <-> book_order_ok(i3[t]:bv[32], i4[t]:bv[32])) &&
+  (o3[t]:sbf = 1:sbf <-> spread_ok(i3[t]:bv[32], i4[t]:bv[32], i6[t]:bv[32])) &&
+  (o4[t]:sbf = 1:sbf <-> pricing_safe(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32])) &&
+  (o5[t]:sbf = 1:sbf <-> proof_gated_pricing_safe(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:sbf, i8[t]:sbf)).

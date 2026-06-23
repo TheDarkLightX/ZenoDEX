@@ -17,6 +17,10 @@ from .tau_witness import (
     BATCHING_V1,
     BATCHING_V1_4,
     BATCH_CANONICAL_V1_4,
+    BURN_RECEIPT_AMOUNT_GUARD_V1,
+    BURN_RECEIPT_BATCH_SUM_GUARD_V1,
+    BURN_RECEIPT_REPLAY_GUARD_V1,
+    BURN_RECEIPT_SUPPLY_GUARD_V1,
     CPMM_V1,
     TOKEN_ARCHETYPE_LOCK_WEIGHTED_REWARDS_32_V2,
     TOKEN_ARCHETYPE_SOULBOUND_V2,
@@ -48,6 +52,10 @@ from .tau_witness import (
     build_batch_canonical_v1_4_step,
     build_batching_v1_4_step,
     build_batching_v1_step,
+    build_burn_receipt_amount_guard_v1_step,
+    build_burn_receipt_batch_sum_guard_v1_step,
+    build_burn_receipt_replay_guard_v1_step,
+    build_burn_receipt_supply_guard_v1_step,
     build_cpmm_v1_step,
     build_token_archetype_lock_weighted_rewards_32_v2_step,
     build_token_archetype_soulbound_v2_step,
@@ -574,6 +582,134 @@ def production_tau_trace_cases() -> List[TauTraceCase]:
             timeout_s=15.0,
         )
     )
+    cases.append(
+        TauTraceCase(
+            case_id="burn_receipt_replay_guard_v1_pass",
+            spec=BURN_RECEIPT_REPLAY_GUARD_V1,
+            steps=[
+                build_burn_receipt_replay_guard_v1_step(
+                    do_burn=1,
+                    receipt_bound=1,
+                    nullifier_unused=1,
+                    policy_ok=1,
+                )
+            ],
+            expected=[{"o1": 1}],
+            timeout_s=15.0,
+        )
+    )
+    cases.append(
+        TauTraceCase(
+            case_id="burn_receipt_replay_guard_v1_fail_replay",
+            spec=BURN_RECEIPT_REPLAY_GUARD_V1,
+            steps=[
+                build_burn_receipt_replay_guard_v1_step(
+                    do_burn=1,
+                    receipt_bound=1,
+                    nullifier_unused=0,
+                    policy_ok=1,
+                )
+            ],
+            expected=[{"o1": 0}],
+            timeout_s=15.0,
+        )
+    )
+    cases.append(
+        TauTraceCase(
+            case_id="burn_receipt_amount_guard_v1_pass",
+            spec=BURN_RECEIPT_AMOUNT_GUARD_V1,
+            steps=[
+                build_burn_receipt_amount_guard_v1_step(
+                    do_burn=1,
+                    burn_amount=20,
+                    receipt_amount=20,
+                    burn_budget=30,
+                )
+            ],
+            expected=[{"o1": 1}],
+            timeout_s=15.0,
+        )
+    )
+    cases.append(
+        TauTraceCase(
+            case_id="burn_receipt_amount_guard_v1_fail_receipt_mismatch",
+            spec=BURN_RECEIPT_AMOUNT_GUARD_V1,
+            steps=[
+                build_burn_receipt_amount_guard_v1_step(
+                    do_burn=1,
+                    burn_amount=20,
+                    receipt_amount=19,
+                    burn_budget=30,
+                )
+            ],
+            expected=[{"o1": 0}],
+            timeout_s=15.0,
+        )
+    )
+    cases.append(
+        TauTraceCase(
+            case_id="burn_receipt_supply_guard_v1_pass",
+            spec=BURN_RECEIPT_SUPPLY_GUARD_V1,
+            steps=[
+                build_burn_receipt_supply_guard_v1_step(
+                    do_burn=0,
+                    burn_amount=0,
+                    supply_before=1_000,
+                    supply_after=1_000,
+                )
+            ],
+            expected=[{"o1": 1}],
+            timeout_s=15.0,
+        )
+    )
+    cases.append(
+        TauTraceCase(
+            case_id="burn_receipt_supply_guard_v1_fail_supply_delta",
+            spec=BURN_RECEIPT_SUPPLY_GUARD_V1,
+            steps=[
+                build_burn_receipt_supply_guard_v1_step(
+                    do_burn=1,
+                    burn_amount=20,
+                    supply_before=1_000,
+                    supply_after=981,
+                )
+            ],
+            expected=[{"o1": 0}],
+            timeout_s=15.0,
+        )
+    )
+    cases.append(
+        TauTraceCase(
+            case_id="burn_receipt_batch_sum_guard_v1_pass",
+            spec=BURN_RECEIPT_BATCH_SUM_GUARD_V1,
+            steps=[
+                build_burn_receipt_batch_sum_guard_v1_step(
+                    do_burn=1,
+                    burn_amount=20,
+                    batch_burn_sum_before=50,
+                    batch_burn_sum_after=70,
+                )
+            ],
+            expected=[{"o1": 1}],
+            timeout_s=15.0,
+        )
+    )
+    cases.append(
+        TauTraceCase(
+            case_id="burn_receipt_batch_sum_guard_v1_fail_batch_delta",
+            spec=BURN_RECEIPT_BATCH_SUM_GUARD_V1,
+            steps=[
+                build_burn_receipt_batch_sum_guard_v1_step(
+                    do_burn=1,
+                    burn_amount=20,
+                    batch_burn_sum_before=50,
+                    batch_burn_sum_after=69,
+                )
+            ],
+            expected=[{"o1": 0}],
+            timeout_s=15.0,
+        )
+    )
 
     # TDEX buyback primitives (PulseX-style)
     cases.append(
@@ -821,7 +957,7 @@ def production_tau_trace_cases() -> List[TauTraceCase]:
             case_id="settlement_v3_buyback_floor_proof_gate_pass",
             spec=SETTLEMENT_V3_BUYBACK_FLOOR_PROOF_GATE,
             steps=[
-                build_settlement_v3_buyback_floor_proof_gate_step(a=1, b=2, c=3, d=4, price_pp=1000, price_prev=1001, price_curr=1002, buyback_ok=1)
+                build_settlement_v3_buyback_floor_proof_gate_step(a=1, b=2, c=3, d=4, price_pp=1000, price_prev=1001, price_curr=1002, buyback_floor_ok=1)
             ],
             expected=[{"o8": 1}],
             mode="spec",
@@ -834,7 +970,7 @@ def production_tau_trace_cases() -> List[TauTraceCase]:
             case_id="settlement_v3_buyback_floor_proof_gate_fail_floor",
             spec=SETTLEMENT_V3_BUYBACK_FLOOR_PROOF_GATE,
             steps=[
-                build_settlement_v3_buyback_floor_proof_gate_step(a=1, b=2, c=3, d=4, price_pp=1000, price_prev=1001, price_curr=1002, buyback_ok=0)
+                build_settlement_v3_buyback_floor_proof_gate_step(a=1, b=2, c=3, d=4, price_pp=1000, price_prev=1001, price_curr=1002, buyback_floor_ok=0)
             ],
             expected=[{"o8": 0}],
             mode="spec",

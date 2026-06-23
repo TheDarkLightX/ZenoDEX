@@ -1,0 +1,40 @@
+# Atomic Batch Commit Guard v1
+#
+# PURPOSE:
+# Require cross-module batches to commit all-or-nothing. If any module cannot
+# commit, the aggregate commit witness must be false and the runtime must emit a
+# contained abort with unchanged state root and no external effects.
+#
+# i1  = batch_requested (sbf)
+# i2  = dex_commit_ok (sbf)
+# i3  = zusd_commit_ok (sbf)
+# i4  = perp_commit_ok (sbf)
+# i5  = autotrader_commit_ok (sbf)
+# i6  = oracle_commit_ok (sbf)
+# i7  = aggregate_commit_witness (sbf)
+# i8  = abort_revert_emitted (sbf)
+# i9  = abort_state_root_unchanged (sbf)
+# i10 = abort_external_effect_absent (sbf)
+# i11 = proof_ok (sbf)
+# i12 = binding_ok (sbf)
+#
+# o1 = all_modules_committed
+# o2 = aggregate_commit_consistent
+# o3 = abort_containment_ok
+# o4 = batch_commit_safe
+# o5 = proof_gated_batch_commit_safe
+
+set charvar off
+
+all_modules_committed(dex_commit_ok : sbf, zusd_commit_ok : sbf, perp_commit_ok : sbf, autotrader_commit_ok : sbf, oracle_commit_ok : sbf) := (dex_commit_ok = 1:sbf) && (zusd_commit_ok = 1:sbf) && (perp_commit_ok = 1:sbf) && (autotrader_commit_ok = 1:sbf) && (oracle_commit_ok = 1:sbf).
+
+aggregate_commit_consistent(dex_commit_ok : sbf, zusd_commit_ok : sbf, perp_commit_ok : sbf, autotrader_commit_ok : sbf, oracle_commit_ok : sbf, aggregate_commit_witness : sbf) := ((aggregate_commit_witness = 1:sbf) <-> all_modules_committed(dex_commit_ok, zusd_commit_ok, perp_commit_ok, autotrader_commit_ok, oracle_commit_ok)).
+
+abort_containment_ok(dex_commit_ok : sbf, zusd_commit_ok : sbf, perp_commit_ok : sbf, autotrader_commit_ok : sbf, oracle_commit_ok : sbf, abort_revert_emitted : sbf, abort_state_root_unchanged : sbf, abort_external_effect_absent : sbf) := all_modules_committed(dex_commit_ok, zusd_commit_ok, perp_commit_ok, autotrader_commit_ok, oracle_commit_ok) || ((abort_revert_emitted = 1:sbf) && (abort_state_root_unchanged = 1:sbf) && (abort_external_effect_absent = 1:sbf)).
+
+always
+  (o1[t]:sbf = 1:sbf <-> all_modules_committed(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> aggregate_commit_consistent(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> abort_containment_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && aggregate_commit_consistent(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf) && abort_containment_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf))) &&
+  (o5[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && aggregate_commit_consistent(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf) && abort_containment_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf) && (i11[t]:sbf = 1:sbf) && (i12[t]:sbf = 1:sbf))).

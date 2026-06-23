@@ -1,0 +1,31 @@
+# ZenoDEX operator tools image.
+# This image is for local/public-testnet operator workflows that need repo tools.
+
+FROM python:3.11-slim-bookworm@sha256:a2c44ea455da75ce149a1aacb0e48d859277be1e206cfafaba58ef81374d1af1
+
+WORKDIR /app
+
+COPY requirements-core.lock.txt ./
+RUN python -m pip install --no-cache-dir --require-hashes -r requirements-core.lock.txt
+
+ARG ZENODEX_UID=10001
+ARG ZENODEX_GID=10001
+RUN groupadd -g "${ZENODEX_GID}" -r zenodex \
+    && useradd -u "${ZENODEX_UID}" -g zenodex -r -m -d /home/zenodex -s /usr/sbin/nologin zenodex \
+    && mkdir -p /app/data \
+    && chown -R zenodex:zenodex /app/data
+
+COPY src/ ./src/
+COPY tools/ ./tools/
+COPY formal/property/production_key_management_v0.json ./formal/property/production_key_management_v0.json
+COPY generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py ./generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py
+COPY generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py ./generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py
+COPY generated/perp_python/perp_epoch_clearinghouse_3p_transfer_v0_1_ref.py ./generated/perp_python/perp_epoch_clearinghouse_3p_transfer_v0_1_ref.py
+COPY generated/perp_python/perp_epoch_isolated_v2_ref.py ./generated/perp_python/perp_epoch_isolated_v2_ref.py
+COPY generated/perp_python/perp_epoch_isolated_v3_ref.py ./generated/perp_python/perp_epoch_isolated_v3_ref.py
+COPY docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json ./docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
+COPY docs/claims_registry.yaml ./docs/claims_registry.yaml
+
+ENV PYTHONUNBUFFERED=1
+USER zenodex
+ENTRYPOINT ["python"]

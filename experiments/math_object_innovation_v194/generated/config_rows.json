@@ -1,0 +1,315 @@
+[
+  {
+    "acceptance_class": "accepted_without_override",
+    "accepted": true,
+    "checks": [
+      {
+        "failures": [],
+        "fee_bps": 900,
+        "meet_cap_bps": 1800,
+        "override_present": false,
+        "override_valid": false,
+        "status": "ok_under_meet_cap",
+        "surface": "route_surplus_capture"
+      },
+      {
+        "failures": [],
+        "fee_bps": 1000,
+        "meet_cap_bps": 2000,
+        "override_present": false,
+        "override_valid": false,
+        "status": "ok_under_meet_cap",
+        "surface": "exact_out_savings_capture"
+      },
+      {
+        "failures": [],
+        "fee_bps": 1000,
+        "meet_cap_bps": 3000,
+        "override_present": false,
+        "override_valid": false,
+        "status": "ok_under_meet_cap",
+        "surface": "pro_certificate_api"
+      }
+    ],
+    "claimed_evidence_compliant": true,
+    "config_failures": [],
+    "config_id": "conservative_review_config",
+    "duplicate_overrides": [],
+    "evidence_compliant": true,
+    "has_assumption_override": false,
+    "stray_overrides": []
+  },
+  {
+    "acceptance_class": "accepted_without_override",
+    "accepted": true,
+    "checks": [
+      {
+        "failures": [],
+        "fee_bps": 5000,
+        "meet_cap_bps": 5000,
+        "override_present": false,
+        "override_valid": false,
+        "status": "ok_under_meet_cap",
+        "surface": "cow_batch_solver_surplus"
+      },
+      {
+        "failures": [],
+        "fee_bps": 2000,
+        "meet_cap_bps": 2000,
+        "override_present": false,
+        "override_valid": false,
+        "status": "ok_under_meet_cap",
+        "surface": "exact_out_savings_capture"
+      },
+      {
+        "failures": [],
+        "fee_bps": 3000,
+        "meet_cap_bps": 3000,
+        "override_present": false,
+        "override_valid": false,
+        "status": "ok_under_meet_cap",
+        "surface": "integrator_router_surface"
+      },
+      {
+        "failures": [],
+        "fee_bps": 5000,
+        "meet_cap_bps": 5000,
+        "override_present": false,
+        "override_valid": false,
+        "status": "ok_under_meet_cap",
+        "surface": "lp_loss_cover_premium"
+      },
+      {
+        "failures": [],
+        "fee_bps": 3000,
+        "meet_cap_bps": 3000,
+        "override_present": false,
+        "override_valid": false,
+        "status": "ok_under_meet_cap",
+        "surface": "pro_certificate_api"
+      },
+      {
+        "failures": [],
+        "fee_bps": 1800,
+        "meet_cap_bps": 1800,
+        "override_present": false,
+        "override_valid": false,
+        "status": "ok_under_meet_cap",
+        "surface": "route_surplus_capture"
+      }
+    ],
+    "claimed_evidence_compliant": true,
+    "config_failures": [],
+    "config_id": "at_meet_all_surfaces",
+    "duplicate_overrides": [],
+    "evidence_compliant": true,
+    "has_assumption_override": false,
+    "stray_overrides": []
+  },
+  {
+    "acceptance_class": "rejected",
+    "accepted": false,
+    "checks": [
+      {
+        "failures": [
+          "missing_override"
+        ],
+        "fee_bps": 1801,
+        "meet_cap_bps": 1800,
+        "override_present": false,
+        "override_valid": false,
+        "status": "over_cap_without_valid_override",
+        "surface": "route_surplus_capture"
+      }
+    ],
+    "claimed_evidence_compliant": false,
+    "config_failures": [
+      "missing_override"
+    ],
+    "config_id": "overcap_no_override_bad",
+    "duplicate_overrides": [],
+    "evidence_compliant": false,
+    "has_assumption_override": false,
+    "stray_overrides": []
+  },
+  {
+    "acceptance_class": "rejected",
+    "accepted": false,
+    "checks": [
+      {
+        "failures": [
+          "missing_override"
+        ],
+        "fee_bps": 2001,
+        "meet_cap_bps": 2000,
+        "override_present": false,
+        "override_valid": false,
+        "status": "over_cap_without_valid_override",
+        "surface": "exact_out_savings_capture"
+      }
+    ],
+    "claimed_evidence_compliant": true,
+    "config_failures": [
+      "missing_override",
+      "unsafe_evidence_compliance_claim"
+    ],
+    "config_id": "overcap_claim_bad",
+    "duplicate_overrides": [],
+    "evidence_compliant": false,
+    "has_assumption_override": false,
+    "stray_overrides": []
+  },
+  {
+    "acceptance_class": "accepted_with_override",
+    "accepted": true,
+    "checks": [
+      {
+        "failures": [],
+        "fee_bps": 2300,
+        "meet_cap_bps": 1800,
+        "override_present": true,
+        "override_valid": true,
+        "status": "ok_assumption_change_override",
+        "surface": "route_surplus_capture"
+      }
+    ],
+    "claimed_evidence_compliant": false,
+    "config_failures": [],
+    "config_id": "valid_route_override_review",
+    "duplicate_overrides": [],
+    "evidence_compliant": false,
+    "has_assumption_override": true,
+    "stray_overrides": []
+  },
+  {
+    "acceptance_class": "rejected",
+    "accepted": false,
+    "checks": [
+      {
+        "failures": [
+          "missing_no_user_net_ack"
+        ],
+        "fee_bps": 3500,
+        "meet_cap_bps": 3000,
+        "override_present": true,
+        "override_valid": false,
+        "status": "over_cap_without_valid_override",
+        "surface": "pro_certificate_api"
+      }
+    ],
+    "claimed_evidence_compliant": false,
+    "config_failures": [
+      "missing_no_user_net_ack"
+    ],
+    "config_id": "invalid_override_missing_ack_bad",
+    "duplicate_overrides": [],
+    "evidence_compliant": false,
+    "has_assumption_override": false,
+    "stray_overrides": []
+  },
+  {
+    "acceptance_class": "rejected",
+    "accepted": false,
+    "checks": [
+      {
+        "failures": [
+          "missing_override"
+        ],
+        "fee_bps": 100,
+        "meet_cap_bps": null,
+        "override_present": false,
+        "override_valid": false,
+        "status": "unknown_surface_without_valid_override",
+        "surface": "staking_passive_yield"
+      }
+    ],
+    "claimed_evidence_compliant": false,
+    "config_failures": [
+      "missing_override"
+    ],
+    "config_id": "unknown_surface_no_override_bad",
+    "duplicate_overrides": [],
+    "evidence_compliant": false,
+    "has_assumption_override": false,
+    "stray_overrides": []
+  },
+  {
+    "acceptance_class": "accepted_with_override",
+    "accepted": true,
+    "checks": [
+      {
+        "failures": [],
+        "fee_bps": 100,
+        "meet_cap_bps": null,
+        "override_present": true,
+        "override_valid": true,
+        "status": "ok_assumption_change_override",
+        "surface": "governance_court_fee"
+      }
+    ],
+    "claimed_evidence_compliant": false,
+    "config_failures": [],
+    "config_id": "unknown_surface_valid_override",
+    "duplicate_overrides": [],
+    "evidence_compliant": false,
+    "has_assumption_override": true,
+    "stray_overrides": []
+  },
+  {
+    "acceptance_class": "rejected",
+    "accepted": false,
+    "checks": [
+      {
+        "failures": [
+          "redundant_override"
+        ],
+        "fee_bps": 1000,
+        "meet_cap_bps": 3000,
+        "override_present": true,
+        "override_valid": true,
+        "status": "redundant_override",
+        "surface": "integrator_router_surface"
+      }
+    ],
+    "claimed_evidence_compliant": false,
+    "config_failures": [
+      "redundant_override"
+    ],
+    "config_id": "redundant_override_bad",
+    "duplicate_overrides": [],
+    "evidence_compliant": false,
+    "has_assumption_override": false,
+    "stray_overrides": []
+  },
+  {
+    "acceptance_class": "accepted_with_override",
+    "accepted": true,
+    "checks": [
+      {
+        "failures": [],
+        "fee_bps": 1000,
+        "meet_cap_bps": 1800,
+        "override_present": false,
+        "override_valid": false,
+        "status": "ok_under_meet_cap",
+        "surface": "route_surplus_capture"
+      },
+      {
+        "failures": [],
+        "fee_bps": 2100,
+        "meet_cap_bps": 2000,
+        "override_present": true,
+        "override_valid": true,
+        "status": "ok_assumption_change_override",
+        "surface": "exact_out_savings_capture"
+      }
+    ],
+    "claimed_evidence_compliant": false,
+    "config_failures": [],
+    "config_id": "mixed_safe_and_override_review",
+    "duplicate_overrides": [],
+    "evidence_compliant": false,
+    "has_assumption_override": true,
+    "stray_overrides": []
+  }
+]

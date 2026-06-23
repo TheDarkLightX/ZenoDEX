@@ -21,6 +21,12 @@ _EPOCH_PHASE_INT_MAP: dict[int, EpochPhase] = {
     2: EpochPhase.SETTLED,
 }
 
+_EPOCH_PHASE_TO_INT: dict[EpochPhase, int] = {
+    EpochPhase.OPEN: 0,
+    EpochPhase.PRICE_PUBLISHED: 1,
+    EpochPhase.SETTLED: 2,
+}
+
 
 def _coerce_epoch_phase(val: Any) -> EpochPhase:
     if isinstance(val, EpochPhase):
@@ -49,7 +55,8 @@ def state_to_dict(state: PerpState) -> dict[str, bool | int | str]:
     for name in STATE_VAR_NAMES:
         val = getattr(state, name)
         if isinstance(val, EpochPhase):
-            d[name] = val.value
+            # Kernel spec uses int encoding for enums: Open=0, PricePublished=1, Settled=2.
+            d[name] = int(_EPOCH_PHASE_TO_INT[val])
         else:
             d[name] = val
     return d

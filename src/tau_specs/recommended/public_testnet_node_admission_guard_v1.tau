@@ -1,0 +1,46 @@
+# Public Testnet Node Admission Guard v1
+#
+# PURPOSE:
+# Admit public-testnet node joins only when chain identity, runtime profile,
+# peer capabilities, service identity, and no-demo posture are all bound.
+#
+# i1  = node_join_requested (sbf)
+# i2  = genesis_hash_match (sbf)
+# i3  = network_id_match (sbf)
+# i4  = tau_runtime_profile_allowed (sbf)
+# i5  = spec_profile_hash_bound (sbf)
+# i6  = requested_peer_capability_mask_bound (sbf)
+# i7  = peer_capability_subset_ok (sbf)
+# i8  = service_proof_present (sbf)
+# i9  = operator_key_bound (sbf)
+# i10 = advertised_addr_valid (sbf)
+# i11 = no_demo_mode_flags (sbf)
+# i12 = proof_ok (sbf)
+# i13 = binding_ok (sbf)
+#
+# o1 = chain_binding_ok
+# o2 = runtime_profile_ok
+# o3 = peer_capability_subset_ok
+# o4 = service_identity_ok
+# o5 = production_posture_ok
+# o6 = node_admissible
+# o7 = proof_gated_node_admissible
+
+set charvar off
+
+chain_binding_ok(genesis_hash_match : sbf, network_id_match : sbf) := (genesis_hash_match = 1:sbf) && (network_id_match = 1:sbf).
+
+runtime_profile_ok(tau_runtime_profile_allowed : sbf, spec_profile_hash_bound : sbf) := (tau_runtime_profile_allowed = 1:sbf) && (spec_profile_hash_bound = 1:sbf).
+
+peer_capability_subset_ok(requested_peer_capability_mask_bound : sbf, peer_capability_subset_ok : sbf) := (requested_peer_capability_mask_bound = 1:sbf) && (peer_capability_subset_ok = 1:sbf).
+
+service_identity_ok(service_proof_present : sbf, operator_key_bound : sbf, advertised_addr_valid : sbf) := (service_proof_present = 1:sbf) && (operator_key_bound = 1:sbf) && (advertised_addr_valid = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> chain_binding_ok(i2[t]:sbf, i3[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> runtime_profile_ok(i4[t]:sbf, i5[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> peer_capability_subset_ok(i6[t]:sbf, i7[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> service_identity_ok(i8[t]:sbf, i9[t]:sbf, i10[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> (i11[t]:sbf = 1:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && chain_binding_ok(i2[t]:sbf, i3[t]:sbf) && runtime_profile_ok(i4[t]:sbf, i5[t]:sbf) && peer_capability_subset_ok(i6[t]:sbf, i7[t]:sbf) && service_identity_ok(i8[t]:sbf, i9[t]:sbf, i10[t]:sbf) && (i11[t]:sbf = 1:sbf))) &&
+  (o7[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && chain_binding_ok(i2[t]:sbf, i3[t]:sbf) && runtime_profile_ok(i4[t]:sbf, i5[t]:sbf) && peer_capability_subset_ok(i6[t]:sbf, i7[t]:sbf) && service_identity_ok(i8[t]:sbf, i9[t]:sbf, i10[t]:sbf) && (i11[t]:sbf = 1:sbf) && (i12[t]:sbf = 1:sbf) && (i13[t]:sbf = 1:sbf))).

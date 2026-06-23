@@ -1,0 +1,206 @@
+{
+  "manifest_version": 1,
+  "schema": "zenodex/disaster_obligation_certificate/v1",
+  "axes": [
+    {
+      "name": "raw_report_consumed_by_critical_action",
+      "obligations": ["critical_action_bound", "evidence_floor_o3", "receipt_dag_closed", "schema_total"]
+    },
+    {
+      "name": "weak_o2_evidence_used_for_critical_action",
+      "obligations": ["critical_action_bound", "evidence_floor_o3", "receipt_dag_closed", "schema_total"]
+    },
+    {
+      "name": "stale_read_used_for_critical_action",
+      "obligations": ["critical_action_bound", "receipt_dag_closed", "schema_total", "time_freshness"]
+    },
+    {
+      "name": "future_report_used_for_critical_action",
+      "obligations": ["critical_action_bound", "receipt_dag_closed", "schema_total", "time_freshness"]
+    },
+    {
+      "name": "wrong_query_id_consumed_by_action",
+      "obligations": ["critical_action_bound", "query_semantics", "receipt_dag_closed", "schema_total", "value_binding"]
+    },
+    {
+      "name": "wrong_value_hash_consumed_by_action",
+      "obligations": ["critical_action_bound", "receipt_dag_closed", "schema_total", "value_binding"]
+    },
+    {
+      "name": "action_facts_hash_mismatch",
+      "obligations": ["critical_action_bound", "receipt_dag_closed", "runtime_state_binding", "schema_total"]
+    },
+    {
+      "name": "pre_state_hash_mismatch",
+      "obligations": ["critical_action_bound", "receipt_dag_closed", "runtime_state_binding", "schema_total"]
+    },
+    {
+      "name": "source_cartel_collapses_quorum",
+      "obligations": ["evidence_floor_o3", "receipt_dag_closed", "reporter_independence", "schema_total", "source_diversity"]
+    },
+    {
+      "name": "underbonded_reporter_accepted",
+      "obligations": ["economic_margin", "receipt_dag_closed", "reporter_bonded", "schema_total"]
+    },
+    {
+      "name": "open_dispute_feeds_critical_read",
+      "obligations": ["critical_action_bound", "dispute_clear", "receipt_dag_closed", "schema_total"]
+    },
+    {
+      "name": "reward_budget_overdraft",
+      "obligations": ["budget_conservation", "economic_margin", "schema_total"]
+    },
+    {
+      "name": "slash_exceeds_reporter_bond",
+      "obligations": ["budget_conservation", "economic_margin", "reporter_bonded", "schema_total"]
+    },
+    {
+      "name": "registry_root_drift",
+      "obligations": ["query_semantics", "receipt_dag_closed", "registry_root_binding", "schema_total"]
+    },
+    {
+      "name": "terminal_dag_missing_dependency",
+      "obligations": ["dependency_order", "receipt_dag_closed", "schema_total"]
+    },
+    {
+      "name": "duplicate_receipt_id_shadowing",
+      "obligations": ["dependency_order", "duplicate_reject", "receipt_dag_closed", "schema_total"]
+    },
+    {
+      "name": "verifier_spoofed_o4_upgrade",
+      "obligations": ["evidence_floor_o3", "proof_verifier_bound", "registry_root_binding", "schema_total"]
+    },
+    {
+      "name": "o5_upgrade_without_independent_evidence",
+      "obligations": ["evidence_floor_o3", "proof_independence", "proof_verifier_bound", "registry_root_binding", "schema_total"]
+    },
+    {
+      "name": "proof_timeout_treated_as_success",
+      "obligations": ["proof_verifier_bound", "resource_budget", "schema_total"]
+    },
+    {
+      "name": "cross_module_split_brain_divergence",
+      "obligations": ["cross_module_sync", "economic_margin", "runtime_state_binding", "schema_total", "time_freshness"]
+    },
+    {
+      "name": "trigger_receipt_borrowing",
+      "obligations": ["critical_action_bound", "receipt_dag_closed", "runtime_state_binding", "schema_total", "value_binding"]
+    },
+    {
+      "name": "governance_policy_downgrade",
+      "obligations": ["evidence_floor_o3", "query_semantics", "registry_root_binding", "schema_total"]
+    },
+    {
+      "name": "terminal_graph_authorization_mismatch",
+      "obligations": ["receipt_dag_closed", "registry_root_binding", "runtime_state_binding", "schema_total", "value_binding"]
+    },
+    {
+      "name": "cross_domain_finality_reorg_feeds_oracle_read",
+      "obligations": ["critical_action_bound", "cross_domain_finality", "dependency_order", "receipt_dag_closed", "schema_total"]
+    }
+  ],
+  "guards": [
+    {
+      "name": "terminal_receipt_dag_gate",
+      "covers": ["dependency_order", "duplicate_reject", "receipt_dag_closed", "schema_total"]
+    },
+    {
+      "name": "typed_runtime_authorization_gate",
+      "covers": ["critical_action_bound", "runtime_state_binding", "value_binding"]
+    },
+    {
+      "name": "query_registry_policy_gate",
+      "covers": ["query_semantics", "registry_root_binding"]
+    },
+    {
+      "name": "freshness_dispute_gate",
+      "covers": ["dispute_clear", "time_freshness"]
+    },
+    {
+      "name": "source_reporter_quorum_gate",
+      "covers": ["evidence_floor_o3", "reporter_independence", "source_diversity"]
+    },
+    {
+      "name": "reporter_economics_gate",
+      "covers": ["budget_conservation", "economic_margin", "reporter_bonded"]
+    },
+    {
+      "name": "proof_verifier_registry_gate",
+      "covers": ["proof_verifier_bound", "resource_budget"]
+    },
+    {
+      "name": "proof_independence_gate",
+      "covers": ["proof_independence"]
+    },
+    {
+      "name": "cross_module_sync_gate",
+      "covers": ["cross_module_sync"]
+    },
+    {
+      "name": "cross_domain_finality_gate",
+      "covers": ["cross_domain_finality"]
+    }
+  ],
+  "selected_guard_set": [
+    "terminal_receipt_dag_gate",
+    "typed_runtime_authorization_gate",
+    "query_registry_policy_gate",
+    "freshness_dispute_gate",
+    "source_reporter_quorum_gate",
+    "reporter_economics_gate",
+    "proof_verifier_registry_gate",
+    "proof_independence_gate",
+    "cross_module_sync_gate",
+    "cross_domain_finality_gate"
+  ],
+  "private_witnesses": [
+    {"guard_name": "terminal_receipt_dag_gate", "private_obligation": "duplicate_reject"},
+    {"guard_name": "typed_runtime_authorization_gate", "private_obligation": "critical_action_bound"},
+    {"guard_name": "query_registry_policy_gate", "private_obligation": "query_semantics"},
+    {"guard_name": "freshness_dispute_gate", "private_obligation": "dispute_clear"},
+    {"guard_name": "source_reporter_quorum_gate", "private_obligation": "source_diversity"},
+    {"guard_name": "reporter_economics_gate", "private_obligation": "reporter_bonded"},
+    {"guard_name": "proof_verifier_registry_gate", "private_obligation": "proof_verifier_bound"},
+    {"guard_name": "proof_independence_gate", "private_obligation": "proof_independence"},
+    {"guard_name": "cross_module_sync_gate", "private_obligation": "cross_module_sync"},
+    {"guard_name": "cross_domain_finality_gate", "private_obligation": "cross_domain_finality"}
+  ],
+  "candidate_probes": [
+    {
+      "name": "another_wrong_value_variant",
+      "obligations": ["critical_action_bound", "receipt_dag_closed", "schema_total", "value_binding"],
+      "expected_classification": "existing_class"
+    },
+    {
+      "name": "timestamp_only_read_variant",
+      "obligations": ["receipt_dag_closed", "time_freshness"],
+      "expected_classification": "dominated_by_existing_class"
+    },
+    {
+      "name": "source_diversity_plus_budget_variant",
+      "obligations": ["budget_conservation", "source_diversity"],
+      "expected_classification": "new_incomparable_class_existing_atoms"
+    },
+    {
+      "name": "cross_domain_finality_oracle_variant",
+      "obligations": ["critical_action_bound", "cross_domain_finality", "receipt_dag_closed"],
+      "expected_classification": "dominated_by_existing_class"
+    }
+  ],
+  "expected": {
+    "axis_count": 24,
+    "quotient_class_count": 21,
+    "antichain_class_count": 16,
+    "dominated_class_count": 5,
+    "required_obligation_count": 22,
+    "guard_count": 10,
+    "selected_guard_count": 10,
+    "private_witness_count": 10,
+    "compression_ratio_axis_to_antichain": "24:16",
+    "selected_guards_all_forced": true,
+    "selected_guard_set_covers_required_obligations": true,
+    "private_certificate_proves_subset_minimality": true,
+    "private_certificate_proves_cardinality_optimality": true,
+    "exhaustive_search_agrees_with_private_certificate": true
+  }
+}

@@ -1,0 +1,78 @@
+/* PerpCollateralModal */
+.perp-collateral-modal {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-lg);
+    max-width: 420px;
+    width: 90%;
+    background: rgba(10, 10, 12, 0.86);
+    box-shadow: var(--shadow-lg);
+}
+
+.perp-collateral-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.perp-collateral-tab {
+    padding: var(--space-md);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    font-family: var(--font-sans);
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    border-bottom: 2px solid transparent;
+}
+
+.perp-collateral-tab:hover {
+    color: var(--text-primary);
+}
+
+.perp-collateral-tab.active {
+    color: var(--accent-cyan);
+    border-bottom-color: var(--accent-cyan);
+}
+
+.perp-collateral-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    padding: var(--space-md);
+    background: var(--bg-primary);
+    border-radius: var(--radius-md);
+}
+
+.perp-collateral-info-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.perp-collateral-balance {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.perp-collateral-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.perp-collateral-input {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-lg);
+}
+
+.perp-collateral-preview {
+    padding: var(--space-md);
+    background: rgba(var(--accent-signal-rgb), 0.05);
+    border: 1px solid rgba(var(--accent-signal-rgb), 0.15);
+    border-radius: var(--radius-md);
+}

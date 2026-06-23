@@ -1,0 +1,464 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: protocol_fee_router_4way_dust_core_v1
+  notes: |
+    Exact finite ESSO model for the ZenoDEX protocol-fee router split core.
+
+    This models the heap-free arithmetic used by
+    `zenodex-runtime-core::fee_router::split_with_dust`: four buckets
+    (buyburn, stakers, reserve, hosts), one per-bucket fractional remainder
+    carried across calls, and folded integer dust equal to
+    sum(remainders) / 10000.
+
+    The cumulative invariant encodes per-call conservation:
+
+      total_input == total_routed + dust
+
+    Because the previous state satisfies the invariant, preserving it across
+    one route action proves:
+
+      amount + dust_in == buyburn + stakers + reserve + hosts + dust_out
+
+    Bounds are intentionally finite for ESSO decidability. Runtime-wide
+    domain and string/asset/source wrapper checks remain in Python/Rust tests
+    and Kani harnesses on the running Rust code.
+
+types: []
+
+state_vars:
+  - id: total_input
+    type: { kind: int, min: 0, max: 10000 }
+    role: data
+  - id: total_routed
+    type: { kind: int, min: 0, max: 10000 }
+    role: data
+  - id: dust
+    type: { kind: int, min: 0, max: 3 }
+    role: data
+  - id: rem_buyburn
+    type: { kind: int, min: 0, max: 9999 }
+    role: data
+  - id: rem_stakers
+    type: { kind: int, min: 0, max: 9999 }
+    role: data
+  - id: rem_reserve
+    type: { kind: int, min: 0, max: 9999 }
+    role: data
+  - id: rem_hosts
+    type: { kind: int, min: 0, max: 9999 }
+    role: data
+  - id: last_buyburn
+    type: { kind: int, min: 0, max: 1003 }
+    role: data
+  - id: last_stakers
+    type: { kind: int, min: 0, max: 1003 }
+    role: data
+  - id: last_reserve
+    type: { kind: int, min: 0, max: 1003 }
+    role: data
+  - id: last_hosts
+    type: { kind: int, min: 0, max: 1003 }
+    role: data
+
+init:
+  - var: total_input
+    expr: { const: 0 }
+  - var: total_routed
+    expr: { const: 0 }
+  - var: dust
+    expr: { const: 0 }
+  - var: rem_buyburn
+    expr: { const: 0 }
+  - var: rem_stakers
+    expr: { const: 0 }
+  - var: rem_reserve
+    expr: { const: 0 }
+  - var: rem_hosts
+    expr: { const: 0 }
+  - var: last_buyburn
+    expr: { const: 0 }
+  - var: last_stakers
+    expr: { const: 0 }
+  - var: last_reserve
+    expr: { const: 0 }
+  - var: last_hosts
+    expr: { const: 0 }
+
+invariants:
+  - id: inv_cumulative_conservation
+    kind: safety
+    expr:
+      op: "="
+      args:
+        - { var: total_input }
+        - op: "+"
+          args:
+            - { var: total_routed }
+            - { var: dust }
+  - id: inv_remainders_match_folded_dust
+    kind: safety
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args:
+            - { var: rem_buyburn }
+            - { var: rem_stakers }
+            - { var: rem_reserve }
+            - { var: rem_hosts }
+        - op: "*"
+          args:
+            - { var: dust }
+            - { const: 10000 }
+
+actions:
+  - id: route
+    params:
+      - id: amount
+        type: { kind: int, min: 0, max: 1000 }
+      - id: buyburn_bps
+        type: { kind: int, min: 0, max: 10000 }
+      - id: stakers_bps
+        type: { kind: int, min: 0, max: 10000 }
+      - id: reserve_bps
+        type: { kind: int, min: 0, max: 10000 }
+      - id: hosts_bps
+        type: { kind: int, min: 0, max: 10000 }
+    guard:
+      op: and
+      args:
+        - op: "="
+          args:
+            - op: "+"
+              args:
+                - { param: buyburn_bps }
+                - { param: stakers_bps }
+                - { param: reserve_bps }
+                - { param: hosts_bps }
+            - { const: 10000 }
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: total_input }
+                - { param: amount }
+            - { const: 10000 }
+    updates:
+      - var: last_buyburn
+        expr:
+          op: div
+          args:
+            - op: "+"
+              args:
+                - op: "*"
+                  args:
+                    - { param: amount }
+                    - { param: buyburn_bps }
+                - { var: rem_buyburn }
+            - { const: 10000 }
+      - var: last_stakers
+        expr:
+          op: div
+          args:
+            - op: "+"
+              args:
+                - op: "*"
+                  args:
+                    - { param: amount }
+                    - { param: stakers_bps }
+                - { var: rem_stakers }
+            - { const: 10000 }
+      - var: last_reserve
+        expr:
+          op: div
+          args:
+            - op: "+"
+              args:
+                - op: "*"
+                  args:
+                    - { param: amount }
+                    - { param: reserve_bps }
+                - { var: rem_reserve }
+            - { const: 10000 }
+      - var: last_hosts
+        expr:
+          op: div
+          args:
+            - op: "+"
+              args:
+                - op: "*"
+                  args:
+                    - { param: amount }
+                    - { param: hosts_bps }
+                - { var: rem_hosts }
+            - { const: 10000 }
+      - var: total_input
+        expr:
+          op: "+"
+          args:
+            - { var: total_input }
+            - { param: amount }
+      - var: total_routed
+        expr:
+          op: "+"
+          args:
+            - { var: total_routed }
+            - op: "+"
+              args:
+                - op: div
+                  args:
+                    - op: "+"
+                      args:
+                        - op: "*"
+                          args:
+                            - { param: amount }
+                            - { param: buyburn_bps }
+                        - { var: rem_buyburn }
+                    - { const: 10000 }
+                - op: div
+                  args:
+                    - op: "+"
+                      args:
+                        - op: "*"
+                          args:
+                            - { param: amount }
+                            - { param: stakers_bps }
+                        - { var: rem_stakers }
+                    - { const: 10000 }
+                - op: div
+                  args:
+                    - op: "+"
+                      args:
+                        - op: "*"
+                          args:
+                            - { param: amount }
+                            - { param: reserve_bps }
+                        - { var: rem_reserve }
+                    - { const: 10000 }
+                - op: div
+                  args:
+                    - op: "+"
+                      args:
+                        - op: "*"
+                          args:
+                            - { param: amount }
+                            - { param: hosts_bps }
+                        - { var: rem_hosts }
+                    - { const: 10000 }
+      - var: rem_buyburn
+        expr:
+          op: "-"
+          args:
+            - op: "+"
+              args:
+                - op: "*"
+                  args:
+                    - { param: amount }
+                    - { param: buyburn_bps }
+                - { var: rem_buyburn }
+            - op: "*"
+              args:
+                - op: div
+                  args:
+                    - op: "+"
+                      args:
+                        - op: "*"
+                          args:
+                            - { param: amount }
+                            - { param: buyburn_bps }
+                        - { var: rem_buyburn }
+                    - { const: 10000 }
+                - { const: 10000 }
+      - var: rem_stakers
+        expr:
+          op: "-"
+          args:
+            - op: "+"
+              args:
+                - op: "*"
+                  args:
+                    - { param: amount }
+                    - { param: stakers_bps }
+                - { var: rem_stakers }
+            - op: "*"
+              args:
+                - op: div
+                  args:
+                    - op: "+"
+                      args:
+                        - op: "*"
+                          args:
+                            - { param: amount }
+                            - { param: stakers_bps }
+                        - { var: rem_stakers }
+                    - { const: 10000 }
+                - { const: 10000 }
+      - var: rem_reserve
+        expr:
+          op: "-"
+          args:
+            - op: "+"
+              args:
+                - op: "*"
+                  args:
+                    - { param: amount }
+                    - { param: reserve_bps }
+                - { var: rem_reserve }
+            - op: "*"
+              args:
+                - op: div
+                  args:
+                    - op: "+"
+                      args:
+                        - op: "*"
+                          args:
+                            - { param: amount }
+                            - { param: reserve_bps }
+                        - { var: rem_reserve }
+                    - { const: 10000 }
+                - { const: 10000 }
+      - var: rem_hosts
+        expr:
+          op: "-"
+          args:
+            - op: "+"
+              args:
+                - op: "*"
+                  args:
+                    - { param: amount }
+                    - { param: hosts_bps }
+                - { var: rem_hosts }
+            - op: "*"
+              args:
+                - op: div
+                  args:
+                    - op: "+"
+                      args:
+                        - op: "*"
+                          args:
+                            - { param: amount }
+                            - { param: hosts_bps }
+                        - { var: rem_hosts }
+                    - { const: 10000 }
+                - { const: 10000 }
+      - var: dust
+        expr:
+          op: div
+          args:
+            - op: "+"
+              args:
+                - op: "-"
+                  args:
+                    - op: "+"
+                      args:
+                        - op: "*"
+                          args:
+                            - { param: amount }
+                            - { param: buyburn_bps }
+                        - { var: rem_buyburn }
+                    - op: "*"
+                      args:
+                        - op: div
+                          args:
+                            - op: "+"
+                              args:
+                                - op: "*"
+                                  args:
+                                    - { param: amount }
+                                    - { param: buyburn_bps }
+                                - { var: rem_buyburn }
+                            - { const: 10000 }
+                        - { const: 10000 }
+                - op: "-"
+                  args:
+                    - op: "+"
+                      args:
+                        - op: "*"
+                          args:
+                            - { param: amount }
+                            - { param: stakers_bps }
+                        - { var: rem_stakers }
+                    - op: "*"
+                      args:
+                        - op: div
+                          args:
+                            - op: "+"
+                              args:
+                                - op: "*"
+                                  args:
+                                    - { param: amount }
+                                    - { param: stakers_bps }
+                                - { var: rem_stakers }
+                            - { const: 10000 }
+                        - { const: 10000 }
+                - op: "-"
+                  args:
+                    - op: "+"
+                      args:
+                        - op: "*"
+                          args:
+                            - { param: amount }
+                            - { param: reserve_bps }
+                        - { var: rem_reserve }
+                    - op: "*"
+                      args:
+                        - op: div
+                          args:
+                            - op: "+"
+                              args:
+                                - op: "*"
+                                  args:
+                                    - { param: amount }
+                                    - { param: reserve_bps }
+                                - { var: rem_reserve }
+                            - { const: 10000 }
+                        - { const: 10000 }
+                - op: "-"
+                  args:
+                    - op: "+"
+                      args:
+                        - op: "*"
+                          args:
+                            - { param: amount }
+                            - { param: hosts_bps }
+                        - { var: rem_hosts }
+                    - op: "*"
+                      args:
+                        - op: div
+                          args:
+                            - op: "+"
+                              args:
+                                - op: "*"
+                                  args:
+                                    - { param: amount }
+                                    - { param: hosts_bps }
+                                - { var: rem_hosts }
+                            - { const: 10000 }
+                        - { const: 10000 }
+            - { const: 10000 }
+    effects:
+      buyburn: { var: last_buyburn }
+      stakers: { var: last_stakers }
+      reserve: { var: last_reserve }
+      hosts: { var: last_hosts }
+      dust_out: { var: dust }
+
+observables:
+  state_vars:
+    - total_input
+    - total_routed
+    - dust
+    - rem_buyburn
+    - rem_stakers
+    - rem_reserve
+    - rem_hosts
+    - last_buyburn
+    - last_stakers
+    - last_reserve
+    - last_hosts
+  effects:
+    - buyburn
+    - stakers
+    - reserve
+    - hosts
+    - dust_out

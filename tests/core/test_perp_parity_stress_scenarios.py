@@ -216,7 +216,8 @@ def test_stress_scenarios_native_yaml_parity(name: str, steps: list[dict[str, ob
         apply_b=_yaml_apply,
         init_a=_native_initial_state,
         init_b=_native_initial_state,
-        strip_auth_ok_for_b=True,
+        # The v2 YAML kernel models auth_ok on guarded actions; compare the real command surface.
+        strip_auth_ok_for_b=False,
     )
     assert mismatch is None, f"{name}: native/yaml mismatch: {mismatch}"
 

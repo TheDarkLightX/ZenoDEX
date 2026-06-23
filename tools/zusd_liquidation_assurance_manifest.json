@@ -1,0 +1,88 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the zUSD liquidation SP-absorb micro-kernel. Update only alongside a successful run of tools/run_zusd_liquidation_assurance_gate.sh and tools/check_zusd_liquidation_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/kernels/dex/zusd_liquidation_sp_absorb_v1.yaml",
+      "sha256": "ccfdba619bc0aed99f34b1093d32a8c6c3b48b12db76d1e0221f1b4e2e8b61bb"
+    },
+    {
+      "path": "src/kernels/python/zusd_liquidation_sp_absorb_v1_native_adapter.py",
+      "sha256": "e00b89eedf11c3e50f50979eb103a98e70f6f47a35a1c922a36a79ec1fe514b4"
+    },
+    {
+      "path": "tests/kernels/test_zusd_liquidation_sp_absorb_v1_native_adapter.py",
+      "sha256": "c92646424b1fb41eac8c2818a284b40c381963631705bfd06340514ea1e5bcf0"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/zusd_liquidation_sp_absorb_v1/validate.json",
+    "model_path": "src/kernels/dex/zusd_liquidation_sp_absorb_v1.yaml",
+    "ir_hash": "sha256:2d3cad3239477182ea490b6d335bb81e5f2a32cc795594058e01084c081ed2af"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/zusd_liquidation_sp_absorb_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.zusd_liquidation_sp_absorb_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:2d3cad3239477182ea490b6d335bb81e5f2a32cc795594058e01084c081ed2af",
+    "actions": [
+      "apply_liquidation_sp_absorb"
+    ],
+    "effects": [
+      "liquidated_collateral_e8",
+      "liquidated_debt_e8",
+      "partial",
+      "sp_coll_after",
+      "sp_debt_after",
+      "under_mcr"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/zusd_liquidation_sp_absorb_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/zusd_liquidation_sp_absorb_v1.yaml",
+    "adapter_spec": "src.kernels.python.zusd_liquidation_sp_absorb_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:2d3cad3239477182ea490b6d335bb81e5f2a32cc795594058e01084c081ed2af",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:9a44c5bcf202065be65096cf483b7219a1facb13b248074e057a93c750aa6e05"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/zusd_liquidation_sp_absorb_v1/verification_report.json",
+    "model_id": "zusd_liquidation_sp_absorb_v1",
+    "ir_hash_short": "2d3cad3239477182",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/kernels/test_zusd_liquidation_sp_absorb_v1_native_adapter.py"
+  ]
+}

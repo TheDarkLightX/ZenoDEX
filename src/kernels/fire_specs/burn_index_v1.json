@@ -1,0 +1,55 @@
+{
+  "cli_help": "Load a BurnIndex FIRE interface object",
+  "expression": {
+    "kind": "exact_param",
+    "name": "burn_final"
+  },
+  "ir_hash": "sha256:8f0d0fe8f9f6717e15dc4de0a5c0db322b5f2884efd6efbb9352964d46c57954",
+  "object_family": "index_source",
+  "object_id": "burn_index_v1",
+  "object_name": "BurnIndex",
+  "object_version": "v1",
+  "outputs": [
+    {
+      "description": "Certified burn index final value",
+      "expression": {
+        "kind": "exact_param",
+        "name": "burn_final"
+      },
+      "name": "burn_final",
+      "unit": "Index"
+    }
+  ],
+  "payoff_summary": "BurnIndex_T",
+  "schema": "zenodex/fire-math-object-spec/v1",
+  "settlement_asset": "TDEX",
+  "source_bounds": [],
+  "term_fields": [
+    {
+      "description": "Certified burn index final value",
+      "maximum": 1000,
+      "minimum": 0,
+      "name": "burn_final",
+      "unit": "Index"
+    }
+  ],
+  "witnesses": [
+    {
+      "contract": {
+        "name": "burn_contract",
+        "role": "witness:BurnCertificate[TDEX]"
+      },
+      "freshness": "1 epoch",
+      "lower": {
+        "kind": "term",
+        "term": "burn_final"
+      },
+      "name": "BurnCertificate[TDEX]",
+      "unit": "Index",
+      "upper": {
+        "kind": "term",
+        "term": "burn_final"
+      }
+    }
+  ]
+}

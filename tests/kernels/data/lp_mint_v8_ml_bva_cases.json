@@ -1,0 +1,2173 @@
+{
+  "algorithm": {
+    "alpha": 1.35,
+    "cases_per_action": 30,
+    "global_state_pool": {
+      "action_accepts": {
+        "mint": 835,
+        "mint_initial": 4
+      },
+      "action_pulls": {
+        "mint": 1250,
+        "mint_initial": 1250
+      },
+      "baseline_prob": 0.35,
+      "max_states": 128,
+      "reset_prob": 0.25,
+      "seed_state_boundaries": {
+        "enabled": false
+      },
+      "state_pool_size": 128,
+      "top_k_candidates": 80,
+      "unique_states_seen": 233,
+      "walk_steps": 2500
+    },
+    "iterations_per_action": 900,
+    "max_candidates_per_action": 1200,
+    "max_states": 128,
+    "name": "ucb1_boundary_sampler",
+    "outside_boundary_candidates": true,
+    "pair_density_bonus": true,
+    "refine_max_steps": 7,
+    "refine_pairs_per_action": 40
+  },
+  "cases": [
+    {
+      "action": "mint",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount0=max",
+        "amount1=min",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 999999999,
+          "amount0_used": 1,
+          "amount1_refund": 0,
+          "amount1_used": 1,
+          "liquidity_minted": 1,
+          "total_supply": 1002
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 2,
+          "lp_supply_before": 1,
+          "reserve0": 1002,
+          "reserve0_before": 1001,
+          "reserve1": 1002,
+          "reserve1_before": 1001
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1000000000,
+        "amount1": 1,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 1,
+        "lp_supply_before": 0,
+        "reserve0": 1001,
+        "reserve0_before": 0,
+        "reserve1": 1001,
+        "reserve1_before": 0
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "mint",
+      "boundary_score": 0.933333,
+      "boundary_tags": [
+        "amount0=min+1",
+        "amount1=max",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 0,
+          "amount0_used": 2,
+          "amount1_refund": 999999998,
+          "amount1_used": 2,
+          "liquidity_minted": 2,
+          "total_supply": 1003
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 3,
+          "lp_supply_before": 1,
+          "reserve0": 1003,
+          "reserve0_before": 1001,
+          "reserve1": 1003,
+          "reserve1_before": 1001
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 2,
+        "amount1": 1000000000,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 1,
+        "lp_supply_before": 0,
+        "reserve0": 1001,
+        "reserve0_before": 0,
+        "reserve1": 1001,
+        "reserve1_before": 0
+      },
+      "reward": 1.413333
+    },
+    {
+      "action": "mint",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=max",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 0,
+          "amount0_used": 1,
+          "amount1_refund": 999999999,
+          "amount1_used": 1,
+          "liquidity_minted": 1,
+          "total_supply": 500001019
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 500000019,
+          "lp_supply_before": 500000018,
+          "reserve0": 500001019,
+          "reserve0_before": 500001018,
+          "reserve1": 500001019,
+          "reserve1_before": 500001018
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1,
+        "amount1": 1000000000,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000018,
+        "lp_supply_before": 500000016,
+        "reserve0": 500001018,
+        "reserve0_before": 500001016,
+        "reserve1": 500001018,
+        "reserve1_before": 500001016
+      },
+      "reward": 1.32
+    },
+    {
+      "action": "mint",
+      "boundary_score": 0.933333,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min",
+        "min_liquidity=min+1"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 0,
+          "amount0_used": 1,
+          "amount1_refund": 0,
+          "amount1_used": 1,
+          "liquidity_minted": 1,
+          "total_supply": 2000001016
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 2000000016,
+          "lp_supply_before": 2000000015,
+          "reserve0": 2000001016,
+          "reserve0_before": 2000001015,
+          "reserve1": 2000001016,
+          "reserve1_before": 2000001015
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1,
+        "amount1": 1,
+        "min_liquidity": 1
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 2000000015,
+        "lp_supply_before": 1500000015,
+        "reserve0": 2000001015,
+        "reserve0_before": 1500001015,
+        "reserve1": 2000001015,
+        "reserve1_before": 1500001015
+      },
+      "reward": 1.293333
+    },
+    {
+      "action": "mint",
+      "boundary_score": 0.933333,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min+1",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 0,
+          "amount0_used": 1,
+          "amount1_refund": 1,
+          "amount1_used": 1,
+          "liquidity_minted": 1,
+          "total_supply": 2500001024
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 2500000024,
+          "lp_supply_before": 2500000023,
+          "reserve0": 2500001024,
+          "reserve0_before": 2500001023,
+          "reserve1": 2500001024,
+          "reserve1_before": 2500001023
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1,
+        "amount1": 2,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 2500000023,
+        "lp_supply_before": 1500000023,
+        "reserve0": 2500001023,
+        "reserve0_before": 1500001023,
+        "reserve1": 2500001023,
+        "reserve1_before": 1500001023
+      },
+      "reward": 1.293333
+    },
+    {
+      "action": "mint",
+      "boundary_score": 0.933333,
+      "boundary_tags": [
+        "amount0=max-1",
+        "amount1=min",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 999999998,
+          "amount0_used": 1,
+          "amount1_refund": 0,
+          "amount1_used": 1,
+          "liquidity_minted": 1,
+          "total_supply": 500001009
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 500000009,
+          "lp_supply_before": 500000008,
+          "reserve0": 500001009,
+          "reserve0_before": 500001008,
+          "reserve1": 500001009,
+          "reserve1_before": 500001008
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 999999999,
+        "amount1": 1,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000008,
+        "lp_supply_before": 8,
+        "reserve0": 500001008,
+        "reserve0_before": 1008,
+        "reserve1": 500001008,
+        "reserve1_before": 1008
+      },
+      "reward": 1.293333
+    },
+    {
+      "action": "mint",
+      "boundary_score": 0.933333,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=max-1",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 0,
+          "amount0_used": 1,
+          "amount1_refund": 999999998,
+          "amount1_used": 1,
+          "liquidity_minted": 1,
+          "total_supply": 500001004
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 500000004,
+          "lp_supply_before": 500000003,
+          "reserve0": 500001004,
+          "reserve0_before": 500001003,
+          "reserve1": 500001004,
+          "reserve1_before": 500001003
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1,
+        "amount1": 999999999,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000003,
+        "lp_supply_before": 3,
+        "reserve0": 500001003,
+        "reserve0_before": 1003,
+        "reserve1": 500001003,
+        "reserve1_before": 1003
+      },
+      "reward": 1.293333
+    },
+    {
+      "action": "mint",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=max",
+        "amount1=mid",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 500000000,
+          "amount0_used": 500000000,
+          "amount1_refund": 0,
+          "amount1_used": 500000000,
+          "liquidity_minted": 500000000,
+          "total_supply": 500001007
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 500000007,
+          "lp_supply_before": 7,
+          "reserve0": 500001007,
+          "reserve0_before": 1007,
+          "reserve1": 500001007,
+          "reserve1_before": 1007
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1000000000,
+        "amount1": 500000000,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 7,
+        "lp_supply_before": 6,
+        "reserve0": 1007,
+        "reserve0_before": 1006,
+        "reserve1": 1007,
+        "reserve1_before": 1006
+      },
+      "reward": 1.22
+    },
+    {
+      "action": "mint",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=mid",
+        "amount1=min",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 499999999,
+          "amount0_used": 1,
+          "amount1_refund": 0,
+          "amount1_used": 1,
+          "liquidity_minted": 1,
+          "total_supply": 1009
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 9,
+          "lp_supply_before": 8,
+          "reserve0": 1009,
+          "reserve0_before": 1008,
+          "reserve1": 1009,
+          "reserve1_before": 1008
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 500000000,
+        "amount1": 1,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 8,
+        "lp_supply_before": 6,
+        "reserve0": 1008,
+        "reserve0_before": 1006,
+        "reserve1": 1008,
+        "reserve1_before": 1006
+      },
+      "reward": 1.22
+    },
+    {
+      "action": "mint",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=max+1",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1,
+        "amount1": 1000000001,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 2000000017,
+        "lp_supply_before": 2000000015,
+        "reserve0": 2000001017,
+        "reserve0_before": 2000001015,
+        "reserve1": 2000001017,
+        "reserve1_before": 2000001015
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min",
+        "min_liquidity=min-1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1,
+        "amount1": 1,
+        "min_liquidity": -1
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 2000000017,
+        "lp_supply_before": 2000000016,
+        "reserve0": 2000001017,
+        "reserve0_before": 2000001016,
+        "reserve1": 2000001017,
+        "reserve1_before": 2000001016
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min-1",
+        "amount1=min",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 0,
+        "amount1": 1,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 7,
+        "lp_supply_before": 6,
+        "reserve0": 1007,
+        "reserve0_before": 1006,
+        "reserve1": 1007,
+        "reserve1_before": 1006
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=max+1",
+        "amount1=min",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1000000001,
+        "amount1": 1,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000012,
+        "lp_supply_before": 500000011,
+        "reserve0": 500001012,
+        "reserve0_before": 500001011,
+        "reserve1": 500001012,
+        "reserve1_before": 500001011
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min-1",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1,
+        "amount1": 0,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000012,
+        "lp_supply_before": 500000010,
+        "reserve0": 500001012,
+        "reserve0_before": 500001010,
+        "reserve1": 500001012,
+        "reserve1_before": 500001010
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min",
+        "min_liquidity=max+1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1,
+        "amount1": 1,
+        "min_liquidity": 3000000001
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 2000000013,
+        "lp_supply_before": 2000000012,
+        "reserve0": 2000001013,
+        "reserve0_before": 2000001012,
+        "reserve1": 2000001013,
+        "reserve1_before": 2000001012
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=max",
+        "min_liquidity=min",
+        "refine:bisect:err:GuardFalse->err:ParamType"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1,
+        "amount1": 1000000000,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 0,
+        "lp_supply": 0,
+        "lp_supply_before": 0,
+        "reserve0": 0,
+        "reserve0_before": 0,
+        "reserve1": 0,
+        "reserve1_before": 0
+      },
+      "reward": 0.933333
+    },
+    {
+      "action": "mint",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=max",
+        "min_liquidity=max"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1,
+        "amount1": 1000000000,
+        "min_liquidity": 3000000000
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 2000000021,
+        "lp_supply_before": 2000000020,
+        "reserve0": 2000001021,
+        "reserve0_before": 2000001020,
+        "reserve1": 2000001021,
+        "reserve1_before": 2000001020
+      },
+      "reward": 0.65
+    },
+    {
+      "action": "mint",
+      "boundary_score": 0.933333,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min",
+        "min_liquidity=max-1"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1,
+        "amount1": 1,
+        "min_liquidity": 2999999999
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 2500000010,
+        "lp_supply_before": 2500000009,
+        "reserve0": 2500001010,
+        "reserve0_before": 2500001009,
+        "reserve1": 2500001010,
+        "reserve1_before": 2500001009
+      },
+      "reward": 0.623333
+    },
+    {
+      "action": "mint",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=max",
+        "amount1=min",
+        "min_liquidity=mid"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1000000000,
+        "amount1": 1,
+        "min_liquidity": 1500000000
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 2000000009,
+        "lp_supply_before": 1500000009,
+        "reserve0": 2000001009,
+        "reserve0_before": 1500001009,
+        "reserve1": 2000001009,
+        "reserve1_before": 1500001009
+      },
+      "reward": 0.55
+    },
+    {
+      "action": "mint",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 0,
+          "amount0_used": 1,
+          "amount1_refund": 0,
+          "amount1_used": 1,
+          "liquidity_minted": 1,
+          "total_supply": 500001011
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 500000011,
+          "lp_supply_before": 500000010,
+          "reserve0": 500001011,
+          "reserve0_before": 500001010,
+          "reserve1": 500001011,
+          "reserve1_before": 500001010
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1,
+        "amount1": 1,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000010,
+        "lp_supply_before": 500000008,
+        "reserve0": 500001010,
+        "reserve0_before": 500001008,
+        "reserve1": 500001010,
+        "reserve1_before": 500001008
+      },
+      "reward": 1.32
+    },
+    {
+      "action": "mint",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=max",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 0,
+          "amount0_used": 1,
+          "amount1_refund": 999999999,
+          "amount1_used": 1,
+          "liquidity_minted": 1,
+          "total_supply": 500001030
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 500000030,
+          "lp_supply_before": 500000029,
+          "reserve0": 500001030,
+          "reserve0_before": 500001029,
+          "reserve1": 500001030,
+          "reserve1_before": 500001029
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1,
+        "amount1": 1000000000,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000029,
+        "lp_supply_before": 500000027,
+        "reserve0": 500001029,
+        "reserve0_before": 500001027,
+        "reserve1": 500001029,
+        "reserve1_before": 500001027
+      },
+      "reward": 1.32
+    },
+    {
+      "action": "mint",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 0,
+          "amount0_used": 1,
+          "amount1_refund": 0,
+          "amount1_used": 1,
+          "liquidity_minted": 1,
+          "total_supply": 500001011
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 500000011,
+          "lp_supply_before": 500000010,
+          "reserve0": 500001011,
+          "reserve0_before": 500001010,
+          "reserve1": 500001011,
+          "reserve1_before": 500001010
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1,
+        "amount1": 1,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000010,
+        "lp_supply_before": 500000009,
+        "reserve0": 500001010,
+        "reserve0_before": 500001009,
+        "reserve1": 500001010,
+        "reserve1_before": 500001009
+      },
+      "reward": 1.32
+    },
+    {
+      "action": "mint",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount0=max",
+        "amount1=max",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 0,
+          "amount0_used": 1000000000,
+          "amount1_refund": 0,
+          "amount1_used": 1000000000,
+          "liquidity_minted": 1000000000,
+          "total_supply": 1500001024
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 1500000024,
+          "lp_supply_before": 500000024,
+          "reserve0": 1500001024,
+          "reserve0_before": 500001024,
+          "reserve1": 1500001024,
+          "reserve1_before": 500001024
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1000000000,
+        "amount1": 1000000000,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000024,
+        "lp_supply_before": 500000023,
+        "reserve0": 500001024,
+        "reserve0_before": 500001023,
+        "reserve1": 500001024,
+        "reserve1_before": 500001023
+      },
+      "reward": 1.32
+    },
+    {
+      "action": "mint",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 0,
+          "amount0_used": 1,
+          "amount1_refund": 0,
+          "amount1_used": 1,
+          "liquidity_minted": 1,
+          "total_supply": 2500001015
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 2500000015,
+          "lp_supply_before": 2500000014,
+          "reserve0": 2500001015,
+          "reserve0_before": 2500001014,
+          "reserve1": 2500001015,
+          "reserve1_before": 2500001014
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1,
+        "amount1": 1,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 2500000014,
+        "lp_supply_before": 2500000012,
+        "reserve0": 2500001014,
+        "reserve0_before": 2500001012,
+        "reserve1": 2500001014,
+        "reserve1_before": 2500001012
+      },
+      "reward": 1.32
+    },
+    {
+      "action": "mint",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount0=max",
+        "amount1=min",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 999999999,
+          "amount0_used": 1,
+          "amount1_refund": 0,
+          "amount1_used": 1,
+          "liquidity_minted": 1,
+          "total_supply": 500001006
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 500000006,
+          "lp_supply_before": 500000005,
+          "reserve0": 500001006,
+          "reserve0_before": 500001005,
+          "reserve1": 500001006,
+          "reserve1_before": 500001005
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1000000000,
+        "amount1": 1,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000005,
+        "lp_supply_before": 500000004,
+        "reserve0": 500001005,
+        "reserve0_before": 500001004,
+        "reserve1": 500001005,
+        "reserve1_before": 500001004
+      },
+      "reward": 1.32
+    },
+    {
+      "action": "mint",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 0,
+          "amount0_used": 1,
+          "amount1_refund": 0,
+          "amount1_used": 1,
+          "liquidity_minted": 1,
+          "total_supply": 500001009
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 500000009,
+          "lp_supply_before": 500000008,
+          "reserve0": 500001009,
+          "reserve0_before": 500001008,
+          "reserve1": 500001009,
+          "reserve1_before": 500001008
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1,
+        "amount1": 1,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000008,
+        "lp_supply_before": 500000007,
+        "reserve0": 500001008,
+        "reserve0_before": 500001007,
+        "reserve1": 500001008,
+        "reserve1_before": 500001007
+      },
+      "reward": 1.32
+    },
+    {
+      "action": "mint",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount0=max",
+        "amount1=max",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 0,
+          "amount0_used": 1000000000,
+          "amount1_refund": 0,
+          "amount1_used": 1000000000,
+          "liquidity_minted": 1000000000,
+          "total_supply": 1500001021
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 1500000021,
+          "lp_supply_before": 500000021,
+          "reserve0": 1500001021,
+          "reserve0_before": 500001021,
+          "reserve1": 1500001021,
+          "reserve1_before": 500001021
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1000000000,
+        "amount1": 1000000000,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000021,
+        "lp_supply_before": 500000019,
+        "reserve0": 500001021,
+        "reserve0_before": 500001019,
+        "reserve1": 500001021,
+        "reserve1_before": 500001019
+      },
+      "reward": 1.32
+    },
+    {
+      "action": "mint",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 0,
+          "amount0_used": 1,
+          "amount1_refund": 0,
+          "amount1_used": 1,
+          "liquidity_minted": 1,
+          "total_supply": 2000001039
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 2000000039,
+          "lp_supply_before": 2000000038,
+          "reserve0": 2000001039,
+          "reserve0_before": 2000001038,
+          "reserve1": 2000001039,
+          "reserve1_before": 2000001038
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1,
+        "amount1": 1,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 2000000038,
+        "lp_supply_before": 2000000037,
+        "reserve0": 2000001038,
+        "reserve0_before": 2000001037,
+        "reserve1": 2000001038,
+        "reserve1_before": 2000001037
+      },
+      "reward": 1.32
+    },
+    {
+      "action": "mint",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 0,
+          "amount0_used": 1,
+          "amount1_refund": 0,
+          "amount1_used": 1,
+          "liquidity_minted": 1,
+          "total_supply": 1018
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 18,
+          "lp_supply_before": 17,
+          "reserve0": 1018,
+          "reserve0_before": 1017,
+          "reserve1": 1018,
+          "reserve1_before": 1017
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1,
+        "amount1": 1,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 17,
+        "lp_supply_before": 16,
+        "reserve0": 1017,
+        "reserve0_before": 1016,
+        "reserve1": 1017,
+        "reserve1_before": 1016
+      },
+      "reward": 1.32
+    },
+    {
+      "action": "mint",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=max",
+        "min_liquidity=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 0,
+          "amount0_used": 1,
+          "amount1_refund": 999999999,
+          "amount1_used": 1,
+          "liquidity_minted": 1,
+          "total_supply": 500001026
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 500000026,
+          "lp_supply_before": 500000025,
+          "reserve0": 500001026,
+          "reserve0_before": 500001025,
+          "reserve1": 500001026,
+          "reserve1_before": 500001025
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1,
+        "amount1": 1000000000,
+        "min_liquidity": 0
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000025,
+        "lp_supply_before": 500000024,
+        "reserve0": 500001025,
+        "reserve0_before": 500001024,
+        "reserve1": 500001025,
+        "reserve1_before": 500001024
+      },
+      "reward": 1.32
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 0,
+          "amount0_used": 1001,
+          "amount1_refund": 0,
+          "amount1_used": 1001,
+          "liquidity_minted": 1,
+          "total_supply": 1001
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 1,
+          "lp_supply_before": 0,
+          "reserve0": 1001,
+          "reserve0_before": 0,
+          "reserve1": 1001,
+          "reserve1_before": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 1001,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 0,
+        "lp_supply": 0,
+        "lp_supply_before": 0,
+        "reserve0": 0,
+        "reserve0_before": 0,
+        "reserve1": 0,
+        "reserve1_before": 0
+      },
+      "reward": 1.8
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.933333,
+      "boundary_tags": [
+        "amount0=min+1",
+        "amount1=min",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 0,
+          "amount0_used": 1002,
+          "amount1_refund": 0,
+          "amount1_used": 1001,
+          "liquidity_minted": 1,
+          "total_supply": 1001
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 1,
+          "lp_supply_before": 0,
+          "reserve0": 1002,
+          "reserve0_before": 0,
+          "reserve1": 1001,
+          "reserve1_before": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1002,
+        "amount1": 1001,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 0,
+        "lp_supply": 0,
+        "lp_supply_before": 0,
+        "reserve0": 0,
+        "reserve0_before": 0,
+        "reserve1": 0,
+        "reserve1_before": 0
+      },
+      "reward": 1.773333
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.933333,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min+1",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount0_refund": 0,
+          "amount0_used": 1001,
+          "amount1_refund": 0,
+          "amount1_used": 1002,
+          "liquidity_minted": 1,
+          "total_supply": 1001
+        },
+        "ok": true,
+        "state": {
+          "locked_liquidity": 1000,
+          "lp_supply": 1,
+          "lp_supply_before": 0,
+          "reserve0": 1001,
+          "reserve0_before": 0,
+          "reserve1": 1002,
+          "reserve1_before": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 1002,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 0,
+        "lp_supply": 0,
+        "lp_supply_before": 0,
+        "reserve0": 0,
+        "reserve0_before": 0,
+        "reserve1": 0,
+        "reserve1_before": 0
+      },
+      "reward": 1.773333
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=max+1",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 1000000001,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 0,
+        "lp_supply": 0,
+        "lp_supply_before": 0,
+        "reserve0": 0,
+        "reserve0_before": 0,
+        "reserve1": 0,
+        "reserve1_before": 0
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min",
+        "sqrt_product=min-1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 1001,
+        "sqrt_product": 1000
+      },
+      "pre_state": {
+        "locked_liquidity": 0,
+        "lp_supply": 0,
+        "lp_supply_before": 0,
+        "reserve0": 0,
+        "reserve0_before": 0,
+        "reserve1": 0,
+        "reserve1_before": 0
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=max+1",
+        "amount1=min",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1000000001,
+        "amount1": 1001,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000014,
+        "lp_supply_before": 500000013,
+        "reserve0": 500001014,
+        "reserve0_before": 500001013,
+        "reserve1": 500001014,
+        "reserve1_before": 500001013
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min-1",
+        "amount1=min",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1000,
+        "amount1": 1001,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 0,
+        "lp_supply": 0,
+        "lp_supply_before": 0,
+        "reserve0": 0,
+        "reserve0_before": 0,
+        "reserve1": 0,
+        "reserve1_before": 0
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min",
+        "sqrt_product=max+1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 1001,
+        "sqrt_product": 1000000001
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000012,
+        "lp_supply_before": 500000011,
+        "reserve0": 500001012,
+        "reserve0_before": 500001011,
+        "reserve1": 500001012,
+        "reserve1_before": 500001011
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min-1",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 1000,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 0,
+        "lp_supply": 0,
+        "lp_supply_before": 0,
+        "reserve0": 0,
+        "reserve0_before": 0,
+        "reserve1": 0,
+        "reserve1_before": 0
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount0=max",
+        "amount1=min",
+        "sqrt_product=max"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1000000000,
+        "amount1": 1001,
+        "sqrt_product": 1000000000
+      },
+      "pre_state": {
+        "locked_liquidity": 0,
+        "lp_supply": 0,
+        "lp_supply_before": 0,
+        "reserve0": 0,
+        "reserve0_before": 0,
+        "reserve1": 0,
+        "reserve1_before": 0
+      },
+      "reward": 0.65
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=max",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 1000000000,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 0,
+        "lp_supply": 0,
+        "lp_supply_before": 0,
+        "reserve0": 0,
+        "reserve0_before": 0,
+        "reserve1": 0,
+        "reserve1_before": 0
+      },
+      "reward": 0.65
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.933333,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min",
+        "sqrt_product=min+1"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 1001,
+        "sqrt_product": 1002
+      },
+      "pre_state": {
+        "locked_liquidity": 0,
+        "lp_supply": 0,
+        "lp_supply_before": 0,
+        "reserve0": 0,
+        "reserve0_before": 0,
+        "reserve1": 0,
+        "reserve1_before": 0
+      },
+      "reward": 0.623333
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.933333,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min",
+        "sqrt_product=max-1"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 1001,
+        "sqrt_product": 999999999
+      },
+      "pre_state": {
+        "locked_liquidity": 0,
+        "lp_supply": 0,
+        "lp_supply_before": 0,
+        "reserve0": 0,
+        "reserve0_before": 0,
+        "reserve1": 0,
+        "reserve1_before": 0
+      },
+      "reward": 0.623333
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.933333,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=max-1",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 999999999,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 0,
+        "lp_supply": 0,
+        "lp_supply_before": 0,
+        "reserve0": 0,
+        "reserve0_before": 0,
+        "reserve1": 0,
+        "reserve1_before": 0
+      },
+      "reward": 0.623333
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.933333,
+      "boundary_tags": [
+        "amount0=max-1",
+        "amount1=min",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 999999999,
+        "amount1": 1001,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 0,
+        "lp_supply": 0,
+        "lp_supply_before": 0,
+        "reserve0": 0,
+        "reserve0_before": 0,
+        "reserve1": 0,
+        "reserve1_before": 0
+      },
+      "reward": 0.623333
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min",
+        "sqrt_product=mid"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 1001,
+        "sqrt_product": 500000500
+      },
+      "pre_state": {
+        "locked_liquidity": 0,
+        "lp_supply": 0,
+        "lp_supply_before": 0,
+        "reserve0": 0,
+        "reserve0_before": 0,
+        "reserve1": 0,
+        "reserve1_before": 0
+      },
+      "reward": 0.55
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=mid",
+        "amount1=min",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 500000500,
+        "amount1": 1001,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 0,
+        "lp_supply": 0,
+        "lp_supply_before": 0,
+        "reserve0": 0,
+        "reserve0_before": 0,
+        "reserve1": 0,
+        "reserve1_before": 0
+      },
+      "reward": 0.55
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=mid",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 500000500,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 0,
+        "lp_supply": 0,
+        "lp_supply_before": 0,
+        "reserve0": 0,
+        "reserve0_before": 0,
+        "reserve1": 0,
+        "reserve1_before": 0
+      },
+      "reward": 0.55
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min",
+        "sqrt_product=min-1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 1001,
+        "sqrt_product": 1000
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000029,
+        "lp_supply_before": 500000027,
+        "reserve0": 500001029,
+        "reserve0_before": 500001027,
+        "reserve1": 500001029,
+        "reserve1_before": 500001027
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=max+1",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 1000000001,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 2500000013,
+        "lp_supply_before": 2500000012,
+        "reserve0": 2500001013,
+        "reserve0_before": 2500001012,
+        "reserve1": 2500001013,
+        "reserve1_before": 2500001012
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=max+1",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 1000000001,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 2500000012,
+        "lp_supply_before": 2500000011,
+        "reserve0": 2500001012,
+        "reserve0_before": 2500001011,
+        "reserve1": 2500001012,
+        "reserve1_before": 2500001011
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min-1",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 1000,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 2000000013,
+        "lp_supply_before": 2000000012,
+        "reserve0": 2000001013,
+        "reserve0_before": 2000001012,
+        "reserve1": 2000001013,
+        "reserve1_before": 2000001012
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min-1",
+        "amount1=min",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1000,
+        "amount1": 1001,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000016,
+        "lp_supply_before": 500000014,
+        "reserve0": 500001016,
+        "reserve0_before": 500001014,
+        "reserve1": 500001016,
+        "reserve1_before": 500001014
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min-1",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 1000,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000010,
+        "lp_supply_before": 500000008,
+        "reserve0": 500001010,
+        "reserve0_before": 500001008,
+        "reserve1": 500001010,
+        "reserve1_before": 500001008
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min",
+        "sqrt_product=max+1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 1001,
+        "sqrt_product": 1000000001
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000012,
+        "lp_supply_before": 500000010,
+        "reserve0": 500001012,
+        "reserve0_before": 500001010,
+        "reserve1": 500001012,
+        "reserve1_before": 500001010
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=max+1",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 1000000001,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 2000000011,
+        "lp_supply_before": 2000000010,
+        "reserve0": 2000001011,
+        "reserve0_before": 2000001010,
+        "reserve1": 2000001011,
+        "reserve1_before": 2000001010
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=min",
+        "sqrt_product=max+1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 1001,
+        "sqrt_product": 1000000001
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 2000000025,
+        "lp_supply_before": 1500000025,
+        "reserve0": 2000001025,
+        "reserve0_before": 1500001025,
+        "reserve1": 2000001025,
+        "reserve1_before": 1500001025
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=max+1",
+        "amount1=min",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1000000001,
+        "amount1": 1001,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 2000000018,
+        "lp_supply_before": 2000000017,
+        "reserve0": 2000001018,
+        "reserve0_before": 2000001017,
+        "reserve1": 2000001018,
+        "reserve1_before": 2000001017
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min",
+        "amount1=max+1",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1001,
+        "amount1": 1000000001,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 500000006,
+        "lp_supply_before": 500000004,
+        "reserve0": 500001006,
+        "reserve0_before": 500001004,
+        "reserve1": 500001006,
+        "reserve1_before": 500001004
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "mint_initial",
+      "boundary_score": 0.75,
+      "boundary_tags": [
+        "amount0=min-1",
+        "amount1=min",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount0": 1000,
+        "amount1": 1001,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "locked_liquidity": 1000,
+        "lp_supply": 5,
+        "lp_supply_before": 3,
+        "reserve0": 1005,
+        "reserve0_before": 1003,
+        "reserve1": 1005,
+        "reserve1_before": 1003
+      },
+      "reward": 1.2
+    }
+  ],
+  "model_path": "src/kernels/dex/lp_mint_v8.yaml",
+  "model_sha256": "7baf2cd9cbd7d57c6594ee8b0282b00858413285ee088036682154b812f57fc9",
+  "schema": "zenodex/ml-boundary-bva/v1",
+  "seed": 0,
+  "summary": {
+    "action_count": 2,
+    "per_action": {
+      "mint": {
+        "candidate_count": 46,
+        "iterations": 900,
+        "raw_record_count": 812,
+        "refine_max_steps": 7,
+        "refine_pairs_per_action": 40,
+        "selected": 30,
+        "state_pool_size": 128
+      },
+      "mint_initial": {
+        "candidate_count": 46,
+        "iterations": 900,
+        "raw_record_count": 266,
+        "refine_max_steps": 7,
+        "refine_pairs_per_action": 40,
+        "selected": 30,
+        "state_pool_size": 128
+      }
+    },
+    "total_cases": 60
+  }
+}

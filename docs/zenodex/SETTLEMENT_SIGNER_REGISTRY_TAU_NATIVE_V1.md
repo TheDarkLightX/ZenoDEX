@@ -1,0 +1,221 @@
+# Settlement Signer Registry Tau-Native Bridge v1
+
+## Purpose
+
+This slice defines the next honest upgrade beyond the current settlement attestation governance posture.
+
+Current code can bind a governed policy to a typed registry snapshot and a typed chain-anchor adapter.
+That is stronger than operator-local allowlists, but it is still not a Tau-native proof of chain state.
+
+This document states the minimal Tau-native bridge contract we need before widening the decentralization claim.
+
+External-control boundary:
+
+- `docs/zenodex/EXTERNAL_ASSUMPTION_BOUNDARY_V1.md`
+  states the strongest honest claim when the Tau Testnet node surface is controlled outside this repository.
+
+## World-Model State
+
+```text
+Φ := ⟨
+  M = ZenoDEX,
+  S = settlement signer registry Tau-native bridge,
+  A = registry retrieval / proof binding,
+  T = replace adapter-trust with Tau-native state-bound admission,
+  V = {
+    exec_req,
+    chain_id,
+    registry_contract,
+    policy_id,
+    policy_epoch,
+    registry_root,
+    policy_hash,
+    snapshot_present,
+    anchor_present,
+    request_binding_ok,
+    anchor_binding_ok,
+    policy_binding_ok,
+    proof_ok,
+    anchor_block_number,
+    anchor_block_hash
+  },
+  O = { request_anchor, load_snapshot, check_binding, admit_settlement_bundle },
+  G = {
+    snapshot_present,
+    anchor_present,
+    request_binding_ok,
+    anchor_binding_ok,
+    policy_binding_ok,
+    proof_ok
+  },
+  Obs = { tau_bridge_ok, policy_epoch_echo, anchor_block_number_echo },
+  K = { policy_hash = H(policy), registry_root = Root(registry_state) },
+  E = {
+    contract: settlement_signer_registry.py,
+    contract: tau_net_client.py,
+    contract: settlement_signer_registry_anchor_gate_v1.tau,
+    proved: SettlementSignerRegistryTauBridge.tla
+  },
+  Gap = {
+    stronger binding between Tau state proof metadata and anchor_block_hash provenance,
+    Tau-native state proof verification beyond presence/error gating,
+    direct Tau block/header retrieval for anchor identity
+  },
+  N = {
+    adapter binding is not chain proof,
+    typed JSON-RPC transport is not enough for a decentralization claim,
+    a valid signer policy is weaker than a proved chain-state binding
+  },
+  Δ = host-computed Tau guard + protocol-level TLA bridge model for state-bound registry admission
+⟩
+```
+
+## Minimal Admission Formula
+
+The Tau-native bridge gate should remain intentionally small.
+Large arithmetic, parsing, and proof decoding stay host-side.
+Tau only sees the control surface:
+
+```text
+BridgeReady
+  := snapshot_present
+   ∧ anchor_present
+   ∧ request_binding_ok
+   ∧ anchor_binding_ok
+
+TauNativeRegistryBindingOK
+  := BridgeReady
+   ∧ policy_binding_ok
+   ∧ proof_ok
+
+TauNativeRegistryGateOK(exec_req)
+  := exec_req ∧ TauNativeRegistryBindingOK
+```
+
+Interpretation:
+
+- `snapshot_present`: a registry snapshot for the requested `(chain_id, registry_contract, policy_id, policy_epoch)` exists
+- `anchor_present`: a chain anchor for the same request exists
+- `request_binding_ok`: the request tuple matches the intended settlement packet/policy tuple
+- `anchor_binding_ok`: the chain anchor matches the loaded snapshot root/epoch tuple
+- `policy_binding_ok`: the loaded snapshot policy hash matches the governed policy object carried into settlement
+- `proof_ok`: the host has accepted the Tau-native state retrieval/proof path
+
+## Disaster Paths This Slice Closes
+
+### D1. Adapter drift accepted as truth
+
+```text
+D1 := adapter_snapshot_present ∧ ¬anchor_binding_ok ∧ settlement_admitted
+```
+
+If the runtime accepts an off-chain snapshot that does not match the chain anchor, the policy can drift without detection.
+
+### D2. Request/epoch confusion
+
+```text
+D2 := request_epoch ≠ snapshot_epoch ∧ settlement_admitted
+```
+
+If the requested policy epoch and loaded snapshot epoch differ, later governance updates can be misbound to older packets.
+
+### D3. Proof path downgraded silently
+
+```text
+D3 := snapshot_present ∧ anchor_present ∧ ¬proof_ok ∧ settlement_admitted
+```
+
+If the runtime can fall back from a Tau-native proof lane to an unproved adapter path without changing the admission result, the public claim overstates the system.
+
+In the bounded protocol model, once the request/snapshot/anchor bindings are otherwise ready, proof-path availability is an explicit state bit. An unavailable or downgraded proof lane is treated as rejectable drift rather than being conflated with 'proof not granted yet' or a state that may stutter forever.
+
+## Artifact Plan
+
+### Tau Guard
+
+- file: `src/tau_specs/recommended/settlement_signer_registry_anchor_gate_v1.tau`
+- role: fail-closed guard for the host-computed bridge booleans
+- claim level: `contract`
+
+### TLA+ Model
+
+- file: `formal/tla/SettlementSignerRegistryTauBridge.tla`
+- role: bounded protocol model for request, snapshot load, anchor load, accept/reject resolution
+- claim level: `proved` for the bounded temporal obligations checked by TLC
+
+### Runtime Wiring Target
+
+Implemented in this slice:
+
+- `TauNetSettlementSignerRegistrySnapshotLoader` in `src/integration/settlement_signer_registry.py`
+- typed TCP response views in `src/integration/tau_net_client.py`
+- optional typed `gettaustate <state_hash>` binding path in `src/integration/tau_net_client.py`
+
+Current runtime behavior:
+
+- reads `getstateproof full`, then `getappstate full` twice, then `getstateproof full` again
+- retries boundedly until both the Tau app-state view and the Tau state-proof view are stable across that window
+- requires a typed app-state bridge payload:
+
+```json
+{
+  "settlement_signer_registry_tau_bridge": {
+    "schema": "zenodex/settlement-signer-registry-tau-bridge/v1",
+    "anchor": { "...": "SettlementSignerRegistryAnchor" },
+    "snapshot": { "...": "SettlementSignerRegistrySnapshot" }
+  }
+}
+```
+
+- optionally requires `getstateproof full` to report `present=true`
+- rejects `present=true` if the Tau proof surface does not also expose a committed `state_hash`
+- rejects if the decoded `getappstate full` object does not hash back to the committed `app_hash`
+- when `require_tau_state_app_hash_binding=True`, also reads `gettaustate <state_hash>` and rejects unless the returned `state_hash` matches the requested committed hash and `tau_state.app_hash == getappstate.app_hash`
+- rejects on:
+  - missing app-state hash
+  - `app_state` / `app_hash` commitment drift
+  - `tau_state.app_hash` / `app_state.app_hash` drift when the stronger Tau-state binding path is enabled
+  - missing or malformed bridge payload
+  - unstable app-state view during bridge load
+  - request/anchor drift
+  - anchor/snapshot drift
+  - unstable Tau proof metadata during bridge load
+  - unstable Tau state view during bridge load
+  - state-proof absence
+  - state-proof surface errors
+
+Important remaining limit:
+
+- the stronger app-hash provenance check now exists in runtime code, and this repo now carries a follow-on Tau patch artifact for the missing transport at `patches/tau-testnet-gettaustate.patch`
+- until that Tau-side command is actually shipped on the target node, the runtime cannot rely on the stronger provenance path in production
+- until that Tau-side command is shipped, the default TCP surface still cannot prove that the committed `app_hash` from `getappstate full` is the same `app_hash` committed under the stable `state_hash` from `getstateproof full`
+- the current Tau TCP surface does not yet independently prove that `anchor_block_hash` is the same chain object referenced by the reported `state_hash`
+- so the bridge is now Tau-native at the app-state retrieval boundary, but not yet a full provenance proof for the app-hash or anchor-block bindings
+
+## Upgrade Discipline
+
+This slice does not yet prove direct Tau state proof verification in runtime code.
+It does make the missing contract explicit and replayable.
+
+That is the correct next step because it moves runtime loading onto Tau state surfaces without overstating the remaining provenance gap.
+
+## Formal Artifact Bundle
+
+The current provenance shell is now expressed in four aligned forms:
+
+- `docs/zenodex/TAU_STATE_APP_HASH_PROVENANCE_FORMALISM_V1.md`
+- `src/kernels/dex/tau_state_app_hash_provenance_guard_v1.yaml`
+- `formal/tla/TauStateAppHashProvenanceBridge.tla`
+- `lean-mathlib/Proofs/ZenoDEXTauStateAppHashProvenance.lean`
+
+These artifacts give:
+
+- the exact boolean acceptance law,
+- a bounded ESSO fail-closed guard,
+- a bounded TLA+ control model for accept/reject outcomes,
+- and a Lean theorem shell for the canonical verifier relation.
+
+Focused replay gate:
+
+- `tools/run_tau_provenance_formal_gate.sh`
+  runs the exact ESSO, TLA+, Lean, and parser/runtime parity checks for this Tau app-hash provenance chain.

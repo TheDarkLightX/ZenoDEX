@@ -470,6 +470,8 @@ def step(s: State, cmd: Command) -> StepResult:
             return StepResult(ok=False, error=f"post-invariant violated: {failed}")
         return StepResult(ok=True, state=new_state, effects=effects)
     elif cmd.tag == "settle_rate_epoch":
+        if "auth_ok" not in cmd.args or not (isinstance(cmd.args["auth_ok"], bool)):
+            return StepResult(ok=False, error="invalid param auth_ok")
         if "mark_price_e8" not in cmd.args or not (
             isinstance(cmd.args["mark_price_e8"], int)
             and not isinstance(cmd.args["mark_price_e8"], bool)
@@ -504,6 +506,7 @@ def step(s: State, cmd: Command) -> StepResult:
             )
             and (False == s.frozen)
             and (False == s.settled_this_epoch)
+            and (cmd.args["auth_ok"])
             and ((s.rate_long_exposure + s.rate_short_exposure) > 0)
         ):
             return StepResult(ok=False, error="guard failed for settle_rate_epoch")

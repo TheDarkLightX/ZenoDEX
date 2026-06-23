@@ -1,0 +1,5 @@
+schema=zenodex.tau_testnet_dependency_lock.v0
+repo=https://github.com/IDNI/tau-testnet.git
+ref=refs/heads/main
+commit=638661d654a7449193f103c54fefc9f9b25f7e2d
+server_path=server.py

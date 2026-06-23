@@ -1,0 +1,44 @@
+# gov_router_split_revision_v1.tau  --  ZenoDEX governance: fee-router 4-way split (sum-budget)
+# MUTABILITY: UPDATABLE (validates the sum-budget half of a fee-split revision)
+# SHAPE: sum-budget (the splits must total exactly 100% = 10000 bps)
+#
+# This gate enforces the SUM-BUDGET concern only. The anti-whiplash per-share drift bound is a
+# SEPARATE concern, factored out because sum + 4 step ladders in ONE Tau formula does not
+# normalize on the current build (~180s). The per-share drift is the universal gov_action_bound
+# gate (lo=0, hi=10000, step=500) applied to each share, and the COMBINED 4-step is the master
+# `o6` bit. A router revision is admissible iff this sum-budget gate AND every per-share
+# action_bound accept; the runtime/Python (`router_revision_ok`) and the master (`o3` sum-bit
+# AND `o6` step-bit) compose them.
+#
+# Inputs:
+#   i1 = approved (sbf)   i2 = exec_req (sbf)
+#   i3 = proposal_ts (bv[16])  i4 = current_ts (bv[16])
+#   i5 = buyburn_next_bps (bv[16])  i6 = stakers_next_bps (bv[16])
+#   i7 = reserve_next_bps (bv[16])  i8 = hosts_next_bps   (bv[16])
+# Output:
+#   o1 = revision_ok (sbf)
+#
+# IMMUTABLE guardrails:
+#   SHARE_MAX = 10000 ({ #x2710 })  -- each share in [0,100%]
+#   SUM       = 10000 ({ #x2710 })  -- shares MUST total exactly 100% (no value leak/mint)
+#   MIN_DELAY = 24    ({ #x0018 })  -- timelock
+# Each share <= 10000, so the 4-term sum (<= 40000 < 2^16) cannot modular-wrap: the
+# `= 10000` total check is therefore exact.
+# Timelock uses the wrap-safe subtraction-guard form (current >= proposal AND
+# current - proposal >= MIN_DELAY); bv[16] is UNSIGNED.
+
+always
+  (o1[t]:sbf = 1:sbf <->
+    ( (i2[t]:sbf = 0:sbf)
+      ||
+      ( (i1[t]:sbf = 1:sbf)
+        && (i4[t]:bv[16] >= i3[t]:bv[16])
+        && ((i4[t]:bv[16] - i3[t]:bv[16]) >= { #x0018 }:bv[16])
+        && (i5[t]:bv[16] <= { #x2710 }:bv[16])
+        && (i6[t]:bv[16] <= { #x2710 }:bv[16])
+        && (i7[t]:bv[16] <= { #x2710 }:bv[16])
+        && (i8[t]:bv[16] <= { #x2710 }:bv[16])
+        && ((i5[t]:bv[16] + i6[t]:bv[16] + i7[t]:bv[16] + i8[t]:bv[16]) = { #x2710 }:bv[16])
+      )
+    )
+  ).

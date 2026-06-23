@@ -1,0 +1,33 @@
+# gov_epoch_budget_v1.tau  --  ZenoDEX governance: AGGREGATE movement-budget bit (per revision)
+# MUTABILITY: UPDATABLE (the gate logic; the budget is supplied per call)
+# SHAPE: factored partial sums. The per-surface gates bound each surface's step and the
+# drift-budget bit bounds each surface's window trajectory -- but a multi-surface action
+# can still move EVERY surface one legal step at once (a coordinated regime walk). This
+# bit bounds the AGGREGATE: the total |delta| of one applied revision across all touched
+# surfaces, grouped exactly as the loop gates them (scalars / router shares / collateral
+# pair), must fit the aggregate budget.
+#
+# The three group sums are computed by the RUNTIME from the validated delta map (the
+# Python mirror recomputes them itself from the raw deltas -- stricter, never weaker);
+# the spec validates the budget relation including its no-wrap guards. Same honest
+# boundary as `curr` (WS2): the spec bounds the relation, the runtime owns the inputs.
+#
+# Inputs:
+#   i1 = scalar_sum     (bv[16]) -- |dfee| + |dfunding_cap| + |dredeem_staker|
+#   i2 = router_sum     (bv[16]) -- |dbuyburn| + |dstakers| + |dreserve| + |dhosts|
+#   i3 = collateral_sum (bv[16]) -- |dmcr| + |dccr|
+#   i4 = budget         (bv[16]) -- aggregate movement budget for one revision
+# Output:
+#   o1 = within_budget (sbf) -- 1 iff the (non-wrapping) total <= budget
+#
+# Wrap-safety: bv[16] addition is MODULAR; `a + b >= a` is the standard unsigned
+# no-overflow guard, chained across both additions, so a wrapped "small" total can
+# never be admitted.
+
+always
+  (o1[t]:sbf = 1:sbf <->
+    ( ((i1[t]:bv[16] + i2[t]:bv[16]) >= i1[t]:bv[16])
+      && (((i1[t]:bv[16] + i2[t]:bv[16]) + i3[t]:bv[16]) >= (i1[t]:bv[16] + i2[t]:bv[16]))
+      && (((i1[t]:bv[16] + i2[t]:bv[16]) + i3[t]:bv[16]) <= i4[t]:bv[16])
+    )
+  ).

@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+if [[ ! -f "$ROOT/external/tau-testnet/server.py" ]]; then
+  echo "error: missing external/tau-testnet/server.py" >&2
+  echo "hint: clone Tau Testnet into external/tau-testnet before enabling the local-node profile" >&2
+  exit 2
+fi
+
+PYTHON="${PYTHON:-python3}"
+VENV_DIR="${TAU_NODE_VENV_DIR:-/opt/zenodex-tau-venv}"
+
+if [[ ! -f "$VENV_DIR/bin/activate" ]]; then
+  "$PYTHON" -m venv "$VENV_DIR"
+fi
+
+# shellcheck disable=SC1090
+source "$VENV_DIR/bin/activate"
+
+readonly MARKER_DIR="$VENV_DIR/.zenodex-install-markers"
+mkdir -p "$MARKER_DIR"
+
+requirements_digest() {
+  local requirements_file="$1"
+  sha256sum "$requirements_file" | awk '{print $1}'
+}
+
+install_marker_matches() {
+  local name="$1"
+  local requirements_file="$2"
+  local marker="$MARKER_DIR/$name.sha256"
+  local digest
+  digest="$(requirements_digest "$requirements_file")"
+  if [[ -f "$marker" ]] && [[ "$(cat "$marker")" == "$digest" ]]; then
+    return 0
+  fi
+  return 1
+}
+
+write_install_marker() {
+  local name="$1"
+  local requirements_file="$2"
+  requirements_digest "$requirements_file" > "$MARKER_DIR/$name.sha256"
+}
+
+if ! install_marker_matches root-dev "$ROOT/requirements-dev.lock.txt"; then
+  python -m pip install --require-hashes -r "$ROOT/requirements-dev.lock.txt"
+  write_install_marker root-dev "$ROOT/requirements-dev.lock.txt"
+fi
+
+if ! install_marker_matches tau-testnet "$ROOT/external/tau-testnet/requirements.txt"; then
+  python -m pip install -r "$ROOT/external/tau-testnet/requirements.txt"
+  write_install_marker tau-testnet "$ROOT/external/tau-testnet/requirements.txt"
+fi
+
+ARGS=(
+  tools/tau_testnet_local_e2e.py
+  --no-smoke
+  --reuse-db
+  --host 0.0.0.0
+  --port "${TAU_PORT:-65432}"
+  --chain-id "${TAU_DEX_CHAIN_ID:-tau-local}"
+)
+
+if [[ "${TAU_FORCE_TEST:-1}" == "1" ]]; then
+  ARGS+=(--force-test)
+fi
+
+if [[ "${TAU_ENABLE_FAUCET:-0}" == "1" ]]; then
+  ARGS+=(--enable-faucet)
+fi
+
+exec python "${ARGS[@]}"

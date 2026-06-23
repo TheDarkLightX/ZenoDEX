@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chaos_journal_v1.schema.json",
+  "title": "Chaos Journal",
+  "description": "Execution evidence from a chaos experiment run.",
+  "type": "object",
+  "required": ["schema", "id", "recipe_id", "hypothesis_id", "context_key", "started_at", "outcome"],
+  "properties": {
+    "schema": {
+      "const": "chaos/journal/v1",
+      "description": "Schema identifier for this artifact type."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{16,64}$",
+      "description": "Unique journal entry identifier."
+    },
+    "recipe_id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{16,64}$",
+      "description": "Reference to the recipe that was executed."
+    },
+    "hypothesis_id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{16,64}$",
+      "description": "Reference to the hypothesis being tested."
+    },
+    "context_key": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Campaign context key for regret scheduling and novelty tracking."
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the experiment started."
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the experiment completed."
+    },
+    "duration_s": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Total experiment duration in seconds."
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["corroborated", "falsified", "inconclusive", "error"],
+      "description": "Overall outcome of the experiment."
+    },
+    "steady_state_before": {
+      "type": "object",
+      "required": ["passed", "probes"],
+      "properties": {
+        "passed": {
+          "type": "boolean",
+          "description": "Whether steady state was verified before perturbation."
+        },
+        "probes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "passed"],
+            "properties": {
+              "name": {"type": "string"},
+              "passed": {"type": "boolean"},
+              "value": {},
+              "error": {"type": "string"}
+            }
+          }
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "Steady state verification before perturbation."
+    },
+    "perturbation_applied": {
+      "type": "object",
+      "required": ["applied", "type", "action"],
+      "properties": {
+        "applied": {
+          "type": "boolean",
+          "description": "Whether perturbation was successfully applied."
+        },
+        "type": {"type": "string"},
+        "action": {"type": "string"},
+        "params": {"type": "object"},
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ended_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "error": {"type": "string"}
+      },
+      "description": "Details of the perturbation that was applied."
+    },
+    "rollback": {
+      "type": "object",
+      "properties": {
+        "attempted": {
+          "type": "boolean",
+          "description": "Whether rollback was attempted."
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "type"],
+            "properties": {
+              "name": {"type": "string"},
+              "type": {"type": "string"},
+              "params": {"type": "object"}
+            }
+          }
+        },
+        "error": {
+          "type": "string",
+          "description": "Rollback error, if any."
+        }
+      },
+      "description": "Rollback execution details."
+    },
+    "steady_state_after": {
+      "type": "object",
+      "required": ["passed", "probes"],
+      "properties": {
+        "passed": {
+          "type": "boolean",
+          "description": "Whether steady state was restored after perturbation."
+        },
+        "probes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "passed"],
+            "properties": {
+              "name": {"type": "string"},
+              "passed": {"type": "boolean"},
+              "value": {},
+              "error": {"type": "string"}
+            }
+          }
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "Steady state verification after perturbation."
+    },
+    "refutation_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["criterion", "triggered"],
+        "properties": {
+          "criterion": {
+            "type": "string",
+            "description": "The refutation criterion checked."
+          },
+          "triggered": {
+            "type": "boolean",
+            "description": "Whether this refutation condition was triggered."
+          },
+          "details": {
+            "type": "string",
+            "description": "Additional details if triggered."
+          }
+        }
+      },
+      "description": "Results of refutation checks."
+    },
+    "falsification_reason": {
+      "type": "string",
+      "description": "If falsified, the primary reason."
+    },
+    "logs": {
+      "type": "object",
+      "properties": {
+        "stdout_path": {"type": "string"},
+        "stderr_path": {"type": "string"},
+        "metrics_path": {"type": "string"}
+      },
+      "description": "Paths to captured log files."
+    },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "latency_ms": {"type": "number"},
+        "error_count": {"type": "integer"},
+        "retry_count": {"type": "integer"},
+        "memory_peak_mb": {"type": "number"}
+      },
+      "description": "Captured metrics during the experiment."
+    },
+    "environment": {
+      "type": "object",
+      "properties": {
+        "hostname": {"type": "string"},
+        "python_version": {"type": "string"},
+        "git_commit": {"type": "string"},
+        "toxiproxy_version": {"type": "string"}
+      },
+      "description": "Environment information for reproducibility."
+    },
+    "agent": {
+      "type": "string",
+      "description": "Agent or system that ran this experiment."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-form notes about the experiment run."
+    }
+  },
+  "additionalProperties": false
+}

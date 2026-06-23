@@ -1,0 +1,54 @@
+name: zeno-oracle-mvp
+
+on:
+  push:
+    branches:
+      - main
+      - docs/zeno-oracle-mvp-design
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  oracle-mvp-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Oracle verifier dependencies
+        run: |
+          python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Run Zeno Oracle MVP plus Devnet Alpha replay gate
+        run: bash scripts/check_zeno_oracle_devnet_alpha.sh
+
+      - name: Build Zeno Oracle Devnet Alpha RC package
+        run: bash scripts/package_zeno_oracle_rc.sh zeno-oracle-devnet-alpha-rc1
+
+      - name: Verify Zeno Oracle Devnet Alpha RC package
+        run: |
+          python3 tools/check_zeno_oracle_rc_package.py \
+            --package-dir dist/zeno-oracle-devnet-alpha-rc1 \
+            --receipt dist/zeno-oracle-devnet-alpha-rc1.receipt.json \
+            --sig dist/zeno-oracle-devnet-alpha-rc1.sig
+          cd dist/zeno-oracle-devnet-alpha-rc1
+          bash scripts/check_zeno_oracle_rc_bundle.sh
+
+      - name: Upload Zeno Oracle Devnet Alpha RC package
+        uses: actions/upload-artifact@v4
+        with:
+          name: zeno-oracle-devnet-alpha-rc1
+          path: |
+            dist/zeno-oracle-devnet-alpha-rc1.tar.gz
+            dist/zeno-oracle-devnet-alpha-rc1.receipt.json
+            dist/zeno-oracle-devnet-alpha-rc1.sig
+            dist/zeno-oracle-devnet-alpha-rc1/ZEN_ORACLE_RC_MANIFEST.json
+          if-no-files-found: error

@@ -1,0 +1,79 @@
+{
+  "cli_help": "Load an LPValue FIRE interface object",
+  "expression": {
+    "kind": "source_bound",
+    "name": "lpv_final"
+  },
+  "ir_hash": "sha256:5f03d9eec0db8a749d06f6b992c18c5168a9cb4f2195d098889befb91dc35ef4",
+  "object_family": "value_source",
+  "object_id": "lp_value_v1",
+  "object_name": "LPValue",
+  "object_version": "v1",
+  "outputs": [
+    {
+      "description": "Certified LP value interval",
+      "expression": {
+        "kind": "source_bound",
+        "name": "lpv_final"
+      },
+      "name": "lpv_final",
+      "unit": "Amount[zUSD]"
+    }
+  ],
+  "payoff_summary": "LPValue_T",
+  "schema": "zenodex/fire-math-object-spec/v1",
+  "settlement_asset": "zUSD",
+  "source_bounds": [
+    {
+      "contract": {
+        "name": "lpv_contract",
+        "role": "source:lpv_final"
+      },
+      "lower": {
+        "kind": "term",
+        "term": "lpv_lower"
+      },
+      "name": "lpv_final",
+      "unit": "Amount[zUSD]",
+      "upper": {
+        "kind": "term",
+        "term": "lpv_upper"
+      }
+    }
+  ],
+  "term_fields": [
+    {
+      "description": "Certified lower LP value bound",
+      "maximum": 1000,
+      "minimum": 0,
+      "name": "lpv_lower",
+      "unit": "Amount[zUSD]"
+    },
+    {
+      "description": "Certified upper LP value bound",
+      "maximum": 1000,
+      "minimum": 0,
+      "name": "lpv_upper",
+      "unit": "Amount[zUSD]"
+    }
+  ],
+  "witnesses": [
+    {
+      "contract": {
+        "name": "lpv_contract",
+        "role": "witness:LPValuePacket"
+      },
+      "freshness": "1 epoch",
+      "lower": {
+        "kind": "term",
+        "term": "lpv_lower"
+      },
+      "name": "LPValuePacket",
+      "unit": "Amount[zUSD]",
+      "upper": {
+        "kind": "term",
+        "term": "lpv_upper"
+      }
+    }
+  ]
+}

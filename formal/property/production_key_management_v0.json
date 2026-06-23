@@ -1,0 +1,214 @@
+{
+  "schema": "zenodex.production_key_management.property_model.v0",
+  "model_id": "production_key_management_v0",
+  "scope": {
+    "purpose": "Bounded property model for production key-management admission before runtime implementation.",
+    "included": [
+      "production versus testnet key separation",
+      "role-scoped authorization",
+      "threshold quorum",
+      "distinct custodian quorum",
+      "revoked and expired key rejection",
+      "hardware, HSM, or MPC-backed key requirement for high-value actions",
+      "Shamir Secret Sharing as backup and recovery support, not a live quorum bypass",
+      "timelock requirement for governance-changing actions",
+      "break-glass scope restriction",
+      "transparency receipt requirement"
+    ],
+    "excluded": [
+      "cryptographic signature soundness",
+      "hardware wallet or HSM vendor correctness",
+      "human identity verification",
+      "legal custody analysis",
+      "chain-specific wallet UX",
+      "social recovery design"
+    ]
+  },
+  "domains": {
+    "environment": ["testnet", "production"],
+    "key_status": ["active", "revoked", "expired"],
+    "storage_class": ["software", "hardware", "hsm", "mpc"],
+    "roles": [
+      "treasury",
+      "config",
+      "validator",
+      "oracle",
+      "verifier",
+      "release",
+      "emergency"
+    ],
+    "actions": [
+      "protocol_treasury_spend",
+      "dao_treasury_grant",
+      "public_network_config_update",
+      "validator_set_update",
+      "oracle_reporter_registry_update",
+      "verifier_registry_update",
+      "release_artifact_publish",
+      "emergency_pause",
+      "emergency_unpause",
+      "key_revocation",
+      "signer_rotation",
+      "routine_node_heartbeat"
+    ]
+  },
+  "global_invariants": [
+    {
+      "id": "PKM-G-001",
+      "formula": "ProductionAction -> every signer.environment == production",
+      "meaning": "Testnet keys never authorize production actions."
+    },
+    {
+      "id": "PKM-G-002",
+      "formula": "Admitted -> no signer.status in {revoked, expired}",
+      "meaning": "Revoked and expired keys are fail-closed."
+    },
+    {
+      "id": "PKM-G-003",
+      "formula": "CriticalAction -> threshold >= 2 and distinct_custodians >= 2",
+      "meaning": "No single key or single custodian can authorize high-value production actions."
+    },
+    {
+      "id": "PKM-G-004",
+      "formula": "HardwareRequired(action) -> every counted signer.storage_class in {hardware, hsm, mpc}",
+      "meaning": "High-value signatures come only from non-software custody: hardware wallet, HSM, or MPC/TSS."
+    },
+    {
+      "id": "PKM-G-005",
+      "formula": "TimelockRequired(action) -> timelock_satisfied",
+      "meaning": "Governance-changing actions cannot execute immediately unless the action policy explicitly excludes timelock."
+    },
+    {
+      "id": "PKM-G-006",
+      "formula": "BreakGlassSignerUsed -> action == emergency_pause",
+      "meaning": "Emergency keys can pause, and cannot spend funds, rotate authority, or publish production configs."
+    },
+    {
+      "id": "PKM-G-007",
+      "formula": "AdmittedProductionAction -> transparency_receipt_bound",
+      "meaning": "Every privileged production action leaves an auditable receipt."
+    }
+  ],
+  "action_policies": {
+    "protocol_treasury_spend": {
+      "role": "treasury",
+      "critical": true,
+      "threshold": 3,
+      "min_distinct_custodians": 3,
+      "hardware_required": true,
+      "timelock_required": true,
+      "break_glass_allowed": false,
+      "transparency_required": true
+    },
+    "dao_treasury_grant": {
+      "role": "treasury",
+      "critical": true,
+      "threshold": 3,
+      "min_distinct_custodians": 3,
+      "hardware_required": true,
+      "timelock_required": true,
+      "break_glass_allowed": false,
+      "transparency_required": true
+    },
+    "public_network_config_update": {
+      "role": "config",
+      "critical": true,
+      "threshold": 2,
+      "min_distinct_custodians": 2,
+      "hardware_required": true,
+      "timelock_required": true,
+      "break_glass_allowed": false,
+      "transparency_required": true
+    },
+    "validator_set_update": {
+      "role": "validator",
+      "critical": true,
+      "threshold": 2,
+      "min_distinct_custodians": 2,
+      "hardware_required": true,
+      "timelock_required": true,
+      "break_glass_allowed": false,
+      "transparency_required": true
+    },
+    "oracle_reporter_registry_update": {
+      "role": "oracle",
+      "critical": true,
+      "threshold": 2,
+      "min_distinct_custodians": 2,
+      "hardware_required": true,
+      "timelock_required": true,
+      "break_glass_allowed": false,
+      "transparency_required": true
+    },
+    "verifier_registry_update": {
+      "role": "verifier",
+      "critical": true,
+      "threshold": 2,
+      "min_distinct_custodians": 2,
+      "hardware_required": true,
+      "timelock_required": true,
+      "break_glass_allowed": false,
+      "transparency_required": true
+    },
+    "release_artifact_publish": {
+      "role": "release",
+      "critical": true,
+      "threshold": 2,
+      "min_distinct_custodians": 2,
+      "hardware_required": true,
+      "timelock_required": false,
+      "break_glass_allowed": false,
+      "transparency_required": true
+    },
+    "emergency_pause": {
+      "role": "emergency",
+      "critical": true,
+      "threshold": 2,
+      "min_distinct_custodians": 2,
+      "hardware_required": true,
+      "timelock_required": false,
+      "break_glass_allowed": true,
+      "transparency_required": true
+    },
+    "emergency_unpause": {
+      "role": "config",
+      "critical": true,
+      "threshold": 3,
+      "min_distinct_custodians": 3,
+      "hardware_required": true,
+      "timelock_required": true,
+      "break_glass_allowed": false,
+      "transparency_required": true
+    },
+    "key_revocation": {
+      "role": "config",
+      "critical": true,
+      "threshold": 2,
+      "min_distinct_custodians": 2,
+      "hardware_required": true,
+      "timelock_required": false,
+      "break_glass_allowed": false,
+      "transparency_required": true
+    },
+    "signer_rotation": {
+      "role": "config",
+      "critical": true,
+      "threshold": 3,
+      "min_distinct_custodians": 3,
+      "hardware_required": true,
+      "timelock_required": true,
+      "break_glass_allowed": false,
+      "transparency_required": true
+    },
+    "routine_node_heartbeat": {
+      "role": "validator",
+      "critical": false,
+      "threshold": 1,
+      "min_distinct_custodians": 1,
+      "hardware_required": false,
+      "timelock_required": false,
+      "break_glass_allowed": false,
+      "transparency_required": false
+    }
+  }
+}

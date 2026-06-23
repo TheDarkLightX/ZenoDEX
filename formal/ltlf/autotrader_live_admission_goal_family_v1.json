@@ -1,0 +1,46 @@
+{
+  "goals": [
+    {
+      "id": "G_valid_observation_eventually_progresses",
+      "formula": "G ((state.phase.2 & state.valid_observation & state.admission_checks_ok) -> F (state.submit_ok | state.explicit_failure))",
+      "required_in_release": true
+    },
+    {
+      "id": "G_accepted_nonce_eventually_resolves",
+      "formula": "G (state.nonce_accepted -> F (state.nonce_consumed | state.nonce_released))",
+      "required_in_release": true
+    },
+    {
+      "id": "G_emit_ready_eventually_resolves",
+      "formula": "G (state.emit_ready -> F (state.finalized | state.explicit_failure))",
+      "required_in_release": true
+    },
+    {
+      "id": "G_submit_reachable",
+      "formula": "F effect.event.BundleSubmitted",
+      "required_in_release": true
+    },
+    {
+      "id": "G_finalize_reachable",
+      "formula": "F effect.event.EmitFinalized",
+      "required_in_release": true
+    },
+    {
+      "id": "G_explicit_failure_reachable",
+      "formula": "F state.explicit_failure",
+      "required_in_release": false
+    },
+    {
+      "id": "G_end_explicit",
+      "formula": "F effect.event.End",
+      "required_in_release": false
+    }
+  ],
+  "required_goal_ids": [
+    "G_valid_observation_eventually_progresses",
+    "G_accepted_nonce_eventually_resolves",
+    "G_emit_ready_eventually_resolves",
+    "G_submit_reachable",
+    "G_finalize_reachable"
+  ]
+}

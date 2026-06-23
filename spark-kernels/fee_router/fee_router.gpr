@@ -1,0 +1,14 @@
+--  GNAT project for the advisory SPARK fee-split conservation kernel.
+--  Build:  gprbuild -P fee_router.gpr
+--  Prove:  gnatprove -P fee_router.gpr --level=2 --report=all
+project Fee_Router is
+
+   for Source_Dirs use (".");
+   for Object_Dir use "obj";
+   for Main use ();
+
+   package Compiler is
+      for Default_Switches ("Ada") use ("-gnat2012", "-gnata", "-gnatwa");
+   end Compiler;
+
+end Fee_Router;

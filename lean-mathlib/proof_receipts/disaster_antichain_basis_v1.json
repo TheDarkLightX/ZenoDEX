@@ -1,0 +1,45 @@
+{
+  "schema": "zenodex/lean-proof-receipt/v1",
+  "receipt_id": "disaster_antichain_basis_v1",
+  "checker": "lean",
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "commands": [
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs/DisasterAntichainBasis.lean"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake --wfail build Proofs.DisasterAntichainBasis"
+    },
+    {
+      "cwd": ".",
+      "cmd": "bash -lc \"! rg -n '\\b(sorry|admit|axiom|unsafe|sorryAx)\\b' lean-mathlib/Proofs/DisasterAntichainBasis.lean\""
+    }
+  ],
+  "modules": [
+    {
+      "module": "Proofs.DisasterAntichainBasis",
+      "path": "lean-mathlib/Proofs/DisasterAntichainBasis.lean",
+      "sha256": "sha256:af8266d1f5f4d792b7dcfebcab69973588170597456a85a8e7a484cad84ba53f",
+      "theorems": [
+        "basis_rejection_lifts_to_all_bad",
+        "list_basis_rejection_lifts_to_all_bad",
+        "no_accepted_bad_from_rejected_basis",
+        "exact_bad_basis_excludes_accepted_bad",
+        "antichain_exact_basis_still_lifts",
+        "private_obligation_forces_guard",
+        "private_witnesses_force_selected_subset",
+        "private_witnesses_cardinality_lower_bound"
+      ]
+    }
+  ],
+  "boundaries": [
+    "The lift theorem applies to supplied basis coverage and upward-closure predicates; it does not discover disaster axes.",
+    "The private-witness lower-bound theorem proves subset and finite cardinality pressure for supplied obligation-cover relations.",
+    "The JSON certificate instantiates the current ZenoOracle manifest and current frontier projection; new frontier axes must be added and replayed before they inherit this claim."
+  ],
+  "claim": "The ZenoOracle disaster-obligation antichain certificate has a reusable Lean theorem layer: rejected covered bases lift to all covered bad axes, accepted bad axes are excluded under disjoint rejection, and private obligation witnesses force any covering guard set to contain the selected guard set with a finite cardinality lower bound.",
+  "result": "proved",
+  "created_utc": "2026-05-06T00:00:00Z"
+}
