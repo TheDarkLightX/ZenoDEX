@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
@@ -19,9 +20,14 @@ SEARCH_GLOBS = (
 
 FORBIDDEN_SNIPPETS = (
     "Standard " + "reading",
-    "/home/" + "operator",
     "/workspace" + "/",
     "/workspace" + "/" + "ZenoDEX",
+)
+
+# Reject any absolute /home/<user>/ path in tracked text surfaces —
+# machine-specific paths must never be committed.
+FORBIDDEN_PATTERNS = (
+    r"/home/[a-zA-Z0-9_]+/",
 )
 
 
@@ -40,5 +46,11 @@ def test_public_text_surfaces_do_not_leak_local_workspace_or_old_gloss() -> None
         for snippet in FORBIDDEN_SNIPPETS:
             if snippet in text:
                 hits.append(f"{rel}: contains {snippet!r}")
+        for pattern in FORBIDDEN_PATTERNS:
+            for match in re.finditer(pattern, text):
+                # Allow /home/ in this test file itself (the pattern definition).
+                if rel == Path("tests/test_public_text_hygiene.py"):
+                    continue
+                hits.append(f"{rel}: matches {pattern!r} at {match.start()}: {match.group()!r}")
 
     assert hits == []
