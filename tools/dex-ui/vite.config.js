@@ -94,9 +94,51 @@ export function resolveApiProxyTarget({ command, env = process.env, execFile = e
   return DEFAULT_API_PROXY_TARGET;
 }
 
+// Paths that the production nginx local-testnet template routes to the
+// ZenoLedger writer (node) instead of the stdlib api_server. Mirrors
+// .docker/nginx.local-testnet.conf.template so local dev matches prod.
+const NODE_API_PATHS = [
+  '/api/pools',
+  '/api/swap',
+  '/api/liquidity/add',
+  '/api/liquidity/create',
+  '/api/liquidity/remove',
+  '/api/testnet/faucet',
+  '/api/tokenomics/status',
+  '/api/tokenomics/active-participant/claim',
+  '/tx',
+  '/status',
+  '/features',
+  '/tokens',
+  '/network',
+  '/public_network_config.json',
+  '/ledger-bundle/',
+  '/live',
+];
+
+function buildProxyConfig(stdlibTarget, nodeTarget) {
+  if (!stdlibTarget && !nodeTarget) return undefined;
+  // Single-target fast path: everything to one origin.
+  if (stdlibTarget && !nodeTarget) {
+    return { '/api': { target: stdlibTarget, changeOrigin: true } };
+  }
+  if (!stdlibTarget && nodeTarget) {
+    return { '/api': { target: nodeTarget, changeOrigin: true } };
+  }
+  // Split routing: node paths first (longest-match wins in Vite proxy),
+  // then the catch-all /api -> stdlib api_server. Mirrors nginx ordering.
+  const proxy = {};
+  for (const p of NODE_API_PATHS) {
+    proxy[p] = { target: nodeTarget, changeOrigin: true };
+  }
+  proxy['/api'] = { target: stdlibTarget, changeOrigin: true };
+  return proxy;
+}
+
 export default defineConfig(({ command }) => {
   const apiTarget = resolveApiProxyTarget({ command });
   const previewApiTarget = normalizeProxyTarget(process.env.API_PROXY_TARGET);
+  const nodeApiTarget = normalizeProxyTarget(process.env.NODE_API_PROXY_TARGET || '');
   const basePathRaw = (process.env.VITE_BASE_PATH || '/').toString().trim();
   const basePath = basePathRaw || '/';
   return {
@@ -118,20 +160,10 @@ export default defineConfig(({ command }) => {
       },
     },
     server: {
-      proxy: apiTarget ? {
-        '/api': {
-          target: apiTarget,
-          changeOrigin: true,
-        },
-      } : undefined,
+      proxy: buildProxyConfig(apiTarget, nodeApiTarget),
     },
     preview: {
-      proxy: previewApiTarget ? {
-        '/api': {
-          target: previewApiTarget,
-          changeOrigin: true,
-        },
-      } : undefined,
+      proxy: buildProxyConfig(previewApiTarget, nodeApiTarget),
     },
   };
 })
