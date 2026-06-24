@@ -125,3 +125,36 @@ def test_zusd_oracle_recovery_lifecycle_packet_rejects_tampering() -> None:
     ok, err = verify_zusd_oracle_recovery_lifecycle_packet_payload(payload)
     assert not ok
     assert err == "rejected_with_reason mismatch"
+
+
+def test_zusd_oracle_recovery_lifecycle_packet_caps_malformed_nested_error() -> None:
+    previous_state = _ok(init_state(), "bootstrap_oracle", price_e8=100 * E8, auth_ok=True)
+    previous_state = _ok(previous_state, "advance_epoch", delta=150)
+    current_state = _ok(previous_state, "oracle_report", price_e8=100 * E8, auth_ok=True)
+    current_state = _ok(current_state, "oracle_commit", auth_ok=True)
+    packet = build_zusd_oracle_recovery_lifecycle_packet(
+        previous_pending_gate_contract=build_zusd_oracle_pending_gate_contract(
+            previous_state, risky_requested=True, tcr_ok=True
+        ),
+        current_pending_gate_contract=build_zusd_oracle_pending_gate_contract(
+            current_state, risky_requested=True, tcr_ok=True
+        ),
+        current_sync_contract=build_zusd_cross_module_oracle_sync_contract(
+            market_id="TAU-USD",
+            zusd_price_e8=current_state.price_e8,
+            zusd_epoch=current_state.oracle_last_update_epoch,
+            perp_price_e8=current_state.price_e8,
+            perp_oracle_epoch=current_state.oracle_last_update_epoch,
+            max_divergence_bps=0,
+            max_epoch_lag=0,
+        ),
+    )
+    payload = packet.to_dict()
+    payload["current_sync_contract"]["tau_step"] = {"0": "9" * 1_000 + "x"}
+
+    ok, err = verify_zusd_oracle_recovery_lifecycle_packet_payload(payload)
+
+    assert ok is False
+    assert err is not None
+    assert len(err) <= 200
+    assert "9" * 201 not in err

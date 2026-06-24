@@ -28,6 +28,11 @@ from .settlement_end_to_end_certificate_packet import (
 SETTLEMENT_WITNESS_LIFECYCLE_PACKET_SCHEMA = "zenodex/settlement-witness-lifecycle-packet/v1"
 
 
+def _safe_payload_validation_error(exc: Exception) -> str:
+    detail = " ".join(str(exc).split())
+    return detail[:200] or type(exc).__name__
+
+
 @dataclass(frozen=True)
 class SettlementWitnessLifecyclePacket:
     decision_witness: DecisionWitness | None
@@ -309,7 +314,7 @@ def verify_settlement_witness_lifecycle_packet_payload(
             quote_bindings_validated=quote_bindings_validated,
         )
     except (TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if dict(packet_payload) != expected.to_dict():
         return False, "settlement witness lifecycle packet payload mismatch"
     return True, None

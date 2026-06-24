@@ -358,6 +358,33 @@ def test_verify_settlement_witness_lifecycle_packet_payload_rejects_expected_bui
     assert err == "expected lifecycle build error"
 
 
+def test_verify_settlement_witness_lifecycle_packet_payload_caps_expected_build_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    intents, settlement, balances, pools, certificate_inputs = _settlement_context()
+
+    def _reject_build(*args: object, **kwargs: object) -> object:
+        raise ValueError("9" * 1_000 + "x")
+
+    monkeypatch.setattr(lifecycle, "build_settlement_witness_lifecycle_packet", _reject_build)
+
+    ok, err = verify_settlement_witness_lifecycle_packet_payload(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_end_to_end_certificate_inputs=certificate_inputs,
+        packet_payload={"schema": SETTLEMENT_WITNESS_LIFECYCLE_PACKET_SCHEMA},
+    )
+
+    assert ok is False
+    assert err is not None
+    assert len(err) <= 200
+    assert "9" * 201 not in err
+
+
 def test_verify_settlement_witness_lifecycle_packet_payload_surfaces_unexpected_build_fault(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

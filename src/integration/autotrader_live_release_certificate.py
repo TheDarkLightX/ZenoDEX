@@ -12,6 +12,13 @@ if TYPE_CHECKING:
 
 
 LIVE_RELEASE_SCHEMA = "zenodex/strategy-live-release/v1"
+
+
+def _safe_payload_validation_error(exc: Exception) -> str:
+    detail = " ".join(str(exc).split())
+    return detail[:200] or type(exc).__name__
+
+
 def _derive_release_error(
     *,
     emit_requested: bool,
@@ -222,7 +229,7 @@ def verify_autotrader_live_release_certificate_payload(payload: object) -> tuple
             release_error=payload.get("release_error"),
         )
     except (TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != certificate.to_dict():
         return False, "live release certificate payload mismatch"
     return True, None

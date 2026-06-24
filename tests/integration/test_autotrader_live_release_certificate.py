@@ -240,6 +240,42 @@ def test_live_release_certificate_payload_rejects_expected_constructor_error() -
     assert err == "release_ok must be a bool"
 
 
+def test_live_release_certificate_payload_caps_expected_constructor_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    privkey = 305
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        chain_id="tau-local",
+        krr_backend="python",
+        tx_sequence_number=9,
+        tx_expiration_time=999,
+    )
+    payload = build_autotrader_live_release_certificate(report).to_dict()
+
+    def reject_certificate(**_: object) -> live_release_certificate.AutoTraderLiveReleaseCertificate:
+        raise ValueError("9" * 1_000 + "x")
+
+    monkeypatch.setattr(live_release_certificate, "AutoTraderLiveReleaseCertificate", reject_certificate)
+
+    ok, err = live_release_certificate.verify_autotrader_live_release_certificate_payload(payload)
+
+    assert ok is False
+    assert err is not None
+    assert len(err) <= 200
+    assert "9" * 201 not in err
+
+
 def test_live_release_certificate_payload_surfaces_unexpected_constructor_fault(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

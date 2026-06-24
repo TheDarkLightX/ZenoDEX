@@ -247,6 +247,38 @@ def test_stage_certificate_payload_rejects_expected_constructor_error() -> None:
     assert err == "release_eligible must be a bool"
 
 
+def test_stage_certificate_payload_caps_hash_consistent_constructor_error() -> None:
+    privkey = 315
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        chain_id="tau-local",
+        krr_backend="python",
+        tx_sequence_number=4,
+        tx_expiration_time=999,
+    )
+    payload = build_autotrader_stage_certificate(report).to_dict()
+    payload["highest_stage"] = "9" * 1_000 + "x"
+    unsigned_payload = {key: value for key, value in payload.items() if key != "stage_hash"}
+    payload["stage_hash"] = sha256_hex(canonical_json_bytes(unsigned_payload))
+
+    ok, err = verify_autotrader_stage_certificate_payload(payload)
+
+    assert ok is False
+    assert err is not None
+    assert len(err) <= 200
+    assert "9" * 201 not in err
+
+
 def test_stage_certificate_payload_surfaces_unexpected_constructor_fault(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

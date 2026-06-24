@@ -16,6 +16,11 @@ from .zusd_oracle_contracts import (
 ZUSD_ORACLE_RECOVERY_LIFECYCLE_PACKET_SCHEMA = "zenodex/zusd-oracle-recovery-lifecycle-packet/v1"
 
 
+def _safe_payload_validation_error(exc: Exception) -> str:
+    detail = " ".join(str(exc).split())
+    return detail[:200] or type(exc).__name__
+
+
 @dataclass(frozen=True)
 class ZUSDOracleRecoveryLifecyclePacket:
     previous_pending_gate_contract: ZUSDOraclePendingGateContract
@@ -226,8 +231,8 @@ def verify_zusd_oracle_recovery_lifecycle_packet_payload(payload: object) -> tup
         return False, "unsupported oracle recovery lifecycle packet schema"
     try:
         packet = ZUSDOracleRecoveryLifecyclePacket.from_dict(payload)
-    except Exception as exc:
-        return False, str(exc)
+    except (TypeError, ValueError) as exc:
+        return False, _safe_payload_validation_error(exc)
     expected = build_zusd_oracle_recovery_lifecycle_packet(
         previous_pending_gate_contract=packet.previous_pending_gate_contract,
         current_pending_gate_contract=packet.current_pending_gate_contract,

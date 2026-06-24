@@ -20,6 +20,13 @@ _STAGES = (
     "decision",
     "live_release",
 )
+
+
+def _safe_payload_validation_error(exc: Exception) -> str:
+    detail = " ".join(str(exc).split())
+    return detail[:200] or type(exc).__name__
+
+
 def _highest_stage(
     *,
     tau_policy_bundle_hash: str | None,
@@ -235,7 +242,7 @@ def verify_autotrader_stage_certificate_payload(payload: object) -> tuple[bool, 
             blocker=payload.get("blocker"),
         )
     except (TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != certificate.to_dict():
         return False, "stage certificate payload mismatch"
     return True, None
