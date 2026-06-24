@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 import pytest
 
 from src.agents.intent_signer import create_swap_intent, sign_intent
@@ -172,7 +174,7 @@ def test_check_strategy_submit_bundle_rejects_bad_types() -> None:
     signer_pubkey, signed_intents, operations = _signed_bundle()
     with pytest.raises(TypeError, match="emit_requested must be a bool"):
         check_strategy_submit_bundle(
-            emit_requested=1,
+            emit_requested=cast(Any, 1),
             signed_intents=signed_intents,
             operations=operations,
             chain_id="tau-local",
@@ -207,7 +209,7 @@ def test_check_strategy_submit_bundle_rejects_additional_type_edges() -> None:
             signed_intents=signed_intents,
             operations=operations,
             chain_id="tau-local",
-            signer_pubkey=object(),  # type: ignore[arg-type]
+            signer_pubkey=cast(Any, object()),
             tx_requested=False,
         )
     with pytest.raises(ValueError, match="signer_pubkey must be non-empty"):
@@ -224,14 +226,14 @@ def test_check_strategy_submit_bundle_rejects_additional_type_edges() -> None:
             emit_requested=True,
             signed_intents=signed_intents,
             operations=operations,
-            chain_id=object(),  # type: ignore[arg-type]
+            chain_id=cast(Any, object()),
             signer_pubkey=signer_pubkey,
             tx_requested=False,
         )
     with pytest.raises(TypeError, match="signed_intents must contain SignedIntentEnvelope items"):
         check_strategy_submit_bundle(
             emit_requested=True,
-            signed_intents=(object(),),  # type: ignore[arg-type]
+            signed_intents=cast(Any, (object(),)),
             operations=operations,
             chain_id="tau-local",
             signer_pubkey=signer_pubkey,
@@ -241,7 +243,7 @@ def test_check_strategy_submit_bundle_rejects_additional_type_edges() -> None:
         check_strategy_submit_bundle(
             emit_requested=True,
             signed_intents=signed_intents,
-            operations=(),  # type: ignore[arg-type]
+            operations=cast(Any, ()),
             chain_id="tau-local",
             signer_pubkey=signer_pubkey,
             tx_requested=False,
@@ -406,3 +408,115 @@ def test_check_strategy_submit_bundle_helper_edges(monkeypatch: pytest.MonkeyPat
     )
     assert result.ok is False
     assert result.error == "submit_bundle_tx_payload_rejected"
+
+
+def test_check_strategy_submit_bundle_expected_signature_dependency_error_rejects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    signer_pubkey, signed_intents, operations = _signed_bundle()
+
+    def _missing_signature_dependency(*_args: object, **_kwargs: object) -> bool:
+        raise ImportError("signature dependency unavailable")
+
+    monkeypatch.setattr(
+        strategy_submit_bundle_guard_v1_adapter,
+        "verify_intent_signature",
+        _missing_signature_dependency,
+    )
+
+    result = check_strategy_submit_bundle(
+        emit_requested=True,
+        signed_intents=signed_intents,
+        operations=operations,
+        chain_id="tau-local",
+        signer_pubkey=signer_pubkey,
+        tx_requested=False,
+    )
+
+    assert result.ok is False
+    assert result.error == "submit_bundle_signature_invalid"
+
+
+def test_check_strategy_submit_bundle_surfaces_unexpected_signature_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    signer_pubkey, signed_intents, operations = _signed_bundle()
+
+    def _boom_signature_verify(*_args: object, **_kwargs: object) -> bool:
+        raise RuntimeError("signature verifier internal fault")
+
+    monkeypatch.setattr(
+        strategy_submit_bundle_guard_v1_adapter,
+        "verify_intent_signature",
+        _boom_signature_verify,
+    )
+
+    with pytest.raises(RuntimeError, match="signature verifier internal fault"):
+        check_strategy_submit_bundle(
+            emit_requested=True,
+            signed_intents=signed_intents,
+            operations=operations,
+            chain_id="tau-local",
+            signer_pubkey=signer_pubkey,
+            tx_requested=False,
+        )
+
+
+def test_check_strategy_submit_bundle_surfaces_unexpected_operations_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    signer_pubkey, signed_intents, operations = _signed_bundle()
+
+    def _boom_parse_signed_intents(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("operations parser internal fault")
+
+    monkeypatch.setattr(
+        strategy_submit_bundle_guard_v1_adapter,
+        "parse_signed_intents",
+        _boom_parse_signed_intents,
+    )
+
+    with pytest.raises(RuntimeError, match="operations parser internal fault"):
+        check_strategy_submit_bundle(
+            emit_requested=True,
+            signed_intents=signed_intents,
+            operations=operations,
+            chain_id="tau-local",
+            signer_pubkey=signer_pubkey,
+            tx_requested=False,
+        )
+
+
+def test_check_strategy_submit_bundle_surfaces_unexpected_wire_encoder_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    signer_pubkey, signed_intents, operations = _signed_bundle()
+
+    def _boom_encode_tau_operations(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("wire encoder internal fault")
+
+    monkeypatch.setattr(
+        strategy_submit_bundle_guard_v1_adapter,
+        "encode_tau_operations_for_wire",
+        _boom_encode_tau_operations,
+    )
+
+    with pytest.raises(RuntimeError, match="wire encoder internal fault"):
+        check_strategy_submit_bundle(
+            emit_requested=True,
+            signed_intents=signed_intents,
+            operations=operations,
+            chain_id="tau-local",
+            signer_pubkey=signer_pubkey,
+            tx_requested=True,
+            sequence_number=9,
+            expiration_time=999,
+            fee_limit="0",
+            tau_tx_payload=build_signed_tau_transaction(
+                privkey=7,
+                sequence_number=9,
+                expiration_time=999,
+                operations=operations,
+                fee_limit="0",
+            ),
+        )
