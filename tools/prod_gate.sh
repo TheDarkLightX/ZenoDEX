@@ -31,14 +31,12 @@ SKIP_DOCKER=0
 SKIP_UI=0
 IMAGE_TAG="${IMAGE_TAG:-zenodex:local}"
 KERNEL_JSON=""
-UI_AUDIT_JSON=""
-UI_AUDIT_LOG=""
 TRIVY_JSON=""
 KERNEL_RECEIPT="$ROOT/docs/assurance/kernel_assurance_public_receipt.json"
 PRIVATE_ESSO=auto
 
 cleanup() {
-  rm -f "$KERNEL_JSON" "$UI_AUDIT_JSON" "$UI_AUDIT_LOG" "$TRIVY_JSON"
+  rm -f "$KERNEL_JSON" "$TRIVY_JSON"
 }
 trap cleanup EXIT
 
@@ -113,49 +111,8 @@ pytest -q
 
 if [[ "$SKIP_UI" -eq 0 ]]; then
   if [[ -d tools/dex-ui ]]; then
-    UI_AUDIT_JSON="$(mktemp)"
-    UI_AUDIT_LOG="$(mktemp)"
     echo "[gate] running npm audit (UI)"
-    (
-      cd tools/dex-ui
-      npm audit --json >"$UI_AUDIT_JSON" 2>"$UI_AUDIT_LOG" || true
-      node - "$UI_AUDIT_JSON" "$UI_AUDIT_LOG" <<'NODE'
-const fs = require('fs');
-
-const jsonPath = process.argv[2];
-const logPath = process.argv[3];
-const raw = fs.readFileSync(jsonPath, 'utf8').trim();
-const stderr = fs.readFileSync(logPath, 'utf8').trim();
-
-function fail(message) {
-  console.error(message);
-  process.exit(1);
-}
-
-if (!raw) {
-  fail(`[gate] npm audit produced no JSON output${stderr ? `\n${stderr}` : ''}`);
-}
-
-let data;
-try {
-  data = JSON.parse(raw);
-} catch (err) {
-  fail(`[gate] npm audit emitted invalid JSON: ${err.message}${stderr ? `\n${stderr}` : ''}`);
-}
-
-if (data.error) {
-  fail(`[gate] npm audit failed: ${JSON.stringify(data.error, null, 2)}`);
-}
-
-const meta = (data.metadata && data.metadata.vulnerabilities) || {};
-const bad = Number(meta.high || 0) + Number(meta.critical || 0);
-if (bad > 0) {
-  fail(JSON.stringify(data, null, 2));
-}
-
-console.log('[gate] npm audit OK');
-NODE
-    )
+    python3 tools/check_dex_ui_dependency_audit.py --workdir tools/dex-ui
   else
     echo "[gate] tools/dex-ui not present; skipping UI audit"
   fi

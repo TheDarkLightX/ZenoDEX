@@ -140,3 +140,20 @@ def test_python_install_surfaces_use_hash_locked_requirements() -> None:
     ):
         text = path.read_text(encoding="utf-8")
         assert "pip install --require-hashes -r requirements-dev.lock.txt" in text
+
+
+def test_prod_gate_uses_strict_dex_ui_dependency_audit() -> None:
+    prod_gate = (ROOT / "tools/prod_gate.sh").read_text(encoding="utf-8")
+
+    assert "python3 tools/check_dex_ui_dependency_audit.py --workdir tools/dex-ui" in prod_gate
+    assert "Number(meta.high || 0) + Number(meta.critical || 0)" not in prod_gate
+
+
+def test_dependency_and_container_assurance_run_on_schedule() -> None:
+    for workflow in (
+        ROOT / ".github/workflows/dependency-assurance.yml",
+        ROOT / ".github/workflows/container-assurance.yml",
+    ):
+        text = workflow.read_text(encoding="utf-8")
+        assert "schedule:" in text
+        assert "cron:" in text
