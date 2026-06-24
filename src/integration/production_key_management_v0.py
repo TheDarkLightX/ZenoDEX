@@ -419,6 +419,13 @@ def _reject(reason: str) -> tuple[bool, str]:
     return False, reason
 
 
+def _safe_malformed_input_reason(exc: Exception) -> str:
+    if isinstance(exc, (ValueError, TypeError, KeyError)):
+        detail = " ".join(str(exc).split())
+        return "malformed_input:" + (detail[:200] or type(exc).__name__)
+    return f"malformed_input:internal_error:{type(exc).__name__}"
+
+
 def _admission_decision(
     *,
     packet: Mapping[str, Any],
@@ -436,7 +443,7 @@ def _admission_decision(
         for envelope in signature_envelopes:
             validate_signature_envelope_v0(envelope)
     except Exception as exc:
-        return False, f"malformed_input:{exc}", []
+        return False, _safe_malformed_input_reason(exc), []
 
     if packet["action"] != policy["action"]:
         return (*_reject("policy_action_mismatch"), [])
@@ -469,14 +476,14 @@ def _admission_decision(
         seen_signature_key_ids.add(key_id)
         if envelope["packet_hash"] != packet["packet_hash"]:
             return (*_reject("signature_packet_hash_mismatch"), [])
-        descriptor = descriptors_by_key.get(key_id)
-        if descriptor is None:
+        signature_descriptor = descriptors_by_key.get(key_id)
+        if signature_descriptor is None:
             return (*_reject("signature_key_unknown"), [])
-        if envelope["public_key"] != descriptor["public_key"]:
+        if envelope["public_key"] != signature_descriptor["public_key"]:
             return (*_reject("signature_public_key_mismatch"), [])
-        if not signature_verifier(packet, descriptor, envelope):
+        if not signature_verifier(packet, signature_descriptor, envelope):
             return (*_reject("signature_verification_failed"), [])
-        counted.append(descriptor)
+        counted.append(signature_descriptor)
 
     if any(descriptor["break_glass"] is True for descriptor in counted) and packet["action"] != "emergency_pause":
         return (*_reject("break_glass_scope_violation"), counted)

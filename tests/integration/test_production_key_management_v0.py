@@ -4,6 +4,7 @@ import copy
 
 import pytest
 
+import src.integration.production_key_management_v0 as production_key_management_v0
 from src.integration.production_key_management_v0 import (
     DEFAULT_ACTION_POLICIES_V0,
     build_admission_receipt_v0,
@@ -112,6 +113,53 @@ def test_admission_rejects_without_signature_verifier() -> None:
 
     assert receipt["ok"] is False
     assert receipt["reject_reason"] == "missing_signature_verifier"
+
+
+def test_admission_preserves_expected_malformed_input_detail(monkeypatch) -> None:
+    action = "protocol_treasury_spend"
+    packet = _packet(action)
+    keys = _keys_for(action)
+
+    def _bad_packet(_packet_obj):
+        raise ValueError("packet shape invalid")
+
+    monkeypatch.setattr(production_key_management_v0, "validate_privileged_action_packet_v0", _bad_packet)
+
+    receipt = build_admission_receipt_v0(
+        packet,
+        DEFAULT_ACTION_POLICIES_V0[action],
+        keys,
+        _signatures(packet, keys),
+        transparency_log_hash=_hash("transparency"),
+        signature_verifier=_verifier,
+    )
+
+    assert receipt["ok"] is False
+    assert receipt["reject_reason"] == "malformed_input:packet shape invalid"
+
+
+def test_admission_sanitizes_unexpected_malformed_input_fault(monkeypatch) -> None:
+    action = "protocol_treasury_spend"
+    packet = _packet(action)
+    keys = _keys_for(action)
+
+    def _faulting_packet(_packet_obj):
+        raise RuntimeError("do not leak production key internals")
+
+    monkeypatch.setattr(production_key_management_v0, "validate_privileged_action_packet_v0", _faulting_packet)
+
+    receipt = build_admission_receipt_v0(
+        packet,
+        DEFAULT_ACTION_POLICIES_V0[action],
+        keys,
+        _signatures(packet, keys),
+        transparency_log_hash=_hash("transparency"),
+        signature_verifier=_verifier,
+    )
+
+    assert receipt["ok"] is False
+    assert receipt["reject_reason"] == "malformed_input:internal_error:RuntimeError"
+    assert "do not leak" not in str(receipt)
 
 
 def test_rejects_policy_action_mismatch() -> None:
