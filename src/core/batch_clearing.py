@@ -44,7 +44,12 @@ from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
 from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
-from .cpmm import MIN_LP_LOCK, compute_fee_total
+from .cpmm import (
+    MIN_LP_LOCK,
+    compute_fee_total,
+    swap_exact_in as cpmm_swap_exact_in,
+    swap_exact_out as cpmm_swap_exact_out,
+)
 from .domain_limits import DEX_LP_AMOUNT_MAX, is_strict_int
 from .liquidity import add_liquidity, create_pool, remove_liquidity
 from .route_settlement import (
@@ -520,7 +525,7 @@ def _try_create_pool(
             curve_tag=curve_tag,
             curve_params=curve_params,
         )
-    except Exception as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         return (
             Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason=f"COMPUTATION_ERROR: {exc}"),
             None,
@@ -1136,14 +1141,12 @@ def _order_swaps_optimal_ab_bounded(
                     continue
                 try:
                     if pool_state.curve_tag == CURVE_TAG_CPMM:
-                        quote = quote_cpmm_swap_exact_in(
+                        amount_out, (new_r_in, new_r_out) = cpmm_swap_exact_in(
                             reserve_in=r_in,
                             reserve_out=r_out,
                             amount_in=amount_in,
                             fee_bps=pool_state.fee_bps,
                         )
-                        amount_out = quote.amount_out
-                        new_r_in, new_r_out = quote.reserve_in_after, quote.reserve_out_after
                     else:
                         amount_out, (new_r_in, new_r_out) = swap_exact_in_for_pool(
                             pool_state,
@@ -1151,7 +1154,7 @@ def _order_swaps_optimal_ab_bounded(
                             reserve_out=r_out,
                             amount_in=amount_in,
                         )
-                except Exception:
+                except (TypeError, ValueError, OverflowError):
                     continue
                 if amount_out < min_amount_out:
                     continue
@@ -1171,14 +1174,12 @@ def _order_swaps_optimal_ab_bounded(
                     continue
                 try:
                     if pool_state.curve_tag == CURVE_TAG_CPMM:
-                        quote = quote_cpmm_swap_exact_out(
+                        amount_in, (new_r_in, new_r_out) = cpmm_swap_exact_out(
                             reserve_in=r_in,
                             reserve_out=r_out,
                             amount_out=amount_out,
                             fee_bps=pool_state.fee_bps,
                         )
-                        amount_in = quote.amount_in
-                        new_r_in, new_r_out = quote.reserve_in_after, quote.reserve_out_after
                     else:
                         amount_in, (new_r_in, new_r_out) = swap_exact_out_for_pool(
                             pool_state,
@@ -1186,7 +1187,7 @@ def _order_swaps_optimal_ab_bounded(
                             reserve_out=r_out,
                             amount_out=amount_out,
                         )
-                except Exception:
+                except (TypeError, ValueError, OverflowError):
                     continue
                 if amount_in > max_amount_in:
                     continue
@@ -1983,7 +1984,7 @@ def validate_settlement(
                     curve_tag=str(curve_tag),
                     curve_params=str(curve_params),
                 )
-            except Exception as exc:
+            except (TypeError, ValueError, OverflowError) as exc:
                 return False, f"Invalid CREATE_POOL event for pool {pool_id}: {exc}"
 
     pools_view: Dict[str, PoolState] = {**pre_pools, **created_pools}
@@ -2206,14 +2207,12 @@ def _simulate_swap_reserves(
 
     try:
         if pool_state.curve_tag == CURVE_TAG_CPMM:
-            quote = quote_cpmm_swap_exact_in(
+            amount_out, (new_r_in, new_r_out) = cpmm_swap_exact_in(
                 reserve_in=reserve_in,
                 reserve_out=reserve_out,
                 amount_in=amount_in,
                 fee_bps=pool_state.fee_bps,
             )
-            amount_out = quote.amount_out
-            new_r_in, new_r_out = quote.reserve_in_after, quote.reserve_out_after
         else:
             amount_out, (new_r_in, new_r_out) = swap_exact_in_for_pool(
                 pool_state,
@@ -2221,7 +2220,7 @@ def _simulate_swap_reserves(
                 reserve_out=reserve_out,
                 amount_in=amount_in,
             )
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return 0, 0, reserves
 
     if amount_out < min_amount_out:

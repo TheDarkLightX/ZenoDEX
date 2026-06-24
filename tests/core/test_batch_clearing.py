@@ -51,6 +51,42 @@ def _iid(n: int) -> str:
     return "0x" + f"{n:064x}"
 
 
+def _make_cpmm_ordering_context() -> tuple[str, str, str, PoolState, BalanceTable, tuple[int, int]]:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    _pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000)
+    balances.set(pk, asset1, 10_000)
+    return pk, asset0, asset1, pool, balances, (pool.reserve0, pool.reserve1)
+
+
+def _swap_ordering_intent(
+    *,
+    intent_id: int,
+    sender: str,
+    kind: IntentKind,
+    fields: dict[str, object],
+) -> Intent:
+    return Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=kind,
+        intent_id=_iid(intent_id),
+        sender_pubkey=sender,
+        deadline=9999999999,
+        fields=fields,
+    )
+
+
 def test_compute_settlement_rejects_duplicate_intent_ids() -> None:
     # Characterization / lock (audit finding E-1, refuted): the apply loop
     # re-resolves each fill's intent by id, so duplicate ids would bind every
@@ -700,6 +736,40 @@ def test_validate_settlement_rejects_invalid_created_pool_curve_config() -> None
     assert ok is False
     assert err is not None
     assert err.startswith(f"Invalid CREATE_POOL event for pool {pool_id}:")
+
+
+def test_validate_settlement_propagates_unexpected_created_pool_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    pool_id = "0x" + "de" * 32
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=[
+            {
+                "type": "CREATE_POOL",
+                "pool_id": pool_id,
+                "asset0": "0x" + "01" * 32,
+                "asset1": "0x" + "02" * 32,
+                "fee_bps": 30,
+                "curve_tag": "CPMM",
+                "curve_params": "",
+                "status": "ACTIVE",
+                "created_at": 0,
+            }
+        ],
+    )
+
+    def _boom_pool_state(*_args: object, **_kwargs: object) -> PoolState:
+        raise RuntimeError("unexpected PoolState construction bug")
+
+    monkeypatch.setattr(batch_clearing_module, "PoolState", _boom_pool_state)
+    with pytest.raises(RuntimeError, match="unexpected PoolState construction bug"):
+        validate_settlement(settlement, BalanceTable(), {}, LPTable())
 
 
 def test_validate_settlement_rejects_negative_balances_reserves_and_lp() -> None:
@@ -1384,6 +1454,37 @@ def test_try_create_pool_rejects_invalid_params_balance_computation_and_duplicat
     fill, _pool_id, _created_pool, err = _try_create_pool(base_intent, {existing_pool_id: existing_pool}, balances)
     assert fill.reason == "POOL_ALREADY_EXISTS"
     assert err == "pool already exists"
+
+
+def test_try_create_pool_propagates_unexpected_create_pool_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000_000)
+    balances.set(pk, asset1, 10_000_000)
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(1011),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "asset0": asset0,
+            "asset1": asset1,
+            "fee_bps": 30,
+            "amount0": 2_000_000,
+            "amount1": 2_000_000,
+        },
+    )
+
+    def _boom_create_pool(*_args: object, **_kwargs: object) -> tuple[str, PoolState, int]:
+        raise RuntimeError("unexpected create_pool bug")
+
+    monkeypatch.setattr(batch_clearing_module, "create_pool", _boom_create_pool)
+    with pytest.raises(RuntimeError, match="unexpected create_pool bug"):
+        _try_create_pool(intent, {}, balances)
 
 
 def test_try_create_pool_success_and_apply_create_pool_to_locals() -> None:
@@ -2169,6 +2270,30 @@ def test_simulate_swap_reserves_and_ab_helpers_cover_fallbacks() -> None:
     assert key[2] == (reverse.intent_id,)
 
 
+def test_simulate_swap_reserves_narrows_quote_error_handling(monkeypatch: pytest.MonkeyPatch) -> None:
+    pk, asset0, asset1, pool, _balances, reserves = _make_cpmm_ordering_context()
+    intent = _swap_ordering_intent(
+        intent_id=1133,
+        sender=pk,
+        kind=IntentKind.SWAP_EXACT_IN,
+        fields={"asset_in": asset0, "asset_out": asset1, "amount_in": 100, "min_amount_out": 1},
+    )
+
+    def _domain_reject_quote(*_args: object, **_kwargs: object):
+        raise ValueError("domain reject")
+
+    monkeypatch.setattr(batch_clearing_module, "cpmm_swap_exact_in", _domain_reject_quote)
+    assert _simulate_swap_reserves(intent, pool, reserves) == (0, 0, reserves)
+    monkeypatch.undo()
+
+    def _unexpected_quote_bug(*_args: object, **_kwargs: object):
+        raise RuntimeError("unexpected reserve simulation bug")
+
+    monkeypatch.setattr(batch_clearing_module, "cpmm_swap_exact_in", _unexpected_quote_bug)
+    with pytest.raises(RuntimeError, match="unexpected reserve simulation bug"):
+        _simulate_swap_reserves(intent, pool, reserves)
+
+
 def test_order_swaps_mci_and_refinement_helpers(monkeypatch) -> None:
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
@@ -2858,9 +2983,63 @@ def test_order_swaps_optimal_ab_bounded_exact_out_exception_path(monkeypatch) ->
     def _boom(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
         raise ValueError("boom")
 
-    monkeypatch.setattr(batch_clearing_module, "swap_exact_out_for_pool", _boom)
+    monkeypatch.setattr(batch_clearing_module, "cpmm_swap_exact_out", _boom)
     result = _order_swaps_optimal_ab_bounded(intents, pool_state=pool, balances=balances, reserves=reserves)
     assert sorted(it.intent_id for it in result) == sorted(it.intent_id for it in intents)
+
+
+def test_order_swaps_optimal_ab_bounded_propagates_unexpected_exact_in_bug(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pk, asset0, asset1, pool, balances, reserves = _make_cpmm_ordering_context()
+    intents = [
+        _swap_ordering_intent(
+            intent_id=1369,
+            sender=pk,
+            kind=IntentKind.SWAP_EXACT_IN,
+            fields={"asset_in": asset0, "asset_out": asset1, "amount_in": 100, "min_amount_out": 1},
+        ),
+        _swap_ordering_intent(
+            intent_id=1370,
+            sender=pk,
+            kind=IntentKind.SWAP_EXACT_IN,
+            fields={"asset_in": asset0, "asset_out": asset1, "amount_in": 110, "min_amount_out": 1},
+        ),
+    ]
+
+    def _boom_exact_in(*_args: object, **_kwargs: object):
+        raise RuntimeError("unexpected exact-in ordering bug")
+
+    monkeypatch.setattr(batch_clearing_module, "cpmm_swap_exact_in", _boom_exact_in)
+    with pytest.raises(RuntimeError, match="unexpected exact-in ordering bug"):
+        _order_swaps_optimal_ab_bounded(intents, pool_state=pool, balances=balances, reserves=reserves)
+
+
+def test_order_swaps_optimal_ab_bounded_propagates_unexpected_exact_out_bug(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pk, asset0, asset1, pool, balances, reserves = _make_cpmm_ordering_context()
+    intents = [
+        _swap_ordering_intent(
+            intent_id=1371,
+            sender=pk,
+            kind=IntentKind.SWAP_EXACT_OUT,
+            fields={"asset_in": asset0, "asset_out": asset1, "amount_out": 100, "max_amount_in": 500},
+        ),
+        _swap_ordering_intent(
+            intent_id=1372,
+            sender=pk,
+            kind=IntentKind.SWAP_EXACT_OUT,
+            fields={"asset_in": asset0, "asset_out": asset1, "amount_out": 110, "max_amount_in": 600},
+        ),
+    ]
+
+    def _boom_exact_out(*_args: object, **_kwargs: object):
+        raise RuntimeError("unexpected exact-out ordering bug")
+
+    monkeypatch.setattr(batch_clearing_module, "cpmm_swap_exact_out", _boom_exact_out)
+    with pytest.raises(RuntimeError, match="unexpected exact-out ordering bug"):
+        _order_swaps_optimal_ab_bounded(intents, pool_state=pool, balances=balances, reserves=reserves)
 
 
 def test_order_swaps_optimal_ab_bounded_skips_unknown_kind_in_objective_loop() -> None:
