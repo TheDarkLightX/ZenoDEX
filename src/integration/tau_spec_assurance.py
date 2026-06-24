@@ -401,14 +401,14 @@ def _run_tau_repl_batch(
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
-        except Exception:
+        except OSError:
             try:
                 proc.kill()
-            except Exception:
+            except OSError:
                 pass
         try:
             proc.wait(timeout=1.0)
-        except Exception:
+        except (subprocess.TimeoutExpired, OSError):
             pass
 
         if not complete:
@@ -663,6 +663,10 @@ def run_assurance_entry(
     spec_path = Path(str(case_report["path"]))
     backend = str(case_report["backend"])
     mode = str(case_report["mode"])
+    cases_raw = case_report["cases"]
+    if not isinstance(cases_raw, int) or isinstance(cases_raw, bool):
+        raise RuntimeError(f"{spec_path}: assurance case report has invalid cases value")
+    cases = int(cases_raw)
     oracle_mismatches = cast(list[dict[str, object]], case_report["oracle_mismatches"])
     step_contexts = cast(list[dict[str, object]], case_report["step_contexts"])
 
@@ -693,7 +697,7 @@ def run_assurance_entry(
         "path": str(spec_path),
         "backend": backend,
         "mode": mode,
-        "cases": int(case_report["cases"]),
+        "cases": cases,
         "passed": passed,
         "oracle_mismatches": oracle_mismatches,
         "properties": [
