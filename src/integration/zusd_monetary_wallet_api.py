@@ -369,6 +369,19 @@ def _oracle_runtime_report(
     }
 
 
+def _safe_boundary_error(exc: Exception) -> str:
+    if isinstance(exc, (ValueError, TypeError, KeyError)):
+        msg = str(exc)
+    else:
+        msg = f"internal error: {type(exc).__name__}"
+    msg = " ".join((msg or "").split())
+    return msg or "internal error"
+
+
+def _safe_internal_detail(exc: Exception) -> str:
+    return type(exc).__name__
+
+
 def _check_oracle_authorization(
     *,
     body: Mapping[str, Any],
@@ -403,10 +416,12 @@ def _check_oracle_authorization(
             max_freshness_window_epochs=runtime.max_freshness_window_epochs,
             require_receipt_graph=True,
         )
-    except Exception as exc:
+    except (ValueError, TypeError, KeyError) as exc:
         if enforce:
             return f"oracle_authorization_rejected: {type(exc).__name__}: {exc}", _oracle_runtime_report(runtime=runtime)
         return None, _oracle_runtime_report(runtime=runtime)
+    except Exception:
+        raise
     if result.get("typed_ok") is True:
         return None, _oracle_runtime_report(runtime=runtime, auth_result=result)
     errors = result.get("typed_errors")
@@ -931,7 +946,7 @@ def _preflight(
             "effects": list(res.effects or []),
         }
     except Exception as exc:
-        return {"ok": False, "error": str(exc), "effects": []}
+        return {"ok": False, "error": _safe_boundary_error(exc), "effects": []}
 
 
 def _build_prepare_response(
@@ -996,7 +1011,8 @@ def _build_prepare_response(
     )
     if oracle_error is not None:
         raise ValueError(oracle_error)
-    block_timestamp = int(body.get("block_timestamp") if isinstance(body.get("block_timestamp"), int) else int(time.time()))
+    block_timestamp_raw = body.get("block_timestamp")
+    block_timestamp = int(block_timestamp_raw) if isinstance(block_timestamp_raw, int) else int(time.time())
     preflight = _preflight(
         app_state=app_state,
         config=config,
@@ -1229,7 +1245,7 @@ def _status_payload(account: str | None = None) -> Dict[str, Any]:
             }
     except Exception as exc:
         status["node_reachable"] = False
-        status["error"] = f"{type(exc).__name__}: {exc}"
+        status["error"] = _safe_boundary_error(exc)
     return status
 
 
@@ -1274,4 +1290,4 @@ def handle_zusd_monetary_wallet_request(method: str, path: str, body: Optional[b
     except TauNetRpcError as exc:
         return 502, {"ok": False, "error": "tau_rpc_error", "detail": str(exc)}
     except Exception as exc:
-        return 500, {"ok": False, "error": "internal_error", "detail": f"{type(exc).__name__}: {exc}"}
+        return 500, {"ok": False, "error": "internal_error", "detail": _safe_internal_detail(exc)}

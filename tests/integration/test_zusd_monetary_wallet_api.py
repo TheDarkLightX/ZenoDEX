@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+from typing import Mapping, cast
 
 from src.core.dex import DexState
 from src.core.zusd import E8, ZUSDCommand, init_state, step
@@ -96,9 +97,9 @@ def _authorization_for_runtime(
     expires_at_epoch: int | None = None,
 ) -> dict[str, object]:
     query_id = str(runtime["query_id"])
-    now_epoch = int(runtime["now_epoch"])
+    now_epoch = cast(int, runtime["now_epoch"])
     observed_epoch = max(0, now_epoch - 1)
-    value = int(runtime["runtime_value_e8"] if value_e8 is None else value_e8)
+    value = cast(int, runtime["runtime_value_e8"]) if value_e8 is None else value_e8
     auth = {
         "consumer_module": str(runtime["consumer_module"]),
         "action_kind": str(runtime["action_kind"]),
@@ -222,7 +223,7 @@ def test_status_fails_closed_on_malformed_account(monkeypatch) -> None:
 
 
 def test_zusd_monetary_state_rejects_unknown_top_level_fields() -> None:
-    obj = dict(_wrapped_app_state()["zusd_monetary"])
+    obj = dict(cast(Mapping[str, object], _wrapped_app_state()["zusd_monetary"]))
     obj["future_extension"] = {"drop": "me"}
 
     try:
@@ -234,8 +235,8 @@ def test_zusd_monetary_state_rejects_unknown_top_level_fields() -> None:
 
 
 def test_zusd_monetary_state_rejects_unknown_stability_pool_entry_fields() -> None:
-    obj = dict(_wrapped_app_state()["zusd_monetary"])
-    obj["core"] = {**obj["core"], "sp_debt_e8": E8}
+    obj = dict(cast(Mapping[str, object], _wrapped_app_state()["zusd_monetary"]))
+    obj["core"] = {**cast(Mapping[str, object], obj["core"]), "sp_debt_e8": E8}
     obj["sp_deposits"] = [{"pubkey": ALICE, "amount_e8": E8, "note": "ignored before hardening"}]
 
     try:
@@ -519,6 +520,37 @@ def test_prepare_mint_rejects_wrong_oracle_authorization_value(monkeypatch) -> N
     assert payload["ok"] is False
     assert str(payload["error"]).startswith("oracle_authorization_rejected:")
     assert "runtime_value_e8 mismatch" in str(payload["error"])
+
+
+def test_prepare_oracle_authorization_internal_fault_is_sanitized(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    def _faulting_authorization(*_args, **_kwargs):
+        raise RuntimeError("do not leak oracle auth internals")
+
+    monkeypatch.setattr(monetary_api, "check_critical_consumer_authorization", _faulting_authorization)
+
+    body = {
+        "action": "mint_zusd",
+        "owner_pubkey": ALICE,
+        "amount": 1000,
+        "deadline": 123456789,
+        "block_timestamp": 10,
+        "oracle_authorization": {},
+    }
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 500
+    assert payload["ok"] is False
+    assert payload["error"] == "internal_error"
+    assert payload["detail"] == "RuntimeError"
+    assert "do not leak" not in str(payload)
 
 
 def test_prepare_mint_requires_zk_proof_when_enabled(monkeypatch) -> None:
@@ -942,6 +974,68 @@ def test_submit_rejects_preflight_failure_before_broadcast(monkeypatch) -> None:
     assert status_code == 400
     assert payload["ok"] is False
     assert str(payload["error"]).startswith("preflight_failed:")
+
+
+def test_prepare_sanitizes_preflight_internal_fault(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    def _faulting_apply(**_kwargs):
+        raise RuntimeError("do not leak preflight internals")
+
+    monkeypatch.setattr(monetary_api, "apply_zusd_monetary_ops", _faulting_apply)
+
+    body = {
+        "action": "mint_zusd",
+        "owner_pubkey": ALICE,
+        "amount": 1000,
+        "deadline": 123456789,
+        "block_timestamp": 10,
+    }
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["report"]["preflight"] == {
+        "ok": False,
+        "error": "internal error: RuntimeError",
+        "effects": [],
+    }
+    assert "do not leak" not in str(payload)
+
+
+def test_submit_sanitizes_preflight_internal_fault(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    def _faulting_apply(**_kwargs):
+        raise RuntimeError("do not leak submit preflight internals")
+
+    monkeypatch.setattr(monetary_api, "apply_zusd_monetary_ops", _faulting_apply)
+
+    body = {
+        "action": "mint_zusd",
+        "owner_pubkey": ALICE,
+        "amount": 1000,
+        "deadline": 123456789,
+        "block_timestamp": 10,
+    }
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert payload["error"] == "preflight_failed: internal error: RuntimeError"
+    assert "do not leak" not in str(payload)
 
 
 def test_prepare_rejects_bad_tx_fee_limit(monkeypatch) -> None:
