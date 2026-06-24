@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+import src.state.support_root as support_root_module
 from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
 from src.state.lp import LPTable
@@ -192,6 +193,31 @@ def test_derive_batch_state_support_ignores_invalid_create_pool_fields_fail_clos
 
     support = derive_batch_state_support([invalid_create], pools={})
     assert support == BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=(), nonce_keys=(pk,))
+
+
+def test_derive_batch_state_support_propagates_unexpected_pool_id_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    create_pool = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(1),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"asset0": asset0, "asset1": asset1, "fee_bps": 30},
+    )
+
+    def boom(*_args: object, **_kwargs: object) -> str:
+        raise RuntimeError("pool id bug")
+
+    monkeypatch.setattr(support_root_module, "compute_pool_id", boom)
+
+    with pytest.raises(RuntimeError, match="pool id bug"):
+        derive_batch_state_support([create_pool], pools={})
 
 
 def test_compute_support_state_root_rejects_wrong_table_types() -> None:
