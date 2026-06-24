@@ -359,6 +359,54 @@ def test_json_rpc_transport_rejects_oversized_response(monkeypatch) -> None:
         )
 
 
+def test_json_rpc_transport_rejects_invalid_json_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _InvalidJsonResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, _exc_type, _exc, _traceback):
+            return False
+
+        def read(self, _size: int = -1) -> bytes:
+            return b"{not-json"
+
+    monkeypatch.setattr(registry_mod.urllib_request, "urlopen", lambda *_args, **_kwargs: _InvalidJsonResponse())
+
+    with pytest.raises(ValueError, match="json-rpc response is not valid json"):
+        registry_mod._json_rpc_post_json(
+            endpoint_url="https://rpc.example.invalid",
+            headers={},
+            payload={"jsonrpc": "2.0", "id": "test", "method": "test", "params": {}},
+            timeout_s=1.0,
+        )
+
+
+def test_json_rpc_transport_surfaces_unexpected_json_parser_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _ValidJsonResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, _exc_type, _exc, _traceback):
+            return False
+
+        def read(self, _size: int = -1) -> bytes:
+            return b'{"ok": true}'
+
+    def fail_loads(_text: str) -> object:
+        raise RuntimeError("unexpected json parser fault")
+
+    monkeypatch.setattr(registry_mod.urllib_request, "urlopen", lambda *_args, **_kwargs: _ValidJsonResponse())
+    monkeypatch.setattr(registry_mod.json, "loads", fail_loads)
+
+    with pytest.raises(RuntimeError, match="unexpected json parser fault"):
+        registry_mod._json_rpc_post_json(
+            endpoint_url="https://rpc.example.invalid",
+            headers={},
+            payload={"jsonrpc": "2.0", "id": "test", "method": "test", "params": {}},
+            timeout_s=1.0,
+        )
+
+
 class _FakeTauClient:
     def __init__(
         self,

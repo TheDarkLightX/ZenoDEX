@@ -1397,7 +1397,7 @@ def _json_rpc_post_json(
         ) from exc
     try:
         return json.loads(raw.decode("utf-8"))
-    except Exception as exc:
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError(
             _format_binding_error(
                 "attestation registry json-rpc response is not valid json",
