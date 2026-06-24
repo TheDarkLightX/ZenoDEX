@@ -746,3 +746,50 @@ def test_kpool_staircase_raises_resource_limit_no_fallback(monkeypatch) -> None:
             max_legs=2,
             quote_exact_in=exact_out_for_pool_exact_in,
         )
+
+
+def test_kpool_adaptive_reraises_resource_limit_no_fallback(monkeypatch) -> None:
+    """Adaptive entry point must re-raise ResourceLimitExceeded when no fallback
+    is available (small_domain_dp_fn=None).
+
+    This tests the catch-and-reraise branch in best_k_pool_exact_in_split, not
+    the direct staircase_k_pool_best_split path. When the staircase DP raises
+    ResourceLimitExceeded and small_domain_dp_fn is None, the adaptive entry
+    point must re-raise (fail-closed, no partial result).
+
+    Uses sparse pools that pass Phase 1 so the staircase DP is actually reached.
+    """
+    import src.core.split_routing_kpool_staircase as mod
+
+    # Patch _build_prefix_suffix_dps to force max_table_states=1, which will
+    # trigger ResourceLimitExceeded as soon as the DP table has >1 state.
+    original_build = mod._build_prefix_suffix_dps
+    build_state = {"called": False}
+
+    def force_tiny_table_states(**kwargs):
+        build_state["called"] = True
+        kwargs["max_table_states"] = 1
+        return original_build(**kwargs)
+
+    monkeypatch.setattr(mod, "_build_prefix_suffix_dps", force_tiny_table_states)
+
+    # Sparse pools that pass Phase 1 density check.
+    pools = [
+        ("pool-a", PoolXY(x=6000, y=100, fee_bps=0)),
+        ("pool-b", PoolXY(x=500, y=200, fee_bps=0)),
+    ]
+    specs = [_spec(pid, p, 1) for pid, p in pools]
+
+    # With small_domain_dp_fn=None, the adaptive entry point must re-raise
+    # ResourceLimitExceeded (catch-and-reraise branch).
+    with pytest.raises(mod.ResourceLimitExceeded):
+        best_k_pool_exact_in_split(
+            pool_specs=specs,
+            amount_in_total=80,
+            max_legs=2,
+            quote_exact_in=exact_out_for_pool_exact_in,
+            small_domain_dp_fn=None,
+        )
+    # The patched builder must have been called (proving the staircase DP ran
+    # and ResourceLimitExceeded was caught, not Phase 1 fallback).
+    assert build_state["called"], "patched _build_prefix_suffix_dps was never called; Phase 1 fallback short-circuited"
