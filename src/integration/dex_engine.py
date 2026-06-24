@@ -469,7 +469,7 @@ def _pubkey_bytes48_or_none(value: Optional[str], *, name: str) -> Optional[byte
         return None
     try:
         return _hex_to_bytes_allow_0x(value, name=name, expected_nbytes=48)
-    except Exception:
+    except (TypeError, ValueError):
         return None
 
 
@@ -651,7 +651,7 @@ def _verify_proof_if_present(
         bounded_json_utf8_size(payload, max_bytes=max_verifier_payload_bytes)
     except ValueError:
         return False, "proof payload too large"
-    except Exception:
+    except TypeError:
         return False, "invalid proof payload encoding"
     ok, err = verifier.verify(payload)
     if not ok:
@@ -691,7 +691,7 @@ def _validate_raw_settlement_op(config: DexEngineConfig, raw_settlement_op: Any)
         bounded_json_utf8_size(raw_settlement_op, max_bytes=config.max_settlement_op_bytes)
     except ValueError:
         return "settlement operation too large"
-    except Exception as exc:
+    except TypeError as exc:
         return f"invalid settlement operation: {exc}"
 
     raw_fills = raw_settlement_op.get("fills")
@@ -729,7 +729,7 @@ def _validate_raw_intent_ops(config: DexEngineConfig, raw_intents: Any) -> Optio
             total_raw_bytes += bounded_json_utf8_size(entry, max_bytes=config.max_intent_entry_bytes)
         except ValueError:
             return f"intent operation too large: index {i}"
-        except Exception as exc:
+        except TypeError as exc:
             return f"invalid intent operation: {exc}"
         if total_raw_bytes > config.max_total_intent_entry_bytes:
             return "total intent operation too large"
@@ -1146,7 +1146,7 @@ def _validate_protected_swap_oracle_authorizations(
                 receipt=env.quote_receipt,
                 now_epoch=int(block_timestamp),
             )
-        except Exception as exc:
+        except (TypeError, ValueError) as exc:
             return _quote_receipt_error(
                 f"oracle_authorization_rejected: {_clean_error(exc)}",
                 **_quote_receipt_intent_context(env.intent),
@@ -1199,7 +1199,7 @@ def _validate_critical_settlement_oracle_authorization(
             price_history=price_history,
             now_epoch=int(block_timestamp),
         )
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return f"critical_settlement_oracle_authorization_rejected: {_clean_error(exc)}"
     if not bool(result.get("typed_ok", False)):
         errors = result.get("typed_errors") or result.get("opaque_errors") or ["typed authorization rejected"]
@@ -1315,7 +1315,7 @@ def _is_supported_uniform_batch_swap_family(intents: List[Intent]) -> bool:
             current_pool_id = str(intent.get_field("pool_id"))
             asset_in = str(intent.get_field("asset_in"))
             asset_out = str(intent.get_field("asset_out"))
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             return False
         if asset_in == asset_out:
             return False
@@ -1360,7 +1360,7 @@ def _build_signing_payloads(
             payload = canonical_json_bytes(signing_dict)
         except ValueError as exc:
             raise ValueError(f"intent signing payload too large: {env.intent.intent_id}") from exc
-        except Exception as exc:
+        except TypeError as exc:
             raise ValueError(f"invalid intent signing payload: {env.intent.intent_id}") from exc
         if len(payload) > max_intent_bytes:
             raise ValueError(f"intent signing payload too large: {env.intent.intent_id}")
@@ -1406,8 +1406,6 @@ def apply_ops(
             signed_intents = parse_signed_intents(operations)
         except ValueError as exc:
             return DexTxResult(ok=False, error=f"invalid intents: {_clean_error(exc)}")
-        except Exception:
-            return DexTxResult(ok=False, error="invalid intents")
         if len(signed_intents) > config.max_intents:
             return DexTxResult(ok=False, error=f"too many intents: {len(signed_intents)} > {config.max_intents}")
         _fault_stage(config, "after_intent_parse")
@@ -1416,8 +1414,6 @@ def apply_ops(
             settlement_env = parse_settlement_envelope(operations)
         except ValueError as exc:
             return DexTxResult(ok=False, error=f"invalid settlement: {_clean_error(exc)}")
-        except Exception:
-            return DexTxResult(ok=False, error="invalid settlement")
         settlement = settlement_env.settlement if settlement_env else None
         proof = settlement_env.proof if settlement_env else None
         uniform_batch_certificate = (
@@ -1471,7 +1467,7 @@ def apply_ops(
                 bounded_json_utf8_size(proof, max_bytes=config.proof_config.max_proof_bytes)
             except ValueError:
                 return DexTxResult(ok=False, error="proof payload too large")
-            except Exception:
+            except TypeError:
                 return DexTxResult(ok=False, error="invalid proof payload encoding")
         _fault_stage(config, "after_settlement_parse")
 
@@ -1550,7 +1546,7 @@ def apply_ops(
                     return DexTxResult(ok=False, error="uniform batch certificate not enabled")
                 try:
                     cert = UniformBatchCertificateV1.from_obj(uniform_batch_certificate)
-                except Exception as exc:
+                except (TypeError, ValueError) as exc:
                     return DexTxResult(
                         ok=False,
                         error=f"uniform batch certificate rejected: {_clean_error(exc)}",
@@ -1663,7 +1659,7 @@ def apply_ops(
                         balances=state.balances,
                         certificate=cert,
                     )
-                except Exception as exc:
+                except (TypeError, ValueError) as exc:
                     return DexTxResult(
                         ok=False,
                         error=f"uniform batch certificate rejected: {_clean_error(exc)}",
@@ -1688,7 +1684,7 @@ def apply_ops(
                 try:
                     expected = _settlement_rewrite_normal_form_dict(computed_settlement)
                     got = _settlement_rewrite_normal_form_dict(settlement)
-                except Exception:
+                except (TypeError, ValueError):
                     return DexTxResult(ok=False, error="invalid settlement payload for comparison")
                 if got != expected:
                     return DexTxResult(ok=False, error="settlement mismatch")
@@ -1764,13 +1760,13 @@ def apply_ops(
                     settlement_obj_for_commit = normalize_settlement_op_for_commitment(op3)
                 else:
                     settlement_obj_for_commit = _settlement_commitment_dict(settlement)
-            except Exception as exc:
+            except (TypeError, ValueError) as exc:
                 return DexTxResult(ok=False, error=f"invalid settlement payload for commitment: {exc}")
             try:
                 bounded_json_utf8_size(settlement_obj_for_commit, max_bytes=config.max_settlement_bytes)
             except ValueError:
                 return DexTxResult(ok=False, error="settlement payload too large")
-            except Exception as exc:
+            except TypeError as exc:
                 return DexTxResult(ok=False, error=f"invalid settlement payload: {exc}")
 
             batch_payload = {
@@ -1790,7 +1786,7 @@ def apply_ops(
                 )
             except ValueError:
                 return DexTxResult(ok=False, error="batch payload too large")
-            except Exception as exc:
+            except TypeError as exc:
                 return DexTxResult(ok=False, error=f"invalid batch payload: {exc}")
 
         if (

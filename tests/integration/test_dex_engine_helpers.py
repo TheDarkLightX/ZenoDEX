@@ -152,6 +152,11 @@ def _empty_state() -> DexState:
     return DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
 
 
+def _assert_error_contains(expected: str, actual: Optional[str]) -> None:
+    assert actual is not None
+    assert expected in actual
+
+
 def _reject_settlement(intent_id: str) -> Settlement:
     return Settlement(
         module="TauSwap",
@@ -373,8 +378,8 @@ def test_validate_raw_operation_guards_report_invalid_payloads_and_total_size(mo
 
     def bad_size(_value: object, *, max_bytes: int) -> int:
         if max_bytes == config.max_settlement_op_bytes:
-            raise RuntimeError("bad settlement encoding")
-        raise RuntimeError("bad intent encoding")
+            raise TypeError("bad settlement encoding")
+        raise TypeError("bad intent encoding")
 
     monkeypatch.setattr("src.integration.dex_engine.bounded_json_utf8_size", bad_size)
     assert _validate_raw_settlement_op(config, {"x": 1}) == "invalid settlement operation: bad settlement encoding"
@@ -415,58 +420,111 @@ def test_validate_intent_against_quote_receipt_rejects_non_swap_and_invalid_rece
         deadline=100,
         fields={"pool_id": "0x" + "aa" * 32},
     )
-    assert "quote receipt only supported for swap intents" in _validate_intent_against_quote_receipt(add_liq, _receipt())  # type: ignore[arg-type]
+    _assert_error_contains(
+        "quote receipt only supported for swap intents",
+        _validate_intent_against_quote_receipt(add_liq, _receipt()),
+    )
 
     swap = _swap_intent(intent_id=_iid(31))
-    assert "invalid quote receipt body" in _validate_intent_against_quote_receipt(swap, {"body": None})  # type: ignore[arg-type]
-    assert "quote receipt kind mismatch" in _validate_intent_against_quote_receipt(swap, _receipt(kind="exact_out"))  # type: ignore[arg-type]
-    assert "invalid quote receipt-bound swap fields" in _validate_intent_against_quote_receipt(
-        _swap_intent(intent_id=_iid(32), fields={"pool_id": 7}),  # type: ignore[arg-type]
-        _receipt(),
-    )  # type: ignore[arg-type]
-    assert "invalid quote receipt pools" in _validate_intent_against_quote_receipt(
-        _swap_intent(intent_id=_iid(33)),
-        _receipt(pools=[]),  # type: ignore[arg-type]
-    )  # type: ignore[arg-type]
-    assert "invalid quote_pool_fingerprint" in _validate_intent_against_quote_receipt(
-        _swap_intent(intent_id=_iid(34), fields={"quote_pool_fingerprint": ""}),
-        _receipt(),
-    )  # type: ignore[arg-type]
-    assert "quote receipt pool fingerprint mismatch" in _validate_intent_against_quote_receipt(
-        _swap_intent(intent_id=_iid(35), fields={"quote_pool_fingerprint": "wrong"}),
-        _receipt(),
-    )  # type: ignore[arg-type]
-    assert "invalid quote receipt legs" in _validate_intent_against_quote_receipt(
-        _swap_intent(intent_id=_iid(36)),
-        _receipt(legs=[]),
-    )  # type: ignore[arg-type]
+    _assert_error_contains("invalid quote receipt body", _validate_intent_against_quote_receipt(swap, {"body": None}))
+    _assert_error_contains(
+        "quote receipt kind mismatch",
+        _validate_intent_against_quote_receipt(swap, _receipt(kind="exact_out")),
+    )
+    _assert_error_contains(
+        "invalid quote receipt-bound swap fields",
+        _validate_intent_against_quote_receipt(
+            _swap_intent(intent_id=_iid(32), fields={"pool_id": 7}),
+            _receipt(),
+        ),
+    )
+    _assert_error_contains(
+        "invalid quote receipt pools",
+        _validate_intent_against_quote_receipt(
+            _swap_intent(intent_id=_iid(33)),
+            _receipt(pools=[]),  # type: ignore[arg-type]
+        ),
+    )
+    _assert_error_contains(
+        "invalid quote_pool_fingerprint",
+        _validate_intent_against_quote_receipt(
+            _swap_intent(intent_id=_iid(34), fields={"quote_pool_fingerprint": ""}),
+            _receipt(),
+        ),
+    )
+    _assert_error_contains(
+        "quote receipt pool fingerprint mismatch",
+        _validate_intent_against_quote_receipt(
+            _swap_intent(intent_id=_iid(35), fields={"quote_pool_fingerprint": "wrong"}),
+            _receipt(),
+        ),
+    )
+    _assert_error_contains(
+        "invalid quote receipt legs",
+        _validate_intent_against_quote_receipt(
+            _swap_intent(intent_id=_iid(36)),
+            _receipt(legs=[]),
+        ),
+    )
 
 
 def test_validate_intent_against_quote_receipt_covers_leg_index_and_exact_in_reject_paths() -> None:
-    assert "invalid quote_receipt_leg_index" in _validate_intent_against_quote_receipt(
-        _swap_intent(intent_id=_iid(37), fields={"quote_receipt_leg_index": True}),
-        _receipt(),
-    )  # type: ignore[arg-type]
-    assert "quote receipt leg index out of range" in _validate_intent_against_quote_receipt(
-        _swap_intent(intent_id=_iid(38), fields={"quote_receipt_leg_index": 5}),
-        _receipt(),
-    )  # type: ignore[arg-type]
-    assert "intent does not match quote receipt leg" in _validate_intent_against_quote_receipt(
-        _swap_intent(intent_id=_iid(39), fields={"quote_receipt_leg_index": 0}),
-        _receipt(legs=[{"hops": [{"pool_id": "0x" + "bb" * 32, "asset_in": "x", "asset_out": "y", "amount_in": 1, "amount_out": 1}]}]),
-    )  # type: ignore[arg-type]
-    assert "invalid amount_in for quote receipt binding" in _validate_intent_against_quote_receipt(
-        _swap_intent(intent_id=_iid(40), fields={"amount_in": True}),
-        _receipt(),
-    )  # type: ignore[arg-type]
-    assert "invalid min_amount_out for quote receipt binding" in _validate_intent_against_quote_receipt(
-        _swap_intent(intent_id=_iid(41), fields={"min_amount_out": -1}),
-        _receipt(),
-    )  # type: ignore[arg-type]
-    assert "exact-in quote receipt leg mismatch" in _validate_intent_against_quote_receipt(
-        _swap_intent(intent_id=_iid(42), fields={"amount_in": 11}),
-        _receipt(),
-    )  # type: ignore[arg-type]
+    _assert_error_contains(
+        "invalid quote_receipt_leg_index",
+        _validate_intent_against_quote_receipt(
+            _swap_intent(intent_id=_iid(37), fields={"quote_receipt_leg_index": True}),
+            _receipt(),
+        ),
+    )
+    _assert_error_contains(
+        "quote receipt leg index out of range",
+        _validate_intent_against_quote_receipt(
+            _swap_intent(intent_id=_iid(38), fields={"quote_receipt_leg_index": 5}),
+            _receipt(),
+        ),
+    )
+    _assert_error_contains(
+        "intent does not match quote receipt leg",
+        _validate_intent_against_quote_receipt(
+            _swap_intent(intent_id=_iid(39), fields={"quote_receipt_leg_index": 0}),
+            _receipt(
+                legs=[
+                    {
+                        "hops": [
+                            {
+                                "pool_id": "0x" + "bb" * 32,
+                                "asset_in": "x",
+                                "asset_out": "y",
+                                "amount_in": 1,
+                                "amount_out": 1,
+                            }
+                        ]
+                    }
+                ]
+            ),
+        ),
+    )
+    _assert_error_contains(
+        "invalid amount_in for quote receipt binding",
+        _validate_intent_against_quote_receipt(
+            _swap_intent(intent_id=_iid(40), fields={"amount_in": True}),
+            _receipt(),
+        ),
+    )
+    _assert_error_contains(
+        "invalid min_amount_out for quote receipt binding",
+        _validate_intent_against_quote_receipt(
+            _swap_intent(intent_id=_iid(41), fields={"min_amount_out": -1}),
+            _receipt(),
+        ),
+    )
+    _assert_error_contains(
+        "exact-in quote receipt leg mismatch",
+        _validate_intent_against_quote_receipt(
+            _swap_intent(intent_id=_iid(42), fields={"amount_in": 11}),
+            _receipt(),
+        ),
+    )
 
 
 def test_validate_intent_against_quote_receipt_covers_multi_hop_and_exact_out_paths() -> None:
@@ -502,101 +560,149 @@ def test_validate_intent_against_quote_receipt_covers_multi_hop_and_exact_out_pa
             }
         ]
     )
-    assert "quote receipt multi-hop leg unsupported for direct intent binding" in _validate_intent_against_quote_receipt(exact_out, multi_hop)  # type: ignore[arg-type]
+    _assert_error_contains(
+        "quote receipt multi-hop leg unsupported for direct intent binding",
+        _validate_intent_against_quote_receipt(exact_out, multi_hop),
+    )
     assert _validate_intent_against_quote_receipt(exact_out, _receipt(kind="exact_out")) is None
-    assert "invalid amount_out for quote receipt binding" in _validate_intent_against_quote_receipt(
-        replace(exact_out, fields={**(exact_out.fields or {}), "amount_out": True}),
-        _receipt(kind="exact_out"),
-    )  # type: ignore[arg-type]
-    assert "invalid max_amount_in for quote receipt binding" in _validate_intent_against_quote_receipt(
-        replace(exact_out, fields={**(exact_out.fields or {}), "max_amount_in": -1}),
-        _receipt(kind="exact_out"),
-    )  # type: ignore[arg-type]
-    assert "exact-out quote receipt leg mismatch" in _validate_intent_against_quote_receipt(
-        replace(exact_out, fields={**(exact_out.fields or {}), "max_amount_in": 9}),
-        _receipt(kind="exact_out"),
-    )  # type: ignore[arg-type]
+    _assert_error_contains(
+        "invalid amount_out for quote receipt binding",
+        _validate_intent_against_quote_receipt(
+            replace(exact_out, fields={**(exact_out.fields or {}), "amount_out": True}),
+            _receipt(kind="exact_out"),
+        ),
+    )
+    _assert_error_contains(
+        "invalid max_amount_in for quote receipt binding",
+        _validate_intent_against_quote_receipt(
+            replace(exact_out, fields={**(exact_out.fields or {}), "max_amount_in": -1}),
+            _receipt(kind="exact_out"),
+        ),
+    )
+    _assert_error_contains(
+        "exact-out quote receipt leg mismatch",
+        _validate_intent_against_quote_receipt(
+            replace(exact_out, fields={**(exact_out.fields or {}), "max_amount_in": 9}),
+            _receipt(kind="exact_out"),
+        ),
+    )
 
 
 def test_validate_intent_against_quote_receipt_covers_remaining_defensive_continue_paths() -> None:
     swap = _swap_intent(intent_id=_iid(430))
 
-    assert "intent does not match quote receipt" in _validate_intent_against_quote_receipt(
-        swap,
-        _receipt(legs=["bad"]),  # type: ignore[arg-type]
-    )  # type: ignore[arg-type]
-    assert "intent does not match quote receipt" in _validate_intent_against_quote_receipt(
-        swap,
-        _receipt(
-            legs=[
-                {
-                    "hops": [
-                        {"pool_id": "other", "asset_in": "x", "asset_out": "y", "amount_in": 1, "amount_out": 1},
-                        {"pool_id": "still-other", "asset_in": "x", "asset_out": "y", "amount_in": 2, "amount_out": 2},
-                    ]
-                }
-            ]
+    _assert_error_contains(
+        "intent does not match quote receipt",
+        _validate_intent_against_quote_receipt(
+            swap,
+            _receipt(legs=["bad"]),
         ),
-    )  # type: ignore[arg-type]
-    assert "intent does not match quote receipt" in _validate_intent_against_quote_receipt(
-        swap,
-        _receipt(legs=[{"hops": "bad"}]),  # type: ignore[arg-type]
-    )  # type: ignore[arg-type]
-    assert "intent does not match quote receipt" in _validate_intent_against_quote_receipt(
-        swap,
-        _receipt(legs=[{"hops": [None]}]),  # type: ignore[arg-type]
-    )  # type: ignore[arg-type]
-    assert "intent does not match quote receipt" in _validate_intent_against_quote_receipt(
-        swap,
-        _receipt(
-            legs=[
-                {
-                    "hops": [
-                        {
-                            "pool_id": swap.get_field("pool_id"),
-                            "asset_in": swap.get_field("asset_in"),
-                            "asset_out": swap.get_field("asset_out"),
-                            "amount_in": "bad",
-                            "amount_out": 9,
-                        }
-                    ]
-                }
-            ]
+    )
+    _assert_error_contains(
+        "intent does not match quote receipt",
+        _validate_intent_against_quote_receipt(
+            swap,
+            _receipt(
+                legs=[
+                    {
+                        "hops": [
+                            {
+                                "pool_id": "other",
+                                "asset_in": "x",
+                                "asset_out": "y",
+                                "amount_in": 1,
+                                "amount_out": 1,
+                            },
+                            {
+                                "pool_id": "still-other",
+                                "asset_in": "x",
+                                "asset_out": "y",
+                                "amount_in": 2,
+                                "amount_out": 2,
+                            },
+                        ]
+                    }
+                ]
+            ),
         ),
-    )  # type: ignore[arg-type]
-    assert "intent does not match quote receipt" in _validate_intent_against_quote_receipt(
-        swap,
-        _receipt(
-            legs=[
-                {
-                    "hops": [
-                        {
-                            "pool_id": swap.get_field("pool_id"),
-                            "asset_in": swap.get_field("asset_in"),
-                            "asset_out": swap.get_field("asset_out"),
-                            "amount_in": 10,
-                            "amount_out": "bad",
-                        }
-                    ]
-                }
-            ]
+    )
+    _assert_error_contains(
+        "intent does not match quote receipt",
+        _validate_intent_against_quote_receipt(
+            swap,
+            _receipt(legs=[{"hops": "bad"}]),
         ),
-    )  # type: ignore[arg-type]
+    )
+    _assert_error_contains(
+        "intent does not match quote receipt",
+        _validate_intent_against_quote_receipt(
+            swap,
+            _receipt(legs=[{"hops": [None]}]),
+        ),
+    )
+    _assert_error_contains(
+        "intent does not match quote receipt",
+        _validate_intent_against_quote_receipt(
+            swap,
+            _receipt(
+                legs=[
+                    {
+                        "hops": [
+                            {
+                                "pool_id": swap.get_field("pool_id"),
+                                "asset_in": swap.get_field("asset_in"),
+                                "asset_out": swap.get_field("asset_out"),
+                                "amount_in": "bad",
+                                "amount_out": 9,
+                            }
+                        ]
+                    }
+                ]
+            ),
+        ),
+    )
+    _assert_error_contains(
+        "intent does not match quote receipt",
+        _validate_intent_against_quote_receipt(
+            swap,
+            _receipt(
+                legs=[
+                    {
+                        "hops": [
+                            {
+                                "pool_id": swap.get_field("pool_id"),
+                                "asset_in": swap.get_field("asset_in"),
+                                "asset_out": swap.get_field("asset_out"),
+                                "amount_in": 10,
+                                "amount_out": "bad",
+                            }
+                        ]
+                    }
+                ]
+            ),
+        ),
+    )
 
 
 def test_validate_quote_receipt_witnesses_covers_missing_hash_invalid_hash_and_group_checks(monkeypatch: pytest.MonkeyPatch) -> None:
     env_missing_hash = SignedIntentEnvelope(intent=_swap_intent(intent_id=_iid(44)), quote_receipt=_receipt())
     # _validate_quote_receipt_witnesses now returns (error, route_bindings).
-    assert "quote receipt provided without quote_receipt_hash" in _validate_quote_receipt_witnesses(
-        signed_intents=[env_missing_hash],
-        pools={},
-    )[0]  # type: ignore[arg-type]
+    _assert_error_contains(
+        "quote receipt provided without quote_receipt_hash",
+        _validate_quote_receipt_witnesses(
+            signed_intents=[env_missing_hash],
+            pools={},
+        )[0],
+    )
 
     env_invalid_hash = SignedIntentEnvelope(
         intent=_swap_intent(intent_id=_iid(45), fields={"quote_receipt_hash": ""}),
         quote_receipt=_receipt(),
     )
-    assert "invalid quote_receipt_hash" in _validate_quote_receipt_witnesses(signed_intents=[env_invalid_hash], pools={})[0]  # type: ignore[arg-type]
+    _assert_error_contains(
+        "invalid quote_receipt_hash",
+        _validate_quote_receipt_witnesses(signed_intents=[env_invalid_hash], pools={})[0],
+    )
 
     monkeypatch.setattr("src.integration.dex_engine.verify_route_quote_receipt", lambda receipt, pools_by_id: (True, None))
     monkeypatch.setattr("src.integration.dex_engine._validate_intent_against_quote_receipt", lambda intent, receipt: None)
@@ -615,9 +721,12 @@ def test_validate_quote_receipt_witnesses_covers_missing_hash_invalid_hash_and_g
             return 0 if calls["n"] == 1 else -1
         return good_env.intent.fields.get(key, default) if good_env.intent.fields else default
 
-    good_env.intent.get_field = _stateful_get_field  # type: ignore[method-assign]
+    good_env.intent.get_field = _stateful_get_field
     object.__setattr__(good_env, "quote_receipt", _receipt())
-    assert "missing quote_receipt_leg_index" in _validate_quote_receipt_witnesses(signed_intents=[good_env], pools={})[0]  # type: ignore[arg-type]
+    _assert_error_contains(
+        "missing quote_receipt_leg_index",
+        _validate_quote_receipt_witnesses(signed_intents=[good_env], pools={})[0],
+    )
 
 
 def test_build_signing_payloads_rejects_invalid_or_oversized_signing_dicts() -> None:
@@ -632,7 +741,7 @@ def test_build_signing_payloads_rejects_invalid_or_oversized_signing_dicts() -> 
     assert signing_dicts[0]["salt"] == "salt"
 
     bad_fields_intent = _swap_intent(intent_id=_iid(2))
-    bad_fields_intent.fields = 7  # type: ignore[assignment]
+    bad_fields_intent.fields = 7
     with pytest.raises(TypeError, match="intent.fields must be a dict"):
         _build_signing_payloads([SignedIntentEnvelope(intent=bad_fields_intent)], max_intent_bytes=4096, max_total_intent_bytes=4096)
 
@@ -961,7 +1070,7 @@ def test_verify_proof_if_present_covers_missing_mismatch_and_reject_paths(monkey
         max_verifier_payload_bytes=64,
     ) == (False, "proof payload too large")
 
-    monkeypatch.setattr("src.integration.dex_engine.bounded_json_utf8_size", lambda payload, *, max_bytes: (_ for _ in ()).throw(RuntimeError("bad encoding")))
+    monkeypatch.setattr("src.integration.dex_engine.bounded_json_utf8_size", lambda payload, *, max_bytes: (_ for _ in ()).throw(TypeError("bad encoding")))
     assert _verify_proof_if_present(
         verifier,
         intents=[],
@@ -1030,7 +1139,7 @@ def test_apply_ops_covers_external_tool_policy_and_intent_parse_errors(monkeypat
 
     monkeypatch.setattr(dex_engine, "parse_signed_intents", lambda operations: (_ for _ in ()).throw(RuntimeError("boom")))
     res = apply_ops(config=DexEngineConfig(), state=state, operations={"2": "ignored"}, block_timestamp=0)
-    assert res.error == "invalid intents"
+    assert res.error == "internal error"
 
 
 def test_apply_ops_covers_too_many_intents_and_settlement_parse_errors(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1055,7 +1164,7 @@ def test_apply_ops_covers_too_many_intents_and_settlement_parse_errors(monkeypat
 
     monkeypatch.setattr(dex_engine, "parse_settlement_envelope", lambda operations: (_ for _ in ()).throw(RuntimeError("boom")))
     res = apply_ops(config=DexEngineConfig(), state=state, operations={}, block_timestamp=0)
-    assert res.error == "invalid settlement"
+    assert res.error == "internal error"
 
 
 def test_apply_ops_covers_invalid_proof_payload_and_signing_payload_errors(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1240,7 +1349,7 @@ def test_apply_ops_covers_validation_fee_split_proof_context_and_internal_error_
             lambda monkeypatch: monkeypatch.setattr(
                 dex_engine,
                 "_settlement_commitment_dict",
-                lambda settlement: (_ for _ in ()).throw(RuntimeError("bad settlement")),
+                lambda settlement: (_ for _ in ()).throw(TypeError("bad settlement")),
             ),
             "invalid settlement payload for commitment: bad settlement",
         ),
@@ -1258,7 +1367,7 @@ def test_apply_ops_covers_validation_fee_split_proof_context_and_internal_error_
             lambda monkeypatch: monkeypatch.setattr(
                 dex_engine,
                 "bounded_json_utf8_size",
-                lambda value, *, max_bytes: (_ for _ in ()).throw(RuntimeError("bad settlement payload")) if value == {"fills": []} else 1,
+                lambda value, *, max_bytes: (_ for _ in ()).throw(TypeError("bad settlement payload")) if value == {"fills": []} else 1,
             ),
             "invalid settlement payload: bad settlement payload",
         ),
@@ -1278,7 +1387,7 @@ def test_apply_ops_covers_validation_fee_split_proof_context_and_internal_error_
             lambda monkeypatch: monkeypatch.setattr(
                 dex_engine,
                 "canonical_json_bytes",
-                lambda value: (_ for _ in ()).throw(RuntimeError("bad batch payload")),
+                lambda value: (_ for _ in ()).throw(TypeError("bad batch payload")),
             ),
             "invalid batch payload: bad batch payload",
         ),
