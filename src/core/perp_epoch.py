@@ -30,11 +30,11 @@ from typing import Any, Mapping
 
 
 try:
-    import yaml  # type: ignore
+    import yaml
 
     _YAML_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency in some environments
-    yaml = None  # type: ignore[assignment]
+except ImportError:  # pragma: no cover - optional dependency in some environments
+    yaml = None
     _YAML_AVAILABLE = False
 
 
@@ -75,7 +75,7 @@ def _model_path_v3() -> Path:
 def _load_yaml_model(path: Path):
     if not _YAML_AVAILABLE:
         raise RuntimeError("PyYAML is required to load kernel YAML models (pip install pyyaml)")
-    from ESSO.ir.schema import CandidateIR  # type: ignore
+    from ESSO.ir.schema import CandidateIR
 
     obj = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(obj, Mapping):
@@ -83,10 +83,15 @@ def _load_yaml_model(path: Path):
     return CandidateIR.from_json_dict(obj).canonicalized()
 
 
+def _verify_adapter_ir_hash(*, expected_hash: object, model_hash: str) -> None:
+    if isinstance(expected_hash, str) and expected_hash and expected_hash != model_hash:
+        raise RuntimeError(f"perp kernel IR hash mismatch: adapter={expected_hash} model={model_hash}")
+
+
 @lru_cache(maxsize=1)
 def _kernel_ctx_v1():
-    from ESSO.evolve import ir_hash  # type: ignore
-    from ESSO.kernel.interpreter import StepError, prepare_step_context  # type: ignore
+    from ESSO.evolve import ir_hash
+    from ESSO.kernel.interpreter import StepError, prepare_step_context
 
     path = _model_path_v1()
     ir = _load_yaml_model(path)
@@ -98,18 +103,18 @@ def _kernel_ctx_v1():
     # silently from the checked/verified model.
     try:
         from ..kernels.python.perp_epoch_isolated_v1_adapter import IR_HASH as expected_hash
-
-        if isinstance(expected_hash, str) and expected_hash and expected_hash != ir_hash(ir):
-            raise RuntimeError(f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}")
-    except Exception:
-        # Best-effort only; runtime can still operate with the loaded IR.
+    except ImportError:
+        # Minimal environments may omit the generated adapter; if it is present,
+        # a mismatch must fail instead of becoming best-effort.
         pass
+    else:
+        _verify_adapter_ir_hash(expected_hash=expected_hash, model_hash=ir_hash(ir))
 
     return ir, ctx
 
 
 def perp_epoch_isolated_v1_initial_state() -> dict[str, Value]:
-    from ESSO.kernel.simulate import initial_state  # type: ignore
+    from ESSO.kernel.simulate import initial_state
 
     ir, _ctx = _kernel_ctx_v1()
     return dict(initial_state(ir))
@@ -118,7 +123,7 @@ def perp_epoch_isolated_v1_initial_state() -> dict[str, Value]:
 def perp_epoch_isolated_v1_apply(
     *, state: Mapping[str, Value], action: str, params: Mapping[str, Value] | None = None
 ) -> PerpStepResult:
-    from ESSO.kernel.interpreter import Command, StepError, step_ctx  # type: ignore
+    from ESSO.kernel.interpreter import Command, StepError, step_ctx
 
     _ir, ctx = _kernel_ctx_v1()
     cmd = Command(tag=str(action), args=dict(params or {}))
@@ -149,8 +154,8 @@ def perp_epoch_isolated_v1_fee_pool_max_quote() -> int:
 
 @lru_cache(maxsize=1)
 def _kernel_ctx_v1_1():
-    from ESSO.evolve import ir_hash  # type: ignore
-    from ESSO.kernel.interpreter import StepError, prepare_step_context  # type: ignore
+    from ESSO.evolve import ir_hash
+    from ESSO.kernel.interpreter import StepError, prepare_step_context
 
     path = _model_path_v1_1()
     ir = _load_yaml_model(path)
@@ -160,17 +165,16 @@ def _kernel_ctx_v1_1():
 
     try:
         from ..kernels.python.perp_epoch_isolated_v1_1_adapter import IR_HASH as expected_hash
-
-        if isinstance(expected_hash, str) and expected_hash and expected_hash != ir_hash(ir):
-            raise RuntimeError(f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}")
-    except Exception:
+    except ImportError:
         pass
+    else:
+        _verify_adapter_ir_hash(expected_hash=expected_hash, model_hash=ir_hash(ir))
 
     return ir, ctx
 
 
 def perp_epoch_isolated_v1_1_initial_state() -> dict[str, Value]:
-    from ESSO.kernel.simulate import initial_state  # type: ignore
+    from ESSO.kernel.simulate import initial_state
 
     ir, _ctx = _kernel_ctx_v1_1()
     return dict(initial_state(ir))
@@ -179,7 +183,7 @@ def perp_epoch_isolated_v1_1_initial_state() -> dict[str, Value]:
 def perp_epoch_isolated_v1_1_apply(
     *, state: Mapping[str, Value], action: str, params: Mapping[str, Value] | None = None
 ) -> PerpStepResult:
-    from ESSO.kernel.interpreter import Command, StepError, step_ctx  # type: ignore
+    from ESSO.kernel.interpreter import Command, StepError, step_ctx
 
     _ir, ctx = _kernel_ctx_v1_1()
     cmd = Command(tag=str(action), args=dict(params or {}))
@@ -196,8 +200,8 @@ def perp_epoch_isolated_v1_1_fee_pool_max_quote() -> int:
 
 @lru_cache(maxsize=1)
 def _kernel_ctx_v2():
-    from ESSO.evolve import ir_hash  # type: ignore
-    from ESSO.kernel.interpreter import StepError, prepare_step_context  # type: ignore
+    from ESSO.evolve import ir_hash
+    from ESSO.kernel.interpreter import StepError, prepare_step_context
 
     path = _model_path_v2()
     ir = _load_yaml_model(path)
@@ -207,17 +211,16 @@ def _kernel_ctx_v2():
 
     try:
         from ..kernels.python.perp_epoch_isolated_v2_adapter import IR_HASH as expected_hash
-
-        if isinstance(expected_hash, str) and expected_hash and expected_hash != ir_hash(ir):
-            raise RuntimeError(f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}")
-    except Exception:
+    except ImportError:
         pass
+    else:
+        _verify_adapter_ir_hash(expected_hash=expected_hash, model_hash=ir_hash(ir))
 
     return ir, ctx
 
 
 def perp_epoch_isolated_v2_initial_state() -> dict[str, Value]:
-    from ESSO.kernel.simulate import initial_state  # type: ignore
+    from ESSO.kernel.simulate import initial_state
 
     ir, _ctx = _kernel_ctx_v2()
     return dict(initial_state(ir))
@@ -226,7 +229,7 @@ def perp_epoch_isolated_v2_initial_state() -> dict[str, Value]:
 def perp_epoch_isolated_v2_apply(
     *, state: Mapping[str, Value], action: str, params: Mapping[str, Value] | None = None
 ) -> PerpStepResult:
-    from ESSO.kernel.interpreter import Command, StepError, step_ctx  # type: ignore
+    from ESSO.kernel.interpreter import Command, StepError, step_ctx
 
     _ir, ctx = _kernel_ctx_v2()
     cmd = Command(tag=str(action), args=dict(params or {}))
@@ -243,8 +246,8 @@ def perp_epoch_isolated_v2_fee_pool_max_quote() -> int:
 
 @lru_cache(maxsize=1)
 def _kernel_ctx_v3():
-    from ESSO.evolve import ir_hash  # type: ignore
-    from ESSO.kernel.interpreter import StepError, prepare_step_context  # type: ignore
+    from ESSO.evolve import ir_hash
+    from ESSO.kernel.interpreter import StepError, prepare_step_context
 
     path = _model_path_v3()
     ir = _load_yaml_model(path)
@@ -254,17 +257,16 @@ def _kernel_ctx_v3():
 
     try:
         from ..kernels.python.perp_epoch_isolated_v3_adapter import IR_HASH as expected_hash
-
-        if isinstance(expected_hash, str) and expected_hash and expected_hash != ir_hash(ir):
-            raise RuntimeError(f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}")
-    except Exception:
+    except ImportError:
         pass
+    else:
+        _verify_adapter_ir_hash(expected_hash=expected_hash, model_hash=ir_hash(ir))
 
     return ir, ctx
 
 
 def perp_epoch_isolated_v3_initial_state() -> dict[str, Value]:
-    from ESSO.kernel.simulate import initial_state  # type: ignore
+    from ESSO.kernel.simulate import initial_state
 
     ir, _ctx = _kernel_ctx_v3()
     return dict(initial_state(ir))
@@ -273,7 +275,7 @@ def perp_epoch_isolated_v3_initial_state() -> dict[str, Value]:
 def perp_epoch_isolated_v3_apply(
     *, state: Mapping[str, Value], action: str, params: Mapping[str, Value] | None = None
 ) -> PerpStepResult:
-    from ESSO.kernel.interpreter import Command, StepError, step_ctx  # type: ignore
+    from ESSO.kernel.interpreter import Command, StepError, step_ctx
 
     _ir, ctx = _kernel_ctx_v3()
     cmd = Command(tag=str(action), args=dict(params or {}))

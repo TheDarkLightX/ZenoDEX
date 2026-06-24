@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from src.core.perp_epoch import perp_epoch_isolated_default_apply
+import pytest
+
+from src.core.perp_epoch import _verify_adapter_ir_hash, perp_epoch_isolated_default_apply
 from src.core.perp_v2.math import remaining_position_signed
 from src.core.perp_v2.state import initial_state, state_to_dict
 from src.core.perp_v2.types import EpochPhase
@@ -44,6 +46,17 @@ def test_default_adapter_supports_partial_liquidate() -> None:
     assert res.effects["event"] == "PartialLiquidationApplied"
     assert res.state["position_base"] == remaining_position_signed(100_000, 2_500)
     assert res.state["liquidated_this_step"] is True
+
+
+def test_adapter_ir_hash_check_accepts_matching_or_absent_hash() -> None:
+    _verify_adapter_ir_hash(expected_hash="hash:abc", model_hash="hash:abc")
+    _verify_adapter_ir_hash(expected_hash="", model_hash="hash:abc")
+    _verify_adapter_ir_hash(expected_hash=None, model_hash="hash:abc")
+
+
+def test_adapter_ir_hash_check_rejects_mismatch() -> None:
+    with pytest.raises(RuntimeError, match="perp kernel IR hash mismatch"):
+        _verify_adapter_ir_hash(expected_hash="hash:old", model_hash="hash:new")
 
 
 def test_default_adapter_partial_liquidate_defaults_fraction_to_auto() -> None:
