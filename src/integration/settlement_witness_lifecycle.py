@@ -26,11 +26,33 @@ from .settlement_end_to_end_certificate_packet import (
 )
 
 SETTLEMENT_WITNESS_LIFECYCLE_PACKET_SCHEMA = "zenodex/settlement-witness-lifecycle-packet/v1"
+_LIFECYCLE_BOOL_FIELD_NAMES = (
+    "packet_built",
+    "end_to_end_packet_ok",
+    "witness_present",
+    "witness_valid",
+    "before_expiry",
+    "settled",
+    "rejected_with_reason",
+    "rejection_reason_present",
+    "lifecycle_ok",
+)
 
 
 def _safe_payload_validation_error(exc: Exception) -> str:
     detail = " ".join(str(exc).split())
     return detail[:200] or type(exc).__name__
+
+
+def _require_bool(value: object, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be bool")
+    return value
+
+
+def _validate_lifecycle_packet_bool_fields(payload: Mapping[str, Any]) -> None:
+    for name in _LIFECYCLE_BOOL_FIELD_NAMES:
+        _require_bool(payload.get(name, False), name=name)
 
 
 @dataclass(frozen=True)
@@ -54,17 +76,7 @@ class SettlementWitnessLifecyclePacket:
             raise ValueError(f"unsupported schema: {self.schema!r}")
         if self.end_to_end_packet is not None and self.end_to_end_packet.schema != SETTLEMENT_END_TO_END_CERTIFICATE_PACKET_SCHEMA:
             raise ValueError("unexpected end_to_end_packet schema")
-        for name in (
-            "packet_built",
-            "end_to_end_packet_ok",
-            "witness_present",
-            "witness_valid",
-            "before_expiry",
-            "settled",
-            "rejected_with_reason",
-            "rejection_reason_present",
-            "lifecycle_ok",
-        ):
+        for name in _LIFECYCLE_BOOL_FIELD_NAMES:
             if not isinstance(getattr(self, name), bool):
                 raise TypeError(f"{name} must be a bool")
         if self.packet_built != (self.end_to_end_packet is not None):
@@ -139,16 +151,25 @@ class SettlementWitnessLifecyclePacket:
                 if end_to_end_packet_payload is None
                 else SettlementEndToEndCertificatePacket.from_dict(end_to_end_packet_payload)
             ),
-            packet_built=bool(payload.get("packet_built", False)),
-            end_to_end_packet_ok=bool(payload.get("end_to_end_packet_ok", False)),
-            witness_present=bool(payload.get("witness_present", False)),
-            witness_valid=bool(payload.get("witness_valid", False)),
-            before_expiry=bool(payload.get("before_expiry", False)),
-            settled=bool(payload.get("settled", False)),
-            rejected_with_reason=bool(payload.get("rejected_with_reason", False)),
-            rejection_reason_present=bool(payload.get("rejection_reason_present", False)),
+            packet_built=_require_bool(payload.get("packet_built", False), name="packet_built"),
+            end_to_end_packet_ok=_require_bool(
+                payload.get("end_to_end_packet_ok", False),
+                name="end_to_end_packet_ok",
+            ),
+            witness_present=_require_bool(payload.get("witness_present", False), name="witness_present"),
+            witness_valid=_require_bool(payload.get("witness_valid", False), name="witness_valid"),
+            before_expiry=_require_bool(payload.get("before_expiry", False), name="before_expiry"),
+            settled=_require_bool(payload.get("settled", False), name="settled"),
+            rejected_with_reason=_require_bool(
+                payload.get("rejected_with_reason", False),
+                name="rejected_with_reason",
+            ),
+            rejection_reason_present=_require_bool(
+                payload.get("rejection_reason_present", False),
+                name="rejection_reason_present",
+            ),
             rejection_reason=payload.get("rejection_reason"),
-            lifecycle_ok=bool(payload.get("lifecycle_ok", False)),
+            lifecycle_ok=_require_bool(payload.get("lifecycle_ok", False), name="lifecycle_ok"),
         )
 
 
@@ -300,6 +321,10 @@ def verify_settlement_witness_lifecycle_packet_payload(
         return False, "settlement witness lifecycle packet payload must be a dict"
     if str(packet_payload.get("schema", "")) != SETTLEMENT_WITNESS_LIFECYCLE_PACKET_SCHEMA:
         return False, "unsupported settlement witness lifecycle packet schema"
+    try:
+        _validate_lifecycle_packet_bool_fields(packet_payload)
+    except (TypeError, ValueError) as exc:
+        return False, _safe_payload_validation_error(exc)
     try:
         expected = build_settlement_witness_lifecycle_packet(
             intents=intents,

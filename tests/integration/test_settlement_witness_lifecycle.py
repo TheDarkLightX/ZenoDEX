@@ -219,6 +219,49 @@ def test_settlement_witness_lifecycle_packet_rejects_tampering() -> None:
     assert err == "settlement witness lifecycle packet payload mismatch"
 
 
+@pytest.mark.parametrize(
+    "flag_name",
+    (
+        "packet_built",
+        "end_to_end_packet_ok",
+        "witness_present",
+        "witness_valid",
+        "before_expiry",
+        "settled",
+        "rejected_with_reason",
+        "rejection_reason_present",
+        "lifecycle_ok",
+    ),
+)
+def test_verify_settlement_witness_lifecycle_packet_rejects_int_bool_flags(flag_name: str) -> None:
+    intents, settlement, balances, pools, certificate_inputs = _settlement_context()
+    packet = build_settlement_witness_lifecycle_packet(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_end_to_end_certificate_inputs=certificate_inputs,
+    )
+    payload = packet.to_dict()
+    payload[flag_name] = int(payload[flag_name])
+
+    ok, err = verify_settlement_witness_lifecycle_packet_payload(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_end_to_end_certificate_inputs=certificate_inputs,
+        packet_payload=payload,
+    )
+
+    assert ok is False
+    assert err == f"{flag_name} must be bool"
+
+
 def test_settlement_witness_lifecycle_packet_rejects_expected_packet_builder_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
