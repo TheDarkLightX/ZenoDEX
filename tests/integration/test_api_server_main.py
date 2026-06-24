@@ -131,3 +131,22 @@ def test_api_server_refuses_malformed_routing_oracle_control(monkeypatch) -> Non
     monkeypatch.setenv("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", "maybe")
 
     assert api_server.main([]) == 2
+
+
+def test_parse_optional_int_list_skips_domain_coercion_failures() -> None:
+    from src.integration import api_server
+
+    assert api_server._parse_optional_int_list(["1", "bad", None, 2.0], lo=0, hi=10_000) == [1, 2]
+    assert api_server._parse_optional_int_list([-1, 0, 10_000, 10_001], lo=0, hi=10_000) == [0, 10_000]
+    assert api_server._parse_optional_int_list("1,2,3", lo=0, hi=10_000) is None
+
+
+def test_parse_optional_int_list_surfaces_unexpected_int_fault() -> None:
+    from src.integration import api_server
+
+    class BrokenInt:
+        def __int__(self) -> int:
+            raise RuntimeError("unexpected int conversion fault")
+
+    with pytest.raises(RuntimeError, match="unexpected int conversion fault"):
+        api_server._parse_optional_int_list([BrokenInt()], lo=0, hi=10_000)

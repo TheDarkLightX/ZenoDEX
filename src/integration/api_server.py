@@ -44,7 +44,7 @@ for _prewarm_module_name in (
 ):  # pragma: no cover - import latency hygiene only
     try:
         __import__(_prewarm_module_name)
-    except Exception:
+    except ImportError:
         pass
 
 
@@ -84,6 +84,23 @@ def _env_bool(name: str, default: bool = False) -> bool:
     raise ValueError(
         f"{name} must be one of 1,true,yes,on,0,false,no,off; got {raw!r}"
     )
+
+
+def _parse_optional_int_list(value: object, *, lo: int | None = None, hi: int | None = None) -> list[int] | None:
+    if not isinstance(value, list):
+        return None
+    out: list[int] = []
+    for item in value:
+        try:
+            parsed = int(item)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if lo is not None and parsed < lo:
+            continue
+        if hi is not None and parsed > hi:
+            continue
+        out.append(int(parsed))
+    return out
 
 
 def _safe_http_header_value(value: object) -> Optional[str]:
@@ -1287,15 +1304,7 @@ class _Handler(BaseHTTPRequestHandler):
                     user_slippage_bps = int(user_slippage_bps_raw)
 
                 raw_opts = obj.get("slippage_options_bps")
-                if isinstance(raw_opts, list):
-                    slippage_options_bps = []
-                    for x in raw_opts:
-                        try:
-                            slippage_options_bps.append(int(x))
-                        except Exception:
-                            continue
-                else:
-                    slippage_options_bps = None
+                slippage_options_bps = _parse_optional_int_list(raw_opts)
 
                 advice = slippage_advice_exact_in_cpmm(
                     reserve_in=reserve_in,
@@ -1411,17 +1420,8 @@ class _Handler(BaseHTTPRequestHandler):
                     user_slippage_bps = int(user_slippage_bps_raw)
 
                 raw_opts = obj.get("slippage_options_bps")
-                opts: list[int] = []
-                if isinstance(raw_opts, list):
-                    for x in raw_opts:
-                        try:
-                            v = int(x)
-                        except Exception:
-                            continue
-                        if v < 0 or v > 10_000:
-                            continue
-                        opts.append(int(v))
-                max_opt = max(opts) if opts else None
+                bounded_opts = _parse_optional_int_list(raw_opts, lo=0, hi=10_000) or []
+                max_opt = max(bounded_opts) if bounded_opts else None
 
                 impact_5 = suggest_amount_in_for_impact_lt_bps(
                     reserve_in=reserve_in,
@@ -1523,19 +1523,7 @@ class _Handler(BaseHTTPRequestHandler):
                 user_slippage_bps = int(user_slippage_bps_raw)
 
                 raw_opts = obj.get("slippage_options_bps")
-                opts: list[int] | None
-                if isinstance(raw_opts, list):
-                    opts = []
-                    for x in raw_opts:
-                        try:
-                            v = int(x)
-                        except Exception:
-                            continue
-                        if v < 0 or v > 10_000:
-                            continue
-                        opts.append(int(v))
-                else:
-                    opts = None
+                suggestion_opts = _parse_optional_int_list(raw_opts, lo=0, hi=10_000)
 
                 max_attacker_amount_in_raw = obj.get("max_attacker_amount_in", 2000)
                 max_attacker_amount_in = int(max_attacker_amount_in_raw)
@@ -1567,7 +1555,7 @@ class _Handler(BaseHTTPRequestHandler):
                     amount_in=amount_in,
                     pending_volume_same_direction=pending_same_dir,
                     confidence_bps=confidence_bps,
-                    slippage_options_bps=opts,
+                    slippage_options_bps=suggestion_opts,
                     max_attacker_amount_in=max_attacker_amount_in,
                     user_slippage_bps=user_slippage_bps,
                     max_evals=max_evals,
