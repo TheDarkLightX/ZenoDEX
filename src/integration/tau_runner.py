@@ -21,9 +21,14 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Protocol, Sequence, Tuple, cast
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+class _TauOutputStream(Protocol):
+    def get_values(self) -> Sequence[object]:
+        ...
 
 
 class TauRunError(RuntimeError):
@@ -86,7 +91,7 @@ def _run_subprocess_with_output_caps(
     if proc.stdin is None or proc.stdout is None or proc.stderr is None:
         try:
             proc.kill()
-        except Exception:
+        except OSError:
             pass
         raise RuntimeError("tau subprocess misconfigured: stdin/stdout/stderr pipes unavailable")
     stdout_buf = bytearray()
@@ -103,17 +108,17 @@ def _run_subprocess_with_output_caps(
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             return
-        except Exception:
+        except OSError:
             try:
                 proc.kill()
-            except Exception:
+            except OSError:
                 return
 
     try:
         for stream in (proc.stdin, proc.stdout, proc.stderr):
             try:
                 os.set_blocking(stream.fileno(), False)
-            except Exception:
+            except (OSError, ValueError):
                 _kill_proc_group()
                 return -1, _decode_stdout(), "tau requires non-blocking pipes"
 
@@ -126,7 +131,7 @@ def _run_subprocess_with_output_caps(
             stdin_open = False
             try:
                 proc.stdin.close()
-            except Exception:
+            except OSError:
                 _kill_proc_group()
                 return -1, _decode_stdout(), "tau stdin close error"
 
@@ -153,7 +158,7 @@ def _run_subprocess_with_output_caps(
                 ready_r, ready_w, _ = select.select(rlist, wlist, [], min(0.1, remaining))
             except InterruptedError:
                 continue
-            except Exception as exc:
+            except OSError as exc:
                 _kill_proc_group()
                 detail = str(exc).strip()
                 if detail:
@@ -163,27 +168,32 @@ def _run_subprocess_with_output_caps(
 
             for stream in ready_w:
                 try:
-                    n = stream.write(stdin_view[stdin_off : stdin_off + 4096])
+                    n_written: object = stream.write(stdin_view[stdin_off : stdin_off + 4096])
                 except BrokenPipeError:
                     stdin_open = False
                     try:
                         stream.close()
-                    except Exception:
+                    except OSError:
                         pass
                     continue
                 except BlockingIOError:
                     continue
-                except Exception:
+                except OSError:
                     _kill_proc_group()
                     return -1, _decode_stdout(), "tau stdin error"
-                if n is None:
+                if n_written is None:
                     n = 0
+                elif isinstance(n_written, int) and not isinstance(n_written, bool):
+                    n = n_written
+                else:
+                    _kill_proc_group()
+                    return -1, _decode_stdout(), "tau stdin invalid write result"
                 stdin_off += int(n)
                 if stdin_off >= len(stdin_view):
                     stdin_open = False
                     try:
                         proc.stdin.close()
-                    except Exception:
+                    except OSError:
                         _kill_proc_group()
                         return -1, _decode_stdout(), "tau stdin close error"
 
@@ -192,7 +202,7 @@ def _run_subprocess_with_output_caps(
                     chunk = stream.read(4096)
                 except BlockingIOError:
                     continue
-                except Exception:
+                except OSError:
                     _kill_proc_group()
                     return -1, _decode_stdout(), "tau stdout/stderr read error"
                 if not chunk:
@@ -230,7 +240,7 @@ def _run_subprocess_with_output_caps(
             except subprocess.TimeoutExpired:
                 _kill_proc_group()
                 return -1, _decode_stdout(), "tau timed out"
-            except Exception:
+            except (OSError, subprocess.SubprocessError):
                 _kill_proc_group()
                 return -1, _decode_stdout(), "tau did not exit"
 
@@ -243,15 +253,12 @@ def _run_subprocess_with_output_caps(
     finally:
         try:
             if proc.returncode is None:
-                try:
-                    _kill_proc_group()
-                except Exception:
-                    pass
-        except Exception:
+                _kill_proc_group()
+        except (subprocess.TimeoutExpired, OSError):
             pass
         try:
             proc.wait(timeout=1.0)
-        except Exception:
+        except (subprocess.TimeoutExpired, OSError):
             pass
 
 
@@ -261,7 +268,7 @@ def find_tau_bin(project_root: Path = ROOT, *, profile: str | None = None) -> Op
     def is_executable(path: Path) -> bool:
         try:
             return path.exists() and path.is_file() and os.access(str(path), os.X_OK)
-        except Exception:
+        except OSError:
             return False
 
     env_tau = os.environ.get("TAU_BIN", "").strip()
@@ -457,12 +464,12 @@ def _run_tau_spec_steps_via_python_binding(
 
     outputs_by_step: Dict[int, Dict[str, int]] = {}
     for out_name, out_stream in out_stream_objs.items():
-        values = out_stream.get_values()
-        if len(values) != len(steps):
+        output_values = cast(_TauOutputStream, out_stream).get_values()
+        if len(output_values) != len(steps):
             raise RuntimeError(
-                f"{out_name} output length mismatch: expected {len(steps)} line(s), got {len(values)}"
+                f"{out_name} output length mismatch: expected {len(steps)} line(s), got {len(output_values)}"
             )
-        for idx, raw in enumerate(values):
+        for idx, raw in enumerate(output_values):
             raw_s = str(raw).strip()
             try:
                 value = int(raw_s)

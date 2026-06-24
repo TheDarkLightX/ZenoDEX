@@ -3,6 +3,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
+import src.integration.tau_runner as tau_runner
 from src.integration.tau_runner import _run_subprocess_with_output_caps
 
 
@@ -61,3 +64,55 @@ def test_run_subprocess_with_output_caps_enforces_stderr_cap(tmp_path: Path) -> 
     assert rc == -1
     assert out == ""
     assert err == "tau stderr too large"
+
+
+def test_run_subprocess_with_output_caps_pipe_cleanup_fault_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class _NoPipeProc:
+        stdin = None
+        stdout = None
+        stderr = None
+        returncode = None
+        pid = 123
+
+        def __init__(self, kill_exc: BaseException) -> None:
+            self._kill_exc = kill_exc
+
+        def kill(self) -> None:
+            raise self._kill_exc
+
+        def wait(self, timeout: float | None = None) -> int:
+            del timeout
+            return 0
+
+    monkeypatch.setattr(
+        tau_runner.subprocess,
+        "Popen",
+        lambda *args, **kwargs: _NoPipeProc(OSError("already gone")),
+    )
+    with pytest.raises(RuntimeError, match="pipes unavailable"):
+        _run_subprocess_with_output_caps(
+            [sys.executable, "-c", "print('ok')"],
+            input_text="",
+            cwd=tmp_path,
+            timeout_s=1.0,
+            max_stdout_bytes=1024,
+            max_stderr_bytes=1024,
+        )
+
+    monkeypatch.setattr(
+        tau_runner.subprocess,
+        "Popen",
+        lambda *args, **kwargs: _NoPipeProc(RuntimeError("tau cleanup bug")),
+    )
+    with pytest.raises(RuntimeError, match="tau cleanup bug"):
+        _run_subprocess_with_output_caps(
+            [sys.executable, "-c", "print('ok')"],
+            input_text="",
+            cwd=tmp_path,
+            timeout_s=1.0,
+            max_stdout_bytes=1024,
+            max_stderr_bytes=1024,
+        )
