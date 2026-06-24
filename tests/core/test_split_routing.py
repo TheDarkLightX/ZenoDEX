@@ -9,6 +9,7 @@ from src.core.split_routing import (
     brute_force_best_split_two_pools_exact_in,
     exact_out_for_pool_exact_in,
     resolve_two_pool_split_search_params,
+    staircase_jump_best_split_two_pools_exact_in,
 )
 from tools.metamuse_split_routing_lane import DGSTR_CURATED_CASES
 
@@ -128,6 +129,54 @@ def test_unknown_search_profile_rejected():
         assert "unsupported search_profile" in str(exc)
     else:
         assert False, "expected ValueError for unknown search profile"
+
+
+def test_bruteforce_suppresses_domain_reject(monkeypatch: pytest.MonkeyPatch) -> None:
+    p0 = PoolXY(x=100, y=100, fee_bps=10)
+    p1 = PoolXY(x=100, y=100, fee_bps=10)
+
+    def domain_reject(*_args: object, **_kwargs: object) -> int:
+        raise ValueError("domain reject")
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", domain_reject)
+    with pytest.raises(ValueError, match="no feasible split"):
+        brute_force_best_split_two_pools_exact_in(p0, p1, 100)
+
+
+def test_bruteforce_does_not_swallow_quote_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    p0 = PoolXY(x=100, y=100, fee_bps=10)
+    p1 = PoolXY(x=100, y=100, fee_bps=10)
+
+    def quote_bug(*_args: object, **_kwargs: object) -> int:
+        raise RuntimeError("unexpected brute-force split bug")
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", quote_bug)
+    with pytest.raises(RuntimeError, match="unexpected brute-force split bug"):
+        brute_force_best_split_two_pools_exact_in(p0, p1, 100)
+
+
+def test_staircase_does_not_swallow_quote_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    p0 = PoolXY(x=100, y=100, fee_bps=10)
+    p1 = PoolXY(x=100, y=100, fee_bps=10)
+
+    def quote_bug(*_args: object, **_kwargs: object) -> int:
+        raise RuntimeError("unexpected staircase split bug")
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", quote_bug)
+    with pytest.raises(RuntimeError, match="unexpected staircase split bug"):
+        staircase_jump_best_split_two_pools_exact_in(p0, p1, 100)
+
+
+def test_large_trade_heuristic_does_not_swallow_quote_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    p0 = PoolXY(x=10_000, y=10_000, fee_bps=10)
+    p1 = PoolXY(x=10_000, y=10_000, fee_bps=10)
+
+    def quote_bug(*_args: object, **_kwargs: object) -> int:
+        raise RuntimeError("unexpected heuristic split bug")
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", quote_bug)
+    with pytest.raises(RuntimeError, match="unexpected heuristic split bug"):
+        best_split_two_pools_exact_in(p0, p1, 4_097, search_profile="baseline")
 
 
 def test_adaptive_v1_resolves_to_expected_hardness_tier_on_known_hard_cases():
