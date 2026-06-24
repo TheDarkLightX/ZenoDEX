@@ -226,6 +226,29 @@ def test_apply_app_tx_rejects_malformed_isolated_settle_authorization_env(monkey
     assert "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH" in str(err)
 
 
+def test_apply_app_tx_caps_malformed_env_error(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_FAUCET", "9" * 1_000 + "x")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+
+    ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={},
+        operations={},
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+
+    assert ok is False
+    assert app_state_json == ""
+    assert app_hash_hex == ""
+    assert balances_patch is None
+    assert err is not None
+    assert len(err) <= 200
+    assert "9" * 201 not in err
+
+
 def test_apply_app_tx_create_pool_unsigned_intent(monkeypatch):
     from src.integration import tau_testnet_dex_plugin as plugin
 
