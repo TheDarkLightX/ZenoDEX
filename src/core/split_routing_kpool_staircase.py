@@ -421,16 +421,23 @@ def _pareto_insert(
     legs_used: int,
     output: int,
 ) -> None:
-    """Insert a state into the Pareto index, removing dominated entries."""
+    """Insert a state into the Pareto index, removing strictly dominated entries.
+
+    Uses strict dominance: an entry is removed only if the new state has
+    <= legs and >= output with at least one strict. Equal (legs, output)
+    entries are both kept so _is_better_state can compare lexicographic legs.
+    """
     entries = index.setdefault(spent, [])
-    # Check if dominated by existing.
+    # Check if strictly dominated by existing.
     for legs_j, out_j in entries:
         if legs_j <= legs_used and out_j >= output:
-            return  # Dominated, don't insert.
-    # Remove existing entries dominated by this one.
+            if legs_j < legs_used or out_j > output:
+                return  # Strictly dominated, don't insert.
+    # Remove existing entries strictly dominated by this one.
     index[spent] = [
         (legs_j, out_j) for legs_j, out_j in entries
-        if not (legs_used <= legs_j and output >= out_j)
+        if not (legs_used <= legs_j and output >= out_j
+                and (legs_used < legs_j or output > out_j))
     ]
     index[spent].append((legs_used, output))
 
@@ -441,13 +448,23 @@ def _pareto_is_dominated(
     legs_used: int,
     output: int,
 ) -> bool:
-    """Check if a state is Pareto-dominated by an existing state at the same spent."""
+    """Check if a state is strictly Pareto-dominated by an existing state.
+
+    Uses strict dominance: an existing state dominates the candidate only if
+    it has strictly fewer legs OR strictly higher output (with the other axis
+    being <= or >=). This preserves canonical tie-break: when legs and output
+    are both equal, the candidate is NOT dominated, so _is_better_state can
+    still compare lexicographic legs and keep the canonical-best route.
+    """
     entries = index.get(spent)
     if entries is None:
         return False
     for legs_j, out_j in entries:
+        # Strict dominance: legs_j <= legs_used and out_j >= output,
+        # with at least one strict. Equal (legs, output) is NOT dominated.
         if legs_j <= legs_used and out_j >= output:
-            return True
+            if legs_j < legs_used or out_j > output:
+                return True
     return False
 
 
@@ -457,13 +474,19 @@ def _pareto_remove_dominated(
     legs_used: int,
     output: int,
 ) -> None:
-    """Remove entries dominated by the new state."""
+    """Remove entries strictly dominated by the new state.
+
+    Uses strict dominance: an entry is removed only if the new state has
+    <= legs and >= output with at least one strict. Equal (legs, output)
+    entries are kept so canonical tie-break can compare lexicographic legs.
+    """
     entries = index.get(spent)
     if entries is None:
         return
     index[spent] = [
         (legs_j, out_j) for legs_j, out_j in entries
-        if not (legs_used <= legs_j and output >= out_j)
+        if not (legs_used <= legs_j and output >= out_j
+                and (legs_used < legs_j or output > out_j))
     ]
 
 
@@ -680,7 +703,8 @@ def _build_prefix_suffix_dps(
             max_table_states=max_table_states,
         )
 
-    # Suffix DP: suffix[k] = {(0,0): (0,())}, suffix[i] folds pools[i+1..k-1].
+    # Suffix DP: suffix[k] = {(0,0): (0,())}, suffix[i] folds pools[i..k-1].
+    # To exclude pool i as interior, use suffix[i+1] (pools after i).
     suffix: list[_DPTable] = [{} for _ in range(k + 1)]
     suffix[k] = {(0, 0): (0, ())}
     for i in range(k - 1, -1, -1):

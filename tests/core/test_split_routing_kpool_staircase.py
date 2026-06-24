@@ -617,26 +617,33 @@ def test_kpool_adaptive_falls_back_on_drift() -> None:
     assert result == small_dp_result
 
 
-def test_kpool_adaptive_falls_back_on_resource_limit() -> None:
+def test_kpool_adaptive_falls_back_on_resource_limit(monkeypatch) -> None:
     """Adaptive entry point must fall back to small-domain DP on ResourceLimitExceeded.
 
-    Uses moderate pools where the staircase DP runs but the combine-pairs bound
-    is exceeded. The adaptive entry point catches ResourceLimitExceeded and
-    falls back to the small-domain DP, preserving exactness.
+    Forces the resource limit by patching _build_prefix_suffix_dps to inject
+    max_table_states=1, which causes the DP fold to raise ResourceLimitExceeded
+    as soon as the table exceeds 1 state. The adaptive entry point catches this
+    and falls back to the small-domain DP.
 
-    The test proves the resource-limit fallback path ran by:
-    1. Wrapping small_domain_dp_fn with a tracker that records when fallback is called.
-    2. Asserting the result matches the direct small-domain DP result.
-    3. Asserting the fallback was actually invoked.
+    Asserts:
+    1. The fallback DP was actually called (fallback_state["called"]).
+    2. The result matches the direct small-domain DP result (exactness preserved).
     """
-    from src.core.split_routing_kpool_staircase import ResourceLimitExceeded
+    import src.core.split_routing_kpool_staircase as mod
 
-    # Moderate pools: dense enough that the staircase runs but combine pairs
-    # can be large. We use small D to keep the test fast.
+    # Patch _build_prefix_suffix_dps to force max_table_states=1, which will
+    # trigger ResourceLimitExceeded as soon as the DP table has >1 state.
+    original_build = mod._build_prefix_suffix_dps
+
+    def force_tiny_table_states(**kwargs):
+        kwargs["max_table_states"] = 1
+        return original_build(**kwargs)
+
+    monkeypatch.setattr(mod, "_build_prefix_suffix_dps", force_tiny_table_states)
+
     pools = [
-        ("pool-a", PoolXY(x=1_000, y=1_000, fee_bps=30)),
-        ("pool-b", PoolXY(x=800, y=1_200, fee_bps=30)),
-        ("pool-c", PoolXY(x=1_200, y=800, fee_bps=30)),
+        ("pool-a", PoolXY(x=10_000, y=10_000, fee_bps=30)),
+        ("pool-b", PoolXY(x=8_000, y=12_000, fee_bps=30)),
     ]
     specs = [_spec(pid, p, 1) for pid, p in pools]
     pools_dict = {pid: p for pid, p in pools}
@@ -668,57 +675,55 @@ def test_kpool_adaptive_falls_back_on_resource_limit() -> None:
     small_dp_result = best_small_domain_many_pool_exact_in(
         pool_ids=pool_ids,
         amount_in_total=200,
-        max_legs=3,
+        max_legs=2,
         quote_for_pool_id=quote_for_pid,
     )
 
-    # The adaptive entry point should either:
-    # - run the staircase DP successfully (if bounds are not exceeded), or
-    # - catch ResourceLimitExceeded and fall back to the small-domain DP.
+    # The adaptive entry point should catch ResourceLimitExceeded and fall back.
     result = best_k_pool_exact_in_split(
         pool_specs=specs,
         amount_in_total=200,
-        max_legs=3,
+        max_legs=2,
         quote_exact_in=exact_out_for_pool_exact_in,
         small_domain_dp_fn=tracked_small_dp_fn,
     )
-    # The result must match the direct small-domain DP result (both are exact).
+    # The fallback DP must have been called (proving the resource-limit path ran).
+    assert fallback_state["called"], "fallback DP was never called; ResourceLimitExceeded was not triggered"
+    # The result must match the direct small-domain DP result (exactness preserved).
     assert result == small_dp_result
 
 
-def test_kpool_staircase_raises_resource_limit_no_fallback() -> None:
+def test_kpool_staircase_raises_resource_limit_no_fallback(monkeypatch) -> None:
     """Staircase DP must raise ResourceLimitExceeded when bounds are exceeded
-    and no fallback is available (fail-closed, no partial result)."""
-    from src.core.split_routing_kpool_staircase import (
-        ResourceLimitExceeded,
-        _MAX_TABLE_STATES_MULTIPLIER,
-    )
+    and no fallback is available (fail-closed, no partial result).
 
-    # Use pools dense enough to trigger the table state bound.
-    # With D=200, max_legs=3: max_table_states = 2 * 4 * 201 = 1608.
-    # Dense pools (x=100, y=100) produce many jump points, filling the table.
+    Forces the resource limit by patching _build_prefix_suffix_dps to inject
+    max_table_states=1. Without a fallback, ResourceLimitExceeded must propagate.
+    """
+    import src.core.split_routing_kpool_staircase as mod
+
+    # Patch _build_prefix_suffix_dps to force max_table_states=1, which will
+    # trigger ResourceLimitExceeded as soon as the DP table has >1 state.
+    original_build = mod._build_prefix_suffix_dps
+
+    def force_tiny_table_states(**kwargs):
+        kwargs["max_table_states"] = 1
+        return original_build(**kwargs)
+
+    monkeypatch.setattr(mod, "_build_prefix_suffix_dps", force_tiny_table_states)
+
     pools = [
-        ("pool-a", PoolXY(x=100, y=100, fee_bps=0)),
-        ("pool-b", PoolXY(x=100, y=100, fee_bps=0)),
-        ("pool-c", PoolXY(x=100, y=100, fee_bps=0)),
+        ("pool-a", PoolXY(x=10_000, y=10_000, fee_bps=30)),
+        ("pool-b", PoolXY(x=8_000, y=12_000, fee_bps=30)),
     ]
     specs = [_spec(pid, p, 1) for pid, p in pools]
 
-    # Without a fallback, ResourceLimitExceeded should propagate.
-    # Note: this test may or may not trigger depending on whether the bounds
-    # are exceeded. If the staircase succeeds, that's also valid (bounds were
-    # not exceeded). We only assert that IF an exception is raised, it is
-    # ResourceLimitExceeded (not a silent partial result).
-    try:
-        result = staircase_k_pool_best_split(
+    # Without a fallback (no small_domain_dp_fn), ResourceLimitExceeded must
+    # propagate. The direct staircase_k_pool_best_split has no fallback.
+    with pytest.raises(mod.ResourceLimitExceeded):
+        staircase_k_pool_best_split(
             pool_specs=specs,
             amount_in_total=200,
-            max_legs=3,
+            max_legs=2,
             quote_exact_in=exact_out_for_pool_exact_in,
         )
-        # If it succeeds, verify it's a valid allocation.
-        assert sum(result.values()) == 200
-    except ResourceLimitExceeded:
-        pass  # Expected: fail-closed when bounds exceeded and no fallback.
-    except ValueError:
-        pass  # Also acceptable: no feasible split.
