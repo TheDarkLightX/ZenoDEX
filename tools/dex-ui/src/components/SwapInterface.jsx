@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { calcSwapOutput, calcPriceImpact, formatNumber, formatPercent } from '../lib/cpmm';
 import { validateSwap, getSlippageOptions, getPriceImpactSeverity } from '../lib/validation';
-import { apiDexImpactPreview, apiDexSlippageAdvice, apiDexPokayokeSwapSuggest, apiDexPokayokeSwapSuggestHeavy, apiSwap, getRuntimeConfig } from '../lib/api';
+import { apiDexPokayokeSwapSuggest, apiDexPokayokeSwapSuggestHeavy, apiSwap, getRuntimeConfig } from '../lib/api';
 import { createQuoteDagCache, computeSwapQuotePreviewIncremental } from '../lib/incrementalQuoteDag';
 import {
     deriveAutoProfile,
@@ -22,7 +22,8 @@ import {
 } from '../lib/swapData.js';
 import VerifiedBySpec from './VerifiedBySpec.jsx';
 import { buildAndSignSwapIntent } from '../sdk/dexIntentSigner.js';
-import { createMockTxHash, estimateRoutePendingVolumes } from '../lib/swapUtils.js';
+import { createMockTxHash } from '../lib/swapUtils.js';
+import { useDirectSwapApiPreviewState, useRouteImpactPreview } from '../lib/swapPreviewHooks.js';
 import { SettingsIcon, RefreshIcon, SwapDirectionIcon, InfoIcon, AlertIcon } from './swap/SwapIcons.jsx';
 import { Tooltip } from './swap/SwapTooltip.jsx';
 import { SwapSettings } from './swap/SwapSettings.jsx';
@@ -65,9 +66,6 @@ function SwapInterface({ wallet }) {
     const [autoProfile, setAutoProfile] = useState(true);
     const [quoteError, setQuoteError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [apiImpactPreview, setApiImpactPreview] = useState(null);
-    const [routeApiImpactPreview, setRouteApiImpactPreview] = useState(null);
-    const [apiSlippageAdvice, setApiSlippageAdvice] = useState(null);
     const [poolFeed, setPoolFeed] = useState({
         source: 'fallback',
         pools: FALLBACK_SWAP_POOLS,
@@ -141,7 +139,6 @@ function SwapInterface({ wallet }) {
             setQuoteError('');
             setShowConfirm(false);
             setSubmittedSwap(null);
-            setRouteApiImpactPreview(null);
         }
     }, [advancedMode]);
 
@@ -269,128 +266,14 @@ function SwapInterface({ wallet }) {
         };
     }, [amountIn, reserves, poolKey, poolFeed.pools]);
 
-    useEffect(() => {
-        let cancelled = false;
-        const controller = new AbortController();
-        const run = async () => {
-            if (advancedMode) {
-                setApiImpactPreview(null);
-                return;
-            }
-            if (!amountIn || !reserves) {
-                setApiImpactPreview(null);
-                return;
-            }
-            const input = parseFloat(amountIn);
-            if (!Number.isFinite(input) || input <= 0) {
-                setApiImpactPreview(null);
-                return;
-            }
-            const feeBps = Number(poolFeed.pools[poolKey]?.feeBps ?? 30);
-            try {
-                const resp = await apiDexImpactPreview(
-                    {
-                        reserveIn: Math.max(1, Math.round(reserves.reserveIn)),
-                        reserveOut: Math.max(1, Math.round(reserves.reserveOut)),
-                        amountIn: Math.max(1, Math.round(input)),
-                        feeBps: Math.max(0, Math.round(feeBps)),
-                        pendingVolumeSameDirection: 0,
-                        confidenceBps: 9500,
-                    },
-                    { timeoutMs: 1400, signal: controller.signal },
-                );
-                const p = resp?.preview;
-                if (!cancelled && resp?.ok && p) {
-                    setApiImpactPreview({
-                        amountOutIsolated: Number(p.amount_out_isolated),
-                        feeAmount: Number(p.fee_amount),
-                        priceImpactBps: Number(p.price_impact_bps),
-                        spotPriceE8: Number(p.spot_price_e8),
-                        amountOutBestCase: Number(p.amount_out_best_case),
-                        amountOutWorstCase: Number(p.amount_out_worst_case),
-                        recommendedMinOut: Number(p.recommended_min_out),
-                    });
-                }
-            } catch (err) {
-                const name = err && typeof err === 'object' ? err.name : '';
-                if (!cancelled && name !== 'AbortError') {
-                    setApiImpactPreview(null);
-                }
-            }
-        };
-        run();
-        return () => {
-            cancelled = true;
-            controller.abort();
-        };
-    }, [amountIn, reserves, poolKey, poolFeed.pools, advancedMode]);
-
-    useEffect(() => {
-        let cancelled = false;
-        const controller = new AbortController();
-        const run = async () => {
-            if (advancedMode) {
-                setApiSlippageAdvice(null);
-                return;
-            }
-            if (!amountIn || !reserves) {
-                setApiSlippageAdvice(null);
-                return;
-            }
-            const input = parseFloat(amountIn);
-            if (!Number.isFinite(input) || input <= 0) {
-                setApiSlippageAdvice(null);
-                return;
-            }
-
-            const feeBps = Number(poolFeed.pools[poolKey]?.feeBps ?? 30);
-            const optsBps = getSlippageOptions()
-                .map((o) => Math.round(Number(o.value) * 10_000))
-                .filter((v) => Number.isFinite(v) && v >= 0 && v <= 10_000);
-            optsBps.sort((a, b) => a - b);
-            const uniqOpts = Array.from(new Set(optsBps));
-
-            try {
-                const resp = await apiDexSlippageAdvice(
-                    {
-                        reserveIn: Math.max(1, Math.round(reserves.reserveIn)),
-                        reserveOut: Math.max(1, Math.round(reserves.reserveOut)),
-                        amountIn: Math.max(1, Math.round(input)),
-                        feeBps: Math.max(0, Math.round(feeBps)),
-                        pendingVolumeSameDirection: 0,
-                        confidenceBps: 9500,
-                        slippageOptionsBps: uniqOpts,
-                        maxAttackerAmountIn: 2000,
-                        userSlippageBps: Math.max(0, Math.min(10_000, Math.round(Number(slippage || 0) * 10_000))),
-                    },
-                    { timeoutMs: 1800, signal: controller.signal },
-                );
-                const a = resp?.advice;
-                if (!cancelled && resp?.ok && a) {
-                    setApiSlippageAdvice({
-                        status: String(a.status || ''),
-                        priceImpactBps: a.price_impact_bps,
-                        recommendedSlippageBps: a.recommended_slippage_bps,
-                        recommendedSlippageBpsRevertSafe: a.recommended_slippage_bps_revert_safe,
-                        recommendedSlippageBpsMevSafe: a.recommended_slippage_bps_mev_safe,
-                        requiredSlippageBps: a.required_slippage_bps,
-                        options: Array.isArray(a.options) ? a.options : [],
-                        pokayoke: a.pokayoke || null,
-                    });
-                }
-            } catch (err) {
-                const name = err && typeof err === 'object' ? err.name : '';
-                if (!cancelled && name !== 'AbortError') {
-                    setApiSlippageAdvice(null);
-                }
-            }
-        };
-        run();
-        return () => {
-            cancelled = true;
-            controller.abort();
-        };
-    }, [amountIn, reserves, poolKey, poolFeed.pools, advancedMode, slippage]);
+    const previewFeeBps = Number(poolFeed.pools[poolKey]?.feeBps ?? 30);
+    const { apiImpactPreview, apiSlippageAdvice } = useDirectSwapApiPreviewState({
+        advancedMode,
+        amountIn,
+        reserves,
+        feeBps: previewFeeBps,
+        slippage,
+    });
 
     const legacyPreview = useMemo(() => {
         if (!directMetrics || !reserves) return null;
@@ -480,106 +363,7 @@ function SwapInterface({ wallet }) {
 
     const swapPreview = advancedMode ? (swapQuote?.preview || null) : legacyPreview;
 
-    useEffect(() => {
-        let cancelled = false;
-        const controller = new AbortController();
-        const run = async () => {
-            if (!advancedMode || !swapPreview) {
-                setRouteApiImpactPreview(null);
-                return;
-            }
-            const routeEdges = Array.isArray(swapPreview.routeEdges) ? swapPreview.routeEdges : [];
-            if (routeEdges.length === 0) {
-                setRouteApiImpactPreview(null);
-                return;
-            }
-            const amountInNum = Number(amountIn || 0);
-            if (!Number.isFinite(amountInNum) || amountInNum <= 0) {
-                setRouteApiImpactPreview(null);
-                return;
-            }
-
-            const pendingVolumes = estimateRoutePendingVolumes({
-                amountIn: amountInNum,
-                routeType: swapPreview.routeType,
-                profileId: swapPreview.profileId,
-                gateDecision: swapPreview.gateDecision,
-                hopOutputs: swapPreview.hopOutputs,
-            });
-
-            const callHop = async ({ edge, hopAmountIn, pendingVolume, confidenceBps = 9500 }) => {
-                const resp = await apiDexImpactPreview(
-                    {
-                        reserveIn: Math.max(1, Math.round(Number(edge.reserveIn || 0))),
-                        reserveOut: Math.max(1, Math.round(Number(edge.reserveOut || 0))),
-                        amountIn: Math.max(1, Math.round(Number(hopAmountIn || 0))),
-                        feeBps: Math.max(0, Math.round(Number(edge.feeBps || 0))),
-                        pendingVolumeSameDirection: Math.max(0, Math.round(Number(pendingVolume || 0))),
-                        confidenceBps,
-                    },
-                    { timeoutMs: 1600, signal: controller.signal },
-                );
-                if (!resp?.ok || !resp?.preview) {
-                    throw new Error('route_impact_preview_error');
-                }
-                return resp.preview;
-            };
-
-            try {
-                if (swapPreview.routeType !== 'two-hop' || routeEdges.length < 2) {
-                    const p = await callHop({
-                        edge: routeEdges[0],
-                        hopAmountIn: amountInNum,
-                        pendingVolume: pendingVolumes[0] || 0,
-                    });
-                    if (cancelled) return;
-                    setRouteApiImpactPreview({
-                        source: 'api-route',
-                        amountOutBestCase: Number(p.amount_out_best_case),
-                        amountOutWorstCase: Number(p.amount_out_worst_case),
-                        recommendedMinOut: Number(p.recommended_min_out),
-                        feeAmount: Number(p.fee_amount),
-                    });
-                    return;
-                }
-
-                // Two-hop: propagate bounds through both hops.
-                const p1 = await callHop({
-                    edge: routeEdges[0],
-                    hopAmountIn: amountInNum,
-                    pendingVolume: pendingVolumes[0] || 0,
-                });
-                const p2Best = await callHop({
-                    edge: routeEdges[1],
-                    hopAmountIn: Number(p1.amount_out_best_case),
-                    pendingVolume: pendingVolumes[1] || 0,
-                });
-                const p2Worst = await callHop({
-                    edge: routeEdges[1],
-                    hopAmountIn: Number(p1.amount_out_worst_case),
-                    pendingVolume: pendingVolumes[1] || 0,
-                });
-                if (cancelled) return;
-                setRouteApiImpactPreview({
-                    source: 'api-route',
-                    amountOutBestCase: Number(p2Best.amount_out_best_case),
-                    amountOutWorstCase: Number(p2Worst.amount_out_worst_case),
-                    recommendedMinOut: Number(p2Worst.recommended_min_out),
-                    feeAmount: Number(p1.fee_amount) + Number(p2Best.fee_amount),
-                });
-            } catch (err) {
-                const name = err && typeof err === 'object' ? err.name : '';
-                if (!cancelled && name !== 'AbortError') {
-                    setRouteApiImpactPreview(null);
-                }
-            }
-        };
-        run();
-        return () => {
-            cancelled = true;
-            controller.abort();
-        };
-    }, [advancedMode, swapPreview, amountIn]);
+    const routeApiImpactPreview = useRouteImpactPreview({ advancedMode, swapPreview, amountIn });
 
     const activePreview = useMemo(() => {
         if (!swapPreview) return null;
