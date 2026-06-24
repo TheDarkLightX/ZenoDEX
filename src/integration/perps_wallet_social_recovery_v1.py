@@ -36,7 +36,7 @@ try:
     from py_ecc.bls import G2Basic
 
     _BLS_AVAILABLE = True
-except Exception:  # pragma: no cover
+except (ImportError, OSError):  # pragma: no cover
     G2Basic = None
     _BLS_AVAILABLE = False
 
@@ -458,7 +458,7 @@ class SocialRecoveryCoordinatorV1:
             ]
         except ValueError as exc:
             errors.append(str(exc))
-        except Exception as exc:  # pragma: no cover
+        except (RuntimeError, TypeError, ValueError) as exc:  # pragma: no cover
             errors.append(f"quorum verification failed: {exc}")
 
         if quorum_met and accepted_sigs:
@@ -481,7 +481,7 @@ class SocialRecoveryCoordinatorV1:
                     )
                     if not aggregate_verified:
                         errors.append("BLS aggregate signature verification failed")
-                except Exception as exc:
+                except (RuntimeError, TypeError, ValueError) as exc:
                     errors.append(f"BLS aggregate verification failed: {exc}")
 
         body = {
