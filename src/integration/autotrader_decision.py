@@ -353,6 +353,19 @@ def verify_strategy_candidate_set_payload(payload: object) -> tuple[bool, str | 
     candidates_payload = payload.get("candidates")
     if not isinstance(candidates_payload, list):
         return False, "candidates must be a list"
+    required_candidate_fields = {
+        "candidate_index",
+        "kind",
+        "requested",
+        "admissible",
+        "candidate_key",
+    }
+    for candidate in candidates_payload:
+        if not isinstance(candidate, dict):
+            return False, "candidate must be an object"
+        for field_name in required_candidate_fields:
+            if field_name not in candidate:
+                return False, f"candidate missing field: {field_name}"
     try:
         candidates = tuple(
             DecisionCandidate(
@@ -371,7 +384,7 @@ def verify_strategy_candidate_set_payload(payload: object) -> tuple[bool, str | 
             decision_model_version=str(payload.get("decision_model_version", "")),
             candidates=candidates,
         )
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     if payload != candidate_set.to_dict():
         return False, "candidate set payload mismatch"
@@ -390,6 +403,9 @@ def verify_strategy_decision_certificate_payload(payload: object) -> tuple[bool,
     argmax_steps = payload.get("argmax_steps")
     if not isinstance(argmax_steps, list):
         return False, "argmax_steps must be a list"
+    for step in argmax_steps:
+        if not isinstance(step, dict):
+            return False, "argmax step must be an object"
     winner_index = payload.get("winner_index")
     winner_key = payload.get("winner_key")
     kill_switch_active = payload.get("kill_switch_active")
@@ -412,7 +428,7 @@ def verify_strategy_decision_certificate_payload(payload: object) -> tuple[bool,
             argmax_steps=tuple(dict(step) for step in argmax_steps),
             kill_switch_active=kill_switch_active,
         )
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     if payload != certificate.to_dict():
         return False, "decision certificate payload mismatch"
