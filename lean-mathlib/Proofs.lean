@@ -198,6 +198,7 @@ import Proofs.SettlementNetting
 import Proofs.SlashingEscapePrevention
 import Proofs.SolverCheckerSeparation
 import Proofs.SolverNashEquilibrium
+import Proofs.KPoolStaircase
 import Proofs.SplitRoutingArgmaxPlateau
 import Proofs.SplitRoutingStaircase
 import Proofs.SplitRoutingUnimodality

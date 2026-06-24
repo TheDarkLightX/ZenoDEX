@@ -374,5 +374,35 @@ theorem candidate_dominates_k_pool_composition
     rw [h_freed]
     omega
 
+/--
+Budget-premise corollary: if the original allocation spends exactly D, then the
+candidate allocation also spends exactly D.
+
+This is the consumable form of the conservation clause. When the caller
+supplies the budget premise `originalSpent pools + a_interior = D`, the
+candidate allocation satisfies `candidateSpent pools + r_interior' = D`,
+meaning the candidate is an exact-budget allocation (no input left unspent).
+-/
+theorem candidate_dominates_k_pool_with_budget
+    (pools : List PoolEntry)
+    (interiorOut : Nat → Nat)
+    (D a_interior : Nat)
+    (hcover : ∀ (poolOut : Nat → Nat) (a c : Nat),
+      (poolOut, a, c) ∈ pools → LeftCovers poolOut D c a)
+    (hinterior : Nondecreasing interiorOut)
+    (h_budget : originalSpent pools + a_interior = D) :
+    ∃ r_interior',
+      r_interior' = a_interior + freedInput pools ∧
+      r_interior' ≥ a_interior ∧
+      candidateOutput pools = originalOutput pools ∧
+      interiorOut r_interior' ≥ interiorOut a_interior ∧
+      candidateOutput pools + interiorOut r_interior' ≥
+        originalOutput pools + interiorOut a_interior ∧
+      candidateSpent pools + r_interior' = D := by
+  obtain ⟨r', h_r_def, h_r_ge, h_out_eq, h_int_ge, h_dom, h_cons⟩ :=
+    candidate_dominates_k_pool_composition pools interiorOut D a_interior hcover hinterior
+  refine ⟨r', h_r_def, h_r_ge, h_out_eq, h_int_ge, h_dom, ?_⟩
+  rw [h_cons, h_budget]
+
 end KPoolStaircase
 end Proofs

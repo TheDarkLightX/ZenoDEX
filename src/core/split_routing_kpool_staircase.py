@@ -64,6 +64,13 @@ _DPTable = dict[tuple[int, int], _State]
 class _PoolSpec:
     pool_id: _PoolId
     pool: _PoolLike
+    # min_valid is the smallest positive amount that produces a successful quote
+    # for this pool. It is NOT an independent lower-bound constraint: jump-point
+    # legs and fallback paths rely on the quote function rejecting amounts below
+    # min_valid (returning None or raising ValueError). The residual interior
+    # leg enforces min_valid explicitly at _best_with_residual_from_combined.
+    # Callers must ensure min_valid is derived from the same quote function used
+    # at runtime, not from an independent source.
     min_valid: int
 
 
@@ -171,6 +178,20 @@ def _pool_jump_points(
     Complexity is O(B) quotes where B is the number of distinct positive input
     breakpoints. B is at most amount_in_total, and can be much smaller when
     reserves are skewed.
+
+    Termination conditions (all fail-closed):
+    1. gross_in > amount_in_total: budget exhausted, return candidates collected
+       so far. This is the normal completion path.
+    2. quote_exact_in raises ValueError: the amount is not quotable (typically
+       below min_valid or pool exhausted). Stop enumerating and return
+       candidates collected so far. This is fail-closed: the optimizer will
+       only consider jump points that were successfully quoted, so no invalid
+       allocation can result.
+    3. reached_output < next_output_level: the staircase plateau ended (the
+       closed-form estimate over-estimated the actual output). Stop and return
+       candidates collected so far. This is also fail-closed: the missed jump
+       points would have higher gross_in, so they are beyond the current
+       plateau and not needed.
     """
     candidates: list[tuple[int, int]] = []
     next_output_level = 1
@@ -201,6 +222,12 @@ def _pool_jump_points_bounded(
     Returns None if the breakpoint count exceeds max_breakpoints before
     enumeration completes. This lets the adaptive entry point bail out of
     dense-breakpoint regimes without paying the full enumeration cost.
+
+    Termination conditions are the same as _pool_jump_points (fail-closed):
+    ValueError from quote_exact_in or reached_output < next_output_level stops
+    enumeration and returns the candidates collected so far. The returned
+    candidates are all successfully-quoted jump points, so no invalid allocation
+    can result from truncation.
     """
     candidates: list[tuple[int, int]] = []
     next_output_level = 1
