@@ -232,7 +232,7 @@ def apply_zusd_monetary_ops(
                     sp_pubkey=sp_pubkey,
                 )
             except Exception as exc:
-                return ZUSDMonetaryTxResult(ok=False, error=f"zusd op[{i}] {exc}")
+                return ZUSDMonetaryTxResult(ok=False, error=f"zusd op[{i}] {_safe_error_str(exc)}")
 
             nonces.set_last(nonce_key, nonce)
             effect = {"i": i, "action": action, "effects": balance_effect}
