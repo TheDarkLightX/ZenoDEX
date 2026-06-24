@@ -313,7 +313,8 @@ def _check_zusd_oracle_authorization(
         return None
     if not isinstance(auth_obj, Mapping):
         return "oracle_authorization_required"
-    auth_payload = auth_obj.get("authorization") if isinstance(auth_obj.get("authorization"), Mapping) else auth_obj
+    candidate_payload = auth_obj.get("authorization")
+    auth_payload = candidate_payload if isinstance(candidate_payload, Mapping) else auth_obj
     query_id = str(args.get("query_id") or auth_payload.get("query_id") or "query:ZUSD/PRICE")
     runtime = _zusd_oracle_runtime_facts(
         mode=mode,
@@ -613,6 +614,21 @@ def _parse_json_body(body: Optional[bytes]) -> Tuple[Optional[Dict[str, Any]], O
     return obj, None
 
 
+def _safe_expected_error_detail(exc: Exception) -> str:
+    msg = " ".join(str(exc).split())
+    return msg[:200] or type(exc).__name__
+
+
+def _safe_internal_detail(exc: Exception) -> str:
+    return type(exc).__name__
+
+
+def _contract_build_error_response(error: str, exc: Exception) -> ResponseT:
+    if isinstance(exc, (ValueError, TypeError, KeyError)):
+        return 400, {"ok": False, "error": error, "detail": _safe_expected_error_detail(exc)}
+    return 500, {"ok": False, "error": "internal_error", "detail": _safe_internal_detail(exc)}
+
+
 def _cmd_from_body(body: Dict[str, Any]) -> Tuple[Optional[str], Optional[Dict[str, Any]], Optional[str]]:
     tag = body.get("tag")
     args = body.get("args", {})
@@ -681,9 +697,9 @@ def _handle_post(
             )
             return single, multi, history, (200, {"ok": True, "contract": contract.to_dict()})
         except Exception as exc:
-            return single, multi, history, (
-                400,
-                {"ok": False, "error": "build_oracle_pending_gate_contract_error", "detail": str(exc)},
+            return single, multi, history, _contract_build_error_response(
+                "build_oracle_pending_gate_contract_error",
+                exc,
             )
 
     if rest == ["verify_oracle_pending_gate_contract"]:
@@ -713,9 +729,9 @@ def _handle_post(
             )
             return single, multi, history, (200, {"ok": True, "contract": contract.to_dict()})
         except Exception as exc:
-            return single, multi, history, (
-                400,
-                {"ok": False, "error": "build_cross_module_oracle_sync_contract_error", "detail": str(exc)},
+            return single, multi, history, _contract_build_error_response(
+                "build_cross_module_oracle_sync_contract_error",
+                exc,
             )
 
     if rest == ["verify_cross_module_oracle_sync_contract"]:
@@ -744,9 +760,9 @@ def _handle_post(
             )
             return single, multi, history, (200, {"ok": True, "packet": packet.to_dict()})
         except Exception as exc:
-            return single, multi, history, (
-                400,
-                {"ok": False, "error": "build_oracle_recovery_lifecycle_packet_error", "detail": str(exc)},
+            return single, multi, history, _contract_build_error_response(
+                "build_oracle_recovery_lifecycle_packet_error",
+                exc,
             )
 
     if rest == ["verify_oracle_recovery_lifecycle_packet"]:
@@ -826,46 +842,46 @@ def _handle_post(
         auth_value = _planned_single_oracle_authorization_value(state=single, tag=tag, args=args)
         auth_required, auth_config_err = _strict_bool_env("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", default=False)
         if auth_config_err is not None:
-            auth_err = "oracle_authorization_config_error:" + auth_config_err
+            auth_config_detail = "oracle_authorization_config_error:" + auth_config_err
             new_history = _history_with_entry(
                 history,
                 mode="single",
                 tag=tag,
                 args=args,
                 ok=False,
-                error=auth_err,
+                error=auth_config_detail,
             )
             return single, multi, new_history, (
                 400,
                 {
                     "ok": False,
                     "error": "rejected",
-                    "detail": auth_err,
+                    "detail": auth_config_detail,
                 },
             )
         auth_present_or_required = isinstance(args.get("oracle_authorization"), Mapping) or auth_required
-        auth_err = _check_zusd_oracle_authorization(
+        auth_check_err = _check_zusd_oracle_authorization(
             mode="single",
             state=single,
             tag=tag,
             args=args,
             runtime_value_e8=auth_value,
         )
-        if auth_err is not None:
+        if auth_check_err is not None:
             new_history = _history_with_entry(
                 history,
                 mode="single",
                 tag=tag,
                 args=args,
                 ok=False,
-                error=auth_err,
+                error=auth_check_err,
             )
             return single, multi, new_history, (
                 400,
                 {
                     "ok": False,
                     "error": "rejected",
-                    "detail": auth_err,
+                    "detail": auth_check_err,
                 },
             )
         if auth_present_or_required and auth_value is not None:
@@ -944,46 +960,46 @@ def _handle_post(
     auth_value_multi = _planned_multi_oracle_authorization_value(state=multi, tag=tag, args=args)
     auth_required_multi, auth_config_err_multi = _strict_bool_env("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", default=False)
     if auth_config_err_multi is not None:
-        auth_err_multi = "oracle_authorization_config_error:" + auth_config_err_multi
+        auth_config_detail_multi = "oracle_authorization_config_error:" + auth_config_err_multi
         new_history = _history_with_entry(
             history,
             mode="multi",
             tag=tag,
             args=args,
             ok=False,
-            error=auth_err_multi,
+            error=auth_config_detail_multi,
         )
         return single, multi, new_history, (
             400,
             {
                 "ok": False,
                 "error": "rejected",
-                "detail": auth_err_multi,
+                "detail": auth_config_detail_multi,
             },
         )
     auth_present_or_required_multi = isinstance(args.get("oracle_authorization"), Mapping) or auth_required_multi
-    auth_err_multi = _check_zusd_oracle_authorization(
+    auth_check_err_multi = _check_zusd_oracle_authorization(
         mode="multi",
         state=multi,
         tag=tag,
         args=args,
         runtime_value_e8=auth_value_multi,
     )
-    if auth_err_multi is not None:
+    if auth_check_err_multi is not None:
         new_history = _history_with_entry(
             history,
             mode="multi",
             tag=tag,
             args=args,
             ok=False,
-            error=auth_err_multi,
+            error=auth_check_err_multi,
         )
         return single, multi, new_history, (
             400,
             {
                 "ok": False,
                 "error": "rejected",
-                "detail": auth_err_multi,
+                "detail": auth_check_err_multi,
             },
         )
     if auth_present_or_required_multi and auth_value_multi is not None:

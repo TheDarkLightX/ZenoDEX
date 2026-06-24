@@ -8,6 +8,7 @@ import types
 
 import pytest
 
+import src.integration.zusd_api as zusd_api
 import src.integration.zusd_tau_gate as zusd_tau_gate
 from src.core.zusd import E8, ZUSDState
 from src.integration import perps_api as perps_demo_api
@@ -593,6 +594,97 @@ class TestHistoryAndReset:
 
 
 class TestOracleRecoveryLifecycleApi:
+    def test_contract_builder_preserves_expected_validation_detail(self, monkeypatch):
+        def _bad_builder(*_args, **_kwargs):
+            raise ValueError("bad oracle pending gate input")
+
+        monkeypatch.setattr(zusd_api, "build_zusd_oracle_pending_gate_contract", _bad_builder)
+
+        status, body = _post("/api/zusd/build_oracle_pending_gate_contract", {"state": {}})
+
+        assert status == 400
+        assert body == {
+            "ok": False,
+            "error": "build_oracle_pending_gate_contract_error",
+            "detail": "bad oracle pending gate input",
+        }
+
+    def test_contract_builder_sanitizes_unexpected_internal_fault(self, monkeypatch):
+        def _faulting_builder(*_args, **_kwargs):
+            raise RuntimeError("do not leak zUSD contract internals")
+
+        monkeypatch.setattr(zusd_api, "build_zusd_oracle_pending_gate_contract", _faulting_builder)
+
+        status, body = _post("/api/zusd/build_oracle_pending_gate_contract", {"state": {}})
+
+        assert status == 500
+        assert body == {"ok": False, "error": "internal_error", "detail": "RuntimeError"}
+        assert "do not leak" not in str(body)
+
+    def test_cross_module_builder_sanitizes_unexpected_internal_fault(self, monkeypatch):
+        def _faulting_builder(*_args, **_kwargs):
+            raise RuntimeError("do not leak zUSD cross module internals")
+
+        monkeypatch.setattr(zusd_api, "build_zusd_cross_module_oracle_sync_contract", _faulting_builder)
+
+        status, body = _post(
+            "/api/zusd/build_cross_module_oracle_sync_contract",
+            {
+                "market_id": "TAU-USD",
+                "zusd_price_e8": 100 * E8,
+                "zusd_epoch": 1,
+                "perp_price_e8": 100 * E8,
+                "perp_oracle_epoch": 1,
+                "max_divergence_bps": 0,
+                "max_epoch_lag": 0,
+            },
+        )
+
+        assert status == 500
+        assert body == {"ok": False, "error": "internal_error", "detail": "RuntimeError"}
+        assert "do not leak" not in str(body)
+
+    def test_recovery_lifecycle_builder_sanitizes_unexpected_internal_fault(self, monkeypatch):
+        s1, b1 = _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})
+        assert s1 == 200
+        stale_state = b1["state"]
+        s2, b2 = _post(
+            "/api/zusd/build_oracle_pending_gate_contract",
+            {"state": stale_state, "risky_requested": True, "tcr_ok": True},
+        )
+        assert s2 == 200
+        s3, b3 = _post(
+            "/api/zusd/build_cross_module_oracle_sync_contract",
+            {
+                "market_id": "TAU-USD",
+                "zusd_price_e8": stale_state["price_e8"],
+                "zusd_epoch": stale_state["oracle_last_update_epoch"],
+                "perp_price_e8": stale_state["price_e8"],
+                "perp_oracle_epoch": stale_state["oracle_last_update_epoch"],
+                "max_divergence_bps": 0,
+                "max_epoch_lag": 0,
+            },
+        )
+        assert s3 == 200
+
+        def _faulting_builder(*_args, **_kwargs):
+            raise RuntimeError("do not leak zUSD recovery internals")
+
+        monkeypatch.setattr(zusd_api, "build_zusd_oracle_recovery_lifecycle_packet", _faulting_builder)
+
+        status, body = _post(
+            "/api/zusd/build_oracle_recovery_lifecycle_packet",
+            {
+                "previous_pending_gate_contract": b2["contract"],
+                "current_pending_gate_contract": b2["contract"],
+                "current_sync_contract": b3["contract"],
+            },
+        )
+
+        assert status == 500
+        assert body == {"ok": False, "error": "internal_error", "detail": "RuntimeError"}
+        assert "do not leak" not in str(body)
+
     def test_build_and_verify_oracle_recovery_lifecycle_packet(self):
         s1, b1 = _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})
         assert s1 == 200
