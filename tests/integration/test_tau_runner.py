@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import os
+import sys
 
 import pytest
 
 from src.core.cpmm import swap_exact_in
+from src.integration import tau_runner
 from src.integration.tau_runner import (
     build_repl_script,
     find_tau_bin,
@@ -132,3 +134,17 @@ def test_tau_python_bindings_parity_minimal(tmp_path, monkeypatch) -> None:
 
     out_subprocess = run_tau_spec_steps(tau_bin=tau_bin, spec_path=spec_path, steps=steps, timeout_s=2.0)
     assert out_bindings == out_subprocess
+
+
+def test_tau_python_binding_import_runtime_error_is_not_downgraded(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    build_dir = tmp_path / "external" / "tau-lang" / "build-Release"
+    build_dir.mkdir(parents=True)
+    (build_dir / "tau_fake.so").write_bytes(b"")
+    (build_dir / "tau.py").write_text("raise RuntimeError('binding init broke')\n", encoding="utf-8")
+
+    monkeypatch.delitem(sys.modules, "tau", raising=False)
+    with pytest.raises(RuntimeError, match="binding init broke"):
+        tau_runner._try_import_tau_python_binding(project_root=tmp_path)

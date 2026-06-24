@@ -86,7 +86,7 @@ def _run_subprocess_with_output_caps(
     if proc.stdin is None or proc.stdout is None or proc.stderr is None:
         try:
             proc.kill()
-        except Exception:
+        except OSError:
             pass
         raise RuntimeError("tau subprocess misconfigured: stdin/stdout/stderr pipes unavailable")
     stdout_buf = bytearray()
@@ -103,17 +103,17 @@ def _run_subprocess_with_output_caps(
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             return
-        except Exception:
+        except (OSError, ValueError):
             try:
                 proc.kill()
-            except Exception:
+            except OSError:
                 return
 
     try:
         for stream in (proc.stdin, proc.stdout, proc.stderr):
             try:
                 os.set_blocking(stream.fileno(), False)
-            except Exception:
+            except (OSError, ValueError):
                 _kill_proc_group()
                 return -1, _decode_stdout(), "tau requires non-blocking pipes"
 
@@ -126,7 +126,7 @@ def _run_subprocess_with_output_caps(
             stdin_open = False
             try:
                 proc.stdin.close()
-            except Exception:
+            except (OSError, ValueError):
                 _kill_proc_group()
                 return -1, _decode_stdout(), "tau stdin close error"
 
@@ -153,7 +153,7 @@ def _run_subprocess_with_output_caps(
                 ready_r, ready_w, _ = select.select(rlist, wlist, [], min(0.1, remaining))
             except InterruptedError:
                 continue
-            except Exception as exc:
+            except (OSError, ValueError) as exc:
                 _kill_proc_group()
                 detail = str(exc).strip()
                 if detail:
@@ -168,12 +168,12 @@ def _run_subprocess_with_output_caps(
                     stdin_open = False
                     try:
                         stream.close()
-                    except Exception:
+                    except (OSError, ValueError):
                         pass
                     continue
                 except BlockingIOError:
                     continue
-                except Exception:
+                except (OSError, ValueError):
                     _kill_proc_group()
                     return -1, _decode_stdout(), "tau stdin error"
                 if n is None:
@@ -183,7 +183,7 @@ def _run_subprocess_with_output_caps(
                     stdin_open = False
                     try:
                         proc.stdin.close()
-                    except Exception:
+                    except (OSError, ValueError):
                         _kill_proc_group()
                         return -1, _decode_stdout(), "tau stdin close error"
 
@@ -192,7 +192,7 @@ def _run_subprocess_with_output_caps(
                     chunk = stream.read(4096)
                 except BlockingIOError:
                     continue
-                except Exception:
+                except (OSError, ValueError):
                     _kill_proc_group()
                     return -1, _decode_stdout(), "tau stdout/stderr read error"
                 if not chunk:
@@ -230,7 +230,7 @@ def _run_subprocess_with_output_caps(
             except subprocess.TimeoutExpired:
                 _kill_proc_group()
                 return -1, _decode_stdout(), "tau timed out"
-            except Exception:
+            except (OSError, ValueError):
                 _kill_proc_group()
                 return -1, _decode_stdout(), "tau did not exit"
 
@@ -241,17 +241,11 @@ def _run_subprocess_with_output_caps(
 
         return int(rc), out_s, err_s
     finally:
-        try:
-            if proc.returncode is None:
-                try:
-                    _kill_proc_group()
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        if proc.returncode is None:
+            _kill_proc_group()
         try:
             proc.wait(timeout=1.0)
-        except Exception:
+        except (subprocess.TimeoutExpired, OSError, ValueError):
             pass
 
 
@@ -261,7 +255,7 @@ def find_tau_bin(project_root: Path = ROOT, *, profile: str | None = None) -> Op
     def is_executable(path: Path) -> bool:
         try:
             return path.exists() and path.is_file() and os.access(str(path), os.X_OK)
-        except Exception:
+        except OSError:
             return False
 
     env_tau = os.environ.get("TAU_BIN", "").strip()
@@ -358,7 +352,7 @@ def _try_import_tau_python_binding(project_root: Path = ROOT) -> Optional[Module
                 sys.path.insert(0, ds)
         try:
             mod = importlib.import_module("tau")
-        except Exception:
+        except (ImportError, OSError):
             return None
 
         # Guard against importing an unrelated `tau` package.
@@ -466,7 +460,7 @@ def _run_tau_spec_steps_via_python_binding(
             raw_s = str(raw).strip()
             try:
                 value = int(raw_s)
-            except Exception as exc:
+            except ValueError as exc:
                 raise RuntimeError(f"{out_name} output non-integer value: {raw_s!r}") from exc
             outputs_by_step.setdefault(idx, {})[out_name] = value
 
