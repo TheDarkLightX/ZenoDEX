@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import math
 import os
 import smtplib
 import ssl
@@ -139,7 +140,9 @@ def _env_float(name: str, default: float, *, lo: float, hi: float) -> float:
         return float(default)
     try:
         value = float(raw.strip())
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
+        return float(default)
+    if not math.isfinite(value):
         return float(default)
     return min(max(value, lo), hi)
 
@@ -150,7 +153,7 @@ def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
         return int(default)
     try:
         value = int(raw.strip())
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return int(default)
     return min(max(value, lo), hi)
 
@@ -211,7 +214,7 @@ def _wallet_authority_profile_from_env() -> tuple[Mapping[str, Any] | None, str 
     if path_raw:
         try:
             obj = json.loads(Path(path_raw).read_text(encoding="utf-8"))
-        except Exception as exc:
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
             return None, f"perps wallet authority profile file invalid: {exc}"
         if not isinstance(obj, Mapping):
             return None, "perps wallet authority profile file must contain an object"
@@ -286,7 +289,7 @@ def _wallet_encrypted_sss_recipient_keys_from_env() -> tuple[dict[str, bytes] | 
         return None, err
     try:
         return recipient_root_keys_from_fixture_v1(raw), None
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return None, f"perps wallet encrypted SSS recipient keys invalid: {exc}"
 
 
@@ -773,7 +776,7 @@ def _json_profile_from_env(
             continue
         try:
             obj = json.loads(Path(path_raw).read_text(encoding="utf-8"))
-        except Exception as exc:
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
             return None, f"{label} file invalid from {name}: {exc}"
         if not isinstance(obj, Mapping):
             return None, f"{label} file from {name} must contain an object"
@@ -994,7 +997,7 @@ def _market_quote_asset(app_state: Mapping[str, Any], *, market_id: str) -> str:
         return ""
     try:
         market = state.perps.get_market(market_id)
-    except Exception:
+    except TypeError:
         return ""
     if isinstance(market, PerpClearinghouse2pMarketState):
         return str(market.quote_asset)
@@ -1006,7 +1009,7 @@ def _market_quote_asset(app_state: Mapping[str, Any], *, market_id: str) -> str:
 def _safe_native_balance(client: TauNetTcpClient, pubkey: str) -> int | None:
     try:
         return int(client.get_balance(_pubkey_for_rpc(pubkey)))
-    except Exception:
+    except (TauNetRpcError, TypeError, ValueError):
         return None
 
 
@@ -1287,7 +1290,7 @@ def _reject_payload(payload: dict[str, Any], *, status: str, error: str) -> dict
 def _safe_sequence_after_submission(client: Any, tx_sender_pubkey: str) -> int | None:
     try:
         return int(client.get_sequence(_pubkey_for_rpc(tx_sender_pubkey)))
-    except Exception:
+    except (TauNetRpcError, TypeError, ValueError):
         return None
 
 
@@ -1735,7 +1738,7 @@ def _np_market_now_epoch(app_state: Mapping[str, Any], *, market_id: str) -> int
         return 0
     try:
         market = state.perps.get_market(market_id)
-    except Exception:
+    except TypeError:
         return 0
     if not isinstance(market, PerpClearinghouseNpMarketState):
         return 0
@@ -2118,7 +2121,7 @@ def _preflight(
             block_timestamp=int(block_timestamp),
         )
         return {"ok": bool(res.ok), "error": res.error, "effects": list(res.effects or [])}
-    except Exception as exc:
+    except (KeyError, RuntimeError, TypeError, ValueError) as exc:
         return {"ok": False, "error": str(exc), "effects": []}
 
 
@@ -3326,7 +3329,7 @@ def _status_payload(account: str | None = None) -> Dict[str, Any]:
         if account:
             status["account"] = account
             status["account_view"] = _account_perps_view(markets, account)
-    except Exception as exc:
+    except (TauNetRpcError, RuntimeError, TypeError, ValueError) as exc:
         status["node_reachable"] = False
         status["error"] = f"{type(exc).__name__}: {exc}"
     return status

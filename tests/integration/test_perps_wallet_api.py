@@ -4,6 +4,7 @@ import json
 import sys
 import threading
 import time
+from pathlib import Path
 from typing import Mapping
 
 import pytest
@@ -134,6 +135,93 @@ def _perps_wallet_signer_payload_hash(payload: dict[str, object] | None = None) 
 
 def _privkey_hex(value: int) -> str:
     return "0x" + int(value).to_bytes(32, byteorder="big", signed=False).hex()
+
+
+def test_perps_wallet_env_numeric_helpers_are_finite_and_narrow(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("UNIT_FLOAT", "nan")
+    assert perps_wallet_api._env_float("UNIT_FLOAT", 3.0, lo=0.1, hi=60.0) == 3.0
+    monkeypatch.setenv("UNIT_FLOAT", "inf")
+    assert perps_wallet_api._env_float("UNIT_FLOAT", 3.0, lo=0.1, hi=60.0) == 3.0
+    monkeypatch.setenv("UNIT_FLOAT", "bad")
+    assert perps_wallet_api._env_float("UNIT_FLOAT", 3.0, lo=0.1, hi=60.0) == 3.0
+    monkeypatch.setenv("UNIT_FLOAT", "120")
+    assert perps_wallet_api._env_float("UNIT_FLOAT", 3.0, lo=0.1, hi=60.0) == 60.0
+
+    monkeypatch.setenv("UNIT_INT", "1.5")
+    assert perps_wallet_api._env_int("UNIT_INT", 7, lo=1, hi=9) == 7
+    monkeypatch.setenv("UNIT_INT", "20")
+    assert perps_wallet_api._env_int("UNIT_INT", 7, lo=1, hi=9) == 9
+
+
+def test_perps_wallet_json_profile_file_reports_expected_parse_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    missing = tmp_path / "missing.json"
+    monkeypatch.setenv("UNIT_PROFILE_FILE", str(missing))
+    obj, err = perps_wallet_api._json_profile_from_env(
+        json_names=(),
+        file_names=("UNIT_PROFILE_FILE",),
+        label="unit profile",
+    )
+    assert obj is None
+    assert isinstance(err, str) and "unit profile file invalid" in err
+
+    invalid_json = tmp_path / "invalid.json"
+    invalid_json.write_text("{bad", encoding="utf-8")
+    monkeypatch.setenv("UNIT_PROFILE_FILE", str(invalid_json))
+    obj, err = perps_wallet_api._json_profile_from_env(
+        json_names=(),
+        file_names=("UNIT_PROFILE_FILE",),
+        label="unit profile",
+    )
+    assert obj is None
+    assert isinstance(err, str) and "unit profile file invalid" in err
+
+
+def test_perps_wallet_safe_rpc_helpers_reject_expected_failures() -> None:
+    class _BadClient:
+        def get_balance(self, _pubkey: str) -> int:
+            raise TauNetRpcError("balance unavailable")
+
+        def get_sequence(self, _pubkey: str) -> int:
+            raise ValueError("bad sequence")
+
+    assert perps_wallet_api._safe_native_balance(_BadClient(), ALICE) is None  # type: ignore[arg-type]
+    assert perps_wallet_api._safe_sequence_after_submission(_BadClient(), ALICE) is None
+
+
+def test_perps_wallet_preflight_wrapper_handles_expected_engine_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _bad_apply_perp_ops(**_kwargs: object) -> object:
+        raise ValueError("bad simulated operation")
+
+    monkeypatch.setattr(perps_wallet_api, "apply_perp_ops", _bad_apply_perp_ops)
+
+    result = perps_wallet_api._preflight(
+        app_state=_wrapped_app_state(DexState(BalanceTable(), {}, LPTable())),
+        config=PerpEngineConfig(chain_id=CHAIN_ID),
+        operation={"action": "deposit_collateral"},
+        tx_sender_pubkey=ALICE,
+        block_timestamp=123,
+    )
+
+    assert result == {"ok": False, "error": "bad simulated operation", "effects": []}
+
+
+def test_perps_wallet_status_marks_expected_tau_failure_unreachable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _bad_tau_client() -> object:
+        raise TauNetRpcError("tau down")
+
+    monkeypatch.setattr(perps_wallet_api, "_tau_client", _bad_tau_client)
+
+    status = perps_wallet_api._status_payload()
+
+    assert status["node_reachable"] is False
+    assert status["error"] == "TauNetRpcError: tau down"
 
 
 def _perps_wallet_key_manager(*, second_pubkey: str = BOB) -> dict[str, object]:
