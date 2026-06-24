@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import asdict, replace
+from typing import TYPE_CHECKING
+
+import pytest
 
 from src.core.dex import DexState
 from src.runtime.authority import (
@@ -11,6 +14,9 @@ from src.runtime.authority import (
 )
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
+
+if TYPE_CHECKING:
+    from src.integration.perp_engine import PerpEngineConfig
 
 
 def _perp_stateful_policy(mode: AuthorityMode) -> AuthorityPolicy:
@@ -44,6 +50,32 @@ def _apply(*, state: DexState, tx_sender_pubkey: str, ops: list[dict[str, object
     assert res.ok is True, res.error
     assert res.state is not None
     return res.state
+
+
+def test_parse_perp_ops_wraps_expected_encoding_type_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.integration import perp_engine
+    from src.integration.perp_engine import parse_perp_ops
+
+    def _bad_encoding(_value: object, *, max_bytes: int) -> int:
+        raise TypeError("bad perps encoding")
+
+    monkeypatch.setattr(perp_engine, "bounded_json_utf8_size", _bad_encoding)
+
+    with pytest.raises(ValueError, match="invalid perps op 0: bad perps encoding"):
+        parse_perp_ops({"5": [_op("perp:parser", "init_market", quote_asset="0x" + "11" * 32)]})
+
+
+def test_parse_perp_ops_surfaces_unexpected_encoding_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.integration import perp_engine
+    from src.integration.perp_engine import parse_perp_ops
+
+    def _internal_fault(_value: object, *, max_bytes: int) -> int:
+        raise RuntimeError("perps encoder internal fault")
+
+    monkeypatch.setattr(perp_engine, "bounded_json_utf8_size", _internal_fault)
+
+    with pytest.raises(RuntimeError, match="perps encoder internal fault"):
+        parse_perp_ops({"5": [_op("perp:parser", "init_market", quote_asset="0x" + "11" * 32)]})
 
 
 def _with_oracle_snapshot(
@@ -171,7 +203,7 @@ def _perps_oracle_authorization_bundle(config: object, state: DexState, market_i
     return authorization_bundle(asdict(authorization))
 
 
-def _perps_settle_bridge_verifier(config: object, state: DexState, market_id: str):
+def _perps_settle_bridge_verifier(config: "PerpEngineConfig", state: DexState, market_id: str):
     from src.integration.perp_engine import (
         _ORACLE_PERPS_INDEX_QUERY_ID,
         _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
@@ -779,7 +811,7 @@ def test_apply_perp_ops_fail_closed_on_invalid_field_type() -> None:
     res = apply_perp_ops(
         config=cfg,
         state=state,
-        operations={"5": [_op(market_id, "advance_epoch", delta="1")]},  # type: ignore[arg-type]
+        operations={"5": [_op(market_id, "advance_epoch", delta="1")]},
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )
@@ -1523,7 +1555,7 @@ def test_apply_funding_auto_balanced_book_leaves_sink_unchanged() -> None:
     eff = res.effects[0]
     assert eff["raw_projected_net_funding_quote"] == 0
     assert eff["funding_sink_delta_quote"] == 0
-    m = res.state.perps.markets[market_id]  # type: ignore[union-attr]
+    m = res.state.perps.markets[market_id]
     assert _sink(m) == pre_sink  # equal & opposite funding nets to zero; sink untouched
     assert _sum_collateral(m) == _sum_collateral(pre)
 
@@ -1549,7 +1581,7 @@ def test_apply_funding_auto_positive_net_routes_to_sink() -> None:
     assert eff["net_position_base"] == 1_000
     assert eff["raw_projected_net_funding_quote"] == 10
     assert eff["funding_sink_delta_quote"] == 10
-    m = res.state.perps.markets[market_id]  # type: ignore[union-attr]
+    m = res.state.perps.markets[market_id]
     fee, inc, ins = _sink(m)
     assert (fee, inc, ins) == (pre_fee + 10, pre_inc + 10, pre_ins + 10)
     assert fee == inc  # identity fee_pool_quote == fee_income preserved
@@ -1575,7 +1607,7 @@ def test_apply_funding_auto_no_user_absorbs_residual() -> None:
     pre = state.perps.markets[market_id]
     res = _apply_result(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "apply_funding_auto")])
     assert res.ok is True, res.error
-    m = res.state.perps.markets[market_id]  # type: ignore[union-attr]
+    m = res.state.perps.markets[market_id]
     rate = int(res.effects[0]["funding_rate_bps"])
     index = int(pre.global_state["index_price_e8"])
     for pk in (alice, bob):
@@ -1774,7 +1806,7 @@ def test_apply_funding_auto_negative_net_prefunded_sink_succeeds() -> None:
     eff = res.effects[0]
     assert eff["raw_projected_net_funding_quote"] == -10
     assert eff["funding_sink_delta_quote"] == -10
-    m = res.state.perps.markets[market_id]  # type: ignore[union-attr]
+    m = res.state.perps.markets[market_id]
     fee, inc, ins = _sink(m)
     assert (fee, inc, ins) == (pre_fee - 10, pre_inc - 10, pre_ins - 10)
     assert fee == inc  # identity preserved

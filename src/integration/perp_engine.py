@@ -936,7 +936,7 @@ def parse_perp_ops(
             op_bytes = bounded_json_utf8_size(op_obj, max_bytes=max_op_bytes)
         except ValueError:
             raise ValueError(f"perps op {i} too large") from None
-        except Exception as exc:
+        except TypeError as exc:
             raise ValueError(f"invalid perps op {i}: {exc}") from exc
         total_bytes += op_bytes
         if total_bytes > max_total_ops_bytes:
@@ -1242,7 +1242,7 @@ def _perps_clearinghouse_settle_oracle_runtime_facts(
     quote_asset: str,
     state: Mapping[str, Any],
     participant_pubkeys: tuple[str, ...],
-) -> dict[str, object]:
+) -> dict[str, str | int]:
     action_id = _perps_clearinghouse_runtime_oracle_action_id(
         config,
         market_id=market_id,
