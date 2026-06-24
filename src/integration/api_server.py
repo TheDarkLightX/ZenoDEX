@@ -1276,7 +1276,7 @@ class _Handler(BaseHTTPRequestHandler):
                     cors_origin=cors_origin,
                 )
                 return True
-            except Exception as exc:
+            except (ImportError, TypeError, ValueError) as exc:
                 self._write_json(
                     400,
                     {"ok": False, "error": "impact_preview_error", "details": "request failed"},
@@ -1396,7 +1396,7 @@ class _Handler(BaseHTTPRequestHandler):
                     cors_origin=cors_origin,
                 )
                 return True
-            except Exception as exc:
+            except (ImportError, TypeError, ValueError) as exc:
                 self._write_json(
                     400,
                     {"ok": False, "error": "slippage_advice_error", "details": "request failed"},
@@ -1507,7 +1507,7 @@ class _Handler(BaseHTTPRequestHandler):
                     cors_origin=cors_origin,
                 )
                 return True
-            except Exception as exc:
+            except (ImportError, TypeError, ValueError) as exc:
                 self._write_json(
                     400,
                     {"ok": False, "error": "pokayoke_swap_suggest_error", "details": "request failed"},
@@ -1594,7 +1594,7 @@ class _Handler(BaseHTTPRequestHandler):
                     cors_origin=cors_origin,
                 )
                 return True
-            except Exception as exc:
+            except (ImportError, TypeError, ValueError) as exc:
                 self._write_json(
                     400,
                     {"ok": False, "error": "pokayoke_swap_suggest_heavy_error", "details": "request failed"},

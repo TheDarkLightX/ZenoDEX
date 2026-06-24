@@ -157,6 +157,36 @@ def test_dex_api_rejects_malformed_json_without_internal_error() -> None:
         _stop_test_server(httpd, t)
 
 
+def test_dex_impact_preview_validation_error_is_rejection() -> None:
+    httpd, t, host, port = _start_test_server(dex_enabled=True)
+    try:
+        conn = HTTPConnection(host, port, timeout=5.0)
+        conn.request(
+            "POST",
+            "/api/dex/impact_preview",
+            body=json.dumps(
+                {
+                    "reserve_in": 0,
+                    "reserve_out": 20_000,
+                    "amount_in": 100,
+                    "fee_bps": 30,
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+
+        assert resp.status == 400, body
+        assert body == {
+            "ok": False,
+            "error": "impact_preview_error",
+            "details": "request failed",
+        }
+    finally:
+        _stop_test_server(httpd, t)
+
+
 def test_dex_slippage_advice_ignores_uncoercible_slippage_options() -> None:
     httpd, t, host, port = _start_test_server(dex_enabled=True)
     try:
