@@ -2342,6 +2342,22 @@ def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monke
     assert err.startswith(f"swap_exact_in kernel error for intent_id={intent.intent_id}:")
     monkeypatch.undo()
 
+    def _unexpected_exact_in(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise RuntimeError("unexpected swap fault")
+
+    monkeypatch.setattr(strong_validator, "swap_exact_in_for_pool", _unexpected_exact_in)
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "strong validator crashed: RuntimeError: unexpected swap fault"
+    monkeypatch.undo()
+
     amount_out_mismatch = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
     amount_out_mismatch.fills[0].amount_out_filled += 1
     ok, err = validate_settlement_strong(
@@ -2681,6 +2697,27 @@ def test_strong_proof_carrying_exact_out_uses_mutated_pool_for_later_fill() -> N
     )
     assert ok is False
     assert err == f"swap witness reserve mismatch for intent_id={second_intent.intent_id}"
+
+
+def test_strong_validator_surfaces_unexpected_create_pool_fault(monkeypatch) -> None:
+    _pk, _asset0, _asset1, balances, intent, settlement = _setup_create_pool_context()
+
+    def _unexpected_create_pool(*_args: object, **_kwargs: object) -> tuple[str, PoolState, int]:
+        raise RuntimeError("unexpected create-pool fault")
+
+    monkeypatch.setattr(strong_validator, "create_pool", _unexpected_create_pool)
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+
+    assert ok is False
+    assert err == "strong validator crashed: RuntimeError: unexpected create-pool fault"
 
 
 def test_strong_validator_rejects_create_pool_field_and_fill_failures() -> None:
