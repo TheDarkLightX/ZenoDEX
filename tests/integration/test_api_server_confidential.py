@@ -4,6 +4,7 @@ import json
 import sys
 import threading
 from http.client import HTTPConnection
+from typing import Any, cast
 
 
 NITRO_PCR0 = "a" * 96
@@ -20,20 +21,20 @@ def _start_test_server():
     from src.state.confidential_requests import ConfidentialRequestTable
 
     httpd = api_server.ThreadingHTTPServer(("127.0.0.1", 0), api_server._Handler)
-    httpd.cors_origins = set()  # type: ignore[attr-defined]
-    httpd.rate_limiter = api_server.TokenBucketRateLimiter(rpm=0)  # type: ignore[attr-defined]
-    httpd.perps_api_enabled = False  # type: ignore[attr-defined]
-    httpd.perps_wallet_api_enabled = False  # type: ignore[attr-defined]
-    httpd.zusd_api_enabled = False  # type: ignore[attr-defined]
-    httpd.zusd_tau_wallet_api_enabled = False  # type: ignore[attr-defined]
-    httpd.zusd_monetary_wallet_api_enabled = False  # type: ignore[attr-defined]
-    httpd.autotrader_live_api_enabled = False  # type: ignore[attr-defined]
-    httpd.confidential_attestation_api_enabled = True  # type: ignore[attr-defined]
-    httpd.dex_api_enabled = False  # type: ignore[attr-defined]
-    httpd.demo_api_token = ""  # type: ignore[attr-defined]
-    httpd.confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()  # type: ignore[attr-defined]
-    httpd.confidential_request_table = ConfidentialRequestTable()  # type: ignore[attr-defined]
-    httpd.confidential_request_lock = threading.Lock()  # type: ignore[attr-defined]
+    httpd.cors_origins = set()
+    httpd.rate_limiter = api_server.TokenBucketRateLimiter(rpm=0)
+    httpd.perps_api_enabled = False
+    httpd.perps_wallet_api_enabled = False
+    httpd.zusd_api_enabled = False
+    httpd.zusd_tau_wallet_api_enabled = False
+    httpd.zusd_monetary_wallet_api_enabled = False
+    httpd.autotrader_live_api_enabled = False
+    httpd.confidential_attestation_api_enabled = True
+    httpd.dex_api_enabled = False
+    httpd.demo_api_token = ""
+    httpd.confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()
+    httpd.confidential_request_table = ConfidentialRequestTable()
+    httpd.confidential_request_lock = threading.Lock()
 
     t = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
     t.start()
@@ -207,6 +208,54 @@ def test_api_server_confidential_attestation_verify_accepts_allowlisted_external
         _stop_test_server(httpd, t)
 
 
+def test_api_server_confidential_attestation_rejects_age_wider_than_config(monkeypatch) -> None:
+    monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON", _verifier_cmd_json(epoch=9))
+    monkeypatch.setenv("CONFIDENTIAL_MAX_ATTESTATION_AGE_EPOCHS", "2")
+
+    request = {
+        **_attestation_request(),
+        "current_epoch": 12,
+        "max_attestation_age": 3,
+    }
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, body = _post_json(host, port, "/api/confidential/attestation/verify", request)
+
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "bad_request"
+        assert "max_attestation_age exceeds configured maximum" in str(body["details"])
+        assert "receipt" not in body
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_confidential_attestation_rejects_negative_max_age(monkeypatch) -> None:
+    monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON", _verifier_cmd_json(epoch=9))
+    monkeypatch.setenv("CONFIDENTIAL_MAX_ATTESTATION_AGE_EPOCHS", "2")
+
+    request = {
+        **_attestation_request(),
+        "current_epoch": 12,
+        "max_attestation_age": -1,
+    }
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, body = _post_json(host, port, "/api/confidential/attestation/verify", request)
+
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "bad_request"
+        assert "max_attestation_age must be nonnegative" in str(body["details"])
+        assert "receipt" not in body
+    finally:
+        _stop_test_server(httpd, t)
+
+
 def test_api_server_confidential_attestation_admit_consumes_request_and_rejects_replay(monkeypatch) -> None:
     monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
     monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
@@ -277,7 +326,7 @@ def test_api_server_confidential_attestation_execute_returns_bounded_runtime_rec
         status_resp = conn.getresponse()
         status_body = json.loads(status_resp.read().decode("utf-8"))
         assert status_resp.status == 200
-        status_payload = status_body["status"]
+        status_payload = cast(dict[str, Any], status_body["status"])
         status, body = _post_json(host, port, "/api/confidential/attestation/execute", _runtime_request())
         assert status == 200
         assert body["ok"] is True
@@ -288,13 +337,15 @@ def test_api_server_confidential_attestation_execute_returns_bounded_runtime_rec
         assert body["claim_scope"] == "local_testnet_external_verifier_bounded_runtime_receipt"
         assert body["execution_kind"] == "private_route_quote"
         assert body["result_code"] == "bounded_route_selected"
-        runtime_receipt = body["runtime_receipt"]
-        assert runtime_receipt["body"]["measurement_provider"] == "nitro"
-        assert runtime_receipt["body"]["result_redacted"] is True
-        assert runtime_receipt["body"]["operator_status_hash"] == status_payload["status_hash"]
-        assert runtime_receipt["body"]["approved_measurements_hash"] == status_payload["approved_measurements_hash"]
-        assert runtime_receipt["body"]["external_verifier_binding_hash"] == status_payload["external_verifier_binding_hash"]
-        assert runtime_receipt["body"]["public_summary"]["execution_admitted"] is True
+        runtime_receipt = cast(dict[str, Any], body["runtime_receipt"])
+        runtime_body = cast(dict[str, Any], runtime_receipt["body"])
+        public_summary = cast(dict[str, Any], runtime_body["public_summary"])
+        assert runtime_body["measurement_provider"] == "nitro"
+        assert runtime_body["result_redacted"] is True
+        assert runtime_body["operator_status_hash"] == status_payload["status_hash"]
+        assert runtime_body["approved_measurements_hash"] == status_payload["approved_measurements_hash"]
+        assert runtime_body["external_verifier_binding_hash"] == status_payload["external_verifier_binding_hash"]
+        assert public_summary["execution_admitted"] is True
         assert body["runtime_receipt_hash"] == runtime_receipt["receipt_hash"]
         assert body["operator_status_hash"] == status_payload["status_hash"]
         assert body["approved_measurements_hash"] == status_payload["approved_measurements_hash"]

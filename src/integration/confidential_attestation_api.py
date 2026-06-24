@@ -187,6 +187,16 @@ def _request_int(body: Mapping[str, Any], *, name: str) -> int:
     return int(value)
 
 
+def _request_max_attestation_age(body: Mapping[str, Any]) -> int:
+    requested = _request_int(body, name="max_attestation_age")
+    if requested < 0:
+        raise ValueError("max_attestation_age must be nonnegative")
+    configured = int(load_confidential_feature_status_from_env().max_attestation_age_epochs)
+    if requested > configured:
+        raise ValueError("max_attestation_age exceeds configured maximum")
+    return requested
+
+
 def _status_payload() -> dict[str, Any]:
     status = load_confidential_feature_status_from_env()
     public_status = status.to_public_dict()
@@ -225,7 +235,7 @@ def _make_receipt_from_body(body: Mapping[str, Any]) -> tuple[dict[str, Any] | N
             nonce_unused=_request_int(body, name="nonce_unused"),
             output_bound_ok=_request_int(body, name="output_bound_ok"),
             current_epoch=_request_int(body, name="current_epoch"),
-            max_attestation_age=_request_int(body, name="max_attestation_age"),
+            max_attestation_age=_request_max_attestation_age(body),
             fee_charged=_request_int(body, name="fee_charged"),
             receipt_fee=_request_int(body, name="receipt_fee"),
             credit_before=_request_int(body, name="credit_before"),
