@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from src.kernels.python import exact_out_many_pool_projection_cover_audit_v1
 from src.kernels.python.exact_out_many_pool_projection_cover_audit_v1 import (
     audit_exact_out_many_pool_projection_cover,
     audit_exact_out_many_pool_cpmm_projection_cover,
@@ -144,6 +145,76 @@ def test_runtime_projection_cover_wrapper_holds_after_mixed_curve_selection() ->
 
     assert audit.projection_cover_holds is True
     assert audit.selected_pool_ids == ("pool_a", "pool_b")
+
+
+def test_reachable_projected_paths_skip_expected_quote_domain_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pools = (
+        _pool(pid="pool_a", r0=40, r1=20),
+        _pool(pid="pool_b", r0=40, r1=63),
+    )
+
+    def _quote_or_reject(pool: PoolState, **kwargs: object) -> tuple[int, tuple[int, int]]:
+        amount_out = kwargs["amount_out"]
+        if not isinstance(amount_out, int):
+            raise TypeError("amount_out must be int")
+        if amount_out != 3:
+            raise ValueError("projection quote domain")
+        return 2 if pool.pool_id == "pool_b" else 5, (1, 1)
+
+    monkeypatch.setattr(
+        exact_out_many_pool_projection_cover_audit_v1,
+        "swap_exact_out_for_pool",
+        _quote_or_reject,
+    )
+
+    reachable = enumerate_exact_out_many_pool_reachable_projected_paths(
+        pools,
+        asset_in="A",
+        asset_out="B",
+        amount_out_total=3,
+        max_legs=2,
+        max_selected_pools=3,
+    )
+
+    assert reachable == (
+        (("pool_a", 3, 5),),
+        (("pool_b", 3, 2),),
+    )
+
+
+def test_reachable_projected_paths_surface_unexpected_quote_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pools = (
+        _pool(pid="pool_a", r0=40, r1=20),
+        _pool(pid="pool_b", r0=40, r1=63),
+    )
+
+    def _quote_or_boom(_pool: PoolState, **kwargs: object) -> tuple[int, tuple[int, int]]:
+        amount_out = kwargs["amount_out"]
+        if not isinstance(amount_out, int):
+            raise TypeError("amount_out must be int")
+        if amount_out == 3:
+            return 2, (1, 1)
+        raise RuntimeError("projection quote internal fault")
+
+    monkeypatch.setattr(
+        exact_out_many_pool_projection_cover_audit_v1,
+        "swap_exact_out_for_pool",
+        _quote_or_boom,
+    )
+
+    with pytest.raises(RuntimeError, match="projection quote internal fault"):
+        enumerate_exact_out_many_pool_reachable_projected_paths(
+            pools,
+            asset_in="A",
+            asset_out="B",
+            amount_out_total=3,
+            max_legs=2,
+            max_selected_pools=3,
+        )
 
 
 def test_selected_domain_cpmm_projection_cover_enforces_selected_pool_bound() -> None:

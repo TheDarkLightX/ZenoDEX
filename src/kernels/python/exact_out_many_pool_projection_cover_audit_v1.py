@@ -95,7 +95,7 @@ def _selected_domain_quote_env(
                 reserve_out=int(reserves[1]),
                 amount_out=amount_out_i,
             )
-        except Exception:
+        except (TypeError, ValueError):
             quote_cache[key] = None
             return None
         amount_in_i = int(amount_in)
