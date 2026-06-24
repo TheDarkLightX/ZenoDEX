@@ -332,6 +332,77 @@ def test_fast_v1_exact_out_propagates_unexpected_quote_error(monkeypatch: pytest
         )
 
 
+@pytest.mark.parametrize("bad_value", [True, "8", 8.5])
+def test_fast_v1_rejects_non_int_cache_limit(bad_value: object) -> None:
+    with pytest.raises(ValueError, match="max_cache_pairs must be an int"):
+        FastQuoteRouterV1(max_cache_pairs=bad_value)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("field", "bad_value", "message"),
+    [
+        ("topk_max", True, "topk_max must be an int"),
+        ("topk_max", "8", "topk_max must be an int"),
+        ("max_pairs_per_mid", True, "max_pairs_per_mid must be an int"),
+        ("max_pairs_per_mid", "100", "max_pairs_per_mid must be an int"),
+        ("max_union_candidates", True, "max_union_candidates must be an int"),
+        ("max_union_candidates", 100.0, "max_union_candidates must be an int"),
+    ],
+)
+def test_fast_v1_exact_in_rejects_non_int_search_limits(field: str, bad_value: object, message: str) -> None:
+    pytest.importorskip("numpy")
+    asset_in = "A_IN"
+    asset_out = "A_OUT"
+    pool = _mk_pool(pool_id="P0", a0=asset_in, a1=asset_out, r0=1_000_000, r1=1_000_000, fee_bps=30)
+    kwargs = {
+        "pools_by_id": {pool.pool_id: pool},
+        "asset_in": asset_in,
+        "asset_out": asset_out,
+        "amount_in": 100,
+        "topk_max": 8,
+        "max_pairs_per_mid": 10,
+        "max_union_candidates": 10,
+    }
+    kwargs[field] = bad_value
+
+    router = FastQuoteRouterV1(max_cache_pairs=8)
+    with pytest.raises(ValueError, match=message):
+        router.quote_exact_in_2hop_fast_v1(**kwargs)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("field", "bad_value", "message"),
+    [
+        ("topk_max", False, "topk_max must be an int"),
+        ("topk_max", "8", "topk_max must be an int"),
+        ("max_pairs_per_mid", False, "max_pairs_per_mid must be an int"),
+        ("max_pairs_per_mid", "100", "max_pairs_per_mid must be an int"),
+        ("max_union_candidates", False, "max_union_candidates must be an int"),
+        ("max_union_candidates", 100.0, "max_union_candidates must be an int"),
+    ],
+)
+def test_fast_v1_exact_out_rejects_non_int_search_limits(field: str, bad_value: object, message: str) -> None:
+    pytest.importorskip("numpy")
+    asset_in = "A_IN"
+    asset_out = "A_OUT"
+    pool = _mk_pool(pool_id="P0", a0=asset_in, a1=asset_out, r0=1_000_000, r1=1_000_000, fee_bps=30)
+    kwargs = {
+        "pools_by_id": {pool.pool_id: pool},
+        "asset_in": asset_in,
+        "asset_out": asset_out,
+        "amount_out": 100,
+        "topk_max": 8,
+        "apply_two_hop_gate": False,
+        "max_pairs_per_mid": 10,
+        "max_union_candidates": 10,
+    }
+    kwargs[field] = bad_value
+
+    router = FastQuoteRouterV1(max_cache_pairs=8)
+    with pytest.raises(ValueError, match=message):
+        router.quote_exact_out_2hop_fast_v1(**kwargs)  # type: ignore[arg-type]
+
+
 def test_fast_v1_exact_out_micro_amount_out_boundary_values() -> None:
     pytest.importorskip("numpy")
     from src.integration.fast_quote_router_v1 import EXACT_OUT_MICRO_AMOUNT_OUT_MAX

@@ -60,6 +60,12 @@ EXACT_OUT_MICRO_AMOUNT_OUT_MAX = 100
 EXACT_OUT_MICRO_MAX_TOTAL_PAIRS = 250_000
 
 
+def _strict_int_config(value: int, *, name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{name} must be an int")
+    return int(value)
+
+
 def _dir_reserves_cpmm(pool: PoolState, *, asset_in: AssetId, asset_out: AssetId) -> Optional[Tuple[int, int]]:
     if pool.curve_tag != CURVE_TAG_CPMM:
         return None
@@ -231,7 +237,7 @@ class FastQuoteRouterV1:
     """
 
     def __init__(self, *, max_cache_pairs: int = 32) -> None:
-        self._max_cache_pairs = int(max(1, max_cache_pairs))
+        self._max_cache_pairs = max(1, _strict_int_config(max_cache_pairs, name="max_cache_pairs"))
         self._lock = threading.Lock()
         self._pair_cache: "OrderedDict[Tuple[str, str, str], _PreparedPair]" = OrderedDict()
 
@@ -375,15 +381,15 @@ class FastQuoteRouterV1:
             return None
         if asset_in == asset_out:
             return None
-        kmax = int(topk_max)
+        kmax = _strict_int_config(topk_max, name="topk_max")
         if kmax <= 0:
             kmax = 32
         if kmax > 4096:
             kmax = 4096
-        max_pairs_mid = int(max_pairs_per_mid)
+        max_pairs_mid = _strict_int_config(max_pairs_per_mid, name="max_pairs_per_mid")
         if max_pairs_mid <= 0:
             max_pairs_mid = int(MAX_PAIRS_PER_MID_DEFAULT)
-        max_union = int(max_union_candidates)
+        max_union = _strict_int_config(max_union_candidates, name="max_union_candidates")
         if max_union <= 0:
             max_union = int(MAX_UNION_CANDIDATES_DEFAULT)
 
@@ -666,15 +672,15 @@ class FastQuoteRouterV1:
             return None
         if asset_in == asset_out:
             return None
-        kmax = int(topk_max)
+        kmax = _strict_int_config(topk_max, name="topk_max")
         if kmax <= 0:
             kmax = 32
         if kmax > 4096:
             kmax = 4096
-        max_pairs_mid = int(max_pairs_per_mid)
+        max_pairs_mid = _strict_int_config(max_pairs_per_mid, name="max_pairs_per_mid")
         if max_pairs_mid <= 0:
             max_pairs_mid = int(MAX_PAIRS_PER_MID_DEFAULT)
-        max_union = int(max_union_candidates)
+        max_union = _strict_int_config(max_union_candidates, name="max_union_candidates")
         if max_union <= 0:
             max_union = int(MAX_UNION_CANDIDATES_DEFAULT)
 
