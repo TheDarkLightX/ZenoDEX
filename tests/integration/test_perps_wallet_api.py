@@ -2197,6 +2197,23 @@ def test_status_sanitizes_internal_node_fault(monkeypatch) -> None:
     assert "do not leak" not in str(payload)
 
 
+def test_handler_sanitizes_unexpected_internal_fault(monkeypatch) -> None:
+    def _faulting_parse(_body):
+        raise RuntimeError("do not leak perps handler internals")
+
+    monkeypatch.setattr(perps_wallet_api, "_parse_json_body", _faulting_parse)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/prepare",
+        b"{}",
+    )
+
+    assert status_code == 500
+    assert payload == {"ok": False, "error": "internal_error", "detail": "RuntimeError"}
+    assert "do not leak" not in str(payload)
+
+
 def test_prepare_np_submit_intent_builds_v12_sender_bound_operation(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_with_np_market_and_collateral(quote_asset=quote_asset))

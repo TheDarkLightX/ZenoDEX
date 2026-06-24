@@ -2109,6 +2109,10 @@ def _safe_boundary_error(exc: Exception) -> str:
     return msg or "internal error"
 
 
+def _safe_internal_detail(exc: Exception) -> str:
+    return type(exc).__name__
+
+
 def _preflight(
     *,
     app_state: Mapping[str, Any],
@@ -3614,3 +3618,5 @@ def handle_perps_wallet_request(method: str, path: str, body: Optional[bytes]) -
         return 400, {"ok": False, "error": str(exc)}
     except TauNetRpcError as exc:
         return 502, {"ok": False, "error": "tau_rpc_error", "detail": str(exc)}
+    except Exception as exc:
+        return 500, {"ok": False, "error": "internal_error", "detail": _safe_internal_detail(exc)}
