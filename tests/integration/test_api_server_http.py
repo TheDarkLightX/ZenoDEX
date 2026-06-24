@@ -223,6 +223,45 @@ def test_dex_pokayoke_suggest_ignores_uncoercible_slippage_options() -> None:
         _stop_test_server(httpd, t)
 
 
+def test_dex_proof_mining_payout_template_rejects_bad_pubkeys() -> None:
+    httpd, t, host, port = _start_test_server(dex_enabled=True)
+    valid_pubkey = "0x" + "11" * 48
+    try:
+        cases = (
+            (
+                {
+                    "chain_id": "local-testnet",
+                    "tx_sender_pubkey": "not-a-pubkey",
+                    "reward_pool_pubkey": valid_pubkey,
+                },
+                "bad_tx_sender_pubkey",
+            ),
+            (
+                {
+                    "chain_id": "local-testnet",
+                    "tx_sender_pubkey": valid_pubkey,
+                    "reward_pool_pubkey": "not-a-pubkey",
+                },
+                "bad_reward_pool_pubkey",
+            ),
+        )
+        for request_body, expected_error in cases:
+            conn = HTTPConnection(host, port, timeout=5.0)
+            conn.request(
+                "POST",
+                "/api/dex/proof_mining_payout_template",
+                body=json.dumps(request_body).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+            )
+            resp = conn.getresponse()
+            body = json.loads(resp.read().decode("utf-8"))
+
+            assert resp.status == 400, body
+            assert body == {"ok": False, "error": expected_error}
+    finally:
+        _stop_test_server(httpd, t)
+
+
 def _funded_perps_app_state_json() -> tuple[str, str, str, str]:
     """Build a wrapped app_state with a 2p market where account_a holds quote.
 

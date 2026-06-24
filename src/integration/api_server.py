@@ -1712,14 +1712,14 @@ class _Handler(BaseHTTPRequestHandler):
                     tx_sender_pubkey = canonical_hex_fixed_allow_0x(
                         tx_sender_pubkey, nbytes=48, name="tx_sender_pubkey"
                     )
-                except Exception:
+                except (TypeError, ValueError):
                     self._write_json(400, {"ok": False, "error": "bad_tx_sender_pubkey"}, cors_origin=cors_origin)
                     return True
                 try:
                     reward_pool_pubkey = canonical_hex_fixed_allow_0x(
                         reward_pool_pubkey, nbytes=48, name="reward_pool_pubkey"
                     )
-                except Exception:
+                except (TypeError, ValueError):
                     self._write_json(400, {"ok": False, "error": "bad_reward_pool_pubkey"}, cors_origin=cors_origin)
                     return True
                 # The reward pool and the recipient must be distinct accounts: a
