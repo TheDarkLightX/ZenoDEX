@@ -223,31 +223,76 @@ def _status_payload() -> dict[str, Any]:
 def _make_receipt_from_body(body: Mapping[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
     try:
         attestation_payload = _request_mapping(body, name="attestation_payload")
+        extension_id = _request_str(body, name="extension_id")
+        provider_id = _request_str(body, name="provider_id")
+        request_id = _request_str(body, name="request_id")
+        policy_version = _request_str(body, name="policy_version")
+        do_execute = _request_int(body, name="do_execute")
+        policy_ok = _request_int(body, name="policy_ok")
+        nonce_unused = _request_int(body, name="nonce_unused")
+        output_bound_ok = _request_int(body, name="output_bound_ok")
+        current_epoch = _request_int(body, name="current_epoch")
+        max_attestation_age = _request_max_attestation_age(body)
+        fee_charged = _request_int(body, name="fee_charged")
+        receipt_fee = _request_int(body, name="receipt_fee")
+        credit_before = _request_int(body, name="credit_before")
+        credit_after = _request_int(body, name="credit_after")
+        provider_balance_before = _request_int(body, name="provider_balance_before")
+        provider_balance_after = _request_int(body, name="provider_balance_after")
+    except (KeyError, TypeError, ValueError) as exc:
+        return None, f"bad_request: {exc}"
+
+    verifier = make_confidential_attestation_verifier(_verifier_config_from_env())
+    try:
         receipt, err = verify_and_make_confidential_extension_receipt(
-            verifier=make_confidential_attestation_verifier(_verifier_config_from_env()),
+            verifier=verifier,
             attestation_payload=attestation_payload,
-            extension_id=_request_str(body, name="extension_id"),
-            provider_id=_request_str(body, name="provider_id"),
-            request_id=_request_str(body, name="request_id"),
-            policy_version=_request_str(body, name="policy_version"),
-            do_execute=_request_int(body, name="do_execute"),
-            policy_ok=_request_int(body, name="policy_ok"),
-            nonce_unused=_request_int(body, name="nonce_unused"),
-            output_bound_ok=_request_int(body, name="output_bound_ok"),
-            current_epoch=_request_int(body, name="current_epoch"),
-            max_attestation_age=_request_max_attestation_age(body),
-            fee_charged=_request_int(body, name="fee_charged"),
-            receipt_fee=_request_int(body, name="receipt_fee"),
-            credit_before=_request_int(body, name="credit_before"),
-            credit_after=_request_int(body, name="credit_after"),
-            provider_balance_before=_request_int(body, name="provider_balance_before"),
-            provider_balance_after=_request_int(body, name="provider_balance_after"),
+            extension_id=extension_id,
+            provider_id=provider_id,
+            request_id=request_id,
+            policy_version=policy_version,
+            do_execute=do_execute,
+            policy_ok=policy_ok,
+            nonce_unused=nonce_unused,
+            output_bound_ok=output_bound_ok,
+            current_epoch=current_epoch,
+            max_attestation_age=max_attestation_age,
+            fee_charged=fee_charged,
+            receipt_fee=receipt_fee,
+            credit_before=credit_before,
+            credit_after=credit_after,
+            provider_balance_before=provider_balance_before,
+            provider_balance_after=provider_balance_after,
         )
-    except Exception as exc:
+    except (KeyError, TypeError, ValueError) as exc:
         return None, f"bad_request: {exc}"
 
     if err is not None or receipt is None:
         return None, str(err or "rejected")
+    return receipt, None
+
+
+def _receipt_error_response(err: str | None) -> ResponseT:
+    if err and err.startswith("bad_request: "):
+        return 400, {"ok": False, "error": "bad_request", "details": err.removeprefix("bad_request: ")}
+    return 502, {"ok": False, "error": "attestation_verifier_rejected", "details": str(err or "rejected")}
+
+
+def _receipt_from_body_or_response(body: Mapping[str, Any]) -> tuple[dict[str, Any] | None, ResponseT | None]:
+    try:
+        receipt, err = _make_receipt_from_body(body)
+    except ValueError as exc:
+        return None, (
+            500,
+            {"ok": False, "error": "invalid_confidential_attestation_config", "detail": str(exc)},
+        )
+    except Exception as exc:
+        return None, (
+            500,
+            {"ok": False, "error": "confidential_attestation_internal_error", "detail": type(exc).__name__},
+        )
+    if err is not None or receipt is None:
+        return None, _receipt_error_response(err)
     return receipt, None
 
 
@@ -310,11 +355,9 @@ def _request_key_from_receipt(receipt: Mapping[str, Any]) -> ConfidentialRequest
 
 
 def _handle_verify(body: Mapping[str, Any]) -> ResponseT:
-    receipt, err = _make_receipt_from_body(body)
-    if err is not None or receipt is None:
-        if err and err.startswith("bad_request: "):
-            return 400, {"ok": False, "error": "bad_request", "details": err.removeprefix("bad_request: ")}
-        return 502, {"ok": False, "error": "attestation_verifier_rejected", "details": str(err or "rejected")}
+    receipt, err_response = _receipt_from_body_or_response(body)
+    if err_response is not None or receipt is None:
+        return err_response or _receipt_error_response("rejected")
 
     ok, gate_error = _verify_receipt_allowlist(receipt)
     if not ok:
@@ -344,11 +387,9 @@ def _handle_admit(
     except Exception as exc:
         return 400, {"ok": False, "error": "bad_request", "details": str(exc)}
 
-    receipt, err = _make_receipt_from_body(body)
-    if err is not None or receipt is None:
-        if err and err.startswith("bad_request: "):
-            return 400, {"ok": False, "error": "bad_request", "details": err.removeprefix("bad_request: ")}
-        return 502, {"ok": False, "error": "attestation_verifier_rejected", "details": str(err or "rejected")}
+    receipt, err_response = _receipt_from_body_or_response(body)
+    if err_response is not None or receipt is None:
+        return err_response or _receipt_error_response("rejected")
 
     status = load_confidential_feature_status_from_env()
     public_status = status.to_public_dict()
@@ -399,11 +440,9 @@ def _handle_execute(
     except Exception as exc:
         return 400, {"ok": False, "error": "bad_request", "details": str(exc)}
 
-    receipt, err = _make_receipt_from_body(body)
-    if err is not None or receipt is None:
-        if err and err.startswith("bad_request: "):
-            return 400, {"ok": False, "error": "bad_request", "details": err.removeprefix("bad_request: ")}
-        return 502, {"ok": False, "error": "attestation_verifier_rejected", "details": str(err or "rejected")}
+    receipt, err_response = _receipt_from_body_or_response(body)
+    if err_response is not None or receipt is None:
+        return err_response or _receipt_error_response("rejected")
 
     status = load_confidential_feature_status_from_env()
     public_status = status.to_public_dict()
