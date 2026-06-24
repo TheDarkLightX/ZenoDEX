@@ -37,7 +37,7 @@ def _count_profile_calls(
             search_profile=search_profile,
         )
     finally:
-        split_routing_mod.exact_out_for_pool_exact_in = orig  # type: ignore[assignment]
+        split_routing_mod.exact_out_for_pool_exact_in = orig
     return result, int(calls["n"])
 
 
@@ -50,6 +50,44 @@ def test_split_matches_bruteforce_small():
         best_out, best_a = best_split_two_pools_exact_in(p0, p1, amt, window=64)
         assert best_out == best_out_bf
         assert best_a == best_a_bf
+
+
+def test_bruteforce_split_propagates_unexpected_quote_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    p0 = PoolXY(x=1000, y=1000, fee_bps=0)
+    p1 = PoolXY(x=1000, y=1000, fee_bps=0)
+
+    def _programming_error(_pool: PoolXY, _amount: int) -> int:
+        raise RuntimeError("split quote bug")
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", _programming_error)
+
+    with pytest.raises(RuntimeError, match="split quote bug"):
+        brute_force_best_split_two_pools_exact_in(p0, p1, 10)
+
+
+def test_min_valid_amount_propagates_unexpected_quote_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    pool = PoolXY(x=1000, y=1000, fee_bps=0)
+
+    def _programming_error(_pool: PoolXY, _amount: int) -> int:
+        raise RuntimeError("split quote bug")
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", _programming_error)
+
+    with pytest.raises(RuntimeError, match="split quote bug"):
+        split_routing_mod._min_valid_amount_for_pool(pool=pool, amount_in_total=10)
+
+
+def test_best_split_propagates_unexpected_quote_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    p0 = PoolXY(x=1000, y=1000, fee_bps=0)
+    p1 = PoolXY(x=1000, y=1000, fee_bps=0)
+
+    def _programming_error(_pool: PoolXY, _amount: int) -> int:
+        raise RuntimeError("split quote bug")
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", _programming_error)
+
+    with pytest.raises(RuntimeError, match="split quote bug"):
+        best_split_two_pools_exact_in(p0, p1, 5000, search_profile="baseline")
 
 
 def test_split_can_beat_single_pool():
