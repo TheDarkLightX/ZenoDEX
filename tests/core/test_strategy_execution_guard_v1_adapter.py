@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import ast
+import inspect
+from typing import Any, cast
+
 import pytest
 
+from src.kernels.python import strategy_execution_guard_v1_adapter
 from src.kernels.python.strategy_execution_guard_v1_adapter import check_order_execution
 
 
@@ -124,7 +129,7 @@ def test_check_order_execution_rejects_invalid_ranges_and_types() -> None:
         )
     with pytest.raises(TypeError, match="current_epoch must be an int"):
         check_order_execution(
-            current_epoch="10",
+            current_epoch=cast(Any, "10"),
             valid_from_epoch=1,
             valid_until_epoch=100,
             last_action_epoch=None,
@@ -144,3 +149,8 @@ def test_check_order_execution_rejects_invalid_ranges_and_types() -> None:
             projected_live_orders=1,
             max_live_orders=3,
         )
+
+
+def test_strategy_execution_guard_adapter_has_no_strippable_asserts() -> None:
+    tree = ast.parse(inspect.getsource(strategy_execution_guard_v1_adapter))
+    assert not [node for node in ast.walk(tree) if isinstance(node, ast.Assert)]
