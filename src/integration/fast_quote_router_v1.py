@@ -79,7 +79,7 @@ def _quote_exact_in_onehop(pool: PoolState, *, asset_in: AssetId, asset_out: Ass
     rin, rout = r
     try:
         out, _ = swap_exact_in_for_pool(pool, reserve_in=int(rin), reserve_out=int(rout), amount_in=int(amount_in))
-    except Exception:
+    except ValueError:
         return None
     return int(out)
 
@@ -101,7 +101,7 @@ def _quote_exact_in_twohop(
     try:
         out_mid, _ = swap_exact_in_for_pool(p1, reserve_in=int(r1[0]), reserve_out=int(r1[1]), amount_in=int(amount_in))
         out_final, _ = swap_exact_in_for_pool(p2, reserve_in=int(r2[0]), reserve_out=int(r2[1]), amount_in=int(out_mid))
-    except Exception:
+    except ValueError:
         return None
     return int(out_mid), int(out_final)
 
@@ -115,7 +115,7 @@ def _quote_exact_out_onehop(pool: PoolState, *, asset_in: AssetId, asset_out: As
     rin, rout = r
     try:
         inn, _ = swap_exact_out_for_pool(pool, reserve_in=int(rin), reserve_out=int(rout), amount_out=int(amount_out))
-    except Exception:
+    except ValueError:
         return None
     return int(inn)
 
@@ -135,7 +135,7 @@ def _quote_exact_out_twohop(
         return None
     try:
         mid_in, _ = swap_exact_out_for_pool(p2, reserve_in=int(r2[0]), reserve_out=int(r2[1]), amount_out=int(amount_out))
-    except Exception:
+    except ValueError:
         return None
 
     r1 = _dir_reserves_cpmm(p1, asset_in=asset_in, asset_out=mid)
@@ -143,7 +143,7 @@ def _quote_exact_out_twohop(
         return None
     try:
         amt_in, _ = swap_exact_out_for_pool(p1, reserve_in=int(r1[0]), reserve_out=int(r1[1]), amount_out=int(mid_in))
-    except Exception:
+    except ValueError:
         return None
     return int(amt_in), int(mid_in)
 
@@ -244,7 +244,7 @@ class FastQuoteRouterV1:
     ) -> _PreparedPair:
         try:
             import numpy as np  # type: ignore
-        except Exception as exc:  # pragma: no cover - optional dependency
+        except ImportError as exc:  # pragma: no cover - optional dependency
             raise RuntimeError("numpy not available") from exc
 
         snap = _snapshot_digest_for_sorted_pools(pools_sorted)
@@ -392,7 +392,7 @@ class FastQuoteRouterV1:
 
         try:
             import numpy as np  # type: ignore
-        except Exception:
+        except ImportError:
             return None
 
         prepared = self._get_or_build_prepared(pools_sorted=pools_sorted, asset_in=asset_in, asset_out=asset_out)
@@ -683,7 +683,7 @@ class FastQuoteRouterV1:
 
         try:
             import numpy as np  # type: ignore
-        except Exception:
+        except ImportError:
             return None
 
         prepared = self._get_or_build_prepared(pools_sorted=pools_sorted, asset_in=asset_in, asset_out=asset_out)
