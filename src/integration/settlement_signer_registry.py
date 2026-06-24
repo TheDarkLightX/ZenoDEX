@@ -655,7 +655,12 @@ class TauNetSettlementSignerRegistrySnapshotLoader:
         _require_anchor_matches_request(anchor=anchor, request=request)
         _require_snapshot_matches_anchor(snapshot=snapshot, anchor=anchor)
         if self._require_state_proof:
-            assert state_proof_view is not None
+            state_proof_view = _require_loaded_state_proof_view(
+                state_proof_view=state_proof_view,
+                app_state_view=app_state_view,
+                request=request,
+                bridge_key=self._bridge_key,
+            )
             if not state_proof_view.present:
                 raise ValueError(
                     _format_binding_error(
@@ -683,8 +688,18 @@ class TauNetSettlementSignerRegistrySnapshotLoader:
                     )
                 )
         if self._require_tau_state_app_hash_binding:
-            assert tau_state_view is not None
-            assert state_proof_view is not None
+            tau_state_view = _require_loaded_tau_state_view(
+                tau_state_view=tau_state_view,
+                app_state_view=app_state_view,
+                request=request,
+                bridge_key=self._bridge_key,
+            )
+            state_proof_view = _require_loaded_state_proof_view(
+                state_proof_view=state_proof_view,
+                app_state_view=app_state_view,
+                request=request,
+                bridge_key=self._bridge_key,
+            )
             try:
                 computed_tau_state_hash = compute_tau_state_commitment_hash_hex(
                     rules=tau_state_view.rules,
@@ -1155,6 +1170,48 @@ def _require_tau_app_state_view(
         )
 
 
+def _require_loaded_state_proof_view(
+    *,
+    state_proof_view: TauNetStateProofView | None,
+    app_state_view: TauNetAppStateView,
+    request: SettlementSignerRegistrySnapshotRequest,
+    bridge_key: str,
+) -> TauNetStateProofView:
+    if state_proof_view is None:
+        raise ValueError(
+            _format_binding_error(
+                "Tau state proof view missing for settlement signer registry bridge",
+                details={
+                    **request.to_dict(),
+                    "tau_app_hash": app_state_view.app_hash,
+                    "bridge_key": bridge_key,
+                },
+            )
+        )
+    return state_proof_view
+
+
+def _require_loaded_tau_state_view(
+    *,
+    tau_state_view: TauNetTauStateView | None,
+    app_state_view: TauNetAppStateView,
+    request: SettlementSignerRegistrySnapshotRequest,
+    bridge_key: str,
+) -> TauNetTauStateView:
+    if tau_state_view is None:
+        raise ValueError(
+            _format_binding_error(
+                "Tau state view missing for settlement signer registry bridge app-hash binding",
+                details={
+                    **request.to_dict(),
+                    "tau_app_hash": app_state_view.app_hash,
+                    "bridge_key": bridge_key,
+                },
+            )
+        )
+    return tau_state_view
+
+
 def _require_anchor_matches_request(
     *,
     anchor: SettlementSignerRegistryAnchor,
@@ -1367,7 +1424,7 @@ def _json_rpc_post_json(
         ) from exc
     try:
         return json.loads(raw.decode("utf-8"))
-    except Exception as exc:
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError(
             _format_binding_error(
                 "attestation registry json-rpc response is not valid json",
