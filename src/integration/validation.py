@@ -29,8 +29,21 @@ from .settlement_strong_certificate import (
     SettlementProofFlags,
 )
 
+_MAX_VALIDATION_ERROR_CHARS = 512
+
 if TYPE_CHECKING:
     from .tau_gate import TauGateConfig
+
+
+def _safe_validation_error(exc: Exception) -> str:
+    if isinstance(exc, (ValueError, TypeError, KeyError)):
+        msg = str(exc)
+    else:
+        msg = f"internal error: {type(exc).__name__}"
+    msg = " ".join((msg or "").split())
+    if len(msg) > _MAX_VALIDATION_ERROR_CHARS:
+        msg = msg[:_MAX_VALIDATION_ERROR_CHARS]
+    return msg or "internal error"
 
 
 def validate_operations(
@@ -94,7 +107,7 @@ def validate_operations(
             try:
                 cert = UniformBatchCertificateV1.from_obj(uniform_batch_certificate)
             except Exception as exc:
-                return False, f"invalid uniform batch certificate: {exc}"
+                return False, f"invalid uniform batch certificate: {_safe_validation_error(exc)}"
             if (
                 cert.policy_id == UNIFORM_BATCH_POLICY_V2_ID
                 and not allow_uniform_batch_partial_fill_certificate
@@ -126,7 +139,7 @@ def validate_operations(
                     allow_snapshot_bound_quote_bindings=bool(quote_bindings_validated),
                 )
             except Exception as exc:
-                return False, f"invalid settlement end-to-end certificate inputs: {exc}"
+                return False, f"invalid settlement end-to-end certificate inputs: {_safe_validation_error(exc)}"
         else:
             # Validate settlement (fail-closed): bind deltas to intents + kernel-backed swap math.
             is_valid, error = validate_settlement_strong(
