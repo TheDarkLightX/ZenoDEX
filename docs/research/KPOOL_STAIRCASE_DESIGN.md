@@ -23,23 +23,33 @@ sorted `(pool_id, amount)` leg tuple among equal-output optima).
   - Small domain (`D <= 512`): exact DP, `O(k * D^2)` time and space.
   - Larger domain: greedy step refinement, NOT exact.
 
-## Key Insight: At Most One Interior Pool
+## Key Insight: Dominated Staircase Representative
 
 For CPMM exact-in, each `f_i` is a monotone integer staircase: between
 consecutive jump points of `f_i`, the output is constant. Call pool `i`
 *interior* at allocation `a_i` if `a_i` is strictly inside a plateau of `f_i`
 (not at the plateau's left edge).
 
-**Theorem (informal):** In any optimal allocation, at most one pool is
-interior. All other positive pools sit at a jump-point left edge of their own
-staircase.
+**Theorem (informal, mechanized in Lean):** For every feasible exact-budget
+allocation, there exists a *staircase allocation* (non-interior pools at
+jump-point left edges, one interior pool absorbing the residual) that spends
+exactly D and weakly dominates it in total output. The optimizer searches the
+finite staircase space and selects the canonical best, which is at least as
+good as any feasible allocation.
 
-**Proof sketch:** Suppose pools `i` and `j` are both interior. Then
-`f_i(a_i - δ) = f_i(a_i)` and `f_j(a_j - δ) = f_j(a_j)` for small `δ > 0`
-(both sit in plateaus). Move `δ` from the pool with the smaller next-jump
-marginal to the pool with the larger next-jump marginal. Total output weakly
-increases; on a tie, the canonical leftmost tie-break strictly improves. So a
-two-interior allocation cannot be the canonical optimum.
+**Proof sketch:** Given any feasible allocation, left-cover each non-interior
+pool by a jump-point candidate with the same output (LeftCovers hypothesis).
+The freed input is routed to the interior pool, whose output is monotone
+nondecreasing, so total output weakly increases. Conservation holds because the
+freed input equals the spent difference. This is mechanized as
+`exists_dominated_staircase_representative` in `KPoolStaircase.lean`.
+
+**Note on tie-break and plateaus:** The theorem proves *existence* of a
+dominated staircase representative, not that every optimum has at most one
+interior pool. Plateaus can create multiple tied optima with several
+interior-looking allocations. The theorem guarantees that at least one of the
+tied optima is a staircase allocation, which is sufficient for the optimizer to
+find the optimal output value and the canonical-best route.
 
 Formally, this is the k-pool generalization of the two-pool
 `candidate_dominates_split` theorem in `SplitRoutingStaircase.lean`. The

@@ -625,31 +625,43 @@ def test_kpool_adaptive_falls_back_on_resource_limit(monkeypatch) -> None:
     as soon as the table exceeds 1 state. The adaptive entry point catches this
     and falls back to the small-domain DP.
 
+    Uses sparse pools (x=6000, y=100 and x=500, y=200) that pass Phase 1
+    density check (est_total < threshold), so the staircase DP is actually
+    reached and the patched builder is called.
+
     Asserts:
-    1. The fallback DP was actually called (fallback_state["called"]).
-    2. The result matches the direct small-domain DP result (exactness preserved).
+    1. The patched builder was called (build_state["called"]).
+    2. The fallback DP was called AFTER the builder (proving ResourceLimitExceeded
+       was caught, not Phase 1 density fallback).
+    3. The result matches the direct small-domain DP result (exactness preserved).
     """
     import src.core.split_routing_kpool_staircase as mod
 
     # Patch _build_prefix_suffix_dps to force max_table_states=1, which will
     # trigger ResourceLimitExceeded as soon as the DP table has >1 state.
     original_build = mod._build_prefix_suffix_dps
+    build_state = {"called": False}
 
     def force_tiny_table_states(**kwargs):
+        build_state["called"] = True
         kwargs["max_table_states"] = 1
         return original_build(**kwargs)
 
     monkeypatch.setattr(mod, "_build_prefix_suffix_dps", force_tiny_table_states)
 
+    # Sparse pools that pass Phase 1 density check.
+    # With D=80, k=2: threshold = 40, est_total = 1 + 27 = 28 < 40, so Phase 1
+    # does NOT fall back. The staircase DP is reached and the patched builder
+    # is called, triggering ResourceLimitExceeded.
     pools = [
-        ("pool-a", PoolXY(x=10_000, y=10_000, fee_bps=30)),
-        ("pool-b", PoolXY(x=8_000, y=12_000, fee_bps=30)),
+        ("pool-a", PoolXY(x=6000, y=100, fee_bps=0)),
+        ("pool-b", PoolXY(x=500, y=200, fee_bps=0)),
     ]
     specs = [_spec(pid, p, 1) for pid, p in pools]
     pools_dict = {pid: p for pid, p in pools}
     min_valids = {pid: 1 for pid, _ in pools}
 
-    fallback_state = {"called": False}
+    fallback_state = {"called": False, "build_seen_before": False}
 
     def quote_for_pid(pool_id: str, amount: int) -> int | None:
         if int(amount) < int(min_valids[pool_id]):
@@ -663,6 +675,7 @@ def test_kpool_adaptive_falls_back_on_resource_limit(monkeypatch) -> None:
 
     def tracked_small_dp_fn(*, pool_ids, amount_in_total, max_legs, quote_for_pool_id):
         fallback_state["called"] = True
+        fallback_state["build_seen_before"] = build_state["called"]
         return best_small_domain_many_pool_exact_in(
             pool_ids=pool_ids,
             amount_in_total=int(amount_in_total),
@@ -674,7 +687,7 @@ def test_kpool_adaptive_falls_back_on_resource_limit(monkeypatch) -> None:
     pool_ids = [pid for pid, _ in pools]
     small_dp_result = best_small_domain_many_pool_exact_in(
         pool_ids=pool_ids,
-        amount_in_total=200,
+        amount_in_total=80,
         max_legs=2,
         quote_for_pool_id=quote_for_pid,
     )
@@ -682,13 +695,17 @@ def test_kpool_adaptive_falls_back_on_resource_limit(monkeypatch) -> None:
     # The adaptive entry point should catch ResourceLimitExceeded and fall back.
     result = best_k_pool_exact_in_split(
         pool_specs=specs,
-        amount_in_total=200,
+        amount_in_total=80,
         max_legs=2,
         quote_exact_in=exact_out_for_pool_exact_in,
         small_domain_dp_fn=tracked_small_dp_fn,
     )
-    # The fallback DP must have been called (proving the resource-limit path ran).
+    # The patched builder must have been called (proving the staircase DP ran).
+    assert build_state["called"], "patched _build_prefix_suffix_dps was never called; Phase 1 fallback short-circuited"
+    # The fallback DP must have been called AFTER the builder (proving
+    # ResourceLimitExceeded was caught, not Phase 1 density fallback).
     assert fallback_state["called"], "fallback DP was never called; ResourceLimitExceeded was not triggered"
+    assert fallback_state["build_seen_before"], "fallback was called before the builder; Phase 1 density fallback short-circuited"
     # The result must match the direct small-domain DP result (exactness preserved).
     assert result == small_dp_result
 
@@ -699,6 +716,7 @@ def test_kpool_staircase_raises_resource_limit_no_fallback(monkeypatch) -> None:
 
     Forces the resource limit by patching _build_prefix_suffix_dps to inject
     max_table_states=1. Without a fallback, ResourceLimitExceeded must propagate.
+    Uses sparse pools that pass Phase 1 so the staircase DP is actually reached.
     """
     import src.core.split_routing_kpool_staircase as mod
 
@@ -712,9 +730,10 @@ def test_kpool_staircase_raises_resource_limit_no_fallback(monkeypatch) -> None:
 
     monkeypatch.setattr(mod, "_build_prefix_suffix_dps", force_tiny_table_states)
 
+    # Sparse pools that pass Phase 1 density check.
     pools = [
-        ("pool-a", PoolXY(x=10_000, y=10_000, fee_bps=30)),
-        ("pool-b", PoolXY(x=8_000, y=12_000, fee_bps=30)),
+        ("pool-a", PoolXY(x=6000, y=100, fee_bps=0)),
+        ("pool-b", PoolXY(x=500, y=200, fee_bps=0)),
     ]
     specs = [_spec(pid, p, 1) for pid, p in pools]
 
@@ -723,7 +742,7 @@ def test_kpool_staircase_raises_resource_limit_no_fallback(monkeypatch) -> None:
     with pytest.raises(mod.ResourceLimitExceeded):
         staircase_k_pool_best_split(
             pool_specs=specs,
-            amount_in_total=200,
+            amount_in_total=80,
             max_legs=2,
             quote_exact_in=exact_out_for_pool_exact_in,
         )

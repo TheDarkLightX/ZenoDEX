@@ -2,9 +2,12 @@
 k-pool staircase exact-in split routing.
 
 Generalizes the two-pool staircase optimizer to k parallel CPMM pools. The key
-theorem: in any optimal allocation, at most one pool is "interior" (strictly
-inside a plateau of its own output staircase). All other positive pools sit at
-a jump-point left edge of their own staircase.
+insight: for every feasible allocation, there exists a staircase allocation
+(non-interior pools at jump-point left edges, one interior pool absorbing the
+residual) that weakly dominates it in total output. This is mechanized in Lean
+as `exists_dominated_staircase_representative`. The optimizer searches the
+finite staircase space and selects the canonical best, which is at least as
+good as any feasible allocation.
 
 This module is parameterized by the quote function to stay free of runtime
 dependencies. It is an experimental prototype; promotion to the live route
