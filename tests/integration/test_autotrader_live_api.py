@@ -67,6 +67,64 @@ def _mock_supervisor_prepare_payload(
     }
 
 
+def test_autotrader_live_caps_json_profile_loader_error_details(monkeypatch: pytest.MonkeyPatch) -> None:
+    long_detail = "x" * 300
+
+    with monkeypatch.context() as m:
+        m.setenv("TEST_PROFILE_JSON", "{")
+        m.setattr(
+            autotrader_live_api.json,
+            "loads",
+            lambda raw: (_ for _ in ()).throw(json.JSONDecodeError(long_detail, "doc", 0)),
+        )
+        profile, err = autotrader_live_api._load_json_profile_from_env(
+            json_var="TEST_PROFILE_JSON",
+            file_var="TEST_PROFILE_FILE",
+            label="test profile",
+        )
+        assert profile is None
+        assert err == "test profile JSON invalid: " + ("x" * 200)
+
+    with monkeypatch.context() as m:
+        m.setenv("TEST_PROFILE_FILE", "/tmp/missing-profile.json")
+        m.setattr(
+            autotrader_live_api,
+            "open",
+            lambda *args, **kwargs: (_ for _ in ()).throw(OSError(long_detail)),
+            raising=False,
+        )
+        profile, err = autotrader_live_api._load_json_profile_from_env(
+            json_var="TEST_PROFILE_JSON",
+            file_var="TEST_PROFILE_FILE",
+            label="test profile",
+        )
+        assert profile is None
+        assert err == "test profile file unreadable: " + ("x" * 200)
+
+    class _FakeReadable:
+        def __enter__(self) -> "_FakeReadable":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+    with monkeypatch.context() as m:
+        m.setenv("TEST_PROFILE_FILE", "/tmp/bad-profile.json")
+        m.setattr(autotrader_live_api, "open", lambda *args, **kwargs: _FakeReadable(), raising=False)
+        m.setattr(
+            autotrader_live_api.json,
+            "load",
+            lambda fh: (_ for _ in ()).throw(json.JSONDecodeError(long_detail, "doc", 0)),
+        )
+        profile, err = autotrader_live_api._load_json_profile_from_env(
+            json_var="TEST_PROFILE_JSON",
+            file_var="TEST_PROFILE_FILE",
+            label="test profile",
+        )
+        assert profile is None
+        assert err == "test profile file JSON invalid: " + ("x" * 200)
+
+
 def test_autotrader_live_status_reports_receipt_backed_prepare_surface(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION", raising=False)
     monkeypatch.delenv("AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED", raising=False)

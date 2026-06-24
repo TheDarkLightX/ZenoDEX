@@ -463,7 +463,7 @@ def _load_json_profile_from_env(
         try:
             parsed = json.loads(raw_json)
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-            return None, f"{label} JSON invalid: {exc}"
+            return None, f"{label} JSON invalid: {_safe_api_error(exc)}"
         if not isinstance(parsed, Mapping):
             return None, f"{label} JSON must decode to an object"
         return parsed, None
@@ -474,9 +474,9 @@ def _load_json_profile_from_env(
         with open(raw_file.strip(), "r", encoding="utf-8") as fh:
             parsed = json.load(fh)
     except OSError as exc:
-        return None, f"{label} file unreadable: {exc}"
+        return None, f"{label} file unreadable: {_safe_api_error(exc)}"
     except json.JSONDecodeError as exc:
-        return None, f"{label} file JSON invalid: {exc}"
+        return None, f"{label} file JSON invalid: {_safe_api_error(exc)}"
     if not isinstance(parsed, Mapping):
         return None, f"{label} file must decode to an object"
     return parsed, None
