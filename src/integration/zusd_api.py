@@ -123,7 +123,7 @@ def _strict_bool_env(name: str, *, default: bool) -> Tuple[bool, Optional[str]]:
     try:
         return _bool_env(name, default=default), None
     except ValueError as exc:
-        return bool(default), f"invalid boolean config for {name}: {exc}"
+        return bool(default), f"invalid boolean config for {name}: {_safe_expected_error_detail(exc)}"
 
 
 def _float_env(name: str, default: float, *, lo: float, hi: float) -> float:
@@ -399,7 +399,7 @@ def _check_zusd_oracle_adapter_bridge(
     try:
         required = _bool_env("ZUSD_ORACLE_ADAPTER_REQUIRED", default=False)
     except ValueError as exc:
-        return f"oracle_adapter_config_error: {exc}"
+        return f"oracle_adapter_config_error: {_safe_expected_error_detail(exc)}"
     if "oracle_adapter_bridge" not in body:
         if required:
             return f"{action_kind} requires oracle_adapter_bridge"
@@ -442,7 +442,7 @@ def _check_perp_oracle_sync(*, price_e8: int, epoch: int) -> Optional[str]:
     try:
         sync_enabled = _bool_env("ZUSD_PERP_ORACLE_SYNC_ENABLED", default=False)
     except ValueError as exc:
-        return f"oracle_sync_config_error: {exc}"
+        return f"oracle_sync_config_error: {_safe_expected_error_detail(exc)}"
     if not sync_enabled:
         return None
     market_id = (os.environ.get("ZUSD_PERP_ORACLE_SYNC_MARKET_ID", "TAU-USD") or "").strip()
@@ -463,7 +463,7 @@ def _check_perp_oracle_sync(*, price_e8: int, epoch: int) -> Optional[str]:
             hi=1_000_000,
         )
     except ValueError as exc:
-        return f"oracle_sync_config_error: {exc}"
+        return f"oracle_sync_config_error: {_safe_expected_error_detail(exc)}"
 
     try:
         from .perps_api import get_oracle_sync_snapshot
@@ -810,7 +810,7 @@ def _handle_post(
             {
                 "ok": False,
                 "error": "config_error",
-                "detail": str(exc),
+                "detail": _safe_expected_error_detail(exc),
             },
         )
 

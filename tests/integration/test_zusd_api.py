@@ -415,6 +415,40 @@ class TestOracleAdapterGate:
         assert "oracle_adapter_config_error" in body["detail"]
         assert "ZUSD_ORACLE_ADAPTER_REQUIRED" in body["detail"]
 
+    def test_oracle_adapter_invalid_env_detail_is_capped(self, monkeypatch):
+        raw = "x" * 700
+        monkeypatch.setenv("ZUSD_ORACLE_ADAPTER_REQUIRED", raw)
+
+        status, body = _post(
+            "/api/zusd/step",
+            {
+                "tag": "mint_zusd",
+                "args": {
+                    "amount_e8": 1,
+                },
+            },
+        )
+
+        detail = str(body["detail"])
+        assert status == 400
+        assert body["ok"] is False
+        assert detail.startswith("oracle_adapter_config_error: ")
+        assert "ZUSD_ORACLE_ADAPTER_REQUIRED" in detail
+        assert raw not in detail
+        assert len(detail.removeprefix("oracle_adapter_config_error: ")) <= 200
+
+    def test_strict_bool_env_error_detail_is_capped(self, monkeypatch):
+        raw = "x" * 700
+        monkeypatch.setenv("UNIT_ZUSD_BOOL", raw)
+
+        value, err = zusd_api._strict_bool_env("UNIT_ZUSD_BOOL", default=False)
+
+        assert value is False
+        assert err is not None
+        assert err.startswith("invalid boolean config for UNIT_ZUSD_BOOL: ")
+        assert raw not in err
+        assert len(err.removeprefix("invalid boolean config for UNIT_ZUSD_BOOL: ")) <= 200
+
 
 class TestMultiFlow:
     def test_multi_bootstrap_and_mint(self):
