@@ -95,6 +95,18 @@ _NOT_CLAIMED = (
     "does_not_claim_oracle_truth",
     "does_not_claim_recovery_rotation_broadcast",
 )
+_MAX_STATUS_ERROR_CHARS = 512
+
+
+def _safe_status_error(exc: Exception) -> str:
+    if isinstance(exc, (ValueError, TypeError, KeyError)):
+        msg = str(exc)
+    else:
+        msg = f"internal error: {type(exc).__name__}"
+    msg = " ".join((msg or "").split())
+    if len(msg) > _MAX_STATUS_ERROR_CHARS:
+        msg = msg[:_MAX_STATUS_ERROR_CHARS]
+    return msg or "internal error"
 
 
 def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
@@ -1035,7 +1047,7 @@ def evaluate_perps_wallet_recovery_exercise_v1(
     except Exception as exc:
         return _recovery_exercise_status(
             ok=False,
-            errors=[f"perps wallet recovery exercise invalid: {exc}"],
+            errors=[f"perps wallet recovery exercise invalid: {_safe_status_error(exc)}"],
             exercise=exercise if isinstance(exercise, Mapping) else None,
             wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
             evaluation=None,
@@ -1557,7 +1569,7 @@ def evaluate_perps_wallet_rotation_exercise_v1(
     except Exception as exc:
         return _rotation_exercise_status(
             ok=False,
-            errors=[f"perps wallet rotation exercise invalid: {exc}"],
+            errors=[f"perps wallet rotation exercise invalid: {_safe_status_error(exc)}"],
             exercise=exercise if isinstance(exercise, Mapping) else None,
             wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
             current_authority_status=None,
@@ -1739,7 +1751,7 @@ def evaluate_perps_wallet_device_approval_exercise_v1(
     except Exception as exc:
         return _device_approval_exercise_status(
             ok=False,
-            errors=[f"perps wallet device approval exercise invalid: {exc}"],
+            errors=[f"perps wallet device approval exercise invalid: {_safe_status_error(exc)}"],
             exercise=exercise if isinstance(exercise, Mapping) else None,
             wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
             sign_admission_receipt=None,
@@ -1899,7 +1911,7 @@ def evaluate_perps_wallet_signer_device_integration_v1(
     except Exception as exc:
         return _signer_device_integration_status(
             ok=False,
-            errors=[f"perps wallet signer-device integration invalid: {exc}"],
+            errors=[f"perps wallet signer-device integration invalid: {_safe_status_error(exc)}"],
             integration=integration if isinstance(integration, Mapping) else None,
             wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
             backend_hash=None,
@@ -2080,7 +2092,7 @@ def evaluate_perps_wallet_signer_prompt_capture_v1(
     except Exception as exc:
         return _signer_prompt_capture_status(
             ok=False,
-            errors=[f"perps wallet signer prompt capture invalid: {exc}"],
+            errors=[f"perps wallet signer prompt capture invalid: {_safe_status_error(exc)}"],
             capture=capture if isinstance(capture, Mapping) else None,
             wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
             backend_hash=None,
@@ -2264,7 +2276,7 @@ def evaluate_perps_wallet_signer_execution_exercise_v1(
     except Exception as exc:
         return _signer_execution_exercise_status(
             ok=False,
-            errors=[f"perps wallet signer execution exercise invalid: {exc}"],
+            errors=[f"perps wallet signer execution exercise invalid: {_safe_status_error(exc)}"],
             exercise=exercise if isinstance(exercise, Mapping) else None,
             wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
             sign_admission_receipt=None,

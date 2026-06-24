@@ -80,6 +80,7 @@ from src.integration.production_promotion_evidence import (
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
 from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketState, PerpsState
+import src.integration.perps_wallet_authority as perps_wallet_authority
 import src.integration.perps_wallet_api as perps_wallet_api
 
 
@@ -1322,6 +1323,27 @@ def test_perps_wallet_boundary_errors_are_capped_and_internal_faults_hidden(
 
     assert keys is None
     assert err == "perps wallet encrypted SSS recipient keys invalid: " + detail[:512]
+
+
+def test_perps_wallet_authority_status_errors_are_capped_and_internal_faults_hidden(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    detail = "x" * 700
+
+    assert perps_wallet_authority._safe_status_error(ValueError(detail)) == detail[:512]
+    assert perps_wallet_authority._safe_status_error(RuntimeError("secret " + detail)) == (
+        "internal error: RuntimeError"
+    )
+
+    def faulting_secret_reject(_obj: Mapping[str, object], *, name: str) -> None:
+        raise ValueError(detail)
+
+    monkeypatch.setattr(perps_wallet_authority, "_reject_secret_fields", faulting_secret_reject)
+
+    status = evaluate_perps_wallet_recovery_exercise_v1(None, {}, expected_chain_id=CHAIN_ID)
+
+    assert status["ok"] is False
+    assert status["errors"] == ["perps wallet recovery exercise invalid: " + detail[:512]]
 
 
 def test_perps_wallet_authority_complete_profile_is_ready() -> None:
