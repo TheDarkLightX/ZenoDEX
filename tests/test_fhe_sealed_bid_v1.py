@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import pytest
 
+import src.core.fhe_sealed_bid_v1 as fhe_v1
 from src.core.fhe_sealed_bid_v1 import (
     MAX_V1_UNITS,
     SCHEME_FALLBACK,
@@ -375,3 +376,75 @@ class TestReceiptVerification:
 
         assert ok is False
         assert reason == "bad_public_result_numeric"
+
+    def test_receipt_rejects_malformed_string_public_result_number(self, key_pair):
+        specs = [("alice", "c1", 2, 100)]
+        result = settle_fhe_sealed_bids(
+            auction_id="a18",
+            units_for_sale=2,
+            encrypted_bids=_enc_bids(key_pair, specs),
+            key_pair=key_pair,
+        )
+        receipt = make_fhe_sealed_bid_v1_receipt(
+            auction_id="a18", units_for_sale=2, result=result
+        )
+        receipt["body"]["public_result"]["total_filled"] = "not-an-int"
+        receipt["receipt_hash"] = fhe_sealed_bid_v1_receipt_hash(receipt["body"])
+
+        ok, reason = verify_fhe_sealed_bid_v1_receipt(
+            receipt,
+            approved_key_ids=["test-fhe-v1"],
+            trusted_plain_bids=_revealed(specs),
+        )
+
+        assert ok is False
+        assert reason == "bad_public_result_numeric"
+
+    def test_receipt_surfaces_public_result_numeric_helper_fault(self, key_pair, monkeypatch):
+        specs = [("alice", "c1", 2, 100)]
+        result = settle_fhe_sealed_bids(
+            auction_id="a19",
+            units_for_sale=2,
+            encrypted_bids=_enc_bids(key_pair, specs),
+            key_pair=key_pair,
+        )
+        receipt = make_fhe_sealed_bid_v1_receipt(
+            auction_id="a19", units_for_sale=2, result=result
+        )
+
+        def fail_int_field(_mapping: object, _field_name: str) -> int:
+            raise RuntimeError("numeric helper bug")
+
+        monkeypatch.setattr(fhe_v1, "_receipt_int_field", fail_int_field)
+
+        with pytest.raises(RuntimeError, match="numeric helper bug"):
+            verify_fhe_sealed_bid_v1_receipt(
+                receipt,
+                approved_key_ids=["test-fhe-v1"],
+                trusted_plain_bids=_revealed(specs),
+            )
+
+    def test_receipt_surfaces_plaintext_replay_fault(self, key_pair, monkeypatch):
+        specs = [("alice", "c1", 2, 100)]
+        result = settle_fhe_sealed_bids(
+            auction_id="a20",
+            units_for_sale=2,
+            encrypted_bids=_enc_bids(key_pair, specs),
+            key_pair=key_pair,
+        )
+        receipt = make_fhe_sealed_bid_v1_receipt(
+            auction_id="a20", units_for_sale=2, result=result
+        )
+
+        def fail_replay(*, units_for_sale: int, bids: object) -> object:
+            del units_for_sale, bids
+            raise RuntimeError("plaintext replay bug")
+
+        monkeypatch.setattr(fhe_v1, "settle_uniform_price_sealed_bids", fail_replay)
+
+        with pytest.raises(RuntimeError, match="plaintext replay bug"):
+            verify_fhe_sealed_bid_v1_receipt(
+                receipt,
+                approved_key_ids=["test-fhe-v1"],
+                trusted_plain_bids=_revealed(specs),
+            )
