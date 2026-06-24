@@ -85,7 +85,7 @@ def derive_batch_state_support(
             continue
         try:
             pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
-        except Exception:
+        except (TypeError, ValueError):
             continue
         created_pool_assets[pool_id] = (asset0, asset1)
 
@@ -104,7 +104,7 @@ def derive_batch_state_support(
                     try:
                         pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
                         pool_ids.add(pool_id)
-                    except Exception:
+                    except (TypeError, ValueError):
                         # Invalid CREATE_POOL params; keep support minimal and let validation reject.
                         pass
             continue

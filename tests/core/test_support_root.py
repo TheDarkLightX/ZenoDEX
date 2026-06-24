@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+import src.state.support_root as support_root_module
 from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
 from src.state.lp import LPTable
@@ -758,3 +759,26 @@ def test_large_mixed_batch_support_root_is_stable_and_sensitive_to_tracked_state
         )
         != root
     )
+
+
+def test_derive_batch_state_support_surfaces_pool_id_implementation_fault(monkeypatch) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    create_pool = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(10_001),
+        sender_pubkey=pk,
+        deadline=9_999_999_999,
+        fields={"asset0": asset0, "asset1": asset1, "fee_bps": 30},
+    )
+
+    def fail_pool_id(*_args, **_kwargs):
+        raise RuntimeError("pool id bug")
+
+    monkeypatch.setattr(support_root_module, "compute_pool_id", fail_pool_id)
+
+    with pytest.raises(RuntimeError, match="pool id bug"):
+        derive_batch_state_support([create_pool], pools={})
