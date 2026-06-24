@@ -103,6 +103,30 @@ ROOT_B = "0x" + "bb" * 32
 FUTURE_DEADLINE = 4_102_444_800
 
 
+def test_env_float_rejects_nonfinite_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PERPS_WALLET_TEST_FLOAT", "nan")
+    with pytest.raises(ValueError, match="must be finite"):
+        perps_wallet_api._env_float("PERPS_WALLET_TEST_FLOAT", 3.0, lo=0.1, hi=60.0)
+
+    monkeypatch.setenv("PERPS_WALLET_TEST_FLOAT", "inf")
+    with pytest.raises(ValueError, match="must be finite"):
+        perps_wallet_api._env_float("PERPS_WALLET_TEST_FLOAT", 3.0, lo=0.1, hi=60.0)
+
+
+def test_env_float_clamps_finite_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PERPS_WALLET_TEST_FLOAT", "1000")
+    assert perps_wallet_api._env_float("PERPS_WALLET_TEST_FLOAT", 3.0, lo=0.1, hi=60.0) == 60.0
+
+    monkeypatch.setenv("PERPS_WALLET_TEST_FLOAT", "-1")
+    assert perps_wallet_api._env_float("PERPS_WALLET_TEST_FLOAT", 3.0, lo=0.1, hi=60.0) == 0.1
+
+
+def test_env_int_rejects_malformed_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PERPS_WALLET_TEST_INT", "nan")
+    with pytest.raises(ValueError, match="must be an integer"):
+        perps_wallet_api._env_int("PERPS_WALLET_TEST_INT", 10, lo=1, hi=100)
+
+
 def test_safe_native_balance_does_not_hide_unexpected_client_fault() -> None:
     class FaultingClient:
         def get_balance(self, _address_hex: str) -> int:

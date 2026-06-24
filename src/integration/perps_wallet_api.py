@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import math
 import os
 import smtplib
 import ssl
@@ -140,8 +141,10 @@ def _env_float(name: str, default: float, *, lo: float, hi: float) -> float:
         return float(default)
     try:
         value = float(raw.strip())
-    except Exception:
-        return float(default)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a finite float in [{lo}, {hi}]; got {raw!r}") from exc
+    if not math.isfinite(value):
+        raise ValueError(f"{name} must be finite; got {value!r}")
     return min(max(value, lo), hi)
 
 
@@ -151,8 +154,8 @@ def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
         return int(default)
     try:
         value = int(raw.strip())
-    except Exception:
-        return int(default)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer in [{lo}, {hi}]; got {raw!r}") from exc
     return min(max(value, lo), hi)
 
 
