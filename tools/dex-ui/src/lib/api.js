@@ -10,6 +10,11 @@ export function getRuntimeConfig() {
   return cfg && typeof cfg === 'object' ? cfg : {};
 }
 
+export function isLocalTestnetDeployment(runtimeConfig = getRuntimeConfig()) {
+  const deployment = String(runtimeConfig?.deployment || '').toLowerCase();
+  return deployment === 'local-testnet' || deployment === 'localtest';
+}
+
 function parseBooleanLike(raw) {
   if (raw === true || raw === 'true' || raw === '1' || raw === 1) {
     return true;

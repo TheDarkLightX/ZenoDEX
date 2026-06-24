@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { apiGetZusdWalletStatus, apiPrepareZusdWallet, apiSubmitZusdWallet } from '../lib/api.js';
+import { apiGetZusdWalletStatus, apiPrepareZusdWallet, apiSubmitZusdWallet, isLocalTestnetDeployment } from '../lib/api.js';
 import './ZUSDTauWalletSurface.css';
 
 const EMPTY_FORM = {
@@ -25,10 +25,21 @@ function readSmokeConfig() {
     sender_pubkey: params.get('senderPubkey') || '',
     recipient_pubkey: params.get('recipientPubkey') || '',
     operator_pubkey: params.get('operatorPubkey') || '',
-    signer_privkey: params.get('signerPrivkey') || params.get('smokeSignerPrivkey') || '',
+    signer_privkey: readLocalSmokeFragmentSecret('signerPrivkey'),
     amount: params.get('zusdAmount') || '100',
     deadline: params.get('zusdDeadline') || '',
   };
+}
+
+function readLocalSmokeFragmentSecret(name) {
+  if (!isLocalTestnetDeployment() || typeof window === 'undefined') {
+    return '';
+  }
+  const fragment = String(window.location.hash || '').replace(/^#/, '');
+  if (!fragment) {
+    return '';
+  }
+  return new URLSearchParams(fragment).get(name) || '';
 }
 
 function buildPayload(form) {

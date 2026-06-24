@@ -3218,6 +3218,7 @@ def _browser_smoke_cases(
             "url": url(
                 {
                     "tab": "strategy",
+                    "strategyView": "create",
                     "demo": "false",
                     "zenodexUiSmokeStrategyLive": "1",
                 }

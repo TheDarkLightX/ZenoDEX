@@ -7,6 +7,7 @@ import {
   apiMintPerpsWalletTestnetFaucet,
   apiPreparePerpsWallet,
   apiSubmitPerpsWallet,
+  isLocalTestnetDeployment,
 } from '../../lib/api.js';
 
 const EMPTY_FORM = {
@@ -62,12 +63,12 @@ function readSmokeConfig() {
     account_a_pubkey: params.get('accountAPubkey') || params.get('account_a_pubkey') || '',
     account_b_pubkey: params.get('accountBPubkey') || params.get('account_b_pubkey') || '',
     account_pubkey: params.get('accountPubkey') || params.get('account_pubkey') || '',
-    account_a_privkey: params.get('accountAPrivkey') || params.get('account_a_privkey') || '',
-    account_b_privkey: params.get('accountBPrivkey') || params.get('account_b_privkey') || '',
-    account_privkey: params.get('accountPrivkey') || params.get('account_privkey') || '',
-    operator_privkey: params.get('operatorPrivkey') || params.get('operator_privkey') || '',
+    account_a_privkey: readLocalSmokeFragmentSecret(['accountAPrivkey', 'account_a_privkey']),
+    account_b_privkey: readLocalSmokeFragmentSecret(['accountBPrivkey', 'account_b_privkey']),
+    account_privkey: readLocalSmokeFragmentSecret(['accountPrivkey', 'account_privkey']),
+    operator_privkey: readLocalSmokeFragmentSecret(['operatorPrivkey', 'operator_privkey']),
     oracle_pubkey: params.get('oraclePubkey') || params.get('oracle_pubkey') || '',
-    oracle_privkey: params.get('oraclePrivkey') || params.get('oracle_privkey') || '',
+    oracle_privkey: readLocalSmokeFragmentSecret(['oraclePrivkey', 'oracle_privkey']),
     amount: params.get('amount') || '1000',
     delta: params.get('delta') || '1',
     price_e8: params.get('priceE8') || params.get('price_e8') || '100000000',
@@ -85,6 +86,24 @@ function readSmokeConfig() {
     load_oracle_evidence: params.get('perpsLoadOracleEvidence') === '1'
       || params.get('loadOracleEvidence') === '1',
   };
+}
+
+function readLocalSmokeFragmentSecret(names) {
+  if (!isLocalTestnetDeployment() || typeof window === 'undefined') {
+    return '';
+  }
+  const fragment = String(window.location.hash || '').replace(/^#/, '');
+  if (!fragment) {
+    return '';
+  }
+  const fragmentParams = new URLSearchParams(fragment);
+  for (const name of Array.isArray(names) ? names : [names]) {
+    const value = fragmentParams.get(name);
+    if (value) {
+      return value;
+    }
+  }
+  return '';
 }
 
 function parseIntOrNull(raw) {

@@ -31,6 +31,8 @@ KEY_REF_SCHEMA_V0 = "zenodex/zeno_key_manager/key_ref/v0"
 SOCIAL_RECOVERY_POLICY_SCHEMA_V0 = "zenodex/zeno_key_manager/social_recovery_policy/v0"
 RECOVERY_EVALUATION_SCHEMA_V0 = "zenodex/zeno_key_manager/recovery_evaluation/v0"
 TAU_NET_KEY_IMPORT_EVIDENCE_SCHEMA_V0 = "zenodex/zeno_key_manager/tau_net_key_import_evidence/v0"
+TAU_TESTNET_COMPATIBLE_KEYGEN_METHOD_V0 = "tau-testnet-console-wallet-py-ecc-g2basic-keygen-v0"
+IMPORTED_EXISTING_KEY_KEYGEN_METHOD_V0 = "imported-existing-tau-testnet-key-v0"
 
 KEY_STATUS_ACTIVE = "active"
 KEY_STATUS_REVOKED = "revoked"

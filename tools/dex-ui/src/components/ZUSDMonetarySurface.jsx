@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { apiGetZusdMonetaryStatus, apiPrepareZusdMonetary, apiSubmitZusdMonetary } from '../lib/api.js';
+import { apiGetZusdMonetaryStatus, apiPrepareZusdMonetary, apiSubmitZusdMonetary, isLocalTestnetDeployment } from '../lib/api.js';
 import InfoTip from './InfoTip.jsx';
 import './ZUSDTauWalletSurface.css';
 
@@ -51,7 +51,7 @@ function readSmokeConfig() {
   return {
     action: params.get('zusdMonetaryAction') || 'mint_zusd',
     actor_pubkey: params.get('actorPubkey') || params.get('senderPubkey') || '',
-    signer_privkey: params.get('signerPrivkey') || params.get('smokeSignerPrivkey') || '',
+    signer_privkey: readLocalSmokeFragmentSecret('signerPrivkey'),
     amount: params.get('zusdAmount') || '100',
     amount_e8: params.get('zusdAmountE8') || '',
     zk_proof_json: params.get('zusdZkProofJson') || params.get('zkProofJson') || '',
@@ -62,6 +62,17 @@ function readSmokeConfig() {
     signed_tau_tx_payload:
       params.get('signedTauTxPayload') || params.get('signed_tau_tx_payload') || params.get('zusdSignedTauTxPayload') || '',
   };
+}
+
+function readLocalSmokeFragmentSecret(name) {
+  if (!isLocalTestnetDeployment() || typeof window === 'undefined') {
+    return '';
+  }
+  const fragment = String(window.location.hash || '').replace(/^#/, '');
+  if (!fragment) {
+    return '';
+  }
+  return new URLSearchParams(fragment).get(name) || '';
 }
 
 function parsePositiveInt(raw) {
