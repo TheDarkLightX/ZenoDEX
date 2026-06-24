@@ -522,7 +522,7 @@ def _try_create_pool(
             curve_tag=curve_tag,
             curve_params=curve_params,
         )
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return (
             Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason=f"COMPUTATION_ERROR: {exc}"),
             None,
@@ -1985,7 +1985,7 @@ def validate_settlement(
                     curve_tag=str(curve_tag),
                     curve_params=str(curve_params),
                 )
-            except Exception as exc:
+            except (TypeError, ValueError) as exc:
                 return False, f"Invalid CREATE_POOL event for pool {pool_id}: {exc}"
 
     pools_view: Dict[str, PoolState] = {**pre_pools, **created_pools}

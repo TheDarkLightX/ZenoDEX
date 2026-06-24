@@ -811,6 +811,41 @@ def test_validate_settlement_rejects_invalid_created_pool_curve_config() -> None
     assert err.startswith(f"Invalid CREATE_POOL event for pool {pool_id}:")
 
 
+def test_validate_settlement_surfaces_unexpected_created_pool_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    pool_id = "0x" + "ce" * 32
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=[
+            {
+                "type": "CREATE_POOL",
+                "pool_id": pool_id,
+                "asset0": "0x" + "01" * 32,
+                "asset1": "0x" + "02" * 32,
+                "fee_bps": 30,
+                "curve_tag": "CPMM",
+                "curve_params": "",
+                "status": "ACTIVE",
+                "created_at": 0,
+            }
+        ],
+    )
+
+    def _boom_pool_state(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("created pool internal fault")
+
+    monkeypatch.setattr(batch_clearing_module, "PoolState", _boom_pool_state)
+
+    with pytest.raises(RuntimeError, match="created pool internal fault"):
+        validate_settlement(settlement, BalanceTable(), {}, LPTable())
+
+
 def test_validate_settlement_rejects_negative_balances_reserves_and_lp() -> None:
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
@@ -1493,6 +1528,38 @@ def test_try_create_pool_rejects_invalid_params_balance_computation_and_duplicat
     fill, _pool_id, _created_pool, err = _try_create_pool(base_intent, {existing_pool_id: existing_pool}, balances)
     assert fill.reason == "POOL_ALREADY_EXISTS"
     assert err == "pool already exists"
+
+
+def test_try_create_pool_surfaces_unexpected_create_pool_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000_000)
+    balances.set(pk, asset1, 10_000_000)
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(1011),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "asset0": asset0,
+            "asset1": asset1,
+            "fee_bps": 30,
+            "amount0": 2_000_000,
+            "amount1": 2_000_000,
+        },
+    )
+
+    def _boom_create_pool(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("create pool internal fault")
+
+    monkeypatch.setattr(batch_clearing_module, "create_pool", _boom_create_pool)
+
+    with pytest.raises(RuntimeError, match="create pool internal fault"):
+        _try_create_pool(intent, {}, balances)
 
 
 def test_try_create_pool_success_and_apply_create_pool_to_locals() -> None:
