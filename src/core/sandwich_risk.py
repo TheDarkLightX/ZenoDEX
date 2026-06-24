@@ -26,6 +26,8 @@ from typing import Callable
 
 from .cpmm import swap_exact_in
 
+_EXPECTED_DYNAMIC_FEE_ERRORS = (TypeError, ValueError, OverflowError)
+
 
 @dataclass(frozen=True)
 class SandwichRisk:
@@ -107,7 +109,7 @@ def _try_swap_exact_in(
             amount_in=int(amount_in),
             fee_bps=int(fee_bps),
         )
-    except Exception:
+    except ValueError:
         return None
     return int(out), (int(new_rin), int(new_rout))
 
@@ -311,7 +313,7 @@ def sandwich_profit_exact_in_cpmm_dynamic_fee(
     def _try_dyn(res_in: int, res_out: int, amt_in: int) -> tuple[int, tuple[int, int]] | None:
         try:
             fee_bps = int(fee_bps_fn(int(res_in), int(res_out), int(amt_in)))
-        except Exception:
+        except _EXPECTED_DYNAMIC_FEE_ERRORS:
             return None
         if fee_bps < 0 or fee_bps > 10_000:
             return None
@@ -374,7 +376,7 @@ def max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee(
         )
         if iso is not None:
             victim_iso_out, _ = iso
-    except Exception:
+    except _EXPECTED_DYNAMIC_FEE_ERRORS:
         victim_iso_out = 0
 
     # If victim cannot execute at a=0, mark victim_reverts.
@@ -395,7 +397,7 @@ def max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee(
     def _try_dyn(res_in: int, res_out: int, amt_in: int) -> tuple[int, tuple[int, int]] | None:
         try:
             fee_bps = int(fee_bps_fn(int(res_in), int(res_out), int(amt_in)))
-        except Exception:
+        except _EXPECTED_DYNAMIC_FEE_ERRORS:
             return None
         if fee_bps < 0 or fee_bps > 10_000:
             return None

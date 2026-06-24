@@ -4,6 +4,7 @@ import random
 
 import pytest
 
+import src.core.sandwich_risk as sandwich_risk_module
 from src.core.cpmm import swap_exact_in
 from src.core.sandwich_risk import (
     SandwichRisk,
@@ -289,6 +290,37 @@ def test_sandwich_risk_bva_cap_validation(cap: int, should_raise: bool, reason: 
         max_attacker_amount_in=int(cap),
     )
     assert out.scanned_max_attacker_amount_in == int(cap)
+
+
+def test_sandwich_profit_converts_expected_swap_domain_error() -> None:
+    assert (
+        sandwich_profit_exact_in_cpmm(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps=0,
+            victim_amount_in=50,
+            victim_min_out=46,
+            attacker_amount_in=0,
+        )
+        is None
+    )
+
+
+def test_sandwich_profit_surfaces_unexpected_swap_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail_swap(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise RuntimeError("cpmm internal fault")
+
+    monkeypatch.setattr(sandwich_risk_module, "swap_exact_in", fail_swap)
+
+    with pytest.raises(RuntimeError, match="cpmm internal fault"):
+        sandwich_profit_exact_in_cpmm(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps=0,
+            victim_amount_in=50,
+            victim_min_out=46,
+            attacker_amount_in=1,
+        )
 
 
 @pytest.mark.parametrize(

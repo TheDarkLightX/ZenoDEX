@@ -6,6 +6,7 @@ from src.core.dynamic_fee_policy import StressFeePolicy, fee_bps_from_stress_pol
 from src.core.sandwich_risk import (
     max_sandwich_profit_exact_in_cpmm_bounded,
     max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee,
+    sandwich_profit_exact_in_cpmm_dynamic_fee,
 )
 
 
@@ -69,3 +70,49 @@ def test_dynamic_fee_can_reduce_max_sandwich_profit_on_witness() -> None:
     assert dyn.status == "inconclusive"  # no analytic cutoff for dynamic fees yet
     assert dyn.max_profit <= static.max_profit
 
+
+def test_dynamic_fee_profit_converts_expected_fee_domain_error() -> None:
+    def fee_fn(_res_in: int, _res_out: int, _amt_in: int) -> int:
+        raise ValueError("fee domain")
+
+    assert (
+        sandwich_profit_exact_in_cpmm_dynamic_fee(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps_fn=fee_fn,
+            victim_amount_in=50,
+            victim_min_out=46,
+            attacker_amount_in=1,
+        )
+        is None
+    )
+
+
+def test_dynamic_fee_profit_surfaces_unexpected_fee_fault() -> None:
+    def fee_fn(_res_in: int, _res_out: int, _amt_in: int) -> int:
+        raise RuntimeError("fee callback fault")
+
+    with pytest.raises(RuntimeError, match="fee callback fault"):
+        sandwich_profit_exact_in_cpmm_dynamic_fee(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps_fn=fee_fn,
+            victim_amount_in=50,
+            victim_min_out=46,
+            attacker_amount_in=1,
+        )
+
+
+def test_dynamic_fee_bounded_search_surfaces_unexpected_fee_fault() -> None:
+    def fee_fn(_res_in: int, _res_out: int, _amt_in: int) -> int:
+        raise RuntimeError("fee callback fault")
+
+    with pytest.raises(RuntimeError, match="fee callback fault"):
+        max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps_fn=fee_fn,
+            victim_amount_in=50,
+            victim_min_out=46,
+            max_attacker_amount_in=1,
+        )
