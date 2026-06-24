@@ -118,6 +118,25 @@ def test_settlement_spot_price_packet_rejects_nonserializable_sync_payload() -> 
     assert "not JSON serializable" in err
 
 
+def test_settlement_spot_price_packet_payload_caps_malformed_price_error() -> None:
+    packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset="A", price=100, observed_epoch=95, age_epochs=5, source_id="local:a"),
+            SettlementSpotPriceEntry(asset="B", price=120, observed_epoch=97, age_epochs=3, source_id="local:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    ).to_dict()
+    packet["entries"][0]["price"] = "9" * 1_000 + "x"
+
+    ok, err = verify_settlement_spot_price_packet_payload(packet)
+
+    assert ok is False
+    assert err is not None
+    assert len(err) <= 200
+    assert "9" * 201 not in err
+
+
 def test_settlement_spot_price_packet_rejects_expected_builder_error(monkeypatch: pytest.MonkeyPatch) -> None:
     packet = build_settlement_spot_price_packet(
         entries=(

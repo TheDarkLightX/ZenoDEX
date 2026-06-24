@@ -110,6 +110,27 @@ def test_settlement_spot_price_attestation_rejects_tampering() -> None:
     assert err == "packet_hash mismatch"
 
 
+def test_settlement_spot_price_attestation_payload_caps_malformed_epoch_error() -> None:
+    packet = _packet()
+    attestation = build_settlement_spot_price_attestation(
+        packet=packet,
+        signer_privkey=7,
+    ).to_dict()
+    attestation["signed_at_epoch"] = "9" * 1_000 + "x"
+
+    ok, err = verify_settlement_spot_price_attestation_payload(
+        payload=attestation,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        allowed_signers=None,
+    )
+
+    assert ok is False
+    assert err is not None
+    assert len(err) <= 200
+    assert "9" * 201 not in err
+
+
 def test_settlement_spot_price_attestation_rejects_expected_allowlist_error() -> None:
     packet = _packet()
     attestation = build_settlement_spot_price_attestation(

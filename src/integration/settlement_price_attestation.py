@@ -26,6 +26,11 @@ SETTLEMENT_SPOT_PRICE_ATTESTATION_SCHEMA = "zenodex/settlement-spot-price-attest
 _PRICE_ATTESTATION_VERIFY_CACHE: dict[tuple[object, ...], tuple[bool, str | None]] = {}
 
 
+def _safe_payload_validation_error(exc: Exception) -> str:
+    detail = " ".join(str(exc).split())
+    return detail[:200] or type(exc).__name__
+
+
 @dataclass(frozen=True)
 class SettlementSpotPriceAttestation:
     packet: SettlementSpotPricePacket
@@ -181,7 +186,7 @@ def verify_settlement_spot_price_attestation(
     try:
         normalized_allowlist = _canonical_allowed_signers(allowed_signers)
     except (TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     cache_key = _price_attestation_verify_cache_key(
         attestation=attestation,
         consumer_now_epoch=int(consumer_now_epoch),
@@ -213,7 +218,12 @@ def verify_settlement_spot_price_attestation(
             _cache_attestation_verify_result(cache_key, result)
             return result
     except (TypeError, ValueError) as exc:
-        result = (False, f"settlement spot price attestation verification error: {exc}")
+        result = (
+            False,
+            _safe_payload_validation_error(
+                ValueError(f"settlement spot price attestation verification error: {exc}")
+            ),
+        )
         _cache_attestation_verify_result(cache_key, result)
         return result
     success_result: tuple[bool, str | None] = (True, None)
@@ -231,7 +241,7 @@ def verify_settlement_spot_price_attestation_payload(
     try:
         attestation = SettlementSpotPriceAttestation.from_dict(payload)
     except (TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     return verify_settlement_spot_price_attestation(
         attestation=attestation,
         consumer_now_epoch=consumer_now_epoch,

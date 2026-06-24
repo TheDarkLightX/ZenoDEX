@@ -13,6 +13,11 @@ from .zusd_oracle_contracts import verify_zusd_cross_module_oracle_sync_contract
 SETTLEMENT_SPOT_PRICE_PACKET_SCHEMA = "zenodex/settlement-spot-price-packet/v1"
 
 
+def _safe_payload_validation_error(exc: Exception) -> str:
+    detail = " ".join(str(exc).split())
+    return detail[:200] or type(exc).__name__
+
+
 @dataclass(frozen=True)
 class SettlementSpotPriceEntry:
     asset: str
@@ -246,7 +251,7 @@ def verify_settlement_spot_price_packet(
     try:
         key = _price_packet_verify_cache_key(packet)
     except (TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     cached = _PRICE_PACKET_VERIFY_CACHE.get(key)
     if cached is not None:
         return cached
@@ -259,7 +264,7 @@ def verify_settlement_spot_price_packet(
             cross_module_sync_contract=packet.cross_module_sync_contract,
         )
     except (TypeError, ValueError) as exc:
-        result = (False, str(exc))
+        result = (False, _safe_payload_validation_error(exc))
         _cache_verify_result(_PRICE_PACKET_VERIFY_CACHE, key, result)
         return result
     if packet != expected:
@@ -277,7 +282,7 @@ def verify_settlement_spot_price_packet_payload(payload: object) -> tuple[bool, 
     try:
         packet = SettlementSpotPricePacket.from_dict(payload)
     except (TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     return verify_settlement_spot_price_packet(packet=packet)
 
 
