@@ -303,13 +303,13 @@ def verify_settlement_end_to_end_certificate_packet_payload_from_price_packet(
     price_history: tuple[int, int, int],
     feature_extension_inputs_payload: Mapping[str, Any],
     price_packet_payload: Mapping[str, Any],
-    packet_payload: Mapping[str, Any],
+    packet_payload: object,
     lp_unit_values: Mapping[str, int] | None = None,
     pool_snapshots_payload: Sequence[Mapping[str, Any]] | None = None,
 ) -> tuple[bool, str | None]:
     try:
         price_packet = SettlementSpotPricePacket.from_dict(price_packet_payload)
-    except Exception as exc:
+    except (TypeError, ValueError, KeyError) as exc:
         return False, str(exc)
     try:
         pool_snapshots = None
@@ -324,7 +324,7 @@ def verify_settlement_end_to_end_certificate_packet_payload_from_price_packet(
             lp_unit_values=lp_unit_values,
             pool_snapshots=pool_snapshots,
         )
-    except Exception as exc:
+    except (TypeError, ValueError, KeyError) as exc:
         return False, str(exc)
     if not isinstance(packet_payload, Mapping):
         return False, "packet must be an object"
@@ -373,6 +373,11 @@ def enforce_settlement_end_to_end_certificate(
                 pool_snapshots=certificate_inputs.pool_snapshots,
             )
         else:
+            if (
+                certificate_inputs.consumer_now_epoch is None
+                or certificate_inputs.max_attestation_age_epochs is None
+            ):
+                raise ValueError("attestation mode requires consumer_now_epoch and max_attestation_age_epochs")
             packet = build_settlement_end_to_end_certificate_packet_from_price_attestation(
                 settlement=settlement,
                 proof_flags=effective_flags,
@@ -385,7 +390,7 @@ def enforce_settlement_end_to_end_certificate(
                 pool_snapshots=certificate_inputs.pool_snapshots,
                 allowed_signers=certificate_inputs.allowed_signers,
             )
-    except Exception as exc:
+    except (TypeError, ValueError, KeyError) as exc:
         return False, str(exc), None
 
     if not packet.packet_ok:
@@ -402,7 +407,7 @@ def verify_settlement_end_to_end_certificate_packet_payload_from_price_attestati
     price_attestation_payload: Mapping[str, Any],
     consumer_now_epoch: int,
     max_attestation_age_epochs: int,
-    packet_payload: Mapping[str, Any],
+    packet_payload: object,
     lp_unit_values: Mapping[str, int] | None = None,
     pool_snapshots_payload: Sequence[Mapping[str, Any]] | None = None,
     allowed_signers: Mapping[str, Sequence[str]] | None = None,
@@ -411,7 +416,7 @@ def verify_settlement_end_to_end_certificate_packet_payload_from_price_attestati
 
     try:
         price_attestation = SettlementSpotPriceAttestation.from_dict(price_attestation_payload)
-    except Exception as exc:
+    except (TypeError, ValueError, KeyError) as exc:
         return False, str(exc)
     try:
         pool_snapshots = None
@@ -429,7 +434,7 @@ def verify_settlement_end_to_end_certificate_packet_payload_from_price_attestati
             pool_snapshots=pool_snapshots,
             allowed_signers=allowed_signers,
         )
-    except Exception as exc:
+    except (TypeError, ValueError, KeyError) as exc:
         return False, str(exc)
     if not isinstance(packet_payload, Mapping):
         return False, "packet must be an object"
