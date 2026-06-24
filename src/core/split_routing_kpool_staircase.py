@@ -366,59 +366,86 @@ def _best_exact_full_from_dp(
     return (int(best_out), best_legs)
 
 
-def _index_by_spent(states: _DPTable, *, max_legs: int) -> dict[int, tuple[int, _State]]:
-    """Index states by spent value, keeping the best state per spent.
+def _index_by_spent_pareto(states: _DPTable, *, max_legs: int) -> dict[int, list[tuple[int, _State]]]:
+    """Index states by spent value, keeping Pareto-optimal states per spent.
 
-    Returns spent -> (legs_used, best_state). Only keeps states with
-    legs_used < max_legs (so there is room for one more interior-pool leg).
+    A state (legs_a, out_a) dominates (legs_b, out_b) at the same spent if
+    legs_a <= legs_b and out_a >= out_b (with at least one strict). We keep
+    only non-dominated states because a state with fewer legs but lower output
+    can enable a prefix/suffix combination that a higher-output state with more
+    legs cannot (the legs budget constraint may exclude the latter).
+
+    Returns spent -> list of (legs_used, state) for non-dominated states.
+    Only keeps states with legs_used < max_legs (room for interior-pool leg).
     """
-    by_spent: dict[int, tuple[int, _State]] = {}
+    by_spent: dict[int, list[tuple[int, _State]]] = {}
     for (used_legs, spent), state in states.items():
         if int(used_legs) >= int(max_legs):
             continue
-        existing = by_spent.get(int(spent))
-        if existing is None or _is_better_state(state, existing[1]):
-            by_spent[int(spent)] = (int(used_legs), state)
+        spent_i = int(spent)
+        legs_i = int(used_legs)
+        out_i = int(state[0])
+        candidates = by_spent.setdefault(spent_i, [])
+        # Check if this state is dominated by an existing one, or dominates some.
+        is_dominated = False
+        for legs_j, state_j in candidates:
+            out_j = int(state_j[0])
+            # state_j dominates state_i if legs_j <= legs_i and out_j >= out_i
+            if legs_j <= legs_i and out_j >= out_i:
+                is_dominated = True
+                break
+        if is_dominated:
+            continue
+        # Remove existing states dominated by this one.
+        candidates = [
+            (legs_j, state_j) for legs_j, state_j in candidates
+            if not (legs_i <= legs_j and out_i >= int(state_j[0]))
+        ]
+        candidates.append((legs_i, state))
+        by_spent[spent_i] = candidates
     return by_spent
 
 
 def _combine_prefix_suffix_by_spent(
     *,
-    prefix_index: dict[int, tuple[int, _State]],
-    suffix_index: dict[int, tuple[int, _State]],
+    prefix_index: dict[int, list[tuple[int, _State]]],
+    suffix_index: dict[int, list[tuple[int, _State]]],
     amount_total: int,
     max_legs: int,
 ) -> dict[int, _State]:
     """Combine prefix and suffix DP indices by spent value.
 
     For each (prefix_spent, suffix_spent) pair with prefix_spent + suffix_spent
-    <= amount_total, produce a combined state at combined_spent = prefix_spent +
-    suffix_spent. The legs are merged (sorted). Only combinations with
-    legs_used < max_legs are kept (room for the interior pool).
+    < amount_total, produce a combined state at combined_spent. The legs are
+    merged (sorted). Only combinations with legs_used < max_legs are kept
+    (room for the interior pool).
 
-    Returns combined_spent -> best_state.
+    Returns combined_spent -> best_state (highest output, then fewest legs,
+    then lex legs).
     """
     combined: dict[int, _State] = {}
-    for p_spent, (p_legs_used, p_state) in prefix_index.items():
-        for s_spent, (s_legs_used, s_state) in suffix_index.items():
+    for p_spent, p_candidates in prefix_index.items():
+        for s_spent, s_candidates in suffix_index.items():
             total_spent = int(p_spent) + int(s_spent)
             if int(total_spent) >= int(amount_total):
                 continue
-            total_legs = int(p_legs_used) + int(s_legs_used)
-            if int(total_legs) >= int(max_legs):
-                continue
-            p_out, p_legs = p_state
-            s_out, s_legs = s_state
-            merged_legs = tuple(sorted((*p_legs, *s_legs)))
-            # Check for duplicate pool_ids (prefix and suffix must be disjoint).
-            p_ids = {pid for pid, _ in p_legs}
-            s_ids = {pid for pid, _ in s_legs}
-            if p_ids & s_ids:
-                continue
-            candidate: _State = (int(p_out) + int(s_out), merged_legs)
-            existing = combined.get(int(total_spent))
-            if existing is None or _is_better_state(candidate, existing):
-                combined[int(total_spent)] = candidate
+            for p_legs_used, p_state in p_candidates:
+                for s_legs_used, s_state in s_candidates:
+                    total_legs = int(p_legs_used) + int(s_legs_used)
+                    if int(total_legs) >= int(max_legs):
+                        continue
+                    p_out, p_legs = p_state
+                    s_out, s_legs = s_state
+                    # Check for duplicate pool_ids (prefix and suffix must be disjoint).
+                    p_ids = {pid for pid, _ in p_legs}
+                    s_ids = {pid for pid, _ in s_legs}
+                    if p_ids & s_ids:
+                        continue
+                    merged_legs = tuple(sorted((*p_legs, *s_legs)))
+                    candidate: _State = (int(p_out) + int(s_out), merged_legs)
+                    existing = combined.get(int(total_spent))
+                    if existing is None or _is_better_state(candidate, existing):
+                        combined[int(total_spent)] = candidate
     return combined
 
 
@@ -585,8 +612,8 @@ def staircase_k_pool_best_split(
         spec = ordered[i]
         # prefix[i] covers pools[0..i-1], suffix[i+1] covers pools[i+1..k-1].
         # Together they cover all pools except pool at position i.
-        prefix_index = _index_by_spent(prefix[i], max_legs=int(max_legs_i))
-        suffix_index = _index_by_spent(suffix[i + 1], max_legs=int(max_legs_i))
+        prefix_index = _index_by_spent_pareto(prefix[i], max_legs=int(max_legs_i))
+        suffix_index = _index_by_spent_pareto(suffix[i + 1], max_legs=int(max_legs_i))
         combined = _combine_prefix_suffix_by_spent(
             prefix_index=prefix_index,
             suffix_index=suffix_index,
@@ -768,8 +795,8 @@ def _staircase_split_with_context(
 
     for i in range(k):
         spec = ordered[i]
-        prefix_index = _index_by_spent(prefix[i], max_legs=int(max_legs))
-        suffix_index = _index_by_spent(suffix[i + 1], max_legs=int(max_legs))
+        prefix_index = _index_by_spent_pareto(prefix[i], max_legs=int(max_legs))
+        suffix_index = _index_by_spent_pareto(suffix[i + 1], max_legs=int(max_legs))
         combined = _combine_prefix_suffix_by_spent(
             prefix_index=prefix_index,
             suffix_index=suffix_index,

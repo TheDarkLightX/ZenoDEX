@@ -264,3 +264,45 @@ def test_kpool_staircase_rejects_nonpositive_max_legs() -> None:
             max_legs=0,
             quote_exact_in=exact_out_for_pool_exact_in,
         )
+
+
+# ---------------------------------------------------------------------------
+# DP compression correctness: Pareto-optimal state retention.
+#
+# The prefix/suffix DP combination must keep states with fewer legs even when
+# they have lower output at the same spent value. A state with fewer legs can
+# enable a valid prefix+suffix+interior combination that a higher-output state
+# with more legs cannot (the legs budget constraint excludes the latter).
+#
+# This test constructs a 4-pool case where the optimal split requires using a
+# lower-output prefix state to leave room for the suffix and interior pool.
+# ---------------------------------------------------------------------------
+
+
+def test_kpool_staircase_dp_compression_pareto_retention() -> None:
+    """Verify the Pareto-optimal state retention fixes the DP compression bug.
+
+    Uses 4 pools with max_legs=3 so that the optimal split requires choosing a
+    prefix state with fewer legs (but lower output) to leave room for the
+    suffix and interior pool within the legs budget.
+    """
+    pools = [
+        ("pool-a", PoolXY(x=100, y=200, fee_bps=100)),
+        ("pool-b", PoolXY(x=200, y=100, fee_bps=100)),
+        ("pool-c", PoolXY(x=150, y=150, fee_bps=50)),
+        ("pool-d", PoolXY(x=300, y=300, fee_bps=30)),
+    ]
+    got, expected = _run_both(pools, amount_in=250, max_legs=3)
+    _assert_allocations_match(got, expected, pools)
+
+
+def test_kpool_staircase_dp_compression_pareto_retention_skewed() -> None:
+    """Another DP compression test with skewed reserves and high fees."""
+    pools = [
+        ("pool-a", PoolXY(x=50, y=500, fee_bps=500)),
+        ("pool-b", PoolXY(x=500, y=50, fee_bps=500)),
+        ("pool-c", PoolXY(x=10, y=1000, fee_bps=9900)),
+        ("pool-d", PoolXY(x=1000, y=10, fee_bps=9900)),
+    ]
+    got, expected = _run_both(pools, amount_in=180, max_legs=3)
+    _assert_allocations_match(got, expected, pools)

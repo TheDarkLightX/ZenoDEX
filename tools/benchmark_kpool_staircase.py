@@ -257,12 +257,25 @@ def _alloc_to_legs(alloc: dict[str, int]) -> tuple[tuple[str, int], ...]:
     return tuple(sorted((pid, int(amt)) for pid, amt in alloc.items() if int(amt) > 0))
 
 
-def _alloc_total_out(alloc: dict[str, int], pools: dict[str, PoolXY]) -> int:
+def _alloc_total_out(
+    alloc: dict[str, int],
+    pools: dict[str, PoolXY],
+    quote_fn: Callable[[PoolXY, int], int] | None = None,
+) -> int:
+    """Compute total output for an allocation.
+
+    If quote_fn is provided, uses it (so quotes are counted in the caller's
+    counter). Otherwise uses the uncounted direct quote (for parity checks
+    where the total output must be exact, not counted).
+    """
     total = 0
     for pid, amt in alloc.items():
         if int(amt) <= 0:
             continue
-        total += int(exact_out_for_pool_exact_in(pools[pid], int(amt)))
+        if quote_fn is not None:
+            total += int(quote_fn(pools[pid], int(amt)))
+        else:
+            total += int(exact_out_for_pool_exact_in(pools[pid], int(amt)))
     return int(total)
 
 
@@ -284,7 +297,7 @@ def _run_staircase(case: KPoolBenchmarkCase) -> dict[str, Any]:
             "status": "ok",
             "alloc": alloc,
             "legs": _alloc_to_legs(alloc),
-            "total_out": _alloc_total_out(alloc, pools_dict),
+            "total_out": _alloc_total_out(alloc, pools_dict, quote_fn=counted),
             "quote_count": int(calls["n"]),
         }
     except ValueError as exc:
@@ -320,7 +333,7 @@ def _run_adaptive(case: KPoolBenchmarkCase) -> dict[str, Any]:
             "status": "ok",
             "alloc": alloc,
             "legs": _alloc_to_legs(alloc),
-            "total_out": _alloc_total_out(alloc, pools_dict),
+            "total_out": _alloc_total_out(alloc, pools_dict, quote_fn=counted),
             "quote_count": int(calls["n"]),
         }
     except ValueError as exc:
@@ -345,7 +358,7 @@ def _run_brute(case: KPoolBenchmarkCase) -> dict[str, Any]:
             "status": "ok",
             "alloc": alloc,
             "legs": _alloc_to_legs(alloc),
-            "total_out": _alloc_total_out(alloc, pools_dict),
+            "total_out": _alloc_total_out(alloc, pools_dict, quote_fn=counted),
             "quote_count": int(calls["n"]),
         }
     except ValueError as exc:
@@ -388,7 +401,7 @@ def _run_small_domain_dp(case: KPoolBenchmarkCase) -> dict[str, Any]:
             "status": "ok",
             "alloc": alloc,
             "legs": _alloc_to_legs(alloc),
-            "total_out": _alloc_total_out(alloc, pools_dict),
+            "total_out": _alloc_total_out(alloc, pools_dict, quote_fn=counted),
             "quote_count": int(calls["n"]),
         }
     except ValueError as exc:
