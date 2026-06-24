@@ -488,6 +488,30 @@ def test_exact_out_many_pool_prefilter_contract_rejects_tampering() -> None:
     assert err == "prefilter contract payload mismatch"
 
 
+def test_exact_out_many_pool_prefilter_contract_caps_malformed_value_error() -> None:
+    pools = (
+        _pool(pool_id="pool_b", reserve0=100, reserve1=34, fee_bps=0),
+        _pool(pool_id="pool_a", reserve0=120, reserve1=40, fee_bps=0),
+        _pool(pool_id="pool_c", reserve0=160, reserve1=60, fee_bps=0),
+    )
+    payload = build_exact_out_many_pool_prefilter_contract(
+        pools,
+        asset_in="A",
+        asset_out="B",
+        amount_out_total=6,
+        max_legs=3,
+        max_candidate_pools=3,
+    ).to_dict()
+    payload["amount_out_total"] = "x" * 500
+
+    ok, err = verify_exact_out_many_pool_prefilter_contract_payload(payload)
+
+    assert ok is False
+    assert err is not None
+    assert err.startswith("invalid literal for int()")
+    assert len(err) <= 200
+
+
 def test_exact_out_many_pool_repaired_prefilter_contract_builds_and_verifies() -> None:
     pools = (
         _pool(pool_id="p0", reserve0=20, reserve1=10, fee_bps=0),

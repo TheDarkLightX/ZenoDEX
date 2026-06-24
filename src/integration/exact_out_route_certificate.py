@@ -87,6 +87,11 @@ EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_REPAIRED_FULL_DOMAIN_PACKET_NOT_OK = "repai
 EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_REPLAYABLE_QUOTE_MISSING = "replayable_quote_missing"
 
 
+def _safe_payload_validation_error(exc: Exception) -> str:
+    detail = " ".join(str(exc).split())
+    return detail[:200] or type(exc).__name__
+
+
 @dataclass(frozen=True)
 class ExactOutRouteCandidateCertificate:
     candidate_index: int
@@ -2565,7 +2570,7 @@ def verify_exact_out_many_pool_prefilter_contract_payload(payload: object) -> tu
             max_candidate_pools=int(payload["max_candidate_pools"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
         return False, "prefilter contract payload mismatch"
     return True, None
@@ -2592,7 +2597,7 @@ def verify_exact_out_many_pool_repaired_prefilter_contract_payload(payload: obje
             max_enumerated_candidates=int(payload["max_enumerated_candidates"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
         return False, "repaired prefilter contract payload mismatch"
     return True, None
@@ -3768,7 +3773,7 @@ def verify_exact_out_many_pool_audited_bounds_contract_payload(payload: object) 
             max_enumerated_candidates=int(payload["max_enumerated_candidates"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
         return False, "audited bounds contract payload mismatch"
     return True, None
@@ -3802,7 +3807,7 @@ def verify_exact_out_many_pool_adaptive_liveness_packet_payload(payload: object)
             max_enumerated_candidates=int(contract_payload["max_enumerated_candidates"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
         return False, "adaptive liveness packet payload mismatch"
     return True, None
@@ -3828,7 +3833,7 @@ def verify_exact_out_many_pool_candidate_domain_contract_payload(payload: object
             max_enumerated_candidates=int(payload["max_enumerated_candidates"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
         return False, "candidate domain contract payload mismatch"
     return True, None
@@ -4226,7 +4231,7 @@ def verify_exact_out_many_pool_certified_winner_packet_payload(payload: object) 
             max_enumerated_candidates=int(domain_payload["max_enumerated_candidates"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
         return False, "certified winner packet payload mismatch"
     return True, None
@@ -4271,7 +4276,7 @@ def verify_exact_out_many_pool_certified_advisory_packet_payload(payload: object
             max_enumerated_candidates=int(domain_payload["max_enumerated_candidates"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
         return False, "certified advisory packet payload mismatch"
     return True, None
@@ -4285,7 +4290,7 @@ def verify_exact_out_route_canonical_certificate_payload(
     try:
         quotes = extract_exact_out_route_certificate_quotes(payload)
     except (TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     expected = build_exact_out_route_canonical_certificate(quotes, binding_ok=expected_binding_ok)
     if not isinstance(payload, dict):
         return False, "certificate payload must be a dict"
@@ -4322,7 +4327,7 @@ def verify_exact_out_many_pool_repaired_replacement_shadow_packet_payload(payloa
             max_enumerated_candidates=int(replacement_payload["max_enumerated_candidates"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
         return False, "repaired replacement shadow packet payload mismatch"
     return True, None
@@ -4353,7 +4358,7 @@ def verify_exact_out_many_pool_repaired_selected_domain_oracle_contract_payload(
             max_enumerated_candidates=int(payload["max_enumerated_candidates"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
         return False, "repaired selected-domain oracle contract payload mismatch"
     return True, None
@@ -4383,7 +4388,7 @@ def verify_exact_out_many_pool_oracle_contract_payload(payload: object) -> tuple
             max_enumerated_candidates=int(payload["max_enumerated_candidates"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
         return False, "oracle contract payload mismatch"
     return True, None
@@ -4419,7 +4424,7 @@ def verify_exact_out_many_pool_guarded_quote_packet_payload(payload: object) -> 
             max_enumerated_candidates=int(contract_payload["max_enumerated_candidates"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
         return False, "guarded quote packet payload mismatch"
     return True, None
@@ -4456,7 +4461,7 @@ def verify_exact_out_many_pool_repaired_advisory_quote_packet_payload(payload: o
             max_enumerated_candidates=int(contract_payload["max_enumerated_candidates"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
         return False, "repaired advisory quote packet payload mismatch"
     return True, None
@@ -4498,7 +4503,7 @@ def verify_exact_out_many_pool_repaired_full_domain_certified_packet_payload(
             max_enumerated_candidates=int(contract_payload["max_enumerated_candidates"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
         return False, "repaired full-domain certified packet payload mismatch"
     return True, None
@@ -4537,7 +4542,7 @@ def verify_exact_out_many_pool_repaired_key_cover_packet_payload(
             max_enumerated_candidates=int(selected_domain_payload["max_enumerated_candidates"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
         return False, "repaired key-cover packet payload mismatch"
     return True, None
@@ -4579,7 +4584,7 @@ def verify_exact_out_many_pool_repaired_key_cover_interpretation_packet_payload(
             max_enumerated_candidates=int(selected_domain_payload["max_enumerated_candidates"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
         return False, "repaired key-cover interpretation packet payload mismatch"
     return True, None
@@ -4619,7 +4624,7 @@ def verify_exact_out_many_pool_bounded_workaround_packet_payload(payload: object
             max_enumerated_candidates=int(oracle_payload["max_enumerated_candidates"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
         return False, "bounded workaround packet payload mismatch"
     return True, None
@@ -4662,7 +4667,7 @@ def verify_exact_out_many_pool_bounded_advisory_quote_packet_payload(payload: ob
             max_enumerated_candidates=int(oracle_payload["max_enumerated_candidates"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
         return False, "bounded advisory quote packet payload mismatch"
     return True, None
