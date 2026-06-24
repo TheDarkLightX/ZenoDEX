@@ -371,6 +371,38 @@ def test_verify_price_packet_payload_rejects_expected_builder_error(
     assert err == "certificate packet input invalid"
 
 
+def test_verify_price_packet_payload_caps_malformed_pool_snapshot_error() -> None:
+    _pk, asset0, asset1, _pool_id, pool, settlement = _four_swap_context()
+    price_packet = _price_packet_for(asset0, asset1)
+
+    ok, err = verify_settlement_end_to_end_certificate_packet_payload_from_price_packet(
+        settlement=settlement,
+        proof_flags=SettlementProofFlags.all_true(),
+        price_history=(100, 110, 120),
+        feature_extension_inputs_payload=_feature_extension_inputs().to_dict(),
+        price_packet_payload=price_packet.to_dict(),
+        pool_snapshots_payload=[{
+            "pool_id": pool.pool_id,
+            "asset0": pool.asset0,
+            "asset1": pool.asset1,
+            "reserve0": "9" * 1_000 + "x",
+            "reserve1": pool.reserve1,
+            "fee_bps": pool.fee_bps,
+            "lp_supply": pool.lp_supply,
+            "status": pool.status.name,
+            "created_at": pool.created_at,
+            "curve_tag": pool.curve_tag,
+            "curve_params": pool.curve_params,
+        }],
+        packet_payload={},
+    )
+
+    assert ok is False
+    assert err is not None
+    assert len(err) <= 200
+    assert "9" * 201 not in err
+
+
 def test_verify_price_packet_payload_surfaces_unexpected_builder_fault(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -39,6 +39,11 @@ if TYPE_CHECKING:
 SETTLEMENT_END_TO_END_CERTIFICATE_PACKET_SCHEMA = "zenodex/settlement-end-to-end-certificate-packet/v1"
 
 
+def _safe_payload_validation_error(exc: Exception) -> str:
+    detail = " ".join(str(exc).split())
+    return detail[:200] or type(exc).__name__
+
+
 @dataclass(frozen=True)
 class SettlementEndToEndCertificateInputs:
     proof_flags: SettlementProofFlags
@@ -310,7 +315,7 @@ def verify_settlement_end_to_end_certificate_packet_payload_from_price_packet(
     try:
         price_packet = SettlementSpotPricePacket.from_dict(price_packet_payload)
     except (TypeError, ValueError, KeyError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     try:
         pool_snapshots = None
         if pool_snapshots_payload is not None:
@@ -325,7 +330,7 @@ def verify_settlement_end_to_end_certificate_packet_payload_from_price_packet(
             pool_snapshots=pool_snapshots,
         )
     except (TypeError, ValueError, KeyError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if not isinstance(packet_payload, Mapping):
         return False, "packet must be an object"
     if str(packet_payload.get("schema", "")) != expected.schema:
@@ -391,7 +396,7 @@ def enforce_settlement_end_to_end_certificate(
                 allowed_signers=certificate_inputs.allowed_signers,
             )
     except (TypeError, ValueError, KeyError) as exc:
-        return False, str(exc), None
+        return False, _safe_payload_validation_error(exc), None
 
     if not packet.packet_ok:
         return False, _end_to_end_packet_rejection_reason(packet), None
@@ -417,7 +422,7 @@ def verify_settlement_end_to_end_certificate_packet_payload_from_price_attestati
     try:
         price_attestation = SettlementSpotPriceAttestation.from_dict(price_attestation_payload)
     except (TypeError, ValueError, KeyError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     try:
         pool_snapshots = None
         if pool_snapshots_payload is not None:
@@ -435,7 +440,7 @@ def verify_settlement_end_to_end_certificate_packet_payload_from_price_attestati
             allowed_signers=allowed_signers,
         )
     except (TypeError, ValueError, KeyError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if not isinstance(packet_payload, Mapping):
         return False, "packet must be an object"
     if str(packet_payload.get("schema", "")) != expected.schema:
