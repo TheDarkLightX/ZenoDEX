@@ -24,6 +24,7 @@ MAX_EPOCH: int = 1_000_000
 MAX_COLLATERAL: int = 1_000_000_000_000_000
 MAX_FUNDING_CUMULATIVE: int = 1_000_000_000_000_000
 PERP_MATH_SURFACE = "perp_math"
+_EXPECTED_PERP_MATH_ERRORS = (ArithmeticError, TypeError, ValueError)
 
 
 # -- Basic helpers -----------------------------------------------------------
@@ -47,7 +48,7 @@ def _perp_math_docs_agree(left: dict[str, Any], right: dict[str, Any]) -> bool:
 def _python_doc(fn, *args: Any) -> dict[str, Any]:
     try:
         value = fn(*args)
-    except Exception as exc:
+    except _EXPECTED_PERP_MATH_ERRORS as exc:
         return {"ok": False, "code": f"python_error:{type(exc).__name__}"}
     if isinstance(value, bool):
         return {"ok": True, "flag": value}

@@ -1,7 +1,10 @@
 """Tests for src/core/perp_v2/math.py — pure arithmetic functions."""
 
+import pytest
+
 from src.core.perp_v2.math import (
     PRICE_SCALE,
+    _python_doc,
     abs_val,
     funding_payment,
     funding_same_sign,
@@ -20,6 +23,28 @@ from src.core.perp_v2.math import (
     pnl_same_sign,
     settle_price,
 )
+
+
+# ---------------------------------------------------------------------------
+# Authority docs
+# ---------------------------------------------------------------------------
+
+class TestPythonAuthorityDoc:
+    def test_expected_domain_error_becomes_reject_doc(self):
+        def bad_domain():
+            raise ValueError("bad domain")
+
+        assert _python_doc(bad_domain) == {
+            "ok": False,
+            "code": "python_error:ValueError",
+        }
+
+    def test_unexpected_runtime_error_propagates(self):
+        def broken_runtime():
+            raise RuntimeError("unexpected")
+
+        with pytest.raises(RuntimeError, match="unexpected"):
+            _python_doc(broken_runtime)
 
 
 # ---------------------------------------------------------------------------
