@@ -107,6 +107,7 @@ echo "== critical: ruff =="
 "$PY" -m ruff check \
   tools/acceptance_tcb_mutation_harness.py \
   tools/check_acceptance_tcb_coverage.py \
+  tools/check_runtime_hardening.py \
   src/core/domain_limits.py \
   src/core/cpmm.py \
   src/core/liquidity.py \
@@ -143,6 +144,7 @@ echo "== critical: ruff =="
   tests/core/test_volatility_tier_ref_parity.py \
   tests/core/test_dex_step.py \
   tests/core/test_dex_step_candidate_settlement.py \
+  tests/test_check_runtime_hardening.py \
   tests/integration/test_dex_engine_helpers.py \
   tests/integration/test_operations_fuzz.py \
   tests/integration/test_proof_verifier_fuzz.py \
@@ -166,6 +168,9 @@ bash -n \
   "$ROOT_DIR/tools/run_snapshot_recovery_gate.sh" \
   "$ROOT_DIR/tools/run_critical_quality_gate.sh" \
   "$ROOT_DIR/tools/run_release_gate.sh"
+
+echo "== critical: runtime hardening =="
+"$PY" "$ROOT_DIR/tools/check_runtime_hardening.py"
 
 echo "== critical: mypy =="
 "$PY" -m mypy
