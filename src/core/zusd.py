@@ -852,7 +852,7 @@ def _step_python(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
         if failed:
             return ZUSDStepResult(ok=False, error=f"invariant violation: {','.join(failed)}")
         return ZUSDStepResult(ok=True, state=ns, effects=eff)
-    except Exception as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         return ZUSDStepResult(ok=False, error=str(exc))
 
 
@@ -1502,5 +1502,5 @@ def step_multi(state: ZUSDMultiState, cmd: ZUSDMultiCommand) -> ZUSDMultiStepRes
         if failed:
             return ZUSDMultiStepResult(ok=False, error=f"invariant violation: {','.join(failed)}")
         return ZUSDMultiStepResult(ok=True, state=ns, effects=eff)
-    except Exception as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         return ZUSDMultiStepResult(ok=False, error=str(exc))

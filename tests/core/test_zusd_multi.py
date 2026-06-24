@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import src.core.zusd as zusd_mod
 from src.core.zusd import (
     E8,
     ZUSDMultiCommand,
@@ -41,6 +42,21 @@ def test_multi_supply_conservation_across_two_vaults() -> None:
     assert s.free_debt_e8 == 160 * E8
     assert s.sp_debt_e8 == 90 * E8
     assert check_multi_invariants(s) == []
+
+
+def test_step_multi_rejects_domain_error_without_swallowing_handler_bug(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bad = step_multi(init_multi_state(), ZUSDMultiCommand(tag="advance_epoch", args={"delta": "bad"}))
+    assert not bad.ok
+    assert bad.error is not None
+
+    def broken_handler(_state: ZUSDMultiState, _cmd: ZUSDMultiCommand):
+        raise RuntimeError("unexpected multi-zusd handler bug")
+
+    monkeypatch.setitem(zusd_mod._ZUSD_MULTI_STEP_HANDLERS, "advance_epoch", broken_handler)
+    with pytest.raises(RuntimeError, match="unexpected multi-zusd handler bug"):
+        step_multi(init_multi_state(), ZUSDMultiCommand(tag="advance_epoch", args={"delta": 1}))
 
 
 def test_oracle_commit_requires_both_vaults_above_mcr_at_pending() -> None:

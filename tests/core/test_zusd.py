@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+import src.core.zusd as zusd_mod
 from src.core.zusd import (
     E8,
     ZUSDCommand,
@@ -34,6 +37,21 @@ def test_basic_mint_repay_and_conservation() -> None:
     assert s.free_debt_e8 == 90 * E8
     assert s.sp_debt_e8 == 40 * E8
     assert check_invariants(s) == []
+
+
+def test_step_rejects_domain_error_without_swallowing_handler_bug(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bad = step(init_state(), ZUSDCommand(tag="advance_epoch", args={"delta": "bad"}))
+    assert not bad.ok
+    assert bad.error is not None
+
+    def broken_handler(_state: ZUSDState, _cmd: ZUSDCommand):
+        raise RuntimeError("unexpected zusd handler bug")
+
+    monkeypatch.setitem(zusd_mod._ZUSD_STEP_HANDLERS, "advance_epoch", broken_handler)
+    with pytest.raises(RuntimeError, match="unexpected zusd handler bug"):
+        step(init_state(), ZUSDCommand(tag="advance_epoch", args={"delta": 1}))
 
 
 def test_pending_price_freezes_risky_ops() -> None:
