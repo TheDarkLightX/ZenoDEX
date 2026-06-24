@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Sequence, cast
 
 from src.integration.zeno_key_manager_v0 import (
     BACKEND_HARDWARE_WALLET_PLACEHOLDER,
@@ -31,6 +31,18 @@ PROHIBITED_PRODUCTION_BACKEND_KINDS_V0 = frozenset(
     }
 )
 REFERENCE_ONLY_PRODUCTION_BACKEND_KINDS_V0 = frozenset({BACKEND_THRESHOLD_BLS_LOCAL})
+_MAX_GOVERNANCE_ERROR_CHARS = 512
+
+
+def _safe_governance_error(exc: Exception) -> str:
+    if isinstance(exc, (ValueError, TypeError, KeyError)):
+        msg = str(exc)
+    else:
+        msg = f"internal error: {type(exc).__name__}"
+    msg = " ".join((msg or "").split())
+    if len(msg) > _MAX_GOVERNANCE_ERROR_CHARS:
+        msg = msg[:_MAX_GOVERNANCE_ERROR_CHARS]
+    return msg or "internal error"
 
 
 def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
@@ -86,7 +98,7 @@ def _normalize_backend_descriptor(raw: object, *, name: str) -> tuple[dict[str, 
             return None, f"{name}_binding_invalid"
         return expected, None
     except (TypeError, ValueError) as exc:
-        return None, f"{name}_invalid:{exc}"
+        return None, f"{name}_invalid:{_safe_governance_error(exc)}"
 
 
 def _tau_policy_receipt_hash(receipt: object, *, production_mode: bool) -> tuple[str | None, list[str]]:
@@ -103,11 +115,11 @@ def _tau_policy_receipt_hash(receipt: object, *, production_mode: bool) -> tuple
             return None, errors
         return _require_root(root, name="tau_policy_receipt.hash"), errors
     except (TypeError, ValueError) as exc:
-        return None, [*errors, f"tau_policy_receipt_invalid:{exc}"]
+        return None, [*errors, f"tau_policy_receipt_invalid:{_safe_governance_error(exc)}"]
 
 
 def _normalize_evidence_claims(
-    claims: Sequence[Mapping[str, Any]],
+    claims: object,
     *,
     required_claims: frozenset[str],
     production_mode: bool,
@@ -143,7 +155,7 @@ def _normalize_evidence_claims(
                 }
             )
         except (TypeError, ValueError) as exc:
-            errors.append(f"evidence_claim_invalid:{index}:{exc}")
+            errors.append(f"evidence_claim_invalid:{index}:{_safe_governance_error(exc)}")
     for claim_kind in sorted(required_claims):
         if claim_kind not in seen:
             errors.append(f"required_evidence_claim_missing:{claim_kind}")
@@ -186,14 +198,19 @@ def evaluate_governance_authority_v0(
         if normalized_current_epoch < normalized_proposal_epoch + normalized_min_delay:
             errors.append("governance_timelock_not_elapsed")
     except (TypeError, ValueError) as exc:
-        errors.append(f"governance_action_invalid:{exc}")
+        errors.append(f"governance_action_invalid:{_safe_governance_error(exc)}")
 
     sorted_envelopes: list[Mapping[str, Any]] = []
-    if not isinstance(signature_envelopes, Sequence) or isinstance(signature_envelopes, (str, bytes, bytearray)):
+    signature_envelopes_obj: object = signature_envelopes
+    if not isinstance(signature_envelopes_obj, Sequence) or isinstance(
+        signature_envelopes_obj,
+        (str, bytes, bytearray),
+    ):
         errors.append("signature_envelopes_must_be_sequence")
     else:
+        signature_envelope_seq = cast(Sequence[Mapping[str, Any]], signature_envelopes_obj)
         sorted_envelopes = sorted(
-            signature_envelopes,
+            signature_envelope_seq,
             key=lambda item: (
                 str(item.get("signer_id")) if isinstance(item, Mapping) else "",
                 str(item.get("key_id")) if isinstance(item, Mapping) else "",
@@ -211,7 +228,7 @@ def evaluate_governance_authority_v0(
                 envelopes=sorted_envelopes,
             )
         except (TypeError, ValueError) as exc:
-            errors.append(f"signature_quorum_invalid:{exc}")
+            errors.append(f"signature_quorum_invalid:{_safe_governance_error(exc)}")
     # Fail-closed: a governance action without a verified signature quorum has no
     # authority. Without this check an empty envelope list skipped quorum
     # verification entirely and the receipt could report ok=True with zero
@@ -252,7 +269,7 @@ def evaluate_governance_authority_v0(
                         _require_root(evidence_hash, name="external_threshold_bls_evidence_hash")
                     )
                 except (TypeError, ValueError) as exc:
-                    errors.append(f"external_threshold_bls_evidence_hash_invalid:{exc}")
+                    errors.append(f"external_threshold_bls_evidence_hash_invalid:{_safe_governance_error(exc)}")
                 if metadata.get("dealerless_dkg") is not True:
                     errors.append("external_threshold_bls_dealerless_dkg_required")
                 if metadata.get("production_security_claim") is not True:

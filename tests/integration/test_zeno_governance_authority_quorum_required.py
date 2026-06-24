@@ -11,6 +11,9 @@ skipped in that case).
 
 from __future__ import annotations
 
+import pytest
+
+import src.integration.zeno_governance_authority as governance_authority
 from src.integration.zeno_governance_authority import (
     evaluate_governance_authority_v0,
     governance_action_payload_hash_v0,
@@ -86,3 +89,24 @@ def test_quorum_missing_fires_in_production_mode_too() -> None:
 
     assert receipt["ok"] is False
     assert "signature_quorum_missing" in receipt["errors"]
+
+
+def test_governance_authority_errors_are_capped_and_internal_faults_hidden(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    detail = "x" * 700
+
+    assert governance_authority._safe_governance_error(ValueError(detail)) == detail[:512]
+    assert governance_authority._safe_governance_error(RuntimeError("secret " + detail)) == (
+        "internal error: RuntimeError"
+    )
+
+    def faulting_root(_value: object, *, name: str) -> str:
+        raise ValueError(detail)
+
+    monkeypatch.setattr(governance_authority, "_require_root", faulting_root)
+
+    receipt = _evaluate(tau_policy_receipt={"ok": True, "policy_hash": ROOT_B})
+
+    assert receipt["ok"] is False
+    assert "tau_policy_receipt_invalid:" + detail[:512] in receipt["errors"]
