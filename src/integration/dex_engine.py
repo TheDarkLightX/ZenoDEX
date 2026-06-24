@@ -540,7 +540,7 @@ def _verify_intent_signature_bytes(
             return False, "invalid intent signature"
         return True, None
     except Exception as exc:
-        return False, f"intent signature verification error: {exc}"
+        return False, f"intent signature verification error: {_clean_error(exc)}"
 
 
 def _verify_all_intent_signatures(
@@ -692,7 +692,7 @@ def _validate_raw_settlement_op(config: DexEngineConfig, raw_settlement_op: Any)
     except ValueError:
         return "settlement operation too large"
     except TypeError as exc:
-        return f"invalid settlement operation: {exc}"
+        return f"invalid settlement operation: {_clean_error(exc)}"
 
     raw_fills = raw_settlement_op.get("fills")
     if isinstance(raw_fills, list) and len(raw_fills) > config.max_settlement_fills:
@@ -730,7 +730,7 @@ def _validate_raw_intent_ops(config: DexEngineConfig, raw_intents: Any) -> Optio
         except ValueError:
             return f"intent operation too large: index {i}"
         except TypeError as exc:
-            return f"invalid intent operation: {exc}"
+            return f"invalid intent operation: {_clean_error(exc)}"
         if total_raw_bytes > config.max_total_intent_entry_bytes:
             return "total intent operation too large"
     return None
@@ -1488,7 +1488,7 @@ def apply_ops(
                 max_total_intent_bytes=config.max_total_intent_bytes,
             )
         except ValueError as exc:
-            return DexTxResult(ok=False, error=str(exc))
+            return DexTxResult(ok=False, error=_clean_error(exc))
 
         ok, err = _verify_all_intent_signatures(
             signed_intents,
@@ -1614,7 +1614,7 @@ def apply_ops(
                                 ok=False,
                                 error=(
                                     "uniform batch optimality certificate rejected: "
-                                    f"uniform batch v2 bounded-grid evidence missing {str(exc)}"
+                                    f"uniform batch v2 bounded-grid evidence missing {_clean_error(exc)}"
                                 ),
                             )
                     elif uniform_batch_v3_exact_out_grid is not None:
@@ -1750,7 +1750,7 @@ def apply_ops(
                         fee_accumulator=state.fee_accumulator,
                     )
             except Exception as exc:
-                return DexTxResult(ok=False, error=f"invalid state for commitment: {exc}")
+                return DexTxResult(ok=False, error=f"invalid state for commitment: {_clean_error(exc)}")
 
             try:
                 if proof_scheme == "recompute_batch_v4":
@@ -1761,13 +1761,13 @@ def apply_ops(
                 else:
                     settlement_obj_for_commit = _settlement_commitment_dict(settlement)
             except (TypeError, ValueError) as exc:
-                return DexTxResult(ok=False, error=f"invalid settlement payload for commitment: {exc}")
+                return DexTxResult(ok=False, error=f"invalid settlement payload for commitment: {_clean_error(exc)}")
             try:
                 bounded_json_utf8_size(settlement_obj_for_commit, max_bytes=config.max_settlement_bytes)
             except ValueError:
                 return DexTxResult(ok=False, error="settlement payload too large")
             except TypeError as exc:
-                return DexTxResult(ok=False, error=f"invalid settlement payload: {exc}")
+                return DexTxResult(ok=False, error=f"invalid settlement payload: {_clean_error(exc)}")
 
             batch_payload = {
                 "schema": "zenodex_batch",
@@ -1787,7 +1787,7 @@ def apply_ops(
             except ValueError:
                 return DexTxResult(ok=False, error="batch payload too large")
             except TypeError as exc:
-                return DexTxResult(ok=False, error=f"invalid batch payload: {exc}")
+                return DexTxResult(ok=False, error=f"invalid batch payload: {_clean_error(exc)}")
 
         if (
             settlement is not None
@@ -1913,9 +1913,9 @@ def apply_ops(
                     proof_scheme=proof_scheme,
                 )
             except Exception as exc:
-                return DexTxResult(ok=False, error=f"invalid proof mining context: {exc}")
+                return DexTxResult(ok=False, error=f"invalid proof mining context: {_clean_error(exc)}")
         return DexTxResult(ok=True, state=next_state, settlement=settlement, proof_mining_context=proof_mining_context)
     except _InjectedFault as exc:
-        return DexTxResult(ok=False, error=str(exc))
+        return DexTxResult(ok=False, error=_clean_error(exc))
     except Exception:
         return DexTxResult(ok=False, error="internal error")

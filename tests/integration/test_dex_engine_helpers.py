@@ -234,6 +234,7 @@ def test_error_helpers_compact_context() -> None:
     assert _quote_receipt_error("bad receipt") == "bad receipt"
     assert _quote_receipt_error("bad receipt", intent_id="0x1") == "bad receipt: intent_id='0x1'"
     assert _clean_error("  bad \n   input\tvalue  ") == "bad input value"
+    assert _clean_error("x" * 250) == "x" * 200
 
 
 def test_hex_and_pubkey_helpers_fail_closed() -> None:
@@ -384,6 +385,16 @@ def test_validate_raw_operation_guards_report_invalid_payloads_and_total_size(mo
     monkeypatch.setattr("src.integration.dex_engine.bounded_json_utf8_size", bad_size)
     assert _validate_raw_settlement_op(config, {"x": 1}) == "invalid settlement operation: bad settlement encoding"
     assert _validate_raw_intent_ops(config, [{"x": 1}]) == "invalid intent operation: bad intent encoding"
+
+    long_detail = "x" * 300
+    monkeypatch.setattr(
+        "src.integration.dex_engine.bounded_json_utf8_size",
+        lambda value, *, max_bytes: (_ for _ in ()).throw(TypeError(long_detail)),
+    )
+    settlement_error = _validate_raw_settlement_op(config, {"x": 1})
+    intent_error = _validate_raw_intent_ops(config, [{"x": 1}])
+    assert settlement_error == "invalid settlement operation: " + ("x" * 200)
+    assert intent_error == "invalid intent operation: " + ("x" * 200)
 
     monkeypatch.setattr("src.integration.dex_engine.bounded_json_utf8_size", lambda value, *, max_bytes: 6)
     assert _validate_raw_intent_ops(config, [{"a": 1}, {"b": 2}]) == "total intent operation too large"
@@ -911,6 +922,20 @@ def test_verify_intent_signature_bytes_rejects_missing_bls_and_internal_errors(m
     assert ok is False
     assert err == "intent signature verification error: domain boom"
 
+    long_detail = "x" * 300
+    monkeypatch.setattr(
+        "src.integration.dex_engine.domain_sep_bytes",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError(long_detail)),
+    )
+    ok, err = _verify_intent_signature_bytes(
+        sender_pubkey_hex="0x" + "11" * 48,
+        signature_hex="0x" + "22" * 96,
+        signing_payload_bytes=b"{}",
+        chain_id="tau-net-alpha",
+    )
+    assert ok is False
+    assert err == "intent signature verification error: " + ("x" * 200)
+
 
 def test_verify_intent_signature_bytes_covers_invalid_signature_and_success(monkeypatch: pytest.MonkeyPatch) -> None:
     class _RejectingBLS:
@@ -1193,9 +1218,22 @@ def test_apply_ops_covers_invalid_proof_payload_and_signing_payload_errors(monke
     assert res.error == "invalid proof payload encoding"
 
     _patch_apply_ops_happy_path(monkeypatch)
-    monkeypatch.setattr(dex_engine, "_build_signing_payloads", lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("payload boom")))
+    monkeypatch.setattr(
+        dex_engine,
+        "_build_signing_payloads",
+        lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("payload boom")),
+    )
     res = apply_ops(config=DexEngineConfig(), state=state, operations={"2": "ignored"}, block_timestamp=0)
     assert res.error == "payload boom"
+
+    long_detail = "x" * 300
+    monkeypatch.setattr(
+        dex_engine,
+        "_build_signing_payloads",
+        lambda *args, **kwargs: (_ for _ in ()).throw(ValueError(long_detail)),
+    )
+    res = apply_ops(config=DexEngineConfig(), state=state, operations={"2": "ignored"}, block_timestamp=0)
+    assert res.error == "x" * 200
 
 
 def test_apply_ops_covers_missing_settlement_skip_match_and_comparison_errors(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1309,6 +1347,25 @@ def test_apply_ops_covers_validation_fee_split_proof_context_and_internal_error_
         block_timestamp=0,
     )
     assert res.error == "invalid proof mining context: bad ctx"
+
+    long_detail = "x" * 300
+    monkeypatch.setattr(
+        dex_engine,
+        "build_proof_mining_context",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError(long_detail)),
+    )
+    res = apply_ops(
+        config=DexEngineConfig(
+            consensus_mode=False,
+            allow_external_tools=True,
+            require_settlement_match=False,
+            proof_config=ProofVerifierConfig(enabled=True, verifier_cmd=["/bin/true"]),
+        ),
+        state=state,
+        operations={"2": "ignored"},
+        block_timestamp=0,
+    )
+    assert res.error == "invalid proof mining context: " + ("x" * 200)
 
     internal_settlement = _filled_settlement(_iid(522), fee_paid=0)
     _patch_apply_ops_happy_path(
