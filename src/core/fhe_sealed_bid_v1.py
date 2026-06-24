@@ -26,10 +26,20 @@ Copyright (c) DarkLightX/Dana Edwards. All rights reserved.
 from __future__ import annotations
 
 import math
-import secrets
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Tuple
 
+from ..crypto.paillier_v1 import (
+    PaillierKeyPair,
+    PaillierPrivateKey,
+    PaillierPublicKey,
+    _decrypt_value,
+    _encrypt_value,
+    _homomorphic_add as _homomorphic_add,
+    _homomorphic_scalar_mul as _homomorphic_scalar_mul,
+    _homomorphic_sub,
+    generate_paillier_keypair as generate_paillier_keypair,
+)
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 from .sealed_bid_auction import (
     MAX_PRICE,
@@ -46,144 +56,6 @@ MAX_V1_UNITS = 63
 SCHEME_FHE = "paillier-homomorphic-v1"
 SCHEME_FALLBACK = "commit_reveal_v1"
 _RECEIPT_DOMAIN = "zenodex.fhe_sealed_bid_v1/v1"
-_MILLER_RABIN_ROUNDS = 20
-
-# ── Paillier key types ──────────────────────────────────────────────────
-
-
-@dataclass(frozen=True)
-class PaillierPublicKey:
-    """Paillier public key: modulus n and generator g (= n + 1)."""
-    n: int
-    n_sq: int
-    g: int
-
-
-@dataclass(frozen=True)
-class PaillierPrivateKey:
-    """Paillier private key: lambda and mu for decryption."""
-    public: PaillierPublicKey
-    lam: int
-    mu: int
-
-
-@dataclass(frozen=True)
-class PaillierKeyPair:
-    """A Paillier key pair with an associated key_id."""
-    public_key: PaillierPublicKey
-    private_key: PaillierPrivateKey
-    key_id: str
-    key_bits: int
-
-
-# ── Paillier primitives ─────────────────────────────────────────────────
-
-
-def _is_probable_prime(n: int, rounds: int = _MILLER_RABIN_ROUNDS) -> bool:
-    """Miller-Rabin probabilistic primality test."""
-    if n < 2:
-        return False
-    if n < 4:
-        return True
-    if n % 2 == 0:
-        return False
-    r, d = 0, n - 1
-    while d % 2 == 0:
-        r += 1
-        d //= 2
-    for _ in range(rounds):
-        a = secrets.randbelow(n - 3) + 2
-        x = pow(a, d, n)
-        if x == 1 or x == n - 1:
-            continue
-        for _ in range(r - 1):
-            x = pow(x, 2, n)
-            if x == n - 1:
-                break
-        else:
-            return False
-    return True
-
-
-def _generate_prime(bits: int) -> int:
-    """Generate a random prime of approximately *bits* bits."""
-    while True:
-        candidate = secrets.randbits(bits) | (1 << (bits - 1)) | 1
-        if _is_probable_prime(candidate):
-            return candidate
-
-
-def generate_paillier_keypair(
-    *, key_bits: int = 256, key_id: str = "fhe-v1-default"
-) -> PaillierKeyPair:
-    """Generate a Paillier key pair with primes of *key_bits* bits each.
-
-    The modulus n has 2 * key_bits bits.  For production, key_bits >= 1024.
-    """
-    if key_bits < 64:
-        raise ValueError("key_bits must be >= 64")
-    while True:
-        p = _generate_prime(key_bits)
-        q = _generate_prime(key_bits)
-        if p == q:
-            continue
-        n = p * q
-        phi = (p - 1) * (q - 1)
-        if math.gcd(n, phi) != 1:
-            continue
-        n_sq = n * n
-        lam = phi // math.gcd(p - 1, q - 1)
-        mu = pow(lam, -1, n)
-        public = PaillierPublicKey(n=n, n_sq=n_sq, g=n + 1)
-        private = PaillierPrivateKey(public=public, lam=lam, mu=mu)
-        return PaillierKeyPair(
-            public_key=public,
-            private_key=private,
-            key_id=str(key_id),
-            key_bits=int(key_bits),
-        )
-
-
-def _random_coprime(n: int) -> int:
-    """Generate a random r in [1, n) with gcd(r, n) = 1."""
-    while True:
-        r = secrets.randbelow(n - 1) + 1
-        if math.gcd(r, n) == 1:
-            return r
-
-
-def _encrypt_value(public_key: PaillierPublicKey, plaintext: int) -> int:
-    """Paillier encryption: c = (1 + m*n) * r^n mod n^2 (g = n+1)."""
-    n = public_key.n
-    if plaintext < 0 or plaintext >= n:
-        raise ValueError("plaintext out of range for Paillier encryption")
-    r = _random_coprime(n)
-    return ((1 + plaintext * n) * pow(r, n, public_key.n_sq)) % public_key.n_sq
-
-
-def _decrypt_value(private_key: PaillierPrivateKey, ciphertext: int) -> int:
-    """Paillier decryption: m = L(c^lam mod n^2) * mu mod n."""
-    n_sq = private_key.public.n_sq
-    n = private_key.public.n
-    c_lam = pow(ciphertext, private_key.lam, n_sq)
-    l_val = (c_lam - 1) // n
-    return (l_val * private_key.mu) % n
-
-
-def _homomorphic_add(pk: PaillierPublicKey, c1: int, c2: int) -> int:
-    """E(m1 + m2) = c1 * c2 mod n^2."""
-    return (c1 * c2) % pk.n_sq
-
-
-def _homomorphic_sub(pk: PaillierPublicKey, c1: int, c2: int) -> int:
-    """E(m1 - m2) = c1 * c2^(-1) mod n^2."""
-    c2_inv = pow(c2, -1, pk.n_sq)
-    return (c1 * c2_inv) % pk.n_sq
-
-
-def _homomorphic_scalar_mul(pk: PaillierPublicKey, c: int, k: int) -> int:
-    """E(k * m) = c^k mod n^2."""
-    return pow(c, k, pk.n_sq)
 
 
 def _validate_ciphertext(
@@ -217,30 +89,17 @@ def compare_encrypted(
 ) -> ComparisonResult:
     """Compare two encrypted values without revealing individual plaintexts.
 
-    Uses additive blinding: a random value R (much larger than the max
-    possible bid) is homomorphically added to E(a - b) before decryption.
-    The decrypted value is (a - b + R) mod n, which does not reveal a - b
-    without knowing R.  Only the sign is extracted by comparing the
-    blinded result against R.  R is generated fresh per call and never
-    stored or returned, so the exact bid spread cannot be reconstructed.
+    The deterministic core decrypts only the homomorphic difference and returns
+    its sign under the bounded bid-price domain. Deployment privacy still
+    depends on keeping the private key inside the comparison authority, or on
+    replacing this helper with a threshold/proof-backed comparison oracle.
     """
-    import secrets as _secrets
-
     n = public_key.n
     enc_diff = _homomorphic_sub(public_key, c_a, c_b)
-    # Generate a fresh random blinding factor R >> max possible |a - b|.
-    # R must be large enough that (a - b + R) is always positive and
-    # less than n, so the sign is determined by comparing against R.
-    # Use half the modulus bit-length as the blinding size.
-    n_bits = n.bit_length()
-    r_bits = max(64, n_bits // 4)
-    R = _secrets.randbits(r_bits) | (1 << (r_bits - 1))
-    enc_r = _encrypt_value(public_key, R)
-    enc_blinded = _homomorphic_add(public_key, enc_diff, enc_r)
-    blinded = _decrypt_value(private_key, enc_blinded)
-    if blinded == R:
+    diff = _decrypt_value(private_key, enc_diff)
+    if diff == 0:
         return ComparisonResult(0)
-    if blinded > R:
+    if diff <= n // 2:
         return ComparisonResult(1)
     return ComparisonResult(-1)
 

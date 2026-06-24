@@ -5,6 +5,8 @@ Copyright (c) DarkLightX/Dana Edwards. All rights reserved.
 
 from __future__ import annotations
 
+import inspect
+
 import pytest
 
 import src.core.fhe_sealed_bid_v1 as fhe_v1_module
@@ -74,6 +76,12 @@ class TestPaillierPrimitives:
 
 
 class TestComparisonOracle:
+    def test_core_module_has_no_hidden_randomness(self):
+        source = inspect.getsource(fhe_v1_module)
+        assert "import secrets" not in source
+        assert "randbelow" not in source
+        assert "randbits" not in source
+
     def test_compare_returns_correct_sign_for_all_orderings(self, key_pair):
         pk, sk = key_pair.public_key, key_pair.private_key
         assert compare_encrypted(sk, pk, _encrypt_value(pk, 100), _encrypt_value(pk, 50)).value == 1
