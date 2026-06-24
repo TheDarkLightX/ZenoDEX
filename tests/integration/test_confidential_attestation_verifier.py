@@ -155,6 +155,79 @@ def test_subprocess_confidential_attestation_verifier_rejects_non_canonical_payl
     assert "invalid attestation request encoding" in err
 
 
+def test_confidential_attestation_verifier_caps_boundary_error_details(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    long_detail = "x" * 300
+
+    verifier = SubprocessConfidentialAttestationVerifier(
+        cmd=[sys.executable, "-c", "import sys; sys.exit(0)"],
+        timeout_s=1.0,
+        max_bytes=10_000,
+        max_stdout_bytes=1_000,
+        max_stderr_bytes=1_000,
+    )
+
+    with monkeypatch.context() as m:
+        def _faulting_popen(*_args: object, **_kwargs: object) -> object:
+            raise OSError(long_detail)
+
+        m.setattr(confidential_attestation_verifier.subprocess, "Popen", _faulting_popen)
+        verified, err = verifier.verify({"provider": "nitro"})
+        assert verified is None
+        assert err == "confidential attestation verifier error: " + ("x" * 200)
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            confidential_attestation_verifier,
+            "bounded_json_utf8_size",
+            lambda value, *, max_bytes: (_ for _ in ()).throw(TypeError(long_detail)),
+        )
+        payload_bytes, err = confidential_attestation_verifier._payload_bytes(
+            {"provider": "nitro"},
+            max_bytes=10_000,
+        )
+        assert payload_bytes is None
+        assert err == "invalid attestation request encoding: " + ("x" * 200)
+
+    class _FakeStream:
+        def fileno(self) -> int:
+            return 1
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            confidential_attestation_verifier.os,
+            "set_blocking",
+            lambda fd, blocking: (_ for _ in ()).throw(OSError(long_detail)),
+        )
+        err = confidential_attestation_verifier._configure_nonblocking_streams(
+            (_FakeStream(), _FakeStream(), _FakeStream()),
+        )
+        assert err == "confidential attestation verifier requires non-blocking pipes: " + ("x" * 200)
+
+    cmd = [
+        sys.executable,
+        "-c",
+        "import sys; sys.stderr.write('x' * 300); sys.exit(7)",
+    ]
+    stderr_verifier = SubprocessConfidentialAttestationVerifier(
+        cmd=cmd,
+        timeout_s=2.0,
+        max_bytes=10_000,
+        max_stdout_bytes=1_000,
+        max_stderr_bytes=1_000,
+    )
+    verified, err = stderr_verifier.verify({"provider": "nitro"})
+    assert verified is None
+    assert err == "confidential attestation verifier failed (exit 7): " + ("x" * 200)
+
+    verified, err = confidential_attestation_verifier._parse_verified_attestation(
+        ('{"ok": false, "error": "' + long_detail + '"}').encode(),
+    )
+    assert verified is None
+    assert err == "x" * 200
+
+
 def test_subprocess_confidential_attestation_verifier_surfaces_internal_payload_encoder_fault(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

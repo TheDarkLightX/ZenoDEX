@@ -53,6 +53,13 @@ class UnsupportedPlatformConfidentialAttestationVerifier(ConfidentialAttestation
         return None, self._reason
 
 
+def _safe_error_detail(value: object, *, max_len: int = 200) -> str:
+    detail = " ".join(str(value).strip().split())
+    if not detail:
+        return type(value).__name__
+    return detail if len(detail) <= max_len else detail[:max_len]
+
+
 class SubprocessConfidentialAttestationVerifier(ConfidentialAttestationVerifier):
     def __init__(
         self,
@@ -100,7 +107,7 @@ class SubprocessConfidentialAttestationVerifier(ConfidentialAttestationVerifier)
                 bufsize=0,
             )
         except (OSError, ValueError) as exc:
-            return None, f"confidential attestation verifier error: {exc}"
+            return None, f"confidential attestation verifier error: {_safe_error_detail(exc)}"
 
         if proc.stdin is None or proc.stdout is None or proc.stderr is None:
             try:
@@ -133,7 +140,8 @@ class SubprocessConfidentialAttestationVerifier(ConfidentialAttestationVerifier)
                 return None, wait_err
             if rc != 0:
                 err_text = stderr_buf.decode("utf-8", errors="replace").strip()
-                return None, f"confidential attestation verifier failed (exit {rc}): {err_text or 'no stderr'}"
+                detail = _safe_error_detail(err_text or "no stderr")
+                return None, f"confidential attestation verifier failed (exit {rc}): {detail}"
             return _parse_verified_attestation(stdout_buf)
         finally:
             try:
@@ -151,7 +159,7 @@ def _payload_bytes(payload: Mapping[str, Any], *, max_bytes: int) -> tuple[bytes
     except ValueError:
         return None, "attestation request too large"
     except TypeError as exc:
-        return None, f"invalid attestation request encoding: {exc}"
+        return None, f"invalid attestation request encoding: {_safe_error_detail(exc)}"
 
 
 def _pipe_streams(proc: subprocess.Popen[bytes]) -> tuple[IO[bytes], IO[bytes], IO[bytes]] | None:
@@ -168,7 +176,7 @@ def _configure_nonblocking_streams(streams: tuple[IO[bytes], IO[bytes], IO[bytes
         try:
             os.set_blocking(stream.fileno(), False)
         except Exception as exc:
-            return f"confidential attestation verifier requires non-blocking pipes: {exc}"
+            return f"confidential attestation verifier requires non-blocking pipes: {_safe_error_detail(exc)}"
     return None
 
 
@@ -373,14 +381,14 @@ def _parse_verified_attestation(stdout_bytes: bytes) -> tuple[VerifiedConfidenti
     try:
         result = json.loads(stdout_bytes)
     except Exception as exc:
-        return None, f"invalid verifier output: {exc}"
+        return None, f"invalid verifier output: {_safe_error_detail(exc)}"
     if not isinstance(result, dict):
         return None, "invalid verifier output (not an object)"
     ok = result.get("ok")
     if ok is False:
         error_value = result.get("error")
         if isinstance(error_value, str) and error_value:
-            return None, error_value
+            return None, _safe_error_detail(error_value)
         return None, "attestation rejected"
     if ok is not True:
         return None, "invalid verifier output (missing ok)"
@@ -403,7 +411,7 @@ def _parse_verified_attestation(stdout_bytes: bytes) -> tuple[VerifiedConfidenti
             attestation_epoch=attestation_epoch,
         )
     except Exception as exc:
-        return None, f"invalid verifier output: {exc}"
+        return None, f"invalid verifier output: {_safe_error_detail(exc)}"
     return verified, None
 
 
