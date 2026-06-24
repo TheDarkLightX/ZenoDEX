@@ -19,6 +19,13 @@ LIVE_PROOF_WRAPPER_ARTIFACT_BINDING_HASH_DOMAIN = "zenodex.live_proof_wrapper.ar
 LIVE_PROOF_WRAPPER_VERIFIER_CMD_HASH_DOMAIN = "zenodex.live_proof_wrapper.verifier_cmd/v1"
 
 
+def _safe_error_detail(value: object, *, max_len: int = 200) -> str:
+    detail = " ".join(str(value).strip().split())
+    if not detail:
+        return type(value).__name__
+    return detail if len(detail) <= max_len else detail[:max_len]
+
+
 def _env_bool(name: str, default: bool = False) -> bool:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
@@ -101,7 +108,7 @@ def _load_json_object_from_env(
         try:
             parsed = json.loads(raw_json)
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-            return None, f"{label} JSON invalid: {exc}"
+            return None, f"{label} JSON invalid: {_safe_error_detail(exc)}"
         if not isinstance(parsed, Mapping):
             return None, f"{label} JSON must decode to an object"
         return parsed, None
@@ -111,9 +118,9 @@ def _load_json_object_from_env(
     try:
         parsed = json.loads(Path(raw_file).read_text(encoding="utf-8"))
     except OSError as exc:
-        return None, f"{label} file unreadable: {exc}"
+        return None, f"{label} file unreadable: {_safe_error_detail(exc)}"
     except json.JSONDecodeError as exc:
-        return None, f"{label} file JSON invalid: {exc}"
+        return None, f"{label} file JSON invalid: {_safe_error_detail(exc)}"
     if not isinstance(parsed, Mapping):
         return None, f"{label} file must decode to an object"
     return parsed, None

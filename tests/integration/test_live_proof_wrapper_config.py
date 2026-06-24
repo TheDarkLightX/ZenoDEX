@@ -47,6 +47,58 @@ def test_proof_verifier_config_rejects_malformed_command_json_with_env_name(monk
         live_proof_wrapper.proof_verifier_config_from_env(env_prefix="PERPS_WALLET")
 
 
+def test_live_proof_wrapper_caps_json_loader_error_details(monkeypatch) -> None:
+    from src.integration import live_proof_wrapper
+
+    long_detail = "x" * 300
+
+    with monkeypatch.context() as m:
+        m.setenv("TEST_ARTIFACT_JSON", "{")
+        m.setattr(
+            live_proof_wrapper.json,
+            "loads",
+            lambda raw: (_ for _ in ()).throw(json.JSONDecodeError(long_detail, "doc", 0)),
+        )
+        artifact, err = live_proof_wrapper._load_json_object_from_env(
+            json_names=("TEST_ARTIFACT_JSON",),
+            file_names=(),
+            label="test artifact",
+        )
+        assert artifact is None
+        assert err == "test artifact JSON invalid: " + ("x" * 200)
+
+    with monkeypatch.context() as m:
+        m.setenv("TEST_ARTIFACT_FILE", "/tmp/missing-artifact.json")
+        m.setattr(
+            live_proof_wrapper.Path,
+            "read_text",
+            lambda self, *, encoding: (_ for _ in ()).throw(OSError(long_detail)),
+        )
+        artifact, err = live_proof_wrapper._load_json_object_from_env(
+            json_names=(),
+            file_names=("TEST_ARTIFACT_FILE",),
+            label="test artifact",
+        )
+        assert artifact is None
+        assert err == "test artifact file unreadable: " + ("x" * 200)
+
+    with monkeypatch.context() as m:
+        m.setenv("TEST_ARTIFACT_FILE", "/tmp/bad-artifact.json")
+        m.setattr(live_proof_wrapper.Path, "read_text", lambda self, *, encoding: "{")
+        m.setattr(
+            live_proof_wrapper.json,
+            "loads",
+            lambda raw: (_ for _ in ()).throw(json.JSONDecodeError(long_detail, "doc", 0)),
+        )
+        artifact, err = live_proof_wrapper._load_json_object_from_env(
+            json_names=(),
+            file_names=("TEST_ARTIFACT_FILE",),
+            label="test artifact",
+        )
+        assert artifact is None
+        assert err == "test artifact file JSON invalid: " + ("x" * 200)
+
+
 def test_proof_verifier_config_rejects_malformed_allow_path_lookup(monkeypatch) -> None:
     from src.integration import live_proof_wrapper
 
