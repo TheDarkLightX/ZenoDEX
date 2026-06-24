@@ -900,21 +900,21 @@ class ExactOutManyPoolRepairedKeyCoverPacket:
             raise TypeError("packet_ok must be a bool")
         if self.error is not None and (not isinstance(self.error, str) or not self.error):
             raise ValueError("error must be a non-empty string or None")
-        for field_name, value in (
+        for bool_field_name, bool_value in (
             ("selected_keys_subset_full_keys", self.selected_keys_subset_full_keys),
             ("key_cover_holds", self.key_cover_holds),
             ("selected_domain_canonical_matches_full_domain_canonical", self.selected_domain_canonical_matches_full_domain_canonical),
         ):
-            if not isinstance(value, bool):
-                raise TypeError(f"{field_name} must be a bool")
-        for field_name, value in (
+            if not isinstance(bool_value, bool):
+                raise TypeError(f"{bool_field_name} must be a bool")
+        for count_field_name, count_value in (
             ("selected_candidate_count", self.selected_candidate_count),
             ("full_candidate_count", self.full_candidate_count),
         ):
-            if not isinstance(value, int) or isinstance(value, bool):
-                raise TypeError(f"{field_name} must be an int")
-            if int(value) <= 0:
-                raise ValueError(f"{field_name} must be positive")
+            if not isinstance(count_value, int) or isinstance(count_value, bool):
+                raise TypeError(f"{count_field_name} must be an int")
+            if count_value <= 0:
+                raise ValueError(f"{count_field_name} must be positive")
         if not all(isinstance(witness, ExactOutManyPoolKeyCoverDominationWitness) for witness in self.domination_witnesses):
             raise TypeError("domination_witnesses must be ExactOutManyPoolKeyCoverDominationWitness values")
         if not isinstance(self.selected_domain_contract, ExactOutManyPoolRepairedSelectedDomainOracleContract):
@@ -1255,6 +1255,10 @@ class ExactOutManyPoolCertifiedAdvisoryPacket:
         repaired_projection_cover_holds = (
             None if repaired_projection_cover is None else bool(repaired_projection_cover.projection_cover_holds)
         )
+        effective_projection_cover_side: str | None
+        effective_projection_cover_holds: bool | None
+        effective_canonical_projected_path: list[list[Any]] | None
+        effective_quote_projected_path: list[list[Any]] | None
         if self.advisory_packet.quote_source == "selected_domain_runtime":
             effective_projection_cover_side = "selected_domain"
             effective_projection_cover_holds = selected_projection_cover_holds
@@ -1830,7 +1834,7 @@ def enumerate_exact_out_two_pool_candidates(
                 if q1 > 0
                 else (0, (int(r1[0]), int(r1[1])))
             )
-        except Exception:
+        except (TypeError, ValueError):
             continue
 
         legs: list[SplitLegExactOutQuote] = []
@@ -2945,7 +2949,7 @@ def build_exact_out_many_pool_repaired_advisory_quote_packet(
             max_enumerated_candidates=int(max_enumerated_candidates),
         )
         projection_cover_audit = _projection_cover_audit_from_kernel(kernel_projection_audit)
-    except Exception:
+    except (TypeError, ValueError):
         projection_cover_audit = None
     advisory_quote = _candidate_quote_to_core_quote(repaired_selected_domain.canonical_quote)
     runtime_matches_advisory = runtime_quote == advisory_quote
@@ -4173,7 +4177,7 @@ def build_exact_out_many_pool_repaired_replacement_shadow_packet(
 def verify_exact_out_route_canonical_certificate(
     quotes: Sequence[SplitManyPoolsExactOutQuote],
     *,
-    certificate: ExactOutRouteCanonicalCertificate,
+    certificate: object,
     expected_binding_ok: int = 1,
 ) -> tuple[bool, str | None]:
     if not isinstance(certificate, ExactOutRouteCanonicalCertificate):
@@ -4665,7 +4669,7 @@ def verify_exact_out_many_pool_bounded_advisory_quote_packet_payload(payload: ob
 
 
 def _projection_cover_audit_from_kernel(
-    audit: _KernelExactOutManyPoolCpmmProjectionCoverAudit,
+    audit: _KernelExactOutManyPoolProjectionCoverAudit,
 ) -> ExactOutManyPoolProjectionCoverAudit:
     return ExactOutManyPoolProjectionCoverAudit(
         selected_pool_ids=tuple(str(pool_id) for pool_id in audit.selected_pool_ids),
