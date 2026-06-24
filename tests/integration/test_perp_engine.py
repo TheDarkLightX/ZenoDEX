@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import asdict, replace
 
+import pytest
+
 from src.core.dex import DexState
 from src.runtime.authority import (
     AuthorityMode,
@@ -1972,3 +1974,47 @@ def test_rust_shadow_unauthorized_settle_epoch_does_not_run_oracle_bridge_verifi
     assert res.ok is False
     assert res.error == "operator only"
     assert verifier_calls == 0
+
+
+def test_require_operator_malformed_pubkey_fails_closed() -> None:
+    """Narrowed operator-pubkey catch must still reject malformed input."""
+    from src.integration.perp_engine import PerpEngineConfig, _require_operator
+
+    cfg = PerpEngineConfig(operator_pubkey="00" * 48, allow_isolated_markets=True)
+    err = _require_operator(cfg, tx_sender_pubkey="not-a-hex-pubkey")
+    assert err is not None
+    assert "tx_sender_pubkey" in err
+
+
+def test_require_operator_unexpected_exception_propagates_not_swallowed(monkeypatch) -> None:
+    """Narrowed operator-pubkey catch must let unexpected bugs propagate.
+
+    Before narrowing, a broad `except Exception` around _hex_to_bytes_allow_0x
+    would have swallowed an AttributeError injected into the helper and returned
+    a fail-closed error string. After narrowing to (ValueError, TypeError), the
+    unexpected exception propagates so the bug is observable.
+    """
+    from src.integration import perp_engine
+    from src.integration.perp_engine import PerpEngineConfig, _require_operator
+
+    cfg = PerpEngineConfig(operator_pubkey="00" * 48, allow_isolated_markets=True)
+
+    def _boom(*args, **kwargs):
+        raise AttributeError("injected unexpected bug")
+
+    monkeypatch.setattr(perp_engine, "_hex_to_bytes_allow_0x", _boom)
+
+    with pytest.raises(AttributeError, match="injected unexpected bug"):
+        _require_operator(cfg, tx_sender_pubkey="11" * 48)
+
+
+def test_require_sender_bound_malformed_pubkey_fails_closed() -> None:
+    """Narrowed sender-bound catch must still reject malformed input."""
+    from src.integration.perp_engine import _require_sender_bound_account_pubkey
+
+    err = _require_sender_bound_account_pubkey(
+        account_pubkey="not-a-hex-pubkey",
+        tx_sender_pubkey="11" * 48,
+    )
+    assert err is not None
+    assert "account_pubkey" in err

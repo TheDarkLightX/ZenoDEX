@@ -182,7 +182,7 @@ try:
     from py_ecc.bls import G2Basic
 
     _BLS_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency
+except ImportError:  # pragma: no cover - optional dependency
     G2Basic = None
     _BLS_AVAILABLE = False
 
@@ -936,7 +936,7 @@ def parse_perp_ops(
             op_bytes = bounded_json_utf8_size(op_obj, max_bytes=max_op_bytes)
         except ValueError:
             raise ValueError(f"perps op {i} too large") from None
-        except Exception as exc:
+        except (TypeError, ValueError) as exc:
             raise ValueError(f"invalid perps op {i}: {exc}") from exc
         total_bytes += op_bytes
         if total_bytes > max_total_ops_bytes:
@@ -1056,7 +1056,7 @@ def _require_operator(config: PerpEngineConfig, *, tx_sender_pubkey: str) -> Opt
     try:
         sender_b = _hex_to_bytes_allow_0x(tx_sender_pubkey, name="tx_sender_pubkey", expected_nbytes=48)
         operator_b = _hex_to_bytes_allow_0x(operator, name="operator_pubkey", expected_nbytes=48)
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         return _safe_error_str(exc)
     if sender_b != operator_b:
         return "operator only"
@@ -1416,13 +1416,13 @@ def _verify_perp_op_signature(
 
     try:
         signer_nonce_key = canonical_hex_fixed_allow_0x(signer_pubkey, nbytes=48, name="signer_pubkey")
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         return str(exc)
 
     # Deadline check first (cheap).
     try:
         deadline = _require_int(op.get("deadline"), name="deadline", non_negative=True)
-    except Exception as exc:
+    except ValueError as exc:
         return _safe_error_str(exc)
     deadline_ok = int(block_timestamp) <= int(deadline)
 
@@ -1448,7 +1448,7 @@ def _verify_perp_op_signature(
     try:
         pubkey_bytes = _hex_to_bytes_allow_0x(signer_pubkey, name="signer_pubkey", expected_nbytes=48)
         sig_bytes = _hex_to_bytes_allow_0x(signature, name="signature", expected_nbytes=96)
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         return str(exc)
 
     try:
@@ -1484,7 +1484,7 @@ def _require_sender_bound_account_pubkey(*, account_pubkey: str, tx_sender_pubke
     try:
         acct_b = _hex_to_bytes_allow_0x(account_pubkey, name="account_pubkey", expected_nbytes=48)
         sender_b = _hex_to_bytes_allow_0x(tx_sender_pubkey, name="tx_sender_pubkey", expected_nbytes=48)
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         return str(exc)
     outcome = evaluate_perp_submission_auth_gate(
         mode_signed=False,
@@ -1925,7 +1925,7 @@ def _apply_ch2p_op(
             b_b = _hex_to_bytes_allow_0x(account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
             ma_b = _hex_to_bytes_allow_0x(ch2p_market.account_a_pubkey, name="market.account_a_pubkey", expected_nbytes=48)
             mb_b = _hex_to_bytes_allow_0x(ch2p_market.account_b_pubkey, name="market.account_b_pubkey", expected_nbytes=48)
-        except Exception as exc:
+        except (ValueError, TypeError) as exc:
             return str(exc)
         market_accounts_match_ok = bool(a_b == ma_b and b_b == mb_b)
 
@@ -2302,7 +2302,7 @@ def _apply_ch3p_op(
             ma_b = _hex_to_bytes_allow_0x(ch3p_market.account_a_pubkey, name="market.account_a_pubkey", expected_nbytes=48)
             mb_b = _hex_to_bytes_allow_0x(ch3p_market.account_b_pubkey, name="market.account_b_pubkey", expected_nbytes=48)
             mc_b = _hex_to_bytes_allow_0x(ch3p_market.account_c_pubkey, name="market.account_c_pubkey", expected_nbytes=48)
-        except Exception as exc:
+        except (ValueError, TypeError) as exc:
             return str(exc)
         market_accounts_match_ok = bool(a_b == ma_b and b_b == mb_b and c_b == mc_b)
 
@@ -3807,7 +3807,7 @@ def _isolated_op_integration_facts(
                 name="fraction_bps",
                 non_negative=True,
             )
-        except Exception:
+        except ValueError:
             fraction_bps = 0
         adapter_err = _require_oracle_adapter_bridge(
             ctx.config,
@@ -4169,7 +4169,7 @@ def _commit_materialized_rust_accept(
         return "perp_stateful rust authority malformed accepted effects"
     try:
         post_market = _market_from_materialized_post(post)
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         return f"perp_stateful rust authority malformed post: {_safe_error_str(exc)}"
     ctx.markets[op.market_id] = post_market
     effect_doc: dict[str, Any] = {"i": i, "market_id": op.market_id, "action": op.action}
@@ -4181,7 +4181,7 @@ def _commit_materialized_rust_accept(
                 non_empty=True,
                 max_len=512,
             )
-        except Exception as exc:
+        except ValueError as exc:
             return _safe_error_str(exc)
     if op.action == "settle_epoch":
         settle_effect, err = _materialized_settle_epoch_effect_doc(
@@ -4200,13 +4200,13 @@ def _commit_materialized_rust_accept(
         try:
             amount = _require_int(op.data.get("amount"), name="amount", non_negative=True)
             ctx.balances.subtract(str(effect_doc["account_pubkey"]), post_market.quote_asset, amount)
-        except Exception as exc:
+        except ValueError as exc:
             return _safe_error_str(exc)
     elif op.action == "withdraw_collateral":
         try:
             amount = _require_int(op.data.get("amount"), name="amount", non_negative=True)
             ctx.balances.add(str(effect_doc["account_pubkey"]), post_market.quote_asset, amount)
-        except Exception as exc:
+        except ValueError as exc:
             return _safe_error_str(exc)
     ctx.effects.append(effect_doc)
     return None
@@ -4989,7 +4989,7 @@ def apply_perp_ops(
                     a_b = _hex_to_bytes_allow_0x(account_a_pubkey, name="account_a_pubkey", expected_nbytes=48)
                     b_b = _hex_to_bytes_allow_0x(account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
                     distinct_accounts_ok = bool(distinct_accounts_ok and a_b != b_b)
-                except Exception:
+                except (ValueError, TypeError):
                     # Fail later via signature verification (keeps errors attributed to the signer).
                     pass
 
@@ -5100,7 +5100,7 @@ def apply_perp_ops(
                     b_b = _hex_to_bytes_allow_0x(account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
                     c_b = _hex_to_bytes_allow_0x(account_c_pubkey, name="account_c_pubkey", expected_nbytes=48)
                     distinct_accounts_ok = bool(distinct_accounts_ok and len({a_b, b_b, c_b}) == 3)
-                except Exception:
+                except (ValueError, TypeError):
                     pass
 
                 nonce_a = _require_int_u32_pos(data.get("nonce_a"), name="nonce_a")
