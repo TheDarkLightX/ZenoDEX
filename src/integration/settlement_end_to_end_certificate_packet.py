@@ -37,11 +37,34 @@ if TYPE_CHECKING:
 
 
 SETTLEMENT_END_TO_END_CERTIFICATE_PACKET_SCHEMA = "zenodex/settlement-end-to-end-certificate-packet/v1"
+_END_TO_END_PACKET_BOOL_FIELD_NAMES = (
+    "strong_certificate_ok",
+    "feature_extension_packet_ok",
+    "module_bundle_ok",
+    "full_price_rails_ok",
+    "price_provenance_ok",
+    "attestation_ok",
+    "asset_conservation_ok",
+    "lp_liability_balanced_ok",
+    "value_conservation_ok",
+    "packet_ok",
+)
 
 
 def _safe_payload_validation_error(exc: Exception) -> str:
     detail = " ".join(str(exc).split())
     return detail[:200] or type(exc).__name__
+
+
+def _require_bool(value: object, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be bool")
+    return value
+
+
+def _validate_end_to_end_packet_bool_fields(payload: Mapping[str, Any]) -> None:
+    for name in _END_TO_END_PACKET_BOOL_FIELD_NAMES:
+        _require_bool(payload[name], name=name)
 
 
 @dataclass(frozen=True)
@@ -137,18 +160,7 @@ class SettlementEndToEndCertificatePacket:
                 raise ValueError("endogenous_lp_value mode requires only endogenous_lp_value_packet")
             if self.price_input_kind != self.endogenous_lp_value_packet.price_input_kind:
                 raise ValueError("price_input_kind must match nested endogenous_lp_value_packet")
-        for name in (
-            "strong_certificate_ok",
-            "feature_extension_packet_ok",
-            "module_bundle_ok",
-            "full_price_rails_ok",
-            "price_provenance_ok",
-            "attestation_ok",
-            "asset_conservation_ok",
-            "lp_liability_balanced_ok",
-            "value_conservation_ok",
-            "packet_ok",
-        ):
+        for name in _END_TO_END_PACKET_BOOL_FIELD_NAMES:
             if not isinstance(getattr(self, name), bool):
                 raise TypeError(f"{name} must be a bool")
 
@@ -335,6 +347,10 @@ def verify_settlement_end_to_end_certificate_packet_payload_from_price_packet(
         return False, "packet must be an object"
     if str(packet_payload.get("schema", "")) != expected.schema:
         return False, "schema mismatch"
+    try:
+        _validate_end_to_end_packet_bool_fields(packet_payload)
+    except (TypeError, ValueError, KeyError) as exc:
+        return False, _safe_payload_validation_error(exc)
     if dict(packet_payload) != expected.to_dict():
         return False, "settlement end-to-end certificate packet mismatch"
     return True, None
@@ -445,6 +461,10 @@ def verify_settlement_end_to_end_certificate_packet_payload_from_price_attestati
         return False, "packet must be an object"
     if str(packet_payload.get("schema", "")) != expected.schema:
         return False, "schema mismatch"
+    try:
+        _validate_end_to_end_packet_bool_fields(packet_payload)
+    except (TypeError, ValueError, KeyError) as exc:
+        return False, _safe_payload_validation_error(exc)
     if dict(packet_payload) != expected.to_dict():
         return False, "settlement end-to-end certificate packet mismatch"
     return True, None

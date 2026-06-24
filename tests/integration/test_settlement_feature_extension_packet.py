@@ -63,6 +63,32 @@ def test_settlement_feature_extension_packet_rejects_tampering() -> None:
     assert err == "settlement feature extension packet mismatch"
 
 
+@pytest.mark.parametrize(
+    "flag_name",
+    (
+        "buyback_floor_ok",
+        "buyback_floor_fixedpoint_ok",
+        "rebate_ok",
+        "lock_weight_ok",
+        "feature_extension_ok",
+        "packet_ok",
+    ),
+)
+def test_settlement_feature_extension_packet_rejects_int_bool_flags(flag_name: str) -> None:
+    inputs = _inputs()
+    packet = build_settlement_feature_extension_packet(inputs)
+    payload = packet.to_dict()
+    payload[flag_name] = int(payload[flag_name])
+
+    ok, err = verify_settlement_feature_extension_packet_payload(
+        inputs_payload=inputs.to_dict(),
+        packet_payload=payload,
+    )
+
+    assert ok is False
+    assert err == f"{flag_name} must be bool"
+
+
 def test_settlement_feature_extension_packet_rejects_expected_input_parse_error() -> None:
     payload = _inputs().to_dict()
     del payload["trade_amount"]

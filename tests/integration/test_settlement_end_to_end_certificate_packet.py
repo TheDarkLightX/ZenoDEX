@@ -297,6 +297,47 @@ def test_end_to_end_certificate_packet_rejects_tampering() -> None:
     assert err == "settlement end-to-end certificate packet mismatch"
 
 
+@pytest.mark.parametrize(
+    "flag_name",
+    (
+        "strong_certificate_ok",
+        "feature_extension_packet_ok",
+        "module_bundle_ok",
+        "full_price_rails_ok",
+        "price_provenance_ok",
+        "attestation_ok",
+        "asset_conservation_ok",
+        "lp_liability_balanced_ok",
+        "value_conservation_ok",
+        "packet_ok",
+    ),
+)
+def test_verify_end_to_end_certificate_packet_rejects_int_bool_flags(flag_name: str) -> None:
+    _pk, asset0, asset1, _pool_id, _pool, settlement = _four_swap_context()
+    price_packet = _price_packet_for(asset0, asset1)
+    packet = build_settlement_end_to_end_certificate_packet_from_price_packet(
+        settlement=settlement,
+        proof_flags=SettlementProofFlags.all_true(),
+        price_history=(100, 110, 120),
+        feature_extension_inputs=_feature_extension_inputs(),
+        price_packet=price_packet,
+    )
+    payload = packet.to_dict()
+    payload[flag_name] = int(payload[flag_name])
+
+    ok, err = verify_settlement_end_to_end_certificate_packet_payload_from_price_packet(
+        settlement=settlement,
+        proof_flags=SettlementProofFlags.all_true(),
+        price_history=(100, 110, 120),
+        feature_extension_inputs_payload=_feature_extension_inputs().to_dict(),
+        price_packet_payload=price_packet.to_dict(),
+        packet_payload=payload,
+    )
+
+    assert ok is False
+    assert err == f"{flag_name} must be bool"
+
+
 def test_verify_price_packet_payload_rejects_expected_price_packet_parse_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

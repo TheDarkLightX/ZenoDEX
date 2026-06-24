@@ -13,11 +13,30 @@ from .tau_witness import (
 
 
 SETTLEMENT_FEATURE_EXTENSION_PACKET_SCHEMA = "zenodex/settlement-feature-extension-packet/v1"
+_FEATURE_EXTENSION_PACKET_BOOL_FIELD_NAMES = (
+    "buyback_floor_ok",
+    "buyback_floor_fixedpoint_ok",
+    "rebate_ok",
+    "lock_weight_ok",
+    "feature_extension_ok",
+    "packet_ok",
+)
 
 
 def _safe_payload_validation_error(exc: Exception) -> str:
     detail = " ".join(str(exc).split())
     return detail[:200] or type(exc).__name__
+
+
+def _require_bool(value: object, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be bool")
+    return value
+
+
+def _validate_feature_packet_bool_fields(payload: Mapping[str, Any]) -> None:
+    for name in _FEATURE_EXTENSION_PACKET_BOOL_FIELD_NAMES:
+        _require_bool(payload[name], name=name)
 
 
 def _require_u16(value: int, *, name: str) -> None:
@@ -153,14 +172,7 @@ class SettlementFeatureExtensionPacket:
             raise ValueError(f"unsupported schema: {self.schema!r}")
         if not isinstance(self.inputs, SettlementFeatureExtensionInputs):
             raise TypeError("inputs must be a SettlementFeatureExtensionInputs")
-        for name in (
-            "buyback_floor_ok",
-            "buyback_floor_fixedpoint_ok",
-            "rebate_ok",
-            "lock_weight_ok",
-            "feature_extension_ok",
-            "packet_ok",
-        ):
+        for name in _FEATURE_EXTENSION_PACKET_BOOL_FIELD_NAMES:
             if not isinstance(getattr(self, name), bool):
                 raise TypeError(f"{name} must be a bool")
 
@@ -196,12 +208,18 @@ class SettlementFeatureExtensionPacket:
                 rebate_step=dict(payload["rebate_step"]),
                 lock_weight_step=dict(payload["lock_weight_step"]),
                 feature_extension_step=dict(payload["feature_extension_step"]),
-                buyback_floor_ok=bool(payload["buyback_floor_ok"]),
-                buyback_floor_fixedpoint_ok=bool(payload["buyback_floor_fixedpoint_ok"]),
-                rebate_ok=bool(payload["rebate_ok"]),
-                lock_weight_ok=bool(payload["lock_weight_ok"]),
-                feature_extension_ok=bool(payload["feature_extension_ok"]),
-                packet_ok=bool(payload["packet_ok"]),
+                buyback_floor_ok=_require_bool(payload["buyback_floor_ok"], name="buyback_floor_ok"),
+                buyback_floor_fixedpoint_ok=_require_bool(
+                    payload["buyback_floor_fixedpoint_ok"],
+                    name="buyback_floor_fixedpoint_ok",
+                ),
+                rebate_ok=_require_bool(payload["rebate_ok"], name="rebate_ok"),
+                lock_weight_ok=_require_bool(payload["lock_weight_ok"], name="lock_weight_ok"),
+                feature_extension_ok=_require_bool(
+                    payload["feature_extension_ok"],
+                    name="feature_extension_ok",
+                ),
+                packet_ok=_require_bool(payload["packet_ok"], name="packet_ok"),
             )
         except KeyError as exc:
             raise ValueError(f"missing feature extension packet field: {exc.args[0]}") from exc
@@ -318,6 +336,10 @@ def verify_settlement_feature_extension_packet_payload(
         return False, "packet must be an object"
     if str(packet_payload.get("schema", "")) != expected.schema:
         return False, "schema mismatch"
+    try:
+        _validate_feature_packet_bool_fields(packet_payload)
+    except (TypeError, ValueError, KeyError) as exc:
+        return False, _safe_payload_validation_error(exc)
     if dict(packet_payload) != expected.to_dict():
         return False, "settlement feature extension packet mismatch"
     return True, None
