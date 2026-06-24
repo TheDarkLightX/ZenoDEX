@@ -104,7 +104,7 @@ def test_validate_and_apply_nonce_batch_accepts_nonce_free_batch_in_backward_com
 
 def test_nonce_table_rejects_invalid_stored_nonce_and_copy_canonicalizes() -> None:
     table = NonceTable()
-    table._last[PK_48B] = True  # type: ignore[assignment]
+    table._last[PK_48B] = True
     with pytest.raises(ValueError, match="invalid stored nonce"):
         table.get_last(PK_48B)
 
@@ -139,6 +139,38 @@ def test_validate_and_apply_nonce_batch_rejects_invalid_sender_pubkey() -> None:
     assert err is not None
     assert "invalid sender_pubkey for nonce accounting" in err
     assert updated is None
+
+
+def test_validate_and_apply_nonce_batch_propagates_unexpected_nonce_normalizer_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    import src.state.nonces as nonce_mod
+
+    def _programming_error(*_args, **_kwargs) -> int:
+        raise RuntimeError("nonce normalizer bug")
+
+    monkeypatch.setattr(nonce_mod, "_require_int_u32_pos", _programming_error)
+
+    with pytest.raises(RuntimeError, match="nonce normalizer bug"):
+        nonce_mod.validate_and_apply_intent_nonce_batch(
+            nonces=NonceTable(),
+            intents=[_intent(nonce=1)],
+            require_all_nonces=True,
+        )
+
+
+def test_validate_and_apply_nonce_batch_propagates_unexpected_sender_normalizer_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    import src.state.nonces as nonce_mod
+
+    def _programming_error(*_args, **_kwargs) -> str:
+        raise RuntimeError("sender normalizer bug")
+
+    monkeypatch.setattr(nonce_mod, "canonical_hex_fixed_allow_0x", _programming_error)
+
+    with pytest.raises(RuntimeError, match="sender normalizer bug"):
+        nonce_mod.validate_and_apply_intent_nonce_batch(
+            nonces=NonceTable(),
+            intents=[_intent(nonce=1)],
+            require_all_nonces=True,
+        )
 
 
 def test_validate_and_apply_nonce_batch_returns_copy_for_empty_batch() -> None:
