@@ -279,6 +279,17 @@ def test_json_rpc_settlement_signer_registry_anchor_loader_accepts_typed_anchor(
     }
 
 
+@pytest.mark.parametrize("timeout_s", [float("nan"), float("inf"), True])
+def test_json_rpc_settlement_signer_registry_anchor_loader_rejects_nonfinite_timeout(
+    timeout_s: object,
+) -> None:
+    with pytest.raises(ValueError, match="timeout_s must be a positive"):
+        JsonRpcSettlementSignerRegistryAnchorLoader(
+            "https://rpc.example.invalid",
+            timeout_s=timeout_s,  # type: ignore[arg-type]
+        )
+
+
 def test_json_rpc_settlement_signer_registry_anchor_loader_rejects_rpc_error() -> None:
     attestation = _attestation()
     policy = make_attestation_policy(attestation)

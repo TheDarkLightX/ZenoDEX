@@ -23,6 +23,22 @@ def test_run_subprocess_with_output_caps_success(tmp_path: Path) -> None:
     assert err == "e"
 
 
+@pytest.mark.parametrize("timeout_s", [float("nan"), float("inf"), True])
+def test_run_subprocess_with_output_caps_rejects_nonfinite_timeout(
+    tmp_path: Path,
+    timeout_s: object,
+) -> None:
+    with pytest.raises(ValueError, match="timeout_s must be positive"):
+        _run_subprocess_with_output_caps(
+            [sys.executable, "-c", "pass"],
+            input_text="",
+            cwd=tmp_path,
+            timeout_s=timeout_s,  # type: ignore[arg-type]
+            max_stdout_bytes=1024,
+            max_stderr_bytes=1024,
+        )
+
+
 def test_run_subprocess_with_output_caps_times_out(tmp_path: Path) -> None:
     rc, out, err = _run_subprocess_with_output_caps(
         [sys.executable, "-c", "import time; time.sleep(2)"],

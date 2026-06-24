@@ -32,6 +32,20 @@ def test_make_confidential_attestation_verifier_requires_absolute_cmd_when_path_
     assert isinstance(verifier, MisconfiguredConfidentialAttestationVerifier)
 
 
+@pytest.mark.parametrize("timeout_s", [float("nan"), float("inf"), True])
+def test_subprocess_confidential_attestation_verifier_rejects_nonfinite_timeout(
+    timeout_s: object,
+) -> None:
+    with pytest.raises(ValueError, match="timeout_s must be positive"):
+        SubprocessConfidentialAttestationVerifier(
+            cmd=[sys.executable],
+            timeout_s=timeout_s,  # type: ignore[arg-type]
+            max_bytes=1,
+            max_stdout_bytes=1,
+            max_stderr_bytes=1,
+        )
+
+
 def test_subprocess_confidential_attestation_verifier_returns_typed_attestation() -> None:
     cmd = [
         sys.executable,

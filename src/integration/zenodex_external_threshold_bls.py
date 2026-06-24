@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import math
 import subprocess
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -351,6 +352,13 @@ def run_external_threshold_bls_signer_v0(
     validate_external_threshold_bls_sign_request_v0(request)
     if not isinstance(command, Sequence) or isinstance(command, (str, bytes, bytearray)) or not command:
         raise TypeError("command must be a non-empty sequence")
+    if (
+        not isinstance(timeout_s, (int, float))
+        or isinstance(timeout_s, bool)
+        or not math.isfinite(float(timeout_s))
+        or float(timeout_s) <= 0
+    ):
+        raise ValueError("timeout_s must be positive and finite")
     argv = [_require_str(item, name=f"command[{index}]") for index, item in enumerate(command)]
     proc = subprocess.run(
         argv,

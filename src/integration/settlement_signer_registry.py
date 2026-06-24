@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from dataclasses import dataclass
 from typing import Any, Mapping
 from urllib import error as urllib_error
@@ -419,8 +420,13 @@ class JsonRpcSettlementSignerRegistryAnchorLoader:
             raise ValueError("endpoint_url must start with http:// or https://")
         if not isinstance(method, str) or not method.strip():
             raise ValueError("method must be a non-empty string")
-        if not isinstance(timeout_s, (int, float)) or isinstance(timeout_s, bool) or float(timeout_s) <= 0.0:
-            raise ValueError("timeout_s must be a positive number")
+        if (
+            not isinstance(timeout_s, (int, float))
+            or isinstance(timeout_s, bool)
+            or not math.isfinite(float(timeout_s))
+            or float(timeout_s) <= 0.0
+        ):
+            raise ValueError("timeout_s must be a positive finite number")
         resolved_interface = coerce_settlement_signer_registry_contract_interface(interface)
         normalized_headers: dict[str, str] = {"Content-Type": "application/json"}
         if headers is not None:

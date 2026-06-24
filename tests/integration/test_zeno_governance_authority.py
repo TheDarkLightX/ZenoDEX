@@ -24,6 +24,7 @@ from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
 from src.integration.zenodex_external_threshold_bls import (
     build_external_threshold_bls_backend_descriptor_v0,
     build_external_threshold_bls_evidence_v0,
+    build_external_threshold_bls_sign_request_v0,
 )
 
 
@@ -163,6 +164,22 @@ def test_external_threshold_bls_receipt_rejects_inconsistent_bls_dependency_stat
     assert ok is False
     assert err is not None
     assert "py_ecc.bls is required to verify external threshold BLS receipts" in err
+
+
+@pytest.mark.parametrize("timeout_s", [float("nan"), float("inf"), True])
+def test_external_threshold_bls_signer_rejects_nonfinite_timeout(timeout_s: object) -> None:
+    request = build_external_threshold_bls_sign_request_v0(
+        key_id="threshold-key",
+        evidence_hash=ROOT_A,
+        payload={"payload_kind": "governance_action"},
+    )
+
+    with pytest.raises(ValueError, match="timeout_s must be positive"):
+        external_threshold_bls.run_external_threshold_bls_signer_v0(
+            command=["unused-signer"],
+            request=request,
+            timeout_s=timeout_s,  # type: ignore[arg-type]
+        )
 
 
 def _evidence(*, placeholder: bool = False, evidence_hash: str | None = None) -> list[dict[str, object]]:

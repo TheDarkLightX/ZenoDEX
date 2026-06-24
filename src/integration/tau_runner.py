@@ -9,6 +9,7 @@ Keep it out of the functional core.
 from __future__ import annotations
 
 import importlib
+import math
 import os
 import re
 import select
@@ -65,8 +66,13 @@ def _run_subprocess_with_output_caps(
 ) -> Tuple[int, str, str]:
     if not cmd:
         raise ValueError("cmd must be non-empty")
-    if not isinstance(timeout_s, (int, float)) or timeout_s <= 0:
-        raise ValueError("timeout_s must be positive")
+    if (
+        not isinstance(timeout_s, (int, float))
+        or isinstance(timeout_s, bool)
+        or not math.isfinite(float(timeout_s))
+        or float(timeout_s) <= 0
+    ):
+        raise ValueError("timeout_s must be positive and finite")
     if not isinstance(max_stdout_bytes, int) or max_stdout_bytes <= 0:
         raise ValueError("max_stdout_bytes must be positive")
     if not isinstance(max_stderr_bytes, int) or max_stderr_bytes <= 0:

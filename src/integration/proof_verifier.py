@@ -18,6 +18,7 @@ IMPORTANT:
 from __future__ import annotations
 
 import json
+import math
 import os
 import select
 import signal
@@ -100,8 +101,13 @@ class SubprocessProofVerifier(ProofVerifier):
     ) -> None:
         if not cmd:
             raise ValueError("cmd must be non-empty")
-        if timeout_s <= 0:
-            raise ValueError("timeout_s must be positive")
+        if (
+            not isinstance(timeout_s, (int, float))
+            or isinstance(timeout_s, bool)
+            or not math.isfinite(float(timeout_s))
+            or float(timeout_s) <= 0
+        ):
+            raise ValueError("timeout_s must be positive and finite")
         if max_bytes <= 0:
             raise ValueError("max_bytes must be positive")
         if max_stdout_bytes <= 0:

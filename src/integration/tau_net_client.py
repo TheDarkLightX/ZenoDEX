@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import socket
 import time
@@ -393,8 +394,13 @@ class TauNetTcpClient:
     def __init__(self, config: TauNetTcpConfig = _DEFAULT_TAU_NET_TCP_CONFIG) -> None:
         if not isinstance(config.port, int) or not (0 <= config.port <= 65535):
             raise ValueError("invalid port")
-        if not isinstance(config.timeout_s, (int, float)) or config.timeout_s <= 0:
-            raise ValueError("timeout_s must be positive")
+        if (
+            not isinstance(config.timeout_s, (int, float))
+            or isinstance(config.timeout_s, bool)
+            or not math.isfinite(float(config.timeout_s))
+            or float(config.timeout_s) <= 0
+        ):
+            raise ValueError("timeout_s must be positive and finite")
         if not isinstance(config.recv_max_bytes, int) or config.recv_max_bytes <= 0:
             raise ValueError("recv_max_bytes must be positive")
         self._cfg = config
