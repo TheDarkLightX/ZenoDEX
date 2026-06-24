@@ -233,6 +233,14 @@ def _dex_api_int_limit_error(
     return None
 
 
+def _dex_api_bool_field_error(obj: dict[str, Any], *, field: str) -> Optional[str]:
+    if field not in obj:
+        return None
+    if not isinstance(obj.get(field), bool):
+        return f"bad_{field}"
+    return None
+
+
 def _dex_api_list_length_error(
     obj: dict[str, Any],
     *,
@@ -509,6 +517,9 @@ def _dex_api_search_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]
                 min_value=1,
                 max_value=DEX_API_MAX_ROUTE_AMOUNT_IN,
             )
+            if err is not None:
+                return err
+            err = _dex_api_bool_field_error(obj, field="apply_two_hop_gate")
             if err is not None:
                 return err
         if str(obj.get("routing_mode", "exact")).strip().lower() == "fast_v1":
@@ -2076,6 +2087,7 @@ class _Handler(BaseHTTPRequestHandler):
             if not asset_in or not asset_out or asset_in == asset_out:
                 self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
                 return True
+            apply_two_hop_gate = obj.get("apply_two_hop_gate", False)
             try:
                 pools_by_id = _parse_pools()
                 from src.core.quote_receipts import make_route_quote_receipt  # pylint: disable=import-outside-toplevel
@@ -2142,7 +2154,7 @@ class _Handler(BaseHTTPRequestHandler):
                                 asset_out=asset_out,
                                 amount_out=amt,
                                 topk_max=topk_max,
-                                apply_two_hop_gate=bool(obj.get("apply_two_hop_gate", False)),
+                                apply_two_hop_gate=apply_two_hop_gate,
                             )
                             if q is None:
                                 routing_mode_used = "exact"
@@ -2151,7 +2163,7 @@ class _Handler(BaseHTTPRequestHandler):
                                     asset_in=asset_in,
                                     asset_out=asset_out,
                                     amount_out=amt,
-                                    apply_two_hop_gate=bool(obj.get("apply_two_hop_gate", False)),
+                                    apply_two_hop_gate=apply_two_hop_gate,
                                 )
                         except Exception:
                             routing_mode_used = "exact"
@@ -2160,7 +2172,7 @@ class _Handler(BaseHTTPRequestHandler):
                                 asset_in=asset_in,
                                 asset_out=asset_out,
                                 amount_out=amt,
-                                apply_two_hop_gate=bool(obj.get("apply_two_hop_gate", False)),
+                                apply_two_hop_gate=apply_two_hop_gate,
                             )
                     else:
                         q = best_route_exact_out_2hop(
@@ -2168,7 +2180,7 @@ class _Handler(BaseHTTPRequestHandler):
                             asset_in=asset_in,
                             asset_out=asset_out,
                             amount_out=amt,
-                            apply_two_hop_gate=bool(obj.get("apply_two_hop_gate", False)),
+                            apply_two_hop_gate=apply_two_hop_gate,
                         )
                 if q is None:
                     self._write_json(200, {"ok": False, "error": "no_route"}, cors_origin=cors_origin)

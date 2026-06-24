@@ -492,6 +492,36 @@ def test_api_server_dex_quote_exact_out_fast_v1_roundtrip() -> None:
         _stop_test_server(httpd, t)
 
 
+def test_api_server_dex_quote_rejects_non_bool_apply_two_hop_gate() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="p1", a0="A", a1="B", r0=1000, r1=1000, fee_bps=0),
+            _pool_dict(pid="p2", a0="A", a1="B", r0=1000, r1=1000, fee_bps=0),
+        ]
+        req = {
+            "kind": "exact_out",
+            "asset_in": "A",
+            "asset_out": "B",
+            "amount_out": 600,
+            "apply_two_hop_gate": "false",
+            "pools": pools,
+        }
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/quote",
+            body=json.dumps(req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 400
+        assert body == {"ok": False, "error": "bad_apply_two_hop_gate"}
+    finally:
+        _stop_test_server(httpd, t)
+
+
 def test_api_server_build_and_verify_exact_in_route_oracle_contract() -> None:
     httpd, t, host, port = _start_test_server()
     try:
