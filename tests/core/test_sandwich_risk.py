@@ -9,7 +9,9 @@ from src.core.sandwich_risk import (
     SandwichRisk,
     attacker_amount_in_cutoff_upper_bound_cpmm_exact_in,
     max_sandwich_profit_exact_in_cpmm_bounded,
+    max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee,
     sandwich_profit_exact_in_cpmm,
+    sandwich_profit_exact_in_cpmm_dynamic_fee,
 )
 
 
@@ -312,3 +314,85 @@ def test_cutoff_bva_min_out_zero_boundary(
         victim_min_out=int(victim_min_out),
     )
     assert cut == expected_cutoff
+
+
+def test_sandwich_profit_does_not_swallow_swap_kernel_bug(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken_swap(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise RuntimeError("unexpected sandwich swap bug")
+
+    monkeypatch.setattr("src.core.sandwich_risk.swap_exact_in", broken_swap)
+    with pytest.raises(RuntimeError, match="unexpected sandwich swap bug"):
+        sandwich_profit_exact_in_cpmm(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps=0,
+            victim_amount_in=50,
+            victim_min_out=46,
+            attacker_amount_in=1,
+        )
+
+
+def test_dynamic_fee_profit_rejects_malformed_fee_value_fail_closed() -> None:
+    def bad_fee(_reserve_in: int, _reserve_out: int, _amount_in: int) -> str:
+        return "bad-fee"
+
+    assert (
+        sandwich_profit_exact_in_cpmm_dynamic_fee(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps_fn=bad_fee,
+            victim_amount_in=50,
+            victim_min_out=46,
+            attacker_amount_in=1,
+        )
+        is None
+    )
+
+
+def test_dynamic_fee_profit_does_not_swallow_fee_callback_bug() -> None:
+    def broken_fee(_reserve_in: int, _reserve_out: int, _amount_in: int) -> int:
+        raise RuntimeError("unexpected dynamic fee bug")
+
+    with pytest.raises(RuntimeError, match="unexpected dynamic fee bug"):
+        sandwich_profit_exact_in_cpmm_dynamic_fee(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps_fn=broken_fee,
+            victim_amount_in=50,
+            victim_min_out=46,
+            attacker_amount_in=1,
+        )
+
+
+def test_dynamic_fee_bounded_rejects_malformed_fee_value_fail_closed() -> None:
+    def bad_fee(_reserve_in: int, _reserve_out: int, _amount_in: int) -> str:
+        return "bad-fee"
+
+    out = max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee(
+        reserve_in=1000,
+        reserve_out=1000,
+        fee_bps_fn=bad_fee,
+        victim_amount_in=50,
+        victim_min_out=46,
+        max_attacker_amount_in=10,
+    )
+
+    assert out.status == "victim_reverts"
+    assert out.max_profit == 0
+
+
+def test_dynamic_fee_bounded_does_not_swallow_fee_callback_bug() -> None:
+    def broken_fee(_reserve_in: int, _reserve_out: int, _amount_in: int) -> int:
+        raise RuntimeError("unexpected dynamic bounded fee bug")
+
+    with pytest.raises(RuntimeError, match="unexpected dynamic bounded fee bug"):
+        max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps_fn=broken_fee,
+            victim_amount_in=50,
+            victim_min_out=46,
+            max_attacker_amount_in=10,
+        )
