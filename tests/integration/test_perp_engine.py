@@ -79,12 +79,15 @@ def test_parse_perp_ops_surfaces_unexpected_encoding_fault(monkeypatch: pytest.M
 
 
 def test_perp_engine_safe_error_str_caps_domain_errors_and_hides_internal_faults() -> None:
-    from src.integration.perp_engine import _safe_error_str
+    from src.integration.perp_engine import _safe_authority_error_str, _safe_error_str
 
     detail = "x" * 700
 
     assert _safe_error_str(ValueError(detail)) == detail[:512]
     assert _safe_error_str(RuntimeError("secret internal detail")) == "internal error: RuntimeError"
+    assert _safe_authority_error_str(RuntimeError("authority disagreement " + detail)) == (
+        "authority disagreement " + detail
+    )[:512]
 
 
 def _with_oracle_snapshot(

@@ -232,6 +232,13 @@ def _safe_error_str(exc: Exception) -> str:
     return msg
 
 
+def _safe_authority_error_str(exc: BaseException) -> str:
+    msg = " ".join((str(exc) or "").split()) or type(exc).__name__
+    if len(msg) > 512:
+        msg = msg[:512]
+    return msg
+
+
 _ASCII_TOKEN_CHARS_MODULE = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
 _ASCII_TOKEN_CHARS_VERSION = frozenset("0123456789.")
 _ASCII_TOKEN_CHARS_ACTION = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
@@ -4250,7 +4257,7 @@ def _apply_materialized_isolated_op_rust_authority(
             compare=_materialized_responses_agree,
         )
     except AuthorityError as exc:
-        return f"perp_stateful rust authority disagreement: {exc}"
+        return f"perp_stateful rust authority disagreement: {_safe_authority_error_str(exc)}"
     except Exception as exc:
         return f"perp_stateful rust authority error: {_safe_error_str(exc)}"
 
@@ -4340,7 +4347,7 @@ def _shadow_accepted_isolated_op(
             )
         return None
     except AuthorityError as exc:
-        return f"perp_stateful rust shadow disagreement: {exc}"
+        return f"perp_stateful rust shadow disagreement: {_safe_authority_error_str(exc)}"
     except Exception as exc:
         return f"perp_stateful rust shadow error: {_safe_error_str(exc)}"
 
