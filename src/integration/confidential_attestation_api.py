@@ -33,6 +33,11 @@ class _ConfidentialAttestationConfigError(Exception):
     pass
 
 
+def _safe_response_detail(value: object) -> str:
+    detail = " ".join(str(value).split())
+    return detail[:200] or type(value).__name__
+
+
 def _env_str(name: str, default: str) -> str:
     raw = os.environ.get(name)
     if raw is None:
@@ -247,7 +252,7 @@ def _make_receipt_from_body(body: Mapping[str, Any]) -> tuple[dict[str, Any] | N
         provider_balance_before = _request_int(body, name="provider_balance_before")
         provider_balance_after = _request_int(body, name="provider_balance_after")
     except (KeyError, TypeError, ValueError) as exc:
-        return None, f"bad_request: {exc}"
+        return None, f"bad_request: {_safe_response_detail(exc)}"
 
     verifier = make_confidential_attestation_verifier(_verifier_config_from_env())
     try:
@@ -272,17 +277,25 @@ def _make_receipt_from_body(body: Mapping[str, Any]) -> tuple[dict[str, Any] | N
             provider_balance_after=provider_balance_after,
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return None, f"bad_request: {exc}"
+        return None, f"bad_request: {_safe_response_detail(exc)}"
 
     if err is not None or receipt is None:
-        return None, str(err or "rejected")
+        return None, _safe_response_detail(err or "rejected")
     return receipt, None
 
 
 def _receipt_error_response(err: str | None) -> ResponseT:
     if err and err.startswith("bad_request: "):
-        return 400, {"ok": False, "error": "bad_request", "details": err.removeprefix("bad_request: ")}
-    return 502, {"ok": False, "error": "attestation_verifier_rejected", "details": str(err or "rejected")}
+        return 400, {
+            "ok": False,
+            "error": "bad_request",
+            "details": _safe_response_detail(err.removeprefix("bad_request: ")),
+        }
+    return 502, {
+        "ok": False,
+        "error": "attestation_verifier_rejected",
+        "details": _safe_response_detail(err or "rejected"),
+    }
 
 
 def _internal_fault_response(exc: Exception) -> ResponseT:
@@ -299,7 +312,11 @@ def _receipt_from_body_or_response(body: Mapping[str, Any]) -> tuple[dict[str, A
     except (ValueError, _ConfidentialAttestationConfigError) as exc:
         return None, (
             500,
-            {"ok": False, "error": "invalid_confidential_attestation_config", "detail": str(exc)},
+            {
+                "ok": False,
+                "error": "invalid_confidential_attestation_config",
+                "detail": _safe_response_detail(exc),
+            },
         )
     except Exception as exc:
         return None, (
@@ -380,7 +397,7 @@ def _handle_verify(body: Mapping[str, Any]) -> ResponseT:
         return 500, {
             "ok": False,
             "error": "invalid_confidential_attestation_config",
-            "detail": str(exc),
+            "detail": _safe_response_detail(exc),
         }
     if not ok:
         return 400, {"ok": False, "error": str(gate_error), "receipt_admissible": False}
@@ -407,7 +424,7 @@ def _handle_admit(
     try:
         expected_policy_digest = _request_str(body, name="expected_policy_digest")
     except (KeyError, TypeError, ValueError) as exc:
-        return 400, {"ok": False, "error": "bad_request", "details": str(exc)}
+        return 400, {"ok": False, "error": "bad_request", "details": _safe_response_detail(exc)}
     except Exception as exc:
         return _internal_fault_response(exc)
 
@@ -421,7 +438,7 @@ def _handle_admit(
         return 500, {
             "ok": False,
             "error": "invalid_confidential_attestation_config",
-            "detail": str(exc),
+            "detail": _safe_response_detail(exc),
         }
     try:
         admitted, admission_error, _updated = validate_confidential_extension_live_admission(
@@ -471,7 +488,7 @@ def _handle_execute(
         execution_kind = _request_str(body, name="execution_kind")
         result_code = _request_str(body, name="result_code")
     except (KeyError, TypeError, ValueError) as exc:
-        return 400, {"ok": False, "error": "bad_request", "details": str(exc)}
+        return 400, {"ok": False, "error": "bad_request", "details": _safe_response_detail(exc)}
     except Exception as exc:
         return _internal_fault_response(exc)
 
@@ -485,7 +502,7 @@ def _handle_execute(
         return 500, {
             "ok": False,
             "error": "invalid_confidential_attestation_config",
-            "detail": str(exc),
+            "detail": _safe_response_detail(exc),
         }
     public_status = status.to_public_dict()
     try:
@@ -512,7 +529,7 @@ def _handle_execute(
         return 500, {
             "ok": False,
             "error": "invalid_confidential_attestation_config",
-            "detail": str(exc),
+            "detail": _safe_response_detail(exc),
         }
 
     try:
@@ -529,7 +546,7 @@ def _handle_execute(
         return 400, {
             "ok": False,
             "error": "bad_runtime_request",
-            "details": str(exc),
+            "details": _safe_response_detail(exc),
             "admission_ok": True,
             "execution_ok": False,
             "request_consumed": False,
@@ -580,7 +597,7 @@ def handle_confidential_attestation_request(
             return 500, {
                 "ok": False,
                 "error": "invalid_confidential_attestation_config",
-                "detail": str(exc),
+                "detail": _safe_response_detail(exc),
             }
 
     if method == "POST" and path == "/api/confidential/attestation/verify":
