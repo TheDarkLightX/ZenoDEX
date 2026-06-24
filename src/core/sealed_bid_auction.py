@@ -101,7 +101,7 @@ def verify_commit_receipt(receipt: Dict[str, Any]) -> Tuple[bool, str]:
         commit_epoch = int(body.get("commit_epoch"))
         reveal_deadline_epoch = int(body.get("reveal_deadline_epoch"))
         units_for_sale = int(body.get("units_for_sale"))
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return False, "bad_numeric_field"
     if commit_epoch < 0 or reveal_deadline_epoch < commit_epoch:
         return False, "bad_epoch_window"
@@ -119,7 +119,7 @@ def verify_commit_receipt(receipt: Dict[str, Any]) -> Tuple[bool, str]:
 def reveal_matches_commitment(*, commitment: str, quantity: int, limit_price: int, nonce: str) -> bool:
     try:
         return str(commitment) == sealed_bid_reveal_hash(quantity=quantity, limit_price=limit_price, nonce=nonce)
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return False
 
 
@@ -133,6 +133,8 @@ def settle_uniform_price_sealed_bids(
 
     normalized: list[RevealedSealedBid] = []
     for bid in bids:
+        if not isinstance(bid, RevealedSealedBid):
+            raise ValueError("bids must contain RevealedSealedBid values")
         if not isinstance(bid.bidder_id, str) or not bid.bidder_id:
             raise ValueError("bidder_id must be non-empty")
         if not isinstance(bid.commitment, str) or not bid.commitment:

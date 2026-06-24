@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import pytest
 
+import src.core.fhe_sealed_bid_v1 as fhe_v1_module
 from src.core.fhe_sealed_bid_v1 import (
     MAX_V1_UNITS,
     SCHEME_FALLBACK,
@@ -328,3 +329,87 @@ class TestReceiptVerification:
                                                        trusted_plain_bids=_revealed(specs))
         assert ok is False
         assert reason == "public_result_mismatch"
+
+    def test_receipt_rejects_bad_public_result_numeric_field(self, key_pair):
+        specs = [("alice", "c1", 2, 100)]
+        result = settle_fhe_sealed_bids(
+            auction_id="a17",
+            units_for_sale=2,
+            encrypted_bids=_enc_bids(key_pair, specs),
+            key_pair=key_pair,
+        )
+        receipt = make_fhe_sealed_bid_v1_receipt(auction_id="a17", units_for_sale=2, result=result)
+        receipt["body"]["public_result"]["units_for_sale"] = "two"
+        receipt["receipt_hash"] = fhe_sealed_bid_v1_receipt_hash(receipt["body"])
+
+        ok, reason = verify_fhe_sealed_bid_v1_receipt(
+            receipt,
+            approved_key_ids=["test-fhe-v1"],
+            trusted_plain_bids=_revealed(specs),
+        )
+        assert ok is False
+        assert reason == "bad_public_result_numeric"
+
+    def test_receipt_rejects_bad_fill_numeric_field(self, key_pair):
+        specs = [("alice", "c1", 2, 100)]
+        result = settle_fhe_sealed_bids(
+            auction_id="a18",
+            units_for_sale=2,
+            encrypted_bids=_enc_bids(key_pair, specs),
+            key_pair=key_pair,
+        )
+        receipt = make_fhe_sealed_bid_v1_receipt(auction_id="a18", units_for_sale=2, result=result)
+        receipt["body"]["public_result"]["fills"][0]["filled_quantity"] = "many"
+        receipt["receipt_hash"] = fhe_sealed_bid_v1_receipt_hash(receipt["body"])
+
+        ok, reason = verify_fhe_sealed_bid_v1_receipt(
+            receipt,
+            approved_key_ids=["test-fhe-v1"],
+            trusted_plain_bids=_revealed(specs),
+        )
+        assert ok is False
+        assert reason == "bad_fill_numeric"
+
+    def test_receipt_rejects_expected_bad_trusted_plain_bids(self, key_pair):
+        specs = [("alice", "c1", 2, 100)]
+        result = settle_fhe_sealed_bids(
+            auction_id="a19",
+            units_for_sale=2,
+            encrypted_bids=_enc_bids(key_pair, specs),
+            key_pair=key_pair,
+        )
+        receipt = make_fhe_sealed_bid_v1_receipt(auction_id="a19", units_for_sale=2, result=result)
+
+        ok, reason = verify_fhe_sealed_bid_v1_receipt(
+            receipt,
+            approved_key_ids=["test-fhe-v1"],
+            trusted_plain_bids=[object()],
+        )
+        assert ok is False
+        assert reason == "bad_trusted_plain_bids"
+
+    def test_receipt_verifier_propagates_unexpected_replay_error(
+        self,
+        key_pair,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        specs = [("alice", "c1", 2, 100)]
+        result = settle_fhe_sealed_bids(
+            auction_id="a20",
+            units_for_sale=2,
+            encrypted_bids=_enc_bids(key_pair, specs),
+            key_pair=key_pair,
+        )
+        receipt = make_fhe_sealed_bid_v1_receipt(auction_id="a20", units_for_sale=2, result=result)
+
+        def _programmer_error(*_args: object, **_kwargs: object) -> object:
+            raise RuntimeError("plaintext replay bug")
+
+        monkeypatch.setattr(fhe_v1_module, "settle_uniform_price_sealed_bids", _programmer_error)
+
+        with pytest.raises(RuntimeError, match="plaintext replay bug"):
+            verify_fhe_sealed_bid_v1_receipt(
+                receipt,
+                approved_key_ids=["test-fhe-v1"],
+                trusted_plain_bids=_revealed(specs),
+            )

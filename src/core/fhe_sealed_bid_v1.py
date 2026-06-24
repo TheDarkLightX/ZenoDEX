@@ -605,7 +605,7 @@ def verify_fhe_sealed_bid_v1_receipt(
         clearing_price = int(result.get("clearing_price"))
         total_filled = int(result.get("total_filled"))
         fill_count = int(result.get("fill_count"))
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return False, "bad_public_result_numeric"
     if units_for_sale <= 0 or units_for_sale > MAX_V1_UNITS:
         return False, "units_for_sale_out_of_range"
@@ -626,7 +626,7 @@ def verify_fhe_sealed_bid_v1_receipt(
         try:
             filled_quantity = int(fill.get("filled_quantity"))
             paid_price = int(fill.get("paid_price"))
-        except Exception:
+        except (TypeError, ValueError, OverflowError):
             return False, "bad_fill_numeric"
         if filled_quantity <= 0 or filled_quantity > MAX_V1_UNITS:
             return False, "filled_quantity_out_of_range"
@@ -645,7 +645,7 @@ def verify_fhe_sealed_bid_v1_receipt(
         expected = settle_uniform_price_sealed_bids(
             units_for_sale=units_for_sale, bids=plain_bids
         )
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return False, "bad_trusted_plain_bids"
     expected_result = _settlement_to_public_result(
         clearing_price=expected.clearing_price,

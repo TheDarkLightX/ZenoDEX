@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+import src.core.sealed_bid_auction as sealed_bid_module
 from src.core.sealed_bid_auction import (
     RevealedSealedBid,
     make_sealed_bid_commit_receipt,
@@ -33,6 +36,18 @@ def test_reveal_matches_commitment_and_rejects_mismatch() -> None:
     assert not reveal_matches_commitment(commitment=commitment, quantity=5, limit_price=105, nonce="n1")
 
 
+def test_reveal_matches_commitment_propagates_unexpected_hash_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _programmer_error(*_args: object, **_kwargs: object) -> str:
+        raise RuntimeError("reveal hash bug")
+
+    monkeypatch.setattr(sealed_bid_module, "sealed_bid_reveal_hash", _programmer_error)
+
+    with pytest.raises(RuntimeError, match="reveal hash bug"):
+        reveal_matches_commitment(commitment="x", quantity=4, limit_price=105, nonce="n1")
+
+
 def test_uniform_price_settlement_is_deterministic_under_reordering() -> None:
     bids = [
         RevealedSealedBid("alice", sealed_bid_reveal_hash(quantity=4, limit_price=105, nonce="n1"), 4, 105),
@@ -61,3 +76,8 @@ def test_uniform_price_boundary_exact_units() -> None:
     assert s.clearing_price == 110
     assert s.total_filled == 5
     assert [(f.bidder_id, f.filled_quantity) for f in s.fills] == [("bob", 4), ("alice", 1)]
+
+
+def test_uniform_price_settlement_rejects_non_revealed_bid_values() -> None:
+    with pytest.raises(ValueError, match="bids must contain RevealedSealedBid values"):
+        settle_uniform_price_sealed_bids(units_for_sale=1, bids=[object()])  # type: ignore[list-item]
