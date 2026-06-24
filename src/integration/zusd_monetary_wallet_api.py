@@ -56,6 +56,7 @@ from .zeno_oracle_authorization import (
 
 
 MAX_POST_BODY = 65_536
+MAX_BOUNDARY_ERROR_CHARS = 512
 ResponseT = Tuple[int, Dict[str, Any]]
 _STREAM_KEY = "11"
 _U32_MAX = 0xFFFFFFFF
@@ -370,11 +371,13 @@ def _oracle_runtime_report(
 
 
 def _safe_boundary_error(exc: Exception) -> str:
-    if isinstance(exc, (ValueError, TypeError, KeyError)):
+    if isinstance(exc, (ValueError, TypeError, KeyError, TauNetRpcError)):
         msg = str(exc)
     else:
         msg = f"internal error: {type(exc).__name__}"
     msg = " ".join((msg or "").split())
+    if len(msg) > MAX_BOUNDARY_ERROR_CHARS:
+        msg = msg[:MAX_BOUNDARY_ERROR_CHARS]
     return msg or "internal error"
 
 
@@ -418,7 +421,10 @@ def _check_oracle_authorization(
         )
     except (ValueError, TypeError, KeyError) as exc:
         if enforce:
-            return f"oracle_authorization_rejected: {type(exc).__name__}: {exc}", _oracle_runtime_report(runtime=runtime)
+            return (
+                f"oracle_authorization_rejected: {_safe_boundary_error(exc)}",
+                _oracle_runtime_report(runtime=runtime),
+            )
         return None, _oracle_runtime_report(runtime=runtime)
     except Exception:
         raise
@@ -1286,8 +1292,8 @@ def handle_zusd_monetary_wallet_request(method: str, path: str, body: Optional[b
             return 200, _build_prepare_response(parsed, for_submit=True)
         return 404, {"ok": False, "error": "not_found"}
     except (ValueError, TypeError) as exc:
-        return 400, {"ok": False, "error": str(exc)}
+        return 400, {"ok": False, "error": _safe_boundary_error(exc)}
     except TauNetRpcError as exc:
-        return 502, {"ok": False, "error": "tau_rpc_error", "detail": str(exc)}
+        return 502, {"ok": False, "error": "tau_rpc_error", "detail": _safe_boundary_error(exc)}
     except Exception as exc:
         return 500, {"ok": False, "error": "internal_error", "detail": _safe_internal_detail(exc)}

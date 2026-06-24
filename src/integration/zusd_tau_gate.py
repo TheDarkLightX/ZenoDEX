@@ -52,6 +52,8 @@ from .tau_witness import (
     build_zusd_withdraw_sp_guard_v1_step,
 )
 
+_MAX_ZUSD_TAU_GATE_ERROR_CHARS = 512
+
 
 @dataclass(frozen=True)
 class ZUSDTauGateConfig:
@@ -68,6 +70,17 @@ class ZUSDTauGateConfig:
 
 
 DEFAULT_ZUSD_TAU_GATE_CONFIG = ZUSDTauGateConfig()
+
+
+def _safe_zusd_tau_gate_error(exc: Exception) -> str:
+    if isinstance(exc, (ValueError, TypeError, KeyError)):
+        msg = str(exc)
+    else:
+        msg = f"internal error: {type(exc).__name__}"
+    msg = " ".join((msg or "").split())
+    if len(msg) > _MAX_ZUSD_TAU_GATE_ERROR_CHARS:
+        msg = msg[:_MAX_ZUSD_TAU_GATE_ERROR_CHARS]
+    return msg or "internal error"
 
 
 def _is_oracle_fresh(*, now_epoch: int, last_update_epoch: int, max_staleness_epochs: int, oracle_seen: bool) -> bool:
@@ -704,7 +717,7 @@ def validate_zusd_transition(
                 return False, gate_err
         return True, None
     except Exception as exc:
-        return False, f"{type(exc).__name__}: {exc}"
+        return False, _safe_zusd_tau_gate_error(exc)
 
 
 def validate_zusd_multi_transition(
@@ -736,7 +749,7 @@ def validate_zusd_multi_transition(
                 return False, gate_err
         return True, None
     except Exception as exc:
-        return False, f"{type(exc).__name__}: {exc}"
+        return False, _safe_zusd_tau_gate_error(exc)
 
 
 def step_with_tau(

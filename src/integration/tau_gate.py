@@ -43,6 +43,8 @@ from .tau_witness import (
     build_swap_exact_out_v4_step,
 )
 
+_MAX_TAU_GATE_ERROR_CHARS = 512
+
 
 @dataclass(frozen=True)
 class TauSettlementModuleFlags:
@@ -55,6 +57,17 @@ class TauSettlementModuleFlags:
     lock_weight_ok: int = 1
     proof_ok: int = 1
     binding_ok: int = 1
+
+
+def _safe_tau_gate_error(exc: Exception) -> str:
+    if isinstance(exc, (ValueError, TypeError, KeyError)):
+        msg = str(exc)
+    else:
+        msg = f"internal error: {type(exc).__name__}"
+    msg = " ".join((msg or "").split())
+    if len(msg) > _MAX_TAU_GATE_ERROR_CHARS:
+        msg = msg[:_MAX_TAU_GATE_ERROR_CHARS]
+    return msg or "internal error"
 
 
 @dataclass(frozen=True)
@@ -542,4 +555,4 @@ def validate_settlement_swaps(
         return True, None
     except Exception as exc:
         # Fail-closed: convert crashes into deterministic rejection.
-        return False, f"{type(exc).__name__}: {exc}"
+        return False, _safe_tau_gate_error(exc)

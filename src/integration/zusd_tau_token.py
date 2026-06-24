@@ -20,6 +20,7 @@ from .tau_witness import (
 TokenAction = Literal["transfer", "mint", "burn"]
 _TOKEN_OPS_KEY = "9"
 _U32_MAX = 0xFFFFFFFF
+_MAX_TAU_TOKEN_ERROR_CHARS = 512
 
 
 @dataclass(frozen=True)
@@ -69,6 +70,17 @@ def _canonical_pubkey(value: str, *, name: str) -> str:
 
 def _canonical_asset_id(value: str, *, name: str) -> str:
     return canonical_hex_fixed_allow_0x(value, nbytes=32, name=name)
+
+
+def _safe_tau_token_error(exc: Exception) -> str:
+    if isinstance(exc, (ValueError, TypeError, KeyError)):
+        msg = str(exc)
+    else:
+        msg = f"internal error: {type(exc).__name__}"
+    msg = " ".join((msg or "").split())
+    if len(msg) > _MAX_TAU_TOKEN_ERROR_CHARS:
+        msg = msg[:_MAX_TAU_TOKEN_ERROR_CHARS]
+    return msg or "internal error"
 
 
 def derive_zusd_tau_asset_id(*, chain_id: str = "tau-net-alpha", symbol: str = "zUSD") -> str:
@@ -159,7 +171,7 @@ def _verify_tau_receipt(
             timeout_s=config.timeout_s,
         )
     except Exception as exc:
-        return f"tau_token_runner_error:{type(exc).__name__}:{exc}"
+        return f"tau_token_runner_error:{_safe_tau_token_error(exc)}"
     tau_gate_value = outputs.get(0, {}).get(receipt.gate_output)
     if tau_gate_value is None:
         return f"tau_token_missing_output:{receipt.gate_output}"

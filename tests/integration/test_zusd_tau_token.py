@@ -357,7 +357,7 @@ def test_zusd_tau_token_internal_helper_branches(monkeypatch: pytest.MonkeyPatch
             config=ZUSDTauTokenConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
             receipt=receipt,
         )
-        == "tau_token_runner_error:RuntimeError:tau boom"
+        == "tau_token_runner_error:internal error: RuntimeError"
     )
 
     monkeypatch.setattr(zusd_tau_token, "run_tau_spec_steps", lambda **kwargs: {0: {}})

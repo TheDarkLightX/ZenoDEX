@@ -43,6 +43,18 @@ _EXERCISE_NOT_CLAIMED = (
 _NON_HASH_PROFILE_FIELDS = frozenset({"authority_hash", "signature_envelopes", "signature_quorum"})
 _NON_HASH_EXERCISE_FIELDS = frozenset({"exercise_hash"})
 _EXERCISE_NETWORKS = frozenset({"local", "testnet", "public_testnet"})
+_MAX_ORACLE_AUTHORITY_ERROR_CHARS = 512
+
+
+def _safe_oracle_authority_error(exc: Exception) -> str:
+    if isinstance(exc, (ValueError, TypeError, KeyError)):
+        msg = str(exc)
+    else:
+        msg = f"internal error: {type(exc).__name__}"
+    msg = " ".join((msg or "").split())
+    if len(msg) > _MAX_ORACLE_AUTHORITY_ERROR_CHARS:
+        msg = msg[:_MAX_ORACLE_AUTHORITY_ERROR_CHARS]
+    return msg or "internal error"
 
 
 def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
@@ -208,7 +220,7 @@ def _validate_key_manager_public(key_manager: Mapping[str, Any], gaps: list[str]
         try:
             ref = KeyRef.from_public_dict(_require_mapping(raw_ref, name=f"key_refs[{index}]"))
         except Exception as exc:
-            gaps.append(f"key manager key_ref {index} invalid: {exc}")
+            gaps.append(f"key manager key_ref {index} invalid: {_safe_oracle_authority_error(exc)}")
             continue
         if ref.key_id in refs:
             gaps.append(f"duplicate key manager key_id: {ref.key_id}")
@@ -223,7 +235,7 @@ def _signer_entries(signer_registry: Mapping[str, Any], gaps: list[str]) -> tupl
     try:
         validate_signer_registry_v0(signer_registry)
     except Exception as exc:
-        gaps.append(f"signer registry invalid: {exc}")
+        gaps.append(f"signer registry invalid: {_safe_oracle_authority_error(exc)}")
         return [], 0
 
     if signer_registry.get("payload_kind") != ORACLE_AUTHORITY_PAYLOAD_KIND:
@@ -347,7 +359,10 @@ def _validate_signature_quorum(
         try:
             envelopes.append(_require_mapping(raw_envelope, name=f"signature_envelopes[{index}]"))
         except Exception as exc:
-            gaps.append(f"oracle production authority signature envelope {index} invalid: {exc}")
+            gaps.append(
+                f"oracle production authority signature envelope {index} invalid: "
+                f"{_safe_oracle_authority_error(exc)}"
+            )
     if not envelopes:
         return None
     try:
@@ -358,7 +373,7 @@ def _validate_signature_quorum(
             envelopes=envelopes,
         )
     except Exception as exc:
-        gaps.append(f"oracle production authority signature quorum invalid: {exc}")
+        gaps.append(f"oracle production authority signature quorum invalid: {_safe_oracle_authority_error(exc)}")
         return None
     return _signature_quorum_summary(report)
 
@@ -390,7 +405,7 @@ def evaluate_oracle_authority_profile_v1(profile: Mapping[str, Any] | None) -> d
     try:
         obj = _require_mapping(profile, name="profile")
     except Exception as exc:
-        gaps.append(f"oracle production authority profile invalid: {exc}")
+        gaps.append(f"oracle production authority profile invalid: {_safe_oracle_authority_error(exc)}")
         return _status(
             ok=False,
             production_authority=False,
@@ -417,11 +432,11 @@ def evaluate_oracle_authority_profile_v1(profile: Mapping[str, Any] | None) -> d
     try:
         _require_nonempty_str(obj.get("authority_id"), name="authority_id")
     except Exception as exc:
-        gaps.append(str(exc))
+        gaps.append(_safe_oracle_authority_error(exc))
     try:
         _require_nonempty_str(obj.get("chain_id"), name="chain_id")
     except Exception as exc:
-        gaps.append(str(exc))
+        gaps.append(_safe_oracle_authority_error(exc))
 
     expected_hash = oracle_authority_profile_hash_v1(obj)
     if obj.get("authority_hash") != expected_hash:
@@ -432,7 +447,7 @@ def evaluate_oracle_authority_profile_v1(profile: Mapping[str, Any] | None) -> d
         key_manager = _require_mapping(obj.get("key_manager"), name="key_manager")
         key_refs = _validate_key_manager_public(key_manager, gaps)
     except Exception as exc:
-        gaps.append(f"key manager invalid: {exc}")
+        gaps.append(f"key manager invalid: {_safe_oracle_authority_error(exc)}")
 
     active_signers: list[Mapping[str, Any]] = []
     threshold = 0
@@ -442,7 +457,7 @@ def evaluate_oracle_authority_profile_v1(profile: Mapping[str, Any] | None) -> d
         active_signers, threshold = _signer_entries(signer_registry, gaps)
         _validate_signer_key_bindings(active_signers=active_signers, key_refs=key_refs, gaps=gaps)
     except Exception as exc:
-        gaps.append(f"signer registry invalid: {exc}")
+        gaps.append(f"signer registry invalid: {_safe_oracle_authority_error(exc)}")
 
     wallet_ux_summary: dict[str, bool] = {}
     try:
@@ -455,7 +470,7 @@ def evaluate_oracle_authority_profile_v1(profile: Mapping[str, Any] | None) -> d
             gaps=gaps,
         )
     except Exception as exc:
-        gaps.append(f"wallet_ux invalid: {exc}")
+        gaps.append(f"wallet_ux invalid: {_safe_oracle_authority_error(exc)}")
 
     proof_profile_summary: dict[str, Any] = {}
     try:
@@ -473,7 +488,7 @@ def evaluate_oracle_authority_profile_v1(profile: Mapping[str, Any] | None) -> d
         if not isinstance(proof_profile.get("runtime_proof_profile"), str) or not proof_profile.get("runtime_proof_profile"):
             gaps.append("proof_profile.runtime_proof_profile must be a non-empty string")
     except Exception as exc:
-        gaps.append(f"proof_profile invalid: {exc}")
+        gaps.append(f"proof_profile invalid: {_safe_oracle_authority_error(exc)}")
 
     signature_quorum: dict[str, Any] | None = None
     if signer_registry is not None:
@@ -612,7 +627,7 @@ def evaluate_oracle_authority_exercise_v1(
     except Exception as exc:
         return _exercise_status(
             ok=False,
-            errors=[f"oracle production authority exercise invalid: {exc}"],
+            errors=[f"oracle production authority exercise invalid: {_safe_oracle_authority_error(exc)}"],
             exercise=exercise if isinstance(exercise, Mapping) else None,
             authority_status=authority_status,
             public_testnet_evidence_present=False,
@@ -635,7 +650,7 @@ def evaluate_oracle_authority_exercise_v1(
         authorization_id = _require_nonempty_str(exercise_obj.get("authorization_id"), name="authorization_id")
         reward_receipt_id = _require_nonempty_str(exercise_obj.get("reward_receipt_id"), name="reward_receipt_id")
     except Exception as exc:
-        errors.append(str(exc))
+        errors.append(_safe_oracle_authority_error(exc))
         return _exercise_status(
             ok=False,
             errors=errors,

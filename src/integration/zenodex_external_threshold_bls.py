@@ -41,6 +41,7 @@ APPROVED_EXTERNAL_THRESHOLD_BLS_PROVIDER_STACKS_V0 = frozenset(
         "ssv-dkg-drand-threshold-bls12-381-v1",
     }
 )
+_MAX_EXTERNAL_THRESHOLD_BLS_ERROR_CHARS = 512
 
 _EVIDENCE_KEYS_V0 = frozenset(
     {
@@ -61,6 +62,21 @@ _EVIDENCE_KEYS_V0 = frozenset(
         "evidence_hash",
     }
 )
+
+
+def _safe_external_threshold_bls_error(exc: Exception) -> str:
+    if isinstance(exc, (ValueError, TypeError, KeyError)):
+        msg = str(exc)
+    elif isinstance(exc, RuntimeError) and str(exc).startswith("py_ecc.bls is required"):
+        msg = str(exc)
+    else:
+        msg = f"internal error: {type(exc).__name__}"
+    msg = " ".join((msg or "").split())
+    if len(msg) > _MAX_EXTERNAL_THRESHOLD_BLS_ERROR_CHARS:
+        msg = msg[:_MAX_EXTERNAL_THRESHOLD_BLS_ERROR_CHARS]
+    return msg or "internal error"
+
+
 _PARTICIPANT_KEYS_V0 = frozenset({"participant_id", "public_share_key", "operator_key_hash"})
 _AUDIT_EVIDENCE_KEYS_V0 = frozenset({"name", "report_uri", "report_hash", "scope"})
 _SIGN_REQUEST_KEYS_V0 = frozenset(
@@ -454,7 +470,7 @@ def verify_external_threshold_bls_signature_receipt_v0(
         )
         return (True, None) if ok else (False, "external threshold BLS aggregate signature invalid")
     except Exception as exc:
-        return False, f"external threshold BLS receipt invalid: {exc}"
+        return False, f"external threshold BLS receipt invalid: {_safe_external_threshold_bls_error(exc)}"
 
 
 def sha256_file_for_external_signer_v0(path: Path) -> str:

@@ -775,7 +775,12 @@ def _apply_proof_mining_op(
     try:
         winner_pubkey = _canonical_pubkey(winner.get("miner_id"), name="proof mining claim winner.miner_id")
     except Exception as exc:
-        return False, state, proof_mining_state, f"proof mining reward requires canonical winner.miner_id: {exc}"
+        return (
+            False,
+            state,
+            proof_mining_state,
+            f"proof mining reward requires canonical winner.miner_id: {_safe_bridge_error(exc)}",
+        )
     if winner_pubkey != sender:
         return False, state, proof_mining_state, "proof mining winner.miner_id mismatch"
     claim_proposal_hash = str(claim_body.get("proposal_hash", ""))
