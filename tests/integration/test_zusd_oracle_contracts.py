@@ -61,6 +61,46 @@ def test_zusd_oracle_pending_gate_contract_rejects_pending_mismatch() -> None:
     assert err == "action_allowed mismatch"
 
 
+@pytest.mark.parametrize(
+    "flag_name",
+    [
+        "oracle_seen",
+        "tcr_ok",
+        "risky_requested",
+        "pending_eq",
+        "price_pos",
+        "fresh",
+        "env_ok",
+        "risky_ops_allowed",
+        "blocked_by_recovery",
+        "action_allowed",
+    ],
+)
+def test_zusd_oracle_pending_gate_contract_rejects_int_bool_fields(flag_name: str) -> None:
+    state = _single_ok(init_state(), "bootstrap_oracle", price_e8=100 * E8, auth_ok=True)
+    payload = build_zusd_oracle_pending_gate_contract(state, risky_requested=True, tcr_ok=True).to_dict()
+    payload[flag_name] = 1 if payload[flag_name] else 0
+
+    ok, err = verify_zusd_oracle_pending_gate_contract_payload(payload)
+
+    assert ok is False
+    assert err == f"{flag_name} must be bool"
+
+
+def test_zusd_oracle_pending_gate_contract_rejects_string_bool_even_when_derived_fields_match() -> None:
+    state = _single_ok(init_state(), "bootstrap_oracle", price_e8=100 * E8, auth_ok=True)
+    payload = build_zusd_oracle_pending_gate_contract(state, risky_requested=True, tcr_ok=True).to_dict()
+    payload["tcr_ok"] = "false"
+    payload["risky_ops_allowed"] = True
+    payload["blocked_by_recovery"] = False
+    payload["action_allowed"] = True
+
+    ok, err = verify_zusd_oracle_pending_gate_contract_payload(payload)
+
+    assert ok is False
+    assert err == "tcr_ok must be bool"
+
+
 def test_zusd_oracle_pending_gate_contract_supports_multi_state() -> None:
     state = _multi_ok(init_multi_state(), "bootstrap_oracle", price_e8=100 * E8, auth_ok=True)
     contract = build_zusd_oracle_pending_gate_contract(state, risky_requested=False, tcr_ok=False)
@@ -106,6 +146,28 @@ def test_zusd_cross_module_oracle_sync_contract_rejects_tampering() -> None:
     ok, err = verify_zusd_cross_module_oracle_sync_contract_payload(payload)
     assert not ok
     assert err == "contract payload mismatch"
+
+
+@pytest.mark.parametrize(
+    "flag_name",
+    ["sync_snapshot_available", "divergence_bounded", "epoch_lag_bounded", "sync_gate_ok"],
+)
+def test_zusd_cross_module_oracle_sync_contract_rejects_int_bool_fields(flag_name: str) -> None:
+    payload = build_zusd_cross_module_oracle_sync_contract(
+        market_id="TAU-USD",
+        zusd_price_e8=100 * E8,
+        zusd_epoch=100,
+        perp_price_e8=100 * E8,
+        perp_oracle_epoch=100,
+        max_divergence_bps=0,
+        max_epoch_lag=0,
+    ).to_dict()
+    payload[flag_name] = 1 if payload[flag_name] else 0
+
+    ok, err = verify_zusd_cross_module_oracle_sync_contract_payload(payload)
+
+    assert ok is False
+    assert err == f"{flag_name} must be bool"
 
 
 def test_zusd_cross_module_oracle_sync_contract_tau_replay_when_available() -> None:

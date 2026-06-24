@@ -655,6 +655,23 @@ class TestOracleRecoveryLifecycleApi:
         assert body == {"ok": False, "error": "internal_error", "detail": "RuntimeError"}
         assert "do not leak" not in str(body)
 
+    @pytest.mark.parametrize(
+        ("flag_name", "value"),
+        [("risky_requested", 1), ("risky_requested", "false"), ("tcr_ok", 1), ("tcr_ok", "false")],
+    )
+    def test_contract_builder_rejects_non_bool_gate_flags(self, flag_name, value):
+        status, body = _post(
+            "/api/zusd/build_oracle_pending_gate_contract",
+            {"state": {}, flag_name: value},
+        )
+
+        assert status == 400
+        assert body == {
+            "ok": False,
+            "error": "build_oracle_pending_gate_contract_error",
+            "detail": f"{flag_name} must be bool",
+        }
+
     def test_cross_module_builder_sanitizes_unexpected_internal_fault(self, monkeypatch):
         def _faulting_builder(*_args, **_kwargs):
             raise RuntimeError("do not leak zUSD cross module internals")

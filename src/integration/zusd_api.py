@@ -614,6 +614,12 @@ def _parse_json_body(body: Optional[bytes]) -> Tuple[Optional[Dict[str, Any]], O
     return obj, None
 
 
+def _require_json_bool(value: object, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{name} must be bool")
+    return value
+
+
 def _safe_expected_error_detail(exc: Exception) -> str:
     msg = " ".join(str(exc).split())
     return msg[:200] or type(exc).__name__
@@ -689,13 +695,13 @@ def _handle_post(
             return single, multi, history, (400, {"ok": False, "error": "bad_json"})
         try:
             state = _parse_zusd_state_payload(parsed.get("state"))
-            contract = build_zusd_oracle_pending_gate_contract(
+            pending_contract = build_zusd_oracle_pending_gate_contract(
                 state,
-                risky_requested=bool(parsed.get("risky_requested", False)),
+                risky_requested=_require_json_bool(parsed.get("risky_requested", False), name="risky_requested"),
                 max_staleness_epochs=int(parsed.get("max_staleness_epochs", 100)),
-                tcr_ok=bool(parsed.get("tcr_ok", True)),
+                tcr_ok=_require_json_bool(parsed.get("tcr_ok", True), name="tcr_ok"),
             )
-            return single, multi, history, (200, {"ok": True, "contract": contract.to_dict()})
+            return single, multi, history, (200, {"ok": True, "contract": pending_contract.to_dict()})
         except Exception as exc:
             return single, multi, history, _contract_build_error_response(
                 "build_oracle_pending_gate_contract_error",
@@ -718,7 +724,7 @@ def _handle_post(
         if parsed is None:
             return single, multi, history, (400, {"ok": False, "error": "bad_json"})
         try:
-            contract = build_zusd_cross_module_oracle_sync_contract(
+            sync_contract = build_zusd_cross_module_oracle_sync_contract(
                 market_id=str(parsed.get("market_id", "")),
                 zusd_price_e8=int(parsed.get("zusd_price_e8", 0)),
                 zusd_epoch=int(parsed.get("zusd_epoch", 0)),
@@ -727,7 +733,7 @@ def _handle_post(
                 max_divergence_bps=int(parsed.get("max_divergence_bps", 0)),
                 max_epoch_lag=int(parsed.get("max_epoch_lag", 0)),
             )
-            return single, multi, history, (200, {"ok": True, "contract": contract.to_dict()})
+            return single, multi, history, (200, {"ok": True, "contract": sync_contract.to_dict()})
         except Exception as exc:
             return single, multi, history, _contract_build_error_response(
                 "build_cross_module_oracle_sync_contract_error",
