@@ -15,11 +15,19 @@ from .tau_witness import ARGMAX_STREAM_CERTIFICATE_V1, build_argmax_stream_certi
 MULTI_ACTION_CANDIDATE_SET_SCHEMA = "zenodex/strategy-multi-action-candidate-set/v1"
 MULTI_ACTION_DECISION_CERTIFICATE_SCHEMA = "zenodex/strategy-multi-action-decision/v1"
 DEFAULT_MULTI_ACTION_MODEL_VERSION = "autotrader-multi-action-v1"
+_MAX_EXCEPTION_DETAIL_LEN = 200
 
 
 def _safe_payload_validation_error(exc: Exception) -> str:
     detail = " ".join(str(exc).split())
-    return detail[:200] or type(exc).__name__
+    return detail[:_MAX_EXCEPTION_DETAIL_LEN] or type(exc).__name__
+
+
+def _safe_exception_error(exc: Exception) -> str:
+    detail = " ".join(str(exc).split())
+    if not detail:
+        return type(exc).__name__
+    return f"{type(exc).__name__}:{detail[:_MAX_EXCEPTION_DETAIL_LEN]}"
 
 
 class MultiActionCandidateKind(Enum):
@@ -480,7 +488,7 @@ def check_bounded_multi_action_decision_tau_argmax_contract(
             tau_enabled=True,
             tau_used=True,
             step_count=len(certificate.argmax_steps),
-            error=f"{type(exc).__name__}:{exc}",
+            error=_safe_exception_error(exc),
         )
     argmax_steps_ok = (
         len(outputs) == len(certificate.argmax_steps)

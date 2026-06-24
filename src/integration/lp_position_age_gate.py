@@ -16,9 +16,16 @@ from ..core.settlement import Settlement
 from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
 
+_MAX_EXCEPTION_DETAIL_LEN = 200
+
 
 def _strict_non_negative_int(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _safe_exception_detail(exc: BaseException) -> str:
+    detail = " ".join(str(exc).strip().split())
+    return detail[:_MAX_EXCEPTION_DETAIL_LEN] or type(exc).__name__
 
 
 @dataclass(frozen=True)
@@ -145,7 +152,7 @@ def _validate_lp_age_for_key(
             duration_risk_policy=duration_risk_policy,
         )
     except ValueError as exc:
-        return f"invalid lp_duration_risk_metadata for {context}: {exc}"
+        return f"invalid lp_duration_risk_metadata for {context}: {_safe_exception_detail(exc)}"
     if block_timestamp - last_mint < required_age:
         return f"lp_position_locked for {context}"
     return None
@@ -328,7 +335,7 @@ def apply_lp_mint_timestamps_after_settlement(
                 duration_risk_policy=duration_risk_policy,
             )
         except ValueError as exc:
-            return f"lp_duration_risk_update_failed: {exc}"
+            return f"lp_duration_risk_update_failed: {_safe_exception_detail(exc)}"
 
     return None
 

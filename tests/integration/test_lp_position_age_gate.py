@@ -51,6 +51,25 @@ def _liquidity_intent(
     )
 
 
+class _ExplodingDurationRiskPolicy:
+    churn_window_seconds = 0
+    max_churn_tier = 0
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+
+    def decayed_tier(
+        self,
+        tier: int,
+        last_update_timestamp: int | None,
+        now: int,
+    ) -> int:
+        raise ValueError(self.detail)
+
+    def required_age_seconds_for_tier(self, tier: int) -> int:
+        return 0
+
+
 def test_lp_position_age_gate_is_inactive_when_min_age_is_zero() -> None:
     intent = _liquidity_intent(
         kind=IntentKind.REMOVE_LIQUIDITY,
@@ -451,6 +470,35 @@ def test_rejected_progressive_remove_does_not_mutate_churn_metadata() -> None:
     assert lp.get_last_remove_timestamp(sender, pool_id) is None
 
 
+def test_lp_position_age_gate_caps_duration_risk_metadata_error() -> None:
+    sender = _pk()
+    pool_id = _pool()
+    intent = _liquidity_intent(
+        kind=IntentKind.REMOVE_LIQUIDITY,
+        intent_id=_iid(17),
+        sender=sender,
+        pool_id=pool_id,
+        fields={"lp_amount": 1},
+    )
+    lp = LPTable()
+    lp.set(sender, pool_id, 10)
+    lp.set_last_mint_timestamp(sender, pool_id, 100)
+    detail = "x" * 260
+
+    err = validate_lp_position_age_gate(
+        intents=[intent],
+        lp_balances=lp,
+        block_timestamp=200,
+        min_lp_position_age_seconds=0,
+        duration_risk_policy=_ExplodingDurationRiskPolicy(detail),  # type: ignore[arg-type]
+    )
+
+    assert err == (
+        f"invalid lp_duration_risk_metadata for intent_id={intent.intent_id}: "
+        f"{detail[:200]}"
+    )
+
+
 def test_lp_mint_timestamp_update_and_state_root_binding() -> None:
     sender = _pk()
     pool_id = _pool()
@@ -478,6 +526,32 @@ def test_lp_mint_timestamp_update_and_state_root_binding() -> None:
     assert lp.get_last_mint_timestamp(sender, pool_id) == 42
     after = compute_state_root(balances=BalanceTable(), pools={}, lp_balances=lp)
     assert after != before
+
+
+def test_lp_mint_timestamp_update_caps_duration_risk_update_error() -> None:
+    sender = _pk()
+    pool_id = _pool()
+    lp = LPTable()
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="batch",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[LPDelta(pubkey=sender, pool_id=pool_id, delta_add=10, delta_sub=0)],
+    )
+    detail = "x" * 260
+
+    err = apply_lp_mint_timestamps_after_settlement(
+        lp_balances=lp,
+        settlement=settlement,
+        block_timestamp=42,
+        duration_risk_policy=_ExplodingDurationRiskPolicy(detail),  # type: ignore[arg-type]
+    )
+
+    assert err == f"lp_duration_risk_update_failed: {detail[:200]}"
 
 
 def test_lp_mint_timestamp_support_root_binding() -> None:

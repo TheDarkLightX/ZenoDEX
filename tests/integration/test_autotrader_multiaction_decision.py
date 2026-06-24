@@ -4,6 +4,7 @@ from dataclasses import replace
 
 import pytest
 
+import src.integration.autotrader_multiaction_decision as multiaction_decision
 from src.agents.policy_artifacts import build_strategy_policy_artifact, build_tau_policy_bundle
 from src.agents.strategy_ir import (
     NotionalCaps,
@@ -371,6 +372,41 @@ def test_bounded_multi_action_tau_argmax_contract_replays_when_tau_enabled() -> 
         )
     with pytest.raises(TypeError, match="candidate_set must be a BoundedMultiActionCandidateSet"):
         build_bounded_multi_action_decision_certificate(candidate_set="bad")  # type: ignore[arg-type]
+
+
+def test_bounded_multi_action_tau_argmax_contract_caps_runner_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact, bundle = _artifact_bundle()
+    candidate_set = build_bounded_multi_action_candidate_set(
+        policy_artifact=artifact,
+        tau_policy_bundle=bundle,
+        observation_packet=_packet(),
+        action_frontier={
+            StrategyAction.PLACE_SWAP_EXACT_IN: (True, True, 10),
+            StrategyAction.PLACE_SWAP_EXACT_OUT: (True, True, 30),
+            StrategyAction.PLACE_ORDER_INTENT: (True, False, 40),
+        },
+    )
+    decision = build_bounded_multi_action_decision_certificate(candidate_set=candidate_set)
+    detail = "x" * 260
+
+    def _boom(**_: object) -> dict[int, dict[str, int]]:
+        raise RuntimeError(detail)
+
+    monkeypatch.setattr(multiaction_decision, "run_tau_spec_steps", _boom)
+
+    result = check_bounded_multi_action_decision_tau_argmax_contract(
+        candidate_set=candidate_set,
+        certificate=decision,
+        tau_bin="/tmp/fake-tau",
+        timeout_s=1.0,
+    )
+
+    assert result.ok is False
+    assert result.tau_used is True
+    assert result.argmax_steps_ok is False
+    assert result.error == f"RuntimeError:{detail[:200]}"
 
 
 def test_bounded_multi_action_decision_verifier_rejects_mismatch() -> None:
