@@ -306,3 +306,41 @@ def test_kpool_staircase_dp_compression_pareto_retention_skewed() -> None:
     ]
     got, expected = _run_both(pools, amount_in=180, max_legs=3)
     _assert_allocations_match(got, expected, pools)
+
+
+# ---------------------------------------------------------------------------
+# Fail-closed validation: duplicate pool_ids must be rejected.
+# ---------------------------------------------------------------------------
+
+
+def test_kpool_staircase_rejects_duplicate_pool_ids() -> None:
+    """Duplicate pool_ids would corrupt quote caches and allocations. Must reject."""
+    pools = [
+        ("pool-a", PoolXY(x=10_000, y=10_000, fee_bps=30)),
+        ("pool-a", PoolXY(x=8_000, y=12_000, fee_bps=30)),
+    ]
+    specs = [_spec(pid, p, 1) for pid, p in pools]
+    with pytest.raises(ValueError, match="duplicate pool_id"):
+        staircase_k_pool_best_split(
+            pool_specs=specs,
+            amount_in_total=100,
+            max_legs=2,
+            quote_exact_in=exact_out_for_pool_exact_in,
+        )
+
+
+def test_kpool_staircase_rejects_duplicate_pool_ids_three_pools() -> None:
+    """Duplicate at position 2 of 3 must also be caught."""
+    pools = [
+        ("pool-a", PoolXY(x=10_000, y=10_000, fee_bps=30)),
+        ("pool-b", PoolXY(x=8_000, y=12_000, fee_bps=30)),
+        ("pool-a", PoolXY(x=12_000, y=8_000, fee_bps=30)),
+    ]
+    specs = [_spec(pid, p, 1) for pid, p in pools]
+    with pytest.raises(ValueError, match="duplicate pool_id"):
+        staircase_k_pool_best_split(
+            pool_specs=specs,
+            amount_in_total=100,
+            max_legs=3,
+            quote_exact_in=exact_out_for_pool_exact_in,
+        )

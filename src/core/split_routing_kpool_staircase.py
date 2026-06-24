@@ -543,6 +543,20 @@ def _total_jump_point_count(jump_points: dict[_PoolId, list[tuple[int, int]]]) -
     return sum(len(pts) for pts in jump_points.values())
 
 
+def _validate_pool_ids(pool_specs: Sequence[_PoolSpec]) -> None:
+    """Fail-closed validation: reject duplicate pool_ids.
+
+    The optimizer keys quote caches, jump points, and allocations by pool_id.
+    Duplicate IDs would silently corrupt these maps, causing incorrect results.
+    The existing small-domain DP rejects repeated IDs; this matches that contract.
+    """
+    seen: set[_PoolId] = set()
+    for spec in pool_specs:
+        if spec.pool_id in seen:
+            raise ValueError(f"duplicate pool_id: {spec.pool_id}")
+        seen.add(spec.pool_id)
+
+
 def staircase_k_pool_best_split(
     *,
     pool_specs: Sequence[_PoolSpec],
@@ -564,11 +578,14 @@ def staircase_k_pool_best_split(
     lost and the caller should use the existing exact small-domain DP instead.
     Use `best_k_pool_exact_in_split` for the adaptive entry point that picks the
     cheaper solver automatically.
+
+    Rejects duplicate pool_ids (fail-closed, matching the existing DP contract).
     """
     amount_total = _require_positive_control(amount_in_total, name="amount_in_total")
     max_legs_i = _require_positive_control(max_legs, name="max_legs")
     if not pool_specs:
         raise ValueError("no pools provided")
+    _validate_pool_ids(pool_specs)
 
     request = _KPoolStaircaseRequest(
         pools=tuple(pool_specs),
@@ -665,6 +682,7 @@ def best_k_pool_exact_in_split(
     max_legs_i = _require_positive_control(max_legs, name="max_legs")
     if not pool_specs:
         raise ValueError("no pools provided")
+    _validate_pool_ids(pool_specs)
 
     k = len(pool_specs)
     threshold = (k * int(amount_total)) // _DENSE_BREAKPOINT_FALLBACK_RATIO
@@ -725,6 +743,21 @@ def best_k_pool_exact_in_split(
             )
         jump_points[spec.pool_id] = pts
     context.jump_points = jump_points
+
+    # Cumulative post-enumeration budget guard.
+    # Even if each pool passes the per-pool cap, the total breakpoint count
+    # could still make the O(k * S^2) combination path expensive. If the
+    # cumulative count exceeds the threshold, fall back to the existing DP.
+    if small_domain_dp_fn is not None:
+        total_breakpoints = _total_jump_point_count(jump_points)
+        if int(total_breakpoints) >= int(threshold):
+            return _fallback_to_small_dp(
+                small_domain_dp_fn=small_domain_dp_fn,
+                pool_specs=pool_specs,
+                amount_total=int(amount_total),
+                max_legs=int(max_legs_i),
+                quote_exact_in=quote_exact_in,
+            )
 
     # Sparse breakpoints: run the staircase DP (reuses already-enumerated jumps).
     return _staircase_split_with_context(
