@@ -5,6 +5,8 @@ import threading
 from http.client import HTTPConnection
 from typing import Any
 
+import pytest
+
 
 def _start_test_server():
     from src.integration import api_server
@@ -161,6 +163,47 @@ def test_exact_out_many_pool_guarded_quote_rejects_bridge_for_reordered_pool_sna
         assert body["detail"] == "oracle_adapter_bridge action_id mismatch"
     finally:
         _stop_test_server(httpd, thread)
+
+
+def test_oracle_adapter_bridge_verifier_value_error_is_rejection(monkeypatch) -> None:
+    from src.integration import api_server
+    from tools import zenodex_oracle_aggregate_adapter
+
+    def _raise_value_error(_bridge: object) -> object:
+        raise ValueError("malformed bridge")
+
+    monkeypatch.setattr(
+        zenodex_oracle_aggregate_adapter,
+        "verify_aggregate_adapter_bridge",
+        _raise_value_error,
+    )
+
+    error = api_server._check_routing_oracle_adapter_bridge_for_action(
+        body={"oracle_adapter_bridge": {"schema": "test"}},
+        expected_action_id="sha256:" + "00" * 32,
+    )
+
+    assert error == "oracle_adapter_bridge verifier error: ValueError"
+
+
+def test_oracle_adapter_bridge_verifier_runtime_error_propagates(monkeypatch) -> None:
+    from src.integration import api_server
+    from tools import zenodex_oracle_aggregate_adapter
+
+    def _raise_runtime_error(_bridge: object) -> object:
+        raise RuntimeError("verifier bug")
+
+    monkeypatch.setattr(
+        zenodex_oracle_aggregate_adapter,
+        "verify_aggregate_adapter_bridge",
+        _raise_runtime_error,
+    )
+
+    with pytest.raises(RuntimeError, match="verifier bug"):
+        api_server._check_routing_oracle_adapter_bridge_for_action(
+            body={"oracle_adapter_bridge": {"schema": "test"}},
+            expected_action_id="sha256:" + "00" * 32,
+        )
 
 
 def test_exact_out_many_pool_guard_rejects_when_projection_cover_unavailable(monkeypatch) -> None:

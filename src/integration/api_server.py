@@ -747,7 +747,7 @@ def _check_routing_oracle_adapter_bridge_for_action(
 
     try:
         result = verify_aggregate_adapter_bridge(bridge)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return f"oracle_adapter_bridge verifier error: {type(exc).__name__}"
 
     if _adapter_result_get(result, "status") != "accepted":
