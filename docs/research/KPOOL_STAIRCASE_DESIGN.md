@@ -97,23 +97,40 @@ cost; we fall back to the existing exact DP in that regime.
 ## Safety and Fail-Closed
 
 - All amounts validated as positive ints at the boundary.
-- Quote failures (ValueError) treated as infeasible, matching the existing
-  `quote_for_pool_id` wrapper.
+- Duplicate pool_ids rejected before building any maps (fail-closed, matching
+  the existing small-domain DP contract).
+- Jump enumeration fail-closed on quote/formula drift: if the quote function
+  rejects a requested output level (ValueError) or the reached output falls
+  below the requested level (closed-form estimate drift), the enumeration
+  raises ValueError. The adaptive entry point catches this and falls back to
+  the existing small-domain DP. If no fallback is available, re-raises. This
+  matches the two-pool staircase behavior: an "exact" solver must not silently
+  lose optimality by returning a partial candidate set.
 - No floats; all arithmetic is integer.
 - No unbounded loops: jump enumeration is bounded by `D` (each jump advances
   output by at least 1, output is bounded by `y_i`), and the DP is bounded by
   `k * D * B_max`.
 
-## Formal Verification Plan
+## Formal Verification
 
-1. **Lean theorem:** Generalize `candidate_dominates_split` to k pools. State:
-   if every non-interior pool's allocation is left-covered by a jump candidate
-   with the same output, and the interior pool's output is monotone, then the
-   candidate combination dominates. This is the existing theorem applied
-   pool-by-pool.
+1. **Lean theorems (mechanized):** The file `KPoolStaircase.lean` proves:
+   - `candidate_dominates_single_pool`: pool-by-pool dominance building block.
+   - `candidate_dominates_two_pool_composition`: two-pool composition.
+   - `candidate_dominates_three_pool_composition`: three-pool inductive step.
+   - `candidate_dominates_k_pool_composition`: full arbitrary-k inductive
+     composition by list induction, proving both dominance (weakly increases
+     total output) and conservation (candidateSpent + improved_interior =
+     originalSpent + original_interior).
+   - `candidate_dominates_k_pool_with_budget`: budget-premise corollary that
+     takes `originalSpent + a_interior = D` and returns `candidateSpent + r' = D`.
+   - Imported in `Proofs.lean` for aggregate build inclusion.
+   - Scope: assumes `LeftCovers` hypotheses. The CPMM jump formula, canonical
+     tie-break globality, and DP enumeration correctness are runtime-tested.
 2. **Runtime parity tests:** Brute-force oracle parity on a hostile corpus
    (skewed reserves, high fees, dust edges, zero-output gaps, tie-heavy
-   plateaus) for `k in {2, 3, 4}` and `D` up to a bounded limit.
+   plateaus) for `k in {2, 3, 4}` and `D` up to a bounded limit. 37 tests
+   including adaptive fallback, duplicate pool_id rejection, and drift
+   fail-closed behavior.
 3. **Quote-count benchmark:** Compare against the existing greedy and
    small-domain DP.
 

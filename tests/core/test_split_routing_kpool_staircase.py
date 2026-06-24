@@ -531,12 +531,16 @@ def test_kpool_staircase_raises_on_drift_no_fallback() -> None:
 def test_kpool_adaptive_falls_back_on_drift() -> None:
     """Adaptive entry point must fall back to small-domain DP on drift.
 
-    Uses amount_in_total=80 so the fallback DP can find a feasible allocation
-    within the drift quote's 50-amount limit (e.g. 40+40=80, each <= 50).
+    Uses sparse pools (skewed reserves, zero fee) so the Phase 1 density
+    estimate is below threshold and enumeration runs. The drift quote then
+    raises ValueError during enumeration, triggering the fallback path.
+
+    The result must match the small-domain DP run directly with a
+    None-returning quote wrapper (so the DP sees the same feasible set).
     """
     pools = [
-        ("pool-a", PoolXY(x=10_000, y=10_000, fee_bps=30)),
-        ("pool-b", PoolXY(x=8_000, y=12_000, fee_bps=30)),
+        ("pool-a", PoolXY(x=1, y=100_000, fee_bps=0)),
+        ("pool-b", PoolXY(x=100_000, y=100_000, fee_bps=0)),
     ]
     specs = [_spec(pid, p, 1) for pid, p in pools]
     pools_dict = {pid: p for pid, p in pools}
@@ -554,6 +558,15 @@ def test_kpool_adaptive_falls_back_on_drift() -> None:
         except ValueError:
             return None
 
+    # Direct small-domain DP result with the None-returning wrapper.
+    pool_ids = [pid for pid, _ in pools]
+    small_dp_result = best_small_domain_many_pool_exact_in(
+        pool_ids=pool_ids,
+        amount_in_total=80,
+        max_legs=2,
+        quote_for_pool_id=quote_for_pid,
+    )
+
     # The adaptive entry point should catch the drift and fall back.
     result = best_k_pool_exact_in_split(
         pool_specs=specs,
@@ -562,6 +575,5 @@ def test_kpool_adaptive_falls_back_on_drift() -> None:
         quote_exact_in=_drift_quote,
         small_domain_dp_fn=_small_dp_fn,
     )
-    # The result should be a valid allocation from the fallback DP.
-    assert isinstance(result, dict)
-    assert sum(result.values()) <= 80
+    # The result must match the direct small-domain DP result.
+    assert result == small_dp_result

@@ -14,25 +14,32 @@ fact to the k-pool setting:
 then replacing the non-interior allocation with its left-covering candidate and
 routing the freed input to the interior pool weakly increases the total output.
 
-We prove two results:
+We prove the following results:
 
 1. `candidate_dominates_single_pool`: the pool-by-pool dominance building block.
-2. `candidate_dominates_two_pool_composition`: the two-pool composition, which
-   shows that left-covering one non-interior pool and routing the freed input
-   to the interior pool weakly increases the combined output. This is the
-   smallest non-trivial composition and the direct generalization of the
-   two-pool staircase proof to the "one interior + one left-covered" structure.
+2. `candidate_dominates_two_pool_composition`: the two-pool composition (smallest
+   non-trivial case, direct generalization of the two-pool staircase proof).
+3. `candidate_dominates_three_pool_composition`: the three-pool composition (key
+   inductive step, two left-covered pools + one interior).
+4. `candidate_dominates_k_pool_composition`: the full arbitrary-k inductive
+   composition, proven by list induction. Proves both dominance (weakly
+   increases total output) and conservation (candidateSpent + improved_interior
+   = originalSpent + original_interior). Uses three helper lemmas proven by
+   list induction: `candidate_spent_le_original_spent`,
+   `candidate_output_eq_original_output`, `freed_input_eq_spent_diff`.
+5. `candidate_dominates_k_pool_with_budget`: budget-premise corollary that takes
+   `originalSpent + a_interior = D` and returns `candidateSpent + r' = D`.
 
-The full k-pool composition (iterating across k-1 non-interior pools) follows
-by induction on the number of left-covered pools; the induction step is
-`candidate_dominates_single_pool` applied to the next non-interior pool with
-the already-improved interior residual. The runtime parity tests against brute
-force provide empirical evidence for the composition while the inductive
-mechanization is completed.
+The full k-pool composition is mechanized: the arbitrary-k theorem uses list
+induction with the single-pool dominance as the inductive step. The concrete
+single/two/three-pool theorems serve as witnesses of the general pattern.
 
-The closed-form CPMM jump formula used to build the candidate set remains a
-separate arithmetic obligation, checked today by runtime parity tests against
-brute force.
+Scope limitation: the theorems assume `LeftCovers` hypotheses (that jump
+candidates exist with the same output as the original allocation). Proving
+that the closed-form CPMM jump formula produces such candidates is a separate
+arithmetic obligation, checked today by runtime parity tests (37 cases)
+against brute force. The theorems also do not prove canonical tie-break
+globality or DP enumeration correctness; those are runtime-tested properties.
 -/
 
 namespace Proofs
