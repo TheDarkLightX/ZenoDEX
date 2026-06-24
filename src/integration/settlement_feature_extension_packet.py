@@ -15,6 +15,11 @@ from .tau_witness import (
 SETTLEMENT_FEATURE_EXTENSION_PACKET_SCHEMA = "zenodex/settlement-feature-extension-packet/v1"
 
 
+def _safe_payload_validation_error(exc: Exception) -> str:
+    detail = " ".join(str(exc).split())
+    return detail[:200] or type(exc).__name__
+
+
 def _require_u16(value: int, *, name: str) -> None:
     if not isinstance(value, int) or isinstance(value, bool) or value < 0 or value > 0xFFFF:
         raise ValueError(f"{name} out of u16 range: {value!r}")
@@ -304,11 +309,11 @@ def verify_settlement_feature_extension_packet_payload(
     try:
         inputs = SettlementFeatureExtensionInputs.from_dict(inputs_payload)
     except (TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     try:
         expected = build_settlement_feature_extension_packet(inputs)
     except (TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if not isinstance(packet_payload, Mapping):
         return False, "packet must be an object"
     if str(packet_payload.get("schema", "")) != expected.schema:

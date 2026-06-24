@@ -77,6 +77,22 @@ def test_settlement_feature_extension_packet_rejects_expected_input_parse_error(
     assert err == "missing feature extension input field: trade_amount"
 
 
+def test_settlement_feature_extension_packet_caps_malformed_input_error() -> None:
+    payload = _inputs().to_dict()
+    payload["trade_amount"] = "9" * 1_000 + "x"
+    packet = build_settlement_feature_extension_packet(_inputs())
+
+    ok, err = verify_settlement_feature_extension_packet_payload(
+        inputs_payload=payload,
+        packet_payload=packet.to_dict(),
+    )
+
+    assert ok is False
+    assert err is not None
+    assert len(err) <= 200
+    assert "9" * 201 not in err
+
+
 def test_settlement_feature_extension_packet_surfaces_unexpected_input_parse_fault(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
