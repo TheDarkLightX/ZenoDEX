@@ -450,7 +450,7 @@ def _status_payload(account: str | None = None) -> Dict[str, Any]:
                 "account": account,
                 "balance": int(balances.get(account.strip().lower(), 0)),
             }
-    except Exception as exc:
+    except (TauNetRpcError, RuntimeError, TypeError, ValueError) as exc:
         status["node_reachable"] = False
         status["error"] = f"{type(exc).__name__}: {exc}"
     return status
@@ -509,5 +509,5 @@ def handle_zusd_tau_wallet_request(method: str, path: str, body: Optional[bytes]
         return 400, {"ok": False, "error": str(exc)}
     except TauNetRpcError as exc:
         return 502, {"ok": False, "error": "tau_rpc_error", "detail": str(exc)}
-    except Exception as exc:
+    except RuntimeError as exc:
         return 500, {"ok": False, "error": "internal_error", "detail": f"{type(exc).__name__}: {exc}"}

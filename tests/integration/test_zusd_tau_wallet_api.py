@@ -119,6 +119,25 @@ def test_status_without_account_omits_account_view(monkeypatch) -> None:
     assert "account_view" not in payload["status"]
 
 
+def test_status_marks_expected_tau_failure_unreachable(monkeypatch) -> None:
+    class _DownClient(_FakeClient):
+        def rpc(self, _cmd: str) -> str:
+            raise wallet_api.TauNetRpcError("tau down")
+
+    monkeypatch.setenv("ZUSD_TAU_WALLET_CHAIN_ID", "tau-test-wallet")
+    monkeypatch.setattr(wallet_api, "TauNetTcpClient", _DownClient)
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "GET",
+        "/api/zusd/wallet/status",
+        None,
+    )
+
+    assert status_code == 200
+    assert payload["status"]["node_reachable"] is False
+    assert payload["status"]["error"] == "TauNetRpcError: tau down"
+
+
 def test_status_fails_closed_on_malformed_account(monkeypatch) -> None:
     monkeypatch.setenv("ZUSD_TAU_WALLET_CHAIN_ID", "tau-test-wallet")
     monkeypatch.setattr(wallet_api, "TauNetTcpClient", _FakeClient)
@@ -142,6 +161,26 @@ def test_status_rejects_malformed_tau_port(monkeypatch) -> None:
     assert status_code == 400
     assert payload["ok"] is False
     assert "ZUSD_TAU_WALLET_TAU_PORT" in str(payload["error"])
+
+
+def test_handle_maps_expected_runtime_failure_to_internal_error(monkeypatch) -> None:
+    def _raise_runtime(_body, *, for_submit: bool) -> dict[str, object]:
+        raise RuntimeError("prepare unavailable")
+
+    monkeypatch.setattr(wallet_api, "_build_prepare_response", _raise_runtime)
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/prepare",
+        b"{}",
+    )
+
+    assert status_code == 500
+    assert payload == {
+        "ok": False,
+        "error": "internal_error",
+        "detail": "RuntimeError: prepare unavailable",
+    }
 
 
 def test_prepare_rejects_malformed_tau_verify_flag(monkeypatch) -> None:
