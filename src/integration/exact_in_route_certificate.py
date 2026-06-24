@@ -30,6 +30,11 @@ EXACT_IN_ROUTE_GUARD_MISMATCH_ERROR = "exact_in_runtime_not_canonical_on_audit_d
 ExactInRouteCanonicalKey = tuple[int, int, int, str, str, str]
 
 
+def _safe_payload_validation_error(exc: Exception) -> str:
+    detail = " ".join(str(exc).split())
+    return detail[:200] or type(exc).__name__
+
+
 def exact_in_route_canonical_key(quote: RouteQuote) -> ExactInRouteCanonicalKey:
     hop_count, leg_count, pool_seq, mid, asset_out = _quote_key(quote)
     return (-int(quote.amount_out), int(hop_count), int(leg_count), str(pool_seq), str(mid), str(asset_out))
@@ -1005,7 +1010,7 @@ def verify_exact_in_route_canonical_certificate_payload(
     try:
         quotes = extract_exact_in_route_certificate_quotes(payload)
     except (TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     expected = build_exact_in_route_canonical_certificate(quotes, binding_ok=expected_binding_ok)
     if not isinstance(payload, dict):
         return False, "certificate payload must be a dict"
@@ -1037,7 +1042,7 @@ def verify_exact_in_route_oracle_contract_payload(payload: object) -> tuple[bool
             binding_ok=int(payload["binding_ok"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
         return False, "oracle contract payload mismatch"
     return True, None
@@ -1072,7 +1077,7 @@ def verify_exact_in_route_guarded_quote_packet_payload(payload: object) -> tuple
             binding_ok=int(contract_payload["binding_ok"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
         return False, "guarded quote packet payload mismatch"
     return True, None
@@ -1115,7 +1120,7 @@ def verify_exact_in_route_rank_projection_packet_payload(payload: object) -> tup
     try:
         quotes = extract_exact_in_route_certificate_quotes(payload)
     except (TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     expected = build_exact_in_route_rank_projection_packet(quotes)
     if not isinstance(payload, dict):
         return False, "rank projection packet payload must be a dict"
@@ -1174,7 +1179,7 @@ def verify_exact_in_route_true_key_interpretation_packet_payload(payload: object
     try:
         quotes = extract_exact_in_route_certificate_quotes(certificate_payload)
     except (TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     expected = build_exact_in_route_true_key_interpretation_packet(quotes)
     if payload != expected.to_dict():
         return False, "true-key interpretation packet payload mismatch"

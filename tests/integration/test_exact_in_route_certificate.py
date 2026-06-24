@@ -309,6 +309,29 @@ def test_exact_in_route_oracle_contract_rejects_tampering() -> None:
     assert err == "oracle contract payload mismatch"
 
 
+def test_exact_in_route_oracle_contract_caps_malformed_pool_snapshot_error() -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1001, 0),
+        "p_ac": _pool("p_ac", "A", "C", 1000, 1000, 0),
+        "p_cb": _pool("p_cb", "C", "B", 1000, 1000, 0),
+    }
+
+    payload = build_exact_in_route_oracle_contract(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_in=10,
+    ).to_dict()
+    payload["pool_snapshots"][0]["reserve0"] = "9" * 1_000 + "x"
+
+    ok, err = verify_exact_in_route_oracle_contract_payload(payload)
+
+    assert ok is False
+    assert err is not None
+    assert len(err) <= 200
+    assert "9" * 201 not in err
+
+
 def test_exact_in_route_guarded_quote_packet_round_trips() -> None:
     pools = {
         "p_ab": _pool("p_ab", "A", "B", 1000, 1001, 0),
