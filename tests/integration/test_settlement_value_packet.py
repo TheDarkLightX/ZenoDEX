@@ -499,6 +499,29 @@ def test_verify_value_packet_rejects_expected_packet_payload_parse_error(
     assert err == "value packet payload invalid"
 
 
+def test_verify_value_packet_caps_malformed_packet_payload_error() -> None:
+    _pk, asset0, asset1, _pool_id, settlement = _swap_context()
+    price_packet = _price_packet_for(asset0, asset1)
+    packet = build_settlement_value_packet_from_price_packet(
+        settlement=settlement,
+        price_packet=price_packet,
+    )
+    bad_packet_payload = packet.to_dict()
+    assert bad_packet_payload["spot_value_contract"] is not None
+    bad_packet_payload["spot_value_contract"]["asset_prices"][0]["price"] = "9" * 1_000 + "x"
+
+    ok, err = verify_settlement_value_packet_payload_from_price_packet(
+        settlement=settlement,
+        price_packet_payload=price_packet.to_dict(),
+        packet_payload=bad_packet_payload,
+    )
+
+    assert ok is False
+    assert err is not None
+    assert len(err) <= 200
+    assert "9" * 201 not in err
+
+
 def test_verify_value_packet_surfaces_unexpected_packet_payload_parse_fault(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
