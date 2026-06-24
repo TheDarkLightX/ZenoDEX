@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+import src.integration.settlement_feature_extension_packet as feature_packet
 from src.integration.settlement_feature_extension_packet import (
     SettlementFeatureExtensionInputs,
     build_settlement_feature_extension_packet,
@@ -58,3 +61,81 @@ def test_settlement_feature_extension_packet_rejects_tampering() -> None:
     )
     assert ok is False
     assert err == "settlement feature extension packet mismatch"
+
+
+def test_settlement_feature_extension_packet_rejects_expected_input_parse_error() -> None:
+    payload = _inputs().to_dict()
+    del payload["trade_amount"]
+    packet = build_settlement_feature_extension_packet(_inputs())
+
+    ok, err = verify_settlement_feature_extension_packet_payload(
+        inputs_payload=payload,
+        packet_payload=packet.to_dict(),
+    )
+
+    assert ok is False
+    assert err == "missing feature extension input field: trade_amount"
+
+
+def test_settlement_feature_extension_packet_surfaces_unexpected_input_parse_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = build_settlement_feature_extension_packet(_inputs())
+
+    def fail_from_dict(
+        cls: type[feature_packet.SettlementFeatureExtensionInputs],
+        payload: object,
+    ) -> feature_packet.SettlementFeatureExtensionInputs:
+        raise RuntimeError("unexpected feature input parse fault")
+
+    monkeypatch.setattr(
+        feature_packet.SettlementFeatureExtensionInputs,
+        "from_dict",
+        classmethod(fail_from_dict),
+    )
+
+    with pytest.raises(RuntimeError, match="unexpected feature input parse fault"):
+        verify_settlement_feature_extension_packet_payload(
+            inputs_payload=_inputs().to_dict(),
+            packet_payload=packet.to_dict(),
+        )
+
+
+def test_settlement_feature_extension_packet_rejects_expected_builder_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = build_settlement_feature_extension_packet(_inputs())
+
+    def reject_builder(
+        inputs: feature_packet.SettlementFeatureExtensionInputs,
+    ) -> feature_packet.SettlementFeatureExtensionPacket:
+        raise ValueError("expected feature builder reject")
+
+    monkeypatch.setattr(feature_packet, "build_settlement_feature_extension_packet", reject_builder)
+
+    ok, err = verify_settlement_feature_extension_packet_payload(
+        inputs_payload=_inputs().to_dict(),
+        packet_payload=packet.to_dict(),
+    )
+
+    assert ok is False
+    assert err == "expected feature builder reject"
+
+
+def test_settlement_feature_extension_packet_surfaces_unexpected_builder_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = build_settlement_feature_extension_packet(_inputs())
+
+    def fail_builder(
+        inputs: feature_packet.SettlementFeatureExtensionInputs,
+    ) -> feature_packet.SettlementFeatureExtensionPacket:
+        raise RuntimeError("unexpected feature builder fault")
+
+    monkeypatch.setattr(feature_packet, "build_settlement_feature_extension_packet", fail_builder)
+
+    with pytest.raises(RuntimeError, match="unexpected feature builder fault"):
+        verify_settlement_feature_extension_packet_payload(
+            inputs_payload=_inputs().to_dict(),
+            packet_payload=packet.to_dict(),
+        )

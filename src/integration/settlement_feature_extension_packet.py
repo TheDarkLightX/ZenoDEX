@@ -296,16 +296,18 @@ def build_settlement_feature_extension_packet(
 
 def verify_settlement_feature_extension_packet_payload(
     *,
-    inputs_payload: Mapping[str, Any],
-    packet_payload: Mapping[str, Any],
+    inputs_payload: object,
+    packet_payload: object,
 ) -> tuple[bool, str | None]:
+    if not isinstance(inputs_payload, Mapping):
+        return False, "feature extension inputs must be an object"
     try:
         inputs = SettlementFeatureExtensionInputs.from_dict(inputs_payload)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     try:
         expected = build_settlement_feature_extension_packet(inputs)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     if not isinstance(packet_payload, Mapping):
         return False, "packet must be an object"
