@@ -29,7 +29,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 import hashlib
 import threading
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from ..core.amm_dispatch import swap_exact_in_for_pool
 from ..core.amm_dispatch import swap_exact_out_for_pool
@@ -79,7 +79,7 @@ def _quote_exact_in_onehop(pool: PoolState, *, asset_in: AssetId, asset_out: Ass
     rin, rout = r
     try:
         out, _ = swap_exact_in_for_pool(pool, reserve_in=int(rin), reserve_out=int(rout), amount_in=int(amount_in))
-    except Exception:
+    except ValueError:
         return None
     return int(out)
 
@@ -101,7 +101,7 @@ def _quote_exact_in_twohop(
     try:
         out_mid, _ = swap_exact_in_for_pool(p1, reserve_in=int(r1[0]), reserve_out=int(r1[1]), amount_in=int(amount_in))
         out_final, _ = swap_exact_in_for_pool(p2, reserve_in=int(r2[0]), reserve_out=int(r2[1]), amount_in=int(out_mid))
-    except Exception:
+    except ValueError:
         return None
     return int(out_mid), int(out_final)
 
@@ -115,7 +115,7 @@ def _quote_exact_out_onehop(pool: PoolState, *, asset_in: AssetId, asset_out: As
     rin, rout = r
     try:
         inn, _ = swap_exact_out_for_pool(pool, reserve_in=int(rin), reserve_out=int(rout), amount_out=int(amount_out))
-    except Exception:
+    except ValueError:
         return None
     return int(inn)
 
@@ -135,7 +135,7 @@ def _quote_exact_out_twohop(
         return None
     try:
         mid_in, _ = swap_exact_out_for_pool(p2, reserve_in=int(r2[0]), reserve_out=int(r2[1]), amount_out=int(amount_out))
-    except Exception:
+    except ValueError:
         return None
 
     r1 = _dir_reserves_cpmm(p1, asset_in=asset_in, asset_out=mid)
@@ -143,7 +143,7 @@ def _quote_exact_out_twohop(
         return None
     try:
         amt_in, _ = swap_exact_out_for_pool(p1, reserve_in=int(r1[0]), reserve_out=int(r1[1]), amount_out=int(mid_in))
-    except Exception:
+    except ValueError:
         return None
     return int(amt_in), int(mid_in)
 
@@ -204,12 +204,12 @@ def _snapshot_digest_for_sorted_pools(pools_sorted: Sequence[PoolState]) -> str:
 class _MidArrays:
     ins_ids: Tuple[str, ...]
     outs_ids: Tuple[str, ...]
-    r1_in: object  # numpy.ndarray float64
-    r1_out: object
-    f1: object
-    r2_in: object
-    r2_out: object
-    f2: object
+    r1_in: Any  # numpy.ndarray float64
+    r1_out: Any
+    f1: Any
+    r2_in: Any
+    r2_out: Any
+    f2: Any
 
 
 @dataclass(frozen=True)
@@ -243,8 +243,8 @@ class FastQuoteRouterV1:
         asset_out: AssetId,
     ) -> _PreparedPair:
         try:
-            import numpy as np  # type: ignore
-        except Exception as exc:  # pragma: no cover - optional dependency
+            import numpy as np
+        except ImportError as exc:  # pragma: no cover - optional dependency
             raise RuntimeError("numpy not available") from exc
 
         snap = _snapshot_digest_for_sorted_pools(pools_sorted)
@@ -391,8 +391,8 @@ class FastQuoteRouterV1:
         pools_sorted: Tuple[PoolState, ...] = tuple(sorted(pools_by_id.values(), key=lambda p: p.pool_id))
 
         try:
-            import numpy as np  # type: ignore
-        except Exception:
+            import numpy as np
+        except ImportError:
             return None
 
         prepared = self._get_or_build_prepared(pools_sorted=pools_sorted, asset_in=asset_in, asset_out=asset_out)
@@ -549,7 +549,7 @@ class FastQuoteRouterV1:
                         amount_in_total=int(D),
                         search_profile="adaptive_v6",
                     )
-                except Exception:
+                except ValueError:
                     split2 = None
                 if split2 is not None and int(split2.amount_out_total) > 0 and int(split2.amount_in_0) > 0 and int(split2.amount_in_1) > 0:
                     leg0 = RouteLeg(
@@ -585,7 +585,7 @@ class FastQuoteRouterV1:
                         max_candidates=len(candidates_probe),
                         max_iters=256,
                     )
-                except Exception:
+                except ValueError:
                     split_probe = None
                 if split_probe is not None and int(split_probe.amount_out_total) > 0:
                     # Compare probe output to the pre-split best (key tie-break).
@@ -616,7 +616,7 @@ class FastQuoteRouterV1:
                             max_candidates=len(candidates),
                             max_iters=4096,
                         )
-                    except Exception:
+                    except ValueError:
                         splitN = None
                     if splitN is not None and int(splitN.amount_out_total) > 0 and len(splitN.legs) >= 2:
                         legs: List[RouteLeg] = []
@@ -682,8 +682,8 @@ class FastQuoteRouterV1:
         pools_sorted: Tuple[PoolState, ...] = tuple(sorted(pools_by_id.values(), key=lambda p: p.pool_id))
 
         try:
-            import numpy as np  # type: ignore
-        except Exception:
+            import numpy as np
+        except ImportError:
             return None
 
         prepared = self._get_or_build_prepared(pools_sorted=pools_sorted, asset_in=asset_in, asset_out=asset_out)
@@ -753,7 +753,7 @@ class FastQuoteRouterV1:
                             asset_out=asset_out,
                             amount_out_total=int(Q),
                         )
-                    except Exception:
+                    except ValueError:
                         continue
                     if int(split.amount_in_total) <= 0:
                         continue
@@ -935,9 +935,9 @@ class FastQuoteRouterV1:
             fee1_den = bps - fee1
             ok_fee1 = fee1_den > 0.0
             ok1 = ok1 & ok_fee1 & np.isfinite(mid_in_mat)
-            net1 = np.full((m, n), np.inf, dtype=np.float64)
+            net1: Any = np.full((m, n), np.inf, dtype=np.float64)
             np.divide(arr.r1_in.reshape((m, 1)) * mid_in_mat, den1, out=net1, where=ok1)
-            approx_in = np.full((m, n), np.inf, dtype=np.float64)
+            approx_in: Any = np.full((m, n), np.inf, dtype=np.float64)
             np.divide(net1 * bps, fee1_den, out=approx_in, where=ok1)  # (m,n)
 
             flat = approx_in.reshape((m * n,))
@@ -969,7 +969,7 @@ class FastQuoteRouterV1:
         if union:
             union.sort(key=lambda x: (float(x[0]), x[1]))
             best2: Optional[RouteQuote] = None
-            best2_key: Optional[Tuple[int, int, str, str, str]] = None
+            ranked_best2_key: Optional[Tuple[int, int, str, str, str]] = None
             for _a, _rkey, p1_id, p2_id, mid in union[: int(kmax)]:
                 p1 = pools_by_id.get(p1_id)
                 p2 = pools_by_id.get(p2_id)
@@ -990,10 +990,10 @@ class FastQuoteRouterV1:
                 )
                 kq = _quote_key(q)
                 if best2 is None or q.amount_in < best2.amount_in or (
-                    q.amount_in == best2.amount_in and (best2_key is None or kq < best2_key)
+                    q.amount_in == best2.amount_in and (ranked_best2_key is None or kq < ranked_best2_key)
                 ):
                     best2 = q
-                    best2_key = kq
+                    ranked_best2_key = kq
 
             if best2 is not None:
                 k2 = _quote_key(best2)

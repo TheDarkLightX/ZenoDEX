@@ -257,6 +257,81 @@ def test_fast_v1_amount_in_kernel_domain_boundary_values() -> None:
     assert q is None
 
 
+def test_fast_v1_exact_in_suppresses_domain_value_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("numpy")
+    import src.integration.fast_quote_router_v1 as fast_router
+
+    asset_in = "A_IN"
+    asset_out = "A_OUT"
+    pool = _mk_pool(pool_id="P0", a0=asset_in, a1=asset_out, r0=1_000_000, r1=1_000_000, fee_bps=30)
+    pools_by_id = {pool.pool_id: pool}
+
+    def _domain_reject(*_args, **_kwargs):
+        raise ValueError("domain reject")
+
+    monkeypatch.setattr(fast_router, "swap_exact_in_for_pool", _domain_reject)
+
+    router = FastQuoteRouterV1(max_cache_pairs=8)
+    assert router.quote_exact_in_2hop_fast_v1(
+        pools_by_id=pools_by_id,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_in=100,
+        topk_max=8,
+    ) is None
+
+
+def test_fast_v1_exact_in_propagates_unexpected_quote_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("numpy")
+    import src.integration.fast_quote_router_v1 as fast_router
+
+    asset_in = "A_IN"
+    asset_out = "A_OUT"
+    pool = _mk_pool(pool_id="P0", a0=asset_in, a1=asset_out, r0=1_000_000, r1=1_000_000, fee_bps=30)
+    pools_by_id = {pool.pool_id: pool}
+
+    def _programming_error(*_args, **_kwargs):
+        raise RuntimeError("programming bug")
+
+    monkeypatch.setattr(fast_router, "swap_exact_in_for_pool", _programming_error)
+
+    router = FastQuoteRouterV1(max_cache_pairs=8)
+    with pytest.raises(RuntimeError, match="programming bug"):
+        router.quote_exact_in_2hop_fast_v1(
+            pools_by_id=pools_by_id,
+            asset_in=asset_in,
+            asset_out=asset_out,
+            amount_in=100,
+            topk_max=8,
+        )
+
+
+def test_fast_v1_exact_out_propagates_unexpected_quote_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("numpy")
+    import src.integration.fast_quote_router_v1 as fast_router
+
+    asset_in = "A_IN"
+    asset_out = "A_OUT"
+    pool = _mk_pool(pool_id="P0", a0=asset_in, a1=asset_out, r0=1_000_000, r1=1_000_000, fee_bps=30)
+    pools_by_id = {pool.pool_id: pool}
+
+    def _programming_error(*_args, **_kwargs):
+        raise RuntimeError("programming bug")
+
+    monkeypatch.setattr(fast_router, "swap_exact_out_for_pool", _programming_error)
+
+    router = FastQuoteRouterV1(max_cache_pairs=8)
+    with pytest.raises(RuntimeError, match="programming bug"):
+        router.quote_exact_out_2hop_fast_v1(
+            pools_by_id=pools_by_id,
+            asset_in=asset_in,
+            asset_out=asset_out,
+            amount_out=100,
+            topk_max=8,
+            apply_two_hop_gate=False,
+        )
+
+
 def test_fast_v1_exact_out_micro_amount_out_boundary_values() -> None:
     pytest.importorskip("numpy")
     from src.integration.fast_quote_router_v1 import EXACT_OUT_MICRO_AMOUNT_OUT_MAX
@@ -389,7 +464,7 @@ def test_fast_v1_micro_trade_amount_in_1() -> None:
             try:
                 rin, rout = (int(p.reserve0), int(p.reserve1)) if asset_in == p.asset0 else (int(p.reserve1), int(p.reserve0))
                 out, _ = swap_exact_in_for_pool(p, reserve_in=rin, reserve_out=rout, amount_in=int(amount_in))
-            except Exception:
+            except ValueError:
                 continue
             best_out = max(best_out, int(out))
 
@@ -412,7 +487,7 @@ def test_fast_v1_micro_trade_amount_in_1() -> None:
                     out1, _ = swap_exact_in_for_pool(p1, reserve_in=rin1, reserve_out=rout1, amount_in=int(amount_in))
                     rin2, rout2 = (int(p2.reserve0), int(p2.reserve1)) if mid == p2.asset0 else (int(p2.reserve1), int(p2.reserve0))
                     out2, _ = swap_exact_in_for_pool(p2, reserve_in=rin2, reserve_out=rout2, amount_in=int(out1))
-                except Exception:
+                except ValueError:
                     continue
                 best_out = max(best_out, int(out2))
         return int(best_out)
@@ -493,7 +568,7 @@ def test_fast_v1_tiny_trade_amount_in_2_integer_fee_ranking_regression() -> None
             try:
                 rin, rout = (int(p.reserve0), int(p.reserve1)) if asset_in == p.asset0 else (int(p.reserve1), int(p.reserve0))
                 out, _ = swap_exact_in_for_pool(p, reserve_in=rin, reserve_out=rout, amount_in=int(amount_in))
-            except Exception:
+            except ValueError:
                 continue
             best_out = max(best_out, int(out))
 
@@ -514,7 +589,7 @@ def test_fast_v1_tiny_trade_amount_in_2_integer_fee_ranking_regression() -> None
             try:
                 rin1, rout1 = (int(p1.reserve0), int(p1.reserve1)) if asset_in == p1.asset0 else (int(p1.reserve1), int(p1.reserve0))
                 out_mid, _ = swap_exact_in_for_pool(p1, reserve_in=rin1, reserve_out=rout1, amount_in=int(amount_in))
-            except Exception:
+            except ValueError:
                 continue
             for p2 in by_asset.get(mid, []):
                 if p2.pool_id == p1.pool_id:
@@ -524,7 +599,7 @@ def test_fast_v1_tiny_trade_amount_in_2_integer_fee_ranking_regression() -> None
                 try:
                     rin2, rout2 = (int(p2.reserve0), int(p2.reserve1)) if mid == p2.asset0 else (int(p2.reserve1), int(p2.reserve0))
                     out_final, _ = swap_exact_in_for_pool(p2, reserve_in=rin2, reserve_out=rout2, amount_in=int(out_mid))
-                except Exception:
+                except ValueError:
                     continue
                 best_out = max(best_out, int(out_final))
 
