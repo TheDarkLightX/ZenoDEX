@@ -532,36 +532,40 @@ def test_kpool_adaptive_falls_back_on_drift() -> None:
     """Adaptive entry point must fall back to small-domain DP on drift.
 
     Uses two pools with different sparsity:
-    - pool-a: x=8000, y=100 (very sparse, est=0, gross_in_level1=81 > 50)
-    - pool-b: x=500, y=200 (moderate, est=27, produces output for amounts <= 50)
+    - pool-a: x=6000, y=100 (est=1, gross_in_level1=61, which is > 50 AND <= D=80)
+    - pool-b: x=500, y=200 (est=27, produces output for amounts up to 80)
 
-    With k=2, D=80: threshold = 40, est_total = 0 + 27 = 27 < 40, so Phase 1
+    With k=2, D=80: threshold = 40, est_total = 1 + 27 = 28 < 40, so Phase 1
     does NOT fall back early. Enumeration runs. pool-a's first jump point has
-    gross_in=81 > 50, so the pool-specific drift quote raises ValueError.
-    The adaptive entry point catches this and falls back to the small-domain DP.
+    gross_in=61, which is <= D=80 so the quote IS called, and > 50 so the
+    pool-specific drift quote raises ValueError. The adaptive entry point
+    catches this and falls back to the small-domain DP.
 
-    The drift quote is pool-specific: only drifts on pool-a (x > 5000),
-    works normally for pool-b. This lets the DP find a feasible allocation
-    through pool-b.
-
-    The result must match the small-domain DP run directly with a
-    None-returning quote wrapper (so the DP sees the same feasible set).
+    The test proves the enumeration drift branch ran (not Phase 1 fallback) by:
+    1. Tracking that the drift quote was called with amount > 50 BEFORE the
+       fallback DP was invoked (pre_fallback_drift_seen).
+    2. Wrapping small_domain_dp_fn to record when fallback is called.
+    3. Asserting both pre_fallback_drift_seen and fallback_called are true.
     """
     pools = [
-        ("pool-a", PoolXY(x=8000, y=100, fee_bps=0)),
+        ("pool-a", PoolXY(x=6000, y=100, fee_bps=0)),
         ("pool-b", PoolXY(x=500, y=200, fee_bps=0)),
     ]
     specs = [_spec(pid, p, 1) for pid, p in pools]
     pools_dict = {pid: p for pid, p in pools}
     min_valids = {pid: 1 for pid, _ in pools}
 
-    # Track whether the drift quote was called with amount > 50 on pool-a.
+    # Track drift calls and fallback invocation order.
     drift_calls = {"above_50": 0}
+    fallback_state = {"called": False, "drift_seen_before": False}
 
     def drift_quote_pool_specific(pool: PoolXY, amount: int) -> int:
         # Only drift on the sparse pool (pool-a, x > 5000).
         if int(pool.x) > 5000 and int(amount) > 50:
             drift_calls["above_50"] += 1
+            # Record that drift was seen before fallback was called.
+            if not fallback_state["called"]:
+                fallback_state["drift_seen_before"] = True
             raise ValueError("drift: amount exceeds quotable range for sparse pool")
         return int(exact_out_for_pool_exact_in(pool, int(amount)))
 
@@ -578,6 +582,15 @@ def test_kpool_adaptive_falls_back_on_drift() -> None:
         except ValueError:
             return None
 
+    def tracked_small_dp_fn(*, pool_ids, amount_in_total, max_legs, quote_for_pool_id):
+        fallback_state["called"] = True
+        return best_small_domain_many_pool_exact_in(
+            pool_ids=pool_ids,
+            amount_in_total=int(amount_in_total),
+            max_legs=int(max_legs),
+            quote_for_pool_id=quote_for_pool_id,
+        )
+
     # Direct small-domain DP result with the None-returning wrapper.
     pool_ids = [pid for pid, _ in pools]
     small_dp_result = best_small_domain_many_pool_exact_in(
@@ -593,10 +606,12 @@ def test_kpool_adaptive_falls_back_on_drift() -> None:
         amount_in_total=80,
         max_legs=2,
         quote_exact_in=drift_quote_pool_specific,
-        small_domain_dp_fn=_small_dp_fn,
+        small_domain_dp_fn=tracked_small_dp_fn,
     )
-    # The drift quote must have been called with amount > 50 on pool-a (proving
-    # the enumeration branch ran, not the Phase 1 density fallback).
-    assert drift_calls["above_50"] > 0, "drift quote was never called with amount > 50; Phase 1 fallback short-circuited"
+    # The drift quote must have been called with amount > 50 BEFORE the
+    # fallback DP was invoked (proving the enumeration branch ran, not Phase 1).
+    assert drift_calls["above_50"] > 0, "drift quote was never called with amount > 50"
+    assert fallback_state["called"], "fallback DP was never called"
+    assert fallback_state["drift_seen_before"], "drift was not seen before fallback; Phase 1 fallback short-circuited"
     # The result must match the direct small-domain DP result.
     assert result == small_dp_result
