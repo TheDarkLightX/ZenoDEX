@@ -26,7 +26,7 @@ try:
     from py_ecc.bls import G2Basic
 
     _BLS_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency guard
+except (ImportError, OSError):  # pragma: no cover - optional dependency guard
     G2Basic = None
     _BLS_AVAILABLE = False
 

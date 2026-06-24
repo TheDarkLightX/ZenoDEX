@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Runtime hardening checks for consensus-adjacent Python source.
 
-The checker intentionally gates only two high-signal regression classes:
+The checker intentionally gates only three high-signal regression classes:
 
 * runtime ``assert`` statements in source paths, because ``python -O`` strips
   them;
 * broad exception handlers whose entire body is ``pass``, ``continue``, or
   ``return None``, because they silently erase unexpected faults.
+* module-scope broad exception handlers, because optional dependency guards must
+  not hide arbitrary package initialization bugs.
 
 Boundary handlers that catch ``Exception as exc`` and return a stable,
 fail-closed error are outside this checker. Those need surface-specific review.
@@ -93,6 +95,11 @@ def _single_suppression_statement(node: ast.ExceptHandler) -> str | None:
     return None
 
 
+def _is_module_scope_exception_handler(node: ast.ExceptHandler, parents: dict[ast.AST, ast.AST]) -> bool:
+    parent = parents.get(node)
+    return isinstance(parent, ast.Try) and isinstance(parents.get(parent), ast.Module)
+
+
 def _scan_file(path: Path, *, root: Path) -> list[Finding]:
     rel_path = path.relative_to(root).as_posix() if path.is_relative_to(root) else path.as_posix()
     try:
@@ -124,6 +131,17 @@ def _scan_file(path: Path, *, root: Path) -> list[Finding]:
             continue
 
         if isinstance(node, ast.ExceptHandler) and _broad_exception_type(node):
+            if _is_module_scope_exception_handler(node, parents):
+                findings.append(
+                    Finding(
+                        code="module_scope_broad_except",
+                        path=rel_path,
+                        line=int(node.lineno),
+                        function="<module>",
+                        detail="module-scope optional dependency guard catches arbitrary exceptions",
+                    )
+                )
+                continue
             suppression = _single_suppression_statement(node)
             if suppression is None:
                 continue

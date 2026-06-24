@@ -22,7 +22,7 @@ try:
     from py_ecc.optimized_bls12_381 import curve_order as _BLS12_381_CURVE_ORDER
 
     _BLS_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency
+except (ImportError, OSError):  # pragma: no cover - optional dependency
     G2Basic = None
     _BLS12_381_CURVE_ORDER = None
     _BLS_AVAILABLE = False

@@ -89,7 +89,7 @@ try:
 
     G2Basic = _PyEccG2Basic
     _BLS_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency
+except (ImportError, OSError):  # pragma: no cover - optional dependency
     G2Basic = None
     _BLS_AVAILABLE = False
 

@@ -24,14 +24,14 @@ try:
     from py_ecc.bls import G2Basic
 
     _BLS_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency
+except (ImportError, OSError):  # pragma: no cover - optional dependency
     G2Basic = None
     _BLS_AVAILABLE = False
 
 try:
     # Used only for secret-key validation (range checks).
     from py_ecc.optimized_bls12_381 import curve_order as _BLS12_381_CURVE_ORDER
-except Exception:  # pragma: no cover - optional dependency
+except (ImportError, OSError):  # pragma: no cover - optional dependency
     _BLS12_381_CURVE_ORDER = None
 
 

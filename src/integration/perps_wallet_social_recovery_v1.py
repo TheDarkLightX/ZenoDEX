@@ -36,7 +36,7 @@ try:
     from py_ecc.bls import G2Basic
 
     _BLS_AVAILABLE = True
-except Exception:  # pragma: no cover
+except (ImportError, OSError):  # pragma: no cover
     G2Basic = None
     _BLS_AVAILABLE = False
 

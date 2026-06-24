@@ -112,6 +112,24 @@ def test_runtime_hardening_rejects_broad_except_return_none(tmp_path: Path) -> N
     assert report["findings"][0]["function"] == "maybe"
 
 
+def test_runtime_hardening_rejects_module_scope_broad_except(tmp_path: Path) -> None:
+    source = _write(
+        tmp_path / "optional_dependency.py",
+        """
+try:
+    import optional_crypto
+except Exception:
+    optional_crypto = None
+""",
+    )
+
+    report = audit_runtime_hardening(tmp_path, (source,))
+
+    assert report["ok"] is False
+    assert report["findings"][0]["code"] == "module_scope_broad_except"
+    assert report["findings"][0]["function"] == "<module>"
+
+
 def test_runtime_hardening_repo_default_passes() -> None:
     root = Path(__file__).resolve().parents[1]
 
