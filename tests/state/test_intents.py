@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+import src.state.intents as intents_module
 from src.state.intents import CreatePoolIntent, Intent, IntentKind, SignedIntent, SwapIntent
 
 
@@ -342,6 +343,30 @@ def test_create_pool_intent_rejects_non_canonical_assets() -> None:
             fields={
                 "asset0": _hex32("f"),
                 "asset1": _hex32("0"),
+                "fee_bps": 30,
+                "amount0": 10,
+                "amount1": 20,
+            },
+        )
+
+
+def test_create_pool_intent_surfaces_asset_normalizer_fault(monkeypatch) -> None:
+    def fail_normalize(_asset0: object, _asset1: object) -> tuple[str, str]:
+        raise RuntimeError("asset normalizer bug")
+
+    monkeypatch.setattr(intents_module, "normalize_pool_asset_pair", fail_normalize)
+
+    with pytest.raises(RuntimeError, match="asset normalizer bug"):
+        CreatePoolIntent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.CREATE_POOL,
+            intent_id=_hex32("1"),
+            sender_pubkey=_pubkey("a"),
+            deadline=123,
+            fields={
+                "asset0": _hex32("0"),
+                "asset1": _hex32("f"),
                 "fee_bps": 30,
                 "amount0": 10,
                 "amount1": 20,

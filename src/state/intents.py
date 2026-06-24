@@ -185,6 +185,9 @@ class RouteIntent(Intent):
 
         # Totals: kind-specific required fields, with the opposite kind's amount
         # fields forbidden (fail-closed against mixed exact-in/exact-out).
+        fields = self.fields
+        if fields is None:
+            raise RuntimeError("intent fields were not initialized")
         if self.kind == IntentKind.ROUTE_EXACT_IN:
             total_amount_in = self.get_field("total_amount_in")
             total_min_amount_out = self.get_field("total_min_amount_out")
@@ -202,7 +205,7 @@ class RouteIntent(Intent):
                 or total_min_amount_out < 0
             ):
                 raise ValueError("total_min_amount_out must be non-negative")
-            if "total_amount_out" in self.fields or "total_max_amount_in" in self.fields:
+            if "total_amount_out" in fields or "total_max_amount_in" in fields:
                 raise ValueError(
                     "ROUTE_EXACT_IN must not carry exact-out fields "
                     "(total_amount_out, total_max_amount_in)"
@@ -224,7 +227,7 @@ class RouteIntent(Intent):
                 or total_max_amount_in < 0
             ):
                 raise ValueError("total_max_amount_in must be non-negative")
-            if "total_amount_in" in self.fields or "total_min_amount_out" in self.fields:
+            if "total_amount_in" in fields or "total_min_amount_out" in fields:
                 raise ValueError(
                     "ROUTE_EXACT_OUT must not carry exact-in fields "
                     "(total_amount_in, total_min_amount_out)"
@@ -253,7 +256,7 @@ class CreatePoolIntent(Intent):
         
         try:
             asset0_norm, asset1_norm = normalize_pool_asset_pair(asset0, asset1)
-        except Exception:
+        except (TypeError, ValueError):
             raise ValueError(f"Assets must be in canonical order: {asset0} < {asset1}") from None
         if self.fields is not None:
             self.fields["asset0"] = asset0_norm
