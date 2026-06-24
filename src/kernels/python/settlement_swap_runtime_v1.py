@@ -465,6 +465,35 @@ def _quote_cpmm_swap_exact_out_python(
     )
 
 
+def quote_cpmm_swap_exact_out_for_ordering_simulation(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    amount_out: int,
+    fee_bps: int,
+    max_overdelivery_gap_bps: int = CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT,
+) -> SettlementSwapExactOutQuote:
+    """Return a deterministic, side-effect-free CPMM exact-out quote for ordering simulation.
+
+    Design by contract:
+    - Precondition: callers provide candidate reserves, amount, fee, and
+      overdelivery policy in the same integer domains accepted by
+      ``quote_cpmm_swap_exact_out``.
+    - Invariant: ordering exploration is pure arithmetic and never crosses the
+      external Rust subprocess boundary.
+    - Postcondition: accepted quotes are byte-identical to the Python authority
+      quote used for Rust differential checks.
+    """
+
+    return _quote_cpmm_swap_exact_out_python(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_out=amount_out,
+        fee_bps=fee_bps,
+        max_overdelivery_gap_bps=max_overdelivery_gap_bps,
+    )
+
+
 def quote_cpmm_swap_exact_out(
     *,
     reserve_in: int,

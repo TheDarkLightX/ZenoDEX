@@ -366,7 +366,7 @@ def test_optimal_ab_objective_converts_expected_quote_domain_error(
     def fail_quote(*_args: object, **_kwargs: object) -> object:
         raise ValueError("quote domain")
 
-    monkeypatch.setattr(batch_clearing_module, "quote_cpmm_swap_exact_in", fail_quote)
+    monkeypatch.setattr(batch_clearing_module, "quote_cpmm_swap_exact_in_for_ordering_simulation", fail_quote)
 
     ordered = _order_swaps_optimal_ab_bounded(
         intents,
@@ -421,7 +421,7 @@ def test_optimal_ab_objective_surfaces_unexpected_quote_fault(
     def fail_quote(*_args: object, **_kwargs: object) -> object:
         raise RuntimeError("ab objective quote bug")
 
-    monkeypatch.setattr(batch_clearing_module, "quote_cpmm_swap_exact_in", fail_quote)
+    monkeypatch.setattr(batch_clearing_module, "quote_cpmm_swap_exact_in_for_ordering_simulation", fail_quote)
 
     with pytest.raises(RuntimeError, match="ab objective quote bug"):
         _order_swaps_optimal_ab_bounded(
@@ -2213,6 +2213,64 @@ def test_cpmm_ordering_simulation_avoids_rust_subprocess_hot_path(monkeypatch) -
     assert sorted(it.intent_id for it in refined) == sorted(it.intent_id for it in intents)
 
 
+def test_cpmm_exact_out_ordering_objective_avoids_rust_subprocess_hot_path(monkeypatch) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    _pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000)
+    reserves = (pool.reserve0, pool.reserve1)
+    intents = [
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_OUT,
+            intent_id=_iid(1124 + i),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={
+                "asset_in": asset0,
+                "asset_out": asset1,
+                "amount_out": 100 + i,
+                "max_amount_in": 1_000,
+            },
+        )
+        for i in range(4)
+    ]
+
+    def _blocked_rust_invoke(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("ordering objective must not invoke the Rust runtime")
+
+    monkeypatch.setattr("src.runtime.rust_invoker.invoke", _blocked_rust_invoke)
+    set_active_authority_policy(
+        AuthorityPolicy(
+            default=AuthorityMode.PYTHON_AUTHORITY,
+            per_surface={"cpmm_settlement": AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW},
+            promoted_surfaces=frozenset({"cpmm_settlement"}),
+        )
+    )
+
+    try:
+        ordered = _order_swaps_optimal_ab_bounded(
+            intents,
+            pool_state=pool,
+            balances=balances,
+            reserves=reserves,
+        )
+    finally:
+        reset_active_authority_policy()
+
+    assert sorted(it.intent_id for it in ordered) == sorted(it.intent_id for it in intents)
+
+
 def test_simulate_swap_reserves_and_ab_helpers_cover_fallbacks() -> None:
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
@@ -2276,6 +2334,73 @@ def test_simulate_swap_reserves_and_ab_helpers_cover_fallbacks() -> None:
     key = _ab_ordering_key([reverse], pool, reserves)
     assert key[0] == a
     assert key[2] == (reverse.intent_id,)
+
+
+def test_simulate_swap_reserves_converts_expected_quote_domain_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+    reserves = (pool.reserve0, pool.reserve1)
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(1133),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"pool_id": pool_id, "asset_in": asset0, "asset_out": asset1, "amount_in": 100, "min_amount_out": 1},
+    )
+
+    def fail_quote(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("quote domain")
+
+    monkeypatch.setattr(batch_clearing_module, "quote_cpmm_swap_exact_in_for_ordering_simulation", fail_quote)
+
+    assert _simulate_swap_reserves(intent, pool, reserves) == (0, 0, reserves)
+
+
+def test_simulate_swap_reserves_surfaces_unexpected_quote_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+    reserves = (pool.reserve0, pool.reserve1)
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(1134),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"pool_id": pool_id, "asset_in": asset0, "asset_out": asset1, "amount_in": 100, "min_amount_out": 1},
+    )
+
+    def fail_quote(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("simulate quote bug")
+
+    monkeypatch.setattr(batch_clearing_module, "quote_cpmm_swap_exact_in_for_ordering_simulation", fail_quote)
+
+    with pytest.raises(RuntimeError, match="simulate quote bug"):
+        _simulate_swap_reserves(intent, pool, reserves)
 
 
 def test_order_swaps_mci_and_refinement_helpers(monkeypatch) -> None:

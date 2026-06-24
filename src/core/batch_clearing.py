@@ -37,7 +37,9 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from ..kernels.python.settlement_swap_runtime_v1 import (
     quote_cpmm_swap_exact_in,
+    quote_cpmm_swap_exact_in_for_ordering_simulation,
     quote_cpmm_swap_exact_out,
+    quote_cpmm_swap_exact_out_for_ordering_simulation,
 )
 from ..state.balances import Amount, AssetId, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
@@ -946,14 +948,14 @@ def clear_batch_single_pool(
                         )
                 else:  # SWAP_EXACT_OUT
                     if pool_state.curve_tag == CURVE_TAG_CPMM:
-                        quote = quote_cpmm_swap_exact_out(
+                        exact_out_quote = quote_cpmm_swap_exact_out(
                             reserve_in=current_reserves[0],
                             reserve_out=current_reserves[1],
                             amount_out=fill.amount_out_filled or 0,
                             fee_bps=pool_state.fee_bps,
                             protocol_fee_share_bps=protocol_fee_share_bps,
                         )
-                        new_r0, new_r1 = quote.reserve_in_after, quote.reserve_out_after
+                        new_r0, new_r1 = exact_out_quote.reserve_in_after, exact_out_quote.reserve_out_after
                     else:
                         _, (new_r0, new_r1) = swap_exact_out_for_pool(
                             pool_state,
@@ -982,14 +984,14 @@ def clear_batch_single_pool(
                         )
                 else:  # SWAP_EXACT_OUT
                     if pool_state.curve_tag == CURVE_TAG_CPMM:
-                        quote = quote_cpmm_swap_exact_out(
+                        exact_out_quote = quote_cpmm_swap_exact_out(
                             reserve_in=current_reserves[1],
                             reserve_out=current_reserves[0],
                             amount_out=fill.amount_out_filled or 0,
                             fee_bps=pool_state.fee_bps,
                             protocol_fee_share_bps=protocol_fee_share_bps,
                         )
-                        new_r1, new_r0 = quote.reserve_in_after, quote.reserve_out_after
+                        new_r1, new_r0 = exact_out_quote.reserve_in_after, exact_out_quote.reserve_out_after
                     else:
                         _, (new_r1, new_r0) = swap_exact_out_for_pool(
                             pool_state,
@@ -1136,7 +1138,7 @@ def _order_swaps_optimal_ab_bounded(
                     continue
                 try:
                     if pool_state.curve_tag == CURVE_TAG_CPMM:
-                        quote = quote_cpmm_swap_exact_in(
+                        quote = quote_cpmm_swap_exact_in_for_ordering_simulation(
                             reserve_in=r_in,
                             reserve_out=r_out,
                             amount_in=amount_in,
@@ -1171,14 +1173,14 @@ def _order_swaps_optimal_ab_bounded(
                     continue
                 try:
                     if pool_state.curve_tag == CURVE_TAG_CPMM:
-                        quote = quote_cpmm_swap_exact_out(
+                        exact_out_quote = quote_cpmm_swap_exact_out_for_ordering_simulation(
                             reserve_in=r_in,
                             reserve_out=r_out,
                             amount_out=amount_out,
                             fee_bps=pool_state.fee_bps,
                         )
-                        amount_in = quote.amount_in
-                        new_r_in, new_r_out = quote.reserve_in_after, quote.reserve_out_after
+                        amount_in = exact_out_quote.amount_in
+                        new_r_in, new_r_out = exact_out_quote.reserve_in_after, exact_out_quote.reserve_out_after
                     else:
                         amount_in, (new_r_in, new_r_out) = swap_exact_out_for_pool(
                             pool_state,
@@ -1321,16 +1323,16 @@ def _process_swap_intent(
                 return _reject("MISSING_PARAMS")
 
             if pool_state.curve_tag == CURVE_TAG_CPMM:
-                quote = quote_cpmm_swap_exact_out(
+                exact_out_quote = quote_cpmm_swap_exact_out(
                     reserve_in=reserve_in,
                     reserve_out=reserve_out,
                     amount_out=amount_out,
                     fee_bps=pool_state.fee_bps,
                     protocol_fee_share_bps=protocol_fee_share_bps,
                 )
-                amount_in = quote.amount_in
-                fee = quote.fee_paid
-                protocol_fee = quote.protocol_fee_paid
+                amount_in = exact_out_quote.amount_in
+                fee = exact_out_quote.fee_paid
+                protocol_fee = exact_out_quote.protocol_fee_paid
             else:
                 if protocol_fee_share_bps:
                     return _reject("PROTOCOL_FEE_UNSUPPORTED_CURVE")
@@ -2206,7 +2208,7 @@ def _simulate_swap_reserves(
 
     try:
         if pool_state.curve_tag == CURVE_TAG_CPMM:
-            quote = quote_cpmm_swap_exact_in(
+            quote = quote_cpmm_swap_exact_in_for_ordering_simulation(
                 reserve_in=reserve_in,
                 reserve_out=reserve_out,
                 amount_in=amount_in,
@@ -2221,7 +2223,7 @@ def _simulate_swap_reserves(
                 reserve_out=reserve_out,
                 amount_in=amount_in,
             )
-    except Exception:
+    except ValueError:
         return 0, 0, reserves
 
     if amount_out < min_amount_out:
