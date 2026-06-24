@@ -209,6 +209,77 @@ def test_bounded_multi_action_decision_roundtrip_and_tamper_rejection() -> None:
     assert err == "candidate_set_hash mismatch"
 
 
+def test_bounded_multi_action_payload_verifiers_reject_hash_valid_malformed_shapes() -> None:
+    artifact, bundle = _artifact_bundle()
+    candidate_set = build_bounded_multi_action_candidate_set(
+        policy_artifact=artifact,
+        tau_policy_bundle=bundle,
+        observation_packet=_packet(),
+        action_frontier={
+            StrategyAction.PLACE_SWAP_EXACT_IN: (True, True, 10),
+            StrategyAction.PLACE_SWAP_EXACT_OUT: (True, True, 30),
+            StrategyAction.PLACE_ORDER_INTENT: (True, False, 40),
+        },
+    )
+    decision = build_bounded_multi_action_decision_certificate(candidate_set=candidate_set)
+
+    candidate_payload = candidate_set.to_dict()
+    candidate_payload["candidates"] = ["bad"]
+    candidate_unsigned = {
+        key: value
+        for key, value in candidate_payload.items()
+        if key != "candidate_set_hash"
+    }
+    candidate_payload["candidate_set_hash"] = sha256_hex(
+        canonical_json_bytes(candidate_unsigned)
+    )
+    ok, err = verify_bounded_multi_action_candidate_set_payload(candidate_payload)
+    assert ok is False
+    assert err == "candidate must be an object"
+
+    candidate_payload = candidate_set.to_dict()
+    del candidate_payload["candidates"][1]["action_priority"]
+    candidate_unsigned = {
+        key: value
+        for key, value in candidate_payload.items()
+        if key != "candidate_set_hash"
+    }
+    candidate_payload["candidate_set_hash"] = sha256_hex(
+        canonical_json_bytes(candidate_unsigned)
+    )
+    ok, err = verify_bounded_multi_action_candidate_set_payload(candidate_payload)
+    assert ok is False
+    assert err == "candidate missing field: action_priority"
+
+    decision_payload = decision.to_dict()
+    decision_payload["argmax_steps"] = ["bad"]
+    decision_unsigned = {
+        key: value
+        for key, value in decision_payload.items()
+        if key != "decision_hash"
+    }
+    decision_payload["decision_hash"] = sha256_hex(
+        canonical_json_bytes(decision_unsigned)
+    )
+    ok, err = verify_bounded_multi_action_decision_certificate_payload(decision_payload)
+    assert ok is False
+    assert err == "argmax step must be an object"
+
+    decision_payload = decision.to_dict()
+    decision_payload["frontier_width"] = True
+    decision_unsigned = {
+        key: value
+        for key, value in decision_payload.items()
+        if key != "decision_hash"
+    }
+    decision_payload["decision_hash"] = sha256_hex(
+        canonical_json_bytes(decision_unsigned)
+    )
+    ok, err = verify_bounded_multi_action_decision_certificate_payload(decision_payload)
+    assert ok is False
+    assert err == "frontier_width must be an int"
+
+
 def test_bounded_multi_action_candidate_set_contract_rejects_mutated_shape() -> None:
     artifact, bundle = _artifact_bundle()
     candidate_set = build_bounded_multi_action_candidate_set(

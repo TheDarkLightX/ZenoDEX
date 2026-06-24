@@ -465,7 +465,7 @@ def check_bounded_multi_action_decision_tau_argmax_contract(
             steps=[dict(step) for step in certificate.argmax_steps],
             timeout_s=timeout_s,
         )
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError) as exc:
         return BoundedMultiActionTauArgmaxContractResult(
             ok=False,
             certificate_ok=True,
@@ -515,6 +515,20 @@ def verify_bounded_multi_action_candidate_set_payload(payload: object) -> tuple[
     candidates_payload = payload.get("candidates")
     if not isinstance(candidates_payload, list):
         return False, "candidates must be a list"
+    required_candidate_fields = {
+        "candidate_index",
+        "kind",
+        "requested",
+        "admissible",
+        "action_priority",
+        "candidate_key",
+    }
+    for candidate in candidates_payload:
+        if not isinstance(candidate, dict):
+            return False, "candidate must be an object"
+        for field_name in required_candidate_fields:
+            if field_name not in candidate:
+                return False, f"candidate missing field: {field_name}"
     try:
         candidates = tuple(
             MultiActionDecisionCandidate(
@@ -534,7 +548,7 @@ def verify_bounded_multi_action_candidate_set_payload(payload: object) -> tuple[
             decision_model_version=str(payload.get("decision_model_version", "")),
             candidates=candidates,
         )
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     if payload != candidate_set.to_dict():
         return False, "bounded multi-action candidate set payload mismatch"
@@ -553,6 +567,18 @@ def verify_bounded_multi_action_decision_certificate_payload(payload: object) ->
     argmax_steps = payload.get("argmax_steps")
     if not isinstance(argmax_steps, list):
         return False, "argmax_steps must be a list"
+    for step in argmax_steps:
+        if not isinstance(step, dict):
+            return False, "argmax step must be an object"
+    winner_index = payload.get("winner_index")
+    winner_key = payload.get("winner_key")
+    frontier_width = payload.get("frontier_width")
+    if not isinstance(winner_index, int) or isinstance(winner_index, bool):
+        return False, "winner_index must be an int"
+    if not isinstance(winner_key, int) or isinstance(winner_key, bool):
+        return False, "winner_key must be an int"
+    if not isinstance(frontier_width, int) or isinstance(frontier_width, bool):
+        return False, "frontier_width must be an int"
     try:
         certificate = BoundedMultiActionDecisionCertificate(
             policy_artifact_hash=str(payload.get("policy_artifact_hash", "")),
@@ -560,13 +586,13 @@ def verify_bounded_multi_action_decision_certificate_payload(payload: object) ->
             observation_hash=str(payload.get("observation_hash", "")),
             candidate_set_hash=str(payload.get("candidate_set_hash", "")),
             decision_model_version=str(payload.get("decision_model_version", "")),
-            winner_index=payload.get("winner_index"),
+            winner_index=winner_index,
             winner_kind=MultiActionCandidateKind(str(payload.get("winner_kind", ""))),
-            winner_key=payload.get("winner_key"),
-            frontier_width=payload.get("frontier_width"),
+            winner_key=winner_key,
+            frontier_width=frontier_width,
             argmax_steps=tuple(dict(step) for step in argmax_steps),
         )
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     if payload != certificate.to_dict():
         return False, "bounded multi-action decision certificate payload mismatch"
