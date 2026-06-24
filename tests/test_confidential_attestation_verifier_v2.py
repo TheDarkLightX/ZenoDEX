@@ -13,7 +13,9 @@ import datetime
 import hashlib
 import struct
 
-import cbor2
+import pytest
+
+cbor2 = pytest.importorskip("cbor2")
 
 from src.integration.confidential_attestation_verifier_v2 import (
     ProductionAttestationVerifier,

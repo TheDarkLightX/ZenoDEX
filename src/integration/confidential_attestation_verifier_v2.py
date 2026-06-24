@@ -66,6 +66,13 @@ _SMOKE_NITRO_PCR0 = "0123456789abcdef" * 6
 _SMOKE_NITRO_PCR8 = "fedcba9876543210" * 6
 
 
+def _safe_error_detail(value: object, *, max_len: int = 200) -> str:
+    detail = " ".join(str(value).strip().split())
+    if not detail:
+        return type(value).__name__
+    return detail if len(detail) <= max_len else detail[:max_len]
+
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -431,7 +438,10 @@ class ProductionAttestationVerifier:
         # Check for raw attestation document first
         doc_bytes = payload.get("attestation_document")
         if isinstance(doc_bytes, str):
-            doc_bytes = bytes.fromhex(doc_bytes)
+            try:
+                doc_bytes = bytes.fromhex(doc_bytes)
+            except ValueError:
+                return None, "nitro attestation_document must be hex"
         if isinstance(doc_bytes, (bytes, bytearray)) and len(doc_bytes) > 0:
             return self._verify_nitro_document(
                 bytes(doc_bytes), payload, policy_digest, issued_at_s, epoch_length_s
@@ -456,7 +466,7 @@ class ProductionAttestationVerifier:
             protected, payload_bytes, sig, _unprotected = _decode_cose_sign1(doc_bytes)
             doc = _parse_nitro_attestation_document(payload_bytes)
         except Exception as exc:
-            return None, f"failed to parse nitro attestation document: {exc}"
+            return None, f"failed to parse nitro attestation document: {_safe_error_detail(exc)}"
         pcrs = _extract_nitro_pcrs(doc["pcrs"])
         cert_der = doc["certificate"]
         if not isinstance(cert_der, (bytes, bytearray)):
@@ -506,7 +516,7 @@ class ProductionAttestationVerifier:
         try:
             measurement = nitro_measurement_from_summary(summary)
         except Exception as exc:
-            return None, f"invalid nitro summary: {exc}"
+            return None, f"invalid nitro summary: {_safe_error_detail(exc)}"
         if not self._allowlist_set:
             return None, "measurement allowlist is empty — production mode requires configured allowlist"
         if measurement not in self._allowlist_set:
@@ -537,7 +547,10 @@ class ProductionAttestationVerifier:
     ) -> tuple[Optional[ProductionVerifiedAttestation], Optional[str]]:
         quote_raw = payload.get("quote")
         if isinstance(quote_raw, str):
-            quote_bytes = bytes.fromhex(quote_raw)
+            try:
+                quote_bytes = bytes.fromhex(quote_raw)
+            except ValueError:
+                return None, "sgx quote must be hex"
         elif isinstance(quote_raw, (bytes, bytearray)):
             quote_bytes = bytes(quote_raw)
         else:
@@ -545,7 +558,7 @@ class ProductionAttestationVerifier:
         try:
             quote_info = parse_sgx_quote(quote_bytes)
         except Exception as exc:
-            return None, f"failed to parse SGX quote: {exc}"
+            return None, f"failed to parse SGX quote: {_safe_error_detail(exc)}"
         measurement = sgx_measurement_from_quote(quote_info)
         if not self._allowlist_set:
             return None, "measurement allowlist is empty — production mode requires configured allowlist"
@@ -584,7 +597,7 @@ class ProductionAttestationVerifier:
         try:
             measurement = nitro_measurement_from_summary(summary)
         except Exception as exc:
-            return None, f"invalid smoke summary: {exc}"
+            return None, f"invalid smoke summary: {_safe_error_detail(exc)}"
         # In smoke mode, allowlist may be empty or contain the smoke measurement
         if self._allowlist_set and measurement not in self._allowlist_set:
             return None, f"smoke measurement {measurement} not in allowlist"

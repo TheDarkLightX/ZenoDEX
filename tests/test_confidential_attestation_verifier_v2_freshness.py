@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import struct
 
+import pytest
+
+import src.integration.confidential_attestation_verifier_v2 as attestation_v2
 from src.integration.confidential_attestation_verifier_v2 import (
     ProductionAttestationVerifier,
     ProductionAttestationVerifierConfig,
@@ -77,3 +80,77 @@ def test_attestation_freshness_disabled_when_current_time_is_zero() -> None:
 
     assert err is None
     assert result is not None
+
+
+def test_attestation_verifier_rejects_malformed_hex_without_raising() -> None:
+    verifier = ProductionAttestationVerifier(
+        ProductionAttestationVerifierConfig(
+            allowlist=(),
+            require_certificate_binding=False,
+        )
+    )
+
+    result, err = verifier.verify(
+        {"provider": "nitro", "attestation_document": "not-hex"},
+    )
+    assert result is None
+    assert err == "nitro attestation_document must be hex"
+
+    result, err = verifier.verify(
+        {"provider": "sgx", "quote": "not-hex"},
+    )
+    assert result is None
+    assert err == "sgx quote must be hex"
+
+
+def test_attestation_verifier_caps_parser_error_details(monkeypatch: pytest.MonkeyPatch) -> None:
+    long_detail = "x" * 300
+    verifier = ProductionAttestationVerifier(
+        ProductionAttestationVerifierConfig(
+            allowlist=(),
+            require_certificate_binding=False,
+            local_testnet_mode=True,
+        )
+    )
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            attestation_v2,
+            "_decode_cose_sign1",
+            lambda data: (_ for _ in ()).throw(RuntimeError(long_detail)),
+        )
+        result, err = verifier.verify(
+            {"provider": "nitro", "attestation_document": "00"},
+        )
+        assert result is None
+        assert err == "failed to parse nitro attestation document: " + ("x" * 200)
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            attestation_v2,
+            "nitro_measurement_from_summary",
+            lambda summary: (_ for _ in ()).throw(RuntimeError(long_detail)),
+        )
+        result, err = verifier.verify(
+            {"provider": "nitro", "summary": {"pcrs": {}}},
+        )
+        assert result is None
+        assert err == "invalid nitro summary: " + ("x" * 200)
+
+        result, err = verifier.verify(
+            {"provider": "smoke", "summary": {"pcrs": {}}},
+        )
+        assert result is None
+        assert err == "invalid smoke summary: " + ("x" * 200)
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            attestation_v2,
+            "parse_sgx_quote",
+            lambda quote: (_ for _ in ()).throw(RuntimeError(long_detail)),
+        )
+        result, err = verifier.verify(
+            {"provider": "sgx", "quote": "0011"},
+        )
+        assert result is None
+        assert err == "failed to parse SGX quote: " + ("x" * 200)
