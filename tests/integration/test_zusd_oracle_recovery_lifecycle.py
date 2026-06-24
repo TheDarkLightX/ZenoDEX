@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from src.core.zusd import E8, init_state, step, ZUSDCommand
 from src.integration.zusd_oracle_contracts import (
     build_zusd_cross_module_oracle_sync_contract,
@@ -19,7 +21,7 @@ def _ok(state, tag: str, **args):
     return res.state
 
 
-def test_zusd_oracle_recovery_lifecycle_packet_reenables_risky_ops_after_recovery() -> None:
+def _reenabled_lifecycle_packet():
     previous_state = _ok(init_state(), "bootstrap_oracle", price_e8=100 * E8, auth_ok=True)
     previous_state = _ok(previous_state, "advance_epoch", delta=150)
     current_state = _ok(previous_state, "oracle_report", price_e8=100 * E8, auth_ok=True)
@@ -46,6 +48,11 @@ def test_zusd_oracle_recovery_lifecycle_packet_reenables_risky_ops_after_recover
         current_pending_gate_contract=current_pending,
         current_sync_contract=current_sync,
     )
+    return packet
+
+
+def test_zusd_oracle_recovery_lifecycle_packet_reenables_risky_ops_after_recovery() -> None:
+    packet = _reenabled_lifecycle_packet()
 
     assert packet.schema == ZUSD_ORACLE_RECOVERY_LIFECYCLE_PACKET_SCHEMA
     assert packet.nested_contracts_ok is True
@@ -60,6 +67,33 @@ def test_zusd_oracle_recovery_lifecycle_packet_reenables_risky_ops_after_recover
 
     ok, err = verify_zusd_oracle_recovery_lifecycle_packet_payload(packet.to_dict())
     assert ok, err
+
+
+@pytest.mark.parametrize(
+    "flag_name",
+    [
+        "nested_contracts_ok",
+        "risky_action_requested",
+        "previous_risky_action_blocked",
+        "current_oracle_env_ok",
+        "current_sync_gate_ok",
+        "sync_aligned_to_current_gate",
+        "healthy_now",
+        "current_risky_ops_allowed",
+        "risky_ops_reenabled",
+        "rejected_with_reason",
+        "rejection_reason_present",
+        "lifecycle_ok",
+    ],
+)
+def test_zusd_oracle_recovery_lifecycle_packet_rejects_int_bool_fields(flag_name: str) -> None:
+    payload = _reenabled_lifecycle_packet().to_dict()
+    payload[flag_name] = 1 if payload[flag_name] else 0
+
+    ok, err = verify_zusd_oracle_recovery_lifecycle_packet_payload(payload)
+
+    assert ok is False
+    assert err == f"{flag_name} must be bool"
 
 
 def test_zusd_oracle_recovery_lifecycle_packet_rejects_when_sync_not_ok() -> None:
