@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import src.integration.perp_engine as perp_engine
 from src.core.dex import DexState
 from src.core.perps import PerpClearinghouse2pMarketState
 from src.integration.perp_engine import (
@@ -293,6 +294,41 @@ def test_advance_epoch_2p_rejects_delta_gt_1() -> None:
     res = _apply_result(state=state, tx_sender_pubkey=relayer, ops=[_op(market_id, "advance_epoch", version="1.0", delta=2)])
     assert not res.ok
     assert res.error == "advance_epoch delta must be 1 for clearinghouse markets"
+
+
+def test_advance_epoch_2p_caps_kernel_step_domain_error(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    market_id = "perp:ch2p:advance-step-error"
+    quote_asset = "0x" + "11" * 32
+    relayer = "ff" * 48
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=relayer,
+        ops=[
+            _signed_init_market_2p(
+                market_id=market_id,
+                quote_asset=quote_asset,
+                nonce_a=1,
+                nonce_b=1,
+                deadline=_DEADLINE,
+            )
+        ],
+    )
+    detail = "x" * 700
+
+    def _boom(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise ValueError(detail)
+
+    monkeypatch.setattr(perp_engine, "_ch2p_step", _boom)
+
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=relayer,
+        ops=[_op(market_id, "advance_epoch", version="1.0", delta=1)],
+    )
+
+    assert res.ok is False
+    assert res.error == detail[:512]
 
 
 def test_init_market_2p_rejects_expired_deadline() -> None:
