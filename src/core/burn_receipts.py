@@ -257,7 +257,7 @@ def verify_burn_receipt(receipt: Dict[str, Any]) -> Tuple[bool, str]:
         supply_after = int(accounting.get("supply_after"))
         batch_burn_sum_before = int(accounting.get("batch_burn_sum_before"))
         batch_burn_sum_after = int(accounting.get("batch_burn_sum_after"))
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return False, "bad_numeric_field"
 
     return _verify_burn_rails_authority(
