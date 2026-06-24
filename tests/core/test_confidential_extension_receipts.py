@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+import src.core.confidential_extension_receipts as confidential_receipts
 from src.core.confidential_extension_receipts import (
     confidential_extension_receipt_hash,
     make_confidential_extension_receipt,
@@ -135,8 +138,6 @@ def test_confidential_extension_receipt_constructor_rejects_impossible_execute_s
         raise AssertionError("expected impossible execute-state rejection")
 
 
-
-
 def test_confidential_extension_receipt_rejects_out_of_range_numeric_field_fail_closed() -> None:
     receipt = _valid_receipt()
     receipt["body"]["attestation"]["current_epoch"] = 0x100000000
@@ -144,6 +145,8 @@ def test_confidential_extension_receipt_rejects_out_of_range_numeric_field_fail_
     ok, err = verify_confidential_extension_receipt(receipt, approved_measurements=APPROVED)
     assert not ok
     assert err == "bad_numeric_field"
+
+
 def test_confidential_extension_receipt_rejects_noncanonical_numeric_encoding() -> None:
     receipt = _valid_receipt()
     receipt["body"]["host"]["policy_ok"] = "1"
@@ -160,6 +163,28 @@ def test_confidential_extension_receipt_rejects_noncanonical_policy_digest() -> 
     ok, err = verify_confidential_extension_receipt(receipt, approved_measurements=APPROVED)
     assert not ok
     assert err == "bad_policy_digest"
+
+
+def test_confidential_extension_receipt_does_not_swallow_policy_digest_bug(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken_policy_digest(_value: object) -> str:
+        raise RuntimeError("unexpected policy digest bug")
+
+    monkeypatch.setattr(confidential_receipts, "_require_policy_digest", broken_policy_digest)
+    with pytest.raises(RuntimeError, match="unexpected policy digest bug"):
+        verify_confidential_extension_receipt(_valid_receipt(), approved_measurements=APPROVED)
+
+
+def test_confidential_extension_receipt_does_not_swallow_numeric_field_bug(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken_int_field(_mapping: dict, _key: str) -> int:
+        raise RuntimeError("unexpected numeric field bug")
+
+    monkeypatch.setattr(confidential_receipts, "_require_int_field", broken_int_field)
+    with pytest.raises(RuntimeError, match="unexpected numeric field bug"):
+        verify_confidential_extension_receipt(_valid_receipt(), approved_measurements=APPROVED)
 
 
 def test_confidential_extension_receipt_hash_mismatch_precedes_later_header_failures() -> None:
