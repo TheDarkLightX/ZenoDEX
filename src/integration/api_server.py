@@ -230,6 +230,28 @@ def _dex_api_list_length_error(
     return None
 
 
+def _dex_api_coerce_bps_options(
+    raw_options: object,
+    *,
+    min_bps: int | None = None,
+    max_bps: int | None = None,
+) -> list[int] | None:
+    if not isinstance(raw_options, list):
+        return None
+    options: list[int] = []
+    for raw in raw_options:
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if min_bps is not None and value < min_bps:
+            continue
+        if max_bps is not None and value > max_bps:
+            continue
+        options.append(int(value))
+    return options
+
+
 def _dex_api_nested_int_limit_error(
     value: Any,
     *,
@@ -1286,16 +1308,9 @@ class _Handler(BaseHTTPRequestHandler):
                 else:
                     user_slippage_bps = int(user_slippage_bps_raw)
 
-                raw_opts = obj.get("slippage_options_bps")
-                if isinstance(raw_opts, list):
-                    slippage_options_bps = []
-                    for x in raw_opts:
-                        try:
-                            slippage_options_bps.append(int(x))
-                        except (TypeError, ValueError):
-                            continue
-                else:
-                    slippage_options_bps = None
+                slippage_options_bps = _dex_api_coerce_bps_options(
+                    obj.get("slippage_options_bps")
+                )
 
                 advice = slippage_advice_exact_in_cpmm(
                     reserve_in=reserve_in,
@@ -1410,17 +1425,13 @@ class _Handler(BaseHTTPRequestHandler):
                 else:
                     user_slippage_bps = int(user_slippage_bps_raw)
 
-                raw_opts = obj.get("slippage_options_bps")
-                opts: list[int] = []
-                if isinstance(raw_opts, list):
-                    for x in raw_opts:
-                        try:
-                            v = int(x)
-                        except (TypeError, ValueError):
-                            continue
-                        if v < 0 or v > 10_000:
-                            continue
-                        opts.append(int(v))
+                opts = _dex_api_coerce_bps_options(
+                    obj.get("slippage_options_bps"),
+                    min_bps=0,
+                    max_bps=10_000,
+                )
+                if opts is None:
+                    opts = []
                 max_opt = max(opts) if opts else None
 
                 impact_5 = suggest_amount_in_for_impact_lt_bps(
@@ -1522,20 +1533,11 @@ class _Handler(BaseHTTPRequestHandler):
                     raise ValueError("user_slippage_bps is required")
                 user_slippage_bps = int(user_slippage_bps_raw)
 
-                raw_opts = obj.get("slippage_options_bps")
-                opts: list[int] | None
-                if isinstance(raw_opts, list):
-                    opts = []
-                    for x in raw_opts:
-                        try:
-                            v = int(x)
-                        except (TypeError, ValueError):
-                            continue
-                        if v < 0 or v > 10_000:
-                            continue
-                        opts.append(int(v))
-                else:
-                    opts = None
+                opts = _dex_api_coerce_bps_options(
+                    obj.get("slippage_options_bps"),
+                    min_bps=0,
+                    max_bps=10_000,
+                )
 
                 max_attacker_amount_in_raw = obj.get("max_attacker_amount_in", 2000)
                 max_attacker_amount_in = int(max_attacker_amount_in_raw)
