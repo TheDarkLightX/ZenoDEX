@@ -318,7 +318,7 @@ def _sync_native_balances(state: DexState, *, chain_balances: Dict[str, int]) ->
         try:
             amt_i = int(amount)
             canonical_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
-        except (ValueError, TypeError):
+        except (OverflowError, ValueError, TypeError):
             continue
         if amt_i <= 0:
             continue

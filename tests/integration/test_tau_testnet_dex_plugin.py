@@ -1908,6 +1908,27 @@ def test_apply_app_tx_token_op_malformed_pubkey_fails_closed(monkeypatch):
     assert "to_pubkey" in err
 
 
+def test_apply_app_tx_ignores_overflowing_chain_balance(monkeypatch):
+    """Malformed external chain balances must not crash the app bridge."""
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    sender = "0x" + "22" * 48
+    monkeypatch.delenv("TAU_DEX_FAUCET", raising=False)
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+
+    ok, _state, _hash, patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={sender: float("inf")},
+        operations={},
+        tx_sender_pubkey=sender,
+        block_timestamp=1,
+    )
+
+    assert ok is True
+    assert patch is None
+    assert err is None
+
+
 def test_apply_app_tx_unexpected_exception_propagates_not_swallowed(monkeypatch):
     """Narrowed catches must let unexpected bugs (AttributeError) propagate.
 
