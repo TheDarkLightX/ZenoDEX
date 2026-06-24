@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import pytest
+
 from src.integration.exact_out_route_certificate import build_exact_out_route_canonical_certificate
+from src.kernels.python import exact_out_many_pool_bounded_oracle_v1
 from src.kernels.python.exact_out_many_pool_bounded_oracle_v1 import (
     bounded_exact_out_many_pool_runtime_domain,
     enumerate_exact_out_many_pool_candidates,
@@ -65,6 +68,67 @@ def test_enumerate_exact_out_many_pool_candidates_returns_complete_candidates() 
         assert tuple(leg.pool_id for leg in candidate.legs) == tuple(sorted(leg.pool_id for leg in candidate.legs))
 
 
+def test_enumerate_exact_out_many_pool_candidates_falls_back_on_expected_prefilter_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pools = (
+        _pool(pid="pool_b", r0=100, r1=34),
+        _pool(pid="pool_a", r0=120, r1=40),
+        _pool(pid="pool_c", r0=160, r1=60),
+    )
+
+    def _reject_repaired_prefilter(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("bounded repaired prefilter unavailable")
+
+    monkeypatch.setattr(
+        exact_out_many_pool_bounded_oracle_v1,
+        "select_many_pool_repaired_prefilter_candidates",
+        _reject_repaired_prefilter,
+    )
+
+    candidates = enumerate_exact_out_many_pool_candidates(
+        pools,
+        asset_in="A",
+        asset_out="B",
+        amount_out_total=6,
+        max_legs=3,
+        max_candidate_pools=3,
+        max_enumerated_candidates=2000,
+    )
+
+    assert candidates
+
+
+def test_enumerate_exact_out_many_pool_candidates_surfaces_unexpected_prefilter_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pools = (
+        _pool(pid="pool_b", r0=100, r1=34),
+        _pool(pid="pool_a", r0=120, r1=40),
+        _pool(pid="pool_c", r0=160, r1=60),
+    )
+
+    def _boom_repaired_prefilter(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("repaired prefilter internal fault")
+
+    monkeypatch.setattr(
+        exact_out_many_pool_bounded_oracle_v1,
+        "select_many_pool_repaired_prefilter_candidates",
+        _boom_repaired_prefilter,
+    )
+
+    with pytest.raises(RuntimeError, match="repaired prefilter internal fault"):
+        enumerate_exact_out_many_pool_candidates(
+            pools,
+            asset_in="A",
+            asset_out="B",
+            amount_out_total=6,
+            max_legs=3,
+            max_candidate_pools=3,
+            max_enumerated_candidates=2000,
+        )
+
+
 def test_bounded_exact_out_many_pool_runtime_domain_aligns_runtime_to_canonical_quote() -> None:
     pools = (
         _pool(pid="pool_a", r0=40, r1=20),
@@ -90,6 +154,76 @@ def test_bounded_exact_out_many_pool_runtime_domain_aligns_runtime_to_canonical_
     assert bounded.canonical_quote == certificate.winner_quote
     assert certificate.winner_quote.amount_in_total == 2
     assert bounded.runtime_quote == certificate.winner_quote
+
+
+def test_bounded_exact_out_many_pool_runtime_domain_falls_back_on_expected_prefilter_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pools = (
+        _pool(pid="pool_a", r0=40, r1=20),
+        _pool(pid="pool_b", r0=40, r1=63),
+        _pool(pid="pool_c", r0=40, r1=20),
+    )
+
+    def _reject_repaired_prefilter(*_args: object, **_kwargs: object) -> object:
+        raise TypeError("bounded repaired prefilter bad input")
+
+    monkeypatch.setattr(
+        exact_out_many_pool_bounded_oracle_v1,
+        "select_many_pool_repaired_prefilter_candidates",
+        _reject_repaired_prefilter,
+    )
+
+    bounded = bounded_exact_out_many_pool_runtime_domain(
+        pools,
+        asset_in="A",
+        asset_out="B",
+        amount_out_total=3,
+        max_legs=3,
+        max_candidate_pools=3,
+        max_candidates=6,
+        max_iters=512,
+        window=8,
+        brute_force_max=16,
+        max_enumerated_candidates=8000,
+    )
+
+    assert bounded.audit_pool_ids == ("pool_a", "pool_b", "pool_c")
+    assert bounded.runtime_quote == bounded.canonical_quote
+
+
+def test_bounded_exact_out_many_pool_runtime_domain_surfaces_unexpected_prefilter_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pools = (
+        _pool(pid="pool_a", r0=40, r1=20),
+        _pool(pid="pool_b", r0=40, r1=63),
+        _pool(pid="pool_c", r0=40, r1=20),
+    )
+
+    def _boom_repaired_prefilter(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("bounded repaired prefilter internal fault")
+
+    monkeypatch.setattr(
+        exact_out_many_pool_bounded_oracle_v1,
+        "select_many_pool_repaired_prefilter_candidates",
+        _boom_repaired_prefilter,
+    )
+
+    with pytest.raises(RuntimeError, match="bounded repaired prefilter internal fault"):
+        bounded_exact_out_many_pool_runtime_domain(
+            pools,
+            asset_in="A",
+            asset_out="B",
+            amount_out_total=3,
+            max_legs=3,
+            max_candidate_pools=3,
+            max_candidates=6,
+            max_iters=512,
+            window=8,
+            brute_force_max=16,
+            max_enumerated_candidates=8000,
+        )
 
 
 def test_bounded_exact_out_many_pool_runtime_domain_uses_repaired_subset_within_audited_bound() -> None:

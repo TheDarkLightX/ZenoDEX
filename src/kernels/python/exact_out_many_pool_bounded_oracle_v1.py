@@ -66,7 +66,7 @@ def enumerate_exact_out_many_pool_candidates(
             max_full_domain_pools=int(max_full_domain_pools),
             max_enumerated_candidates=int(max_enumerated_candidates),
         )
-    except Exception:
+    except (TypeError, ValueError):
         candidate_pools = select_many_pool_audit_candidates(
             pools,
             asset_in=asset_in,
@@ -112,7 +112,7 @@ def bounded_exact_out_many_pool_runtime_domain(
             max_full_domain_pools=int(max_full_domain_pools),
             max_enumerated_candidates=int(max_enumerated_candidates),
         )
-    except Exception:
+    except (TypeError, ValueError):
         audit_pools = select_many_pool_audit_candidates(
             pools,
             asset_in=asset_in,
