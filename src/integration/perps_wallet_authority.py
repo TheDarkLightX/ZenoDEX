@@ -543,7 +543,7 @@ def _validate_key_manager_public(
         try:
             ref = KeyRef.from_public_dict(_require_mapping(raw_ref, name=f"key_refs[{index}]"))
         except Exception as exc:
-            gaps.append(f"key manager key_ref {index} invalid: {exc}")
+            gaps.append(f"key manager key_ref {index} invalid: {_safe_status_error(exc)}")
             continue
         if ref.key_id in refs:
             gaps.append(f"duplicate key manager key_id: {ref.key_id}")
@@ -676,7 +676,7 @@ def _active_signer_entries(signer_registry: Mapping[str, Any], gaps: list[str]) 
     try:
         validate_signer_registry_v0(signer_registry)
     except Exception as exc:
-        gaps.append(f"signer registry invalid: {exc}")
+        gaps.append(f"signer registry invalid: {_safe_status_error(exc)}")
         return [], 0
 
     if signer_registry.get("payload_kind") != PERPS_WALLET_AUTHORITY_PAYLOAD_KIND:
@@ -843,7 +843,10 @@ def _validate_guardian_signature_quorum(
         try:
             envelopes.append(_require_mapping(raw_envelope, name=f"signature_envelopes[{index}]"))
         except Exception as exc:
-            errors.append(f"{label} guardian signature envelope {index} invalid: {exc}")
+            errors.append(
+                f"{label} guardian signature envelope {index} invalid: "
+                f"{_safe_status_error(exc)}"
+            )
     if not envelopes:
         return None
     try:
@@ -855,7 +858,7 @@ def _validate_guardian_signature_quorum(
             envelopes=envelopes,
         )
     except Exception as exc:
-        errors.append(f"{label} guardian signature quorum invalid: {exc}")
+        errors.append(f"{label} guardian signature quorum invalid: {_safe_status_error(exc)}")
         return None
     summary = _guardian_signature_quorum_summary(report)
     accepted_guardian_ids = sorted(
@@ -1079,7 +1082,7 @@ def evaluate_perps_wallet_recovery_exercise_v1(
         current_epoch = _require_nonnegative_int(exercise_obj.get("current_epoch"), name="current_epoch")
         approvals = _require_string_list(exercise_obj.get("approvals"), name="approvals")
     except Exception as exc:
-        errors.append(str(exc))
+        errors.append(_safe_status_error(exc))
         return _recovery_exercise_status(
             ok=False,
             errors=errors,
@@ -1133,7 +1136,7 @@ def evaluate_perps_wallet_recovery_exercise_v1(
             label="recovery exercise",
         )
     except Exception as exc:
-        errors.append(f"recovery policy evaluation failed: {exc}")
+        errors.append(f"recovery policy evaluation failed: {_safe_status_error(exc)}")
 
     return _recovery_exercise_status(
         ok=(
@@ -1616,7 +1619,7 @@ def evaluate_perps_wallet_rotation_exercise_v1(
             name="next_wallet_authority_profile",
         )
     except Exception as exc:
-        errors.append(str(exc))
+        errors.append(_safe_status_error(exc))
         return _rotation_exercise_status(
             ok=False,
             errors=errors,
@@ -1710,7 +1713,7 @@ def evaluate_perps_wallet_rotation_exercise_v1(
             label="rotation exercise",
         )
     except Exception as exc:
-        errors.append(f"rotation recovery policy evaluation failed: {exc}")
+        errors.append(f"rotation recovery policy evaluation failed: {_safe_status_error(exc)}")
 
     _ = broadcast_reference
     return _rotation_exercise_status(
@@ -1809,7 +1812,7 @@ def evaluate_perps_wallet_device_approval_exercise_v1(
         seen_nonces = tuple(_require_int_list(exercise_obj.get("seen_nonces", []), name="seen_nonces"))
         _reject_secret_fields(payload, name="payload")
     except Exception as exc:
-        errors.append(str(exc))
+        errors.append(_safe_status_error(exc))
         return _device_approval_exercise_status(
             ok=False,
             errors=errors,
@@ -1868,7 +1871,7 @@ def evaluate_perps_wallet_device_approval_exercise_v1(
             errors.append("device_approval_sign_admission_rejected")
             errors.extend(str(item) for item in sign_admission_receipt.get("errors", ()))
     except Exception as exc:
-        errors.append(f"device approval sign admission failed: {exc}")
+        errors.append(f"device approval sign admission failed: {_safe_status_error(exc)}")
 
     return _device_approval_exercise_status(
         ok=not errors and sign_admission_receipt is not None and sign_admission_receipt.get("ok") is True,
@@ -1972,7 +1975,7 @@ def evaluate_perps_wallet_signer_device_integration_v1(
             _require_mapping(integration_obj.get("environment_policy"), name="environment_policy")
         )
     except Exception as exc:
-        errors.append(str(exc))
+        errors.append(_safe_status_error(exc))
         return _signer_device_integration_status(
             ok=False,
             errors=errors,
@@ -2049,7 +2052,9 @@ def evaluate_perps_wallet_signer_device_integration_v1(
         environment_hash = environment.public_dict()["environment_hash"]
         environment_policy_hash = _device_approval_environment_policy_public_dict(environment_policy)["environment_policy_hash"]
     except Exception as exc:
-        errors.append(f"signer-device environment evaluation failed: {exc}")
+        errors.append(
+            f"signer-device environment evaluation failed: {_safe_status_error(exc)}"
+        )
 
     return _signer_device_integration_status(
         ok=not errors,
@@ -2157,7 +2162,7 @@ def evaluate_perps_wallet_signer_prompt_capture_v1(
             _require_mapping(capture_obj.get("environment_policy"), name="environment_policy")
         )
     except Exception as exc:
-        errors.append(str(exc))
+        errors.append(_safe_status_error(exc))
         return _signer_prompt_capture_status(
             ok=False,
             errors=errors,
@@ -2234,7 +2239,9 @@ def evaluate_perps_wallet_signer_prompt_capture_v1(
             "environment_policy_hash"
         ]
     except Exception as exc:
-        errors.append(f"signer prompt capture environment evaluation failed: {exc}")
+        errors.append(
+            f"signer prompt capture environment evaluation failed: {_safe_status_error(exc)}"
+        )
 
     return _signer_prompt_capture_status(
         ok=not errors,
@@ -2353,7 +2360,7 @@ def evaluate_perps_wallet_signer_execution_exercise_v1(
         seen_nonces = tuple(_require_int_list(exercise_obj.get("seen_nonces", []), name="seen_nonces"))
         _reject_secret_fields(payload, name="payload")
     except Exception as exc:
-        errors.append(str(exc))
+        errors.append(_safe_status_error(exc))
         return _signer_execution_exercise_status(
             ok=False,
             errors=errors,
@@ -2449,7 +2456,7 @@ def evaluate_perps_wallet_signer_execution_exercise_v1(
         if sign_admission_receipt.get("payload_hash") != signed_payload_hash:
             errors.append("signer execution signed_payload_hash mismatch")
     except Exception as exc:
-        errors.append(f"signer execution sign admission failed: {exc}")
+        errors.append(f"signer execution sign admission failed: {_safe_status_error(exc)}")
 
     return _signer_execution_exercise_status(
         ok=not errors and sign_admission_receipt is not None and sign_admission_receipt.get("ok") is True,
@@ -2704,7 +2711,7 @@ def evaluate_perps_wallet_authority_profile_v1(
     try:
         obj = _require_mapping(profile, name="profile")
     except Exception as exc:
-        gaps.append(f"perps wallet authority profile invalid: {exc}")
+        gaps.append(f"perps wallet authority profile invalid: {_safe_status_error(exc)}")
         return _status(
             ok=False,
             production_wallet_authority=False,
@@ -2733,13 +2740,13 @@ def evaluate_perps_wallet_authority_profile_v1(
     try:
         _require_nonempty_str(obj.get("authority_id"), name="authority_id")
     except Exception as exc:
-        gaps.append(str(exc))
+        gaps.append(_safe_status_error(exc))
     try:
         chain_id = _require_nonempty_str(obj.get("chain_id"), name="chain_id")
         if expected_chain_id is not None and chain_id != expected_chain_id:
             gaps.append("perps wallet authority profile chain_id mismatch")
     except Exception as exc:
-        gaps.append(str(exc))
+        gaps.append(_safe_status_error(exc))
 
     expected_hash = perps_wallet_authority_profile_hash_v1(obj)
     if obj.get("wallet_authority_hash") != expected_hash:
@@ -2751,7 +2758,7 @@ def evaluate_perps_wallet_authority_profile_v1(
         key_manager = _require_mapping(obj.get("key_manager"), name="key_manager")
         key_refs, recovery_policies_raw = _validate_key_manager_public(key_manager, gaps)
     except Exception as exc:
-        gaps.append(f"key manager invalid: {exc}")
+        gaps.append(f"key manager invalid: {_safe_status_error(exc)}")
 
     active_signers: list[Mapping[str, Any]] = []
     threshold = 0
@@ -2760,7 +2767,7 @@ def evaluate_perps_wallet_authority_profile_v1(
         active_signers, threshold = _active_signer_entries(signer_registry, gaps)
         _validate_signer_key_bindings(active_signers=active_signers, key_refs=key_refs, gaps=gaps)
     except Exception as exc:
-        gaps.append(f"signer registry invalid: {exc}")
+        gaps.append(f"signer registry invalid: {_safe_status_error(exc)}")
 
     recovery_policy_summaries: list[dict[str, Any]] = []
     recoverable_active_key_count = 0
@@ -2772,7 +2779,7 @@ def evaluate_perps_wallet_authority_profile_v1(
             gaps=gaps,
         )
     except Exception as exc:
-        gaps.append(f"recovery policies invalid: {exc}")
+        gaps.append(f"recovery policies invalid: {_safe_status_error(exc)}")
 
     wallet_ux_summary: dict[str, bool] = {}
     try:
@@ -2785,7 +2792,7 @@ def evaluate_perps_wallet_authority_profile_v1(
             gaps=gaps,
         )
     except Exception as exc:
-        gaps.append(f"wallet_ux invalid: {exc}")
+        gaps.append(f"wallet_ux invalid: {_safe_status_error(exc)}")
 
     proof_profile_summary: dict[str, Any] = {}
     try:
@@ -2803,14 +2810,14 @@ def evaluate_perps_wallet_authority_profile_v1(
         if not isinstance(proof_profile.get("runtime_proof_profile"), str) or not proof_profile.get("runtime_proof_profile"):
             gaps.append("proof_profile.runtime_proof_profile must be a non-empty string")
     except Exception as exc:
-        gaps.append(f"proof_profile invalid: {exc}")
+        gaps.append(f"proof_profile invalid: {_safe_status_error(exc)}")
 
     transaction_scope_summary: dict[str, Any] = {}
     try:
         transaction_scope = _require_mapping(obj.get("transaction_scope"), name="transaction_scope")
         transaction_scope_summary = _transaction_scope_summary(transaction_scope, gaps)
     except Exception as exc:
-        gaps.append(f"transaction_scope invalid: {exc}")
+        gaps.append(f"transaction_scope invalid: {_safe_status_error(exc)}")
 
     production_wallet_authority = not gaps
     return _status(

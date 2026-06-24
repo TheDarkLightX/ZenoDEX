@@ -18,10 +18,12 @@ import pytest
 from src.core.dex import DexState
 from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketState, PerpsState
 from src.integration import tau_testnet_dex_plugin as plugin
+from src.integration import perps_wallet_authority
 from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global_state, apply_perp_ops
 from src.integration.perps_wallet_authority import (
     PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
+    PERPS_WALLET_AUTHORITY_PROFILE_SCHEMA_V1,
     PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_SCHEMA_V1,
     PERPS_WALLET_RECOVERY_EXERCISE_PAYLOAD_KIND,
     PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1,
@@ -32,6 +34,7 @@ from src.integration.perps_wallet_authority import (
     build_perps_wallet_signer_device_integration_v1,
     build_perps_wallet_device_approval_use_policy_v1,
     build_perps_wallet_authority_profile_v1,
+    evaluate_perps_wallet_authority_profile_v1,
     perps_wallet_device_approval_exercise_hash_v1,
     perps_wallet_recovery_exercise_hash_v1,
     perps_wallet_rotation_exercise_hash_v1,
@@ -70,6 +73,46 @@ DEX_UI = ROOT / "tools" / "dex-ui"
 ORACLE_CLI = ROOT / "tools" / "zenodex_oracle.py"
 ROOT_A = "0x" + "aa" * 32
 ROOT_B = "0x" + "bb" * 32
+
+
+def test_perps_wallet_authority_status_redacts_unexpected_key_ref_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _raise_internal_error(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise RuntimeError("raw key material path leaked")
+
+    monkeypatch.setattr(perps_wallet_authority.KeyRef, "from_public_dict", staticmethod(_raise_internal_error))
+
+    profile = {
+        "schema": PERPS_WALLET_AUTHORITY_PROFILE_SCHEMA_V1,
+        "enabled": True,
+        "stage": "production",
+        "authority_id": "perps-wallet-authority-v1",
+        "chain_id": "tau-local",
+        "wallet_authority_hash": ROOT_A,
+        "key_manager": {
+            "schema": perps_wallet_authority.KEY_MANAGER_SCHEMA_V0,
+            "manager_hash": ROOT_B,
+            "key_refs": [{}],
+            "recovery_policies": [],
+        },
+        "signer_registry": {
+            "registry_id": "perps-wallet-authority-v1",
+            "payload_kind": PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
+            "threshold": 1,
+            "signers": [],
+        },
+        "wallet_ux": {},
+        "proof_profile": {},
+        "transaction_scope": {},
+    }
+
+    status = evaluate_perps_wallet_authority_profile_v1(profile)
+    encoded = json.dumps(status, sort_keys=True)
+
+    assert status["production_wallet_authority"] is False
+    assert "internal error: RuntimeError" in encoded
+    assert "raw key material path leaked" not in encoded
 
 
 def _privkey_hex(value: int) -> str:
