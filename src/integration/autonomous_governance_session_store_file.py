@@ -127,6 +127,7 @@ def _write_store_file(path: Path, store: Mapping[str, Any]) -> tuple[bool, tuple
     if len(raw) > MAX_SESSION_STORE_FILE_BYTES_V1:
         return False, ("session_store_file_store_too_large",)
 
+    temp_name: str | None = None
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(
@@ -142,11 +143,15 @@ def _write_store_file(path: Path, store: Mapping[str, Any]) -> tuple[bool, tuple
             os.fsync(handle.fileno())
         os.replace(temp_name, path)
     except OSError:
-        try:
-            os.unlink(temp_name)  # type: ignore[name-defined]
-        except Exception:
-            pass
-        return False, ("session_store_file_write_failed",)
+        cleanup_errors: tuple[str, ...] = ()
+        if temp_name is not None:
+            try:
+                os.unlink(temp_name)
+            except FileNotFoundError:
+                cleanup_errors = ()
+            except OSError:
+                cleanup_errors = ("session_store_file_temp_cleanup_failed",)
+        return False, ("session_store_file_write_failed", *cleanup_errors)
     return True, ()
 
 
@@ -163,7 +168,7 @@ def initialize_autonomous_governance_session_store_file_v1(
     genesis_pin: object,
     genesis_receipt: object,
     policy: object,
-    create_only: bool = True,
+    create_only: object = True,
 ) -> dict[str, Any]:
     """Initialize and durably write a session store JSON file."""
 

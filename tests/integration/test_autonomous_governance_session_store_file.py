@@ -8,8 +8,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import src.integration.autonomous_governance_session_store_file as file_store
 from src.integration.autonomous_governance_session_store_file import (
     _lock_path,
+    _write_store_file,
     admit_autonomous_governance_session_file_continuation_v1,
     current_session_store_file_head_v1,
     initialize_autonomous_governance_session_store_file_v1,
@@ -177,6 +179,25 @@ def test_session_store_file_existing_lock_refuses_write(tmp_path: Path) -> None:
     assert refused["admitted"] is False
     assert "session_store_file_lock_exists" in refused["errors"]
     assert _persisted_store(path)["store_hash"] == init["store_hash"]
+
+
+def test_session_store_file_write_failure_removes_temp_file(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    path = tmp_path / "autogov-session-store.json"
+
+    def _fail_replace(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise OSError("replace failed")
+
+    monkeypatch.setattr(file_store.os, "replace", _fail_replace)
+
+    ok, errors = _write_store_file(path, {"schema": "test"})
+
+    assert ok is False
+    assert errors == ("session_store_file_write_failed",)
+    assert not path.exists()
+    assert not list(tmp_path.glob(".autogov-session-store.json.*.tmp"))
 
 
 def test_cli_session_store_file_lifecycle(tmp_path: Path) -> None:
