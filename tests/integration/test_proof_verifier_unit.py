@@ -202,6 +202,72 @@ def test_subprocess_verifier_rejects_spawn_error(monkeypatch: pytest.MonkeyPatch
     assert err == "proof verifier error: spawn failed"
 
 
+def test_subprocess_verifier_caps_boundary_error_details(monkeypatch: pytest.MonkeyPatch) -> None:
+    long_detail = "x" * 300
+    verifier = SubprocessProofVerifier(
+        cmd=[sys.executable, "-c", "print('{\"ok\": true}')"],
+        timeout_s=1.0,
+        max_bytes=1024,
+        max_stdout_bytes=1_000,
+        max_stderr_bytes=1_000,
+    )
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            proof_verifier,
+            "canonical_json_bytes",
+            lambda payload: (_ for _ in ()).throw(TypeError(long_detail)),
+        )
+        ok, err = verifier.verify({"ok": True})
+        assert ok is False
+        assert err == "invalid proof payload encoding: " + ("x" * 200)
+
+    with monkeypatch.context() as m:
+        def _boom(*_args: object, **_kwargs: object) -> object:
+            raise OSError(long_detail)
+
+        m.setattr(proof_verifier.subprocess, "Popen", _boom)
+        ok, err = verifier.verify({"ok": True})
+        assert ok is False
+        assert err == "proof verifier error: " + ("x" * 200)
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            proof_verifier.os,
+            "set_blocking",
+            lambda fd, blocking: (_ for _ in ()).throw(OSError(long_detail)),
+        )
+        ok, err = verifier.verify({"ok": True})
+        assert ok is False
+        assert err == "proof verifier requires non-blocking pipes: " + ("x" * 200)
+
+    stderr_verifier = SubprocessProofVerifier(
+        cmd=[sys.executable, "-c", "import sys; sys.stderr.write('x' * 300); sys.exit(7)"],
+        timeout_s=1.0,
+        max_bytes=1024,
+        max_stdout_bytes=1_000,
+        max_stderr_bytes=1_000,
+    )
+    ok, err = stderr_verifier.verify({"ok": True})
+    assert ok is False
+    assert err == "proof verifier failed (exit 7): " + ("x" * 200)
+
+    reject_verifier = SubprocessProofVerifier(
+        cmd=[
+            sys.executable,
+            "-c",
+            "import json; print(json.dumps({'ok': False, 'error': 'x' * 300}))",
+        ],
+        timeout_s=1.0,
+        max_bytes=1024,
+        max_stdout_bytes=1_000,
+        max_stderr_bytes=1_000,
+    )
+    ok, err = reject_verifier.verify({"ok": True})
+    assert ok is False
+    assert err == "x" * 200
+
+
 def test_subprocess_verifier_rejects_missing_subprocess_pipes(monkeypatch: pytest.MonkeyPatch) -> None:
     verifier = SubprocessProofVerifier(
         cmd=[sys.executable, "-c", "print('{\"ok\": true}')"],

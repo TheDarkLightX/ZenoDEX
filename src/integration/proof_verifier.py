@@ -70,6 +70,13 @@ class UnsupportedPlatformProofVerifier(ProofVerifier):
         return False, self._reason
 
 
+def _safe_error_detail(value: object, *, max_len: int = 200) -> str:
+    detail = " ".join(str(value).strip().split())
+    if not detail:
+        return type(value).__name__
+    return detail if len(detail) <= max_len else detail[:max_len]
+
+
 class SubprocessProofVerifier(ProofVerifier):
     """
     Verify a proof by calling an external verifier process.
@@ -135,7 +142,7 @@ class SubprocessProofVerifier(ProofVerifier):
         except ValueError:
             return False, "proof payload too large"
         except TypeError as exc:
-            return False, f"invalid proof payload encoding: {exc}"
+            return False, f"invalid proof payload encoding: {_safe_error_detail(exc)}"
 
         try:
             proc = subprocess.Popen(
@@ -148,7 +155,7 @@ class SubprocessProofVerifier(ProofVerifier):
                 bufsize=0,
             )
         except (OSError, ValueError) as exc:
-            return False, f"proof verifier error: {exc}"
+            return False, f"proof verifier error: {_safe_error_detail(exc)}"
 
         if proc.stdin is None or proc.stdout is None or proc.stderr is None:
             try:
@@ -165,7 +172,7 @@ class SubprocessProofVerifier(ProofVerifier):
                     # enforce the write-side timeout when the child never reads.
                     _kill_proc_group()
                     _wait_after_kill()
-                    return False, f"proof verifier requires non-blocking pipes: {exc}"
+                    return False, f"proof verifier requires non-blocking pipes: {_safe_error_detail(exc)}"
 
             stdout_buf = bytearray()
             stderr_buf = bytearray()
@@ -303,12 +310,13 @@ class SubprocessProofVerifier(ProofVerifier):
 
             if rc != 0:
                 err = stderr_buf.decode("utf-8", errors="replace").strip()
-                return False, f"proof verifier failed (exit {rc}): {err or 'no stderr'}"
+                detail = _safe_error_detail(err or "no stderr")
+                return False, f"proof verifier failed (exit {rc}): {detail}"
 
             try:
                 result = json.loads(bytes(stdout_buf))
             except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-                return False, f"invalid verifier output: {exc}"
+                return False, f"invalid verifier output: {_safe_error_detail(exc)}"
 
             if not isinstance(result, dict):
                 return False, "invalid verifier output (not an object)"
@@ -319,7 +327,7 @@ class SubprocessProofVerifier(ProofVerifier):
             if ok is False:
                 error_value = result.get("error")
                 if isinstance(error_value, str) and error_value:
-                    return False, error_value
+                    return False, _safe_error_detail(error_value)
                 return False, "proof rejected"
 
             return False, "invalid verifier output (missing ok)"
