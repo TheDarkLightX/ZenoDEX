@@ -73,6 +73,7 @@ class TauNetTauStateView:
 
 
 _DEFAULT_TAU_NET_TCP_CONFIG = TauNetTcpConfig()
+_SEND_SIGNED_TX_MAX_AGE_SECONDS = 24 * 60 * 60
 
 
 def _require_bls() -> None:
@@ -94,6 +95,29 @@ def _coerce_nonnegative_int(value: object, *, label: str) -> int:
     if parsed < 0:
         raise ValueError(f"{label} must be a non-negative integer")
     return parsed
+
+
+def _coerce_positive_int(value: object, *, label: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{label} must be a positive integer")
+    if not isinstance(value, (int, float, str, bytes, bytearray)):
+        raise ValueError(f"{label} must be a positive integer")
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(f"{label} must be a positive integer") from exc
+    if isinstance(value, float) and not value.is_integer():
+        raise ValueError(f"{label} must be a positive integer")
+    if parsed <= 0:
+        raise ValueError(f"{label} must be a positive integer")
+    return parsed
+
+
+def _coerce_send_signed_tx_ttl_seconds(value: object) -> int:
+    ttl_seconds = _coerce_positive_int(value, label="expiration_seconds")
+    if ttl_seconds > _SEND_SIGNED_TX_MAX_AGE_SECONDS:
+        raise ValueError("expiration_seconds exceeds max_age_seconds")
+    return ttl_seconds
 
 
 def _json_object_from_rpc(raw: str, *, label: str) -> Mapping[str, Any]:
@@ -322,7 +346,7 @@ def build_signed_tau_transaction(
     payload: Dict[str, Any] = {
         "sender_pubkey": sender_pubkey,
         "sequence_number": _coerce_nonnegative_int(sequence_number, label="sequence_number"),
-        "expiration_time": _coerce_nonnegative_int(expiration_time, label="expiration_time"),
+        "expiration_time": _coerce_positive_int(expiration_time, label="expiration_time"),
         "operations": encoded_ops,
         "fee_limit": str(fee_limit),
     }
@@ -567,9 +591,11 @@ class TauNetTcpClient:
         expiration_seconds: int = 3600,
         sequence_number: Optional[int] = None,
     ) -> str:
+        ttl_seconds = _coerce_send_signed_tx_ttl_seconds(expiration_seconds)
         sender = bls_pubkey_hex_from_privkey(privkey)
-        seq = int(sequence_number) if sequence_number is not None else self.get_sequence(sender)
-        expiry = int(time.time()) + int(expiration_seconds)
+        seq_raw = sequence_number if sequence_number is not None else self.get_sequence(sender)
+        seq = _coerce_nonnegative_int(seq_raw, label="sequence_number")
+        expiry = int(time.time()) + ttl_seconds
         payload = build_signed_tau_transaction(
             privkey=privkey,
             sequence_number=seq,

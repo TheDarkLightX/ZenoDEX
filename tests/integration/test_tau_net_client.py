@@ -81,11 +81,20 @@ def test_tau_net_client_signing_and_encoding_edges() -> None:
             fee_limit=0,
         )
 
-    with pytest.raises(ValueError, match="expiration_time must be a non-negative integer"):
+    with pytest.raises(ValueError, match="expiration_time must be a positive integer"):
         tau_net_client.build_signed_tau_transaction(
             privkey=1,
             sequence_number=2,
             expiration_time=-1,
+            operations={"9": {"x": 1}},
+            fee_limit=0,
+        )
+
+    with pytest.raises(ValueError, match="expiration_time must be a positive integer"):
+        tau_net_client.build_signed_tau_transaction(
+            privkey=1,
+            sequence_number=2,
+            expiration_time=0,
             operations={"9": {"x": 1}},
             fee_limit=0,
         )
@@ -303,3 +312,49 @@ def test_tau_net_tcp_client_methods_and_send_signed_tx(monkeypatch: pytest.Monke
         expiration_seconds=10,
     ) == "submitted"
     assert sent_payloads[-1]["sequence_number"] == 3
+    assert sent_payloads[-1]["expiration_time"] == 1010
+
+    sent_count = len(sent_payloads)
+    with pytest.raises(ValueError, match="sequence_number must be a non-negative integer"):
+        client.send_signed_tx(
+            privkey=1,
+            operations={"9": {"ok": 1}},
+            sequence_number=True,
+            expiration_seconds=10,
+        )
+    with pytest.raises(ValueError, match="sequence_number must be a non-negative integer"):
+        client.send_signed_tx(
+            privkey=1,
+            operations={"9": {"ok": 1}},
+            sequence_number=3.5,  # type: ignore[arg-type]
+            expiration_seconds=10,
+        )
+    with pytest.raises(ValueError, match="expiration_seconds must be a positive integer"):
+        client.send_signed_tx(
+            privkey=1,
+            operations={"9": {"ok": 1}},
+            sequence_number=3,
+            expiration_seconds=0,
+        )
+    with pytest.raises(ValueError, match="expiration_seconds must be a positive integer"):
+        client.send_signed_tx(
+            privkey=1,
+            operations={"9": {"ok": 1}},
+            sequence_number=3,
+            expiration_seconds=-1,
+        )
+    with pytest.raises(ValueError, match="expiration_seconds must be a positive integer"):
+        client.send_signed_tx(
+            privkey=1,
+            operations={"9": {"ok": 1}},
+            sequence_number=3,
+            expiration_seconds=1.5,  # type: ignore[arg-type]
+        )
+    with pytest.raises(ValueError, match="expiration_seconds exceeds max_age_seconds"):
+        client.send_signed_tx(
+            privkey=1,
+            operations={"9": {"ok": 1}},
+            sequence_number=3,
+            expiration_seconds=tau_net_client._SEND_SIGNED_TX_MAX_AGE_SECONDS + 1,
+        )
+    assert len(sent_payloads) == sent_count
