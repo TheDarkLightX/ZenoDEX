@@ -4,6 +4,8 @@ from dataclasses import replace
 
 import pytest
 
+import src.integration.settlement_price_attestation as price_attestation
+import src.integration.settlement_value_contract as value_contract
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.core.settlement import LPDelta
@@ -13,6 +15,9 @@ from src.integration.settlement_value_contract import (
     build_settlement_spot_value_contract_from_price_attestation,
     build_settlement_spot_value_contract_from_price_packet,
     verify_settlement_spot_value_contract,
+    verify_settlement_spot_value_contract_payload,
+    verify_settlement_spot_value_contract_payload_from_price_attestation,
+    verify_settlement_spot_value_contract_payload_from_price_packet,
 )
 from src.integration.settlement_price_attestation import build_settlement_spot_price_attestation
 from src.integration.settlement_price_provenance import (
@@ -171,3 +176,159 @@ def test_settlement_spot_value_contract_builds_from_attested_price_packet() -> N
     assert contract.schema == SETTLEMENT_SPOT_VALUE_CONTRACT_SCHEMA
     assert contract.value_conservation_ok is True
     assert contract.net_value_sum == 0
+
+
+def test_verify_spot_value_contract_payload_rejects_expected_contract_parse_error() -> None:
+    _pk, asset0, asset1, _pool_id, settlement = _swap_context()
+
+    ok, err = verify_settlement_spot_value_contract_payload(
+        settlement=settlement,
+        asset_prices={asset0: 100, asset1: 120},
+        contract_payload={"asset_prices": "not-a-list"},
+    )
+
+    assert ok is False
+    assert err == "contract.asset_prices must be a list"
+
+
+def test_verify_spot_value_contract_payload_surfaces_unexpected_contract_parse_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pk, asset0, asset1, _pool_id, settlement = _swap_context()
+
+    def fail_from_dict(
+        cls: type[value_contract.SettlementSpotValueContract],
+        payload: object,
+    ) -> value_contract.SettlementSpotValueContract:
+        raise RuntimeError("unexpected value contract parse fault")
+
+    monkeypatch.setattr(
+        value_contract.SettlementSpotValueContract,
+        "from_dict",
+        classmethod(fail_from_dict),
+    )
+
+    with pytest.raises(RuntimeError, match="unexpected value contract parse fault"):
+        verify_settlement_spot_value_contract_payload(
+            settlement=settlement,
+            asset_prices={asset0: 100, asset1: 120},
+            contract_payload={},
+        )
+
+
+def test_verify_spot_value_contract_from_price_packet_rejects_expected_builder_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pk, asset0, asset1, _pool_id, settlement = _swap_context()
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="local:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="local:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    contract = build_settlement_spot_value_contract_from_price_packet(
+        settlement=settlement,
+        price_packet=price_packet,
+    )
+
+    def reject_builder(**_: object) -> value_contract.SettlementSpotValueContract:
+        raise ValueError("expected value builder reject")
+
+    monkeypatch.setattr(value_contract, "build_settlement_spot_value_contract_from_price_packet", reject_builder)
+
+    ok, err = value_contract.verify_settlement_spot_value_contract_from_price_packet(
+        settlement=settlement,
+        price_packet=price_packet,
+        contract=contract,
+    )
+
+    assert ok is False
+    assert err == "expected value builder reject"
+
+
+def test_verify_spot_value_contract_from_price_packet_surfaces_unexpected_builder_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pk, asset0, asset1, _pool_id, settlement = _swap_context()
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="local:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="local:b"),
+        ),
+        now_epoch=101,
+        max_staleness_epochs=10,
+    )
+    contract = build_settlement_spot_value_contract_from_price_packet(
+        settlement=settlement,
+        price_packet=price_packet,
+    )
+
+    def fail_builder(**_: object) -> value_contract.SettlementSpotValueContract:
+        raise RuntimeError("unexpected value builder fault")
+
+    monkeypatch.setattr(value_contract, "build_settlement_spot_value_contract_from_price_packet", fail_builder)
+
+    with pytest.raises(RuntimeError, match="unexpected value builder fault"):
+        value_contract.verify_settlement_spot_value_contract_from_price_packet(
+            settlement=settlement,
+            price_packet=price_packet,
+            contract=contract,
+        )
+
+
+def test_verify_spot_value_contract_payload_from_price_packet_surfaces_unexpected_packet_parse_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pk, asset0, asset1, _pool_id, settlement = _swap_context()
+    contract = build_settlement_spot_value_contract(
+        settlement=settlement,
+        asset_prices={asset0: 100, asset1: 120},
+    )
+
+    def fail_from_dict(
+        cls: type[value_contract.SettlementSpotPricePacket],
+        payload: object,
+    ) -> value_contract.SettlementSpotPricePacket:
+        raise RuntimeError("unexpected value price packet parse fault")
+
+    monkeypatch.setattr(value_contract.SettlementSpotPricePacket, "from_dict", classmethod(fail_from_dict))
+
+    with pytest.raises(RuntimeError, match="unexpected value price packet parse fault"):
+        verify_settlement_spot_value_contract_payload_from_price_packet(
+            settlement=settlement,
+            price_packet_payload={},
+            contract_payload=contract.to_dict(),
+        )
+
+
+def test_verify_spot_value_contract_payload_from_price_attestation_surfaces_unexpected_attestation_parse_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pk, asset0, asset1, _pool_id, settlement = _swap_context()
+    contract = build_settlement_spot_value_contract(
+        settlement=settlement,
+        asset_prices={asset0: 100, asset1: 120},
+    )
+
+    def fail_from_dict(
+        cls: type[price_attestation.SettlementSpotPriceAttestation],
+        payload: object,
+    ) -> price_attestation.SettlementSpotPriceAttestation:
+        raise RuntimeError("unexpected value price attestation parse fault")
+
+    monkeypatch.setattr(
+        price_attestation.SettlementSpotPriceAttestation,
+        "from_dict",
+        classmethod(fail_from_dict),
+    )
+
+    with pytest.raises(RuntimeError, match="unexpected value price attestation parse fault"):
+        verify_settlement_spot_value_contract_payload_from_price_attestation(
+            settlement=settlement,
+            price_attestation_payload={},
+            consumer_now_epoch=103,
+            max_attestation_age_epochs=5,
+            contract_payload=contract.to_dict(),
+        )

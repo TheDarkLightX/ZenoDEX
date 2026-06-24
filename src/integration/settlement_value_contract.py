@@ -230,7 +230,7 @@ def verify_settlement_spot_value_contract(
     *,
     settlement: Settlement,
     asset_prices: Mapping[str, int],
-    contract: SettlementSpotValueContract,
+    contract: object,
 ) -> tuple[bool, str | None]:
     if not isinstance(contract, SettlementSpotValueContract):
         return False, "contract must be a SettlementSpotValueContract"
@@ -269,7 +269,7 @@ def verify_settlement_spot_value_contract_from_price_packet(
             settlement=settlement,
             price_packet=price_packet,
         )
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     if contract.schema != expected.schema:
         return False, "schema mismatch"
@@ -319,7 +319,7 @@ def verify_settlement_spot_value_contract_from_price_attestation(
             max_attestation_age_epochs=max_attestation_age_epochs,
             allowed_signers=allowed_signers,
         )
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     if contract.schema != expected.schema:
         return False, "schema mismatch"
@@ -336,7 +336,7 @@ def verify_settlement_spot_value_contract_payload(
 ) -> tuple[bool, str | None]:
     try:
         contract = SettlementSpotValueContract.from_dict(contract_payload)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     return verify_settlement_spot_value_contract(
         settlement=settlement,
@@ -353,11 +353,11 @@ def verify_settlement_spot_value_contract_payload_from_price_packet(
 ) -> tuple[bool, str | None]:
     try:
         price_packet = SettlementSpotPricePacket.from_dict(price_packet_payload)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     try:
         contract = SettlementSpotValueContract.from_dict(contract_payload)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     return verify_settlement_spot_value_contract_from_price_packet(
         settlement=settlement,
@@ -379,11 +379,11 @@ def verify_settlement_spot_value_contract_payload_from_price_attestation(
 
     try:
         price_attestation = SettlementSpotPriceAttestation.from_dict(price_attestation_payload)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     try:
         contract = SettlementSpotValueContract.from_dict(contract_payload)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     return verify_settlement_spot_value_contract_from_price_attestation(
         settlement=settlement,

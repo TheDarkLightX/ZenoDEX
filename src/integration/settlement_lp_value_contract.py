@@ -293,7 +293,7 @@ def verify_settlement_lp_value_contract(
     settlement: Settlement,
     asset_prices: Mapping[str, int],
     lp_unit_values: Mapping[str, int],
-    contract: SettlementLPValueContract,
+    contract: object,
 ) -> tuple[bool, str | None]:
     if not isinstance(contract, SettlementLPValueContract):
         return False, "contract must be a SettlementLPValueContract"
@@ -362,7 +362,7 @@ def verify_settlement_lp_value_contract_payload(
 ) -> tuple[bool, str | None]:
     try:
         contract = SettlementLPValueContract.from_dict(contract_payload)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     return verify_settlement_lp_value_contract(
         settlement=settlement,
@@ -381,11 +381,11 @@ def verify_settlement_lp_value_contract_payload_from_price_packet(
 ) -> tuple[bool, str | None]:
     try:
         price_packet = SettlementSpotPricePacket.from_dict(price_packet_payload)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     try:
         contract = SettlementLPValueContract.from_dict(contract_payload)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     expected = build_settlement_lp_value_contract_from_price_packet(
         settlement=settlement,
@@ -413,11 +413,11 @@ def verify_settlement_lp_value_contract_payload_from_price_attestation(
 
     try:
         price_attestation = SettlementSpotPriceAttestation.from_dict(price_attestation_payload)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     try:
         contract = SettlementLPValueContract.from_dict(contract_payload)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     expected = build_settlement_lp_value_contract_from_price_attestation(
         settlement=settlement,
