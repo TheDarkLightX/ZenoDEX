@@ -254,6 +254,25 @@ def test_verify_endogenous_lp_value_packet_rejects_expected_pool_snapshot_parse_
     assert err == "pool snapshot payload invalid"
 
 
+def test_verify_endogenous_lp_value_packet_caps_malformed_pool_snapshot_error() -> None:
+    _pk, asset0, asset1, _pool_id, pool, settlement = _swap_context()
+    price_packet = _price_packet_for(asset0, asset1)
+    bad_pool_payload = _pool_payload(pool)
+    bad_pool_payload["reserve0"] = "9" * 1_000 + "x"
+
+    ok, err = verify_settlement_endogenous_lp_value_packet_payload_from_price_packet(
+        settlement=settlement,
+        price_packet_payload=price_packet.to_dict(),
+        pool_snapshots_payload=[bad_pool_payload],
+        packet_payload={},
+    )
+
+    assert ok is False
+    assert err is not None
+    assert len(err) <= 200
+    assert "9" * 201 not in err
+
+
 def test_verify_endogenous_lp_value_packet_surfaces_unexpected_pool_snapshot_parse_fault(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

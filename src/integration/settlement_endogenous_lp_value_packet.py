@@ -22,6 +22,11 @@ if TYPE_CHECKING:
 SETTLEMENT_ENDOGENOUS_LP_VALUE_PACKET_SCHEMA = "zenodex/settlement-endogenous-lp-value-packet/v1"
 
 
+def _safe_payload_validation_error(exc: Exception) -> str:
+    detail = " ".join(str(exc).split())
+    return detail[:200] or type(exc).__name__
+
+
 @dataclass(frozen=True)
 class SettlementEndogenousLPValuePacket:
     price_input_kind: str
@@ -243,11 +248,11 @@ def verify_settlement_endogenous_lp_value_packet_payload_from_price_packet(
     try:
         price_packet = SettlementSpotPricePacket.from_dict(price_packet_payload)
     except (TypeError, ValueError, KeyError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     try:
         pool_snapshots = tuple(_pool_from_dict(snapshot) for snapshot in pool_snapshots_payload)
     except (TypeError, ValueError, KeyError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     try:
         expected = build_settlement_endogenous_lp_value_packet_from_price_packet(
             settlement=settlement,
@@ -255,11 +260,11 @@ def verify_settlement_endogenous_lp_value_packet_payload_from_price_packet(
             pool_snapshots=pool_snapshots,
         )
     except (TypeError, ValueError, KeyError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     try:
         packet = SettlementEndogenousLPValuePacket.from_dict(packet_payload)
     except (TypeError, ValueError, KeyError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if packet.schema != expected.schema:
         return False, "schema mismatch"
     if packet != expected:
@@ -282,11 +287,11 @@ def verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation(
     try:
         price_attestation = SettlementSpotPriceAttestation.from_dict(price_attestation_payload)
     except (TypeError, ValueError, KeyError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     try:
         pool_snapshots = tuple(_pool_from_dict(snapshot) for snapshot in pool_snapshots_payload)
     except (TypeError, ValueError, KeyError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     try:
         expected = build_settlement_endogenous_lp_value_packet_from_price_attestation(
             settlement=settlement,
@@ -297,11 +302,11 @@ def verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation(
             allowed_signers=allowed_signers,
         )
     except (TypeError, ValueError, KeyError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     try:
         packet = SettlementEndogenousLPValuePacket.from_dict(packet_payload)
     except (TypeError, ValueError, KeyError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if packet.schema != expected.schema:
         return False, "schema mismatch"
     if packet != expected:
