@@ -79,6 +79,14 @@ def _pool(pid: str, a0: str, a1: str, r0: int, r1: int, fee_bps: int = 0) -> Poo
     )
 
 
+def test_autotrader_live_exception_error_caps_details() -> None:
+    detail = "x" * 260
+    assert (
+        autotrader_live._exception_error(RuntimeError(detail))
+        == f"RuntimeError:{detail[:200]}"
+    )
+
+
 def _single_hop_receipt(*, amount_in: int = 100, quote_epoch: int = 5) -> tuple[dict[str, PoolState], dict[str, object]]:
     pools = {"p_ab": _pool("p_ab", "A", "B", 1_000, 2_000, 10)}
     quote = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=amount_in)
@@ -1331,6 +1339,35 @@ def test_prepare_autotrader_live_degrades_when_krr_advice_raises(monkeypatch: py
     assert report.decision.tag is AutoTraderDecisionTag.SUBMIT
     assert report.krr_advice is None
     assert report.krr_advice_error == "RuntimeError:krr unavailable"
+    assert report.krr_explanation is None
+
+
+def test_prepare_autotrader_live_caps_krr_advice_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 10
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    detail = "x" * 260
+
+    def _boom(**_: object) -> dict[str, object] | None:
+        raise RuntimeError(detail)
+
+    monkeypatch.setattr(autotrader_live, "advise_autotrader_krr", _boom)
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.SUBMIT
+    assert report.krr_advice is None
+    assert report.krr_advice_error == f"RuntimeError:{detail[:200]}"
     assert report.krr_explanation is None
 
 

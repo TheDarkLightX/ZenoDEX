@@ -144,6 +144,18 @@ from .tau_witness import (
 )
 
 _U32_MAX = 0xFFFFFFFF
+_MAX_EXCEPTION_DETAIL_LEN = 200
+
+
+def _exception_error(exc: BaseException) -> str:
+    detail = " ".join(str(exc).strip().split())
+    if len(detail) > _MAX_EXCEPTION_DETAIL_LEN:
+        detail = detail[:_MAX_EXCEPTION_DETAIL_LEN]
+    return f"{type(exc).__name__}:{detail}"
+
+
+def _exception_reason(prefix: str, exc: BaseException) -> str:
+    return f"{prefix}:{_exception_error(exc)}"
 
 
 @dataclass(frozen=True)
@@ -254,7 +266,7 @@ def _finalize_live_report(**kwargs: Any) -> AutoTraderLiveReport:
     except Exception as exc:
         report = replace(
             report,
-            stage_certificate_error=f"{type(exc).__name__}:{exc}",
+            stage_certificate_error=_exception_error(exc),
         )
     else:
         report = replace(
@@ -269,7 +281,7 @@ def _finalize_live_report(**kwargs: Any) -> AutoTraderLiveReport:
     except Exception as exc:
         return replace(
             report,
-            live_release_certificate_error=f"{type(exc).__name__}:{exc}",
+            live_release_certificate_error=_exception_error(exc),
         )
     return replace(
         report,
@@ -306,7 +318,7 @@ def _safe_advise_autotrader_krr(**kwargs: Any) -> tuple[dict[str, Any] | None, s
     try:
         return advise_autotrader_krr(**kwargs), None
     except Exception as exc:
-        return None, f"{type(exc).__name__}:{exc}"
+        return None, _exception_error(exc)
 
 
 def _build_krr_explanation(krr_advice: Mapping[str, Any] | None) -> dict[str, Any] | None:
@@ -842,7 +854,7 @@ def _verify_nonce_tau_receipt(
             timeout_s=config.timeout_s,
         )
     except Exception as exc:
-        return f"nonce_tau_runner_error:{type(exc).__name__}:{exc}"
+        return _exception_reason("nonce_tau_runner_error", exc)
     tau_gate_value = outputs.get(0, {}).get(receipt.gate_output)
     if tau_gate_value is None:
         return f"nonce_tau_missing_output:{receipt.gate_output}"
@@ -914,7 +926,7 @@ def _verify_tx_envelope_tau_receipt(
             timeout_s=config.timeout_s,
         )
     except Exception as exc:
-        return f"tx_envelope_tau_runner_error:{type(exc).__name__}:{exc}"
+        return _exception_reason("tx_envelope_tau_runner_error", exc)
     tau_gate_value = outputs.get(0, {}).get(receipt.gate_output)
     if tau_gate_value is None:
         return f"tx_envelope_tau_missing_output:{receipt.gate_output}"
@@ -940,7 +952,7 @@ def _verify_boolean_tau_receipt(
             timeout_s=config.timeout_s,
         )
     except Exception as exc:
-        return f"{error_prefix}_runner_error:{type(exc).__name__}:{exc}"
+        return _exception_reason(f"{error_prefix}_runner_error", exc)
     tau_gate_value = outputs.get(0, {}).get(receipt.gate_output)
     if tau_gate_value is None:
         return f"{error_prefix}_missing_output:{receipt.gate_output}"
@@ -1084,7 +1096,7 @@ def _build_bounded_multiaction_live_sidecar(
     except Exception as exc:
         result["decision_witness_contract"] = {
             "ok": False,
-            "error": f"{type(exc).__name__}:{exc}",
+            "error": _exception_error(exc),
             "frontier_unambiguous": True,
         }
     if tau_config is not None and tau_config.enabled:
@@ -1212,7 +1224,7 @@ def _verify_external_signal_source_registry_tau_receipt(
         return (
             "external_signal_source_registry_tau_runner_error:"
             f"signal_id={receipt.signal_id},source_id={receipt.source_id},"
-            f"{type(exc).__name__}:{exc}"
+            f"{_exception_error(exc)}"
         )
     tau_gate_value = outputs.get(0, {}).get(receipt.gate_output)
     if tau_gate_value is None:
@@ -2034,7 +2046,7 @@ def prepare_autotrader_live_quote_receipt(
         )
     except Exception as exc:
         observation_packet = None
-        observation_packet_error = f"{type(exc).__name__}:{exc}"
+        observation_packet_error = _exception_error(exc)
         if external_signals:
             source_registry_ok = False
     else:
@@ -2405,7 +2417,7 @@ def prepare_autotrader_live_quote_receipt(
                 tau_enabled=resolved_tau_config.enabled,
             )
         except Exception as exc:
-            packet_error = f"{type(exc).__name__}:{exc}"
+            packet_error = _exception_error(exc)
             reject = _reject(
                 state=controller_state,
                 reason=f"observation_packet_build_failed:{packet_error}",
