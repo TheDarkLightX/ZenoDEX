@@ -38,6 +38,15 @@ def test_proof_verifier_config_rejects_malformed_numeric_limits(monkeypatch) -> 
         live_proof_wrapper.proof_verifier_config_from_env(env_prefix="PERPS_WALLET")
 
 
+def test_proof_verifier_config_rejects_malformed_command_json_with_env_name(monkeypatch) -> None:
+    from src.integration import live_proof_wrapper
+
+    monkeypatch.setenv("PERPS_WALLET_PROOF_VERIFIER_CMD_JSON", "not-json")
+
+    with pytest.raises(ValueError, match="PERPS_WALLET_PROOF_VERIFIER_CMD_JSON must be valid JSON"):
+        live_proof_wrapper.proof_verifier_config_from_env(env_prefix="PERPS_WALLET")
+
+
 def test_proof_verifier_config_rejects_malformed_allow_path_lookup(monkeypatch) -> None:
     from src.integration import live_proof_wrapper
 

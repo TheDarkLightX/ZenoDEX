@@ -76,7 +76,10 @@ def _first_env(names: Sequence[str]) -> str:
 def _parse_cmd_json(raw: str, *, name: str) -> list[str] | None:
     if not raw:
         return None
-    obj = json.loads(raw)
+    try:
+        obj = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError(f"{name} must be valid JSON") from exc
     if not isinstance(obj, list) or not obj:
         raise ValueError(f"{name} must be a non-empty JSON array")
     cmd: list[str] = []
