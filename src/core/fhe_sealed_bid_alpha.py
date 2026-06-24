@@ -294,7 +294,7 @@ def verify_fhe_sealed_bid_alpha_plan(
             )
             for item in cipher_bids_raw
         )
-    except Exception as exc:
+    except (TypeError, ValueError, AttributeError) as exc:
         return False, str(exc)
     if len(cipher_bids) == 0 or len(cipher_bids) > MAX_ALPHA_BIDS:
         return False, "cipher_bid_count_out_of_range"
@@ -311,14 +311,14 @@ def verify_fhe_sealed_bid_alpha_plan(
         sort_layers = int(budget.get("sort_layers"))
         estimated_hcu = int(budget.get("estimated_hcu"))
         estimated_depth_hcu = int(budget.get("estimated_depth_hcu"))
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return False, "bad_budget_numeric"
 
     if bid_count != len(cipher_bids):
         return False, "budget_bid_count_mismatch"
     try:
         expected = estimate_fhe_uniform_price_ops(bid_count=bid_count, decrypt_outputs=decrypt_outputs)
-    except Exception as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         return False, str(exc)
     if compare_ops != expected.compare_ops:
         return False, "compare_ops_mismatch"
@@ -345,7 +345,7 @@ def verify_fhe_sealed_bid_alpha_plan(
         clearing_price = int(result.get("clearing_price"))
         total_filled = int(result.get("total_filled"))
         fill_count = int(result.get("fill_count"))
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return False, "bad_public_result_numeric"
     if units_for_sale <= 0 or units_for_sale > MAX_ALPHA_UNITS:
         return False, "units_for_sale_out_of_range"
@@ -383,7 +383,7 @@ def verify_fhe_sealed_bid_alpha_plan(
         try:
             filled_quantity = int(fill.get("filled_quantity"))
             paid_price = int(fill.get("paid_price"))
-        except Exception:
+        except (TypeError, ValueError, OverflowError):
             return False, "bad_fill_numeric"
         if filled_quantity <= 0 or filled_quantity > MAX_ALPHA_UNITS:
             return False, "filled_quantity_out_of_range"
@@ -397,7 +397,7 @@ def verify_fhe_sealed_bid_alpha_plan(
         return False, "unauthenticated_public_result"
     try:
         plain_bids = tuple(trusted_plain_bids)
-    except Exception:
+    except TypeError:
         return False, "bad_trusted_plain_bids"
     if len(plain_bids) != len(cipher_bids):
         return False, "trusted_plain_bid_count_mismatch"
@@ -411,7 +411,7 @@ def verify_fhe_sealed_bid_alpha_plan(
             if not isinstance(bid.limit_price, int) or isinstance(bid.limit_price, bool) or bid.limit_price <= 0 or bid.limit_price > MAX_PRICE:
                 return False, "trusted_plain_price_out_of_range"
         expected_settlement = settle_uniform_price_sealed_bids(units_for_sale=units_for_sale, bids=plain_bids)
-    except Exception:
+    except (TypeError, ValueError, OverflowError, AttributeError):
         return False, "bad_trusted_plain_bids"
     expected_public_result = _settlement_to_public_result(
         settlement=expected_settlement,
