@@ -104,6 +104,28 @@ def test_status_account_aware_zero_for_unknown_account(monkeypatch) -> None:
     assert payload["status"]["account_view"]["balance"] == 0
 
 
+def test_status_sanitizes_internal_node_fault(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_TAU_WALLET_CHAIN_ID", "tau-test-wallet")
+
+    class _FaultingClient(_FakeClient):
+        def getappstate(self, *, full: bool = False) -> str:
+            raise RuntimeError("do not leak wallet status internals")
+
+    monkeypatch.setattr(wallet_api, "TauNetTcpClient", _FaultingClient)
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "GET",
+        "/api/zusd/wallet/status",
+        None,
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["status"]["node_reachable"] is False
+    assert payload["status"]["error"] == "internal error: RuntimeError"
+    assert "do not leak" not in str(payload)
+
+
 def test_status_without_account_omits_account_view(monkeypatch) -> None:
     monkeypatch.setenv("ZUSD_TAU_WALLET_CHAIN_ID", "tau-test-wallet")
     monkeypatch.setattr(wallet_api, "TauNetTcpClient", _FakeClient)
@@ -222,6 +244,35 @@ def test_prepare_transfer_uses_tau_app_state_balances_and_nonce(monkeypatch) -> 
     assert report["recipient_balance_after"] == 150
     assert report["supply_after"] == 450
     assert report["tau_tx_payload"] is None
+
+
+def test_prepare_sanitizes_internal_operation_fault(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_TAU_WALLET_CHAIN_ID", "tau-test-wallet")
+    monkeypatch.setattr(wallet_api, "TauNetTcpClient", _FakeClient)
+
+    def _faulting_prepare(**_kwargs):
+        raise RuntimeError("do not leak wallet prepare internals")
+
+    monkeypatch.setattr(wallet_api, "prepare_zusd_tau_token_operation", _faulting_prepare)
+
+    body = {
+        "action": "transfer",
+        "sender_pubkey": SENDER,
+        "recipient_pubkey": RECIPIENT,
+        "amount": 100,
+        "deadline": 123456789,
+    }
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 500
+    assert payload["ok"] is False
+    assert payload["error"] == "internal_error"
+    assert payload["detail"] == "RuntimeError"
+    assert "do not leak" not in str(payload)
 
 
 def test_prepare_burn_uses_tau_app_state_balances_and_nonce(monkeypatch) -> None:

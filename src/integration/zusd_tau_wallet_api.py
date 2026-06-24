@@ -302,6 +302,19 @@ def _redacted_tau_tx_payload(payload: Any) -> Any:
     return redacted
 
 
+def _safe_boundary_error(exc: Exception) -> str:
+    if isinstance(exc, (ValueError, TypeError, KeyError, TauNetRpcError)):
+        msg = str(exc)
+    else:
+        msg = f"internal error: {type(exc).__name__}"
+    msg = " ".join((msg or "").split())
+    return msg or "internal error"
+
+
+def _safe_internal_detail(exc: Exception) -> str:
+    return type(exc).__name__
+
+
 def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dict[str, Any]:
     action = _request_action(body)
     amount = _request_int(body, name="amount", default=None)
@@ -326,7 +339,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     chain_id = str(body.get("chain_id") or _tau_chain_id())
     explicit_asset_id = body.get("asset_id")
     asset_id = (
-        canonical_hex_fixed_allow_0x(cast(str, explicit_asset_id), nbytes=32, name="asset_id")
+        canonical_hex_fixed_allow_0x(explicit_asset_id, nbytes=32, name="asset_id")
         if isinstance(explicit_asset_id, str) and explicit_asset_id.strip()
         else derive_zusd_tau_asset_id(chain_id=chain_id)
     )
@@ -405,11 +418,12 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     }
     if for_submit:
         send_resp = client.sendtx(cast(Mapping[str, Any], report.tau_tx_payload))
-        payload["submission"] = {
+        submission: dict[str, Any] = {
             "sendtx_response": send_resp,
         }
         if _auto_mine():
-            payload["submission"]["createblock_response"] = client.createblock()
+            submission["createblock_response"] = client.createblock()
+        payload["submission"] = submission
         app_state_after, app_hash_after = _load_app_state(client)
         payload["post_submit"] = {
             "app_hash": app_hash_after,
@@ -452,7 +466,7 @@ def _status_payload(account: str | None = None) -> Dict[str, Any]:
             }
     except Exception as exc:
         status["node_reachable"] = False
-        status["error"] = f"{type(exc).__name__}: {exc}"
+        status["error"] = _safe_boundary_error(exc)
     return status
 
 
@@ -487,7 +501,7 @@ def handle_zusd_tau_wallet_request(method: str, path: str, body: Optional[bytes]
             chain_id = str(parsed.get("chain_id") or _tau_chain_id())
             explicit_asset_id = parsed.get("asset_id")
             asset_id = (
-                canonical_hex_fixed_allow_0x(cast(str, explicit_asset_id), nbytes=32, name="asset_id")
+                canonical_hex_fixed_allow_0x(explicit_asset_id, nbytes=32, name="asset_id")
                 if isinstance(explicit_asset_id, str) and explicit_asset_id.strip()
                 else derive_zusd_tau_asset_id(chain_id=chain_id)
             )
@@ -510,4 +524,4 @@ def handle_zusd_tau_wallet_request(method: str, path: str, body: Optional[bytes]
     except TauNetRpcError as exc:
         return 502, {"ok": False, "error": "tau_rpc_error", "detail": str(exc)}
     except Exception as exc:
-        return 500, {"ok": False, "error": "internal_error", "detail": f"{type(exc).__name__}: {exc}"}
+        return 500, {"ok": False, "error": "internal_error", "detail": _safe_internal_detail(exc)}
