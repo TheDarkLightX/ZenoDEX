@@ -1303,6 +1303,27 @@ def test_perps_wallet_authority_missing_profile_is_blocked() -> None:
     assert status["readiness_gaps"] == ["perps wallet authority profile is missing"]
 
 
+def test_perps_wallet_boundary_errors_are_capped_and_internal_faults_hidden(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    detail = "x" * 700
+
+    assert perps_wallet_api._safe_boundary_error(ValueError(detail)) == detail[:512]
+    assert perps_wallet_api._safe_boundary_error(RuntimeError("secret " + detail)) == "internal error: RuntimeError"
+
+    def faulting_recipient_keys(_raw: Mapping[str, object]) -> dict[str, bytes]:
+        raise ValueError(detail)
+
+    monkeypatch.setenv("PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_JSON", "{}")
+    monkeypatch.delenv("PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_FILE", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "recipient_root_keys_from_fixture_v1", faulting_recipient_keys)
+
+    keys, err = perps_wallet_api._wallet_encrypted_sss_recipient_keys_from_env()
+
+    assert keys is None
+    assert err == "perps wallet encrypted SSS recipient keys invalid: " + detail[:512]
+
+
 def test_perps_wallet_authority_complete_profile_is_ready() -> None:
     profile = _perps_wallet_authority_profile()
     status = evaluate_perps_wallet_authority_profile_v1(profile, expected_chain_id=CHAIN_ID)

@@ -87,6 +87,7 @@ from .zusd_tau_token import derive_zusd_tau_asset_id
 
 
 MAX_POST_BODY = 65_536
+MAX_BOUNDARY_ERROR_CHARS = 512
 ResponseT = Tuple[int, Dict[str, Any]]
 _STREAM_KEY = "8"
 _ENGINE_STREAM_KEY = "5"
@@ -202,7 +203,7 @@ def _wallet_authority_profile_from_env() -> tuple[Mapping[str, Any] | None, str 
         try:
             obj = json.loads(raw)
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-            return None, f"perps wallet authority profile JSON invalid: {exc}"
+            return None, f"perps wallet authority profile JSON invalid: {_safe_boundary_error(exc)}"
         if not isinstance(obj, Mapping):
             return None, "perps wallet authority profile JSON must be an object"
         return obj, None
@@ -212,7 +213,7 @@ def _wallet_authority_profile_from_env() -> tuple[Mapping[str, Any] | None, str 
         try:
             obj = json.loads(Path(path_raw).read_text(encoding="utf-8"))
         except Exception as exc:
-            return None, f"perps wallet authority profile file invalid: {exc}"
+            return None, f"perps wallet authority profile file invalid: {_safe_boundary_error(exc)}"
         if not isinstance(obj, Mapping):
             return None, "perps wallet authority profile file must contain an object"
         return obj, None
@@ -287,7 +288,7 @@ def _wallet_encrypted_sss_recipient_keys_from_env() -> tuple[dict[str, bytes] | 
     try:
         return recipient_root_keys_from_fixture_v1(raw), None
     except Exception as exc:
-        return None, f"perps wallet encrypted SSS recipient keys invalid: {exc}"
+        return None, f"perps wallet encrypted SSS recipient keys invalid: {_safe_boundary_error(exc)}"
 
 
 def _provider_delivery_mode(envelope: Mapping[str, Any]) -> str:
@@ -762,7 +763,7 @@ def _json_profile_from_env(
         try:
             obj = json.loads(raw)
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-            return None, f"{label} JSON invalid from {name}: {exc}"
+            return None, f"{label} JSON invalid from {name}: {_safe_boundary_error(exc)}"
         if not isinstance(obj, Mapping):
             return None, f"{label} JSON from {name} must be an object"
         return obj, None
@@ -774,7 +775,7 @@ def _json_profile_from_env(
         try:
             obj = json.loads(Path(path_raw).read_text(encoding="utf-8"))
         except Exception as exc:
-            return None, f"{label} file invalid from {name}: {exc}"
+            return None, f"{label} file invalid from {name}: {_safe_boundary_error(exc)}"
         if not isinstance(obj, Mapping):
             return None, f"{label} file from {name} must contain an object"
         return obj, None
@@ -2106,6 +2107,8 @@ def _safe_boundary_error(exc: Exception) -> str:
     else:
         msg = f"internal error: {type(exc).__name__}"
     msg = " ".join((msg or "").split())
+    if len(msg) > MAX_BOUNDARY_ERROR_CHARS:
+        msg = msg[:MAX_BOUNDARY_ERROR_CHARS]
     return msg or "internal error"
 
 
