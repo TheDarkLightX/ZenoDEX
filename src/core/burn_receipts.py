@@ -14,7 +14,7 @@ host flags in the receipt body.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, cast
 
 from ..runtime.authority import AuthorityMode, active_mode, decide
 from ..runtime.rust_invoker import burn_rails_verify, canonical_domain_json_hash
@@ -218,16 +218,22 @@ def make_burn_receipt(
     return {"body": body, "receipt_hash": burn_receipt_hash(body)}
 
 
-def verify_burn_receipt(receipt: Dict[str, Any]) -> Tuple[bool, str]:
+def _coerce_numeric_field(value: Any) -> int:
+    return int(value)
+
+
+def verify_burn_receipt(receipt: object) -> Tuple[bool, str]:
     if not isinstance(receipt, dict):
         return False, "bad_receipt_type"
-    body = receipt.get("body")
+    receipt_obj = cast(Dict[str, Any], receipt)
+    body = receipt_obj.get("body")
     if not isinstance(body, dict):
         return False, "missing_body"
+    body = cast(Dict[str, Any], body)
     if body.get("schema") != "zenodex/burn_receipt/v1":
         return False, "bad_schema"
 
-    want_hash = receipt.get("receipt_hash")
+    want_hash = receipt_obj.get("receipt_hash")
     if not isinstance(want_hash, str) or not want_hash:
         return False, "missing_receipt_hash"
     if burn_receipt_hash(body) != want_hash:
@@ -244,20 +250,22 @@ def verify_burn_receipt(receipt: Dict[str, Any]) -> Tuple[bool, str]:
         return False, "bad_host"
     if not isinstance(accounting, dict):
         return False, "bad_accounting"
+    host = cast(Dict[str, Any], host)
+    accounting = cast(Dict[str, Any], accounting)
 
     try:
-        do_burn = int(host.get("do_burn"))
-        receipt_bound = int(host.get("receipt_bound"))
-        nullifier_unused = int(host.get("nullifier_unused"))
-        policy_ok = int(host.get("policy_ok"))
-        burn_amount = int(accounting.get("burn_amount"))
-        receipt_amount = int(accounting.get("receipt_amount"))
-        burn_budget = int(accounting.get("burn_budget"))
-        supply_before = int(accounting.get("supply_before"))
-        supply_after = int(accounting.get("supply_after"))
-        batch_burn_sum_before = int(accounting.get("batch_burn_sum_before"))
-        batch_burn_sum_after = int(accounting.get("batch_burn_sum_after"))
-    except Exception:
+        do_burn = _coerce_numeric_field(host.get("do_burn"))
+        receipt_bound = _coerce_numeric_field(host.get("receipt_bound"))
+        nullifier_unused = _coerce_numeric_field(host.get("nullifier_unused"))
+        policy_ok = _coerce_numeric_field(host.get("policy_ok"))
+        burn_amount = _coerce_numeric_field(accounting.get("burn_amount"))
+        receipt_amount = _coerce_numeric_field(accounting.get("receipt_amount"))
+        burn_budget = _coerce_numeric_field(accounting.get("burn_budget"))
+        supply_before = _coerce_numeric_field(accounting.get("supply_before"))
+        supply_after = _coerce_numeric_field(accounting.get("supply_after"))
+        batch_burn_sum_before = _coerce_numeric_field(accounting.get("batch_burn_sum_before"))
+        batch_burn_sum_after = _coerce_numeric_field(accounting.get("batch_burn_sum_after"))
+    except (TypeError, ValueError, OverflowError):
         return False, "bad_numeric_field"
 
     return _verify_burn_rails_authority(

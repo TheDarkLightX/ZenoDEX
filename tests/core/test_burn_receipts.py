@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+import src.core.burn_receipts as burn_receipts
 from src.core.burn_receipts import burn_receipt_hash, make_burn_receipt, verify_burn_receipt
 
 
@@ -56,6 +59,27 @@ def test_burn_receipt_amount_mismatch_rejected_after_rehash() -> None:
     ok, err = verify_burn_receipt(receipt)
     assert not ok
     assert err == "amount_guard_failed"
+
+
+def test_burn_receipt_bad_numeric_field_rejected_after_rehash() -> None:
+    receipt = _make_valid_receipt()
+    receipt["body"]["accounting"]["burn_amount"] = "not-an-int"
+    receipt["receipt_hash"] = burn_receipt_hash(receipt["body"])
+
+    ok, err = verify_burn_receipt(receipt)
+
+    assert ok is False
+    assert err == "bad_numeric_field"
+
+
+def test_burn_receipt_surfaces_numeric_coercion_implementation_fault(monkeypatch) -> None:
+    def fail_coerce(_value):
+        raise RuntimeError("numeric coercion bug")
+
+    monkeypatch.setattr(burn_receipts, "_coerce_numeric_field", fail_coerce)
+
+    with pytest.raises(RuntimeError, match="numeric coercion bug"):
+        verify_burn_receipt(_make_valid_receipt())
 
 
 def test_burn_receipt_no_burn_path_preserves_state() -> None:
