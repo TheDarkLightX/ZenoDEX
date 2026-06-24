@@ -516,9 +516,13 @@ class SocialRecoveryCoordinatorV1:
         policy = self._policies.get(
             proposal.get("policy_id", "") if isinstance(proposal, Mapping) else ""
         )
+        stored_proposal = self._proposals.get(proposal_hash)
         if policy is not None:
-            stored_proposal = self._proposals.get(proposal_hash)
             if stored_proposal is not None:
+                if stored_proposal.status == PROPOSAL_STATUS_EXECUTED:
+                    errors.append("proposal already executed")
+                elif stored_proposal.status != PROPOSAL_STATUS_PENDING:
+                    errors.append(f"proposal status is {stored_proposal.status}")
                 requested_at = stored_proposal.body.get("requested_at_epoch", 0)
             else:
                 errors.append("proposal not found in stored proposals — cannot verify delay")
@@ -527,11 +531,10 @@ class SocialRecoveryCoordinatorV1:
                 errors.append("recovery delay period not elapsed")
         if not errors:
             executed = True
-            stored = self._proposals.get(proposal_hash)
-            if stored is not None:
-                stored.status = PROPOSAL_STATUS_EXECUTED
-                stored.quorum_report = quorum_report
-                stored.guardian_envelopes = [dict(e) for e in envelopes]
+            if stored_proposal is not None:
+                stored_proposal.status = PROPOSAL_STATUS_EXECUTED
+                stored_proposal.quorum_report = quorum_report
+                stored_proposal.guardian_envelopes = [dict(e) for e in envelopes]
         execution_claim = (
             bool(executed)
             and bool(quorum_report.get("production_security_claim"))

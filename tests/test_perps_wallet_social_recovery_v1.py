@@ -134,6 +134,12 @@ def test_recovery_execution_with_sufficient_quorum() -> None:
     assert result["quorum_report"]["quorum_met"] is True
     assert result["quorum_report"]["aggregate_verified"] is True
 
+    replay = coord.execute_recovery(
+        proposal=proposal, envelopes=[env_a, env_b], current_epoch=10,
+    )
+    assert replay["executed"] is False
+    assert "proposal already executed" in replay["errors"]
+
 
 # -- Recovery rejection with insufficient quorum ------------------------------
 
