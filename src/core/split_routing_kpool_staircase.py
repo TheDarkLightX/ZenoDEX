@@ -241,14 +241,14 @@ def _pool_jump_points_bounded(
         return candidates
 
 
-def _estimate_breakpoint_sparsity(
+def _estimate_breakpoint_count(
     pool: _PoolLike,
     amount_in_total: int,
-) -> float:
-    """Cheap analytical estimate of breakpoint density (no quotes).
+) -> int:
+    """Cheap analytical estimate of breakpoint count (no quotes, integer-only).
 
-    Returns the estimated fraction of [1..D] that are jump points. A value near
-    1.0 means dense (every integer is a breakpoint); near 0.0 means sparse.
+    Returns the estimated number of jump points in [1..D]. A value near D
+    means dense (every integer is a breakpoint); near 0 means sparse.
 
     For CPMM with output floor(y*net/(x+net)), the output increases by 1 each
     time net crosses roughly (x+net)^2/(y) in marginal input. The number of
@@ -257,21 +257,19 @@ def _estimate_breakpoint_sparsity(
     sparse; when x is small, they are dense.
 
     This is a heuristic for the adaptive fallback decision only; the exact
-    decision uses bounded enumeration.
+    decision uses bounded enumeration. All arithmetic is integer to preserve
+    the repo's no-float invariant on the deterministic core path.
     """
     alpha = int(BPS_DENOM) - int(pool.fee_bps)
     if alpha <= 0 or int(pool.x) <= 0 or int(pool.y) <= 0:
-        return 1.0
+        return int(amount_in_total)
     # Approximate number of output levels reachable: y * net_max / (x + net_max)
     # where net_max = D * alpha / BPS.
     net_max = (int(amount_in_total) * alpha) // int(BPS_DENOM)
     if net_max <= 0:
-        return 0.0
+        return 0
     est_output_levels = (int(pool.y) * net_max) // (int(pool.x) + net_max)
-    est_breakpoints = min(int(est_output_levels), int(amount_in_total))
-    if int(amount_in_total) <= 0:
-        return 1.0
-    return float(est_breakpoints) / float(int(amount_in_total))
+    return min(int(est_output_levels), int(amount_in_total))
 
 
 def _build_jump_points(request: _KPoolStaircaseRequest) -> dict[_PoolId, list[tuple[int, int]]]:
@@ -713,7 +711,7 @@ def best_k_pool_exact_in_split(
     # the cumulative total is still below threshold.
     if small_domain_dp_fn is not None:
         est_total = sum(
-            int(_estimate_breakpoint_sparsity(spec.pool, int(amount_total)) * int(amount_total))
+            _estimate_breakpoint_count(spec.pool, int(amount_total))
             for spec in pool_specs
         )
         # If estimated total breakpoints already exceed the threshold, the

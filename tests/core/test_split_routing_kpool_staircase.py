@@ -531,27 +531,47 @@ def test_kpool_staircase_raises_on_drift_no_fallback() -> None:
 def test_kpool_adaptive_falls_back_on_drift() -> None:
     """Adaptive entry point must fall back to small-domain DP on drift.
 
-    Uses sparse pools (skewed reserves, zero fee) so the Phase 1 density
-    estimate is below threshold and enumeration runs. The drift quote then
-    raises ValueError during enumeration, triggering the fallback path.
+    Uses two pools with different sparsity:
+    - pool-a: x=8000, y=100 (very sparse, est=0, gross_in_level1=81 > 50)
+    - pool-b: x=500, y=200 (moderate, est=27, produces output for amounts <= 50)
+
+    With k=2, D=80: threshold = 40, est_total = 0 + 27 = 27 < 40, so Phase 1
+    does NOT fall back early. Enumeration runs. pool-a's first jump point has
+    gross_in=81 > 50, so the pool-specific drift quote raises ValueError.
+    The adaptive entry point catches this and falls back to the small-domain DP.
+
+    The drift quote is pool-specific: only drifts on pool-a (x > 5000),
+    works normally for pool-b. This lets the DP find a feasible allocation
+    through pool-b.
 
     The result must match the small-domain DP run directly with a
     None-returning quote wrapper (so the DP sees the same feasible set).
     """
     pools = [
-        ("pool-a", PoolXY(x=1, y=100_000, fee_bps=0)),
-        ("pool-b", PoolXY(x=100_000, y=100_000, fee_bps=0)),
+        ("pool-a", PoolXY(x=8000, y=100, fee_bps=0)),
+        ("pool-b", PoolXY(x=500, y=200, fee_bps=0)),
     ]
     specs = [_spec(pid, p, 1) for pid, p in pools]
     pools_dict = {pid: p for pid, p in pools}
     min_valids = {pid: 1 for pid, _ in pools}
+
+    # Track whether the drift quote was called with amount > 50 on pool-a.
+    drift_calls = {"above_50": 0}
+
+    def drift_quote_pool_specific(pool: PoolXY, amount: int) -> int:
+        # Only drift on the sparse pool (pool-a, x > 5000).
+        if int(pool.x) > 5000 and int(amount) > 50:
+            drift_calls["above_50"] += 1
+            raise ValueError("drift: amount exceeds quotable range for sparse pool")
+        return int(exact_out_for_pool_exact_in(pool, int(amount)))
 
     def quote_for_pid(pool_id: str, amount: int) -> int | None:
         if int(amount) < int(min_valids[pool_id]):
             return None
         if int(amount) <= 0:
             return 0
-        if int(amount) > 50:
+        # pool-a caps at 50 (matching the drift quote's rejection).
+        if pool_id == "pool-a" and int(amount) > 50:
             return None
         try:
             return int(exact_out_for_pool_exact_in(pools_dict[pool_id], int(amount)))
@@ -572,8 +592,11 @@ def test_kpool_adaptive_falls_back_on_drift() -> None:
         pool_specs=specs,
         amount_in_total=80,
         max_legs=2,
-        quote_exact_in=_drift_quote,
+        quote_exact_in=drift_quote_pool_specific,
         small_domain_dp_fn=_small_dp_fn,
     )
+    # The drift quote must have been called with amount > 50 on pool-a (proving
+    # the enumeration branch ran, not the Phase 1 density fallback).
+    assert drift_calls["above_50"] > 0, "drift quote was never called with amount > 50; Phase 1 fallback short-circuited"
     # The result must match the direct small-domain DP result.
     assert result == small_dp_result
