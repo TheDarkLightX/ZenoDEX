@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+import src.integration.settlement_price_provenance as price_provenance
 from src.integration.settlement_price_provenance import (
     SettlementSpotPriceEntry,
     asset_prices_from_spot_price_packet,
@@ -94,3 +97,81 @@ def test_settlement_spot_price_packet_rejects_tampering() -> None:
     ok, err = verify_settlement_spot_price_packet_payload(packet)
     assert ok is False
     assert err == "settlement spot price packet mismatch"
+
+
+def test_settlement_spot_price_packet_rejects_nonserializable_sync_payload() -> None:
+    packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset="A", price=100, observed_epoch=95, age_epochs=5, source_id="local:a"),
+            SettlementSpotPriceEntry(asset="B", price=120, observed_epoch=97, age_epochs=3, source_id="local:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+        cross_module_sync_required=False,
+    ).to_dict()
+    packet["cross_module_sync_contract"] = {"bad": object()}
+
+    ok, err = verify_settlement_spot_price_packet_payload(packet)
+
+    assert ok is False
+    assert err is not None
+    assert "not JSON serializable" in err
+
+
+def test_settlement_spot_price_packet_rejects_expected_builder_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset="A", price=100, observed_epoch=95, age_epochs=5, source_id="local:a"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    price_provenance._PRICE_PACKET_VERIFY_CACHE.clear()
+
+    def reject_builder(**_: object) -> price_provenance.SettlementSpotPricePacket:
+        raise ValueError("expected builder reject")
+
+    monkeypatch.setattr(price_provenance, "build_settlement_spot_price_packet", reject_builder)
+
+    ok, err = price_provenance.verify_settlement_spot_price_packet(packet=packet)
+
+    assert ok is False
+    assert err == "expected builder reject"
+
+
+def test_settlement_spot_price_packet_surfaces_unexpected_builder_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset="A", price=100, observed_epoch=95, age_epochs=5, source_id="local:a"),
+        ),
+        now_epoch=101,
+        max_staleness_epochs=10,
+    )
+    price_provenance._PRICE_PACKET_VERIFY_CACHE.clear()
+
+    def fail_builder(**_: object) -> price_provenance.SettlementSpotPricePacket:
+        raise RuntimeError("unexpected builder fault")
+
+    monkeypatch.setattr(price_provenance, "build_settlement_spot_price_packet", fail_builder)
+
+    with pytest.raises(RuntimeError, match="unexpected builder fault"):
+        price_provenance.verify_settlement_spot_price_packet(packet=packet)
+
+
+def test_settlement_spot_price_packet_payload_surfaces_unexpected_parse_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_from_dict(
+        cls: type[price_provenance.SettlementSpotPricePacket],
+        payload: object,
+    ) -> price_provenance.SettlementSpotPricePacket:
+        raise RuntimeError("unexpected packet parse fault")
+
+    monkeypatch.setattr(
+        price_provenance.SettlementSpotPricePacket,
+        "from_dict",
+        classmethod(fail_from_dict),
+    )
+
+    with pytest.raises(RuntimeError, match="unexpected packet parse fault"):
+        verify_settlement_spot_price_packet_payload({})

@@ -4,6 +4,7 @@ import importlib.util
 
 import pytest
 
+import src.integration.settlement_price_attestation as price_attestation
 from src.integration.settlement_price_attestation import (
     build_settlement_spot_price_attestation,
     verify_settlement_spot_price_attestation,
@@ -107,3 +108,100 @@ def test_settlement_spot_price_attestation_rejects_tampering() -> None:
     )
     assert ok is False
     assert err == "packet_hash mismatch"
+
+
+def test_settlement_spot_price_attestation_rejects_expected_allowlist_error() -> None:
+    packet = _packet()
+    attestation = build_settlement_spot_price_attestation(
+        packet=packet,
+        signer_privkey=7,
+    )
+
+    ok, err = verify_settlement_spot_price_attestation(
+        attestation=attestation,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        allowed_signers={"not-a-pubkey": ["oracle:a", "oracle:b"]},
+    )
+
+    assert ok is False
+    assert err is not None
+    assert "allowed_signer_pubkey" in err
+
+
+def test_settlement_spot_price_attestation_rejects_expected_crypto_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _packet()
+    attestation = build_settlement_spot_price_attestation(
+        packet=packet,
+        signer_privkey=7,
+    )
+    price_attestation._PRICE_ATTESTATION_VERIFY_CACHE.clear()
+
+    class RejectingBls:
+        @staticmethod
+        def Verify(pubkey: bytes, message: bytes, signature: bytes) -> bool:
+            raise ValueError("expected crypto reject")
+
+    monkeypatch.setattr(price_attestation, "_require_bls", lambda: RejectingBls)
+
+    ok, err = verify_settlement_spot_price_attestation(
+        attestation=attestation,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+    )
+
+    assert ok is False
+    assert err == "settlement spot price attestation verification error: expected crypto reject"
+
+
+def test_settlement_spot_price_attestation_surfaces_unexpected_crypto_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _packet()
+    attestation = build_settlement_spot_price_attestation(
+        packet=packet,
+        signer_privkey=7,
+    )
+    price_attestation._PRICE_ATTESTATION_VERIFY_CACHE.clear()
+
+    class FaultingBls:
+        @staticmethod
+        def Verify(pubkey: bytes, message: bytes, signature: bytes) -> bool:
+            raise RuntimeError("unexpected crypto fault")
+
+    monkeypatch.setattr(price_attestation, "_require_bls", lambda: FaultingBls)
+
+    with pytest.raises(RuntimeError, match="unexpected crypto fault"):
+        verify_settlement_spot_price_attestation(
+            attestation=attestation,
+            consumer_now_epoch=103,
+            max_attestation_age_epochs=5,
+            allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        )
+
+
+def test_settlement_spot_price_attestation_payload_surfaces_unexpected_parse_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_from_dict(
+        cls: type[price_attestation.SettlementSpotPriceAttestation],
+        payload: object,
+    ) -> price_attestation.SettlementSpotPriceAttestation:
+        raise RuntimeError("unexpected attestation parse fault")
+
+    monkeypatch.setattr(
+        price_attestation.SettlementSpotPriceAttestation,
+        "from_dict",
+        classmethod(fail_from_dict),
+    )
+
+    with pytest.raises(RuntimeError, match="unexpected attestation parse fault"):
+        verify_settlement_spot_price_attestation_payload(
+            payload={},
+            consumer_now_epoch=103,
+            max_attestation_age_epochs=5,
+            allowed_signers=None,
+        )

@@ -239,11 +239,14 @@ def build_settlement_spot_price_packet(
 
 def verify_settlement_spot_price_packet(
     *,
-    packet: SettlementSpotPricePacket,
+    packet: object,
 ) -> tuple[bool, str | None]:
     if not isinstance(packet, SettlementSpotPricePacket):
         return False, "packet must be a SettlementSpotPricePacket"
-    key = _price_packet_verify_cache_key(packet)
+    try:
+        key = _price_packet_verify_cache_key(packet)
+    except (TypeError, ValueError) as exc:
+        return False, str(exc)
     cached = _PRICE_PACKET_VERIFY_CACHE.get(key)
     if cached is not None:
         return cached
@@ -255,7 +258,7 @@ def verify_settlement_spot_price_packet(
             cross_module_sync_required=packet.cross_module_sync_required,
             cross_module_sync_contract=packet.cross_module_sync_contract,
         )
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         result = (False, str(exc))
         _cache_verify_result(_PRICE_PACKET_VERIFY_CACHE, key, result)
         return result
@@ -263,9 +266,9 @@ def verify_settlement_spot_price_packet(
         result = (False, "settlement spot price packet mismatch")
         _cache_verify_result(_PRICE_PACKET_VERIFY_CACHE, key, result)
         return result
-    result = (True, None)
-    _cache_verify_result(_PRICE_PACKET_VERIFY_CACHE, key, result)
-    return result
+    success_result: tuple[bool, str | None] = (True, None)
+    _cache_verify_result(_PRICE_PACKET_VERIFY_CACHE, key, success_result)
+    return success_result
 
 
 def verify_settlement_spot_price_packet_payload(payload: object) -> tuple[bool, str | None]:
@@ -273,7 +276,7 @@ def verify_settlement_spot_price_packet_payload(payload: object) -> tuple[bool, 
         return False, "packet payload must be a dict"
     try:
         packet = SettlementSpotPricePacket.from_dict(payload)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     return verify_settlement_spot_price_packet(packet=packet)
 

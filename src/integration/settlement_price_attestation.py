@@ -178,7 +178,10 @@ def verify_settlement_spot_price_attestation(
     if int(consumer_now_epoch) - int(attestation.signed_at_epoch) > int(max_attestation_age_epochs):
         return False, "settlement spot price attestation is stale"
 
-    normalized_allowlist = _canonical_allowed_signers(allowed_signers)
+    try:
+        normalized_allowlist = _canonical_allowed_signers(allowed_signers)
+    except (TypeError, ValueError) as exc:
+        return False, str(exc)
     cache_key = _price_attestation_verify_cache_key(
         attestation=attestation,
         consumer_now_epoch=int(consumer_now_epoch),
@@ -209,7 +212,7 @@ def verify_settlement_spot_price_attestation(
             result = (False, "settlement spot price attestation signature invalid")
             _cache_attestation_verify_result(cache_key, result)
             return result
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         result = (False, f"settlement spot price attestation verification error: {exc}")
         _cache_attestation_verify_result(cache_key, result)
         return result
@@ -227,7 +230,7 @@ def verify_settlement_spot_price_attestation_payload(
 ) -> tuple[bool, str | None]:
     try:
         attestation = SettlementSpotPriceAttestation.from_dict(payload)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     return verify_settlement_spot_price_attestation(
         attestation=attestation,
