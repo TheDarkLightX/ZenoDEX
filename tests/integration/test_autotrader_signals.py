@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+import src.integration.autotrader_signals as autotrader_signals
 from src.agents.policy_compiler import compile_policy_candidate
 from src.agents.strategy_ir import StrategyAction
 from src.core.quote_receipts import make_route_quote_receipt
@@ -225,6 +226,42 @@ def test_verify_autotrader_observation_packet_payload_rejects_tampered_summary()
     ok, error = verify_autotrader_observation_packet_payload(payload)
     assert ok is False
     assert error == "observation packet payload mismatch"
+
+
+def test_verify_autotrader_observation_packet_payload_preserves_expected_validation_error(
+    monkeypatch,
+) -> None:
+    def _bad_packet(_payload):
+        raise ValueError("observation packet shape invalid")
+
+    monkeypatch.setattr(
+        autotrader_signals,
+        "autotrader_observation_packet_from_dict",
+        _bad_packet,
+    )
+
+    ok, error = verify_autotrader_observation_packet_payload({"schema": "bad"})
+
+    assert ok is False
+    assert error == "observation packet shape invalid"
+
+
+def test_verify_autotrader_observation_packet_payload_sanitizes_unexpected_fault(
+    monkeypatch,
+) -> None:
+    def _faulting_packet(_payload):
+        raise RuntimeError("do not leak autotrader internals")
+
+    monkeypatch.setattr(
+        autotrader_signals,
+        "autotrader_observation_packet_from_dict",
+        _faulting_packet,
+    )
+
+    ok, error = verify_autotrader_observation_packet_payload({"schema": "bad"})
+
+    assert ok is False
+    assert error == "internal_error:RuntimeError"
 
 
 @pytest.mark.parametrize(

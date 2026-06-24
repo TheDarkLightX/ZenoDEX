@@ -193,6 +193,13 @@ def _require_bool(name: str, value: object) -> bool:
     return value
 
 
+def _safe_payload_error(exc: Exception) -> str:
+    if isinstance(exc, (TypeError, ValueError, KeyError)):
+        detail = " ".join(str(exc).split())
+        return detail[:200] or type(exc).__name__
+    return f"internal_error:{type(exc).__name__}"
+
+
 @dataclass(frozen=True)
 class QuoteReceiptSignalPacket:
     current_epoch: int
@@ -591,7 +598,7 @@ def verify_autotrader_observation_packet_payload(payload: object) -> tuple[bool,
     try:
         packet = autotrader_observation_packet_from_dict(payload)
     except Exception as exc:
-        return False, str(exc)
+        return False, _safe_payload_error(exc)
     if dict(payload) != packet.to_dict():
         return False, "observation packet payload mismatch"
     return True, None
