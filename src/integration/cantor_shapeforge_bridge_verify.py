@@ -22,6 +22,15 @@ def _load_json_object(path: Path) -> dict[str, Any]:
     return data
 
 
+def _safe_world_model_load_error(exc: Exception) -> str:
+    if isinstance(exc, (json.JSONDecodeError, ValueError)):
+        detail = " ".join(str(exc).split())
+        return detail[:200] or type(exc).__name__
+    if isinstance(exc, OSError):
+        return f"world_model_load_failed:{type(exc).__name__}"
+    return f"world_model_load_internal_error:{type(exc).__name__}"
+
+
 def _slice_map(world_model: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
     out: dict[str, Mapping[str, Any]] = {}
     for slice_obj in world_model.get("slices", []):
@@ -43,7 +52,7 @@ def _has_evidence(slice_obj: Mapping[str, Any], claim: str, evidence_class: str,
 
 
 def verify_cantor_shapeforge_bridge_report_payload(
-    payload: Mapping[str, Any],
+    payload: object,
     *,
     require_current: bool = False,
 ) -> tuple[bool, str | None]:
@@ -87,7 +96,7 @@ def verify_cantor_shapeforge_bridge_report_payload(
     try:
         world_model = _load_json_object(world_model_file)
     except Exception as exc:
-        return False, str(exc)
+        return False, _safe_world_model_load_error(exc)
     if world_model.get("world_model_id") != world_model_id:
         return False, "world model id mismatch"
 
