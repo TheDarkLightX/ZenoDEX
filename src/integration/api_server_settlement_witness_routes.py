@@ -47,6 +47,27 @@ def _bad_request(write_json: Callable[[int, object], None], error: str) -> None:
     write_json(400, {"ok": False, "error": error})
 
 
+def _safe_expected_error_detail(exc: Exception) -> str:
+    msg = " ".join(str(exc).split())
+    return msg[:200] or type(exc).__name__
+
+
+def _safe_internal_detail(exc: Exception) -> str:
+    return type(exc).__name__
+
+
+def _required_int(value: object, *, name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"bad_{name}")
+    return value
+
+
+def _required_list(value: object, *, name: str) -> list[Any]:
+    if not isinstance(value, list):
+        raise TypeError(f"bad_{name}")
+    return value
+
+
 def _extract_request(obj: dict[str, object]) -> _SettlementWitnessRequest:
     return _SettlementWitnessRequest(
         intents_obj=obj.get("intents"),
@@ -177,8 +198,11 @@ def _build_attested_certificate_inputs(
         price_history=price_history,
         feature_extension_inputs=feature_extension_inputs,
         price_attestation=SettlementSpotPriceAttestation.from_dict(request.price_attestation_obj),
-        consumer_now_epoch=int(request.consumer_now_epoch),
-        max_attestation_age_epochs=int(request.max_attestation_age_epochs),
+        consumer_now_epoch=_required_int(request.consumer_now_epoch, name="consumer_now_epoch"),
+        max_attestation_age_epochs=_required_int(
+            request.max_attestation_age_epochs,
+            name="max_attestation_age_epochs",
+        ),
         lp_unit_values=lp_unit_values,
         pool_snapshots=pool_snapshots,
         allowed_signers=request.allowed_signers_obj,
@@ -228,7 +252,10 @@ def _build_certificate_inputs(
     pool_snapshots = (
         None
         if request.pool_snapshots_obj is None
-        else tuple(_pool_from_dict(snapshot) for snapshot in request.pool_snapshots_obj)
+        else tuple(
+            _pool_from_dict(snapshot)
+            for snapshot in _required_list(request.pool_snapshots_obj, name="pool_snapshots")
+        )
     )
     lp_unit_values = _parse_lp_unit_values_payload(request.lp_unit_values_obj)
     builder = _build_attested_certificate_inputs if request.price_attestation_obj is not None else _build_packet_certificate_inputs
@@ -286,7 +313,7 @@ def _handle_build_request(
         balances=context.balances,
         pools=context.pools_by_id,
         lp_balances=context.lp_balances,
-        block_timestamp=int(request.block_timestamp),
+        block_timestamp=_required_int(request.block_timestamp, name="block_timestamp"),
         settlement_end_to_end_certificate_inputs=context.certificate_inputs,
         settlement_validation=request.settlement_validation,
         swap_ordering=request.swap_ordering,
@@ -311,7 +338,7 @@ def _handle_verify_request(
         balances=context.balances,
         pools=context.pools_by_id,
         lp_balances=context.lp_balances,
-        block_timestamp=int(request.block_timestamp),
+        block_timestamp=_required_int(request.block_timestamp, name="block_timestamp"),
         settlement_end_to_end_certificate_inputs=context.certificate_inputs,
         packet_payload=request.packet_obj,
         settlement_validation=request.settlement_validation,
@@ -363,5 +390,8 @@ def maybe_handle_settlement_witness_lifecycle_route(
             if require_packet
             else "build_settlement_witness_lifecycle_packet_error"
         )
-        write_json(400, {"ok": False, "error": error, "details": str(exc)[:200]})
+        if isinstance(exc, (ValueError, TypeError, KeyError)):
+            write_json(400, {"ok": False, "error": error, "details": _safe_expected_error_detail(exc)})
+        else:
+            write_json(500, {"ok": False, "error": "internal_error", "detail": _safe_internal_detail(exc)})
         return True
