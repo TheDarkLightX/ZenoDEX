@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from typing import IO, cast
 
 import pytest
 
@@ -200,8 +201,12 @@ def test_confidential_attestation_verifier_caps_boundary_error_details(
             "set_blocking",
             lambda fd, blocking: (_ for _ in ()).throw(OSError(long_detail)),
         )
-        err = confidential_attestation_verifier._configure_nonblocking_streams(
+        typed_streams = cast(
+            tuple[IO[bytes], IO[bytes], IO[bytes]],
             (_FakeStream(), _FakeStream(), _FakeStream()),
+        )
+        err = confidential_attestation_verifier._configure_nonblocking_streams(
+            typed_streams,
         )
         assert err == "confidential attestation verifier requires non-blocking pipes: " + ("x" * 200)
 
@@ -266,6 +271,102 @@ def test_subprocess_confidential_attestation_verifier_surfaces_unexpected_spawn_
 
     with pytest.raises(RuntimeError, match="attestation spawn internal fault"):
         verifier.verify({"provider": "nitro"})
+
+
+def test_subprocess_confidential_attestation_verifier_surfaces_cleanup_programming_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    verifier = SubprocessConfidentialAttestationVerifier(
+        cmd=[sys.executable, "-c", "print('{\"ok\": true}')"],
+        timeout_s=1.0,
+        max_bytes=10_000,
+        max_stdout_bytes=1_000,
+        max_stderr_bytes=1_000,
+    )
+
+    class _NoPipeProc:
+        stdin = None
+        stdout = None
+        stderr = None
+        returncode = None
+        pid = 123
+
+        def kill(self) -> None:
+            raise RuntimeError("attestation cleanup bug")
+
+        def wait(self, timeout: float | None = None) -> int:
+            del timeout
+            return 0
+
+    monkeypatch.setattr(confidential_attestation_verifier.subprocess, "Popen", lambda *args, **kwargs: _NoPipeProc())
+
+    with pytest.raises(RuntimeError, match="attestation cleanup bug"):
+        verifier.verify({"provider": "nitro"})
+
+
+def test_confidential_attestation_verifier_surfaces_pipe_helper_programming_faults(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FaultingStream:
+        def fileno(self) -> int:
+            return 1
+
+        def write(self, _data: object) -> int:
+            raise RuntimeError("stdin write bug")
+
+        def read(self, _size: int) -> bytes:
+            raise RuntimeError("stream read bug")
+
+        def close(self) -> None:
+            raise RuntimeError("stdin close bug")
+
+    stream = _FaultingStream()
+    typed_stream = cast(IO[bytes], stream)
+    typed_streams = cast(tuple[IO[bytes], IO[bytes], IO[bytes]], (stream, stream, stream))
+
+    monkeypatch.setattr(
+        confidential_attestation_verifier.os,
+        "set_blocking",
+        lambda fd, blocking: (_ for _ in ()).throw(RuntimeError("set_blocking bug")),
+    )
+    with pytest.raises(RuntimeError, match="set_blocking bug"):
+        confidential_attestation_verifier._configure_nonblocking_streams(typed_streams)
+
+    monkeypatch.setattr(
+        confidential_attestation_verifier.select,
+        "select",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("select bug")),
+    )
+    with pytest.raises(RuntimeError, match="select bug"):
+        confidential_attestation_verifier._select_ready_streams(
+            streams=typed_streams,
+            stdin_open=True,
+            stdout_open=True,
+            stderr_open=True,
+            timeout_s=0.1,
+        )
+
+    with pytest.raises(RuntimeError, match="stdin write bug"):
+        confidential_attestation_verifier._write_ready_stdin(
+            stdin=typed_stream,
+            ready_w=[typed_stream],
+            stdin_view=memoryview(b"{}"),
+            stdin_off=0,
+            stdin_open=True,
+        )
+
+    with pytest.raises(RuntimeError, match="stream read bug"):
+        confidential_attestation_verifier._read_ready_streams(
+            stdout=typed_stream,
+            stderr=typed_stream,
+            ready_r=[typed_stream],
+            stdout_open=True,
+            stderr_open=True,
+            stdout_buf=bytearray(),
+            stderr_buf=bytearray(),
+            max_stdout_bytes=1_000,
+            max_stderr_bytes=1_000,
+        )
 
 
 def test_subprocess_confidential_attestation_verifier_limits_stdout() -> None:

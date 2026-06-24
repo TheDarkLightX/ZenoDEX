@@ -112,7 +112,7 @@ class SubprocessConfidentialAttestationVerifier(ConfidentialAttestationVerifier)
         if proc.stdin is None or proc.stdout is None or proc.stderr is None:
             try:
                 proc.kill()
-            except Exception:
+            except OSError:
                 pass
             return None, "confidential attestation verifier misconfigured (subprocess pipes unavailable)"
 
@@ -148,7 +148,7 @@ class SubprocessConfidentialAttestationVerifier(ConfidentialAttestationVerifier)
                 if proc.returncode is None:
                     _kill_proc_group(proc)
                 proc.wait(timeout=0.2)
-            except Exception:
+            except (subprocess.TimeoutExpired, OSError):
                 pass
 
 
@@ -175,7 +175,7 @@ def _configure_nonblocking_streams(streams: tuple[IO[bytes], IO[bytes], IO[bytes
     for stream in streams:
         try:
             os.set_blocking(stream.fileno(), False)
-        except Exception as exc:
+        except (OSError, ValueError) as exc:
             return f"confidential attestation verifier requires non-blocking pipes: {_safe_error_detail(exc)}"
     return None
 
@@ -186,18 +186,18 @@ def _kill_proc_group(proc: subprocess.Popen[bytes]) -> None:
         return
     except ProcessLookupError:
         return
-    except Exception:
+    except OSError:
         pass
     try:
         proc.kill()
-    except Exception:
+    except OSError:
         pass
 
 
 def _wait_after_kill(proc: subprocess.Popen[bytes], *, timeout_s: float = 0.2) -> None:
     try:
         proc.wait(timeout=timeout_s)
-    except Exception:
+    except (subprocess.TimeoutExpired, OSError):
         pass
 
 
@@ -220,7 +220,7 @@ def _exchange_bytes(
     if not stdin_open:
         try:
             stdin.close()
-        except Exception:
+        except OSError:
             return b"", b"", "confidential attestation verifier stdin close error"
     while True:
         remaining = deadline - time.monotonic()
@@ -282,7 +282,7 @@ def _select_ready_streams(
         wlist.append(stdin)
     try:
         ready_r, ready_w, _ = select.select(rlist, wlist, [], timeout_s)
-    except Exception:
+    except OSError:
         return [], [], "confidential attestation verifier select error"
     return list(ready_r), list(ready_w), None
 
@@ -303,7 +303,7 @@ def _write_ready_stdin(
         return stdin_off, stdin_open, "confidential attestation verifier stdin broken pipe"
     except BlockingIOError:
         return stdin_off, stdin_open, None
-    except Exception:
+    except OSError:
         return stdin_off, stdin_open, "confidential attestation verifier stdin error"
     if isinstance(n_written, int) and not isinstance(n_written, bool):
         n = n_written
@@ -314,7 +314,7 @@ def _write_ready_stdin(
         return next_off, True, None
     try:
         stdin.close()
-    except Exception:
+    except OSError:
         return next_off, False, "confidential attestation verifier stdin close error"
     return next_off, False, None
 
@@ -336,7 +336,7 @@ def _read_ready_streams(
             chunk_obj = stream.read(4096)
         except BlockingIOError:
             continue
-        except Exception:
+        except OSError:
             return stdout_open, stderr_open, "confidential attestation verifier stdout/stderr read error"
         if not chunk_obj:
             if stream is stdout:
@@ -371,7 +371,7 @@ def _wait_for_exit(proc: subprocess.Popen[bytes], *, deadline: float) -> tuple[i
         _kill_proc_group(proc)
         _wait_after_kill(proc)
         return -1, "confidential attestation verification timed out"
-    except Exception:
+    except (OSError, subprocess.SubprocessError):
         _kill_proc_group(proc)
         _wait_after_kill(proc)
         return -1, "confidential attestation verifier did not exit"
@@ -380,7 +380,7 @@ def _wait_for_exit(proc: subprocess.Popen[bytes], *, deadline: float) -> tuple[i
 def _parse_verified_attestation(stdout_bytes: bytes) -> tuple[VerifiedConfidentialAttestation | None, Optional[str]]:
     try:
         result = json.loads(stdout_bytes)
-    except Exception as exc:
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         return None, f"invalid verifier output: {_safe_error_detail(exc)}"
     if not isinstance(result, dict):
         return None, "invalid verifier output (not an object)"
@@ -410,7 +410,7 @@ def _parse_verified_attestation(stdout_bytes: bytes) -> tuple[VerifiedConfidenti
             policy_digest=policy_digest,
             attestation_epoch=attestation_epoch,
         )
-    except Exception as exc:
+    except ValueError as exc:
         return None, f"invalid verifier output: {_safe_error_detail(exc)}"
     return verified, None
 
