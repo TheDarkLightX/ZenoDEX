@@ -181,27 +181,198 @@ theorem candidate_dominates_three_pool_composition
     have h_interior_ge : poolOut_2 r_2' ≥ poolOut_2 a_2 := hinterior (by omega)
     omega
 
-/-
-Full k-pool inductive composition (recorded obligation, pattern demonstrated).
+/-- A non-interior pool entry: (poolOut function, original allocation, candidate). -/
+abbrev PoolEntry := (Nat → Nat) × Nat × Nat
 
-The three-pool composition above demonstrates the inductive pattern. The full
-k-pool composition follows by induction on the number of left-covered
-non-interior pools:
+/--
+Auxiliary: total freed input from left-covering a list of non-interior pools.
 
-  Base case (0 non-interior pools): trivial, no left-covering needed.
-  Inductive step: apply candidate_dominates_single_pool to the next
-    non-interior pool with the already-improved interior residual from the
-    previous steps. The output weakly increases at each step.
-
-The inductive composition requires careful list indexing (Fin types, list
-recursion) that is straightforward but verbose. The three-pool theorem above
-proves the pattern for the smallest non-trivial inductive step (two
-left-covered pools), and candidate_dominates_single_pool proves the individual
-step. Together these demonstrate the full inductive structure.
-
-Runtime parity tests (30 cases, 8 with brute-force oracle) provide empirical
-evidence for the composition at k=2,3,4 pools.
+`freedInput pools = Σ (a_i - c_i)` for each (poolOut, a_i, c_i) in the list.
+This is the amount of input redirected to the interior pool.
 -/
+def freedInput (pools : List PoolEntry) : Nat :=
+  pools.foldr (fun (_poolOut, a, c) acc => acc + (a - c)) 0
+
+/--
+Auxiliary: sum of outputs from non-interior pools at their candidate allocations.
+
+`candidateOutput pools = Σ poolOut_i c_i` for each (poolOut_i, a_i, c_i).
+-/
+def candidateOutput (pools : List PoolEntry) : Nat :=
+  pools.foldr (fun (poolOut, _a, c) acc => acc + poolOut c) 0
+
+/--
+Auxiliary: sum of outputs from non-interior pools at their original allocations.
+
+`originalOutput pools = Σ poolOut_i a_i` for each (poolOut_i, a_i, c_i).
+-/
+def originalOutput (pools : List PoolEntry) : Nat :=
+  pools.foldr (fun (poolOut, a, _c) acc => acc + poolOut a) 0
+
+/--
+Auxiliary: sum of original allocations (input spent on non-interior pools).
+-/
+def originalSpent (pools : List PoolEntry) : Nat :=
+  pools.foldr (fun (_poolOut, a, _c) acc => acc + a) 0
+
+/--
+Auxiliary: sum of candidate allocations (input spent on non-interior pools after left-covering).
+-/
+def candidateSpent (pools : List PoolEntry) : Nat :=
+  pools.foldr (fun (_poolOut, _a, c) acc => acc + c) 0
+
+/--
+Lemma: candidate spent ≤ original spent when all pools are left-covered.
+
+Each LeftCovers guarantees c_i ≤ a_i, so Σ c_i ≤ Σ a_i.
+-/
+theorem candidate_spent_le_original_spent
+    (pools : List PoolEntry)
+    (D : Nat)
+    (hcover : ∀ (poolOut : Nat → Nat) (a c : Nat),
+      (poolOut, a, c) ∈ pools → LeftCovers poolOut D c a) :
+    candidateSpent pools ≤ originalSpent pools := by
+  induction pools with
+  | nil => simp [candidateSpent, originalSpent]
+  | cons head rest ih =>
+    obtain ⟨poolOut, a, c⟩ := head
+    have h_cover_head : LeftCovers poolOut D c a := hcover poolOut a c (by simp)
+    have h_c_le_a : c ≤ a := h_cover_head.2.1
+    have h_rest : candidateSpent rest ≤ originalSpent rest := by
+      apply ih
+      intro poolOut' a' c' h
+      exact hcover poolOut' a' c' (by simp [h])
+    show candidateSpent rest + c ≤ originalSpent rest + a
+    omega
+
+/--
+Lemma: candidate output equals original output when all pools are left-covered.
+
+If every non-interior pool i has LeftCovers poolOut_i D c_i a_i, then
+poolOut_i c_i = poolOut_i a_i for each i, so the sum of outputs is unchanged.
+-/
+theorem candidate_output_eq_original_output
+    (pools : List PoolEntry)
+    (D : Nat)
+    (hcover : ∀ (poolOut : Nat → Nat) (a c : Nat),
+      (poolOut, a, c) ∈ pools → LeftCovers poolOut D c a) :
+    candidateOutput pools = originalOutput pools := by
+  induction pools with
+  | nil => rfl
+  | cons head rest ih =>
+    obtain ⟨poolOut, a, c⟩ := head
+    have h_cover_head : LeftCovers poolOut D c a := hcover poolOut a c (by simp)
+    have h_head : poolOut c = poolOut a := h_cover_head.2.2
+    have h_rest : candidateOutput rest = originalOutput rest := by
+      apply ih
+      intro poolOut' a' c' h
+      exact hcover poolOut' a' c' (by simp [h])
+    show candidateOutput rest + poolOut c = originalOutput rest + poolOut a
+    rw [h_head, h_rest]
+
+/--
+Lemma: freed input equals the difference between original and candidate spent.
+
+`freedInput pools = originalSpent pools - candidateSpent pools`
+
+This follows because a_i - c_i summed equals (Σ a_i) - (Σ c_i) when c_i ≤ a_i
+for all i (which is guaranteed by LeftCovers).
+-/
+theorem freed_input_eq_spent_diff
+    (pools : List PoolEntry)
+    (D : Nat)
+    (hcover : ∀ (poolOut : Nat → Nat) (a c : Nat),
+      (poolOut, a, c) ∈ pools → LeftCovers poolOut D c a) :
+    freedInput pools = originalSpent pools - candidateSpent pools := by
+  induction pools with
+  | nil => rfl
+  | cons head rest ih =>
+    obtain ⟨poolOut, a, c⟩ := head
+    have h_cover_head : LeftCovers poolOut D c a := hcover poolOut a c (by simp)
+    have h_c_le_a : c ≤ a := h_cover_head.2.1
+    have h_rest : freedInput rest = originalSpent rest - candidateSpent rest := by
+      apply ih
+      intro poolOut' a' c' h
+      exact hcover poolOut' a' c' (by simp [h])
+    have h_rest_cand_le_rest_orig : candidateSpent rest ≤ originalSpent rest := by
+      apply candidate_spent_le_original_spent rest D
+      intro poolOut' a' c' h
+      exact hcover poolOut' a' c' (by simp [h])
+    show freedInput rest + (a - c) = (originalSpent rest + a) - (candidateSpent rest + c)
+    rw [h_rest]
+    omega
+
+/--
+Full k-pool inductive composition: left-covering all non-interior pools weakly
+dominates the original allocation.
+
+Given a list of non-interior pools (each with poolOut, original allocation a_i,
+and candidate c_i) and one interior pool with monotone output, replacing each
+a_i with c_i and routing all freed input to the interior pool:
+
+1. Weakly increases total output (dominance).
+2. Preserves total spent (conservation: candidate spent + improved interior = original spent + original interior).
+
+This is the full arbitrary-k theorem. The proof uses list induction:
+  Base case (empty list): no non-interior pools, trivially true.
+  Inductive step: the freed input from the head pool plus the freed input from
+    the tail equals the total freed input. By monotonicity, the interior pool's
+    output at (a_interior + total_freed) ≥ output at a_interior. Each non-interior
+    pool's output is unchanged (LeftCovers). So total output weakly increases.
+
+Conservation: candidateSpent + (a_interior + freedInput) = originalSpent + a_interior,
+because freedInput = originalSpent - candidateSpent (proven by
+freed_input_eq_spent_diff) and candidateSpent ≤ originalSpent (proven by
+candidate_spent_le_original_spent).
+-/
+theorem candidate_dominates_k_pool_composition
+    (pools : List PoolEntry)
+    (interiorOut : Nat → Nat)
+    (D a_interior : Nat)
+    (hcover : ∀ (poolOut : Nat → Nat) (a c : Nat),
+      (poolOut, a, c) ∈ pools → LeftCovers poolOut D c a)
+    (hinterior : Nondecreasing interiorOut) :
+    ∃ r_interior',
+      r_interior' = a_interior + freedInput pools ∧
+      r_interior' ≥ a_interior ∧
+      candidateOutput pools = originalOutput pools ∧
+      interiorOut r_interior' ≥ interiorOut a_interior ∧
+      candidateOutput pools + interiorOut r_interior' ≥
+        originalOutput pools + interiorOut a_interior ∧
+      candidateSpent pools + r_interior' = originalSpent pools + a_interior := by
+  let r_interior' := a_interior + freedInput pools
+  refine ⟨r_interior', ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · -- r_interior' = a_interior + freedInput pools
+    rfl
+  · -- r_interior' ≥ a_interior
+    have h_freed_ge_0 : freedInput pools ≥ 0 := by omega
+    omega
+  · -- candidateOutput pools = originalOutput pools
+    exact candidate_output_eq_original_output pools D hcover
+  · -- interiorOut r_interior' ≥ interiorOut a_interior (monotonicity)
+    have h_le : a_interior ≤ r_interior' := by
+      have h_freed_ge_0 : freedInput pools ≥ 0 := by omega
+      omega
+    exact hinterior h_le
+  · -- candidateOutput pools + interiorOut r_interior' ≥
+    -- originalOutput pools + interiorOut a_interior
+    have h_out_eq : candidateOutput pools = originalOutput pools :=
+      candidate_output_eq_original_output pools D hcover
+    have h_interior_ge : interiorOut r_interior' ≥ interiorOut a_interior := by
+      have h_le : a_interior ≤ r_interior' := by
+        have h_freed_ge_0 : freedInput pools ≥ 0 := by omega
+        omega
+      exact hinterior h_le
+    omega
+  · -- candidateSpent pools + r_interior' = originalSpent pools + a_interior
+    have h_freed : freedInput pools = originalSpent pools - candidateSpent pools :=
+      freed_input_eq_spent_diff pools D hcover
+    have h_cand_le_orig : candidateSpent pools ≤ originalSpent pools :=
+      candidate_spent_le_original_spent pools D hcover
+    show candidateSpent pools + (a_interior + freedInput pools) =
+      originalSpent pools + a_interior
+    rw [h_freed]
+    omega
 
 end KPoolStaircase
 end Proofs
