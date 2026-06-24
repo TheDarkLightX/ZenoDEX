@@ -873,7 +873,7 @@ def _check_isolated_settle_oracle_authorization(
             max_freshness_window_epochs=2,
         )
     except Exception as exc:
-        return f"oracle_authorization_rejected: {exc}"
+        return f"oracle_authorization_rejected: {_safe_error_str(exc)}"
     if not bool(result.get("typed_ok", False)):
         errors = result.get("typed_errors") or result.get("opaque_errors") or ["typed authorization rejected"]
         return "oracle_authorization_rejected: " + "; ".join(str(err) for err in errors)
@@ -1330,7 +1330,7 @@ def _check_clearinghouse_settle_oracle_authorization(
             max_freshness_window_epochs=2,
         )
     except Exception as exc:
-        return f"clearinghouse_settle_oracle_authorization_rejected: {exc}"
+        return f"clearinghouse_settle_oracle_authorization_rejected: {_safe_error_str(exc)}"
     if not bool(result.get("typed_ok", False)):
         errors = result.get("typed_errors") or result.get("opaque_errors") or ["typed authorization rejected"]
         return "clearinghouse_settle_oracle_authorization_rejected: " + "; ".join(str(err) for err in errors)
@@ -1417,7 +1417,7 @@ def _verify_perp_op_signature(
     try:
         signer_nonce_key = canonical_hex_fixed_allow_0x(signer_pubkey, nbytes=48, name="signer_pubkey")
     except Exception as exc:
-        return str(exc)
+        return _safe_error_str(exc)
 
     # Deadline check first (cheap).
     try:
@@ -1449,7 +1449,7 @@ def _verify_perp_op_signature(
         pubkey_bytes = _hex_to_bytes_allow_0x(signer_pubkey, name="signer_pubkey", expected_nbytes=48)
         sig_bytes = _hex_to_bytes_allow_0x(signature, name="signature", expected_nbytes=96)
     except Exception as exc:
-        return str(exc)
+        return _safe_error_str(exc)
 
     try:
         msg_hash = hash_perp_op_auth_message_v1(
@@ -1485,7 +1485,7 @@ def _require_sender_bound_account_pubkey(*, account_pubkey: str, tx_sender_pubke
         acct_b = _hex_to_bytes_allow_0x(account_pubkey, name="account_pubkey", expected_nbytes=48)
         sender_b = _hex_to_bytes_allow_0x(tx_sender_pubkey, name="tx_sender_pubkey", expected_nbytes=48)
     except Exception as exc:
-        return str(exc)
+        return _safe_error_str(exc)
     outcome = evaluate_perp_submission_auth_gate(
         mode_signed=False,
         mode_sender_bound=True,

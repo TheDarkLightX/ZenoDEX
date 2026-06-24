@@ -78,6 +78,15 @@ def test_parse_perp_ops_surfaces_unexpected_encoding_fault(monkeypatch: pytest.M
         parse_perp_ops({"5": [_op("perp:parser", "init_market", quote_asset="0x" + "11" * 32)]})
 
 
+def test_perp_engine_safe_error_str_caps_domain_errors_and_hides_internal_faults() -> None:
+    from src.integration.perp_engine import _safe_error_str
+
+    detail = "x" * 700
+
+    assert _safe_error_str(ValueError(detail)) == detail[:512]
+    assert _safe_error_str(RuntimeError("secret internal detail")) == "internal error: RuntimeError"
+
+
 def _with_oracle_snapshot(
     state: DexState,
     *,

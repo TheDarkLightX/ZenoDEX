@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import pytest
+
 from src.core.dex import DexState
+import src.integration.perp_engine as perp_engine
 from src.integration.perp_engine import (
     _ORACLE_PERPS_INDEX_QUERY_ID,
     _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
@@ -207,6 +210,35 @@ def test_isolated_settle_accepts_matching_typed_oracle_authorization() -> None:
     )
 
     assert res.ok is True, res.error
+
+
+def test_isolated_settle_caps_oracle_authorization_checker_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    market_id = "perp:auth-checker-error"
+    operator = "00" * 48
+    state = _ready_market(market_id=market_id, operator=operator)
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
+    auth = _authorization_for(runtime, observed_epoch=int(market.global_state["oracle_last_update_epoch"]))
+    detail = "x" * 700
+
+    def _boom(*args: object, **kwargs: object) -> dict[str, object]:
+        raise ValueError(detail)
+
+    monkeypatch.setattr(perp_engine, "check_critical_consumer_authorization", _boom)
+
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        require_authorization=True,
+        ops=[_settle_with_authorization(market_id, auth)],
+    )
+
+    assert res.ok is False
+    assert res.error == f"oracle_authorization_rejected: {detail[:512]}"
 
 
 def test_isolated_settle_rejects_authorization_for_different_oracle_value() -> None:
