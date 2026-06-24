@@ -132,7 +132,7 @@ def _int_env(name: str, *, default: int, minimum: int = 0, maximum: Optional[int
         return int(default)
     try:
         out = int(raw)
-    except Exception as exc:
+    except ValueError as exc:
         raise ValueError(f"{name} must be an integer") from exc
     if out < minimum:
         raise ValueError(f"{name} must be >= {minimum}")
@@ -164,7 +164,7 @@ def _maybe_decode_custom_stream_value(value: Any) -> Any:
         return value
     try:
         parsed = json.loads(raw)
-    except Exception:
+    except ValueError:
         return value
     if isinstance(parsed, (dict, list)):
         return parsed
@@ -237,7 +237,7 @@ def _load_state(app_state_json: str) -> Tuple[DexState, Optional[ProofMiningRunt
         raise ValueError("app_state_json too large")
     try:
         obj = json.loads(raw)
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         raise ValueError(f"invalid app_state_json: {exc}") from exc
     try:
         if isinstance(obj, Mapping) and any(key in obj for key in ("schema", "dex_state", "proof_mining")):
@@ -269,7 +269,7 @@ def _load_state(app_state_json: str) -> Tuple[DexState, Optional[ProofMiningRunt
             )
             return dex_state, proof_state, zusd_state
         return state_from_snapshot(obj), None, None
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         raise ValueError(f"invalid app_state snapshot: {exc}") from exc
 
 
@@ -298,7 +298,7 @@ def _parse_faucet_mint_entry(entry: Any, *, index: int) -> Tuple[Optional[Tuple[
     try:
         decoded_pk = _canonical_pubkey(pk, name=f"faucet.mint[{index}].pubkey")
         decoded_asset = canonical_hex_fixed_allow_0x(asset, nbytes=32, name=f"faucet.mint[{index}].asset")
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         return None, str(exc)
     if decoded_asset == NATIVE_ASSET:
         return None, "faucet cannot mint native asset"
@@ -318,7 +318,7 @@ def _sync_native_balances(state: DexState, *, chain_balances: Dict[str, int]) ->
         try:
             amt_i = int(amount)
             canonical_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
-        except Exception:
+        except (ValueError, TypeError):
             continue
         if amt_i <= 0:
             continue
@@ -365,7 +365,7 @@ def _balances_patch_for_native(*, before: Dict[str, int], after_state: DexState)
     for pk in before.keys():
         try:
             canonical_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
-        except Exception:
+        except (ValueError, TypeError):
             continue
         external_key_by_canonical.setdefault(canonical_pk, pk)
 
@@ -379,7 +379,7 @@ def _balances_patch_for_native(*, before: Dict[str, int], after_state: DexState)
         old = int(before.get(pk, 0))
         try:
             lookup_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
-        except Exception:
+        except (ValueError, TypeError):
             lookup_pk = str(pk)
         new = int(after_state.balances.get(lookup_pk, NATIVE_ASSET))
         if new != old:
@@ -444,7 +444,7 @@ def _enforce_deadline(*, op: Mapping[str, Any], block_timestamp: int, op_name: s
         return None
     try:
         deadline = _require_u32_positive(deadline_raw, name=f"{op_name}.deadline")
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         return str(exc)
     if int(block_timestamp) > int(deadline):
         return f"{op_name}.deadline expired"
@@ -467,7 +467,7 @@ def _apply_token_ops(
 
     try:
         sender = _canonical_pubkey(tx_sender_pubkey, name="tx_sender_pubkey")
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         return False, state, str(exc)
 
     balances = _copy_balance_table(state.balances)
@@ -487,7 +487,7 @@ def _apply_token_ops(
 
         try:
             nonce = _require_u32_positive(op.get("nonce"), name=f"token op[{i}].nonce")
-        except Exception as exc:
+        except (ValueError, TypeError) as exc:
             return False, state, str(exc)
         expected = int(nonces.get_last(nonce_key)) + 1
         if nonce != expected:
@@ -516,7 +516,7 @@ def _apply_token_ops(
             if sender_raw is not None:
                 try:
                     sender_in_op = _canonical_pubkey(sender_raw, name=f"token op[{i}].sender_pubkey")
-                except Exception as exc:
+                except (ValueError, TypeError) as exc:
                     return False, state, str(exc)
                 if sender_in_op != sender:
                     return False, state, f"token op[{i}] sender_pubkey mismatch"
@@ -524,7 +524,7 @@ def _apply_token_ops(
                 asset = _canonical_token_asset(op.get("asset"), name=f"token op[{i}].asset")
                 to_pubkey = _canonical_pubkey(op.get("to_pubkey"), name=f"token op[{i}].to_pubkey")
                 amount = _require_u32_positive(op.get("amount"), name=f"token op[{i}].amount")
-            except Exception as exc:
+            except (ValueError, TypeError) as exc:
                 return False, state, str(exc)
             sender_balance = int(balances.get(sender, asset))
             if sender_balance < amount:
@@ -557,7 +557,7 @@ def _apply_token_ops(
             if operator_in_op is not None:
                 try:
                     op_pk = _canonical_pubkey(operator_in_op, name=f"token op[{i}].operator_pubkey")
-                except Exception as exc:
+                except (ValueError, TypeError) as exc:
                     return False, state, str(exc)
                 if op_pk != sender:
                     return False, state, f"token op[{i}] operator_pubkey mismatch"
@@ -565,7 +565,7 @@ def _apply_token_ops(
                 asset = _canonical_token_asset(op.get("asset"), name=f"token op[{i}].asset")
                 to_pubkey = _canonical_pubkey(op.get("to_pubkey"), name=f"token op[{i}].to_pubkey")
                 amount = _require_u32_positive(op.get("amount"), name=f"token op[{i}].amount")
-            except Exception as exc:
+            except (ValueError, TypeError) as exc:
                 return False, state, str(exc)
             recipient_balance = int(balances.get(to_pubkey, asset))
             balances.set(to_pubkey, asset, recipient_balance + amount)
@@ -588,14 +588,14 @@ def _apply_token_ops(
             if sender_raw is not None:
                 try:
                     sender_in_op = _canonical_pubkey(sender_raw, name=f"token op[{i}].sender_pubkey")
-                except Exception as exc:
+                except (ValueError, TypeError) as exc:
                     return False, state, str(exc)
                 if sender_in_op != sender:
                     return False, state, f"token op[{i}] sender_pubkey mismatch"
             try:
                 asset = _canonical_token_asset(op.get("asset"), name=f"token op[{i}].asset")
                 amount = _require_u32_positive(op.get("amount"), name=f"token op[{i}].amount")
-            except Exception as exc:
+            except (ValueError, TypeError) as exc:
                 return False, state, str(exc)
             sender_balance = int(balances.get(sender, asset))
             if sender_balance < amount:
@@ -752,24 +752,24 @@ def _apply_proof_mining_op(
         return False, state, proof_mining_state, "proof mining disabled (set TAU_DEX_PROOF_MINING_POOL_PUBKEY)"
     try:
         sender = _canonical_pubkey(tx_sender_pubkey, name="tx_sender_pubkey")
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         return False, state, proof_mining_state, str(exc)
     recipient_raw = op.get("recipient_pubkey")
     if recipient_raw is not None:
         try:
             recipient = _canonical_pubkey(recipient_raw, name="proof mining recipient_pubkey")
-        except Exception as exc:
+        except (ValueError, TypeError) as exc:
             return False, state, proof_mining_state, str(exc)
         if recipient != sender:
             return False, state, proof_mining_state, "proof mining recipient_pubkey mismatch"
     try:
         claim_body = _require_mapping(claim_artifact.get("body"), name="proof mining claim.body")
         winner = _require_mapping(claim_body.get("winner"), name="proof mining claim.body.winner")
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         return False, state, proof_mining_state, str(exc)
     try:
         winner_pubkey = _canonical_pubkey(winner.get("miner_id"), name="proof mining claim winner.miner_id")
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         return False, state, proof_mining_state, f"proof mining reward requires canonical winner.miner_id: {exc}"
     if winner_pubkey != sender:
         return False, state, proof_mining_state, "proof mining winner.miner_id mismatch"
@@ -787,7 +787,7 @@ def _apply_proof_mining_op(
                 reward_pool_balance=actual_pool_balance,
                 claim_artifact=claim_artifact,
             )
-        except Exception as exc:
+        except (ValueError, TypeError) as exc:
             return False, state, proof_mining_state, str(exc)
     if runtime_state.reward_pool_pubkey != reward_pool_pubkey:
         return False, state, proof_mining_state, "proof mining reward pool pubkey mismatch"
@@ -796,7 +796,7 @@ def _apply_proof_mining_op(
             runtime_state=runtime_state,
             actual_reward_pool_balance=actual_pool_balance,
         )
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         return False, state, proof_mining_state, str(exc)
     try:
         next_runtime_state, result = apply_proof_mining_claim(
@@ -805,7 +805,7 @@ def _apply_proof_mining_op(
             actual_reward_pool_balance=actual_pool_balance,
             proof_mining_context=proof_mining_context,
         )
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         return False, state, proof_mining_state, str(exc)
     if not result.ok or result.effects is None:
         return False, state, proof_mining_state, result.error_message or "proof mining manager rejected"
@@ -924,7 +924,7 @@ def apply_app_tx(
 
     try:
         state, proof_mining_state, zusd_monetary_state = _load_state(app_state_json)
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         return False, app_state_json, "", None, str(exc)
     state = _sync_native_balances(state, chain_balances=chain_balances)
     if proof_mining_state is not None:
@@ -936,7 +936,7 @@ def apply_app_tx(
                 runtime_state=proof_mining_state,
                 actual_reward_pool_balance=actual_reward_pool_balance,
             )
-        except Exception as exc:
+        except (ValueError, TypeError) as exc:
             return False, app_state_json, "", None, str(exc)
 
     faucet_op = operations.get(_DEX_FAUCET_KEY, operations.get(_LEGACY_DEX_FAUCET_KEY))
@@ -978,7 +978,7 @@ def apply_app_tx(
     if zusd_monetary_ops:
         try:
             zusd_cfg = _build_zusd_monetary_config(chain_id=chain_id)
-        except Exception as exc:
+        except ValueError as exc:
             return False, app_state_json, "", None, str(exc)
         zusd_res = apply_zusd_monetary_ops(
             config=zusd_cfg,
@@ -995,7 +995,7 @@ def apply_app_tx(
 
     try:
         proof_verifier_config = _build_proof_verifier_config()
-    except Exception as exc:
+    except ValueError as exc:
         return False, app_state_json, "", None, str(exc)
 
     dex_result = None
@@ -1037,7 +1037,7 @@ def apply_app_tx(
     if perp_ops:
         try:
             perp_cfg = _build_perp_engine_config(chain_id=chain_id)
-        except Exception as exc:
+        except ValueError as exc:
             return False, app_state_json, "", None, str(exc)
         perp_res = apply_perp_ops(
             config=perp_cfg,

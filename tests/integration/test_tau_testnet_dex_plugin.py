@@ -1,6 +1,8 @@
 import json
 import sys
 
+import pytest
+
 
 def _intent_signing_dict_from_tx_intent(intent_dict: dict) -> dict:
     from src.integration.operations import parse_intents
@@ -1872,3 +1874,77 @@ def test_apply_app_tx_proof_mining_rejects_claim_context_mismatch(monkeypatch):
     )
     assert ok1 is False
     assert err1 == "proof mining claim proposal_hash mismatch"
+
+
+def test_apply_app_tx_token_op_malformed_pubkey_fails_closed(monkeypatch):
+    """Narrowed catches must still reject malformed input with a stable reason."""
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    sender = "0x" + "22" * 48
+    asset = "0x" + "33" * 32
+    monkeypatch.delenv("TAU_DEX_FAUCET", raising=False)
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+
+    ok, _state, _hash, _patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={sender: 100},
+        operations={
+            "9": [
+                {
+                    "module": "TauToken",
+                    "action": "transfer",
+                    "asset": asset,
+                    "to_pubkey": "not-a-hex-pubkey",
+                    "amount": 5,
+                    "nonce": 1,
+                }
+            ]
+        },
+        tx_sender_pubkey=sender,
+        block_timestamp=1,
+    )
+    assert ok is False
+    assert err is not None
+    assert "to_pubkey" in err
+
+
+def test_apply_app_tx_unexpected_exception_propagates_not_swallowed(monkeypatch):
+    """Narrowed catches must let unexpected bugs (AttributeError) propagate.
+
+    Before narrowing, a broad `except Exception` around the token-op sender
+    canonicalization would have swallowed an AttributeError injected into
+    _canonical_pubkey and returned a fail-closed reject string. After narrowing
+    to (ValueError, TypeError), the unexpected exception propagates so the bug
+    is observable instead of hidden.
+    """
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    sender = "0x" + "22" * 48
+    asset = "0x" + "33" * 32
+    monkeypatch.delenv("TAU_DEX_FAUCET", raising=False)
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+
+    def _boom(*args, **kwargs):
+        raise AttributeError("injected unexpected bug")
+
+    monkeypatch.setattr(plugin, "_canonical_pubkey", _boom)
+
+    with pytest.raises(AttributeError, match="injected unexpected bug"):
+        plugin.apply_app_tx(
+            app_state_json="",
+            chain_balances={sender: 100},
+            operations={
+                "9": [
+                    {
+                        "module": "TauToken",
+                        "action": "transfer",
+                        "asset": asset,
+                        "to_pubkey": "0x" + "44" * 48,
+                        "amount": 5,
+                        "nonce": 1,
+                    }
+                ]
+            },
+            tx_sender_pubkey=sender,
+            block_timestamp=1,
+        )
