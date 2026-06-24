@@ -4,7 +4,7 @@
 py-ecc>=6.1.0  # BLS12-381 signatures (same as tau-testnet)
 
 # AES-GCM encryption for SSS backup envelopes and COSE signature verification
-cryptography>=42.0.0
+cryptography>=49.0.0
 
 # CBOR/COSE parsing for AWS Nitro Enclave attestation documents
 cbor2>=5.6.0

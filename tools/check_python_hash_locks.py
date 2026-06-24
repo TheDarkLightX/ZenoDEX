@@ -16,6 +16,11 @@ LOCKFILES = (
     "requirements-agents.lock.txt",
     "requirements-dev.lock.txt",
 )
+LOCKFILE_MANIFESTS = (
+    ("requirements-core.lock.txt", "requirements-core.txt"),
+    ("requirements-agents.lock.txt", "requirements-agents.txt"),
+    ("requirements-dev.lock.txt", "requirements-dev.txt"),
+)
 INSTALL_SURFACE_GLOBS = (
     "README.md",
     "Dockerfile",
@@ -34,6 +39,11 @@ REQUIREMENT_RE = re.compile(
     r"(?:\s*;\s*[^\\]+)?(?:\s*\\)?$"
 )
 LIVE_INCLUDE_RE = re.compile(r"^(?:-r|--requirement|-c|--constraint)\s+")
+MANIFEST_INCLUDE_RE = re.compile(r"^(?:-r|--requirement)\s+(?P<path>\S+)")
+DIRECT_REQUIREMENT_RE = re.compile(
+    r"^(?P<name>[A-Za-z0-9][A-Za-z0-9_.-]*)(?:\[[A-Za-z0-9_,.-]+\])?"
+    r"\s*(?:===|==|~=|!=|<=|>=|<|>|$)"
+)
 PIP_INSTALL_RE = re.compile(r"\bpip(?:[0-9.]+)?\s+install\b")
 ROOT_LOCK_RE = re.compile(r"requirements-(?:core|agents|dev)\.lock\.txt")
 ROOT_UNLOCKED_RE = re.compile(r"requirements-(?:core|agents|dev)\.txt")
@@ -141,6 +151,10 @@ def _requirement_name(line: str) -> str:
     return line.split("==", 1)[0].strip()
 
 
+def _canonical_package_name(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
 def _allowlisted_unhashed_install_reason(display: str, line: str) -> str | None:
     for path, needle, reason in ALLOWLISTED_UNHASHED_INSTALLS:
         if display == path and needle in line:
@@ -246,6 +260,89 @@ def audit_lockfile(path: Path, root: Path = ROOT) -> dict[str, Any]:
     }
 
 
+def _lockfile_package_names(path: Path) -> set[str]:
+    if not path.is_file():
+        return set()
+    names: set[str] = set()
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        stripped = _strip_inline_comment(raw_line.strip())
+        if REQUIREMENT_RE.match(stripped):
+            names.add(_canonical_package_name(_requirement_name(stripped)))
+    return names
+
+
+def _manifest_requirements(
+    path: Path,
+    root: Path,
+    *,
+    seen: set[Path] | None = None,
+) -> tuple[dict[str, tuple[str, int]], list[Finding]]:
+    display = _display_path(path, root)
+    findings: list[Finding] = []
+    requirements: dict[str, tuple[str, int]] = {}
+    if not path.is_file():
+        findings.append(Finding(display, 0, "missing_requirement_manifest", "requirement manifest is missing"))
+        return requirements, findings
+
+    seen = set() if seen is None else set(seen)
+    resolved = path.resolve()
+    if resolved in seen:
+        findings.append(Finding(display, 0, "cyclic_requirement_include", "requirement manifest include cycle detected"))
+        return requirements, findings
+    seen.add(resolved)
+
+    for line_no, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        stripped = _strip_inline_comment(raw_line.strip())
+        if not stripped or stripped.startswith("#"):
+            continue
+        include = MANIFEST_INCLUDE_RE.match(stripped)
+        if include:
+            include_path = (path.parent / include.group("path")).resolve()
+            child_requirements, child_findings = _manifest_requirements(include_path, root, seen=seen)
+            requirements.update(child_requirements)
+            findings.extend(child_findings)
+            continue
+        match = DIRECT_REQUIREMENT_RE.match(stripped)
+        if match:
+            name = _canonical_package_name(match.group("name"))
+            requirements.setdefault(name, (display, line_no))
+            continue
+        findings.append(
+            Finding(
+                display,
+                line_no,
+                "unsupported_requirement_manifest_line",
+                "root requirement manifests must contain direct requirements or repo-local -r includes",
+            )
+        )
+    return requirements, findings
+
+
+def audit_manifest_lock_coverage(lockfile: Path, manifest: Path, root: Path = ROOT) -> dict[str, Any]:
+    lock_display = _display_path(lockfile, root)
+    manifest_display = _display_path(manifest, root)
+    requirements, findings = _manifest_requirements(manifest, root)
+    locked_names = _lockfile_package_names(lockfile)
+    for name, (source_path, line_no) in sorted(requirements.items()):
+        if name not in locked_names:
+            findings.append(
+                Finding(
+                    source_path,
+                    line_no,
+                    "missing_manifest_requirement_in_lockfile",
+                    f"direct requirement {name!r} is absent from {lock_display}",
+                )
+            )
+    return {
+        "lockfile": lock_display,
+        "manifest": manifest_display,
+        "ok": not findings,
+        "required_packages": len(requirements),
+        "locked_packages": len(locked_names),
+        "findings": [finding.to_json() for finding in findings],
+    }
+
+
 def _logical_lines(text: str) -> Iterable[tuple[int, str]]:
     start_line = 1
     pending = ""
@@ -346,6 +443,10 @@ def _iter_install_surfaces(root: Path) -> list[Path]:
 
 def check_python_hash_locks(root: Path = ROOT) -> dict[str, Any]:
     lock_reports = [audit_lockfile(root / name, root=root) for name in LOCKFILES]
+    manifest_coverage_reports = [
+        audit_manifest_lock_coverage(root / lockfile, root / manifest, root=root)
+        for lockfile, manifest in LOCKFILE_MANIFESTS
+    ]
     surface_reports = []
     for path in _iter_install_surfaces(root):
         report = audit_install_surface(path, root=root)
@@ -379,13 +480,14 @@ def check_python_hash_locks(root: Path = ROOT) -> dict[str, Any]:
         )
     findings = [
         finding
-        for report in lock_reports + surface_reports
+        for report in lock_reports + manifest_coverage_reports + surface_reports
         for finding in report["findings"]
     ] + [finding.to_json() for finding in global_findings]
     return {
         "schema": "zenodex/python_hash_lock_audit/v0",
         "ok": not findings,
         "lockfiles": lock_reports,
+        "manifest_coverage": manifest_coverage_reports,
         "install_surfaces": surface_reports,
         "pip_install_commands": pip_install_commands,
         "root_dependency_commands": root_dependency_commands,
