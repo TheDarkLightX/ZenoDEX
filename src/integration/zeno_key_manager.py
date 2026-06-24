@@ -184,9 +184,10 @@ def _reject_secret_fields(value: object, *, name: str = "metadata") -> None:
             _reject_secret_fields(item, name=f"{name}[{index}]")
 
 
-def _require_bls() -> None:
-    if not _BLS_AVAILABLE:
+def _require_bls() -> Any:
+    if not _BLS_AVAILABLE or G2Basic is None:
         raise RuntimeError("py_ecc.bls is required for local BLS signing")
+    return G2Basic
 
 
 def _parse_private_key_hex(private_key_hex: str) -> int:
@@ -205,12 +206,11 @@ def _parse_private_key_hex(private_key_hex: str) -> int:
 def generate_tau_testnet_compatible_private_key_hex() -> str:
     """Generate a Tau-testnet-compatible BLS private key from local OS entropy."""
 
-    _require_bls()
+    bls = _require_bls()
     ikm = secrets.token_bytes(32)
     if not isinstance(ikm, bytes) or len(ikm) != 32:
         raise RuntimeError("secrets.token_bytes(32) returned invalid entropy")
-    assert G2Basic is not None
-    sk = int(G2Basic.KeyGen(ikm))
+    sk = int(bls.KeyGen(ikm))
     private_key_hex = "0x" + sk.to_bytes(32, byteorder="big", signed=False).hex()
     _parse_private_key_hex(private_key_hex)
     return private_key_hex
@@ -689,10 +689,9 @@ class LocalInMemoryBlsSigner:
     """Self-custody BLS signer. Private key material stays in process memory."""
 
     def __init__(self, *, key_ref: KeyRef, private_key_hex: str) -> None:
-        _require_bls()
+        bls = _require_bls()
         sk = _parse_private_key_hex(private_key_hex)
-        assert G2Basic is not None
-        public_key = "0x" + G2Basic.SkToPk(sk).hex()
+        public_key = "0x" + bls.SkToPk(sk).hex()
         if validate_tau_bls_public_key(key_ref.public_key) != public_key:
             raise ValueError("private_key_hex does not match key_ref.public_key")
         if key_ref.origin != KEY_ORIGIN_LOCAL_MEMORY:
@@ -709,12 +708,11 @@ class LocalInMemoryBlsSigner:
         metadata: Mapping[str, Any] | None = None,
         recovery_policy_id: str | None = None,
     ) -> "LocalInMemoryBlsSigner":
-        _require_bls()
+        bls = _require_bls()
         sk = _parse_private_key_hex(private_key_hex)
-        assert G2Basic is not None
         ref = KeyRef(
             key_id=key_id,
-            public_key="0x" + G2Basic.SkToPk(sk).hex(),
+            public_key="0x" + bls.SkToPk(sk).hex(),
             origin=KEY_ORIGIN_LOCAL_MEMORY,
             recovery_policy_id=recovery_policy_id,
             metadata=dict(metadata or {}),
@@ -753,8 +751,8 @@ class LocalInMemoryBlsSigner:
         decision = policy.evaluate(key_ref=self.key_ref, context=context)
         decision.require_ok()
         _reject_secret_fields(payload, name="payload")
-        assert G2Basic is not None
-        signature = "0x" + G2Basic.Sign(self._sk, _signature_message_digest(payload)).hex()
+        bls = _require_bls()
+        signature = "0x" + bls.Sign(self._sk, _signature_message_digest(payload)).hex()
         body = {
             "key_ref": self.key_ref.public_dict(),
             "payload_hash": hash_v0("zeno_key_manager_signing_payload_v0", dict(payload)),

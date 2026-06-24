@@ -5,6 +5,7 @@ import copy
 import pytest
 
 import src.integration.zeno_ledger_signature as sig
+import src.integration.zenodex_external_threshold_bls as external_threshold_bls
 from src.integration.zeno_governance_authority import (
     GOVERNANCE_AUTHORITY_RECEIPT_SCHEMA_V0,
     GOVERNANCE_ACTION_PAYLOAD_KIND_V0,
@@ -147,6 +148,21 @@ def _backend(kind: str = BACKEND_THRESHOLD_BLS_EXTERNAL_SERVICE) -> KeyBackendDe
         no_raw_private_key_exposure=True,
         metadata={"threshold": 2, "participants": 3},
     )
+
+
+def test_external_threshold_bls_receipt_rejects_inconsistent_bls_dependency_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(external_threshold_bls, "_BLS_AVAILABLE", True)
+    monkeypatch.setattr(external_threshold_bls, "G2Basic", None)
+
+    ok, err = external_threshold_bls.verify_external_threshold_bls_signature_receipt_v0(
+        {},
+        evidence={},
+        payload={},
+    )
+
+    assert ok is False
+    assert err is not None
+    assert "py_ecc.bls is required to verify external threshold BLS receipts" in err
 
 
 def _evidence(*, placeholder: bool = False, evidence_hash: str | None = None) -> list[dict[str, object]]:

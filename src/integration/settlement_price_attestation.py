@@ -5,6 +5,7 @@ from typing import Any, Mapping, Sequence
 
 from src.state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
 
+from .settlement_attestation_policy import SettlementAttestationPolicy, coerce_settlement_attestation_policy
 from .settlement_price_provenance import SettlementSpotPricePacket, verify_settlement_spot_price_packet
 
 try:
@@ -32,6 +33,7 @@ class SettlementSpotPriceAttestation:
     signed_at_epoch: int
     packet_hash: str
     signature: str
+    attestation_policy: SettlementAttestationPolicy | None = None
     schema: str = SETTLEMENT_SPOT_PRICE_ATTESTATION_SCHEMA
 
     def __post_init__(self) -> None:
@@ -56,15 +58,24 @@ class SettlementSpotPriceAttestation:
             "signature",
             canonical_hex_fixed_allow_0x(self.signature, nbytes=96, name="signature"),
         )
+        if self.attestation_policy is not None and not isinstance(self.attestation_policy, SettlementAttestationPolicy):
+            object.__setattr__(
+                self,
+                "attestation_policy",
+                coerce_settlement_attestation_policy(self.attestation_policy),
+            )
 
     def to_unsigned_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "schema": self.schema,
             "packet": self.packet.to_dict(),
             "signer_pubkey": self.signer_pubkey,
             "signed_at_epoch": int(self.signed_at_epoch),
             "packet_hash": self.packet_hash,
         }
+        if self.attestation_policy is not None:
+            payload["attestation_policy"] = self.attestation_policy.to_dict()
+        return payload
 
     def to_dict(self) -> dict[str, Any]:
         payload = self.to_unsigned_dict()
@@ -85,6 +96,11 @@ class SettlementSpotPriceAttestation:
             signed_at_epoch=int(payload.get("signed_at_epoch", -1)),
             packet_hash=str(payload.get("packet_hash", "")),
             signature=str(payload.get("signature", "")),
+            attestation_policy=(
+                None
+                if payload.get("attestation_policy") is None
+                else coerce_settlement_attestation_policy(payload.get("attestation_policy"))
+            ),
         )
 
 
@@ -92,41 +108,46 @@ def build_settlement_spot_price_attestation(
     *,
     packet: SettlementSpotPricePacket,
     signer_privkey: str | int | bytes | bytearray,
+    attestation_policy: SettlementAttestationPolicy | Mapping[str, Any] | None = None,
 ) -> SettlementSpotPriceAttestation:
     ok, err = verify_settlement_spot_price_packet(packet=packet)
     if not ok:
         raise ValueError(f"invalid settlement spot price packet: {err}")
     if not packet.provenance_ok:
         raise ValueError("settlement spot price packet is not provenance_ok")
-    _require_bls()
+    bls = _require_bls()
     sk_int = _parse_privkey_to_int(signer_privkey)
     signer_pubkey = canonical_hex_fixed_allow_0x(
-        "0x" + G2Basic.SkToPk(sk_int).hex(),
+        "0x" + bls.SkToPk(sk_int).hex(),
         nbytes=48,
         name="signer_pubkey",
     )
+    normalized_policy = None if attestation_policy is None else coerce_settlement_attestation_policy(attestation_policy)
     signed_at_epoch = int(packet.now_epoch)
     packet_hash = _packet_hash_hex(packet)
-    unsigned = {
+    unsigned: dict[str, Any] = {
         "schema": SETTLEMENT_SPOT_PRICE_ATTESTATION_SCHEMA,
         "packet": packet.to_dict(),
         "signer_pubkey": signer_pubkey,
         "signed_at_epoch": signed_at_epoch,
         "packet_hash": packet_hash,
     }
-    signature = "0x" + G2Basic.Sign(sk_int, _attestation_message_bytes(unsigned)).hex()
+    if normalized_policy is not None:
+        unsigned["attestation_policy"] = normalized_policy.to_dict()
+    signature = "0x" + bls.Sign(sk_int, _attestation_message_bytes(unsigned)).hex()
     return SettlementSpotPriceAttestation(
         packet=packet,
         signer_pubkey=signer_pubkey,
         signed_at_epoch=signed_at_epoch,
         packet_hash=packet_hash,
         signature=signature,
+        attestation_policy=normalized_policy,
     )
 
 
 def verify_settlement_spot_price_attestation(
     *,
-    attestation: SettlementSpotPriceAttestation,
+    attestation: object,
     consumer_now_epoch: int,
     max_attestation_age_epochs: int,
     allowed_signers: Mapping[str, Sequence[str]] | None = None,
@@ -179,12 +200,12 @@ def verify_settlement_spot_price_attestation(
                 _cache_attestation_verify_result(cache_key, result)
                 return result
 
-    _require_bls()
+    bls = _require_bls()
     unsigned = attestation.to_unsigned_dict()
     try:
         pubkey_bytes = bytes.fromhex(attestation.signer_pubkey[2:])
         sig_bytes = bytes.fromhex(attestation.signature[2:])
-        if not bool(G2Basic.Verify(pubkey_bytes, _attestation_message_bytes(unsigned), sig_bytes)):
+        if not bool(bls.Verify(pubkey_bytes, _attestation_message_bytes(unsigned), sig_bytes)):
             result = (False, "settlement spot price attestation signature invalid")
             _cache_attestation_verify_result(cache_key, result)
             return result
@@ -192,9 +213,9 @@ def verify_settlement_spot_price_attestation(
         result = (False, f"settlement spot price attestation verification error: {exc}")
         _cache_attestation_verify_result(cache_key, result)
         return result
-    result = (True, None)
-    _cache_attestation_verify_result(cache_key, result)
-    return result
+    success_result: tuple[bool, str | None] = (True, None)
+    _cache_attestation_verify_result(cache_key, success_result)
+    return success_result
 
 
 def verify_settlement_spot_price_attestation_payload(
@@ -324,6 +345,17 @@ def _parse_privkey_to_int(privkey: str | int | bytes | bytearray) -> int:
     return sk
 
 
-def _require_bls() -> None:
-    if not _BLS_AVAILABLE:
+def settlement_spot_price_attestation_signer_pubkey_from_privkey(privkey: str | int | bytes | bytearray) -> str:
+    bls = _require_bls()
+    sk = _parse_privkey_to_int(privkey)
+    return canonical_hex_fixed_allow_0x(
+        "0x" + bls.SkToPk(sk).hex(),
+        nbytes=48,
+        name="signer_pubkey",
+    )
+
+
+def _require_bls() -> Any:
+    if not _BLS_AVAILABLE or G2Basic is None:
         raise ValueError("py_ecc.bls is required for settlement price attestation signing and verification")
+    return G2Basic
