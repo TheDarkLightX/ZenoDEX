@@ -10,6 +10,7 @@ def _start_test_server(
     *,
     perps_enabled: bool = True,
     zusd_enabled: bool = False,
+    dex_enabled: bool = False,
     cors_origins: set[str] | None = None,
 ):
     from src.integration import api_server
@@ -19,6 +20,7 @@ def _start_test_server(
     httpd.rate_limiter = api_server.TokenBucketRateLimiter(rpm=0)  # type: ignore[attr-defined]
     httpd.perps_api_enabled = bool(perps_enabled)  # type: ignore[attr-defined]
     httpd.zusd_api_enabled = bool(zusd_enabled)  # type: ignore[attr-defined]
+    httpd.dex_api_enabled = bool(dex_enabled)  # type: ignore[attr-defined]
     httpd.demo_api_token = ""  # type: ignore[attr-defined]
 
     t = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
@@ -132,6 +134,91 @@ def test_api_server_rejects_oversized_body_without_reading() -> None:
             data = b"".join(chunks)
         assert b" 413 " in data
         assert b"body_too_large" in data
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_dex_api_rejects_malformed_json_without_internal_error() -> None:
+    httpd, t, host, port = _start_test_server(dex_enabled=True)
+    try:
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/impact_preview",
+            body=b"{not-json",
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+
+        assert resp.status == 400
+        assert body == {"ok": False, "error": "bad_json"}
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_dex_slippage_advice_ignores_uncoercible_slippage_options() -> None:
+    httpd, t, host, port = _start_test_server(dex_enabled=True)
+    try:
+        conn = HTTPConnection(host, port, timeout=5.0)
+        conn.request(
+            "POST",
+            "/api/dex/slippage_advice",
+            body=json.dumps(
+                {
+                    "reserve_in": 10_000,
+                    "reserve_out": 20_000,
+                    "amount_in": 100,
+                    "fee_bps": 30,
+                    "slippage_options_bps": [10, {}, "bad", 50],
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+
+        assert resp.status == 200, body
+        assert body["ok"] is True
+        option_bps = [
+            int(option["slippage_bps"])
+            for option in body["advice"]["options"]
+        ]
+        assert option_bps == [10, 50]
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_dex_pokayoke_suggest_ignores_uncoercible_slippage_options() -> None:
+    httpd, t, host, port = _start_test_server(dex_enabled=True)
+    request_body = {
+        "reserve_in": 10_000,
+        "reserve_out": 20_000,
+        "amount_in": 100,
+        "fee_bps": 30,
+        "pending_volume_same_direction": 0,
+        "confidence_bps": 9500,
+        "user_slippage_bps": 50,
+        "slippage_options_bps": [10, {}, "bad", 50],
+        "max_attacker_amount_in": 20,
+    }
+    try:
+        for route in (
+            "/api/dex/pokayoke_swap_suggest",
+            "/api/dex/pokayoke_swap_suggest_heavy",
+        ):
+            conn = HTTPConnection(host, port, timeout=5.0)
+            conn.request(
+                "POST",
+                route,
+                body=json.dumps(request_body).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+            )
+            resp = conn.getresponse()
+            body = json.loads(resp.read().decode("utf-8"))
+
+            assert resp.status == 200, body
+            assert body["ok"] is True
     finally:
         _stop_test_server(httpd, t)
 

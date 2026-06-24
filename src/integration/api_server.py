@@ -1202,7 +1202,7 @@ class _Handler(BaseHTTPRequestHandler):
 
         try:
             obj = json.loads(raw_body)
-        except Exception:
+        except (json.JSONDecodeError, UnicodeDecodeError):
             self._write_json(400, {"ok": False, "error": "bad_json"}, cors_origin=cors_origin)
             return True
         if not isinstance(obj, dict):
@@ -1292,7 +1292,7 @@ class _Handler(BaseHTTPRequestHandler):
                     for x in raw_opts:
                         try:
                             slippage_options_bps.append(int(x))
-                        except Exception:
+                        except (TypeError, ValueError):
                             continue
                 else:
                     slippage_options_bps = None
@@ -1416,7 +1416,7 @@ class _Handler(BaseHTTPRequestHandler):
                     for x in raw_opts:
                         try:
                             v = int(x)
-                        except Exception:
+                        except (TypeError, ValueError):
                             continue
                         if v < 0 or v > 10_000:
                             continue
@@ -1529,7 +1529,7 @@ class _Handler(BaseHTTPRequestHandler):
                     for x in raw_opts:
                         try:
                             v = int(x)
-                        except Exception:
+                        except (TypeError, ValueError):
                             continue
                         if v < 0 or v > 10_000:
                             continue
