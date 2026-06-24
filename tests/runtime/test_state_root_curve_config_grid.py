@@ -18,7 +18,8 @@ if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 from src.state.canonical import canonical_json_bytes  # noqa: E402
-from src.state.pools import normalize_curve_config  # noqa: E402
+import src.state.pools as pools_module  # noqa: E402
+from src.state.pools import normalize_curve_config, parse_cubic_sum_params  # noqa: E402
 from tools.runtime import state_root_lib as lib  # noqa: E402
 
 ASSET0 = "0x" + "01" * 32
@@ -33,7 +34,7 @@ def _params(obj: dict[str, int]) -> str:
     return canonical_json_bytes(obj).decode("utf-8")
 
 
-def _pool(index: int, curve_tag: str, curve_params: str) -> dict:
+def _pool(index: int, curve_tag: str, curve_params: object) -> dict:
     return {
         "pool_id": _id(0x40 + index),
         "asset0": ASSET0,
@@ -88,26 +89,49 @@ def test_canonical_curve_config_grid_matches_rust(rust_bin):
 
 def test_python_normalizes_equivalent_raw_curve_configs():
     raw_to_canonical = [
-        ({"curve_tag": "cpmm", "curve_params": {}}, ("CPMM", "")),
+        ("cpmm", {}, ("CPMM", "")),
         (
-            {"curve_tag": "quartic_blend_v1", "curve_params": '{"c_num":2,"c_den":4}'},
+            "quartic_blend_v1",
+            '{"c_num":2,"c_den":4}',
             ("QUARTIC_BLEND_V1", _params({"c_den": 2, "c_num": 1})),
         ),
         (
-            {"curve_tag": "QUINTIC_BLEND_V1", "curve_params": {"c_num": 6, "c_den": 10}},
+            "QUINTIC_BLEND_V1",
+            {"c_num": 6, "c_den": 10},
             ("QUINTIC_BLEND_V1", _params({"c_den": 5, "c_num": 3})),
         ),
     ]
 
-    for raw, expected in raw_to_canonical:
+    for raw_curve_tag, raw_curve_params, expected in raw_to_canonical:
         assert normalize_curve_config(
-            curve_tag=raw["curve_tag"],
-            curve_params=raw["curve_params"],
+            curve_tag=raw_curve_tag,
+            curve_params=raw_curve_params,
         ) == expected
 
-        raw_state = {"pools": [_pool(1, raw["curve_tag"], raw["curve_params"])]}
+        raw_state = {"pools": [_pool(1, raw_curve_tag, raw_curve_params)]}
         canonical_state = {"pools": [_pool(1, expected[0], expected[1])]}
         assert lib.state_root_from_json(raw_state) == lib.state_root_from_json(canonical_state)
+
+
+def test_curve_config_rejects_malformed_json():
+    with pytest.raises(ValueError, match="invalid curve_params JSON for CUBIC_SUM_V1"):
+        normalize_curve_config(curve_tag="CUBIC_SUM_V1", curve_params="{bad")
+
+    with pytest.raises(ValueError, match="invalid curve_params JSON"):
+        parse_cubic_sum_params("{bad")
+
+
+def test_curve_config_surfaces_json_parser_fault(monkeypatch):
+    def fail_loads(_text):
+        raise RuntimeError("json parser bug")
+
+    monkeypatch.setattr(pools_module.json, "loads", fail_loads)
+
+    with pytest.raises(RuntimeError, match="json parser bug"):
+        normalize_curve_config(curve_tag="CUBIC_SUM_V1", curve_params='{"p":1,"q":1}')
+
+    with pytest.raises(RuntimeError, match="json parser bug"):
+        pools_module.parse_cubic_sum_params('{"p":1,"q":1}')
 
 
 def test_rust_rejects_raw_noncanonical_curve_boundary(rust_bin):

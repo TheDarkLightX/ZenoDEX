@@ -9,6 +9,7 @@ from enum import Enum
 from typing import Optional, Tuple
 
 import hashlib
+import json
 
 from .balances import AssetId, Amount
 from .canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
@@ -19,6 +20,15 @@ CURVE_TAG_CUBIC_SUM_V1 = "CUBIC_SUM_V1"
 CURVE_TAG_SUM_BOOST_V1 = "SUM_BOOST_V1"
 CURVE_TAG_QUARTIC_BLEND_V1 = "QUARTIC_BLEND_V1"
 CURVE_TAG_QUINTIC_BLEND_V1 = "QUINTIC_BLEND_V1"
+
+
+def _parse_curve_params_json(curve_params: str, *, curve_tag: str | None = None) -> object:
+    try:
+        return json.loads(curve_params)
+    except json.JSONDecodeError as exc:
+        if curve_tag is None:
+            raise ValueError(f"invalid curve_params JSON: {exc}") from exc
+        raise ValueError(f"invalid curve_params JSON for {curve_tag}: {exc}") from exc
 
 
 def _canonical_asset_id_if_hex(asset: AssetId, *, name: str) -> AssetId:
@@ -82,20 +92,15 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
         return CURVE_TAG_CPMM, ""
 
     if tag == CURVE_TAG_CUBIC_SUM_V1:
-        params_obj: object = curve_params
-        if params_obj is None:
-            params_obj = {"p": 1, "q": 1}
-        if isinstance(params_obj, str):
-            import json
-
-            try:
-                params_obj = json.loads(params_obj)
-            except Exception as exc:
-                raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
-        if not isinstance(params_obj, dict):
+        cubic_params: object = curve_params
+        if cubic_params is None:
+            cubic_params = {"p": 1, "q": 1}
+        if isinstance(cubic_params, str):
+            cubic_params = _parse_curve_params_json(cubic_params, curve_tag=tag)
+        if not isinstance(cubic_params, dict):
             raise ValueError(f"curve_params for {tag} must be a JSON object")
-        p = params_obj.get("p", 1)
-        q = params_obj.get("q", 1)
+        p = cubic_params.get("p", 1)
+        q = cubic_params.get("q", 1)
         if not isinstance(p, int) or isinstance(p, bool) or p <= 0:
             raise ValueError(f"{tag} param p must be a positive int")
         if not isinstance(q, int) or isinstance(q, bool) or q <= 0:
@@ -104,20 +109,15 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
         return CURVE_TAG_CUBIC_SUM_V1, canonical_json_bytes(params_norm).decode("utf-8")
 
     if tag == CURVE_TAG_SUM_BOOST_V1:
-        params_obj: object = curve_params
-        if params_obj is None:
-            params_obj = {"mu_num": 200, "mu_den": 10_000}
-        if isinstance(params_obj, str):
-            import json
-
-            try:
-                params_obj = json.loads(params_obj)
-            except Exception as exc:
-                raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
-        if not isinstance(params_obj, dict):
+        sum_boost_params: object = curve_params
+        if sum_boost_params is None:
+            sum_boost_params = {"mu_num": 200, "mu_den": 10_000}
+        if isinstance(sum_boost_params, str):
+            sum_boost_params = _parse_curve_params_json(sum_boost_params, curve_tag=tag)
+        if not isinstance(sum_boost_params, dict):
             raise ValueError(f"curve_params for {tag} must be a JSON object")
-        mu_num = params_obj.get("mu_num", 200)
-        mu_den = params_obj.get("mu_den", 10_000)
+        mu_num = sum_boost_params.get("mu_num", 200)
+        mu_den = sum_boost_params.get("mu_den", 10_000)
         if not isinstance(mu_num, int) or isinstance(mu_num, bool) or mu_num < 0:
             raise ValueError(f"{tag} param mu_num must be a non-negative int")
         if not isinstance(mu_den, int) or isinstance(mu_den, bool) or mu_den <= 0:
@@ -126,22 +126,17 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
         return CURVE_TAG_SUM_BOOST_V1, canonical_json_bytes(params_norm).decode("utf-8")
 
     if tag == CURVE_TAG_QUARTIC_BLEND_V1:
-        params_obj: object = curve_params
-        if params_obj is None:
+        quartic_params: object = curve_params
+        if quartic_params is None:
             # Default: c=8 is a conservative setting that reduces the frequency of large negative regressions vs CPMM
             # (at the cost of smaller average improvement).
-            params_obj = {"c_num": 8, "c_den": 1}
-        if isinstance(params_obj, str):
-            import json
-
-            try:
-                params_obj = json.loads(params_obj)
-            except Exception as exc:
-                raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
-        if not isinstance(params_obj, dict):
+            quartic_params = {"c_num": 8, "c_den": 1}
+        if isinstance(quartic_params, str):
+            quartic_params = _parse_curve_params_json(quartic_params, curve_tag=tag)
+        if not isinstance(quartic_params, dict):
             raise ValueError(f"curve_params for {tag} must be a JSON object")
-        c_num = params_obj.get("c_num", 8)
-        c_den = params_obj.get("c_den", 1)
+        c_num = quartic_params.get("c_num", 8)
+        c_den = quartic_params.get("c_den", 1)
         if not isinstance(c_num, int) or isinstance(c_num, bool) or c_num < 0:
             raise ValueError(f"{tag} param c_num must be a non-negative int")
         if not isinstance(c_den, int) or isinstance(c_den, bool) or c_den <= 0:
@@ -162,21 +157,16 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
         return CURVE_TAG_QUARTIC_BLEND_V1, canonical_json_bytes(params_norm).decode("utf-8")
 
     if tag == CURVE_TAG_QUINTIC_BLEND_V1:
-        params_obj: object = curve_params
-        if params_obj is None:
+        quintic_params: object = curve_params
+        if quintic_params is None:
             # Default: c=2 => K(x,y)=x*y*(x+y)^3 (a stable, easy-to-reason-about special case).
-            params_obj = {"c_num": 2, "c_den": 1}
-        if isinstance(params_obj, str):
-            import json
-
-            try:
-                params_obj = json.loads(params_obj)
-            except Exception as exc:
-                raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
-        if not isinstance(params_obj, dict):
+            quintic_params = {"c_num": 2, "c_den": 1}
+        if isinstance(quintic_params, str):
+            quintic_params = _parse_curve_params_json(quintic_params, curve_tag=tag)
+        if not isinstance(quintic_params, dict):
             raise ValueError(f"curve_params for {tag} must be a JSON object")
-        c_num = params_obj.get("c_num", 2)
-        c_den = params_obj.get("c_den", 1)
+        c_num = quintic_params.get("c_num", 2)
+        c_den = quintic_params.get("c_den", 1)
         if not isinstance(c_num, int) or isinstance(c_num, bool) or c_num < 0:
             raise ValueError(f"{tag} param c_num must be a non-negative int")
         if not isinstance(c_den, int) or isinstance(c_den, bool) or c_den <= 0:
@@ -203,14 +193,9 @@ def parse_cubic_sum_params(curve_params: str) -> Tuple[int, int]:
     """
     Parse (p,q) from a canonical JSON params string.
     """
-    import json
-
     if not isinstance(curve_params, str):
         raise TypeError("curve_params must be a string")
-    try:
-        obj = json.loads(curve_params)
-    except Exception as exc:
-        raise ValueError(f"invalid curve_params JSON: {exc}") from exc
+    obj = _parse_curve_params_json(curve_params)
     if not isinstance(obj, dict):
         raise ValueError("curve_params must decode to a JSON object")
     p = obj.get("p")
@@ -226,14 +211,9 @@ def parse_sum_boost_params(curve_params: str) -> Tuple[int, int]:
     """
     Parse (mu_num, mu_den) from a canonical JSON params string.
     """
-    import json
-
     if not isinstance(curve_params, str):
         raise TypeError("curve_params must be a string")
-    try:
-        obj = json.loads(curve_params)
-    except Exception as exc:
-        raise ValueError(f"invalid curve_params JSON: {exc}") from exc
+    obj = _parse_curve_params_json(curve_params)
     if not isinstance(obj, dict):
         raise ValueError("curve_params must decode to a JSON object")
     mu_num = obj.get("mu_num")
@@ -249,14 +229,9 @@ def parse_quartic_blend_params(curve_params: str) -> Tuple[int, int]:
     """
     Parse (c_num, c_den) from a canonical JSON params string.
     """
-    import json
-
     if not isinstance(curve_params, str):
         raise TypeError("curve_params must be a string")
-    try:
-        obj = json.loads(curve_params)
-    except Exception as exc:
-        raise ValueError(f"invalid curve_params JSON: {exc}") from exc
+    obj = _parse_curve_params_json(curve_params)
     if not isinstance(obj, dict):
         raise ValueError("curve_params must decode to a JSON object")
     c_num = obj.get("c_num")
@@ -272,14 +247,9 @@ def parse_quintic_blend_params(curve_params: str) -> Tuple[int, int]:
     """
     Parse (c_num, c_den) from a canonical JSON params string.
     """
-    import json
-
     if not isinstance(curve_params, str):
         raise TypeError("curve_params must be a string")
-    try:
-        obj = json.loads(curve_params)
-    except Exception as exc:
-        raise ValueError(f"invalid curve_params JSON: {exc}") from exc
+    obj = _parse_curve_params_json(curve_params)
     if not isinstance(obj, dict):
         raise ValueError("curve_params must decode to a JSON object")
     c_num = obj.get("c_num")
