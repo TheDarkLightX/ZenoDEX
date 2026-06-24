@@ -9,6 +9,7 @@ production security claim.
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import json
 import secrets
@@ -512,7 +513,7 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
             errors.append("encrypted SSS x_coordinates length must equal share_count")
         if len(set(x_coordinates)) != len(x_coordinates):
             errors.append("encrypted SSS x_coordinates must be unique")
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         errors.append(str(exc))
 
     provider_kinds: set[str] = set()
@@ -547,7 +548,7 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
             errors.append("encrypted SSS share ids must be unique")
         if len(xs) != len(envelopes):
             errors.append("encrypted SSS x coordinates must be unique per envelope")
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         errors.append(str(exc))
 
     try:
@@ -565,7 +566,7 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
             errors.append("encrypted SSS backup is missing an offline export provider")
         if not _REQUIRED_PROVIDER_KINDS.issubset(provider_kinds):
             errors.append("encrypted SSS backup is missing required provider kinds")
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         errors.append(str(exc))
 
     provider_delivery_ready = False
@@ -596,7 +597,7 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
             _LIVE_DELIVERY_MODES
         )
         errors.extend(delivery_errors)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         errors.append(str(exc))
 
     recovery_drill_ready = False
@@ -622,7 +623,7 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
         if drill.get("drill_hash") != perps_wallet_encrypted_sss_recovery_drill_hash_v1(drill):
             errors.append("encrypted SSS recovery drill hash mismatch")
         recovery_drill_ready = not any(error.startswith("encrypted SSS recovery drill") for error in errors)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         errors.append(str(exc))
 
     replay_recovery_ready = False
@@ -651,7 +652,7 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
         )
         replay_hostile_tests_ready = replay_hostile["replay_hostile_tests_ready"]
         replay_errors.extend(replay_hostile["errors"])
-    except Exception as exc:
+    except (InvalidTag, KeyError, RuntimeError, TypeError, ValueError) as exc:
         replay_errors.append(f"encrypted SSS replay failed: {exc}")
     if replay_errors:
         errors.extend(replay_errors)
@@ -670,7 +671,7 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
         if hostile.get("suite_hash") != perps_wallet_encrypted_sss_hostile_suite_hash_v1(hostile):
             errors.append("encrypted SSS hostile-share suite hash mismatch")
         hostile_share_tests_ready = not any(error.startswith("encrypted SSS hostile-share") for error in errors)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         errors.append(str(exc))
 
     raw_material_absent = False
@@ -683,7 +684,7 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
         )
         if not raw_material_absent:
             errors.append("encrypted SSS backup exposes raw key/share material or server-side reconstitution")
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         errors.append(str(exc))
 
     raw_audit_status = obj.get("audit_status")
@@ -710,7 +711,7 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
             errors.append("encrypted SSS audit status cannot be completed when audit is not ready")
         if external_audit_ready:
             _validate_external_audit_evidence(audit_evidence, backup=obj, errors=errors)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         errors.append(str(exc))
 
     if obj.get("production_security_claim") is True:
@@ -809,7 +810,7 @@ def _validate_external_audit_evidence(
             expected_payload_hash=str(audit_evidence.get("audit_hash")),
             expected_public_key=str(audit_evidence.get("auditor_public_key")),
         )
-    except Exception as exc:
+    except (RuntimeError, TypeError, ValueError) as exc:
         errors.append(f"encrypted SSS external audit evidence signature invalid: {exc}")
 
 
@@ -934,7 +935,7 @@ def _replay_recovery_drill(
     subject_public_key = _subject_public_key(profile, str(backup.get("subject_key_id") or ""))
     try:
         recovered_public_key = "0x" + bls_pubkey_hex_from_privkey(recovered)
-    except Exception as exc:
+    except (RuntimeError, TypeError, ValueError) as exc:
         errors.append(f"encrypted SSS replay recovered key is not a valid BLS key: {exc}")
         recovered_public_key = None
     subject_public_key_matches = recovered_public_key is not None and subject_public_key == recovered_public_key
@@ -1027,7 +1028,7 @@ def _replay_hostile_share_tests(
         subject_public_key = _subject_public_key(profile, str(backup.get("subject_key_id") or ""))
         try:
             recovered_public_key = "0x" + bls_pubkey_hex_from_privkey(recovered)
-        except Exception:
+        except (RuntimeError, TypeError, ValueError):
             recovered_public_key = None
         if recovered_fingerprint == drill_fingerprint or recovered_public_key == subject_public_key:
             errors.append("encrypted SSS hostile replay recovered subject key from insufficient shares")
@@ -1272,19 +1273,19 @@ def _validate_envelope(envelope: Mapping[str, Any], *, errors: list[str]) -> Non
         envelope_salt = _b64decode(str(envelope.get("envelope_salt_b64")), name="envelope_salt_b64")
         if len(envelope_salt) != 32:
             errors.append("encrypted SSS envelope salt must be 32 bytes")
-    except Exception as exc:
+    except ValueError as exc:
         errors.append(str(exc))
     try:
         nonce = _b64decode(str(envelope.get("nonce_b64")), name="nonce_b64")
         if len(nonce) != 12:
             errors.append("encrypted SSS envelope nonce must be 12 bytes")
-    except Exception as exc:
+    except ValueError as exc:
         errors.append(str(exc))
     try:
         ciphertext = _b64decode(str(envelope.get("ciphertext_b64")), name="ciphertext_b64")
         if not ciphertext:
             errors.append("encrypted SSS envelope ciphertext must be non-empty")
-    except Exception as exc:
+    except ValueError as exc:
         errors.append(str(exc))
 
 
@@ -1532,7 +1533,7 @@ def _b64(value: bytes) -> str:
 def _b64decode(value: str, *, name: str) -> bytes:
     try:
         return base64.b64decode(value.encode("ascii"), validate=True)
-    except Exception as exc:
+    except (UnicodeEncodeError, binascii.Error) as exc:
         raise ValueError(f"{name} must be valid base64: {exc}") from None
 
 
