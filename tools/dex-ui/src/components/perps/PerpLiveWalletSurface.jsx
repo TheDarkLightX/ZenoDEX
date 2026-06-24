@@ -7,7 +7,7 @@ import {
   apiMintPerpsWalletTestnetFaucet,
   apiPreparePerpsWallet,
   apiSubmitPerpsWallet,
-  isLocalTestnetDeployment,
+  readLocalSmokeFragmentSecret,
 } from '../../lib/api.js';
 
 const EMPTY_FORM = {
@@ -86,24 +86,6 @@ function readSmokeConfig() {
     load_oracle_evidence: params.get('perpsLoadOracleEvidence') === '1'
       || params.get('loadOracleEvidence') === '1',
   };
-}
-
-function readLocalSmokeFragmentSecret(names) {
-  if (!isLocalTestnetDeployment() || typeof window === 'undefined') {
-    return '';
-  }
-  const fragment = String(window.location.hash || '').replace(/^#/, '');
-  if (!fragment) {
-    return '';
-  }
-  const fragmentParams = new URLSearchParams(fragment);
-  for (const name of Array.isArray(names) ? names : [names]) {
-    const value = fragmentParams.get(name);
-    if (value) {
-      return value;
-    }
-  }
-  return '';
 }
 
 function parseIntOrNull(raw) {

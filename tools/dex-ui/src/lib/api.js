@@ -15,6 +15,24 @@ export function isLocalTestnetDeployment(runtimeConfig = getRuntimeConfig()) {
   return deployment === 'local-testnet' || deployment === 'localtest';
 }
 
+export function readLocalSmokeFragmentSecret(names) {
+  if (!isLocalTestnetDeployment() || typeof window === 'undefined') {
+    return '';
+  }
+  const fragment = String(window.location.hash || '').replace(/^#/, '');
+  if (!fragment) {
+    return '';
+  }
+  const fragmentParams = new URLSearchParams(fragment);
+  for (const name of Array.isArray(names) ? names : [names]) {
+    const value = fragmentParams.get(name);
+    if (value) {
+      return value;
+    }
+  }
+  return '';
+}
+
 function parseBooleanLike(raw) {
   if (raw === true || raw === 'true' || raw === '1' || raw === 1) {
     return true;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { apiGetZusdMonetaryStatus, apiPrepareZusdMonetary, apiSubmitZusdMonetary, isLocalTestnetDeployment } from '../lib/api.js';
+import { apiGetZusdMonetaryStatus, apiPrepareZusdMonetary, apiSubmitZusdMonetary, readLocalSmokeFragmentSecret } from '../lib/api.js';
 import InfoTip from './InfoTip.jsx';
 import './ZUSDTauWalletSurface.css';
 
@@ -62,17 +62,6 @@ function readSmokeConfig() {
     signed_tau_tx_payload:
       params.get('signedTauTxPayload') || params.get('signed_tau_tx_payload') || params.get('zusdSignedTauTxPayload') || '',
   };
-}
-
-function readLocalSmokeFragmentSecret(name) {
-  if (!isLocalTestnetDeployment() || typeof window === 'undefined') {
-    return '';
-  }
-  const fragment = String(window.location.hash || '').replace(/^#/, '');
-  if (!fragment) {
-    return '';
-  }
-  return new URLSearchParams(fragment).get(name) || '';
 }
 
 function parsePositiveInt(raw) {

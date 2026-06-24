@@ -7,6 +7,7 @@ from src.integration.perp_engine import (
     PerpEngineConfig,
     _ORACLE_PERPS_INDEX_QUERY_ID,
     _ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
+    _LiquidateAccountOracleRuntimeRequest,
     _kernel_initial_global_state,
     _perps_liquidate_account_runtime_oracle_action_id,
     apply_perp_ops,
@@ -176,11 +177,13 @@ def test_apply_perp_ops_partial_liquidate_accepts_matching_oracle_adapter(monkey
         require_oracle_adapter_for_isolated_partial_liquidate=True,
     )
     expected_action_id = _perps_liquidate_account_runtime_oracle_action_id(
-        base_config,
-        market_id=market_id,
-        market=market,
-        account_pubkey=account_pubkey,
-        fraction_bps=2_500,
+        _LiquidateAccountOracleRuntimeRequest(
+            config=base_config,
+            market_id=market_id,
+            market=market,
+            account_pubkey=account_pubkey,
+            fraction_bps=2_500,
+        )
     )
 
     def _fake_verifier(_bridge: object) -> dict[str, object]:

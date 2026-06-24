@@ -521,7 +521,7 @@ def create_local_signer_vault(
     return LocalSignerVault(vault)
 
 
-def verify_local_signer_public_receipt(receipt: Mapping[str, Any]) -> tuple[bool, str | None]:
+def verify_local_signer_public_receipt(receipt: object) -> tuple[bool, str | None]:
     if not isinstance(receipt, Mapping):
         return False, "receipt must be a JSON object"
     if set(receipt.keys()) != _PUBLIC_RECEIPT_KEYS_V0:
@@ -562,7 +562,7 @@ def verify_local_signer_public_receipt(receipt: Mapping[str, Any]) -> tuple[bool
 
 
 def verify_local_signer_dex_signature_receipt(
-    receipt: Mapping[str, Any],
+    receipt: object,
     *,
     intent: Mapping[str, Any],
 ) -> tuple[bool, str | None]:

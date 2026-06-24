@@ -10,7 +10,7 @@ import {
 import { useDemoMode } from '../lib/DemoModeContext.jsx';
 import ZUSDTauWalletSurface from './ZUSDTauWalletSurface.jsx';
 import ZUSDMonetarySurface from './ZUSDMonetarySurface.jsx';
-import { apiGetZusdMonetaryStatus, apiSubmitZusdMonetary, isLocalTestnetDeployment } from '../lib/api.js';
+import { apiGetZusdMonetaryStatus, apiSubmitZusdMonetary, readLocalSmokeFragmentSecret } from '../lib/api.js';
 
 const E8 = 100_000_000;
 
@@ -30,17 +30,6 @@ function readQuickMintSmokeConfig() {
     deadline: params.get('zusdDeadline') || '',
     acceptProtocolResponse: params.get('zusdAcceptProtocolResponse') === '1',
   };
-}
-
-function readLocalSmokeFragmentSecret(name) {
-  if (!isLocalTestnetDeployment() || typeof window === 'undefined') {
-    return '';
-  }
-  const fragment = String(window.location.hash || '').replace(/^#/, '');
-  if (!fragment) {
-    return '';
-  }
-  return new URLSearchParams(fragment).get(name) || '';
 }
 
 function decimalToE8(raw, label) {
@@ -179,6 +168,15 @@ function MintPanel({ onClose, demoMode = false, showClose = true }) {
           { ...common, action: 'deposit_collateral', amount_e8: collateralE8 },
           { timeoutMs: 20000 },
         );
+        if (!deposit || deposit.ok === false) {
+          setResult({
+            ok: false,
+            status: 'mint request completed',
+            deposit,
+            message: deposit?.error || deposit?.status || 'deposit_collateral not accepted',
+          });
+          return;
+        }
       }
       const minted = await apiSubmitZusdMonetary(
         { ...common, action: 'mint_zusd', amount_e8: mintE8 },
