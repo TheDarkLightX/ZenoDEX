@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sys
 from collections.abc import Sequence
+from typing import Any, cast
 
 import pytest
 
@@ -69,9 +70,9 @@ class _FakeProc:
         wait_results: Sequence[object] = (),
     ) -> None:
         self.pid = 4321
-        self.stdin = stdin or _FakeStream("stdin")
-        self.stdout = stdout or _FakeStream("stdout")
-        self.stderr = stderr or _FakeStream("stderr")
+        self.stdin: _FakeStream | None = stdin or _FakeStream("stdin")
+        self.stdout: _FakeStream | None = stdout or _FakeStream("stdout")
+        self.stderr: _FakeStream | None = stderr or _FakeStream("stderr")
         self.returncode: int | None = None
         self._poll_results = list(poll_results)
         self._wait_results = list(wait_results)
@@ -80,7 +81,7 @@ class _FakeProc:
         if self._poll_results:
             item = self._poll_results.pop(0)
             if item is not None:
-                self.returncode = int(item)
+                self.returncode = int(cast(int, item))
             return item
         return self.returncode
 
@@ -90,7 +91,7 @@ class _FakeProc:
             item = self._wait_results.pop(0)
             if isinstance(item, BaseException):
                 raise item
-            self.returncode = int(item)
+            self.returncode = int(cast(int, item))
             return self.returncode
         if self.returncode is None:
             self.returncode = 0
@@ -151,7 +152,7 @@ def test_proof_verifier_base_class_requires_override() -> None:
 )
 def test_subprocess_verifier_init_rejects_invalid_limits(kwargs: dict[str, object], reason: str) -> None:
     with pytest.raises(ValueError, match=reason):
-        SubprocessProofVerifier(**kwargs)  # type: ignore[arg-type]
+        SubprocessProofVerifier(**cast(Any, kwargs))
 
 
 def test_subprocess_verifier_rejects_non_mapping_and_oversized_payload() -> None:
@@ -162,7 +163,7 @@ def test_subprocess_verifier_rejects_non_mapping_and_oversized_payload() -> None
         max_stdout_bytes=256,
         max_stderr_bytes=256,
     )
-    assert verifier.verify(["not", "a", "mapping"]) == (False, "payload must be an object")  # type: ignore[arg-type]
+    assert verifier.verify(["not", "a", "mapping"]) == (False, "payload must be an object")
     ok, err = verifier.verify({"x": "A" * 100})
     assert ok is False
     assert err == "proof payload too large"
@@ -210,7 +211,7 @@ def test_subprocess_verifier_rejects_missing_subprocess_pipes(monkeypatch: pytes
         max_stderr_bytes=256,
     )
 
-    proc = _FakeProc()
+    proc = _FakeProc(stdin=None)
     proc.stdin = None
     monkeypatch.setattr(proof_verifier, "canonical_json_bytes", lambda payload: b"{}")
     monkeypatch.setattr(proof_verifier, "bounded_json_utf8_size", lambda payload, max_bytes: 2)
@@ -398,7 +399,7 @@ def test_subprocess_verifier_handles_none_write_before_success(monkeypatch: pyte
 
 def test_subprocess_verifier_rejects_empty_payload_close_error(monkeypatch: pytest.MonkeyPatch) -> None:
     proc = _FakeProc(
-        stdin=_FakeStream("stdin", close_exc=RuntimeError("close failed")),
+        stdin=_FakeStream("stdin", close_exc=OSError("close failed")),
         stdout=_FakeStream("stdout"),
         stderr=_FakeStream("stderr"),
     )
@@ -450,7 +451,7 @@ def test_subprocess_verifier_rejects_stdin_write_error_variants(monkeypatch: pyt
     )
     assert verifier.verify({"ok": True}) == (True, None)
 
-    generic_error = _FakeProc(stdin=_FakeStream("stdin", writes=[RuntimeError("boom")], close_exc=None))
+    generic_error = _FakeProc(stdin=_FakeStream("stdin", writes=[OSError("boom")], close_exc=None))
     _patch_fake_process(monkeypatch, generic_error, proof_bytes=proof_bytes, schedule=[(set(), {"stdin"})])
     assert verifier.verify({"ok": True}) == (False, "proof verifier stdin error")
 
@@ -469,7 +470,7 @@ def test_subprocess_verifier_rejects_stdin_close_and_read_errors(monkeypatch: py
         max_stderr_bytes=256,
     )
 
-    close_error = _FakeProc(stdin=_FakeStream("stdin", writes=[len(proof_bytes)], close_exc=RuntimeError("close failed")))
+    close_error = _FakeProc(stdin=_FakeStream("stdin", writes=[len(proof_bytes)], close_exc=OSError("close failed")))
     _patch_fake_process(monkeypatch, close_error, proof_bytes=proof_bytes, schedule=[(set(), {"stdin"})])
     assert verifier.verify({"ok": True}) == (False, "proof verifier stdin close error")
 
@@ -489,7 +490,7 @@ def test_subprocess_verifier_rejects_stdin_close_and_read_errors(monkeypatch: py
 
     read_error = _FakeProc(
         stdin=_FakeStream("stdin", writes=[len(proof_bytes)]),
-        stdout=_FakeStream("stdout", reads=[RuntimeError("read failed")]),
+        stdout=_FakeStream("stdout", reads=[OSError("read failed")]),
         stderr=_FakeStream("stderr"),
     )
     _patch_fake_process(monkeypatch, read_error, proof_bytes=proof_bytes, schedule=[(set(), {"stdin"}), ({"stdout"}, set())])
@@ -564,7 +565,7 @@ def test_subprocess_verifier_rejects_wait_timeout_and_exit_failure(monkeypatch: 
         stdout=_FakeStream("stdout", reads=[b""]),
         stderr=_FakeStream("stderr", reads=[b""]),
         poll_results=[None],
-        wait_results=[RuntimeError("did not exit"), 0],
+        wait_results=[OSError("did not exit"), 0],
     )
     _patch_fake_process(
         monkeypatch,

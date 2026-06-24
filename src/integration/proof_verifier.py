@@ -134,7 +134,7 @@ class SubprocessProofVerifier(ProofVerifier):
             proof_bytes = canonical_json_bytes(payload)
         except ValueError:
             return False, "proof payload too large"
-        except Exception as exc:
+        except TypeError as exc:
             return False, f"invalid proof payload encoding: {exc}"
 
         try:
@@ -147,7 +147,7 @@ class SubprocessProofVerifier(ProofVerifier):
                 close_fds=True,
                 bufsize=0,
             )
-        except Exception as exc:
+        except (OSError, ValueError) as exc:
             return False, f"proof verifier error: {exc}"
 
         if proc.stdin is None or proc.stdout is None or proc.stderr is None:
@@ -160,7 +160,7 @@ class SubprocessProofVerifier(ProofVerifier):
             for stream in (proc.stdin, proc.stdout, proc.stderr):
                 try:
                     os.set_blocking(stream.fileno(), False)
-                except Exception as exc:
+                except (OSError, ValueError) as exc:
                     # Fail-closed: this verifier relies on non-blocking pipes to
                     # enforce the write-side timeout when the child never reads.
                     _kill_proc_group()
@@ -179,7 +179,7 @@ class SubprocessProofVerifier(ProofVerifier):
                 stdin_open = False
                 try:
                     proc.stdin.close()
-                except Exception:
+                except OSError:
                     _kill_proc_group()
                     _wait_after_kill()
                     return False, "proof verifier stdin close error"
@@ -203,7 +203,7 @@ class SubprocessProofVerifier(ProofVerifier):
 
                 try:
                     ready_r, ready_w, _ = select.select(rlist, wlist, [], min(0.1, remaining))
-                except Exception:
+                except OSError:
                     _kill_proc_group()
                     _wait_after_kill()
                     return False, "proof verifier select error"
@@ -219,7 +219,7 @@ class SubprocessProofVerifier(ProofVerifier):
                         return False, "proof verifier stdin broken pipe"
                     except BlockingIOError:
                         continue
-                    except Exception:
+                    except OSError:
                         _kill_proc_group()
                         _wait_after_kill()
                         return False, "proof verifier stdin error"
@@ -237,7 +237,7 @@ class SubprocessProofVerifier(ProofVerifier):
                         stdin_open = False
                         try:
                             proc.stdin.close()
-                        except Exception:
+                        except OSError:
                             _kill_proc_group()
                             _wait_after_kill()
                             return False, "proof verifier stdin close error"
@@ -247,7 +247,7 @@ class SubprocessProofVerifier(ProofVerifier):
                         chunk_obj: object = stream.read(4096)
                     except BlockingIOError:
                         continue
-                    except Exception:
+                    except OSError:
                         _kill_proc_group()
                         _wait_after_kill()
                         return False, "proof verifier stdout/stderr read error"
@@ -296,7 +296,7 @@ class SubprocessProofVerifier(ProofVerifier):
                     _kill_proc_group()
                     _wait_after_kill()
                     return False, "proof verification timed out"
-                except Exception:
+                except (OSError, subprocess.SubprocessError):
                     _kill_proc_group()
                     _wait_after_kill()
                     return False, "proof verifier did not exit"
@@ -307,7 +307,7 @@ class SubprocessProofVerifier(ProofVerifier):
 
             try:
                 result = json.loads(bytes(stdout_buf))
-            except Exception as exc:
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
                 return False, f"invalid verifier output: {exc}"
 
             if not isinstance(result, dict):
