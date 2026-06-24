@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from typing import cast
 
 import pytest
 
@@ -261,6 +262,21 @@ def test_governance_authority_rejects_missing_or_placeholder_production_evidence
 
     assert receipt["ok"] is False
     assert any(str(error).startswith(expected_error) for error in receipt["errors"])
+
+
+@pytest.mark.parametrize("flag_name", ["active", "no_raw_private_key_exposure"])
+def test_governance_authority_rejects_ints_for_backend_descriptor_bool_flags(flag_name: str) -> None:
+    descriptor = _backend().public_dict()
+    descriptor[flag_name] = 1
+
+    receipt = _evaluate(backend_descriptors=[descriptor])
+    errors = cast(tuple[object, ...], receipt["errors"])
+
+    assert receipt["ok"] is False
+    assert any(
+        str(error).startswith(f"backend_descriptors[0]_invalid:backend_descriptors[0].{flag_name} must be bool")
+        for error in errors
+    )
 
 
 def test_governance_authority_rejects_insufficient_or_tampered_quorum() -> None:

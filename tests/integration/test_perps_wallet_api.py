@@ -4,7 +4,7 @@ import json
 import sys
 import threading
 import time
-from typing import Mapping
+from typing import Mapping, cast
 
 import pytest
 
@@ -1581,6 +1581,24 @@ def test_perps_wallet_device_approval_exercise_ready_receipt() -> None:
     assert "secret_hex" not in encoded
 
 
+@pytest.mark.parametrize("flag_name", ["active", "no_raw_private_key_exposure"])
+def test_perps_wallet_device_approval_rejects_ints_for_backend_descriptor_bool_flags(flag_name: str) -> None:
+    exercise = _perps_wallet_device_approval_exercise()
+    backend_descriptor = dict(cast(Mapping[str, object], exercise["backend_descriptor"]))
+    backend_descriptor[flag_name] = 1
+    exercise["backend_descriptor"] = backend_descriptor
+
+    status = evaluate_perps_wallet_device_approval_exercise_v1(
+        _perps_wallet_authority_profile(),
+        exercise,
+        expected_chain_id=CHAIN_ID,
+    )
+
+    assert status["ok"] is False
+    assert status["device_approval_ready"] is False
+    assert f"backend_descriptor.{flag_name} must be bool" in status["errors"]
+
+
 def test_perps_wallet_device_approval_exercise_blocks_missing_user_presence() -> None:
     exercise = _perps_wallet_device_approval_exercise()
     exercise["environment"] = {
@@ -1646,6 +1664,24 @@ def test_perps_wallet_signer_device_integration_ready_receipt() -> None:
     assert status["rollback_protection_confirmed"] is True
     assert status["backend_hash"] == integration["backend_descriptor"]["backend_hash"]
     assert status["environment_hash"] == integration["environment"]["environment_hash"]
+
+
+@pytest.mark.parametrize("flag_name", ["active", "no_raw_private_key_exposure"])
+def test_perps_wallet_signer_device_rejects_ints_for_backend_descriptor_bool_flags(flag_name: str) -> None:
+    integration = _perps_wallet_signer_device_integration()
+    backend_descriptor = dict(cast(Mapping[str, object], integration["backend_descriptor"]))
+    backend_descriptor[flag_name] = 1
+    integration["backend_descriptor"] = backend_descriptor
+
+    status = evaluate_perps_wallet_signer_device_integration_v1(
+        _perps_wallet_authority_profile(),
+        integration,
+        expected_chain_id=CHAIN_ID,
+    )
+
+    assert status["ok"] is False
+    assert status["signer_device_ready"] is False
+    assert f"backend_descriptor.{flag_name} must be bool" in status["errors"]
 
 
 def test_perps_wallet_signer_device_integration_blocks_missing_user_presence() -> None:

@@ -919,8 +919,11 @@ def _key_backend_descriptor_from_public_dict(payload: Mapping[str, Any]) -> KeyB
         backend_kind=_require_nonempty_str(obj.get("backend_kind"), name="backend_descriptor.backend_kind"),
         backend_id=_require_nonempty_str(obj.get("backend_id"), name="backend_descriptor.backend_id"),
         policy_hash=_require_nonempty_str(obj.get("policy_hash"), name="backend_descriptor.policy_hash"),
-        active=bool(obj.get("active", True)),
-        no_raw_private_key_exposure=bool(obj.get("no_raw_private_key_exposure", True)),
+        active=_require_bool(obj.get("active", True), name="backend_descriptor.active"),
+        no_raw_private_key_exposure=_require_bool(
+            obj.get("no_raw_private_key_exposure", True),
+            name="backend_descriptor.no_raw_private_key_exposure",
+        ),
         metadata=dict(_require_mapping(obj.get("metadata", {}), name="backend_descriptor.metadata")),
     )
     if dict(obj) != descriptor.public_dict():

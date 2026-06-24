@@ -63,6 +63,12 @@ def _require_nonnegative_int(value: object, *, name: str) -> int:
     return int(value)
 
 
+def _require_bool(value: object, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be bool")
+    return value
+
+
 def _require_root(value: object, *, name: str) -> str:
     if not isinstance(value, str):
         raise TypeError(f"{name} must be a str")
@@ -89,8 +95,11 @@ def _normalize_backend_descriptor(raw: object, *, name: str) -> tuple[dict[str, 
             backend_kind=_require_str(obj.get("backend_kind"), name=f"{name}.backend_kind"),
             backend_id=_require_str(obj.get("backend_id"), name=f"{name}.backend_id"),
             policy_hash=_require_str(obj.get("policy_hash"), name=f"{name}.policy_hash"),
-            active=bool(obj.get("active")),
-            no_raw_private_key_exposure=bool(obj.get("no_raw_private_key_exposure")),
+            active=_require_bool(obj.get("active"), name=f"{name}.active"),
+            no_raw_private_key_exposure=_require_bool(
+                obj.get("no_raw_private_key_exposure"),
+                name=f"{name}.no_raw_private_key_exposure",
+            ),
             metadata=_require_mapping(obj.get("metadata", {}), name=f"{name}.metadata"),
         )
         expected = descriptor.public_dict()
