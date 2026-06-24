@@ -14,7 +14,7 @@ def _esc(value: object) -> str:
 def _file_href(path_value: object) -> str | None:
     try:
         path = Path(str(path_value))
-    except Exception:
+    except (TypeError, ValueError):
         return None
     if not str(path_value).strip():
         return None

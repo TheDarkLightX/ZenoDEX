@@ -84,7 +84,7 @@ def _pool_id_for_create_pool(intent: Mapping[str, Any]) -> str | None:
     try:
         left, right = (asset0, asset1) if asset0 < asset1 else (asset1, asset0)
         return compute_pool_id(left, right, fee_bps)
-    except Exception:
+    except (TypeError, ValueError):
         return None
 
 
@@ -185,10 +185,10 @@ def touched_cells_for_transaction_v0(tx: Mapping[str, Any]) -> set[str]:
     intents = _extract_operation_intents_v0(tx)
     if not intents:
         return {GLOBAL_DEX_CELL_V0}
-    cells: set[str] = set()
+    transaction_cells: set[str] = set()
     for intent in intents:
-        cells.update(touched_cells_for_intent_v0(intent))
-    return cells or {GLOBAL_DEX_CELL_V0}
+        transaction_cells.update(touched_cells_for_intent_v0(intent))
+    return transaction_cells or {GLOBAL_DEX_CELL_V0}
 
 
 def transactions_conflict_v0(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:

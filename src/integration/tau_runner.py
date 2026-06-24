@@ -365,7 +365,7 @@ def _try_import_tau_python_binding(project_root: Path = ROOT) -> Optional[Module
                 sys.path.insert(0, ds)
         try:
             mod = importlib.import_module("tau")
-        except Exception:
+        except (ImportError, OSError):
             return None
 
         # Guard against importing an unrelated `tau` package.

@@ -116,3 +116,32 @@ def test_run_subprocess_with_output_caps_pipe_cleanup_fault_boundary(
             max_stdout_bytes=1024,
             max_stderr_bytes=1024,
         )
+
+
+def test_try_import_tau_python_binding_treats_import_error_as_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(tau_runner, "_find_tau_python_binding_dirs", lambda _project_root: [tmp_path])
+    monkeypatch.setattr(
+        tau_runner.importlib,
+        "import_module",
+        lambda _name: (_ for _ in ()).throw(ImportError("tau binding unavailable")),
+    )
+
+    assert tau_runner._try_import_tau_python_binding(project_root=tmp_path) is None
+
+
+def test_try_import_tau_python_binding_does_not_hide_unexpected_import_fault(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(tau_runner, "_find_tau_python_binding_dirs", lambda _project_root: [tmp_path])
+    monkeypatch.setattr(
+        tau_runner.importlib,
+        "import_module",
+        lambda _name: (_ for _ in ()).throw(RuntimeError("tau binding import bug")),
+    )
+
+    with pytest.raises(RuntimeError, match="tau binding import bug"):
+        tau_runner._try_import_tau_python_binding(project_root=tmp_path)

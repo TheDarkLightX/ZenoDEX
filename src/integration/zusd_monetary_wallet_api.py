@@ -923,7 +923,7 @@ def _state_from_app_state(app_state: Mapping[str, Any], *, actor_pubkey: str, na
 def _safe_native_balance(client: TauNetTcpClient, actor_pubkey: str) -> int | None:
     try:
         return int(client.get_balance(_pubkey_for_rpc(actor_pubkey)))
-    except Exception:
+    except (TypeError, ValueError, TauNetRpcError):
         return None
 
 

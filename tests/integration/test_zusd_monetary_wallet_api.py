@@ -4,6 +4,8 @@ import json
 import sys
 from typing import Mapping, cast
 
+import pytest
+
 from src.core.dex import DexState
 from src.core.zusd import E8, ZUSDCommand, init_state, step
 from src.integration.dex_snapshot import snapshot_from_state
@@ -24,6 +26,15 @@ import src.integration.zusd_monetary_wallet_api as monetary_api
 ALICE_PRIVKEY = 82
 ALICE = "0x" + bls_pubkey_hex_from_privkey(ALICE_PRIVKEY)
 ORACLE = "0x" + bls_pubkey_hex_from_privkey(81)
+
+
+def test_safe_native_balance_does_not_hide_unexpected_client_fault() -> None:
+    class FaultingClient:
+        def get_balance(self, _address_hex: str) -> int:
+            raise RuntimeError("native balance client bug")
+
+    with pytest.raises(RuntimeError, match="native balance client bug"):
+        monetary_api._safe_native_balance(FaultingClient(), ALICE)
 
 
 def _ok(core, tag: str, **kwargs):

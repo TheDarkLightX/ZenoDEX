@@ -93,6 +93,25 @@ def test_runtime_hardening_rejects_broad_except_continue(tmp_path: Path) -> None
     assert report["findings"][0]["function"] == "collect"
 
 
+def test_runtime_hardening_rejects_broad_except_return_none(tmp_path: Path) -> None:
+    source = _write(
+        tmp_path / "unsafe_return_none.py",
+        """
+        def maybe(value):
+            try:
+                return int(value)
+            except Exception:
+                return None
+        """,
+    )
+
+    report = audit_runtime_hardening(tmp_path, (source,))
+
+    assert report["ok"] is False
+    assert report["findings"][0]["code"] == "broad_except_return_none"
+    assert report["findings"][0]["function"] == "maybe"
+
+
 def test_runtime_hardening_repo_default_passes() -> None:
     root = Path(__file__).resolve().parents[1]
 

@@ -5,8 +5,8 @@ The checker intentionally gates only two high-signal regression classes:
 
 * runtime ``assert`` statements in source paths, because ``python -O`` strips
   them;
-* broad exception handlers whose entire body is ``pass`` or ``continue``,
-  because they silently erase unexpected faults.
+* broad exception handlers whose entire body is ``pass``, ``continue``, or
+  ``return None``, because they silently erase unexpected faults.
 
 Boundary handlers that catch ``Exception as exc`` and return a stable,
 fail-closed error are outside this checker. Those need surface-specific review.
@@ -85,6 +85,11 @@ def _single_suppression_statement(node: ast.ExceptHandler) -> str | None:
         return "pass"
     if isinstance(stmt, ast.Continue):
         return "continue"
+    if isinstance(stmt, ast.Return):
+        if stmt.value is None:
+            return "return_none"
+        if isinstance(stmt.value, ast.Constant) and stmt.value.value is None:
+            return "return_none"
     return None
 
 

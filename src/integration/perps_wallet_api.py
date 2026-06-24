@@ -1007,7 +1007,7 @@ def _market_quote_asset(app_state: Mapping[str, Any], *, market_id: str) -> str:
 def _safe_native_balance(client: TauNetTcpClient, pubkey: str) -> int | None:
     try:
         return int(client.get_balance(_pubkey_for_rpc(pubkey)))
-    except Exception:
+    except (TypeError, ValueError, TauNetRpcError):
         return None
 
 
@@ -1288,7 +1288,7 @@ def _reject_payload(payload: dict[str, Any], *, status: str, error: str) -> dict
 def _safe_sequence_after_submission(client: Any, tx_sender_pubkey: str) -> int | None:
     try:
         return int(client.get_sequence(_pubkey_for_rpc(tx_sender_pubkey)))
-    except Exception:
+    except (TypeError, ValueError, TauNetRpcError):
         return None
 
 

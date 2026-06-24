@@ -103,6 +103,24 @@ ROOT_B = "0x" + "bb" * 32
 FUTURE_DEADLINE = 4_102_444_800
 
 
+def test_safe_native_balance_does_not_hide_unexpected_client_fault() -> None:
+    class FaultingClient:
+        def get_balance(self, _address_hex: str) -> int:
+            raise RuntimeError("native balance client bug")
+
+    with pytest.raises(RuntimeError, match="native balance client bug"):
+        perps_wallet_api._safe_native_balance(FaultingClient(), ALICE)
+
+
+def test_safe_sequence_after_submission_does_not_hide_unexpected_client_fault() -> None:
+    class FaultingClient:
+        def get_sequence(self, _sender_pubkey_hex: str) -> int:
+            raise RuntimeError("sequence client bug")
+
+    with pytest.raises(RuntimeError, match="sequence client bug"):
+        perps_wallet_api._safe_sequence_after_submission(FaultingClient(), ALICE)
+
+
 def _live_proof_ok_cmd(surface: str) -> list[str]:
     return [
         sys.executable,
