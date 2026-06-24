@@ -12,13 +12,17 @@ conservation invariant, rejection paths, no-op-on-reject, and the large-integer
 
 from __future__ import annotations
 
+from typing import cast
+
 import pytest
 
+import src.core.zusd as zusd_module
 from src.core.zusd import (
     BPS_SCALE,
     E8,
     MAX_AMOUNT_E8,
     ZUSDCommand,
+    ZUSDCommandTag,
     ZUSDState,
     init_state,
     step,
@@ -27,7 +31,7 @@ from src.core.zusd import (
 _PRICE = E8  # 1.0 in e8 fixed point
 
 
-def _ok(state: ZUSDState, tag: str, **args) -> ZUSDState:
+def _ok(state: ZUSDState, tag: ZUSDCommandTag, **args) -> ZUSDState:
     r = step(state, ZUSDCommand(tag, args))
     assert r.ok, f"expected {tag} to succeed, got error={r.error!r}"
     assert r.state is not None
@@ -127,6 +131,7 @@ def test_redeem_conserves_and_reduces_debt():
     before_debt = s.debt_e8
     r = step(s, ZUSDCommand("redeem_zusd", {"amount_e8": 100 * E8}))
     assert r.ok, f"redeem failed: {r.error!r}"
+    assert r.state is not None
     assert r.state.debt_e8 < before_debt
     _conserved(r.state)
 
@@ -160,8 +165,21 @@ def test_mint_blocked_before_oracle():
 
 def test_unknown_command_rejected():
     s = _bootstrapped()
-    r = step(s, ZUSDCommand("frobnicate", {}))
+    r = step(s, ZUSDCommand(cast(ZUSDCommandTag, "frobnicate"), {}))
     assert not r.ok and r.state is None
+
+
+def test_unexpected_handler_fault_is_labeled_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail_handler(_state: ZUSDState, _cmd: ZUSDCommand) -> object:
+        raise RuntimeError("boom\nwith newline")
+
+    monkeypatch.setitem(zusd_module._ZUSD_STEP_HANDLERS, "advance_epoch", fail_handler)
+
+    r = step(init_state(), ZUSDCommand("advance_epoch", {"delta": 1}))
+
+    assert not r.ok
+    assert r.state is None
+    assert r.error == "internal error: RuntimeError: boom with newline"
 
 
 def test_large_amount_is_deterministic_and_no_overflow():

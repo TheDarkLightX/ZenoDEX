@@ -4,10 +4,12 @@ from types import SimpleNamespace
 
 import pytest
 
+import src.core.zusd as zusd_module
 from src.core.zusd import (
     E8,
     ZUSDMultiCommand,
     ZUSDMultiState,
+    ZUSDCommandTag,
     ZUSDVault,
     check_multi_invariants,
     in_multi_recovery_mode,
@@ -16,7 +18,7 @@ from src.core.zusd import (
 )
 
 
-def _ok(s: ZUSDMultiState, tag: str, **kwargs) -> ZUSDMultiState:
+def _ok(s: ZUSDMultiState, tag: ZUSDCommandTag, **kwargs) -> ZUSDMultiState:
     r = step_multi(s, ZUSDMultiCommand(tag=tag, args=kwargs))
     assert r.ok, r.error
     assert r.state is not None
@@ -25,6 +27,19 @@ def _ok(s: ZUSDMultiState, tag: str, **kwargs) -> ZUSDMultiState:
 
 def _bootstrap(s: ZUSDMultiState, *, price_e8: int = 100 * E8) -> ZUSDMultiState:
     return _ok(s, "bootstrap_oracle", price_e8=price_e8, auth_ok=True)
+
+
+def test_multi_unexpected_handler_fault_is_labeled_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail_handler(_state: ZUSDMultiState, _cmd: ZUSDMultiCommand) -> object:
+        raise RuntimeError("multi boom")
+
+    monkeypatch.setitem(zusd_module._ZUSD_MULTI_STEP_HANDLERS, "advance_epoch", fail_handler)
+
+    r = step_multi(init_multi_state(), ZUSDMultiCommand(tag="advance_epoch", args={"delta": 1}))
+
+    assert not r.ok
+    assert r.state is None
+    assert r.error == "internal error: RuntimeError: multi boom"
 
 
 def test_multi_supply_conservation_across_two_vaults() -> None:

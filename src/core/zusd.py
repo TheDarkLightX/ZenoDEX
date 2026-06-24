@@ -24,6 +24,7 @@ E8 = 100_000_000
 BPS_SCALE = 10_000
 MAX_AMOUNT_E8 = 10**30
 ZUSD_SURFACE = "zusd"
+_EXPECTED_STEP_ERRORS = (KeyError, TypeError, ValueError)
 
 ZUSDCommandTag = Literal[
     "advance_epoch",
@@ -45,6 +46,17 @@ def _require_pos_int(v: Any, *, name: str) -> int:
     if not isinstance(v, int) or isinstance(v, bool) or v <= 0:
         raise ValueError(f"{name} must be a positive int")
     return int(v)
+
+
+def _format_unexpected_step_error(exc: Exception) -> str:
+    detail = str(exc).strip()
+    if "\n" in detail or "\r" in detail:
+        detail = " ".join(detail.split())
+    if len(detail) > 200:
+        detail = detail[:200]
+    if detail:
+        return f"internal error: {type(exc).__name__}: {detail}"
+    return f"internal error: {type(exc).__name__}"
 
 
 def _is_oracle_fresh(*, now_epoch: int, last_update_epoch: int, max_staleness_epochs: int, oracle_seen: bool) -> bool:
@@ -852,8 +864,10 @@ def _step_python(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
         if failed:
             return ZUSDStepResult(ok=False, error=f"invariant violation: {','.join(failed)}")
         return ZUSDStepResult(ok=True, state=ns, effects=eff)
-    except Exception as exc:
+    except _EXPECTED_STEP_ERRORS as exc:
         return ZUSDStepResult(ok=False, error=str(exc))
+    except Exception as exc:
+        return ZUSDStepResult(ok=False, error=_format_unexpected_step_error(exc))
 
 
 def step(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
@@ -1502,5 +1516,7 @@ def step_multi(state: ZUSDMultiState, cmd: ZUSDMultiCommand) -> ZUSDMultiStepRes
         if failed:
             return ZUSDMultiStepResult(ok=False, error=f"invariant violation: {','.join(failed)}")
         return ZUSDMultiStepResult(ok=True, state=ns, effects=eff)
-    except Exception as exc:
+    except _EXPECTED_STEP_ERRORS as exc:
         return ZUSDMultiStepResult(ok=False, error=str(exc))
+    except Exception as exc:
+        return ZUSDMultiStepResult(ok=False, error=_format_unexpected_step_error(exc))
