@@ -361,6 +361,8 @@ def evaluate_production_ceremony_v1(
         )
     if ceremony.get("quorum_satisfied") is not True:
         errs.append("production ceremony quorum_satisfied must be true")
+    if ceremony.get("production_security_claim") is not True:
+        errs.append("production ceremony production_security_claim must be true")
     production_ready = not errs
     return {"ok": production_ready, "errors": errs, "production_ready": production_ready}
 
@@ -527,5 +529,7 @@ def evaluate_key_rotation_ceremony_v1(
         errs.append("key rotation must invalidate old key")
     if ceremony.get("quorum_satisfied") is not True:
         errs.append("key rotation quorum_satisfied must be true")
+    if ceremony.get("production_security_claim") is not True:
+        errs.append("key rotation production_security_claim must be true")
     rotation_ready = not errs
     return {"ok": rotation_ready, "errors": errs, "rotation_ready": rotation_ready}

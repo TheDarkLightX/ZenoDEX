@@ -306,6 +306,11 @@ def test_production_ceremony_evaluation_succeeds_with_valid_attestations() -> No
     assert result["ok"], result["errors"]
     assert result["production_ready"] is True
 
+    tampered = {**ceremony, "production_security_claim": False}
+    tampered_result = evaluate_production_ceremony_v1(tampered, registry=registry, backup=backup)
+    assert tampered_result["ok"] is False
+    assert "production ceremony production_security_claim must be true" in tampered_result["errors"]
+
 
 def test_key_rotation_ceremony_builds_and_validates() -> None:
     custodians, privkeys = _make_custodians()
@@ -361,6 +366,11 @@ def test_key_rotation_ceremony_builds_and_validates() -> None:
     result = evaluate_key_rotation_ceremony_v1(ceremony, registry=registry)
     assert result["ok"], result["errors"]
     assert result["rotation_ready"] is True
+
+    tampered = {**ceremony, "production_security_claim": False}
+    tampered_result = evaluate_key_rotation_ceremony_v1(tampered, registry=registry)
+    assert tampered_result["ok"] is False
+    assert "key rotation production_security_claim must be true" in tampered_result["errors"]
 
 
 def test_key_rotation_ceremony_rejects_insufficient_quorum() -> None:
