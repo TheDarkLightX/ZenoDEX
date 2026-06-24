@@ -118,7 +118,7 @@ def _require_positive_int(value: Any) -> Optional[int]:
 
 
 def resolve_route_binding_from_receipt(
-    receipt: Mapping[str, Any],
+    receipt: Any,
 ) -> Tuple[Optional[RouteBinding], Optional[str]]:
     """
     Resolve a RouteBinding from a VERIFIED quote receipt.
@@ -511,7 +511,7 @@ def replay_route_legs(
                     return RouteReplayResult(
                         ok=False, reject_reason=ROUTE_REJECT_LEG_QUOTE_MISMATCH
                     )
-        except Exception:
+        except ValueError:
             return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_LEG_QUOTE_MISMATCH)
 
         if dir_is_0_to_1:

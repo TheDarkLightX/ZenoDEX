@@ -9,6 +9,9 @@ adversarial shapes.
 
 from __future__ import annotations
 
+import pytest
+
+import src.core.route_settlement as route_settlement_module
 from src.core.quote_receipts import make_route_quote_receipt, pool_state_fingerprint
 from src.core.route_settlement import (
     ROUTE_REJECT_LEG_QUOTE_MISMATCH,
@@ -352,3 +355,31 @@ def test_replay_rejects_lying_leg_amounts_with_matching_fingerprint() -> None:
     replay = replay_route_legs(binding=tampered, pools=pools)
     assert not replay.ok
     assert replay.reject_reason == ROUTE_REJECT_LEG_QUOTE_MISMATCH
+
+
+def test_replay_converts_expected_swap_domain_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    pools = {"p1": _pool("p1"), "p2": _pool("p2")}
+    binding = _binding_for(pools)
+
+    def fail_swap(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise ValueError("route quote domain")
+
+    monkeypatch.setattr(route_settlement_module, "swap_exact_in_for_pool", fail_swap)
+
+    replay = replay_route_legs(binding=binding, pools=pools)
+
+    assert not replay.ok
+    assert replay.reject_reason == ROUTE_REJECT_LEG_QUOTE_MISMATCH
+
+
+def test_replay_surfaces_unexpected_swap_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    pools = {"p1": _pool("p1"), "p2": _pool("p2")}
+    binding = _binding_for(pools)
+
+    def fail_swap(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise RuntimeError("route replay bug")
+
+    monkeypatch.setattr(route_settlement_module, "swap_exact_in_for_pool", fail_swap)
+
+    with pytest.raises(RuntimeError, match="route replay bug"):
+        replay_route_legs(binding=binding, pools=pools)
