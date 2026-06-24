@@ -398,6 +398,34 @@ def test_settlement_value_packet_from_dict_round_trips() -> None:
     assert rebuilt == packet
 
 
+@pytest.mark.parametrize(
+    "flag_name",
+    (
+        "price_provenance_ok",
+        "attestation_ok",
+        "asset_conservation_ok",
+        "lp_liability_balanced_ok",
+        "value_conservation_ok",
+        "packet_ok",
+    ),
+)
+def test_verify_settlement_value_packet_rejects_int_bool_flags(flag_name: str) -> None:
+    _pk, asset0, asset1, _pool_id, settlement = _swap_context()
+    price_packet = _price_packet_for(asset0, asset1)
+    packet = build_settlement_value_packet_from_price_packet(settlement=settlement, price_packet=price_packet)
+    payload = packet.to_dict()
+    payload[flag_name] = int(payload[flag_name])
+
+    ok, err = verify_settlement_value_packet_payload_from_price_packet(
+        settlement=settlement,
+        price_packet_payload=price_packet.to_dict(),
+        packet_payload=payload,
+    )
+
+    assert ok is False
+    assert err == f"{flag_name} must be bool"
+
+
 def test_verify_value_packet_rejects_expected_price_packet_parse_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -190,6 +190,43 @@ def test_endogenous_lp_value_packet_from_dict_round_trips() -> None:
     assert rebuilt == packet
 
 
+@pytest.mark.parametrize(
+    "flag_name",
+    (
+        "price_provenance_ok",
+        "attestation_ok",
+        "unique_pool_ids_ok",
+        "all_positive_lp_supply_ok",
+        "all_assets_priced_ok",
+        "asset_conservation_ok",
+        "lp_liability_balanced_ok",
+        "value_conservation_ok",
+        "packet_ok",
+    ),
+)
+def test_verify_endogenous_lp_value_packet_rejects_int_bool_flags(flag_name: str) -> None:
+    pk, asset0, asset1, pool_id, pool, settlement = _swap_context()
+    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=1, delta_sub=0))
+    price_packet = _price_packet_for(asset0, asset1)
+    packet = build_settlement_endogenous_lp_value_packet_from_price_packet(
+        settlement=settlement,
+        price_packet=price_packet,
+        pool_snapshots=(pool,),
+    )
+    payload = packet.to_dict()
+    payload[flag_name] = int(payload[flag_name])
+
+    ok, err = verify_settlement_endogenous_lp_value_packet_payload_from_price_packet(
+        settlement=settlement,
+        price_packet_payload=price_packet.to_dict(),
+        pool_snapshots_payload=list(packet.pool_snapshots),
+        packet_payload=payload,
+    )
+
+    assert ok is False
+    assert err == f"{flag_name} must be bool"
+
+
 def test_verify_endogenous_lp_value_packet_rejects_expected_price_packet_parse_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
