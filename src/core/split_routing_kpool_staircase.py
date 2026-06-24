@@ -688,15 +688,17 @@ def best_k_pool_exact_in_split(
     threshold = (k * int(amount_total)) // _DENSE_BREAKPOINT_FALLBACK_RATIO
 
     # Phase 1: cheap analytical sparsity estimate (no quotes).
-    # If ALL pools are estimated dense, skip enumeration entirely.
+    # Use the sum of per-pool estimated breakpoint counts, not the max, so that
+    # a single dense pool among many sparse ones does not trigger fallback when
+    # the cumulative total is still below threshold.
     if small_domain_dp_fn is not None:
-        max_est_density = max(
-            _estimate_breakpoint_sparsity(spec.pool, int(amount_total))
+        est_total = sum(
+            int(_estimate_breakpoint_sparsity(spec.pool, int(amount_total)) * int(amount_total))
             for spec in pool_specs
         )
-        # If the densest pool is estimated to have > 25% breakpoints, the
+        # If estimated total breakpoints already exceed the threshold, the
         # staircase DP will almost certainly lose. Fall back without enumerating.
-        if max_est_density > 0.25:
+        if est_total >= int(threshold):
             return _fallback_to_small_dp(
                 small_domain_dp_fn=small_domain_dp_fn,
                 pool_specs=pool_specs,

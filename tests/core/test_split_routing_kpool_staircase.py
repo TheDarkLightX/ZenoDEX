@@ -13,9 +13,13 @@ import pytest
 from src.core.split_routing_kpool_staircase import (
     _PoolSpec,
     staircase_k_pool_best_split,
+    best_k_pool_exact_in_split,
 )
 from src.core.split_routing_kpool_brute import _brute_force_k_pool_split
 from src.core.split_routing import PoolXY, exact_out_for_pool_exact_in
+from src.core.split_routing_many_exact_in_small import (
+    best_small_domain_many_pool_exact_in,
+)
 
 
 def _spec(pool_id: str, pool: PoolXY, min_valid: int) -> _PoolSpec:
@@ -343,4 +347,148 @@ def test_kpool_staircase_rejects_duplicate_pool_ids_three_pools() -> None:
             amount_in_total=100,
             max_legs=3,
             quote_exact_in=exact_out_for_pool_exact_in,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Adaptive fallback: best_k_pool_exact_in_split must pick the cheaper solver.
+# ---------------------------------------------------------------------------
+
+
+def _small_dp_fn(*, pool_ids, amount_in_total, max_legs, quote_for_pool_id):
+    """Inject the existing small-domain DP for adaptive fallback tests."""
+    return best_small_domain_many_pool_exact_in(
+        pool_ids=pool_ids,
+        amount_in_total=int(amount_in_total),
+        max_legs=int(max_legs),
+        quote_for_pool_id=quote_for_pool_id,
+    )
+
+
+def test_adaptive_fallback_matches_staircase_on_sparse_pools() -> None:
+    """Sparse breakpoints: adaptive should use staircase, matching direct call."""
+    pools = [
+        ("pool-a", PoolXY(x=1, y=100_000, fee_bps=0)),
+        ("pool-b", PoolXY(x=100_000, y=100_000, fee_bps=0)),
+        ("pool-c", PoolXY(x=50_000, y=200_000, fee_bps=10)),
+    ]
+    specs = [_spec(pid, p, _min_valid(p, 500)) for pid, p in pools]
+    direct = staircase_k_pool_best_split(
+        pool_specs=specs,
+        amount_in_total=500,
+        max_legs=3,
+        quote_exact_in=exact_out_for_pool_exact_in,
+    )
+    adaptive = best_k_pool_exact_in_split(
+        pool_specs=specs,
+        amount_in_total=500,
+        max_legs=3,
+        quote_exact_in=exact_out_for_pool_exact_in,
+        small_domain_dp_fn=_small_dp_fn,
+    )
+    assert direct == adaptive
+
+
+def test_adaptive_fallback_matches_small_dp_on_dense_pools() -> None:
+    """Dense breakpoints: adaptive should fall back to small-domain DP."""
+    pools = [
+        ("pool-a", PoolXY(x=10_000, y=10_000, fee_bps=30)),
+        ("pool-b", PoolXY(x=10_000, y=10_000, fee_bps=30)),
+        ("pool-c", PoolXY(x=10_000, y=10_000, fee_bps=30)),
+    ]
+    specs = [_spec(pid, p, _min_valid(p, 200)) for pid, p in pools]
+    # Direct small-domain DP result.
+    pool_ids = [pid for pid, _ in pools]
+    pools_dict = {pid: p for pid, p in pools}
+    min_valids = {pid: _min_valid(p, 200) for pid, p in pools}
+
+    def quote_for_pid(pool_id: str, amount: int) -> int | None:
+        if int(amount) < int(min_valids[pool_id]):
+            return None
+        if int(amount) <= 0:
+            return 0
+        try:
+            return int(exact_out_for_pool_exact_in(pools_dict[pool_id], int(amount)))
+        except ValueError:
+            return None
+
+    small_dp_result = best_small_domain_many_pool_exact_in(
+        pool_ids=pool_ids,
+        amount_in_total=200,
+        max_legs=3,
+        quote_for_pool_id=quote_for_pid,
+    )
+    # Adaptive should match (it falls back to the same DP).
+    adaptive = best_k_pool_exact_in_split(
+        pool_specs=specs,
+        amount_in_total=200,
+        max_legs=3,
+        quote_exact_in=exact_out_for_pool_exact_in,
+        small_domain_dp_fn=_small_dp_fn,
+    )
+    assert adaptive == small_dp_result
+
+
+def test_adaptive_fallback_matches_brute_on_sparse() -> None:
+    """Adaptive on sparse pools must match brute force (exactness check)."""
+    pools = [
+        ("pool-a", PoolXY(x=1, y=50_000, fee_bps=0)),
+        ("pool-b", PoolXY(x=50_000, y=50_000, fee_bps=0)),
+        ("pool-c", PoolXY(x=25_000, y=100_000, fee_bps=10)),
+    ]
+    specs = [_spec(pid, p, _min_valid(p, 300)) for pid, p in pools]
+    brute_pools = [(pid, p, _min_valid(p, 300)) for pid, p in pools]
+    expected = _brute_force_k_pool_split(
+        pools=brute_pools,
+        amount_in_total=300,
+        max_legs=3,
+        quote_exact_in=exact_out_for_pool_exact_in,
+    )
+    got = best_k_pool_exact_in_split(
+        pool_specs=specs,
+        amount_in_total=300,
+        max_legs=3,
+        quote_exact_in=exact_out_for_pool_exact_in,
+        small_domain_dp_fn=_small_dp_fn,
+    )
+    _assert_allocations_match(got, expected, pools)
+
+
+def test_adaptive_no_fallback_when_dp_fn_none() -> None:
+    """When small_domain_dp_fn is None, adaptive must use staircase always."""
+    pools = [
+        ("pool-a", PoolXY(x=10_000, y=10_000, fee_bps=30)),
+        ("pool-b", PoolXY(x=8_000, y=12_000, fee_bps=30)),
+    ]
+    specs = [_spec(pid, p, _min_valid(p, 100)) for pid, p in pools]
+    direct = staircase_k_pool_best_split(
+        pool_specs=specs,
+        amount_in_total=100,
+        max_legs=2,
+        quote_exact_in=exact_out_for_pool_exact_in,
+    )
+    adaptive = best_k_pool_exact_in_split(
+        pool_specs=specs,
+        amount_in_total=100,
+        max_legs=2,
+        quote_exact_in=exact_out_for_pool_exact_in,
+        small_domain_dp_fn=None,
+    )
+    assert direct == adaptive
+
+
+def test_adaptive_rejects_duplicate_pool_ids() -> None:
+    """Adaptive entry point must also reject duplicate pool_ids."""
+    pools = [
+        ("pool-a", PoolXY(x=10_000, y=10_000, fee_bps=30)),
+        ("pool-a", PoolXY(x=8_000, y=12_000, fee_bps=30)),
+    ]
+    specs = [_spec(pid, p, 1) for pid, p in pools]
+    with pytest.raises(ValueError, match="duplicate pool_id"):
+        best_k_pool_exact_in_split(
+            pool_specs=specs,
+            amount_in_total=100,
+            max_legs=2,
+            quote_exact_in=exact_out_for_pool_exact_in,
+            small_domain_dp_fn=_small_dp_fn,
         )
