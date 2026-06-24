@@ -191,6 +191,27 @@ def test_verify_spot_value_contract_payload_rejects_expected_contract_parse_erro
     assert err == "contract.asset_prices must be a list"
 
 
+def test_verify_spot_value_contract_payload_caps_malformed_value_error() -> None:
+    _pk, asset0, asset1, _pool_id, settlement = _swap_context()
+    contract = build_settlement_spot_value_contract(
+        settlement=settlement,
+        asset_prices={asset0: 100, asset1: 120},
+    )
+    payload = contract.to_dict()
+    payload["balance_value_sum"] = "x" * 500
+
+    ok, err = verify_settlement_spot_value_contract_payload(
+        settlement=settlement,
+        asset_prices={asset0: 100, asset1: 120},
+        contract_payload=payload,
+    )
+
+    assert ok is False
+    assert err is not None
+    assert err.startswith("invalid literal for int()")
+    assert len(err) <= 200
+
+
 def test_verify_spot_value_contract_payload_surfaces_unexpected_contract_parse_fault(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
