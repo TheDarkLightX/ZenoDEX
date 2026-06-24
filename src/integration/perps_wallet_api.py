@@ -2100,6 +2100,15 @@ def _build_perp_config(*, chain_id: str) -> PerpEngineConfig:
     )
 
 
+def _safe_boundary_error(exc: Exception) -> str:
+    if isinstance(exc, (ValueError, TypeError, KeyError, TauNetRpcError)):
+        msg = str(exc)
+    else:
+        msg = f"internal error: {type(exc).__name__}"
+    msg = " ".join((msg or "").split())
+    return msg or "internal error"
+
+
 def _preflight(
     *,
     app_state: Mapping[str, Any],
@@ -2119,7 +2128,7 @@ def _preflight(
         )
         return {"ok": bool(res.ok), "error": res.error, "effects": list(res.effects or [])}
     except Exception as exc:
-        return {"ok": False, "error": str(exc), "effects": []}
+        return {"ok": False, "error": _safe_boundary_error(exc), "effects": []}
 
 
 def _market_summaries(app_state: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -3328,7 +3337,7 @@ def _status_payload(account: str | None = None) -> Dict[str, Any]:
             status["account_view"] = _account_perps_view(markets, account)
     except Exception as exc:
         status["node_reachable"] = False
-        status["error"] = f"{type(exc).__name__}: {exc}"
+        status["error"] = _safe_boundary_error(exc)
     return status
 
 

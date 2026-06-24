@@ -2114,6 +2114,44 @@ def test_prepare_init_market_2p_builds_signed_stream_8_and_preflights(monkeypatc
     assert payload["proof"]["zk_wrapper"]["zk_proof_verified"] is False
 
 
+def test_prepare_sanitizes_preflight_internal_fault(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    def _faulting_apply(**_kwargs):
+        raise RuntimeError("do not leak perps preflight internals")
+
+    monkeypatch.setattr(perps_wallet_api, "apply_perp_ops", _faulting_apply)
+
+    body = {
+        "action": "init_market_2p",
+        "market_id": MARKET_ID,
+        "quote_asset": quote_asset,
+        "account_a_privkey": str(ALICE_PRIVKEY),
+        "account_b_privkey": str(BOB_PRIVKEY),
+        "deadline": FUTURE_DEADLINE,
+        "block_timestamp": 1,
+    }
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["report"]["preflight"] == {
+        "ok": False,
+        "error": "internal error: RuntimeError",
+        "effects": [],
+    }
+    assert "do not leak" not in str(payload)
+
+
 def test_status_exposes_clearinghouse_np_markets_and_supported_actions(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_with_np_market_and_collateral(quote_asset=quote_asset))
@@ -2138,6 +2176,25 @@ def test_status_exposes_clearinghouse_np_markets_and_supported_actions(monkeypat
     assert market["accounts"][0]["account_pubkey"] == ALICE
     assert market["accounts"][0]["collateral_quote"] == 1_000
     assert market["accounts"][0]["quote_balance"] == 4_000
+
+
+def test_status_sanitizes_internal_node_fault(monkeypatch) -> None:
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+
+    class _FaultingClient(_FakeClient):
+        def getappstate(self, *, full: bool = False) -> str:
+            raise RuntimeError("do not leak perps status internals")
+
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FaultingClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request("GET", "/api/perps/wallet/status", None)
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["status"]["node_reachable"] is False
+    assert payload["status"]["error"] == "internal error: RuntimeError"
+    assert "do not leak" not in str(payload)
 
 
 def test_prepare_np_submit_intent_builds_v12_sender_bound_operation(monkeypatch) -> None:
@@ -5128,4 +5185,39 @@ def test_submit_rejects_preflight_failure_before_sendtx(monkeypatch) -> None:
     assert status_code == 400
     assert payload["ok"] is False
     assert payload["error"].startswith("preflight_failed:")
+    assert _FakeClient.sent == []
+
+
+def test_submit_sanitizes_preflight_internal_fault_before_sendtx(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    def _faulting_apply(**_kwargs):
+        raise RuntimeError("do not leak perps submit preflight internals")
+
+    monkeypatch.setattr(perps_wallet_api, "apply_perp_ops", _faulting_apply)
+
+    body = {
+        "action": "init_market_2p",
+        "market_id": MARKET_ID,
+        "quote_asset": quote_asset,
+        "account_a_privkey": str(ALICE_PRIVKEY),
+        "account_b_privkey": str(BOB_PRIVKEY),
+        "deadline": FUTURE_DEADLINE,
+        "block_timestamp": 1,
+    }
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert payload["error"] == "preflight_failed: internal error: RuntimeError"
+    assert "do not leak" not in str(payload)
     assert _FakeClient.sent == []
