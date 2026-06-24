@@ -309,6 +309,31 @@ def test_exact_in_route_oracle_contract_rejects_tampering() -> None:
     assert err == "oracle contract payload mismatch"
 
 
+@pytest.mark.parametrize(
+    "flag_name",
+    ("enable_mixed_direct_twohop_split", "runtime_matches_canonical"),
+)
+def test_exact_in_route_oracle_contract_rejects_int_bool_flags(flag_name: str) -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1001, 0),
+        "p_ac": _pool("p_ac", "A", "C", 1000, 1000, 0),
+        "p_cb": _pool("p_cb", "C", "B", 1000, 1000, 0),
+    }
+
+    payload = build_exact_in_route_oracle_contract(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_in=10,
+    ).to_dict()
+    payload[flag_name] = int(payload[flag_name])
+
+    ok, err = verify_exact_in_route_oracle_contract_payload(payload)
+
+    assert ok is False
+    assert err == f"{flag_name} must be bool"
+
+
 def test_exact_in_route_oracle_contract_caps_malformed_pool_snapshot_error() -> None:
     pools = {
         "p_ab": _pool("p_ab", "A", "B", 1000, 1001, 0),
@@ -374,6 +399,45 @@ def test_exact_in_route_guarded_quote_packet_rejects_tampering() -> None:
     ok, err = verify_exact_in_route_guarded_quote_packet_payload(payload)
     assert ok is False
     assert err == "guarded quote packet payload mismatch"
+
+
+@pytest.mark.parametrize(
+    ("path", "expected_error"),
+    (
+        ("guard_ok", "guard_ok must be bool"),
+        (
+            "contract.enable_mixed_direct_twohop_split",
+            "enable_mixed_direct_twohop_split must be bool",
+        ),
+        ("contract.runtime_matches_canonical", "runtime_matches_canonical must be bool"),
+    ),
+)
+def test_exact_in_route_guarded_quote_packet_rejects_int_bool_flags(
+    path: str,
+    expected_error: str,
+) -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1001, 0),
+        "p_ac": _pool("p_ac", "A", "C", 1000, 1000, 0),
+        "p_cb": _pool("p_cb", "C", "B", 1000, 1000, 0),
+    }
+
+    payload = build_exact_in_route_guarded_quote_packet(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_in=10,
+    ).to_dict()
+    if path.startswith("contract."):
+        flag_name = path.split(".", 1)[1]
+        payload["contract"][flag_name] = int(payload["contract"][flag_name])
+    else:
+        payload[path] = int(payload[path])
+
+    ok, err = verify_exact_in_route_guarded_quote_packet_payload(payload)
+
+    assert ok is False
+    assert err == expected_error
 
 
 def test_exact_in_route_rank_projection_packet_round_trips() -> None:

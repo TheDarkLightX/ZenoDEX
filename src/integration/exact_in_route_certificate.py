@@ -35,6 +35,12 @@ def _safe_payload_validation_error(exc: Exception) -> str:
     return detail[:200] or type(exc).__name__
 
 
+def _require_bool(value: object, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be bool")
+    return value
+
+
 def exact_in_route_canonical_key(quote: RouteQuote) -> ExactInRouteCanonicalKey:
     hop_count, leg_count, pool_seq, mid, asset_out = _quote_key(quote)
     return (-int(quote.amount_out), int(hop_count), int(leg_count), str(pool_seq), str(mid), str(asset_out))
@@ -1038,9 +1044,13 @@ def verify_exact_in_route_oracle_contract_payload(payload: object) -> tuple[bool
             asset_out=str(payload["asset_out"]),
             amount_in=int(payload["amount_in"]),
             split_search_profile=str(payload["split_search_profile"]),
-            enable_mixed_direct_twohop_split=bool(payload["enable_mixed_direct_twohop_split"]),
+            enable_mixed_direct_twohop_split=_require_bool(
+                payload["enable_mixed_direct_twohop_split"],
+                name="enable_mixed_direct_twohop_split",
+            ),
             binding_ok=int(payload["binding_ok"]),
         )
+        _require_bool(payload["runtime_matches_canonical"], name="runtime_matches_canonical")
     except (KeyError, TypeError, ValueError) as exc:
         return False, _safe_payload_validation_error(exc)
     if payload != expected.to_dict():
@@ -1056,6 +1066,10 @@ def verify_exact_in_route_guarded_quote_packet_payload(payload: object) -> tuple
     contract_payload = payload.get("contract")
     if not isinstance(contract_payload, dict):
         return False, "contract must be a dict"
+    try:
+        _require_bool(payload["guard_ok"], name="guard_ok")
+    except (KeyError, TypeError, ValueError) as exc:
+        return False, _safe_payload_validation_error(exc)
     ok, err = verify_exact_in_route_oracle_contract_payload(contract_payload)
     if not ok:
         return False, err
@@ -1073,7 +1087,10 @@ def verify_exact_in_route_guarded_quote_packet_payload(payload: object) -> tuple
             asset_out=str(contract_payload["asset_out"]),
             amount_in=int(contract_payload["amount_in"]),
             split_search_profile=str(contract_payload["split_search_profile"]),
-            enable_mixed_direct_twohop_split=bool(contract_payload["enable_mixed_direct_twohop_split"]),
+            enable_mixed_direct_twohop_split=_require_bool(
+                contract_payload["enable_mixed_direct_twohop_split"],
+                name="enable_mixed_direct_twohop_split",
+            ),
             binding_ok=int(contract_payload["binding_ok"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
