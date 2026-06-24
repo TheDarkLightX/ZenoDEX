@@ -35,6 +35,8 @@ from .zeno_ledger_v0 import hash_v0
 
 MAX_POST_BODY = 96_000
 ResponseT = Tuple[int, Dict[str, Any]]
+DEFAULT_LIVE_FIXTURE_ASSET_IN = "0x" + "11" * 32
+DEFAULT_LIVE_FIXTURE_ASSET_OUT = "0x" + "22" * 32
 _RISK_ACK_ERROR = "autotrader_live_requires_risk_acknowledgement"
 _AUTOTRADER_LIVE_NOT_CLAIMED = [
     "unattended_production_strategy_execution",
@@ -307,7 +309,7 @@ def _default_fixture(*, signer_privkey: int, chain_id: str) -> dict[str, Any]:
         "owner_pubkey": owner,
         "policy_backend": "local",
         "template": "dca",
-        "asset_universe": ["A", "B"],
+        "asset_universe": [DEFAULT_LIVE_FIXTURE_ASSET_IN, DEFAULT_LIVE_FIXTURE_ASSET_OUT],
         "allowed_actions": ["PLACE_SWAP_EXACT_IN"],
         "notional_caps": {
             "per_order_max": 100,
@@ -330,13 +332,13 @@ def _default_fixture(*, signer_privkey: int, chain_id: str) -> dict[str, Any]:
         "template_params": {
             "fixed_order_size": 100,
             "cadence_epochs": 4,
-            "asset_in": "A",
-            "asset_out": "B",
+            "asset_in": DEFAULT_LIVE_FIXTURE_ASSET_IN,
+            "asset_out": DEFAULT_LIVE_FIXTURE_ASSET_OUT,
         },
     }
     _pool_id, pool, _lp_minted = create_pool(
-        asset0="A",
-        asset1="B",
+        asset0=DEFAULT_LIVE_FIXTURE_ASSET_IN,
+        asset1=DEFAULT_LIVE_FIXTURE_ASSET_OUT,
         amount0=1_000,
         amount1=2_000,
         fee_bps=10,
@@ -344,7 +346,12 @@ def _default_fixture(*, signer_privkey: int, chain_id: str) -> dict[str, Any]:
         created_at=0,
     )
     pools = {pool.pool_id: pool}
-    quote = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=100)
+    quote = best_route_exact_in_2hop(
+        pools_by_id=pools,
+        asset_in=DEFAULT_LIVE_FIXTURE_ASSET_IN,
+        asset_out=DEFAULT_LIVE_FIXTURE_ASSET_OUT,
+        amount_in=100,
+    )
     if quote is None:
         raise ValueError("fixture quote unavailable")
     receipt = make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id=pools, quote_epoch=5)
@@ -825,7 +832,8 @@ def _build_supervisor_preflight_response(
             "supervisor": supervisor,
             "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
         }
-    runtime = supervisor.get("runtime") if isinstance(supervisor.get("runtime"), Mapping) else {}
+    runtime_obj = supervisor.get("runtime")
+    runtime: Mapping[str, Any] = runtime_obj if isinstance(runtime_obj, Mapping) else {}
     consumed_runs_in_process = int(runtime.get("consumed_runs_in_process") or 0)
     max_runs_per_process = int(supervisor.get("max_runs_per_process") or 0)
     if max_runs_per_process > 0 and consumed_runs_in_process >= max_runs_per_process:
@@ -940,7 +948,8 @@ def _build_supervisor_execute_response(
     if submitted.get("ok") is not True:
         return submitted
     execution_keys.add(execution_id)
-    supervisor = preflight_payload.get("supervisor") if isinstance(preflight_payload.get("supervisor"), Mapping) else {}
+    supervisor_obj = preflight_payload.get("supervisor")
+    supervisor: Mapping[str, Any] = supervisor_obj if isinstance(supervisor_obj, Mapping) else {}
     chain_id = str(body.get("chain_id") or _env_str("AUTOTRADER_LIVE_CHAIN_ID", "tau-local"))
     run_scope_id = _supervisor_process_key(supervisor_status=supervisor, chain_id=chain_id)
     consumed_runs_in_process = int(supervisor_runs.get(run_scope_id, 0)) + 1
