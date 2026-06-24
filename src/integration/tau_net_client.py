@@ -401,7 +401,11 @@ class TauNetTcpClient:
             or float(config.timeout_s) <= 0
         ):
             raise ValueError("timeout_s must be positive and finite")
-        if not isinstance(config.recv_max_bytes, int) or config.recv_max_bytes <= 0:
+        if (
+            not isinstance(config.recv_max_bytes, int)
+            or isinstance(config.recv_max_bytes, bool)
+            or config.recv_max_bytes <= 0
+        ):
             raise ValueError("recv_max_bytes must be positive")
         self._cfg = config
 

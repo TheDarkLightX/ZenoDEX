@@ -46,6 +46,31 @@ def test_subprocess_confidential_attestation_verifier_rejects_nonfinite_timeout(
         )
 
 
+@pytest.mark.parametrize(
+    ("kwargs", "reason"),
+    [
+        ({"max_bytes": True}, "max_bytes must be positive"),
+        ({"max_bytes": 1.5}, "max_bytes must be positive"),
+        ({"max_stdout_bytes": True}, "max_stdout_bytes must be positive"),
+        ({"max_stderr_bytes": True}, "max_stderr_bytes must be positive"),
+    ],
+)
+def test_subprocess_confidential_attestation_verifier_rejects_non_int_limits(
+    kwargs: dict[str, object],
+    reason: str,
+) -> None:
+    params: dict[str, object] = {
+        "cmd": [sys.executable],
+        "timeout_s": 1.0,
+        "max_bytes": 1,
+        "max_stdout_bytes": 1,
+        "max_stderr_bytes": 1,
+    }
+    params.update(kwargs)
+    with pytest.raises(ValueError, match=reason):
+        SubprocessConfidentialAttestationVerifier(**params)  # type: ignore[arg-type]
+
+
 def test_subprocess_confidential_attestation_verifier_returns_typed_attestation() -> None:
     cmd = [
         sys.executable,

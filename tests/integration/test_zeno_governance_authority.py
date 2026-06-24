@@ -182,6 +182,22 @@ def test_external_threshold_bls_signer_rejects_nonfinite_timeout(timeout_s: obje
         )
 
 
+@pytest.mark.parametrize("max_stdout_bytes", [0, True, 1.5])
+def test_external_threshold_bls_signer_rejects_non_int_stdout_cap(max_stdout_bytes: object) -> None:
+    request = build_external_threshold_bls_sign_request_v0(
+        key_id="threshold-key",
+        evidence_hash=ROOT_A,
+        payload={"payload_kind": "governance_action"},
+    )
+
+    with pytest.raises(ValueError, match="max_stdout_bytes must be positive"):
+        external_threshold_bls.run_external_threshold_bls_signer_v0(
+            command=["unused-signer"],
+            request=request,
+            max_stdout_bytes=max_stdout_bytes,  # type: ignore[arg-type]
+        )
+
+
 def _evidence(*, placeholder: bool = False, evidence_hash: str | None = None) -> list[dict[str, object]]:
     return [
         {

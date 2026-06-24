@@ -283,6 +283,8 @@ def test_tau_net_tcp_client_methods_and_send_signed_tx(monkeypatch: pytest.Monke
         tau_net_client.TauNetTcpClient(tau_net_client.TauNetTcpConfig(timeout_s=float("inf")))
     with pytest.raises(ValueError, match="recv_max_bytes must be positive"):
         tau_net_client.TauNetTcpClient(tau_net_client.TauNetTcpConfig(recv_max_bytes=0))
+    with pytest.raises(ValueError, match="recv_max_bytes must be positive"):
+        tau_net_client.TauNetTcpClient(tau_net_client.TauNetTcpConfig(recv_max_bytes=True))
 
     client = tau_net_client.TauNetTcpClient()
     calls: list[str] = []

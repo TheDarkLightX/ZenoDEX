@@ -108,11 +108,19 @@ class SubprocessProofVerifier(ProofVerifier):
             or float(timeout_s) <= 0
         ):
             raise ValueError("timeout_s must be positive and finite")
-        if max_bytes <= 0:
+        if not isinstance(max_bytes, int) or isinstance(max_bytes, bool) or max_bytes <= 0:
             raise ValueError("max_bytes must be positive")
-        if max_stdout_bytes <= 0:
+        if (
+            not isinstance(max_stdout_bytes, int)
+            or isinstance(max_stdout_bytes, bool)
+            or max_stdout_bytes <= 0
+        ):
             raise ValueError("max_stdout_bytes must be positive")
-        if max_stderr_bytes <= 0:
+        if (
+            not isinstance(max_stderr_bytes, int)
+            or isinstance(max_stderr_bytes, bool)
+            or max_stderr_bytes <= 0
+        ):
             raise ValueError("max_stderr_bytes must be positive")
         self._cmd = list(cmd)
         self._timeout_s = float(timeout_s)

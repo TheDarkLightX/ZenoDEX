@@ -39,6 +39,33 @@ def test_run_subprocess_with_output_caps_rejects_nonfinite_timeout(
         )
 
 
+@pytest.mark.parametrize(
+    ("kwargs", "reason"),
+    [
+        ({"max_stdout_bytes": True}, "max_stdout_bytes must be positive"),
+        ({"max_stdout_bytes": 1.5}, "max_stdout_bytes must be positive"),
+        ({"max_stderr_bytes": True}, "max_stderr_bytes must be positive"),
+        ({"max_stderr_bytes": 1.5}, "max_stderr_bytes must be positive"),
+    ],
+)
+def test_run_subprocess_with_output_caps_rejects_non_int_caps(
+    tmp_path: Path,
+    kwargs: dict[str, object],
+    reason: str,
+) -> None:
+    params: dict[str, object] = {
+        "cmd": [sys.executable, "-c", "pass"],
+        "input_text": "",
+        "cwd": tmp_path,
+        "timeout_s": 1.0,
+        "max_stdout_bytes": 1024,
+        "max_stderr_bytes": 1024,
+    }
+    params.update(kwargs)
+    with pytest.raises(ValueError, match=reason):
+        _run_subprocess_with_output_caps(**params)  # type: ignore[arg-type]
+
+
 def test_run_subprocess_with_output_caps_times_out(tmp_path: Path) -> None:
     rc, out, err = _run_subprocess_with_output_caps(
         [sys.executable, "-c", "import time; time.sleep(2)"],

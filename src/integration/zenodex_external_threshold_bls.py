@@ -359,6 +359,12 @@ def run_external_threshold_bls_signer_v0(
         or float(timeout_s) <= 0
     ):
         raise ValueError("timeout_s must be positive and finite")
+    if (
+        not isinstance(max_stdout_bytes, int)
+        or isinstance(max_stdout_bytes, bool)
+        or max_stdout_bytes <= 0
+    ):
+        raise ValueError("max_stdout_bytes must be positive")
     argv = [_require_str(item, name=f"command[{index}]") for index, item in enumerate(command)]
     proc = subprocess.run(
         argv,

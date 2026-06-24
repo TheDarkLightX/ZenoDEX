@@ -149,8 +149,12 @@ def test_proof_verifier_base_class_requires_override() -> None:
         ({"cmd": [sys.executable], "timeout_s": float("inf"), "max_bytes": 1, "max_stdout_bytes": 1, "max_stderr_bytes": 1}, "timeout_s must be positive"),
         ({"cmd": [sys.executable], "timeout_s": True, "max_bytes": 1, "max_stdout_bytes": 1, "max_stderr_bytes": 1}, "timeout_s must be positive"),
         ({"cmd": [sys.executable], "timeout_s": 1.0, "max_bytes": 0, "max_stdout_bytes": 1, "max_stderr_bytes": 1}, "max_bytes must be positive"),
+        ({"cmd": [sys.executable], "timeout_s": 1.0, "max_bytes": True, "max_stdout_bytes": 1, "max_stderr_bytes": 1}, "max_bytes must be positive"),
+        ({"cmd": [sys.executable], "timeout_s": 1.0, "max_bytes": 1.5, "max_stdout_bytes": 1, "max_stderr_bytes": 1}, "max_bytes must be positive"),
         ({"cmd": [sys.executable], "timeout_s": 1.0, "max_bytes": 1, "max_stdout_bytes": 0, "max_stderr_bytes": 1}, "max_stdout_bytes must be positive"),
+        ({"cmd": [sys.executable], "timeout_s": 1.0, "max_bytes": 1, "max_stdout_bytes": True, "max_stderr_bytes": 1}, "max_stdout_bytes must be positive"),
         ({"cmd": [sys.executable], "timeout_s": 1.0, "max_bytes": 1, "max_stdout_bytes": 1, "max_stderr_bytes": 0}, "max_stderr_bytes must be positive"),
+        ({"cmd": [sys.executable], "timeout_s": 1.0, "max_bytes": 1, "max_stdout_bytes": 1, "max_stderr_bytes": True}, "max_stderr_bytes must be positive"),
     ],
 )
 def test_subprocess_verifier_init_rejects_invalid_limits(kwargs: dict[str, object], reason: str) -> None:

@@ -73,9 +73,17 @@ def _run_subprocess_with_output_caps(
         or float(timeout_s) <= 0
     ):
         raise ValueError("timeout_s must be positive and finite")
-    if not isinstance(max_stdout_bytes, int) or max_stdout_bytes <= 0:
+    if (
+        not isinstance(max_stdout_bytes, int)
+        or isinstance(max_stdout_bytes, bool)
+        or max_stdout_bytes <= 0
+    ):
         raise ValueError("max_stdout_bytes must be positive")
-    if not isinstance(max_stderr_bytes, int) or max_stderr_bytes <= 0:
+    if (
+        not isinstance(max_stderr_bytes, int)
+        or isinstance(max_stderr_bytes, bool)
+        or max_stderr_bytes <= 0
+    ):
         raise ValueError("max_stderr_bytes must be positive")
 
     try:
