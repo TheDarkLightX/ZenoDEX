@@ -47,6 +47,11 @@ _AUTOTRADER_SUPERVISOR_PREFLIGHT_SCHEMA = "zenodex/autotrader-supervisor-preflig
 _SUPERVISOR_RUN_COUNTERS: dict[str, int] = {}
 
 
+def _safe_api_error(exc: Exception) -> str:
+    detail = " ".join(str(exc).split())
+    return detail[:200] or type(exc).__name__
+
+
 def _env_str(name: str, default: str) -> str:
     raw = os.environ.get(name)
     if raw is None:
@@ -858,7 +863,7 @@ def _build_supervisor_preflight_response(
     except ValueError as exc:
         return {
             "ok": False,
-            "error": str(exc),
+            "error": _safe_api_error(exc),
             "supervisor": supervisor,
             "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
         }
@@ -1106,4 +1111,4 @@ def handle_autotrader_live_request(
             return status, payload
         return 404, {"ok": False, "error": "not_found"}
     except (ValueError, TypeError) as exc:
-        return 400, {"ok": False, "error": str(exc)}
+        return 400, {"ok": False, "error": _safe_api_error(exc)}

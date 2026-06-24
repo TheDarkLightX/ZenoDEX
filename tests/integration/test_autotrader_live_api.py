@@ -133,6 +133,28 @@ def test_autotrader_live_prepare_requires_risk_acknowledgement() -> None:
     assert payload["risk_disclosure"]["user_acknowledged"] is False
 
 
+def test_autotrader_live_prepare_caps_malformed_integer_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "true")
+
+    status, payload = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/prepare",
+        json.dumps(
+            {
+                "acknowledge_experimental_live_risk": True,
+                "signer_privkey": "9" * 1_000 + "x",
+            }
+        ).encode("utf-8"),
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert len(payload["error"]) <= 200
+    assert "9" * 201 not in payload["error"]
+
+
 def test_autotrader_live_prepare_requires_local_signing_enablement(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
