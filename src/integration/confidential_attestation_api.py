@@ -29,6 +29,10 @@ ResponseT = Tuple[int, Dict[str, Any]]
 _EXTERNAL_VERIFIER_BINDING_HASH_DOMAIN_V1 = "zenodex.confidential_external_verifier_binding/v1"
 
 
+class _ConfidentialAttestationConfigError(Exception):
+    pass
+
+
 def _env_str(name: str, default: str) -> str:
     raw = os.environ.get(name)
     if raw is None:
@@ -191,7 +195,10 @@ def _request_max_attestation_age(body: Mapping[str, Any]) -> int:
     requested = _request_int(body, name="max_attestation_age")
     if requested < 0:
         raise ValueError("max_attestation_age must be nonnegative")
-    configured = int(load_confidential_feature_status_from_env().max_attestation_age_epochs)
+    try:
+        configured = int(load_confidential_feature_status_from_env().max_attestation_age_epochs)
+    except ValueError as exc:
+        raise _ConfidentialAttestationConfigError(str(exc)) from exc
     if requested > configured:
         raise ValueError("max_attestation_age exceeds configured maximum")
     return requested
@@ -278,10 +285,18 @@ def _receipt_error_response(err: str | None) -> ResponseT:
     return 502, {"ok": False, "error": "attestation_verifier_rejected", "details": str(err or "rejected")}
 
 
+def _internal_fault_response(exc: Exception) -> ResponseT:
+    return 500, {
+        "ok": False,
+        "error": "confidential_attestation_internal_error",
+        "detail": type(exc).__name__,
+    }
+
+
 def _receipt_from_body_or_response(body: Mapping[str, Any]) -> tuple[dict[str, Any] | None, ResponseT | None]:
     try:
         receipt, err = _make_receipt_from_body(body)
-    except ValueError as exc:
+    except (ValueError, _ConfidentialAttestationConfigError) as exc:
         return None, (
             500,
             {"ok": False, "error": "invalid_confidential_attestation_config", "detail": str(exc)},
@@ -359,7 +374,14 @@ def _handle_verify(body: Mapping[str, Any]) -> ResponseT:
     if err_response is not None or receipt is None:
         return err_response or _receipt_error_response("rejected")
 
-    ok, gate_error = _verify_receipt_allowlist(receipt)
+    try:
+        ok, gate_error = _verify_receipt_allowlist(receipt)
+    except ValueError as exc:
+        return 500, {
+            "ok": False,
+            "error": "invalid_confidential_attestation_config",
+            "detail": str(exc),
+        }
     if not ok:
         return 400, {"ok": False, "error": str(gate_error), "receipt_admissible": False}
 
@@ -384,21 +406,32 @@ def _handle_admit(
         return 503, {"ok": False, "error": "confidential_request_table_unavailable"}
     try:
         expected_policy_digest = _request_str(body, name="expected_policy_digest")
-    except Exception as exc:
+    except (KeyError, TypeError, ValueError) as exc:
         return 400, {"ok": False, "error": "bad_request", "details": str(exc)}
+    except Exception as exc:
+        return _internal_fault_response(exc)
 
     receipt, err_response = _receipt_from_body_or_response(body)
     if err_response is not None or receipt is None:
         return err_response or _receipt_error_response("rejected")
 
-    status = load_confidential_feature_status_from_env()
-    public_status = status.to_public_dict()
-    admitted, admission_error, _updated = validate_confidential_extension_live_admission(
-        receipt=receipt,
-        approved_measurements=status.approved_measurements,
-        expected_policy_digest=expected_policy_digest,
-        request_table=request_table,
-    )
+    try:
+        status = load_confidential_feature_status_from_env()
+    except ValueError as exc:
+        return 500, {
+            "ok": False,
+            "error": "invalid_confidential_attestation_config",
+            "detail": str(exc),
+        }
+    try:
+        admitted, admission_error, _updated = validate_confidential_extension_live_admission(
+            receipt=receipt,
+            approved_measurements=status.approved_measurements,
+            expected_policy_digest=expected_policy_digest,
+            request_table=request_table,
+        )
+    except Exception as exc:
+        return _internal_fault_response(exc)
     if not admitted:
         return 400, {
             "ok": False,
@@ -437,21 +470,33 @@ def _handle_execute(
         execution_id = _request_str(body, name="execution_id")
         execution_kind = _request_str(body, name="execution_kind")
         result_code = _request_str(body, name="result_code")
-    except Exception as exc:
+    except (KeyError, TypeError, ValueError) as exc:
         return 400, {"ok": False, "error": "bad_request", "details": str(exc)}
+    except Exception as exc:
+        return _internal_fault_response(exc)
 
     receipt, err_response = _receipt_from_body_or_response(body)
     if err_response is not None or receipt is None:
         return err_response or _receipt_error_response("rejected")
 
-    status = load_confidential_feature_status_from_env()
+    try:
+        status = load_confidential_feature_status_from_env()
+    except ValueError as exc:
+        return 500, {
+            "ok": False,
+            "error": "invalid_confidential_attestation_config",
+            "detail": str(exc),
+        }
     public_status = status.to_public_dict()
-    admitted, admission_error, _updated = validate_confidential_extension_live_admission(
-        receipt=receipt,
-        approved_measurements=status.approved_measurements,
-        expected_policy_digest=expected_policy_digest,
-        request_table=request_table,
-    )
+    try:
+        admitted, admission_error, _updated = validate_confidential_extension_live_admission(
+            receipt=receipt,
+            approved_measurements=status.approved_measurements,
+            expected_policy_digest=expected_policy_digest,
+            request_table=request_table,
+        )
+    except Exception as exc:
+        return _internal_fault_response(exc)
     if not admitted:
         return 400, {
             "ok": False,
@@ -462,6 +507,15 @@ def _handle_execute(
         }
 
     try:
+        verifier_config = _verifier_config_from_env()
+    except ValueError as exc:
+        return 500, {
+            "ok": False,
+            "error": "invalid_confidential_attestation_config",
+            "detail": str(exc),
+        }
+
+    try:
         runtime_receipt = build_confidential_runtime_execution_receipt_v1(
             receipt=receipt,
             execution_id=execution_id,
@@ -469,9 +523,9 @@ def _handle_execute(
             result_code=result_code,
             operator_status_hash=str(public_status.get("status_hash") or ""),
             approved_measurements_hash=str(public_status.get("approved_measurements_hash") or ""),
-            external_verifier_binding_hash=_external_verifier_binding_hash(_verifier_config_from_env()),
+            external_verifier_binding_hash=_external_verifier_binding_hash(verifier_config),
         )
-    except Exception as exc:
+    except (KeyError, TypeError, ValueError) as exc:
         return 400, {
             "ok": False,
             "error": "bad_runtime_request",
@@ -480,6 +534,8 @@ def _handle_execute(
             "execution_ok": False,
             "request_consumed": False,
         }
+    except Exception as exc:
+        return _internal_fault_response(exc)
 
     key = _request_key_from_receipt(receipt)
     request_table.mark_used(key)

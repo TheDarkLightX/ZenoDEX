@@ -95,6 +95,23 @@ def test_confidential_attestation_verify_fails_closed_on_bad_config(monkeypatch)
     assert "CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED" in str(payload["detail"])
 
 
+def test_confidential_attestation_verify_fails_closed_on_bad_feature_status_config(monkeypatch) -> None:
+    from src.integration import confidential_attestation_api
+
+    monkeypatch.setenv("CONFIDENTIAL_MAX_ATTESTATION_AGE_EPOCHS", "not-int")
+
+    status_code, payload = confidential_attestation_api.handle_confidential_attestation_request(
+        "POST",
+        "/api/confidential/attestation/verify",
+        _verify_body(),
+    )
+
+    assert status_code == 500
+    assert payload["ok"] is False
+    assert payload["error"] == "invalid_confidential_attestation_config"
+    assert "CONFIDENTIAL_MAX_ATTESTATION_AGE_EPOCHS" in str(payload["detail"])
+
+
 def test_confidential_attestation_verify_internal_fault_is_not_bad_request(monkeypatch) -> None:
     from src.integration import confidential_attestation_api
 
@@ -111,6 +128,112 @@ def test_confidential_attestation_verify_internal_fault_is_not_bad_request(monke
         "POST",
         "/api/confidential/attestation/verify",
         _verify_body(),
+    )
+
+    assert status_code == 500
+    assert payload["ok"] is False
+    assert payload["error"] == "confidential_attestation_internal_error"
+    assert payload["detail"] == "RuntimeError"
+    assert "do not leak" not in str(payload)
+
+
+def test_confidential_attestation_admit_internal_fault_is_not_bad_request(monkeypatch) -> None:
+    from src.integration import confidential_attestation_api
+    from src.state.confidential_requests import ConfidentialRequestTable
+
+    def _valid_receipt(_body: object) -> tuple[dict[str, object], None]:
+        return {"body": {}, "receipt_hash": "receipt-hash"}, None
+
+    def _faulting_admission(**_kwargs: object) -> object:
+        raise RuntimeError("do not leak this admission fault")
+
+    body = json.loads(_verify_body().decode("utf-8"))
+    body["expected_policy_digest"] = "0x" + ("d" * 64)
+    monkeypatch.setattr(confidential_attestation_api, "_receipt_from_body_or_response", _valid_receipt)
+    monkeypatch.setattr(
+        confidential_attestation_api,
+        "validate_confidential_extension_live_admission",
+        _faulting_admission,
+    )
+
+    status_code, payload = confidential_attestation_api.handle_confidential_attestation_request(
+        "POST",
+        "/api/confidential/attestation/admit",
+        json.dumps(body).encode("utf-8"),
+        request_table=ConfidentialRequestTable(),
+    )
+
+    assert status_code == 500
+    assert payload["ok"] is False
+    assert payload["error"] == "confidential_attestation_internal_error"
+    assert payload["detail"] == "RuntimeError"
+    assert "do not leak" not in str(payload)
+
+
+def test_confidential_attestation_admit_fails_closed_on_bad_feature_status_config(monkeypatch) -> None:
+    from src.integration import confidential_attestation_api
+    from src.state.confidential_requests import ConfidentialRequestTable
+
+    def _valid_receipt(_body: object) -> tuple[dict[str, object], None]:
+        return {"body": {}, "receipt_hash": "receipt-hash"}, None
+
+    body = json.loads(_verify_body().decode("utf-8"))
+    body["expected_policy_digest"] = "0x" + ("d" * 64)
+    monkeypatch.setattr(confidential_attestation_api, "_receipt_from_body_or_response", _valid_receipt)
+    monkeypatch.setenv("CONFIDENTIAL_TEE_ENABLED", "maybe")
+
+    status_code, payload = confidential_attestation_api.handle_confidential_attestation_request(
+        "POST",
+        "/api/confidential/attestation/admit",
+        json.dumps(body).encode("utf-8"),
+        request_table=ConfidentialRequestTable(),
+    )
+
+    assert status_code == 500
+    assert payload["ok"] is False
+    assert payload["error"] == "invalid_confidential_attestation_config"
+    assert "CONFIDENTIAL_TEE_ENABLED" in str(payload["detail"])
+
+
+def test_confidential_attestation_execute_runtime_fault_is_not_bad_runtime_request(monkeypatch) -> None:
+    from src.integration import confidential_attestation_api
+    from src.state.confidential_requests import ConfidentialRequestTable
+
+    def _valid_receipt(_body: object) -> tuple[dict[str, object], None]:
+        return {"body": {}, "receipt_hash": "receipt-hash"}, None
+
+    def _admit(**_kwargs: object) -> tuple[bool, None, None]:
+        return True, None, None
+
+    def _faulting_runtime_builder(**_kwargs: object) -> object:
+        raise RuntimeError("do not leak this runtime fault")
+
+    body = json.loads(_verify_body().decode("utf-8"))
+    body.update(
+        {
+            "expected_policy_digest": "0x" + ("d" * 64),
+            "execution_id": "exec-runtime",
+            "execution_kind": "private_route_quote",
+            "result_code": "bounded_route_selected",
+        }
+    )
+    monkeypatch.setattr(confidential_attestation_api, "_receipt_from_body_or_response", _valid_receipt)
+    monkeypatch.setattr(
+        confidential_attestation_api,
+        "validate_confidential_extension_live_admission",
+        _admit,
+    )
+    monkeypatch.setattr(
+        confidential_attestation_api,
+        "build_confidential_runtime_execution_receipt_v1",
+        _faulting_runtime_builder,
+    )
+
+    status_code, payload = confidential_attestation_api.handle_confidential_attestation_request(
+        "POST",
+        "/api/confidential/attestation/execute",
+        json.dumps(body).encode("utf-8"),
+        request_table=ConfidentialRequestTable(),
     )
 
     assert status_code == 500
