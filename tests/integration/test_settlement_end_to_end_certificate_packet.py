@@ -257,3 +257,37 @@ def test_end_to_end_certificate_packet_rejects_tampering() -> None:
     )
     assert ok is False
     assert err == "settlement end-to-end certificate packet mismatch"
+
+
+def test_end_to_end_certificate_packet_payload_rejects_malformed_price_packet() -> None:
+    _pk, _asset0, _asset1, _pool_id, _pool, settlement = _four_swap_context()
+
+    ok, err = verify_settlement_end_to_end_certificate_packet_payload_from_price_packet(
+        settlement=settlement,
+        proof_flags=SettlementProofFlags.all_true(),
+        price_history=(100, 110, 120),
+        feature_extension_inputs_payload=_feature_extension_inputs().to_dict(),
+        price_packet_payload={"schema": "bad", "entries": "bad"},
+        packet_payload={},
+    )
+
+    assert ok is False
+    assert err == "packet.entries must be a list"
+
+
+def test_end_to_end_certificate_packet_payload_rejects_malformed_attestation() -> None:
+    _pk, _asset0, _asset1, _pool_id, _pool, settlement = _four_swap_context()
+
+    ok, err = verify_settlement_end_to_end_certificate_packet_payload_from_price_attestation(
+        settlement=settlement,
+        proof_flags=SettlementProofFlags.all_true(),
+        price_history=(100, 110, 120),
+        feature_extension_inputs_payload=_feature_extension_inputs().to_dict(),
+        price_attestation_payload={"schema": "bad", "packet": "bad"},
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        packet_payload={},
+    )
+
+    assert ok is False
+    assert err == "attestation.packet must be an object"

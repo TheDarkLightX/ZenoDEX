@@ -309,7 +309,7 @@ def verify_settlement_end_to_end_certificate_packet_payload_from_price_packet(
 ) -> tuple[bool, str | None]:
     try:
         price_packet = SettlementSpotPricePacket.from_dict(price_packet_payload)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     try:
         pool_snapshots = None
@@ -324,7 +324,7 @@ def verify_settlement_end_to_end_certificate_packet_payload_from_price_packet(
             lp_unit_values=lp_unit_values,
             pool_snapshots=pool_snapshots,
         )
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     if not isinstance(packet_payload, Mapping):
         return False, "packet must be an object"
@@ -385,7 +385,7 @@ def enforce_settlement_end_to_end_certificate(
                 pool_snapshots=certificate_inputs.pool_snapshots,
                 allowed_signers=certificate_inputs.allowed_signers,
             )
-    except Exception as exc:
+    except (RuntimeError, TypeError, ValueError) as exc:
         return False, str(exc), None
 
     if not packet.packet_ok:
@@ -411,7 +411,7 @@ def verify_settlement_end_to_end_certificate_packet_payload_from_price_attestati
 
     try:
         price_attestation = SettlementSpotPriceAttestation.from_dict(price_attestation_payload)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     try:
         pool_snapshots = None
@@ -429,7 +429,7 @@ def verify_settlement_end_to_end_certificate_packet_payload_from_price_attestati
             pool_snapshots=pool_snapshots,
             allowed_signers=allowed_signers,
         )
-    except Exception as exc:
+    except (RuntimeError, TypeError, ValueError) as exc:
         return False, str(exc)
     if not isinstance(packet_payload, Mapping):
         return False, "packet must be an object"
