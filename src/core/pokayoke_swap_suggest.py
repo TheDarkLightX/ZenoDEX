@@ -509,7 +509,7 @@ def suggest_amount_in_exact_in_cpmm(
                     max_attacker_amount_in=max_attacker_amount_in,
                     user_slippage_bps=user_slippage_bps,
                 )
-            except Exception:
+            except (TypeError, ValueError, OverflowError):
                 continue
             if _action_severity(str(d.action)) <= target_sev:
                 suggested_amount = int(cand)

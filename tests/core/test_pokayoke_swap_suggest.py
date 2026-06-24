@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+import src.core.pokayoke_swap_suggest as pokayoke_mod
 from src.core.pokayoke_swap_suggest import (
     suggest_amount_in_for_impact_lt_bps,
     suggest_amount_in_for_required_slippage_le_bps,
@@ -159,3 +160,65 @@ def test_suggest_amount_in_exact_in_cpmm_bva_max_evals_boundary() -> None:
     assert s2[0].suggested_action == "confirm"
     assert s2[0].suggested_reasons is not None
     assert "mev_conflict" not in set(s2[0].suggested_reasons)
+
+
+def test_suggest_amount_in_exact_in_cpmm_skips_candidate_domain_reject(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_eval_amount = pokayoke_mod._eval_amount
+    calls = {"n": 0}
+
+    def eval_then_domain_reject(*args: object, **kwargs: object):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return original_eval_amount(*args, **kwargs)
+        raise ValueError("candidate domain reject")
+
+    monkeypatch.setattr(pokayoke_mod, "_eval_amount", eval_then_domain_reject)
+
+    suggestions = suggest_amount_in_exact_in_cpmm(
+        reserve_in=20_000,
+        reserve_out=20_000,
+        fee_bps=0,
+        amount_in=101,
+        pending_volume_same_direction=0,
+        confidence_bps=9500,
+        slippage_options_bps=[10, 50, 100, 300],
+        max_attacker_amount_in=500,
+        user_slippage_bps=10,
+        max_evals=2,
+        target_actions=("confirm",),
+    )
+
+    assert suggestions[0].status == "not_found"
+    assert suggestions[0].eval_count == 2
+
+
+def test_suggest_amount_in_exact_in_cpmm_does_not_swallow_candidate_bug(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_eval_amount = pokayoke_mod._eval_amount
+    calls = {"n": 0}
+
+    def eval_then_bug(*args: object, **kwargs: object):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return original_eval_amount(*args, **kwargs)
+        raise RuntimeError("unexpected pokayoke candidate bug")
+
+    monkeypatch.setattr(pokayoke_mod, "_eval_amount", eval_then_bug)
+
+    with pytest.raises(RuntimeError, match="unexpected pokayoke candidate bug"):
+        suggest_amount_in_exact_in_cpmm(
+            reserve_in=20_000,
+            reserve_out=20_000,
+            fee_bps=0,
+            amount_in=101,
+            pending_volume_same_direction=0,
+            confidence_bps=9500,
+            slippage_options_bps=[10, 50, 100, 300],
+            max_attacker_amount_in=500,
+            user_slippage_bps=10,
+            max_evals=2,
+            target_actions=("confirm",),
+        )
