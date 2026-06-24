@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING, cast
 
 from .autotrader_controller import AutoTraderDecisionTag
 from .autotrader_decision import observation_hash_hex
@@ -213,15 +213,15 @@ def verify_autotrader_live_release_certificate_payload(payload: object) -> tuple
             candidate_set_hash=str(payload.get("candidate_set_hash", "")),
             decision_hash=str(payload.get("decision_hash", "")),
             decision_model_version=str(payload.get("decision_model_version", "")),
-            emit_requested=payload.get("emit_requested"),
-            live_admission_ok=payload.get("live_admission_ok"),
-            system_compose_ok=payload.get("system_compose_ok"),
-            submit_bundle_ok=payload.get("submit_bundle_ok"),
-            emit_finalize_ok=payload.get("emit_finalize_ok"),
-            release_ok=payload.get("release_ok"),
+            emit_requested=cast(bool, payload.get("emit_requested")),
+            live_admission_ok=cast(bool, payload.get("live_admission_ok")),
+            system_compose_ok=cast(bool, payload.get("system_compose_ok")),
+            submit_bundle_ok=cast(bool, payload.get("submit_bundle_ok")),
+            emit_finalize_ok=cast(bool, payload.get("emit_finalize_ok")),
+            release_ok=cast(bool, payload.get("release_ok")),
             release_error=payload.get("release_error"),
         )
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     if payload != certificate.to_dict():
         return False, "live release certificate payload mismatch"

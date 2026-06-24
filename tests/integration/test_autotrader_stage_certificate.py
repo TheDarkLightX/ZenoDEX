@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
 import src.integration.autotrader_live as autotrader_live
+import src.integration.autotrader_stage_certificate as stage_certificate
 from src.agents.policy_compiler import compile_policy_candidate
 from src.agents.strategy_ir import AUTOTRADER_TAU_POLICY_SPECS, StrategyIR
 from src.core.quote_receipts import make_route_quote_receipt
@@ -212,3 +215,65 @@ def test_stage_certificate_tracks_policy_artifact_stage() -> None:
     ok, err = verify_autotrader_stage_certificate_payload(payload)
     assert ok is False
     assert err == "stage_hash mismatch"
+
+
+def test_stage_certificate_payload_rejects_expected_constructor_error() -> None:
+    privkey = 314
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        chain_id="tau-local",
+        krr_backend="python",
+        tx_sequence_number=4,
+        tx_expiration_time=999,
+    )
+    payload = build_autotrader_stage_certificate(report).to_dict()
+    payload["release_eligible"] = "yes"
+    unsigned_payload = {key: value for key, value in payload.items() if key != "stage_hash"}
+    payload["stage_hash"] = sha256_hex(canonical_json_bytes(unsigned_payload))
+
+    ok, err = verify_autotrader_stage_certificate_payload(payload)
+
+    assert ok is False
+    assert err == "release_eligible must be a bool"
+
+
+def test_stage_certificate_payload_surfaces_unexpected_constructor_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    privkey = 315
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        chain_id="tau-local",
+        krr_backend="python",
+        tx_sequence_number=4,
+        tx_expiration_time=999,
+    )
+    payload = build_autotrader_stage_certificate(report).to_dict()
+
+    def fail_certificate(**_: object) -> stage_certificate.AutoTraderStageCertificate:
+        raise RuntimeError("unexpected stage certificate construction fault")
+
+    monkeypatch.setattr(stage_certificate, "AutoTraderStageCertificate", fail_certificate)
+
+    with pytest.raises(RuntimeError, match="unexpected stage certificate construction fault"):
+        stage_certificate.verify_autotrader_stage_certificate_payload(payload)

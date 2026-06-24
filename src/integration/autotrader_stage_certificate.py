@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING, cast
 
 from ..state.canonical import canonical_json_bytes, sha256_hex
 from .autotrader_decision import observation_hash_hex
@@ -231,10 +231,10 @@ def verify_autotrader_stage_certificate_payload(payload: object) -> tuple[bool, 
             candidate_set_hash=payload.get("candidate_set_hash"),
             decision_hash=payload.get("decision_hash"),
             highest_stage=str(payload.get("highest_stage", "")),
-            release_eligible=payload.get("release_eligible"),
+            release_eligible=cast(bool, payload.get("release_eligible")),
             blocker=payload.get("blocker"),
         )
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     if payload != certificate.to_dict():
         return False, "stage certificate payload mismatch"
