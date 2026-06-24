@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+import src.core.cpmm as cpmm_module
+import src.core.swap_preflight as swap_preflight_module
 from src.core.amm_dispatch import CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT
 from src.core.amm_dispatch import swap_exact_out_for_pool
 from src.core.swap_preflight import preflight_swap_exact_in, preflight_swap_exact_out
@@ -140,4 +142,99 @@ def test_preflight_exact_out_validates_slippage_bps() -> None:
             amount_out=1,
             max_amount_in=10,
             suggested_slippage_bps=10_001,
+        )
+
+
+def test_preflight_exact_in_converts_expected_swap_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    p = _pool(r0=1000, r1=1000, fee_bps=0)
+
+    def fail_swap(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise ValueError("domain")
+
+    monkeypatch.setattr(swap_preflight_module, "swap_exact_in_for_pool", fail_swap)
+
+    res = preflight_swap_exact_in(
+        pool=p,
+        asset_in="A",
+        asset_out="B",
+        amount_in=10,
+        min_amount_out=0,
+    )
+
+    assert res.ok is False
+    assert res.reason == "swap_error"
+
+
+def test_preflight_exact_in_surfaces_unexpected_swap_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    p = _pool(r0=1000, r1=1000, fee_bps=0)
+
+    def fail_swap(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise RuntimeError("exact-in preflight bug")
+
+    monkeypatch.setattr(swap_preflight_module, "swap_exact_in_for_pool", fail_swap)
+
+    with pytest.raises(RuntimeError, match="exact-in preflight bug"):
+        preflight_swap_exact_in(
+            pool=p,
+            asset_in="A",
+            asset_out="B",
+            amount_in=10,
+            min_amount_out=0,
+        )
+
+
+def test_preflight_exact_out_converts_expected_gap_analysis_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    p = _pool(r0=1000, r1=1000, fee_bps=0)
+
+    def fail_gap(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("gap domain")
+
+    monkeypatch.setattr(swap_preflight_module, "_cpmm_exact_out_kernel_v8", fail_gap)
+
+    res = preflight_swap_exact_out(
+        pool=p,
+        asset_in="A",
+        asset_out="B",
+        amount_out=10,
+        max_amount_in=20,
+    )
+
+    assert res.ok is True
+    assert res.overdelivery_gap is None
+    assert res.overdelivery_gap_bps is None
+
+
+def test_preflight_exact_out_surfaces_unexpected_gap_analysis_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    p = _pool(r0=1000, r1=1000, fee_bps=0)
+
+    def fail_gap(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("gap analysis bug")
+
+    monkeypatch.setattr(swap_preflight_module, "_cpmm_exact_out_kernel_v8", fail_gap)
+
+    with pytest.raises(RuntimeError, match="gap analysis bug"):
+        preflight_swap_exact_out(
+            pool=p,
+            asset_in="A",
+            asset_out="B",
+            amount_out=10,
+            max_amount_in=20,
+        )
+
+
+def test_preflight_exact_out_surfaces_unexpected_quote_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    p = _pool(r0=1000, r1=1000, fee_bps=0)
+
+    def fail_quote(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise RuntimeError("exact-out quote bug")
+
+    monkeypatch.setattr(cpmm_module, "swap_exact_out", fail_quote)
+
+    with pytest.raises(RuntimeError, match="exact-out quote bug"):
+        preflight_swap_exact_out(
+            pool=p,
+            asset_in="A",
+            asset_out="B",
+            amount_out=10,
+            max_amount_in=20,
         )
