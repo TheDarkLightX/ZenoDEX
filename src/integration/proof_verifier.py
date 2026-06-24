@@ -124,16 +124,16 @@ class SubprocessProofVerifier(ProofVerifier):
                 os.killpg(proc.pid, signal.SIGKILL)
             except ProcessLookupError:
                 return
-            except Exception:
+            except OSError:
                 try:
                     proc.kill()
-                except Exception:
+                except OSError:
                     return
 
         def _wait_after_kill(timeout_s: float = 0.2) -> None:
             try:
                 proc.wait(timeout=timeout_s)
-            except Exception:
+            except (subprocess.TimeoutExpired, OSError):
                 return
 
         try:
@@ -160,7 +160,7 @@ class SubprocessProofVerifier(ProofVerifier):
         if proc.stdin is None or proc.stdout is None or proc.stderr is None:
             try:
                 proc.kill()
-            except Exception:
+            except OSError:
                 pass
             return False, "proof verifier misconfigured (subprocess pipes unavailable)"
         try:
@@ -337,7 +337,7 @@ class SubprocessProofVerifier(ProofVerifier):
                 if proc.returncode is None:
                     _kill_proc_group()
                 proc.wait(timeout=0.2)
-            except Exception:
+            except (subprocess.TimeoutExpired, OSError):
                 pass
 
 

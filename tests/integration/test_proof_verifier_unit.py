@@ -673,10 +673,10 @@ def test_subprocess_verifier_rejects_wait_deadline_expiry_and_cleanup_wait_error
     monkeypatch.setattr(proof_verifier.time, "monotonic", lambda: next(monotonic_values))
     assert verifier.verify({"ok": True}) == (False, "proof verification timed out")
 
-    cleanup_proc = _FakeProc(stdin=_FakeStream("stdin", writes=[BrokenPipeError()]), wait_results=[RuntimeError("wait failed")])
+    cleanup_proc = _FakeProc(stdin=_FakeStream("stdin", writes=[BrokenPipeError()]), wait_results=[OSError("wait failed")])
     _patch_fake_process(monkeypatch, cleanup_proc, proof_bytes=proof_bytes, schedule=[(set(), {"stdin"})])
     monkeypatch.setattr(proof_verifier.time, "monotonic", lambda: 0.0)
-    monkeypatch.setattr(proof_verifier.os, "killpg", lambda pid, sig: (_ for _ in ()).throw(RuntimeError("kill failed")))
+    monkeypatch.setattr(proof_verifier.os, "killpg", lambda pid, sig: (_ for _ in ()).throw(OSError("kill failed")))
     assert verifier.verify({"ok": True}) == (False, "proof verifier stdin broken pipe")
 
 
@@ -685,11 +685,11 @@ def test_subprocess_verifier_covers_kill_fallback_wait_deadline_and_finally_clea
 
     class _KillRaisesProc(_FakeProc):
         def kill(self) -> None:
-            raise RuntimeError("kill failed")
+            raise OSError("kill failed")
 
     broken_proc = _KillRaisesProc(stdin=_FakeStream("stdin", writes=[BrokenPipeError()]))
     _patch_fake_process(monkeypatch, broken_proc, proof_bytes=proof_bytes, schedule=[(set(), {"stdin"})])
-    monkeypatch.setattr(proof_verifier.os, "killpg", lambda pid, sig: (_ for _ in ()).throw(RuntimeError("killpg failed")))
+    monkeypatch.setattr(proof_verifier.os, "killpg", lambda pid, sig: (_ for _ in ()).throw(OSError("killpg failed")))
 
     verifier = SubprocessProofVerifier(
         cmd=[sys.executable, "-c", "print('{\"ok\": true}')"],
@@ -722,7 +722,7 @@ def test_subprocess_verifier_covers_kill_fallback_wait_deadline_and_finally_clea
 
         def wait(self, timeout: float | None = None) -> int:
             del timeout
-            raise RuntimeError("cleanup wait failed")
+            raise OSError("cleanup wait failed")
 
     cleanup_proc = _PollZeroCleanupWaitProc(
         stdout=_FakeStream("stdout", reads=[b'{"ok": true}', b""]),
@@ -736,6 +736,46 @@ def test_subprocess_verifier_covers_kill_fallback_wait_deadline_and_finally_clea
     )
     monkeypatch.setattr(proof_verifier.time, "monotonic", lambda: 0.0)
     assert verifier.verify({"ok": True}) == (True, None)
+
+
+def test_subprocess_verifier_exposes_programming_faults_in_cleanup(monkeypatch: pytest.MonkeyPatch) -> None:
+    proof_bytes = b'{"ok":true}'
+
+    broken_killpg = _FakeProc(stdin=_FakeStream("stdin", writes=[BrokenPipeError()]))
+    _patch_fake_process(monkeypatch, broken_killpg, proof_bytes=proof_bytes, schedule=[(set(), {"stdin"})])
+    monkeypatch.setattr(proof_verifier.os, "killpg", lambda pid, sig: (_ for _ in ()).throw(RuntimeError("killpg bug")))
+
+    verifier = SubprocessProofVerifier(
+        cmd=[sys.executable, "-c", "print('{\"ok\": true}')"],
+        timeout_s=1.0,
+        max_bytes=1024,
+        max_stdout_bytes=256,
+        max_stderr_bytes=256,
+    )
+    with pytest.raises(RuntimeError, match="killpg bug"):
+        verifier.verify({"ok": True})
+
+    class _CleanupWaitBugProc(_FakeProc):
+        def poll(self) -> object:
+            return 0
+
+        def wait(self, timeout: float | None = None) -> int:
+            del timeout
+            raise RuntimeError("cleanup wait bug")
+
+    cleanup_wait_bug = _CleanupWaitBugProc(
+        stdout=_FakeStream("stdout", reads=[b'{"ok": true}', b""]),
+        stderr=_FakeStream("stderr", reads=[b""]),
+    )
+    _patch_fake_process(
+        monkeypatch,
+        cleanup_wait_bug,
+        proof_bytes=b"",
+        schedule=[({"stdout", "stderr"}, set()), ({"stdout"}, set())],
+    )
+    monkeypatch.setattr(proof_verifier.time, "monotonic", lambda: 0.0)
+    with pytest.raises(RuntimeError, match="cleanup wait bug"):
+        verifier.verify({"ok": True})
 
 
 def test_make_proof_verifier_covers_platform_and_cmd_validation(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
