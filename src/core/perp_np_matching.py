@@ -324,7 +324,6 @@ def _validate_intent(
 # --- Deterministic self-test CLI ----------------------------------------------
 def _selftest() -> dict:
     """Deterministic battery: assert net-zero, sign-consistency, |delta|<=|desired|."""
-    import random
 
     failures: list[str] = []
     checked = 0
@@ -361,11 +360,13 @@ def _selftest() -> dict:
     ):
         check_ration(list(case))
 
-    # Seeded random battery (reproducible: fixed seed, no wall-clock).
-    rng = random.Random(20260601)
-    for _ in range(20000):
-        n = rng.randint(0, 8)
-        desired = [rng.randint(-50, 50) for _ in range(n)]
+    # Arithmetic corpus: pseudo-random-shaped, deterministic, and free of PRNG APIs.
+    for case_idx in range(20000):
+        n = case_idx % 9
+        desired = [
+            ((case_idx * 37 + j * 19 + (case_idx >> (j % 5))) % 101) - 50
+            for j in range(n)
+        ]
         check_ration(desired)
 
     # End-to-end match_intents: net-zero + min-fill respected.

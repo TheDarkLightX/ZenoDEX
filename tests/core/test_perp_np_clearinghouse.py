@@ -8,6 +8,7 @@ the participation the fixed 2-party clearinghouse cannot provide.
 
 from __future__ import annotations
 
+import inspect
 import sys
 from pathlib import Path
 
@@ -17,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 import src.core.perp_np_clearinghouse as C  # noqa: E402
+import src.core.perp_np_matching as M  # noqa: E402
 from src.core.perp_np_matching import (  # noqa: E402
     E8,
     Intent,
@@ -45,6 +47,13 @@ def _global_state(net_deposited_e8: int, *, fee=0, ins=0, ins_ext=0, claims=0) -
 
 
 # --- pure core: matcher + N-party epoch -------------------------------------
+def test_np_matcher_core_has_no_random_api():
+    source = inspect.getsource(M)
+    assert "import random" not in source
+    assert "random." not in source
+    assert "Random(" not in source
+
+
 def test_matcher_emits_net_zero_three_sides():
     out = ration_net_zero([10, -6, -4])
     assert sum(out) == 0
