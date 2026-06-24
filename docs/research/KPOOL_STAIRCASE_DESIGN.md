@@ -164,7 +164,7 @@ cost; we fall back to the existing exact DP in that regime.
      tie-break globality, and DP enumeration correctness are runtime-tested.
 2. **Runtime parity tests:** Brute-force oracle parity on a hostile corpus
    (skewed reserves, high fees, dust edges, zero-output gaps, tie-heavy
-   plateaus) for `k in {2, 3, 4}` and `D` up to a bounded limit. 39 tests
+   plateaus) for `k in {2, 3, 4}` and `D` up to a bounded limit. 40 tests
    including adaptive fallback, duplicate pool_id rejection, drift fail-closed
    behavior, and ResourceLimitExceeded fallback.
 3. **Quote-count benchmark:** Compare against the existing greedy and

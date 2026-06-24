@@ -37,7 +37,7 @@ single/two/three-pool theorems serve as witnesses of the general pattern.
 Scope limitation: the theorems assume `LeftCovers` hypotheses (that jump
 candidates exist with the same output as the original allocation). Proving
 that the closed-form CPMM jump formula produces such candidates is a separate
-arithmetic obligation, checked today by runtime parity tests (39 cases)
+arithmetic obligation, checked today by runtime parity tests (40 cases)
 against brute force. The theorems also do not prove canonical tie-break
 globality or DP enumeration correctness; those are runtime-tested properties.
 -/
