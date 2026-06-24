@@ -305,7 +305,7 @@ def parse_intents(operations: Dict[str, Any]) -> List[ValidatedIntent]:
         try:
             intent = _parse_intent(intent_data)
             intents.append(intent)
-        except Exception as e:
+        except (TypeError, ValueError) as e:
             raise ValueError(f"Failed to parse intent {i}: {e}") from e
     
     return intents
@@ -390,7 +390,7 @@ def parse_signed_intents(operations: Dict[str, Any]) -> List[SignedIntentEnvelop
             intent_data, signature, quote_receipt = _unpack_signed_intent_entry(entry)
             intent = _parse_intent(intent_data)
             out.append(SignedIntentEnvelope(intent=intent, signature=signature, quote_receipt=quote_receipt))
-        except Exception as e:
+        except (TypeError, ValueError) as e:
             raise ValueError(f"Failed to parse signed intent {i}: {e}") from e
     return out
 
@@ -649,7 +649,7 @@ def _validate_create_pool_intent_fields(intent: Intent, fields: Dict[str, Any]) 
     asset1 = _require_field_str(fields, "asset1", intent_kind=kind)
     try:
         asset0_norm, asset1_norm = normalize_pool_asset_pair(asset0, asset1)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         raise ValueError(f"intent assets must be in canonical order: {asset0} < {asset1}") from exc
     fields["asset0"] = asset0_norm
     fields["asset1"] = asset1_norm
@@ -678,7 +678,7 @@ def _validate_create_pool_intent_fields(intent: Intent, fields: Dict[str, Any]) 
         _require_int_range(fields["created_at"], name="intent.created_at", minimum=0)
     try:
         normalize_curve_config(curve_tag=fields.get("curve_tag"), curve_params=fields.get("curve_params"))
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         raise ValueError(f"invalid curve configuration: {exc}") from exc
 
 
@@ -999,7 +999,7 @@ def _parse_settlement(settlement_data: Dict[str, Any]) -> Settlement:
             lp_deltas=lp_deltas,
             events=events,
         )
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         raise ValueError(f"Invalid settlement: {exc}") from exc
     
     return settlement

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+import src.integration.operations as operations
 from src.core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
 from src.integration.operations import (
     SignedIntentEnvelope,
@@ -380,6 +381,16 @@ def test_parse_intents_rejects_unknown_kind_specific_field() -> None:
         parse_intents({"2": [{**_min_intent_dict(), "extra_field": "ignored-before-review-fix"}]})
 
 
+def test_parse_intents_surfaces_internal_parser_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _boom_parse_intent(_intent_data: object) -> object:
+        raise RuntimeError("parser internal fault")
+
+    monkeypatch.setattr(operations, "_parse_intent", _boom_parse_intent)
+
+    with pytest.raises(RuntimeError, match="parser internal fault"):
+        parse_intents({"2": [_min_intent_dict()]})
+
+
 def test_parse_intents_rejects_missing_kind_specific_field() -> None:
     intent = _min_intent_dict()
     del intent["amount_in"]
@@ -417,9 +428,67 @@ def test_parse_create_pool_intent_canonicalizes_hex_asset_case() -> None:
     assert parsed[0].fields["asset1"] == "0x" + "0b" * 32
 
 
+def test_parse_create_pool_surfaces_internal_normalizer_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    intent = {
+        "module": "TauSwap",
+        "version": "0.1",
+        "kind": "CREATE_POOL",
+        "intent_id": "0x" + "34" * 32,
+        "sender_pubkey": "0x" + "45" * 48,
+        "deadline": 1,
+        "asset0": "0x" + "0a" * 32,
+        "asset1": "0x" + "0b" * 32,
+        "fee_bps": 30,
+        "amount0": 100,
+        "amount1": 200,
+    }
+
+    def _boom_pool_pair(_asset0: object, _asset1: object) -> tuple[str, str]:
+        raise RuntimeError("asset normalizer internal fault")
+
+    monkeypatch.setattr(operations, "normalize_pool_asset_pair", _boom_pool_pair)
+
+    with pytest.raises(RuntimeError, match="asset normalizer internal fault"):
+        parse_intents({"2": [intent]})
+
+
+def test_parse_create_pool_surfaces_internal_curve_config_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    intent = {
+        "module": "TauSwap",
+        "version": "0.1",
+        "kind": "CREATE_POOL",
+        "intent_id": "0x" + "35" * 32,
+        "sender_pubkey": "0x" + "46" * 48,
+        "deadline": 1,
+        "asset0": "0x" + "0a" * 32,
+        "asset1": "0x" + "0b" * 32,
+        "fee_bps": 30,
+        "amount0": 100,
+        "amount1": 200,
+    }
+
+    def _boom_curve_config(*, curve_tag: object, curve_params: object) -> tuple[str, str]:
+        raise RuntimeError("curve normalizer internal fault")
+
+    monkeypatch.setattr(operations, "normalize_curve_config", _boom_curve_config)
+
+    with pytest.raises(RuntimeError, match="curve normalizer internal fault"):
+        parse_intents({"2": [intent]})
+
+
 def test_parse_signed_intents_rejects_invalid_kind_specific_fields() -> None:
     with pytest.raises(ValueError, match="unsupported field for SWAP_EXACT_IN: extra_field"):
         parse_signed_intents({"2": [[{**_min_intent_dict(), "extra_field": "bad"}, "0xsig"]]})
+
+
+def test_parse_signed_intents_surfaces_internal_parser_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _boom_parse_intent(_intent_data: object) -> object:
+        raise RuntimeError("signed parser internal fault")
+
+    monkeypatch.setattr(operations, "_parse_intent", _boom_parse_intent)
+
+    with pytest.raises(RuntimeError, match="signed parser internal fault"):
+        parse_signed_intents({"2": [[_min_intent_dict(), "0xsig"]]})
 
 
 def test_parse_signed_intents_rejects_invalid_operations_shapes() -> None:
@@ -453,7 +522,7 @@ def test_parse_signed_intents_rejects_invalid_intent_envelope_fields() -> None:
         parse_signed_intents({"2": [{**_min_intent_dict(), "kind": "NOPE"}]})
 
     with pytest.raises(ValueError, match="intent keys must be strings"):
-        parse_signed_intents({"2": [{**_min_intent_dict(), 1: "bad-key"}]})  # type: ignore[dict-item]
+        parse_signed_intents({"2": [{**_min_intent_dict(), 1: "bad-key"}]})
 
 
 def test_parse_settlement_rejects_invalid_included_intent_action() -> None:
@@ -554,6 +623,16 @@ def test_parse_settlement_rejects_invalid_module_version_and_constructor_failure
                 }
             }
         )
+
+
+def test_parse_settlement_surfaces_internal_constructor_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _boom_settlement(**_kwargs: object) -> object:
+        raise RuntimeError("settlement constructor internal fault")
+
+    monkeypatch.setattr(operations, "Settlement", _boom_settlement)
+
+    with pytest.raises(RuntimeError, match="settlement constructor internal fault"):
+        parse_settlement({"3": {"module": "TauSwap", "version": "0.1"}})
 
 
 def test_parse_settlement_accepts_none_batch_ref_and_create_omits_empty_events() -> None:
