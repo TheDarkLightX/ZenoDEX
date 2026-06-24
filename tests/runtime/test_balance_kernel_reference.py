@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+import src.core.balance_kernel as balance_kernel_module
 from src.core.balance_kernel import (
     MAX_BALANCE,
     BalanceAccepted,
@@ -75,6 +78,16 @@ def test_credit_rejections():
         assert _credit(BalanceState(), A, X, bad).reason == "invalid_amount"
 
 
+def test_credit_propagates_unexpected_canonicalizer_error(monkeypatch: pytest.MonkeyPatch):
+    def boom(*_args: object, **_kwargs: object) -> str:
+        raise RuntimeError("canonicalizer bug")
+
+    monkeypatch.setattr(balance_kernel_module, "canonical_hex_fixed_allow_0x", boom)
+
+    with pytest.raises(RuntimeError, match="canonicalizer bug"):
+        _credit(BalanceState(), A, X, 100)
+
+
 def test_credit_overflow():
     state = _fund(BalanceState(), A, X, MAX_BALANCE)
     assert _credit(state, A, X, 1).reason == "balance_overflow"
@@ -121,6 +134,16 @@ def test_transfer_validation_order_and_rejections():
     assert _xfer(state, A, B, X, 0).reason == "invalid_amount"
     # Bad sender wins over a bad nonce-equivalent (amount) — order check.
     assert _xfer(state, "0x11", B, X, 0).reason == "invalid_sender"
+
+
+def test_transfer_propagates_unexpected_canonicalizer_error(monkeypatch: pytest.MonkeyPatch):
+    def boom(*_args: object, **_kwargs: object) -> str:
+        raise RuntimeError("canonicalizer bug")
+
+    monkeypatch.setattr(balance_kernel_module, "canonical_hex_fixed_allow_0x", boom)
+
+    with pytest.raises(RuntimeError, match="canonicalizer bug"):
+        _xfer(BalanceState(), A, B, X, 1)
 
 
 def test_transfer_overflow_on_recipient():
