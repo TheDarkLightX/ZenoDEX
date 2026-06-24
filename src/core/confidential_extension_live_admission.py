@@ -84,7 +84,7 @@ def validate_confidential_extension_live_admission(
             expected_policy_digest,
             name="expected_policy_digest",
         )
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return False, "bad_expected_policy_digest", None
     ok, err = verify_confidential_extension_receipt(
         dict(receipt),
