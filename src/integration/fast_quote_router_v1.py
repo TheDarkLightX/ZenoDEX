@@ -549,7 +549,7 @@ class FastQuoteRouterV1:
                         amount_in_total=int(D),
                         search_profile="adaptive_v6",
                     )
-                except Exception:
+                except ValueError:
                     split2 = None
                 if split2 is not None and int(split2.amount_out_total) > 0 and int(split2.amount_in_0) > 0 and int(split2.amount_in_1) > 0:
                     leg0 = RouteLeg(
@@ -585,7 +585,7 @@ class FastQuoteRouterV1:
                         max_candidates=len(candidates_probe),
                         max_iters=256,
                     )
-                except Exception:
+                except ValueError:
                     split_probe = None
                 if split_probe is not None and int(split_probe.amount_out_total) > 0:
                     # Compare probe output to the pre-split best (key tie-break).
@@ -616,7 +616,7 @@ class FastQuoteRouterV1:
                             max_candidates=len(candidates),
                             max_iters=4096,
                         )
-                    except Exception:
+                    except ValueError:
                         splitN = None
                     if splitN is not None and int(splitN.amount_out_total) > 0 and len(splitN.legs) >= 2:
                         legs: List[RouteLeg] = []
@@ -753,7 +753,7 @@ class FastQuoteRouterV1:
                             asset_out=asset_out,
                             amount_out_total=int(Q),
                         )
-                    except Exception:
+                    except ValueError:
                         continue
                     if int(split.amount_in_total) <= 0:
                         continue
