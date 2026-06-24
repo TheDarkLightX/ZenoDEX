@@ -272,7 +272,7 @@ def verify_tau_transaction_payload_signature(payload: Mapping[str, Any]) -> bool
         pubkey_bytes = bytes.fromhex(sender_pubkey)
         sig_bytes = bytes.fromhex(signature)
         return bool(G2Basic.Verify(pubkey_bytes, msg_hash, sig_bytes))
-    except Exception:
+    except (KeyError, TypeError, ValueError):
         return False
 
 

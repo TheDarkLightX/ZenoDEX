@@ -99,6 +99,30 @@ def test_tau_net_client_signing_and_encoding_edges() -> None:
     assert tau_net_client.verify_tau_transaction_payload_signature(bad_sig) is False
 
 
+def test_tau_net_signature_verify_does_not_hide_unexpected_crypto_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FaultingG2Basic:
+        @staticmethod
+        def Verify(_pubkey_bytes: bytes, _msg_hash: bytes, _sig_bytes: bytes) -> bool:
+            raise RuntimeError("crypto verifier bug")
+
+    payload = {
+        "sender_pubkey": "00" * 48,
+        "signature": "00" * 96,
+        "sequence_number": 1,
+        "expiration_time": 2,
+        "operations": {},
+        "fee_limit": 0,
+    }
+
+    monkeypatch.setattr(tau_net_client, "_BLS_AVAILABLE", True)
+    monkeypatch.setattr(tau_net_client, "G2Basic", FaultingG2Basic)
+
+    with pytest.raises(RuntimeError, match="crypto verifier bug"):
+        tau_net_client.verify_tau_transaction_payload_signature(payload)
+
+
 def test_tau_net_transaction_signing_rejects_noncanonical_json_values() -> None:
     with pytest.raises(TypeError, match="floats are not allowed"):
         tau_net_client.build_signed_tau_transaction(

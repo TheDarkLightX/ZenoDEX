@@ -1683,5 +1683,5 @@ def _is_canonical_hex_v0(value: object, *, nbytes: int) -> bool:
         return False
     try:
         return canonical_hex_fixed_allow_0x(value, nbytes=nbytes, name="hex") == value
-    except Exception:
+    except (TypeError, ValueError):
         return False
