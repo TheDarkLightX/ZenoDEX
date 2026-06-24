@@ -323,6 +323,115 @@ def test_clear_batch_single_pool_optimal_ab_bounded_canonicalizes_lex_order() ->
     assert [f.intent_id for f in fills_ab] == [_iid(0), _iid(1), _iid(2)]
 
 
+def test_optimal_ab_objective_converts_expected_quote_domain_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool = PoolState(
+        pool_id="0x" + "aa" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=100,
+        reserve1=100,
+        fee_bps=30,
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+    balances.set(pk, asset0, 200)
+    intents = [
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(1),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={"pool_id": pool.pool_id, "asset_in": asset0, "asset_out": asset1, "amount_in": 50, "min_amount_out": 1},
+        ),
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(0),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={"pool_id": pool.pool_id, "asset_in": asset0, "asset_out": asset1, "amount_in": 50, "min_amount_out": 1},
+        ),
+    ]
+
+    def fail_quote(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("quote domain")
+
+    monkeypatch.setattr(batch_clearing_module, "quote_cpmm_swap_exact_in", fail_quote)
+
+    ordered = _order_swaps_optimal_ab_bounded(
+        intents,
+        pool_state=pool,
+        balances=balances,
+        reserves=(pool.reserve0, pool.reserve1),
+    )
+
+    assert [intent.intent_id for intent in ordered] == [_iid(0), _iid(1)]
+
+
+def test_optimal_ab_objective_surfaces_unexpected_quote_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool = PoolState(
+        pool_id="0x" + "aa" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=100,
+        reserve1=100,
+        fee_bps=30,
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+    balances.set(pk, asset0, 200)
+    intents = [
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(0),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={"pool_id": pool.pool_id, "asset_in": asset0, "asset_out": asset1, "amount_in": 50, "min_amount_out": 1},
+        ),
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(1),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={"pool_id": pool.pool_id, "asset_in": asset0, "asset_out": asset1, "amount_in": 50, "min_amount_out": 1},
+        ),
+    ]
+
+    def fail_quote(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("ab objective quote bug")
+
+    monkeypatch.setattr(batch_clearing_module, "quote_cpmm_swap_exact_in", fail_quote)
+
+    with pytest.raises(RuntimeError, match="ab objective quote bug"):
+        _order_swaps_optimal_ab_bounded(
+            intents,
+            pool_state=pool,
+            balances=balances,
+            reserves=(pool.reserve0, pool.reserve1),
+        )
+
+
 def test_chunked_delta_aggregation_preserves_semantics_and_order() -> None:
     pk_a = "0x" + "11" * 48
     pk_b = "0x" + "22" * 48
@@ -1710,7 +1819,7 @@ def test_apply_filled_intent_to_locals_handles_swap_liquidity_and_cow_paths() ->
     weird_intent = Intent(
         module="TauSwap",
         version="0.1",
-        kind="MYSTERY_KIND",  # type: ignore[arg-type]
+        kind="MYSTERY_KIND",
         intent_id=_iid(1016),
         sender_pubkey=pk,
         deadline=9999999999,
@@ -1785,7 +1894,7 @@ def test_process_swap_intent_reject_matrix_and_helper_paths(monkeypatch) -> None
         return Intent(
             module="TauSwap",
             version="0.1",
-            kind=kind,  # type: ignore[arg-type]
+            kind=kind,
             intent_id=intent_id,
             sender_pubkey=pk,
             deadline=9999999999,
@@ -1892,7 +2001,7 @@ def test_process_swap_intent_reject_matrix_and_helper_paths(monkeypatch) -> None
     monkeypatch.undo()
 
     assert _process_swap_intent(
-        _swap_intent(_iid(1111), "MYSTERY_KIND", {"asset_in": asset0, "asset_out": asset1}),  # type: ignore[arg-type]
+        _swap_intent(_iid(1111), "MYSTERY_KIND", {"asset_in": asset0, "asset_out": asset1}),
         reserves,
         pool,
         balances,
@@ -1921,7 +2030,7 @@ def test_process_liquidity_intent_reject_matrix_and_helper_paths(monkeypatch) ->
         return Intent(
             module="TauSwap",
             version="0.1",
-            kind=kind,  # type: ignore[arg-type]
+            kind=kind,
             intent_id=intent_id,
             sender_pubkey=pk,
             deadline=9999999999,
@@ -2045,7 +2154,7 @@ def test_process_liquidity_intent_reject_matrix_and_helper_paths(monkeypatch) ->
     monkeypatch.undo()
 
     assert _process_liquidity_intent(
-        _liq_intent(_iid(1126), "MYSTERY_KIND", {}),  # type: ignore[arg-type]
+        _liq_intent(_iid(1126), "MYSTERY_KIND", {}),
         pool,
         lp_balances,
         balances,
@@ -2122,7 +2231,7 @@ def test_simulate_swap_reserves_and_ab_helpers_cover_fallbacks() -> None:
         return Intent(
             module="TauSwap",
             version="0.1",
-            kind=kind,  # type: ignore[arg-type]
+            kind=kind,
             intent_id=intent_id,
             sender_pubkey=pk,
             deadline=9999999999,
@@ -2810,7 +2919,7 @@ def test_get_limit_price_exact_out_zero_and_unknown_kind() -> None:
     unknown = Intent(
         module="TauSwap",
         version="0.1",
-        kind="MYSTERY_KIND",  # type: ignore[arg-type]
+        kind="MYSTERY_KIND",
         intent_id=_iid(1363),
         sender_pubkey="0x" + "11" * 48,
         deadline=9999999999,
@@ -2882,7 +2991,7 @@ def test_order_swaps_optimal_ab_bounded_skips_unknown_kind_in_objective_loop() -
     unknown = Intent(
         module="TauSwap",
         version="0.1",
-        kind="MYSTERY_KIND",  # type: ignore[arg-type]
+        kind="MYSTERY_KIND",
         intent_id=_iid(1369),
         sender_pubkey=pk,
         deadline=9999999999,

@@ -1151,7 +1151,7 @@ def _order_swaps_optimal_ab_bounded(
                             reserve_out=r_out,
                             amount_in=amount_in,
                         )
-                except Exception:
+                except ValueError:
                     continue
                 if amount_out < min_amount_out:
                     continue
@@ -1186,7 +1186,7 @@ def _order_swaps_optimal_ab_bounded(
                             reserve_out=r_out,
                             amount_out=amount_out,
                         )
-                except Exception:
+                except ValueError:
                     continue
                 if amount_in > max_amount_in:
                     continue
