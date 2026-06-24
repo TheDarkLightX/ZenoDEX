@@ -8,6 +8,7 @@ detect semantic drift, typos, and overclaimed outputs in Tau policies.
 
 from __future__ import annotations
 
+import ast
 import itertools
 import json
 import os
@@ -74,7 +75,7 @@ class BV:
     def __eq__(self, other: object) -> bool:
         try:
             return self.value == self._coerce(other)
-        except Exception:
+        except (TypeError, ValueError):
             return False
 
     def __ne__(self, other: object) -> bool:
@@ -88,18 +89,149 @@ class BV:
 
 
 def safe_eval(expr: str, context: Mapping[str, object]) -> object:
-    allowed = {
-        "abs": abs,
-        "int": int,
-        "min": min,
-        "max": max,
-        "sorted": sorted,
-        "len": len,
-        "True": True,
-        "False": False,
-        "None": None,
-    }
-    return eval(expr, {"__builtins__": {}}, {**allowed, **context})
+    if not isinstance(expr, str) or not expr.strip():
+        raise ValueError("safe_eval expression must be a non-empty string")
+    tree = ast.parse(expr, mode="eval")
+    if sum(1 for _node in ast.walk(tree)) > _SAFE_EVAL_MAX_NODES:
+        raise ValueError("safe_eval expression is too large")
+    names = {**_SAFE_EVAL_FUNCTIONS, **context}
+    return _safe_eval_node(tree.body, names)
+
+
+_SAFE_EVAL_MAX_NODES = 4096
+_SAFE_EVAL_FUNCTIONS = {
+    "abs": abs,
+    "int": int,
+    "min": min,
+    "max": max,
+    "sorted": sorted,
+    "len": len,
+    "BV": BV,
+}
+
+
+def _safe_eval_node(node: ast.AST, names: Mapping[str, object]) -> object:
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, (bool, int, str)) or node.value is None:
+            return node.value
+        raise ValueError(f"unsupported constant in safe_eval: {node.value!r}")
+    if isinstance(node, ast.Name):
+        if node.id in names:
+            return names[node.id]
+        raise ValueError(f"unknown name in safe_eval: {node.id}")
+    if isinstance(node, ast.Tuple):
+        return tuple(_safe_eval_node(item, names) for item in node.elts)
+    if isinstance(node, ast.List):
+        return [_safe_eval_node(item, names) for item in node.elts]
+    if isinstance(node, ast.UnaryOp):
+        operand = _safe_eval_node(node.operand, names)
+        return _safe_eval_unaryop(node.op, operand)
+    if isinstance(node, ast.BoolOp):
+        return _safe_eval_boolop(node.op, node.values, names)
+    if isinstance(node, ast.BinOp):
+        left = _safe_eval_node(node.left, names)
+        right = _safe_eval_node(node.right, names)
+        return _safe_eval_binop(left, node.op, right)
+    if isinstance(node, ast.Compare):
+        return _safe_eval_compare_chain(node, names)
+    if isinstance(node, ast.IfExp):
+        branch = node.body if bool(_safe_eval_node(node.test, names)) else node.orelse
+        return _safe_eval_node(branch, names)
+    if isinstance(node, ast.Call):
+        return _safe_eval_call(node, names)
+    raise ValueError(f"unsupported expression in safe_eval: {type(node).__name__}")
+
+
+def _safe_eval_unaryop(op: ast.unaryop, operand: object) -> object:
+    if isinstance(op, ast.Not):
+        return not bool(operand)
+    if isinstance(op, ast.USub):
+        return -operand  # type: ignore[operator]
+    if isinstance(op, ast.UAdd):
+        return +operand  # type: ignore[operator]
+    if isinstance(op, ast.Invert):
+        return ~operand  # type: ignore[operator]
+    raise ValueError(f"unsupported unary operator in safe_eval: {type(op).__name__}")
+
+
+def _safe_eval_boolop(op: ast.boolop, values: Sequence[ast.expr], names: Mapping[str, object]) -> bool:
+    if isinstance(op, ast.And):
+        for value in values:
+            if not bool(_safe_eval_node(value, names)):
+                return False
+        return True
+    if isinstance(op, ast.Or):
+        for value in values:
+            if bool(_safe_eval_node(value, names)):
+                return True
+        return False
+    raise ValueError(f"unsupported boolean operator in safe_eval: {type(op).__name__}")
+
+
+def _safe_eval_binop(left: object, op: ast.operator, right: object) -> object:
+    if isinstance(op, ast.Add):
+        return left + right  # type: ignore[operator]
+    if isinstance(op, ast.Sub):
+        return left - right  # type: ignore[operator]
+    if isinstance(op, ast.Mult):
+        return left * right  # type: ignore[operator]
+    if isinstance(op, ast.FloorDiv):
+        return left // right  # type: ignore[operator]
+    if isinstance(op, ast.Mod):
+        return left % right  # type: ignore[operator]
+    if isinstance(op, ast.BitAnd):
+        return left & right  # type: ignore[operator]
+    if isinstance(op, ast.BitOr):
+        return left | right  # type: ignore[operator]
+    if isinstance(op, ast.BitXor):
+        return left ^ right  # type: ignore[operator]
+    if isinstance(op, ast.LShift):
+        return left << right  # type: ignore[operator]
+    if isinstance(op, ast.RShift):
+        return left >> right  # type: ignore[operator]
+    raise ValueError(f"unsupported binary operator in safe_eval: {type(op).__name__}")
+
+
+def _safe_eval_compare_chain(node: ast.Compare, names: Mapping[str, object]) -> bool:
+    left = _safe_eval_node(node.left, names)
+    for op, comparator in zip(node.ops, node.comparators):
+        right = _safe_eval_node(comparator, names)
+        if not _safe_eval_compare(left, op, right):
+            return False
+        left = right
+    return True
+
+
+def _safe_eval_compare(left: object, op: ast.cmpop, right: object) -> bool:
+    if isinstance(op, ast.Eq):
+        return bool(left == right)
+    if isinstance(op, ast.NotEq):
+        return bool(left != right)
+    if isinstance(op, ast.Lt):
+        return bool(left < right)  # type: ignore[operator]
+    if isinstance(op, ast.LtE):
+        return bool(left <= right)  # type: ignore[operator]
+    if isinstance(op, ast.Gt):
+        return bool(left > right)  # type: ignore[operator]
+    if isinstance(op, ast.GtE):
+        return bool(left >= right)  # type: ignore[operator]
+    if isinstance(op, ast.In):
+        return bool(left in right)  # type: ignore[operator]
+    if isinstance(op, ast.NotIn):
+        return bool(left not in right)  # type: ignore[operator]
+    raise ValueError(f"unsupported comparison operator in safe_eval: {type(op).__name__}")
+
+
+def _safe_eval_call(node: ast.Call, names: Mapping[str, object]) -> object:
+    if not isinstance(node.func, ast.Name):
+        raise ValueError("safe_eval only permits direct function calls")
+    fn = names.get(node.func.id)
+    if fn not in _SAFE_EVAL_FUNCTIONS.values():
+        raise ValueError(f"function is not allowed in safe_eval: {node.func.id}")
+    if node.keywords:
+        raise ValueError("safe_eval function calls do not permit keyword arguments")
+    args = [_safe_eval_node(arg, names) for arg in node.args]
+    return fn(*args)  # type: ignore[misc]
 
 
 def _coerce_int(value: object) -> int:
@@ -401,14 +533,14 @@ def _run_tau_repl_batch(
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
-        except Exception:
+        except OSError:
             try:
                 proc.kill()
-            except Exception:
+            except OSError:
                 pass
         try:
             proc.wait(timeout=1.0)
-        except Exception:
+        except subprocess.TimeoutExpired:
             pass
 
         if not complete:
