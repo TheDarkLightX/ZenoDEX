@@ -31,6 +31,9 @@ from .settlement_strong_validator import validate_settlement_strong
 from .vault import VaultState
 
 
+_EXPECTED_STEP_ERRORS = (TypeError, ValueError)
+
+
 @dataclass(frozen=True)
 class DexConfig:
     """Runtime config for the core step."""
@@ -217,7 +220,7 @@ def step_with_candidate_settlement(
             candidate_settlement,
             next_nonces or state.nonces,
         )
-    except Exception as exc:
+    except _EXPECTED_STEP_ERRORS as exc:
         return DexStepResult(ok=False, error=str(exc))
 
 
@@ -251,5 +254,5 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
             settlement,
             next_nonces or state.nonces,
         )
-    except Exception as exc:
+    except _EXPECTED_STEP_ERRORS as exc:
         return DexStepResult(ok=False, error=str(exc))
