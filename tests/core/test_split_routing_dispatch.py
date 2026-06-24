@@ -17,6 +17,7 @@ from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_poo
 from src.core.split_routing_dispatch import (
     SplitLegExactOutQuote,
     SplitManyPoolsExactOutQuote,
+    best_split_many_pools_exact_in_for_pools,
     best_split_many_pools_exact_out_for_pools,
     best_split_two_pools_exact_in_for_pools,
     best_split_two_pools_exact_out_for_pools,
@@ -385,6 +386,106 @@ class TestSplitRoutingDispatch:
         assert not guard.feasible
         assert guard.capacity_upper_bound == 8
         assert guard.top_caps == (("pool_a", 4), ("pool_b", 4))
+
+    @pytest.mark.parametrize("bad", [True, 1.5, "2"])
+    def test_exact_out_capacity_guard_rejects_non_int_max_legs(self, bad: object) -> None:
+        pool = _mk_pool(pool_id="pool_a", curve_tag=CURVE_TAG_CPMM, reserve0=1_000, reserve1=20, fee_bps=0)
+
+        with pytest.raises(ValueError, match="max_legs must be positive"):
+            exact_out_capacity_guard_for_pools(
+                (pool,),
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_out_total=3,
+                max_legs=bad,  # type: ignore[arg-type]
+            )
+
+    @pytest.mark.parametrize("bad", [True, 1.5, "8"])
+    def test_two_pool_exact_in_rejects_non_int_window(self, bad: object) -> None:
+        p0 = _mk_pool(pool_id="pool_a", curve_tag=CURVE_TAG_CPMM, reserve0=1_000, reserve1=1_000, fee_bps=0)
+        p1 = _mk_pool(pool_id="pool_b", curve_tag=CURVE_TAG_CPMM, reserve0=1_000, reserve1=1_000, fee_bps=0)
+
+        with pytest.raises(ValueError, match="window must be non-negative"):
+            best_split_two_pools_exact_in_for_pools(
+                p0,
+                p1,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_in_total=10,
+                window=bad,  # type: ignore[arg-type]
+            )
+
+    @pytest.mark.parametrize(
+        "kwargs,match",
+        [
+            ({"window": True}, "window must be non-negative"),
+            ({"window": 1.5}, "window must be non-negative"),
+            ({"brute_force_max": True}, "brute_force_max must be non-negative"),
+            ({"brute_force_max": 1.5}, "brute_force_max must be non-negative"),
+        ],
+    )
+    def test_two_pool_exact_out_rejects_non_int_search_limits(self, kwargs: dict[str, object], match: str) -> None:
+        p0 = _mk_pool(pool_id="pool_a", curve_tag=CURVE_TAG_CPMM, reserve0=1_000, reserve1=1_000, fee_bps=0)
+        p1 = _mk_pool(pool_id="pool_b", curve_tag=CURVE_TAG_CPMM, reserve0=1_000, reserve1=1_000, fee_bps=0)
+
+        with pytest.raises(ValueError, match=match):
+            best_split_two_pools_exact_out_for_pools(
+                p0,
+                p1,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_out_total=10,
+                **kwargs,  # type: ignore[arg-type]
+            )
+
+    @pytest.mark.parametrize(
+        "kwargs,match",
+        [
+            ({"max_legs": True}, "max_legs must be positive"),
+            ({"max_candidates": 1.5}, "max_candidates must be positive"),
+            ({"max_iters": "8"}, "max_iters must be positive"),
+        ],
+    )
+    def test_many_pool_exact_in_rejects_non_int_search_limits(self, kwargs: dict[str, object], match: str) -> None:
+        pools = (
+            _mk_pool(pool_id="pool_a", curve_tag=CURVE_TAG_CPMM, reserve0=1_000, reserve1=1_000, fee_bps=0),
+            _mk_pool(pool_id="pool_b", curve_tag=CURVE_TAG_CPMM, reserve0=1_100, reserve1=1_000, fee_bps=0),
+        )
+
+        with pytest.raises(ValueError, match=match):
+            best_split_many_pools_exact_in_for_pools(
+                pools,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_in_total=10,
+                **kwargs,  # type: ignore[arg-type]
+            )
+
+    @pytest.mark.parametrize(
+        "kwargs,match",
+        [
+            ({"max_legs": True}, "max_legs must be positive"),
+            ({"max_candidates": 1.5}, "max_candidates must be positive"),
+            ({"max_iters": "8"}, "max_iters must be positive"),
+            ({"window": True}, "window must be non-negative"),
+            ({"brute_force_max": 1.5}, "brute_force_max must be non-negative"),
+            ({"max_full_domain_pools": "6"}, "max_full_domain_pools must be positive"),
+        ],
+    )
+    def test_many_pool_exact_out_rejects_non_int_search_limits(self, kwargs: dict[str, object], match: str) -> None:
+        pools = (
+            _mk_pool(pool_id="pool_a", curve_tag=CURVE_TAG_CPMM, reserve0=1_000, reserve1=1_000, fee_bps=0),
+            _mk_pool(pool_id="pool_b", curve_tag=CURVE_TAG_CPMM, reserve0=1_100, reserve1=1_000, fee_bps=0),
+        )
+
+        with pytest.raises(ValueError, match=match):
+            best_split_many_pools_exact_out_for_pools(
+                pools,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_out_total=10,
+                **kwargs,  # type: ignore[arg-type]
+            )
 
     def test_exact_out_many_pool_rejects_infeasible_max_legs_request(self) -> None:
         pools = (
