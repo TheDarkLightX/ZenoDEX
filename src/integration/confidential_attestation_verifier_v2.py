@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import os
 import struct
+import time
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Optional
 
@@ -30,7 +31,7 @@ from .confidential_attestation import (
 )
 
 try:
-    import cbor2  # type: ignore[import-untyped]
+    import cbor2
     _HAS_CBOR2 = True
 except ImportError:  # pragma: no cover - cbor2 is a hard dependency for prod
     _HAS_CBOR2 = False
@@ -370,12 +371,24 @@ class ProductionAttestationVerifier:
     def __init__(self, config: ProductionAttestationVerifierConfig) -> None:
         if not isinstance(config, ProductionAttestationVerifierConfig):
             raise TypeError("config must be a ProductionAttestationVerifierConfig")
+        if (
+            not isinstance(config.max_attestation_age_s, int)
+            or isinstance(config.max_attestation_age_s, bool)
+            or config.max_attestation_age_s <= 0
+        ):
+            raise ValueError("max_attestation_age_s must be a positive int")
+        if (
+            not isinstance(config.current_time_s, int)
+            or isinstance(config.current_time_s, bool)
+            or config.current_time_s < 0
+        ):
+            raise ValueError("current_time_s must be a non-negative int")
         self._config = config
         self._allowlist_set = set(config.allowlist)
 
     def verify(
         self,
-        payload: Mapping[str, Any],
+        payload: object,
         *,
         policy_digest: str = "",
         issued_at_s: int = 0,
@@ -394,6 +407,9 @@ class ProductionAttestationVerifier:
         """
         if not isinstance(payload, Mapping):
             return None, "payload must be an object"
+        freshness_error = self._validate_freshness(issued_at_s, epoch_length_s)
+        if freshness_error is not None:
+            return None, freshness_error
         provider = str(payload.get("provider", "")).strip().lower()
         if not provider:
             return None, "provider is required"
@@ -589,6 +605,26 @@ class ProductionAttestationVerifier:
             raise ValueError("epoch_length_s must be positive")
         return int(issued_at_s) // int(epoch_length_s)
 
+    def _validate_freshness(self, issued_at_s: int, epoch_length_s: int) -> str | None:
+        if not isinstance(issued_at_s, int) or isinstance(issued_at_s, bool) or issued_at_s < 0:
+            return "issued_at_s must be a non-negative int"
+        if (
+            not isinstance(epoch_length_s, int)
+            or isinstance(epoch_length_s, bool)
+            or epoch_length_s <= 0
+        ):
+            return "epoch_length_s must be a positive int"
+        current_time_s = self._config.current_time_s
+        if current_time_s <= 0:
+            return None
+        if issued_at_s <= 0:
+            return "issued_at_s is required when freshness checking is enabled"
+        if issued_at_s > current_time_s:
+            return "attestation issued_at_s is in the future"
+        if current_time_s - issued_at_s > self._config.max_attestation_age_s:
+            return "attestation is older than max_attestation_age_s"
+        return None
+
 
 # ---------------------------------------------------------------------------
 # Factory
@@ -604,6 +640,7 @@ def make_production_attestation_verifier_from_env() -> ProductionAttestationVeri
     - ``CONFIDENTIAL_ATTESTATION_CERT_HASH``: expected certificate hash (SHA-256 hex).
     - ``CONFIDENTIAL_ATTESTATION_REQUIRE_CERT_BINDING``: default ``1``.
     - ``CONFIDENTIAL_ATTESTATION_MAX_AGE_S``: max attestation age (default 300).
+    - ``CONFIDENTIAL_ATTESTATION_CURRENT_TIME_S``: optional test override.
     """
     allowlist_csv = os.environ.get("CONFIDENTIAL_APPROVED_MEASUREMENTS", "")
     allowlist = tuple(
@@ -613,6 +650,12 @@ def make_production_attestation_verifier_from_env() -> ProductionAttestationVeri
     cert_hash = os.environ.get("CONFIDENTIAL_ATTESTATION_CERT_HASH", "").strip().lower()
     require_binding = _env_bool("CONFIDENTIAL_ATTESTATION_REQUIRE_CERT_BINDING", True)
     max_age = _env_int("CONFIDENTIAL_ATTESTATION_MAX_AGE_S", 300, lo=1, hi=86400)
+    current_time_s = _env_int(
+        "CONFIDENTIAL_ATTESTATION_CURRENT_TIME_S",
+        int(time.time()),
+        lo=1,
+        hi=4102444800,
+    )
     return ProductionAttestationVerifier(
         ProductionAttestationVerifierConfig(
             allowlist=allowlist,
@@ -620,6 +663,7 @@ def make_production_attestation_verifier_from_env() -> ProductionAttestationVeri
             expected_certificate_hash=cert_hash,
             require_certificate_binding=require_binding,
             max_attestation_age_s=max_age,
+            current_time_s=current_time_s,
         )
     )
 
