@@ -185,6 +185,7 @@ def _verify_cose_sign1_signature(
     SHA-384 by default. We try SHA-384 first, then SHA-256.
     """
     try:
+        from cryptography.exceptions import InvalidSignature
         from cryptography import x509
         from cryptography.hazmat.primitives import hashes
         from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
@@ -197,7 +198,7 @@ def _verify_cose_sign1_signature(
     sig_structure = cbor2.dumps(["Signature1", b"", protected_header, payload])
     try:
         cert = x509.load_der_x509_certificate(cert_der)
-    except Exception:
+    except ValueError:
         return False
     public_key = cert.public_key()
 
@@ -211,7 +212,7 @@ def _verify_cose_sign1_signature(
                     hash_algo,
                 )
                 return True
-            except Exception:
+            except InvalidSignature:
                 continue
         return False
     elif isinstance(public_key, ec.EllipticCurvePublicKey):
@@ -219,7 +220,7 @@ def _verify_cose_sign1_signature(
             try:
                 public_key.verify(signature, sig_structure, ec.ECDSA(hash_algo))
                 return True
-            except Exception:
+            except InvalidSignature:
                 continue
         return False
     return False
