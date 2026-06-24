@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import src.integration.decision_witness as decision_witness
 from src.integration.decision_witness import (
     build_decision_witness_from_autotrader_binary_decision,
     build_decision_witness_from_autotrader_multiaction_decision,
@@ -307,6 +308,27 @@ def test_exact_in_true_key_packet_witness_checker_rejects_tampering() -> None:
     ok, err = verify_decision_witness_against_exact_in_true_key_interpretation_packet(packet, payload)
     assert not ok
     assert err == "decision witness payload mismatch for exact-in packet"
+
+
+def test_exact_in_true_key_packet_witness_checker_sanitizes_unexpected_fault(
+    monkeypatch,
+) -> None:
+    def _faulting_builder(_packet):
+        raise RuntimeError("do not leak exact-in witness internals")
+
+    monkeypatch.setattr(
+        decision_witness,
+        "build_decision_witness_from_exact_in_true_key_interpretation_packet",
+        _faulting_builder,
+    )
+
+    ok, err = verify_decision_witness_against_exact_in_true_key_interpretation_packet(
+        object(),
+        {},
+    )
+
+    assert ok is False
+    assert err == "internal_error:RuntimeError"
 
 
 def test_exact_out_repaired_key_cover_packet_adapts_into_decision_witness() -> None:

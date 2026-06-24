@@ -63,6 +63,13 @@ def _canonical_key_from_payload(value: object) -> tuple[int | str | bool, ...]:
     return tuple(out)
 
 
+def _safe_verifier_error(exc: Exception) -> str:
+    if isinstance(exc, (TypeError, ValueError, KeyError)):
+        detail = " ".join(str(exc).split())
+        return detail[:200] or type(exc).__name__
+    return f"internal_error:{type(exc).__name__}"
+
+
 @dataclass(frozen=True)
 class DecisionWitnessBinding:
     binding_kind: str
@@ -226,7 +233,7 @@ def verify_decision_witness_payload(
     try:
         witness = DecisionWitness.from_dict(payload)  # type: ignore[arg-type]
     except Exception as exc:
-        return False, str(exc)
+        return False, _safe_verifier_error(exc)
     if expected_witness_kind is not None and witness.witness_kind != expected_witness_kind:
         return False, "decision witness kind mismatch"
     return True, None
@@ -433,14 +440,14 @@ def verify_decision_witness_against_exact_in_true_key_interpretation_packet(
     try:
         expected = build_decision_witness_from_exact_in_true_key_interpretation_packet(packet)
     except Exception as exc:
-        return False, str(exc)
+        return False, _safe_verifier_error(exc)
     ok, err = verify_decision_witness_payload(witness_payload, expected_witness_kind="exact_in_route")
     if not ok:
         return ok, err
     try:
         witness = DecisionWitness.from_dict(witness_payload)  # type: ignore[arg-type]
     except Exception as exc:
-        return False, str(exc)
+        return False, _safe_verifier_error(exc)
     if witness.to_dict() != expected.to_dict():
         return False, "decision witness payload mismatch for exact-in packet"
     return True, None
@@ -576,14 +583,14 @@ def verify_decision_witness_against_exact_out_repaired_key_cover_interpretation_
     try:
         expected = build_decision_witness_from_exact_out_repaired_key_cover_interpretation_packet(packet)
     except Exception as exc:
-        return False, str(exc)
+        return False, _safe_verifier_error(exc)
     ok, err = verify_decision_witness_payload(witness_payload, expected_witness_kind="exact_out_route")
     if not ok:
         return ok, err
     try:
         witness = DecisionWitness.from_dict(witness_payload)  # type: ignore[arg-type]
     except Exception as exc:
-        return False, str(exc)
+        return False, _safe_verifier_error(exc)
     if witness.to_dict() != expected.to_dict():
         return False, "decision witness payload mismatch for exact-out packet"
     return True, None
@@ -740,14 +747,14 @@ def verify_decision_witness_against_settlement_end_to_end_certificate_packet(
             expires_at=expires_at,
         )
     except Exception as exc:
-        return False, str(exc)
+        return False, _safe_verifier_error(exc)
     ok, err = verify_decision_witness_payload(witness_payload, expected_witness_kind="settlement_step")
     if not ok:
         return ok, err
     try:
         witness = DecisionWitness.from_dict(witness_payload)  # type: ignore[arg-type]
     except Exception as exc:
-        return False, str(exc)
+        return False, _safe_verifier_error(exc)
     if witness.to_dict() != expected.to_dict():
         return False, "decision witness payload mismatch for settlement packet"
     return True, None
@@ -864,7 +871,7 @@ def verify_decision_witness_against_autotrader_binary_decision(
             certificate=certificate,
         )
     except Exception as exc:
-        return False, str(exc)
+        return False, _safe_verifier_error(exc)
     ok, err = verify_decision_witness_payload(
         witness_payload, expected_witness_kind="autotrader_binary_decision"
     )
@@ -873,7 +880,7 @@ def verify_decision_witness_against_autotrader_binary_decision(
     try:
         witness = DecisionWitness.from_dict(witness_payload)  # type: ignore[arg-type]
     except Exception as exc:
-        return False, str(exc)
+        return False, _safe_verifier_error(exc)
     if witness.to_dict() != expected.to_dict():
         return False, "decision witness payload mismatch for autotrader binary decision"
     return True, None
@@ -989,7 +996,7 @@ def verify_decision_witness_against_autotrader_multiaction_decision(
             certificate=certificate,
         )
     except Exception as exc:
-        return False, str(exc)
+        return False, _safe_verifier_error(exc)
     ok, err = verify_decision_witness_payload(
         witness_payload, expected_witness_kind="autotrader_multiaction_decision"
     )
@@ -998,7 +1005,7 @@ def verify_decision_witness_against_autotrader_multiaction_decision(
     try:
         witness = DecisionWitness.from_dict(witness_payload)  # type: ignore[arg-type]
     except Exception as exc:
-        return False, str(exc)
+        return False, _safe_verifier_error(exc)
     if witness.to_dict() != expected.to_dict():
         return False, "decision witness payload mismatch for autotrader multi-action decision"
     return True, None

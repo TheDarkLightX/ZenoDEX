@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import src.integration.decision_witness as decision_witness
 from src.integration.decision_witness import (
     DECISION_WITNESS_SCHEMA,
     DecisionWitness,
@@ -77,3 +78,15 @@ def test_decision_witness_rejects_non_scalar_canonical_key_item() -> None:
     ok, err = verify_decision_witness_payload(payload)
     assert ok is False
     assert err == "canonical_key items must be int, str, or bool"
+
+
+def test_verify_decision_witness_payload_sanitizes_unexpected_fault(monkeypatch) -> None:
+    def _faulting_from_dict(_payload):
+        raise RuntimeError("do not leak decision witness internals")
+
+    monkeypatch.setattr(decision_witness.DecisionWitness, "from_dict", _faulting_from_dict)
+
+    ok, err = verify_decision_witness_payload(_sample_witness().to_dict())
+
+    assert ok is False
+    assert err == "internal_error:RuntimeError"
