@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+import src.core.confidential_extension_live_admission as live_admission
 from src.core.confidential_extension_live_admission import validate_confidential_extension_live_admission
 from src.core.confidential_extension_receipts import make_confidential_extension_receipt
 from src.integration.confidential_attestation import (
@@ -75,6 +78,33 @@ def test_confidential_extension_live_admission_rejects_policy_digest_mismatch() 
     assert ok is False
     assert err == "policy_digest_mismatch"
     assert updated is None
+
+
+def test_confidential_extension_live_admission_rejects_malformed_expected_policy_digest() -> None:
+    ok, err, updated = validate_confidential_extension_live_admission(
+        receipt=_receipt(),
+        approved_measurements=APPROVED,
+        expected_policy_digest="0x1",
+        request_table=ConfidentialRequestTable(),
+    )
+    assert ok is False
+    assert err == "bad_expected_policy_digest"
+    assert updated is None
+
+
+def test_confidential_extension_live_admission_surfaces_policy_canonicalizer_bug(monkeypatch) -> None:
+    def fail_canonicalizer(*_args, **_kwargs):
+        raise RuntimeError("canonicalizer bug")
+
+    monkeypatch.setattr(live_admission, "canonical_hex_fixed_allow_0x", fail_canonicalizer)
+
+    with pytest.raises(RuntimeError, match="canonicalizer bug"):
+        validate_confidential_extension_live_admission(
+            receipt=_receipt(),
+            approved_measurements=APPROVED,
+            expected_policy_digest=POLICY_DIGEST,
+            request_table=ConfidentialRequestTable(),
+        )
 
 
 def test_confidential_extension_live_admission_rejects_request_replay() -> None:
