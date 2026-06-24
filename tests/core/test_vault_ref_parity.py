@@ -15,6 +15,7 @@ from typing import Any
 
 import pytest
 
+import src.core.vault as vault_mod
 from src.core.vault import VaultCommand, VaultState, init_vault_state, step
 
 
@@ -75,6 +76,25 @@ def _random_cmd(rng: random.Random, s: VaultState) -> VaultCommand:
 
     assert candidates
     return rng.choice(candidates)
+
+
+class TestVaultStepErrorBoundary:
+    def test_expected_step_error_returns_result(self, monkeypatch) -> None:
+        def bad_deposit(_state, _args):
+            raise ValueError("expected domain failure")
+
+        monkeypatch.setattr(vault_mod, "_deposit_rewards", bad_deposit)
+        result = step(init_vault_state(), VaultCommand(tag="deposit_rewards", args={"amount": 1}))
+        assert result.ok is False
+        assert result.error == "expected domain failure"
+
+    def test_unexpected_step_bug_propagates(self, monkeypatch) -> None:
+        def broken_deposit(_state, _args):
+            raise RuntimeError("unexpected vault bug")
+
+        monkeypatch.setattr(vault_mod, "_deposit_rewards", broken_deposit)
+        with pytest.raises(RuntimeError, match="unexpected vault bug"):
+            step(init_vault_state(), VaultCommand(tag="deposit_rewards", args={"amount": 1}))
 
 
 class TestVaultParityWithGeneratedRef:
