@@ -13,7 +13,7 @@ is reduced here to an approved measurement allowlist plus bounded epoch freshnes
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import AbstractSet, Any, Dict, Iterable, Tuple
+from typing import AbstractSet, Any, Dict, Iterable, Tuple, cast
 
 from ..state.canonical import (
     canonical_hex_fixed_allow_0x,
@@ -148,13 +148,14 @@ def _measurement_registry_unsigned(registry: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def verify_confidential_measurement_registry(
-    registry: Dict[str, Any],
+    registry: object,
     *,
     current_epoch: int,
     policy_digest: str | None = None,
 ) -> Tuple[bool, str, set[str]]:
     if not isinstance(registry, dict):
         return False, "bad_registry_type", set()
+    registry = cast(Dict[str, Any], registry)
     try:
         current_epoch_v = _require_bounded_int(current_epoch, name="current_epoch", upper=MAX_EPOCH)
         policy_digest_v = None if policy_digest is None else _require_policy_digest(policy_digest)
@@ -615,8 +616,8 @@ def make_confidential_extension_receipt(
             provider_balance_before=provider_balance_before,
             provider_balance_after=provider_balance_after,
         )
-    except (TypeError, ValueError):
-        return False, "bad_numeric_field"
+    except (TypeError, ValueError) as exc:
+        raise ValueError("bad_numeric_field") from exc
     if not gate.fresh_attestation_ok:
         raise ValueError("attestation must be fresh")
     if not gate.host_guards_ok:
@@ -655,17 +656,19 @@ def make_confidential_extension_receipt(
 
 
 def verify_confidential_extension_receipt(
-    receipt: Dict[str, Any],
+    receipt: object,
     *,
     approved_measurements: Iterable[str] | AbstractSet[str],
 ) -> Tuple[bool, str]:
     if not isinstance(receipt, dict):
         return False, "bad_receipt_type"
-    body = receipt.get("body")
+    receipt_obj = cast(Dict[str, Any], receipt)
+    body = receipt_obj.get("body")
     if not isinstance(body, dict):
         return False, "missing_body"
+    body = cast(Dict[str, Any], body)
 
-    want_hash = receipt.get("receipt_hash")
+    want_hash = receipt_obj.get("receipt_hash")
     host = body.get("host")
     attestation = body.get("attestation")
     accounting = body.get("accounting")
@@ -685,7 +688,7 @@ def verify_confidential_extension_receipt(
     try:
         policy_digest = body.get("policy_digest")
         policy_digest_ok = isinstance(policy_digest, str) and bool(policy_digest) and policy_digest == _require_policy_digest(policy_digest)
-    except Exception:
+    except (TypeError, ValueError):
         policy_digest_ok = False
     measurement = body.get("measurement")
     measurement_format_ok = isinstance(measurement, str) and bool(measurement) and is_canonical_confidential_measurement(measurement)
@@ -701,6 +704,9 @@ def verify_confidential_extension_receipt(
     numeric_fields_ok = False
     try:
         if host_object_ok and attestation_object_ok and accounting_object_ok:
+            host = cast(Dict[str, Any], host)
+            attestation = cast(Dict[str, Any], attestation)
+            accounting = cast(Dict[str, Any], accounting)
             do_execute = _require_int_field(host, "do_execute")
             policy_ok = _require_int_field(host, "policy_ok")
             nonce_unused = _require_int_field(host, "nonce_unused")
@@ -715,7 +721,7 @@ def verify_confidential_extension_receipt(
             provider_balance_before = _require_int_field(accounting, "provider_balance_before")
             provider_balance_after = _require_int_field(accounting, "provider_balance_after")
             numeric_fields_ok = True
-    except Exception:
+    except (TypeError, ValueError):
         numeric_fields_ok = False
 
     precheck = evaluate_confidential_extension_receipt_precheck_gate(

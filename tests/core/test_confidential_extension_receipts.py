@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+import src.core.confidential_extension_receipts as confidential_receipts
 from src.core.confidential_extension_receipts import (
     confidential_extension_receipt_hash,
     make_confidential_extension_receipt,
@@ -135,6 +138,14 @@ def test_confidential_extension_receipt_constructor_rejects_impossible_execute_s
         raise AssertionError("expected impossible execute-state rejection")
 
 
+def test_confidential_extension_receipt_constructor_surfaces_gate_failure(monkeypatch) -> None:
+    def fail_gate(**_kwargs):
+        raise ValueError("gate bug")
+
+    monkeypatch.setattr(confidential_receipts, "evaluate_confidential_extension_receipt_gate", fail_gate)
+
+    with pytest.raises(ValueError, match="bad_numeric_field"):
+        _valid_receipt()
 
 
 def test_confidential_extension_receipt_rejects_out_of_range_numeric_field_fail_closed() -> None:
@@ -160,6 +171,26 @@ def test_confidential_extension_receipt_rejects_noncanonical_policy_digest() -> 
     ok, err = verify_confidential_extension_receipt(receipt, approved_measurements=APPROVED)
     assert not ok
     assert err == "bad_policy_digest"
+
+
+def test_confidential_extension_receipt_surfaces_policy_digest_helper_fault(monkeypatch) -> None:
+    def fail_policy_digest(_value):
+        raise RuntimeError("policy digest helper bug")
+
+    monkeypatch.setattr(confidential_receipts, "_require_policy_digest", fail_policy_digest)
+
+    with pytest.raises(RuntimeError, match="policy digest helper bug"):
+        verify_confidential_extension_receipt(_valid_receipt(), approved_measurements=APPROVED)
+
+
+def test_confidential_extension_receipt_surfaces_numeric_field_helper_fault(monkeypatch) -> None:
+    def fail_int_field(_mapping, _key):
+        raise RuntimeError("numeric field helper bug")
+
+    monkeypatch.setattr(confidential_receipts, "_require_int_field", fail_int_field)
+
+    with pytest.raises(RuntimeError, match="numeric field helper bug"):
+        verify_confidential_extension_receipt(_valid_receipt(), approved_measurements=APPROVED)
 
 
 def test_confidential_extension_receipt_hash_mismatch_precedes_later_header_failures() -> None:
