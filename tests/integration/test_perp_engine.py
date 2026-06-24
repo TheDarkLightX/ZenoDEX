@@ -90,6 +90,89 @@ def test_perp_engine_safe_error_str_caps_domain_errors_and_hides_internal_faults
     )[:512]
 
 
+def test_init_market_2p_pubkey_distinctness_parser_internal_fault_is_not_suppressed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.integration import perp_engine
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    def _faulting_hex_parser(*_args: object, **_kwargs: object) -> bytes:
+        raise RuntimeError("pubkey parser internal fault")
+
+    monkeypatch.setattr(perp_engine, "_hex_to_bytes_allow_0x", _faulting_hex_parser)
+
+    res = apply_perp_ops(
+        config=PerpEngineConfig(operator_pubkey="00" * 48),
+        state=DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()),
+        operations={
+            "5": [
+                {
+                    "module": "TauPerp",
+                    "version": "0.2",
+                    "market_id": "perp:ch2p:pubkey-parser-fault",
+                    "action": "init_market_2p",
+                    "quote_asset": "0x" + "11" * 32,
+                    "account_a_pubkey": "22" * 48,
+                    "account_b_pubkey": "33" * 48,
+                    "deadline": 1,
+                    "nonce_a": 1,
+                    "sig_a": "00",
+                    "nonce_b": 1,
+                    "sig_b": "00",
+                }
+            ]
+        },
+        tx_sender_pubkey="00" * 48,
+        block_timestamp=0,
+    )
+
+    assert res.ok is False
+    assert res.error == "internal error: RuntimeError"
+
+
+def test_init_market_3p_pubkey_distinctness_parser_internal_fault_is_not_suppressed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.integration import perp_engine
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    def _faulting_hex_parser(*_args: object, **_kwargs: object) -> bytes:
+        raise RuntimeError("pubkey parser internal fault")
+
+    monkeypatch.setattr(perp_engine, "_hex_to_bytes_allow_0x", _faulting_hex_parser)
+
+    res = apply_perp_ops(
+        config=PerpEngineConfig(operator_pubkey="00" * 48),
+        state=DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()),
+        operations={
+            "5": [
+                {
+                    "module": "TauPerp",
+                    "version": "1.1",
+                    "market_id": "perp:ch3p:pubkey-parser-fault",
+                    "action": "init_market_3p",
+                    "quote_asset": "0x" + "11" * 32,
+                    "account_a_pubkey": "22" * 48,
+                    "account_b_pubkey": "33" * 48,
+                    "account_c_pubkey": "44" * 48,
+                    "deadline": 1,
+                    "nonce_a": 1,
+                    "sig_a": "00",
+                    "nonce_b": 1,
+                    "sig_b": "00",
+                    "nonce_c": 1,
+                    "sig_c": "00",
+                }
+            ]
+        },
+        tx_sender_pubkey="00" * 48,
+        block_timestamp=0,
+    )
+
+    assert res.ok is False
+    assert res.error == "internal error: RuntimeError"
+
+
 def _with_oracle_snapshot(
     state: DexState,
     *,

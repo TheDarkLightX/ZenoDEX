@@ -4996,7 +4996,7 @@ def apply_perp_ops(
                     a_b = _hex_to_bytes_allow_0x(account_a_pubkey, name="account_a_pubkey", expected_nbytes=48)
                     b_b = _hex_to_bytes_allow_0x(account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
                     distinct_accounts_ok = bool(distinct_accounts_ok and a_b != b_b)
-                except Exception:
+                except ValueError:
                     # Fail later via signature verification (keeps errors attributed to the signer).
                     pass
 
@@ -5107,7 +5107,7 @@ def apply_perp_ops(
                     b_b = _hex_to_bytes_allow_0x(account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
                     c_b = _hex_to_bytes_allow_0x(account_c_pubkey, name="account_c_pubkey", expected_nbytes=48)
                     distinct_accounts_ok = bool(distinct_accounts_ok and len({a_b, b_b, c_b}) == 3)
-                except Exception:
+                except ValueError:
                     pass
 
                 nonce_a = _require_int_u32_pos(data.get("nonce_a"), name="nonce_a")
