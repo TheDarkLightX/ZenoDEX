@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+import src.state.nonces as nonces_module
 from src.state.intents import Intent, IntentKind
 from src.state.nonces import NonceTable, copy_nonce_table, validate_and_apply_intent_nonce_batch
 
@@ -139,6 +140,22 @@ def test_validate_and_apply_nonce_batch_rejects_invalid_sender_pubkey() -> None:
     assert err is not None
     assert "invalid sender_pubkey for nonce accounting" in err
     assert updated is None
+
+
+def test_validate_and_apply_nonce_batch_propagates_unexpected_canonicalizer_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _programmer_error(*_args: object, **_kwargs: object) -> str:
+        raise RuntimeError("canonicalizer bug")
+
+    monkeypatch.setattr(nonces_module, "canonical_hex_fixed_allow_0x", _programmer_error)
+
+    with pytest.raises(RuntimeError, match="canonicalizer bug"):
+        validate_and_apply_intent_nonce_batch(
+            nonces=NonceTable(),
+            intents=[_intent(nonce=1)],
+            require_all_nonces=True,
+        )
 
 
 def test_validate_and_apply_nonce_batch_returns_copy_for_empty_batch() -> None:
