@@ -39,6 +39,13 @@ def _require_bool(name: str, value: object) -> bool:
     return value
 
 
+def _safe_payload_error(exc: Exception) -> str:
+    if isinstance(exc, (TypeError, ValueError, KeyError)):
+        detail = " ".join(str(exc).split())
+        return detail[:200] or type(exc).__name__
+    return f"internal_error:{type(exc).__name__}"
+
+
 def _source_kind_code(value: SignalSourceKind) -> int:
     if not isinstance(value, SignalSourceKind):
         raise TypeError("value must be a SignalSourceKind")
@@ -280,7 +287,7 @@ def verify_external_signal_source_registry_payload(payload: object) -> tuple[boo
     try:
         registry = external_signal_source_registry_from_object(payload)
     except Exception as exc:
-        return False, str(exc)
+        return False, _safe_payload_error(exc)
     if dict(payload) != registry.to_dict():
         return False, "external signal source registry payload mismatch"
     return True, None

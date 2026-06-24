@@ -132,6 +132,46 @@ def test_signal_source_registry_payload_verifier_roundtrip_and_tamper_rejection(
     assert error == "external signal source registry payload mismatch"
 
 
+def test_signal_source_registry_payload_verifier_preserves_expected_validation_error(
+    monkeypatch,
+) -> None:
+    def _bad_registry(_payload):
+        raise ValueError("external registry shape invalid")
+
+    monkeypatch.setattr(
+        signal_registry,
+        "external_signal_source_registry_from_object",
+        _bad_registry,
+    )
+
+    ok, error = verify_external_signal_source_registry_payload(
+        {"schema": "zenodex/autotrader-external-signal-source-registry/v1"},
+    )
+
+    assert ok is False
+    assert error == "external registry shape invalid"
+
+
+def test_signal_source_registry_payload_verifier_sanitizes_unexpected_fault(
+    monkeypatch,
+) -> None:
+    def _faulting_registry(_payload):
+        raise RuntimeError("do not leak registry internals")
+
+    monkeypatch.setattr(
+        signal_registry,
+        "external_signal_source_registry_from_object",
+        _faulting_registry,
+    )
+
+    ok, error = verify_external_signal_source_registry_payload(
+        {"schema": "zenodex/autotrader-external-signal-source-registry/v1"},
+    )
+
+    assert ok is False
+    assert error == "internal_error:RuntimeError"
+
+
 def test_signal_source_registry_helper_type_guards() -> None:
     with pytest.raises(TypeError, match="value must be a SignalSourceKind"):
         signal_registry._source_kind_code("attested_external")  # type: ignore[arg-type]
