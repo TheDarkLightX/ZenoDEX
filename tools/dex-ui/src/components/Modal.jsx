@@ -2,6 +2,27 @@ import { useCallback, useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import './Modal.css';
 
+const modalStack = [];
+
+function registerModal(modalId) {
+  modalStack.push(modalId);
+  document.body.classList.add('modal-open');
+}
+
+function unregisterModal(modalId) {
+  const idx = modalStack.lastIndexOf(modalId);
+  if (idx !== -1) {
+    modalStack.splice(idx, 1);
+  }
+  if (modalStack.length === 0) {
+    document.body.classList.remove('modal-open');
+  }
+}
+
+function isTopModal(modalId) {
+  return modalStack[modalStack.length - 1] === modalId;
+}
+
 /**
  * Modal — accessible dialog primitive. Renders into document.body via
  * portal so it escapes whatever overflow:hidden parent it lives under.
@@ -29,6 +50,7 @@ function Modal({ open, onClose, title, description, size = 'md', children }) {
   const overlayRef = useRef(null);
   const dialogRef = useRef(null);
   const previouslyFocused = useRef(null);
+  const modalIdRef = useRef(Symbol('modal'));
   const titleId = useId();
 
   const handleClose = useCallback(() => {
@@ -39,8 +61,9 @@ function Modal({ open, onClose, title, description, size = 'md', children }) {
   useEffect(() => {
     if (!open) return undefined;
 
+    const modalId = modalIdRef.current;
     previouslyFocused.current = document.activeElement;
-    document.body.classList.add('modal-open');
+    registerModal(modalId);
 
     const FOCUSABLE_SELECTOR =
       'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -59,8 +82,15 @@ function Modal({ open, onClose, title, description, size = 'md', children }) {
     }, 0);
 
     function onKeyDown(event) {
+      if (!isTopModal(modalId)) {
+        return;
+      }
       if (event.key === 'Escape') {
+        event.preventDefault();
         event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === 'function') {
+          event.stopImmediatePropagation();
+        }
         handleClose();
         return;
       }
@@ -90,7 +120,7 @@ function Modal({ open, onClose, title, description, size = 'md', children }) {
 
     return () => {
       document.removeEventListener('keydown', onKeyDown, true);
-      document.body.classList.remove('modal-open');
+      unregisterModal(modalId);
       window.clearTimeout(focusTimer);
       const prev = previouslyFocused.current;
       if (prev && typeof prev.focus === 'function') {
@@ -105,7 +135,7 @@ function Modal({ open, onClose, title, description, size = 'md', children }) {
     // Only close if the click landed on the overlay itself, not bubbled
     // up from the dialog. mousedown (not click) avoids closing when a
     // drag begins inside and ends on the overlay.
-    if (event.target === overlayRef.current) {
+    if (event.target === overlayRef.current && isTopModal(modalIdRef.current)) {
       handleClose();
     }
   };

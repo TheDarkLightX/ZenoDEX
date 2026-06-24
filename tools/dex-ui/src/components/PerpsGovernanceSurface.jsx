@@ -651,7 +651,6 @@ export default function PerpsGovernanceSurface() {
                 <button
                   className="btn btn-primary btn-sm"
                   type="button"
-                 
                   onClick={() => {
                     const base = fixtures.deviceApprovalExercise ? JSON.parse(JSON.stringify(fixtures.deviceApprovalExercise)) : {};
                     base.key_id = deviceKeyId;
@@ -856,7 +855,6 @@ export default function PerpsGovernanceSurface() {
                 <button
                   className="btn btn-primary btn-sm"
                   type="button"
-                 
                   onClick={() => {
                     const base = fixtures.recoveryExercise ? JSON.parse(JSON.stringify(fixtures.recoveryExercise)) : {};
                     base.subject_key_id = subjectKeyId;
@@ -950,7 +948,6 @@ export default function PerpsGovernanceSurface() {
                 <button
                   className="btn btn-primary btn-sm"
                   type="button"
-                 
                   onClick={() => {
                     const base = fixtures.rotationExercise ? JSON.parse(JSON.stringify(fixtures.rotationExercise)) : {};
                     base.rotated_key_id = rotatedKeyId;
