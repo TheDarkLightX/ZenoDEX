@@ -2399,6 +2399,27 @@ def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monke
     assert err.startswith(f"swap apply error for intent_id={intent.intent_id}:")
 
 
+def test_strong_validator_reports_unexpected_exact_in_kernel_bug_as_wrapper_crash(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+
+    def _bug_exact_in(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise RuntimeError("unexpected exact-in kernel bug")
+
+    monkeypatch.setattr(strong_validator, "swap_exact_in_for_pool", _bug_exact_in)
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "strong validator crashed: RuntimeError: unexpected exact-in kernel bug"
+
+
 def test_strong_validator_rejects_exact_out_field_kernel_and_apply_failures(monkeypatch) -> None:
     _pk, asset0, asset1, pool_id, pool, balances, intent, settlement = _setup_swap_exact_out_context()
 
