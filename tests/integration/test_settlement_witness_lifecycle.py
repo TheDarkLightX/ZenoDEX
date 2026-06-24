@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+import src.integration.settlement_witness_lifecycle as lifecycle
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.integration.settlement_end_to_end_certificate_packet import SettlementEndToEndCertificateInputs
@@ -214,3 +217,165 @@ def test_settlement_witness_lifecycle_packet_rejects_tampering() -> None:
     )
     assert ok is False
     assert err == "settlement witness lifecycle packet payload mismatch"
+
+
+def test_settlement_witness_lifecycle_packet_rejects_expected_packet_builder_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    intents, settlement, balances, pools, certificate_inputs = _settlement_context()
+
+    def _reject_packet(*args: object, **kwargs: object) -> object:
+        raise ValueError("packet input invalid")
+
+    monkeypatch.setattr(
+        lifecycle,
+        "build_settlement_end_to_end_certificate_packet_from_price_packet",
+        _reject_packet,
+    )
+
+    packet = build_settlement_witness_lifecycle_packet(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_end_to_end_certificate_inputs=certificate_inputs,
+    )
+
+    assert packet.packet_built is False
+    assert packet.settled is False
+    assert packet.rejected_with_reason is True
+    assert packet.rejection_reason == "packet input invalid"
+
+
+def test_settlement_witness_lifecycle_packet_surfaces_unexpected_packet_builder_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    intents, settlement, balances, pools, certificate_inputs = _settlement_context()
+
+    def _boom_packet(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("packet builder internal fault")
+
+    monkeypatch.setattr(
+        lifecycle,
+        "build_settlement_end_to_end_certificate_packet_from_price_packet",
+        _boom_packet,
+    )
+
+    with pytest.raises(RuntimeError, match="packet builder internal fault"):
+        build_settlement_witness_lifecycle_packet(
+            intents=intents,
+            settlement=settlement,
+            balances=balances,
+            pools=pools,
+            lp_balances=LPTable(),
+            block_timestamp=0,
+            settlement_end_to_end_certificate_inputs=certificate_inputs,
+        )
+
+
+def test_settlement_witness_lifecycle_packet_rejects_expected_witness_builder_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    intents, settlement, balances, pools, certificate_inputs = _settlement_context()
+
+    def _reject_witness(*args: object, **kwargs: object) -> object:
+        raise ValueError("witness input invalid")
+
+    monkeypatch.setattr(
+        lifecycle,
+        "build_decision_witness_from_settlement_end_to_end_certificate_packet",
+        _reject_witness,
+    )
+
+    packet = build_settlement_witness_lifecycle_packet(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_end_to_end_certificate_inputs=certificate_inputs,
+    )
+
+    assert packet.packet_built is True
+    assert packet.end_to_end_packet_ok is True
+    assert packet.witness_present is False
+    assert packet.witness_valid is False
+    assert packet.settled is False
+    assert packet.rejection_reason == "witness input invalid"
+
+
+def test_settlement_witness_lifecycle_packet_surfaces_unexpected_witness_builder_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    intents, settlement, balances, pools, certificate_inputs = _settlement_context()
+
+    def _boom_witness(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("witness builder internal fault")
+
+    monkeypatch.setattr(
+        lifecycle,
+        "build_decision_witness_from_settlement_end_to_end_certificate_packet",
+        _boom_witness,
+    )
+
+    with pytest.raises(RuntimeError, match="witness builder internal fault"):
+        build_settlement_witness_lifecycle_packet(
+            intents=intents,
+            settlement=settlement,
+            balances=balances,
+            pools=pools,
+            lp_balances=LPTable(),
+            block_timestamp=0,
+            settlement_end_to_end_certificate_inputs=certificate_inputs,
+        )
+
+
+def test_verify_settlement_witness_lifecycle_packet_payload_rejects_expected_build_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    intents, settlement, balances, pools, certificate_inputs = _settlement_context()
+
+    def _reject_build(*args: object, **kwargs: object) -> object:
+        raise ValueError("expected lifecycle build error")
+
+    monkeypatch.setattr(lifecycle, "build_settlement_witness_lifecycle_packet", _reject_build)
+
+    ok, err = verify_settlement_witness_lifecycle_packet_payload(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_end_to_end_certificate_inputs=certificate_inputs,
+        packet_payload={"schema": SETTLEMENT_WITNESS_LIFECYCLE_PACKET_SCHEMA},
+    )
+
+    assert ok is False
+    assert err == "expected lifecycle build error"
+
+
+def test_verify_settlement_witness_lifecycle_packet_payload_surfaces_unexpected_build_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    intents, settlement, balances, pools, certificate_inputs = _settlement_context()
+
+    def _boom_build(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("lifecycle build internal fault")
+
+    monkeypatch.setattr(lifecycle, "build_settlement_witness_lifecycle_packet", _boom_build)
+
+    with pytest.raises(RuntimeError, match="lifecycle build internal fault"):
+        verify_settlement_witness_lifecycle_packet_payload(
+            intents=intents,
+            settlement=settlement,
+            balances=balances,
+            pools=pools,
+            lp_balances=LPTable(),
+            block_timestamp=0,
+            settlement_end_to_end_certificate_inputs=certificate_inputs,
+            packet_payload={"schema": SETTLEMENT_WITNESS_LIFECYCLE_PACKET_SCHEMA},
+        )
