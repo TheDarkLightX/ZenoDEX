@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import sys
 
+import pytest
+
+from src.integration import confidential_attestation_verifier
 from src.integration.confidential_attestation_verifier import (
     ConfidentialAttestationVerifierConfig,
     MisconfiguredConfidentialAttestationVerifier,
@@ -150,6 +153,46 @@ def test_subprocess_confidential_attestation_verifier_rejects_non_canonical_payl
     assert verified is None
     assert err is not None
     assert "invalid attestation request encoding" in err
+
+
+def test_subprocess_confidential_attestation_verifier_surfaces_internal_payload_encoder_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    verifier = SubprocessConfidentialAttestationVerifier(
+        cmd=[sys.executable, "-c", "print('{\"ok\": true}')"],
+        timeout_s=1.0,
+        max_bytes=10_000,
+        max_stdout_bytes=1_000,
+        max_stderr_bytes=1_000,
+    )
+
+    def _faulting_encoder(_payload: object) -> bytes:
+        raise RuntimeError("attestation encoder internal fault")
+
+    monkeypatch.setattr(confidential_attestation_verifier, "canonical_json_bytes", _faulting_encoder)
+
+    with pytest.raises(RuntimeError, match="attestation encoder internal fault"):
+        verifier.verify({"provider": "nitro"})
+
+
+def test_subprocess_confidential_attestation_verifier_surfaces_unexpected_spawn_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    verifier = SubprocessConfidentialAttestationVerifier(
+        cmd=[sys.executable, "-c", "print('{\"ok\": true}')"],
+        timeout_s=1.0,
+        max_bytes=10_000,
+        max_stdout_bytes=1_000,
+        max_stderr_bytes=1_000,
+    )
+
+    def _faulting_popen(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("attestation spawn internal fault")
+
+    monkeypatch.setattr(confidential_attestation_verifier.subprocess, "Popen", _faulting_popen)
+
+    with pytest.raises(RuntimeError, match="attestation spawn internal fault"):
+        verifier.verify({"provider": "nitro"})
 
 
 def test_subprocess_confidential_attestation_verifier_limits_stdout() -> None:

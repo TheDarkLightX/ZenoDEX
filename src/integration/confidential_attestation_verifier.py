@@ -99,7 +99,7 @@ class SubprocessConfidentialAttestationVerifier(ConfidentialAttestationVerifier)
                 close_fds=True,
                 bufsize=0,
             )
-        except Exception as exc:
+        except (OSError, ValueError) as exc:
             return None, f"confidential attestation verifier error: {exc}"
 
         if proc.stdin is None or proc.stdout is None or proc.stderr is None:
@@ -150,7 +150,7 @@ def _payload_bytes(payload: Mapping[str, Any], *, max_bytes: int) -> tuple[bytes
         return canonical_json_bytes(payload), None
     except ValueError:
         return None, "attestation request too large"
-    except Exception as exc:
+    except TypeError as exc:
         return None, f"invalid attestation request encoding: {exc}"
 
 
