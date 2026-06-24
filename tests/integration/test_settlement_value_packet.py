@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+import src.integration.settlement_value_packet as value_packet
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.core.settlement import LPDelta
@@ -53,6 +56,29 @@ def _swap_context(intent_index: int = 3300):
     )
     settlement = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
     return pk, asset0, asset1, pool_id, settlement
+
+
+def _price_packet_for(asset0: str, asset1: str, *, source_prefix: str = "local"):
+    return build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(
+                asset=asset0,
+                price=100,
+                observed_epoch=95,
+                age_epochs=5,
+                source_id=f"{source_prefix}:a",
+            ),
+            SettlementSpotPriceEntry(
+                asset=asset1,
+                price=120,
+                observed_epoch=97,
+                age_epochs=3,
+                source_id=f"{source_prefix}:b",
+            ),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
 
 
 def test_settlement_value_packet_round_trips_for_spot_packet() -> None:
@@ -370,3 +396,148 @@ def test_settlement_value_packet_from_dict_round_trips() -> None:
     packet = build_settlement_value_packet_from_price_packet(settlement=settlement, price_packet=price_packet)
     rebuilt = SettlementValuePacket.from_dict(packet.to_dict())
     assert rebuilt == packet
+
+
+def test_verify_value_packet_rejects_expected_price_packet_parse_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pk, asset0, asset1, _pool_id, settlement = _swap_context()
+    price_packet = _price_packet_for(asset0, asset1)
+
+    def _reject_from_dict(*args: object, **kwargs: object) -> object:
+        raise ValueError("value price packet payload invalid")
+
+    monkeypatch.setattr(value_packet.SettlementSpotPricePacket, "from_dict", _reject_from_dict)
+
+    ok, err = verify_settlement_value_packet_payload_from_price_packet(
+        settlement=settlement,
+        price_packet_payload=price_packet.to_dict(),
+        packet_payload={},
+    )
+
+    assert ok is False
+    assert err == "value price packet payload invalid"
+
+
+def test_verify_value_packet_surfaces_unexpected_price_packet_parse_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pk, asset0, asset1, _pool_id, settlement = _swap_context()
+    price_packet = _price_packet_for(asset0, asset1)
+
+    def _boom_from_dict(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("value price packet parser internal fault")
+
+    monkeypatch.setattr(value_packet.SettlementSpotPricePacket, "from_dict", _boom_from_dict)
+
+    with pytest.raises(RuntimeError, match="value price packet parser internal fault"):
+        verify_settlement_value_packet_payload_from_price_packet(
+            settlement=settlement,
+            price_packet_payload=price_packet.to_dict(),
+            packet_payload={},
+        )
+
+
+def test_verify_value_packet_rejects_expected_builder_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pk, asset0, asset1, _pool_id, settlement = _swap_context()
+    price_packet = _price_packet_for(asset0, asset1)
+
+    def _reject_build(*args: object, **kwargs: object) -> object:
+        raise ValueError("value packet input invalid")
+
+    monkeypatch.setattr(value_packet, "build_settlement_value_packet_from_price_packet", _reject_build)
+
+    ok, err = verify_settlement_value_packet_payload_from_price_packet(
+        settlement=settlement,
+        price_packet_payload=price_packet.to_dict(),
+        packet_payload={},
+    )
+
+    assert ok is False
+    assert err == "value packet input invalid"
+
+
+def test_verify_value_packet_surfaces_unexpected_builder_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pk, asset0, asset1, _pool_id, settlement = _swap_context()
+    price_packet = _price_packet_for(asset0, asset1)
+
+    def _boom_build(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("value packet builder internal fault")
+
+    monkeypatch.setattr(value_packet, "build_settlement_value_packet_from_price_packet", _boom_build)
+
+    with pytest.raises(RuntimeError, match="value packet builder internal fault"):
+        verify_settlement_value_packet_payload_from_price_packet(
+            settlement=settlement,
+            price_packet_payload=price_packet.to_dict(),
+            packet_payload={},
+        )
+
+
+def test_verify_value_packet_rejects_expected_packet_payload_parse_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pk, asset0, asset1, _pool_id, settlement = _swap_context()
+    price_packet = _price_packet_for(asset0, asset1)
+
+    def _reject_packet(*args: object, **kwargs: object) -> object:
+        raise ValueError("value packet payload invalid")
+
+    monkeypatch.setattr(value_packet.SettlementValuePacket, "from_dict", _reject_packet)
+
+    ok, err = verify_settlement_value_packet_payload_from_price_packet(
+        settlement=settlement,
+        price_packet_payload=price_packet.to_dict(),
+        packet_payload={},
+    )
+
+    assert ok is False
+    assert err == "value packet payload invalid"
+
+
+def test_verify_value_packet_surfaces_unexpected_packet_payload_parse_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pk, asset0, asset1, _pool_id, settlement = _swap_context()
+    price_packet = _price_packet_for(asset0, asset1)
+
+    def _boom_packet(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("value packet payload parser internal fault")
+
+    monkeypatch.setattr(value_packet.SettlementValuePacket, "from_dict", _boom_packet)
+
+    with pytest.raises(RuntimeError, match="value packet payload parser internal fault"):
+        verify_settlement_value_packet_payload_from_price_packet(
+            settlement=settlement,
+            price_packet_payload=price_packet.to_dict(),
+            packet_payload={},
+        )
+
+
+def test_verify_attestation_value_packet_surfaces_unexpected_builder_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pk, asset0, asset1, pool_id, settlement = _swap_context()
+    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    price_packet = _price_packet_for(asset0, asset1, source_prefix="oracle")
+    attestation = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
+
+    def _boom_build(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("attestation value packet builder internal fault")
+
+    monkeypatch.setattr(value_packet, "build_settlement_value_packet_from_price_attestation", _boom_build)
+
+    with pytest.raises(RuntimeError, match="attestation value packet builder internal fault"):
+        verify_settlement_value_packet_payload_from_price_attestation(
+            settlement=settlement,
+            price_attestation_payload=attestation.to_dict(),
+            consumer_now_epoch=103,
+            max_attestation_age_epochs=5,
+            packet_payload={},
+            lp_unit_values={pool_id: 50},
+            allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        )
