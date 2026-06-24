@@ -147,6 +147,28 @@ def test_verify_lp_value_contract_payload_rejects_expected_contract_parse_error(
     assert err == "contract.asset_prices must be a list"
 
 
+def test_verify_lp_value_contract_payload_caps_malformed_contract_error() -> None:
+    pk, asset0, asset1, pool_id, settlement = _swap_context()
+    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=5, delta_sub=0))
+
+    ok, err = verify_settlement_lp_value_contract_payload(
+        settlement=settlement,
+        asset_prices={asset0: 100, asset1: 120},
+        lp_unit_values={pool_id: 77},
+        contract_payload={
+            "asset_prices": [{"asset": asset0, "price": "9" * 1_000 + "x"}],
+            "lp_unit_values": [{"pool_id": pool_id, "unit_value": 77}],
+            "asset_nets": [],
+            "lp_nets": [],
+        },
+    )
+
+    assert ok is False
+    assert err is not None
+    assert len(err) <= 200
+    assert "9" * 201 not in err
+
+
 def test_verify_lp_value_contract_payload_surfaces_unexpected_contract_parse_fault(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

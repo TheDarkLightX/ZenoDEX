@@ -23,6 +23,11 @@ if TYPE_CHECKING:
 SETTLEMENT_LP_VALUE_CONTRACT_SCHEMA = "zenodex/settlement-lp-value-contract/v1"
 
 
+def _safe_payload_validation_error(exc: Exception) -> str:
+    detail = " ".join(str(exc).split())
+    return detail[:200] or type(exc).__name__
+
+
 @dataclass(frozen=True)
 class LPUnitValueEntry:
     pool_id: str
@@ -363,7 +368,7 @@ def verify_settlement_lp_value_contract_payload(
     try:
         contract = SettlementLPValueContract.from_dict(contract_payload)
     except (TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     return verify_settlement_lp_value_contract(
         settlement=settlement,
         asset_prices=asset_prices,
@@ -382,11 +387,11 @@ def verify_settlement_lp_value_contract_payload_from_price_packet(
     try:
         price_packet = SettlementSpotPricePacket.from_dict(price_packet_payload)
     except (TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     try:
         contract = SettlementLPValueContract.from_dict(contract_payload)
     except (TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     expected = build_settlement_lp_value_contract_from_price_packet(
         settlement=settlement,
         price_packet=price_packet,
@@ -414,11 +419,11 @@ def verify_settlement_lp_value_contract_payload_from_price_attestation(
     try:
         price_attestation = SettlementSpotPriceAttestation.from_dict(price_attestation_payload)
     except (TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     try:
         contract = SettlementLPValueContract.from_dict(contract_payload)
     except (TypeError, ValueError) as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     expected = build_settlement_lp_value_contract_from_price_attestation(
         settlement=settlement,
         price_attestation=price_attestation,
