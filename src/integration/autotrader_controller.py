@@ -96,6 +96,7 @@ class AutoTraderGuardState:
 
 
 _DEFAULT_GUARD_STATE = AutoTraderGuardState()
+_MAX_EXCEPTION_DETAIL_LEN = 200
 
 
 @dataclass(frozen=True)
@@ -120,6 +121,13 @@ def _require_u32_int(name: str, value: object, *, minimum: int = 0) -> int:
     if out < minimum or out > MAX_U32:
         raise ValueError(f"{name} out of u32 range: {out}")
     return out
+
+
+def _exception_reason(prefix: str, exc: BaseException) -> str:
+    detail = " ".join(str(exc).strip().split())
+    if len(detail) > _MAX_EXCEPTION_DETAIL_LEN:
+        detail = detail[:_MAX_EXCEPTION_DETAIL_LEN]
+    return f"{prefix}:{type(exc).__name__}:{detail}"
 
 
 def _require_safe_receipt_body(receipt: Mapping[str, object]) -> dict[str, object]:
@@ -300,7 +308,7 @@ def _verify_tau_policy_receipt(
             timeout_s=config.timeout_s,
         )
     except Exception as exc:
-        return f"tau_policy_runner_error:{type(exc).__name__}:{exc}"
+        return _exception_reason("tau_policy_runner_error", exc)
     tau_gate_value = outputs.get(0, {}).get(receipt.gate_output)
     if tau_gate_value is None:
         return f"tau_policy_missing_output:{receipt.gate_output}"
@@ -465,7 +473,7 @@ def evaluate_autotrader_quote_receipt(
     except Exception as exc:
         return _reject(
             state=controller_state,
-            reason=f"signal_packet_build_failed:{type(exc).__name__}:{exc}",
+            reason=_exception_reason("signal_packet_build_failed", exc),
             explain=tuple(explain),
         )
     if signal_packet.quote_epoch != quote_epoch:
@@ -614,7 +622,7 @@ def evaluate_autotrader_quote_receipt(
     except Exception as exc:
         return _reject(
             state=controller_state,
-            reason=f"intent_construction_failed:{type(exc).__name__}:{exc}",
+            reason=_exception_reason("intent_construction_failed", exc),
             explain=tuple(explain),
         )
 

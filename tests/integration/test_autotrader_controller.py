@@ -352,6 +352,34 @@ def test_autotrader_controller_rejects_signal_packet_build_failure(monkeypatch: 
     assert decision.reason == "signal_packet_build_failed:ValueError:broken packet"
 
 
+def test_autotrader_controller_caps_signal_packet_build_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    strategy = _compiled_strategy()
+    pools, receipt = _single_hop_receipt()
+    detail = "x" * 260
+
+    def _explode(**_: object) -> QuoteReceiptSignalPacket:
+        raise ValueError(detail)
+
+    monkeypatch.setattr(
+        autotrader_controller,
+        "build_quote_receipt_signal_packet",
+        _explode,
+    )
+    decision = evaluate_autotrader_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+    )
+
+    assert decision.tag is AutoTraderDecisionTag.REJECT
+    assert decision.reason == f"signal_packet_build_failed:ValueError:{detail[:200]}"
+
+
 def test_autotrader_controller_rejects_signal_quote_epoch_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
     strategy = _compiled_strategy()
     pools, receipt = _single_hop_receipt(quote_epoch=5)
@@ -915,6 +943,35 @@ def test_autotrader_controller_rejects_intent_builder_failure(monkeypatch) -> No
     assert "intent_construction_failed:RuntimeError:quote builder exploded" == decision.reason
 
 
+def test_autotrader_controller_caps_intent_builder_failure(  # type: ignore[no-untyped-def]
+    monkeypatch,
+) -> None:
+    strategy = _compiled_strategy()
+    pools, receipt = _single_hop_receipt()
+    detail = "x" * 260
+
+    def _boom(**kwargs):  # type: ignore[no-untyped-def]
+        raise RuntimeError(detail)
+
+    monkeypatch.setattr(
+        autotrader_controller,
+        "create_swap_intents_from_quote_receipt",
+        _boom,
+    )
+
+    decision = evaluate_autotrader_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+    )
+
+    assert decision.tag is AutoTraderDecisionTag.REJECT
+    assert decision.reason == f"intent_construction_failed:RuntimeError:{detail[:200]}"
+
+
 def test_autotrader_controller_rejects_intent_amount_type(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     strategy = _compiled_strategy()
     pools, receipt = _single_hop_receipt()
@@ -1195,6 +1252,36 @@ def test_autotrader_controller_rejects_on_tau_runner_error(monkeypatch) -> None:
 
     assert decision.tag is AutoTraderDecisionTag.REJECT
     assert decision.reason == "tau_policy_runner_error:RuntimeError:tau crashed"
+
+
+def test_autotrader_controller_caps_tau_runner_error(  # type: ignore[no-untyped-def]
+    monkeypatch,
+) -> None:
+    strategy = _compiled_strategy(backend="tau")
+    pools, receipt = _single_hop_receipt()
+    detail = "x" * 260
+
+    def _boom(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise RuntimeError(detail)
+
+    monkeypatch.setattr(autotrader_controller, "run_tau_spec_steps", _boom)
+
+    decision = evaluate_autotrader_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        tau_config=AutoTraderTauConfig(
+            enabled=True,
+            tau_bin=sys.executable,
+            allow_path_lookup=False,
+        ),
+    )
+
+    assert decision.tag is AutoTraderDecisionTag.REJECT
+    assert decision.reason == f"tau_policy_runner_error:RuntimeError:{detail[:200]}"
 
 
 def test_autotrader_controller_rejects_on_tau_missing_output(monkeypatch) -> None:  # type: ignore[no-untyped-def]
