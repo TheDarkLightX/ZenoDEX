@@ -15,6 +15,7 @@ import ssl
 import threading
 import time
 import uuid
+from dataclasses import dataclass
 from email.message import EmailMessage
 from email.utils import make_msgid
 from pathlib import Path
@@ -64,7 +65,6 @@ from .tau_net_client import (
 )
 from .zeno_oracle_authority import evaluate_oracle_authority_profile_v1
 from .zusd_tau_token import derive_zusd_tau_asset_id
-
 
 MAX_POST_BODY = 65_536
 ResponseT = Tuple[int, Dict[str, Any]]
@@ -2374,7 +2374,39 @@ def _build_testnet_faucet_response(body: Mapping[str, Any]) -> Dict[str, Any]:
     })
 
 
-def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dict[str, Any]:
+@dataclass(frozen=True)
+class _PreparedTx:
+    """Immutable prepare-phase context for a perps wallet request: everything the
+    signing, base-payload, and submit helpers consume once the request has been
+    parsed and pre-flighted. Mutable transaction state (``payload``,
+    ``tau_tx_payload``, and ``tx_sequence_number`` during the sequence-retry) is
+    threaded explicitly rather than stored here.
+    """
+
+    client: Any
+    action: str
+    chain_id: str
+    deadline: int
+    app_state: Dict[str, Any]
+    app_hash: str | None
+    operation: Mapping[str, Any]
+    tx_sender_pubkey: str
+    meta: Mapping[str, Any]
+    native_balance: int | None
+    tx_fee_limit: int
+    fee_limit_posture: Mapping[str, Any]
+    operations: Mapping[str, Any]
+    tx_sequence_number: int
+    preflight: Mapping[str, Any]
+    oracle_authority_exercise: Mapping[str, Any] | None
+    quote_balance: int
+
+
+def _prepare_tx(body: Mapping[str, Any], *, for_submit: bool) -> _PreparedTx:
+    """Parse + pre-flight a perps wallet request into the immutable context the
+    rest of the pipeline consumes. Fails closed: a failed preflight (on submit) or
+    an unmet production-oracle-authority requirement raises before any payload is
+    built. Extracted verbatim from the head of ``_build_prepare_response``."""
     action = _request_action(body)
     chain_id = str(body.get("chain_id") or _tau_chain_id())
     deadline = _request_u32(body, name="deadline", default=_default_deadline())
@@ -2420,7 +2452,34 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
         quote_asset = _market_quote_asset(app_state, market_id=_market_id(body, action=action))
     account_pubkey = str(operation.get("account_pubkey") or meta.get("account_a_pubkey") or tx_sender_pubkey)
     quote_balance = _balance_for_asset(app_state, pubkey=account_pubkey, asset_id=quote_asset) if quote_asset else 0
+    return _PreparedTx(
+        client=client,
+        action=action,
+        chain_id=chain_id,
+        deadline=deadline,
+        app_state=app_state,
+        app_hash=app_hash,
+        operation=operation,
+        tx_sender_pubkey=tx_sender_pubkey,
+        meta=meta,
+        native_balance=native_balance,
+        tx_fee_limit=tx_fee_limit,
+        fee_limit_posture=fee_limit_posture,
+        operations=operations,
+        tx_sequence_number=tx_sequence_number,
+        preflight=preflight,
+        oracle_authority_exercise=oracle_authority_exercise,
+        quote_balance=quote_balance,
+    )
 
+
+def _resolve_prepare_signing(
+    prepared: _PreparedTx, body: Mapping[str, Any], *, for_submit: bool
+) -> Tuple[dict[str, Any] | None, object | None, str]:
+    """Resolve the signed tau-tx payload for a submit (external payload validation
+    or local test signing), or the prepare-only no-op. Returns
+    ``(tau_tx_payload, local_signer_privkey, signing_mode)``. Extracted verbatim
+    from ``_build_prepare_response``'s signing block."""
     tau_tx_payload: dict[str, Any] | None = None
     local_signer_privkey: object | None = None
     signing_mode = "prepare_only"
@@ -2429,43 +2488,58 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
         if external_payload is not None:
             tau_tx_payload = _validate_external_tau_tx_payload(
                 external_payload,
-                tx_sender_pubkey=tx_sender_pubkey,
-                tx_sequence_number=tx_sequence_number,
-                deadline=deadline,
-                operations=operations,
-                tx_fee_limit=tx_fee_limit,
+                tx_sender_pubkey=prepared.tx_sender_pubkey,
+                tx_sequence_number=prepared.tx_sequence_number,
+                deadline=prepared.deadline,
+                operations=prepared.operations,
+                tx_fee_limit=prepared.tx_fee_limit,
             )
             signing_mode = "external_signed_payload"
         else:
             if not _allow_signing():
                 raise ValueError("local_signing_disabled")
-            signer_privkey = _tx_signer_privkey(body, action=action)
+            signer_privkey = _tx_signer_privkey(body, action=prepared.action)
             signer_pubkey = _canonical_pubkey(_pubkey_from_privkey(signer_privkey), name="tx_signer_pubkey")
-            if signer_pubkey.lower() != tx_sender_pubkey.lower():
+            if signer_pubkey.lower() != prepared.tx_sender_pubkey.lower():
                 raise ValueError("tx_signer_privkey does not match sender_pubkey")
             local_signer_privkey = signer_privkey
             tau_tx_payload = build_signed_tau_transaction(
                 privkey=cast(Any, signer_privkey),
-                sequence_number=tx_sequence_number,
-                expiration_time=deadline,
-                operations=operations,
-                fee_limit=tx_fee_limit,
+                sequence_number=prepared.tx_sequence_number,
+                expiration_time=prepared.deadline,
+                # The Tau wire payload owns a concrete operation dict so later
+                # caller-side mapping changes cannot mutate the signed payload.
+                operations=dict(prepared.operations),
+                fee_limit=prepared.tx_fee_limit,
             )
             signing_mode = "local_test_signing"
+    return tau_tx_payload, local_signer_privkey, signing_mode
 
+
+def _assemble_base_prepare_payload(
+    prepared: _PreparedTx,
+    *,
+    signing_mode: str,
+    tau_tx_payload: Mapping[str, Any] | None,
+    zk_required: bool,
+    body: Mapping[str, Any],
+) -> Dict[str, Any]:
+    """Build the base prepare response (transport / report / proof) and bind the
+    base live-zk wrapper. Extracted verbatim from ``_build_prepare_response``'s
+    payload-assembly block."""
     payload: Dict[str, Any] = {
         "ok": True,
         "transport": {
-            "chain_id": chain_id,
-            "app_hash": app_hash,
+            "chain_id": prepared.chain_id,
+            "app_hash": prepared.app_hash,
             "stream_key": _STREAM_KEY,
             "engine_stream_key": _ENGINE_STREAM_KEY,
-            "tx_sender_pubkey": tx_sender_pubkey,
-            "tx_sequence_number": tx_sequence_number,
-            "native_balance_e8": native_balance,
-            "tx_fee_limit": str(tx_fee_limit),
-            "fee_limit_native_balance_ok": fee_limit_posture["native_balance_covers_fee_limit"],
-            "fee_limit_warning": fee_limit_posture["warning"],
+            "tx_sender_pubkey": prepared.tx_sender_pubkey,
+            "tx_sequence_number": prepared.tx_sequence_number,
+            "native_balance_e8": prepared.native_balance,
+            "tx_fee_limit": str(prepared.tx_fee_limit),
+            "fee_limit_native_balance_ok": prepared.fee_limit_posture["native_balance_covers_fee_limit"],
+            "fee_limit_warning": prepared.fee_limit_posture["warning"],
             "tau_host": _env_str("PERPS_WALLET_TAU_HOST", _env_str("ZUSD_MONETARY_WALLET_TAU_HOST", "127.0.0.1")),
             "tau_port": _env_int(
                 "PERPS_WALLET_TAU_PORT",
@@ -2476,190 +2550,257 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "allow_local_signing": _allow_signing(),
             "signing_mode": signing_mode,
             "auto_mine": _auto_mine(),
-            "quote_balance": quote_balance,
+            "quote_balance": prepared.quote_balance,
         },
         "report": {
-            "action": action,
-            "operation": operation,
-            "operations": operations,
-            "preflight": preflight,
-            "fee_limit": fee_limit_posture,
+            "action": prepared.action,
+            "operation": prepared.operation,
+            "operations": prepared.operations,
+            "preflight": prepared.preflight,
+            "fee_limit": prepared.fee_limit_posture,
             "tau_tx_payload": tau_tx_payload,
-            "nonce_a": meta.get("nonce_a"),
-            "nonce_b": meta.get("nonce_b"),
-            "oracle_nonce": meta.get("oracle_nonce"),
+            "nonce_a": prepared.meta.get("nonce_a"),
+            "nonce_b": prepared.meta.get("nonce_b"),
+            "oracle_nonce": prepared.meta.get("oracle_nonce"),
         },
         "proof": {
             "profile": _perps_proof_profile(),
             "intent_receipt": _perps_proof_intent_receipt(
-                chain_id=chain_id,
-                action=action,
-                operation=operation,
-                operations=operations,
-                app_hash_before=app_hash,
+                chain_id=prepared.chain_id,
+                action=prepared.action,
+                operation=prepared.operation,
+                operations=prepared.operations,
+                app_hash_before=prepared.app_hash,
                 app_hash_after=None,
-                preflight=preflight,
-                tx_sender_pubkey=tx_sender_pubkey,
-                tx_sequence_number=tx_sequence_number,
-                tx_fee_limit=tx_fee_limit,
+                preflight=prepared.preflight,
+                tx_sender_pubkey=prepared.tx_sender_pubkey,
+                tx_sequence_number=prepared.tx_sequence_number,
+                tx_fee_limit=prepared.tx_fee_limit,
                 signing_mode=signing_mode,
                 tau_tx_payload=tau_tx_payload,
-                oracle_authority_exercise=oracle_authority_exercise,
+                oracle_authority_exercise=prepared.oracle_authority_exercise,
                 state_delta_witness=None,
             ),
-            "oracle_authority_exercise": oracle_authority_exercise,
+            "oracle_authority_exercise": prepared.oracle_authority_exercise,
         },
     }
-    zk_required = live_zk_proof_required(env_prefix=_PERPS_ZK_PROOF_ENV_PREFIX)
-    payload = _bind_live_zk_wrapper(payload, body=body, required=zk_required)
-    if for_submit:
-        send_resp = client.sendtx(cast(Mapping[str, Any], tau_tx_payload))
-        payload["submission"] = {"sendtx_response": send_resp}
-        if not tau_rpc_response_is_success(send_resp):
-            invalid_sequence = _invalid_sequence_numbers(send_resp)
-            if (
-                signing_mode == "local_test_signing"
-                and local_signer_privkey is not None
-                and invalid_sequence is not None
-                and int(invalid_sequence[1]) == int(tx_sequence_number)
-                and int(invalid_sequence[0]) > int(tx_sequence_number)
-            ):
-                if zk_required:
-                    payload["submission"]["retry_sequence_error"] = {
-                        "expected": int(invalid_sequence[0]),
-                        "got": int(invalid_sequence[1]),
-                    }
-                    return _reject_payload(
-                        payload,
-                        status="submit_rejected",
-                        error="sequence_retry_requires_fresh_zk_proof",
-                    )
-                tx_sequence_number = int(invalid_sequence[0])
+    return _bind_live_zk_wrapper(payload, body=body, required=zk_required)
+
+
+def _submit_mine_and_finalize(
+    payload: Dict[str, Any],
+    prepared: _PreparedTx,
+    *,
+    signing_mode: str,
+    local_signer_privkey: object | None,
+    tau_tx_payload: Mapping[str, Any] | None,
+    zk_required: bool,
+    body: Mapping[str, Any],
+) -> Dict[str, Any]:
+    """Submit the signed tx, mine it, handle sequence/createblock retries, attach
+    the post-submit state-delta witness + proof, and return the final response.
+
+    Extracted verbatim from the ``for_submit`` branch of ``_build_prepare_response``
+    to isolate the network submit/retry state machine from request assembly.
+    Behavior is identical: reject paths return ``_reject_payload`` (which redacts
+    authority material), and the success path redacts on return — matching the
+    original fall-through. ``tau_tx_payload`` / ``tx_sequence_number`` are rebound
+    locally during the sequence-retry exactly as before; everything else is read
+    from the immutable ``prepared`` context.
+    """
+    client = prepared.client
+    action = prepared.action
+    operation = prepared.operation
+    operations = prepared.operations
+    operations_dict = dict(operations)
+    chain_id = prepared.chain_id
+    app_hash = prepared.app_hash
+    app_state = prepared.app_state
+    deadline = prepared.deadline
+    tx_fee_limit = prepared.tx_fee_limit
+    tx_sender_pubkey = prepared.tx_sender_pubkey
+    preflight = prepared.preflight
+    oracle_authority_exercise = prepared.oracle_authority_exercise
+    tx_sequence_number = prepared.tx_sequence_number
+    if tau_tx_payload is None:
+        return _reject_payload(
+            payload,
+            status="submit_rejected",
+            error="signed_tau_tx_payload_missing",
+        )
+    send_resp = client.sendtx(cast(Mapping[str, Any], tau_tx_payload))
+    payload["submission"] = {"sendtx_response": send_resp}
+    if not tau_rpc_response_is_success(send_resp):
+        invalid_sequence = _invalid_sequence_numbers(send_resp)
+        if (
+            signing_mode == "local_test_signing"
+            and local_signer_privkey is not None
+            and invalid_sequence is not None
+            and int(invalid_sequence[1]) == int(tx_sequence_number)
+            and int(invalid_sequence[0]) > int(tx_sequence_number)
+        ):
+            if zk_required:
                 payload["submission"]["retry_sequence_error"] = {
                     "expected": int(invalid_sequence[0]),
                     "got": int(invalid_sequence[1]),
                 }
-                tau_tx_payload = build_signed_tau_transaction(
-                    privkey=cast(Any, local_signer_privkey),
-                    sequence_number=tx_sequence_number,
-                    expiration_time=deadline,
-                    operations=operations,
-                    fee_limit=tx_fee_limit,
+                return _reject_payload(
+                    payload,
+                    status="submit_rejected",
+                    error="sequence_retry_requires_fresh_zk_proof",
                 )
-                payload["transport"]["tx_sequence_number"] = tx_sequence_number
-                payload["report"]["tau_tx_payload"] = tau_tx_payload
-                retry_send_resp = client.sendtx(tau_tx_payload)
-                payload["submission"]["retry_sendtx_response"] = retry_send_resp
-                send_resp = retry_send_resp
-            if tau_rpc_response_is_success(send_resp):
-                pass
-            else:
-                return _reject_payload(payload, status="submit_rejected", error="sendtx_failed")
-        if _auto_mine():
-            createblock_response = client.createblock()
-            payload["submission"]["createblock_response"] = createblock_response
-            if not tau_rpc_response_is_success(createblock_response):
-                _observed_state, observed_hash = _wait_for_app_hash_change(client, app_hash)
-                payload["submission"]["observed_app_hash_after_createblock"] = observed_hash
-                if observed_hash == app_hash:
-                    if "mempool is empty" in str(createblock_response).lower():
-                        retry_send_response = client.sendtx(tau_tx_payload)
-                        payload["submission"]["retry_sendtx_response"] = retry_send_response
-                        if tau_rpc_response_is_success(retry_send_response):
-                            retry_createblock_response = client.createblock()
-                            payload["submission"]["retry_createblock_response"] = retry_createblock_response
-                            if tau_rpc_response_is_success(retry_createblock_response):
-                                pass
-                            else:
-                                _retry_observed_state, retry_observed_hash = _wait_for_app_hash_change(client, app_hash)
-                                payload["submission"]["retry_observed_app_hash_after_createblock"] = retry_observed_hash
-                                if retry_observed_hash == app_hash:
-                                    return _reject_payload(payload, status="submit_rejected", error="createblock_failed")
-                        else:
-                            _late_state, late_hash = _wait_for_app_hash_change(client, app_hash)
-                            payload["submission"]["late_observed_app_hash_after_retry"] = late_hash
-                            if late_hash is not None and late_hash != app_hash:
-                                pass
-                            else:
-                                invalid_sequence = _invalid_sequence_numbers(retry_send_response)
-                                if invalid_sequence is not None:
-                                    expected_sequence, got_sequence = invalid_sequence
-                                    payload["submission"]["retry_sequence_error"] = {
-                                        "expected": expected_sequence,
-                                        "got": got_sequence,
-                                    }
-                                payload["submission"]["observed_sequence_after_retry"] = _safe_sequence_after_submission(
-                                    client,
-                                    tx_sender_pubkey,
-                                )
-                                if (
-                                    invalid_sequence is not None
-                                    and int(invalid_sequence[1]) == int(tx_sequence_number)
-                                    and int(invalid_sequence[0]) > int(tx_sequence_number)
-                                ) or (
-                                    "invalid sequence number" in str(retry_send_response).lower()
-                                    and payload["submission"]["observed_sequence_after_retry"] is not None
-                                    and int(payload["submission"]["observed_sequence_after_retry"]) > tx_sequence_number
-                                ):
-                                    return _reject_payload(
-                                        payload,
-                                        status="submit_indeterminate",
-                                        error="tau_sequence_consumed_without_app_delta",
-                                    )
-                                return _reject_payload(payload, status="submit_rejected", error="sendtx_retry_failed")
-                    else:
-                        return _reject_payload(payload, status="submit_rejected", error="createblock_failed")
-                elif observed_hash is None:
-                    return _reject_payload(payload, status="submit_rejected", error="createblock_failed")
-        app_state_after, app_hash_after = _load_app_state(client)
-        state_delta_witness = _perps_state_delta_witness(
-            chain_id=chain_id,
-            action=action,
-            operation=operation,
-            app_hash_before=app_hash,
-            app_hash_after=app_hash_after,
-            app_state_before=app_state,
-            app_state_after=app_state_after,
-        )
-        if not _state_delta_witness_matches_operation(state_delta_witness, operation):
-            payload["post_submit"] = {
-                "app_hash": app_hash_after,
-                "markets": _market_summaries(app_state_after),
-                "state_delta_witness": state_delta_witness,
+            tx_sequence_number = int(invalid_sequence[0])
+            payload["submission"]["retry_sequence_error"] = {
+                "expected": int(invalid_sequence[0]),
+                "got": int(invalid_sequence[1]),
             }
-            return _reject_payload(
-                payload,
-                status="submit_indeterminate",
-                error="state_delta_witness_missing",
+            tau_tx_payload = build_signed_tau_transaction(
+                privkey=cast(Any, local_signer_privkey),
+                sequence_number=tx_sequence_number,
+                expiration_time=deadline,
+                operations=operations_dict,
+                fee_limit=tx_fee_limit,
             )
+            payload["transport"]["tx_sequence_number"] = tx_sequence_number
+            payload["report"]["tau_tx_payload"] = tau_tx_payload
+            retry_send_resp = client.sendtx(tau_tx_payload)
+            payload["submission"]["retry_sendtx_response"] = retry_send_resp
+            send_resp = retry_send_resp
+        if tau_rpc_response_is_success(send_resp):
+            pass
+        else:
+            return _reject_payload(payload, status="submit_rejected", error="sendtx_failed")
+    if _auto_mine():
+        createblock_response = client.createblock()
+        payload["submission"]["createblock_response"] = createblock_response
+        if not tau_rpc_response_is_success(createblock_response):
+            _observed_state, observed_hash = _wait_for_app_hash_change(client, app_hash)
+            payload["submission"]["observed_app_hash_after_createblock"] = observed_hash
+            if observed_hash == app_hash:
+                if "mempool is empty" in str(createblock_response).lower():
+                    retry_send_response = client.sendtx(tau_tx_payload)
+                    payload["submission"]["retry_sendtx_response"] = retry_send_response
+                    if tau_rpc_response_is_success(retry_send_response):
+                        retry_createblock_response = client.createblock()
+                        payload["submission"]["retry_createblock_response"] = retry_createblock_response
+                        if tau_rpc_response_is_success(retry_createblock_response):
+                            pass
+                        else:
+                            _retry_observed_state, retry_observed_hash = _wait_for_app_hash_change(client, app_hash)
+                            payload["submission"]["retry_observed_app_hash_after_createblock"] = retry_observed_hash
+                            if retry_observed_hash == app_hash:
+                                return _reject_payload(payload, status="submit_rejected", error="createblock_failed")
+                    else:
+                        _late_state, late_hash = _wait_for_app_hash_change(client, app_hash)
+                        payload["submission"]["late_observed_app_hash_after_retry"] = late_hash
+                        if late_hash is not None and late_hash != app_hash:
+                            pass
+                        else:
+                            invalid_sequence = _invalid_sequence_numbers(retry_send_response)
+                            if invalid_sequence is not None:
+                                expected_sequence, got_sequence = invalid_sequence
+                                payload["submission"]["retry_sequence_error"] = {
+                                    "expected": expected_sequence,
+                                    "got": got_sequence,
+                                }
+                            payload["submission"]["observed_sequence_after_retry"] = _safe_sequence_after_submission(
+                                client,
+                                tx_sender_pubkey,
+                            )
+                            if (
+                                invalid_sequence is not None
+                                and int(invalid_sequence[1]) == int(tx_sequence_number)
+                                and int(invalid_sequence[0]) > int(tx_sequence_number)
+                            ) or (
+                                "invalid sequence number" in str(retry_send_response).lower()
+                                and payload["submission"]["observed_sequence_after_retry"] is not None
+                                and int(payload["submission"]["observed_sequence_after_retry"]) > tx_sequence_number
+                            ):
+                                return _reject_payload(
+                                    payload,
+                                    status="submit_indeterminate",
+                                    error="tau_sequence_consumed_without_app_delta",
+                                )
+                            return _reject_payload(payload, status="submit_rejected", error="sendtx_retry_failed")
+                else:
+                    return _reject_payload(payload, status="submit_rejected", error="createblock_failed")
+            elif observed_hash is None:
+                return _reject_payload(payload, status="submit_rejected", error="createblock_failed")
+    app_state_after, app_hash_after = _load_app_state(client)
+    state_delta_witness = _perps_state_delta_witness(
+        chain_id=chain_id,
+        action=action,
+        operation=operation,
+        app_hash_before=app_hash,
+        app_hash_after=app_hash_after,
+        app_state_before=app_state,
+        app_state_after=app_state_after,
+    )
+    if not _state_delta_witness_matches_operation(state_delta_witness, operation):
         payload["post_submit"] = {
             "app_hash": app_hash_after,
             "markets": _market_summaries(app_state_after),
             "state_delta_witness": state_delta_witness,
         }
-        payload["proof"]["intent_receipt"] = _perps_proof_intent_receipt(
-            chain_id=chain_id,
-            action=action,
-            operation=operation,
-            operations=operations,
-            app_hash_before=app_hash,
-            app_hash_after=app_hash_after,
-            preflight=preflight,
-            tx_sender_pubkey=tx_sender_pubkey,
-            tx_sequence_number=tx_sequence_number,
-            tx_fee_limit=tx_fee_limit,
-            signing_mode=signing_mode,
-            tau_tx_payload=tau_tx_payload,
-            oracle_authority_exercise=oracle_authority_exercise,
-            state_delta_witness=state_delta_witness,
-        )
-        payload["proof"]["oracle_authority_exercise"] = oracle_authority_exercise
-        payload = _bind_live_zk_wrapper(
+        return _reject_payload(
             payload,
+            status="submit_indeterminate",
+            error="state_delta_witness_missing",
+        )
+    payload["post_submit"] = {
+        "app_hash": app_hash_after,
+        "markets": _market_summaries(app_state_after),
+        "state_delta_witness": state_delta_witness,
+    }
+    payload["proof"]["intent_receipt"] = _perps_proof_intent_receipt(
+        chain_id=chain_id,
+        action=action,
+        operation=operation,
+        operations=operations,
+        app_hash_before=app_hash,
+        app_hash_after=app_hash_after,
+        preflight=preflight,
+        tx_sender_pubkey=tx_sender_pubkey,
+        tx_sequence_number=tx_sequence_number,
+        tx_fee_limit=tx_fee_limit,
+        signing_mode=signing_mode,
+        tau_tx_payload=tau_tx_payload,
+        oracle_authority_exercise=oracle_authority_exercise,
+        state_delta_witness=state_delta_witness,
+    )
+    payload["proof"]["oracle_authority_exercise"] = oracle_authority_exercise
+    payload = _bind_live_zk_wrapper(
+        payload,
+        body=body,
+        required=zk_required,
+        enforce_required=False,
+        wrapper_key="post_submit_zk_wrapper",
+    )
+    return _redact_response_authority_material(payload)
+
+
+def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dict[str, Any]:
+    prepared = _prepare_tx(body, for_submit=for_submit)
+    tau_tx_payload, local_signer_privkey, signing_mode = _resolve_prepare_signing(
+        prepared, body, for_submit=for_submit
+    )
+    zk_required = live_zk_proof_required(env_prefix=_PERPS_ZK_PROOF_ENV_PREFIX)
+    payload = _assemble_base_prepare_payload(
+        prepared,
+        signing_mode=signing_mode,
+        tau_tx_payload=tau_tx_payload,
+        zk_required=zk_required,
+        body=body,
+    )
+    if for_submit:
+        return _submit_mine_and_finalize(
+            payload,
+            prepared,
+            signing_mode=signing_mode,
+            local_signer_privkey=local_signer_privkey,
+            tau_tx_payload=tau_tx_payload,
+            zk_required=zk_required,
             body=body,
-            required=zk_required,
-            enforce_required=False,
-            wrapper_key="post_submit_zk_wrapper",
         )
     return _redact_response_authority_material(payload)
 

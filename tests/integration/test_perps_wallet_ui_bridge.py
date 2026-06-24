@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import os
 import shutil
@@ -9,7 +11,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -27,18 +29,25 @@ from src.integration.perps_wallet_authority import (
     PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1,
     PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND,
     PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1,
+    PERPS_WALLET_SIGNER_PROMPT_CAPTURE_SCHEMA_V1,
+    PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_SCHEMA_V1,
     build_perps_wallet_device_approval_environment_policy_v1,
     build_perps_wallet_device_approval_exercise_v1,
-    build_perps_wallet_signer_device_integration_v1,
     build_perps_wallet_device_approval_use_policy_v1,
     build_perps_wallet_authority_profile_v1,
+    build_perps_wallet_signer_device_integration_v1,
+    build_perps_wallet_signer_prompt_capture_v1,
+    build_perps_wallet_signer_execution_exercise_v1,
     perps_wallet_device_approval_exercise_hash_v1,
     perps_wallet_recovery_exercise_hash_v1,
     perps_wallet_rotation_exercise_hash_v1,
     perps_wallet_signer_device_integration_hash_v1,
+    perps_wallet_signer_prompt_capture_hash_v1,
+    perps_wallet_signer_execution_exercise_hash_v1,
 )
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction, sign_perp_op_for_engine
 from src.integration.zeno_key_manager import (
+    KEY_ENVIRONMENT_PHONE_SECURE_HARDWARE,
     KEY_ENVIRONMENT_LOCAL_PROCESS,
     KeyExecutionEnvironment,
     KeyRef,
@@ -48,7 +57,12 @@ from src.integration.zeno_key_manager import (
 )
 from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
-from src.integration.zeno_key_manager_v0 import BACKEND_OS_KEYCHAIN, KeyBackendDescriptor
+from src.integration.zeno_key_manager_v0 import (
+    BACKEND_HARDWARE_WALLET_PLACEHOLDER,
+    BACKEND_OS_KEYCHAIN,
+    KeyBackendDescriptor,
+)
+from src.integration.zeno_ledger_v0 import hash_v0
 from src.integration.zeno_oracle_authority import (
     ORACLE_AUTHORITY_PAYLOAD_KIND,
     build_oracle_authority_profile_v1,
@@ -70,6 +84,28 @@ DEX_UI = ROOT / "tools" / "dex-ui"
 ORACLE_CLI = ROOT / "tools" / "zenodex_oracle.py"
 ROOT_A = "0x" + "aa" * 32
 ROOT_B = "0x" + "bb" * 32
+
+
+def _smoke_url(base: str, *, query: dict[str, object], secrets: dict[str, object]) -> str:
+    public_query = urlencode({key: str(value) for key, value in query.items() if value is not None})
+    secret_fragment = urlencode({key: str(value) for key, value in secrets.items() if value is not None})
+    if secret_fragment:
+        return f"{base}/?{public_query}#{secret_fragment}"
+    return f"{base}/?{public_query}"
+
+
+def _perps_wallet_signer_payload(*, chain_id: str) -> dict[str, object]:
+    return {
+        "domain": "zenodex.perps.stream8.signer-execution.v1",
+        "chain_id": chain_id,
+        "nonce": 15,
+        "action": "deposit_collateral",
+        "stream_key": "8",
+    }
+
+
+def _perps_wallet_signer_payload_hash(*, chain_id: str, payload: dict[str, object] | None = None) -> str:
+    return hash_v0("zeno_key_manager_runtime_payload_v0", dict(payload or _perps_wallet_signer_payload(chain_id=chain_id)))
 
 
 def _privkey_hex(value: int) -> str:
@@ -231,6 +267,7 @@ def _perps_wallet_authority_profile(
                 "init_market_2p",
                 "deposit_collateral",
                 "withdraw_collateral",
+                "deposit_insurance",
                 "set_position_pair",
                 "advance_epoch",
                 "publish_clearing_price",
@@ -353,6 +390,7 @@ def _perps_wallet_rotation_exercise(
                 "init_market_2p",
                 "deposit_collateral",
                 "withdraw_collateral",
+                "deposit_insurance",
                 "set_position_pair",
                 "advance_epoch",
                 "publish_clearing_price",
@@ -506,12 +544,388 @@ def _perps_wallet_signer_device_integration(*, chain_id: str) -> dict[str, objec
     }
 
 
+def _perps_wallet_signer_execution_exercise(*, chain_id: str) -> dict[str, object]:
+    payload = _perps_wallet_signer_payload(chain_id=chain_id)
+    backend = KeyBackendDescriptor(
+        key_id="perps-wallet-a",
+        backend_kind=BACKEND_OS_KEYCHAIN,
+        backend_id="macbook-keychain-wallet-a",
+        policy_hash=ROOT_A,
+        metadata={
+            "provider": "macos-keychain",
+            "device_approval_mode": "local_user_presence",
+        },
+    ).public_dict()
+    environment = KeyExecutionEnvironment(
+        environment_id="perps-wallet-a-session-1",
+        environment_kind=KEY_ENVIRONMENT_LOCAL_PROCESS,
+        chain_id=chain_id,
+        policy_hash=ROOT_A,
+        challenge_hash=ROOT_B,
+        issued_at_epoch=10,
+        expires_at_epoch=20,
+        local_user_presence_confirmed=True,
+        rollback_protection_confirmed=True,
+    ).public_dict()
+    use_policy = build_perps_wallet_device_approval_use_policy_v1(
+        allowed_payload_kinds=["perps_wallet_submit"],
+        allowed_chain_ids=[chain_id],
+        allowed_purposes=["sign"],
+        valid_from_epoch=10,
+        valid_until_epoch=20,
+    )
+    environment_policy = build_perps_wallet_device_approval_environment_policy_v1(
+        allowed_environment_kinds=[KEY_ENVIRONMENT_LOCAL_PROCESS],
+        expected_chain_id=chain_id,
+        expected_policy_hash=ROOT_A,
+        expected_challenge_hash=ROOT_B,
+        require_user_presence=True,
+        require_rollback_protection=True,
+    )
+    exercise = build_perps_wallet_signer_execution_exercise_v1(
+        authority_id="perps-wallet-authority-v1",
+        chain_id=chain_id,
+        key_id="perps-wallet-a",
+        payload_kind="perps_wallet_submit",
+        purpose="sign",
+        current_epoch=13,
+        backend_descriptor=backend,
+        use_policy=use_policy,
+        environment=environment,
+        environment_policy=environment_policy,
+        device_label="MacBook Keychain Wallet A",
+        approval_reference="os-prompt:wallet-a:epoch-13",
+        prompt_reference="os-prompt:wallet-a:epoch-13",
+        prompt_presented_at_epoch=12,
+        prompt_confirmed_at_epoch=13,
+        payload=payload,
+        seen_nonces=[11, 12, 14],
+        execution_reference="tau-submit:wallet-a:epoch-13",
+        signed_payload_hash=_perps_wallet_signer_payload_hash(chain_id=chain_id, payload=payload),
+    )
+    return {
+        **exercise,
+        "schema": PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_SCHEMA_V1,
+        "exercise_hash": perps_wallet_signer_execution_exercise_hash_v1(exercise),
+    }
+
+
+def _perps_wallet_signer_prompt_capture(*, chain_id: str) -> dict[str, object]:
+    prompt_message_hash = _perps_wallet_signer_payload_hash(chain_id=chain_id)
+    backend = KeyBackendDescriptor(
+        key_id="perps-wallet-a",
+        backend_kind=BACKEND_OS_KEYCHAIN,
+        backend_id="macbook-keychain-wallet-a",
+        policy_hash=ROOT_A,
+        metadata={
+            "provider": "macos-keychain",
+            "device_approval_mode": "local_user_presence",
+        },
+    ).public_dict()
+    environment = KeyExecutionEnvironment(
+        environment_id="perps-wallet-a-session-1",
+        environment_kind=KEY_ENVIRONMENT_LOCAL_PROCESS,
+        chain_id=chain_id,
+        policy_hash=ROOT_A,
+        challenge_hash=ROOT_B,
+        issued_at_epoch=10,
+        expires_at_epoch=20,
+        local_user_presence_confirmed=True,
+        rollback_protection_confirmed=True,
+    ).public_dict()
+    environment_policy = build_perps_wallet_device_approval_environment_policy_v1(
+        allowed_environment_kinds=[KEY_ENVIRONMENT_LOCAL_PROCESS],
+        expected_chain_id=chain_id,
+        expected_policy_hash=ROOT_A,
+        expected_challenge_hash=ROOT_B,
+        require_user_presence=True,
+        require_rollback_protection=True,
+    )
+    capture = build_perps_wallet_signer_prompt_capture_v1(
+        authority_id="perps-wallet-authority-v1",
+        chain_id=chain_id,
+        key_id="perps-wallet-a",
+        current_epoch=13,
+        backend_descriptor=backend,
+        environment=environment,
+        environment_policy=environment_policy,
+        device_label="MacBook Keychain Wallet A",
+        approval_reference="os-prompt:wallet-a:epoch-13",
+        prompt_reference="os-prompt:wallet-a:epoch-13",
+        prompt_source="os-keychain-dialog",
+        prompt_presented_at_epoch=12,
+        prompt_confirmed_at_epoch=13,
+        prompt_message_hash=prompt_message_hash,
+        capture_source="operator-audit-log",
+        capture_evidence_hash="0x" + "ab" * 32,
+    )
+    return {
+        **capture,
+        "schema": PERPS_WALLET_SIGNER_PROMPT_CAPTURE_SCHEMA_V1,
+        "capture_hash": perps_wallet_signer_prompt_capture_hash_v1(capture),
+    }
+
+
+def _perps_wallet_hardware_backend_descriptor(*, chain_id: str) -> dict[str, object]:
+    _ = chain_id
+    return KeyBackendDescriptor(
+        key_id="perps-wallet-a",
+        backend_kind=BACKEND_HARDWARE_WALLET_PLACEHOLDER,
+        backend_id="hardware-wallet-a",
+        policy_hash=ROOT_A,
+        metadata={
+            "provider": "hardware-wallet-demo",
+            "device_approval_mode": "local_user_presence",
+        },
+    ).public_dict()
+
+
+def _perps_wallet_hardware_environment(*, chain_id: str) -> dict[str, object]:
+    return KeyExecutionEnvironment(
+        environment_id="perps-wallet-a-hardware-session-1",
+        environment_kind=KEY_ENVIRONMENT_PHONE_SECURE_HARDWARE,
+        chain_id=chain_id,
+        policy_hash=ROOT_A,
+        challenge_hash=ROOT_B,
+        issued_at_epoch=10,
+        expires_at_epoch=20,
+        local_user_presence_confirmed=True,
+        rollback_protection_confirmed=True,
+    ).public_dict()
+
+
+def _perps_wallet_hardware_environment_policy(*, chain_id: str) -> dict[str, object]:
+    return build_perps_wallet_device_approval_environment_policy_v1(
+        allowed_environment_kinds=[KEY_ENVIRONMENT_PHONE_SECURE_HARDWARE],
+        expected_chain_id=chain_id,
+        expected_policy_hash=ROOT_A,
+        expected_challenge_hash=ROOT_B,
+        require_user_presence=True,
+        require_rollback_protection=True,
+    )
+
+
 def _chrome_binary() -> str | None:
     for name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser"):
         path = shutil.which(name)
         if path:
             return path
     return None
+
+
+def _chrome_rendered_haystack(
+    *,
+    chrome: str,
+    url: str,
+    profile: Path,
+    snippets: tuple[str, ...],
+    timeout_s: float = 60.0,
+) -> str:
+    """Return hydrated page text plus HTML using Chrome DevTools Protocol."""
+
+    profile.mkdir(parents=True, exist_ok=True)
+    proc = subprocess.Popen(
+        [
+            chrome,
+            "--headless=new",
+            "--disable-gpu",
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--no-first-run",
+            "--remote-debugging-port=0",
+            f"--user-data-dir={profile}",
+            url,
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        deadline = time.monotonic() + timeout_s
+        active_port = profile / "DevToolsActivePort"
+        while time.monotonic() < deadline and not active_port.exists():
+            time.sleep(0.1)
+        if not active_port.exists():
+            raise AssertionError("Chrome did not publish DevToolsActivePort")
+        lines = active_port.read_text(encoding="utf-8").splitlines()
+        if not lines:
+            raise AssertionError("Chrome DevToolsActivePort was empty")
+        port = int(lines[0])
+        ws_url = ""
+        while time.monotonic() < deadline and not ws_url:
+            try:
+                with urlopen(f"http://127.0.0.1:{port}/json/list", timeout=2) as response:  # noqa: S310
+                    targets = json.loads(response.read().decode("utf-8"))
+                for target in targets:
+                    if isinstance(target, dict) and target.get("type") == "page" and target.get("webSocketDebuggerUrl"):
+                        ws_url = str(target["webSocketDebuggerUrl"])
+                        break
+            except Exception:
+                time.sleep(0.1)
+        if not ws_url:
+            raise AssertionError("Chrome page DevTools target was not available")
+
+        sock = _ws_connect(ws_url, timeout=max(1.0, deadline - time.monotonic()))
+        try:
+            request_id = 1
+            _ws_send_json(sock, {"id": request_id, "method": "Page.enable"})
+            _ws_read_until_id(sock, request_id, deadline=deadline)
+            request_id += 1
+            _ws_send_json(sock, {"id": request_id, "method": "Page.navigate", "params": {"url": url}})
+            _ws_read_until_id(sock, request_id, deadline=deadline)
+            request_id += 1
+            time.sleep(0.5)
+            wait_ms = max(1_000, int((deadline - time.monotonic()) * 1_000) - 500)
+            expression = f"""
+new Promise((resolve) => {{
+  const snippets = {json.dumps(list(snippets))};
+  const deadline = Date.now() + {wait_ms};
+  const tick = () => {{
+    const text = document.body ? document.body.innerText : '';
+    const html = document.documentElement ? document.documentElement.outerHTML : '';
+    const haystack = `${{text}}\\n${{html}}`;
+    if (snippets.every((snippet) => haystack.includes(snippet)) || Date.now() >= deadline) {{
+      resolve({{ text, html, readyState: document.readyState, href: location.href }});
+      return;
+    }}
+    setTimeout(tick, 100);
+  }};
+  tick();
+}})
+""".strip()
+            last_msg: dict[str, object] | None = None
+            while time.monotonic() < deadline:
+                _ws_send_json(
+                    sock,
+                    {
+                        "id": request_id,
+                        "method": "Runtime.evaluate",
+                        "params": {
+                            "expression": expression,
+                            "awaitPromise": True,
+                            "returnByValue": True,
+                        },
+                    },
+                )
+                msg = _ws_read_until_id(sock, request_id, deadline=deadline)
+                request_id += 1
+                last_msg = msg
+                result = msg.get("result", {}).get("result", {}).get("value", {})
+                if isinstance(result, dict):
+                    return f"{result.get('text') or ''}\n{result.get('html') or ''}"
+                time.sleep(0.2)
+            raise AssertionError(f"Chrome Runtime.evaluate returned unexpected result: {last_msg!r}")
+        finally:
+            sock.close()
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+
+
+def _ws_connect(ws_url: str, *, timeout: float) -> socket.socket:
+    parsed = urlparse(ws_url)
+    host = parsed.hostname or "127.0.0.1"
+    port = int(parsed.port or 80)
+    path = parsed.path or "/"
+    if parsed.query:
+        path = f"{path}?{parsed.query}"
+    sock = socket.create_connection((host, port), timeout=timeout)
+    key = base64.b64encode(os.urandom(16)).decode("ascii")
+    request = (
+        f"GET {path} HTTP/1.1\r\n"
+        f"Host: {host}:{port}\r\n"
+        "Upgrade: websocket\r\n"
+        "Connection: Upgrade\r\n"
+        f"Sec-WebSocket-Key: {key}\r\n"
+        "Sec-WebSocket-Version: 13\r\n"
+        "\r\n"
+    ).encode("ascii")
+    sock.sendall(request)
+    raw = b""
+    while b"\r\n\r\n" not in raw:
+        chunk = sock.recv(4096)
+        if not chunk:
+            raise AssertionError("Chrome DevTools websocket closed during handshake")
+        raw += chunk
+    if b" 101 " not in raw.split(b"\r\n", 1)[0]:
+        raise AssertionError(f"Chrome DevTools websocket handshake failed: {raw[:200]!r}")
+    expected_accept = base64.b64encode(
+        hashlib.sha1((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode("ascii")).digest()
+    ).decode("ascii")
+    if f"sec-websocket-accept: {expected_accept}".lower().encode("ascii") not in raw.lower():
+        raise AssertionError("Chrome DevTools websocket accept header mismatch")
+    return sock
+
+
+def _ws_send_json(sock: socket.socket, payload: dict[str, object]) -> None:
+    _ws_send_frame(sock, opcode=0x1, payload=json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+
+
+def _ws_send_frame(sock: socket.socket, *, opcode: int, payload: bytes) -> None:
+    header = bytearray([0x80 | opcode])
+    length = len(payload)
+    if length < 126:
+        header.append(0x80 | length)
+    elif length < 65536:
+        header.extend((0x80 | 126, *length.to_bytes(2, "big")))
+    else:
+        header.extend((0x80 | 127, *length.to_bytes(8, "big")))
+    mask = os.urandom(4)
+    header.extend(mask)
+    masked = bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
+    sock.sendall(bytes(header) + masked)
+
+
+def _ws_read_until_id(sock: socket.socket, msg_id: int, *, deadline: float) -> dict[str, object]:
+    while time.monotonic() < deadline:
+        sock.settimeout(max(0.1, deadline - time.monotonic()))
+        raw = _ws_recv_text(sock)
+        msg = json.loads(raw)
+        if isinstance(msg, dict) and msg.get("id") == msg_id:
+            return msg
+    raise TimeoutError(f"Chrome DevTools response {msg_id} timed out")
+
+
+def _ws_recv_text(sock: socket.socket) -> str:
+    chunks: list[bytes] = []
+    while True:
+        first = _recv_exact(sock, 2)
+        fin = bool(first[0] & 0x80)
+        opcode = first[0] & 0x0F
+        masked = bool(first[1] & 0x80)
+        length = first[1] & 0x7F
+        if length == 126:
+            length = int.from_bytes(_recv_exact(sock, 2), "big")
+        elif length == 127:
+            length = int.from_bytes(_recv_exact(sock, 8), "big")
+        mask = _recv_exact(sock, 4) if masked else b""
+        payload = _recv_exact(sock, length) if length else b""
+        if masked:
+            payload = bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
+        if opcode == 0x8:
+            raise AssertionError("Chrome DevTools websocket closed")
+        if opcode == 0x9:
+            _ws_send_frame(sock, opcode=0xA, payload=payload)
+            continue
+        if opcode in (0x1, 0x0):
+            chunks.append(payload)
+        if fin:
+            return b"".join(chunks).decode("utf-8")
+
+
+def _recv_exact(sock: socket.socket, size: int) -> bytes:
+    out = bytearray()
+    while len(out) < size:
+        chunk = sock.recv(size - len(out))
+        if not chunk:
+            raise AssertionError("Chrome DevTools websocket closed")
+        out.extend(chunk)
+    return bytes(out)
 
 
 def _free_port() -> int:
@@ -1155,8 +1569,420 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
     account_b_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_b_privkey)
     recovery_guardian_a_pubkey = "0x" + bls_pubkey_hex_from_privkey(185)
     recovery_guardian_b_pubkey = "0x" + bls_pubkey_hex_from_privkey(186)
+    wallet_profile = _perps_wallet_authority_profile(
+        chain_id=chain_id,
+        account_a_pubkey=account_a_pubkey,
+        account_b_pubkey=account_b_pubkey,
+        guardian_a_pubkey=recovery_guardian_a_pubkey,
+        guardian_b_pubkey=recovery_guardian_b_pubkey,
+    )
+    from tools.zenoctl_testnet_local.fixtures import _perps_wallet_encrypted_sss_backup_bundle
+
+    encrypted_sss_bundle = _perps_wallet_encrypted_sss_backup_bundle(
+        chain_id=chain_id,
+        wallet_authority_hash=str(wallet_profile["wallet_authority_hash"]),
+        subject_key_id="perps-wallet-a",
+        subject_privkey=account_a_privkey.to_bytes(32, "big"),
+        fixture_seed=b"perps-wallet-ui-governance-sss",
+    )
+    encrypted_sss_backup = encrypted_sss_bundle["backup"]
     quote_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
     market_id = "perp:ch2p:ui"
+
+    tau_port = _free_port()
+    tau_server = socketserver.ThreadingTCPServer(("127.0.0.1", tau_port), _TauRpcHandler)
+    tau_server.allow_reuse_address = True
+    tau_server.state = _TauRpcState()  # type: ignore[attr-defined]
+    tau_server.state.sequences[account_a_pubkey[2:].lower()] = 4  # type: ignore[attr-defined]
+    tau_server.state.native_balances[account_a_pubkey[2:].lower()] = 50  # type: ignore[attr-defined]
+    tau_thread = threading.Thread(target=tau_server.serve_forever, daemon=True)
+    tau_thread.start()
+
+    api_port = _free_port()
+    api_base = f"http://127.0.0.1:{api_port}"
+    api_env = {
+        **os.environ,
+        "API_HOST": "127.0.0.1",
+        "API_PORT": str(api_port),
+        "ZENODEX_EXTERNAL_AUTH_ENFORCED": "1",
+        "PERPS_API_ENABLED": "true",
+        "PERPS_WALLET_API_ENABLED": "true",
+        "PERPS_WALLET_ALLOW_LOCAL_SIGNING": "true",
+        "PERPS_WALLET_AUTO_MINE": "true",
+        "PERPS_WALLET_CHAIN_ID": chain_id,
+        "PERPS_WALLET_TAU_HOST": "127.0.0.1",
+        "PERPS_WALLET_TAU_PORT": str(tau_port),
+        "TAU_DEX_CHAIN_ID": chain_id,
+        "PERPS_WALLET_AUTHORITY_PROFILE_JSON": json.dumps(wallet_profile, sort_keys=True),
+        "PERPS_WALLET_RECOVERY_EXERCISE_JSON": json.dumps(
+            _perps_wallet_recovery_exercise(chain_id=chain_id),
+            sort_keys=True,
+        ),
+        "PERPS_WALLET_ROTATION_EXERCISE_JSON": json.dumps(
+            _perps_wallet_rotation_exercise(chain_id=chain_id, account_b_pubkey=account_b_pubkey),
+            sort_keys=True,
+        ),
+        "PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_JSON": json.dumps(
+            _perps_wallet_device_approval_exercise(chain_id=chain_id),
+            sort_keys=True,
+        ),
+        "PERPS_WALLET_SIGNER_DEVICE_INTEGRATION_JSON": json.dumps(
+            _perps_wallet_signer_device_integration(chain_id=chain_id),
+            sort_keys=True,
+        ),
+        "PERPS_WALLET_SIGNER_PROMPT_CAPTURE_JSON": json.dumps(
+            _perps_wallet_signer_prompt_capture(chain_id=chain_id),
+            sort_keys=True,
+        ),
+        "PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_JSON": json.dumps(
+            _perps_wallet_signer_execution_exercise(chain_id=chain_id),
+            sort_keys=True,
+        ),
+        "PERPS_WALLET_ENCRYPTED_SSS_BACKUP_JSON": json.dumps(encrypted_sss_backup, sort_keys=True),
+        "PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_JSON": json.dumps(
+            encrypted_sss_bundle["recipient_keys"],
+            sort_keys=True,
+        ),
+    }
+    old_chain_id = os.environ.get("TAU_DEX_CHAIN_ID")
+    os.environ["TAU_DEX_CHAIN_ID"] = chain_id
+    api_proc = subprocess.Popen(
+        ["python3", "-m", "src.integration.api_server"],
+        cwd=ROOT,
+        env=api_env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    vite_port = _free_port()
+    vite_base = f"http://127.0.0.1:{vite_port}"
+    vite_proc = subprocess.Popen(
+        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        cwd=DEX_UI,
+        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false", "CHOKIDAR_USEPOLLING": "1"},
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    try:
+        _wait_for_http(api_base + "/health", timeout_s=30)
+        _wait_for_http(vite_base, timeout_s=30)
+        url = _smoke_url(
+            vite_base,
+            query={
+                "tab": "perps",
+                "demo": "false",
+                "zenodexUiSmokePerpsWallet": "1",
+                "perpsWalletAction": "init_market_2p",
+                "marketId": market_id,
+                "quoteAsset": quote_asset,
+                "txFeeLimit": "2",
+                "perpsDeadline": str(int(time.time()) + 3600),
+            },
+            secrets={
+                "accountAPrivkey": account_a_privkey,
+                "accountBPrivkey": account_b_privkey,
+            },
+        )
+        chrome_profile = tmp_path / "chrome-profile"
+        result = subprocess.run(
+            [
+                chrome,
+                "--headless=new",
+                "--disable-gpu",
+                "--no-sandbox",
+                f"--user-data-dir={chrome_profile}",
+                "--virtual-time-budget=50000",
+                "--dump-dom",
+                url,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=80,
+        )
+        assert result.returncode == 0, result.stderr[-2000:]
+        dom = result.stdout
+        assert "Live Perps Wallet" in dom
+        assert "Stream" in dom
+        assert "submit accepted" in dom
+        assert "preflight ok" in dom
+        assert "fee limit 2" in dom
+        assert "fee covered yes" in dom
+        assert "proof profile perps_stream8_live_wallet_v0" in dom
+        assert "proof receipt 0x" in dom
+        assert "zk proof pending" in dom
+        assert "delta witness 1" in dom
+        assert "wallet authority ready" in dom
+        assert "wallet keys 2" in dom
+        assert "wallet recovery 2/2" in dom
+        assert "recovery exercise ready" in dom
+        assert "recovery signed quorum 2/2" in dom
+        assert "recovery receipt 0x" in dom
+        assert "rotation exercise ready" in dom
+        assert "rotation signed quorum 2/2" in dom
+        assert "rotation receipt 0x" in dom
+        assert "device approval ready" in dom
+        assert "device sign admission ok" in dom
+        assert "device approval receipt 0x" in dom
+        assert "signer device ready" in dom
+        assert "signer backend os-keychain" in dom
+        assert "signer device receipt 0x" in dom
+        assert "signer prompt capture ready" in dom
+        assert "prompt capture source operator-audit-log" in dom
+        assert "signer prompt capture receipt 0x" in dom
+        assert "signer execution ready" in dom
+        assert "signer prompt os-prompt:wallet-a:epoch-13" in dom
+        assert "signer execution receipt 0x" in dom
+        assert "signer ceremony ready" in dom
+        assert "ceremony execution tau-submit:wallet-a:epoch-13" in dom
+        assert "signer ceremony receipt 0x" in dom
+        assert market_id in dom
+    finally:
+        if old_chain_id is None:
+            os.environ.pop("TAU_DEX_CHAIN_ID", None)
+        else:
+            os.environ["TAU_DEX_CHAIN_ID"] = old_chain_id
+        vite_proc.terminate()
+        api_proc.terminate()
+        tau_server.shutdown()
+        tau_server.server_close()
+        for proc in (vite_proc, api_proc):
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+
+
+def test_perps_wallet_ui_governance_smoke_through_browser(tmp_path: Path) -> None:
+    chrome = _chrome_binary()
+    if chrome is None:
+        pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
+    if shutil.which("npm") is None:
+        pytest.skip("npm is required for the browser UI smoke test")
+    if not (DEX_UI / "node_modules" / ".bin" / "vite").exists():
+        pytest.skip("tools/dex-ui dependencies are not installed")
+
+    chain_id = "zeno-ledger-localtest-ui-gov"
+    account_a_privkey = 83
+    account_b_privkey = 84
+    account_a_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_a_privkey)
+    account_b_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_b_privkey)
+    recovery_guardian_a_pubkey = "0x" + bls_pubkey_hex_from_privkey(185)
+    recovery_guardian_b_pubkey = "0x" + bls_pubkey_hex_from_privkey(186)
+    wallet_profile = _perps_wallet_authority_profile(
+        chain_id=chain_id,
+        account_a_pubkey=account_a_pubkey,
+        account_b_pubkey=account_b_pubkey,
+        guardian_a_pubkey=recovery_guardian_a_pubkey,
+        guardian_b_pubkey=recovery_guardian_b_pubkey,
+    )
+    from tools.zenoctl_testnet_local.fixtures import _perps_wallet_encrypted_sss_backup_bundle
+
+    encrypted_sss_bundle = _perps_wallet_encrypted_sss_backup_bundle(
+        chain_id=chain_id,
+        wallet_authority_hash=str(wallet_profile["wallet_authority_hash"]),
+        subject_key_id="perps-wallet-a",
+        subject_privkey=account_a_privkey.to_bytes(32, "big"),
+        fixture_seed=b"perps-wallet-ui-governance-sss",
+    )
+    encrypted_sss_backup = encrypted_sss_bundle["backup"]
+
+    tau_port = _free_port()
+    tau_server = socketserver.ThreadingTCPServer(("127.0.0.1", tau_port), _TauRpcHandler)
+    tau_server.allow_reuse_address = True
+    tau_server.state = _TauRpcState()  # type: ignore[attr-defined]
+    tau_server.state.sequences[account_a_pubkey[2:].lower()] = 4  # type: ignore[attr-defined]
+    tau_server.state.native_balances[account_a_pubkey[2:].lower()] = 50  # type: ignore[attr-defined]
+    tau_thread = threading.Thread(target=tau_server.serve_forever, daemon=True)
+    tau_thread.start()
+
+    api_port = _free_port()
+    api_base = f"http://127.0.0.1:{api_port}"
+    api_env = {
+        **os.environ,
+        "API_HOST": "127.0.0.1",
+        "API_PORT": str(api_port),
+        "ZENODEX_EXTERNAL_AUTH_ENFORCED": "1",
+        "PERPS_API_ENABLED": "true",
+        "PERPS_WALLET_API_ENABLED": "true",
+        "PERPS_WALLET_ALLOW_LOCAL_SIGNING": "true",
+        "PERPS_WALLET_AUTO_MINE": "true",
+        "PERPS_WALLET_CHAIN_ID": chain_id,
+        "PERPS_WALLET_TAU_HOST": "127.0.0.1",
+        "PERPS_WALLET_TAU_PORT": str(tau_port),
+        "TAU_DEX_CHAIN_ID": chain_id,
+        "PERPS_WALLET_AUTHORITY_PROFILE_JSON": json.dumps(wallet_profile, sort_keys=True),
+        "PERPS_WALLET_RECOVERY_EXERCISE_JSON": json.dumps(
+            _perps_wallet_recovery_exercise(chain_id=chain_id),
+            sort_keys=True,
+        ),
+        "PERPS_WALLET_ROTATION_EXERCISE_JSON": json.dumps(
+            _perps_wallet_rotation_exercise(chain_id=chain_id, account_b_pubkey=account_b_pubkey),
+            sort_keys=True,
+        ),
+        "PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_JSON": json.dumps(
+            _perps_wallet_device_approval_exercise(chain_id=chain_id),
+            sort_keys=True,
+        ),
+        "PERPS_WALLET_SIGNER_DEVICE_INTEGRATION_JSON": json.dumps(
+            _perps_wallet_signer_device_integration(chain_id=chain_id),
+            sort_keys=True,
+        ),
+        "PERPS_WALLET_SIGNER_PROMPT_CAPTURE_JSON": json.dumps(
+            _perps_wallet_signer_prompt_capture(chain_id=chain_id),
+            sort_keys=True,
+        ),
+        "PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_JSON": json.dumps(
+            _perps_wallet_signer_execution_exercise(chain_id=chain_id),
+            sort_keys=True,
+        ),
+        "PERPS_WALLET_ENCRYPTED_SSS_BACKUP_JSON": json.dumps(encrypted_sss_backup, sort_keys=True),
+        "PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_JSON": json.dumps(
+            encrypted_sss_bundle["recipient_keys"],
+            sort_keys=True,
+        ),
+    }
+    old_chain_id = os.environ.get("TAU_DEX_CHAIN_ID")
+    os.environ["TAU_DEX_CHAIN_ID"] = chain_id
+    api_proc = subprocess.Popen(
+        ["python3", "-m", "src.integration.api_server"],
+        cwd=ROOT,
+        env=api_env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    vite_port = _free_port()
+    vite_base = f"http://127.0.0.1:{vite_port}"
+    vite_proc = subprocess.Popen(
+        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        cwd=DEX_UI,
+        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false", "CHOKIDAR_USEPOLLING": "1"},
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    config_file = DEX_UI / "public" / "zenodex-config.json"
+    original_config = config_file.read_text(encoding="utf-8") if config_file.exists() else None
+    try:
+        gov_fixtures = {
+            "recoveryExercise": _perps_wallet_recovery_exercise(chain_id=chain_id),
+            "rotationExercise": _perps_wallet_rotation_exercise(chain_id=chain_id, account_b_pubkey=account_b_pubkey),
+            "deviceApprovalExercise": _perps_wallet_device_approval_exercise(chain_id=chain_id),
+            "signerDeviceIntegration": _perps_wallet_signer_device_integration(chain_id=chain_id),
+            "encryptedSssBackup": encrypted_sss_backup,
+        }
+        test_config = {
+            "apiBase": "",
+            "demoMode": False,
+            "deployment": "local-testnet",
+            "oracleApiBase": "",
+            "zenoOracleApiBase": "",
+            "localTestnetGovernanceFixtures": gov_fixtures,
+            "localTestnetZkPosture": {
+                "zk_mode_requested": "auto-strict",
+                "zk_mode_effective": "open",
+                "zk_required": False,
+                "zk_fallback_reason": "proof verifier command unavailable",
+                "proof_verifier_kind": "disabled",
+                "proof_artifact_hashes": {},
+                "production_security_claim": False,
+            },
+        }
+        config_file.write_text(json.dumps(test_config, indent=2), encoding="utf-8")
+
+        _wait_for_http(api_base + "/health", timeout_s=30)
+        _wait_for_http(vite_base, timeout_s=30)
+        query = urlencode(
+            {
+                "tab": "governance",
+                "demo": "false",
+                "zenodexUiSmokeGovernance": "1",
+                "zenodexUiSmokeSssDelivery": "1",
+            }
+        )
+        chrome_profile = tmp_path / "chrome-profile-gov"
+        result = subprocess.run(
+            [
+                chrome,
+                "--headless=new",
+                "--disable-gpu",
+                "--no-sandbox",
+                f"--user-data-dir={chrome_profile}",
+                "--virtual-time-budget=50000",
+                "--dump-dom",
+                f"{vite_base}/?{query}",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=80,
+        )
+        assert result.returncode == 0, result.stderr[-2000:]
+        dom = result.stdout
+        assert "Keys &amp; Governance" in dom or "Keys & Governance" in dom
+        assert "Wallet authority ready" in dom
+        assert "Recovery evaluation ready" in dom
+        assert "Rotation evaluation ready" in dom
+        assert "Device approval ready" in dom
+        assert "Signer device ready" in dom
+        assert "Encrypted SSS ready" in dom
+        assert "fixture evidence ready" in dom
+        assert "provider adapter required" in dom
+        assert "SSS provider delivery is wired to the backend" in dom
+        assert "encrypted_sss_delivery_provider_not_configured:" in dom
+        assert "Deliver" in dom
+        assert "SSS external delivery is not implemented for local-testnet" not in dom
+        assert "local provider receipts ready" not in dom
+        assert "SMTP receipt ready" not in dom
+        assert "Dropbox receipt ready" not in dom
+        assert "Box receipt ready" not in dom
+        assert "Export receipt ready" not in dom
+        assert "Download Fixture Backup" in dom
+        assert "Evaluate Fixture Backup" in dom
+        assert "open requested auto-strict" in dom
+    finally:
+        if original_config is not None:
+            config_file.write_text(original_config, encoding="utf-8")
+        elif config_file.exists():
+            config_file.unlink()
+
+        if old_chain_id is None:
+            os.environ.pop("TAU_DEX_CHAIN_ID", None)
+        else:
+            os.environ["TAU_DEX_CHAIN_ID"] = old_chain_id
+        vite_proc.terminate()
+        api_proc.terminate()
+        tau_server.shutdown()
+        tau_server.server_close()
+        for proc in (vite_proc, api_proc):
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+
+
+def test_perps_wallet_ui_renders_ready_hardware_custody(tmp_path: Path) -> None:
+    chrome = _chrome_binary()
+    if chrome is None:
+        pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
+    if shutil.which("npm") is None:
+        pytest.skip("npm is required for the browser UI smoke test")
+    if not (DEX_UI / "node_modules" / ".bin" / "vite").exists():
+        pytest.skip("tools/dex-ui dependencies are not installed")
+
+    chain_id = "tau-test-perps-wallet-ui-hardware"
+    account_a_privkey = 83
+    account_b_privkey = 84
+    account_a_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_a_privkey)
+    account_b_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_b_privkey)
+    recovery_guardian_a_pubkey = "0x" + bls_pubkey_hex_from_privkey(185)
+    recovery_guardian_b_pubkey = "0x" + bls_pubkey_hex_from_privkey(186)
+    quote_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
+    market_id = "perp:ch2p:ui-hardware"
 
     tau_port = _free_port()
     tau_server = socketserver.ThreadingTCPServer(("127.0.0.1", tau_port), _TauRpcHandler)
@@ -1192,20 +2018,84 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
             ),
             sort_keys=True,
         ),
-        "PERPS_WALLET_RECOVERY_EXERCISE_JSON": json.dumps(
-            _perps_wallet_recovery_exercise(chain_id=chain_id),
-            sort_keys=True,
-        ),
-        "PERPS_WALLET_ROTATION_EXERCISE_JSON": json.dumps(
-            _perps_wallet_rotation_exercise(chain_id=chain_id, account_b_pubkey=account_b_pubkey),
-            sort_keys=True,
-        ),
         "PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_JSON": json.dumps(
-            _perps_wallet_device_approval_exercise(chain_id=chain_id),
+            {
+                **_perps_wallet_device_approval_exercise(chain_id=chain_id),
+                "backend_descriptor": _perps_wallet_hardware_backend_descriptor(chain_id=chain_id),
+                "environment": _perps_wallet_hardware_environment(chain_id=chain_id),
+                "environment_policy": _perps_wallet_hardware_environment_policy(chain_id=chain_id),
+                "exercise_hash": perps_wallet_device_approval_exercise_hash_v1(
+                    {
+                        **_perps_wallet_device_approval_exercise(chain_id=chain_id),
+                        "schema": PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_SCHEMA_V1,
+                        "backend_descriptor": _perps_wallet_hardware_backend_descriptor(chain_id=chain_id),
+                        "environment": _perps_wallet_hardware_environment(chain_id=chain_id),
+                        "environment_policy": _perps_wallet_hardware_environment_policy(chain_id=chain_id),
+                    }
+                ),
+            },
             sort_keys=True,
         ),
         "PERPS_WALLET_SIGNER_DEVICE_INTEGRATION_JSON": json.dumps(
-            _perps_wallet_signer_device_integration(chain_id=chain_id),
+            {
+                **_perps_wallet_signer_device_integration(chain_id=chain_id),
+                "backend_descriptor": _perps_wallet_hardware_backend_descriptor(chain_id=chain_id),
+                "environment": _perps_wallet_hardware_environment(chain_id=chain_id),
+                "environment_policy": _perps_wallet_hardware_environment_policy(chain_id=chain_id),
+                "device_label": "Hardware Wallet A",
+                "integration_hash": perps_wallet_signer_device_integration_hash_v1(
+                    {
+                        **_perps_wallet_signer_device_integration(chain_id=chain_id),
+                        "schema": "zenodex/perps-wallet-signer-device-integration/v1",
+                        "backend_descriptor": _perps_wallet_hardware_backend_descriptor(chain_id=chain_id),
+                        "environment": _perps_wallet_hardware_environment(chain_id=chain_id),
+                        "environment_policy": _perps_wallet_hardware_environment_policy(chain_id=chain_id),
+                        "device_label": "Hardware Wallet A",
+                    }
+                ),
+            },
+            sort_keys=True,
+        ),
+        "PERPS_WALLET_SIGNER_PROMPT_CAPTURE_JSON": json.dumps(
+            {
+                **_perps_wallet_signer_prompt_capture(chain_id=chain_id),
+                "backend_descriptor": _perps_wallet_hardware_backend_descriptor(chain_id=chain_id),
+                "environment": _perps_wallet_hardware_environment(chain_id=chain_id),
+                "environment_policy": _perps_wallet_hardware_environment_policy(chain_id=chain_id),
+                "device_label": "Hardware Wallet A",
+                "prompt_source": "hardware-wallet-prompt",
+                "capture_hash": perps_wallet_signer_prompt_capture_hash_v1(
+                    {
+                        **_perps_wallet_signer_prompt_capture(chain_id=chain_id),
+                        "schema": PERPS_WALLET_SIGNER_PROMPT_CAPTURE_SCHEMA_V1,
+                        "backend_descriptor": _perps_wallet_hardware_backend_descriptor(chain_id=chain_id),
+                        "environment": _perps_wallet_hardware_environment(chain_id=chain_id),
+                        "environment_policy": _perps_wallet_hardware_environment_policy(chain_id=chain_id),
+                        "device_label": "Hardware Wallet A",
+                        "prompt_source": "hardware-wallet-prompt",
+                    }
+                ),
+            },
+            sort_keys=True,
+        ),
+        "PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_JSON": json.dumps(
+            {
+                **_perps_wallet_signer_execution_exercise(chain_id=chain_id),
+                "backend_descriptor": _perps_wallet_hardware_backend_descriptor(chain_id=chain_id),
+                "environment": _perps_wallet_hardware_environment(chain_id=chain_id),
+                "environment_policy": _perps_wallet_hardware_environment_policy(chain_id=chain_id),
+                "device_label": "Hardware Wallet A",
+                "exercise_hash": perps_wallet_signer_execution_exercise_hash_v1(
+                    {
+                        **_perps_wallet_signer_execution_exercise(chain_id=chain_id),
+                        "schema": PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_SCHEMA_V1,
+                        "backend_descriptor": _perps_wallet_hardware_backend_descriptor(chain_id=chain_id),
+                        "environment": _perps_wallet_hardware_environment(chain_id=chain_id),
+                        "environment_policy": _perps_wallet_hardware_environment_policy(chain_id=chain_id),
+                        "device_label": "Hardware Wallet A",
+                    }
+                ),
+            },
             sort_keys=True,
         ),
     }
@@ -1224,7 +2114,7 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
     vite_proc = subprocess.Popen(
         ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
         cwd=DEX_UI,
-        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
+        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false", "CHOKIDAR_USEPOLLING": "1"},
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -1232,21 +2122,24 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
     try:
         _wait_for_http(api_base + "/health", timeout_s=30)
         _wait_for_http(vite_base, timeout_s=30)
-        query = urlencode(
-            {
+        url = _smoke_url(
+            vite_base,
+            query={
                 "tab": "perps",
                 "demo": "false",
                 "zenodexUiSmokePerpsWallet": "1",
                 "perpsWalletAction": "init_market_2p",
                 "marketId": market_id,
                 "quoteAsset": quote_asset,
-                "accountAPrivkey": str(account_a_privkey),
-                "accountBPrivkey": str(account_b_privkey),
                 "txFeeLimit": "2",
                 "perpsDeadline": str(int(time.time()) + 3600),
-            }
+            },
+            secrets={
+                "accountAPrivkey": account_a_privkey,
+                "accountBPrivkey": account_b_privkey,
+            },
         )
-        chrome_profile = tmp_path / "chrome-profile"
+        chrome_profile = tmp_path / "chrome-profile-hardware"
         result = subprocess.run(
             [
                 chrome,
@@ -1254,43 +2147,21 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
                 "--disable-gpu",
                 "--no-sandbox",
                 f"--user-data-dir={chrome_profile}",
-                "--virtual-time-budget=30000",
+                "--virtual-time-budget=50000",
                 "--dump-dom",
-                f"{vite_base}/?{query}",
+                url,
             ],
             check=False,
             capture_output=True,
             text=True,
-            timeout=50,
+            timeout=80,
         )
         assert result.returncode == 0, result.stderr[-2000:]
         dom = result.stdout
-        assert "Live Perps Wallet" in dom
-        assert "Stream" in dom
-        assert "submit accepted" in dom
-        assert "preflight ok" in dom
-        assert "fee limit 2" in dom
-        assert "fee covered yes" in dom
-        assert "proof profile perps_stream8_live_wallet_v0" in dom
-        assert "proof receipt 0x" in dom
-        assert "zk proof pending" in dom
-        assert "delta witness 1" in dom
-        assert "wallet authority ready" in dom
-        assert "wallet keys 2" in dom
-        assert "wallet recovery 2/2" in dom
-        assert "recovery exercise ready" in dom
-        assert "recovery signed quorum 2/2" in dom
-        assert "recovery receipt 0x" in dom
-        assert "rotation exercise ready" in dom
-        assert "rotation signed quorum 2/2" in dom
-        assert "rotation receipt 0x" in dom
-        assert "device approval ready" in dom
-        assert "device sign admission ok" in dom
-        assert "device approval receipt 0x" in dom
-        assert "signer device ready" in dom
-        assert "signer backend os-keychain" in dom
-        assert "signer device receipt 0x" in dom
-        assert market_id in dom
+        assert "hardware custody ready" in dom
+        assert "hardware backend hardware-wallet-placeholder" in dom
+        assert "hardware custody receipt 0x" in dom
+        assert "signer ceremony ready" in dom
     finally:
         if old_chain_id is None:
             os.environ.pop("TAU_DEX_CHAIN_ID", None)
@@ -1397,7 +2268,7 @@ def test_perps_wallet_ui_accepts_external_signed_payload_without_local_signing(t
     vite_proc = subprocess.Popen(
         ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
         cwd=DEX_UI,
-        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
+        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false", "CHOKIDAR_USEPOLLING": "1"},
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -1419,25 +2290,18 @@ def test_perps_wallet_ui_accepts_external_signed_payload_without_local_signing(t
                 "signedTauTxPayload": json.dumps(signed_payload, sort_keys=True, separators=(",", ":")),
             }
         )
-        chrome_profile = tmp_path / "chrome-profile-external-signed"
-        result = subprocess.run(
-            [
-                chrome,
-                "--headless=new",
-                "--disable-gpu",
-                "--no-sandbox",
-                f"--user-data-dir={chrome_profile}",
-                "--virtual-time-budget=20000",
-                "--dump-dom",
-                f"{vite_base}/?{query}",
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=50,
+        dom = _chrome_rendered_haystack(
+            chrome=chrome,
+            url=f"{vite_base}/?{query}",
+            profile=tmp_path / "chrome-profile-external-signed",
+            snippets=(
+                "Live Perps Wallet",
+                "Deposit Collateral",
+                "submit accepted",
+                "signing external_signed_payload",
+            ),
+            timeout_s=60,
         )
-        assert result.returncode == 0, result.stderr[-2000:]
-        dom = result.stdout
         assert "Live Perps Wallet" in dom
         assert "Deposit Collateral" in dom
         assert "submit accepted" in dom
@@ -1556,7 +2420,7 @@ def test_perps_wallet_ui_succeeds_under_bounded_tau_send_jitter(tmp_path: Path) 
     vite_proc = subprocess.Popen(
         ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
         cwd=DEX_UI,
-        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
+        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false", "CHOKIDAR_USEPOLLING": "1"},
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -1578,24 +2442,17 @@ def test_perps_wallet_ui_succeeds_under_bounded_tau_send_jitter(tmp_path: Path) 
                 "signedTauTxPayload": json.dumps(signed_payload, sort_keys=True, separators=(",", ":")),
             }
         )
-        result = subprocess.run(
-            [
-                chrome,
-                "--headless=new",
-                "--disable-gpu",
-                "--no-sandbox",
-                f"--user-data-dir={tmp_path / 'chrome-profile-perps-jitter'}",
-                "--virtual-time-budget=20000",
-                "--dump-dom",
-                f"{vite_base}/?{query}",
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=60,
+        dom = _chrome_rendered_haystack(
+            chrome=chrome,
+            url=f"{vite_base}/?{query}",
+            profile=tmp_path / "chrome-profile-perps-jitter",
+            snippets=(
+                "Live Perps Wallet",
+                "Tau node connected",
+                "submit accepted",
+            ),
+            timeout_s=80,
         )
-        assert result.returncode == 0, result.stderr[-2000:]
-        dom = result.stdout
         assert "Live Perps Wallet" in dom
         assert "Tau node connected" in dom
         assert "submit accepted" in dom
@@ -1713,7 +2570,7 @@ def test_perps_wallet_ui_fails_closed_on_tau_send_drop_before_response(tmp_path:
     vite_proc = subprocess.Popen(
         ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
         cwd=DEX_UI,
-        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
+        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false", "CHOKIDAR_USEPOLLING": "1"},
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -1895,7 +2752,7 @@ def test_perps_wallet_ui_fails_closed_on_truncated_proxy_sendtx_response(tmp_pat
     vite_proc = subprocess.Popen(
         ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
         cwd=DEX_UI,
-        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
+        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false", "CHOKIDAR_USEPOLLING": "1"},
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -2083,7 +2940,7 @@ def test_perps_wallet_ui_fails_closed_through_toxiproxy_limit_data(tmp_path: Pat
             vite_proc = subprocess.Popen(
                 ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
                 cwd=DEX_UI,
-                env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
+                env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false", "CHOKIDAR_USEPOLLING": "1"},
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -2249,7 +3106,7 @@ def test_perps_wallet_ui_fails_closed_on_partial_tau_send_timeout(tmp_path: Path
     vite_proc = subprocess.Popen(
         ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
         cwd=DEX_UI,
-        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
+        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false", "CHOKIDAR_USEPOLLING": "1"},
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -2291,24 +3148,13 @@ def test_perps_wallet_ui_fails_closed_on_partial_tau_send_timeout(tmp_path: Path
                 "signedTauTxPayload": json.dumps(signed_payload, sort_keys=True, separators=(",", ":")),
             }
         )
-        result = subprocess.run(
-            [
-                chrome,
-                "--headless=new",
-                "--disable-gpu",
-                "--no-sandbox",
-                f"--user-data-dir={tmp_path / 'chrome-profile-perps-chaos'}",
-                "--virtual-time-budget=20000",
-                "--dump-dom",
-                f"{vite_base}/?{query}",
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=60,
+        dom = _chrome_rendered_haystack(
+            chrome=chrome,
+            url=f"{vite_base}/?{query}",
+            profile=tmp_path / "chrome-profile-perps-chaos",
+            snippets=("Live Perps Wallet", "Tau node connected", "tau_rpc_error"),
+            timeout_s=60,
         )
-        assert result.returncode == 0, result.stderr[-2000:]
-        dom = result.stdout
         assert "Live Perps Wallet" in dom
         assert "Tau node connected" in dom
         assert "tau_rpc_error" in dom, dom[-8000:]
@@ -2404,7 +3250,7 @@ def test_perps_wallet_ui_publish_price_smoke_through_browser(tmp_path: Path) -> 
     vite_proc = subprocess.Popen(
         ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
         cwd=DEX_UI,
-        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
+        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false", "CHOKIDAR_USEPOLLING": "1"},
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -2412,18 +3258,19 @@ def test_perps_wallet_ui_publish_price_smoke_through_browser(tmp_path: Path) -> 
     try:
         _wait_for_http(api_base + "/health", timeout_s=30)
         _wait_for_http(vite_base, timeout_s=30)
-        query = urlencode(
-            {
+        url = _smoke_url(
+            vite_base,
+            query={
                 "tab": "perps",
                 "demo": "false",
                 "zenodexUiSmokePerpsWallet": "1",
                 "perpsWalletAction": "publish_clearing_price",
                 "marketId": market_id,
-                "oraclePrivkey": str(oracle_privkey),
                 "priceE8": "100000000",
                 "txFeeLimit": "2",
                 "perpsDeadline": str(int(time.time()) + 3600),
-            }
+            },
+            secrets={"oraclePrivkey": oracle_privkey},
         )
         chrome_profile = tmp_path / "chrome-profile-price"
         result = subprocess.run(
@@ -2435,7 +3282,7 @@ def test_perps_wallet_ui_publish_price_smoke_through_browser(tmp_path: Path) -> 
                 f"--user-data-dir={chrome_profile}",
                 "--virtual-time-budget=20000",
                 "--dump-dom",
-                f"{vite_base}/?{query}",
+                url,
             ],
             check=False,
             capture_output=True,
@@ -2595,6 +3442,7 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
             **os.environ,
             "API_PROXY_TARGET": api_base,
             "VITE_DEMO_MODE": "false",
+            "CHOKIDAR_USEPOLLING": "1",
             "VITE_ZENO_ORACLE_API_URL": oracle_base,
         },
         stdout=subprocess.DEVNULL,
@@ -2611,19 +3459,20 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
         assert str(seeded_oracle["authorization"]["authorization_id"]).startswith("sha256:")
         _wait_for_http(api_base + "/health", timeout_s=30)
         _wait_for_http(vite_base, timeout_s=30)
-        query = urlencode(
-            {
+        url = _smoke_url(
+            vite_base,
+            query={
                 "tab": "perps",
                 "demo": "false",
                 "zenodexUiSmokePerpsWallet": "1",
                 "perpsWalletAction": "settle_epoch",
                 "marketId": market_id,
-                "operatorPrivkey": str(operator_privkey),
                 "perpsUseOracleFixture": "1",
                 "perpsLoadOracleEvidence": "1",
                 "txFeeLimit": "2",
                 "perpsDeadline": str(int(time.time()) + 3600),
-            }
+            },
+            secrets={"operatorPrivkey": operator_privkey},
         )
         chrome_profile = tmp_path / "chrome-profile-settle"
         result = subprocess.run(
@@ -2635,7 +3484,7 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
                 f"--user-data-dir={chrome_profile}",
                 "--virtual-time-budget=40000",
                 "--dump-dom",
-                f"{vite_base}/?{query}",
+                url,
             ],
             check=False,
             capture_output=True,
@@ -2815,6 +3664,7 @@ def test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge(tmp_path: 
             **os.environ,
             "API_PROXY_TARGET": api_base,
             "VITE_DEMO_MODE": "false",
+            "CHOKIDAR_USEPOLLING": "1",
             "VITE_ZENO_ORACLE_API_URL": oracle_base,
         },
         stdout=subprocess.DEVNULL,
@@ -2831,20 +3681,21 @@ def test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge(tmp_path: 
         assert str(seeded_oracle["authorization"]["authorization_id"]).startswith("sha256:")
         _wait_for_http(api_base + "/health", timeout_s=30)
         _wait_for_http(vite_base, timeout_s=30)
-        query = urlencode(
-            {
+        url = _smoke_url(
+            vite_base,
+            query={
                 "tab": "perps",
                 "demo": "false",
                 "zenodexUiSmokePerpsWallet": "1",
                 "perpsWalletAction": "partial_liquidate",
                 "marketId": market_id,
-                "accountPrivkey": str(account_privkey),
                 "fractionBps": "0",
                 "perpsUseOracleFixture": "1",
                 "perpsLoadOracleEvidence": "1",
                 "txFeeLimit": "2",
                 "perpsDeadline": str(int(time.time()) + 3600),
-            }
+            },
+            secrets={"accountPrivkey": account_privkey},
         )
         chrome_profile = tmp_path / "chrome-profile-partial-liquidation"
         result = subprocess.run(
@@ -2856,7 +3707,7 @@ def test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge(tmp_path: 
                 f"--user-data-dir={chrome_profile}",
                 "--virtual-time-budget=40000",
                 "--dump-dom",
-                f"{vite_base}/?{query}",
+                url,
             ],
             check=False,
             capture_output=True,
@@ -2990,7 +3841,7 @@ def test_perps_wallet_ui_settle_epoch_reports_liquidation_evidence(tmp_path: Pat
     vite_proc = subprocess.Popen(
         ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
         cwd=DEX_UI,
-        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
+        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false", "CHOKIDAR_USEPOLLING": "1"},
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -2998,38 +3849,33 @@ def test_perps_wallet_ui_settle_epoch_reports_liquidation_evidence(tmp_path: Pat
     try:
         _wait_for_http(api_base + "/health", timeout_s=30)
         _wait_for_http(vite_base, timeout_s=30)
-        query = urlencode(
-            {
+        url = _smoke_url(
+            vite_base,
+            query={
                 "tab": "perps",
                 "demo": "false",
                 "zenodexUiSmokePerpsWallet": "1",
                 "perpsWalletAction": "settle_epoch",
                 "marketId": market_id,
-                "operatorPrivkey": str(operator_privkey),
                 "perpsUseOracleFixture": "1",
                 "txFeeLimit": "2",
                 "perpsDeadline": str(int(time.time()) + 3600),
-            }
+            },
+            secrets={"operatorPrivkey": operator_privkey},
         )
-        chrome_profile = tmp_path / "chrome-profile-liquidation"
-        result = subprocess.run(
-            [
-                chrome,
-                "--headless=new",
-                "--disable-gpu",
-                "--no-sandbox",
-                f"--user-data-dir={chrome_profile}",
-                "--virtual-time-budget=20000",
-                "--dump-dom",
-                f"{vite_base}/?{query}",
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=60,
+        dom = _chrome_rendered_haystack(
+            chrome=chrome,
+            url=url,
+            profile=tmp_path / "chrome-profile-liquidation",
+            snippets=(
+                "Live Perps Wallet",
+                "Settle Epoch",
+                "submit accepted",
+                "preflight ok",
+                "liquidated yes",
+            ),
+            timeout_s=60,
         )
-        assert result.returncode == 0, result.stderr[-2000:]
-        dom = result.stdout
         assert "Live Perps Wallet" in dom
         assert "Settle Epoch" in dom
         assert "submit accepted" in dom

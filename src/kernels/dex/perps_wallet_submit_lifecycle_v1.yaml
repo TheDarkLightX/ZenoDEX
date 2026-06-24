@@ -1,0 +1,236 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "perps_wallet_submit_lifecycle_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded lifecycle shell for the live perps wallet submit path.
+
+    Scope:
+      - Models the fail-closed transition obligations around signed Tau payloads,
+        sequence retries, auto-mine retry, and post-submit state-delta evidence.
+      - Network IO, Tau RPC parsing, BLS signing, and app-state replay stay in the
+        imperative shell. This kernel records the finite state-machine contract
+        that the shell must preserve.
+observables:
+  state_vars: []
+  effects:
+    [
+      "payload_gate_ok",
+      "sequence_retry_ok",
+      "mining_retry_ok",
+      "outcome_total",
+      "accepted_requires_witness",
+      "lifecycle_ok",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "evaluate_perps_wallet_submit_lifecycle"
+    params:
+      - id: "signed_payload_present"
+        type: { kind: "bool" }
+      - id: "initial_send_success"
+        type: { kind: "bool" }
+      - id: "sequence_retry_attempted"
+        type: { kind: "bool" }
+      - id: "invalid_sequence_retryable"
+        type: { kind: "bool" }
+      - id: "local_signing_available"
+        type: { kind: "bool" }
+      - id: "fresh_zk_required"
+        type: { kind: "bool" }
+      - id: "sequence_retry_send_success"
+        type: { kind: "bool" }
+      - id: "auto_mine_enabled"
+        type: { kind: "bool" }
+      - id: "createblock_success"
+        type: { kind: "bool" }
+      - id: "app_hash_changed_after_createblock"
+        type: { kind: "bool" }
+      - id: "empty_mempool_retry_attempted"
+        type: { kind: "bool" }
+      - id: "empty_mempool_retry_send_success"
+        type: { kind: "bool" }
+      - id: "retry_createblock_success"
+        type: { kind: "bool" }
+      - id: "retry_app_hash_changed"
+        type: { kind: "bool" }
+      - id: "sequence_consumed_without_delta"
+        type: { kind: "bool" }
+      - id: "state_delta_witness_matches"
+        type: { kind: "bool" }
+      - id: "accepted"
+        type: { kind: "bool" }
+      - id: "rejected_with_reason"
+        type: { kind: "bool" }
+      - id: "indeterminate_with_reason"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      payload_gate_ok:
+        op: "=>"
+        args:
+          - op: "or"
+            args:
+              - { param: "initial_send_success" }
+              - { param: "sequence_retry_attempted" }
+              - { param: "empty_mempool_retry_attempted" }
+              - { param: "accepted" }
+          - { param: "signed_payload_present" }
+      sequence_retry_ok:
+        op: "=>"
+        args:
+          - { param: "sequence_retry_attempted" }
+          - op: "and"
+            args:
+              - { param: "signed_payload_present" }
+              - { param: "invalid_sequence_retryable" }
+              - { param: "local_signing_available" }
+              - op: "not"
+                args: [{ param: "fresh_zk_required" }]
+      mining_retry_ok:
+        op: "=>"
+        args:
+          - { param: "empty_mempool_retry_attempted" }
+          - op: "and"
+            args:
+              - { param: "signed_payload_present" }
+              - { param: "auto_mine_enabled" }
+              - op: "not"
+                args: [{ param: "createblock_success" }]
+              - op: "not"
+                args: [{ param: "app_hash_changed_after_createblock" }]
+              - { param: "empty_mempool_retry_send_success" }
+      outcome_total:
+        op: "and"
+        args:
+          - op: "or"
+            args:
+              - { param: "accepted" }
+              - { param: "rejected_with_reason" }
+              - { param: "indeterminate_with_reason" }
+          - op: "not"
+            args:
+              - op: "and"
+                args:
+                  - { param: "accepted" }
+                  - { param: "rejected_with_reason" }
+          - op: "not"
+            args:
+              - op: "and"
+                args:
+                  - { param: "accepted" }
+                  - { param: "indeterminate_with_reason" }
+          - op: "not"
+            args:
+              - op: "and"
+                args:
+                  - { param: "rejected_with_reason" }
+                  - { param: "indeterminate_with_reason" }
+      accepted_requires_witness:
+        op: "=>"
+        args:
+          - { param: "accepted" }
+          - op: "and"
+            args:
+              - { param: "signed_payload_present" }
+              - op: "or"
+                args:
+                  - { param: "initial_send_success" }
+                  - { param: "sequence_retry_send_success" }
+                  - { param: "empty_mempool_retry_send_success" }
+              - op: "or"
+                args:
+                  - op: "not"
+                    args: [{ param: "auto_mine_enabled" }]
+                  - { param: "createblock_success" }
+                  - { param: "app_hash_changed_after_createblock" }
+                  - { param: "retry_createblock_success" }
+                  - { param: "retry_app_hash_changed" }
+              - { param: "state_delta_witness_matches" }
+      lifecycle_ok:
+        op: "and"
+        args:
+          - op: "=>"
+            args:
+              - op: "or"
+                args:
+                  - { param: "initial_send_success" }
+                  - { param: "sequence_retry_attempted" }
+                  - { param: "empty_mempool_retry_attempted" }
+                  - { param: "accepted" }
+              - { param: "signed_payload_present" }
+          - op: "=>"
+            args:
+              - { param: "sequence_retry_attempted" }
+              - op: "and"
+                args:
+                  - { param: "signed_payload_present" }
+                  - { param: "invalid_sequence_retryable" }
+                  - { param: "local_signing_available" }
+                  - op: "not"
+                    args: [{ param: "fresh_zk_required" }]
+          - op: "=>"
+            args:
+              - { param: "empty_mempool_retry_attempted" }
+              - op: "and"
+                args:
+                  - { param: "signed_payload_present" }
+                  - { param: "auto_mine_enabled" }
+                  - op: "not"
+                    args: [{ param: "createblock_success" }]
+                  - op: "not"
+                    args: [{ param: "app_hash_changed_after_createblock" }]
+                  - { param: "empty_mempool_retry_send_success" }
+          - op: "and"
+            args:
+              - op: "or"
+                args:
+                  - { param: "accepted" }
+                  - { param: "rejected_with_reason" }
+                  - { param: "indeterminate_with_reason" }
+              - op: "not"
+                args:
+                  - op: "and"
+                    args:
+                      - { param: "accepted" }
+                      - { param: "rejected_with_reason" }
+              - op: "not"
+                args:
+                  - op: "and"
+                    args:
+                      - { param: "accepted" }
+                      - { param: "indeterminate_with_reason" }
+              - op: "not"
+                args:
+                  - op: "and"
+                    args:
+                      - { param: "rejected_with_reason" }
+                      - { param: "indeterminate_with_reason" }
+          - op: "=>"
+            args:
+              - { param: "indeterminate_with_reason" }
+              - { param: "sequence_consumed_without_delta" }
+          - op: "=>"
+            args:
+              - { param: "accepted" }
+              - op: "and"
+                args:
+                  - { param: "signed_payload_present" }
+                  - op: "or"
+                    args:
+                      - { param: "initial_send_success" }
+                      - { param: "sequence_retry_send_success" }
+                      - { param: "empty_mempool_retry_send_success" }
+                  - op: "or"
+                    args:
+                      - op: "not"
+                        args: [{ param: "auto_mine_enabled" }]
+                      - { param: "createblock_success" }
+                      - { param: "app_hash_changed_after_createblock" }
+                      - { param: "retry_createblock_success" }
+                      - { param: "retry_app_hash_changed" }
+                  - { param: "state_delta_witness_matches" }

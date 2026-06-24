@@ -44,7 +44,7 @@ const ACTIONS = [
   ['set_position_pair', 'Set Position Pair'],
   ['advance_epoch', 'Advance Epoch'],
   ['publish_clearing_price', 'Publish Price'],
-  ['settle_epoch', 'Epoch Settlement'],
+  ['settle_epoch', 'Settle Epoch'],
   ['partial_liquidate', 'Partial Liquidate'],
 ];
 
@@ -975,9 +975,9 @@ function PerpLiveWalletSurface() {
           ) : null}
           {walletHardwareCustody ? (
             <>
-              <span>hardware device {walletHardwareCustody.hardware_custody_ready ? 'ready' : 'blocked'}</span>
+              <span>hardware custody {walletHardwareCustody.hardware_custody_ready ? 'ready' : 'blocked'}</span>
               <span>hardware backend {walletHardwareCustody.backend_kind || 'unknown'}</span>
-              <span>hardware device receipt {compactId(walletHardwareCustody.status_hash)}</span>
+              <span>hardware custody receipt {compactId(walletHardwareCustody.status_hash)}</span>
             </>
           ) : null}
           <span>oracle authority {oracleAuthority?.production_authority ? 'ready' : 'blocked'}</span>
