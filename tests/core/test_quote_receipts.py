@@ -5,6 +5,7 @@ from typing import Any, Callable
 
 import pytest
 
+import src.core.quote_receipts as quote_receipts_module
 from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from src.core.quote_receipts import (
     QUOTE_RECEIPT_CERTIFICATE_AMOUNT_OUT_MISMATCH,
@@ -1006,7 +1007,7 @@ def test_quote_receipt_verifier_rejects_non_dict_receipt_type() -> None:
 
 def test_quote_receipt_verifier_rejects_missing_working_pool_via_inconsistent_pool_map() -> None:
     class InconsistentPools(dict[str, str]):
-        def __iter__(self):  # type: ignore[override]
+        def __iter__(self):
             return iter(())
 
         def __contains__(self, key: object) -> bool:
@@ -1031,6 +1032,46 @@ def test_quote_receipt_verifier_rejects_exact_out_impossible_hop_as_quote_error(
     ok, err = verify_route_quote_receipt(mutated, pools_by_id=pools)
     assert not ok
     assert err == "hop_quote_error"
+
+
+def test_replay_and_apply_hop_converts_expected_amm_domain_error() -> None:
+    receipt, pools = _single_hop_exact_in_receipt()
+    pool = pools["p_ab"]
+    hop = receipt["body"]["legs"][0]["hops"][0]
+
+    ok, err, next_pool = _replay_and_apply_hop(
+        pool=pool,
+        kind="exact_in",
+        asset_in=str(hop["asset_in"]),
+        asset_out=str(hop["asset_out"]),
+        amount_in=0,
+        amount_out=int(hop["amount_out"]),
+    )
+
+    assert not ok
+    assert err == "hop_quote_error"
+    assert next_pool is None
+
+
+def test_replay_and_apply_hop_surfaces_unexpected_swap_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    receipt, pools = _single_hop_exact_in_receipt()
+    pool = pools["p_ab"]
+    hop = receipt["body"]["legs"][0]["hops"][0]
+
+    def fail_swap(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise RuntimeError("quote replay bug")
+
+    monkeypatch.setattr(quote_receipts_module, "swap_exact_in_for_pool", fail_swap)
+
+    with pytest.raises(RuntimeError, match="quote replay bug"):
+        _replay_and_apply_hop(
+            pool=pool,
+            kind="exact_in",
+            asset_in=str(hop["asset_in"]),
+            asset_out=str(hop["asset_out"]),
+            amount_in=int(hop["amount_in"]),
+            amount_out=int(hop["amount_out"]),
+        )
 
 
 def test_quote_receipt_verifier_rejects_bool_like_body_amounts() -> None:
