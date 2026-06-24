@@ -1070,6 +1070,29 @@ def test_replay_and_apply_hop_fail_closed_on_inconsistent_direction_contract(
     assert err == "bad_pool_direction"
     assert next_pool is None
 
+
+def test_replay_and_apply_hop_does_not_swallow_swap_kernel_bug(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt, pools = _single_hop_exact_in_receipt()
+    pool = pools["p_ab"]
+    hop = receipt["body"]["legs"][0]["hops"][0]
+
+    def broken_swap(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise RuntimeError("unexpected quote replay bug")
+
+    monkeypatch.setattr("src.core.quote_receipts.swap_exact_in_for_pool", broken_swap)
+    with pytest.raises(RuntimeError, match="unexpected quote replay bug"):
+        _replay_and_apply_hop(
+            pool=pool,
+            kind="exact_in",
+            asset_in="A",
+            asset_out="B",
+            amount_in=int(hop["amount_in"]),
+            amount_out=int(hop["amount_out"]),
+        )
+
+
 @pytest.mark.parametrize(("raw", "expected"), [(0, False), (1, True)])
 def test_require_receipt_gate_flag_accepts_zero_one_ints(raw: int, expected: bool) -> None:
     assert _require_receipt_gate_flag(raw, name="flag") is expected
