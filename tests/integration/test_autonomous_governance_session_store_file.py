@@ -10,6 +10,7 @@ from typing import Any
 
 from src.integration.autonomous_governance_session_store_file import (
     _lock_path,
+    _write_store_file,
     admit_autonomous_governance_session_file_continuation_v1,
     current_session_store_file_head_v1,
     initialize_autonomous_governance_session_store_file_v1,
@@ -159,6 +160,28 @@ def test_session_store_file_malformed_json_fails_closed(tmp_path: Path) -> None:
     assert admitted["admitted"] is False
     assert "session_store_file_json_invalid" in admitted["errors"]
     assert path.read_text(encoding="utf-8") == "{not-json"
+
+
+def test_session_store_file_write_failure_cleanup_fails_closed(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    path = tmp_path / "autogov-session-store.json"
+
+    def fail_replace(_src: str, _dst: Path) -> None:
+        raise OSError("simulated replace failure")
+
+    def fail_unlink(_path: str) -> None:
+        raise OSError("simulated cleanup failure")
+
+    monkeypatch.setattr("os.replace", fail_replace)
+    monkeypatch.setattr("os.unlink", fail_unlink)
+
+    wrote, errors = _write_store_file(path, {"store_hash": "example"})
+
+    assert wrote is False
+    assert errors == ("session_store_file_write_failed",)
+    assert not path.exists()
 
 
 def test_session_store_file_existing_lock_refuses_write(tmp_path: Path) -> None:
