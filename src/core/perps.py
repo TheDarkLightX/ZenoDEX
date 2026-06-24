@@ -42,7 +42,7 @@ def _pubkey_bytes48(pubkey: str, *, name: str) -> bytes:
 def _pubkey_bytes48_or_none(pubkey: str) -> bytes | None:
     try:
         return _pubkey_bytes48(pubkey, name="pubkey")
-    except Exception:
+    except (TypeError, ValueError):
         return None
 
 

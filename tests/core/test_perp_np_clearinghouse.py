@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 import src.core.perp_np_clearinghouse as C  # noqa: E402
+import src.core.perps as perps_module  # noqa: E402
 from src.core.perp_np_matching import (  # noqa: E402
     E8,
     Intent,
@@ -106,6 +107,25 @@ def test_state_type_valid_three_party_market():
     assert len(m.accounts) == 3
     assert m.role_for_pubkey(_pk("22")) == _pk("22")    # member resolves own account
     assert m.role_for_pubkey(_pk("99")) is None         # non-member: no observer trap
+    assert m.role_for_pubkey("0x11") is None            # malformed key: no role
+
+
+def test_state_type_surfaces_pubkey_canonicalizer_fault(monkeypatch):
+    accts = (
+        PerpClearinghouseNpAccount(_pk("11"), 10, 100 * E8, 10 ** 15),
+        PerpClearinghouseNpAccount(_pk("22"), -6, 100 * E8, 10 ** 15),
+        PerpClearinghouseNpAccount(_pk("33"), -4, 100 * E8, 10 ** 15),
+    )
+    m = PerpClearinghouseNpMarketState(
+        quote_asset="zUSD", global_state=_global_state(3 * 10 ** 15), accounts=accts)
+
+    def fail_canonicalizer(*_args, **_kwargs):
+        raise RuntimeError("pubkey canonicalizer bug")
+
+    monkeypatch.setattr(perps_module, "canonical_hex_fixed_allow_0x", fail_canonicalizer)
+
+    with pytest.raises(RuntimeError, match="pubkey canonicalizer bug"):
+        m.role_for_pubkey(_pk("22"))
 
 
 def test_state_type_rejects_net_zero_violation():
