@@ -115,6 +115,18 @@ def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
     return value
 
 
+def _parse_public_key_ref_for_status(raw_ref: object, *, index: int) -> tuple[KeyRef | None, str | None]:
+    ref: KeyRef | None = None
+    error: str | None = None
+    try:
+        ref = KeyRef.from_public_dict(_require_mapping(raw_ref, name=f"key_refs[{index}]"))
+    except (ValueError, TypeError, KeyError) as exc:
+        error = _safe_status_error(exc)
+    except Exception as exc:
+        error = _safe_status_error(exc)
+    return ref, error
+
+
 def _require_nonempty_str(value: object, *, name: str) -> str:
     if not isinstance(value, str) or value == "":
         raise ValueError(f"{name} must be a non-empty string")
@@ -540,10 +552,12 @@ def _validate_key_manager_public(
 
     refs: dict[str, KeyRef] = {}
     for index, raw_ref in enumerate(key_refs_raw):
-        try:
-            ref = KeyRef.from_public_dict(_require_mapping(raw_ref, name=f"key_refs[{index}]"))
-        except Exception as exc:
-            gaps.append(f"key manager key_ref {index} invalid: {_safe_status_error(exc)}")
+        ref, error = _parse_public_key_ref_for_status(raw_ref, index=index)
+        if error is not None:
+            gaps.append(f"key manager key_ref {index} invalid: {error}")
+            continue
+        if ref is None:
+            gaps.append(f"key manager key_ref {index} invalid: internal error")
             continue
         if ref.key_id in refs:
             gaps.append(f"duplicate key manager key_id: {ref.key_id}")

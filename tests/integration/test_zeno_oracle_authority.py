@@ -5,6 +5,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+import src.integration.zeno_oracle_authority as zeno_oracle_authority
 from src.integration.zeno_key_manager import KeyRef, ZenoKeyManager
 from src.integration.zeno_ledger_signature import (
     bls_public_key_hex_from_private_key_v0,
@@ -222,6 +225,25 @@ def test_oracle_authority_status_is_secret_free() -> None:
 
     assert "private_key" not in encoded
     assert "secret_hex" not in encoded
+
+
+def test_oracle_authority_status_redacts_unexpected_key_ref_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    profile = _profile()
+
+    def _raise_internal_error(*args: object, **kwargs: object) -> object:
+        del args, kwargs
+        raise RuntimeError("raw oracle key material path leaked")
+
+    monkeypatch.setattr(zeno_oracle_authority.KeyRef, "from_public_dict", staticmethod(_raise_internal_error))
+
+    status = evaluate_oracle_authority_profile_v1(profile)
+    encoded = json.dumps(status, sort_keys=True)
+
+    assert status["production_authority"] is False
+    assert "internal error: RuntimeError" in encoded
+    assert "raw oracle key material path leaked" not in encoded
 
 
 def test_oracle_authority_local_exercise_is_ready() -> None:
