@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+import src.core.intent_access as intent_access
 from src.core.intent_access import partition_independent_intents
 from src.state.intents import Intent, IntentKind
 from src.state.pools import PoolState, PoolStatus, compute_pool_id
@@ -9,6 +12,42 @@ from src.state.pools import PoolState, PoolStatus, compute_pool_id
 
 def _iid(n: int) -> str:
     return "0x" + f"{n:064x}"
+
+
+def _create_pool_intent(n: int = 1) -> Intent:
+    return Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(n),
+        sender_pubkey="0x" + "11" * 48,
+        deadline=9999999999,
+        fields={
+            "asset0": "0x" + "01" * 32,
+            "asset1": "0x" + "02" * 32,
+            "fee_bps": 30,
+            "amount0": 1000,
+            "amount1": 2000,
+        },
+    )
+
+
+def test_create_pool_access_tolerates_pool_id_domain_error(monkeypatch) -> None:
+    def bad_pool_id(*_args, **_kwargs):
+        raise ValueError("invalid pool id domain")
+
+    monkeypatch.setattr(intent_access, "compute_pool_id", bad_pool_id)
+    groups = partition_independent_intents([_create_pool_intent()], pools={})
+    assert [[intent.intent_id for intent in group] for group in groups] == [[_iid(1)]]
+
+
+def test_create_pool_access_does_not_swallow_unexpected_pool_id_bug(monkeypatch) -> None:
+    def broken_pool_id(*_args, **_kwargs):
+        raise RuntimeError("unexpected pool id bug")
+
+    monkeypatch.setattr(intent_access, "compute_pool_id", broken_pool_id)
+    with pytest.raises(RuntimeError, match="unexpected pool id bug"):
+        partition_independent_intents([_create_pool_intent()], pools={})
 
 
 def test_partition_splits_intents_that_touch_disjoint_state() -> None:
