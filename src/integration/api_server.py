@@ -44,7 +44,7 @@ for _prewarm_module_name in (
 ):  # pragma: no cover - import latency hygiene only
     try:
         __import__(_prewarm_module_name)
-    except Exception:
+    except ImportError:
         pass
 
 
@@ -742,7 +742,7 @@ def _check_routing_oracle_adapter_bridge_for_action(
         from tools.zenodex_oracle_aggregate_adapter import (  # pylint: disable=import-outside-toplevel
             verify_aggregate_adapter_bridge,
         )
-    except Exception as exc:
+    except ImportError as exc:
         return f"oracle_adapter_bridge verifier unavailable: {type(exc).__name__}"
 
     try:
