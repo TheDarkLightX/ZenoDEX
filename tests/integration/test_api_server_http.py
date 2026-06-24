@@ -244,6 +244,24 @@ def test_dex_proof_mining_payout_template_rejects_bad_pubkeys() -> None:
                 },
                 "bad_reward_pool_pubkey",
             ),
+            (
+                {
+                    "chain_id": "local-testnet",
+                    "tx_sender_pubkey": valid_pubkey,
+                    "reward_pool_pubkey": "0x" + "22" * 48,
+                    "epoch": 99,
+                },
+                "bad_reward_schedule",
+            ),
+            (
+                {
+                    "chain_id": "local-testnet",
+                    "tx_sender_pubkey": valid_pubkey,
+                    "reward_pool_pubkey": "0x" + "22" * 48,
+                    "proposal_slot": 99,
+                },
+                "proof_mining_claim_build_failed",
+            ),
         )
         for request_body, expected_error in cases:
             conn = HTTPConnection(host, port, timeout=5.0)
@@ -257,7 +275,8 @@ def test_dex_proof_mining_payout_template_rejects_bad_pubkeys() -> None:
             body = json.loads(resp.read().decode("utf-8"))
 
             assert resp.status == 400, body
-            assert body == {"ok": False, "error": expected_error}
+            assert body["ok"] is False
+            assert body["error"] == expected_error
     finally:
         _stop_test_server(httpd, t)
 

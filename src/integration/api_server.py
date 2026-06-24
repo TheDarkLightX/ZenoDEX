@@ -1758,7 +1758,7 @@ class _Handler(BaseHTTPRequestHandler):
 
                 try:
                     reward_amount = schedule_reward_amount(base_reward=base_reward, epoch=epoch)
-                except Exception:
+                except (TypeError, ValueError):
                     self._write_json(400, {"ok": False, "error": "bad_reward_schedule"}, cors_origin=cors_origin)
                     return True
 
@@ -1836,7 +1836,7 @@ class _Handler(BaseHTTPRequestHandler):
                         batch_hash=batch_hash,
                         dex_hash_after=dex_hash_after,
                     )
-                except Exception as exc:
+                except (TypeError, ValueError) as exc:
                     self._write_json(
                         400,
                         {"ok": False, "error": "proof_mining_claim_build_failed", "details": _short_detail(exc)},
@@ -1850,7 +1850,7 @@ class _Handler(BaseHTTPRequestHandler):
                         reward_pool_balance=int(reward_pool_before),
                         claim_artifact=claim,
                     )
-                except Exception as exc:
+                except (TypeError, ValueError) as exc:
                     self._write_json(
                         400,
                         {"ok": False, "error": "proof_mining_runtime_init_failed", "details": _short_detail(exc)},
