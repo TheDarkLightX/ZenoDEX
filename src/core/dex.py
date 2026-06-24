@@ -217,7 +217,7 @@ def step_with_candidate_settlement(
             candidate_settlement,
             next_nonces or state.nonces,
         )
-    except Exception as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         return DexStepResult(ok=False, error=str(exc))
 
 
@@ -251,5 +251,5 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
             settlement,
             next_nonces or state.nonces,
         )
-    except Exception as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         return DexStepResult(ok=False, error=str(exc))

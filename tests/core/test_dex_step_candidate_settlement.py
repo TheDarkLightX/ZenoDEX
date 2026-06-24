@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
 from src.agents.intent_signer import create_swap_intent_from_quote_receipt
+import src.core.dex as dex_mod
 from src.core.batch_clearing import compute_settlement
 from src.core.dex import DexConfig, DexState, step, step_with_candidate_settlement
 from src.core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
@@ -202,6 +205,40 @@ def test_step_with_candidate_settlement_accepts_valid_candidate() -> None:
     assert r_candidate.state.pools[pool_id].reserve1 == r_internal.state.pools[pool_id].reserve1
     assert r_candidate.state.nonces.get_last(pk) == 1
     assert r_internal.state.nonces.get_last(pk) == 1
+
+
+def test_step_does_not_swallow_compute_settlement_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    state, intents, _pool_id, _pk, _asset0, _asset1 = _make_single_swap_setup()
+    intents[0].set_field("nonce", 1)
+
+    def broken_compute_settlement(*_args: object, **_kwargs: object) -> Settlement:
+        raise RuntimeError("unexpected dex settlement computation bug")
+
+    monkeypatch.setattr(dex_mod, "compute_settlement", broken_compute_settlement)
+    with pytest.raises(RuntimeError, match="unexpected dex settlement computation bug"):
+        step(DexConfig(settlement_validation="strong_replay"), state, intents)
+
+
+def test_step_with_candidate_does_not_swallow_settlement_application_bug(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state, intents, _pool_id, _pk, _asset0, _asset1 = _make_single_swap_setup()
+    intents[0].set_field("nonce", 1)
+    cfg = DexConfig(settlement_validation="strong_replay")
+    candidate = compute_settlement(
+        intents=intents,
+        pools=state.pools,
+        balances=state.balances,
+        lp_balances=state.lp_balances,
+        swap_ordering=str(cfg.swap_ordering),
+    )
+
+    def broken_validate_and_apply(*_args: object, **_kwargs: object):
+        raise RuntimeError("unexpected dex settlement application bug")
+
+    monkeypatch.setattr(dex_mod, "_validate_and_apply_settlement", broken_validate_and_apply)
+    with pytest.raises(RuntimeError, match="unexpected dex settlement application bug"):
+        step_with_candidate_settlement(cfg, state, intents, candidate_settlement=candidate)
 
 
 def test_intent_auth_shape_covers_material_swap_fields_before_candidate_settlement() -> None:
