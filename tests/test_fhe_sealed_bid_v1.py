@@ -298,6 +298,30 @@ class TestReceiptVerification:
         assert ok is False
         assert reason == "production_claim_requires_range_proof"
 
+    def test_fhe_receipt_rejects_production_claim_without_production_key_policy(self, key_pair):
+        specs = [("alice", "c1", 2, 100)]
+        result = settle_fhe_sealed_bids(
+            auction_id="a13c",
+            units_for_sale=2,
+            encrypted_bids=_enc_bids(key_pair, specs),
+            key_pair=key_pair,
+        )
+        receipt = make_fhe_sealed_bid_v1_receipt(
+            auction_id="a13c", units_for_sale=2, result=result
+        )
+        receipt["body"]["production_security_claim"] = True
+        receipt["body"]["range_proof_verified"] = True
+        receipt["receipt_hash"] = fhe_sealed_bid_v1_receipt_hash(receipt["body"])
+
+        ok, reason = verify_fhe_sealed_bid_v1_receipt(
+            receipt,
+            approved_key_ids=["test-fhe-v1"],
+            trusted_plain_bids=_revealed(specs),
+        )
+
+        assert ok is False
+        assert reason == "production_key_not_approved"
+
     def test_fhe_receipt_rejects_unapproved_key_id(self, key_pair):
         specs = [("alice", "c1", 2, 100)]
         result = settle_fhe_sealed_bids(auction_id="a14", units_for_sale=2,
@@ -328,3 +352,26 @@ class TestReceiptVerification:
                                                        trusted_plain_bids=_revealed(specs))
         assert ok is False
         assert reason == "public_result_mismatch"
+
+    def test_receipt_rejects_bool_public_result_numbers(self, key_pair):
+        specs = [("alice", "c1", 2, 100)]
+        result = settle_fhe_sealed_bids(
+            auction_id="a17",
+            units_for_sale=2,
+            encrypted_bids=_enc_bids(key_pair, specs),
+            key_pair=key_pair,
+        )
+        receipt = make_fhe_sealed_bid_v1_receipt(
+            auction_id="a17", units_for_sale=2, result=result
+        )
+        receipt["body"]["public_result"]["total_filled"] = True
+        receipt["receipt_hash"] = fhe_sealed_bid_v1_receipt_hash(receipt["body"])
+
+        ok, reason = verify_fhe_sealed_bid_v1_receipt(
+            receipt,
+            approved_key_ids=["test-fhe-v1"],
+            trusted_plain_bids=_revealed(specs),
+        )
+
+        assert ok is False
+        assert reason == "bad_public_result_numeric"

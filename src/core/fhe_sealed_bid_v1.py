@@ -28,7 +28,7 @@ from __future__ import annotations
 import math
 import secrets
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, Tuple
+from typing import Any, Dict, Iterable, Mapping, Tuple
 
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 from .sealed_bid_auction import (
@@ -491,6 +491,19 @@ def fhe_sealed_bid_v1_receipt_hash(body: Dict[str, Any]) -> str:
     return sha256_hex(domain_sep_bytes(_RECEIPT_DOMAIN) + canonical_json_bytes(body))
 
 
+def _non_empty_string_set(values: Iterable[object]) -> set[str]:
+    return {str(value) for value in values if str(value)}
+
+
+def _receipt_int_field(mapping: Mapping[str, object], field_name: str) -> int:
+    value = mapping.get(field_name)
+    if isinstance(value, bool) or value is None:
+        raise ValueError(field_name)
+    if not isinstance(value, (int, str)):
+        raise ValueError(field_name)
+    return int(value)
+
+
 def _settlement_to_public_result(
     *, clearing_price: int, total_filled: int, fills: tuple[SealedBidFill, ...],
     units_for_sale: int,
@@ -544,15 +557,19 @@ def make_fhe_sealed_bid_v1_receipt(
 
 
 def verify_fhe_sealed_bid_v1_receipt(
-    receipt: Dict[str, Any],
+    receipt: object,
     *,
     approved_key_ids: Iterable[str],
+    approved_production_key_ids: Iterable[str] | None = None,
     trusted_plain_bids: Iterable[RevealedSealedBid] | None = None,
 ) -> Tuple[bool, str]:
     """Verify an FHE sealed-bid v1 receipt.
 
     When trusted_plain_bids is provided, the public result is checked
     against a deterministic plaintext replay to ensure correctness.
+    A production security claim also requires the key id to be explicitly
+    approved for production use; the receipt body cannot self-certify key
+    strength or range-proof collateral.
     """
     if not isinstance(receipt, dict):
         return False, "bad_receipt_type"
@@ -576,7 +593,7 @@ def verify_fhe_sealed_bid_v1_receipt(
     if scheme == SCHEME_FHE:
         if not isinstance(key_id, str) or not key_id:
             return False, "bad_key_id"
-        if key_id not in {str(x) for x in approved_key_ids if str(x)}:
+        if key_id not in _non_empty_string_set(approved_key_ids):
             return False, "key_not_approved"
         if not isinstance(body.get("production_security_claim"), bool):
             return False, "production_claim_missing"
@@ -587,6 +604,10 @@ def verify_fhe_sealed_bid_v1_receipt(
             and body.get("range_proof_verified") is not True
         ):
             return False, "production_claim_requires_range_proof"
+        if body.get("production_security_claim") is True:
+            production_key_ids = _non_empty_string_set(approved_production_key_ids or ())
+            if key_id not in production_key_ids:
+                return False, "production_key_not_approved"
     else:
         if key_id != "":
             return False, "fallback_should_have_empty_key_id"
@@ -601,10 +622,10 @@ def verify_fhe_sealed_bid_v1_receipt(
     if not isinstance(result, dict):
         return False, "bad_public_result"
     try:
-        units_for_sale = int(result.get("units_for_sale"))
-        clearing_price = int(result.get("clearing_price"))
-        total_filled = int(result.get("total_filled"))
-        fill_count = int(result.get("fill_count"))
+        units_for_sale = _receipt_int_field(result, "units_for_sale")
+        clearing_price = _receipt_int_field(result, "clearing_price")
+        total_filled = _receipt_int_field(result, "total_filled")
+        fill_count = _receipt_int_field(result, "fill_count")
     except Exception:
         return False, "bad_public_result_numeric"
     if units_for_sale <= 0 or units_for_sale > MAX_V1_UNITS:
@@ -624,8 +645,8 @@ def verify_fhe_sealed_bid_v1_receipt(
         if not isinstance(fill, dict):
             return False, "bad_fill"
         try:
-            filled_quantity = int(fill.get("filled_quantity"))
-            paid_price = int(fill.get("paid_price"))
+            filled_quantity = _receipt_int_field(fill, "filled_quantity")
+            paid_price = _receipt_int_field(fill, "paid_price")
         except Exception:
             return False, "bad_fill_numeric"
         if filled_quantity <= 0 or filled_quantity > MAX_V1_UNITS:
