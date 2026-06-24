@@ -323,7 +323,7 @@ def _sync_native_balances(state: DexState, *, chain_balances: Dict[str, int]) ->
         try:
             amt_i = int(amount)
             canonical_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
-        except Exception:
+        except (TypeError, ValueError, OverflowError):
             continue
         if amt_i <= 0:
             continue
@@ -370,7 +370,7 @@ def _balances_patch_for_native(*, before: Dict[str, int], after_state: DexState)
     for pk in before.keys():
         try:
             canonical_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
-        except Exception:
+        except (TypeError, ValueError):
             continue
         external_key_by_canonical.setdefault(canonical_pk, pk)
 
@@ -384,7 +384,7 @@ def _balances_patch_for_native(*, before: Dict[str, int], after_state: DexState)
         old = int(before.get(pk, 0))
         try:
             lookup_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
-        except Exception:
+        except (TypeError, ValueError):
             lookup_pk = str(pk)
         new = int(after_state.balances.get(lookup_pk, NATIVE_ASSET))
         if new != old:

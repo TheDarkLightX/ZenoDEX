@@ -1,6 +1,8 @@
 import json
 import sys
 
+import pytest
+
 
 def _intent_signing_dict_from_tx_intent(intent_dict: dict) -> dict:
     from src.integration.operations import parse_intents
@@ -22,6 +24,25 @@ def _parse_single_intent(intent_dict: dict):
     from src.integration.operations import parse_intents
 
     return parse_intents({"2": [intent_dict]})[0]
+
+
+def test_native_balance_sync_ignores_malformed_inputs_but_propagates_internal_errors(monkeypatch):
+    from src.core.dex import DexState
+    from src.integration import tau_testnet_dex_plugin as plugin
+    from src.state.balances import BalanceTable, NATIVE_ASSET
+    from src.state.lp import LPTable
+
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+
+    ignored = plugin._sync_native_balances(state, chain_balances={"not-a-pubkey": 123})
+    assert ignored.balances.get("not-a-pubkey", NATIVE_ASSET) == 0
+
+    def _boom(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise RuntimeError("canonicalizer invariant failed")
+
+    monkeypatch.setattr(plugin, "_canonical_pubkey", _boom)
+    with pytest.raises(RuntimeError, match="canonicalizer invariant failed"):
+        plugin._sync_native_balances(state, chain_balances={"00" * 48: 123})
 
 
 def _settlement_commitment_dict_from_settlement(settlement_obj: dict) -> dict:
