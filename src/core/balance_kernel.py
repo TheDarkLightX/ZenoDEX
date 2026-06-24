@@ -29,7 +29,7 @@ Design rules honored here (see the migration "Hard Rules"):
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Union
+from typing import Any, TypeGuard, Union
 
 from ..state.canonical import (
     canonical_hex_fixed_allow_0x,
@@ -83,7 +83,7 @@ REJ_BALANCE_OVERFLOW = "balance_overflow"
 KIND_CREDIT = "credit"
 KIND_TRANSFER = "transfer"
 
-def _is_plain_int(v: object) -> bool:
+def _is_plain_int(v: object) -> TypeGuard[int]:
     return isinstance(v, int) and not isinstance(v, bool)
 
 
@@ -92,7 +92,7 @@ def _canonical_pubkey(value: object) -> Union[str, None]:
         return None
     try:
         return canonical_hex_fixed_allow_0x(value, nbytes=PUBKEY_NBYTES, name="pubkey")
-    except Exception:
+    except (TypeError, ValueError):
         return None
 
 
@@ -101,7 +101,7 @@ def _canonical_asset(value: object) -> Union[str, None]:
         return None
     try:
         return canonical_hex_fixed_allow_0x(value, nbytes=ASSET_NBYTES, name="asset")
-    except Exception:
+    except (TypeError, ValueError):
         return None
 
 

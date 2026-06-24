@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+import src.core.balance_kernel as balance_kernel
 from src.core.balance_kernel import (
     MAX_BALANCE,
     BalanceAccepted,
@@ -121,6 +124,16 @@ def test_transfer_validation_order_and_rejections():
     assert _xfer(state, A, B, X, 0).reason == "invalid_amount"
     # Bad sender wins over a bad nonce-equivalent (amount) — order check.
     assert _xfer(state, "0x11", B, X, 0).reason == "invalid_sender"
+
+
+def test_unexpected_canonicalizer_error_propagates(monkeypatch):
+    def fail_canonicalizer(*_args, **_kwargs):
+        raise RuntimeError("canonicalizer bug")
+
+    monkeypatch.setattr(balance_kernel, "canonical_hex_fixed_allow_0x", fail_canonicalizer)
+
+    with pytest.raises(RuntimeError, match="canonicalizer bug"):
+        _credit(BalanceState(), A, X, 10)
 
 
 def test_transfer_overflow_on_recipient():
