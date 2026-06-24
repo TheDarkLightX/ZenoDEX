@@ -45,6 +45,31 @@ BPS_DENOM = 10_000
 # the full range for the staircase DP to be worth running.
 _DENSE_BREAKPOINT_FALLBACK_RATIO = 4
 
+# Hard resource bounds for fail-closed operation. When any bound is exceeded,
+# the staircase DP raises ResourceLimitExceeded so the adaptive entry point can
+# fall back to the existing exact small-domain DP. These bounds preserve
+# exactness because the fallback is also an exact solver.
+#
+# Structural ceilings:
+#   |table|        <= (max_legs + 1) * (D + 1)
+#   combine_pairs  <= (D * max_legs)^2   (Pareto index: D spent values,
+#                       each with <= max_legs Pareto-optimal states per side)
+#   residual_quotes <= D                 (one quote per combined spent value)
+# We set bounds at the structural ceiling times a small constant to allow
+# online Pareto pruning to keep the table well below the ceiling in practice.
+_MAX_TABLE_STATES_MULTIPLIER = 2    # multiplier * (max_legs+1) * (D+1)
+_MAX_COMBINE_PAIRS_MULTIPLIER = 2   # multiplier * D^2 * max_legs^2
+_MAX_RESIDUAL_QUOTES_MULTIPLIER = 2  # multiplier * D
+
+
+class ResourceLimitExceeded(Exception):
+    """Raised when the staircase DP exceeds a hard resource bound.
+
+    The adaptive entry point catches this and falls back to the existing
+    exact small-domain DP. If no fallback is available, the caller sees
+    this as a fail-closed rejection (no partial result returned).
+    """
+
 
 class _PoolLike(Protocol):
     x: int
@@ -330,14 +355,32 @@ def _dp_fold_pool_with_outputs(
     candidates: list[tuple[int, int]],
     amount_total: int,
     max_legs: int,
+    max_table_states: int = 0,
 ) -> _DPTable:
     """Fold one pool's jump points (with pre-computed outputs) into the DP.
 
     This avoids re-quoting jump points whose outputs were already computed during
     enumeration. The `candidates` list contains (amount, output) pairs from
     _pool_jump_points.
+
+    Online Pareto pruning: during the fold, a candidate at (legs, spent) is
+    skipped if an existing state at the same spent has <= legs and >= output
+    (dominance). This is sound because any future extension of the dominated
+    state would use more legs and produce less output than the same extension
+    of the dominating state. This keeps the table smaller without losing
+    exactness, reducing the post-fold Pareto indexing work.
+
+    Resource bound: if max_table_states > 0 and the table exceeds it, raises
+    ResourceLimitExceeded so the caller can fall back to the exact small-domain
+    DP.
     """
     next_states: _DPTable = dict(states)
+    # Index existing states by spent for quick Pareto checks.
+    # spent -> list of (legs_used, output) for non-dominated states.
+    pareto_index: dict[int, list[tuple[int, int]]] = {}
+    for (used_legs, spent), (total_out, _) in next_states.items():
+        _pareto_insert(pareto_index, int(spent), int(used_legs), int(total_out))
+
     for (used_legs, spent), (total_out, legs) in states.items():
         if used_legs >= int(max_legs):
             continue
@@ -347,14 +390,81 @@ def _dp_fold_pool_with_outputs(
             new_spent = int(spent) + int(amount)
             if new_spent > int(amount_total):
                 continue
-            key = (int(used_legs) + 1, int(new_spent))
+            new_legs_used = int(used_legs) + 1
+            new_out = int(total_out) + int(out_amount)
+            # Online Pareto check: skip if dominated by an existing state at
+            # the same spent with <= legs and >= output.
+            if _pareto_is_dominated(pareto_index, new_spent, new_legs_used, new_out):
+                continue
+            key = (new_legs_used, new_spent)
             candidate: _State = (
-                int(total_out) + int(out_amount),
+                new_out,
                 tuple(sorted((*legs, (pool_id, int(amount))))),
             )
             if _is_better_state(candidate, next_states.get(key)):
                 next_states[key] = candidate
+                _pareto_insert(pareto_index, new_spent, new_legs_used, new_out)
+                # Remove states dominated by the new one.
+                _pareto_remove_dominated(pareto_index, new_spent, new_legs_used, new_out)
+                # Resource bound check.
+                if max_table_states > 0 and len(next_states) > max_table_states:
+                    raise ResourceLimitExceeded(
+                        f"DP table exceeded {max_table_states} states "
+                        f"(got {len(next_states)})"
+                    )
     return next_states
+
+
+def _pareto_insert(
+    index: dict[int, list[tuple[int, int]]],
+    spent: int,
+    legs_used: int,
+    output: int,
+) -> None:
+    """Insert a state into the Pareto index, removing dominated entries."""
+    entries = index.setdefault(spent, [])
+    # Check if dominated by existing.
+    for legs_j, out_j in entries:
+        if legs_j <= legs_used and out_j >= output:
+            return  # Dominated, don't insert.
+    # Remove existing entries dominated by this one.
+    index[spent] = [
+        (legs_j, out_j) for legs_j, out_j in entries
+        if not (legs_used <= legs_j and output >= out_j)
+    ]
+    index[spent].append((legs_used, output))
+
+
+def _pareto_is_dominated(
+    index: dict[int, list[tuple[int, int]]],
+    spent: int,
+    legs_used: int,
+    output: int,
+) -> bool:
+    """Check if a state is Pareto-dominated by an existing state at the same spent."""
+    entries = index.get(spent)
+    if entries is None:
+        return False
+    for legs_j, out_j in entries:
+        if legs_j <= legs_used and out_j >= output:
+            return True
+    return False
+
+
+def _pareto_remove_dominated(
+    index: dict[int, list[tuple[int, int]]],
+    spent: int,
+    legs_used: int,
+    output: int,
+) -> None:
+    """Remove entries dominated by the new state."""
+    entries = index.get(spent)
+    if entries is None:
+        return
+    index[spent] = [
+        (legs_j, out_j) for legs_j, out_j in entries
+        if not (legs_used <= legs_j and output >= out_j)
+    ]
 
 
 def _best_exact_full_from_dp(
@@ -430,6 +540,7 @@ def _combine_prefix_suffix_by_spent(
     suffix_index: dict[int, list[tuple[int, _State]]],
     amount_total: int,
     max_legs: int,
+    max_combine_pairs: int = 0,
 ) -> dict[int, _State]:
     """Combine prefix and suffix DP indices by spent value.
 
@@ -440,8 +551,12 @@ def _combine_prefix_suffix_by_spent(
 
     Returns combined_spent -> best_state (highest output, then fewest legs,
     then lex legs).
+
+    Resource bound: if max_combine_pairs > 0 and the number of candidate pair
+    iterations exceeds it, raises ResourceLimitExceeded.
     """
     combined: dict[int, _State] = {}
+    pair_count = 0
     for p_spent, p_candidates in prefix_index.items():
         for s_spent, s_candidates in suffix_index.items():
             total_spent = int(p_spent) + int(s_spent)
@@ -449,6 +564,12 @@ def _combine_prefix_suffix_by_spent(
                 continue
             for p_legs_used, p_state in p_candidates:
                 for s_legs_used, s_state in s_candidates:
+                    pair_count += 1
+                    if max_combine_pairs > 0 and pair_count > max_combine_pairs:
+                        raise ResourceLimitExceeded(
+                            f"combine pairs exceeded {max_combine_pairs} "
+                            f"(at {pair_count})"
+                        )
                     total_legs = int(p_legs_used) + int(s_legs_used)
                     if int(total_legs) >= int(max_legs):
                         continue
@@ -474,20 +595,31 @@ def _best_with_residual_from_combined(
     interior_min_valid: int,
     quote_fn: Callable[[_PoolId, int], int | None],
     amount_total: int,
+    max_residual_quotes: int = 0,
 ) -> _State | None:
     """Find the best state where the interior pool absorbs the residual.
 
     For each combined state at spent s, the residual r = amount_total - s goes
     to the interior pool. If r > 0 and feasible, evaluate the total.
+
+    Resource bound: if max_residual_quotes > 0 and the number of quote calls
+    exceeds it, raises ResourceLimitExceeded.
     """
     best_out = -1
     best_legs: tuple[tuple[_PoolId, int], ...] | None = None
+    quote_count = 0
     for spent, state in combined.items():
         residual = int(amount_total) - int(spent)
         if residual <= 0:
             continue
         if int(residual) < int(interior_min_valid):
             continue
+        quote_count += 1
+        if max_residual_quotes > 0 and quote_count > max_residual_quotes:
+            raise ResourceLimitExceeded(
+                f"residual quotes exceeded {max_residual_quotes} "
+                f"(at {quote_count})"
+            )
         out_residual = quote_fn(interior_pool_id, int(residual))
         if out_residual is None:
             continue
@@ -513,15 +645,22 @@ def _build_prefix_suffix_dps(
     jump_points: dict[_PoolId, list[tuple[int, int]]],
     amount_total: int,
     max_legs: int,
+    max_table_states: int = 0,
 ) -> tuple[list[_DPTable], list[_DPTable]]:
     """Build prefix and suffix DP tables for each pool position.
 
     prefix[i] = DP over pools[0..i-1] (pools before position i).
-    suffix[i] = DP over pools[i+1..k-1] (pools after position i).
+    suffix[i] = DP over pools[i..k-1] (pools from position i onward).
+
+    To exclude pool i as the interior pool, combine prefix[i] (pools before i)
+    with suffix[i+1] (pools after i). This is what the main staircase loop does.
 
     Uses pre-computed jump-point outputs to avoid re-quoting during DP folding.
     This shares work: instead of running k+1 separate DPs (one per interior-pool
     exclusion), we run 2 forward/backward passes and combine in O(1) per pair.
+
+    Resource bound: if max_table_states > 0 and any DP table exceeds it, raises
+    ResourceLimitExceeded.
     """
     ordered = sorted(pools, key=lambda p: p.pool_id)
     k = len(ordered)
@@ -538,6 +677,7 @@ def _build_prefix_suffix_dps(
             candidates=candidates,
             amount_total=int(amount_total),
             max_legs=int(max_legs),
+            max_table_states=max_table_states,
         )
 
     # Suffix DP: suffix[k] = {(0,0): (0,())}, suffix[i] folds pools[i+1..k-1].
@@ -552,6 +692,7 @@ def _build_prefix_suffix_dps(
             candidates=candidates,
             amount_total=int(amount_total),
             max_legs=int(max_legs),
+            max_table_states=max_table_states,
         )
 
     return prefix, suffix
@@ -598,12 +739,24 @@ def staircase_k_pool_best_split(
     cheaper solver automatically.
 
     Rejects duplicate pool_ids (fail-closed, matching the existing DP contract).
+
+    Hard resource bounds: enforces max_table_states, max_combine_pairs, and
+    max_residual_quotes. If any bound is exceeded, raises ResourceLimitExceeded
+    so the adaptive entry point can fall back to the exact small-domain DP.
+    The structural ceiling for table states is (max_legs+1)*(D+1); we allow
+    up to _MAX_TABLE_STATES_MULTIPLIER times that before triggering fallback.
     """
     amount_total = _require_positive_control(amount_in_total, name="amount_in_total")
     max_legs_i = _require_positive_control(max_legs, name="max_legs")
     if not pool_specs:
         raise ValueError("no pools provided")
     _validate_pool_ids(pool_specs)
+
+    # Compute hard resource bounds from structural ceilings.
+    D_i = int(amount_total)
+    max_table_states = _MAX_TABLE_STATES_MULTIPLIER * (int(max_legs_i) + 1) * (D_i + 1)
+    max_combine_pairs = _MAX_COMBINE_PAIRS_MULTIPLIER * D_i * D_i * int(max_legs_i) * int(max_legs_i)
+    max_residual_quotes = _MAX_RESIDUAL_QUOTES_MULTIPLIER * D_i
 
     request = _KPoolStaircaseRequest(
         pools=tuple(pool_specs),
@@ -626,6 +779,7 @@ def staircase_k_pool_best_split(
         jump_points=context.jump_points,
         amount_total=int(amount_total),
         max_legs=int(max_legs_i),
+        max_table_states=max_table_states,
     )
 
     best: _State | None = None
@@ -654,6 +808,7 @@ def staircase_k_pool_best_split(
             suffix_index=suffix_index,
             amount_total=int(amount_total),
             max_legs=int(max_legs_i),
+            max_combine_pairs=max_combine_pairs,
         )
         candidate = _best_with_residual_from_combined(
             combined=combined,
@@ -661,6 +816,7 @@ def staircase_k_pool_best_split(
             interior_min_valid=int(spec.min_valid),
             quote_fn=quote_fn,
             amount_total=int(amount_total),
+            max_residual_quotes=max_residual_quotes,
         )
         if candidate is not None and _is_better_state(candidate, best):
             best = candidate
@@ -795,12 +951,25 @@ def best_k_pool_exact_in_split(
             )
 
     # Sparse breakpoints: run the staircase DP (reuses already-enumerated jumps).
-    return _staircase_split_with_context(
-        context=context,
-        pool_specs=tuple(pool_specs),
-        amount_total=int(amount_total),
-        max_legs=int(max_legs_i),
-    )
+    # ResourceLimitExceeded from hard resource bounds is caught here and falls
+    # back to the exact small-domain DP, preserving exactness.
+    try:
+        return _staircase_split_with_context(
+            context=context,
+            pool_specs=tuple(pool_specs),
+            amount_total=int(amount_total),
+            max_legs=int(max_legs_i),
+        )
+    except ResourceLimitExceeded:
+        if small_domain_dp_fn is not None:
+            return _fallback_to_small_dp(
+                small_domain_dp_fn=small_domain_dp_fn,
+                pool_specs=pool_specs,
+                amount_total=int(amount_total),
+                max_legs=int(max_legs_i),
+                quote_exact_in=quote_exact_in,
+            )
+        raise
 
 
 def _fallback_to_small_dp(
@@ -837,7 +1006,15 @@ def _staircase_split_with_context(
     amount_total: int,
     max_legs: int,
 ) -> dict[_PoolId, int]:
-    """Run the staircase DP using an already-built context (jump points cached)."""
+    """Run the staircase DP using an already-built context (jump points cached).
+
+    Raises ResourceLimitExceeded if any hard resource bound is exceeded.
+    """
+    D_i = int(amount_total)
+    max_table_states = _MAX_TABLE_STATES_MULTIPLIER * (int(max_legs) + 1) * (D_i + 1)
+    max_combine_pairs = _MAX_COMBINE_PAIRS_MULTIPLIER * D_i * D_i * int(max_legs) * int(max_legs)
+    max_residual_quotes = _MAX_RESIDUAL_QUOTES_MULTIPLIER * D_i
+
     def quote_fn(pool_id: _PoolId, amount: int) -> int | None:
         return context.quote(pool_id, int(amount))
 
@@ -849,6 +1026,7 @@ def _staircase_split_with_context(
         jump_points=context.jump_points,
         amount_total=int(amount_total),
         max_legs=int(max_legs),
+        max_table_states=max_table_states,
     )
 
     best: _State | None = None
@@ -870,6 +1048,7 @@ def _staircase_split_with_context(
             suffix_index=suffix_index,
             amount_total=int(amount_total),
             max_legs=int(max_legs),
+            max_combine_pairs=max_combine_pairs,
         )
         candidate = _best_with_residual_from_combined(
             combined=combined,
@@ -877,6 +1056,7 @@ def _staircase_split_with_context(
             interior_min_valid=int(spec.min_valid),
             quote_fn=quote_fn,
             amount_total=int(amount_total),
+            max_residual_quotes=max_residual_quotes,
         )
         if candidate is not None and _is_better_state(candidate, best):
             best = candidate

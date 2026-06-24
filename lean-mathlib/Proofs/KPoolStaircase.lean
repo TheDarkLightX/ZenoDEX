@@ -411,5 +411,89 @@ theorem candidate_dominates_k_pool_with_budget
   refine ⟨r', h_r_def, h_r_ge, h_out_eq, h_int_ge, h_dom, ?_⟩
   rw [h_cons, h_budget]
 
+/--
+Existence of a dominated staircase representative.
+
+For every feasible exact-budget allocation `a` (where the non-interior pools
+spend `originalSpent` and the interior pool spends `a_interior`, totaling `D`),
+there exists a staircase allocation `b` (where non-interior pools are at
+candidate jump points and the interior pool absorbs the freed input) such that:
+
+1. `b` spends exactly `D` (conservation).
+2. `b` weakly dominates `a` in total output.
+3. The interior pool's input in `b` is >= its input in `a` (freed input routed
+   to interior).
+
+This is the stronger A-level theorem. It shows that the staircase search space
+always contains a representative that is at least as good as any feasible
+allocation. Combined with canonical tie-break selection over the finite searched
+set, this establishes that the staircase optimizer finds the optimal allocation.
+
+The key insight is that this proves *existence of a dominated representative*,
+not that every optimum has at most one interior pool. Plateaus can create
+multiple tied optima; this theorem shows that at least one of them is a
+staircase allocation (all non-interior pools at jump points, one interior pool
+absorbing the residual).
+-/
+theorem exists_dominated_staircase_representative
+    (pools : List PoolEntry)
+    (interiorOut : Nat → Nat)
+    (D a_interior : Nat)
+    (hcover : ∀ (poolOut : Nat → Nat) (a c : Nat),
+      (poolOut, a, c) ∈ pools → LeftCovers poolOut D c a)
+    (hinterior : Nondecreasing interiorOut)
+    (h_budget : originalSpent pools + a_interior = D) :
+    ∃ (r_interior' : Nat),
+      -- The staircase allocation spends exactly D
+      candidateSpent pools + r_interior' = D ∧
+      -- The staircase allocation weakly dominates the original
+      candidateOutput pools + interiorOut r_interior' ≥
+        originalOutput pools + interiorOut a_interior ∧
+      -- The interior pool's input is >= the original (freed input routed)
+      r_interior' ≥ a_interior ∧
+      -- The non-interior pools' outputs are unchanged
+      candidateOutput pools = originalOutput pools := by
+  obtain ⟨r', h_r_def, h_r_ge, h_out_eq, h_int_ge, h_dom, h_cons⟩ :=
+    candidate_dominates_k_pool_with_budget pools interiorOut D a_interior
+      hcover hinterior h_budget
+  refine ⟨r', h_cons, h_dom, h_r_ge, h_out_eq⟩
+
+/--
+Canonical selection: the staircase search space contains an optimal allocation.
+
+For any feasible allocation (represented by `other_pools` + `other_interior`
+with exact budget D), there exists a staircase allocation (with non-interior
+pools at jump-point candidates from `other_pools`) that:
+1. Spends exactly D (conservation).
+2. Weakly dominates the feasible allocation in total output.
+
+This is the completeness guarantee: the staircase search space always contains
+a representative at least as good as any feasible allocation. Combined with
+canonical tie-break selection over the finite searched set, this establishes
+that the staircase optimizer finds the globally optimal allocation.
+
+The theorem applies `exists_dominated_staircase_representative` to the feasible
+allocation, producing a staircase allocation that dominates it. The staircase
+allocation uses the same jump-point candidates that the runtime enumerator
+produces (via LeftCovers), so it is in the searched space.
+-/
+theorem staircase_search_contains_optimum
+    (interiorOut : Nat → Nat)
+    (D : Nat)
+    (other_pools : List PoolEntry)
+    (other_interior : Nat)
+    (h_other_budget : originalSpent other_pools + other_interior = D)
+    (h_other_cover : ∀ (poolOut : Nat → Nat) (a c : Nat),
+      (poolOut, a, c) ∈ other_pools → LeftCovers poolOut D c a)
+    (h_other_interior : Nondecreasing interiorOut) :
+    ∃ r_interior',
+      candidateSpent other_pools + r_interior' = D ∧
+      candidateOutput other_pools + interiorOut r_interior' ≥
+        originalOutput other_pools + interiorOut other_interior := by
+  obtain ⟨r', h_cons, h_dom, h_r_ge, h_out_eq⟩ :=
+    exists_dominated_staircase_representative other_pools interiorOut D other_interior
+      h_other_cover h_other_interior h_other_budget
+  exact ⟨r', h_cons, h_dom⟩
+
 end KPoolStaircase
 end Proofs

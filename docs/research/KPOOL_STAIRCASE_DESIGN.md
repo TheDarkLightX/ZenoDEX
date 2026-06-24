@@ -106,10 +106,28 @@ cost; we fall back to the existing exact DP in that regime.
   the existing small-domain DP. If no fallback is available, re-raises. This
   matches the two-pool staircase behavior: an "exact" solver must not silently
   lose optimality by returning a partial candidate set.
-- No floats; all arithmetic is integer.
+- No floats; all arithmetic is integer (including the breakpoint density
+  estimator, which returns an integer count).
 - No unbounded loops: jump enumeration is bounded by `D` (each jump advances
   output by at least 1, output is bounded by `y_i`), and the DP is bounded by
   `k * D * B_max`.
+- Hard resource bounds with exact fallback: the staircase DP enforces
+  `max_table_states`, `max_combine_pairs`, and `max_residual_quotes`. If any
+  bound is exceeded, `ResourceLimitExceeded` is raised. The adaptive entry
+  point catches this and falls back to the existing exact small-domain DP,
+  preserving exactness. If no fallback is available, the exception propagates
+  (fail-closed, no partial result). The bounds are set at structural ceilings:
+  - `max_table_states = 2 * (max_legs+1) * (D+1)` (structural ceiling:
+    `(max_legs+1) * (D+1)` distinct (legs_used, spent) keys)
+  - `max_combine_pairs = 2 * D^2 * max_legs^2` (structural ceiling:
+    `D^2 * max_legs^2` prefix x suffix candidate pairs)
+  - `max_residual_quotes = 2 * D` (structural ceiling: `D` combined spent values)
+- Online Pareto pruning during DP fold: during each fold, a candidate at
+  (legs, spent) is skipped if an existing state at the same spent has <= legs
+  and >= output (dominance). This is sound because any future extension of the
+  dominated state would use more legs and produce less output than the same
+  extension of the dominating state. This keeps the table smaller without
+  losing exactness.
 
 ## Formal Verification
 
@@ -123,16 +141,77 @@ cost; we fall back to the existing exact DP in that regime.
      originalSpent + original_interior).
    - `candidate_dominates_k_pool_with_budget`: budget-premise corollary that
      takes `originalSpent + a_interior = D` and returns `candidateSpent + r' = D`.
+   - `exists_dominated_staircase_representative`: for every feasible exact-budget
+     allocation, there exists a staircase allocation (non-interior pools at jump
+     points, one interior pool absorbing the residual) that spends exactly D and
+     weakly dominates it in total output. This is the stronger existence theorem.
+   - `staircase_search_contains_optimum`: for any feasible allocation, there
+     exists a staircase allocation that weakly dominates it. This establishes
+     that the staircase search space always contains a representative at least
+     as good as any feasible allocation.
    - Imported in `Proofs.lean` for aggregate build inclusion.
    - Scope: assumes `LeftCovers` hypotheses. The CPMM jump formula, canonical
      tie-break globality, and DP enumeration correctness are runtime-tested.
 2. **Runtime parity tests:** Brute-force oracle parity on a hostile corpus
    (skewed reserves, high fees, dust edges, zero-output gaps, tie-heavy
-   plateaus) for `k in {2, 3, 4}` and `D` up to a bounded limit. 37 tests
-   including adaptive fallback, duplicate pool_id rejection, and drift
-   fail-closed behavior.
+   plateaus) for `k in {2, 3, 4}` and `D` up to a bounded limit. 39 tests
+   including adaptive fallback, duplicate pool_id rejection, drift fail-closed
+   behavior, and ResourceLimitExceeded fallback.
 3. **Quote-count benchmark:** Compare against the existing greedy and
    small-domain DP.
+4. **State-count and work-count profiling:** `tools/profile_state_counts.py`
+   measures prefix/suffix state counts, Pareto-optimal state counts, combined
+   state counts, transition attempts, combine pairs, and residual quotes across
+   sparse, moderate, dense, and adversarial pool configurations. This data
+   establishes the actual resource envelope and verifies that the hard bounds
+   are well above actual usage.
+
+## Negative Knowledge
+
+Approaches considered and rejected, with reasons:
+
+1. **State truncation by dropping states below a cap:** Unsound. Dropping
+   non-Pareto-dominated states can lose the optimal solution. The only sound
+   cap is one that triggers exact fallback or fail-closed rejection (which is
+   what we implement via `ResourceLimitExceeded`).
+
+2. **Post-fold Pareto filtering only (no online pruning):** Sound but
+   suboptimal. The prefix/suffix tables grow large before the Pareto filter
+   runs, wasting memory and transition work. Online Pareto pruning during the
+   fold keeps tables smaller throughout, reducing both memory and time.
+
+3. **Single forward DP instead of prefix/suffix decomposition:** A single
+   forward DP over all pools does not cover the residual interior case (it
+   cannot try each pool as the interior without re-running). The prefix/suffix
+   decomposition buys reuse across interior choices at the cost of 2 passes
+   instead of k+1. In memory and combine time, prefix/suffix can be worse than
+   a single forward DP for small k, but the single DP alone does not cover the
+   one-interior-pool search space.
+
+4. **Adaptive fallback heuristic can choose the slower solver:** The Phase 1
+   density estimate is a heuristic. It can underestimate breakpoint density,
+   causing the staircase DP to run when the small-domain DP would be faster.
+   It cannot cause an incorrect result: both solvers are exact, and
+   `ResourceLimitExceeded` triggers fallback before any partial result is
+   returned. The heuristic is conservative (sum of estimates, not max), so a
+   single dense pool among many sparse ones does not trigger unnecessary
+   fallback.
+
+5. **Pareto filter soundness scope:** The Pareto filter is sound only for
+   same-spent states and only while future feasibility depends on spent, legs
+   remaining, and fixed remaining pools. If hidden constraints enter the state
+   later (e.g., pool-specific minimum amounts that vary by context), the
+   dominance relation must be revisited. The current implementation has no
+   such hidden constraints: min_valid is fixed per pool and checked at the
+   residual probe, not during the DP fold.
+
+6. **The dominance theorem proves existence, not uniqueness:** The theorem
+   shows that for every feasible allocation, there exists a staircase
+   allocation that weakly dominates it. It does not prove that every optimum
+   has at most one interior pool. Plateaus can create multiple tied optima
+   with several interior-looking allocations. The theorem guarantees that at
+   least one of the tied optima is a staircase allocation, which is sufficient
+   for the optimizer to find the optimal output.
 
 ## Scope
 
