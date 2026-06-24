@@ -279,7 +279,7 @@ def verify_external_signal_source_registry_payload(payload: object) -> tuple[boo
         return False, "unsupported external signal source registry schema"
     try:
         registry = external_signal_source_registry_from_object(payload)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     if dict(payload) != registry.to_dict():
         return False, "external signal source registry payload mismatch"

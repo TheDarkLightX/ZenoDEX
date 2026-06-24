@@ -131,6 +131,16 @@ def test_signal_source_registry_payload_verifier_roundtrip_and_tamper_rejection(
     assert ok is False
     assert error == "external signal source registry payload mismatch"
 
+    malformed = dict(payload)
+    entries = list(payload["entries"])  # type: ignore[index]
+    bad_entry = dict(entries[0])
+    bad_entry["source_kind"] = "bad-source-kind"
+    malformed["entries"] = [bad_entry]
+    ok, error = verify_external_signal_source_registry_payload(malformed)
+    assert ok is False
+    assert error is not None
+    assert "bad-source-kind" in error
+
 
 def test_signal_source_registry_helper_type_guards() -> None:
     with pytest.raises(TypeError, match="value must be a SignalSourceKind"):
