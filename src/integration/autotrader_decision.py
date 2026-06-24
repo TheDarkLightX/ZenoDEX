@@ -18,6 +18,12 @@ CANDIDATE_SET_SCHEMA = "zenodex/strategy-candidate-set/v1"
 DECISION_CERTIFICATE_SCHEMA = "zenodex/strategy-decision/v1"
 DEFAULT_DECISION_MODEL_VERSION = "autotrader-binary-v1"
 
+
+def _safe_payload_validation_error(exc: Exception) -> str:
+    detail = " ".join(str(exc).split())
+    return detail[:200] or type(exc).__name__
+
+
 class DecisionCandidateKind(Enum):
     NO_OP = "no_op"
     EMIT_COMPILED_INTENT = "emit_compiled_intent"
@@ -372,7 +378,7 @@ def verify_strategy_candidate_set_payload(payload: object) -> tuple[bool, str | 
             candidates=candidates,
         )
     except Exception as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != candidate_set.to_dict():
         return False, "candidate set payload mismatch"
     return True, None
@@ -413,7 +419,7 @@ def verify_strategy_decision_certificate_payload(payload: object) -> tuple[bool,
             kill_switch_active=kill_switch_active,
         )
     except Exception as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != certificate.to_dict():
         return False, "decision certificate payload mismatch"
     return True, None

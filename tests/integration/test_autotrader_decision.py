@@ -194,6 +194,47 @@ def test_verify_strategy_decision_certificate_rejects_tampered_binding() -> None
     assert err == "candidate_set_hash mismatch"
 
 
+def test_strategy_payload_verifiers_cap_hash_consistent_malformed_enum_errors() -> None:
+    strategy = _strategy()
+    bundle = build_tau_policy_bundle(
+        strategy=strategy,
+        compile_contract_tau_receipt=build_compile_contract_tau_policy_receipt(strategy=strategy).to_dict(),
+    )
+    artifact = build_strategy_policy_artifact(strategy=strategy, tau_policy_bundle=bundle)
+    candidate_set = build_strategy_candidate_set(
+        policy_artifact=artifact,
+        tau_policy_bundle=bundle,
+        observation_packet=_packet(),
+        emit_requested=True,
+        emit_admissible=True,
+    )
+    decision = build_strategy_decision_certificate(candidate_set=candidate_set, kill_switch_active=False)
+
+    candidate_payload = candidate_set.to_dict()
+    candidate_payload["candidates"][1]["kind"] = "9" * 1_000 + "x"
+    unsigned_candidate_payload = {
+        key: value for key, value in candidate_payload.items() if key != "candidate_set_hash"
+    }
+    candidate_payload["candidate_set_hash"] = sha256_hex(canonical_json_bytes(unsigned_candidate_payload))
+    ok, err = verify_strategy_candidate_set_payload(candidate_payload)
+    assert ok is False
+    assert err is not None
+    assert len(err) <= 200
+    assert "9" * 201 not in err
+
+    decision_payload = decision.to_dict()
+    decision_payload["winner_kind"] = "9" * 1_000 + "x"
+    unsigned_decision_payload = {
+        key: value for key, value in decision_payload.items() if key != "decision_hash"
+    }
+    decision_payload["decision_hash"] = sha256_hex(canonical_json_bytes(unsigned_decision_payload))
+    ok, err = verify_strategy_decision_certificate_payload(decision_payload)
+    assert ok is False
+    assert err is not None
+    assert len(err) <= 200
+    assert "9" * 201 not in err
+
+
 def test_decision_models_cover_validation_and_hash_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     strategy = _strategy()
     bundle = build_tau_policy_bundle(

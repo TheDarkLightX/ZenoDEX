@@ -394,3 +394,42 @@ def test_bounded_multi_action_decision_verifier_rejects_mismatch() -> None:
     )
     assert ok is False
     assert err == "candidate_set_hash mismatch"
+
+
+def test_bounded_multi_action_payload_verifiers_cap_hash_consistent_malformed_enum_errors() -> None:
+    artifact, bundle = _artifact_bundle()
+    candidate_set = build_bounded_multi_action_candidate_set(
+        policy_artifact=artifact,
+        tau_policy_bundle=bundle,
+        observation_packet=_packet(),
+        action_frontier={
+            StrategyAction.PLACE_SWAP_EXACT_IN: (True, True, 10),
+            StrategyAction.PLACE_SWAP_EXACT_OUT: (True, True, 30),
+            StrategyAction.PLACE_ORDER_INTENT: (True, True, 20),
+        },
+    )
+    decision = build_bounded_multi_action_decision_certificate(candidate_set=candidate_set)
+
+    candidate_payload = candidate_set.to_dict()
+    candidate_payload["candidates"][1]["kind"] = "9" * 1_000 + "x"
+    unsigned_candidate_payload = {
+        key: value for key, value in candidate_payload.items() if key != "candidate_set_hash"
+    }
+    candidate_payload["candidate_set_hash"] = sha256_hex(canonical_json_bytes(unsigned_candidate_payload))
+    ok, err = verify_bounded_multi_action_candidate_set_payload(candidate_payload)
+    assert ok is False
+    assert err is not None
+    assert len(err) <= 200
+    assert "9" * 201 not in err
+
+    decision_payload = decision.to_dict()
+    decision_payload["winner_kind"] = "9" * 1_000 + "x"
+    unsigned_decision_payload = {
+        key: value for key, value in decision_payload.items() if key != "decision_hash"
+    }
+    decision_payload["decision_hash"] = sha256_hex(canonical_json_bytes(unsigned_decision_payload))
+    ok, err = verify_bounded_multi_action_decision_certificate_payload(decision_payload)
+    assert ok is False
+    assert err is not None
+    assert len(err) <= 200
+    assert "9" * 201 not in err

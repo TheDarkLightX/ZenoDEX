@@ -17,6 +17,11 @@ MULTI_ACTION_DECISION_CERTIFICATE_SCHEMA = "zenodex/strategy-multi-action-decisi
 DEFAULT_MULTI_ACTION_MODEL_VERSION = "autotrader-multi-action-v1"
 
 
+def _safe_payload_validation_error(exc: Exception) -> str:
+    detail = " ".join(str(exc).split())
+    return detail[:200] or type(exc).__name__
+
+
 class MultiActionCandidateKind(Enum):
     NO_OP = "no_op"
     PLACE_ORDER_INTENT = StrategyAction.PLACE_ORDER_INTENT.value
@@ -535,7 +540,7 @@ def verify_bounded_multi_action_candidate_set_payload(payload: object) -> tuple[
             candidates=candidates,
         )
     except Exception as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != candidate_set.to_dict():
         return False, "bounded multi-action candidate set payload mismatch"
     return True, None
@@ -553,6 +558,15 @@ def verify_bounded_multi_action_decision_certificate_payload(payload: object) ->
     argmax_steps = payload.get("argmax_steps")
     if not isinstance(argmax_steps, list):
         return False, "argmax_steps must be a list"
+    winner_index = payload.get("winner_index")
+    winner_key = payload.get("winner_key")
+    frontier_width = payload.get("frontier_width")
+    if not isinstance(winner_index, int) or isinstance(winner_index, bool):
+        return False, "winner_index must be an int"
+    if not isinstance(winner_key, int) or isinstance(winner_key, bool):
+        return False, "winner_key must be an int"
+    if not isinstance(frontier_width, int) or isinstance(frontier_width, bool):
+        return False, "frontier_width must be an int"
     try:
         certificate = BoundedMultiActionDecisionCertificate(
             policy_artifact_hash=str(payload.get("policy_artifact_hash", "")),
@@ -560,14 +574,14 @@ def verify_bounded_multi_action_decision_certificate_payload(payload: object) ->
             observation_hash=str(payload.get("observation_hash", "")),
             candidate_set_hash=str(payload.get("candidate_set_hash", "")),
             decision_model_version=str(payload.get("decision_model_version", "")),
-            winner_index=payload.get("winner_index"),
+            winner_index=winner_index,
             winner_kind=MultiActionCandidateKind(str(payload.get("winner_kind", ""))),
-            winner_key=payload.get("winner_key"),
-            frontier_width=payload.get("frontier_width"),
+            winner_key=winner_key,
+            frontier_width=frontier_width,
             argmax_steps=tuple(dict(step) for step in argmax_steps),
         )
     except Exception as exc:
-        return False, str(exc)
+        return False, _safe_payload_validation_error(exc)
     if payload != certificate.to_dict():
         return False, "bounded multi-action decision certificate payload mismatch"
     return True, None
