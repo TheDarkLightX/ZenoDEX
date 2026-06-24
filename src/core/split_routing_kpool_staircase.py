@@ -179,19 +179,12 @@ def _pool_jump_points(
     breakpoints. B is at most amount_in_total, and can be much smaller when
     reserves are skewed.
 
-    Termination conditions (all fail-closed):
-    1. gross_in > amount_in_total: budget exhausted, return candidates collected
-       so far. This is the normal completion path.
-    2. quote_exact_in raises ValueError: the amount is not quotable (typically
-       below min_valid or pool exhausted). Stop enumerating and return
-       candidates collected so far. This is fail-closed: the optimizer will
-       only consider jump points that were successfully quoted, so no invalid
-       allocation can result.
-    3. reached_output < next_output_level: the staircase plateau ended (the
-       closed-form estimate over-estimated the actual output). Stop and return
-       candidates collected so far. This is also fail-closed: the missed jump
-       points would have higher gross_in, so they are beyond the current
-       plateau and not needed.
+    Fail-closed on drift: if the quote function rejects a requested output
+    level (ValueError) or the reached output falls below the requested level
+    (closed-form estimate drift), this raises ValueError. This matches the
+    two-pool staircase behavior: an "exact" solver must not silently lose
+    optimality by returning a partial candidate set. The caller (adaptive
+    entry point) catches this and falls back to the existing DP.
     """
     candidates: list[tuple[int, int]] = []
     next_output_level = 1
@@ -200,10 +193,10 @@ def _pool_jump_points(
         if gross_in is not None and gross_in <= int(amount_in_total):
             try:
                 reached_output = quote_exact_in(pool, int(gross_in))
-            except ValueError:
-                break
+            except ValueError as exc:
+                raise ValueError("quote rejected requested output level") from exc
             if int(reached_output) < int(next_output_level):
-                break
+                raise ValueError("quote did not reach requested output level")
             candidates.append((int(gross_in), int(reached_output)))
             next_output_level = int(reached_output) + 1
             continue
@@ -223,11 +216,11 @@ def _pool_jump_points_bounded(
     enumeration completes. This lets the adaptive entry point bail out of
     dense-breakpoint regimes without paying the full enumeration cost.
 
-    Termination conditions are the same as _pool_jump_points (fail-closed):
-    ValueError from quote_exact_in or reached_output < next_output_level stops
-    enumeration and returns the candidates collected so far. The returned
-    candidates are all successfully-quoted jump points, so no invalid allocation
-    can result from truncation.
+    Fail-closed on drift: if the quote function rejects a requested output
+    level (ValueError) or the reached output falls below the requested level
+    (closed-form estimate drift), this raises ValueError. This matches
+    _pool_jump_points and the two-pool staircase behavior. The caller should
+    catch this and fall back to the existing DP.
     """
     candidates: list[tuple[int, int]] = []
     next_output_level = 1
@@ -236,10 +229,10 @@ def _pool_jump_points_bounded(
         if gross_in is not None and gross_in <= int(amount_in_total):
             try:
                 reached_output = quote_exact_in(pool, int(gross_in))
-            except ValueError:
-                break
+            except ValueError as exc:
+                raise ValueError("quote rejected requested output level") from exc
             if int(reached_output) < int(next_output_level):
-                break
+                raise ValueError("quote did not reach requested output level")
             candidates.append((int(gross_in), int(reached_output)))
             if len(candidates) > int(max_breakpoints):
                 return None
@@ -744,33 +737,48 @@ def best_k_pool_exact_in_split(
     context = _KPoolStaircaseContext(request=request)
 
     # Enumerate with early exit per pool. If any pool exceeds the per-pool cap,
-    # fall back immediately without finishing enumeration.
+    # fall back immediately without finishing enumeration. If any pool raises
+    # ValueError (quote/formula drift), fall back to the existing DP rather than
+    # silently returning a partial candidate set.
     per_pool_cap = int(threshold) + 1
     jump_points: dict[_PoolId, list[tuple[int, int]]] = {}
-    for spec in pool_specs:
-        pts = _pool_jump_points_bounded(
-            spec.pool,
-            int(amount_total),
-            quote_exact_in=quote_exact_in,
-            max_breakpoints=int(per_pool_cap),
-        )
-        if pts is None:
-            # Dense breakpoints detected: fall back to the existing DP.
-            if small_domain_dp_fn is not None:
-                return _fallback_to_small_dp(
-                    small_domain_dp_fn=small_domain_dp_fn,
-                    pool_specs=pool_specs,
-                    amount_total=int(amount_total),
-                    max_legs=int(max_legs_i),
-                    quote_exact_in=quote_exact_in,
-                )
-            # No fallback available: do full enumeration.
-            pts = _pool_jump_points(
+    try:
+        for spec in pool_specs:
+            pts = _pool_jump_points_bounded(
                 spec.pool,
                 int(amount_total),
                 quote_exact_in=quote_exact_in,
+                max_breakpoints=int(per_pool_cap),
             )
-        jump_points[spec.pool_id] = pts
+            if pts is None:
+                # Dense breakpoints detected: fall back to the existing DP.
+                if small_domain_dp_fn is not None:
+                    return _fallback_to_small_dp(
+                        small_domain_dp_fn=small_domain_dp_fn,
+                        pool_specs=pool_specs,
+                        amount_total=int(amount_total),
+                        max_legs=int(max_legs_i),
+                        quote_exact_in=quote_exact_in,
+                    )
+                # No fallback available: do full enumeration.
+                pts = _pool_jump_points(
+                    spec.pool,
+                    int(amount_total),
+                    quote_exact_in=quote_exact_in,
+                )
+            jump_points[spec.pool_id] = pts
+    except ValueError:
+        # Quote/formula drift detected: fall back to the existing DP if
+        # available, otherwise re-raise (fail-closed, no silent partial result).
+        if small_domain_dp_fn is not None:
+            return _fallback_to_small_dp(
+                small_domain_dp_fn=small_domain_dp_fn,
+                pool_specs=pool_specs,
+                amount_total=int(amount_total),
+                max_legs=int(max_legs_i),
+                quote_exact_in=quote_exact_in,
+            )
+        raise
     context.jump_points = jump_points
 
     # Cumulative post-enumeration budget guard.

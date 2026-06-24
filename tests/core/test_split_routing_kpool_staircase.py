@@ -492,3 +492,76 @@ def test_adaptive_rejects_duplicate_pool_ids() -> None:
             quote_exact_in=exact_out_for_pool_exact_in,
             small_domain_dp_fn=_small_dp_fn,
         )
+
+
+# ---------------------------------------------------------------------------
+# Drift fail-closed: jump enumeration must raise on quote/formula drift.
+#
+# Matches the two-pool staircase behavior: an "exact" solver must not silently
+# lose optimality by returning a partial candidate set. The adaptive entry
+# point catches the drift ValueError and falls back to the existing DP.
+# ---------------------------------------------------------------------------
+
+
+def _drift_quote(pool: PoolXY, amount: int) -> int:
+    """A quote function that drifts: rejects amounts above 50, causing
+    the closed-form jump estimate to request an output level that the quote
+    cannot reach."""
+    if int(amount) > 50:
+        raise ValueError("drift: amount exceeds quotable range")
+    return int(exact_out_for_pool_exact_in(pool, int(amount)))
+
+
+def test_kpool_staircase_raises_on_drift_no_fallback() -> None:
+    """Direct staircase must raise ValueError on quote/formula drift."""
+    pools = [
+        ("pool-a", PoolXY(x=10_000, y=10_000, fee_bps=30)),
+        ("pool-b", PoolXY(x=8_000, y=12_000, fee_bps=30)),
+    ]
+    specs = [_spec(pid, p, 1) for pid, p in pools]
+    with pytest.raises(ValueError, match="output level"):
+        staircase_k_pool_best_split(
+            pool_specs=specs,
+            amount_in_total=500,
+            max_legs=2,
+            quote_exact_in=_drift_quote,
+        )
+
+
+def test_kpool_adaptive_falls_back_on_drift() -> None:
+    """Adaptive entry point must fall back to small-domain DP on drift.
+
+    Uses amount_in_total=80 so the fallback DP can find a feasible allocation
+    within the drift quote's 50-amount limit (e.g. 40+40=80, each <= 50).
+    """
+    pools = [
+        ("pool-a", PoolXY(x=10_000, y=10_000, fee_bps=30)),
+        ("pool-b", PoolXY(x=8_000, y=12_000, fee_bps=30)),
+    ]
+    specs = [_spec(pid, p, 1) for pid, p in pools]
+    pools_dict = {pid: p for pid, p in pools}
+    min_valids = {pid: 1 for pid, _ in pools}
+
+    def quote_for_pid(pool_id: str, amount: int) -> int | None:
+        if int(amount) < int(min_valids[pool_id]):
+            return None
+        if int(amount) <= 0:
+            return 0
+        if int(amount) > 50:
+            return None
+        try:
+            return int(exact_out_for_pool_exact_in(pools_dict[pool_id], int(amount)))
+        except ValueError:
+            return None
+
+    # The adaptive entry point should catch the drift and fall back.
+    result = best_k_pool_exact_in_split(
+        pool_specs=specs,
+        amount_in_total=80,
+        max_legs=2,
+        quote_exact_in=_drift_quote,
+        small_domain_dp_fn=_small_dp_fn,
+    )
+    # The result should be a valid allocation from the fallback DP.
+    assert isinstance(result, dict)
+    assert sum(result.values()) <= 80
