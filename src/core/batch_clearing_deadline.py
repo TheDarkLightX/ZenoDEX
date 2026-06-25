@@ -4,8 +4,8 @@ Batch clearing A-optimization via deadline scheduling (experimental).
 Reformulates CPMM batch clearing as weighted deadline scheduling under the
 constant-k approximation. The DP finds the maximum-weight feasible subset in
 EDF order in O(n * S) pseudo-polynomial time (S = total amount_in). A local
-search pass (insert + 1-out-1-in with real CPMM simulation) closes the
-constant-k approximation gap for small batches.
+search pass (insert + 1-out-1-in with real CPMM simulation) heuristically
+reduces the approximation gap for small batches.
 
 Scope: this is an experimental prototype. The DP is exact for the
 constant-k deadline model (A-optimal subset selection under EDF). The local
@@ -296,7 +296,7 @@ def _greedy_completion(
     fee_bps: int,
     quote_exact_in_fn: Callable,
 ) -> Tuple[List[DeadlineSwap], int]:
-    """Local search completion: insert and replace to close the constant-k gap.
+    """Local search completion: insert and replace to heuristically reduce the constant-k gap.
 
     The deadline-based DP is conservative (underestimates R_out), so some swaps
     excluded by the DP may actually execute with the real CPMM formula. This
@@ -542,7 +542,7 @@ def deadline_schedule_batch(
     selected_swaps = [deadline_swaps[i] for i in selected_indices]
     excluded_swaps = [s for i, s in enumerate(deadline_swaps) if i not in set(selected_indices)]
 
-    # 3. Local search completion: insert and replace to close the constant-k gap
+    # 3. Local search completion: insert and replace to heuristically reduce the constant-k gap
     final_ordered, greedy_added = _greedy_completion(
         selected_swaps,
         excluded_swaps,
