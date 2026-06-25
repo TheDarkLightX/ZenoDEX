@@ -11,10 +11,15 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 import random
 import sys
 import time
 from typing import List, Tuple
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from src.core.batch_clearing_deadline import deadline_schedule_batch
 from src.core.batch_clearing_brute import brute_force_best_subset

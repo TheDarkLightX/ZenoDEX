@@ -1,6 +1,7 @@
 import Mathlib.Algebra.Order.Ring.Nat
 import Mathlib.Data.Nat.Sqrt
 import Mathlib.Algebra.Order.Field.Basic
+import Mathlib.Tactic
 
 /-!
 # Batch Clearing Deadline Scheduling: Formal Proofs
@@ -23,7 +24,8 @@ its effective minimum output.
    positive root.
 
 2. `deadline_quadratic_negative_at_zero`: The deadline quadratic is negative at
-   x=0, confirming the positive root is the boundary where feasibility flips.
+   x=0. Under the continuous approximation, this is one side of the root
+   argument for the deadline boundary.
 
 3. `constant_k_monotone`: Adding input to R_in (before removing output) increases
    the product R_in * R_out, supporting the conservativeness of the constant-k
@@ -58,9 +60,7 @@ def deadline_quadratic (net_in m k₀ x : ℤ) : ℤ :=
 theorem discriminant_nonneg (net_in m k₀ : ℕ) :
     0 ≤ (discriminant net_in m k₀ : ℤ) := by
   unfold discriminant
-  have h1 : 0 ≤ ((net_in * m : ℤ) * (net_in * m : ℤ)) := by positivity
-  have h2 : 0 ≤ ((4 * m * net_in * k₀ : ℤ)) := by positivity
-  linarith
+  positivity
 
 /-- The discriminant is strictly positive when net_in, m, and k₀ are all positive.
 
@@ -72,9 +72,7 @@ theorem deadline_discriminant_positive
     (net_in m k₀ : ℕ) (h_net : net_in > 0) (h_m : m > 0) (h_k : k₀ > 0) :
     0 < (discriminant net_in m k₀ : ℤ) := by
   unfold discriminant
-  have h1 : 0 < ((net_in * m : ℤ) * (net_in * m : ℤ)) := by positivity
-  have h2 : 0 < ((4 * m * net_in * k₀ : ℤ)) := by positivity
-  linarith
+  positivity
 
 /-- The deadline quadratic is negative at x = 0.
 
@@ -99,10 +97,10 @@ theorem deadline_quadratic_negative_at_zero
     Here we prove the simpler pre-output-removal monotonicity.
 -/
 theorem constant_k_monotone
-    (R_in R_out amount_in : ℕ) (h_Rout : R_out > 0) (h_amount : amount_in > 0) :
+    (R_in R_out amount_in : ℕ) (_h_Rout : R_out > 0) (h_amount : amount_in > 0) :
     R_in * R_out ≤ (R_in + amount_in) * R_out := by
   have : R_in ≤ R_in + amount_in := by omega
-  nlinarith [h_Rout, this]
+  nlinarith [h_amount, this]
 
 /-- The effective minimum output is at least 1.
 
@@ -120,6 +118,6 @@ theorem effective_min_at_least_one (min_amount_out : ℕ) :
 -/
 theorem effective_min_of_zero :
     max (0 : ℕ) 1 = 1 := by
-  simp [max_self]
+  simp
 
 end TauSwap.BatchDeadline
