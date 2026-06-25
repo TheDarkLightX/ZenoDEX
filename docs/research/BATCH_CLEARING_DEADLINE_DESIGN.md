@@ -29,13 +29,22 @@ quadratic in R_in':
 m * x^2 + net_in * m * x - net_in * k_0 <= 0
 ```
 
-The positive root gives the **deadline**:
+The positive root gives the **absolute deadline** (the maximum R_in' at which
+the swap still executes):
 
 ```
-d_i = floor((-net_in + isqrt(net_in^2 + 4 * net_in * k_0 // m)) / 2)
+d_abs = floor((-net_in * m + isqrt((net_in * m)^2 + 4 * m * net_in * k_0)) / (2 * m))
+```
+
+The **relative deadline** (used by the DP) is the maximum cumulative gross_in
+of preceding swaps:
+
+```
+d_i = d_abs - R_in_0
 ```
 
 The swap executes iff S <= d_i (cumulative gross_in before the swap is at most d_i).
+A negative d_i means the swap cannot execute even with no preceding swaps.
 
 ### Conservativeness
 
@@ -164,10 +173,25 @@ it definitely executes in reality. QED.
 
 ## Lean Formalization
 
-The Lean proof formalizes:
-1. `deadline_quadratic_root`: The quadratic has exactly one positive root
-2. `deadline_upper_bound`: If R_in' > d_i, the swap does not execute
-3. `edf_feasibility`: EDF order is optimal for feasibility
+The Lean proof (`lean-mathlib/Proofs/BatchClearingDeadline.lean`) formalizes
+supporting properties of the deadline formula. The full deadline upper bound
+theorem (which would require proving the quadratic root formula and the EDF
+optimality) is not yet formalized. The proven theorems are:
+
+1. `discriminant_nonneg`: The deadline quadratic's discriminant is non-negative.
+2. `deadline_discriminant_positive`: The discriminant is strictly positive when
+   net_in, m, and k_0 are all positive (guarantees a unique positive root).
+3. `deadline_quadratic_negative_at_zero`: The quadratic is negative at x=0
+   (confirms the swap is feasible at R_in'=0, and the positive root is where
+   feasibility flips).
+4. `constant_k_monotone`: Adding input to R_in before output removal increases
+   R_in * R_out (supports conservativeness of the constant-k approximation).
+5. `effective_min_at_least_one`: The effective minimum output is at least 1.
+6. `effective_min_of_zero`: If min_amount_out=0, the effective minimum is 1
+   (captures the CPMM kernel's zero-output rejection, NK-001).
+
+No `sorry` or `admit` placeholders. The Lean build requires mathlib4 olean
+files (not included in this worktree due to disk space constraints).
 
 ## Negative Knowledge (PopperPad)
 
