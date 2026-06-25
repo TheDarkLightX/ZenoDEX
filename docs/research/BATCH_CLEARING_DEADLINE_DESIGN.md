@@ -150,8 +150,10 @@ then S <= d_i. Equivalently, if S > d_i, then swap i cannot execute.
 **Proof:** The swap executes iff `net_in * (R_out' - m) >= m * R_in'`. Under
 constant-k, R_out' = k_0 / R_in'. Substituting gives the quadratic
 `m * x^2 + net_in * m * x - net_in * k_0 <= 0` where x = R_in'. The positive
-root is d_i. Since the leading coefficient m > 0, the quadratic is positive
-for x > d_i, meaning the swap does not execute. QED.
+root is d_abs (the absolute deadline). Since the leading coefficient m > 0,
+the quadratic is positive for x > d_abs, meaning the swap does not execute.
+The relative deadline is d_i = d_abs - R_in_0, so the swap executes iff
+S <= d_i. QED.
 
 ### Theorem (DP Optimality)
 
@@ -182,8 +184,8 @@ optimality) is not yet formalized. The proven theorems are:
 2. `deadline_discriminant_positive`: The discriminant is strictly positive when
    net_in, m, and k_0 are all positive (guarantees a unique positive root).
 3. `deadline_quadratic_negative_at_zero`: The quadratic is negative at x=0
-   (confirms the swap is feasible at R_in'=0, and the positive root is where
-   feasibility flips).
+   (under the continuous approximation, the swap produces enough output at
+   R_in'=0; the positive root is where feasibility flips).
 4. `constant_k_monotone`: Adding input to R_in before output removal increases
    R_in * R_out (supports conservativeness of the constant-k approximation).
 5. `effective_min_at_least_one`: The effective minimum output is at least 1.

@@ -80,8 +80,8 @@ theorem deadline_discriminant_positive
 
     q(0) = m * 0 + net_in * m * 0 - net_in * k₀ = -net_in * k₀ < 0
 
-    This confirms the swap is feasible at R_in' = 0 (no preceding swaps),
-    and the positive root is where feasibility flips to infeasibility.
+    Under the continuous approximation, the swap produces enough output at
+    R_in' = 0. The positive root is where feasibility flips to infeasibility.
 -/
 theorem deadline_quadratic_negative_at_zero
     (net_in m k₀ : ℕ) (h_net : net_in > 0) (h_k : k₀ > 0) :
