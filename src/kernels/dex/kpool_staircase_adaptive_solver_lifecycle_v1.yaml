@@ -1,0 +1,152 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "kpool_staircase_adaptive_solver_lifecycle_v1"
+  created_by: "zenodex"
+  notes: |
+    Boolean-level lifecycle shell for the experimental k-pool staircase
+    exact-in split solver.
+
+    Scope boundary:
+    - models the adaptive control decisions around the solver
+    - treats CPMM quote arithmetic, jump-point enumeration, DP folding, and
+      brute-force parity as externally supplied booleans
+    - records the fail-closed rule: a staircase result is usable only when the
+      request is valid, jump enumeration is sparse and drift-free, resource
+      bounds hold, and the DP returns an exact witness; otherwise the adaptive
+      path must use an exact fallback or reject
+
+observables:
+  state_vars: []
+  effects:
+    [
+      "request_ok",
+      "staircase_path_ok",
+      "fallback_path_ok",
+      "solver_accepts",
+      "solver_rejects",
+      "exactness_preserved",
+    ]
+
+types: []
+state_vars: []
+init: []
+invariants: []
+
+actions:
+  - id: "check_kpool_adaptive_solver_lifecycle"
+    params:
+      - id: "positive_amount"
+        type: { kind: "bool" }
+      - id: "positive_max_legs"
+        type: { kind: "bool" }
+      - id: "pools_nonempty"
+        type: { kind: "bool" }
+      - id: "pool_ids_unique"
+        type: { kind: "bool" }
+      - id: "breakpoints_sparse"
+        type: { kind: "bool" }
+      - id: "jump_enumeration_drift_free"
+        type: { kind: "bool" }
+      - id: "resource_bounds_ok"
+        type: { kind: "bool" }
+      - id: "staircase_witness_exact"
+        type: { kind: "bool" }
+      - id: "exact_fallback_available"
+        type: { kind: "bool" }
+      - id: "fallback_witness_exact"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      request_ok:
+        op: "and"
+        args:
+          - { param: "positive_amount" }
+          - { param: "positive_max_legs" }
+          - { param: "pools_nonempty" }
+          - { param: "pool_ids_unique" }
+      staircase_path_ok:
+        op: "and"
+        args:
+          - { param: "positive_amount" }
+          - { param: "positive_max_legs" }
+          - { param: "pools_nonempty" }
+          - { param: "pool_ids_unique" }
+          - { param: "breakpoints_sparse" }
+          - { param: "jump_enumeration_drift_free" }
+          - { param: "resource_bounds_ok" }
+          - { param: "staircase_witness_exact" }
+      fallback_path_ok:
+        op: "and"
+        args:
+          - { param: "positive_amount" }
+          - { param: "positive_max_legs" }
+          - { param: "pools_nonempty" }
+          - { param: "pool_ids_unique" }
+          - { param: "exact_fallback_available" }
+          - { param: "fallback_witness_exact" }
+      solver_accepts:
+        op: "or"
+        args:
+          - op: "and"
+            args:
+              - { param: "positive_amount" }
+              - { param: "positive_max_legs" }
+              - { param: "pools_nonempty" }
+              - { param: "pool_ids_unique" }
+              - { param: "breakpoints_sparse" }
+              - { param: "jump_enumeration_drift_free" }
+              - { param: "resource_bounds_ok" }
+              - { param: "staircase_witness_exact" }
+          - op: "and"
+            args:
+              - { param: "positive_amount" }
+              - { param: "positive_max_legs" }
+              - { param: "pools_nonempty" }
+              - { param: "pool_ids_unique" }
+              - { param: "exact_fallback_available" }
+              - { param: "fallback_witness_exact" }
+      solver_rejects:
+        op: "not"
+        args:
+          - op: "or"
+            args:
+              - op: "and"
+                args:
+                  - { param: "positive_amount" }
+                  - { param: "positive_max_legs" }
+                  - { param: "pools_nonempty" }
+                  - { param: "pool_ids_unique" }
+                  - { param: "breakpoints_sparse" }
+                  - { param: "jump_enumeration_drift_free" }
+                  - { param: "resource_bounds_ok" }
+                  - { param: "staircase_witness_exact" }
+              - op: "and"
+                args:
+                  - { param: "positive_amount" }
+                  - { param: "positive_max_legs" }
+                  - { param: "pools_nonempty" }
+                  - { param: "pool_ids_unique" }
+                  - { param: "exact_fallback_available" }
+                  - { param: "fallback_witness_exact" }
+      exactness_preserved:
+        op: "or"
+        args:
+          - op: "and"
+            args:
+              - { param: "positive_amount" }
+              - { param: "positive_max_legs" }
+              - { param: "pools_nonempty" }
+              - { param: "pool_ids_unique" }
+              - { param: "breakpoints_sparse" }
+              - { param: "jump_enumeration_drift_free" }
+              - { param: "resource_bounds_ok" }
+              - { param: "staircase_witness_exact" }
+          - op: "and"
+            args:
+              - { param: "positive_amount" }
+              - { param: "positive_max_legs" }
+              - { param: "pools_nonempty" }
+              - { param: "pool_ids_unique" }
+              - { param: "exact_fallback_available" }
+              - { param: "fallback_witness_exact" }

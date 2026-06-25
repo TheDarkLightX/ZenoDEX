@@ -68,6 +68,7 @@ import Proofs.ImpossibilityTheorem
 import Proofs.ImpossibilityTheoremV2
 import Proofs.IteratedSwapDecreasing
 import Proofs.JacobiTuranEndpointObstruction
+import Proofs.KPoolStaircase
 import Proofs.LiquidityRebalancerBounds
 import Proofs.LpMintOptimalBounds
 import Proofs.LPValueAlgebra
