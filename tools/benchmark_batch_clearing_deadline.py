@@ -138,7 +138,8 @@ def run_benchmark(
                 entry["brute_time_ms"] = b_time * 1000
                 entry["brute_count"] = len(b_ids)
                 entry["deadline_vs_brute_a_gap"] = b_a - dl_result.total_a
-                entry["deadline_vs_brute_optimal"] = dl_result.total_a >= b_a
+                # Use exact equality, not >=, to detect oracle violations
+                entry["deadline_vs_brute_optimal"] = dl_result.total_a == b_a
                 entry["greedy_vs_brute_a_gap"] = b_a - g_a
             else:
                 entry["brute_a"] = None

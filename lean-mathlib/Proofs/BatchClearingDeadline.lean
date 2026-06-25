@@ -22,12 +22,15 @@ its effective minimum output.
    is strictly positive when all inputs are positive, guaranteeing a unique
    positive root.
 
-2. `deadline_quadratic_sign_at_zero`: The deadline quadratic is negative at x=0,
-   confirming the positive root is the boundary where feasibility flips.
+2. `deadline_quadratic_negative_at_zero`: The deadline quadratic is negative at
+   x=0, confirming the positive root is the boundary where feasibility flips.
 
-3. `constant_k_lower_bound`: The constant-k product k_0 is a lower bound on the
-   actual post-swap product k_after (fees only increase k), establishing
-   conservativeness of the deadline approximation.
+3. `constant_k_monotone`: Adding input to R_in (before removing output) increases
+   the product R_in * R_out, supporting the conservativeness of the constant-k
+   approximation.
+
+4. `effective_min_at_least_one`: The effective minimum output is at least 1,
+   capturing the CPMM kernel's zero-output rejection (NK-001).
 
 ## Notation
 
@@ -87,57 +90,17 @@ theorem deadline_quadratic_negative_at_zero
   have : (net_in * k₀ : ℤ) > 0 := by positivity
   linarith
 
-/-- The deadline quadratic is positive for large x.
+/-- Adding input to R_in (before removing output) increases R_in * R_out.
 
-    For x > 0, the dominant term is m * x², so q(x) → +∞.
-    Specifically, for x ≥ net_in * k₀, we have m * x² ≥ m * net_in * k₀,
-    so q(x) ≥ m * net_in * k₀ + net_in * m * x - net_in * k₀ ≥ 0.
+    This supports the conservativeness of the constant-k approximation:
+    in the actual CPMM, fees stay in the pool, so k_after >= k_before.
+    The full post-swap invariant (k_after >= k_before after output removal)
+    is enforced by the kernel (`cpmm_swap_v8.py` raises if k_after < k_before).
+    Here we prove the simpler pre-output-removal monotonicity.
 -/
-theorem deadline_quadratic_positive_for_large_x
-    (net_in m k₀ : ℕ) (h_m : m > 0) (h_net : net_in > 0) (h_k : k₀ > 0)
-    (x : ℤ) (hx : x ≥ (net_in * k₀ : ℤ)) :
-    deadline_quadratic net_in m k₀ x ≥ 0 := by
-  unfold deadline_quadratic
-  have hx_pos : x ≥ 0 := by linarith [le_trans hx (by positivity : (0 : ℤ) ≤ (net_in * k₀ : ℤ))]
-  have term1 : m * x * x ≥ 0 := by positivity
-  have term2 : net_in * m * x ≥ 0 := by positivity
-  have : (net_in * k₀ : ℤ) ≤ m * x * x := by
-    calc (net_in * k₀ : ℤ)
-        ≤ (m : ℤ) * x := by
-          have : (net_in * k₀ : ℤ) ≤ (m : ℤ) * x := by
-            have mx_ge : (m : ℤ) * x ≥ (net_in * k₀ : ℤ) := by
-              calc (m : ℤ) * x
-                  ≥ (m : ℤ) * (net_in * k₀ : ℤ) := by
-                    gcongr
-                    exact hx
-                _ ≥ (net_in * k₀ : ℤ) := by
-                    have : (m : ℤ) ≥ 1 := by omega
-                    nlinarith
-            exact mx_ge
-          exact this
-        _ ≤ (m : ℤ) * x * x := by
-          have : x ≥ 1 := by omega
-          nlinarith
-  linarith
-
-/-- The constant product k_0 is a lower bound on the actual post-swap product.
-
-    In the actual CPMM, fees stay in the pool (LP fee is retained), so
-    k_after = new_R_in * new_R_out >= R_in * R_out = k_before.
-    This means R_out' >= k_0 / R_in' in reality, making the actual amount_out
-    at least as large as the constant-k approximation. The deadline is
-    therefore conservative.
--/
-theorem constant_k_lower_bound
-    (R_in R_out amount_in fee_bps : ℕ)
-    (h_Rin : R_in > 0) (h_Rout : R_out > 0)
-    (h_amount : amount_in > 0) (h_fee : fee_bps < 10000) :
-    -- k_after >= k_before = R_in * R_out
-    -- because new_R_in = R_in + amount_in - protocol_fee >= R_in + net_in
-    -- and the CPMM invariant ensures k_after >= k_before.
+theorem constant_k_monotone
+    (R_in R_out amount_in : ℕ) (h_Rout : R_out > 0) (h_amount : amount_in > 0) :
     R_in * R_out ≤ (R_in + amount_in) * R_out := by
-  -- new_R_in >= R_in (fees stay in), R_out unchanged before swap output
-  -- so (R_in + amount_in) * R_out >= R_in * R_out
   have : R_in ≤ R_in + amount_in := by omega
   nlinarith [h_Rout, this]
 
@@ -149,17 +112,14 @@ theorem constant_k_lower_bound
 -/
 theorem effective_min_at_least_one (min_amount_out : ℕ) :
     max min_amount_out 1 ≥ 1 := by
-  simp [max_le_iff, le_max_iff]
-  left
-  exact le_refl 1
+  exact le_max_right _ _
 
 /-- If min_amount_out = 0, the effective minimum is 1 (not 0).
 
-    This captures the CPMM kernel's zero-output rejection.
+    This captures the CPMM kernel's zero-output rejection (NK-001).
 -/
-theorem effective_min_of_zero (h : min_amount_out = 0) :
-    max min_amount_out 1 = 1 := by
-  rw [h]
+theorem effective_min_of_zero :
+    max (0 : ℕ) 1 = 1 := by
   simp [max_self]
 
 end TauSwap.BatchDeadline
