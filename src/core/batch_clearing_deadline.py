@@ -44,8 +44,10 @@ class DeadlineSwap:
         min_amount_out: Slippage limit; swap fails if output < this.
         net_in: amount_in - fee (the effective input that moves the price).
         deadline: Maximum cumulative gross_in of preceding swaps before this
-            swap's output drops below min_amount_out under constant-k. None
-            means infinity (min_amount_out = 0, no slippage constraint).
+            swap's output drops below effective_min under constant-k. The
+            effective minimum is max(min_amount_out, 1) because the CPMM
+            kernel rejects amount_out <= 0. A deadline of -1 means the swap
+            can never execute.
         index: Original position in the intent list (for stable tie-breaking).
     """
     intent_id: str
@@ -61,12 +63,12 @@ class DeadlineScheduleResult:
     """Result of deadline-scheduling batch clearing.
 
     Attributes:
-        ordered_intents: Intent IDs in execution order (EDF + B-refinement).
+        ordered_intents: Intent IDs in execution order (EDF + local search).
         total_a: Total executed input volume.
         total_b: Total surplus (amount_out - min_amount_out).
-        selected_count: Number of swaps in the schedule.
-        excluded_count: Number of swaps excluded by the DP.
-        greedy_added_count: Number of swaps added by greedy completion.
+        selected_count: Number of swaps in the schedule from DP selection.
+        excluded_count: Number of swaps excluded from the final schedule.
+        greedy_added_count: Number of swaps added by local search completion.
     """
     ordered_intents: Tuple[str, ...]
     total_a: int
@@ -478,7 +480,15 @@ def deadline_schedule_batch(
     quote_exact_in_fn: Callable,
     max_dp_states: int = 100_000,
 ) -> DeadlineScheduleResult:
-    """Compute the A-optimal batch clearing schedule via deadline scheduling.
+    """Compute a batch clearing schedule via deadline scheduling (experimental).
+
+    Finds the maximum-weight feasible subset under the constant-k approximation
+    via DP, then applies local search (insert + 1-out-1-in with real CPMM
+    simulation) to improve the schedule. The result is A-optimal under the
+    constant-k approximation for the DP-selected subset; the local search is
+    a heuristic completion, not a completeness proof for the actual CPMM
+    ordering. Property tests verify A-matching against a brute-force oracle
+    for n <= 6.
 
     Args:
         intents: List of (intent_id, amount_in, min_amount_out) tuples.
@@ -492,7 +502,8 @@ def deadline_schedule_batch(
         DeadlineScheduleResult with the ordered intent IDs and (A, B) totals.
 
     Raises:
-        ResourceLimitExceeded: If the DP table exceeds max_dp_states.
+        ResourceLimitExceeded: If the DP table exceeds max_dp_states, or if
+            the final schedule fails validation (fail-closed).
     """
     if not intents:
         return DeadlineScheduleResult(
