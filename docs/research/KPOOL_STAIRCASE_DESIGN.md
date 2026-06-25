@@ -21,7 +21,10 @@ sorted `(pool_id, amount)` leg tuple among equal-output optima).
   parity.
 - k-pool case (`split_routing_many_exact_in.py`):
   - Small domain (`D <= 512`): exact DP, `O(k * D^2)` time and space.
-  - Larger domain: greedy step refinement, NOT exact.
+  - Larger-domain default: greedy step refinement, NOT exact.
+  - Opt-in exact profile: `exact_solver_profile="kpool_adaptive"` routes ranked
+    candidates through the k-pool staircase adaptive solver with exact
+    small-domain fallback.
 
 ## Key Insight: Dominated Staircase Representative
 
@@ -109,6 +112,14 @@ cost; we fall back to the existing exact DP in that regime.
 - All amounts validated as positive ints at the boundary.
 - Duplicate pool_ids rejected before building any maps (fail-closed, matching
   the existing small-domain DP contract).
+- Public request surface: `KPoolExactInPoolSpec`, `KPoolExactInRequest`, and
+  `best_k_pool_exact_in_split_for_request` expose the adaptive solver without
+  requiring callers to import private test helpers. The legacy `_PoolSpec` name
+  remains as a compatibility alias only.
+- Many-pool integration is explicit: `best_many_pool_exact_in_split` keeps the
+  legacy greedy profile as the default and uses the exact k-pool adaptive solver
+  only when `ManyPoolExactInRequest.exact_solver_profile` is
+  `"kpool_adaptive"`.
 - Jump enumeration fail-closed on quote/formula drift: if the quote function
   rejects a requested output level (ValueError) or the reached output falls
   below the requested level (closed-form estimate drift), the enumeration
@@ -164,9 +175,10 @@ cost; we fall back to the existing exact DP in that regime.
      tie-break globality, and DP enumeration correctness are runtime-tested.
 2. **Runtime parity tests:** Brute-force oracle parity on a hostile corpus
    (skewed reserves, high fees, dust edges, zero-output gaps, tie-heavy
-   plateaus) for `k in {2, 3, 4}` and `D` up to a bounded limit. 40 tests
-   including adaptive fallback, duplicate pool_id rejection, drift fail-closed
-   behavior, and ResourceLimitExceeded fallback.
+   plateaus) for `k in {2, 3, 4}` and `D` up to a bounded limit. 47 focused
+   tests cover deterministic random parity, public request API parity, adaptive
+   fallback, duplicate pool_id rejection, drift fail-closed behavior,
+   ResourceLimitExceeded fallback, and the many-pool opt-in exact profile.
 3. **Quote-count benchmark:** Compare against the existing greedy and
    small-domain DP. The default benchmark command runs bounded parity cases;
    pass `--include-performance` for the large-domain evidence set.
@@ -179,11 +191,13 @@ cost; we fall back to the existing exact DP in that regime.
    resource envelope and verifies that the hard bounds are well above actual
    usage.
 5. **ESSO lifecycle shell:** `kpool_staircase_adaptive_solver_lifecycle_v1`
-   models the adaptive solver control boundary. It verifies that acceptance
-   requires valid inputs plus either a sparse, drift-free, resource-bounded
-   staircase witness or an exact fallback witness. The ESSO model intentionally
-   treats CPMM arithmetic and DP enumeration as external booleans; those
-   obligations remain covered by Lean and runtime parity tests.
+   models the adaptive solver control boundary. It emits explicit outcomes
+   (`RejectInvalidRequest`, `RejectNoExactPath`, `UseStaircase`,
+   `UseFallback`) and records that acceptance requires valid inputs plus either
+   a sparse, drift-free, resource-bounded staircase witness or an exact fallback
+   witness. Invalid requests have rejection precedence. The ESSO model
+   intentionally treats CPMM arithmetic and DP enumeration as external
+   booleans; those obligations remain covered by Lean and runtime parity tests.
 
 ## Negative Knowledge
 

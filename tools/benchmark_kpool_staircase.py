@@ -25,7 +25,7 @@ if str(ROOT) not in sys.path:
 
 from src.core.split_routing import PoolXY, exact_out_for_pool_exact_in
 from src.core.split_routing_kpool_staircase import (
-    _PoolSpec,
+    KPoolExactInPoolSpec,
     staircase_k_pool_best_split,
     best_k_pool_exact_in_split,
     should_use_staircase_dp,
@@ -296,7 +296,11 @@ def _alloc_total_out(
 def _run_staircase(case: KPoolBenchmarkCase) -> dict[str, Any]:
     pools_dict = {pid: p for pid, p in case.pools}
     specs = [
-        _PoolSpec(pool_id=pid, pool=p, min_valid=_min_valid_for_pool(p, int(case.amount_in)))
+        KPoolExactInPoolSpec(
+            pool_id=pid,
+            pool=p,
+            min_valid=_min_valid_for_pool(p, int(case.amount_in)),
+        )
         for pid, p in case.pools
     ]
     counted, calls = _counted_quote(exact_out_for_pool_exact_in)
@@ -322,7 +326,11 @@ def _run_adaptive(case: KPoolBenchmarkCase) -> dict[str, Any]:
     """Run the adaptive entry point that picks staircase vs existing DP."""
     pools_dict = {pid: p for pid, p in case.pools}
     specs = [
-        _PoolSpec(pool_id=pid, pool=p, min_valid=_min_valid_for_pool(p, int(case.amount_in)))
+        KPoolExactInPoolSpec(
+            pool_id=pid,
+            pool=p,
+            min_valid=_min_valid_for_pool(p, int(case.amount_in)),
+        )
         for pid, p in case.pools
     ]
     counted, calls = _counted_quote(exact_out_for_pool_exact_in)

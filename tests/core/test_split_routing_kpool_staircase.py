@@ -8,12 +8,16 @@ staircase promotion evidence.
 
 from __future__ import annotations
 
+import random
+
 import pytest
 
 from src.core.split_routing_kpool_staircase import (
-    _PoolSpec,
+    KPoolExactInPoolSpec,
+    KPoolExactInRequest,
     staircase_k_pool_best_split,
     best_k_pool_exact_in_split,
+    best_k_pool_exact_in_split_for_request,
 )
 from src.core.split_routing_kpool_brute import _brute_force_k_pool_split
 from src.core.split_routing import PoolXY, exact_out_for_pool_exact_in
@@ -22,8 +26,8 @@ from src.core.split_routing_many_exact_in_small import (
 )
 
 
-def _spec(pool_id: str, pool: PoolXY, min_valid: int) -> _PoolSpec:
-    return _PoolSpec(pool_id=pool_id, pool=pool, min_valid=int(min_valid))
+def _spec(pool_id: str, pool: PoolXY, min_valid: int) -> KPoolExactInPoolSpec:
+    return KPoolExactInPoolSpec(pool_id=pool_id, pool=pool, min_valid=int(min_valid))
 
 
 def _min_valid(pool: PoolXY, amount_in_total: int) -> int:
@@ -81,6 +85,33 @@ def _assert_allocations_match(
     assert total_out(got) == total_out(expected), (
         f"output mismatch: staircase={total_out(got)} brute={total_out(expected)}"
     )
+
+
+def test_kpool_public_request_api_matches_direct_adaptive() -> None:
+    pools = [
+        ("pool-a", PoolXY(x=1, y=50_000, fee_bps=0)),
+        ("pool-b", PoolXY(x=50_000, y=50_000, fee_bps=0)),
+        ("pool-c", PoolXY(x=25_000, y=100_000, fee_bps=10)),
+    ]
+    specs = [_spec(pid, p, _min_valid(p, 120)) for pid, p in pools]
+    request = KPoolExactInRequest(
+        pool_specs=specs,
+        amount_in_total=120,
+        max_legs=3,
+        quote_exact_in=exact_out_for_pool_exact_in,
+    )
+    got = best_k_pool_exact_in_split_for_request(
+        request,
+        small_domain_dp_fn=_small_dp_fn,
+    )
+    expected = best_k_pool_exact_in_split(
+        pool_specs=specs,
+        amount_in_total=120,
+        max_legs=3,
+        quote_exact_in=exact_out_for_pool_exact_in,
+        small_domain_dp_fn=_small_dp_fn,
+    )
+    assert got == expected
 
 
 # ---------------------------------------------------------------------------
@@ -197,6 +228,42 @@ def test_kpool_staircase_matches_brute_four_pools_skewed() -> None:
     ]
     got, expected = _run_both(pools, amount_in=300, max_legs=4)
     _assert_allocations_match(got, expected, pools)
+
+
+def test_kpool_staircase_deterministic_random_parity_corpus() -> None:
+    """Bounded random regression corpus against the brute-force oracle."""
+    rng = random.Random(20260625)
+    checked = 0
+    attempts = 0
+    while checked < 48 and attempts < 96:
+        attempts += 1
+        pool_count = rng.randint(2, 4)
+        amount_in = rng.randint(8, 32)
+        max_legs = rng.randint(1, pool_count)
+        pools: list[tuple[str, PoolXY]] = []
+        for pool_index in range(pool_count):
+            pools.append(
+                (
+                    f"pool-{pool_index:02d}",
+                    PoolXY(
+                        x=rng.randint(1, 1_000),
+                        y=rng.randint(2, 2_000),
+                        fee_bps=rng.choice([0, 1, 5, 30, 100, 500, 2_500, 9_000]),
+                    ),
+                )
+            )
+        if all(_min_valid(pool, amount_in) > amount_in for _pid, pool in pools):
+            continue
+        got, expected = _run_both(pools, amount_in=amount_in, max_legs=max_legs)
+        try:
+            _assert_allocations_match(got, expected, pools)
+        except AssertionError as exc:
+            raise AssertionError(
+                f"random parity failure checked={checked} attempt={attempts} "
+                f"amount_in={amount_in} max_legs={max_legs} pools={pools}"
+            ) from exc
+        checked += 1
+    assert checked == 48
 
 
 # ---------------------------------------------------------------------------

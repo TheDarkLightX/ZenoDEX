@@ -89,7 +89,15 @@ _DPTable = dict[tuple[int, int], _State]
 
 
 @dataclass(frozen=True)
-class _PoolSpec:
+class KPoolExactInPoolSpec:
+    """Pool descriptor for k-pool exact-in split routing.
+
+    Args:
+        pool_id: Stable canonical pool identifier used for tie-breaks and caches.
+        pool: CPMM-like object exposing x, y, and fee_bps for quote geometry.
+        min_valid: Smallest positive input amount accepted by quote_exact_in.
+    """
+
     pool_id: _PoolId
     pool: _PoolLike
     # min_valid is the smallest positive amount that produces a successful quote
@@ -102,9 +110,37 @@ class _PoolSpec:
     min_valid: int
 
 
+_PoolSpec = KPoolExactInPoolSpec
+
+
+@dataclass(frozen=True)
+class KPoolExactInRequest:
+    """Request envelope for adaptive k-pool exact-in split routing.
+
+    Args:
+        pool_specs: Candidate CPMM pools with deterministic pool IDs.
+        amount_in_total: Positive total input amount to allocate exactly.
+        max_legs: Positive maximum number of non-zero pool legs.
+        quote_exact_in: Quote function for a pool-like object and gross input.
+
+    Returns:
+        This dataclass is consumed by best_k_pool_exact_in_split_for_request,
+        which returns a pool_id -> amount allocation.
+
+    Raises:
+        The solver raises ValueError for invalid requests or infeasible splits,
+        and ResourceLimitExceeded when no exact fallback is available.
+    """
+
+    pool_specs: Sequence[KPoolExactInPoolSpec]
+    amount_in_total: int
+    max_legs: int
+    quote_exact_in: _QuoteExactIn
+
+
 @dataclass(frozen=True)
 class _KPoolStaircaseRequest:
-    pools: Sequence[_PoolSpec]
+    pools: Sequence[KPoolExactInPoolSpec]
     amount_in_total: int
     max_legs: int
     quote_exact_in: _QuoteExactIn
@@ -667,7 +703,7 @@ def _best_with_residual_from_combined(
 
 def _build_prefix_suffix_dps(
     *,
-    pools: Sequence[_PoolSpec],
+    pools: Sequence[KPoolExactInPoolSpec],
     jump_points: dict[_PoolId, list[tuple[int, int]]],
     amount_total: int,
     max_legs: int,
@@ -729,7 +765,7 @@ def _total_jump_point_count(jump_points: dict[_PoolId, list[tuple[int, int]]]) -
     return sum(len(pts) for pts in jump_points.values())
 
 
-def _validate_pool_ids(pool_specs: Sequence[_PoolSpec]) -> None:
+def _validate_pool_ids(pool_specs: Sequence[KPoolExactInPoolSpec]) -> None:
     """Fail-closed validation: reject duplicate pool_ids.
 
     The optimizer keys quote caches, jump points, and allocations by pool_id.
@@ -745,7 +781,7 @@ def _validate_pool_ids(pool_specs: Sequence[_PoolSpec]) -> None:
 
 def staircase_k_pool_best_split(
     *,
-    pool_specs: Sequence[_PoolSpec],
+    pool_specs: Sequence[KPoolExactInPoolSpec],
     amount_in_total: int,
     max_legs: int,
     quote_exact_in: _QuoteExactIn,
@@ -860,7 +896,7 @@ def staircase_k_pool_best_split(
 
 def best_k_pool_exact_in_split(
     *,
-    pool_specs: Sequence[_PoolSpec],
+    pool_specs: Sequence[KPoolExactInPoolSpec],
     amount_in_total: int,
     max_legs: int,
     quote_exact_in: _QuoteExactIn,
@@ -999,10 +1035,39 @@ def best_k_pool_exact_in_split(
         raise
 
 
+def best_k_pool_exact_in_split_for_request(
+    request: KPoolExactInRequest,
+    *,
+    small_domain_dp_fn: Callable[..., dict[_PoolId, int]] | None = None,
+) -> dict[_PoolId, int]:
+    """Solve a public k-pool exact-in request through the adaptive entry point.
+
+    Args:
+        request: Validated by the underlying adaptive solver.
+        small_domain_dp_fn: Optional exact fallback with the
+            best_small_domain_many_pool_exact_in call shape.
+
+    Returns:
+        Canonical-best allocation as pool_id -> input amount.
+
+    Raises:
+        ValueError for invalid or infeasible requests. ResourceLimitExceeded is
+        propagated when resource bounds are exceeded and no exact fallback is
+        supplied.
+    """
+    return best_k_pool_exact_in_split(
+        pool_specs=request.pool_specs,
+        amount_in_total=int(request.amount_in_total),
+        max_legs=int(request.max_legs),
+        quote_exact_in=request.quote_exact_in,
+        small_domain_dp_fn=small_domain_dp_fn,
+    )
+
+
 def _fallback_to_small_dp(
     *,
     small_domain_dp_fn: Callable[..., dict[_PoolId, int]],
-    pool_specs: Sequence[_PoolSpec],
+    pool_specs: Sequence[KPoolExactInPoolSpec],
     amount_total: int,
     max_legs: int,
     quote_exact_in: _QuoteExactIn,
@@ -1029,7 +1094,7 @@ def _fallback_to_small_dp(
 def _staircase_split_with_context(
     *,
     context: _KPoolStaircaseContext,
-    pool_specs: tuple[_PoolSpec, ...],
+    pool_specs: tuple[KPoolExactInPoolSpec, ...],
     amount_total: int,
     max_legs: int,
 ) -> dict[_PoolId, int]:
@@ -1100,7 +1165,7 @@ def _staircase_split_with_context(
 
 def should_use_staircase_dp(
     *,
-    pool_specs: Sequence[_PoolSpec],
+    pool_specs: Sequence[KPoolExactInPoolSpec],
     amount_in_total: int,
     jump_points: dict[_PoolId, list[tuple[int, int]]] | None = None,
 ) -> bool:

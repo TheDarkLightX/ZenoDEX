@@ -13,6 +13,10 @@ from typing import Callable, Optional, Sequence
 
 from ..state.balances import AssetId
 from ..state.pools import PoolState
+from .split_routing_kpool_staircase import (
+    KPoolExactInPoolSpec,
+    best_k_pool_exact_in_split,
+)
 from .split_routing_many_exact_in_small import best_small_domain_many_pool_exact_in
 from .split_routing_types import SplitLegQuote, SplitManyPoolsQuote
 
@@ -20,10 +24,38 @@ ExactInReservesFor = Callable[[PoolState], tuple[int, int] | None]
 ExactInQuoteFor = Callable[[PoolState, int], int]
 _ExactInStepCandidate = tuple[str, int, int, int]  # pool_id, delta, increment, current_amount
 _EXACT_SMALL_DOMAIN_MAX_AMOUNT_IN = 512
+EXACT_IN_SOLVER_GREEDY = "greedy"
+EXACT_IN_SOLVER_KPOOL_ADAPTIVE = "kpool_adaptive"
+_EXACT_IN_SOLVER_PROFILES = frozenset(
+    {EXACT_IN_SOLVER_GREEDY, EXACT_IN_SOLVER_KPOOL_ADAPTIVE}
+)
 
 
 @dataclass(frozen=True)
 class ManyPoolExactInRequest:
+    """Request for many-pool exact-in split routing.
+
+    Args:
+        pools: Candidate pool states supplied by the dispatch layer.
+        asset_in: Asset being spent.
+        asset_out: Asset being received.
+        amount_in_total: Positive input amount that must be fully consumed.
+        max_legs: Positive maximum number of non-zero route legs.
+        max_candidates: Positive cap on ranked candidate pools.
+        max_iters: Positive greedy refinement budget for the legacy profile.
+        reserves_for: Direction-aware reserve projection for each pool.
+        quote_exact_in: Direction-aware exact-in quote function.
+        exact_solver_profile: "greedy" or "kpool_adaptive".
+
+    Returns:
+        Consumed by best_many_pool_exact_in_split, which returns a
+        SplitManyPoolsQuote.
+
+    Raises:
+        ValueError for invalid controls, unsupported solver profiles, or
+        infeasible splits.
+    """
+
     pools: Sequence[PoolState]
     asset_in: AssetId
     asset_out: AssetId
@@ -33,11 +65,21 @@ class ManyPoolExactInRequest:
     max_iters: int
     reserves_for: ExactInReservesFor
     quote_exact_in: ExactInQuoteFor
+    exact_solver_profile: str = EXACT_IN_SOLVER_GREEDY
+
+
+@dataclass(frozen=True)
+class _KPoolManyPoolAdapter:
+    pool_id: str
+    x: int
+    y: int
+    fee_bps: int
 
 
 @dataclass
 class _ExactInManyPoolContext:
     pools_by_id: dict[str, PoolState]
+    reserves_by_id: dict[str, tuple[int, int]]
     min_valid: dict[str, int]
     quote_exact_in: ExactInQuoteFor
     quote_cache: dict[tuple[str, int], int]
@@ -69,6 +111,11 @@ def _validate_request(request: ManyPoolExactInRequest) -> None:
     _require_positive_control(request.max_legs, name="max_legs")
     _require_positive_control(request.max_candidates, name="max_candidates")
     _require_positive_control(request.max_iters, name="max_iters")
+    if request.exact_solver_profile not in _EXACT_IN_SOLVER_PROFILES:
+        raise ValueError(
+            "exact_solver_profile must be one of: "
+            + ", ".join(sorted(_EXACT_IN_SOLVER_PROFILES))
+        )
 
 
 def _quote_is_valid(request: ManyPoolExactInRequest, pool: PoolState, amount_in: int) -> bool:
@@ -150,8 +197,24 @@ def _build_context(request: ManyPoolExactInRequest) -> _ExactInManyPoolContext:
     if not min_valid:
         raise ValueError("no feasible pools for split")
 
+    pools_by_id: dict[str, PoolState] = {}
+    reserves_by_id: dict[str, tuple[int, int]] = {}
+    for pool in candidates:
+        if pool.pool_id not in min_valid:
+            continue
+        reserves = request.reserves_for(pool)
+        if reserves is None:
+            continue
+        reserve_in, reserve_out = reserves
+        pools_by_id[pool.pool_id] = pool
+        reserves_by_id[pool.pool_id] = (int(reserve_in), int(reserve_out))
+
+    if not pools_by_id:
+        raise ValueError("no feasible pools for split")
+
     return _ExactInManyPoolContext(
-        pools_by_id={pool.pool_id: pool for pool in candidates if pool.pool_id in min_valid},
+        pools_by_id=pools_by_id,
+        reserves_by_id=reserves_by_id,
         min_valid=min_valid,
         quote_exact_in=request.quote_exact_in,
         quote_cache={},
@@ -363,6 +426,60 @@ def _exact_small_domain_allocation(
     )
 
 
+def _kpool_adaptive_allocation(
+    *,
+    context: _ExactInManyPoolContext,
+    amount_in_total: int,
+    max_legs: int,
+) -> dict[str, int]:
+    """Run the exact k-pool adaptive solver on ranked many-pool candidates.
+
+    The adapter gives the K-pool staircase module the CPMM geometry it needs
+    while every quote still flows through the dispatch-provided quote function.
+    """
+    pool_specs: list[KPoolExactInPoolSpec] = []
+    for pool_id in sorted(context.pools_by_id.keys()):
+        reserve_in, reserve_out = context.reserves_by_id[pool_id]
+        pool = context.pools_by_id[pool_id]
+        pool_specs.append(
+            KPoolExactInPoolSpec(
+                pool_id=pool_id,
+                pool=_KPoolManyPoolAdapter(
+                    pool_id=pool_id,
+                    x=int(reserve_in),
+                    y=int(reserve_out),
+                    fee_bps=int(pool.fee_bps),
+                ),
+                min_valid=int(context.min_valid[pool_id]),
+            )
+        )
+
+    def quote_adapter(pool: _KPoolManyPoolAdapter, amount_in: int) -> int:
+        try:
+            out = context.quote(pool.pool_id, int(amount_in))
+        except ValueError as exc:
+            raise ValueError("quote rejected for k-pool adaptive solver") from exc
+        if out is None:
+            raise ValueError("quote rejected for k-pool adaptive solver")
+        return int(out)
+
+    def small_domain_dp_fn(*, pool_ids, amount_in_total, max_legs, quote_for_pool_id):
+        return best_small_domain_many_pool_exact_in(
+            pool_ids=pool_ids,
+            amount_in_total=int(amount_in_total),
+            max_legs=int(max_legs),
+            quote_for_pool_id=quote_for_pool_id,
+        )
+
+    return best_k_pool_exact_in_split(
+        pool_specs=pool_specs,
+        amount_in_total=int(amount_in_total),
+        max_legs=int(max_legs),
+        quote_exact_in=quote_adapter,
+        small_domain_dp_fn=small_domain_dp_fn,
+    )
+
+
 def _search_best_allocation(
     *,
     context: _ExactInManyPoolContext,
@@ -409,6 +526,26 @@ def _search_best_allocation(
     return best_alloc
 
 
+def _best_allocation_for_profile(
+    *,
+    request: ManyPoolExactInRequest,
+    context: _ExactInManyPoolContext,
+) -> dict[str, int]:
+    if request.exact_solver_profile == EXACT_IN_SOLVER_KPOOL_ADAPTIVE:
+        return _kpool_adaptive_allocation(
+            context=context,
+            amount_in_total=int(request.amount_in_total),
+            max_legs=int(request.max_legs),
+        )
+
+    return _search_best_allocation(
+        context=context,
+        amount_in_total=int(request.amount_in_total),
+        max_legs=int(request.max_legs),
+        max_iters=int(request.max_iters),
+    )
+
+
 def _build_quote(
     *,
     best_alloc: dict[str, int],
@@ -438,10 +575,5 @@ def _build_quote(
 def best_many_pool_exact_in_split(request: ManyPoolExactInRequest) -> SplitManyPoolsQuote:
     _validate_request(request)
     context = _build_context(request)
-    best_alloc = _search_best_allocation(
-        context=context,
-        amount_in_total=int(request.amount_in_total),
-        max_legs=int(request.max_legs),
-        max_iters=int(request.max_iters),
-    )
+    best_alloc = _best_allocation_for_profile(request=request, context=context)
     return _build_quote(best_alloc=best_alloc, amount_in_total=int(request.amount_in_total), context=context)

@@ -28,7 +28,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.core.split_routing_kpool_staircase import (
-    _PoolSpec,
+    KPoolExactInPoolSpec,
     _build_jump_points,
     _build_prefix_suffix_dps,
     _index_by_spent_pareto,
@@ -103,7 +103,10 @@ def profile_staircase(
         quote_count["n"] += 1
         return int(exact_out_for_pool_exact_in(pool, int(amount)))
 
-    specs = [_PoolSpec(pool_id=pid, pool=p, min_valid=1) for pid, p in pools]
+    specs = [
+        KPoolExactInPoolSpec(pool_id=pid, pool=p, min_valid=1)
+        for pid, p in pools
+    ]
 
     # Estimate breakpoint counts
     threshold = (k * D) // 4

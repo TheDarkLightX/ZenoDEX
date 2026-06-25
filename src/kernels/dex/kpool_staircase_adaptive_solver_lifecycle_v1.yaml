@@ -10,10 +10,9 @@ meta:
     - models the adaptive control decisions around the solver
     - treats CPMM quote arithmetic, jump-point enumeration, DP folding, and
       brute-force parity as externally supplied booleans
-    - records the fail-closed rule: a staircase result is usable only when the
-      request is valid, jump enumeration is sparse and drift-free, resource
-      bounds hold, and the DP returns an exact witness; otherwise the adaptive
-      path must use an exact fallback or reject
+    - records rejection precedence: invalid requests reject before solver
+      selection; otherwise staircase is used only when all exactness/resource
+      gates pass; exact fallback is the only admissible recovery path
 
 observables:
   state_vars: []
@@ -22,12 +21,30 @@ observables:
       "request_ok",
       "staircase_path_ok",
       "fallback_path_ok",
+      "reject_invalid_request",
+      "reject_no_exact_path",
+      "use_staircase",
+      "use_fallback",
       "solver_accepts",
       "solver_rejects",
+      "solver_outcome",
+      "invalid_request_precedence_ok",
+      "fallback_only_after_staircase_blocked",
       "exactness_preserved",
     ]
 
-types: []
+types:
+  - id: "t_solver_outcome"
+    type:
+      kind: "enum"
+      symbols:
+        [
+          "RejectInvalidRequest",
+          "RejectNoExactPath",
+          "UseStaircase",
+          "UseFallback",
+        ]
+
 state_vars: []
 init: []
 invariants: []
@@ -85,6 +102,64 @@ actions:
           - { param: "pool_ids_unique" }
           - { param: "exact_fallback_available" }
           - { param: "fallback_witness_exact" }
+      reject_invalid_request:
+        op: "not"
+        args:
+          - op: "and"
+            args:
+              - { param: "positive_amount" }
+              - { param: "positive_max_legs" }
+              - { param: "pools_nonempty" }
+              - { param: "pool_ids_unique" }
+      use_staircase:
+        op: "and"
+        args:
+          - { param: "positive_amount" }
+          - { param: "positive_max_legs" }
+          - { param: "pools_nonempty" }
+          - { param: "pool_ids_unique" }
+          - { param: "breakpoints_sparse" }
+          - { param: "jump_enumeration_drift_free" }
+          - { param: "resource_bounds_ok" }
+          - { param: "staircase_witness_exact" }
+      use_fallback:
+        op: "and"
+        args:
+          - { param: "positive_amount" }
+          - { param: "positive_max_legs" }
+          - { param: "pools_nonempty" }
+          - { param: "pool_ids_unique" }
+          - op: "not"
+            args:
+              - op: "and"
+                args:
+                  - { param: "breakpoints_sparse" }
+                  - { param: "jump_enumeration_drift_free" }
+                  - { param: "resource_bounds_ok" }
+                  - { param: "staircase_witness_exact" }
+          - { param: "exact_fallback_available" }
+          - { param: "fallback_witness_exact" }
+      reject_no_exact_path:
+        op: "and"
+        args:
+          - { param: "positive_amount" }
+          - { param: "positive_max_legs" }
+          - { param: "pools_nonempty" }
+          - { param: "pool_ids_unique" }
+          - op: "not"
+            args:
+              - op: "or"
+                args:
+                  - op: "and"
+                    args:
+                      - { param: "breakpoints_sparse" }
+                      - { param: "jump_enumeration_drift_free" }
+                      - { param: "resource_bounds_ok" }
+                      - { param: "staircase_witness_exact" }
+                  - op: "and"
+                    args:
+                      - { param: "exact_fallback_available" }
+                      - { param: "fallback_witness_exact" }
       solver_accepts:
         op: "or"
         args:
@@ -104,6 +179,14 @@ actions:
               - { param: "positive_max_legs" }
               - { param: "pools_nonempty" }
               - { param: "pool_ids_unique" }
+              - op: "not"
+                args:
+                  - op: "and"
+                    args:
+                      - { param: "breakpoints_sparse" }
+                      - { param: "jump_enumeration_drift_free" }
+                      - { param: "resource_bounds_ok" }
+                      - { param: "staircase_witness_exact" }
               - { param: "exact_fallback_available" }
               - { param: "fallback_witness_exact" }
       solver_rejects:
@@ -127,8 +210,115 @@ actions:
                   - { param: "positive_max_legs" }
                   - { param: "pools_nonempty" }
                   - { param: "pool_ids_unique" }
+                  - op: "not"
+                    args:
+                      - op: "and"
+                        args:
+                          - { param: "breakpoints_sparse" }
+                          - { param: "jump_enumeration_drift_free" }
+                          - { param: "resource_bounds_ok" }
+                          - { param: "staircase_witness_exact" }
                   - { param: "exact_fallback_available" }
                   - { param: "fallback_witness_exact" }
+      solver_outcome:
+        op: "ite"
+        cond:
+          op: "not"
+          args:
+            - op: "and"
+              args:
+                - { param: "positive_amount" }
+                - { param: "positive_max_legs" }
+                - { param: "pools_nonempty" }
+                - { param: "pool_ids_unique" }
+        then: { enum: "RejectInvalidRequest" }
+        else:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              - { param: "breakpoints_sparse" }
+              - { param: "jump_enumeration_drift_free" }
+              - { param: "resource_bounds_ok" }
+              - { param: "staircase_witness_exact" }
+          then: { enum: "UseStaircase" }
+          else:
+            op: "ite"
+            cond:
+              op: "and"
+              args:
+                - { param: "exact_fallback_available" }
+                - { param: "fallback_witness_exact" }
+            then: { enum: "UseFallback" }
+            else: { enum: "RejectNoExactPath" }
+      invalid_request_precedence_ok:
+        op: "or"
+        args:
+          - op: "and"
+            args:
+              - { param: "positive_amount" }
+              - { param: "positive_max_legs" }
+              - { param: "pools_nonempty" }
+              - { param: "pool_ids_unique" }
+          - op: "not"
+            args:
+              - op: "or"
+                args:
+                  - op: "and"
+                    args:
+                      - { param: "positive_amount" }
+                      - { param: "positive_max_legs" }
+                      - { param: "pools_nonempty" }
+                      - { param: "pool_ids_unique" }
+                      - { param: "breakpoints_sparse" }
+                      - { param: "jump_enumeration_drift_free" }
+                      - { param: "resource_bounds_ok" }
+                      - { param: "staircase_witness_exact" }
+                  - op: "and"
+                    args:
+                      - { param: "positive_amount" }
+                      - { param: "positive_max_legs" }
+                      - { param: "pools_nonempty" }
+                      - { param: "pool_ids_unique" }
+                      - op: "not"
+                        args:
+                          - op: "and"
+                            args:
+                              - { param: "breakpoints_sparse" }
+                              - { param: "jump_enumeration_drift_free" }
+                              - { param: "resource_bounds_ok" }
+                              - { param: "staircase_witness_exact" }
+                      - { param: "exact_fallback_available" }
+                      - { param: "fallback_witness_exact" }
+      fallback_only_after_staircase_blocked:
+        op: "or"
+        args:
+          - op: "not"
+            args:
+              - op: "and"
+                args:
+                  - { param: "positive_amount" }
+                  - { param: "positive_max_legs" }
+                  - { param: "pools_nonempty" }
+                  - { param: "pool_ids_unique" }
+                  - op: "not"
+                    args:
+                      - op: "and"
+                        args:
+                          - { param: "breakpoints_sparse" }
+                          - { param: "jump_enumeration_drift_free" }
+                          - { param: "resource_bounds_ok" }
+                          - { param: "staircase_witness_exact" }
+                  - { param: "exact_fallback_available" }
+                  - { param: "fallback_witness_exact" }
+          - op: "not"
+            args:
+              - op: "and"
+                args:
+                  - { param: "breakpoints_sparse" }
+                  - { param: "jump_enumeration_drift_free" }
+                  - { param: "resource_bounds_ok" }
+                  - { param: "staircase_witness_exact" }
       exactness_preserved:
         op: "or"
         args:
@@ -148,5 +338,43 @@ actions:
               - { param: "positive_max_legs" }
               - { param: "pools_nonempty" }
               - { param: "pool_ids_unique" }
+              - op: "not"
+                args:
+                  - op: "and"
+                    args:
+                      - { param: "breakpoints_sparse" }
+                      - { param: "jump_enumeration_drift_free" }
+                      - { param: "resource_bounds_ok" }
+                      - { param: "staircase_witness_exact" }
               - { param: "exact_fallback_available" }
               - { param: "fallback_witness_exact" }
+          - op: "not"
+            args:
+              - op: "or"
+                args:
+                  - op: "and"
+                    args:
+                      - { param: "positive_amount" }
+                      - { param: "positive_max_legs" }
+                      - { param: "pools_nonempty" }
+                      - { param: "pool_ids_unique" }
+                      - { param: "breakpoints_sparse" }
+                      - { param: "jump_enumeration_drift_free" }
+                      - { param: "resource_bounds_ok" }
+                      - { param: "staircase_witness_exact" }
+                  - op: "and"
+                    args:
+                      - { param: "positive_amount" }
+                      - { param: "positive_max_legs" }
+                      - { param: "pools_nonempty" }
+                      - { param: "pool_ids_unique" }
+                      - op: "not"
+                        args:
+                          - op: "and"
+                            args:
+                              - { param: "breakpoints_sparse" }
+                              - { param: "jump_enumeration_drift_free" }
+                              - { param: "resource_bounds_ok" }
+                              - { param: "staircase_witness_exact" }
+                      - { param: "exact_fallback_available" }
+                      - { param: "fallback_witness_exact" }
