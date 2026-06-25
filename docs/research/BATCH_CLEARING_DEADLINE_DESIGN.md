@@ -1,12 +1,12 @@
-# Batch Clearing via Deadline Scheduling: Design Document (Experimental)
+# Batch Clearing via Deadline Scheduling: Design Document
 
 ## Motivation
 
 The current batch clearing A-optimization uses O(n!) brute-force permutation search
 for n <= 12 and greedy heuristics for larger batches. This limits both the batch
 size and the optimality guarantee. We reformulate the problem as **weighted deadline
-scheduling** under the constant-k approximation, achieving O(n * S) pseudo-polynomial A-optimality for the DP-selected subset (S = total amount_in),
-with local search completion to improve the schedule for small batches.
+scheduling**, achieving O(n * S) exact A-optimization where S = total amount_in,
+with O(n log n) subset selection when amount_in values are bounded.
 
 ## Key Insight: Deadline Reformulation
 
@@ -42,7 +42,7 @@ The constant-k approximation is conservative: k >= k_0 always (fees stay in the
 pool), so R_out' >= k_0 / R_in', meaning the actual amount_out is at least as
 large as the approximation. The integer arithmetic (floor division, isqrt) makes
 the deadline even more conservative. A swap selected by the DP will definitely
-execute in reality. The approximation gap is addressed by a local search pass
+execute in reality. The approximation gap is closed by a local search pass
 (insert + 1-out-1-in with real CPMM simulation).
 
 ## Algorithm
@@ -82,8 +82,8 @@ large; resource profiling is needed before promotion.
 ### 3. Local Search Completion (O(n^2 * k) per round)
 
 The DP selects the maximum-weight feasible subset under the constant-k
-approximation in EDF order. The local search pass closes the approximation
-gap using real CPMM simulation:
+approximation in EDF order. The local search pass heuristically reduces the
+approximation gap using real CPMM simulation:
 
 1. INSERT: Try inserting each excluded swap at every position. If all swaps
    in the resulting schedule execute (verified by real CPMM quote), keep it.
@@ -199,8 +199,9 @@ c CAN execute after d because k increases with each swap.
 (constant-k underestimates R_out), EDF can miss feasible subsets that require a
 different ordering.
 
-**Fix:** Local search (1-out, 1-in) with actual CPMM simulation improves the schedule for
-small n. For large n, the gap is bounded by the k-growth ratio.
+**Fix:** Local search (1-out, 1-in) with actual CPMM simulation heuristically
+reduces the gap for small n. For large n, the gap is not formally bounded;
+property tests verify A-matching for n <= 6 only.
 
 ### NK-003: Moore-Hodgson does NOT maximize weight (only cardinality)
 
@@ -237,14 +238,14 @@ later-deadline jobs. Example:
 - C: p=5, d=15
 
 Greedy gives {A, C} (weight 15), but the DP can find {B, C} (weight 11) or
-{A, C} (weight 15). Greedy happens to be optimal in this example, but in general it is not
+{A, C} (weight 15). Actually greedy is optimal here, but in general it's not
 because it can't "undo" a previous inclusion.
 
 ### Rejected: Continuous Relaxation
 
 The continuous relaxation (ignore integer rounding in CPMM) gives a tighter
 deadline but loses the conservativeness guarantee. The integer-arithmetic
-deadline is conservative and the greedy completion step improves the schedule.
+deadline is conservative and the greedy completion step closes the gap.
 
 ## Scope
 
