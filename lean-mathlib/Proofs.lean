@@ -29,6 +29,7 @@ import Proofs.AutotraderControllerPolicyClosure
 import Proofs.AutogovNextTrajectoryBudget
 import Proofs.BatchApproximation
 import Proofs.BatchAuctionCanonical
+import Proofs.BatchClearingDeadline
 import Proofs.BatchCPMMUnification
 import Proofs.BatchGreedyApproximation
 import Proofs.BatchGreedyOptimality
