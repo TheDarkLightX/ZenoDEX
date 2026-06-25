@@ -19,10 +19,12 @@ import json
 import time
 import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Sequence
 
-# Add the workspace to path
-sys.path.insert(0, "/tmp/zenodex-kpool-staircase-dp-20260624153000")
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from src.core.split_routing_kpool_staircase import (
     _PoolSpec,
@@ -352,7 +354,7 @@ def main():
         print(f"{entry['name']:<25} {p['max_table_states']:>10} {p['max_prefix_states']:>8} {p['max_combine_pairs']:>12} {p['combine_pairs']:>10} {p['max_residual_quotes']:>8} {p['residual_quotes']:>8}")
 
     # Save JSON for Codex
-    with open("/tmp/kpool_state_counts.json", "w") as f:
+    with open("/tmp/kpool_state_counts.json", "w", encoding="utf-8") as f:
         json.dump(profiles, f, indent=2)
     print(f"\nJSON saved to /tmp/kpool_state_counts.json")
 

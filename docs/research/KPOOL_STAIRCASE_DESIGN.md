@@ -175,6 +175,12 @@ cost; we fall back to the existing exact DP in that regime.
    sparse, moderate, dense, and adversarial pool configurations. This data
    establishes the actual resource envelope and verifies that the hard bounds
    are well above actual usage.
+5. **ESSO lifecycle shell:** `kpool_staircase_adaptive_solver_lifecycle_v1`
+   models the adaptive solver control boundary. It verifies that acceptance
+   requires valid inputs plus either a sparse, drift-free, resource-bounded
+   staircase witness or an exact fallback witness. The ESSO model intentionally
+   treats CPMM arithmetic and DP enumeration as external booleans; those
+   obligations remain covered by Lean and runtime parity tests.
 
 ## Negative Knowledge
 
