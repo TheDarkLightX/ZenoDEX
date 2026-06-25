@@ -5,7 +5,7 @@
 The current batch clearing A-optimization uses O(n!) brute-force permutation search
 for n <= 12 and greedy heuristics for larger batches. This limits both the batch
 size and the optimality guarantee. We reformulate the problem as **weighted deadline
-scheduling**, achieving O(n * S) exact A-optimization where S = total amount_in,
+scheduling** under the constant-k approximation, achieving O(n * S) pseudo-polynomial A-optimality for the DP-selected subset (S = total amount_in),
 with local search completion to improve the schedule for small batches.
 
 ## Key Insight: Deadline Reformulation

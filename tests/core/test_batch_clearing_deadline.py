@@ -1,8 +1,9 @@
-"""Tests for batch clearing via deadline scheduling.
+"""Tests for batch clearing via deadline scheduling (experimental).
 
-Verifies that the deadline scheduling algorithm produces A-optimal schedules
-matching the brute-force oracle across a range of pool configurations and
-intent sets.
+Verifies that the deadline scheduling algorithm produces schedules matching
+the brute-force oracle's A-total across a range of pool configurations and
+intent sets. The DP is exact for the constant-k deadline model; local search
+heuristically reduces the approximation gap for the actual CPMM ordering.
 """
 
 from __future__ import annotations

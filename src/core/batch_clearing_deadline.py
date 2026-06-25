@@ -7,13 +7,14 @@ EDF order in O(n * S) pseudo-polynomial time (S = total amount_in). A local
 search pass (insert + 1-out-1-in with real CPMM simulation) closes the
 constant-k approximation gap for small batches.
 
-Scope: this is an experimental prototype. The A-optimality guarantee holds
-under the constant-k approximation for the DP-selected subset. The local
-search is a heuristic completion, not a completeness proof for the actual
-CPMM ordering. Property tests verify A-matching against a brute-force oracle
-for n <= 6 (200 random cases). Promotion to the live batch clearing path
-requires exhaustive small-domain verification, B-refinement integration,
-Intent/PoolState integration, and production-scale resource profiling.
+Scope: this is an experimental prototype. The DP is exact for the
+constant-k deadline model (A-optimal subset selection under EDF). The local
+search heuristically reduces the approximation gap for the actual CPMM
+ordering; it is not a completeness proof. Property tests verify A-matching
+against a brute-force oracle for n <= 6 (200 random cases). Promotion to
+the live batch clearing path requires exhaustive small-domain verification,
+B-refinement integration, Intent/PoolState integration, and production-scale
+resource profiling.
 
 Key insight: under the constant-k approximation (k = R_in * R_out >= k_0,
 since fees only increase k), each SWAP_EXACT_IN intent has a closed-form
@@ -483,12 +484,11 @@ def deadline_schedule_batch(
     """Compute a batch clearing schedule via deadline scheduling (experimental).
 
     Finds the maximum-weight feasible subset under the constant-k approximation
-    via DP, then applies local search (insert + 1-out-1-in with real CPMM
-    simulation) to improve the schedule. The result is A-optimal under the
-    constant-k approximation for the DP-selected subset; the local search is
-    a heuristic completion, not a completeness proof for the actual CPMM
-    ordering. Property tests verify A-matching against a brute-force oracle
-    for n <= 6.
+    via DP (exact for the constant-k deadline model), then applies local search
+    (insert + 1-out-1-in with real CPMM simulation) to heuristically reduce the
+    approximation gap for the actual CPMM ordering. The local search is not a
+    completeness proof. Property tests verify A-matching against a brute-force
+    oracle for n <= 6.
 
     Args:
         intents: List of (intent_id, amount_in, min_amount_out) tuples.
