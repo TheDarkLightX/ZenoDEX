@@ -1,12 +1,13 @@
-# Batch Clearing via Deadline Scheduling: Design Document
+# Batch Clearing via Deadline Scheduling: Design Document (Experimental)
 
 ## Motivation
 
 The current batch clearing A-optimization uses O(n!) brute-force permutation search
 for n <= 12 and greedy heuristics for larger batches. This limits both the batch
 size and the optimality guarantee. We reformulate the problem as **weighted deadline
-scheduling**, achieving O(n * S) exact A-optimization where S = total amount_in,
-with O(n log n) subset selection when amount_in values are bounded.
+scheduling** under the constant-k approximation, achieving O(n * S) pseudo-polynomial
+A-optimality for the DP-selected subset (S = total amount_in), with local search
+completion to heuristically reduce the approximation gap for small batches.
 
 ## Key Insight: Deadline Reformulation
 
@@ -42,8 +43,9 @@ The constant-k approximation is conservative: k >= k_0 always (fees stay in the
 pool), so R_out' >= k_0 / R_in', meaning the actual amount_out is at least as
 large as the approximation. The integer arithmetic (floor division, isqrt) makes
 the deadline even more conservative. A swap selected by the DP will definitely
-execute in reality. The approximation gap is closed by a local search pass
-(insert + 1-out-1-in with real CPMM simulation).
+execute in reality. The approximation gap is heuristically reduced by a local
+search pass (insert + 1-out-1-in with real CPMM simulation); it is not formally
+bounded for large n.
 
 ## Algorithm
 
@@ -245,7 +247,8 @@ because it can't "undo" a previous inclusion.
 
 The continuous relaxation (ignore integer rounding in CPMM) gives a tighter
 deadline but loses the conservativeness guarantee. The integer-arithmetic
-deadline is conservative and the greedy completion step closes the gap.
+deadline is conservative and the local search step heuristically reduces the
+approximation gap.
 
 ## Scope
 
