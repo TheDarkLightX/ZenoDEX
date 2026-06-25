@@ -6,6 +6,7 @@ import Proofs.ArbitrageCertificate
 import Proofs.AutotraderControllerPolicyClosure
 import Proofs.BatchApproximation
 import Proofs.BatchAuctionCanonical
+import Proofs.BatchClearingDeadline
 import Proofs.BatchCPMMUnification
 import Proofs.BatchGreedyOptimality
 import Proofs.BatchOptimality
