@@ -42,7 +42,8 @@ The constant-k approximation is conservative: k >= k_0 always (fees stay in the
 pool), so R_out' >= k_0 / R_in', meaning the actual amount_out is at least as
 large as the approximation. The integer arithmetic (floor division, isqrt) makes
 the deadline even more conservative. A swap selected by the DP will definitely
-execute in reality. The approximation gap is closed by a greedy completion step.
+execute in reality. The approximation gap is closed by a local search pass
+(insert + 1-out-1-in with real CPMM simulation).
 
 ## Algorithm
 
@@ -51,10 +52,13 @@ execute in reality. The approximation gap is closed by a greedy completion step.
 For each swap i, compute deadline d_i using the closed-form formula above.
 
 Edge cases:
-- m_i = 0: deadline = +infinity (swap always executes, no slippage constraint)
-- net_in_i <= 0: deadline = -infinity (swap can never execute, fee >= amount_in)
+- m_i = 0: deadline is finite (NOT infinity). The CPMM kernel rejects
+  amount_out <= 0 with ValueError, so the effective minimum is
+  max(min_amount_out, 1) = 1. The deadline is the point where amount_out
+  drops to 0. (See NK-001 in Negative Knowledge.)
+- net_in_i <= 0: deadline = -1 (swap can never execute, fee >= amount_in)
 
-### 2. A-Optimization via DP (O(n * S))
+### 2. A-Optimization via DP (O(n * S), pseudo-polynomial)
 
 Sort swaps by deadline (EDF order). Run a sparse DP:
 
@@ -71,23 +75,47 @@ For each swap j (in EDF order):
 
 The answer is max(dp.values()). Backtrack to reconstruct the selected subset.
 
-### 3. B-Refinement (O(n^3))
+Note: This is pseudo-polynomial in S = total amount_in, not polynomial in the
+bit length of the input. For production-scale atom amounts, S can be very
+large; resource profiling is needed before promotion.
+
+### 3. Local Search Completion (O(n^2 * k) per round)
+
+The DP selects the maximum-weight feasible subset under the constant-k
+approximation in EDF order. The local search pass closes the approximation
+gap using real CPMM simulation:
+
+1. INSERT: Try inserting each excluded swap at every position. If all swaps
+   in the resulting schedule execute (verified by real CPMM quote), keep it.
+2. (1-out, 1-in): Remove a selected swap, insert an excluded swap at every
+   position. If the replacement is feasible and has higher total A, keep it.
+   The removed swap is returned to the remaining pool for potential re-insertion.
+
+Iterate until no improvement is found. This is a heuristic completion, not a
+completeness proof for the actual CPMM ordering. Property tests verify
+A-matching against a brute-force oracle for n <= 6.
+
+### 4. B-Refinement (O(n^3), not yet implemented)
 
 Order the selected subset by deadline (EDF). Run adjacent-swap B-refinement
 (reuse existing `_refine_b_ordering`) to maximize surplus B without decreasing A.
+This is planned for promotion but not yet integrated.
 
-### 4. Greedy Completion (O(n^2))
+### 5. Fail-Closed Final Validation
 
-Simulate the actual CPMM execution with the selected subset. For each excluded
-swap (in EDF order), check if it can execute at the end of the current schedule
-using the actual CPMM formula. If yes, add it. Repeat until no more swaps can
-be added. This closes the constant-k approximation gap.
+After local search, the final schedule is simulated with the real CPMM formula.
+If any swap in the schedule does not execute (amount_out < effective_min or
+ValueError), `ResourceLimitExceeded` is raised. This catches deadline formula
+bugs or quote semantics drift that would otherwise silently produce an invalid
+schedule.
 
 ## Resource Bounds
 
-- `max_dp_states = 2 * n * max_deadline` (structural ceiling)
-- If exceeded, raise `ResourceLimitExceeded` and fall back to greedy heuristic
-- The bound is well above actual usage (profiled)
+- `max_dp_states` (default 100,000): Maximum DP table size before
+  `ResourceLimitExceeded` is raised. Checked before AND after each DP iteration.
+- If exceeded, `ResourceLimitExceeded` is raised (fail-closed). The caller is
+  responsible for falling back to an alternative algorithm (e.g., greedy).
+- The bound is well above actual usage for n <= 12 with typical reserves.
 
 ## Complexity
 

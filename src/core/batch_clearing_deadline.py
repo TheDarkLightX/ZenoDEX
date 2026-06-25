@@ -1,19 +1,28 @@
 """
-Batch clearing A-optimization via deadline scheduling.
+Batch clearing A-optimization via deadline scheduling (experimental).
 
-Reformulates CPMM batch clearing as weighted deadline scheduling, achieving
-O(n * S) exact A-optimization where S = total amount_in, replacing the current
-O(n!) brute-force permutation search.
+Reformulates CPMM batch clearing as weighted deadline scheduling under the
+constant-k approximation. The DP finds the maximum-weight feasible subset in
+EDF order in O(n * S) pseudo-polynomial time (S = total amount_in). A local
+search pass (insert + 1-out-1-in with real CPMM simulation) closes the
+constant-k approximation gap for small batches.
 
-Key insight: under the constant-k approximation (k = R_in * R_out >= k_0, since
-fees only increase k), each SWAP_EXACT_IN intent has a closed-form deadline:
-the maximum cumulative gross_in of preceding swaps before the intent's output
-drops below its min_amount_out. The DP finds the maximum-weight feasible subset
-in EDF (earliest-deadline-first) order, which is optimal for feasibility.
+Scope: this is an experimental prototype. The A-optimality guarantee holds
+under the constant-k approximation for the DP-selected subset. The local
+search is a heuristic completion, not a completeness proof for the actual
+CPMM ordering. Property tests verify A-matching against a brute-force oracle
+for n <= 6 (200 random cases). Promotion to the live batch clearing path
+requires exhaustive small-domain verification, B-refinement integration,
+Intent/PoolState integration, and production-scale resource profiling.
+
+Key insight: under the constant-k approximation (k = R_in * R_out >= k_0,
+since fees only increase k), each SWAP_EXACT_IN intent has a closed-form
+deadline: the maximum cumulative gross_in of preceding swaps before the
+intent's output drops below its effective minimum (max(min_amount_out, 1),
+since the CPMM kernel rejects amount_out <= 0).
 
 This module is parameterized by the quote function to stay free of runtime
-dependencies. It is an experimental prototype; promotion to the live batch
-clearing path requires parity, performance, and formal evidence.
+dependencies.
 """
 
 from __future__ import annotations
@@ -249,6 +258,12 @@ def _dp_select_subset(
                 new_dp[new_s] = (new_a, i)
                 history_step[new_s] = (s, i, new_a)
 
+        # Check resource limit after state insertion (fail-closed)
+        if len(new_dp) > max_dp_states:
+            raise ResourceLimitExceeded(
+                f"DP table exceeded max_dp_states={max_dp_states}: {len(new_dp)} states"
+            )
+
         dp = new_dp
         dp_history.append(history_step)
 
@@ -352,8 +367,15 @@ def _greedy_completion(
                             best_rem_idx = rem_idx
 
         if best_trial is not None:
+            # Identify the removed swap (the one in schedule but not in best_trial)
+            old_set = set(id(s) for s in schedule)
+            new_set = set(id(s) for s in best_trial)
+            removed = [s for s in schedule if id(s) not in new_set]
             schedule = best_trial
             remaining.pop(best_rem_idx)
+            # Return the removed swap to remaining (it might be re-insertable
+            # in a later round at a different position)
+            remaining.extend(removed)
             changed = True
 
     return schedule, greedy_added
@@ -374,8 +396,10 @@ def _schedule_all_execute(
 ) -> bool:
     """Check that all swaps in the schedule execute with the real CPMM formula.
 
-    Returns True iff every swap produces amount_out >= min_amount_out when
+    Returns True iff every swap produces amount_out >= effective_min when
     executed in order against the actual (non-constant-k) CPMM reserves.
+    The effective minimum is max(min_amount_out, 1) because the CPMM kernel
+    rejects amount_out <= 0 with ValueError.
     """
     r_in = reserve_in_0
     r_out = reserve_out_0
@@ -387,7 +411,7 @@ def _schedule_all_execute(
                 amount_in=swap.amount_in,
                 fee_bps=fee_bps,
             )
-            if quote.amount_out < swap.min_amount_out:
+            if quote.amount_out < max(swap.min_amount_out, 1):
                 return False
             r_in = quote.reserve_in_after
             r_out = quote.reserve_out_after
@@ -408,6 +432,11 @@ def _simulate_schedule(
 
     total_a = sum of amount_in for executed swaps.
     total_b = sum of (amount_out - min_amount_out) for executed swaps.
+
+    Fail-closed: if any swap in the schedule does not execute (amount_out <
+    effective_min or ValueError), raises ResourceLimitExceeded. This catches
+    deadline formula bugs or quote semantics drift that would otherwise
+    silently produce an invalid schedule.
     """
     r_in = reserve_in_0
     r_out = reserve_out_0
@@ -422,14 +451,20 @@ def _simulate_schedule(
                 amount_in=swap.amount_in,
                 fee_bps=fee_bps,
             )
-            if quote.amount_out < swap.min_amount_out:
-                continue  # Swap does not execute
-            total_a += swap.amount_in
-            total_b += quote.amount_out - swap.min_amount_out
-            r_in = quote.reserve_in_after
-            r_out = quote.reserve_out_after
-        except ValueError:
-            continue
+        except ValueError as e:
+            raise ResourceLimitExceeded(
+                f"Swap {swap.intent_id} failed during final simulation: {e}"
+            ) from e
+        effective_min = max(swap.min_amount_out, 1)
+        if quote.amount_out < effective_min:
+            raise ResourceLimitExceeded(
+                f"Swap {swap.intent_id} produced amount_out={quote.amount_out} "
+                f"< effective_min={effective_min} (min_amount_out={swap.min_amount_out})"
+            )
+        total_a += swap.amount_in
+        total_b += quote.amount_out - swap.min_amount_out
+        r_in = quote.reserve_in_after
+        r_out = quote.reserve_out_after
 
     return total_a, total_b
 

@@ -629,15 +629,211 @@ class TestConservativeness:
             fee_bps=30,
             quote_exact_in_fn=_quote,
         )
-        # Verify all ordered intents actually execute
+        # Verify all ordered intents actually execute (using effective_min)
         r_in = 10_000
         r_out = 10_000
         intent_map = {iid: (ai, mo) for iid, ai, mo in intents}
         for iid in result.ordered_intents:
             amount_in, min_amount_out = intent_map[iid]
             quote = _quote(r_in, r_out, amount_in, 30)
-            assert quote.amount_out >= min_amount_out, (
-                f"Swap {iid} in schedule but fails: amount_out={quote.amount_out} < min={min_amount_out}"
+            assert quote.amount_out >= max(min_amount_out, 1), (
+                f"Swap {iid} in schedule but fails: amount_out={quote.amount_out} < effective_min={max(min_amount_out, 1)}"
             )
             r_in = quote.reserve_in_after
             r_out = quote.reserve_out_after
+
+
+# -- Adversarial tests (Codex finding #6) ------------------------------------
+
+
+class TestAdversarial:
+    """Adversarial tests for edge cases and local-search escape."""
+
+    def test_all_identical_swaps(self):
+        """All swaps identical: no ordering preference, all should execute."""
+        intents = [("a", 100, 50), ("b", 100, 50), ("c", 100, 50), ("d", 100, 50)]
+        result = deadline_schedule_batch(
+            intents,
+            reserve_in_0=10_000,
+            reserve_out_0=10_000,
+            fee_bps=30,
+            quote_exact_in_fn=_quote,
+        )
+        brute_ids, brute_a, _ = brute_force_best_subset(
+            intents,
+            reserve_in_0=10_000,
+            reserve_out_0=10_000,
+            fee_bps=30,
+            quote_exact_in_fn=_quote,
+        )
+        assert result.total_a == brute_a
+
+    def test_tiny_reserves(self):
+        """Tiny reserves where even small swaps have huge price impact."""
+        intents = [("a", 1, 1), ("b", 2, 1), ("c", 1, 1)]
+        result = deadline_schedule_batch(
+            intents,
+            reserve_in_0=10,
+            reserve_out_0=10,
+            fee_bps=30,
+            quote_exact_in_fn=_quote,
+        )
+        brute_ids, brute_a, _ = brute_force_best_subset(
+            intents,
+            reserve_in_0=10,
+            reserve_out_0=10,
+            fee_bps=30,
+            quote_exact_in_fn=_quote,
+        )
+        assert result.total_a == brute_a
+
+    def test_huge_amount_near_reserve_cap(self):
+        """Huge amount_in near the reserve cap (kernel domain limit)."""
+        intents = [("a", 2000, 1000), ("b", 1000, 500)]
+        result = deadline_schedule_batch(
+            intents,
+            reserve_in_0=3000,
+            reserve_out_0=3000,
+            fee_bps=30,
+            quote_exact_in_fn=_quote,
+        )
+        brute_ids, brute_a, _ = brute_force_best_subset(
+            intents,
+            reserve_in_0=3000,
+            reserve_out_0=3000,
+            fee_bps=30,
+            quote_exact_in_fn=_quote,
+        )
+        assert result.total_a == brute_a
+
+    def test_100_percent_fee(self):
+        """100% fee means net_in = 0, all swaps fail."""
+        intents = [("a", 100, 1), ("b", 200, 1)]
+        result = deadline_schedule_batch(
+            intents,
+            reserve_in_0=10_000,
+            reserve_out_0=10_000,
+            fee_bps=10_000,
+            quote_exact_in_fn=_quote,
+        )
+        assert result.total_a == 0
+        assert result.ordered_intents == ()
+
+    def test_replace_then_reinsert(self):
+        """Test that a replaced swap can be re-inserted in a later round.
+
+        This covers Codex finding #2: the 1-out-1-in phase should return the
+        removed swap to the remaining pool for potential re-insertion.
+        """
+        # Construct a case where replacement is needed, then the removed
+        # swap can be re-inserted at a different position
+        intents = [
+            ("a", 100, 90),
+            ("b", 200, 150),
+            ("c", 500, 400),
+            ("d", 1000, 800),
+            ("e", 50, 40),
+        ]
+        result = deadline_schedule_batch(
+            intents,
+            reserve_in_0=10_000,
+            reserve_out_0=10_000,
+            fee_bps=30,
+            quote_exact_in_fn=_quote,
+        )
+        brute_ids, brute_a, _ = brute_force_best_subset(
+            intents,
+            reserve_in_0=10_000,
+            reserve_out_0=10_000,
+            fee_bps=30,
+            quote_exact_in_fn=_quote,
+        )
+        assert result.total_a == brute_a, (
+            f"deadline A={result.total_a} != brute A={brute_a}"
+        )
+
+    def test_every_ordered_intent_executes_property(self):
+        """Generated check: every returned ordered intent actually executes."""
+        intents = [
+            ("a", 100, 90),
+            ("b", 500, 400),
+            ("c", 1000, 800),
+            ("d", 200, 150),
+            ("e", 50, 40),
+            ("f", 300, 250),
+        ]
+        result = deadline_schedule_batch(
+            intents,
+            reserve_in_0=10_000,
+            reserve_out_0=10_000,
+            fee_bps=30,
+            quote_exact_in_fn=_quote,
+        )
+        r_in = 10_000
+        r_out = 10_000
+        intent_map = {iid: (ai, mo) for iid, ai, mo in intents}
+        for iid in result.ordered_intents:
+            amount_in, min_amount_out = intent_map[iid]
+            quote = _quote(r_in, r_out, amount_in, 30)
+            assert quote.amount_out >= max(min_amount_out, 1), (
+                f"Swap {iid} in schedule but fails: amount_out={quote.amount_out} "
+                f"< effective_min={max(min_amount_out, 1)}"
+            )
+            r_in = quote.reserve_in_after
+            r_out = quote.reserve_out_after
+
+    def test_exhaustive_small_domain(self):
+        """Exhaustive small-domain search: try all 3-swap combinations."""
+        import itertools
+        for seed in range(20):
+            import random
+            rng = random.Random(seed)
+            n = 3
+            intents = []
+            for i in range(n):
+                ai = rng.randint(1, 500)
+                mo = rng.choice([0, 1, rng.randint(1, 200)])
+                intents.append((f"i{i}", ai, mo))
+
+            result = deadline_schedule_batch(
+                intents,
+                reserve_in_0=10_000,
+                reserve_out_0=10_000,
+                fee_bps=30,
+                quote_exact_in_fn=_quote,
+            )
+            brute_ids, brute_a, _ = brute_force_best_subset(
+                intents,
+                reserve_in_0=10_000,
+                reserve_out_0=10_000,
+                fee_bps=30,
+                quote_exact_in_fn=_quote,
+            )
+            assert result.total_a == brute_a, (
+                f"seed={seed}: deadline A={result.total_a} != brute A={brute_a}\n"
+                f"intents={intents}"
+            )
+
+    def test_fail_closed_on_invalid_schedule(self):
+        """If the deadline formula produces an invalid schedule, the final
+        simulation should raise ResourceLimitExceeded (fail-closed)."""
+        from src.core.batch_clearing_deadline import _simulate_schedule, DeadlineSwap
+        # Create a swap that produces amount_out=32 but has min_amount_out=100.
+        # The CPMM kernel will quote it (amount_out=32 > 0), but the simulation
+        # should detect amount_out < effective_min and raise.
+        bad_swap = DeadlineSwap(
+            intent_id="bad",
+            amount_in=50,
+            min_amount_out=100,  # Tighter than the actual output (32)
+            net_in=49,
+            deadline=0,
+            index=0,
+        )
+        with pytest.raises(ResourceLimitExceeded):
+            _simulate_schedule(
+                [bad_swap],
+                reserve_in_0=100,
+                reserve_out_0=100,
+                fee_bps=30,
+                quote_exact_in_fn=_quote,
+            )
