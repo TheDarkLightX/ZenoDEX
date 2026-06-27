@@ -92,6 +92,13 @@ def _require_bls() -> None:
         raise RuntimeError("py_ecc.bls is required to verify external threshold BLS receipts")
 
 
+def _require_bls_basic() -> Any:
+    _require_bls()
+    if G2Basic is None:
+        raise RuntimeError("py_ecc.bls is required to verify external threshold BLS receipts")
+    return G2Basic
+
+
 def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise TypeError(f"{name} must be a JSON object")
@@ -408,7 +415,7 @@ def verify_external_threshold_bls_signature_receipt_v0(
     payload: Mapping[str, Any],
 ) -> tuple[bool, str | None]:
     try:
-        _require_bls()
+        bls = _require_bls_basic()
         validate_external_threshold_bls_evidence_v0(evidence)
         obj = _require_mapping(receipt, name="receipt")
         if set(obj.keys()) != _SIGNATURE_RECEIPT_KEYS_V0:
@@ -444,9 +451,8 @@ def verify_external_threshold_bls_signature_receipt_v0(
         if not hmac.compare_digest(_require_root(obj.get("receipt_hash"), name="receipt_hash"), expected):
             return False, "external threshold BLS receipt_hash mismatch"
         signature = _require_signature(obj.get("signature"), name="signature")
-        assert G2Basic is not None
         ok = bool(
-            G2Basic.Verify(
+            bls.Verify(
                 hex_to_bytes_fixed(str(evidence["public_key"]), nbytes=48, name="public_key"),
                 _bls_digest(payload_obj),
                 hex_to_bytes_fixed(signature, nbytes=96, name="signature"),
