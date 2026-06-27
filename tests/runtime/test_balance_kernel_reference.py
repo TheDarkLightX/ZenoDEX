@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+from src.core import balance_kernel as balance_kernel_module
 from src.core.balance_kernel import (
     MAX_BALANCE,
     BalanceAccepted,
@@ -73,6 +76,28 @@ def test_credit_rejections():
     assert _credit(BalanceState(), A, "0x" + "aa" * 48, 100).reason == "invalid_asset"
     for bad in (0, -1, MAX_BALANCE + 1, True, 1.5):
         assert _credit(BalanceState(), A, X, bad).reason == "invalid_amount"
+
+
+def test_internal_pubkey_canonicalizer_fault_is_not_masked(monkeypatch):
+    def broken_canonicalizer(*_args, **_kwargs):
+        raise RuntimeError("internal pubkey canonicalizer fault")
+
+    monkeypatch.setattr(balance_kernel_module, "canonical_hex_fixed_allow_0x", broken_canonicalizer)
+
+    with pytest.raises(RuntimeError, match="internal pubkey canonicalizer fault"):
+        _credit(BalanceState(), A, X, 100)
+
+
+def test_internal_asset_canonicalizer_fault_is_not_masked(monkeypatch):
+    def broken_asset_canonicalizer(value, *, nbytes, name):
+        if name == "asset":
+            raise RuntimeError("internal asset canonicalizer fault")
+        return "0x" + str(value).strip().removeprefix("0x").removeprefix("0X").lower()
+
+    monkeypatch.setattr(balance_kernel_module, "canonical_hex_fixed_allow_0x", broken_asset_canonicalizer)
+
+    with pytest.raises(RuntimeError, match="internal asset canonicalizer fault"):
+        _credit(BalanceState(), A, X, 100)
 
 
 def test_credit_overflow():
