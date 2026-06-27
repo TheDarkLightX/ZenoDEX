@@ -13,7 +13,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .pokayoke_swap_guardrails import SwapGuardrailContext, SwapGuardrailDecision, decide_swap_guardrails
+from .pokayoke_swap_guardrails import (
+    SwapGuardrailContext,
+    SwapGuardrailDecision,
+    decide_swap_guardrails,
+)
 from .price_impact_preview import BPS_SCALE, price_impact_preview
 from .slippage_advisor import SlippageAdvice, slippage_advice_exact_in_cpmm
 
@@ -497,20 +501,17 @@ def suggest_amount_in_exact_in_cpmm(
             if eval_count >= int(max_evals):
                 break
             eval_count += 1
-            try:
-                _, d = _eval_amount(
-                    reserve_in=reserve_in,
-                    reserve_out=reserve_out,
-                    fee_bps=fee_bps,
-                    amount_in=int(cand),
-                    pending_volume_same_direction=pending_volume_same_direction,
-                    confidence_bps=confidence_bps,
-                    slippage_options_bps=slippage_options_bps,
-                    max_attacker_amount_in=max_attacker_amount_in,
-                    user_slippage_bps=user_slippage_bps,
-                )
-            except Exception:
-                continue
+            _, d = _eval_amount(
+                reserve_in=reserve_in,
+                reserve_out=reserve_out,
+                fee_bps=fee_bps,
+                amount_in=int(cand),
+                pending_volume_same_direction=pending_volume_same_direction,
+                confidence_bps=confidence_bps,
+                slippage_options_bps=slippage_options_bps,
+                max_attacker_amount_in=max_attacker_amount_in,
+                user_slippage_bps=user_slippage_bps,
+            )
             if _action_severity(str(d.action)) <= target_sev:
                 suggested_amount = int(cand)
                 suggested_action = str(d.action)

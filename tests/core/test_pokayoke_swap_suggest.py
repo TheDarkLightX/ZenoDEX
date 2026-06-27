@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import pytest
 
+import src.core.pokayoke_swap_suggest as suggest_module
 from src.core.pokayoke_swap_suggest import (
+    suggest_amount_in_exact_in_cpmm,
     suggest_amount_in_for_impact_lt_bps,
     suggest_amount_in_for_required_slippage_le_bps,
-    suggest_amount_in_exact_in_cpmm,
 )
 from src.core.price_impact_preview import price_impact_preview
 
@@ -159,3 +160,29 @@ def test_suggest_amount_in_exact_in_cpmm_bva_max_evals_boundary() -> None:
     assert s2[0].suggested_action == "confirm"
     assert s2[0].suggested_reasons is not None
     assert "mev_conflict" not in set(s2[0].suggested_reasons)
+
+
+def test_exact_in_candidate_eval_internal_fault_is_not_silently_suppressed(monkeypatch: pytest.MonkeyPatch) -> None:
+    original_eval = suggest_module._eval_amount
+
+    def eval_once_then_fault(**kwargs):
+        if int(kwargs["amount_in"]) == 101:
+            return original_eval(**kwargs)
+        raise RuntimeError("candidate evaluation fault")
+
+    monkeypatch.setattr(suggest_module, "_eval_amount", eval_once_then_fault)
+
+    with pytest.raises(RuntimeError, match="candidate evaluation fault"):
+        suggest_amount_in_exact_in_cpmm(
+            reserve_in=20_000,
+            reserve_out=20_000,
+            fee_bps=0,
+            amount_in=101,
+            pending_volume_same_direction=0,
+            confidence_bps=9500,
+            slippage_options_bps=[10, 50, 100, 300],
+            max_attacker_amount_in=500,
+            user_slippage_bps=10,
+            max_evals=2,
+            target_actions=("confirm",),
+        )
