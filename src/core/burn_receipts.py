@@ -20,7 +20,6 @@ from ..runtime.authority import AuthorityMode, active_mode, decide
 from ..runtime.rust_invoker import burn_rails_verify, canonical_domain_json_hash
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 
-
 _BURN_RECEIPT_HASH_LABEL = "zenodex.burn_receipt/v1"
 BURN_RECEIPTS_SURFACE = "burn_receipts"
 _BURN_RAIL_FIELDS = (
@@ -36,6 +35,12 @@ _BURN_RAIL_FIELDS = (
     "batch_burn_sum_before",
     "batch_burn_sum_after",
 )
+
+
+def _require_burn_receipt_int(value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError("burn receipt numeric fields must be strict ints")
+    return int(value)
 
 
 def _burn_receipt_hash_python(receipt_body: Dict[str, Any]) -> str:
@@ -246,18 +251,18 @@ def verify_burn_receipt(receipt: Dict[str, Any]) -> Tuple[bool, str]:
         return False, "bad_accounting"
 
     try:
-        do_burn = int(host.get("do_burn"))
-        receipt_bound = int(host.get("receipt_bound"))
-        nullifier_unused = int(host.get("nullifier_unused"))
-        policy_ok = int(host.get("policy_ok"))
-        burn_amount = int(accounting.get("burn_amount"))
-        receipt_amount = int(accounting.get("receipt_amount"))
-        burn_budget = int(accounting.get("burn_budget"))
-        supply_before = int(accounting.get("supply_before"))
-        supply_after = int(accounting.get("supply_after"))
-        batch_burn_sum_before = int(accounting.get("batch_burn_sum_before"))
-        batch_burn_sum_after = int(accounting.get("batch_burn_sum_after"))
-    except Exception:
+        do_burn = _require_burn_receipt_int(host.get("do_burn"))
+        receipt_bound = _require_burn_receipt_int(host.get("receipt_bound"))
+        nullifier_unused = _require_burn_receipt_int(host.get("nullifier_unused"))
+        policy_ok = _require_burn_receipt_int(host.get("policy_ok"))
+        burn_amount = _require_burn_receipt_int(accounting.get("burn_amount"))
+        receipt_amount = _require_burn_receipt_int(accounting.get("receipt_amount"))
+        burn_budget = _require_burn_receipt_int(accounting.get("burn_budget"))
+        supply_before = _require_burn_receipt_int(accounting.get("supply_before"))
+        supply_after = _require_burn_receipt_int(accounting.get("supply_after"))
+        batch_burn_sum_before = _require_burn_receipt_int(accounting.get("batch_burn_sum_before"))
+        batch_burn_sum_after = _require_burn_receipt_int(accounting.get("batch_burn_sum_after"))
+    except (TypeError, ValueError):
         return False, "bad_numeric_field"
 
     return _verify_burn_rails_authority(

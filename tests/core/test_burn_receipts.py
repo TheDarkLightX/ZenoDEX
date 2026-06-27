@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+
 from src.core.burn_receipts import burn_receipt_hash, make_burn_receipt, verify_burn_receipt
 
 
@@ -56,6 +58,28 @@ def test_burn_receipt_amount_mismatch_rejected_after_rehash() -> None:
     ok, err = verify_burn_receipt(receipt)
     assert not ok
     assert err == "amount_guard_failed"
+
+
+def test_burn_receipt_rejects_hash_valid_string_numeric_field() -> None:
+    receipt = copy.deepcopy(_make_valid_receipt())
+    receipt["body"]["accounting"]["burn_amount"] = "20"
+    receipt["receipt_hash"] = burn_receipt_hash(receipt["body"])
+
+    ok, err = verify_burn_receipt(receipt)
+
+    assert not ok
+    assert err == "bad_numeric_field"
+
+
+def test_burn_receipt_rejects_hash_valid_bool_numeric_field() -> None:
+    receipt = copy.deepcopy(_make_valid_receipt())
+    receipt["body"]["host"]["do_burn"] = True
+    receipt["receipt_hash"] = burn_receipt_hash(receipt["body"])
+
+    ok, err = verify_burn_receipt(receipt)
+
+    assert not ok
+    assert err == "bad_numeric_field"
 
 
 def test_burn_receipt_no_burn_path_preserves_state() -> None:
