@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from src.core import replay_guard as replay_guard_module
 from src.core.replay_guard import (
     U32_MAX,
     AdmitAccepted,
@@ -134,6 +135,16 @@ def test_invalid_sender_rejected(bad_sender):
     result = admit(state=ReplayGuardState(), sender=bad_sender, nonce=1)
     assert isinstance(result, AdmitRejected)
     assert result.reason == "invalid_sender"
+
+
+def test_internal_sender_canonicalizer_fault_is_not_masked(monkeypatch):
+    def broken_canonicalizer(*_args, **_kwargs):
+        raise RuntimeError("internal sender canonicalizer fault")
+
+    monkeypatch.setattr(replay_guard_module, "canonical_hex_fixed_allow_0x", broken_canonicalizer)
+
+    with pytest.raises(RuntimeError, match="internal sender canonicalizer fault"):
+        admit(state=ReplayGuardState(), sender=A, nonce=1)
 
 
 @pytest.mark.parametrize("bad_nonce", [0, -1, U32_MAX + 1, True, 1.0, "1"])
