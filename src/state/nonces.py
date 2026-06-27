@@ -15,7 +15,6 @@ from .balances import PubKey
 from .canonical import canonical_hex_fixed_allow_0x
 from .intents import Intent
 
-
 _U32_MAX = 0xFFFFFFFF
 
 
@@ -108,11 +107,11 @@ def validate_and_apply_intent_nonce_batch(
             continue
         try:
             nonce = _require_int_u32_pos(nonce_raw, name="nonce")
-        except Exception:
+        except (TypeError, ValueError):
             return False, "Missing/invalid nonce", None
         try:
             sender = canonical_hex_fixed_allow_0x(intent.sender_pubkey, nbytes=48, name="sender_pubkey")
-        except Exception as exc:
+        except (TypeError, ValueError) as exc:
             return False, f"invalid sender_pubkey for nonce accounting: {exc}", None
         per_sender.setdefault(sender, []).append(int(nonce))
         saw_nonce = True

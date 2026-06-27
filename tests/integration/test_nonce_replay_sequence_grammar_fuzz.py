@@ -5,8 +5,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from tools.nonce_replay_sequence_grammar_fuzz import explore_all_targets, explore_target, minimize_case
-
+from tools.nonce_replay_sequence_grammar_fuzz import (
+    explore_all_targets,
+    explore_target,
+    minimize_case,
+)
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 
@@ -66,7 +69,7 @@ def test_nonce_replay_sequence_grammar_fuzz_cli_emits_expected_schema() -> None:
 def test_nonce_replay_sequence_minimizer_removes_dead_tail_without_changing_path() -> None:
     witness = minimize_case("nonce_replay_sequence", "Seq->CrossBatchReplayWithDeadTail")
     assert witness.outcome_label == "reject:step=1:nonce sequence invalid"
-    assert witness.path_id == "76211395ef28d018"
+    assert witness.path_id == "c63c5563dca8d98f"
     assert witness.original_size > witness.minimized_size
     assert isinstance(witness.payload, dict)
     steps = witness.payload["steps"]
@@ -96,5 +99,5 @@ def test_nonce_replay_sequence_minimizer_cli_emits_expected_schema() -> None:
     assert witness["target"] == "nonce_replay_sequence"
     assert witness["derivation"] == "Seq->CrossBatchReplayWithDeadTail"
     assert witness["outcome_label"] == "reject:step=1:nonce sequence invalid"
-    assert witness["path_id"] == "76211395ef28d018"
+    assert witness["path_id"] == "c63c5563dca8d98f"
     assert witness["original_size"] > witness["minimized_size"]
