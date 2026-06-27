@@ -52,6 +52,36 @@ def test_split_matches_bruteforce_small():
         assert best_a == best_a_bf
 
 
+def test_bruteforce_propagates_internal_quote_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    def broken(_pool: PoolXY, _amount_in: int) -> int:
+        raise RuntimeError("internal split quote fault")
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", broken)
+
+    with pytest.raises(RuntimeError, match="internal split quote fault"):
+        brute_force_best_split_two_pools_exact_in(
+            PoolXY(x=1000, y=1000, fee_bps=0),
+            PoolXY(x=1000, y=1000, fee_bps=0),
+            10,
+        )
+
+
+def test_heuristic_propagates_internal_quote_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    def broken(_pool: PoolXY, _amount_in: int) -> int:
+        raise RuntimeError("internal split quote fault")
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", broken)
+
+    with pytest.raises(RuntimeError, match="internal split quote fault"):
+        best_split_two_pools_exact_in(
+            PoolXY(x=20_000, y=20_000, fee_bps=30),
+            PoolXY(x=24_000, y=18_000, fee_bps=30),
+            20_000,
+            window=64,
+            search_profile="baseline",
+        )
+
+
 def test_split_can_beat_single_pool():
     # One pool is shallow on y, the other deep; splitting should not be worse than best single.
     p0 = PoolXY(x=1000, y=100, fee_bps=0)
