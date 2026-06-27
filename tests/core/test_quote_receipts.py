@@ -5,6 +5,7 @@ from typing import Any, Callable
 
 import pytest
 
+import src.core.quote_receipts as quote_receipts_mod
 from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from src.core.quote_receipts import (
     QUOTE_RECEIPT_CERTIFICATE_AMOUNT_OUT_MISMATCH,
@@ -1069,6 +1070,51 @@ def test_replay_and_apply_hop_fail_closed_on_inconsistent_direction_contract(
     assert not ok
     assert err == "bad_pool_direction"
     assert next_pool is None
+
+
+def test_replay_and_apply_hop_rejects_swap_domain_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    receipt, pools = _single_hop_exact_in_receipt()
+    pool = pools["p_ab"]
+    hop = receipt["body"]["legs"][0]["hops"][0]
+
+    def _domain_reject(*_args, **_kwargs):
+        raise ValueError("domain reject")
+
+    monkeypatch.setattr(quote_receipts_mod, "swap_exact_in_for_pool", _domain_reject)
+
+    ok, err, next_pool = _replay_and_apply_hop(
+        pool=pool,
+        kind="exact_in",
+        asset_in=str(hop["asset_in"]),
+        asset_out=str(hop["asset_out"]),
+        amount_in=int(hop["amount_in"]),
+        amount_out=int(hop["amount_out"]),
+    )
+
+    assert not ok
+    assert err == "hop_quote_error"
+    assert next_pool is None
+
+
+def test_replay_and_apply_hop_propagates_swap_programmer_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    receipt, pools = _single_hop_exact_in_receipt()
+    pool = pools["p_ab"]
+    hop = receipt["body"]["legs"][0]["hops"][0]
+
+    def _programmer_error(*_args, **_kwargs):
+        raise RuntimeError("unexpected quote receipt replay bug")
+
+    monkeypatch.setattr(quote_receipts_mod, "swap_exact_in_for_pool", _programmer_error)
+
+    with pytest.raises(RuntimeError, match="unexpected quote receipt replay bug"):
+        _replay_and_apply_hop(
+            pool=pool,
+            kind="exact_in",
+            asset_in=str(hop["asset_in"]),
+            asset_out=str(hop["asset_out"]),
+            amount_in=int(hop["amount_in"]),
+            amount_out=int(hop["amount_out"]),
+        )
 
 @pytest.mark.parametrize(("raw", "expected"), [(0, False), (1, True)])
 def test_require_receipt_gate_flag_accepts_zero_one_ints(raw: int, expected: bool) -> None:

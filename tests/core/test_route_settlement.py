@@ -9,6 +9,9 @@ adversarial shapes.
 
 from __future__ import annotations
 
+import pytest
+
+import src.core.route_settlement as route_settlement_mod
 from src.core.quote_receipts import make_route_quote_receipt, pool_state_fingerprint
 from src.core.route_settlement import (
     ROUTE_REJECT_LEG_QUOTE_MISMATCH,
@@ -352,3 +355,31 @@ def test_replay_rejects_lying_leg_amounts_with_matching_fingerprint() -> None:
     replay = replay_route_legs(binding=tampered, pools=pools)
     assert not replay.ok
     assert replay.reject_reason == ROUTE_REJECT_LEG_QUOTE_MISMATCH
+
+
+def test_replay_rejects_swap_domain_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    pools = {"p1": _pool("p1"), "p2": _pool("p2")}
+    binding = _binding_for(pools)
+
+    def _domain_reject(*_args, **_kwargs):
+        raise ValueError("domain reject")
+
+    monkeypatch.setattr(route_settlement_mod, "swap_exact_in_for_pool", _domain_reject)
+
+    replay = replay_route_legs(binding=binding, pools=pools)
+
+    assert not replay.ok
+    assert replay.reject_reason == ROUTE_REJECT_LEG_QUOTE_MISMATCH
+
+
+def test_replay_propagates_swap_programmer_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    pools = {"p1": _pool("p1"), "p2": _pool("p2")}
+    binding = _binding_for(pools)
+
+    def _programmer_error(*_args, **_kwargs):
+        raise RuntimeError("unexpected route replay bug")
+
+    monkeypatch.setattr(route_settlement_mod, "swap_exact_in_for_pool", _programmer_error)
+
+    with pytest.raises(RuntimeError, match="unexpected route replay bug"):
+        replay_route_legs(binding=binding, pools=pools)
