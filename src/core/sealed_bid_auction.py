@@ -14,9 +14,16 @@ from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Tuple
 
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
+from .domain_limits import is_strict_int
 
 MAX_UNITS = 0xFFFF
 MAX_PRICE = 0xFFFF
+
+
+def _receipt_int(value: Any) -> int | None:
+    if not is_strict_int(value):
+        return None
+    return value
 
 
 @dataclass(frozen=True)
@@ -97,11 +104,10 @@ def verify_commit_receipt(receipt: Dict[str, Any]) -> Tuple[bool, str]:
     for key in ("quantity", "limit_price", "nonce"):
         if key in body:
             return False, f"private_field_leaked_{key}"
-    try:
-        commit_epoch = int(body.get("commit_epoch"))
-        reveal_deadline_epoch = int(body.get("reveal_deadline_epoch"))
-        units_for_sale = int(body.get("units_for_sale"))
-    except Exception:
+    commit_epoch = _receipt_int(body.get("commit_epoch"))
+    reveal_deadline_epoch = _receipt_int(body.get("reveal_deadline_epoch"))
+    units_for_sale = _receipt_int(body.get("units_for_sale"))
+    if commit_epoch is None or reveal_deadline_epoch is None or units_for_sale is None:
         return False, "bad_numeric_field"
     if commit_epoch < 0 or reveal_deadline_epoch < commit_epoch:
         return False, "bad_epoch_window"
@@ -119,7 +125,7 @@ def verify_commit_receipt(receipt: Dict[str, Any]) -> Tuple[bool, str]:
 def reveal_matches_commitment(*, commitment: str, quantity: int, limit_price: int, nonce: str) -> bool:
     try:
         return str(commitment) == sealed_bid_reveal_hash(quantity=quantity, limit_price=limit_price, nonce=nonce)
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return False
 
 

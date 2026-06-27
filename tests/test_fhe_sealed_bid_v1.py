@@ -328,3 +328,37 @@ class TestReceiptVerification:
                                                        trusted_plain_bids=_revealed(specs))
         assert ok is False
         assert reason == "public_result_mismatch"
+
+    def test_receipt_rejects_noncanonical_public_result_number(self, key_pair):
+        specs = [("alice", "c1", 2, 100)]
+        result = settle_fhe_sealed_bids(auction_id="a17", units_for_sale=2,
+                                        encrypted_bids=_enc_bids(key_pair, specs), key_pair=key_pair)
+        receipt = make_fhe_sealed_bid_v1_receipt(auction_id="a17", units_for_sale=2, result=result)
+        receipt["body"]["public_result"]["total_filled"] = "2"
+        receipt["receipt_hash"] = fhe_sealed_bid_v1_receipt_hash(receipt["body"])
+
+        ok, reason = verify_fhe_sealed_bid_v1_receipt(
+            receipt,
+            approved_key_ids=["test-fhe-v1"],
+            trusted_plain_bids=_revealed(specs),
+        )
+
+        assert ok is False
+        assert reason == "bad_public_result_numeric"
+
+    def test_receipt_rejects_bool_fill_number(self, key_pair):
+        specs = [("alice", "c1", 2, 100)]
+        result = settle_fhe_sealed_bids(auction_id="a18", units_for_sale=2,
+                                        encrypted_bids=_enc_bids(key_pair, specs), key_pair=key_pair)
+        receipt = make_fhe_sealed_bid_v1_receipt(auction_id="a18", units_for_sale=2, result=result)
+        receipt["body"]["public_result"]["fills"][0]["filled_quantity"] = True
+        receipt["receipt_hash"] = fhe_sealed_bid_v1_receipt_hash(receipt["body"])
+
+        ok, reason = verify_fhe_sealed_bid_v1_receipt(
+            receipt,
+            approved_key_ids=["test-fhe-v1"],
+            trusted_plain_bids=_revealed(specs),
+        )
+
+        assert ok is False
+        assert reason == "bad_fill_numeric"

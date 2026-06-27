@@ -8,6 +8,11 @@ from src.core.sealed_bid_auction import (
     settle_uniform_price_sealed_bids,
     verify_commit_receipt,
 )
+from src.state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
+
+
+def _commit_receipt_hash(body: dict) -> str:
+    return sha256_hex(domain_sep_bytes("zenodex.sealed_bid_commit/v1") + canonical_json_bytes(body))
 
 
 def test_commit_receipt_hides_private_fields() -> None:
@@ -25,6 +30,25 @@ def test_commit_receipt_hides_private_fields() -> None:
     assert "quantity" not in receipt["body"]
     assert "limit_price" not in receipt["body"]
     assert "nonce" not in receipt["body"]
+
+
+def test_commit_receipt_rejects_noncanonical_numeric_encoding() -> None:
+    commitment = sealed_bid_reveal_hash(quantity=4, limit_price=105, nonce="n1")
+    receipt = make_sealed_bid_commit_receipt(
+        batch_id="b1",
+        bidder_id="alice",
+        commitment=commitment,
+        commit_epoch=1,
+        reveal_deadline_epoch=2,
+        units_for_sale=10,
+    )
+    receipt["body"]["commit_epoch"] = "1"
+    receipt["receipt_hash"] = _commit_receipt_hash(receipt["body"])
+
+    ok, err = verify_commit_receipt(receipt)
+
+    assert not ok
+    assert err == "bad_numeric_field"
 
 
 def test_reveal_matches_commitment_and_rejects_mismatch() -> None:

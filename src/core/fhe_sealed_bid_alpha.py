@@ -19,13 +19,13 @@ from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Tuple
 
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
+from .domain_limits import is_strict_int
 from .sealed_bid_auction import (
     MAX_PRICE,
     RevealedSealedBid,
     SealedBidSettlement,
     settle_uniform_price_sealed_bids,
 )
-
 
 MAX_ALPHA_BIDS = 8
 MAX_ALPHA_UNITS = 63
@@ -37,6 +37,12 @@ ZAMA_DEVNET_HCU_DEPTH_CAP = 5_000_000
 EUINT32_COMPARE_HCU = 118_000
 EUINT32_SELECT_HCU = 55_000
 EUINT32_ADD_HCU = 125_000
+
+
+def _receipt_int(value: Any) -> int | None:
+    if not is_strict_int(value):
+        return None
+    return value
 
 
 @dataclass(frozen=True)
@@ -284,6 +290,8 @@ def verify_fhe_sealed_bid_alpha_plan(
     cipher_bids_raw = body.get("cipher_bids")
     if not isinstance(cipher_bids_raw, list):
         return False, "bad_cipher_bids"
+    if not all(isinstance(item, dict) for item in cipher_bids_raw):
+        return False, "bad_cipher_bid"
     try:
         cipher_bids = _validate_cipher_bids(
             FHECipherBid(
@@ -294,7 +302,7 @@ def verify_fhe_sealed_bid_alpha_plan(
             )
             for item in cipher_bids_raw
         )
-    except Exception as exc:
+    except ValueError as exc:
         return False, str(exc)
     if len(cipher_bids) == 0 or len(cipher_bids) > MAX_ALPHA_BIDS:
         return False, "cipher_bid_count_out_of_range"
@@ -302,23 +310,31 @@ def verify_fhe_sealed_bid_alpha_plan(
     budget = body.get("budget")
     if not isinstance(budget, dict):
         return False, "bad_budget"
-    try:
-        bid_count = int(budget.get("bid_count"))
-        decrypt_outputs = int(budget.get("decrypt_outputs"))
-        compare_ops = int(budget.get("compare_ops"))
-        select_ops = int(budget.get("select_ops"))
-        add_ops = int(budget.get("add_ops"))
-        sort_layers = int(budget.get("sort_layers"))
-        estimated_hcu = int(budget.get("estimated_hcu"))
-        estimated_depth_hcu = int(budget.get("estimated_depth_hcu"))
-    except Exception:
+    bid_count = _receipt_int(budget.get("bid_count"))
+    decrypt_outputs = _receipt_int(budget.get("decrypt_outputs"))
+    compare_ops = _receipt_int(budget.get("compare_ops"))
+    select_ops = _receipt_int(budget.get("select_ops"))
+    add_ops = _receipt_int(budget.get("add_ops"))
+    sort_layers = _receipt_int(budget.get("sort_layers"))
+    estimated_hcu = _receipt_int(budget.get("estimated_hcu"))
+    estimated_depth_hcu = _receipt_int(budget.get("estimated_depth_hcu"))
+    if (
+        bid_count is None
+        or decrypt_outputs is None
+        or compare_ops is None
+        or select_ops is None
+        or add_ops is None
+        or sort_layers is None
+        or estimated_hcu is None
+        or estimated_depth_hcu is None
+    ):
         return False, "bad_budget_numeric"
 
     if bid_count != len(cipher_bids):
         return False, "budget_bid_count_mismatch"
     try:
         expected = estimate_fhe_uniform_price_ops(bid_count=bid_count, decrypt_outputs=decrypt_outputs)
-    except Exception as exc:
+    except ValueError as exc:
         return False, str(exc)
     if compare_ops != expected.compare_ops:
         return False, "compare_ops_mismatch"
@@ -340,12 +356,11 @@ def verify_fhe_sealed_bid_alpha_plan(
     result = body.get("public_result")
     if not isinstance(result, dict):
         return False, "bad_public_result"
-    try:
-        units_for_sale = int(result.get("units_for_sale"))
-        clearing_price = int(result.get("clearing_price"))
-        total_filled = int(result.get("total_filled"))
-        fill_count = int(result.get("fill_count"))
-    except Exception:
+    units_for_sale = _receipt_int(result.get("units_for_sale"))
+    clearing_price = _receipt_int(result.get("clearing_price"))
+    total_filled = _receipt_int(result.get("total_filled"))
+    fill_count = _receipt_int(result.get("fill_count"))
+    if units_for_sale is None or clearing_price is None or total_filled is None or fill_count is None:
         return False, "bad_public_result_numeric"
     if units_for_sale <= 0 or units_for_sale > MAX_ALPHA_UNITS:
         return False, "units_for_sale_out_of_range"
@@ -380,10 +395,9 @@ def verify_fhe_sealed_bid_alpha_plan(
         if key not in cipher_keys:
             return False, "fill_without_cipher_bid"
         seen_fill_keys.add(key)
-        try:
-            filled_quantity = int(fill.get("filled_quantity"))
-            paid_price = int(fill.get("paid_price"))
-        except Exception:
+        filled_quantity = _receipt_int(fill.get("filled_quantity"))
+        paid_price = _receipt_int(fill.get("paid_price"))
+        if filled_quantity is None or paid_price is None:
             return False, "bad_fill_numeric"
         if filled_quantity <= 0 or filled_quantity > MAX_ALPHA_UNITS:
             return False, "filled_quantity_out_of_range"
@@ -397,7 +411,7 @@ def verify_fhe_sealed_bid_alpha_plan(
         return False, "unauthenticated_public_result"
     try:
         plain_bids = tuple(trusted_plain_bids)
-    except Exception:
+    except TypeError:
         return False, "bad_trusted_plain_bids"
     if len(plain_bids) != len(cipher_bids):
         return False, "trusted_plain_bid_count_mismatch"
@@ -411,7 +425,7 @@ def verify_fhe_sealed_bid_alpha_plan(
             if not isinstance(bid.limit_price, int) or isinstance(bid.limit_price, bool) or bid.limit_price <= 0 or bid.limit_price > MAX_PRICE:
                 return False, "trusted_plain_price_out_of_range"
         expected_settlement = settle_uniform_price_sealed_bids(units_for_sale=units_for_sale, bids=plain_bids)
-    except Exception:
+    except (AttributeError, TypeError, ValueError, OverflowError):
         return False, "bad_trusted_plain_bids"
     expected_public_result = _settlement_to_public_result(
         settlement=expected_settlement,

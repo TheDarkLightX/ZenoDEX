@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Tuple
 
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
+from .domain_limits import is_strict_int
 from .sealed_bid_auction import (
     MAX_PRICE,
     MAX_UNITS,
@@ -47,6 +48,12 @@ SCHEME_FHE = "paillier-homomorphic-v1"
 SCHEME_FALLBACK = "commit_reveal_v1"
 _RECEIPT_DOMAIN = "zenodex.fhe_sealed_bid_v1/v1"
 _MILLER_RABIN_ROUNDS = 20
+
+
+def _receipt_int(value: Any) -> int | None:
+    if not is_strict_int(value):
+        return None
+    return value
 
 # ── Paillier key types ──────────────────────────────────────────────────
 
@@ -600,12 +607,11 @@ def verify_fhe_sealed_bid_v1_receipt(
     result = body.get("public_result")
     if not isinstance(result, dict):
         return False, "bad_public_result"
-    try:
-        units_for_sale = int(result.get("units_for_sale"))
-        clearing_price = int(result.get("clearing_price"))
-        total_filled = int(result.get("total_filled"))
-        fill_count = int(result.get("fill_count"))
-    except Exception:
+    units_for_sale = _receipt_int(result.get("units_for_sale"))
+    clearing_price = _receipt_int(result.get("clearing_price"))
+    total_filled = _receipt_int(result.get("total_filled"))
+    fill_count = _receipt_int(result.get("fill_count"))
+    if units_for_sale is None or clearing_price is None or total_filled is None or fill_count is None:
         return False, "bad_public_result_numeric"
     if units_for_sale <= 0 or units_for_sale > MAX_V1_UNITS:
         return False, "units_for_sale_out_of_range"
@@ -623,10 +629,9 @@ def verify_fhe_sealed_bid_v1_receipt(
     for fill in fills:
         if not isinstance(fill, dict):
             return False, "bad_fill"
-        try:
-            filled_quantity = int(fill.get("filled_quantity"))
-            paid_price = int(fill.get("paid_price"))
-        except Exception:
+        filled_quantity = _receipt_int(fill.get("filled_quantity"))
+        paid_price = _receipt_int(fill.get("paid_price"))
+        if filled_quantity is None or paid_price is None:
             return False, "bad_fill_numeric"
         if filled_quantity <= 0 or filled_quantity > MAX_V1_UNITS:
             return False, "filled_quantity_out_of_range"
@@ -645,7 +650,7 @@ def verify_fhe_sealed_bid_v1_receipt(
         expected = settle_uniform_price_sealed_bids(
             units_for_sale=units_for_sale, bids=plain_bids
         )
-    except Exception:
+    except (AttributeError, TypeError, ValueError, OverflowError):
         return False, "bad_trusted_plain_bids"
     expected_result = _settlement_to_public_result(
         clearing_price=expected.clearing_price,
