@@ -51,6 +51,7 @@ from src.integration.exact_out_route_certificate import (
     build_exact_out_many_pool_oracle_contract,
     build_exact_out_route_canonical_certificate,
     enumerate_exact_out_many_pool_candidates,
+    enumerate_exact_out_two_pool_candidates,
     guard_exact_out_many_pool_runtime_canonicality,
     quote_exact_out_many_pool_guarded,
     quote_exact_out_many_pool_repaired_full_domain_certified,
@@ -264,6 +265,39 @@ def test_enumerate_exact_out_many_pool_candidates_builds_nonempty_bounded_domain
     assert candidates
     assert ok, err
     assert certificate.winner_quote in candidates
+
+
+def test_enumerate_exact_out_two_pool_candidates_propagates_internal_quote_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool_a = _pool(pool_id="pool_a", reserve0=100, reserve1=40)
+    pool_b = _pool(pool_id="pool_b", reserve0=100, reserve1=40)
+
+    def _domain_reject(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("infeasible quote")
+
+    monkeypatch.setattr(exact_out_module, "swap_exact_out_for_pool", _domain_reject)
+    with pytest.raises(ValueError, match="no feasible exact-out candidates"):
+        enumerate_exact_out_two_pool_candidates(
+            pool_a,
+            pool_b,
+            asset_in=pool_a.asset0,
+            asset_out=pool_a.asset1,
+            amount_out_total=4,
+        )
+
+    def _internal_fault(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("exact-out quote fault")
+
+    monkeypatch.setattr(exact_out_module, "swap_exact_out_for_pool", _internal_fault)
+    with pytest.raises(RuntimeError, match="exact-out quote fault"):
+        enumerate_exact_out_two_pool_candidates(
+            pool_a,
+            pool_b,
+            asset_in=pool_a.asset0,
+            asset_out=pool_a.asset1,
+            amount_out_total=4,
+        )
 
 
 def test_audit_exact_out_many_pool_runtime_canonicality_matches_on_small_case() -> None:

@@ -31,7 +31,7 @@ from src.kernels.python.exact_out_many_pool_prefilter_contraction_audit_v1 impor
     audit_exact_out_many_pool_selected_subset_contraction as _kernel_audit_exact_out_many_pool_selected_subset_contraction,
 )
 from src.kernels.python.exact_out_many_pool_projection_cover_audit_v1 import (
-    ExactOutManyPoolProjectionCoverAudit as _KernelExactOutManyPoolProjectionCoverAudit,
+    ExactOutManyPoolCpmmProjectionCoverAudit as _KernelExactOutManyPoolCpmmProjectionCoverAudit,
     audit_exact_out_many_pool_selected_domain_projection_cover as _kernel_audit_exact_out_many_pool_selected_domain_projection_cover,
 )
 from src.kernels.python.exact_out_many_pool_repaired_prefilter_v1 import (
@@ -1830,7 +1830,7 @@ def enumerate_exact_out_two_pool_candidates(
                 if q1 > 0
                 else (0, (int(r1[0]), int(r1[1])))
             )
-        except Exception:
+        except ValueError:
             continue
 
         legs: list[SplitLegExactOutQuote] = []
