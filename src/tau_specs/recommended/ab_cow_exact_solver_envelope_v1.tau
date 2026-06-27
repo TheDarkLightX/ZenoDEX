@@ -4,15 +4,16 @@
 #   Cover the two algorithm work items from the TauSpec frontier report:
 #   1. AB ordering: exact brute force for small batches, full-state subset DP for
 #      larger bounded batches, deterministic fallback on state-cap exhaustion.
-#   2. CoW matching: exact assignment for uncoupled sender balances, fail-closed
-#      fallback when grouped capacity constraints appear.
+#   2. CoW matching: exact assignment for uncoupled sender balances, bounded
+#      exact DP for small grouped-capacity batches, fail-closed fallback when
+#      exact limits are exceeded.
 #
 # Stream mapping:
 # i1  = optimizer_active
 # i2  = mode_ab_ordering
 # i3  = mode_cow_matching
 # i4  = objective_binding_ok
-# i5  = full_state_or_uncoupled_capacity_ok
+# i5  = full_state_or_exact_capacity_scope_ok
 # i6  = brute_dp_assignment_parity_ok
 # i7  = deterministic_tie_ok
 # i8  = fallback_limit_respected

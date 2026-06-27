@@ -386,7 +386,7 @@ def _cow_exactness_and_benchmark() -> dict[str, Any]:
         "current_core_policy": {
             "tiny_exact_bruteforce_cap_total_candidates": 8,
             "assignment_surface": "uncoupled sender balances",
-            "fallback_surface": "capacity-coupled grouped senders use greedy/fail-closed path",
+            "fallback_surface": "capacity-coupled grouped senders use bounded exact DP up to the coupled cap, then greedy/fail-closed path",
             "algorithm": "Hungarian minimum assignment over negated volume/surplus/mixed-radix lex scores",
             "tie_scope": "The assignment path is exact for volume and surplus and matches the tiny brute-force lexicographic pair-id tie on the bounded oracle cases.",
         },
@@ -486,7 +486,7 @@ def _build_report() -> dict[str, Any]:
         "ok": ok,
         "breakthrough": {
             "name": "Tau-certified AB/CoW exact optimizer envelope",
-            "summary": "The core contains bounded exact AB full-state subset DP and exact Hungarian CoW assignment for the uncoupled volume/surplus objective; `ab_cow_exact_solver_envelope_v1.tau` gates the proof surface and rejects overbroad capacity claims.",
+            "summary": "The core contains bounded exact AB full-state subset DP, exact Hungarian CoW assignment for the uncoupled volume/surplus objective, and bounded exact DP for small grouped-capacity CoW batches; `ab_cow_exact_solver_envelope_v1.tau` gates the proof surface and rejects overbroad capacity claims.",
             "authority_boundary": "The Tau spec admits certificates only. It has no settlement-authorizing output.",
         },
         "ab_ordering": ab,
@@ -540,7 +540,7 @@ def _write_markdown(report: dict[str, Any]) -> None:
     lines.append("")
     lines.append("## Work Item 2: CoW Matching")
     lines.append("")
-    lines.append("Core status: exact Hungarian assignment is active for the uncoupled sender-balance economic objective and now encodes the brute-force lexicographic pair-id tie as a mixed-radix score layer; grouped capacity remains outside the pure matching claim.")
+    lines.append("Core status: exact Hungarian assignment is active for the uncoupled sender-balance economic objective and now encodes the brute-force lexicographic pair-id tie as a mixed-radix score layer; small grouped-capacity batches use bounded exact DP, while larger grouped-capacity batches remain outside the pure matching claim.")
     lines.append("")
     lines.append(f"- Assignment surface: `{cow['current_core_policy']['assignment_surface']}`")
     lines.append(f"- Fallback surface: `{cow['current_core_policy']['fallback_surface']}`")

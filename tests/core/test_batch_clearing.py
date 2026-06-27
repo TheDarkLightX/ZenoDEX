@@ -3776,7 +3776,7 @@ def test_cow_assignment_matches_bruteforce_pair_id_tie_on_uncoupled_surface() ->
     assert _cow_pair_selection_key(assignment_pairs) == _cow_pair_selection_key(brute_pairs)
 
 
-def test_cow_pair_netting_greedy_fallback_filters_balance_and_feasibility() -> None:
+def test_cow_pair_netting_capacity_dp_filters_balance_and_feasibility() -> None:
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
     pool = PoolState(
@@ -3838,10 +3838,90 @@ def test_cow_pair_netting_greedy_fallback_filters_balance_and_feasibility() -> N
 
     fills, remaining = _cow_pair_netting_exact_in_v1(intents, pool_state=pool, balances=balances)
 
-    assert [fill.intent_id for fill in fills] == [_iid(1381), _iid(1385)]
+    assert [fill.intent_id for fill in fills] == [_iid(1384), _iid(1385)]
     assert sorted(it.intent_id for it in remaining) == sorted(
-        [_iid(1380), _iid(1382), _iid(1383), _iid(1384), _iid(1386), _iid(1387), _iid(1388)]
+        [_iid(1380), _iid(1381), _iid(1382), _iid(1383), _iid(1386), _iid(1387), _iid(1388)]
     )
+
+
+def test_cow_pair_netting_capacity_dp_beats_greedy_for_coupled_sender() -> None:
+    from src.core.batch_clearing_cow_search import (
+        _CowSelectionContext,
+        _assignment_balance_safe,
+        _cow_pair_selection_key,
+        _is_better_cow_pair_key,
+        _partition_cow_candidates,
+        _select_cow_pairs,
+        _select_cow_pairs_bruteforce,
+        _select_cow_pairs_capacity_dp,
+        _select_cow_pairs_greedy,
+    )
+
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool = PoolState(
+        pool_id="0x" + "af" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000_000,
+        reserve1=1_000_000,
+        fee_bps=30,
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+    coupled_sender = "0x" + "91" * 48
+    balances.set(coupled_sender, asset0, 200)
+    balances.set("0x" + "a1" * 48, asset1, 90)
+    balances.set("0x" + "a2" * 48, asset1, 200)
+
+    def _swap(intent_id: int, sender: str, asset_in: str, asset_out: str, amount_in: int, min_amount_out: int) -> Intent:
+        return Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(intent_id),
+            sender_pubkey=sender,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool.pool_id,
+                "asset_in": asset_in,
+                "asset_out": asset_out,
+                "amount_in": amount_in,
+                "min_amount_out": min_amount_out,
+            },
+        )
+
+    intents = [
+        _swap(1410, coupled_sender, asset0, asset1, 100, 90),
+        _swap(1411, coupled_sender, asset0, asset1, 200, 80),
+        _swap(1412, "0x" + "a1" * 48, asset1, asset0, 90, 100),
+        _swap(1413, "0x" + "a2" * 48, asset1, asset0, 200, 190),
+        _swap(1414, "0x" + "92" * 48, asset0, asset1, 10, 1_000),
+        _swap(1415, "0x" + "93" * 48, asset0, asset1, 10, 1_000),
+        _swap(1416, "0x" + "94" * 48, asset0, asset1, 10, 1_000),
+        _swap(1417, "0x" + "a3" * 48, asset1, asset0, 10, 1_000),
+        _swap(1418, "0x" + "a4" * 48, asset1, asset0, 10, 1_000),
+    ]
+    for sender in ("0x" + "92" * 48, "0x" + "93" * 48, "0x" + "94" * 48):
+        balances.set(sender, asset0, 10)
+    for sender in ("0x" + "a3" * 48, "0x" + "a4" * 48):
+        balances.set(sender, asset1, 10)
+
+    partition = _partition_cow_candidates(intents, pool)
+    context = _CowSelectionContext(balances=balances, asset0=asset0, asset1=asset1)
+
+    assert not _assignment_balance_safe(partition.side_01, partition.side_10, context=context)
+    greedy_pairs = _select_cow_pairs_greedy(partition.side_01, partition.side_10, context=context)
+    dp_pairs = _select_cow_pairs_capacity_dp(partition.side_01, partition.side_10, context=context)
+    brute_pairs = _select_cow_pairs_bruteforce(partition.side_01, partition.side_10, context=context)
+    selected_pairs = _select_cow_pairs(partition.side_01, partition.side_10, context=context)
+
+    assert _cow_pair_selection_key(dp_pairs) == _cow_pair_selection_key(brute_pairs)
+    assert _cow_pair_selection_key(selected_pairs) == _cow_pair_selection_key(brute_pairs)
+    assert _is_better_cow_pair_key(_cow_pair_selection_key(dp_pairs), _cow_pair_selection_key(greedy_pairs))
+    assert {candidate.intent.intent_id for pair in selected_pairs for candidate in pair} == {_iid(1411), _iid(1413)}
 
 
 def test_cow_pair_netting_assignment_beats_greedy_above_old_cap() -> None:

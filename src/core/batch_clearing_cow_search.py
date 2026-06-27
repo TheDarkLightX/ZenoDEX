@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Callable, Dict, List, Tuple
 
 from ..state.balances import AssetId, BalanceTable, PubKey
@@ -78,6 +79,7 @@ class _CowPairAttempt:
 _CowPair = tuple[_CowCandidateExactIn, _CowCandidateExactIn]
 _CowPairSelectionKey = tuple[int, int, Tuple[Tuple[str, str], ...]]
 _COW_BRUTE_FORCE_CAP = 8
+_COW_COUPLED_EXACT_DP_CAP = 14
 
 
 def _partition_cow_candidates(
@@ -118,6 +120,8 @@ def _select_cow_pairs(
         )
     if _assignment_balance_safe(side_01, side_10, context=context):
         return _select_cow_pairs_assignment(side_01, side_10, context=context)
+    if len(side_01) + len(side_10) <= _COW_COUPLED_EXACT_DP_CAP:
+        return _select_cow_pairs_capacity_dp(side_01, side_10, context=context)
     return _select_cow_pairs_greedy(side_01, side_10, context=context)
 
 
@@ -288,6 +292,87 @@ def _select_cow_pairs_greedy(
         side_10_pool.pop(best_j)
 
     return best_pairs
+
+
+def _select_cow_pairs_capacity_dp(
+    side_01: List[_CowCandidateExactIn],
+    side_10: List[_CowCandidateExactIn],
+    *,
+    context: _CowSelectionContext,
+) -> List[_CowPair]:
+    """Exact bounded DP for CoW matching with per-sender capacity coupling.
+
+    State is the processed left prefix, used right-side mask, and aggregate
+    debits per sender/asset. This preserves the brute-force objective while
+    avoiding permutation-style repeated exploration on the coupled fallback
+    surface.
+    """
+    if not side_01 or not side_10:
+        return []
+    senders0 = tuple(sorted({candidate.sender for candidate in side_01}))
+    senders1 = tuple(sorted({candidate.sender for candidate in side_10}))
+    sender0_index = {sender: idx for idx, sender in enumerate(senders0)}
+    sender1_index = {sender: idx for idx, sender in enumerate(senders1)}
+    caps0 = tuple(int(context.balances.get(sender, context.asset0)) for sender in senders0)
+    caps1 = tuple(int(context.balances.get(sender, context.asset1)) for sender in senders1)
+
+    def _pairs_from_indices(index_pairs: tuple[tuple[int, int], ...]) -> List[_CowPair]:
+        return [(side_01[i], side_10[j]) for i, j in index_pairs]
+
+    def _is_better_index_pairs(
+        candidate: tuple[tuple[int, int], ...],
+        best: tuple[tuple[int, int], ...],
+    ) -> bool:
+        return _is_better_cow_pair_key(
+            _cow_pair_selection_key(_pairs_from_indices(candidate), seed=context.seed),
+            _cow_pair_selection_key(_pairs_from_indices(best), seed=context.seed),
+        )
+
+    @lru_cache(maxsize=None)
+    def rec(
+        side01_index: int,
+        used_side10_mask: int,
+        debits0: tuple[int, ...],
+        debits1: tuple[int, ...],
+    ) -> tuple[tuple[int, int], ...]:
+        if side01_index >= len(side_01):
+            return ()
+
+        best = rec(side01_index + 1, used_side10_mask, debits0, debits1)
+        x = side_01[side01_index]
+        x_sender_index = sender0_index[x.sender]
+        next_x_debit = int(debits0[x_sender_index]) + int(x.amount_in)
+        if next_x_debit > int(caps0[x_sender_index]):
+            return best
+
+        for side10_index, y in enumerate(side_10):
+            if used_side10_mask & (1 << side10_index):
+                continue
+            if not _pair_feasible(x, y):
+                continue
+            y_sender_index = sender1_index[y.sender]
+            next_y_debit = int(debits1[y_sender_index]) + int(y.amount_in)
+            if next_y_debit > int(caps1[y_sender_index]):
+                continue
+            next_debits0 = list(debits0)
+            next_debits1 = list(debits1)
+            next_debits0[x_sender_index] = next_x_debit
+            next_debits1[y_sender_index] = next_y_debit
+            candidate = (
+                (side01_index, side10_index),
+                *rec(
+                    side01_index + 1,
+                    used_side10_mask | (1 << side10_index),
+                    tuple(next_debits0),
+                    tuple(next_debits1),
+                ),
+            )
+            if _is_better_index_pairs(candidate, best):
+                best = candidate
+        return best
+
+    index_pairs = rec(0, 0, tuple(0 for _ in senders0), tuple(0 for _ in senders1))
+    return _pairs_from_indices(index_pairs)
 
 
 def _assignment_balance_safe(
