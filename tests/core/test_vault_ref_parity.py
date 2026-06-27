@@ -11,11 +11,13 @@ import importlib.util
 import random
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-from src.core.vault import VaultCommand, VaultState, init_vault_state, step
+import src.core.vault as vault_module
+from src.core.vault import VaultCommand, VaultState, VaultStepResult, init_vault_state, step
 
 
 def _import_generated_ref() -> Any:
@@ -137,3 +139,31 @@ class TestVaultParityWithGeneratedRef:
 
             ours = our_res.state
             ref = ref_res.state
+
+
+class TestVaultStepDispatchDefensiveErrors:
+    def test_malformed_command_args_rejects_without_handler_exception(self) -> None:
+        result = step(init_vault_state(), SimpleNamespace(tag="deposit_rewards", args=None))
+
+        assert not result.ok
+        assert result.error == "invalid command args"
+
+    def test_domain_value_error_is_returned_as_reject(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def reject(_state: VaultState, _args: dict[str, Any]) -> VaultStepResult:
+            raise ValueError("post-invariant violated: test")
+
+        monkeypatch.setattr(vault_module, "_deposit_rewards", reject)
+
+        result = step(init_vault_state(), VaultCommand(tag="deposit_rewards", args={"amount": 1}))
+
+        assert not result.ok
+        assert result.error == "post-invariant violated: test"
+
+    def test_internal_runtime_error_is_not_masked(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def broken(_state: VaultState, _args: dict[str, Any]) -> VaultStepResult:
+            raise RuntimeError("internal vault fault")
+
+        monkeypatch.setattr(vault_module, "_deposit_rewards", broken)
+
+        with pytest.raises(RuntimeError, match="internal vault fault"):
+            step(init_vault_state(), VaultCommand(tag="deposit_rewards", args={"amount": 1}))

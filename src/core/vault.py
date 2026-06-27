@@ -8,9 +8,9 @@ This is a pure state machine intended for the functional core:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Literal, Mapping
-
+from typing import Any, Literal
 
 ACC_SCALE = 1_000_000
 
@@ -68,17 +68,22 @@ def init_vault_state() -> VaultState:
 
 def step(state: VaultState, cmd: VaultCommand) -> VaultStepResult:
     """Execute a vault command."""
+    tag = getattr(cmd, "tag", None)
+    args = getattr(cmd, "args", None)
+    if not isinstance(args, Mapping):
+        return VaultStepResult(ok=False, error="invalid command args")
+
     try:
-        if cmd.tag == "deposit_rewards":
-            return _deposit_rewards(state, cmd.args)
-        if cmd.tag == "harvest":
-            return _harvest(state, cmd.args)
-        if cmd.tag == "stake":
-            return _stake(state, cmd.args)
-        if cmd.tag == "unstake":
-            return _unstake(state, cmd.args)
-        return VaultStepResult(ok=False, error=f"unknown action: {cmd.tag}")
-    except Exception as exc:
+        if tag == "deposit_rewards":
+            return _deposit_rewards(state, args)
+        if tag == "harvest":
+            return _harvest(state, args)
+        if tag == "stake":
+            return _stake(state, args)
+        if tag == "unstake":
+            return _unstake(state, args)
+        return VaultStepResult(ok=False, error=f"unknown action: {tag}")
+    except ValueError as exc:
         return VaultStepResult(ok=False, error=str(exc))
 
 
@@ -202,4 +207,3 @@ def _unstake(state: VaultState, args: Mapping[str, Any]) -> VaultStepResult:
         staked_lp_shares=state.staked_lp_shares - amount,
     )
     return VaultStepResult(ok=True, state=new_state, effects={"delta_acc": 0, "harvested_reward": 0})
-
