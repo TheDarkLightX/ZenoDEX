@@ -1,0 +1,51 @@
+# Optimizer Quotient Certificate v1
+#
+# PURPOSE:
+#   Admit compact optimizer certificates whose expensive search domain is
+#   committed and replayed by the host. Tau checks the shared proof-surface
+#   shape for route dominance, AB ordering, and CoW matching without computing
+#   hashes, route labels, CPMM arithmetic, DP states, or assignment weights.
+#
+# Stream mapping:
+# i1  = optimizer_request_active
+# i2  = domain_commitment_ok
+# i3  = quotient_witness_ok
+# i4  = canonical_winner_ok
+# i5  = replay_ok
+# i6  = projection_cover_ok
+# i7  = arithmetic_scope_ok
+# i8  = resource_budget_ok
+# i9  = fallback_or_explicit_failure_ok
+# i10 = no_authority_effect
+# i11 = trace_nonvacuous
+# i12 = mode_route_dominance
+# i13 = mode_ab_ordering
+# i14 = mode_cow_matching
+# o1  = one_hot_optimizer_mode_ok
+# o2  = quotient_certificate_core_ok
+# o3  = boundary_ok
+# o4  = route_quotient_ok
+# o5  = ab_quotient_ok
+# o6  = cow_quotient_ok
+# o7  = optimizer_quotient_admit
+# o8  = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+one_hot3(a : sbf, b : sbf, c : sbf) := (is1(a) && !is1(b) && !is1(c)) || (!is1(a) && is1(b) && !is1(c)) || (!is1(a) && !is1(b) && is1(c)).
+core_ok(domain : sbf, quotient : sbf, winner : sbf, replay : sbf, cover : sbf, scope : sbf, budget : sbf, nonvacuous : sbf) := is1(domain) && is1(quotient) && is1(winner) && is1(replay) && is1(cover) && is1(scope) && is1(budget) && is1(nonvacuous).
+boundary_ok(fallback_ok : sbf, no_authority : sbf) := is1(fallback_ok) && is1(no_authority).
+mode_route_ok(active : sbf, route : sbf, ab : sbf, cow : sbf, domain : sbf, quotient : sbf, winner : sbf, replay : sbf, cover : sbf, scope : sbf, budget : sbf, fallback_ok : sbf, no_authority : sbf, nonvacuous : sbf) := is1(active) && is1(route) && one_hot3(route, ab, cow) && core_ok(domain, quotient, winner, replay, cover, scope, budget, nonvacuous) && boundary_ok(fallback_ok, no_authority).
+mode_ab_ok(active : sbf, route : sbf, ab : sbf, cow : sbf, domain : sbf, quotient : sbf, winner : sbf, replay : sbf, cover : sbf, scope : sbf, budget : sbf, fallback_ok : sbf, no_authority : sbf, nonvacuous : sbf) := is1(active) && is1(ab) && one_hot3(route, ab, cow) && core_ok(domain, quotient, winner, replay, cover, scope, budget, nonvacuous) && boundary_ok(fallback_ok, no_authority).
+mode_cow_ok(active : sbf, route : sbf, ab : sbf, cow : sbf, domain : sbf, quotient : sbf, winner : sbf, replay : sbf, cover : sbf, scope : sbf, budget : sbf, fallback_ok : sbf, no_authority : sbf, nonvacuous : sbf) := is1(active) && is1(cow) && one_hot3(route, ab, cow) && core_ok(domain, quotient, winner, replay, cover, scope, budget, nonvacuous) && boundary_ok(fallback_ok, no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> one_hot3(i12[t]:sbf, i13[t]:sbf, i14[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> core_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i11[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> boundary_ok(i9[t]:sbf, i10[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> mode_route_ok(i1[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> mode_ab_ok(i1[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> mode_cow_ok(i1[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)) &&
+  (o7[t]:sbf = 1:sbf <-> (mode_route_ok(i1[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf) || mode_ab_ok(i1[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf) || mode_cow_ok(i1[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf))) &&
+  (o8[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i10[t]:sbf))).
