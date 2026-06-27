@@ -8,8 +8,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import src.integration.autonomous_governance_session_store_file as session_store_file_module
 from src.integration.autonomous_governance_session_store_file import (
     _lock_path,
+    _write_store_file,
     admit_autonomous_governance_session_file_continuation_v1,
     current_session_store_file_head_v1,
     initialize_autonomous_governance_session_store_file_v1,
@@ -177,6 +179,42 @@ def test_session_store_file_existing_lock_refuses_write(tmp_path: Path) -> None:
     assert refused["admitted"] is False
     assert "session_store_file_lock_exists" in refused["errors"]
     assert _persisted_store(path)["store_hash"] == init["store_hash"]
+
+
+def test_session_store_file_failed_write_cleans_temp_file(tmp_path: Path, monkeypatch) -> None:
+    path = tmp_path / "autogov-session-store.json"
+    temp_path = tmp_path / ".autogov-session-store.json.injected.tmp"
+
+    class _FailingTempFile:
+        name = str(temp_path)
+
+        def __enter__(self) -> "_FailingTempFile":
+            temp_path.write_bytes(b"partial")
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def write(self, _raw: bytes) -> int:
+            raise OSError("simulated write failure")
+
+        def flush(self) -> None:
+            return None
+
+        def fileno(self) -> int:
+            return 0
+
+    def _failing_named_temporary_file(*_args: object, **_kwargs: object) -> _FailingTempFile:
+        return _FailingTempFile()
+
+    monkeypatch.setattr(session_store_file_module.tempfile, "NamedTemporaryFile", _failing_named_temporary_file)
+
+    ok, errors = _write_store_file(path, {"store_hash": "h"})
+
+    assert ok is False
+    assert errors == ("session_store_file_write_failed",)
+    assert not temp_path.exists()
+    assert not path.exists()
 
 
 def test_cli_session_store_file_lifecycle(tmp_path: Path) -> None:
