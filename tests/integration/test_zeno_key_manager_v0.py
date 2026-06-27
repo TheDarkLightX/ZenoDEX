@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
+import src.integration.zeno_key_manager as key_manager_mod
 from src.integration.zeno_key_import_v0 import (
     build_tau_import_challenge_v0,
     import_tau_bls_key_descriptor_v0,
@@ -182,3 +185,11 @@ def test_zeno_key_manager_cli_tau_challenge(capsys) -> None:
     packet = json.loads(capsys.readouterr().out)
     assert packet["schema"] == "zenodex/zeno_key_manager/tau_import_challenge/v0"
     assert packet["challenge_hash"].startswith("0x")
+
+
+def test_local_bls_keygen_fails_closed_when_g2basic_binding_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(key_manager_mod, "_BLS_AVAILABLE", True)
+    monkeypatch.setattr(key_manager_mod, "G2Basic", None)
+
+    with pytest.raises(RuntimeError, match="py_ecc\\.bls is required for local BLS signing"):
+        key_manager_mod.generate_tau_testnet_compatible_private_key_hex()
