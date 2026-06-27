@@ -15,7 +15,6 @@ from ..state.balances import AssetId, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.pools import PoolState, compute_pool_id
 
-
 _Key = Tuple[str, str, str]
 
 
@@ -56,7 +55,7 @@ def _created_pools_assets(intents: Sequence[Intent]) -> Mapping[str, Tuple[str, 
             continue
         try:
             pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
-        except Exception:
+        except (TypeError, ValueError):
             continue
         out[pool_id] = (asset0, asset1)
     return out
@@ -90,7 +89,7 @@ def access_for_intent(
                 writes.add(_k_pool(pool_id))  # create
                 writes.add(_k_lp(sender, pool_id))
                 writes.add(_k_lp(LP_LOCK_PUBKEY, pool_id))
-            except Exception:
+            except (TypeError, ValueError):
                 pass
         return IntentAccess(reads=reads, writes=writes)
 
@@ -207,4 +206,3 @@ def iter_group_support_keys(groups: Sequence[Sequence[Intent]]) -> Iterable[Tupl
     for gi, group in enumerate(groups):
         for intent in sorted(group, key=lambda i: i.intent_id):
             yield gi, intent.intent_id
-

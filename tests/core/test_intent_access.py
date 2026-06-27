@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+from src.core import intent_access as intent_access_module
 from src.core.intent_access import partition_independent_intents
 from src.state.intents import Intent, IntentKind
 from src.state.pools import PoolState, PoolStatus, compute_pool_id
@@ -142,3 +145,62 @@ def test_partition_treats_add_liquidity_into_new_pool_as_reading_sender_assets()
     # add_liq and swap_touching_pkb must be in the same component via pk_b asset access.
     group_ids = [{i.intent_id for i in g} for g in groups]
     assert any({add_liq.intent_id, swap_touching_pkb.intent_id}.issubset(s) for s in group_ids)
+
+
+def test_create_pool_domain_pool_id_error_is_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    create_pool = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(1),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "asset0": asset0,
+            "asset1": asset1,
+            "fee_bps": 30,
+            "amount0": 1000,
+            "amount1": 2000,
+        },
+    )
+
+    def reject_pool_id(*_args: object, **_kwargs: object) -> str:
+        raise ValueError("domain reject")
+
+    monkeypatch.setattr(intent_access_module, "compute_pool_id", reject_pool_id)
+
+    groups = partition_independent_intents([create_pool], pools={})
+
+    assert [[intent.intent_id for intent in group] for group in groups] == [[create_pool.intent_id]]
+
+
+def test_create_pool_internal_pool_id_fault_is_not_masked(monkeypatch: pytest.MonkeyPatch) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    create_pool = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(1),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "asset0": asset0,
+            "asset1": asset1,
+            "fee_bps": 30,
+            "amount0": 1000,
+            "amount1": 2000,
+        },
+    )
+
+    def broken_pool_id(*_args: object, **_kwargs: object) -> str:
+        raise RuntimeError("internal pool id fault")
+
+    monkeypatch.setattr(intent_access_module, "compute_pool_id", broken_pool_id)
+
+    with pytest.raises(RuntimeError, match="internal pool id fault"):
+        partition_independent_intents([create_pool], pools={})
