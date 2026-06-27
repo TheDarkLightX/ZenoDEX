@@ -98,9 +98,14 @@ def _require_bool(value: object, *, name: str) -> bool:
     return value
 
 
-def _require_bls() -> None:
-    if not _BLS_AVAILABLE:
+def _bls_available() -> bool:
+    return _BLS_AVAILABLE and G2Basic is not None
+
+
+def _require_bls() -> Any:
+    if not _bls_available():
         raise RuntimeError("py_ecc.bls is required for live BLS guardian signing")
+    return G2Basic
 
 
 # --- BLS aggregation primitives ---------------------------------------------
@@ -120,7 +125,7 @@ def aggregate_guardian_bls_signatures_v1(envelopes: list[Mapping[str, Any]]) -> 
     is a valid G2 point verifiable via AggregateVerify against the corresponding
     public keys and per-signer messages.
     """
-    _require_bls()
+    bls = _require_bls()
     if not envelopes:
         raise ValueError("at least one envelope is required")
     raw_sigs: list[bytes] = []
@@ -130,7 +135,7 @@ def aggregate_guardian_bls_signatures_v1(envelopes: list[Mapping[str, Any]]) -> 
             nbytes=96, name=f"envelopes[{i}].signature",
         )
         raw_sigs.append(hex_to_bytes_fixed(sig_hex, nbytes=96, name="signature"))
-    return "0x" + G2Basic.Aggregate(raw_sigs).hex()
+    return "0x" + bls.Aggregate(raw_sigs).hex()
 
 
 def verify_aggregate_guardian_bls_signatures_v1(
@@ -141,7 +146,7 @@ def verify_aggregate_guardian_bls_signatures_v1(
     Each guardian signs a distinct message (envelope body includes signer_id),
     so we use the multi-message AggregateVerify variant.
     """
-    _require_bls()
+    bls = _require_bls()
     if len(envelopes) != len(public_keys):
         raise ValueError("envelopes and public_keys must have equal length")
     if not envelopes:
@@ -155,7 +160,7 @@ def verify_aggregate_guardian_bls_signatures_v1(
         for pk in public_keys
     ]
     agg_hex = aggregate_guardian_bls_signatures_v1(envelopes)
-    return bool(G2Basic.AggregateVerify(pks, msgs, bytes.fromhex(agg_hex[2:])))
+    return bool(bls.AggregateVerify(pks, msgs, bytes.fromhex(agg_hex[2:])))
 
 
 # --- Data structures --------------------------------------------------------
@@ -247,7 +252,7 @@ class SocialRecoveryCoordinatorV1:
         )
         return (
             not self._fixture_mode
-            and _BLS_AVAILABLE
+            and _bls_available()
             and active_guardians >= _MIN_PRODUCTION_GUARDIAN_COUNT
             and int(policy.threshold) >= _MIN_PRODUCTION_THRESHOLD
         )

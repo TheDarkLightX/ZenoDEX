@@ -50,9 +50,10 @@ class TauNetTcpConfig:
 _DEFAULT_TAU_NET_TCP_CONFIG = TauNetTcpConfig()
 
 
-def _require_bls() -> None:
-    if not _BLS_AVAILABLE:
+def _require_bls() -> Any:
+    if not _BLS_AVAILABLE or G2Basic is None:
         raise TauNetRpcError("py_ecc.bls is required for Tau tx signing (install py-ecc)")
+    return G2Basic
 
 
 def _coerce_nonnegative_int(value: object, *, label: str) -> int:
@@ -127,9 +128,9 @@ def _parse_privkey_to_int(privkey: str | int | bytes | bytearray) -> int:
 
 
 def bls_pubkey_hex_from_privkey(privkey: str | int | bytes | bytearray) -> str:
-    _require_bls()
+    bls = _require_bls()
     sk_int = _parse_privkey_to_int(privkey)
-    return G2Basic.SkToPk(sk_int).hex()
+    return bls.SkToPk(sk_int).hex()
 
 
 def _tx_signing_message_bytes(payload: Mapping[str, Any]) -> bytes:
@@ -144,11 +145,11 @@ def _tx_signing_message_bytes(payload: Mapping[str, Any]) -> bytes:
 
 
 def sign_tau_transaction_payload(payload_wo_sig: Dict[str, Any], *, privkey: str | int | bytes | bytearray) -> str:
-    _require_bls()
+    bls = _require_bls()
     sk_int = _parse_privkey_to_int(privkey)
     msg_bytes = _tx_signing_message_bytes(payload_wo_sig)
     msg_hash = hashlib.sha256(msg_bytes).digest()
-    sig_bytes = G2Basic.Sign(sk_int, msg_hash)
+    sig_bytes = bls.Sign(sk_int, msg_hash)
     return sig_bytes.hex()
 
 
@@ -179,8 +180,9 @@ def verify_tau_transaction_payload_signature(payload: Mapping[str, Any]) -> bool
 
     Returns False on malformed payloads or invalid signatures.
     """
-    if not _BLS_AVAILABLE:
+    if not _BLS_AVAILABLE or G2Basic is None:
         return False
+    bls = G2Basic
     try:
         sender_pubkey = payload["sender_pubkey"]
         signature = payload["signature"]
@@ -190,7 +192,7 @@ def verify_tau_transaction_payload_signature(payload: Mapping[str, Any]) -> bool
         msg_hash = hashlib.sha256(msg_bytes).digest()
         pubkey_bytes = bytes.fromhex(sender_pubkey)
         sig_bytes = bytes.fromhex(signature)
-        return bool(G2Basic.Verify(pubkey_bytes, msg_hash, sig_bytes))
+        return bool(bls.Verify(pubkey_bytes, msg_hash, sig_bytes))
     except Exception:
         return False
 
@@ -259,10 +261,10 @@ def sign_dex_intent_for_engine(
 
     Returns a hex signature string with a `0x` prefix.
     """
-    _require_bls()
+    bls = _require_bls()
     sk_int = _parse_privkey_to_int(privkey)
     msg_hash = hash_dex_intent_auth_message_v1(intent_dict, chain_id=chain_id)
-    sig_bytes = G2Basic.Sign(sk_int, msg_hash)
+    sig_bytes = bls.Sign(sk_int, msg_hash)
     return "0x" + sig_bytes.hex()
 
 
@@ -291,7 +293,7 @@ def sign_perp_op_for_engine(
 
     Returns a hex signature string with a `0x` prefix.
     """
-    _require_bls()
+    bls = _require_bls()
     sk_int = _parse_privkey_to_int(privkey)
     if not isinstance(signer_pubkey, str) or not signer_pubkey:
         raise ValueError("signer_pubkey must be a non-empty string")
@@ -304,7 +306,7 @@ def sign_perp_op_for_engine(
         signer_pubkey=signer_pubkey,
         nonce=int(nonce),
     )
-    sig_bytes = G2Basic.Sign(sk_int, msg_hash)
+    sig_bytes = bls.Sign(sk_int, msg_hash)
     return "0x" + sig_bytes.hex()
 
 

@@ -3,9 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
-from src.state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
+from src.state.canonical import (
+    canonical_hex_fixed_allow_0x,
+    canonical_json_bytes,
+    domain_sep_bytes,
+    sha256_hex,
+)
 
-from .settlement_price_provenance import SettlementSpotPricePacket, verify_settlement_spot_price_packet
+from .settlement_price_provenance import (
+    SettlementSpotPricePacket,
+    verify_settlement_spot_price_packet,
+)
 
 try:
     from py_ecc.bls import G2Basic
@@ -98,10 +106,10 @@ def build_settlement_spot_price_attestation(
         raise ValueError(f"invalid settlement spot price packet: {err}")
     if not packet.provenance_ok:
         raise ValueError("settlement spot price packet is not provenance_ok")
-    _require_bls()
+    bls = _require_bls()
     sk_int = _parse_privkey_to_int(signer_privkey)
     signer_pubkey = canonical_hex_fixed_allow_0x(
-        "0x" + G2Basic.SkToPk(sk_int).hex(),
+        "0x" + bls.SkToPk(sk_int).hex(),
         nbytes=48,
         name="signer_pubkey",
     )
@@ -114,7 +122,7 @@ def build_settlement_spot_price_attestation(
         "signed_at_epoch": signed_at_epoch,
         "packet_hash": packet_hash,
     }
-    signature = "0x" + G2Basic.Sign(sk_int, _attestation_message_bytes(unsigned)).hex()
+    signature = "0x" + bls.Sign(sk_int, _attestation_message_bytes(unsigned)).hex()
     return SettlementSpotPriceAttestation(
         packet=packet,
         signer_pubkey=signer_pubkey,
@@ -179,12 +187,12 @@ def verify_settlement_spot_price_attestation(
                 _cache_attestation_verify_result(cache_key, result)
                 return result
 
-    _require_bls()
+    bls = _require_bls()
     unsigned = attestation.to_unsigned_dict()
     try:
         pubkey_bytes = bytes.fromhex(attestation.signer_pubkey[2:])
         sig_bytes = bytes.fromhex(attestation.signature[2:])
-        if not bool(G2Basic.Verify(pubkey_bytes, _attestation_message_bytes(unsigned), sig_bytes)):
+        if not bool(bls.Verify(pubkey_bytes, _attestation_message_bytes(unsigned), sig_bytes)):
             result = (False, "settlement spot price attestation signature invalid")
             _cache_attestation_verify_result(cache_key, result)
             return result
@@ -324,6 +332,7 @@ def _parse_privkey_to_int(privkey: str | int | bytes | bytearray) -> int:
     return sk
 
 
-def _require_bls() -> None:
-    if not _BLS_AVAILABLE:
+def _require_bls() -> Any:
+    if not _BLS_AVAILABLE or G2Basic is None:
         raise ValueError("py_ecc.bls is required for settlement price attestation signing and verification")
+    return G2Basic
