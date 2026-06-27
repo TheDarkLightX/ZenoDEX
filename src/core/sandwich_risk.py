@@ -37,6 +37,17 @@ class SandwichRisk:
     scanned_max_attacker_amount_in: int
 
 
+def _inconclusive_risk(*, scanned_max_attacker_amount_in: int) -> SandwichRisk:
+    return SandwichRisk(
+        status="inconclusive",
+        max_profit=0,
+        attacker_amount_in=0,
+        victim_amount_out=0,
+        victim_amount_out_isolated=0,
+        scanned_max_attacker_amount_in=int(scanned_max_attacker_amount_in),
+    )
+
+
 def _fee_total_ceil(*, amount_in: int, fee_bps: int) -> int:
     # Keep this local to avoid importing kernel helpers into non-kernel code.
     return (int(amount_in) * int(fee_bps) + 10_000 - 1) // 10_000
@@ -107,7 +118,7 @@ def _try_swap_exact_in(
             amount_in=int(amount_in),
             fee_bps=int(fee_bps),
         )
-    except Exception:
+    except (TypeError, ValueError):
         return None
     return int(out), (int(new_rin), int(new_rout))
 
@@ -311,7 +322,7 @@ def sandwich_profit_exact_in_cpmm_dynamic_fee(
     def _try_dyn(res_in: int, res_out: int, amt_in: int) -> tuple[int, tuple[int, int]] | None:
         try:
             fee_bps = int(fee_bps_fn(int(res_in), int(res_out), int(amt_in)))
-        except Exception:
+        except (TypeError, ValueError):
             return None
         if fee_bps < 0 or fee_bps > 10_000:
             return None
@@ -363,19 +374,22 @@ def max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee(
         raise ValueError("max_attacker_amount_in must be non-negative")
 
     # Victim isolated out for reporting.
-    victim_iso_out = 0
     try:
         fee0 = int(fee_bps_fn(int(reserve_in), int(reserve_out), int(victim_amount_in)))
-        iso = _try_swap_exact_in(
-            reserve_in=reserve_in,
-            reserve_out=reserve_out,
-            amount_in=victim_amount_in,
-            fee_bps=fee0,
-        )
-        if iso is not None:
-            victim_iso_out, _ = iso
-    except Exception:
+    except (TypeError, ValueError):
+        return _inconclusive_risk(scanned_max_attacker_amount_in=max_attacker_amount_in)
+    if fee0 < 0 or fee0 > 10_000:
+        return _inconclusive_risk(scanned_max_attacker_amount_in=max_attacker_amount_in)
+    iso = _try_swap_exact_in(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_in=victim_amount_in,
+        fee_bps=fee0,
+    )
+    if iso is None:
         victim_iso_out = 0
+    else:
+        victim_iso_out, _ = iso
 
     # If victim cannot execute at a=0, mark victim_reverts.
     if victim_iso_out < int(victim_min_out):
@@ -395,7 +409,7 @@ def max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee(
     def _try_dyn(res_in: int, res_out: int, amt_in: int) -> tuple[int, tuple[int, int]] | None:
         try:
             fee_bps = int(fee_bps_fn(int(res_in), int(res_out), int(amt_in)))
-        except Exception:
+        except (TypeError, ValueError):
             return None
         if fee_bps < 0 or fee_bps > 10_000:
             return None

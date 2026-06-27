@@ -6,6 +6,8 @@ from src.core.dynamic_fee_policy import StressFeePolicy, fee_bps_from_stress_pol
 from src.core.sandwich_risk import (
     max_sandwich_profit_exact_in_cpmm_bounded,
     max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee,
+    sandwich_profit_exact_in_cpmm,
+    sandwich_profit_exact_in_cpmm_dynamic_fee,
 )
 
 
@@ -69,3 +71,64 @@ def test_dynamic_fee_can_reduce_max_sandwich_profit_on_witness() -> None:
     assert dyn.status == "inconclusive"  # no analytic cutoff for dynamic fees yet
     assert dyn.max_profit <= static.max_profit
 
+
+def test_dynamic_fee_baseline_domain_error_is_inconclusive_not_victim_reverts() -> None:
+    def bad_fee(_res_in: int, _res_out: int, _amount_in: int) -> int:
+        raise ValueError("fee policy unavailable")
+
+    dyn = max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee(
+        reserve_in=100_000,
+        reserve_out=100_000,
+        fee_bps_fn=bad_fee,
+        victim_amount_in=20_000,
+        victim_min_out=1,
+        max_attacker_amount_in=500,
+    )
+
+    assert dyn.status == "inconclusive"
+    assert dyn.max_profit == 0
+    assert dyn.scanned_max_attacker_amount_in == 500
+
+
+def test_static_swap_internal_errors_are_not_suppressed(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.core import sandwich_risk
+
+    def broken_swap(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise RuntimeError("unexpected swap bug")
+
+    monkeypatch.setattr(sandwich_risk, "swap_exact_in", broken_swap)
+
+    with pytest.raises(RuntimeError, match="unexpected swap bug"):
+        sandwich_profit_exact_in_cpmm(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps=0,
+            victim_amount_in=50,
+            victim_min_out=1,
+            attacker_amount_in=1,
+        )
+
+
+def test_dynamic_fee_internal_errors_are_not_suppressed() -> None:
+    def broken_fee(_res_in: int, _res_out: int, _amount_in: int) -> int:
+        raise RuntimeError("unexpected fee bug")
+
+    with pytest.raises(RuntimeError, match="unexpected fee bug"):
+        sandwich_profit_exact_in_cpmm_dynamic_fee(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps_fn=broken_fee,
+            victim_amount_in=50,
+            victim_min_out=1,
+            attacker_amount_in=1,
+        )
+
+    with pytest.raises(RuntimeError, match="unexpected fee bug"):
+        max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps_fn=broken_fee,
+            victim_amount_in=50,
+            victim_min_out=1,
+            max_attacker_amount_in=5,
+        )
