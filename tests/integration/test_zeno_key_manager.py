@@ -23,11 +23,11 @@ from src.integration.zeno_key_manager import (
     SocialRecoveryPolicy,
     TauNetKeyImportEvidence,
     ZenoKeyManager,
+    generate_tau_testnet_compatible_private_key_hex,
     import_tau_net_key_ref,
     import_tau_net_key_ref_with_evidence,
     validate_tau_bls_public_key,
 )
-
 
 PUBKEY_A = "0x" + "11" * 48
 PUBKEY_B = "0x" + "22" * 48
@@ -316,6 +316,35 @@ def test_local_signer_rejects_inconsistent_bls_dependency_state(monkeypatch: pyt
             key_id="local-bls-1",
             private_key_hex="0x" + ("00" * 31) + "01",
         )
+
+
+def test_local_key_generation_rejects_inconsistent_bls_dependency_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(zeno_key_manager, "_BLS_AVAILABLE", True)
+    monkeypatch.setattr(zeno_key_manager, "G2Basic", None)
+
+    with pytest.raises(RuntimeError, match="py_ecc\\.bls is required for local BLS signing"):
+        generate_tau_testnet_compatible_private_key_hex()
+
+
+def test_local_signing_rejects_lost_bls_dependency_without_assert(monkeypatch: pytest.MonkeyPatch) -> None:
+    signer = object.__new__(LocalInMemoryBlsSigner)
+    signer.key_ref = KeyRef(key_id="local-bls-1", public_key=PUBKEY_A)
+    signer._sk = 1
+    policy = KeyUsePolicy(
+        allowed_payload_kinds=("checkpoint",),
+        allowed_chain_ids=("zeno-ledger-prod",),
+    )
+    context = SignRequestContext(
+        payload_kind="checkpoint",
+        chain_id="zeno-ledger-prod",
+        purpose="sign",
+        current_epoch=2,
+    )
+    monkeypatch.setattr(zeno_key_manager, "_BLS_AVAILABLE", True)
+    monkeypatch.setattr(zeno_key_manager, "G2Basic", None)
+
+    with pytest.raises(RuntimeError, match="py_ecc\\.bls is required for local BLS signing"):
+        signer.sign({"checkpoint_hash": ROOT_A}, policy=policy, context=context)
 
 
 @pytest.mark.skipif(not zeno_key_manager._BLS_AVAILABLE, reason="py_ecc not installed")
