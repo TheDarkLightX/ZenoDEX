@@ -717,7 +717,7 @@ def _replay_and_apply_hop(
                 )
                 swap_ok = True
                 quote_matches = int(quoted_in) == int(amount_in)
-        except Exception:
+        except ValueError:
             swap_ok = False
 
     replay = evaluate_route_quote_receipt_hop_replay_gate(

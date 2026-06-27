@@ -5,6 +5,7 @@ from typing import Any, Callable
 
 import pytest
 
+from src.core import quote_receipts as quote_receipts_module
 from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from src.core.quote_receipts import (
     QUOTE_RECEIPT_CERTIFICATE_AMOUNT_OUT_MISMATCH,
@@ -713,6 +714,47 @@ def test_replay_and_apply_hop_exact_out_reverse_direction_and_mismatch() -> None
     assert next_pool is not None
     assert int(next_pool.reserve0) == int(next_rout)
     assert int(next_pool.reserve1) == int(next_rin)
+
+
+def test_replay_and_apply_hop_value_error_rejects_as_hop_quote_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    pool = _pool("p_ab", "A", "B", 1000, 2000, 0)
+
+    def reject_quote(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("domain reject")
+
+    monkeypatch.setattr(quote_receipts_module, "swap_exact_in_for_pool", reject_quote)
+
+    ok, err, next_pool = _replay_and_apply_hop(
+        pool=pool,
+        kind="exact_in",
+        asset_in="A",
+        asset_out="B",
+        amount_in=100,
+        amount_out=50,
+    )
+
+    assert not ok
+    assert err == "hop_quote_error"
+    assert next_pool is None
+
+
+def test_replay_and_apply_hop_internal_quote_failure_is_not_masked(monkeypatch: pytest.MonkeyPatch) -> None:
+    pool = _pool("p_ab", "A", "B", 1000, 2000, 0)
+
+    def broken_quote(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("internal quote failure")
+
+    monkeypatch.setattr(quote_receipts_module, "swap_exact_in_for_pool", broken_quote)
+
+    with pytest.raises(RuntimeError, match="internal quote failure"):
+        _replay_and_apply_hop(
+            pool=pool,
+            kind="exact_in",
+            asset_in="A",
+            asset_out="B",
+            amount_in=100,
+            amount_out=50,
+        )
 
 
 def test_make_route_quote_receipt_rejects_invalid_kind() -> None:
