@@ -44,6 +44,12 @@ def test_tau_net_client_bls_requirement_and_privkey_parsing_edges(monkeypatch: p
     with pytest.raises(TypeError, match="privkey must be str\\|int\\|bytes"):
         tau_net_client._parse_privkey_to_int(object())  # type: ignore[arg-type]
 
+    monkeypatch.setattr(tau_net_client, "_BLS_AVAILABLE", True)
+    monkeypatch.setattr(tau_net_client, "G2Basic", None)
+    with pytest.raises(tau_net_client.TauNetRpcError, match="py_ecc.bls is required"):
+        tau_net_client.bls_pubkey_hex_from_privkey(1)
+    assert tau_net_client.verify_tau_transaction_payload_signature({}) is False
+
 
 def test_tau_net_client_signing_and_encoding_edges() -> None:
     payload = tau_net_client.build_signed_tau_transaction(
