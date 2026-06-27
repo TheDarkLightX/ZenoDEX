@@ -52,6 +52,45 @@ def test_split_matches_bruteforce_small():
         assert best_a == best_a_bf
 
 
+def test_bruteforce_split_suppresses_domain_reject(monkeypatch: pytest.MonkeyPatch) -> None:
+    p0 = PoolXY(x=1000, y=1000, fee_bps=0)
+    p1 = PoolXY(x=1000, y=1000, fee_bps=0)
+
+    def _domain_reject(*_args, **_kwargs):
+        raise ValueError("domain reject")
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", _domain_reject)
+
+    with pytest.raises(ValueError, match="no feasible split"):
+        brute_force_best_split_two_pools_exact_in(p0, p1, 20)
+
+
+def test_bruteforce_split_propagates_programmer_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    p0 = PoolXY(x=1000, y=1000, fee_bps=0)
+    p1 = PoolXY(x=1000, y=1000, fee_bps=0)
+
+    def _programmer_error(*_args, **_kwargs):
+        raise RuntimeError("unexpected split-routing bug")
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", _programmer_error)
+
+    with pytest.raises(RuntimeError, match="unexpected split-routing bug"):
+        brute_force_best_split_two_pools_exact_in(p0, p1, 20)
+
+
+def test_best_split_large_scan_propagates_programmer_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    p0 = PoolXY(x=1000, y=1000, fee_bps=0)
+    p1 = PoolXY(x=1000, y=1000, fee_bps=0)
+
+    def _programmer_error(*_args, **_kwargs):
+        raise RuntimeError("unexpected split-routing bug")
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", _programmer_error)
+
+    with pytest.raises(RuntimeError, match="unexpected split-routing bug"):
+        best_split_two_pools_exact_in(p0, p1, 5000, window=64, search_profile="baseline")
+
+
 def test_split_can_beat_single_pool():
     # One pool is shallow on y, the other deep; splitting should not be worse than best single.
     p0 = PoolXY(x=1000, y=100, fee_bps=0)
