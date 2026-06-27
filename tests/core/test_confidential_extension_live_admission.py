@@ -1,13 +1,17 @@
 from __future__ import annotations
 
-from src.core.confidential_extension_live_admission import validate_confidential_extension_live_admission
+import pytest
+
+from src.core import confidential_extension_live_admission as live_admission_module
+from src.core.confidential_extension_live_admission import (
+    validate_confidential_extension_live_admission,
+)
 from src.core.confidential_extension_receipts import make_confidential_extension_receipt
 from src.integration.confidential_attestation import (
     VerifiedConfidentialAttestation,
     make_confidential_extension_receipt_from_verified_attestation,
 )
 from src.state.confidential_requests import ConfidentialRequestKey, ConfidentialRequestTable
-
 
 NITRO_PCR0 = "a" * 96
 NITRO_PCR8 = "b" * 96
@@ -75,6 +79,36 @@ def test_confidential_extension_live_admission_rejects_policy_digest_mismatch() 
     assert ok is False
     assert err == "policy_digest_mismatch"
     assert updated is None
+
+
+def test_confidential_extension_live_admission_rejects_bad_expected_policy_digest() -> None:
+    ok, err, updated = validate_confidential_extension_live_admission(
+        receipt=_receipt(),
+        approved_measurements=APPROVED,
+        expected_policy_digest="not-a-32-byte-digest",
+        request_table=ConfidentialRequestTable(),
+    )
+
+    assert ok is False
+    assert err == "bad_expected_policy_digest"
+    assert updated is None
+
+
+def test_confidential_extension_live_admission_internal_policy_digest_fault_is_not_masked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken_canonical_policy_digest(*_args: object, **_kwargs: object) -> str:
+        raise RuntimeError("internal policy digest fault")
+
+    monkeypatch.setattr(live_admission_module, "_canonical_policy_digest", broken_canonical_policy_digest)
+
+    with pytest.raises(RuntimeError, match="internal policy digest fault"):
+        validate_confidential_extension_live_admission(
+            receipt=_receipt(),
+            approved_measurements=APPROVED,
+            expected_policy_digest=POLICY_DIGEST,
+            request_table=ConfidentialRequestTable(),
+        )
 
 
 def test_confidential_extension_live_admission_rejects_request_replay() -> None:
