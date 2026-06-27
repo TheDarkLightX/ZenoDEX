@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 import src.core.perp_np_clearinghouse as C  # noqa: E402
+import src.core.perps as P  # noqa: E402
 from src.core.perp_np_matching import (  # noqa: E402
     E8,
     Intent,
@@ -106,6 +107,21 @@ def test_state_type_valid_three_party_market():
     assert len(m.accounts) == 3
     assert m.role_for_pubkey(_pk("22")) == _pk("22")    # member resolves own account
     assert m.role_for_pubkey(_pk("99")) is None         # non-member: no observer trap
+
+
+def test_pubkey_bytes48_or_none_handles_expected_canonicalization_rejects():
+    assert P._pubkey_bytes48_or_none("not-hex") is None
+    assert P._pubkey_bytes48_or_none(123) is None  # type: ignore[arg-type]
+
+
+def test_pubkey_bytes48_or_none_does_not_mask_internal_errors(monkeypatch: pytest.MonkeyPatch):
+    def broken(_pubkey: str, *, name: str) -> bytes:
+        raise RuntimeError(f"internal pubkey fault: {name}")
+
+    monkeypatch.setattr(P, "_pubkey_bytes48", broken)
+
+    with pytest.raises(RuntimeError, match="internal pubkey fault: pubkey"):
+        P._pubkey_bytes48_or_none(_pk("11"))
 
 
 def test_state_type_rejects_net_zero_violation():
