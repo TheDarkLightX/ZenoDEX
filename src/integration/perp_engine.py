@@ -35,18 +35,18 @@ not required at runtime.
 
 from __future__ import annotations
 
+import hashlib
+import json
+import re
+import sys
 from dataclasses import dataclass, fields, replace
 from functools import lru_cache
 from importlib.util import module_from_spec, spec_from_file_location
-import hashlib
-import json
 from pathlib import Path
-import re
-import sys
 from typing import Any, Callable, Dict, List, Mapping, Optional
 
-from ..core.dex import DexState
 from ..core import perp_np_clearinghouse as _np_core
+from ..core.dex import DexState
 from ..core.perp_apply_funding_auto_gate import (
     MARK_PRICE_SOURCE_EXTERNAL_MEDIAN,
     evaluate_perp_apply_funding_auto_gate,
@@ -64,30 +64,6 @@ from ..core.perp_epoch import (
     perp_epoch_isolated_default_fee_pool_max_quote,
     perp_epoch_isolated_default_initial_state,
 )
-from ..core.perp_np_matching import Intent as _NpIntent
-from ..core.perp_v2.funding_rule import compute_funding_rate_bps
-from ..core.perp_v2.math import MAX_COLLATERAL
-from ..core.perp_v2.math import funding_payment as _perp_v2_funding_payment
-from ..core.perp_v2.math import is_oracle_fresh as _perp_v2_is_oracle_fresh
-from ..core.perp_v2.math import maint_margin_req as _perp_v2_maint_margin_req
-from ..core.perp_v2.math import settle_price as _perp_v2_settle_price
-from ..core.perps import (
-    PerpAnyMarketState,
-    PERP_CLEARINGHOUSE_2P_STATE_KEYS,
-    PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS,
-    PERP_GLOBAL_KEYS,
-    PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1,
-    PERPS_STATE_VERSION,
-    PERPS_STATE_VERSION_V5,
-    PerpAccountState,
-    PerpClearinghouse2pMarketState,
-    PerpClearinghouse3pTransferMarketState,
-    PerpClearinghouseNpAccount as _NpAccount,
-    PerpClearinghouseNpMarketState as _NpMarketState,
-    PerpClearinghouseNpPendingIntent as _NpPendingIntent,
-    PerpMarketState,
-    PerpsState,
-)
 from ..core.perp_market_version_prefix_guard import (
     REJECT_CH2P_PREFIX_MISMATCH,
     REJECT_CH3P_PREFIX_MISMATCH,
@@ -95,6 +71,7 @@ from ..core.perp_market_version_prefix_guard import (
     REJECT_ISOLATED_PREFIX_CONFLICT,
     evaluate_perp_market_version_prefix_guard,
 )
+from ..core.perp_np_matching import Intent as _NpIntent
 from ..core.perp_runtime_risk_gate import (
     ACTION_ADVANCE_EPOCH as RUNTIME_ACTION_ADVANCE_EPOCH,
 )
@@ -147,6 +124,32 @@ from ..core.perp_submission_auth_message import (
     build_perp_op_auth_signing_dict_v1,
     hash_perp_op_auth_message_v1,
 )
+from ..core.perp_v2.math import MAX_COLLATERAL
+from ..core.perp_v2.math import funding_payment as _perp_v2_funding_payment
+from ..core.perp_v2.math import maint_margin_req as _perp_v2_maint_margin_req
+from ..core.perps import (
+    PERP_CLEARINGHOUSE_2P_STATE_KEYS,
+    PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS,
+    PERP_GLOBAL_KEYS,
+    PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1,
+    PERPS_STATE_VERSION,
+    PERPS_STATE_VERSION_V5,
+    PerpAccountState,
+    PerpAnyMarketState,
+    PerpClearinghouse2pMarketState,
+    PerpClearinghouse3pTransferMarketState,
+    PerpMarketState,
+    PerpsState,
+)
+from ..core.perps import (
+    PerpClearinghouseNpAccount as _NpAccount,
+)
+from ..core.perps import (
+    PerpClearinghouseNpMarketState as _NpMarketState,
+)
+from ..core.perps import (
+    PerpClearinghouseNpPendingIntent as _NpPendingIntent,
+)
 from ..state.balances import BalanceTable
 from ..state.canonical import (
     bounded_json_utf8_size,
@@ -185,6 +188,13 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     G2Basic = None
     _BLS_AVAILABLE = False
+
+
+def _bls_verifier() -> Any | None:
+    if not _BLS_AVAILABLE or G2Basic is None:
+        return None
+    return G2Basic
+
 
 _HEX_CHARS_RE = re.compile(r"^[0-9a-fA-F]+$")
 _U32_MAX = 0xFFFFFFFF
@@ -1411,7 +1421,8 @@ def _verify_perp_op_signature(
     Returns:
         None on success, else a human-readable error string.
     """
-    if not _BLS_AVAILABLE:
+    bls = _bls_verifier()
+    if bls is None:
         return "BLS verification not available (install py-ecc)"
 
     try:
@@ -1458,7 +1469,7 @@ def _verify_perp_op_signature(
             signer_pubkey=signer_pubkey,
             nonce=int(nonce),
         )
-        ok = bool(G2Basic.Verify(pubkey_bytes, msg_hash, sig_bytes))
+        ok = bool(bls.Verify(pubkey_bytes, msg_hash, sig_bytes))
     except Exception as exc:
         return f"signature verification error: {_safe_error_str(exc)}"
     outcome = evaluate_perp_submission_auth_gate(
@@ -2500,10 +2511,6 @@ def _apply_isolated_apply_funding_auto(
         return gate_error
 
     now_epoch = int(market.global_state.get("now_epoch", 0))
-    pre_fee_pool = int(market.global_state.get("fee_pool_quote", 0))
-    pre_fee_income = int(market.global_state.get("fee_income", 0))
-    pre_insurance_balance = int(market.global_state.get("insurance_balance", 0))
-    max_fee_pool = int(perp_epoch_isolated_default_fee_pool_max_quote())
     sorted_accounts = tuple(sorted(market.accounts.items()))
     open_accounts = tuple((pk, acct) for pk, acct in sorted_accounts if int(acct.position_base) != 0)
     net_position_base = sum(int(acct.position_base) for _, acct in open_accounts)
@@ -3518,7 +3525,7 @@ def _perp_stateful_docs_agree(python_doc: Any, rust_doc: Any) -> bool:
             rust_accounts = rust_doc.get(field)
             if not isinstance(rust_accounts, list) or len(value) != len(rust_accounts):
                 return False
-            for py_account, rust_account in zip(value, rust_accounts):
+            for py_account, rust_account in zip(value, rust_accounts, strict=True):
                 if not isinstance(py_account, Mapping) or not isinstance(rust_account, Mapping):
                     return False
                 if str(py_account.get("key")) != str(rust_account.get("key")):
@@ -4019,7 +4026,7 @@ def _effects_agree(python_effect: Any, rust_effect: Any) -> bool:
         if isinstance(py_val, list):
             if not isinstance(rust_val, list) or len(py_val) != len(rust_val):
                 return False
-            return all(values_agree(a, b) for a, b in zip(py_val, rust_val))
+            return all(values_agree(a, b) for a, b in zip(py_val, rust_val, strict=True))
         return str(py_val) == str(rust_val)
 
     if not isinstance(python_effect, Mapping) or not isinstance(rust_effect, Mapping):
@@ -4215,7 +4222,7 @@ def _commit_materialized_rust_accept(
 def _apply_materialized_isolated_op_rust_authority(
     *, ctx: _PerpApplyCtx, i: int, op: PerpOp, market: PerpMarketState
 ) -> Optional[str]:
-    from src.runtime.authority import AuthorityError, AuthorityMode, active_mode, decide
+    from src.runtime.authority import AuthorityError, active_mode, decide
     from src.runtime.rust_invoker import perp_isolated_op
 
     if op.action not in _PERP_STATEFUL_RUST_AUTHORITY_ACTIONS:

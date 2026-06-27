@@ -3,11 +3,12 @@ from __future__ import annotations
 import pytest
 
 from src.integration import (
-    perps_wallet_social_recovery_v1 as social_recovery,
-)
-from src.integration import (
+    perp_engine,
     settlement_price_attestation,
     tau_net_client,
+)
+from src.integration import (
+    perps_wallet_social_recovery_v1 as social_recovery,
 )
 from src.integration.settlement_price_attestation import SettlementSpotPriceAttestation
 from src.integration.settlement_price_provenance import (
@@ -15,6 +16,7 @@ from src.integration.settlement_price_provenance import (
     SettlementSpotPricePacket,
     build_settlement_spot_price_packet,
 )
+from src.state.nonces import NonceTable
 
 PUBKEY_A = "0x" + "11" * 48
 PUBKEY_B = "0x" + "22" * 48
@@ -119,3 +121,22 @@ def test_social_recovery_bls_guard_blocks_partial_dependency_state(
     )
 
     assert coordinator.production_security_claim is False
+
+
+def test_perp_engine_signature_guard_rejects_partial_dependency_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(perp_engine, "_BLS_AVAILABLE", True)
+    monkeypatch.setattr(perp_engine, "G2Basic", None)
+
+    err = perp_engine._verify_perp_op_signature(
+        config=perp_engine.PerpEngineConfig(chain_id="tau-local"),
+        signer_pubkey=PUBKEY_A,
+        nonce=1,
+        signature="0x" + "11" * 96,
+        op={"deadline": 10},
+        nonces=NonceTable(),
+        block_timestamp=1,
+    )
+
+    assert err == "BLS verification not available (install py-ecc)"
