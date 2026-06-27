@@ -3,9 +3,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
-from src.state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
+from src.state.canonical import (
+    canonical_hex_fixed_allow_0x,
+    canonical_json_bytes,
+    domain_sep_bytes,
+    sha256_hex,
+)
 
-from .settlement_price_provenance import SettlementSpotPricePacket, verify_settlement_spot_price_packet
+from .settlement_attestation_policy import (
+    SettlementAttestationPolicy,
+    coerce_settlement_attestation_policy,
+)
+from .settlement_price_provenance import (
+    SettlementSpotPricePacket,
+    verify_settlement_spot_price_packet,
+)
 
 try:
     from py_ecc.bls import G2Basic
@@ -92,6 +104,7 @@ def build_settlement_spot_price_attestation(
     *,
     packet: SettlementSpotPricePacket,
     signer_privkey: str | int | bytes | bytearray,
+    attestation_policy: SettlementAttestationPolicy | Mapping[str, Any] | None = None,
 ) -> SettlementSpotPriceAttestation:
     ok, err = verify_settlement_spot_price_packet(packet=packet)
     if not ok:
@@ -100,11 +113,18 @@ def build_settlement_spot_price_attestation(
         raise ValueError("settlement spot price packet is not provenance_ok")
     _require_bls()
     sk_int = _parse_privkey_to_int(signer_privkey)
-    signer_pubkey = canonical_hex_fixed_allow_0x(
-        "0x" + G2Basic.SkToPk(sk_int).hex(),
-        nbytes=48,
-        name="signer_pubkey",
-    )
+    signer_pubkey = settlement_spot_price_attestation_signer_pubkey_from_privkey(sk_int)
+    policy = coerce_settlement_attestation_policy(attestation_policy)
+    if policy is not None:
+        allowed_sources = policy.allowed_signers.get(signer_pubkey)
+        if allowed_sources is None:
+            raise ValueError("attestation_policy does not allow signer_pubkey")
+        packet_source_ids = tuple(entry.source_id for entry in packet.entries)
+        missing_sources = tuple(source_id for source_id in packet_source_ids if source_id not in allowed_sources)
+        if missing_sources:
+            raise ValueError(f"attestation_policy does not allow source_id: {missing_sources[0]}")
+        if not (int(policy.effective_from_epoch) <= int(packet.now_epoch) <= int(policy.expires_at_epoch)):
+            raise ValueError("attestation_policy is not active for packet.now_epoch")
     signed_at_epoch = int(packet.now_epoch)
     packet_hash = _packet_hash_hex(packet)
     unsigned = {
@@ -121,6 +141,18 @@ def build_settlement_spot_price_attestation(
         signed_at_epoch=signed_at_epoch,
         packet_hash=packet_hash,
         signature=signature,
+    )
+
+
+def settlement_spot_price_attestation_signer_pubkey_from_privkey(
+    signer_privkey: str | int | bytes | bytearray,
+) -> str:
+    _require_bls()
+    sk_int = _parse_privkey_to_int(signer_privkey)
+    return canonical_hex_fixed_allow_0x(
+        "0x" + G2Basic.SkToPk(sk_int).hex(),
+        nbytes=48,
+        name="signer_pubkey",
     )
 
 
