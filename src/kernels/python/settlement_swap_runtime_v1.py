@@ -340,6 +340,23 @@ def quote_cpmm_swap_exact_in_for_ordering_simulation(
     )
 
 
+def quote_cpmm_swap_exact_out_for_ordering_simulation(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    amount_out: int,
+    fee_bps: int,
+) -> SettlementSwapExactOutQuote:
+    """Return a deterministic, side-effect-free CPMM exact-out quote for ordering simulation."""
+
+    return _quote_cpmm_swap_exact_out_python(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_out=amount_out,
+        fee_bps=fee_bps,
+    )
+
+
 def quote_cpmm_swap_exact_in(
     *,
     reserve_in: int,

@@ -2161,10 +2161,38 @@ def test_cpmm_ordering_simulation_avoids_rust_subprocess_hot_path(monkeypatch) -
     try:
         ordered = batch_clearing_module._order_swaps_greedy_ab(intents, pool_state=pool, reserves=reserves)
         refined = _refine_b_ordering(ordered, pool_state=pool, reserves=reserves)
+
+        exact_out_balances = BalanceTable()
+        exact_out_balances.set(pk, asset0, 10_000)
+        exact_out_balances.set(pk, asset1, 10_000)
+        exact_out_intents = [
+            Intent(
+                module="TauSwap",
+                version="0.1",
+                kind=IntentKind.SWAP_EXACT_OUT,
+                intent_id=_iid(1124 + i),
+                sender_pubkey=pk,
+                deadline=9999999999,
+                fields={
+                    "asset_in": asset0,
+                    "asset_out": asset1,
+                    "amount_out": 100 + i,
+                    "max_amount_in": 500,
+                },
+            )
+            for i in range(2)
+        ]
+        exact_out_ordered = _order_swaps_optimal_ab_bounded(
+            exact_out_intents,
+            pool_state=pool,
+            balances=exact_out_balances,
+            reserves=reserves,
+        )
     finally:
         reset_active_authority_policy()
 
     assert sorted(it.intent_id for it in refined) == sorted(it.intent_id for it in intents)
+    assert sorted(it.intent_id for it in exact_out_ordered) == sorted(it.intent_id for it in exact_out_intents)
 
 
 def test_simulate_swap_reserves_and_ab_helpers_cover_fallbacks() -> None:
@@ -2230,6 +2258,43 @@ def test_simulate_swap_reserves_and_ab_helpers_cover_fallbacks() -> None:
     key = _ab_ordering_key([reverse], pool, reserves)
     assert key[0] == a
     assert key[2] == (reverse.intent_id,)
+
+
+def test_simulate_swap_reserves_propagates_internal_quote_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    _pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+    reserves = (pool.reserve0, pool.reserve1)
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(1330),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"asset_in": asset0, "asset_out": asset1, "amount_in": 100, "min_amount_out": 1},
+    )
+
+    def _domain_reject(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("infeasible quote")
+
+    monkeypatch.setattr(batch_clearing_module, "quote_cpmm_swap_exact_in_for_ordering_simulation", _domain_reject)
+    assert _simulate_swap_reserves(intent, pool, reserves) == (0, 0, reserves)
+
+    def _internal_fault(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("quote kernel fault")
+
+    monkeypatch.setattr(batch_clearing_module, "quote_cpmm_swap_exact_in_for_ordering_simulation", _internal_fault)
+    with pytest.raises(RuntimeError, match="quote kernel fault"):
+        _simulate_swap_reserves(intent, pool, reserves)
 
 
 def test_order_swaps_mci_and_refinement_helpers(monkeypatch) -> None:
@@ -2467,6 +2532,76 @@ def test_order_swaps_optimal_ab_bounded_fallbacks_and_exact_out_path() -> None:
     assert sorted(it.intent_id for it in slippage_exact_out_result) == sorted(
         it.intent_id for it in slippage_exact_outs
     )
+
+
+def test_order_swaps_optimal_ab_bounded_propagates_quote_faults(monkeypatch: pytest.MonkeyPatch) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    _pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000)
+    balances.set(pk, asset1, 10_000)
+    reserves = (pool.reserve0, pool.reserve1)
+
+    exact_in = [
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(1331 + i),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={"asset_in": asset0, "asset_out": asset1, "amount_in": 100 + i, "min_amount_out": 1},
+        )
+        for i in range(2)
+    ]
+
+    def _domain_reject(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("infeasible quote")
+
+    monkeypatch.setattr(batch_clearing_module, "quote_cpmm_swap_exact_in_for_ordering_simulation", _domain_reject)
+    rejected_result = _order_swaps_optimal_ab_bounded(
+        exact_in,
+        pool_state=pool,
+        balances=balances,
+        reserves=reserves,
+    )
+    assert sorted(it.intent_id for it in rejected_result) == sorted(it.intent_id for it in exact_in)
+
+    def _internal_fault(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("exact-in quote fault")
+
+    monkeypatch.setattr(batch_clearing_module, "quote_cpmm_swap_exact_in_for_ordering_simulation", _internal_fault)
+    with pytest.raises(RuntimeError, match="exact-in quote fault"):
+        _order_swaps_optimal_ab_bounded(exact_in, pool_state=pool, balances=balances, reserves=reserves)
+
+    exact_out = [
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_OUT,
+            intent_id=_iid(1333 + i),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={"asset_in": asset0, "asset_out": asset1, "amount_out": 100 + i, "max_amount_in": 500},
+        )
+        for i in range(2)
+    ]
+
+    def _exact_out_fault(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("exact-out quote fault")
+
+    monkeypatch.setattr(batch_clearing_module, "quote_cpmm_swap_exact_out_for_ordering_simulation", _exact_out_fault)
+    with pytest.raises(RuntimeError, match="exact-out quote fault"):
+        _order_swaps_optimal_ab_bounded(exact_out, pool_state=pool, balances=balances, reserves=reserves)
 
 
 def test_cow_pair_netting_direct_helper_fallbacks_and_clear_batch_mci_path() -> None:
