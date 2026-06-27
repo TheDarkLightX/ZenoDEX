@@ -309,3 +309,21 @@ def test_tau_net_tcp_client_methods_and_send_signed_tx(monkeypatch: pytest.Monke
         expiration_seconds=10,
     ) == "submitted"
     assert sent_payloads[-1]["sequence_number"] == 3
+
+    for bad_sequence in (True, -1, 1.5):
+        with pytest.raises(ValueError, match="sequence_number must be a non-negative integer"):
+            client.send_signed_tx(
+                privkey=1,
+                operations={"9": {"ok": 1}},
+                sequence_number=bad_sequence,  # type: ignore[arg-type]
+                expiration_seconds=10,
+            )
+
+    for bad_expiration in (True, 0, -1, 1.5):
+        with pytest.raises(ValueError, match="expiration_seconds must be"):
+            client.send_signed_tx(
+                privkey=1,
+                operations={"9": {"ok": 1}},
+                sequence_number=3,
+                expiration_seconds=bad_expiration,  # type: ignore[arg-type]
+            )

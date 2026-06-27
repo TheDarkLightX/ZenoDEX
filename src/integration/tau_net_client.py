@@ -80,6 +80,13 @@ def _coerce_nonnegative_int(value: object, *, label: str) -> int:
     return parsed
 
 
+def _coerce_positive_int(value: object, *, label: str) -> int:
+    parsed = _coerce_nonnegative_int(value, label=label)
+    if parsed <= 0:
+        raise ValueError(f"{label} must be a positive integer")
+    return parsed
+
+
 def _parse_privkey_int(privkey: int) -> int:
     sk = int(privkey)
     if sk <= 0:
@@ -581,9 +588,14 @@ class TauNetTcpClient:
         expiration_seconds: int = 3600,
         sequence_number: Optional[int] = None,
     ) -> str:
+        freshness_window_s = _coerce_positive_int(expiration_seconds, label="expiration_seconds")
         sender = bls_pubkey_hex_from_privkey(privkey)
-        seq = int(sequence_number) if sequence_number is not None else self.get_sequence(sender)
-        expiry = int(time.time()) + int(expiration_seconds)
+        seq = (
+            _coerce_nonnegative_int(sequence_number, label="sequence_number")
+            if sequence_number is not None
+            else self.get_sequence(sender)
+        )
+        expiry = int(time.time()) + freshness_window_s
         payload = build_signed_tau_transaction(
             privkey=privkey,
             sequence_number=seq,
