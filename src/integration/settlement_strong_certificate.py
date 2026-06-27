@@ -117,20 +117,26 @@ class SettlementPriceHistoryCertificate:
     price_curr: int
     price_trace_sha256: str
     schema: str = SETTLEMENT_PRICE_HISTORY_CERTIFICATE_SCHEMA
+    price_history_epoch: Optional[int] = None
 
     def __post_init__(self) -> None:
         for name in ("price_pp", "price_prev", "price_curr"):
             _require_u16(getattr(self, name), name=name)
         _require_hex_digest(self.price_trace_sha256, name="price_trace_sha256")
+        if self.price_history_epoch is not None:
+            _require_nonnegative_int(self.price_history_epoch, name="price_history_epoch")
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        out: dict[str, Any] = {
             "schema": self.schema,
             "price_pp": int(self.price_pp),
             "price_prev": int(self.price_prev),
             "price_curr": int(self.price_curr),
             "price_trace_sha256": self.price_trace_sha256,
         }
+        if self.price_history_epoch is not None:
+            out["price_history_epoch"] = int(self.price_history_epoch)
+        return out
 
 
 @dataclass(frozen=True)
@@ -225,18 +231,21 @@ def build_settlement_price_history_certificate(
     price_pp: int,
     price_prev: int,
     price_curr: int,
+    price_history_epoch: Optional[int] = None,
 ) -> SettlementPriceHistoryCertificate:
+    trace_payload = {
+        "price_pp": int(price_pp),
+        "price_prev": int(price_prev),
+        "price_curr": int(price_curr),
+    }
+    if price_history_epoch is not None:
+        trace_payload["price_history_epoch"] = int(price_history_epoch)
     return SettlementPriceHistoryCertificate(
         price_pp=int(price_pp),
         price_prev=int(price_prev),
         price_curr=int(price_curr),
-        price_trace_sha256=_sha256_json(
-            {
-                "price_pp": int(price_pp),
-                "price_prev": int(price_prev),
-                "price_curr": int(price_curr),
-            }
-        ),
+        price_history_epoch=price_history_epoch,
+        price_trace_sha256=_sha256_json(trace_payload),
     )
 
 
@@ -245,6 +254,7 @@ def build_settlement_strong_certificate(
     settlement: Settlement,
     proof_flags: SettlementProofFlags,
     semantic_summary: Optional[SettlementSemanticSummary] = None,
+    price_history_epoch: Optional[int] = None,
 ) -> SettlementStrongCertificate:
     normalized = _normalized_settlement_dict(settlement)
     settlement_digest = _sha256_json(normalized)
@@ -297,6 +307,7 @@ def build_settlement_strong_certificate(
             price_pp=semantic_summary.price_pp,
             price_prev=semantic_summary.price_prev,
             price_curr=semantic_summary.price_curr,
+            price_history_epoch=price_history_epoch,
         )
         compact_bundle_step = build_settlement_v5_aligned_compact_bundle_step(
             a=semantic_summary.a,
@@ -401,10 +412,12 @@ def build_replay_bound_settlement_strong_certificate(
     settlement: Settlement,
     proof_flags: SettlementProofFlags,
     price_history: tuple[int, int, int],
+    price_history_epoch: Optional[int] = None,
 ) -> SettlementStrongCertificate:
     return build_settlement_strong_certificate(
         settlement=settlement,
         proof_flags=proof_flags,
+        price_history_epoch=price_history_epoch,
         semantic_summary=derive_replay_settlement_semantic_summary(
             settlement=settlement,
             price_history=price_history,
@@ -457,6 +470,8 @@ def verify_settlement_strong_certificate(
     *,
     settlement: Settlement,
     certificate: SettlementStrongCertificate,
+    current_epoch: Optional[int] = None,
+    max_price_history_staleness_epochs: Optional[int] = None,
 ) -> tuple[bool, Optional[str]]:
     if certificate.schema != SETTLEMENT_STRONG_CERTIFICATE_SCHEMA:
         return False, f"unsupported certificate schema: {certificate.schema!r}"
@@ -471,10 +486,32 @@ def verify_settlement_strong_certificate(
     if certificate.price_history_certificate is not None:
         if certificate.price_history_certificate.schema != SETTLEMENT_PRICE_HISTORY_CERTIFICATE_SCHEMA:
             return False, "price history certificate schema mismatch"
+    if (current_epoch is None) != (max_price_history_staleness_epochs is None):
+        return False, "price history freshness requires current_epoch and max_price_history_staleness_epochs"
+    if current_epoch is not None and max_price_history_staleness_epochs is not None:
+        if certificate.price_history_certificate is None:
+            return False, "price history freshness requires a price history certificate"
+        if certificate.price_history_certificate.price_history_epoch is None:
+            return False, "price history certificate missing freshness epoch"
+        try:
+            fresh = settlement_price_history_is_fresh(
+                price_history_epoch=certificate.price_history_certificate.price_history_epoch,
+                current_epoch=current_epoch,
+                max_staleness_epochs=max_price_history_staleness_epochs,
+            )
+        except ValueError as exc:
+            return False, str(exc)
+        if not fresh:
+            return False, "price history certificate stale"
     expected = build_settlement_strong_certificate(
         settlement=settlement,
         proof_flags=certificate.proof_flags,
         semantic_summary=certificate.semantic_summary,
+        price_history_epoch=(
+            certificate.price_history_certificate.price_history_epoch
+            if certificate.price_history_certificate is not None
+            else None
+        ),
     )
     if certificate.settlement_commitment_sha256 != expected.settlement_commitment_sha256:
         return False, "settlement commitment mismatch"
@@ -520,8 +557,15 @@ def validate_settlement_strong_with_certificate(
     mode: str = "strong_replay",
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,
+    current_epoch: Optional[int] = None,
+    max_price_history_staleness_epochs: Optional[int] = None,
 ) -> tuple[bool, Optional[str]]:
-    ok, err = verify_settlement_strong_certificate(settlement=settlement, certificate=certificate)
+    ok, err = verify_settlement_strong_certificate(
+        settlement=settlement,
+        certificate=certificate,
+        current_epoch=current_epoch,
+        max_price_history_staleness_epochs=max_price_history_staleness_epochs,
+    )
     if not ok:
         return False, err
     if certificate.module_bundle_ok != 1:
@@ -545,6 +589,7 @@ def enforce_replay_bound_settlement_certificate(
     settlement: Settlement,
     external_proof_flags: SettlementProofFlags,
     price_history: tuple[int, int, int],
+    price_history_epoch: Optional[int] = None,
     intents: list[Any],
     pre_balances: Any,
     pre_pools: Mapping[str, Any],
@@ -552,6 +597,8 @@ def enforce_replay_bound_settlement_certificate(
     mode: str = "strong_replay",
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,
+    current_epoch: Optional[int] = None,
+    max_price_history_staleness_epochs: Optional[int] = None,
 ) -> tuple[bool, Optional[str], Optional[SettlementStrongCertificate]]:
     ok, err = validate_settlement_strong(
         settlement=settlement,
@@ -571,8 +618,14 @@ def enforce_replay_bound_settlement_certificate(
         settlement=settlement,
         proof_flags=effective_flags,
         price_history=price_history,
+        price_history_epoch=price_history_epoch,
     )
-    ok, err = verify_settlement_strong_certificate(settlement=settlement, certificate=certificate)
+    ok, err = verify_settlement_strong_certificate(
+        settlement=settlement,
+        certificate=certificate,
+        current_epoch=current_epoch,
+        max_price_history_staleness_epochs=max_price_history_staleness_epochs,
+    )
     if not ok:
         return False, err, None
     if certificate.module_bundle_ok != 1:
@@ -605,6 +658,11 @@ def _require_u16(value: int, *, name: str) -> None:
         raise ValueError(f"{name} out of u16 range: {value!r}")
 
 
+def _require_nonnegative_int(value: int, *, name: str) -> None:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise ValueError(f"{name} must be a non-negative int: {value!r}")
+
+
 def _require_hex_digest(value: str, *, name: str) -> None:
     if not isinstance(value, str) or len(value) != 64:
         raise ValueError(f"{name} must be a 64-char sha256 hex digest")
@@ -626,6 +684,18 @@ def settlement_ids_are_strictly_ordered(*, a: int, b: int, c: int, d: int) -> bo
 
 def settlement_price_trace_is_monotone(*, price_pp: int, price_prev: int, price_curr: int) -> bool:
     return (price_pp <= price_prev <= price_curr) or (price_pp >= price_prev >= price_curr)
+
+
+def settlement_price_history_is_fresh(
+    *,
+    price_history_epoch: int,
+    current_epoch: int,
+    max_staleness_epochs: int,
+) -> bool:
+    _require_nonnegative_int(price_history_epoch, name="price_history_epoch")
+    _require_nonnegative_int(current_epoch, name="current_epoch")
+    _require_nonnegative_int(max_staleness_epochs, name="max_staleness_epochs")
+    return price_history_epoch <= current_epoch and current_epoch - price_history_epoch <= max_staleness_epochs
 
 
 def settlement_compact_price_gate_ok(

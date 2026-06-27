@@ -18,6 +18,7 @@ from src.integration.settlement_strong_certificate import (
     derive_replay_bound_certificate_flags,
     derive_verified_replay_bound_certificate_flags,
     enforce_replay_bound_settlement_certificate,
+    settlement_price_history_is_fresh,
     validate_settlement_strong_with_certificate,
     verify_settlement_strong_certificate,
 )
@@ -196,6 +197,64 @@ def test_verify_settlement_strong_certificate_rejects_tampered_price_history_pac
     ok, err = verify_settlement_strong_certificate(settlement=settlement, certificate=bad)
     assert ok is False
     assert err == "price history certificate mismatch"
+
+
+def test_verify_settlement_strong_certificate_can_require_fresh_price_history() -> None:
+    intent, settlement, balances, pools = _swap_context()
+    summary = SettlementSemanticSummary(a=1, b=2, c=3, d=4, price_pp=100, price_prev=110, price_curr=120)
+    cert = build_settlement_strong_certificate(
+        settlement=settlement,
+        proof_flags=SettlementProofFlags.all_true(),
+        semantic_summary=summary,
+        price_history_epoch=10,
+    )
+
+    ok, err = verify_settlement_strong_certificate(
+        settlement=settlement,
+        certificate=cert,
+        current_epoch=12,
+        max_price_history_staleness_epochs=2,
+    )
+    assert ok is True
+    assert err is None
+    assert cert.price_history_certificate is not None
+    assert cert.price_history_certificate.price_history_epoch == 10
+    ok, err = validate_settlement_strong_with_certificate(
+        settlement=settlement,
+        certificate=cert,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        current_epoch=12,
+        max_price_history_staleness_epochs=2,
+    )
+    assert ok is True
+    assert err is None
+
+    ok, err = verify_settlement_strong_certificate(
+        settlement=settlement,
+        certificate=cert,
+        current_epoch=13,
+        max_price_history_staleness_epochs=2,
+    )
+    assert ok is False
+    assert err == "price history certificate stale"
+
+    no_epoch_cert = build_settlement_strong_certificate(
+        settlement=settlement,
+        proof_flags=SettlementProofFlags.all_true(),
+        semantic_summary=summary,
+    )
+    ok, err = verify_settlement_strong_certificate(
+        settlement=settlement,
+        certificate=no_epoch_cert,
+        current_epoch=12,
+        max_price_history_staleness_epochs=2,
+    )
+    assert ok is False
+    assert err == "price history certificate missing freshness epoch"
 
 
 def test_validate_settlement_strong_with_certificate_rejects_failed_module_bundle() -> None:
@@ -399,9 +458,42 @@ def test_settlement_strong_certificate_tau_bundle_steps_replay() -> None:
 
 def test_build_settlement_price_history_certificate_hashes_canonical_trace() -> None:
     cert = build_settlement_price_history_certificate(price_pp=100, price_prev=110, price_curr=120)
+    cert_with_epoch = build_settlement_price_history_certificate(
+        price_pp=100,
+        price_prev=110,
+        price_curr=120,
+        price_history_epoch=9,
+    )
 
     assert cert.schema == "zenodex/settlement-price-history-certificate/v1"
     assert cert.price_pp == 100
     assert cert.price_prev == 110
     assert cert.price_curr == 120
+    assert cert.price_history_epoch is None
     assert len(cert.price_trace_sha256) == 64
+    assert cert_with_epoch.price_history_epoch == 9
+    assert cert_with_epoch.price_trace_sha256 != cert.price_trace_sha256
+
+
+def test_settlement_price_history_is_fresh_rejects_stale_future_and_malformed_epochs() -> None:
+    assert settlement_price_history_is_fresh(
+        price_history_epoch=10,
+        current_epoch=12,
+        max_staleness_epochs=2,
+    )
+    assert not settlement_price_history_is_fresh(
+        price_history_epoch=10,
+        current_epoch=13,
+        max_staleness_epochs=2,
+    )
+    assert not settlement_price_history_is_fresh(
+        price_history_epoch=13,
+        current_epoch=12,
+        max_staleness_epochs=2,
+    )
+    with pytest.raises(ValueError, match="price_history_epoch must be a non-negative int"):
+        settlement_price_history_is_fresh(
+            price_history_epoch=True,  # type: ignore[arg-type]
+            current_epoch=12,
+            max_staleness_epochs=2,
+        )
