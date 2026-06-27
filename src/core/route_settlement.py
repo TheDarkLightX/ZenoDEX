@@ -511,7 +511,7 @@ def replay_route_legs(
                     return RouteReplayResult(
                         ok=False, reject_reason=ROUTE_REJECT_LEG_QUOTE_MISMATCH
                     )
-        except Exception:
+        except ValueError:
             return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_LEG_QUOTE_MISMATCH)
 
         if dir_is_0_to_1:
