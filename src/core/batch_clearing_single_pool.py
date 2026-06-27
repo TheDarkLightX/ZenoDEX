@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any, Callable, List, Optional, Tuple
 
 from ..state.balances import Amount, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
 from ..state.pools import PoolState
-from .batch_clearing_swaps import _SwapFillReserveRequest
+from .batch_clearing_ordering import _OptimalAbBoundedRequest
+from .batch_clearing_single_pool_liquidity import (
+    _process_liquidity_for_single_pool,
+    _SinglePoolLiquidityContext,
+)
+from .batch_clearing_swaps import _SwapFillReserveRequest, _SwapIntentRuntimeRequest
 from .domain_limits import is_strict_int
 from .settlement import Fill, FillAction
-from .settlement_fill_fields import read_optional_non_negative_fill_int
 
 _AnyFn = Callable[..., Any]
 
@@ -83,29 +87,6 @@ class _SinglePoolExecutionContext:
     swap_tiebreak_seed: bytes | None = None
 
 
-@dataclass(frozen=True)
-class _LiquidityRuntimeRequest:
-    intent: Intent
-    fill: Fill
-    snap_pool: PoolState
-    runtime: _SinglePoolRuntime
-    recipient: PubKey
-
-
-@dataclass(frozen=True)
-class _AddLiquidityFillAmounts:
-    amount0_used: int
-    amount1_used: int
-    lp_minted: int
-
-
-@dataclass(frozen=True)
-class _RemoveLiquidityFillAmounts:
-    amount0_out: int
-    amount1_out: int
-    lp_burned: int
-
-
 def _validate_single_pool_policy(
     policy: _SinglePoolOrderingPolicy,
     *,
@@ -163,11 +144,13 @@ def _order_swaps_for_single_pool(
     seed = context.swap_tiebreak_seed  # None => grindable status quo (byte-identical)
     if post_swap_ordering == policy.optimal_ab_bounded:
         return factories.order_optimal_ab_bounded_fn(
-            swap_intents,
-            pool_state=pool_state,
-            balances=runtime.balances_scratch,
-            reserves=runtime.current_reserves,
-            seed=seed,
+            _OptimalAbBoundedRequest(
+                intents=swap_intents,
+                pool_state=pool_state,
+                balances=runtime.balances_scratch,
+                reserves=runtime.current_reserves,
+                seed=seed,
+            )
         )
     if post_swap_ordering == policy.greedy_ab:
         return factories.order_greedy_ab_fn(swap_intents, pool_state=pool_state, reserves=runtime.current_reserves, seed=seed)
@@ -192,11 +175,13 @@ def _process_ordered_swaps_for_single_pool(
     factories = context.factories
     for intent in sorted_swaps:
         fill = factories.process_swap_intent_fn(
-            intent,
-            runtime.current_reserves,
-            context.pool_state,
-            runtime.balances_scratch,
-            protocol_fee_share_bps=context.protocol_fee_share_bps,
+            _SwapIntentRuntimeRequest(
+                intent=intent,
+                reserves=runtime.current_reserves,
+                pool_state=context.pool_state,
+                balances=runtime.balances_scratch,
+                protocol_fee_share_bps=context.protocol_fee_share_bps,
+            )
         )
         runtime.fills.append(fill)
 
@@ -217,137 +202,6 @@ def _process_ordered_swaps_for_single_pool(
             runtime.balances_scratch,
             context.protocol_fee_recipient_pubkey,
         )
-
-
-def _process_liquidity_for_single_pool(
-    liquidity_intents: List[Intent],
-    context: _SinglePoolExecutionContext,
-) -> None:
-    runtime = context.runtime
-    for intent in liquidity_intents:
-        snap_pool = replace(
-            context.pool_state,
-            reserve0=runtime.current_reserves[0],
-            reserve1=runtime.current_reserves[1],
-            lp_supply=runtime.current_lp_supply,
-        )
-        fill = context.factories.process_liquidity_intent_fn(
-            intent,
-            snap_pool,
-            runtime.lp_scratch,
-            runtime.balances_scratch,
-        )
-        runtime.fills.append(fill)
-
-        if fill.action != FillAction.FILL:
-            continue
-        recipient = intent.get_field("recipient", intent.sender_pubkey)
-        if intent.kind == IntentKind.ADD_LIQUIDITY:
-            _apply_add_liquidity_to_single_pool_runtime(
-                _LiquidityRuntimeRequest(
-                    intent=intent,
-                    fill=fill,
-                    snap_pool=snap_pool,
-                    runtime=runtime,
-                    recipient=recipient,
-                )
-            )
-        else:
-            _apply_remove_liquidity_to_single_pool_runtime(
-                _LiquidityRuntimeRequest(
-                    intent=intent,
-                    fill=fill,
-                    snap_pool=snap_pool,
-                    runtime=runtime,
-                    recipient=recipient,
-                )
-            )
-
-
-def _apply_add_liquidity_to_single_pool_runtime(request: _LiquidityRuntimeRequest) -> None:
-    amounts = _read_add_liquidity_fill_amounts(request.fill)
-    runtime = request.runtime
-    snap_pool = request.snap_pool
-    runtime.current_reserves = (
-        runtime.current_reserves[0] + amounts.amount0_used,
-        runtime.current_reserves[1] + amounts.amount1_used,
-    )
-    runtime.current_lp_supply += amounts.lp_minted
-    runtime.balances_scratch.subtract(request.intent.sender_pubkey, snap_pool.asset0, amounts.amount0_used)
-    runtime.balances_scratch.subtract(request.intent.sender_pubkey, snap_pool.asset1, amounts.amount1_used)
-    runtime.lp_scratch.add(request.recipient, snap_pool.pool_id, amounts.lp_minted)
-
-
-def _apply_remove_liquidity_to_single_pool_runtime(request: _LiquidityRuntimeRequest) -> None:
-    amounts = _read_remove_liquidity_fill_amounts(request.fill)
-    runtime = request.runtime
-    snap_pool = request.snap_pool
-    runtime.current_reserves = (
-        runtime.current_reserves[0] - amounts.amount0_out,
-        runtime.current_reserves[1] - amounts.amount1_out,
-    )
-    runtime.current_lp_supply -= amounts.lp_burned
-    runtime.lp_scratch.subtract(request.intent.sender_pubkey, snap_pool.pool_id, amounts.lp_burned)
-    runtime.balances_scratch.add(request.recipient, snap_pool.asset0, amounts.amount0_out)
-    runtime.balances_scratch.add(request.recipient, snap_pool.asset1, amounts.amount1_out)
-
-
-def _read_add_liquidity_fill_amounts(fill: Fill) -> _AddLiquidityFillAmounts:
-    return _AddLiquidityFillAmounts(
-        amount0_used=_read_single_pool_fill_int(
-            fill.amount0_used,
-            operation="ADD_LIQUIDITY",
-            field_name="amount0_used",
-            fill=fill,
-        ),
-        amount1_used=_read_single_pool_fill_int(
-            fill.amount1_used,
-            operation="ADD_LIQUIDITY",
-            field_name="amount1_used",
-            fill=fill,
-        ),
-        lp_minted=_read_single_pool_fill_int(
-            fill.lp_minted,
-            operation="ADD_LIQUIDITY",
-            field_name="lp_minted",
-            fill=fill,
-        ),
-    )
-
-
-def _read_remove_liquidity_fill_amounts(fill: Fill) -> _RemoveLiquidityFillAmounts:
-    return _RemoveLiquidityFillAmounts(
-        amount0_out=_read_single_pool_fill_int(
-            fill.amount0_out,
-            operation="REMOVE_LIQUIDITY",
-            field_name="amount0_out",
-            fill=fill,
-        ),
-        amount1_out=_read_single_pool_fill_int(
-            fill.amount1_out,
-            operation="REMOVE_LIQUIDITY",
-            field_name="amount1_out",
-            fill=fill,
-        ),
-        lp_burned=_read_single_pool_fill_int(
-            fill.lp_burned,
-            operation="REMOVE_LIQUIDITY",
-            field_name="lp_burned",
-            fill=fill,
-        ),
-    )
-
-
-def _read_single_pool_fill_int(value: object, *, operation: str, field_name: str, fill: Fill) -> int:
-    parsed, err = read_optional_non_negative_fill_int(
-        value,
-        operation=operation,
-        field_name=field_name,
-        intent_id=fill.intent_id,
-    )
-    if err is not None:
-        raise TypeError(err)
-    return int(parsed)
 
 
 def clear_batch_single_pool_with_factories(request: _ClearSinglePoolRequest) -> List[Fill]:
@@ -386,5 +240,12 @@ def clear_batch_single_pool_with_factories(request: _ClearSinglePoolRequest) -> 
         sorted_swaps,
         context,
     )
-    _process_liquidity_for_single_pool(liquidity_intents, context)
+    _process_liquidity_for_single_pool(
+        liquidity_intents,
+        _SinglePoolLiquidityContext(
+            pool_state=context.pool_state,
+            runtime=context.runtime,
+            process_liquidity_intent_fn=context.factories.process_liquidity_intent_fn,
+        ),
+    )
     return runtime.fills

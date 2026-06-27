@@ -11,6 +11,8 @@ from ..state.intents import Intent, IntentKind
 from ..state.pools import CURVE_TAG_CPMM, PoolState
 
 _AnyFn = Callable[..., Any]
+_MAX_AB_BRUTE_FORCE_EXACT_N = 8
+_MAX_AB_DP_STATES_PER_SUBSET = 250_000
 
 
 @dataclass(frozen=True)
@@ -38,6 +40,13 @@ class _OptimalAbObjectiveContext:
     r_out0: int
     sender_bal_in: Dict[PubKey, Amount]
     factories: _OptimalAbOrderingFactories
+
+
+@dataclass(frozen=True)
+class _AbDpRecord:
+    amount_a: int
+    surplus_b: int
+    order_ids: Tuple[str, ...]
 
 
 def _simulation_reserve_direction(
@@ -262,7 +271,7 @@ def _objective_for_order(
     return int(amount_a), int(surplus_b), tuple(intent.intent_id for intent in order)
 
 
-def _best_order_by_objective(
+def _best_order_by_objective_bruteforce(
     intents: List[Intent],
     context: _OptimalAbObjectiveContext,
 ) -> Optional[Tuple[Intent, ...]]:
@@ -279,6 +288,130 @@ def _best_order_by_objective(
         ):
             best_a, best_b, best_order_ids, best_order = cand_key[0], cand_key[1], cand_key[2], perm
     return best_order
+
+
+def _best_order_by_objective_subset_dp(
+    intents: List[Intent],
+    context: _OptimalAbObjectiveContext,
+) -> Optional[Tuple[Intent, ...]]:
+    """Explore all AB orderings through a full-state subset DP.
+
+    The state keeps both directional reserves and per-sender remaining input
+    balances. This is exact for the existing objective because all future
+    transition results are determined by `(processed_set, reserves, balances)`.
+    """
+    n = len(intents)
+    intent_by_id = {intent.intent_id: intent for intent in intents}
+    senders = tuple(sorted(context.sender_bal_in))
+    sender_index = {sender: idx for idx, sender in enumerate(senders)}
+    initial_balances = tuple(int(context.sender_bal_in[sender]) for sender in senders)
+    dp: list[dict[tuple[int, int, Tuple[int, ...]], _AbDpRecord]] = [dict() for _ in range(1 << n)]
+    dp[0][(int(context.r_in0), int(context.r_out0), initial_balances)] = _AbDpRecord(0, 0, tuple())
+
+    for mask in range(1 << n):
+        states = dp[mask]
+        if not states:
+            continue
+        for state, record in list(states.items()):
+            r_in, r_out, balance_key = state
+            bal_in = {sender: int(balance_key[idx]) for sender, idx in sender_index.items()}
+            for idx, intent in enumerate(intents):
+                bit = 1 << idx
+                if mask & bit:
+                    continue
+                next_mask = mask | bit
+                next_r_in = int(r_in)
+                next_r_out = int(r_out)
+                next_balance_key = balance_key
+                next_a = int(record.amount_a)
+                next_b = int(record.surplus_b)
+
+                if intent.kind == IntentKind.SWAP_EXACT_IN:
+                    contribution = _objective_exact_in_contribution(
+                        intent,
+                        context,
+                        r_in=int(r_in),
+                        r_out=int(r_out),
+                        bal_in=bal_in,
+                    )
+                    if contribution is not None:
+                        amount_in, surplus, next_r_in, next_r_out = contribution
+                        next_a += int(amount_in)
+                        next_b += int(surplus)
+                        next_balance_key = _debit_balance_key(
+                            next_balance_key,
+                            sender_index=sender_index,
+                            sender=intent.sender_pubkey,
+                            amount=int(amount_in),
+                        )
+
+                elif intent.kind == IntentKind.SWAP_EXACT_OUT:
+                    contribution = _objective_exact_out_contribution(
+                        intent,
+                        context,
+                        r_in=int(r_in),
+                        r_out=int(r_out),
+                        bal_in=bal_in,
+                    )
+                    if contribution is not None:
+                        amount_in, next_r_in, next_r_out = contribution
+                        next_a += int(amount_in)
+                        next_balance_key = _debit_balance_key(
+                            next_balance_key,
+                            sender_index=sender_index,
+                            sender=intent.sender_pubkey,
+                            amount=int(amount_in),
+                        )
+
+                next_state = (int(next_r_in), int(next_r_out), next_balance_key)
+                next_record = _AbDpRecord(
+                    amount_a=int(next_a),
+                    surplus_b=int(next_b),
+                    order_ids=(*record.order_ids, intent.intent_id),
+                )
+                current = dp[next_mask].get(next_state)
+                if current is None or _is_better_ab_dp_record(next_record, current, context):
+                    dp[next_mask][next_state] = next_record
+                    if len(dp[next_mask]) > _MAX_AB_DP_STATES_PER_SUBSET:
+                        return None
+
+    final_records = dp[(1 << n) - 1].values()
+    best_record: _AbDpRecord | None = None
+    for record in final_records:
+        if best_record is None or _is_better_ab_dp_record(record, best_record, context):
+            best_record = record
+    if best_record is None:
+        return None
+    return tuple(intent_by_id[intent_id] for intent_id in best_record.order_ids)
+
+
+def _debit_balance_key(
+    balance_key: Tuple[int, ...],
+    *,
+    sender_index: Dict[PubKey, int],
+    sender: PubKey,
+    amount: int,
+) -> Tuple[int, ...]:
+    idx = sender_index.get(sender)
+    if idx is None:
+        return balance_key
+    next_values = list(balance_key)
+    next_values[idx] = int(next_values[idx]) - int(amount)
+    return tuple(next_values)
+
+
+def _is_better_ab_dp_record(
+    candidate: _AbDpRecord,
+    best: _AbDpRecord,
+    context: _OptimalAbObjectiveContext,
+) -> bool:
+    candidate_key = context.factories.ab_ordering_key_fn(
+        A_B_order=(candidate.amount_a, candidate.surplus_b, candidate.order_ids)
+    )
+    best_key = context.factories.ab_ordering_key_fn(
+        A_B_order=(best.amount_a, best.surplus_b, best.order_ids)
+    )
+    return context.factories.is_better_ab_key_fn(candidate_key, best_key)
 
 
 def order_swaps_optimal_ab_bounded_with_factories(
@@ -308,5 +441,8 @@ def order_swaps_optimal_ab_bounded_with_factories(
         sender_bal_in=_sender_input_balances(intents, balances, first_asset_in),
         factories=factories,
     )
-    best_order = _best_order_by_objective(intents, context)
+    if len(intents) <= _MAX_AB_BRUTE_FORCE_EXACT_N:
+        best_order = _best_order_by_objective_bruteforce(intents, context)
+    else:
+        best_order = _best_order_by_objective_subset_dp(intents, context)
     return list(best_order) if best_order is not None else factories.order_limit_price_fn(intents)

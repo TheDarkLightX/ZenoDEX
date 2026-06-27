@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import functools
-from typing import List, Optional, Tuple
+from dataclasses import dataclass
+from typing import List, Tuple
 
 from ..kernels.python.settlement_swap_runtime_v1 import (
     quote_cpmm_swap_exact_in,
@@ -13,13 +14,21 @@ from ..state.balances import Amount, BalanceTable
 from ..state.intents import Intent, IntentKind
 from ..state.pools import PoolState
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
-from .neutral_tiebreak import tiebreak_token
 from .batch_clearing_ab_order import (
     _OptimalAbOrderingFactories,
     _SwapReserveSimulationFactories,
     order_swaps_optimal_ab_bounded_with_factories,
     simulate_swap_reserves_with_factories,
 )
+from .batch_clearing_mci_ordering import (
+    _GlobalRefineConfig,
+    _GlobalRefineContext,
+    _MciOrderingFactories,
+    order_swaps_mci_ab_with_factories,
+    refine_ab_ordering_global_with_eval,
+    refine_b_ordering_with_eval,
+)
+from .neutral_tiebreak import tiebreak_token
 
 # Bounded brute-force safety cap for AB-optimal ordering.
 # For N > this limit, greedy_ab should be used instead.
@@ -28,6 +37,31 @@ _MAX_SWAP_ORDERING_BRUTE_FORCE_N = 12
 _MAX_SWAP_ORDERING_GLOBAL_REFINE_N = 24
 # MCI insertion is heavier than greedy seeding; keep it opt-in and bounded.
 _MAX_SWAP_ORDERING_MCI_N = 18
+
+
+@dataclass(frozen=True)
+class _OptimalAbBoundedRequest:
+    intents: List[Intent]
+    pool_state: PoolState
+    balances: BalanceTable
+    reserves: Tuple[Amount, Amount]
+    seed: bytes | None = None
+
+
+@dataclass(frozen=True)
+class _AbOrderingEvaluationRequest:
+    ordering: List[Intent]
+    pool_state: PoolState
+    reserves: Tuple[Amount, Amount]
+    seed: bytes | None = None
+
+
+@dataclass(frozen=True)
+class _AbOrderingTotalsRequest:
+    amount_a: Amount
+    surplus_b: Amount
+    intent_ids: Tuple[str, ...]
+    seed: bytes | None = None
 
 
 def _order_swaps_limit_price(intents: List[Intent], *, seed: bytes | None = None) -> List[Intent]:
@@ -40,14 +74,7 @@ def _order_swaps_limit_price(intents: List[Intent], *, seed: bytes | None = None
     )
 
 
-def _order_swaps_optimal_ab_bounded(
-    intents: List[Intent],
-    *,
-    pool_state: PoolState,
-    balances: BalanceTable,
-    reserves: Tuple[Amount, Amount],
-    seed: bytes | None = None,
-) -> List[Intent]:
+def _order_swaps_optimal_ab_bounded(request: _OptimalAbBoundedRequest) -> List[Intent]:
     """
     Choose a deterministic swap order that maximizes the (A,B)+tie-break key:
 
@@ -63,18 +90,18 @@ def _order_swaps_optimal_ab_bounded(
     fall back to limit-price ordering.
     """
     return order_swaps_optimal_ab_bounded_with_factories(
-        intents,
-        pool_state=pool_state,
-        balances=balances,
-        reserves=reserves,
+        request.intents,
+        pool_state=request.pool_state,
+        balances=request.balances,
+        reserves=request.reserves,
         max_brute_force_n=_MAX_SWAP_ORDERING_BRUTE_FORCE_N,
         factories=_OptimalAbOrderingFactories(
             quote_exact_in_fn=quote_cpmm_swap_exact_in,
             quote_exact_out_fn=quote_cpmm_swap_exact_out,
             swap_exact_in_fn=swap_exact_in_for_pool,
             swap_exact_out_fn=swap_exact_out_for_pool,
-            order_limit_price_fn=functools.partial(_order_swaps_limit_price, seed=seed),
-            ab_ordering_key_fn=functools.partial(_ab_ordering_key, seed=seed),
+            order_limit_price_fn=functools.partial(_order_swaps_limit_price, seed=request.seed),
+            ab_ordering_key_fn=functools.partial(_ab_ordering_key_from_totals, seed=request.seed),
             is_better_ab_key_fn=_is_better_ab_key,
         ),
     )
@@ -145,12 +172,7 @@ def _eval_ordering_ab(
 
 
 def _ab_ordering_key(
-    ordering: List[Intent] | None = None,
-    pool_state: PoolState | None = None,
-    reserves: Tuple[Amount, Amount] | None = None,
-    *,
-    A_B_order: Tuple[Amount, Amount, Tuple[str, ...]] | None = None,
-    seed: bytes | None = None,
+    request: _AbOrderingEvaluationRequest | _AbOrderingTotalsRequest,
 ) -> Tuple[int, int, Tuple[str, ...]]:
     # `seed is None` (the default, and the only value any current caller passes)
     # keeps the tie-break component as the raw intent_id tuple -> byte-identical to
@@ -158,15 +180,45 @@ def _ab_ordering_key(
     # for a grinding-resistant token (neutral_tiebreak.py); enabling that path is a
     # deliberate follow-up gated on an unbiasable seed source. `tiebreak_token` is
     # the identity when seed is None, so this seam is behavior-preserving by default.
-    if A_B_order is not None:
-        return int(A_B_order[0]), int(A_B_order[1]), tuple(
-            tiebreak_token(str(x), seed) for x in A_B_order[2]
+    if isinstance(request, _AbOrderingTotalsRequest):
+        return int(request.amount_a), int(request.surplus_b), tuple(
+            tiebreak_token(str(x), request.seed) for x in request.intent_ids
         )
-    if ordering is None or pool_state is None or reserves is None:
-        raise ValueError("ordering, pool_state, and reserves are required unless A_B_order is provided")
-    amount_a, surplus_b = _eval_ordering_ab(ordering, pool_state, reserves)
+    amount_a, surplus_b = _eval_ordering_ab(request.ordering, request.pool_state, request.reserves)
     return int(amount_a), int(surplus_b), tuple(
-        tiebreak_token(it.intent_id, seed) for it in ordering
+        tiebreak_token(it.intent_id, request.seed) for it in request.ordering
+    )
+
+
+def _ab_ordering_key_from_totals(
+    *,
+    A_B_order: Tuple[Amount, Amount, Tuple[str, ...]],
+    seed: bytes | None = None,
+) -> Tuple[int, int, Tuple[str, ...]]:
+    return _ab_ordering_key(
+        _AbOrderingTotalsRequest(
+            amount_a=A_B_order[0],
+            surplus_b=A_B_order[1],
+            intent_ids=A_B_order[2],
+            seed=seed,
+        )
+    )
+
+
+def _ab_ordering_key_from_ordering(
+    ordering: List[Intent],
+    *,
+    pool_state: PoolState,
+    reserves: Tuple[Amount, Amount],
+    seed: bytes | None = None,
+) -> Tuple[int, int, Tuple[str, ...]]:
+    return _ab_ordering_key(
+        _AbOrderingEvaluationRequest(
+            ordering=ordering,
+            pool_state=pool_state,
+            reserves=reserves,
+            seed=seed,
+        )
     )
 
 
@@ -182,18 +234,6 @@ def _is_better_ab_key(candidate: Tuple[int, int, Tuple[str, ...]], best: Tuple[i
     if cand_b < best_b:
         return False
     return cand_ids < best_ids
-
-
-def _is_strict_ab_improvement(
-    candidate_a: Amount,
-    candidate_b: Amount,
-    base_a: Amount,
-    base_b: Amount,
-) -> bool:
-    """Return true when `(A, B)` improves lexicographically."""
-    if candidate_a != base_a:
-        return candidate_a > base_a
-    return candidate_b > base_b
 
 
 def _greedy_marginal_ab(
@@ -306,51 +346,33 @@ def _order_swaps_mci_ab(
     seed the existing global refinement pass with a stronger starting point
     than the slippage-first greedy order.
     """
-    if len(intents) <= 1:
-        return list(intents)
-    if len(intents) > _MAX_SWAP_ORDERING_MCI_N:
-        greedy = _order_swaps_greedy_ab(intents, pool_state=pool_state, reserves=reserves, seed=seed)
-        return _refine_b_ordering(greedy, pool_state=pool_state, reserves=reserves)
-
-    first_asset_in = intents[0].get_field("asset_in")
-    first_asset_out = intents[0].get_field("asset_out")
-    if not isinstance(first_asset_in, str) or not isinstance(first_asset_out, str):
-        return _order_swaps_limit_price(intents, seed=seed)
-    if first_asset_in == first_asset_out:
-        return _order_swaps_limit_price(intents, seed=seed)
-    if not (
-        (first_asset_in == pool_state.asset0 and first_asset_out == pool_state.asset1)
-        or (first_asset_in == pool_state.asset1 and first_asset_out == pool_state.asset0)
-    ):
-        return _order_swaps_limit_price(intents, seed=seed)
-    for it in intents[1:]:
-        if it.get_field("asset_in") != first_asset_in or it.get_field("asset_out") != first_asset_out:
-            return _order_swaps_limit_price(intents, seed=seed)
-
-    remaining = sorted(intents, key=lambda it: tiebreak_token(it.intent_id, seed))
-    ordered: List[Intent] = []
-
-    while remaining:
-        best_idx = -1
-        best_order: List[Intent] | None = None
-        best_key: Tuple[int, int, Tuple[str, ...]] | None = None
-        for rem_idx, candidate in enumerate(remaining):
-            for pos in range(len(ordered) + 1):
-                trial = ordered[:pos] + [candidate] + ordered[pos:]
-                trial_key = _ab_ordering_key(trial, pool_state, reserves, seed=seed)
-                if best_order is None or _is_better_ab_key(
-                    trial_key,
-                    best_key if best_key is not None else (-1, -1, tuple()),
-                ):
-                    best_idx = rem_idx
-                    best_order = trial
-                    best_key = trial_key
-        if best_order is None or best_idx < 0:
-            raise RuntimeError("AB ordering search produced no candidate")
-        ordered = best_order
-        remaining.pop(best_idx)
-
-    return ordered
+    return order_swaps_mci_ab_with_factories(
+        intents,
+        pool_state=pool_state,
+        max_mci_n=_MAX_SWAP_ORDERING_MCI_N,
+        factories=_MciOrderingFactories(
+            order_limit_price_fn=functools.partial(_order_swaps_limit_price, seed=seed),
+            order_greedy_ab_fn=functools.partial(
+                _order_swaps_greedy_ab,
+                pool_state=pool_state,
+                reserves=reserves,
+                seed=seed,
+            ),
+            refine_b_ordering_fn=functools.partial(
+                _refine_b_ordering,
+                pool_state=pool_state,
+                reserves=reserves,
+            ),
+            ab_ordering_key_fn=functools.partial(
+                _ab_ordering_key_from_ordering,
+                pool_state=pool_state,
+                reserves=reserves,
+                seed=seed,
+            ),
+            is_better_ab_key_fn=_is_better_ab_key,
+            tiebreak_token_fn=functools.partial(tiebreak_token, seed=seed),
+        ),
+    )
 
 
 def _refine_b_ordering(
@@ -372,28 +394,12 @@ def _refine_b_ordering(
     This addresses the B-suboptimality of greedy ordering (H-BC-001):
     greedy_ab is A-optimal but B-suboptimal in 39-94% of cases.
     """
-    if len(ordering) <= 1:
-        return list(ordering)
-
-    result = list(ordering)
-    base_a, base_b = _eval_ordering_ab(result, pool_state, reserves)
-
-    improved = True
-    while improved:
-        improved = False
-        for i in range(len(result) - 1):
-            # Try swapping adjacent pair (i, i+1)
-            result[i], result[i + 1] = result[i + 1], result[i]
-            new_a, new_b = _eval_ordering_ab(result, pool_state, reserves)
-
-            if _is_strict_ab_improvement(new_a, new_b, base_a, base_b):
-                base_a = new_a
-                base_b = new_b
-                improved = True
-            else:
-                result[i], result[i + 1] = result[i + 1], result[i]
-
-    return result
+    return refine_b_ordering_with_eval(
+        ordering,
+        pool_state=pool_state,
+        reserves=reserves,
+        eval_ordering_ab_fn=_eval_ordering_ab,
+    )
 
 
 def _refine_ab_ordering_global(
@@ -411,40 +417,19 @@ def _refine_ab_ordering_global(
     To avoid pathological runtime, for large batches this function falls back to
     adjacent-only refinement.
     """
-    n = len(ordering)
-    if n <= 1:
-        return list(ordering)
-    if n > _MAX_SWAP_ORDERING_GLOBAL_REFINE_N:
-        return _refine_b_ordering(ordering, pool_state=pool_state, reserves=reserves)
-
-    result = list(ordering)
-    base_a, base_b = _eval_ordering_ab(result, pool_state, reserves)
-
-    # Bounded number of passes; each pass applies at most one best-improving swap.
-    max_passes = n
-    for _ in range(max_passes):
-        best_pair: Optional[Tuple[int, int]] = None
-        best_a: Amount = base_a
-        best_b: Amount = base_b
-
-        for i in range(n - 1):
-            for j in range(i + 1, n):
-                result[i], result[j] = result[j], result[i]
-                cand_a, cand_b = _eval_ordering_ab(result, pool_state, reserves)
-                result[i], result[j] = result[j], result[i]
-
-                if not _is_strict_ab_improvement(cand_a, cand_b, best_a, best_b):
-                    continue
-
-                best_pair = (i, j)
-                best_a = cand_a
-                best_b = cand_b
-
-        if best_pair is None:
-            break
-
-        i, j = best_pair
-        result[i], result[j] = result[j], result[i]
-        base_a, base_b = best_a, best_b
-
-    return result
+    return refine_ab_ordering_global_with_eval(
+        ordering,
+        context=_GlobalRefineContext(
+            pool_state=pool_state,
+            reserves=reserves,
+            eval_ordering_ab_fn=_eval_ordering_ab,
+        ),
+        config=_GlobalRefineConfig(
+            max_global_refine_n=_MAX_SWAP_ORDERING_GLOBAL_REFINE_N,
+            refine_b_ordering_fn=functools.partial(
+                _refine_b_ordering,
+                pool_state=pool_state,
+                reserves=reserves,
+            ),
+        ),
+    )

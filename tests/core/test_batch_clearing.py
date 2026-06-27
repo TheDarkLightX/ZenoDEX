@@ -9,24 +9,24 @@ from pathlib import Path
 
 import pytest
 
+import src.core.batch_clearing_ab_order as batch_clearing_ab_order
 import src.core.batch_clearing as batch_clearing_module
 import src.core.batch_clearing_ordering as batch_clearing_ordering
 from src.core.batch_clearing import (
-    _ab_ordering_key,
+    _ab_ordering_key as _ab_ordering_key_with_request,
+)
+from src.core.batch_clearing import (
     _aggregate_balance_deltas_chunked,
     _aggregate_lp_deltas_chunked,
     _aggregate_reserve_deltas_chunked,
     _apply_create_pool_to_locals,
-    _apply_filled_intent_to_locals,
     _cow_pair_netting_exact_in_v1,
     _eval_ordering_ab,
     _get_limit_price,
     _order_swaps_limit_price,
     _order_swaps_mci_ab,
-    _order_swaps_optimal_ab_bounded,
     _parse_create_pool_event_payload,
     _process_liquidity_intent,
-    _process_swap_intent,
     _refine_ab_ordering_global,
     _refine_b_ordering,
     _simulate_swap_reserves,
@@ -34,16 +34,130 @@ from src.core.batch_clearing import (
     apply_settlement,
     apply_settlement_pure,
     clear_batch_single_pool,
+    clear_batch_single_pool_for_request,
     compute_settlement,
+    compute_settlement_for_request,
     validate_settlement,
 )
-from src.core.batch_clearing_swaps import _apply_swap_fill_to_scratch_balances
+from src.core.batch_clearing import (
+    _apply_filled_intent_to_locals as _apply_filled_intent_to_locals_with_request,
+)
+from src.core.batch_clearing import (
+    _order_swaps_optimal_ab_bounded as _order_swaps_optimal_ab_bounded_with_request,
+)
+from src.core.batch_clearing import (
+    _process_swap_intent as _process_swap_intent_with_request,
+)
+from src.core.batch_clearing_apply import _FilledIntentLocalApplyRequest, _FilledIntentLocalContext
+from src.core.batch_clearing_requests import ClearBatchSinglePoolRequest, ComputeSettlementRequest
+from src.core.batch_clearing_swaps import (
+    _apply_swap_fill_to_scratch_balances,
+    _SwapIntentRuntimeRequest,
+)
 from src.core.liquidity import create_pool
 from src.core.settlement import BalanceDelta, Fill, FillAction, LPDelta, ReserveDelta, Settlement
 from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
 from src.state.lp import LPTable
 from src.state.pools import PoolState, PoolStatus
+
+
+def _apply_filled_intent_to_locals(
+    *,
+    intent: Intent,
+    fill: Fill,
+    pool_id: str,
+    pool_state: PoolState,
+    balances: BalanceTable,
+    lp_balances: LPTable,
+    balance_deltas: list[BalanceDelta],
+    reserve_deltas: list[ReserveDelta],
+    lp_deltas: list[LPDelta],
+    protocol_fee_recipient_pubkey: str | None = None,
+) -> None:
+    _apply_filled_intent_to_locals_with_request(
+        _FilledIntentLocalApplyRequest(
+            intent=intent,
+            fill=fill,
+            context=_FilledIntentLocalContext(
+                pool_id=pool_id,
+                pool_state=pool_state,
+                balances=balances,
+                lp_balances=lp_balances,
+                balance_deltas=balance_deltas,
+                reserve_deltas=reserve_deltas,
+                lp_deltas=lp_deltas,
+                protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+            ),
+        )
+    )
+
+
+def _order_swaps_optimal_ab_bounded(
+    intents: list[Intent],
+    *,
+    pool_state: PoolState,
+    balances: BalanceTable,
+    reserves: tuple[int, int],
+    seed: bytes | None = None,
+) -> list[Intent]:
+    return _order_swaps_optimal_ab_bounded_with_request(
+        batch_clearing_ordering._OptimalAbBoundedRequest(
+            intents=intents,
+            pool_state=pool_state,
+            balances=balances,
+            reserves=reserves,
+            seed=seed,
+        )
+    )
+
+
+def _ab_ordering_key(
+    ordering: list[Intent] | None = None,
+    pool_state: PoolState | None = None,
+    reserves: tuple[int, int] | None = None,
+    *,
+    A_B_order: tuple[int, int, tuple[str, ...]] | None = None,
+    seed: bytes | None = None,
+) -> tuple[int, int, tuple[str, ...]]:
+    if A_B_order is not None:
+        return _ab_ordering_key_with_request(
+            batch_clearing_ordering._AbOrderingTotalsRequest(
+                amount_a=A_B_order[0],
+                surplus_b=A_B_order[1],
+                intent_ids=A_B_order[2],
+                seed=seed,
+            )
+        )
+    if ordering is None or pool_state is None or reserves is None:
+        raise ValueError("ordering, pool_state, and reserves are required unless A_B_order is provided")
+    return _ab_ordering_key_with_request(
+        batch_clearing_ordering._AbOrderingEvaluationRequest(
+            ordering=ordering,
+            pool_state=pool_state,
+            reserves=reserves,
+            seed=seed,
+        )
+    )
+
+
+def _process_swap_intent(
+    intent: Intent,
+    reserves: tuple[int, int],
+    pool_state: PoolState,
+    balances: BalanceTable,
+    *,
+    protocol_fee_share_bps: int = 0,
+) -> Fill:
+    return _process_swap_intent_with_request(
+        _SwapIntentRuntimeRequest(
+            intent=intent,
+            reserves=reserves,
+            pool_state=pool_state,
+            balances=balances,
+            protocol_fee_share_bps=protocol_fee_share_bps,
+        )
+    )
 
 
 def test_batch_clearing_has_no_bare_broad_candidate_suppression() -> None:
@@ -120,6 +234,144 @@ def test_batch_clearing_public_defaults_are_explicitly_greedy_ab_refined() -> No
 
     assert compute_default == "greedy_ab_refined"
     assert clear_default == "greedy_ab_refined"
+
+
+def test_compute_settlement_request_api_matches_wrapper() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+        created_at=0,
+    )
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000_000)
+    balances.set(pk, asset1, 10_000_000)
+    lp_balances = LPTable()
+    intents = [
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(1),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool_id,
+                "asset_in": asset0,
+                "asset_out": asset1,
+                "amount_in": 1000,
+                "min_amount_out": 1,
+            },
+        )
+    ]
+
+    request = ComputeSettlementRequest(
+        intents=intents,
+        pools={pool_id: pool},
+        balances=balances,
+        lp_balances=lp_balances,
+    )
+
+    assert compute_settlement_for_request(request) == compute_settlement(
+        intents,
+        {pool_id: pool},
+        balances,
+        lp_balances,
+    )
+
+
+def test_compute_settlement_request_rejects_non_bytes_tiebreak_seed() -> None:
+    with pytest.raises(TypeError, match="swap_tiebreak_seed must be bytes or None"):
+        compute_settlement_for_request(
+            ComputeSettlementRequest(
+                intents=[],
+                pools={},
+                balances=BalanceTable(),
+                swap_tiebreak_seed="seed",  # type: ignore[arg-type]
+            )
+        )
+
+
+def test_clear_batch_single_pool_request_api_matches_wrapper() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool = PoolState(
+        pool_id="0x" + "aa" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=100_000,
+        reserve1=100_000,
+        fee_bps=30,
+        lp_supply=1_000,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+    balances.set(pk, asset0, 1_000_000)
+    lp_balances = LPTable()
+    intents = [
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(1),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool.pool_id,
+                "asset_in": asset0,
+                "asset_out": asset1,
+                "amount_in": 1000,
+                "min_amount_out": 1,
+            },
+        )
+    ]
+
+    request = ClearBatchSinglePoolRequest(
+        intents=intents,
+        pool_state=pool,
+        balances=balances,
+        lp_balances=lp_balances,
+    )
+
+    assert clear_batch_single_pool_for_request(request) == clear_batch_single_pool(
+        intents,
+        pool,
+        balances,
+        lp_balances,
+    )
+
+
+def test_clear_batch_single_pool_request_rejects_non_bytes_tiebreak_seed() -> None:
+    pool = PoolState(
+        pool_id="0x" + "aa" * 32,
+        asset0="0x" + "01" * 32,
+        asset1="0x" + "02" * 32,
+        reserve0=100_000,
+        reserve1=100_000,
+        fee_bps=30,
+        lp_supply=1_000,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+
+    with pytest.raises(TypeError, match="swap_tiebreak_seed must be bytes or None"):
+        clear_batch_single_pool_for_request(
+            ClearBatchSinglePoolRequest(
+                intents=[],
+                pool_state=pool,
+                balances=BalanceTable(),
+                lp_balances=LPTable(),
+                swap_tiebreak_seed="seed",  # type: ignore[arg-type]
+            )
+        )
 
 
 def test_batch_clearing_rejects_second_swap_when_overdrawn() -> None:
@@ -2556,6 +2808,95 @@ def test_order_swaps_optimal_ab_bounded_fallbacks_and_exact_out_path() -> None:
     )
 
 
+def test_order_swaps_optimal_ab_subset_dp_matches_bruteforce_when_forced(monkeypatch) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    _pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=5_000,
+        amount1=7_000,
+        fee_bps=37,
+        creator_pubkey=pk,
+    )
+    balances = BalanceTable()
+    balances.set(pk, asset0, 1_000)
+    reserves = (pool.reserve0, pool.reserve1)
+
+    def _exact_in(intent_id: int, amount_in: int, min_amount_out: int) -> Intent:
+        return Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(intent_id),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={
+                "asset_in": asset0,
+                "asset_out": asset1,
+                "amount_in": amount_in,
+                "min_amount_out": min_amount_out,
+            },
+        )
+
+    intents = [
+        _exact_in(1410, 80, 105),
+        _exact_in(1411, 35, 45),
+        _exact_in(1412, 120, 155),
+        _exact_in(1413, 60, 80),
+        _exact_in(1414, 25, 34),
+        _exact_in(1415, 100, 128),
+    ]
+    brute_order = _order_swaps_optimal_ab_bounded(intents, pool_state=pool, balances=balances, reserves=reserves)
+
+    monkeypatch.setattr(batch_clearing_ab_order, "_MAX_AB_BRUTE_FORCE_EXACT_N", 0)
+    dp_order = _order_swaps_optimal_ab_bounded(intents, pool_state=pool, balances=balances, reserves=reserves)
+
+    assert [intent.intent_id for intent in dp_order] == [intent.intent_id for intent in brute_order]
+
+
+def test_order_swaps_optimal_ab_uses_subset_dp_above_small_bruteforce_threshold(monkeypatch) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    _pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000)
+    reserves = (pool.reserve0, pool.reserve1)
+
+    def _exact_in(intent_id: int) -> Intent:
+        return Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(intent_id),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={"asset_in": asset0, "asset_out": asset1, "amount_in": 100 + intent_id, "min_amount_out": 1},
+        )
+
+    intents = [_exact_in(1420 + i) for i in range(9)]
+    calls: list[int] = []
+
+    def _fake_subset_dp(order: list[Intent], context: object) -> tuple[Intent, ...]:
+        calls.append(len(order))
+        return tuple(reversed(order))
+
+    monkeypatch.setattr(batch_clearing_ab_order, "_best_order_by_objective_subset_dp", _fake_subset_dp)
+    result = _order_swaps_optimal_ab_bounded(intents, pool_state=pool, balances=balances, reserves=reserves)
+
+    assert calls == [9]
+    assert [intent.intent_id for intent in result] == [intent.intent_id for intent in reversed(intents)]
+
+
 def test_order_swaps_optimal_ab_bounded_non_cpmm_objective_paths(monkeypatch) -> None:
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
@@ -3444,6 +3785,67 @@ def test_cow_pair_netting_greedy_fallback_filters_balance_and_feasibility() -> N
     assert sorted(it.intent_id for it in remaining) == sorted(
         [_iid(1380), _iid(1382), _iid(1383), _iid(1384), _iid(1386), _iid(1387), _iid(1388)]
     )
+
+
+def test_cow_pair_netting_assignment_beats_greedy_above_old_cap() -> None:
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool = PoolState(
+        pool_id="0x" + "ae" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000_000,
+        reserve1=1_000_000,
+        fee_bps=30,
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+
+    def _swap(intent_id: int, sender: str, asset_in: str, asset_out: str, amount_in: int, min_amount_out: int) -> Intent:
+        balances.set(sender, asset_in, amount_in)
+        return Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(intent_id),
+            sender_pubkey=sender,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool.pool_id,
+                "asset_in": asset_in,
+                "asset_out": asset_out,
+                "amount_in": amount_in,
+                "min_amount_out": min_amount_out,
+            },
+        )
+
+    x_high = _swap(1390, "0x" + "61" * 48, asset0, asset1, 100, 80)
+    x_low = _swap(1391, "0x" + "62" * 48, asset0, asset1, 50, 80)
+    y_small = _swap(1392, "0x" + "71" * 48, asset1, asset0, 80, 50)
+    y_hard = _swap(1393, "0x" + "72" * 48, asset1, asset0, 100, 90)
+    unmatched = [
+        _swap(1394, "0x" + "63" * 48, asset0, asset1, 10, 1_000),
+        _swap(1395, "0x" + "64" * 48, asset0, asset1, 10, 1_000),
+        _swap(1396, "0x" + "65" * 48, asset0, asset1, 10, 1_000),
+        _swap(1397, "0x" + "73" * 48, asset1, asset0, 10, 1_000),
+        _swap(1398, "0x" + "74" * 48, asset1, asset0, 10, 1_000),
+    ]
+
+    fills, remaining = _cow_pair_netting_exact_in_v1(
+        [x_high, x_low, y_small, y_hard, *unmatched],
+        pool_state=pool,
+        balances=balances,
+    )
+
+    by_id = {fill.intent_id: fill for fill in fills}
+    assert sorted(by_id) == [_iid(1390), _iid(1391), _iid(1392), _iid(1393)]
+    assert by_id[_iid(1390)].amount_out_filled == 100
+    assert by_id[_iid(1391)].amount_out_filled == 80
+    assert by_id[_iid(1392)].amount_out_filled == 50
+    assert by_id[_iid(1393)].amount_out_filled == 100
+    assert sorted(intent.intent_id for intent in remaining) == [_iid(n) for n in range(1394, 1399)]
 
 
 def test_apply_settlement_updates_asset1_reserve_branch() -> None:

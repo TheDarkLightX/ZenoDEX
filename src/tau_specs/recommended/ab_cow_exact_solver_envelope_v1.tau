@@ -1,0 +1,44 @@
+# AB/CoW Exact Solver Envelope v1
+#
+# PURPOSE:
+#   Cover the two algorithm work items from the TauSpec frontier report:
+#   1. AB ordering: exact brute force for small batches, full-state subset DP for
+#      larger bounded batches, deterministic fallback on state-cap exhaustion.
+#   2. CoW matching: exact assignment for uncoupled sender balances, fail-closed
+#      fallback when grouped capacity constraints appear.
+#
+# Stream mapping:
+# i1  = optimizer_active
+# i2  = mode_ab_ordering
+# i3  = mode_cow_matching
+# i4  = objective_binding_ok
+# i5  = full_state_or_uncoupled_capacity_ok
+# i6  = brute_dp_assignment_parity_ok
+# i7  = deterministic_tie_ok
+# i8  = fallback_limit_respected
+# i9  = no_settlement_authority
+# i10 = balance_slippage_constraints_ok
+# i11 = resource_budget_ok
+# o1  = mode_ok
+# o2  = proof_surface_ok
+# o3  = fallback_boundary_ok
+# o4  = algorithm_item_1_ab_ok
+# o5  = algorithm_item_2_cow_ok
+# o6  = optimizer_certificate_ok
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+mode_ok(ab : sbf, cow : sbf) := (is1(ab) && !is1(cow)) || (!is1(ab) && is1(cow)).
+proof_surface_ok(objective_ok : sbf, state_capacity_ok : sbf, parity_ok : sbf, tie_ok : sbf, balance_ok : sbf, budget_ok : sbf) := is1(objective_ok) && is1(state_capacity_ok) && is1(parity_ok) && is1(tie_ok) && is1(balance_ok) && is1(budget_ok).
+fallback_boundary_ok(fallback_ok : sbf, no_authority : sbf) := is1(fallback_ok) && is1(no_authority).
+ab_ok(active : sbf, ab : sbf, cow : sbf, objective_ok : sbf, state_capacity_ok : sbf, parity_ok : sbf, tie_ok : sbf, fallback_ok : sbf, no_authority : sbf, balance_ok : sbf, budget_ok : sbf) := is1(active) && is1(ab) && mode_ok(ab, cow) && proof_surface_ok(objective_ok, state_capacity_ok, parity_ok, tie_ok, balance_ok, budget_ok) && fallback_boundary_ok(fallback_ok, no_authority).
+cow_ok(active : sbf, ab : sbf, cow : sbf, objective_ok : sbf, state_capacity_ok : sbf, parity_ok : sbf, tie_ok : sbf, fallback_ok : sbf, no_authority : sbf, balance_ok : sbf, budget_ok : sbf) := is1(active) && is1(cow) && mode_ok(ab, cow) && proof_surface_ok(objective_ok, state_capacity_ok, parity_ok, tie_ok, balance_ok, budget_ok) && fallback_boundary_ok(fallback_ok, no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> mode_ok(i2[t]:sbf, i3[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> proof_surface_ok(i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i10[t]:sbf, i11[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> fallback_boundary_ok(i8[t]:sbf, i9[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> ab_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> cow_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> (ab_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf) || cow_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf))).

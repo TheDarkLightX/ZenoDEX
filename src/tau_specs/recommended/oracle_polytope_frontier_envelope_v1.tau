@@ -1,0 +1,40 @@
+# Oracle Polytope Frontier Envelope v1
+#
+# PURPOSE:
+#   Guard an oracle dispute-game interval compiler. The host computes exact
+#   integer feasibility intervals and point-verifier parity. Tau checks the
+#   interval proof surface, external-assumption disclosure, and authority rail.
+#
+# Stream mapping:
+# i1  = oracle_param_update_requested
+# i2  = interval_nonempty
+# i3  = honest_challenge_profitable_interval_ok
+# i4  = frivolous_dispute_deterrence_interval_ok
+# i5  = slash_covers_cheat_gain_interval_ok
+# i6  = point_verifier_parity_ok
+# i7  = all_boundary_walls_checked
+# i8  = mev_assumption_declared
+# i9  = probability_assumption_declared
+# i10 = no_oracle_update_authority
+# i11 = fail_closed_default_ok
+# o1  = interval_feasible_ok
+# o2  = parity_and_boundary_ok
+# o3  = external_assumptions_ok
+# o4  = authority_ok
+# o5  = oracle_polytope_guard_ok
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+interval_feasible_ok(nonempty : sbf, honest_ok : sbf, frivolous_ok : sbf, slash_ok : sbf) := is1(nonempty) && is1(honest_ok) && is1(frivolous_ok) && is1(slash_ok).
+parity_boundary_ok(parity_ok : sbf, boundary_ok : sbf) := is1(parity_ok) && is1(boundary_ok).
+external_assumptions_ok(mev_declared : sbf, prob_declared : sbf) := is1(mev_declared) && is1(prob_declared).
+authority_ok(no_update_authority : sbf, fail_closed_default : sbf) := is1(no_update_authority) && is1(fail_closed_default).
+oracle_ok(active : sbf, nonempty : sbf, honest_ok : sbf, frivolous_ok : sbf, slash_ok : sbf, parity_ok : sbf, boundary_checked : sbf, mev_declared : sbf, prob_declared : sbf, no_update_authority : sbf, fail_closed_default : sbf) := is1(active) && interval_feasible_ok(nonempty, honest_ok, frivolous_ok, slash_ok) && parity_boundary_ok(parity_ok, boundary_checked) && external_assumptions_ok(mev_declared, prob_declared) && authority_ok(no_update_authority, fail_closed_default).
+
+always
+  (o1[t]:sbf = 1:sbf <-> interval_feasible_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> parity_boundary_ok(i6[t]:sbf, i7[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> external_assumptions_ok(i8[t]:sbf, i9[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> authority_ok(i10[t]:sbf, i11[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> oracle_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)).
