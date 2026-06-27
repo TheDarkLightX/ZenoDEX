@@ -15,7 +15,6 @@ from ..state.balances import AssetId, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.pools import PoolState, compute_pool_id
 
-
 _Key = Tuple[str, str, str]
 
 
@@ -40,6 +39,13 @@ class IntentAccess:
     writes: Set[_Key]
 
 
+def _create_pool_id_for_access(asset0: str, asset1: str, fee_bps: int) -> Optional[str]:
+    try:
+        return compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
+    except (TypeError, ValueError):
+        return None
+
+
 def _created_pools_assets(intents: Sequence[Intent]) -> Mapping[str, Tuple[str, str]]:
     out: dict[str, Tuple[str, str]] = {}
     for intent in intents:
@@ -54,9 +60,8 @@ def _created_pools_assets(intents: Sequence[Intent]) -> Mapping[str, Tuple[str, 
             continue
         if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
             continue
-        try:
-            pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
-        except Exception:
+        pool_id = _create_pool_id_for_access(asset0, asset1, fee_bps)
+        if pool_id is None:
             continue
         out[pool_id] = (asset0, asset1)
     return out
@@ -84,14 +89,12 @@ def access_for_intent(
             reads.add(_k_bal(sender, asset1))
             writes.add(_k_bal(sender, asset1))
         if isinstance(asset0, str) and isinstance(asset1, str) and isinstance(fee_bps, int) and not isinstance(fee_bps, bool):
-            try:
-                pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
+            pool_id = _create_pool_id_for_access(asset0, asset1, fee_bps)
+            if pool_id is not None:
                 reads.add(_k_pool(pool_id))  # existence check
                 writes.add(_k_pool(pool_id))  # create
                 writes.add(_k_lp(sender, pool_id))
                 writes.add(_k_lp(LP_LOCK_PUBKEY, pool_id))
-            except Exception:
-                pass
         return IntentAccess(reads=reads, writes=writes)
 
     pool_id = intent.get_field("pool_id")
@@ -207,4 +210,3 @@ def iter_group_support_keys(groups: Sequence[Sequence[Intent]]) -> Iterable[Tupl
     for gi, group in enumerate(groups):
         for intent in sorted(group, key=lambda i: i.intent_id):
             yield gi, intent.intent_id
-

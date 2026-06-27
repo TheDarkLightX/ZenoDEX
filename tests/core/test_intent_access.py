@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+import src.core.intent_access as intent_access
 from src.core.intent_access import partition_independent_intents
 from src.state.intents import Intent, IntentKind
 from src.state.pools import PoolState, PoolStatus, compute_pool_id
@@ -142,3 +145,34 @@ def test_partition_treats_add_liquidity_into_new_pool_as_reading_sender_assets()
     # add_liq and swap_touching_pkb must be in the same component via pk_b asset access.
     group_ids = [{i.intent_id for i in g} for g in groups]
     assert any({add_liq.intent_id, swap_touching_pkb.intent_id}.issubset(s) for s in group_ids)
+
+
+def test_create_pool_access_inference_surfaces_compute_pool_id_programmer_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    create_pool = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(1),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "asset0": asset0,
+            "asset1": asset1,
+            "fee_bps": 30,
+            "amount0": 1000,
+            "amount1": 2000,
+        },
+    )
+
+    def broken_compute_pool_id(*args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+        raise RuntimeError("synthetic compute_pool_id bug")
+
+    monkeypatch.setattr(intent_access, "compute_pool_id", broken_compute_pool_id)
+
+    with pytest.raises(RuntimeError, match="synthetic compute_pool_id bug"):
+        partition_independent_intents([create_pool], pools={})
