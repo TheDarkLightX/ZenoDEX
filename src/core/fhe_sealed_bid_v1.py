@@ -26,9 +26,9 @@ Copyright (c) DarkLightX/Dana Edwards. All rights reserved.
 from __future__ import annotations
 
 import math
-import secrets
+from secrets import randbelow as _secure_randbelow, randbits as _secure_randbits
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, Tuple
+from typing import Any, Callable, Dict, Iterable, Tuple
 
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 from .sealed_bid_auction import (
@@ -47,6 +47,8 @@ SCHEME_FHE = "paillier-homomorphic-v1"
 SCHEME_FALLBACK = "commit_reveal_v1"
 _RECEIPT_DOMAIN = "zenodex.fhe_sealed_bid_v1/v1"
 _MILLER_RABIN_ROUNDS = 20
+RandBelow = Callable[[int], int]
+RandBits = Callable[[int], int]
 
 # ── Paillier key types ──────────────────────────────────────────────────
 
@@ -79,7 +81,12 @@ class PaillierKeyPair:
 # ── Paillier primitives ─────────────────────────────────────────────────
 
 
-def _is_probable_prime(n: int, rounds: int = _MILLER_RABIN_ROUNDS) -> bool:
+def _is_probable_prime(
+    n: int,
+    rounds: int = _MILLER_RABIN_ROUNDS,
+    *,
+    randbelow: RandBelow = _secure_randbelow,
+) -> bool:
     """Miller-Rabin probabilistic primality test."""
     if n < 2:
         return False
@@ -92,7 +99,7 @@ def _is_probable_prime(n: int, rounds: int = _MILLER_RABIN_ROUNDS) -> bool:
         r += 1
         d //= 2
     for _ in range(rounds):
-        a = secrets.randbelow(n - 3) + 2
+        a = randbelow(n - 3) + 2
         x = pow(a, d, n)
         if x == 1 or x == n - 1:
             continue
@@ -105,26 +112,37 @@ def _is_probable_prime(n: int, rounds: int = _MILLER_RABIN_ROUNDS) -> bool:
     return True
 
 
-def _generate_prime(bits: int) -> int:
+def _generate_prime(
+    bits: int,
+    *,
+    randbits: RandBits = _secure_randbits,
+    randbelow: RandBelow = _secure_randbelow,
+) -> int:
     """Generate a random prime of approximately *bits* bits."""
     while True:
-        candidate = secrets.randbits(bits) | (1 << (bits - 1)) | 1
-        if _is_probable_prime(candidate):
+        candidate = randbits(bits) | (1 << (bits - 1)) | 1
+        if _is_probable_prime(candidate, randbelow=randbelow):
             return candidate
 
 
 def generate_paillier_keypair(
-    *, key_bits: int = 256, key_id: str = "fhe-v1-default"
+    *,
+    key_bits: int = 256,
+    key_id: str = "fhe-v1-default",
+    randbits: RandBits = _secure_randbits,
+    randbelow: RandBelow = _secure_randbelow,
 ) -> PaillierKeyPair:
     """Generate a Paillier key pair with primes of *key_bits* bits each.
 
     The modulus n has 2 * key_bits bits.  For production, key_bits >= 1024.
+    Supplying ``randbits``/``randbelow`` makes key generation replayable for
+    deterministic assurance harnesses; production callers should use defaults.
     """
     if key_bits < 64:
         raise ValueError("key_bits must be >= 64")
     while True:
-        p = _generate_prime(key_bits)
-        q = _generate_prime(key_bits)
+        p = _generate_prime(key_bits, randbits=randbits, randbelow=randbelow)
+        q = _generate_prime(key_bits, randbits=randbits, randbelow=randbelow)
         if p == q:
             continue
         n = p * q
@@ -144,20 +162,25 @@ def generate_paillier_keypair(
         )
 
 
-def _random_coprime(n: int) -> int:
+def _random_coprime(n: int, *, randbelow: RandBelow = _secure_randbelow) -> int:
     """Generate a random r in [1, n) with gcd(r, n) = 1."""
     while True:
-        r = secrets.randbelow(n - 1) + 1
+        r = randbelow(n - 1) + 1
         if math.gcd(r, n) == 1:
             return r
 
 
-def _encrypt_value(public_key: PaillierPublicKey, plaintext: int) -> int:
+def _encrypt_value(
+    public_key: PaillierPublicKey,
+    plaintext: int,
+    *,
+    randbelow: RandBelow = _secure_randbelow,
+) -> int:
     """Paillier encryption: c = (1 + m*n) * r^n mod n^2 (g = n+1)."""
     n = public_key.n
     if plaintext < 0 or plaintext >= n:
         raise ValueError("plaintext out of range for Paillier encryption")
-    r = _random_coprime(n)
+    r = _random_coprime(n, randbelow=randbelow)
     return ((1 + plaintext * n) * pow(r, n, public_key.n_sq)) % public_key.n_sq
 
 
@@ -214,6 +237,9 @@ def compare_encrypted(
     public_key: PaillierPublicKey,
     c_a: int,
     c_b: int,
+    *,
+    randbits: RandBits = _secure_randbits,
+    randbelow: RandBelow = _secure_randbelow,
 ) -> ComparisonResult:
     """Compare two encrypted values without revealing individual plaintexts.
 
@@ -224,8 +250,6 @@ def compare_encrypted(
     blinded result against R.  R is generated fresh per call and never
     stored or returned, so the exact bid spread cannot be reconstructed.
     """
-    import secrets as _secrets
-
     n = public_key.n
     enc_diff = _homomorphic_sub(public_key, c_a, c_b)
     # Generate a fresh random blinding factor R >> max possible |a - b|.
@@ -234,8 +258,8 @@ def compare_encrypted(
     # Use half the modulus bit-length as the blinding size.
     n_bits = n.bit_length()
     r_bits = max(64, n_bits // 4)
-    R = _secrets.randbits(r_bits) | (1 << (r_bits - 1))
-    enc_r = _encrypt_value(public_key, R)
+    R = randbits(r_bits) | (1 << (r_bits - 1))
+    enc_r = _encrypt_value(public_key, R, randbelow=randbelow)
     enc_blinded = _homomorphic_add(public_key, enc_diff, enc_r)
     blinded = _decrypt_value(private_key, enc_blinded)
     if blinded == R:
@@ -280,6 +304,7 @@ def encrypt_bid(
     commitment: str,
     quantity: int,
     limit_price: int,
+    randbelow: RandBelow = _secure_randbelow,
 ) -> EncryptedBid:
     """Encrypt a bid's quantity and limit price under the Paillier public key."""
     if not isinstance(bidder_id, str) or not bidder_id:
@@ -293,8 +318,8 @@ def encrypt_bid(
     return EncryptedBid(
         bidder_id=str(bidder_id),
         commitment=str(commitment),
-        price_ciphertext=_encrypt_value(public_key, int(limit_price)),
-        quantity_ciphertext=_encrypt_value(public_key, int(quantity)),
+        price_ciphertext=_encrypt_value(public_key, int(limit_price), randbelow=randbelow),
+        quantity_ciphertext=_encrypt_value(public_key, int(quantity), randbelow=randbelow),
     )
 
 
@@ -308,6 +333,8 @@ def settle_fhe_sealed_bids(
     encrypted_bids: Iterable[EncryptedBid],
     key_pair: PaillierKeyPair,
     range_proof_verified: bool = False,
+    randbits: RandBits = _secure_randbits,
+    randbelow: RandBelow = _secure_randbelow,
 ) -> FHESettlementResult:
     """Settle a sealed-bid auction using homomorphic computation.
 
@@ -353,7 +380,12 @@ def settle_fhe_sealed_bids(
         best_idx = 0
         for i in range(1, len(remaining)):
             cmp = compare_encrypted(
-                sk, pk, remaining[i].price_ciphertext, remaining[best_idx].price_ciphertext
+                sk,
+                pk,
+                remaining[i].price_ciphertext,
+                remaining[best_idx].price_ciphertext,
+                randbits=randbits,
+                randbelow=randbelow,
             )
             comparison_count += 1
             if cmp.value > 0:
@@ -463,6 +495,8 @@ def settle_sealed_bids_with_fhe(
     revealed_bids: Iterable[RevealedSealedBid] | None = None,
     key_pair: PaillierKeyPair | None = None,
     range_proof_verified: bool = False,
+    randbits: RandBits = _secure_randbits,
+    randbelow: RandBelow = _secure_randbelow,
 ) -> FHESettlementResult:
     """Unified entry point: use FHE when a key is provisioned, else fallback."""
     if key_pair is not None and encrypted_bids is not None:
@@ -472,6 +506,8 @@ def settle_sealed_bids_with_fhe(
             encrypted_bids=encrypted_bids,
             key_pair=key_pair,
             range_proof_verified=range_proof_verified,
+            randbits=randbits,
+            randbelow=randbelow,
         )
     if revealed_bids is not None:
         return _settle_commit_reveal_fallback(
@@ -605,7 +641,7 @@ def verify_fhe_sealed_bid_v1_receipt(
         clearing_price = int(result.get("clearing_price"))
         total_filled = int(result.get("total_filled"))
         fill_count = int(result.get("fill_count"))
-    except Exception:
+    except (OverflowError, TypeError, ValueError):
         return False, "bad_public_result_numeric"
     if units_for_sale <= 0 or units_for_sale > MAX_V1_UNITS:
         return False, "units_for_sale_out_of_range"
@@ -626,7 +662,7 @@ def verify_fhe_sealed_bid_v1_receipt(
         try:
             filled_quantity = int(fill.get("filled_quantity"))
             paid_price = int(fill.get("paid_price"))
-        except Exception:
+        except (OverflowError, TypeError, ValueError):
             return False, "bad_fill_numeric"
         if filled_quantity <= 0 or filled_quantity > MAX_V1_UNITS:
             return False, "filled_quantity_out_of_range"
@@ -645,7 +681,7 @@ def verify_fhe_sealed_bid_v1_receipt(
         expected = settle_uniform_price_sealed_bids(
             units_for_sale=units_for_sale, bids=plain_bids
         )
-    except Exception:
+    except (TypeError, ValueError):
         return False, "bad_trusted_plain_bids"
     expected_result = _settlement_to_public_result(
         clearing_price=expected.clearing_price,

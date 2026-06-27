@@ -71,6 +71,12 @@ class TestPaillierPrimitives:
         pk = key_pair.public_key
         assert _encrypt_value(pk, 42) != _encrypt_value(pk, 42)
 
+    def test_encryption_accepts_explicit_entropy_for_replay(self, key_pair):
+        pk = key_pair.public_key
+        randbelow = lambda _upper: 0
+
+        assert _encrypt_value(pk, 42, randbelow=randbelow) == _encrypt_value(pk, 42, randbelow=randbelow)
+
 
 class TestComparisonOracle:
     def test_compare_returns_correct_sign_for_all_orderings(self, key_pair):
@@ -78,6 +84,20 @@ class TestComparisonOracle:
         assert compare_encrypted(sk, pk, _encrypt_value(pk, 100), _encrypt_value(pk, 50)).value == 1
         assert compare_encrypted(sk, pk, _encrypt_value(pk, 30), _encrypt_value(pk, 80)).value == -1
         assert compare_encrypted(sk, pk, _encrypt_value(pk, 55), _encrypt_value(pk, 55)).value == 0
+
+    def test_compare_accepts_explicit_entropy_for_replay(self, key_pair):
+        pk, sk = key_pair.public_key, key_pair.private_key
+        randbelow = lambda _upper: 0
+        randbits = lambda _bits: 0
+
+        assert compare_encrypted(
+            sk,
+            pk,
+            _encrypt_value(pk, 100, randbelow=randbelow),
+            _encrypt_value(pk, 50, randbelow=randbelow),
+            randbits=randbits,
+            randbelow=randbelow,
+        ).value == 1
 
 
 # ── Encrypted bid submission ───────────────────────────────────────────
@@ -117,6 +137,41 @@ class TestHomomorphicSettlement:
         assert result.clearing_price == plain.clearing_price
         assert result.total_filled == plain.total_filled
         assert len(result.fills) == len(plain.fills)
+
+    def test_settlement_accepts_explicit_entropy_for_replay(self, key_pair):
+        randbelow = lambda _upper: 0
+        randbits = lambda _bits: 0
+        specs = [("alice", "c1", 4, 105), ("bob", "c2", 3, 103)]
+        encrypted = [
+            encrypt_bid(
+                public_key=key_pair.public_key,
+                bidder_id=bidder_id,
+                commitment=commitment,
+                quantity=quantity,
+                limit_price=price,
+                randbelow=randbelow,
+            )
+            for bidder_id, commitment, quantity, price in specs
+        ]
+
+        first = settle_fhe_sealed_bids(
+            auction_id="replay-a",
+            units_for_sale=5,
+            encrypted_bids=encrypted,
+            key_pair=key_pair,
+            randbits=randbits,
+            randbelow=randbelow,
+        )
+        second = settle_fhe_sealed_bids(
+            auction_id="replay-a",
+            units_for_sale=5,
+            encrypted_bids=encrypted,
+            key_pair=key_pair,
+            randbits=randbits,
+            randbelow=randbelow,
+        )
+
+        assert first == second
 
     def test_clearing_price_is_marginal_bid_price(self, key_pair):
         specs = [("alice", "c1", 4, 110), ("bob", "c2", 3, 100), ("carol", "c3", 2, 90)]
