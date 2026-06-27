@@ -84,7 +84,7 @@ def _pool_id_for_create_pool(intent: Mapping[str, Any]) -> str | None:
     try:
         left, right = (asset0, asset1) if asset0 < asset1 else (asset1, asset0)
         return compute_pool_id(left, right, fee_bps)
-    except Exception:
+    except (TypeError, ValueError):
         return None
 
 

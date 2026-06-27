@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+import src.integration.zeno_ledger_conflict_graph_v0 as conflict_graph
 from src.integration.zeno_ledger_conflict_graph_v0 import (
     GLOBAL_DEX_CELL_V0,
     build_conflict_graph_v0,
@@ -260,6 +263,33 @@ def test_unknown_or_malformed_transactions_are_global_conflicts() -> None:
     assert GLOBAL_DEX_CELL_V0 in touched_cells_for_transaction_v0(unknown)
     assert GLOBAL_DEX_CELL_V0 in touched_cells_for_transaction_v0(malformed)
     assert transactions_conflict_v0(unknown, malformed)
+
+
+def test_create_pool_conflict_cells_surface_compute_pool_id_programmer_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tx = {
+        "operations": {
+            "2": [
+                {
+                    "kind": "CREATE_POOL",
+                    "sender_pubkey": SENDER_A,
+                    "asset0": ASSET_A,
+                    "asset1": ASSET_B,
+                    "fee_bps": 30,
+                    "nonce": 1,
+                }
+            ]
+        }
+    }
+
+    def broken_compute_pool_id(*args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+        raise RuntimeError("synthetic compute_pool_id bug")
+
+    monkeypatch.setattr(conflict_graph, "compute_pool_id", broken_compute_pool_id)
+
+    with pytest.raises(RuntimeError, match="synthetic compute_pool_id bug"):
+        touched_cells_for_transaction_v0(tx)
 
 
 def test_graph_hash_is_mutation_sensitive() -> None:
