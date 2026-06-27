@@ -683,6 +683,82 @@ def test_tau_net_settlement_signer_registry_loader_rejects_missing_state_proof()
         )
 
 
+def test_tau_net_settlement_signer_registry_loader_rejects_missing_state_proof_view_after_stable_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attestation = _attestation()
+    policy = make_attestation_policy(attestation)
+    anchor = make_attestation_registry_anchor(attestation)
+    snapshot = make_attestation_registry_snapshot(attestation)
+    app_state_view = _tau_bridge_app_state_view(
+        {
+            "schema": "zenodex/settlement-signer-registry-tau-bridge/v1",
+            "anchor": anchor.to_dict(),
+            "snapshot": snapshot.to_dict(),
+        }
+    )
+    tau_loader = TauNetSettlementSignerRegistrySnapshotLoader(
+        _FakeTauClient(
+            app_state_view=app_state_view,
+            state_proof_view=_tau_state_proof_view(state_hash="cd" * 32, present=True),
+        )
+    )
+
+    monkeypatch.setattr(
+        tau_loader,
+        "_load_stable_tau_bridge_views",
+        lambda _request: (app_state_view, None, None),
+    )
+
+    with pytest.raises(ValueError, match="Tau state proof view missing for settlement signer registry bridge"):
+        load_attestation_policy_and_registry_snapshot(
+            attestation_policy=policy,
+            attestation_registry_snapshot=None,
+            attestation_registry_snapshot_loader=tau_loader,
+            consumer_now_epoch=103,
+        )
+
+
+def test_tau_net_settlement_signer_registry_loader_rejects_missing_tau_state_view_after_stable_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _require_blake3()
+    attestation = _attestation()
+    policy = make_attestation_policy(attestation)
+    anchor = make_attestation_registry_anchor(attestation)
+    snapshot = make_attestation_registry_snapshot(attestation)
+    app_state_view = _tau_bridge_app_state_view(
+        {
+            "schema": "zenodex/settlement-signer-registry-tau-bridge/v1",
+            "anchor": anchor.to_dict(),
+            "snapshot": snapshot.to_dict(),
+        }
+    )
+    state_proof_view = _tau_state_proof_view(state_hash="cd" * 32, present=True)
+    tau_loader = TauNetSettlementSignerRegistrySnapshotLoader(
+        _FakeTauClient(
+            app_state_view=app_state_view,
+            state_proof_view=state_proof_view,
+            tau_state_view=_tau_tau_state_view(state_hash="cd" * 32, app_hash=app_state_view.app_hash),
+        ),
+        require_tau_state_app_hash_binding=True,
+    )
+
+    monkeypatch.setattr(
+        tau_loader,
+        "_load_stable_tau_bridge_views",
+        lambda _request: (app_state_view, state_proof_view, None),
+    )
+
+    with pytest.raises(ValueError, match="Tau state snapshot view missing for settlement signer registry bridge"):
+        load_attestation_policy_and_registry_snapshot(
+            attestation_policy=policy,
+            attestation_registry_snapshot=None,
+            attestation_registry_snapshot_loader=tau_loader,
+            consumer_now_epoch=103,
+        )
+
+
 def test_tau_net_settlement_signer_registry_loader_rejects_missing_bridge_payload() -> None:
     attestation = _attestation()
     policy = make_attestation_policy(attestation)
