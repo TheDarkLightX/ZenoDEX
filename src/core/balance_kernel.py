@@ -92,7 +92,7 @@ def _canonical_pubkey(value: object) -> Union[str, None]:
         return None
     try:
         return canonical_hex_fixed_allow_0x(value, nbytes=PUBKEY_NBYTES, name="pubkey")
-    except Exception:
+    except ValueError:
         return None
 
 
@@ -101,7 +101,7 @@ def _canonical_asset(value: object) -> Union[str, None]:
         return None
     try:
         return canonical_hex_fixed_allow_0x(value, nbytes=ASSET_NBYTES, name="asset")
-    except Exception:
+    except ValueError:
         return None
 
 
