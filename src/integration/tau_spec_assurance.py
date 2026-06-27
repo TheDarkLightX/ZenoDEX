@@ -8,6 +8,7 @@ detect semantic drift, typos, and overclaimed outputs in Tau policies.
 
 from __future__ import annotations
 
+import ast
 import itertools
 import json
 import os
@@ -18,7 +19,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence, cast
+from typing import Mapping, Sequence, cast
 
 from .tau_runner import (
     build_repl_script,
@@ -88,18 +89,159 @@ class BV:
 
 
 def safe_eval(expr: str, context: Mapping[str, object]) -> object:
-    allowed = {
+    env = {
         "abs": abs,
         "int": int,
         "min": min,
         "max": max,
         "sorted": sorted,
         "len": len,
+        "BV": BV,
         "True": True,
         "False": False,
         "None": None,
     }
-    return eval(expr, {"__builtins__": {}}, {**allowed, **context})
+    env.update(context)
+    tree = ast.parse(expr, mode="eval")
+    return _SafeExpressionEvaluator(env).evaluate(tree)
+
+
+class _SafeExpressionEvaluator:
+    _CALLABLES = frozenset({"abs", "int", "min", "max", "sorted", "len", "BV"})
+
+    def __init__(self, env: Mapping[str, object]) -> None:
+        self._env = env
+
+    def evaluate(self, node: ast.AST) -> object:
+        if isinstance(node, ast.Expression):
+            return self.evaluate(node.body)
+        if isinstance(node, ast.Constant):
+            if isinstance(node.value, (bool, int, str)) or node.value is None:
+                return node.value
+            raise ValueError(f"unsupported constant in expression: {node.value!r}")
+        if isinstance(node, ast.Name):
+            if node.id not in self._env:
+                raise NameError(f"unknown name in expression: {node.id}")
+            return self._env[node.id]
+        if isinstance(node, ast.BoolOp):
+            return self._eval_bool_op(node)
+        if isinstance(node, ast.UnaryOp):
+            return self._eval_unary_op(node)
+        if isinstance(node, ast.BinOp):
+            return self._eval_bin_op(node)
+        if isinstance(node, ast.Compare):
+            return self._eval_compare(node)
+        if isinstance(node, ast.IfExp):
+            return self.evaluate(node.body if bool(self.evaluate(node.test)) else node.orelse)
+        if isinstance(node, ast.Call):
+            return self._eval_call(node)
+        if isinstance(node, ast.Subscript):
+            return self._eval_subscript(node)
+        if isinstance(node, ast.List):
+            return [self.evaluate(item) for item in node.elts]
+        if isinstance(node, ast.Tuple):
+            return tuple(self.evaluate(item) for item in node.elts)
+        raise ValueError(f"unsupported expression syntax: {type(node).__name__}")
+
+    def _eval_bool_op(self, node: ast.BoolOp) -> bool:
+        if isinstance(node.op, ast.And):
+            for value in node.values:
+                if not bool(self.evaluate(value)):
+                    return False
+            return True
+        if isinstance(node.op, ast.Or):
+            for value in node.values:
+                if bool(self.evaluate(value)):
+                    return True
+            return False
+        raise ValueError(f"unsupported boolean operator: {type(node.op).__name__}")
+
+    def _eval_unary_op(self, node: ast.UnaryOp) -> object:
+        value = self.evaluate(node.operand)
+        if isinstance(node.op, ast.Not):
+            return not bool(value)
+        if isinstance(node.op, ast.USub):
+            return -value  # type: ignore[operator]
+        if isinstance(node.op, ast.UAdd):
+            return +value  # type: ignore[operator]
+        if isinstance(node.op, ast.Invert):
+            return ~value  # type: ignore[operator]
+        raise ValueError(f"unsupported unary operator: {type(node.op).__name__}")
+
+    def _eval_bin_op(self, node: ast.BinOp) -> object:
+        left = self.evaluate(node.left)
+        right = self.evaluate(node.right)
+        if isinstance(node.op, ast.Add):
+            return left + right  # type: ignore[operator]
+        if isinstance(node.op, ast.Sub):
+            return left - right  # type: ignore[operator]
+        if isinstance(node.op, ast.Mult):
+            return left * right  # type: ignore[operator]
+        if isinstance(node.op, ast.FloorDiv):
+            return left // right  # type: ignore[operator]
+        if isinstance(node.op, ast.Div):
+            return left / right  # type: ignore[operator]
+        if isinstance(node.op, ast.Mod):
+            return left % right  # type: ignore[operator]
+        if isinstance(node.op, ast.BitAnd):
+            return left & right  # type: ignore[operator]
+        if isinstance(node.op, ast.BitOr):
+            return left | right  # type: ignore[operator]
+        if isinstance(node.op, ast.BitXor):
+            return left ^ right  # type: ignore[operator]
+        if isinstance(node.op, ast.LShift):
+            return left << right  # type: ignore[operator]
+        if isinstance(node.op, ast.RShift):
+            return left >> right  # type: ignore[operator]
+        raise ValueError(f"unsupported binary operator: {type(node.op).__name__}")
+
+    def _eval_compare(self, node: ast.Compare) -> bool:
+        left = self.evaluate(node.left)
+        for op, comparator in zip(node.ops, node.comparators):
+            right = self.evaluate(comparator)
+            if isinstance(op, ast.Eq):
+                ok = left == right
+            elif isinstance(op, ast.NotEq):
+                ok = left != right
+            elif isinstance(op, ast.Lt):
+                ok = left < right  # type: ignore[operator]
+            elif isinstance(op, ast.LtE):
+                ok = left <= right  # type: ignore[operator]
+            elif isinstance(op, ast.Gt):
+                ok = left > right  # type: ignore[operator]
+            elif isinstance(op, ast.GtE):
+                ok = left >= right  # type: ignore[operator]
+            elif isinstance(op, ast.In):
+                ok = left in right  # type: ignore[operator]
+            elif isinstance(op, ast.NotIn):
+                ok = left not in right  # type: ignore[operator]
+            else:
+                raise ValueError(f"unsupported comparison operator: {type(op).__name__}")
+            if not ok:
+                return False
+            left = right
+        return True
+
+    def _eval_call(self, node: ast.Call) -> object:
+        if not isinstance(node.func, ast.Name):
+            raise ValueError("only direct allowlisted function calls are supported")
+        if node.func.id not in self._CALLABLES:
+            raise ValueError(f"function is not allowlisted in expression: {node.func.id}")
+        func = self._env.get(node.func.id)
+        if not callable(func):
+            raise ValueError(f"allowlisted function is unavailable in expression: {node.func.id}")
+        args = [self.evaluate(arg) for arg in node.args]
+        kwargs = {kw.arg: self.evaluate(kw.value) for kw in node.keywords if kw.arg is not None}
+        if len(kwargs) != len(node.keywords):
+            raise ValueError("starred keyword arguments are not supported")
+        return func(*args, **kwargs)
+
+    def _eval_subscript(self, node: ast.Subscript) -> object:
+        value = self.evaluate(node.value)
+        key = self.evaluate(node.slice)
+        if not isinstance(value, (Mapping, Sequence)) or isinstance(value, (str, bytes, bytearray)):
+            raise ValueError("subscript is supported only for mappings and non-string sequences")
+        return value[key]  # type: ignore[index]
 
 
 def _coerce_int(value: object) -> int:
