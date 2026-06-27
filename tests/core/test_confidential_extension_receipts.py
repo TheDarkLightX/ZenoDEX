@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import pytest
+
+import src.core.confidential_extension_receipts as receipt_module
 from src.core.confidential_extension_receipts import (
     confidential_extension_receipt_hash,
     make_confidential_extension_receipt,
     verify_confidential_extension_receipt,
 )
-
 
 NITRO_PCR0 = "a" * 96
 NITRO_PCR8 = "b" * 96
@@ -153,6 +155,18 @@ def test_confidential_extension_receipt_rejects_noncanonical_numeric_encoding() 
     assert err == "bad_numeric_field"
 
 
+def test_confidential_extension_receipt_numeric_internal_fault_is_not_masked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken(_mapping: dict, _key: str) -> int:
+        raise RuntimeError("numeric parser fault")
+
+    monkeypatch.setattr(receipt_module, "_require_int_field", broken)
+
+    with pytest.raises(RuntimeError, match="numeric parser fault"):
+        verify_confidential_extension_receipt(_valid_receipt(), approved_measurements=APPROVED)
+
+
 def test_confidential_extension_receipt_rejects_noncanonical_policy_digest() -> None:
     receipt = _valid_receipt()
     receipt["body"]["policy_digest"] = "0x1"
@@ -160,6 +174,18 @@ def test_confidential_extension_receipt_rejects_noncanonical_policy_digest() -> 
     ok, err = verify_confidential_extension_receipt(receipt, approved_measurements=APPROVED)
     assert not ok
     assert err == "bad_policy_digest"
+
+
+def test_confidential_extension_receipt_policy_digest_internal_fault_is_not_masked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken(_value: object) -> str:
+        raise RuntimeError("policy digest verifier fault")
+
+    monkeypatch.setattr(receipt_module, "_require_policy_digest", broken)
+
+    with pytest.raises(RuntimeError, match="policy digest verifier fault"):
+        verify_confidential_extension_receipt(_valid_receipt(), approved_measurements=APPROVED)
 
 
 def test_confidential_extension_receipt_hash_mismatch_precedes_later_header_failures() -> None:

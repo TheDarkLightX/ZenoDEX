@@ -685,7 +685,7 @@ def verify_confidential_extension_receipt(
     try:
         policy_digest = body.get("policy_digest")
         policy_digest_ok = isinstance(policy_digest, str) and bool(policy_digest) and policy_digest == _require_policy_digest(policy_digest)
-    except Exception:
+    except (TypeError, ValueError):
         policy_digest_ok = False
     measurement = body.get("measurement")
     measurement_format_ok = isinstance(measurement, str) and bool(measurement) and is_canonical_confidential_measurement(measurement)
@@ -715,7 +715,7 @@ def verify_confidential_extension_receipt(
             provider_balance_before = _require_int_field(accounting, "provider_balance_before")
             provider_balance_after = _require_int_field(accounting, "provider_balance_after")
             numeric_fields_ok = True
-    except Exception:
+    except (TypeError, ValueError):
         numeric_fields_ok = False
 
     precheck = evaluate_confidential_extension_receipt_precheck_gate(
