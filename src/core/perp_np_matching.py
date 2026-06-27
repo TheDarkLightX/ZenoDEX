@@ -25,7 +25,7 @@ import argparse
 import json
 import sys
 from dataclasses import dataclass
-from typing import Mapping, Sequence
+from typing import Iterable, Mapping, Sequence
 
 # --- Stable reject codes (consensus behaviour; tested for precedence) ----------
 REJ_EXPIRED = "REJ_EXPIRED"          # expiry_epoch < now_epoch
@@ -322,10 +322,38 @@ def _validate_intent(
 
 
 # --- Deterministic self-test CLI ----------------------------------------------
+def _selftest_ration_cases() -> Iterable[list[int]]:
+    """Yield a replay-stable ration corpus without importing an RNG in core code."""
+    for case in (
+        [],
+        [0, 0],
+        [5, -5],
+        [1, 1, 1, -2],     # classic remainder case: buys 3 vs sell 2
+        [3, -1, -1, -1],
+        [7, -3, -4],
+        [100, -1, -1, -1, -1],
+        [-10, 4, 4, 4],
+        [1000000, -999999, -1],
+        [2, 2, 2, -3],     # heavy buys 6 vs sell 3 -> ration to (1,1,1)
+    ):
+        yield list(case)
+
+    # Arithmetic mixer over all allowed lengths. This replaces the former fixed
+    # seed RNG corpus while keeping broad sign, zero, tie, and imbalance coverage.
+    for n in range(9):
+        for seed in range(2048):
+            desired: list[int] = []
+            for idx in range(n):
+                mixed = seed * 37 + idx * 17 + n * 11 + (seed >> (idx % 5))
+                value = mixed % 101 - 50
+                if (seed + 3 * idx + n) % 23 == 0:
+                    value = 0
+                desired.append(value)
+            yield desired
+
+
 def _selftest() -> dict:
     """Deterministic battery: assert net-zero, sign-consistency, |delta|<=|desired|."""
-    import random
-
     failures: list[str] = []
     checked = 0
 
@@ -346,26 +374,7 @@ def _selftest() -> dict:
         if sum(o for o in out if o > 0) != min(b, s):
             failures.append(f"volume mismatch for {desired}")
 
-    # Hand-picked edge cases.
-    for case in (
-        [],
-        [0, 0],
-        [5, -5],
-        [1, 1, 1, -2],     # classic remainder case: buys 3 vs sell 2
-        [3, -1, -1, -1],
-        [7, -3, -4],
-        [100, -1, -1, -1, -1],
-        [-10, 4, 4, 4],
-        [1000000, -999999, -1],
-        [2, 2, 2, -3],     # heavy buys 6 vs sell 3 -> ration to (1,1,1)
-    ):
-        check_ration(list(case))
-
-    # Seeded random battery (reproducible: fixed seed, no wall-clock).
-    rng = random.Random(20260601)
-    for _ in range(20000):
-        n = rng.randint(0, 8)
-        desired = [rng.randint(-50, 50) for _ in range(n)]
+    for desired in _selftest_ration_cases():
         check_ration(desired)
 
     # End-to-end match_intents: net-zero + min-fill respected.
