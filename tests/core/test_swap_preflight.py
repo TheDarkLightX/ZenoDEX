@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from src.core.amm_dispatch import CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT
-from src.core.amm_dispatch import swap_exact_out_for_pool
+import src.core.cpmm as cpmm
+import src.core.swap_preflight as swap_preflight
+from src.core.amm_dispatch import (
+    CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT,
+    swap_exact_out_for_pool,
+)
 from src.core.swap_preflight import preflight_swap_exact_in, preflight_swap_exact_out
 from src.state.pools import PoolState, PoolStatus
 
@@ -140,4 +144,58 @@ def test_preflight_exact_out_validates_slippage_bps() -> None:
             amount_out=1,
             max_amount_in=10,
             suggested_slippage_bps=10_001,
+        )
+
+
+def test_preflight_exact_in_does_not_mask_internal_quote_fault(monkeypatch) -> None:
+    p = _pool(r0=1000, r1=1000, fee_bps=0)
+
+    def broken_quote(*args, **kwargs):  # noqa: ANN002, ANN003, ARG001
+        raise RuntimeError("injected quote fault")
+
+    monkeypatch.setattr(swap_preflight, "swap_exact_in_for_pool", broken_quote)
+
+    with pytest.raises(RuntimeError, match="injected quote fault"):
+        preflight_swap_exact_in(
+            pool=p,
+            asset_in="A",
+            asset_out="B",
+            amount_in=10,
+            min_amount_out=0,
+        )
+
+
+def test_preflight_exact_out_does_not_mask_internal_gap_fault(monkeypatch) -> None:
+    p = _pool(r0=1000, r1=1000, fee_bps=0)
+
+    def broken_gap_kernel(*args, **kwargs):  # noqa: ANN002, ANN003, ARG001
+        raise RuntimeError("injected gap fault")
+
+    monkeypatch.setattr(swap_preflight, "_cpmm_exact_out_kernel_v8", broken_gap_kernel)
+
+    with pytest.raises(RuntimeError, match="injected gap fault"):
+        preflight_swap_exact_out(
+            pool=p,
+            asset_in="A",
+            asset_out="B",
+            amount_out=10,
+            max_amount_in=20,
+        )
+
+
+def test_preflight_exact_out_does_not_mask_internal_quote_fault(monkeypatch) -> None:
+    p = _pool(r0=1000, r1=1000, fee_bps=0)
+
+    def broken_quote(*args, **kwargs):  # noqa: ANN002, ANN003, ARG001
+        raise RuntimeError("injected exact-out fault")
+
+    monkeypatch.setattr(cpmm, "swap_exact_out", broken_quote)
+
+    with pytest.raises(RuntimeError, match="injected exact-out fault"):
+        preflight_swap_exact_out(
+            pool=p,
+            asset_in="A",
+            asset_out="B",
+            amount_out=10,
+            max_amount_in=20,
         )

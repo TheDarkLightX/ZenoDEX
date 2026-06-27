@@ -126,7 +126,7 @@ def preflight_swap_exact_in(
     rin, rout = reserves
     try:
         out, _ = swap_exact_in_for_pool(pool, reserve_in=rin, reserve_out=rout, amount_in=int(amount_in))
-    except Exception:
+    except ValueError:
         return SwapPreflightResult(
             ok=False,
             reason="swap_error",
@@ -261,7 +261,7 @@ def preflight_swap_exact_out(
             amount_in_quote = int(r.amount_in)
             overdelivery_gap = int(r.overdelivery_gap)
             overdelivery_gap_bps = ((overdelivery_gap * 10_000) + int(amount_out) - 1) // int(amount_out)
-        except Exception:
+        except ValueError:
             # If gap analysis fails, stay fail-closed but still attempt the quote below.
             overdelivery_gap = None
             overdelivery_gap_bps = None
@@ -289,19 +289,6 @@ def preflight_swap_exact_out(
         return SwapPreflightResult(
             ok=False,
             reason=reason,
-            kind="exact_out",
-            amount_in_quote=int(amount_in_quote or 0),
-            amount_out_quote=int(amount_out),
-            suggested_min_amount_out=None,
-            suggested_max_amount_in=None,
-            overdelivery_gap=overdelivery_gap,
-            overdelivery_gap_bps=overdelivery_gap_bps,
-            policy_max_overdelivery_gap_bps=int(policy_max_overdelivery_gap_bps),
-        )
-    except Exception:
-        return SwapPreflightResult(
-            ok=False,
-            reason="swap_error",
             kind="exact_out",
             amount_in_quote=int(amount_in_quote or 0),
             amount_out_quote=int(amount_out),
