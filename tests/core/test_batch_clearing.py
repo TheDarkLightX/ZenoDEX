@@ -3719,6 +3719,63 @@ def test_cow_pair_netting_bruteforce_tie_breaks_to_smallest_pair_ids() -> None:
     assert remaining == []
 
 
+def test_cow_assignment_matches_bruteforce_pair_id_tie_on_uncoupled_surface() -> None:
+    from src.core.batch_clearing_cow_search import (
+        _CowSelectionContext,
+        _cow_pair_selection_key,
+        _partition_cow_candidates,
+        _select_cow_pairs_assignment,
+        _select_cow_pairs_bruteforce,
+    )
+
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool = PoolState(
+        pool_id="0x" + "ae" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000_000,
+        reserve1=1_000_000,
+        fee_bps=30,
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+
+    def _swap(intent_id: int, sender: str, asset_in: str, asset_out: str, amount_in: int, min_amount_out: int) -> Intent:
+        balances.set(sender, asset_in, amount_in)
+        return Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(intent_id),
+            sender_pubkey=sender,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool.pool_id,
+                "asset_in": asset_in,
+                "asset_out": asset_out,
+                "amount_in": amount_in,
+                "min_amount_out": min_amount_out,
+            },
+        )
+
+    intents = [
+        _swap(2001, "0x" + "61" * 48, asset0, asset1, 100, 40),
+        _swap(2002, "0x" + "62" * 48, asset0, asset1, 120, 40),
+        _swap(2003, "0x" + "63" * 48, asset1, asset0, 100, 40),
+        _swap(2004, "0x" + "64" * 48, asset1, asset0, 120, 40),
+    ]
+    partition = _partition_cow_candidates(intents, pool)
+    context = _CowSelectionContext(balances=balances, asset0=asset0, asset1=asset1)
+
+    brute_pairs = _select_cow_pairs_bruteforce(partition.side_01, partition.side_10, context=context)
+    assignment_pairs = _select_cow_pairs_assignment(partition.side_01, partition.side_10, context=context)
+
+    assert _cow_pair_selection_key(assignment_pairs) == _cow_pair_selection_key(brute_pairs)
+
+
 def test_cow_pair_netting_greedy_fallback_filters_balance_and_feasibility() -> None:
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32

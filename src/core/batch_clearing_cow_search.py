@@ -327,8 +327,8 @@ def _select_cow_pairs_assignment(
     """Exact maximum-weight bipartite matching for uncoupled CoW candidates.
 
     The objective preserves the production priority of maximizing netted volume
-    first and surplus second. A small deterministic pair-rank bonus only breaks
-    otherwise equal volume/surplus assignments.
+    first and surplus second. The final mixed-radix layer exactly encodes the
+    canonical lexicographic pair-id tie used by the small brute-force oracle.
     """
     if not side_01 or not side_10:
         return []
@@ -337,12 +337,13 @@ def _select_cow_pairs_assignment(
     n_right = len(side_10)
     size = n_left + n_right
     pair_ranks = _cow_pair_rank_map(side_01, side_10, seed=context.seed)
-    edge_count = max(1, len(pair_ranks))
+    pair_tie_values = _cow_pair_lex_tie_values(pair_ranks, max_pairs=min(n_left, n_right))
+    max_tie_bonus = sum(sorted(pair_tie_values.values(), reverse=True)[: min(n_left, n_right)])
     max_total_volume = sum(int(candidate.amount_in) for candidate in side_01)
     max_total_volume += sum(int(candidate.amount_in) for candidate in side_10)
-    tie_scale = edge_count + 1
+    tie_scale = max_tie_bonus + 1
     volume_scale = (max_total_volume + 1) * tie_scale
-    max_edge_score = max(1, max_total_volume * volume_scale + max_total_volume * tie_scale + edge_count)
+    max_edge_score = max(1, max_total_volume * volume_scale + max_total_volume * tie_scale + max_tie_bonus)
     impossible_cost = max_edge_score * (size + 1)
 
     costs = [[0 for _ in range(size)] for _ in range(size)]
@@ -353,8 +354,7 @@ def _select_cow_pairs_assignment(
                 continue
             volume = int(x.amount_in + y.amount_in)
             surplus = int(y.amount_in - x.min_amount_out + x.amount_in - y.min_amount_out)
-            pair_rank = pair_ranks[(i, j)]
-            tie_bonus = edge_count - pair_rank
+            tie_bonus = pair_tie_values[(i, j)]
             score = volume * volume_scale + surplus * tie_scale + tie_bonus
             costs[i][j] = -score
 
@@ -378,6 +378,28 @@ def _cow_pair_rank_map(
          for j, y in enumerate(side_10))
     )
     return {(i, j): rank for rank, (_x_token, _y_token, i, j) in enumerate(ranked_pairs)}
+
+
+def _cow_pair_lex_tie_values(
+    pair_ranks: Dict[tuple[int, int], int],
+    *,
+    max_pairs: int,
+) -> Dict[tuple[int, int], int]:
+    """Return additive bonuses that exactly preserve sorted pair-id lex order.
+
+    A base of ``max_pairs + 1`` makes one earlier-ranked edge dominate every
+    possible combination of later-ranked edges in a matching. That turns the
+    additive Hungarian score into the same final tie relation used by
+    ``_cow_pair_selection_key`` after volume and surplus are fixed.
+    """
+    if not pair_ranks:
+        return {}
+    base = max(2, int(max_pairs) + 1)
+    edge_count = len(pair_ranks)
+    return {
+        pair: base ** (edge_count - int(rank) - 1)
+        for pair, rank in pair_ranks.items()
+    }
 
 
 def _hungarian_min_assignment(costs: List[List[int]]) -> List[int]:

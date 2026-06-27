@@ -274,6 +274,72 @@ def _cow_intents(size: int) -> tuple[PoolState, list[Intent], BalanceTable]:
     return pool, intents, balances
 
 
+def _cow_intents_variant(size: int, variant: int) -> tuple[PoolState, list[Intent], BalanceTable]:
+    pool = _pool()
+    balances = BalanceTable()
+    intents: list[Intent] = []
+    for idx in range(size):
+        amount = 70 + ((idx * 31 + variant * 17) % 90)
+        min_out = 20 + ((idx * 7 + variant * 11) % 45)
+        sender_no = 300 + variant * 20 + idx
+        balances.set(_sender(sender_no), ASSET0, amount)
+        intents.append(
+            _exact_in_intent(
+                30_000 + variant * 100 + idx,
+                sender_no=sender_no,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_in=amount,
+                min_amount_out=min_out,
+            )
+        )
+    for idx in range(size):
+        amount = 75 + ((idx * 29 + variant * 13) % 85)
+        min_out = 20 + ((idx * 5 + variant * 19) % 45)
+        sender_no = 500 + variant * 20 + idx
+        balances.set(_sender(sender_no), ASSET1, amount)
+        intents.append(
+            _exact_in_intent(
+                40_000 + variant * 100 + idx,
+                sender_no=sender_no,
+                asset_in=ASSET1,
+                asset_out=ASSET0,
+                amount_in=amount,
+                min_amount_out=min_out,
+            )
+        )
+    return pool, intents, balances
+
+
+def _cow_canonical_tie_fuzzer() -> dict[str, Any]:
+    cases: list[dict[str, Any]] = []
+    for size in range(2, 7):
+        for variant in range(5):
+            pool, intents, balances = _cow_intents_variant(size, variant)
+            partition = _partition_cow_candidates(intents, pool)
+            context = _CowSelectionContext(balances=balances, asset0=ASSET0, asset1=ASSET1)
+            brute = _select_cow_pairs_bruteforce(partition.side_01, partition.side_10, context=context)
+            assignment = _select_cow_pairs_assignment(partition.side_01, partition.side_10, context=context)
+            brute_key = _cow_pair_selection_key(brute)
+            assignment_key = _cow_pair_selection_key(assignment)
+            cases.append(
+                {
+                    "balanced_size": size,
+                    "variant": variant,
+                    "ok": assignment_key == brute_key,
+                    "bruteforce_key": brute_key,
+                    "assignment_key": assignment_key,
+                }
+            )
+    mismatches = [case for case in cases if not case["ok"]]
+    return {
+        "ok": not mismatches,
+        "case_count": len(cases),
+        "mismatch_count": len(mismatches),
+        "cases": cases,
+    }
+
+
 def _cow_exactness_and_benchmark() -> dict[str, Any]:
     exactness_cases: list[dict[str, Any]] = []
     for size in (3, 4, 5, 6):
@@ -313,14 +379,16 @@ def _cow_exactness_and_benchmark() -> dict[str, Any]:
     )
 
     greedy20 = _select_cow_pairs_greedy(partition20.side_01, partition20.side_10, context=context20)
+    canonical_tie_fuzzer = _cow_canonical_tie_fuzzer()
     return {
-        "ok": all(case["ok"] and case["uncoupled_balance_safe"] for case in exactness_cases),
+        "ok": canonical_tie_fuzzer["ok"]
+        and all(case["ok"] and case["same_pair_id_tie"] and case["uncoupled_balance_safe"] for case in exactness_cases),
         "current_core_policy": {
             "tiny_exact_bruteforce_cap_total_candidates": 8,
             "assignment_surface": "uncoupled sender balances",
             "fallback_surface": "capacity-coupled grouped senders use greedy/fail-closed path",
-            "algorithm": "Hungarian minimum assignment over negated volume/surplus scores with deterministic host tie",
-            "tie_scope": "The assignment path is exact for volume and surplus. It is deterministic, but equal-economic assignments are not claimed byte-identical to the tiny brute-force lexicographic pair-id tie.",
+            "algorithm": "Hungarian minimum assignment over negated volume/surplus/mixed-radix lex scores",
+            "tie_scope": "The assignment path is exact for volume and surplus and matches the tiny brute-force lexicographic pair-id tie on the bounded oracle cases.",
         },
         "exactness_cases": exactness_cases,
         "measured_6x6": {
@@ -331,6 +399,7 @@ def _cow_exactness_and_benchmark() -> dict[str, Any]:
             == tuple(_cow_pair_selection_key(assignment_pairs)[:2]),
             "same_pair_id_tie": _cow_pair_selection_key(brute_pairs) == _cow_pair_selection_key(assignment_pairs),
         },
+        "canonical_tie_fuzzer": canonical_tie_fuzzer,
         "measured_20x20_assignment": {
             "assignment_s": assignment20_s,
             "selected_pair_count": len(pairs20),
@@ -471,7 +540,7 @@ def _write_markdown(report: dict[str, Any]) -> None:
     lines.append("")
     lines.append("## Work Item 2: CoW Matching")
     lines.append("")
-    lines.append("Core status: exact Hungarian assignment is active for the uncoupled sender-balance economic objective; grouped capacity remains outside the pure matching claim.")
+    lines.append("Core status: exact Hungarian assignment is active for the uncoupled sender-balance economic objective and now encodes the brute-force lexicographic pair-id tie as a mixed-radix score layer; grouped capacity remains outside the pure matching claim.")
     lines.append("")
     lines.append(f"- Assignment surface: `{cow['current_core_policy']['assignment_surface']}`")
     lines.append(f"- Fallback surface: `{cow['current_core_policy']['fallback_surface']}`")
@@ -479,6 +548,7 @@ def _write_markdown(report: dict[str, Any]) -> None:
     lines.append(f"- Measured 6x6 brute force: `{_fmt_s(cow['measured_6x6']['bruteforce_s'])}`")
     lines.append(f"- Measured 6x6 Hungarian assignment: `{_fmt_s(cow['measured_6x6']['assignment_s'])}`")
     lines.append(f"- Measured 6x6 speedup: `{cow['measured_6x6']['speedup']:.2f}x`")
+    lines.append(f"- Canonical tie fuzzer: `{cow['canonical_tie_fuzzer']['case_count']}` cases, `{cow['canonical_tie_fuzzer']['mismatch_count']}` mismatches")
     lines.append(f"- Measured 20x20 assignment: `{_fmt_s(cow['measured_20x20_assignment']['assignment_s'])}`")
     lines.append("")
     cow_ratio = cow["n20_perfect_matching_vs_hungarian_proxy"]["ratio"]

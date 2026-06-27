@@ -45,7 +45,11 @@ def test_zenodex_ab_cow_algorithm_breakthrough_replay() -> None:
     cow = report["cow_matching"]
     assert cow["ok"] is True
     assert all(case["ok"] for case in cow["exactness_cases"])
+    assert all(case["same_pair_id_tie"] for case in cow["exactness_cases"])
     assert all(case["uncoupled_balance_safe"] for case in cow["exactness_cases"])
     assert cow["measured_6x6"]["same_economic_key"] is True
-    assert "not claimed byte-identical" in cow["current_core_policy"]["tie_scope"]
+    assert cow["measured_6x6"]["same_pair_id_tie"] is True
+    assert cow["canonical_tie_fuzzer"]["case_count"] == 25
+    assert cow["canonical_tie_fuzzer"]["mismatch_count"] == 0
+    assert "matches the tiny brute-force lexicographic pair-id tie" in cow["current_core_policy"]["tie_scope"]
     assert cow["n20_perfect_matching_vs_hungarian_proxy"]["n_cubed"] == 8_000
