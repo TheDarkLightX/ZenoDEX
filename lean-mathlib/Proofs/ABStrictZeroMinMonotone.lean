@@ -814,6 +814,171 @@ theorem maskFullBestSuffixOutput_le_selected
     hsame
     hmin
 
+/-- A one-bit record-level child transition that also satisfies the local pruning
+invariant. This is the step relation needed by the subset-mask induction
+frontier. -/
+def reachablePrunedStepMask
+    (parent child : MaskRecordSet)
+    (bitIndex : Nat) : Prop :=
+  maskRecordStep parent child bitIndex ∧
+    maskPruningInvariant child
+
+/-- A reachable pruned one-step child sets the selected transition bit. -/
+theorem reachablePrunedStepMask_sets_child_bit
+    {parent child : MaskRecordSet}
+    {bitIndex : Nat}
+    (hstep : reachablePrunedStepMask parent child bitIndex) :
+    maskHasBit child.maskId bitIndex := by
+  exact maskRecordStep_sets_child_bit hstep.1
+
+/-- A reachable pruned one-step child preserves bits already set in the parent. -/
+theorem reachablePrunedStepMask_preserves_parent_bits
+    {parent child : MaskRecordSet}
+    {bitIndex priorBit : Nat}
+    (hstep : reachablePrunedStepMask parent child bitIndex)
+    (hprior : maskHasBit parent.maskId priorBit) :
+    maskHasBit child.maskId priorBit := by
+  exact maskRecordStep_preserves_parent_bits hstep.1 hprior
+
+/-- Prefix-cover induction step for mask growth.
+
+If the parent covers every bit below `bitIndex`, then a pruned transition at
+`bitIndex` gives a child covering every bit below `bitIndex + 1`. -/
+theorem reachablePrunedStepMask_extends_prefix
+    {parent child : MaskRecordSet}
+    {bitIndex : Nat}
+    (hprefix : allBitsBelowSet parent.maskId bitIndex)
+    (hstep : reachablePrunedStepMask parent child bitIndex) :
+    allBitsBelowSet child.maskId (bitIndex + 1) := by
+  intro candidateBit hcandidate
+  have hle : candidateBit ≤ bitIndex := Nat.lt_succ_iff.mp hcandidate
+  by_cases hsame : candidateBit = bitIndex
+  · subst candidateBit
+    exact reachablePrunedStepMask_sets_child_bit hstep
+  · have hlt : candidateBit < bitIndex := lt_of_le_of_ne hle hsame
+    exact reachablePrunedStepMask_preserves_parent_bits hstep (hprefix candidateBit hlt)
+
+/-- A reachable pruned one-step child bounds its full record set by its selected
+representative. -/
+theorem reachablePrunedStepMask_bounds_suffix_output
+    {parent child : MaskRecordSet}
+    {bitIndex initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hstep : reachablePrunedStepMask parent child bitIndex) :
+    maskFullBestSuffixOutput initialReserveOut child suffix ≤
+      maskSelectedSuffixOutput initialReserveOut child suffix := by
+  exact maskFullBestSuffixOutput_le_selected hstep.2
+
+/-- A reachable pruned one-step child has been retained in a finite selected
+mask family. -/
+def reachablePrunedStepMaskInFamily
+    (parent child : MaskRecordSet)
+    (bitIndex : Nat)
+    (masks : List MaskRecordSet) : Prop :=
+  reachablePrunedStepMask parent child bitIndex ∧
+    child ∈ masks
+
+/-- A retained reachable pruned one-step child is bounded by the selected-family
+aggregate. -/
+theorem reachablePrunedStepMaskInFamily_bounds_family_selected
+    {parent child : MaskRecordSet}
+    {bitIndex initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    {masks : List MaskRecordSet}
+    (hfull : reachablePrunedStepMaskInFamily parent child bitIndex masks) :
+    maskFullBestSuffixOutput initialReserveOut child suffix ≤
+      bestSelectedSuffixOutputAcrossMasks initialReserveOut masks suffix := by
+  rcases hfull with ⟨hstep, hmem⟩
+  have hlocal :
+      maskFullBestSuffixOutput initialReserveOut child suffix ≤
+        maskSelectedSuffixOutput initialReserveOut child suffix :=
+    reachablePrunedStepMask_bounds_suffix_output
+      (initialReserveOut := initialReserveOut)
+      (suffix := suffix)
+      hstep
+  have hselected_mem :
+      maskSelectedSuffixOutput initialReserveOut child suffix ∈
+        masks.map (fun candidate =>
+          maskSelectedSuffixOutput initialReserveOut candidate suffix) := by
+    exact List.mem_map.mpr ⟨child, hmem, rfl⟩
+  exact Nat.le_trans hlocal (mem_le_foldlMax (acc := 0) hselected_mem)
+
+/-- One-step family endpoint: a retained pruned child extends prefix bit coverage
+and is bounded by the selected-family aggregate. -/
+theorem reachablePrunedStepMaskInFamily_extends_prefix_and_bounds_family
+    {parent child : MaskRecordSet}
+    {bitIndex initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    {masks : List MaskRecordSet}
+    (hprefix : allBitsBelowSet parent.maskId bitIndex)
+    (hfull : reachablePrunedStepMaskInFamily parent child bitIndex masks) :
+    allBitsBelowSet child.maskId (bitIndex + 1) ∧
+      maskFullBestSuffixOutput initialReserveOut child suffix ≤
+        bestSelectedSuffixOutputAcrossMasks initialReserveOut masks suffix := by
+  constructor
+  · exact reachablePrunedStepMask_extends_prefix hprefix hfull.1
+  · exact reachablePrunedStepMaskInFamily_bounds_family_selected hfull
+
+/-- Every child in a finite one-step frontier is a retained reachable pruned
+child for the selected mask family. -/
+def reachablePrunedStepMaskListInFamily
+    (parent : MaskRecordSet)
+    (children : List MaskRecordSet)
+    (bitIndex : Nat)
+    (masks : List MaskRecordSet) : Prop :=
+  ∀ child, child ∈ children ->
+    reachablePrunedStepMaskInFamily parent child bitIndex masks
+
+/-- Every child in a retained one-step frontier extends parent prefix coverage. -/
+theorem reachablePrunedStepMaskListInFamily_extends_prefix_members
+    {parent child : MaskRecordSet}
+    {children masks : List MaskRecordSet}
+    {bitIndex : Nat}
+    (hprefix : allBitsBelowSet parent.maskId bitIndex)
+    (hlist : reachablePrunedStepMaskListInFamily parent children bitIndex masks)
+    (hchild : child ∈ children) :
+    allBitsBelowSet child.maskId (bitIndex + 1) := by
+  exact reachablePrunedStepMask_extends_prefix hprefix (hlist child hchild).1
+
+/-- A retained one-step frontier is bounded by the selected-family aggregate. -/
+theorem reachablePrunedStepMaskListInFamily_bounds_family_selected
+    {parent : MaskRecordSet}
+    {children masks : List MaskRecordSet}
+    {bitIndex initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hlist : reachablePrunedStepMaskListInFamily parent children bitIndex masks) :
+    bestFullSuffixOutputAcrossMasks initialReserveOut children suffix ≤
+      bestSelectedSuffixOutputAcrossMasks initialReserveOut masks suffix := by
+  unfold bestFullSuffixOutputAcrossMasks
+  apply foldlMax_le_bound
+  · exact Nat.zero_le _
+  · intro value hvalue
+    rw [List.mem_map] at hvalue
+    rcases hvalue with ⟨child, hchild, rfl⟩
+    exact reachablePrunedStepMaskInFamily_bounds_family_selected
+      (initialReserveOut := initialReserveOut)
+      (suffix := suffix)
+      (hlist child hchild)
+
+/-- One-step list endpoint for the subset-mask induction frontier: all retained
+children extend parent prefix coverage, and the full child frontier is bounded by
+the selected-family aggregate. -/
+theorem reachablePrunedStepMaskListInFamily_extends_prefix_and_bounds_family
+    {parent : MaskRecordSet}
+    {children masks : List MaskRecordSet}
+    {bitIndex initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hprefix : allBitsBelowSet parent.maskId bitIndex)
+    (hlist : reachablePrunedStepMaskListInFamily parent children bitIndex masks) :
+    (∀ child, child ∈ children -> allBitsBelowSet child.maskId (bitIndex + 1)) ∧
+      bestFullSuffixOutputAcrossMasks initialReserveOut children suffix ≤
+        bestSelectedSuffixOutputAcrossMasks initialReserveOut masks suffix := by
+  constructor
+  · intro child hchild
+    exact reachablePrunedStepMaskListInFamily_extends_prefix_members
+      hprefix hlist hchild
+  · exact reachablePrunedStepMaskListInFamily_bounds_family_selected hlist
+
 /-- A record-level mask is range-reachable and locally pruned when it is
 reachable by a range path and satisfies the local pruning invariant. -/
 def reachablePrunedRangeMask
@@ -1106,6 +1271,47 @@ theorem compressedWinnerCertificate_covers_and_bounds
     (suffix := suffix)
     hcert.1 hcert.2
 
+/-- A proof-carrying one-step winner certificate for one layer of the strict
+zero-min subset-mask induction.
+
+The certificate packages a retained pruned one-step child frontier and a supplied
+selected-family winner. It does not construct either object or specify tie order. -/
+def stepWinnerCertificate
+    (parent winner : MaskRecordSet)
+    (children : List MaskRecordSet)
+    (bitIndex : Nat)
+    (masks : List MaskRecordSet)
+    (initialReserveOut : Nat)
+    (suffix : List ExactInStep) : Prop :=
+  reachablePrunedStepMaskListInFamily parent children bitIndex masks ∧
+    selectedFamilyOutputWinner winner masks initialReserveOut suffix
+
+/-- Certificate-level one-step induction endpoint: if the parent covers the
+prefix below `bitIndex`, then every child covers the prefix below `bitIndex + 1`,
+and the full child frontier is bounded by one supplied compressed winner. -/
+theorem stepWinnerCertificate_extends_prefix_and_bounds
+    {parent winner : MaskRecordSet}
+    {children masks : List MaskRecordSet}
+    {bitIndex initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hprefix : allBitsBelowSet parent.maskId bitIndex)
+    (hcert :
+      stepWinnerCertificate parent winner children bitIndex masks
+        initialReserveOut suffix) :
+    (∀ child, child ∈ children -> allBitsBelowSet child.maskId (bitIndex + 1)) ∧
+      bestFullSuffixOutputAcrossMasks initialReserveOut children suffix ≤
+        maskSelectedSuffixOutput initialReserveOut winner suffix := by
+  constructor
+  · intro child hchild
+    exact reachablePrunedStepMaskListInFamily_extends_prefix_members
+      hprefix hcert.1 hchild
+  · exact Nat.le_trans
+      (reachablePrunedStepMaskListInFamily_bounds_family_selected
+        (initialReserveOut := initialReserveOut)
+        (suffix := suffix)
+        hcert.1)
+      (selectedFamilyOutputWinner_bounds_selected_family hcert.2)
+
 /-- Finite subset-mask pruning lift.
 
 If every abstract subset mask satisfies the local pruning invariant, then the
@@ -1397,6 +1603,58 @@ theorem witness_compressedWinnerCertificate_covers_and_bounds :
   have hcert : compressedWinnerCertificate parent child children masks 1 1000 [] :=
     ⟨hlist, hwinner⟩
   exact ⟨hcert, compressedWinnerCertificate_covers_and_bounds hcert⟩
+
+/-- Concrete non-vacuity witness for the one-step winner certificate endpoint. -/
+theorem witness_stepWinnerCertificate_extends_prefix_and_bounds :
+    let record : ProcessedRecord := ⟨100, 90⟩
+    let parent : MaskRecordSet := ⟨1, record, [record]⟩
+    let child : MaskRecordSet := ⟨1, record, [record]⟩
+    let children : List MaskRecordSet := [child]
+    let masks : List MaskRecordSet := [child]
+    allBitsBelowSet parent.maskId 0 ∧
+      stepWinnerCertificate parent child children 0 masks 1000 [] ∧
+        (∀ candidate, candidate ∈ children -> allBitsBelowSet candidate.maskId 1) ∧
+          bestFullSuffixOutputAcrossMasks 1000 children [] ≤
+            maskSelectedSuffixOutput 1000 child [] := by
+  let record : ProcessedRecord := ⟨100, 90⟩
+  let parent : MaskRecordSet := ⟨1, record, [record]⟩
+  let child : MaskRecordSet := ⟨1, record, [record]⟩
+  let children : List MaskRecordSet := [child]
+  let masks : List MaskRecordSet := [child]
+  have hprefix : allBitsBelowSet parent.maskId 0 := by
+    intro bitIndex hlt
+    omega
+  have hstep : maskRecordStep parent child 0 := by
+    simpa [parent, child, maskRecordStep] using witness_bitMaskStep_noop.1
+  have hinvariant : maskPruningInvariant child := by
+    unfold child maskPruningInvariant
+    constructor
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+  have hreachable : reachablePrunedStepMask parent child 0 := ⟨hstep, hinvariant⟩
+  have hfull : reachablePrunedStepMaskInFamily parent child 0 masks := by
+    exact ⟨hreachable, by simp [masks]⟩
+  have hlist : reachablePrunedStepMaskListInFamily parent children 0 masks := by
+    intro candidate hcandidate
+    simp only [children, List.mem_singleton] at hcandidate
+    subst candidate
+    exact hfull
+  have hwinner : selectedFamilyOutputWinner child masks 1000 [] := by
+    constructor
+    · simp [masks]
+    · intro candidate hcandidate
+      simp only [masks, List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+  have hcert : stepWinnerCertificate parent child children 0 masks 1000 [] :=
+    ⟨hlist, hwinner⟩
+  exact ⟨hprefix, hcert, stepWinnerCertificate_extends_prefix_and_bounds hprefix hcert⟩
 
 /-- Concrete non-vacuity witness for one-step monotonicity. -/
 theorem witness_postReserveOut_mono_strict :

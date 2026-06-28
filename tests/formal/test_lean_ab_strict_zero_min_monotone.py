@@ -59,6 +59,18 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "theorem witness_bitMaskPath_sets_range_bits" in text
     assert "def maskPruningInvariant" in text
     assert "theorem maskFullBestSuffixOutput_le_selected" in text
+    assert "def reachablePrunedStepMask" in text
+    assert "theorem reachablePrunedStepMask_sets_child_bit" in text
+    assert "theorem reachablePrunedStepMask_preserves_parent_bits" in text
+    assert "theorem reachablePrunedStepMask_extends_prefix" in text
+    assert "theorem reachablePrunedStepMask_bounds_suffix_output" in text
+    assert "def reachablePrunedStepMaskInFamily" in text
+    assert "theorem reachablePrunedStepMaskInFamily_bounds_family_selected" in text
+    assert "theorem reachablePrunedStepMaskInFamily_extends_prefix_and_bounds_family" in text
+    assert "def reachablePrunedStepMaskListInFamily" in text
+    assert "theorem reachablePrunedStepMaskListInFamily_extends_prefix_members" in text
+    assert "theorem reachablePrunedStepMaskListInFamily_bounds_family_selected" in text
+    assert "theorem reachablePrunedStepMaskListInFamily_extends_prefix_and_bounds_family" in text
     assert "def reachablePrunedRangeMask" in text
     assert "theorem reachablePrunedRangeMask_covers_bits" in text
     assert "theorem reachablePrunedRangeMask_bounds_suffix_output" in text
@@ -78,6 +90,8 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "theorem compressedWinnerCertificate_covers_children" in text
     assert "theorem compressedWinnerCertificate_bounds_selected_winner" in text
     assert "theorem compressedWinnerCertificate_covers_and_bounds" in text
+    assert "def stepWinnerCertificate" in text
+    assert "theorem stepWinnerCertificate_extends_prefix_and_bounds" in text
     assert "theorem bestFullSuffixOutputAcrossMasks_le_selected" in text
     assert "theorem witness_bestFullSuffixOutputAcrossMasks_le_selected" in text
     assert "theorem witness_reachablePrunedRangeMask_covers_and_bounds" in text
@@ -85,6 +99,7 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "theorem witness_reachablePrunedFullMaskListInFamily_covers_and_bounds_family" in text
     assert "theorem witness_reachablePrunedFullMaskListInFamily_bounds_selected_winner" in text
     assert "theorem witness_compressedWinnerCertificate_covers_and_bounds" in text
+    assert "theorem witness_stepWinnerCertificate_extends_prefix_and_bounds" in text
 
     lake = shutil.which("lake")
     if not lake:
