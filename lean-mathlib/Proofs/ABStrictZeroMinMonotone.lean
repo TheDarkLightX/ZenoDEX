@@ -856,6 +856,59 @@ theorem reachablePrunedRangeMask_covers_and_bounds
   · exact reachablePrunedRangeMask_covers_bits hmask
   · exact reachablePrunedRangeMask_bounds_suffix_output hmask
 
+/-- A reachable pruned range mask has been retained in a finite mask family.
+
+This is the family-membership boundary used by the subset-mask induction
+frontier. The predicate is explicit about membership; it does not construct the
+family or prove that a host implementation emits it. -/
+def reachablePrunedFullMaskInFamily
+    (parent child : MaskRecordSet)
+    (bitCount : Nat)
+    (masks : List MaskRecordSet) : Prop :=
+  reachablePrunedRangeMask parent child bitCount ∧
+    child ∈ masks
+
+/-- A reachable pruned full-mask family member is bounded by the family selected
+representative aggregate. -/
+theorem reachablePrunedFullMaskInFamily_bounds_family_selected
+    {parent child : MaskRecordSet}
+    {bitCount initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    {masks : List MaskRecordSet}
+    (hfull : reachablePrunedFullMaskInFamily parent child bitCount masks) :
+    maskFullBestSuffixOutput initialReserveOut child suffix ≤
+      bestSelectedSuffixOutputAcrossMasks initialReserveOut masks suffix := by
+  rcases hfull with ⟨hmask, hmem⟩
+  have hlocal :
+      maskFullBestSuffixOutput initialReserveOut child suffix ≤
+        maskSelectedSuffixOutput initialReserveOut child suffix :=
+    reachablePrunedRangeMask_bounds_suffix_output
+      (initialReserveOut := initialReserveOut)
+      (suffix := suffix)
+      hmask
+  have hselected_mem :
+      maskSelectedSuffixOutput initialReserveOut child suffix ∈
+        masks.map (fun candidate =>
+          maskSelectedSuffixOutput initialReserveOut candidate suffix) := by
+    exact List.mem_map.mpr ⟨child, hmem, rfl⟩
+  exact Nat.le_trans hlocal (mem_le_foldlMax (acc := 0) hselected_mem)
+
+/-- Family endpoint bridge for the subset-mask induction frontier: a reachable
+pruned range child retained in the mask family both covers the bounded mask
+range and is bounded by the family selected-representative aggregate. -/
+theorem reachablePrunedFullMaskInFamily_covers_and_bounds_family
+    {parent child : MaskRecordSet}
+    {bitCount initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    {masks : List MaskRecordSet}
+    (hfull : reachablePrunedFullMaskInFamily parent child bitCount masks) :
+    allBitsBelowSet child.maskId bitCount ∧
+      maskFullBestSuffixOutput initialReserveOut child suffix ≤
+        bestSelectedSuffixOutputAcrossMasks initialReserveOut masks suffix := by
+  constructor
+  · exact reachablePrunedRangeMask_covers_bits hfull.1
+  · exact reachablePrunedFullMaskInFamily_bounds_family_selected hfull
+
 /-- Finite subset-mask pruning lift.
 
 If every abstract subset mask satisfies the local pruning invariant, then the
@@ -970,6 +1023,42 @@ theorem witness_reachablePrunedRangeMask_covers_and_bounds :
       (initialReserveOut := 1000)
       (suffix := [])
       hmask⟩
+
+/-- Concrete non-vacuity witness for the reachable full-mask family endpoint. -/
+theorem witness_reachablePrunedFullMaskInFamily_covers_and_bounds_family :
+    let record : ProcessedRecord := ⟨100, 90⟩
+    let parent : MaskRecordSet := ⟨1, record, [record]⟩
+    let child : MaskRecordSet := ⟨1, record, [record]⟩
+    let masks : List MaskRecordSet := [child]
+    reachablePrunedFullMaskInFamily parent child 1 masks ∧
+      allBitsBelowSet child.maskId 1 ∧
+        maskFullBestSuffixOutput 1000 child [] ≤
+          bestSelectedSuffixOutputAcrossMasks 1000 masks [] := by
+  let record : ProcessedRecord := ⟨100, 90⟩
+  let parent : MaskRecordSet := ⟨1, record, [record]⟩
+  let child : MaskRecordSet := ⟨1, record, [record]⟩
+  let masks : List MaskRecordSet := [child]
+  have hpath : maskRecordPath parent (List.range 1) child := by
+    simpa [parent, child, maskRecordPath] using witness_bitMaskStep_noop.2
+  have hinvariant : maskPruningInvariant child := by
+    unfold child maskPruningInvariant
+    constructor
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+  have hreachable : reachablePrunedRangeMask parent child 1 := ⟨hpath, hinvariant⟩
+  have hfull : reachablePrunedFullMaskInFamily parent child 1 masks := by
+    exact ⟨hreachable, by simp [masks]⟩
+  exact ⟨hfull,
+    reachablePrunedFullMaskInFamily_covers_and_bounds_family
+      (initialReserveOut := 1000)
+      (suffix := [])
+      hfull⟩
 
 /-- Concrete non-vacuity witness for one-step monotonicity. -/
 theorem witness_postReserveOut_mono_strict :
