@@ -1,0 +1,2408 @@
+{
+  "case_count": 24,
+  "cases": [
+    {
+      "amount_out_total": 2000,
+      "best_amount_in_total": 3010,
+      "case_id": "endpoint_low_fee_v0",
+      "certificate": {
+        "amount_out_total": 2000,
+        "brute_force_max": 512,
+        "case_id": "endpoint_low_fee_v0",
+        "domain_hash": "f1d6ae774f08bbb77496c305e2745e87bea783d4bbbb4012864bb03ce9f7ba19",
+        "feasible_split_count": 2001,
+        "hi": 2000,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 487,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 250,
+            "hi": 282,
+            "kind": "center_window",
+            "lo": 218
+          },
+          {
+            "center": 750,
+            "hi": 782,
+            "kind": "center_window",
+            "lo": 718
+          },
+          {
+            "center": 1000,
+            "hi": 1032,
+            "kind": "center_window",
+            "lo": 968
+          },
+          {
+            "center": 1250,
+            "hi": 1282,
+            "kind": "center_window",
+            "lo": 1218
+          },
+          {
+            "center": 1750,
+            "hi": 1782,
+            "kind": "center_window",
+            "lo": 1718
+          },
+          {
+            "center": 1998,
+            "hi": 2000,
+            "kind": "center_window",
+            "lo": 1966
+          },
+          {
+            "center": 2000,
+            "hi": 2000,
+            "kind": "center_window",
+            "lo": 1968
+          },
+          {
+            "hi": 2000,
+            "kind": "canonical_left_sweep",
+            "lo": 1872
+          },
+          {
+            "hi": 2000,
+            "kind": "final_selected_window",
+            "lo": 1968
+          }
+        ],
+        "selected_amount_in_total": 3010,
+        "selected_q0": 2000,
+        "selected_q1": 0,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 2001,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 2000,
+      "full_scan_quote_calls": 4000,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        2000,
+        2000
+      ],
+      "note": "Endpoint winner with asymmetric reserves and lower fee on the second pool.",
+      "ok": true,
+      "quote_call_reduction_ratio": 3.4129692832764507,
+      "windowed_q0": 2000,
+      "windowed_quote_calls": 1172,
+      "winner_kind": "right_endpoint"
+    },
+    {
+      "amount_out_total": 2045,
+      "best_amount_in_total": 2977,
+      "case_id": "endpoint_low_fee_v1",
+      "certificate": {
+        "amount_out_total": 2045,
+        "brute_force_max": 512,
+        "case_id": "endpoint_low_fee_v1",
+        "domain_hash": "0305aa3a2b74d02b16bce4d2c59ca390e2537e45ff551147ab60b06cb4a907bd",
+        "feasible_split_count": 2046,
+        "hi": 2045,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 487,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 255,
+            "hi": 287,
+            "kind": "center_window",
+            "lo": 223
+          },
+          {
+            "center": 766,
+            "hi": 798,
+            "kind": "center_window",
+            "lo": 734
+          },
+          {
+            "center": 1022,
+            "hi": 1054,
+            "kind": "center_window",
+            "lo": 990
+          },
+          {
+            "center": 1278,
+            "hi": 1310,
+            "kind": "center_window",
+            "lo": 1246
+          },
+          {
+            "center": 1789,
+            "hi": 1821,
+            "kind": "center_window",
+            "lo": 1757
+          },
+          {
+            "center": 2045,
+            "hi": 2045,
+            "kind": "center_window",
+            "lo": 2013
+          },
+          {
+            "hi": 2045,
+            "kind": "canonical_left_sweep",
+            "lo": 1917
+          },
+          {
+            "hi": 2045,
+            "kind": "final_selected_window",
+            "lo": 2013
+          }
+        ],
+        "selected_amount_in_total": 2977,
+        "selected_q0": 2045,
+        "selected_q1": 0,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 2046,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 2045,
+      "full_scan_quote_calls": 4090,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        2045,
+        2045
+      ],
+      "note": "Endpoint winner with asymmetric reserves and lower fee on the second pool.",
+      "ok": true,
+      "quote_call_reduction_ratio": 3.7080689029918403,
+      "windowed_q0": 2045,
+      "windowed_quote_calls": 1103,
+      "winner_kind": "right_endpoint"
+    },
+    {
+      "amount_out_total": 2169,
+      "best_amount_in_total": 2921,
+      "case_id": "endpoint_low_fee_v2",
+      "certificate": {
+        "amount_out_total": 2169,
+        "brute_force_max": 512,
+        "case_id": "endpoint_low_fee_v2",
+        "domain_hash": "448a4b1737fa140fab2e65485121009e28ffe84677ba3302e33523327d651adc",
+        "feasible_split_count": 2167,
+        "hi": 2169,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 487,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 271,
+            "hi": 303,
+            "kind": "center_window",
+            "lo": 239
+          },
+          {
+            "center": 813,
+            "hi": 845,
+            "kind": "center_window",
+            "lo": 781
+          },
+          {
+            "center": 1084,
+            "hi": 1116,
+            "kind": "center_window",
+            "lo": 1052
+          },
+          {
+            "center": 1355,
+            "hi": 1387,
+            "kind": "center_window",
+            "lo": 1323
+          },
+          {
+            "center": 1897,
+            "hi": 1929,
+            "kind": "center_window",
+            "lo": 1865
+          },
+          {
+            "center": 2169,
+            "hi": 2169,
+            "kind": "center_window",
+            "lo": 2137
+          },
+          {
+            "hi": 2169,
+            "kind": "canonical_left_sweep",
+            "lo": 2041
+          },
+          {
+            "hi": 2169,
+            "kind": "final_selected_window",
+            "lo": 2137
+          }
+        ],
+        "selected_amount_in_total": 2921,
+        "selected_q0": 2169,
+        "selected_q1": 0,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 2167,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 2169,
+      "full_scan_quote_calls": 4335,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        2169,
+        2169
+      ],
+      "note": "Endpoint winner with asymmetric reserves and lower fee on the second pool.",
+      "ok": true,
+      "quote_call_reduction_ratio": 3.9373297002724796,
+      "windowed_q0": 2169,
+      "windowed_quote_calls": 1101,
+      "winner_kind": "right_endpoint"
+    },
+    {
+      "amount_out_total": 5000,
+      "best_amount_in_total": 5464,
+      "case_id": "interior_plateau_v0",
+      "certificate": {
+        "amount_out_total": 5000,
+        "brute_force_max": 512,
+        "case_id": "interior_plateau_v0",
+        "domain_hash": "8055dca52ee0167b8c41a3ffdee74efa954d18ff124c9578cf4b8223a186cb2a",
+        "feasible_split_count": 4985,
+        "hi": 5000,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 585,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 625,
+            "hi": 657,
+            "kind": "center_window",
+            "lo": 593
+          },
+          {
+            "center": 961,
+            "hi": 993,
+            "kind": "center_window",
+            "lo": 929
+          },
+          {
+            "center": 1875,
+            "hi": 1907,
+            "kind": "center_window",
+            "lo": 1843
+          },
+          {
+            "center": 2500,
+            "hi": 2532,
+            "kind": "center_window",
+            "lo": 2468
+          },
+          {
+            "center": 3125,
+            "hi": 3157,
+            "kind": "center_window",
+            "lo": 3093
+          },
+          {
+            "center": 4375,
+            "hi": 4407,
+            "kind": "center_window",
+            "lo": 4343
+          },
+          {
+            "center": 5000,
+            "hi": 5000,
+            "kind": "center_window",
+            "lo": 4968
+          },
+          {
+            "hi": 928,
+            "kind": "canonical_left_sweep",
+            "lo": 800
+          },
+          {
+            "hi": 960,
+            "kind": "final_selected_window",
+            "lo": 896
+          }
+        ],
+        "selected_amount_in_total": 5464,
+        "selected_q0": 928,
+        "selected_q1": 4072,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 4985,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 928,
+      "full_scan_quote_calls": 10000,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        928,
+        959
+      ],
+      "note": "Interior winner with integer rounding plateaus near the derivative seed.",
+      "ok": true,
+      "quote_call_reduction_ratio": 7.6923076923076925,
+      "windowed_q0": 928,
+      "windowed_quote_calls": 1300,
+      "winner_kind": "interior"
+    },
+    {
+      "amount_out_total": 5045,
+      "best_amount_in_total": 5650,
+      "case_id": "interior_plateau_v1",
+      "certificate": {
+        "amount_out_total": 5045,
+        "brute_force_max": 512,
+        "case_id": "interior_plateau_v1",
+        "domain_hash": "76fd52b2eebb1eaafd746c5285785257a628207c4037c027b3a1a9ee27af1dad",
+        "feasible_split_count": 5031,
+        "hi": 5045,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 581,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 630,
+            "hi": 662,
+            "kind": "center_window",
+            "lo": 598
+          },
+          {
+            "center": 1096,
+            "hi": 1128,
+            "kind": "center_window",
+            "lo": 1064
+          },
+          {
+            "center": 1891,
+            "hi": 1923,
+            "kind": "center_window",
+            "lo": 1859
+          },
+          {
+            "center": 2522,
+            "hi": 2554,
+            "kind": "center_window",
+            "lo": 2490
+          },
+          {
+            "center": 3153,
+            "hi": 3185,
+            "kind": "center_window",
+            "lo": 3121
+          },
+          {
+            "center": 4414,
+            "hi": 4446,
+            "kind": "center_window",
+            "lo": 4382
+          },
+          {
+            "center": 5045,
+            "hi": 5045,
+            "kind": "center_window",
+            "lo": 5013
+          },
+          {
+            "hi": 1067,
+            "kind": "canonical_left_sweep",
+            "lo": 939
+          },
+          {
+            "hi": 1099,
+            "kind": "final_selected_window",
+            "lo": 1035
+          }
+        ],
+        "selected_amount_in_total": 5650,
+        "selected_q0": 1067,
+        "selected_q1": 3978,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 5031,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 1067,
+      "full_scan_quote_calls": 10090,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        1067,
+        1158
+      ],
+      "note": "Interior winner with integer rounding plateaus near the derivative seed.",
+      "ok": true,
+      "quote_call_reduction_ratio": 7.7615384615384615,
+      "windowed_q0": 1067,
+      "windowed_quote_calls": 1300,
+      "winner_kind": "interior"
+    },
+    {
+      "amount_out_total": 5169,
+      "best_amount_in_total": 6110,
+      "case_id": "interior_plateau_v2",
+      "certificate": {
+        "amount_out_total": 5169,
+        "brute_force_max": 512,
+        "case_id": "interior_plateau_v2",
+        "domain_hash": "ec7a5cf9472363e4cdd05316e79641c308815a58f2bfded2561f3ac785b2427c",
+        "feasible_split_count": 5159,
+        "hi": 5169,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 600,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 646,
+            "hi": 678,
+            "kind": "center_window",
+            "lo": 614
+          },
+          {
+            "center": 1453,
+            "hi": 1485,
+            "kind": "center_window",
+            "lo": 1421
+          },
+          {
+            "center": 1938,
+            "hi": 1970,
+            "kind": "center_window",
+            "lo": 1906
+          },
+          {
+            "center": 2584,
+            "hi": 2616,
+            "kind": "center_window",
+            "lo": 2552
+          },
+          {
+            "center": 3230,
+            "hi": 3262,
+            "kind": "center_window",
+            "lo": 3198
+          },
+          {
+            "center": 4522,
+            "hi": 4554,
+            "kind": "center_window",
+            "lo": 4490
+          },
+          {
+            "center": 5169,
+            "hi": 5169,
+            "kind": "center_window",
+            "lo": 5137
+          },
+          {
+            "hi": 1405,
+            "kind": "canonical_left_sweep",
+            "lo": 1277
+          },
+          {
+            "hi": 1437,
+            "kind": "final_selected_window",
+            "lo": 1373
+          }
+        ],
+        "selected_amount_in_total": 6110,
+        "selected_q0": 1405,
+        "selected_q1": 3764,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 5159,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 1405,
+      "full_scan_quote_calls": 10338,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        1405,
+        1491
+      ],
+      "note": "Interior winner with integer rounding plateaus near the derivative seed.",
+      "ok": true,
+      "quote_call_reduction_ratio": 7.952307692307692,
+      "windowed_q0": 1405,
+      "windowed_quote_calls": 1300,
+      "winner_kind": "interior"
+    },
+    {
+      "amount_out_total": 9000,
+      "best_amount_in_total": 5151,
+      "case_id": "large_endpoint_v0",
+      "certificate": {
+        "amount_out_total": 9000,
+        "brute_force_max": 512,
+        "case_id": "large_endpoint_v0",
+        "domain_hash": "cc74df68b1eefa47cd6169829e75211923639476d46a848dc06ca6a6b55b1f27",
+        "feasible_split_count": 8960,
+        "hi": 9000,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 487,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 1125,
+            "hi": 1157,
+            "kind": "center_window",
+            "lo": 1093
+          },
+          {
+            "center": 3375,
+            "hi": 3407,
+            "kind": "center_window",
+            "lo": 3343
+          },
+          {
+            "center": 4500,
+            "hi": 4532,
+            "kind": "center_window",
+            "lo": 4468
+          },
+          {
+            "center": 5625,
+            "hi": 5657,
+            "kind": "center_window",
+            "lo": 5593
+          },
+          {
+            "center": 7875,
+            "hi": 7907,
+            "kind": "center_window",
+            "lo": 7843
+          },
+          {
+            "center": 9000,
+            "hi": 9000,
+            "kind": "center_window",
+            "lo": 8968
+          },
+          {
+            "hi": 9000,
+            "kind": "canonical_left_sweep",
+            "lo": 8872
+          },
+          {
+            "hi": 9000,
+            "kind": "final_selected_window",
+            "lo": 8968
+          }
+        ],
+        "selected_amount_in_total": 5151,
+        "selected_q0": 9000,
+        "selected_q1": 0,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 8960,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 9000,
+      "full_scan_quote_calls": 17961,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        9000,
+        9000
+      ],
+      "note": "Wide-domain endpoint winner under unequal reserves.",
+      "ok": true,
+      "quote_call_reduction_ratio": 16.569188191881917,
+      "windowed_q0": 9000,
+      "windowed_quote_calls": 1084,
+      "winner_kind": "right_endpoint"
+    },
+    {
+      "amount_out_total": 9045,
+      "best_amount_in_total": 5180,
+      "case_id": "large_endpoint_v1",
+      "certificate": {
+        "amount_out_total": 9045,
+        "brute_force_max": 512,
+        "case_id": "large_endpoint_v1",
+        "domain_hash": "ca16865a8082af5c3362701b34c7d782d9ddbcf97cb062427d7d16d4fc3c981e",
+        "feasible_split_count": 9006,
+        "hi": 9045,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 487,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 1130,
+            "hi": 1162,
+            "kind": "center_window",
+            "lo": 1098
+          },
+          {
+            "center": 3391,
+            "hi": 3423,
+            "kind": "center_window",
+            "lo": 3359
+          },
+          {
+            "center": 4522,
+            "hi": 4554,
+            "kind": "center_window",
+            "lo": 4490
+          },
+          {
+            "center": 5653,
+            "hi": 5685,
+            "kind": "center_window",
+            "lo": 5621
+          },
+          {
+            "center": 7914,
+            "hi": 7946,
+            "kind": "center_window",
+            "lo": 7882
+          },
+          {
+            "center": 9045,
+            "hi": 9045,
+            "kind": "center_window",
+            "lo": 9013
+          },
+          {
+            "hi": 9045,
+            "kind": "canonical_left_sweep",
+            "lo": 8917
+          },
+          {
+            "hi": 9045,
+            "kind": "final_selected_window",
+            "lo": 9013
+          }
+        ],
+        "selected_amount_in_total": 5180,
+        "selected_q0": 9045,
+        "selected_q1": 0,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 9006,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 9045,
+      "full_scan_quote_calls": 18051,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        9045,
+        9045
+      ],
+      "note": "Wide-domain endpoint winner under unequal reserves.",
+      "ok": true,
+      "quote_call_reduction_ratio": 16.65221402214022,
+      "windowed_q0": 9045,
+      "windowed_quote_calls": 1084,
+      "winner_kind": "right_endpoint"
+    },
+    {
+      "amount_out_total": 9169,
+      "best_amount_in_total": 5258,
+      "case_id": "large_endpoint_v2",
+      "certificate": {
+        "amount_out_total": 9169,
+        "brute_force_max": 512,
+        "case_id": "large_endpoint_v2",
+        "domain_hash": "e98cdaec32e1c41c78860a0a00acc96154b162324e60fdd3597762019801021a",
+        "feasible_split_count": 9131,
+        "hi": 9169,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 487,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 1146,
+            "hi": 1178,
+            "kind": "center_window",
+            "lo": 1114
+          },
+          {
+            "center": 3438,
+            "hi": 3470,
+            "kind": "center_window",
+            "lo": 3406
+          },
+          {
+            "center": 4584,
+            "hi": 4616,
+            "kind": "center_window",
+            "lo": 4552
+          },
+          {
+            "center": 5730,
+            "hi": 5762,
+            "kind": "center_window",
+            "lo": 5698
+          },
+          {
+            "center": 8022,
+            "hi": 8054,
+            "kind": "center_window",
+            "lo": 7990
+          },
+          {
+            "center": 9169,
+            "hi": 9169,
+            "kind": "center_window",
+            "lo": 9137
+          },
+          {
+            "hi": 9169,
+            "kind": "canonical_left_sweep",
+            "lo": 9041
+          },
+          {
+            "hi": 9169,
+            "kind": "final_selected_window",
+            "lo": 9137
+          }
+        ],
+        "selected_amount_in_total": 5258,
+        "selected_q0": 9169,
+        "selected_q1": 0,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 9131,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 9169,
+      "full_scan_quote_calls": 18299,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        9169,
+        9169
+      ],
+      "note": "Wide-domain endpoint winner under unequal reserves.",
+      "ok": true,
+      "quote_call_reduction_ratio": 16.8809963099631,
+      "windowed_q0": 9169,
+      "windowed_quote_calls": 1084,
+      "winner_kind": "right_endpoint"
+    },
+    {
+      "amount_out_total": 4000,
+      "best_amount_in_total": 5272,
+      "case_id": "rounding_gap_v0",
+      "certificate": {
+        "amount_out_total": 4000,
+        "brute_force_max": 512,
+        "case_id": "rounding_gap_v0",
+        "domain_hash": "b4c0fe6be18748fed6824249256b34c2be14007eb0a85ec251a3dfc58f0c3610",
+        "feasible_split_count": 3980,
+        "hi": 4000,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 571,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 500,
+            "hi": 532,
+            "kind": "center_window",
+            "lo": 468
+          },
+          {
+            "center": 1500,
+            "hi": 1532,
+            "kind": "center_window",
+            "lo": 1468
+          },
+          {
+            "center": 2000,
+            "hi": 2032,
+            "kind": "center_window",
+            "lo": 1968
+          },
+          {
+            "center": 2500,
+            "hi": 2532,
+            "kind": "center_window",
+            "lo": 2468
+          },
+          {
+            "center": 3500,
+            "hi": 3532,
+            "kind": "center_window",
+            "lo": 3468
+          },
+          {
+            "center": 3738,
+            "hi": 3770,
+            "kind": "center_window",
+            "lo": 3706
+          },
+          {
+            "center": 4000,
+            "hi": 4000,
+            "kind": "center_window",
+            "lo": 3968
+          },
+          {
+            "hi": 3719,
+            "kind": "canonical_left_sweep",
+            "lo": 3591
+          },
+          {
+            "hi": 3751,
+            "kind": "final_selected_window",
+            "lo": 3687
+          }
+        ],
+        "selected_amount_in_total": 5272,
+        "selected_q0": 3719,
+        "selected_q1": 281,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 3980,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 3719,
+      "full_scan_quote_calls": 7979,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        3719,
+        3763
+      ],
+      "note": "Interior winner where naive first-difference monotonicity fails.",
+      "ok": true,
+      "quote_call_reduction_ratio": 6.204510108864697,
+      "windowed_q0": 3719,
+      "windowed_quote_calls": 1286,
+      "winner_kind": "interior"
+    },
+    {
+      "amount_out_total": 4045,
+      "best_amount_in_total": 5166,
+      "case_id": "rounding_gap_v1",
+      "certificate": {
+        "amount_out_total": 4045,
+        "brute_force_max": 512,
+        "case_id": "rounding_gap_v1",
+        "domain_hash": "6b7e67c6aa38c3336a54710ce1f7292234e71121acf1bf571de8bb1767ce1782",
+        "feasible_split_count": 4025,
+        "hi": 4045,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 583,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 505,
+            "hi": 537,
+            "kind": "center_window",
+            "lo": 473
+          },
+          {
+            "center": 1516,
+            "hi": 1548,
+            "kind": "center_window",
+            "lo": 1484
+          },
+          {
+            "center": 2022,
+            "hi": 2054,
+            "kind": "center_window",
+            "lo": 1990
+          },
+          {
+            "center": 2528,
+            "hi": 2560,
+            "kind": "center_window",
+            "lo": 2496
+          },
+          {
+            "center": 3539,
+            "hi": 3571,
+            "kind": "center_window",
+            "lo": 3507
+          },
+          {
+            "center": 3867,
+            "hi": 3899,
+            "kind": "center_window",
+            "lo": 3835
+          },
+          {
+            "center": 4045,
+            "hi": 4045,
+            "kind": "center_window",
+            "lo": 4013
+          },
+          {
+            "hi": 3836,
+            "kind": "canonical_left_sweep",
+            "lo": 3708
+          },
+          {
+            "hi": 3868,
+            "kind": "final_selected_window",
+            "lo": 3804
+          }
+        ],
+        "selected_amount_in_total": 5166,
+        "selected_q0": 3836,
+        "selected_q1": 209,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 4025,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 3836,
+      "full_scan_quote_calls": 8069,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        3836,
+        3876
+      ],
+      "note": "Interior winner where naive first-difference monotonicity fails.",
+      "ok": true,
+      "quote_call_reduction_ratio": 6.2744945567651635,
+      "windowed_q0": 3836,
+      "windowed_quote_calls": 1286,
+      "winner_kind": "interior"
+    },
+    {
+      "amount_out_total": 4169,
+      "best_amount_in_total": 4899,
+      "case_id": "rounding_gap_v2",
+      "certificate": {
+        "amount_out_total": 4169,
+        "brute_force_max": 512,
+        "case_id": "rounding_gap_v2",
+        "domain_hash": "32c06e2ec4b1d51251a7b0a916cd6a956264f2cabc64fca8000789b14a3176e3",
+        "feasible_split_count": 4149,
+        "hi": 4169,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 487,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 521,
+            "hi": 553,
+            "kind": "center_window",
+            "lo": 489
+          },
+          {
+            "center": 1563,
+            "hi": 1595,
+            "kind": "center_window",
+            "lo": 1531
+          },
+          {
+            "center": 2084,
+            "hi": 2116,
+            "kind": "center_window",
+            "lo": 2052
+          },
+          {
+            "center": 2605,
+            "hi": 2637,
+            "kind": "center_window",
+            "lo": 2573
+          },
+          {
+            "center": 3647,
+            "hi": 3679,
+            "kind": "center_window",
+            "lo": 3615
+          },
+          {
+            "center": 4169,
+            "hi": 4169,
+            "kind": "center_window",
+            "lo": 4137
+          },
+          {
+            "hi": 4169,
+            "kind": "canonical_left_sweep",
+            "lo": 4041
+          },
+          {
+            "hi": 4169,
+            "kind": "final_selected_window",
+            "lo": 4137
+          }
+        ],
+        "selected_amount_in_total": 4899,
+        "selected_q0": 4169,
+        "selected_q1": 0,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 4149,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 4169,
+      "full_scan_quote_calls": 8317,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        4169,
+        4169
+      ],
+      "note": "Interior winner where naive first-difference monotonicity fails.",
+      "ok": true,
+      "quote_call_reduction_ratio": 7.637281910009182,
+      "windowed_q0": 4169,
+      "windowed_quote_calls": 1089,
+      "winner_kind": "right_endpoint"
+    },
+    {
+      "amount_out_total": 3500,
+      "best_amount_in_total": 4181,
+      "case_id": "fee_skew_v0",
+      "certificate": {
+        "amount_out_total": 3500,
+        "brute_force_max": 512,
+        "case_id": "fee_skew_v0",
+        "domain_hash": "e181e56fd82036e04c1e6f9b700d8eaeb2a0b7e7530c65ea40dd25314dc79e49",
+        "feasible_split_count": 3493,
+        "hi": 3500,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 578,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 437,
+            "hi": 469,
+            "kind": "center_window",
+            "lo": 405
+          },
+          {
+            "center": 1312,
+            "hi": 1344,
+            "kind": "center_window",
+            "lo": 1280
+          },
+          {
+            "center": 1750,
+            "hi": 1782,
+            "kind": "center_window",
+            "lo": 1718
+          },
+          {
+            "center": 2187,
+            "hi": 2219,
+            "kind": "center_window",
+            "lo": 2155
+          },
+          {
+            "center": 3062,
+            "hi": 3094,
+            "kind": "center_window",
+            "lo": 3030
+          },
+          {
+            "center": 3266,
+            "hi": 3298,
+            "kind": "center_window",
+            "lo": 3234
+          },
+          {
+            "center": 3500,
+            "hi": 3500,
+            "kind": "center_window",
+            "lo": 3468
+          },
+          {
+            "hi": 3240,
+            "kind": "canonical_left_sweep",
+            "lo": 3112
+          },
+          {
+            "hi": 3272,
+            "kind": "final_selected_window",
+            "lo": 3208
+          }
+        ],
+        "selected_amount_in_total": 4181,
+        "selected_q0": 3240,
+        "selected_q1": 260,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 3493,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 3240,
+      "full_scan_quote_calls": 6992,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        3240,
+        3310
+      ],
+      "note": "Strong fee skew with interior-to-endpoint pressure.",
+      "ok": true,
+      "quote_call_reduction_ratio": 5.399227799227799,
+      "windowed_q0": 3240,
+      "windowed_quote_calls": 1295,
+      "winner_kind": "interior"
+    },
+    {
+      "amount_out_total": 3545,
+      "best_amount_in_total": 4183,
+      "case_id": "fee_skew_v1",
+      "certificate": {
+        "amount_out_total": 3545,
+        "brute_force_max": 512,
+        "case_id": "fee_skew_v1",
+        "domain_hash": "65357b317cf23afdde385b9b5a00253c760e45fc0387c12cf71617171d5479f8",
+        "feasible_split_count": 3537,
+        "hi": 3545,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 577,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 443,
+            "hi": 475,
+            "kind": "center_window",
+            "lo": 411
+          },
+          {
+            "center": 1329,
+            "hi": 1361,
+            "kind": "center_window",
+            "lo": 1297
+          },
+          {
+            "center": 1772,
+            "hi": 1804,
+            "kind": "center_window",
+            "lo": 1740
+          },
+          {
+            "center": 2215,
+            "hi": 2247,
+            "kind": "center_window",
+            "lo": 2183
+          },
+          {
+            "center": 3101,
+            "hi": 3133,
+            "kind": "center_window",
+            "lo": 3069
+          },
+          {
+            "center": 3377,
+            "hi": 3409,
+            "kind": "center_window",
+            "lo": 3345
+          },
+          {
+            "center": 3545,
+            "hi": 3545,
+            "kind": "center_window",
+            "lo": 3513
+          },
+          {
+            "hi": 3352,
+            "kind": "canonical_left_sweep",
+            "lo": 3224
+          },
+          {
+            "hi": 3384,
+            "kind": "final_selected_window",
+            "lo": 3320
+          }
+        ],
+        "selected_amount_in_total": 4183,
+        "selected_q0": 3352,
+        "selected_q1": 193,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 3537,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 3352,
+      "full_scan_quote_calls": 7081,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        3352,
+        3420
+      ],
+      "note": "Strong fee skew with interior-to-endpoint pressure.",
+      "ok": true,
+      "quote_call_reduction_ratio": 5.4721792890262755,
+      "windowed_q0": 3352,
+      "windowed_quote_calls": 1294,
+      "winner_kind": "interior"
+    },
+    {
+      "amount_out_total": 3669,
+      "best_amount_in_total": 4182,
+      "case_id": "fee_skew_v2",
+      "certificate": {
+        "amount_out_total": 3669,
+        "brute_force_max": 512,
+        "case_id": "fee_skew_v2",
+        "domain_hash": "66d5581b796c13e9b3d89b024d8af106b434282421c66f19f8c576da225383df",
+        "feasible_split_count": 3660,
+        "hi": 3669,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 487,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 458,
+            "hi": 490,
+            "kind": "center_window",
+            "lo": 426
+          },
+          {
+            "center": 1375,
+            "hi": 1407,
+            "kind": "center_window",
+            "lo": 1343
+          },
+          {
+            "center": 1834,
+            "hi": 1866,
+            "kind": "center_window",
+            "lo": 1802
+          },
+          {
+            "center": 2293,
+            "hi": 2325,
+            "kind": "center_window",
+            "lo": 2261
+          },
+          {
+            "center": 3210,
+            "hi": 3242,
+            "kind": "center_window",
+            "lo": 3178
+          },
+          {
+            "center": 3669,
+            "hi": 3669,
+            "kind": "center_window",
+            "lo": 3637
+          },
+          {
+            "hi": 3669,
+            "kind": "canonical_left_sweep",
+            "lo": 3541
+          },
+          {
+            "hi": 3669,
+            "kind": "final_selected_window",
+            "lo": 3637
+          }
+        ],
+        "selected_amount_in_total": 4182,
+        "selected_q0": 3669,
+        "selected_q1": 0,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 3660,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 3669,
+      "full_scan_quote_calls": 7328,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        3669,
+        3669
+      ],
+      "note": "Strong fee skew with interior-to-endpoint pressure.",
+      "ok": true,
+      "quote_call_reduction_ratio": 6.68003646308113,
+      "windowed_q0": 3669,
+      "windowed_quote_calls": 1097,
+      "winner_kind": "right_endpoint"
+    },
+    {
+      "amount_out_total": 6500,
+      "best_amount_in_total": 2627,
+      "case_id": "deep_shallow_v0",
+      "certificate": {
+        "amount_out_total": 6500,
+        "brute_force_max": 512,
+        "case_id": "deep_shallow_v0",
+        "domain_hash": "596eaaddcabef742fa81ee00003be36a2a76dda51335f9dec629313832f71e99",
+        "feasible_split_count": 6432,
+        "hi": 6500,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 487,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 812,
+            "hi": 844,
+            "kind": "center_window",
+            "lo": 780
+          },
+          {
+            "center": 2437,
+            "hi": 2469,
+            "kind": "center_window",
+            "lo": 2405
+          },
+          {
+            "center": 3250,
+            "hi": 3282,
+            "kind": "center_window",
+            "lo": 3218
+          },
+          {
+            "center": 4062,
+            "hi": 4094,
+            "kind": "center_window",
+            "lo": 4030
+          },
+          {
+            "center": 5687,
+            "hi": 5719,
+            "kind": "center_window",
+            "lo": 5655
+          },
+          {
+            "center": 6500,
+            "hi": 6500,
+            "kind": "center_window",
+            "lo": 6468
+          },
+          {
+            "hi": 6500,
+            "kind": "canonical_left_sweep",
+            "lo": 6372
+          },
+          {
+            "hi": 6500,
+            "kind": "final_selected_window",
+            "lo": 6468
+          }
+        ],
+        "selected_amount_in_total": 2627,
+        "selected_q0": 6500,
+        "selected_q1": 0,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 6432,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 6500,
+      "full_scan_quote_calls": 12931,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        6500,
+        6500
+      ],
+      "note": "Deep input reserve against shallow output reserve with fee asymmetry.",
+      "ok": true,
+      "quote_call_reduction_ratio": 11.984244670991659,
+      "windowed_q0": 6500,
+      "windowed_quote_calls": 1079,
+      "winner_kind": "right_endpoint"
+    },
+    {
+      "amount_out_total": 6545,
+      "best_amount_in_total": 2669,
+      "case_id": "deep_shallow_v1",
+      "certificate": {
+        "amount_out_total": 6545,
+        "brute_force_max": 512,
+        "case_id": "deep_shallow_v1",
+        "domain_hash": "bd9cfe6d2a984aa161daa0c34eb38e6372a4c917e6782a9b5cf784b88709fb5b",
+        "feasible_split_count": 6477,
+        "hi": 6545,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 487,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 818,
+            "hi": 850,
+            "kind": "center_window",
+            "lo": 786
+          },
+          {
+            "center": 2454,
+            "hi": 2486,
+            "kind": "center_window",
+            "lo": 2422
+          },
+          {
+            "center": 3272,
+            "hi": 3304,
+            "kind": "center_window",
+            "lo": 3240
+          },
+          {
+            "center": 4090,
+            "hi": 4122,
+            "kind": "center_window",
+            "lo": 4058
+          },
+          {
+            "center": 5726,
+            "hi": 5758,
+            "kind": "center_window",
+            "lo": 5694
+          },
+          {
+            "center": 6545,
+            "hi": 6545,
+            "kind": "center_window",
+            "lo": 6513
+          },
+          {
+            "hi": 6545,
+            "kind": "canonical_left_sweep",
+            "lo": 6417
+          },
+          {
+            "hi": 6545,
+            "kind": "final_selected_window",
+            "lo": 6513
+          }
+        ],
+        "selected_amount_in_total": 2669,
+        "selected_q0": 6545,
+        "selected_q1": 0,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 6477,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 6545,
+      "full_scan_quote_calls": 13021,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        6545,
+        6545
+      ],
+      "note": "Deep input reserve against shallow output reserve with fee asymmetry.",
+      "ok": true,
+      "quote_call_reduction_ratio": 12.067655236329935,
+      "windowed_q0": 6545,
+      "windowed_quote_calls": 1079,
+      "winner_kind": "right_endpoint"
+    },
+    {
+      "amount_out_total": 6669,
+      "best_amount_in_total": 2781,
+      "case_id": "deep_shallow_v2",
+      "certificate": {
+        "amount_out_total": 6669,
+        "brute_force_max": 512,
+        "case_id": "deep_shallow_v2",
+        "domain_hash": "2a85a5a98b7a6131d7febf322f8982a199bf45d33c49fde25612dcca7a0d73b5",
+        "feasible_split_count": 6603,
+        "hi": 6669,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 487,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 833,
+            "hi": 865,
+            "kind": "center_window",
+            "lo": 801
+          },
+          {
+            "center": 2500,
+            "hi": 2532,
+            "kind": "center_window",
+            "lo": 2468
+          },
+          {
+            "center": 3334,
+            "hi": 3366,
+            "kind": "center_window",
+            "lo": 3302
+          },
+          {
+            "center": 4168,
+            "hi": 4200,
+            "kind": "center_window",
+            "lo": 4136
+          },
+          {
+            "center": 5835,
+            "hi": 5867,
+            "kind": "center_window",
+            "lo": 5803
+          },
+          {
+            "center": 6669,
+            "hi": 6669,
+            "kind": "center_window",
+            "lo": 6637
+          },
+          {
+            "hi": 6669,
+            "kind": "canonical_left_sweep",
+            "lo": 6541
+          },
+          {
+            "hi": 6669,
+            "kind": "final_selected_window",
+            "lo": 6637
+          }
+        ],
+        "selected_amount_in_total": 2781,
+        "selected_q0": 6669,
+        "selected_q1": 0,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 6603,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 6669,
+      "full_scan_quote_calls": 13271,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        6669,
+        6669
+      ],
+      "note": "Deep input reserve against shallow output reserve with fee asymmetry.",
+      "ok": true,
+      "quote_call_reduction_ratio": 12.287962962962963,
+      "windowed_q0": 6669,
+      "windowed_quote_calls": 1080,
+      "winner_kind": "right_endpoint"
+    },
+    {
+      "amount_out_total": 7000,
+      "best_amount_in_total": 5650,
+      "case_id": "zero_endpoint_v0",
+      "certificate": {
+        "amount_out_total": 7000,
+        "brute_force_max": 512,
+        "case_id": "zero_endpoint_v0",
+        "domain_hash": "4b508c26771faa6f06baff7c38fb5afb30890b5ac18e3e74ba699609098970a7",
+        "feasible_split_count": 6979,
+        "hi": 7000,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 391,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 875,
+            "hi": 907,
+            "kind": "center_window",
+            "lo": 843
+          },
+          {
+            "center": 2625,
+            "hi": 2657,
+            "kind": "center_window",
+            "lo": 2593
+          },
+          {
+            "center": 3500,
+            "hi": 3532,
+            "kind": "center_window",
+            "lo": 3468
+          },
+          {
+            "center": 4375,
+            "hi": 4407,
+            "kind": "center_window",
+            "lo": 4343
+          },
+          {
+            "center": 6125,
+            "hi": 6157,
+            "kind": "center_window",
+            "lo": 6093
+          },
+          {
+            "center": 7000,
+            "hi": 7000,
+            "kind": "center_window",
+            "lo": 6968
+          },
+          {
+            "hi": 0,
+            "kind": "canonical_left_sweep",
+            "lo": 0
+          },
+          {
+            "hi": 32,
+            "kind": "final_selected_window",
+            "lo": 0
+          }
+        ],
+        "selected_amount_in_total": 5650,
+        "selected_q0": 0,
+        "selected_q1": 7000,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 6979,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 0,
+      "full_scan_quote_calls": 14000,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        0,
+        0
+      ],
+      "note": "Left endpoint winner where the canonical route uses only pool1 output.",
+      "ok": true,
+      "quote_call_reduction_ratio": 16.52892561983471,
+      "windowed_q0": 0,
+      "windowed_quote_calls": 847,
+      "winner_kind": "left_endpoint"
+    },
+    {
+      "amount_out_total": 7045,
+      "best_amount_in_total": 5846,
+      "case_id": "zero_endpoint_v1",
+      "certificate": {
+        "amount_out_total": 7045,
+        "brute_force_max": 512,
+        "case_id": "zero_endpoint_v1",
+        "domain_hash": "b64e736b878677d132f458f72aa47191182f34511e5df20bf2a5eebccc82cf1d",
+        "feasible_split_count": 7025,
+        "hi": 7045,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 391,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 880,
+            "hi": 912,
+            "kind": "center_window",
+            "lo": 848
+          },
+          {
+            "center": 2641,
+            "hi": 2673,
+            "kind": "center_window",
+            "lo": 2609
+          },
+          {
+            "center": 3522,
+            "hi": 3554,
+            "kind": "center_window",
+            "lo": 3490
+          },
+          {
+            "center": 4403,
+            "hi": 4435,
+            "kind": "center_window",
+            "lo": 4371
+          },
+          {
+            "center": 6164,
+            "hi": 6196,
+            "kind": "center_window",
+            "lo": 6132
+          },
+          {
+            "center": 7045,
+            "hi": 7045,
+            "kind": "center_window",
+            "lo": 7013
+          },
+          {
+            "hi": 0,
+            "kind": "canonical_left_sweep",
+            "lo": 0
+          },
+          {
+            "hi": 32,
+            "kind": "final_selected_window",
+            "lo": 0
+          }
+        ],
+        "selected_amount_in_total": 5846,
+        "selected_q0": 0,
+        "selected_q1": 7045,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 7025,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 0,
+      "full_scan_quote_calls": 14090,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        0,
+        0
+      ],
+      "note": "Left endpoint winner where the canonical route uses only pool1 output.",
+      "ok": true,
+      "quote_call_reduction_ratio": 16.635182998819364,
+      "windowed_q0": 0,
+      "windowed_quote_calls": 847,
+      "winner_kind": "left_endpoint"
+    },
+    {
+      "amount_out_total": 7169,
+      "best_amount_in_total": 6379,
+      "case_id": "zero_endpoint_v2",
+      "certificate": {
+        "amount_out_total": 7169,
+        "brute_force_max": 512,
+        "case_id": "zero_endpoint_v2",
+        "domain_hash": "e43e087440da503ef3cf430076aea5e685b0bcf81e1ae7c2a12c4f6d4292fb44",
+        "feasible_split_count": 7151,
+        "hi": 7169,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 391,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 896,
+            "hi": 928,
+            "kind": "center_window",
+            "lo": 864
+          },
+          {
+            "center": 2688,
+            "hi": 2720,
+            "kind": "center_window",
+            "lo": 2656
+          },
+          {
+            "center": 3584,
+            "hi": 3616,
+            "kind": "center_window",
+            "lo": 3552
+          },
+          {
+            "center": 4480,
+            "hi": 4512,
+            "kind": "center_window",
+            "lo": 4448
+          },
+          {
+            "center": 6272,
+            "hi": 6304,
+            "kind": "center_window",
+            "lo": 6240
+          },
+          {
+            "center": 7169,
+            "hi": 7169,
+            "kind": "center_window",
+            "lo": 7137
+          },
+          {
+            "hi": 0,
+            "kind": "canonical_left_sweep",
+            "lo": 0
+          },
+          {
+            "hi": 32,
+            "kind": "final_selected_window",
+            "lo": 0
+          }
+        ],
+        "selected_amount_in_total": 6379,
+        "selected_q0": 0,
+        "selected_q1": 7169,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 7151,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 0,
+      "full_scan_quote_calls": 14338,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        0,
+        0
+      ],
+      "note": "Left endpoint winner where the canonical route uses only pool1 output.",
+      "ok": true,
+      "quote_call_reduction_ratio": 16.92798110979929,
+      "windowed_q0": 0,
+      "windowed_quote_calls": 847,
+      "winner_kind": "left_endpoint"
+    },
+    {
+      "amount_out_total": 5000,
+      "best_amount_in_total": 6655,
+      "case_id": "balanced_tie_pressure_v0",
+      "certificate": {
+        "amount_out_total": 5000,
+        "brute_force_max": 512,
+        "case_id": "balanced_tie_pressure_v0",
+        "domain_hash": "fb313c0a23efeab618746a2db11f96faf9cd19d2595098c1d672157061dfbe7e",
+        "feasible_split_count": 5001,
+        "hi": 5000,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 514,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 625,
+            "hi": 657,
+            "kind": "center_window",
+            "lo": 593
+          },
+          {
+            "center": 1875,
+            "hi": 1907,
+            "kind": "center_window",
+            "lo": 1843
+          },
+          {
+            "center": 2500,
+            "hi": 2532,
+            "kind": "center_window",
+            "lo": 2468
+          },
+          {
+            "center": 2550,
+            "hi": 2582,
+            "kind": "center_window",
+            "lo": 2518
+          },
+          {
+            "center": 3125,
+            "hi": 3157,
+            "kind": "center_window",
+            "lo": 3093
+          },
+          {
+            "center": 4375,
+            "hi": 4407,
+            "kind": "center_window",
+            "lo": 4343
+          },
+          {
+            "center": 5000,
+            "hi": 5000,
+            "kind": "center_window",
+            "lo": 4968
+          },
+          {
+            "hi": 2523,
+            "kind": "canonical_left_sweep",
+            "lo": 2395
+          },
+          {
+            "hi": 2555,
+            "kind": "final_selected_window",
+            "lo": 2491
+          }
+        ],
+        "selected_amount_in_total": 6655,
+        "selected_q0": 2523,
+        "selected_q1": 2477,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 5001,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 2523,
+      "full_scan_quote_calls": 10000,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        2523,
+        2523
+      ],
+      "note": "Near-symmetric reserves stress canonical tie-breaking around the middle.",
+      "ok": true,
+      "quote_call_reduction_ratio": 7.6923076923076925,
+      "windowed_q0": 2523,
+      "windowed_quote_calls": 1300,
+      "winner_kind": "interior"
+    },
+    {
+      "amount_out_total": 5045,
+      "best_amount_in_total": 6730,
+      "case_id": "balanced_tie_pressure_v1",
+      "certificate": {
+        "amount_out_total": 5045,
+        "brute_force_max": 512,
+        "case_id": "balanced_tie_pressure_v1",
+        "domain_hash": "6b946e99f2956a71697ba88af6808b6ddaf66c92c1950565841d963a7a18e862",
+        "feasible_split_count": 5046,
+        "hi": 5045,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 536,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 630,
+            "hi": 662,
+            "kind": "center_window",
+            "lo": 598
+          },
+          {
+            "center": 1891,
+            "hi": 1923,
+            "kind": "center_window",
+            "lo": 1859
+          },
+          {
+            "center": 2522,
+            "hi": 2554,
+            "kind": "center_window",
+            "lo": 2490
+          },
+          {
+            "center": 2667,
+            "hi": 2699,
+            "kind": "center_window",
+            "lo": 2635
+          },
+          {
+            "center": 3153,
+            "hi": 3185,
+            "kind": "center_window",
+            "lo": 3121
+          },
+          {
+            "center": 4414,
+            "hi": 4446,
+            "kind": "center_window",
+            "lo": 4382
+          },
+          {
+            "center": 5045,
+            "hi": 5045,
+            "kind": "center_window",
+            "lo": 5013
+          },
+          {
+            "hi": 2634,
+            "kind": "canonical_left_sweep",
+            "lo": 2506
+          },
+          {
+            "hi": 2666,
+            "kind": "final_selected_window",
+            "lo": 2602
+          }
+        ],
+        "selected_amount_in_total": 6730,
+        "selected_q0": 2634,
+        "selected_q1": 2411,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 5046,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 2634,
+      "full_scan_quote_calls": 10090,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        2634,
+        2689
+      ],
+      "note": "Near-symmetric reserves stress canonical tie-breaking around the middle.",
+      "ok": true,
+      "quote_call_reduction_ratio": 7.7615384615384615,
+      "windowed_q0": 2634,
+      "windowed_quote_calls": 1300,
+      "winner_kind": "interior"
+    },
+    {
+      "amount_out_total": 5169,
+      "best_amount_in_total": 6909,
+      "case_id": "balanced_tie_pressure_v2",
+      "certificate": {
+        "amount_out_total": 5169,
+        "brute_force_max": 512,
+        "case_id": "balanced_tie_pressure_v2",
+        "domain_hash": "ad29a1b68bb9ab4602f21d22891563d0b757a03923745ce6e450d685101df6c4",
+        "feasible_split_count": 5168,
+        "hi": 5169,
+        "lo": 0,
+        "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+        "schema": "zenodex.route_split_window_certificate.v1",
+        "search_point_count": 570,
+        "search_ranges": [
+          {
+            "center": 0,
+            "hi": 32,
+            "kind": "center_window",
+            "lo": 0
+          },
+          {
+            "center": 646,
+            "hi": 678,
+            "kind": "center_window",
+            "lo": 614
+          },
+          {
+            "center": 1938,
+            "hi": 1970,
+            "kind": "center_window",
+            "lo": 1906
+          },
+          {
+            "center": 2584,
+            "hi": 2616,
+            "kind": "center_window",
+            "lo": 2552
+          },
+          {
+            "center": 2981,
+            "hi": 3013,
+            "kind": "center_window",
+            "lo": 2949
+          },
+          {
+            "center": 3230,
+            "hi": 3262,
+            "kind": "center_window",
+            "lo": 3198
+          },
+          {
+            "center": 4522,
+            "hi": 4554,
+            "kind": "center_window",
+            "lo": 4490
+          },
+          {
+            "center": 5169,
+            "hi": 5169,
+            "kind": "center_window",
+            "lo": 5137
+          },
+          {
+            "hi": 2963,
+            "kind": "canonical_left_sweep",
+            "lo": 2835
+          },
+          {
+            "hi": 2995,
+            "kind": "final_selected_window",
+            "lo": 2931
+          }
+        ],
+        "selected_amount_in_total": 6909,
+        "selected_q0": 2963,
+        "selected_q1": 2206,
+        "window": 32
+      },
+      "failed_flags": [],
+      "feasible_split_count": 5168,
+      "first_differences_nondecreasing": false,
+      "full_best_q0": 2963,
+      "full_scan_quote_calls": 10336,
+      "full_window_mismatch": false,
+      "min_q0_range": [
+        2963,
+        3034
+      ],
+      "note": "Near-symmetric reserves stress canonical tie-breaking around the middle.",
+      "ok": true,
+      "quote_call_reduction_ratio": 7.9568899153194765,
+      "windowed_q0": 2963,
+      "windowed_quote_calls": 1299,
+      "winner_kind": "interior"
+    }
+  ],
+  "claim": "The route_split_window_certificate_v1 Tau rail can admit host-projected exact-out two-pool split-window certificates across this deterministic adversarial corpus when bounded full-oracle parity, quote replay, local window coverage, resource bounds, fallback, exact-out scope, and no-authority facts all hold.",
+  "date": "2026-06-28",
+  "max_quote_call_reduction_ratio": 16.92798110979929,
+  "min_quote_call_reduction_ratio": 3.4129692832764507,
+  "mismatch_count": 0,
+  "mutation_checks": [
+    {
+      "accepted": false,
+      "failed_flags": [
+        "window_search_replayed"
+      ],
+      "mutation_id": "bad_domain_hash",
+      "rationale": "domain hash must bind the full-sweep oracle surface"
+    },
+    {
+      "accepted": false,
+      "failed_flags": [
+        "window_search_replayed",
+        "full_oracle_parity_ok"
+      ],
+      "mutation_id": "bad_selected_q0",
+      "rationale": "winner index must match replay and bounded full sweep"
+    },
+    {
+      "accepted": false,
+      "failed_flags": [
+        "window_search_replayed",
+        "full_oracle_parity_ok"
+      ],
+      "mutation_id": "bad_amount_in_total",
+      "rationale": "amount input total must replay exactly"
+    },
+    {
+      "accepted": false,
+      "failed_flags": [
+        "local_window_certificate_ok"
+      ],
+      "mutation_id": "bad_search_point_count",
+      "rationale": "search point count must match the replayed ranges"
+    }
+  ],
+  "naive_first_difference_monotonicity_failure_count": 24,
+  "non_claims": [
+    "This replay does not prove universal discrete convexity or pure ternary-search correctness.",
+    "The bounded full-sweep oracle is a research certificate surface for these fixtures.",
+    "Tau combines host-projected boolean facts only; it does not compute quotes, derivatives, hashes, or settlements."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_route_split_window_adversarial.py",
+  "schema": "zenodex.route_split_window_adversarial_report.v1",
+  "tau": {
+    "cases": [
+      {
+        "case_id": "route_split_window_pass",
+        "expected": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All host-computed proof-surface facts admit the split-window certificate lane."
+      },
+      {
+        "case_id": "parity_reject",
+        "expected": {
+          "o2": 0,
+          "o4": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "A missing bounded full-oracle parity fact fails closed."
+      },
+      {
+        "case_id": "local_window_reject",
+        "expected": {
+          "o1": 0,
+          "o4": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "A missing local window certificate cannot admit."
+      },
+      {
+        "case_id": "authority_reject",
+        "expected": {
+          "o3": 0,
+          "o4": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "A certificate with settlement authority effects is rejected."
+      },
+      {
+        "case_id": "inactive_safe",
+        "expected": {
+          "o4": 0,
+          "o5": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Inactive requests do not admit while the no-authority rail remains true."
+      }
+    ],
+    "ok": true,
+    "spec_path": "src/tau_specs/recommended/route_split_window_certificate_v1.tau",
+    "tau_bin": "/home/trevormoc/Downloads/Autonomous Tau DEX/external/tau-lang/build-Release/tau",
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  },
+  "total_full_scan_quote_calls": 255007,
+  "total_windowed_quote_calls": 27553,
+  "winner_kinds": [
+    "interior",
+    "left_endpoint",
+    "right_endpoint"
+  ]
+}
