@@ -11,6 +11,11 @@ against the unpruned full-state DP and brute force on the bounded corpus. This
 is still a research result. It is not yet a core implementation change and it
 is not a machine-checked proof.
 
+A deterministic adversarial corpus now stresses zero-min-output orders, high
+minimum-output cliffs, overconstrained intents, shared sender balances, shallow
+liquidity, and one `n=8` growth-step smoke case. It also records exact-out and
+mixed-direction states as explicit non-claims.
+
 ## Hypothesis Card
 
 - `hypothesis_id`: `ab_subset_dp_pareto_dominance_pruning_v1`
@@ -105,6 +110,37 @@ the unpruned full-state subset DP, and the dominance-pruned subset DP. The
 default receipt is compact; pass `--include-cases` to inspect full per-case
 orders and objective keys.
 
+### Adversarial Corpus
+
+```bash
+python3 tools/check_ab_subset_dp_dominance_adversarial.py
+```
+
+Result:
+
+```json
+{
+  "ok": true,
+  "seed": 2026062804,
+  "case_count": 33,
+  "mismatch_count": 0,
+  "brute_mismatch_count": 0,
+  "state_insertion_reduction": 42.512504,
+  "transition_reduction": 16.143284,
+  "max_state_insertion_reduction": 107.03125,
+  "max_transition_reduction": 30.578125,
+  "max_bucket_reduction": 5040.0,
+  "first_mismatch": null
+}
+```
+
+The adversarial corpus covers four exact-in pattern families: `zero_min`,
+`cliff`, `overconstrained`, and `balanced`. It varies reserves, fees, sender
+sharing, and balance tightness. The corpus includes `n in {4,5,6,7}` with two
+cases per pattern and one `n=8` cliff smoke case. Exact-out and mixed-direction
+cases remain excluded until a separate dominance relation is proved or they are
+rejected by construction.
+
 ## Why It Matters
 
 The existing AB subset DP carries full reserves and per-sender balances in each
@@ -125,6 +161,6 @@ same-direction domain or separately extended with new proofs.
 
 Move from a standalone research checker to an opt-in core-adjacent function
 behind an explicit research flag. Promotion to the default AB path should
-require broader adversarial parity, exact-out rejection or proof extension,
-mixed-direction rejection or proof extension, and a targeted proof note before
+require a targeted proof note, exact-out rejection or proof extension,
+mixed-direction rejection or proof extension, and a larger replay corpus before
 touching the default core path.
