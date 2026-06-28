@@ -1,0 +1,489 @@
+{
+  "authority_boundary": "Tau admits a research certificate only. It does not compute swaps, run DP, prune states, select AB orders, or authorize settlement.",
+  "date": "2026-06-28",
+  "deterministic_replay": {
+    "first_hash": "162fe568d176de386663fab493afbeff915a806c61c79b7f69dd97b4c7832b4f",
+    "ok": true,
+    "second_hash": "162fe568d176de386663fab493afbeff915a806c61c79b7f69dd97b4c7832b4f"
+  },
+  "evidence": {
+    "aggregate_reductions": {
+      "state_insertion": 20.904545,
+      "transitions": 9.270986
+    },
+    "case_plan": [
+      {
+        "n": 4,
+        "variants": 4
+      },
+      {
+        "n": 5,
+        "variants": 4
+      },
+      {
+        "n": 6,
+        "variants": 4
+      },
+      {
+        "n": 7,
+        "variants": 2
+      }
+    ],
+    "case_summaries": [
+      {
+        "certified_prunes": 18,
+        "full_states_inserted": 65,
+        "n": 4,
+        "ok": true,
+        "oracle_states_inserted": 29,
+        "reductions": {
+          "max_bucket": 8.0,
+          "state_insertion": 2.241379,
+          "states_retained": 2.5,
+          "transitions": 1.488372
+        },
+        "same_brute_order": true,
+        "suffix_permutations_checked": 21,
+        "variant": 0
+      },
+      {
+        "certified_prunes": 17,
+        "full_states_inserted": 65,
+        "n": 4,
+        "ok": true,
+        "oracle_states_inserted": 28,
+        "reductions": {
+          "max_bucket": 6.0,
+          "state_insertion": 2.321429,
+          "states_retained": 2.321429,
+          "transitions": 1.454545
+        },
+        "same_brute_order": true,
+        "suffix_permutations_checked": 20,
+        "variant": 1
+      },
+      {
+        "certified_prunes": 17,
+        "full_states_inserted": 65,
+        "n": 4,
+        "ok": true,
+        "oracle_states_inserted": 20,
+        "reductions": {
+          "max_bucket": 12.0,
+          "state_insertion": 3.25,
+          "states_retained": 3.25,
+          "transitions": 1.777778
+        },
+        "same_brute_order": true,
+        "suffix_permutations_checked": 22,
+        "variant": 2
+      },
+      {
+        "certified_prunes": 15,
+        "full_states_inserted": 65,
+        "n": 4,
+        "ok": true,
+        "oracle_states_inserted": 24,
+        "reductions": {
+          "max_bucket": 6.0,
+          "state_insertion": 2.708333,
+          "states_retained": 2.708333,
+          "transitions": 1.684211
+        },
+        "same_brute_order": true,
+        "suffix_permutations_checked": 20,
+        "variant": 3
+      },
+      {
+        "certified_prunes": 61,
+        "full_states_inserted": 326,
+        "n": 5,
+        "ok": true,
+        "oracle_states_inserted": 55,
+        "reductions": {
+          "max_bucket": 40.0,
+          "state_insertion": 5.927273,
+          "states_retained": 6.269231,
+          "transitions": 2.901786
+        },
+        "same_brute_order": true,
+        "suffix_permutations_checked": 117,
+        "variant": 0
+      },
+      {
+        "certified_prunes": 61,
+        "full_states_inserted": 326,
+        "n": 5,
+        "ok": true,
+        "oracle_states_inserted": 56,
+        "reductions": {
+          "max_bucket": 30.0,
+          "state_insertion": 5.821429,
+          "states_retained": 5.821429,
+          "transitions": 2.801724
+        },
+        "same_brute_order": true,
+        "suffix_permutations_checked": 116,
+        "variant": 1
+      },
+      {
+        "certified_prunes": 61,
+        "full_states_inserted": 326,
+        "n": 5,
+        "ok": true,
+        "oracle_states_inserted": 59,
+        "reductions": {
+          "max_bucket": 40.0,
+          "state_insertion": 5.525424,
+          "states_retained": 6.269231,
+          "transitions": 2.901786
+        },
+        "same_brute_order": true,
+        "suffix_permutations_checked": 117,
+        "variant": 2
+      },
+      {
+        "certified_prunes": 58,
+        "full_states_inserted": 326,
+        "n": 5,
+        "ok": true,
+        "oracle_states_inserted": 70,
+        "reductions": {
+          "max_bucket": 20.0,
+          "state_insertion": 4.657143,
+          "states_retained": 5.258065,
+          "transitions": 2.731092
+        },
+        "same_brute_order": true,
+        "suffix_permutations_checked": 114,
+        "variant": 3
+      },
+      {
+        "certified_prunes": 197,
+        "full_states_inserted": 1957,
+        "n": 6,
+        "ok": true,
+        "oracle_states_inserted": 139,
+        "reductions": {
+          "max_bucket": 180.0,
+          "state_insertion": 14.079137,
+          "states_retained": 15.782258,
+          "transitions": 6.1125
+        },
+        "same_brute_order": true,
+        "suffix_permutations_checked": 716,
+        "variant": 0
+      },
+      {
+        "certified_prunes": 189,
+        "full_states_inserted": 1957,
+        "n": 6,
+        "ok": true,
+        "oracle_states_inserted": 140,
+        "reductions": {
+          "max_bucket": 180.0,
+          "state_insertion": 13.978571,
+          "states_retained": 16.308333,
+          "transitions": 6.350649
+        },
+        "same_brute_order": true,
+        "suffix_permutations_checked": 716,
+        "variant": 1
+      },
+      {
+        "certified_prunes": 196,
+        "full_states_inserted": 1957,
+        "n": 6,
+        "ok": true,
+        "oracle_states_inserted": 153,
+        "reductions": {
+          "max_bucket": 120.0,
+          "state_insertion": 12.79085,
+          "states_retained": 15.053846,
+          "transitions": 6.018462
+        },
+        "same_brute_order": true,
+        "suffix_permutations_checked": 714,
+        "variant": 2
+      },
+      {
+        "certified_prunes": 177,
+        "full_states_inserted": 1957,
+        "n": 6,
+        "ok": true,
+        "oracle_states_inserted": 132,
+        "reductions": {
+          "max_bucket": 120.0,
+          "state_insertion": 14.825758,
+          "states_retained": 15.782258,
+          "transitions": 6.52
+        },
+        "same_brute_order": true,
+        "suffix_permutations_checked": 714,
+        "variant": 3
+      },
+      {
+        "certified_prunes": 661,
+        "full_states_inserted": 13700,
+        "n": 7,
+        "ok": true,
+        "oracle_states_inserted": 396,
+        "reductions": {
+          "max_bucket": 560.0,
+          "state_insertion": 34.59596,
+          "states_retained": 39.941691,
+          "transitions": 13.658026
+        },
+        "same_brute_order": true,
+        "suffix_permutations_checked": 5031,
+        "variant": 0
+      },
+      {
+        "certified_prunes": 709,
+        "full_states_inserted": 13700,
+        "n": 7,
+        "ok": true,
+        "oracle_states_inserted": 459,
+        "reductions": {
+          "max_bucket": 458.181818,
+          "state_insertion": 29.847495,
+          "states_retained": 35.770235,
+          "transitions": 12.55637
+        },
+        "same_brute_order": true,
+        "suffix_permutations_checked": 5029,
+        "variant": 1
+      }
+    ],
+    "elapsed_ms": 3454.126,
+    "first_mismatch": null,
+    "non_claims": [
+      "This is a research certificate, not a production ordering change.",
+      "The suffix oracle is bounded; it does not prove a universal dominance theorem.",
+      "The certificate is scoped to same-pool, same-direction, exact-in AB states.",
+      "Tau does not compute the DP, suffix oracle, swaps, balances, hashes, or settlement effects.",
+      "No settlement authority is derived from this artifact."
+    ],
+    "ok": true,
+    "schema": "zenodex/ab_bounded_oracle_pruning_evidence/v1",
+    "suffix_max": 4,
+    "summary": {
+      "brute_mismatch_count": 0,
+      "case_count": 14,
+      "max_state_insertion_reduction": 34.59596,
+      "max_transition_reduction": 13.658026,
+      "mismatch_count": 0,
+      "total_certified_prunes": 2437,
+      "total_full_states_inserted": 36792,
+      "total_full_transitions": 36778,
+      "total_oracle_states_inserted": 1760,
+      "total_oracle_transitions": 3967,
+      "total_suffix_permutations_checked": 13467,
+      "total_uncertified_dominance_attempts": 0
+    }
+  },
+  "flags": {
+    "all_prunes_suffix_certified": 1,
+    "brute_force_parity_ok": 1,
+    "deterministic_replay_ok": 1,
+    "no_authority_effect": 1,
+    "nonvacuous_pruning": 1,
+    "resource_budget_ok": 1,
+    "same_direction_exact_in_scope_ok": 1,
+    "state_reduction_ok": 1,
+    "suffix_bound_ok": 1,
+    "unpruned_parity_ok": 1
+  },
+  "mutation_checks": [
+    {
+      "accepted": false,
+      "mutation_id": "missing_suffix_bound_reject",
+      "rationale": "Missing suffix-bound evidence fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "missing_certification_reject",
+      "rationale": "A prune without suffix-oracle certification fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "missing_parity_reject",
+      "rationale": "Missing unpruned DP parity fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "missing_bruteforce_reject",
+      "rationale": "Missing brute-force parity fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "missing_determinism_reject",
+      "rationale": "Missing deterministic replay fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "authority_reject",
+      "rationale": "Authority-bearing certificates are rejected."
+    }
+  ],
+  "non_claims": [
+    "This artifact is a research certificate, not a production ordering change.",
+    "The suffix oracle is bounded; it does not prove a universal dominance theorem.",
+    "The certificate is scoped to same-pool, same-direction, exact-in AB states.",
+    "Tau does not compute the DP, suffix oracle, swaps, balances, hashes, or settlement effects.",
+    "No settlement authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_bounded_oracle_pruning_certificate.py",
+  "schema": "zenodex.ab_bounded_oracle_pruning_certificate_report.v1",
+  "spec_id": "ab_bounded_oracle_pruning_certificate_v1",
+  "summary": "A bounded suffix-oracle certificate upgrades AB exact-in dominance pruning from a pure heuristic into a locally certified research lane: every removed state is checked against all remaining suffix permutations within the suffix cap.",
+  "tau": {
+    "cases": [
+      {
+        "case_id": "bounded_oracle_pass",
+        "expected": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All host-computed bounded-oracle evidence facts admit the certificate."
+      },
+      {
+        "case_id": "missing_suffix_bound_reject",
+        "expected": {
+          "o1": 0,
+          "o4": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing suffix-bound evidence fails closed."
+      },
+      {
+        "case_id": "missing_certification_reject",
+        "expected": {
+          "o1": 0,
+          "o4": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "A prune without suffix-oracle certification fails closed."
+      },
+      {
+        "case_id": "missing_parity_reject",
+        "expected": {
+          "o2": 0,
+          "o4": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing unpruned DP parity fails closed."
+      },
+      {
+        "case_id": "missing_bruteforce_reject",
+        "expected": {
+          "o2": 0,
+          "o4": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing brute-force parity fails closed."
+      },
+      {
+        "case_id": "missing_determinism_reject",
+        "expected": {
+          "o3": 0,
+          "o4": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing deterministic replay fails closed."
+      },
+      {
+        "case_id": "authority_reject",
+        "expected": {
+          "o3": 0,
+          "o4": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Authority-bearing certificates are rejected."
+      },
+      {
+        "case_id": "inactive_safe",
+        "expected": {
+          "o4": 0,
+          "o5": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Inactive certificates do not admit while the no-authority rail remains true."
+      }
+    ],
+    "ok": true,
+    "spec_path": "src/tau_specs/recommended/ab_bounded_oracle_pruning_certificate_v1.tau",
+    "tau_bin": "/home/trevormoc/Downloads/Autonomous Tau DEX/external/tau-lang/build-Release/tau",
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  }
+}
