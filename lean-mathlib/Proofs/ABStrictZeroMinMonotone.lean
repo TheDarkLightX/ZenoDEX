@@ -967,6 +967,79 @@ theorem reachablePrunedFullMaskListInFamily_covers_and_bounds_family
     exact reachablePrunedFullMaskListInFamily_covers_members hlist hchild
   · exact reachablePrunedFullMaskListInFamily_bounds_family_selected hlist
 
+/-- A supplied compressed representative is a selected-output winner for a mask
+family when every retained selected representative is no better than it.
+
+This predicate does not construct the winner or specify a tie order. It records
+only the proof obligation needed to collapse the selected-family aggregate to
+one explicit representative. -/
+def selectedFamilyOutputWinner
+    (winner : MaskRecordSet)
+    (masks : List MaskRecordSet)
+    (initialReserveOut : Nat)
+    (suffix : List ExactInStep) : Prop :=
+  winner ∈ masks ∧
+    ∀ mask, mask ∈ masks ->
+      maskSelectedSuffixOutput initialReserveOut mask suffix ≤
+        maskSelectedSuffixOutput initialReserveOut winner suffix
+
+/-- A selected-output winner bounds the selected-representative aggregate for
+the whole family. -/
+theorem selectedFamilyOutputWinner_bounds_selected_family
+    {winner : MaskRecordSet}
+    {masks : List MaskRecordSet}
+    {initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hwinner : selectedFamilyOutputWinner winner masks initialReserveOut suffix) :
+    bestSelectedSuffixOutputAcrossMasks initialReserveOut masks suffix ≤
+      maskSelectedSuffixOutput initialReserveOut winner suffix := by
+  unfold selectedFamilyOutputWinner at hwinner
+  rcases hwinner with ⟨_hwinner_mem, hdominates⟩
+  unfold bestSelectedSuffixOutputAcrossMasks
+  apply foldlMax_le_bound
+  · exact Nat.zero_le _
+  · intro value hvalue
+    rw [List.mem_map] at hvalue
+    rcases hvalue with ⟨mask, hmask, rfl⟩
+    exact hdominates mask hmask
+
+/-- If a reachable pruned full-mask child list is retained in a selected family
+and a supplied winner dominates that family, then the child-list full-record
+aggregate is bounded by the winner's selected output. -/
+theorem reachablePrunedFullMaskListInFamily_bounds_selected_winner
+    {parent winner : MaskRecordSet}
+    {children masks : List MaskRecordSet}
+    {bitCount initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hlist : reachablePrunedFullMaskListInFamily parent children bitCount masks)
+    (hwinner : selectedFamilyOutputWinner winner masks initialReserveOut suffix) :
+    bestFullSuffixOutputAcrossMasks initialReserveOut children suffix ≤
+      maskSelectedSuffixOutput initialReserveOut winner suffix := by
+  exact Nat.le_trans
+    (reachablePrunedFullMaskListInFamily_bounds_family_selected
+      (initialReserveOut := initialReserveOut)
+      (suffix := suffix)
+      hlist)
+    (selectedFamilyOutputWinner_bounds_selected_family hwinner)
+
+/-- Winner-level endpoint for the subset-mask induction frontier: every reachable
+child covers the bounded mask range, and the full child-list aggregate is bounded
+by one supplied compressed representative. -/
+theorem reachablePrunedFullMaskListInFamily_covers_and_bounds_selected_winner
+    {parent winner : MaskRecordSet}
+    {children masks : List MaskRecordSet}
+    {bitCount initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hlist : reachablePrunedFullMaskListInFamily parent children bitCount masks)
+    (hwinner : selectedFamilyOutputWinner winner masks initialReserveOut suffix) :
+    (∀ child, child ∈ children -> allBitsBelowSet child.maskId bitCount) ∧
+      bestFullSuffixOutputAcrossMasks initialReserveOut children suffix ≤
+        maskSelectedSuffixOutput initialReserveOut winner suffix := by
+  constructor
+  · intro child hchild
+    exact reachablePrunedFullMaskListInFamily_covers_members hlist hchild
+  · exact reachablePrunedFullMaskListInFamily_bounds_selected_winner hlist hwinner
+
 /-- Finite subset-mask pruning lift.
 
 If every abstract subset mask satisfies the local pruning invariant, then the
@@ -1160,6 +1233,56 @@ theorem witness_reachablePrunedFullMaskListInFamily_covers_and_bounds_family :
       (initialReserveOut := 1000)
       (suffix := [])
       hlist⟩
+
+/-- Concrete non-vacuity witness for the selected-family winner endpoint. -/
+theorem witness_reachablePrunedFullMaskListInFamily_bounds_selected_winner :
+    let record : ProcessedRecord := ⟨100, 90⟩
+    let child : MaskRecordSet := ⟨1, record, [record]⟩
+    let children : List MaskRecordSet := [child]
+    let masks : List MaskRecordSet := [child]
+    selectedFamilyOutputWinner child masks 1000 [] ∧
+      (∀ candidate, candidate ∈ children -> allBitsBelowSet candidate.maskId 1) ∧
+        bestFullSuffixOutputAcrossMasks 1000 children [] ≤
+          maskSelectedSuffixOutput 1000 child [] := by
+  let record : ProcessedRecord := ⟨100, 90⟩
+  let parent : MaskRecordSet := ⟨1, record, [record]⟩
+  let child : MaskRecordSet := ⟨1, record, [record]⟩
+  let children : List MaskRecordSet := [child]
+  let masks : List MaskRecordSet := [child]
+  have hpath : maskRecordPath parent (List.range 1) child := by
+    simpa [parent, child, maskRecordPath] using witness_bitMaskStep_noop.2
+  have hinvariant : maskPruningInvariant child := by
+    unfold child maskPruningInvariant
+    constructor
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+  have hreachable : reachablePrunedRangeMask parent child 1 := ⟨hpath, hinvariant⟩
+  have hfull : reachablePrunedFullMaskInFamily parent child 1 masks := by
+    exact ⟨hreachable, by simp [masks]⟩
+  have hlist : reachablePrunedFullMaskListInFamily parent children 1 masks := by
+    intro candidate hcandidate
+    simp only [children, List.mem_singleton] at hcandidate
+    subst candidate
+    exact hfull
+  have hwinner : selectedFamilyOutputWinner child masks 1000 [] := by
+    constructor
+    · simp [masks]
+    · intro candidate hcandidate
+      simp only [masks, List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+  exact ⟨hwinner,
+    reachablePrunedFullMaskListInFamily_covers_and_bounds_selected_winner
+      (initialReserveOut := 1000)
+      (suffix := [])
+      hlist
+      hwinner⟩
 
 /-- Concrete non-vacuity witness for one-step monotonicity. -/
 theorem witness_postReserveOut_mono_strict :
