@@ -1,0 +1,53 @@
+# tauspec_ebrm_compounding_frontier_certificate_v1.tau
+#
+# PURPOSE:
+#   Admit a host-replayed TauSpecEBRM compounding-frontier certificate. The host
+#   runs Tau traces for a bounded pool of supported research certificates,
+#   compares the advisory ranker against deterministic baselines, checks that
+#   recent Research Kernel discoveries stay visible in the ranked frontier, and
+#   binds the no-authority boundary. Tau only composes those facts.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = candidate_pool_bound_ok
+# i3  = tau_traces_passed
+# i4  = invalid_accepts_zero
+# i5  = topk_not_worse_than_baselines
+# i6  = work_item_1_ab_covered
+# i7  = work_item_2_cow_covered
+# i8  = exact_out_split_routing_covered
+# i9  = exact_in_staircase_covered
+# i10 = negative_frontier_covered
+# i11 = evidence_dag_covered
+# i12 = tokenomics_pol_covered
+# i13 = deterministic_replay_ok
+# i14 = performance_profile_bound_ok
+# i15 = advisory_model_only
+# i16 = no_authority_effect
+#
+# o1 = replay_evidence_ok
+# o2 = selector_quality_ok
+# o3 = algorithm_surface_coverage_ok
+# o4 = research_compounding_ok
+# o5 = authority_boundary_ok
+# o6 = compounding_frontier_certificate_ok
+# o7 = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+replay_evidence_ok(pool_ok : sbf, traces_ok : sbf, invalid_zero : sbf, deterministic_ok : sbf, profile_ok : sbf) := is1(pool_ok) && is1(traces_ok) && is1(invalid_zero) && is1(deterministic_ok) && is1(profile_ok).
+selector_quality_ok(topk_ok : sbf, invalid_zero : sbf) := is1(topk_ok) && is1(invalid_zero).
+algorithm_surface_coverage_ok(ab_ok : sbf, cow_ok : sbf, split_ok : sbf, staircase_ok : sbf) := is1(ab_ok) && is1(cow_ok) && is1(split_ok) && is1(staircase_ok).
+research_compounding_ok(negative_ok : sbf, evidence_dag_ok : sbf, tokenomics_ok : sbf) := is1(negative_ok) && is1(evidence_dag_ok) && is1(tokenomics_ok).
+authority_boundary_ok(advisory_only : sbf, no_authority : sbf) := is1(advisory_only) && is1(no_authority).
+compounding_frontier_ok(active : sbf, pool_ok : sbf, traces_ok : sbf, invalid_zero : sbf, topk_ok : sbf, ab_ok : sbf, cow_ok : sbf, split_ok : sbf, staircase_ok : sbf, negative_ok : sbf, evidence_dag_ok : sbf, tokenomics_ok : sbf, deterministic_ok : sbf, profile_ok : sbf, advisory_only : sbf, no_authority : sbf) := is1(active) && replay_evidence_ok(pool_ok, traces_ok, invalid_zero, deterministic_ok, profile_ok) && selector_quality_ok(topk_ok, invalid_zero) && algorithm_surface_coverage_ok(ab_ok, cow_ok, split_ok, staircase_ok) && research_compounding_ok(negative_ok, evidence_dag_ok, tokenomics_ok) && authority_boundary_ok(advisory_only, no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> replay_evidence_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i13[t]:sbf, i14[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> selector_quality_ok(i5[t]:sbf, i4[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> algorithm_surface_coverage_ok(i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> research_compounding_ok(i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> authority_boundary_ok(i15[t]:sbf, i16[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> compounding_frontier_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf, i16[t]:sbf)) &&
+  (o7[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i16[t]:sbf))).
