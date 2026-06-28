@@ -1,0 +1,34 @@
+# Receipt Sequence Projected Guard v1
+#
+# PURPOSE:
+# Host-projected version of the bounded receipt sequence guard. The host computes
+# monotonicity, max-gap, and replay-floor comparisons; Tau composes the facts and
+# proof/binding flags. This pairs with `receipt_sequence_bv16_guard_v1.tau` for
+# direct-vs-projected frontier testing.
+#
+# i1 = sequence_check_requested (sbf)
+# i2 = monotone_sequence_ok (sbf)
+# i3 = bounded_gap_ok (sbf)
+# i4 = replay_floor_ok (sbf)
+# i5 = proof_ok (sbf)
+# i6 = binding_ok (sbf)
+#
+# o1 = sequence_facts_ok
+# o2 = sequence_guard_ok
+# o3 = proof_gated_sequence_guard_ok
+
+set charvar off
+
+sequence_facts_ok(monotone_sequence_ok : sbf, bounded_gap_ok : sbf, replay_floor_ok : sbf) :=
+  (monotone_sequence_ok = 1:sbf) &&
+  (bounded_gap_ok = 1:sbf) &&
+  (replay_floor_ok = 1:sbf).
+
+sequence_guard_ok(sequence_check_requested : sbf, monotone_sequence_ok : sbf, bounded_gap_ok : sbf, replay_floor_ok : sbf) :=
+  (sequence_check_requested = 0:sbf) ||
+  ((sequence_check_requested = 1:sbf) && sequence_facts_ok(monotone_sequence_ok, bounded_gap_ok, replay_floor_ok)).
+
+always
+  (o1[t]:sbf = 1:sbf <-> sequence_facts_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> sequence_guard_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> (sequence_guard_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf))).

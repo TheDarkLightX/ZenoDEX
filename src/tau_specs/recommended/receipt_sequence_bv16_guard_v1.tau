@@ -1,0 +1,48 @@
+# Receipt Sequence BV16 Guard v1
+#
+# PURPOSE:
+# Direct Tau-only sequence arithmetic for a bounded receipt stream. This is the
+# direct bitvector counterpart to `receipt_sequence_projected_guard_v1.tau` and
+# is used to test when latest Tau can safely keep small arithmetic in-language.
+#
+# i1 = sequence_check_requested (sbf)
+# i2 = previous_sequence (bv[16])
+# i3 = current_sequence (bv[16])
+# i4 = max_step_gap (bv[16])
+# i5 = replay_floor_sequence (bv[16])
+# i6 = proof_ok (sbf)
+# i7 = binding_ok (sbf)
+#
+# o1 = monotone_sequence_ok
+# o2 = bounded_gap_ok
+# o3 = replay_floor_ok
+# o4 = sequence_guard_ok
+# o5 = proof_gated_sequence_guard_ok
+
+set charvar off
+
+monotone_sequence_ok(previous_sequence : bv[16], current_sequence : bv[16]) :=
+  current_sequence > previous_sequence.
+
+bounded_gap_ok(previous_sequence : bv[16], current_sequence : bv[16], max_step_gap : bv[16]) :=
+  (current_sequence > previous_sequence) &&
+  ((current_sequence - previous_sequence) <= max_step_gap).
+
+replay_floor_ok(current_sequence : bv[16], replay_floor_sequence : bv[16]) :=
+  current_sequence >= replay_floor_sequence.
+
+sequence_guard_ok(sequence_check_requested : sbf, previous_sequence : bv[16], current_sequence : bv[16], max_step_gap : bv[16], replay_floor_sequence : bv[16]) :=
+  (sequence_check_requested = 0:sbf) ||
+  (
+    (sequence_check_requested = 1:sbf) &&
+    monotone_sequence_ok(previous_sequence, current_sequence) &&
+    bounded_gap_ok(previous_sequence, current_sequence, max_step_gap) &&
+    replay_floor_ok(current_sequence, replay_floor_sequence)
+  ).
+
+always
+  (o1[t]:sbf = 1:sbf <-> monotone_sequence_ok(i2[t]:bv[16], i3[t]:bv[16])) &&
+  (o2[t]:sbf = 1:sbf <-> bounded_gap_ok(i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) &&
+  (o3[t]:sbf = 1:sbf <-> replay_floor_ok(i3[t]:bv[16], i5[t]:bv[16])) &&
+  (o4[t]:sbf = 1:sbf <-> sequence_guard_ok(i1[t]:sbf, i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])) &&
+  (o5[t]:sbf = 1:sbf <-> (sequence_guard_ok(i1[t]:sbf, i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16]) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf))).
