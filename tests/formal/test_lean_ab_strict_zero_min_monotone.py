@@ -18,6 +18,8 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "theorem runReserveOutAfterSuffix_mono" in text
     assert "theorem minReserveRecord_dominates_suffixTotalOutput" in text
     assert "theorem witness_minReserveRecord_dominates_suffixTotalOutput" in text
+    assert "theorem bestSuffixOutputFromRecords_le_selected" in text
+    assert "theorem witness_bestSuffixOutputFromRecords_le_selected" in text
 
     lake = shutil.which("lake")
     if not lake:

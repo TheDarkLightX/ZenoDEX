@@ -168,6 +168,62 @@ theorem minReserveRecord_dominates_suffixTotalOutput
       (steps := suffix)
       hreserve)
 
+/-- Best suffix output among a finite candidate record set. -/
+def bestSuffixOutputFromRecords
+    (initialReserveOut : Nat)
+    (records : List ProcessedRecord)
+    (suffix : List ExactInStep) : Nat :=
+  (records.map (fun record => suffixTotalOutput initialReserveOut record suffix)).foldl Nat.max 0
+
+/-- Helper for bounding a `foldl Nat.max` aggregate by a known upper bound. -/
+theorem foldlMax_le_bound
+    {values : List Nat}
+    {acc bound : Nat}
+    (hacc : acc ≤ bound)
+    (hvalues : ∀ value, value ∈ values -> value ≤ bound) :
+    values.foldl Nat.max acc ≤ bound := by
+  induction values generalizing acc with
+  | nil =>
+      simpa using hacc
+  | cons value rest ih =>
+      apply ih
+      · exact Nat.max_le.mpr ⟨hacc, hvalues value (by simp)⟩
+      · intro candidate hcandidate
+        exact hvalues candidate (by simp [hcandidate])
+
+/-- Finite candidate-set pruning theorem.
+
+If `selected` has the minimum output reserve among a finite set of records that
+all represent the same processed input reserve, then the best suffix output
+obtainable from that whole record set is no better than continuing from
+`selected`. This is the finite-record version of the DP pruning obligation. -/
+theorem bestSuffixOutputFromRecords_le_selected
+    {initialReserveOut : Nat}
+    {selected : ProcessedRecord}
+    {records : List ProcessedRecord}
+    {suffix : List ExactInStep}
+    (hsame :
+      ∀ record, record ∈ records ->
+        selected.processedReserveIn = record.processedReserveIn)
+    (hmin :
+      ∀ record, record ∈ records ->
+        selected.reserveOut ≤ record.reserveOut) :
+    bestSuffixOutputFromRecords initialReserveOut records suffix ≤
+      suffixTotalOutput initialReserveOut selected suffix := by
+  unfold bestSuffixOutputFromRecords
+  apply foldlMax_le_bound
+  · exact Nat.zero_le _
+  · intro value hvalue
+    rw [List.mem_map] at hvalue
+    rcases hvalue with ⟨record, hrecord, rfl⟩
+    exact minReserveRecord_dominates_suffixTotalOutput
+      (initialReserveOut := initialReserveOut)
+      (lower := selected)
+      (upper := record)
+      (suffix := suffix)
+      (hsame record hrecord)
+      (hmin record hrecord)
+
 /-- Concrete non-vacuity witness for record dominance. -/
 theorem witness_minReserveRecord_dominates_suffixTotalOutput :
     let suffix : List ExactInStep := [
@@ -178,6 +234,21 @@ theorem witness_minReserveRecord_dominates_suffixTotalOutput :
     let upper : ProcessedRecord := ⟨1100, 1100⟩
     suffixTotalOutput 1200 upper suffix ≤
       suffixTotalOutput 1200 lower suffix := by
+  native_decide
+
+/-- Concrete non-vacuity witness for finite record-set pruning. -/
+theorem witness_bestSuffixOutputFromRecords_le_selected :
+    let suffix : List ExactInStep := [
+      ⟨100, 99⟩,
+      ⟨200, 199⟩
+    ]
+    let selected : ProcessedRecord := ⟨1100, 800⟩
+    let records : List ProcessedRecord := [
+      ⟨1100, 900⟩,
+      ⟨1100, 1100⟩
+    ]
+    bestSuffixOutputFromRecords 1200 records suffix ≤
+      suffixTotalOutput 1200 selected suffix := by
   native_decide
 
 /-- Concrete non-vacuity witness for one-step monotonicity. -/
