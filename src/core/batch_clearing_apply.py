@@ -26,6 +26,13 @@ class _FilledIntentLocalContext:
 
 
 @dataclass(frozen=True)
+class _FilledIntentLocalApplyRequest:
+    intent: Intent
+    fill: Fill
+    context: _FilledIntentLocalContext
+
+
+@dataclass(frozen=True)
 class _SwapFillAmounts:
     asset_in: str
     asset_out: str

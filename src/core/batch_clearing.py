@@ -44,6 +44,7 @@ from ..state.pools import PoolState
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from .batch_clearing_apply import (
     _apply_filled_intent_to_locals_with_context,
+    _FilledIntentLocalApplyRequest,
     _FilledIntentLocalContext,
 )
 from .batch_clearing_apply_settlement import (
@@ -81,6 +82,7 @@ from .batch_clearing_ordering import (
     _refine_b_ordering,
     _simulate_swap_reserves,
 )
+from .batch_clearing_requests import ComputeSettlementRequest, ClearBatchSinglePoolRequest, validate_swap_tiebreak_seed
 from .batch_clearing_single_pool import (
     _ClearSinglePoolRequest,
     _SinglePoolFactories,
@@ -93,6 +95,7 @@ from .batch_clearing_swaps import (
     _reserves_after_swap_fill,
     _SwapIntentFactories,
     _SwapIntentProcessRequest,
+    _SwapIntentRuntimeRequest,
 )
 from .batch_clearing_validate import (
     _SettlementValidationFactories,
@@ -153,6 +156,7 @@ def compute_settlement(
     swap_ordering: str = _SWAP_ORDERING_GREEDY_AB_REFINED,
     protocol_fee_share_bps: int = 0,
     protocol_fee_recipient_pubkey: Optional[PubKey] = None,
+    swap_tiebreak_seed: bytes | None = None,
 ) -> Settlement:
     """
     Compute settlement for a batch of intents.
@@ -172,6 +176,7 @@ def compute_settlement(
     Returns:
         Settlement object with fills and deltas
     """
+    validate_swap_tiebreak_seed(swap_tiebreak_seed)
     if swap_ordering not in _SWAP_ORDERING_CHOICES:
         raise ValueError(f"unsupported swap_ordering: {swap_ordering!r}")
     if not is_strict_int(protocol_fee_share_bps) or not (0 <= protocol_fee_share_bps <= 10000):
@@ -187,6 +192,7 @@ def compute_settlement(
             swap_ordering=swap_ordering,
             protocol_fee_share_bps=protocol_fee_share_bps,
             protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+            swap_tiebreak_seed=swap_tiebreak_seed,
         ),
         chunk_size=_DELTA_AGG_CHUNK_SIZE,
         factories=_SettlementComputeFactories(
@@ -197,6 +203,19 @@ def compute_settlement(
             clear_batch_single_pool_fn=clear_batch_single_pool,
             apply_filled_intent_to_locals_fn=_apply_filled_intent_to_locals,
         ),
+    )
+
+
+def compute_settlement_for_request(request: ComputeSettlementRequest) -> Settlement:
+    return compute_settlement(
+        request.intents,
+        request.pools,
+        request.balances,
+        request.lp_balances,
+        swap_ordering=request.swap_ordering,
+        protocol_fee_share_bps=request.protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=request.protocol_fee_recipient_pubkey,
+        swap_tiebreak_seed=request.swap_tiebreak_seed,
     )
 
 
@@ -231,17 +250,35 @@ def _try_create_pool(
 
 
 def _apply_filled_intent_to_locals(
-    intent: Intent,
-    fill: Fill,
-    pool_id: str,
-    pool_state: PoolState,
-    balances: BalanceTable,
-    lp_balances: LPTable,
-    balance_deltas: List[BalanceDelta],
-    reserve_deltas: List[ReserveDelta],
-    lp_deltas: List[LPDelta],
+    intent: Intent | _FilledIntentLocalApplyRequest,
+    fill: Fill | None = None,
+    pool_id: str | None = None,
+    pool_state: PoolState | None = None,
+    balances: BalanceTable | None = None,
+    lp_balances: LPTable | None = None,
+    balance_deltas: List[BalanceDelta] | None = None,
+    reserve_deltas: List[ReserveDelta] | None = None,
+    lp_deltas: List[LPDelta] | None = None,
     protocol_fee_recipient_pubkey: Optional[PubKey] = None,
 ) -> None:
+    if isinstance(intent, _FilledIntentLocalApplyRequest):
+        _apply_filled_intent_to_locals_with_context(
+            intent.intent,
+            intent.fill,
+            intent.context,
+        )
+        return
+    if (
+        fill is None
+        or pool_id is None
+        or pool_state is None
+        or balances is None
+        or lp_balances is None
+        or balance_deltas is None
+        or reserve_deltas is None
+        or lp_deltas is None
+    ):
+        raise ValueError("fill, pool_id, pool_state, balances, lp_balances, and delta lists are required")
     _apply_filled_intent_to_locals_with_context(
         intent,
         fill,
@@ -322,14 +359,37 @@ def clear_batch_single_pool(
     )
 
 
+def clear_batch_single_pool_for_request(request: ClearBatchSinglePoolRequest) -> List[Fill]:
+    validate_swap_tiebreak_seed(request.swap_tiebreak_seed)
+    return clear_batch_single_pool(
+        request.intents,
+        request.pool_state,
+        request.balances,
+        request.lp_balances,
+        swap_ordering=request.swap_ordering,
+        protocol_fee_share_bps=request.protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=request.protocol_fee_recipient_pubkey,
+        swap_tiebreak_seed=request.swap_tiebreak_seed,
+    )
+
+
 def _process_swap_intent(
-    intent: Intent,
-    reserves: Tuple[Amount, Amount],
-    pool_state: PoolState,
-    balances: BalanceTable,
+    intent: Intent | _SwapIntentRuntimeRequest,
+    reserves: Tuple[Amount, Amount] | None = None,
+    pool_state: PoolState | None = None,
+    balances: BalanceTable | None = None,
     *,
     protocol_fee_share_bps: int = 0,
 ) -> Fill:
+    if isinstance(intent, _SwapIntentRuntimeRequest):
+        request = intent
+        intent = request.intent
+        reserves = request.reserves
+        pool_state = request.pool_state
+        balances = request.balances
+        protocol_fee_share_bps = request.protocol_fee_share_bps
+    if reserves is None or pool_state is None or balances is None:
+        raise ValueError("reserves, pool_state, and balances are required")
     return _process_swap_intent_with_factories(
         _SwapIntentProcessRequest(
             intent=intent,
