@@ -1,0 +1,51 @@
+# Tau Performance Frontier Certificate v1
+#
+# PURPOSE:
+#   Admit a Tau performance-frontier research certificate only after the host
+#   loads the profile lattice, checks candidate features, replays latest/runtime
+#   traces inside budget, gates any direct bitvector island by profile evidence,
+#   preserves the host-projection default, rejects negative controls, and keeps
+#   the result advisory with no authority effects.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = profile_lattice_loaded
+# i3  = profile_budget_bound_ok
+# i4  = candidate_feature_scan_ok
+# i5  = latest_trace_budget_ok
+# i6  = runtime_or_fallback_profile_ok
+# i7  = direct_bv_profile_gated
+# i8  = host_projection_default_preserved
+# i9  = invalid_accepts_zero
+# i10 = negative_controls_rejected
+# i11 = high_value_coverage_ok
+# i12 = resource_budget_ok
+# i13 = advisory_only
+# i14 = no_authority_effect
+#
+# o1 = profile_artifacts_ok
+# o2 = trace_budget_ok
+# o3 = encoding_boundary_ok
+# o4 = evidence_quality_ok
+# o5 = authority_boundary_ok
+# o6 = performance_frontier_certificate_ok
+# o7 = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+profile_artifacts_ok(profile_ok : sbf, budget_ok : sbf, feature_scan_ok : sbf) := is1(profile_ok) && is1(budget_ok) && is1(feature_scan_ok).
+trace_budget_ok(latest_ok : sbf, runtime_ok : sbf, resource_ok : sbf) := is1(latest_ok) && is1(runtime_ok) && is1(resource_ok).
+encoding_boundary_ok(direct_bv_gated : sbf, host_projection_default : sbf) := is1(direct_bv_gated) && is1(host_projection_default).
+evidence_quality_ok(invalid_zero : sbf, negatives_rejected : sbf, coverage_ok : sbf) := is1(invalid_zero) && is1(negatives_rejected) && is1(coverage_ok).
+authority_boundary_ok(advisory_only : sbf, no_authority : sbf) := is1(advisory_only) && is1(no_authority).
+performance_certificate_ok(active : sbf, profile_ok : sbf, budget_ok : sbf, feature_scan_ok : sbf, latest_ok : sbf, runtime_ok : sbf, direct_bv_gated : sbf, host_projection_default : sbf, invalid_zero : sbf, negatives_rejected : sbf, coverage_ok : sbf, resource_ok : sbf, advisory_only : sbf, no_authority : sbf) := is1(active) && profile_artifacts_ok(profile_ok, budget_ok, feature_scan_ok) && trace_budget_ok(latest_ok, runtime_ok, resource_ok) && encoding_boundary_ok(direct_bv_gated, host_projection_default) && evidence_quality_ok(invalid_zero, negatives_rejected, coverage_ok) && authority_boundary_ok(advisory_only, no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> profile_artifacts_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> trace_budget_ok(i5[t]:sbf, i6[t]:sbf, i12[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> encoding_boundary_ok(i7[t]:sbf, i8[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> evidence_quality_ok(i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> authority_boundary_ok(i13[t]:sbf, i14[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> performance_certificate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf)) &&
+  (o7[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i14[t]:sbf))).
