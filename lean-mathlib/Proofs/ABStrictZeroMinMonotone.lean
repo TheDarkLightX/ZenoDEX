@@ -479,6 +479,138 @@ theorem bestSuffixOutputFromRecords_le_selected
       (hsame record hrecord)
       (hmin record hrecord)
 
+/-- A finite subset-mask record family.
+
+`maskId` is an abstract identifier for the processed subset. This file does
+not model bit operations; it isolates the proof obligation that per-mask
+representative pruning composes across a finite family of masks. -/
+structure MaskRecordSet where
+  maskId : Nat
+  selected : ProcessedRecord
+  records : List ProcessedRecord
+  deriving Repr, DecidableEq
+
+/-- A mask is locally prunable when its selected record has the same processed
+input reserve as every full record and no more output reserve. -/
+def maskPruningInvariant (mask : MaskRecordSet) : Prop :=
+  (∀ record, record ∈ mask.records ->
+    mask.selected.processedReserveIn = record.processedReserveIn) ∧
+  (∀ record, record ∈ mask.records ->
+    mask.selected.reserveOut ≤ record.reserveOut)
+
+/-- Best suffix output from the full record set at one abstract mask. -/
+def maskFullBestSuffixOutput
+    (initialReserveOut : Nat)
+    (mask : MaskRecordSet)
+    (suffix : List ExactInStep) : Nat :=
+  bestSuffixOutputFromRecords initialReserveOut mask.records suffix
+
+/-- Suffix output from the selected compressed representative at one abstract
+mask. -/
+def maskSelectedSuffixOutput
+    (initialReserveOut : Nat)
+    (mask : MaskRecordSet)
+    (suffix : List ExactInStep) : Nat :=
+  suffixTotalOutput initialReserveOut mask.selected suffix
+
+/-- Best suffix output from all full record sets across a finite mask family. -/
+def bestFullSuffixOutputAcrossMasks
+    (initialReserveOut : Nat)
+    (masks : List MaskRecordSet)
+    (suffix : List ExactInStep) : Nat :=
+  (masks.map (fun mask => maskFullBestSuffixOutput initialReserveOut mask suffix)).foldl Nat.max 0
+
+/-- Best suffix output from all compressed representatives across a finite mask
+family. -/
+def bestSelectedSuffixOutputAcrossMasks
+    (initialReserveOut : Nat)
+    (masks : List MaskRecordSet)
+    (suffix : List ExactInStep) : Nat :=
+  (masks.map (fun mask => maskSelectedSuffixOutput initialReserveOut mask suffix)).foldl Nat.max 0
+
+/-- A fold over `Nat.max` is at least its starting accumulator. -/
+theorem acc_le_foldlMax (values : List Nat) (acc : Nat) :
+    acc ≤ values.foldl Nat.max acc := by
+  induction values generalizing acc with
+  | nil =>
+      simp
+  | cons value rest ih =>
+      exact Nat.le_trans
+        (Nat.le_max_left acc value)
+        (ih (Nat.max acc value))
+
+/-- Every member of a finite max-fold is bounded by the fold result. -/
+theorem mem_le_foldlMax
+    {values : List Nat}
+    {value acc : Nat}
+    (hvalue : value ∈ values) :
+    value ≤ values.foldl Nat.max acc := by
+  induction values generalizing acc with
+  | nil =>
+      simp at hvalue
+  | cons head rest ih =>
+      rw [List.mem_cons] at hvalue
+      cases hvalue with
+      | inl hhead =>
+          simpa [hhead] using Nat.le_trans
+            (Nat.le_max_right acc head)
+            (acc_le_foldlMax rest (Nat.max acc head))
+      | inr hrest =>
+          exact ih (acc := Nat.max acc head) hrest
+
+/-- Local mask pruning bounds the full records at that mask by the selected
+representative. -/
+theorem maskFullBestSuffixOutput_le_selected
+    {initialReserveOut : Nat}
+    {mask : MaskRecordSet}
+    {suffix : List ExactInStep}
+    (hinvariant : maskPruningInvariant mask) :
+    maskFullBestSuffixOutput initialReserveOut mask suffix ≤
+      maskSelectedSuffixOutput initialReserveOut mask suffix := by
+  rcases hinvariant with ⟨hsame, hmin⟩
+  exact bestSuffixOutputFromRecords_le_selected
+    (initialReserveOut := initialReserveOut)
+    (selected := mask.selected)
+    (records := mask.records)
+    (suffix := suffix)
+    hsame
+    hmin
+
+/-- Finite subset-mask pruning lift.
+
+If every abstract subset mask satisfies the local pruning invariant, then the
+best suffix output available from all full-state records across the mask family
+is no better than the best suffix output available from the compressed
+representatives. This is the mask-family aggregation component of the full
+subset-mask induction proof. -/
+theorem bestFullSuffixOutputAcrossMasks_le_selected
+    {initialReserveOut : Nat}
+    {masks : List MaskRecordSet}
+    {suffix : List ExactInStep}
+    (hinvariant : ∀ mask, mask ∈ masks -> maskPruningInvariant mask) :
+    bestFullSuffixOutputAcrossMasks initialReserveOut masks suffix ≤
+      bestSelectedSuffixOutputAcrossMasks initialReserveOut masks suffix := by
+  unfold bestFullSuffixOutputAcrossMasks bestSelectedSuffixOutputAcrossMasks
+  apply foldlMax_le_bound
+  · exact Nat.zero_le _
+  · intro value hvalue
+    rw [List.mem_map] at hvalue
+    rcases hvalue with ⟨mask, hmask, rfl⟩
+    have hlocal :
+        maskFullBestSuffixOutput initialReserveOut mask suffix ≤
+          maskSelectedSuffixOutput initialReserveOut mask suffix :=
+      maskFullBestSuffixOutput_le_selected
+        (initialReserveOut := initialReserveOut)
+        (mask := mask)
+        (suffix := suffix)
+        (hinvariant mask hmask)
+    have hselected_mem :
+        maskSelectedSuffixOutput initialReserveOut mask suffix ∈
+          masks.map (fun candidate =>
+            maskSelectedSuffixOutput initialReserveOut candidate suffix) := by
+      exact List.mem_map.mpr ⟨mask, hmask, rfl⟩
+    exact Nat.le_trans hlocal (mem_le_foldlMax (acc := 0) hselected_mem)
+
 /-- Concrete non-vacuity witness for record dominance. -/
 theorem witness_minReserveRecord_dominates_suffixTotalOutput :
     let suffix : List ExactInStep := [
@@ -504,6 +636,27 @@ theorem witness_bestSuffixOutputFromRecords_le_selected :
     ]
     bestSuffixOutputFromRecords 1200 records suffix ≤
       suffixTotalOutput 1200 selected suffix := by
+  native_decide
+
+/-- Concrete non-vacuity witness for finite subset-mask pruning aggregation. -/
+theorem witness_bestFullSuffixOutputAcrossMasks_le_selected :
+    let suffix : List ExactInStep := [
+      ⟨100, 99⟩,
+      ⟨200, 199⟩
+    ]
+    let maskA : MaskRecordSet := {
+      maskId := 1,
+      selected := ⟨1100, 800⟩,
+      records := [⟨1100, 900⟩, ⟨1100, 1100⟩]
+    }
+    let maskB : MaskRecordSet := {
+      maskId := 2,
+      selected := ⟨1300, 700⟩,
+      records := [⟨1300, 850⟩]
+    }
+    let masks : List MaskRecordSet := [maskA, maskB]
+    bestFullSuffixOutputAcrossMasks 1200 masks suffix ≤
+      bestSelectedSuffixOutputAcrossMasks 1200 masks suffix := by
   native_decide
 
 /-- Concrete non-vacuity witness for one-step monotonicity. -/
