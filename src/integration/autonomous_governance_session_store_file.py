@@ -163,6 +163,17 @@ def initialize_autonomous_governance_session_store_file_v1(
     genesis_pin: object,
     genesis_receipt: object,
     policy: object,
+    policy_pin: object = None,
+    registry: object = None,
+    signature_envelopes: object = None,
+    current_epoch: object = None,
+    proposal_epoch: object = None,
+    min_delay_epochs: object = None,
+    tau_policy_receipt: object = None,
+    backend_descriptors: object = None,
+    evidence_claims: object = (),
+    required_evidence_claims: object = (),
+    production_mode: bool = True,
     create_only: bool = True,
 ) -> dict[str, Any]:
     """Initialize and durably write a session store JSON file."""
@@ -186,6 +197,17 @@ def initialize_autonomous_governance_session_store_file_v1(
                     genesis_pin=genesis_pin,
                     genesis_receipt=genesis_receipt,
                     policy=policy,
+                    policy_pin=policy_pin,
+                    registry=registry,
+                    signature_envelopes=signature_envelopes,
+                    current_epoch=current_epoch,
+                    proposal_epoch=proposal_epoch,
+                    min_delay_epochs=min_delay_epochs,
+                    tau_policy_receipt=tau_policy_receipt,
+                    backend_descriptors=backend_descriptors,
+                    evidence_claims=evidence_claims,
+                    required_evidence_claims=required_evidence_claims,
+                    production_mode=production_mode,
                 )
                 if init.get("ok") is not True:
                     errors.append("session_store_file_init_refused")

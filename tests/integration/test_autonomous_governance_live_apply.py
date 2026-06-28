@@ -17,8 +17,8 @@ from src.integration.autonomous_governance_session_store_file import (
     initialize_autonomous_governance_session_store_file_v1,
 )
 from tests.integration.test_autonomous_governance_session_store import (
+    _authority_bundle,
     _continue,
-    _genesis_pin,
     _genesis_receipt,
     _policy,
 )
@@ -27,11 +27,13 @@ from tests.integration.test_autonomous_governance_session_store import (
 def _init_file(path: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     policy = _policy()
     genesis = _genesis_receipt(policy)
+    authority = _authority_bundle(policy, genesis)
     init = initialize_autonomous_governance_session_store_file_v1(
         path=path,
-        genesis_pin=_genesis_pin(policy, genesis),
+        genesis_pin=authority.pop("genesis_pin"),
         genesis_receipt=genesis,
         policy=policy,
+        **authority,
     )
     assert init["ok"] is True, init["errors"]
     return policy, genesis, init

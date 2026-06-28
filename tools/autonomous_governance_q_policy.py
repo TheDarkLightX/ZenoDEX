@@ -13,6 +13,20 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.integration.autonomous_governance_ebrm_evidence import (  # noqa: E402
+    build_autonomous_governance_ebrm_corpus_v1,
+    build_autonomous_governance_ebrm_evidence_report_v1,
+    build_autonomous_governance_ebrm_training_report_v1,
+)
+from src.integration.autonomous_governance_ebrm_policy import (  # noqa: E402
+    ebrm_policy_content_hash_v1,
+    evaluate_autonomous_governance_ebrm_policy_step_v1,
+    sample_autonomous_governance_ebrm_policy_v1,
+)
+from src.integration.autonomous_governance_live_apply import (  # noqa: E402
+    admit_autonomous_governance_live_session_file_update_v1,
+    autonomous_governance_live_session_file_context_hash_v1,
+)
 from src.integration.autonomous_governance_q_policy import (  # noqa: E402
     commit_autonomous_governance_surface_q_policy_v1,
     evaluate_autonomous_governance_q_policy_v1,
@@ -20,11 +34,6 @@ from src.integration.autonomous_governance_q_policy import (  # noqa: E402
     governance_surface_context_hash_v1,
     sample_autonomous_governance_q_policy_v1,
     sample_autonomous_governance_surface_q_policy_v1,
-)
-from src.integration.autonomous_governance_trajectory import (  # noqa: E402
-    admit_verified_autonomous_governance_surface_trajectory_v1,
-    run_autonomous_governance_surface_trajectory_v1,
-    verify_autonomous_governance_surface_trajectory_v1,
 )
 from src.integration.autonomous_governance_session import (  # noqa: E402
     continue_autonomous_governance_surface_trajectory_v1,
@@ -42,21 +51,11 @@ from src.integration.autonomous_governance_session_store_file import (  # noqa: 
     initialize_autonomous_governance_session_store_file_v1,
     verify_autonomous_governance_session_store_file_v1,
 )
-from src.integration.autonomous_governance_live_apply import (  # noqa: E402
-    admit_autonomous_governance_live_session_file_update_v1,
-    autonomous_governance_live_session_file_context_hash_v1,
+from src.integration.autonomous_governance_trajectory import (  # noqa: E402
+    admit_verified_autonomous_governance_surface_trajectory_v1,
+    run_autonomous_governance_surface_trajectory_v1,
+    verify_autonomous_governance_surface_trajectory_v1,
 )
-from src.integration.autonomous_governance_ebrm_policy import (  # noqa: E402
-    ebrm_policy_content_hash_v1,
-    evaluate_autonomous_governance_ebrm_policy_step_v1,
-    sample_autonomous_governance_ebrm_policy_v1,
-)
-from src.integration.autonomous_governance_ebrm_evidence import (  # noqa: E402
-    build_autonomous_governance_ebrm_corpus_v1,
-    build_autonomous_governance_ebrm_evidence_report_v1,
-    build_autonomous_governance_ebrm_training_report_v1,
-)
-
 
 MAX_INPUT_BYTES = 500_000
 
@@ -528,6 +527,17 @@ def _cmd_init_session_store(args: argparse.Namespace) -> int:
             genesis_pin=bundle.get("genesis_pin", {}),
             genesis_receipt=bundle.get("genesis_receipt", {}),
             policy=bundle.get("policy", {}),
+            policy_pin=bundle.get("policy_pin"),
+            registry=bundle.get("registry"),
+            signature_envelopes=bundle.get("signature_envelopes"),
+            current_epoch=bundle.get("current_epoch"),
+            proposal_epoch=bundle.get("proposal_epoch"),
+            min_delay_epochs=bundle.get("min_delay_epochs"),
+            tau_policy_receipt=bundle.get("tau_policy_receipt"),
+            backend_descriptors=bundle.get("backend_descriptors"),
+            evidence_claims=bundle.get("evidence_claims", ()),
+            required_evidence_claims=bundle.get("required_evidence_claims", ()),
+            production_mode=bool(bundle.get("production_mode", True)),
         )
     except Exception as exc:
         result = {
@@ -626,6 +636,17 @@ def _cmd_init_session_store_file(args: argparse.Namespace) -> int:
             genesis_pin=bundle.get("genesis_pin", {}),
             genesis_receipt=bundle.get("genesis_receipt", {}),
             policy=bundle.get("policy", {}),
+            policy_pin=bundle.get("policy_pin"),
+            registry=bundle.get("registry"),
+            signature_envelopes=bundle.get("signature_envelopes"),
+            current_epoch=bundle.get("current_epoch"),
+            proposal_epoch=bundle.get("proposal_epoch"),
+            min_delay_epochs=bundle.get("min_delay_epochs"),
+            tau_policy_receipt=bundle.get("tau_policy_receipt"),
+            backend_descriptors=bundle.get("backend_descriptors"),
+            evidence_claims=bundle.get("evidence_claims", ()),
+            required_evidence_claims=bundle.get("required_evidence_claims", ()),
+            production_mode=bool(bundle.get("production_mode", True)),
             create_only=bundle.get("create_only", True),
         )
     except Exception as exc:

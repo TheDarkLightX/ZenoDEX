@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 
+import src.integration.zeno_ledger_signature as sig
 from src.integration.autonomous_governance_q_policy import (
     policy_content_hash_v1,
 )
@@ -23,9 +24,8 @@ from src.integration.autonomous_governance_session import (
     continue_autonomous_governance_surface_trajectory_v1,
 )
 from src.integration.autonomous_governance_session_pin import (
-    AUTONOMOUS_GOVERNANCE_SESSION_PIN_SCHEMA_V1,
-    PIN_KIND_GENESIS,
-    _session_pin_body_hash,
+    session_genesis_payload_v1,
+    session_registry_hash_v1,
 )
 from src.integration.autonomous_governance_session_store import (
     admit_autonomous_governance_session_continuation_v1,
@@ -36,8 +36,23 @@ from src.integration.autonomous_governance_session_store import (
 from src.integration.autonomous_governance_trajectory import (
     run_autonomous_governance_surface_trajectory_v1,
 )
+from src.integration.zeno_governance_authority import (
+    governance_action_payload_hash_v0,
+)
+from tests.integration.test_autonomous_governance_session_pin import (
+    _backend,
+    _envelopes_for,
+    _open_session,
+    _policy_pin,
+    _registry,
+    _tau_receipt,
+)
 
 _BUDGET = {"fee_bps": 50, "funding_cap_bps": 25, "buyburn_bps": 200, "reserve_bps": 200}
+
+pytestmark = pytest.mark.skipif(
+    not sig._BLS_AVAILABLE, reason="py_ecc BLS dependency unavailable"
+)
 
 
 def _policy(policy_id: str = "session_store_policy_a") -> dict[str, Any]:
@@ -111,39 +126,45 @@ def _genesis_receipt(policy: dict[str, Any]) -> dict[str, Any]:
     )
 
 
-def _genesis_pin(policy: dict[str, Any], receipt: dict[str, Any]) -> dict[str, Any]:
-    body = {
-        "schema": AUTONOMOUS_GOVERNANCE_SESSION_PIN_SCHEMA_V1,
-        "kind": PIN_KIND_GENESIS,
-        "policy_id": str(receipt["policy_id"]),
-        "policy_hash": str(receipt["policy_hash"]),
-        "policy_pin_hash": "0x" + "ab" * 32,
-        "registry_hash": "0x" + "cd" * 32,
-        "advance_index": 0,
-        "previous_session_pin_hash": "",
-        "session_genesis_pin_hash": "",
-        "trajectory_hash": str(receipt["trajectory_hash"]),
-        "trajectory_chain_head": str(receipt["chain_head"]),
-        "session_initial_state": dict(receipt["initial_state"]),
-        "segment_initial_state": dict(receipt["initial_state"]),
-        "final_state": dict(receipt["final_state"]),
-        "trajectory_used_final": dict(receipt["trajectory_used_final"]),
-        "previous_approved_deltas_final": dict(receipt["previous_approved_deltas_final"]),
-        "last_update_epoch_final": receipt["last_update_epoch_final"],
-        "last_input_epoch": max(int(s["current_epoch"]) for s in receipt["input_steps"]),
-        "trajectory_budget": dict(receipt["trajectory_budget"]),
-        "authority_receipt_hash": "0x" + "ee" * 32,
-        "pinned_at_epoch": 20,
+def _authority_bundle(policy: dict[str, Any], receipt: dict[str, Any]) -> dict[str, Any]:
+    registry = _registry()
+    policy_pin = _policy_pin(policy, registry)
+    opened = _open_session(policy, policy_pin, receipt, registry)
+    assert opened["ok"] is True, opened["errors"]
+    payload = session_genesis_payload_v1(
+        policy_hash=str(policy["policy_hash"]),
+        policy_pin_hash=str(policy_pin["pin_hash"]),
+        genesis_trajectory_hash=str(receipt["trajectory_hash"]),
+        genesis_chain_head=str(receipt["chain_head"]),
+        registry_hash=session_registry_hash_v1(registry),
+        proposal_epoch=10,
+    )
+    return {
+        "policy_pin": policy_pin,
+        "registry": registry,
+        "signature_envelopes": _envelopes_for(governance_action_payload_hash_v0(payload)),
+        "current_epoch": 20,
+        "proposal_epoch": 10,
+        "min_delay_epochs": 3,
+        "tau_policy_receipt": _tau_receipt(),
+        "backend_descriptors": [_backend().public_dict()],
+        "production_mode": True,
+        "genesis_pin": dict(opened["pin"]),
     }
-    return {**body, "pin_hash": _session_pin_body_hash(body)}
+
+
+def _genesis_pin(policy: dict[str, Any], receipt: dict[str, Any]) -> dict[str, Any]:
+    return dict(_authority_bundle(policy, receipt)["genesis_pin"])
 
 
 def _store(policy: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     receipt = _genesis_receipt(policy)
+    authority = _authority_bundle(policy, receipt)
     init = initialize_autonomous_governance_session_store_v1(
-        genesis_pin=_genesis_pin(policy, receipt),
+        genesis_pin=authority.pop("genesis_pin"),
         genesis_receipt=receipt,
         policy=policy,
+        **authority,
     )
     assert init["ok"] is True, init["errors"]
     return dict(init["store"]), receipt
@@ -156,6 +177,26 @@ def _continue(policy: dict[str, Any], parent: dict[str, Any], first_epoch: int) 
         steps=_steps(3, first_epoch),
         expected_policy_hash=str(policy["policy_hash"]),
     )
+
+
+def test_initialize_refuses_forged_genesis_pin_without_quorum_context() -> None:
+    policy = _policy()
+    receipt = _genesis_receipt(policy)
+    forged = dict(_genesis_pin(policy, receipt))
+    forged["authority_receipt_hash"] = "0x" + "cc" * 32
+
+    from src.integration.autonomous_governance_session_pin import _session_pin_body_hash
+
+    body = dict(forged)
+    body.pop("pin_hash")
+    forged["pin_hash"] = _session_pin_body_hash(body)
+    init = initialize_autonomous_governance_session_store_v1(
+        genesis_pin=forged, genesis_receipt=receipt, policy=policy
+    )
+
+    assert init["ok"] is False
+    assert init["store"] == {}
+    assert "session_store_genesis_authority_context_required" in init["errors"]
 
 
 def test_initialize_binds_pin_receipt_and_policy() -> None:
@@ -183,8 +224,9 @@ def test_initialize_refuses_unbound_pin_and_wrong_policy() -> None:
         steps=_steps(4, 100),
         expected_policy_hash=str(policy["policy_hash"]),
     )
+    authority = _authority_bundle(policy, receipt)
     unbound = initialize_autonomous_governance_session_store_v1(
-        genesis_pin=pin, genesis_receipt=other_receipt, policy=policy
+        genesis_pin=pin, genesis_receipt=other_receipt, policy=policy, **{k: v for k, v in authority.items() if k != "genesis_pin"}
     )
     assert unbound["ok"] is False
     assert unbound["store"] == {}
@@ -194,13 +236,13 @@ def test_initialize_refuses_unbound_pin_and_wrong_policy() -> None:
 
     other_policy = _policy("session_store_policy_b")
     mismatched = initialize_autonomous_governance_session_store_v1(
-        genesis_pin=pin, genesis_receipt=receipt, policy=other_policy
+        genesis_pin=pin, genesis_receipt=receipt, policy=other_policy, **{k: v for k, v in authority.items() if k != "genesis_pin"}
     )
     assert mismatched["ok"] is False
     assert "session_store_policy_hash_mismatch" in mismatched["errors"]
 
     junk = initialize_autonomous_governance_session_store_v1(
-        genesis_pin={"schema": "junk"}, genesis_receipt=receipt, policy=policy
+        genesis_pin={"schema": "junk"}, genesis_receipt=receipt, policy=policy, **{k: v for k, v in authority.items() if k != "genesis_pin"}
     )
     assert junk["ok"] is False
     assert junk["store"] == {}
@@ -406,8 +448,9 @@ def test_unhashable_pin_string_fields_fail_closed_not_crash() -> None:
     receipt = _genesis_receipt(policy)
     hostile_pin = {**_genesis_pin(policy, receipt), "policy_id": "\ud800evil"}
 
+    authority = _authority_bundle(policy, receipt)
     init = initialize_autonomous_governance_session_store_v1(
-        genesis_pin=hostile_pin, genesis_receipt=receipt, policy=policy
+        genesis_pin=hostile_pin, genesis_receipt=receipt, policy=policy, **{k: v for k, v in authority.items() if k != "genesis_pin"}
     )
     assert init["ok"] is False
     assert init["store"] == {}
@@ -433,6 +476,7 @@ def test_cli_session_store_lifecycle(tmp_path: Path) -> None:
                 "policy": policy,
                 "genesis_pin": pin,
                 "genesis_receipt": genesis,
+                **{k: v for k, v in _authority_bundle(policy, genesis).items() if k != "genesis_pin"},
             },
             sort_keys=True,
         ),
@@ -576,10 +620,12 @@ def test_archive_owns_detached_copies_against_caller_mutation() -> None:
     # corrupt the store underneath its hash.
     policy = _policy()
     receipt = _genesis_receipt(policy)
+    authority = _authority_bundle(policy, receipt)
     init = initialize_autonomous_governance_session_store_v1(
-        genesis_pin=_genesis_pin(policy, receipt),
+        genesis_pin=authority.pop("genesis_pin"),
         genesis_receipt=receipt,
         policy=policy,
+        **authority,
     )
     assert init["ok"] is True
     store = init["store"]

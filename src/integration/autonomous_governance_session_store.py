@@ -10,8 +10,8 @@ individually-verified forgery, both fork branches, and replayed segments.
 This module is the admission boundary that closes it:
 
 ```text
-initialize_autonomous_governance_session_store_v1(genesis_pin, genesis_receipt, policy)
-  -> store state anchored at a validated genesis head
+initialize_autonomous_governance_session_store_v1(... authority inputs ...)
+  -> store state anchored at a quorum-authorized genesis head
 admit_autonomous_governance_session_continuation_v1(store, receipt, policy)
   -> the only way the head moves: a full v5 advance (receipt re-verified,
      every boundary-carry rule re-derived, session accounting) against the
@@ -60,6 +60,7 @@ from src.integration.autonomous_governance_session_pin import (
     _receipt_summary,
     _validate_session_pin,
     advance_autonomous_governance_session_v1,
+    open_autonomous_governance_session_v1,
     verify_session_pin_chain_v1,
 )
 from src.integration.autonomous_governance_trajectory import (
@@ -71,6 +72,7 @@ _HASH_V0: Callable[[str, object], str] = hash_v0
 _ADVANCE_SESSION = advance_autonomous_governance_session_v1
 _VERIFY_PIN_CHAIN = verify_session_pin_chain_v1
 _VERIFY_TRAJECTORY = verify_autonomous_governance_surface_trajectory_v1
+_OPEN_SESSION = open_autonomous_governance_session_v1
 
 AUTONOMOUS_GOVERNANCE_SESSION_STORE_SCHEMA_V1 = (
     "zenodex.autonomous_governance.session_store.v1"
@@ -241,11 +243,101 @@ def _validate_store_state(store: object) -> tuple[dict[str, Any], list[str]]:
     }, []
 
 
+
+def _plain_nonnegative_int(value: object) -> int | None:
+    """DbC: accept exact non-negative ints only; bool is not an epoch."""
+
+    if type(value) is not int:
+        return None
+    if value < 0:
+        return None
+    return int(value)
+
+
+def _verify_genesis_open_authority(
+    *,
+    expected_pin: Mapping[str, Any],
+    genesis_receipt: object,
+    policy: object,
+    policy_pin: object,
+    registry: object,
+    signature_envelopes: object,
+    current_epoch: object,
+    proposal_epoch: object,
+    min_delay_epochs: object,
+    tau_policy_receipt: object,
+    backend_descriptors: object,
+    evidence_claims: object,
+    required_evidence_claims: object,
+    production_mode: bool,
+) -> list[str]:
+    """Verify the quorum-gated session-open path produced the genesis pin.
+
+    Preconditions: caller supplies the same authority artifacts required by
+    open_autonomous_governance_session_v1.
+    Invariant: store genesis admission is authorized only when replaying that
+    path yields exactly the supplied genesis pin.
+    Postcondition: a self-hashed pin with a forged authority hash is refused.
+    """
+
+    current = _plain_nonnegative_int(current_epoch)
+    proposal = _plain_nonnegative_int(proposal_epoch)
+    delay = _plain_nonnegative_int(min_delay_epochs)
+    if current is None or proposal is None or delay is None:
+        return ["session_store_genesis_authority_context_required"]
+    if not isinstance(registry, Mapping):
+        return ["session_store_genesis_registry_required"]
+    if not isinstance(signature_envelopes, Sequence) or isinstance(
+        signature_envelopes, (str, bytes, bytearray)
+    ):
+        return ["session_store_genesis_signature_envelopes_required"]
+    if not isinstance(backend_descriptors, Sequence) or isinstance(
+        backend_descriptors, (str, bytes, bytearray)
+    ):
+        return ["session_store_genesis_backend_descriptors_required"]
+
+    opened = _OPEN_SESSION(
+        policy=policy,
+        policy_pin=policy_pin,
+        genesis_receipt=genesis_receipt,
+        registry=registry,
+        signature_envelopes=signature_envelopes,
+        current_epoch=current,
+        proposal_epoch=proposal,
+        min_delay_epochs=delay,
+        tau_policy_receipt=tau_policy_receipt,
+        backend_descriptors=backend_descriptors,
+        evidence_claims=evidence_claims if isinstance(evidence_claims, Sequence) else (),
+        required_evidence_claims=required_evidence_claims
+        if isinstance(required_evidence_claims, Sequence)
+        else (),
+        production_mode=production_mode,
+    )
+    if opened.get("ok") is not True:
+        return [
+            "session_store_genesis_authority_unverified",
+            *(f"session_open:{error}" for error in opened.get("errors", ())),
+        ]
+    if dict(opened.get("pin", {})) != dict(expected_pin):
+        return ["session_store_genesis_authority_pin_mismatch"]
+    return []
+
 def initialize_autonomous_governance_session_store_v1(
     *,
     genesis_pin: object,
     genesis_receipt: object,
     policy: object,
+    policy_pin: object = None,
+    registry: object = None,
+    signature_envelopes: object = None,
+    current_epoch: object = None,
+    proposal_epoch: object = None,
+    min_delay_epochs: object = None,
+    tau_policy_receipt: object = None,
+    backend_descriptors: object = None,
+    evidence_claims: object = (),
+    required_evidence_claims: object = (),
+    production_mode: bool = True,
 ) -> dict[str, Any]:
     """Anchor a store at a validated genesis head bound to its receipt.
 
@@ -261,6 +353,24 @@ def initialize_autonomous_governance_session_store_v1(
     errors.extend(f"genesis_{error}" for error in pin_errors)
     if pin and pin.get("kind") != PIN_KIND_GENESIS:
         errors.append("session_store_genesis_pin_kind_invalid")
+
+    authority = _verify_genesis_open_authority(
+        expected_pin=pin,
+        genesis_receipt=genesis_receipt,
+        policy=policy,
+        policy_pin=policy_pin,
+        registry=registry,
+        signature_envelopes=signature_envelopes,
+        current_epoch=current_epoch,
+        proposal_epoch=proposal_epoch,
+        min_delay_epochs=min_delay_epochs,
+        tau_policy_receipt=tau_policy_receipt,
+        backend_descriptors=backend_descriptors,
+        evidence_claims=evidence_claims,
+        required_evidence_claims=required_evidence_claims,
+        production_mode=production_mode,
+    )
+    errors.extend(authority)
 
     # A policy hostile to canonical hashing would crash the genesis content
     # hash (and the receipt verification) before the store could refuse it.
