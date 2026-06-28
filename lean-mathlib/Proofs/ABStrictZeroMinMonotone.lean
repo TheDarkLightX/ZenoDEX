@@ -53,6 +53,18 @@ def runReserveOutAfterSuffix (reserveIn reserveOut : Nat) : List ExactInStep -> 
         (postReserveOut reserveIn reserveOut step.netIn)
         rest
 
+/-- Execute a fixed strict exact-in suffix, returning the sum of per-step
+outputs. For the zero-min research surface, this is also the suffix surplus. -/
+def runOutputAfterSuffix (reserveIn reserveOut : Nat) : List ExactInStep -> Nat
+  | [] => 0
+  | step :: rest =>
+      let amountOut := swapOut reserveIn reserveOut step.netIn
+      amountOut +
+        runOutputAfterSuffix
+          (reserveIn + step.grossIn)
+          (postReserveOut reserveIn reserveOut step.netIn)
+          rest
+
 /-- Reserve-in after a fixed suffix is a function of the gross input multiset
 sum. This records the order-independence component used by the induction
 argument. -/
@@ -129,6 +141,79 @@ theorem witness_sameGrossSum_gives_sameReserveIn :
       ⟨100, 99⟩
     ]
     reserveInAfterGross 1000 left = reserveInAfterGross 1000 right := by
+  native_decide
+
+/-- A fixed strict exact-in suffix cannot increase output reserve. -/
+theorem runReserveOutAfterSuffix_le_initial
+    (reserveIn reserveOut : Nat)
+    (steps : List ExactInStep) :
+    runReserveOutAfterSuffix reserveIn reserveOut steps ≤ reserveOut := by
+  induction steps generalizing reserveIn reserveOut with
+  | nil =>
+      simp [runReserveOutAfterSuffix]
+  | cons step rest ih =>
+      simp [runReserveOutAfterSuffix]
+      exact Nat.le_trans
+        (ih
+          (reserveIn := reserveIn + step.grossIn)
+          (reserveOut := postReserveOut reserveIn reserveOut step.netIn))
+        (Nat.sub_le reserveOut (swapOut reserveIn reserveOut step.netIn))
+
+/-- Telescoping output identity for a fixed strict exact-in suffix.
+
+The sum of per-step zero-min outputs is exactly the drop in output reserve from
+the suffix start to the suffix end. This connects the final reserve-out order
+used by the pruning proof to the zero-min surplus objective. -/
+theorem runOutputAfterSuffix_eq_reserveOut_sub_finalReserveOut
+    (reserveIn reserveOut : Nat)
+    (steps : List ExactInStep) :
+    runOutputAfterSuffix reserveIn reserveOut steps =
+      reserveOut - runReserveOutAfterSuffix reserveIn reserveOut steps := by
+  induction steps generalizing reserveIn reserveOut with
+  | nil =>
+      simp [runOutputAfterSuffix, runReserveOutAfterSuffix]
+  | cons step rest ih =>
+      simp [runOutputAfterSuffix, runReserveOutAfterSuffix]
+      rw [ih]
+      have hout_le :
+          swapOut reserveIn reserveOut step.netIn ≤ reserveOut :=
+        AntiFragmentation.swapOut_le_reserve reserveIn reserveOut step.netIn
+      have hfinal_le :
+          runReserveOutAfterSuffix
+              (reserveIn + step.grossIn)
+              (postReserveOut reserveIn reserveOut step.netIn)
+              rest ≤
+            postReserveOut reserveIn reserveOut step.netIn :=
+        runReserveOutAfterSuffix_le_initial
+          (reserveIn + step.grossIn)
+          (postReserveOut reserveIn reserveOut step.netIn)
+          rest
+      unfold postReserveOut at hfinal_le ⊢
+      omega
+
+/-- In the zero-min suffix model, suffix surplus equals final output-reserve
+drop. -/
+def zeroMinSuffixSurplus (reserveIn reserveOut : Nat) (steps : List ExactInStep) : Nat :=
+  runOutputAfterSuffix reserveIn reserveOut steps
+
+/-- Zero-min suffix surplus is the initial output reserve minus the final
+output reserve. -/
+theorem zeroMinSuffixSurplus_eq_reserveOut_sub_finalReserveOut
+    (reserveIn reserveOut : Nat)
+    (steps : List ExactInStep) :
+    zeroMinSuffixSurplus reserveIn reserveOut steps =
+      reserveOut - runReserveOutAfterSuffix reserveIn reserveOut steps := by
+  exact runOutputAfterSuffix_eq_reserveOut_sub_finalReserveOut reserveIn reserveOut steps
+
+/-- Concrete non-vacuity witness for the zero-min output telescoping identity. -/
+theorem witness_runOutputAfterSuffix_telescopes :
+    let suffix : List ExactInStep := [
+      ⟨100, 99⟩,
+      ⟨200, 199⟩
+    ]
+    runOutputAfterSuffix 1000 1200 suffix =
+      1200 - runReserveOutAfterSuffix 1000 1200 suffix ∧
+    zeroMinSuffixSurplus 1000 1200 suffix = runOutputAfterSuffix 1000 1200 suffix := by
   native_decide
 
 /-- One-step CPMM post-reserve monotonicity in `reserve_out`.
