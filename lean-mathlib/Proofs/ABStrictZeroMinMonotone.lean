@@ -59,12 +59,77 @@ argument. -/
 def reserveInAfterGross (initialReserveIn : Nat) (steps : List ExactInStep) : Nat :=
   initialReserveIn + (steps.map ExactInStep.grossIn).sum
 
+/-- Execute a fixed suffix, returning only the final input reserve. -/
+def runReserveInAfterSuffix (reserveIn : Nat) : List ExactInStep -> Nat
+  | [] => reserveIn
+  | step :: rest =>
+      runReserveInAfterSuffix
+        (reserveIn + step.grossIn)
+        rest
+
+/-- Running a fixed suffix advances input reserve by exactly the sum of gross
+input amounts. Output reserve and CPMM arithmetic are irrelevant to this
+component. -/
+theorem runReserveInAfterSuffix_eq_reserveInAfterGross
+    (initialReserveIn : Nat)
+    (steps : List ExactInStep) :
+    runReserveInAfterSuffix initialReserveIn steps =
+      reserveInAfterGross initialReserveIn steps := by
+  induction steps generalizing initialReserveIn with
+  | nil =>
+      simp [runReserveInAfterSuffix, reserveInAfterGross]
+  | cons step rest ih =>
+      simp [runReserveInAfterSuffix, reserveInAfterGross, ih, Nat.add_assoc]
+
+/-- Appending two fixed suffixes adds their gross input contributions. -/
+theorem reserveInAfterGross_append
+    (initialReserveIn : Nat)
+    (firstSteps suffix : List ExactInStep) :
+    reserveInAfterGross initialReserveIn (firstSteps ++ suffix) =
+      reserveInAfterGross (reserveInAfterGross initialReserveIn firstSteps) suffix := by
+  simp [reserveInAfterGross, Nat.add_assoc]
+
 /-- Reversing a fixed suffix preserves the total gross input contribution to
 the input reserve. -/
 theorem reserveInAfterGross_reverse (initialReserveIn : Nat) (steps : List ExactInStep) :
     reserveInAfterGross initialReserveIn steps.reverse =
       reserveInAfterGross initialReserveIn steps := by
   simp [reserveInAfterGross]
+
+/-- Two records with the same processed gross-input sum have the same processed
+input reserve. This is the record-level invariant used by the pruning lemmas. -/
+theorem sameGrossSum_gives_sameReserveIn
+    {initialReserveIn : Nat}
+    {left right : List ExactInStep}
+    (hsum :
+      (left.map ExactInStep.grossIn).sum =
+        (right.map ExactInStep.grossIn).sum) :
+    reserveInAfterGross initialReserveIn left =
+      reserveInAfterGross initialReserveIn right := by
+  simp [reserveInAfterGross, hsum]
+
+/-- Concrete non-vacuity witness for input-reserve suffix execution. -/
+theorem witness_runReserveInAfterSuffix :
+    let suffix : List ExactInStep := [
+      ⟨100, 99⟩,
+      ⟨200, 199⟩
+    ]
+    runReserveInAfterSuffix 1000 suffix = 1300 ∧
+      reserveInAfterGross 1000 suffix = 1300 := by
+  native_decide
+
+/-- Concrete non-vacuity witness for same gross-input sums. -/
+theorem witness_sameGrossSum_gives_sameReserveIn :
+    let left : List ExactInStep := [
+      ⟨100, 99⟩,
+      ⟨200, 199⟩
+    ]
+    let right : List ExactInStep := [
+      ⟨200, 199⟩,
+      ⟨100, 99⟩
+    ]
+    reserveInAfterGross 1000 left = reserveInAfterGross 1000 right := by
+  native_decide
 
 /-- One-step CPMM post-reserve monotonicity in `reserve_out`.
 
