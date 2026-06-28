@@ -1,0 +1,45 @@
+# ab_ordering_held_karp_dp_certificate_v1.tau
+#
+# PURPOSE:
+#   Admit a research certificate for the AB-ordering work item. The host
+#   computes the exact ordering evidence, including brute-force parity on small
+#   batches, full CPMM state in the subset-DP witness, deterministic ties, and a
+#   fail-closed fallback at the configured state cap. Tau composes those facts
+#   into a no-authority certificate.
+#
+# Stream mapping:
+# i1  = solver_active
+# i2  = full_cpmm_state_transition_bound
+# i3  = objective_binding_ok
+# i4  = brute_force_parity_under_n12
+# i5  = dp_recurrence_witness_bound
+# i6  = deterministic_tie_break_ok
+# i7  = resource_budget_ok
+# i8  = fallback_on_state_cap
+# i9  = slippage_balance_constraints_ok
+# i10 = no_settlement_authority
+# i11 = transcript_binding_ok
+#
+# o1 = exact_solver_scope_ok
+# o2 = replay_parity_ok
+# o3 = fallback_boundary_ok
+# o4 = authority_boundary_ok
+# o5 = ab_held_karp_certificate_ok
+# o6 = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+exact_solver_scope_ok(full_state_ok : sbf, objective_ok : sbf, recurrence_ok : sbf, balance_ok : sbf) := is1(full_state_ok) && is1(objective_ok) && is1(recurrence_ok) && is1(balance_ok).
+replay_parity_ok(brute_parity_ok : sbf, tie_ok : sbf, budget_ok : sbf, binding_ok : sbf) := is1(brute_parity_ok) && is1(tie_ok) && is1(budget_ok) && is1(binding_ok).
+fallback_boundary_ok(fallback_ok : sbf, budget_ok : sbf) := is1(fallback_ok) && is1(budget_ok).
+authority_boundary_ok(no_authority : sbf, binding_ok : sbf) := is1(no_authority) && is1(binding_ok).
+certificate_ok(active : sbf, full_state_ok : sbf, objective_ok : sbf, brute_parity_ok : sbf, recurrence_ok : sbf, tie_ok : sbf, budget_ok : sbf, fallback_ok : sbf, balance_ok : sbf, no_authority : sbf, binding_ok : sbf) := is1(active) && exact_solver_scope_ok(full_state_ok, objective_ok, recurrence_ok, balance_ok) && replay_parity_ok(brute_parity_ok, tie_ok, budget_ok, binding_ok) && fallback_boundary_ok(fallback_ok, budget_ok) && authority_boundary_ok(no_authority, binding_ok).
+
+always
+  (o1[t]:sbf = 1:sbf <-> exact_solver_scope_ok(i2[t]:sbf, i3[t]:sbf, i5[t]:sbf, i9[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> replay_parity_ok(i4[t]:sbf, i6[t]:sbf, i7[t]:sbf, i11[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> fallback_boundary_ok(i8[t]:sbf, i7[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> authority_boundary_ok(i10[t]:sbf, i11[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> certificate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i10[t]:sbf))).
