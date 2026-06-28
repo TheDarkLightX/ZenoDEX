@@ -1,0 +1,41 @@
+# Negative Frontier Branch-Bound Scheduler v1
+#
+# PURPOSE:
+#   Guard a host-computed branch-and-bound exact selector for ZenoDEX
+#   falsifier-campaign scheduling. The host proves bounded oracle parity where
+#   brute force is practical, records pruning-bound checks for larger cases, and
+#   supplies dominance/resource/no-authority facts. Tau only combines those facts.
+#
+# Stream mapping:
+# i1  = scheduler_active
+# i2  = deterministic_replay_ok
+# i3  = bounded_oracle_parity_ok
+# i4  = pruning_bounds_ok
+# i5  = node_reduction_ok
+# i6  = large_case_replayed
+# i7  = baseline_dominance_ok
+# i8  = coverage_ok
+# i9  = mutation_checks_ok
+# i10 = resource_budget_ok
+# i11 = no_authority_effect
+# i12 = nonvacuous_selection
+# o1  = exactness_evidence_ok
+# o2  = scaling_evidence_ok
+# o3  = safety_boundary_ok
+# o4  = scheduler_certificate_ok
+# o5  = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+exactness_evidence_ok(deterministic : sbf, oracle : sbf, pruning : sbf, nonvacuous : sbf) := is1(deterministic) && is1(oracle) && is1(pruning) && is1(nonvacuous).
+scaling_evidence_ok(reduction : sbf, large_case : sbf, dominance : sbf) := is1(reduction) && is1(large_case) && is1(dominance).
+safety_boundary_ok(coverage : sbf, mutations : sbf, budget : sbf, no_authority : sbf) := is1(coverage) && is1(mutations) && is1(budget) && is1(no_authority).
+scheduler_ok(active : sbf, deterministic : sbf, oracle : sbf, pruning : sbf, reduction : sbf, large_case : sbf, dominance : sbf, coverage : sbf, mutations : sbf, budget : sbf, no_authority : sbf, nonvacuous : sbf) := is1(active) && exactness_evidence_ok(deterministic, oracle, pruning, nonvacuous) && scaling_evidence_ok(reduction, large_case, dominance) && safety_boundary_ok(coverage, mutations, budget, no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> exactness_evidence_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i12[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> scaling_evidence_ok(i5[t]:sbf, i6[t]:sbf, i7[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> safety_boundary_ok(i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> scheduler_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i11[t]:sbf))).
