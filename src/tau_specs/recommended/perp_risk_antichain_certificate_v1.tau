@@ -1,0 +1,45 @@
+# perp_risk_antichain_certificate_v1.tau
+#
+# PURPOSE:
+#   Admit a host-recomputed perps risk-antichain research certificate. The host
+#   enumerates a bounded primitive-risk lattice, verifies monotonicity and
+#   minimal boundary antichains, checks containment against the existing perps
+#   risk-envelope replay, and checks direct Tau risk-envelope parity. Tau only
+#   composes those facts and has no settlement or liquidation authority.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = dense_lattice_enumerated
+# i3  = monotonicity_ok
+# i4  = overall_antichain_minimal_ok
+# i5  = component_antichain_coverage_ok
+# i6  = containment_replay_ok
+# i7  = tau_risk_envelope_parity_ok
+# i8  = proof_dominates_stale_breaker_ok
+# i9  = resource_budget_ok
+# i10 = advisory_only
+# i11 = no_authority_effect
+#
+# o1 = lattice_replay_ok
+# o2 = antichain_certificate_ok
+# o3 = containment_and_tau_ok
+# o4 = authority_boundary_ok
+# o5 = perp_risk_antichain_certificate_ok
+# o6 = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+lattice_replay_ok(enumerated : sbf, monotone : sbf, budget : sbf) := is1(enumerated) && is1(monotone) && is1(budget).
+antichain_certificate_ok(overall_minimal : sbf, component_cover : sbf, stale_breaker_dominated : sbf) := is1(overall_minimal) && is1(component_cover) && is1(stale_breaker_dominated).
+containment_and_tau_ok(containment : sbf, tau_parity : sbf) := is1(containment) && is1(tau_parity).
+authority_boundary_ok(advisory_only : sbf, no_authority : sbf) := is1(advisory_only) && is1(no_authority).
+certificate_ok(active : sbf, enumerated : sbf, monotone : sbf, overall_minimal : sbf, component_cover : sbf, containment : sbf, tau_parity : sbf, stale_breaker_dominated : sbf, budget : sbf, advisory_only : sbf, no_authority : sbf) := is1(active) && lattice_replay_ok(enumerated, monotone, budget) && antichain_certificate_ok(overall_minimal, component_cover, stale_breaker_dominated) && containment_and_tau_ok(containment, tau_parity) && authority_boundary_ok(advisory_only, no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> lattice_replay_ok(i2[t]:sbf, i3[t]:sbf, i9[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> antichain_certificate_ok(i4[t]:sbf, i5[t]:sbf, i8[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> containment_and_tau_ok(i6[t]:sbf, i7[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> authority_boundary_ok(i10[t]:sbf, i11[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> certificate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i11[t]:sbf))).
