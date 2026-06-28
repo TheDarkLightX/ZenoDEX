@@ -12,7 +12,7 @@ Tau admits a split-routing certificate lane only. It does not quote pools, choos
 - Latest Tau: `Tau Language Framework version 0.7.0-alpha (401d756b)`
 - Tau trace replay ok: `True`
 - Split cases: `4`
-- Quote-call reduction range: `3.61x` to `17.63x`
+- Quote-call reduction range: `3.41x` to `16.57x`
 - Naive discrete-convex failures: `4`
 
 The spec requires derivative-window replay, local window coverage, bounded full-oracle parity, quote replay, integer rounding scope, resource budget, fallback, exact-out scope, and no settlement authority.
@@ -21,10 +21,10 @@ The spec requires derivative-window replay, local window coverage, bounded full-
 
 | case | feasible splits | full quotes | window quotes | reduction | selected q0 | amount in | first-diff monotone |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| `endpoint_best_amount2000` | `2001` | `4000` | `1107` | `3.61x` | `2000` | `3010` | `False` |
-| `interior_plateau_amount5000` | `4985` | `10000` | `1170` | `8.55x` | `928` | `5464` | `False` |
-| `large_endpoint_amount9000` | `8960` | `17961` | `1019` | `17.63x` | `9000` | `5151` | `False` |
-| `interior_rounding_gap_amount4000` | `3980` | `7979` | `1156` | `6.90x` | `3719` | `5272` | `False` |
+| `endpoint_best_amount2000` | `2001` | `4000` | `1172` | `3.41x` | `2000` | `3010` | `False` |
+| `interior_plateau_amount5000` | `4985` | `10000` | `1300` | `7.69x` | `928` | `5464` | `False` |
+| `large_endpoint_amount9000` | `8960` | `17961` | `1084` | `16.57x` | `9000` | `5151` | `False` |
+| `interior_rounding_gap_amount4000` | `3980` | `7979` | `1286` | `6.20x` | `3719` | `5272` | `False` |
 
 The failed first-difference checks are recorded as negative knowledge. The certificate accepts only because bounded full-oracle parity and quote replay pass.
 
