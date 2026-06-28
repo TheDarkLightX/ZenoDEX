@@ -479,7 +479,7 @@ export default function PerpsGovernanceSurface() {
               <div className="gov-progress-bar-bg">
                 <div
                   className={`gov-progress-bar-fill ${!thresholdKnown ? 'fill-pending' : activeKeysCount >= signatureThreshold ? 'fill-ready' : 'fill-pending'}`}
-                  style={{ width: `${thresholdPercentage}%` }}
+                  style={{ '--threshold-pct': `${thresholdPercentage}%`, width: `${thresholdPercentage}%` }}
                 ></div>
               </div>
             </div>
@@ -606,22 +606,22 @@ export default function PerpsGovernanceSurface() {
 
             {/* Device Approval Inline Form */}
             {activeForm === 'deviceApproval' && (
-              <div className="gov-form-panel animate-fade-in" style={{ padding: 'var(--space-md)', background: 'var(--background-subtle)', borderRadius: 'var(--radius-md)', margin: 'var(--space-md) 0', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div className="gov-form-panel animate-fade-in">
                 <h4>Device Approval &amp; Attestation</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)', marginTop: 'var(--space-sm)' }}>
+                <div className="gov-form-grid">
                   <label className="label">
                     <span>Key ID</span>
-                    <input className="input" style={{ width: '100%' }} value={deviceKeyId} onChange={(e) => setDeviceKeyId(e.target.value)} />
+                    <input className="input" value={deviceKeyId} onChange={(e) => setDeviceKeyId(e.target.value)} />
                   </label>
                   <label className="label">
                     <span>Device Label</span>
-                    <input className="input" style={{ width: '100%' }} value={deviceLabel} onChange={(e) => setDeviceLabel(e.target.value)} />
+                    <input className="input" value={deviceLabel} onChange={(e) => setDeviceLabel(e.target.value)} />
                   </label>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)', marginTop: 'var(--space-sm)' }}>
+                <div className="gov-form-grid">
                   <label className="label">
                     <span>Device Mode</span>
-                    <select className="input" style={{ width: '100%' }} value={deviceMode} onChange={(e) => setDeviceMode(e.target.value)}>
+                    <select className="input" value={deviceMode} onChange={(e) => setDeviceMode(e.target.value)}>
                       <option value="hardware_key">Hardware Key</option>
                       <option value="software_key">Software Key</option>
                       <option value="tee_enclave">TEE Enclave</option>
@@ -629,21 +629,21 @@ export default function PerpsGovernanceSurface() {
                   </label>
                   <label className="label">
                     <span>Payload Nonce</span>
-                    <input className="input" style={{ width: '100%' }} type="number" value={deviceNonce} onChange={(e) => setDeviceNonce(parseInt(e.target.value, 10) || 0)} />
+                    <input className="input" type="number" value={deviceNonce} onChange={(e) => setDeviceNonce(parseInt(e.target.value, 10) || 0)} />
                   </label>
                 </div>
                 {deviceMode === 'tee_enclave' && (
-                  <label className="label" style={{ marginTop: 'var(--space-sm)', display: 'block' }}>
+                  <label className="label gov-form-label">
                     <span>PCR0 Enclave Measurement</span>
-                    <input className="input" style={{ width: '100%' }} value={devicePcr0} onChange={(e) => setDevicePcr0(e.target.value)} placeholder="0x..." />
+                    <input className="input" value={devicePcr0} onChange={(e) => setDevicePcr0(e.target.value)} placeholder="0x..." />
                   </label>
                 )}
-                <div style={{ display: 'flex', gap: 'var(--space-md)', marginTop: 'var(--space-md)' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <div className="gov-form-row">
+                  <label className="gov-checkbox-label">
                     <input type="checkbox" checked={userPresence} onChange={(e) => setUserPresence(e.target.checked)} />
                     <span>Confirm User Presence</span>
                   </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <label className="gov-checkbox-label">
                     <input type="checkbox" checked={rollbackProtection} onChange={(e) => setRollbackProtection(e.target.checked)} />
                     <span>Rollback Protection</span>
                   </label>
@@ -651,7 +651,6 @@ export default function PerpsGovernanceSurface() {
                 <button
                   className="btn btn-primary btn-sm"
                   type="button"
-                  style={{ marginTop: 'var(--space-md)' }}
                   onClick={() => {
                     const base = fixtures.deviceApprovalExercise ? JSON.parse(JSON.stringify(fixtures.deviceApprovalExercise)) : {};
                     base.key_id = deviceKeyId;
@@ -706,22 +705,22 @@ export default function PerpsGovernanceSurface() {
 
             {/* Signer Device Inline Form */}
             {activeForm === 'signerDevice' && (
-              <div className="gov-form-panel animate-fade-in" style={{ padding: 'var(--space-md)', background: 'var(--background-subtle)', borderRadius: 'var(--radius-md)', margin: 'var(--space-md) 0', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div className="gov-form-panel animate-fade-in">
                 <h4>Signer Device Integration</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)', marginTop: 'var(--space-sm)' }}>
+                <div className="gov-form-grid">
                   <label className="label">
                     <span>Key ID</span>
-                    <input className="input" style={{ width: '100%' }} value={deviceKeyId} onChange={(e) => setDeviceKeyId(e.target.value)} />
+                    <input className="input" value={deviceKeyId} onChange={(e) => setDeviceKeyId(e.target.value)} />
                   </label>
                   <label className="label">
                     <span>Device Label</span>
-                    <input className="input" style={{ width: '100%' }} value={deviceLabel} onChange={(e) => setDeviceLabel(e.target.value)} />
+                    <input className="input" value={deviceLabel} onChange={(e) => setDeviceLabel(e.target.value)} />
                   </label>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)', marginTop: 'var(--space-sm)' }}>
+                <div className="gov-form-grid">
                   <label className="label">
                     <span>Device Mode (Kind)</span>
-                    <select className="input" style={{ width: '100%' }} value={deviceMode} onChange={(e) => setDeviceMode(e.target.value)}>
+                    <select className="input" value={deviceMode} onChange={(e) => setDeviceMode(e.target.value)}>
                       <option value="hardware_key">Hardware Key</option>
                       <option value="software_key">Software Key</option>
                       <option value="tee_enclave">TEE Enclave</option>
@@ -729,26 +728,26 @@ export default function PerpsGovernanceSurface() {
                   </label>
                   <label className="label">
                     <span>Payload Nonce</span>
-                    <input className="input" style={{ width: '100%' }} type="number" value={deviceNonce} onChange={(e) => setDeviceNonce(parseInt(e.target.value, 10) || 0)} />
+                    <input className="input" type="number" value={deviceNonce} onChange={(e) => setDeviceNonce(parseInt(e.target.value, 10) || 0)} />
                   </label>
                 </div>
                 {deviceMode === 'tee_enclave' && (
-                  <label className="label" style={{ marginTop: 'var(--space-sm)', display: 'block' }}>
+                  <label className="label gov-form-label">
                     <span>PCR0 Enclave Measurement</span>
-                    <input className="input" style={{ width: '100%' }} value={devicePcr0} onChange={(e) => setDevicePcr0(e.target.value)} placeholder="0x..." />
+                    <input className="input" value={devicePcr0} onChange={(e) => setDevicePcr0(e.target.value)} placeholder="0x..." />
                   </label>
                 )}
-                <div style={{ display: 'flex', gap: 'var(--space-md)', marginTop: 'var(--space-md)' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <div className="gov-form-row">
+                  <label className="gov-checkbox-label">
                     <input type="checkbox" checked={userPresence} onChange={(e) => setUserPresence(e.target.checked)} />
                     <span>Confirm User Presence</span>
                   </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <label className="gov-checkbox-label">
                     <input type="checkbox" checked={rollbackProtection} onChange={(e) => setRollbackProtection(e.target.checked)} />
                     <span>Rollback Protection</span>
                   </label>
                 </div>
-                <div style={{ display: 'flex', gap: 'var(--space-sm)', marginTop: 'var(--space-md)' }}>
+                <div className="gov-form-row">
                   <button
                     className="btn btn-primary btn-sm"
                     type="button"
@@ -823,40 +822,39 @@ export default function PerpsGovernanceSurface() {
 
             {/* Recovery Inline Form */}
             {activeForm === 'recovery' && (
-              <div className="gov-form-panel animate-fade-in" style={{ padding: 'var(--space-md)', background: 'var(--background-subtle)', borderRadius: 'var(--radius-md)', margin: 'var(--space-md) 0', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div className="gov-form-panel animate-fade-in">
                 <h4>Key Management &amp; Social Recovery Setup</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)', marginTop: 'var(--space-sm)' }}>
+                <div className="gov-form-grid">
                   <label className="label">
                     <span>Subject Key ID</span>
-                    <input className="input" style={{ width: '100%' }} value={subjectKeyId} onChange={(e) => setSubjectKeyId(e.target.value)} />
+                    <input className="input" value={subjectKeyId} onChange={(e) => setSubjectKeyId(e.target.value)} />
                   </label>
                   <label className="label">
                     <span>Recovery Policy ID</span>
-                    <input className="input" style={{ width: '100%' }} value={policyId} onChange={(e) => setPolicyId(e.target.value)} />
+                    <input className="input" value={policyId} onChange={(e) => setPolicyId(e.target.value)} />
                   </label>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)', marginTop: 'var(--space-sm)' }}>
+                <div className="gov-form-grid">
                   <label className="label">
                     <span>Requested Epoch</span>
-                    <input className="input" style={{ width: '100%' }} type="number" value={requestedEpoch} onChange={(e) => setRequestedEpoch(parseInt(e.target.value, 10) || 0)} />
+                    <input className="input" type="number" value={requestedEpoch} onChange={(e) => setRequestedEpoch(parseInt(e.target.value, 10) || 0)} />
                   </label>
                   <label className="label">
                     <span>Current Epoch</span>
-                    <input className="input" style={{ width: '100%' }} type="number" value={currentEpoch} onChange={(e) => setCurrentEpoch(parseInt(e.target.value, 10) || 0)} />
+                    <input className="input" type="number" value={currentEpoch} onChange={(e) => setCurrentEpoch(parseInt(e.target.value, 10) || 0)} />
                   </label>
                 </div>
-                <label className="label" style={{ marginTop: 'var(--space-sm)', display: 'block' }}>
+                <label className="label gov-form-label">
                   <span>Approvals / Guardians (comma separated)</span>
-                  <input className="input" style={{ width: '100%' }} value={guardianList} onChange={(e) => setGuardianList(e.target.value)} />
+                  <input className="input" value={guardianList} onChange={(e) => setGuardianList(e.target.value)} />
                 </label>
-                <label className="label" style={{ marginTop: 'var(--space-sm)', display: 'block' }}>
+                <label className="label gov-form-label">
                   <span>Signature Envelopes (JSON Array)</span>
-                  <textarea className="input" style={{ width: '100%', fontFamily: 'var(--font-mono)' }} rows={3} value={sigEnvelopesJson} onChange={(e) => setSigEnvelopesJson(e.target.value)} />
+                  <textarea className="input mono" rows={3} value={sigEnvelopesJson} onChange={(e) => setSigEnvelopesJson(e.target.value)} />
                 </label>
                 <button
                   className="btn btn-primary btn-sm"
                   type="button"
-                  style={{ marginTop: 'var(--space-md)' }}
                   onClick={() => {
                     const base = fixtures.recoveryExercise ? JSON.parse(JSON.stringify(fixtures.recoveryExercise)) : {};
                     base.subject_key_id = subjectKeyId;
@@ -913,44 +911,43 @@ export default function PerpsGovernanceSurface() {
 
             {/* Rotation Inline Form */}
             {activeForm === 'rotation' && (
-              <div className="gov-form-panel animate-fade-in" style={{ padding: 'var(--space-md)', background: 'var(--background-subtle)', borderRadius: 'var(--radius-md)', margin: 'var(--space-md) 0', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div className="gov-form-panel animate-fade-in">
                 <h4>Key Rotation Parameters</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)', marginTop: 'var(--space-sm)' }}>
+                <div className="gov-form-grid">
                   <label className="label">
                     <span>Rotated Key ID</span>
-                    <input className="input" style={{ width: '100%' }} value={rotatedKeyId} onChange={(e) => setRotatedKeyId(e.target.value)} />
+                    <input className="input" value={rotatedKeyId} onChange={(e) => setRotatedKeyId(e.target.value)} />
                   </label>
                   <label className="label">
                     <span>Replacement Key ID</span>
-                    <input className="input" style={{ width: '100%' }} value={replacementKeyId} onChange={(e) => setReplacementKeyId(e.target.value)} />
+                    <input className="input" value={replacementKeyId} onChange={(e) => setReplacementKeyId(e.target.value)} />
                   </label>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)', marginTop: 'var(--space-sm)' }}>
+                <div className="gov-form-grid">
                   <label className="label">
                     <span>Policy ID</span>
-                    <input className="input" style={{ width: '100%' }} value={rotationPolicyId} onChange={(e) => setRotationPolicyId(e.target.value)} />
+                    <input className="input" value={rotationPolicyId} onChange={(e) => setRotationPolicyId(e.target.value)} />
                   </label>
                   <label className="label">
                     <span>Broadcast Epoch</span>
-                    <input className="input" style={{ width: '100%' }} type="number" value={broadcastEpoch} onChange={(e) => setBroadcastEpoch(parseInt(e.target.value, 10) || 0)} />
+                    <input className="input" type="number" value={broadcastEpoch} onChange={(e) => setBroadcastEpoch(parseInt(e.target.value, 10) || 0)} />
                   </label>
                 </div>
-                <label className="label" style={{ marginTop: 'var(--space-sm)', display: 'block' }}>
+                <label className="label gov-form-label">
                   <span>Approvals / Guardians (comma separated)</span>
-                  <input className="input" style={{ width: '100%' }} value={rotationGuardianList} onChange={(e) => setRotationGuardianList(e.target.value)} />
+                  <input className="input" value={rotationGuardianList} onChange={(e) => setRotationGuardianList(e.target.value)} />
                 </label>
-                <label className="label" style={{ marginTop: 'var(--space-sm)', display: 'block' }}>
+                <label className="label gov-form-label">
                   <span>Signature Envelopes (JSON Array)</span>
-                  <textarea className="input" style={{ width: '100%', fontFamily: 'var(--font-mono)' }} rows={2} value={rotationSigEnvelopesJson} onChange={(e) => setRotationSigEnvelopesJson(e.target.value)} />
+                  <textarea className="input mono" rows={2} value={rotationSigEnvelopesJson} onChange={(e) => setRotationSigEnvelopesJson(e.target.value)} />
                 </label>
-                <label className="label" style={{ marginTop: 'var(--space-sm)', display: 'block' }}>
+                <label className="label gov-form-label">
                   <span>Next Wallet Authority Profile (JSON)</span>
-                  <textarea className="input" style={{ width: '100%', fontFamily: 'var(--font-mono)' }} rows={3} value={nextProfileJson} onChange={(e) => setNextProfileJson(e.target.value)} />
+                  <textarea className="input mono" rows={3} value={nextProfileJson} onChange={(e) => setNextProfileJson(e.target.value)} />
                 </label>
                 <button
                   className="btn btn-primary btn-sm"
                   type="button"
-                  style={{ marginTop: 'var(--space-md)' }}
                   onClick={() => {
                     const base = fixtures.rotationExercise ? JSON.parse(JSON.stringify(fixtures.rotationExercise)) : {};
                     base.rotated_key_id = rotatedKeyId;
@@ -1181,16 +1178,16 @@ export default function PerpsGovernanceSurface() {
         </div>
         <p className="gov-disclaimer">
           {showRaw ? (
-            <strong style={{ color: 'var(--accent-red)' }}>WARNING: Sensitive raw key attributes are visible. Do not share this screen.</strong>
+            <strong className="gov-warning-text">WARNING: Sensitive raw key attributes are visible. Do not share this screen.</strong>
           ) : (
             'Notice: Local Testnet Governance Fixtures. All sensitive keys and hashes have been redacted.'
           )}
         </p>
-        <details className="gov-status-logs-details" style={{ marginTop: 'var(--space-md)' }}>
-          <summary className="btn btn-secondary btn-xs" style={{ marginBottom: 'var(--space-sm)', cursor: 'pointer' }}>
+        <details className="gov-status-logs-details">
+          <summary className="btn btn-secondary btn-xs gov-status-logs-summary">
             Toggle Status JSON Dump
           </summary>
-          <pre className="gov-redacted-json" style={{ marginTop: 'var(--space-sm)' }}>
+          <pre className="gov-redacted-json">
             {status
               ? JSON.stringify(showRaw ? status : redactSensitive(status), null, 2)
               : 'Status not loaded'}

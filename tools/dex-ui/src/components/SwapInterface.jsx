@@ -1,19 +1,19 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { calcSwapOutput, calcPriceImpact, formatNumber, formatPercent } from '../lib/cpmm';
 import { validateSwap, getSlippageOptions, getPriceImpactSeverity } from '../lib/validation';
-import { apiDexImpactPreview, apiDexSlippageAdvice, apiDexPokayokeSwapSuggest, apiDexPokayokeSwapSuggestHeavy, apiSwap, getRuntimeConfig } from '../lib/api';
+import { apiDexPokayokeSwapSuggest, apiDexPokayokeSwapSuggestHeavy, apiSwap, getRuntimeConfig } from '../lib/api';
 import { createQuoteDagCache, computeSwapQuotePreviewIncremental } from '../lib/incrementalQuoteDag';
 import {
     deriveAutoProfile,
     getProfileById,
     listRouteProfiles,
     profileFromSlider,
-    sliderValueForProfile,
 } from '../lib/routeProfiles';
 import { createQuoteCertificate, verifyQuoteCertificate } from '../lib/quoteCertificate';
 import { useTransactionCenter } from '../lib/TransactionCenterContext.jsx';
 import { useDemoMode } from '../lib/DemoModeContext.jsx';
 import TokenSelectModal from './TokenSelectModal.jsx';
+import Modal from './Modal.jsx';
 import {
     FALLBACK_SWAP_POOLS,
     FALLBACK_SWAP_TOKENS,
@@ -21,110 +21,16 @@ import {
     resolveWalletTokenBalance,
 } from '../lib/swapData.js';
 import VerifiedBySpec from './VerifiedBySpec.jsx';
-import CopyHash from './CopyHash.jsx';
 import { buildAndSignSwapIntent } from '../sdk/dexIntentSigner.js';
+import { createMockTxHash } from '../lib/swapUtils.js';
+import { useDirectSwapApiPreviewState, useRouteImpactPreview } from '../lib/swapPreviewHooks.js';
+import { SettingsIcon, RefreshIcon, SwapDirectionIcon, InfoIcon, AlertIcon } from './swap/SwapIcons.jsx';
+import { Tooltip } from './swap/SwapTooltip.jsx';
+import { SwapSettings } from './swap/SwapSettings.jsx';
+import { SwapSubmittedModal } from './swap/SwapSubmittedModal.jsx';
+import { SwapProofPanel } from './swap/SwapProofPanel.jsx';
+import SwapConfirmModal from './swap/SwapConfirmModal.jsx';
 import './SwapInterface.css';
-
-// SVGs
-const SettingsIcon = () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-    </svg>
-);
-
-const RefreshIcon = () => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-        <path d="M3 3v5h5" />
-        <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-        <path d="M16 21v-5h5" />
-    </svg>
-);
-
-const SwapDirectionIcon = () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="12" y1="5" x2="12" y2="19"/>
-        <polyline points="19 12 12 19 5 12"/>
-    </svg>
-);
-
-const InfoIcon = ({ className = "icon" }) => (
-    <svg className={className} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/>
-        <line x1="12" y1="16" x2="12" y2="12"/>
-        <line x1="12" y1="8" x2="12.01" y2="8"/>
-    </svg>
-);
-
-const AlertIcon = ({ className = "icon" }) => (
-    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-        <line x1="12" y1="9" x2="12" y2="13"/>
-        <line x1="12" y1="17" x2="12.01" y2="17"/>
-    </svg>
-);
-
-// Tooltip component
-function Tooltip({ text, children }) {
-    const [show, setShow] = useState(false);
-    return (
-        <span
-            className="tooltip-container"
-            onMouseEnter={() => setShow(true)}
-            onMouseLeave={() => setShow(false)}
-        >
-            {children}
-            {show && <span className="tooltip-text">{text}</span>}
-        </span>
-    );
-}
-
-function createMockTxHash() {
-    const bytes = new Uint8Array(32);
-    if (typeof globalThis !== 'undefined' && globalThis.crypto?.getRandomValues) {
-        globalThis.crypto.getRandomValues(bytes);
-    } else {
-        for (let i = 0; i < bytes.length; i += 1) {
-            bytes[i] = Math.floor(Math.random() * 256);
-        }
-    }
-    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-    return `0x${hex}`;
-}
-
-function shortHash(hash) {
-    if (!hash) return '';
-    return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
-}
-
-function clamp(value, lo, hi) {
-    return Math.min(hi, Math.max(lo, value));
-}
-
-function estimateRoutePendingVolumes({ amountIn, routeType, profileId, gateDecision, hopOutputs = [] }) {
-    const baseByProfile = {
-        latency: 0.04,
-        balanced: 0.10,
-        quality: 0.16,
-        legacy: 0.06,
-    };
-    const base = baseByProfile[String(profileId || '').toLowerCase()] ?? 0.10;
-    const stress = clamp(Number(gateDecision?.stress ?? 0), 0, 2);
-    const pressure = clamp(Number(gateDecision?.pressure ?? 1), 0, 4);
-    const gateBoost = gateDecision?.considerTwoHop ? 0.03 : 0;
-    const multiplier = base + gateBoost;
-    const scale = 1 + (0.35 * stress) + (0.2 * Math.max(0, pressure - 1));
-
-    const pending1 = Math.max(0, Math.round(Number(amountIn || 0) * multiplier * scale));
-    if (String(routeType) !== 'two-hop') {
-        return [pending1];
-    }
-
-    const hopInput2 = Math.max(0, Number(hopOutputs?.[0] ?? 0));
-    const pending2 = Math.max(0, Math.round(hopInput2 * multiplier * 0.8 * scale));
-    return [pending1, pending2];
-}
 
 function SwapInterface({ wallet }) {
     const { upsertTransaction } = useTransactionCenter();
@@ -160,9 +66,6 @@ function SwapInterface({ wallet }) {
     const [autoProfile, setAutoProfile] = useState(true);
     const [quoteError, setQuoteError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [apiImpactPreview, setApiImpactPreview] = useState(null);
-    const [routeApiImpactPreview, setRouteApiImpactPreview] = useState(null);
-    const [apiSlippageAdvice, setApiSlippageAdvice] = useState(null);
     const [poolFeed, setPoolFeed] = useState({
         source: 'fallback',
         pools: FALLBACK_SWAP_POOLS,
@@ -236,7 +139,6 @@ function SwapInterface({ wallet }) {
             setQuoteError('');
             setShowConfirm(false);
             setSubmittedSwap(null);
-            setRouteApiImpactPreview(null);
         }
     }, [advancedMode]);
 
@@ -364,128 +266,14 @@ function SwapInterface({ wallet }) {
         };
     }, [amountIn, reserves, poolKey, poolFeed.pools]);
 
-    useEffect(() => {
-        let cancelled = false;
-        const controller = new AbortController();
-        const run = async () => {
-            if (advancedMode) {
-                setApiImpactPreview(null);
-                return;
-            }
-            if (!amountIn || !reserves) {
-                setApiImpactPreview(null);
-                return;
-            }
-            const input = parseFloat(amountIn);
-            if (!Number.isFinite(input) || input <= 0) {
-                setApiImpactPreview(null);
-                return;
-            }
-            const feeBps = Number(poolFeed.pools[poolKey]?.feeBps ?? 30);
-            try {
-                const resp = await apiDexImpactPreview(
-                    {
-                        reserveIn: Math.max(1, Math.round(reserves.reserveIn)),
-                        reserveOut: Math.max(1, Math.round(reserves.reserveOut)),
-                        amountIn: Math.max(1, Math.round(input)),
-                        feeBps: Math.max(0, Math.round(feeBps)),
-                        pendingVolumeSameDirection: 0,
-                        confidenceBps: 9500,
-                    },
-                    { timeoutMs: 1400, signal: controller.signal },
-                );
-                const p = resp?.preview;
-                if (!cancelled && resp?.ok && p) {
-                    setApiImpactPreview({
-                        amountOutIsolated: Number(p.amount_out_isolated),
-                        feeAmount: Number(p.fee_amount),
-                        priceImpactBps: Number(p.price_impact_bps),
-                        spotPriceE8: Number(p.spot_price_e8),
-                        amountOutBestCase: Number(p.amount_out_best_case),
-                        amountOutWorstCase: Number(p.amount_out_worst_case),
-                        recommendedMinOut: Number(p.recommended_min_out),
-                    });
-                }
-            } catch (err) {
-                const name = err && typeof err === 'object' ? err.name : '';
-                if (!cancelled && name !== 'AbortError') {
-                    setApiImpactPreview(null);
-                }
-            }
-        };
-        run();
-        return () => {
-            cancelled = true;
-            controller.abort();
-        };
-    }, [amountIn, reserves, poolKey, poolFeed.pools, advancedMode]);
-
-    useEffect(() => {
-        let cancelled = false;
-        const controller = new AbortController();
-        const run = async () => {
-            if (advancedMode) {
-                setApiSlippageAdvice(null);
-                return;
-            }
-            if (!amountIn || !reserves) {
-                setApiSlippageAdvice(null);
-                return;
-            }
-            const input = parseFloat(amountIn);
-            if (!Number.isFinite(input) || input <= 0) {
-                setApiSlippageAdvice(null);
-                return;
-            }
-
-            const feeBps = Number(poolFeed.pools[poolKey]?.feeBps ?? 30);
-            const optsBps = getSlippageOptions()
-                .map((o) => Math.round(Number(o.value) * 10_000))
-                .filter((v) => Number.isFinite(v) && v >= 0 && v <= 10_000);
-            optsBps.sort((a, b) => a - b);
-            const uniqOpts = Array.from(new Set(optsBps));
-
-            try {
-                const resp = await apiDexSlippageAdvice(
-                    {
-                        reserveIn: Math.max(1, Math.round(reserves.reserveIn)),
-                        reserveOut: Math.max(1, Math.round(reserves.reserveOut)),
-                        amountIn: Math.max(1, Math.round(input)),
-                        feeBps: Math.max(0, Math.round(feeBps)),
-                        pendingVolumeSameDirection: 0,
-                        confidenceBps: 9500,
-                        slippageOptionsBps: uniqOpts,
-                        maxAttackerAmountIn: 2000,
-                        userSlippageBps: Math.max(0, Math.min(10_000, Math.round(Number(slippage || 0) * 10_000))),
-                    },
-                    { timeoutMs: 1800, signal: controller.signal },
-                );
-                const a = resp?.advice;
-                if (!cancelled && resp?.ok && a) {
-                    setApiSlippageAdvice({
-                        status: String(a.status || ''),
-                        priceImpactBps: a.price_impact_bps,
-                        recommendedSlippageBps: a.recommended_slippage_bps,
-                        recommendedSlippageBpsRevertSafe: a.recommended_slippage_bps_revert_safe,
-                        recommendedSlippageBpsMevSafe: a.recommended_slippage_bps_mev_safe,
-                        requiredSlippageBps: a.required_slippage_bps,
-                        options: Array.isArray(a.options) ? a.options : [],
-                        pokayoke: a.pokayoke || null,
-                    });
-                }
-            } catch (err) {
-                const name = err && typeof err === 'object' ? err.name : '';
-                if (!cancelled && name !== 'AbortError') {
-                    setApiSlippageAdvice(null);
-                }
-            }
-        };
-        run();
-        return () => {
-            cancelled = true;
-            controller.abort();
-        };
-    }, [amountIn, reserves, poolKey, poolFeed.pools, advancedMode, slippage]);
+    const previewFeeBps = Number(poolFeed.pools[poolKey]?.feeBps ?? 30);
+    const { apiImpactPreview, apiSlippageAdvice } = useDirectSwapApiPreviewState({
+        advancedMode,
+        amountIn,
+        reserves,
+        feeBps: previewFeeBps,
+        slippage,
+    });
 
     const legacyPreview = useMemo(() => {
         if (!directMetrics || !reserves) return null;
@@ -575,106 +363,7 @@ function SwapInterface({ wallet }) {
 
     const swapPreview = advancedMode ? (swapQuote?.preview || null) : legacyPreview;
 
-    useEffect(() => {
-        let cancelled = false;
-        const controller = new AbortController();
-        const run = async () => {
-            if (!advancedMode || !swapPreview) {
-                setRouteApiImpactPreview(null);
-                return;
-            }
-            const routeEdges = Array.isArray(swapPreview.routeEdges) ? swapPreview.routeEdges : [];
-            if (routeEdges.length === 0) {
-                setRouteApiImpactPreview(null);
-                return;
-            }
-            const amountInNum = Number(amountIn || 0);
-            if (!Number.isFinite(amountInNum) || amountInNum <= 0) {
-                setRouteApiImpactPreview(null);
-                return;
-            }
-
-            const pendingVolumes = estimateRoutePendingVolumes({
-                amountIn: amountInNum,
-                routeType: swapPreview.routeType,
-                profileId: swapPreview.profileId,
-                gateDecision: swapPreview.gateDecision,
-                hopOutputs: swapPreview.hopOutputs,
-            });
-
-            const callHop = async ({ edge, hopAmountIn, pendingVolume, confidenceBps = 9500 }) => {
-                const resp = await apiDexImpactPreview(
-                    {
-                        reserveIn: Math.max(1, Math.round(Number(edge.reserveIn || 0))),
-                        reserveOut: Math.max(1, Math.round(Number(edge.reserveOut || 0))),
-                        amountIn: Math.max(1, Math.round(Number(hopAmountIn || 0))),
-                        feeBps: Math.max(0, Math.round(Number(edge.feeBps || 0))),
-                        pendingVolumeSameDirection: Math.max(0, Math.round(Number(pendingVolume || 0))),
-                        confidenceBps,
-                    },
-                    { timeoutMs: 1600, signal: controller.signal },
-                );
-                if (!resp?.ok || !resp?.preview) {
-                    throw new Error('route_impact_preview_error');
-                }
-                return resp.preview;
-            };
-
-            try {
-                if (swapPreview.routeType !== 'two-hop' || routeEdges.length < 2) {
-                    const p = await callHop({
-                        edge: routeEdges[0],
-                        hopAmountIn: amountInNum,
-                        pendingVolume: pendingVolumes[0] || 0,
-                    });
-                    if (cancelled) return;
-                    setRouteApiImpactPreview({
-                        source: 'api-route',
-                        amountOutBestCase: Number(p.amount_out_best_case),
-                        amountOutWorstCase: Number(p.amount_out_worst_case),
-                        recommendedMinOut: Number(p.recommended_min_out),
-                        feeAmount: Number(p.fee_amount),
-                    });
-                    return;
-                }
-
-                // Two-hop: propagate bounds through both hops.
-                const p1 = await callHop({
-                    edge: routeEdges[0],
-                    hopAmountIn: amountInNum,
-                    pendingVolume: pendingVolumes[0] || 0,
-                });
-                const p2Best = await callHop({
-                    edge: routeEdges[1],
-                    hopAmountIn: Number(p1.amount_out_best_case),
-                    pendingVolume: pendingVolumes[1] || 0,
-                });
-                const p2Worst = await callHop({
-                    edge: routeEdges[1],
-                    hopAmountIn: Number(p1.amount_out_worst_case),
-                    pendingVolume: pendingVolumes[1] || 0,
-                });
-                if (cancelled) return;
-                setRouteApiImpactPreview({
-                    source: 'api-route',
-                    amountOutBestCase: Number(p2Best.amount_out_best_case),
-                    amountOutWorstCase: Number(p2Worst.amount_out_worst_case),
-                    recommendedMinOut: Number(p2Worst.recommended_min_out),
-                    feeAmount: Number(p1.fee_amount) + Number(p2Best.fee_amount),
-                });
-            } catch (err) {
-                const name = err && typeof err === 'object' ? err.name : '';
-                if (!cancelled && name !== 'AbortError') {
-                    setRouteApiImpactPreview(null);
-                }
-            }
-        };
-        run();
-        return () => {
-            cancelled = true;
-            controller.abort();
-        };
-    }, [advancedMode, swapPreview, amountIn]);
+    const routeApiImpactPreview = useRouteImpactPreview({ advancedMode, swapPreview, amountIn });
 
     const activePreview = useMemo(() => {
         if (!swapPreview) return null;
@@ -925,7 +614,7 @@ function SwapInterface({ wallet }) {
         executeSwap();
     };
 
-    const executeSwap = useCallback(async () => {
+    const resetConfirmState = useCallback(() => {
         setShowConfirm(false);
         setConfirmConfig(null);
         setTypedConfirmText('');
@@ -933,6 +622,20 @@ function SwapInterface({ wallet }) {
         setPokayokeSuggestError('');
         setPokayokeHeavySuggestions(null);
         setPokayokeHeavySuggestError('');
+    }, []);
+
+    const handleApplySlippage = useCallback((newSlippage) => {
+        setSlippage(newSlippage);
+        resetConfirmState();
+    }, [resetConfirmState]);
+
+    const handleApplySuggestedAmount = useCallback((amount) => {
+        setAmountIn(String(amount));
+        resetConfirmState();
+    }, [resetConfirmState]);
+
+    const executeSwap = useCallback(async () => {
+        resetConfirmState();
         if (!activePreview) {
             setQuoteError('Missing quote preview');
             return;
@@ -1101,7 +804,7 @@ function SwapInterface({ wallet }) {
         } finally {
             setIsSubmitting(false);
         }
-    }, [amountIn, fromToken, toToken, activePreview, quotePayload, quoteCertificate, effectiveProfileConfig.label, advancedMode, upsertTransaction, demoMode, poolFeed, poolKey, livePoolIntent, wallet, uiSmokeSwap]);
+    }, [amountIn, fromToken, toToken, activePreview, quotePayload, quoteCertificate, effectiveProfileConfig.label, advancedMode, upsertTransaction, demoMode, poolFeed, poolKey, livePoolIntent, wallet, uiSmokeSwap, resetConfirmState]);
 
     useEffect(() => {
         if (!uiSmokeSwap.enabled) return;
@@ -1340,100 +1043,19 @@ function SwapInterface({ wallet }) {
     );
 
     const proofPanel = (
-        <aside className="swap-proof panel" aria-label="Execution proof">
-            <div className="swap-rail-head">
-                <span className="swap-rail-eyebrow">Execution proof</span>
-                <h3 className="swap-rail-title">Verification</h3>
-            </div>
-
-            <div className={`swap-proof-posture ${proofEnforced ? 'is-enforced' : 'is-advisory'}`}>
-                <div className="swap-proof-posture-head">
-                    <span className="swap-proof-posture-dot" aria-hidden="true" />
-                    <span className="swap-proof-posture-label">
-                        {proofEnforced
-                            ? 'Proof-wrapper active'
-                            : (postureKnown ? 'Spec-checked · proofs off' : 'Posture unavailable')}
-                    </span>
-                </div>
-                <p className="swap-proof-posture-detail">
-                    {proofEnforced ? (
-                        <>This stack has the <code>{zkPosture.proof_verifier_kind}</code> proof verifier active for mounted live write gates (zk {zkPosture.zk_mode_effective}). Spot swap math is validated by Tau spec <code>cpmm_v1</code>; this is runtime posture, not a production spot ZK proof.</>
-                    ) : (
-                        <>Tau spec <code>cpmm_v1</code> defines the math, but this environment runs zk <code>{zkPosture.zk_mode_effective || 'unknown'}</code> with proof verification <strong>disabled</strong>. Treat green checks as spec conformance, not a production proof.</>
-                    )}
-                </p>
-            </div>
-
-            <div className="swap-proof-evidence" role="list">
-                <span className="swap-proof-ev" role="listitem">
-                    <span className={`swap-proof-ev-dot ${proofEnforced ? 'ev-on' : 'ev-off'}`} aria-hidden="true" />
-                    Proof verifier {proofEnforced ? 'active' : 'off'}
-                </span>
-                <span className="swap-proof-ev" role="listitem">
-                    <span className="swap-proof-ev-dot ev-on" aria-hidden="true" />
-                    Tau spec cpmm_v1
-                </span>
-                <span className="swap-proof-ev" role="listitem">
-                    <span className={`swap-proof-ev-dot ${(!advancedMode || certificateCheck.ok) ? 'ev-on' : 'ev-off'}`} aria-hidden="true" />
-                    {advancedMode ? (certificateCheck.ok ? 'Quote cert verified' : 'Quote cert stale') : 'Deterministic quote'}
-                </span>
-            </div>
-
-            {activePreview ? (
-                <div className="swap-proof-envelope">
-                    <div className="swap-proof-envelope-head">
-                        <span>Execution envelope</span>
-                        <span className={`impact-${impactSeverity}`}>{formatPercent(activePreview.priceImpact)} impact</span>
-                    </div>
-                    {envHasBounds ? (
-                        <>
-                            <div className="swap-proof-envelope-bar" aria-hidden="true">
-                                <span className="swap-proof-envelope-mid" style={{ left: `${envPos}%` }} />
-                            </div>
-                            <div className="swap-proof-envelope-legend mono">
-                                <span>min {formatNumber(activePreview.amountOutWorstCase)}</span>
-                                <span>exp {formatNumber(activePreview.output)}</span>
-                                <span>max {formatNumber(activePreview.amountOutBestCase)}</span>
-                            </div>
-                        </>
-                    ) : (
-                        <div className="swap-proof-envelope-legend mono single">
-                            <span>min received</span>
-                            <span>{formatNumber(activePreview.minOutput)} {toToken.symbol}</span>
-                        </div>
-                    )}
-                </div>
-            ) : (
-                <div className="swap-rail-empty">
-                    <p className="swap-rail-empty-hint">Enter an amount to compute the deterministic execution envelope and minimum received.</p>
-                </div>
-            )}
-
-            {submittedSwap?.receipt?.receipt_hash && (
-                <div className="swap-proof-receipt">
-                    <div className="swap-proof-receipt-head">
-                        <span className="swap-proof-receipt-dot" aria-hidden="true" />
-                        Settlement receipt
-                    </div>
-                    <div className="swap-proof-receipt-row">
-                        <span>Hash</span>
-                        <CopyHash value={submittedSwap.receipt.receipt_hash} label="receipt hash" />
-                    </div>
-                    {submittedSwap.receipt.body?.schema && (
-                        <div className="swap-proof-receipt-row">
-                            <span>Schema</span>
-                            <span className="mono swap-proof-receipt-schema">{submittedSwap.receipt.body.schema}</span>
-                        </div>
-                    )}
-                    <div className="swap-proof-receipt-row">
-                        <span>Canonical route</span>
-                        <span className={submittedSwap.receipt.body?.canonical_route_certificate ? 'impact-low' : 'impact-medium'}>
-                            {submittedSwap.receipt.body?.canonical_route_certificate ? 'certified winner' : 'not attached'}
-                        </span>
-                    </div>
-                </div>
-            )}
-        </aside>
+        <SwapProofPanel
+            proofEnforced={proofEnforced}
+            postureKnown={postureKnown}
+            zkPosture={zkPosture}
+            advancedMode={advancedMode}
+            certificateCheck={certificateCheck}
+            activePreview={activePreview}
+            impactSeverity={impactSeverity}
+            envHasBounds={envHasBounds}
+            envPos={envPos}
+            toToken={toToken}
+            submittedSwap={submittedSwap}
+        />
     );
 
     return (
@@ -1473,124 +1095,38 @@ function SwapInterface({ wallet }) {
             </div>
 
             {showSettings && (
-                <div className="settings-panel animate-slide-up">
-                    <div className="settings-row">
-                        <span className="label">
-                            <Tooltip text="Maximum price movement you're willing to accept">
-                                <span className="label-with-icon">Slippage Tolerance <InfoIcon /></span>
-                            </Tooltip>
-                        </span>
-                        {suggestedSlippage !== slippage && (
-                            <button
-                                className="suggested-btn"
-                                onClick={() => setSlippage(suggestedSlippage)}
-                            >
-                                Use calculated ({formatPercent(suggestedSlippage)})
-                            </button>
-                        )}
-                    </div>
-                    <div className="slippage-options">
-                        {getSlippageOptions().map(opt => (
-                            <button
-                                key={opt.value}
-                                className={`slippage-btn ${slippage === opt.value ? 'active' : ''}`}
-                                onClick={() => setSlippage(opt.value)}
-                            >
-                                {opt.label}
-                            </button>
-                        ))}
-                    </div>
-
-                    {slippageAdviceNotice && (
-                        <div className={slippageAdviceNotice.kind === 'warning' ? 'swap-warning' : 'swap-notice'}>
-                            {slippageAdviceNotice.text}
-                        </div>
-                    )}
-
-                    <div className="settings-row">
-                        <span className="label">
-                            <Tooltip text="Enable experimental mistake-proofing interlocks (confirm/typed confirm) driven by deterministic MEV + revert-safety signals">
-                                <span className="label-with-icon">Safety Interlocks (Experimental) <InfoIcon /></span>
-                            </Tooltip>
-                        </span>
-                        <button
-                            className={`automation-toggle ${pokayokeEnabled ? 'enabled' : ''}`}
-                            onClick={() => setPokayokeEnabled((prev) => !prev)}
-                            type="button"
-                        >
-                            {pokayokeEnabled ? 'Enabled' : 'Disabled'}
-                        </button>
-                    </div>
-
-                    <div className="settings-row">
-                        <span className="label">
-                            <Tooltip text="Enable experimental route optimization and quote certificates">
-                                <span className="label-with-icon">Advanced Mode <InfoIcon /></span>
-                            </Tooltip>
-                        </span>
-                        <button
-                            className={`automation-toggle ${advancedMode ? 'enabled' : ''}`}
-                            onClick={() => setAdvancedMode((prev) => !prev)}
-                            type="button"
-                        >
-                            {advancedMode ? 'Enabled' : 'Disabled'}
-                        </button>
-                    </div>
-
-                    {advancedMode && (
-                        <>
-                            <div className="settings-divider" />
-                            <div className="settings-row">
-                                <span className="label">
-                                    <Tooltip text="Deterministic route policy frontier: Latency ↔ Quality">
-                                        <span className="label-with-icon">Route Profile <InfoIcon /></span>
-                                    </Tooltip>
-                                </span>
-                                <button
-                                    className={`automation-toggle ${autoProfile ? 'enabled' : ''}`}
-                                    onClick={() => setAutoProfile((prev) => !prev)}
-                                    type="button"
-                                >
-                                    {autoProfile ? 'Auto On' : 'Auto Off'}
-                                </button>
-                            </div>
-                            <div className="profile-slider-wrap">
-                                <input
-                                    type="range"
-                                    min="0"
-                                    max="100"
-                                    value={autoProfile ? sliderValueForProfile(effectiveProfileConfig.id) : profileSlider}
-                                    onChange={(e) => setProfileSlider(Number(e.target.value))}
-                                    disabled={autoProfile}
-                                    className="profile-slider"
-                                />
-                                <div className="profile-labels">
-                                    {routeProfiles.map((profile) => (
-                                        <span
-                                            key={profile.id}
-                                            className={`profile-chip ${effectiveProfileConfig.id === profile.id ? 'active' : ''}`}
-                                        >
-                                            {profile.label}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="profile-description">
-                                <strong>{effectiveProfileConfig.label}</strong>: {effectiveProfileConfig.description}
-                            </div>
-                        </>
-                    )}
-                </div>
+                <SwapSettings
+                    suggestedSlippage={suggestedSlippage}
+                    slippage={slippage}
+                    setSlippage={setSlippage}
+                    slippageAdviceNotice={slippageAdviceNotice}
+                    pokayokeEnabled={pokayokeEnabled}
+                    setPokayokeEnabled={setPokayokeEnabled}
+                    advancedMode={advancedMode}
+                    setAdvancedMode={setAdvancedMode}
+                    autoProfile={autoProfile}
+                    setAutoProfile={setAutoProfile}
+                    profileSlider={profileSlider}
+                    setProfileSlider={setProfileSlider}
+                    effectiveProfileConfig={effectiveProfileConfig}
+                    routeProfiles={routeProfiles}
+                />
             )}
 
             {/* From Token */}
             <div className={`swap-input-container ${validation.error && amountIn ? 'has-error' : ''}`}>
                 <div className="swap-input-header">
                     <span className="label">From</span>
-                    <span className="balance" onClick={handleMaxAmount} style={{ cursor: wallet ? 'pointer' : 'default' }}>
+                    <button
+                        type="button"
+                        className="balance"
+                        onClick={handleMaxAmount}
+                        disabled={!wallet || fromBalance == null || fromBalance <= 0}
+                        style={{ cursor: wallet && fromBalance != null && fromBalance > 0 ? 'pointer' : 'default' }}
+                    >
                         Balance: {wallet ? (fromBalance == null ? 'N/A' : formatNumber(fromBalance)) : '-'}
                         {wallet && fromBalance != null && fromBalance > 0 && <span className="max-label"> (MAX)</span>}
-                    </span>
+                    </button>
                 </div>
                 <div className="swap-input-row">
                     <input
@@ -1813,345 +1349,40 @@ function SwapInterface({ wallet }) {
             </button>
 
             {/* Confirmation Modal (Poka-yoke interlocks) */}
-            {showConfirm && activePreview && (
-                <div
-                    className="confirm-overlay"
-                    onClick={() => {
-                        setShowConfirm(false);
-                        setConfirmConfig(null);
-                        setTypedConfirmText('');
-                        setPokayokeSuggestions(null);
-                        setPokayokeSuggestError('');
-                        setPokayokeHeavySuggestions(null);
-                        setPokayokeHeavySuggestError('');
-                    }}
-                >
-                    <div className="confirm-modal animate-slide-up" onClick={e => e.stopPropagation()}>
-                        <h3 className="confirm-title"><AlertIcon /> {confirmConfig?.title || 'Confirm Swap'}</h3>
-                        <p>This swap has a <strong className="impact-high">{formatPercent(activePreview.priceImpact)}</strong> price impact.</p>
-                        <div className="confirm-details">
-                            <div className="confirm-row">
-                                <span>You pay:</span>
-                                <span>{amountIn} {fromToken.symbol}</span>
-                            </div>
-                            <div className="confirm-row">
-                                <span>You receive (min):</span>
-                                <span>{formatNumber(activePreview.minOutput)} {toToken.symbol}</span>
-                            </div>
-                            <div className="confirm-row">
-                                <span>Route:</span>
-                                <span>{activePreview.routePath}</span>
-                            </div>
-                            {advancedMode && (
-                                <div className="confirm-row">
-                                    <span>Profile:</span>
-                                    <span>{effectiveProfileConfig.label}</span>
-                                </div>
-                            )}
-                        </div>
-                        {Array.isArray(confirmConfig?.messages) && confirmConfig.messages.length > 0 && (
-                            <div className="confirm-warning">
-                                {confirmConfig.messages.map((m, idx) => (
-                                    <p key={`${idx}-${String(m).slice(0, 24)}`}>{String(m)}</p>
-                                ))}
-                            </div>
-                        )}
-                        {confirmConfig?.requireTyped && (
-                            <div className="confirm-typed">
-                                <p className="confirm-warning">
-                                    Type <strong>{confirmConfig.typedPhrase}</strong> to proceed.
-                                </p>
-                                <input
-                                    type="text"
-                                    value={typedConfirmText}
-                                    onChange={(e) => setTypedConfirmText(e.target.value)}
-                                    placeholder={String(confirmConfig.typedPhrase || 'PROCEED')}
-                                />
-                            </div>
-                        )}
-
-                        {!advancedMode && pokayokeEnabled && (
-                            <div className="confirm-suggest">
-                                <div className="confirm-suggest-actions">
-                                    {(() => {
-                                        const reasons = Array.isArray(confirmConfig?.reasons) ? confirmConfig.reasons : [];
-                                        const recRevert = Number(apiSlippageAdvice?.recommendedSlippageBpsRevertSafe);
-                                        const recMev = Number(apiSlippageAdvice?.recommendedSlippageBpsMevSafe);
-                                        const userSlippageBps = Math.max(0, Math.min(10_000, Math.round(Number(slippage || 0) * 10_000)));
-                                        const actions = [];
-                                        if (reasons.includes('slippage_below_revert_safe') && Number.isFinite(recRevert) && recRevert >= 0 && recRevert <= 10_000) {
-                                            actions.push({
-                                                key: 'use_revert_safe_slippage',
-                                                label: `Apply revert-bound slippage (${(recRevert / 100).toFixed(2)}%)`,
-                                                onClick: () => {
-                                                    setSlippage(recRevert / 10_000);
-                                                    setShowConfirm(false);
-                                                    setConfirmConfig(null);
-                                                    setTypedConfirmText('');
-                                                    setPokayokeSuggestions(null);
-                                                    setPokayokeSuggestError('');
-                                                },
-                                            });
-                                        }
-                                        if (reasons.includes('slippage_above_mev_safe') && Number.isFinite(recMev) && recMev >= 0 && recMev <= 10_000 && userSlippageBps > recMev) {
-                                            actions.push({
-                                                key: 'use_mev_safe_slippage',
-                                                label: `Apply MEV ceiling (${(recMev / 100).toFixed(2)}%)`,
-                                                onClick: () => {
-                                                    setSlippage(recMev / 10_000);
-                                                    setShowConfirm(false);
-                                                    setConfirmConfig(null);
-                                                    setTypedConfirmText('');
-                                                    setPokayokeSuggestions(null);
-                                                    setPokayokeSuggestError('');
-                                                },
-                                            });
-                                        }
-                                        if (actions.length === 0) return null;
-                                        return actions.map((a) => (
-                                            <button
-                                                key={a.key}
-                                                className="btn btn-secondary"
-                                                type="button"
-                                                onClick={a.onClick}
-                                            >
-                                                {a.label}
-                                            </button>
-                                        ));
-                                    })()}
-                                    <button
-                                        className="btn btn-secondary"
-                                        type="button"
-                                        onClick={handleFindSaferAmount}
-                                        disabled={pokayokeSuggesting}
-                                    >
-                                        {pokayokeSuggesting ? 'Calculating...' : 'Calculate Smaller Amount'}
-                                    </button>
-                                    {(() => {
-                                        const reasons = Array.isArray(confirmConfig?.reasons) ? confirmConfig.reasons : [];
-                                        const showDeep = reasons.includes('mev_conflict') || reasons.includes('inconclusive_mev');
-                                        if (!showDeep) return null;
-                                        return (
-                                            <button
-                                                className="btn btn-secondary"
-                                                type="button"
-                                                onClick={handleFindSaferAmountDeep}
-                                                disabled={pokayokeHeavySuggesting}
-                                            >
-                                                {pokayokeHeavySuggesting ? 'Calculating...' : 'Deep Calculation (MEV/Unknown)'}
-                                            </button>
-                                        );
-                                    })()}
-                                </div>
-                                {pokayokeSuggestError && (
-                                    <div className="swap-notice">{pokayokeSuggestError}</div>
-                                )}
-                                {pokayokeSuggestions && (() => {
-                                    const reasons = Array.isArray(confirmConfig?.reasons) ? confirmConfig.reasons : [];
-                                    const roundedIn = Math.max(1, Math.round(Number.parseFloat(amountIn || '0') || 0));
-                                    const items = [];
-                                    const addItem = (key, label) => {
-                                        const s = pokayokeSuggestions?.[key];
-                                        const amt = s?.suggested_amount_in;
-                                        if (!s || String(s.status) !== 'ok' || amt === null || amt === undefined) return;
-                                        const a = Number(amt);
-                                        if (!Number.isFinite(a) || a <= 0 || a >= roundedIn) return;
-                                        items.push({ key, label, amount: Math.trunc(a) });
-                                    };
-                                    if (reasons.includes('high_price_impact') || reasons.includes('legacy_high_impact')) {
-                                        addItem('impact_lt_500_bps', 'Reduce impact <5%');
-                                    }
-                                    if (reasons.includes('moderate_price_impact')) {
-                                        addItem('impact_lt_100_bps', 'Reduce impact <1%');
-                                    }
-                                    if (reasons.includes('slippage_below_revert_safe') || reasons.includes('no_revert_safe_option')) {
-                                        addItem('required_slippage_le_user_bps', 'Match your slippage');
-                                        addItem('required_slippage_le_max_option_bps', 'Match max option slippage');
-                                    }
-                                    // If no reason-specific row matches, show the primary impact-bound amount as a fallback.
-                                    if (items.length === 0) {
-                                        addItem('impact_lt_500_bps', 'Reduce impact <5%');
-                                    }
-                                    if (items.length === 0) return null;
-                                    return (
-                                        <div className="confirm-suggest-items">
-                                            {items.map((it) => (
-                                                <button
-                                                    key={it.key}
-                                                    className="btn btn-secondary"
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setAmountIn(String(it.amount));
-                                                        setShowConfirm(false);
-                                                        setConfirmConfig(null);
-                                                        setTypedConfirmText('');
-                                                        setPokayokeSuggestions(null);
-                                                        setPokayokeSuggestError('');
-                                                    }}
-                                                >
-                                                    {it.label}: {it.amount}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    );
-                                })()}
-                                {pokayokeHeavySuggestError && (
-                                    <div className="swap-notice">{pokayokeHeavySuggestError}</div>
-                                )}
-                                {pokayokeHeavySuggestions && (() => {
-                                    if (!Array.isArray(pokayokeHeavySuggestions)) return null;
-                                    const roundedIn = Math.max(1, Math.round(Number.parseFloat(amountIn || '0') || 0));
-                                    const items = [];
-                                    for (const row of pokayokeHeavySuggestions) {
-                                        if (!row || String(row.status) !== 'ok') continue;
-                                        const amt = row.suggested_amount_in;
-                                        if (amt === null || amt === undefined) continue;
-                                        const a = Number(amt);
-                                        if (!Number.isFinite(a) || a <= 0 || a >= roundedIn) continue;
-                                        const ta = String(row.target_action || '').trim().toLowerCase();
-                                        if (ta !== 'confirm' && ta !== 'allow') continue;
-                                        const label = ta === 'allow' ? 'Deep: Reduce to Allow' : 'Deep: Reduce to Confirm';
-                                        items.push({ key: `deep-${ta}`, label, amount: Math.trunc(a) });
-                                    }
-                                    if (items.length === 0) return null;
-                                    return (
-                                        <div className="confirm-suggest-items">
-                                            {items.map((it) => (
-                                                <button
-                                                    key={it.key}
-                                                    className="btn btn-secondary"
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setAmountIn(String(it.amount));
-                                                        setShowConfirm(false);
-                                                        setConfirmConfig(null);
-                                                        setTypedConfirmText('');
-                                                        setPokayokeSuggestions(null);
-                                                        setPokayokeSuggestError('');
-                                                        setPokayokeHeavySuggestions(null);
-                                                        setPokayokeHeavySuggestError('');
-                                                    }}
-                                                >
-                                                    {it.label}: {it.amount}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    );
-                                })()}
-                            </div>
-                        )}
-                        <div className="confirm-actions">
-                            <button
-                                className="btn btn-secondary"
-                                onClick={() => {
-                                    setShowConfirm(false);
-                                    setConfirmConfig(null);
-                                    setTypedConfirmText('');
-                                    setPokayokeSuggestions(null);
-                                    setPokayokeSuggestError('');
-                                    setPokayokeHeavySuggestions(null);
-                                    setPokayokeHeavySuggestError('');
-                                }}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                className="btn btn-primary btn-warning"
-                                onClick={executeSwap}
-                                disabled={
-                                    isSubmitting ||
-                                    (confirmConfig?.requireTyped && String(typedConfirmText || '').trim().toUpperCase() !== String(confirmConfig?.typedPhrase || '').trim().toUpperCase())
-                                }
-                            >
-                                {isSubmitting ? 'Submitting...' : (confirmConfig?.proceedText || 'Proceed Anyway')}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+<SwapConfirmModal
+                open={showConfirm}
+                activePreview={activePreview}
+                amountIn={amountIn}
+                fromToken={fromToken}
+                toToken={toToken}
+                advancedMode={advancedMode}
+                effectiveProfileLabel={effectiveProfileConfig.label}
+                confirmConfig={confirmConfig}
+                typedConfirmText={typedConfirmText}
+                onTypedConfirmTextChange={setTypedConfirmText}
+                pokayokeEnabled={pokayokeEnabled}
+                apiSlippageAdvice={apiSlippageAdvice}
+                slippage={slippage}
+                onApplySlippage={handleApplySlippage}
+                pokayokeSuggesting={pokayokeSuggesting}
+                onFindSaferAmount={handleFindSaferAmount}
+                pokayokeHeavySuggesting={pokayokeHeavySuggesting}
+                onFindSaferAmountDeep={handleFindSaferAmountDeep}
+                pokayokeSuggestError={pokayokeSuggestError}
+                pokayokeSuggestions={pokayokeSuggestions}
+                pokayokeHeavySuggestError={pokayokeHeavySuggestError}
+                pokayokeHeavySuggestions={pokayokeHeavySuggestions}
+                onApplySuggestedAmount={handleApplySuggestedAmount}
+                onClose={resetConfirmState}
+                onProceed={executeSwap}
+                isSubmitting={isSubmitting}
+            />
 
             {/* Submitted Modal */}
-            {submittedSwap && (
-                <div className="confirm-overlay" onClick={() => setSubmittedSwap(null)}>
-                    <div className="confirm-modal submitted-modal animate-slide-up" onClick={e => e.stopPropagation()}>
-                        <h3>{submittedSwap.status === 'pending' ? 'Transaction Pending' : 'Swap Confirmed'}</h3>
-                        <p className="submitted-copy">
-                            {submittedSwap.status === 'pending'
-                                ? 'Broadcasting transaction to Tau Net Alpha...'
-                                : 'Wallet submission confirmed; on-chain status tracking is ready.'}
-                        </p>
-                        <div className="submitted-status-row">
-                            <span className={`tx-status-badge ${submittedSwap.status}`}>
-                                {submittedSwap.status === 'pending' ? 'Pending' : 'Confirmed'}
-                            </span>
-                            <span className="submitted-time">
-                                {new Date(submittedSwap.submittedAt).toLocaleTimeString()}
-                            </span>
-                        </div>
-                        <div className="confirm-details">
-                            <div className="confirm-row">
-                                <span>Tx Hash:</span>
-                                <span className="tx-hash mono">{shortHash(submittedSwap.txHash)}</span>
-                            </div>
-                            <div className="confirm-row">
-                                <span>Network:</span>
-                                <span>{submittedSwap.network}</span>
-                            </div>
-                            <div className="confirm-row">
-                                <span>Submission:</span>
-                                <span>{submittedSwap.submitPath === 'local-fallback' ? 'Local fallback' : 'Network relay'}</span>
-                            </div>
-                            {submittedSwap.height !== null && submittedSwap.height !== undefined && (
-                                <div className="confirm-row">
-                                    <span>Block height:</span>
-                                    <span>{submittedSwap.height}</span>
-                                </div>
-                            )}
-                            <div className="confirm-row">
-                                <span>You pay:</span>
-                                <span>{submittedSwap.amountIn} {submittedSwap.fromSymbol}</span>
-                            </div>
-                            <div className="confirm-row">
-                                <span>You receive:</span>
-                                <span>{submittedSwap.amountOut} {submittedSwap.toSymbol}</span>
-                            </div>
-                            <div className="confirm-row">
-                                <span>Minimum received:</span>
-                                <span>{submittedSwap.minOutput} {submittedSwap.toSymbol}</span>
-                            </div>
-                            {submittedSwap.advanced && (
-                                <>
-                                    <div className="confirm-row">
-                                        <span>Route:</span>
-                                        <span>{submittedSwap.routePath}</span>
-                                    </div>
-                                    <div className="confirm-row">
-                                        <span>Profile:</span>
-                                        <span>{submittedSwap.profileLabel}</span>
-                                    </div>
-                                    <div className="confirm-row">
-                                        <span>Quote certificate:</span>
-                                        <span>Verified ({submittedSwap.certSeconds}s)</span>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                        <div className="confirm-actions">
-                            <a
-                                className="btn btn-secondary"
-                                href={`https://explorer.tau.net/tx/${submittedSwap.txHash}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            >
-                                View Explorer
-                            </a>
-                            <button className="btn btn-primary" onClick={() => setSubmittedSwap(null)}>
-                                Done
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <SwapSubmittedModal
+                submittedSwap={submittedSwap}
+                onClose={() => setSubmittedSwap(null)}
+            />
 
                 <div className="swap-footer">
                     {proofEnforced ? (

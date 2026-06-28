@@ -639,12 +639,12 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
             </div>
           </div>
 
-          <label className="strat-live-ack" style={{ marginTop: 'var(--space-xl)' }}>
+          <label className="strat-live-ack">
             <input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} />
             <span>I acknowledge the experimental risks of running unattended transactions.</span>
           </label>
 
-          <div style={{ marginTop: 'var(--space-lg)' }}>
+          <div>
             <button className="btn btn-primary w-100" onClick={handlePrepare} disabled={busy || !acknowledged}>
               {busy === 'prepare' ? 'Simulating...' : 'Simulate & Prepare Policy'}
             </button>
@@ -655,7 +655,7 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
       {step === 2 && report && (
         <div className="wizard-content animate-slide-up">
           <h3>Simulation Results</h3>
-          <div className="strat-check-grid" style={{ margin: 'var(--space-md) 0' }}>
+          <div className="strat-check-grid strat-check-margin">
              <div className="strat-check-badge">
                 <span style={{ color: isAdmissible ? 'var(--accent-green)' : 'var(--accent-red)' }}>
                   {isAdmissible ? '✓' : '✗'}
@@ -669,7 +669,7 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
                 <span>Guard Verification: {preflightPassed ? 'Passed' : 'Pending/Failed'}</span>
              </div>
           </div>
-          <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+          <div className="strat-flex-wrap">
             <button className="btn btn-secondary" onClick={() => setStep(1)}>Back to Config</button>
             <button
               className="btn btn-secondary"
@@ -690,7 +690,7 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
               unless the gate is on, the profile is ready, a preflight has passed, and
               an externally signed payload is present. This adds NO production claim. */}
           {!demoMode && (
-            <div className="strat-section-card" style={{ marginTop: 'var(--space-lg)' }} aria-label="Supervisor readiness">
+            <div className="strat-section-card" aria-label="Supervisor readiness">
               <div className="strat-section-header">
                 <h3>Supervised Tick (Experimental)</h3>
                 <span className="strat-section-badge">
@@ -699,17 +699,17 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
               </div>
 
               {!supervisorEnabled && (
-                <div className="strat-live-error" style={{ marginTop: 'var(--space-sm)' }}>
+                <div className="strat-live-error">
                   Supervisor execution is gated off (AUTOTRADER_LIVE_SUPERVISOR_ENABLED=false).
                   Preflight and execute remain disabled.
                 </div>
               )}
 
               {supervisorEnabled && !supervisorReady && (
-                <div className="strat-live-error" style={{ marginTop: 'var(--space-sm)' }}>
+                <div className="strat-live-error">
                   <div>Supervisor profile is not ready. Readiness gaps:</div>
                   {supervisorGaps.length > 0 ? (
-                    <ul style={{ margin: 'var(--space-xs) 0 0', paddingLeft: 'var(--space-lg)' }}>
+                    <ul className="strat-list-indent">
                       {supervisorGaps.map((gap, idx) => (
                         <li key={idx} className="strat-mono">{gap}</li>
                       ))}
@@ -721,7 +721,7 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
               )}
 
               {supervisorEnabled && supervisorReady && (
-                <div className="strat-live-grid" style={{ marginTop: 'var(--space-sm)' }}>
+                <div className="strat-live-grid">
                   <div className="strat-live-metric"><span>Supervisor</span><strong>{supervisorStatus?.status || 'ready'}</strong></div>
                   <div className="strat-live-metric"><span>Stage</span><strong>{supervisorStatus?.stage || 'pending'}</strong></div>
                   <div className="strat-live-metric"><span>Max actions / tick</span><strong>{supervisorStatus?.max_actions_per_tick ?? 0}</strong></div>
@@ -730,7 +730,7 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap', marginTop: 'var(--space-md)' }}>
+              <div className="strat-flex-wrap-mt">
                 <button
                   className="btn btn-secondary"
                   onClick={handleSupervisorPreflight}
@@ -754,13 +754,13 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
               </div>
 
               {!supervisorExecuteReady && supervisorEnabled && supervisorReady && (
-                <div className="strat-field-hint" style={{ marginTop: 'var(--space-sm)' }}>
+                <div className="strat-field-hint">
                   {supervisorExecuteBlockedReason}
                 </div>
               )}
 
               {supervisorResult?.ok === true && (
-                <div className="strat-live-grid" style={{ marginTop: 'var(--space-sm)' }}>
+                <div className="strat-live-grid">
                   <div className="strat-live-metric"><span>Status</span><strong>{supervisorResult.status || 'supervisor_executed'}</strong></div>
                   {supervisorResult?.execution?.execution_id && (
                     <div className="strat-live-metric"><span>Execution ID</span><strong>{supervisorResult.execution.execution_id}</strong></div>
@@ -780,15 +780,15 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
 
       {step === 3 && result?.submission?.sendtx_response && (
         <div className="wizard-content animate-slide-up">
-          <div style={{ textAlign: 'center', padding: 'var(--space-xl) 0' }}>
-             <h2 style={{ color: 'var(--accent-green)' }}>✓ Strategy Deployed</h2>
+          <div className="strat-deploy-center">
+             <h2 className="strat-deployed-title">✓ Strategy Deployed</h2>
              <p>Your strategy has been submitted to the local supervisor.</p>
-             <button className="btn btn-secondary" style={{ marginTop: 'var(--space-lg)' }} onClick={() => setStep(1)}>Create Another</button>
+             <button className="btn btn-secondary" onClick={() => setStep(1)}>Create Another</button>
           </div>
         </div>
       )}
 
-      {error && <div className="strat-live-error" style={{ marginTop: 'var(--space-md)' }}>{error}</div>}
+      {error && <div className="strat-live-error">{error}</div>}
 
       {/* Smoke-result detail panel — renders ALWAYS when the smoke URL params are
           present (even before the async fetch resolves). Hidden in normal use.
@@ -796,7 +796,7 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
           Chrome --dump-dom captures them without racing the async API. Once the
           result lands, the strong values populate. */}
       {isAutoTraderSmokeEnabled() && (
-        <div className="strat-live-grid" style={{ marginTop: 'var(--space-lg)' }}>
+        <div className="strat-live-grid">
           <div className="strat-live-metric"><span>Supervisor Preflight</span><strong>{sPreflight?.ok === false ? 'rejected' : 'ready'}</strong></div>
           <div className="strat-live-metric"><span>Run Supervisor Tick</span><strong>{sSupervisor ? 'ready' : 'pending'}</strong></div>
           <div className="strat-live-metric"><span>Decision</span><strong>{sDecision}</strong></div>
@@ -838,7 +838,7 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
           {smokeResult?.submission?.createblock_response && (
             <div className="strat-live-metric"><span>Block</span><strong>{smokeResult.submission.createblock_response}</strong></div>
           )}
-          <pre className="signer-payload-pre" style={{ gridColumn: '1 / -1', marginTop: 'var(--space-md)' }}>
+          <pre className="signer-payload-pre strat-payload-pre">
             {smokeResult ? JSON.stringify(smokeResult, null, 2) : 'waiting for smoke result...'}
           </pre>
         </div>
@@ -901,12 +901,12 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
         </div>
       </Modal>
 
-      <div style={{ marginTop: 'var(--space-xl)', borderTop: '1px solid var(--border-primary)', paddingTop: 'var(--space-md)' }}>
+      <div className="strat-section-divider">
         <button className="btn btn-secondary btn-xs" onClick={() => setShowAdvanced(!showAdvanced)}>
           {showAdvanced ? 'Hide Advanced Settings' : 'Developer Advanced Settings'}
         </button>
         {showAdvanced && (
-          <div className="strat-form-grid animate-fade-in" style={{ marginTop: 'var(--space-md)' }}>
+          <div className="strat-form-grid animate-fade-in">
              <div className="input-group">
                 <label className="label">Raw Tx Payload</label>
                 <textarea className="input strat-mono" rows="2" value={signedTauTxPayload} onChange={(e) => setSignedTauTxPayload(e.target.value)} />
@@ -949,7 +949,7 @@ function StrategyWorkbench() {
 
       <AutoTraderLivePrepareSurface demoMode={demoMode} />
 
-      <div style={{ textAlign: 'center', marginTop: 'var(--space-xl)', borderTop: '1px solid var(--border-primary)', paddingTop: 'var(--space-lg)' }}>
+      <div className="strat-section-divider-lg strat-text-center">
         <button className="btn btn-secondary" onClick={() => setShowCatalogs(!showCatalogs)}>
           {showCatalogs ? 'Hide Reference Catalogs' : 'Browse Templates & Guards Catalogs'}
         </button>
@@ -958,7 +958,7 @@ function StrategyWorkbench() {
       {showCatalogs && (
         <div className="animate-fade-in">
           {/* Strategy Templates */}
-          <div className="strat-grid" style={{ marginTop: 'var(--space-lg)' }}>
+          <div className="strat-grid">
             <div className="panel strat-section-card">
               <div className="strat-section-header">
                 <h2>Strategy Templates</h2>

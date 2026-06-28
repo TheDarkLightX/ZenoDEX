@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { calcLpTokensBurn, formatNumber, formatPercent } from '../lib/cpmm';
 import { validateRemoveLiquidity } from '../lib/validation';
+import Modal from './Modal.jsx';
 import './RemoveLiquidityModal.css';
 
 /**
@@ -103,14 +104,8 @@ function RemoveLiquidityModal({ pool, wallet, lpBalance = 0, onClose, onSubmit }
     };
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-container animate-slide-up" onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h2>Remove Liquidity</h2>
-                    <button className="modal-close" onClick={onClose}>✕</button>
-                </div>
-
-                <div className="modal-body">
+        <Modal open onClose={onClose} title="Remove Liquidity" size="md">
+            <div className="modal-body">
                     {/* Pool Info */}
                     <div className="pool-info-banner">
                         <span className="pool-icons">
@@ -249,53 +244,49 @@ function RemoveLiquidityModal({ pool, wallet, lpBalance = 0, onClose, onSubmit }
 
                 {/* Confirmation Modal for Full Removal */}
                 {showConfirm && (
-                    <div className="confirm-overlay" onClick={() => { setShowConfirm(false); setTypedConfirmText(''); }}>
-                        <div className="confirm-modal animate-slide-up" onClick={e => e.stopPropagation()}>
-                            <h3>⚠️ Full Position Removal</h3>
-                            <p>
-                                You are removing <strong>{formatPercent(lpPercent)}</strong> of your liquidity position.
-                                This will close your position in this pool.
-                            </p>
-                            {lpPercent >= 0.99 && (
-                                <div className="confirm-typed">
-                                    <p className="confirm-warning">
-                                        Type <strong>REMOVE</strong> to confirm.
-                                    </p>
-                                    <input
-                                        type="text"
-                                        value={typedConfirmText}
-                                        onChange={(e) => setTypedConfirmText(e.target.value)}
-                                        placeholder="REMOVE"
-                                    />
-                                </div>
-                            )}
-                            <div className="confirm-details">
-                                <div className="confirm-row">
-                                    <span>Returning:</span>
-                                    <span>{formatNumber(preview?.amount0)} {token0.symbol}</span>
-                                </div>
-                                <div className="confirm-row">
-                                    <span>Returning:</span>
-                                    <span>{formatNumber(preview?.amount1)} {token1.symbol}</span>
-                                </div>
+                    <Modal open onClose={() => { setShowConfirm(false); setTypedConfirmText(''); }} title="⚠️ Full Position Removal" size="sm">
+                        <p>
+                            You are removing <strong>{formatPercent(lpPercent)}</strong> of your liquidity position.
+                            This will close your position in this pool.
+                        </p>
+                        {lpPercent >= 0.99 && (
+                            <div className="confirm-typed">
+                                <p className="confirm-warning">
+                                    Type <strong>REMOVE</strong> to confirm.
+                                </p>
+                                <input
+                                    type="text"
+                                    value={typedConfirmText}
+                                    onChange={(e) => setTypedConfirmText(e.target.value)}
+                                    placeholder="REMOVE"
+                                />
                             </div>
-                            <div className="confirm-actions">
-                                <button className="btn btn-secondary" onClick={() => { setShowConfirm(false); setTypedConfirmText(''); }}>
-                                    Cancel
-                                </button>
-                                <button
-                                    className="btn btn-primary btn-warning"
-                                    onClick={handleSubmit}
-                                    disabled={lpPercent >= 0.99 && String(typedConfirmText || '').trim().toUpperCase() !== 'REMOVE'}
-                                >
-                                    Remove All
-                                </button>
+                        )}
+                        <div className="confirm-details">
+                            <div className="confirm-row">
+                                <span>Returning:</span>
+                                <span>{formatNumber(preview?.amount0)} {token0.symbol}</span>
+                            </div>
+                            <div className="confirm-row">
+                                <span>Returning:</span>
+                                <span>{formatNumber(preview?.amount1)} {token1.symbol}</span>
                             </div>
                         </div>
-                    </div>
+                        <div className="confirm-actions">
+                            <button className="btn btn-secondary" onClick={() => { setShowConfirm(false); setTypedConfirmText(''); }}>
+                                Cancel
+                            </button>
+                            <button
+                                className="btn btn-primary btn-warning"
+                                onClick={handleSubmit}
+                                disabled={lpPercent >= 0.99 && String(typedConfirmText || '').trim().toUpperCase() !== 'REMOVE'}
+                            >
+                                Remove All
+                            </button>
+                        </div>
+                    </Modal>
                 )}
-            </div>
-        </div>
+        </Modal>
     );
 }
 

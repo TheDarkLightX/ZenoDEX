@@ -685,3 +685,73 @@
 }
 
 .gov-roster-table tr:last-child td { border-bottom: none; }
+
+/* ─── Form layout utilities (replacing inline styles) ─────────────── */
+
+.gov-form-panel {
+  padding: var(--space-md);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  margin: var(--space-md) 0;
+  border: 1px solid var(--border-subtle);
+}
+
+.gov-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+  margin-top: var(--space-sm);
+}
+
+.gov-form-panel .input,
+.gov-form-panel textarea,
+.gov-form-panel select {
+  width: 100%;
+}
+
+.gov-form-panel textarea.mono {
+  font-family: var(--font-mono);
+}
+
+.gov-form-label {
+  margin-top: var(--space-sm);
+  display: block;
+}
+
+.gov-form-row {
+  display: flex;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+}
+
+.gov-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  cursor: pointer;
+}
+
+.gov-form-actions {
+  margin-top: var(--space-md);
+}
+
+.gov-warning-text {
+  color: var(--accent-red);
+}
+
+.gov-status-logs-details {
+  margin-top: var(--space-md);
+}
+
+.gov-status-logs-summary {
+  margin-bottom: var(--space-sm);
+  cursor: pointer;
+}
+
+.gov-redacted-json {
+  margin-top: var(--space-sm);
+}
+
+.gov-threshold-bar {
+  width: var(--threshold-pct, 0%);
+}

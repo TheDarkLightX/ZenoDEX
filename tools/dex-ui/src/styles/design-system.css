@@ -122,7 +122,7 @@
   --perp-extreme: #dc2626;
   --perp-extreme-bg: rgba(220, 38, 38, 0.15);
 
-  /* Atmosphere — the original radial vignette + cyan-purple gradient */
+  /* Atmosphere — radial vignette + cyan-purple gradient */
   --gradient-bg: radial-gradient(ellipse 1200px 600px at 10% 0%, #16202a, #0f0f12);
   --gradient-accent: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
   --gradient-panel: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0));
@@ -348,7 +348,7 @@ a:focus-visible {
   outline-offset: 2px;
 }
 
-/* Panel Component — hairline borders, near-square, no backdrop-blur. */
+/* Panel Component — hairline borders, near-square, glassmorphism. */
 .panel {
   background: var(--bg-panel);
   border: 1px solid var(--border-primary);

@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import Modal from '../Modal.jsx';
 import './PerpConfirmOrderModal.css';
 
 /**
@@ -23,15 +24,7 @@ function PerpConfirmOrderModal({ order, market, onConfirm, onClose }) {
     if (!order) return null;
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="perp-confirm-modal animate-slide-up" onClick={e => e.stopPropagation()}>
-                <div className="perp-confirm-header">
-                    <h3>
-                        {isExtreme ? 'Extreme Risk Order' : 'Confirm Order'}
-                    </h3>
-                    <button className="modal-close" onClick={onClose}>&times;</button>
-                </div>
-
+        <Modal open onClose={onClose} title={isExtreme ? 'Extreme Risk Order' : 'Confirm Order'} size="sm">
                 <div className="perp-confirm-body">
                     {/* Risk Banner */}
                     <div
@@ -103,8 +96,7 @@ function PerpConfirmOrderModal({ order, market, onConfirm, onClose }) {
                         {isExtreme ? 'Prepare Trade' : 'Confirm Trade'}
                     </button>
                 </div>
-            </div>
-        </div>
+        </Modal>
     );
 }
 
