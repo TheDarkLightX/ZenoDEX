@@ -120,6 +120,66 @@ theorem lowerFinalReserve_gives_ge_totalOutput
     initialReserveOut - finalLarge ≤ initialReserveOut - finalSmall := by
   omega
 
+/-- A compressed DP record after a fixed processed subset.
+
+For the strict zero-min research surface, two records with the same processed
+subset have the same input reserve contribution. The compression keeps only the
+record with the lower output reserve. -/
+structure ProcessedRecord where
+  processedReserveIn : Nat
+  reserveOut : Nat
+  deriving Repr, DecidableEq
+
+/-- Final output reserve after continuing from a compressed record through a
+fixed strict exact-in suffix. -/
+def finalReserveOutAfterRecord (record : ProcessedRecord) (suffix : List ExactInStep) : Nat :=
+  runReserveOutAfterSuffix record.processedReserveIn record.reserveOut suffix
+
+/-- Total output extracted from the original output reserve after continuing
+from a compressed record. -/
+def suffixTotalOutput
+    (initialReserveOut : Nat)
+    (record : ProcessedRecord)
+    (suffix : List ExactInStep) : Nat :=
+  initialReserveOut - finalReserveOutAfterRecord record suffix
+
+/-- DP-level representative dominance.
+
+If two records represent the same processed subset, encoded here as the same
+processed input reserve, and one has no more output reserve than the other,
+then retaining the lower-output-reserve record gives weakly greater total
+output after any fixed strict zero-min suffix. This is the abstract pruning
+lemma behind the one-record min-reserve-out compression certificate. -/
+theorem minReserveRecord_dominates_suffixTotalOutput
+    {initialReserveOut : Nat}
+    {lower upper : ProcessedRecord}
+    {suffix : List ExactInStep}
+    (hsame : lower.processedReserveIn = upper.processedReserveIn)
+    (hreserve : lower.reserveOut ≤ upper.reserveOut) :
+    suffixTotalOutput initialReserveOut upper suffix ≤
+      suffixTotalOutput initialReserveOut lower suffix := by
+  unfold suffixTotalOutput finalReserveOutAfterRecord
+  rw [← hsame]
+  exact lowerFinalReserve_gives_ge_totalOutput
+    (runReserveOutAfterSuffix_mono
+      (reserveIn := lower.processedReserveIn)
+      (reserveOutSmall := lower.reserveOut)
+      (reserveOutLarge := upper.reserveOut)
+      (steps := suffix)
+      hreserve)
+
+/-- Concrete non-vacuity witness for record dominance. -/
+theorem witness_minReserveRecord_dominates_suffixTotalOutput :
+    let suffix : List ExactInStep := [
+      ⟨100, 99⟩,
+      ⟨200, 199⟩
+    ]
+    let lower : ProcessedRecord := ⟨1100, 900⟩
+    let upper : ProcessedRecord := ⟨1100, 1100⟩
+    suffixTotalOutput 1200 upper suffix ≤
+      suffixTotalOutput 1200 lower suffix := by
+  native_decide
+
 /-- Concrete non-vacuity witness for one-step monotonicity. -/
 theorem witness_postReserveOut_mono_strict :
     postReserveOut 1000 1000 100 ≤ postReserveOut 1000 1500 100 ∧
