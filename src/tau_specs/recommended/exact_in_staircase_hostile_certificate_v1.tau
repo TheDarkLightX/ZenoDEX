@@ -1,0 +1,42 @@
+# exact_in_staircase_hostile_certificate_v1.tau
+#
+# PURPOSE:
+#   Admit a host-replayed certificate for the two-pool CPMM exact-in
+#   `staircase_exact` profile. The host computes brute-force parity,
+#   canonical leftmost tie parity, quote-count evidence, known-gap recovery,
+#   guarded-packet replay, default-profile boundary, and no-authority facts.
+#   Tau only composes those facts into an advisory research certificate.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = bounded_corpus_ok
+# i3  = brute_force_parity_ok
+# i4  = leftmost_tie_break_ok
+# i5  = quote_count_lift_ok
+# i6  = known_gap_recovered
+# i7  = baseline_gap_observed
+# i8  = guarded_packet_replay_ok
+# i9  = runtime_default_unchanged
+# i10 = advisory_only
+# i11 = no_authority_effect
+#
+# o1 = oracle_evidence_ok
+# o2 = performance_evidence_ok
+# o3 = boundary_evidence_ok
+# o4 = exact_in_staircase_hostile_certificate_ok
+# o5 = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+oracle_evidence_ok(corpus_ok : sbf, parity_ok : sbf, tie_ok : sbf, gap_recovered : sbf) := is1(corpus_ok) && is1(parity_ok) && is1(tie_ok) && is1(gap_recovered).
+performance_evidence_ok(quote_lift : sbf, baseline_gap : sbf) := is1(quote_lift) && is1(baseline_gap).
+boundary_evidence_ok(packet_ok : sbf, default_unchanged : sbf, advisory_only : sbf, no_authority : sbf) := is1(packet_ok) && is1(default_unchanged) && is1(advisory_only) && is1(no_authority).
+certificate_ok(active : sbf, corpus_ok : sbf, parity_ok : sbf, tie_ok : sbf, quote_lift : sbf, gap_recovered : sbf, baseline_gap : sbf, packet_ok : sbf, default_unchanged : sbf, advisory_only : sbf, no_authority : sbf) := is1(active) && oracle_evidence_ok(corpus_ok, parity_ok, tie_ok, gap_recovered) && performance_evidence_ok(quote_lift, baseline_gap) && boundary_evidence_ok(packet_ok, default_unchanged, advisory_only, no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> oracle_evidence_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i6[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> performance_evidence_ok(i5[t]:sbf, i7[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> boundary_evidence_ok(i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> certificate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i11[t]:sbf))).
