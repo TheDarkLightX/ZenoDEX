@@ -814,6 +814,48 @@ theorem maskFullBestSuffixOutput_le_selected
     hsame
     hmin
 
+/-- A record-level mask is range-reachable and locally pruned when it is
+reachable by a range path and satisfies the local pruning invariant. -/
+def reachablePrunedRangeMask
+    (parent child : MaskRecordSet)
+    (bitCount : Nat) : Prop :=
+  maskRecordPath parent (List.range bitCount) child ∧
+    maskPruningInvariant child
+
+/-- A reachable pruned range mask covers every bit below the bound. -/
+theorem reachablePrunedRangeMask_covers_bits
+    {parent child : MaskRecordSet}
+    {bitCount : Nat}
+    (hmask : reachablePrunedRangeMask parent child bitCount) :
+    allBitsBelowSet child.maskId bitCount := by
+  exact maskRecordPath_sets_range_bits hmask.1
+
+/-- A reachable pruned range mask bounds the full record-set suffix output by
+the selected representative. -/
+theorem reachablePrunedRangeMask_bounds_suffix_output
+    {parent child : MaskRecordSet}
+    {bitCount initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hmask : reachablePrunedRangeMask parent child bitCount) :
+    maskFullBestSuffixOutput initialReserveOut child suffix ≤
+      maskSelectedSuffixOutput initialReserveOut child suffix := by
+  exact maskFullBestSuffixOutput_le_selected hmask.2
+
+/-- Endpoint bridge for the subset-mask induction frontier: a range-reachable
+locally pruned child both covers the bounded mask range and bounds full suffix
+output by the selected representative. -/
+theorem reachablePrunedRangeMask_covers_and_bounds
+    {parent child : MaskRecordSet}
+    {bitCount initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hmask : reachablePrunedRangeMask parent child bitCount) :
+    allBitsBelowSet child.maskId bitCount ∧
+      maskFullBestSuffixOutput initialReserveOut child suffix ≤
+        maskSelectedSuffixOutput initialReserveOut child suffix := by
+  constructor
+  · exact reachablePrunedRangeMask_covers_bits hmask
+  · exact reachablePrunedRangeMask_bounds_suffix_output hmask
+
 /-- Finite subset-mask pruning lift.
 
 If every abstract subset mask satisfies the local pruning invariant, then the
@@ -896,6 +938,38 @@ theorem witness_bestFullSuffixOutputAcrossMasks_le_selected :
     bestFullSuffixOutputAcrossMasks 1200 masks suffix ≤
       bestSelectedSuffixOutputAcrossMasks 1200 masks suffix := by
   native_decide
+
+/-- Concrete non-vacuity witness for the reachable pruned range-mask endpoint. -/
+theorem witness_reachablePrunedRangeMask_covers_and_bounds :
+    let record : ProcessedRecord := ⟨100, 90⟩
+    let parent : MaskRecordSet := ⟨1, record, [record]⟩
+    let child : MaskRecordSet := ⟨1, record, [record]⟩
+    reachablePrunedRangeMask parent child 1 ∧
+      allBitsBelowSet child.maskId 1 ∧
+        maskFullBestSuffixOutput 1000 child [] ≤
+          maskSelectedSuffixOutput 1000 child [] := by
+  let record : ProcessedRecord := ⟨100, 90⟩
+  let parent : MaskRecordSet := ⟨1, record, [record]⟩
+  let child : MaskRecordSet := ⟨1, record, [record]⟩
+  have hpath : maskRecordPath parent (List.range 1) child := by
+    simpa [parent, child, maskRecordPath] using witness_bitMaskStep_noop.2
+  have hinvariant : maskPruningInvariant child := by
+    unfold child maskPruningInvariant
+    constructor
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+  have hmask : reachablePrunedRangeMask parent child 1 := ⟨hpath, hinvariant⟩
+  exact ⟨hmask,
+    reachablePrunedRangeMask_covers_and_bounds
+      (initialReserveOut := 1000)
+      (suffix := [])
+      hmask⟩
 
 /-- Concrete non-vacuity witness for one-step monotonicity. -/
 theorem witness_postReserveOut_mono_strict :

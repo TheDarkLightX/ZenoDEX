@@ -59,8 +59,13 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "theorem witness_bitMaskPath_sets_range_bits" in text
     assert "def maskPruningInvariant" in text
     assert "theorem maskFullBestSuffixOutput_le_selected" in text
+    assert "def reachablePrunedRangeMask" in text
+    assert "theorem reachablePrunedRangeMask_covers_bits" in text
+    assert "theorem reachablePrunedRangeMask_bounds_suffix_output" in text
+    assert "theorem reachablePrunedRangeMask_covers_and_bounds" in text
     assert "theorem bestFullSuffixOutputAcrossMasks_le_selected" in text
     assert "theorem witness_bestFullSuffixOutputAcrossMasks_le_selected" in text
+    assert "theorem witness_reachablePrunedRangeMask_covers_and_bounds" in text
 
     lake = shutil.which("lake")
     if not lake:
