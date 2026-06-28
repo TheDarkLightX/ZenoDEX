@@ -6,8 +6,10 @@ The next high-value AB-ordering target is Pareto dominance pruning inside the
 full-state subset DP. A bounded refutation checker found no counterexample to
 the proposed dominance relation on exact-in same-direction AB batches.
 
-This is a candidate frontier item. It is not yet a core implementation change
-and it is not a machine-checked proof.
+The follow-up opt-in pruning experiment found zero selected-order mismatches
+against the unpruned full-state DP and brute force on the bounded corpus. This
+is still a research result. It is not yet a core implementation change and it
+is not a machine-checked proof.
 
 ## Hypothesis Card
 
@@ -29,7 +31,7 @@ and it is not a machine-checked proof.
   simulation from a dominating state weakly improves the AB key.
 - `risk_modes`: exact-out swaps, mixed direction, tie handling, and grouped
   sender balances can invalidate an overbroad dominance claim.
-- `status`: `supported-candidate`
+- `status`: `supported-experiment`
 
 ## Candidate Dominance Rule
 
@@ -50,6 +52,8 @@ good future CPMM price conditions for exact-in swaps, at least as much remaining
 sender capacity, and no worse deterministic tie prefix.
 
 ## Replay Receipt
+
+### Refutation Search
 
 ```bash
 python3 tools/check_ab_subset_dp_dominance_candidate.py
@@ -73,6 +77,34 @@ The checker uses an explicit budget: `n in {4,5,6}`, 6 variants per size, at
 most 4 remaining suffix items, and at most 12 checked dominance pairs per mask.
 For each selected pair, suffix replay is exhaustive within the suffix bound.
 
+### Opt-In Pruning Experiment
+
+```bash
+python3 tools/check_ab_subset_dp_dominance_pruning.py
+```
+
+Result:
+
+```json
+{
+  "ok": true,
+  "case_count": 24,
+  "mismatch_count": 0,
+  "brute_mismatch_count": 0,
+  "state_insertion_reduction": 28.631579,
+  "transition_reduction": 12.347871,
+  "max_state_insertion_reduction": 69.191919,
+  "max_transition_reduction": 24.817029,
+  "max_bucket_reduction": 1680.0,
+  "first_mismatch": null
+}
+```
+
+The pruning experiment compares three selectors for every case: brute force,
+the unpruned full-state subset DP, and the dominance-pruned subset DP. The
+default receipt is compact; pass `--include-cases` to inspect full per-case
+orders and objective keys.
+
 ## Why It Matters
 
 The existing AB subset DP carries full reserves and per-sender balances in each
@@ -91,7 +123,8 @@ same-direction domain or separately extended with new proofs.
 
 ## Next Implementation Step
 
-Add an opt-in research version of AB subset DP with this dominance filter and
-compare it against the existing full-state DP plus brute force. Promotion should
-require zero selected-order mismatches, deterministic state-reduction receipts,
-and a targeted proof note before touching the default core path.
+Move from a standalone research checker to an opt-in core-adjacent function
+behind an explicit research flag. Promotion to the default AB path should
+require broader adversarial parity, exact-out rejection or proof extension,
+mixed-direction rejection or proof extension, and a targeted proof note before
+touching the default core path.
