@@ -29,6 +29,9 @@ from src.core.settlement import Fill  # noqa: E402
 from src.state.balances import BalanceTable  # noqa: E402
 from src.state.intents import Intent, IntentKind  # noqa: E402
 from src.state.pools import PoolState, PoolStatus  # noqa: E402
+from tools.check_cow_capacity_dp_adversarial import (  # noqa: E402
+    build_report as build_adversarial_report,
+)
 
 
 OUT_DIR = REPO_ROOT / "generated" / "zenodex_cow_capacity_dp_breakthrough_20260627"
@@ -229,10 +232,16 @@ def build_report() -> dict[str, Any]:
     exact_mismatches = [row for row in rows if not row["dp_matches_bruteforce"]]
     core_mismatches = [row for row in rows if not row["core_selector_matches_dp"]]
     lift_rows = [row for row in rows if row["dp_beats_greedy"]]
+    adversarial = build_adversarial_report()
     return {
         "schema": "zenodex.cow_capacity_dp_breakthrough_report.v1",
         "date": "2026-06-27",
-        "ok": not exact_mismatches and not core_mismatches and len(lift_rows) >= 2,
+        "ok": (
+            not exact_mismatches
+            and not core_mismatches
+            and len(lift_rows) >= 2
+            and adversarial["ok"] is True
+        ),
         "breakthrough": {
             "name": "Capacity-coupled CoW bounded exact DP",
             "summary": "The CoW selector now replaces the greedy grouped-capacity fallback with exact DP for small coupled batches, preserving brute-force volume/surplus/tie semantics under repeated senders.",
@@ -244,12 +253,15 @@ def build_report() -> dict[str, Any]:
         "greedy_lift_case_count": len(lift_rows),
         "max_total_candidates": max(row["total_candidates"] for row in rows),
         "cases": rows,
+        "adversarial_replay": adversarial,
         "non_claims": [
             "This is a bounded exact DP for small grouped-capacity CoW batches, not a polynomial algorithm for arbitrary grouped-capacity matching.",
             "Uncoupled large batches still use Hungarian assignment; large coupled batches still retain the greedy/fail-closed fallback.",
             "The report measures selector quality against brute force on a deterministic bounded corpus, not production activation.",
+            "No settlement authority is derived from this research report.",
         ],
         "replay_command": "python3 tools/zenodex_cow_capacity_dp_breakthrough_20260627.py",
+        "adversarial_replay_command": "python3 tools/check_cow_capacity_dp_adversarial.py",
     }
 
 
@@ -265,6 +277,11 @@ def write_markdown(report: dict[str, Any], output: Path) -> None:
     lines.append("")
     lines.append(
         f"Cases: `{report['case_count']}`. Exact mismatches: `{report['exact_mismatch_count']}`. Core selector mismatches: `{report['core_mismatch_count']}`. Greedy-lift cases: `{report['greedy_lift_case_count']}`. Max candidates: `{report['max_total_candidates']}`."
+    )
+    adv = report["adversarial_replay"]
+    lines.append("")
+    lines.append(
+        f"Adversarial cases: `{adv['case_count']}`. Exact mismatches: `{adv['exact_mismatch_count']}`. Core selector mismatches: `{adv['core_mismatch_count']}`. Greedy-lift cases: `{adv['greedy_lift_case_count']}`. Max candidates: `{adv['max_candidate_count']}`."
     )
     lines.append("")
     lines.append("## Cases")
@@ -286,6 +303,40 @@ def write_markdown(report: dict[str, Any], output: Path) -> None:
     lines.append("")
     lines.append("The DP explores skip-or-pair decisions for each `asset0 -> asset1` candidate. A pair is admitted only when the reciprocal minimum-output inequalities hold and both sender debit vectors remain within the pre-netting balance snapshot. The selected suffix is compared with the same `(volume, surplus, pair-id tie)` key used by the brute-force oracle.")
     lines.append("")
+    lines.append("## Adversarial Replay")
+    lines.append("")
+    lines.append("```bash")
+    lines.append(report["adversarial_replay_command"])
+    lines.append("```")
+    lines.append("")
+    lines.append("Result:")
+    lines.append("")
+    lines.append("```json")
+    lines.append(json.dumps({
+        "ok": adv["ok"],
+        "seed": adv["seed"],
+        "case_count": adv["case_count"],
+        "exact_mismatch_count": adv["exact_mismatch_count"],
+        "core_mismatch_count": adv["core_mismatch_count"],
+        "assignment_safe_case_count": adv["assignment_safe_case_count"],
+        "greedy_lift_case_count": adv["greedy_lift_case_count"],
+        "max_candidate_count": adv["max_candidate_count"],
+        "max_volume_lift": adv["max_volume_lift"],
+        "max_surplus_lift": adv["max_surplus_lift"],
+    }, indent=2, sort_keys=True))
+    lines.append("```")
+    lines.append("")
+    lines.append("Pattern coverage:")
+    lines.append("")
+    lines.append("| pattern | cases | exact mismatches | core mismatches | greedy lifts |")
+    lines.append("| --- | ---: | ---: | ---: | ---: |")
+    for pattern, row in sorted(adv["pattern_summary"].items()):
+        lines.append(
+            f"| `{pattern}` | `{row['cases']}` | `{row['exact_mismatches']}` | `{row['core_mismatches']}` | `{row['greedy_lifts']}` |"
+        )
+    lines.append("")
+    lines.append("Every adversarial case is intentionally outside the uncoupled Hungarian surface: `assignment_balance_safe` is false for all cases. The replay therefore exercises the bounded capacity-DP path rather than the assignment path.")
+    lines.append("")
     lines.append("## Non-Claims")
     lines.append("")
     for item in report["non_claims"]:
@@ -295,6 +346,7 @@ def write_markdown(report: dict[str, Any], output: Path) -> None:
     lines.append("")
     lines.append("```bash")
     lines.append(report["replay_command"])
+    lines.append(report["adversarial_replay_command"])
     lines.append("```")
     lines.append("")
     output.parent.mkdir(parents=True, exist_ok=True)
