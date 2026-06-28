@@ -581,10 +581,55 @@ theorem bitMaskPath_head_bit_remains_set
   rcases hpath with ⟨nextMask, hstep, hrest⟩
   exact bitMaskPath_preserves_prior_bits hrest hstep.1
 
+/-- Every bit in a finite bit-index list is set in a mask. -/
+def allBitsSet (mask : Nat) (pathBits : List Nat) : Prop :=
+  ∀ bitIndex, bitIndex ∈ pathBits -> maskHasBit mask bitIndex
+
+/-- A bit-mask path sets every bit named by the path. -/
+theorem bitMaskPath_sets_path_bits
+    {startMask finalMask : Nat}
+    {pathBits : List Nat}
+    (hpath : bitMaskPath startMask pathBits finalMask) :
+    allBitsSet finalMask pathBits := by
+  induction pathBits generalizing startMask finalMask with
+  | nil =>
+      intro bitIndex hmem
+      simp at hmem
+  | cons stepBit rest ih =>
+      intro candidateBit hcandidate
+      simp [bitMaskPath] at hpath
+      rcases hpath with ⟨nextMask, hstep, hrest⟩
+      rw [List.mem_cons] at hcandidate
+      cases hcandidate with
+      | inl hhead =>
+          subst hhead
+          exact bitMaskPath_preserves_prior_bits hrest hstep.1
+      | inr htail =>
+          exact ih hrest candidateBit htail
+
+/-- A bit-mask path preserves start bits and sets path bits. -/
+theorem bitMaskPath_preserves_start_or_sets_path_bits
+    {startMask finalMask : Nat}
+    {pathBits : List Nat}
+    {bitIndex : Nat}
+    (hpath : bitMaskPath startMask pathBits finalMask)
+    (hbit : maskHasBit startMask bitIndex ∨ bitIndex ∈ pathBits) :
+    maskHasBit finalMask bitIndex := by
+  cases hbit with
+  | inl hstart =>
+      exact bitMaskPath_preserves_prior_bits hpath hstart
+  | inr hpathBit =>
+      exact bitMaskPath_sets_path_bits hpath bitIndex hpathBit
+
 /-- A record-level mask transition links the `maskId` fields to the bit-level
 step relation. -/
 def maskRecordStep (parent child : MaskRecordSet) (bitIndex : Nat) : Prop :=
   bitMaskStep parent.maskId bitIndex child.maskId
+
+/-- A record-level mask path links the `maskId` fields to the bit-level path
+relation. -/
+def maskRecordPath (parent : MaskRecordSet) (pathBits : List Nat) (child : MaskRecordSet) : Prop :=
+  bitMaskPath parent.maskId pathBits child.maskId
 
 /-- A record-level mask transition sets the chosen bit in the child mask id. -/
 theorem maskRecordStep_sets_child_bit
@@ -603,6 +648,25 @@ theorem maskRecordStep_preserves_parent_bits
     maskHasBit child.maskId priorBit := by
   exact bitMaskStep_preserves_prior_bits hstep hprior
 
+/-- A record-level mask path sets every bit named by the path in the child
+mask id. -/
+theorem maskRecordPath_sets_path_bits
+    {parent child : MaskRecordSet}
+    {pathBits : List Nat}
+    (hpath : maskRecordPath parent pathBits child) :
+    allBitsSet child.maskId pathBits := by
+  exact bitMaskPath_sets_path_bits hpath
+
+/-- A record-level mask path preserves bits that were set in the parent mask id. -/
+theorem maskRecordPath_preserves_parent_bits
+    {parent child : MaskRecordSet}
+    {pathBits : List Nat}
+    {bitIndex : Nat}
+    (hpath : maskRecordPath parent pathBits child)
+    (hprior : maskHasBit parent.maskId bitIndex) :
+    maskHasBit child.maskId bitIndex := by
+  exact bitMaskPath_preserves_prior_bits hpath hprior
+
 /-- Concrete non-vacuity witness for the bit-mask transition relation. -/
 theorem witness_bitMaskStep_noop :
     bitMaskStep 1 0 1 ∧ bitMaskPath 1 [0] 1 := by
@@ -615,6 +679,17 @@ theorem witness_bitMaskStep_noop :
   constructor
   · exact hstep
   · exact ⟨1, hstep, by simp [bitMaskPath]⟩
+
+/-- Concrete non-vacuity witness for bit-mask path growth. -/
+theorem witness_bitMaskPath_sets_path_bits :
+    bitMaskPath 1 [0] 1 ∧ allBitsSet 1 [0] := by
+  constructor
+  · exact witness_bitMaskStep_noop.2
+  · intro bitIndex hmem
+    simp at hmem
+    subst bitIndex
+    unfold maskHasBit
+    native_decide
 
 /-- A mask is locally prunable when its selected record has the same processed
 input reserve as every full record and no more output reserve. -/

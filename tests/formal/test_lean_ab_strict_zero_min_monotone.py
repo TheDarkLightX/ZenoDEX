@@ -42,9 +42,16 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "theorem bitMaskStep_already_selected_eq" in text
     assert "theorem bitMaskPath_preserves_prior_bits" in text
     assert "theorem bitMaskPath_head_bit_remains_set" in text
+    assert "def allBitsSet" in text
+    assert "theorem bitMaskPath_sets_path_bits" in text
+    assert "theorem bitMaskPath_preserves_start_or_sets_path_bits" in text
     assert "def maskRecordStep" in text
+    assert "def maskRecordPath" in text
     assert "theorem maskRecordStep_sets_child_bit" in text
+    assert "theorem maskRecordPath_sets_path_bits" in text
+    assert "theorem maskRecordPath_preserves_parent_bits" in text
     assert "theorem witness_bitMaskStep_noop" in text
+    assert "theorem witness_bitMaskPath_sets_path_bits" in text
     assert "def maskPruningInvariant" in text
     assert "theorem maskFullBestSuffixOutput_le_selected" in text
     assert "theorem bestFullSuffixOutputAcrossMasks_le_selected" in text
