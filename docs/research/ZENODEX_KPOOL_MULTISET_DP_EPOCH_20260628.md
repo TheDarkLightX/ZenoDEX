@@ -102,13 +102,22 @@ all-distinct inputs.
 - The experiment is bounded evidence. A core implementation should still add
   focused tests, a benchmark tool, and a formal quotient proof obligation.
 
-## Next Promotion Gate
+## Implementation Follow-Through
 
-1. Add `solve_k_pool_cpmm_multiset_dp` beside the existing k-pool subset oracle.
-2. Run parity against k-pool subset DP and brute force on a larger adversarial
+The next gate was implemented in the local research oracle:
+
+- `solve_k_pool_cpmm_multiset_dp` now sits beside the existing k-pool subset
+  solver.
+- Focused tests compare it against k-pool subset DP and brute force on
+  duplicate-heavy adversarial small domains.
+- The cross-pool benchmark can emit k-pool multiset fixture reductions with
+  `--include-kpool-multiset`.
+
+The remaining promotion gates are:
+
+1. Run parity against k-pool subset DP and brute force on a larger adversarial
    corpus.
-3. Add duplicate-heavy benchmark output to the existing cross-pool benchmark.
-4. Add a Lean or lightweight proof note for the amount-identity quotient:
+2. Add a Lean or lightweight proof note for the amount-identity quotient:
 
 ```text
 same amount and same reserve state -> same transition set
