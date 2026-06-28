@@ -18,10 +18,10 @@ Authority boundary: these specs guard proof surfaces and research candidates. Th
 
 | spec | track | latest | runtime | elapsed latest | energy | bytes |
 | --- | --- | --- | --- | ---: | ---: | ---: |
-| `frontier_certificate_menu_v1` | `shared_tau_frontier` | `True` | `True` | `1.383867s` | `-106.3340` | `2208` |
-| `route_dominance_frontier_envelope_v1` | `ZB-20260627-02` | `True` | `True` | `0.994831s` | `-103.6760` | `2287` |
-| `oracle_polytope_frontier_envelope_v1` | `ZB-20260627-03` | `True` | `True` | `0.913455s` | `-95.3980` | `2351` |
-| `ab_cow_exact_solver_envelope_v1` | `algorithm_items_1_and_2` | `True` | `True` | `2.145966s` | `-82.4760` | `3062` |
+| `frontier_certificate_menu_v1` | `shared_tau_frontier` | `True` | `True` | `1.301095s` | `-106.3340` | `2208` |
+| `route_dominance_frontier_envelope_v1` | `ZB-20260627-02` | `True` | `True` | `0.938632s` | `-103.6760` | `2287` |
+| `oracle_polytope_frontier_envelope_v1` | `ZB-20260627-03` | `True` | `True` | `0.876458s` | `-95.3980` | `2351` |
+| `ab_cow_exact_solver_envelope_v1` | `algorithm_items_1_and_2` | `True` | `True` | `2.131638s` | `-82.4760` | `3062` |
 
 ## What Tau Language Can Do Here
 
