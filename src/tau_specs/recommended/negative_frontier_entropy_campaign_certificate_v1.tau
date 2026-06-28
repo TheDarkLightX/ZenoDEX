@@ -1,0 +1,44 @@
+# negative_frontier_entropy_campaign_certificate_v1.tau
+#
+# PURPOSE:
+#   Admit a host-replayed negative-frontier entropy campaign certificate. The
+#   host computes entropy deltas, family labels, deterministic replay, severity
+#   floors, AB/CoW coverage, and Tau-runtime compatibility. Tau composes those
+#   facts into a fail-closed advisory research certificate with no settlement,
+#   governance, oracle-update, or runtime state authority.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = bounded_corpus_ok
+# i3  = entropy_beats_recency_ok
+# i4  = entropy_not_worse_than_random_ok
+# i5  = deterministic_replay_ok
+# i6  = severity_floor_ok
+# i7  = work_item_1_ab_covered
+# i8  = work_item_2_cow_covered
+# i9  = tau_runtime_subset_ok
+# i10 = negative_controls_pass
+# i11 = evidence_artifacts_bound
+# i12 = advisory_model_only
+# i13 = no_authority_effect
+#
+# o1 = scheduler_evidence_ok
+# o2 = work_item_coverage_ok
+# o3 = tau_boundary_ok
+# o4 = negative_frontier_campaign_certificate_ok
+# o5 = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+scheduler_evidence_ok(corpus_ok : sbf, entropy_recency : sbf, entropy_random : sbf, deterministic : sbf, severity : sbf, controls : sbf, artifacts : sbf) := is1(corpus_ok) && is1(entropy_recency) && is1(entropy_random) && is1(deterministic) && is1(severity) && is1(controls) && is1(artifacts).
+work_item_coverage_ok(ab_ok : sbf, cow_ok : sbf) := is1(ab_ok) && is1(cow_ok).
+tau_boundary_ok(runtime_ok : sbf, advisory_only : sbf, no_authority : sbf) := is1(runtime_ok) && is1(advisory_only) && is1(no_authority).
+campaign_certificate_ok(active : sbf, corpus_ok : sbf, entropy_recency : sbf, entropy_random : sbf, deterministic : sbf, severity : sbf, ab_ok : sbf, cow_ok : sbf, runtime_ok : sbf, controls : sbf, artifacts : sbf, advisory_only : sbf, no_authority : sbf) := is1(active) && scheduler_evidence_ok(corpus_ok, entropy_recency, entropy_random, deterministic, severity, controls, artifacts) && work_item_coverage_ok(ab_ok, cow_ok) && tau_boundary_ok(runtime_ok, advisory_only, no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> scheduler_evidence_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i10[t]:sbf, i11[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> work_item_coverage_ok(i7[t]:sbf, i8[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> tau_boundary_ok(i9[t]:sbf, i12[t]:sbf, i13[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> campaign_certificate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i13[t]:sbf))).
