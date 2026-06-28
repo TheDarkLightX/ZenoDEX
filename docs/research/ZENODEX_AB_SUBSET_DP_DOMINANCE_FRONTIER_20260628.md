@@ -16,6 +16,11 @@ minimum-output cliffs, overconstrained intents, shared sender balances, shallow
 liquidity, and one `n=8` growth-step smoke case. It also records exact-out and
 mixed-direction states as explicit non-claims.
 
+A boundary refuter now gives concrete counterexamples to reusing the same
+dominance relation outside that domain. Exact-out and mixed-direction batches
+must stay rejected by construction or receive separate dominance relations and
+proofs.
+
 ## Hypothesis Card
 
 - `hypothesis_id`: `ab_subset_dp_pareto_dominance_pruning_v1`
@@ -141,6 +146,48 @@ cases per pattern and one `n=8` cliff smoke case. Exact-out and mixed-direction
 cases remain excluded until a separate dominance relation is proved or they are
 rejected by construction.
 
+### Unsupported-Domain Boundary Refuter
+
+```bash
+python3 tools/check_ab_subset_dp_dominance_boundary_refuter.py
+```
+
+Result:
+
+```json
+{
+  "ok": true,
+  "exact_out": {
+    "counterexample_found": true,
+    "candidate_exact_out_input": 26,
+    "dominated_exact_out_input": 59,
+    "candidate_key": [36, 0, ["0x...0001", "0x...0064"]],
+    "dominated_key": [69, 0, ["0x...0002", "0x...0064"]]
+  },
+  "mixed_direction": {
+    "counterexample_found": true,
+    "candidate_amount_out": 9,
+    "dominated_amount_out": 19,
+    "candidate_key": [110, 9, ["0x...0001"]],
+    "dominated_key": [110, 19, ["0x...0002"]]
+  }
+}
+```
+
+The exact-out witness starts from a state that satisfies the naive exact-in
+dominance relation: equal objective totals and balances, lower `r_in`, higher
+`r_out`, and better tie prefix. A following exact-out swap requires only 26
+input from the candidate state and 59 input from the dominated state. Since the
+current AB key maximizes executed input volume, the worse-price state obtains
+the better AB key. The exact-in dominance order is therefore unsound for
+exact-out states under the current objective.
+
+The mixed-direction witness uses the same candidate and dominated reserve
+tuples, then evaluates an `asset1 -> asset0` exact-in suffix. The candidate
+state produces 9 output and the dominated state produces 19 output. The reserve
+order is direction-relative, so a relation stated in `asset0 -> asset1`
+coordinates cannot be reused after reversing the direction.
+
 ## Why It Matters
 
 The existing AB subset DP carries full reserves and per-sender balances in each
@@ -153,6 +200,8 @@ same-direction domain or separately extended with new proofs.
 
 - This does not prove dominance for exact-out intents.
 - This does not prove dominance for mixed-direction batches.
+- Concrete counterexamples show that reusing the exact-in dominance relation
+  for exact-out or mixed-direction states is unsound.
 - This does not modify the production ordering path.
 - Passing this bounded checker is not a Lean theorem.
 - No settlement authority is derived from this research note.
