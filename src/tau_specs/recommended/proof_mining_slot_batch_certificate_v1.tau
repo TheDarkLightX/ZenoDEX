@@ -1,0 +1,47 @@
+# proof_mining_slot_batch_certificate_v1.tau
+#
+# PURPOSE:
+#   Admit a host-recomputed proof-mining batch slot-assignment certificate.
+#   The host performs the exact bounded search over the 8-slot registry and
+#   supplies single-purpose proof facts. Tau composes those facts into a
+#   fail-closed admission bit with no payout or settlement authority.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = mode_proof_mining_slot_batch
+# i3  = registry_valid
+# i4  = proposal_domain_bound_ok
+# i5  = resource_bound_ok
+# i6  = nonvacuity_ok
+# i7  = exact_assignment_recomputed
+# i8  = objective_minimal_ok
+# i9  = deterministic_tie_ok
+# i10 = sequential_baseline_replayed
+# i11 = improvement_or_parity_ok
+# i12 = duplicate_slot_rejects_ok
+# i13 = no_payout_authority
+#
+# o1 = mode_ok
+# o2 = structural_scope_ok
+# o3 = exact_certificate_ok
+# o4 = baseline_comparison_ok
+# o5 = safety_rail_ok
+# o6 = slot_batch_certificate_ok
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+
+mode_ok(active : sbf, mode_slot_batch : sbf) := is1(active) && is1(mode_slot_batch).
+
+structural_scope_ok(registry_ok : sbf, domain_ok : sbf, budget_ok : sbf, nonvacuous : sbf) := is1(registry_ok) && is1(domain_ok) && is1(budget_ok) && is1(nonvacuous).
+
+exact_certificate_ok(exact_recomputed : sbf, objective_minimal : sbf, tie_ok : sbf) := is1(exact_recomputed) && is1(objective_minimal) && is1(tie_ok).
+
+baseline_comparison_ok(baseline_replayed : sbf, improvement_or_parity : sbf) := is1(baseline_replayed) && is1(improvement_or_parity).
+
+safety_rail_ok(duplicate_rejects : sbf, no_authority : sbf) := is1(duplicate_rejects) && is1(no_authority).
+
+slot_batch_certificate_ok(active : sbf, mode_slot_batch : sbf, registry_ok : sbf, domain_ok : sbf, budget_ok : sbf, nonvacuous : sbf, exact_recomputed : sbf, objective_minimal : sbf, tie_ok : sbf, baseline_replayed : sbf, improvement_or_parity : sbf, duplicate_rejects : sbf, no_authority : sbf) := mode_ok(active, mode_slot_batch) && structural_scope_ok(registry_ok, domain_ok, budget_ok, nonvacuous) && exact_certificate_ok(exact_recomputed, objective_minimal, tie_ok) && baseline_comparison_ok(baseline_replayed, improvement_or_parity) && safety_rail_ok(duplicate_rejects, no_authority).
+
+always (o1[t]:sbf = 1:sbf <-> mode_ok(i1[t]:sbf, i2[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> structural_scope_ok(i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> exact_certificate_ok(i7[t]:sbf, i8[t]:sbf, i9[t]:sbf)) && (o4[t]:sbf = 1:sbf <-> baseline_comparison_ok(i10[t]:sbf, i11[t]:sbf)) && (o5[t]:sbf = 1:sbf <-> safety_rail_ok(i12[t]:sbf, i13[t]:sbf)) && (o6[t]:sbf = 1:sbf <-> slot_batch_certificate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf)).
