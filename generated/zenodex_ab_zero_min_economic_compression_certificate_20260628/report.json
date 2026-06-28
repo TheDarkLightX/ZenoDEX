@@ -1,0 +1,444 @@
+{
+  "authority_boundary": "Tau admits a research certificate only. It does not compute swaps, run DP, select AB orders, or authorize settlement.",
+  "date": "2026-06-28",
+  "deterministic_replay": {
+    "first_hash": "752071121e06b8aee02d6b8f7a6974357795375633459ae76709ed2d158d4138",
+    "ok": true,
+    "second_hash": "752071121e06b8aee02d6b8f7a6974357795375633459ae76709ed2d158d4138"
+  },
+  "evidence": {
+    "non_claims": [
+      "This is a research certificate, not a production ordering change.",
+      "The compressed DP preserves the economic AB key only on the tested zero-min exact-in scope.",
+      "The compressed DP does not preserve canonical tie order; a separate tie resolver is required.",
+      "Nonzero min_amount_out batches are outside this compression surface.",
+      "Tau does not compute swaps, run DP, select orders, or authorize settlement.",
+      "No settlement authority is derived from this artifact."
+    ],
+    "nonzero_min_boundary": {
+      "brute_economic_key": [
+        39,
+        1
+      ],
+      "brute_order": [
+        "283d",
+        "283c"
+      ],
+      "compressed_economic_key": [
+        -1,
+        -1
+      ],
+      "compressed_order": [],
+      "counterexample_found": true,
+      "n": 2,
+      "pattern": "cliff",
+      "reason": "Nonzero minimum-output cliffs can make the min-reserve-out representative infeasible while another order still executes value.",
+      "variant": 3
+    },
+    "ok": true,
+    "rounding_boundary": {
+      "amounts": [
+        10,
+        20,
+        30
+      ],
+      "counterexample_found": true,
+      "distinct_outcomes": [
+        {
+          "final_r_in": 1060,
+          "final_r_out": 1134,
+          "orders": [
+            [
+              10,
+              30,
+              20
+            ],
+            [
+              20,
+              30,
+              10
+            ],
+            [
+              30,
+              10,
+              20
+            ],
+            [
+              30,
+              20,
+              10
+            ]
+          ],
+          "total_out": 66
+        },
+        {
+          "final_r_in": 1060,
+          "final_r_out": 1133,
+          "orders": [
+            [
+              10,
+              20,
+              30
+            ],
+            [
+              20,
+              10,
+              30
+            ]
+          ],
+          "total_out": 67
+        }
+      ],
+      "fee_bps": 0,
+      "reason": "Integer floor rounding makes same-set exact-in output path-dependent, so aggregate input alone is not a sufficient state."
+    },
+    "schema": "zenodex/ab_zero_min_economic_compression_evidence/v1",
+    "zero_min_support": {
+      "canonical_tie_mismatch_count": 1,
+      "case_count": 50,
+      "case_plan": [
+        {
+          "n": 2,
+          "variants": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "n": 3,
+          "variants": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "n": 4,
+          "variants": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "n": 5,
+          "variants": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "n": 6,
+          "variants": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "n": 7,
+          "variants": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "n": 8,
+          "variants": [
+            0,
+            21
+          ]
+        }
+      ],
+      "elapsed_ms": 13136.109,
+      "first_mismatch": null,
+      "first_tie_mismatch": {
+        "brute_economic_key": [
+          260,
+          296
+        ],
+        "brute_order": [
+          "2f44",
+          "2f46",
+          "2f47",
+          "2f49",
+          "2f4b",
+          "2f4a",
+          "2f45",
+          "2f48"
+        ],
+        "compressed_economic_key": [
+          260,
+          296
+        ],
+        "compressed_order": [
+          "2f44",
+          "2f47",
+          "2f49",
+          "2f46",
+          "2f4b",
+          "2f4a",
+          "2f45",
+          "2f48"
+        ],
+        "full_economic_key": [
+          260,
+          296
+        ],
+        "n": 8,
+        "ok": true,
+        "same_canonical_order": false,
+        "variant": 21
+      },
+      "mismatch_count": 0,
+      "ok": true
+    }
+  },
+  "flags": {
+    "brute_or_full_parity_ok": 1,
+    "canonical_tie_nonclaim_witness_ok": 1,
+    "deterministic_replay_ok": 1,
+    "economic_parity_ok": 1,
+    "no_authority_effect": 1,
+    "nonzero_min_boundary_witness_ok": 1,
+    "resource_budget_ok": 1,
+    "rounding_path_dependence_witness_ok": 1,
+    "same_direction_exact_in_scope_ok": 1,
+    "zero_min_scope_ok": 1
+  },
+  "mutation_checks": [
+    {
+      "accepted": false,
+      "mutation_id": "missing_zero_min_reject",
+      "rationale": "Missing zero-min scope fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "missing_economic_parity_reject",
+      "rationale": "Missing economic-key parity fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "missing_tie_nonclaim_reject",
+      "rationale": "Missing canonical-tie nonclaim witness fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "missing_nonzero_boundary_reject",
+      "rationale": "Missing nonzero-min boundary witness fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "missing_rounding_boundary_reject",
+      "rationale": "Missing rounding path-dependence witness fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "authority_reject",
+      "rationale": "Authority-bearing certificates are rejected."
+    }
+  ],
+  "non_claims": [
+    "This is a research certificate, not a production ordering change.",
+    "The compressed DP preserves the economic AB key only on the tested zero-min exact-in scope.",
+    "The compressed DP does not preserve canonical tie order; a separate tie resolver is required.",
+    "Nonzero min_amount_out batches are outside this compression surface.",
+    "Tau does not compute swaps, run DP, select orders, or authorize settlement.",
+    "No settlement authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_zero_min_economic_compression_certificate.py",
+  "schema": "zenodex.ab_zero_min_economic_compression_certificate_report.v1",
+  "spec_id": "ab_zero_min_economic_compression_certificate_v1",
+  "summary": "A counterexample-salvage certificate supports one-record min-reserve-out compression only for the zero-min same-direction exact-in economic AB key, while preserving explicit witnesses against canonical-tie, nonzero-min, and aggregate-input overclaims.",
+  "tau": {
+    "cases": [
+      {
+        "case_id": "zero_min_pass",
+        "expected": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All scoped economic-compression evidence and boundary witnesses hold."
+      },
+      {
+        "case_id": "missing_zero_min_reject",
+        "expected": {
+          "o1": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing zero-min scope fails closed."
+      },
+      {
+        "case_id": "missing_economic_parity_reject",
+        "expected": {
+          "o2": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing economic-key parity fails closed."
+      },
+      {
+        "case_id": "missing_tie_nonclaim_reject",
+        "expected": {
+          "o3": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing canonical-tie nonclaim witness fails closed."
+      },
+      {
+        "case_id": "missing_nonzero_boundary_reject",
+        "expected": {
+          "o3": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing nonzero-min boundary witness fails closed."
+      },
+      {
+        "case_id": "missing_rounding_boundary_reject",
+        "expected": {
+          "o3": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing rounding path-dependence witness fails closed."
+      },
+      {
+        "case_id": "authority_reject",
+        "expected": {
+          "o4": 0,
+          "o5": 0,
+          "o6": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Authority-bearing certificates are rejected."
+      },
+      {
+        "case_id": "inactive_safe",
+        "expected": {
+          "o5": 0,
+          "o6": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Inactive certificates do not admit while the no-authority rail remains true."
+      }
+    ],
+    "ok": true,
+    "spec_path": "src/tau_specs/recommended/ab_zero_min_economic_compression_certificate_v1.tau",
+    "tau_bin": "/home/trevormoc/Downloads/Autonomous Tau DEX/external/tau-lang/build-Release/tau",
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  }
+}
