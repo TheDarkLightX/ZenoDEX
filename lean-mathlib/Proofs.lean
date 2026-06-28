@@ -113,6 +113,7 @@ import Proofs.JacobiTuranEndpointObstruction
 import Proofs.JITLiquidityDefense
 import Proofs.JITRewardSandwich
 import Proofs.JmtKeystoneBinding
+import Proofs.KPoolMultisetQuotient
 import Proofs.LiquidityRebalancerBounds
 import Proofs.LpMintOptimalBounds
 import Proofs.LPValueAlgebra

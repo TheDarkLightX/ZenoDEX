@@ -1,0 +1,49 @@
+{
+  "schema": "zenodex.kpool_multiset_quotient_lean_report.v1",
+  "date": "2026-06-28",
+  "ok": true,
+  "claim_scope": "Lean proof component for identity erasure in the k-pool multiset DP research oracle",
+  "authority_scope": "No production routing, settlement, governance, state-root, or promotion authority",
+  "lean_file": "lean-mathlib/Proofs/KPoolMultisetQuotient.lean",
+  "formal_test": "tests/formal/test_lean_kpool_multiset_quotient.py",
+  "theorems": [
+    "Proofs.KPoolMultisetQuotient.runTrace_congr_sameStepKeys",
+    "Proofs.KPoolMultisetQuotient.equalAmount_identity_swap",
+    "Proofs.KPoolMultisetQuotient.identityErasure_preserves_trace",
+    "Proofs.KPoolMultisetQuotient.witness_equalAmount_identity_swap",
+    "Proofs.KPoolMultisetQuotient.witness_allocation_position_matters"
+  ],
+  "supports": [
+    "Intent identity can be erased when the amount/allocation trace is unchanged",
+    "Adjacent equal-amount identity swaps preserve the abstract run",
+    "Allocation position remains load-bearing and is not quotiented"
+  ],
+  "non_claims": [
+    "Does not prove the full Python implementation",
+    "Does not formalize CPMM reserve arithmetic",
+    "Does not formalize split feasibility or sender balances",
+    "Does not support heterogeneous min_out, deadlines, or exact-out requests",
+    "Does not authorize routing, settlement, governance, state roots, or production promotion"
+  ],
+  "verification": {
+    "lake_env_lean": {
+      "command": "cd lean-mathlib && lake env lean Proofs/KPoolMultisetQuotient.lean",
+      "status": "pass"
+    },
+    "lake_build_module": {
+      "command": "cd lean-mathlib && lake build Proofs.KPoolMultisetQuotient",
+      "status": "pass",
+      "summary": "Built Proofs.KPoolMultisetQuotient"
+    },
+    "pytest": {
+      "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests/formal/test_lean_kpool_multiset_quotient.py",
+      "status": "pass",
+      "summary": "1 passed in 6.81s"
+    },
+    "placeholder_scan": {
+      "command": "python3 ~/.codex/skills/proof-engineering/scripts/scan_proof_placeholders.py lean-mathlib/Proofs/KPoolMultisetQuotient.lean",
+      "status": "pass",
+      "summary": "No proof placeholders found."
+    }
+  }
+}
