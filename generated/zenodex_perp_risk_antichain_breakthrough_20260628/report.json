@@ -1,0 +1,534 @@
+{
+  "breakthrough": {
+    "authority_boundary": "Research certificate only. Tau has no settlement, liquidation, oracle-update, or state-root authority.",
+    "name": "Perps risk-antichain certificate",
+    "summary": "A bounded primitive perps risk lattice compresses from dense scenario replay to a minimal rejection antichain while Tau gates only the host-replayed certificate facts."
+  },
+  "containment_replay": {
+    "ok": true,
+    "scenario_count": 5,
+    "scenarios": [
+      {
+        "maint_margin_bps": 500,
+        "margin_ratio_bps": 11904761904,
+        "scenario_id": "baseline_btc_market_accepts",
+        "status": "OK"
+      },
+      {
+        "max_mark_oracle_gap_abs": 1500000000,
+        "scenario_id": "oracle_gap_shock_rejects",
+        "status": "OK"
+      },
+      {
+        "maint_margin_bps": 500,
+        "margin_ratio_bps": 499,
+        "scenario_id": "under_margined_open_position_rejects",
+        "status": "OK"
+      },
+      {
+        "insurance_balance": 5000000000,
+        "insurance_floor": 5000000001,
+        "scenario_id": "insurance_floor_breach_rejects",
+        "status": "OK"
+      },
+      {
+        "breaker_active_flag": true,
+        "proof_ok": false,
+        "scenario_id": "breaker_without_proof_rejects",
+        "status": "OK"
+      }
+    ]
+  },
+  "date": "2026-06-28",
+  "facts": {
+    "component_antichain_coverage_ok": 1,
+    "containment_replay_ok": 1,
+    "dense_lattice_enumerated": 1,
+    "monotonicity_ok": 1,
+    "overall_antichain_minimal_ok": 1,
+    "proof_dominates_stale_breaker_ok": 1,
+    "resource_budget_ok": 1,
+    "tau_risk_envelope_parity_ok": 1
+  },
+  "lattice": {
+    "accepted_state_count": 4,
+    "component_antichain_coverage_ok": true,
+    "component_boundaries": [
+      {
+        "boundary": [
+          "mark_oracle_gap_bad"
+        ],
+        "output_id": "o1_mark_oracle_gap",
+        "rejects": true
+      },
+      {
+        "boundary": [
+          "mark_drift_bad"
+        ],
+        "output_id": "o2_mark_drift",
+        "rejects": true
+      },
+      {
+        "boundary": [
+          "oracle_drift_bad"
+        ],
+        "output_id": "o3_oracle_drift",
+        "rejects": true
+      },
+      {
+        "boundary": [
+          "open_interest_cap_bad"
+        ],
+        "output_id": "o4_open_interest_cap",
+        "rejects": true
+      },
+      {
+        "boundary": [
+          "funding_cap_bad"
+        ],
+        "output_id": "o5_funding_cap",
+        "rejects": true
+      },
+      {
+        "boundary": [
+          "liq_penalty_cap_bad"
+        ],
+        "output_id": "o6_liq_penalty_cap",
+        "rejects": true
+      },
+      {
+        "boundary": [
+          "insurance_floor_bad"
+        ],
+        "output_id": "o7_insurance_floor",
+        "rejects": true
+      },
+      {
+        "boundary": [
+          "proof_missing",
+          "stale_oracle_flag"
+        ],
+        "output_id": "o8_stale_guard",
+        "rejects": true
+      },
+      {
+        "boundary": [
+          "breaker_active_flag",
+          "proof_missing"
+        ],
+        "output_id": "o9_breaker_guard",
+        "rejects": true
+      },
+      {
+        "boundary": [
+          "margin_bad"
+        ],
+        "output_id": "o10_margin_guard",
+        "rejects": true
+      }
+    ],
+    "component_boundary_count": 10,
+    "compression_ratio_dense_to_overall_antichain": "4096:10",
+    "dense_state_count": 4096,
+    "expected_overall_minimal_rejects": [
+      [
+        "binding_missing"
+      ],
+      [
+        "funding_cap_bad"
+      ],
+      [
+        "insurance_floor_bad"
+      ],
+      [
+        "liq_penalty_cap_bad"
+      ],
+      [
+        "margin_bad"
+      ],
+      [
+        "mark_drift_bad"
+      ],
+      [
+        "mark_oracle_gap_bad"
+      ],
+      [
+        "open_interest_cap_bad"
+      ],
+      [
+        "oracle_drift_bad"
+      ],
+      [
+        "proof_missing"
+      ]
+    ],
+    "monotonicity_ok": true,
+    "monotonicity_violations": [],
+    "overall_antichain_minimal_ok": true,
+    "overall_minimal_reject_count": 10,
+    "overall_minimal_rejects": [
+      [
+        "binding_missing"
+      ],
+      [
+        "funding_cap_bad"
+      ],
+      [
+        "insurance_floor_bad"
+      ],
+      [
+        "liq_penalty_cap_bad"
+      ],
+      [
+        "margin_bad"
+      ],
+      [
+        "mark_drift_bad"
+      ],
+      [
+        "mark_oracle_gap_bad"
+      ],
+      [
+        "open_interest_cap_bad"
+      ],
+      [
+        "oracle_drift_bad"
+      ],
+      [
+        "proof_missing"
+      ]
+    ],
+    "primitive_axis_count": 12,
+    "proof_dominates_stale_breaker_ok": true,
+    "rejected_state_count": 4092
+  },
+  "non_claims": [
+    "This does not change perps runtime risk-gate semantics.",
+    "The antichain is over the declared bounded primitive-risk lattice, not every possible perps market state.",
+    "Tau does not compute numeric risk, enumerate states, liquidate positions, settle funding, or update oracles.",
+    "Proof availability and binding remain host-supplied obligations."
+  ],
+  "numeric_boundary": {
+    "breaker_only_risk_envelope_ok": true,
+    "minimal_axis_rows": [
+      {
+        "axis": "mark_oracle_gap_bad",
+        "rejects": true,
+        "risk_envelope_ok": false
+      },
+      {
+        "axis": "mark_drift_bad",
+        "rejects": true,
+        "risk_envelope_ok": false
+      },
+      {
+        "axis": "oracle_drift_bad",
+        "rejects": true,
+        "risk_envelope_ok": false
+      },
+      {
+        "axis": "open_interest_cap_bad",
+        "rejects": true,
+        "risk_envelope_ok": false
+      },
+      {
+        "axis": "funding_cap_bad",
+        "rejects": true,
+        "risk_envelope_ok": false
+      },
+      {
+        "axis": "liq_penalty_cap_bad",
+        "rejects": true,
+        "risk_envelope_ok": false
+      },
+      {
+        "axis": "insurance_floor_bad",
+        "rejects": true,
+        "risk_envelope_ok": false
+      },
+      {
+        "axis": "margin_bad",
+        "rejects": true,
+        "risk_envelope_ok": false
+      },
+      {
+        "axis": "proof_missing",
+        "rejects": true,
+        "risk_envelope_ok": false
+      },
+      {
+        "axis": "binding_missing",
+        "rejects": true,
+        "risk_envelope_ok": false
+      }
+    ],
+    "ok": true,
+    "stale_only_risk_envelope_ok": true
+  },
+  "ok": true,
+  "replay_command": "python3 tools/zenodex_perp_risk_antichain_breakthrough_20260628.py",
+  "schema": "zenodex.perp_risk_antichain_breakthrough_report.v1",
+  "tau": {
+    "antichain_certificate": {
+      "case_count": 9,
+      "cases": [
+        {
+          "case_id": "antichain_certificate_pass",
+          "expected": {
+            "o1": 1,
+            "o2": 1,
+            "o3": 1,
+            "o4": 1,
+            "o5": 1,
+            "o6": 0
+          },
+          "got": {
+            "o1": 1,
+            "o2": 1,
+            "o3": 1,
+            "o4": 1,
+            "o5": 1,
+            "o6": 0
+          },
+          "mismatches": {},
+          "ok": true
+        },
+        {
+          "case_id": "monotonicity_reject",
+          "expected": {
+            "o1": 0,
+            "o5": 0
+          },
+          "got": {
+            "o1": 0,
+            "o2": 1,
+            "o3": 1,
+            "o4": 1,
+            "o5": 0,
+            "o6": 0
+          },
+          "mismatches": {},
+          "ok": true
+        },
+        {
+          "case_id": "minimal_antichain_reject",
+          "expected": {
+            "o2": 0,
+            "o5": 0
+          },
+          "got": {
+            "o1": 1,
+            "o2": 0,
+            "o3": 1,
+            "o4": 1,
+            "o5": 0,
+            "o6": 0
+          },
+          "mismatches": {},
+          "ok": true
+        },
+        {
+          "case_id": "component_coverage_reject",
+          "expected": {
+            "o2": 0,
+            "o5": 0
+          },
+          "got": {
+            "o1": 1,
+            "o2": 0,
+            "o3": 1,
+            "o4": 1,
+            "o5": 0,
+            "o6": 0
+          },
+          "mismatches": {},
+          "ok": true
+        },
+        {
+          "case_id": "containment_replay_reject",
+          "expected": {
+            "o3": 0,
+            "o5": 0
+          },
+          "got": {
+            "o1": 1,
+            "o2": 1,
+            "o3": 0,
+            "o4": 1,
+            "o5": 0,
+            "o6": 0
+          },
+          "mismatches": {},
+          "ok": true
+        },
+        {
+          "case_id": "tau_parity_reject",
+          "expected": {
+            "o3": 0,
+            "o5": 0
+          },
+          "got": {
+            "o1": 1,
+            "o2": 1,
+            "o3": 0,
+            "o4": 1,
+            "o5": 0,
+            "o6": 0
+          },
+          "mismatches": {},
+          "ok": true
+        },
+        {
+          "case_id": "proof_domination_reject",
+          "expected": {
+            "o2": 0,
+            "o5": 0
+          },
+          "got": {
+            "o1": 1,
+            "o2": 0,
+            "o3": 1,
+            "o4": 1,
+            "o5": 0,
+            "o6": 0
+          },
+          "mismatches": {},
+          "ok": true
+        },
+        {
+          "case_id": "authority_reject",
+          "expected": {
+            "o4": 0,
+            "o5": 0
+          },
+          "got": {
+            "o1": 1,
+            "o2": 1,
+            "o3": 1,
+            "o4": 0,
+            "o5": 0,
+            "o6": 0
+          },
+          "mismatches": {},
+          "ok": true
+        },
+        {
+          "case_id": "inactive_safe",
+          "expected": {
+            "o5": 0,
+            "o6": 1
+          },
+          "got": {
+            "o1": 1,
+            "o2": 1,
+            "o3": 1,
+            "o4": 1,
+            "o5": 0,
+            "o6": 1
+          },
+          "mismatches": {},
+          "ok": true
+        }
+      ],
+      "invalid_accepts": 0,
+      "ok": true,
+      "spec_path": "src/tau_specs/recommended/perp_risk_antichain_certificate_v1.tau"
+    },
+    "risk_envelope_direct": {
+      "case_count": 4,
+      "cases": [
+        {
+          "case_id": "risk_envelope_pass",
+          "expected": {
+            "o11": 1
+          },
+          "got": {
+            "o1": 1,
+            "o10": 1,
+            "o11": 1,
+            "o2": 1,
+            "o3": 1,
+            "o4": 1,
+            "o5": 1,
+            "o6": 1,
+            "o7": 1,
+            "o8": 1,
+            "o9": 1
+          },
+          "mismatches": {},
+          "ok": true
+        },
+        {
+          "case_id": "mark_gap_reject",
+          "expected": {
+            "o1": 0,
+            "o11": 0
+          },
+          "got": {
+            "o1": 0,
+            "o10": 1,
+            "o11": 0,
+            "o2": 1,
+            "o3": 1,
+            "o4": 1,
+            "o5": 1,
+            "o6": 1,
+            "o7": 1,
+            "o8": 1,
+            "o9": 1
+          },
+          "mismatches": {},
+          "ok": true
+        },
+        {
+          "case_id": "margin_reject",
+          "expected": {
+            "o10": 0,
+            "o11": 0
+          },
+          "got": {
+            "o1": 1,
+            "o10": 0,
+            "o11": 0,
+            "o2": 1,
+            "o3": 1,
+            "o4": 1,
+            "o5": 1,
+            "o6": 1,
+            "o7": 1,
+            "o8": 1,
+            "o9": 1
+          },
+          "mismatches": {},
+          "ok": true
+        },
+        {
+          "case_id": "binding_reject",
+          "expected": {
+            "o11": 0
+          },
+          "got": {
+            "o1": 1,
+            "o10": 1,
+            "o11": 0,
+            "o2": 1,
+            "o3": 1,
+            "o4": 1,
+            "o5": 1,
+            "o6": 1,
+            "o7": 1,
+            "o8": 1,
+            "o9": 1
+          },
+          "mismatches": {},
+          "ok": true
+        }
+      ],
+      "invalid_accepts": 0,
+      "ok": true,
+      "spec_path": "src/tau_specs/recommended/perp_risk_envelope_proof_gate_v1.tau"
+    },
+    "tau_bin": "/home/trevormoc/Downloads/Autonomous Tau DEX/external/tau-lang/build-Release/tau",
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  }
+}
