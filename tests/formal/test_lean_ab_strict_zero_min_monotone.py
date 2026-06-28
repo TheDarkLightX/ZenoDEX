@@ -66,10 +66,15 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "def reachablePrunedFullMaskInFamily" in text
     assert "theorem reachablePrunedFullMaskInFamily_bounds_family_selected" in text
     assert "theorem reachablePrunedFullMaskInFamily_covers_and_bounds_family" in text
+    assert "def reachablePrunedFullMaskListInFamily" in text
+    assert "theorem reachablePrunedFullMaskListInFamily_covers_members" in text
+    assert "theorem reachablePrunedFullMaskListInFamily_bounds_family_selected" in text
+    assert "theorem reachablePrunedFullMaskListInFamily_covers_and_bounds_family" in text
     assert "theorem bestFullSuffixOutputAcrossMasks_le_selected" in text
     assert "theorem witness_bestFullSuffixOutputAcrossMasks_le_selected" in text
     assert "theorem witness_reachablePrunedRangeMask_covers_and_bounds" in text
     assert "theorem witness_reachablePrunedFullMaskInFamily_covers_and_bounds_family" in text
+    assert "theorem witness_reachablePrunedFullMaskListInFamily_covers_and_bounds_family" in text
 
     lake = shutil.which("lake")
     if not lake:
