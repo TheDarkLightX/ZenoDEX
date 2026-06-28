@@ -10,7 +10,7 @@ This is a research certificate and mechanism-design refuter. Runtime sealed-bid 
 - Tau replay ok: `True`
 - Tau version: `Tau Language Framework version 0.7.0-alpha (401d756b)`
 - Certificate cases: `5`
-- Mutation rejections: `4`
+- Mutation rejections: `6`
 
 ## Certificate Cases
 
@@ -37,7 +37,9 @@ Require one marginal-bucket reveal per bidder or apportion by bidder_id before d
 | mutation | rejected | error |
 | --- | --- | --- |
 | `bad_domain_hash` | `True` | `domain hash mismatch` |
-| `bad_quota_bound` | `True` | `marginal fill total mismatch` |
+| `bad_marginal_fill_total` | `True` | `marginal fill total mismatch` |
+| `bad_quota_bound` | `True` | `quota bound mismatch` |
+| `bad_same_remainder_tie_order` | `True` | `largest remainder tie order mismatch` |
 | `private_quantity_leak` | `True` | `public receipt rejected: private_field_leaked_quantity` |
 | `unclassified_split_risk` | `True` | `split-bid risk not classified` |
 
