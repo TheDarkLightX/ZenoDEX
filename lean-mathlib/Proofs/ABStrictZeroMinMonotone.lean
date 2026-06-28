@@ -1040,6 +1040,72 @@ theorem reachablePrunedFullMaskListInFamily_covers_and_bounds_selected_winner
     exact reachablePrunedFullMaskListInFamily_covers_members hlist hchild
   · exact reachablePrunedFullMaskListInFamily_bounds_selected_winner hlist hwinner
 
+/-- A proof-carrying compressed winner certificate for a finite strict zero-min
+child frontier.
+
+The certificate packages the assumptions already separated by the proof ladder:
+the full-state child list is represented by reachable pruned members of the
+selected mask family, and the supplied winner dominates that selected family.
+It does not construct those objects or specify tie order. -/
+def compressedWinnerCertificate
+    (parent winner : MaskRecordSet)
+    (children masks : List MaskRecordSet)
+    (bitCount initialReserveOut : Nat)
+    (suffix : List ExactInStep) : Prop :=
+  reachablePrunedFullMaskListInFamily parent children bitCount masks ∧
+    selectedFamilyOutputWinner winner masks initialReserveOut suffix
+
+/-- A compressed winner certificate gives bounded coverage for every child in
+the full-state frontier. -/
+theorem compressedWinnerCertificate_covers_children
+    {parent winner : MaskRecordSet}
+    {children masks : List MaskRecordSet}
+    {bitCount initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hcert :
+      compressedWinnerCertificate parent winner children masks
+        bitCount initialReserveOut suffix) :
+    ∀ child, child ∈ children -> allBitsBelowSet child.maskId bitCount := by
+  exact (reachablePrunedFullMaskListInFamily_covers_and_bounds_selected_winner
+    (initialReserveOut := initialReserveOut)
+    (suffix := suffix)
+    hcert.1 hcert.2).1
+
+/-- A compressed winner certificate bounds the full-state child frontier by the
+winner's selected output. -/
+theorem compressedWinnerCertificate_bounds_selected_winner
+    {parent winner : MaskRecordSet}
+    {children masks : List MaskRecordSet}
+    {bitCount initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hcert :
+      compressedWinnerCertificate parent winner children masks
+        bitCount initialReserveOut suffix) :
+    bestFullSuffixOutputAcrossMasks initialReserveOut children suffix ≤
+      maskSelectedSuffixOutput initialReserveOut winner suffix := by
+  exact reachablePrunedFullMaskListInFamily_bounds_selected_winner
+    (initialReserveOut := initialReserveOut)
+    (suffix := suffix)
+    hcert.1 hcert.2
+
+/-- Certificate-level endpoint for the strict zero-min compressed frontier:
+bounded coverage and winner dominance follow from one proof-carrying certificate. -/
+theorem compressedWinnerCertificate_covers_and_bounds
+    {parent winner : MaskRecordSet}
+    {children masks : List MaskRecordSet}
+    {bitCount initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hcert :
+      compressedWinnerCertificate parent winner children masks
+        bitCount initialReserveOut suffix) :
+    (∀ child, child ∈ children -> allBitsBelowSet child.maskId bitCount) ∧
+      bestFullSuffixOutputAcrossMasks initialReserveOut children suffix ≤
+        maskSelectedSuffixOutput initialReserveOut winner suffix := by
+  exact reachablePrunedFullMaskListInFamily_covers_and_bounds_selected_winner
+    (initialReserveOut := initialReserveOut)
+    (suffix := suffix)
+    hcert.1 hcert.2
+
 /-- Finite subset-mask pruning lift.
 
 If every abstract subset mask satisfies the local pruning invariant, then the
@@ -1283,6 +1349,54 @@ theorem witness_reachablePrunedFullMaskListInFamily_bounds_selected_winner :
       (suffix := [])
       hlist
       hwinner⟩
+
+/-- Concrete non-vacuity witness for the compressed winner certificate endpoint. -/
+theorem witness_compressedWinnerCertificate_covers_and_bounds :
+    let record : ProcessedRecord := ⟨100, 90⟩
+    let parent : MaskRecordSet := ⟨1, record, [record]⟩
+    let child : MaskRecordSet := ⟨1, record, [record]⟩
+    let children : List MaskRecordSet := [child]
+    let masks : List MaskRecordSet := [child]
+    compressedWinnerCertificate parent child children masks 1 1000 [] ∧
+      (∀ candidate, candidate ∈ children -> allBitsBelowSet candidate.maskId 1) ∧
+        bestFullSuffixOutputAcrossMasks 1000 children [] ≤
+          maskSelectedSuffixOutput 1000 child [] := by
+  let record : ProcessedRecord := ⟨100, 90⟩
+  let parent : MaskRecordSet := ⟨1, record, [record]⟩
+  let child : MaskRecordSet := ⟨1, record, [record]⟩
+  let children : List MaskRecordSet := [child]
+  let masks : List MaskRecordSet := [child]
+  have hpath : maskRecordPath parent (List.range 1) child := by
+    simpa [parent, child, maskRecordPath] using witness_bitMaskStep_noop.2
+  have hinvariant : maskPruningInvariant child := by
+    unfold child maskPruningInvariant
+    constructor
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+  have hreachable : reachablePrunedRangeMask parent child 1 := ⟨hpath, hinvariant⟩
+  have hfull : reachablePrunedFullMaskInFamily parent child 1 masks := by
+    exact ⟨hreachable, by simp [masks]⟩
+  have hlist : reachablePrunedFullMaskListInFamily parent children 1 masks := by
+    intro candidate hcandidate
+    simp only [children, List.mem_singleton] at hcandidate
+    subst candidate
+    exact hfull
+  have hwinner : selectedFamilyOutputWinner child masks 1000 [] := by
+    constructor
+    · simp [masks]
+    · intro candidate hcandidate
+      simp only [masks, List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+  have hcert : compressedWinnerCertificate parent child children masks 1 1000 [] :=
+    ⟨hlist, hwinner⟩
+  exact ⟨hcert, compressedWinnerCertificate_covers_and_bounds hcert⟩
 
 /-- Concrete non-vacuity witness for one-step monotonicity. -/
 theorem witness_postReserveOut_mono_strict :

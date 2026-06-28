@@ -1,0 +1,68 @@
+{
+  "artifact_id": "zenodex_ab_strict_zero_min_compressed_certificate_lean_20260628",
+  "date": "2026-06-28",
+  "status": "research_supported_after_replay",
+  "scope": "AB strict executable zero-min subset-mask proof component",
+  "lean_file": "lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+  "test_file": "tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+  "research_note": "docs/research/ZENODEX_AB_STRICT_ZERO_MIN_COMPRESSED_CERTIFICATE_LEAN_20260628.md",
+  "new_theorems": [
+    "ABStrictZeroMinMonotone.compressedWinnerCertificate_covers_children",
+    "ABStrictZeroMinMonotone.compressedWinnerCertificate_bounds_selected_winner",
+    "ABStrictZeroMinMonotone.compressedWinnerCertificate_covers_and_bounds",
+    "ABStrictZeroMinMonotone.witness_compressedWinnerCertificate_covers_and_bounds"
+  ],
+  "new_definitions": [
+    "ABStrictZeroMinMonotone.compressedWinnerCertificate"
+  ],
+  "claim": {
+    "summary": "A proof-carrying compressed winner certificate packages the reachable full-mask child-list bridge and selected-winner bridge, giving both child coverage and a bound from the full child frontier to one selected winner.",
+    "formal_statement": "compressedWinnerCertificate parent winner children masks bitCount initialReserveOut suffix -> (forall child in children, allBitsBelowSet child.maskId bitCount) and bestFullSuffixOutputAcrossMasks initialReserveOut children suffix <= maskSelectedSuffixOutput initialReserveOut winner suffix",
+    "value": "Converts two checked bridge assumptions into a single verifier-facing certificate shape for the AB strict zero-min compressed frontier."
+  },
+  "non_claims": [
+    "No full strict compressed-DP theorem",
+    "No certificate construction",
+    "No construction of the child list",
+    "No construction of the selected mask family",
+    "No construction of the winner",
+    "No tie-order definition",
+    "No Lean-to-Python refinement",
+    "No nonzero min_amount_out coverage",
+    "No host bitset equivalence proof",
+    "No settlement authority",
+    "No state-root authority",
+    "No production-promotion authority",
+    "No governance authority"
+  ],
+  "expected_replay": [
+    "cd lean-mathlib && lake env lean Proofs/ABStrictZeroMinMonotone.lean",
+    "cd lean-mathlib && lake build Proofs.ABStrictZeroMinMonotone",
+    "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+    "python3 -m json.tool generated/zenodex_ab_strict_zero_min_compressed_certificate_lean_20260628/report.json >/dev/null",
+    "rg -n \"\\b(sorry|admit|axiom|unsafe|sorryAx)\\b\" lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean"
+  ],
+  "research_kernel": {
+    "run_id": "zenodex-rk-frontier-20260628",
+    "atom_id": "atom_ab_strict_zero_min_compressed_certificate_lean_20260628",
+    "suggested_status": "SUPPORTED",
+    "suggested_parents": [
+      "atom_ab_strict_zero_min_subset_mask_induction_frontier_20260628",
+      "atom_ab_strict_zero_min_selected_winner_bridge_lean_20260628",
+      "atom_ab_strict_zero_min_full_mask_list_bridge_lean_20260628"
+    ],
+    "tags": [
+      "zenodex",
+      "AB-ordering",
+      "zero-min",
+      "subset-DP",
+      "subset-mask-induction",
+      "compressed-certificate",
+      "selected-winner-bridge",
+      "full-mask-list-bridge",
+      "Lean",
+      "formal-proof",
+      "strict-scope"
+    ]
+  }
+}
