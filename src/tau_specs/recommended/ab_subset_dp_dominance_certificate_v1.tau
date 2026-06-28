@@ -1,0 +1,45 @@
+# AB Subset-DP Dominance Certificate v1
+#
+# PURPOSE:
+#   Guard a host-computed AB subset-DP dominance-pruning research certificate.
+#   The host runs the DP parity checks, bounded dominance refuter, adversarial
+#   corpus, unsupported-domain boundary refuters, and deterministic replay.
+#   Tau only combines proof-surface facts and preserves the no-authority rail.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = same_direction_exact_in_scope_ok
+# i3  = unpruned_parity_ok
+# i4  = brute_force_parity_ok
+# i5  = dominance_refutation_ok
+# i6  = adversarial_corpus_ok
+# i7  = boundary_refuters_ok
+# i8  = state_reduction_ok
+# i9  = transition_reduction_ok
+# i10 = deterministic_replay_ok
+# i11 = resource_budget_ok
+# i12 = no_authority_effect
+# i13 = nonvacuous_pruning
+# o1  = parity_evidence_ok
+# o2  = dominance_scope_ok
+# o3  = performance_evidence_ok
+# o4  = safety_boundary_ok
+# o5  = dominance_certificate_ok
+# o6  = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+parity_evidence_ok(scope : sbf, unpruned : sbf, brute : sbf, adversarial : sbf) := is1(scope) && is1(unpruned) && is1(brute) && is1(adversarial).
+dominance_scope_ok(scope : sbf, refuted : sbf, boundary : sbf) := is1(scope) && is1(refuted) && is1(boundary).
+performance_evidence_ok(state_reduction : sbf, transition_reduction : sbf, nonvacuous : sbf) := is1(state_reduction) && is1(transition_reduction) && is1(nonvacuous).
+safety_boundary_ok(deterministic : sbf, budget : sbf, no_authority : sbf) := is1(deterministic) && is1(budget) && is1(no_authority).
+dominance_certificate_ok(active : sbf, scope : sbf, unpruned : sbf, brute : sbf, refuted : sbf, adversarial : sbf, boundary : sbf, state_reduction : sbf, transition_reduction : sbf, deterministic : sbf, budget : sbf, no_authority : sbf, nonvacuous : sbf) := is1(active) && parity_evidence_ok(scope, unpruned, brute, adversarial) && dominance_scope_ok(scope, refuted, boundary) && performance_evidence_ok(state_reduction, transition_reduction, nonvacuous) && safety_boundary_ok(deterministic, budget, no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> parity_evidence_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i6[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> dominance_scope_ok(i2[t]:sbf, i5[t]:sbf, i7[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> performance_evidence_ok(i8[t]:sbf, i9[t]:sbf, i13[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> safety_boundary_ok(i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> dominance_certificate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i12[t]:sbf))).
