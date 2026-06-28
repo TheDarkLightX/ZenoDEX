@@ -585,7 +585,7 @@ def test_autotrader_live_supervisor_ui_smoke_through_browser(
         dom = result.stdout
         assert "AutoTrader Live Prepare" in dom
         assert "supervisor_executed" in dom
-        assert "strategy-ui-supervisor-1" in dom
+        assert "strategy-ui-supervisor-" in dom
         assert "supervised_manual_tick" in dom
         assert "tau-local:autotrader.supervisor.local.1" in dom
         assert "Supervisor remaining" in dom

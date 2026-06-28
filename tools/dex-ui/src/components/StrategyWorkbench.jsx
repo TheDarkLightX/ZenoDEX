@@ -16,9 +16,9 @@ import {
   DEMO_STRATEGIES,
   FORMAL_PROOFS,
 } from '../lib/strategyData';
+import { createSupervisorExecutionId } from '../lib/executionIds.js';
 
 const FIXTURE_SIGNER_OWNER = '0xadc3b042bd6a603ea4cd32a99456be0c1da7851138793d786186515acf5a258bd017e89502a441302f2ec110a8c96f5d';
-const SUPERVISOR_EXECUTION_ID = 'strategy-ui-supervisor-1';
 
 function isAutoTraderSmokeEnabled() {
   if (typeof window === 'undefined') {
@@ -333,7 +333,7 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
     if (signedPayload && signedPayload.trim()) {
       submitBaseBody.signed_tau_tx_payload = signedPayload.trim();
     }
-    const supervisorBody = { ...submitBaseBody, execution_id: 'strategy-ui-supervisor-1' };
+    const supervisorBody = () => ({ ...submitBaseBody, execution_id: createSupervisorExecutionId() });
     const submitBody = { ...submitBaseBody, execution_id: 'strategy-ui-exec-1' };
 
     (async () => {
@@ -342,14 +342,14 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
         if (supervisorBudgetOn) {
           // Budget exhaustion: call supervisor twice; second call must trip
           // supervisor_max_runs_per_process_exceeded.
-          const first = await apiExecuteAutotraderSupervisor(supervisorBody, { timeoutMs: 20000 });
-          const second = await apiExecuteAutotraderSupervisor(supervisorBody, { timeoutMs: 20000 }).catch((err) => ({
+          const first = await apiExecuteAutotraderSupervisor(supervisorBody(), { timeoutMs: 20000 });
+          const second = await apiExecuteAutotraderSupervisor(supervisorBody(), { timeoutMs: 20000 }).catch((err) => ({
             ok: false,
             error: String(err?.message || err),
           }));
           payload = { ...first, budget_exhaustion: second };
         } else if (supervisorOn) {
-          payload = await apiExecuteAutotraderSupervisor(supervisorBody, { timeoutMs: 20000 });
+          payload = await apiExecuteAutotraderSupervisor(supervisorBody(), { timeoutMs: 20000 });
         } else if (executeOn) {
           payload = await apiExecuteAutotraderLiveOnce(submitBody, { timeoutMs: 20000 });
         } else if (submitOn) {
@@ -420,7 +420,7 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
       signer_privkey: Number.parseInt(signerPrivkey, 10) || 7,
     };
     if (preparedReport) body.prepared_report = preparedReport;
-    if (forSupervisor) body.execution_id = SUPERVISOR_EXECUTION_ID;
+    if (forSupervisor) body.execution_id = createSupervisorExecutionId();
     else if (forSubmit) body.execution_id = 'strategy-ui-exec-1';
     if (!submitShaped) {
       body.tx_sequence_number = Number.parseInt(sequenceNumber, 10) || 9;
