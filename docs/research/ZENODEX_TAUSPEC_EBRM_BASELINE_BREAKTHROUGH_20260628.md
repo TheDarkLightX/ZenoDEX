@@ -12,7 +12,7 @@ Authority boundary: model proposes and ranks. Tau traces plus host/kernel verifi
 
 - Spec: `src/tau_specs/recommended/tauspec_ebrm_frontier_selection_certificate_v1.tau`
 - Latest Tau ok: `True`
-- Selector cases: `6`
+- Selector cases: `7`
 - Selector invalid accepts: `0`
 
 Selector facts:

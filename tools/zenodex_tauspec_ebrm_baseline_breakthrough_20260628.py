@@ -447,6 +447,12 @@ def _selection_tau_cases(facts: dict[str, int]) -> tuple[TauTraceCase, ...]:
             "The frontier run must keep the AB ordering work item covered.",
         ),
         TauTraceCase(
+            "work_item_2_reject",
+            {**pass_step, "i7": 0},
+            {"o3": 0, "o5": 0},
+            "The frontier run must keep the CoW matching work item covered.",
+        ),
+        TauTraceCase(
             "authority_reject",
             {**pass_step, "i11": 0},
             {"o4": 0, "o5": 0},

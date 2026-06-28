@@ -37,6 +37,11 @@ def test_tauspec_ebrm_baseline_breakthrough_replay() -> None:
     assert all(value == 1 for value in report["selector_facts"].values())
     assert all(row["latest"]["ok"] for row in report["candidates"])
 
+    selector_cases = {case["case_id"]: case for case in report["selection_tau"]["case_results"]}
+    assert selector_cases["work_item_1_reject"]["got"]["o5"] == 0
+    assert selector_cases["work_item_2_reject"]["got"]["o5"] == 0
+    assert selector_cases["authority_reject"]["got"]["o5"] == 0
+
     ebrm = report["ranking_metrics"]["tau_spec_ebrm_v2"]
     baselines = {
         name: metrics

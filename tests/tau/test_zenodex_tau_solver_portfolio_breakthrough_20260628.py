@@ -42,6 +42,8 @@ def test_tau_solver_portfolio_breakthrough_replay() -> None:
     assert cases["ab_parity_reject"]["got"]["o6"] == 0
     assert cases["cow_scope_reject"]["got"]["o6"] == 0
     assert cases["negative_replay_reject"]["got"]["o6"] == 0
+    assert cases["performance_reject"]["got"]["o6"] == 0
+    assert cases["rollback_reject"]["got"]["o6"] == 0
     assert cases["authority_reject"]["got"]["o6"] == 0
     assert cases["inactive_safe"]["got"]["o7"] == 1
 
