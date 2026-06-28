@@ -22,6 +22,7 @@ import Proofs.AMMPowerFamilyOriginalHODLCurvatureNormalization
 import Proofs.AMMPowerFamilyOriginalHODLSurfaceMismatch
 import Proofs.AMMRawSemanticsBridge
 import Proofs.AntiFragmentation
+import Proofs.ABStrictZeroMinMonotone
 import Proofs.ArbitrageCertificate
 import Proofs.AsynchronousIntentSettlement
 import Proofs.AtomicCrossMarginHealth
