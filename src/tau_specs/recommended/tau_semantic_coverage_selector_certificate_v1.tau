@@ -1,0 +1,48 @@
+# Tau Semantic Coverage Selector Certificate v1
+#
+# PURPOSE:
+#   Guard a host-computed semantic-coverage selector for ZenoDEX Tau specs.
+#   The host builds the active Tau inventory, semantic refinement queue,
+#   critical-bucket coverage, proposed AB/CoW work-item specs, mutation atlas,
+#   deterministic ordering, budget, and no-authority facts. Tau only combines
+#   projected facts.
+#
+# Stream mapping:
+# i1  = selector_active
+# i2  = active_inventory_built
+# i3  = semantic_refinement_queue_built
+# i4  = critical_bucket_coverage_ok
+# i5  = work_item_1_ab_selected
+# i6  = work_item_2_cow_selected
+# i7  = proposed_spec_artifacts_present
+# i8  = mutation_atlas_dependency_bound
+# i9  = deterministic_priority_order_ok
+# i10 = tau_replay_invalid_accepts_zero
+# i11 = advisory_selection_only
+# i12 = no_runtime_authority_effect
+# i13 = budget_profile_ok
+# i14 = coverage_gaps_present
+# i15 = semantic_contract_next_actions_bound
+# o1  = inventory_queue_ok
+# o2  = work_item_coverage_ok
+# o3  = replay_budget_ok
+# o4  = authority_boundary_ok
+# o5  = semantic_selector_ok
+# o6  = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+inventory_queue_ok(inventory : sbf, queue : sbf, gaps : sbf, actions : sbf) := is1(inventory) && is1(queue) && is1(gaps) && is1(actions).
+work_item_coverage_ok(critical : sbf, ab : sbf, cow : sbf, artifacts : sbf) := is1(critical) && is1(ab) && is1(cow) && is1(artifacts).
+replay_budget_ok(mutations : sbf, deterministic : sbf, invalid_zero : sbf, budget : sbf) := is1(mutations) && is1(deterministic) && is1(invalid_zero) && is1(budget).
+authority_boundary_ok(advisory : sbf, no_authority : sbf) := is1(advisory) && is1(no_authority).
+selector_ok(active : sbf, inventory : sbf, queue : sbf, critical : sbf, ab : sbf, cow : sbf, artifacts : sbf, mutations : sbf, deterministic : sbf, invalid_zero : sbf, advisory : sbf, no_authority : sbf, budget : sbf, gaps : sbf, actions : sbf) := is1(active) && inventory_queue_ok(inventory, queue, gaps, actions) && work_item_coverage_ok(critical, ab, cow, artifacts) && replay_budget_ok(mutations, deterministic, invalid_zero, budget) && authority_boundary_ok(advisory, no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> inventory_queue_ok(i2[t]:sbf, i3[t]:sbf, i14[t]:sbf, i15[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> work_item_coverage_ok(i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> replay_budget_ok(i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i13[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> authority_boundary_ok(i11[t]:sbf, i12[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> selector_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i12[t]:sbf))).
