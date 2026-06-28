@@ -1,0 +1,42 @@
+# Tokenomics POL Sybil Threshold Certificate v1
+#
+# PURPOSE:
+#   Admit a host-replayed mechanism-design certificate for fee-gated identity
+#   rewards. The host computes bounded wash-trade best responses and the minimum
+#   protocol-owned-liquidity (POL) share that makes reward farming non-profitable.
+#   Tau checks only the replayed certificate facts and no-authority rails.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = bounded_game_surface_ok
+# i3  = wash_trade_best_response_ok
+# i4  = threshold_minimality_ok
+# i5  = safe_at_threshold_ok
+# i6  = profitable_below_threshold_ok
+# i7  = no_threshold_case_rejected_ok
+# i8  = reward_envelope_checker_parity_ok
+# i9  = deterministic_replay_ok
+# i10 = resource_budget_ok
+# i11 = advisory_only
+# i12 = no_authority_effect
+#
+# o1 = game_surface_ok
+# o2 = threshold_evidence_ok
+# o3 = replay_boundary_ok
+# o4 = pol_sybil_threshold_certificate_ok
+# o5 = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+game_surface_ok(surface : sbf, best_response : sbf, envelope_parity : sbf) := is1(surface) && is1(best_response) && is1(envelope_parity).
+threshold_evidence_ok(minimal : sbf, safe_at : sbf, profitable_below : sbf, no_threshold_reject : sbf) := is1(minimal) && is1(safe_at) && is1(profitable_below) && is1(no_threshold_reject).
+replay_boundary_ok(deterministic : sbf, budget : sbf, advisory : sbf, no_authority : sbf) := is1(deterministic) && is1(budget) && is1(advisory) && is1(no_authority).
+certificate_ok(active : sbf, surface : sbf, best_response : sbf, minimal : sbf, safe_at : sbf, profitable_below : sbf, no_threshold_reject : sbf, envelope_parity : sbf, deterministic : sbf, budget : sbf, advisory : sbf, no_authority : sbf) := is1(active) && game_surface_ok(surface, best_response, envelope_parity) && threshold_evidence_ok(minimal, safe_at, profitable_below, no_threshold_reject) && replay_boundary_ok(deterministic, budget, advisory, no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> game_surface_ok(i2[t]:sbf, i3[t]:sbf, i8[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> threshold_evidence_ok(i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> replay_boundary_ok(i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> certificate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i12[t]:sbf))).
