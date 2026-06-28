@@ -1,0 +1,42 @@
+# Negative Frontier Exact Scheduler v1
+#
+# PURPOSE:
+#   Guard a host-computed exact selector for bounded ZenoDEX falsifier-campaign
+#   scheduling. The host enumerates eligible task subsets, compares the exact
+#   frontier objective against greedy entropy, collapsed recency, and stable
+#   random baselines, and supplies the resulting facts. Tau only combines those
+#   facts and preserves the no-authority rail.
+#
+# Stream mapping:
+# i1  = scheduler_active
+# i2  = deterministic_replay_ok
+# i3  = exact_search_complete
+# i4  = exact_dominates_greedy
+# i5  = exact_dominates_recency
+# i6  = exact_dominates_stable_random
+# i7  = coverage_ok
+# i8  = severity_floor_ok
+# i9  = resource_budget_ok
+# i10 = mutation_checks_ok
+# i11 = no_authority_effect
+# i12 = nonvacuous_selection
+# o1  = exact_replay_ok
+# o2  = dominance_ok
+# o3  = safety_boundary_ok
+# o4  = scheduler_certificate_ok
+# o5  = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+exact_replay_ok(deterministic : sbf, exact_complete : sbf, nonvacuous : sbf) := is1(deterministic) && is1(exact_complete) && is1(nonvacuous).
+dominance_ok(greedy : sbf, recency : sbf, stable_random : sbf) := is1(greedy) && is1(recency) && is1(stable_random).
+safety_boundary_ok(coverage : sbf, severity : sbf, budget : sbf, mutations : sbf, no_authority : sbf) := is1(coverage) && is1(severity) && is1(budget) && is1(mutations) && is1(no_authority).
+scheduler_ok(active : sbf, deterministic : sbf, exact_complete : sbf, greedy : sbf, recency : sbf, stable_random : sbf, coverage : sbf, severity : sbf, budget : sbf, mutations : sbf, no_authority : sbf, nonvacuous : sbf) := is1(active) && exact_replay_ok(deterministic, exact_complete, nonvacuous) && dominance_ok(greedy, recency, stable_random) && safety_boundary_ok(coverage, severity, budget, mutations, no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> exact_replay_ok(i2[t]:sbf, i3[t]:sbf, i12[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> dominance_ok(i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> safety_boundary_ok(i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> scheduler_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i11[t]:sbf))).
