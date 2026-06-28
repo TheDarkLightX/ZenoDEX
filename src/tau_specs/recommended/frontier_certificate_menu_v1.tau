@@ -1,0 +1,43 @@
+# Frontier Certificate Menu v1 - Tau Host-Projected Optimizer Envelope
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none
+# PURPOSE:
+#   A compact menu for frontier optimizer certificates. The host proves or
+#   computes data-heavy facts; Tau combines them into a fail-closed admission
+#   envelope. This lets route, oracle, AB-ordering, and CoW tracks share the
+#   same proof-surface shape.
+#
+# Stream mapping:
+# i1  = active_request
+# i2  = host_facts_bound
+# i3  = canonical_winner_or_interval_ok
+# i4  = coverage_ok
+# i5  = resource_budget_ok
+# i6  = replay_or_trace_ok
+# i7  = fallback_deterministic_or_explicit_failure_ok
+# i8  = no_authority_effect
+# i9  = trace_nonvacuous
+# i10 = mode_route
+# i11 = mode_oracle
+# i12 = mode_ab_or_cow
+# o1  = one_hot_mode_ok
+# o2  = core_certificate_ok
+# o3  = authority_boundary_ok
+# o4  = frontier_candidate_admit
+# o5  = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+one_hot3(a : sbf, b : sbf, c : sbf) := (is1(a) && !is1(b) && !is1(c)) || (!is1(a) && is1(b) && !is1(c)) || (!is1(a) && !is1(b) && is1(c)).
+core_ok(host : sbf, canon : sbf, cover : sbf, budget : sbf, replay : sbf, nonvacuous : sbf) := is1(host) && is1(canon) && is1(cover) && is1(budget) && is1(replay) && is1(nonvacuous).
+boundary_ok(fallback_ok : sbf, no_authority : sbf) := is1(fallback_ok) && is1(no_authority).
+frontier_ok(active : sbf, host : sbf, canon : sbf, cover : sbf, budget : sbf, replay : sbf, fallback_ok : sbf, no_authority : sbf, nonvacuous : sbf, mode_route : sbf, mode_oracle : sbf, mode_ab_or_cow : sbf) := is1(active) && one_hot3(mode_route, mode_oracle, mode_ab_or_cow) && core_ok(host, canon, cover, budget, replay, nonvacuous) && boundary_ok(fallback_ok, no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> one_hot3(i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> core_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i9[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> boundary_ok(i7[t]:sbf, i8[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> frontier_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i8[t]:sbf))).
