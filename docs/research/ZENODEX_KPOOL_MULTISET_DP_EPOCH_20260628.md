@@ -112,16 +112,35 @@ The next gate was implemented in the local research oracle:
   duplicate-heavy adversarial small domains.
 - The cross-pool benchmark can emit k-pool multiset fixture reductions with
   `--include-kpool-multiset`.
+- The adversarial checker emits machine-readable evidence and fails closed on
+  the first mismatch:
+
+```bash
+python3 tools/check_kpool_multiset_dp_adversarial.py
+```
+
+## Lightweight Proof Note
+
+The quotient is valid in the modeled oracle because the transition relation for
+one step depends only on:
+
+```text
+(current reserve state, exact-in amount, k-way allocation)
+```
+
+It does not inspect the identity of the intent that supplied the amount. If two
+unprocessed intents have the same exact-in amount, then for every current
+compressed state they expose the same set of next states and the same output
+values. Swapping their identities therefore preserves the reachable state/value
+set. Repeating this swap argument over adjacent equal-amount intents collapses
+all permutations inside each equal-amount class to a count vector.
+
+This proof note covers only the current research-oracle model. It does not
+cover per-user balance constraints, heterogeneous `min_out`, exact-out intents,
+per-intent deadlines, or any identity-dependent settlement rule.
 
 The remaining promotion gates are:
 
-1. Run parity against k-pool subset DP and brute force on a larger adversarial
-   corpus.
-2. Add a Lean or lightweight proof note for the amount-identity quotient:
-
-```text
-same amount and same reserve state -> same transition set
-```
-
-The interpretation is simple: in this modeled oracle, duplicate exact-in
-intents have no behaviorally relevant identity, so count vectors are sufficient.
+1. Run a larger long-form adversarial corpus beyond the default checker budget.
+2. Formalize the amount-identity quotient in Lean or another proof assistant if
+   this oracle becomes a promotion candidate for a stronger assurance tier.
