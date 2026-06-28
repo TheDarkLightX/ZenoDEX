@@ -42,6 +42,19 @@ structure ExactInStep where
 def postReserveOut (reserveIn reserveOut netIn : Nat) : Nat :=
   reserveOut - swapOut reserveIn reserveOut netIn
 
+/-- Strict executable one-step predicate for the zero-min research surface.
+
+This captures the local conditions needed by the abstract suffix model: positive
+reserves, positive gross and net input, fee sanity (`netIn <= grossIn`), and
+positive CPMM output. -/
+def strictStepExecutable (reserveIn reserveOut : Nat) (step : ExactInStep) : Prop :=
+  0 < reserveIn ∧
+    0 < reserveOut ∧
+    0 < step.grossIn ∧
+    0 < step.netIn ∧
+    step.netIn ≤ step.grossIn ∧
+    0 < swapOut reserveIn reserveOut step.netIn
+
 /-- Execute a fixed strict exact-in suffix, returning only the final output
 reserve. The input reserve advances by gross input because fees remain in the
 pool for the v8 exact-in zero-protocol-fee surface used by the batch refuter. -/
@@ -61,6 +74,16 @@ def runOutputAfterSuffix (reserveIn reserveOut : Nat) : List ExactInStep -> Nat
       let amountOut := swapOut reserveIn reserveOut step.netIn
       amountOut +
         runOutputAfterSuffix
+          (reserveIn + step.grossIn)
+          (postReserveOut reserveIn reserveOut step.netIn)
+          rest
+
+/-- Strict executable suffix predicate for the zero-min research surface. -/
+def suffixExecutable (reserveIn reserveOut : Nat) : List ExactInStep -> Prop
+  | [] => True
+  | step :: rest =>
+      strictStepExecutable reserveIn reserveOut step ∧
+        suffixExecutable
           (reserveIn + step.grossIn)
           (postReserveOut reserveIn reserveOut step.netIn)
           rest
@@ -142,6 +165,88 @@ theorem witness_sameGrossSum_gives_sameReserveIn :
     ]
     reserveInAfterGross 1000 left = reserveInAfterGross 1000 right := by
   native_decide
+
+/-- With positive reserves, CPMM output is strictly less than output reserve. -/
+theorem swapOut_lt_reserve_of_pos
+    (reserveIn reserveOut netIn : Nat)
+    (hin : 0 < reserveIn)
+    (hout : 0 < reserveOut) :
+    swapOut reserveIn reserveOut netIn < reserveOut := by
+  simp only [swapOut]
+  by_cases hnet : netIn = 0
+  · subst hnet
+    simp [hout]
+  · apply Nat.div_lt_of_lt_mul
+    rw [Nat.mul_comm (reserveIn + netIn) reserveOut]
+    exact (Nat.mul_lt_mul_left hout).mpr (by omega)
+
+/-- A strict executable step leaves positive output reserve. -/
+theorem strictStepExecutable_postReserveOut_pos
+    {reserveIn reserveOut : Nat}
+    {step : ExactInStep}
+    (hexec : strictStepExecutable reserveIn reserveOut step) :
+    0 < postReserveOut reserveIn reserveOut step.netIn := by
+  rcases hexec with ⟨hin, hout, _hgross, _hnet, _hfee, _houtput⟩
+  have hlt := swapOut_lt_reserve_of_pos reserveIn reserveOut step.netIn hin hout
+  unfold postReserveOut
+  omega
+
+/-- A strict executable step strictly decreases output reserve. -/
+theorem strictStepExecutable_postReserveOut_lt
+    {reserveIn reserveOut : Nat}
+    {step : ExactInStep}
+    (hexec : strictStepExecutable reserveIn reserveOut step) :
+    postReserveOut reserveIn reserveOut step.netIn < reserveOut := by
+  rcases hexec with ⟨_hin, _hout, _hgross, _hnet, _hfee, houtput⟩
+  have hle :
+      swapOut reserveIn reserveOut step.netIn ≤ reserveOut :=
+    AntiFragmentation.swapOut_le_reserve reserveIn reserveOut step.netIn
+  unfold postReserveOut
+  omega
+
+/-- A strict executable suffix leaves positive final output reserve. -/
+theorem suffixExecutable_finalReserveOut_pos
+    {reserveIn reserveOut : Nat}
+    {steps : List ExactInStep}
+    (hout : 0 < reserveOut)
+    (hexec : suffixExecutable reserveIn reserveOut steps) :
+    0 < runReserveOutAfterSuffix reserveIn reserveOut steps := by
+  induction steps generalizing reserveIn reserveOut with
+  | nil =>
+      simpa [suffixExecutable, runReserveOutAfterSuffix] using hout
+  | cons step rest ih =>
+      rcases hexec with ⟨hstep, hrest⟩
+      simp [runReserveOutAfterSuffix]
+      exact ih
+        (reserveIn := reserveIn + step.grossIn)
+        (reserveOut := postReserveOut reserveIn reserveOut step.netIn)
+        (strictStepExecutable_postReserveOut_pos hstep)
+        hrest
+
+/-- A strict executable suffix keeps the input reserve positive. -/
+theorem suffixExecutable_finalReserveIn_pos
+    {reserveIn : Nat}
+    {steps : List ExactInStep}
+    (hin : 0 < reserveIn) :
+    0 < runReserveInAfterSuffix reserveIn steps := by
+  induction steps generalizing reserveIn with
+  | nil =>
+      simpa [runReserveInAfterSuffix] using hin
+  | cons step rest ih =>
+      simp [runReserveInAfterSuffix]
+      exact ih (reserveIn := reserveIn + step.grossIn) (by omega)
+
+/-- Concrete non-vacuity witness for strict executable suffixes. -/
+theorem witness_suffixExecutable :
+    let suffix : List ExactInStep := [
+      ⟨100, 99⟩,
+      ⟨200, 199⟩
+    ]
+    suffixExecutable 1000 1200 suffix ∧
+      0 < runReserveOutAfterSuffix 1000 1200 suffix ∧
+      0 < runReserveInAfterSuffix 1000 suffix := by
+  norm_num [suffixExecutable, strictStepExecutable, postReserveOut,
+    runReserveOutAfterSuffix, runReserveInAfterSuffix, swapOut]
 
 /-- A fixed strict exact-in suffix cannot increase output reserve. -/
 theorem runReserveOutAfterSuffix_le_initial

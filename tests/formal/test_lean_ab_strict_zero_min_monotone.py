@@ -19,6 +19,13 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "theorem runReserveInAfterSuffix_eq_reserveInAfterGross" in text
     assert "theorem sameGrossSum_gives_sameReserveIn" in text
     assert "theorem witness_runReserveInAfterSuffix" in text
+    assert "def strictStepExecutable" in text
+    assert "def suffixExecutable" in text
+    assert "theorem strictStepExecutable_postReserveOut_pos" in text
+    assert "theorem strictStepExecutable_postReserveOut_lt" in text
+    assert "theorem suffixExecutable_finalReserveOut_pos" in text
+    assert "theorem suffixExecutable_finalReserveIn_pos" in text
+    assert "theorem witness_suffixExecutable" in text
     assert "theorem runOutputAfterSuffix_eq_reserveOut_sub_finalReserveOut" in text
     assert "theorem zeroMinSuffixSurplus_eq_reserveOut_sub_finalReserveOut" in text
     assert "theorem witness_runOutputAfterSuffix_telescopes" in text
