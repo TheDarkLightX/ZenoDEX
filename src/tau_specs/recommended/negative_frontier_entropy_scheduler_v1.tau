@@ -1,0 +1,41 @@
+# Negative Frontier Entropy Scheduler v1
+#
+# PURPOSE:
+#   Guard a host-computed advisory selector for ZenoDEX falsifier campaigns.
+#   The host computes entropy lift, baseline comparisons, coverage facts, and
+#   replay determinism. Tau only combines those facts and preserves the
+#   no-authority rail.
+#
+# Stream mapping:
+# i1  = scheduler_active
+# i2  = deterministic_replay_ok
+# i3  = entropy_beats_recency
+# i4  = entropy_beats_stable_random
+# i5  = severity_floor_ok
+# i6  = ab_frontier_covered
+# i7  = cow_frontier_covered
+# i8  = tau_runtime_subset_compatible
+# i9  = negative_controls_ok
+# i10 = no_authority_effect
+# i11 = resource_budget_ok
+# i12 = nonvacuous_selection
+# o1  = baseline_lift_ok
+# o2  = coverage_ok
+# o3  = boundary_ok
+# o4  = scheduler_certificate_ok
+# o5  = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+baseline_lift_ok(recency : sbf, stable_random : sbf) := is1(recency) && is1(stable_random).
+coverage_ok(ab : sbf, cow : sbf, tau_runtime : sbf) := is1(ab) && is1(cow) && is1(tau_runtime).
+boundary_ok(negative_controls : sbf, no_authority : sbf, budget : sbf) := is1(negative_controls) && is1(no_authority) && is1(budget).
+scheduler_ok(active : sbf, deterministic : sbf, recency : sbf, stable_random : sbf, severity : sbf, ab : sbf, cow : sbf, tau_runtime : sbf, negative_controls : sbf, no_authority : sbf, budget : sbf, nonvacuous : sbf) := is1(active) && is1(deterministic) && baseline_lift_ok(recency, stable_random) && is1(severity) && coverage_ok(ab, cow, tau_runtime) && boundary_ok(negative_controls, no_authority, budget) && is1(nonvacuous).
+
+always
+  (o1[t]:sbf = 1:sbf <-> baseline_lift_ok(i3[t]:sbf, i4[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> (is1(i5[t]:sbf) && coverage_ok(i6[t]:sbf, i7[t]:sbf, i8[t]:sbf))) &&
+  (o3[t]:sbf = 1:sbf <-> boundary_ok(i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> scheduler_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i10[t]:sbf))).
