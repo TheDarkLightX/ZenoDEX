@@ -30,7 +30,9 @@ def test_ab_zero_min_economic_compression_certificate_report() -> None:
     assert report["tau"]["ok"] is True
     assert report["evidence"]["zero_min_support"]["case_count"] == 50
     assert report["evidence"]["zero_min_support"]["mismatch_count"] == 0
+    assert report["evidence"]["zero_min_support"]["all_compressed_full_mask_ok"] is True
     assert report["evidence"]["zero_min_support"]["canonical_tie_mismatch_count"] > 0
+    assert report["evidence"]["zero_min_unexecutable_boundary"]["counterexample_found"] is True
     assert report["evidence"]["nonzero_min_boundary"]["counterexample_found"] is True
     assert report["evidence"]["rounding_boundary"]["counterexample_found"] is True
     assert all(not row["accepted"] for row in report["mutation_checks"])
@@ -56,7 +58,14 @@ def test_ab_zero_min_economic_compression_certificate_cli_replay() -> None:
 
 def test_ab_zero_min_economic_compression_certificate_rejects_missing_boundaries() -> None:
     evidence = {
-        "zero_min_support": {"ok": True, "mismatch_count": 0, "case_count": 50, "canonical_tie_mismatch_count": 1},
+        "zero_min_support": {
+            "ok": True,
+            "mismatch_count": 0,
+            "case_count": 50,
+            "canonical_tie_mismatch_count": 1,
+            "all_compressed_full_mask_ok": True,
+        },
+        "zero_min_unexecutable_boundary": {"counterexample_found": True},
         "nonzero_min_boundary": {"counterexample_found": True},
         "rounding_boundary": {"counterexample_found": True},
         "non_claims": [
@@ -68,6 +77,7 @@ def test_ab_zero_min_economic_compression_certificate_rejects_missing_boundaries
     flags = evidence_flags(evidence, deterministic)
 
     assert flags["canonical_tie_nonclaim_witness_ok"] == 1
+    assert flags["zero_min_unexecutable_boundary_witness_ok"] == 1
     assert flags["nonzero_min_boundary_witness_ok"] == 1
     assert flags["no_authority_effect"] == 1
 
@@ -79,6 +89,15 @@ def test_ab_zero_min_economic_compression_certificate_rejects_missing_boundaries
     missing_nonzero_boundary = dict(evidence)
     missing_nonzero_boundary["nonzero_min_boundary"] = {"counterexample_found": False}
     assert evidence_flags(missing_nonzero_boundary, deterministic)["nonzero_min_boundary_witness_ok"] == 0
+
+    missing_zero_min_unexecutable_boundary = dict(evidence)
+    missing_zero_min_unexecutable_boundary["zero_min_unexecutable_boundary"] = {"counterexample_found": False}
+    assert (
+        evidence_flags(missing_zero_min_unexecutable_boundary, deterministic)[
+            "zero_min_unexecutable_boundary_witness_ok"
+        ]
+        == 0
+    )
 
     missing_authority_rail = dict(evidence)
     missing_authority_rail["non_claims"] = []

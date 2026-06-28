@@ -41,6 +41,7 @@ from src.core.batch_clearing_ordering import (  # noqa: E402
 )
 from src.integration.tau_runner import find_tau_bin, run_tau_spec_steps  # noqa: E402
 from src.kernels.python.settlement_swap_runtime_v1 import (  # noqa: E402
+    DEX_POOL_RESERVE_MAX,
     quote_cpmm_swap_exact_in,
     quote_cpmm_swap_exact_out,
 )
@@ -261,6 +262,7 @@ def _check_zero_min_case(n: int, variant: int) -> dict[str, Any]:
         "n": n,
         "variant": variant,
         "ok": compressed_key == full_key == brute_key,
+        "compressed_full_mask_ok": compressed is not None and len(compressed) == n,
         "same_canonical_order": (
             tuple(intent.intent_id for intent in compressed or ()) == tuple(intent.intent_id for intent in brute or ())
             if brute is not None
@@ -281,11 +283,56 @@ def _zero_min_support() -> dict[str, Any]:
         "ok": all(bool(case["ok"]) for case in cases),
         "case_count": len(cases),
         "mismatch_count": sum(0 if case["ok"] else 1 for case in cases),
+        "compressed_full_mask_count": sum(1 for case in cases if case["compressed_full_mask_ok"]),
+        "all_compressed_full_mask_ok": all(bool(case["compressed_full_mask_ok"]) for case in cases),
         "canonical_tie_mismatch_count": sum(1 for case in cases if case["same_canonical_order"] is False),
         "case_plan": [{"n": n, "variants": list(variants)} for n, variants in ZERO_MIN_CASE_PLAN],
         "first_mismatch": next((case for case in cases if not case["ok"]), None),
         "first_tie_mismatch": next((case for case in cases if case["same_canonical_order"] is False), None),
         "elapsed_ms": round((time.perf_counter() - started) * 1000.0, 3),
+    }
+
+
+def _zero_min_unexecutable_counterexample() -> dict[str, Any]:
+    pool = PoolState(
+        pool_id=POOL_ID,
+        asset0=ASSET0,
+        asset1=ASSET1,
+        reserve0=DEX_POOL_RESERVE_MAX - 100,
+        reserve1=DEX_POOL_RESERVE_MAX,
+        fee_bps=0,
+        lp_supply=10_000,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+        curve_tag=CURVE_TAG_CPMM,
+    )
+    intents = [
+        _intent(20_001, sender_no=1, amount_in=200, min_amount_out=0),
+        _intent(20_002, sender_no=2, amount_in=90, min_amount_out=0),
+    ]
+    balances = BalanceTable()
+    for idx, intent in enumerate(intents, 1):
+        balances.set(_sender(idx), ASSET0, int(intent.get_field("amount_in")) + 1_000)
+        balances.set(_sender(idx), ASSET1, 0)
+    context = _context(pool, intents, balances)
+    compressed = _compressed_min_reserve_out_order(intents, context)
+    brute = _best_order_by_objective_bruteforce(intents, context)
+    compressed_key = _economic_key(compressed, context) if compressed is not None else (-1, -1)
+    brute_key = _economic_key(brute, context)
+    return {
+        "counterexample_found": compressed_key != brute_key,
+        "pool": {
+            "reserve0": int(pool.reserve0),
+            "reserve1": int(pool.reserve1),
+            "fee_bps": int(pool.fee_bps),
+        },
+        "amounts": [int(intent.get_field("amount_in")) for intent in intents],
+        "min_amount_out": [int(intent.get_field("min_amount_out", 0)) for intent in intents],
+        "compressed_economic_key": compressed_key,
+        "brute_economic_key": brute_key,
+        "compressed_order": _short(tuple(intent.intent_id for intent in compressed or ())),
+        "brute_order": _short(tuple(intent.intent_id for intent in brute)),
+        "reason": "Zero-min alone is not enough when a kernel quote can fail; the strict compression surface requires executable zero-min cases.",
     }
 
 
@@ -339,23 +386,28 @@ def _rounding_path_dependence_counterexample() -> dict[str, Any]:
 
 def _run_evidence() -> dict[str, Any]:
     zero_min = _zero_min_support()
+    zero_min_unexecutable = _zero_min_unexecutable_counterexample()
     nonzero_min = _nonzero_min_counterexample()
     rounding = _rounding_path_dependence_counterexample()
     return {
         "schema": "zenodex/ab_zero_min_economic_compression_evidence/v1",
         "ok": bool(
             zero_min["ok"]
+            and zero_min["all_compressed_full_mask_ok"]
+            and zero_min_unexecutable["counterexample_found"]
             and zero_min["canonical_tie_mismatch_count"] > 0
             and nonzero_min["counterexample_found"]
             and rounding["counterexample_found"]
         ),
         "zero_min_support": zero_min,
+        "zero_min_unexecutable_boundary": zero_min_unexecutable,
         "nonzero_min_boundary": nonzero_min,
         "rounding_boundary": rounding,
         "non_claims": [
             "This is a research certificate, not a production ordering change.",
-            "The compressed DP preserves the economic AB key only on the tested zero-min exact-in scope.",
+            "The compressed DP preserves the economic AB key only on the tested strict executable zero-min exact-in scope.",
             "The compressed DP does not preserve canonical tie order; a separate tie resolver is required.",
+            "Zero-min batches with unexecutable kernel quotes are outside this compression surface.",
             "Nonzero min_amount_out batches are outside this compression surface.",
             "Tau does not compute swaps, run DP, select orders, or authorize settlement.",
             "No settlement authority is derived from this artifact.",
@@ -396,9 +448,13 @@ def evidence_flags(evidence: Mapping[str, Any], deterministic_replay: Mapping[st
     return {
         "zero_min_scope_ok": 1,
         "same_direction_exact_in_scope_ok": 1,
+        "executable_zero_min_scope_ok": int(bool(zero_min["all_compressed_full_mask_ok"])),
         "economic_parity_ok": int(bool(zero_min["ok"]) and int(zero_min["mismatch_count"]) == 0),
         "brute_or_full_parity_ok": int(int(zero_min["case_count"]) >= 50),
         "canonical_tie_nonclaim_witness_ok": int(int(zero_min["canonical_tie_mismatch_count"]) > 0),
+        "zero_min_unexecutable_boundary_witness_ok": int(
+            bool(evidence["zero_min_unexecutable_boundary"]["counterexample_found"])
+        ),
         "nonzero_min_boundary_witness_ok": int(bool(evidence["nonzero_min_boundary"]["counterexample_found"])),
         "rounding_path_dependence_witness_ok": int(bool(evidence["rounding_boundary"]["counterexample_found"])),
         "deterministic_replay_ok": int(bool(deterministic_replay.get("ok"))),
@@ -420,6 +476,8 @@ def _tau_step(flags: Mapping[str, int], *, active: int = 1, overrides: Mapping[s
         "i9": int(flags.get("deterministic_replay_ok", 0)),
         "i10": int(flags.get("resource_budget_ok", 0)),
         "i11": int(flags.get("no_authority_effect", 0)),
+        "i12": int(flags.get("executable_zero_min_scope_ok", 0)),
+        "i13": int(flags.get("zero_min_unexecutable_boundary_witness_ok", 0)),
     }
     if overrides:
         values.update({key: int(value) for key, value in overrides.items()})
@@ -440,8 +498,10 @@ def _run_tau_cases(base_flags: Mapping[str, int]) -> dict[str, Any]:
     cases = (
         TauCase("zero_min_pass", _tau_step(base_flags), {"o1": 1, "o2": 1, "o3": 1, "o4": 1, "o5": 1, "o6": 0}, "All scoped economic-compression evidence and boundary witnesses hold."),
         TauCase("missing_zero_min_reject", _tau_step(base_flags, overrides={"i2": 0}), {"o1": 0, "o5": 0}, "Missing zero-min scope fails closed."),
+        TauCase("missing_executable_zero_min_reject", _tau_step(base_flags, overrides={"i12": 0}), {"o1": 0, "o5": 0}, "Missing executable zero-min scope fails closed."),
         TauCase("missing_economic_parity_reject", _tau_step(base_flags, overrides={"i4": 0}), {"o2": 0, "o5": 0}, "Missing economic-key parity fails closed."),
         TauCase("missing_tie_nonclaim_reject", _tau_step(base_flags, overrides={"i6": 0}), {"o3": 0, "o5": 0}, "Missing canonical-tie nonclaim witness fails closed."),
+        TauCase("missing_zero_min_unexecutable_boundary_reject", _tau_step(base_flags, overrides={"i13": 0}), {"o3": 0, "o5": 0}, "Missing zero-min unexecutable boundary witness fails closed."),
         TauCase("missing_nonzero_boundary_reject", _tau_step(base_flags, overrides={"i7": 0}), {"o3": 0, "o5": 0}, "Missing nonzero-min boundary witness fails closed."),
         TauCase("missing_rounding_boundary_reject", _tau_step(base_flags, overrides={"i8": 0}), {"o3": 0, "o5": 0}, "Missing rounding path-dependence witness fails closed."),
         TauCase("authority_reject", _tau_step(base_flags, overrides={"i11": 0}), {"o4": 0, "o5": 0, "o6": 0}, "Authority-bearing certificates are rejected."),
@@ -484,7 +544,7 @@ def build_report() -> dict[str, Any]:
         "date": "2026-06-28",
         "ok": ok,
         "spec_id": "ab_zero_min_economic_compression_certificate_v1",
-        "summary": "A counterexample-salvage certificate supports one-record min-reserve-out compression only for the zero-min same-direction exact-in economic AB key, while preserving explicit witnesses against canonical-tie, nonzero-min, and aggregate-input overclaims.",
+        "summary": "A counterexample-salvage certificate supports one-record min-reserve-out compression only for the strict executable zero-min same-direction exact-in economic AB key, while preserving explicit witnesses against canonical-tie, zero-min unexecutable, nonzero-min, and aggregate-input overclaims.",
         "authority_boundary": "Tau admits a research certificate only. It does not compute swaps, run DP, select AB orders, or authorize settlement.",
         "flags": flags,
         "tau": tau,
@@ -512,7 +572,9 @@ def _write_markdown(report: Mapping[str, Any]) -> None:
         "",
         f"- Zero-min economic parity cases: `{zero_min['case_count']}`",
         f"- Economic mismatches: `{zero_min['mismatch_count']}`",
+        f"- Strict executable zero-min cases: `{zero_min['compressed_full_mask_count']}`",
         f"- Canonical tie mismatches: `{zero_min['canonical_tie_mismatch_count']}`",
+        f"- Zero-min unexecutable counterexample found: `{evidence['zero_min_unexecutable_boundary']['counterexample_found']}`",
         f"- Nonzero-min counterexample found: `{evidence['nonzero_min_boundary']['counterexample_found']}`",
         f"- Rounding path-dependence witness found: `{evidence['rounding_boundary']['counterexample_found']}`",
         "",
@@ -522,13 +584,19 @@ def _write_markdown(report: Mapping[str, Any]) -> None:
         json.dumps(zero_min["first_tie_mismatch"], indent=2, sort_keys=True),
         "```",
         "",
+        "Zero-min unexecutable boundary witness:",
+        "",
+        "```json",
+        json.dumps(evidence["zero_min_unexecutable_boundary"], indent=2, sort_keys=True),
+        "```",
+        "",
         "Nonzero-min boundary witness:",
         "",
         "```json",
         json.dumps(evidence["nonzero_min_boundary"], indent=2, sort_keys=True),
         "```",
         "",
-        "The supported surface is economic-key only: `(executed_input, surplus)`. Canonical tie order remains outside the compressed DP.",
+        "The supported surface is strict executable zero-min and economic-key only: `(executed_input, surplus)`. Canonical tie order remains outside the compressed DP.",
         "",
         "## Tau Specification",
         "",

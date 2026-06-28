@@ -2,7 +2,7 @@
 
 ## Executive Result
 
-A counterexample-salvage certificate supports one-record min-reserve-out compression only for the zero-min same-direction exact-in economic AB key, while preserving explicit witnesses against canonical-tie, nonzero-min, and aggregate-input overclaims.
+A counterexample-salvage certificate supports one-record min-reserve-out compression only for the strict executable zero-min same-direction exact-in economic AB key, while preserving explicit witnesses against canonical-tie, zero-min unexecutable, nonzero-min, and aggregate-input overclaims.
 
 Tau admits a research certificate only. It does not compute swaps, run DP, select AB orders, or authorize settlement.
 
@@ -10,7 +10,9 @@ Tau admits a research certificate only. It does not compute swaps, run DP, selec
 
 - Zero-min economic parity cases: `50`
 - Economic mismatches: `0`
+- Strict executable zero-min cases: `50`
 - Canonical tie mismatches: `1`
+- Zero-min unexecutable counterexample found: `True`
 - Nonzero-min counterexample found: `True`
 - Rounding path-dependence witness found: `True`
 
@@ -36,6 +38,7 @@ First canonical-tie mismatch:
     260,
     296
   ],
+  "compressed_full_mask_ok": true,
   "compressed_order": [
     "2f44",
     "2f47",
@@ -54,6 +57,41 @@ First canonical-tie mismatch:
   "ok": true,
   "same_canonical_order": false,
   "variant": 21
+}
+```
+
+Zero-min unexecutable boundary witness:
+
+```json
+{
+  "amounts": [
+    200,
+    90
+  ],
+  "brute_economic_key": [
+    90,
+    90
+  ],
+  "brute_order": [
+    "4e21",
+    "4e22"
+  ],
+  "compressed_economic_key": [
+    -1,
+    -1
+  ],
+  "compressed_order": [],
+  "counterexample_found": true,
+  "min_amount_out": [
+    0,
+    0
+  ],
+  "pool": {
+    "fee_bps": 0,
+    "reserve0": 2999999900,
+    "reserve1": 3000000000
+  },
+  "reason": "Zero-min alone is not enough when a kernel quote can fail; the strict compression surface requires executable zero-min cases."
 }
 ```
 
@@ -82,7 +120,7 @@ Nonzero-min boundary witness:
 }
 ```
 
-The supported surface is economic-key only: `(executed_input, surplus)`. Canonical tie order remains outside the compressed DP.
+The supported surface is strict executable zero-min and economic-key only: `(executed_input, surplus)`. Canonical tie order remains outside the compressed DP.
 
 ## Tau Specification
 
@@ -99,12 +137,14 @@ The supported surface is economic-key only: `(executed_input, surplus)`. Canonic
 | `canonical_tie_nonclaim_witness_ok` | `1` |
 | `deterministic_replay_ok` | `1` |
 | `economic_parity_ok` | `1` |
+| `executable_zero_min_scope_ok` | `1` |
 | `no_authority_effect` | `1` |
 | `nonzero_min_boundary_witness_ok` | `1` |
 | `resource_budget_ok` | `1` |
 | `rounding_path_dependence_witness_ok` | `1` |
 | `same_direction_exact_in_scope_ok` | `1` |
 | `zero_min_scope_ok` | `1` |
+| `zero_min_unexecutable_boundary_witness_ok` | `1` |
 
 ## Tau Mode Checks
 
@@ -112,8 +152,10 @@ The supported surface is economic-key only: `(executed_input, surplus)`. Canonic
 | --- | --- | --- |
 | `zero_min_pass` | `True` | All scoped economic-compression evidence and boundary witnesses hold. |
 | `missing_zero_min_reject` | `True` | Missing zero-min scope fails closed. |
+| `missing_executable_zero_min_reject` | `True` | Missing executable zero-min scope fails closed. |
 | `missing_economic_parity_reject` | `True` | Missing economic-key parity fails closed. |
 | `missing_tie_nonclaim_reject` | `True` | Missing canonical-tie nonclaim witness fails closed. |
+| `missing_zero_min_unexecutable_boundary_reject` | `True` | Missing zero-min unexecutable boundary witness fails closed. |
 | `missing_nonzero_boundary_reject` | `True` | Missing nonzero-min boundary witness fails closed. |
 | `missing_rounding_boundary_reject` | `True` | Missing rounding path-dependence witness fails closed. |
 | `authority_reject` | `True` | Authority-bearing certificates are rejected. |
@@ -124,8 +166,10 @@ The supported surface is economic-key only: `(executed_input, surplus)`. Canonic
 | mutation | accepted | rationale |
 | --- | --- | --- |
 | `missing_zero_min_reject` | `False` | Missing zero-min scope fails closed. |
+| `missing_executable_zero_min_reject` | `False` | Missing executable zero-min scope fails closed. |
 | `missing_economic_parity_reject` | `False` | Missing economic-key parity fails closed. |
 | `missing_tie_nonclaim_reject` | `False` | Missing canonical-tie nonclaim witness fails closed. |
+| `missing_zero_min_unexecutable_boundary_reject` | `False` | Missing zero-min unexecutable boundary witness fails closed. |
 | `missing_nonzero_boundary_reject` | `False` | Missing nonzero-min boundary witness fails closed. |
 | `missing_rounding_boundary_reject` | `False` | Missing rounding path-dependence witness fails closed. |
 | `authority_reject` | `False` | Authority-bearing certificates are rejected. |
@@ -133,8 +177,9 @@ The supported surface is economic-key only: `(executed_input, surplus)`. Canonic
 ## Non-Claims
 
 - This is a research certificate, not a production ordering change.
-- The compressed DP preserves the economic AB key only on the tested zero-min exact-in scope.
+- The compressed DP preserves the economic AB key only on the tested strict executable zero-min exact-in scope.
 - The compressed DP does not preserve canonical tie order; a separate tie resolver is required.
+- Zero-min batches with unexecutable kernel quotes are outside this compression surface.
 - Nonzero min_amount_out batches are outside this compression surface.
 - Tau does not compute swaps, run DP, select orders, or authorize settlement.
 - No settlement authority is derived from this artifact.
