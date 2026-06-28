@@ -1,0 +1,41 @@
+# Evidence DAG Hitting-Set Certificate v1
+#
+# PURPOSE:
+#   Guard a host-computed bounded public-assurance evidence DAG optimizer.
+#   The host enumerates candidate evidence bundles, checks acyclicity, blocker
+#   coverage, dependency closure, minimality, deterministic tie-breaking, and
+#   negative cases. Tau only combines those projected facts.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = graph_acyclic_ok
+# i3  = claim_path_coverage_ok
+# i4  = blocker_coverage_ok
+# i5  = dependency_closure_ok
+# i6  = objective_minimal_ok
+# i7  = deterministic_tie_ok
+# i8  = negative_cases_ok
+# i9  = resource_budget_ok
+# i10 = no_authority_effect
+# i11 = nonvacuous_bundle
+# i12 = deterministic_replay_ok
+# o1  = structural_evidence_ok
+# o2  = optimizer_evidence_ok
+# o3  = safety_evidence_ok
+# o4  = hitting_set_certificate_ok
+# o5  = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+structural_evidence_ok(acyclic : sbf, claim_paths : sbf, blockers : sbf, deps : sbf) := is1(acyclic) && is1(claim_paths) && is1(blockers) && is1(deps).
+optimizer_evidence_ok(minimal : sbf, tie : sbf, nonvacuous : sbf, deterministic : sbf) := is1(minimal) && is1(tie) && is1(nonvacuous) && is1(deterministic).
+safety_evidence_ok(negative_cases : sbf, budget : sbf, no_authority : sbf) := is1(negative_cases) && is1(budget) && is1(no_authority).
+certificate_ok(active : sbf, acyclic : sbf, claim_paths : sbf, blockers : sbf, deps : sbf, minimal : sbf, tie : sbf, negative_cases : sbf, budget : sbf, no_authority : sbf, nonvacuous : sbf, deterministic : sbf) := is1(active) && structural_evidence_ok(acyclic, claim_paths, blockers, deps) && optimizer_evidence_ok(minimal, tie, nonvacuous, deterministic) && safety_evidence_ok(negative_cases, budget, no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> structural_evidence_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> optimizer_evidence_ok(i6[t]:sbf, i7[t]:sbf, i11[t]:sbf, i12[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> safety_evidence_ok(i8[t]:sbf, i9[t]:sbf, i10[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> certificate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i10[t]:sbf))).
