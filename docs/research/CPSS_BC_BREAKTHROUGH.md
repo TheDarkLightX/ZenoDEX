@@ -852,61 +852,68 @@ optimal future output.
 For n=10 and |S|=100, D=100: Subset DP = ~10M operations vs Anticipatory
 = ~360M operations. The subset DP is ~36x faster while remaining exact.
 
-### 13.8 Implemented Advisory Surface
+### 13.8 Implemented Research Surface
 
-The current implementation is a bounded research and UX oracle, not settlement
-logic:
+The current implementation is a bounded research oracle, not settlement logic:
 
 - Core solver: `src/core/cross_pool_subset_dp.py`
-- Advisor wrapper: `src/agents/cross_pool_subset_dp_advisor.py`
-- CLI: `tools/cross_pool_subset_dp_advisor.py`
 - Core tests: `tests/core/test_cross_pool_subset_dp.py`
-- Advisor tests: `tests/agents/test_cross_pool_subset_dp_advisor.py`
 - Benchmark: `tools/benchmark_cross_pool_subset_dp.py`
 
-The advisor packet reports the exact modeled optimum, an optional candidate
-route's missed output, gap in basis points, solver kind, and solver-cost
-telemetry. It also sets `production_security_claim=false`,
-`settlement_authority=false`, and `solver_authorizes_settlement=false`. If the
-configured exact-search limits are exceeded, the packet returns
-`status=exact_unavailable` with no exact output.
+The solver returns the exact modeled optimum and solver-cost telemetry for the
+configured bounded domain. It does not emit settlement receipts, authorize
+state transitions, or make a production security claim. If the configured
+exact-search limits are exceeded, it raises before returning an optimum.
 
-The current advisor selects:
+The committed solver exposes:
 
-- `subset_dp` for all-distinct exact-in amounts;
-- `multiset_dp` when duplicate exact-in amounts let the solver quotient intent
-  identity by amount.
+- `solve_two_pool_cpmm_subset_dp` for exact two-pool subset-DP search;
+- `solve_two_pool_cpmm_multiset_dp` when duplicate exact-in amounts let the
+  solver quotient intent identity by amount;
+- `solve_k_pool_cpmm_subset_dp` and `solve_k_pool_cpmm_multiset_dp` for the
+  bounded k-pool variants.
 
 Example:
 
 ```bash
-python3 tools/cross_pool_subset_dp_advisor.py <<'JSON'
-{"pool0":{"x":1,"y":2,"fee_bps":0},
- "pool1":{"x":2,"y":2,"fee_bps":0},
- "intents":[1,1,2],
- "candidate_amount_out_total":1}
-JSON
+python3 - <<'PY'
+from src.core.cross_pool_subset_dp import TwoPoolCPMM, solve_two_pool_cpmm_subset_dp
+
+result = solve_two_pool_cpmm_subset_dp(
+    TwoPoolCPMM(1, 2, 0),
+    TwoPoolCPMM(2, 2, 0),
+    [1, 1, 2],
+)
+print(result.amount_out_total)
+PY
 ```
 
-The known CPSS counterexample reports `exact_amount_out_total=2`,
-`candidate_amount_out_total=1`, `missed_output=1`, and
-`candidate_gap_bps=5000`.
+The known CPSS counterexample reports `amount_out_total=2`.
 
 Duplicate-intent example:
 
 ```bash
-python3 tools/cross_pool_subset_dp_advisor.py <<'JSON'
-{"pool0":{"x":5,"y":10,"fee_bps":5000},
- "pool1":{"x":2,"y":1000,"fee_bps":5000},
- "intents":[4,4,4,4,4,4],
- "candidate_amount_out_total":700}
-JSON
+python3 - <<'PY'
+from src.core.cross_pool_subset_dp import TwoPoolCPMM, solve_two_pool_cpmm_multiset_dp
+
+result = solve_two_pool_cpmm_multiset_dp(
+    TwoPoolCPMM(5, 10, 5000),
+    TwoPoolCPMM(2, 1000, 5000),
+    [4, 4, 4, 4, 4, 4],
+)
+print({
+    "amount_out_total": result.amount_out_total,
+    "ordering_count_upper_bound": result.ordering_count_upper_bound,
+    "states_visited": result.states_visited,
+    "transitions_evaluated": result.transitions_evaluated,
+})
+PY
 ```
 
-This reports `solver_kind=multiset_dp`, `exact_amount_out_total=773`,
-`missed_output=73`, `ordering_count_upper_bound=1`, `states_visited=217`, and
-`transitions_evaluated=705`. The equivalent subset-DP run visits 1744 states,
-evaluates 19740 transitions, and has ordering upper bound 720.
+This reports `amount_out_total=773`, `ordering_count_upper_bound=1`,
+`states_visited=217`, and `transitions_evaluated=705`. The equivalent subset-DP
+run visits 1744 states, evaluates 19740 transitions, and has ordering upper
+bound 720.
 
 ### 13.9 Current Benchmark
 
@@ -975,7 +982,7 @@ Current default replay evidence:
 
 ```bash
 python3 docs/research/cpss_bc_witness.py
-pytest -q tests/core/test_cross_pool_subset_dp.py tests/agents/test_cross_pool_subset_dp_advisor.py
+pytest -q tests/core/test_cross_pool_subset_dp.py
 ```
 
 The witness replay includes 3-pool, 4-pool, and 5-pool brute-force parity

@@ -274,6 +274,7 @@ def _best_split(
     window: int,
     brute_force_max: int,
 ) -> tuple[int, int]:
+    """Return the bounded split-window candidate used by certificate tooling."""
     if int(ctx.amount_out_total) <= int(brute_force_max) or ctx.span <= int(brute_force_max):
         brute = ctx.scan_range(int(ctx.lo), int(ctx.hi))
         if brute is None:
@@ -282,12 +283,15 @@ def _best_split(
     return _best_windowed_split(ctx, window=int(window))
 
 
+def _best_full_domain_split(ctx: _TwoPoolExactOutContext) -> tuple[int, int]:
+    best = ctx.scan_range(int(ctx.lo), int(ctx.hi))
+    if best is None:
+        raise ValueError("no feasible split")
+    return best
+
+
 def best_two_pool_exact_out_split(request: TwoPoolExactOutRequest) -> SplitTwoPoolsQuote:
     _validate_request(request)
     ctx = _build_context(request)
-    _best_in, best_q0 = _best_split(
-        ctx,
-        window=int(request.window),
-        brute_force_max=int(request.brute_force_max),
-    )
+    _best_in, best_q0 = _best_full_domain_split(ctx)
     return ctx.materialize_quote(int(best_q0))
