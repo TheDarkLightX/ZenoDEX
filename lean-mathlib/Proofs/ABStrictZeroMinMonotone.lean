@@ -621,6 +621,25 @@ theorem bitMaskPath_preserves_start_or_sets_path_bits
   | inr hpathBit =>
       exact bitMaskPath_sets_path_bits hpath bitIndex hpathBit
 
+/-- Every bit below a finite bound is set in a mask. -/
+def allBitsBelowSet (mask bitCount : Nat) : Prop :=
+  ∀ bitIndex, bitIndex < bitCount -> maskHasBit mask bitIndex
+
+/-- Coverage of `List.range bitCount` gives bounded full-mask coverage. -/
+theorem allBitsSet_range_gives_allBitsBelowSet
+    {mask bitCount : Nat}
+    (hbits : allBitsSet mask (List.range bitCount)) :
+    allBitsBelowSet mask bitCount := by
+  intro bitIndex hlt
+  exact hbits bitIndex (List.mem_range.mpr hlt)
+
+/-- A bit-mask path over `List.range bitCount` sets every bit below the bound. -/
+theorem bitMaskPath_sets_range_bits
+    {startMask finalMask bitCount : Nat}
+    (hpath : bitMaskPath startMask (List.range bitCount) finalMask) :
+    allBitsBelowSet finalMask bitCount := by
+  exact allBitsSet_range_gives_allBitsBelowSet (bitMaskPath_sets_path_bits hpath)
+
 /-- A record-level mask transition links the `maskId` fields to the bit-level
 step relation. -/
 def maskRecordStep (parent child : MaskRecordSet) (bitIndex : Nat) : Prop :=
@@ -667,6 +686,15 @@ theorem maskRecordPath_preserves_parent_bits
     maskHasBit child.maskId bitIndex := by
   exact bitMaskPath_preserves_prior_bits hpath hprior
 
+/-- A record-level mask path over `List.range bitCount` sets every bit below the
+bound in the child mask id. -/
+theorem maskRecordPath_sets_range_bits
+    {parent child : MaskRecordSet}
+    {bitCount : Nat}
+    (hpath : maskRecordPath parent (List.range bitCount) child) :
+    allBitsBelowSet child.maskId bitCount := by
+  exact bitMaskPath_sets_range_bits hpath
+
 /-- Concrete non-vacuity witness for the bit-mask transition relation. -/
 theorem witness_bitMaskStep_noop :
     bitMaskStep 1 0 1 ∧ bitMaskPath 1 [0] 1 := by
@@ -690,6 +718,15 @@ theorem witness_bitMaskPath_sets_path_bits :
     subst bitIndex
     unfold maskHasBit
     native_decide
+
+/-- Concrete non-vacuity witness for bounded full-range bit coverage. -/
+theorem witness_bitMaskPath_sets_range_bits :
+    bitMaskPath 1 (List.range 1) 1 ∧ allBitsBelowSet 1 1 := by
+  have hpath : bitMaskPath 1 (List.range 1) 1 := by
+    simpa using witness_bitMaskStep_noop.2
+  constructor
+  · exact hpath
+  · exact bitMaskPath_sets_range_bits hpath
 
 /-- A mask is locally prunable when its selected record has the same processed
 input reserve as every full record and no more output reserve. -/

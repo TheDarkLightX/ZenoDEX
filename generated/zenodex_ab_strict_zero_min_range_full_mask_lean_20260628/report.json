@@ -1,0 +1,47 @@
+{
+  "artifact": "zenodex_ab_strict_zero_min_range_full_mask_lean_20260628",
+  "authority_boundary": "research proof component only; no production ordering, settlement, governance, state-root, or promotion authority",
+  "commit": "git commit containing this report",
+  "date": "2026-06-28",
+  "lean_file": "lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+  "non_claims": [
+    "does not prove the full strict compressed-full-mask theorem",
+    "does not prove full DP subset-mask induction",
+    "does not prove Lean-to-Python refinement",
+    "does not prove canonical tie order",
+    "does not cover nonzero min_amount_out",
+    "does not prove concrete host bitset implementation equivalence",
+    "does not authorize production ordering, settlement, state-root, governance, or promotion"
+  ],
+  "status": "pass",
+  "summary": "Lean proof component proving that a bit-mask path over List.range bitCount sets every bit below bitCount, with a MaskRecordSet.maskId lift.",
+  "theorems": [
+    "ABStrictZeroMinMonotone.allBitsBelowSet",
+    "ABStrictZeroMinMonotone.allBitsSet_range_gives_allBitsBelowSet",
+    "ABStrictZeroMinMonotone.bitMaskPath_sets_range_bits",
+    "ABStrictZeroMinMonotone.maskRecordPath_sets_range_bits",
+    "ABStrictZeroMinMonotone.witness_bitMaskPath_sets_range_bits"
+  ],
+  "verification": {
+    "lake_env_lean": {
+      "command": "cd lean-mathlib && lake env lean Proofs/ABStrictZeroMinMonotone.lean",
+      "status": "pass",
+      "summary": "typechecked"
+    },
+    "lake_build_module": {
+      "command": "cd lean-mathlib && lake build Proofs.ABStrictZeroMinMonotone",
+      "status": "pass",
+      "summary": "Build completed successfully"
+    },
+    "placeholder_scan": {
+      "command": "rg -n \"\\\\b(sorry|admit|axiom|unsafe|sorryAx)\\\\b\" lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+      "status": "pass",
+      "summary": "No proof placeholders found"
+    },
+    "pytest": {
+      "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+      "status": "pass",
+      "summary": "1 passed"
+    }
+  }
+}
