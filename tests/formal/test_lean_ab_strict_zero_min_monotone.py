@@ -87,7 +87,11 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "theorem reachablePrunedFullMaskListInFamily_bounds_family_selected" in text
     assert "theorem reachablePrunedFullMaskListInFamily_covers_and_bounds_family" in text
     assert "def selectedFamilyOutputWinner" in text
+    assert "def selectedFamilyAggregateWinner" in text
+    assert "theorem selectedFamilyAggregateWinner_to_selectedFamilyOutputWinner" in text
     assert "theorem selectedFamilyOutputWinner_bounds_selected_family" in text
+    assert "theorem selectedFamilyOutputWinner_to_selectedFamilyAggregateWinner" in text
+    assert "theorem selectedFamilyOutputWinner_iff_aggregateWinner" in text
     assert "theorem reachablePrunedFullMaskListInFamily_bounds_selected_winner" in text
     assert "theorem reachablePrunedFullMaskListInFamily_covers_and_bounds_selected_winner" in text
     assert "def compressedWinnerCertificate" in text
@@ -118,6 +122,11 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "theorem reachablePrunedRangeStepPathListInFamily_bounds_family_selected" in text
     assert "theorem reachablePrunedRangeStepPathListInFamily_covers_and_bounds_family" in text
     assert "def rangeStepPathWinnerCertificate" in text
+    assert "def aggregateRangeStepPathWinnerCertificate" in text
+    assert (
+        "theorem aggregateRangeStepPathWinnerCertificate_to_rangeStepPathWinnerCertificate"
+        in text
+    )
     assert "theorem rangeStepPathWinnerCertificate_to_compressedWinnerCertificate" in text
     assert "theorem rangeStepPathWinnerCertificate_covers_and_bounds" in text
     assert "theorem rangeStepPathWinnerCertificate_bounds_zeroMinEconomicKey" in text

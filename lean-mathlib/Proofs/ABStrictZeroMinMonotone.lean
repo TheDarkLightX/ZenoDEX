@@ -1179,6 +1179,41 @@ def selectedFamilyOutputWinner
       maskSelectedSuffixOutput initialReserveOut mask suffix ≤
         maskSelectedSuffixOutput initialReserveOut winner suffix
 
+/-- Aggregate winner predicate for host-emitted selected-family certificates.
+
+Instead of carrying one inequality per retained mask, a host packet may carry the
+single aggregate inequality against `bestSelectedSuffixOutputAcrossMasks`.
+Membership is kept explicit so the predicate does not define tie order. -/
+def selectedFamilyAggregateWinner
+    (winner : MaskRecordSet)
+    (masks : List MaskRecordSet)
+    (initialReserveOut : Nat)
+    (suffix : List ExactInStep) : Prop :=
+  winner ∈ masks ∧
+    bestSelectedSuffixOutputAcrossMasks initialReserveOut masks suffix ≤
+      maskSelectedSuffixOutput initialReserveOut winner suffix
+
+/-- A selected-family aggregate winner supplies the universal selected-output
+winner predicate used by the existing proof ladder. -/
+theorem selectedFamilyAggregateWinner_to_selectedFamilyOutputWinner
+    {winner : MaskRecordSet}
+    {masks : List MaskRecordSet}
+    {initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (haggregate :
+      selectedFamilyAggregateWinner winner masks initialReserveOut suffix) :
+    selectedFamilyOutputWinner winner masks initialReserveOut suffix := by
+  rcases haggregate with ⟨hwinner_mem, haggregate_bound⟩
+  constructor
+  · exact hwinner_mem
+  · intro mask hmask
+    have hselected_mem :
+        maskSelectedSuffixOutput initialReserveOut mask suffix ∈
+          masks.map (fun candidate =>
+            maskSelectedSuffixOutput initialReserveOut candidate suffix) := by
+      exact List.mem_map.mpr ⟨mask, hmask, rfl⟩
+    exact Nat.le_trans (mem_le_foldlMax (acc := 0) hselected_mem) haggregate_bound
+
 /-- A selected-output winner bounds the selected-representative aggregate for
 the whole family. -/
 theorem selectedFamilyOutputWinner_bounds_selected_family
@@ -1198,6 +1233,31 @@ theorem selectedFamilyOutputWinner_bounds_selected_family
     rw [List.mem_map] at hvalue
     rcases hvalue with ⟨mask, hmask, rfl⟩
     exact hdominates mask hmask
+
+/-- The universal selected-output winner predicate supplies the scalar aggregate
+winner predicate. -/
+theorem selectedFamilyOutputWinner_to_selectedFamilyAggregateWinner
+    {winner : MaskRecordSet}
+    {masks : List MaskRecordSet}
+    {initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hwinner : selectedFamilyOutputWinner winner masks initialReserveOut suffix) :
+    selectedFamilyAggregateWinner winner masks initialReserveOut suffix := by
+  exact ⟨hwinner.1, selectedFamilyOutputWinner_bounds_selected_family hwinner⟩
+
+/-- The per-mask and aggregate selected-family winner predicates are equivalent
+under explicit winner membership. This is a proof-surface equivalence only; it
+does not select a canonical winner when there are ties. -/
+theorem selectedFamilyOutputWinner_iff_aggregateWinner
+    {winner : MaskRecordSet}
+    {masks : List MaskRecordSet}
+    {initialReserveOut : Nat}
+    {suffix : List ExactInStep} :
+    selectedFamilyOutputWinner winner masks initialReserveOut suffix ↔
+      selectedFamilyAggregateWinner winner masks initialReserveOut suffix := by
+  constructor
+  · exact selectedFamilyOutputWinner_to_selectedFamilyAggregateWinner
+  · exact selectedFamilyAggregateWinner_to_selectedFamilyOutputWinner
 
 /-- If a reachable pruned full-mask child list is retained in a selected family
 and a supplied winner dominates that family, then the child-list full-record
@@ -1565,6 +1625,33 @@ def rangeStepPathWinnerCertificate
     (suffix : List ExactInStep) : Prop :=
   reachablePrunedRangeStepPathListInFamily parent children bitCount masks ∧
     selectedFamilyOutputWinner winner masks initialReserveOut suffix
+
+/-- Host-emitter-friendly recursive range-step certificate using a scalar
+selected-family aggregate winner bound. -/
+def aggregateRangeStepPathWinnerCertificate
+    (parent winner : MaskRecordSet)
+    (children : List MaskRecordSet)
+    (bitCount : Nat)
+    (masks : List MaskRecordSet)
+    (initialReserveOut : Nat)
+    (suffix : List ExactInStep) : Prop :=
+  reachablePrunedRangeStepPathListInFamily parent children bitCount masks ∧
+    selectedFamilyAggregateWinner winner masks initialReserveOut suffix
+
+/-- An aggregate range-step winner certificate can be consumed by the existing
+range-step winner certificate endpoint. -/
+theorem aggregateRangeStepPathWinnerCertificate_to_rangeStepPathWinnerCertificate
+    {parent winner : MaskRecordSet}
+    {children masks : List MaskRecordSet}
+    {bitCount initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hcert :
+      aggregateRangeStepPathWinnerCertificate parent winner children bitCount masks
+        initialReserveOut suffix) :
+    rangeStepPathWinnerCertificate parent winner children bitCount masks
+      initialReserveOut suffix := by
+  exact ⟨hcert.1,
+    selectedFamilyAggregateWinner_to_selectedFamilyOutputWinner hcert.2⟩
 
 /-- A recursive range-step winner certificate can be consumed as the earlier
 compressed-winner certificate.
