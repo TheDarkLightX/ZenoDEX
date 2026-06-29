@@ -49,8 +49,11 @@ bounds, and fixed-order min-out-cap evidence.
   full-List ordered-index constructors for that certificate in both
   selected-pair orders, identity-stable full-List presentation bridges for
   duplicate-valued pool selection by distinct ids, an id-ordered full-List
-  presentation bridge for supplied stable-id ordered presentations, and one
-  concrete 4-pool plus one concrete 5-pool coordinate-wise checkpoint.
+  presentation bridge for supplied stable-id ordered presentations, a stable-id
+  sorted-output certificate bridge tying arbitrary identified input Lists to
+  supplied id-ordered permutation representatives, an executable stable-id List
+  merge-sort bridge for arbitrary identified Lists with unique stable ids, and
+  one concrete 4-pool plus one concrete 5-pool coordinate-wise checkpoint.
 - `DiscreteArgmaxProximity.lean` replaces the false discrete-concavity target
   with an abstract argmax-proximity theorem plus CPMM conditional instantiation.
 - `KPoolDiscreteArgmaxProximity.lean` lifts the scalar proximity result to a
@@ -299,8 +302,13 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
   ordered-index constructors for that certificate in both selected-pair orders,
   identity-stable full-List presentation bridges for duplicate-valued pool
   selection by distinct ids, an id-ordered full-List presentation bridge for
-  supplied stable-id ordered presentations, one concrete 4-pool coordinate
-  instance, and one concrete 5-pool coordinate instance.
+  supplied stable-id ordered presentations, a stable-id sorted-output
+  certificate bridge from arbitrary identified input Lists to supplied
+  id-ordered permutation representatives, an executable stable-id List
+  merge-sort bridge for arbitrary identified Lists with unique stable ids, one
+  concrete 4-pool coordinate instance, and one concrete 5-pool coordinate
+  instance. Finset/Multiset quotient/canonicalization from unordered
+  collections remains open.
 - The min-out-cap game-theory evidence is a fixed-order filled-user no-gain
   check, not a full Nash equilibrium proof.
 - The concavity second-order approximation is not a universal stateful attack
@@ -317,9 +325,10 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
 
 ## Recommended GPT 5.5 Continuation
 
-1. Prove deterministic sorting from arbitrary Finset or Multiset presentations
-   into the checked id-ordered full-List presentation bridge, then compose it
-   with the proof-carrying selection certificate.
+1. Lift the executable stable-id List merge-sort bridge to Finset/Multiset
+   quotient/canonicalization from unordered presentations, then connect the
+   quotient certificate to the existing proof-carrying selection certificate
+   path.
 2. Model ceiling-fee rounding in Lean to replace the production empirical
    `2L + 2` and `3L + 2` constants with checked lemmas.
 3. Turn the fixed-order no-gain evidence into a precise game definition before

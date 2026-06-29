@@ -66,6 +66,15 @@ F(a1, a2) = f_0(c0*a1) + f_1(c1*a2) + f_2(c2*(D - a1 - a2))
 - Identity-stable full-list presentation bridges add explicit pool identities,
   require distinct active/remainder identities, erase identities into the
   existing ordered-index constructors, and preserve permutation after erasure.
+- Id-ordered full-list presentation bridges carry a proof that stable identities
+  are strictly increasing by index, derive selected identity distinctness from
+  that global order, and consume the identity-stable certificate constructors.
+- A stable-id sorted-output certificate bridge ties an arbitrary input List to
+  an id-ordered representative by a permutation proof, then consumes the same
+  id-ordered certificate constructors.
+- An executable stable-id merge-sort bridge proves that arbitrary identified
+  input Lists with unique stable ids deterministically sort by id into the
+  sorted-output certificate path.
 - An active-before-remainder arbitrary-index decomposition bridge reconstructs
   a full List from `take`/`drop` slices when the active index is strictly before
   the remainder index.
@@ -81,7 +90,7 @@ F(a1, a2) = f_0(c0*a1) + f_1(c1*a2) + f_2(c2*(D - a1 - a2))
   and then the selected remainder pool from an undecomposed full List leaves
   exactly the fixed non-moving slices for both selected-pair orders.
 - The remaining full K theorem still needs unordered collection
-  canonicalization and Finset/Multiset quotient infrastructure.
+  quotient/canonicalization infrastructure for Finset/Multiset presentations.
 - This does NOT prove joint concavity (Hessian negative definite) or the full
   arbitrary-index all-K theorem.
 - Same continuous-vs-discrete scope as CpmmSplitConcavity.lean
@@ -93,6 +102,7 @@ Zero errors, zero warnings, zero placeholders.
 -/
 
 import Mathlib.Tactic
+import Mathlib.Data.List.Sort
 import Proofs.CpmmSplitConcavity
 
 /-- The 3-pool continuous split function.
@@ -1316,6 +1326,561 @@ theorem splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_identifiedR
     (cert := unorderedSelectionCertificateOfIdentifiedRemainderBeforeActiveCont sel)
     D a h hKj hMj hcj hKr hMr hcr hh h_denomj h_denomr_base
 
+/-- A full-list identified presentation whose stable identities are already
+    strictly ordered by index.
+
+    This is a proof-carrying presentation boundary. It does not sort an
+    arbitrary unordered collection; it certifies that the supplied full List is
+    already in stable-id order. -/
+structure IdOrderedIdentifiedPoolPresentationCont where
+  pools : List IdentifiedFixedPoolTermCont
+  ids_strict :
+    ∀ {i j : Nat} (hi : i < pools.length) (hj : j < pools.length),
+      i < j → (pools[i]'hi).id < (pools[j]'hj).id
+
+/-- In an id-ordered presentation, two different indices cannot name the same
+    stable pool identity. -/
+theorem idOrderedIdentifiedPoolPresentation_ids_distinct
+    (pres : IdOrderedIdentifiedPoolPresentationCont) {i j : Nat}
+    (hi : i < pres.pools.length) (hj : j < pres.pools.length) (hij : i ≠ j) :
+    (pres.pools[i]'hi).id ≠ (pres.pools[j]'hj).id := by
+  rcases lt_or_gt_of_ne hij with hlt | hgt
+  · exact ne_of_lt (pres.ids_strict hi hj hlt)
+  · exact (ne_of_lt (pres.ids_strict hj hi hgt)).symm
+
+/-- Active-before-remainder selection derived from an id-ordered presentation.
+
+    The selected identity inequality is derived from the global stable-id order
+    instead of being supplied as a separate local check. -/
+def identifiedActiveBeforeRemainderSelectionOfIdOrderedCont
+    (pres : IdOrderedIdentifiedPoolPresentationCont) {i j : Nat}
+    (hij : i < j) (hj : j < pres.pools.length) :
+    IdentifiedActiveBeforeRemainderSelectionCont where
+  pools := pres.pools
+  activeIndex := i
+  remainderIndex := j
+  ordered := hij
+  remainder_lt := hj
+  ids_distinct := by
+    exact ne_of_lt (pres.ids_strict (lt_trans hij hj) hj hij)
+
+/-- Remainder-before-active selection derived from an id-ordered presentation. -/
+def identifiedRemainderBeforeActiveSelectionOfIdOrderedCont
+    (pres : IdOrderedIdentifiedPoolPresentationCont) {j i : Nat}
+    (hji : j < i) (hi : i < pres.pools.length) :
+    IdentifiedRemainderBeforeActiveSelectionCont where
+  pools := pres.pools
+  remainderIndex := j
+  activeIndex := i
+  ordered := hji
+  active_lt := hi
+  ids_distinct := by
+    exact (ne_of_lt (pres.ids_strict (lt_trans hji hi) hi hji)).symm
+
+/-- Build a proof-carrying selection certificate from an id-ordered
+    active-before-remainder presentation. -/
+def unorderedSelectionCertificateOfIdOrderedActiveBeforeRemainderCont
+    (pres : IdOrderedIdentifiedPoolPresentationCont) {i j : Nat}
+    (hij : i < j) (hj : j < pres.pools.length) :
+    UnorderedSelectionCertificateCont :=
+  unorderedSelectionCertificateOfIdentifiedActiveBeforeRemainderCont
+    (identifiedActiveBeforeRemainderSelectionOfIdOrderedCont pres hij hj)
+
+/-- Build a proof-carrying selection certificate from an id-ordered
+    remainder-before-active presentation. -/
+def unorderedSelectionCertificateOfIdOrderedRemainderBeforeActiveCont
+    (pres : IdOrderedIdentifiedPoolPresentationCont) {j i : Nat}
+    (hji : j < i) (hi : i < pres.pools.length) :
+    UnorderedSelectionCertificateCont :=
+  unorderedSelectionCertificateOfIdentifiedRemainderBeforeActiveCont
+    (identifiedRemainderBeforeActiveSelectionOfIdOrderedCont pres hji hi)
+
+/-- The id-ordered active-before constructor composes with the
+    certificate-consumption concavity theorem. -/
+theorem splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_idOrderedActiveBeforeRemainder
+    (pres : IdOrderedIdentifiedPoolPresentationCont) {i j : Nat}
+    (hij : i < j) (hj : j < pres.pools.length) (D a h : ℝ)
+    (hKj :
+      (unorderedSelectionCertificateOfIdOrderedActiveBeforeRemainderCont
+        pres hij hj).active.K > 0)
+    (hMj :
+      (unorderedSelectionCertificateOfIdOrderedActiveBeforeRemainderCont
+        pres hij hj).active.M > 0)
+    (hcj :
+      (unorderedSelectionCertificateOfIdOrderedActiveBeforeRemainderCont
+        pres hij hj).active.c > 0)
+    (hKr :
+      (unorderedSelectionCertificateOfIdOrderedActiveBeforeRemainderCont
+        pres hij hj).remainder.K > 0)
+    (hMr :
+      (unorderedSelectionCertificateOfIdOrderedActiveBeforeRemainderCont
+        pres hij hj).remainder.M > 0)
+    (hcr :
+      (unorderedSelectionCertificateOfIdOrderedActiveBeforeRemainderCont
+        pres hij hj).remainder.c > 0)
+    (hh : h > 0)
+    (h_denomj :
+      (unorderedSelectionCertificateOfIdOrderedActiveBeforeRemainderCont
+        pres hij hj).active.M +
+        (unorderedSelectionCertificateOfIdOrderedActiveBeforeRemainderCont
+          pres hij hj).active.c * a > 0)
+    (h_denomr_base :
+      (unorderedSelectionCertificateOfIdOrderedActiveBeforeRemainderCont
+        pres hij hj).remainder.M +
+        (unorderedSelectionCertificateOfIdOrderedActiveBeforeRemainderCont
+          pres hij hj).remainder.c *
+          (D -
+            fixedPoolInputSumCont
+              (unorderedSelectionCertificateOfIdOrderedActiveBeforeRemainderCont
+                pres hij hj).fixed -
+            a - 2*h) > 0) :
+    secondDiff
+      (splitFunctionUnorderedSelectionCertCoordSliceCont
+        (unorderedSelectionCertificateOfIdOrderedActiveBeforeRemainderCont
+          pres hij hj) D)
+      a h < 0 :=
+  splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_identifiedActiveBeforeRemainder
+    (identifiedActiveBeforeRemainderSelectionOfIdOrderedCont pres hij hj)
+    D a h hKj hMj hcj hKr hMr hcr hh h_denomj h_denomr_base
+
+/-- The id-ordered remainder-before constructor composes with the
+    certificate-consumption concavity theorem. -/
+theorem splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_idOrderedRemainderBeforeActive
+    (pres : IdOrderedIdentifiedPoolPresentationCont) {j i : Nat}
+    (hji : j < i) (hi : i < pres.pools.length) (D a h : ℝ)
+    (hKj :
+      (unorderedSelectionCertificateOfIdOrderedRemainderBeforeActiveCont
+        pres hji hi).active.K > 0)
+    (hMj :
+      (unorderedSelectionCertificateOfIdOrderedRemainderBeforeActiveCont
+        pres hji hi).active.M > 0)
+    (hcj :
+      (unorderedSelectionCertificateOfIdOrderedRemainderBeforeActiveCont
+        pres hji hi).active.c > 0)
+    (hKr :
+      (unorderedSelectionCertificateOfIdOrderedRemainderBeforeActiveCont
+        pres hji hi).remainder.K > 0)
+    (hMr :
+      (unorderedSelectionCertificateOfIdOrderedRemainderBeforeActiveCont
+        pres hji hi).remainder.M > 0)
+    (hcr :
+      (unorderedSelectionCertificateOfIdOrderedRemainderBeforeActiveCont
+        pres hji hi).remainder.c > 0)
+    (hh : h > 0)
+    (h_denomj :
+      (unorderedSelectionCertificateOfIdOrderedRemainderBeforeActiveCont
+        pres hji hi).active.M +
+        (unorderedSelectionCertificateOfIdOrderedRemainderBeforeActiveCont
+          pres hji hi).active.c * a > 0)
+    (h_denomr_base :
+      (unorderedSelectionCertificateOfIdOrderedRemainderBeforeActiveCont
+        pres hji hi).remainder.M +
+        (unorderedSelectionCertificateOfIdOrderedRemainderBeforeActiveCont
+          pres hji hi).remainder.c *
+          (D -
+            fixedPoolInputSumCont
+              (unorderedSelectionCertificateOfIdOrderedRemainderBeforeActiveCont
+                pres hji hi).fixed -
+            a - 2*h) > 0) :
+    secondDiff
+      (splitFunctionUnorderedSelectionCertCoordSliceCont
+        (unorderedSelectionCertificateOfIdOrderedRemainderBeforeActiveCont
+          pres hji hi) D)
+      a h < 0 :=
+  splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_identifiedRemainderBeforeActive
+    (identifiedRemainderBeforeActiveSelectionOfIdOrderedCont pres hji hi)
+    D a h hKj hMj hcj hKr hMr hcr hh h_denomj h_denomr_base
+
+/-- A proof-carrying sorted-output certificate.
+
+    The input may be any identified full List. The output must already carry
+    the id-ordered presentation proof, and `output_perm` proves that the output
+    List is a permutation representative of the input List. This proves the
+    checker contract a future deterministic stable-id sorter must satisfy; it
+    does not implement or verify the sorter itself. -/
+structure StableIdSortedPresentationCertificateCont where
+  input : List IdentifiedFixedPoolTermCont
+  output : IdOrderedIdentifiedPoolPresentationCont
+  output_perm : List.Perm output.pools input
+
+/-- A sorted-output certificate preserves the erased fixed-pool multiset. -/
+theorem stableIdSortedPresentationCertificate_erased_perm
+    (cert : StableIdSortedPresentationCertificateCont) :
+    List.Perm (identifiedPoolTermsCont cert.output.pools)
+      (identifiedPoolTermsCont cert.input) :=
+  identifiedPoolTermsCont_perm cert.output_perm
+
+/-- A sorted-output certificate exposes distinct output identities at distinct
+    output indices. -/
+theorem stableIdSortedPresentationCertificate_ids_distinct
+    (cert : StableIdSortedPresentationCertificateCont) {i j : Nat}
+    (hi : i < cert.output.pools.length) (hj : j < cert.output.pools.length)
+    (hij : i ≠ j) :
+    (cert.output.pools[i]'hi).id ≠ (cert.output.pools[j]'hj).id :=
+  idOrderedIdentifiedPoolPresentation_ids_distinct cert.output hi hj hij
+
+/-- Active-before-remainder selection derived from a proof-carrying sorted
+    representative of an arbitrary identified input List. -/
+def identifiedActiveBeforeRemainderSelectionOfStableIdSortedCertCont
+    (cert : StableIdSortedPresentationCertificateCont) {i j : Nat}
+    (hij : i < j) (hj : j < cert.output.pools.length) :
+    IdentifiedActiveBeforeRemainderSelectionCont :=
+  identifiedActiveBeforeRemainderSelectionOfIdOrderedCont cert.output hij hj
+
+/-- Remainder-before-active selection derived from a proof-carrying sorted
+    representative of an arbitrary identified input List. -/
+def identifiedRemainderBeforeActiveSelectionOfStableIdSortedCertCont
+    (cert : StableIdSortedPresentationCertificateCont) {j i : Nat}
+    (hji : j < i) (hi : i < cert.output.pools.length) :
+    IdentifiedRemainderBeforeActiveSelectionCont :=
+  identifiedRemainderBeforeActiveSelectionOfIdOrderedCont cert.output hji hi
+
+/-- Build a proof-carrying selection certificate from a stable-id sorted-output
+    certificate in active-before-remainder order. -/
+def unorderedSelectionCertificateOfStableIdSortedActiveBeforeRemainderCont
+    (cert : StableIdSortedPresentationCertificateCont) {i j : Nat}
+    (hij : i < j) (hj : j < cert.output.pools.length) :
+    UnorderedSelectionCertificateCont :=
+  unorderedSelectionCertificateOfIdOrderedActiveBeforeRemainderCont
+    cert.output hij hj
+
+/-- Build a proof-carrying selection certificate from a stable-id sorted-output
+    certificate in remainder-before-active order. -/
+def unorderedSelectionCertificateOfStableIdSortedRemainderBeforeActiveCont
+    (cert : StableIdSortedPresentationCertificateCont) {j i : Nat}
+    (hji : j < i) (hi : i < cert.output.pools.length) :
+    UnorderedSelectionCertificateCont :=
+  unorderedSelectionCertificateOfIdOrderedRemainderBeforeActiveCont
+    cert.output hji hi
+
+/-- The stable-id sorted-output active-before constructor composes with the
+    certificate-consumption concavity theorem. -/
+theorem splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdSortedActiveBeforeRemainder
+    (cert : StableIdSortedPresentationCertificateCont) {i j : Nat}
+    (hij : i < j) (hj : j < cert.output.pools.length) (D a h : ℝ)
+    (hKj :
+      (unorderedSelectionCertificateOfStableIdSortedActiveBeforeRemainderCont
+        cert hij hj).active.K > 0)
+    (hMj :
+      (unorderedSelectionCertificateOfStableIdSortedActiveBeforeRemainderCont
+        cert hij hj).active.M > 0)
+    (hcj :
+      (unorderedSelectionCertificateOfStableIdSortedActiveBeforeRemainderCont
+        cert hij hj).active.c > 0)
+    (hKr :
+      (unorderedSelectionCertificateOfStableIdSortedActiveBeforeRemainderCont
+        cert hij hj).remainder.K > 0)
+    (hMr :
+      (unorderedSelectionCertificateOfStableIdSortedActiveBeforeRemainderCont
+        cert hij hj).remainder.M > 0)
+    (hcr :
+      (unorderedSelectionCertificateOfStableIdSortedActiveBeforeRemainderCont
+        cert hij hj).remainder.c > 0)
+    (hh : h > 0)
+    (h_denomj :
+      (unorderedSelectionCertificateOfStableIdSortedActiveBeforeRemainderCont
+        cert hij hj).active.M +
+        (unorderedSelectionCertificateOfStableIdSortedActiveBeforeRemainderCont
+          cert hij hj).active.c * a > 0)
+    (h_denomr_base :
+      (unorderedSelectionCertificateOfStableIdSortedActiveBeforeRemainderCont
+        cert hij hj).remainder.M +
+        (unorderedSelectionCertificateOfStableIdSortedActiveBeforeRemainderCont
+          cert hij hj).remainder.c *
+          (D -
+            fixedPoolInputSumCont
+              (unorderedSelectionCertificateOfStableIdSortedActiveBeforeRemainderCont
+                cert hij hj).fixed -
+            a - 2*h) > 0) :
+    secondDiff
+      (splitFunctionUnorderedSelectionCertCoordSliceCont
+        (unorderedSelectionCertificateOfStableIdSortedActiveBeforeRemainderCont
+          cert hij hj) D)
+      a h < 0 :=
+  splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_idOrderedActiveBeforeRemainder
+    cert.output hij hj D a h hKj hMj hcj hKr hMr hcr hh h_denomj h_denomr_base
+
+/-- The stable-id sorted-output remainder-before constructor composes with the
+    certificate-consumption concavity theorem. -/
+theorem splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdSortedRemainderBeforeActive
+    (cert : StableIdSortedPresentationCertificateCont) {j i : Nat}
+    (hji : j < i) (hi : i < cert.output.pools.length) (D a h : ℝ)
+    (hKj :
+      (unorderedSelectionCertificateOfStableIdSortedRemainderBeforeActiveCont
+        cert hji hi).active.K > 0)
+    (hMj :
+      (unorderedSelectionCertificateOfStableIdSortedRemainderBeforeActiveCont
+        cert hji hi).active.M > 0)
+    (hcj :
+      (unorderedSelectionCertificateOfStableIdSortedRemainderBeforeActiveCont
+        cert hji hi).active.c > 0)
+    (hKr :
+      (unorderedSelectionCertificateOfStableIdSortedRemainderBeforeActiveCont
+        cert hji hi).remainder.K > 0)
+    (hMr :
+      (unorderedSelectionCertificateOfStableIdSortedRemainderBeforeActiveCont
+        cert hji hi).remainder.M > 0)
+    (hcr :
+      (unorderedSelectionCertificateOfStableIdSortedRemainderBeforeActiveCont
+        cert hji hi).remainder.c > 0)
+    (hh : h > 0)
+    (h_denomj :
+      (unorderedSelectionCertificateOfStableIdSortedRemainderBeforeActiveCont
+        cert hji hi).active.M +
+        (unorderedSelectionCertificateOfStableIdSortedRemainderBeforeActiveCont
+          cert hji hi).active.c * a > 0)
+    (h_denomr_base :
+      (unorderedSelectionCertificateOfStableIdSortedRemainderBeforeActiveCont
+        cert hji hi).remainder.M +
+        (unorderedSelectionCertificateOfStableIdSortedRemainderBeforeActiveCont
+          cert hji hi).remainder.c *
+          (D -
+            fixedPoolInputSumCont
+              (unorderedSelectionCertificateOfStableIdSortedRemainderBeforeActiveCont
+                cert hji hi).fixed -
+            a - 2*h) > 0) :
+    secondDiff
+      (splitFunctionUnorderedSelectionCertCoordSliceCont
+        (unorderedSelectionCertificateOfStableIdSortedRemainderBeforeActiveCont
+          cert hji hi) D)
+      a h < 0 :=
+  splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_idOrderedRemainderBeforeActive
+    cert.output hji hi D a h hKj hMj hcj hKr hMr hcr hh h_denomj h_denomr_base
+
+/-- Deterministically sort an identified full-list presentation by stable pool id.
+
+    Duplicate ids are not removed here. Callers that need an id-ordered
+    presentation must also provide `Nodup (pools.map IdentifiedFixedPoolTermCont.id)`. -/
+def stableIdSortedPoolsCont
+    (pools : List IdentifiedFixedPoolTermCont) : List IdentifiedFixedPoolTermCont :=
+  pools.mergeSort (fun p q => p.id ≤ q.id)
+
+/-- Stable-id merge sort preserves the identified pool multiset. -/
+theorem stableIdSortedPoolsCont_perm
+    (pools : List IdentifiedFixedPoolTermCont) :
+    List.Perm (stableIdSortedPoolsCont pools) pools := by
+  simpa [stableIdSortedPoolsCont] using
+    (List.mergeSort_perm pools (fun p q : IdentifiedFixedPoolTermCont => p.id ≤ q.id))
+
+/-- Stable-id merge sort produces nondecreasing stable identities. -/
+theorem stableIdSortedPoolsCont_pairwise_id_le
+    (pools : List IdentifiedFixedPoolTermCont) :
+    List.Pairwise
+      (fun p q : IdentifiedFixedPoolTermCont => p.id ≤ q.id)
+      (stableIdSortedPoolsCont pools) := by
+  simpa [stableIdSortedPoolsCont] using
+    (List.pairwise_mergeSort
+      (le := fun p q : IdentifiedFixedPoolTermCont => decide (p.id ≤ q.id))
+      (fun p q r hpq hqr => by
+        have hpq' : p.id ≤ q.id := by simpa using hpq
+        have hqr' : q.id ≤ r.id := by simpa using hqr
+        simpa using le_trans hpq' hqr')
+      (fun p q => by
+        rcases le_total p.id q.id with hpq | hqp
+        · simp [hpq]
+        · simp [hqp])
+      pools)
+
+/-- With unique input ids, the deterministic stable-id merge sort is strictly
+    id-ordered by output index. -/
+theorem stableIdSortedPoolsCont_ids_strict
+    (pools : List IdentifiedFixedPoolTermCont)
+    (hIds : (pools.map IdentifiedFixedPoolTermCont.id).Nodup) :
+    ∀ {i j : Nat}
+      (hi : i < (stableIdSortedPoolsCont pools).length)
+      (hj : j < (stableIdSortedPoolsCont pools).length),
+      i < j →
+        ((stableIdSortedPoolsCont pools)[i]'hi).id <
+          ((stableIdSortedPoolsCont pools)[j]'hj).id := by
+  intro i j hi hj hij
+  let sorted := stableIdSortedPoolsCont pools
+  have hPair :
+      List.Pairwise
+        (fun p q : IdentifiedFixedPoolTermCont => p.id ≤ q.id)
+        sorted := by
+    simpa [sorted] using stableIdSortedPoolsCont_pairwise_id_le pools
+  have hLe :
+      (sorted[i]'hi).id ≤ (sorted[j]'hj).id := by
+    have hFinLt : (⟨i, hi⟩ : Fin sorted.length) < ⟨j, hj⟩ := by
+      exact hij
+    simpa using
+      (List.Pairwise.rel_get_of_lt
+        (l := sorted)
+        (R := fun p q : IdentifiedFixedPoolTermCont => p.id ≤ q.id)
+        hPair hFinLt)
+  have hPermIds :
+      List.Perm (sorted.map IdentifiedFixedPoolTermCont.id)
+        (pools.map IdentifiedFixedPoolTermCont.id) := by
+    simpa [sorted] using
+      (List.Perm.map IdentifiedFixedPoolTermCont.id
+        (stableIdSortedPoolsCont_perm pools))
+  have hSortedIds : (sorted.map IdentifiedFixedPoolTermCont.id).Nodup :=
+    hPermIds.nodup_iff.2 hIds
+  have hNe :
+      (sorted[i]'hi).id ≠ (sorted[j]'hj).id := by
+    intro hEq
+    have hMapEq :
+        (sorted.map IdentifiedFixedPoolTermCont.id)[i]'(by simpa using hi) =
+          (sorted.map IdentifiedFixedPoolTermCont.id)[j]'(by simpa using hj) := by
+      simpa using hEq
+    have hIdx : i = j :=
+      (List.Nodup.getElem_inj_iff hSortedIds).mp hMapEq
+    exact (Nat.ne_of_lt hij) hIdx
+  exact lt_of_le_of_ne hLe hNe
+
+/-- The executable stable-id merge-sort presentation. The no-duplicate-id
+    precondition is the boundary check that rejects ambiguous stable identities. -/
+def stableIdMergeSortPresentationCont
+    (pools : List IdentifiedFixedPoolTermCont)
+    (hIds : (pools.map IdentifiedFixedPoolTermCont.id).Nodup) :
+    IdOrderedIdentifiedPoolPresentationCont where
+  pools := stableIdSortedPoolsCont pools
+  ids_strict := stableIdSortedPoolsCont_ids_strict pools hIds
+
+/-- The executable stable-id merge-sort certificate over an arbitrary identified
+    input List with unique stable ids. -/
+def stableIdMergeSortPresentationCertificateCont
+    (pools : List IdentifiedFixedPoolTermCont)
+    (hIds : (pools.map IdentifiedFixedPoolTermCont.id).Nodup) :
+    StableIdSortedPresentationCertificateCont where
+  input := pools
+  output := stableIdMergeSortPresentationCont pools hIds
+  output_perm := stableIdSortedPoolsCont_perm pools
+
+/-- The executable stable-id merge-sort certificate preserves the erased
+    fixed-pool multiset. -/
+theorem stableIdMergeSortPresentationCertificate_erased_perm
+    (pools : List IdentifiedFixedPoolTermCont)
+    (hIds : (pools.map IdentifiedFixedPoolTermCont.id).Nodup) :
+    List.Perm
+      (identifiedPoolTermsCont
+        (stableIdMergeSortPresentationCertificateCont pools hIds).output.pools)
+      (identifiedPoolTermsCont pools) :=
+  stableIdSortedPresentationCertificate_erased_perm
+    (stableIdMergeSortPresentationCertificateCont pools hIds)
+
+/-- Build a proof-carrying selection certificate from the executable stable-id
+    merge-sort bridge in active-before-remainder order. -/
+def unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+    (pools : List IdentifiedFixedPoolTermCont)
+    (hIds : (pools.map IdentifiedFixedPoolTermCont.id).Nodup)
+    {i j : Nat}
+    (hij : i < j) (hj : j < (stableIdSortedPoolsCont pools).length) :
+    UnorderedSelectionCertificateCont :=
+  unorderedSelectionCertificateOfStableIdSortedActiveBeforeRemainderCont
+    (stableIdMergeSortPresentationCertificateCont pools hIds) hij hj
+
+/-- Build a proof-carrying selection certificate from the executable stable-id
+    merge-sort bridge in remainder-before-active order. -/
+def unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+    (pools : List IdentifiedFixedPoolTermCont)
+    (hIds : (pools.map IdentifiedFixedPoolTermCont.id).Nodup)
+    {j i : Nat}
+    (hji : j < i) (hi : i < (stableIdSortedPoolsCont pools).length) :
+    UnorderedSelectionCertificateCont :=
+  unorderedSelectionCertificateOfStableIdSortedRemainderBeforeActiveCont
+    (stableIdMergeSortPresentationCertificateCont pools hIds) hji hi
+
+/-- The executable stable-id merge-sort active-before constructor composes with
+    the certificate-consumption concavity theorem. -/
+theorem splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdMergeSortActiveBeforeRemainder
+    (pools : List IdentifiedFixedPoolTermCont)
+    (hIds : (pools.map IdentifiedFixedPoolTermCont.id).Nodup)
+    {i j : Nat}
+    (hij : i < j) (hj : j < (stableIdSortedPoolsCont pools).length) (D a h : ℝ)
+    (hKj :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        pools hIds hij hj).active.K > 0)
+    (hMj :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        pools hIds hij hj).active.M > 0)
+    (hcj :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        pools hIds hij hj).active.c > 0)
+    (hKr :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        pools hIds hij hj).remainder.K > 0)
+    (hMr :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        pools hIds hij hj).remainder.M > 0)
+    (hcr :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        pools hIds hij hj).remainder.c > 0)
+    (hh : h > 0)
+    (h_denomj :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        pools hIds hij hj).active.M +
+        (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+          pools hIds hij hj).active.c * a > 0)
+    (h_denomr_base :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        pools hIds hij hj).remainder.M +
+        (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+          pools hIds hij hj).remainder.c *
+          (D -
+            fixedPoolInputSumCont
+              (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+                pools hIds hij hj).fixed -
+            a - 2*h) > 0) :
+    secondDiff
+      (splitFunctionUnorderedSelectionCertCoordSliceCont
+        (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+          pools hIds hij hj) D)
+      a h < 0 :=
+  splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdSortedActiveBeforeRemainder
+    (stableIdMergeSortPresentationCertificateCont pools hIds)
+    hij hj D a h hKj hMj hcj hKr hMr hcr hh h_denomj h_denomr_base
+
+/-- The executable stable-id merge-sort remainder-before constructor composes
+    with the certificate-consumption concavity theorem. -/
+theorem splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdMergeSortRemainderBeforeActive
+    (pools : List IdentifiedFixedPoolTermCont)
+    (hIds : (pools.map IdentifiedFixedPoolTermCont.id).Nodup)
+    {j i : Nat}
+    (hji : j < i) (hi : i < (stableIdSortedPoolsCont pools).length) (D a h : ℝ)
+    (hKj :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        pools hIds hji hi).active.K > 0)
+    (hMj :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        pools hIds hji hi).active.M > 0)
+    (hcj :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        pools hIds hji hi).active.c > 0)
+    (hKr :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        pools hIds hji hi).remainder.K > 0)
+    (hMr :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        pools hIds hji hi).remainder.M > 0)
+    (hcr :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        pools hIds hji hi).remainder.c > 0)
+    (hh : h > 0)
+    (h_denomj :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        pools hIds hji hi).active.M +
+        (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+          pools hIds hji hi).active.c * a > 0)
+    (h_denomr_base :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        pools hIds hji hi).remainder.M +
+        (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+          pools hIds hji hi).remainder.c *
+          (D -
+            fixedPoolInputSumCont
+              (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+                pools hIds hji hi).fixed -
+            a - 2*h) > 0) :
+    secondDiff
+      (splitFunctionUnorderedSelectionCertCoordSliceCont
+        (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+          pools hIds hji hi) D)
+      a h < 0 :=
+  splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdSortedRemainderBeforeActive
+    (stableIdMergeSortPresentationCertificateCont pools hIds)
+    hji hi D a h hKj hMj hcj hKr hMr hcr hh h_denomj h_denomr_base
+
 /-- A concrete 4-pool split function used as a K > 3 checkpoint for the
     coordinate-slice theorem. -/
 noncomputable def splitFunction4PoolCont
@@ -1479,7 +2044,35 @@ theorem splitFunction5PoolCont_concave_coord3
 -- `splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_identifiedActiveBeforeRemainder`,
 -- and `splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_identifiedRemainderBeforeActive`
 -- add an identity-stable full-list presentation bridge for duplicate-valued
--- pools. `splitFunctionSelectedListCoordSliceCont_concave` plus
+-- pools. `IdOrderedIdentifiedPoolPresentationCont`,
+-- `idOrderedIdentifiedPoolPresentation_ids_distinct`,
+-- `unorderedSelectionCertificateOfIdOrderedActiveBeforeRemainderCont`,
+-- `unorderedSelectionCertificateOfIdOrderedRemainderBeforeActiveCont`,
+-- `splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_idOrderedActiveBeforeRemainder`,
+-- and `splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_idOrderedRemainderBeforeActive`
+-- add a supplied stable-id ordered full-list presentation bridge.
+-- `StableIdSortedPresentationCertificateCont`,
+-- `stableIdSortedPresentationCertificate_erased_perm`,
+-- `stableIdSortedPresentationCertificate_ids_distinct`,
+-- `unorderedSelectionCertificateOfStableIdSortedActiveBeforeRemainderCont`,
+-- `unorderedSelectionCertificateOfStableIdSortedRemainderBeforeActiveCont`,
+-- `splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdSortedActiveBeforeRemainder`,
+-- and `splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdSortedRemainderBeforeActive`
+-- add a proof-carrying sorted-output certificate bridge from an arbitrary
+-- identified input List to a supplied id-ordered permutation representative.
+-- `stableIdSortedPoolsCont`, `stableIdSortedPoolsCont_perm`,
+-- `stableIdSortedPoolsCont_pairwise_id_le`,
+-- `stableIdSortedPoolsCont_ids_strict`,
+-- `stableIdMergeSortPresentationCont`,
+-- `stableIdMergeSortPresentationCertificateCont`,
+-- `stableIdMergeSortPresentationCertificate_erased_perm`,
+-- `unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont`,
+-- `unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont`,
+-- `splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdMergeSortActiveBeforeRemainder`,
+-- and `splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdMergeSortRemainderBeforeActive`
+-- add an executable stable-id merge-sort bridge for arbitrary identified input
+-- Lists with unique stable ids.
+-- `splitFunctionSelectedListCoordSliceCont_concave` plus
 -- `splitFunctionSelectedListOrderedCoordSliceCont_concave` prove explicit
 -- selected-list decomposition witness bridges, including both active/remainder
 -- orders. `selectedFullPoolListCont_eq_take_drop_of_lt` proves the
@@ -1502,7 +2095,7 @@ theorem splitFunction5PoolCont_concave_coord3
 -- `splitFunction4PoolCont_concave_coord2` plus
 -- `splitFunction5PoolCont_concave_coord3` check concrete K > 3 instances.
 -- The remaining full K theorem still needs unordered collection
--- canonicalization and Finset/Multiset quotient infrastructure.
+-- quotient/canonicalization infrastructure for Finset/Multiset presentations.
 --
 -- **Non-claim**: This is an INFORMAL NOTE, not a checked theorem. The formal
 -- checked theorems above cover k = 3 (coordinates 1 and 2), the abstract
@@ -1512,9 +2105,11 @@ theorem splitFunction5PoolCont_concave_coord3
 -- index-witness plus active/remainder removal facts for those explicit
 -- decompositions, and active-before-remainder plus remainder-before-active
 -- arbitrary-index List reconstruction, removal, certificate-constructor, and
--- identity-stable presentation bridges. The full all-k top-level theorem still
--- requires deterministic unordered canonicalization and Finset/Multiset
--- quotient infrastructure. Do NOT cite this as a formal all-k proof.
+-- identity-stable, id-ordered presentation, stable-id sorted-output
+-- certificate, and executable stable-id merge-sort List bridges. The full
+-- all-k top-level theorem still requires unordered collection
+-- quotient/canonicalization infrastructure for Finset/Multiset presentations.
+-- Do NOT cite this as a formal all-k proof.
 --
 -- The formal checked results are splitFunction3PoolCont_concave_coord1
 -- and splitFunction3PoolCont_concave_coord2 (3-pool, both coordinates),
@@ -1545,6 +2140,34 @@ theorem splitFunction5PoolCont_concave_coord3
 -- unorderedSelectionCertificateOfIdentifiedRemainderBeforeActiveCont,
 -- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_identifiedActiveBeforeRemainder,
 -- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_identifiedRemainderBeforeActive,
+-- IdOrderedIdentifiedPoolPresentationCont,
+-- idOrderedIdentifiedPoolPresentation_ids_distinct,
+-- identifiedActiveBeforeRemainderSelectionOfIdOrderedCont,
+-- identifiedRemainderBeforeActiveSelectionOfIdOrderedCont,
+-- unorderedSelectionCertificateOfIdOrderedActiveBeforeRemainderCont,
+-- unorderedSelectionCertificateOfIdOrderedRemainderBeforeActiveCont,
+-- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_idOrderedActiveBeforeRemainder,
+-- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_idOrderedRemainderBeforeActive,
+-- StableIdSortedPresentationCertificateCont,
+-- stableIdSortedPresentationCertificate_erased_perm,
+-- stableIdSortedPresentationCertificate_ids_distinct,
+-- identifiedActiveBeforeRemainderSelectionOfStableIdSortedCertCont,
+-- identifiedRemainderBeforeActiveSelectionOfStableIdSortedCertCont,
+-- unorderedSelectionCertificateOfStableIdSortedActiveBeforeRemainderCont,
+-- unorderedSelectionCertificateOfStableIdSortedRemainderBeforeActiveCont,
+-- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdSortedActiveBeforeRemainder,
+-- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdSortedRemainderBeforeActive,
+-- stableIdSortedPoolsCont,
+-- stableIdSortedPoolsCont_perm,
+-- stableIdSortedPoolsCont_pairwise_id_le,
+-- stableIdSortedPoolsCont_ids_strict,
+-- stableIdMergeSortPresentationCont,
+-- stableIdMergeSortPresentationCertificateCont,
+-- stableIdMergeSortPresentationCertificate_erased_perm,
+-- unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont,
+-- unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont,
+-- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdMergeSortActiveBeforeRemainder,
+-- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdMergeSortRemainderBeforeActive,
 -- selectedFullPoolListCont_eq_take_drop_of_lt,
 -- selectedFullPoolListOrderedCont_remainderBeforeActive_eq_take_drop_of_lt,
 -- selectedActiveIndexOrderedCont_lt,
