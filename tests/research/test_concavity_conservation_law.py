@@ -42,12 +42,12 @@ def test_cpmm_conservation_tradeoff(mod) -> None:
     mod.test_cpmm_conservation_tradeoff()
 
 
-def test_adversarial_gain_bound_lipschitz(mod) -> None:
-    mod.test_adversarial_gain_bound_lipschitz()
+def test_stateful_gain_lipschitz_envelope_empirical(mod) -> None:
+    mod.test_stateful_gain_lipschitz_envelope_empirical()
 
 
-def test_adversarial_gain_bound_concavity_small_trades(mod) -> None:
-    mod.test_adversarial_gain_bound_concavity_small_trades()
+def test_concavity_bound_falsified_small_trades(mod) -> None:
+    mod.test_concavity_bound_falsified_small_trades()
 
 
 def test_concavity_bound_fails_large_trades(mod) -> None:

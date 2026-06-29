@@ -1,63 +1,36 @@
 /-
-# Concavity Conservation Law: Unified Algorithm-Security Parameter
+# CPMM Window Algebra and Generic Lipschitz Increment
 
-This file proves the abstract conservation law that unifies the algorithm
-window bound (Phase 3D) with the security bound (Phase 5A): the curvature
-of the CPMM output function governs BOTH the discrete search window size
-AND the adversarial gain bound.
+This file proves two algebraic identities and one generic Lipschitz increment.
+It does NOT prove a conservation law, a product frontier, a monotonicity
+result, or any theorem connecting the Lipschitz increment to the stateful
+CPMM attack gain. The stateful attack side is empirical only and lives in
+the Python test suite.
 
-## The Conservation Law
+## What Is Proven Here
 
-For a concave CPMM output function `f(x) = K*x/(M+x)`:
+1. `cpmm_concavity_param_formula`: algebraic identity `2*K/M^2 = 2*(K/M)/M`.
+2. `cpmm_window_M_relationship`: algebraic identity `sqrt(2*L/m) = sqrt(M)`
+   when `L = K/M` and `m = 2*K/M^2`. This is the epsilon=0 case. The
+   production argmax window is `sqrt(2*(L+ε)/m)` (see DiscreteArgmaxProximity),
+   which is strictly larger when ε > 0.
+3. `lipschitz_increment_bound`: for any L-Lipschitz function f,
+   `f(a_A) - f(0) <= L * a_A`. This is a generic single-input increment
+   theorem. It does NOT bound the stateful CPMM attack gain
+   `out_B_without_A - out_B_with_A`, which involves a pool state change
+   (M -> M + a_A*gamma) and is a different quantity.
 
-**Algorithm side** (from `DiscreteArgmaxProximity.lean`, Theorem 5):
-  `window = sqrt(2 * (L + ε) / m)` where `m` is the strong concavity parameter
-  (minimum |f''(x)| over the domain, taken as EXTERNAL hypothesis).
-  Smaller `m` → larger window → slower search.
+## What Is NOT Proven Here
 
-**Security side** (from Phase 5A adversarial analysis, EMPIRICAL):
-  `adversarial_gain <= |f''(0)| * a_attacker * a_victim`
-  where |f''(0)| = 2*K/M^2 is the MAXIMUM curvature (at the margin).
-  NOTE: The empirical test uses |f''(0)| (max curvature), NOT m (min curvature).
-  Since |f''(0)| >= m, this is a more conservative for an upper bound bound than using m.
-  This is an EMPIRICAL observation, not a formal Lean theorem.
-
-**Conservation**: Both bounds depend on the curvature of f. There is
-a fundamental tradeoff: pools with small curvature (deep, well-funded) are
-secure but require larger search windows; pools with large curvature (shallow)
-are fast to search but more vulnerable to adversarial extraction.
-
-## The Tradeoff Frontier
-
-For CPMM `f(x) = K*x/(M+x)`:
-  `f''(x) = -2*K*M / (M+x)^3`
-  At the margin (x = 0): `|f''(0)| = 2*K / M^2 = 2 * spot_price / M`
-  Over domain [0, x_max]: `m = min |f''(x)| = 2*K*M / (M + x_max)^3`
-
-So curvature ~ L / M where `L = K/M` is the spot price (Lipschitz constant).
-
-The tradeoff frontier is:
-  `window * adversarial_gain ~ sqrt(2*L/m) * |f''(0)| * a_A * a_B`
-  `                      ~ sqrt(2*L*m_0/m) * m_0 * a_A * a_B / 2`
-  `                      ~ sqrt(2*L * L/M) * a_A * a_B / 2`
-  `                      ~ L * sqrt(2/M) * a_A * a_B / 2`
-
-The formal Lipschitz product does not by itself decrease with M. The empirical
-stateful attack gain decreases with pool depth, while the formal search window
-increases with depth. Pool depth M is therefore the shared parameter governing
-the algorithm-security tradeoff, but the security side is an empirical
-stateful-gain observation in this file, not a formal product theorem.
-
-## Impact
-
-This unifies two previously-separate concerns under a single quantity `m`:
-1. Algorithm design: window size for ternary search DP
-2. Mechanism design: collusion/sandwich attack bounds
-
-Production implication: the min_out cap mitigation (Phase 5A) and the
-adaptive window (Phase 3D) are not independent fixes — they are both
-consequences of the same concavity structure. A single pool-depth
-parameter `M` governs both.
+- No conservation law: there is no theorem linking the window size to the
+  adversarial gain via a shared product or frontier.
+- No monotonicity: no theorem states that gain decreases with M.
+- No stateful attack bound: the Lipschitz increment `f(a_A)-f(0)` is a
+  different quantity from the stateful attack gain. The empirical test
+  suite checks `simulate_sacrifice_gain <= L*a_A` on a seeded corpus, but
+  this is empirical replay, not a Lean-proven theorem.
+- The second-order concavity approximation `(m/2)*a_A*(a_A+2*a_B)` is
+  FALSIFIED empirically and is NOT included as a theorem.
 
 ## Verification
 
@@ -71,16 +44,19 @@ import Proofs.CpmmSplitConcavity
 
 open Real
 
-/-- **Adversarial Gain Bound (Lipschitz)**: For an `L`-Lipschitz function,
-    the adversarial gain from removing `a_A` from the input is bounded by
-    `L * a_A`.
+/-- **Lipschitz Increment Bound**: For an `L`-Lipschitz function, the
+    single-input increment from `0` to `a_A` is bounded by `L * a_A`.
 
-    This is the security-side bound using the Lipschitz constant. The
-    tighter concavity-based bound `(m/2) * a_A * a_B` requires a
-    second-order lower bound on `f` that is not available from the
-    abstract Lipschitz hypothesis alone; it is verified empirically in
-    `docs/research/concavity_bounded_adversarial_test.py`. -/
-theorem adversarial_gain_bound_lipschitz
+    This is a generic single-input increment theorem. It does NOT bound the
+    stateful CPMM attack gain `out_B_without_A - out_B_with_A`, which involves
+    a pool state change and is a different quantity. The empirical test suite
+    checks the stateful gain against `L*a_A` on a seeded corpus, but that
+    bridge is empirical, not formalized here.
+
+    The second-order concavity expression `(m/2) * a_A * (a_A + 2*a_B)` is
+    not included as a theorem because the stateful-attack empirical suite
+    falsifies it as a universal bound. -/
+theorem lipschitz_increment_bound
     (f : ℝ → ℝ) (L a_A : ℝ)
     (hL : L ≥ 0) (hA : a_A ≥ 0)
     (h_lipschitz : ∀ x y : ℝ, |f x - f y| ≤ L * |x - y|)
@@ -99,20 +75,17 @@ theorem adversarial_gain_bound_lipschitz
 
 /- ## Scope Note: What This Theorem Proves vs What It Does NOT Prove
 
-   `adversarial_gain_bound_lipschitz` proves a GENERIC Lipschitz increment:
+   `lipschitz_increment_bound` proves a GENERIC Lipschitz increment:
    `f(a_A) - f(0) <= L * a_A` for any L-Lipschitz function f.
 
    It does NOT prove that the actual stateful CPMM attack gain
    `out_B_without_A - out_B_with_A` is bounded by `L * a_A`.
    The connection between the Lipschitz increment and the stateful
    attack gain is verified EMPIRICALLY in `concavity_conservation_law_test.py`,
-   not formalized in Lean. A high-assurance version would need a lemma
-   connecting the CPMM attack gain to the Lipschitz increment under
-   the exact continuous or rounded model.
+   not formalized in Lean.
 
    The concavity-based gain bound `(m/2)*a_A*(a_A+2*a_B)` is FALSIFIED
-   empirically (ratio up to 1.82x) and is NOT included as a Lean theorem.
-   The Lipschitz bound is the only universal bound proven here. -/
+   empirically (ratio up to 1.82x) and is NOT included as a Lean theorem. -/
 
 /-- **CPMM Concavity Parameter Formula**: For `f(x) = K*x/(M+x)`,
     the strong concavity parameter at the margin (x = 0) is:
@@ -127,21 +100,19 @@ lemma cpmm_concavity_param_formula
     : 2 * K / M^2 = 2 * (K / M) / M := by
   field_simp
 
-/-- **CPMM Window-M Relationship**: For CPMM with spot price `L = K/M`
-    and concavity parameter `m = 2*K/M^2`, the algorithm window
+/-- **CPMM Window-M Relationship (epsilon=0 case)**: For CPMM with spot
+    price `L = K/M` and concavity parameter `m = 2*K/M^2`, the window
     `sqrt(2*L/m)` simplifies to `sqrt(M)`.
 
-    This is an ALGEBRAIC IDENTITY, not a conservation theorem:
-    it shows that the window size equals sqrt(M) when L and m are
-    linked via the CPMM formula. It does NOT prove a monotonicity
-    result, an optimal frontier, or a connection to adversarial gain.
+    This is the epsilon=0 algebraic identity. The production argmax window
+    from `DiscreteArgmaxProximity` is `sqrt(2*(L+ε)/m)`, which is strictly
+    larger when ε > 0. This theorem proves only the epsilon=0 case.
 
-    The EMPIRICAL observation (verified in tests, not formalized in Lean)
-    is that the actual adversarial gain decreases with M, so deeper
-    pools are empirically more secure. The Lipschitz-based product
-    `sqrt(M) * L * a_A` is INCREASING in M (larger window, same gain
-    bound), NOT decreasing. The "deeper is more secure" intuition comes
-    from the actual gain behavior, not from the product of formal bounds. -/
+    This is an ALGEBRAIC IDENTITY, not a conservation theorem. It does NOT
+    prove a monotonicity result, an optimal frontier, or a connection to
+    adversarial gain. The Lipschitz product `sqrt(M) * L * a_A` is
+    INCREASING in M, NOT decreasing. The empirical observation that actual
+    stateful gain decreases with M is not formalized here. -/
 theorem cpmm_window_M_relationship
     (K M : ℝ)
     (hK : K > 0) (hM : M > 0)

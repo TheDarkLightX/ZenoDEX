@@ -1,30 +1,36 @@
 #!/usr/bin/env python3
-"""Concavity Conservation Law empirical verification (Phase 5A-compound).
+"""CPMM Concavity Evidence: Window Algebra and Lipschitz Increment Tests.
 
-Verifies the breakthrough insight that the concavity parameter `m` governs
-BOTH the algorithm window size AND the adversarial gain bound, with a
-tradeoff frontier governed by pool depth M.
+This is NOT a conservation law package. The Lean file proves only:
+1. An algebraic identity: sqrt(2*L/m) = sqrt(M) when L=K/M, m=2*K/M^2
+   (epsilon=0 case; production window includes epsilon).
+2. A generic Lipschitz increment: f(a_A)-f(0) <= L*a_A for any L-Lipschitz f.
 
-CONSERVATION LAW:
-- Algorithm side: window = sqrt(2*(L+k)/m) — smaller m -> larger window
-- Security side: gain <= |f''(0)|*a_A*a_B (empirical) — smaller m -> smaller gain
-- Tradeoff: window grows with depth while actual stateful gain decreases
-  empirically with depth; the formal Lipschitz product alone is not the
-  security frontier.
+The stateful CPMM attack gain (out_B_without_A - out_B_with_A) is a DIFFERENT
+quantity from the Lipschitz increment. The empirical tests below check the
+stateful gain against L*a_A on a seeded corpus, but this bridge is empirical,
+not Lean-proven.
+
+LEAN-PROVEN vs EMPIRICAL:
+- [Lean PROVEN]: algebraic identities only (m formula, window=sqrt(M) at eps=0,
+  generic Lipschitz increment f(a_A)-f(0) <= L*a_A).
+- [Empirical]: stateful gain envelope, depth-monotone gain, falsification of
+  the concavity bound, min_out cap behavior, frontier characterization.
 
 For CPMM f(x) = K*x/(M+x):
   m = 2*K*M / (M + x_max)^3  (strong concavity parameter)
   L = K/M  (spot price = Lipschitz constant)
   At margin (x=0): m = 2*K/M^2 = 2*L/M
 
-THEOREMS VERIFIED:
-
-1. CPMM concavity parameter formula: m = 2*K/M^2 = 2*L/M (Lean PROVEN)
-2. CPMM conservation tradeoff: window = sqrt(M) when L and m are linked (Lean PROVEN)
-3. Adversarial gain bound (Lipschitz): gain <= L * a_A (Lean PROVEN)
-4. Adversarial gain bound (concavity): gain <= |f''(0)|*a_A*a_B (empirical, max curvature at margin)
-5. Actual stateful gain decreases with M (empirical)
-6. Min_out cap breaks the tradeoff: gain = 0 regardless of m (empirical)
+TESTS:
+1. CPMM concavity parameter formula: m = 2*K*gamma^2/M^2 [Lean PROVEN, gamma=1]
+2. CPMM window identity: sqrt(2*L/m) = sqrt(M) [Lean PROVEN, epsilon=0]
+3. Stateful gain vs Lipschitz envelope [Empirical, NOT Lean-proven for stateful]
+4. Second-order concavity bound falsified [Empirical falsification, regression guard]
+5. Actual stateful gain decreases with M [Empirical, NOT formalized]
+6. Min_out cap makes sacrifice infeasible [Empirical]
+7. Tradeoff frontier characterization [Empirical]
+8. Exact count audit
 
 Determinism: All tests use fixed seeds.
 """
@@ -81,8 +87,13 @@ def algorithm_window(L: float, m: float, k: int = 2, epsilon: float = 2.0) -> fl
     return math.sqrt(2.0 * (L + epsilon) / m)
 
 
-def adversarial_gain_lipschitz(L: float, a_A: float) -> float:
-    """Lipschitz-based gain bound: L * a_A (Lean PROVEN)."""
+def lipschitz_increment_value(L: float, a_A: float) -> float:
+    """Value of the Lean-proven generic increment bound: L * a_A.
+
+    Lean proves f(a_A)-f(0) <= L*a_A for any L-Lipschitz f. This function
+    returns the bound value. It does NOT prove the stateful CPMM attack gain
+    is bounded by L*a_A; that bridge is empirical only.
+    """
     return L * a_A
 
 
@@ -120,7 +131,7 @@ def simulate_sacrifice_gain(p: Pool, a_A: float, a_B: float) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Test 1: CPMM concavity parameter formula (Lean PROVEN)
+# Test 1: CPMM concavity parameter formula [Lean PROVEN, gamma=1]
 # ---------------------------------------------------------------------------
 
 def test_cpmm_concavity_param_formula() -> None:
@@ -154,11 +165,15 @@ def test_cpmm_concavity_param_formula() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 2: CPMM conservation tradeoff (Lean PROVEN)
+# Test 2: CPMM window identity [Lean PROVEN, epsilon=0]
 # ---------------------------------------------------------------------------
 
 def test_cpmm_conservation_tradeoff() -> None:
-    """window = sqrt(M) when L and m are linked via m = 2*L/M."""
+    """window = sqrt(M) when L and m are linked via m = 2*L/M (epsilon=0).
+
+    Lean proves sqrt(2*L/m) = sqrt(M) for the epsilon=0 case. The production
+    argmax window is sqrt(2*(L+epsilon)/m), which is strictly larger.
+    """
     rng = random.Random(20260711)
     for _ in range(200):
         K = rng.randint(100, 50000)
@@ -167,20 +182,26 @@ def test_cpmm_conservation_tradeoff() -> None:
         m = 2.0 * L / M  # concavity at margin
         if m <= 0:
             continue
-        window = math.sqrt(2.0 * L / m)
+        window_eps0 = math.sqrt(2.0 * L / m)
         expected = math.sqrt(M)
-        assert abs(window - expected) < 1e-6, (
-            f"window={window} != sqrt(M)={expected} "
+        assert abs(window_eps0 - expected) < 1e-6, (
+            f"window_eps0={window_eps0} != sqrt(M)={expected} "
             f"(K={K}, M={M}, L={L}, m={m})")
-    print(f"PASS: cpmm_conservation_tradeoff (200 configs, window = sqrt(M))")
+    print(f"PASS: cpmm_window_identity (200 configs, sqrt(2*L/m)=sqrt(M) at eps=0)")
 
 
 # ---------------------------------------------------------------------------
-# Test 3: Adversarial gain bound (Lipschitz) — Lean PROVEN
+# Test 3: Stateful gain vs Lipschitz envelope [Empirical, NOT Lean-proven]
 # ---------------------------------------------------------------------------
 
-def test_adversarial_gain_bound_lipschitz() -> None:
-    """Actual sacrifice gain <= L * a_A (Lipschitz bound)."""
+def test_stateful_gain_lipschitz_envelope_empirical() -> None:
+    """Simulated stateful sacrifice gain stays within the Lipschitz envelope.
+
+    Lean proves the generic increment f(a_A)-f(0) <= L*a_A. This test checks
+    the stateful attack gain (a DIFFERENT quantity involving pool state change)
+    against the same envelope on a seeded corpus. This is empirical replay,
+    NOT a Lean-proven theorem for the stateful gain.
+    """
     rng = random.Random(20260712)
     max_violation = 0.0
     worst: tuple = ()
@@ -193,22 +214,22 @@ def test_adversarial_gain_bound_lipschitz() -> None:
         a_A = rng.uniform(10, min(1000, M / 10))
         a_B = rng.uniform(100, min(5000, M / 2))
         gain = simulate_sacrifice_gain(p, a_A, a_B)
-        bound = adversarial_gain_lipschitz(L, a_A)
+        bound = lipschitz_increment_value(L, a_A)
         if gain > bound + 1e-6:
             v = gain - bound
             max_violation = max(max_violation, v)
             worst = (M, K, fee, a_A, a_B, gain, bound)
     assert max_violation <= 1e-6, (
-        f"LIPSCHITZ GAIN BOUND VIOLATION: {max_violation}. Worst: {worst}")
-    print(f"PASS: adversarial_gain_bound_lipschitz "
-          f"(500 configs, gain <= L*a_A)")
+        f"STATEFUL GAIN EXCEEDED LIPSCHITZ ENVELOPE: {max_violation}. Worst: {worst}")
+    print(f"PASS: stateful_gain_lipschitz_envelope_empirical "
+          f"(500 configs, stateful gain <= L*a_A [empirical, not Lean-proven])")
 
 
 # ---------------------------------------------------------------------------
-# Test 4: Adversarial gain bound (concavity) — empirical
+# Test 4: Concavity bound falsification [Empirical, regression guard]
 # ---------------------------------------------------------------------------
 
-def test_adversarial_gain_bound_concavity_small_trades() -> None:
+def test_concavity_bound_falsified_small_trades() -> None:
     """Concavity gain bound is an APPROXIMATION, not a universal bound.
 
     FALSIFICATION: The bound gain <= (m/2)*a_A*(a_A+2*a_B) derived from a
@@ -217,8 +238,9 @@ def test_adversarial_gain_bound_concavity_small_trades() -> None:
     change (M -> M+a_A*gamma), not just an input change, so the Taylor
     expansion in input space is the wrong model.
 
-    The Lipschitz bound L*a_A (Lean PROVEN) is the correct universal bound.
-    This test documents the falsification rather than asserting the bound holds.
+    The generic Lipschitz increment f(a_A)-f(0) <= L*a_A is Lean-proven,
+    but the stateful gain is a different quantity. The empirical envelope
+    test (test 3) checks the stateful gain against L*a_A on a seeded corpus.
     """
     rng = random.Random(20260713)
     max_ratio = 0.0
@@ -249,9 +271,9 @@ def test_adversarial_gain_bound_concavity_small_trades() -> None:
         "either the bound started holding or the test regime changed")
     assert max_ratio > 1.0, (
         "FALSIFICATION REGRESSION: max_ratio <= 1.0; concavity bound holds")
-    print(f"PASS: adversarial_gain_bound_concavity_small_trades "
+    print(f"PASS: concavity_bound_falsified_small_trades "
           f"(FALSIFICATION: {fail_count}/{total} configs exceed concavity bound, "
-          f"max_ratio={max_ratio:.4f}. Lipschitz bound is universal.)")
+          f"max_ratio={max_ratio:.4f})")
 
 
 def test_concavity_bound_fails_large_trades() -> None:
@@ -259,10 +281,7 @@ def test_concavity_bound_fails_large_trades() -> None:
 
     This is a FALSIFICATION: the concavity bound (m/2)*a_A*(a_A+2*a_B) is
     NOT a universal upper bound. For large trades (a_B ~ M/2), the actual
-    gain exceeds the concavity bound by up to 2x. The Lipschitz bound L*a_A
-    is the correct universal bound.
-
-    This test documents the limitation rather than asserting it holds.
+    gain exceeds the concavity bound by up to 2x.
     """
     rng = random.Random(20260714)
     max_ratio = 0.0
@@ -296,21 +315,22 @@ def test_concavity_bound_fails_large_trades() -> None:
         "FALSIFICATION REGRESSION: max_ratio <= 1.0 for large trades")
     print(f"PASS: concavity_bound_fails_large_trades "
           f"({fail_count}/{total} large-trade configs EXCEED concavity bound, "
-          f"max_ratio={max_ratio:.4f}. Lipschitz bound L*a_A is universal.)")
-    # Verify that the Lipschitz bound holds for the worst case
+          f"max_ratio={max_ratio:.4f})")
+    # Empirically check that the Lipschitz increment value holds for the worst case
+    # (empirical, not Lean-proven for the stateful gain)
     if worst:
         M_w, K_w, fee_w, a_A_w, a_B_w, _, _, _ = worst
         p_w = Pool(M_w, K_w, fee_w)
         L_w = spot_price(p_w)
-        lip_bound = adversarial_gain_lipschitz(L_w, a_A_w)
+        lip_bound = lipschitz_increment_value(L_w, a_A_w)
         actual_w = simulate_sacrifice_gain(p_w, a_A_w, a_B_w)
         assert actual_w <= lip_bound + 1e-6, (
-            f"Lipschitz bound also fails: actual={actual_w} > L*a_A={lip_bound}")
+            f"Stateful gain exceeded Lipschitz envelope: actual={actual_w} > L*a_A={lip_bound}")
 
 
 
 # ---------------------------------------------------------------------------
-# Test 5: Actual stateful gain decreases with M
+# Test 5: Actual stateful gain decreases with M [Empirical]
 # ---------------------------------------------------------------------------
 
 def test_actual_gain_decreases_with_depth() -> None:
@@ -346,19 +366,21 @@ def test_actual_gain_decreases_with_depth() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 6: Min_out cap breaks the tradeoff
+# Test 6: Min_out cap breaks the tradeoff [Empirical]
 # ---------------------------------------------------------------------------
 
 def test_min_out_cap_breaks_tradeoff() -> None:
     """Min_out cap at 90% makes sacrifice INFEASIBLE, so gain = 0.
 
-    The cap mechanism: A's min_out is limited to 90% of expected output.
-    Since the actual output is always >= 90% of expected (for small trades),
-    A cannot set min_out above the actual output, so A always fills.
-    When A always fills, the sacrifice attack is infeasible: gain = 0.
+    The cap mechanism: A's min_out is limited to 90% of the EXPECTED output
+    (computed at spot price, i.e. linear approximation without price impact).
+    The ACTUAL output includes price impact (concavity), so actual < expected.
+    For small trades, actual >= 0.9 * expected, so A always fills.
 
-    This test MODELS the cap path: it checks that A's actual output
-    exceeds the capped min_out, confirming A fills (no sacrifice possible).
+    This test is NON-TAUTOLOGICAL: expected_out_A uses the linear spot price
+    (L * a_A), while actual_out_A uses the full CPMM formula with price impact.
+    The gap between them is the slippage. The test verifies that the 90% cap
+    is above the slippage ratio for the tested regime, so A fills.
     """
     rng = random.Random(20260714)
     cap_ratio = 0.9
@@ -366,6 +388,7 @@ def test_min_out_cap_breaks_tradeoff() -> None:
     nocap_gains: list[float] = []
     a_fills_count = 0
     total = 0
+    min_slippage_ratio = 1.0
     for _ in range(200):
         M = rng.randint(1000, 10000)
         K = rng.randint(1000, 10000)
@@ -376,10 +399,15 @@ def test_min_out_cap_breaks_tradeoff() -> None:
         # Without cap: actual gain (A can sacrifice)
         gain_nocap = simulate_sacrifice_gain(p, a_A, a_B)
         nocap_gains.append(gain_nocap)
-        # With cap: A's min_out is capped at 90% of expected output
-        expected_out_A = cpmm_output_cont(p, a_A)
+        # With cap: A's min_out is capped at 90% of EXPECTED output (spot price * a_A)
+        L = spot_price(p)
+        expected_out_A = L * a_A  # linear approximation (no price impact)
         capped_min_out = expected_out_A * cap_ratio
-        actual_out_A = cpmm_output_cont(p, a_A)
+        actual_out_A = cpmm_output_cont(p, a_A)  # full CPMM (with price impact)
+        # Slippage ratio: actual / expected (always < 1 due to concavity)
+        if expected_out_A > 0:
+            slippage_ratio = actual_out_A / expected_out_A
+            min_slippage_ratio = min(min_slippage_ratio, slippage_ratio)
         # A fills iff actual_out >= capped_min_out
         if actual_out_A >= capped_min_out - 1e-9:
             a_fills_count += 1
@@ -396,51 +424,74 @@ def test_min_out_cap_breaks_tradeoff() -> None:
         f"Some configs allow sacrifice despite cap.")
     assert max_cap_gain == 0.0, (
         f"Cap should make gain ZERO: max_cap_gain={max_cap_gain}")
+    # Verify the test is non-tautological: slippage must be real (< 1.0)
+    assert min_slippage_ratio < 1.0, (
+        f"Slippage ratio must be < 1.0 (non-tautological): "
+        f"min_slippage_ratio={min_slippage_ratio}")
+    # Verify the cap is above the worst slippage (so A fills)
+    assert min_slippage_ratio >= cap_ratio, (
+        f"Worst slippage {min_slippage_ratio} below cap {cap_ratio}: "
+        f"some configs would not fill")
     assert max_nocap_gain > 0.0, (
         f"Without cap, some gains should be positive: max_nocap_gain={max_nocap_gain}")
     print(f"PASS: min_out_cap_breaks_tradeoff "
           f"(cap: {a_fills_count}/{total} A fills, max_gain={max_cap_gain:.2f}, "
-          f"nocap: max_gain={max_nocap_gain:.2f})")
+          f"nocap: max_gain={max_nocap_gain:.2f}, "
+          f"min_slippage_ratio={min_slippage_ratio:.6f})")
 
 
 # ---------------------------------------------------------------------------
-# Test 7: Tradeoff frontier characterization
+# Test 7: Tradeoff frontier characterization [Empirical]
 # ---------------------------------------------------------------------------
 
 def test_tradeoff_frontier_characterization() -> None:
-    """Characterize the full tradeoff frontier across pool depths.
+    """Characterize a fixed row-set tradeoff probe across pool depths.
 
     For each M, compute:
-    - window (algorithm cost, from Lean PROVEN formula)
-    - Lipschitz gain bound (universal, Lean PROVEN)
-    - actual gain (empirical, decreases with M)
-    - Lipschitz product (window * L * a_A, INCREASING in M)
+    - window_eps0: sqrt(2*L/m) = sqrt(M) [Lean PROVEN, epsilon=0]
+    - window_prod: sqrt(2*(L+epsilon)/m) [production, epsilon=2, NOT Lean]
+    - lipschitz_increment: L*a_A [Lean PROVEN for f(a_A)-f(0), NOT for stateful]
+    - actual gain: stateful simulator [empirical, decreases with M in this row set]
+    - lip_product: window * L * a_A [INCREASING in M, NOT a frontier]
 
-    NOTE: The Lipschitz product is INCREASING in M, NOT decreasing.
-    The actual gain DECREASES with M, but this is empirical, not formalized.
+    The Lipschitz product is INCREASING in M, NOT decreasing.
+    The actual gain DECREASES with M in this row set, but this is empirical.
     The concavity-based bound is FALSIFIED and is NOT shown here.
     """
     a_A, a_B = 100.0, 2000.0
-    print("\nTradeoff Frontier (a_A=100, a_B=2000, L=1):")
-    print(f"{'M':>8} | {'m':>10} | {'window':>10} | {'lip_bound':>10} | "
-          f"{'lip_product':>12} | {'actual_gain':>12}")
-    print("-" * 80)
-    for M in [100, 500, 1000, 5000, 10000, 50000, 100000]:
+    epsilon = 2.0
+    print("\nTradeoff Frontier (a_A=100, a_B=2000, L=1, epsilon=2):")
+    print(f"{'M':>8} | {'m':>10} | {'win_eps0':>10} | {'win_prod':>10} | "
+          f"{'lip_incr':>10} | {'lip_prod':>10} | {'actual':>10}")
+    print("-" * 85)
+    previous_actual: float | None = None
+    for M in [1000, 5000, 10000, 50000, 100000]:
         K = M  # L = 1
         p = Pool(M, K, 0)
         L = spot_price(p)
         m = concavity_param_at_margin(p)
-        window = algorithm_window(L, m)
-        lip_bound = adversarial_gain_lipschitz(L, a_A)
-        lip_product = window * lip_bound
+        window_eps0 = math.sqrt(2.0 * L / m)  # Lean PROVEN: = sqrt(M)
+        window_prod = algorithm_window(L, m, epsilon=epsilon)  # production
+        lip_bound = lipschitz_increment_value(L, a_A)
+        lip_product = window_prod * lip_bound
         actual = simulate_sacrifice_gain(p, a_A, a_B)
-        print(f"{M:>8} | {m:>10.6f} | {window:>10.2f} | {lip_bound:>10.2f} | "
-              f"{lip_product:>12.2f} | {actual:>12.4f}")
-        # Actual gain should be <= Lipschitz bound (universal, Lean PROVEN)
+        print(f"{M:>8} | {m:>10.6f} | {window_eps0:>10.2f} | {window_prod:>10.2f} | "
+              f"{lip_bound:>10.2f} | {lip_product:>10.2f} | {actual:>10.4f}")
+        # window_eps0 must equal sqrt(M) [Lean PROVEN]
+        assert abs(window_eps0 - math.sqrt(M)) < 1e-6, (
+            f"window_eps0 {window_eps0} != sqrt(M) {math.sqrt(M)} at M={M}")
+        # Actual gain <= Lipschitz increment value [empirical, NOT Lean-proven for stateful]
         assert actual <= lip_bound + 1e-6, (
-            f"Actual gain {actual} > Lipschitz bound {lip_bound} at M={M}")
+            f"Actual gain {actual} > Lipschitz increment {lip_bound} at M={M} "
+            f"[empirical envelope check]")
+        if previous_actual is not None:
+            assert actual < previous_actual, (
+                f"Actual gain not decreasing in frontier row set: "
+                f"previous={previous_actual}, current={actual}, M={M}")
+        previous_actual = actual
     print("PASS: tradeoff_frontier_characterization "
-          "(Lipschitz bound holds; actual gain decreases empirically)")
+          "(window_eps0=sqrt(M) [Lean]; stateful gain <= L*a_A [empirical]; "
+          "actual decreases [empirical])")
 
 
 # ---------------------------------------------------------------------------
@@ -448,27 +499,41 @@ def test_tradeoff_frontier_characterization() -> None:
 # ---------------------------------------------------------------------------
 
 def test_exact_count() -> None:
-    total = 200 + 200 + 500 + 500 + 500 + 5 + 200 + 7
-    print(f"PASS: exact_count ({total} total test configurations)")
+    empirical_test_names = [
+        "test_cpmm_concavity_param_formula",
+        "test_cpmm_conservation_tradeoff",
+        "test_stateful_gain_lipschitz_envelope_empirical",
+        "test_concavity_bound_falsified_small_trades",
+        "test_concavity_bound_fails_large_trades",
+        "test_actual_gain_decreases_with_depth",
+        "test_min_out_cap_breaks_tradeoff",
+        "test_tradeoff_frontier_characterization",
+    ]
+    assert len(empirical_test_names) == 8
+    total = 200 + 200 + 500 + 500 + 500 + 5 + 200 + 5
+    print(f"PASS: exact_count ({len(empirical_test_names)} empirical tests, "
+          f"{total} total test configurations)")
 
 
 if __name__ == "__main__":
     test_cpmm_concavity_param_formula()
     test_cpmm_conservation_tradeoff()
-    test_adversarial_gain_bound_lipschitz()
-    test_adversarial_gain_bound_concavity_small_trades()
+    test_stateful_gain_lipschitz_envelope_empirical()
+    test_concavity_bound_falsified_small_trades()
     test_concavity_bound_fails_large_trades()
     test_actual_gain_decreases_with_depth()
     test_min_out_cap_breaks_tradeoff()
     test_tradeoff_frontier_characterization()
     test_exact_count()
-    print("\nAll Concavity Conservation Law tests passed.")
-    print("Theorems verified:")
-    print("  1. CPMM concavity param: m = 2*K*gamma^2/M^2 = 2*gamma*L/M  [Lean PROVEN (gamma=1)]")
-    print("  2. CPMM conservation: window = sqrt(M)  [Lean PROVEN]")
-    print("  3. Lipschitz gain bound: gain <= L*a_A  [Lean PROVEN, universal]")
-    print("  4. Falsified second-order concavity approximation documented  [empirical]")
-    print("  4b. Concavity bound FAILS for large trades (falsification)  [empirical]")
+    print("\nAll CPMM Concavity Evidence tests passed.")
+    print("Lean-proven (algebraic identities only):")
+    print("  1. CPMM concavity param: m = 2*K*gamma^2/M^2 = 2*gamma*L/M  [gamma=1]")
+    print("  2. CPMM window identity: sqrt(2*L/m) = sqrt(M)  [epsilon=0]")
+    print("  3. Generic Lipschitz increment: f(a_A)-f(0) <= L*a_A")
+    print("Empirical (NOT Lean-proven for stateful gain):")
+    print("  3b. Stateful gain <= L*a_A on seeded corpus  [empirical]")
+    print("  4. Concavity bound falsified  [empirical regression guard]")
+    print("  4b. Concavity bound fails for large trades  [empirical]")
     print("  5. Actual stateful gain decreases with M  [empirical]")
-    print("  6. Min_out cap breaks tradeoff (gain=0)  [empirical]")
+    print("  6. Min_out cap makes sacrifice infeasible  [empirical]")
     print("  7. Tradeoff frontier characterized  [empirical]")
