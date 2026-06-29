@@ -507,15 +507,18 @@ def _non_claims() -> list[str]:
 
 
 def _compact_case_sample(row: Mapping[str, Any]) -> dict[str, Any]:
+    volume, surplus, pair_ids = row["production_key"]
     return {
         "case_id": row["case_id"],
         "candidate_count": row["candidate_count"],
+        "volume": volume,
+        "surplus": surplus,
+        "pair_count": len(pair_ids),
         "assignment_balance_safe": row["assignment_balance_safe"],
         "production_matches_bruteforce": row["production_matches_bruteforce"],
         "dual_certificate_ok": row["dual_certificate_ok"],
         "certified_assignment_matches_production": row["certified_assignment_matches_production"],
         "same_pair_id_tie": row["same_pair_id_tie"],
-        "production_key": row["production_key"],
     }
 
 

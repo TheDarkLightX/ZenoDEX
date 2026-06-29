@@ -84,22 +84,11 @@ The certificate is research evidence only. It does not select production pairs, 
     "case_id": "uncoupled_size_2_variant_0",
     "certified_assignment_matches_production": true,
     "dual_certificate_ok": true,
-    "production_key": [
-      350,
-      258,
-      [
-        [
-          "0x00000000000000000000000000000000000000000000000000000000000075f8",
-          "0x0000000000000000000000000000000000000000000000000000000000009d08"
-        ],
-        [
-          "0x00000000000000000000000000000000000000000000000000000000000075f9",
-          "0x0000000000000000000000000000000000000000000000000000000000009d09"
-        ]
-      ]
-    ],
+    "pair_count": 2,
     "production_matches_bruteforce": true,
-    "same_pair_id_tie": true
+    "same_pair_id_tie": true,
+    "surplus": 258,
+    "volume": 350
   },
   {
     "assignment_balance_safe": true,
@@ -107,22 +96,11 @@ The certificate is research evidence only. It does not select production pairs, 
     "case_id": "uncoupled_size_2_variant_1",
     "certified_assignment_matches_production": true,
     "dual_certificate_ok": true,
-    "production_key": [
-      410,
-      258,
-      [
-        [
-          "0x00000000000000000000000000000000000000000000000000000000000079e0",
-          "0x000000000000000000000000000000000000000000000000000000000000a0f0"
-        ],
-        [
-          "0x00000000000000000000000000000000000000000000000000000000000079e1",
-          "0x000000000000000000000000000000000000000000000000000000000000a0f1"
-        ]
-      ]
-    ],
+    "pair_count": 2,
     "production_matches_bruteforce": true,
-    "same_pair_id_tie": true
+    "same_pair_id_tie": true,
+    "surplus": 258,
+    "volume": 410
   },
   {
     "assignment_balance_safe": true,
@@ -130,22 +108,11 @@ The certificate is research evidence only. It does not select production pairs, 
     "case_id": "uncoupled_size_2_variant_2",
     "certified_assignment_matches_production": true,
     "dual_certificate_ok": true,
-    "production_key": [
-      470,
-      258,
-      [
-        [
-          "0x0000000000000000000000000000000000000000000000000000000000007dc8",
-          "0x000000000000000000000000000000000000000000000000000000000000a4d8"
-        ],
-        [
-          "0x0000000000000000000000000000000000000000000000000000000000007dc9",
-          "0x000000000000000000000000000000000000000000000000000000000000a4d9"
-        ]
-      ]
-    ],
+    "pair_count": 2,
     "production_matches_bruteforce": true,
-    "same_pair_id_tie": true
+    "same_pair_id_tie": true,
+    "surplus": 258,
+    "volume": 470
   }
 ]
 ```

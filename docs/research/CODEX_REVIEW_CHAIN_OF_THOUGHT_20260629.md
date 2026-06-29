@@ -27,8 +27,13 @@ Iterations and grades:
 | 2    | Phases 4-6  | C+    | 5        | Nash overclaim, concavity overstate, tautology, discriminant, scope |
 | 3    | Phases 4-6  | B+    | 2 Medium | stale "Nash" naming, stale "tighter"   |
 | 4    | Phases 4-6  | B+    | 3 Medium | stale `m/2`, conservation inconsistency, prod-guide exactness |
+| 5    | Conservation | C+   | 6        | commutativity theorem, falsified bound in product, no falsification assertions |
+| 6    | Conservation | B-   | 5        | stale Lean header overclaims, "Lean PROVEN universal" labels, epsilon blur, tautological cap test |
+| 7    | Conservation | A-   | 1 LOW    | stale 1.82x prose drift, duplicated sentence |
 
-The grade plateaued at B+ across iterations 3 and 4. Each iteration closed the
+The grade plateaued at B+ across iterations 3 and 4 for the Phases 4-6 scope.
+The conservation law package then went through its own 3-iteration loop
+(C+ -> B- -> A-) before reaching the target. Each iteration closed the
 named findings but a new stale-wording or scope-inconsistency surfaced. This is
 the key process insight: **stale wording is a moving target because the same
 concept is described in multiple files, and a fix in one file does not
@@ -59,7 +64,7 @@ So `|f''(0)| >= m` always. They are different quantities:
 
 The original Phase 5 write-up used `m` loosely to mean "the concavity
 parameter" without distinguishing min vs max curvature. When the concavity
-bound `(m/2)*a_A*a_B` was FALSIFIED empirically (ratio up to 1.82x), the fix
+bound `(m/2)*a_A*a_B` was FALSIFIED empirically (ratio up to 1.88x), the fix
 was to switch the empirical scaling probe to `|f''(0)|`. But the prose in
 multiple files kept referring to `m/2`, "tighter than m", or "conservation
 law" framing that no longer matched the math.
@@ -265,13 +270,23 @@ For the record, the Lean-proven theorems in this research run (Phases 3-6):
 
 ---
 
-## 8. The Target Grade
+## 8. Target Grade Achieved: A-
 
-The target is A-. The remaining gap after iteration 4 fixes is expected to be
-small if the three coordinated fixes (Lean scope note, conservation test
-inline comment, production guide exactness table) fully propagate. The
-iteration 5 submission should confirm that no stale `m/2`, "tighter", or
-"100% / No loss" wording remains in the reviewed files.
+The target was A-. It was achieved at iteration 7 (conservation law scope)
+after a 3-iteration sub-loop (C+ -> B- -> A-). The Phases 4-6 scope plateaued
+at B+ across iterations 3-4 and was not resubmitted after the conservation
+package absorbed all the stale-wording findings.
+
+The final A- was conditional on host verification (Codex sandbox blocks
+pytest via bwrap loopback). Host verification confirmed:
+- `lake env lean Proofs/ConcavityConservationLaw.lean`: 0 errors/warnings
+- `python3 docs/research/concavity_conservation_law_test.py`: 9/9 PASS
+- `pytest`: 10/10 PASS in 6.07s
+
+The only remaining finding at A- was LOW severity: stale `1.82x` prose
+that should have been `1.88x` (the actual max_ratio from the falsification
+tests), plus a duplicated trailing sentence in a docstring. Both were fixed
+in the final commit.
 
 ---
 
