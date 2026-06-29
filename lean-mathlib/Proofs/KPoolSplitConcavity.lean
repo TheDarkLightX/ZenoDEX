@@ -75,6 +75,11 @@ F(a1, a2) = f_0(c0*a1) + f_1(c1*a2) + f_2(c2*(D - a1 - a2))
 - An executable stable-id merge-sort bridge proves that arbitrary identified
   input Lists with unique stable ids deterministically sort by id into the
   sorted-output certificate path.
+- A keyed `Finset Nat` presentation bridge materializes unordered stable-id
+  sets through a lookup function, proves same-id-set/consistent-lookup
+  presentations canonicalize to the same sorted output, and composes that
+  materialization with the merge-sort concavity path for both selected-pair
+  orders.
 - An active-before-remainder arbitrary-index decomposition bridge reconstructs
   a full List from `take`/`drop` slices when the active index is strictly before
   the remainder index.
@@ -89,8 +94,8 @@ F(a1, a2) = f_0(c0*a1) + f_1(c1*a2) + f_2(c2*(D - a1 - a2))
 - Arbitrary-index removal bridges prove that erasing the selected active pool
   and then the selected remainder pool from an undecomposed full List leaves
   exactly the fixed non-moving slices for both selected-pair orders.
-- The remaining full K theorem still needs unordered collection
-  quotient/canonicalization infrastructure for Finset/Multiset presentations.
+- The remaining full K theorem still needs a top-level all-K statement over the
+  supplied certificates plus Multiset/general unordered-container packaging.
 - This does NOT prove joint concavity (Hessian negative definite) or the full
   arbitrary-index all-K theorem.
 - Same continuous-vs-discrete scope as CpmmSplitConcavity.lean
@@ -2160,8 +2165,13 @@ theorem splitFunction5PoolCont_concave_coord3
 -- List removal bridges. The concrete
 -- `splitFunction4PoolCont_concave_coord2` plus
 -- `splitFunction5PoolCont_concave_coord3` check concrete K > 3 instances.
--- The remaining full K theorem still needs Finset/Multiset quotient
--- infrastructure over arbitrary unordered collections.
+-- `IdentifiedFinsetPresentationCont`, `identifiedFinsetToList`,
+-- `stableIdSortedPoolsCont_eq_of_finset_eq`,
+-- `splitFunctionConcave_of_finsetActiveBeforeRemainder`, and
+-- `splitFunctionConcave_of_finsetRemainderBeforeActive` add a keyed `Finset
+-- Nat` unordered-presentation bridge. The remaining full K theorem still needs
+-- a top-level all-K statement over the supplied certificates plus
+-- Multiset/general unordered-container packaging.
 --
 -- **Non-claim**: This is an INFORMAL NOTE, not a checked theorem. The formal
 -- checked theorems above cover k = 3 (coordinates 1 and 2), the abstract
@@ -2172,10 +2182,11 @@ theorem splitFunction5PoolCont_concave_coord3
 -- decompositions, and active-before-remainder plus remainder-before-active
 -- arbitrary-index List reconstruction, removal, certificate-constructor,
 -- identity-stable, id-ordered presentation, stable-id sorted-output
--- certificate, executable stable-id merge-sort, and stable-id List permutation
--- quotient bridges. The full all-k top-level theorem still requires
--- Finset/Multiset quotient infrastructure over arbitrary unordered
--- collections. Do NOT cite this as a formal all-k proof.
+-- certificate, executable stable-id merge-sort, stable-id List permutation
+-- quotient, and keyed Finset Nat presentation bridges. The full all-k
+-- top-level theorem still requires a top-level statement over the supplied
+-- certificates plus Multiset/general unordered-container packaging. Do NOT
+-- cite this as a formal all-k proof.
 --
 -- The formal checked results are splitFunction3PoolCont_concave_coord1
 -- and splitFunction3PoolCont_concave_coord2 (3-pool, both coordinates),
@@ -2238,6 +2249,13 @@ theorem splitFunction5PoolCont_concave_coord3
 -- unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont,
 -- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdMergeSortActiveBeforeRemainder,
 -- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdMergeSortRemainderBeforeActive,
+-- IdentifiedFinsetPresentationCont,
+-- identifiedFinsetToList,
+-- identifiedFinsetToList_ids_nodup,
+-- identifiedFinsetToList_perm_of_eq_ids,
+-- stableIdSortedPoolsCont_eq_of_finset_eq,
+-- splitFunctionConcave_of_finsetActiveBeforeRemainder,
+-- splitFunctionConcave_of_finsetRemainderBeforeActive,
 -- selectedFullPoolListCont_eq_take_drop_of_lt,
 -- selectedFullPoolListOrderedCont_remainderBeforeActive_eq_take_drop_of_lt,
 -- selectedActiveIndexOrderedCont_lt,
@@ -2249,3 +2267,185 @@ theorem splitFunction5PoolCont_concave_coord3
 -- selectedFullPoolListCont_erase_active_then_remainder_eq_take_drop_of_lt,
 -- selectedFullPoolListOrderedCont_remainderBeforeActive_erase_active_then_remainder_eq_take_drop_of_lt,
 -- splitFunction4PoolCont_concave_coord2, and splitFunction5PoolCont_concave_coord3.
+
+/-! ## Finset Quotient Bridge: Unordered-Collection Canonicalization
+
+This section connects unordered `Finset Nat` presentations (keyed by stable
+pool identities) to the existing proof-carrying merge-sort concavity path.
+
+The key design decision is to key on `Finset Nat` (pool ids) rather than
+`Finset IdentifiedFixedPoolTermCont`, because the latter requires
+`DecidableEq` on a structure containing `ℝ` fields, which is not
+constructively available. Instead, an `IdentifiedFinsetPresentationCont`
+carries a `Finset Nat` of ids plus a lookup function from id to pool term.
+-/
+
+/-- An unordered presentation of identified pools keyed by a Finset of stable
+    ids, with a lookup function from id to pool term. -/
+structure IdentifiedFinsetPresentationCont where
+  ids : Finset Nat
+  termForId : Nat → FixedPoolTermCont
+
+/-- Materialize a List presentation from a Finset presentation by enumerating
+    the ids in Finset.toList order and looking up each term. -/
+noncomputable def identifiedFinsetToList
+    (pres : IdentifiedFinsetPresentationCont) :
+    List IdentifiedFixedPoolTermCont :=
+  (pres.ids.toList).map fun id =>
+    { id := id, term := pres.termForId id }
+
+/-- The materialized List has the same length as the Finset's toList. -/
+@[simp] theorem identifiedFinsetToList_length
+    (pres : IdentifiedFinsetPresentationCont) :
+    (identifiedFinsetToList pres).length = pres.ids.toList.length := by
+  simp [identifiedFinsetToList, List.length_map]
+
+/-- The materialized List's ids are exactly the Finset's toList ids. -/
+theorem identifiedFinsetToList_ids
+    (pres : IdentifiedFinsetPresentationCont) :
+    (identifiedFinsetToList pres).map IdentifiedFixedPoolTermCont.id =
+      pres.ids.toList := by
+  simp [identifiedFinsetToList, Function.comp_def]
+
+/-- The materialized List's ids are Nodup (because Finset.toList is Nodup). -/
+theorem identifiedFinsetToList_ids_nodup
+    (pres : IdentifiedFinsetPresentationCont) :
+    ((identifiedFinsetToList pres).map IdentifiedFixedPoolTermCont.id).Nodup := by
+  rw [identifiedFinsetToList_ids]
+  exact Finset.nodup_toList pres.ids
+
+/-- **Finset Quotient: Permutation Invariance of Materialization**.
+    Any two Finset presentations with the same id set and consistent lookups
+    produce materialized Lists that are permutations of each other. -/
+theorem identifiedFinsetToList_perm_of_eq_ids
+    (pres₁ pres₂ : IdentifiedFinsetPresentationCont)
+    (hIds : pres₁.ids = pres₂.ids)
+    (hLookup : ∀ id ∈ pres₁.ids, pres₁.termForId id = pres₂.termForId id) :
+    List.Perm (identifiedFinsetToList pres₁) (identifiedFinsetToList pres₂) := by
+  unfold identifiedFinsetToList
+  rw [← hIds]
+  have hMap :
+      pres₁.ids.toList.map
+          (fun id => ({ id := id, term := pres₁.termForId id } :
+            IdentifiedFixedPoolTermCont)) =
+        pres₁.ids.toList.map
+          (fun id => ({ id := id, term := pres₂.termForId id } :
+            IdentifiedFixedPoolTermCont)) := by
+    apply List.map_congr_left
+    intro id hid
+    have hidSet : id ∈ pres₁.ids := by
+      simpa [Finset.mem_toList] using hid
+    simp [hLookup id hidSet]
+  rw [hMap]
+
+/-- **Finset Quotient: Sorted Output Uniqueness**.
+    Any two Finset presentations with the same id set and consistent lookups
+    produce the same sorted output when fed through the merge-sort bridge. -/
+theorem stableIdSortedPoolsCont_eq_of_finset_eq
+    (pres₁ pres₂ : IdentifiedFinsetPresentationCont)
+    (hIds : pres₁.ids = pres₂.ids)
+    (hLookup : ∀ id ∈ pres₁.ids, pres₁.termForId id = pres₂.termForId id) :
+    stableIdSortedPoolsCont (identifiedFinsetToList pres₁) =
+      stableIdSortedPoolsCont (identifiedFinsetToList pres₂) := by
+  apply stableIdSortedPoolsCont_eq_of_perm_unique_ids
+  · exact identifiedFinsetToList_perm_of_eq_ids pres₁ pres₂ hIds hLookup
+  · exact identifiedFinsetToList_ids_nodup pres₁
+  · exact identifiedFinsetToList_ids_nodup pres₂
+
+/-- **Finset Quotient: Concavity via Merge-Sort Bridge (Active-Before-Remainder)**. -/
+theorem splitFunctionConcave_of_finsetActiveBeforeRemainder
+    (pres : IdentifiedFinsetPresentationCont)
+    {i j : Nat}
+    (hij : i < j) (hj : j < (stableIdSortedPoolsCont (identifiedFinsetToList pres)).length)
+    (D a h : ℝ)
+    (hKj :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hij hj).active.K > 0)
+    (hMj :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hij hj).active.M > 0)
+    (hcj :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hij hj).active.c > 0)
+    (hKr :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hij hj).remainder.K > 0)
+    (hMr :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hij hj).remainder.M > 0)
+    (hcr :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hij hj).remainder.c > 0)
+    (hh : h > 0)
+    (h_denomj :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hij hj).active.M +
+        (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+          (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hij hj).active.c * a > 0)
+    (h_denomr_base :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hij hj).remainder.M +
+        (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+          (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hij hj).remainder.c *
+          (D -
+            fixedPoolInputSumCont
+              (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+                (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hij hj).fixed -
+            a - 2*h) > 0) :
+    secondDiff
+      (splitFunctionUnorderedSelectionCertCoordSliceCont
+        (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+          (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hij hj) D)
+      a h < 0 :=
+  splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdMergeSortActiveBeforeRemainder
+    (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres)
+    hij hj D a h hKj hMj hcj hKr hMr hcr hh h_denomj h_denomr_base
+
+/-- **Finset Quotient: Concavity via Merge-Sort Bridge (Remainder-Before-Active)**. -/
+theorem splitFunctionConcave_of_finsetRemainderBeforeActive
+    (pres : IdentifiedFinsetPresentationCont)
+    {j i : Nat}
+    (hji : j < i) (hi : i < (stableIdSortedPoolsCont (identifiedFinsetToList pres)).length)
+    (D a h : ℝ)
+    (hKj :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hji hi).active.K > 0)
+    (hMj :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hji hi).active.M > 0)
+    (hcj :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hji hi).active.c > 0)
+    (hKr :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hji hi).remainder.K > 0)
+    (hMr :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hji hi).remainder.M > 0)
+    (hcr :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hji hi).remainder.c > 0)
+    (hh : h > 0)
+    (h_denomj :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hji hi).active.M +
+        (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+          (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hji hi).active.c * a > 0)
+    (h_denomr_base :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hji hi).remainder.M +
+        (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+          (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hji hi).remainder.c *
+          (D -
+            fixedPoolInputSumCont
+              (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+                (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hji hi).fixed -
+            a - 2*h) > 0) :
+    secondDiff
+      (splitFunctionUnorderedSelectionCertCoordSliceCont
+        (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+          (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres) hji hi) D)
+      a h < 0 :=
+  splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdMergeSortRemainderBeforeActive
+    (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres)
+    hji hi D a h hKj hMj hcj hKr hMr hcr hh h_denomj h_denomr_base
