@@ -120,6 +120,11 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "def strictCompressedFullMaskEconomicWitnessFullKey" in text
     assert "def strictCompressedFullMaskEconomicWitnessSelectedKey" in text
     assert "theorem strictCompressedFullMaskEconomicWitness_validates" in text
+    assert "structure StrictCompressedFullMaskEmitterPacket" in text
+    assert "def strictCompressedFullMaskEmitterPacketValid" in text
+    assert "def strictCompressedFullMaskEmitterPacketFullKey" in text
+    assert "def strictCompressedFullMaskEmitterPacketSelectedKey" in text
+    assert "theorem strictCompressedFullMaskEmitterPacket_validates" in text
     assert "theorem bestFullSuffixOutputAcrossMasks_le_selected" in text
     assert "theorem witness_bestFullSuffixOutputAcrossMasks_le_selected" in text
     assert "theorem witness_reachablePrunedRangeMask_covers_and_bounds" in text
@@ -131,6 +136,7 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "theorem witness_rangeStepPathWinnerCertificate_covers_and_bounds" in text
     assert "theorem witness_strictRangeStepPathEconomicCertificate_covers_bounds_and_executes" in text
     assert "theorem witness_strictCompressedFullMaskEconomicWitness_validates" in text
+    assert "theorem witness_strictCompressedFullMaskEmitterPacket_validates" in text
 
     lake = shutil.which("lake")
     if not lake:

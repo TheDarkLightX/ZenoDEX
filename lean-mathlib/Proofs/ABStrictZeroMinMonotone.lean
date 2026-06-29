@@ -1690,6 +1690,63 @@ theorem strictCompressedFullMaskEconomicWitness_validates
         witness.winner.selected.reserveOut [] := by
   exact strictCompressedFullMaskEconomicCertificate_validates hvalid
 
+/-- Host packet shell for a strict full-mask economic witness.
+
+The Boolean fields mirror host-side packet rails checked by the Python stress
+refuter. They are modeled as explicit validity inputs here; this theorem does
+not prove hash computation, JSON canonicalization, or Python-to-Lean refinement. -/
+structure StrictCompressedFullMaskEmitterPacket where
+  witness : StrictCompressedFullMaskEconomicWitness
+  packetHashBound : Bool
+  noAuthorityEffect : Bool
+  winnerMembershipBound : Bool
+  deriving Repr
+
+/-- Validity predicate for the host packet shell.
+
+This packages the non-authority rails around the existing strict full-mask
+economic witness predicate. -/
+def strictCompressedFullMaskEmitterPacketValid
+    (packet : StrictCompressedFullMaskEmitterPacket) : Prop :=
+  packet.packetHashBound = true ∧
+    packet.noAuthorityEffect = true ∧
+    packet.winnerMembershipBound = true ∧
+    strictCompressedFullMaskEconomicWitnessValid packet.witness
+
+/-- Full-frontier key named through the host packet shell. -/
+def strictCompressedFullMaskEmitterPacketFullKey
+    (packet : StrictCompressedFullMaskEmitterPacket) : ZeroMinEconomicKey :=
+  strictCompressedFullMaskEconomicWitnessFullKey packet.witness
+
+/-- Selected-winner key named through the host packet shell. -/
+def strictCompressedFullMaskEmitterPacketSelectedKey
+    (packet : StrictCompressedFullMaskEmitterPacket) : ZeroMinEconomicKey :=
+  strictCompressedFullMaskEconomicWitnessSelectedKey packet.witness
+
+/-- Host packet validation endpoint.
+
+A packet satisfying the host-shell rails and the strict witness predicate yields
+the no-authority flag, packet-hash binding flag, winner-membership binding flag,
+bounded full-mask coverage, economic-key dominance, and empty-suffix
+executability. -/
+theorem strictCompressedFullMaskEmitterPacket_validates
+    (packet : StrictCompressedFullMaskEmitterPacket)
+    (hvalid : strictCompressedFullMaskEmitterPacketValid packet) :
+    packet.packetHashBound = true ∧
+      packet.noAuthorityEffect = true ∧
+      packet.winnerMembershipBound = true ∧
+      allBitsBelowSet packet.witness.winner.maskId packet.witness.bitCount ∧
+      zeroMinEconomicKeyDominated
+        (strictCompressedFullMaskEmitterPacketFullKey packet)
+        (strictCompressedFullMaskEmitterPacketSelectedKey packet) ∧
+      suffixExecutable packet.witness.winner.selected.processedReserveIn
+        packet.witness.winner.selected.reserveOut [] := by
+  rcases hvalid with ⟨hhash, hnoAuthority, hwinnerMembership, hwitness⟩
+  have hwitness_validated :=
+    strictCompressedFullMaskEconomicWitness_validates packet.witness hwitness
+  exact ⟨hhash, hnoAuthority, hwinnerMembership,
+    hwitness_validated.1, hwitness_validated.2⟩
+
 /-- Finite subset-mask pruning lift.
 
 If every abstract subset mask satisfies the local pruning invariant, then the
@@ -2196,6 +2253,67 @@ theorem witness_strictCompressedFullMaskEconomicWitness_validates :
       strictCompressedFullMaskEconomicCertificate witness
     exact ⟨hstrict, by simp [children]⟩
   exact ⟨hvalid, strictCompressedFullMaskEconomicWitness_validates witness hvalid⟩
+
+/-- Concrete non-vacuity witness for the host packet-shell endpoint. -/
+theorem witness_strictCompressedFullMaskEmitterPacket_validates :
+    let record : ProcessedRecord := ⟨100, 90⟩
+    let parent : MaskRecordSet := ⟨1, record, [record]⟩
+    let child : MaskRecordSet := ⟨1, record, [record]⟩
+    let children : List MaskRecordSet := [child]
+    let masks : List MaskRecordSet := [child]
+    let witness : StrictCompressedFullMaskEconomicWitness := {
+      parent := parent
+      winner := child
+      children := children
+      bitCount := 1
+      masks := masks
+      initialReserveOut := 1000
+      executedInput := 100
+    }
+    let packet : StrictCompressedFullMaskEmitterPacket := {
+      witness := witness
+      packetHashBound := true
+      noAuthorityEffect := true
+      winnerMembershipBound := true
+    }
+    strictCompressedFullMaskEmitterPacketValid packet ∧
+      packet.packetHashBound = true ∧
+        packet.noAuthorityEffect = true ∧
+        packet.winnerMembershipBound = true ∧
+        allBitsBelowSet packet.witness.winner.maskId packet.witness.bitCount ∧
+        zeroMinEconomicKeyDominated
+          (strictCompressedFullMaskEmitterPacketFullKey packet)
+          (strictCompressedFullMaskEmitterPacketSelectedKey packet) ∧
+        suffixExecutable packet.witness.winner.selected.processedReserveIn
+          packet.witness.winner.selected.reserveOut [] := by
+  let record : ProcessedRecord := ⟨100, 90⟩
+  let parent : MaskRecordSet := ⟨1, record, [record]⟩
+  let child : MaskRecordSet := ⟨1, record, [record]⟩
+  let children : List MaskRecordSet := [child]
+  let masks : List MaskRecordSet := [child]
+  let witness : StrictCompressedFullMaskEconomicWitness := {
+    parent := parent
+    winner := child
+    children := children
+    bitCount := 1
+    masks := masks
+    initialReserveOut := 1000
+    executedInput := 100
+  }
+  let packet : StrictCompressedFullMaskEmitterPacket := {
+    witness := witness
+    packetHashBound := true
+    noAuthorityEffect := true
+    winnerMembershipBound := true
+  }
+  have hwitness_valid : strictCompressedFullMaskEconomicWitnessValid witness := by
+    simpa [record, parent, child, children, masks, witness] using
+      witness_strictCompressedFullMaskEconomicWitness_validates.1
+  have hpacket_valid : strictCompressedFullMaskEmitterPacketValid packet := by
+    unfold strictCompressedFullMaskEmitterPacketValid
+    exact ⟨rfl, rfl, rfl, hwitness_valid⟩
+  exact ⟨hpacket_valid,
+    strictCompressedFullMaskEmitterPacket_validates packet hpacket_valid⟩
 
 /-- Concrete non-vacuity witness for one-step monotonicity. -/
 theorem witness_postReserveOut_mono_strict :
