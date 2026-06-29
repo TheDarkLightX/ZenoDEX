@@ -1,0 +1,612 @@
+{
+  "authority_boundary": "research evidence only; no settlement, state-root, production, governance, routing, matching, or pool-mutation authority",
+  "breakthrough": {
+    "invalid_accepts": 0,
+    "name": "AB child-frontier generated-image producer n8 sample Tau certificate",
+    "scoped_claims": [
+      "the sampled n=8 producer report is present and hash-pinned",
+      "the four producer stages remain ordered and hash-pinned",
+      "stage outputs pin 3 sampled cases, 51 sampled child masks, 88 generated child states, and 268 predecessor transitions",
+      "cross-stage links connect generation, canonical-Merkle, witness-compression, and bidirectional-transition evidence",
+      "11 producer-manifest mutation controls reject with zero accepts",
+      "the Tau envelope carries no settlement or state authority"
+    ],
+    "spec_id": "ab_child_frontier_generated_image_producer_n8_sample_scope_certificate_v1",
+    "tau_cases": 20
+  },
+  "date": "2026-06-29",
+  "digests": {
+    "canonical_membership_rows_digest": "bf859719c54893c3975b5f28a9eda8dc58b50b1bcab8ed46cd96fd5f4d63a5d2",
+    "generation_frontier_rows_digest": "37764c62caa78be76d654ec1f2540babe2aae2f546663f6548f2d9a1da85b919",
+    "transition_rows_digest": "0ed918d2b332430f57bf3561a5912fa50c0293c23661ff02f582a21e88f3ed09",
+    "witness_rows_digest": "4851b651740dcfaaa5b175cccbc0907fb7449ff3c4e14db61c3cdafed72e52dd"
+  },
+  "facts": {
+    "authority_boundary_ok": 1,
+    "canonical_digest_pinned": 1,
+    "corpus_nonvacuous": 1,
+    "cross_stage_links_ok": 1,
+    "generation_digest_pinned": 1,
+    "manifest_hash_pinned": 1,
+    "negative_controls_reject": 1,
+    "no_authority_effect": 1,
+    "producer_stage_order_ok": 1,
+    "sampled_n8_zero_min_scope_ok": 1,
+    "source_report_hash_pinned": 1,
+    "source_report_ok": 1,
+    "source_seed_pinned": 1,
+    "stage_hashes_pinned": 1,
+    "stage_outputs_pinned": 1,
+    "stage_replay_ok": 1,
+    "transition_digest_pinned": 1,
+    "witness_digest_pinned": 1
+  },
+  "hypothesis_card": {
+    "falsification_recipe": "Clear each required fact bit, mutate source hash, remove digest pins, remove stage replay, or remove the no-authority rail and require Tau rejection.",
+    "formal_obligations": "Production use still needs exhaustive coverage or a deeper Lean refinement of the child-frontier generation relation.",
+    "hypothesis_id": "H-AB-N8-GENERATED-PRODUCER-TAU-20260629",
+    "mechanism_change": "Add a versioned Tau scope certificate over the sampled n=8 generated-image producer manifest.",
+    "null_hypothesis": "A Tau envelope gives no additional falsifiable boundary beyond the producer manifest report.",
+    "status": "supported_bounded",
+    "support_recipe": "Host checks the source report, stage manifest, digest pins, cross-stage links, stage replay, and mutation controls; Tau rejects every missing-fact negative case."
+  },
+  "non_claims": [
+    "This certificate is bounded to the deterministic sampled n=8 zero-min producer-manifest report.",
+    "This certificate does not prove exhaustive n=8 coverage.",
+    "This certificate does not prove Python-to-Lean refinement.",
+    "This certificate does not prove child-frontier generation in Lean.",
+    "This certificate does not replace the host producer, Merkle verifier, witness checker, or transition checker.",
+    "This certificate does not cover nonzero min_amount_out behavior.",
+    "This certificate does not authorize settlement, routing, matching, governance, pool mutation, production deployment, or state roots."
+  ],
+  "producer_manifest": {
+    "cross_stage_links": {
+      "canonical_frontier_digest_matches_generation": true,
+      "transition_child_count_matches_generation": true,
+      "transition_child_coverage_matches_witness": true,
+      "transition_child_membership_matches_canonical": true,
+      "transition_merkle_digest_matches_canonical": true,
+      "transition_witness_digest_matches_witness_compression": true,
+      "witness_frontier_digest_matches_generation": true
+    },
+    "expected_manifest_hash": "db94660eb8c859821de08b629371e3c056b2469d707b94df56854a5f41f17394",
+    "manifest_hash": "db94660eb8c859821de08b629371e3c056b2469d707b94df56854a5f41f17394",
+    "negative_control_accept_count": 0,
+    "negative_control_count": 11,
+    "producer_stage_order": [
+      "generation",
+      "canonical_merkle",
+      "witness_compression",
+      "bidirectional_transition"
+    ],
+    "source_seed": "2026062908",
+    "stage_count": 4,
+    "stage_replay": {
+      "enabled": true,
+      "ok": true,
+      "stage_count": 4
+    }
+  },
+  "replay_command": "python3 tools/check_ab_child_frontier_generated_image_producer_n8_sample_tau_certificate_20260629.py",
+  "schema": "zenodex.ab_child_frontier_generated_image_producer_n8_sample_tau_certificate_report.v1",
+  "source_report": {
+    "expected_sha256": "1989c0862510d5c93177c58999368bafb49542f23bd4c3c9e73cfac95b2cf73e",
+    "manifest_schema": "zenodex.ab_child_frontier_generated_image_producer_n8_sample_manifest.v1",
+    "ok": true,
+    "path": "generated/zenodex_ab_child_frontier_generated_image_producer_n8_sample_20260629/report.json",
+    "replay_command": "python3 tools/check_ab_child_frontier_generated_image_producer_n8_sample_20260629.py",
+    "schema": "zenodex.ab_child_frontier_generated_image_producer_n8_sample_report.v1",
+    "sha256": "1989c0862510d5c93177c58999368bafb49542f23bd4c3c9e73cfac95b2cf73e"
+  },
+  "spec": {
+    "id": "ab_child_frontier_generated_image_producer_n8_sample_scope_certificate_v1",
+    "path": "src/tau_specs/recommended/ab_child_frontier_generated_image_producer_n8_sample_scope_certificate_v1.tau",
+    "sha256": "59dfc6b524fd4656fdad12818e418fae58da635f52cc52df005af7fa1c25bb04"
+  },
+  "stage_outputs": {
+    "bidirectional_transition": {
+      "case_count": 3,
+      "covered_transition_count": 268,
+      "duplicate_transition_row_count": 0,
+      "expected_transition_count": 268,
+      "extra_transition_count": 0,
+      "invalid_transition_row_count": 0,
+      "linked_canonical_membership_count": 88,
+      "linked_child_coverage_witness_count": 88,
+      "missing_transition_count": 0,
+      "negative_control_accept_count": 0,
+      "negative_control_count": 11,
+      "sampled_child_mask_count": 51,
+      "transition_row_count": 268,
+      "transition_rows_digest": "0ed918d2b332430f57bf3561a5912fa50c0293c23661ff02f582a21e88f3ed09",
+      "unique_generated_child_count": 88,
+      "unique_transition_count": 268,
+      "valid_case_count": 3
+    },
+    "canonical_merkle": {
+      "case_count": 3,
+      "covered_sampled_child_state_count": 88,
+      "frontier_root_count": 51,
+      "frontier_roots_digest": "53872b495fd6af55f5192e5577f6fb75fca8bd54c26110ff88f4b11a17edf6d4",
+      "invalid_membership_proof_count": 0,
+      "membership_count": 88,
+      "membership_rows_digest": "bf859719c54893c3975b5f28a9eda8dc58b50b1bcab8ed46cd96fd5f4d63a5d2",
+      "missing_frontier_row_count": 0,
+      "missing_membership_proof_count": 0,
+      "negative_control_accept_count": 0,
+      "negative_control_count": 9,
+      "root_mismatch_count": 0,
+      "sampled_child_mask_count": 51,
+      "sampled_child_state_count": 88,
+      "valid_case_count": 3
+    },
+    "generation": {
+      "case_count": 3,
+      "extra_generated_state_count": 0,
+      "frontier_rows_digest": "37764c62caa78be76d654ec1f2540babe2aae2f546663f6548f2d9a1da85b919",
+      "generated_state_count": 88,
+      "missing_child_state_count": 0,
+      "negative_control_accept_count": 0,
+      "negative_control_count": 7,
+      "predecessor_transition_count": 268,
+      "sampled_child_mask_count": 51,
+      "sampled_child_state_count": 88,
+      "valid_case_count": 3
+    },
+    "witness_compression": {
+      "case_count": 3,
+      "covered_sampled_child_state_count": 88,
+      "duplicate_witness_count": 0,
+      "extra_sampled_child_state_witness_count": 0,
+      "invalid_witness_count": 0,
+      "missing_sampled_child_state_witness_count": 0,
+      "negative_control_accept_count": 0,
+      "negative_control_count": 9,
+      "predecessor_transition_count": 268,
+      "sampled_child_mask_count": 51,
+      "valid_case_count": 3,
+      "witness_compression_ratio": 3.045455,
+      "witness_count": 88,
+      "witness_rows_digest": "4851b651740dcfaaa5b175cccbc0907fb7449ff3c4e14db61c3cdafed72e52dd",
+      "witness_transition_checks_saved": 180
+    }
+  },
+  "tau": {
+    "case_results": [
+      {
+        "case_id": "generated_image_producer_n8_sample_certificate_pass",
+        "expected": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0,
+          "o9": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All scoped host facts admit the sampled n=8 generated-image producer manifest."
+      },
+      {
+        "case_id": "missing_source_report_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `source_report_ok` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "wrong_scope_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `sampled_n8_zero_min_scope_ok` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "stage_order_reject",
+        "expected": {
+          "o2": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `producer_stage_order_ok` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "stage_hashes_reject",
+        "expected": {
+          "o2": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `stage_hashes_pinned` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "stage_outputs_reject",
+        "expected": {
+          "o2": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `stage_outputs_pinned` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "stage_replay_reject",
+        "expected": {
+          "o3": 0,
+          "o5": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `stage_replay_ok` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "cross_stage_links_reject",
+        "expected": {
+          "o3": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `cross_stage_links_ok` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "source_seed_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `source_seed_pinned` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "manifest_hash_reject",
+        "expected": {
+          "o2": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `manifest_hash_pinned` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "generation_digest_reject",
+        "expected": {
+          "o4": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `generation_digest_pinned` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "canonical_digest_reject",
+        "expected": {
+          "o4": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `canonical_digest_pinned` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "witness_digest_reject",
+        "expected": {
+          "o4": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `witness_digest_pinned` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "transition_digest_reject",
+        "expected": {
+          "o4": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `transition_digest_pinned` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "negative_controls_missing_reject",
+        "expected": {
+          "o5": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `negative_controls_reject` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "authority_boundary_reject",
+        "expected": {
+          "o6": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `authority_boundary_ok` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "authority_effect_reject",
+        "expected": {
+          "o6": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `no_authority_effect` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "empty_corpus_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `corpus_nonvacuous` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "source_hash_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0,
+          "o9": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `source_report_hash_pinned` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "inactive_safe",
+        "expected": {
+          "o7": 0,
+          "o8": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 1,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Inactive certificates do not admit while the no-authority rail remains true."
+      }
+    ],
+    "invalid_accepts": 0,
+    "ok": true,
+    "skipped": false,
+    "tau_bin": "external/tau-lang/build-Release/tau",
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  }
+}

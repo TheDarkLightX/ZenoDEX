@@ -1,0 +1,62 @@
+# AB Child-Frontier Generated-Image Producer N8 Sample Scope Certificate v1
+#
+# PURPOSE:
+#   Admit a research-only certificate for the sampled n=8 AB strict zero-min
+#   child-frontier generated-image producer manifest. The host checks the JSON
+#   producer report, sampled scope, ordered producer stages, stage hashes,
+#   output digests, cross-stage links, stage replay, mutation controls, pinned
+#   source hash, and no-authority rail. Tau only composes those host facts into
+#   a fail-closed envelope.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = source_report_ok
+# i3  = sampled_n8_zero_min_scope_ok
+# i4  = producer_stage_order_ok
+# i5  = stage_hashes_pinned
+# i6  = stage_outputs_pinned
+# i7  = stage_replay_ok
+# i8  = cross_stage_links_ok
+# i9  = source_seed_pinned
+# i10 = manifest_hash_pinned
+# i11 = generation_digest_pinned
+# i12 = canonical_digest_pinned
+# i13 = witness_digest_pinned
+# i14 = transition_digest_pinned
+# i15 = negative_controls_reject
+# i16 = authority_boundary_ok
+# i17 = no_authority_effect
+# i18 = corpus_nonvacuous
+# i19 = source_report_hash_pinned
+#
+# o1 = scope_ok
+# o2 = producer_manifest_ok
+# o3 = stage_chain_ok
+# o4 = digest_pins_ok
+# o5 = replay_and_refutation_ok
+# o6 = authority_boundary_ok
+# o7 = generated_image_producer_n8_sample_certificate_ok
+# o8 = inactive_safe
+# o9 = source_pin_ok
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+scope_ok(source_report : sbf, sampled_n8_zero_min : sbf, source_seed : sbf, nonvacuous : sbf, source_hash : sbf) := is1(source_report) && is1(sampled_n8_zero_min) && is1(source_seed) && is1(nonvacuous) && is1(source_hash).
+producer_manifest_ok(stage_order : sbf, stage_hashes : sbf, stage_outputs : sbf, manifest_hash : sbf) := is1(stage_order) && is1(stage_hashes) && is1(stage_outputs) && is1(manifest_hash).
+stage_chain_ok(stage_replay : sbf, cross_stage_links : sbf) := is1(stage_replay) && is1(cross_stage_links).
+digest_pins_ok(generation_digest : sbf, canonical_digest : sbf, witness_digest : sbf, transition_digest : sbf) := is1(generation_digest) && is1(canonical_digest) && is1(witness_digest) && is1(transition_digest).
+replay_and_refutation_ok(stage_replay : sbf, negative_controls : sbf) := is1(stage_replay) && is1(negative_controls).
+authority_ok(boundary : sbf, no_authority : sbf) := is1(boundary) && is1(no_authority).
+certificate_ok(active : sbf, source_report : sbf, sampled_n8_zero_min : sbf, stage_order : sbf, stage_hashes : sbf, stage_outputs : sbf, stage_replay : sbf, cross_stage_links : sbf, source_seed : sbf, manifest_hash : sbf, generation_digest : sbf, canonical_digest : sbf, witness_digest : sbf, transition_digest : sbf, negative_controls : sbf, boundary : sbf, no_authority : sbf, nonvacuous : sbf, source_hash : sbf) := is1(active) && scope_ok(source_report, sampled_n8_zero_min, source_seed, nonvacuous, source_hash) && producer_manifest_ok(stage_order, stage_hashes, stage_outputs, manifest_hash) && stage_chain_ok(stage_replay, cross_stage_links) && digest_pins_ok(generation_digest, canonical_digest, witness_digest, transition_digest) && replay_and_refutation_ok(stage_replay, negative_controls) && authority_ok(boundary, no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> scope_ok(i2[t]:sbf, i3[t]:sbf, i9[t]:sbf, i18[t]:sbf, i19[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> producer_manifest_ok(i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i10[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> stage_chain_ok(i7[t]:sbf, i8[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> digest_pins_ok(i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> replay_and_refutation_ok(i7[t]:sbf, i15[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> authority_ok(i16[t]:sbf, i17[t]:sbf)) &&
+  (o7[t]:sbf = 1:sbf <-> certificate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf, i16[t]:sbf, i17[t]:sbf, i18[t]:sbf, i19[t]:sbf)) &&
+  (o8[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i17[t]:sbf))) &&
+  (o9[t]:sbf = 1:sbf <-> is1(i19[t]:sbf)).
