@@ -2325,6 +2325,40 @@ def strictSubsetInductionRangePathTableValid
       table.winner.selected.reserveOut table.suffix ∧
     table.winner ∈ table.masks
 
+/-- Aggregate-winner validity predicate for the recursive range-path host table.
+
+This predicate uses a single selected-family aggregate bound instead of one
+winner-dominance inequality per retained mask. It is intended as a smaller host
+packet obligation, while preserving the old range-path endpoint through the
+conversion theorem below. -/
+def strictSubsetInductionAggregateRangePathTableValid
+    (table : StrictSubsetInductionRangePathTable) : Prop :=
+  table.packetHashBound = true ∧
+    table.noAuthorityEffect = true ∧
+    table.winnerMembershipBound = true ∧
+    reachablePrunedRangeStepPathListInFamily table.parent table.masks
+      table.bitCount table.masks ∧
+    selectedFamilyAggregateWinner table.winner table.masks
+      table.initialReserveOut table.suffix ∧
+    suffixExecutable table.winner.selected.processedReserveIn
+      table.winner.selected.reserveOut table.suffix ∧
+    table.winner ∈ table.masks
+
+/-- The aggregate-winner host-table predicate is strong enough to satisfy the
+existing recursive range-path host-table predicate.
+
+This is a host-boundary transfer only: it does not construct the table, choose a
+tied winner, or connect the table to Python emitter code. -/
+theorem strictSubsetInductionAggregateRangePathTable_to_rangePathTableValid
+    (table : StrictSubsetInductionRangePathTable)
+    (hvalid : strictSubsetInductionAggregateRangePathTableValid table) :
+    strictSubsetInductionRangePathTableValid table := by
+  rcases hvalid with
+    ⟨hhash, hnoAuthority, hwinnerMembership, hlist, haggregate, hexec, hwinnerMem⟩
+  exact ⟨hhash, hnoAuthority, hwinnerMembership, hlist,
+    selectedFamilyAggregateWinner_to_selectedFamilyOutputWinner haggregate,
+    hexec, hwinnerMem⟩
+
 /-- Recursive range-path host endpoint.
 
 If every retained mask is provided by a pruned recursive range-step path, then
@@ -2375,6 +2409,43 @@ theorem strictSubsetInductionRangePathTable_validates
   exact ⟨hhostValid,
     strictSubsetInductionHostTable_validates
       (strictSubsetInductionRangePathTableHost table) hhostValid⟩
+
+/-- Aggregate-winner recursive range-path host endpoint.
+
+A table with a scalar selected-family aggregate winner bound inherits the
+existing recursive range-path endpoint through the aggregate-to-universal winner
+conversion. -/
+theorem strictSubsetInductionAggregateRangePathTable_validates
+    (table : StrictSubsetInductionRangePathTable)
+    (hvalid : strictSubsetInductionAggregateRangePathTableValid table) :
+    strictSubsetInductionRangePathTableValid table ∧
+      strictSubsetInductionHostTableValid
+        (strictSubsetInductionRangePathTableHost table) ∧
+      (strictSubsetInductionRangePathTableHost table).packetHashBound = true ∧
+      (strictSubsetInductionRangePathTableHost table).noAuthorityEffect = true ∧
+      (strictSubsetInductionRangePathTableHost table).winnerMembershipBound = true ∧
+      allBitsBelowSet
+        (strictSubsetInductionRangePathTableHost table).winner.maskId
+        (strictSubsetInductionRangePathTableHost table).bitCount ∧
+      zeroMinEconomicKeyDominated
+        (fullFrontierZeroMinEconomicKey
+          (strictSubsetInductionRangePathTableHost table).executedInput
+          (strictSubsetInductionRangePathTableHost table).initialReserveOut
+          (strictSubsetInductionRangePathTableHost table).masks
+          (strictSubsetInductionRangePathTableHost table).suffix)
+        (selectedZeroMinEconomicKey
+          (strictSubsetInductionRangePathTableHost table).executedInput
+          (strictSubsetInductionRangePathTableHost table).initialReserveOut
+          (strictSubsetInductionRangePathTableHost table).winner
+          (strictSubsetInductionRangePathTableHost table).suffix) ∧
+      suffixExecutable
+        (strictSubsetInductionRangePathTableHost table).winner.selected.processedReserveIn
+        (strictSubsetInductionRangePathTableHost table).winner.selected.reserveOut
+        (strictSubsetInductionRangePathTableHost table).suffix := by
+  have hrange_valid :
+      strictSubsetInductionRangePathTableValid table :=
+    strictSubsetInductionAggregateRangePathTable_to_rangePathTableValid table hvalid
+  exact ⟨hrange_valid, strictSubsetInductionRangePathTable_validates table hrange_valid⟩
 
 /-- Concrete non-vacuity witness for record dominance. -/
 theorem witness_minReserveRecord_dominates_suffixTotalOutput :

@@ -160,7 +160,13 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "structure StrictSubsetInductionRangePathTable" in text
     assert "def strictSubsetInductionRangePathTableHost" in text
     assert "def strictSubsetInductionRangePathTableValid" in text
+    assert "def strictSubsetInductionAggregateRangePathTableValid" in text
+    assert (
+        "theorem strictSubsetInductionAggregateRangePathTable_to_rangePathTableValid"
+        in text
+    )
     assert "theorem strictSubsetInductionRangePathTable_validates" in text
+    assert "theorem strictSubsetInductionAggregateRangePathTable_validates" in text
     assert "theorem bestFullSuffixOutputAcrossMasks_le_selected" in text
     assert "theorem witness_bestFullSuffixOutputAcrossMasks_le_selected" in text
     assert "theorem witness_reachablePrunedRangeMask_covers_and_bounds" in text
