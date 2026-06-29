@@ -47,8 +47,9 @@ bounds, and fixed-order min-out-cap evidence.
   pool compression, a proof-carrying unordered selection certificate bridge
   for supplied full-presentation/decomposition/canonical-fixed witnesses,
   full-List ordered-index constructors for that certificate in both
-  selected-pair orders, and one concrete 4-pool plus one concrete 5-pool
-  coordinate-wise checkpoint.
+  selected-pair orders, identity-stable full-List presentation bridges for
+  duplicate-valued pool selection by distinct ids, and one concrete 4-pool plus
+  one concrete 5-pool coordinate-wise checkpoint.
 - `DiscreteArgmaxProximity.lean` replaces the false discrete-concavity target
   with an abstract argmax-proximity theorem plus CPMM conditional instantiation.
 - `KPoolDiscreteArgmaxProximity.lean` lifts the scalar proximity result to a
@@ -291,8 +292,9 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
   unordered selection certificate bridge for supplied
   full-presentation/decomposition/canonical-fixed witnesses, full-List
   ordered-index constructors for that certificate in both selected-pair orders,
-  one concrete 4-pool coordinate instance, and one concrete 5-pool coordinate
-  instance.
+  identity-stable full-List presentation bridges for duplicate-valued pool
+  selection by distinct ids, one concrete 4-pool coordinate instance, and one
+  concrete 5-pool coordinate instance.
 - The min-out-cap game-theory evidence is a fixed-order filled-user no-gain
   check, not a full Nash equilibrium proof.
 - The concavity second-order approximation is not a universal stateful attack
@@ -303,9 +305,9 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
 
 ## Recommended GPT 5.5 Continuation
 
-1. Prove unordered collection canonicalization for the proof-carrying selection
-   certificate from Finset or Multiset pool presentations, including the exact
-   treatment of duplicate-valued pools.
+1. Prove deterministic unordered collection canonicalization for the
+   proof-carrying selection certificate from Finset or Multiset presentations,
+   using the checked stable-id bridge for duplicate-valued pools.
 2. Model ceiling-fee rounding in Lean to replace the production empirical
    `2L + 2` and `3L + 2` constants with checked lemmas.
 3. Turn the fixed-order no-gain evidence into a precise game definition before
