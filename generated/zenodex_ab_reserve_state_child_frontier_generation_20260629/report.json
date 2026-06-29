@@ -1,0 +1,419 @@
+{
+  "authority_boundary": "Research-only certificate-compression evidence; no settlement, state-root, production, or governance authority.",
+  "date": "2026-06-29",
+  "deterministic_replay": {
+    "first_hash": "8d698629548edaa62cf8e7367cb0845d8cf4efd1d5583e9997b8ec878d4b0925",
+    "ok": true,
+    "second_hash": "8d698629548edaa62cf8e7367cb0845d8cf4efd1d5583e9997b8ec878d4b0925"
+  },
+  "lean_contract": {
+    "host_generation_shape": "child quotient state set equals union of predecessor afterStep images",
+    "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+    "transition_def": "ReserveState.afterStep",
+    "transition_executability_endpoint": "reserveStateQuotientInvariant_familySuffixExecutable",
+    "transition_invariant_endpoint": "reserveStateQuotientInvariant_afterStep"
+  },
+  "non_claims": [
+    "This child-frontier checker is bounded to the committed n=7 randomized corpus.",
+    "This checker covers only zero-min exact-in cases in the scoped corpus.",
+    "This checker does not prove Python-to-Lean refinement.",
+    "This checker does not prove child-frontier generation in Lean.",
+    "This checker does not define canonical tie order or preserve order-id history.",
+    "No settlement, state-root, production, or governance authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_reserve_state_child_frontier_generation_20260629.py",
+  "schema": "zenodex.ab_reserve_state_child_frontier_generation_report.v1",
+  "search": {
+    "case_count": 4,
+    "cases": [
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "child_mask_count": 127,
+        "child_state_count": 127,
+        "extra_generated_state_count": 0,
+        "fee_bps": 9000,
+        "first_failure": null,
+        "first_frontier": {
+          "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+          "child_mask_id": 1,
+          "child_quotient_digest": "f4a4921b22595e51854a6a3c1df03d9960dd26e0f4fbdec3963f15d1962b3aa9",
+          "child_state_count": 1,
+          "extra_generated_state_count": 0,
+          "extra_generated_states": [],
+          "first_predecessor": {
+            "generated_state_count": 1,
+            "generated_state_digest": "b9f2a1e497c969727600f88866b5f1de57f94b281f076c2d404388b7d727e717",
+            "parent_mask_id": 0,
+            "parent_quotient_digest": "74bfe2d98beff0789bbfc93d60ca66d200bedcd09aac3477d1548fe912a9ed49",
+            "parent_state_count": 1,
+            "predecessor_transition_count": 1,
+            "predecessor_transition_executable_count": 1,
+            "step_bit_index": 0,
+            "step_order_id": "0x00000000000000000000000000000000000000000000000000000000006cf5c0",
+            "step_order_short": [
+              "f5c0"
+            ]
+          },
+          "frontier_equal": true,
+          "generated_state_count": 1,
+          "generated_state_digest": "b9f2a1e497c969727600f88866b5f1de57f94b281f076c2d404388b7d727e717",
+          "missing_child_state_count": 0,
+          "missing_child_states": [],
+          "predecessor_count": 1,
+          "predecessor_rows_digest": "fbd43aae07e508b566fe94080a65979d40df733613bd9f06300214f65e447ad8",
+          "predecessor_transition_count": 1,
+          "predecessor_transition_executable_count": 1
+        },
+        "frontier_equal_count": 127,
+        "frontier_rows_digest": "54eb4c9f2a58c5e51cd19c34c1ac7cfb371f9fea6ebbd33686e702b2e8a5ef93",
+        "generated_state_count": 127,
+        "max_child_state_count": 1,
+        "max_generated_state_count": 1,
+        "missing_child_state_count": 0,
+        "ok": true,
+        "packet_hash": "4f4f62583c0a9d200fffb761e151b5afe413f268e3c0f714124a07a313874bd7",
+        "pattern": "thin_positive_boundary/high_fee9000",
+        "predecessor_edge_count": 448,
+        "predecessor_transition_count": 448,
+        "predecessor_transition_executable_count": 448,
+        "reasons": []
+      },
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "child_mask_count": 127,
+        "child_state_count": 320,
+        "extra_generated_state_count": 0,
+        "fee_bps": 1,
+        "first_failure": null,
+        "first_frontier": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "child_mask_id": 1,
+          "child_quotient_digest": "ed797424d28c0e20d3788030556693f7eac66e549fff66b80a2ae78274267ddf",
+          "child_state_count": 1,
+          "extra_generated_state_count": 0,
+          "extra_generated_states": [],
+          "first_predecessor": {
+            "generated_state_count": 1,
+            "generated_state_digest": "6bd82648d3a4431465adeba3a86cd062cd2847ba91576c1d8c99214cf4fe5ab1",
+            "parent_mask_id": 0,
+            "parent_quotient_digest": "a1785445073cbba2417efd9fc4096c4d4b8a52e698792436259b36c97c6ff9dd",
+            "parent_state_count": 1,
+            "predecessor_transition_count": 1,
+            "predecessor_transition_executable_count": 1,
+            "step_bit_index": 0,
+            "step_order_id": "0x00000000000000000000000000000000000000000000000000000000006c8540",
+            "step_order_short": [
+              "8540"
+            ]
+          },
+          "frontier_equal": true,
+          "generated_state_count": 1,
+          "generated_state_digest": "6bd82648d3a4431465adeba3a86cd062cd2847ba91576c1d8c99214cf4fe5ab1",
+          "missing_child_state_count": 0,
+          "missing_child_states": [],
+          "predecessor_count": 1,
+          "predecessor_rows_digest": "4d9a6d1185f8f8418776c0c46360e1a8b23a525aad4a284490016b83327e5ea1",
+          "predecessor_transition_count": 1,
+          "predecessor_transition_executable_count": 1
+        },
+        "frontier_equal_count": 127,
+        "frontier_rows_digest": "91b737dab0b90442284b0c82628d618f098c4d013d19180f2cdba16aa28cfa0a",
+        "generated_state_count": 320,
+        "max_child_state_count": 5,
+        "max_generated_state_count": 5,
+        "missing_child_state_count": 0,
+        "ok": true,
+        "packet_hash": "233d11913f1aa7cb6b732af9068cb64dd5a34b33d7638303e257f77ec5984303",
+        "pattern": "near_zero_positive/rand_tie",
+        "predecessor_edge_count": 448,
+        "predecessor_transition_count": 1004,
+        "predecessor_transition_executable_count": 1004,
+        "reasons": []
+      },
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "child_mask_count": 127,
+        "child_state_count": 290,
+        "extra_generated_state_count": 0,
+        "fee_bps": 100,
+        "first_failure": null,
+        "first_frontier": {
+          "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+          "child_mask_id": 1,
+          "child_quotient_digest": "0a576fb09551959068ae0ac776daae67ed72bcc3c47fee73bec42cdd241f3e6d",
+          "child_state_count": 1,
+          "extra_generated_state_count": 0,
+          "extra_generated_states": [],
+          "first_predecessor": {
+            "generated_state_count": 1,
+            "generated_state_digest": "385f5611868c94230fa8324c2a220b68f0baa7b3fe48379bad3921cc19fcf4af",
+            "parent_mask_id": 0,
+            "parent_quotient_digest": "a6341c494af927f4247515ab15786a0b33a9fd9bb4876edc37267dd7003d11a4",
+            "parent_state_count": 1,
+            "predecessor_transition_count": 1,
+            "predecessor_transition_executable_count": 1,
+            "step_bit_index": 0,
+            "step_order_id": "0x00000000000000000000000000000000000000000000000000000000006c8550",
+            "step_order_short": [
+              "8550"
+            ]
+          },
+          "frontier_equal": true,
+          "generated_state_count": 1,
+          "generated_state_digest": "385f5611868c94230fa8324c2a220b68f0baa7b3fe48379bad3921cc19fcf4af",
+          "missing_child_state_count": 0,
+          "missing_child_states": [],
+          "predecessor_count": 1,
+          "predecessor_rows_digest": "6bca2a5cdaf24a98476cd7c80de77ca0c5510b8e75fa2a1c22e2095d63b63fd4",
+          "predecessor_transition_count": 1,
+          "predecessor_transition_executable_count": 1
+        },
+        "frontier_equal_count": 127,
+        "frontier_rows_digest": "622e453b599d8b5c769628078bef4d95a1d8c8af5a8eaa68db8743b49f461354",
+        "generated_state_count": 290,
+        "max_child_state_count": 5,
+        "max_generated_state_count": 5,
+        "missing_child_state_count": 0,
+        "ok": true,
+        "packet_hash": "ad58c976763fa950e23a7b0be474f15896448d54d88e18b50ac38181c77f3ef2",
+        "pattern": "high_fee_deep_out/rand_stair",
+        "predecessor_edge_count": 448,
+        "predecessor_transition_count": 877,
+        "predecessor_transition_executable_count": 877,
+        "reasons": []
+      },
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "child_mask_count": 127,
+        "child_state_count": 127,
+        "extra_generated_state_count": 0,
+        "fee_bps": 100,
+        "first_failure": null,
+        "first_frontier": {
+          "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+          "child_mask_id": 1,
+          "child_quotient_digest": "81314bc7e8cb5fa6d1c4656e5fdc6ce100b55745eda4a2a7b022c4aa7cbcf69e",
+          "child_state_count": 1,
+          "extra_generated_state_count": 0,
+          "extra_generated_states": [],
+          "first_predecessor": {
+            "generated_state_count": 1,
+            "generated_state_digest": "ac4372c5df83a7b03592bd33f22539b8aafc91c42786fa053bd2a323e6d902dc",
+            "parent_mask_id": 0,
+            "parent_quotient_digest": "f6966d644ee1ba1000e5ae5855c407894e63e0bf5027dbf259a63e57e7a10a63",
+            "parent_state_count": 1,
+            "predecessor_transition_count": 1,
+            "predecessor_transition_executable_count": 1,
+            "step_bit_index": 0,
+            "step_order_id": "0x00000000000000000000000000000000000000000000000000000000006c8560",
+            "step_order_short": [
+              "8560"
+            ]
+          },
+          "frontier_equal": true,
+          "generated_state_count": 1,
+          "generated_state_digest": "ac4372c5df83a7b03592bd33f22539b8aafc91c42786fa053bd2a323e6d902dc",
+          "missing_child_state_count": 0,
+          "missing_child_states": [],
+          "predecessor_count": 1,
+          "predecessor_rows_digest": "e9b1a21981940dd15438dc384b7331d3d67770bb1697dfcbaf10a745a6948e75",
+          "predecessor_transition_count": 1,
+          "predecessor_transition_executable_count": 1
+        },
+        "frontier_equal_count": 127,
+        "frontier_rows_digest": "bfb56c51fe16b20de441b102c7473142449cda8515d9851d3ef79813769e0cef",
+        "generated_state_count": 127,
+        "max_child_state_count": 1,
+        "max_generated_state_count": 1,
+        "missing_child_state_count": 0,
+        "ok": true,
+        "packet_hash": "bdd8914a20f96ca06add8397cb43cb2f032442745a9c023805cd36a4c1297190",
+        "pattern": "near_domain_in/rand_burst",
+        "predecessor_edge_count": 448,
+        "predecessor_transition_count": 448,
+        "predecessor_transition_executable_count": 448,
+        "reasons": []
+      }
+    ],
+    "child_mask_count": 508,
+    "child_state_count": 864,
+    "coverage": {
+      "fee_bps_counts": {
+        "1": 1,
+        "100": 2,
+        "9000": 1
+      },
+      "n_counts": {
+        "7": 4
+      },
+      "pattern_counts": {
+        "high_fee_deep_out/rand_stair": 1,
+        "near_domain_in/rand_burst": 1,
+        "near_zero_positive/rand_tie": 1,
+        "thin_positive_boundary/high_fee9000": 1
+      },
+      "reason_classes": [
+        "authority_effect_present",
+        "generated_frontier_extra_child_state",
+        "generated_frontier_missing_child_state",
+        "packet_frontier_summary_mismatch",
+        "packet_hash_mismatch",
+        "packet_lean_contract_mismatch"
+      ]
+    },
+    "elapsed_ms": 2604.31,
+    "extra_generated_state_count": 0,
+    "first_case": {
+      "bit_count": 7,
+      "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+      "child_mask_count": 127,
+      "child_state_count": 127,
+      "extra_generated_state_count": 0,
+      "fee_bps": 9000,
+      "first_failure": null,
+      "first_frontier": {
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "child_mask_id": 1,
+        "child_quotient_digest": "f4a4921b22595e51854a6a3c1df03d9960dd26e0f4fbdec3963f15d1962b3aa9",
+        "child_state_count": 1,
+        "extra_generated_state_count": 0,
+        "extra_generated_states": [],
+        "first_predecessor": {
+          "generated_state_count": 1,
+          "generated_state_digest": "b9f2a1e497c969727600f88866b5f1de57f94b281f076c2d404388b7d727e717",
+          "parent_mask_id": 0,
+          "parent_quotient_digest": "74bfe2d98beff0789bbfc93d60ca66d200bedcd09aac3477d1548fe912a9ed49",
+          "parent_state_count": 1,
+          "predecessor_transition_count": 1,
+          "predecessor_transition_executable_count": 1,
+          "step_bit_index": 0,
+          "step_order_id": "0x00000000000000000000000000000000000000000000000000000000006cf5c0",
+          "step_order_short": [
+            "f5c0"
+          ]
+        },
+        "frontier_equal": true,
+        "generated_state_count": 1,
+        "generated_state_digest": "b9f2a1e497c969727600f88866b5f1de57f94b281f076c2d404388b7d727e717",
+        "missing_child_state_count": 0,
+        "missing_child_states": [],
+        "predecessor_count": 1,
+        "predecessor_rows_digest": "fbd43aae07e508b566fe94080a65979d40df733613bd9f06300214f65e447ad8",
+        "predecessor_transition_count": 1,
+        "predecessor_transition_executable_count": 1
+      },
+      "frontier_equal_count": 127,
+      "frontier_rows_digest": "54eb4c9f2a58c5e51cd19c34c1ac7cfb371f9fea6ebbd33686e702b2e8a5ef93",
+      "generated_state_count": 127,
+      "max_child_state_count": 1,
+      "max_generated_state_count": 1,
+      "missing_child_state_count": 0,
+      "ok": true,
+      "packet_hash": "4f4f62583c0a9d200fffb761e151b5afe413f268e3c0f714124a07a313874bd7",
+      "pattern": "thin_positive_boundary/high_fee9000",
+      "predecessor_edge_count": 448,
+      "predecessor_transition_count": 448,
+      "predecessor_transition_executable_count": 448,
+      "reasons": []
+    },
+    "first_invalid_case": null,
+    "frontier_equal_count": 508,
+    "frontier_rows_digest": "b0536297bdec3e49204d98e4a52b4b43ea1467f7a32c2e184cf0bec07955fba4",
+    "generated_state_count": 864,
+    "max_child_state_count": 5,
+    "max_generated_state_count": 5,
+    "missing_child_state_count": 0,
+    "negative_control_accept_count": 0,
+    "negative_control_count": 7,
+    "negative_controls": [
+      {
+        "accepted": false,
+        "expected_reason": "packet_hash_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_hash_mismatch",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "packet_lean_contract_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_lean_contract_mismatch",
+        "reasons": [
+          "packet_lean_contract_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "packet_frontier_summary_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_frontier_summary_mismatch",
+        "reasons": [
+          "packet_frontier_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "authority_effect_present",
+        "first_failure": null,
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "generated_frontier_missing_child_state",
+        "first_failure": {
+          "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+          "mask_id": 1,
+          "reason": "generated_frontier_missing_child_state"
+        },
+        "mutation_id": "generated_frontier_missing_child_state",
+        "reasons": [
+          "generated_frontier_missing_child_state"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "generated_frontier_extra_child_state",
+        "first_failure": {
+          "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+          "mask_id": 1,
+          "reason": "generated_frontier_missing_child_state"
+        },
+        "mutation_id": "generated_frontier_extra_child_state",
+        "reasons": [
+          "generated_frontier_missing_child_state",
+          "generated_frontier_extra_child_state"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "generated_frontier_extra_child_state",
+        "first_failure": {
+          "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+          "mask_id": 1,
+          "reason": "generated_frontier_extra_child_state"
+        },
+        "mutation_id": "stale_child_quotient_extra_generated_state",
+        "reasons": [
+          "generated_frontier_extra_child_state"
+        ]
+      }
+    ],
+    "predecessor_edge_count": 1792,
+    "predecessor_transition_count": 2777,
+    "predecessor_transition_executable_count": 2777,
+    "schema": "zenodex/ab_reserve_state_child_frontier_generation_search/v1",
+    "source_seed": 2026062907,
+    "valid_case_count": 4
+  },
+  "summary": "A bounded host checker supports child-frontier generation for the reserve-state quotient on the committed n=7 strict zero-min corpus: each child quotient family equals the union of predecessor afterStep images."
+}
