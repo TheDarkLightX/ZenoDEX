@@ -322,6 +322,41 @@ that moved the package from A- to A was adding formal game definitions
 pool state transition) and proving the no-gain property through the
 utility function rather than raw output equality.
 
+The Finset quotient bridge (KPoolSplitConcavity.lean) achieved A with zero
+findings at iteration 12. The bridge connects `Finset Nat` presentations
+(keyed by stable pool identities) to the existing merge-sort concavity path
+via `IdentifiedFinsetPresentationCont`, `identifiedFinsetToList`, and
+concavity theorems for both selected-pair orders. Codex confirmed the
+permutation bridge is sound, the `Finset Nat` keying avoids `DecidableEq`
+on R-bearing pool terms, and all merge-sort preconditions are inherited
+directly.
+
+The Multiset quotient bridge (KPoolSplitConcavity.lean, ~746 new lines)
+achieved A with zero findings. The bridge extends the Finset bridge to
+`Multiset IdentifiedFixedPoolTermCont` presentations under a
+no-duplicate-stable-id contract. Key theorems include
+`identifiedMultisetToList_perm_of_eq` (equal multisets produce permuted
+Lists), `stableIdSortedPoolsCont_eq_of_multiset_eq` (sorted output
+uniqueness), stable-id selection records deriving index order from
+sorted-output id order, `StableIdSortedLookupWitnessCont` (stable-ID
+lookup witness bridge), and 4 concavity theorems composing selection +
+Multiset + merge-sort paths. Codex confirmed no soundness findings in the
+Multiset bridge.
+
+The CeilingFeeRounding.lean package (new file, ~358 lines) achieved A
+through a 4-iteration sub-loop (A- -> A- -> A- -> A). The file formalizes
+the production CPMM swap arithmetic (ceiling fee + floor output) and
+proves conservative floor error and argmax proximity bounds. The A- to A
+journey was driven by three LOW scope-wording findings: (1) doc claimed
+c=1 reduction is proved when it isn't, (2) opening implied exact empirical
+2L+2/3L+2 constants are proved, (3) "weaker than (but imply)" wording
+could be read as claiming the formal theorem derives the empirical
+constants. All three were fixed by tightening doc comments. Codex
+confirmed the Lipschitz proof is sound (denominator positivity established
+before division clearing, explicit nonnegativity for mul_le_mul_of_nonneg_left
+steps) and the production floor error bound correctly chains the Lipschitz
+bound with the floor error.
+
 ---
 
 ## 9. Replay Commands

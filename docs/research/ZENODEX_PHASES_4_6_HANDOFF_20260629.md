@@ -63,8 +63,9 @@ bounds, and fixed-order min-out-cap evidence.
   selected stable IDs bind to unique sorted-output positions before lowering
   into the Multiset stable-id concavity path, a deterministic runtime stable-id
   lookup certificate checker for canonical bytes and selected-ID/index
-  validation, and one concrete 4-pool plus one concrete 5-pool coordinate-wise
-  checkpoint.
+  validation, a deterministic runtime-to-Lean assumption bridge that emits and
+  re-validates a certificate-relative sorted-ID/lookup/order/hash packet, and
+  one concrete 4-pool plus one concrete 5-pool coordinate-wise checkpoint.
 - `DiscreteArgmaxProximity.lean` replaces the false discrete-concavity target
   with an abstract argmax-proximity theorem plus CPMM conditional instantiation.
 - `KPoolDiscreteArgmaxProximity.lean` lifts the scalar proximity result to a
@@ -335,9 +336,12 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
   selected IDs to unique sorted-output positions, a runtime stable-id lookup
   checker for canonical JSON bytes, duplicate-key rejection, duplicate stable-ID
   rejection, selected-ID membership, sorted-output index consistency, and
-  selected-pair order, one concrete 4-pool coordinate instance, and one concrete
-  5-pool coordinate instance. Production-specific unordered-container APIs and
-  a top-level all-K theorem remain open.
+  selected-pair order, a runtime-to-Lean stable-id lookup assumption bridge
+  that emits a canonical certificate-relative assumption packet for sorted
+  stable IDs, selected lookup witnesses, selected-pair order, and certificate
+  hash, one concrete 4-pool coordinate instance, and one concrete 5-pool
+  coordinate instance. Production-specific unordered-container APIs and a
+  top-level all-K theorem remain open.
 - The min-out-cap game-theory evidence is a fixed-order filled-user no-gain
   check, not a full Nash equilibrium proof.
 - The concavity second-order approximation is not a universal stateful attack
@@ -354,6 +358,9 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
 - `src/core/kpool_stable_id_lookup_certificate.py` is a deterministic boundary
   checker for a research certificate format. It is not wired into consensus
   authority or production settlement behavior.
+- The same module emits the Lean-facing assumption packet only after a
+  certificate is accepted. Lean still consumes mathematical assumptions; it does
+  not parse JSON bytes directly.
 
 ## Recommended GPT 5.5 Continuation
 
@@ -398,10 +405,31 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
    boundary checker for canonical bytes, duplicate JSON keys, duplicate stable
    IDs, absent selected IDs, out-of-bounds indices, ID/index mismatch, and
    selected-pair order mismatch, with named reject reasons covered by
-   `tests/core/test_kpool_stable_id_lookup_certificate.py`. Production-specific
-   unordered-container APIs and a top-level all-K theorem remain open.
+   `tests/core/test_kpool_stable_id_lookup_certificate.py`. DONE:
+   the same module adds a runtime-to-Lean assumption bridge that emits a
+   canonical certificate-relative packet containing sorted stable IDs, active
+   and remainder lookup witnesses, selected-pair order, and certificate hash.
+   The tests mutate each bridge field and require named rejection for stale
+   hash, sorted-ID drift, lookup drift, order drift, duplicate JSON keys, and
+   noncanonical bytes. Production-specific unordered-container APIs and a
+   top-level all-K theorem remain open.
+   Codex review: A grade, zero findings. Confirmed Multiset permutation bridge
+   soundness, stable-id Nodup transfer, selected-id-to-index ordering, lookup
+   witness uniqueness, and lookup lowering all compose cleanly with the
+   existing merge-sort path.
 2. Model ceiling-fee rounding in Lean to replace the production empirical
    `2L + 2` and `3L + 2` constants with checked lemmas.
+   DONE: `CeilingFeeRounding.lean` formalizes the production CPMM swap
+   arithmetic (ceiling fee + floor output) and proves conservative floor
+   error and argmax proximity bounds (`K0/M0 + K1/M1 + 2` and
+   `L + K0/M0 + K1/M1 + 2`). The proved bounds are weaker than the
+   empirical `2L + 2` and `3L + 2` constants; the exact empirical constants
+   are not formally proved. Key theorems: `cpmm_output_lipschitz_wrt_net`
+   (K/M Lipschitz constant), `cpmm_prod_floor_error_bound_directed`
+   (per-pool floor error in [0, K/M+1)), `split_prod_floor_error_bound`
+   (2-pool split floor error), `production_argmax_proximity` (production
+   argmax proximity). Codex A grade achieved through a 4-iteration sub-loop
+   (A- -> A- -> A- -> A), all findings were LOW scope-wording issues.
 3. Turn the fixed-order no-gain evidence into a precise game definition.
    DONE: `MinOutCapGameTheory.lean` proves the fixed-order filled-user
    no-gain property (filled_user_no_profitable_deviation,
