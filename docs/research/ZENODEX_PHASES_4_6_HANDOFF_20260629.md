@@ -54,8 +54,11 @@ bounds, and fixed-order min-out-cap evidence.
   supplied id-ordered permutation representatives, an executable stable-id List
   merge-sort bridge for arbitrary identified Lists with unique stable ids, a
   stable-id List permutation quotient bridge proving valid permuted List
-  presentations canonicalize to the same sorted output, and one concrete 4-pool
-  plus one concrete 5-pool coordinate-wise checkpoint.
+  presentations canonicalize to the same sorted output, a stable-id
+  certificate-output quotient bridge proving the executable merge-sort
+  presentation/certificate exposes the same canonical output pool sequence for
+  valid permuted inputs, and one concrete 4-pool plus one concrete 5-pool
+  coordinate-wise checkpoint.
 - `DiscreteArgmaxProximity.lean` replaces the false discrete-concavity target
   with an abstract argmax-proximity theorem plus CPMM conditional instantiation.
 - `KPoolDiscreteArgmaxProximity.lean` lifts the scalar proximity result to a
@@ -315,9 +318,10 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
   id-ordered permutation representatives, an executable stable-id List
   merge-sort bridge for arbitrary identified Lists with unique stable ids, a
   stable-id List permutation quotient bridge for valid identified List
-  presentations, one concrete 4-pool coordinate instance, and one concrete
-  5-pool coordinate instance. Finset/Multiset packaging of that List quotient
-  remains open.
+  presentations, a stable-id certificate-output quotient bridge for the
+  executable merge-sort presentation/certificate output sequence, one concrete
+  4-pool coordinate instance, and one concrete 5-pool coordinate instance.
+  Finset/Multiset packaging of that List quotient remains open.
 - The min-out-cap game-theory evidence is a fixed-order filled-user no-gain
   check, not a full Nash equilibrium proof.
 - The concavity second-order approximation is not a universal stateful attack
@@ -334,9 +338,9 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
 
 ## Recommended GPT 5.5 Continuation
 
-1. Package the stable-id List permutation quotient as a Finset/Multiset
-   unordered-presentation certificate, then connect that certificate to the
-   existing proof-carrying selection path.
+1. Package the stable-id List permutation and certificate-output quotient
+   bridges as a Finset/Multiset unordered-presentation certificate, then connect
+   that certificate to the existing proof-carrying selection path.
 2. Model ceiling-fee rounding in Lean to replace the production empirical
    `2L + 2` and `3L + 2` constants with checked lemmas.
 3. Turn the fixed-order no-gain evidence into a precise game definition.

@@ -32,13 +32,17 @@ Iterations and grades:
 | 7    | Conservation | A-   | 1 LOW    | stale 1.82x prose drift, duplicated sentence |
 | 8    | Lipschitz-stateful bridge | A- | 3    | stale handoff, stale docstring, continuous-vs-rounded scope note |
 | 9    | Lipschitz-stateful bridge | A  | 0    | all round 8 findings resolved, zero findings |
+| 10   | Game theory (Phase 6) | A- | 3    | raw algebraic equality (no conditional transition), raw output (no utility fn), scope note as theorem |
+| 11   | Game theory (Phase 6) | A  | 0    | all round 10 findings resolved, zero findings |
 
 The grade plateaued at B+ across iterations 3 and 4 for the Phases 4-6 scope.
 The conservation law package then went through its own 3-iteration loop
 (C+ -> B- -> A-) before reaching the target. The Lipschitz-stateful bridge
 then went through a 2-iteration loop (A- -> A) to close the formal gap
 between the generic Lipschitz increment and the exact stateful CPMM attack
-model. Each iteration closed the named findings but a new stale-wording or
+model. The game-theory package (Phase 6) then went through a 2-iteration
+loop (A- -> A) to formalize the fixed-order filled-user no-gain property
+with a proper utility function and conditional batch transition. Each iteration closed the named findings but a new stale-wording or
 scope-inconsistency surfaced. This is the key process insight: **stale
 wording is a moving target because the same concept is described in multiple
 files, and a fix in one file does not propagate to the others.**
@@ -264,10 +268,13 @@ For the record, the Lean-proven theorems in this research run (Phases 3-6):
 
 **Phase 6 (game theory):**
 - `MinOutCapGameTheory.lean`: fixed-order filled-user no-gain property
-  (`filled_user_no_profitable_deviation`: a filled user cannot increase
-  output by lowering min_out; `batch_state_invariant_after_filled_deviation`:
-  pool state unchanged after filled user's min_out deviation). NOT a full
-  Nash equilibrium for the (A,B) optimal ordering game.
+  with formal game definitions (`utility`: if filled then output else 0;
+  `batchTransition`: conditional pool state transition). Five theorems:
+  `cpmm_output_independent_of_min_out`, `filled_user_lower_min_out_still_fills`,
+  `filled_user_lower_min_out_same_output`,
+  `filled_user_no_profitable_deviation` (utility-based no-gain),
+  `batch_state_invariant_after_filled_deviation` (conditional transition
+  equality). NOT a full Nash equilibrium for the (A,B) optimal ordering game.
 
 ### What Is NOT Lean-Proven
 
@@ -284,25 +291,35 @@ The target was A-. It was achieved at iteration 7 (conservation law scope)
 after a 3-iteration sub-loop (C+ -> B- -> A-). The package was then extended
 with the Lipschitz-stateful bridge (two new Lean theorems proving the exact
 stateful CPMM attack gain bound), which went through a 2-iteration sub-loop
-(A- -> A) to reach A with zero findings.
+(A- -> A) to reach A with zero findings. The game-theory package (Phase 6)
+then went through a 2-iteration sub-loop (A- -> A) to formalize the
+fixed-order filled-user no-gain property with a formal utility function
+and conditional batch transition.
 
 The Phases 4-6 scope plateaued at B+ across iterations 3-4 and was not
 resubmitted after the conservation package absorbed all the stale-wording
 findings.
 
-The final A was conditional on host verification (Codex sandbox blocks
-pytest via bwrap loopback). Host verification confirmed:
+The final A grades were conditional on host verification (Codex sandbox
+blocks pytest via bwrap loopback). Host verification confirmed:
 - `lake env lean Proofs/ConcavityConservationLaw.lean`: 0 errors/warnings
+- `lake env lean Proofs/MinOutCapGameTheory.lean`: 0 errors/warnings
 - `python3 docs/research/concavity_conservation_law_test.py`: 9/9 PASS
-- `pytest`: 10/10 PASS in 5.88s
+- `python3 docs/research/nash_equilibrium_min_out_cap_test.py`: 5/5 PASS
+- `pytest`: 11/11 PASS (10 conservation + 1 game theory)
 
-The A grade was achieved with zero findings. The key extension that moved
-the package from A- to A was proving the stateful CPMM attack gain bound
-in Lean (`cpmm_stateful_gain_bound` for fee-free, `cpmm_stateful_gain_bound_with_fee`
-for fee-bearing), closing the formal gap between the generic Lipschitz
-increment and the exact stateful attack model. The remaining documentation
-fixes (stale handoff, stale docstring, continuous-vs-rounded scope note)
-were the 3 findings at A- that, once fixed, produced the A grade.
+The conservation law A grade was achieved with zero findings. The key
+extension that moved the package from A- to A was proving the stateful
+CPMM attack gain bound in Lean (`cpmm_stateful_gain_bound` for fee-free,
+`cpmm_stateful_gain_bound_with_fee` for fee-bearing), closing the formal
+gap between the generic Lipschitz increment and the exact stateful attack
+model.
+
+The game-theory A grade was achieved with zero findings. The key extension
+that moved the package from A- to A was adding formal game definitions
+(`utility`: if filled then output else 0; `batchTransition`: conditional
+pool state transition) and proving the no-gain property through the
+utility function rather than raw output equality.
 
 ---
 
