@@ -65,7 +65,7 @@ REPORT_MD = (
     / "ZENODEX_AB_STRICT_ZERO_MIN_ARBITRARY_SUBSET_FAMILY_CERTIFICATE_20260629.md"
 )
 
-EXPECTED_NEGATIVE_CONTROL_COUNT = 11
+EXPECTED_NEGATIVE_CONTROL_COUNT = 12
 PACKET_SCHEMA = "zenodex.ab_strict_zero_min_arbitrary_subset_family_certificate_packet.v1"
 REPORT_SCHEMA = "zenodex.ab_strict_zero_min_arbitrary_subset_family_certificate_report.v1"
 AUTHORITY_BOUNDARY = "research_only_no_settlement_or_state_authority"
@@ -113,13 +113,20 @@ def _lean_contract() -> dict[str, str]:
     }
 
 
-def _all_zero_min_amount_out(raw_values: object) -> bool:
-    if not isinstance(raw_values, list):
-        return False
+def _packet_min_amount_out_reasons(packet: Mapping[str, Any]) -> list[str]:
+    raw_values = packet.get("min_amount_out")
     try:
-        return all(int(item) == 0 for item in raw_values)
+        bit_count = int(packet.get("bit_count"))
     except (TypeError, ValueError):
-        return False
+        bit_count = -1
+    if not isinstance(raw_values, list) or len(raw_values) != bit_count:
+        return ["packet_min_amount_out_shape_mismatch"]
+    try:
+        if any(int(item) != 0 for item in raw_values):
+            return ["packet_nonzero_min_amount_out_out_of_scope"]
+    except (TypeError, ValueError):
+        return ["packet_min_amount_out_shape_mismatch"]
+    return []
 
 
 def _case_has_zero_min_amount_out(case: _StressCase) -> bool:
@@ -145,8 +152,7 @@ def _packet_rail_reasons(packet: Mapping[str, Any] | None) -> list[str]:
         reasons.append("winner_membership_bound_missing")
     if packet.get("lean_contract") != _lean_contract():
         reasons.append("lean_contract_mismatch")
-    if not _all_zero_min_amount_out(packet.get("min_amount_out")):
-        reasons.append("packet_nonzero_min_amount_out_out_of_scope")
+    reasons.extend(_packet_min_amount_out_reasons(packet))
     if packet.get("packet_hash") != _packet_hash(packet):
         reasons.append("packet_hash_mismatch")
     return reasons
@@ -559,6 +565,18 @@ def _negative_controls(case: _StressCase) -> list[dict[str, Any]]:
             _clone_compressed_dp(base_compressed),
             _rehash_packet(bad_nonzero_min_packet),
             "packet_nonzero_min_amount_out_out_of_scope",
+        )
+    )
+
+    bad_min_shape_packet = copy.deepcopy(base_packet)
+    bad_min_shape_packet["min_amount_out"] = []
+    rows.append(
+        (
+            "packet_min_amount_out_shape_mismatch",
+            _clone_full_dp(base_full),
+            _clone_compressed_dp(base_compressed),
+            _rehash_packet(bad_min_shape_packet),
+            "packet_min_amount_out_shape_mismatch",
         )
     )
 

@@ -18,7 +18,7 @@ Research-only certificate evidence; no settlement, state-root, production, or go
 - Selected suffix executable checks: `85284`
 - Dominance checks: `212760`
 - Runtime-executable full completions: `212760`
-- Negative controls: `11`
+- Negative controls: `12`
 - Negative control accepts: `0`
 - Deterministic replay ok: `True`
 
@@ -199,6 +199,7 @@ full-state records for the same mask and suffix.
 | `authority_effect_present` | `False` | `authority_effect_present` |
 | `winner_membership_bound_missing` | `False` | `winner_membership_bound_missing` |
 | `packet_nonzero_min_amount_out_out_of_scope` | `False` | `packet_nonzero_min_amount_out_out_of_scope` |
+| `packet_min_amount_out_shape_mismatch` | `False` | `packet_min_amount_out_shape_mismatch` |
 | `compressed_record_missing` | `False` | `compressed_record_missing` |
 | `mask_pruning_full_record_processed_reserve_in_mismatch` | `False` | `mask_pruning_full_record_processed_reserve_in_mismatch` |
 | `mask_pruning_selected_reserve_out_not_min` | `False` | `mask_pruning_selected_reserve_out_not_min` |

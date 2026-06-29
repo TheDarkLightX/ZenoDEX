@@ -83,6 +83,7 @@ def test_ab_strict_zero_min_arbitrary_subset_family_coverage(
     assert "authority_effect_present" in coverage["reason_classes"]
     assert "winner_membership_bound_missing" in coverage["reason_classes"]
     assert "packet_nonzero_min_amount_out_out_of_scope" in coverage["reason_classes"]
+    assert "packet_min_amount_out_shape_mismatch" in coverage["reason_classes"]
     assert "selected_final_reserve_dominance_failure" in coverage["reason_classes"]
 
 
@@ -131,6 +132,10 @@ def test_ab_strict_zero_min_arbitrary_subset_family_negative_controls_fail_close
     assert (
         "packet_nonzero_min_amount_out_out_of_scope"
         in controls["packet_nonzero_min_amount_out_out_of_scope"]["reasons"]
+    )
+    assert (
+        "packet_min_amount_out_shape_mismatch"
+        in controls["packet_min_amount_out_shape_mismatch"]["reasons"]
     )
     assert "compressed_record_missing" in controls["compressed_record_missing"]["reasons"]
     assert (
