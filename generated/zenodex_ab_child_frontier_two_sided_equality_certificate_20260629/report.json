@@ -1,0 +1,224 @@
+{
+  "authority_boundary": "Research-only certificate-boundary evidence; no settlement, state-root, production, routing, matching, pool-mutation, or governance authority.",
+  "date": "2026-06-29",
+  "design_recommendation": [
+    "Use coverage_witnesses + generated_state_digest as a compact bounded certificate shape for no-extra child-frontier claims.",
+    "Reject coverage-only packets whenever the claim needs frontier equality rather than coverage.",
+    "Keep the certificate research-only until a production verifier or Lean theorem checks complete generated-image construction."
+  ],
+  "deterministic_replay": {
+    "first_hash": "32dc0c367f44f0ce8f1f6b9c4d7d4a4931b174654679b9d8b1e692e3551d306a",
+    "ok": true,
+    "second_hash": "32dc0c367f44f0ce8f1f6b9c4d7d4a4931b174654679b9d8b1e692e3551d306a"
+  },
+  "hypothesis_card": {
+    "expected_metric_delta": {
+      "cap_efficiency": "0",
+      "determinism_simplicity": "+explicit equality obligation",
+      "execution_quality": "0",
+      "perf_cost": "+one extra digest and generated-state set check",
+      "safety": "+rejects hidden extra generated states in bounded model"
+    },
+    "falsification_recipe": "Mutate generated states, state digests, witness rows, equality rails, packet hashes, and authority rails; any accepted negative control falsifies the certificate boundary.",
+    "formal_obligations": "A production-grade theorem would need to prove that the generated state set is the complete transition image for the scoped domain.",
+    "hypothesis_id": "H-AB-TWO-SIDED-EQUALITY-CERTIFICATE-20260629",
+    "mechanism_change": "Add generated-image binding to one-witness child-frontier packets so the verifier checks child_states == generated_states.",
+    "null_hypothesis": "A generated-state digest plus witness coverage can distinguish the bounded hidden-extra world from the baseline world.",
+    "representation_shift_used": "certificate_boundary",
+    "risk_modes": [
+      "generated-state digest not recomputed",
+      "coverage witness overclaimed as equality",
+      "hidden generated state",
+      "authority leakage",
+      "stale packet hash"
+    ],
+    "status": "supported_bounded",
+    "support_recipe": "Verify the baseline packet, reject the hidden-extra packet, reject coverage-only packets, and assert zero accepted negative controls."
+  },
+  "non_claims": [
+    "Scope is limited to a bounded certificate-boundary design; universal claims about all ZenoDEX frontier certificates are excluded.",
+    "This artifact does not prove child-frontier generation in Lean.",
+    "This artifact does not prove Python-to-Lean refinement.",
+    "This artifact does not cover nonzero min_amount_out behavior.",
+    "This artifact does not define canonical tie order or production verifier framing.",
+    "No settlement, state-root, production, routing, matching, pool-mutation, or governance authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_child_frontier_two_sided_equality_certificate_20260629.py",
+  "schema": "zenodex.ab_child_frontier_two_sided_equality_report.v1",
+  "search": {
+    "baseline": {
+      "child_state_count": 2,
+      "covered_child_state_count": 2,
+      "extra_generated_state_count": 0,
+      "extra_generated_states": [],
+      "generated_state_count": 2,
+      "missing_generated_state_count": 0,
+      "missing_generated_states": [],
+      "missing_witness_count": 0,
+      "ok": true,
+      "reasons": [],
+      "witness_count": 2
+    },
+    "baseline_ok": true,
+    "child_state_count": 2,
+    "child_state_digest": "20debc2b386b88b55708cbd5c6d18febab91b3ea22beea0f030064f40d3d7dfd",
+    "coverage_only": {
+      "child_state_count": 2,
+      "covered_child_state_count": 2,
+      "extra_generated_state_count": 0,
+      "extra_generated_states": [],
+      "generated_state_count": 0,
+      "missing_generated_state_count": 2,
+      "missing_generated_states": [
+        {
+          "processed_reserve_in": 100,
+          "reserve_out": 9900
+        },
+        {
+          "processed_reserve_in": 140,
+          "reserve_out": 9861
+        }
+      ],
+      "missing_witness_count": 0,
+      "ok": false,
+      "reasons": [
+        "frontier_equality_bound_missing",
+        "generated_state_binding_missing",
+        "generated_state_digest_mismatch",
+        "generated_frontier_missing_child_state"
+      ],
+      "witness_count": 2
+    },
+    "coverage_only_rejected": true,
+    "elapsed_ms": 1.963,
+    "equality_certificate_valid": true,
+    "extra_world": {
+      "child_state_count": 2,
+      "covered_child_state_count": 2,
+      "extra_generated_state_count": 1,
+      "extra_generated_states": [
+        {
+          "processed_reserve_in": 170,
+          "reserve_out": 9830
+        }
+      ],
+      "generated_state_count": 3,
+      "missing_generated_state_count": 0,
+      "missing_generated_states": [],
+      "missing_witness_count": 0,
+      "ok": false,
+      "reasons": [
+        "generated_frontier_extra_child_state"
+      ],
+      "witness_count": 2
+    },
+    "extra_world_rejected": true,
+    "generated_state_count": 2,
+    "generated_state_digest": "20debc2b386b88b55708cbd5c6d18febab91b3ea22beea0f030064f40d3d7dfd",
+    "hidden_extra_state": {
+      "processed_reserve_in": 170,
+      "reserve_out": 9830
+    },
+    "negative_control_accept_count": 0,
+    "negative_control_count": 8,
+    "negative_controls": [
+      {
+        "accepted": false,
+        "expected_reason": "packet_hash_mismatch",
+        "mutation_id": "packet_hash_mismatch",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "child_state_digest_mismatch",
+        "mutation_id": "child_state_digest_mismatch",
+        "reasons": [
+          "child_state_digest_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "generated_state_digest_mismatch",
+        "mutation_id": "generated_state_digest_mismatch",
+        "reasons": [
+          "generated_state_digest_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "generated_frontier_missing_child_state",
+        "mutation_id": "generated_frontier_missing_child_state",
+        "reasons": [
+          "generated_frontier_missing_child_state"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "generated_frontier_extra_child_state",
+        "mutation_id": "generated_frontier_extra_child_state",
+        "reasons": [
+          "generated_frontier_extra_child_state"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "missing_child_state_witness",
+        "mutation_id": "missing_child_state_witness",
+        "reasons": [
+          "missing_child_state_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "frontier_equality_bound_missing",
+        "mutation_id": "frontier_equality_bound_missing",
+        "reasons": [
+          "frontier_equality_bound_missing"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "authority_effect_present",
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      }
+    ],
+    "packet_hash": "5180484e1cb6893879873caaf811296598f2c377255acbccbba55b3b38cba650",
+    "reason_classes": [
+      "authority_effect_present",
+      "child_state_digest_mismatch",
+      "frontier_equality_bound_missing",
+      "generated_frontier_extra_child_state",
+      "generated_frontier_missing_child_state",
+      "generated_state_binding_missing",
+      "generated_state_digest_mismatch",
+      "missing_child_state_witness",
+      "packet_hash_mismatch"
+    ],
+    "schema": "zenodex/ab_child_frontier_two_sided_equality_search/v1",
+    "stale_digest": {
+      "child_state_count": 2,
+      "covered_child_state_count": 2,
+      "extra_generated_state_count": 0,
+      "extra_generated_states": [],
+      "generated_state_count": 2,
+      "missing_generated_state_count": 0,
+      "missing_generated_states": [],
+      "missing_witness_count": 0,
+      "ok": false,
+      "reasons": [
+        "generated_state_digest_mismatch"
+      ],
+      "witness_count": 2
+    },
+    "stale_digest_rejected": true,
+    "witness_count": 2,
+    "witness_rows_digest": "8216f62477012095592dcc45ed7551b3cadf83d84aa1a3f61f5b612f7ce60290"
+  },
+  "summary": "A bounded two-sided child-frontier certificate pairs one-witness coverage with generated-state binding and rejects the hidden-extra countermodel that coverage-only verification accepted."
+}
