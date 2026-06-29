@@ -1,0 +1,589 @@
+{
+  "authority_boundary": "research evidence only; no settlement, state-root, production, governance, routing, matching, or pool-mutation authority",
+  "breakthrough": {
+    "invalid_accepts": 0,
+    "name": "AB child-frontier proof-object chain n8 sample Tau certificate",
+    "scoped_claims": [
+      "five sampled n=8 stage Tau reports are present and hash-pinned",
+      "all stage Tau reports pass with zero invalid accepts",
+      "shared sampled n=8 zero-min counts and digests match across generation, canonical Merkle, witness compression, bidirectional transition, and producer manifest reports",
+      "the deterministic chain index is hash-pinned",
+      "16 missing-fact Tau cases reject with zero invalid accepts",
+      "the chain envelope carries no settlement or state authority"
+    ],
+    "spec_id": "ab_child_frontier_proof_object_chain_n8_sample_scope_certificate_v1",
+    "tau_cases": 18
+  },
+  "chain_counts": {
+    "case_count": 3,
+    "predecessor_transition_count": 268,
+    "sampled_child_mask_count": 51,
+    "sampled_child_state_count": 88,
+    "stage_tau_report_count": 5
+  },
+  "chain_digests": {
+    "canonical_frontier_roots_digest": "53872b495fd6af55f5192e5577f6fb75fca8bd54c26110ff88f4b11a17edf6d4",
+    "canonical_membership_rows_digest": "bf859719c54893c3975b5f28a9eda8dc58b50b1bcab8ed46cd96fd5f4d63a5d2",
+    "generation_frontier_rows_digest": "37764c62caa78be76d654ec1f2540babe2aae2f546663f6548f2d9a1da85b919",
+    "producer_manifest_hash": "db94660eb8c859821de08b629371e3c056b2469d707b94df56854a5f41f17394",
+    "transition_rows_digest": "0ed918d2b332430f57bf3561a5912fa50c0293c23661ff02f582a21e88f3ed09",
+    "witness_rows_digest": "4851b651740dcfaaa5b175cccbc0907fb7449ff3c4e14db61c3cdafed72e52dd"
+  },
+  "chain_index": {
+    "authority_boundary": "research-only; no settlement/state-root/production/routing/matching/pool-mutation/governance authority",
+    "counts": {
+      "canonical_membership_count": 88,
+      "case_count": 3,
+      "generation_frontier_equal_count": 51,
+      "predecessor_transition_count": 268,
+      "sampled_child_mask_count": 51,
+      "sampled_child_state_count": 88,
+      "transition_row_count": 268,
+      "witness_count": 88
+    },
+    "digests": {
+      "canonical_frontier_roots_digest": "53872b495fd6af55f5192e5577f6fb75fca8bd54c26110ff88f4b11a17edf6d4",
+      "canonical_membership_rows_digest": "bf859719c54893c3975b5f28a9eda8dc58b50b1bcab8ed46cd96fd5f4d63a5d2",
+      "generation_frontier_rows_digest": "37764c62caa78be76d654ec1f2540babe2aae2f546663f6548f2d9a1da85b919",
+      "producer_manifest_hash": "db94660eb8c859821de08b629371e3c056b2469d707b94df56854a5f41f17394",
+      "transition_rows_digest": "0ed918d2b332430f57bf3561a5912fa50c0293c23661ff02f582a21e88f3ed09",
+      "witness_rows_digest": "4851b651740dcfaaa5b175cccbc0907fb7449ff3c4e14db61c3cdafed72e52dd"
+    },
+    "producer_links": {
+      "canonical_frontier_digest_matches_generation": true,
+      "transition_child_count_matches_generation": true,
+      "transition_child_coverage_matches_witness": true,
+      "transition_child_membership_matches_canonical": true,
+      "transition_merkle_digest_matches_canonical": true,
+      "transition_witness_digest_matches_witness_compression": true,
+      "witness_frontier_digest_matches_generation": true
+    },
+    "schema": "zenodex.ab_child_frontier_proof_object_chain_n8_sample_index.v1",
+    "scope": "sampled_n8_zero_min_child_frontier_proof_object_chain",
+    "source_seed": "2026062908",
+    "stage_order": [
+      "generation",
+      "canonical_merkle",
+      "witness_compression",
+      "bidirectional_transition",
+      "producer"
+    ],
+    "stage_reports": {
+      "bidirectional_transition": {
+        "invalid_accepts": 0,
+        "path": "generated/zenodex_ab_child_frontier_bidirectional_transition_n8_sample_tau_certificate_20260629/report.json",
+        "report_sha256": "ca27f7e99c48cd067b8a43bf8e45df4f26cfca80b25953ae4632b404a66c6989",
+        "spec_id": "ab_child_frontier_bidirectional_transition_n8_sample_scope_certificate_v1",
+        "spec_sha256": "78f8ea6b3a2201846f4ce380ae8ee5f81bac5cb56c73ce9a39c255c7225deba2",
+        "tau_cases": 17
+      },
+      "canonical_merkle": {
+        "invalid_accepts": 0,
+        "path": "generated/zenodex_ab_reserve_state_child_frontier_canonical_merkle_n8_sample_tau_certificate_20260629/report.json",
+        "report_sha256": "4dde23987a628b6e1c9e20da0eed3e1f615b962cb60a25e5ac8f3e06d8e15b91",
+        "spec_id": "ab_reserve_state_child_frontier_canonical_merkle_n8_sample_scope_certificate_v1",
+        "spec_sha256": "4f4c27177a7af61176f7232f18be0f1f465204cf8dc4b83f882b00204f2ff287",
+        "tau_cases": 17
+      },
+      "generation": {
+        "invalid_accepts": 0,
+        "path": "generated/zenodex_ab_reserve_state_child_frontier_generation_n8_sample_tau_certificate_20260629/report.json",
+        "report_sha256": "8367a2bbc4f51cb18553102b7c318ba843d88e4e0a1ce9566a99c4707ca42f94",
+        "spec_id": "ab_reserve_state_child_frontier_generation_n8_sample_scope_certificate_v1",
+        "spec_sha256": "3d4f08f122f7a884919c9aa6aee75beee0c7aa3a0ab153df98a5a5b96db533ec",
+        "tau_cases": 18
+      },
+      "producer": {
+        "invalid_accepts": 0,
+        "path": "generated/zenodex_ab_child_frontier_generated_image_producer_n8_sample_tau_certificate_20260629/report.json",
+        "report_sha256": "1953a186822cc19b205a144415c02436fbe38bb9409762b30ae48c58a0ba3a27",
+        "spec_id": "ab_child_frontier_generated_image_producer_n8_sample_scope_certificate_v1",
+        "spec_sha256": "59dfc6b524fd4656fdad12818e418fae58da635f52cc52df005af7fa1c25bb04",
+        "tau_cases": 20
+      },
+      "witness_compression": {
+        "invalid_accepts": 0,
+        "path": "generated/zenodex_ab_reserve_state_child_frontier_witness_compression_n8_sample_tau_certificate_20260629/report.json",
+        "report_sha256": "994fd65edc822e648908090e14e312b626e7eb2d9bcd1066afcc054f43f2ae3b",
+        "spec_id": "ab_reserve_state_child_frontier_witness_compression_n8_sample_scope_certificate_v1",
+        "spec_sha256": "bc341ebc72dac174faa41b3e8173f5967c6d4c612006d258da212f1cf2e6be89",
+        "tau_cases": 16
+      }
+    }
+  },
+  "chain_index_sha256": "7f6d4c6e21fe5118485de7094b27994a5fee96bc6f2db3c4273374d64ef159bb",
+  "date": "2026-06-29",
+  "expected_chain_index_sha256": "7f6d4c6e21fe5118485de7094b27994a5fee96bc6f2db3c4273374d64ef159bb",
+  "facts": {
+    "authority_boundary_ok": 1,
+    "bidirectional_transition_tau_ok": 1,
+    "canonical_merkle_tau_ok": 1,
+    "chain_index_hash_pinned": 1,
+    "corpus_nonvacuous": 1,
+    "cross_stage_digests_ok": 1,
+    "deterministic_replay_pinned": 1,
+    "generation_tau_ok": 1,
+    "negative_cases_clean": 1,
+    "no_authority_effect": 1,
+    "producer_manifest_links_ok": 1,
+    "producer_tau_ok": 1,
+    "shared_scope_ok": 1,
+    "stage_counts_ok": 1,
+    "stage_report_hashes_pinned": 1,
+    "witness_compression_tau_ok": 1
+  },
+  "hypothesis_card": {
+    "falsification_recipe": "Clear each required fact bit, mutate any stage report hash, break any digest equality, remove a producer link, remove a stage Tau report pass flag, or remove the no-authority rail and require Tau rejection.",
+    "formal_obligations": "Production use still needs exhaustive coverage or a deeper Lean refinement of child-frontier generation and chain construction.",
+    "hypothesis_id": "H-AB-N8-PROOF-OBJECT-CHAIN-TAU-20260629",
+    "mechanism_change": "Add a versioned Tau scope certificate over the complete sampled n=8 proof-object chain.",
+    "null_hypothesis": "A chain-level Tau envelope gives no additional falsifiable boundary beyond separate stage Tau certificates.",
+    "representation_shift_used": "certificate_boundary",
+    "status": "supported_bounded",
+    "support_recipe": "Host checks all stage Tau reports, stage report hashes, shared counts, cross-stage digests, producer manifest links, deterministic replay pins, negative cases, chain-index hash, and no-authority rail; Tau rejects every missing-fact negative case."
+  },
+  "non_claims": [
+    "This certificate is bounded to the deterministic sampled n=8 zero-min proof-object chain reports.",
+    "This certificate composes existing stage Tau reports and producer manifest evidence; it does not replace those host checkers.",
+    "This certificate does not prove exhaustive n=8 coverage.",
+    "This certificate does not prove Python-to-Lean refinement.",
+    "This certificate does not prove child-frontier generation in Lean.",
+    "This certificate does not cover nonzero min_amount_out behavior.",
+    "This certificate does not define canonical tie order or preserve order-id history.",
+    "This certificate does not authorize settlement, routing, matching, governance, pool mutation, production deployment, or state roots."
+  ],
+  "replay_command": "python3 tools/check_ab_child_frontier_proof_object_chain_n8_sample_tau_certificate_20260629.py",
+  "schema": "zenodex.ab_child_frontier_proof_object_chain_n8_sample_tau_certificate_report.v1",
+  "spec": {
+    "id": "ab_child_frontier_proof_object_chain_n8_sample_scope_certificate_v1",
+    "path": "src/tau_specs/recommended/ab_child_frontier_proof_object_chain_n8_sample_scope_certificate_v1.tau",
+    "sha256": "a2825913b6ecae365d30367c19dbc71c803af21a261e766a5c5c70eb4927ccb0"
+  },
+  "stage_summary": {
+    "bidirectional_transition": {
+      "expected_report_sha256": "ca27f7e99c48cd067b8a43bf8e45df4f26cfca80b25953ae4632b404a66c6989",
+      "invalid_accepts": 0,
+      "report_path": "generated/zenodex_ab_child_frontier_bidirectional_transition_n8_sample_tau_certificate_20260629/report.json",
+      "report_sha256": "ca27f7e99c48cd067b8a43bf8e45df4f26cfca80b25953ae4632b404a66c6989",
+      "spec_id": "ab_child_frontier_bidirectional_transition_n8_sample_scope_certificate_v1",
+      "spec_sha256": "78f8ea6b3a2201846f4ce380ae8ee5f81bac5cb56c73ce9a39c255c7225deba2",
+      "tau_cases": 17,
+      "tau_ok": true
+    },
+    "canonical_merkle": {
+      "expected_report_sha256": "4dde23987a628b6e1c9e20da0eed3e1f615b962cb60a25e5ac8f3e06d8e15b91",
+      "invalid_accepts": 0,
+      "report_path": "generated/zenodex_ab_reserve_state_child_frontier_canonical_merkle_n8_sample_tau_certificate_20260629/report.json",
+      "report_sha256": "4dde23987a628b6e1c9e20da0eed3e1f615b962cb60a25e5ac8f3e06d8e15b91",
+      "spec_id": "ab_reserve_state_child_frontier_canonical_merkle_n8_sample_scope_certificate_v1",
+      "spec_sha256": "4f4c27177a7af61176f7232f18be0f1f465204cf8dc4b83f882b00204f2ff287",
+      "tau_cases": 17,
+      "tau_ok": true
+    },
+    "generation": {
+      "expected_report_sha256": "8367a2bbc4f51cb18553102b7c318ba843d88e4e0a1ce9566a99c4707ca42f94",
+      "invalid_accepts": 0,
+      "report_path": "generated/zenodex_ab_reserve_state_child_frontier_generation_n8_sample_tau_certificate_20260629/report.json",
+      "report_sha256": "8367a2bbc4f51cb18553102b7c318ba843d88e4e0a1ce9566a99c4707ca42f94",
+      "spec_id": "ab_reserve_state_child_frontier_generation_n8_sample_scope_certificate_v1",
+      "spec_sha256": "3d4f08f122f7a884919c9aa6aee75beee0c7aa3a0ab153df98a5a5b96db533ec",
+      "tau_cases": 18,
+      "tau_ok": true
+    },
+    "producer": {
+      "expected_report_sha256": "1953a186822cc19b205a144415c02436fbe38bb9409762b30ae48c58a0ba3a27",
+      "invalid_accepts": 0,
+      "report_path": "generated/zenodex_ab_child_frontier_generated_image_producer_n8_sample_tau_certificate_20260629/report.json",
+      "report_sha256": "1953a186822cc19b205a144415c02436fbe38bb9409762b30ae48c58a0ba3a27",
+      "spec_id": "ab_child_frontier_generated_image_producer_n8_sample_scope_certificate_v1",
+      "spec_sha256": "59dfc6b524fd4656fdad12818e418fae58da635f52cc52df005af7fa1c25bb04",
+      "tau_cases": 20,
+      "tau_ok": true
+    },
+    "witness_compression": {
+      "expected_report_sha256": "994fd65edc822e648908090e14e312b626e7eb2d9bcd1066afcc054f43f2ae3b",
+      "invalid_accepts": 0,
+      "report_path": "generated/zenodex_ab_reserve_state_child_frontier_witness_compression_n8_sample_tau_certificate_20260629/report.json",
+      "report_sha256": "994fd65edc822e648908090e14e312b626e7eb2d9bcd1066afcc054f43f2ae3b",
+      "spec_id": "ab_reserve_state_child_frontier_witness_compression_n8_sample_scope_certificate_v1",
+      "spec_sha256": "bc341ebc72dac174faa41b3e8173f5967c6d4c612006d258da212f1cf2e6be89",
+      "tau_cases": 16,
+      "tau_ok": true
+    }
+  },
+  "tau": {
+    "case_results": [
+      {
+        "case_id": "proof_object_chain_n8_sample_certificate_pass",
+        "expected": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All scoped stage Tau reports and chain links admit the sampled n=8 proof-object chain certificate."
+      },
+      {
+        "case_id": "generation_tau_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `generation_tau_ok` host fact is required for chain certificate admission."
+      },
+      {
+        "case_id": "canonical_merkle_tau_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `canonical_merkle_tau_ok` host fact is required for chain certificate admission."
+      },
+      {
+        "case_id": "witness_compression_tau_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `witness_compression_tau_ok` host fact is required for chain certificate admission."
+      },
+      {
+        "case_id": "bidirectional_transition_tau_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `bidirectional_transition_tau_ok` host fact is required for chain certificate admission."
+      },
+      {
+        "case_id": "producer_tau_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `producer_tau_ok` host fact is required for chain certificate admission."
+      },
+      {
+        "case_id": "shared_scope_reject",
+        "expected": {
+          "o2": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `shared_scope_ok` host fact is required for chain certificate admission."
+      },
+      {
+        "case_id": "stage_counts_reject",
+        "expected": {
+          "o2": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `stage_counts_ok` host fact is required for chain certificate admission."
+      },
+      {
+        "case_id": "cross_stage_digest_reject",
+        "expected": {
+          "o3": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `cross_stage_digests_ok` host fact is required for chain certificate admission."
+      },
+      {
+        "case_id": "producer_links_reject",
+        "expected": {
+          "o3": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `producer_manifest_links_ok` host fact is required for chain certificate admission."
+      },
+      {
+        "case_id": "negative_cases_reject",
+        "expected": {
+          "o4": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `negative_cases_clean` host fact is required for chain certificate admission."
+      },
+      {
+        "case_id": "deterministic_replay_reject",
+        "expected": {
+          "o4": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `deterministic_replay_pinned` host fact is required for chain certificate admission."
+      },
+      {
+        "case_id": "stage_report_hash_reject",
+        "expected": {
+          "o4": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `stage_report_hashes_pinned` host fact is required for chain certificate admission."
+      },
+      {
+        "case_id": "chain_index_hash_reject",
+        "expected": {
+          "o6": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `chain_index_hash_pinned` host fact is required for chain certificate admission."
+      },
+      {
+        "case_id": "authority_boundary_reject",
+        "expected": {
+          "o5": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `authority_boundary_ok` host fact is required for chain certificate admission."
+      },
+      {
+        "case_id": "authority_effect_reject",
+        "expected": {
+          "o5": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `no_authority_effect` host fact is required for chain certificate admission."
+      },
+      {
+        "case_id": "empty_corpus_reject",
+        "expected": {
+          "o2": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `corpus_nonvacuous` host fact is required for chain certificate admission."
+      },
+      {
+        "case_id": "inactive_safe",
+        "expected": {
+          "o7": 0,
+          "o8": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Inactive certificates do not admit while the no-authority rail remains true."
+      }
+    ],
+    "invalid_accepts": 0,
+    "ok": true,
+    "skipped": false,
+    "tau_bin": "external/tau-lang/build-Release/tau",
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  }
+}
