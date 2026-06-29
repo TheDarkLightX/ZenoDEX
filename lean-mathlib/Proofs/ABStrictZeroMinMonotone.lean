@@ -2547,6 +2547,88 @@ theorem strictSubsetInductionAggregateRangePathTable_validates
     strictSubsetInductionAggregateRangePathTable_to_rangePathTableValid table hvalid
   exact ⟨hrange_valid, strictSubsetInductionRangePathTable_validates table hrange_valid⟩
 
+/-- Host-visible summary shell for a recursive range-path subset table.
+
+The summary binds count and key metadata to the table that Lean already
+validates. This is a checker boundary: it does not prove a host emitted the
+table correctly, and it does not prove JSON canonicalization or packet hashing. -/
+structure StrictSubsetInductionObservedSummary where
+  table : StrictSubsetInductionRangePathTable
+  observedMaskCount : Nat
+  observedWinnerMaskId : Nat
+  observedExecutedInput : Nat
+  observedInitialReserveOut : Nat
+  deriving Repr
+
+/-- Validity predicate for the observed summary shell.
+
+The aggregate range-path table remains the semantic certificate. The extra
+equalities bind host-visible summary fields to the validated table fields. -/
+def strictSubsetInductionObservedSummaryValid
+    (summary : StrictSubsetInductionObservedSummary) : Prop :=
+  strictSubsetInductionAggregateRangePathTableValid summary.table ∧
+    summary.observedMaskCount = summary.table.masks.length ∧
+    summary.observedWinnerMaskId = summary.table.winner.maskId ∧
+    summary.observedExecutedInput = summary.table.executedInput ∧
+    summary.observedInitialReserveOut = summary.table.initialReserveOut
+
+/-- Full-frontier key named through the observed summary metadata. -/
+def strictSubsetInductionObservedSummaryFullKey
+    (summary : StrictSubsetInductionObservedSummary) : ZeroMinEconomicKey :=
+  fullFrontierZeroMinEconomicKey summary.observedExecutedInput
+    summary.observedInitialReserveOut summary.table.masks summary.table.suffix
+
+/-- Selected-winner key named through the observed summary metadata. -/
+def strictSubsetInductionObservedSummarySelectedKey
+    (summary : StrictSubsetInductionObservedSummary) : ZeroMinEconomicKey :=
+  selectedZeroMinEconomicKey summary.observedExecutedInput
+    summary.observedInitialReserveOut summary.table.winner summary.table.suffix
+
+/-- The observed-summary predicate carries the aggregate range-path table
+predicate used by the existing endpoint. -/
+theorem strictSubsetInductionObservedSummary_to_aggregateRangePathTableValid
+    (summary : StrictSubsetInductionObservedSummary)
+    (hvalid : strictSubsetInductionObservedSummaryValid summary) :
+    strictSubsetInductionAggregateRangePathTableValid summary.table := by
+  exact hvalid.1
+
+/-- Observed-summary validation endpoint.
+
+A valid summary recovers the host-visible count/key bindings and inherits the
+aggregate range-path economic endpoint using those observed key fields. -/
+theorem strictSubsetInductionObservedSummary_validates
+    (summary : StrictSubsetInductionObservedSummary)
+    (hvalid : strictSubsetInductionObservedSummaryValid summary) :
+    summary.observedMaskCount = summary.table.masks.length ∧
+      summary.observedWinnerMaskId = summary.table.winner.maskId ∧
+      summary.table.packetHashBound = true ∧
+      summary.table.noAuthorityEffect = true ∧
+      summary.table.winnerMembershipBound = true ∧
+      allBitsBelowSet summary.table.winner.maskId summary.table.bitCount ∧
+      zeroMinEconomicKeyDominated
+        (strictSubsetInductionObservedSummaryFullKey summary)
+        (strictSubsetInductionObservedSummarySelectedKey summary) ∧
+      suffixExecutable summary.table.winner.selected.processedReserveIn
+        summary.table.winner.selected.reserveOut summary.table.suffix := by
+  rcases hvalid with
+    ⟨htable_valid, hcount, hwinnerId, hexecutedInput, hinitialReserveOut⟩
+  have hendpoint :=
+    strictSubsetInductionAggregateRangePathTable_validates
+      summary.table htable_valid
+  rcases hendpoint with
+    ⟨_hrange, _hhost, hhash, hnoAuthority, hwinnerMembership,
+      hcoverage, hdominance, hexec⟩
+  have hdominance_observed :
+      zeroMinEconomicKeyDominated
+        (strictSubsetInductionObservedSummaryFullKey summary)
+        (strictSubsetInductionObservedSummarySelectedKey summary) := by
+    unfold strictSubsetInductionObservedSummaryFullKey
+      strictSubsetInductionObservedSummarySelectedKey
+    rw [hexecutedInput, hinitialReserveOut]
+    exact hdominance
+  exact ⟨hcount, hwinnerId, hhash, hnoAuthority, hwinnerMembership,
+    hcoverage, hdominance_observed, hexec⟩
+
 /-- Concrete non-vacuity witness for record dominance. -/
 theorem witness_minReserveRecord_dominates_suffixTotalOutput :
     let suffix : List ExactInStep := [
@@ -3473,6 +3555,117 @@ theorem witness_strictSubsetInductionRangePathTable_validates :
       by simpa [table] using hwinner, by simpa [table] using hexec,
       by simp [table, masks]⟩
   exact ⟨hvalid, strictSubsetInductionRangePathTable_validates table hvalid⟩
+
+/-- Concrete non-vacuity witness for the observed-summary endpoint. -/
+theorem witness_strictSubsetInductionObservedSummary_validates :
+    let record : ProcessedRecord := ⟨100, 90⟩
+    let parent : MaskRecordSet := ⟨1, record, [record]⟩
+    let mask : MaskRecordSet := ⟨1, record, [record]⟩
+    let masks : List MaskRecordSet := [mask]
+    let table : StrictSubsetInductionRangePathTable := {
+      parent := parent
+      masks := masks
+      winner := mask
+      bitCount := 1
+      initialReserveOut := 1000
+      executedInput := 100
+      suffix := []
+      packetHashBound := true
+      noAuthorityEffect := true
+      winnerMembershipBound := true
+    }
+    let summary : StrictSubsetInductionObservedSummary := {
+      table := table
+      observedMaskCount := 1
+      observedWinnerMaskId := 1
+      observedExecutedInput := 100
+      observedInitialReserveOut := 1000
+    }
+    strictSubsetInductionObservedSummaryValid summary ∧
+      summary.observedMaskCount = summary.table.masks.length ∧
+        summary.observedWinnerMaskId = summary.table.winner.maskId ∧
+        summary.table.packetHashBound = true ∧
+        summary.table.noAuthorityEffect = true ∧
+        summary.table.winnerMembershipBound = true ∧
+        allBitsBelowSet summary.table.winner.maskId summary.table.bitCount ∧
+        zeroMinEconomicKeyDominated
+          (strictSubsetInductionObservedSummaryFullKey summary)
+          (strictSubsetInductionObservedSummarySelectedKey summary) ∧
+        suffixExecutable summary.table.winner.selected.processedReserveIn
+          summary.table.winner.selected.reserveOut summary.table.suffix := by
+  let record : ProcessedRecord := ⟨100, 90⟩
+  let parent : MaskRecordSet := ⟨1, record, [record]⟩
+  let mask : MaskRecordSet := ⟨1, record, [record]⟩
+  let masks : List MaskRecordSet := [mask]
+  let table : StrictSubsetInductionRangePathTable := {
+    parent := parent
+    masks := masks
+    winner := mask
+    bitCount := 1
+    initialReserveOut := 1000
+    executedInput := 100
+    suffix := []
+    packetHashBound := true
+    noAuthorityEffect := true
+    winnerMembershipBound := true
+  }
+  let summary : StrictSubsetInductionObservedSummary := {
+    table := table
+    observedMaskCount := 1
+    observedWinnerMaskId := 1
+    observedExecutedInput := 100
+    observedInitialReserveOut := 1000
+  }
+  have hstep : maskRecordStep parent mask 0 := by
+    simpa [parent, mask, maskRecordStep] using witness_bitMaskStep_noop.1
+  have hinvariant : maskPruningInvariant mask := by
+    unfold mask maskPruningInvariant
+    constructor
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+  have hreachableStep : reachablePrunedStepMask parent mask 0 := ⟨hstep, hinvariant⟩
+  have hbase : reachablePrunedStepPath mask [] mask := ⟨rfl, hinvariant⟩
+  have hpathList : reachablePrunedStepPath parent [0] mask := by
+    exact ⟨mask, hreachableStep, hbase⟩
+  have hpath : reachablePrunedStepPath parent (List.range 1) mask := by
+    simpa using hpathList
+  have hmember : reachablePrunedRangeStepPathInFamily parent mask 1 masks := by
+    exact ⟨hpath, by simp [masks]⟩
+  have hlist : reachablePrunedRangeStepPathListInFamily parent masks 1 masks := by
+    intro candidate hcandidate
+    simp only [masks, List.mem_singleton] at hcandidate
+    subst candidate
+    exact hmember
+  have hwinnerOutput : selectedFamilyOutputWinner mask masks 1000 [] := by
+    constructor
+    · simp [masks]
+    · intro candidate hcandidate
+      simp only [masks, List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+  have hwinnerAggregate :
+      selectedFamilyAggregateWinner mask masks 1000 [] :=
+    selectedFamilyOutputWinner_to_selectedFamilyAggregateWinner hwinnerOutput
+  have hexec : suffixExecutable mask.selected.processedReserveIn mask.selected.reserveOut [] := by
+    simp [suffixExecutable]
+  have htableValid : strictSubsetInductionAggregateRangePathTableValid table := by
+    unfold strictSubsetInductionAggregateRangePathTableValid
+    exact ⟨rfl, rfl, rfl, by simpa [table] using hlist,
+      by simpa [table] using hwinnerAggregate, by simpa [table] using hexec,
+      by simp [table, masks]⟩
+  have hsummaryValid : strictSubsetInductionObservedSummaryValid summary := by
+    unfold strictSubsetInductionObservedSummaryValid
+    exact ⟨htableValid, by simp [summary, table, masks],
+      by simp [summary, table, mask], by simp [summary, table],
+      by simp [summary, table]⟩
+  exact ⟨hsummaryValid,
+    strictSubsetInductionObservedSummary_validates summary hsummaryValid⟩
 
 /-- Concrete non-vacuity witness for one-step monotonicity. -/
 theorem witness_postReserveOut_mono_strict :
