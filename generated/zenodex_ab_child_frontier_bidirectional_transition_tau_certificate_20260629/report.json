@@ -1,0 +1,375 @@
+{
+  "authority_boundary": "research evidence only; no settlement, state-root, production, governance, routing, matching, or pool-mutation authority",
+  "breakthrough": {
+    "invalid_accepts": 0,
+    "name": "AB child-frontier bidirectional transition Tau certificate",
+    "scoped_claims": [
+      "the n=7 bidirectional transition source report is present and successful",
+      "2,777 transition rows exactly cover all expected predecessor transitions",
+      "864 generated child states are linked to the existing witness+Merkle child-coverage report",
+      "transition and linked witness+Merkle digests are pinned",
+      "9 mutation controls reject with zero accepts",
+      "the Tau envelope carries no settlement or state authority"
+    ],
+    "spec_id": "ab_child_frontier_bidirectional_transition_scope_certificate_v1",
+    "tau_cases": 14
+  },
+  "date": "2026-06-29",
+  "facts": {
+    "authority_boundary_ok": 1,
+    "corpus_nonvacuous": 1,
+    "deterministic_replay_ok": 1,
+    "generated_child_count_ok": 1,
+    "linked_child_coverage_ok": 1,
+    "linked_digest_pinned": 1,
+    "n7_zero_min_scope_ok": 1,
+    "negative_controls_reject": 1,
+    "no_authority_effect": 1,
+    "source_report_ok": 1,
+    "transition_counts_complete": 1,
+    "transition_digest_pinned": 1
+  },
+  "hypothesis_card": {
+    "falsification_recipe": "Clear each required fact bit, mutate digest pins, or remove the no-authority rail and require Tau rejection.",
+    "formal_obligations": "Production use still needs a deterministic generated-image producer or a deeper Lean refinement of the child-frontier generation relation.",
+    "hypothesis_id": "H-AB-N7-BIDIR-TRANSITION-TAU-20260629",
+    "mechanism_change": "Add a versioned Tau scope certificate over the bidirectional transition closure evidence.",
+    "null_hypothesis": "A Tau envelope gives no additional falsifiable boundary beyond the Python bidirectional transition checker.",
+    "status": "supported_bounded",
+    "support_recipe": "Host checks the source report and pinned digests, Tau rejects every missing-fact negative case."
+  },
+  "non_claims": [
+    "This certificate is bounded to the committed n=7 zero-min bidirectional transition report.",
+    "This certificate links the child coverage direction to the existing witness+Merkle report.",
+    "This certificate does not prove Python-to-Lean refinement.",
+    "This certificate does not prove child-frontier generation in Lean.",
+    "This certificate does not replace the host Merkle verifier or transition checker.",
+    "This certificate does not cover nonzero min_amount_out behavior.",
+    "This certificate does not authorize settlement, routing, matching, governance, pool mutation, production deployment, or state roots."
+  ],
+  "replay_command": "python3 tools/check_ab_child_frontier_bidirectional_transition_tau_certificate_20260629.py",
+  "schema": "zenodex.ab_child_frontier_bidirectional_transition_tau_certificate_report.v1",
+  "source_report": {
+    "ok": true,
+    "path": "generated/zenodex_ab_reserve_state_child_frontier_bidirectional_transition_20260629/report.json",
+    "replay_command": "python3 tools/check_ab_reserve_state_child_frontier_bidirectional_transition_20260629.py",
+    "schema": "zenodex.ab_reserve_state_child_frontier_bidirectional_transition_report.v1",
+    "sha256": "8aecb36a829164725f85ba8e4360d17fb0fdf032e4cafd082349189b8c81b883"
+  },
+  "spec": {
+    "id": "ab_child_frontier_bidirectional_transition_scope_certificate_v1",
+    "path": "src/tau_specs/recommended/ab_child_frontier_bidirectional_transition_scope_certificate_v1.tau",
+    "sha256": "7a8085d766f205399d5aadf7aa920c7c9a4c1c03dcab03361baa89a0965ea92f"
+  },
+  "tau": {
+    "case_results": [
+      {
+        "case_id": "bidirectional_transition_certificate_pass",
+        "expected": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All scoped host facts admit the bidirectional transition certificate."
+      },
+      {
+        "case_id": "missing_source_report_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The source bidirectional report must be present, valid, and successful."
+      },
+      {
+        "case_id": "wrong_scope_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The source report must remain scoped to the bounded n=7 zero-min corpus."
+      },
+      {
+        "case_id": "transition_counts_reject",
+        "expected": {
+          "o2": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The 2,777 transition rows must exactly cover all expected transitions."
+      },
+      {
+        "case_id": "generated_child_count_reject",
+        "expected": {
+          "o2": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The transition rows must bind the 864 generated child states."
+      },
+      {
+        "case_id": "linked_child_coverage_reject",
+        "expected": {
+          "o3": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The child coverage direction must remain linked to the witness+Merkle report."
+      },
+      {
+        "case_id": "transition_digest_reject",
+        "expected": {
+          "o5": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The transition-row digest must remain pinned."
+      },
+      {
+        "case_id": "linked_digest_reject",
+        "expected": {
+          "o3": 0,
+          "o5": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The linked witness+Merkle digest must remain pinned."
+      },
+      {
+        "case_id": "nondeterministic_replay_reject",
+        "expected": {
+          "o4": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The bidirectional checker replay must remain deterministic."
+      },
+      {
+        "case_id": "negative_controls_missing_reject",
+        "expected": {
+          "o4": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The mutation suite must keep rejecting malformed packets."
+      },
+      {
+        "case_id": "authority_boundary_reject",
+        "expected": {
+          "o6": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The research-only authority boundary must remain explicit."
+      },
+      {
+        "case_id": "authority_effect_reject",
+        "expected": {
+          "o6": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The certificate cannot carry settlement, state-root, governance, or pool-mutation authority."
+      },
+      {
+        "case_id": "empty_corpus_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The certificate must bind a nonempty transition corpus."
+      },
+      {
+        "case_id": "inactive_safe",
+        "expected": {
+          "o7": 0,
+          "o8": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Inactive certificates do not admit while the no-authority rail remains true."
+      }
+    ],
+    "invalid_accepts": 0,
+    "ok": true,
+    "skipped": false,
+    "tau_bin": "external/tau-lang/build-Release/tau",
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  },
+  "transition_corpus": {
+    "case_count": 4,
+    "child_mask_count": 508,
+    "covered_transition_count": 2777,
+    "deterministic_replay_hash": "54e80016a0c0dc4eb629d22b43265091b3b1c4dc75324320107b17dbd42668b7",
+    "expected_transition_count": 2777,
+    "linked_bound_rows_digest": "0996b976f70eeea56e4c828a9ff25abefdb8930b39896b4427291284e1e73551",
+    "linked_child_coverage_witness_count": 864,
+    "negative_control_accept_count": 0,
+    "negative_control_count": 9,
+    "transition_row_count": 2777,
+    "transition_rows_digest": "fccc26b63521b510776546e4663cecabcf58849af42bcda799484bf092a81f82",
+    "unique_generated_child_count": 864,
+    "unique_transition_count": 2777
+  }
+}
