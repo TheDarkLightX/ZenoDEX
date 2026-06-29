@@ -13,6 +13,13 @@ The stateful gain bound (theorem 3-4) is the formal bridge between the generic
 Lipschitz increment and the exact stateful CPMM attack model. The empirical
 tests below verify the simulator matches the formal bound on a seeded corpus.
 
+CONTINUOUS VS ROUNDED SCOPE: The Lean theorems prove the bound for the
+continuous real-valued CPMM model. The empirical simulator uses
+integer-truncated reserves after A fills. The [Lean PROVEN + empirical replay]
+label means the continuous theorem is formally proven and the rounded
+simulator corpus is consistent with it. The rounded-reserve semantics are NOT
+formally proved.
+
 LEAN-PROVEN vs EMPIRICAL:
 - [Lean PROVEN]: algebraic identities (m formula, window=sqrt(M) at eps=0),
   generic Lipschitz increment, AND stateful attack gain bound.
@@ -126,6 +133,11 @@ def simulate_sacrifice_gain(p: Pool, a_A: float, a_B: float) -> float:
     out_A = cpmm_output_cont(p, a_A)
     M_after_A = M + a_A * gamma
     K_after_A = K - out_A
+    # NOTE: integer-truncated reserves here. The Lean theorems
+    # (cpmm_stateful_gain_bound, cpmm_stateful_gain_bound_with_fee) prove the
+    # bound for the CONTINUOUS real-valued CPMM model. This simulator truncates
+    # to int, so the empirical replay is consistent with but not formally
+    # identical to the Lean theorem.
     pool_after_A = Pool(int(M_after_A), int(K_after_A), p.fee_bps)
     out_B_with_A = cpmm_output_cont(pool_after_A, a_B)
     # A sacrifices (B trades against original pool)
@@ -466,13 +478,19 @@ def test_tradeoff_frontier_characterization() -> None:
     For each M, compute:
     - window_eps0: sqrt(2*L/m) = sqrt(M) [Lean PROVEN, epsilon=0]
     - window_prod: sqrt(2*(L+epsilon)/m) [production, epsilon=2, NOT Lean]
-    - lipschitz_increment: L*a_A [Lean PROVEN for f(a_A)-f(0), NOT for stateful]
+    - lipschitz_increment: L*a_A [Lean PROVEN for both generic increment AND stateful gain]
     - actual gain: stateful simulator [empirical, decreases with M in this row set]
     - lip_product: window * L * a_A [INCREASING in M, NOT a frontier]
 
     The Lipschitz product is INCREASING in M, NOT decreasing.
     The actual gain DECREASES with M in this row set, but this is empirical.
     The concavity-based bound is FALSIFIED and is NOT shown here.
+
+    Continuous-vs-rounded scope: the Lean theorems prove the bound for the
+    continuous real-valued CPMM model. This simulator uses integer-truncated
+    reserves after A fills. The [Lean PROVEN] label refers to the continuous
+    theorem; the rounded simulator is an empirical replay, not a formal proof
+    of the rounded-reserve semantics.
     """
     a_A, a_B = 100.0, 2000.0
     epsilon = 2.0
