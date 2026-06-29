@@ -7,6 +7,16 @@ under fixed ordering. This is NOT a full Nash equilibrium proof for the
 (A,B) batch clearing game, which would require analyzing strategic
 ordering changes.
 
+LEAN-PROVEN vs EMPIRICAL:
+- [Lean PROVEN]: filled_user_no_profitable_deviation in MinOutCapGameTheory.lean
+  proves that a filled user cannot increase output by lowering min_out
+  (output depends only on pool state and amount_in, not min_out).
+  batch_state_invariant_after_filled_deviation proves the pool state is
+  unchanged after a filled user's min_out deviation.
+- [Empirical]: welfare degradation, collusion resistance, Pareto frontier
+  characterization. These are empirical observations about the simulator,
+  not formalized theorems.
+
 Game-theoretic setup (LIMITED):
 - Users submit (amount_in, min_out) with min_out capped at alpha * expected_output
 - alpha in (0, 1] is the cap ratio (e.g., 0.9)
@@ -18,10 +28,10 @@ Game-theoretic setup (LIMITED):
 
 What is proven here:
 1. For FILLED users under fixed ordering: lowering min_out does not increase
-   output (utility). This is a no-gain property, NOT a full Nash equilibrium.
-2. Welfare degrades gracefully as cap ratio alpha decreases.
-3. Collusion resistance increases as alpha decreases (simplified model).
-4. Pareto frontier: alpha=0.9 is sweet spot (0% collusion, ~100% welfare).
+   output (utility). [Lean PROVEN + empirical replay]
+2. Welfare degrades gracefully as cap ratio alpha decreases. [Empirical]
+3. Collusion resistance increases as alpha decreases (simplified model). [Empirical]
+4. Pareto frontier: alpha=0.9 is sweet spot (0% collusion, ~100% welfare). [Empirical]
 
 What is NOT proven here (non-claims):
 - Full Nash equilibrium for the (A,B) optimal ordering game
@@ -324,6 +334,17 @@ def test_pareto_frontier_welfare_vs_collusion() -> None:
 
 def test_cap_mechanism_fixed_order_no_gain() -> None:
     """Fixed-order filled-user no-gain check for min_out cap mechanism.
+
+    [Lean PROVEN + empirical replay] The no-gain property for filled users
+    under fixed ordering is formally proven in MinOutCapGameTheory.lean:
+    - filled_user_no_profitable_deviation: a filled user cannot increase
+      output by lowering min_out (output depends only on pool state and
+      amount_in, not min_out).
+    - batch_state_invariant_after_filled_deviation: the pool state after
+      a filled user's min_out deviation is unchanged (same fill status,
+      same output, same state transition).
+
+    This empirical test replays the formal theorem on a seeded corpus.
 
     This is NOT a full Nash equilibrium proof. It checks that FILLED users
     under FIXED user-id ordering cannot gain by lowering min_out. A full

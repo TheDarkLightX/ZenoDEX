@@ -120,6 +120,7 @@ import Proofs.LpMintOptimalBounds
 import Proofs.LPValueAlgebra
 import Proofs.MEVResistanceBound
 import Proofs.MicroTradeFeeBypass
+import Proofs.MinOutCapGameTheory
 import Proofs.MinimumLiquidityInvariant
 import Proofs.MobiusCPMMRoutingBounds
 import Proofs.MonotonicTimeLock

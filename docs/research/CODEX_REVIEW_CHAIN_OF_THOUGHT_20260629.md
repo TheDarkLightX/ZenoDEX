@@ -263,8 +263,11 @@ For the record, the Lean-proven theorems in this research run (Phases 3-6):
   No conservation law, no monotonicity.
 
 **Phase 6 (game theory):**
-- No Lean proofs. The "fixed-order filled-user no-gain check" is empirical
-  only.
+- `MinOutCapGameTheory.lean`: fixed-order filled-user no-gain property
+  (`filled_user_no_profitable_deviation`: a filled user cannot increase
+  output by lowering min_out; `batch_state_invariant_after_filled_deviation`:
+  pool state unchanged after filled user's min_out deviation). NOT a full
+  Nash equilibrium for the (A,B) optimal ordering game.
 
 ### What Is NOT Lean-Proven
 
