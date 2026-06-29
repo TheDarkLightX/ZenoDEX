@@ -1,0 +1,62 @@
+{
+  "schema": "zenodex.ab_strict_zero_min_record_key_certificate_lean_report.v1",
+  "date": "2026-06-29",
+  "ok": true,
+  "branch": "cpss-bc-research-codex-grade-a",
+  "base_commit": "3ec1d313",
+  "authority_boundary": "Research-only formal proof component; no settlement, state-root, production, routing, matching, or governance authority.",
+  "new_lean_theorems": [
+    "recordZeroMinEconomicKey",
+    "minReserveRecord_dominates_zeroMinEconomicKey",
+    "bestRecordSetZeroMinEconomicKey",
+    "bestRecordSetZeroMinEconomicKey_dominated_by_selected",
+    "strictRecordSetPruningCertificate",
+    "strictRecordSetPruningCertificate_validates"
+  ],
+  "proof_role": "Lift finite record-set min-reserve-out pruning from scalar suffix-output dominance into strict zero-min economic-key dominance with selected suffix executability.",
+  "verification": {
+    "lake_env_lean": {
+      "command": "cd lean-mathlib && lake env lean Proofs/ABStrictZeroMinMonotone.lean",
+      "status": "pass"
+    },
+    "focused_pytest": {
+      "command": "pytest -q tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+      "status": "pass",
+      "summary": "1 passed in 9.08s"
+    },
+    "placeholder_scan": {
+      "command": "python3 ~/.codex/skills/proof-engineering/scripts/scan_proof_placeholders.py lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+      "status": "pass",
+      "summary": "No proof placeholders found."
+    },
+    "lake_build_module": {
+      "command": "cd lean-mathlib && lake build Proofs.ABStrictZeroMinMonotone",
+      "status": "pass"
+    },
+    "public_claim_scope": {
+      "command": "python3 tools/check_public_claim_scope.py --root . --json",
+      "status": "ok"
+    },
+    "claims_registry": {
+      "command": "python3 tools/check_claims_registry.py",
+      "status": "ok"
+    },
+    "diff_check": {
+      "command": "git diff --check -- lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean tests/formal/test_lean_ab_strict_zero_min_monotone.py docs/research/ZENODEX_AB_STRICT_ZERO_MIN_RECORD_KEY_CERTIFICATE_LEAN_20260629.md generated/zenodex_ab_strict_zero_min_record_key_certificate_lean_20260629/report.json",
+      "status": "pass"
+    }
+  },
+  "artifact_hashes": {
+    "lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean": "7910a6708cf7ff77e3ca7c7a53f7acd012b1523a142f960d9efa4f3a22a4d115",
+    "tests/formal/test_lean_ab_strict_zero_min_monotone.py": "76aafdc2629d7cb3fc57e9121b1eb783ce3215e9f0b12e841fa02254e5ab280e"
+  },
+  "non_claims": [
+    "This proof does not construct a subset DP table.",
+    "This proof does not prove Python-to-Lean refinement.",
+    "This proof does not prove JSON canonicalization or packet-hash computation in Lean.",
+    "This proof does not define canonical tie order or choose among tied winners.",
+    "This proof is restricted to the abstract strict executable same-pool, same-direction, exact-in, zero-min proof surface already modeled in ABStrictZeroMinMonotone.lean.",
+    "This proof does not cover nonzero min_amount_out behavior.",
+    "This proof has no settlement, state-root, production, routing, matching, or governance authority."
+  ]
+}

@@ -31,9 +31,15 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "theorem witness_runOutputAfterSuffix_telescopes" in text
     assert "structure ZeroMinEconomicKey" in text
     assert "def zeroMinEconomicKeyDominated" in text
+    assert "def recordZeroMinEconomicKey" in text
     assert "theorem minReserveRecord_dominates_suffixTotalOutput" in text
+    assert "theorem minReserveRecord_dominates_zeroMinEconomicKey" in text
     assert "theorem witness_minReserveRecord_dominates_suffixTotalOutput" in text
+    assert "def bestRecordSetZeroMinEconomicKey" in text
     assert "theorem bestSuffixOutputFromRecords_le_selected" in text
+    assert "theorem bestRecordSetZeroMinEconomicKey_dominated_by_selected" in text
+    assert "def strictRecordSetPruningCertificate" in text
+    assert "theorem strictRecordSetPruningCertificate_validates" in text
     assert "theorem witness_bestSuffixOutputFromRecords_le_selected" in text
     assert "structure MaskRecordSet" in text
     assert "def selectedZeroMinEconomicKey" in text

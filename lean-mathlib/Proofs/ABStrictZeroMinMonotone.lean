@@ -414,6 +414,14 @@ def zeroMinEconomicKeyDominated
   candidate.executedInput ≤ winner.executedInput ∧
     candidate.surplus ≤ winner.surplus
 
+/-- Economic key for continuing from one processed record through a fixed
+strict zero-min suffix. -/
+def recordZeroMinEconomicKey
+    (executedInput initialReserveOut : Nat)
+    (record : ProcessedRecord)
+    (suffix : List ExactInStep) : ZeroMinEconomicKey :=
+  ⟨executedInput, suffixTotalOutput initialReserveOut record suffix⟩
+
 /-- DP-level representative dominance.
 
 If two records represent the same processed subset, encoded here as the same
@@ -439,12 +447,39 @@ theorem minReserveRecord_dominates_suffixTotalOutput
       (steps := suffix)
       hreserve)
 
+/-- DP-level representative dominance stated directly in the strict zero-min
+economic-key order. -/
+theorem minReserveRecord_dominates_zeroMinEconomicKey
+    {executedInput initialReserveOut : Nat}
+    {lower upper : ProcessedRecord}
+    {suffix : List ExactInStep}
+    (hsame : lower.processedReserveIn = upper.processedReserveIn)
+    (hreserve : lower.reserveOut ≤ upper.reserveOut) :
+    zeroMinEconomicKeyDominated
+      (recordZeroMinEconomicKey executedInput initialReserveOut upper suffix)
+      (recordZeroMinEconomicKey executedInput initialReserveOut lower suffix) := by
+  unfold zeroMinEconomicKeyDominated recordZeroMinEconomicKey
+  exact ⟨Nat.le_refl executedInput,
+    minReserveRecord_dominates_suffixTotalOutput
+      (initialReserveOut := initialReserveOut)
+      (lower := lower)
+      (upper := upper)
+      (suffix := suffix)
+      hsame hreserve⟩
+
 /-- Best suffix output among a finite candidate record set. -/
 def bestSuffixOutputFromRecords
     (initialReserveOut : Nat)
     (records : List ProcessedRecord)
     (suffix : List ExactInStep) : Nat :=
   (records.map (fun record => suffixTotalOutput initialReserveOut record suffix)).foldl Nat.max 0
+
+/-- Economic key for the best full-state completion from a finite record set. -/
+def bestRecordSetZeroMinEconomicKey
+    (executedInput initialReserveOut : Nat)
+    (records : List ProcessedRecord)
+    (suffix : List ExactInStep) : ZeroMinEconomicKey :=
+  ⟨executedInput, bestSuffixOutputFromRecords initialReserveOut records suffix⟩
 
 /-- Helper for bounding a `foldl Nat.max` aggregate by a known upper bound. -/
 theorem foldlMax_le_bound
@@ -494,6 +529,71 @@ theorem bestSuffixOutputFromRecords_le_selected
       (suffix := suffix)
       (hsame record hrecord)
       (hmin record hrecord)
+
+/-- Finite candidate-set pruning stated directly in the strict zero-min
+economic-key order. -/
+theorem bestRecordSetZeroMinEconomicKey_dominated_by_selected
+    {executedInput initialReserveOut : Nat}
+    {selected : ProcessedRecord}
+    {records : List ProcessedRecord}
+    {suffix : List ExactInStep}
+    (hsame :
+      ∀ record, record ∈ records ->
+        selected.processedReserveIn = record.processedReserveIn)
+    (hmin :
+      ∀ record, record ∈ records ->
+        selected.reserveOut ≤ record.reserveOut) :
+    zeroMinEconomicKeyDominated
+      (bestRecordSetZeroMinEconomicKey executedInput initialReserveOut records suffix)
+      (recordZeroMinEconomicKey executedInput initialReserveOut selected suffix) := by
+  unfold zeroMinEconomicKeyDominated bestRecordSetZeroMinEconomicKey
+    recordZeroMinEconomicKey
+  exact ⟨Nat.le_refl executedInput,
+    bestSuffixOutputFromRecords_le_selected
+      (initialReserveOut := initialReserveOut)
+      (selected := selected)
+      (records := records)
+      (suffix := suffix)
+      hsame hmin⟩
+
+/-- Proof-carrying finite record-set pruning certificate.
+
+This is the record-level form of the compression obligation: all records share
+the selected representative's processed input reserve, the selected
+representative has minimum output reserve, and the selected suffix is
+executable. -/
+def strictRecordSetPruningCertificate
+    (selected : ProcessedRecord)
+    (records : List ProcessedRecord)
+    (suffix : List ExactInStep) : Prop :=
+  (∀ record, record ∈ records ->
+      selected.processedReserveIn = record.processedReserveIn) ∧
+    (∀ record, record ∈ records ->
+      selected.reserveOut ≤ record.reserveOut) ∧
+    suffixExecutable selected.processedReserveIn selected.reserveOut suffix
+
+/-- A strict record-set pruning certificate yields economic-key dominance for
+the full record set and carries selected-suffix executability. -/
+theorem strictRecordSetPruningCertificate_validates
+    {executedInput initialReserveOut : Nat}
+    {selected : ProcessedRecord}
+    {records : List ProcessedRecord}
+    {suffix : List ExactInStep}
+    (hcert : strictRecordSetPruningCertificate selected records suffix) :
+    zeroMinEconomicKeyDominated
+      (bestRecordSetZeroMinEconomicKey executedInput initialReserveOut records suffix)
+      (recordZeroMinEconomicKey executedInput initialReserveOut selected suffix) ∧
+      suffixExecutable selected.processedReserveIn selected.reserveOut suffix := by
+  rcases hcert with ⟨hsame, hmin, hexec⟩
+  exact ⟨
+    bestRecordSetZeroMinEconomicKey_dominated_by_selected
+      (executedInput := executedInput)
+      (initialReserveOut := initialReserveOut)
+      (selected := selected)
+      (records := records)
+      (suffix := suffix)
+      hsame hmin,
+    hexec⟩
 
 /-- A finite subset-mask record family.
 
