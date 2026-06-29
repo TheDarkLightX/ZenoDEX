@@ -143,6 +143,7 @@ so A fills). The empirical min slippage ratio is 0.923827.
 | 2     | B-    | 5        | Stale "Lean PROVEN" labels, epsilon blur, tautological cap test |
 | 3     | A-    | 1 LOW    | Stale 1.82x prose drift, duplicated sentence |
 | 4     | A-    | 3        | Stale handoff, stale docstring, continuous-vs-rounded scope note |
+| 5     | A     | 0        | All round 4 findings resolved, zero findings |
 
 ## Verification Commands
 
@@ -158,19 +159,19 @@ python3 -m pytest tests/formal/test_lean_concavity_conservation_law.py \
   tests/research/test_concavity_conservation_law.py -v
 ```
 
-## What to Scrutinize in Round 5
+## What to Scrutinize in Round 6 (if extending)
 
-1. Are all 3 round-4 findings resolved? Check:
-   - (a) Handoff doc updated to reflect 5 theorems (not 3) and stateful bound.
-   - (b) No stale "NOT for stateful" docstring in the frontier test.
-   - (c) Continuous-vs-rounded scope note present.
+The package is at A with zero findings. Any future extension should:
 
-2. Is the package free of overclaims? The Lean file claims algebraic
-   identities, generic Lipschitz increment, AND stateful gain bound. The
-   Python file labels stateful gain as [Lean PROVEN + empirical replay]
-   with the continuous-vs-rounded caveat.
+1. Keep the 5-theorem scope accurate. If new theorems are added, update this
+   handoff, the Lean header, and all test docstrings in the same commit.
 
-3. Is this now A? Round 4 was A- with a path to A if the 3 findings are fixed.
+2. Maintain the continuous-vs-rounded scope boundary. A rounding lemma
+   connecting the continuous theorem to the integer-truncated simulator
+   would be the next high-value formal extension.
+
+3. Keep the falsification guards. The concavity bound `(m/2)*a_A*(a_A+2*a_B)`
+   is FALSIFIED and must stay FALSIFIED. Do not mix it into a positive claim.
 
 ## Deepest Lesson
 
