@@ -1,0 +1,194 @@
+{
+  "authority_boundary": "Research-only proof-surface audit; no settlement, state-root, production, routing, matching, pool-mutation, or governance authority.",
+  "date": "2026-06-29",
+  "deterministic_replay": {
+    "first_hash": "3bb033dcad8d1bd40aa772e9663ba35320a3edfc3c8d51a99f582c3959c5fef6",
+    "ok": true,
+    "second_hash": "3bb033dcad8d1bd40aa772e9663ba35320a3edfc3c8d51a99f582c3959c5fef6"
+  },
+  "hypothesis_card": {
+    "expected_metric_delta": {
+      "cap_efficiency": "0",
+      "determinism_simplicity": "+single replay gate",
+      "execution_quality": "0",
+      "perf_cost": "-audit overhead only",
+      "safety": "+scope assurance"
+    },
+    "falsification_recipe": "Mutate theorem premises, report status, theorem lists, and public claims; require stable reject reasons.",
+    "formal_obligations": "Lean remains the authority for theorem proofs; this checker audits surface bindings and scope.",
+    "hypothesis_id": "H-AB-RECORD-SET-REFUTE-20260629",
+    "mechanism_change": "Refute stale or over-broad record-set pruning claims before building more reserve-state quotient layers.",
+    "null_hypothesis": "The record-set certificate surface contains a missing premise, stale theorem binding, failed verification receipt, or positive overclaim.",
+    "representation_shift_used": "counterexample_boundary",
+    "risk_modes": [
+      "stale generated JSON",
+      "missing Lean premise",
+      "overclaim in public docs",
+      "authority leakage",
+      "test coverage drift"
+    ],
+    "status": "supported",
+    "support_recipe": "Compile Lean, run focused formal test, bind generated reports, scan non-claims, and reject negative controls."
+  },
+  "non_claims": [
+    "This audit does not prove Python-to-Lean refinement.",
+    "This audit does not construct a subset DP table.",
+    "This audit does not define canonical tie order.",
+    "This audit does not cover nonzero min_amount_out behavior.",
+    "This audit does not prove JSON canonicalization or packet hashing in Lean.",
+    "No settlement, state-root, production, routing, matching, pool-mutation, or governance authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_record_set_pruning_refutation_audit_20260629.py",
+  "schema": "zenodex.ab_record_set_pruning_refutation_audit_report.v1",
+  "search": {
+    "artifact_hashes": {
+      "formal_test": "06ec96070864790473ac2c28210193f6cc3be0edbc4e338df8f85bf4916c23aa",
+      "lean_file": "96987c49a8fe9ccc7bea8acfa9f0eb0c77c966ee7dcc2a09d187989ff07a9e2a",
+      "record_key_doc": "0e4475884f65d36bbf31b5dd064c404de5daf7088c88083717175bf243026edf",
+      "record_key_report": "d261cc2660db3af80099aab86d762cafe584ba7db8ee4ea7b3d2211df0b41558",
+      "record_set_doc": "1264381a4c01d9628ad7576d16650e47ee525848a28c957a6c56eaf02b64e637",
+      "record_set_report": "93906101f6d6e7337da284c11946b0a308b0807efe1ad5d7b9496f2c7660c322"
+    },
+    "claim_surface": {
+      "economic_key_dominance_bound": true,
+      "same_processed_reserve_bound": true,
+      "scope_nonclaims_bound": true,
+      "selected_min_reserve_bound": true,
+      "selected_suffix_executable_bound": true
+    },
+    "elapsed_ms": 21701.292,
+    "lean_surface": {
+      "placeholder_free": true,
+      "required_theorem_count": 8,
+      "strict_record_set_certificate_decl_hash": "6645dd7981cb6fe084bb9c0abd0f8e5b67c22bc2d149c34ccfa44acc85a1cbe9",
+      "strict_record_set_validates_decl_hash": "315f15cce3cffee1d80dd8cd664536afa717926f6fff3f91c1f9edee2dc81fd4"
+    },
+    "negative_control_accept_count": 0,
+    "negative_control_count": 8,
+    "negative_controls": [
+      {
+        "accepted": false,
+        "expected_reason": "lean_placeholder_token_present",
+        "mutation_id": "lean_placeholder_token_present",
+        "reasons": [
+          "lean_placeholder_token_present"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "same_processed_reserve_premise_missing",
+        "mutation_id": "same_processed_reserve_premise_missing",
+        "reasons": [
+          "same_processed_reserve_premise_missing"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "selected_min_reserve_premise_missing",
+        "mutation_id": "selected_min_reserve_premise_missing",
+        "reasons": [
+          "selected_min_reserve_premise_missing"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "selected_suffix_executable_premise_missing",
+        "mutation_id": "selected_suffix_executable_premise_missing",
+        "reasons": [
+          "selected_suffix_executable_premise_missing"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "forbidden_full_subset_dp_claim",
+        "mutation_id": "forbidden_full_subset_dp_claim",
+        "reasons": [
+          "forbidden_full_subset_dp_claim"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "record_key_report_not_ok",
+        "mutation_id": "record_key_report_not_ok",
+        "reasons": [
+          "record_key_report_not_ok"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "record_key_theorem_list_incomplete",
+        "mutation_id": "record_key_theorem_list_incomplete",
+        "reasons": [
+          "record_key_theorem_list_incomplete"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "forbidden_authority_claim",
+        "mutation_id": "forbidden_authority_claim",
+        "reasons": [
+          "forbidden_authority_claim"
+        ]
+      }
+    ],
+    "ok": true,
+    "reasons": [],
+    "report_bindings": {
+      "record_key_ok": true,
+      "record_key_schema": "zenodex.ab_strict_zero_min_record_key_certificate_lean_report.v1",
+      "record_key_theorem_count": 6,
+      "record_set_status": "pass",
+      "record_set_theorem_count": 4
+    },
+    "schema": "zenodex/ab_record_set_pruning_refutation_audit_search/v1",
+    "verification_commands": {
+      "claims_registry": {
+        "command": "/usr/bin/python3 tools/check_claims_registry.py",
+        "cwd": ".",
+        "elapsed_s": 0.325663,
+        "ok": true,
+        "returncode": 0,
+        "stderr_tail": "",
+        "stdout_tail": "ok\n"
+      },
+      "focused_pytest": {
+        "command": "/usr/bin/python3 -m pytest -q tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+        "cwd": ".",
+        "elapsed_s": 9.186862,
+        "ok": true,
+        "returncode": 0,
+        "stderr_tail": "",
+        "stdout_tail": ".                                                                        [100%]\n1 passed in 8.85s\n"
+      },
+      "lake_build_module": {
+        "command": "lake build Proofs.ABStrictZeroMinMonotone",
+        "cwd": "lean-mathlib",
+        "elapsed_s": 2.580031,
+        "ok": true,
+        "returncode": 0,
+        "stderr_tail": "",
+        "stdout_tail": "Build completed successfully (3076 jobs).\n"
+      },
+      "lake_env_lean": {
+        "command": "lake env lean Proofs/ABStrictZeroMinMonotone.lean",
+        "cwd": "lean-mathlib",
+        "elapsed_s": 9.085909,
+        "ok": true,
+        "returncode": 0,
+        "stderr_tail": "",
+        "stdout_tail": ""
+      },
+      "public_claim_scope": {
+        "command": "/usr/bin/python3 tools/check_public_claim_scope.py --root . --json",
+        "cwd": ".",
+        "elapsed_s": 0.415539,
+        "ok": true,
+        "returncode": 0,
+        "stderr_tail": "",
+        "stdout_tail": "{\n  \"checked_files\": [\n    \"README.md\",\n    \"docs/claims_registry.yaml\",\n    \"docs/ASSURANCE_RELEASE_SNAPSHOT.md\",\n    \"docs/PUBLIC_ASSURANCE_REPLAY.md\",\n    \"docs/RC1_READINESS.md\",\n    \"docs/RC1_SCOPE.md\",\n    \"docs/RC1_VERIFIED_SURFACE_MATRIX.md\",\n    \"docs/zenodex_spot_state_proof_risc0_v1.md\",\n    \"docs/CONFIDENTIAL_EXTENSIONS_TEE_SMPC.md\",\n    \"docs/CONFIDENTIAL_FEATURES_BETA_RUNBOOK.md\",\n    \"docs/CONFIDENTIAL_FEATURES_USE_CASES.md\",\n    \"docs/SPECIFICATION.md\",\n    \"tools/dex-ui/README.md\",\n    \"tools/dex-ui/src/lib/confidentialData.js\",\n    \"src/integration/confidential_feature_status.py\",\n    \"docs/UPBA_OPTIMALITY_CERTIFICATE.md\",\n    \"docs/UPBA_V1_CERTIFICATE.md\",\n    \"docs/UPBA_V1_EVIDENCE_BOUNDARY.md\",\n    \"docs/UPBA_V2_CERTIFICATE.md\",\n    \"docs/UPBA_V2_EVIDENCE_BOUNDARY.md\",\n    \"docs/ZENOCOVER_LP_LOSS_COVER_V1.md\"\n  ],\n  \"ok\": true,\n  \"schema\": \"zenodex/public_claim_scope_report/v0\",\n  \"violations\": []\n}\n"
+      }
+    }
+  },
+  "summary": "A falsify-first audit found no mismatch in the AB strict zero-min record-set pruning claim surface: the Lean theorem premises, generated reports, and public non-claims remain aligned."
+}
