@@ -1,0 +1,249 @@
+{
+  "authority_boundary": "Research-only certificate-boundary evidence; no settlement, state-root, production, routing, matching, pool-mutation, or governance authority.",
+  "date": "2026-06-29",
+  "design_recommendation": [
+    "Use count-aware Merkle membership verification for generated-image roots.",
+    "Reject packets where membership proof shape does not match the claimed generated_state_count.",
+    "Treat root-only membership as insufficient for no-extra claims unless count-aware proof shape is checked."
+  ],
+  "deterministic_replay": {
+    "first_hash": "9fc48888a3dcb573938a2edf5e99efb9ca70e12b4e0e3c593dac3c2d8580a1b3",
+    "ok": true,
+    "second_hash": "9fc48888a3dcb573938a2edf5e99efb9ca70e12b4e0e3c593dac3c2d8580a1b3"
+  },
+  "hypothesis_card": {
+    "expected_metric_delta": {
+      "cap_efficiency": "0",
+      "determinism_simplicity": "+explicit count-aware root contract",
+      "execution_quality": "0",
+      "perf_cost": "+membership proof shape checks",
+      "safety": "+rejects false-count hidden-extra Merkle replay"
+    },
+    "falsification_recipe": "Build a root over three generated states, claim count two, and supply valid naive proofs for the two advertised child states.",
+    "formal_obligations": "A formal version should prove that count-aware proof shape plus unique child states and generated_count equality imply no hidden extra leaves for the committed Merkle tree.",
+    "hypothesis_id": "H-AB-COUNT-AWARE-MERKLE-CERTIFICATE-20260629",
+    "mechanism_change": "Bind Merkle membership proof shape to generated_state_count before using root membership as a no-extra child-frontier certificate.",
+    "null_hypothesis": "A generated-state root plus naive membership proofs is sufficient to support bounded no-extra child-frontier equality.",
+    "representation_shift_used": "certificate_boundary",
+    "risk_modes": [
+      "naive membership verification ignores leaf_count",
+      "false generated count",
+      "hidden generated state",
+      "stale root",
+      "authority leakage"
+    ],
+    "status": "supported_bounded",
+    "support_recipe": "Require the count-aware verifier to accept baseline, reject the false-count replay, reject honest extra count, reject coverage-only packets, and reject all negative controls."
+  },
+  "non_claims": [
+    "Scope is limited to a bounded certificate-boundary countermodel and checker design.",
+    "This artifact does not prove child-frontier generation in Lean.",
+    "This artifact does not prove Python-to-Lean refinement.",
+    "This artifact does not replace a deterministic generated-image producer.",
+    "This artifact does not cover nonzero min_amount_out behavior.",
+    "No settlement, state-root, production, routing, matching, pool-mutation, or governance authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_child_frontier_count_aware_merkle_certificate_20260629.py",
+  "schema": "zenodex.ab_child_frontier_count_aware_merkle_report.v1",
+  "search": {
+    "baseline_generated_state_root": "aa7ec0b30917784becf3806b06fc63fe831e14ed94eb227d958f83a08b3e0e7a",
+    "baseline_packet_hash": "a9b4fc00fae3e7db01c2269b33163c92e69ecb78cd32352d052129335ee8d455",
+    "child_state_count": 2,
+    "child_state_digest": "20debc2b386b88b55708cbd5c6d18febab91b3ea22beea0f030064f40d3d7dfd",
+    "count_aware_baseline": {
+      "child_state_count": 2,
+      "covered_child_state_count": 2,
+      "generated_state_count": 2,
+      "membership_count": 2,
+      "ok": true,
+      "reasons": [],
+      "valid_membership_count": 2,
+      "witness_count": 2
+    },
+    "count_aware_coverage_only": {
+      "child_state_count": 2,
+      "covered_child_state_count": 2,
+      "generated_state_count": 2,
+      "membership_count": 0,
+      "ok": false,
+      "reasons": [
+        "count_aware_membership_bound_missing",
+        "generated_state_root_malformed",
+        "membership_rows_digest_mismatch",
+        "missing_membership_proof"
+      ],
+      "valid_membership_count": 0,
+      "witness_count": 2
+    },
+    "count_aware_honest_extra": {
+      "child_state_count": 2,
+      "covered_child_state_count": 2,
+      "generated_state_count": 3,
+      "membership_count": 2,
+      "ok": false,
+      "reasons": [
+        "generated_state_count_mismatch"
+      ],
+      "valid_membership_count": 2,
+      "witness_count": 2
+    },
+    "count_aware_lying_count": {
+      "child_state_count": 2,
+      "covered_child_state_count": 2,
+      "generated_state_count": 2,
+      "membership_count": 2,
+      "ok": false,
+      "reasons": [
+        "membership_proof_shape_mismatch"
+      ],
+      "valid_membership_count": 0,
+      "witness_count": 2
+    },
+    "count_aware_rejects_honest_extra": true,
+    "count_aware_rejects_lying_count": true,
+    "coverage_only_rejected": true,
+    "elapsed_ms": 4.064,
+    "hidden_extra_state": {
+      "processed_reserve_in": 170,
+      "reserve_out": 9830
+    },
+    "lying_count_generated_state_root": "fc408c353cfb375a8e44404e820fc86ef75c73295f5a13c936ccd774f3667e74",
+    "membership_rows_digest": "442d6554f9fe8da910824cfe43d1a3197b1fbfddd4b57795bc51815bc2a1f0f8",
+    "naive_baseline": {
+      "child_state_count": 2,
+      "covered_child_state_count": 2,
+      "generated_state_count": 2,
+      "membership_count": 2,
+      "ok": true,
+      "reasons": [],
+      "valid_membership_count": 2,
+      "witness_count": 2
+    },
+    "naive_countermodel_valid": true,
+    "naive_honest_extra": {
+      "child_state_count": 2,
+      "covered_child_state_count": 2,
+      "generated_state_count": 3,
+      "membership_count": 2,
+      "ok": false,
+      "reasons": [
+        "generated_state_count_mismatch"
+      ],
+      "valid_membership_count": 2,
+      "witness_count": 2
+    },
+    "naive_lying_count": {
+      "child_state_count": 2,
+      "covered_child_state_count": 2,
+      "generated_state_count": 2,
+      "membership_count": 2,
+      "ok": true,
+      "reasons": [],
+      "valid_membership_count": 2,
+      "witness_count": 2
+    },
+    "negative_control_accept_count": 0,
+    "negative_control_count": 10,
+    "negative_controls": [
+      {
+        "accepted": false,
+        "expected_reason": "packet_hash_mismatch",
+        "mutation_id": "packet_hash_mismatch",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "membership_proof_hash_mismatch",
+        "mutation_id": "generated_state_root_stale",
+        "reasons": [
+          "membership_proof_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "generated_state_count_mismatch",
+        "mutation_id": "generated_state_count_mismatch",
+        "reasons": [
+          "generated_state_count_mismatch",
+          "membership_proof_shape_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "membership_proof_hash_mismatch",
+        "mutation_id": "membership_proof_hash_mismatch",
+        "reasons": [
+          "membership_proof_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "missing_membership_proof",
+        "mutation_id": "missing_membership_proof",
+        "reasons": [
+          "missing_membership_proof"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "duplicate_membership_proof",
+        "mutation_id": "duplicate_membership_proof",
+        "reasons": [
+          "duplicate_membership_proof"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "missing_child_state_witness",
+        "mutation_id": "missing_child_state_witness",
+        "reasons": [
+          "missing_child_state_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "generated_count_bound_missing",
+        "mutation_id": "generated_count_bound_missing",
+        "reasons": [
+          "generated_count_bound_missing"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "count_aware_membership_bound_missing",
+        "mutation_id": "count_aware_membership_bound_missing",
+        "reasons": [
+          "count_aware_membership_bound_missing"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "authority_effect_present",
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      }
+    ],
+    "reason_classes": [
+      "authority_effect_present",
+      "count_aware_membership_bound_missing",
+      "duplicate_membership_proof",
+      "generated_count_bound_missing",
+      "generated_state_count_mismatch",
+      "generated_state_root_malformed",
+      "membership_proof_hash_mismatch",
+      "membership_proof_shape_mismatch",
+      "membership_rows_digest_mismatch",
+      "missing_child_state_witness",
+      "missing_membership_proof",
+      "packet_hash_mismatch"
+    ],
+    "schema": "zenodex/ab_child_frontier_count_aware_merkle_search/v1",
+    "witness_rows_digest": "8216f62477012095592dcc45ed7551b3cadf83d84aa1a3f61f5b612f7ce60290"
+  },
+  "summary": "A bounded count-aware Merkle verifier rejects a hidden-extra replay that a naive membership verifier accepts when the packet lies about the generated-state count."
+}
