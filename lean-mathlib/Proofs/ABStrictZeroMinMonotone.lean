@@ -1408,6 +1408,19 @@ theorem reachablePrunedStepPath_bounds_suffix_output
   exact maskFullBestSuffixOutput_le_selected
     (reachablePrunedStepPath_pruningInvariant hpath)
 
+/-- A recursive pruned range-step path supplies the older range-mask certificate
+surface.
+
+This is a representation-transfer lemma: it does not construct the path, the
+mask family, or any host implementation artifact. -/
+theorem reachablePrunedStepPath_to_reachablePrunedRangeMask
+    {parent child : MaskRecordSet}
+    {bitCount : Nat}
+    (hpath : reachablePrunedStepPath parent (List.range bitCount) child) :
+    reachablePrunedRangeMask parent child bitCount := by
+  exact ⟨reachablePrunedStepPath_to_maskRecordPath hpath,
+    reachablePrunedStepPath_pruningInvariant hpath⟩
+
 /-- Range-specialized recursive pruned path retained in a selected mask family. -/
 def reachablePrunedRangeStepPathInFamily
     (parent child : MaskRecordSet)
@@ -1415,6 +1428,19 @@ def reachablePrunedRangeStepPathInFamily
     (masks : List MaskRecordSet) : Prop :=
   reachablePrunedStepPath parent (List.range bitCount) child ∧
     child ∈ masks
+
+/-- A retained recursive range-step path can be read as a retained reachable
+range-mask member of the same family.
+
+This lets downstream certificates choose either path-shaped or range-mask-shaped
+evidence without changing the economic endpoint. -/
+theorem reachablePrunedRangeStepPathInFamily_to_reachablePrunedFullMaskInFamily
+    {parent child : MaskRecordSet}
+    {bitCount : Nat}
+    {masks : List MaskRecordSet}
+    (hfull : reachablePrunedRangeStepPathInFamily parent child bitCount masks) :
+    reachablePrunedFullMaskInFamily parent child bitCount masks := by
+  exact ⟨reachablePrunedStepPath_to_reachablePrunedRangeMask hfull.1, hfull.2⟩
 
 /-- A retained recursive range-step child is bounded by the selected-family
 aggregate. -/
@@ -1465,6 +1491,18 @@ def reachablePrunedRangeStepPathListInFamily
     (masks : List MaskRecordSet) : Prop :=
   ∀ child, child ∈ children ->
     reachablePrunedRangeStepPathInFamily parent child bitCount masks
+
+/-- A recursive range-step frontier can be consumed by the earlier full-mask
+family certificate surface. -/
+theorem reachablePrunedRangeStepPathListInFamily_to_reachablePrunedFullMaskListInFamily
+    {parent : MaskRecordSet}
+    {children masks : List MaskRecordSet}
+    {bitCount : Nat}
+    (hlist : reachablePrunedRangeStepPathListInFamily parent children bitCount masks) :
+    reachablePrunedFullMaskListInFamily parent children bitCount masks := by
+  intro child hchild
+  exact reachablePrunedRangeStepPathInFamily_to_reachablePrunedFullMaskInFamily
+    (hlist child hchild)
 
 /-- Every child in a recursive range-step frontier covers the bounded range. -/
 theorem reachablePrunedRangeStepPathListInFamily_covers_members
@@ -1527,6 +1565,26 @@ def rangeStepPathWinnerCertificate
     (suffix : List ExactInStep) : Prop :=
   reachablePrunedRangeStepPathListInFamily parent children bitCount masks ∧
     selectedFamilyOutputWinner winner masks initialReserveOut suffix
+
+/-- A recursive range-step winner certificate can be consumed as the earlier
+compressed-winner certificate.
+
+The transfer preserves the same children, family, winner, suffix, and economic
+parameters; it only changes the proof-certificate representation. -/
+theorem rangeStepPathWinnerCertificate_to_compressedWinnerCertificate
+    {parent winner : MaskRecordSet}
+    {children masks : List MaskRecordSet}
+    {bitCount initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hcert :
+      rangeStepPathWinnerCertificate parent winner children bitCount masks
+        initialReserveOut suffix) :
+    compressedWinnerCertificate parent winner children masks bitCount
+      initialReserveOut suffix := by
+  exact ⟨
+    reachablePrunedRangeStepPathListInFamily_to_reachablePrunedFullMaskListInFamily
+      hcert.1,
+    hcert.2⟩
 
 /-- Certificate endpoint for a recursive range-step frontier: bounded coverage
 and selected-winner dominance follow from one proof-carrying certificate. -/

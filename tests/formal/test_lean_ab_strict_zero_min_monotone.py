@@ -101,14 +101,24 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "theorem reachablePrunedStepPath_pruningInvariant" in text
     assert "theorem reachablePrunedStepPath_covers_range_bits" in text
     assert "theorem reachablePrunedStepPath_bounds_suffix_output" in text
+    assert "theorem reachablePrunedStepPath_to_reachablePrunedRangeMask" in text
     assert "def reachablePrunedRangeStepPathInFamily" in text
+    assert (
+        "theorem reachablePrunedRangeStepPathInFamily_to_reachablePrunedFullMaskInFamily"
+        in text
+    )
     assert "theorem reachablePrunedRangeStepPathInFamily_bounds_family_selected" in text
     assert "theorem reachablePrunedRangeStepPathInFamily_covers_and_bounds_family" in text
     assert "def reachablePrunedRangeStepPathListInFamily" in text
+    assert (
+        "theorem reachablePrunedRangeStepPathListInFamily_to_reachablePrunedFullMaskListInFamily"
+        in text
+    )
     assert "theorem reachablePrunedRangeStepPathListInFamily_covers_members" in text
     assert "theorem reachablePrunedRangeStepPathListInFamily_bounds_family_selected" in text
     assert "theorem reachablePrunedRangeStepPathListInFamily_covers_and_bounds_family" in text
     assert "def rangeStepPathWinnerCertificate" in text
+    assert "theorem rangeStepPathWinnerCertificate_to_compressedWinnerCertificate" in text
     assert "theorem rangeStepPathWinnerCertificate_covers_and_bounds" in text
     assert "theorem rangeStepPathWinnerCertificate_bounds_zeroMinEconomicKey" in text
     assert "def strictRangeStepPathEconomicCertificate" in text
