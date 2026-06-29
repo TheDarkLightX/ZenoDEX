@@ -44,6 +44,10 @@ REQUIRED_LEAN_MARKERS = [
     "theorem reserveState_afterStep_same_processed",
     "theorem reserveState_afterStep_minReserve",
     "theorem reserveStateQuotientInvariant_afterStep",
+    "theorem strictStepExecutable_mono_reserveOut",
+    "theorem suffixExecutable_mono_reserveOut",
+    "theorem reserveStateQuotientInvariant_candidateSuffixExecutable",
+    "theorem reserveStateQuotientInvariant_familySuffixExecutable",
     "theorem quotientFullBestSuffixOutput_le_selected",
     "def quotientFullFrontierZeroMinEconomicKey",
     "def quotientSelectedZeroMinEconomicKey",
@@ -60,6 +64,7 @@ REQUIRED_LEAN_MARKERS = [
     "theorem witness_reserveStateEquivalent_same_suffixOutput",
     "theorem witness_reserveStateQuotientHostTable_validates",
     "theorem witness_reserveStateQuotientInvariant_afterStep",
+    "theorem witness_reserveStateQuotientInvariant_familySuffixExecutable",
     "theorem witness_reserveStateQuotientObservedSummary_validates",
 ]
 
@@ -118,8 +123,10 @@ def build_report() -> dict[str, Any]:
             "minimum reserve-out state dominates a finite quotient family at "
             "fixed executed input. It also proves the selected representative "
             "remains valid after one common exact-in step is applied to every "
-            "family member. The observed-summary layer binds host-visible count "
-            "and selected-state metadata to the validated Lean table."
+            "family member, and that selected suffix executability lifts to all "
+            "higher-reserve family members. The observed-summary layer binds "
+            "host-visible count and selected-state metadata to the validated "
+            "Lean table."
         ),
         "artifacts": {
             "lean_file": str(LEAN_PATH.relative_to(ROOT)),

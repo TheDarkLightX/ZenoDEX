@@ -1,11 +1,11 @@
 {
   "artifacts": {
     "formal_test": "tests/formal/test_lean_ab_reserve_state_quotient.py",
-    "formal_test_line_count": 61,
-    "formal_test_sha256": "sha256:b6333d7b4ee0db18819aaeface7098939f68339b79c1274f581a3bfc55a4f2bb",
+    "formal_test_line_count": 66,
+    "formal_test_sha256": "sha256:edba0bced0ee4d5837e0582c1a3854f7ea5278f05ffcdb564732e9f328fbddeb",
     "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
-    "lean_line_count": 637,
-    "lean_sha256": "sha256:6caad3de4b12831fe40bd234d99fcaaf0e98060c05d2079b6b04130a88dec119"
+    "lean_line_count": 776,
+    "lean_sha256": "sha256:490b0005cb1b1c7efcf768176c038d0e4d52ba25529a90e4babe0edb3a024013"
   },
   "authority_boundary": "Research proof component only; no settlement, state-root, production, governance, routing, matching, or transaction authority.",
   "checks": {
@@ -15,7 +15,7 @@
     "required_test_markers_present": true,
     "test_file_exists": true
   },
-  "claim_scope": "A Lean proof component formalizes the reserve-state quotient bridge for the AB strict zero-min research surface: same reserve-state quotient rows have identical fixed-suffix behavior, and a selected minimum reserve-out state dominates a finite quotient family at fixed executed input. It also proves the selected representative remains valid after one common exact-in step is applied to every family member. The observed-summary layer binds host-visible count and selected-state metadata to the validated Lean table.",
+  "claim_scope": "A Lean proof component formalizes the reserve-state quotient bridge for the AB strict zero-min research surface: same reserve-state quotient rows have identical fixed-suffix behavior, and a selected minimum reserve-out state dominates a finite quotient family at fixed executed input. It also proves the selected representative remains valid after one common exact-in step is applied to every family member, and that selected suffix executability lifts to all higher-reserve family members. The observed-summary layer binds host-visible count and selected-state metadata to the validated Lean table.",
   "missing": {
     "forbidden_lean_terms": [],
     "lean_markers": [],
@@ -51,6 +51,10 @@
     "theorem reserveState_afterStep_same_processed",
     "theorem reserveState_afterStep_minReserve",
     "theorem reserveStateQuotientInvariant_afterStep",
+    "theorem strictStepExecutable_mono_reserveOut",
+    "theorem suffixExecutable_mono_reserveOut",
+    "theorem reserveStateQuotientInvariant_candidateSuffixExecutable",
+    "theorem reserveStateQuotientInvariant_familySuffixExecutable",
     "theorem quotientFullBestSuffixOutput_le_selected",
     "def quotientFullFrontierZeroMinEconomicKey",
     "def quotientSelectedZeroMinEconomicKey",
@@ -67,6 +71,7 @@
     "theorem witness_reserveStateEquivalent_same_suffixOutput",
     "theorem witness_reserveStateQuotientHostTable_validates",
     "theorem witness_reserveStateQuotientInvariant_afterStep",
+    "theorem witness_reserveStateQuotientInvariant_familySuffixExecutable",
     "theorem witness_reserveStateQuotientObservedSummary_validates"
   ],
   "schema": "zenodex/ab_reserve_state_quotient_lean_bridge/v1"

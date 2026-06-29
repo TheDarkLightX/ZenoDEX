@@ -21,6 +21,7 @@ authority.
 namespace ABReserveStateQuotient
 
 open ABStrictZeroMinMonotone
+open AntiFragmentation (swapOut)
 
 /-- Reserve-state quotient key for the strict zero-min research surface.
 
@@ -201,6 +202,98 @@ theorem reserveStateQuotientInvariant_afterStep
         (step := step)
         (hsame candidate hcandidate)
         (hmin candidate hcandidate)
+
+/-- Strict one-step executability is monotone in the output reserve.
+
+If a step is executable at the selected lower reserve, then the same step is
+also executable at any higher output reserve with the same input reserve. -/
+theorem strictStepExecutable_mono_reserveOut
+    {reserveIn reserveOutSmall reserveOutLarge : Nat}
+    {step : ExactInStep}
+    (hreserve : reserveOutSmall ≤ reserveOutLarge)
+    (hexec : strictStepExecutable reserveIn reserveOutSmall step) :
+    strictStepExecutable reserveIn reserveOutLarge step := by
+  rcases hexec with ⟨hin, houtSmall, hgross, hnet, hfee, houtputSmall⟩
+  have houtLarge : 0 < reserveOutLarge := lt_of_lt_of_le houtSmall hreserve
+  have houtputLe :
+      swapOut reserveIn reserveOutSmall step.netIn ≤
+        swapOut reserveIn reserveOutLarge step.netIn :=
+    CPMMOutputMonotonicity.swapOut_mono_y reserveIn step.netIn hreserve
+  have houtputLarge :
+      0 < swapOut reserveIn reserveOutLarge step.netIn :=
+    lt_of_lt_of_le houtputSmall houtputLe
+  exact ⟨hin, houtLarge, hgross, hnet, hfee, houtputLarge⟩
+
+/-- Strict suffix executability is monotone in the starting output reserve.
+
+The induction uses `postReserveOut_mono_reserveOut` to keep the larger-reserve
+run ahead after each common step. -/
+theorem suffixExecutable_mono_reserveOut
+    {reserveIn reserveOutSmall reserveOutLarge : Nat}
+    {steps : List ExactInStep}
+    (hreserve : reserveOutSmall ≤ reserveOutLarge)
+    (hexec : suffixExecutable reserveIn reserveOutSmall steps) :
+    suffixExecutable reserveIn reserveOutLarge steps := by
+  induction steps generalizing reserveIn reserveOutSmall reserveOutLarge with
+  | nil =>
+      simp [suffixExecutable]
+  | cons step rest ih =>
+      simp [suffixExecutable] at hexec ⊢
+      rcases hexec with ⟨hstep, hrest⟩
+      exact ⟨strictStepExecutable_mono_reserveOut hreserve hstep,
+        ih
+          (reserveIn := reserveIn + step.grossIn)
+          (reserveOutSmall := postReserveOut reserveIn reserveOutSmall step.netIn)
+          (reserveOutLarge := postReserveOut reserveIn reserveOutLarge step.netIn)
+          (postReserveOut_mono_reserveOut
+            (reserveIn := reserveIn)
+            (netIn := step.netIn)
+            hreserve)
+          hrest⟩
+
+/-- A candidate state in a valid reserve-state quotient family inherits suffix
+executability from the selected minimum-reserve representative. -/
+theorem reserveStateQuotientInvariant_candidateSuffixExecutable
+    {selected candidate : ReserveState}
+    {states : List ReserveState}
+    {suffix : List ExactInStep}
+    (hinvariant : reserveStateQuotientInvariant selected states)
+    (hcandidate : candidate ∈ states)
+    (hexec :
+      suffixExecutable selected.processedReserveIn selected.reserveOut suffix) :
+    suffixExecutable candidate.processedReserveIn candidate.reserveOut suffix := by
+  rcases hinvariant with ⟨_hselectedMem, hsame, hmin⟩
+  have hlarge :
+      suffixExecutable selected.processedReserveIn candidate.reserveOut suffix :=
+    suffixExecutable_mono_reserveOut
+      (reserveIn := selected.processedReserveIn)
+      (reserveOutSmall := selected.reserveOut)
+      (reserveOutLarge := candidate.reserveOut)
+      (steps := suffix)
+      (hmin candidate hcandidate)
+      hexec
+  simpa [← hsame candidate hcandidate] using hlarge
+
+/-- A valid reserve-state quotient family inherits selected suffix executability
+for every family member. -/
+theorem reserveStateQuotientInvariant_familySuffixExecutable
+    {selected : ReserveState}
+    {states : List ReserveState}
+    {suffix : List ExactInStep}
+    (hinvariant : reserveStateQuotientInvariant selected states)
+    (hexec :
+      suffixExecutable selected.processedReserveIn selected.reserveOut suffix) :
+    ∀ candidate, candidate ∈ states ->
+      suffixExecutable candidate.processedReserveIn candidate.reserveOut suffix := by
+  intro candidate hcandidate
+  exact reserveStateQuotientInvariant_candidateSuffixExecutable
+    (selected := selected)
+    (candidate := candidate)
+    (states := states)
+    (suffix := suffix)
+    hinvariant
+    hcandidate
+    hexec
 
 /-- A finite reserve-state quotient family is bounded by its selected minimum
 output-reserve state. -/
@@ -535,6 +628,52 @@ theorem witness_reserveStateQuotientInvariant_afterStep :
       (states := states)
       (step := step)
       hinvariant⟩
+
+/-- Concrete non-vacuity witness for family suffix-executability inheritance. -/
+theorem witness_reserveStateQuotientInvariant_familySuffixExecutable :
+    let selected : ReserveState := ⟨1000, 800⟩
+    let states : List ReserveState := [selected, ⟨1000, 900⟩, ⟨1000, 1100⟩]
+    let suffix : List ExactInStep := [⟨100, 99⟩]
+    suffixExecutable selected.processedReserveIn selected.reserveOut suffix ∧
+      ∀ candidate, candidate ∈ states ->
+        suffixExecutable candidate.processedReserveIn candidate.reserveOut suffix := by
+  let selected : ReserveState := ⟨1000, 800⟩
+  let states : List ReserveState := [selected, ⟨1000, 900⟩, ⟨1000, 1100⟩]
+  let suffix : List ExactInStep := [⟨100, 99⟩]
+  have hinvariant : reserveStateQuotientInvariant selected states := by
+    unfold reserveStateQuotientInvariant
+    constructor
+    · simp [states]
+    · constructor
+      · intro state hstate
+        simp [states] at hstate
+        rcases hstate with hstate | hstate | hstate
+        · subst state
+          rfl
+        · subst state
+          rfl
+        · subst state
+          rfl
+      · intro state hstate
+        simp [states] at hstate
+        rcases hstate with hstate | hstate | hstate
+        · subst state
+          rfl
+        · subst state
+          simp [selected]
+        · subst state
+          simp [selected]
+  have hexec :
+      suffixExecutable selected.processedReserveIn selected.reserveOut suffix := by
+    norm_num [selected, suffix, suffixExecutable, strictStepExecutable,
+      postReserveOut, swapOut]
+  exact ⟨hexec,
+    reserveStateQuotientInvariant_familySuffixExecutable
+      (selected := selected)
+      (states := states)
+      (suffix := suffix)
+      hinvariant
+      hexec⟩
 
 /-- Concrete non-vacuity witness for reserve-state observed-summary validation. -/
 theorem witness_reserveStateQuotientObservedSummary_validates :

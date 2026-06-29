@@ -24,6 +24,10 @@ def test_lean_ab_reserve_state_quotient_typechecks_without_placeholders() -> Non
     assert "theorem reserveState_afterStep_same_processed" in text
     assert "theorem reserveState_afterStep_minReserve" in text
     assert "theorem reserveStateQuotientInvariant_afterStep" in text
+    assert "theorem strictStepExecutable_mono_reserveOut" in text
+    assert "theorem suffixExecutable_mono_reserveOut" in text
+    assert "theorem reserveStateQuotientInvariant_candidateSuffixExecutable" in text
+    assert "theorem reserveStateQuotientInvariant_familySuffixExecutable" in text
     assert "theorem quotientFullBestSuffixOutput_le_selected" in text
     assert "theorem reserveStateQuotientInvariant_bounds_zeroMinEconomicKey" in text
     assert "structure ReserveStateQuotientHostTable" in text
@@ -38,6 +42,7 @@ def test_lean_ab_reserve_state_quotient_typechecks_without_placeholders() -> Non
     assert "theorem witness_reserveStateEquivalent_same_suffixOutput" in text
     assert "theorem witness_reserveStateQuotientHostTable_validates" in text
     assert "theorem witness_reserveStateQuotientInvariant_afterStep" in text
+    assert "theorem witness_reserveStateQuotientInvariant_familySuffixExecutable" in text
     assert "theorem witness_reserveStateQuotientObservedSummary_validates" in text
 
     lake = shutil.which("lake")
