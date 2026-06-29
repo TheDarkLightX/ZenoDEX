@@ -1,0 +1,408 @@
+{
+  "authority_boundary": "Research-only certificate-compression evidence; no settlement, state-root, production, or governance authority.",
+  "date": "2026-06-29",
+  "deterministic_replay": {
+    "first_hash": "4a601edd060a6cfe8444d7db91f1806bf8bf42b07943642de7dd299e76aa877f",
+    "ok": true,
+    "second_hash": "4a601edd060a6cfe8444d7db91f1806bf8bf42b07943642de7dd299e76aa877f"
+  },
+  "lean_contract": {
+    "host_generation_shape": "sampled child quotient state set equals union of predecessor afterStep images",
+    "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+    "transition_def": "ReserveState.afterStep",
+    "transition_executability_endpoint": "reserveStateQuotientInvariant_familySuffixExecutable",
+    "transition_invariant_endpoint": "reserveStateQuotientInvariant_afterStep"
+  },
+  "non_claims": [
+    "This is a bounded deterministic n=8 sample, not exhaustive n=8 coverage.",
+    "This checker covers only sampled zero-min exact-in cases and sampled child masks.",
+    "This checker does not prove Python-to-Lean refinement.",
+    "This checker does not prove child-frontier generation in Lean.",
+    "This checker does not define canonical tie order or preserve order-id history.",
+    "No settlement, state-root, production, routing, matching, or governance authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_reserve_state_child_frontier_n8_sample_20260629.py",
+  "schema": "zenodex.ab_reserve_state_child_frontier_n8_sample_report.v1",
+  "search": {
+    "case_count": 3,
+    "cases": [
+      {
+        "bit_count": 8,
+        "case_id": "n8_sample_000_thin_fee9000_stair",
+        "extra_generated_state_count": 0,
+        "fee_bps": 9000,
+        "first_failure": null,
+        "first_frontier": {
+          "case_id": "n8_sample_000_thin_fee9000_stair",
+          "child_mask_id": 1,
+          "child_quotient_digest": "2d5ec3c17eca227b2bc1c71e7efe8ac0e4b7f7ac687986327f7a18a789a5d816",
+          "child_state_count": 1,
+          "extra_generated_state_count": 0,
+          "extra_generated_states": [],
+          "first_predecessor": {
+            "generated_state_count": 1,
+            "generated_state_digest": "59877918f7dd52390d68ab195c4303e7569798b8dc1e4bca7cc5466cbbe46c7c",
+            "parent_mask_id": 0,
+            "parent_quotient_digest": "def37c5bc34f6776c10da1a4ba66aef1c4a1031129bd81de8bae8909a73ed586",
+            "parent_state_count": 1,
+            "predecessor_transition_count": 1,
+            "predecessor_transition_executable_count": 1,
+            "step_bit_index": 0,
+            "step_order_id": "0x00000000000000000000000000000000000000000000000000000000006cf5c0",
+            "step_order_short": [
+              "f5c0"
+            ]
+          },
+          "frontier_equal": true,
+          "generated_state_count": 1,
+          "generated_state_digest": "59877918f7dd52390d68ab195c4303e7569798b8dc1e4bca7cc5466cbbe46c7c",
+          "missing_child_state_count": 0,
+          "missing_child_states": [],
+          "predecessor_count": 1,
+          "predecessor_rows_digest": "6aed71c042d8fae5d30fbfb41c0a97ea32596e8d2964b926b112b9d9f06c2e7b",
+          "predecessor_transition_count": 1,
+          "predecessor_transition_executable_count": 1
+        },
+        "frontier_equal_count": 17,
+        "frontier_rows_digest": "9407ad4a9115e87cee1ab9ab04dee9325570fb0d3009d2c8e8bf65493166537c",
+        "generated_state_count": 17,
+        "max_child_state_count": 1,
+        "max_generated_state_count": 1,
+        "missing_child_state_count": 0,
+        "ok": true,
+        "packet_hash": "30695e69e179a8aa375bae854d6747c038535335f13754f44acf7ab8a46f34a0",
+        "pattern": "n8_thin_high_fee/stair",
+        "predecessor_edge_count": 48,
+        "predecessor_transition_count": 48,
+        "predecessor_transition_executable_count": 48,
+        "reasons": [],
+        "sampled_child_mask_count": 17,
+        "sampled_child_state_count": 17
+      },
+      {
+        "bit_count": 8,
+        "case_id": "n8_sample_001_deep_fee30_tie",
+        "extra_generated_state_count": 0,
+        "fee_bps": 30,
+        "first_failure": null,
+        "first_frontier": {
+          "case_id": "n8_sample_001_deep_fee30_tie",
+          "child_mask_id": 1,
+          "child_quotient_digest": "91222e11ae684a84a1779b3e98be812403ccdbedaf07544cccac9d85038b02ea",
+          "child_state_count": 1,
+          "extra_generated_state_count": 0,
+          "extra_generated_states": [],
+          "first_predecessor": {
+            "generated_state_count": 1,
+            "generated_state_digest": "3e63589a26664ce5cc8ae7c3006a3c625ae14105b8f79e200c0e602013d27c14",
+            "parent_mask_id": 0,
+            "parent_quotient_digest": "cd4744412e874e8049b8e20ae5c6e65065c565dbcab3bd60528cf3859c4d545f",
+            "parent_state_count": 1,
+            "predecessor_transition_count": 1,
+            "predecessor_transition_executable_count": 1,
+            "step_bit_index": 0,
+            "step_order_id": "0x00000000000000000000000000000000000000000000000000000000006cf5d0",
+            "step_order_short": [
+              "f5d0"
+            ]
+          },
+          "frontier_equal": true,
+          "generated_state_count": 1,
+          "generated_state_digest": "3e63589a26664ce5cc8ae7c3006a3c625ae14105b8f79e200c0e602013d27c14",
+          "missing_child_state_count": 0,
+          "missing_child_states": [],
+          "predecessor_count": 1,
+          "predecessor_rows_digest": "139a323cd67c54d9d5b2f21b54eb61f1b70d0f396fc24ac7075d71542be8050e",
+          "predecessor_transition_count": 1,
+          "predecessor_transition_executable_count": 1
+        },
+        "frontier_equal_count": 17,
+        "frontier_rows_digest": "e59508b450bdd39a089fd82316bf5beefa5ff702fff21f7a5f8ad52043b76889",
+        "generated_state_count": 34,
+        "max_child_state_count": 6,
+        "max_generated_state_count": 6,
+        "missing_child_state_count": 0,
+        "ok": true,
+        "packet_hash": "f2da7a7a0ab5a83932ef96e5173612189fa240489c9650844db6768f9c152e59",
+        "pattern": "n8_deep_low_fee/tie",
+        "predecessor_edge_count": 48,
+        "predecessor_transition_count": 104,
+        "predecessor_transition_executable_count": 104,
+        "reasons": [],
+        "sampled_child_mask_count": 17,
+        "sampled_child_state_count": 34
+      },
+      {
+        "bit_count": 8,
+        "case_id": "n8_sample_002_burst_fee2500",
+        "extra_generated_state_count": 0,
+        "fee_bps": 2500,
+        "first_failure": null,
+        "first_frontier": {
+          "case_id": "n8_sample_002_burst_fee2500",
+          "child_mask_id": 1,
+          "child_quotient_digest": "5305299fcd2163bce36b95c8e3fd4287740960834ea042b8eb9699a9e887e7ee",
+          "child_state_count": 1,
+          "extra_generated_state_count": 0,
+          "extra_generated_states": [],
+          "first_predecessor": {
+            "generated_state_count": 1,
+            "generated_state_digest": "075f730c832c604ca829d777c29f3dd3e59ad8c2ba285a3c5fcf68abd00e0d17",
+            "parent_mask_id": 0,
+            "parent_quotient_digest": "58063e5fab5da9c0fc4939b44b020589dc818f2f6020ec013fe08684106767ae",
+            "parent_state_count": 1,
+            "predecessor_transition_count": 1,
+            "predecessor_transition_executable_count": 1,
+            "step_bit_index": 0,
+            "step_order_id": "0x00000000000000000000000000000000000000000000000000000000006cf5e0",
+            "step_order_short": [
+              "f5e0"
+            ]
+          },
+          "frontier_equal": true,
+          "generated_state_count": 1,
+          "generated_state_digest": "075f730c832c604ca829d777c29f3dd3e59ad8c2ba285a3c5fcf68abd00e0d17",
+          "missing_child_state_count": 0,
+          "missing_child_states": [],
+          "predecessor_count": 1,
+          "predecessor_rows_digest": "9d98e95f6d02519c518e968c40f78593a310c3c3a13a09d1aa8d67db3e15a8c4",
+          "predecessor_transition_count": 1,
+          "predecessor_transition_executable_count": 1
+        },
+        "frontier_equal_count": 17,
+        "frontier_rows_digest": "24030620909166d67911962010ba393906c9ec7a52e1a3b5702e16a2edccf7aa",
+        "generated_state_count": 37,
+        "max_child_state_count": 7,
+        "max_generated_state_count": 7,
+        "missing_child_state_count": 0,
+        "ok": true,
+        "packet_hash": "d7f2ddc9f327a6b83e43fb6db933ddb5373137bc911f5d58c868a636f09a4dd7",
+        "pattern": "n8_deep_mid_fee/front_burst",
+        "predecessor_edge_count": 48,
+        "predecessor_transition_count": 116,
+        "predecessor_transition_executable_count": 116,
+        "reasons": [],
+        "sampled_child_mask_count": 17,
+        "sampled_child_state_count": 37
+      }
+    ],
+    "coverage": {
+      "fee_bps_counts": {
+        "2500": 1,
+        "30": 1,
+        "9000": 1
+      },
+      "n_counts": {
+        "8": 3
+      },
+      "pattern_counts": {
+        "n8_deep_low_fee/tie": 1,
+        "n8_deep_mid_fee/front_burst": 1,
+        "n8_thin_high_fee/stair": 1
+      },
+      "reason_classes": [
+        "authority_effect_present",
+        "generated_frontier_extra_child_state",
+        "generated_frontier_missing_child_state",
+        "packet_hash_mismatch",
+        "packet_lean_contract_mismatch",
+        "packet_sample_plan_mismatch",
+        "sampled_n8_bound_missing"
+      ]
+    },
+    "elapsed_ms": 9256.661,
+    "extra_generated_state_count": 0,
+    "first_case": {
+      "bit_count": 8,
+      "case_id": "n8_sample_000_thin_fee9000_stair",
+      "extra_generated_state_count": 0,
+      "fee_bps": 9000,
+      "first_failure": null,
+      "first_frontier": {
+        "case_id": "n8_sample_000_thin_fee9000_stair",
+        "child_mask_id": 1,
+        "child_quotient_digest": "2d5ec3c17eca227b2bc1c71e7efe8ac0e4b7f7ac687986327f7a18a789a5d816",
+        "child_state_count": 1,
+        "extra_generated_state_count": 0,
+        "extra_generated_states": [],
+        "first_predecessor": {
+          "generated_state_count": 1,
+          "generated_state_digest": "59877918f7dd52390d68ab195c4303e7569798b8dc1e4bca7cc5466cbbe46c7c",
+          "parent_mask_id": 0,
+          "parent_quotient_digest": "def37c5bc34f6776c10da1a4ba66aef1c4a1031129bd81de8bae8909a73ed586",
+          "parent_state_count": 1,
+          "predecessor_transition_count": 1,
+          "predecessor_transition_executable_count": 1,
+          "step_bit_index": 0,
+          "step_order_id": "0x00000000000000000000000000000000000000000000000000000000006cf5c0",
+          "step_order_short": [
+            "f5c0"
+          ]
+        },
+        "frontier_equal": true,
+        "generated_state_count": 1,
+        "generated_state_digest": "59877918f7dd52390d68ab195c4303e7569798b8dc1e4bca7cc5466cbbe46c7c",
+        "missing_child_state_count": 0,
+        "missing_child_states": [],
+        "predecessor_count": 1,
+        "predecessor_rows_digest": "6aed71c042d8fae5d30fbfb41c0a97ea32596e8d2964b926b112b9d9f06c2e7b",
+        "predecessor_transition_count": 1,
+        "predecessor_transition_executable_count": 1
+      },
+      "frontier_equal_count": 17,
+      "frontier_rows_digest": "9407ad4a9115e87cee1ab9ab04dee9325570fb0d3009d2c8e8bf65493166537c",
+      "generated_state_count": 17,
+      "max_child_state_count": 1,
+      "max_generated_state_count": 1,
+      "missing_child_state_count": 0,
+      "ok": true,
+      "packet_hash": "30695e69e179a8aa375bae854d6747c038535335f13754f44acf7ab8a46f34a0",
+      "pattern": "n8_thin_high_fee/stair",
+      "predecessor_edge_count": 48,
+      "predecessor_transition_count": 48,
+      "predecessor_transition_executable_count": 48,
+      "reasons": [],
+      "sampled_child_mask_count": 17,
+      "sampled_child_state_count": 17
+    },
+    "first_invalid_case": null,
+    "frontier_equal_count": 51,
+    "frontier_rows_digest": "37764c62caa78be76d654ec1f2540babe2aae2f546663f6548f2d9a1da85b919",
+    "generated_state_count": 88,
+    "max_child_state_count": 7,
+    "max_generated_state_count": 7,
+    "missing_child_state_count": 0,
+    "negative_control_accept_count": 0,
+    "negative_control_count": 7,
+    "negative_controls": [
+      {
+        "accepted": false,
+        "expected_reason": "packet_hash_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_hash_mismatch",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "sampled_n8_bound_missing",
+        "first_failure": null,
+        "mutation_id": "sampled_n8_bound_missing",
+        "reasons": [
+          "sampled_n8_bound_missing"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "packet_sample_plan_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_sample_plan_mismatch",
+        "reasons": [
+          "packet_sample_plan_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "packet_lean_contract_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_lean_contract_mismatch",
+        "reasons": [
+          "packet_lean_contract_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "authority_effect_present",
+        "first_failure": null,
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "generated_frontier_missing_child_state",
+        "first_failure": {
+          "case_id": "n8_sample_000_thin_fee9000_stair",
+          "mask_id": 1,
+          "reason": "generated_frontier_missing_child_state"
+        },
+        "mutation_id": "generated_frontier_missing_child_state",
+        "reasons": [
+          "generated_frontier_missing_child_state"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "generated_frontier_extra_child_state",
+        "first_failure": {
+          "case_id": "n8_sample_000_thin_fee9000_stair",
+          "mask_id": 1,
+          "reason": "generated_frontier_missing_child_state"
+        },
+        "mutation_id": "generated_frontier_extra_child_state",
+        "reasons": [
+          "generated_frontier_missing_child_state",
+          "generated_frontier_extra_child_state"
+        ]
+      }
+    ],
+    "predecessor_edge_count": 144,
+    "predecessor_transition_count": 268,
+    "predecessor_transition_executable_count": 268,
+    "sample_plan": {
+      "bit_count": 8,
+      "full_dp_generated_all_masks": true,
+      "mask_ids": [
+        0,
+        1,
+        2,
+        4,
+        8,
+        15,
+        16,
+        32,
+        51,
+        60,
+        64,
+        85,
+        128,
+        170,
+        195,
+        204,
+        240,
+        255
+      ],
+      "seed": 2026062908,
+      "suffix_sample_limit": 24,
+      "suffix_sampling": "all suffixes up to limit; otherwise first, last, and deterministic random indexes"
+    },
+    "sampled_child_mask_count": 51,
+    "sampled_child_mask_ids": [
+      1,
+      2,
+      4,
+      8,
+      15,
+      16,
+      32,
+      51,
+      60,
+      64,
+      85,
+      128,
+      170,
+      195,
+      204,
+      240,
+      255
+    ],
+    "sampled_child_state_count": 88,
+    "schema": "zenodex/ab_reserve_state_child_frontier_n8_sample_search/v1",
+    "source_seed": 2026062908,
+    "valid_case_count": 3
+  },
+  "summary": "A bounded deterministic n=8 sample supports reserve-state child-frontier generation on the sampled masks: each sampled child quotient family equals the union of predecessor afterStep images."
+}
