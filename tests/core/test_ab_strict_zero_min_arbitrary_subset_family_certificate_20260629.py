@@ -137,6 +137,14 @@ def test_ab_strict_zero_min_arbitrary_subset_family_negative_controls_fail_close
         "packet_min_amount_out_shape_mismatch"
         in controls["packet_min_amount_out_shape_mismatch"]["reasons"]
     )
+    assert (
+        "packet_min_amount_out_shape_mismatch"
+        in controls["packet_min_amount_out_non_list"]["reasons"]
+    )
+    assert (
+        "packet_min_amount_out_shape_mismatch"
+        in controls["packet_min_amount_out_non_integer"]["reasons"]
+    )
     assert "compressed_record_missing" in controls["compressed_record_missing"]["reasons"]
     assert (
         "mask_pruning_full_record_processed_reserve_in_mismatch"

@@ -65,7 +65,7 @@ REPORT_MD = (
     / "ZENODEX_AB_STRICT_ZERO_MIN_ARBITRARY_SUBSET_FAMILY_CERTIFICATE_20260629.md"
 )
 
-EXPECTED_NEGATIVE_CONTROL_COUNT = 12
+EXPECTED_NEGATIVE_CONTROL_COUNT = 14
 PACKET_SCHEMA = "zenodex.ab_strict_zero_min_arbitrary_subset_family_certificate_packet.v1"
 REPORT_SCHEMA = "zenodex.ab_strict_zero_min_arbitrary_subset_family_certificate_report.v1"
 AUTHORITY_BOUNDARY = "research_only_no_settlement_or_state_authority"
@@ -576,6 +576,30 @@ def _negative_controls(case: _StressCase) -> list[dict[str, Any]]:
             _clone_full_dp(base_full),
             _clone_compressed_dp(base_compressed),
             _rehash_packet(bad_min_shape_packet),
+            "packet_min_amount_out_shape_mismatch",
+        )
+    )
+
+    bad_min_non_list_packet = copy.deepcopy(base_packet)
+    bad_min_non_list_packet["min_amount_out"] = "0,0"
+    rows.append(
+        (
+            "packet_min_amount_out_non_list",
+            _clone_full_dp(base_full),
+            _clone_compressed_dp(base_compressed),
+            _rehash_packet(bad_min_non_list_packet),
+            "packet_min_amount_out_shape_mismatch",
+        )
+    )
+
+    bad_min_non_integer_packet = copy.deepcopy(base_packet)
+    bad_min_non_integer_packet["min_amount_out"] = ["zero", *bad_min_non_integer_packet["min_amount_out"][1:]]
+    rows.append(
+        (
+            "packet_min_amount_out_non_integer",
+            _clone_full_dp(base_full),
+            _clone_compressed_dp(base_compressed),
+            _rehash_packet(bad_min_non_integer_packet),
             "packet_min_amount_out_shape_mismatch",
         )
     )
