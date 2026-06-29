@@ -341,3 +341,180 @@ theorem witness_per_pool_error_bound :
     (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by norm_num : (49.5 : ℝ) ≤ 50) (by norm_num : (50 : ℝ) - 49.5 < 1)
   exact h.2
+
+/-! ## Part 7: Coupled Lipschitz Bound (max not sum) -/
+
+/-- For non-negative `x, y`, `|x - y| ≤ max x y`. -/
+lemma abs_sub_le_max (x y : ℝ) (hx : 0 ≤ x) (hy : 0 ≤ y) :
+    |x - y| ≤ max x y := by
+  by_cases hxy : x ≥ y
+  · rw [abs_of_nonneg (by linarith)]
+    linarith [le_max_left x y]
+  · push_neg at hxy
+    rw [abs_of_nonpos (by linarith)]
+    linarith [le_max_right x y]
+
+/-- Key lemma: if `a * b ≤ 0` (opposite signs or one is zero), then
+    `|a + b| ≤ max |a| |b|`. This is tighter than the triangle inequality
+    `|a + b| ≤ |a| + |b|` when the terms partially cancel.
+
+    This is the abstraction compression that replaces the sum bound with the
+    max bound for differences of non-negative monotone terms. -/
+lemma abs_add_le_max_of_mul_nonpos (a b : ℝ) (h : a * b ≤ 0) :
+    |a + b| ≤ max |a| |b| := by
+  by_cases hz : a = 0
+  · simp [hz, abs_zero]
+  by_cases hz2 : b = 0
+  · simp [hz2, abs_zero, add_zero]
+  have h_ab_ne : a * b ≠ 0 := mul_ne_zero hz hz2
+  have h_strict : a * b < 0 := lt_of_le_of_ne h h_ab_ne
+  by_cases ha : a > 0
+  · have hb : b < 0 := by nlinarith
+    rw [show a + b = a - (-b) by ring, abs_of_pos ha, abs_of_neg hb]
+    exact abs_sub_le_max a (-b) (le_of_lt ha) (le_of_lt (neg_pos_of_neg hb))
+  · push_neg at ha
+    have ha' : a < 0 := lt_of_le_of_ne ha hz
+    have hb : b > 0 := by nlinarith
+    rw [show a + b = b - (-a) by ring, abs_of_neg ha', abs_of_pos hb, max_comm]
+    exact abs_sub_le_max b (-a) (le_of_lt hb) (le_of_lt (neg_pos_of_neg ha'))
+
+/-- The CPMM output function is monotone non-decreasing for `K ≥ 0, M > 0`. -/
+lemma cpmmOutputCont_monotone (K M x1 x2 : ℝ)
+    (hK : K ≥ 0) (hM : M > 0) (hx1 : x1 ≥ 0) (hx2 : x2 ≥ 0)
+    (h12 : x1 ≤ x2) :
+    cpmmOutputCont K M x1 ≤ cpmmOutputCont K M x2 := by
+  have hMx1 : M + x1 > 0 := by nlinarith
+  have hMx2 : M + x2 > 0 := by nlinarith
+  have h_diff : cpmmOutputCont K M x2 - cpmmOutputCont K M x1 =
+    K * M * (x2 - x1) / ((M + x1) * (M + x2)) := by
+    unfold cpmmOutputCont; field_simp; ring
+  have h_denom_pos : 0 < (M + x1) * (M + x2) := by nlinarith
+  have h_KM_nn : 0 ≤ K * M := mul_nonneg hK (le_of_lt hM)
+  have h_diff_nn : 0 ≤ x2 - x1 := by linarith
+  have h_num_nn : 0 ≤ K * M * (x2 - x1) := mul_nonneg h_KM_nn h_diff_nn
+  have h_frac_nn : 0 ≤ K * M * (x2 - x1) / ((M + x1) * (M + x2)) :=
+    div_nonneg h_num_nn (le_of_lt h_denom_pos)
+  linarith [h_diff, h_frac_nn]
+
+/-- **Coupled Lipschitz Bound**: The split function is Lipschitz with constant
+    `L = max(c0*K0/M0, c1*K1/M1)`, which is tighter than the sum `K0/M0 + K1/M1`.
+
+    Key insight: the split difference `F(x) - F(y) = b0 + b1` where
+    `b0 = f0(c0*x) - f0(c0*y)` and `b1 = f1(c1*(D-x)) - f1(c1*(D-y))`.
+    Since `f0` and `f1` are both increasing, `b0` and `b1` have opposite signs
+    (pool 0 increases with the split variable, pool 1 decreases).
+    So `|b0 + b1| ≤ max(|b0|, |b1|)` (tighter than `|b0| + |b1|`).
+
+    Non-claims:
+    - L is an upper bound, not the exact Lipschitz constant.
+    - The exact constant is `max(|f'(0)|, |f'(D)|) ≤ L`. -/
+theorem split_lipschitz_coupled
+    (K0 M0 c0 K1 M1 c1 D x y : ℝ)
+    (hK0 : K0 ≥ 0) (hM0 : M0 > 0) (hc0 : c0 ≥ 0)
+    (hK1 : K1 ≥ 0) (hM1 : M1 > 0) (hc1 : c1 ≥ 0)
+    (_hD : D ≥ 0) (hx : 0 ≤ x) (hy : 0 ≤ y) (hxD : x ≤ D) (hyD : y ≤ D)
+    : |splitFunctionCont K0 M0 c0 K1 M1 c1 D x -
+       splitFunctionCont K0 M0 c0 K1 M1 c1 D y| ≤
+      max (c0 * K0 / M0) (c1 * K1 / M1) * |x - y| := by
+  -- Split the difference into pool-0 and pool-1 components
+  have h_split_diff :
+      splitFunctionCont K0 M0 c0 K1 M1 c1 D x -
+      splitFunctionCont K0 M0 c0 K1 M1 c1 D y =
+      (cpmmOutputCont K0 M0 (c0 * x) - cpmmOutputCont K0 M0 (c0 * y)) +
+      (cpmmOutputCont K1 M1 (c1 * (D - x)) - cpmmOutputCont K1 M1 (c1 * (D - y))) := by
+    unfold splitFunctionCont; ring
+  rw [h_split_diff]
+  -- The two components have opposite signs (pool 0 increases, pool 1 decreases)
+  have h_b0_b1_nonpos :
+      (cpmmOutputCont K0 M0 (c0 * x) - cpmmOutputCont K0 M0 (c0 * y)) *
+      (cpmmOutputCont K1 M1 (c1 * (D - x)) - cpmmOutputCont K1 M1 (c1 * (D - y))) ≤ 0 := by
+    by_cases hxy : x ≥ y
+    · have h_c0xy : c0 * y ≤ c0 * x := mul_le_mul_of_nonneg_left hxy hc0
+      have h_b0_nn : 0 ≤ cpmmOutputCont K0 M0 (c0 * x) - cpmmOutputCont K0 M0 (c0 * y) := by
+        have h := cpmmOutputCont_monotone K0 M0 (c0 * y) (c0 * x) hK0 hM0
+          (mul_nonneg hc0 hy) (mul_nonneg hc0 hx) h_c0xy
+        linarith
+      have h_Dx_Dy : D - x ≤ D - y := by linarith
+      have h_c1Dx_Dy : c1 * (D - x) ≤ c1 * (D - y) :=
+        mul_le_mul_of_nonneg_left h_Dx_Dy hc1
+      have h_Dx_nn : 0 ≤ D - x := by nlinarith
+      have h_Dy_nn : 0 ≤ D - y := by nlinarith
+      have h_b1_np : cpmmOutputCont K1 M1 (c1 * (D - x)) - cpmmOutputCont K1 M1 (c1 * (D - y)) ≤ 0 := by
+        have h := cpmmOutputCont_monotone K1 M1 (c1 * (D - x)) (c1 * (D - y)) hK1 hM1
+          (mul_nonneg hc1 h_Dx_nn) (mul_nonneg hc1 h_Dy_nn) h_c1Dx_Dy
+        linarith
+      nlinarith [h_b0_nn, h_b1_np]
+    · push_neg at hxy
+      have h_c0xy : c0 * x ≤ c0 * y := mul_le_mul_of_nonneg_left (le_of_lt hxy) hc0
+      have h_b0_np : cpmmOutputCont K0 M0 (c0 * x) - cpmmOutputCont K0 M0 (c0 * y) ≤ 0 := by
+        have h := cpmmOutputCont_monotone K0 M0 (c0 * x) (c0 * y) hK0 hM0
+          (mul_nonneg hc0 hx) (mul_nonneg hc0 hy) h_c0xy
+        linarith
+      have h_Dy_Dx : D - y ≤ D - x := by linarith
+      have h_c1Dy_Dx : c1 * (D - y) ≤ c1 * (D - x) :=
+        mul_le_mul_of_nonneg_left h_Dy_Dx hc1
+      have h_Dx_nn : 0 ≤ D - x := by nlinarith
+      have h_Dy_nn : 0 ≤ D - y := by nlinarith
+      have h_b1_nn : 0 ≤ cpmmOutputCont K1 M1 (c1 * (D - x)) - cpmmOutputCont K1 M1 (c1 * (D - y)) := by
+        have h := cpmmOutputCont_monotone K1 M1 (c1 * (D - y)) (c1 * (D - x)) hK1 hM1
+          (mul_nonneg hc1 h_Dy_nn) (mul_nonneg hc1 h_Dx_nn) h_c1Dy_Dx
+        linarith
+      nlinarith [h_b0_np, h_b1_nn]
+  -- Apply the key lemma: opposite signs give max, not sum
+  have h_abs_le_max :=
+    abs_add_le_max_of_mul_nonpos
+      (cpmmOutputCont K0 M0 (c0 * x) - cpmmOutputCont K0 M0 (c0 * y))
+      (cpmmOutputCont K1 M1 (c1 * (D - x)) - cpmmOutputCont K1 M1 (c1 * (D - y)))
+      h_b0_b1_nonpos
+  -- Bound each component using per-pool Lipschitz
+  have h_abs_nn : 0 ≤ |x - y| := abs_nonneg _
+  have h_c0_x_nn : 0 ≤ c0 * x := mul_nonneg hc0 hx
+  have h_c0_y_nn : 0 ≤ c0 * y := mul_nonneg hc0 hy
+  have h_lip0 := cpmm_output_lipschitz_wrt_net K0 M0 (c0 * x) (c0 * y)
+    hK0 hM0 h_c0_x_nn h_c0_y_nn
+  have h_abs_c0_diff : |c0 * x - c0 * y| = c0 * |x - y| := by
+    rw [show c0 * x - c0 * y = c0 * (x - y) by ring, abs_mul, abs_of_nonneg hc0]
+  rw [h_abs_c0_diff] at h_lip0
+  have h_Dx_nn : 0 ≤ D - x := by nlinarith
+  have h_Dy_nn : 0 ≤ D - y := by nlinarith
+  have h_c1_Dx_nn : 0 ≤ c1 * (D - x) := mul_nonneg hc1 h_Dx_nn
+  have h_c1_Dy_nn : 0 ≤ c1 * (D - y) := mul_nonneg hc1 h_Dy_nn
+  have h_lip1 := cpmm_output_lipschitz_wrt_net K1 M1 (c1 * (D - x)) (c1 * (D - y))
+    hK1 hM1 h_c1_Dx_nn h_c1_Dy_nn
+  have h_abs_c1_diff : |c1 * (D - x) - c1 * (D - y)| = c1 * |x - y| := by
+    rw [show c1 * (D - x) - c1 * (D - y) = c1 * (y - x) by ring, abs_mul,
+      abs_of_nonneg hc1, abs_sub_comm]
+  rw [h_abs_c1_diff] at h_lip1
+  -- Combine: each |bi| <= ci*Ki/Mi * |x-y| <= L * |x-y|
+  set L := max (c0 * K0 / M0) (c1 * K1 / M1)
+  have h_b0_le : |cpmmOutputCont K0 M0 (c0 * x) - cpmmOutputCont K0 M0 (c0 * y)| ≤ L * |x - y| := by
+    have h_lm : c0 * K0 / M0 ≤ L := le_max_left _ _
+    have h_step : (K0 / M0) * (c0 * |x - y|) ≤ L * |x - y| := by
+      have h_eq : (K0 / M0) * (c0 * |x - y|) = (c0 * K0 / M0) * |x - y| := by ring
+      rw [h_eq]
+      exact mul_le_mul_of_nonneg_right h_lm h_abs_nn
+    linarith [h_lip0, h_step]
+  have h_b1_le : |cpmmOutputCont K1 M1 (c1 * (D - x)) - cpmmOutputCont K1 M1 (c1 * (D - y))| ≤ L * |x - y| := by
+    have h_lm : c1 * K1 / M1 ≤ L := le_max_right _ _
+    have h_step : (K1 / M1) * (c1 * |x - y|) ≤ L * |x - y| := by
+      have h_eq : (K1 / M1) * (c1 * |x - y|) = (c1 * K1 / M1) * |x - y| := by ring
+      rw [h_eq]
+      exact mul_le_mul_of_nonneg_right h_lm h_abs_nn
+    linarith [h_lip1, h_step]
+  -- max |b0| |b1| <= L * |x-y| since both are
+  have h_max_le : max
+      |cpmmOutputCont K0 M0 (c0 * x) - cpmmOutputCont K0 M0 (c0 * y)|
+      |cpmmOutputCont K1 M1 (c1 * (D - x)) - cpmmOutputCont K1 M1 (c1 * (D - y))| ≤
+      L * |x - y| := max_le h_b0_le h_b1_le
+  linarith [h_abs_le_max, h_max_le]
+
+/-- Witness: coupled Lipschitz bound is satisfied and tighter than the sum
+    bound for a concrete case. K0=1000, M0=1000, c0=0.99, K1=2000, M1=1000,
+    c1=0.99, D=100, x=50, y=49. -/
+theorem witness_coupled_lipschitz :
+    max (0.99 * 1000 / 1000) (0.99 * 2000 / 1000) * |(50 : ℝ) - 49| ≤
+    (1000 / 1000 + 2000 / 1000) * |(50 : ℝ) - 49| ∧
+    max (0.99 * 1000 / 1000) (0.99 * 2000 / 1000) * |(50 : ℝ) - 49| < 2 := by
+  constructor
+  · norm_num
+  · norm_num
