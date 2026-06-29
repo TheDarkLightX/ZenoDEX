@@ -157,6 +157,7 @@ import Proofs.PerpMechanismDesign
 import Proofs.PerpProtocolSafety
 import Proofs.PessimisticOracleRouting
 import Proofs.PiecewiseEnvelopeNoOverdelivery
+import Proofs.PrecommitCollusionImpossibility
 import Proofs.PiecewiseEnvelopeNoOverdeliveryV2
 import Proofs.PiecewiseEnvelopeParametric
 import Proofs.PokayokeSafety
@@ -209,6 +210,13 @@ import Proofs.SwapRouterBounds
 import Proofs.TauFragmentCertificates
 import Proofs.TauNativeCoreHardening
 import Proofs.TauSafeMul32
+import Proofs.TernarySearchExactness
+import Proofs.TernarySearchAlgorithm
+import Proofs.CpmmSplitConcavity
+import Proofs.KPoolSplitConcavity
+import Proofs.DiscreteArgmaxProximity
+import Proofs.KPoolDiscreteArgmaxProximity
+import Proofs.ConcavityConservationLaw
 import Proofs.TokenomicsMechanismSafety
 import Proofs.TokenomicsTraceSafety
 import Proofs.TreasuryRebalancerGuard

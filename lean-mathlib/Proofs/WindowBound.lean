@@ -126,3 +126,60 @@ theorem floor_optimal_within_1
     : f ↑⌊b_star⌋ ≥ f b_star - 1
   := by
   apply concave_floor_L_optimal f 1 b_star (by linarith) h_lipschitz h_max
+
+/-- **Ternary Search Window Sufficiency (Lipschitz + Concavity)**:
+    For a concave Lipschitz function f with continuous optimum at b*,
+    the floor ⌊b*⌋ is L-optimal: f(⌊b*⌋) ≥ f(b*) - L.
+
+    This means the integer argmax n* satisfies f(n*) ≥ f(⌊b*⌋) ≥ f(b*) - L,
+    so the integer optimum is within L of the continuous optimum in value.
+
+    The tight window bound W = ⌈1/L⌉ (distance from ⌊b*⌋ to n*) requires
+    CPMM-specific curvature analysis (strictly negative second derivative),
+    which is proven in CpmmSplitConcavity.lean. The empirical verification
+    is in window_bound_proof.py.
+
+    **What is proven here** (from Lipschitz + concavity alone):
+    1. f(⌊b*⌋) ≥ f(b*) - L  (floor is L-optimal)
+    2. The ε-superlevel set is convex (interval)
+    3. For L ≤ 1, f(⌊b*⌋) ≥ f(b*) - 1 (within integer rounding error)
+
+    **What requires CPMM structure** (not proven from Lipschitz alone):
+    - The tight distance bound |n* - ⌊b*⌋| ≤ ⌈1/L⌉
+    - This needs the strictly negative second derivative from CpmmSplitConcavity.lean
+
+    **Non-claim**: Lipschitz alone cannot bound |n* - b*| because a general
+    Lipschitz function can be flat near the maximum (zero derivative), making
+    the integer maximizer arbitrarily far from the continuous maximizer.
+    The CPMM function's strictly negative second derivative prevents this. -/
+theorem floor_L_optimal_implies_int_max_nearby
+    (f : ℝ → ℝ) (L : ℝ) (b_star : ℝ) (n_star : ℤ)
+    (hL : L > 0)
+    (h_lipschitz : ∀ (x y : ℝ), |f x - f y| ≤ L * |x - y|)
+    (h_max_real : ∀ (b : ℝ), f b ≤ f b_star)
+    (h_max_int : ∀ (n : ℤ), f ↑n ≤ f ↑n_star)
+    : f ↑n_star ≥ f b_star - L ∧ f ↑n_star ≤ f b_star := by
+  have h_floor_opt := concave_floor_L_optimal f L b_star (by linarith) h_lipschitz h_max_real
+  have h_nstar_ge_floor : f ↑n_star ≥ f ↑⌊b_star⌋ := h_max_int ⌊b_star⌋
+  have h_nstar_le : f ↑n_star ≤ f b_star := h_max_real ↑n_star
+  exact ⟨by linarith, h_nstar_le⟩
+
+/-- **Trivial Distance Bound**: For any integer n* and real b*,
+    |n* - b*| ≤ |n* - ⌊b*⌋| + 1 (triangle inequality with floor).
+
+    The tight bound |n* - b*| ≤ ⌈1/L⌉ requires CPMM-specific curvature. -/
+theorem integer_argmax_trivial_bound
+    (b_star : ℝ) (n_star : ℤ)
+    : ↑n_star - b_star ≤ ↑(n_star - ⌊b_star⌋) + 1 ∧
+      b_star - ↑n_star ≤ ↑(⌊b_star⌋ - n_star) + 1 := by
+  have h_floor_le : (↑⌊b_star⌋ : ℝ) ≤ b_star := Int.floor_le b_star
+  have h_lt_succ : b_star < ↑⌊b_star⌋ + 1 := by
+    exact_mod_cast Int.lt_floor_add_one b_star
+  have h_int_sub1 : ↑(n_star - ⌊b_star⌋) = (↑n_star : ℝ) - ↑⌊b_star⌋ := by
+    exact_mod_cast rfl
+  have h_int_sub2 : ↑(⌊b_star⌋ - n_star) = (↑⌊b_star⌋ : ℝ) - ↑n_star := by
+    exact_mod_cast rfl
+  rw [h_int_sub1, h_int_sub2]
+  constructor
+  · linarith
+  · linarith
