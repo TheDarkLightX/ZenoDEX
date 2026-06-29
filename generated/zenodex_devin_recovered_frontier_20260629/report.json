@@ -1,0 +1,259 @@
+{
+  "candidates": [
+    {
+      "abstraction_move": "R4 encode/compress plus C2 strengthen",
+      "all_artifacts_present": true,
+      "artifact_count": 4,
+      "artifacts": [
+        {
+          "exists": true,
+          "git_status": "tracked_or_clean",
+          "path": "lean-mathlib/Proofs/DiscreteArgmaxProximity.lean",
+          "sha256": "56886c2076b33ef71e02a4d17d389d1a135915a41861902090d7d97e46e91824"
+        },
+        {
+          "exists": true,
+          "git_status": "tracked_or_clean",
+          "path": "tests/formal/test_lean_discrete_argmax_proximity.py",
+          "sha256": "7b316961befba6fea79cd5cadd8413bd3c529ce2485c07031c542acf021d7369"
+        },
+        {
+          "exists": true,
+          "git_status": "tracked_or_clean",
+          "path": "tests/research/test_discrete_argmax_proximity.py",
+          "sha256": "150dc4e31a04d609fe9c7608401188120ec4ee2a2d2da7f26f6104158b3dcdd6"
+        },
+        {
+          "exists": true,
+          "git_status": "tracked_or_clean",
+          "path": "docs/research/DISCRETE_ARGMAX_PROXIMITY_BREAKTHROUGH.md",
+          "sha256": "6f841bbb27a7d731beeaff2c041a483e4dd8a1bd37f9b9607194734fa256cde5"
+        }
+      ],
+      "id": "discrete_argmax_proximity",
+      "invariant": "floor-rounded split value is within an epsilon band of the continuous optimum",
+      "status": "materialized",
+      "value": "Replaces the false discrete-concavity target with a provable argmax-proximity theorem."
+    },
+    {
+      "abstraction_move": "D4 invariant-driven generalization",
+      "all_artifacts_present": true,
+      "artifact_count": 3,
+      "artifacts": [
+        {
+          "exists": true,
+          "git_status": "tracked_or_clean",
+          "path": "lean-mathlib/Proofs/KPoolDiscreteArgmaxProximity.lean",
+          "sha256": "45b56dcd4fda5f5a0f68843f00e5764b787f811f7f7533a02f13123060543a29"
+        },
+        {
+          "exists": true,
+          "git_status": "tracked_or_clean",
+          "path": "tests/formal/test_lean_kpool_discrete_argmax_proximity.py",
+          "sha256": "12028f343919339b27562334543357c39b5b0baa808a5f4944b72a49c3c86bd9"
+        },
+        {
+          "exists": true,
+          "git_status": "tracked_or_clean",
+          "path": "docs/research/k_pool_discrete_argmax_proximity_test.py",
+          "sha256": "b9c0c70ab9dcd26dca92d3153cebe19e203cdb49697f2c1981703c2c06917943"
+        }
+      ],
+      "id": "kpool_argmax_proximity",
+      "invariant": "floor error scales with pool count k under the abstract proximity theorem",
+      "status": "materialized",
+      "value": "Lifts the 2-pool proximity shape into a K-pool proof obligation."
+    },
+    {
+      "abstraction_move": "R4 frontier compression plus C5 shadow-price ranking",
+      "all_artifacts_present": true,
+      "artifact_count": 4,
+      "artifacts": [
+        {
+          "exists": true,
+          "git_status": "tracked_or_clean",
+          "path": "src/tau_specs/recommended/tauspec_ebrm_compounding_frontier_certificate_v1.tau",
+          "sha256": "f7ec42cc64b52c7014ecd85b51fe035c8a498a0a8ebf9d32e3a0537e7f7dc3f2"
+        },
+        {
+          "exists": true,
+          "git_status": "tracked_or_clean",
+          "path": "tools/zenodex_tauspec_ebrm_compounding_frontier_20260628.py",
+          "sha256": "845ecae5de20dcbb4bdda10136d2399ccce1c75ac2f2e3913262c526f6104c05"
+        },
+        {
+          "exists": true,
+          "git_status": "tracked_or_clean",
+          "path": "tests/tau/test_zenodex_tauspec_ebrm_compounding_frontier_20260628.py",
+          "sha256": "e0418d13b8d6276eabc7381a4c7a09d20d5725fa02d9a61c78b929c8be2f50b9"
+        },
+        {
+          "exists": true,
+          "git_status": "tracked_or_clean",
+          "path": "docs/research/ZENODEX_TAUSPEC_EBRM_COMPOUNDING_FRONTIER_20260628.md",
+          "sha256": "a9acb1c52fc35561745ac0557d93f6e39690a3321e83af570275032311b7670a"
+        }
+      ],
+      "id": "tauspec_ebrm_frontier",
+      "invariant": "advisory selector cannot authorize settlement or state mutation",
+      "status": "materialized",
+      "value": "Keeps high-value Tau specification candidates visible in a bounded, replayable selector."
+    },
+    {
+      "abstraction_move": "C2 strengthen mechanism constraint",
+      "all_artifacts_present": true,
+      "artifact_count": 3,
+      "artifacts": [
+        {
+          "exists": true,
+          "git_status": "tracked_or_clean",
+          "path": "docs/research/nash_equilibrium_min_out_cap_test.py",
+          "sha256": "446de28dfff832a3ee51474fee75fc04a8f01749eca0eccc06808b32fb28caf2"
+        },
+        {
+          "exists": true,
+          "git_status": "M docs/research/concavity_conservation_law_test.py",
+          "path": "docs/research/concavity_conservation_law_test.py",
+          "sha256": "7893e8ff834b819f34d63d0a2682d751e70e09281d2374dc68ac4a3b8bead59f"
+        },
+        {
+          "exists": true,
+          "git_status": "M lean-mathlib/Proofs/ConcavityConservationLaw.lean",
+          "path": "lean-mathlib/Proofs/ConcavityConservationLaw.lean",
+          "sha256": "3e3975cc211687106d1009a3e5ae6451740efb1d59fdbc09c7968499a560e186"
+        }
+      ],
+      "id": "concavity_min_out_cap",
+      "invariant": "filled users have no profitable lower-min-out deviation in the fixed-order model",
+      "status": "materialized_research_only",
+      "value": "Turns collusion mitigation into bounded no-gain and curvature-bound checks."
+    },
+    {
+      "abstraction_move": "R2 graphify plus R5 algebraic basis",
+      "all_artifacts_present": false,
+      "artifact_count": 0,
+      "artifacts": [],
+      "id": "nc_bipartite_matching_for_cow",
+      "invariant": "unverified hypothesis; pairwise CoW settlement may reduce to max-weight bipartite matching",
+      "status": "open_candidate_from_logs",
+      "value": "Potential path from Hungarian-style exact matching to parallel matching certificates."
+    },
+    {
+      "abstraction_move": "R5 spectral/change-basis",
+      "all_artifacts_present": false,
+      "artifact_count": 0,
+      "artifacts": [],
+      "id": "spectral_liquidity_commutative_consensus",
+      "invariant": "unverified; session title only in recovered logs",
+      "status": "open_candidate_from_logs",
+      "value": "Needs reconstruction before it can be treated as a research claim."
+    }
+  ],
+  "date": "2026-06-29",
+  "logs": [
+    {
+      "exists": true,
+      "filename": "d21e2326-b832-4531-8cd9-9454d926c6c7.ndjson",
+      "line_count": 1204,
+      "sha256": "27b2f0843c4e7f43a569a075d92c95c74da012e849519f1acd4e5a0c0d91e2eb",
+      "signal_counts": {
+        "concavity_min_out_cap": 71,
+        "discrete_argmax_proximity": 201,
+        "kpool_argmax_proximity": 77,
+        "nc_bipartite_matching": 0,
+        "spectral_commutative_candidate": 0,
+        "tauspec_ebrm_frontier": 0
+      }
+    },
+    {
+      "exists": true,
+      "filename": "99dd7182-753c-4b7d-b37f-d17c590c5ec3.ndjson",
+      "line_count": 6077,
+      "sha256": "b2d7c468e28e810e1f63b21d5c9e3f02f70dc8834a1371228186dfc8869fb72c",
+      "signal_counts": {
+        "concavity_min_out_cap": 769,
+        "discrete_argmax_proximity": 217,
+        "kpool_argmax_proximity": 99,
+        "nc_bipartite_matching": 0,
+        "spectral_commutative_candidate": 1,
+        "tauspec_ebrm_frontier": 3
+      }
+    },
+    {
+      "exists": true,
+      "filename": "b328da3f-5847-4024-9e2e-8e0e8b401dff.ndjson",
+      "line_count": 9874,
+      "sha256": "1f56b9abd667ebc7c2bceb1fbac400642c17517f27fb58723ce33be8df3d0e94",
+      "signal_counts": {
+        "concavity_min_out_cap": 97,
+        "discrete_argmax_proximity": 0,
+        "kpool_argmax_proximity": 5,
+        "nc_bipartite_matching": 5,
+        "spectral_commutative_candidate": 0,
+        "tauspec_ebrm_frontier": 320
+      }
+    },
+    {
+      "exists": true,
+      "filename": "5adee746-7a25-4789-85b7-5e6ebf551511.ndjson",
+      "line_count": 7,
+      "sha256": "2dfbff10aa7d45f9f2b550523987081cb200e369061f4f37d5510abd2af63a24",
+      "signal_counts": {
+        "concavity_min_out_cap": 0,
+        "discrete_argmax_proximity": 0,
+        "kpool_argmax_proximity": 0,
+        "nc_bipartite_matching": 0,
+        "spectral_commutative_candidate": 0,
+        "tauspec_ebrm_frontier": 0
+      }
+    },
+    {
+      "exists": true,
+      "filename": "6dd67f0d-6ba3-4bb3-9aa8-5673c256d765.ndjson",
+      "line_count": 3,
+      "sha256": "ae1dcf972fc65b9083be966344fef989514b6d7f5bdaf0d327f97f5df7f28cf4",
+      "signal_counts": {
+        "concavity_min_out_cap": 0,
+        "discrete_argmax_proximity": 0,
+        "kpool_argmax_proximity": 0,
+        "nc_bipartite_matching": 0,
+        "spectral_commutative_candidate": 0,
+        "tauspec_ebrm_frontier": 0
+      }
+    }
+  ],
+  "non_claims": [
+    "The inventory does not treat Devin log text as proof.",
+    "Open candidates require fresh replayable artifacts before promotion.",
+    "Model-selector metadata is recorded only as source context, not as research evidence.",
+    "No settlement, state-root, governance, production, routing, matching, or pool-mutation authority is derived."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_devin_recovered_frontier_20260629.py",
+  "schema": "zenodex.devin_recovered_frontier_inventory.v1",
+  "signal_counts": {
+    "concavity_min_out_cap": 937,
+    "discrete_argmax_proximity": 418,
+    "kpool_argmax_proximity": 181,
+    "nc_bipartite_matching": 5,
+    "spectral_commutative_candidate": 1,
+    "tauspec_ebrm_frontier": 323
+  },
+  "source_scope": "local Devin ACP event logs, summarized by filename and hash only",
+  "summary": {
+    "highest_value_next": "nc_bipartite_matching_for_cow",
+    "log_count": 5,
+    "logs_present": 5,
+    "materialized_candidate_count": 4,
+    "materialized_candidates": [
+      "discrete_argmax_proximity",
+      "kpool_argmax_proximity",
+      "tauspec_ebrm_frontier",
+      "concavity_min_out_cap"
+    ],
+    "open_candidates": [
+      "nc_bipartite_matching_for_cow",
+      "spectral_liquidity_commutative_consensus"
+    ]
+  }
+}
