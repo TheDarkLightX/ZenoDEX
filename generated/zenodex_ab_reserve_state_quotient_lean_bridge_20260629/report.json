@@ -1,0 +1,58 @@
+{
+  "artifacts": {
+    "formal_test": "tests/formal/test_lean_ab_reserve_state_quotient.py",
+    "formal_test_line_count": 49,
+    "formal_test_sha256": "sha256:7207b6d0788d76b328d413b46c8ba011569ccc5371247c9efb8d389a54f53c3a",
+    "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+    "lean_line_count": 341,
+    "lean_sha256": "sha256:ef2b28779aff711e411ae27da39146c51587707658056a36ee43d74181f36225"
+  },
+  "authority_boundary": "Research proof component only; no settlement, state-root, production, governance, routing, matching, or transaction authority.",
+  "checks": {
+    "lean_file_exists": true,
+    "lean_placeholder_scan_clean": true,
+    "required_lean_markers_present": true,
+    "required_test_markers_present": true,
+    "test_file_exists": true
+  },
+  "claim_scope": "A Lean proof component formalizes the reserve-state quotient bridge for the AB strict zero-min research surface: same reserve-state quotient rows have identical fixed-suffix behavior, and a selected minimum reserve-out state dominates a finite quotient family at fixed executed input.",
+  "missing": {
+    "forbidden_lean_terms": [],
+    "lean_markers": [],
+    "test_markers": []
+  },
+  "non_claims": [
+    "No Python-to-Lean refinement proof is claimed.",
+    "No JSON canonicalization or packet-hash computation is proved in Lean.",
+    "No canonical tie order or order-history preservation is claimed.",
+    "No nonzero min_amount_out coverage is claimed.",
+    "No settlement, state-root, production, governance, routing, matching, or transaction authority is derived."
+  ],
+  "ok": true,
+  "replay_commands": [
+    "cd lean-mathlib && lake env lean Proofs/ABReserveStateQuotient.lean",
+    "python3 ~/.codex/skills/proof-engineering/scripts/scan_proof_placeholders.py lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+    "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests/formal/test_lean_ab_reserve_state_quotient.py",
+    "python3 tools/check_ab_reserve_state_quotient_lean_bridge.py"
+  ],
+  "required_lean_markers": [
+    "structure ReserveState",
+    "def ReserveState.toRecord",
+    "def reserveStateEquivalent",
+    "theorem reserveStateEquivalent_same_finalReserveOut",
+    "theorem reserveStateEquivalent_same_suffixOutput",
+    "theorem reserveState_minReserve_dominates_suffixOutput",
+    "def quotientFullBestSuffixOutput",
+    "def reserveStateQuotientInvariant",
+    "theorem quotientFullBestSuffixOutput_le_selected",
+    "def quotientFullFrontierZeroMinEconomicKey",
+    "def quotientSelectedZeroMinEconomicKey",
+    "theorem reserveStateQuotientInvariant_bounds_zeroMinEconomicKey",
+    "structure ReserveStateQuotientHostTable",
+    "def reserveStateQuotientHostTableValid",
+    "theorem reserveStateQuotientHostTable_validates",
+    "theorem witness_reserveStateEquivalent_same_suffixOutput",
+    "theorem witness_reserveStateQuotientHostTable_validates"
+  ],
+  "schema": "zenodex/ab_reserve_state_quotient_lean_bridge/v1"
+}
