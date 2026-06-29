@@ -1,0 +1,5275 @@
+{
+  "authority_boundary": "Research-only falsification evidence; no settlement, state-root, production, or governance authority.",
+  "date": "2026-06-29",
+  "deterministic_replay": {
+    "first_hash": "c775f1d0e333444849b35c961e9612df4ab57b5ed78bdf4eff4dec5124b61d24",
+    "ok": true,
+    "second_hash": "c775f1d0e333444849b35c961e9612df4ab57b5ed78bdf4eff4dec5124b61d24"
+  },
+  "non_claims": [
+    "This extended stress corpus is deterministic and finite, not exhaustive over all states.",
+    "This checker does not prove Lean-to-Python refinement.",
+    "This checker does not cover nonzero min_amount_out certificates; those are rejected as out of scope.",
+    "This checker does not define canonical tie order.",
+    "This checker does not add settlement, state-root, production, or governance authority."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_strict_zero_min_arbitrary_subset_family_extended_stress.py",
+  "schema": "zenodex.ab_strict_zero_min_arbitrary_subset_family_extended_stress_report.v1",
+  "search": {
+    "case_count": 90,
+    "cases": [
+      {
+        "bit_count": 2,
+        "case_id": "extended_000_balanced_mid_tie_heavy_flat_n2_fee0",
+        "dominance_check_count": 6,
+        "fee_bps": 0,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "29dc346a591256ec963a9842df7fa288aa8077dc60efb1f82b1e47a8c0cbe610",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbba0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbba1"
+            ],
+            "order_short": [
+              "bba0",
+              "bba1"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 900,
+            "reserve_out": 179200
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bba0",
+            "bba1"
+          ],
+          "processed_reserve_in": 964,
+          "reserve_out": 167304
+        },
+        "full_runtime_completion_count": 6,
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_mask": 2,
+        "obligation_digest": "52d72006d877d71df5a99b2caa3e5202141b33f773d82105924a1e0f49c8a15a",
+        "ok": true,
+        "packet_hash": "e4bab99b828392b5e6ec816af367122e3038c0862ec8fca6d59748793ac87d2b",
+        "pattern": "balanced_mid/tie_heavy_flat",
+        "reasons": [],
+        "record_count": 5,
+        "selected_suffix_executable_count": 5,
+        "singleton_table_obligation_count": 5
+      },
+      {
+        "bit_count": 3,
+        "case_id": "extended_001_low_in_high_out_near_tie_stagger_n3_fee1",
+        "dominance_check_count": 24,
+        "fee_bps": 1,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "866e483232b3d49d13f4dd0f0e5ca56853fbd8b55171ac47c3358c3ee60f8402",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbbb0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbbb1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbbb2"
+            ],
+            "order_short": [
+              "bbb0",
+              "bbb1",
+              "bbb2"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 51,
+            "reserve_out": 368200
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bbb1",
+            "bbb0",
+            "bbb2"
+          ],
+          "processed_reserve_in": 177,
+          "reserve_out": 108642
+        },
+        "full_runtime_completion_count": 24,
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_mask": 6,
+        "obligation_digest": "20063f2c9ac30ed825e06fc0a553e400090b83e3d6a8d067f5bcb9c64c9a9135",
+        "ok": true,
+        "packet_hash": "87a0f18e5a1d6e81ee176071c7f5d26695f64de624fc456c2890c96f659a6306",
+        "pattern": "low_in_high_out/near_tie_stagger",
+        "reasons": [],
+        "record_count": 16,
+        "selected_suffix_executable_count": 16,
+        "singleton_table_obligation_count": 16
+      },
+      {
+        "bit_count": 4,
+        "case_id": "extended_002_near_domain_reserve_in_ascending_stair_n4_fee5",
+        "dominance_check_count": 120,
+        "fee_bps": 5,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "bf383747d2b91d0b4655f21fd49e82a0c5119814188865835587e13a9b3a07ea",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbbc0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbbc1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbbc2",
+              "0x00000000000000000000000000000000000000000000000000000000000dbbc3"
+            ],
+            "order_short": [
+              "bbc0",
+              "bbc1",
+              "bbc2",
+              "bbc3"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2999997828,
+            "reserve_out": 2850000000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bbc0",
+            "bbc1",
+            "bbc2",
+            "bbc3"
+          ],
+          "processed_reserve_in": 2999997998,
+          "reserve_out": 2849999844
+        },
+        "full_runtime_completion_count": 120,
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_mask": 24,
+        "obligation_digest": "aee6c82f67d0bb083e677a5ddcfa9a88af5e52250965dac0c3a58a2e0a85bbf4",
+        "ok": true,
+        "packet_hash": "ac23845101b58ff09c9f87afe5ed0db202d4e49bfaa431d548f01a76bb896053",
+        "pattern": "near_domain_reserve_in/ascending_stair",
+        "reasons": [],
+        "record_count": 65,
+        "selected_suffix_executable_count": 65,
+        "singleton_table_obligation_count": 65
+      },
+      {
+        "bit_count": 5,
+        "case_id": "extended_003_tight_out_positive_descending_stair_n5_fee30",
+        "dominance_check_count": 720,
+        "fee_bps": 30,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "4cb593a7afe07a0ed06a0114182b340b5dcc430fc692be37a7e2dae86714ae9e",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbbd0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbbd1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbbd2",
+              "0x00000000000000000000000000000000000000000000000000000000000dbbd3",
+              "0x00000000000000000000000000000000000000000000000000000000000dbbd4"
+            ],
+            "order_short": [
+              "bbd0",
+              "bbd1",
+              "bbd2",
+              "bbd3",
+              "bbd4"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 703,
+            "reserve_out": 28500
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bbd0",
+            "bbd1",
+            "bbd2",
+            "bbd3",
+            "bbd4"
+          ],
+          "processed_reserve_in": 1003,
+          "reserve_out": 20089
+        },
+        "full_runtime_completion_count": 720,
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_mask": 120,
+        "obligation_digest": "1aea8a38045b10d2b7d04c28bf25f1cfdcd949fc84e689833506686f4953303a",
+        "ok": true,
+        "packet_hash": "fbffb204c070e8dce306af812b3cd0ed102d196f6e7b89be43d771df3914f1b4",
+        "pattern": "tight_out_positive/descending_stair",
+        "reasons": [],
+        "record_count": 326,
+        "selected_suffix_executable_count": 326,
+        "singleton_table_obligation_count": 326
+      },
+      {
+        "bit_count": 6,
+        "case_id": "extended_004_huge_out_alternating_large_n6_fee75",
+        "dominance_check_count": 5040,
+        "fee_bps": 75,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "c55e7dc7d91c9cdf84054cf0066b2207e092e5ffe56f358b0fb6e52ac8cb3ca0",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbbe0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbbe1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbbe2",
+              "0x00000000000000000000000000000000000000000000000000000000000dbbe3",
+              "0x00000000000000000000000000000000000000000000000000000000000dbbe4",
+              "0x00000000000000000000000000000000000000000000000000000000000dbbe5"
+            ],
+            "order_short": [
+              "bbe0",
+              "bbe1",
+              "bbe2",
+              "bbe3",
+              "bbe4",
+              "bbe5"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2020,
+            "reserve_out": 2899999612
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bbe1",
+            "bbe3",
+            "bbe5",
+            "bbe0",
+            "bbe2",
+            "bbe4"
+          ],
+          "processed_reserve_in": 2686,
+          "reserve_out": 2188874703
+        },
+        "full_runtime_completion_count": 5040,
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_mask": 720,
+        "obligation_digest": "d2ba67fc5481c86f574405d1a5266a20249f2b6ed645796ba2a0dc2105a3105c",
+        "ok": true,
+        "packet_hash": "84d6ab479392377a392601173c5de5a359d8330058853d57e068c167ac288f01",
+        "pattern": "huge_out/alternating_large",
+        "reasons": [],
+        "record_count": 1957,
+        "selected_suffix_executable_count": 1957,
+        "singleton_table_obligation_count": 1957
+      },
+      {
+        "bit_count": 2,
+        "case_id": "extended_005_skewed_in_burst_prefix_n2_fee100",
+        "dominance_check_count": 6,
+        "fee_bps": 100,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "ee885c7fe60ec09ebe0f803b3992d450ef1d35568211c99a689df9766d3887ba",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbbf0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbbf1"
+            ],
+            "order_short": [
+              "bbf0",
+              "bbf1"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2001055,
+            "reserve_out": 948000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bbf0",
+            "bbf1"
+          ],
+          "processed_reserve_in": 2001451,
+          "reserve_out": 947816
+        },
+        "full_runtime_completion_count": 6,
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_mask": 2,
+        "obligation_digest": "35f9cfae1f2c381ecea6d62ea99640114078710d30b5b5d9ea96da1ba616904d",
+        "ok": true,
+        "packet_hash": "c548e2ba65b82aa8d7ee432704229c1f3400941bcaae0a8cca7ee2137d55c12a",
+        "pattern": "skewed_in/burst_prefix",
+        "reasons": [],
+        "record_count": 5,
+        "selected_suffix_executable_count": 5,
+        "singleton_table_obligation_count": 5
+      },
+      {
+        "bit_count": 3,
+        "case_id": "extended_006_small_balanced_burst_suffix_n3_fee500",
+        "dominance_check_count": 24,
+        "fee_bps": 500,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "e1f8570bea0fdcd50c9379e19e6dbf0ee6a98ff109ac0f2ef857588c6552c9e7",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbc00",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc01",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc02"
+            ],
+            "order_short": [
+              "bc00",
+              "bc01",
+              "bc02"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 186,
+            "reserve_out": 177500
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bc02",
+            "bc00",
+            "bc01"
+          ],
+          "processed_reserve_in": 616,
+          "reserve_out": 55880
+        },
+        "full_runtime_completion_count": 24,
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_mask": 6,
+        "obligation_digest": "b92fe880e26580d9ccb010cf55275a2dbe8c0569851223d39ceb6b0292b98f88",
+        "ok": true,
+        "packet_hash": "180b2126bcb79345467d3b4cf6d3bccb30833970a02f6af3b6cc2f57b27286bd",
+        "pattern": "small_balanced/burst_suffix",
+        "reasons": [],
+        "record_count": 16,
+        "selected_suffix_executable_count": 16,
+        "singleton_table_obligation_count": 16
+      },
+      {
+        "bit_count": 4,
+        "case_id": "extended_007_deep_balanced_powers_n4_fee2500",
+        "dominance_check_count": 120,
+        "fee_bps": 2500,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "0579de357d5415698a8f77ce68a5292f340607b3f1028bd69fea4af4f11095b1",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbc10",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc11",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc12",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc13"
+            ],
+            "order_short": [
+              "bc10",
+              "bc11",
+              "bc12",
+              "bc13"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 1250707,
+            "reserve_out": 1813500
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bc10",
+            "bc11",
+            "bc12",
+            "bc13"
+          ],
+          "processed_reserve_in": 1250977,
+          "reserve_out": 1813209
+        },
+        "full_runtime_completion_count": 120,
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_mask": 24,
+        "obligation_digest": "dff9b594a79ebfc84284d20d6f5d9023bf550e7bb08d31c40e19e4c7df067520",
+        "ok": true,
+        "packet_hash": "cc455b30d2e95c080ea25f7d4af464d5cfd19c0993482c02398212d715a6ad08",
+        "pattern": "deep_balanced/powers",
+        "reasons": [],
+        "record_count": 65,
+        "selected_suffix_executable_count": 65,
+        "singleton_table_obligation_count": 65
+      },
+      {
+        "bit_count": 5,
+        "case_id": "extended_008_thin_margin_high_out_prime_steps_n5_fee5000",
+        "dominance_check_count": 720,
+        "fee_bps": 5000,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "bdc9133d6e45d0423c41eabf249d46df304d142f322a4ea64bcf0da4b582595f",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbc20",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc21",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc22",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc23",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc24"
+            ],
+            "order_short": [
+              "bc20",
+              "bc21",
+              "bc22",
+              "bc23",
+              "bc24"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 5104,
+            "reserve_out": 55570
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bc20",
+            "bc21",
+            "bc23",
+            "bc24",
+            "bc22"
+          ],
+          "processed_reserve_in": 5291,
+          "reserve_out": 54605
+        },
+        "full_runtime_completion_count": 720,
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_mask": 120,
+        "obligation_digest": "e0d5fa1cb2f7946fa3760a2ac5366543914d852e65b960a50361af94d8f7a730",
+        "ok": true,
+        "packet_hash": "965ba0daac6fc44a9d32c0ce7f34a4b29c9bd114039c0de43648c0e060e5f9d6",
+        "pattern": "thin_margin_high_out/prime_steps",
+        "reasons": [],
+        "record_count": 326,
+        "selected_suffix_executable_count": 326,
+        "singleton_table_obligation_count": 326
+      },
+      {
+        "bit_count": 6,
+        "case_id": "extended_009_balanced_mid_high_fee_safe_n6_fee9000",
+        "dominance_check_count": 5040,
+        "fee_bps": 9000,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "1ffea3534b3fc23dd32ce3f12fb2939189ffdf8be6f2a7a6b2fb460313b7e56f",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbc30",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc31",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc32",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc33",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc34",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc35"
+            ],
+            "order_short": [
+              "bc30",
+              "bc31",
+              "bc32",
+              "bc33",
+              "bc34",
+              "bc35"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 927,
+            "reserve_out": 360700
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bc35",
+            "bc34",
+            "bc33",
+            "bc32",
+            "bc31",
+            "bc30"
+          ],
+          "processed_reserve_in": 1596,
+          "reserve_out": 341837
+        },
+        "full_runtime_completion_count": 5040,
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_mask": 720,
+        "obligation_digest": "4905d7a0ae19c55e1c0792d34e9e3299a7759dae04245e034737a09b8f9fb47b",
+        "ok": true,
+        "packet_hash": "7403fce32c6eb7204c2c411abdf01af8ff286726d575b2187cc9a939807a1d4c",
+        "pattern": "balanced_mid/high_fee_safe",
+        "reasons": [],
+        "record_count": 1957,
+        "selected_suffix_executable_count": 1957,
+        "singleton_table_obligation_count": 1957
+      },
+      {
+        "bit_count": 2,
+        "case_id": "extended_010_low_in_high_out_tie_heavy_flat_n2_fee0",
+        "dominance_check_count": 6,
+        "fee_bps": 0,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "1a1d8947950b93c1e3da941ebba880d7a7d7cc19343e9dbdb527dfdd1f153426",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbc40",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc41"
+            ],
+            "order_short": [
+              "bc40",
+              "bc41"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 60,
+            "reserve_out": 326200
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bc40",
+            "bc41"
+          ],
+          "processed_reserve_in": 126,
+          "reserve_out": 155334
+        },
+        "full_runtime_completion_count": 6,
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_mask": 2,
+        "obligation_digest": "967b23b4ac9a8c47e1ebeaa9563e014f96cd523a4aa7d8ad2924a3c6f4a0429f",
+        "ok": true,
+        "packet_hash": "7e15d00736f9927c8056d381b95ae00b3a5c02708eab3c10ff3eb27ecf824f27",
+        "pattern": "low_in_high_out/tie_heavy_flat",
+        "reasons": [],
+        "record_count": 5,
+        "selected_suffix_executable_count": 5,
+        "singleton_table_obligation_count": 5
+      },
+      {
+        "bit_count": 3,
+        "case_id": "extended_011_near_domain_reserve_in_near_tie_stagger_n3_fee1",
+        "dominance_check_count": 24,
+        "fee_bps": 1,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "48501dd6bb9fb89ec7dce3a11328e5d722747ac840ccc731653f1da07230c9a2",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbc50",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc51",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc52"
+            ],
+            "order_short": [
+              "bc50",
+              "bc51",
+              "bc52"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2999997863,
+            "reserve_out": 2850000000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bc50",
+            "bc51",
+            "bc52"
+          ],
+          "processed_reserve_in": 2999997989,
+          "reserve_out": 2849999885
+        },
+        "full_runtime_completion_count": 24,
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_mask": 6,
+        "obligation_digest": "b0d16bd315a73bef352437b2a52dff645dc775b988d32b5d2cf20302a6bf16c5",
+        "ok": true,
+        "packet_hash": "ed31516b5e842c314e02f71bc65be9df8a4e7678c03bf8adf203dfb116e4d79c",
+        "pattern": "near_domain_reserve_in/near_tie_stagger",
+        "reasons": [],
+        "record_count": 16,
+        "selected_suffix_executable_count": 16,
+        "singleton_table_obligation_count": 16
+      },
+      {
+        "bit_count": 4,
+        "case_id": "extended_012_tight_out_positive_ascending_stair_n4_fee5",
+        "dominance_check_count": 120,
+        "fee_bps": 5,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "24c758efea43256460f3566be4b91353543814830c229d5f177cf05f66b95e58",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbc60",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc61",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc62",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc63"
+            ],
+            "order_short": [
+              "bc60",
+              "bc61",
+              "bc62",
+              "bc63"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 712,
+            "reserve_out": 17450
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bc63",
+            "bc62",
+            "bc60",
+            "bc61"
+          ],
+          "processed_reserve_in": 882,
+          "reserve_out": 14156
+        },
+        "full_runtime_completion_count": 120,
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_mask": 24,
+        "obligation_digest": "65541e44b5217c0803fcd1d72ce105a641a975205546faabb10a32b2a09e1646",
+        "ok": true,
+        "packet_hash": "926f6038aee71e8d35a809e084bc19ae403a28bced700f9440744e54759e3db7",
+        "pattern": "tight_out_positive/ascending_stair",
+        "reasons": [],
+        "record_count": 65,
+        "selected_suffix_executable_count": 65,
+        "singleton_table_obligation_count": 65
+      },
+      {
+        "bit_count": 5,
+        "case_id": "extended_013_huge_out_descending_stair_n5_fee30",
+        "dominance_check_count": 720,
+        "fee_bps": 30,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "fc913fbb93ec0f12579c1b54691766a9f4abee9837194a161291383b098f4d53",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbc70",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc71",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc72",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc73",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc74"
+            ],
+            "order_short": [
+              "bc70",
+              "bc71",
+              "bc72",
+              "bc73",
+              "bc74"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2065,
+            "reserve_out": 2899998739
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bc70",
+            "bc71",
+            "bc72",
+            "bc73",
+            "bc74"
+          ],
+          "processed_reserve_in": 2365,
+          "reserve_out": 2537733021
+        },
+        "full_runtime_completion_count": 720,
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_mask": 120,
+        "obligation_digest": "26510beb93a0465c5b9ee170200d1ced2481f32a896082801c9785591dd1f2b2",
+        "ok": true,
+        "packet_hash": "c943f058ee4f4cb6d9721e18719a9fa374ff30fee48da606e523d3405ce372d3",
+        "pattern": "huge_out/descending_stair",
+        "reasons": [],
+        "record_count": 326,
+        "selected_suffix_executable_count": 326,
+        "singleton_table_obligation_count": 326
+      },
+      {
+        "bit_count": 6,
+        "case_id": "extended_014_skewed_in_alternating_large_n6_fee75",
+        "dominance_check_count": 5040,
+        "fee_bps": 75,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "a371bb0324f34afb949be4475b1e72b95e5712708199182625d94827250ac337",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbc80",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc81",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc82",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc83",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc84",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc85"
+            ],
+            "order_short": [
+              "bc80",
+              "bc81",
+              "bc82",
+              "bc83",
+              "bc84",
+              "bc85"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2002954,
+            "reserve_out": 1098000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bc80",
+            "bc81",
+            "bc82",
+            "bc83",
+            "bc84",
+            "bc85"
+          ],
+          "processed_reserve_in": 2003650,
+          "reserve_out": 1097628
+        },
+        "full_runtime_completion_count": 5040,
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_mask": 720,
+        "obligation_digest": "76031a8f67f0fe18800f279a07ffdf24255a5f175cf5b8c2f2dd8d275351ef1e",
+        "ok": true,
+        "packet_hash": "b16fd7d468b9906025dd18b8be292d41f709c2ab5768766c09a507ccd5b6a80b",
+        "pattern": "skewed_in/alternating_large",
+        "reasons": [],
+        "record_count": 1957,
+        "selected_suffix_executable_count": 1957,
+        "singleton_table_obligation_count": 1957
+      },
+      {
+        "bit_count": 2,
+        "case_id": "extended_015_small_balanced_burst_prefix_n2_fee100",
+        "dominance_check_count": 6,
+        "fee_bps": 100,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "39e0cfd2481fc2e6a15b5e863142882c052fad823b8874360147ea28428827f0",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbc90",
+              "0x00000000000000000000000000000000000000000000000000000000000dbc91"
+            ],
+            "order_short": [
+              "bc90",
+              "bc91"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 195,
+            "reserve_out": 170500
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bc90",
+            "bc91"
+          ],
+          "processed_reserve_in": 597,
+          "reserve_out": 56180
+        },
+        "full_runtime_completion_count": 6,
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_mask": 2,
+        "obligation_digest": "cbbc5ef50896c8f81de536fb123b7d2f603081e75d840ce79037f0199bc2daf7",
+        "ok": true,
+        "packet_hash": "25dda8858ad71a4d1d08361658e0a12b831e5b663d2de93a7ef1ae0d1b7171e5",
+        "pattern": "small_balanced/burst_prefix",
+        "reasons": [],
+        "record_count": 5,
+        "selected_suffix_executable_count": 5,
+        "singleton_table_obligation_count": 5
+      },
+      {
+        "bit_count": 3,
+        "case_id": "extended_016_deep_balanced_burst_suffix_n3_fee500",
+        "dominance_check_count": 24,
+        "fee_bps": 500,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "dcb0d0a96dc2f6fd2b72863f82fef5fb9b297b2762b14d83cf7af0a5a6bae20c",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbca0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbca1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbca2"
+            ],
+            "order_short": [
+              "bca0",
+              "bca1",
+              "bca2"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 1251616,
+            "reserve_out": 1821600
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bca0",
+            "bca1",
+            "bca2"
+          ],
+          "processed_reserve_in": 1252048,
+          "reserve_out": 1821007
+        },
+        "full_runtime_completion_count": 24,
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_mask": 6,
+        "obligation_digest": "08ad838ffc33058d817e678ef078871792b9df3b3b36a20a9501ace18d69d182",
+        "ok": true,
+        "packet_hash": "521d6178978f5ba33626dfef50b9de897a46d5c47304316a90b36dba5b691cf8",
+        "pattern": "deep_balanced/burst_suffix",
+        "reasons": [],
+        "record_count": 16,
+        "selected_suffix_executable_count": 16,
+        "singleton_table_obligation_count": 16
+      },
+      {
+        "bit_count": 4,
+        "case_id": "extended_017_thin_margin_high_out_powers_n4_fee2500",
+        "dominance_check_count": 120,
+        "fee_bps": 2500,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "35dc1a5cb5e5a6f471f73b1aa1ada34e4f83936f63c4549e0c7adfd97ac2ca2a",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbcb0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbcb1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbcb2",
+              "0x00000000000000000000000000000000000000000000000000000000000dbcb3"
+            ],
+            "order_short": [
+              "bcb0",
+              "bcb1",
+              "bcb2",
+              "bcb3"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 5221,
+            "reserve_out": 64700
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bcb2",
+            "bcb1",
+            "bcb0",
+            "bcb3"
+          ],
+          "processed_reserve_in": 5491,
+          "reserve_out": 62300
+        },
+        "full_runtime_completion_count": 120,
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_mask": 24,
+        "obligation_digest": "424457a40559a0408101f41adc6fbb4fc70687a79edf48711f3264f36d6b473c",
+        "ok": true,
+        "packet_hash": "d61cfe1a97a5982baf00e4c7f320062af5ddb00bbf59fcfc3964d560a80d56a9",
+        "pattern": "thin_margin_high_out/powers",
+        "reasons": [],
+        "record_count": 65,
+        "selected_suffix_executable_count": 65,
+        "singleton_table_obligation_count": 65
+      },
+      {
+        "bit_count": 5,
+        "case_id": "extended_018_balanced_mid_prime_steps_n5_fee5000",
+        "dominance_check_count": 720,
+        "fee_bps": 5000,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "ed24a7f69eac9ab2c698d132850d503dc66fc400ba9df2fb269fbff164c60bfc",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbcc0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbcc1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbcc2",
+              "0x00000000000000000000000000000000000000000000000000000000000dbcc3",
+              "0x00000000000000000000000000000000000000000000000000000000000dbcc4"
+            ],
+            "order_short": [
+              "bcc0",
+              "bcc1",
+              "bcc2",
+              "bcc3",
+              "bcc4"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 954,
+            "reserve_out": 216100
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bcc4",
+            "bcc3",
+            "bcc2",
+            "bcc0",
+            "bcc1"
+          ],
+          "processed_reserve_in": 1141,
+          "reserve_out": 197904
+        },
+        "full_runtime_completion_count": 720,
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_mask": 120,
+        "obligation_digest": "d56a92b02a52123758bc405bfc9bb00a7dfb4bd338c9592874b3133e4368220e",
+        "ok": true,
+        "packet_hash": "bbf99c2e9444f276ec9580e5bb066dd484d337fe7fc7c028fd64cd8a42f06e4e",
+        "pattern": "balanced_mid/prime_steps",
+        "reasons": [],
+        "record_count": 326,
+        "selected_suffix_executable_count": 326,
+        "singleton_table_obligation_count": 326
+      },
+      {
+        "bit_count": 6,
+        "case_id": "extended_019_low_in_high_out_high_fee_safe_n6_fee9000",
+        "dominance_check_count": 5040,
+        "fee_bps": 9000,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "ffcdc872c19d92f13b538bbb6da6df731ca42fc7d006ede8c75ee5ea41b59c81",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbcd0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbcd1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbcd2",
+              "0x00000000000000000000000000000000000000000000000000000000000dbcd3",
+              "0x00000000000000000000000000000000000000000000000000000000000dbcd4",
+              "0x00000000000000000000000000000000000000000000000000000000000dbcd5"
+            ],
+            "order_short": [
+              "bcd0",
+              "bcd1",
+              "bcd2",
+              "bcd3",
+              "bcd4",
+              "bcd5"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 52,
+            "reserve_out": 744100
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bcd5",
+            "bcd4",
+            "bcd3",
+            "bcd2",
+            "bcd1",
+            "bcd0"
+          ],
+          "processed_reserve_in": 715,
+          "reserve_out": 512029
+        },
+        "full_runtime_completion_count": 5040,
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_mask": 720,
+        "obligation_digest": "1388838dddcfebbb970577d7314e822e2c1e9adc394de1b08c0e8e22aaef30a6",
+        "ok": true,
+        "packet_hash": "3a532d60c8c14368a342a9e88248132424edabeb34697d4a5901bd6f09ac31ba",
+        "pattern": "low_in_high_out/high_fee_safe",
+        "reasons": [],
+        "record_count": 1957,
+        "selected_suffix_executable_count": 1957,
+        "singleton_table_obligation_count": 1957
+      },
+      {
+        "bit_count": 2,
+        "case_id": "extended_020_near_domain_reserve_in_tie_heavy_flat_n2_fee0",
+        "dominance_check_count": 6,
+        "fee_bps": 0,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "8b48593f5f0a72ed0b106c0da08b13a5c32b5892c534908a788d6ee98180e243",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbce0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbce1"
+            ],
+            "order_short": [
+              "bce0",
+              "bce1"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2999997912,
+            "reserve_out": 2850000000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bce0",
+            "bce1"
+          ],
+          "processed_reserve_in": 2999997980,
+          "reserve_out": 2849999936
+        },
+        "full_runtime_completion_count": 6,
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_mask": 2,
+        "obligation_digest": "7ec0d7de85f18cf938a8a30c484ea9ac519ed6c3b98cb1b63e62e1d99a8edccf",
+        "ok": true,
+        "packet_hash": "1dfb14bd6d03dbfc9b2b4c541e0b0abd8a4e27df193b16ecaec225e8fb9b30b3",
+        "pattern": "near_domain_reserve_in/tie_heavy_flat",
+        "reasons": [],
+        "record_count": 5,
+        "selected_suffix_executable_count": 5,
+        "singleton_table_obligation_count": 5
+      },
+      {
+        "bit_count": 3,
+        "case_id": "extended_021_tight_out_positive_near_tie_stagger_n3_fee1",
+        "dominance_check_count": 24,
+        "fee_bps": 1,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "c8dc8bf1d116ecdd7f69812dba1f8759a390b7fab6c2359303159b94638c9581",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbcf0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbcf1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbcf2"
+            ],
+            "order_short": [
+              "bcf0",
+              "bcf1",
+              "bcf2"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 721,
+            "reserve_out": 13710
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bcf0",
+            "bcf1",
+            "bcf2"
+          ],
+          "processed_reserve_in": 847,
+          "reserve_out": 11716
+        },
+        "full_runtime_completion_count": 24,
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_mask": 6,
+        "obligation_digest": "cf2b5fa8448bb037f458547b8823cf529c903a5aae91f678174fc10e339e5ec1",
+        "ok": true,
+        "packet_hash": "a89becab21da86156529da28bb4b22c55bccafb53d45f4adb35fc9bb28c59853",
+        "pattern": "tight_out_positive/near_tie_stagger",
+        "reasons": [],
+        "record_count": 16,
+        "selected_suffix_executable_count": 16,
+        "singleton_table_obligation_count": 16
+      },
+      {
+        "bit_count": 4,
+        "case_id": "extended_022_huge_out_ascending_stair_n4_fee5",
+        "dominance_check_count": 120,
+        "fee_bps": 5,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "e7c0e032f717a60dfe7e7d8a7f2a6470c035acd83d6b0025215574fba1e1be0f",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbd00",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd01",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd02",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd03"
+            ],
+            "order_short": [
+              "bd00",
+              "bd01",
+              "bd02",
+              "bd03"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2110,
+            "reserve_out": 2899997866
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bd03",
+            "bd02",
+            "bd01",
+            "bd00"
+          ],
+          "processed_reserve_in": 2280,
+          "reserve_out": 2688590997
+        },
+        "full_runtime_completion_count": 120,
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_mask": 24,
+        "obligation_digest": "4b3a7a3c30a62348b1a84accd8c219ca17aaa361d13adb1a0d6a423d7d3aaf09",
+        "ok": true,
+        "packet_hash": "5f07c4ad085437eef353961f25012dbc24ed3f1edcbb2a4594baab8812aa1fa5",
+        "pattern": "huge_out/ascending_stair",
+        "reasons": [],
+        "record_count": 65,
+        "selected_suffix_executable_count": 65,
+        "singleton_table_obligation_count": 65
+      },
+      {
+        "bit_count": 5,
+        "case_id": "extended_023_skewed_in_descending_stair_n5_fee30",
+        "dominance_check_count": 720,
+        "fee_bps": 30,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "131db524266ad33f70d4d948103cac4896fe32d10fab1dcbb76b38e492bee45a",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbd10",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd11",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd12",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd13",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd14"
+            ],
+            "order_short": [
+              "bd10",
+              "bd11",
+              "bd12",
+              "bd13",
+              "bd14"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2004853,
+            "reserve_out": 900000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bd10",
+            "bd11",
+            "bd12",
+            "bd13",
+            "bd14"
+          ],
+          "processed_reserve_in": 2005153,
+          "reserve_out": 899870
+        },
+        "full_runtime_completion_count": 720,
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_mask": 120,
+        "obligation_digest": "9b8250f29172fdc60c7651270dc5dad63675a19a3c5c74f483ac6c38387994cc",
+        "ok": true,
+        "packet_hash": "9cc0a428002de7b9aaa8684d526033a487d948d988310aa568cd09ca597db96d",
+        "pattern": "skewed_in/descending_stair",
+        "reasons": [],
+        "record_count": 326,
+        "selected_suffix_executable_count": 326,
+        "singleton_table_obligation_count": 326
+      },
+      {
+        "bit_count": 6,
+        "case_id": "extended_024_small_balanced_alternating_large_n6_fee75",
+        "dominance_check_count": 5040,
+        "fee_bps": 75,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "3fb27819305414bd65baa3f0d72dc6047f7b529466f6c019d50b46ff041bcdfa",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbd20",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd21",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd22",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd23",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd24",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd25"
+            ],
+            "order_short": [
+              "bd20",
+              "bd21",
+              "bd22",
+              "bd23",
+              "bd24",
+              "bd25"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 181,
+            "reserve_out": 238750
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bd21",
+            "bd23",
+            "bd25",
+            "bd20",
+            "bd22",
+            "bd24"
+          ],
+          "processed_reserve_in": 856,
+          "reserve_out": 51249
+        },
+        "full_runtime_completion_count": 5040,
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_mask": 720,
+        "obligation_digest": "f98761fdf227bef9ba454fe47ed87686bbca14df4d56a7db6a44dffa5f57bd5d",
+        "ok": true,
+        "packet_hash": "c12bc5e119b94122a99eaca0a12edad41ef4e37aa3cd6da7187525855ca86ccb",
+        "pattern": "small_balanced/alternating_large",
+        "reasons": [],
+        "record_count": 1957,
+        "selected_suffix_executable_count": 1957,
+        "singleton_table_obligation_count": 1957
+      },
+      {
+        "bit_count": 2,
+        "case_id": "extended_025_deep_balanced_burst_prefix_n2_fee100",
+        "dominance_check_count": 6,
+        "fee_bps": 100,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "b757323c0a541c82d6e8211e14a5e513f5b3914cbb7cea3b20b9344ccf434ca1",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbd30",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd31"
+            ],
+            "order_short": [
+              "bd30",
+              "bd31"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 1252525,
+            "reserve_out": 1820750
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bd30",
+            "bd31"
+          ],
+          "processed_reserve_in": 1252940,
+          "reserve_out": 1820155
+        },
+        "full_runtime_completion_count": 6,
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_mask": 2,
+        "obligation_digest": "916ca7eeeec8f9beaa01e1b75e77769707517d58ec3a088b6c6699653b897712",
+        "ok": true,
+        "packet_hash": "c79800e527064703ba69d1d031e30e7a464d77536c8f820bc24e3c0946e3e32a",
+        "pattern": "deep_balanced/burst_prefix",
+        "reasons": [],
+        "record_count": 5,
+        "selected_suffix_executable_count": 5,
+        "singleton_table_obligation_count": 5
+      },
+      {
+        "bit_count": 3,
+        "case_id": "extended_026_thin_margin_high_out_burst_suffix_n3_fee500",
+        "dominance_check_count": 24,
+        "fee_bps": 500,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "7e8db939d2013460190e0873e46ef1b7bb9840845b7a7129c8d752485b434c45",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbd40",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd41",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd42"
+            ],
+            "order_short": [
+              "bd40",
+              "bd41",
+              "bd42"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 5338,
+            "reserve_out": 84280
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bd40",
+            "bd41",
+            "bd42"
+          ],
+          "processed_reserve_in": 5786,
+          "reserve_out": 78083
+        },
+        "full_runtime_completion_count": 24,
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_mask": 6,
+        "obligation_digest": "17c5f54cc641a65c037fb37b8700ecda87e8bbbd7ee7ae553e5bfa72de5441e4",
+        "ok": true,
+        "packet_hash": "e84be6a8e62bbb1ad1a9b08f655c7902b9d1965223c9e344ca82b04efc6fbf98",
+        "pattern": "thin_margin_high_out/burst_suffix",
+        "reasons": [],
+        "record_count": 16,
+        "selected_suffix_executable_count": 16,
+        "singleton_table_obligation_count": 16
+      },
+      {
+        "bit_count": 4,
+        "case_id": "extended_027_balanced_mid_powers_n4_fee2500",
+        "dominance_check_count": 120,
+        "fee_bps": 2500,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "2921f6131f9c909bc3cf814fbb74721da1abf8e064271b6bf7ddf58d5a07f47d",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbd50",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd51",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd52",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd53"
+            ],
+            "order_short": [
+              "bd50",
+              "bd51",
+              "bd52",
+              "bd53"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 981,
+            "reserve_out": 241000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bd53",
+            "bd52",
+            "bd51",
+            "bd50"
+          ],
+          "processed_reserve_in": 1251,
+          "reserve_out": 200475
+        },
+        "full_runtime_completion_count": 120,
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_mask": 24,
+        "obligation_digest": "3b4ba4150eacfc3e406bcefa7514325d0bfab187b0b46de354115927f46922d9",
+        "ok": true,
+        "packet_hash": "439b9190a16dce8037fbf091375e1882a39a53a81fa40df4e464098d299444fc",
+        "pattern": "balanced_mid/powers",
+        "reasons": [],
+        "record_count": 65,
+        "selected_suffix_executable_count": 65,
+        "singleton_table_obligation_count": 65
+      },
+      {
+        "bit_count": 5,
+        "case_id": "extended_028_low_in_high_out_prime_steps_n5_fee5000",
+        "dominance_check_count": 720,
+        "fee_bps": 5000,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "34f9a80715a9835565ecb4317ace2abab51dd071b07d0396a29dcbd49fc1f599",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbd60",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd61",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd62",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd63",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd64"
+            ],
+            "order_short": [
+              "bd60",
+              "bd61",
+              "bd62",
+              "bd63",
+              "bd64"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 61,
+            "reserve_out": 410900
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bd64",
+            "bd63",
+            "bd62",
+            "bd61",
+            "bd60"
+          ],
+          "processed_reserve_in": 248,
+          "reserve_out": 194297
+        },
+        "full_runtime_completion_count": 720,
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_mask": 120,
+        "obligation_digest": "43a04c66d68bddcb83eb46be6e94da5076b34fc3542b022679d3787d1a944e69",
+        "ok": true,
+        "packet_hash": "b7c536584172d024b28a96c0cbfdd47388151512b993657ea143392b44acb104",
+        "pattern": "low_in_high_out/prime_steps",
+        "reasons": [],
+        "record_count": 326,
+        "selected_suffix_executable_count": 326,
+        "singleton_table_obligation_count": 326
+      },
+      {
+        "bit_count": 6,
+        "case_id": "extended_029_near_domain_reserve_in_high_fee_safe_n6_fee9000",
+        "dominance_check_count": 5040,
+        "fee_bps": 9000,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "c1f647c1afd5eb792ec96ccc55c71e2c2ab2aa5905751e2f17611a1da271405c",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbd70",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd71",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd72",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd73",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd74",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd75"
+            ],
+            "order_short": [
+              "bd70",
+              "bd71",
+              "bd72",
+              "bd73",
+              "bd74",
+              "bd75"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2999997314,
+            "reserve_out": 2850000000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bd70",
+            "bd71",
+            "bd72",
+            "bd73",
+            "bd74",
+            "bd75"
+          ],
+          "processed_reserve_in": 2999997971,
+          "reserve_out": 2849999943
+        },
+        "full_runtime_completion_count": 5040,
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_mask": 720,
+        "obligation_digest": "3c96bef7926679031006a87672c08b7cc1e396f29197c398607489374e98e922",
+        "ok": true,
+        "packet_hash": "fa3c627f329d51da1034e2208f37a61e196f213a633bf50db76a2fce3214d9cc",
+        "pattern": "near_domain_reserve_in/high_fee_safe",
+        "reasons": [],
+        "record_count": 1957,
+        "selected_suffix_executable_count": 1957,
+        "singleton_table_obligation_count": 1957
+      },
+      {
+        "bit_count": 2,
+        "case_id": "extended_030_tight_out_positive_tie_heavy_flat_n2_fee0",
+        "dominance_check_count": 6,
+        "fee_bps": 0,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "50f704af087134efc72bdbf11611afb40a271183b0f7edd004b9b7eabd05c970",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbd80",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd81"
+            ],
+            "order_short": [
+              "bd80",
+              "bd81"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 730,
+            "reserve_out": 12000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bd80",
+            "bd81"
+          ],
+          "processed_reserve_in": 794,
+          "reserve_out": 11034
+        },
+        "full_runtime_completion_count": 6,
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_mask": 2,
+        "obligation_digest": "3dbf9bbabea062cdfaffa8141a512bbe0eb3b3073edb861238ef89c4d882c387",
+        "ok": true,
+        "packet_hash": "9ec81eb3bb1d784e01709eeaf5875d2f6a38b3bdbe6c1c6798fc029d02c8a7c1",
+        "pattern": "tight_out_positive/tie_heavy_flat",
+        "reasons": [],
+        "record_count": 5,
+        "selected_suffix_executable_count": 5,
+        "singleton_table_obligation_count": 5
+      },
+      {
+        "bit_count": 3,
+        "case_id": "extended_031_huge_out_near_tie_stagger_n3_fee1",
+        "dominance_check_count": 24,
+        "fee_bps": 1,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "91e98bfd10c0df328bf88f09a7d413f00b2e0b44e0310611c24ef6512158759d",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbd90",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd91",
+              "0x00000000000000000000000000000000000000000000000000000000000dbd92"
+            ],
+            "order_short": [
+              "bd90",
+              "bd91",
+              "bd92"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2155,
+            "reserve_out": 2899996993
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bd91",
+            "bd90",
+            "bd92"
+          ],
+          "processed_reserve_in": 2281,
+          "reserve_out": 2743478311
+        },
+        "full_runtime_completion_count": 24,
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_mask": 6,
+        "obligation_digest": "de191136a6a4cc81c32e92494d54e3780aa6ddbcd9d43baad625ffe46ce5fa36",
+        "ok": true,
+        "packet_hash": "0b7fae5a7f9a748114d6ae4ef32509d7b3f84c31e4eebb899558c08e6947b2c1",
+        "pattern": "huge_out/near_tie_stagger",
+        "reasons": [],
+        "record_count": 16,
+        "selected_suffix_executable_count": 16,
+        "singleton_table_obligation_count": 16
+      },
+      {
+        "bit_count": 4,
+        "case_id": "extended_032_skewed_in_ascending_stair_n4_fee5",
+        "dominance_check_count": 120,
+        "fee_bps": 5,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "8052353a05aaeb9a194d0b161ce51828f1621c609e2efdc9742040e510dd55b9",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbda0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbda1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbda2",
+              "0x00000000000000000000000000000000000000000000000000000000000dbda3"
+            ],
+            "order_short": [
+              "bda0",
+              "bda1",
+              "bda2",
+              "bda3"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2006752,
+            "reserve_out": 835000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bda0",
+            "bda1",
+            "bda2",
+            "bda3"
+          ],
+          "processed_reserve_in": 2006922,
+          "reserve_out": 834933
+        },
+        "full_runtime_completion_count": 120,
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_mask": 24,
+        "obligation_digest": "644386b74658a8a758a836e4d0b519ad9242aa5b9920243d0c8dfc5999cde41c",
+        "ok": true,
+        "packet_hash": "3fd155feec4e3556aa3f7ae41b1ae4067ac16dce6de0851ae57d374638b91c21",
+        "pattern": "skewed_in/ascending_stair",
+        "reasons": [],
+        "record_count": 65,
+        "selected_suffix_executable_count": 65,
+        "singleton_table_obligation_count": 65
+      },
+      {
+        "bit_count": 5,
+        "case_id": "extended_033_small_balanced_descending_stair_n5_fee30",
+        "dominance_check_count": 720,
+        "fee_bps": 30,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "cd4e9df909f9e864124e778c287daa8e13bd810924df9c3611ce628f31fabfe9",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbdb0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbdb1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbdb2",
+              "0x00000000000000000000000000000000000000000000000000000000000dbdb3",
+              "0x00000000000000000000000000000000000000000000000000000000000dbdb4"
+            ],
+            "order_short": [
+              "bdb0",
+              "bdb1",
+              "bdb2",
+              "bdb3",
+              "bdb4"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 190,
+            "reserve_out": 145000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bdb0",
+            "bdb1",
+            "bdb2",
+            "bdb3",
+            "bdb4"
+          ],
+          "processed_reserve_in": 490,
+          "reserve_out": 56982
+        },
+        "full_runtime_completion_count": 720,
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_mask": 120,
+        "obligation_digest": "821171afd1685d7bafa6729bc5321e8cb19f7ecaeb94fd3850ef0f8c0e3f5d69",
+        "ok": true,
+        "packet_hash": "527d58a3e5abf847c4b75966990fbf57a439b5c0ef82c2c1a7d08c8c9b7fc148",
+        "pattern": "small_balanced/descending_stair",
+        "reasons": [],
+        "record_count": 326,
+        "selected_suffix_executable_count": 326,
+        "singleton_table_obligation_count": 326
+      },
+      {
+        "bit_count": 6,
+        "case_id": "extended_034_deep_balanced_alternating_large_n6_fee75",
+        "dominance_check_count": 5040,
+        "fee_bps": 75,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "d2fe8b0b39103ecf3d2eff13397f723d5a82b1e8afca8383c9cdad526e7119bf",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbdc0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbdc1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbdc2",
+              "0x00000000000000000000000000000000000000000000000000000000000dbdc3",
+              "0x00000000000000000000000000000000000000000000000000000000000dbdc4",
+              "0x00000000000000000000000000000000000000000000000000000000000dbdc5"
+            ],
+            "order_short": [
+              "bdc0",
+              "bdc1",
+              "bdc2",
+              "bdc3",
+              "bdc4",
+              "bdc5"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 1253434,
+            "reserve_out": 1832700
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bdc0",
+            "bdc1",
+            "bdc2",
+            "bdc3",
+            "bdc4",
+            "bdc5"
+          ],
+          "processed_reserve_in": 1254088,
+          "reserve_out": 1831761
+        },
+        "full_runtime_completion_count": 5040,
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_mask": 720,
+        "obligation_digest": "5aad93e5de9ddb899576f7a92666d5e92d135483142835c11dce0ae6c985d4af",
+        "ok": true,
+        "packet_hash": "1436dc443f77d2124814b6b57226e547243d45fe81190ee4f55fd6a250263211",
+        "pattern": "deep_balanced/alternating_large",
+        "reasons": [],
+        "record_count": 1957,
+        "selected_suffix_executable_count": 1957,
+        "singleton_table_obligation_count": 1957
+      },
+      {
+        "bit_count": 2,
+        "case_id": "extended_035_thin_margin_high_out_burst_prefix_n2_fee100",
+        "dominance_check_count": 6,
+        "fee_bps": 100,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "477d88c1474d9ccd4e6c16dc3102b4088f0ec3207115feffe7d7893272df1cbd",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbdd0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbdd1"
+            ],
+            "order_short": [
+              "bdd0",
+              "bdd1"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 5455,
+            "reserve_out": 78120
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bdd0",
+            "bdd1"
+          ],
+          "processed_reserve_in": 5847,
+          "reserve_out": 72946
+        },
+        "full_runtime_completion_count": 6,
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_mask": 2,
+        "obligation_digest": "879e9987db66a28efba4529c706dff01d5c1aa5efa5ac5fb559d12be91859710",
+        "ok": true,
+        "packet_hash": "ac1b5958c99df88337bcad20325ae62b477447b9921632631c3e5fab3e30d913",
+        "pattern": "thin_margin_high_out/burst_prefix",
+        "reasons": [],
+        "record_count": 5,
+        "selected_suffix_executable_count": 5,
+        "singleton_table_obligation_count": 5
+      },
+      {
+        "bit_count": 3,
+        "case_id": "extended_036_balanced_mid_burst_suffix_n3_fee500",
+        "dominance_check_count": 24,
+        "fee_bps": 500,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "b486dcc9274011f154957f52db80435fb9e8a247c7af9df5bbe98318952badf0",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbde0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbde1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbde2"
+            ],
+            "order_short": [
+              "bde0",
+              "bde1",
+              "bde2"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 1008,
+            "reserve_out": 286300
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bde2",
+            "bde0",
+            "bde1"
+          ],
+          "processed_reserve_in": 1429,
+          "reserve_out": 205364
+        },
+        "full_runtime_completion_count": 24,
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_mask": 6,
+        "obligation_digest": "6589774fa4a418f4339b8bca71fa9d37f5972a8e781796335c542b0d3444a03c",
+        "ok": true,
+        "packet_hash": "cde39e27986eaea2ba6181ee11c03017718f19dd0508cf0fdacada2ed9898dc0",
+        "pattern": "balanced_mid/burst_suffix",
+        "reasons": [],
+        "record_count": 16,
+        "selected_suffix_executable_count": 16,
+        "singleton_table_obligation_count": 16
+      },
+      {
+        "bit_count": 4,
+        "case_id": "extended_037_low_in_high_out_powers_n4_fee2500",
+        "dominance_check_count": 120,
+        "fee_bps": 2500,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "8a603bde7400c5e05534dea02332d4e075941797c40ed2d15645197031879a9a",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbdf0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbdf1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbdf2",
+              "0x00000000000000000000000000000000000000000000000000000000000dbdf3"
+            ],
+            "order_short": [
+              "bdf0",
+              "bdf1",
+              "bdf2",
+              "bdf3"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 53,
+            "reserve_out": 469000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bdf3",
+            "bdf2",
+            "bdf1",
+            "bdf0"
+          ],
+          "processed_reserve_in": 323,
+          "reserve_out": 105623
+        },
+        "full_runtime_completion_count": 120,
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_mask": 24,
+        "obligation_digest": "643f28f627d00ae30d3794afc7871f017a96ea60ca3493f0aa65b1ce20b17b88",
+        "ok": true,
+        "packet_hash": "ce9e4e7fe039be5741f0c95292aa2f23f9852122ffe7775bbcc0ffe687ada169",
+        "pattern": "low_in_high_out/powers",
+        "reasons": [],
+        "record_count": 65,
+        "selected_suffix_executable_count": 65,
+        "singleton_table_obligation_count": 65
+      },
+      {
+        "bit_count": 5,
+        "case_id": "extended_038_near_domain_reserve_in_prime_steps_n5_fee5000",
+        "dominance_check_count": 720,
+        "fee_bps": 5000,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "c485ce66739407c3e334c2582e2bd7dc1c308df76c1b01fd9741e19af84e965a",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbe00",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe01",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe02",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe03",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe04"
+            ],
+            "order_short": [
+              "be00",
+              "be01",
+              "be02",
+              "be03",
+              "be04"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2999997775,
+            "reserve_out": 2850000000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "be00",
+            "be01",
+            "be02",
+            "be03",
+            "be04"
+          ],
+          "processed_reserve_in": 2999997962,
+          "reserve_out": 2849999916
+        },
+        "full_runtime_completion_count": 720,
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_mask": 120,
+        "obligation_digest": "11aa315125a02a60d19d4d7c86930fb14b6743a1fd2a5dc1db2de20a2ef581ec",
+        "ok": true,
+        "packet_hash": "77279a2bbdff3bdad6b2184ac95a815f096b8e9dccb3644385fc270c523eabf5",
+        "pattern": "near_domain_reserve_in/prime_steps",
+        "reasons": [],
+        "record_count": 326,
+        "selected_suffix_executable_count": 326,
+        "singleton_table_obligation_count": 326
+      },
+      {
+        "bit_count": 6,
+        "case_id": "extended_039_tight_out_positive_high_fee_safe_n6_fee9000",
+        "dominance_check_count": 5040,
+        "fee_bps": 9000,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "5faecdcc5b87b95c1409c52104783320ac1073c523a8ca6d3704e4af01b82262",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbe10",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe11",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe12",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe13",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe14",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe15"
+            ],
+            "order_short": [
+              "be10",
+              "be11",
+              "be12",
+              "be13",
+              "be14",
+              "be15"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 739,
+            "reserve_out": 58335
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "be15",
+            "be14",
+            "be13",
+            "be12",
+            "be10",
+            "be11"
+          ],
+          "processed_reserve_in": 1390,
+          "reserve_out": 54683
+        },
+        "full_runtime_completion_count": 5040,
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_mask": 720,
+        "obligation_digest": "0e62d02ca9c9dccd3ad0e281fbb90e20de5c33d791d89c80d32b3389e74edd79",
+        "ok": true,
+        "packet_hash": "6b160a23590bac7396e3ba8dfe13192bb96808480405a42f3591477fec4dd68f",
+        "pattern": "tight_out_positive/high_fee_safe",
+        "reasons": [],
+        "record_count": 1957,
+        "selected_suffix_executable_count": 1957,
+        "singleton_table_obligation_count": 1957
+      },
+      {
+        "bit_count": 2,
+        "case_id": "extended_040_huge_out_tie_heavy_flat_n2_fee0",
+        "dominance_check_count": 6,
+        "fee_bps": 0,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "c5cf345f564b6af875eef860196bbab383fca22c6ac4ce828e8af6bd4f9c447d",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbe20",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe21"
+            ],
+            "order_short": [
+              "be20",
+              "be21"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2200,
+            "reserve_out": 2899996120
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "be20",
+            "be21"
+          ],
+          "processed_reserve_in": 2266,
+          "reserve_out": 2815530215
+        },
+        "full_runtime_completion_count": 6,
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_mask": 2,
+        "obligation_digest": "a754eb19a471492707acabd69eab5eb4fb7fee27c614d8eb362479a37a3d7e6a",
+        "ok": true,
+        "packet_hash": "cf204486b50f334df1853385b2a5497f0320c84169af16d64c67d81f12722296",
+        "pattern": "huge_out/tie_heavy_flat",
+        "reasons": [],
+        "record_count": 5,
+        "selected_suffix_executable_count": 5,
+        "singleton_table_obligation_count": 5
+      },
+      {
+        "bit_count": 3,
+        "case_id": "extended_041_skewed_in_near_tie_stagger_n3_fee1",
+        "dominance_check_count": 24,
+        "fee_bps": 1,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "69470880448a47a4a98ef391b9258d4ac494fa78cee93d78f506c14e67f5ea45",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbe30",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe31",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe32"
+            ],
+            "order_short": [
+              "be30",
+              "be31",
+              "be32"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2008651,
+            "reserve_out": 813000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "be30",
+            "be31",
+            "be32"
+          ],
+          "processed_reserve_in": 2008777,
+          "reserve_out": 812952
+        },
+        "full_runtime_completion_count": 24,
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_mask": 6,
+        "obligation_digest": "c9ee2432f8b08f941194e1fd7eb878ba7f306d56dd093fb30111377f7ff68c20",
+        "ok": true,
+        "packet_hash": "ca84cabc060514148b4c38bb031ccbd22f513dc93af11887c89100dd99f5cdfc",
+        "pattern": "skewed_in/near_tie_stagger",
+        "reasons": [],
+        "record_count": 16,
+        "selected_suffix_executable_count": 16,
+        "singleton_table_obligation_count": 16
+      },
+      {
+        "bit_count": 4,
+        "case_id": "extended_042_small_balanced_ascending_stair_n4_fee5",
+        "dominance_check_count": 120,
+        "fee_bps": 5,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "d172cec4ada3291c0ca76fb31c6238bf5c1fa479f5b89a8171478453afb5204a",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbe40",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe41",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe42",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe43"
+            ],
+            "order_short": [
+              "be40",
+              "be41",
+              "be42",
+              "be43"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 199,
+            "reserve_out": 112500
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "be43",
+            "be42",
+            "be41",
+            "be40"
+          ],
+          "processed_reserve_in": 369,
+          "reserve_out": 61453
+        },
+        "full_runtime_completion_count": 120,
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_mask": 24,
+        "obligation_digest": "8a4ecb427391af38e51f104d0be6d1e2ff40a16fc1332b633ba8e8b1a433a753",
+        "ok": true,
+        "packet_hash": "0ad2530a556f0fef50fdb405589fa869d09dd427b6ac6fc38e25427a8e78ba8a",
+        "pattern": "small_balanced/ascending_stair",
+        "reasons": [],
+        "record_count": 65,
+        "selected_suffix_executable_count": 65,
+        "singleton_table_obligation_count": 65
+      },
+      {
+        "bit_count": 5,
+        "case_id": "extended_043_deep_balanced_descending_stair_n5_fee30",
+        "dominance_check_count": 720,
+        "fee_bps": 30,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "2c1b788f9ab1ea30f368cd52ae1c5c2b7b6df30bcf81e152f81223c90bbd8ac2",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbe50",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe51",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe52",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe53",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe54"
+            ],
+            "order_short": [
+              "be50",
+              "be51",
+              "be52",
+              "be53",
+              "be54"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 1254343,
+            "reserve_out": 1815000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "be50",
+            "be51",
+            "be52",
+            "be53",
+            "be54"
+          ],
+          "processed_reserve_in": 1254643,
+          "reserve_out": 1814575
+        },
+        "full_runtime_completion_count": 720,
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_mask": 120,
+        "obligation_digest": "d0501f4a6c2d526f0bc92553c9b9d9e487e53a2d25296f55c24e0057d25a6809",
+        "ok": true,
+        "packet_hash": "65756883b5b3e6d36715cdfa89e1ecf0a1daba8f72be61ed6ee9c0f70321c593",
+        "pattern": "deep_balanced/descending_stair",
+        "reasons": [],
+        "record_count": 326,
+        "selected_suffix_executable_count": 326,
+        "singleton_table_obligation_count": 326
+      },
+      {
+        "bit_count": 6,
+        "case_id": "extended_044_thin_margin_high_out_alternating_large_n6_fee75",
+        "dominance_check_count": 5040,
+        "fee_bps": 75,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "4a0074d9b1594ccea731777681c7c5ee2e18c4f9a5c0d3782e96a2916a19c557",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbe60",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe61",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe62",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe63",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe64",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe65"
+            ],
+            "order_short": [
+              "be60",
+              "be61",
+              "be62",
+              "be63",
+              "be64",
+              "be65"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 5572,
+            "reserve_out": 110240
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "be61",
+            "be63",
+            "be60",
+            "be62",
+            "be65",
+            "be64"
+          ],
+          "processed_reserve_in": 6256,
+          "reserve_out": 98336
+        },
+        "full_runtime_completion_count": 5040,
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_mask": 720,
+        "obligation_digest": "c6cb52d773e0b404421af19dea3455680715703d449338afd310d48d7e7c5849",
+        "ok": true,
+        "packet_hash": "363df93fe9c5e943f2f82046f4b07c3ffe4727e655b299dbed99280f28a9e86d",
+        "pattern": "thin_margin_high_out/alternating_large",
+        "reasons": [],
+        "record_count": 1957,
+        "selected_suffix_executable_count": 1957,
+        "singleton_table_obligation_count": 1957
+      },
+      {
+        "bit_count": 2,
+        "case_id": "extended_045_balanced_mid_burst_prefix_n2_fee100",
+        "dominance_check_count": 6,
+        "fee_bps": 100,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "91a62a6b020c016e55b716764e3da42c6fd699885d6a88ba1d081ac0c0521da4",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbe70",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe71"
+            ],
+            "order_short": [
+              "be70",
+              "be71"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 1035,
+            "reserve_out": 281500
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "be70",
+            "be71"
+          ],
+          "processed_reserve_in": 1440,
+          "reserve_out": 203045
+        },
+        "full_runtime_completion_count": 6,
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_mask": 2,
+        "obligation_digest": "59b901d149dbea0463f710d609878bd0444483d1ade7bd8c91fdd69f59d9fe5f",
+        "ok": true,
+        "packet_hash": "d7da0ea7ada04f28e5b1f83bedc55184ed14e8747acf5f25fe3670e14f30a3c6",
+        "pattern": "balanced_mid/burst_prefix",
+        "reasons": [],
+        "record_count": 5,
+        "selected_suffix_executable_count": 5,
+        "singleton_table_obligation_count": 5
+      },
+      {
+        "bit_count": 3,
+        "case_id": "extended_046_low_in_high_out_burst_suffix_n3_fee500",
+        "dominance_check_count": 24,
+        "fee_bps": 500,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "3e9379dcc5cc5fbcad611a6cc78269cac86d129edfc50899d1f335bac5e861ba",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbe80",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe81",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe82"
+            ],
+            "order_short": [
+              "be80",
+              "be81",
+              "be82"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 62,
+            "reserve_out": 585900
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "be82",
+            "be80",
+            "be81"
+          ],
+          "processed_reserve_in": 499,
+          "reserve_out": 76725
+        },
+        "full_runtime_completion_count": 24,
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_mask": 6,
+        "obligation_digest": "91ec154cf43cd8c4fbe7ac6f55d4252d1e66e26e31f05b410d29c8317405ef69",
+        "ok": true,
+        "packet_hash": "737b0f477a606481f297a56b9e901d1aef9138124dd1177d2181c18eea777a7b",
+        "pattern": "low_in_high_out/burst_suffix",
+        "reasons": [],
+        "record_count": 16,
+        "selected_suffix_executable_count": 16,
+        "singleton_table_obligation_count": 16
+      },
+      {
+        "bit_count": 4,
+        "case_id": "extended_047_near_domain_reserve_in_powers_n4_fee2500",
+        "dominance_check_count": 120,
+        "fee_bps": 2500,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "b161b8969cda973c37566492ee6caac976db9ff1e75a28ad3af0b8772aa7b3a0",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbe90",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe91",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe92",
+              "0x00000000000000000000000000000000000000000000000000000000000dbe93"
+            ],
+            "order_short": [
+              "be90",
+              "be91",
+              "be92",
+              "be93"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2999997683,
+            "reserve_out": 2850000000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "be90",
+            "be91",
+            "be92",
+            "be93"
+          ],
+          "processed_reserve_in": 2999997953,
+          "reserve_out": 2849999810
+        },
+        "full_runtime_completion_count": 120,
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_mask": 24,
+        "obligation_digest": "78a9f7e87158b980929564fd916e2d12bf268200be727c3d4a90f2766f64c7d0",
+        "ok": true,
+        "packet_hash": "53c195e70b1d48af06efd1a4b94a45ae5cec1f13158096d541ce0678e9d9b1e4",
+        "pattern": "near_domain_reserve_in/powers",
+        "reasons": [],
+        "record_count": 65,
+        "selected_suffix_executable_count": 65,
+        "singleton_table_obligation_count": 65
+      },
+      {
+        "bit_count": 5,
+        "case_id": "extended_048_tight_out_positive_prime_steps_n5_fee5000",
+        "dominance_check_count": 720,
+        "fee_bps": 5000,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "3e4775949a2e2eb1bfa5cae8fea6233b066386ab91134606ed8d67672a422980",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbea0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbea1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbea2",
+              "0x00000000000000000000000000000000000000000000000000000000000dbea3",
+              "0x00000000000000000000000000000000000000000000000000000000000dbea4"
+            ],
+            "order_short": [
+              "bea0",
+              "bea1",
+              "bea2",
+              "bea3",
+              "bea4"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 748,
+            "reserve_out": 18895
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bea0",
+            "bea4",
+            "bea1",
+            "bea3",
+            "bea2"
+          ],
+          "processed_reserve_in": 935,
+          "reserve_out": 16930
+        },
+        "full_runtime_completion_count": 720,
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_mask": 120,
+        "obligation_digest": "48a88fb1824920343fbdfa3848141a23b508dc8edd2de796004360c0d2ad170f",
+        "ok": true,
+        "packet_hash": "cb8d77f059c1f6cef3430ed8d7e935aa8c1ff722594b995233a10bcbce2f002e",
+        "pattern": "tight_out_positive/prime_steps",
+        "reasons": [],
+        "record_count": 326,
+        "selected_suffix_executable_count": 326,
+        "singleton_table_obligation_count": 326
+      },
+      {
+        "bit_count": 6,
+        "case_id": "extended_049_huge_out_high_fee_safe_n6_fee9000",
+        "dominance_check_count": 5040,
+        "fee_bps": 9000,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "98d2d3390cdb93ead21b9da9018c97397c40e8f3345af2520b9194c8127bf929",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbeb0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbeb1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbeb2",
+              "0x00000000000000000000000000000000000000000000000000000000000dbeb3",
+              "0x00000000000000000000000000000000000000000000000000000000000dbeb4",
+              "0x00000000000000000000000000000000000000000000000000000000000dbeb5"
+            ],
+            "order_short": [
+              "beb0",
+              "beb1",
+              "beb2",
+              "beb3",
+              "beb4",
+              "beb5"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2245,
+            "reserve_out": 2899995247
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "beb5",
+            "beb4",
+            "beb3",
+            "beb2",
+            "beb1",
+            "beb0"
+          ],
+          "processed_reserve_in": 2890,
+          "reserve_out": 2827826944
+        },
+        "full_runtime_completion_count": 5040,
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_mask": 720,
+        "obligation_digest": "9e2b0064752d7510e403855d5d92315a6c17174c5a2f1b81030cb75019e49f7e",
+        "ok": true,
+        "packet_hash": "047338c0f20c5f5e79a7e58b712322ffa84066fbd12d3248ee5d8bc54e1aa3c4",
+        "pattern": "huge_out/high_fee_safe",
+        "reasons": [],
+        "record_count": 1957,
+        "selected_suffix_executable_count": 1957,
+        "singleton_table_obligation_count": 1957
+      },
+      {
+        "bit_count": 2,
+        "case_id": "extended_050_skewed_in_tie_heavy_flat_n2_fee0",
+        "dominance_check_count": 6,
+        "fee_bps": 0,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "427a6041b1a1d5a75020f8f37c0042e3f0ac4264d4166f409a4fd557b388d3cd",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbec0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbec1"
+            ],
+            "order_short": [
+              "bec0",
+              "bec1"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2010550,
+            "reserve_out": 784000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bec0",
+            "bec1"
+          ],
+          "processed_reserve_in": 2010618,
+          "reserve_out": 783974
+        },
+        "full_runtime_completion_count": 6,
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_mask": 2,
+        "obligation_digest": "5b7ced1e100ae62b9adc320c719bf5faa8bf621dabe05644e379f8bbfc43048e",
+        "ok": true,
+        "packet_hash": "9bb40a898f125d5d3cfbc4742ed99efc3724054260c365cceb1629439a013fba",
+        "pattern": "skewed_in/tie_heavy_flat",
+        "reasons": [],
+        "record_count": 5,
+        "selected_suffix_executable_count": 5,
+        "singleton_table_obligation_count": 5
+      },
+      {
+        "bit_count": 3,
+        "case_id": "extended_051_small_balanced_near_tie_stagger_n3_fee1",
+        "dominance_check_count": 24,
+        "fee_bps": 1,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "67acfd089c6ea62a5732f8d75411967d87e3c4db4c43c662f068aef17dd0dad1",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbed0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbed1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbed2"
+            ],
+            "order_short": [
+              "bed0",
+              "bed1",
+              "bed2"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 185,
+            "reserve_out": 101500
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bed2",
+            "bed1",
+            "bed0"
+          ],
+          "processed_reserve_in": 311,
+          "reserve_out": 61067
+        },
+        "full_runtime_completion_count": 24,
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_mask": 6,
+        "obligation_digest": "ec82a5a0df47a699f579c66ba9b2bb589516faf22c1fdd60c8ac9621b5b0b3db",
+        "ok": true,
+        "packet_hash": "06a58d367a7c2a8c72ed250a2dcf077e6192bc9c600a4dc53417bc5c6939c062",
+        "pattern": "small_balanced/near_tie_stagger",
+        "reasons": [],
+        "record_count": 16,
+        "selected_suffix_executable_count": 16,
+        "singleton_table_obligation_count": 16
+      },
+      {
+        "bit_count": 4,
+        "case_id": "extended_052_deep_balanced_ascending_stair_n4_fee5",
+        "dominance_check_count": 120,
+        "fee_bps": 5,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "48582d14a538c8356364616c8ce047db14b67d808b1bf8f9bd9817d8316f6758",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbee0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbee1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbee2",
+              "0x00000000000000000000000000000000000000000000000000000000000dbee3"
+            ],
+            "order_short": [
+              "bee0",
+              "bee1",
+              "bee2",
+              "bee3"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 1255252,
+            "reserve_out": 1808500
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bee0",
+            "bee1",
+            "bee2",
+            "bee3"
+          ],
+          "processed_reserve_in": 1255422,
+          "reserve_out": 1808263
+        },
+        "full_runtime_completion_count": 120,
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_mask": 24,
+        "obligation_digest": "c248c910a8dfa68891359e4a1df8cbf2a3151624cf41abe77e045c71cc350b1e",
+        "ok": true,
+        "packet_hash": "64394c55aba39de3ed0ef32f6a21720b0fb8d75e42ad7bf11b82b6eece531133",
+        "pattern": "deep_balanced/ascending_stair",
+        "reasons": [],
+        "record_count": 65,
+        "selected_suffix_executable_count": 65,
+        "singleton_table_obligation_count": 65
+      },
+      {
+        "bit_count": 5,
+        "case_id": "extended_053_thin_margin_high_out_descending_stair_n5_fee30",
+        "dominance_check_count": 720,
+        "fee_bps": 30,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "07a474e6b283b2897cef55ce604b37e99b0baf7031e03ddeee8b8e86f3a177d1",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbef0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbef1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbef2",
+              "0x00000000000000000000000000000000000000000000000000000000000dbef3",
+              "0x00000000000000000000000000000000000000000000000000000000000dbef4"
+            ],
+            "order_short": [
+              "bef0",
+              "bef1",
+              "bef2",
+              "bef3",
+              "bef4"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 5689,
+            "reserve_out": 68000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bef0",
+            "bef3",
+            "bef1",
+            "bef4",
+            "bef2"
+          ],
+          "processed_reserve_in": 5989,
+          "reserve_out": 64650
+        },
+        "full_runtime_completion_count": 720,
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_mask": 120,
+        "obligation_digest": "6d68b6399bc796dc743f4c48c760fa60435cf5268d46069935305b26cb7ced7f",
+        "ok": true,
+        "packet_hash": "286fe90b75fbdbe0031986c10556ed313483abadecc5d16c9bb71413fa596df3",
+        "pattern": "thin_margin_high_out/descending_stair",
+        "reasons": [],
+        "record_count": 326,
+        "selected_suffix_executable_count": 326,
+        "singleton_table_obligation_count": 326
+      },
+      {
+        "bit_count": 6,
+        "case_id": "extended_054_balanced_mid_alternating_large_n6_fee75",
+        "dominance_check_count": 5040,
+        "fee_bps": 75,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "cbf59bfbb654450f0e5119aba2caef1296b2d245ca9e72ae083fd3369669f45b",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbf00",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf01",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf02",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf03",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf04",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf05"
+            ],
+            "order_short": [
+              "bf00",
+              "bf01",
+              "bf02",
+              "bf03",
+              "bf04",
+              "bf05"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 1062,
+            "reserve_out": 358900
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bf01",
+            "bf03",
+            "bf05",
+            "bf00",
+            "bf02",
+            "bf04"
+          ],
+          "processed_reserve_in": 1725,
+          "reserve_out": 222282
+        },
+        "full_runtime_completion_count": 5040,
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_mask": 720,
+        "obligation_digest": "868fea0da0cdf4db397e334a32bde197a6852f0a5812512ffbb3e8bc03a4f52a",
+        "ok": true,
+        "packet_hash": "8d2057eb82587893cf59471cfeca94a59d453bc00e8429fa407cd1670f9b5d10",
+        "pattern": "balanced_mid/alternating_large",
+        "reasons": [],
+        "record_count": 1957,
+        "selected_suffix_executable_count": 1957,
+        "singleton_table_obligation_count": 1957
+      },
+      {
+        "bit_count": 2,
+        "case_id": "extended_055_low_in_high_out_burst_prefix_n2_fee100",
+        "dominance_check_count": 6,
+        "fee_bps": 100,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "a4206c77412501dd36aedf0013081012cea81fa3ba7772600c29ff67d002fd39",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbf10",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf11"
+            ],
+            "order_short": [
+              "bf10",
+              "bf11"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 54,
+            "reserve_out": 572600
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bf10",
+            "bf11"
+          ],
+          "processed_reserve_in": 472,
+          "reserve_out": 66252
+        },
+        "full_runtime_completion_count": 6,
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_mask": 2,
+        "obligation_digest": "6381a789ba61e63a20e8fcb70d7fae3116f182674daf371b75cba6c019256115",
+        "ok": true,
+        "packet_hash": "cc701392f4c053515e76895887e84a73448e58ff38b3925a72eb9427a88b088d",
+        "pattern": "low_in_high_out/burst_prefix",
+        "reasons": [],
+        "record_count": 5,
+        "selected_suffix_executable_count": 5,
+        "singleton_table_obligation_count": 5
+      },
+      {
+        "bit_count": 3,
+        "case_id": "extended_056_near_domain_reserve_in_burst_suffix_n3_fee500",
+        "dominance_check_count": 24,
+        "fee_bps": 500,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "47a56edd8996eeb1104660d8e98b4a104ba404626c8d524cb2ffd9cec484b4cd",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbf20",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf21",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf22"
+            ],
+            "order_short": [
+              "bf20",
+              "bf21",
+              "bf22"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2999997505,
+            "reserve_out": 2850000000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bf20",
+            "bf21",
+            "bf22"
+          ],
+          "processed_reserve_in": 2999997944,
+          "reserve_out": 2849999608
+        },
+        "full_runtime_completion_count": 24,
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_mask": 6,
+        "obligation_digest": "401e70773a10a7160f6b2a23455672551845fdfa8ff1fb825e0dc8ae908c6ea1",
+        "ok": true,
+        "packet_hash": "24f3cc5f933dab4269a9c6196bef72443136ff6da8caae8b2ea4bc95dcb2c8a5",
+        "pattern": "near_domain_reserve_in/burst_suffix",
+        "reasons": [],
+        "record_count": 16,
+        "selected_suffix_executable_count": 16,
+        "singleton_table_obligation_count": 16
+      },
+      {
+        "bit_count": 4,
+        "case_id": "extended_057_tight_out_positive_powers_n4_fee2500",
+        "dominance_check_count": 120,
+        "fee_bps": 2500,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "ed6f055479a9b2c429def6fe47af959f5ba926f4b85e15d7c710b038a8c4d321",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbf30",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf31",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf32",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf33"
+            ],
+            "order_short": [
+              "bf30",
+              "bf31",
+              "bf32",
+              "bf33"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 757,
+            "reserve_out": 25950
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bf33",
+            "bf32",
+            "bf31",
+            "bf30"
+          ],
+          "processed_reserve_in": 1027,
+          "reserve_out": 20583
+        },
+        "full_runtime_completion_count": 120,
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_mask": 24,
+        "obligation_digest": "69051269781709adb5828b578f42de8b875aafa4d11580a310d7124b0daf6594",
+        "ok": true,
+        "packet_hash": "189a503c8a291bed94e9c43380b4f7e06d052eff3949a8b9fce05b84eb67c556",
+        "pattern": "tight_out_positive/powers",
+        "reasons": [],
+        "record_count": 65,
+        "selected_suffix_executable_count": 65,
+        "singleton_table_obligation_count": 65
+      },
+      {
+        "bit_count": 5,
+        "case_id": "extended_058_huge_out_prime_steps_n5_fee5000",
+        "dominance_check_count": 720,
+        "fee_bps": 5000,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "7e16e6ba9b91eea697f752f244a58223d3dd6c4f1cae8c28086fba542075e492",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbf40",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf41",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf42",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf43",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf44"
+            ],
+            "order_short": [
+              "bf40",
+              "bf41",
+              "bf42",
+              "bf43",
+              "bf44"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2290,
+            "reserve_out": 2899994374
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bf44",
+            "bf43",
+            "bf42",
+            "bf41",
+            "bf40"
+          ],
+          "processed_reserve_in": 2477,
+          "reserve_out": 2790847717
+        },
+        "full_runtime_completion_count": 720,
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_mask": 120,
+        "obligation_digest": "0e20ae7aa7286a0ecf0f29bff7393a92c679e7e93de4699b03824c592fbe38cd",
+        "ok": true,
+        "packet_hash": "304dead2d96e5e95ffd82c16a1631bdce53ce830e04f1bb388ca1ba38948efdd",
+        "pattern": "huge_out/prime_steps",
+        "reasons": [],
+        "record_count": 326,
+        "selected_suffix_executable_count": 326,
+        "singleton_table_obligation_count": 326
+      },
+      {
+        "bit_count": 6,
+        "case_id": "extended_059_skewed_in_high_fee_safe_n6_fee9000",
+        "dominance_check_count": 5040,
+        "fee_bps": 9000,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "5d513f50b22c62febb530717a5796be81ebedfa95063b3d010d000fc8aa3dba1",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbf50",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf51",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf52",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf53",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf54",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf55"
+            ],
+            "order_short": [
+              "bf50",
+              "bf51",
+              "bf52",
+              "bf53",
+              "bf54",
+              "bf55"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2012449,
+            "reserve_out": 1069500
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bf50",
+            "bf51",
+            "bf52",
+            "bf53",
+            "bf54",
+            "bf55"
+          ],
+          "processed_reserve_in": 2013088,
+          "reserve_out": 1069470
+        },
+        "full_runtime_completion_count": 5040,
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_mask": 720,
+        "obligation_digest": "e46414181129a95e67c91bd0ed1e0a00c80cf39c884747553d3bf955efec2802",
+        "ok": true,
+        "packet_hash": "6acf3e633ab31ab61dd46ed93446ee4d1dd2cc4e34fd55ad008561e47d9f8633",
+        "pattern": "skewed_in/high_fee_safe",
+        "reasons": [],
+        "record_count": 1957,
+        "selected_suffix_executable_count": 1957,
+        "singleton_table_obligation_count": 1957
+      },
+      {
+        "bit_count": 2,
+        "case_id": "extended_060_small_balanced_tie_heavy_flat_n2_fee0",
+        "dominance_check_count": 6,
+        "fee_bps": 0,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "a5ca434019c337793b435922007cc3c7f1c597fbf0a4cec7e028c4cac1ee0f63",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbf60",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf61"
+            ],
+            "order_short": [
+              "bf60",
+              "bf61"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 194,
+            "reserve_out": 86000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bf60",
+            "bf61"
+          ],
+          "processed_reserve_in": 258,
+          "reserve_out": 64668
+        },
+        "full_runtime_completion_count": 6,
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_mask": 2,
+        "obligation_digest": "758f137ade9f40f688e7e687206292ccdb2b0b988aed5d80d031317b140a2e34",
+        "ok": true,
+        "packet_hash": "c60e8fe500b089155e32e130c45eb4a67d0cbba10d45807ec55905d3065fe1b0",
+        "pattern": "small_balanced/tie_heavy_flat",
+        "reasons": [],
+        "record_count": 5,
+        "selected_suffix_executable_count": 5,
+        "singleton_table_obligation_count": 5
+      },
+      {
+        "bit_count": 3,
+        "case_id": "extended_061_deep_balanced_near_tie_stagger_n3_fee1",
+        "dominance_check_count": 24,
+        "fee_bps": 1,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "f2120353310b6cc97c56867d019f4c27dd98a915560e318f123339835bf44728",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbf70",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf71",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf72"
+            ],
+            "order_short": [
+              "bf70",
+              "bf71",
+              "bf72"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 1256161,
+            "reserve_out": 1806300
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bf70",
+            "bf71",
+            "bf72"
+          ],
+          "processed_reserve_in": 1256287,
+          "reserve_out": 1806125
+        },
+        "full_runtime_completion_count": 24,
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_mask": 6,
+        "obligation_digest": "c2a11894f5f484d366dd2a1875b8be3f5fc1048ccfbfc0a72794b563b587342a",
+        "ok": true,
+        "packet_hash": "2b45464c74b8c0977ef50238c61fdcba1c41be3e2585a8989ef0d06c65255ea3",
+        "pattern": "deep_balanced/near_tie_stagger",
+        "reasons": [],
+        "record_count": 16,
+        "selected_suffix_executable_count": 16,
+        "singleton_table_obligation_count": 16
+      },
+      {
+        "bit_count": 4,
+        "case_id": "extended_062_thin_margin_high_out_ascending_stair_n4_fee5",
+        "dominance_check_count": 120,
+        "fee_bps": 5,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "5e7c2b5c0f95e3e9c9c8f707b68049461d1b80c7bc085239a2956b0c61d55769",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbf80",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf81",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf82",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf83"
+            ],
+            "order_short": [
+              "bf80",
+              "bf81",
+              "bf82",
+              "bf83"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 5806,
+            "reserve_out": 53700
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bf80",
+            "bf81",
+            "bf82",
+            "bf83"
+          ],
+          "processed_reserve_in": 5976,
+          "reserve_out": 52209
+        },
+        "full_runtime_completion_count": 120,
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_mask": 24,
+        "obligation_digest": "3928ede3a555132efa53205271630a3e588c9a88a72b865a3cfdc14b9ea4c988",
+        "ok": true,
+        "packet_hash": "1253a3b014a573ba0211d19d687b56371ba5e7593b5a0df162bdd2302537e848",
+        "pattern": "thin_margin_high_out/ascending_stair",
+        "reasons": [],
+        "record_count": 65,
+        "selected_suffix_executable_count": 65,
+        "singleton_table_obligation_count": 65
+      },
+      {
+        "bit_count": 5,
+        "case_id": "extended_063_balanced_mid_descending_stair_n5_fee30",
+        "dominance_check_count": 720,
+        "fee_bps": 30,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "9cfcbd5e7b83ed9ad76ec5df275df31852c1f91279b6de666d54707b803d48dd",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbf90",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf91",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf92",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf93",
+              "0x00000000000000000000000000000000000000000000000000000000000dbf94"
+            ],
+            "order_short": [
+              "bf90",
+              "bf91",
+              "bf92",
+              "bf93",
+              "bf94"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 1089,
+            "reserve_out": 250000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bf90",
+            "bf91",
+            "bf92",
+            "bf93",
+            "bf94"
+          ],
+          "processed_reserve_in": 1389,
+          "reserve_out": 196771
+        },
+        "full_runtime_completion_count": 720,
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_mask": 120,
+        "obligation_digest": "4efe7120d65ca384dc904c6486e2188066e2ae9c437bb8c508f74987e31b18c2",
+        "ok": true,
+        "packet_hash": "08a7da602c83ff88ffeb356a9714fed98e39f28cf7b3646da20f6c93da1dfbe5",
+        "pattern": "balanced_mid/descending_stair",
+        "reasons": [],
+        "record_count": 326,
+        "selected_suffix_executable_count": 326,
+        "singleton_table_obligation_count": 326
+      },
+      {
+        "bit_count": 6,
+        "case_id": "extended_064_low_in_high_out_alternating_large_n6_fee75",
+        "dominance_check_count": 5040,
+        "fee_bps": 75,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "6e5694049a662113565601473c0dbd4614697bd1e8cf5d2cfaa06d0075b70cd3",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbfa0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbfa1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbfa2",
+              "0x00000000000000000000000000000000000000000000000000000000000dbfa3",
+              "0x00000000000000000000000000000000000000000000000000000000000dbfa4",
+              "0x00000000000000000000000000000000000000000000000000000000000dbfa5"
+            ],
+            "order_short": [
+              "bfa0",
+              "bfa1",
+              "bfa2",
+              "bfa3",
+              "bfa4",
+              "bfa5"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 63,
+            "reserve_out": 765100
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bfa1",
+            "bfa3",
+            "bfa5",
+            "bfa0",
+            "bfa2",
+            "bfa4"
+          ],
+          "processed_reserve_in": 756,
+          "reserve_out": 64979
+        },
+        "full_runtime_completion_count": 5040,
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_mask": 720,
+        "obligation_digest": "7c2350c873c79b960939bae633a8b07e41ae9675bfd9db3cf7e3054d83547bd6",
+        "ok": true,
+        "packet_hash": "d3cecb9a9ab7f803c5b0a12a11e8de2da550419c2a0abd2125a12172fdfa0e70",
+        "pattern": "low_in_high_out/alternating_large",
+        "reasons": [],
+        "record_count": 1957,
+        "selected_suffix_executable_count": 1957,
+        "singleton_table_obligation_count": 1957
+      },
+      {
+        "bit_count": 2,
+        "case_id": "extended_065_near_domain_reserve_in_burst_prefix_n2_fee100",
+        "dominance_check_count": 6,
+        "fee_bps": 100,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "2ff918afee055c1044abca723dd96353b28a896d8c5c33833d3818d9b13451a2",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbfb0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbfb1"
+            ],
+            "order_short": [
+              "bfb0",
+              "bfb1"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2999997540,
+            "reserve_out": 2850000000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bfb0",
+            "bfb1"
+          ],
+          "processed_reserve_in": 2999997935,
+          "reserve_out": 2849999631
+        },
+        "full_runtime_completion_count": 6,
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_mask": 2,
+        "obligation_digest": "517394a5404f0f50c7b37227cefb6a2958e4ece80d7caeb516fe57bf7a941005",
+        "ok": true,
+        "packet_hash": "ccd83c91217014181ae560606c1da47d22409ea6e2750fa4006c680e377a069c",
+        "pattern": "near_domain_reserve_in/burst_prefix",
+        "reasons": [],
+        "record_count": 5,
+        "selected_suffix_executable_count": 5,
+        "singleton_table_obligation_count": 5
+      },
+      {
+        "bit_count": 3,
+        "case_id": "extended_066_tight_out_positive_burst_suffix_n3_fee500",
+        "dominance_check_count": 24,
+        "fee_bps": 500,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "a6980ab556ecc196d027434b736dc5a826337c1dcb67bb4b321425f638103dc2",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbfc0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbfc1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbfc2"
+            ],
+            "order_short": [
+              "bfc0",
+              "bfc1",
+              "bfc2"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 766,
+            "reserve_out": 39210
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bfc2",
+            "bfc0",
+            "bfc1"
+          ],
+          "processed_reserve_in": 1192,
+          "reserve_out": 25716
+        },
+        "full_runtime_completion_count": 24,
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_mask": 6,
+        "obligation_digest": "74d6100c6199673e8c45e9c13a7245619223ed5bb16c0902649ae5ae70fbd6ea",
+        "ok": true,
+        "packet_hash": "413492f782c04068113c5fe7b9bf02d681b8527d98e9c750f3c94d70d3e7dd29",
+        "pattern": "tight_out_positive/burst_suffix",
+        "reasons": [],
+        "record_count": 16,
+        "selected_suffix_executable_count": 16,
+        "singleton_table_obligation_count": 16
+      },
+      {
+        "bit_count": 4,
+        "case_id": "extended_067_huge_out_powers_n4_fee2500",
+        "dominance_check_count": 120,
+        "fee_bps": 2500,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "c863e0f348418361fc766d39354d580dd7baebd373933bf732b0603971c44854",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbfd0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbfd1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbfd2",
+              "0x00000000000000000000000000000000000000000000000000000000000dbfd3"
+            ],
+            "order_short": [
+              "bfd0",
+              "bfd1",
+              "bfd2",
+              "bfd3"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2335,
+            "reserve_out": 2899993501
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bfd3",
+            "bfd2",
+            "bfd1",
+            "bfd0"
+          ],
+          "processed_reserve_in": 2605,
+          "reserve_out": 2670867886
+        },
+        "full_runtime_completion_count": 120,
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_mask": 24,
+        "obligation_digest": "46be9b4e92b264d56862ec59cdb6c29b35666cac644ca7b009f49a2af29aa582",
+        "ok": true,
+        "packet_hash": "c8146b52178346000621853eec6c07f858a170602ff6b1a1a45c1ce57268e708",
+        "pattern": "huge_out/powers",
+        "reasons": [],
+        "record_count": 65,
+        "selected_suffix_executable_count": 65,
+        "singleton_table_obligation_count": 65
+      },
+      {
+        "bit_count": 5,
+        "case_id": "extended_068_skewed_in_prime_steps_n5_fee5000",
+        "dominance_check_count": 720,
+        "fee_bps": 5000,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "611a77c36e828b8340200903ba365e8cf927845be4750aab9c8870f0ef046da1",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbfe0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbfe1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbfe2",
+              "0x00000000000000000000000000000000000000000000000000000000000dbfe3",
+              "0x00000000000000000000000000000000000000000000000000000000000dbfe4"
+            ],
+            "order_short": [
+              "bfe0",
+              "bfe1",
+              "bfe2",
+              "bfe3",
+              "bfe4"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2014348,
+            "reserve_out": 843500
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bfe0",
+            "bfe1",
+            "bfe2",
+            "bfe3",
+            "bfe4"
+          ],
+          "processed_reserve_in": 2014535,
+          "reserve_out": 843465
+        },
+        "full_runtime_completion_count": 720,
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_mask": 120,
+        "obligation_digest": "0e0bc82827bd9ec7c77e42399e996e8aa27eab1f96f60a2be71cfb2e3aca3c06",
+        "ok": true,
+        "packet_hash": "97ea9aad0b887c117049d7acec2765bf74e7ffd8e7b8910d57cf338b1e918923",
+        "pattern": "skewed_in/prime_steps",
+        "reasons": [],
+        "record_count": 326,
+        "selected_suffix_executable_count": 326,
+        "singleton_table_obligation_count": 326
+      },
+      {
+        "bit_count": 6,
+        "case_id": "extended_069_small_balanced_high_fee_safe_n6_fee9000",
+        "dominance_check_count": 5040,
+        "fee_bps": 9000,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "4e7320bf863a498c2b002f2adeae672dbc0de59fea9c5736d05f673953562a0b",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dbff0",
+              "0x00000000000000000000000000000000000000000000000000000000000dbff1",
+              "0x00000000000000000000000000000000000000000000000000000000000dbff2",
+              "0x00000000000000000000000000000000000000000000000000000000000dbff3",
+              "0x00000000000000000000000000000000000000000000000000000000000dbff4",
+              "0x00000000000000000000000000000000000000000000000000000000000dbff5"
+            ],
+            "order_short": [
+              "bff0",
+              "bff1",
+              "bff2",
+              "bff3",
+              "bff4",
+              "bff5"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 180,
+            "reserve_out": 228250
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "bff3",
+            "bff5",
+            "bff2",
+            "bff1",
+            "bff4",
+            "bff0"
+          ],
+          "processed_reserve_in": 813,
+          "reserve_out": 192677
+        },
+        "full_runtime_completion_count": 5040,
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_mask": 720,
+        "obligation_digest": "3c61ff252dc34d5f4d29954184ba793d6ecf10ae24935a329180dda58cf080e3",
+        "ok": true,
+        "packet_hash": "b4eebfe8444e7e05a06b509f9745483568c22c9052e8b6691feabc8323475014",
+        "pattern": "small_balanced/high_fee_safe",
+        "reasons": [],
+        "record_count": 1957,
+        "selected_suffix_executable_count": 1957,
+        "singleton_table_obligation_count": 1957
+      },
+      {
+        "bit_count": 2,
+        "case_id": "extended_070_deep_balanced_tie_heavy_flat_n2_fee0",
+        "dominance_check_count": 6,
+        "fee_bps": 0,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "9513265ba9b3a807d06ee31617590d1ef79e24d30252adf77743823ca585b0f8",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc000",
+              "0x00000000000000000000000000000000000000000000000000000000000dc001"
+            ],
+            "order_short": [
+              "c000",
+              "c001"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 1257070,
+            "reserve_out": 1803300
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c000",
+            "c001"
+          ],
+          "processed_reserve_in": 1257136,
+          "reserve_out": 1803206
+        },
+        "full_runtime_completion_count": 6,
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_mask": 2,
+        "obligation_digest": "33ec9f8bcba72644a16a17ef203d738d9ff16802ffa4af2dc459bc81a7d7483c",
+        "ok": true,
+        "packet_hash": "d2899dbe365b488d6af552dce1a5aeece52037d96ad548dcb7e93853ee30b365",
+        "pattern": "deep_balanced/tie_heavy_flat",
+        "reasons": [],
+        "record_count": 5,
+        "selected_suffix_executable_count": 5,
+        "singleton_table_obligation_count": 5
+      },
+      {
+        "bit_count": 3,
+        "case_id": "extended_071_thin_margin_high_out_near_tie_stagger_n3_fee1",
+        "dominance_check_count": 24,
+        "fee_bps": 1,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "41f4de071c8d67c4985cca99d49e116e6872627eeb42867e7ec81e6315fb98b3",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc010",
+              "0x00000000000000000000000000000000000000000000000000000000000dc011",
+              "0x00000000000000000000000000000000000000000000000000000000000dc012"
+            ],
+            "order_short": [
+              "c010",
+              "c011",
+              "c012"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 5923,
+            "reserve_out": 48860
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c010",
+            "c011",
+            "c012"
+          ],
+          "processed_reserve_in": 6049,
+          "reserve_out": 47867
+        },
+        "full_runtime_completion_count": 24,
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_mask": 6,
+        "obligation_digest": "f875d265842dc4ba60c2a67b20945b6cb20721ff75222c44cc984d18aac6f369",
+        "ok": true,
+        "packet_hash": "c136ba19d03a01749fa0471bb87ff5ed04314c3ca179eaf28931a00088b1e6ec",
+        "pattern": "thin_margin_high_out/near_tie_stagger",
+        "reasons": [],
+        "record_count": 16,
+        "selected_suffix_executable_count": 16,
+        "singleton_table_obligation_count": 16
+      },
+      {
+        "bit_count": 4,
+        "case_id": "extended_072_balanced_mid_ascending_stair_n4_fee5",
+        "dominance_check_count": 120,
+        "fee_bps": 5,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "2578fc481d571bae9ebd8d630fd21931300021991d7ba226e2b40fbed35f01d6",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc020",
+              "0x00000000000000000000000000000000000000000000000000000000000dc021",
+              "0x00000000000000000000000000000000000000000000000000000000000dc022",
+              "0x00000000000000000000000000000000000000000000000000000000000dc023"
+            ],
+            "order_short": [
+              "c020",
+              "c021",
+              "c022",
+              "c023"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 1116,
+            "reserve_out": 211000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c023",
+            "c022",
+            "c021",
+            "c020"
+          ],
+          "processed_reserve_in": 1286,
+          "reserve_out": 183704
+        },
+        "full_runtime_completion_count": 120,
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_mask": 24,
+        "obligation_digest": "cfc32026a3f74aa4b1dbf167237b9b5a5102c4eafca784d72c8371e6f9dd6987",
+        "ok": true,
+        "packet_hash": "75bd002821f46777f640af6d6dfbfd38b823f90ccf3c4e7588d6311e9a0aa39a",
+        "pattern": "balanced_mid/ascending_stair",
+        "reasons": [],
+        "record_count": 65,
+        "selected_suffix_executable_count": 65,
+        "singleton_table_obligation_count": 65
+      },
+      {
+        "bit_count": 5,
+        "case_id": "extended_073_low_in_high_out_descending_stair_n5_fee30",
+        "dominance_check_count": 720,
+        "fee_bps": 30,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "f7d506557fbceb3aaa373f57d8155fb79803568e7baedb5ae4aeab24981037ec",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc030",
+              "0x00000000000000000000000000000000000000000000000000000000000dc031",
+              "0x00000000000000000000000000000000000000000000000000000000000dc032",
+              "0x00000000000000000000000000000000000000000000000000000000000dc033",
+              "0x00000000000000000000000000000000000000000000000000000000000dc034"
+            ],
+            "order_short": [
+              "c030",
+              "c031",
+              "c032",
+              "c033",
+              "c034"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 55,
+            "reserve_out": 490000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c030",
+            "c031",
+            "c032",
+            "c033",
+            "c034"
+          ],
+          "processed_reserve_in": 355,
+          "reserve_out": 77596
+        },
+        "full_runtime_completion_count": 720,
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_mask": 120,
+        "obligation_digest": "b02566277d4a7affd4f2773a6767415dcb57d95f4166062b2162a0fd4849e2cc",
+        "ok": true,
+        "packet_hash": "7e4e405c53550848dd4f9a95433aafe2e49c7b0a43a5d898c6061f35008e8405",
+        "pattern": "low_in_high_out/descending_stair",
+        "reasons": [],
+        "record_count": 326,
+        "selected_suffix_executable_count": 326,
+        "singleton_table_obligation_count": 326
+      },
+      {
+        "bit_count": 6,
+        "case_id": "extended_074_near_domain_reserve_in_alternating_large_n6_fee75",
+        "dominance_check_count": 5040,
+        "fee_bps": 75,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "1a573b007cbc82d94c8051194c4c3966b4022b64c2034ace81a42d7023e22cd9",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc040",
+              "0x00000000000000000000000000000000000000000000000000000000000dc041",
+              "0x00000000000000000000000000000000000000000000000000000000000dc042",
+              "0x00000000000000000000000000000000000000000000000000000000000dc043",
+              "0x00000000000000000000000000000000000000000000000000000000000dc044",
+              "0x00000000000000000000000000000000000000000000000000000000000dc045"
+            ],
+            "order_short": [
+              "c040",
+              "c041",
+              "c042",
+              "c043",
+              "c044",
+              "c045"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2999997254,
+            "reserve_out": 2850000000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c040",
+            "c041",
+            "c042",
+            "c043",
+            "c044",
+            "c045"
+          ],
+          "processed_reserve_in": 2999997926,
+          "reserve_out": 2849999373
+        },
+        "full_runtime_completion_count": 5040,
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_mask": 720,
+        "obligation_digest": "2db04146a8dade4cf52d418161ca10f3198f738b87ace5db798b15776d4f5677",
+        "ok": true,
+        "packet_hash": "2785eff2d2868f371b76fe4385f59eb9dbd19ff57f09700a5120275d2b63179f",
+        "pattern": "near_domain_reserve_in/alternating_large",
+        "reasons": [],
+        "record_count": 1957,
+        "selected_suffix_executable_count": 1957,
+        "singleton_table_obligation_count": 1957
+      },
+      {
+        "bit_count": 2,
+        "case_id": "extended_075_tight_out_positive_burst_prefix_n2_fee100",
+        "dominance_check_count": 6,
+        "fee_bps": 100,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "1a9ebf1cc722f32a9c5c145c017caabba4f1e9892b92a490d02d89c6b3c8c59d",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc050",
+              "0x00000000000000000000000000000000000000000000000000000000000dc051"
+            ],
+            "order_short": [
+              "c050",
+              "c051"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 775,
+            "reserve_out": 37680
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c050",
+            "c051"
+          ],
+          "processed_reserve_in": 1183,
+          "reserve_out": 24793
+        },
+        "full_runtime_completion_count": 6,
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_mask": 2,
+        "obligation_digest": "b68296222ee36a03944733c1664c0bd58e10923874f7f2966cd398404b9979ca",
+        "ok": true,
+        "packet_hash": "6f4fdaae93b4b2e60a79ef7c138dc518b5916b17a7306c3b35ce087e0be8c1f8",
+        "pattern": "tight_out_positive/burst_prefix",
+        "reasons": [],
+        "record_count": 5,
+        "selected_suffix_executable_count": 5,
+        "singleton_table_obligation_count": 5
+      },
+      {
+        "bit_count": 3,
+        "case_id": "extended_076_huge_out_burst_suffix_n3_fee500",
+        "dominance_check_count": 24,
+        "fee_bps": 500,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "a7831146e47a88871ae263523984ce4b13b206a0888f328abc0ecfafeb95f686",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc060",
+              "0x00000000000000000000000000000000000000000000000000000000000dc061",
+              "0x00000000000000000000000000000000000000000000000000000000000dc062"
+            ],
+            "order_short": [
+              "c060",
+              "c061",
+              "c062"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2380,
+            "reserve_out": 2899992628
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c062",
+            "c060",
+            "c061"
+          ],
+          "processed_reserve_in": 2822,
+          "reserve_out": 2466257428
+        },
+        "full_runtime_completion_count": 24,
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_mask": 6,
+        "obligation_digest": "107653e4d2e8538be15c4178c3950eb12692b90653f60531eaa3a52055668be2",
+        "ok": true,
+        "packet_hash": "97537c8eb5ababae71285b3bb9f955d14dc13a62ca3b6d31a6324b5fb6b7c039",
+        "pattern": "huge_out/burst_suffix",
+        "reasons": [],
+        "record_count": 16,
+        "selected_suffix_executable_count": 16,
+        "singleton_table_obligation_count": 16
+      },
+      {
+        "bit_count": 4,
+        "case_id": "extended_077_skewed_in_powers_n4_fee2500",
+        "dominance_check_count": 120,
+        "fee_bps": 2500,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "f2de47611c33d9ad4243a685b771656754aa1d1fdb2af15d907109bd33bce2a7",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc070",
+              "0x00000000000000000000000000000000000000000000000000000000000dc071",
+              "0x00000000000000000000000000000000000000000000000000000000000dc072",
+              "0x00000000000000000000000000000000000000000000000000000000000dc073"
+            ],
+            "order_short": [
+              "c070",
+              "c071",
+              "c072",
+              "c073"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2016247,
+            "reserve_out": 885000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c070",
+            "c071",
+            "c072",
+            "c073"
+          ],
+          "processed_reserve_in": 2016517,
+          "reserve_out": 884914
+        },
+        "full_runtime_completion_count": 120,
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_mask": 24,
+        "obligation_digest": "165720670bce52a3afe8c60f32ae0fbe4be2b4c864082ebe588527e163a774e6",
+        "ok": true,
+        "packet_hash": "0284f7a02affd3af599f65862e7f8782ff4bdbf392a038f45ae00c72c1066c09",
+        "pattern": "skewed_in/powers",
+        "reasons": [],
+        "record_count": 65,
+        "selected_suffix_executable_count": 65,
+        "singleton_table_obligation_count": 65
+      },
+      {
+        "bit_count": 5,
+        "case_id": "extended_078_small_balanced_prime_steps_n5_fee5000",
+        "dominance_check_count": 720,
+        "fee_bps": 5000,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "df8d688031764ead0b2ad026212b922ba26ff5f4bd638be437ae149c8cacc618",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc080",
+              "0x00000000000000000000000000000000000000000000000000000000000dc081",
+              "0x00000000000000000000000000000000000000000000000000000000000dc082",
+              "0x00000000000000000000000000000000000000000000000000000000000dc083",
+              "0x00000000000000000000000000000000000000000000000000000000000dc084"
+            ],
+            "order_short": [
+              "c080",
+              "c081",
+              "c082",
+              "c083",
+              "c084"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 189,
+            "reserve_out": 116750
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c084",
+            "c083",
+            "c082",
+            "c081",
+            "c080"
+          ],
+          "processed_reserve_in": 376,
+          "reserve_out": 82396
+        },
+        "full_runtime_completion_count": 720,
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_mask": 120,
+        "obligation_digest": "267ee5cc15494a4e6b691ea37bef17ae5498fd2b438d1404cc1c84bb3a7d7e02",
+        "ok": true,
+        "packet_hash": "f45f5bd6f88439d3889187dddf22d086c65ef671c057355975101166f270f3cd",
+        "pattern": "small_balanced/prime_steps",
+        "reasons": [],
+        "record_count": 326,
+        "selected_suffix_executable_count": 326,
+        "singleton_table_obligation_count": 326
+      },
+      {
+        "bit_count": 6,
+        "case_id": "extended_079_deep_balanced_high_fee_safe_n6_fee9000",
+        "dominance_check_count": 5040,
+        "fee_bps": 9000,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "3927ad7647c28cf57ab91b07466a3736f489209158be845c38a48966579ad004",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc090",
+              "0x00000000000000000000000000000000000000000000000000000000000dc091",
+              "0x00000000000000000000000000000000000000000000000000000000000dc092",
+              "0x00000000000000000000000000000000000000000000000000000000000dc093",
+              "0x00000000000000000000000000000000000000000000000000000000000dc094",
+              "0x00000000000000000000000000000000000000000000000000000000000dc095"
+            ],
+            "order_short": [
+              "c090",
+              "c091",
+              "c092",
+              "c093",
+              "c094",
+              "c095"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 1257979,
+            "reserve_out": 1831350
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c090",
+            "c091",
+            "c092",
+            "c093",
+            "c094",
+            "c095"
+          ],
+          "processed_reserve_in": 1258606,
+          "reserve_out": 1831265
+        },
+        "full_runtime_completion_count": 5040,
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_mask": 720,
+        "obligation_digest": "cf5785ee76fefec0cb7f439b73f69a491feef4eaaa25d3ad379e39f309e0fa34",
+        "ok": true,
+        "packet_hash": "047d93581a3dcec4e2d46dc3cb8693fec814d7f1e88854d558990da1e38e25d2",
+        "pattern": "deep_balanced/high_fee_safe",
+        "reasons": [],
+        "record_count": 1957,
+        "selected_suffix_executable_count": 1957,
+        "singleton_table_obligation_count": 1957
+      },
+      {
+        "bit_count": 2,
+        "case_id": "extended_080_thin_margin_high_out_tie_heavy_flat_n2_fee0",
+        "dominance_check_count": 6,
+        "fee_bps": 0,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "338881ba6c2873a41ceaed5d9b2ea587b932b48f22d29853732cc8e0abe8a5e9",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc0a0",
+              "0x00000000000000000000000000000000000000000000000000000000000dc0a1"
+            ],
+            "order_short": [
+              "c0a0",
+              "c0a1"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 6040,
+            "reserve_out": 42480
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c0a0",
+            "c0a1"
+          ],
+          "processed_reserve_in": 6108,
+          "reserve_out": 42008
+        },
+        "full_runtime_completion_count": 6,
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_mask": 2,
+        "obligation_digest": "9d1d0dcf8c658f4ba2279c94d6036a547394ca96f148d8187052caf12f7f5f15",
+        "ok": true,
+        "packet_hash": "2ccfd2a9dec66040eb6171b406ecd681bb4c182fcc2e00a8356679896ace76c4",
+        "pattern": "thin_margin_high_out/tie_heavy_flat",
+        "reasons": [],
+        "record_count": 5,
+        "selected_suffix_executable_count": 5,
+        "singleton_table_obligation_count": 5
+      },
+      {
+        "bit_count": 3,
+        "case_id": "extended_081_balanced_mid_near_tie_stagger_n3_fee1",
+        "dominance_check_count": 24,
+        "fee_bps": 1,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "b578ab1dbd236c81e32b0accfb4798f4f2eded949e25dac4be8692e2ce40f366",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc0b0",
+              "0x00000000000000000000000000000000000000000000000000000000000dc0b1",
+              "0x00000000000000000000000000000000000000000000000000000000000dc0b2"
+            ],
+            "order_short": [
+              "c0b0",
+              "c0b1",
+              "c0b2"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 1143,
+            "reserve_out": 197800
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c0b0",
+            "c0b1",
+            "c0b2"
+          ],
+          "processed_reserve_in": 1269,
+          "reserve_out": 178598
+        },
+        "full_runtime_completion_count": 24,
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_mask": 6,
+        "obligation_digest": "040a0bb67035e7313b3a60941625cf1ec4b2e7ea8617a6630d09d1b87465fbfa",
+        "ok": true,
+        "packet_hash": "1085d5fb96b9c88d16b978b8dca7aac315121984fbc49877d9a3992c06ecf6b1",
+        "pattern": "balanced_mid/near_tie_stagger",
+        "reasons": [],
+        "record_count": 16,
+        "selected_suffix_executable_count": 16,
+        "singleton_table_obligation_count": 16
+      },
+      {
+        "bit_count": 4,
+        "case_id": "extended_082_low_in_high_out_ascending_stair_n4_fee5",
+        "dominance_check_count": 120,
+        "fee_bps": 5,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "aa579c305d7d1d7a5654ab72d2a4a938b5c34547def6b96f90e9ebd27ef55187",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc0c0",
+              "0x00000000000000000000000000000000000000000000000000000000000dc0c1",
+              "0x00000000000000000000000000000000000000000000000000000000000dc0c2",
+              "0x00000000000000000000000000000000000000000000000000000000000dc0c3"
+            ],
+            "order_short": [
+              "c0c0",
+              "c0c1",
+              "c0c2",
+              "c0c3"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 64,
+            "reserve_out": 399000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c0c3",
+            "c0c2",
+            "c0c1",
+            "c0c0"
+          ],
+          "processed_reserve_in": 234,
+          "reserve_out": 111683
+        },
+        "full_runtime_completion_count": 120,
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_mask": 24,
+        "obligation_digest": "f6efbfb3a430b3199d2c6459b5885d4c1589a3528113fd9e1ac6d8d7a8c683ca",
+        "ok": true,
+        "packet_hash": "76b5352b27e7d5f44c332a3a745e0b1e4d80957b7d51698ce4a1d4c0e6b6b042",
+        "pattern": "low_in_high_out/ascending_stair",
+        "reasons": [],
+        "record_count": 65,
+        "selected_suffix_executable_count": 65,
+        "singleton_table_obligation_count": 65
+      },
+      {
+        "bit_count": 5,
+        "case_id": "extended_083_near_domain_reserve_in_descending_stair_n5_fee30",
+        "dominance_check_count": 720,
+        "fee_bps": 30,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "9cd75d99c9873eaca99980ddc42d03a9c9348c6023a3e70c3d00a262e9a4bcf1",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc0d0",
+              "0x00000000000000000000000000000000000000000000000000000000000dc0d1",
+              "0x00000000000000000000000000000000000000000000000000000000000dc0d2",
+              "0x00000000000000000000000000000000000000000000000000000000000dc0d3",
+              "0x00000000000000000000000000000000000000000000000000000000000dc0d4"
+            ],
+            "order_short": [
+              "c0d0",
+              "c0d1",
+              "c0d2",
+              "c0d3",
+              "c0d4"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2999997617,
+            "reserve_out": 2850000000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c0d0",
+            "c0d1",
+            "c0d2",
+            "c0d3",
+            "c0d4"
+          ],
+          "processed_reserve_in": 2999997917,
+          "reserve_out": 2849999722
+        },
+        "full_runtime_completion_count": 720,
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_mask": 120,
+        "obligation_digest": "3c093771e5d375ad258ce29921eabae2ab567be7054262d7af04e8f47b262c2b",
+        "ok": true,
+        "packet_hash": "0905b790fcf2b98be7b36b9c9026a8dd8bcc27f90b6181807a55ebd14fba1554",
+        "pattern": "near_domain_reserve_in/descending_stair",
+        "reasons": [],
+        "record_count": 326,
+        "selected_suffix_executable_count": 326,
+        "singleton_table_obligation_count": 326
+      },
+      {
+        "bit_count": 6,
+        "case_id": "extended_084_tight_out_positive_alternating_large_n6_fee75",
+        "dominance_check_count": 5040,
+        "fee_bps": 75,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "4db02f1656e92325065589d695b7533c8c603286cd06664a18717403cd078662",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc0e0",
+              "0x00000000000000000000000000000000000000000000000000000000000dc0e1",
+              "0x00000000000000000000000000000000000000000000000000000000000dc0e2",
+              "0x00000000000000000000000000000000000000000000000000000000000dc0e3",
+              "0x00000000000000000000000000000000000000000000000000000000000dc0e4",
+              "0x00000000000000000000000000000000000000000000000000000000000dc0e5"
+            ],
+            "order_short": [
+              "c0e0",
+              "c0e1",
+              "c0e2",
+              "c0e3",
+              "c0e4",
+              "c0e5"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 784,
+            "reserve_out": 62670
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c0e1",
+            "c0e3",
+            "c0e5",
+            "c0e0",
+            "c0e2",
+            "c0e4"
+          ],
+          "processed_reserve_in": 1486,
+          "reserve_out": 33306
+        },
+        "full_runtime_completion_count": 5040,
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_mask": 720,
+        "obligation_digest": "9e33c8b2667f8308206f65f7d98c90dc3996729b4a246aefb8cd35c49eaf7c64",
+        "ok": true,
+        "packet_hash": "965ed2580c1ffcf698ae6860a2f58c8f980998c6582b9b525e7ff94ad45fbee0",
+        "pattern": "tight_out_positive/alternating_large",
+        "reasons": [],
+        "record_count": 1957,
+        "selected_suffix_executable_count": 1957,
+        "singleton_table_obligation_count": 1957
+      },
+      {
+        "bit_count": 2,
+        "case_id": "extended_085_huge_out_burst_prefix_n2_fee100",
+        "dominance_check_count": 6,
+        "fee_bps": 100,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "2309bd26a585376323e04a0bbed0a19730e10e6e378bc3e0ccb3c66d9ef146a5",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc0f0",
+              "0x00000000000000000000000000000000000000000000000000000000000dc0f1"
+            ],
+            "order_short": [
+              "c0f0",
+              "c0f1"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2425,
+            "reserve_out": 2899991755
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c0f0",
+            "c0f1"
+          ],
+          "processed_reserve_in": 2839,
+          "reserve_out": 2481500277
+        },
+        "full_runtime_completion_count": 6,
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_mask": 2,
+        "obligation_digest": "60799154dfbc288dc112061fd0bd0f4e3c21ff0df2de76251c12d5f25a2b2e54",
+        "ok": true,
+        "packet_hash": "c0468ef7238eb4dd42257d20dd4dc6be6e4b114a6157edeee1a82b474ffb9818",
+        "pattern": "huge_out/burst_prefix",
+        "reasons": [],
+        "record_count": 5,
+        "selected_suffix_executable_count": 5,
+        "singleton_table_obligation_count": 5
+      },
+      {
+        "bit_count": 3,
+        "case_id": "extended_086_skewed_in_burst_suffix_n3_fee500",
+        "dominance_check_count": 24,
+        "fee_bps": 500,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "4ea0d48bde3d06ce4d6c9cbe8061fa07bb77a05cf5b6e4b069936e7a0ac40139",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc100",
+              "0x00000000000000000000000000000000000000000000000000000000000dc101",
+              "0x00000000000000000000000000000000000000000000000000000000000dc102"
+            ],
+            "order_short": [
+              "c100",
+              "c101",
+              "c102"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2018146,
+            "reserve_out": 972000
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c100",
+            "c101",
+            "c102"
+          ],
+          "processed_reserve_in": 2018590,
+          "reserve_out": 971799
+        },
+        "full_runtime_completion_count": 24,
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_mask": 6,
+        "obligation_digest": "1f2674aa3b33aad8a4d2e9fa70d1fad00456665a7d12c0f17222683be1ec649e",
+        "ok": true,
+        "packet_hash": "ce7457eb05652f6bf4fbfa464197d4cb3a0de60832c19ecf1ef93985d45be435",
+        "pattern": "skewed_in/burst_suffix",
+        "reasons": [],
+        "record_count": 16,
+        "selected_suffix_executable_count": 16,
+        "singleton_table_obligation_count": 16
+      },
+      {
+        "bit_count": 4,
+        "case_id": "extended_087_small_balanced_powers_n4_fee2500",
+        "dominance_check_count": 120,
+        "fee_bps": 2500,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "c612a19440958f6f36c2a15d58758b04ac65213bed7a96f0943df9953d6bfe70",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc110",
+              "0x00000000000000000000000000000000000000000000000000000000000dc111",
+              "0x00000000000000000000000000000000000000000000000000000000000dc112",
+              "0x00000000000000000000000000000000000000000000000000000000000dc113"
+            ],
+            "order_short": [
+              "c110",
+              "c111",
+              "c112",
+              "c113"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 198,
+            "reserve_out": 137500
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c113",
+            "c112",
+            "c111",
+            "c110"
+          ],
+          "processed_reserve_in": 468,
+          "reserve_out": 70110
+        },
+        "full_runtime_completion_count": 120,
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_mask": 24,
+        "obligation_digest": "300dbb60a5a5a1a4184a9debf0b252e89770cbee19e9d5d7c413bfa978c13acf",
+        "ok": true,
+        "packet_hash": "8dd69699f10f4fe26ce2909fa341976f55382be067d148f20f6eed388e75494d",
+        "pattern": "small_balanced/powers",
+        "reasons": [],
+        "record_count": 65,
+        "selected_suffix_executable_count": 65,
+        "singleton_table_obligation_count": 65
+      },
+      {
+        "bit_count": 5,
+        "case_id": "extended_088_deep_balanced_prime_steps_n5_fee5000",
+        "dominance_check_count": 720,
+        "fee_bps": 5000,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "cb076c217b8039a09cde72249227a23213cda73eb73d271d3e2e2dd061603492",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc120",
+              "0x00000000000000000000000000000000000000000000000000000000000dc121",
+              "0x00000000000000000000000000000000000000000000000000000000000dc122",
+              "0x00000000000000000000000000000000000000000000000000000000000dc123",
+              "0x00000000000000000000000000000000000000000000000000000000000dc124"
+            ],
+            "order_short": [
+              "c120",
+              "c121",
+              "c122",
+              "c123",
+              "c124"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 1258888,
+            "reserve_out": 1809350
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c120",
+            "c121",
+            "c122",
+            "c123",
+            "c124"
+          ],
+          "processed_reserve_in": 1259075,
+          "reserve_out": 1809221
+        },
+        "full_runtime_completion_count": 720,
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_mask": 120,
+        "obligation_digest": "a30b631ac625647ce76829a662b2baf66a45e122dfb0facbca85b65a39c2331c",
+        "ok": true,
+        "packet_hash": "2552455a8a4ab1cc052e336aa4b4712914f2183c186b5e658fd5205d93083414",
+        "pattern": "deep_balanced/prime_steps",
+        "reasons": [],
+        "record_count": 326,
+        "selected_suffix_executable_count": 326,
+        "singleton_table_obligation_count": 326
+      },
+      {
+        "bit_count": 6,
+        "case_id": "extended_089_thin_margin_high_out_high_fee_safe_n6_fee9000",
+        "dominance_check_count": 5040,
+        "fee_bps": 9000,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "c3967aef006d22490b0f0a7d63fb6d77521486e245b822959df9f2ddf27325b3",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000000dc130",
+              "0x00000000000000000000000000000000000000000000000000000000000dc131",
+              "0x00000000000000000000000000000000000000000000000000000000000dc132",
+              "0x00000000000000000000000000000000000000000000000000000000000dc133",
+              "0x00000000000000000000000000000000000000000000000000000000000dc134",
+              "0x00000000000000000000000000000000000000000000000000000000000dc135"
+            ],
+            "order_short": [
+              "c130",
+              "c131",
+              "c132",
+              "c133",
+              "c134",
+              "c135"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 6157,
+            "reserve_out": 103310
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "c130",
+            "c131",
+            "c135",
+            "c132",
+            "c133",
+            "c134"
+          ],
+          "processed_reserve_in": 6778,
+          "reserve_out": 102365
+        },
+        "full_runtime_completion_count": 5040,
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_mask": 720,
+        "obligation_digest": "a6a7671a29b0545eb289369755e1a906b7bcd90c0672334a109d6dcdc097671d",
+        "ok": true,
+        "packet_hash": "dee5c818c1a1dd58f4b7fd8bae0bb70dae9ac970312f7d1a1188c44857547d33",
+        "pattern": "thin_margin_high_out/high_fee_safe",
+        "reasons": [],
+        "record_count": 1957,
+        "selected_suffix_executable_count": 1957,
+        "singleton_table_obligation_count": 1957
+      }
+    ],
+    "coverage": {
+      "fee_bps_counts": {
+        "0": 9,
+        "1": 9,
+        "100": 9,
+        "2500": 9,
+        "30": 9,
+        "5": 9,
+        "500": 9,
+        "5000": 9,
+        "75": 9,
+        "9000": 9
+      },
+      "n_counts": {
+        "2": 18,
+        "3": 18,
+        "4": 18,
+        "5": 18,
+        "6": 18
+      },
+      "pattern_counts": {
+        "balanced_mid/alternating_large": 1,
+        "balanced_mid/ascending_stair": 1,
+        "balanced_mid/burst_prefix": 1,
+        "balanced_mid/burst_suffix": 1,
+        "balanced_mid/descending_stair": 1,
+        "balanced_mid/high_fee_safe": 1,
+        "balanced_mid/near_tie_stagger": 1,
+        "balanced_mid/powers": 1,
+        "balanced_mid/prime_steps": 1,
+        "balanced_mid/tie_heavy_flat": 1,
+        "deep_balanced/alternating_large": 1,
+        "deep_balanced/ascending_stair": 1,
+        "deep_balanced/burst_prefix": 1,
+        "deep_balanced/burst_suffix": 1,
+        "deep_balanced/descending_stair": 1,
+        "deep_balanced/high_fee_safe": 1,
+        "deep_balanced/near_tie_stagger": 1,
+        "deep_balanced/powers": 1,
+        "deep_balanced/prime_steps": 1,
+        "deep_balanced/tie_heavy_flat": 1,
+        "huge_out/alternating_large": 1,
+        "huge_out/ascending_stair": 1,
+        "huge_out/burst_prefix": 1,
+        "huge_out/burst_suffix": 1,
+        "huge_out/descending_stair": 1,
+        "huge_out/high_fee_safe": 1,
+        "huge_out/near_tie_stagger": 1,
+        "huge_out/powers": 1,
+        "huge_out/prime_steps": 1,
+        "huge_out/tie_heavy_flat": 1,
+        "low_in_high_out/alternating_large": 1,
+        "low_in_high_out/ascending_stair": 1,
+        "low_in_high_out/burst_prefix": 1,
+        "low_in_high_out/burst_suffix": 1,
+        "low_in_high_out/descending_stair": 1,
+        "low_in_high_out/high_fee_safe": 1,
+        "low_in_high_out/near_tie_stagger": 1,
+        "low_in_high_out/powers": 1,
+        "low_in_high_out/prime_steps": 1,
+        "low_in_high_out/tie_heavy_flat": 1,
+        "near_domain_reserve_in/alternating_large": 1,
+        "near_domain_reserve_in/ascending_stair": 1,
+        "near_domain_reserve_in/burst_prefix": 1,
+        "near_domain_reserve_in/burst_suffix": 1,
+        "near_domain_reserve_in/descending_stair": 1,
+        "near_domain_reserve_in/high_fee_safe": 1,
+        "near_domain_reserve_in/near_tie_stagger": 1,
+        "near_domain_reserve_in/powers": 1,
+        "near_domain_reserve_in/prime_steps": 1,
+        "near_domain_reserve_in/tie_heavy_flat": 1,
+        "skewed_in/alternating_large": 1,
+        "skewed_in/ascending_stair": 1,
+        "skewed_in/burst_prefix": 1,
+        "skewed_in/burst_suffix": 1,
+        "skewed_in/descending_stair": 1,
+        "skewed_in/high_fee_safe": 1,
+        "skewed_in/near_tie_stagger": 1,
+        "skewed_in/powers": 1,
+        "skewed_in/prime_steps": 1,
+        "skewed_in/tie_heavy_flat": 1,
+        "small_balanced/alternating_large": 1,
+        "small_balanced/ascending_stair": 1,
+        "small_balanced/burst_prefix": 1,
+        "small_balanced/burst_suffix": 1,
+        "small_balanced/descending_stair": 1,
+        "small_balanced/high_fee_safe": 1,
+        "small_balanced/near_tie_stagger": 1,
+        "small_balanced/powers": 1,
+        "small_balanced/prime_steps": 1,
+        "small_balanced/tie_heavy_flat": 1,
+        "thin_margin_high_out/alternating_large": 1,
+        "thin_margin_high_out/ascending_stair": 1,
+        "thin_margin_high_out/burst_prefix": 1,
+        "thin_margin_high_out/burst_suffix": 1,
+        "thin_margin_high_out/descending_stair": 1,
+        "thin_margin_high_out/high_fee_safe": 1,
+        "thin_margin_high_out/near_tie_stagger": 1,
+        "thin_margin_high_out/powers": 1,
+        "thin_margin_high_out/prime_steps": 1,
+        "thin_margin_high_out/tie_heavy_flat": 1,
+        "tight_out_positive/alternating_large": 1,
+        "tight_out_positive/ascending_stair": 1,
+        "tight_out_positive/burst_prefix": 1,
+        "tight_out_positive/burst_suffix": 1,
+        "tight_out_positive/descending_stair": 1,
+        "tight_out_positive/high_fee_safe": 1,
+        "tight_out_positive/near_tie_stagger": 1,
+        "tight_out_positive/powers": 1,
+        "tight_out_positive/prime_steps": 1,
+        "tight_out_positive/tie_heavy_flat": 1
+      }
+    },
+    "dominance_check_count": 106380,
+    "elapsed_ms": 16741.815,
+    "first_case": {
+      "bit_count": 2,
+      "case_id": "extended_000_balanced_mid_tie_heavy_flat_n2_fee0",
+      "dominance_check_count": 6,
+      "fee_bps": 0,
+      "first_failure": null,
+      "first_obligation": {
+        "full_record_count": 1,
+        "full_records_digest": "29dc346a591256ec963a9842df7fa288aa8077dc60efb1f82b1e47a8c0cbe610",
+        "mask_id": 0,
+        "singleton_family": [
+          0
+        ],
+        "suffix": {
+          "order_ids": [
+            "0x00000000000000000000000000000000000000000000000000000000000dbba0",
+            "0x00000000000000000000000000000000000000000000000000000000000dbba1"
+          ],
+          "order_short": [
+            "bba0",
+            "bba1"
+          ]
+        },
+        "winner": {
+          "order_short": [],
+          "processed_reserve_in": 900,
+          "reserve_out": 179200
+        }
+      },
+      "full_mask_selected": {
+        "order_short": [
+          "bba0",
+          "bba1"
+        ],
+        "processed_reserve_in": 964,
+        "reserve_out": 167304
+      },
+      "full_runtime_completion_count": 6,
+      "mask_count": 4,
+      "max_records_per_mask": 2,
+      "max_suffix_per_mask": 2,
+      "obligation_digest": "52d72006d877d71df5a99b2caa3e5202141b33f773d82105924a1e0f49c8a15a",
+      "ok": true,
+      "packet_hash": "e4bab99b828392b5e6ec816af367122e3038c0862ec8fca6d59748793ac87d2b",
+      "pattern": "balanced_mid/tie_heavy_flat",
+      "reasons": [],
+      "record_count": 5,
+      "selected_suffix_executable_count": 5,
+      "singleton_table_obligation_count": 5
+    },
+    "first_invalid_case": null,
+    "full_runtime_completion_count": 106380,
+    "mask_count": 2232,
+    "max_records_per_mask": 720,
+    "max_suffix_per_mask": 720,
+    "record_count": 42642,
+    "schema": "zenodex/ab_strict_zero_min_arbitrary_subset_family_extended_stress_search/v1",
+    "scope_probe_accept_count": 0,
+    "scope_probe_count": 5,
+    "scope_probes": [
+      {
+        "accepted": false,
+        "case_id": "extended_000_balanced_mid_tie_heavy_flat_n2_fee0_nonzero_min_probe",
+        "expected_reason": "nonzero_min_amount_out_out_of_scope",
+        "reason": "nonzero_min_amount_out_out_of_scope"
+      },
+      {
+        "accepted": false,
+        "case_id": "extended_001_low_in_high_out_near_tie_stagger_n3_fee1_nonzero_min_probe",
+        "expected_reason": "nonzero_min_amount_out_out_of_scope",
+        "reason": "nonzero_min_amount_out_out_of_scope"
+      },
+      {
+        "accepted": false,
+        "case_id": "extended_002_near_domain_reserve_in_ascending_stair_n4_fee5_nonzero_min_probe",
+        "expected_reason": "nonzero_min_amount_out_out_of_scope",
+        "reason": "nonzero_min_amount_out_out_of_scope"
+      },
+      {
+        "accepted": false,
+        "case_id": "extended_003_tight_out_positive_descending_stair_n5_fee30_nonzero_min_probe",
+        "expected_reason": "nonzero_min_amount_out_out_of_scope",
+        "reason": "nonzero_min_amount_out_out_of_scope"
+      },
+      {
+        "accepted": false,
+        "case_id": "extended_004_huge_out_alternating_large_n6_fee75_nonzero_min_probe",
+        "expected_reason": "nonzero_min_amount_out_out_of_scope",
+        "reason": "nonzero_min_amount_out_out_of_scope"
+      }
+    ],
+    "seed": 2026062902,
+    "selected_suffix_executable_count": 42642,
+    "singleton_table_obligation_count": 42642,
+    "valid_case_count": 90
+  },
+  "summary": "A broader deterministic falsification corpus found no counterexample to the strict zero-min arbitrary subset-family host certificate across reserve extremes, high fee schedules, tie-heavy inputs, and bursty inputs."
+}
