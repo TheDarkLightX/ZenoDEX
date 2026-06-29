@@ -398,6 +398,22 @@ def suffixTotalOutput
     (suffix : List ExactInStep) : Nat :=
   initialReserveOut - finalReserveOutAfterRecord record suffix
 
+/-- Economic AB key for the strict executable zero-min research surface.
+
+The key intentionally contains only the economic dimensions supported by the
+counterexample-salvage evidence: executed input and zero-min surplus. Canonical
+tie order is outside this key. -/
+structure ZeroMinEconomicKey where
+  executedInput : Nat
+  surplus : Nat
+  deriving Repr, DecidableEq
+
+/-- Candidate key is weakly dominated by winner key in the economic objective. -/
+def zeroMinEconomicKeyDominated
+    (candidate winner : ZeroMinEconomicKey) : Prop :=
+  candidate.executedInput ≤ winner.executedInput ∧
+    candidate.surplus ≤ winner.surplus
+
 /-- DP-level representative dominance.
 
 If two records represent the same processed subset, encoded here as the same
@@ -765,6 +781,21 @@ def bestSelectedSuffixOutputAcrossMasks
     (masks : List MaskRecordSet)
     (suffix : List ExactInStep) : Nat :=
   (masks.map (fun mask => maskSelectedSuffixOutput initialReserveOut mask suffix)).foldl Nat.max 0
+
+/-- Economic key for the selected compressed representative. -/
+def selectedZeroMinEconomicKey
+    (executedInput initialReserveOut : Nat)
+    (winner : MaskRecordSet)
+    (suffix : List ExactInStep) : ZeroMinEconomicKey :=
+  ⟨executedInput, maskSelectedSuffixOutput initialReserveOut winner suffix⟩
+
+/-- Economic key for the best full-state child frontier under a fixed executed
+input component. -/
+def fullFrontierZeroMinEconomicKey
+    (executedInput initialReserveOut : Nat)
+    (children : List MaskRecordSet)
+    (suffix : List ExactInStep) : ZeroMinEconomicKey :=
+  ⟨executedInput, bestFullSuffixOutputAcrossMasks initialReserveOut children suffix⟩
 
 /-- A fold over `Nat.max` is at least its starting accumulator. -/
 theorem acc_le_foldlMax (values : List Nat) (acc : Nat) :
@@ -1520,6 +1551,61 @@ theorem rangeStepPathWinnerCertificate_covers_and_bounds
         hcert.1)
       (selectedFamilyOutputWinner_bounds_selected_family hcert.2)
 
+/-- A recursive range-step winner certificate bounds the strict zero-min economic
+key when the executed-input component is fixed. This captures the supported
+economic AB objective while preserving tie order as a non-claim. -/
+theorem rangeStepPathWinnerCertificate_bounds_zeroMinEconomicKey
+    {parent winner : MaskRecordSet}
+    {children masks : List MaskRecordSet}
+    {bitCount executedInput initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hcert :
+      rangeStepPathWinnerCertificate parent winner children bitCount masks
+        initialReserveOut suffix) :
+    zeroMinEconomicKeyDominated
+      (fullFrontierZeroMinEconomicKey executedInput initialReserveOut children suffix)
+      (selectedZeroMinEconomicKey executedInput initialReserveOut winner suffix) := by
+  unfold zeroMinEconomicKeyDominated
+    fullFrontierZeroMinEconomicKey selectedZeroMinEconomicKey
+  exact ⟨Nat.le_refl executedInput,
+    (rangeStepPathWinnerCertificate_covers_and_bounds hcert).2⟩
+
+/-- Strict executable economic certificate for the compressed range-step winner.
+
+This adds the explicit compressed-winner suffix executability assumption used by
+the strict zero-min research surface. It does not prove that a host solver emits
+the certificate. -/
+def strictRangeStepPathEconomicCertificate
+    (parent winner : MaskRecordSet)
+    (children : List MaskRecordSet)
+    (bitCount : Nat)
+    (masks : List MaskRecordSet)
+    (initialReserveOut : Nat)
+    (suffix : List ExactInStep) : Prop :=
+  rangeStepPathWinnerCertificate parent winner children bitCount masks
+      initialReserveOut suffix ∧
+    suffixExecutable winner.selected.processedReserveIn winner.selected.reserveOut suffix
+
+/-- Strict executable economic endpoint: the certificate gives bounded child
+coverage, economic-key dominance, and carries compressed-winner suffix
+executability. -/
+theorem strictRangeStepPathEconomicCertificate_covers_bounds_and_executes
+    {parent winner : MaskRecordSet}
+    {children masks : List MaskRecordSet}
+    {bitCount executedInput initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hcert :
+      strictRangeStepPathEconomicCertificate parent winner children bitCount masks
+        initialReserveOut suffix) :
+    (∀ child, child ∈ children -> allBitsBelowSet child.maskId bitCount) ∧
+      zeroMinEconomicKeyDominated
+        (fullFrontierZeroMinEconomicKey executedInput initialReserveOut children suffix)
+        (selectedZeroMinEconomicKey executedInput initialReserveOut winner suffix) ∧
+      suffixExecutable winner.selected.processedReserveIn winner.selected.reserveOut suffix := by
+  constructor
+  · exact (rangeStepPathWinnerCertificate_covers_and_bounds hcert.1).1
+  · exact ⟨rangeStepPathWinnerCertificate_bounds_zeroMinEconomicKey hcert.1, hcert.2⟩
+
 /-- Finite subset-mask pruning lift.
 
 If every abstract subset mask satisfies the local pruning invariant, then the
@@ -1916,6 +2002,68 @@ theorem witness_rangeStepPathWinnerCertificate_covers_and_bounds :
   have hcert : rangeStepPathWinnerCertificate parent child children 1 masks 1000 [] :=
     ⟨hlist, hwinner⟩
   exact ⟨hcert, rangeStepPathWinnerCertificate_covers_and_bounds hcert⟩
+
+/-- Concrete non-vacuity witness for the strict executable economic-key endpoint. -/
+theorem witness_strictRangeStepPathEconomicCertificate_covers_bounds_and_executes :
+    let record : ProcessedRecord := ⟨100, 90⟩
+    let parent : MaskRecordSet := ⟨1, record, [record]⟩
+    let child : MaskRecordSet := ⟨1, record, [record]⟩
+    let children : List MaskRecordSet := [child]
+    let masks : List MaskRecordSet := [child]
+    strictRangeStepPathEconomicCertificate parent child children 1 masks 1000 [] ∧
+      (∀ candidate, candidate ∈ children -> allBitsBelowSet candidate.maskId 1) ∧
+        zeroMinEconomicKeyDominated
+          (fullFrontierZeroMinEconomicKey 100 1000 children [])
+          (selectedZeroMinEconomicKey 100 1000 child []) ∧
+        suffixExecutable child.selected.processedReserveIn child.selected.reserveOut [] := by
+  let record : ProcessedRecord := ⟨100, 90⟩
+  let parent : MaskRecordSet := ⟨1, record, [record]⟩
+  let child : MaskRecordSet := ⟨1, record, [record]⟩
+  let children : List MaskRecordSet := [child]
+  let masks : List MaskRecordSet := [child]
+  have hstep : maskRecordStep parent child 0 := by
+    simpa [parent, child, maskRecordStep] using witness_bitMaskStep_noop.1
+  have hinvariant : maskPruningInvariant child := by
+    unfold child maskPruningInvariant
+    constructor
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+  have hreachable : reachablePrunedStepMask parent child 0 := ⟨hstep, hinvariant⟩
+  have hbase : reachablePrunedStepPath child [] child := ⟨rfl, hinvariant⟩
+  have hpath_list : reachablePrunedStepPath parent [0] child := by
+    exact ⟨child, hreachable, hbase⟩
+  have hpath : reachablePrunedStepPath parent (List.range 1) child := by
+    simpa using hpath_list
+  have hfull : reachablePrunedRangeStepPathInFamily parent child 1 masks := by
+    exact ⟨hpath, by simp [masks]⟩
+  have hlist : reachablePrunedRangeStepPathListInFamily parent children 1 masks := by
+    intro candidate hcandidate
+    simp only [children, List.mem_singleton] at hcandidate
+    subst candidate
+    exact hfull
+  have hwinner : selectedFamilyOutputWinner child masks 1000 [] := by
+    constructor
+    · simp [masks]
+    · intro candidate hcandidate
+      simp only [masks, List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+  have hrange : rangeStepPathWinnerCertificate parent child children 1 masks 1000 [] :=
+    ⟨hlist, hwinner⟩
+  have hexec : suffixExecutable child.selected.processedReserveIn child.selected.reserveOut [] := by
+    simp [suffixExecutable]
+  have hcert : strictRangeStepPathEconomicCertificate parent child children 1 masks 1000 [] :=
+    ⟨hrange, hexec⟩
+  exact ⟨hcert,
+    strictRangeStepPathEconomicCertificate_covers_bounds_and_executes
+      (executedInput := 100)
+      hcert⟩
 
 /-- Concrete non-vacuity witness for one-step monotonicity. -/
 theorem witness_postReserveOut_mono_strict :

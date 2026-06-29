@@ -1,0 +1,72 @@
+{
+  "artifact_id": "zenodex_ab_strict_zero_min_economic_key_bridge_lean_20260629",
+  "date": "2026-06-29",
+  "status": "research_supported_after_replay",
+  "scope": "AB strict executable zero-min economic-key proof component",
+  "lean_file": "lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+  "test_file": "tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+  "research_note": "docs/research/ZENODEX_AB_STRICT_ZERO_MIN_ECONOMIC_KEY_BRIDGE_LEAN_20260629.md",
+  "new_theorems": [
+    "ABStrictZeroMinMonotone.rangeStepPathWinnerCertificate_bounds_zeroMinEconomicKey",
+    "ABStrictZeroMinMonotone.strictRangeStepPathEconomicCertificate_covers_bounds_and_executes",
+    "ABStrictZeroMinMonotone.witness_strictRangeStepPathEconomicCertificate_covers_bounds_and_executes"
+  ],
+  "new_definitions": [
+    "ABStrictZeroMinMonotone.ZeroMinEconomicKey",
+    "ABStrictZeroMinMonotone.zeroMinEconomicKeyDominated",
+    "ABStrictZeroMinMonotone.selectedZeroMinEconomicKey",
+    "ABStrictZeroMinMonotone.fullFrontierZeroMinEconomicKey",
+    "ABStrictZeroMinMonotone.strictRangeStepPathEconomicCertificate"
+  ],
+  "claim": {
+    "summary": "A recursive range-step winner certificate bounds the strict zero-min economic key `(executed_input, surplus)` when the executed-input component is fixed, and a strict wrapper carries compressed-winner suffix executability.",
+    "formal_statement": "strictRangeStepPathEconomicCertificate parent winner children bitCount masks initialReserveOut suffix -> child coverage and zeroMinEconomicKeyDominated(fullFrontierZeroMinEconomicKey executedInput initialReserveOut children suffix, selectedZeroMinEconomicKey executedInput initialReserveOut winner suffix) and suffixExecutable winner.selected.processedReserveIn winner.selected.reserveOut suffix",
+    "value": "Connects the recursive range-step proof object to the strict zero-min AB economic key used by the counterexample-salvage evidence."
+  },
+  "non_claims": [
+    "No full strict compressed-DP theorem",
+    "No recursive path construction",
+    "No child frontier construction",
+    "No selected mask family construction",
+    "No winner construction",
+    "No executed-input construction",
+    "No canonical tie-order definition",
+    "No Lean-to-Python refinement",
+    "No nonzero min_amount_out coverage",
+    "No host bitset equivalence proof",
+    "No settlement authority",
+    "No state-root authority",
+    "No production-promotion authority",
+    "No governance authority"
+  ],
+  "expected_replay": [
+    "cd lean-mathlib && lake env lean Proofs/ABStrictZeroMinMonotone.lean",
+    "cd lean-mathlib && lake build Proofs.ABStrictZeroMinMonotone",
+    "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+    "python3 -m json.tool generated/zenodex_ab_strict_zero_min_economic_key_bridge_lean_20260629/report.json >/dev/null",
+    "rg -n \"\\b(sorry|admit|axiom|unsafe|sorryAx)\\b\" lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean"
+  ],
+  "research_kernel": {
+    "run_id": "zenodex-rk-frontier-20260628",
+    "atom_id": "atom_ab_strict_zero_min_economic_key_bridge_lean_20260629",
+    "suggested_status": "SUPPORTED",
+    "suggested_parents": [
+      "atom_ab_strict_zero_min_subset_mask_induction_frontier_20260628",
+      "atom_ab_strict_zero_min_range_step_path_bridge_lean_20260629",
+      "atom_ab_strict_zero_min_step_induction_bridge_lean_20260628"
+    ],
+    "tags": [
+      "zenodex",
+      "AB-ordering",
+      "zero-min",
+      "subset-DP",
+      "subset-mask-induction",
+      "economic-key",
+      "range-step-path",
+      "strict-executable",
+      "Lean",
+      "formal-proof",
+      "strict-scope"
+    ]
+  }
+}

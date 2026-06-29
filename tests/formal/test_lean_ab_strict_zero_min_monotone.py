@@ -29,11 +29,15 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "theorem runOutputAfterSuffix_eq_reserveOut_sub_finalReserveOut" in text
     assert "theorem zeroMinSuffixSurplus_eq_reserveOut_sub_finalReserveOut" in text
     assert "theorem witness_runOutputAfterSuffix_telescopes" in text
+    assert "structure ZeroMinEconomicKey" in text
+    assert "def zeroMinEconomicKeyDominated" in text
     assert "theorem minReserveRecord_dominates_suffixTotalOutput" in text
     assert "theorem witness_minReserveRecord_dominates_suffixTotalOutput" in text
     assert "theorem bestSuffixOutputFromRecords_le_selected" in text
     assert "theorem witness_bestSuffixOutputFromRecords_le_selected" in text
     assert "structure MaskRecordSet" in text
+    assert "def selectedZeroMinEconomicKey" in text
+    assert "def fullFrontierZeroMinEconomicKey" in text
     assert "def maskHasBit" in text
     assert "def bitMaskStep" in text
     assert "def bitMaskPath" in text
@@ -106,6 +110,9 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "theorem reachablePrunedRangeStepPathListInFamily_covers_and_bounds_family" in text
     assert "def rangeStepPathWinnerCertificate" in text
     assert "theorem rangeStepPathWinnerCertificate_covers_and_bounds" in text
+    assert "theorem rangeStepPathWinnerCertificate_bounds_zeroMinEconomicKey" in text
+    assert "def strictRangeStepPathEconomicCertificate" in text
+    assert "theorem strictRangeStepPathEconomicCertificate_covers_bounds_and_executes" in text
     assert "theorem bestFullSuffixOutputAcrossMasks_le_selected" in text
     assert "theorem witness_bestFullSuffixOutputAcrossMasks_le_selected" in text
     assert "theorem witness_reachablePrunedRangeMask_covers_and_bounds" in text
@@ -115,6 +122,7 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "theorem witness_compressedWinnerCertificate_covers_and_bounds" in text
     assert "theorem witness_stepWinnerCertificate_extends_prefix_and_bounds" in text
     assert "theorem witness_rangeStepPathWinnerCertificate_covers_and_bounds" in text
+    assert "theorem witness_strictRangeStepPathEconomicCertificate_covers_bounds_and_executes" in text
 
     lake = shutil.which("lake")
     if not lake:
