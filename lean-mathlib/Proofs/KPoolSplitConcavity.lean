@@ -80,6 +80,15 @@ F(a1, a2) = f_0(c0*a1) + f_1(c1*a2) + f_2(c2*(D - a1 - a2))
   presentations canonicalize to the same sorted output, and composes that
   materialization with the merge-sort concavity path for both selected-pair
   orders.
+- A `Multiset IdentifiedFixedPoolTermCont` presentation bridge materializes
+  general unordered pool collections through `Multiset.toList`, carries
+  no-duplicate stable ids as a multiset-level contract, proves equal multisets
+  canonicalize to the same sorted output and certificate-output pool sequence,
+  and composes that materialization with both selected-pair concavity paths.
+- A Multiset stable-id selection bridge derives the selected-pair index order
+  from sorted-output stable-id order, then consumes the same Multiset
+  merge-sort concavity path for both active-before-remainder and
+  remainder-before-active selected ID orders.
 - An active-before-remainder arbitrary-index decomposition bridge reconstructs
   a full List from `take`/`drop` slices when the active index is strictly before
   the remainder index.
@@ -95,7 +104,7 @@ F(a1, a2) = f_0(c0*a1) + f_1(c1*a2) + f_2(c2*(D - a1 - a2))
   and then the selected remainder pool from an undecomposed full List leaves
   exactly the fixed non-moving slices for both selected-pair orders.
 - The remaining full K theorem still needs a top-level all-K statement over the
-  supplied certificates plus Multiset/general unordered-container packaging.
+  supplied certificates plus production-specific unordered-container packaging.
 - This does NOT prove joint concavity (Hessian negative definite) or the full
   arbitrary-index all-K theorem.
 - Same continuous-vs-discrete scope as CpmmSplitConcavity.lean
@@ -2169,9 +2178,14 @@ theorem splitFunction5PoolCont_concave_coord3
 -- `stableIdSortedPoolsCont_eq_of_finset_eq`,
 -- `splitFunctionConcave_of_finsetActiveBeforeRemainder`, and
 -- `splitFunctionConcave_of_finsetRemainderBeforeActive` add a keyed `Finset
--- Nat` unordered-presentation bridge. The remaining full K theorem still needs
--- a top-level all-K statement over the supplied certificates plus
--- Multiset/general unordered-container packaging.
+-- Nat` unordered-presentation bridge. The Multiset section below adds
+-- `IdentifiedMultisetPresentationCont`,
+-- `stableIdSortedPoolsCont_eq_of_multiset_eq`, and both Multiset concavity
+-- bridge theorems. It also adds stable-id Multiset selection records that
+-- derive selected-pair index order from sorted-output stable-id order before
+-- consuming the same Multiset concavity path. The remaining full K theorem
+-- still needs a top-level all-K statement over the supplied certificates plus
+-- production-specific unordered-container packaging.
 --
 -- **Non-claim**: This is an INFORMAL NOTE, not a checked theorem. The formal
 -- checked theorems above cover k = 3 (coordinates 1 and 2), the abstract
@@ -2183,10 +2197,11 @@ theorem splitFunction5PoolCont_concave_coord3
 -- arbitrary-index List reconstruction, removal, certificate-constructor,
 -- identity-stable, id-ordered presentation, stable-id sorted-output
 -- certificate, executable stable-id merge-sort, stable-id List permutation
--- quotient, and keyed Finset Nat presentation bridges. The full all-k
--- top-level theorem still requires a top-level statement over the supplied
--- certificates plus Multiset/general unordered-container packaging. Do NOT
--- cite this as a formal all-k proof.
+-- quotient, keyed Finset Nat presentation bridges, and Multiset presentation,
+-- quotient, certificate-output, concavity, and stable-id selection bridges.
+-- The full all-k top-level theorem still requires a top-level statement over
+-- the supplied certificates plus production-specific unordered-container
+-- packaging. Do NOT cite this as a formal all-k proof.
 --
 -- The formal checked results are splitFunction3PoolCont_concave_coord1
 -- and splitFunction3PoolCont_concave_coord2 (3-pool, both coordinates),
@@ -2256,6 +2271,34 @@ theorem splitFunction5PoolCont_concave_coord3
 -- stableIdSortedPoolsCont_eq_of_finset_eq,
 -- splitFunctionConcave_of_finsetActiveBeforeRemainder,
 -- splitFunctionConcave_of_finsetRemainderBeforeActive,
+-- IdentifiedMultisetPresentationCont,
+-- identifiedMultisetToList,
+-- identifiedMultisetToList_ids_nodup,
+-- identifiedMultisetToList_perm_of_eq,
+-- stableIdSortedPoolsCont_eq_of_multiset_eq,
+-- stableIdMergeSortPresentationCertificate_output_pools_eq_of_multiset_eq,
+-- splitFunctionConcave_of_multisetActiveBeforeRemainder,
+-- splitFunctionConcave_of_multisetRemainderBeforeActive,
+-- stableIdSortedPoolsCont_index_lt_of_id_lt,
+-- MultisetStableIdActiveBeforeRemainderSelectionCont,
+-- MultisetStableIdRemainderBeforeActiveSelectionCont,
+-- multisetStableIdActiveBeforeRemainderSelection_index_order,
+-- multisetStableIdRemainderBeforeActiveSelection_index_order,
+-- StableIdSortedLookupWitnessCont,
+-- stableIdSortedLookupWitness_index_unique,
+-- stableIdSortedLookupWitness_index_lt_of_id_lt,
+-- MultisetStableIdLookupActiveBeforeRemainderSelectionCont,
+-- MultisetStableIdLookupRemainderBeforeActiveSelectionCont,
+-- multisetStableIdActiveBeforeRemainderSelectionOfLookupCont,
+-- multisetStableIdRemainderBeforeActiveSelectionOfLookupCont,
+-- unorderedSelectionCertificateOfMultisetStableIdActiveBeforeRemainderCont,
+-- unorderedSelectionCertificateOfMultisetStableIdRemainderBeforeActiveCont,
+-- unorderedSelectionCertificateOfMultisetStableIdLookupActiveBeforeRemainderCont,
+-- unorderedSelectionCertificateOfMultisetStableIdLookupRemainderBeforeActiveCont,
+-- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_multisetStableIdActiveBeforeRemainder,
+-- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_multisetStableIdRemainderBeforeActive,
+-- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_multisetStableIdLookupActiveBeforeRemainder,
+-- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_multisetStableIdLookupRemainderBeforeActive,
 -- selectedFullPoolListCont_eq_take_drop_of_lt,
 -- selectedFullPoolListOrderedCont_remainderBeforeActive_eq_take_drop_of_lt,
 -- selectedActiveIndexOrderedCont_lt,
@@ -2449,3 +2492,690 @@ theorem splitFunctionConcave_of_finsetRemainderBeforeActive
   splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdMergeSortRemainderBeforeActive
     (identifiedFinsetToList pres) (identifiedFinsetToList_ids_nodup pres)
     hji hi D a h hKj hMj hcj hKr hMr hcr hh h_denomj h_denomr_base
+
+/-! ## Multiset Quotient Bridge: General Unordered-Collection Packaging
+
+This section packages the stable-id merge-sort bridge behind a
+`Multiset IdentifiedFixedPoolTermCont` boundary. The multiset equality theorem
+is the general unordered-container quotient: container order is erased, while
+duplicate stable ids remain rejected by a multiset-level `Nodup` contract on
+the mapped ids.
+-/
+
+/-- An unordered presentation of identified pools as a multiset.
+
+    The `ids_nodup` field is the boundary contract that rejects duplicate
+    stable ids before the presentation can feed the stable-id merge-sort
+    certificate path. -/
+structure IdentifiedMultisetPresentationCont where
+  pools : Multiset IdentifiedFixedPoolTermCont
+  ids_nodup : (pools.map IdentifiedFixedPoolTermCont.id).Nodup
+
+/-- Materialize a List representative from a multiset presentation. -/
+noncomputable def identifiedMultisetToList
+    (pres : IdentifiedMultisetPresentationCont) :
+    List IdentifiedFixedPoolTermCont :=
+  pres.pools.toList
+
+/-- The materialized List is a representative of the source multiset. -/
+theorem identifiedMultisetToList_coe
+    (pres : IdentifiedMultisetPresentationCont) :
+    ((identifiedMultisetToList pres : List IdentifiedFixedPoolTermCont) :
+        Multiset IdentifiedFixedPoolTermCont) = pres.pools := by
+  simp [identifiedMultisetToList]
+
+/-- The materialized List inherits the multiset-level stable-id uniqueness
+    contract. -/
+theorem identifiedMultisetToList_ids_nodup
+    (pres : IdentifiedMultisetPresentationCont) :
+    ((identifiedMultisetToList pres).map IdentifiedFixedPoolTermCont.id).Nodup := by
+  have hCoe :
+      (((identifiedMultisetToList pres).map IdentifiedFixedPoolTermCont.id :
+          List Nat) : Multiset Nat) =
+        pres.pools.map IdentifiedFixedPoolTermCont.id := by
+    calc
+      (((identifiedMultisetToList pres).map IdentifiedFixedPoolTermCont.id :
+          List Nat) : Multiset Nat)
+          = Multiset.map IdentifiedFixedPoolTermCont.id
+              ((identifiedMultisetToList pres : List IdentifiedFixedPoolTermCont) :
+                Multiset IdentifiedFixedPoolTermCont) := by
+            simp
+      _ = pres.pools.map IdentifiedFixedPoolTermCont.id := by
+            rw [identifiedMultisetToList_coe]
+  have hNodup :
+      Multiset.Nodup
+        (((identifiedMultisetToList pres).map IdentifiedFixedPoolTermCont.id :
+          List Nat) : Multiset Nat) := by
+    rw [hCoe]
+    exact pres.ids_nodup
+  simpa using hNodup
+
+/-- **Multiset Quotient: Permutation Invariance of Materialization**.
+    Equal multisets may choose different `toList` representatives, but those
+    representatives are related by `List.Perm`. -/
+theorem identifiedMultisetToList_perm_of_eq
+    (pres₁ pres₂ : IdentifiedMultisetPresentationCont)
+    (hPools : pres₁.pools = pres₂.pools) :
+    List.Perm (identifiedMultisetToList pres₁) (identifiedMultisetToList pres₂) := by
+  apply (Multiset.coe_eq_coe).1
+  rw [identifiedMultisetToList_coe, identifiedMultisetToList_coe, hPools]
+
+/-- **Multiset Quotient: Sorted Output Uniqueness**.
+    Equal unordered multiset presentations canonicalize to the same stable-id
+    sorted output. -/
+theorem stableIdSortedPoolsCont_eq_of_multiset_eq
+    (pres₁ pres₂ : IdentifiedMultisetPresentationCont)
+    (hPools : pres₁.pools = pres₂.pools) :
+    stableIdSortedPoolsCont (identifiedMultisetToList pres₁) =
+      stableIdSortedPoolsCont (identifiedMultisetToList pres₂) := by
+  apply stableIdSortedPoolsCont_eq_of_perm_unique_ids
+  · exact identifiedMultisetToList_perm_of_eq pres₁ pres₂ hPools
+  · exact identifiedMultisetToList_ids_nodup pres₁
+  · exact identifiedMultisetToList_ids_nodup pres₂
+
+/-- The executable merge-sort presentation emits the same canonical pool
+    sequence for equal multiset presentations. -/
+theorem stableIdMergeSortPresentationCont_pools_eq_of_multiset_eq
+    (pres₁ pres₂ : IdentifiedMultisetPresentationCont)
+    (hPools : pres₁.pools = pres₂.pools) :
+    (stableIdMergeSortPresentationCont
+        (identifiedMultisetToList pres₁)
+        (identifiedMultisetToList_ids_nodup pres₁)).pools =
+      (stableIdMergeSortPresentationCont
+        (identifiedMultisetToList pres₂)
+        (identifiedMultisetToList_ids_nodup pres₂)).pools := by
+  exact stableIdSortedPoolsCont_eq_of_multiset_eq pres₁ pres₂ hPools
+
+/-- The executable merge-sort certificate exposes the same canonical output
+    pool sequence for equal multiset presentations. -/
+theorem stableIdMergeSortPresentationCertificate_output_pools_eq_of_multiset_eq
+    (pres₁ pres₂ : IdentifiedMultisetPresentationCont)
+    (hPools : pres₁.pools = pres₂.pools) :
+    (stableIdMergeSortPresentationCertificateCont
+        (identifiedMultisetToList pres₁)
+        (identifiedMultisetToList_ids_nodup pres₁)).output.pools =
+      (stableIdMergeSortPresentationCertificateCont
+        (identifiedMultisetToList pres₂)
+        (identifiedMultisetToList_ids_nodup pres₂)).output.pools := by
+  exact stableIdMergeSortPresentationCont_pools_eq_of_multiset_eq
+    pres₁ pres₂ hPools
+
+/-- **Multiset Quotient: Concavity via Merge-Sort Bridge
+    (Active-Before-Remainder)**. -/
+theorem splitFunctionConcave_of_multisetActiveBeforeRemainder
+    (pres : IdentifiedMultisetPresentationCont)
+    {i j : Nat}
+    (hij : i < j) (hj : j < (stableIdSortedPoolsCont (identifiedMultisetToList pres)).length)
+    (D a h : ℝ)
+    (hKj :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hij hj).active.K > 0)
+    (hMj :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hij hj).active.M > 0)
+    (hcj :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hij hj).active.c > 0)
+    (hKr :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hij hj).remainder.K > 0)
+    (hMr :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hij hj).remainder.M > 0)
+    (hcr :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hij hj).remainder.c > 0)
+    (hh : h > 0)
+    (h_denomj :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hij hj).active.M +
+        (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+          (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hij hj).active.c * a > 0)
+    (h_denomr_base :
+      (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+        (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hij hj).remainder.M +
+        (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+          (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hij hj).remainder.c *
+          (D -
+            fixedPoolInputSumCont
+              (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+                (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hij hj).fixed -
+            a - 2*h) > 0) :
+    secondDiff
+      (splitFunctionUnorderedSelectionCertCoordSliceCont
+        (unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+          (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hij hj) D)
+      a h < 0 :=
+  splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdMergeSortActiveBeforeRemainder
+    (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres)
+    hij hj D a h hKj hMj hcj hKr hMr hcr hh h_denomj h_denomr_base
+
+/-- **Multiset Quotient: Concavity via Merge-Sort Bridge
+    (Remainder-Before-Active)**. -/
+theorem splitFunctionConcave_of_multisetRemainderBeforeActive
+    (pres : IdentifiedMultisetPresentationCont)
+    {j i : Nat}
+    (hji : j < i) (hi : i < (stableIdSortedPoolsCont (identifiedMultisetToList pres)).length)
+    (D a h : ℝ)
+    (hKj :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hji hi).active.K > 0)
+    (hMj :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hji hi).active.M > 0)
+    (hcj :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hji hi).active.c > 0)
+    (hKr :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hji hi).remainder.K > 0)
+    (hMr :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hji hi).remainder.M > 0)
+    (hcr :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hji hi).remainder.c > 0)
+    (hh : h > 0)
+    (h_denomj :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hji hi).active.M +
+        (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+          (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hji hi).active.c * a > 0)
+    (h_denomr_base :
+      (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+        (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hji hi).remainder.M +
+        (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+          (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hji hi).remainder.c *
+          (D -
+            fixedPoolInputSumCont
+              (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+                (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hji hi).fixed -
+            a - 2*h) > 0) :
+    secondDiff
+      (splitFunctionUnorderedSelectionCertCoordSliceCont
+        (unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+          (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres) hji hi) D)
+      a h < 0 :=
+  splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdMergeSortRemainderBeforeActive
+    (identifiedMultisetToList pres) (identifiedMultisetToList_ids_nodup pres)
+    hji hi D a h hKj hMj hcj hKr hMr hcr hh h_denomj h_denomr_base
+
+/-! ## Multiset Stable-ID Selection Bridge
+
+This section is a narrow production-container step: selected stable IDs and
+their sorted-output index witnesses determine the selected-pair order. The
+underlying proof still consumes the existing Multiset merge-sort certificate
+path; no runtime or consensus checker is claimed here.
+-/
+
+/-- In a stable-id sorted output with unique input ids, a strict selected-id
+    comparison determines the corresponding sorted-output index order. -/
+theorem stableIdSortedPoolsCont_index_lt_of_id_lt
+    (pools : List IdentifiedFixedPoolTermCont)
+    (hIds : (pools.map IdentifiedFixedPoolTermCont.id).Nodup)
+    {i j : Nat}
+    (hi : i < (stableIdSortedPoolsCont pools).length)
+    (hj : j < (stableIdSortedPoolsCont pools).length)
+    (hIdLt :
+      ((stableIdSortedPoolsCont pools)[i]'hi).id <
+        ((stableIdSortedPoolsCont pools)[j]'hj).id) :
+    i < j := by
+  by_cases hEq : i = j
+  · subst j
+    have hFalse : False := (Nat.lt_irrefl _) hIdLt
+    exact False.elim hFalse
+  · rcases lt_or_gt_of_ne hEq with hij | hji
+    · exact hij
+    · have hBack :
+        ((stableIdSortedPoolsCont pools)[j]'hj).id <
+          ((stableIdSortedPoolsCont pools)[i]'hi).id :=
+        stableIdSortedPoolsCont_ids_strict pools hIds hj hi hji
+      exact (Nat.lt_asymm hIdLt hBack).elim
+
+/-- Multiset stable-id selection where the active pool id is before the
+    remainder pool id in the deterministic sorted output. -/
+structure MultisetStableIdActiveBeforeRemainderSelectionCont where
+  pres : IdentifiedMultisetPresentationCont
+  activeId : Nat
+  remainderId : Nat
+  activeIndex : Nat
+  remainderIndex : Nat
+  active_lt :
+    activeIndex < (stableIdSortedPoolsCont (identifiedMultisetToList pres)).length
+  remainder_lt :
+    remainderIndex < (stableIdSortedPoolsCont (identifiedMultisetToList pres)).length
+  active_id_eq :
+    ((stableIdSortedPoolsCont (identifiedMultisetToList pres))[activeIndex]'active_lt).id =
+      activeId
+  remainder_id_eq :
+    ((stableIdSortedPoolsCont (identifiedMultisetToList pres))[remainderIndex]'remainder_lt).id =
+      remainderId
+  ids_order : activeId < remainderId
+
+/-- Multiset stable-id selection where the remainder pool id is before the
+    active pool id in the deterministic sorted output. -/
+structure MultisetStableIdRemainderBeforeActiveSelectionCont where
+  pres : IdentifiedMultisetPresentationCont
+  activeId : Nat
+  remainderId : Nat
+  activeIndex : Nat
+  remainderIndex : Nat
+  active_lt :
+    activeIndex < (stableIdSortedPoolsCont (identifiedMultisetToList pres)).length
+  remainder_lt :
+    remainderIndex < (stableIdSortedPoolsCont (identifiedMultisetToList pres)).length
+  active_id_eq :
+    ((stableIdSortedPoolsCont (identifiedMultisetToList pres))[activeIndex]'active_lt).id =
+      activeId
+  remainder_id_eq :
+    ((stableIdSortedPoolsCont (identifiedMultisetToList pres))[remainderIndex]'remainder_lt).id =
+      remainderId
+  ids_order : remainderId < activeId
+
+/-- The active-before stable-id selection record derives the active index before
+    the remainder index. -/
+theorem multisetStableIdActiveBeforeRemainderSelection_index_order
+    (sel : MultisetStableIdActiveBeforeRemainderSelectionCont) :
+    sel.activeIndex < sel.remainderIndex := by
+  apply stableIdSortedPoolsCont_index_lt_of_id_lt
+    (pools := identifiedMultisetToList sel.pres)
+    (hIds := identifiedMultisetToList_ids_nodup sel.pres)
+    sel.active_lt sel.remainder_lt
+  simpa [sel.active_id_eq, sel.remainder_id_eq] using sel.ids_order
+
+/-- The remainder-before stable-id selection record derives the remainder index
+    before the active index. -/
+theorem multisetStableIdRemainderBeforeActiveSelection_index_order
+    (sel : MultisetStableIdRemainderBeforeActiveSelectionCont) :
+    sel.remainderIndex < sel.activeIndex := by
+  apply stableIdSortedPoolsCont_index_lt_of_id_lt
+    (pools := identifiedMultisetToList sel.pres)
+    (hIds := identifiedMultisetToList_ids_nodup sel.pres)
+    sel.remainder_lt sel.active_lt
+  simpa [sel.active_id_eq, sel.remainder_id_eq] using sel.ids_order
+
+/-- Active-before stable-id selections necessarily use distinct selected ids. -/
+theorem multisetStableIdActiveBeforeRemainderSelection_ids_distinct
+    (sel : MultisetStableIdActiveBeforeRemainderSelectionCont) :
+    sel.activeId ≠ sel.remainderId :=
+  ne_of_lt sel.ids_order
+
+/-- Remainder-before stable-id selections necessarily use distinct selected ids. -/
+theorem multisetStableIdRemainderBeforeActiveSelection_ids_distinct
+    (sel : MultisetStableIdRemainderBeforeActiveSelectionCont) :
+    sel.activeId ≠ sel.remainderId :=
+  (ne_of_lt sel.ids_order).symm
+
+/-! ### Stable-ID Lookup Certificate Layer
+
+The records below move the public selection surface from bare sorted-output
+indices toward stable-ID lookup witnesses. The certificate still stores a `Fin`
+index internally because the existing selection builder consumes indexed list
+access; callers no longer supply separate natural-number bounds and id equality
+proofs for each selected pool.
+-/
+
+/-- A proof-carrying lookup witness tying a stable id to one in-bounds position
+    of the deterministic stable-id sorted output. -/
+structure StableIdSortedLookupWitnessCont
+    (pres : IdentifiedMultisetPresentationCont) where
+  id : Nat
+  index : Fin (stableIdSortedPoolsCont (identifiedMultisetToList pres)).length
+  id_eq :
+    ((stableIdSortedPoolsCont (identifiedMultisetToList pres))[index.val]'index.isLt).id =
+      id
+
+/-- Stable-id lookup witnesses for the same id point to the same sorted-output
+    position. -/
+theorem stableIdSortedLookupWitness_index_unique
+    {pres : IdentifiedMultisetPresentationCont}
+    (w1 w2 : StableIdSortedLookupWitnessCont pres)
+    (hId : w1.id = w2.id) :
+    w1.index = w2.index := by
+  apply Fin.ext
+  by_cases hEq : w1.index.val = w2.index.val
+  · exact hEq
+  · rcases lt_or_gt_of_ne hEq with hlt | hgt
+    · have hStrict :
+          ((stableIdSortedPoolsCont (identifiedMultisetToList pres))[w1.index.val]'w1.index.isLt).id <
+            ((stableIdSortedPoolsCont (identifiedMultisetToList pres))[w2.index.val]'w2.index.isLt).id :=
+        stableIdSortedPoolsCont_ids_strict
+          (identifiedMultisetToList pres)
+          (identifiedMultisetToList_ids_nodup pres)
+          w1.index.isLt w2.index.isLt hlt
+      have hSame :
+          ((stableIdSortedPoolsCont (identifiedMultisetToList pres))[w1.index.val]'w1.index.isLt).id =
+            ((stableIdSortedPoolsCont (identifiedMultisetToList pres))[w2.index.val]'w2.index.isLt).id := by
+        calc
+          ((stableIdSortedPoolsCont (identifiedMultisetToList pres))[w1.index.val]'w1.index.isLt).id = w1.id :=
+            w1.id_eq
+          _ = w2.id := hId
+          _ = ((stableIdSortedPoolsCont (identifiedMultisetToList pres))[w2.index.val]'w2.index.isLt).id :=
+            w2.id_eq.symm
+      rw [hSame] at hStrict
+      exact False.elim ((Nat.lt_irrefl _) hStrict)
+    · have hStrict :
+          ((stableIdSortedPoolsCont (identifiedMultisetToList pres))[w2.index.val]'w2.index.isLt).id <
+            ((stableIdSortedPoolsCont (identifiedMultisetToList pres))[w1.index.val]'w1.index.isLt).id :=
+        stableIdSortedPoolsCont_ids_strict
+          (identifiedMultisetToList pres)
+          (identifiedMultisetToList_ids_nodup pres)
+          w2.index.isLt w1.index.isLt hgt
+      have hSame :
+          ((stableIdSortedPoolsCont (identifiedMultisetToList pres))[w1.index.val]'w1.index.isLt).id =
+            ((stableIdSortedPoolsCont (identifiedMultisetToList pres))[w2.index.val]'w2.index.isLt).id := by
+        calc
+          ((stableIdSortedPoolsCont (identifiedMultisetToList pres))[w1.index.val]'w1.index.isLt).id = w1.id :=
+            w1.id_eq
+          _ = w2.id := hId
+          _ = ((stableIdSortedPoolsCont (identifiedMultisetToList pres))[w2.index.val]'w2.index.isLt).id :=
+            w2.id_eq.symm
+      rw [hSame] at hStrict
+      exact False.elim ((Nat.lt_irrefl _) hStrict)
+
+/-- A stable-id comparison between lookup witnesses determines their
+    sorted-output index order. -/
+theorem stableIdSortedLookupWitness_index_lt_of_id_lt
+    {pres : IdentifiedMultisetPresentationCont}
+    (w1 w2 : StableIdSortedLookupWitnessCont pres)
+    (hIdLt : w1.id < w2.id) :
+    w1.index.val < w2.index.val := by
+  apply stableIdSortedPoolsCont_index_lt_of_id_lt
+    (pools := identifiedMultisetToList pres)
+    (hIds := identifiedMultisetToList_ids_nodup pres)
+    w1.index.isLt w2.index.isLt
+  simpa [w1.id_eq, w2.id_eq] using hIdLt
+
+/-- Stable-id lookup selection where the active lookup id is before the
+    remainder lookup id. -/
+structure MultisetStableIdLookupActiveBeforeRemainderSelectionCont where
+  pres : IdentifiedMultisetPresentationCont
+  active : StableIdSortedLookupWitnessCont pres
+  remainder : StableIdSortedLookupWitnessCont pres
+  ids_order : active.id < remainder.id
+
+/-- Stable-id lookup selection where the remainder lookup id is before the
+    active lookup id. -/
+structure MultisetStableIdLookupRemainderBeforeActiveSelectionCont where
+  pres : IdentifiedMultisetPresentationCont
+  active : StableIdSortedLookupWitnessCont pres
+  remainder : StableIdSortedLookupWitnessCont pres
+  ids_order : remainder.id < active.id
+
+/-- Active-before lookup selections lower to the existing index-witness
+    selection record. -/
+def multisetStableIdActiveBeforeRemainderSelectionOfLookupCont
+    (sel : MultisetStableIdLookupActiveBeforeRemainderSelectionCont) :
+    MultisetStableIdActiveBeforeRemainderSelectionCont where
+  pres := sel.pres
+  activeId := sel.active.id
+  remainderId := sel.remainder.id
+  activeIndex := sel.active.index.val
+  remainderIndex := sel.remainder.index.val
+  active_lt := sel.active.index.isLt
+  remainder_lt := sel.remainder.index.isLt
+  active_id_eq := sel.active.id_eq
+  remainder_id_eq := sel.remainder.id_eq
+  ids_order := sel.ids_order
+
+/-- Remainder-before lookup selections lower to the existing index-witness
+    selection record. -/
+def multisetStableIdRemainderBeforeActiveSelectionOfLookupCont
+    (sel : MultisetStableIdLookupRemainderBeforeActiveSelectionCont) :
+    MultisetStableIdRemainderBeforeActiveSelectionCont where
+  pres := sel.pres
+  activeId := sel.active.id
+  remainderId := sel.remainder.id
+  activeIndex := sel.active.index.val
+  remainderIndex := sel.remainder.index.val
+  active_lt := sel.active.index.isLt
+  remainder_lt := sel.remainder.index.isLt
+  active_id_eq := sel.active.id_eq
+  remainder_id_eq := sel.remainder.id_eq
+  ids_order := sel.ids_order
+
+/-- Active-before lookup selections derive the active index before the
+    remainder index. -/
+theorem multisetStableIdLookupActiveBeforeRemainderSelection_index_order
+    (sel : MultisetStableIdLookupActiveBeforeRemainderSelectionCont) :
+    sel.active.index.val < sel.remainder.index.val :=
+  stableIdSortedLookupWitness_index_lt_of_id_lt sel.active sel.remainder sel.ids_order
+
+/-- Remainder-before lookup selections derive the remainder index before the
+    active index. -/
+theorem multisetStableIdLookupRemainderBeforeActiveSelection_index_order
+    (sel : MultisetStableIdLookupRemainderBeforeActiveSelectionCont) :
+    sel.remainder.index.val < sel.active.index.val :=
+  stableIdSortedLookupWitness_index_lt_of_id_lt sel.remainder sel.active sel.ids_order
+
+/-- Build a proof-carrying selection certificate from a Multiset stable-id
+    active-before-remainder selection record. -/
+noncomputable def unorderedSelectionCertificateOfMultisetStableIdActiveBeforeRemainderCont
+    (sel : MultisetStableIdActiveBeforeRemainderSelectionCont) :
+    UnorderedSelectionCertificateCont :=
+  unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont
+    (identifiedMultisetToList sel.pres)
+    (identifiedMultisetToList_ids_nodup sel.pres)
+    (multisetStableIdActiveBeforeRemainderSelection_index_order sel)
+    sel.remainder_lt
+
+/-- Build a proof-carrying selection certificate from a Multiset stable-id
+    remainder-before-active selection record. -/
+noncomputable def unorderedSelectionCertificateOfMultisetStableIdRemainderBeforeActiveCont
+    (sel : MultisetStableIdRemainderBeforeActiveSelectionCont) :
+    UnorderedSelectionCertificateCont :=
+  unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont
+    (identifiedMultisetToList sel.pres)
+    (identifiedMultisetToList_ids_nodup sel.pres)
+    (multisetStableIdRemainderBeforeActiveSelection_index_order sel)
+    sel.active_lt
+
+/-- Build a proof-carrying selection certificate from an active-before
+    stable-id lookup selection record. -/
+noncomputable def unorderedSelectionCertificateOfMultisetStableIdLookupActiveBeforeRemainderCont
+    (sel : MultisetStableIdLookupActiveBeforeRemainderSelectionCont) :
+    UnorderedSelectionCertificateCont :=
+  unorderedSelectionCertificateOfMultisetStableIdActiveBeforeRemainderCont
+    (multisetStableIdActiveBeforeRemainderSelectionOfLookupCont sel)
+
+/-- Build a proof-carrying selection certificate from a remainder-before
+    stable-id lookup selection record. -/
+noncomputable def unorderedSelectionCertificateOfMultisetStableIdLookupRemainderBeforeActiveCont
+    (sel : MultisetStableIdLookupRemainderBeforeActiveSelectionCont) :
+    UnorderedSelectionCertificateCont :=
+  unorderedSelectionCertificateOfMultisetStableIdRemainderBeforeActiveCont
+    (multisetStableIdRemainderBeforeActiveSelectionOfLookupCont sel)
+
+/-- The Multiset stable-id active-before constructor composes with the existing
+    certificate-consumption concavity theorem. -/
+theorem splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_multisetStableIdActiveBeforeRemainder
+    (sel : MultisetStableIdActiveBeforeRemainderSelectionCont) (D a h : ℝ)
+    (hKj :
+      (unorderedSelectionCertificateOfMultisetStableIdActiveBeforeRemainderCont
+        sel).active.K > 0)
+    (hMj :
+      (unorderedSelectionCertificateOfMultisetStableIdActiveBeforeRemainderCont
+        sel).active.M > 0)
+    (hcj :
+      (unorderedSelectionCertificateOfMultisetStableIdActiveBeforeRemainderCont
+        sel).active.c > 0)
+    (hKr :
+      (unorderedSelectionCertificateOfMultisetStableIdActiveBeforeRemainderCont
+        sel).remainder.K > 0)
+    (hMr :
+      (unorderedSelectionCertificateOfMultisetStableIdActiveBeforeRemainderCont
+        sel).remainder.M > 0)
+    (hcr :
+      (unorderedSelectionCertificateOfMultisetStableIdActiveBeforeRemainderCont
+        sel).remainder.c > 0)
+    (hh : h > 0)
+    (h_denomj :
+      (unorderedSelectionCertificateOfMultisetStableIdActiveBeforeRemainderCont
+        sel).active.M +
+        (unorderedSelectionCertificateOfMultisetStableIdActiveBeforeRemainderCont
+          sel).active.c * a > 0)
+    (h_denomr_base :
+      (unorderedSelectionCertificateOfMultisetStableIdActiveBeforeRemainderCont
+        sel).remainder.M +
+        (unorderedSelectionCertificateOfMultisetStableIdActiveBeforeRemainderCont
+          sel).remainder.c *
+          (D -
+            fixedPoolInputSumCont
+              (unorderedSelectionCertificateOfMultisetStableIdActiveBeforeRemainderCont
+                sel).fixed -
+            a - 2*h) > 0) :
+    secondDiff
+      (splitFunctionUnorderedSelectionCertCoordSliceCont
+        (unorderedSelectionCertificateOfMultisetStableIdActiveBeforeRemainderCont
+          sel) D)
+      a h < 0 :=
+  splitFunctionConcave_of_multisetActiveBeforeRemainder
+    sel.pres
+    (multisetStableIdActiveBeforeRemainderSelection_index_order sel)
+    sel.remainder_lt
+    D a h hKj hMj hcj hKr hMr hcr hh h_denomj h_denomr_base
+
+/-- The Multiset stable-id remainder-before constructor composes with the
+    existing certificate-consumption concavity theorem. -/
+theorem splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_multisetStableIdRemainderBeforeActive
+    (sel : MultisetStableIdRemainderBeforeActiveSelectionCont) (D a h : ℝ)
+    (hKj :
+      (unorderedSelectionCertificateOfMultisetStableIdRemainderBeforeActiveCont
+        sel).active.K > 0)
+    (hMj :
+      (unorderedSelectionCertificateOfMultisetStableIdRemainderBeforeActiveCont
+        sel).active.M > 0)
+    (hcj :
+      (unorderedSelectionCertificateOfMultisetStableIdRemainderBeforeActiveCont
+        sel).active.c > 0)
+    (hKr :
+      (unorderedSelectionCertificateOfMultisetStableIdRemainderBeforeActiveCont
+        sel).remainder.K > 0)
+    (hMr :
+      (unorderedSelectionCertificateOfMultisetStableIdRemainderBeforeActiveCont
+        sel).remainder.M > 0)
+    (hcr :
+      (unorderedSelectionCertificateOfMultisetStableIdRemainderBeforeActiveCont
+        sel).remainder.c > 0)
+    (hh : h > 0)
+    (h_denomj :
+      (unorderedSelectionCertificateOfMultisetStableIdRemainderBeforeActiveCont
+        sel).active.M +
+        (unorderedSelectionCertificateOfMultisetStableIdRemainderBeforeActiveCont
+          sel).active.c * a > 0)
+    (h_denomr_base :
+      (unorderedSelectionCertificateOfMultisetStableIdRemainderBeforeActiveCont
+        sel).remainder.M +
+        (unorderedSelectionCertificateOfMultisetStableIdRemainderBeforeActiveCont
+          sel).remainder.c *
+          (D -
+            fixedPoolInputSumCont
+              (unorderedSelectionCertificateOfMultisetStableIdRemainderBeforeActiveCont
+                sel).fixed -
+            a - 2*h) > 0) :
+    secondDiff
+      (splitFunctionUnorderedSelectionCertCoordSliceCont
+        (unorderedSelectionCertificateOfMultisetStableIdRemainderBeforeActiveCont
+          sel) D)
+      a h < 0 :=
+  splitFunctionConcave_of_multisetRemainderBeforeActive
+    sel.pres
+    (multisetStableIdRemainderBeforeActiveSelection_index_order sel)
+    sel.active_lt
+    D a h hKj hMj hcj hKr hMr hcr hh h_denomj h_denomr_base
+
+/-- The active-before stable-id lookup constructor composes with the existing
+    certificate-consumption concavity theorem after lowering to the current
+    Multiset stable-id selection record. -/
+theorem splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_multisetStableIdLookupActiveBeforeRemainder
+    (sel : MultisetStableIdLookupActiveBeforeRemainderSelectionCont) (D a h : ℝ)
+    (hKj :
+      (unorderedSelectionCertificateOfMultisetStableIdLookupActiveBeforeRemainderCont
+        sel).active.K > 0)
+    (hMj :
+      (unorderedSelectionCertificateOfMultisetStableIdLookupActiveBeforeRemainderCont
+        sel).active.M > 0)
+    (hcj :
+      (unorderedSelectionCertificateOfMultisetStableIdLookupActiveBeforeRemainderCont
+        sel).active.c > 0)
+    (hKr :
+      (unorderedSelectionCertificateOfMultisetStableIdLookupActiveBeforeRemainderCont
+        sel).remainder.K > 0)
+    (hMr :
+      (unorderedSelectionCertificateOfMultisetStableIdLookupActiveBeforeRemainderCont
+        sel).remainder.M > 0)
+    (hcr :
+      (unorderedSelectionCertificateOfMultisetStableIdLookupActiveBeforeRemainderCont
+        sel).remainder.c > 0)
+    (hh : h > 0)
+    (h_denomj :
+      (unorderedSelectionCertificateOfMultisetStableIdLookupActiveBeforeRemainderCont
+        sel).active.M +
+        (unorderedSelectionCertificateOfMultisetStableIdLookupActiveBeforeRemainderCont
+          sel).active.c * a > 0)
+    (h_denomr_base :
+      (unorderedSelectionCertificateOfMultisetStableIdLookupActiveBeforeRemainderCont
+        sel).remainder.M +
+        (unorderedSelectionCertificateOfMultisetStableIdLookupActiveBeforeRemainderCont
+          sel).remainder.c *
+          (D -
+            fixedPoolInputSumCont
+              (unorderedSelectionCertificateOfMultisetStableIdLookupActiveBeforeRemainderCont
+                sel).fixed -
+            a - 2*h) > 0) :
+    secondDiff
+      (splitFunctionUnorderedSelectionCertCoordSliceCont
+        (unorderedSelectionCertificateOfMultisetStableIdLookupActiveBeforeRemainderCont
+          sel) D)
+      a h < 0 :=
+  splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_multisetStableIdActiveBeforeRemainder
+    (multisetStableIdActiveBeforeRemainderSelectionOfLookupCont sel)
+    D a h hKj hMj hcj hKr hMr hcr hh h_denomj h_denomr_base
+
+/-- The remainder-before stable-id lookup constructor composes with the existing
+    certificate-consumption concavity theorem after lowering to the current
+    Multiset stable-id selection record. -/
+theorem splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_multisetStableIdLookupRemainderBeforeActive
+    (sel : MultisetStableIdLookupRemainderBeforeActiveSelectionCont) (D a h : ℝ)
+    (hKj :
+      (unorderedSelectionCertificateOfMultisetStableIdLookupRemainderBeforeActiveCont
+        sel).active.K > 0)
+    (hMj :
+      (unorderedSelectionCertificateOfMultisetStableIdLookupRemainderBeforeActiveCont
+        sel).active.M > 0)
+    (hcj :
+      (unorderedSelectionCertificateOfMultisetStableIdLookupRemainderBeforeActiveCont
+        sel).active.c > 0)
+    (hKr :
+      (unorderedSelectionCertificateOfMultisetStableIdLookupRemainderBeforeActiveCont
+        sel).remainder.K > 0)
+    (hMr :
+      (unorderedSelectionCertificateOfMultisetStableIdLookupRemainderBeforeActiveCont
+        sel).remainder.M > 0)
+    (hcr :
+      (unorderedSelectionCertificateOfMultisetStableIdLookupRemainderBeforeActiveCont
+        sel).remainder.c > 0)
+    (hh : h > 0)
+    (h_denomj :
+      (unorderedSelectionCertificateOfMultisetStableIdLookupRemainderBeforeActiveCont
+        sel).active.M +
+        (unorderedSelectionCertificateOfMultisetStableIdLookupRemainderBeforeActiveCont
+          sel).active.c * a > 0)
+    (h_denomr_base :
+      (unorderedSelectionCertificateOfMultisetStableIdLookupRemainderBeforeActiveCont
+        sel).remainder.M +
+        (unorderedSelectionCertificateOfMultisetStableIdLookupRemainderBeforeActiveCont
+          sel).remainder.c *
+          (D -
+            fixedPoolInputSumCont
+              (unorderedSelectionCertificateOfMultisetStableIdLookupRemainderBeforeActiveCont
+                sel).fixed -
+            a - 2*h) > 0) :
+    secondDiff
+      (splitFunctionUnorderedSelectionCertCoordSliceCont
+        (unorderedSelectionCertificateOfMultisetStableIdLookupRemainderBeforeActiveCont
+          sel) D)
+      a h < 0 :=
+  splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_multisetStableIdRemainderBeforeActive
+    (multisetStableIdRemainderBeforeActiveSelectionOfLookupCont sel)
+    D a h hKj hMj hcj hKr hMr hcr hh h_denomj h_denomr_base

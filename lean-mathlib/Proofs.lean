@@ -43,6 +43,7 @@ import Proofs.BoundedSettlementVerifier
 import Proofs.BountyAuctionMechanisms
 import Proofs.CALCoreSoundness
 import Proofs.CBCDisasterStateRefactors
+import Proofs.CeilingFeeRounding
 import Proofs.CertifiedFinancialMathObjects
 import Proofs.CircuitBreakerWindowArithmetic
 import Proofs.CollateralAcyclicity

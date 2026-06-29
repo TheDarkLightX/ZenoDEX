@@ -56,8 +56,15 @@ bounds, and fixed-order min-out-cap evidence.
   stable-id List permutation quotient bridge proving valid permuted List
   presentations canonicalize to the same sorted output, a Finset Nat quotient
   bridge connecting unordered Finset presentations (keyed by stable ids) to the
-  merge-sort concavity path, and one concrete 4-pool plus one concrete 5-pool
-  coordinate-wise checkpoint.
+  merge-sort concavity path, a Multiset quotient bridge for unordered
+  identified-pool collections under a no-duplicate-stable-id contract, a
+  Multiset stable-id selection bridge deriving selected-pair index order from
+  sorted-output stable-id order, a stable-id lookup witness bridge proving
+  selected stable IDs bind to unique sorted-output positions before lowering
+  into the Multiset stable-id concavity path, a deterministic runtime stable-id
+  lookup certificate checker for canonical bytes and selected-ID/index
+  validation, and one concrete 4-pool plus one concrete 5-pool coordinate-wise
+  checkpoint.
 - `DiscreteArgmaxProximity.lean` replaces the false discrete-concavity target
   with an abstract argmax-proximity theorem plus CPMM conditional instantiation.
 - `KPoolDiscreteArgmaxProximity.lean` lifts the scalar proximity result to a
@@ -320,9 +327,17 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
   merge-sort bridge for arbitrary identified Lists with unique stable ids, a
   stable-id List permutation quotient bridge for valid identified List
   presentations, a keyed `Finset Nat` presentation/quotient/concavity bridge
-  for stable-id unordered presentations with consistent lookups, one concrete
-  4-pool coordinate instance, and one concrete 5-pool coordinate instance.
-  Multiset and general unordered-container packaging remain open.
+  for stable-id unordered presentations with consistent lookups, a `Multiset`
+  presentation/quotient/certificate-output/concavity bridge for unordered
+  identified-pool collections under a no-duplicate-stable-id contract, a
+  Multiset stable-id selection bridge deriving selected-pair index order from
+  sorted-output stable-id order, a stable-id lookup witness bridge binding
+  selected IDs to unique sorted-output positions, a runtime stable-id lookup
+  checker for canonical JSON bytes, duplicate-key rejection, duplicate stable-ID
+  rejection, selected-ID membership, sorted-output index consistency, and
+  selected-pair order, one concrete 4-pool coordinate instance, and one concrete
+  5-pool coordinate instance. Production-specific unordered-container APIs and
+  a top-level all-K theorem remain open.
 - The min-out-cap game-theory evidence is a fixed-order filled-user no-gain
   check, not a full Nash equilibrium proof.
 - The concavity second-order approximation is not a universal stateful attack
@@ -336,6 +351,9 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
   which gives a tighter constant but is empirical only.
 - These files are research evidence and proof artifacts; they do not change
   consensus authority or production runtime behavior.
+- `src/core/kpool_stable_id_lookup_certificate.py` is a deterministic boundary
+  checker for a research certificate format. It is not wired into consensus
+  authority or production settlement behavior.
 
 ## Recommended GPT 5.5 Continuation
 
@@ -351,8 +369,37 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
    `splitFunctionConcave_of_finsetActiveBeforeRemainder` and
    `splitFunctionConcave_of_finsetRemainderBeforeActive` compose the
    Finset-to-List materialization with the existing merge-sort concavity
-   path for both selected-pair orders. Multiset/general unordered-container
-   packaging remains open.
+   path for both selected-pair orders. DONE:
+   `IdentifiedMultisetPresentationCont` materializes
+   `Multiset IdentifiedFixedPoolTermCont` through `Multiset.toList`,
+   `stableIdSortedPoolsCont_eq_of_multiset_eq` proves equal multisets
+   canonicalize to the same sorted output, and
+   `stableIdMergeSortPresentationCertificate_output_pools_eq_of_multiset_eq`
+   proves equal multisets expose the same executable certificate-output pool
+   sequence. The concavity theorems
+   `splitFunctionConcave_of_multisetActiveBeforeRemainder` and
+   `splitFunctionConcave_of_multisetRemainderBeforeActive` compose the
+   Multiset-to-List materialization with the merge-sort concavity path for both
+   selected-pair orders. DONE:
+   `MultisetStableIdActiveBeforeRemainderSelectionCont`,
+   `MultisetStableIdRemainderBeforeActiveSelectionCont`,
+   `stableIdSortedPoolsCont_index_lt_of_id_lt`, and the two
+   `splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_multisetStableId...`
+   theorems derive selected-pair index order from stable-id order before
+   consuming the Multiset concavity path. DONE:
+   `StableIdSortedLookupWitnessCont`,
+   `stableIdSortedLookupWitness_index_unique`,
+   `MultisetStableIdLookupActiveBeforeRemainderSelectionCont`,
+   `MultisetStableIdLookupRemainderBeforeActiveSelectionCont`, and the two
+   `splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_multisetStableIdLookup...`
+   theorems move the public selection surface to stable-ID lookup witnesses
+   while deriving the existing index-witness record internally. DONE:
+   `src/core/kpool_stable_id_lookup_certificate.py` adds a deterministic
+   boundary checker for canonical bytes, duplicate JSON keys, duplicate stable
+   IDs, absent selected IDs, out-of-bounds indices, ID/index mismatch, and
+   selected-pair order mismatch, with named reject reasons covered by
+   `tests/core/test_kpool_stable_id_lookup_certificate.py`. Production-specific
+   unordered-container APIs and a top-level all-K theorem remain open.
 2. Model ceiling-fee rounding in Lean to replace the production empirical
    `2L + 2` and `3L + 2` constants with checked lemmas.
 3. Turn the fixed-order no-gain evidence into a precise game definition.
