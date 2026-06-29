@@ -1,0 +1,277 @@
+{
+  "closure_count": 4,
+  "closures": [
+    {
+      "checks": {
+        "authority_nonclaim_present": true,
+        "canonical_invalid_zero": true,
+        "canonical_tau_ok": true,
+        "chain_index_pinned": true,
+        "chain_report_hash_pinned": true,
+        "exhaustive_nonclaim_present": true,
+        "facts_all_true": true,
+        "generation_digest_ok": true,
+        "invalid_accepts_zero": true,
+        "lean_refinement_nonclaim_present": true,
+        "membership_digest_ok": true,
+        "sampled_mask_count_ok": true,
+        "sampled_state_count_ok": true,
+        "schema_ok": true,
+        "stage_count_ok": true,
+        "tau_ok": true,
+        "transition_count_ok": true
+      },
+      "closed": true,
+      "closure_id": "n8_chain_resolves_canonical_merkle_refutation_risk",
+      "closure_kind": "resolves",
+      "frontier_atom_id": "atom_ef1f5b6ebed246eb",
+      "frontier_status": "UNDER_TEST",
+      "replay_command": "python3 tools/check_ab_child_frontier_proof_object_chain_n8_sample_tau_certificate_20260629.py",
+      "report_path": "generated/zenodex_ab_child_frontier_proof_object_chain_n8_sample_tau_certificate_20260629/report.json",
+      "report_sha256": "229620cd20b3c08561bc0d4766199c3687041be3bf6a15cf3ee79a050199a64c",
+      "resolver_artifacts": [
+        {
+          "path": "tools/check_ab_child_frontier_proof_object_chain_n8_sample_tau_certificate_20260629.py",
+          "sha256": "df15d406d91bcd7708e4b1862da2b119cccef61dcfa4d1160206c1caf1617bd4"
+        },
+        {
+          "path": "tests/tau/test_ab_child_frontier_proof_object_chain_n8_sample_tau_certificate_20260629.py",
+          "sha256": "18f601a5f0caa9ccb1c01a95f64b404ed29f75fdc9e6ddb4b78a8b0e350225aa"
+        },
+        {
+          "path": "src/tau_specs/recommended/ab_child_frontier_proof_object_chain_n8_sample_scope_certificate_v1.tau",
+          "sha256": "a2825913b6ecae365d30367c19dbc71c803af21a261e766a5c5c70eb4927ccb0"
+        },
+        {
+          "path": "docs/research/ZENODEX_AB_CHILD_FRONTIER_PROOF_OBJECT_CHAIN_N8_SAMPLE_TAU_CERTIFICATE_20260629.md",
+          "sha256": "5f7df009aedc80826077be86535ee43490c81e6082f1a894c870379f0edafa46"
+        }
+      ],
+      "summary": "The n8 proof-object chain certificate resolves the sampled canonical-Merkle risk by requiring the canonical stage Tau report, frontier and membership digests, linked generation digest, negative cases, and no-authority facts."
+    },
+    {
+      "checks": {
+        "authority_nonclaim_present": true,
+        "chain_index_pinned": true,
+        "chain_report_hash_pinned": true,
+        "exhaustive_nonclaim_present": true,
+        "facts_all_true": true,
+        "invalid_accepts_zero": true,
+        "lean_refinement_nonclaim_present": true,
+        "membership_digest_ok": true,
+        "sampled_mask_count_ok": true,
+        "sampled_state_count_ok": true,
+        "schema_ok": true,
+        "stage_count_ok": true,
+        "tau_ok": true,
+        "transition_count_ok": true,
+        "transition_digest_ok": true,
+        "transition_invalid_zero": true,
+        "transition_tau_ok": true,
+        "witness_digest_ok": true
+      },
+      "closed": true,
+      "closure_id": "n8_chain_resolves_bidirectional_transition_refutation_risk",
+      "closure_kind": "resolves",
+      "frontier_atom_id": "atom_d64b2781e6604d77",
+      "frontier_status": "UNDER_TEST",
+      "replay_command": "python3 tools/check_ab_child_frontier_proof_object_chain_n8_sample_tau_certificate_20260629.py",
+      "report_path": "generated/zenodex_ab_child_frontier_proof_object_chain_n8_sample_tau_certificate_20260629/report.json",
+      "report_sha256": "229620cd20b3c08561bc0d4766199c3687041be3bf6a15cf3ee79a050199a64c",
+      "resolver_artifacts": [
+        {
+          "path": "tools/check_ab_child_frontier_proof_object_chain_n8_sample_tau_certificate_20260629.py",
+          "sha256": "df15d406d91bcd7708e4b1862da2b119cccef61dcfa4d1160206c1caf1617bd4"
+        },
+        {
+          "path": "tests/tau/test_ab_child_frontier_proof_object_chain_n8_sample_tau_certificate_20260629.py",
+          "sha256": "18f601a5f0caa9ccb1c01a95f64b404ed29f75fdc9e6ddb4b78a8b0e350225aa"
+        },
+        {
+          "path": "src/tau_specs/recommended/ab_child_frontier_proof_object_chain_n8_sample_scope_certificate_v1.tau",
+          "sha256": "a2825913b6ecae365d30367c19dbc71c803af21a261e766a5c5c70eb4927ccb0"
+        },
+        {
+          "path": "docs/research/ZENODEX_AB_CHILD_FRONTIER_PROOF_OBJECT_CHAIN_N8_SAMPLE_TAU_CERTIFICATE_20260629.md",
+          "sha256": "5f7df009aedc80826077be86535ee43490c81e6082f1a894c870379f0edafa46"
+        }
+      ],
+      "summary": "The n8 proof-object chain certificate resolves the sampled bidirectional-transition risk by requiring the transition Tau report, transition digest, linked witness digest, linked Merkle membership digest, negative cases, and no-authority facts."
+    },
+    {
+      "checks": {
+        "authority_nonclaim_present": true,
+        "canonical_tau_ok": true,
+        "chain_index_pinned": true,
+        "chain_report_hash_pinned": true,
+        "exhaustive_nonclaim_present": true,
+        "facts_all_true": true,
+        "generation_tau_ok": true,
+        "invalid_accepts_zero": true,
+        "lean_refinement_nonclaim_present": true,
+        "manifest_hash_ok": true,
+        "producer_tau_ok": true,
+        "sampled_mask_count_ok": true,
+        "sampled_state_count_ok": true,
+        "schema_ok": true,
+        "stage_count_ok": true,
+        "tau_ok": true,
+        "transition_count_ok": true,
+        "transition_tau_ok": true,
+        "witness_tau_ok": true
+      },
+      "closed": true,
+      "closure_id": "n8_chain_specializes_tau_specification_reformulation",
+      "closure_kind": "specializes",
+      "frontier_atom_id": "atom_e4b9b11387894204",
+      "frontier_status": "CANDIDATE",
+      "replay_command": "python3 tools/check_ab_child_frontier_proof_object_chain_n8_sample_tau_certificate_20260629.py",
+      "report_path": "generated/zenodex_ab_child_frontier_proof_object_chain_n8_sample_tau_certificate_20260629/report.json",
+      "report_sha256": "229620cd20b3c08561bc0d4766199c3687041be3bf6a15cf3ee79a050199a64c",
+      "resolver_artifacts": [
+        {
+          "path": "tools/check_ab_child_frontier_proof_object_chain_n8_sample_tau_certificate_20260629.py",
+          "sha256": "df15d406d91bcd7708e4b1862da2b119cccef61dcfa4d1160206c1caf1617bd4"
+        },
+        {
+          "path": "tests/tau/test_ab_child_frontier_proof_object_chain_n8_sample_tau_certificate_20260629.py",
+          "sha256": "18f601a5f0caa9ccb1c01a95f64b404ed29f75fdc9e6ddb4b78a8b0e350225aa"
+        },
+        {
+          "path": "src/tau_specs/recommended/ab_child_frontier_proof_object_chain_n8_sample_scope_certificate_v1.tau",
+          "sha256": "a2825913b6ecae365d30367c19dbc71c803af21a261e766a5c5c70eb4927ccb0"
+        },
+        {
+          "path": "docs/research/ZENODEX_AB_CHILD_FRONTIER_PROOF_OBJECT_CHAIN_N8_SAMPLE_TAU_CERTIFICATE_20260629.md",
+          "sha256": "5f7df009aedc80826077be86535ee43490c81e6082f1a894c870379f0edafa46"
+        }
+      ],
+      "summary": "The n8 proof-object chain specializes the Tau-specification reformulation into a concrete five-stage Tau envelope over generation, canonical Merkle, witness compression, transition, and producer reports."
+    },
+    {
+      "checks": {
+        "authority_nonclaim_present": true,
+        "chain_index_claim_present": true,
+        "chain_index_pinned": true,
+        "chain_report_hash_pinned": true,
+        "exhaustive_nonclaim_present": true,
+        "facts_all_true": true,
+        "five_stage_claim_present": true,
+        "invalid_accepts_claim_present": true,
+        "invalid_accepts_zero": true,
+        "lean_refinement_nonclaim_present": true,
+        "producer_manifest_ok": true,
+        "sampled_mask_count_ok": true,
+        "sampled_state_count_ok": true,
+        "schema_ok": true,
+        "stage_count_ok": true,
+        "tau_ok": true,
+        "transition_count_ok": true
+      },
+      "closed": true,
+      "closure_id": "n8_chain_specializes_proof_object_compression_reformulation",
+      "closure_kind": "specializes",
+      "frontier_atom_id": "atom_41092f7feb7f4df8",
+      "frontier_status": "CANDIDATE",
+      "replay_command": "python3 tools/check_ab_child_frontier_proof_object_chain_n8_sample_tau_certificate_20260629.py",
+      "report_path": "generated/zenodex_ab_child_frontier_proof_object_chain_n8_sample_tau_certificate_20260629/report.json",
+      "report_sha256": "229620cd20b3c08561bc0d4766199c3687041be3bf6a15cf3ee79a050199a64c",
+      "resolver_artifacts": [
+        {
+          "path": "tools/check_ab_child_frontier_proof_object_chain_n8_sample_tau_certificate_20260629.py",
+          "sha256": "df15d406d91bcd7708e4b1862da2b119cccef61dcfa4d1160206c1caf1617bd4"
+        },
+        {
+          "path": "tests/tau/test_ab_child_frontier_proof_object_chain_n8_sample_tau_certificate_20260629.py",
+          "sha256": "18f601a5f0caa9ccb1c01a95f64b404ed29f75fdc9e6ddb4b78a8b0e350225aa"
+        },
+        {
+          "path": "src/tau_specs/recommended/ab_child_frontier_proof_object_chain_n8_sample_scope_certificate_v1.tau",
+          "sha256": "a2825913b6ecae365d30367c19dbc71c803af21a261e766a5c5c70eb4927ccb0"
+        },
+        {
+          "path": "docs/research/ZENODEX_AB_CHILD_FRONTIER_PROOF_OBJECT_CHAIN_N8_SAMPLE_TAU_CERTIFICATE_20260629.md",
+          "sha256": "5f7df009aedc80826077be86535ee43490c81e6082f1a894c870379f0edafa46"
+        }
+      ],
+      "summary": "The n8 proof-object chain specializes the proof-object-compression reformulation into a hash-pinned chain index with five stage reports, shared counts, cross-stage digests, and producer manifest links."
+    }
+  ],
+  "date": "2026-06-29",
+  "non_claims": [
+    "This receipt does not mutate Research Kernel frontier ranking by itself; explicit RK edges are required.",
+    "This receipt closes only the listed n8 sampled child-frontier items.",
+    "This receipt intentionally leaves unrelated n7, observed-summary, and record-set risks open.",
+    "This receipt records research-evidence closure only and grants no settlement, governance, state-root, or production authority.",
+    "Generated report JSON files are replay outputs; tracked source artifacts and replay commands are the durable evidence handles."
+  ],
+  "ok": true,
+  "open_frontier": [
+    {
+      "frontier_atom_id": "atom_f16f64e92cd14d74",
+      "frontier_status": "UNDER_TEST",
+      "reason_open": "n7 Tau scope refutation risk is separate from the sampled n8 proof-object chain.",
+      "unblock_plan": "Replay the n7 Tau certificate risk against its own source report and add an explicit RK edge if it closes."
+    },
+    {
+      "frontier_atom_id": "atom_e867f667225442a4",
+      "frontier_status": "UNDER_TEST",
+      "reason_open": "n7 bidirectional transition mutation risk is separate from the sampled n8 transition chain.",
+      "unblock_plan": "Build or replay a n7-specific chain/transition closure receipt with mutation controls."
+    },
+    {
+      "frontier_atom_id": "atom_c0f2558fe81046cf",
+      "frontier_status": "UNDER_TEST",
+      "reason_open": "record-set monotone-reserve dominance is a Lean/record-set claim, not covered by the n8 child-frontier chain.",
+      "unblock_plan": "Run a dedicated refutation pass over the record-set certificate and register the outcome."
+    },
+    {
+      "frontier_atom_id": "atom_5e7aa160e5604f79",
+      "frontier_status": "UNDER_TEST",
+      "reason_open": "observed-summary bridge scope is not implied by the n8 child-frontier proof-object chain.",
+      "unblock_plan": "Replay the observed-summary bridge and check stale overclaims separately."
+    },
+    {
+      "frontier_atom_id": "atom_0641a88159d6456b",
+      "frontier_status": "UNDER_TEST",
+      "reason_open": "reserve-state observed-summary bridge scope is not implied by the n8 child-frontier proof-object chain.",
+      "unblock_plan": "Replay the reserve-state observed-summary bridge and add a closure row only if its own checks pass."
+    }
+  ],
+  "open_frontier_count": 5,
+  "refresh_command": "python3 tools/check_research_kernel_frontier_hygiene_20260629.py --refresh",
+  "replay_command": "python3 tools/check_research_kernel_frontier_hygiene_20260629.py",
+  "research_kernel_edges_to_add": [
+    {
+      "closure_kind": "resolves",
+      "edge_type": "SUPERSEDES",
+      "rationale": "The n8 proof-object chain certificate resolves the sampled canonical-Merkle risk by requiring the canonical stage Tau report, frontier and membership digests, linked generation digest, negative cases, and no-authority facts.",
+      "source_atom_id": "atom_zenodex_research_kernel_frontier_hygiene_20260629",
+      "target_atom_id": "atom_ef1f5b6ebed246eb"
+    },
+    {
+      "closure_kind": "resolves",
+      "edge_type": "SUPERSEDES",
+      "rationale": "The n8 proof-object chain certificate resolves the sampled bidirectional-transition risk by requiring the transition Tau report, transition digest, linked witness digest, linked Merkle membership digest, negative cases, and no-authority facts.",
+      "source_atom_id": "atom_zenodex_research_kernel_frontier_hygiene_20260629",
+      "target_atom_id": "atom_d64b2781e6604d77"
+    },
+    {
+      "closure_kind": "specializes",
+      "edge_type": "SPECIALIZES",
+      "rationale": "The n8 proof-object chain specializes the Tau-specification reformulation into a concrete five-stage Tau envelope over generation, canonical Merkle, witness compression, transition, and producer reports.",
+      "source_atom_id": "atom_zenodex_research_kernel_frontier_hygiene_20260629",
+      "target_atom_id": "atom_e4b9b11387894204"
+    },
+    {
+      "closure_kind": "specializes",
+      "edge_type": "SPECIALIZES",
+      "rationale": "The n8 proof-object chain specializes the proof-object-compression reformulation into a hash-pinned chain index with five stage reports, shared counts, cross-stage digests, and producer manifest links.",
+      "source_atom_id": "atom_zenodex_research_kernel_frontier_hygiene_20260629",
+      "target_atom_id": "atom_41092f7feb7f4df8"
+    }
+  ],
+  "resolved_count": 2,
+  "schema": "zenodex.research_kernel_frontier_hygiene_20260629.v1",
+  "specialized_count": 2
+}
