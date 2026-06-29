@@ -1,0 +1,49 @@
+# AB Reserve-State Child-Frontier Certificate v1
+#
+# PURPOSE:
+#   Admit a research-only certificate for the AB strict zero-min reserve-state
+#   child-frontier bridge. The host checks JSON receipts, Lean compilation,
+#   deterministic replay markers, negative controls, and scoped non-claims.
+#   Tau only combines those host facts into a fail-closed envelope.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = strict_zero_min_scope_ok
+# i3  = n7_child_frontier_ok
+# i4  = n8_sample_child_frontier_ok
+# i5  = transition_projection_ok
+# i6  = observed_summary_bridge_ok
+# i7  = lean_afterstep_contract_ok
+# i8  = deterministic_replay_ok
+# i9  = negative_controls_ok
+# i10 = scope_nonclaims_bound
+# i11 = no_authority_effect
+# i12 = frontier_nonvacuous
+# i13 = n8_sample_bounded
+#
+# o1 = scope_ok
+# o2 = frontier_evidence_ok
+# o3 = bridge_contract_ok
+# o4 = replay_and_refutation_ok
+# o5 = authority_boundary_ok
+# o6 = child_frontier_certificate_ok
+# o7 = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+scope_ok(strict_zero_min : sbf, nonclaims : sbf, n8_bounded : sbf) := is1(strict_zero_min) && is1(nonclaims) && is1(n8_bounded).
+frontier_evidence_ok(n7_frontier : sbf, n8_sample : sbf, nonvacuous : sbf) := is1(n7_frontier) && is1(n8_sample) && is1(nonvacuous).
+bridge_contract_ok(transition_projection : sbf, observed_summary : sbf, lean_contract : sbf) := is1(transition_projection) && is1(observed_summary) && is1(lean_contract).
+replay_and_refutation_ok(deterministic_replay : sbf, negative_controls : sbf) := is1(deterministic_replay) && is1(negative_controls).
+authority_boundary_ok(no_authority : sbf) := is1(no_authority).
+certificate_ok(active : sbf, strict_zero_min : sbf, n7_frontier : sbf, n8_sample : sbf, transition_projection : sbf, observed_summary : sbf, lean_contract : sbf, deterministic_replay : sbf, negative_controls : sbf, nonclaims : sbf, no_authority : sbf, nonvacuous : sbf, n8_bounded : sbf) := is1(active) && scope_ok(strict_zero_min, nonclaims, n8_bounded) && frontier_evidence_ok(n7_frontier, n8_sample, nonvacuous) && bridge_contract_ok(transition_projection, observed_summary, lean_contract) && replay_and_refutation_ok(deterministic_replay, negative_controls) && authority_boundary_ok(no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> scope_ok(i2[t]:sbf, i10[t]:sbf, i13[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> frontier_evidence_ok(i3[t]:sbf, i4[t]:sbf, i12[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> bridge_contract_ok(i5[t]:sbf, i6[t]:sbf, i7[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> replay_and_refutation_ok(i8[t]:sbf, i9[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> authority_boundary_ok(i11[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> certificate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf)) &&
+  (o7[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i11[t]:sbf))).

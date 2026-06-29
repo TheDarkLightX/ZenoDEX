@@ -1,0 +1,317 @@
+{
+  "authority_boundary": "research evidence only; no settlement, state-root, production, governance, routing, matching, or pool-mutation authority",
+  "breakthrough": {
+    "invalid_accepts": 0,
+    "name": "AB reserve-state child-frontier Tau certificate",
+    "scoped_claims": [
+      "n=7 child-frontier equality is bound to a host report",
+      "n=8 child-frontier extension is bound as a sampled report",
+      "transition projection and observed-summary bridges are required",
+      "Lean afterStep and observed-summary markers must compile",
+      "negative controls and no-authority rails are mandatory"
+    ],
+    "spec_id": "ab_reserve_state_child_frontier_certificate_v1",
+    "tau_cases": 11
+  },
+  "date": "2026-06-29",
+  "facts": {
+    "deterministic_replay_ok": 1,
+    "frontier_nonvacuous": 1,
+    "lean_afterstep_contract_ok": 1,
+    "n7_child_frontier_ok": 1,
+    "n8_sample_bounded": 1,
+    "n8_sample_child_frontier_ok": 1,
+    "negative_controls_ok": 1,
+    "no_authority_effect": 1,
+    "observed_summary_bridge_ok": 1,
+    "scope_nonclaims_bound": 1,
+    "strict_zero_min_scope_ok": 1,
+    "transition_projection_ok": 1
+  },
+  "lean": {
+    "elapsed_s": 8.309239,
+    "markers_present": {
+      "def ReserveState.afterStep": true,
+      "structure ReserveStateQuotientObservedSummary": true,
+      "theorem reserveStateQuotientInvariant_afterStep": true,
+      "theorem reserveStateQuotientInvariant_familySuffixExecutable": true,
+      "theorem reserveStateQuotientObservedSummary_validates": true
+    },
+    "ok": true,
+    "path": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+    "returncode": 0,
+    "sha256": "490b0005cb1b1c7efcf768176c038d0e4d52ba25529a90e4babe0edb3a024013",
+    "stderr": "",
+    "stdout": ""
+  },
+  "non_claims": [
+    "This certificate does not prove Python-to-Lean refinement.",
+    "This certificate does not prove child-frontier generation in Lean.",
+    "This certificate does not claim exhaustive n=8 coverage.",
+    "This certificate does not define canonical tie order.",
+    "This certificate does not cover nonzero min_amount_out behavior.",
+    "This certificate does not authorize settlement, routing, matching, governance, pool mutation, production deployment, or state roots."
+  ],
+  "replay_command": "python3 tools/zenodex_ab_reserve_state_child_frontier_tau_certificate_20260629.py",
+  "schema": "zenodex.ab_reserve_state_child_frontier_tau_certificate_report.v1",
+  "source_reports": {
+    "n7_child_frontier": {
+      "ok": true,
+      "path": "generated/zenodex_ab_reserve_state_child_frontier_generation_20260629/report.json",
+      "schema": "zenodex.ab_reserve_state_child_frontier_generation_report.v1",
+      "sha256": "8314b3a97bcd95ac4dbcc95e7fbc284fffb070b821b702b7a1c89ba6dd3df500"
+    },
+    "n8_child_frontier_sample": {
+      "ok": true,
+      "path": "generated/zenodex_ab_reserve_state_child_frontier_n8_sample_20260629/report.json",
+      "schema": "zenodex.ab_reserve_state_child_frontier_n8_sample_report.v1",
+      "sha256": "5b1657dad785e87e89f8bac80808389262d29d20a55161ac10fbb63c0e8604e5"
+    },
+    "reserve_state_quotient_n7": {
+      "ok": true,
+      "path": "generated/zenodex_ab_strict_zero_min_reserve_state_quotient_certificate_20260629/report.json",
+      "schema": "zenodex.ab_strict_zero_min_reserve_state_quotient_certificate_report.v1",
+      "sha256": "70a258c530c431533360ce95831f63d4f162b3c5298b5261e283e8ea84e1eeba"
+    },
+    "reserve_state_quotient_n8_sample": {
+      "ok": true,
+      "path": "generated/zenodex_ab_strict_zero_min_reserve_state_quotient_n8_sample_20260629/report.json",
+      "schema": "zenodex.ab_strict_zero_min_reserve_state_quotient_n8_sample_report.v1",
+      "sha256": "ac55c1339c0bde6a49253323bc342d4c3edf187e05e413e919f34c397ccf0a8c"
+    },
+    "transition_projection": {
+      "ok": true,
+      "path": "generated/zenodex_ab_reserve_state_transition_projection_20260629/report.json",
+      "schema": "zenodex.ab_reserve_state_transition_projection_report.v1",
+      "sha256": "057df7d37b1a85c7b2fafd0a9c4e4c483c863eae5fd037d3e5556aa146593690"
+    }
+  },
+  "spec": {
+    "id": "ab_reserve_state_child_frontier_certificate_v1",
+    "path": "src/tau_specs/recommended/ab_reserve_state_child_frontier_certificate_v1.tau",
+    "sha256": "599c0faa6b0c1b31ba1046bacd6750b869ef755cf1405da50bc5ca4a5eec7bd4"
+  },
+  "tau": {
+    "case_results": [
+      {
+        "case_id": "child_frontier_certificate_pass",
+        "expected": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All scoped host, Lean, replay, negative-control, and no-authority facts admit the research certificate."
+      },
+      {
+        "case_id": "missing_n7_child_frontier_reject",
+        "expected": {
+          "o2": 0,
+          "o6": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The exhaustive n=7 child-frontier host evidence must remain present."
+      },
+      {
+        "case_id": "missing_n8_sample_reject",
+        "expected": {
+          "o2": 0,
+          "o6": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The bounded n=8 sample extension must remain present."
+      },
+      {
+        "case_id": "missing_transition_projection_reject",
+        "expected": {
+          "o3": 0,
+          "o6": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The child-frontier certificate must keep the transition-projection bridge."
+      },
+      {
+        "case_id": "missing_observed_summary_bridge_reject",
+        "expected": {
+          "o3": 0,
+          "o6": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The observed-summary bridge must remain bound to the certificate."
+      },
+      {
+        "case_id": "missing_lean_contract_reject",
+        "expected": {
+          "o3": 0,
+          "o6": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The Lean ReserveState.afterStep contract must compile and expose the expected markers."
+      },
+      {
+        "case_id": "missing_negative_controls_reject",
+        "expected": {
+          "o4": 0,
+          "o6": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Malformed or over-scoped packets must remain rejected."
+      },
+      {
+        "case_id": "missing_scope_nonclaims_reject",
+        "expected": {
+          "o1": 0,
+          "o6": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The no-refinement, no-tie-order, no-nonzero-min, and no-authority non-claims must remain explicit."
+      },
+      {
+        "case_id": "missing_bounded_n8_scope_reject",
+        "expected": {
+          "o1": 0,
+          "o6": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The n=8 evidence must remain explicitly marked as a bounded sample."
+      },
+      {
+        "case_id": "authority_reject",
+        "expected": {
+          "o5": 0,
+          "o6": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0,
+          "o7": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The certificate cannot carry settlement, state-root, production, or governance authority."
+      },
+      {
+        "case_id": "inactive_safe",
+        "expected": {
+          "o6": 0,
+          "o7": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Inactive certificates do not admit while the no-authority rail remains true."
+      }
+    ],
+    "invalid_accepts": 0,
+    "ok": true,
+    "skipped": false,
+    "tau_bin": "external/tau-lang/build-Release/tau",
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  }
+}
