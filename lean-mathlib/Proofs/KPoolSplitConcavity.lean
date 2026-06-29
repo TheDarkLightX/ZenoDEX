@@ -722,7 +722,7 @@ private theorem selectedMiddleSliceLength_eq_sub_of_lt
     After selecting concrete indices `i < j`, erasing the active pool at `i`
     and then the shifted remainder index `j - 1` leaves exactly the fixed-pool
     slices. This closes the active-before List-side arbitrary-index removal
-    obligation; Finset quotient infrastructure remains separate. -/
+    obligation; Finset quotient bridge is now provided by IdentifiedFinsetPresentationCont. -/
 theorem selectedFullPoolListCont_erase_active_then_remainder_eq_take_drop_of_lt
     (pools : List FixedPoolTermCont) {i j : Nat}
     (hij : i < j) (hj : j < pools.length) :
@@ -765,7 +765,7 @@ theorem selectedFullPoolListCont_erase_active_then_remainder_eq_take_drop_of_lt
     After selecting concrete indices `j < i`, erasing the active pool at `i`
     and then the unchanged remainder index `j` leaves exactly the fixed-pool
     slices. This closes the reversed List-side arbitrary-index removal
-    obligation; Finset quotient infrastructure remains separate. -/
+    obligation; Finset quotient bridge is now provided by IdentifiedFinsetPresentationCont. -/
 theorem selectedFullPoolListOrderedCont_remainderBeforeActive_erase_active_then_remainder_eq_take_drop_of_lt
     (pools : List FixedPoolTermCont) {j i : Nat}
     (hji : j < i) (hi : i < pools.length) :
