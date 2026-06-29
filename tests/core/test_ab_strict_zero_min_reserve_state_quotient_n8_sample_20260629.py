@@ -43,6 +43,11 @@ def test_ab_strict_zero_min_reserve_state_quotient_n8_sample_report(
     assert search["sampled_full_record_count"] == 121_563
     assert search["sampled_quotient_state_count"] == 91
     assert search["sampled_suffix_count"] == 1_227
+    assert search["lean_observed_summary_count"] == 1_227
+    assert search["lean_observed_summary_count"] == search["sampled_suffix_count"]
+    assert search["lean_observed_summary_digest"] == (
+        "eab4ae228e9ff9fe78393f55d8ec0fce3435600f8555cedfe7908f780402bd9b"
+    )
     assert search["suffix_universe_count"] == 242_499
     assert search["selected_suffix_executable_count"] == 1_227
 
@@ -104,6 +109,8 @@ def test_ab_strict_zero_min_reserve_state_quotient_n8_sample_coverage(
     assert "selected_reserve_out_not_min" in coverage["reason_classes"]
     assert "selected_suffix_not_executable" in coverage["reason_classes"]
     assert "packet_sample_plan_mismatch" in coverage["reason_classes"]
+    assert "packet_lean_contract_mismatch" in coverage["reason_classes"]
+    assert "packet_lean_observed_summary_mismatch" in coverage["reason_classes"]
     assert "sampled_n8_bound_missing" in coverage["reason_classes"]
 
 
@@ -123,6 +130,8 @@ def test_ab_strict_zero_min_reserve_state_quotient_n8_sample_negative_controls(
         "reserve_state_only_bound_missing",
         "sampled_n8_bound_missing",
         "packet_sample_plan_mismatch",
+        "packet_lean_contract_mismatch",
+        "packet_lean_observed_summary_mismatch",
         "compressed_record_missing",
         "selected_state_not_in_quotient_family",
         "selected_reserve_out_not_min",
@@ -130,6 +139,47 @@ def test_ab_strict_zero_min_reserve_state_quotient_n8_sample_negative_controls(
     }
     for control in controls:
         assert control["expected_reason"] in control["reasons"]
+
+
+def test_ab_strict_zero_min_reserve_state_quotient_n8_sample_lean_projection(
+    n8_sample_report: dict[str, object],
+) -> None:
+    first_case = n8_sample_report["search"]["first_case"]
+    lean_summary = first_case["lean_observed_summary"]
+
+    assert n8_sample_report["lean_contract"]["projection_shape"] == (
+        "one_digest_row_per_sampled_mask_sampled_suffix"
+    )
+    assert lean_summary["contract"]["summary_endpoint"] == (
+        "reserveStateQuotientObservedSummary_validates"
+    )
+    assert lean_summary["row_count"] == first_case["sampled_suffix_count"]
+    assert lean_summary["digest"] == (
+        "13f6ae624e4cf4d3086e69c3f4530f4733346f15fba22636e84787e764e4a95b"
+    )
+    assert lean_summary["first_row"] == {
+        "mask_id": 0,
+        "suffix_order_ids": [
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c0",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c1",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c2",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c3",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c4",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c5",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c6",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c7",
+        ],
+        "suffix_short": ["f5c0", "f5c1", "f5c2", "f5c3", "f5c4", "f5c5", "f5c6", "f5c7"],
+        "lean_structure": "ReserveStateQuotientObservedSummary",
+        "lean_endpoint": "reserveStateQuotientObservedSummary_validates",
+        "observed_state_count": 1,
+        "observed_selected_reserve_in": 10_000,
+        "observed_selected_reserve_out": 1_600,
+        "observed_executed_input": 828,
+        "observed_initial_reserve_out": 1_600,
+        "selected_state_digest": "04599cb8fbe86d40a4749171f9837cdde73cfa4f248b55f7a700c5f1207190b9",
+        "table_state_digest": "def37c5bc34f6776c10da1a4ba66aef1c4a1031129bd81de8bae8909a73ed586",
+    }
 
 
 def test_ab_strict_zero_min_reserve_state_quotient_n8_sample_non_claims(

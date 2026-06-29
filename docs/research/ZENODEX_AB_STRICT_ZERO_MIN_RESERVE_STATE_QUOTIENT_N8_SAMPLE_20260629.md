@@ -15,12 +15,32 @@ Research-only quotient replay evidence; no settlement, state-root, production, r
 - All-mask record compression ratio: `195.367201`
 - Sampled masks: `54`
 - Sampled suffix obligations: `1227`
+- Lean observed-summary rows: `1227`
 - Sampled suffix universe: `242499`
 - Quotient dominance checks: `1862`
 - Dominance check compression ratio: `72.734694`
-- Negative controls: `10`
+- Negative controls: `12`
 - Negative control accepts: `0`
 - Deterministic replay ok: `True`
+- Lean observed-summary digest: `eab4ae228e9ff9fe78393f55d8ec0fce3435600f8555cedfe7908f780402bd9b`
+
+## Lean Projection Shape
+
+```json
+{
+  "host_table": "ReserveStateQuotientHostTable",
+  "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+  "projection_shape": "one_digest_row_per_sampled_mask_sampled_suffix",
+  "summary_endpoint": "reserveStateQuotientObservedSummary_validates",
+  "summary_structure": "ReserveStateQuotientObservedSummary",
+  "summary_valid_predicate": "reserveStateQuotientObservedSummaryValid"
+}
+```
+
+Each sampled digest row binds the observed summary fields used by
+`reserveStateQuotientObservedSummary_validates`: quotient-state count, selected
+reserve-in, selected reserve-out, completed gross input, initial output reserve,
+selected-state digest, quotient-state digest, and one sampled completion suffix.
 
 ## Sample Plan
 
@@ -102,6 +122,50 @@ Research-only quotient replay evidence; no settlement, state-root, production, r
   "full_record_count_all": 109601,
   "initial_reserve_in": 10000,
   "initial_reserve_out": 1600,
+  "lean_observed_summary": {
+    "contract": {
+      "host_table": "ReserveStateQuotientHostTable",
+      "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+      "projection_shape": "one_digest_row_per_sampled_mask_sampled_suffix",
+      "summary_endpoint": "reserveStateQuotientObservedSummary_validates",
+      "summary_structure": "ReserveStateQuotientObservedSummary",
+      "summary_valid_predicate": "reserveStateQuotientObservedSummaryValid"
+    },
+    "digest": "13f6ae624e4cf4d3086e69c3f4530f4733346f15fba22636e84787e764e4a95b",
+    "first_row": {
+      "lean_endpoint": "reserveStateQuotientObservedSummary_validates",
+      "lean_structure": "ReserveStateQuotientObservedSummary",
+      "mask_id": 0,
+      "observed_executed_input": 828,
+      "observed_initial_reserve_out": 1600,
+      "observed_selected_reserve_in": 10000,
+      "observed_selected_reserve_out": 1600,
+      "observed_state_count": 1,
+      "selected_state_digest": "04599cb8fbe86d40a4749171f9837cdde73cfa4f248b55f7a700c5f1207190b9",
+      "suffix_order_ids": [
+        "0x00000000000000000000000000000000000000000000000000000000006cf5c0",
+        "0x00000000000000000000000000000000000000000000000000000000006cf5c1",
+        "0x00000000000000000000000000000000000000000000000000000000006cf5c2",
+        "0x00000000000000000000000000000000000000000000000000000000006cf5c3",
+        "0x00000000000000000000000000000000000000000000000000000000006cf5c4",
+        "0x00000000000000000000000000000000000000000000000000000000006cf5c5",
+        "0x00000000000000000000000000000000000000000000000000000000006cf5c6",
+        "0x00000000000000000000000000000000000000000000000000000000006cf5c7"
+      ],
+      "suffix_short": [
+        "f5c0",
+        "f5c1",
+        "f5c2",
+        "f5c3",
+        "f5c4",
+        "f5c5",
+        "f5c6",
+        "f5c7"
+      ],
+      "table_state_digest": "def37c5bc34f6776c10da1a4ba66aef1c4a1031129bd81de8bae8909a73ed586"
+    },
+    "row_count": 409
+  },
   "mask_count_all": 256,
   "max_full_records_per_sampled_mask": 40320,
   "max_quotient_states_per_sampled_mask": 1,
@@ -118,7 +182,7 @@ Research-only quotient replay evidence; no settlement, state-root, production, r
     0
   ],
   "ok": true,
-  "packet_hash": "a7f68732f9b730931fe1d46f17d0cf2c161b142c27972004df1863839f71ee7c",
+  "packet_hash": "a006ea563f0a9436fae7564684979af063e532544ea9be5a8bf8fe9c09744037",
   "pattern": "n8_thin_high_fee/stair",
   "pool": {
     "fee_bps": 9000,
@@ -176,6 +240,8 @@ Research-only quotient replay evidence; no settlement, state-root, production, r
 | `reserve_state_only_bound_missing` | `False` | `reserve_state_only_bound_missing` |
 | `sampled_n8_bound_missing` | `False` | `sampled_n8_bound_missing` |
 | `packet_sample_plan_mismatch` | `False` | `packet_sample_plan_mismatch` |
+| `packet_lean_contract_mismatch` | `False` | `packet_lean_contract_mismatch` |
+| `packet_lean_observed_summary_mismatch` | `False` | `packet_lean_observed_summary_mismatch` |
 | `compressed_record_missing` | `False` | `compressed_record_missing` |
 | `selected_state_not_in_quotient_family` | `False` | `selected_state_not_in_quotient_family` |
 | `selected_reserve_out_not_min` | `False` | `selected_reserve_out_not_min` |

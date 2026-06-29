@@ -2,9 +2,17 @@
   "authority_boundary": "Research-only quotient replay evidence; no settlement, state-root, production, routing, matching, or governance authority.",
   "date": "2026-06-29",
   "deterministic_replay": {
-    "first_hash": "006580d16905fb37fdcd3868c08bc56077382baf7e5e1f7d327bab30d14fded0",
+    "first_hash": "82b5cd9b48afa14771fd75778a7835795ac9143c027cda7b8c3512bea5541450",
     "ok": true,
-    "second_hash": "006580d16905fb37fdcd3868c08bc56077382baf7e5e1f7d327bab30d14fded0"
+    "second_hash": "82b5cd9b48afa14771fd75778a7835795ac9143c027cda7b8c3512bea5541450"
+  },
+  "lean_contract": {
+    "host_table": "ReserveStateQuotientHostTable",
+    "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+    "projection_shape": "one_digest_row_per_sampled_mask_sampled_suffix",
+    "summary_endpoint": "reserveStateQuotientObservedSummary_validates",
+    "summary_structure": "ReserveStateQuotientObservedSummary",
+    "summary_valid_predicate": "reserveStateQuotientObservedSummaryValid"
   },
   "non_claims": [
     "This is a bounded deterministic n=8 sample, not exhaustive n=8 coverage.",
@@ -69,6 +77,50 @@
         "full_record_count_all": 109601,
         "initial_reserve_in": 10000,
         "initial_reserve_out": 1600,
+        "lean_observed_summary": {
+          "contract": {
+            "host_table": "ReserveStateQuotientHostTable",
+            "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+            "projection_shape": "one_digest_row_per_sampled_mask_sampled_suffix",
+            "summary_endpoint": "reserveStateQuotientObservedSummary_validates",
+            "summary_structure": "ReserveStateQuotientObservedSummary",
+            "summary_valid_predicate": "reserveStateQuotientObservedSummaryValid"
+          },
+          "digest": "13f6ae624e4cf4d3086e69c3f4530f4733346f15fba22636e84787e764e4a95b",
+          "first_row": {
+            "lean_endpoint": "reserveStateQuotientObservedSummary_validates",
+            "lean_structure": "ReserveStateQuotientObservedSummary",
+            "mask_id": 0,
+            "observed_executed_input": 828,
+            "observed_initial_reserve_out": 1600,
+            "observed_selected_reserve_in": 10000,
+            "observed_selected_reserve_out": 1600,
+            "observed_state_count": 1,
+            "selected_state_digest": "04599cb8fbe86d40a4749171f9837cdde73cfa4f248b55f7a700c5f1207190b9",
+            "suffix_order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c0",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c1",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c2",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c3",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c4",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c5",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c6",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c7"
+            ],
+            "suffix_short": [
+              "f5c0",
+              "f5c1",
+              "f5c2",
+              "f5c3",
+              "f5c4",
+              "f5c5",
+              "f5c6",
+              "f5c7"
+            ],
+            "table_state_digest": "def37c5bc34f6776c10da1a4ba66aef1c4a1031129bd81de8bae8909a73ed586"
+          },
+          "row_count": 409
+        },
         "mask_count_all": 256,
         "max_full_records_per_sampled_mask": 40320,
         "max_quotient_states_per_sampled_mask": 1,
@@ -85,7 +137,7 @@
           0
         ],
         "ok": true,
-        "packet_hash": "a7f68732f9b730931fe1d46f17d0cf2c161b142c27972004df1863839f71ee7c",
+        "packet_hash": "a006ea563f0a9436fae7564684979af063e532544ea9be5a8bf8fe9c09744037",
         "pattern": "n8_thin_high_fee/stair",
         "pool": {
           "fee_bps": 9000,
@@ -176,6 +228,50 @@
         "full_record_count_all": 109601,
         "initial_reserve_in": 85000,
         "initial_reserve_out": 1400000,
+        "lean_observed_summary": {
+          "contract": {
+            "host_table": "ReserveStateQuotientHostTable",
+            "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+            "projection_shape": "one_digest_row_per_sampled_mask_sampled_suffix",
+            "summary_endpoint": "reserveStateQuotientObservedSummary_validates",
+            "summary_structure": "ReserveStateQuotientObservedSummary",
+            "summary_valid_predicate": "reserveStateQuotientObservedSummaryValid"
+          },
+          "digest": "6c40303008666bda87440ab330d75c7e4ebf73de6aa315127521548ffa09700c",
+          "first_row": {
+            "lean_endpoint": "reserveStateQuotientObservedSummary_validates",
+            "lean_structure": "ReserveStateQuotientObservedSummary",
+            "mask_id": 0,
+            "observed_executed_input": 372,
+            "observed_initial_reserve_out": 1400000,
+            "observed_selected_reserve_in": 85000,
+            "observed_selected_reserve_out": 1400000,
+            "observed_state_count": 1,
+            "selected_state_digest": "720d8b5241fd34dfcbdb59b0b2998380feb65db3b830191b98690eebeaf1d06a",
+            "suffix_order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000006cf5d0",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5d1",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5d2",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5d3",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5d4",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5d5",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5d6",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5d7"
+            ],
+            "suffix_short": [
+              "f5d0",
+              "f5d1",
+              "f5d2",
+              "f5d3",
+              "f5d4",
+              "f5d5",
+              "f5d6",
+              "f5d7"
+            ],
+            "table_state_digest": "cd4744412e874e8049b8e20ae5c6e65065c565dbcab3bd60528cf3859c4d545f"
+          },
+          "row_count": 409
+        },
         "mask_count_all": 256,
         "max_full_records_per_sampled_mask": 40320,
         "max_quotient_states_per_sampled_mask": 6,
@@ -192,7 +288,7 @@
           0
         ],
         "ok": true,
-        "packet_hash": "7b84bbc0353fde3a45d1e9e323ed87cfd28aa34d1633a1c19d2cb1463aeaaaf8",
+        "packet_hash": "0760060304a39c8a9812bfee2b130e00c9ec9900ee2da5bfdb0a00f8b0cb2425",
         "pattern": "n8_deep_low_fee/tie",
         "pool": {
           "fee_bps": 30,
@@ -283,6 +379,50 @@
         "full_record_count_all": 109601,
         "initial_reserve_in": 50000,
         "initial_reserve_out": 2200000,
+        "lean_observed_summary": {
+          "contract": {
+            "host_table": "ReserveStateQuotientHostTable",
+            "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+            "projection_shape": "one_digest_row_per_sampled_mask_sampled_suffix",
+            "summary_endpoint": "reserveStateQuotientObservedSummary_validates",
+            "summary_structure": "ReserveStateQuotientObservedSummary",
+            "summary_valid_predicate": "reserveStateQuotientObservedSummaryValid"
+          },
+          "digest": "9833f6a132ac0fb24a42606e5c98161b08808bdd6ba66b2ef8ca4d252a2f35aa",
+          "first_row": {
+            "lean_endpoint": "reserveStateQuotientObservedSummary_validates",
+            "lean_structure": "ReserveStateQuotientObservedSummary",
+            "mask_id": 0,
+            "observed_executed_input": 912,
+            "observed_initial_reserve_out": 2200000,
+            "observed_selected_reserve_in": 50000,
+            "observed_selected_reserve_out": 2200000,
+            "observed_state_count": 1,
+            "selected_state_digest": "1501b6c4edc13fb226437a894c950cbebbabb2f5fdc3d11e09bcd1e2e4f122dc",
+            "suffix_order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000006cf5e0",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5e1",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5e2",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5e3",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5e4",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5e5",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5e6",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5e7"
+            ],
+            "suffix_short": [
+              "f5e0",
+              "f5e1",
+              "f5e2",
+              "f5e3",
+              "f5e4",
+              "f5e5",
+              "f5e6",
+              "f5e7"
+            ],
+            "table_state_digest": "58063e5fab5da9c0fc4939b44b020589dc818f2f6020ec013fe08684106767ae"
+          },
+          "row_count": 409
+        },
         "mask_count_all": 256,
         "max_full_records_per_sampled_mask": 40320,
         "max_quotient_states_per_sampled_mask": 7,
@@ -299,7 +439,7 @@
           0
         ],
         "ok": true,
-        "packet_hash": "75052b21e7fb9d2c3cd2696c50a1cf591832ff71fa27b36089bfa2a727e9e696",
+        "packet_hash": "6d0d62d4fbcf6092ee9277028648579eb4e5f56f829ae9a359e793a1a30d7cbb",
         "pattern": "n8_deep_mid_fee/front_burst",
         "pool": {
           "fee_bps": 2500,
@@ -365,6 +505,8 @@
         "compressed_record_missing",
         "packet_first_obligation_mismatch",
         "packet_hash_mismatch",
+        "packet_lean_contract_mismatch",
+        "packet_lean_observed_summary_mismatch",
         "packet_mask_summaries_mismatch",
         "packet_quotient_summary_mismatch",
         "packet_sample_plan_mismatch",
@@ -391,7 +533,7 @@
     },
     "dominance_check_compression_ratio": 72.734694,
     "dominance_check_compression_saved": 133570,
-    "elapsed_ms": 16537.495,
+    "elapsed_ms": 17228.141,
     "first_case": {
       "amounts": [
         100,
@@ -437,6 +579,50 @@
       "full_record_count_all": 109601,
       "initial_reserve_in": 10000,
       "initial_reserve_out": 1600,
+      "lean_observed_summary": {
+        "contract": {
+          "host_table": "ReserveStateQuotientHostTable",
+          "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+          "projection_shape": "one_digest_row_per_sampled_mask_sampled_suffix",
+          "summary_endpoint": "reserveStateQuotientObservedSummary_validates",
+          "summary_structure": "ReserveStateQuotientObservedSummary",
+          "summary_valid_predicate": "reserveStateQuotientObservedSummaryValid"
+        },
+        "digest": "13f6ae624e4cf4d3086e69c3f4530f4733346f15fba22636e84787e764e4a95b",
+        "first_row": {
+          "lean_endpoint": "reserveStateQuotientObservedSummary_validates",
+          "lean_structure": "ReserveStateQuotientObservedSummary",
+          "mask_id": 0,
+          "observed_executed_input": 828,
+          "observed_initial_reserve_out": 1600,
+          "observed_selected_reserve_in": 10000,
+          "observed_selected_reserve_out": 1600,
+          "observed_state_count": 1,
+          "selected_state_digest": "04599cb8fbe86d40a4749171f9837cdde73cfa4f248b55f7a700c5f1207190b9",
+          "suffix_order_ids": [
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c0",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c1",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c2",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c3",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c4",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c5",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c6",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c7"
+          ],
+          "suffix_short": [
+            "f5c0",
+            "f5c1",
+            "f5c2",
+            "f5c3",
+            "f5c4",
+            "f5c5",
+            "f5c6",
+            "f5c7"
+          ],
+          "table_state_digest": "def37c5bc34f6776c10da1a4ba66aef1c4a1031129bd81de8bae8909a73ed586"
+        },
+        "row_count": 409
+      },
       "mask_count_all": 256,
       "max_full_records_per_sampled_mask": 40320,
       "max_quotient_states_per_sampled_mask": 1,
@@ -453,7 +639,7 @@
         0
       ],
       "ok": true,
-      "packet_hash": "a7f68732f9b730931fe1d46f17d0cf2c161b142c27972004df1863839f71ee7c",
+      "packet_hash": "a006ea563f0a9436fae7564684979af063e532544ea9be5a8bf8fe9c09744037",
       "pattern": "n8_thin_high_fee/stair",
       "pool": {
         "fee_bps": 9000,
@@ -501,13 +687,15 @@
     },
     "first_invalid_case": null,
     "full_record_count_all": 328803,
+    "lean_observed_summary_count": 1227,
+    "lean_observed_summary_digest": "eab4ae228e9ff9fe78393f55d8ec0fce3435600f8555cedfe7908f780402bd9b",
     "mask_count_all": 768,
     "max_full_records_per_sampled_mask": 40320,
     "max_quotient_states_per_sampled_mask": 7,
     "max_suffix_sample_per_mask": 24,
     "max_suffix_universe_per_mask": 40320,
     "negative_control_accept_count": 0,
-    "negative_control_count": 10,
+    "negative_control_count": 12,
     "negative_controls": [
       {
         "accepted": false,
@@ -565,6 +753,24 @@
       },
       {
         "accepted": false,
+        "expected_reason": "packet_lean_contract_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_lean_contract_mismatch",
+        "reasons": [
+          "packet_lean_contract_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "packet_lean_observed_summary_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_lean_observed_summary_mismatch",
+        "reasons": [
+          "packet_lean_observed_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
         "expected_reason": "compressed_record_missing",
         "first_failure": {
           "case_id": "n8_sample_000_thin_fee9000_stair",
@@ -575,6 +781,7 @@
         "reasons": [
           "compressed_record_missing",
           "packet_quotient_summary_mismatch",
+          "packet_lean_observed_summary_mismatch",
           "packet_mask_summaries_mismatch",
           "packet_first_obligation_mismatch"
         ]
@@ -597,6 +804,7 @@
           "selected_reserve_out_not_min",
           "selected_final_reserve_dominance_failure",
           "packet_quotient_summary_mismatch",
+          "packet_lean_observed_summary_mismatch",
           "packet_mask_summaries_mismatch",
           "packet_first_obligation_mismatch"
         ]
@@ -619,6 +827,7 @@
           "selected_reserve_out_not_min",
           "selected_final_reserve_dominance_failure",
           "packet_quotient_summary_mismatch",
+          "packet_lean_observed_summary_mismatch",
           "packet_mask_summaries_mismatch"
         ]
       },
@@ -649,6 +858,7 @@
           "selected_suffix_not_executable",
           "quotient_suffix_not_executable",
           "packet_quotient_summary_mismatch",
+          "packet_lean_observed_summary_mismatch",
           "packet_mask_summaries_mismatch",
           "packet_first_obligation_mismatch"
         ]

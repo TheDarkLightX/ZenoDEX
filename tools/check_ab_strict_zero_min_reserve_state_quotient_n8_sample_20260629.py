@@ -83,7 +83,7 @@ SEED = 2_026_062_908
 BIT_COUNT = 8
 TARGET_CASE_COUNT = 3
 SUFFIX_SAMPLE_LIMIT = 24
-EXPECTED_NEGATIVE_CONTROL_COUNT = 10
+EXPECTED_NEGATIVE_CONTROL_COUNT = 12
 
 
 def _n8_cases() -> list[Any]:
@@ -154,6 +154,52 @@ def _sample_plan(n: int) -> dict[str, Any]:
     }
 
 
+def _lean_contract() -> dict[str, str]:
+    return {
+        "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+        "host_table": "ReserveStateQuotientHostTable",
+        "summary_structure": "ReserveStateQuotientObservedSummary",
+        "summary_valid_predicate": "reserveStateQuotientObservedSummaryValid",
+        "summary_endpoint": "reserveStateQuotientObservedSummary_validates",
+        "projection_shape": "one_digest_row_per_sampled_mask_sampled_suffix",
+    }
+
+
+def _lean_observed_summary_row(
+    *,
+    mask_id: int,
+    suffix_ids: tuple[str, ...],
+    state_count: int,
+    selected_state: _ReserveState,
+    quotient_digest: str,
+    executed_input: int,
+    initial_reserve_out: int,
+) -> dict[str, Any]:
+    return {
+        "mask_id": int(mask_id),
+        "suffix_order_ids": list(suffix_ids),
+        "suffix_short": _short(suffix_ids),
+        "lean_structure": "ReserveStateQuotientObservedSummary",
+        "lean_endpoint": "reserveStateQuotientObservedSummary_validates",
+        "observed_state_count": int(state_count),
+        "observed_selected_reserve_in": int(selected_state.processed_reserve_in),
+        "observed_selected_reserve_out": int(selected_state.reserve_out),
+        "observed_executed_input": int(executed_input),
+        "observed_initial_reserve_out": int(initial_reserve_out),
+        "selected_state_digest": _state_digest(selected_state),
+        "table_state_digest": quotient_digest,
+    }
+
+
+def _lean_observed_summary_digest(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "contract": _lean_contract(),
+        "row_count": len(rows),
+        "digest": _sha256_json(rows),
+        "first_row": rows[0] if rows else None,
+    }
+
+
 def _packet_min_amount_out_reasons(packet: Mapping[str, Any]) -> list[str]:
     raw_values = packet.get("min_amount_out")
     try:
@@ -192,6 +238,8 @@ def _packet_rail_reasons(packet: Mapping[str, Any] | None) -> list[str]:
         reasons.append("sampled_n8_bound_missing")
     if packet.get("sample_suffix_bound") is not True:
         reasons.append("sample_suffix_bound_missing")
+    if packet.get("lean_contract") != _lean_contract():
+        reasons.append("packet_lean_contract_mismatch")
     if packet.get("packet_hash") != _packet_hash(packet):
         reasons.append("packet_hash_mismatch")
     reasons.extend(_packet_min_amount_out_reasons(packet))
@@ -307,7 +355,10 @@ def _verify_case_arrays(
     sampled_remaining_counts: list[int] = []
     mask_summaries: list[dict[str, Any]] = []
     obligation_digest_rows: list[dict[str, Any]] = []
+    lean_observed_summary_rows: list[dict[str, Any]] = []
     first_obligation: dict[str, Any] | None = None
+    executed_input = int(amount_sums[full_mask])
+    initial_reserve_out = int(context.r_out0)
 
     for mask_id in sampled_mask_ids:
         full_records = full_dp[mask_id]
@@ -323,6 +374,7 @@ def _verify_case_arrays(
         sampled_mask_count += 1
         sampled_full_record_count += len(full_records)
         quotient_rows = _quotient_rows(full_records)
+        quotient_digest = _quotient_digest(full_records)
         quotient_states = {
             _ReserveState(int(row["processed_reserve_in"]), int(row["reserve_out"]))
             for row in quotient_rows
@@ -412,6 +464,17 @@ def _verify_case_arrays(
         )
         for suffix in suffixes:
             suffix_id_tuple = _suffix_ids(suffix)
+            lean_observed_summary_rows.append(
+                _lean_observed_summary_row(
+                    mask_id=mask_id,
+                    suffix_ids=suffix_id_tuple,
+                    state_count=len(quotient_states),
+                    selected_state=selected_state,
+                    quotient_digest=quotient_digest,
+                    executed_input=executed_input,
+                    initial_reserve_out=initial_reserve_out,
+                )
+            )
             selected_result = _run_suffix_from_state(selected_state, suffix, context)
             if selected_result is None:
                 reasons.append("selected_suffix_not_executable")
@@ -430,7 +493,7 @@ def _verify_case_arrays(
                 "mask_id": int(mask_id),
                 "suffix_short": _short(suffix_id_tuple),
                 "selected_state_digest": _state_digest(selected_state),
-                "quotient_digest": _quotient_digest(full_records),
+                "quotient_digest": quotient_digest,
             }
             obligation_digest_rows.append(obligation_row)
             if first_obligation is None:
@@ -439,7 +502,7 @@ def _verify_case_arrays(
                     "suffix_short": _short(suffix_id_tuple),
                     "selected_state": _state_json(selected_state),
                     "quotient_state_count": len(quotient_states),
-                    "quotient_digest": _quotient_digest(full_records),
+                    "quotient_digest": quotient_digest,
                 }
 
             baseline_full_dominance_check_count += len(full_records)
@@ -492,6 +555,7 @@ def _verify_case_arrays(
         "max_suffix_universe_per_mask": max_suffix_universe_per_mask,
         "quotient_obligation_digest": _sha256_json(obligation_digest_rows),
     }
+    lean_observed_summary = _lean_observed_summary_digest(lean_observed_summary_rows)
 
     if packet is not None:
         if packet.get("case_id") != case.case_id:
@@ -504,6 +568,8 @@ def _verify_case_arrays(
             reasons.append("packet_sample_plan_mismatch")
         if packet.get("quotient_summary") != quotient_summary:
             reasons.append("packet_quotient_summary_mismatch")
+        if packet.get("lean_observed_summary") != lean_observed_summary:
+            reasons.append("packet_lean_observed_summary_mismatch")
         if packet.get("mask_summaries") != mask_summaries:
             reasons.append("packet_mask_summaries_mismatch")
         if packet.get("first_obligation") != first_obligation:
@@ -527,6 +593,7 @@ def _verify_case_arrays(
         "sampled_remaining_counts": sampled_remaining_counts,
         "mask_summaries": mask_summaries,
         "first_obligation": first_obligation,
+        "lean_observed_summary": lean_observed_summary,
         "full_mask_selected_state": _state_json(_reserve_state(compressed_dp[full_mask]))
         if compressed_dp[full_mask] is not None
         else None,
@@ -567,6 +634,7 @@ def build_case_packet(
         "reserve_state_only_bound": True,
         "sampled_n8_bound": True,
         "sample_suffix_bound": True,
+        "lean_contract": _lean_contract(),
         "sample_plan": _sample_plan(len(case.intents)),
         "quotient_contract": {
             "state": "processed_reserve_in,reserve_out",
@@ -595,6 +663,7 @@ def build_case_packet(
                 "quotient_obligation_digest",
             )
         },
+        "lean_observed_summary": verification["lean_observed_summary"],
         "mask_summaries": verification["mask_summaries"],
         "first_obligation": verification["first_obligation"],
     }
@@ -759,6 +828,34 @@ def _negative_controls(
         )
     )
 
+    bad_lean_contract = copy.deepcopy(base_packet)
+    bad_lean_contract["lean_contract"]["summary_endpoint"] = "stale_endpoint"
+    rows.append(
+        (
+            "packet_lean_contract_mismatch",
+            case,
+            case_index,
+            _clone_full_dp(base_full),
+            _clone_compressed_dp(base_compressed),
+            _rehash_packet(bad_lean_contract),
+            "packet_lean_contract_mismatch",
+        )
+    )
+
+    bad_lean_observed_summary = copy.deepcopy(base_packet)
+    bad_lean_observed_summary["lean_observed_summary"]["row_count"] += 1
+    rows.append(
+        (
+            "packet_lean_observed_summary_mismatch",
+            case,
+            case_index,
+            _clone_full_dp(base_full),
+            _clone_compressed_dp(base_compressed),
+            _rehash_packet(bad_lean_observed_summary),
+            "packet_lean_observed_summary_mismatch",
+        )
+    )
+
     missing_compressed = _clone_compressed_dp(base_compressed)
     missing_compressed[0] = None
     rows.append(
@@ -865,6 +962,9 @@ def run_search() -> dict[str, Any]:
     sampled_quotient_states = sum(int(row["sampled_quotient_state_count"]) for row in rows)
     baseline_dominance = sum(int(row["baseline_full_dominance_check_count"]) for row in rows)
     quotient_dominance = sum(int(row["quotient_dominance_check_count"]) for row in rows)
+    lean_observed_summary_count = sum(
+        int(row["lean_observed_summary"]["row_count"]) for row in rows
+    )
     return {
         "schema": SEARCH_SCHEMA,
         "source_seed": SEED,
@@ -886,6 +986,10 @@ def run_search() -> dict[str, Any]:
             6,
         ),
         "sampled_suffix_count": sum(int(row["sampled_suffix_count"]) for row in rows),
+        "lean_observed_summary_count": lean_observed_summary_count,
+        "lean_observed_summary_digest": _sha256_json(
+            [row["lean_observed_summary"]["digest"] for row in rows]
+        ),
         "suffix_universe_count": sum(int(row["suffix_universe_count"]) for row in rows),
         "selected_suffix_executable_count": sum(
             int(row["selected_suffix_executable_count"]) for row in rows
@@ -960,6 +1064,7 @@ def build_report() -> dict[str, Any]:
         and search["full_record_count_all"] > search["quotient_state_count_all"]
         and search["sampled_full_record_count"] > search["sampled_quotient_state_count"]
         and search["sampled_suffix_count"] == search["selected_suffix_executable_count"]
+        and search["lean_observed_summary_count"] == search["sampled_suffix_count"]
         and search["quotient_dominance_check_count"] == search["quotient_runtime_completion_count"]
         and search["negative_control_count"] == EXPECTED_NEGATIVE_CONTROL_COUNT
         and search["negative_control_accept_count"] == 0
@@ -980,6 +1085,7 @@ def build_report() -> dict[str, Any]:
         ),
         "search": search,
         "deterministic_replay": deterministic,
+        "lean_contract": _lean_contract(),
         "replay_command": (
             "python3 tools/check_ab_strict_zero_min_reserve_state_quotient_n8_sample_20260629.py"
         ),
@@ -1016,12 +1122,25 @@ def _write_markdown(report: Mapping[str, Any]) -> None:
         f"- All-mask record compression ratio: `{search['all_record_compression_ratio']}`",
         f"- Sampled masks: `{search['sampled_mask_count']}`",
         f"- Sampled suffix obligations: `{search['sampled_suffix_count']}`",
+        f"- Lean observed-summary rows: `{search['lean_observed_summary_count']}`",
         f"- Sampled suffix universe: `{search['suffix_universe_count']}`",
         f"- Quotient dominance checks: `{search['quotient_dominance_check_count']}`",
         f"- Dominance check compression ratio: `{search['dominance_check_compression_ratio']}`",
         f"- Negative controls: `{search['negative_control_count']}`",
         f"- Negative control accepts: `{search['negative_control_accept_count']}`",
         f"- Deterministic replay ok: `{report['deterministic_replay']['ok']}`",
+        f"- Lean observed-summary digest: `{search['lean_observed_summary_digest']}`",
+        "",
+        "## Lean Projection Shape",
+        "",
+        "```json",
+        json.dumps(report["lean_contract"], indent=2, sort_keys=True),
+        "```",
+        "",
+        "Each sampled digest row binds the observed summary fields used by",
+        "`reserveStateQuotientObservedSummary_validates`: quotient-state count, selected",
+        "reserve-in, selected reserve-out, completed gross input, initial output reserve,",
+        "selected-state digest, quotient-state digest, and one sampled completion suffix.",
         "",
         "## Sample Plan",
         "",
