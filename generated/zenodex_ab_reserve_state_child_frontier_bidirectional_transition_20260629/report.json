@@ -1,0 +1,349 @@
+{
+  "authority_boundary": "Research-only certificate-boundary evidence; no settlement, state-root, production, routing, matching, pool-mutation, or governance authority.",
+  "date": "2026-06-29",
+  "deterministic_replay": {
+    "first_hash": "54e80016a0c0dc4eb629d22b43265091b3b1c4dc75324320107b17dbd42668b7",
+    "ok": true,
+    "second_hash": "54e80016a0c0dc4eb629d22b43265091b3b1c4dc75324320107b17dbd42668b7"
+  },
+  "lean_contract": {
+    "host_bidirectional_shape": "child coverage is linked from witness+Merkle rows; every predecessor afterStep image carries canonical child-frontier membership here",
+    "host_cross_binding_shape": "each predecessor witness row is bound to a canonical Merkle membership proof for the same child mask and child state",
+    "host_generation_shape": "child quotient state set equals union of predecessor afterStep images",
+    "host_merkle_shape": "canonical sorted leaf-index Merkle root per child quotient frontier",
+    "host_witness_shape": "one predecessor ReserveState.afterStep witness per child quotient state",
+    "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+    "transition_def": "ReserveState.afterStep",
+    "transition_executability_endpoint": "reserveStateQuotientInvariant_familySuffixExecutable",
+    "transition_invariant_endpoint": "reserveStateQuotientInvariant_afterStep"
+  },
+  "non_claims": [
+    "This checker is bounded to the committed n=7 randomized corpus.",
+    "This checker covers only zero-min exact-in cases in the scoped corpus.",
+    "This checker links the child coverage direction to the existing witness+Merkle report.",
+    "This checker does not prove Python-to-Lean refinement.",
+    "This checker does not prove child-frontier generation in Lean.",
+    "This checker does not define canonical tie order or preserve order-id history.",
+    "This checker does not cover nonzero min_amount_out behavior.",
+    "No settlement, state-root, production, routing, matching, pool-mutation, or governance authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_reserve_state_child_frontier_bidirectional_transition_20260629.py",
+  "schema": "zenodex.ab_reserve_state_child_frontier_bidirectional_transition_report.v1",
+  "search": {
+    "case_count": 4,
+    "cases": [
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "child_mask_count": 127,
+        "covered_transition_count": 448,
+        "duplicate_transition_row_count": 0,
+        "expected_transition_count": 448,
+        "extra_transition_count": 0,
+        "fee_bps": 9000,
+        "first_failure": null,
+        "invalid_transition_row_count": 0,
+        "missing_transition_count": 0,
+        "ok": true,
+        "packet_hash": "28933a26520a6c743b1b93cd73782065bb5f18960abd8c5a302c7944300323be",
+        "pattern": "thin_positive_boundary/high_fee9000",
+        "reasons": [],
+        "transition_row_count": 448,
+        "transition_rows_digest": "ce88df5af288e0d989f47ad3739c8ca0f90ecf813c20e0d26c6014a97c44c33a",
+        "unique_generated_child_count": 127,
+        "unique_transition_count": 448
+      },
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "child_mask_count": 127,
+        "covered_transition_count": 1004,
+        "duplicate_transition_row_count": 0,
+        "expected_transition_count": 1004,
+        "extra_transition_count": 0,
+        "fee_bps": 1,
+        "first_failure": null,
+        "invalid_transition_row_count": 0,
+        "missing_transition_count": 0,
+        "ok": true,
+        "packet_hash": "7ced2deb80adf40058a25dae76ea394aa54133dd26d22d38f27fb7e99a5e7350",
+        "pattern": "near_zero_positive/rand_tie",
+        "reasons": [],
+        "transition_row_count": 1004,
+        "transition_rows_digest": "52156b78e1b71ff93bd584ff358ce959a3a94a7fa2e8d2d4d31c21173034e36b",
+        "unique_generated_child_count": 320,
+        "unique_transition_count": 1004
+      },
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "child_mask_count": 127,
+        "covered_transition_count": 877,
+        "duplicate_transition_row_count": 0,
+        "expected_transition_count": 877,
+        "extra_transition_count": 0,
+        "fee_bps": 100,
+        "first_failure": null,
+        "invalid_transition_row_count": 0,
+        "missing_transition_count": 0,
+        "ok": true,
+        "packet_hash": "6693c47f83a266ef9b2f3a7dd8ed09a4b20254d59c1a62ebec1c5dcc6693a1dd",
+        "pattern": "high_fee_deep_out/rand_stair",
+        "reasons": [],
+        "transition_row_count": 877,
+        "transition_rows_digest": "760e74560c7d8b8ae27ec73af46b4770efa976d975fa7c2e8213f57c53f4b147",
+        "unique_generated_child_count": 290,
+        "unique_transition_count": 877
+      },
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "child_mask_count": 127,
+        "covered_transition_count": 448,
+        "duplicate_transition_row_count": 0,
+        "expected_transition_count": 448,
+        "extra_transition_count": 0,
+        "fee_bps": 100,
+        "first_failure": null,
+        "invalid_transition_row_count": 0,
+        "missing_transition_count": 0,
+        "ok": true,
+        "packet_hash": "d9ed2bc7b445fa3b06e85300c861eb21237e8fcc4c06e931304cef1876fd831f",
+        "pattern": "near_domain_in/rand_burst",
+        "reasons": [],
+        "transition_row_count": 448,
+        "transition_rows_digest": "3e0b201dcc9c017bab65e9a9cd3bc884def0b8afcbb28e05377055ec5f585118",
+        "unique_generated_child_count": 127,
+        "unique_transition_count": 448
+      }
+    ],
+    "child_mask_count": 508,
+    "coverage": {
+      "fee_bps_counts": {
+        "1": 1,
+        "100": 2,
+        "9000": 1
+      },
+      "n_counts": {
+        "7": 4
+      },
+      "pattern_counts": {
+        "high_fee_deep_out/rand_stair": 1,
+        "near_domain_in/rand_burst": 1,
+        "near_zero_positive/rand_tie": 1,
+        "thin_positive_boundary/high_fee9000": 1
+      },
+      "reason_classes": [
+        "afterstep_generated_child_mismatch",
+        "authority_effect_present",
+        "extra_predecessor_transition_row",
+        "generated_child_not_in_child_frontier",
+        "generated_state_root_mismatch",
+        "linked_witness_merkle_bound_row_count_mismatch",
+        "linked_witness_merkle_summary_mismatch",
+        "membership_proof_hash_mismatch",
+        "missing_predecessor_transition_row",
+        "packet_hash_mismatch",
+        "packet_transition_summary_mismatch",
+        "transition_parent_state_not_in_parent_frontier",
+        "transition_step_bit_out_of_range"
+      ]
+    },
+    "covered_transition_count": 2777,
+    "duplicate_transition_row_count": 0,
+    "elapsed_ms": 11708.973,
+    "expected_transition_count": 2777,
+    "extra_transition_count": 0,
+    "first_case": {
+      "bit_count": 7,
+      "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+      "child_mask_count": 127,
+      "covered_transition_count": 448,
+      "duplicate_transition_row_count": 0,
+      "expected_transition_count": 448,
+      "extra_transition_count": 0,
+      "fee_bps": 9000,
+      "first_failure": null,
+      "invalid_transition_row_count": 0,
+      "missing_transition_count": 0,
+      "ok": true,
+      "packet_hash": "28933a26520a6c743b1b93cd73782065bb5f18960abd8c5a302c7944300323be",
+      "pattern": "thin_positive_boundary/high_fee9000",
+      "reasons": [],
+      "transition_row_count": 448,
+      "transition_rows_digest": "ce88df5af288e0d989f47ad3739c8ca0f90ecf813c20e0d26c6014a97c44c33a",
+      "unique_generated_child_count": 127,
+      "unique_transition_count": 448
+    },
+    "first_invalid_case": null,
+    "invalid_transition_row_count": 0,
+    "linked_child_coverage_witness_count": 864,
+    "linked_witness_merkle_summary": {
+      "available": true,
+      "bound_row_count": 864,
+      "bound_rows_digest": "0996b976f70eeea56e4c828a9ff25abefdb8930b39896b4427291284e1e73551",
+      "case_count": 4,
+      "child_mask_count": 508,
+      "kind": "witness_merkle",
+      "membership_count": 864,
+      "negative_control_accept_count": 0,
+      "ok": true,
+      "path": "generated/zenodex_ab_reserve_state_child_frontier_witness_merkle_20260629/report.json",
+      "schema": "zenodex.ab_reserve_state_child_frontier_witness_merkle_report.v1",
+      "valid_case_count": 4,
+      "witness_count": 864
+    },
+    "missing_transition_count": 0,
+    "negative_control_accept_count": 0,
+    "negative_control_count": 9,
+    "negative_controls": [
+      {
+        "accepted": false,
+        "expected_reason": "packet_hash_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_hash_mismatch",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "missing_predecessor_transition_row",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "mask_id": 1,
+          "reason": "missing_predecessor_transition_row"
+        },
+        "mutation_id": "missing_predecessor_transition_row",
+        "reasons": [
+          "missing_predecessor_transition_row",
+          "packet_transition_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "transition_parent_state_not_in_parent_frontier",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "detail": {
+            "row_index": 0
+          },
+          "mask_id": 1,
+          "reason": "transition_parent_state_not_in_parent_frontier"
+        },
+        "mutation_id": "transition_parent_state_not_in_parent_frontier",
+        "reasons": [
+          "transition_parent_state_not_in_parent_frontier",
+          "afterstep_generated_child_mismatch",
+          "missing_predecessor_transition_row",
+          "extra_predecessor_transition_row",
+          "packet_transition_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "afterstep_generated_child_mismatch",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "detail": {
+            "row_index": 0
+          },
+          "mask_id": 1,
+          "reason": "generated_child_not_in_child_frontier"
+        },
+        "mutation_id": "afterstep_generated_child_mismatch",
+        "reasons": [
+          "generated_child_not_in_child_frontier",
+          "membership_proof_hash_mismatch",
+          "afterstep_generated_child_mismatch",
+          "missing_predecessor_transition_row",
+          "extra_predecessor_transition_row",
+          "packet_transition_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "transition_step_bit_out_of_range",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "detail": {
+            "row_index": 0
+          },
+          "mask_id": 1,
+          "reason": "transition_step_bit_out_of_range"
+        },
+        "mutation_id": "transition_step_bit_out_of_range",
+        "reasons": [
+          "transition_step_bit_out_of_range",
+          "missing_predecessor_transition_row",
+          "extra_predecessor_transition_row",
+          "packet_transition_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "generated_state_root_mismatch",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "detail": {
+            "row_index": 0
+          },
+          "mask_id": 1,
+          "reason": "generated_state_root_mismatch"
+        },
+        "mutation_id": "generated_state_root_mismatch",
+        "reasons": [
+          "generated_state_root_mismatch",
+          "membership_proof_hash_mismatch",
+          "packet_transition_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "membership_proof_hash_mismatch",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "detail": {
+            "row_index": 2
+          },
+          "mask_id": 3,
+          "reason": "membership_proof_hash_mismatch"
+        },
+        "mutation_id": "membership_proof_hash_mismatch",
+        "reasons": [
+          "membership_proof_hash_mismatch",
+          "packet_transition_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "linked_witness_merkle_bound_row_count_mismatch",
+        "first_failure": null,
+        "mutation_id": "linked_witness_merkle_bound_row_count_mismatch",
+        "reasons": [
+          "linked_witness_merkle_summary_mismatch",
+          "linked_witness_merkle_bound_row_count_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "authority_effect_present",
+        "first_failure": null,
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      }
+    ],
+    "schema": "zenodex/ab_reserve_state_child_frontier_bidirectional_transition_search/v1",
+    "source_seed": 2026062907,
+    "transition_row_count": 2777,
+    "transition_rows_digest": "fccc26b63521b510776546e4663cecabcf58849af42bcda799484bf092a81f82",
+    "transition_to_child_witness_ratio": 3.21412,
+    "unique_generated_child_count": 864,
+    "unique_transition_count": 2777,
+    "valid_case_count": 4
+  },
+  "summary": "A bounded bidirectional transition certificate supports the n=7 strict zero-min AB reserve-state child-frontier equality: linked witness+Merkle rows cover child states, and every predecessor afterStep image is a canonical Merkle member of the child frontier."
+}
