@@ -25,8 +25,15 @@ def test_lean_ab_reserve_state_quotient_typechecks_without_placeholders() -> Non
     assert "structure ReserveStateQuotientHostTable" in text
     assert "def reserveStateQuotientHostTableValid" in text
     assert "theorem reserveStateQuotientHostTable_validates" in text
+    assert "structure ReserveStateQuotientObservedSummary" in text
+    assert "def reserveStateQuotientObservedSummaryValid" in text
+    assert "def reserveStateQuotientObservedSummaryFullKey" in text
+    assert "def reserveStateQuotientObservedSummarySelectedKey" in text
+    assert "theorem reserveStateQuotientObservedSummary_to_hostTableValid" in text
+    assert "theorem reserveStateQuotientObservedSummary_validates" in text
     assert "theorem witness_reserveStateEquivalent_same_suffixOutput" in text
     assert "theorem witness_reserveStateQuotientHostTable_validates" in text
+    assert "theorem witness_reserveStateQuotientObservedSummary_validates" in text
 
     lake = shutil.which("lake")
     if not lake:

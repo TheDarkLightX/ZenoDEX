@@ -47,14 +47,22 @@ REQUIRED_LEAN_MARKERS = [
     "structure ReserveStateQuotientHostTable",
     "def reserveStateQuotientHostTableValid",
     "theorem reserveStateQuotientHostTable_validates",
+    "structure ReserveStateQuotientObservedSummary",
+    "def reserveStateQuotientObservedSummaryValid",
+    "def reserveStateQuotientObservedSummaryFullKey",
+    "def reserveStateQuotientObservedSummarySelectedKey",
+    "theorem reserveStateQuotientObservedSummary_to_hostTableValid",
+    "theorem reserveStateQuotientObservedSummary_validates",
     "theorem witness_reserveStateEquivalent_same_suffixOutput",
     "theorem witness_reserveStateQuotientHostTable_validates",
+    "theorem witness_reserveStateQuotientObservedSummary_validates",
 ]
 
 REQUIRED_TEST_MARKERS = [
     "test_lean_ab_reserve_state_quotient_typechecks_without_placeholders",
     "Proofs/ABReserveStateQuotient.lean",
     "reserveStateQuotientHostTable_validates",
+    "reserveStateQuotientObservedSummary_validates",
 ]
 
 NON_CLAIMS = [
@@ -103,7 +111,8 @@ def build_report() -> dict[str, Any]:
             "for the AB strict zero-min research surface: same reserve-state "
             "quotient rows have identical fixed-suffix behavior, and a selected "
             "minimum reserve-out state dominates a finite quotient family at "
-            "fixed executed input."
+            "fixed executed input. The observed-summary layer binds host-visible "
+            "count and selected-state metadata to the validated Lean table."
         ),
         "artifacts": {
             "lean_file": str(LEAN_PATH.relative_to(ROOT)),
@@ -123,9 +132,12 @@ def build_report() -> dict[str, Any]:
         "non_claims": NON_CLAIMS,
         "replay_commands": [
             "cd lean-mathlib && lake env lean Proofs/ABReserveStateQuotient.lean",
+            "cd lean-mathlib && lake build Proofs.ABReserveStateQuotient",
             "python3 ~/.codex/skills/proof-engineering/scripts/scan_proof_placeholders.py lean-mathlib/Proofs/ABReserveStateQuotient.lean",
             "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests/formal/test_lean_ab_reserve_state_quotient.py",
             "python3 tools/check_ab_reserve_state_quotient_lean_bridge.py",
+            "python3 tools/check_public_claim_scope.py --root . --json",
+            "python3 tools/check_claims_registry.py",
         ],
     }
 

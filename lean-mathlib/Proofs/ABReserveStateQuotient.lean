@@ -257,6 +257,88 @@ theorem reserveStateQuotientHostTable_validates
       hinvariant,
     hexec⟩
 
+/-- Host-visible summary shell for a reserve-state quotient table.
+
+The summary binds count and selected-state metadata to the validated Lean table.
+It is a checker boundary only: host construction, JSON canonicalization, and
+packet hashing remain outside this proof component. -/
+structure ReserveStateQuotientObservedSummary where
+  table : ReserveStateQuotientHostTable
+  observedStateCount : Nat
+  observedSelectedReserveIn : Nat
+  observedSelectedReserveOut : Nat
+  observedExecutedInput : Nat
+  observedInitialReserveOut : Nat
+  deriving Repr
+
+/-- Validity predicate for the observed reserve-state quotient summary. -/
+def reserveStateQuotientObservedSummaryValid
+    (summary : ReserveStateQuotientObservedSummary) : Prop :=
+  reserveStateQuotientHostTableValid summary.table ∧
+    summary.observedStateCount = summary.table.states.length ∧
+    summary.observedSelectedReserveIn = summary.table.selected.processedReserveIn ∧
+    summary.observedSelectedReserveOut = summary.table.selected.reserveOut ∧
+    summary.observedExecutedInput = summary.table.executedInput ∧
+    summary.observedInitialReserveOut = summary.table.initialReserveOut
+
+/-- Full quotient-family key named through observed summary metadata. -/
+def reserveStateQuotientObservedSummaryFullKey
+    (summary : ReserveStateQuotientObservedSummary) : ZeroMinEconomicKey :=
+  quotientFullFrontierZeroMinEconomicKey summary.observedExecutedInput
+    summary.observedInitialReserveOut summary.table.states summary.table.suffix
+
+/-- Selected quotient-state key named through observed summary metadata. -/
+def reserveStateQuotientObservedSummarySelectedKey
+    (summary : ReserveStateQuotientObservedSummary) : ZeroMinEconomicKey :=
+  quotientSelectedZeroMinEconomicKey summary.observedExecutedInput
+    summary.observedInitialReserveOut summary.table.selected summary.table.suffix
+
+/-- The observed summary predicate carries the original host-table predicate. -/
+theorem reserveStateQuotientObservedSummary_to_hostTableValid
+    (summary : ReserveStateQuotientObservedSummary)
+    (hvalid : reserveStateQuotientObservedSummaryValid summary) :
+    reserveStateQuotientHostTableValid summary.table := by
+  exact hvalid.1
+
+/-- Observed-summary validation endpoint.
+
+A valid summary recovers the host-visible count and selected-state bindings,
+then inherits the reserve-state quotient economic endpoint using the observed
+executed-input and initial-reserve metadata. -/
+theorem reserveStateQuotientObservedSummary_validates
+    (summary : ReserveStateQuotientObservedSummary)
+    (hvalid : reserveStateQuotientObservedSummaryValid summary) :
+    summary.observedStateCount = summary.table.states.length ∧
+      summary.observedSelectedReserveIn = summary.table.selected.processedReserveIn ∧
+      summary.observedSelectedReserveOut = summary.table.selected.reserveOut ∧
+      summary.table.packetHashBound = true ∧
+      summary.table.noAuthorityEffect = true ∧
+      summary.table.quotientFamilyBound = true ∧
+      summary.table.selectedStateBound = true ∧
+      summary.table.selected ∈ summary.table.states ∧
+      zeroMinEconomicKeyDominated
+        (reserveStateQuotientObservedSummaryFullKey summary)
+        (reserveStateQuotientObservedSummarySelectedKey summary) ∧
+      suffixExecutable summary.table.selected.processedReserveIn
+        summary.table.selected.reserveOut summary.table.suffix := by
+  rcases hvalid with
+    ⟨htableValid, hcount, hselectedIn, hselectedOut, hexecutedInput,
+      hinitialReserveOut⟩
+  have hendpoint := reserveStateQuotientHostTable_validates summary.table htableValid
+  rcases hendpoint with
+    ⟨hhash, hnoAuthority, hfamily, hselectedBound, hselectedMem,
+      hdominance, hexec⟩
+  have hdominanceObserved :
+      zeroMinEconomicKeyDominated
+        (reserveStateQuotientObservedSummaryFullKey summary)
+        (reserveStateQuotientObservedSummarySelectedKey summary) := by
+    unfold reserveStateQuotientObservedSummaryFullKey
+      reserveStateQuotientObservedSummarySelectedKey
+    rw [hexecutedInput, hinitialReserveOut]
+    exact hdominance
+  exact ⟨hcount, hselectedIn, hselectedOut, hhash, hnoAuthority, hfamily,
+    hselectedBound, hselectedMem, hdominanceObserved, hexec⟩
+
 /-- Concrete non-vacuity witness for reserve-state equivalence. -/
 theorem witness_reserveStateEquivalent_same_suffixOutput :
     let left : ReserveState := ⟨1000, 900⟩
@@ -337,5 +419,103 @@ theorem witness_reserveStateQuotientHostTable_validates :
     exact ⟨rfl, rfl, rfl, rfl, by simpa [table] using hinvariant,
       by simpa [table] using hexec⟩
   exact ⟨hvalid, reserveStateQuotientHostTable_validates table hvalid⟩
+
+/-- Concrete non-vacuity witness for reserve-state observed-summary validation. -/
+theorem witness_reserveStateQuotientObservedSummary_validates :
+    let selected : ReserveState := ⟨1000, 800⟩
+    let states : List ReserveState := [selected, ⟨1000, 900⟩, ⟨1000, 1100⟩]
+    let table : ReserveStateQuotientHostTable := {
+      states := states
+      selected := selected
+      initialReserveOut := 1200
+      executedInput := 100
+      suffix := []
+      packetHashBound := true
+      noAuthorityEffect := true
+      quotientFamilyBound := true
+      selectedStateBound := true
+    }
+    let summary : ReserveStateQuotientObservedSummary := {
+      table := table
+      observedStateCount := 3
+      observedSelectedReserveIn := 1000
+      observedSelectedReserveOut := 800
+      observedExecutedInput := 100
+      observedInitialReserveOut := 1200
+    }
+    reserveStateQuotientObservedSummaryValid summary ∧
+      summary.observedStateCount = summary.table.states.length ∧
+        summary.observedSelectedReserveIn =
+          summary.table.selected.processedReserveIn ∧
+        summary.observedSelectedReserveOut =
+          summary.table.selected.reserveOut ∧
+        summary.table.packetHashBound = true ∧
+        summary.table.noAuthorityEffect = true ∧
+        summary.table.quotientFamilyBound = true ∧
+        summary.table.selectedStateBound = true ∧
+        summary.table.selected ∈ summary.table.states ∧
+        zeroMinEconomicKeyDominated
+          (reserveStateQuotientObservedSummaryFullKey summary)
+          (reserveStateQuotientObservedSummarySelectedKey summary) ∧
+        suffixExecutable summary.table.selected.processedReserveIn
+          summary.table.selected.reserveOut summary.table.suffix := by
+  let selected : ReserveState := ⟨1000, 800⟩
+  let states : List ReserveState := [selected, ⟨1000, 900⟩, ⟨1000, 1100⟩]
+  let table : ReserveStateQuotientHostTable := {
+    states := states
+    selected := selected
+    initialReserveOut := 1200
+    executedInput := 100
+    suffix := []
+    packetHashBound := true
+    noAuthorityEffect := true
+    quotientFamilyBound := true
+    selectedStateBound := true
+  }
+  let summary : ReserveStateQuotientObservedSummary := {
+    table := table
+    observedStateCount := 3
+    observedSelectedReserveIn := 1000
+    observedSelectedReserveOut := 800
+    observedExecutedInput := 100
+    observedInitialReserveOut := 1200
+  }
+  have hinvariant : reserveStateQuotientInvariant selected states := by
+    unfold reserveStateQuotientInvariant
+    constructor
+    · simp [states]
+    · constructor
+      · intro state hstate
+        simp [states] at hstate
+        rcases hstate with hstate | hstate | hstate
+        · subst state
+          rfl
+        · subst state
+          rfl
+        · subst state
+          rfl
+      · intro state hstate
+        simp [states] at hstate
+        rcases hstate with hstate | hstate | hstate
+        · subst state
+          rfl
+        · subst state
+          simp [selected]
+        · subst state
+          simp [selected]
+  have hexec :
+      suffixExecutable selected.processedReserveIn selected.reserveOut [] := by
+    simp [suffixExecutable]
+  have htableValid : reserveStateQuotientHostTableValid table := by
+    unfold reserveStateQuotientHostTableValid
+    exact ⟨rfl, rfl, rfl, rfl, by simpa [table] using hinvariant,
+      by simpa [table] using hexec⟩
+  have hsummaryValid : reserveStateQuotientObservedSummaryValid summary := by
+    unfold reserveStateQuotientObservedSummaryValid
+    exact ⟨htableValid, by simp [summary, table, states],
+      by simp [summary, table, selected], by simp [summary, table, selected],
+      by simp [summary, table], by simp [summary, table]⟩
+  exact ⟨hsummaryValid,
+    reserveStateQuotientObservedSummary_validates summary hsummaryValid⟩
 
 end ABReserveStateQuotient

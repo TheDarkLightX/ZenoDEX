@@ -4,7 +4,7 @@ Research-only proof component; no settlement, state-root, production, governance
 
 ## Claim Scope
 
-A Lean proof component formalizes the reserve-state quotient bridge for the AB strict zero-min research surface: same reserve-state quotient rows have identical fixed-suffix behavior, and a selected minimum reserve-out state dominates a finite quotient family at fixed executed input.
+A Lean proof component formalizes the reserve-state quotient bridge for the AB strict zero-min research surface: same reserve-state quotient rows have identical fixed-suffix behavior, and a selected minimum reserve-out state dominates a finite quotient family at fixed executed input. The observed-summary layer binds host-visible count and selected-state metadata to the validated Lean table.
 
 ## Checks
 
@@ -17,17 +17,20 @@ A Lean proof component formalizes the reserve-state quotient bridge for the AB s
 ## Artifacts
 
 - Lean file: `lean-mathlib/Proofs/ABReserveStateQuotient.lean`
-- Lean SHA-256: `sha256:ef2b28779aff711e411ae27da39146c51587707658056a36ee43d74181f36225`
-- Lean line count: `341`
+- Lean SHA-256: `sha256:ce93aa1f4e6831602756bfdaa6fc9c86bad47b969f39e81abcfd5a0da07db1a5`
+- Lean line count: `521`
 - Formal test: `tests/formal/test_lean_ab_reserve_state_quotient.py`
-- Formal test SHA-256: `sha256:7207b6d0788d76b328d413b46c8ba011569ccc5371247c9efb8d389a54f53c3a`
+- Formal test SHA-256: `sha256:e7f3eeb4c5a4f470b2dfb96840e65990a516c0f7e503fb9c9b2458d3345eb1c1`
 
 ## Replay
 
 - `cd lean-mathlib && lake env lean Proofs/ABReserveStateQuotient.lean`
+- `cd lean-mathlib && lake build Proofs.ABReserveStateQuotient`
 - `python3 ~/.codex/skills/proof-engineering/scripts/scan_proof_placeholders.py lean-mathlib/Proofs/ABReserveStateQuotient.lean`
 - `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests/formal/test_lean_ab_reserve_state_quotient.py`
 - `python3 tools/check_ab_reserve_state_quotient_lean_bridge.py`
+- `python3 tools/check_public_claim_scope.py --root . --json`
+- `python3 tools/check_claims_registry.py`
 
 ## Non-Claims
 
