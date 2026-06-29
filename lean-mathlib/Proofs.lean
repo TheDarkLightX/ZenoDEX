@@ -200,6 +200,7 @@ import Proofs.SettlementAlgebra
 import Proofs.SettlementCanonicalExecution
 import Proofs.SettlementMechanism
 import Proofs.SettlementNetting
+import Proofs.SettlementPipeline
 import Proofs.SlashingEscapePrevention
 import Proofs.SolverCheckerSeparation
 import Proofs.SolverNashEquilibrium
