@@ -345,11 +345,10 @@ def test_actual_gain_decreases_with_depth() -> None:
 
     The concavity-based bound using MINIMUM curvature m, (m/2)*a_A*a_B, also
     decreases with M, but it is FALSIFIED as a stateful attack bound (ratio up
-    to 1.82x). The empirical scaling probe in concavity_bounded_adversarial_test.py
+    to 1.88x). The empirical scaling probe in concavity_bounded_adversarial_test.py
     uses |f''(0)| (MAXIMUM curvature at the margin), which is a more
     conservative upper-bound constant than m since |f''(0)| >= m. That probe
     is empirical only, not a Lean theorem.
-    that bound is FALSIFIED (see test_concavity_bound_fails_large_trades).
     The actual gain is the honest quantity to track.
     """
     a_A, a_B = 100.0, 2000.0

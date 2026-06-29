@@ -1,0 +1,421 @@
+{
+  "authority_boundary": "The certificate is research evidence only. It does not select production pairs, materialize settlement, mutate balances, mutate pools, or authorize state roots.",
+  "case_samples": [
+    {
+      "assignment_balance_safe": true,
+      "candidate_count": 4,
+      "case_id": "uncoupled_size_2_variant_0",
+      "certified_assignment_matches_production": true,
+      "dual_certificate_ok": true,
+      "production_key": [
+        350,
+        258,
+        [
+          [
+            "0x00000000000000000000000000000000000000000000000000000000000075f8",
+            "0x0000000000000000000000000000000000000000000000000000000000009d08"
+          ],
+          [
+            "0x00000000000000000000000000000000000000000000000000000000000075f9",
+            "0x0000000000000000000000000000000000000000000000000000000000009d09"
+          ]
+        ]
+      ],
+      "production_matches_bruteforce": true,
+      "same_pair_id_tie": true
+    },
+    {
+      "assignment_balance_safe": true,
+      "candidate_count": 4,
+      "case_id": "uncoupled_size_2_variant_1",
+      "certified_assignment_matches_production": true,
+      "dual_certificate_ok": true,
+      "production_key": [
+        410,
+        258,
+        [
+          [
+            "0x00000000000000000000000000000000000000000000000000000000000079e0",
+            "0x000000000000000000000000000000000000000000000000000000000000a0f0"
+          ],
+          [
+            "0x00000000000000000000000000000000000000000000000000000000000079e1",
+            "0x000000000000000000000000000000000000000000000000000000000000a0f1"
+          ]
+        ]
+      ],
+      "production_matches_bruteforce": true,
+      "same_pair_id_tie": true
+    },
+    {
+      "assignment_balance_safe": true,
+      "candidate_count": 4,
+      "case_id": "uncoupled_size_2_variant_2",
+      "certified_assignment_matches_production": true,
+      "dual_certificate_ok": true,
+      "production_key": [
+        470,
+        258,
+        [
+          [
+            "0x0000000000000000000000000000000000000000000000000000000000007dc8",
+            "0x000000000000000000000000000000000000000000000000000000000000a4d8"
+          ],
+          [
+            "0x0000000000000000000000000000000000000000000000000000000000007dc9",
+            "0x000000000000000000000000000000000000000000000000000000000000a4d9"
+          ]
+        ]
+      ],
+      "production_matches_bruteforce": true,
+      "same_pair_id_tie": true
+    }
+  ],
+  "core": {
+    "assignment_safe_case_count": 25,
+    "case_count": 25,
+    "certified_assignment_mismatch_count": 0,
+    "coupled_boundary": {
+      "assignment_balance_safe": false,
+      "bruteforce_key": [
+        140,
+        60,
+        [
+          [
+            "0x0000000000000000000000000000000000000000000000000000000000016379",
+            "0x0000000000000000000000000000000000000000000000000000000000016761"
+          ]
+        ]
+      ],
+      "case_id": "coupled_capacity_boundary",
+      "naive_assignment_key": [
+        280,
+        120,
+        [
+          [
+            "0x0000000000000000000000000000000000000000000000000000000000016379",
+            "0x0000000000000000000000000000000000000000000000000000000000016761"
+          ],
+          [
+            "0x000000000000000000000000000000000000000000000000000000000001637a",
+            "0x0000000000000000000000000000000000000000000000000000000000016762"
+          ]
+        ]
+      ],
+      "naive_assignment_would_overdraw": true
+    },
+    "dual_violation_count": 0,
+    "max_candidate_count": 12,
+    "mismatch_count": 0,
+    "pair_tie_mismatch_count": 0
+  },
+  "date": "2026-06-29",
+  "deterministic_replay": {
+    "first_hash": "5b8ebcc6232425ad6451deec9297980b9d6879984d5f3d29bb3e67ef60ae0c4a",
+    "ok": true,
+    "second_hash": "5b8ebcc6232425ad6451deec9297980b9d6879984d5f3d29bb3e67ef60ae0c4a"
+  },
+  "flags": {
+    "balance_scope_ok": 1,
+    "brute_force_parity_ok": 1,
+    "deterministic_ties_ok": 1,
+    "dual_certificate_ok": 1,
+    "grouped_capacity_fallback_ok": 1,
+    "no_arbitrary_grouped_capacity_claim": 1,
+    "no_settlement_authority": 1,
+    "primal_assignment_ok": 1,
+    "replay_evidence_ok": 1,
+    "resource_budget_ok": 1,
+    "uncoupled_capacity_scope_ok": 1
+  },
+  "mutation_checks": [
+    {
+      "accepted": false,
+      "mutation_id": "scope_reject",
+      "rationale": "Missing i2 fails the certificate closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "primal_reject",
+      "rationale": "Missing i3 fails the certificate closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "dual_reject",
+      "rationale": "Missing i4 fails the certificate closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "bruteforce_reject",
+      "rationale": "Missing i5 fails the certificate closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "grouped_fallback_reject",
+      "rationale": "Missing i6 fails the certificate closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "tie_reject",
+      "rationale": "Missing i7 fails the certificate closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "balance_reject",
+      "rationale": "Missing i8 fails the certificate closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "budget_reject",
+      "rationale": "Missing i9 fails the certificate closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "grouped_claim_reject",
+      "rationale": "Missing i10 fails the certificate closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "authority_reject",
+      "rationale": "Missing i11 fails the certificate closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "replay_reject",
+      "rationale": "Missing i12 fails the certificate closed."
+    }
+  ],
+  "non_claims": [
+    "This is an uncoupled CoW Hungarian matching research certificate, not production activation.",
+    "This is not a certificate for grouped-capacity matching; coupled senders require the capacity-DP or fallback boundary.",
+    "The host computes the primal assignment and dual certificate; Tau combines projected facts only.",
+    "No settlement authority, state-root authority, routing authority, pool mutation, or balance mutation is derived."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_cow_hungarian_matching_certificate.py",
+  "schema": "zenodex.cow_hungarian_matching_certificate_report.v1",
+  "spec_id": "cow_hungarian_matching_certificate_v1",
+  "summary": "A Tau host-projected certificate gates the uncoupled CoW Hungarian matching surface by requiring balance-scope separation, primal assignment parity, dual certificate consistency, brute-force parity, deterministic pair-id ties, resource limits, replay evidence, grouped-capacity non-claims, and no authority.",
+  "tau": {
+    "case_count": 13,
+    "cases": [
+      {
+        "case_id": "hungarian_certificate_pass",
+        "expected": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All host-projected assignment, boundary, replay, and authority facts admit the certificate."
+      },
+      {
+        "case_id": "inactive_safe",
+        "expected": {
+          "o4": 0,
+          "o5": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Inactive certificate does not admit while no-authority remains true."
+      },
+      {
+        "case_id": "scope_reject",
+        "expected": {
+          "o4": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing i2 fails the certificate closed."
+      },
+      {
+        "case_id": "primal_reject",
+        "expected": {
+          "o4": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing i3 fails the certificate closed."
+      },
+      {
+        "case_id": "dual_reject",
+        "expected": {
+          "o4": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing i4 fails the certificate closed."
+      },
+      {
+        "case_id": "bruteforce_reject",
+        "expected": {
+          "o4": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing i5 fails the certificate closed."
+      },
+      {
+        "case_id": "grouped_fallback_reject",
+        "expected": {
+          "o4": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing i6 fails the certificate closed."
+      },
+      {
+        "case_id": "tie_reject",
+        "expected": {
+          "o4": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing i7 fails the certificate closed."
+      },
+      {
+        "case_id": "balance_reject",
+        "expected": {
+          "o4": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing i8 fails the certificate closed."
+      },
+      {
+        "case_id": "budget_reject",
+        "expected": {
+          "o4": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing i9 fails the certificate closed."
+      },
+      {
+        "case_id": "grouped_claim_reject",
+        "expected": {
+          "o4": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing i10 fails the certificate closed."
+      },
+      {
+        "case_id": "authority_reject",
+        "expected": {
+          "o4": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing i11 fails the certificate closed."
+      },
+      {
+        "case_id": "replay_reject",
+        "expected": {
+          "o4": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing i12 fails the certificate closed."
+      }
+    ],
+    "ok": true,
+    "spec_path": "src/tau_specs/recommended/cow_hungarian_matching_certificate_v1.tau",
+    "tau_bin_available": true,
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  }
+}

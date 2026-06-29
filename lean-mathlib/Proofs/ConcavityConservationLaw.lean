@@ -85,7 +85,7 @@ theorem lipschitz_increment_bound
    not formalized in Lean.
 
    The concavity-based gain bound using the MINIMUM curvature `m`,
-   `(m/2)*a_A*(a_A+2*a_B)`, is FALSIFIED empirically (ratio up to 1.82x)
+   `(m/2)*a_A*(a_A+2*a_B)`, is FALSIFIED empirically (ratio up to 1.88x)
    and is NOT included as a Lean theorem. The empirical scaling probe in
    `concavity_bounded_adversarial_test.py` uses `|f''(0)|` (MAXIMUM curvature
    at the margin), which gives a more conservative upper bound than `m`
