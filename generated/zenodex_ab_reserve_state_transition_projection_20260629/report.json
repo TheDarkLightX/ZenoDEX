@@ -1,0 +1,448 @@
+{
+  "authority_boundary": "Research-only certificate-compression evidence; no settlement, state-root, production, or governance authority.",
+  "date": "2026-06-29",
+  "deterministic_replay": {
+    "first_hash": "95b419be2f98e4c5ac519edd821d8e06e3be4cd91f810516ae1f0d4e915dc03b",
+    "ok": true,
+    "second_hash": "95b419be2f98e4c5ac519edd821d8e06e3be4cd91f810516ae1f0d4e915dc03b"
+  },
+  "lean_contract": {
+    "host_projection": "bounded parent-mask one-step transition rows",
+    "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+    "transition_def": "ReserveState.afterStep",
+    "transition_executability_endpoint": "reserveStateQuotientInvariant_familySuffixExecutable",
+    "transition_invariant_endpoint": "reserveStateQuotientInvariant_afterStep"
+  },
+  "non_claims": [
+    "This transition checker is bounded to the committed n=7 randomized corpus.",
+    "This checker samples no nonzero min_amount_out certificates.",
+    "This checker does not prove Python-to-Lean refinement.",
+    "This checker does not prove full child-frontier generation in Lean.",
+    "This checker does not define canonical tie order or preserve order-id history.",
+    "No settlement, state-root, production, or governance authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_reserve_state_transition_projection_20260629.py",
+  "schema": "zenodex.ab_reserve_state_transition_projection_report.v1",
+  "search": {
+    "candidate_child_membership_count": 2777,
+    "candidate_min_reserve_check_count": 2777,
+    "candidate_processed_match_count": 2777,
+    "candidate_transition_count": 2777,
+    "candidate_transition_executable_count": 2777,
+    "case_count": 4,
+    "cases": [
+      {
+        "bit_count": 7,
+        "candidate_child_membership_count": 448,
+        "candidate_min_reserve_check_count": 448,
+        "candidate_processed_match_count": 448,
+        "candidate_transition_count": 448,
+        "candidate_transition_executable_count": 448,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "fee_bps": 9000,
+        "first_failure": null,
+        "first_transition": {
+          "candidate_child_digest": "02893c7f4ca212f272fa78a082edd04d5b29ccd44c412dc12e111cc4b628b7a4",
+          "candidate_child_membership_count": 1,
+          "candidate_min_reserve_check_count": 1,
+          "candidate_processed_match_count": 1,
+          "candidate_transition_count": 1,
+          "candidate_transition_executable_count": 1,
+          "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+          "child_mask_id": 1,
+          "child_quotient_digest": "f4a4921b22595e51854a6a3c1df03d9960dd26e0f4fbdec3963f15d1962b3aa9",
+          "child_state_count": 1,
+          "lean_executability_endpoint": "reserveStateQuotientInvariant_familySuffixExecutable",
+          "lean_invariant_endpoint": "reserveStateQuotientInvariant_afterStep",
+          "lean_transition_def": "ReserveState.afterStep",
+          "mask_id": 0,
+          "parent_quotient_digest": "74bfe2d98beff0789bbfc93d60ca66d200bedcd09aac3477d1548fe912a9ed49",
+          "parent_selected_state": {
+            "processed_reserve_in": 10000,
+            "reserve_out": 1100
+          },
+          "parent_selected_state_digest": "bd9d9dfd318aac5e489dbd081b4535164c8759e8bb713dacf6a3273f30544fc3",
+          "parent_state_count": 1,
+          "selected_child_in_child_family": true,
+          "selected_child_state": {
+            "processed_reserve_in": 10100,
+            "reserve_out": 1099
+          },
+          "selected_child_state_digest": "31832c0a4146b21cf611e3208ef60f80683ee16ad4d01d068a19b14701cba3a2",
+          "step_bit_index": 0,
+          "step_order_id": "0x00000000000000000000000000000000000000000000000000000000006cf5c0",
+          "step_order_short": [
+            "f5c0"
+          ]
+        },
+        "mask_count": 127,
+        "max_child_state_count": 1,
+        "max_parent_state_count": 1,
+        "ok": true,
+        "packet_hash": "c64729fdbdc308e05b165881bf6cd35bb35c327ecd042253feacb4c96e54e6a9",
+        "pattern": "thin_positive_boundary/high_fee9000",
+        "reasons": [],
+        "selected_child_membership_count": 448,
+        "selected_transition_count": 448,
+        "transition_projection_count": 448,
+        "transition_rows_digest": "cfdc1ebf66e4f20f843ef56fdb7f024e8cd8e1019300edce40eb5511b6e19449"
+      },
+      {
+        "bit_count": 7,
+        "candidate_child_membership_count": 1004,
+        "candidate_min_reserve_check_count": 1004,
+        "candidate_processed_match_count": 1004,
+        "candidate_transition_count": 1004,
+        "candidate_transition_executable_count": 1004,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "fee_bps": 1,
+        "first_failure": null,
+        "first_transition": {
+          "candidate_child_digest": "df957a80b38d95786225f0ae263a3db56b106e362e8acd4ccf4d3cf7cd18cc64",
+          "candidate_child_membership_count": 1,
+          "candidate_min_reserve_check_count": 1,
+          "candidate_processed_match_count": 1,
+          "candidate_transition_count": 1,
+          "candidate_transition_executable_count": 1,
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "child_mask_id": 1,
+          "child_quotient_digest": "ed797424d28c0e20d3788030556693f7eac66e549fff66b80a2ae78274267ddf",
+          "child_state_count": 1,
+          "lean_executability_endpoint": "reserveStateQuotientInvariant_familySuffixExecutable",
+          "lean_invariant_endpoint": "reserveStateQuotientInvariant_afterStep",
+          "lean_transition_def": "ReserveState.afterStep",
+          "mask_id": 0,
+          "parent_quotient_digest": "a1785445073cbba2417efd9fc4096c4d4b8a52e698792436259b36c97c6ff9dd",
+          "parent_selected_state": {
+            "processed_reserve_in": 153456,
+            "reserve_out": 1468855
+          },
+          "parent_selected_state_digest": "fe1c5fc0e16d4dc15a7fd1733b635e0463330970c19c7c0aacb3de576e6efc97",
+          "parent_state_count": 1,
+          "selected_child_in_child_family": true,
+          "selected_child_state": {
+            "processed_reserve_in": 153500,
+            "reserve_out": 1468444
+          },
+          "selected_child_state_digest": "87e8c3874d753c0becdca8c34eb3f39e3522edda9a4cf1f747c44e6a5fbd521f",
+          "step_bit_index": 0,
+          "step_order_id": "0x00000000000000000000000000000000000000000000000000000000006c8540",
+          "step_order_short": [
+            "8540"
+          ]
+        },
+        "mask_count": 127,
+        "max_child_state_count": 5,
+        "max_parent_state_count": 4,
+        "ok": true,
+        "packet_hash": "d0c6c796c43b0afecc1ff60a03a622f77a7266449a4b1e7c72e054598659a18e",
+        "pattern": "near_zero_positive/rand_tie",
+        "reasons": [],
+        "selected_child_membership_count": 448,
+        "selected_transition_count": 448,
+        "transition_projection_count": 448,
+        "transition_rows_digest": "e1c923a7c019cfae11620defaf81a4e803165b3d6ea794ae4c7f670c1fcf76e5"
+      },
+      {
+        "bit_count": 7,
+        "candidate_child_membership_count": 877,
+        "candidate_min_reserve_check_count": 877,
+        "candidate_processed_match_count": 877,
+        "candidate_transition_count": 877,
+        "candidate_transition_executable_count": 877,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "fee_bps": 100,
+        "first_failure": null,
+        "first_transition": {
+          "candidate_child_digest": "61593d0dad2c3a3f15636585aefd982bae935ed214c06526066b14f40a331e25",
+          "candidate_child_membership_count": 1,
+          "candidate_min_reserve_check_count": 1,
+          "candidate_processed_match_count": 1,
+          "candidate_transition_count": 1,
+          "candidate_transition_executable_count": 1,
+          "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+          "child_mask_id": 1,
+          "child_quotient_digest": "0a576fb09551959068ae0ac776daae67ed72bcc3c47fee73bec42cdd241f3e6d",
+          "child_state_count": 1,
+          "lean_executability_endpoint": "reserveStateQuotientInvariant_familySuffixExecutable",
+          "lean_invariant_endpoint": "reserveStateQuotientInvariant_afterStep",
+          "lean_transition_def": "ReserveState.afterStep",
+          "mask_id": 0,
+          "parent_quotient_digest": "a6341c494af927f4247515ab15786a0b33a9fd9bb4876edc37267dd7003d11a4",
+          "parent_selected_state": {
+            "processed_reserve_in": 64492,
+            "reserve_out": 2782612
+          },
+          "parent_selected_state_digest": "3a73b3e46385a3a48af1001991070cf8caa4fafe25490955c36e86c8da0738ea",
+          "parent_state_count": 1,
+          "selected_child_in_child_family": true,
+          "selected_child_state": {
+            "processed_reserve_in": 64524,
+            "reserve_out": 2781276
+          },
+          "selected_child_state_digest": "68451109cd0af1825c499d7af9698c93f697965a8f85712d950e567da8ac40d8",
+          "step_bit_index": 0,
+          "step_order_id": "0x00000000000000000000000000000000000000000000000000000000006c8550",
+          "step_order_short": [
+            "8550"
+          ]
+        },
+        "mask_count": 127,
+        "max_child_state_count": 5,
+        "max_parent_state_count": 5,
+        "ok": true,
+        "packet_hash": "8de941a04148d4661dc2ce55738cfd95e1a844102e12bc0ab75c7270891122c7",
+        "pattern": "high_fee_deep_out/rand_stair",
+        "reasons": [],
+        "selected_child_membership_count": 448,
+        "selected_transition_count": 448,
+        "transition_projection_count": 448,
+        "transition_rows_digest": "dc3bab24b57a6e9a0182d19957435fbeee7d601e9da9041486044f88d3803845"
+      },
+      {
+        "bit_count": 7,
+        "candidate_child_membership_count": 448,
+        "candidate_min_reserve_check_count": 448,
+        "candidate_processed_match_count": 448,
+        "candidate_transition_count": 448,
+        "candidate_transition_executable_count": 448,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "fee_bps": 100,
+        "first_failure": null,
+        "first_transition": {
+          "candidate_child_digest": "72b25dfcecc7ebb8d490cdab7a265b00f51f29c18663f8d49b49455752b207aa",
+          "candidate_child_membership_count": 1,
+          "candidate_min_reserve_check_count": 1,
+          "candidate_processed_match_count": 1,
+          "candidate_transition_count": 1,
+          "candidate_transition_executable_count": 1,
+          "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+          "child_mask_id": 1,
+          "child_quotient_digest": "81314bc7e8cb5fa6d1c4656e5fdc6ce100b55745eda4a2a7b022c4aa7cbcf69e",
+          "child_state_count": 1,
+          "lean_executability_endpoint": "reserveStateQuotientInvariant_familySuffixExecutable",
+          "lean_invariant_endpoint": "reserveStateQuotientInvariant_afterStep",
+          "lean_transition_def": "ReserveState.afterStep",
+          "mask_id": 0,
+          "parent_quotient_digest": "f6966d644ee1ba1000e5ae5855c407894e63e0bf5027dbf259a63e57e7a10a63",
+          "parent_selected_state": {
+            "processed_reserve_in": 2999957340,
+            "reserve_out": 2716068284
+          },
+          "parent_selected_state_digest": "dbabb1780e703f2e1c6d0db6f9f1fdbf99ac12b64914d2be16dad22a29ed953d",
+          "parent_state_count": 1,
+          "selected_child_in_child_family": true,
+          "selected_child_state": {
+            "processed_reserve_in": 2999957805,
+            "reserve_out": 2716067868
+          },
+          "selected_child_state_digest": "748cf082f7a27712cbdc3c4b142d1d17c962252a947273125fad05bb0483a89a",
+          "step_bit_index": 0,
+          "step_order_id": "0x00000000000000000000000000000000000000000000000000000000006c8560",
+          "step_order_short": [
+            "8560"
+          ]
+        },
+        "mask_count": 127,
+        "max_child_state_count": 1,
+        "max_parent_state_count": 1,
+        "ok": true,
+        "packet_hash": "4b6db9514c8d888b2d5c4415a240bcc641390f7a07626df89d4b50be6a1e8c3a",
+        "pattern": "near_domain_in/rand_burst",
+        "reasons": [],
+        "selected_child_membership_count": 448,
+        "selected_transition_count": 448,
+        "transition_projection_count": 448,
+        "transition_rows_digest": "fb21bc939edb669a5784b0319074ca4213deec191e652a30c62a69f725efd183"
+      }
+    ],
+    "coverage": {
+      "fee_bps_counts": {
+        "1": 1,
+        "100": 2,
+        "9000": 1
+      },
+      "n_counts": {
+        "7": 4
+      },
+      "pattern_counts": {
+        "high_fee_deep_out/rand_stair": 1,
+        "near_domain_in/rand_burst": 1,
+        "near_zero_positive/rand_tie": 1,
+        "thin_positive_boundary/high_fee9000": 1
+      },
+      "reason_classes": [
+        "authority_effect_present",
+        "candidate_transition_child_not_in_child_quotient",
+        "packet_hash_mismatch",
+        "packet_lean_contract_mismatch",
+        "packet_transition_summary_mismatch",
+        "selected_transition_child_not_in_child_quotient",
+        "transition_min_reserve_failure"
+      ]
+    },
+    "elapsed_ms": 6348.73,
+    "first_case": {
+      "bit_count": 7,
+      "candidate_child_membership_count": 448,
+      "candidate_min_reserve_check_count": 448,
+      "candidate_processed_match_count": 448,
+      "candidate_transition_count": 448,
+      "candidate_transition_executable_count": 448,
+      "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+      "fee_bps": 9000,
+      "first_failure": null,
+      "first_transition": {
+        "candidate_child_digest": "02893c7f4ca212f272fa78a082edd04d5b29ccd44c412dc12e111cc4b628b7a4",
+        "candidate_child_membership_count": 1,
+        "candidate_min_reserve_check_count": 1,
+        "candidate_processed_match_count": 1,
+        "candidate_transition_count": 1,
+        "candidate_transition_executable_count": 1,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "child_mask_id": 1,
+        "child_quotient_digest": "f4a4921b22595e51854a6a3c1df03d9960dd26e0f4fbdec3963f15d1962b3aa9",
+        "child_state_count": 1,
+        "lean_executability_endpoint": "reserveStateQuotientInvariant_familySuffixExecutable",
+        "lean_invariant_endpoint": "reserveStateQuotientInvariant_afterStep",
+        "lean_transition_def": "ReserveState.afterStep",
+        "mask_id": 0,
+        "parent_quotient_digest": "74bfe2d98beff0789bbfc93d60ca66d200bedcd09aac3477d1548fe912a9ed49",
+        "parent_selected_state": {
+          "processed_reserve_in": 10000,
+          "reserve_out": 1100
+        },
+        "parent_selected_state_digest": "bd9d9dfd318aac5e489dbd081b4535164c8759e8bb713dacf6a3273f30544fc3",
+        "parent_state_count": 1,
+        "selected_child_in_child_family": true,
+        "selected_child_state": {
+          "processed_reserve_in": 10100,
+          "reserve_out": 1099
+        },
+        "selected_child_state_digest": "31832c0a4146b21cf611e3208ef60f80683ee16ad4d01d068a19b14701cba3a2",
+        "step_bit_index": 0,
+        "step_order_id": "0x00000000000000000000000000000000000000000000000000000000006cf5c0",
+        "step_order_short": [
+          "f5c0"
+        ]
+      },
+      "mask_count": 127,
+      "max_child_state_count": 1,
+      "max_parent_state_count": 1,
+      "ok": true,
+      "packet_hash": "c64729fdbdc308e05b165881bf6cd35bb35c327ecd042253feacb4c96e54e6a9",
+      "pattern": "thin_positive_boundary/high_fee9000",
+      "reasons": [],
+      "selected_child_membership_count": 448,
+      "selected_transition_count": 448,
+      "transition_projection_count": 448,
+      "transition_rows_digest": "cfdc1ebf66e4f20f843ef56fdb7f024e8cd8e1019300edce40eb5511b6e19449"
+    },
+    "first_invalid_case": null,
+    "mask_count": 508,
+    "max_child_state_count": 5,
+    "max_parent_state_count": 5,
+    "negative_control_accept_count": 0,
+    "negative_control_count": 7,
+    "negative_controls": [
+      {
+        "accepted": false,
+        "expected_reason": "packet_hash_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_hash_mismatch",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "packet_lean_contract_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_lean_contract_mismatch",
+        "reasons": [
+          "packet_lean_contract_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "packet_transition_summary_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_transition_summary_mismatch",
+        "reasons": [
+          "packet_transition_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "authority_effect_present",
+        "first_failure": null,
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "selected_transition_child_not_in_child_quotient",
+        "first_failure": {
+          "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+          "child_mask_id": 1,
+          "mask_id": 0,
+          "reason": "selected_transition_child_not_in_child_quotient",
+          "step_order_short": [
+            "f5c0"
+          ]
+        },
+        "mutation_id": "selected_transition_child_not_in_child_quotient",
+        "reasons": [
+          "selected_transition_child_not_in_child_quotient",
+          "candidate_transition_child_not_in_child_quotient"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "candidate_transition_child_not_in_child_quotient",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "child_mask_id": 7,
+          "mask_id": 3,
+          "reason": "candidate_transition_child_not_in_child_quotient",
+          "step_order_short": [
+            "8542"
+          ]
+        },
+        "mutation_id": "candidate_transition_child_not_in_child_quotient",
+        "reasons": [
+          "candidate_transition_child_not_in_child_quotient",
+          "selected_transition_child_not_in_child_quotient"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "transition_min_reserve_failure",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "child_mask_id": 7,
+          "mask_id": 3,
+          "reason": "transition_min_reserve_failure",
+          "step_order_short": [
+            "8542"
+          ]
+        },
+        "mutation_id": "transition_min_reserve_failure",
+        "reasons": [
+          "transition_min_reserve_failure"
+        ]
+      }
+    ],
+    "schema": "zenodex/ab_reserve_state_transition_projection_search/v1",
+    "selected_child_membership_count": 1792,
+    "selected_transition_count": 1792,
+    "source_seed": 2026062907,
+    "transition_projection_count": 1792,
+    "transition_rows_digest": "e0feabfd435cc7f0045831dd4d2f379b74e29dbd6a260457a519e3fd0214f32c",
+    "valid_case_count": 4
+  },
+  "summary": "A bounded host checker supports the reserve-state quotient transition projection for the committed n=7 strict zero-min corpus by replaying one-step parent-to-child rows against the Lean ReserveState.afterStep surface."
+}
