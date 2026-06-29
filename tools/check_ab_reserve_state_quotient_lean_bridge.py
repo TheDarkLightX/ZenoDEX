@@ -34,12 +34,16 @@ FORBIDDEN_PROOF_WORDS = re.compile(r"\b(sorry|admit|axiom|unsafe|sorryAx)\b")
 REQUIRED_LEAN_MARKERS = [
     "structure ReserveState",
     "def ReserveState.toRecord",
+    "def ReserveState.afterStep",
     "def reserveStateEquivalent",
     "theorem reserveStateEquivalent_same_finalReserveOut",
     "theorem reserveStateEquivalent_same_suffixOutput",
     "theorem reserveState_minReserve_dominates_suffixOutput",
     "def quotientFullBestSuffixOutput",
     "def reserveStateQuotientInvariant",
+    "theorem reserveState_afterStep_same_processed",
+    "theorem reserveState_afterStep_minReserve",
+    "theorem reserveStateQuotientInvariant_afterStep",
     "theorem quotientFullBestSuffixOutput_le_selected",
     "def quotientFullFrontierZeroMinEconomicKey",
     "def quotientSelectedZeroMinEconomicKey",
@@ -55,6 +59,7 @@ REQUIRED_LEAN_MARKERS = [
     "theorem reserveStateQuotientObservedSummary_validates",
     "theorem witness_reserveStateEquivalent_same_suffixOutput",
     "theorem witness_reserveStateQuotientHostTable_validates",
+    "theorem witness_reserveStateQuotientInvariant_afterStep",
     "theorem witness_reserveStateQuotientObservedSummary_validates",
 ]
 
@@ -111,8 +116,10 @@ def build_report() -> dict[str, Any]:
             "for the AB strict zero-min research surface: same reserve-state "
             "quotient rows have identical fixed-suffix behavior, and a selected "
             "minimum reserve-out state dominates a finite quotient family at "
-            "fixed executed input. The observed-summary layer binds host-visible "
-            "count and selected-state metadata to the validated Lean table."
+            "fixed executed input. It also proves the selected representative "
+            "remains valid after one common exact-in step is applied to every "
+            "family member. The observed-summary layer binds host-visible count "
+            "and selected-state metadata to the validated Lean table."
         ),
         "artifacts": {
             "lean_file": str(LEAN_PATH.relative_to(ROOT)),

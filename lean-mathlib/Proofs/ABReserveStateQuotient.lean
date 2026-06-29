@@ -36,6 +36,15 @@ model from the AB strict zero-min proof ladder. -/
 def ReserveState.toRecord (state : ReserveState) : ProcessedRecord :=
   ⟨state.processedReserveIn, state.reserveOut⟩
 
+/-- Apply one common exact-in step to a reserve-state quotient row.
+
+This is the local transition used by the quotient induction surface.  It does
+not assert that the host actually emits this child; it only states the abstract
+state update once a fixed step is chosen. -/
+def ReserveState.afterStep (state : ReserveState) (step : ExactInStep) : ReserveState :=
+  ⟨state.processedReserveIn + step.grossIn,
+    postReserveOut state.processedReserveIn state.reserveOut step.netIn⟩
+
 /-- Final output reserve after running a fixed suffix from a reserve state. -/
 def finalReserveOutAfterState (state : ReserveState) (suffix : List ExactInStep) : Nat :=
   finalReserveOutAfterRecord state.toRecord suffix
@@ -127,6 +136,71 @@ def reserveStateQuotientInvariant
       selected.processedReserveIn = state.processedReserveIn) ∧
     (∀ state, state ∈ states ->
       selected.reserveOut ≤ state.reserveOut)
+
+/-- Applying the same step to two rows with the same processed input keeps their
+processed input equal. -/
+theorem reserveState_afterStep_same_processed
+    {selected candidate : ReserveState}
+    {step : ExactInStep}
+    (hsame :
+      selected.processedReserveIn = candidate.processedReserveIn) :
+    (ReserveState.afterStep selected step).processedReserveIn =
+      (ReserveState.afterStep candidate step).processedReserveIn := by
+  simp [ReserveState.afterStep, hsame]
+
+/-- Applying the same step to a lower-output-reserve row preserves the
+lower-output-reserve ordering. -/
+theorem reserveState_afterStep_minReserve
+    {selected candidate : ReserveState}
+    {step : ExactInStep}
+    (hsame :
+      selected.processedReserveIn = candidate.processedReserveIn)
+    (hmin :
+      selected.reserveOut ≤ candidate.reserveOut) :
+    (ReserveState.afterStep selected step).reserveOut ≤
+      (ReserveState.afterStep candidate step).reserveOut := by
+  simp [ReserveState.afterStep]
+  rw [hsame]
+  exact postReserveOut_mono_reserveOut
+    (reserveIn := candidate.processedReserveIn)
+    (netIn := step.netIn)
+    hmin
+
+/-- One-step quotient-invariant preservation.
+
+If `selected` is the minimum-output-reserve representative of a finite quotient
+family, applying one common exact-in step to every family member keeps the
+selected child as a valid minimum-output-reserve representative. -/
+theorem reserveStateQuotientInvariant_afterStep
+    {selected : ReserveState}
+    {states : List ReserveState}
+    {step : ExactInStep}
+    (hinvariant : reserveStateQuotientInvariant selected states) :
+    reserveStateQuotientInvariant
+      (ReserveState.afterStep selected step)
+      (states.map (fun state => ReserveState.afterStep state step)) := by
+  rcases hinvariant with ⟨hselectedMem, hsame, hmin⟩
+  unfold reserveStateQuotientInvariant
+  constructor
+  · exact List.mem_map.mpr ⟨selected, hselectedMem, rfl⟩
+  · constructor
+    · intro state hstate
+      rw [List.mem_map] at hstate
+      rcases hstate with ⟨candidate, hcandidate, rfl⟩
+      exact reserveState_afterStep_same_processed
+        (selected := selected)
+        (candidate := candidate)
+        (step := step)
+        (hsame candidate hcandidate)
+    · intro state hstate
+      rw [List.mem_map] at hstate
+      rcases hstate with ⟨candidate, hcandidate, rfl⟩
+      exact reserveState_afterStep_minReserve
+        (selected := selected)
+        (candidate := candidate)
+        (step := step)
+        (hsame candidate hcandidate)
+        (hmin candidate hcandidate)
 
 /-- A finite reserve-state quotient family is bounded by its selected minimum
 output-reserve state. -/
@@ -419,6 +493,48 @@ theorem witness_reserveStateQuotientHostTable_validates :
     exact ⟨rfl, rfl, rfl, rfl, by simpa [table] using hinvariant,
       by simpa [table] using hexec⟩
   exact ⟨hvalid, reserveStateQuotientHostTable_validates table hvalid⟩
+
+/-- Concrete non-vacuity witness for one-step quotient-invariant preservation. -/
+theorem witness_reserveStateQuotientInvariant_afterStep :
+    let selected : ReserveState := ⟨1000, 800⟩
+    let states : List ReserveState := [selected, ⟨1000, 900⟩, ⟨1000, 1100⟩]
+    let step : ExactInStep := ⟨100, 99⟩
+    reserveStateQuotientInvariant selected states ∧
+      reserveStateQuotientInvariant
+        (ReserveState.afterStep selected step)
+        (states.map (fun state => ReserveState.afterStep state step)) := by
+  let selected : ReserveState := ⟨1000, 800⟩
+  let states : List ReserveState := [selected, ⟨1000, 900⟩, ⟨1000, 1100⟩]
+  let step : ExactInStep := ⟨100, 99⟩
+  have hinvariant : reserveStateQuotientInvariant selected states := by
+    unfold reserveStateQuotientInvariant
+    constructor
+    · simp [states]
+    · constructor
+      · intro state hstate
+        simp [states] at hstate
+        rcases hstate with hstate | hstate | hstate
+        · subst state
+          rfl
+        · subst state
+          rfl
+        · subst state
+          rfl
+      · intro state hstate
+        simp [states] at hstate
+        rcases hstate with hstate | hstate | hstate
+        · subst state
+          rfl
+        · subst state
+          simp [selected]
+        · subst state
+          simp [selected]
+  exact ⟨hinvariant,
+    reserveStateQuotientInvariant_afterStep
+      (selected := selected)
+      (states := states)
+      (step := step)
+      hinvariant⟩
 
 /-- Concrete non-vacuity witness for reserve-state observed-summary validation. -/
 theorem witness_reserveStateQuotientObservedSummary_validates :

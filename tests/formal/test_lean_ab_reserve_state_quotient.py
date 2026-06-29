@@ -16,10 +16,14 @@ def test_lean_ab_reserve_state_quotient_typechecks_without_placeholders() -> Non
     forbidden = re.compile(r"\b(sorry|admit|axiom|unsafe|sorryAx)\b")
     assert not forbidden.search(text)
     assert "structure ReserveState" in text
+    assert "def ReserveState.afterStep" in text
     assert "def reserveStateEquivalent" in text
     assert "theorem reserveStateEquivalent_same_finalReserveOut" in text
     assert "theorem reserveStateEquivalent_same_suffixOutput" in text
     assert "def reserveStateQuotientInvariant" in text
+    assert "theorem reserveState_afterStep_same_processed" in text
+    assert "theorem reserveState_afterStep_minReserve" in text
+    assert "theorem reserveStateQuotientInvariant_afterStep" in text
     assert "theorem quotientFullBestSuffixOutput_le_selected" in text
     assert "theorem reserveStateQuotientInvariant_bounds_zeroMinEconomicKey" in text
     assert "structure ReserveStateQuotientHostTable" in text
@@ -33,6 +37,7 @@ def test_lean_ab_reserve_state_quotient_typechecks_without_placeholders() -> Non
     assert "theorem reserveStateQuotientObservedSummary_validates" in text
     assert "theorem witness_reserveStateEquivalent_same_suffixOutput" in text
     assert "theorem witness_reserveStateQuotientHostTable_validates" in text
+    assert "theorem witness_reserveStateQuotientInvariant_afterStep" in text
     assert "theorem witness_reserveStateQuotientObservedSummary_validates" in text
 
     lake = shutil.which("lake")

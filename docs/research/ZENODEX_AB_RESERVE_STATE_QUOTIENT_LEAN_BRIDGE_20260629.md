@@ -4,7 +4,7 @@ Research-only proof component; no settlement, state-root, production, governance
 
 ## Claim Scope
 
-A Lean proof component formalizes the reserve-state quotient bridge for the AB strict zero-min research surface: same reserve-state quotient rows have identical fixed-suffix behavior, and a selected minimum reserve-out state dominates a finite quotient family at fixed executed input. The observed-summary layer binds host-visible count and selected-state metadata to the validated Lean table.
+A Lean proof component formalizes the reserve-state quotient bridge for the AB strict zero-min research surface: same reserve-state quotient rows have identical fixed-suffix behavior, and a selected minimum reserve-out state dominates a finite quotient family at fixed executed input. It also proves the selected representative remains valid after one common exact-in step is applied to every family member. The observed-summary layer binds host-visible count and selected-state metadata to the validated Lean table.
 
 ## Checks
 
@@ -17,10 +17,10 @@ A Lean proof component formalizes the reserve-state quotient bridge for the AB s
 ## Artifacts
 
 - Lean file: `lean-mathlib/Proofs/ABReserveStateQuotient.lean`
-- Lean SHA-256: `sha256:ce93aa1f4e6831602756bfdaa6fc9c86bad47b969f39e81abcfd5a0da07db1a5`
-- Lean line count: `521`
+- Lean SHA-256: `sha256:6caad3de4b12831fe40bd234d99fcaaf0e98060c05d2079b6b04130a88dec119`
+- Lean line count: `637`
 - Formal test: `tests/formal/test_lean_ab_reserve_state_quotient.py`
-- Formal test SHA-256: `sha256:e7f3eeb4c5a4f470b2dfb96840e65990a516c0f7e503fb9c9b2458d3345eb1c1`
+- Formal test SHA-256: `sha256:b6333d7b4ee0db18819aaeface7098939f68339b79c1274f581a3bfc55a4f2bb`
 
 ## Replay
 
