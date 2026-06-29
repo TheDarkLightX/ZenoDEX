@@ -106,13 +106,14 @@ def _run_command(args: list[str], cwd: Path, timeout_s: int) -> dict[str, Any]:
         timeout=timeout_s,
         check=False,
     )
+    ok = proc.returncode == 0
     return {
         "command": " ".join(args),
         "cwd": _display_path(cwd),
         "returncode": proc.returncode,
-        "ok": proc.returncode == 0,
-        "stdout_tail": proc.stdout[-2000:],
-        "stderr_tail": proc.stderr[-2000:],
+        "ok": ok,
+        "stdout_tail": "" if ok else proc.stdout[-2000:],
+        "stderr_tail": "" if ok else proc.stderr[-2000:],
     }
 
 

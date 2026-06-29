@@ -80,7 +80,7 @@
       "ok": true,
       "returncode": 0,
       "stderr_tail": "",
-      "stdout_tail": ".                                                                        [100%]\n1 passed in 5.44s\n"
+      "stdout_tail": ""
     },
     "lean_bridge_report_refresh": {
       "command": "/usr/bin/python3 tools/check_ab_transition_group_compression_lean_bridge_20260629.py",
@@ -88,7 +88,7 @@
       "ok": true,
       "returncode": 0,
       "stderr_tail": "",
-      "stdout_tail": "ok=True report=generated/zenodex_ab_transition_group_compression_lean_bridge_20260629/report.json doc=docs/research/ZENODEX_AB_TRANSITION_GROUP_COMPRESSION_LEAN_BRIDGE_20260629.md\n"
+      "stdout_tail": ""
     },
     "lean_compile": {
       "command": "lake env lean Proofs/ABTransitionGroupCompression.lean",
