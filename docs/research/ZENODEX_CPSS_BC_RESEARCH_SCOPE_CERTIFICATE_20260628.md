@@ -18,17 +18,20 @@ The certificate is deliberately scoped as research evidence. It does not impleme
 - `cpss_greedy_dominance_falsified` = `1`
 - `production_nonclaims_bound` = `1`
 - `replay_scripts_present` = `1`
+- `phase2_replay_scripts_execute` = `1`
 - `no_authority_effect` = `1`
 
 ## Lean Verification
 
 | file | compile | seconds |
 | --- | --- | ---: |
-| `lean-mathlib/Proofs/CompressedStateSubsetDP.lean` | `True` | `9.507991` |
-| `lean-mathlib/Proofs/CommitRevealStrategyproof.lean` | `True` | `6.064188` |
-| `lean-mathlib/Proofs/CommitRevealBothParamsSP.lean` | `True` | `6.581169` |
-| `lean-mathlib/Proofs/WindowBound.lean` | `True` | `6.301369` |
-| `lean-mathlib/Proofs/StrongConcavityWindowBound.lean` | `True` | `6.486322` |
+| `lean-mathlib/Proofs/CompressedStateSubsetDP.lean` | `True` | `6.298436` |
+| `lean-mathlib/Proofs/CommitRevealStrategyproof.lean` | `True` | `5.590204` |
+| `lean-mathlib/Proofs/CommitRevealBothParamsSP.lean` | `True` | `5.012133` |
+| `lean-mathlib/Proofs/WindowBound.lean` | `True` | `6.769676` |
+| `lean-mathlib/Proofs/StrongConcavityWindowBound.lean` | `True` | `6.800292` |
+| `lean-mathlib/Proofs/TernarySearchExactness.lean` | `True` | `7.41414` |
+| `lean-mathlib/Proofs/PrecommitCollusionImpossibility.lean` | `True` | `5.956821` |
 
 ## Tau Cases
 
@@ -40,6 +43,7 @@ The certificate is deliberately scoped as research evidence. It does not impleme
 | `missing_precommit_collusion_reject` | `True` | `0` |
 | `missing_cpss_falsification_reject` | `True` | `0` |
 | `authority_reject` | `True` | `0` |
+| `missing_replay_execution_reject` | `True` | `0` |
 | `inactive_safe` | `True` | `0` |
 
 ## Non-Claims

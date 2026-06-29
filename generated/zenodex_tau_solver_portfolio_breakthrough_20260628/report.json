@@ -51,7 +51,7 @@
   "replay_command": "python3 tools/zenodex_tau_solver_portfolio_breakthrough_20260628.py",
   "schema": "zenodex.tau_solver_portfolio_breakthrough_report.v1",
   "supporting_report_hashes": {
-    "generated/zenodex_ab_cow_algorithm_breakthrough_20260627/report.json": "22db0c87ec599594f4f2cd2f7d7b1713f95051864d388b00f3cb40d80bf3f455",
+    "generated/zenodex_ab_cow_algorithm_breakthrough_20260627/report.json": "ef3ab848e9f81962a3488373237522c0920a72ab38a8111f7cbf7bf379a21443",
     "generated/zenodex_cow_capacity_dp_certificate_20260628/report.json": "5d6994ffa092157dd302462aa61565dbdfd31d490afa74be2956ee625616dc7e",
     "src/tau_specs/recommended/solver_portfolio_upgrade_certificate_v1.tau": "5efd876435042df6e60531bb5ec9d28854e5d454fb5ed5c0bc62634c4313acb5"
   },

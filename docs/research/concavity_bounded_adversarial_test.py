@@ -1,8 +1,9 @@
-"""Phase 5A: Collusion gain bounded by curvature at the margin.
+"""Phase 5A: bounded-regime curvature scaling probes for collusion gain.
 
 Key hypothesis (compounding from Phase 3D):
-The precommit sacrifice attack gain is bounded by the CPMM curvature
-at the origin (maximum curvature), NOT the minimum curvature.
+The precommit sacrifice attack gain tracks CPMM curvature at the origin
+(maximum curvature) in the bounded sampled regimes below. This is a scaling
+probe, not a universal stateful attack bound.
 
 In the precommit sacrifice attack:
 - User A sacrifices (sets min_out high, doesn't fill)
@@ -21,22 +22,25 @@ The second-order Taylor approximation gives:
 
 NOTE: This uses |f''(0)| (MAXIMUM curvature at the margin), NOT
 min |f''(x)| (minimum curvature over the domain, which is the
-strong concavity parameter m from Phase 3D). The bound using |f''(0)| is
-more conservative for an upper bound than using m because |f''(0)| >= m
-for CPMM.
+strong concavity parameter m from Phase 3D). The companion
+`concavity_conservation_law_test.py` keeps hard falsification guards for the
+second-order stateful-gain formula, so this file should be read as a
+bounded-regime empirical scaling probe.
 
 Tests:
-1. Empirical collusion gain vs |f''(0)| * a_A * a_B bound
+1. Empirical collusion gain vs |f''(0)| * a_A * a_B scale
 2. Gain scales with trade sizes (a_A, a_B)
 3. Gain inversely scales with pool depth (M)
 4. Min_out cap effectiveness (SIMPLIFIED model — see non-claim)
-5. Sandwich profit bounded by curvature
+5. Sandwich profit curvature scaling
 6. Collusion threshold: a_B > 2*M/gamma
 
 Non-claims:
-- The bound gain <= |f''(0)| * a_A * a_B is an EMPIRICAL observation,
-  not a formal theorem. The formal Lean version would require a
-  second-order Taylor remainder bound.
+- This file does not assert a universal stateful attack bound. The first test
+  records a corpus regression observation: under the fixed seed and configured
+  ranges, observed positive gain stays within the factor-1 curvature scale.
+- The second-order stateful-gain formula is falsified as a universal bound in
+  `concavity_conservation_law_test.py`.
 - The min_out cap test uses a SIMPLIFIED simulator that returns 0 gain
   when cap_ratio < 1.0. This tests the MODEL, not the actual mechanism.
   The actual mechanism is tested in mitigation_test.py (500+ trials).
@@ -147,12 +151,13 @@ def simulate_precommit_sacrifice(
     return group_truthful, group_sacrifice, gain
 
 
-def test_collusion_gain_bounded_by_concavity() -> None:
-    """Collusion gain is bounded by O(|f''(0)| * a_A * a_B) where |f''(0)| is max curvature.
+def test_collusion_gain_curvature_scale_bounded_regime() -> None:
+    """Collusion gain is tracked by O(|f''(0)| * a_A * a_B) in a bounded corpus.
 
     The second-order Taylor approximation gives gain ≈ |f''(0)| * a_A * a_B / 2,
     but this is an approximation. The actual gain includes higher-order terms.
-    The bound gain <= |f''(0)| * a_A * a_B holds up to a constant factor.
+    The sampled corpus checks that gain stays below the factor-1 curvature scale;
+    it does not promote that scale as a universal stateful attack bound.
     """
     random.seed(42)
     max_ratio = 0.0
@@ -174,25 +179,25 @@ def test_collusion_gain_bounded_by_concavity() -> None:
         if gain <= 0:
             continue  # No collusion gain
 
-        # Theoretical bound: gain <= |f''(0)| * a_A * a_B (up to constant factor)
+        # Bounded-regime empirical scale: |f''(0)| * a_A * a_B.
         # The second-order approx is gain ≈ |f''(0)| * a_A * a_B / 2,
         # but higher-order terms can add up to ~2x for large trades.
         m = abs(cpmm_second_deriv(pool, 0.0))
-        bound = m * a_A * a_B  # Use factor 1 (not 1/2) to account for higher-order terms
+        scale = m * a_A * a_B  # Factor 1, not 1/2, for this sampled regime.
 
-        ratio = gain / bound if bound > 0 else 0
+        ratio = gain / scale if scale > 0 else 0
         if ratio > max_ratio:
             max_ratio = ratio
-            worst = (M, K, fee, a_A, a_B, gain, bound, ratio)
+            worst = (M, K, fee, a_A, a_B, gain, scale, ratio)
 
-    print(f"Max gain/bound ratio: {max_ratio:.4f}")
+    print(f"Max gain/scale ratio: {max_ratio:.4f}")
     if worst:
         print(f"  Worst: M={worst[0]} K={worst[1]} fee={worst[2]} "
               f"a_A={worst[3]} a_B={worst[4]} gain={worst[5]:.2f} "
-              f"bound={worst[6]:.2f}")
-    # Gain should be bounded by m * a_A * a_B (with constant factor 1)
+              f"scale={worst[6]:.2f}")
+    # Regression guard for this seeded bounded-regime corpus.
     assert max_ratio <= 1.0 + 1e-6, (
-        f"Collusion gain {max_ratio:.4f}x exceeds concavity bound")
+        f"Collusion gain {max_ratio:.4f}x exceeds seeded curvature scale")
 
 
 def test_gain_scales_with_trade_sizes() -> None:
@@ -299,8 +304,8 @@ def test_min_out_cap_effectiveness() -> None:
         f"Min_out cap should achieve 0% violations: got {violation_rate:.3f}")
 
 
-def test_concavity_bounds_sandwich_profit() -> None:
-    """Sandwich profit bounded by concavity (Cauchy-Schwarz argument).
+def test_sandwich_profit_curvature_scaling() -> None:
+    """Sandwich profit follows the expected curvature scaling in this probe.
 
     For CPMM, sandwich profit ≈ (a_victim)^2 / (4 * M) (small trade approx).
     This is O(1/M), same scaling as the concavity parameter m ~ K/M^2.
@@ -343,11 +348,11 @@ def test_concavity_bounds_sandwich_profit() -> None:
     # Should be approximately 0.25 (= 1/4)
     for r in ratios:
         assert 0.2 < r < 0.3, f"Sandwich profit scaling off: {r}"
-    print("PASS: concavity_bounds_sandwich_profit (profit ~ a^2/(4M))")
+    print("PASS: sandwich_profit_curvature_scaling (profit ~ a^2/(4M))")
 
 
-def test_floor_proximity_bounds_collusion() -> None:
-    """Floor proximity lemma bounds how much A can sacrifice.
+def test_floor_proximity_collusion_threshold_probe() -> None:
+    """Bounded probe for the large-victim-trade collusion threshold heuristic.
 
     From Phase 3D: f(floor(b*)) >= f(b*) - L
     where L is the Lipschitz constant (max spot price).
@@ -356,17 +361,18 @@ def test_floor_proximity_bounds_collusion() -> None:
     A's loss = f(a_A) - 0 = f(a_A) (A gets nothing).
     B's gain = f(a_B, pool_without_A) - f(a_B, pool_with_A).
 
-    By concavity: B's gain <= |f''(M)| * a_A * a_B / 2.
-    A's loss = f(a_A) ≈ f'(0) * a_A = (K/M) * a_A.
+    Heuristic curvature scaling compares B's gain scale to A's loss scale:
+    B_gain_scale ~ |f''(M)| * a_A * a_B / 2
+    A_loss_scale ~ f'(0) * a_A = (K/M) * a_A.
 
-    For collusion to be profitable: B_gain > A_loss
+    The informal threshold heuristic is:
     (K*gamma^2/M^2) * a_A * a_B / 2 > (K*gamma/M) * a_A
     => a_B * gamma / (2*M) > 1
     => a_B > 2*M/gamma
 
-    This means collusion is only profitable when B's trade is LARGE
-    relative to the pool. This matches the empirical finding that
-    collusion rate is 42% (large trades are common in the test).
+    This test only checks that, in the seeded corpus, larger B trades have at
+    least as high a positive signed-surplus rate as smaller B trades. It does
+    not prove the threshold, a universal gain bound, or an iff condition.
     """
     random.seed(44)
     profitable_large = 0
@@ -399,7 +405,7 @@ def test_floor_proximity_bounds_collusion() -> None:
     rate_small = profitable_small / max(1, total_small)
     print(f"Collusion rate: large B trades ({total_large}): {rate_large:.3f}, "
           f"small B trades ({total_small}): {rate_small:.3f}")
-    # Large B trades should have higher collusion rate
+    # Seeded-regime monotonicity probe for the threshold heuristic.
     assert rate_large >= rate_small, (
         f"Large trades should have higher collusion rate: "
         f"large={rate_large:.3f} < small={rate_small:.3f}")
@@ -408,12 +414,12 @@ def test_floor_proximity_bounds_collusion() -> None:
 def main() -> int:
     """Run all tests."""
     tests = [
-        test_collusion_gain_bounded_by_concavity,
+        test_collusion_gain_curvature_scale_bounded_regime,
         test_gain_scales_with_trade_sizes,
         test_gain_inversely_scales_with_pool_depth,
         test_min_out_cap_effectiveness,
-        test_concavity_bounds_sandwich_profit,
-        test_floor_proximity_bounds_collusion,
+        test_sandwich_profit_curvature_scaling,
+        test_floor_proximity_collusion_threshold_probe,
     ]
     passed = 0
     failed = 0

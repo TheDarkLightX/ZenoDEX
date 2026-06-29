@@ -46,6 +46,7 @@ def test_cpss_bc_research_scope_certificate_replay() -> None:
         "missing_precommit_collusion_reject",
         "missing_cpss_falsification_reject",
         "authority_reject",
+        "missing_replay_execution_reject",
     ):
         assert cases[case_id]["got"]["o5"] == 0
     assert cases["inactive_safe"]["got"]["o6"] == 1

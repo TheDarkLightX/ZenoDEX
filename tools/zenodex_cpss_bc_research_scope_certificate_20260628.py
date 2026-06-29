@@ -40,6 +40,8 @@ LEAN_FILES = (
     REPO_ROOT / "lean-mathlib" / "Proofs" / "CommitRevealBothParamsSP.lean",
     REPO_ROOT / "lean-mathlib" / "Proofs" / "WindowBound.lean",
     REPO_ROOT / "lean-mathlib" / "Proofs" / "StrongConcavityWindowBound.lean",
+    REPO_ROOT / "lean-mathlib" / "Proofs" / "TernarySearchExactness.lean",
+    REPO_ROOT / "lean-mathlib" / "Proofs" / "PrecommitCollusionImpossibility.lean",
 )
 
 RESEARCH_DOCS = (
@@ -54,6 +56,8 @@ REPLAY_SCRIPTS = (
     REPO_ROOT / "docs" / "research" / "commit_reveal_both_params.py",
     REPO_ROOT / "docs" / "research" / "stress_test_commit_reveal.py",
     REPO_ROOT / "docs" / "research" / "collusion_resistance_test.py",
+    REPO_ROOT / "docs" / "research" / "mitigation_test.py",
+    REPO_ROOT / "docs" / "research" / "impossibility_witness_test.py",
 )
 
 
@@ -136,7 +140,7 @@ def _fact_bundle(lean_results: list[dict[str, Any]], forbidden_results: list[dic
                 guide,
                 (
                     "empirical validation for the adaptive-window implementation",
-                    "ternary-search exactness and lipschitz window sufficiency remain empirical",
+                    "ternary search algorithm narrowing invariant and lipschitz window sufficiency remain empirically validated",
                     "next proof targets",
                 ),
             )
@@ -192,8 +196,36 @@ def _fact_bundle(lean_results: list[dict[str, Any]], forbidden_results: list[dic
             )
         ),
         "replay_scripts_present": int(all(path.exists() and path.stat().st_size > 0 for path in REPLAY_SCRIPTS)),
+        "phase2_replay_scripts_execute": int(_phase2_replay_scripts_execute()),
         "no_authority_effect": 1,
     }
+
+
+def _phase2_replay_scripts_execute() -> bool:
+    """Run the two Phase 2 Python replay scripts and check they pass their assertions.
+
+    Only the Phase 2 scripts (mitigation_test.py, impossibility_witness_test.py)
+    are executed here. The Phase 1 replay scripts are checked for presence only
+    via replay_scripts_present.
+    """
+    scripts = (
+        REPO_ROOT / "docs" / "research" / "mitigation_test.py",
+        REPO_ROOT / "docs" / "research" / "impossibility_witness_test.py",
+    )
+    for script in scripts:
+        proc = subprocess.run(
+            ["python3", str(script)],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+        if proc.returncode != 0:
+            return False
+        if "ALL ASSERTIONS PASSED" not in proc.stdout:
+            return False
+    return True
 
 
 def _tau_cases(facts: Mapping[str, int]) -> tuple[TauCase, ...]:
@@ -211,6 +243,7 @@ def _tau_cases(facts: Mapping[str, int]) -> tuple[TauCase, ...]:
         "i11": int(facts["production_nonclaims_bound"]),
         "i12": int(facts["replay_scripts_present"]),
         "i13": int(facts["no_authority_effect"]),
+        "i14": int(facts["phase2_replay_scripts_execute"]),
     }
     inactive = dict(pass_step)
     inactive["i1"] = 0
@@ -250,6 +283,12 @@ def _tau_cases(facts: Mapping[str, int]) -> tuple[TauCase, ...]:
             {**pass_step, "i13": 0},
             {"o4": 0, "o5": 0},
             "The research bundle cannot carry production or settlement authority.",
+        ),
+        TauCase(
+            "missing_replay_execution_reject",
+            {**pass_step, "i14": 0},
+            {"o3": 0, "o5": 0},
+            "Replay scripts must execute successfully, not merely be present.",
         ),
         TauCase(
             "inactive_safe",

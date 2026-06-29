@@ -84,8 +84,12 @@ theorem lipschitz_increment_bound
    attack gain is verified EMPIRICALLY in `concavity_conservation_law_test.py`,
    not formalized in Lean.
 
-   The concavity-based gain bound `(m/2)*a_A*(a_A+2*a_B)` is FALSIFIED
-   empirically (ratio up to 1.82x) and is NOT included as a Lean theorem. -/
+   The concavity-based gain bound using the MINIMUM curvature `m`,
+   `(m/2)*a_A*(a_A+2*a_B)`, is FALSIFIED empirically (ratio up to 1.82x)
+   and is NOT included as a Lean theorem. The empirical scaling probe in
+   `concavity_bounded_adversarial_test.py` uses `|f''(0)|` (MAXIMUM curvature
+   at the margin), which gives a more conservative upper bound than `m`
+   since `|f''(0)| >= m`. That probe is empirical only, not a Lean theorem. -/
 
 /-- **CPMM Concavity Parameter Formula**: For `f(x) = K*x/(M+x)`,
     the strong concavity parameter at the margin (x = 0) is:

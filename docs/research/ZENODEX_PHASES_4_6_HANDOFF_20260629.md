@@ -30,7 +30,25 @@ bounds, and fixed-order min-out-cap evidence.
 
 ### Phase 4
 
-- `KPoolSplitConcavity.lean` proves 3-pool coordinate-wise continuous concavity.
+- `KPoolSplitConcavity.lean` proves 3-pool coordinate-wise continuous concavity,
+  a K-pool coordinate-slice concavity kernel for fixed non-moving pools, a
+  List-sum fixed-pool bridge after active/remainder selection, an explicit
+  selected-list bridge for `left ++ active :: between ++ remainder :: right`
+  decomposition witnesses, an order-tagged selected-list bridge covering both
+  active-before-remainder and remainder-before-active witnesses, an
+  active-before-remainder arbitrary-index List decomposition bridge, a
+  remainder-before-active arbitrary-index order-tagged List decomposition
+  bridge, concrete active/remainder index witnesses inside those supplied
+  decompositions, a
+  bounded erase-active-then-remainder removal bridge that recovers exactly the
+  fixed non-moving pools from those supplied decompositions, active-before and
+  remainder-before arbitrary-index removal bridges over undecomposed full
+  Lists, a fixed-pool permutation quotient bridge for the fixed non-moving
+  pool compression, a proof-carrying unordered selection certificate bridge
+  for supplied full-presentation/decomposition/canonical-fixed witnesses,
+  full-List ordered-index constructors for that certificate in both
+  selected-pair orders, and one concrete 4-pool plus one concrete 5-pool
+  coordinate-wise checkpoint.
 - `DiscreteArgmaxProximity.lean` replaces the false discrete-concavity target
   with an abstract argmax-proximity theorem plus CPMM conditional instantiation.
 - `KPoolDiscreteArgmaxProximity.lean` lifts the scalar proximity result to a
@@ -185,7 +203,8 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q \
 ```
 
 For this Phases 4-6 packet, Research Kernel should record only the verified
-scope in this handoff: continuous CPMM and 3-pool concavity lemmas, abstract
+scope in this handoff: continuous CPMM and 3-pool concavity lemmas, the K-pool
+coordinate-slice and selected-list bridges explicitly named here, abstract
 discrete argmax proximity, empirical K-pool and min-out-cap evidence, and the
 explicit non-claims. It should not record production, consensus, or full Nash
 claims unless later evidence actually supports them.
@@ -227,18 +246,53 @@ python3 -m pytest -q \
   tests/formal/test_lean_concavity_conservation_law.py \
   tests/formal/test_lean_discrete_argmax_proximity.py \
   tests/formal/test_lean_kpool_discrete_argmax_proximity.py \
+  tests/formal/test_lean_kpool_split_concavity.py \
   tests/research/test_concavity_conservation_law.py \
   tests/research/test_discrete_argmax_proximity.py \
   tests/research/test_kpool_discrete_argmax_proximity.py
 ```
 
-Result: 36 pytest tests passed in 72.88s.
+Result: 37 pytest tests passed in 77.84s.
+
+## Continuation Evidence Manifest
+
+The first continuation step is a compact, source-pinned research evidence
+manifest:
+
+```bash
+python3 tools/check_zenodex_phases_4_6_research_evidence.py
+python3 tools/check_zenodex_phases_4_6_research_evidence.py --run-scripts
+python3 tools/check_zenodex_phases_4_6_research_evidence.py --run-pytest
+python3 tools/check_zenodex_phases_4_6_research_evidence.py --run-lean
+```
+
+The manifest is
+`tools/zenodex_phases_4_6_research_evidence_manifest.json`. It pins the Lean
+files, deterministic empirical scripts, pytest wrappers, and this handoff by
+SHA-256. The checker rejects hash drift, missing critical artifacts, placeholder
+Lean proof tokens, widened production or consensus claims, full Nash wording, and
+the false universal stateful-attack-bound claim. The new K-pool split wrapper is
+explicitly marked as `new_in_worktree` in the manifest until it is tracked.
 
 ## Non-Claims
 
 - The production ceiling-fee bounds are empirical, not Lean-proven.
-- The K > 3 continuous K-pool proof is documented by separability but not
-  formalized with Finset sums.
+- The full all-K continuous K-pool proof is not formalized over full unordered
+  pool collections. This packet now proves the
+  coordinate-slice kernel, a List-sum fixed-pool bridge, an explicit
+  selected-list decomposition bridge, an order-tagged selected-list bridge for
+  both selected-pair orders, active-before-remainder and
+  remainder-before-active arbitrary-index List decomposition bridges, concrete
+  active/remainder index witnesses inside
+  supplied decompositions, a bounded active/remainder removal bridge for those
+  supplied decompositions, active-before-remainder and remainder-before-active
+  arbitrary-index active/remainder removal bridges, a fixed-pool permutation
+  quotient bridge for the fixed non-moving pool compression, a proof-carrying
+  unordered selection certificate bridge for supplied
+  full-presentation/decomposition/canonical-fixed witnesses, full-List
+  ordered-index constructors for that certificate in both selected-pair orders,
+  one concrete 4-pool coordinate instance, and one concrete 5-pool coordinate
+  instance.
 - The min-out-cap game-theory evidence is a fixed-order filled-user no-gain
   check, not a full Nash equilibrium proof.
 - The concavity second-order approximation is not a universal stateful attack
@@ -249,12 +303,14 @@ Result: 36 pytest tests passed in 72.88s.
 
 ## Recommended GPT 5.5 Continuation
 
-1. Formalize the K > 3 split concavity statement with Finset/List sums.
+1. Prove unordered collection canonicalization for the proof-carrying selection
+   certificate from Finset or Multiset pool presentations, including the exact
+   treatment of duplicate-valued pools.
 2. Model ceiling-fee rounding in Lean to replace the production empirical
    `2L + 2` and `3L + 2` constants with checked lemmas.
 3. Turn the fixed-order no-gain evidence into a precise game definition before
    claiming equilibrium properties.
 4. Connect the Lipschitz increment theorem to the exact stateful CPMM attack
    model, or keep the stateful security side explicitly empirical.
-5. Add a compact evidence manifest for this Phases 4-6 packet once the next
-   formalization step is selected.
+5. Keep the Phases 4-6 evidence manifest current whenever a pinned artifact,
+   replay command, or supported-scope statement changes.

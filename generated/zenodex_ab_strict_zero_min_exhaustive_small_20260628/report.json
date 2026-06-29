@@ -19,7 +19,7 @@
   "schema": "zenodex.ab_strict_zero_min_exhaustive_small_report.v1",
   "search": {
     "case_count": 15300,
-    "elapsed_ms": 17844.266,
+    "elapsed_ms": 17983.579,
     "first_overbroad_zero_min_boundary": {
       "amounts": [
         2,

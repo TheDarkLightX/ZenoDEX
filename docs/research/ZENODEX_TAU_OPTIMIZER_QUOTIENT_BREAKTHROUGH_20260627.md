@@ -11,7 +11,7 @@ Tau admits optimizer certificates only; deterministic host/kernel verifiers rema
 - Spec: `src/tau_specs/recommended/optimizer_quotient_certificate_v1.tau`
 - Latest Tau: `Tau Language Framework version 0.7.0-alpha (401d756b)`
 - Tau trace replay ok: `True`
-- Tau elapsed: `55.179364s`
+- Tau elapsed: `30.090492s`
 
 The spec accepts exactly one optimizer mode per step: route dominance, AB ordering, or CoW matching. It requires a domain commitment, quotient witness, canonical winner proof, replay, projection cover, arithmetic scope, resource budget, fallback, no-authority, and non-vacuity.
 

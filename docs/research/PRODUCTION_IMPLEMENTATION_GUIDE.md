@@ -1,16 +1,18 @@
 # Production Implementation Guide: Multi-Pool Batch Clearing
 
-Synthesizes 28 research breakthroughs from `run_4b50f1194600478f` into
-actionable implementation recommendations for ZenoDEX production.
+Synthesizes 33 research breakthroughs from `run_4b50f1194600478f` (Phase 1) and
+`run_0407b7a55a80412c` (Phase 2) into actionable implementation recommendations
+for ZenoDEX production.
 
 ## Summary
 
-Two components need production changes:
+Three components need production changes:
 
-1. **Algorithm**: Ternary search DP with adaptive window (22x speedup, formally verified supporting lemmas; empirical validation for the adaptive-window implementation)
+1. **Algorithm**: Ternary search DP with adaptive window (22x speedup, formally verified supporting lemmas including discrete concavity implies unimodal global maximum; the ternary search algorithm narrowing invariant and Lipschitz window sufficiency remain empirically validated, next proof targets; empirical validation for the adaptive-window implementation)
 2. **Mechanism**: Commit-reveal for both `amount_in` AND `min_out` (100% single-user SP, formally verified; eliminates adaptive bid-parameter misreporting and the modeled sandwich vector; inclusion, censorship, reveal-withholding, and batch-boundary games are non-claims; does NOT prevent precommit collusion, 42.1% violation rate via off-protocol side payments)
+3. **Collusion mitigation**: Min_out cap (0.0% precommit collusion violation rate in Phase 2 randomized replay, zero welfare impact; formally proven numeric witness demonstrating precommit collusion profitability for the modeled clearing rule; non-claim: universal mitigation beyond the tested replay model is not proven)
 
-The algorithm's supporting lemmas (compressed-state sufficiency, concavity, floor proximity) are formally verified in Lean 4; the ternary-search exactness and Lipschitz window sufficiency remain empirical (next proof targets). The mechanism's single-user SP is formally verified in Lean 4; group SP was falsified by the precommit sacrifice attack (breakthrough 28).
+The algorithm's supporting lemmas (compressed-state sufficiency, concavity, floor proximity, discrete concavity implies unimodal global maximum) are formally verified in Lean 4; the ternary search algorithm narrowing invariant and Lipschitz window sufficiency remain empirically validated (next proof targets). The mechanism's single-user SP is formally verified in Lean 4; group SP was falsified by the precommit sacrifice attack (breakthrough 28). Phase 2 formally proved a constructive numeric witness demonstrating precommit collusion profitability for the modeled (A,B) clearing rule (concrete surplus and side-payment inequalities) and identified the min_out cap as the strongest mitigation.
 
 ---
 
@@ -34,11 +36,12 @@ the concavity of the CPMM split function. The adaptive window
 | Inner loop | O(D) | O(1) | D-fold |
 | State space | O(D^2) | O(D^1.5) | 200-1000x |
 | Total speedup | 1x | 22x | 22x |
-| Exactness | 100% | 100% | No loss |
+| Exactness | 100% | 96% empirical | 4% empirical gap (algorithm narrowing empirical; key unimodality property Lean-proven) |
 
 ### Formal Verification
 
 - `CompressedStateSubsetDP.lean` (331 lines): DP pruning rule correctness
+- `TernarySearchExactness.lean` (249 lines, Phase 2): Discrete concavity implies unimodal global maximum (key property for ternary search; algorithm itself not formalized)
 - `WindowBound.lean` (128 lines): Floor proximity lemma
 - `StrongConcavityWindowBound.lean` (136 lines): Quadratic decay tightness
 
@@ -166,7 +169,81 @@ commitment: `hash(amount_in, min_out, nonce)`. Standard DeFi infrastructure.
 
 ---
 
-## 3. What NOT to Use
+## 3. Collusion Mitigation: Min_out Cap
+
+### Problem
+
+Commit-reveal for both parameters eliminates adaptive attacks but does NOT
+prevent precommit collusion (42.1% violation rate, breakthrough 28). Phase 2
+formally proved a constructive numeric witness: for the modeled (A,B) clearing
+rule, the precommit sacrifice attack yields strictly higher group surplus than
+truthful reporting, and a side payment exists making both users strictly better
+off (breakthrough 33).
+
+### Solution
+
+The min_out cap: clamp each user's committed `min_out` to at most the expected
+output for their `amount_in` at the current pool state. This prevents the
+sacrificial user from committing a high `min_out` that guarantees non-execution,
+eliminating the surplus that funds the side payment.
+
+### Key Results
+
+| Mitigation | Violation Rate (Phase 2 replay) | Welfare Impact | Verdict |
+|------------|---------------|----------------|---------|
+| **Min_out cap** | **0.0%** | **0.0%** | **RECOMMENDED** (Phase 2 replay model) |
+| Slashing (D=100) | 9.7% | Moderate | Partial |
+| Slashing (D=50) | 13.8% | Moderate | Partial |
+| Batch randomization | 22.1% | Low | Insufficient |
+| VCG payments | 70.2% | Negative | COUNTERPRODUCTIVE |
+
+### Mechanism
+
+The min_out cap works by clamping each user's committed `min_out` to at most
+the expected output for their `amount_in` at the current pool state. This
+prevents the sacrificial user from committing an absurdly high `min_out`
+that guarantees non-execution. With `cap_factor=100`, the cap equals the
+expected output, so the sacrificial user's `min_out` is clamped down to
+their expected output, which in the Phase 2 replay model forces them to
+fill and eliminates the collusion surplus.
+
+### Implementation
+
+```python
+def apply_min_out_cap(intents, pool, cap_factor=100):
+    """Clamp each user's min_out to at most cap_factor% of expected output.
+
+    In the Phase 2 randomized replay model, this achieves 0.0% precommit
+    collusion by preventing the sacrifice attack. The sacrificial user's
+    high min_out is clamped down to the expected output, which forces them
+    to fill in the tested scenarios.
+    """
+    for intent in intents:
+        expected_out = cpmm_swap(pool.x, pool.y, intent.amount_in, pool.fee_bps)
+        cap = expected_out * cap_factor // 100
+        intent.min_out = min(intent.min_out, cap)
+    return intents
+```
+
+In production, the cap is computed at settlement time using the pool state
+at batch close. The `cap_factor=100` setting means `min_out <= expected_output`,
+which in the Phase 2 replay model forces the sacrificial user to fill (their
+output meets the clamped `min_out`). The `(A,B)` optimizer then prefers
+orderings where both users fill, as volume maximization dominates. Non-claim:
+this behavior is verified in the Phase 2 randomized replay (500 scenarios);
+broader adversarial strategies or value profiles may exist that require
+additional testing or formal proof.
+
+### Formal Verification
+
+- `PrecommitCollusionImpossibility.lean` (Phase 2): Constructive numeric witness for the modeled (A,B) clearing rule (precommit sacrifice yields higher group surplus + side payment exists)
+- `impossibility_witness_test.py`: Python verification of the Lean witness values
+
+All compile with zero errors, zero warnings, zero sorries.
+
+---
+
+## 4. What NOT to Use
 
 ### Falsified Mechanisms
 
@@ -176,6 +253,7 @@ commitment: `hash(amount_in, min_out, nonce)`. Standard DeFi infrastructure.
 | Posted-price TWAP | 50.5% | Manipulable |
 | Fixed ordering alone | 50.4% | No SP improvement |
 | VCG | Not SP | Non-monotone allocation |
+| VCG as collusion mitigation | 70.2% violation | COUNTERPRODUCTIVE (Phase 2) |
 | Burn 10% + CR | 73.7% | Makes collusion WORSE |
 | Burn 50% + CR | 100% SP | Destroys welfare (0.2%) |
 
@@ -191,25 +269,27 @@ The empirical bound `ceil(1/L)` is the right one for production.
 
 ---
 
-## 4. Integration Checklist
+## 5. Integration Checklist
 
 - [ ] Implement ternary search DP with adaptive window `W = ceil(1/L)`
 - [ ] Implement commit-reveal for both `amount_in` AND `min_out`
+- [ ] Implement min_out cap (enforce committed min_out at settlement)
 - [ ] Use (A,B) optimal ordering for settlement
 - [ ] Add commit/reveal phases to batch auction contract
 - [ ] Test with n=20 users, D=100 granularity
 - [ ] Verify 22x speedup vs baseline DP
 - [ ] Verify 100% single-user SP with stress test suite
-- [ ] Document precommit collusion limitation (42.1% violation rate; commit-reveal alone, in this off-protocol side-payment model, does not prevent precommit collusion)
+- [ ] Verify 0% precommit collusion with min_out cap (Phase 2 replay model, 500 scenarios)
+- [ ] Document precommit collusion limitation without min_out cap (42.1% violation rate; constructive numeric witness proves precommit sacrifice is profitable for the modeled (A,B) clearing rule)
 - [ ] Integrate Lean proofs into ESSO verification pipeline
-- [ ] Run `lake env lean` on all 5 proof files (zero errors/sorries)
-- [ ] Run all 25 Python scripts with fixed seeds for reproducibility
+- [ ] Run `lake env lean` on all 7 proof files (zero errors/sorries)
+- [ ] Run all 27 Python scripts with fixed seeds for reproducibility
 
 ---
 
-## 5. Evidence
+## 6. Evidence
 
-### Lean Proofs (5 files, 787 lines, all zero errors/sorries)
+### Lean Proofs (7 files, 1036 lines, all zero errors/sorries)
 
 | File | Lines | Theorems |
 |------|-------|----------|
@@ -218,11 +298,15 @@ The empirical bound `ceil(1/L)` is the right one for production.
 | `WindowBound.lean` | 128 | Floor proximity lemma |
 | `CommitRevealBothParamsSP.lean` | 108 | Single-user SP (both params, scope-corrected) |
 | `StrongConcavityWindowBound.lean` | 136 | Quadratic decay tightness |
+| `PrecommitCollusionImpossibility.lean` | Phase 2 | Constructive numeric witness (precommit sacrifice yields higher group surplus + side payment exists for modeled (A,B) clearing rule) |
+| `TernarySearchExactness.lean` | 249 | Discrete concavity implies unimodal global maximum (key property for ternary search; algorithm itself not formalized) |
 
-### Python Scripts (25 files, all reproducible with fixed seeds)
+### Python Scripts (27 files, all reproducible with fixed seeds)
 
 Key scripts:
 - `precommit_collusion_test.py`: Precommit sacrifice attack against CR (both params), 42.1% violation rate
+- `mitigation_test.py`: 5 mitigation mechanisms tested (min_out cap, VCG, slashing, batch randomization)
+- `impossibility_witness_test.py`: Python verification of Lean constructive numeric witness values
 - `commit_reveal_both_params.py`: CR (both params) vs CR (amount_in) adaptive collusion test
 - `collusion_resistance_test.py`: 8 mechanism variants, sacrifice attack (trial + check level)
 - `welfare_drift_test.py`: Welfare under pool drift (paired counterfactual, identity check at drift=0)
@@ -232,5 +316,5 @@ Key scripts:
 
 ### Research Kernel
 
-28 atoms in `run_4b50f1194600478f`, all with evidence artifacts and
-SUPPORTS/REFUTES edges linking the compounding breakthroughs.
+28 atoms in `run_4b50f1194600478f` (Phase 1) + 5 atoms in `run_0407b7a55a80412c` (Phase 2),
+all with evidence artifacts and SUPPORTS/REFUTES edges linking the compounding breakthroughs.

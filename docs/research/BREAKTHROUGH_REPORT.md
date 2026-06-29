@@ -1,14 +1,14 @@
 # ZenoDEX Batch Clearing Research: Breakthrough Report
 
-**Run ID:** `run_4b50f1194600478f`
-**Date:** 2026-06-27
+**Run ID:** `run_4b50f1194600478f` (Phase 1), `run_0407b7a55a80412c` (Phase 2)
+**Date:** 2026-06-27 (Phase 1), 2026-06-28 (Phase 2)
 **Status:** All claims SUPPORTED with evidence
 
 ---
 
 ## Executive Summary
 
-This research run produced **28 major breakthroughs** spanning formal verification, algorithm design, complexity analysis, and mechanism design for ZenoDEX 2-pool batch clearing. The breakthroughs compound: the Lean proof enables the pruning rule, concavity enables ternary search, the Lipschitz constant enables adaptive windows, and together they yield a 22x speedup. The mechanism design investigation uncovered a strategyproofness vulnerability, proved it is fundamental to CPMM, found that commit-reveal for `amount_in` only achieves single-user SP (formally proven in Lean 4), then discovered and characterized a collusion vulnerability (sacrifice attack, 22.5% trial-level violation rate = 77.5% trial-level SP), identified commit-reveal for BOTH `amount_in` AND `min_out` as eliminating the adaptive attack surface (single-user SP proven in Lean 4), confirmed via welfare drift testing that committing `min_out` early does not cause welfare loss, and then falsified the group SP claim via the precommit sacrifice attack (42.1% violation rate, Codex round 1 finding). The window bound investigation produced a formal floor proximity lemma, a falsification (full bound requires CPMM-specific structure), a tightness proof for the strong concavity quadratic decay bound, and two numerical falsifications showing both global and local strong concavity bounds are correct but impractical for CPMM (the empirical `ceil(1/L)` is the right production bound, and the floor proximity lemma is the right abstract result).
+This research produced **33 major breakthroughs** (28 in Phase 1, 5 in Phase 2) spanning formal verification, algorithm design, complexity analysis, and mechanism design for ZenoDEX 2-pool batch clearing. The breakthroughs compound: the Lean proof enables the pruning rule, concavity enables ternary search (key property formally proven in Phase 2: discrete concavity implies unimodal global maximum), the Lipschitz constant enables adaptive windows, and together they yield a 22x speedup. The mechanism design investigation uncovered a strategyproofness vulnerability, proved it is fundamental to CPMM, found that commit-reveal for `amount_in` only achieves single-user SP (formally proven in Lean 4), then discovered and characterized a collusion vulnerability (sacrifice attack, 22.5% trial-level violation rate = 77.5% trial-level SP), identified commit-reveal for BOTH `amount_in` AND `min_out` as eliminating the adaptive attack surface (single-user SP proven in Lean 4), confirmed via welfare drift testing that committing `min_out` early does not cause welfare loss, and then falsified the group SP claim via the precommit sacrifice attack (42.1% violation rate, Codex round 1 finding). Phase 2 then formally proved a constructive numeric witness demonstrating precommit collusion profitability for the modeled (A,B) clearing rule (concrete surplus and side-payment inequalities), identified the min_out cap as the strongest mitigation (0.0% violation rate in Phase 2 randomized replay, zero welfare impact), and discovered that VCG externality payments are counterproductive (increase violation rate to 70.2%, a novel negative result). The window bound investigation produced a formal floor proximity lemma, a falsification (full bound requires CPMM-specific structure), a tightness proof for the strong concavity quadratic decay bound, and two numerical falsifications showing both global and local strong concavity bounds are correct but impractical for CPMM (the empirical `ceil(1/L)` is the right production bound, and the floor proximity lemma is the right abstract result).
 
 ---
 
@@ -488,6 +488,89 @@ Commit-reveal for both parameters prevents ADAPTIVE manipulation (changing bids 
 
 ---
 
+## Phase 2 Breakthroughs (run_0407b7a55a80412c)
+
+### Tier 4: Formal Impossibility and Mitigation
+
+#### 29. Discrete Concavity Implies Unimodal Global Maximum (FORMALLY PROVEN IN LEAN)
+**Atom:** `atom_9ae3e1d89efd407c`
+**Evidence score:** 0.9 | **Confidence:** 0.95 | **Importance:** 0.8
+
+The unimodal global maximum theorem is PROVEN in Lean 4 with zero errors and zero sorries. If `f : Z -> Z` is discretely concave on `[lo, hi]` (forward difference `f(b+1) - f(b)` is non-increasing), then `f` is unimodal and the peak `p` is the global maximum on `[lo, hi]`. This establishes the key mathematical property that ternary search relies on: a unimodal function's peak is its global maximum. The proof does not formalize the ternary search algorithm itself (narrowing invariant and termination), which remains a future proof target.
+
+**Proof structure:**
+- `argmax_exists`: finite interval has an argmax by induction on interval length
+- `discrete_concave_implies_unimodal`: the argmax satisfies unimodality conditions by contradiction using chained discrete concavity (two cases: non-decreasing side and non-increasing side)
+- `discrete_concave_has_unimodal_global_max`: the unimodal peak is the global max via `chain_nonneg` (non-decreasing side) and `chain_nonpos` (non-increasing side)
+
+**Scope note:** Proves the key mathematical property for ternary search (discrete concavity implies unimodal global maximum). Does NOT formalize the ternary search algorithm itself (narrowing invariant and termination), which remains a future proof target. Does NOT prove the CPMM split function is discretely concave (that requires CPMM second derivative analysis, empirically verified in Python).
+
+**File:** `lean-mathlib/Proofs/TernarySearchExactness.lean` (249 lines)
+
+**Impact:** Closes the formal verification gap for the mathematical foundation of ternary search identified in Phase 1. The proof establishes that discrete concavity implies unimodality and the unimodal peak is the global maximum, which is the key property ternary search relies on. Formalizing the ternary search algorithm itself (narrowing invariant and termination) remains a future proof target. This complements the compressed-state pruning proof (breakthrough 1).
+
+---
+
+#### 30. Min_out Cap Achieves 0.0% Precommit Collusion in Phase 2 Randomized Replay [STRONGEST MITIGATION]
+**Atom:** `atom_45c2790f9c1c45c3`
+**Evidence score:** 0.9 | **Confidence:** 0.95 | **Importance:** 0.9
+
+Python simulation of 500 randomized batch auction scenarios (seed=20260627) shows that the min_out cap (clamping each user's committed `min_out` to at most the expected output for their `amount_in`) reduces precommit collusion violation rate from 42.1% to 0.0% with zero welfare impact. This is the strongest mitigation identified.
+
+**Mechanism:** The min_out cap clamps each user's committed `min_out` to at most the expected output for their `amount_in` at the current pool state. This prevents the sacrificial user from committing an absurdly high `min_out` that guarantees non-execution. With `cap_factor=100`, the sacrificial user's `min_out` is clamped to their expected output, which in the Phase 2 replay model forces them to fill and eliminates the collusion surplus.
+
+**File:** `docs/research/mitigation_test.py`
+
+**Impact:** This is the recommended production mitigation for precommit collusion, subject to the Phase 2 replay model scope. Combined with commit-reveal for BOTH parameters (breakthrough 22), the mechanism achieves 100% single-user SP (formally proven) and 0.0% precommit collusion violation rate in the Phase 2 randomized replay. Non-claim: universal mitigation across all value profiles, pool states, and adversarial strategies beyond the tested replay model is not proven; broader adversarial testing or a formal proof is required before production authority.
+
+---
+
+#### 31. VCG Externality Payments Are Counterproductive [NOVEL NEGATIVE RESULT]
+**Atom:** `atom_7ee8d71c0af34055`
+**Evidence score:** 0.9 | **Confidence:** 0.95 | **Importance:** 0.85
+
+VCG externality payments increase the precommit collusion violation rate from 42.1% to 70.2% (500 randomized scenarios, seed=20260627), making collusion worse. This is a novel negative result: VCG, which is normally strategyproof in single-user settings, is group-anti-strategyproof in the batch auction setting.
+
+**Root cause:** The VCG externality payment creates additional surplus that can be distributed among colluders, making the collusion more profitable rather than less.
+
+**File:** `docs/research/mitigation_test.py`
+
+**Impact:** This finding warns against naively applying VCG payments as a collusion mitigation in batch auction settings. The externality payment mechanism, while individually strategyproof, amplifies group manipulation incentives.
+
+---
+
+#### 32. Slashing and Batch Randomization as Partial Mitigations
+**Evidence score:** 0.85 | **Confidence:** 0.9 | **Importance:** 0.7
+
+Two additional mitigations were tested with partial success:
+
+- **Slashing** (deposit forfeiture for detected collusion): Reduces violation rate below 15% at D=50 (13.8%) and D=100 (9.7%). Effective but requires a collusion detection oracle.
+- **Batch randomization** (randomizing batch membership): Reduces violation rate to 22.1%, which does not meet the <15% criterion. Provides some deterrence but is insufficient alone.
+
+**File:** `docs/research/mitigation_test.py`
+
+---
+
+#### 33. Constructive Witness: Precommit Collusion Profitability for the Modeled Clearing Rule (FORMALLY PROVEN IN LEAN)
+**Evidence score:** 0.9 | **Confidence:** 0.95 | **Importance:** 0.9
+
+A constructive numeric witness is PROVEN in Lean 4 with zero errors and zero sorries. The proof formalizes the CPMM swap function and surplus calculation for specific witness values (pool state, user amounts) and proves that the precommit sacrifice attack yields strictly higher group surplus than truthful reporting (383 > 338, gain = 45), plus a side payment exists making both users strictly better off (t = 32). The proof does not formalize the full commit-reveal protocol or the (A,B) optimizer; it proves the concrete numeric inequalities that demonstrate collusion profitability for the modeled clearing rule.
+
+**Proof structure:**
+- Constructs a concrete batch auction scenario with two users (A, B) and one pool (x=10000, y=10000, no fee)
+- Truthful case: A commits amount_in=100, min_out=89 (90% of expected output 99); B commits amount_in=5000, min_out=2950 (90% of expected output 3278). Both fill. Group surplus = 338 (A surplus=10, B surplus=328)
+- Sacrifice case: A commits amount_in=100, min_out=100 (raised above expected output 99 to prevent A from filling); B commits amount_in=5000, min_out=2950 (same as truthful). A does not fill, B fills at the original pool state with surplus 383. Group surplus = 383
+- The gain of 45 can be split via a side payment t=32: A receives 32 (better than truthful surplus of 10), B keeps 383-32=351 (better than truthful surplus of 328)
+- Both users are strictly better off, so the collusion is stable
+
+**Scope note:** This is a concrete counterexample for the modeled (A,B) clearing rule, not a universal impossibility result over all commit-reveal mechanisms. The Lean file's scope note explicitly states this limitation.
+
+**Files:** `lean-mathlib/Proofs/PrecommitCollusionImpossibility.lean`, `docs/research/impossibility_witness_test.py`
+
+**Impact:** Formally proves via concrete numeric witness that the precommit sacrifice attack is profitable for the modeled (A,B) clearing rule, establishing that commit-reveal alone is insufficient for group strategyproofness. The min_out cap (breakthrough 30) is required as an additional mitigation.
+
+---
+
 ## Compounding Effect
 
 The breakthroughs compound as follows:
@@ -552,7 +635,7 @@ Precommit collusion (28) → 42.1% violation rate [GROUP SP FALSIFIED, CODEX ROU
 
 ## Actionable Recommendations for ZenoDEX
 
-1. **Implement the ternary search DP with adaptive window** (breakthroughs 3-6). This gives a 22x speedup over the current subset DP, with supporting lemmas (compressed-state sufficiency, concavity, floor proximity) formally proven in Lean 4. The ternary-search exactness and Lipschitz window sufficiency remain empirically validated (next proof targets). The window is self-calibrating via the Lipschitz constant.
+1. **Implement the ternary search DP with adaptive window** (breakthroughs 3-6). This gives a 22x speedup over the current subset DP, with supporting lemmas (compressed-state sufficiency, concavity, floor proximity, unimodality+global-max) formally proven in Lean 4. The ternary search algorithm narrowing invariant and Lipschitz window sufficiency remain empirically validated (next proof targets). The window is self-calibrating via the Lipschitz constant.
 
 2. **Fix the strategyproofness vulnerability** (breakthroughs 2, 15, 16, 17, 22, 28). The (A,B) mechanism allows users to profit by inflating amount_in. The inflate attack is fundamental to CPMM (breakthrough 15). The recommended fix is **commit-reveal for BOTH `amount_in` AND `min_out`** (breakthrough 22):
    - 100% single-user SP (formally proven in Lean 4), eliminates adaptive bid-parameter misreporting and the modeled sandwich vector (inclusion, censorship, reveal-withholding, and batch-boundary games are non-claims)
@@ -563,15 +646,17 @@ Precommit collusion (28) → 42.1% violation rate [GROUP SP FALSIFIED, CODEX ROU
 
 3. **Use the continuous relaxation as a fast approximation** (breakthrough 10). For D >= 500, the gap is < 4%. This gives an O(2^n * n * |S|) algorithm for large D.
 
-4. **Formal verification expansion** (breakthrough 1). The Lean proof covers the pruning rule. Next steps: prove the ternary search exactness bound and the Lipschitz window sufficiency.
+4. **Formal verification expansion** (breakthrough 1). The Lean proof covers the pruning rule. ~~Next steps: prove the ternary search key property and the Lipschitz window sufficiency.~~ **UPDATE (Phase 2):** The key property for ternary search (discrete concavity implies unimodal global maximum) is now formally proven in Lean 4 (breakthrough 29). The ternary search algorithm itself (narrowing invariant and termination) and Lipschitz window sufficiency remain the next targets.
+
+5. **Deploy min_out cap as the collusion mitigation** (breakthrough 30, Phase 2). The min_out cap achieves 0.0% precommit collusion violation rate in the Phase 2 randomized replay (500 scenarios, seed=20260627), with zero welfare impact. This should be implemented alongside commit-reveal for BOTH parameters. Non-claim: universal mitigation across all value profiles and adversarial strategies beyond the tested replay model is not proven.
 
 ---
 
 ## Artifacts
 
-- **Lean proofs:** `lean-mathlib/Proofs/CompressedStateSubsetDP.lean` (331 lines), `lean-mathlib/Proofs/CommitRevealStrategyproof.lean` (84 lines), `lean-mathlib/Proofs/WindowBound.lean` (128 lines), `lean-mathlib/Proofs/CommitRevealBothParamsSP.lean` (108 lines, scope-corrected to single-user SP only), and `lean-mathlib/Proofs/StrongConcavityWindowBound.lean` (136 lines), all compile with zero errors, zero warnings, zero sorries
-- **Python scripts:** `docs/research/*.py` (25 scripts, all reproducible with fixed seeds)
-- **Research kernel:** 28 atoms in `run_4b50f1194600478f`, all status SUPPORTED (one PARTIALLY_REFUTED), with evidence artifacts attached and SUPPORTS/REFUTES edges linking the compounding breakthroughs
+- **Lean proofs:** `lean-mathlib/Proofs/CompressedStateSubsetDP.lean` (331 lines), `lean-mathlib/Proofs/CommitRevealStrategyproof.lean` (84 lines), `lean-mathlib/Proofs/WindowBound.lean` (128 lines), `lean-mathlib/Proofs/CommitRevealBothParamsSP.lean` (108 lines, scope-corrected to single-user SP only), `lean-mathlib/Proofs/StrongConcavityWindowBound.lean` (136 lines), `lean-mathlib/Proofs/PrecommitCollusionImpossibility.lean` (Phase 2, constructive numeric witness for precommit collusion profitability), and `lean-mathlib/Proofs/TernarySearchExactness.lean` (249 lines, Phase 2, discrete concavity implies unimodal global maximum), all compile with zero errors, zero warnings, zero sorries
+- **Python scripts:** `docs/research/*.py` (27 scripts, all reproducible with fixed seeds)
+- **Research kernel:** 28 atoms in `run_4b50f1194600478f` (Phase 1) + 5 atoms in `run_0407b7a55a80412c` (Phase 2), with evidence artifacts attached and SUPPORTS/REFUTES edges linking the compounding breakthroughs
 
 ---
 
@@ -579,13 +664,13 @@ Precommit collusion (28) → 42.1% violation rate [GROUP SP FALSIFIED, CODEX ROU
 
 This research run produced two major threads of results:
 
-**Algorithm thread (breakthroughs 1, 3-9, 11):** The 2-pool batch clearing problem can be solved in O(2^n * n * D^1.5 * W) where W is a small constant (3-5) determined by the Lipschitz constant. The unified algorithm achieves 22x speedup with 96% empirical exactness. The compressed-state pruning rule is formally proven in Lean; ternary-search exactness and Lipschitz window sufficiency remain empirical (next proof targets). The continuous relaxation provides a (1-O(n/D)) FPTAS for large D.
+**Algorithm thread (breakthroughs 1, 3-9, 11, 29):** The 2-pool batch clearing problem can be solved in O(2^n * n * D^1.5 * W) where W is a small constant (3-5) determined by the Lipschitz constant. The unified algorithm achieves 22x speedup with 96% empirical exactness. The compressed-state pruning rule is formally proven in Lean (breakthrough 1). The key property for ternary search is formally proven in Lean (breakthrough 29, Phase 2): discrete concavity implies unimodality, and the unimodal peak is the global maximum. The ternary search algorithm itself (narrowing invariant and termination) and Lipschitz window sufficiency remain empirical (next proof targets). The continuous relaxation provides a (1-O(n/D)) FPTAS for large D.
 
-**Mechanism design thread (breakthroughs 2, 10, 12-14, 16-18, 21-22, 28):** The (A,B) batch clearing mechanism has a strategyproofness vulnerability (35.72% violation rate from inflating amount_in). Among the initial 8 non-commit-reveal variants tested, only the burn mechanism addressed strategyproofness, at the cost of welfare, with a clear Pareto frontier between strategyproofness and welfare. VCG, UCP, and proper batch auctions all fail because the root cause is endogenous price discovery, which creates unavoidable manipulation incentives in multi-unit divisible good auctions. Commit-reveal for `amount_in` (breakthrough 16) achieves 99.5% single-user SP with zero welfare loss. Commit-reveal for BOTH parameters (breakthrough 22) eliminates the adaptive attack surface entirely (100% single-user SP, proven in Lean), but does NOT prevent precommit collusion (breakthrough 28, 42.1% violation rate via off-protocol side payments).
+**Mechanism design thread (breakthroughs 2, 10, 12-14, 16-18, 21-22, 28, 30-33):** The (A,B) batch clearing mechanism has a strategyproofness vulnerability (35.72% violation rate from inflating amount_in). Among the initial 8 non-commit-reveal variants tested, only the burn mechanism addressed strategyproofness, at the cost of welfare, with a clear Pareto frontier between strategyproofness and welfare. VCG, UCP, and proper batch auctions all fail because the root cause is endogenous price discovery, which creates unavoidable manipulation incentives in multi-unit divisible good auctions. Commit-reveal for `amount_in` (breakthrough 16) achieves 99.5% single-user SP with zero welfare loss. Commit-reveal for BOTH parameters (breakthrough 22) eliminates the adaptive attack surface entirely (100% single-user SP, proven in Lean), but does NOT prevent precommit collusion (breakthrough 28, 42.1% violation rate via off-protocol side payments). Phase 2 formally proved a constructive numeric witness (breakthrough 33): for the modeled (A,B) clearing rule, the precommit sacrifice attack yields strictly higher group surplus than truthful reporting, and a side payment exists making both users strictly better off. Phase 2 identified the min_out cap as the strongest mitigation (breakthrough 30): 0.0% violation rate in Phase 2 randomized replay with zero welfare impact. Phase 2 also discovered that VCG externality payments are counterproductive (breakthrough 31), increasing the violation rate to 70.2%.
 
 **Recommended next steps:**
-1. Implement the ternary search DP with adaptive window `W = ceil(1/L)` in production (empirically verified, 22x speedup)
-2. Implement commit-reveal for BOTH `amount_in` AND `min_out` + (A,B) optimal ordering (100% single-user SP proven in Lean, eliminates adaptive bid-parameter misreporting and the modeled sandwich vector, 100% welfare; does NOT prevent precommit collusion, see breakthrough 28; inclusion, censorship, reveal-withholding, and batch-boundary games are non-claims)
+1. Implement the ternary search DP with adaptive window `W = ceil(1/L)` in production (empirically verified, 22x speedup, key property formally proven in Lean: discrete concavity implies unimodal global maximum)
+2. Implement commit-reveal for BOTH `amount_in` AND `min_out` + min_out cap + (A,B) optimal ordering (100% single-user SP proven in Lean, 0% precommit collusion with min_out cap in Phase 2 replay model, eliminates adaptive bid-parameter misreporting and the modeled sandwich vector, 100% welfare; inclusion, censorship, reveal-withholding, and batch-boundary games are non-claims; non-claim: universal mitigation beyond the tested replay model is not proven)
 3. Prove the full `quadratic_decay` theorem using Taylor's theorem with remainder (requires SecondDerivative mathlib module)
 4. Derive a tighter theoretical window bound using the local strong concavity parameter `m* = |f''(b*)|` at the optimum, not the global minimum `m_min` (breakthrough 26 showed the global bound is impractical)
-5. Integrate all five Lean proofs into the ESSO verification pipeline for end-to-end assurance
+5. Integrate all seven Lean proofs into the ESSO verification pipeline for end-to-end assurance
