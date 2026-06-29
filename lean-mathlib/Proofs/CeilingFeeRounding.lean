@@ -47,7 +47,9 @@ The empirical bounds use `L = max(c0*K0/M0, c1*K1/M1)` (split Lipschitz) and sho
 floor error `< 2L + 2` and argmax proximity `< 3L + 2`. The formal bounds here use
 `K0/M0 + K1/M1` (per-pool output Lipschitz), which are ≥ `L` (since `c ≤ 1`), so
 the formal bounds are WEAKER than the empirical bounds. When `c = 1` (no fee),
-the formal bounds reduce to the clean model bounds.
+the formal bounds would reduce to the clean model bounds, but this specialization
+is not formally proved here — the proved theorems state the conservative
+`K0/M0 + K1/M1 + 2` and `L + K0/M0 + K1/M1 + 2` bounds for all fee settings.
 
 ## Non-Claims
 
@@ -91,45 +93,44 @@ lemma cpmm_output_lipschitz_wrt_net
   have hMx1 : M + x1 > 0 := by nlinarith
   have hMx2 : M + x2 > 0 := by nlinarith
   have h_denom_pos : 0 < (M + x1) * (M + x2) := by nlinarith
-  have h_prod_ge_M2 : (M + x1) * (M + x2) ≥ M^2 := by nlinarith
+  have h_prod_ge_M2 : (M + x1) * (M + x2) ≥ M * M := by nlinarith
   have h_KM_nn : 0 ≤ K * M := mul_nonneg hK (le_of_lt hM)
   have h_diff : cpmmOutputCont K M x1 - cpmmOutputCont K M x2 =
     K * M * (x1 - x2) / ((M + x1) * (M + x2)) := by
     unfold cpmmOutputCont; field_simp; ring
-  rw [h_diff, abs_le]
+  rw [h_diff]
+  rw [abs_le]
+  have h_abs_nn : 0 ≤ |x1 - x2| := abs_nonneg (x1 - x2)
+  have h_xdiff_le_abs : x1 - x2 ≤ |x1 - x2| := le_abs_self (x1 - x2)
+  have h_neg_xdiff_le_abs : -(x1 - x2) ≤ |x1 - x2| := by
+    have h := le_abs_self (-(x1 - x2))
+    rwa [abs_neg] at h
+  have h_KM2_nn : 0 ≤ K * (M * M) := by nlinarith [hK, hM_pos]
+  have h_Kabs_nn : 0 ≤ K * |x1 - x2| := mul_nonneg hK h_abs_nn
   refine ⟨?_, ?_⟩
-  · -- -(K/M)*|x1-x2| ≤ K*M*(x1-x2)/denom
+  · -- Lower: -(K/M)*|x1-x2| ≤ K*M*(x1-x2)/denom
     rw [le_div_iff₀ h_denom_pos]
-    have h_neg_abs : -(x1 - x2) ≤ |x1 - x2| := by
-      have h := le_abs_self (-(x1 - x2))
-      rwa [abs_neg] at h
-    have h_abs_nn : 0 ≤ |x1 - x2| := abs_nonneg _
-    have h_KM_div_nn : 0 ≤ K / M := div_nonneg hK (le_of_lt hM_pos)
-    have h_KM_div_abs_nn : 0 ≤ (K / M) * |x1 - x2| := mul_nonneg h_KM_div_nn h_abs_nn
-    have h_step1 : K * M * (x1 - x2) ≥ -K * M * |x1 - x2| := by
-      nlinarith [h_neg_abs, h_KM_nn, h_abs_nn]
-    have h_step2 : -(K / M) * |x1 - x2| * ((M + x1) * (M + x2)) ≤ -K * M * |x1 - x2| := by
-      have h_prod_ge : (K / M) * |x1 - x2| * (M * M) ≤ (K / M) * |x1 - x2| * ((M + x1) * (M + x2)) := by
-        have h_MM : M * M ≤ (M + x1) * (M + x2) := by nlinarith [h_prod_ge_M2]
-        exact mul_le_mul_of_nonneg_left h_MM h_KM_div_abs_nn
-      have h_eq : (K / M) * |x1 - x2| * (M * M) = K * M * |x1 - x2| := by field_simp
-      linarith [h_prod_ge, h_eq]
-    linarith [h_step1, h_step2]
-  · -- K*M*(x1-x2)/denom ≤ (K/M)*|x1-x2|
+    field_simp
+    -- Goal: K * M^2 * (x1-x2) ≥ -K * |x1-x2| * (M+x1)*(M+x2)
+    have h_s1 : K * (M * M) * (x1 - x2) ≥ -K * (M * M) * |x1 - x2| := by
+      have h_neg_le : -|x1 - x2| ≤ x1 - x2 := by linarith [h_neg_xdiff_le_abs]
+      have := mul_le_mul_of_nonneg_left h_neg_le h_KM2_nn
+      linarith
+    have h_s2 : -K * |x1 - x2| * (M * M) ≥ -K * |x1 - x2| * ((M + x1) * (M + x2)) := by
+      have h_pos : K * |x1 - x2| * (M * M) ≤ K * |x1 - x2| * ((M + x1) * (M + x2)) := by
+        exact mul_le_mul_of_nonneg_left h_prod_ge_M2 h_Kabs_nn
+      linarith
+    linarith [h_s1, h_s2]
+  · -- Upper: K*M*(x1-x2)/denom ≤ (K/M)*|x1-x2|
     rw [div_le_iff₀ h_denom_pos]
-    have h_abs_le' : x1 - x2 ≤ |x1 - x2| := le_abs_self _
-    have h_abs_nn : 0 ≤ |x1 - x2| := abs_nonneg _
-    have h_KM_div_nn : 0 ≤ K / M := div_nonneg hK (le_of_lt hM_pos)
-    have h_KM_div_abs_nn : 0 ≤ (K / M) * |x1 - x2| := mul_nonneg h_KM_div_nn h_abs_nn
-    have h_step1 : K * M * (x1 - x2) ≤ K * M * |x1 - x2| := by
-      nlinarith [h_abs_le', h_KM_nn, h_abs_nn]
-    have h_step2 : K * M * |x1 - x2| ≤ (K / M) * |x1 - x2| * ((M + x1) * (M + x2)) := by
-      have h_prod_ge : (K / M) * |x1 - x2| * (M * M) ≤ (K / M) * |x1 - x2| * ((M + x1) * (M + x2)) := by
-        have h_MM : M * M ≤ (M + x1) * (M + x2) := by nlinarith [h_prod_ge_M2]
-        exact mul_le_mul_of_nonneg_left h_MM h_KM_div_abs_nn
-      have h_eq : (K / M) * |x1 - x2| * (M * M) = K * M * |x1 - x2| := by field_simp
-      linarith [h_prod_ge, h_eq]
-    linarith [h_step1, h_step2]
+    field_simp
+    -- Goal: K * M^2 * (x1-x2) ≤ K * |x1-x2| * (M+x1)*(M+x2)
+    have h_s1 : K * (M * M) * (x1 - x2) ≤ K * (M * M) * |x1 - x2| := by
+      exact mul_le_mul_of_nonneg_left h_xdiff_le_abs h_KM2_nn
+    have h_s2 : K * (M * M) * |x1 - x2| ≤ K * |x1 - x2| * ((M + x1) * (M + x2)) := by
+      have := mul_le_mul_of_nonneg_left h_prod_ge_M2 h_Kabs_nn
+      linarith
+    linarith [h_s1, h_s2]
 
 /-! ## Part 3: Per-Pool Production Floor Error -/
 
@@ -149,7 +150,6 @@ lemma cpmm_prod_floor_error_bound_directed
   have hMx_prod : M + net_prod > 0 := by nlinarith
   have h_diff_nn : 0 ≤ net_cont - net_prod := by nlinarith
   have h_KM_nn : 0 ≤ K * M := mul_nonneg hK (le_of_lt hM)
-  -- f is increasing: net_prod ≤ net_cont → f(net_prod) ≤ f(net_cont)
   have h_f_increasing : cpmmOutputCont K M net_prod ≤ cpmmOutputCont K M net_cont := by
     unfold cpmmOutputCont
     have h_diff : K * net_cont / (M + net_cont) - K * net_prod / (M + net_prod) =
@@ -161,7 +161,6 @@ lemma cpmm_prod_floor_error_bound_directed
     have h_frac_nn : 0 ≤ K * M * (net_cont - net_prod) / ((M + net_cont) * (M + net_prod)) :=
       div_nonneg h_num_nn (le_of_lt h_denom_pos)
     linarith [h_diff, h_frac_nn]
-  -- Standard floor error: cont(prod) - prodFloor ∈ [0, 1)
   have h_prod_floor_le : cpmmOutputProdFloor K M net_prod ≤ cpmmOutputCont K M net_prod := by
     unfold cpmmOutputProdFloor cpmmOutputCont
     have hz_nn : 0 ≤ K * net_prod / (M + net_prod) := by
@@ -172,28 +171,24 @@ lemma cpmm_prod_floor_error_bound_directed
     unfold cpmmOutputProdFloor cpmmOutputCont
     have := Int.lt_floor_add_one (K * net_prod / (M + net_prod))
     exact_mod_cast this
-  -- Lower bound: cont(clean) - prodFloor ≥ 0
-  -- cont(clean) ≥ cont(prod) (f increasing) ≥ prodFloor (floor rounds down)
   refine ⟨?_, ?_⟩
-  · have h_cont_diff_nn : 0 ≤ cpmmOutputCont K M net_cont - cpmmOutputCont K M net_prod := by
+  · -- Lower bound: cont(clean) - prodFloor ≥ 0
+    have h_cont_diff_nn : 0 ≤ cpmmOutputCont K M net_cont - cpmmOutputCont K M net_prod := by
       linarith [h_f_increasing]
     have h_floor_err_nn : 0 ≤ cpmmOutputCont K M net_prod - cpmmOutputProdFloor K M net_prod := by
       linarith [h_prod_floor_le]
     linarith [h_cont_diff_nn, h_floor_err_nn]
-  -- Upper bound: cont(clean) - prodFloor < K/M + 1
-  -- cont(clean) - prodFloor = (cont(clean) - cont(prod)) + (cont(prod) - prodFloor)
-  -- If K = 0: cont(clean) = cont(prod) = 0, so total = 0 < 1 = K/M + 1
-  -- If K > 0: (K/M) * (net_cont - net_prod) < K/M, so total < K/M + 1
-  · by_cases hK_zero : K = 0
+  · -- Upper bound: cont(clean) - prodFloor < K/M + 1
+    by_cases hK_zero : K = 0
     · -- K = 0: cpmmOutputCont = 0, cpmmOutputProdFloor = 0
       have h_cont_zero : cpmmOutputCont 0 M net_cont = 0 := by
-        simp [cpmmOutputCont]
-      have h_prod_zero : cpmmOutputCont 0 M net_prod = 0 := by
-        simp [cpmmOutputCont]
+        unfold cpmmOutputCont; simp
       have h_floor_zero : cpmmOutputProdFloor 0 M net_prod = 0 := by
-        simp [cpmmOutputProdFloor, cpmmOutputCont]
+        unfold cpmmOutputProdFloor
+        have h_zero_arg : (0 : ℝ) * net_prod / (M + net_prod) = 0 := by simp
+        rw [h_zero_arg, Int.floor_zero, Int.cast_zero]
       rw [hK_zero] at *
-      simp [h_cont_zero, h_prod_zero, h_floor_zero, hM_pos]
+      simp [h_cont_zero, h_floor_zero]
     · have h_lip := cpmm_output_lipschitz_wrt_net K M net_cont net_prod
         hK hM h_net_cont_nn h_net_prod_nn
       have h_abs_diff : |net_cont - net_prod| = net_cont - net_prod :=
@@ -230,7 +225,7 @@ lemma split_prod_floor_error_bound
     (net_prod0 net_prod1 : ℝ)
     (hK0 : K0 ≥ 0) (hM0 : M0 > 0) (hc0 : c0 ≥ 0)
     (hK1 : K1 ≥ 0) (hM1 : M1 > 0) (hc1 : c1 ≥ 0)
-    (ha_nn : 0 ≤ a) (hD_nn : 0 ≤ D) (ha_le_D : a ≤ D)
+    (ha_nn : 0 ≤ a) (_hD_nn : 0 ≤ D) (ha_le_D : a ≤ D)
     (h_net_prod0_nn : net_prod0 ≥ 0) (h_net_prod1_nn : net_prod1 ≥ 0)
     (h_net_prod0_le : net_prod0 ≤ c0 * a)
     (h_net_prod1_le : net_prod1 ≤ c1 * (D - a))
@@ -243,7 +238,7 @@ lemma split_prod_floor_error_bound
         K0 / M0 + K1 / M1 + 2 := by
   have h0 := cpmm_prod_floor_error_bound_directed K0 M0 (c0 * a) net_prod0
     hK0 hM0 (mul_nonneg hc0 ha_nn) h_net_prod0_nn h_net_prod0_le h_perturbation0
-  have h_Da_nn : 0 ≤ D - a := by nlinarith
+  have h_Da_nn : 0 ≤ D - a := by nlinarith [ha_le_D]
   have h1 := cpmm_prod_floor_error_bound_directed K1 M1 (c1 * (D - a)) net_prod1
     hK1 hM1 (mul_nonneg hc1 h_Da_nn) h_net_prod1_nn h_net_prod1_le h_perturbation1
   unfold splitFunctionCont splitFunctionProdFloor
@@ -294,14 +289,12 @@ theorem cpmm_prod_discrete_argmax_proximity
     : splitFunctionProdFloor K0 M0 net_prod0_star K1 M1 net_prod1_star ≥
       splitFunctionProdFloor K0 M0 net_prod0_b K1 M1 net_prod1_b -
       (L + K0 / M0 + K1 / M1 + 2) := by
-  -- Floor of b_star is in [0, D]
   have h_floor_bstar_nn : (0 : ℝ) ≤ ↑⌊b_star⌋ :=
     floor_nonneg_of_nonneg b_star hb_star_nn
   have h_floor_bstar_le_D : (↑⌊b_star⌋ : ℝ) ≤ D := by
     have h_fl : (↑⌊b_star⌋ : ℝ) ≤ b_star := Int.floor_le b_star
     linarith
   have hD_nn : 0 ≤ D := le_of_lt hD
-  -- Floor error at ⌊b*⌋: splitCont(⌊b*⌋) - splitProdFloor(⌊b*⌋) < K0/M0 + K1/M1 + 2
   have h_floor_err_bstar :
       splitFunctionCont K0 M0 c0 K1 M1 c1 D ↑⌊b_star⌋ -
       splitFunctionProdFloor K0 M0 net_prod0_star K1 M1 net_prod1_star <
@@ -314,7 +307,6 @@ theorem cpmm_prod_discrete_argmax_proximity
       h_net_prod0_star_le h_net_prod1_star_le
       h_perturbation0_star h_perturbation1_star
     exact h.2
-  -- prodFloor(b) ≤ splitCont(b) (floor rounds down + perturbation)
   have h_floor_le_b :
       splitFunctionProdFloor K0 M0 net_prod0_b K1 M1 net_prod1_b ≤
       splitFunctionCont K0 M0 c0 K1 M1 c1 D b := by
@@ -327,15 +319,6 @@ theorem cpmm_prod_discrete_argmax_proximity
       h_net_prod1_b_le h_perturbation1_b
     unfold splitFunctionCont splitFunctionProdFloor
     linarith [h0.1, h1.1]
-  -- Inline the abstract argmax proximity proof:
-  -- 1. splitCont(⌊b*⌋) ≥ splitCont(b*) - L  (floor proximity via Lipschitz)
-  -- 2. splitCont(b*) ≥ splitCont(b)  (b* is continuous global max)
-  -- 3. splitCont(b) ≥ splitProdFloor(b)  (floor rounds down + perturbation)
-  -- 4. splitCont(⌊b*⌋) - splitProdFloor(⌊b*⌋) < ε  (floor error at ⌊b*⌋)
-  -- Combining: splitProdFloor(⌊b*⌋) > splitCont(⌊b*⌋) - ε
-  --          ≥ splitCont(b*) - L - ε
-  --          ≥ splitCont(b) - L - ε
-  --          ≥ splitProdFloor(b) - L - ε
   have h_floor_prox := concave_floor_L_optimal
     (splitFunctionCont K0 M0 c0 K1 M1 c1 D) L b_star hL h_lipschitz h_max
   have h_prod_floor_ge : splitFunctionProdFloor K0 M0 net_prod0_star K1 M1 net_prod1_star >
