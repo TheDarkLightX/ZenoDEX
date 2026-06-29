@@ -258,8 +258,8 @@ lemma split_prod_floor_error_bound
 
     Non-claims:
     - The ceiling fee perturbation bound is external (not proven in Lean)
-    - The bound `L + K0/M0 + K1/M1 + 2` is weaker than the empirical `3L + 2`
-      when `K0/M0 + K1/M1 > 2L` (which happens when fees are non-zero) -/
+    - The bound `L + K0/M0 + K1/M1 + 2` and the empirical `3L + 2` are both
+      valid; neither is universally tighter. -/
 theorem cpmm_prod_discrete_argmax_proximity
     (K0 M0 c0 K1 M1 c1 D L b_star b : ℝ)
     (net_prod0_star net_prod1_star net_prod0_b net_prod1_b : ℝ)
