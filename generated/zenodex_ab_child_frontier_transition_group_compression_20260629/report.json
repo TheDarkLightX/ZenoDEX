@@ -1,0 +1,375 @@
+{
+  "authority_boundary": "research evidence only; no settlement, state-root, production, governance, routing, matching, or pool-mutation authority",
+  "date": "2026-06-29",
+  "deterministic_replay": {
+    "first_hash": "695be84aeee82b4f61706786bd08a16c9f8b16c47b2a0e2739e6cadaffbc5f83",
+    "ok": true,
+    "second_hash": "695be84aeee82b4f61706786bd08a16c9f8b16c47b2a0e2739e6cadaffbc5f83"
+  },
+  "hypothesis_card": {
+    "expected_metric_delta": {
+      "cap_efficiency": "0",
+      "determinism_simplicity": "+one row per generated child state",
+      "execution_quality": "0",
+      "perf_cost": "+host recomputation, -proof object bytes",
+      "safety": "+explicit no-extra digest binding"
+    },
+    "falsification_recipe": "Remove a group, add an extra group, alter group count or digest, corrupt representative transition or membership proof, and require rejection.",
+    "formal_obligations": "Research-only host checker; production use needs a smaller trusted transition relation or Lean refinement.",
+    "hypothesis_id": "H-AB-N7-TRANSITION-GROUP-COMPRESSION-20260629",
+    "mechanism_change": "Compress child-frontier transition proof objects by grouping all transitions that generate the same child state.",
+    "null_hypothesis": "Per-child transition groups cannot preserve both coverage and no-extra generated-image checks without carrying every transition row.",
+    "representation_shift_used": "reduce",
+    "risk_modes": [
+      "host recomputation bug",
+      "stale source bidirectional report",
+      "group digest collision outside SHA-256 assumptions",
+      "membership proof mismatch",
+      "authority leakage"
+    ],
+    "status": "supported",
+    "support_recipe": "Recompute full transition groups from the host DP, verify compressed group counts/digests, and compare compression ratios with deterministic replay."
+  },
+  "non_claims": [
+    "This certificate is bounded to the committed n=7 zero-min bidirectional transition report.",
+    "This certificate compresses the proof object; it does not remove host recomputation of the transition image.",
+    "This certificate does not prove Python-to-Lean refinement.",
+    "This certificate does not prove child-frontier generation in Lean.",
+    "This certificate does not cover nonzero min_amount_out behavior.",
+    "This certificate does not authorize settlement, routing, matching, governance, pool mutation, production deployment, or state roots."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_child_frontier_transition_group_compression_20260629.py",
+  "schema": "zenodex.ab_child_frontier_transition_group_compression_report.v1",
+  "search": {
+    "byte_reduction_count": 1455623,
+    "byte_reduction_ratio": 0.633706,
+    "case_count": 4,
+    "cases": [
+      {
+        "bit_count": 7,
+        "byte_reduction_count": 208437,
+        "byte_reduction_ratio": 0.655959,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "compressed_json_bytes": 109322,
+        "compressed_row_count": 127,
+        "compressed_rows_digest": "b0acf719bac455d3308fdf68b357a0e15325239d7140e11e230b64e7f1363aae",
+        "covered_group_count": 127,
+        "duplicate_group_count": 0,
+        "expected_group_count": 127,
+        "extra_group_count": 0,
+        "fee_bps": 9000,
+        "first_failure": null,
+        "invalid_compressed_row_count": 0,
+        "missing_group_count": 0,
+        "ok": true,
+        "packet_hash": "253044c5431bba43e4bb75657cdbe33f999c49ac82b23420cef3312873fd3559",
+        "pattern": "thin_positive_boundary/high_fee9000",
+        "reasons": [],
+        "row_reduction_count": 321,
+        "row_reduction_ratio": 0.716518,
+        "source_transition_json_bytes": 317759,
+        "source_transition_row_count": 448,
+        "transition_groups_digest": "f6c3435447fab89fb78933aea273ef4a4b7baa99f5771aa63495feec9fdc0d2a"
+      },
+      {
+        "bit_count": 7,
+        "byte_reduction_count": 560172,
+        "byte_reduction_ratio": 0.631212,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "compressed_json_bytes": 327283,
+        "compressed_row_count": 320,
+        "compressed_rows_digest": "d22a19769aec608f45e655d4b05372817d822f6967efc0ef9721fc416b640029",
+        "covered_group_count": 320,
+        "duplicate_group_count": 0,
+        "expected_group_count": 320,
+        "extra_group_count": 0,
+        "fee_bps": 1,
+        "first_failure": null,
+        "invalid_compressed_row_count": 0,
+        "missing_group_count": 0,
+        "ok": true,
+        "packet_hash": "1ea7625bbd45182f2d4d3e4f036017a7c1ba4ff73aeb5d9bafbb6eb92ceb81e8",
+        "pattern": "near_zero_positive/rand_tie",
+        "reasons": [],
+        "row_reduction_count": 684,
+        "row_reduction_ratio": 0.681275,
+        "source_transition_json_bytes": 887455,
+        "source_transition_row_count": 1004,
+        "transition_groups_digest": "89a7dfc7f1003c897e90eb3881627439e55ea2bfcc880174fc3b91f4965a10fe"
+      },
+      {
+        "bit_count": 7,
+        "byte_reduction_count": 470873,
+        "byte_reduction_ratio": 0.616912,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "compressed_json_bytes": 292401,
+        "compressed_row_count": 290,
+        "compressed_rows_digest": "19c2bb5403ba253dba443d41baa5fd6d637ee931e618051b428eb3384731b826",
+        "covered_group_count": 290,
+        "duplicate_group_count": 0,
+        "expected_group_count": 290,
+        "extra_group_count": 0,
+        "fee_bps": 100,
+        "first_failure": null,
+        "invalid_compressed_row_count": 0,
+        "missing_group_count": 0,
+        "ok": true,
+        "packet_hash": "c7100c2ca7fbd8fbb6ba1953c247207a362e7eb213d7945a12a658c286e47b01",
+        "pattern": "high_fee_deep_out/rand_stair",
+        "reasons": [],
+        "row_reduction_count": 587,
+        "row_reduction_ratio": 0.669327,
+        "source_transition_json_bytes": 763274,
+        "source_transition_row_count": 877,
+        "transition_groups_digest": "8f9e88877dc6b6aa7784ebca5977e0d47d830a1cff2468aaaab37cf6e8333af4"
+      },
+      {
+        "bit_count": 7,
+        "byte_reduction_count": 216141,
+        "byte_reduction_ratio": 0.657941,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "compressed_json_bytes": 112370,
+        "compressed_row_count": 127,
+        "compressed_rows_digest": "b786428df95b8bfdc3a66fbaf00301a5ccc7b0e023af2c641dc8e57acbb36171",
+        "covered_group_count": 127,
+        "duplicate_group_count": 0,
+        "expected_group_count": 127,
+        "extra_group_count": 0,
+        "fee_bps": 100,
+        "first_failure": null,
+        "invalid_compressed_row_count": 0,
+        "missing_group_count": 0,
+        "ok": true,
+        "packet_hash": "7fc5e078939bfea727ce3d2b885804e67a4a734f593aaf2794255874b3d8f4ac",
+        "pattern": "near_domain_in/rand_burst",
+        "reasons": [],
+        "row_reduction_count": 321,
+        "row_reduction_ratio": 0.716518,
+        "source_transition_json_bytes": 328511,
+        "source_transition_row_count": 448,
+        "transition_groups_digest": "bb3a97245295af27b49d8a42367bc51fe896b12ae568a21dd1018fd2d7f1cb22"
+      }
+    ],
+    "compressed_json_bytes": 841376,
+    "compressed_row_count": 864,
+    "compressed_rows_digest": "08588cdb923ad12571dc729b13ad99b2888bebe8e5d6983fabd723b32d2bb2a4",
+    "coverage": {
+      "fee_bps_counts": {
+        "1": 1,
+        "100": 2,
+        "9000": 1
+      },
+      "n_counts": {
+        "7": 4
+      },
+      "pattern_counts": {
+        "high_fee_deep_out/rand_stair": 1,
+        "near_domain_in/rand_burst": 1,
+        "near_zero_positive/rand_tie": 1,
+        "thin_positive_boundary/high_fee9000": 1
+      },
+      "reason_classes": [
+        "afterstep_generated_child_mismatch",
+        "authority_effect_present",
+        "extra_generated_image_witness",
+        "generated_child_not_in_child_frontier",
+        "membership_proof_hash_mismatch",
+        "missing_generated_image_witness",
+        "packet_compression_summary_mismatch",
+        "packet_hash_mismatch",
+        "transition_group_count_mismatch",
+        "transition_group_digest_mismatch",
+        "transition_parent_state_not_in_parent_frontier"
+      ]
+    },
+    "covered_group_count": 864,
+    "duplicate_group_count": 0,
+    "elapsed_ms": 14721.945,
+    "expected_group_count": 864,
+    "extra_group_count": 0,
+    "first_case": {
+      "bit_count": 7,
+      "byte_reduction_count": 208437,
+      "byte_reduction_ratio": 0.655959,
+      "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+      "compressed_json_bytes": 109322,
+      "compressed_row_count": 127,
+      "compressed_rows_digest": "b0acf719bac455d3308fdf68b357a0e15325239d7140e11e230b64e7f1363aae",
+      "covered_group_count": 127,
+      "duplicate_group_count": 0,
+      "expected_group_count": 127,
+      "extra_group_count": 0,
+      "fee_bps": 9000,
+      "first_failure": null,
+      "invalid_compressed_row_count": 0,
+      "missing_group_count": 0,
+      "ok": true,
+      "packet_hash": "253044c5431bba43e4bb75657cdbe33f999c49ac82b23420cef3312873fd3559",
+      "pattern": "thin_positive_boundary/high_fee9000",
+      "reasons": [],
+      "row_reduction_count": 321,
+      "row_reduction_ratio": 0.716518,
+      "source_transition_json_bytes": 317759,
+      "source_transition_row_count": 448,
+      "transition_groups_digest": "f6c3435447fab89fb78933aea273ef4a4b7baa99f5771aa63495feec9fdc0d2a"
+    },
+    "first_invalid_case": null,
+    "invalid_compressed_row_count": 0,
+    "missing_group_count": 0,
+    "negative_control_accept_count": 0,
+    "negative_control_count": 8,
+    "negative_controls": [
+      {
+        "accepted": false,
+        "expected_reason": "packet_hash_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_hash_mismatch",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "missing_generated_image_witness",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "mask_id": 1,
+          "reason": "missing_generated_image_witness"
+        },
+        "mutation_id": "missing_generated_image_witness",
+        "reasons": [
+          "missing_generated_image_witness",
+          "packet_compression_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "extra_generated_image_witness",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "detail": {
+            "row_index": 320
+          },
+          "mask_id": 1,
+          "reason": "extra_generated_image_witness"
+        },
+        "mutation_id": "extra_generated_image_witness",
+        "reasons": [
+          "extra_generated_image_witness",
+          "generated_child_not_in_child_frontier",
+          "membership_proof_hash_mismatch",
+          "afterstep_generated_child_mismatch",
+          "packet_compression_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "transition_group_count_mismatch",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "detail": {
+            "row_index": 0
+          },
+          "mask_id": 1,
+          "reason": "transition_group_count_mismatch"
+        },
+        "mutation_id": "transition_group_count_mismatch",
+        "reasons": [
+          "transition_group_count_mismatch",
+          "packet_compression_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "transition_group_digest_mismatch",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "detail": {
+            "row_index": 0
+          },
+          "mask_id": 1,
+          "reason": "transition_group_digest_mismatch"
+        },
+        "mutation_id": "transition_group_digest_mismatch",
+        "reasons": [
+          "transition_group_digest_mismatch",
+          "packet_compression_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "transition_parent_state_not_in_parent_frontier",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "detail": {
+            "row_index": 0
+          },
+          "mask_id": 1,
+          "reason": "transition_parent_state_not_in_parent_frontier"
+        },
+        "mutation_id": "transition_parent_state_not_in_parent_frontier",
+        "reasons": [
+          "transition_parent_state_not_in_parent_frontier",
+          "afterstep_generated_child_mismatch",
+          "packet_compression_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "membership_proof_hash_mismatch",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "detail": {
+            "row_index": 2
+          },
+          "mask_id": 3,
+          "reason": "membership_proof_hash_mismatch"
+        },
+        "mutation_id": "membership_proof_hash_mismatch",
+        "reasons": [
+          "membership_proof_hash_mismatch",
+          "packet_compression_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "authority_effect_present",
+        "first_failure": null,
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      }
+    ],
+    "row_reduction_count": 1913,
+    "row_reduction_ratio": 0.688873,
+    "schema": "zenodex/ab_child_frontier_transition_group_compression_search/v1",
+    "source_bidirectional_report": {
+      "deterministic_replay_hash": "54e80016a0c0dc4eb629d22b43265091b3b1c4dc75324320107b17dbd42668b7",
+      "ok": true,
+      "path": "generated/zenodex_ab_reserve_state_child_frontier_bidirectional_transition_20260629/report.json",
+      "schema": "zenodex.ab_reserve_state_child_frontier_bidirectional_transition_report.v1",
+      "sha256": "8aecb36a829164725f85ba8e4360d17fb0fdf032e4cafd082349189b8c81b883",
+      "transition_row_count": 2777,
+      "transition_rows_digest": "fccc26b63521b510776546e4663cecabcf58849af42bcda799484bf092a81f82",
+      "unique_generated_child_count": 864
+    },
+    "source_seed": 2026062907,
+    "source_transition_json_bytes": 2296999,
+    "source_transition_row_count": 2777,
+    "transition_groups_digest": "280c2b23775977485dd12bd7a7b8c3db1c023577881fd1580b1210912261939b",
+    "valid_case_count": 4
+  },
+  "source_report": {
+    "deterministic_replay_hash": "54e80016a0c0dc4eb629d22b43265091b3b1c4dc75324320107b17dbd42668b7",
+    "ok": true,
+    "path": "generated/zenodex_ab_reserve_state_child_frontier_bidirectional_transition_20260629/report.json",
+    "schema": "zenodex.ab_reserve_state_child_frontier_bidirectional_transition_report.v1",
+    "sha256": "8aecb36a829164725f85ba8e4360d17fb0fdf032e4cafd082349189b8c81b883",
+    "transition_row_count": 2777,
+    "transition_rows_digest": "fccc26b63521b510776546e4663cecabcf58849af42bcda799484bf092a81f82",
+    "unique_generated_child_count": 864
+  },
+  "summary": "A bounded transition-group compression certificate reduces the n=7 AB child-frontier bidirectional proof object from 2,777 per-transition rows to 864 per-generated-child rows while preserving host-recomputed transition-group counts, group digests, canonical child membership, and no-authority rails."
+}
