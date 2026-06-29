@@ -48,8 +48,9 @@ bounds, and fixed-order min-out-cap evidence.
   for supplied full-presentation/decomposition/canonical-fixed witnesses,
   full-List ordered-index constructors for that certificate in both
   selected-pair orders, identity-stable full-List presentation bridges for
-  duplicate-valued pool selection by distinct ids, and one concrete 4-pool plus
-  one concrete 5-pool coordinate-wise checkpoint.
+  duplicate-valued pool selection by distinct ids, an id-ordered full-List
+  presentation bridge for supplied stable-id ordered presentations, and one
+  concrete 4-pool plus one concrete 5-pool coordinate-wise checkpoint.
 - `DiscreteArgmaxProximity.lean` replaces the false discrete-concavity target
   with an abstract argmax-proximity theorem plus CPMM conditional instantiation.
 - `KPoolDiscreteArgmaxProximity.lean` lifts the scalar proximity result to a
@@ -61,8 +62,12 @@ bounds, and fixed-order min-out-cap evidence.
 
 ### Phase 5
 
-- `ConcavityConservationLaw.lean` proves the formal Lipschitz gain bound and
-  CPMM algebraic window-depth identity.
+- `ConcavityConservationLaw.lean` proves the formal Lipschitz gain bound,
+  CPMM algebraic window-depth identity, AND the stateful CPMM attack gain
+  bound (`cpmm_stateful_gain_bound`: `out_B_without_A - out_B_with_A <= L*a_A`
+  for fee-free CPMM; `cpmm_stateful_gain_bound_with_fee`: same with fee
+  parameter gamma). This closes the formal gap between the generic Lipschitz
+  increment and the exact stateful attack model.
 - Empirical tests document that a second-order concavity approximation is
   falsified as a universal stateful attack bound.
 - The honest security-side observation is that actual stateful gain decreases
@@ -293,26 +298,36 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
   full-presentation/decomposition/canonical-fixed witnesses, full-List
   ordered-index constructors for that certificate in both selected-pair orders,
   identity-stable full-List presentation bridges for duplicate-valued pool
-  selection by distinct ids, one concrete 4-pool coordinate instance, and one
-  concrete 5-pool coordinate instance.
+  selection by distinct ids, an id-ordered full-List presentation bridge for
+  supplied stable-id ordered presentations, one concrete 4-pool coordinate
+  instance, and one concrete 5-pool coordinate instance.
 - The min-out-cap game-theory evidence is a fixed-order filled-user no-gain
   check, not a full Nash equilibrium proof.
 - The concavity second-order approximation is not a universal stateful attack
   bound. The test suite intentionally includes falsification guards for that
-  approximation.
+  approximation. The Lean-proven stateful gain bound (`cpmm_stateful_gain_bound`)
+  uses the Lipschitz constant L*a_A, not the falsified concavity formula.
+- The stateful CPMM attack gain bound `gain <= L*a_A` is Lean-proven
+  (`cpmm_stateful_gain_bound` for fee-free, `cpmm_stateful_gain_bound_with_fee`
+  for fee-bearing CPMM). The empirical scaling probe in
+  `concavity_bounded_adversarial_test.py` uses `|f''(0)|` (maximum curvature)
+  which gives a tighter constant but is empirical only.
 - These files are research evidence and proof artifacts; they do not change
   consensus authority or production runtime behavior.
 
 ## Recommended GPT 5.5 Continuation
 
-1. Prove deterministic unordered collection canonicalization for the
-   proof-carrying selection certificate from Finset or Multiset presentations,
-   using the checked stable-id bridge for duplicate-valued pools.
+1. Prove deterministic sorting from arbitrary Finset or Multiset presentations
+   into the checked id-ordered full-List presentation bridge, then compose it
+   with the proof-carrying selection certificate.
 2. Model ceiling-fee rounding in Lean to replace the production empirical
    `2L + 2` and `3L + 2` constants with checked lemmas.
 3. Turn the fixed-order no-gain evidence into a precise game definition before
    claiming equilibrium properties.
 4. Connect the Lipschitz increment theorem to the exact stateful CPMM attack
-   model, or keep the stateful security side explicitly empirical.
+   model. DONE: `cpmm_stateful_gain_bound` and `cpmm_stateful_gain_bound_with_fee`
+   in `ConcavityConservationLaw.lean` prove `gain <= L*a_A` for the exact
+   stateful CPMM attack model (fee-free and with fee). The stateful security
+   side is now formally proven, not just empirical.
 5. Keep the Phases 4-6 evidence manifest current whenever a pinned artifact,
    replay command, or supported-scope statement changes.

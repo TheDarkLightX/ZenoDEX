@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
-"""CPMM Concavity Evidence: Window Algebra and Lipschitz Increment Tests.
+"""CPMM Concavity Evidence: Window Algebra, Lipschitz Increment, and Stateful Attack Bound.
 
-This is NOT a conservation law package. The Lean file proves only:
+The Lean file proves:
 1. An algebraic identity: sqrt(2*L/m) = sqrt(M) when L=K/M, m=2*K/M^2
    (epsilon=0 case; production window includes epsilon).
 2. A generic Lipschitz increment: f(a_A)-f(0) <= L*a_A for any L-Lipschitz f.
+3. The stateful CPMM attack gain bound: out_B_without_A - out_B_with_A <= L*a_A
+   for the exact CPMM model f(x) = K*x/(M+x), with K, M, a_A, a_B > 0.
+4. The fee-bearing version: gain <= gamma*K*a_A/M for f(x) = K*gamma*x/(M+gamma*x).
 
-The stateful CPMM attack gain (out_B_without_A - out_B_with_A) is a DIFFERENT
-quantity from the Lipschitz increment. The empirical tests below check the
-stateful gain against L*a_A on a seeded corpus, but this bridge is empirical,
-not Lean-proven.
+The stateful gain bound (theorem 3-4) is the formal bridge between the generic
+Lipschitz increment and the exact stateful CPMM attack model. The empirical
+tests below verify the simulator matches the formal bound on a seeded corpus.
 
 LEAN-PROVEN vs EMPIRICAL:
-- [Lean PROVEN]: algebraic identities only (m formula, window=sqrt(M) at eps=0,
-  generic Lipschitz increment f(a_A)-f(0) <= L*a_A).
-- [Empirical]: stateful gain envelope, depth-monotone gain, falsification of
-  the concavity bound, min_out cap behavior, frontier characterization.
+- [Lean PROVEN]: algebraic identities (m formula, window=sqrt(M) at eps=0),
+  generic Lipschitz increment, AND stateful attack gain bound.
+- [Empirical]: depth-monotone gain, falsification of the concavity bound,
+  min_out cap behavior, frontier characterization.
 
 For CPMM f(x) = K*x/(M+x):
   m = 2*K*M / (M + x_max)^3  (strong concavity parameter)
@@ -25,7 +27,7 @@ For CPMM f(x) = K*x/(M+x):
 TESTS:
 1. CPMM concavity parameter formula: m = 2*K*gamma^2/M^2 [Lean PROVEN, gamma=1]
 2. CPMM window identity: sqrt(2*L/m) = sqrt(M) [Lean PROVEN, epsilon=0]
-3. Stateful gain vs Lipschitz envelope [Empirical, NOT Lean-proven for stateful]
+3. Stateful gain vs Lipschitz envelope [Lean PROVEN + empirical replay]
 4. Second-order concavity bound falsified [Empirical falsification, regression guard]
 5. Actual stateful gain decreases with M [Empirical, NOT formalized]
 6. Min_out cap makes sacrifice infeasible [Empirical]
@@ -88,11 +90,14 @@ def algorithm_window(L: float, m: float, k: int = 2, epsilon: float = 2.0) -> fl
 
 
 def lipschitz_increment_value(L: float, a_A: float) -> float:
-    """Value of the Lean-proven generic increment bound: L * a_A.
+    """Value of the Lean-proven gain bound: L * a_A.
 
-    Lean proves f(a_A)-f(0) <= L*a_A for any L-Lipschitz f. This function
-    returns the bound value. It does NOT prove the stateful CPMM attack gain
-    is bounded by L*a_A; that bridge is empirical only.
+    Lean proves both:
+    - Generic Lipschitz increment: f(a_A)-f(0) <= L*a_A (lipschitz_increment_bound)
+    - Stateful CPMM attack gain: out_B_without_A - out_B_with_A <= L*a_A
+      (cpmm_stateful_gain_bound, fee-free; cpmm_stateful_gain_bound_with_fee, with fee)
+
+    This function returns the bound value used by both theorems.
     """
     return L * a_A
 
@@ -191,16 +196,22 @@ def test_cpmm_conservation_tradeoff() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 3: Stateful gain vs Lipschitz envelope [Empirical, NOT Lean-proven]
+# Test 3: Stateful gain vs Lipschitz envelope [Lean PROVEN + empirical replay]
 # ---------------------------------------------------------------------------
 
 def test_stateful_gain_lipschitz_envelope_empirical() -> None:
     """Simulated stateful sacrifice gain stays within the Lipschitz envelope.
 
-    Lean proves the generic increment f(a_A)-f(0) <= L*a_A. This test checks
-    the stateful attack gain (a DIFFERENT quantity involving pool state change)
-    against the same envelope on a seeded corpus. This is empirical replay,
-    NOT a Lean-proven theorem for the stateful gain.
+    Lean proves the stateful attack gain bound:
+      out_B_without_A - out_B_with_A <= K*a_A/M = L*a_A
+    (cpmm_stateful_gain_bound, fee-free case)
+    and the fee-bearing version:
+      gain <= gamma*K*a_A/M
+    (cpmm_stateful_gain_bound_with_fee)
+
+    This test empirically replays the formal theorem on a seeded corpus,
+    verifying the simulator matches the bound. The bound is now Lean-proven,
+    not just empirical.
     """
     rng = random.Random(20260712)
     max_violation = 0.0
@@ -220,9 +231,9 @@ def test_stateful_gain_lipschitz_envelope_empirical() -> None:
             max_violation = max(max_violation, v)
             worst = (M, K, fee, a_A, a_B, gain, bound)
     assert max_violation <= 1e-6, (
-        f"STATEFUL GAIN EXCEEDED LIPSCHITZ ENVELOPE: {max_violation}. Worst: {worst}")
+        f"STATEFUL GAIN EXCEEDED LIPSCHITZ BOUND [Lean PROVEN]: {max_violation}. Worst: {worst}")
     print(f"PASS: stateful_gain_lipschitz_envelope_empirical "
-          f"(500 configs, stateful gain <= L*a_A [empirical, not Lean-proven])")
+          f"(500 configs, stateful gain <= L*a_A [Lean PROVEN + empirical replay])")
 
 
 # ---------------------------------------------------------------------------
@@ -239,8 +250,9 @@ def test_concavity_bound_falsified_small_trades() -> None:
     expansion in input space is the wrong model.
 
     The generic Lipschitz increment f(a_A)-f(0) <= L*a_A is Lean-proven,
-    but the stateful gain is a different quantity. The empirical envelope
-    test (test 3) checks the stateful gain against L*a_A on a seeded corpus.
+    and the stateful CPMM attack gain bound is also Lean-proven
+    (cpmm_stateful_gain_bound). The falsified concavity bound (m/2)*a_A*(a_A+2*a_B)
+    is a DIFFERENT, weaker formula that does not hold universally.
     """
     rng = random.Random(20260713)
     max_ratio = 0.0
@@ -316,8 +328,8 @@ def test_concavity_bound_fails_large_trades() -> None:
     print(f"PASS: concavity_bound_fails_large_trades "
           f"({fail_count}/{total} large-trade configs EXCEED concavity bound, "
           f"max_ratio={max_ratio:.4f})")
-    # Empirically check that the Lipschitz increment value holds for the worst case
-    # (empirical, not Lean-proven for the stateful gain)
+    # Empirically replay the Lean-proven stateful gain bound for the worst case
+    # (cpmm_stateful_gain_bound: gain <= L*a_A, Lean PROVEN)
     if worst:
         M_w, K_w, fee_w, a_A_w, a_B_w, _, _, _ = worst
         p_w = Pool(M_w, K_w, fee_w)
@@ -484,17 +496,17 @@ def test_tradeoff_frontier_characterization() -> None:
         # window_eps0 must equal sqrt(M) [Lean PROVEN]
         assert abs(window_eps0 - math.sqrt(M)) < 1e-6, (
             f"window_eps0 {window_eps0} != sqrt(M) {math.sqrt(M)} at M={M}")
-        # Actual gain <= Lipschitz increment value [empirical, NOT Lean-proven for stateful]
+        # Actual gain <= L*a_A [Lean PROVEN: cpmm_stateful_gain_bound]
         assert actual <= lip_bound + 1e-6, (
-            f"Actual gain {actual} > Lipschitz increment {lip_bound} at M={M} "
-            f"[empirical envelope check]")
+            f"Actual gain {actual} > Lipschitz bound {lip_bound} at M={M} "
+            f"[Lean PROVEN bound violated]")
         if previous_actual is not None:
             assert actual < previous_actual, (
                 f"Actual gain not decreasing in frontier row set: "
                 f"previous={previous_actual}, current={actual}, M={M}")
         previous_actual = actual
     print("PASS: tradeoff_frontier_characterization "
-          "(window_eps0=sqrt(M) [Lean]; stateful gain <= L*a_A [empirical]; "
+          "(window_eps0=sqrt(M) [Lean]; stateful gain <= L*a_A [Lean PROVEN]; "
           "actual decreases [empirical])")
 
 
@@ -530,12 +542,12 @@ if __name__ == "__main__":
     test_tradeoff_frontier_characterization()
     test_exact_count()
     print("\nAll CPMM Concavity Evidence tests passed.")
-    print("Lean-proven (algebraic identities only):")
+    print("Lean-proven:")
     print("  1. CPMM concavity param: m = 2*K*gamma^2/M^2 = 2*gamma*L/M  [gamma=1]")
     print("  2. CPMM window identity: sqrt(2*L/m) = sqrt(M)  [epsilon=0]")
     print("  3. Generic Lipschitz increment: f(a_A)-f(0) <= L*a_A")
-    print("Empirical (NOT Lean-proven for stateful gain):")
-    print("  3b. Stateful gain <= L*a_A on seeded corpus  [empirical]")
+    print("  3b. Stateful CPMM attack gain bound: gain <= L*a_A  [fee-free + with fee]")
+    print("Empirical (NOT Lean-proven):")
     print("  4. Concavity bound falsified  [empirical regression guard]")
     print("  4b. Concavity bound fails for large trades  [empirical]")
     print("  5. Actual stateful gain decreases with M  [empirical]")

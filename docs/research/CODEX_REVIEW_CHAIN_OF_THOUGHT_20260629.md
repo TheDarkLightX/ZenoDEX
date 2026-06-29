@@ -251,10 +251,12 @@ For the record, the Lean-proven theorems in this research run (Phases 3-6):
   non-positive (coordinate-wise concavity, NOT joint concavity).
 
 **Phase 5 (conservation):**
-- `ConcavityConservationLaw.lean`: algebraic identities only
+- `ConcavityConservationLaw.lean`: algebraic identities
   (`m = 2*K/M^2 = 2*L/M`, `sqrt(2*L/m) = sqrt(M)` at eps=0, generic
-  Lipschitz increment `f(a_A)-f(0) <= L*a_A`). No conservation law, no
-  monotonicity, no stateful gain bound.
+  Lipschitz increment `f(a_A)-f(0) <= L*a_A`), AND the stateful CPMM attack
+  gain bound (`cpmm_stateful_gain_bound`: `gain <= L*a_A` for fee-free CPMM,
+  `cpmm_stateful_gain_bound_with_fee`: same with fee parameter gamma).
+  No conservation law, no monotonicity.
 
 **Phase 6 (game theory):**
 - No Lean proofs. The "fixed-order filled-user no-gain check" is empirical
@@ -263,7 +265,6 @@ For the record, the Lean-proven theorems in this research run (Phases 3-6):
 ### What Is NOT Lean-Proven
 
 - The ternary search ALGORITHM exactness (96% empirical).
-- Any stateful CPMM attack gain bound (empirical only).
 - Any conservation law linking window to gain (no such theorem).
 - Any Nash equilibrium (the claim was rescoped to a fixed-order no-gain check).
 - Any monotonicity of gain with respect to pool depth (empirical only).
@@ -313,11 +314,14 @@ python3 docs/research/cpmm_split_concavity_test.py
 
 ## 10. Non-Claims (Explicit)
 
-- Universal stateful attack gain bound: NOT proven. Empirical scaling probe
-  only, under fixed seed and bounded regime.
+- Stateful CPMM attack gain bound: Lean PROVEN (`cpmm_stateful_gain_bound`:
+  `gain <= L*a_A` for fee-free CPMM; `cpmm_stateful_gain_bound_with_fee`:
+  same with fee). The empirical scaling probe in `concavity_bounded_adversarial_test.py`
+  uses `|f''(0)|` (maximum curvature) which is a tighter constant than L but
+  is empirical only.
 - Nash equilibrium: NOT claimed. Rescoped to fixed-order filled-user no-gain
   check.
-- Conservation law: NOT proven. Algebraic identities only.
+- Conservation law: NOT proven. Algebraic identities and stateful gain bound only.
 - Ternary search algorithm exactness: 96% empirical. Key property
   (unimodality) Lean-proven; algorithm narrowing empirical.
 - Monotonicity of gain with pool depth: empirical only.
