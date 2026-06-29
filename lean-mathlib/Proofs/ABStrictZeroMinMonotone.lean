@@ -1606,6 +1606,90 @@ theorem strictRangeStepPathEconomicCertificate_covers_bounds_and_executes
   · exact (rangeStepPathWinnerCertificate_covers_and_bounds hcert.1).1
   · exact ⟨rangeStepPathWinnerCertificate_bounds_zeroMinEconomicKey hcert.1, hcert.2⟩
 
+/-- Final compressed full-mask economic certificate.
+
+This is the verifier-facing shape a concrete compressed DP emitter should
+eventually produce: a strict range-step economic certificate at empty suffix,
+plus evidence that the selected winner belongs to the full child frontier. It
+does not construct that frontier or connect it to a host implementation. -/
+def strictCompressedFullMaskEconomicCertificate
+    (parent winner : MaskRecordSet)
+    (children : List MaskRecordSet)
+    (bitCount : Nat)
+    (masks : List MaskRecordSet)
+    (initialReserveOut : Nat) : Prop :=
+  strictRangeStepPathEconomicCertificate parent winner children bitCount masks
+      initialReserveOut [] ∧
+    winner ∈ children
+
+/-- Final full-mask endpoint: a strict compressed full-mask economic certificate
+proves the selected winner covers the bounded mask, its economic key dominates
+the full child frontier at fixed executed input, and the empty suffix is
+executable from the selected winner. -/
+theorem strictCompressedFullMaskEconomicCertificate_validates
+    {parent winner : MaskRecordSet}
+    {children masks : List MaskRecordSet}
+    {bitCount initialReserveOut executedInput : Nat}
+    (hcert :
+      strictCompressedFullMaskEconomicCertificate parent winner children bitCount
+        masks initialReserveOut) :
+    allBitsBelowSet winner.maskId bitCount ∧
+      zeroMinEconomicKeyDominated
+        (fullFrontierZeroMinEconomicKey executedInput initialReserveOut children [])
+        (selectedZeroMinEconomicKey executedInput initialReserveOut winner []) ∧
+      suffixExecutable winner.selected.processedReserveIn winner.selected.reserveOut [] := by
+  rcases hcert with ⟨hstrict, hwinner_child⟩
+  have hendpoint :=
+    strictRangeStepPathEconomicCertificate_covers_bounds_and_executes
+      (executedInput := executedInput)
+      hstrict
+  exact ⟨hendpoint.1 winner hwinner_child, hendpoint.2⟩
+
+/-- Data-only shell for a future host-emitted strict full-mask economic
+certificate. The `Valid` predicate below is the proof obligation; this structure
+does not assert the certificate by itself. -/
+structure StrictCompressedFullMaskEconomicWitness where
+  parent : MaskRecordSet
+  winner : MaskRecordSet
+  children : List MaskRecordSet
+  bitCount : Nat
+  masks : List MaskRecordSet
+  initialReserveOut : Nat
+  executedInput : Nat
+  deriving Repr
+
+/-- Proof obligation for a host-emitted strict full-mask economic witness. -/
+def strictCompressedFullMaskEconomicWitnessValid
+    (witness : StrictCompressedFullMaskEconomicWitness) : Prop :=
+  strictCompressedFullMaskEconomicCertificate witness.parent witness.winner
+    witness.children witness.bitCount witness.masks witness.initialReserveOut
+
+/-- Full-frontier key named through the emitter-shaped witness. -/
+def strictCompressedFullMaskEconomicWitnessFullKey
+    (witness : StrictCompressedFullMaskEconomicWitness) : ZeroMinEconomicKey :=
+  fullFrontierZeroMinEconomicKey witness.executedInput witness.initialReserveOut
+    witness.children []
+
+/-- Selected-winner key named through the emitter-shaped witness. -/
+def strictCompressedFullMaskEconomicWitnessSelectedKey
+    (witness : StrictCompressedFullMaskEconomicWitness) : ZeroMinEconomicKey :=
+  selectedZeroMinEconomicKey witness.executedInput witness.initialReserveOut
+    witness.winner []
+
+/-- Emitter-shaped validation endpoint. If a data-only witness satisfies the
+strict full-mask certificate predicate, then it yields full-mask coverage,
+economic-key dominance, and selected-winner empty-suffix executability. -/
+theorem strictCompressedFullMaskEconomicWitness_validates
+    (witness : StrictCompressedFullMaskEconomicWitness)
+    (hvalid : strictCompressedFullMaskEconomicWitnessValid witness) :
+    allBitsBelowSet witness.winner.maskId witness.bitCount ∧
+      zeroMinEconomicKeyDominated
+        (strictCompressedFullMaskEconomicWitnessFullKey witness)
+        (strictCompressedFullMaskEconomicWitnessSelectedKey witness) ∧
+      suffixExecutable witness.winner.selected.processedReserveIn
+        witness.winner.selected.reserveOut [] := by
+  exact strictCompressedFullMaskEconomicCertificate_validates hvalid
+
 /-- Finite subset-mask pruning lift.
 
 If every abstract subset mask satisfies the local pruning invariant, then the
@@ -2064,6 +2148,54 @@ theorem witness_strictRangeStepPathEconomicCertificate_covers_bounds_and_execute
     strictRangeStepPathEconomicCertificate_covers_bounds_and_executes
       (executedInput := 100)
       hcert⟩
+
+/-- Concrete non-vacuity witness for the strict compressed full-mask economic
+emitter endpoint. -/
+theorem witness_strictCompressedFullMaskEconomicWitness_validates :
+    let record : ProcessedRecord := ⟨100, 90⟩
+    let parent : MaskRecordSet := ⟨1, record, [record]⟩
+    let child : MaskRecordSet := ⟨1, record, [record]⟩
+    let children : List MaskRecordSet := [child]
+    let masks : List MaskRecordSet := [child]
+    let witness : StrictCompressedFullMaskEconomicWitness := {
+      parent := parent
+      winner := child
+      children := children
+      bitCount := 1
+      masks := masks
+      initialReserveOut := 1000
+      executedInput := 100
+    }
+    strictCompressedFullMaskEconomicWitnessValid witness ∧
+      allBitsBelowSet witness.winner.maskId witness.bitCount ∧
+        zeroMinEconomicKeyDominated
+          (strictCompressedFullMaskEconomicWitnessFullKey witness)
+          (strictCompressedFullMaskEconomicWitnessSelectedKey witness) ∧
+        suffixExecutable witness.winner.selected.processedReserveIn
+          witness.winner.selected.reserveOut [] := by
+  let record : ProcessedRecord := ⟨100, 90⟩
+  let parent : MaskRecordSet := ⟨1, record, [record]⟩
+  let child : MaskRecordSet := ⟨1, record, [record]⟩
+  let children : List MaskRecordSet := [child]
+  let masks : List MaskRecordSet := [child]
+  let witness : StrictCompressedFullMaskEconomicWitness := {
+    parent := parent
+    winner := child
+    children := children
+    bitCount := 1
+    masks := masks
+    initialReserveOut := 1000
+    executedInput := 100
+  }
+  have hstrict :
+      strictRangeStepPathEconomicCertificate parent child children 1 masks 1000 [] := by
+    simpa [record, parent, child, children, masks] using
+      witness_strictRangeStepPathEconomicCertificate_covers_bounds_and_executes.1
+  have hvalid : strictCompressedFullMaskEconomicWitnessValid witness := by
+    unfold strictCompressedFullMaskEconomicWitnessValid
+      strictCompressedFullMaskEconomicCertificate witness
+    exact ⟨hstrict, by simp [children]⟩
+  exact ⟨hvalid, strictCompressedFullMaskEconomicWitness_validates witness hvalid⟩
 
 /-- Concrete non-vacuity witness for one-step monotonicity. -/
 theorem witness_postReserveOut_mono_strict :
