@@ -1,0 +1,854 @@
+{
+  "authority_boundary": "Research-only observed-frontier evidence; no settlement, state-root, production, routing, matching, or governance authority.",
+  "date": "2026-06-29",
+  "deterministic_replay": {
+    "first_hash": "caf3bc7fe8db9998acf2d979e2e6bd39f49c36c6d45cbab33eb99a1d0f1de2af",
+    "ok": true,
+    "second_hash": "caf3bc7fe8db9998acf2d979e2e6bd39f49c36c6d45cbab33eb99a1d0f1de2af"
+  },
+  "non_claims": [
+    "This checker is bounded to the committed four-case n=7 randomized corpus.",
+    "This checker does not prove generation of the full child frontier in Lean.",
+    "This checker does not prove recursive subset-mask induction.",
+    "This checker does not prove Lean-to-Python refinement.",
+    "This checker does not define canonical tie order or preserve order-id history.",
+    "Nonzero min_amount_out batches are outside this artifact.",
+    "This checker does not cover n=8 observed-frontier packets.",
+    "No settlement, state-root, production, routing, matching, or governance authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_strict_zero_min_observed_frontier_n7_randomized_20260629.py",
+  "schema": "zenodex.ab_strict_zero_min_observed_frontier_n7_randomized_report.v1",
+  "search": {
+    "case_count": 4,
+    "cases": [
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "checks": {
+          "all_children_cover_full_mask": true,
+          "all_children_locally_pruned": true,
+          "base_reasons": [],
+          "base_witness_packet_ok": true,
+          "economic_key_matches_witness": true,
+          "empty_suffix_executable": true,
+          "observed_child_count": 5040,
+          "winner_member_of_observed_children": true,
+          "winner_selected_family_dominator": true
+        },
+        "children_count": 5040,
+        "compressed_table_count": 128,
+        "economic_keys": {
+          "brute_force": [
+            721,
+            7
+          ],
+          "compressed": [
+            721,
+            7
+          ],
+          "full_subset_dp": [
+            721,
+            7
+          ]
+        },
+        "fee_bps": 9000,
+        "ok": true,
+        "packet_canonical_bytes": 6991872,
+        "packet_digest": "c1e94df2ababe37e8511d56a2923e54a506733c8f9544edbf2696a352e87bdf6",
+        "packet_hash": "4f1336049b1ad344ca4563b584045a9ec4641f0ae2c050dab0f4a65dd6796d17",
+        "pattern": "thin_positive_boundary/high_fee9000",
+        "reasons": [],
+        "winner_order": [
+          "f5c0",
+          "f5c1",
+          "f5c2",
+          "f5c3",
+          "f5c4",
+          "f5c5",
+          "f5c6"
+        ],
+        "winner_selected": {
+          "processed_reserve_in": 10721,
+          "reserve_out": 1093
+        }
+      },
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "checks": {
+          "all_children_cover_full_mask": true,
+          "all_children_locally_pruned": true,
+          "base_reasons": [],
+          "base_witness_packet_ok": true,
+          "economic_key_matches_witness": true,
+          "empty_suffix_executable": true,
+          "observed_child_count": 5040,
+          "winner_member_of_observed_children": true,
+          "winner_selected_family_dominator": true
+        },
+        "children_count": 5040,
+        "compressed_table_count": 128,
+        "economic_keys": {
+          "brute_force": [
+            313,
+            2922
+          ],
+          "compressed": [
+            313,
+            2922
+          ],
+          "full_subset_dp": [
+            313,
+            2922
+          ]
+        },
+        "fee_bps": 1,
+        "ok": true,
+        "packet_canonical_bytes": 7032729,
+        "packet_digest": "b4fd3c201344568246f4d49981a3f909f435e484697d61fede2d182d998a7c28",
+        "packet_hash": "1001386e96fee3885ba8fe816d1c047a4817d621dba20a25fe70e2e99f7c6a35",
+        "pattern": "near_zero_positive/rand_tie",
+        "reasons": [],
+        "winner_order": [
+          "8541",
+          "8540",
+          "8542",
+          "8543",
+          "8544",
+          "8546",
+          "8545"
+        ],
+        "winner_selected": {
+          "processed_reserve_in": 153769,
+          "reserve_out": 1465933
+        }
+      },
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "checks": {
+          "all_children_cover_full_mask": true,
+          "all_children_locally_pruned": true,
+          "base_reasons": [],
+          "base_witness_packet_ok": true,
+          "economic_key_matches_witness": true,
+          "empty_suffix_executable": true,
+          "observed_child_count": 5040,
+          "winner_member_of_observed_children": true,
+          "winner_selected_family_dominator": true
+        },
+        "children_count": 5040,
+        "compressed_table_count": 128,
+        "economic_keys": {
+          "brute_force": [
+            411,
+            17320
+          ],
+          "compressed": [
+            411,
+            17320
+          ],
+          "full_subset_dp": [
+            411,
+            17320
+          ]
+        },
+        "fee_bps": 100,
+        "ok": true,
+        "packet_canonical_bytes": 7022522,
+        "packet_digest": "b836ab6cf834cdf5703cdab2c4bfbab1db089e377a1ea95def08f9735e392bde",
+        "packet_hash": "7cb2418fab5607d7572adb1e4edf1bfafb723b4894adbd34a3efcf4126f96777",
+        "pattern": "high_fee_deep_out/rand_stair",
+        "reasons": [],
+        "winner_order": [
+          "8551",
+          "8550",
+          "8552",
+          "8553",
+          "8555",
+          "8554",
+          "8556"
+        ],
+        "winner_selected": {
+          "processed_reserve_in": 64903,
+          "reserve_out": 2765292
+        }
+      },
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "checks": {
+          "all_children_cover_full_mask": true,
+          "all_children_locally_pruned": true,
+          "base_reasons": [],
+          "base_witness_packet_ok": true,
+          "economic_key_matches_witness": true,
+          "empty_suffix_executable": true,
+          "observed_child_count": 5040,
+          "winner_member_of_observed_children": true,
+          "winner_selected_family_dominator": true
+        },
+        "children_count": 5040,
+        "compressed_table_count": 128,
+        "economic_keys": {
+          "brute_force": [
+            735,
+            652
+          ],
+          "compressed": [
+            735,
+            652
+          ],
+          "full_subset_dp": [
+            735,
+            652
+          ]
+        },
+        "fee_bps": 100,
+        "ok": true,
+        "packet_canonical_bytes": 7104239,
+        "packet_digest": "813a0de81fa3a608bc1ae33cc76da86e0bb88a9282781da7dd91cdd341ee80ca",
+        "packet_hash": "e36e786f781975ee3f430d6b7ca780f5ca6e64dbc734f3e3e2e598b3342500c7",
+        "pattern": "near_domain_in/rand_burst",
+        "reasons": [],
+        "winner_order": [
+          "8560",
+          "8561",
+          "8562",
+          "8563",
+          "8564",
+          "8565",
+          "8566"
+        ],
+        "winner_selected": {
+          "processed_reserve_in": 2999958075,
+          "reserve_out": 2716067632
+        }
+      }
+    ],
+    "coverage": {
+      "fee_bps_counts": {
+        "1": 1,
+        "100": 2,
+        "9000": 1
+      },
+      "max_bit_count": 7,
+      "max_children_count": 5040,
+      "min_children_count": 5040,
+      "n_counts": {
+        "7": 4
+      },
+      "pattern_counts": {
+        "high_fee_deep_out/rand_stair": 1,
+        "near_domain_in/rand_burst": 1,
+        "near_zero_positive/rand_tie": 1,
+        "thin_positive_boundary/high_fee9000": 1
+      },
+      "reason_classes": [
+        "base_witness_packet_invalid",
+        "child_all_records_digest_mismatch",
+        "child_local_pruning_processed_reserve_in_mismatch",
+        "child_local_pruning_reserve_out_not_min",
+        "child_local_pruning_selected_not_record",
+        "child_missing_full_mask_coverage",
+        "observed_economic_key_mismatch",
+        "observed_empty_suffix_not_executable",
+        "observed_winner_not_in_children",
+        "observed_winner_not_selected_family_dominator"
+      ]
+    },
+    "elapsed_ms": 28308.112,
+    "first_invalid_packet": null,
+    "first_mutation_accept": null,
+    "first_packet": {
+      "amounts": [
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106
+      ],
+      "authority_boundary": "research_only_no_settlement_or_state_authority",
+      "bit_count": 7,
+      "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+      "children_count": 5040,
+      "economic_keys": {
+        "brute_force": [
+          721,
+          7
+        ],
+        "compressed": [
+          721,
+          7
+        ],
+        "full_subset_dp": [
+          721,
+          7
+        ]
+      },
+      "first_child_digest": "27a615fe4f6a0edb236a73f5ebeb98528f2199b642160f1dd30b7e10e2274264",
+      "full_mask": 127,
+      "last_child_digest": "3c697b9620dcf4967687fc516ca416310bc1c00cfd9de1418236113f3710f568",
+      "min_amount_out": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "packet_canonical_bytes": 6991872,
+      "packet_digest": "c1e94df2ababe37e8511d56a2923e54a506733c8f9544edbf2696a352e87bdf6",
+      "packet_hash": "4f1336049b1ad344ca4563b584045a9ec4641f0ae2c050dab0f4a65dd6796d17",
+      "pool": {
+        "fee_bps": 9000,
+        "reserve_in": 10000,
+        "reserve_out": 1100
+      },
+      "scope": "n7_randomized_same_pool_same_direction_exact_in_zero_min_strict_executable_observed_frontier",
+      "stress": {
+        "case_count": 4,
+        "pattern": "thin_positive_boundary/high_fee9000",
+        "seed": 2026062907
+      },
+      "winner": {
+        "order_ids": [
+          "0x00000000000000000000000000000000000000000000000000000000006cf5c0",
+          "0x00000000000000000000000000000000000000000000000000000000006cf5c1",
+          "0x00000000000000000000000000000000000000000000000000000000006cf5c2",
+          "0x00000000000000000000000000000000000000000000000000000000006cf5c3",
+          "0x00000000000000000000000000000000000000000000000000000000006cf5c4",
+          "0x00000000000000000000000000000000000000000000000000000000006cf5c5",
+          "0x00000000000000000000000000000000000000000000000000000000006cf5c6"
+        ],
+        "order_short": [
+          "f5c0",
+          "f5c1",
+          "f5c2",
+          "f5c3",
+          "f5c4",
+          "f5c5",
+          "f5c6"
+        ],
+        "processed_reserve_in": 10721,
+        "reserve_out": 1093
+      }
+    },
+    "max_packet_canonical_bytes": 7104239,
+    "mutation_accept_count": 0,
+    "mutation_count": 52,
+    "mutations": [
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "mutation_id": "bad_packet_hash",
+        "reasons": [
+          "base_witness_packet_invalid"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "base_witness_packet_invalid"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "mutation_id": "winner_missing_full_mask_bit",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_winner_not_in_children"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "mutation_id": "winner_removed_from_children",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_winner_not_in_children"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "mutation_id": "selected_no_longer_dominates",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_winner_not_in_children",
+          "observed_winner_not_selected_family_dominator",
+          "observed_economic_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "mutation_id": "executed_input_mismatch",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_economic_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "mutation_id": "economic_key_mismatch",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_economic_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "mutation_id": "child_mask_missing_bit",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "child_missing_full_mask_coverage",
+          "observed_winner_not_in_children"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "mutation_id": "child_selected_not_record",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "child_local_pruning_selected_not_record",
+          "observed_winner_not_in_children"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "mutation_id": "child_processed_reserve_in_mismatch",
+        "reasons": [
+          "child_all_records_digest_mismatch",
+          "child_local_pruning_processed_reserve_in_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "mutation_id": "child_selected_not_local_min",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "child_all_records_digest_mismatch",
+          "child_local_pruning_reserve_out_not_min"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "mutation_id": "child_selected_family_beats_winner",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "child_all_records_digest_mismatch",
+          "observed_winner_not_in_children",
+          "observed_winner_not_selected_family_dominator"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "mutation_id": "winner_empty_suffix",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_winner_not_in_children",
+          "observed_empty_suffix_not_executable",
+          "observed_economic_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "mutation_id": "bad_packet_hash",
+        "reasons": [
+          "base_witness_packet_invalid"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "base_witness_packet_invalid"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "mutation_id": "winner_missing_full_mask_bit",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_winner_not_in_children"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "mutation_id": "winner_removed_from_children",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_winner_not_in_children"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "mutation_id": "selected_no_longer_dominates",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_winner_not_in_children",
+          "observed_winner_not_selected_family_dominator",
+          "observed_economic_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "mutation_id": "executed_input_mismatch",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_economic_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "mutation_id": "economic_key_mismatch",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_economic_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "mutation_id": "child_mask_missing_bit",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "child_missing_full_mask_coverage",
+          "observed_winner_not_in_children"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "mutation_id": "child_selected_not_record",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "child_local_pruning_selected_not_record",
+          "observed_winner_not_in_children"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "mutation_id": "child_processed_reserve_in_mismatch",
+        "reasons": [
+          "child_all_records_digest_mismatch",
+          "child_local_pruning_processed_reserve_in_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "mutation_id": "child_selected_not_local_min",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "child_all_records_digest_mismatch",
+          "child_local_pruning_reserve_out_not_min"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "mutation_id": "child_selected_family_beats_winner",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "child_all_records_digest_mismatch",
+          "observed_winner_not_in_children",
+          "observed_winner_not_selected_family_dominator"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "mutation_id": "winner_empty_suffix",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_winner_not_in_children",
+          "observed_empty_suffix_not_executable",
+          "observed_economic_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "mutation_id": "bad_packet_hash",
+        "reasons": [
+          "base_witness_packet_invalid"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "base_witness_packet_invalid"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "mutation_id": "winner_missing_full_mask_bit",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_winner_not_in_children"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "mutation_id": "winner_removed_from_children",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_winner_not_in_children"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "mutation_id": "selected_no_longer_dominates",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_winner_not_in_children",
+          "observed_winner_not_selected_family_dominator",
+          "observed_economic_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "mutation_id": "executed_input_mismatch",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_economic_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "mutation_id": "economic_key_mismatch",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_economic_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "mutation_id": "child_mask_missing_bit",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "child_missing_full_mask_coverage",
+          "observed_winner_not_in_children"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "mutation_id": "child_selected_not_record",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "child_local_pruning_selected_not_record",
+          "observed_winner_not_in_children"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "mutation_id": "child_processed_reserve_in_mismatch",
+        "reasons": [
+          "child_all_records_digest_mismatch",
+          "child_local_pruning_processed_reserve_in_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "mutation_id": "child_selected_not_local_min",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "child_all_records_digest_mismatch",
+          "child_local_pruning_reserve_out_not_min"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "mutation_id": "child_selected_family_beats_winner",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "child_all_records_digest_mismatch",
+          "observed_winner_not_in_children",
+          "observed_winner_not_selected_family_dominator"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "mutation_id": "winner_empty_suffix",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_winner_not_in_children",
+          "observed_empty_suffix_not_executable",
+          "observed_economic_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "mutation_id": "bad_packet_hash",
+        "reasons": [
+          "base_witness_packet_invalid"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "base_witness_packet_invalid"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "mutation_id": "winner_missing_full_mask_bit",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_winner_not_in_children"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "mutation_id": "winner_removed_from_children",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_winner_not_in_children"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "mutation_id": "selected_no_longer_dominates",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_winner_not_in_children",
+          "observed_winner_not_selected_family_dominator",
+          "observed_economic_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "mutation_id": "executed_input_mismatch",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_economic_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "mutation_id": "economic_key_mismatch",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_economic_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "mutation_id": "child_mask_missing_bit",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "child_missing_full_mask_coverage",
+          "observed_winner_not_in_children"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "mutation_id": "child_selected_not_record",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "child_local_pruning_selected_not_record",
+          "observed_winner_not_in_children"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "mutation_id": "child_processed_reserve_in_mismatch",
+        "reasons": [
+          "child_all_records_digest_mismatch",
+          "child_local_pruning_processed_reserve_in_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "mutation_id": "child_selected_not_local_min",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "child_all_records_digest_mismatch",
+          "child_local_pruning_reserve_out_not_min"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "mutation_id": "child_selected_family_beats_winner",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "child_all_records_digest_mismatch",
+          "observed_winner_not_in_children",
+          "observed_winner_not_selected_family_dominator"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "mutation_id": "winner_empty_suffix",
+        "reasons": [
+          "base_witness_packet_invalid",
+          "observed_winner_not_in_children",
+          "observed_empty_suffix_not_executable",
+          "observed_economic_key_mismatch"
+        ]
+      }
+    ],
+    "observed_mutation_count_per_packet": 6,
+    "schema": "zenodex/ab_strict_zero_min_observed_frontier_n7_randomized_search/v1",
+    "scope": "n7_randomized_same_pool_same_direction_exact_in_zero_min_strict_executable_observed_frontier",
+    "seed": 2026062907,
+    "skipped": [],
+    "skipped_count": 0,
+    "strict_packet_count": 4,
+    "total_children_count": 20160,
+    "total_packet_canonical_bytes": 28151362,
+    "valid_observed_packet_count": 4
+  },
+  "summary": "A deterministic host checker validates observed child-frontier obligations for the committed n=7 strict zero-min randomized corpus."
+}
