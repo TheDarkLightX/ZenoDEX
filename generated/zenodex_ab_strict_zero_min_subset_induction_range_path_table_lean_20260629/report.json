@@ -1,0 +1,89 @@
+{
+  "schema": "zenodex.ab_strict_zero_min_subset_induction_range_path_table_lean_report.v1",
+  "date": "2026-06-29",
+  "ok": true,
+  "authority_boundary": "Research-only Lean bridge evidence; no settlement, state-root, production, or governance authority.",
+  "summary": "Lean bridge theorem formalizes that recursive pruned range-step reachability for every retained mask implies the finite host-table validity predicate and its zero-min economic-key dominance endpoint.",
+  "theorems": [
+    "StrictSubsetInductionRangePathTable",
+    "strictSubsetInductionRangePathTableHost",
+    "strictSubsetInductionRangePathTableValid",
+    "strictSubsetInductionRangePathTable_validates",
+    "witness_strictSubsetInductionRangePathTable_validates"
+  ],
+  "inputs": {
+    "lean_file": "lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+    "formal_test": "tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+    "prior_host_table_report": "generated/zenodex_ab_strict_zero_min_subset_induction_host_table_lean_20260629/report.json",
+    "host_witness_report": "generated/zenodex_ab_strict_zero_min_subset_induction_witness_20260629/report.json"
+  },
+  "proof_bridge": {
+    "replaces_direct_assumptions": [
+      "allBitsBelowSet mask.maskId bitCount",
+      "maskPruningInvariant mask"
+    ],
+    "with_recursive_family_condition": "reachablePrunedRangeStepPathListInFamily parent masks bitCount masks",
+    "derived_facts": [
+      "allBitsBelowSet for every retained mask",
+      "maskPruningInvariant for every retained mask",
+      "strictSubsetInductionHostTableValid for the interpreted host table",
+      "zeroMinEconomicKeyDominated endpoint for the finite mask family"
+    ]
+  },
+  "replay": [
+    {
+      "command": "cd lean-mathlib && lake env lean Proofs/ABStrictZeroMinMonotone.lean",
+      "status": "pass",
+      "stdout": ""
+    },
+    {
+      "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+      "status": "pass",
+      "stdout": ".                                                                        [100%]\\n1 passed in 10.16s"
+    },
+    {
+      "command": "python3 ~/.codex/skills/proof-engineering/scripts/scan_proof_placeholders.py lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+      "status": "pass",
+      "stdout": "No proof placeholders found."
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ABStrictZeroMinMonotone",
+      "status": "pass",
+      "stdout": "Build completed successfully (3076 jobs)."
+    },
+    {
+      "command": "python3 tools/check_claims_registry.py",
+      "status": "pass",
+      "stdout": "ok"
+    }
+  ],
+  "non_claims": [
+    "This does not construct the finite mask family from the Python DP table.",
+    "This does not prove Python-to-Lean refinement.",
+    "This does not define canonical tie order.",
+    "This does not cover nonzero min_amount_out batches.",
+    "This does not turn bounded evidence into exhaustive state coverage.",
+    "This does not authorize settlement, state roots, production deployment, or governance execution."
+  ],
+  "research_kernel_candidate": {
+    "atom_id": "atom_ab_strict_zero_min_subset_induction_range_path_table_lean_20260629",
+    "status": "SUPPORTED",
+    "parents": [
+      "atom_ab_strict_zero_min_subset_induction_host_table_lean_20260629",
+      "atom_ab_strict_zero_min_subset_mask_induction_frontier_20260628",
+      "atom_ab_strict_zero_min_subset_induction_host_witness_20260629"
+    ],
+    "tags": [
+      "zenodex",
+      "AB-ordering",
+      "zero-min",
+      "subset-DP",
+      "subset-mask-induction",
+      "range-step",
+      "Lean",
+      "host-witness",
+      "formal-proof",
+      "research-only"
+    ]
+  }
+}

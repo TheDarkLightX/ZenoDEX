@@ -2050,6 +2050,110 @@ theorem strictSubsetInductionHostTable_validates
       Nat.le_trans hfull_to_selected hselected_to_winner⟩
   exact ⟨hhash, hnoAuthority, hwinnerMembership, hcoverage, hdominance, hexec⟩
 
+/-- Host table whose mask-family obligations are supplied by recursive
+range-step reachability.
+
+This is one layer closer to the full subset-mask induction frontier than
+`StrictSubsetInductionHostTable`: each retained mask must be reachable through
+a pruned range-step path, which gives bounded bit coverage and local pruning.
+It still does not construct the finite family from a Python table. -/
+structure StrictSubsetInductionRangePathTable where
+  parent : MaskRecordSet
+  masks : List MaskRecordSet
+  winner : MaskRecordSet
+  bitCount : Nat
+  initialReserveOut : Nat
+  executedInput : Nat
+  suffix : List ExactInStep
+  packetHashBound : Bool
+  noAuthorityEffect : Bool
+  winnerMembershipBound : Bool
+  deriving Repr
+
+/-- Interpret a range-path table as the host-table endpoint shell. -/
+def strictSubsetInductionRangePathTableHost
+    (table : StrictSubsetInductionRangePathTable) :
+    StrictSubsetInductionHostTable := {
+  masks := table.masks
+  winner := table.winner
+  bitCount := table.bitCount
+  initialReserveOut := table.initialReserveOut
+  executedInput := table.executedInput
+  suffix := table.suffix
+  packetHashBound := table.packetHashBound
+  noAuthorityEffect := table.noAuthorityEffect
+  winnerMembershipBound := table.winnerMembershipBound
+}
+
+/-- Validity predicate for the recursive range-path host table.
+
+The range-step list assumption replaces direct per-mask coverage and pruning:
+every retained mask must be a recursively reachable pruned full-range member of
+the same finite family. -/
+def strictSubsetInductionRangePathTableValid
+    (table : StrictSubsetInductionRangePathTable) : Prop :=
+  table.packetHashBound = true ∧
+    table.noAuthorityEffect = true ∧
+    table.winnerMembershipBound = true ∧
+    reachablePrunedRangeStepPathListInFamily table.parent table.masks
+      table.bitCount table.masks ∧
+    selectedFamilyOutputWinner table.winner table.masks
+      table.initialReserveOut table.suffix ∧
+    suffixExecutable table.winner.selected.processedReserveIn
+      table.winner.selected.reserveOut table.suffix ∧
+    table.winner ∈ table.masks
+
+/-- Recursive range-path host endpoint.
+
+If every retained mask is provided by a pruned recursive range-step path, then
+the table satisfies the direct host-table predicate and inherits the host-table
+economic dominance endpoint. -/
+theorem strictSubsetInductionRangePathTable_validates
+    (table : StrictSubsetInductionRangePathTable)
+    (hvalid : strictSubsetInductionRangePathTableValid table) :
+    strictSubsetInductionHostTableValid
+        (strictSubsetInductionRangePathTableHost table) ∧
+      (strictSubsetInductionRangePathTableHost table).packetHashBound = true ∧
+      (strictSubsetInductionRangePathTableHost table).noAuthorityEffect = true ∧
+      (strictSubsetInductionRangePathTableHost table).winnerMembershipBound = true ∧
+      allBitsBelowSet
+        (strictSubsetInductionRangePathTableHost table).winner.maskId
+        (strictSubsetInductionRangePathTableHost table).bitCount ∧
+      zeroMinEconomicKeyDominated
+        (fullFrontierZeroMinEconomicKey
+          (strictSubsetInductionRangePathTableHost table).executedInput
+          (strictSubsetInductionRangePathTableHost table).initialReserveOut
+          (strictSubsetInductionRangePathTableHost table).masks
+          (strictSubsetInductionRangePathTableHost table).suffix)
+        (selectedZeroMinEconomicKey
+          (strictSubsetInductionRangePathTableHost table).executedInput
+          (strictSubsetInductionRangePathTableHost table).initialReserveOut
+          (strictSubsetInductionRangePathTableHost table).winner
+          (strictSubsetInductionRangePathTableHost table).suffix) ∧
+      suffixExecutable
+        (strictSubsetInductionRangePathTableHost table).winner.selected.processedReserveIn
+        (strictSubsetInductionRangePathTableHost table).winner.selected.reserveOut
+        (strictSubsetInductionRangePathTableHost table).suffix := by
+  rcases hvalid with
+    ⟨hhash, hnoAuthority, hwinnerMembership, hlist, hwinner, hexec, hwinnerMem⟩
+  have hmaskFamily :
+      ∀ mask, mask ∈ table.masks ->
+        allBitsBelowSet mask.maskId table.bitCount ∧ maskPruningInvariant mask := by
+    intro mask hmask
+    have hreachable := hlist mask hmask
+    exact ⟨reachablePrunedStepPath_covers_range_bits hreachable.1,
+      reachablePrunedStepPath_pruningInvariant hreachable.1⟩
+  have hhostValid :
+      strictSubsetInductionHostTableValid
+        (strictSubsetInductionRangePathTableHost table) := by
+    unfold strictSubsetInductionHostTableValid
+      strictSubsetInductionRangePathTableHost
+    exact ⟨hhash, hnoAuthority, hwinnerMembership, hmaskFamily,
+      hwinner, hexec, hwinnerMem⟩
+  exact ⟨hhostValid,
+    strictSubsetInductionHostTable_validates
+      (strictSubsetInductionRangePathTableHost table) hhostValid⟩
+
 /-- Concrete non-vacuity witness for record dominance. -/
 theorem witness_minReserveRecord_dominates_suffixTotalOutput :
     let suffix : List ExactInStep := [
@@ -2807,6 +2911,106 @@ theorem witness_strictSubsetInductionHostTable_validates :
       by simpa [table] using hwinner, by simpa [table] using hexec,
       by simp [table, masks]⟩
   exact ⟨hvalid, strictSubsetInductionHostTable_validates table hvalid⟩
+
+/-- Concrete non-vacuity witness for the recursive range-path host endpoint. -/
+theorem witness_strictSubsetInductionRangePathTable_validates :
+    let record : ProcessedRecord := ⟨100, 90⟩
+    let parent : MaskRecordSet := ⟨1, record, [record]⟩
+    let mask : MaskRecordSet := ⟨1, record, [record]⟩
+    let masks : List MaskRecordSet := [mask]
+    let table : StrictSubsetInductionRangePathTable := {
+      parent := parent
+      masks := masks
+      winner := mask
+      bitCount := 1
+      initialReserveOut := 1000
+      executedInput := 100
+      suffix := []
+      packetHashBound := true
+      noAuthorityEffect := true
+      winnerMembershipBound := true
+    }
+    strictSubsetInductionRangePathTableValid table ∧
+      strictSubsetInductionHostTableValid
+        (strictSubsetInductionRangePathTableHost table) ∧
+        (strictSubsetInductionRangePathTableHost table).packetHashBound = true ∧
+        (strictSubsetInductionRangePathTableHost table).noAuthorityEffect = true ∧
+        (strictSubsetInductionRangePathTableHost table).winnerMembershipBound = true ∧
+        allBitsBelowSet
+          (strictSubsetInductionRangePathTableHost table).winner.maskId
+          (strictSubsetInductionRangePathTableHost table).bitCount ∧
+        zeroMinEconomicKeyDominated
+          (fullFrontierZeroMinEconomicKey
+            (strictSubsetInductionRangePathTableHost table).executedInput
+            (strictSubsetInductionRangePathTableHost table).initialReserveOut
+            (strictSubsetInductionRangePathTableHost table).masks
+            (strictSubsetInductionRangePathTableHost table).suffix)
+          (selectedZeroMinEconomicKey
+            (strictSubsetInductionRangePathTableHost table).executedInput
+            (strictSubsetInductionRangePathTableHost table).initialReserveOut
+            (strictSubsetInductionRangePathTableHost table).winner
+            (strictSubsetInductionRangePathTableHost table).suffix) ∧
+        suffixExecutable
+          (strictSubsetInductionRangePathTableHost table).winner.selected.processedReserveIn
+          (strictSubsetInductionRangePathTableHost table).winner.selected.reserveOut
+          (strictSubsetInductionRangePathTableHost table).suffix := by
+  let record : ProcessedRecord := ⟨100, 90⟩
+  let parent : MaskRecordSet := ⟨1, record, [record]⟩
+  let mask : MaskRecordSet := ⟨1, record, [record]⟩
+  let masks : List MaskRecordSet := [mask]
+  let table : StrictSubsetInductionRangePathTable := {
+    parent := parent
+    masks := masks
+    winner := mask
+    bitCount := 1
+    initialReserveOut := 1000
+    executedInput := 100
+    suffix := []
+    packetHashBound := true
+    noAuthorityEffect := true
+    winnerMembershipBound := true
+  }
+  have hstep : maskRecordStep parent mask 0 := by
+    simpa [parent, mask, maskRecordStep] using witness_bitMaskStep_noop.1
+  have hinvariant : maskPruningInvariant mask := by
+    unfold mask maskPruningInvariant
+    constructor
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+  have hreachableStep : reachablePrunedStepMask parent mask 0 := ⟨hstep, hinvariant⟩
+  have hbase : reachablePrunedStepPath mask [] mask := ⟨rfl, hinvariant⟩
+  have hpathList : reachablePrunedStepPath parent [0] mask := by
+    exact ⟨mask, hreachableStep, hbase⟩
+  have hpath : reachablePrunedStepPath parent (List.range 1) mask := by
+    simpa using hpathList
+  have hmember : reachablePrunedRangeStepPathInFamily parent mask 1 masks := by
+    exact ⟨hpath, by simp [masks]⟩
+  have hlist : reachablePrunedRangeStepPathListInFamily parent masks 1 masks := by
+    intro candidate hcandidate
+    simp only [masks, List.mem_singleton] at hcandidate
+    subst candidate
+    exact hmember
+  have hwinner : selectedFamilyOutputWinner mask masks 1000 [] := by
+    constructor
+    · simp [masks]
+    · intro candidate hcandidate
+      simp only [masks, List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+  have hexec : suffixExecutable mask.selected.processedReserveIn mask.selected.reserveOut [] := by
+    simp [suffixExecutable]
+  have hvalid : strictSubsetInductionRangePathTableValid table := by
+    unfold strictSubsetInductionRangePathTableValid
+    exact ⟨rfl, rfl, rfl, by simpa [table] using hlist,
+      by simpa [table] using hwinner, by simpa [table] using hexec,
+      by simp [table, masks]⟩
+  exact ⟨hvalid, strictSubsetInductionRangePathTable_validates table hvalid⟩
 
 /-- Concrete non-vacuity witness for one-step monotonicity. -/
 theorem witness_postReserveOut_mono_strict :

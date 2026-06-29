@@ -135,6 +135,10 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "structure StrictSubsetInductionHostTable" in text
     assert "def strictSubsetInductionHostTableValid" in text
     assert "theorem strictSubsetInductionHostTable_validates" in text
+    assert "structure StrictSubsetInductionRangePathTable" in text
+    assert "def strictSubsetInductionRangePathTableHost" in text
+    assert "def strictSubsetInductionRangePathTableValid" in text
+    assert "theorem strictSubsetInductionRangePathTable_validates" in text
     assert "theorem bestFullSuffixOutputAcrossMasks_le_selected" in text
     assert "theorem witness_bestFullSuffixOutputAcrossMasks_le_selected" in text
     assert "theorem witness_reachablePrunedRangeMask_covers_and_bounds" in text
@@ -150,6 +154,7 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "theorem witness_strictCompressedFullMaskEmitterTable_validates" in text
     assert "theorem witness_strictObservedFullMaskEmitterTable_validates" in text
     assert "theorem witness_strictSubsetInductionHostTable_validates" in text
+    assert "theorem witness_strictSubsetInductionRangePathTable_validates" in text
 
     lake = shutil.which("lake")
     if not lake:
