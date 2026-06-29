@@ -6,8 +6,10 @@ import Proofs.DiscreteArgmaxProximity
 # Ceiling-Fee Rounding: Production Model Bounds
 
 This file formally models the production CPMM swap arithmetic (ceiling fee +
-floor output) and proves the floor error and argmax proximity bounds that
-were previously empirical-only (`2L + 2` and `3L + 2`).
+floor output) and proves conservative floor error and argmax proximity bounds.
+The proved bounds use `K0/M0 + K1/M1 + 2` and `L + K0/M0 + K1/M1 + 2`, which are
+weaker than (but imply) the empirical `2L + 2` and `3L + 2` bounds; the exact
+empirical constants are not formally proved here.
 
 ## The Production Model
 
