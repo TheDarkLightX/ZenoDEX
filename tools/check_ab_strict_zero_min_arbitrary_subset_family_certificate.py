@@ -65,7 +65,7 @@ REPORT_MD = (
     / "ZENODEX_AB_STRICT_ZERO_MIN_ARBITRARY_SUBSET_FAMILY_CERTIFICATE_20260629.md"
 )
 
-EXPECTED_NEGATIVE_CONTROL_COUNT = 10
+EXPECTED_NEGATIVE_CONTROL_COUNT = 11
 PACKET_SCHEMA = "zenodex.ab_strict_zero_min_arbitrary_subset_family_certificate_packet.v1"
 REPORT_SCHEMA = "zenodex.ab_strict_zero_min_arbitrary_subset_family_certificate_report.v1"
 AUTHORITY_BOUNDARY = "research_only_no_settlement_or_state_authority"
@@ -113,6 +113,19 @@ def _lean_contract() -> dict[str, str]:
     }
 
 
+def _all_zero_min_amount_out(raw_values: object) -> bool:
+    if not isinstance(raw_values, list):
+        return False
+    try:
+        return all(int(item) == 0 for item in raw_values)
+    except (TypeError, ValueError):
+        return False
+
+
+def _case_has_zero_min_amount_out(case: _StressCase) -> bool:
+    return all(int(intent.get_field("min_amount_out", 0)) == 0 for intent in case.intents)
+
+
 def _packet_rail_reasons(packet: Mapping[str, Any] | None) -> list[str]:
     if packet is None:
         return ["certificate_packet_missing"]
@@ -132,6 +145,8 @@ def _packet_rail_reasons(packet: Mapping[str, Any] | None) -> list[str]:
         reasons.append("winner_membership_bound_missing")
     if packet.get("lean_contract") != _lean_contract():
         reasons.append("lean_contract_mismatch")
+    if not _all_zero_min_amount_out(packet.get("min_amount_out")):
+        reasons.append("packet_nonzero_min_amount_out_out_of_scope")
     if packet.get("packet_hash") != _packet_hash(packet):
         reasons.append("packet_hash_mismatch")
     return reasons
@@ -207,6 +222,14 @@ def _verify_case_arrays(
     reasons: list[str] = []
     reasons.extend(_packet_rail_reasons(packet))
     first_failure: dict[str, Any] | None = None
+    if not _case_has_zero_min_amount_out(case):
+        reasons.append("nonzero_min_amount_out_out_of_scope")
+        first_failure = _new_failure(
+            first_failure,
+            case=case,
+            mask_id=0,
+            reason="nonzero_min_amount_out_out_of_scope",
+        )
     amount_sums = _amount_sums(case.intents)
     mask_count = 0
     record_count = 0
@@ -416,6 +439,8 @@ def build_case_packet(
     full_dp: list[list[_HostRecord]] | None = None,
     compressed_dp: list[_HostRecord | None] | None = None,
 ) -> dict[str, Any]:
+    if not _case_has_zero_min_amount_out(case):
+        raise ValueError("nonzero_min_amount_out_out_of_scope")
     context = _case_context(case)
     if full_dp is None:
         full_dp = _full_state_records(case.intents, context)
@@ -522,6 +547,18 @@ def _negative_controls(case: _StressCase) -> list[dict[str, Any]]:
             _clone_compressed_dp(base_compressed),
             _rehash_packet(bad_membership_bound),
             "winner_membership_bound_missing",
+        )
+    )
+
+    bad_nonzero_min_packet = copy.deepcopy(base_packet)
+    bad_nonzero_min_packet["min_amount_out"] = [1, *bad_nonzero_min_packet["min_amount_out"][1:]]
+    rows.append(
+        (
+            "packet_nonzero_min_amount_out_out_of_scope",
+            _clone_full_dp(base_full),
+            _clone_compressed_dp(base_compressed),
+            _rehash_packet(bad_nonzero_min_packet),
+            "packet_nonzero_min_amount_out_out_of_scope",
         )
     )
 

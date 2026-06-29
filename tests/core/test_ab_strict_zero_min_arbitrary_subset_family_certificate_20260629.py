@@ -10,10 +10,16 @@ import pytest
 from tools.check_ab_strict_zero_min_arbitrary_subset_family_certificate import (
     EXPECTED_NEGATIVE_CONTROL_COUNT,
     REPORT_JSON,
+    build_case_packet,
     build_report,
     verify_case_packet,
 )
-from tools.check_ab_strict_zero_min_emitter_witness_stress import CASE_COUNT, _iter_cases
+from tools.check_ab_strict_zero_min_emitter_witness_stress import (
+    CASE_COUNT,
+    _StressCase,
+    _iter_cases,
+)
+from tools.check_ab_zero_min_economic_compression_certificate import _case
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -76,6 +82,7 @@ def test_ab_strict_zero_min_arbitrary_subset_family_coverage(
     assert "packet_hash_mismatch" in coverage["reason_classes"]
     assert "authority_effect_present" in coverage["reason_classes"]
     assert "winner_membership_bound_missing" in coverage["reason_classes"]
+    assert "packet_nonzero_min_amount_out_out_of_scope" in coverage["reason_classes"]
     assert "selected_final_reserve_dominance_failure" in coverage["reason_classes"]
 
 
@@ -120,6 +127,10 @@ def test_ab_strict_zero_min_arbitrary_subset_family_negative_controls_fail_close
     assert (
         "winner_membership_bound_missing"
         in controls["winner_membership_bound_missing"]["reasons"]
+    )
+    assert (
+        "packet_nonzero_min_amount_out_out_of_scope"
+        in controls["packet_nonzero_min_amount_out_out_of_scope"]["reasons"]
     )
     assert "compressed_record_missing" in controls["compressed_record_missing"]["reasons"]
     assert (
@@ -175,6 +186,20 @@ def test_ab_strict_zero_min_arbitrary_subset_family_non_claims(
     assert "Nonzero min_amount_out batches are outside" in non_claims
     assert "not a production ABI" in non_claims
     assert "No settlement" in non_claims
+
+
+def test_ab_strict_zero_min_arbitrary_subset_family_rejects_nonzero_min_scope() -> None:
+    pool, intents, balances = _case(2, 0, min_pattern="half")
+    case = _StressCase(
+        case_id="nonzero_min_scope_boundary",
+        pool=pool,
+        intents=intents,
+        balances=balances,
+        pattern="half_min",
+    )
+
+    with pytest.raises(ValueError, match="nonzero_min_amount_out_out_of_scope"):
+        build_case_packet(case)
 
 
 def test_ab_strict_zero_min_arbitrary_subset_family_cli_replay() -> None:

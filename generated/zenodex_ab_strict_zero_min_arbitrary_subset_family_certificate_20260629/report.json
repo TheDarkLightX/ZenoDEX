@@ -2,9 +2,9 @@
   "authority_boundary": "Research-only certificate evidence; no settlement, state-root, production, or governance authority.",
   "date": "2026-06-29",
   "deterministic_replay": {
-    "first_hash": "14f34b8f262717e72ba5099ced828670c3de42a71434ad2f30eb26f7b78ef5cc",
+    "first_hash": "26254994d0d4ad1ce6646c8bd9a4c66db874ed34a4c23fbd64c1cfeba1b92c9d",
     "ok": true,
-    "second_hash": "14f34b8f262717e72ba5099ced828670c3de42a71434ad2f30eb26f7b78ef5cc"
+    "second_hash": "26254994d0d4ad1ce6646c8bd9a4c66db874ed34a4c23fbd64c1cfeba1b92c9d"
   },
   "lean_contract": {
     "endpoint": "strictSubsetFamilyHostTable_validates",
@@ -10146,6 +10146,7 @@
         "packet_hash_bound_missing",
         "packet_hash_mismatch",
         "packet_mask_summaries_mismatch",
+        "packet_nonzero_min_amount_out_out_of_scope",
         "packet_obligation_summary_mismatch",
         "selected_final_reserve_dominance_failure",
         "selected_record_not_in_full_state_records",
@@ -10154,7 +10155,7 @@
       ]
     },
     "dominance_check_count": 212760,
-    "elapsed_ms": 33214.752,
+    "elapsed_ms": 32932.151,
     "first_invalid_case": null,
     "first_packet": {
       "amounts": [
@@ -10300,7 +10301,7 @@
     "max_records_per_mask": 720,
     "max_suffix_per_mask": 720,
     "negative_control_accept_count": 0,
-    "negative_control_count": 10,
+    "negative_control_count": 11,
     "negative_controls": [
       {
         "accepted": false,
@@ -10336,6 +10337,15 @@
         "mutation_id": "winner_membership_bound_missing",
         "reasons": [
           "winner_membership_bound_missing"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "packet_nonzero_min_amount_out_out_of_scope",
+        "first_failure": null,
+        "mutation_id": "packet_nonzero_min_amount_out_out_of_scope",
+        "reasons": [
+          "packet_nonzero_min_amount_out_out_of_scope"
         ]
       },
       {
