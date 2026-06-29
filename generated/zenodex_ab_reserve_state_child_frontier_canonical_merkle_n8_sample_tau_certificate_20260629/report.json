@@ -1,0 +1,482 @@
+{
+  "authority_boundary": "research evidence only; no settlement, state-root, production, governance, routing, matching, or pool-mutation authority",
+  "breakthrough": {
+    "invalid_accepts": 0,
+    "name": "AB reserve-state child-frontier canonical Merkle n8 sample Tau certificate",
+    "scoped_claims": [
+      "the sampled n=8 canonical-Merkle source report is present and normalized-hash pinned",
+      "51 sampled child masks produce 51 canonical frontier roots",
+      "88 sampled child states have 88 membership proofs with zero proof or root mismatches",
+      "the linked n=8 frontier equality report is present and digest-pinned",
+      "frontier-root and membership-row digests are pinned",
+      "9 mutation controls reject with zero accepts",
+      "the Tau envelope carries no settlement or state authority"
+    ],
+    "spec_id": "ab_reserve_state_child_frontier_canonical_merkle_n8_sample_scope_certificate_v1",
+    "tau_cases": 17
+  },
+  "canonical_merkle_corpus": {
+    "case_count": 3,
+    "covered_sampled_child_state_count": 88,
+    "deterministic_replay_hash": "31df88fd8d43c07cd20742854e8553e5b3ab5fef4259726f9968c8ff67293f43",
+    "duplicate_frontier_row_count": 0,
+    "extra_frontier_row_count": 0,
+    "extra_membership_proof_count": 0,
+    "frontier_root_count": 51,
+    "frontier_roots_digest": "53872b495fd6af55f5192e5577f6fb75fca8bd54c26110ff88f4b11a17edf6d4",
+    "invalid_membership_proof_count": 0,
+    "max_leaf_count": 7,
+    "membership_count": 88,
+    "membership_rows_digest": "bf859719c54893c3975b5f28a9eda8dc58b50b1bcab8ed46cd96fd5f4d63a5d2",
+    "missing_frontier_row_count": 0,
+    "missing_membership_proof_count": 0,
+    "negative_control_accept_count": 0,
+    "negative_control_count": 9,
+    "root_mismatch_count": 0,
+    "sampled_child_mask_count": 51,
+    "sampled_child_state_count": 88,
+    "valid_case_count": 3
+  },
+  "date": "2026-06-29",
+  "facts": {
+    "authority_boundary_ok": 1,
+    "corpus_nonvacuous": 1,
+    "deterministic_replay_ok": 1,
+    "frontier_counts_ok": 1,
+    "frontier_roots_digest_pinned": 1,
+    "hash_normalization_declared": 1,
+    "linked_frontier_ok": 1,
+    "membership_counts_ok": 1,
+    "membership_proofs_clean": 1,
+    "membership_rows_digest_pinned": 1,
+    "negative_controls_reject": 1,
+    "no_authority_effect": 1,
+    "normalized_source_hash_pinned": 1,
+    "sampled_n8_zero_min_scope_ok": 1,
+    "source_report_ok": 1
+  },
+  "hypothesis_card": {
+    "falsification_recipe": "Clear each required fact bit, mutate digest pins, remove linked frontier evidence, remove membership proof cleanliness, or remove the no-authority rail and require Tau rejection.",
+    "formal_obligations": "Production use still needs exhaustive coverage or a deeper Lean refinement of canonical child-frontier membership.",
+    "hypothesis_id": "H-AB-N8-CANONICAL-MERKLE-TAU-20260629",
+    "mechanism_change": "Add a versioned Tau scope certificate over sampled n=8 canonical-index Merkle membership evidence.",
+    "null_hypothesis": "A Tau envelope gives no additional falsifiable boundary beyond the sampled n=8 canonical-Merkle Python checker.",
+    "representation_shift_used": "certificate_boundary",
+    "status": "supported_bounded",
+    "support_recipe": "Host checks the source report, linked frontier report, count invariants, digest pins, deterministic replay, normalized hash, and mutation controls; Tau rejects every missing-fact negative case."
+  },
+  "linked_frontier": {
+    "available": true,
+    "extra_generated_state_count": 0,
+    "frontier_rows_digest": "37764c62caa78be76d654ec1f2540babe2aae2f546663f6548f2d9a1da85b919",
+    "generated_state_count": 88,
+    "missing_child_state_count": 0,
+    "ok": true,
+    "path": "generated/zenodex_ab_reserve_state_child_frontier_n8_sample_20260629/report.json",
+    "sampled_child_mask_count": 51,
+    "sampled_child_state_count": 88,
+    "schema": "zenodex.ab_reserve_state_child_frontier_n8_sample_report.v1"
+  },
+  "non_claims": [
+    "This certificate is bounded to the deterministic sampled n=8 zero-min canonical-Merkle report.",
+    "This certificate uses a normalized source hash that strips elapsed_ms fields.",
+    "This certificate links the separate sampled n=8 child-frontier equality report.",
+    "This certificate does not prove exhaustive n=8 coverage.",
+    "This certificate does not prove Python-to-Lean refinement.",
+    "This certificate does not prove child-frontier generation in Lean.",
+    "This certificate does not cover nonzero min_amount_out behavior.",
+    "This certificate does not authorize settlement, routing, matching, governance, pool mutation, production deployment, or state roots."
+  ],
+  "replay_command": "python3 tools/check_ab_reserve_state_child_frontier_canonical_merkle_n8_sample_tau_certificate_20260629.py",
+  "schema": "zenodex.ab_reserve_state_child_frontier_canonical_merkle_n8_sample_tau_certificate_report.v1",
+  "source_report": {
+    "expected_normalized_sha256": "b4318b47670c43b4fce96e3cb5ed0b55cf2ad7a8dd4314ea04db95b7502b1f2a",
+    "hash_normalization": "strip all elapsed_ms fields",
+    "normalized_sha256": "b4318b47670c43b4fce96e3cb5ed0b55cf2ad7a8dd4314ea04db95b7502b1f2a",
+    "ok": true,
+    "path": "generated/zenodex_ab_reserve_state_child_frontier_canonical_merkle_n8_sample_20260629/report.json",
+    "raw_sha256": "c44c60587472c72890f1077b1601504784285eac926c4436136c410b4d976a1f",
+    "replay_command": "python3 tools/check_ab_reserve_state_child_frontier_canonical_merkle_n8_sample_20260629.py",
+    "schema": "zenodex.ab_reserve_state_child_frontier_canonical_merkle_n8_sample_report.v1",
+    "search_schema": "zenodex/ab_reserve_state_child_frontier_canonical_merkle_n8_sample_search/v1"
+  },
+  "spec": {
+    "id": "ab_reserve_state_child_frontier_canonical_merkle_n8_sample_scope_certificate_v1",
+    "path": "src/tau_specs/recommended/ab_reserve_state_child_frontier_canonical_merkle_n8_sample_scope_certificate_v1.tau",
+    "sha256": "4f4c27177a7af61176f7232f18be0f1f465204cf8dc4b83f882b00204f2ff287"
+  },
+  "tau": {
+    "case_results": [
+      {
+        "case_id": "canonical_merkle_n8_sample_certificate_pass",
+        "expected": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0,
+          "o9": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All scoped host facts admit the sampled n=8 canonical-Merkle certificate."
+      },
+      {
+        "case_id": "missing_source_report_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `source_report_ok` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "wrong_scope_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `sampled_n8_zero_min_scope_ok` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "linked_frontier_reject",
+        "expected": {
+          "o3": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `linked_frontier_ok` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "frontier_counts_reject",
+        "expected": {
+          "o2": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `frontier_counts_ok` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "membership_counts_reject",
+        "expected": {
+          "o2": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `membership_counts_ok` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "membership_proofs_reject",
+        "expected": {
+          "o2": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `membership_proofs_clean` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "frontier_digest_reject",
+        "expected": {
+          "o4": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `frontier_roots_digest_pinned` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "membership_digest_reject",
+        "expected": {
+          "o4": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `membership_rows_digest_pinned` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "nondeterministic_replay_reject",
+        "expected": {
+          "o5": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `deterministic_replay_ok` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "negative_controls_missing_reject",
+        "expected": {
+          "o5": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `negative_controls_reject` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "authority_boundary_reject",
+        "expected": {
+          "o6": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `authority_boundary_ok` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "authority_effect_reject",
+        "expected": {
+          "o6": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `no_authority_effect` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "empty_corpus_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `corpus_nonvacuous` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "source_hash_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0,
+          "o9": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `normalized_source_hash_pinned` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "hash_normalization_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The `hash_normalization_declared` host fact is required for certificate admission."
+      },
+      {
+        "case_id": "inactive_safe",
+        "expected": {
+          "o7": 0,
+          "o8": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 1,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Inactive certificates do not admit while the no-authority rail remains true."
+      }
+    ],
+    "invalid_accepts": 0,
+    "ok": true,
+    "skipped": false,
+    "tau_bin": "external/tau-lang/build-Release/tau",
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  }
+}

@@ -1,0 +1,60 @@
+# AB Reserve-State Child-Frontier Canonical Merkle N8 Sample Scope Certificate v1
+#
+# PURPOSE:
+#   Admit a research-only certificate for sampled n=8 AB strict zero-min
+#   canonical-index Merkle membership over reserve-state child frontiers. The
+#   host checks the JSON report, sampled scope, linked frontier equality report,
+#   frontier-root counts, membership counts, membership proof cleanliness,
+#   digest pins, deterministic replay, mutation controls, normalized source
+#   hash, and no-authority rail. Tau only composes those host facts into a
+#   fail-closed envelope.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = source_report_ok
+# i3  = sampled_n8_zero_min_scope_ok
+# i4  = linked_frontier_ok
+# i5  = frontier_counts_ok
+# i6  = membership_counts_ok
+# i7  = membership_proofs_clean
+# i8  = frontier_roots_digest_pinned
+# i9  = membership_rows_digest_pinned
+# i10 = deterministic_replay_ok
+# i11 = negative_controls_reject
+# i12 = authority_boundary_ok
+# i13 = no_authority_effect
+# i14 = corpus_nonvacuous
+# i15 = normalized_source_hash_pinned
+# i16 = hash_normalization_declared
+#
+# o1 = scope_ok
+# o2 = merkle_counts_ok
+# o3 = linked_frontier_ok
+# o4 = digest_pins_ok
+# o5 = replay_and_refutation_ok
+# o6 = authority_boundary_ok
+# o7 = canonical_merkle_n8_sample_certificate_ok
+# o8 = inactive_safe
+# o9 = source_pin_ok
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+scope_ok(source_report : sbf, sampled_n8_zero_min : sbf, nonvacuous : sbf, source_hash : sbf, normalization_declared : sbf) := is1(source_report) && is1(sampled_n8_zero_min) && is1(nonvacuous) && is1(source_hash) && is1(normalization_declared).
+merkle_counts_ok(frontier_counts : sbf, membership_counts : sbf, membership_clean : sbf) := is1(frontier_counts) && is1(membership_counts) && is1(membership_clean).
+linked_evidence_ok(linked_frontier : sbf) := is1(linked_frontier).
+digest_pins_ok(frontier_digest : sbf, membership_digest : sbf) := is1(frontier_digest) && is1(membership_digest).
+replay_and_refutation_ok(deterministic_replay : sbf, negative_controls : sbf) := is1(deterministic_replay) && is1(negative_controls).
+authority_ok(boundary : sbf, no_authority : sbf) := is1(boundary) && is1(no_authority).
+certificate_ok(active : sbf, source_report : sbf, sampled_n8_zero_min : sbf, linked_frontier : sbf, frontier_counts : sbf, membership_counts : sbf, membership_clean : sbf, frontier_digest : sbf, membership_digest : sbf, deterministic_replay : sbf, negative_controls : sbf, boundary : sbf, no_authority : sbf, nonvacuous : sbf, source_hash : sbf, normalization_declared : sbf) := is1(active) && scope_ok(source_report, sampled_n8_zero_min, nonvacuous, source_hash, normalization_declared) && linked_evidence_ok(linked_frontier) && merkle_counts_ok(frontier_counts, membership_counts, membership_clean) && digest_pins_ok(frontier_digest, membership_digest) && replay_and_refutation_ok(deterministic_replay, negative_controls) && authority_ok(boundary, no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> scope_ok(i2[t]:sbf, i3[t]:sbf, i14[t]:sbf, i15[t]:sbf, i16[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> merkle_counts_ok(i5[t]:sbf, i6[t]:sbf, i7[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> linked_evidence_ok(i4[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> digest_pins_ok(i8[t]:sbf, i9[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> replay_and_refutation_ok(i10[t]:sbf, i11[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> authority_ok(i12[t]:sbf, i13[t]:sbf)) &&
+  (o7[t]:sbf = 1:sbf <-> certificate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf, i16[t]:sbf)) &&
+  (o8[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i13[t]:sbf))) &&
+  (o9[t]:sbf = 1:sbf <-> is1(i15[t]:sbf)).
