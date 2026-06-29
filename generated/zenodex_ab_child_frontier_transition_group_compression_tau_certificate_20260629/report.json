@@ -1,0 +1,422 @@
+{
+  "authority_boundary": "research evidence only; no settlement, state-root, production, governance, routing, matching, or pool-mutation authority",
+  "breakthrough": {
+    "invalid_accepts": 0,
+    "name": "AB child-frontier transition-group compression Tau certificate",
+    "scoped_claims": [
+      "the n=7 transition-group compression report is present and successful",
+      "2,777 source transition rows compress to 864 generated-child group rows",
+      "aggregate row and byte reductions are pinned",
+      "864 generated-child groups are covered exactly once",
+      "transition-group and compressed-row digests are pinned",
+      "8 mutation controls reject with zero accepts",
+      "the Tau envelope carries no settlement or state authority"
+    ],
+    "spec_id": "ab_child_frontier_transition_group_compression_scope_certificate_v1",
+    "tau_cases": 15
+  },
+  "compression": {
+    "byte_reduction_count": 1455623,
+    "byte_reduction_ratio": 0.633706,
+    "case_count": 4,
+    "compressed_json_bytes": 841376,
+    "compressed_row_count": 864,
+    "compressed_rows_digest": "08588cdb923ad12571dc729b13ad99b2888bebe8e5d6983fabd723b32d2bb2a4",
+    "covered_group_count": 864,
+    "deterministic_replay_hash": "695be84aeee82b4f61706786bd08a16c9f8b16c47b2a0e2739e6cadaffbc5f83",
+    "duplicate_group_count": 0,
+    "expected_group_count": 864,
+    "extra_group_count": 0,
+    "invalid_compressed_row_count": 0,
+    "missing_group_count": 0,
+    "negative_control_accept_count": 0,
+    "negative_control_count": 8,
+    "row_reduction_count": 1913,
+    "row_reduction_ratio": 0.688873,
+    "source_transition_json_bytes": 2296999,
+    "source_transition_row_count": 2777,
+    "transition_groups_digest": "280c2b23775977485dd12bd7a7b8c3db1c023577881fd1580b1210912261939b",
+    "valid_case_count": 4
+  },
+  "date": "2026-06-29",
+  "facts": {
+    "authority_boundary_ok": 1,
+    "case_rows_bound": 1,
+    "compression_counts_ok": 1,
+    "compression_digests_pinned": 1,
+    "compression_report_ok": 1,
+    "corpus_nonvacuous": 1,
+    "deterministic_replay_ok": 1,
+    "generated_group_coverage_ok": 1,
+    "host_recomputation_nonclaim_bound": 1,
+    "n7_zero_min_scope_ok": 1,
+    "negative_controls_reject": 1,
+    "no_authority_effect": 1,
+    "source_bidirectional_binding_ok": 1
+  },
+  "hypothesis_card": {
+    "expected_metric_delta": {
+      "cap_efficiency": "neutral",
+      "determinism": "positive via pinned digests and mutation cases",
+      "execution_quality": "neutral",
+      "proof_cost": "positive by separating compact host facts from transition recomputation",
+      "safety": "positive for evidence scoping"
+    },
+    "falsification_recipe": "Clear each required fact bit, mutate digest pins, or remove the no-authority rail and require Tau rejection.",
+    "formal_obligations": "Production use still needs a deterministic generated-image producer or a deeper Lean refinement of transition-group generation.",
+    "hypothesis_id": "H-AB-N7-TRANSITION-GROUP-COMPRESSION-TAU-20260629",
+    "mechanism_change": "Add a versioned Tau scope certificate over the transition-group compression receipt.",
+    "null_hypothesis": "A Tau envelope gives no additional falsifiable boundary beyond the Python compression checker.",
+    "representation_shift_used": "reduce",
+    "status": "supported_bounded",
+    "support_recipe": "Host checks the compression report and pinned digests; Tau rejects every missing-fact negative case."
+  },
+  "non_claims": [
+    "This certificate is bounded to the committed n=7 zero-min transition-group compression report.",
+    "This certificate composes host facts; it does not recompute transition groups in Tau.",
+    "This certificate does not remove host recomputation of the transition image.",
+    "This certificate does not prove Python-to-Lean refinement.",
+    "This certificate does not prove child-frontier generation in Lean.",
+    "This certificate does not cover nonzero min_amount_out behavior.",
+    "This certificate does not authorize settlement, routing, matching, governance, pool mutation, production deployment, or state roots."
+  ],
+  "replay_command": "python3 tools/check_ab_child_frontier_transition_group_compression_tau_certificate_20260629.py",
+  "schema": "zenodex.ab_child_frontier_transition_group_compression_tau_certificate_report.v1",
+  "source_bidirectional_report": {
+    "deterministic_replay_hash": "54e80016a0c0dc4eb629d22b43265091b3b1c4dc75324320107b17dbd42668b7",
+    "path": "generated/zenodex_ab_reserve_state_child_frontier_bidirectional_transition_20260629/report.json",
+    "schema": "zenodex.ab_reserve_state_child_frontier_bidirectional_transition_report.v1",
+    "sha256": "8aecb36a829164725f85ba8e4360d17fb0fdf032e4cafd082349189b8c81b883",
+    "transition_row_count": 2777,
+    "transition_rows_digest": "fccc26b63521b510776546e4663cecabcf58849af42bcda799484bf092a81f82",
+    "unique_generated_child_count": 864
+  },
+  "source_report": {
+    "ok": true,
+    "path": "generated/zenodex_ab_child_frontier_transition_group_compression_20260629/report.json",
+    "replay_command": "python3 tools/check_ab_child_frontier_transition_group_compression_20260629.py",
+    "schema": "zenodex.ab_child_frontier_transition_group_compression_report.v1",
+    "sha256": "dfc9012b7b4c89ba1ede99e9b4154487533ef8b6d34107dd5948466bffd7e32e"
+  },
+  "spec": {
+    "id": "ab_child_frontier_transition_group_compression_scope_certificate_v1",
+    "path": "src/tau_specs/recommended/ab_child_frontier_transition_group_compression_scope_certificate_v1.tau",
+    "sha256": "7b4fdf8f74ad3a26d53c644606f724f97e1b5561af84c2e17aa94d3335241822"
+  },
+  "tau": {
+    "case_results": [
+      {
+        "case_id": "transition_group_compression_certificate_pass",
+        "expected": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All scoped host facts admit the transition-group compression certificate."
+      },
+      {
+        "case_id": "missing_compression_report_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The compression report must be present, successful, and hash-pinned."
+      },
+      {
+        "case_id": "wrong_scope_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The report must remain scoped to the bounded n=7 zero-min corpus."
+      },
+      {
+        "case_id": "source_bidirectional_binding_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The compression receipt must bind the exact source bidirectional report."
+      },
+      {
+        "case_id": "compression_counts_reject",
+        "expected": {
+          "o2": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The aggregate row and byte reduction measurements must remain pinned."
+      },
+      {
+        "case_id": "generated_group_coverage_reject",
+        "expected": {
+          "o3": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The compressed rows must cover every generated child group exactly once."
+      },
+      {
+        "case_id": "compression_digest_reject",
+        "expected": {
+          "o5": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The transition-group and compressed-row digests must remain pinned."
+      },
+      {
+        "case_id": "nondeterministic_replay_reject",
+        "expected": {
+          "o4": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The compression checker replay must remain deterministic."
+      },
+      {
+        "case_id": "negative_controls_missing_reject",
+        "expected": {
+          "o4": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The mutation suite must keep rejecting malformed compression packets."
+      },
+      {
+        "case_id": "case_rows_unbound_reject",
+        "expected": {
+          "o2": 0,
+          "o5": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Each case-level row count and digest must remain bound."
+      },
+      {
+        "case_id": "authority_boundary_reject",
+        "expected": {
+          "o6": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The research-only authority boundary must remain explicit."
+      },
+      {
+        "case_id": "authority_effect_reject",
+        "expected": {
+          "o6": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The certificate cannot carry settlement, state-root, governance, or pool-mutation authority."
+      },
+      {
+        "case_id": "empty_corpus_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The certificate must bind a nonempty transition corpus."
+      },
+      {
+        "case_id": "host_recomputation_nonclaim_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The envelope must preserve the host-recomputation non-claim."
+      },
+      {
+        "case_id": "inactive_safe",
+        "expected": {
+          "o7": 0,
+          "o8": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Inactive certificates do not admit while the no-authority rail remains true."
+      }
+    ],
+    "invalid_accepts": 0,
+    "ok": true,
+    "skipped": false,
+    "tau_bin": "external/tau-lang/build-Release/tau",
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  }
+}
