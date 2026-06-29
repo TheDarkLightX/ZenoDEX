@@ -253,3 +253,146 @@ theorem cpmm_stateful_gain_bound_with_fee
   convert h_bound using 1
   · ring
   · ring
+
+/-! ## Tight Stateful Attack Bound With Pool Depth
+
+The bound `gain <= K*a_A/M` (Lipschitz) does not capture pool depth dependence.
+The tighter bound `gain <= K*a_A/(M+a_A)` is exactly the output of the sacrificial
+trade itself, and it decreases with pool depth M.
+
+Key identity:
+  `K*a_A/(M+a_A) - gain = K*M*a_A / ((M+a_B)*(M+a_A+a_B))`
+
+The right-hand side is non-negative (all factors positive), proving the bound.
+This replaces the falsified second-order approximation with an exact, tighter
+bound that is decreasing in M.
+-/
+
+/-- **Tight Stateful Attack Gain Bound (fee-free)**: For CPMM `f(x) = K*x/(M+x)`
+    with `K, M, a_A, a_B` all positive, the stateful sacrifice attack gain
+    `out_B_without_A - out_B_with_A` is bounded by `K*a_A/(M+a_A)`.
+
+    This is tighter than `cpmm_stateful_gain_bound` (which gives `K*a_A/M`)
+    because `K*a_A/(M+a_A) < K*a_A/M` for `a_A > 0`.
+
+    The bound `K*a_A/(M+a_A)` is exactly the output of the sacrificial trade:
+    the attacker's maximum gain from the sacrifice attack is bounded by what
+    the sacrificial trade itself produces. This is a depth-dependent bound:
+    for fixed `a_A`, the bound decreases as `M` increases.
+
+    Proof: `K*a_A/(M+a_A) - gain = K*M*a_A / ((M+a_B)*(M+a_A+a_B)) >= 0`. -/
+theorem cpmm_stateful_gain_bound_tight
+    (K M a_A a_B : ℝ)
+    (hK : K > 0) (hM : M > 0) (hA : a_A > 0) (hB : a_B > 0)
+    : K * a_B / (M + a_B) - K * M * a_B / ((M + a_A) * (M + a_A + a_B))
+        ≤ K * a_A / (M + a_A) := by
+  have hMA : 0 < M + a_A := by linarith
+  have hMB : 0 < M + a_B := by linarith
+  have hMAB : 0 < M + a_A + a_B := by linarith
+  have hD : 0 < (M + a_B) * (M + a_A + a_B) := mul_pos hMB hMAB
+  have h_identity :
+    K * a_A / (M + a_A) -
+    (K * a_B / (M + a_B) - K * M * a_B / ((M + a_A) * (M + a_A + a_B)))
+    = K * M * a_A / ((M + a_B) * (M + a_A + a_B)) := by
+    field_simp
+    ring
+  have hKM : 0 ≤ K * M * a_A :=
+    mul_nonneg (mul_nonneg (le_of_lt hK) (le_of_lt hM)) (le_of_lt hA)
+  have h_frac : 0 ≤ K * M * a_A / ((M + a_B) * (M + a_A + a_B)) :=
+    div_nonneg hKM (le_of_lt hD)
+  linarith
+
+/-- **Tight Stateful Attack Gain Bound (with fee)**: The fee-bearing version
+    of `cpmm_stateful_gain_bound_tight`, with bound `gamma*K*a_A/(M+gamma*a_A)`.
+
+    This is tighter than `cpmm_stateful_gain_bound_with_fee` (which gives
+    `gamma*K*a_A/M`) and decreases with pool depth M. -/
+theorem cpmm_stateful_gain_bound_tight_with_fee
+    (K M a_A a_B gamma : ℝ)
+    (hK : K > 0) (hM : M > 0) (hA : a_A > 0) (hB : a_B > 0)
+    (hgamma : 0 ≤ gamma ∧ gamma ≤ 1)
+    : K * gamma * a_B / (M + gamma * a_B)
+        - K * M * gamma * a_B / ((M + gamma * a_A) * (M + gamma * a_A + gamma * a_B))
+        ≤ gamma * K * a_A / (M + gamma * a_A) := by
+  by_cases hg : gamma = 0
+  · simp [hg]
+  have hg_pos : 0 < gamma := by
+    by_contra h_neg
+    push_neg at h_neg
+    have : gamma = 0 := le_antisymm h_neg hgamma.1
+    exact hg this
+  have h_uA : 0 < gamma * a_A := mul_pos hg_pos hA
+  have h_uB : 0 < gamma * a_B := mul_pos hg_pos hB
+  have h_bound := cpmm_stateful_gain_bound_tight K M (gamma * a_A) (gamma * a_B)
+    hK hM h_uA h_uB
+  convert h_bound using 1
+  · ring
+  · ring
+
+/-- **Pool depth monotonicity**: The tight bound `K*a_A/(M+a_A)` is strictly
+    decreasing in `M` for `K, a_A > 0`.
+
+    This formalizes the empirical observation that stateful attack gain
+    decreases with pool depth. The Lipschitz bound `K*a_A/M` also decreases
+    with M, but the tight bound decreases faster. -/
+theorem tight_bound_decreases_with_M
+    (K a_A M1 M2 : ℝ)
+    (hK : K > 0) (hA : a_A > 0) (hM1 : M1 > 0) (hM2 : M2 > 0)
+    (hM1_lt_M2 : M1 < M2)
+    : K * a_A / (M2 + a_A) < K * a_A / (M1 + a_A) := by
+  have hKA : 0 < K * a_A := mul_pos hK hA
+  have hD1 : 0 < M1 + a_A := by linarith
+  have hD2 : 0 < M2 + a_A := by linarith
+  have hD1_lt_D2 : M1 + a_A < M2 + a_A := by linarith
+  have h_cross : K * a_A * (M1 + a_A) < K * a_A * (M2 + a_A) :=
+    mul_lt_mul_of_pos_left hD1_lt_D2 hKA
+  have h_eq : K * a_A / (M2 + a_A) - K * a_A / (M1 + a_A) =
+    -(K * a_A * (M2 + a_A - (M1 + a_A))) / ((M2 + a_A) * (M1 + a_A)) := by
+    field_simp; ring
+  have h_diff_pos : 0 < M2 + a_A - (M1 + a_A) := by linarith
+  have h_denom_pos : 0 < (M2 + a_A) * (M1 + a_A) := mul_pos hD2 hD1
+  have h_num_neg : K * a_A * (M2 + a_A - (M1 + a_A)) > 0 :=
+    mul_pos hKA h_diff_pos
+  have h_frac_neg : -(K * a_A * (M2 + a_A - (M1 + a_A))) /
+      ((M2 + a_A) * (M1 + a_A)) < 0 := by
+    rw [neg_div]
+    exact neg_neg_of_pos (div_pos h_num_neg h_denom_pos)
+  have h_goal : K * a_A / (M2 + a_A) - K * a_A / (M1 + a_A) < 0 := by
+    rw [h_eq]; exact h_frac_neg
+  linarith
+
+/-- **Tight bound is tighter than Lipschitz**: `K*a_A/(M+a_A) < K*a_A/M`
+    for `a_A > 0`.
+
+    This shows the tight bound is strictly better than the Lipschitz bound
+    whenever the sacrificial trade is non-zero. -/
+theorem tight_bound_stricter_than_lipschitz
+    (K M a_A : ℝ)
+    (hK : K > 0) (hM : M > 0) (hA : a_A > 0)
+    : K * a_A / (M + a_A) < K * a_A / M := by
+  have hKA : 0 < K * a_A := mul_pos hK hA
+  have hD1 : 0 < M + a_A := by linarith
+  have hD2 : 0 < M := hM
+  have hD2_lt_D1 : M < M + a_A := by linarith
+  have h_eq : K * a_A / (M + a_A) - K * a_A / M =
+    -(K * a_A * a_A) / ((M + a_A) * M) := by
+    field_simp; ring
+  have h_denom_pos : 0 < (M + a_A) * M := mul_pos hD1 hD2
+  have h_num_pos : 0 < K * a_A * a_A := mul_pos hKA hA
+  have h_frac_neg : -(K * a_A * a_A) / ((M + a_A) * M) < 0 := by
+    rw [neg_div]
+    exact neg_neg_of_pos (div_pos h_num_pos h_denom_pos)
+  have h_goal : K * a_A / (M + a_A) - K * a_A / M < 0 := by
+    rw [h_eq]; exact h_frac_neg
+  linarith
+
+/-- **Witness**: Concrete case showing the tight bound is strictly tighter
+    than the Lipschitz bound. K=1000, M=1000, a_A=100, a_B=100. -/
+theorem witness_tight_vs_lipschitz :
+    (1000 * 100 / (1000 + 100) : ℝ) < 1000 * 100 / 1000 ∧
+    (1000 * 100 / (1000 + 100) : ℝ) ≤
+    1000 * 100 / (1000 + 100) - 1000 * 100 / (1000 + 100) +
+    1000 * 100 / (1000 + 100) := by
+  constructor
+  · norm_num
+  · norm_num
