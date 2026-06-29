@@ -1,0 +1,464 @@
+{
+  "authority_boundary": "Research-only falsification evidence; no settlement, state-root, production, or governance authority.",
+  "date": "2026-06-29",
+  "deterministic_replay": {
+    "first_hash": "e1a71db72004715c907795c5a38635ad5fe75ecf7905f58faa9e1bf146446c33",
+    "ok": true,
+    "second_hash": "e1a71db72004715c907795c5a38635ad5fe75ecf7905f58faa9e1bf146446c33"
+  },
+  "non_claims": [
+    "This n=7 randomized corpus is bounded and finite, not exhaustive over all n=7 states.",
+    "This checker does not prove Lean-to-Python refinement.",
+    "This checker does not cover nonzero min_amount_out certificates; those are rejected as out of scope.",
+    "Strict-executability rejection probes are scope controls, not counterexamples to the in-scope claim.",
+    "This checker does not add settlement, state-root, production, or governance authority."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_strict_zero_min_arbitrary_subset_family_n7_randomized.py",
+  "schema": "zenodex.ab_strict_zero_min_arbitrary_subset_family_n7_randomized_report.v1",
+  "search": {
+    "bit_count": 7,
+    "candidate_budget": 12,
+    "candidate_rejection_count": 0,
+    "candidate_rejections": [],
+    "cases": [
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "dominance_check_count": 40320,
+        "fee_bps": 9000,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "8d8059f1ce67e39ee0ac1f3824e56bc9e9b480af2ed50cbe5da5417fb96f01e1",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c0",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c1",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c2",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c3",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c4",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c5",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c6"
+            ],
+            "order_short": [
+              "f5c0",
+              "f5c1",
+              "f5c2",
+              "f5c3",
+              "f5c4",
+              "f5c5",
+              "f5c6"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 10000,
+            "reserve_out": 1100
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "f5c0",
+            "f5c1",
+            "f5c2",
+            "f5c3",
+            "f5c4",
+            "f5c5",
+            "f5c6"
+          ],
+          "processed_reserve_in": 10721,
+          "reserve_out": 1093
+        },
+        "full_runtime_completion_count": 40320,
+        "mask_count": 128,
+        "max_records_per_mask": 5040,
+        "max_suffix_per_mask": 5040,
+        "obligation_digest": "8c0c7309a6b4a2a6ba032df85181cdbad447659a85dce7772be20085f392eaf2",
+        "ok": true,
+        "packet_hash": "1d8a445484be0df7782f5611667004bdbf9fc56b540685a84a5efad714de5ae6",
+        "pattern": "thin_positive_boundary/high_fee9000",
+        "reasons": [],
+        "record_count": 13700,
+        "selected_suffix_executable_count": 13700,
+        "singleton_table_obligation_count": 13700
+      },
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "dominance_check_count": 40320,
+        "fee_bps": 1,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "f9638eb4076a88df5ed3f0ac2a990ec580a76d55c9fdbe82d6e9e5c5f4c9f67f",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000006c8540",
+              "0x00000000000000000000000000000000000000000000000000000000006c8541",
+              "0x00000000000000000000000000000000000000000000000000000000006c8542",
+              "0x00000000000000000000000000000000000000000000000000000000006c8543",
+              "0x00000000000000000000000000000000000000000000000000000000006c8544",
+              "0x00000000000000000000000000000000000000000000000000000000006c8545",
+              "0x00000000000000000000000000000000000000000000000000000000006c8546"
+            ],
+            "order_short": [
+              "8540",
+              "8541",
+              "8542",
+              "8543",
+              "8544",
+              "8545",
+              "8546"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 153456,
+            "reserve_out": 1468855
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "8541",
+            "8540",
+            "8542",
+            "8543",
+            "8544",
+            "8546",
+            "8545"
+          ],
+          "processed_reserve_in": 153769,
+          "reserve_out": 1465933
+        },
+        "full_runtime_completion_count": 40320,
+        "mask_count": 128,
+        "max_records_per_mask": 5040,
+        "max_suffix_per_mask": 5040,
+        "obligation_digest": "e18a60680a865558846f321ab765a6032cfacd248a55f67e3d7534a8e1c810e1",
+        "ok": true,
+        "packet_hash": "21a9e86df64e2291aadb53941da8cf5754a7a973f6666fde83272181c4f39d18",
+        "pattern": "near_zero_positive/rand_tie",
+        "reasons": [],
+        "record_count": 13700,
+        "selected_suffix_executable_count": 13700,
+        "singleton_table_obligation_count": 13700
+      },
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "dominance_check_count": 40320,
+        "fee_bps": 100,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "1c6d2a573593ea06a0b121f2409a0ef1c2de5fb53ec489ff8bb7c295ccdefe87",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000006c8550",
+              "0x00000000000000000000000000000000000000000000000000000000006c8551",
+              "0x00000000000000000000000000000000000000000000000000000000006c8552",
+              "0x00000000000000000000000000000000000000000000000000000000006c8553",
+              "0x00000000000000000000000000000000000000000000000000000000006c8554",
+              "0x00000000000000000000000000000000000000000000000000000000006c8555",
+              "0x00000000000000000000000000000000000000000000000000000000006c8556"
+            ],
+            "order_short": [
+              "8550",
+              "8551",
+              "8552",
+              "8553",
+              "8554",
+              "8555",
+              "8556"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 64492,
+            "reserve_out": 2782612
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "8551",
+            "8550",
+            "8552",
+            "8553",
+            "8555",
+            "8554",
+            "8556"
+          ],
+          "processed_reserve_in": 64903,
+          "reserve_out": 2765292
+        },
+        "full_runtime_completion_count": 40320,
+        "mask_count": 128,
+        "max_records_per_mask": 5040,
+        "max_suffix_per_mask": 5040,
+        "obligation_digest": "5632671788b176318a1f46c4369a492c3545f055da7dfc6aa668f1d408bdc03e",
+        "ok": true,
+        "packet_hash": "0cf7a9a26064fc6074f4462452144c28173fd019bd5ea3e261e999e7dd3d3499",
+        "pattern": "high_fee_deep_out/rand_stair",
+        "reasons": [],
+        "record_count": 13700,
+        "selected_suffix_executable_count": 13700,
+        "singleton_table_obligation_count": 13700
+      },
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "dominance_check_count": 40320,
+        "fee_bps": 100,
+        "first_failure": null,
+        "first_obligation": {
+          "full_record_count": 1,
+          "full_records_digest": "41c4de53036d619fac8ddb7545b5a941fb98827c664c911af9fa2e0c73125c20",
+          "mask_id": 0,
+          "singleton_family": [
+            0
+          ],
+          "suffix": {
+            "order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000006c8560",
+              "0x00000000000000000000000000000000000000000000000000000000006c8561",
+              "0x00000000000000000000000000000000000000000000000000000000006c8562",
+              "0x00000000000000000000000000000000000000000000000000000000006c8563",
+              "0x00000000000000000000000000000000000000000000000000000000006c8564",
+              "0x00000000000000000000000000000000000000000000000000000000006c8565",
+              "0x00000000000000000000000000000000000000000000000000000000006c8566"
+            ],
+            "order_short": [
+              "8560",
+              "8561",
+              "8562",
+              "8563",
+              "8564",
+              "8565",
+              "8566"
+            ]
+          },
+          "winner": {
+            "order_short": [],
+            "processed_reserve_in": 2999957340,
+            "reserve_out": 2716068284
+          }
+        },
+        "full_mask_selected": {
+          "order_short": [
+            "8560",
+            "8561",
+            "8562",
+            "8563",
+            "8564",
+            "8565",
+            "8566"
+          ],
+          "processed_reserve_in": 2999958075,
+          "reserve_out": 2716067632
+        },
+        "full_runtime_completion_count": 40320,
+        "mask_count": 128,
+        "max_records_per_mask": 5040,
+        "max_suffix_per_mask": 5040,
+        "obligation_digest": "61826b395c1a10f4bf48fc0cf525b835d886846c74ea7d5ec9722e005128f074",
+        "ok": true,
+        "packet_hash": "0226c0eb6350b2d7b2acc72694b4fba87c4b34f535ac71c6683c85f57f32ceb3",
+        "pattern": "near_domain_in/rand_burst",
+        "reasons": [],
+        "record_count": 13700,
+        "selected_suffix_executable_count": 13700,
+        "singleton_table_obligation_count": 13700
+      }
+    ],
+    "coverage": {
+      "fee_bps_counts": {
+        "1": 1,
+        "100": 2,
+        "9000": 1
+      },
+      "n_counts": {
+        "7": 4
+      },
+      "pattern_counts": {
+        "high_fee_deep_out/rand_stair": 1,
+        "near_domain_in/rand_burst": 1,
+        "near_zero_positive/rand_tie": 1,
+        "thin_positive_boundary/high_fee9000": 1
+      }
+    },
+    "dominance_check_count": 161280,
+    "elapsed_ms": 27740.706,
+    "first_case": {
+      "bit_count": 7,
+      "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+      "dominance_check_count": 40320,
+      "fee_bps": 9000,
+      "first_failure": null,
+      "first_obligation": {
+        "full_record_count": 1,
+        "full_records_digest": "8d8059f1ce67e39ee0ac1f3824e56bc9e9b480af2ed50cbe5da5417fb96f01e1",
+        "mask_id": 0,
+        "singleton_family": [
+          0
+        ],
+        "suffix": {
+          "order_ids": [
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c0",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c1",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c2",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c3",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c4",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c5",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c6"
+          ],
+          "order_short": [
+            "f5c0",
+            "f5c1",
+            "f5c2",
+            "f5c3",
+            "f5c4",
+            "f5c5",
+            "f5c6"
+          ]
+        },
+        "winner": {
+          "order_short": [],
+          "processed_reserve_in": 10000,
+          "reserve_out": 1100
+        }
+      },
+      "full_mask_selected": {
+        "order_short": [
+          "f5c0",
+          "f5c1",
+          "f5c2",
+          "f5c3",
+          "f5c4",
+          "f5c5",
+          "f5c6"
+        ],
+        "processed_reserve_in": 10721,
+        "reserve_out": 1093
+      },
+      "full_runtime_completion_count": 40320,
+      "mask_count": 128,
+      "max_records_per_mask": 5040,
+      "max_suffix_per_mask": 5040,
+      "obligation_digest": "8c0c7309a6b4a2a6ba032df85181cdbad447659a85dce7772be20085f392eaf2",
+      "ok": true,
+      "packet_hash": "1d8a445484be0df7782f5611667004bdbf9fc56b540685a84a5efad714de5ae6",
+      "pattern": "thin_positive_boundary/high_fee9000",
+      "reasons": [],
+      "record_count": 13700,
+      "selected_suffix_executable_count": 13700,
+      "singleton_table_obligation_count": 13700
+    },
+    "first_invalid_positive_case": null,
+    "full_runtime_completion_count": 161280,
+    "mask_count": 512,
+    "max_records_per_mask": 5040,
+    "max_suffix_per_mask": 5040,
+    "positive_case_count": 4,
+    "record_count": 54800,
+    "schema": "zenodex/ab_strict_zero_min_arbitrary_subset_family_n7_randomized_search/v1",
+    "scope_probe_accept_count": 0,
+    "scope_probe_count": 4,
+    "scope_probes": [
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100_nonzero_min_probe",
+        "expected_reason": "nonzero_min_amount_out_out_of_scope",
+        "reason": "nonzero_min_amount_out_out_of_scope"
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1_nonzero_min_probe",
+        "expected_reason": "nonzero_min_amount_out_out_of_scope",
+        "reason": "nonzero_min_amount_out_out_of_scope"
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100_nonzero_min_probe",
+        "expected_reason": "nonzero_min_amount_out_out_of_scope",
+        "reason": "nonzero_min_amount_out_out_of_scope"
+      },
+      {
+        "accepted": false,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100_nonzero_min_probe",
+        "expected_reason": "nonzero_min_amount_out_out_of_scope",
+        "reason": "nonzero_min_amount_out_out_of_scope"
+      }
+    ],
+    "seed": 2026062907,
+    "selected_suffix_executable_count": 54800,
+    "singleton_table_obligation_count": 54800,
+    "strict_rejection_accept_count": 0,
+    "strict_rejection_probe_count": 3,
+    "strict_rejection_probes": [
+      {
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout7",
+        "dominance_check_count": 5040,
+        "first_failure": {
+          "case_id": "n7_randomized_boundary_000_thin_fee9000_rout7",
+          "mask_id": 127,
+          "reason": "compressed_full_mask_not_executable"
+        },
+        "ok": false,
+        "reasons": [
+          "compressed_full_mask_not_executable",
+          "singleton_table_suffix_not_executable",
+          "full_suffix_not_executable"
+        ],
+        "record_count": 1
+      },
+      {
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout20",
+        "dominance_check_count": 5040,
+        "first_failure": {
+          "case_id": "n7_randomized_boundary_000_thin_fee9000_rout20",
+          "mask_id": 127,
+          "reason": "compressed_full_mask_not_executable"
+        },
+        "ok": false,
+        "reasons": [
+          "compressed_full_mask_not_executable",
+          "singleton_table_suffix_not_executable",
+          "full_suffix_not_executable"
+        ],
+        "record_count": 1
+      },
+      {
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout100",
+        "dominance_check_count": 5040,
+        "first_failure": {
+          "case_id": "n7_randomized_boundary_000_thin_fee9000_rout100",
+          "mask_id": 127,
+          "reason": "compressed_full_mask_not_executable"
+        },
+        "ok": false,
+        "reasons": [
+          "compressed_full_mask_not_executable",
+          "singleton_table_suffix_not_executable",
+          "full_suffix_not_executable"
+        ],
+        "record_count": 1
+      }
+    ],
+    "target_valid_case_count": 4,
+    "valid_case_count": 4
+  },
+  "summary": "A bounded n=7 randomized and positive-output-boundary falsification corpus found no counterexample to the strict zero-min arbitrary subset-family host certificate within the declared strict-executable scope."
+}
