@@ -1,0 +1,455 @@
+{
+  "authority_boundary": "Research-only certificate-compression evidence; no settlement, state-root, production, or governance authority.",
+  "date": "2026-06-29",
+  "deterministic_replay": {
+    "first_hash": "2405bc2c9e02d5c880cb2a488bcc4f0313aaa587139e0b7a7e3630ef50c1d514",
+    "ok": true,
+    "second_hash": "2405bc2c9e02d5c880cb2a488bcc4f0313aaa587139e0b7a7e3630ef50c1d514"
+  },
+  "non_claims": [
+    "This quotient checker is bounded to the committed n=7 randomized corpus.",
+    "This checker does not prove Lean-to-Python refinement.",
+    "This checker does not define canonical tie order or preserve order-id history.",
+    "This checker does not cover nonzero min_amount_out certificates.",
+    "This checker is not a Lean endpoint or production ABI.",
+    "No settlement, state-root, production, or governance authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_strict_zero_min_reserve_state_quotient_certificate.py",
+  "schema": "zenodex.ab_strict_zero_min_reserve_state_quotient_certificate_report.v1",
+  "search": {
+    "baseline_full_dominance_check_count": 161280,
+    "case_count": 4,
+    "cases": [
+      {
+        "baseline_full_dominance_check_count": 40320,
+        "bit_count": 7,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "dominance_check_compression_saved": 26620,
+        "fee_bps": 9000,
+        "first_failure": null,
+        "first_obligation": {
+          "mask_id": 0,
+          "quotient_digest": "74bfe2d98beff0789bbfc93d60ca66d200bedcd09aac3477d1548fe912a9ed49",
+          "quotient_state_count": 1,
+          "selected_state": {
+            "processed_reserve_in": 10000,
+            "reserve_out": 1100
+          },
+          "suffix_short": [
+            "f5c0",
+            "f5c1",
+            "f5c2",
+            "f5c3",
+            "f5c4",
+            "f5c5",
+            "f5c6"
+          ]
+        },
+        "full_mask_selected_state": {
+          "processed_reserve_in": 10721,
+          "reserve_out": 1093
+        },
+        "full_record_count": 13700,
+        "mask_count": 128,
+        "max_full_records_per_mask": 5040,
+        "max_quotient_states_per_mask": 1,
+        "max_suffix_per_mask": 5040,
+        "ok": true,
+        "packet_hash": "fefd682b091d64a9fb6e4bc8e22e5b16f2fc1c4329d48a419208482aa5f4c82f",
+        "pattern": "thin_positive_boundary/high_fee9000",
+        "quotient_dominance_check_count": 13700,
+        "quotient_obligation_digest": "214fe5ba1ba93e8487e05e60001be1e160e98933504843946ba10ea38db9f3a5",
+        "quotient_runtime_completion_count": 13700,
+        "quotient_state_count": 128,
+        "quotient_table_obligation_count": 13700,
+        "reasons": [],
+        "record_compression_saved": 13572,
+        "selected_suffix_executable_count": 13700
+      },
+      {
+        "baseline_full_dominance_check_count": 40320,
+        "bit_count": 7,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "dominance_check_compression_saved": 23505,
+        "fee_bps": 1,
+        "first_failure": null,
+        "first_obligation": {
+          "mask_id": 0,
+          "quotient_digest": "a1785445073cbba2417efd9fc4096c4d4b8a52e698792436259b36c97c6ff9dd",
+          "quotient_state_count": 1,
+          "selected_state": {
+            "processed_reserve_in": 153456,
+            "reserve_out": 1468855
+          },
+          "suffix_short": [
+            "8540",
+            "8541",
+            "8542",
+            "8543",
+            "8544",
+            "8545",
+            "8546"
+          ]
+        },
+        "full_mask_selected_state": {
+          "processed_reserve_in": 153769,
+          "reserve_out": 1465933
+        },
+        "full_record_count": 13700,
+        "mask_count": 128,
+        "max_full_records_per_mask": 5040,
+        "max_quotient_states_per_mask": 5,
+        "max_suffix_per_mask": 5040,
+        "ok": true,
+        "packet_hash": "9eca68ae1555aa2f2d9c24bb61da8e8592e983b5573dd7e8f35d64c1bed87c2b",
+        "pattern": "near_zero_positive/rand_tie",
+        "quotient_dominance_check_count": 16815,
+        "quotient_obligation_digest": "852488a5e20274eb7b105cbaed64043edc5b1e204649843e61a43854ca4123d0",
+        "quotient_runtime_completion_count": 16815,
+        "quotient_state_count": 321,
+        "quotient_table_obligation_count": 13700,
+        "reasons": [],
+        "record_compression_saved": 13379,
+        "selected_suffix_executable_count": 13700
+      },
+      {
+        "baseline_full_dominance_check_count": 40320,
+        "bit_count": 7,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "dominance_check_compression_saved": 24548,
+        "fee_bps": 100,
+        "first_failure": null,
+        "first_obligation": {
+          "mask_id": 0,
+          "quotient_digest": "a6341c494af927f4247515ab15786a0b33a9fd9bb4876edc37267dd7003d11a4",
+          "quotient_state_count": 1,
+          "selected_state": {
+            "processed_reserve_in": 64492,
+            "reserve_out": 2782612
+          },
+          "suffix_short": [
+            "8550",
+            "8551",
+            "8552",
+            "8553",
+            "8554",
+            "8555",
+            "8556"
+          ]
+        },
+        "full_mask_selected_state": {
+          "processed_reserve_in": 64903,
+          "reserve_out": 2765292
+        },
+        "full_record_count": 13700,
+        "mask_count": 128,
+        "max_full_records_per_mask": 5040,
+        "max_quotient_states_per_mask": 5,
+        "max_suffix_per_mask": 5040,
+        "ok": true,
+        "packet_hash": "dc6c96585f78e6ba9a32535d48f87c4fd448618b707379ad32699e64cf01aa48",
+        "pattern": "high_fee_deep_out/rand_stair",
+        "quotient_dominance_check_count": 15772,
+        "quotient_obligation_digest": "f8656385baeae12eae428c9899fee3ba978477620f435e00f6763b8e7a16fe14",
+        "quotient_runtime_completion_count": 15772,
+        "quotient_state_count": 291,
+        "quotient_table_obligation_count": 13700,
+        "reasons": [],
+        "record_compression_saved": 13409,
+        "selected_suffix_executable_count": 13700
+      },
+      {
+        "baseline_full_dominance_check_count": 40320,
+        "bit_count": 7,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "dominance_check_compression_saved": 26620,
+        "fee_bps": 100,
+        "first_failure": null,
+        "first_obligation": {
+          "mask_id": 0,
+          "quotient_digest": "f6966d644ee1ba1000e5ae5855c407894e63e0bf5027dbf259a63e57e7a10a63",
+          "quotient_state_count": 1,
+          "selected_state": {
+            "processed_reserve_in": 2999957340,
+            "reserve_out": 2716068284
+          },
+          "suffix_short": [
+            "8560",
+            "8561",
+            "8562",
+            "8563",
+            "8564",
+            "8565",
+            "8566"
+          ]
+        },
+        "full_mask_selected_state": {
+          "processed_reserve_in": 2999958075,
+          "reserve_out": 2716067632
+        },
+        "full_record_count": 13700,
+        "mask_count": 128,
+        "max_full_records_per_mask": 5040,
+        "max_quotient_states_per_mask": 1,
+        "max_suffix_per_mask": 5040,
+        "ok": true,
+        "packet_hash": "a8197d588f2e8f97a43c90123ba12b317da72eb3091011adbf21f4653ff6f715",
+        "pattern": "near_domain_in/rand_burst",
+        "quotient_dominance_check_count": 13700,
+        "quotient_obligation_digest": "b079e95e1f785d3aa906e637063a6fee14303ffa4d53db6eb58bc8b76adc0e19",
+        "quotient_runtime_completion_count": 13700,
+        "quotient_state_count": 128,
+        "quotient_table_obligation_count": 13700,
+        "reasons": [],
+        "record_compression_saved": 13572,
+        "selected_suffix_executable_count": 13700
+      }
+    ],
+    "coverage": {
+      "fee_bps_counts": {
+        "1": 1,
+        "100": 2,
+        "9000": 1
+      },
+      "n_counts": {
+        "7": 4
+      },
+      "pattern_counts": {
+        "high_fee_deep_out/rand_stair": 1,
+        "near_domain_in/rand_burst": 1,
+        "near_zero_positive/rand_tie": 1,
+        "thin_positive_boundary/high_fee9000": 1
+      },
+      "reason_classes": [
+        "authority_effect_present",
+        "compressed_record_missing",
+        "packet_first_obligation_mismatch",
+        "packet_hash_bound_missing",
+        "packet_hash_mismatch",
+        "packet_mask_summaries_mismatch",
+        "packet_quotient_summary_mismatch",
+        "quotient_family_bound_missing",
+        "quotient_suffix_not_executable",
+        "reserve_state_only_bound_missing",
+        "selected_final_reserve_dominance_failure",
+        "selected_reserve_out_not_min",
+        "selected_state_not_in_quotient_family",
+        "selected_suffix_not_executable"
+      ]
+    },
+    "dominance_check_compression_ratio": 2.688583,
+    "dominance_check_compression_saved": 101293,
+    "elapsed_ms": 51974.063,
+    "first_case": {
+      "baseline_full_dominance_check_count": 40320,
+      "bit_count": 7,
+      "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+      "dominance_check_compression_saved": 26620,
+      "fee_bps": 9000,
+      "first_failure": null,
+      "first_obligation": {
+        "mask_id": 0,
+        "quotient_digest": "74bfe2d98beff0789bbfc93d60ca66d200bedcd09aac3477d1548fe912a9ed49",
+        "quotient_state_count": 1,
+        "selected_state": {
+          "processed_reserve_in": 10000,
+          "reserve_out": 1100
+        },
+        "suffix_short": [
+          "f5c0",
+          "f5c1",
+          "f5c2",
+          "f5c3",
+          "f5c4",
+          "f5c5",
+          "f5c6"
+        ]
+      },
+      "full_mask_selected_state": {
+        "processed_reserve_in": 10721,
+        "reserve_out": 1093
+      },
+      "full_record_count": 13700,
+      "mask_count": 128,
+      "max_full_records_per_mask": 5040,
+      "max_quotient_states_per_mask": 1,
+      "max_suffix_per_mask": 5040,
+      "ok": true,
+      "packet_hash": "fefd682b091d64a9fb6e4bc8e22e5b16f2fc1c4329d48a419208482aa5f4c82f",
+      "pattern": "thin_positive_boundary/high_fee9000",
+      "quotient_dominance_check_count": 13700,
+      "quotient_obligation_digest": "214fe5ba1ba93e8487e05e60001be1e160e98933504843946ba10ea38db9f3a5",
+      "quotient_runtime_completion_count": 13700,
+      "quotient_state_count": 128,
+      "quotient_table_obligation_count": 13700,
+      "reasons": [],
+      "record_compression_saved": 13572,
+      "selected_suffix_executable_count": 13700
+    },
+    "first_invalid_case": null,
+    "full_record_count": 54800,
+    "mask_count": 512,
+    "max_full_records_per_mask": 5040,
+    "max_quotient_states_per_mask": 5,
+    "max_suffix_per_mask": 5040,
+    "negative_control_accept_count": 0,
+    "negative_control_count": 10,
+    "negative_controls": [
+      {
+        "accepted": false,
+        "expected_reason": "packet_hash_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_hash_mismatch",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "packet_hash_bound_missing",
+        "first_failure": null,
+        "mutation_id": "packet_hash_bound_missing",
+        "reasons": [
+          "packet_hash_bound_missing"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "authority_effect_present",
+        "first_failure": null,
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "quotient_family_bound_missing",
+        "first_failure": null,
+        "mutation_id": "quotient_family_bound_missing",
+        "reasons": [
+          "quotient_family_bound_missing"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "reserve_state_only_bound_missing",
+        "first_failure": null,
+        "mutation_id": "reserve_state_only_bound_missing",
+        "reasons": [
+          "reserve_state_only_bound_missing"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "compressed_record_missing",
+        "first_failure": {
+          "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+          "mask_id": 0,
+          "reason": "compressed_record_missing"
+        },
+        "mutation_id": "compressed_record_missing",
+        "reasons": [
+          "compressed_record_missing",
+          "packet_quotient_summary_mismatch",
+          "packet_mask_summaries_mismatch",
+          "packet_first_obligation_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "selected_state_not_in_quotient_family",
+        "first_failure": {
+          "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+          "mask_id": 0,
+          "reason": "selected_state_not_in_quotient_family",
+          "selected_state": {
+            "processed_reserve_in": 10000,
+            "reserve_out": 1101
+          }
+        },
+        "mutation_id": "selected_state_not_in_quotient_family",
+        "reasons": [
+          "selected_state_not_in_quotient_family",
+          "selected_reserve_out_not_min",
+          "selected_final_reserve_dominance_failure",
+          "packet_quotient_summary_mismatch",
+          "packet_mask_summaries_mismatch",
+          "packet_first_obligation_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "selected_reserve_out_not_min",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "mask_id": 3,
+          "min_reserve_out": 1468023,
+          "reason": "selected_reserve_out_not_min",
+          "selected_state": {
+            "processed_reserve_in": 153545,
+            "reserve_out": 1468024
+          }
+        },
+        "mutation_id": "selected_reserve_out_not_min",
+        "reasons": [
+          "selected_reserve_out_not_min",
+          "selected_final_reserve_dominance_failure",
+          "packet_quotient_summary_mismatch",
+          "packet_mask_summaries_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "selected_suffix_not_executable",
+        "first_failure": {
+          "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+          "mask_id": 0,
+          "reason": "selected_suffix_not_executable",
+          "selected_state": {
+            "processed_reserve_in": 10000,
+            "reserve_out": 1
+          },
+          "suffix_short": [
+            "f5c0",
+            "f5c1",
+            "f5c2",
+            "f5c3",
+            "f5c4",
+            "f5c5",
+            "f5c6"
+          ]
+        },
+        "mutation_id": "selected_suffix_not_executable",
+        "reasons": [
+          "selected_suffix_not_executable",
+          "quotient_suffix_not_executable",
+          "packet_quotient_summary_mismatch",
+          "packet_mask_summaries_mismatch",
+          "packet_first_obligation_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "packet_quotient_summary_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_quotient_summary_mismatch",
+        "reasons": [
+          "packet_quotient_summary_mismatch"
+        ]
+      }
+    ],
+    "quotient_dominance_check_count": 59987,
+    "quotient_runtime_completion_count": 59987,
+    "quotient_state_count": 868,
+    "quotient_table_obligation_count": 54800,
+    "record_compression_ratio": 63.133641,
+    "record_compression_saved": 53932,
+    "schema": "zenodex/ab_strict_zero_min_reserve_state_quotient_certificate_search/v1",
+    "selected_suffix_executable_count": 54800,
+    "source_seed": 2026062907,
+    "valid_case_count": 4
+  },
+  "summary": "A reserve-state quotient certificate checker supports a smaller host witness shape for the n=7 strict zero-min corpus by grouping full order histories by processed reserve-in and reserve-out."
+}
