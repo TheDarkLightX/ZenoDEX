@@ -1,0 +1,495 @@
+{
+  "authority_boundary": "research evidence only; no settlement, state-root, production, governance, routing, matching, or pool-mutation authority",
+  "breakthrough": {
+    "invalid_accepts": 0,
+    "name": "AB child-frontier bidirectional transition n8 sample Tau certificate",
+    "scoped_claims": [
+      "the sampled n=8 bidirectional transition source report is present and hash-pinned",
+      "268 transition rows exactly cover all expected sampled predecessor transitions",
+      "88 generated child states are linked to predecessor-witness evidence",
+      "88 generated child states are linked to canonical-Merkle membership evidence",
+      "transition, witness, membership, and source-report digests are pinned",
+      "11 mutation controls reject with zero accepts",
+      "the Tau envelope carries no settlement or state authority"
+    ],
+    "spec_id": "ab_child_frontier_bidirectional_transition_n8_sample_scope_certificate_v1",
+    "tau_cases": 17
+  },
+  "date": "2026-06-29",
+  "facts": {
+    "authority_boundary_ok": 1,
+    "corpus_nonvacuous": 1,
+    "deterministic_replay_ok": 1,
+    "generated_child_count_ok": 1,
+    "linked_canonical_membership_ok": 1,
+    "linked_child_coverage_ok": 1,
+    "linked_merkle_digest_pinned": 1,
+    "linked_witness_digest_pinned": 1,
+    "negative_controls_reject": 1,
+    "no_authority_effect": 1,
+    "sampled_n8_zero_min_scope_ok": 1,
+    "source_report_hash_pinned": 1,
+    "source_report_ok": 1,
+    "transition_counts_complete": 1,
+    "transition_digest_pinned": 1
+  },
+  "hypothesis_card": {
+    "falsification_recipe": "Clear each required fact bit, mutate source or linked digest pins, or remove the no-authority rail and require Tau rejection.",
+    "formal_obligations": "Production use still needs exhaustive coverage or a deeper Lean refinement of the child-frontier generation relation.",
+    "hypothesis_id": "H-AB-N8-BIDIR-TRANSITION-TAU-20260629",
+    "mechanism_change": "Add a versioned Tau scope certificate over sampled n=8 bidirectional transition closure evidence.",
+    "null_hypothesis": "A Tau envelope gives no additional falsifiable boundary beyond the sampled n=8 Python transition checker.",
+    "status": "supported_bounded",
+    "support_recipe": "Host checks the source report, linked reports, and pinned digests; Tau rejects every missing-fact negative case."
+  },
+  "linked_reports": {
+    "canonical_merkle": {
+      "available": true,
+      "case_count": 3,
+      "frontier_root_count": 51,
+      "frontier_roots_digest": "53872b495fd6af55f5192e5577f6fb75fca8bd54c26110ff88f4b11a17edf6d4",
+      "kind": "sampled_n8_canonical_merkle",
+      "membership_count": 88,
+      "membership_rows_digest": "bf859719c54893c3975b5f28a9eda8dc58b50b1bcab8ed46cd96fd5f4d63a5d2",
+      "negative_control_accept_count": 0,
+      "ok": true,
+      "path": "generated/zenodex_ab_reserve_state_child_frontier_canonical_merkle_n8_sample_20260629/report.json",
+      "sampled_child_mask_count": 51,
+      "sampled_child_state_count": 88,
+      "schema": "zenodex.ab_reserve_state_child_frontier_canonical_merkle_n8_sample_report.v1",
+      "valid_case_count": 3
+    },
+    "predecessor_witness": {
+      "available": true,
+      "case_count": 3,
+      "kind": "sampled_n8_predecessor_witnesses",
+      "negative_control_accept_count": 0,
+      "ok": true,
+      "path": "generated/zenodex_ab_reserve_state_child_frontier_witness_compression_n8_sample_20260629/report.json",
+      "predecessor_transition_count": 268,
+      "sampled_child_mask_count": 51,
+      "schema": "zenodex.ab_reserve_state_child_frontier_witness_compression_n8_sample_report.v1",
+      "valid_case_count": 3,
+      "witness_count": 88,
+      "witness_rows_digest": "4851b651740dcfaaa5b175cccbc0907fb7449ff3c4e14db61c3cdafed72e52dd"
+    }
+  },
+  "non_claims": [
+    "This certificate is bounded to the deterministic sampled n=8 zero-min bidirectional transition report.",
+    "This certificate links predecessor-witness and canonical-Merkle evidence produced by separate host checkers.",
+    "This certificate does not prove exhaustive n=8 coverage.",
+    "This certificate does not prove Python-to-Lean refinement.",
+    "This certificate does not prove child-frontier generation in Lean.",
+    "This certificate does not replace the host Merkle verifier or transition checker.",
+    "This certificate does not cover nonzero min_amount_out behavior.",
+    "This certificate does not authorize settlement, routing, matching, governance, pool mutation, production deployment, or state roots."
+  ],
+  "replay_command": "python3 tools/check_ab_child_frontier_bidirectional_transition_n8_sample_tau_certificate_20260629.py",
+  "schema": "zenodex.ab_child_frontier_bidirectional_transition_n8_sample_tau_certificate_report.v1",
+  "source_report": {
+    "expected_sha256": "de633b40c90942b466750a24b76b6379a5a3322d54925c1801a2f5dbd8b0fd24",
+    "ok": true,
+    "path": "generated/zenodex_ab_reserve_state_child_frontier_bidirectional_transition_n8_sample_20260629/report.json",
+    "replay_command": "python3 tools/check_ab_reserve_state_child_frontier_bidirectional_transition_n8_sample_20260629.py",
+    "schema": "zenodex.ab_reserve_state_child_frontier_bidirectional_transition_n8_sample_report.v1",
+    "search_schema": "zenodex/ab_reserve_state_child_frontier_bidirectional_transition_n8_sample_search/v1",
+    "sha256": "de633b40c90942b466750a24b76b6379a5a3322d54925c1801a2f5dbd8b0fd24"
+  },
+  "spec": {
+    "id": "ab_child_frontier_bidirectional_transition_n8_sample_scope_certificate_v1",
+    "path": "src/tau_specs/recommended/ab_child_frontier_bidirectional_transition_n8_sample_scope_certificate_v1.tau",
+    "sha256": "78f8ea6b3a2201846f4ce380ae8ee5f81bac5cb56c73ce9a39c255c7225deba2"
+  },
+  "tau": {
+    "case_results": [
+      {
+        "case_id": "bidirectional_transition_n8_sample_certificate_pass",
+        "expected": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0,
+          "o9": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All scoped host facts admit the sampled n=8 bidirectional transition certificate."
+      },
+      {
+        "case_id": "missing_source_report_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The source bidirectional transition report must be present, valid, and successful."
+      },
+      {
+        "case_id": "wrong_scope_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The source report must remain scoped to the sampled n=8 zero-min corpus."
+      },
+      {
+        "case_id": "transition_counts_reject",
+        "expected": {
+          "o2": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The 268 transition rows must exactly cover all expected sampled transitions."
+      },
+      {
+        "case_id": "generated_child_count_reject",
+        "expected": {
+          "o2": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The transition rows must bind the 88 generated child states."
+      },
+      {
+        "case_id": "linked_child_coverage_reject",
+        "expected": {
+          "o3": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The child coverage direction must remain linked to the predecessor-witness report."
+      },
+      {
+        "case_id": "linked_canonical_membership_reject",
+        "expected": {
+          "o3": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Every generated child state must remain linked to canonical-Merkle membership."
+      },
+      {
+        "case_id": "transition_digest_reject",
+        "expected": {
+          "o5": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The transition-row digest must remain pinned."
+      },
+      {
+        "case_id": "linked_witness_digest_reject",
+        "expected": {
+          "o5": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The linked predecessor-witness digest must remain pinned."
+      },
+      {
+        "case_id": "linked_merkle_digest_reject",
+        "expected": {
+          "o5": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The linked canonical-membership digest must remain pinned."
+      },
+      {
+        "case_id": "nondeterministic_replay_reject",
+        "expected": {
+          "o4": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The sampled n=8 bidirectional checker replay must remain deterministic."
+      },
+      {
+        "case_id": "negative_controls_missing_reject",
+        "expected": {
+          "o4": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The mutation suite must keep rejecting malformed packets."
+      },
+      {
+        "case_id": "authority_boundary_reject",
+        "expected": {
+          "o6": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The research-only authority boundary must remain explicit."
+      },
+      {
+        "case_id": "authority_effect_reject",
+        "expected": {
+          "o6": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The certificate cannot carry settlement, state-root, governance, or pool-mutation authority."
+      },
+      {
+        "case_id": "empty_corpus_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The certificate must bind a nonempty sampled transition corpus."
+      },
+      {
+        "case_id": "source_hash_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0,
+          "o9": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The source report hash must match the pinned source packet."
+      },
+      {
+        "case_id": "inactive_safe",
+        "expected": {
+          "o7": 0,
+          "o8": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 1,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Inactive certificates do not admit while the no-authority rail remains true."
+      }
+    ],
+    "invalid_accepts": 0,
+    "ok": true,
+    "skipped": false,
+    "tau_bin": "external/tau-lang/build-Release/tau",
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  },
+  "transition_corpus": {
+    "case_count": 3,
+    "covered_transition_count": 268,
+    "deterministic_replay_hash": "5757702bcda71094a7b861318efdb7d1ea1e39d119677f3324e7e05ec12d939b",
+    "expected_transition_count": 268,
+    "linked_canonical_membership_count": 88,
+    "linked_child_coverage_witness_count": 88,
+    "linked_merkle_membership_rows_digest": "bf859719c54893c3975b5f28a9eda8dc58b50b1bcab8ed46cd96fd5f4d63a5d2",
+    "linked_witness_rows_digest": "4851b651740dcfaaa5b175cccbc0907fb7449ff3c4e14db61c3cdafed72e52dd",
+    "negative_control_accept_count": 0,
+    "negative_control_count": 11,
+    "sampled_child_mask_count": 51,
+    "transition_row_count": 268,
+    "transition_rows_digest": "0ed918d2b332430f57bf3561a5912fa50c0293c23661ff02f582a21e88f3ed09",
+    "unique_generated_child_count": 88,
+    "unique_transition_count": 268,
+    "valid_case_count": 3
+  }
+}
