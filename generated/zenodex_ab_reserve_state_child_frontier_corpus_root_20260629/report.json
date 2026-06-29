@@ -1,0 +1,320 @@
+{
+  "authority_boundary": "research_only_no_settlement_or_state_authority",
+  "date": "2026-06-29",
+  "deterministic_replay": {
+    "first_hash": "b857b66aa96007bda748ae9489ee10f972248eaa30af25fd5ac7dffca73f4591",
+    "ok": true,
+    "second_hash": "b857b66aa96007bda748ae9489ee10f972248eaa30af25fd5ac7dffca73f4591"
+  },
+  "hypothesis_card": {
+    "expected_metric_delta": {
+      "cap_efficiency": "0",
+      "determinism_simplicity": "+canonical corpus root for replay and audit",
+      "execution_quality": "0",
+      "perf_cost": "+Merkle verification, -large receipt comparison surface",
+      "safety": "+single corpus commitment rejects stale or missing row receipts"
+    },
+    "falsification_recipe": "Mutate row hashes, row proofs, case roots, case proofs, row presence, duplicate indexes, case indexes, linked-report summary, packet hash, and authority rails.",
+    "formal_obligations": "A production-grade artifact would need a versioned verifier grammar and a Lean or Tau-level statement for the corpus-root membership relation.",
+    "hypothesis_id": "H-AB-N7-CORPUS-ROOT-20260629",
+    "mechanism_change": "Aggregate cross-bound child-frontier rows into case roots and one corpus root with row and case membership proofs.",
+    "null_hypothesis": "Adding a corpus root gives no extra falsifiable constraint beyond the row-level witness+Merkle report.",
+    "representation_shift_used": "certificate_boundary",
+    "risk_modes": [
+      "row receipt omitted from corpus root",
+      "case root stale or from a different case",
+      "corpus root stale",
+      "duplicate row index",
+      "linked cross-binding report stale",
+      "authority leakage"
+    ],
+    "status": "supported_bounded",
+    "support_recipe": "Verify all 864 row receipts through case roots and the corpus root, assert the linked cross-binding report, and reject all mutation controls."
+  },
+  "non_claims": [
+    "This corpus-root checker is bounded to the committed n=7 randomized corpus.",
+    "This checker covers only zero-min exact-in cases in the scoped corpus.",
+    "This checker does not prove Python-to-Lean refinement.",
+    "This checker does not prove child-frontier generation in Lean.",
+    "This checker does not replace a deterministic generated-image producer.",
+    "This checker does not cover nonzero min_amount_out behavior.",
+    "No settlement, state-root, production, routing, matching, pool-mutation, or governance authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_reserve_state_child_frontier_corpus_root_20260629.py",
+  "schema": "zenodex.ab_reserve_state_child_frontier_corpus_root_report.v1",
+  "search": {
+    "case_count": 4,
+    "case_root_mismatch_count": 0,
+    "case_summaries": [
+      {
+        "bit_count": 7,
+        "bound_rows_digest": "e84f09be2040986a317dc98c31f967b97703c36ca2d356e286b6f9f5de4871ed",
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "case_index": 0,
+        "case_packet_hash": "aa426b5689ae43692acad87e0be27fbab6e2b65f0f5295423659c01a7337aec0",
+        "row_count": 320,
+        "row_root": "0e1a448b555283325f371ec0ad418bb40b7caca6307bc86040ac5e35e8a0ad1f"
+      },
+      {
+        "bit_count": 7,
+        "bound_rows_digest": "896337c7e1edb9c4416b04d1755bb1b01ee1fa2d4eb5e3a86584052a74e150ba",
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "case_index": 1,
+        "case_packet_hash": "8ca12e85d782ed753c4e05cfe79aded1bc802b481c98181803d3a50edd81a1be",
+        "row_count": 290,
+        "row_root": "aa5d2b22032a56aef109a471d7e504a51806133804f6e0fd9f5a1206aa53d295"
+      },
+      {
+        "bit_count": 7,
+        "bound_rows_digest": "f30f66bf6fddcc14268e9e1ada910dd285f61e0663045ccf6738fc7a230f5080",
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "case_index": 2,
+        "case_packet_hash": "4a801a7c2374eb489216e265746e4a10707547cd79b28744cabd98d49b56faf3",
+        "row_count": 127,
+        "row_root": "f62062f1d7a38eaa896ec93b610c4c1aa4554896f11501d31045b9298bd64fad"
+      },
+      {
+        "bit_count": 7,
+        "bound_rows_digest": "4720d06a30a7707eec19b08a83ff2c5802b3d8d8d12183017d479a0ec2e9f6b2",
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "case_index": 3,
+        "case_packet_hash": "3be412011e1b0d45e2ddec632c813d1cb0458b43e8bf4a917a64e3b014b3058e",
+        "row_count": 127,
+        "row_root": "6ab43ed0917e309ad273b99321df188a37854dd1a56c01d958c12f74f04dc829"
+      }
+    ],
+    "case_summaries_digest": "afd7706fd7ea10cee0df44d7578dabf44fc82a26d238f814d717c5fee3b5bc28",
+    "corpus_root": "8f4a1a08cf51215cdc9fd382dd2538cc199db35b87597aa9c468358925dfd3b0",
+    "corpus_root_matches": true,
+    "corpus_root_mismatch_count": 0,
+    "coverage": {
+      "case_row_count_histogram": {
+        "127": 2,
+        "290": 1,
+        "320": 1
+      },
+      "n_counts": {
+        "7": 4
+      },
+      "reason_classes": [
+        "authority_effect_present",
+        "case_index_out_of_range",
+        "case_membership_hash_mismatch",
+        "case_row_root_mismatch",
+        "corpus_summary_mismatch",
+        "duplicate_row_receipt",
+        "extra_row_receipt",
+        "linked_cross_binding_bound_row_count_mismatch",
+        "linked_cross_binding_summary_mismatch",
+        "missing_row_receipt",
+        "packet_hash_mismatch",
+        "row_hash_mismatch",
+        "row_membership_hash_mismatch",
+        "row_receipt_index_out_of_range"
+      ]
+    },
+    "covered_row_receipt_count": 864,
+    "duplicate_row_receipt_count": 0,
+    "elapsed_ms": 5217.414,
+    "expected_case_count": 4,
+    "expected_corpus_root": "8f4a1a08cf51215cdc9fd382dd2538cc199db35b87597aa9c468358925dfd3b0",
+    "expected_row_receipt_count": 864,
+    "extra_row_receipt_count": 0,
+    "invalid_row_receipt_count": 0,
+    "linked_cross_binding_summary": {
+      "available": true,
+      "bound_row_count": 864,
+      "bound_rows_digest": "0996b976f70eeea56e4c828a9ff25abefdb8930b39896b4427291284e1e73551",
+      "case_count": 4,
+      "child_mask_count": 508,
+      "membership_count": 864,
+      "negative_control_accept_count": 0,
+      "ok": true,
+      "path": "generated/zenodex_ab_reserve_state_child_frontier_witness_merkle_20260629/report.json",
+      "schema": "zenodex.ab_reserve_state_child_frontier_witness_merkle_report.v1",
+      "valid_case_count": 4,
+      "witness_count": 864
+    },
+    "max_case_row_count": 320,
+    "missing_row_receipt_count": 0,
+    "negative_control_accept_count": 0,
+    "negative_control_count": 10,
+    "negative_controls": [
+      {
+        "accepted": false,
+        "expected_reason": "packet_hash_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_hash_mismatch",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "row_hash_mismatch",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "detail": {
+            "receipt_index": 0
+          },
+          "mask_id": 1,
+          "reason": "row_hash_mismatch"
+        },
+        "mutation_id": "row_hash_mismatch",
+        "reasons": [
+          "row_hash_mismatch",
+          "row_membership_hash_mismatch",
+          "corpus_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "row_membership_hash_mismatch",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "detail": {
+            "receipt_index": 0
+          },
+          "mask_id": 1,
+          "reason": "row_membership_hash_mismatch"
+        },
+        "mutation_id": "row_membership_hash_mismatch",
+        "reasons": [
+          "row_membership_hash_mismatch",
+          "corpus_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "case_row_root_mismatch",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "detail": {
+            "receipt_index": 0
+          },
+          "mask_id": 1,
+          "reason": "case_row_root_mismatch"
+        },
+        "mutation_id": "case_row_root_mismatch",
+        "reasons": [
+          "case_row_root_mismatch",
+          "row_membership_hash_mismatch",
+          "corpus_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "case_membership_hash_mismatch",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "detail": {
+            "receipt_index": 0
+          },
+          "mask_id": 1,
+          "reason": "case_membership_hash_mismatch"
+        },
+        "mutation_id": "case_membership_hash_mismatch",
+        "reasons": [
+          "case_membership_hash_mismatch",
+          "corpus_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "missing_row_receipt",
+        "first_failure": null,
+        "mutation_id": "missing_row_receipt",
+        "reasons": [
+          "missing_row_receipt",
+          "corpus_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "duplicate_row_receipt",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "detail": {
+            "receipt_index": 864
+          },
+          "mask_id": 1,
+          "reason": "duplicate_row_receipt"
+        },
+        "mutation_id": "duplicate_row_receipt",
+        "reasons": [
+          "duplicate_row_receipt",
+          "corpus_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "case_index_out_of_range",
+        "first_failure": {
+          "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+          "detail": {
+            "receipt_index": 0
+          },
+          "mask_id": 1,
+          "reason": "row_receipt_index_out_of_range"
+        },
+        "mutation_id": "case_index_out_of_range",
+        "reasons": [
+          "row_receipt_index_out_of_range",
+          "case_index_out_of_range",
+          "missing_row_receipt",
+          "extra_row_receipt",
+          "corpus_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "linked_cross_binding_bound_row_count_mismatch",
+        "first_failure": null,
+        "mutation_id": "linked_cross_binding_bound_row_count_mismatch",
+        "reasons": [
+          "linked_cross_binding_summary_mismatch",
+          "linked_cross_binding_bound_row_count_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "authority_effect_present",
+        "first_failure": null,
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      }
+    ],
+    "packet_hash": "3649d20e6dc6f87885b318973bc28da417dc38bfb18e20bf7033e344bd8911da",
+    "row_membership_mismatch_count": 0,
+    "row_receipt_count": 864,
+    "row_receipts_digest": "d52f8c24411e841ae777999d6bfd3ec3fef5bb0a26cd98887f4e0a5902c0f092",
+    "schema": "zenodex/ab_reserve_state_child_frontier_corpus_root_search/v1",
+    "source_seed": 2026062907,
+    "verification": {
+      "case_count": 4,
+      "case_root_mismatch_count": 0,
+      "case_summaries_digest": "afd7706fd7ea10cee0df44d7578dabf44fc82a26d238f814d717c5fee3b5bc28",
+      "corpus_root": "8f4a1a08cf51215cdc9fd382dd2538cc199db35b87597aa9c468358925dfd3b0",
+      "corpus_root_mismatch_count": 0,
+      "covered_row_receipt_count": 864,
+      "duplicate_row_receipt_count": 0,
+      "expected_case_count": 4,
+      "expected_corpus_root": "8f4a1a08cf51215cdc9fd382dd2538cc199db35b87597aa9c468358925dfd3b0",
+      "expected_row_receipt_count": 864,
+      "extra_row_receipt_count": 0,
+      "first_failure": null,
+      "invalid_row_receipt_count": 0,
+      "max_case_row_count": 320,
+      "missing_row_receipt_count": 0,
+      "ok": true,
+      "reasons": [],
+      "row_membership_mismatch_count": 0,
+      "row_receipt_count": 864,
+      "row_receipts_digest": "d52f8c24411e841ae777999d6bfd3ec3fef5bb0a26cd98887f4e0a5902c0f092"
+    }
+  },
+  "summary": "A bounded n=7 host checker compresses 864 witness+Merkle cross-bound child-frontier row receipts into four case roots and one corpus root with fail-closed inclusion checks."
+}
