@@ -1,0 +1,77 @@
+{
+  "schema": "zenodex.ab_strict_zero_min_subset_induction_host_table_lean_report.v1",
+  "date": "2026-06-29",
+  "ok": true,
+  "authority_boundary": "Research-only Lean bridge evidence; no settlement, state-root, production, or governance authority.",
+  "summary": "Lean bridge theorem formalizes the bounded host-table endpoint for strict zero-min subset-mask induction: finite mask family plus selected winner plus fixed suffix implies zero-min economic-key dominance under explicit local pruning and rail assumptions.",
+  "theorems": [
+    "StrictSubsetInductionHostTable",
+    "strictSubsetInductionHostTableValid",
+    "strictSubsetInductionHostTable_validates",
+    "witness_strictSubsetInductionHostTable_validates"
+  ],
+  "inputs": {
+    "lean_file": "lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+    "formal_test": "tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+    "host_witness_report": "generated/zenodex_ab_strict_zero_min_subset_induction_witness_20260629/report.json"
+  },
+  "host_witness_context": {
+    "strict_cases": 180,
+    "reachable_masks": 4464,
+    "full_records": 85284,
+    "suffix_checks": 212760,
+    "negative_controls": 6,
+    "negative_control_accepts": 0
+  },
+  "replay": [
+    {
+      "command": "cd lean-mathlib && lake env lean Proofs/ABStrictZeroMinMonotone.lean",
+      "status": "pass",
+      "stdout": ""
+    },
+    {
+      "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+      "status": "pass",
+      "stdout": ".                                                                        [100%]\\n1 passed in 10.71s"
+    },
+    {
+      "command": "python3 ~/.codex/skills/proof-engineering/scripts/scan_proof_placeholders.py lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+      "status": "pass",
+      "stdout": "No proof placeholders found."
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ABStrictZeroMinMonotone",
+      "status": "pass",
+      "stdout": "Build completed successfully (3076 jobs)."
+    }
+  ],
+  "non_claims": [
+    "This is not a full Lean construction of the subset DP table.",
+    "This does not prove Python-to-Lean refinement.",
+    "This does not define canonical tie order.",
+    "This does not cover nonzero min_amount_out batches.",
+    "This does not turn the bounded stress corpus into exhaustive state coverage.",
+    "This does not authorize settlement, state roots, production deployment, or governance execution."
+  ],
+  "research_kernel_candidate": {
+    "atom_id": "atom_ab_strict_zero_min_subset_induction_host_table_lean_20260629",
+    "status": "SUPPORTED",
+    "parents": [
+      "atom_ab_strict_zero_min_subset_induction_host_witness_20260629",
+      "atom_ab_strict_zero_min_subset_mask_induction_frontier_20260628",
+      "atom_ab_strict_zero_min_observed_frontier_host_witness_20260629"
+    ],
+    "tags": [
+      "zenodex",
+      "AB-ordering",
+      "zero-min",
+      "subset-DP",
+      "subset-mask-induction",
+      "Lean",
+      "host-witness",
+      "bounded-oracle",
+      "formal-proof",
+      "research-only"
+    ]
+  }
+}
