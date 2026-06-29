@@ -54,8 +54,10 @@ bounds, and fixed-order min-out-cap evidence.
   supplied id-ordered permutation representatives, an executable stable-id List
   merge-sort bridge for arbitrary identified Lists with unique stable ids, a
   stable-id List permutation quotient bridge proving valid permuted List
-  presentations canonicalize to the same sorted output, and one concrete 4-pool
-  plus one concrete 5-pool coordinate-wise checkpoint.
+  presentations canonicalize to the same sorted output, a Finset Nat quotient
+  bridge connecting unordered Finset presentations (keyed by stable ids) to the
+  merge-sort concavity path, and one concrete 4-pool plus one concrete 5-pool
+  coordinate-wise checkpoint.
 - `DiscreteArgmaxProximity.lean` replaces the false discrete-concavity target
   with an abstract argmax-proximity theorem plus CPMM conditional instantiation.
 - `KPoolDiscreteArgmaxProximity.lean` lifts the scalar proximity result to a
@@ -339,6 +341,16 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
 1. Package the stable-id List permutation quotient as a Finset/Multiset
    unordered-presentation certificate, then connect that certificate to the
    existing proof-carrying selection path.
+   DONE: `IdentifiedFinsetPresentationCont` in `KPoolSplitConcavity.lean`
+   keys on `Finset Nat` (stable ids) with a lookup function, avoiding the
+   `DecidableEq` issue on `ℝ`-bearing pool terms. The bridge theorem
+   `stableIdSortedPoolsCont_eq_of_finset_eq` proves that any two Finset
+   presentations with the same id set and consistent lookups produce the
+   same sorted output. The concavity theorems
+   `splitFunctionConcave_of_finsetActiveBeforeRemainder` and
+   `splitFunctionConcave_of_finsetRemainderBeforeActive` compose the
+   Finset-to-List materialization with the existing merge-sort concavity
+   path for both selected-pair orders.
 2. Model ceiling-fee rounding in Lean to replace the production empirical
    `2L + 2` and `3L + 2` constants with checked lemmas.
 3. Turn the fixed-order no-gain evidence into a precise game definition.

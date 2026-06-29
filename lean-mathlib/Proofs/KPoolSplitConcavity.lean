@@ -1728,6 +1728,55 @@ theorem stableIdSortedPoolsCont_ids_strict
     exact (Nat.ne_of_lt hij) hIdx
   exact lt_of_le_of_ne hLe hNe
 
+/-- With unique input ids, stable-id merge sort is pairwise strictly ordered by
+    identity. This is the local sortedness certificate needed for quotienting
+    valid List presentations by permutation. -/
+theorem stableIdSortedPoolsCont_pairwise_id_lt
+    (pools : List IdentifiedFixedPoolTermCont)
+    (hIds : (pools.map IdentifiedFixedPoolTermCont.id).Nodup) :
+    List.Pairwise
+      (fun p q : IdentifiedFixedPoolTermCont => p.id < q.id)
+      (stableIdSortedPoolsCont pools) := by
+  rw [List.pairwise_iff_getElem]
+  intro i j hi hj hij
+  exact stableIdSortedPoolsCont_ids_strict pools hIds hi hj hij
+
+/-- Stable-id merge sort canonicalizes valid List presentations up to
+    permutation. This is the List-side quotient theorem for unordered
+    identified pool presentations with unique stable ids. -/
+theorem stableIdSortedPoolsCont_eq_of_perm_unique_ids
+    (pools₁ pools₂ : List IdentifiedFixedPoolTermCont)
+    (hPerm : List.Perm pools₁ pools₂)
+    (hIds₁ : (pools₁.map IdentifiedFixedPoolTermCont.id).Nodup)
+    (hIds₂ : (pools₂.map IdentifiedFixedPoolTermCont.id).Nodup) :
+    stableIdSortedPoolsCont pools₁ = stableIdSortedPoolsCont pools₂ := by
+  let sorted₁ := stableIdSortedPoolsCont pools₁
+  let sorted₂ := stableIdSortedPoolsCont pools₂
+  have hPermSorted : List.Perm sorted₁ sorted₂ := by
+    exact (stableIdSortedPoolsCont_perm pools₁).trans
+      (hPerm.trans (stableIdSortedPoolsCont_perm pools₂).symm)
+  have hPair₁ :
+      List.Pairwise
+        (fun p q : IdentifiedFixedPoolTermCont => p.id < q.id)
+        sorted₁ := by
+    simpa [sorted₁] using
+      stableIdSortedPoolsCont_pairwise_id_lt pools₁ hIds₁
+  have hPair₂ :
+      List.Pairwise
+        (fun p q : IdentifiedFixedPoolTermCont => p.id < q.id)
+        sorted₂ := by
+    simpa [sorted₂] using
+      stableIdSortedPoolsCont_pairwise_id_lt pools₂ hIds₂
+  haveI : Std.Irrefl
+      (fun p q : IdentifiedFixedPoolTermCont => p.id < q.id) := ⟨by
+      intro p
+      exact Nat.lt_irrefl p.id⟩
+  haveI : Std.Antisymm
+      (fun p q : IdentifiedFixedPoolTermCont => p.id < q.id) := ⟨by
+      intro p q hpq hqp
+      exact (Nat.lt_asymm hpq hqp).elim⟩
+  exact List.Pairwise.eq_of_mem_iff hPair₁ hPair₂ (fun a => hPermSorted.mem_iff)
+
 /-- The executable stable-id merge-sort presentation. The no-duplicate-id
     precondition is the boundary check that rejects ambiguous stable identities. -/
 def stableIdMergeSortPresentationCont
@@ -1736,6 +1785,21 @@ def stableIdMergeSortPresentationCont
     IdOrderedIdentifiedPoolPresentationCont where
   pools := stableIdSortedPoolsCont pools
   ids_strict := stableIdSortedPoolsCont_ids_strict pools hIds
+
+/-- The executable stable-id merge-sort presentation has the same canonical
+    output pool sequence for any two valid input Lists related by permutation.
+    This lifts the List-side quotient theorem to the presentation boundary
+    consumed by later certificate constructors without claiming equality of
+    proof fields derived from different inputs. -/
+theorem stableIdMergeSortPresentationCont_pools_eq_of_perm_unique_ids
+    (pools₁ pools₂ : List IdentifiedFixedPoolTermCont)
+    (hPerm : List.Perm pools₁ pools₂)
+    (hIds₁ : (pools₁.map IdentifiedFixedPoolTermCont.id).Nodup)
+    (hIds₂ : (pools₂.map IdentifiedFixedPoolTermCont.id).Nodup) :
+    (stableIdMergeSortPresentationCont pools₁ hIds₁).pools =
+      (stableIdMergeSortPresentationCont pools₂ hIds₂).pools := by
+  exact stableIdSortedPoolsCont_eq_of_perm_unique_ids
+    pools₁ pools₂ hPerm hIds₁ hIds₂
 
 /-- The executable stable-id merge-sort certificate over an arbitrary identified
     input List with unique stable ids. -/
@@ -1746,6 +1810,20 @@ def stableIdMergeSortPresentationCertificateCont
   input := pools
   output := stableIdMergeSortPresentationCont pools hIds
   output_perm := stableIdSortedPoolsCont_perm pools
+
+/-- The executable stable-id merge-sort certificate emits the same canonical
+    output pool sequence for any two valid input Lists related by permutation.
+    The input field remains the original List, so the theorem is scoped to the
+    canonical output consumed downstream. -/
+theorem stableIdMergeSortPresentationCertificate_output_pools_eq_of_perm_unique_ids
+    (pools₁ pools₂ : List IdentifiedFixedPoolTermCont)
+    (hPerm : List.Perm pools₁ pools₂)
+    (hIds₁ : (pools₁.map IdentifiedFixedPoolTermCont.id).Nodup)
+    (hIds₂ : (pools₂.map IdentifiedFixedPoolTermCont.id).Nodup) :
+    (stableIdMergeSortPresentationCertificateCont pools₁ hIds₁).output.pools =
+      (stableIdMergeSortPresentationCertificateCont pools₂ hIds₂).output.pools :=
+  stableIdMergeSortPresentationCont_pools_eq_of_perm_unique_ids
+    pools₁ pools₂ hPerm hIds₁ hIds₂
 
 /-- The executable stable-id merge-sort certificate preserves the erased
     fixed-pool multiset. -/
@@ -2082,8 +2160,8 @@ theorem splitFunction5PoolCont_concave_coord3
 -- List removal bridges. The concrete
 -- `splitFunction4PoolCont_concave_coord2` plus
 -- `splitFunction5PoolCont_concave_coord3` check concrete K > 3 instances.
--- The remaining full K theorem still needs deterministic sorting from
--- arbitrary unordered collections plus Finset/Multiset quotient infrastructure.
+-- The remaining full K theorem still needs Finset/Multiset quotient
+-- infrastructure over arbitrary unordered collections.
 --
 -- **Non-claim**: This is an INFORMAL NOTE, not a checked theorem. The formal
 -- checked theorems above cover k = 3 (coordinates 1 and 2), the abstract
@@ -2092,12 +2170,12 @@ theorem splitFunction5PoolCont_concave_coord3
 -- decomposition witness bridges for both active/remainder orders, and concrete
 -- index-witness plus active/remainder removal facts for those explicit
 -- decompositions, and active-before-remainder plus remainder-before-active
--- arbitrary-index List reconstruction, removal, certificate-constructor, and
--- identity-stable, id-ordered presentation, and stable-id sorted-output
--- certificate bridges. The full all-k
--- top-level theorem still requires deterministic sorting from arbitrary
--- unordered collections plus Finset/Multiset quotient infrastructure. Do NOT
--- cite this as a formal all-k proof.
+-- arbitrary-index List reconstruction, removal, certificate-constructor,
+-- identity-stable, id-ordered presentation, stable-id sorted-output
+-- certificate, executable stable-id merge-sort, and stable-id List permutation
+-- quotient bridges. The full all-k top-level theorem still requires
+-- Finset/Multiset quotient infrastructure over arbitrary unordered
+-- collections. Do NOT cite this as a formal all-k proof.
 --
 -- The formal checked results are splitFunction3PoolCont_concave_coord1
 -- and splitFunction3PoolCont_concave_coord2 (3-pool, both coordinates),
@@ -2145,6 +2223,21 @@ theorem splitFunction5PoolCont_concave_coord3
 -- unorderedSelectionCertificateOfStableIdSortedRemainderBeforeActiveCont,
 -- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdSortedActiveBeforeRemainder,
 -- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdSortedRemainderBeforeActive,
+-- stableIdSortedPoolsCont,
+-- stableIdSortedPoolsCont_perm,
+-- stableIdSortedPoolsCont_pairwise_id_le,
+-- stableIdSortedPoolsCont_ids_strict,
+-- stableIdSortedPoolsCont_pairwise_id_lt,
+-- stableIdSortedPoolsCont_eq_of_perm_unique_ids,
+-- stableIdMergeSortPresentationCont,
+-- stableIdMergeSortPresentationCont_pools_eq_of_perm_unique_ids,
+-- stableIdMergeSortPresentationCertificateCont,
+-- stableIdMergeSortPresentationCertificate_output_pools_eq_of_perm_unique_ids,
+-- stableIdMergeSortPresentationCertificate_erased_perm,
+-- unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont,
+-- unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont,
+-- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdMergeSortActiveBeforeRemainder,
+-- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdMergeSortRemainderBeforeActive,
 -- selectedFullPoolListCont_eq_take_drop_of_lt,
 -- selectedFullPoolListOrderedCont_remainderBeforeActive_eq_take_drop_of_lt,
 -- selectedActiveIndexOrderedCont_lt,
