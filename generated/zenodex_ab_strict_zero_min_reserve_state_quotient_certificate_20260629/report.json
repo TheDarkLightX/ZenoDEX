@@ -2,9 +2,17 @@
   "authority_boundary": "Research-only certificate-compression evidence; no settlement, state-root, production, or governance authority.",
   "date": "2026-06-29",
   "deterministic_replay": {
-    "first_hash": "2405bc2c9e02d5c880cb2a488bcc4f0313aaa587139e0b7a7e3630ef50c1d514",
+    "first_hash": "1dfe3492938f37ece69c57675719ed52c5acfca3575a183ad12cc5ae2c29081d",
     "ok": true,
-    "second_hash": "2405bc2c9e02d5c880cb2a488bcc4f0313aaa587139e0b7a7e3630ef50c1d514"
+    "second_hash": "1dfe3492938f37ece69c57675719ed52c5acfca3575a183ad12cc5ae2c29081d"
+  },
+  "lean_contract": {
+    "host_table": "ReserveStateQuotientHostTable",
+    "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+    "projection_shape": "one_digest_row_per_reachable_mask_completion_suffix",
+    "summary_endpoint": "reserveStateQuotientObservedSummary_validates",
+    "summary_structure": "ReserveStateQuotientObservedSummary",
+    "summary_valid_predicate": "reserveStateQuotientObservedSummaryValid"
   },
   "non_claims": [
     "This quotient checker is bounded to the committed n=7 randomized corpus.",
@@ -51,12 +59,54 @@
           "reserve_out": 1093
         },
         "full_record_count": 13700,
+        "lean_observed_summary": {
+          "contract": {
+            "host_table": "ReserveStateQuotientHostTable",
+            "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+            "projection_shape": "one_digest_row_per_reachable_mask_completion_suffix",
+            "summary_endpoint": "reserveStateQuotientObservedSummary_validates",
+            "summary_structure": "ReserveStateQuotientObservedSummary",
+            "summary_valid_predicate": "reserveStateQuotientObservedSummaryValid"
+          },
+          "digest": "471133f0bf28bcf0947c7fffc810cc4e3759f449a3f618877c2d8fdd2574bcbe",
+          "first_row": {
+            "lean_endpoint": "reserveStateQuotientObservedSummary_validates",
+            "lean_structure": "ReserveStateQuotientObservedSummary",
+            "mask_id": 0,
+            "observed_executed_input": 721,
+            "observed_initial_reserve_out": 1100,
+            "observed_selected_reserve_in": 10000,
+            "observed_selected_reserve_out": 1100,
+            "observed_state_count": 1,
+            "selected_state_digest": "bd9d9dfd318aac5e489dbd081b4535164c8759e8bb713dacf6a3273f30544fc3",
+            "suffix_order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c0",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c1",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c2",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c3",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c4",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c5",
+              "0x00000000000000000000000000000000000000000000000000000000006cf5c6"
+            ],
+            "suffix_short": [
+              "f5c0",
+              "f5c1",
+              "f5c2",
+              "f5c3",
+              "f5c4",
+              "f5c5",
+              "f5c6"
+            ],
+            "table_state_digest": "74bfe2d98beff0789bbfc93d60ca66d200bedcd09aac3477d1548fe912a9ed49"
+          },
+          "row_count": 13700
+        },
         "mask_count": 128,
         "max_full_records_per_mask": 5040,
         "max_quotient_states_per_mask": 1,
         "max_suffix_per_mask": 5040,
         "ok": true,
-        "packet_hash": "fefd682b091d64a9fb6e4bc8e22e5b16f2fc1c4329d48a419208482aa5f4c82f",
+        "packet_hash": "73ea1061a7002df6a9ac27ce650e2a67725e90c2b339f328fd46b9cdb92262b9",
         "pattern": "thin_positive_boundary/high_fee9000",
         "quotient_dominance_check_count": 13700,
         "quotient_obligation_digest": "214fe5ba1ba93e8487e05e60001be1e160e98933504843946ba10ea38db9f3a5",
@@ -97,12 +147,54 @@
           "reserve_out": 1465933
         },
         "full_record_count": 13700,
+        "lean_observed_summary": {
+          "contract": {
+            "host_table": "ReserveStateQuotientHostTable",
+            "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+            "projection_shape": "one_digest_row_per_reachable_mask_completion_suffix",
+            "summary_endpoint": "reserveStateQuotientObservedSummary_validates",
+            "summary_structure": "ReserveStateQuotientObservedSummary",
+            "summary_valid_predicate": "reserveStateQuotientObservedSummaryValid"
+          },
+          "digest": "bf2352252d14bfefe80876e73cc6828b66a602dc4eb31eb032882327291a6a0c",
+          "first_row": {
+            "lean_endpoint": "reserveStateQuotientObservedSummary_validates",
+            "lean_structure": "ReserveStateQuotientObservedSummary",
+            "mask_id": 0,
+            "observed_executed_input": 313,
+            "observed_initial_reserve_out": 1468855,
+            "observed_selected_reserve_in": 153456,
+            "observed_selected_reserve_out": 1468855,
+            "observed_state_count": 1,
+            "selected_state_digest": "fe1c5fc0e16d4dc15a7fd1733b635e0463330970c19c7c0aacb3de576e6efc97",
+            "suffix_order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000006c8540",
+              "0x00000000000000000000000000000000000000000000000000000000006c8541",
+              "0x00000000000000000000000000000000000000000000000000000000006c8542",
+              "0x00000000000000000000000000000000000000000000000000000000006c8543",
+              "0x00000000000000000000000000000000000000000000000000000000006c8544",
+              "0x00000000000000000000000000000000000000000000000000000000006c8545",
+              "0x00000000000000000000000000000000000000000000000000000000006c8546"
+            ],
+            "suffix_short": [
+              "8540",
+              "8541",
+              "8542",
+              "8543",
+              "8544",
+              "8545",
+              "8546"
+            ],
+            "table_state_digest": "a1785445073cbba2417efd9fc4096c4d4b8a52e698792436259b36c97c6ff9dd"
+          },
+          "row_count": 13700
+        },
         "mask_count": 128,
         "max_full_records_per_mask": 5040,
         "max_quotient_states_per_mask": 5,
         "max_suffix_per_mask": 5040,
         "ok": true,
-        "packet_hash": "9eca68ae1555aa2f2d9c24bb61da8e8592e983b5573dd7e8f35d64c1bed87c2b",
+        "packet_hash": "5e2309b8ccc3656bdbec473fef2ae2e33ae5c172e769f2d37a73aef82b8d21fe",
         "pattern": "near_zero_positive/rand_tie",
         "quotient_dominance_check_count": 16815,
         "quotient_obligation_digest": "852488a5e20274eb7b105cbaed64043edc5b1e204649843e61a43854ca4123d0",
@@ -143,12 +235,54 @@
           "reserve_out": 2765292
         },
         "full_record_count": 13700,
+        "lean_observed_summary": {
+          "contract": {
+            "host_table": "ReserveStateQuotientHostTable",
+            "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+            "projection_shape": "one_digest_row_per_reachable_mask_completion_suffix",
+            "summary_endpoint": "reserveStateQuotientObservedSummary_validates",
+            "summary_structure": "ReserveStateQuotientObservedSummary",
+            "summary_valid_predicate": "reserveStateQuotientObservedSummaryValid"
+          },
+          "digest": "a0123037033174c5997a680f3c863f434fb62fbc92358a7d4a74ac1d9541b50f",
+          "first_row": {
+            "lean_endpoint": "reserveStateQuotientObservedSummary_validates",
+            "lean_structure": "ReserveStateQuotientObservedSummary",
+            "mask_id": 0,
+            "observed_executed_input": 411,
+            "observed_initial_reserve_out": 2782612,
+            "observed_selected_reserve_in": 64492,
+            "observed_selected_reserve_out": 2782612,
+            "observed_state_count": 1,
+            "selected_state_digest": "3a73b3e46385a3a48af1001991070cf8caa4fafe25490955c36e86c8da0738ea",
+            "suffix_order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000006c8550",
+              "0x00000000000000000000000000000000000000000000000000000000006c8551",
+              "0x00000000000000000000000000000000000000000000000000000000006c8552",
+              "0x00000000000000000000000000000000000000000000000000000000006c8553",
+              "0x00000000000000000000000000000000000000000000000000000000006c8554",
+              "0x00000000000000000000000000000000000000000000000000000000006c8555",
+              "0x00000000000000000000000000000000000000000000000000000000006c8556"
+            ],
+            "suffix_short": [
+              "8550",
+              "8551",
+              "8552",
+              "8553",
+              "8554",
+              "8555",
+              "8556"
+            ],
+            "table_state_digest": "a6341c494af927f4247515ab15786a0b33a9fd9bb4876edc37267dd7003d11a4"
+          },
+          "row_count": 13700
+        },
         "mask_count": 128,
         "max_full_records_per_mask": 5040,
         "max_quotient_states_per_mask": 5,
         "max_suffix_per_mask": 5040,
         "ok": true,
-        "packet_hash": "dc6c96585f78e6ba9a32535d48f87c4fd448618b707379ad32699e64cf01aa48",
+        "packet_hash": "8e38a98fefdeced780a3e34e5c81ca228c325b9c1a4d4e7f2e3d93c7c9ae65a1",
         "pattern": "high_fee_deep_out/rand_stair",
         "quotient_dominance_check_count": 15772,
         "quotient_obligation_digest": "f8656385baeae12eae428c9899fee3ba978477620f435e00f6763b8e7a16fe14",
@@ -189,12 +323,54 @@
           "reserve_out": 2716067632
         },
         "full_record_count": 13700,
+        "lean_observed_summary": {
+          "contract": {
+            "host_table": "ReserveStateQuotientHostTable",
+            "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+            "projection_shape": "one_digest_row_per_reachable_mask_completion_suffix",
+            "summary_endpoint": "reserveStateQuotientObservedSummary_validates",
+            "summary_structure": "ReserveStateQuotientObservedSummary",
+            "summary_valid_predicate": "reserveStateQuotientObservedSummaryValid"
+          },
+          "digest": "342cfb3d82186aea99f0c5e866b65da2e1a6330f72a00c178ca0c18ff2bb4502",
+          "first_row": {
+            "lean_endpoint": "reserveStateQuotientObservedSummary_validates",
+            "lean_structure": "ReserveStateQuotientObservedSummary",
+            "mask_id": 0,
+            "observed_executed_input": 735,
+            "observed_initial_reserve_out": 2716068284,
+            "observed_selected_reserve_in": 2999957340,
+            "observed_selected_reserve_out": 2716068284,
+            "observed_state_count": 1,
+            "selected_state_digest": "dbabb1780e703f2e1c6d0db6f9f1fdbf99ac12b64914d2be16dad22a29ed953d",
+            "suffix_order_ids": [
+              "0x00000000000000000000000000000000000000000000000000000000006c8560",
+              "0x00000000000000000000000000000000000000000000000000000000006c8561",
+              "0x00000000000000000000000000000000000000000000000000000000006c8562",
+              "0x00000000000000000000000000000000000000000000000000000000006c8563",
+              "0x00000000000000000000000000000000000000000000000000000000006c8564",
+              "0x00000000000000000000000000000000000000000000000000000000006c8565",
+              "0x00000000000000000000000000000000000000000000000000000000006c8566"
+            ],
+            "suffix_short": [
+              "8560",
+              "8561",
+              "8562",
+              "8563",
+              "8564",
+              "8565",
+              "8566"
+            ],
+            "table_state_digest": "f6966d644ee1ba1000e5ae5855c407894e63e0bf5027dbf259a63e57e7a10a63"
+          },
+          "row_count": 13700
+        },
         "mask_count": 128,
         "max_full_records_per_mask": 5040,
         "max_quotient_states_per_mask": 1,
         "max_suffix_per_mask": 5040,
         "ok": true,
-        "packet_hash": "a8197d588f2e8f97a43c90123ba12b317da72eb3091011adbf21f4653ff6f715",
+        "packet_hash": "66a48d8b9a44876755b0dd133033abcc6e29fdfdf5f9942655c90c681f12394e",
         "pattern": "near_domain_in/rand_burst",
         "quotient_dominance_check_count": 13700,
         "quotient_obligation_digest": "b079e95e1f785d3aa906e637063a6fee14303ffa4d53db6eb58bc8b76adc0e19",
@@ -227,6 +403,8 @@
         "packet_first_obligation_mismatch",
         "packet_hash_bound_missing",
         "packet_hash_mismatch",
+        "packet_lean_contract_mismatch",
+        "packet_lean_observed_summary_mismatch",
         "packet_mask_summaries_mismatch",
         "packet_quotient_summary_mismatch",
         "quotient_family_bound_missing",
@@ -240,7 +418,7 @@
     },
     "dominance_check_compression_ratio": 2.688583,
     "dominance_check_compression_saved": 101293,
-    "elapsed_ms": 51974.063,
+    "elapsed_ms": 56108.158,
     "first_case": {
       "baseline_full_dominance_check_count": 40320,
       "bit_count": 7,
@@ -271,12 +449,54 @@
         "reserve_out": 1093
       },
       "full_record_count": 13700,
+      "lean_observed_summary": {
+        "contract": {
+          "host_table": "ReserveStateQuotientHostTable",
+          "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+          "projection_shape": "one_digest_row_per_reachable_mask_completion_suffix",
+          "summary_endpoint": "reserveStateQuotientObservedSummary_validates",
+          "summary_structure": "ReserveStateQuotientObservedSummary",
+          "summary_valid_predicate": "reserveStateQuotientObservedSummaryValid"
+        },
+        "digest": "471133f0bf28bcf0947c7fffc810cc4e3759f449a3f618877c2d8fdd2574bcbe",
+        "first_row": {
+          "lean_endpoint": "reserveStateQuotientObservedSummary_validates",
+          "lean_structure": "ReserveStateQuotientObservedSummary",
+          "mask_id": 0,
+          "observed_executed_input": 721,
+          "observed_initial_reserve_out": 1100,
+          "observed_selected_reserve_in": 10000,
+          "observed_selected_reserve_out": 1100,
+          "observed_state_count": 1,
+          "selected_state_digest": "bd9d9dfd318aac5e489dbd081b4535164c8759e8bb713dacf6a3273f30544fc3",
+          "suffix_order_ids": [
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c0",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c1",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c2",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c3",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c4",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c5",
+            "0x00000000000000000000000000000000000000000000000000000000006cf5c6"
+          ],
+          "suffix_short": [
+            "f5c0",
+            "f5c1",
+            "f5c2",
+            "f5c3",
+            "f5c4",
+            "f5c5",
+            "f5c6"
+          ],
+          "table_state_digest": "74bfe2d98beff0789bbfc93d60ca66d200bedcd09aac3477d1548fe912a9ed49"
+        },
+        "row_count": 13700
+      },
       "mask_count": 128,
       "max_full_records_per_mask": 5040,
       "max_quotient_states_per_mask": 1,
       "max_suffix_per_mask": 5040,
       "ok": true,
-      "packet_hash": "fefd682b091d64a9fb6e4bc8e22e5b16f2fc1c4329d48a419208482aa5f4c82f",
+      "packet_hash": "73ea1061a7002df6a9ac27ce650e2a67725e90c2b339f328fd46b9cdb92262b9",
       "pattern": "thin_positive_boundary/high_fee9000",
       "quotient_dominance_check_count": 13700,
       "quotient_obligation_digest": "214fe5ba1ba93e8487e05e60001be1e160e98933504843946ba10ea38db9f3a5",
@@ -289,12 +509,14 @@
     },
     "first_invalid_case": null,
     "full_record_count": 54800,
+    "lean_observed_summary_count": 54800,
+    "lean_observed_summary_digest": "74b4504376152ca62f08eb4fa0d2016eefc160487fd6ad5a88f0da6be8104bcf",
     "mask_count": 512,
     "max_full_records_per_mask": 5040,
     "max_quotient_states_per_mask": 5,
     "max_suffix_per_mask": 5040,
     "negative_control_accept_count": 0,
-    "negative_control_count": 10,
+    "negative_control_count": 12,
     "negative_controls": [
       {
         "accepted": false,
@@ -343,6 +565,24 @@
       },
       {
         "accepted": false,
+        "expected_reason": "packet_lean_contract_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_lean_contract_mismatch",
+        "reasons": [
+          "packet_lean_contract_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "packet_lean_observed_summary_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_lean_observed_summary_mismatch",
+        "reasons": [
+          "packet_lean_observed_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
         "expected_reason": "compressed_record_missing",
         "first_failure": {
           "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
@@ -353,6 +593,7 @@
         "reasons": [
           "compressed_record_missing",
           "packet_quotient_summary_mismatch",
+          "packet_lean_observed_summary_mismatch",
           "packet_mask_summaries_mismatch",
           "packet_first_obligation_mismatch"
         ]
@@ -375,6 +616,7 @@
           "selected_reserve_out_not_min",
           "selected_final_reserve_dominance_failure",
           "packet_quotient_summary_mismatch",
+          "packet_lean_observed_summary_mismatch",
           "packet_mask_summaries_mismatch",
           "packet_first_obligation_mismatch"
         ]
@@ -397,6 +639,7 @@
           "selected_reserve_out_not_min",
           "selected_final_reserve_dominance_failure",
           "packet_quotient_summary_mismatch",
+          "packet_lean_observed_summary_mismatch",
           "packet_mask_summaries_mismatch"
         ]
       },
@@ -426,6 +669,7 @@
           "selected_suffix_not_executable",
           "quotient_suffix_not_executable",
           "packet_quotient_summary_mismatch",
+          "packet_lean_observed_summary_mismatch",
           "packet_mask_summaries_mismatch",
           "packet_first_obligation_mismatch"
         ]
