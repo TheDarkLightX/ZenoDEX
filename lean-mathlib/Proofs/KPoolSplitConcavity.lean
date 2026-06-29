@@ -2060,18 +2060,6 @@ theorem splitFunction5PoolCont_concave_coord3
 -- and `splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdSortedRemainderBeforeActive`
 -- add a proof-carrying sorted-output certificate bridge from an arbitrary
 -- identified input List to a supplied id-ordered permutation representative.
--- `stableIdSortedPoolsCont`, `stableIdSortedPoolsCont_perm`,
--- `stableIdSortedPoolsCont_pairwise_id_le`,
--- `stableIdSortedPoolsCont_ids_strict`,
--- `stableIdMergeSortPresentationCont`,
--- `stableIdMergeSortPresentationCertificateCont`,
--- `stableIdMergeSortPresentationCertificate_erased_perm`,
--- `unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont`,
--- `unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont`,
--- `splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdMergeSortActiveBeforeRemainder`,
--- and `splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdMergeSortRemainderBeforeActive`
--- add an executable stable-id merge-sort bridge for arbitrary identified input
--- Lists with unique stable ids.
 -- `splitFunctionSelectedListCoordSliceCont_concave` plus
 -- `splitFunctionSelectedListOrderedCoordSliceCont_concave` prove explicit
 -- selected-list decomposition witness bridges, including both active/remainder
@@ -2094,8 +2082,8 @@ theorem splitFunction5PoolCont_concave_coord3
 -- List removal bridges. The concrete
 -- `splitFunction4PoolCont_concave_coord2` plus
 -- `splitFunction5PoolCont_concave_coord3` check concrete K > 3 instances.
--- The remaining full K theorem still needs unordered collection
--- quotient/canonicalization infrastructure for Finset/Multiset presentations.
+-- The remaining full K theorem still needs deterministic sorting from
+-- arbitrary unordered collections plus Finset/Multiset quotient infrastructure.
 --
 -- **Non-claim**: This is an INFORMAL NOTE, not a checked theorem. The formal
 -- checked theorems above cover k = 3 (coordinates 1 and 2), the abstract
@@ -2105,11 +2093,11 @@ theorem splitFunction5PoolCont_concave_coord3
 -- index-witness plus active/remainder removal facts for those explicit
 -- decompositions, and active-before-remainder plus remainder-before-active
 -- arbitrary-index List reconstruction, removal, certificate-constructor, and
--- identity-stable, id-ordered presentation, stable-id sorted-output
--- certificate, and executable stable-id merge-sort List bridges. The full
--- all-k top-level theorem still requires unordered collection
--- quotient/canonicalization infrastructure for Finset/Multiset presentations.
--- Do NOT cite this as a formal all-k proof.
+-- identity-stable, id-ordered presentation, and stable-id sorted-output
+-- certificate bridges. The full all-k
+-- top-level theorem still requires deterministic sorting from arbitrary
+-- unordered collections plus Finset/Multiset quotient infrastructure. Do NOT
+-- cite this as a formal all-k proof.
 --
 -- The formal checked results are splitFunction3PoolCont_concave_coord1
 -- and splitFunction3PoolCont_concave_coord2 (3-pool, both coordinates),
@@ -2157,17 +2145,6 @@ theorem splitFunction5PoolCont_concave_coord3
 -- unorderedSelectionCertificateOfStableIdSortedRemainderBeforeActiveCont,
 -- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdSortedActiveBeforeRemainder,
 -- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdSortedRemainderBeforeActive,
--- stableIdSortedPoolsCont,
--- stableIdSortedPoolsCont_perm,
--- stableIdSortedPoolsCont_pairwise_id_le,
--- stableIdSortedPoolsCont_ids_strict,
--- stableIdMergeSortPresentationCont,
--- stableIdMergeSortPresentationCertificateCont,
--- stableIdMergeSortPresentationCertificate_erased_perm,
--- unorderedSelectionCertificateOfStableIdMergeSortActiveBeforeRemainderCont,
--- unorderedSelectionCertificateOfStableIdMergeSortRemainderBeforeActiveCont,
--- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdMergeSortActiveBeforeRemainder,
--- splitFunctionUnorderedSelectionCertCoordSliceCont_concave_of_stableIdMergeSortRemainderBeforeActive,
 -- selectedFullPoolListCont_eq_take_drop_of_lt,
 -- selectedFullPoolListOrderedCont_remainderBeforeActive_eq_take_drop_of_lt,
 -- selectedActiveIndexOrderedCont_lt,
