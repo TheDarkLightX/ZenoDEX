@@ -1,0 +1,61 @@
+{
+  "artifacts": {
+    "aggregator": "lean-mathlib/Proofs.lean",
+    "aggregator_sha256": "sha256:57868a31fffe2ecb6e3f8028efdee91c5d2ced53863b9c838ef804cefb0dce04",
+    "formal_test": "tests/formal/test_lean_ab_transition_group_compression.py",
+    "formal_test_line_count": 59,
+    "formal_test_sha256": "sha256:32244a83355331c366a0f9b6d80800a7ba48499aff190f5f923067404c733dd0",
+    "lean_file": "lean-mathlib/Proofs/ABTransitionGroupCompression.lean",
+    "lean_line_count": 259,
+    "lean_sha256": "sha256:71b6325c1db9cde527a9c26e7b53f76d56d1b9f4cedb79079e8ade98f3c57d98"
+  },
+  "authority_boundary": "Research proof component only; no settlement, state-root, production, governance, routing, matching, pool-mutation, or transaction authority.",
+  "checks": {
+    "aggregator_import_present": true,
+    "lean_file_exists": true,
+    "lean_placeholder_scan_clean": true,
+    "required_lean_markers_present": true,
+    "required_test_markers_present": true,
+    "test_file_exists": true
+  },
+  "claim_scope": "A Lean proof component formalizes the generic transition-group compression invariant for the AB strict zero-min research surface. If host-provided compressed groups cover every source transition, contain no extra transitions, bind representatives and group counts, and every group member shares its generated-child key, then the compressed generated-child image is exactly the source transition generated-child image. The endpoint also preserves the no-authority host-table rails.",
+  "missing": {
+    "forbidden_lean_terms": [],
+    "lean_markers": [],
+    "test_markers": []
+  },
+  "non_claims": [
+    "No Python-to-Lean refinement proof is claimed.",
+    "No JSON canonicalization, packet hashing, Merkle membership, or digest computation is proved in Lean.",
+    "No host generated-image construction proof is claimed.",
+    "No nonzero min_amount_out coverage is claimed.",
+    "No settlement, state-root, production, governance, routing, matching, pool-mutation, or transaction authority is derived."
+  ],
+  "ok": true,
+  "replay_commands": [
+    "cd lean-mathlib && lake env lean Proofs/ABTransitionGroupCompression.lean",
+    "cd lean-mathlib && lake build Proofs.ABTransitionGroupCompression",
+    "python3 ~/.codex/skills/proof-engineering/scripts/scan_proof_placeholders.py lean-mathlib/Proofs/ABTransitionGroupCompression.lean",
+    "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests/formal/test_lean_ab_transition_group_compression.py",
+    "python3 tools/check_ab_transition_group_compression_lean_bridge_20260629.py",
+    "python3 tools/check_public_claim_scope.py --root . --json",
+    "python3 tools/check_claims_registry.py"
+  ],
+  "required_lean_markers": [
+    "structure TransitionRow",
+    "structure CompressedTransitionGroup",
+    "def transitionGeneratedChildren",
+    "def compressedGeneratedChildren",
+    "def compressedTransitionGroupSound",
+    "def compressionCoversTransitions",
+    "def compressionHasNoExtraTransitions",
+    "structure TransitionGroupCompressionHostTable",
+    "def transitionGroupCompressionHostTableValid",
+    "theorem compressedTransitionGroup_representative_mem_transitions",
+    "theorem transitionGroupCompression_preserves_generatedChildImage",
+    "theorem transitionGroupCompression_nonempty_groups_of_nonempty_transitions",
+    "theorem transitionGroupCompressionHostTable_validates",
+    "theorem witness_transitionGroupCompressionHostTable_validates"
+  ],
+  "schema": "zenodex/ab_transition_group_compression_lean_bridge/v1"
+}

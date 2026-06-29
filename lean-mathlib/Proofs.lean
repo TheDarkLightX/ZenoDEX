@@ -23,6 +23,7 @@ import Proofs.AMMPowerFamilyOriginalHODLSurfaceMismatch
 import Proofs.AMMRawSemanticsBridge
 import Proofs.AntiFragmentation
 import Proofs.ABStrictZeroMinMonotone
+import Proofs.ABTransitionGroupCompression
 import Proofs.ArbitrageCertificate
 import Proofs.AsynchronousIntentSettlement
 import Proofs.AtomicCrossMarginHealth
