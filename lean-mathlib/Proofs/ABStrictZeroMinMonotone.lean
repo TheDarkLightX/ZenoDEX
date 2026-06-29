@@ -1747,6 +1747,116 @@ theorem strictCompressedFullMaskEmitterPacket_validates
   exact ⟨hhash, hnoAuthority, hwinnerMembership,
     hwitness_validated.1, hwitness_validated.2⟩
 
+/-- Host-emitter table shell for the strict full-mask certificate.
+
+This is one layer closer to the concrete compressed DP emitter than the packet
+shell: it names the parent, winner, full child frontier, selected mask family,
+and execution metadata directly. Validity below still requires proof-carrying
+range-step reachability and selected-winner dominance as explicit assumptions.
+It does not construct those objects from Python tables. -/
+structure StrictCompressedFullMaskEmitterTable where
+  parent : MaskRecordSet
+  winner : MaskRecordSet
+  children : List MaskRecordSet
+  bitCount : Nat
+  masks : List MaskRecordSet
+  initialReserveOut : Nat
+  executedInput : Nat
+  packetHashBound : Bool
+  noAuthorityEffect : Bool
+  winnerMembershipBound : Bool
+  deriving Repr
+
+/-- Interpret a host-emitter table as the strict economic witness shell. -/
+def strictCompressedFullMaskEmitterTableWitness
+    (table : StrictCompressedFullMaskEmitterTable) :
+    StrictCompressedFullMaskEconomicWitness := {
+  parent := table.parent
+  winner := table.winner
+  children := table.children
+  bitCount := table.bitCount
+  masks := table.masks
+  initialReserveOut := table.initialReserveOut
+  executedInput := table.executedInput
+}
+
+/-- Interpret a host-emitter table as the packet shell checked by the endpoint. -/
+def strictCompressedFullMaskEmitterTablePacket
+    (table : StrictCompressedFullMaskEmitterTable) :
+    StrictCompressedFullMaskEmitterPacket := {
+  witness := strictCompressedFullMaskEmitterTableWitness table
+  packetHashBound := table.packetHashBound
+  noAuthorityEffect := table.noAuthorityEffect
+  winnerMembershipBound := table.winnerMembershipBound
+}
+
+/-- Validity predicate for the host-emitter table shell.
+
+The predicate is explicit about the remaining proof obligations: recursive
+range-step reachability for the full child frontier, selected-family winner
+dominance, empty-suffix executability, and winner membership in the full child
+frontier. -/
+def strictCompressedFullMaskEmitterTableValid
+    (table : StrictCompressedFullMaskEmitterTable) : Prop :=
+  table.packetHashBound = true ∧
+    table.noAuthorityEffect = true ∧
+    table.winnerMembershipBound = true ∧
+    rangeStepPathWinnerCertificate table.parent table.winner table.children
+      table.bitCount table.masks table.initialReserveOut [] ∧
+    suffixExecutable table.winner.selected.processedReserveIn
+      table.winner.selected.reserveOut [] ∧
+    table.winner ∈ table.children
+
+/-- Host-emitter table endpoint.
+
+A valid table shell constructs a valid packet shell, then inherits the packet
+endpoint: hash-bound and no-authority rails, winner-membership binding, bounded
+full-mask coverage, fixed-input economic-key dominance, and empty-suffix
+executability. -/
+theorem strictCompressedFullMaskEmitterTable_validates
+    (table : StrictCompressedFullMaskEmitterTable)
+    (hvalid : strictCompressedFullMaskEmitterTableValid table) :
+    strictCompressedFullMaskEmitterPacketValid
+        (strictCompressedFullMaskEmitterTablePacket table) ∧
+      (strictCompressedFullMaskEmitterTablePacket table).packetHashBound = true ∧
+      (strictCompressedFullMaskEmitterTablePacket table).noAuthorityEffect = true ∧
+      (strictCompressedFullMaskEmitterTablePacket table).winnerMembershipBound = true ∧
+      allBitsBelowSet table.winner.maskId table.bitCount ∧
+      zeroMinEconomicKeyDominated
+        (strictCompressedFullMaskEmitterPacketFullKey
+          (strictCompressedFullMaskEmitterTablePacket table))
+        (strictCompressedFullMaskEmitterPacketSelectedKey
+          (strictCompressedFullMaskEmitterTablePacket table)) ∧
+      suffixExecutable table.winner.selected.processedReserveIn
+        table.winner.selected.reserveOut [] := by
+  rcases hvalid with
+    ⟨hhash, hnoAuthority, hwinnerMembership, hrange, hexec, hwinnerChild⟩
+  have hstrict :
+      strictRangeStepPathEconomicCertificate table.parent table.winner
+        table.children table.bitCount table.masks table.initialReserveOut [] :=
+    ⟨hrange, hexec⟩
+  have heconomic :
+      strictCompressedFullMaskEconomicCertificate table.parent table.winner
+        table.children table.bitCount table.masks table.initialReserveOut :=
+    ⟨hstrict, hwinnerChild⟩
+  have hwitness :
+      strictCompressedFullMaskEconomicWitnessValid
+        (strictCompressedFullMaskEmitterTableWitness table) := by
+    unfold strictCompressedFullMaskEconomicWitnessValid
+      strictCompressedFullMaskEmitterTableWitness
+    exact heconomic
+  have hpacket :
+      strictCompressedFullMaskEmitterPacketValid
+        (strictCompressedFullMaskEmitterTablePacket table) := by
+    unfold strictCompressedFullMaskEmitterPacketValid
+      strictCompressedFullMaskEmitterTablePacket
+    exact ⟨hhash, hnoAuthority, hwinnerMembership, hwitness⟩
+  have hvalidated :=
+    strictCompressedFullMaskEmitterPacket_validates
+      (strictCompressedFullMaskEmitterTablePacket table)
+      hpacket
+  exact ⟨hpacket, hvalidated⟩
+
 /-- Finite subset-mask pruning lift.
 
 If every abstract subset mask satisfies the local pruning invariant, then the
@@ -2314,6 +2424,66 @@ theorem witness_strictCompressedFullMaskEmitterPacket_validates :
     exact ⟨rfl, rfl, rfl, hwitness_valid⟩
   exact ⟨hpacket_valid,
     strictCompressedFullMaskEmitterPacket_validates packet hpacket_valid⟩
+
+/-- Concrete non-vacuity witness for the host-emitter table endpoint. -/
+theorem witness_strictCompressedFullMaskEmitterTable_validates :
+    let record : ProcessedRecord := ⟨100, 90⟩
+    let parent : MaskRecordSet := ⟨1, record, [record]⟩
+    let child : MaskRecordSet := ⟨1, record, [record]⟩
+    let children : List MaskRecordSet := [child]
+    let masks : List MaskRecordSet := [child]
+    let table : StrictCompressedFullMaskEmitterTable := {
+      parent := parent
+      winner := child
+      children := children
+      bitCount := 1
+      masks := masks
+      initialReserveOut := 1000
+      executedInput := 100
+      packetHashBound := true
+      noAuthorityEffect := true
+      winnerMembershipBound := true
+    }
+    strictCompressedFullMaskEmitterTableValid table ∧
+      strictCompressedFullMaskEmitterPacketValid
+        (strictCompressedFullMaskEmitterTablePacket table) ∧
+      (strictCompressedFullMaskEmitterTablePacket table).packetHashBound = true ∧
+      (strictCompressedFullMaskEmitterTablePacket table).noAuthorityEffect = true ∧
+      (strictCompressedFullMaskEmitterTablePacket table).winnerMembershipBound = true ∧
+      allBitsBelowSet table.winner.maskId table.bitCount ∧
+      zeroMinEconomicKeyDominated
+        (strictCompressedFullMaskEmitterPacketFullKey
+          (strictCompressedFullMaskEmitterTablePacket table))
+        (strictCompressedFullMaskEmitterPacketSelectedKey
+          (strictCompressedFullMaskEmitterTablePacket table)) ∧
+      suffixExecutable table.winner.selected.processedReserveIn
+        table.winner.selected.reserveOut [] := by
+  let record : ProcessedRecord := ⟨100, 90⟩
+  let parent : MaskRecordSet := ⟨1, record, [record]⟩
+  let child : MaskRecordSet := ⟨1, record, [record]⟩
+  let children : List MaskRecordSet := [child]
+  let masks : List MaskRecordSet := [child]
+  let table : StrictCompressedFullMaskEmitterTable := {
+    parent := parent
+    winner := child
+    children := children
+    bitCount := 1
+    masks := masks
+    initialReserveOut := 1000
+    executedInput := 100
+    packetHashBound := true
+    noAuthorityEffect := true
+    winnerMembershipBound := true
+  }
+  have hstrict :
+      strictRangeStepPathEconomicCertificate parent child children 1 masks 1000 [] := by
+    simpa [record, parent, child, children, masks] using
+      witness_strictRangeStepPathEconomicCertificate_covers_bounds_and_executes.1
+  rcases hstrict with ⟨hrange, hexec⟩
+  have htable : strictCompressedFullMaskEmitterTableValid table := by
+    unfold strictCompressedFullMaskEmitterTableValid
+    exact ⟨rfl, rfl, rfl, hrange, hexec, by simp [table, children]⟩
+  exact ⟨htable, strictCompressedFullMaskEmitterTable_validates table htable⟩
 
 /-- Concrete non-vacuity witness for one-step monotonicity. -/
 theorem witness_postReserveOut_mono_strict :
