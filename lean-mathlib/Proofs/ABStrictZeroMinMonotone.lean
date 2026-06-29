@@ -1312,6 +1312,214 @@ theorem stepWinnerCertificate_extends_prefix_and_bounds
         hcert.1)
       (selectedFamilyOutputWinner_bounds_selected_family hcert.2)
 
+/-- A recursive chain of pruned one-bit transitions.
+
+The path records the abstract induction skeleton from a parent mask to a child
+mask. Each one-bit transition must also satisfy the local pruning invariant for
+the next record set. The empty path requires the endpoint itself to be pruned. -/
+def reachablePrunedStepPath (parent : MaskRecordSet) : List Nat -> MaskRecordSet -> Prop
+  | [], child => child = parent ∧ maskPruningInvariant child
+  | bitIndex :: rest, child =>
+      ∃ next,
+        reachablePrunedStepMask parent next bitIndex ∧
+          reachablePrunedStepPath next rest child
+
+/-- A recursive pruned step path induces the corresponding record-level mask
+path. -/
+theorem reachablePrunedStepPath_to_maskRecordPath
+    {parent child : MaskRecordSet}
+    {pathBits : List Nat}
+    (hpath : reachablePrunedStepPath parent pathBits child) :
+    maskRecordPath parent pathBits child := by
+  induction pathBits generalizing parent child with
+  | nil =>
+      simp [reachablePrunedStepPath] at hpath
+      simpa [maskRecordPath, bitMaskPath] using congrArg MaskRecordSet.maskId hpath.1
+  | cons bitIndex rest ih =>
+      simp [reachablePrunedStepPath, maskRecordPath, bitMaskPath] at hpath ⊢
+      rcases hpath with ⟨next, hstep, hrest⟩
+      exact ⟨next.maskId, hstep.1, ih hrest⟩
+
+/-- A recursive pruned step path leaves the final child locally pruned. -/
+theorem reachablePrunedStepPath_pruningInvariant
+    {parent child : MaskRecordSet}
+    {pathBits : List Nat}
+    (hpath : reachablePrunedStepPath parent pathBits child) :
+    maskPruningInvariant child := by
+  induction pathBits generalizing parent child with
+  | nil =>
+      simp [reachablePrunedStepPath] at hpath
+      exact hpath.2
+  | cons bitIndex rest ih =>
+      simp [reachablePrunedStepPath] at hpath
+      rcases hpath with ⟨next, _hstep, hrest⟩
+      exact ih hrest
+
+/-- A recursive pruned step path over `List.range bitCount` covers every bit
+below the bound. -/
+theorem reachablePrunedStepPath_covers_range_bits
+    {parent child : MaskRecordSet}
+    {bitCount : Nat}
+    (hpath : reachablePrunedStepPath parent (List.range bitCount) child) :
+    allBitsBelowSet child.maskId bitCount := by
+  exact maskRecordPath_sets_range_bits (reachablePrunedStepPath_to_maskRecordPath hpath)
+
+/-- The final child of a recursive pruned step path bounds its full record set by
+its selected representative. -/
+theorem reachablePrunedStepPath_bounds_suffix_output
+    {parent child : MaskRecordSet}
+    {pathBits : List Nat}
+    {initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hpath : reachablePrunedStepPath parent pathBits child) :
+    maskFullBestSuffixOutput initialReserveOut child suffix ≤
+      maskSelectedSuffixOutput initialReserveOut child suffix := by
+  exact maskFullBestSuffixOutput_le_selected
+    (reachablePrunedStepPath_pruningInvariant hpath)
+
+/-- Range-specialized recursive pruned path retained in a selected mask family. -/
+def reachablePrunedRangeStepPathInFamily
+    (parent child : MaskRecordSet)
+    (bitCount : Nat)
+    (masks : List MaskRecordSet) : Prop :=
+  reachablePrunedStepPath parent (List.range bitCount) child ∧
+    child ∈ masks
+
+/-- A retained recursive range-step child is bounded by the selected-family
+aggregate. -/
+theorem reachablePrunedRangeStepPathInFamily_bounds_family_selected
+    {parent child : MaskRecordSet}
+    {bitCount initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    {masks : List MaskRecordSet}
+    (hfull : reachablePrunedRangeStepPathInFamily parent child bitCount masks) :
+    maskFullBestSuffixOutput initialReserveOut child suffix ≤
+      bestSelectedSuffixOutputAcrossMasks initialReserveOut masks suffix := by
+  rcases hfull with ⟨hpath, hmem⟩
+  have hlocal :
+      maskFullBestSuffixOutput initialReserveOut child suffix ≤
+        maskSelectedSuffixOutput initialReserveOut child suffix :=
+    reachablePrunedStepPath_bounds_suffix_output
+      (initialReserveOut := initialReserveOut)
+      (suffix := suffix)
+      hpath
+  have hselected_mem :
+      maskSelectedSuffixOutput initialReserveOut child suffix ∈
+        masks.map (fun candidate =>
+          maskSelectedSuffixOutput initialReserveOut candidate suffix) := by
+    exact List.mem_map.mpr ⟨child, hmem, rfl⟩
+  exact Nat.le_trans hlocal (mem_le_foldlMax (acc := 0) hselected_mem)
+
+/-- Range-step family endpoint: a retained recursive pruned path gives bounded
+full-mask coverage and the selected-family aggregate bound. -/
+theorem reachablePrunedRangeStepPathInFamily_covers_and_bounds_family
+    {parent child : MaskRecordSet}
+    {bitCount initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    {masks : List MaskRecordSet}
+    (hfull : reachablePrunedRangeStepPathInFamily parent child bitCount masks) :
+    allBitsBelowSet child.maskId bitCount ∧
+      maskFullBestSuffixOutput initialReserveOut child suffix ≤
+        bestSelectedSuffixOutputAcrossMasks initialReserveOut masks suffix := by
+  constructor
+  · exact reachablePrunedStepPath_covers_range_bits hfull.1
+  · exact reachablePrunedRangeStepPathInFamily_bounds_family_selected hfull
+
+/-- Every child in a finite frontier is retained by a recursive pruned range-step
+path in the selected mask family. -/
+def reachablePrunedRangeStepPathListInFamily
+    (parent : MaskRecordSet)
+    (children : List MaskRecordSet)
+    (bitCount : Nat)
+    (masks : List MaskRecordSet) : Prop :=
+  ∀ child, child ∈ children ->
+    reachablePrunedRangeStepPathInFamily parent child bitCount masks
+
+/-- Every child in a recursive range-step frontier covers the bounded range. -/
+theorem reachablePrunedRangeStepPathListInFamily_covers_members
+    {parent child : MaskRecordSet}
+    {children masks : List MaskRecordSet}
+    {bitCount : Nat}
+    (hlist : reachablePrunedRangeStepPathListInFamily parent children bitCount masks)
+    (hchild : child ∈ children) :
+    allBitsBelowSet child.maskId bitCount := by
+  exact reachablePrunedStepPath_covers_range_bits (hlist child hchild).1
+
+/-- A recursive range-step frontier is bounded by the selected-family aggregate. -/
+theorem reachablePrunedRangeStepPathListInFamily_bounds_family_selected
+    {parent : MaskRecordSet}
+    {children masks : List MaskRecordSet}
+    {bitCount initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hlist : reachablePrunedRangeStepPathListInFamily parent children bitCount masks) :
+    bestFullSuffixOutputAcrossMasks initialReserveOut children suffix ≤
+      bestSelectedSuffixOutputAcrossMasks initialReserveOut masks suffix := by
+  unfold bestFullSuffixOutputAcrossMasks
+  apply foldlMax_le_bound
+  · exact Nat.zero_le _
+  · intro value hvalue
+    rw [List.mem_map] at hvalue
+    rcases hvalue with ⟨child, hchild, rfl⟩
+    exact reachablePrunedRangeStepPathInFamily_bounds_family_selected
+      (initialReserveOut := initialReserveOut)
+      (suffix := suffix)
+      (hlist child hchild)
+
+/-- List-level recursive range-step endpoint: all children cover the bounded mask
+range, and the full child frontier is bounded by the selected-family aggregate. -/
+theorem reachablePrunedRangeStepPathListInFamily_covers_and_bounds_family
+    {parent : MaskRecordSet}
+    {children masks : List MaskRecordSet}
+    {bitCount initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hlist : reachablePrunedRangeStepPathListInFamily parent children bitCount masks) :
+    (∀ child, child ∈ children -> allBitsBelowSet child.maskId bitCount) ∧
+      bestFullSuffixOutputAcrossMasks initialReserveOut children suffix ≤
+        bestSelectedSuffixOutputAcrossMasks initialReserveOut masks suffix := by
+  constructor
+  · intro child hchild
+    exact reachablePrunedRangeStepPathListInFamily_covers_members hlist hchild
+  · exact reachablePrunedRangeStepPathListInFamily_bounds_family_selected hlist
+
+/-- A proof-carrying recursive range-step winner certificate for the strict
+zero-min subset-mask induction frontier.
+
+The certificate packages recursive pruned range-step reachability for a finite
+child frontier and a supplied selected-family winner. It does not construct those
+objects or specify tie order. -/
+def rangeStepPathWinnerCertificate
+    (parent winner : MaskRecordSet)
+    (children : List MaskRecordSet)
+    (bitCount : Nat)
+    (masks : List MaskRecordSet)
+    (initialReserveOut : Nat)
+    (suffix : List ExactInStep) : Prop :=
+  reachablePrunedRangeStepPathListInFamily parent children bitCount masks ∧
+    selectedFamilyOutputWinner winner masks initialReserveOut suffix
+
+/-- Certificate endpoint for a recursive range-step frontier: bounded coverage
+and selected-winner dominance follow from one proof-carrying certificate. -/
+theorem rangeStepPathWinnerCertificate_covers_and_bounds
+    {parent winner : MaskRecordSet}
+    {children masks : List MaskRecordSet}
+    {bitCount initialReserveOut : Nat}
+    {suffix : List ExactInStep}
+    (hcert :
+      rangeStepPathWinnerCertificate parent winner children bitCount masks
+        initialReserveOut suffix) :
+    (∀ child, child ∈ children -> allBitsBelowSet child.maskId bitCount) ∧
+      bestFullSuffixOutputAcrossMasks initialReserveOut children suffix ≤
+        maskSelectedSuffixOutput initialReserveOut winner suffix := by
+  constructor
+  · intro child hchild
+    exact reachablePrunedRangeStepPathListInFamily_covers_members hcert.1 hchild
+  · exact Nat.le_trans
+      (reachablePrunedRangeStepPathListInFamily_bounds_family_selected
+        (initialReserveOut := initialReserveOut)
+        (suffix := suffix)
+        hcert.1)
+      (selectedFamilyOutputWinner_bounds_selected_family hcert.2)
+
 /-- Finite subset-mask pruning lift.
 
 If every abstract subset mask satisfies the local pruning invariant, then the
@@ -1655,6 +1863,59 @@ theorem witness_stepWinnerCertificate_extends_prefix_and_bounds :
   have hcert : stepWinnerCertificate parent child children 0 masks 1000 [] :=
     ⟨hlist, hwinner⟩
   exact ⟨hprefix, hcert, stepWinnerCertificate_extends_prefix_and_bounds hprefix hcert⟩
+
+/-- Concrete non-vacuity witness for the recursive range-step winner endpoint. -/
+theorem witness_rangeStepPathWinnerCertificate_covers_and_bounds :
+    let record : ProcessedRecord := ⟨100, 90⟩
+    let parent : MaskRecordSet := ⟨1, record, [record]⟩
+    let child : MaskRecordSet := ⟨1, record, [record]⟩
+    let children : List MaskRecordSet := [child]
+    let masks : List MaskRecordSet := [child]
+    rangeStepPathWinnerCertificate parent child children 1 masks 1000 [] ∧
+      (∀ candidate, candidate ∈ children -> allBitsBelowSet candidate.maskId 1) ∧
+        bestFullSuffixOutputAcrossMasks 1000 children [] ≤
+          maskSelectedSuffixOutput 1000 child [] := by
+  let record : ProcessedRecord := ⟨100, 90⟩
+  let parent : MaskRecordSet := ⟨1, record, [record]⟩
+  let child : MaskRecordSet := ⟨1, record, [record]⟩
+  let children : List MaskRecordSet := [child]
+  let masks : List MaskRecordSet := [child]
+  have hstep : maskRecordStep parent child 0 := by
+    simpa [parent, child, maskRecordStep] using witness_bitMaskStep_noop.1
+  have hinvariant : maskPruningInvariant child := by
+    unfold child maskPruningInvariant
+    constructor
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+  have hreachable : reachablePrunedStepMask parent child 0 := ⟨hstep, hinvariant⟩
+  have hbase : reachablePrunedStepPath child [] child := ⟨rfl, hinvariant⟩
+  have hpath_list : reachablePrunedStepPath parent [0] child := by
+    exact ⟨child, hreachable, hbase⟩
+  have hpath : reachablePrunedStepPath parent (List.range 1) child := by
+    simpa using hpath_list
+  have hfull : reachablePrunedRangeStepPathInFamily parent child 1 masks := by
+    exact ⟨hpath, by simp [masks]⟩
+  have hlist : reachablePrunedRangeStepPathListInFamily parent children 1 masks := by
+    intro candidate hcandidate
+    simp only [children, List.mem_singleton] at hcandidate
+    subst candidate
+    exact hfull
+  have hwinner : selectedFamilyOutputWinner child masks 1000 [] := by
+    constructor
+    · simp [masks]
+    · intro candidate hcandidate
+      simp only [masks, List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+  have hcert : rangeStepPathWinnerCertificate parent child children 1 masks 1000 [] :=
+    ⟨hlist, hwinner⟩
+  exact ⟨hcert, rangeStepPathWinnerCertificate_covers_and_bounds hcert⟩
 
 /-- Concrete non-vacuity witness for one-step monotonicity. -/
 theorem witness_postReserveOut_mono_strict :

@@ -92,6 +92,20 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "theorem compressedWinnerCertificate_covers_and_bounds" in text
     assert "def stepWinnerCertificate" in text
     assert "theorem stepWinnerCertificate_extends_prefix_and_bounds" in text
+    assert "def reachablePrunedStepPath" in text
+    assert "theorem reachablePrunedStepPath_to_maskRecordPath" in text
+    assert "theorem reachablePrunedStepPath_pruningInvariant" in text
+    assert "theorem reachablePrunedStepPath_covers_range_bits" in text
+    assert "theorem reachablePrunedStepPath_bounds_suffix_output" in text
+    assert "def reachablePrunedRangeStepPathInFamily" in text
+    assert "theorem reachablePrunedRangeStepPathInFamily_bounds_family_selected" in text
+    assert "theorem reachablePrunedRangeStepPathInFamily_covers_and_bounds_family" in text
+    assert "def reachablePrunedRangeStepPathListInFamily" in text
+    assert "theorem reachablePrunedRangeStepPathListInFamily_covers_members" in text
+    assert "theorem reachablePrunedRangeStepPathListInFamily_bounds_family_selected" in text
+    assert "theorem reachablePrunedRangeStepPathListInFamily_covers_and_bounds_family" in text
+    assert "def rangeStepPathWinnerCertificate" in text
+    assert "theorem rangeStepPathWinnerCertificate_covers_and_bounds" in text
     assert "theorem bestFullSuffixOutputAcrossMasks_le_selected" in text
     assert "theorem witness_bestFullSuffixOutputAcrossMasks_le_selected" in text
     assert "theorem witness_reachablePrunedRangeMask_covers_and_bounds" in text
@@ -100,6 +114,7 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "theorem witness_reachablePrunedFullMaskListInFamily_bounds_selected_winner" in text
     assert "theorem witness_compressedWinnerCertificate_covers_and_bounds" in text
     assert "theorem witness_stepWinnerCertificate_extends_prefix_and_bounds" in text
+    assert "theorem witness_rangeStepPathWinnerCertificate_covers_and_bounds" in text
 
     lake = shutil.which("lake")
     if not lake:
