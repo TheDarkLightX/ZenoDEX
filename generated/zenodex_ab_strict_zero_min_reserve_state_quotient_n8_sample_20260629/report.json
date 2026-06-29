@@ -1,0 +1,700 @@
+{
+  "authority_boundary": "Research-only quotient replay evidence; no settlement, state-root, production, routing, matching, or governance authority.",
+  "date": "2026-06-29",
+  "deterministic_replay": {
+    "first_hash": "006580d16905fb37fdcd3868c08bc56077382baf7e5e1f7d327bab30d14fded0",
+    "ok": true,
+    "second_hash": "006580d16905fb37fdcd3868c08bc56077382baf7e5e1f7d327bab30d14fded0"
+  },
+  "non_claims": [
+    "This is a bounded deterministic n=8 sample, not exhaustive n=8 coverage.",
+    "This checker does not prove Python-to-Lean refinement.",
+    "This checker does not prove JSON canonicalization or packet-hash computation in Lean.",
+    "This checker does not define canonical tie order or preserve order-id history.",
+    "This checker is restricted to strict executable same-pool, same-direction, exact-in, zero-min batches.",
+    "This checker does not cover nonzero min_amount_out behavior.",
+    "This checker has no settlement, state-root, production, routing, matching, or governance authority."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_strict_zero_min_reserve_state_quotient_n8_sample_20260629.py",
+  "schema": "zenodex.ab_strict_zero_min_reserve_state_quotient_n8_sample_report.v1",
+  "search": {
+    "all_record_compression_ratio": 195.367201,
+    "all_record_compression_saved": 327120,
+    "baseline_full_dominance_check_count": 135432,
+    "case_count": 3,
+    "cases": [
+      {
+        "amounts": [
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107
+        ],
+        "baseline_full_dominance_check_count": 45144,
+        "bit_count": 8,
+        "case_id": "n8_sample_000_thin_fee9000_stair",
+        "dominance_check_compression_saved": 44735,
+        "executed_input": 828,
+        "fee_bps": 9000,
+        "first_failure": null,
+        "first_obligation": {
+          "mask_id": 0,
+          "quotient_digest": "def37c5bc34f6776c10da1a4ba66aef1c4a1031129bd81de8bae8909a73ed586",
+          "quotient_state_count": 1,
+          "selected_state": {
+            "processed_reserve_in": 10000,
+            "reserve_out": 1600
+          },
+          "suffix_short": [
+            "f5c0",
+            "f5c1",
+            "f5c2",
+            "f5c3",
+            "f5c4",
+            "f5c5",
+            "f5c6",
+            "f5c7"
+          ]
+        },
+        "full_mask": 255,
+        "full_mask_selected_state": {
+          "processed_reserve_in": 10828,
+          "reserve_out": 1592
+        },
+        "full_record_count_all": 109601,
+        "initial_reserve_in": 10000,
+        "initial_reserve_out": 1600,
+        "mask_count_all": 256,
+        "max_full_records_per_sampled_mask": 40320,
+        "max_quotient_states_per_sampled_mask": 1,
+        "max_suffix_sample_per_mask": 24,
+        "max_suffix_universe_per_mask": 40320,
+        "min_amount_out": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ok": true,
+        "packet_hash": "a7f68732f9b730931fe1d46f17d0cf2c161b142c27972004df1863839f71ee7c",
+        "pattern": "n8_thin_high_fee/stair",
+        "pool": {
+          "fee_bps": 9000,
+          "reserve_in": 10000,
+          "reserve_out": 1600
+        },
+        "quotient_dominance_check_count": 409,
+        "quotient_obligation_digest": "9283ccebe07c0d905f41b56bd821eb068af5d013a5ae3bb21d810513131e8e3e",
+        "quotient_runtime_completion_count": 409,
+        "quotient_state_count_all": 256,
+        "reasons": [],
+        "sampled_full_record_count": 40521,
+        "sampled_mask_count": 18,
+        "sampled_quotient_state_count": 18,
+        "sampled_record_compression_saved": 40503,
+        "sampled_remaining_counts": [
+          8,
+          7,
+          7,
+          7,
+          7,
+          4,
+          7,
+          7,
+          4,
+          4,
+          7,
+          4,
+          7,
+          4,
+          4,
+          4,
+          4,
+          0
+        ],
+        "sampled_suffix_count": 409,
+        "scope": "n8_same_pool_same_direction_exact_in_zero_min_strict_executable_reserve_state_quotient_sample",
+        "selected_suffix_executable_count": 409,
+        "stress": {
+          "case_count": 3,
+          "pattern": "n8_thin_high_fee/stair",
+          "seed": 2026062908
+        },
+        "suffix_universe_count": 80833
+      },
+      {
+        "amounts": [
+          45,
+          45,
+          46,
+          46,
+          47,
+          47,
+          48,
+          48
+        ],
+        "baseline_full_dominance_check_count": 45144,
+        "bit_count": 8,
+        "case_id": "n8_sample_001_deep_fee30_tie",
+        "dominance_check_compression_saved": 44442,
+        "executed_input": 372,
+        "fee_bps": 30,
+        "first_failure": null,
+        "first_obligation": {
+          "mask_id": 0,
+          "quotient_digest": "cd4744412e874e8049b8e20ae5c6e65065c565dbcab3bd60528cf3859c4d545f",
+          "quotient_state_count": 1,
+          "selected_state": {
+            "processed_reserve_in": 85000,
+            "reserve_out": 1400000
+          },
+          "suffix_short": [
+            "f5d0",
+            "f5d1",
+            "f5d2",
+            "f5d3",
+            "f5d4",
+            "f5d5",
+            "f5d6",
+            "f5d7"
+          ]
+        },
+        "full_mask": 255,
+        "full_mask_selected_state": {
+          "processed_reserve_in": 85372,
+          "reserve_out": 1394032
+        },
+        "full_record_count_all": 109601,
+        "initial_reserve_in": 85000,
+        "initial_reserve_out": 1400000,
+        "mask_count_all": 256,
+        "max_full_records_per_sampled_mask": 40320,
+        "max_quotient_states_per_sampled_mask": 6,
+        "max_suffix_sample_per_mask": 24,
+        "max_suffix_universe_per_mask": 40320,
+        "min_amount_out": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ok": true,
+        "packet_hash": "7b84bbc0353fde3a45d1e9e323ed87cfd28aa34d1633a1c19d2cb1463aeaaaf8",
+        "pattern": "n8_deep_low_fee/tie",
+        "pool": {
+          "fee_bps": 30,
+          "reserve_in": 85000,
+          "reserve_out": 1400000
+        },
+        "quotient_dominance_check_count": 702,
+        "quotient_obligation_digest": "1e924578df9d34066b0bbfebe35b34f3029098fef82a5276a0412e7f1b1ba6d5",
+        "quotient_runtime_completion_count": 702,
+        "quotient_state_count_all": 682,
+        "reasons": [],
+        "sampled_full_record_count": 40521,
+        "sampled_mask_count": 18,
+        "sampled_quotient_state_count": 35,
+        "sampled_record_compression_saved": 40486,
+        "sampled_remaining_counts": [
+          8,
+          7,
+          7,
+          7,
+          7,
+          4,
+          7,
+          7,
+          4,
+          4,
+          7,
+          4,
+          7,
+          4,
+          4,
+          4,
+          4,
+          0
+        ],
+        "sampled_suffix_count": 409,
+        "scope": "n8_same_pool_same_direction_exact_in_zero_min_strict_executable_reserve_state_quotient_sample",
+        "selected_suffix_executable_count": 409,
+        "stress": {
+          "case_count": 3,
+          "pattern": "n8_deep_low_fee/tie",
+          "seed": 2026062908
+        },
+        "suffix_universe_count": 80833
+      },
+      {
+        "amounts": [
+          520,
+          44,
+          48,
+          52,
+          56,
+          60,
+          64,
+          68
+        ],
+        "baseline_full_dominance_check_count": 45144,
+        "bit_count": 8,
+        "case_id": "n8_sample_002_burst_fee2500",
+        "dominance_check_compression_saved": 44393,
+        "executed_input": 912,
+        "fee_bps": 2500,
+        "first_failure": null,
+        "first_obligation": {
+          "mask_id": 0,
+          "quotient_digest": "58063e5fab5da9c0fc4939b44b020589dc818f2f6020ec013fe08684106767ae",
+          "quotient_state_count": 1,
+          "selected_state": {
+            "processed_reserve_in": 50000,
+            "reserve_out": 2200000
+          },
+          "suffix_short": [
+            "f5e0",
+            "f5e1",
+            "f5e2",
+            "f5e3",
+            "f5e4",
+            "f5e5",
+            "f5e6",
+            "f5e7"
+          ]
+        },
+        "full_mask": 255,
+        "full_mask_selected_state": {
+          "processed_reserve_in": 50912,
+          "reserve_out": 2170354
+        },
+        "full_record_count_all": 109601,
+        "initial_reserve_in": 50000,
+        "initial_reserve_out": 2200000,
+        "mask_count_all": 256,
+        "max_full_records_per_sampled_mask": 40320,
+        "max_quotient_states_per_sampled_mask": 7,
+        "max_suffix_sample_per_mask": 24,
+        "max_suffix_universe_per_mask": 40320,
+        "min_amount_out": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ok": true,
+        "packet_hash": "75052b21e7fb9d2c3cd2696c50a1cf591832ff71fa27b36089bfa2a727e9e696",
+        "pattern": "n8_deep_mid_fee/front_burst",
+        "pool": {
+          "fee_bps": 2500,
+          "reserve_in": 50000,
+          "reserve_out": 2200000
+        },
+        "quotient_dominance_check_count": 751,
+        "quotient_obligation_digest": "a6eb4c76804e2563ba44a613a267890327fd03412b94bab630963f3118dd2298",
+        "quotient_runtime_completion_count": 751,
+        "quotient_state_count_all": 745,
+        "reasons": [],
+        "sampled_full_record_count": 40521,
+        "sampled_mask_count": 18,
+        "sampled_quotient_state_count": 38,
+        "sampled_record_compression_saved": 40483,
+        "sampled_remaining_counts": [
+          8,
+          7,
+          7,
+          7,
+          7,
+          4,
+          7,
+          7,
+          4,
+          4,
+          7,
+          4,
+          7,
+          4,
+          4,
+          4,
+          4,
+          0
+        ],
+        "sampled_suffix_count": 409,
+        "scope": "n8_same_pool_same_direction_exact_in_zero_min_strict_executable_reserve_state_quotient_sample",
+        "selected_suffix_executable_count": 409,
+        "stress": {
+          "case_count": 3,
+          "pattern": "n8_deep_mid_fee/front_burst",
+          "seed": 2026062908
+        },
+        "suffix_universe_count": 80833
+      }
+    ],
+    "coverage": {
+      "fee_bps_counts": {
+        "2500": 1,
+        "30": 1,
+        "9000": 1
+      },
+      "n_counts": {
+        "8": 3
+      },
+      "pattern_counts": {
+        "n8_deep_low_fee/tie": 1,
+        "n8_deep_mid_fee/front_burst": 1,
+        "n8_thin_high_fee/stair": 1
+      },
+      "reason_classes": [
+        "authority_effect_present",
+        "compressed_record_missing",
+        "packet_first_obligation_mismatch",
+        "packet_hash_mismatch",
+        "packet_mask_summaries_mismatch",
+        "packet_quotient_summary_mismatch",
+        "packet_sample_plan_mismatch",
+        "quotient_family_bound_missing",
+        "quotient_suffix_not_executable",
+        "reserve_state_only_bound_missing",
+        "sampled_n8_bound_missing",
+        "selected_final_reserve_dominance_failure",
+        "selected_reserve_out_not_min",
+        "selected_state_not_in_quotient_family",
+        "selected_suffix_not_executable"
+      ],
+      "sampled_remaining_counts": {
+        "0": 3,
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 24,
+        "5": 0,
+        "6": 0,
+        "7": 24,
+        "8": 3
+      }
+    },
+    "dominance_check_compression_ratio": 72.734694,
+    "dominance_check_compression_saved": 133570,
+    "elapsed_ms": 16537.495,
+    "first_case": {
+      "amounts": [
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107
+      ],
+      "baseline_full_dominance_check_count": 45144,
+      "bit_count": 8,
+      "case_id": "n8_sample_000_thin_fee9000_stair",
+      "dominance_check_compression_saved": 44735,
+      "executed_input": 828,
+      "fee_bps": 9000,
+      "first_failure": null,
+      "first_obligation": {
+        "mask_id": 0,
+        "quotient_digest": "def37c5bc34f6776c10da1a4ba66aef1c4a1031129bd81de8bae8909a73ed586",
+        "quotient_state_count": 1,
+        "selected_state": {
+          "processed_reserve_in": 10000,
+          "reserve_out": 1600
+        },
+        "suffix_short": [
+          "f5c0",
+          "f5c1",
+          "f5c2",
+          "f5c3",
+          "f5c4",
+          "f5c5",
+          "f5c6",
+          "f5c7"
+        ]
+      },
+      "full_mask": 255,
+      "full_mask_selected_state": {
+        "processed_reserve_in": 10828,
+        "reserve_out": 1592
+      },
+      "full_record_count_all": 109601,
+      "initial_reserve_in": 10000,
+      "initial_reserve_out": 1600,
+      "mask_count_all": 256,
+      "max_full_records_per_sampled_mask": 40320,
+      "max_quotient_states_per_sampled_mask": 1,
+      "max_suffix_sample_per_mask": 24,
+      "max_suffix_universe_per_mask": 40320,
+      "min_amount_out": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "ok": true,
+      "packet_hash": "a7f68732f9b730931fe1d46f17d0cf2c161b142c27972004df1863839f71ee7c",
+      "pattern": "n8_thin_high_fee/stair",
+      "pool": {
+        "fee_bps": 9000,
+        "reserve_in": 10000,
+        "reserve_out": 1600
+      },
+      "quotient_dominance_check_count": 409,
+      "quotient_obligation_digest": "9283ccebe07c0d905f41b56bd821eb068af5d013a5ae3bb21d810513131e8e3e",
+      "quotient_runtime_completion_count": 409,
+      "quotient_state_count_all": 256,
+      "reasons": [],
+      "sampled_full_record_count": 40521,
+      "sampled_mask_count": 18,
+      "sampled_quotient_state_count": 18,
+      "sampled_record_compression_saved": 40503,
+      "sampled_remaining_counts": [
+        8,
+        7,
+        7,
+        7,
+        7,
+        4,
+        7,
+        7,
+        4,
+        4,
+        7,
+        4,
+        7,
+        4,
+        4,
+        4,
+        4,
+        0
+      ],
+      "sampled_suffix_count": 409,
+      "scope": "n8_same_pool_same_direction_exact_in_zero_min_strict_executable_reserve_state_quotient_sample",
+      "selected_suffix_executable_count": 409,
+      "stress": {
+        "case_count": 3,
+        "pattern": "n8_thin_high_fee/stair",
+        "seed": 2026062908
+      },
+      "suffix_universe_count": 80833
+    },
+    "first_invalid_case": null,
+    "full_record_count_all": 328803,
+    "mask_count_all": 768,
+    "max_full_records_per_sampled_mask": 40320,
+    "max_quotient_states_per_sampled_mask": 7,
+    "max_suffix_sample_per_mask": 24,
+    "max_suffix_universe_per_mask": 40320,
+    "negative_control_accept_count": 0,
+    "negative_control_count": 10,
+    "negative_controls": [
+      {
+        "accepted": false,
+        "expected_reason": "packet_hash_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_hash_mismatch",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "authority_effect_present",
+        "first_failure": null,
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "quotient_family_bound_missing",
+        "first_failure": null,
+        "mutation_id": "quotient_family_bound_missing",
+        "reasons": [
+          "quotient_family_bound_missing"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "reserve_state_only_bound_missing",
+        "first_failure": null,
+        "mutation_id": "reserve_state_only_bound_missing",
+        "reasons": [
+          "reserve_state_only_bound_missing"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "sampled_n8_bound_missing",
+        "first_failure": null,
+        "mutation_id": "sampled_n8_bound_missing",
+        "reasons": [
+          "sampled_n8_bound_missing"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "packet_sample_plan_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_sample_plan_mismatch",
+        "reasons": [
+          "packet_sample_plan_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "compressed_record_missing",
+        "first_failure": {
+          "case_id": "n8_sample_000_thin_fee9000_stair",
+          "mask_id": 0,
+          "reason": "compressed_record_missing"
+        },
+        "mutation_id": "compressed_record_missing",
+        "reasons": [
+          "compressed_record_missing",
+          "packet_quotient_summary_mismatch",
+          "packet_mask_summaries_mismatch",
+          "packet_first_obligation_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "selected_state_not_in_quotient_family",
+        "first_failure": {
+          "case_id": "n8_sample_000_thin_fee9000_stair",
+          "mask_id": 0,
+          "reason": "selected_state_not_in_quotient_family",
+          "selected_state": {
+            "processed_reserve_in": 10000,
+            "reserve_out": 1601
+          }
+        },
+        "mutation_id": "selected_state_not_in_quotient_family",
+        "reasons": [
+          "selected_state_not_in_quotient_family",
+          "selected_reserve_out_not_min",
+          "selected_final_reserve_dominance_failure",
+          "packet_quotient_summary_mismatch",
+          "packet_mask_summaries_mismatch",
+          "packet_first_obligation_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "selected_reserve_out_not_min",
+        "first_failure": {
+          "case_id": "n8_sample_001_deep_fee30_tie",
+          "mask_id": 15,
+          "min_reserve_out": 1397075,
+          "reason": "selected_reserve_out_not_min",
+          "selected_state": {
+            "processed_reserve_in": 85182,
+            "reserve_out": 1397077
+          }
+        },
+        "mutation_id": "selected_reserve_out_not_min",
+        "reasons": [
+          "selected_reserve_out_not_min",
+          "selected_final_reserve_dominance_failure",
+          "packet_quotient_summary_mismatch",
+          "packet_mask_summaries_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "selected_suffix_not_executable",
+        "first_failure": {
+          "case_id": "n8_sample_000_thin_fee9000_stair",
+          "mask_id": 0,
+          "reason": "selected_suffix_not_executable",
+          "selected_state": {
+            "processed_reserve_in": 10000,
+            "reserve_out": 1
+          },
+          "suffix_short": [
+            "f5c0",
+            "f5c1",
+            "f5c2",
+            "f5c3",
+            "f5c4",
+            "f5c5",
+            "f5c6",
+            "f5c7"
+          ]
+        },
+        "mutation_id": "selected_suffix_not_executable",
+        "reasons": [
+          "selected_suffix_not_executable",
+          "quotient_suffix_not_executable",
+          "packet_quotient_summary_mismatch",
+          "packet_mask_summaries_mismatch",
+          "packet_first_obligation_mismatch"
+        ]
+      }
+    ],
+    "quotient_dominance_check_count": 1862,
+    "quotient_runtime_completion_count": 1862,
+    "quotient_state_count_all": 1683,
+    "sample_plan": {
+      "bit_count": 8,
+      "full_dp_generated_all_masks": true,
+      "mask_ids": [
+        0,
+        1,
+        2,
+        4,
+        8,
+        15,
+        16,
+        32,
+        51,
+        60,
+        64,
+        85,
+        128,
+        170,
+        195,
+        204,
+        240,
+        255
+      ],
+      "seed": 2026062908,
+      "suffix_sample_limit": 24,
+      "suffix_sampling": "all suffixes up to limit; otherwise first, last, and deterministic random indexes"
+    },
+    "sampled_full_record_count": 121563,
+    "sampled_mask_count": 54,
+    "sampled_quotient_state_count": 91,
+    "sampled_record_compression_ratio": 1335.857143,
+    "sampled_record_compression_saved": 121472,
+    "sampled_suffix_count": 1227,
+    "schema": "zenodex/ab_strict_zero_min_reserve_state_quotient_n8_sample_search/v1",
+    "selected_suffix_executable_count": 1227,
+    "source_seed": 2026062908,
+    "suffix_universe_count": 242499,
+    "valid_case_count": 3
+  },
+  "summary": "A deterministic n=8 sample extends the reserve-state quotient replay beyond the n=7 certificate by generating full reachable records for all masks and checking sampled suffix obligations."
+}
