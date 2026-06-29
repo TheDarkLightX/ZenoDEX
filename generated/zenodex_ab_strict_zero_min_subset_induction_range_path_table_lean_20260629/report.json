@@ -3,7 +3,7 @@
   "date": "2026-06-29",
   "ok": true,
   "authority_boundary": "Research-only Lean bridge evidence; no settlement, state-root, production, or governance authority.",
-  "summary": "Lean bridge theorem formalizes that recursive pruned range-step reachability for every retained mask implies the finite host-table validity predicate and its zero-min economic-key dominance endpoint.",
+  "summary": "Lean bridge theorem formalizes that recursive pruned full-range-step reachability for every retained mask implies the finite full-range host-table validity predicate and its zero-min economic-key dominance endpoint.",
   "theorems": [
     "StrictSubsetInductionRangePathTable",
     "strictSubsetInductionRangePathTableHost",
@@ -26,7 +26,7 @@
     "derived_facts": [
       "allBitsBelowSet for every retained mask",
       "maskPruningInvariant for every retained mask",
-      "strictSubsetInductionHostTableValid for the interpreted host table",
+      "strictSubsetInductionHostTableValid for the interpreted full-range host table",
       "zeroMinEconomicKeyDominated endpoint for the finite mask family"
     ]
   },
@@ -62,6 +62,7 @@
     "This does not prove Python-to-Lean refinement.",
     "This does not define canonical tie order.",
     "This does not cover nonzero min_amount_out batches.",
+    "This does not claim that arbitrary reachable subset masks satisfy full-range bit coverage.",
     "This does not turn bounded evidence into exhaustive state coverage.",
     "This does not authorize settlement, state roots, production deployment, or governance execution."
   ],

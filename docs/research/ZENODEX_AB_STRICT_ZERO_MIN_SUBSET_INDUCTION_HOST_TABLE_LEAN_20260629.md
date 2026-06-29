@@ -3,15 +3,15 @@
 ## Executive Result
 
 The AB strict zero-min subset-induction work now has a Lean bridge theorem for
-the bounded host table endpoint.
+a bounded host table endpoint with explicit full-range mask coverage.
 
 Research-only proof evidence; no settlement, state-root, production, or
 governance authority.
 
 ## What The Lean Bridge Proves
 
-`StrictSubsetInductionHostTable` packages a finite family of observed subset
-masks, a selected winner, a fixed suffix, and data-only rails:
+`StrictSubsetInductionHostTable` packages a finite family of observed masks, a
+selected winner, a fixed suffix, and data-only rails:
 
 ```text
 packetHashBound = true
@@ -19,7 +19,7 @@ noAuthorityEffect = true
 winnerMembershipBound = true
 ```
 
-If every mask covers the declared bit range and satisfies local pruning, and if
+If every mask is supplied with full-range bit coverage and local pruning, and if
 the supplied winner dominates the selected family for the fixed suffix, then
 `strictSubsetInductionHostTable_validates` proves:
 
@@ -48,13 +48,10 @@ host table.
 The host oracle in
 `tools/check_ab_strict_zero_min_subset_induction_witness.py` generated bounded
 evidence over 180 strict cases, 4,464 masks, 85,284 records, and 212,760 suffix
-checks. This Lean bridge consumes the same shape of evidence as assumptions:
-finite mask family, local pruning, winner selection, suffix executability, and
-authority rails.
-
-This moves the evidence chain from a bounded Python witness toward a formal
-endpoint theorem. The host checker still supplies the finite tables; Lean now
-checks what follows from those tables.
+checks. That oracle ranges over arbitrary reachable subset masks. This Lean
+bridge has a narrower input shape: it consumes finite tables whose masks already
+carry full-range coverage. The separate arbitrary-subset-family bridge handles
+the aggregation endpoint without the full-range coverage assumption.
 
 ## Theorems And Definitions Added
 
@@ -85,6 +82,8 @@ cd lean-mathlib && lake build Proofs.ABStrictZeroMinMonotone
 - This does not prove Python-to-Lean refinement.
 - This does not define canonical tie order.
 - This does not cover nonzero `min_amount_out` batches.
+- This does not claim that arbitrary reachable subset masks satisfy full-range
+  bit coverage.
 - This does not turn the bounded stress corpus into exhaustive state coverage.
 - This does not authorize settlement, state roots, production deployment, or
   governance execution.
@@ -92,7 +91,7 @@ cd lean-mathlib && lake build Proofs.ABStrictZeroMinMonotone
 ## Value For ZenoDEX
 
 The bridge narrows the highest-value AB-ordering breakthrough into a reusable
-verification pattern: host search can enumerate finite certificates, while Lean
-checks the economic dominance endpoint under explicit assumptions. That gives
-ZenoDEX a clearer route from expensive brute-force exploration to certificate-
-carrying exact solvers.
+verification pattern for full-range certificates. Host search can enumerate
+finite certificates, while Lean checks the economic dominance endpoint under
+explicit assumptions. Arbitrary reachable subset-mask aggregation is now covered
+by the separate `StrictSubsetFamilyHostTable` theorem.

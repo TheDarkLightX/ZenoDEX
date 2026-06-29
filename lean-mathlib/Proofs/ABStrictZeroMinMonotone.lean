@@ -1892,6 +1892,83 @@ theorem bestFullSuffixOutputAcrossMasks_le_selected
       exact List.mem_map.mpr ⟨mask, hmask, rfl⟩
     exact Nat.le_trans hlocal (mem_le_foldlMax (acc := 0) hselected_mem)
 
+/-- Host table for an arbitrary finite subset-mask family.
+
+This table matches the aggregation shape of the bounded host oracle over
+reachable subset masks. It requires local pruning for every retained mask, but
+does not require every mask to be a full-range mask. Full-mask coverage remains
+a separate endpoint obligation. -/
+structure StrictSubsetFamilyHostTable where
+  masks : List MaskRecordSet
+  winner : MaskRecordSet
+  initialReserveOut : Nat
+  executedInput : Nat
+  suffix : List ExactInStep
+  packetHashBound : Bool
+  noAuthorityEffect : Bool
+  winnerMembershipBound : Bool
+  deriving Repr
+
+/-- Validity predicate for an arbitrary finite subset-mask family.
+
+Every retained mask must satisfy local record-set pruning. A supplied winner
+must dominate the selected family for the fixed suffix and execute that suffix. -/
+def strictSubsetFamilyHostTableValid
+    (table : StrictSubsetFamilyHostTable) : Prop :=
+  table.packetHashBound = true ∧
+    table.noAuthorityEffect = true ∧
+    table.winnerMembershipBound = true ∧
+    (∀ mask, mask ∈ table.masks -> maskPruningInvariant mask) ∧
+    selectedFamilyOutputWinner table.winner table.masks
+      table.initialReserveOut table.suffix ∧
+    suffixExecutable table.winner.selected.processedReserveIn
+      table.winner.selected.reserveOut table.suffix ∧
+    table.winner ∈ table.masks
+
+/-- Arbitrary subset-family endpoint.
+
+If every retained subset mask satisfies local pruning and the supplied winner
+dominates the selected family for a fixed suffix, then the full finite family is
+economically dominated by that selected winner at fixed executed input. -/
+theorem strictSubsetFamilyHostTable_validates
+    (table : StrictSubsetFamilyHostTable)
+    (hvalid : strictSubsetFamilyHostTableValid table) :
+    table.packetHashBound = true ∧
+      table.noAuthorityEffect = true ∧
+      table.winnerMembershipBound = true ∧
+      zeroMinEconomicKeyDominated
+        (fullFrontierZeroMinEconomicKey table.executedInput
+          table.initialReserveOut table.masks table.suffix)
+        (selectedZeroMinEconomicKey table.executedInput
+          table.initialReserveOut table.winner table.suffix) ∧
+      suffixExecutable table.winner.selected.processedReserveIn
+        table.winner.selected.reserveOut table.suffix := by
+  rcases hvalid with
+    ⟨hhash, hnoAuthority, hwinnerMembership, hinvariant, hwinner, hexec, _hwinnerMem⟩
+  have hfull_to_selected :
+      bestFullSuffixOutputAcrossMasks table.initialReserveOut table.masks table.suffix ≤
+        bestSelectedSuffixOutputAcrossMasks table.initialReserveOut table.masks table.suffix :=
+    bestFullSuffixOutputAcrossMasks_le_selected
+      (initialReserveOut := table.initialReserveOut)
+      (masks := table.masks)
+      (suffix := table.suffix)
+      hinvariant
+  have hselected_to_winner :
+      bestSelectedSuffixOutputAcrossMasks table.initialReserveOut table.masks table.suffix ≤
+        maskSelectedSuffixOutput table.initialReserveOut table.winner table.suffix :=
+    selectedFamilyOutputWinner_bounds_selected_family hwinner
+  have hdominance :
+      zeroMinEconomicKeyDominated
+        (fullFrontierZeroMinEconomicKey table.executedInput
+          table.initialReserveOut table.masks table.suffix)
+        (selectedZeroMinEconomicKey table.executedInput
+          table.initialReserveOut table.winner table.suffix) := by
+    unfold zeroMinEconomicKeyDominated fullFrontierZeroMinEconomicKey
+      selectedZeroMinEconomicKey
+    exact ⟨Nat.le_refl table.executedInput,
+      Nat.le_trans hfull_to_selected hselected_to_winner⟩
+  exact ⟨hhash, hnoAuthority, hwinnerMembership, hdominance, hexec⟩
+
 /-- Observed full-mask child-frontier validity for a host-emitter table.
 
 This predicate matches the host witness packets more directly than the
@@ -2201,6 +2278,75 @@ theorem witness_bestFullSuffixOutputAcrossMasks_le_selected :
     bestFullSuffixOutputAcrossMasks 1200 masks suffix ≤
       bestSelectedSuffixOutputAcrossMasks 1200 masks suffix := by
   native_decide
+
+/-- Concrete non-vacuity witness for the arbitrary subset-family host endpoint. -/
+theorem witness_strictSubsetFamilyHostTable_validates :
+    let record : ProcessedRecord := ⟨100, 90⟩
+    let mask : MaskRecordSet := ⟨0, record, [record]⟩
+    let masks : List MaskRecordSet := [mask]
+    let table : StrictSubsetFamilyHostTable := {
+      masks := masks
+      winner := mask
+      initialReserveOut := 1000
+      executedInput := 100
+      suffix := []
+      packetHashBound := true
+      noAuthorityEffect := true
+      winnerMembershipBound := true
+    }
+    strictSubsetFamilyHostTableValid table ∧
+      table.packetHashBound = true ∧
+        table.noAuthorityEffect = true ∧
+        table.winnerMembershipBound = true ∧
+        zeroMinEconomicKeyDominated
+          (fullFrontierZeroMinEconomicKey table.executedInput
+            table.initialReserveOut table.masks table.suffix)
+          (selectedZeroMinEconomicKey table.executedInput
+            table.initialReserveOut table.winner table.suffix) ∧
+        suffixExecutable table.winner.selected.processedReserveIn
+          table.winner.selected.reserveOut table.suffix := by
+  let record : ProcessedRecord := ⟨100, 90⟩
+  let mask : MaskRecordSet := ⟨0, record, [record]⟩
+  let masks : List MaskRecordSet := [mask]
+  let table : StrictSubsetFamilyHostTable := {
+    masks := masks
+    winner := mask
+    initialReserveOut := 1000
+    executedInput := 100
+    suffix := []
+    packetHashBound := true
+    noAuthorityEffect := true
+    winnerMembershipBound := true
+  }
+  have hinvariant : ∀ candidate, candidate ∈ masks -> maskPruningInvariant candidate := by
+    intro candidate hcandidate
+    simp only [masks, List.mem_singleton] at hcandidate
+    subst candidate
+    unfold mask maskPruningInvariant
+    constructor
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+    · intro candidate hcandidate
+      simp only [List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+  have hwinner : selectedFamilyOutputWinner mask masks 1000 [] := by
+    constructor
+    · simp [masks]
+    · intro candidate hcandidate
+      simp only [masks, List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+  have hexec : suffixExecutable mask.selected.processedReserveIn mask.selected.reserveOut [] := by
+    simp [suffixExecutable]
+  have hvalid : strictSubsetFamilyHostTableValid table := by
+    unfold strictSubsetFamilyHostTableValid
+    exact ⟨rfl, rfl, rfl, by simpa [table] using hinvariant,
+      by simpa [table] using hwinner, by simpa [table] using hexec,
+      by simp [table, masks]⟩
+  exact ⟨hvalid, strictSubsetFamilyHostTable_validates table hvalid⟩
 
 /-- Concrete non-vacuity witness for the reachable pruned range-mask endpoint. -/
 theorem witness_reachablePrunedRangeMask_covers_and_bounds :

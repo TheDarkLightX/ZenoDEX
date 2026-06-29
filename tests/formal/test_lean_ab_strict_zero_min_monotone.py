@@ -130,6 +130,9 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "def strictCompressedFullMaskEmitterTablePacket" in text
     assert "def strictCompressedFullMaskEmitterTableValid" in text
     assert "theorem strictCompressedFullMaskEmitterTable_validates" in text
+    assert "structure StrictSubsetFamilyHostTable" in text
+    assert "def strictSubsetFamilyHostTableValid" in text
+    assert "theorem strictSubsetFamilyHostTable_validates" in text
     assert "def strictObservedFullMaskEmitterTableValid" in text
     assert "theorem strictObservedFullMaskEmitterTable_validates" in text
     assert "structure StrictSubsetInductionHostTable" in text
@@ -142,6 +145,7 @@ def test_lean_ab_strict_zero_min_monotone_typechecks_without_placeholders() -> N
     assert "theorem bestFullSuffixOutputAcrossMasks_le_selected" in text
     assert "theorem witness_bestFullSuffixOutputAcrossMasks_le_selected" in text
     assert "theorem witness_reachablePrunedRangeMask_covers_and_bounds" in text
+    assert "theorem witness_strictSubsetFamilyHostTable_validates" in text
     assert "theorem witness_reachablePrunedFullMaskInFamily_covers_and_bounds_family" in text
     assert "theorem witness_reachablePrunedFullMaskListInFamily_covers_and_bounds_family" in text
     assert "theorem witness_reachablePrunedFullMaskListInFamily_bounds_selected_winner" in text

@@ -3,7 +3,7 @@
 ## Executive Result
 
 The AB strict zero-min subset-induction ladder now has a Lean bridge from
-recursive pruned range-step reachability to the finite host-table dominance
+recursive pruned full-range-step reachability to the finite host-table dominance
 endpoint.
 
 Research-only proof evidence; no settlement, state-root, production, or
@@ -11,7 +11,8 @@ governance authority.
 
 ## What Changed
 
-The prior host-table bridge required direct assumptions for every retained mask:
+The prior full-range host-table bridge required direct assumptions for every
+retained mask:
 
 ```text
 allBitsBelowSet mask.maskId bitCount
@@ -19,7 +20,7 @@ maskPruningInvariant mask
 ```
 
 The new `StrictSubsetInductionRangePathTable` replaces those direct assumptions
-with a recursive range-step family condition:
+with a recursive full-range-step family condition:
 
 ```text
 reachablePrunedRangeStepPathListInFamily parent masks bitCount masks
@@ -27,7 +28,7 @@ reachablePrunedRangeStepPathListInFamily parent masks bitCount masks
 
 For each retained mask, this condition supplies a pruned recursive path over
 `List.range bitCount`. Lean derives both bounded bit coverage and local pruning
-from that path, then reuses the direct host-table theorem.
+from that path, then reuses the direct full-range host-table theorem.
 
 ## Theorem Endpoint
 
@@ -51,11 +52,13 @@ zeroMinEconomicKeyDominated
 
 ## Value
 
-This reduces one assumption class in the proof ladder. The host table no longer
-needs to assert coverage and pruning directly for every mask if it supplies
-recursive pruned range-step reachability. That is closer to the full
-subset-mask induction frontier, where the remaining hard part is constructing
-and refining the finite family from the concrete Python DP emitter.
+This reduces one assumption class in the full-range proof ladder. The host
+table no longer needs to assert coverage and pruning directly for every
+full-range retained mask if it supplies recursive pruned range-step
+reachability. Arbitrary reachable subset-mask aggregation is handled by the
+separate `StrictSubsetFamilyHostTable` theorem; the remaining hard part is still
+constructing and refining the relevant finite families from the concrete Python
+DP emitter.
 
 ## Theorems And Definitions Added
 
@@ -89,6 +92,8 @@ python3 tools/check_claims_registry.py
 - This does not prove Python-to-Lean refinement.
 - This does not define canonical tie order.
 - This does not cover nonzero `min_amount_out` batches.
+- This does not claim that arbitrary reachable subset masks satisfy full-range
+  bit coverage.
 - This does not turn bounded evidence into exhaustive state coverage.
 - This does not authorize settlement, state roots, production deployment, or
   governance execution.
