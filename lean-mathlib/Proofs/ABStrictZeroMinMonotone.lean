@@ -1887,10 +1887,81 @@ theorem bestFullSuffixOutputAcrossMasks_le_selected
         (hinvariant mask hmask)
     have hselected_mem :
         maskSelectedSuffixOutput initialReserveOut mask suffix ∈
-          masks.map (fun candidate =>
+        masks.map (fun candidate =>
             maskSelectedSuffixOutput initialReserveOut candidate suffix) := by
       exact List.mem_map.mpr ⟨mask, hmask, rfl⟩
     exact Nat.le_trans hlocal (mem_le_foldlMax (acc := 0) hselected_mem)
+
+/-- Observed full-mask child-frontier validity for a host-emitter table.
+
+This predicate matches the host witness packets more directly than the
+recursive range-step certificate: every observed child already carries bounded
+full-mask coverage and a local pruning invariant, and the supplied winner
+dominates the observed child frontier. It does not prove how the child frontier
+was generated, nor does it prove the recursive subset-mask induction. -/
+def strictObservedFullMaskEmitterTableValid
+    (table : StrictCompressedFullMaskEmitterTable) : Prop :=
+  table.packetHashBound = true ∧
+    table.noAuthorityEffect = true ∧
+    table.winnerMembershipBound = true ∧
+    (∀ child, child ∈ table.children ->
+      allBitsBelowSet child.maskId table.bitCount ∧ maskPruningInvariant child) ∧
+    selectedFamilyOutputWinner table.winner table.children table.initialReserveOut [] ∧
+    suffixExecutable table.winner.selected.processedReserveIn
+      table.winner.selected.reserveOut [] ∧
+    table.winner ∈ table.children
+
+/-- Observed child-frontier endpoint.
+
+If a host-emitter table supplies full-mask coverage and local pruning for each
+observed child, plus a selected winner that dominates the observed frontier,
+then the observed full frontier's zero-min economic key is dominated by the
+winner at fixed executed input. -/
+theorem strictObservedFullMaskEmitterTable_validates
+    (table : StrictCompressedFullMaskEmitterTable)
+    (hvalid : strictObservedFullMaskEmitterTableValid table) :
+    table.packetHashBound = true ∧
+      table.noAuthorityEffect = true ∧
+      table.winnerMembershipBound = true ∧
+      allBitsBelowSet table.winner.maskId table.bitCount ∧
+      zeroMinEconomicKeyDominated
+        (fullFrontierZeroMinEconomicKey table.executedInput
+          table.initialReserveOut table.children [])
+        (selectedZeroMinEconomicKey table.executedInput
+          table.initialReserveOut table.winner []) ∧
+      suffixExecutable table.winner.selected.processedReserveIn
+        table.winner.selected.reserveOut [] := by
+  rcases hvalid with
+    ⟨hhash, hnoAuthority, hwinnerMembership, hchildren, hwinner, hexec, hwinnerChild⟩
+  have hcoverage : allBitsBelowSet table.winner.maskId table.bitCount :=
+    (hchildren table.winner hwinnerChild).1
+  have hinvariant :
+      ∀ child, child ∈ table.children -> maskPruningInvariant child := by
+    intro child hchild
+    exact (hchildren child hchild).2
+  have hfull_to_selected :
+      bestFullSuffixOutputAcrossMasks table.initialReserveOut table.children [] ≤
+        bestSelectedSuffixOutputAcrossMasks table.initialReserveOut table.children [] :=
+    bestFullSuffixOutputAcrossMasks_le_selected
+      (initialReserveOut := table.initialReserveOut)
+      (masks := table.children)
+      (suffix := [])
+      hinvariant
+  have hselected_to_winner :
+      bestSelectedSuffixOutputAcrossMasks table.initialReserveOut table.children [] ≤
+        maskSelectedSuffixOutput table.initialReserveOut table.winner [] :=
+    selectedFamilyOutputWinner_bounds_selected_family hwinner
+  have hdominance :
+      zeroMinEconomicKeyDominated
+        (fullFrontierZeroMinEconomicKey table.executedInput
+          table.initialReserveOut table.children [])
+        (selectedZeroMinEconomicKey table.executedInput
+          table.initialReserveOut table.winner []) := by
+    unfold zeroMinEconomicKeyDominated fullFrontierZeroMinEconomicKey
+      selectedZeroMinEconomicKey
+    exact ⟨Nat.le_refl table.executedInput,
+      Nat.le_trans hfull_to_selected hselected_to_winner⟩
+  exact ⟨hhash, hnoAuthority, hwinnerMembership, hcoverage, hdominance, hexec⟩
 
 /-- Concrete non-vacuity witness for record dominance. -/
 theorem witness_minReserveRecord_dominates_suffixTotalOutput :
@@ -2484,6 +2555,90 @@ theorem witness_strictCompressedFullMaskEmitterTable_validates :
     unfold strictCompressedFullMaskEmitterTableValid
     exact ⟨rfl, rfl, rfl, hrange, hexec, by simp [table, children]⟩
   exact ⟨htable, strictCompressedFullMaskEmitterTable_validates table htable⟩
+
+/-- Concrete non-vacuity witness for the observed full-mask child-frontier endpoint. -/
+theorem witness_strictObservedFullMaskEmitterTable_validates :
+    let record : ProcessedRecord := ⟨100, 90⟩
+    let parent : MaskRecordSet := ⟨1, record, [record]⟩
+    let child : MaskRecordSet := ⟨1, record, [record]⟩
+    let children : List MaskRecordSet := [child]
+    let table : StrictCompressedFullMaskEmitterTable := {
+      parent := parent
+      winner := child
+      children := children
+      bitCount := 1
+      masks := children
+      initialReserveOut := 1000
+      executedInput := 100
+      packetHashBound := true
+      noAuthorityEffect := true
+      winnerMembershipBound := true
+    }
+    strictObservedFullMaskEmitterTableValid table ∧
+      table.packetHashBound = true ∧
+        table.noAuthorityEffect = true ∧
+        table.winnerMembershipBound = true ∧
+        allBitsBelowSet table.winner.maskId table.bitCount ∧
+        zeroMinEconomicKeyDominated
+          (fullFrontierZeroMinEconomicKey table.executedInput
+            table.initialReserveOut table.children [])
+          (selectedZeroMinEconomicKey table.executedInput
+            table.initialReserveOut table.winner []) ∧
+        suffixExecutable table.winner.selected.processedReserveIn
+          table.winner.selected.reserveOut [] := by
+  let record : ProcessedRecord := ⟨100, 90⟩
+  let parent : MaskRecordSet := ⟨1, record, [record]⟩
+  let child : MaskRecordSet := ⟨1, record, [record]⟩
+  let children : List MaskRecordSet := [child]
+  let table : StrictCompressedFullMaskEmitterTable := {
+    parent := parent
+    winner := child
+    children := children
+    bitCount := 1
+    masks := children
+    initialReserveOut := 1000
+    executedInput := 100
+    packetHashBound := true
+    noAuthorityEffect := true
+    winnerMembershipBound := true
+  }
+  have hchildren :
+      ∀ candidate, candidate ∈ children ->
+        allBitsBelowSet candidate.maskId 1 ∧ maskPruningInvariant candidate := by
+    intro candidate hcandidate
+    simp only [children, List.mem_singleton] at hcandidate
+    subst candidate
+    constructor
+    · unfold allBitsBelowSet
+      intro bitIndex hlt
+      have hzero : bitIndex = 0 := by omega
+      subst bitIndex
+      unfold child maskHasBit
+      native_decide
+    · unfold child maskPruningInvariant
+      constructor
+      · intro candidate hcandidate
+        simp only [List.mem_singleton] at hcandidate
+        subst candidate
+        rfl
+      · intro candidate hcandidate
+        simp only [List.mem_singleton] at hcandidate
+        subst candidate
+        rfl
+  have hwinner : selectedFamilyOutputWinner child children 1000 [] := by
+    constructor
+    · simp [children]
+    · intro candidate hcandidate
+      simp only [children, List.mem_singleton] at hcandidate
+      subst candidate
+      rfl
+  have hexec : suffixExecutable child.selected.processedReserveIn child.selected.reserveOut [] := by
+    simp [suffixExecutable]
+  have hvalid : strictObservedFullMaskEmitterTableValid table := by
+    unfold strictObservedFullMaskEmitterTableValid
+    exact ⟨rfl, rfl, rfl, by simpa [table] using hchildren, by simpa [table] using hwinner,
+      by simpa [table] using hexec, by simp [table, children]⟩
+  exact ⟨hvalid, strictObservedFullMaskEmitterTable_validates table hvalid⟩
 
 /-- Concrete non-vacuity witness for one-step monotonicity. -/
 theorem witness_postReserveOut_mono_strict :
