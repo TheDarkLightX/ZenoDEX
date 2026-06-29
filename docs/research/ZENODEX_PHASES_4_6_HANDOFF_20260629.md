@@ -319,9 +319,10 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
   id-ordered permutation representatives, an executable stable-id List
   merge-sort bridge for arbitrary identified Lists with unique stable ids, a
   stable-id List permutation quotient bridge for valid identified List
-  presentations, one concrete 4-pool coordinate instance, and one concrete
-  5-pool coordinate instance. Finset/Multiset packaging of that List quotient
-  remains open.
+  presentations, a keyed `Finset Nat` presentation/quotient/concavity bridge
+  for stable-id unordered presentations with consistent lookups, one concrete
+  4-pool coordinate instance, and one concrete 5-pool coordinate instance.
+  Multiset and general unordered-container packaging remain open.
 - The min-out-cap game-theory evidence is a fixed-order filled-user no-gain
   check, not a full Nash equilibrium proof.
 - The concavity second-order approximation is not a universal stateful attack
@@ -338,9 +339,9 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
 
 ## Recommended GPT 5.5 Continuation
 
-1. Package the stable-id List permutation quotient as a Finset/Multiset
-   unordered-presentation certificate, then connect that certificate to the
-   existing proof-carrying selection path.
+1. Package the stable-id List permutation quotient as unordered-presentation
+   certificates, then connect those certificates to the existing proof-carrying
+   selection path.
    DONE: `IdentifiedFinsetPresentationCont` in `KPoolSplitConcavity.lean`
    keys on `Finset Nat` (stable ids) with a lookup function, avoiding the
    `DecidableEq` issue on `ℝ`-bearing pool terms. The bridge theorem
@@ -350,7 +351,8 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
    `splitFunctionConcave_of_finsetActiveBeforeRemainder` and
    `splitFunctionConcave_of_finsetRemainderBeforeActive` compose the
    Finset-to-List materialization with the existing merge-sort concavity
-   path for both selected-pair orders.
+   path for both selected-pair orders. Multiset/general unordered-container
+   packaging remains open.
 2. Model ceiling-fee rounding in Lean to replace the production empirical
    `2L + 2` and `3L + 2` constants with checked lemmas.
 3. Turn the fixed-order no-gain evidence into a precise game definition.

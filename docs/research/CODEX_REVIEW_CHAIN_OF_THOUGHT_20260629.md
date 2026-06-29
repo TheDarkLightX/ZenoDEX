@@ -34,6 +34,7 @@ Iterations and grades:
 | 9    | Lipschitz-stateful bridge | A  | 0    | all round 8 findings resolved, zero findings |
 | 10   | Game theory (Phase 6) | A- | 3    | raw algebraic equality (no conditional transition), raw output (no utility fn), scope note as theorem |
 | 11   | Game theory (Phase 6) | A  | 0    | all round 10 findings resolved, zero findings |
+| 12   | Finset quotient bridge | A  | 0    | Finset Nat quotient for unordered collections, zero findings |
 
 The grade plateaued at B+ across iterations 3 and 4 for the Phases 4-6 scope.
 The conservation law package then went through its own 3-iteration loop
