@@ -660,6 +660,77 @@ theorem abstract_lipschitz_pair_perturbed_argmax_distance_sharp_quadratic
     ring_nf
     exact le_rfl
 
+/-- **Closed-form additive radius for the anchored Lipschitz bound**.
+
+    The certificate-parametric theorem
+    `abstract_anchor_lipschitz_perturbed_argmax_distance` consumes a checked
+    radius `R` satisfying two obligations. This corollary proves that the
+    explicit additive form
+    `R = rho + 2*L_e/m + sqrt(2*alpha/m)`
+    satisfies both obligations, giving a closed-form radius that a checker
+    can compute without solving a quadratic.
+
+    The additive form is conservative relative to the tightest certified
+    radius (the larger root of the quadratic), but it is simple to compute
+    and verify. -/
+theorem abstract_anchor_lipschitz_additive_radius_certificate
+    (m L_e alpha rho : ℝ)
+    (hm : m > 0) (hLe : L_e ≥ 0) (halpha : alpha ≥ 0) (hrho : rho ≥ 0) :
+    let R : ℝ := rho + 2 * L_e / m + Real.sqrt (2 * alpha / m)
+    alpha + L_e * (R + rho) ≤ (m / 2) * R^2 ∧ L_e ≤ m * R := by
+  dsimp
+  set s : ℝ := 2 * L_e / m
+  set t : ℝ := Real.sqrt (2 * alpha / m)
+  have hs_nn : 0 ≤ s := div_nonneg (mul_nonneg (by norm_num) hLe) (le_of_lt hm)
+  have ht_nn : 0 ≤ t := Real.sqrt_nonneg _
+  have ht_sq : t ^ 2 = 2 * alpha / m := by
+    have h_arg_nn : 0 ≤ 2 * alpha / m :=
+      div_nonneg (mul_nonneg (by norm_num) halpha) (le_of_lt hm)
+    exact Real.sq_sqrt h_arg_nn
+  have h_ms_eq : m * s = 2 * L_e := by
+    show m * (2 * L_e / m) = 2 * L_e
+    field_simp [ne_of_gt hm]
+  have h_ms_sq : (m / 2) * s ^ 2 = L_e * s := by
+    show (m / 2) * (2 * L_e / m) ^ 2 = L_e * (2 * L_e / m)
+    field_simp [ne_of_gt hm]
+  have h_half_t_sq : (m / 2) * t ^ 2 = alpha := by
+    show (m / 2) * Real.sqrt (2 * alpha / m) ^ 2 = alpha
+    rw [Real.sq_sqrt (div_nonneg (mul_nonneg (by norm_num) halpha) (le_of_lt hm))]
+    field_simp [ne_of_gt hm]
+  -- Obligation 2: L_e <= m * R
+  have h_obl2 : L_e ≤ m * (rho + s + t) := by
+    show L_e ≤ m * (rho + 2 * L_e / m + Real.sqrt (2 * alpha / m))
+    have h_mrho_nn : 0 ≤ m * rho := mul_nonneg (le_of_lt hm) hrho
+    have h_mt_nn : 0 ≤ m * Real.sqrt (2 * alpha / m) :=
+      mul_nonneg (le_of_lt hm) (Real.sqrt_nonneg _)
+    nlinarith [h_mrho_nn, h_mt_nn]
+  -- Obligation 1: alpha + L_e * (R + rho) <= (m/2) * R^2
+  -- After expansion: RHS - LHS = (m/2)*rho^2 + m*rho*t + L_e*t >= 0
+  have h_obl1 : alpha + L_e * ((rho + s + t) + rho) ≤ (m / 2) * (rho + s + t) ^ 2 := by
+    show alpha + L_e * ((rho + 2 * L_e / m + Real.sqrt (2 * alpha / m)) + rho) ≤
+          (m / 2) * (rho + 2 * L_e / m + Real.sqrt (2 * alpha / m)) ^ 2
+    set t2 := Real.sqrt (2 * alpha / m)
+    have ht2_sq : t2 ^ 2 = 2 * alpha / m := by
+      exact Real.sq_sqrt (div_nonneg (mul_nonneg (by norm_num) halpha) (le_of_lt hm))
+    have ht2_nn : 0 ≤ t2 := Real.sqrt_nonneg _
+    -- Expand and simplify: the difference is (m/2)*rho^2 + m*rho*t2 + L_e*t2
+    have h_diff :
+        (m / 2) * (rho + 2 * L_e / m + t2) ^ 2 -
+        (alpha + L_e * ((rho + 2 * L_e / m + t2) + rho)) =
+        (m / 2) * rho ^ 2 + m * rho * t2 + L_e * t2 := by
+      field_simp [ne_of_gt hm]
+      ring_nf
+      rw [ht2_sq]
+      field_simp [ne_of_gt hm]
+      ring
+    have h_diff_nn : 0 ≤ (m / 2) * rho ^ 2 + m * rho * t2 + L_e * t2 := by
+      have h1 : 0 ≤ (m / 2) * rho ^ 2 := mul_nonneg (by linarith) (sq_nonneg rho)
+      have h2 : 0 ≤ m * rho * t2 := mul_nonneg (mul_nonneg (le_of_lt hm) hrho) ht2_nn
+      have h3 : 0 ≤ L_e * t2 := mul_nonneg hLe ht2_nn
+      linarith
+    linarith [h_diff, h_diff_nn]
+  exact ⟨h_obl1, h_obl2⟩
+
 private lemma quadratic_loss_at_sqrt_radius
     (m t : ℝ) (hm : m > 0) (ht : t ≥ 0) :
     0 - (-(m / 2) * (Real.sqrt (2 * t / m)) ^ 2) = t := by
