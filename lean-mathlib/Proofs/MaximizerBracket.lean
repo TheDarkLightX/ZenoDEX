@@ -58,6 +58,7 @@ Zero errors, zero warnings, zero placeholders.
 
 import Mathlib.Tactic
 import Proofs.CpmmSplitConcavity
+import Proofs.CeilingFeeRounding
 
 open Real
 
@@ -316,19 +317,6 @@ If `b* in [lo, hi]`, then `F(b*) <= f0(hi) + f1(D - lo)` because:
 - `F(b*) = f0(c0*b*) + f1(c1*(D-b*)) <= f0(c0*hi) + f1(c1*(D-lo))`
 -/
 
-/-- The CPMM output function is monotone non-decreasing for `K ≥ 0, M > 0`. -/
-lemma cpmmOutputCont_monotone
-    (K M x y : ℝ) (hK : K ≥ 0) (hM : M > 0)
-    (hx : 0 ≤ x) (hxy : x ≤ y) (hy_denom : M + y > 0) :
-    cpmmOutputCont K M x ≤ cpmmOutputCont K M y := by
-  unfold cpmmOutputCont
-  have hMx : 0 < M + x := by linarith
-  -- K*x/(M+x) <= K*y/(M+y) iff K*x*(M+y) <= K*y*(M+x)
-  -- iff K*(x*M + x*y) <= K*(y*M + x*y) iff K*x*M <= K*y*M iff K*M*(y-x) >= 0
-  rw [div_le_div_iff₀ hMx hy_denom]
-  have hKM_nn : 0 ≤ K * M := mul_nonneg hK (le_of_lt hM)
-  nlinarith [hKM_nn, hxy]
-
 /-- **Continuous Upper Value Bound**: if `b_star in [lo, hi]` and the
     pool parameters are valid, then
     `F(b_star) <= cpmmOutputCont K0 M0 (c0 * hi) + cpmmOutputCont K1 M1 (c1 * (D - lo))`.
@@ -357,7 +345,7 @@ theorem splitFunctionCont_cont_upper_bound
   have h_M0_c0b : 0 < M0 + c0 * b_star := by nlinarith
   have h_pool0_bound :=
     cpmmOutputCont_monotone K0 M0 (c0 * b_star) (c0 * hi)
-      hK0 hM0 h_c0b_nn h_c0b_le_c0hi h_M0_c0hi
+      hK0 hM0 h_c0b_nn h_c0hi_nn h_c0b_le_c0hi
   -- Pool 1: c1 * (D - b_star) <= c1 * (D - lo) (since b_star >= lo and c1 >= 0)
   have h_c1Db_le_c1Dl : c1 * (D - b_star) ≤ c1 * (D - lo) :=
     mul_le_mul_of_nonneg_left (by linarith) hc1
@@ -371,7 +359,7 @@ theorem splitFunctionCont_cont_upper_bound
   have h_M1_c1Db : 0 < M1 + c1 * (D - b_star) := by nlinarith
   have h_pool1_bound :=
     cpmmOutputCont_monotone K1 M1 (c1 * (D - b_star)) (c1 * (D - lo))
-      hK1 hM1 h_c1Db_nn h_c1Db_le_c1Dl h_M1_c1Dl
+      hK1 hM1 h_c1Db_nn h_c1Dl_nn h_c1Db_le_c1Dl
   linarith
 
 /-! ## Bracket Distance Bound
