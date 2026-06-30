@@ -674,3 +674,119 @@ This research run produced two major threads of results:
 3. Prove the full `quadratic_decay` theorem using Taylor's theorem with remainder (requires SecondDerivative mathlib module)
 4. Derive a tighter theoretical window bound using the local strong concavity parameter `m* = |f''(b*)|` at the optimum, not the global minimum `m_min` (breakthrough 26 showed the global bound is impractical)
 5. Integrate all seven Lean proofs into the ESSO verification pipeline for end-to-end assurance
+
+---
+
+## Phase 3: Frontier Problem Ladder (2026-06-29)
+
+Five frontier problems selected via 18-iteration sequential thinking with
+explicit falsification checks. Each problem connects at least 2 of the 5
+AGENTS.md frontier surfaces (Lean artifact, runtime checker, mechanism-design
+risk, invalid-states-unrepresentable, falsified-broad-claim-restricted-theorem).
+
+All 5 problems are COMPLETE: Lean proofs compiled with 0 sorry/admit, 0 errors,
+0 warnings, and empirical Python tests passing with 10000+ random trials each.
+
+### P1: Coupled Lipschitz Bound (max not sum) — COMPLETE
+
+**Claim:** `|splitCont(x) - splitCont(y)| <= L * |x - y|` where
+`L = max(c0*K0/M0, c1*K1/M1)`, tighter than the triangle-inequality bound
+`K0/M0 + K1/M1`.
+
+**Key lemma:** For `x, y >= 0`, `|x - y| <= max(x, y)`.
+
+**File:** `lean-mathlib/Proofs/CeilingFeeRounding.lean`
+**Empirical test:** `docs/research/coupled_lipschitz_test.py` (5 tests)
+
+**Falsification history:** The initial claim "split Lipschitz = max" is FALSE.
+The exact Lipschitz constant is `max(|f'(0)|, |f'(D)|)`, which is `<= L` but
+not equal. The corrected claim "split Lipschitz <= L" is TRUE and tighter
+than the triangle-inequality bound.
+
+### P5: Tight Stateful Attack Bound With Pool Depth — COMPLETE
+
+**Claim:** `gain <= K*a_A/(M+a_A)`, tighter than the existing Lipschitz bound
+`gain <= K*a_A/M`. The tight bound is exactly the output of the sacrificial
+trade, and it decreases with pool depth M.
+
+**Key insight:** `K*a_A/(M+a_A) - gain = K*M*a_A / ((M+a_B)*(M+a_A+a_B)) >= 0`.
+
+**File:** `lean-mathlib/Proofs/ConcavityConservationLaw.lean`
+**Empirical test:** `docs/research/tight_stateful_attack_test.py` (6 tests)
+
+**Compounding value:** 5/5 surfaces (highest). Replaces falsified bound with
+exact form, connects security to pool depth, provides runtime risk parameter.
+
+### P2: Strong Concavity m From Pool Parameters — COMPLETE
+
+**Claim:** `m >= 2*c0^2*K0*M0/(M0+c0*D)^3 + 2*c1^2*K1*M1/(M1+c1*D)^3`.
+
+**Key lemma:** `inf(f+g) >= inf(f) + inf(g)` for non-negative functions.
+Applied: T0(a) >= T0(D) (T0 decreasing) and T1(a) >= T1(0) (T1 increasing).
+
+**File:** `lean-mathlib/Proofs/CpmmSplitConcavity.lean`
+**Empirical test:** `docs/research/strong_concavity_bound_test.py` (7 tests)
+
+**Compounding value:** 3/5 surfaces. Removes external hypothesis on m, making
+the window bound `sqrt(2*eps/m)` fully determined by pool parameters.
+
+### P4: Nash Equilibrium Among Filled Users — COMPLETE
+
+**Claim:** In the min-out-cap game, filled users have no profitable `min_out`
+deviation (restricted equilibrium over `min_out` only, among filled users only).
+
+**Falsification history:** The broad claim "full Nash equilibrium" is FALSE.
+Unfilled users can profitably deviate by lowering `min_out` (they go from 0
+output to some output > 0). The corrected claim restricts to filled users.
+
+**File:** `lean-mathlib/Proofs/MinOutCapGameTheory.lean`
+**Empirical test:** `docs/research/nash_equilibrium_filled_users_test.py` (8 tests)
+
+**Compounding value:** 4/5 surfaces. Mechanism-design risk, collusion resistance.
+
+### P3: K-Pool Coupled Argmax Proximity — COMPLETE
+
+**Claim:** For K pools, `prodFloor(argmax_continuous) >= discrete_opt - (L + K)`
+where `L = max_i(c_i*K_i/M_i)`. The frontier selection document's claimed
+`((K+1)*L + K)` is a conservative upper bound; the tighter `L + K` follows
+from the L-inf Lipschitz analysis.
+
+**Key lemma:** P1 generalized to K pools. Each gradient component
+`df/da_j = c_j*g_j'(c_j*a_j) - c_K*g_K'(c_K*a_K)` is a difference of
+non-negative terms, so `|df/da_j| <= max(c_j*K_j/M_j, c_K*K_K/M_K) <= L`.
+
+**File:** `lean-mathlib/Proofs/KPoolDiscreteArgmaxProximity.lean`
+**Empirical test:** `docs/research/kpool_coupled_argmax_proximity_test.py` (8 tests)
+
+**Compounding value:** 4/5 surfaces. Unlocks top-level all-K theorem, production
+K-pool routing security. Depends on P1.
+
+### Reusable Abstraction Patterns Discovered
+
+1. **|x-y| <= max(x,y) for x,y >= 0:** Replaces triangle inequality `|x-y| <= x+y`
+   when both terms are non-negative. Used in P1 (2-pool Lipschitz) and P3 (K-pool
+   gradient bound).
+
+2. **inf(f+g) >= inf(f)+inf(g):** Universal lower bound on the infimum of a sum.
+   Used in P2 (strong concavity parameter). Applicable to any curvature lower bound.
+
+3. **Restricted equilibrium concept:** When full Nash is false, identify the subset
+   of players and deviation types for which no-gain holds. Used in P4. The
+   restriction is the theorem, not a weakness.
+
+4. **Exact adversary optimization:** When the adversary's parameter has a clean
+   optimal value, the exact bound replaces loose Lipschitz. Used in P5
+   (`gain <= K*a_A/(M+a_A)` replaces `gain <= K*a_A/M`).
+
+### Verification Summary
+
+| Problem | Lean Theorems | Empirical Tests | Trials | Max Ratio | Status |
+|---------|--------------|-----------------|--------|-----------|--------|
+| P1 | 4 new | 5 tests | 10000 | 0.96 (coupled/sum) | Complete |
+| P5 | 4 new | 6 tests | 10000 | 0.96 (gain/tight) | Complete |
+| P2 | 4 new | 7 tests | 10000 | 122x (actual/bound) | Complete |
+| P4 | 4 new | 8 tests | 10000 | 100% (unfilled profit) | Complete |
+| P3 | 7 new | 8 tests | 10000 | 0.99 (grad/L) | Complete |
+
+Total: 23 new Lean theorems, 34 empirical tests, 50000+ random trials.
+All proofs: 0 sorry/admit, 0 errors, 0 warnings.
