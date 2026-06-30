@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -18,6 +19,24 @@ def test_kpool_discrete_argmax_proximity_file_typechecks() -> None:
     if not (root / "external" / "mathlib4").exists():
         pytest.skip("mathlib4 checkout missing")
 
+    source = (lean_dir / target).read_text(encoding="utf-8")
+    required_theorems = (
+        "kpool_discrete_argmax_proximity",
+        "kpool_balanced_proximity_corollary",
+        "kpool_two_pool_specialization",
+        "kpool_gradient_bound_coord1",
+        "kpool_gradient_bound_coord2",
+        "kpool_coupled_argmax_proximity_3pool",
+        "kpool_coupled_argmax_proximity",
+        "witness_kpool_gradient_bound",
+    )
+    for theorem in required_theorems:
+        assert re.search(
+            rf"^(?:theorem|lemma)\s+{re.escape(theorem)}\b",
+            source,
+            re.MULTILINE,
+        ), f"{theorem} theorem/lemma is missing from {target}"
+
     try:
         proc = subprocess.run(
             [lake, "env", "lean", target],
@@ -31,6 +50,8 @@ def test_kpool_discrete_argmax_proximity_file_typechecks() -> None:
         pytest.skip(f"lake env lean timed out after {exc.timeout}s for {target}")
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
+    # Zero errors, zero warnings, zero sorry placeholders.
     combined = (proc.stdout + proc.stderr).lower()
     assert "sorry" not in combined, f"sorry placeholder found in {target}"
     assert "error:" not in combined, f"error in {target}: {proc.stderr}"
+    assert "warning:" not in combined, f"warning in {target}: {proc.stderr}"
