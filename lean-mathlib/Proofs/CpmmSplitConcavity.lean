@@ -545,6 +545,171 @@ theorem symmetric_split_curvature_min_at_half
   rw [hleft, hright] at h_scaled
   exact h_scaled
 
+/-! ## Asymmetric Split Curvature Minimizer Reduction
+
+The `normalized_asymmetric_split_curvature_stationary_min` theorem above
+proves the core inequality in normalized form: if `q*u + v = q + 1`,
+then `S*(1 + 1/q) ≤ S*(1/u³ + 1/(q*v³))`.
+
+The reduction from concrete CPMM parameters to this normalized form
+requires:
+1. Setting `u = x/x*`, `v = y/y*` where `x* = M0 + c0*a*`,
+   `y* = M1 + c1*(D - a*)` are the stationary denominators.
+2. Setting `q = c1*x*/(c0*y*)` and `S = 2*c0²*K0*M0/x*³`.
+3. Proving the affine constraint `q*u + v = q + 1` holds for ALL `a`
+   (the `a*` terms cancel — pure linear arithmetic).
+4. Proving the curvature decomposition
+   `H(a) = S*(1/u³ + 1/(q*v³))` using the stationarity condition
+   `(x*/y*)⁴ = (c0³*K0*M0)/(c1³*K1*M1)`.
+5. Proving `H(a*) = S*(1 + 1/q)` (substitution at `u = v = 1`).
+
+The stationarity condition ensures that `q` from the affine constraint
+matches `q` from the curvature decomposition. This is the key insight
+that makes the reduction work.
+-/
+
+/-- **Asymmetric Split Curvature Minimizer Reduction**: given CPMM
+    parameters and a stationary split `a_star` with denominators
+    `x_star = M0 + c0*a_star`, `y_star = M1 + c1*(D - a_star)`
+    satisfying the stationarity condition
+    `(x_star/y_star)^4 = (c0^3*K0*M0)/(c1^3*K1*M1)`,
+    the curvature at any `a` is at least the curvature at `a_star`.
+
+    This closes the open proof obligation noted in
+    `symmetric_split_curvature_min_at_half`. The proof reduces to the
+    existing `normalized_asymmetric_split_curvature_stationary_min`
+    theorem via the normalization described above.
+
+    Non-claims:
+    - The stationarity condition is a checked hypothesis, not derived
+      here. It corresponds to `dH/da = 0` at `a_star`.
+    - The theorem proves the curvature minimum, not the split function
+      maximum. The split function maximum follows from the
+      strong-concavity chain (P2 bridge + P1/P3 argmax proximity).
+    - The `a_star` need not be in `[0, D]` for the algebra to work,
+      but the curvature bound is meaningful only when both `a` and
+      `a_star` are in the valid domain. -/
+theorem asymmetric_split_curvature_min_at_stationary
+    (K0 M0 c0 K1 M1 c1 D a a_star : ℝ)
+    (hK0 : 0 < K0) (hM0 : 0 < M0) (hc0 : 0 < c0)
+    (_hK1 : 0 < K1) (hM1 : 0 < M1) (hc1 : 0 < c1)
+    (_hD : 0 ≤ D) (ha_nn : 0 ≤ a) (ha_le_D : a ≤ D)
+    (h_star_nn : 0 ≤ a_star) (h_star_le_D : a_star ≤ D)
+    (h_stationarity :
+      (M0 + c0 * a_star) ^ 4 * (c1 ^ 3 * K1 * M1) =
+      (M1 + c1 * (D - a_star)) ^ 4 * (c0 ^ 3 * K0 * M0)) :
+    2 * c0 ^ 2 * K0 * M0 / (M0 + c0 * a_star) ^ 3 +
+    2 * c1 ^ 2 * K1 * M1 / (M1 + c1 * (D - a_star)) ^ 3 ≤
+    2 * c0 ^ 2 * K0 * M0 / (M0 + c0 * a) ^ 3 +
+    2 * c1 ^ 2 * K1 * M1 / (M1 + c1 * (D - a)) ^ 3 := by
+  -- Generalize denominators to opaque variables so field_simp won't unfold them
+  generalize hxa : M0 + c0 * a = x
+  generalize hya : M1 + c1 * (D - a) = y
+  generalize hxa' : M0 + c0 * a_star = x_star
+  generalize hya' : M1 + c1 * (D - a_star) = y_star
+  -- Positivity (prove in original form, then convert via generalize hypotheses)
+  have hx : 0 < x := by
+    have : 0 < M0 + c0 * a := by positivity
+    rw [hxa] at this; exact this
+  have hy : 0 < y := by
+    have hDa_nn : 0 ≤ D - a := by linarith
+    have : 0 < M1 + c1 * (D - a) := by positivity
+    rw [hya] at this; exact this
+  have hx_star : 0 < x_star := by
+    have : 0 < M0 + c0 * a_star := by positivity
+    rw [hxa'] at this; exact this
+  have hy_star : 0 < y_star := by
+    have hDstar_nn : 0 ≤ D - a_star := by linarith
+    have : 0 < M1 + c1 * (D - a_star) := by positivity
+    rw [hya'] at this; exact this
+  -- Stationarity in generalized form
+  have h_stat : x_star ^ 4 * (c1 ^ 3 * K1 * M1) =
+      y_star ^ 4 * (c0 ^ 3 * K0 * M0) := by
+    rw [← hxa', ← hya']; exact h_stationarity
+  -- Normalization variable values (no set/let to avoid field_simp unfolding)
+  -- u = x / x_star, v = y / y_star, q = c1*x_star/(c0*y_star), S = 2*c0^2*K0*M0/x_star^3
+  -- Positivity of normalization variables
+  have hu : 0 < x / x_star := div_pos hx hx_star
+  have hv : 0 < y / y_star := div_pos hy hy_star
+  have hq : 0 < c1 * x_star / (c0 * y_star) := by
+    have hc1s : 0 < c1 * x_star := mul_pos hc1 hx_star
+    exact div_pos hc1s (mul_pos hc0 hy_star)
+  have hS : 0 ≤ 2 * c0 ^ 2 * K0 * M0 / x_star ^ 3 := by
+    have hnum : 0 < 2 * c0 ^ 2 * K0 * M0 := by positivity
+    have hden : 0 < x_star ^ 3 := pow_pos hx_star 3
+    exact le_of_lt (div_pos hnum hden)
+  -- Affine constraint: q*u + v = q + 1
+  have h_sum_eq : c1 * x + c0 * y = c1 * x_star + c0 * y_star := by
+    rw [← hxa, ← hya, ← hxa', ← hya']; ring
+  have h_affine :
+      (c1 * x_star / (c0 * y_star)) * (x / x_star) + y / y_star =
+      c1 * x_star / (c0 * y_star) + 1 := by
+    have hcz : c0 * y_star ≠ 0 := mul_ne_zero (ne_of_gt hc0) (ne_of_gt hy_star)
+    have hxz : x_star ≠ 0 := ne_of_gt hx_star
+    have hyz : y_star ≠ 0 := ne_of_gt hy_star
+    field_simp
+    linear_combination h_sum_eq
+  -- Term 1: S / u^3 = 2*c0^2*K0*M0 / x^3
+  have h_term1 :
+      (2 * c0 ^ 2 * K0 * M0 / x_star ^ 3) / (x / x_star) ^ 3 =
+      2 * c0 ^ 2 * K0 * M0 / x ^ 3 := by
+    have hxz : x_star ≠ 0 := ne_of_gt hx_star
+    field_simp
+  -- Term 2: S / (q * v^3) = 2*c1^2*K1*M1 / y^3
+  have h_term2 :
+      (2 * c0 ^ 2 * K0 * M0 / x_star ^ 3) /
+      ((c1 * x_star / (c0 * y_star)) * (y / y_star) ^ 3) =
+      2 * c1 ^ 2 * K1 * M1 / y ^ 3 := by
+    have hcz : c0 * y_star ≠ 0 := mul_ne_zero (ne_of_gt hc0) (ne_of_gt hy_star)
+    have hxz : x_star ≠ 0 := ne_of_gt hx_star
+    have hyz : y_star ≠ 0 := ne_of_gt hy_star
+    field_simp
+    linear_combination (-1 : ℝ) * h_stat
+  -- Full decomposition: H(a) = S*(1/u^3 + 1/(q*v^3))
+  have h_decomp :
+      (2 * c0 ^ 2 * K0 * M0 / x_star ^ 3) *
+        (1 / (x / x_star) ^ 3 + 1 / ((c1 * x_star / (c0 * y_star)) * (y / y_star) ^ 3)) =
+      2 * c0 ^ 2 * K0 * M0 / x ^ 3 +
+      2 * c1 ^ 2 * K1 * M1 / y ^ 3 := by
+    have h_split :
+        (2 * c0 ^ 2 * K0 * M0 / x_star ^ 3) *
+          (1 / (x / x_star) ^ 3 + 1 / ((c1 * x_star / (c0 * y_star)) * (y / y_star) ^ 3)) =
+        (2 * c0 ^ 2 * K0 * M0 / x_star ^ 3) / (x / x_star) ^ 3 +
+        (2 * c0 ^ 2 * K0 * M0 / x_star ^ 3) /
+        ((c1 * x_star / (c0 * y_star)) * (y / y_star) ^ 3) := by
+      rw [div_eq_inv_mul, div_eq_inv_mul]; ring
+    rw [h_split, h_term1, h_term2]
+  -- Star term 2: S / q = 2*c1^2*K1*M1 / y_star^3
+  have h_star_term2 :
+      (2 * c0 ^ 2 * K0 * M0 / x_star ^ 3) / (c1 * x_star / (c0 * y_star)) =
+      2 * c1 ^ 2 * K1 * M1 / y_star ^ 3 := by
+    have hcz : c0 * y_star ≠ 0 := mul_ne_zero (ne_of_gt hc0) (ne_of_gt hy_star)
+    have hxz : x_star ≠ 0 := ne_of_gt hx_star
+    have hyz : y_star ≠ 0 := ne_of_gt hy_star
+    field_simp
+    linear_combination (-1 : ℝ) * h_stat
+  -- Star decomposition: H(a*) = S*(1 + 1/q)
+  have h_star_decomp :
+      (2 * c0 ^ 2 * K0 * M0 / x_star ^ 3) * (1 + 1 / (c1 * x_star / (c0 * y_star))) =
+      2 * c0 ^ 2 * K0 * M0 / x_star ^ 3 +
+      2 * c1 ^ 2 * K1 * M1 / y_star ^ 3 := by
+    have h_split :
+        (2 * c0 ^ 2 * K0 * M0 / x_star ^ 3) * (1 + 1 / (c1 * x_star / (c0 * y_star))) =
+        2 * c0 ^ 2 * K0 * M0 / x_star ^ 3 +
+        (2 * c0 ^ 2 * K0 * M0 / x_star ^ 3) / (c1 * x_star / (c0 * y_star)) := by
+      rw [div_eq_inv_mul]; ring
+    rw [h_split, h_star_term2]
+  -- Apply the normalized theorem with explicit values
+  have h_norm := normalized_asymmetric_split_curvature_stationary_min
+    (2 * c0 ^ 2 * K0 * M0 / x_star ^ 3)   -- S
+    (c1 * x_star / (c0 * y_star))          -- q
+    (x / x_star)                           -- u
+    (y / y_star)                           -- v
+    hS hq hu hv h_affine
+  -- Combine: rewrite goal using decompositions
+  rw [← h_star_decomp, ← h_decomp]
+  exact h_norm
+
 /-- **Witness**: Concrete case showing the lower bound is non-vacuous and
     strictly positive. K0=1000, M0=1000, c0=0.99, K1=2000, M1=1000,
     c1=0.99, D=100, a=50. -/

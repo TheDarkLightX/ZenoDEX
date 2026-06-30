@@ -33,6 +33,7 @@ def test_cpmm_split_concavity_file_typechecks() -> None:
         "inv_cube_tangent_lower_bound",
         "weighted_inv_cube_stationary_lower_bound",
         "normalized_asymmetric_split_curvature_stationary_min",
+        "asymmetric_split_curvature_min_at_stationary",
         "symmetric_split_curvature_min_at_half",
         "witness_strong_concavity_bound",
         "split_curvature_endpoint_lower_bound_pos",
