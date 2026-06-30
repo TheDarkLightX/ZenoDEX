@@ -30,6 +30,9 @@ def test_min_out_cap_game_theory_file_typechecks() -> None:
         "filled_user_no_profitable_min_out_deviation",
         "unfilled_user_profitable_deviation",
         "witness_unfilled_profitable_deviation",
+        "filled_user_lower_min_out_surplus_increases",
+        "filled_user_raise_min_out_surplus_drops",
+        "filled_user_surplus_best_response_zero_min_out",
     )
     for theorem in required_theorems:
         assert re.search(
