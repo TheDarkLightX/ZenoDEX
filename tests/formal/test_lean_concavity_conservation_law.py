@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -22,11 +23,15 @@ def test_concavity_conservation_law_file_typechecks() -> None:
     assert (
         "cpmm_donation_gain_argmax_bound_with_fee" in source
     ), "fee-bearing donation/no-output optimizer theorem is missing"
-    assert (
-        "exists_witness_cpmm_donation_gain_argmax_bound" in source
+    assert re.search(
+        r"^theorem\s+exists_witness_cpmm_donation_gain_argmax_bound\s*:",
+        source,
+        re.MULTILINE,
     ), "existential non-vacuity witness for fee-free donation bound is missing"
-    assert (
-        "exists_witness_cpmm_donation_gain_argmax_bound_with_fee" in source
+    assert re.search(
+        r"^theorem\s+exists_witness_cpmm_donation_gain_argmax_bound_with_fee\s*:",
+        source,
+        re.MULTILINE,
     ), "existential non-vacuity witness for fee-bearing donation bound is missing"
 
     try:
