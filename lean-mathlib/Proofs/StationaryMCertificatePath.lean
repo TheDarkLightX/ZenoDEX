@@ -3,8 +3,8 @@
 
 This file composes the stationary curvature minimizer theorems (P2) with the
 exact interval certificate path (P10) and interval curvature cover (P11),
-giving the tightest possible certified radius when a stationary witness is
-representable.
+giving a certified radius that dominates the endpoint and interval forms
+when a stationary witness is representable and the dominance chain holds.
 
 ## Certificate Hierarchy
 
@@ -66,8 +66,6 @@ import Proofs.MaximizerBracket
 import Proofs.ExactIntervalCertificatePath
 import Proofs.IntervalCurvatureCover
 
-set_option linter.unusedVariables false
-
 open Real
 
 /-! ## Asymmetric Stationary m Certificate Path
@@ -97,9 +95,9 @@ to the asymmetric path theorem.
     concavity parameter. -/
 theorem asymmetric_stationary_m_soundness
     (K0 M0 c0 K1 M1 c1 D a m : ℝ)
-    (hK0 : K0 > 0) (hM0 : M0 > 0) (hc0 : c0 > 0)
-    (hK1 : K1 > 0) (hM1 : M1 > 0) (hc1 : c1 > 0)
-    (hD : D ≥ 0) (ha_nn : 0 ≤ a) (ha_le_D : a ≤ D)
+    (_hK0 : K0 > 0) (_hM0 : M0 > 0) (_hc0 : c0 > 0)
+    (_hK1 : K1 > 0) (_hM1 : M1 > 0) (_hc1 : c1 > 0)
+    (_hD : D ≥ 0) (_ha_nn : 0 ≤ a) (_ha_le_D : a ≤ D)
     (hm_pos : 0 < m)
     (hm_floor :
       m ≤
@@ -118,10 +116,13 @@ theorem asymmetric_stationary_m_soundness
     via affine normalization and stationarity), and the derivative
     bracket contains `b*`, and the continuous upper value and production
     value are recomputed, then
-    `|argmax - b*| <= sqrt(2 * tau_upper / m_stationary)`.
+    `|argmax - b*| <= sqrt(2 * tau_upper / m)`.
 
-    This is the tightest certified radius for the asymmetric subfamily
-    with a representable stationary witness. -/
+    This radius is tightest relative to the endpoint and interval
+    certificate paths when the supplied `m` is the exact stationary
+    curvature minimum. The theorem itself consumes `m > 0` and a
+    function-level strong-concavity hypothesis; exactness of `m`
+    is conditional on external checker evidence. -/
 theorem asymmetric_stationary_m_certificate_path
     (K0 M0 c0 K1 M1 c1 D lo hi b_star argmax m tau_upper cont_star_upper prod_value : ℝ)
     (hK0 : K0 ≥ 0) (hM0 : M0 > 0) (hc0 : c0 ≥ 0)
@@ -129,7 +130,7 @@ theorem asymmetric_stationary_m_certificate_path
     (hD : D > 0)
     (h_lo_nn : 0 ≤ lo) (h_hi_le_D : hi ≤ D) (h_lo_le_hi : lo ≤ hi)
     (h_b_star_nn : 0 ≤ b_star) (h_b_star_le_D : b_star ≤ D)
-    (h_argmax_nn : 0 ≤ argmax) (h_argmax_le_D : argmax ≤ D)
+    (_h_argmax_nn : 0 ≤ argmax) (_h_argmax_le_D : argmax ≤ D)
     (h_deriv_strict_decreasing :
       ∀ x y : ℝ, x < y →
         deriv (splitFunctionCont K0 M0 c0 K1 M1 c1 D) x >
@@ -252,12 +253,15 @@ The symmetric stationary m dominates the endpoint m for identical pools.
 /-- **Symmetric Stationary m Dominates Endpoint m**: for identical pools,
     `m_endpoint <= m_symmetric`.
 
-    The endpoint m is `H(D) = H(0) = 4*c^2*K*M/(M+c*D)^3` (by symmetry).
+    The endpoint lower-bound source is `2*T0(D) = 4*c^2*K*M/(M+c*D)^3`,
+    which is the endpoint curvature floor used by the certificate chain
+    (not the full endpoint curvature sum `H(D)`, which includes a term
+    at denominator `M^3`).
     The stationary m is `H(D/2) = 4*c^2*K*M/(M+c*D/2)^3`.
     Since `M+c*D/2 < M+c*D` (for `D > 0`), the denominator is smaller,
     so the fraction is larger.
 
-    This gives `R_symmetric <= R_endpoint`, the tightest radius. -/
+    This gives `R_symmetric <= R_endpoint`. -/
 theorem symmetric_stationary_m_dominates_endpoint
     (K M c D : ℝ)
     (hK : 0 < K) (hM : 0 < M) (hc : 0 < c) (hD : 0 < D) :
@@ -286,9 +290,9 @@ theorem symmetric_stationary_m_dominates_endpoint
 
 /-! ## Symmetric Stationary m Certificate Path
 
-The complete composition for identical pools: symmetric stationary m +
+The composition for identical pools: symmetric stationary m +
 derivative bracket + continuous upper value + strong concavity =>
-tightest certified radius.
+certified radius.
 
 Delegates to `asymmetric_stationary_m_certificate_path` with
 `m = symmetric_stationary_m K M c D`.
@@ -300,8 +304,11 @@ Delegates to `asymmetric_stationary_m_certificate_path` with
     value and production value are recomputed, then
     `|argmax - b*| <= sqrt(2 * tau_upper / m_symmetric)`.
 
-    This is the tightest certified radius for the symmetric subfamily,
-    since `m_symmetric >= m_interval >= m_endpoint`. -/
+    This radius dominates the interval and endpoint radii when
+    `m_symmetric >= m_interval >= m_endpoint` (proven by separate
+    dominance theorems). The theorem itself consumes a function-level
+    strong-concavity hypothesis; the exactness of `m_symmetric` as the
+    curvature minimum is conditional on the external checker evidence. -/
 theorem symmetric_stationary_m_certificate_path
     (K M c D lo hi b_star argmax tau_upper cont_star_upper prod_value : ℝ)
     (hK : 0 < K) (hM : 0 < M) (hc : 0 < c)
@@ -386,21 +393,22 @@ theorem stationary_radius_le_endpoint_radius
   exact interval_radius_le_endpoint_radius
     tau m_endpoint m_stationary htau_nn hm_endpoint hm_stationary hm_dom
 
-/-! ## Complete Stationary Certificate Soundness
+/-! ## Stationary Certificate Soundness
 
-The complete soundness theorem with stationary m: all certificate conditions
+The soundness theorem with stationary m: all certificate conditions
 hold (derivative bracket, stationary curvature, recomputed values) => the
-actual distance is bounded by the tightest certified radius.
+actual distance is bounded by the certified radius.
 -/
 
-/-- **Complete Asymmetric Stationary Certificate Soundness**: if all
+/-- **Asymmetric Stationary Certificate Soundness**: if all
     certificate conditions hold with the asymmetric stationary curvature
     providing `m`, then
     `|argmax - b*| <= sqrt(2 * tau_upper / m)`.
 
     This is the main soundness theorem for the exact interval certificate
-    checker with stationary m source. It is the tightest form of the
-    certificate, since `m_stationary >= m_interval >= m_endpoint`. -/
+    checker with stationary m source. The radius dominates the interval
+    and endpoint forms when `m_stationary >= m_interval >= m_endpoint`
+    (conditional on external checker evidence for the dominance chain). -/
 theorem complete_stationary_certificate_soundness
     (K0 M0 c0 K1 M1 c1 D lo hi b_star argmax m tau_upper cont_star_upper prod_value : ℝ)
     (hK0 : K0 ≥ 0) (hM0 : M0 > 0) (hc0 : c0 ≥ 0)
