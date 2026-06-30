@@ -40,6 +40,9 @@ def test_cpmm_split_concavity_file_typechecks() -> None:
         "splitFunctionCont_strong_concavity",
         "splitFunctionCont_strong_concavity_from_curvature_floor",
         "splitFunctionCont_strong_concavity_from_m_certificate",
+        "taylor_remainder_quadratic_growth_bridge",
+        "taylor_remainder_quadratic_growth_bridge_symmetric",
+        "universal_quadratic_growth_from_strong_concavity",
     )
     for theorem in required_theorems:
         assert re.search(

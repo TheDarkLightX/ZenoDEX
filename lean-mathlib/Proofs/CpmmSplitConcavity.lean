@@ -692,3 +692,121 @@ theorem splitFunctionCont_strong_concavity_from_m_certificate
     K0 M0 c0 K1 M1 c1 D a hK0 hM0 hc0 hK1 hM1 hc1 hD ha_nn ha_le_D
     h_identity
   linarith
+
+/-! ## P2 Extension: Taylor-Remainder Quadratic Growth Bridge
+
+The argmax proximity chain (in `DiscreteArgmaxProximity.lean`) consumes a
+quadratic growth hypothesis:
+
+  `h_quadratic_growth : ∀ x, f_cont x ≤ f_cont b_star - (m/2) * (x - b_star)^2`
+
+The theorems above prove that `F''(a) ≤ -m` pointwise under calculus
+hypotheses. The bridge from pointwise second-derivative bounds to
+quadratic growth is a standard Taylor-remainder argument.
+
+The Lagrange form of the Taylor remainder gives: for `f` twice
+differentiable, there exists `ξ` between `b*` and `x` such that
+
+  `f(x) = f(b*) + f'(b*)*(x - b*) + f''(ξ)*(x - b*)^2 / 2`
+
+When `f'(b*) = 0` and `f''(ξ) ≤ -m`, this simplifies to
+
+  `f(x) ≤ f(b*) - (m/2)*(x - b*)^2`
+
+This section provides the bridge as a conditional theorem. The Lagrange
+remainder existence is supplied as an explicit hypothesis, matching the
+codebase pattern of treating calculus obligations as checked inputs.
+
+Prior art: Lemma 1 from arXiv 1312.7463 (Taylor's Theorem for Loss
+Functions) gives the general quadratic upper bound
+`f(y) ≤ f(x) + f'(x)*(y-x) + (M/2)*(y-x)^2` where `M = sup f''`.
+Our theorem is the special case with `f'(b*) = 0` and `M = -m`.
+-/
+
+/-- **Taylor-remainder quadratic growth bridge (Lagrange form)**: if
+    there exists `ξ` between `b_star` and `x` such that
+    `f(x) = f(b_star) + f'(b_star)*(x - b_star) + f''(ξ)*(x - b_star)^2 / 2`,
+    and `f'(b_star) = 0`, and `f''(ξ) ≤ -m`, then
+    `f(x) ≤ f(b_star) - (m/2) * (x - b_star)^2`.
+
+    This is the bridge from pointwise strong concavity to the quadratic
+    growth hypothesis consumed by the argmax proximity chain.
+
+    The Lagrange remainder existence is a checked hypothesis. The proof
+    is pure algebra: substitute `f'(b*) = 0` and `f''(ξ) ≤ -m` into the
+    Taylor expansion and simplify.
+
+    Non-claims:
+    - The Lagrange remainder existence is a checked input, not derived here.
+    - The theorem is abstract: it applies to any twice-differentiable
+      function, not just the CPMM split function.
+    - The `m > 0` hypothesis ensures the bound is non-trivial.
+    - The `ξ` is existentially quantified: the caller must supply both
+      the witness and the Taylor expansion at that witness. -/
+theorem taylor_remainder_quadratic_growth_bridge
+    (f : ℝ → ℝ) (m b_star x ξ : ℝ)
+    (_hm : 0 < m)
+    (h_taylor_lagrange :
+      f x = f b_star + deriv f b_star * (x - b_star)
+        + deriv (deriv f) ξ * (x - b_star) ^ 2 / 2)
+    (h_first_deriv_zero : deriv f b_star = 0)
+    (h_second_deriv_bound : deriv (deriv f) ξ ≤ -m) :
+    f x ≤ f b_star - (m / 2) * (x - b_star) ^ 2 := by
+  rw [h_taylor_lagrange, h_first_deriv_zero, zero_mul, add_zero]
+  have h_sq_nn : 0 ≤ (x - b_star) ^ 2 := sq_nonneg _
+  have h_prod_le : deriv (deriv f) ξ * (x - b_star) ^ 2 ≤
+      (-m) * (x - b_star) ^ 2 :=
+    mul_le_mul_of_nonneg_right h_second_deriv_bound h_sq_nn
+  have h_two_pos : (0 : ℝ) < 2 := by norm_num
+  have h_term_bound : deriv (deriv f) ξ * (x - b_star) ^ 2 / 2 ≤
+      (-m) * (x - b_star) ^ 2 / 2 := by
+    rw [le_div_iff₀ h_two_pos]
+    linarith
+  linarith
+
+/-- **Symmetric case: x ≤ b_star**: The Taylor-remainder bridge also
+    works when `x ≤ b_star`, with `ξ` between `x` and `b_star`. The
+    algebra is identical: `f'(b*) = 0` and `f''(ξ) ≤ -m` give the same
+    quadratic growth bound regardless of which side of `b*` the point
+    `x` is on.
+
+    This is the same theorem as `taylor_remainder_quadratic_growth_bridge`
+    but stated without requiring `b_star ≤ x`. The Lagrange remainder
+    hypothesis is symmetric in the ordering of `b_star` and `x`. -/
+theorem taylor_remainder_quadratic_growth_bridge_symmetric
+    (f : ℝ → ℝ) (m b_star x ξ : ℝ)
+    (hm : 0 < m)
+    (h_taylor_lagrange :
+      f x = f b_star + deriv f b_star * (x - b_star)
+        + deriv (deriv f) ξ * (x - b_star) ^ 2 / 2)
+    (h_first_deriv_zero : deriv f b_star = 0)
+    (h_second_deriv_bound : deriv (deriv f) ξ ≤ -m) :
+    f x ≤ f b_star - (m / 2) * (x - b_star) ^ 2 := by
+  exact taylor_remainder_quadratic_growth_bridge f m b_star x ξ hm
+    h_taylor_lagrange h_first_deriv_zero h_second_deriv_bound
+
+/-- **Universal quadratic growth from pointwise strong concavity**: if
+    the Lagrange remainder exists for every `x` (with some `ξ` depending
+    on `x`), `f'(b_star) = 0`, and `f''(t) ≤ -m` for all `t`, then
+    `f(x) ≤ f(b_star) - (m/2) * (x - b_star)^2` for all `x`.
+
+    This is the universal form of the quadratic growth bound, suitable
+    as a direct drop-in for the `h_quadratic_growth` hypothesis of the
+    argmax proximity theorems.
+
+    The Lagrange remainder existence for every `x` is a checked
+    hypothesis. In practice, this follows from `f` being twice
+    continuously differentiable on an interval containing `b_star`. -/
+theorem universal_quadratic_growth_from_strong_concavity
+    (f : ℝ → ℝ) (m b_star : ℝ)
+    (hm : 0 < m)
+    (h_first_deriv_zero : deriv f b_star = 0)
+    (h_second_deriv_bound : ∀ t : ℝ, deriv (deriv f) t ≤ -m)
+    (h_lagrange : ∀ x : ℝ, ∃ ξ : ℝ,
+      f x = f b_star + deriv f b_star * (x - b_star)
+        + deriv (deriv f) ξ * (x - b_star) ^ 2 / 2) :
+    ∀ x : ℝ, f x ≤ f b_star - (m / 2) * (x - b_star) ^ 2 := by
+  intro x
+  obtain ⟨ξ, h_taylor⟩ := h_lagrange x
+  exact taylor_remainder_quadratic_growth_bridge f m b_star x ξ hm
+    h_taylor h_first_deriv_zero (h_second_deriv_bound ξ)
