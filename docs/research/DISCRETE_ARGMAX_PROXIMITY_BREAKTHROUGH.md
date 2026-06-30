@@ -75,6 +75,17 @@ The `max(1, …)` accounts for the case where the window `√(2(L+2)/m)` could b
 
 **Note**: The hypothesis `h_nstar_max` is domain-restricted to `0 ≤ n ≤ D` (matching the production split domain), not over all integers.
 
+### Theorem 8: Certified-Anchor Perturbed Argmax Distance (PROVEN)
+For any one-sided perturbed objective `g` with `g(x) ≤ f(x)` at the perturbed argmax, if a certified anchor has total value deficit
+```
+τ = f(b*) - g(anchor),
+```
+then every perturbed argmax that beats the anchor satisfies
+```
+|argmax_g - b*| ≤ √(2τ / m).
+```
+This is the tight generic certificate form for a chosen anchor. The ceiling-fee production lane uses `τ ≤ α + η`, where `α = f(b*) - f(anchor)` and `η` is the one-sided fee-ceil plus output-floor perturbation envelope.
+
 ---
 
 ## Two Models Verified
@@ -82,11 +93,12 @@ The `max(1, …)` accounts for the case where the window `√(2(L+2)/m)` could b
 | Model | Fee Rounding | Output Rounding | Floor Error Bound | Argmax Bound | Verification |
 |-------|--------------|-----------------|-------------------|--------------|--------------|
 | **Lean model** | Continuous (`γ·a`) | Floor | `< 2` | `L + 2` | Lean PROVEN + 1000 configs |
-| **Production** | Ceiling (`⌈a·fee/10000⌉`) | Floor | `< 2L + 2` | `3L + 2` | 1000 configs empirical |
+| **Production universal** | Ceiling (`⌈a·fee/10000⌉`) | Floor | `< gross0 + gross1 + 2` | `√(2τ/m)` from a certified anchor | Lean generic + empirical envelope |
+| **Production low-fee regression** | Ceiling (`⌈a·fee/10000⌉`) | Floor | `< 2L + 2` on tested low-fee corpus | `3L + 2` on tested low-fee corpus | Empirical only |
 
-The abstract Lean theorem takes the floor error as a hypothesis, so it covers both models. The Lean-specific theorem uses `ε = 2`; the production model uses `ε = 2L + 2` (the ceiling fee adds `< L` extra error per pool).
+The abstract Lean theorem takes the floor error or certified-anchor deficit as a hypothesis, so it covers both models. The Lean-specific theorem uses `ε = 2`; the universal production lane uses gross spot because ceiling fee perturbs net input by less than one unit and the output curve is gross-spot Lipschitz in net input.
 
-The production-function bounds are verified empirically because modeling `Int.ceil` properties in Lean for the fee computation would require additional infrastructure. The abstract theorem's correctness is what matters; only the constant `ε` differs.
+The production-function bounds are verified empirically because modeling `Int.ceil` properties in Lean for the fee computation would require additional infrastructure. The effective-`L` constants are retained only as low-fee regression evidence after a high-fee falsifier.
 
 ---
 
@@ -97,6 +109,8 @@ The theorems split into two layers:
 **Abstract layer (Lean PROVEN, unconditional)**:
 - `abstract_discrete_argmax_proximity`: takes Lipschitz, global-max, and floor-error as hypotheses; proves the proximity bound from them.
 - `abstract_window_sufficiency`: additionally takes strong concavity as a hypothesis; proves the window bound from them.
+- `abstract_certified_anchor_argmax_distance`: takes a certified total anchor deficit `τ`; proves the tight radius `√(2τ/m)`.
+- `abstract_one_sided_perturbed_argmax_distance`: derives the common `√(2(α+ε)/m)` envelope from separate anchor-loss and perturbation-loss hypotheses.
 
 These are fully proven and require no CPMM-specific facts. They are reusable for any floored Lipschitz strongly-concave function.
 
@@ -108,7 +122,7 @@ These hypotheses are **not discharged in this file**. Discharging them requires:
 - Global max at `b*`: follows from strict concavity (proven in `CpmmSplitConcavity.lean`) plus compactness of `[0, D]`, but the existence/uniqueness of `b*` is assumed here.
 - Strong concavity parameter `m`: `CpmmSplitConcavity.lean` proves strict concavity (second forward difference `< 0`), which implies a strong concavity parameter exists on any compact subinterval, but does not compute the specific `m` value. The relationship table below is corrected to reflect this.
 
-The production model (ceiling fee) adds the `Int.ceil` fee rounding, which is not modeled in Lean. Its bounds (`2L + 2`, `3L + 2`) are empirical-only.
+The production model (ceiling fee) adds the `Int.ceil` fee rounding, which is not modeled in Lean. The old effective-`L` bounds (`2L + 2`, `3L + 2`) are empirical low-fee regressions only; the universal lane uses gross spot and the certified-anchor `τ` theorem.
 
 ---
 
@@ -118,7 +132,7 @@ This theorem closes the gap between the continuous concavity proof (`CpmmSplitCo
 
 1. **Correctness (clean model, Lean PROVEN; production model, empirical)**: The continuous-guided discrete search (`check ⌊b*_cont⌋`) achieves a value within `(L + 2)` of the discrete optimum for the clean model, and within `(3L + 2)` for the production model. For balanced pools (`L < 1`), these gaps are at most 3 and 5 respectively, within integer rounding noise.
 
-2. **Window bound (clean model, Lean PROVEN conditional on `m`; production model, empirical)**: The discrete argmax `n*` lies within `max(1, √(2(L + 2) / m))` of the continuous optimum `b*` for the clean model (Theorem 7). The strict-beat case gives the tighter `√(2(L+2)/m)` bound (Theorem 6); the `max(1, …)` handles the plateau/tie case and the large-`m` regime. The empirical `W = ⌈1/L⌉` is tighter than both (verified in 500 configs, formal bound was never tighter).
+2. **Window bound (clean model, Lean PROVEN conditional on `m`; production model, empirical)**: The discrete argmax `n*` lies within `max(1, √(2(L + 2) / m))` of the continuous optimum `b*` for the clean model (Theorem 7). The strict-beat case gives the tighter `√(2(L+2)/m)` bound (Theorem 6); the `max(1, …)` handles the plateau/tie case and the large-`m` regime. The certified-anchor theorem gives the sharper production-compatible radius `√(2τ/m)` when an anchor value certificate is available. The empirical `W = ⌈1/L⌉` is tighter than the older formal windows on the tested corpus.
 
 3. **Falsification of Phase 3A**: The literal discrete concavity hypothesis is false, and this is now documented as a non-claim rather than an open proof obligation. The reformulation turns a falsified hypothesis into a true, proven (abstract) theorem with a CPMM instantiation that is proven conditional on standard analytic hypotheses.
 

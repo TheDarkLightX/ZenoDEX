@@ -28,8 +28,15 @@ constant (max spot price) and `ε` is the total floor rounding error bound
    as an EXTERNAL hypothesis)
 6. **CPMM window sufficiency (strict-beat)**: if a discrete point strictly
    beats `floor(⌊b*⌋)`, then `|b - b*| < √(2(L + 2) / m)`
+7. **Certified-anchor argmax distance**: if a perturbed argmax beats a
+   certified anchor whose total value deficit is at most `τ`, every perturbed
+   argmax lies within `√(2τ/m)` of `b*`.
+8. **One-sided perturbation argmax distance**: if a perturbed objective lies
+   below the strongly concave objective with error at most `ε`, and the
+   candidate set has an anchor within value loss `α` of the continuous
+   optimum, every perturbed argmax lies within `√(2(α+ε)/m)` of `b*`.
 
-## Argmax Corollary (Theorem 7, PROVEN)
+## Argmax Corollary (PROVEN)
 
 The window sufficiency theorems (5, 6) cover points that STRICTLY beat
 `floor(⌊b*⌋)`. The argmax window corollary (`argmax_window_corollary`
@@ -67,9 +74,19 @@ reusable. The CPMM-specific theorems (4, 6) are proven for the CLEAN model
 global-max / strong-concavity hypotheses that are NOT discharged here.
 
 The PRODUCTION model (ceiling fee + floor output, matching `src/core/cpmm.py`
-v8 kernel) uses `ε = 2L + 2` and a `(3L + 2)` argmax bound; these are verified
-empirically in `docs/research/discrete_argmax_proximity_test.py`, not formally
-proven in Lean (would require modeling `Int.ceil` for the fee computation).
+v8 kernel) has two empirical lanes in
+`docs/research/discrete_argmax_proximity_test.py`: the older effective-`L`
+`2L + 2` / `3L + 2` lane is retained as a low-fee regression, and a high-fee
+falsifier prevents promoting that effective-`L` fee bound as universal. The
+universal ceiling-fee perturbation lane uses gross spot `R_out/R_in` because
+fee-ceil changes net input by less than one unit and the output curve is
+gross-spot Lipschitz in net input.
+The tight generic location theorem is `√(2τ/m)`, where
+`τ = f_cont(b*) - f_prod(anchor)` is the certified anchor value deficit. The
+common ceiling-fee corollary sets `τ <= α + ε`, where `α` is the candidate-set
+anchor loss and `ε` is the one-sided production perturbation size. For an
+integer grid with nearest-integer anchoring, `α` can be bounded separately; for
+a candidate set containing `b*`, `α = 0`.
 
 For balanced pools (`L < 1`), the clean-model gap is at most 3 and the
 production-model gap is at most 5, both within integer rounding noise.
@@ -304,6 +321,87 @@ theorem abstract_window_sufficiency
     rw [Real.sqrt_sq h_abs_nn]
   rw [h_abs_eq_sqrt, h_abs_sq]
   exact Real.sqrt_lt_sqrt (sq_nonneg (b - b_star)) h_sq_lt
+
+/-- **Certified-anchor argmax distance**.
+
+    This is the sharpest generic certificate form for a chosen anchor:
+
+    `τ = f_cont(b_star) - f_disc(anchor)`
+
+    If `b_arg` is at least as good as `anchor` under the one-sided perturbed
+    objective, and the perturbed objective never exceeds the continuous
+    objective at `b_arg`, then strong concavity forces:
+
+    `|b_arg - b_star| ≤ √(2τ/m)`.
+
+    Minimizing `τ` over the certified candidate set gives the tightest radius
+    available from this information. The `α + ε` theorem below is the standard
+    ceiling-fee instantiation when only an anchor loss and perturbation envelope
+    are available. -/
+theorem abstract_certified_anchor_argmax_distance
+    (f_cont f_disc : ℝ → ℝ) (τ m : ℝ) (b_star anchor b_arg : ℝ)
+    (_hτ : τ ≥ 0) (hm : m > 0)
+    (h_anchor_total_loss : f_cont b_star - f_disc anchor ≤ τ)
+    (h_disc_le_arg : f_disc b_arg ≤ f_cont b_arg)
+    (h_argmax : f_disc anchor ≤ f_disc b_arg)
+    (h_strong_concave : ∀ x : ℝ,
+      f_cont x ≤ f_cont b_star - (m / 2) * (x - b_star)^2)
+    : |b_arg - b_star| ≤ Real.sqrt (2 * τ / m) := by
+  have h_sc := h_strong_concave b_arg
+  have h_key : (m / 2) * (b_arg - b_star)^2 ≤ τ := by
+    linarith [h_anchor_total_loss, h_disc_le_arg, h_argmax, h_sc]
+  have h_cross : (b_arg - b_star)^2 * m ≤ 2 * τ := by
+    have h_2m : 2 * (m / 2 : ℝ) = m := by field_simp
+    nlinarith [h_key, hm, h_2m]
+  have h_sq_le : (b_arg - b_star)^2 ≤ 2 * τ / m := by
+    rw [le_div_iff₀ hm]
+    linarith [h_cross]
+  have h_abs_sq : |b_arg - b_star|^2 = (b_arg - b_star)^2 := sq_abs (b_arg - b_star)
+  have h_abs_nn : 0 ≤ |b_arg - b_star| := abs_nonneg (b_arg - b_star)
+  have h_abs_eq_sqrt : |b_arg - b_star| = Real.sqrt (|b_arg - b_star|^2) := by
+    rw [Real.sqrt_sq h_abs_nn]
+  rw [h_abs_eq_sqrt, h_abs_sq]
+  exact Real.sqrt_le_sqrt h_sq_le
+
+/-- **Tight one-sided perturbation argmax distance**.
+
+    Let `f_cont` be strongly concave with maximizer `b_star`. Let `f_disc` be a
+    one-sided downward perturbation of `f_cont` on the candidate set: at the
+    chosen anchor, `f_cont anchor - f_disc anchor ≤ ε`, and at the perturbed
+    argmax, `f_disc b_arg ≤ f_cont b_arg`. If `b_arg` maximizes `f_disc` over
+    the candidate set and the anchor has continuous value loss at most `α`, then
+
+    `|b_arg - b_star| ≤ √(2(α + ε) / m)`.
+
+    This is the tight generic constant for one-sided perturbations. If the
+    candidate set contains `b_star`, take `anchor = b_star` and `α = 0`. For an
+    integer grid, `α` is the value lost by the best certified grid anchor near
+    `b_star`; bounding `α` is a separate lattice/rounding obligation. -/
+theorem abstract_one_sided_perturbed_argmax_distance
+    (f_cont f_disc : ℝ → ℝ) (α ε m : ℝ) (b_star anchor b_arg : ℝ)
+    (_hα : α ≥ 0) (_hε : ε ≥ 0) (hm : m > 0)
+    (h_anchor_loss : f_cont b_star - f_cont anchor ≤ α)
+    (h_disc_err_anchor : f_cont anchor - f_disc anchor ≤ ε)
+    (h_disc_le_arg : f_disc b_arg ≤ f_cont b_arg)
+    (h_argmax : f_disc anchor ≤ f_disc b_arg)
+    (h_strong_concave : ∀ x : ℝ,
+      f_cont x ≤ f_cont b_star - (m / 2) * (x - b_star)^2)
+    : |b_arg - b_star| ≤ Real.sqrt (2 * (α + ε) / m) := by
+  have h_sc := h_strong_concave b_arg
+  have h_key : (m / 2) * (b_arg - b_star)^2 ≤ α + ε := by
+    linarith [h_anchor_loss, h_disc_err_anchor, h_disc_le_arg, h_argmax, h_sc]
+  have h_cross : (b_arg - b_star)^2 * m ≤ 2 * (α + ε) := by
+    have h_2m : 2 * (m / 2 : ℝ) = m := by field_simp
+    nlinarith [h_key, hm, h_2m]
+  have h_sq_le : (b_arg - b_star)^2 ≤ 2 * (α + ε) / m := by
+    rw [le_div_iff₀ hm]
+    linarith [h_cross]
+  have h_abs_sq : |b_arg - b_star|^2 = (b_arg - b_star)^2 := sq_abs (b_arg - b_star)
+  have h_abs_nn : 0 ≤ |b_arg - b_star| := abs_nonneg (b_arg - b_star)
+  have h_abs_eq_sqrt : |b_arg - b_star| = Real.sqrt (|b_arg - b_star|^2) := by
+    rw [Real.sqrt_sq h_abs_nn]
+  rw [h_abs_eq_sqrt, h_abs_sq]
+  exact Real.sqrt_le_sqrt h_sq_le
 
 /-- **Theorem 4 (CPMM)**: Window sufficiency for the CPMM 2-pool split.
     If a discrete point `b` beats the continuous-guided point `⌊b*⌋`, then

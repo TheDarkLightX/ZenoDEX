@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Empirical verification of CeilingFeeRounding.lean Lean theorems.
 
-This file empirically verifies the four formal theorems proven in
+This file empirically verifies the formal theorems proven in
 lean-mathlib/Proofs/CeilingFeeRounding.lean:
 
 1. cpmm_output_lipschitz_wrt_net:
@@ -17,20 +17,27 @@ lean-mathlib/Proofs/CeilingFeeRounding.lean:
 4. cpmm_prod_discrete_argmax_proximity:
    splitProdFloor(floor(b*)) >= splitProdFloor(b) - (L + K0/M0 + K1/M1 + 2)
 
+5. split_lipschitz_coupled:
+   |splitCont(x) - splitCont(y)| <= L * |x - y|
+   where L = max(c0*K0/M0, c1*K1/M1)
+
 The Lean bounds use K/M (per-pool output Lipschitz at x=0), which is the
 worst case. The empirical bounds in discrete_argmax_proximity_test.py use
 L = max(c0*K0/M0, c1*K1/M1) (split Lipschitz with continuous fee), which
-is tighter when fees are non-zero (c < 1).
+is a formal coupled upper bound for the continuous split objective.
 
 Relationship:
-  formal_bound = L + K0/M0 + K1/M1 + 2  (Lean)
-  empirical_bound = 3L + 2               (discrete_argmax_proximity_test.py)
-  formal_bound >= empirical_bound when K0/M0 + K1/M1 >= 2L (always true since c <= 1)
+  gross_bound = L + K0/M0 + K1/M1 + 2     (Lean)
+  low_fee_bound = 3L + 2                  (discrete_argmax_proximity_test.py)
+
+Neither bound is universally tighter under fees. The gross bound is the
+universal production lane; the low-fee bound is an empirical regression.
 
 Non-claims:
 - The ceiling fee perturbation bound (net_cont - net_prod < 1) is an external
   hypothesis in Lean, verified empirically here.
-- The formal bounds are WEAKER than the empirical bounds.
+- The effective-L constants are not universal production theorems.
+- The coupled L is an upper bound, not the exact split Lipschitz constant.
 - Strong concavity parameter m is an external hypothesis.
 
 Determinism: All tests use fixed seeds. No real time, RNG, network, or fs.
@@ -71,6 +78,19 @@ def cpmm_output_prod_floor(K: float, M: float, x_net: float) -> float:
 def split_function_cont(K0, M0, c0, K1, M1, c1, D, a):
     """splitFunctionCont: continuous fee split. Matches Lean."""
     return cpmm_output_cont(K0, M0, c0 * a) + cpmm_output_cont(K1, M1, c1 * (D - a))
+
+
+def split_derivative(K0, M0, c0, K1, M1, c1, D, a):
+    """Derivative of splitFunctionCont with respect to the split a."""
+    t0 = c0 * K0 * M0 / ((M0 + c0 * a) ** 2)
+    t1 = c1 * K1 * M1 / ((M1 + c1 * (D - a)) ** 2)
+    return t0 - t1
+
+
+def exact_boundary_split_lipschitz(K0, M0, c0, K1, M1, c1, D):
+    """Exact Lipschitz for this concave split is attained at an interval end."""
+    return max(abs(split_derivative(K0, M0, c0, K1, M1, c1, D, 0.0)),
+               abs(split_derivative(K0, M0, c0, K1, M1, c1, D, D)))
 
 
 def split_function_prod_floor(K0, M0, net0, K1, M1, net1):
@@ -141,6 +161,62 @@ def test_per_pool_lipschitz():
                   f"actual={actual} bound={bound}")
     assert violations == 0, f"{violations} Lipschitz violations"
     print(f"  PASS: 10000 random trials, 0 violations")
+
+
+# ---------------------------------------------------------------------------
+# Test 1b: Coupled split Lipschitz bound (split_lipschitz_coupled)
+#          |splitCont(x) - splitCont(y)| <= L * |x - y|
+# ---------------------------------------------------------------------------
+
+def test_coupled_split_lipschitz_max_bound():
+    """Verify the formal max-bound and compare it to the exact boundary slope."""
+    rng = random.Random(20260711)
+    violations = 0
+    exact_over_l = 0
+    strict_sum_improvements = 0
+    max_ratio = 0.0
+    max_exact_ratio = 0.0
+    worst = None
+    for _ in range(1000):
+        K0 = float(rng.randint(1, 10000))
+        M0 = float(rng.randint(1, 10000))
+        K1 = float(rng.randint(1, 10000))
+        M1 = float(rng.randint(1, 10000))
+        fee0 = rng.randint(0, 3000)
+        fee1 = rng.randint(0, 3000)
+        c0 = 1.0 - fee0 / 10000.0
+        c1 = 1.0 - fee1 / 10000.0
+        D = float(rng.randint(1, 10000))
+        L = split_lipschitz(K0, M0, c0, K1, M1, c1)
+        sum_L = c0 * K0 / M0 + c1 * K1 / M1
+        exact_L = exact_boundary_split_lipschitz(K0, M0, c0, K1, M1, c1, D)
+        if exact_L > L + 1e-9:
+            exact_over_l += 1
+        if L + 1e-12 < sum_L:
+            strict_sum_improvements += 1
+        if L > 0:
+            max_exact_ratio = max(max_exact_ratio, exact_L / L)
+        for _pair in range(20):
+            x = rng.random() * D
+            y = rng.random() * D
+            actual = abs(split_function_cont(K0, M0, c0, K1, M1, c1, D, x) -
+                         split_function_cont(K0, M0, c0, K1, M1, c1, D, y))
+            bound = L * abs(x - y)
+            ratio = actual / bound if bound > 0 else 0.0
+            if ratio > max_ratio:
+                max_ratio = ratio
+                worst = (K0, M0, c0, K1, M1, c1, D, x, y, actual, bound)
+            if actual > bound + 1e-8:
+                violations += 1
+                print(f"  VIOLATION: actual={actual} bound={bound} "
+                      f"case={(K0, M0, c0, K1, M1, c1, D, x, y)}")
+    assert violations == 0, f"{violations} coupled Lipschitz violations"
+    assert exact_over_l == 0, f"{exact_over_l} exact boundary constants exceed L"
+    assert strict_sum_improvements > 0, "No case showed max-bound improvement over sum-bound"
+    print("  PASS: 1000 configs, 20000 split pairs, 0 violations, "
+          f"strict_sum_improvements={strict_sum_improvements}, "
+          f"max_pair_ratio={max_ratio:.6f}, max_exact_ratio={max_exact_ratio:.6f}, "
+          f"worst={worst}")
 
 
 # ---------------------------------------------------------------------------
@@ -325,16 +401,16 @@ def test_prod_argmax_proximity():
 
 
 # ---------------------------------------------------------------------------
-# Test 6: Formal bound vs empirical bound relationship
-#          formal = L + K0/M0 + K1/M1 + 2
-#          empirical = 3L + 2
+# Test 6: Gross formal bound vs low-fee empirical bound relationship
+#          gross = L + K0/M0 + K1/M1 + 2
+#          low_fee = 3L + 2
 #          Neither is universally tighter; relationship depends on pool params.
 # ---------------------------------------------------------------------------
 
 def test_formal_vs_empirical_bound():
     """Document the relationship between formal and empirical bounds.
 
-    formal - empirical = K0/M0 + K1/M1 - 2L
+    gross - low_fee = K0/M0 + K1/M1 - 2L
     where L = max(c0*K0/M0, c1*K1/M1) and c = 1 - fee_bps/10000.
 
     When c = 1 (no fee): L = max(K0/M0, K1/M1), so formal - empirical
@@ -344,9 +420,9 @@ def test_formal_vs_empirical_bound():
     When c < 1 (fee): L < max(K0/M0, K1/M1), so the relationship depends
     on the specific values.
     """
-    rng = random.Random(42)
-    formal_stronger = 0
-    empirical_stronger = 0
+    rng = random.Random(20260712)
+    gross_stronger = 0
+    low_fee_stronger = 0
     equal = 0
     for _ in range(10000):
         K0 = float(rng.randint(100, 10000))
@@ -358,21 +434,22 @@ def test_formal_vs_empirical_bound():
         c0 = 1.0 - fee0 / 10000.0
         c1 = 1.0 - fee1 / 10000.0
         L = split_lipschitz(K0, M0, c0, K1, M1, c1)
-        formal = L + K0 / M0 + K1 / M1 + 2.0
-        empirical = 3.0 * L + 2.0
-        diff = formal - empirical
+        gross = L + K0 / M0 + K1 / M1 + 2.0
+        low_fee = 3.0 * L + 2.0
+        diff = gross - low_fee
         if abs(diff) < 1e-9:
             equal += 1
         elif diff < 0:
-            formal_stronger += 1
+            gross_stronger += 1
         else:
-            empirical_stronger += 1
-    total = formal_stronger + empirical_stronger + equal
+            low_fee_stronger += 1
+    total = gross_stronger + low_fee_stronger + equal
     assert total == 10000
-    print(f"  PASS: {formal_stronger} cases formal < empirical (formal tighter), "
-          f"{empirical_stronger} cases formal > empirical (empirical tighter), "
+    assert gross_stronger > 0 and low_fee_stronger > 0
+    print(f"  PASS: {gross_stronger} cases gross < low_fee (gross tighter), "
+          f"{low_fee_stronger} cases gross > low_fee (low_fee tighter), "
           f"{equal} equal")
-    print(f"  Neither bound is universally tighter; both are valid.")
+    print("  Neither bound is universally tighter; the low-fee lane remains empirical.")
 
 
 # ---------------------------------------------------------------------------
@@ -404,6 +481,10 @@ if __name__ == "__main__":
     test_per_pool_lipschitz()
     print()
 
+    print("Test 1b: Coupled split Lipschitz (split_lipschitz_coupled)")
+    test_coupled_split_lipschitz_max_bound()
+    print()
+
     print("Test 2: Ceiling fee perturbation < 1 (external hypothesis)")
     test_ceil_fee_perturbation()
     print()
@@ -420,7 +501,7 @@ if __name__ == "__main__":
     test_prod_argmax_proximity()
     print()
 
-    print("Test 6: Formal bound >= empirical bound")
+    print("Test 6: Gross formal bound vs low-fee empirical bound")
     test_formal_vs_empirical_bound()
     print()
 

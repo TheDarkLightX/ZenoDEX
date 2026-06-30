@@ -24,6 +24,12 @@ compresses multiple obligations (abstraction compression pattern).
 
 ### P1: Coupled Lipschitz Bound (max not sum)
 
+**Status:** CLOSED as a formal/replay artifact. `CeilingFeeRounding.lean`
+proves `split_lipschitz_coupled`; `ceiling_fee_rounding_test.py` now checks
+20,000 random split pairs, verifies the exact boundary-slope constant stays
+within `L`, and records that the gross production bound and low-fee effective-L
+regression are not universally ordered under fees.
+
 **Claim**: `|splitCont(x) - splitCont(y)| <= L * |x - y|` where
 `L = max(c0*K0/M0, c1*K1/M1)`, tighter than the current formal bound
 `K0/M0 + K1/M1`.
@@ -47,14 +53,19 @@ than the triangle-inequality bound `K0/M0 + K1/M1`.
 **Compounding value**: 4/5 surfaces. Tightens floor error (L+1 per pool),
 argmax proximity (2L+2), and unlocks P3.
 
-**Verification**: Lean proof extending `CpmmSplitConcavity.lean` or
-`CeilingFeeRounding.lean`. Empirical test comparing L vs sum vs actual sup|f'|.
+**Verification**: DONE in `CeilingFeeRounding.lean` and
+`docs/research/ceiling_fee_rounding_test.py`.
 
 **Iteration estimate**: 10-15 (key insight already found).
 
 ---
 
 ### P2: Strong Concavity m From Pool Parameters
+
+**Status:** PARTIAL. `CpmmSplitConcavity.lean` now contains the arithmetic
+curvature-term lower-bound helper. The function-level bridge from that helper
+to a fully discharged strong-concavity parameter still depends on an external
+second-derivative identity and calculus bridge.
 
 **Claim**: `m >= 2*c0^2*K0*M0/(M0+c0*D)^3 + 2*c1^2*K1*M1/(M1+c1*D)^3`
 
@@ -177,7 +188,7 @@ P1, P2, P4, P5 can be worked on in parallel. P3 depends on P1.
 
 ## Execution Order
 
-1. P1 (Coupled Lipschitz) - shortest proof, highest unlock value
+1. P1 (Coupled Lipschitz) - CLOSED; use it as the dependency for P3.
 2. P5 (Tight Attack Bound) - highest compounding (5/5), independent
 3. P2 (Strong Concavity) - independent, removes external hypothesis
 4. P4 (Nash Filled-User) - independent, mechanism-design surface

@@ -42,23 +42,31 @@ By Lipschitz continuity of `cpmmOutputCont(K, M, ·)` with constant `K/M`
 3. **Split production floor error**: `splitCont - splitProdFloor < K0/M0 + K1/M1 + 2`
 4. **Production argmax proximity**:
    `splitProdFloor(⌊b*⌋) ≥ splitProdFloor(b) - (L + K0/M0 + K1/M1 + 2)`
+5. **Coupled split Lipschitz**:
+   `|splitCont(x) - splitCont(y)| ≤ L * |x-y|` where
+   `L = max(c0*K0/M0, c1*K1/M1)`.
 
 ## Relationship to Empirical Bounds
 
-The empirical bounds use `L = max(c0*K0/M0, c1*K1/M1)` (split Lipschitz) and show
-floor error `< 2L + 2` and argmax proximity `< 3L + 2`. The formal bounds here use
-`K0/M0 + K1/M1` (per-pool output Lipschitz), which are ≥ `L` (since `c ≤ 1`), so
-the formal bounds are WEAKER than the empirical bounds. When `c = 1` (no fee),
-the formal bounds would reduce to the clean model bounds, but this specialization
-is not formally proved here — the proved theorems state the conservative
-`K0/M0 + K1/M1 + 2` and `L + K0/M0 + K1/M1 + 2` bounds for all fee settings.
+The low-fee empirical bounds use `L = max(c0*K0/M0, c1*K1/M1)` (split Lipschitz)
+and show floor error `< 2L + 2` and argmax proximity `< 3L + 2` on the tested
+corpus. The formal bounds here use `K0/M0 + K1/M1` for the production ceiling-fee
+perturbation lane and also prove the coupled continuous-split Lipschitz constant
+`L`. The gross-spot production bound and the low-fee empirical `3L + 2` bound
+are not ordered universally under fees; the relationship depends on pool
+parameters. The proved theorems state the conservative `K0/M0 + K1/M1 + 2` and
+`L + K0/M0 + K1/M1 + 2` production bounds for all fee settings satisfying the
+explicit perturbation hypotheses.
 
 ## Non-Claims
 
 - The ceiling fee perturbation bound (`net_cont - net_prod < 1`) is an EXTERNAL
   hypothesis, not proven in Lean.
 - The per-pool Lipschitz constant `K/M` is the worst case (at `x=0`).
-- The formal bounds are weaker than the empirical bounds.
+- The effective-`L` production constants are empirical; the gross-spot
+  production lane is the universal formal lane in this file.
+- The coupled split Lipschitz constant `L` is an upper bound, not the exact
+  split Lipschitz constant in every parameter regime.
 - Strong concavity parameter `m` is an external hypothesis.
 
 ## Verification

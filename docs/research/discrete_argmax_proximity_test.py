@@ -18,15 +18,21 @@ TWO MODELS are verified:
    - fee = ceil(a * fee_bps / 10000)
    - net = a - fee
    - out = floor(y * net / (x + net))
-   - Floor error per pool: < L_pool + 1  (fee-ceil adds < L_pool, output-floor adds < 1)
-   - Split floor error: < 2L + 2
-   - Argmax proximity: floor(floor(b*)) >= opt - (3L + 2)
-   - Window: |b - b*| < sqrt(2*(3L+2)/m)
+   - Universal floor error per pool: < gross_spot_pool + 1
+     (fee-ceil changes net input by < 1, and output is gross-spot Lipschitz in net)
+   - Split floor error: < gross_spot_0 + gross_spot_1 + 2
+   - Low-fee empirical lane: floor(floor(b*)) >= opt - (3L + 2)
+   - Low-fee empirical window: |b - b*| < sqrt(2*(3L+2)/m)
+   - Tight certified-anchor argmax distance:
+     |argmax_prod - b*| <= sqrt(2*tau/m), where
+       tau = f_cont(b*) - f_prod(anchor)
+       tau <= alpha + eta_bound under the gross-spot ceiling-fee envelope
 
 The Lean proof proves the abstract theorem (abstract_discrete_argmax_proximity)
 which takes the floor error bound as a hypothesis. The CPMM-specific theorem
-uses ε = 2 (Lean model). The production model uses ε = 2L + 2, verified
-empirically here.
+uses ε = 2 (Lean model). The production model's universal ceiling-fee
+perturbation bound uses gross spot, while the older effective-L bound is kept
+as a low-fee empirical regression and is explicitly falsified for high fees.
 
 CONTEXT:
 - Phase 3A's literal hypothesis (discrete CPMM split is concave) is FALSE.
@@ -34,8 +40,9 @@ CONTEXT:
   ternary search DP's 22x speedup.
 
 Non-claims:
-- The production bounds (2L+2, 3L+2) are verified empirically, not formally
-  proven in Lean (would require modeling Int.ceil properties).
+- The production bounds are empirical unless stated as generic abstract Lean
+  consequences. The universal ceiling-fee perturbation still needs a dedicated
+  Lean model of Int.ceil to become a CPMM-specific formal theorem.
 - The abstract Lean theorem covers both models; only the ε constant differs.
 
 Determinism: All tests use fixed seeds. No real time, RNG, network, or fs.
@@ -118,8 +125,18 @@ def spot_price(p: Pool) -> float:
     return gamma * p.reserve_out / p.reserve_in
 
 
+def gross_spot_price(p: Pool) -> float:
+    if p.reserve_in == 0:
+        return 0.0
+    return p.reserve_out / p.reserve_in
+
+
 def lipschitz_constant(p0: Pool, p1: Pool) -> float:
     return max(spot_price(p0), spot_price(p1))
+
+
+def gross_ceiling_fee_perturbation_bound(p0: Pool, p1: Pool) -> float:
+    return gross_spot_price(p0) + gross_spot_price(p1) + 2.0
 
 
 def strong_concavity_param(p0: Pool, p1: Pool, D: float, b_star: float) -> float:
@@ -131,6 +148,29 @@ def strong_concavity_param(p0: Pool, p1: Pool, D: float, b_star: float) -> float
     net1 = gamma1 * (D - b_star)
     denom0 = (x0 + net0) ** 3
     denom1 = (x1 + net1) ** 3
+    term0 = 2.0 * y0 * gamma0 ** 2 * x0 / denom0 if denom0 > 0 else 0.0
+    term1 = 2.0 * y1 * gamma1 ** 2 * x1 / denom1 if denom1 > 0 else 0.0
+    return term0 + term1
+
+
+def strong_concavity_param_sampled_lower(p0: Pool, p1: Pool, D: int) -> float:
+    if D <= 0:
+        return 0.0
+    samples = {0.0, float(D)}
+    samples.update(float(a) for a in range(D + 1))
+    samples.update(D * i / 200.0 for i in range(201))
+    return min(strong_concavity_param(p0, p1, float(D), a) for a in samples)
+
+
+def strong_concavity_param_pool_lower_bound(p0: Pool, p1: Pool, D: int) -> float:
+    """Pool-parameter curvature lower bound used as a conservative m certificate."""
+    gamma0 = 1.0 - p0.fee_bps / 10000.0
+    gamma1 = 1.0 - p1.fee_bps / 10000.0
+    x0, y0 = float(p0.reserve_in), float(p0.reserve_out)
+    x1, y1 = float(p1.reserve_in), float(p1.reserve_out)
+    d = float(D)
+    denom0 = (x0 + gamma0 * d) ** 3
+    denom1 = (x1 + gamma1 * d) ** 3
     term0 = 2.0 * y0 * gamma0 ** 2 * x0 / denom0 if denom0 > 0 else 0.0
     term1 = 2.0 * y1 * gamma1 ** 2 * x1 / denom1 if denom1 > 0 else 0.0
     return term0 + term1
@@ -174,6 +214,24 @@ def discrete_optimum_prod(p0: Pool, p1: Pool, D: int) -> tuple[int, int]:
     return best_a, best_out
 
 
+def continuous_integer_anchor_loss(p0: Pool, p1: Pool, D: int, b_star: float) -> float:
+    best_integer_cont = max(split_lean_cont(p0, p1, float(D), float(a)) for a in range(D + 1))
+    loss = split_lean_cont(p0, p1, float(D), b_star) - best_integer_cont
+    return max(0.0, loss)
+
+
+def best_continuous_integer_anchor(p0: Pool, p1: Pool, D: int) -> int:
+    """Integer anchor with maximum clean continuous value; leftmost on ties."""
+    best_a = 0
+    best_value = split_lean_cont(p0, p1, float(D), 0.0)
+    for a in range(1, D + 1):
+        value = split_lean_cont(p0, p1, float(D), float(a))
+        if value > best_value + 1e-12:
+            best_a = a
+            best_value = value
+    return best_a
+
+
 # ---------------------------------------------------------------------------
 # Test 1: LEAN MODEL floor error bound (Theorem: split_floor_error_bound)
 #          0 <= split_cont(b) - split_lean_floor(b) < 2
@@ -208,11 +266,11 @@ def test_lean_model_floor_error_bound() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 2: PRODUCTION MODEL floor error bound (empirical, < 2L + 2)
+# Test 2: PRODUCTION MODEL low-fee floor error regression (empirical, < 2L + 2)
 # ---------------------------------------------------------------------------
 
 def test_prod_model_floor_error_bound() -> None:
-    """Production: 0 <= cont - prod_floor < 2L + 2 for all b in [0, D]."""
+    """Low-fee production corpus: 0 <= cont - prod_floor < 2L + 2."""
     rng = random.Random(20260629)
     max_violation = 0.0
     total_points = 0
@@ -240,6 +298,73 @@ def test_prod_model_floor_error_bound() -> None:
         f"PROD FLOOR ERROR BOUND VIOLATION: {max_violation}. Worst: {worst}")
     print(f"PASS: prod_model_floor_error_bound "
           f"({total_points} points, all < 2L+2)")
+
+
+# ---------------------------------------------------------------------------
+# Test 2b: Effective-L ceiling-fee perturbation bound is not universal
+# ---------------------------------------------------------------------------
+
+def test_prod_effective_L_fee_bound_falsified_high_fee() -> None:
+    """High fees falsify the universal claim `cont - prod < 2L_eff + 2`.
+
+    The fee-ceil perturbation changes net input by < 1. The output curve is
+    Lipschitz in net input with gross spot `R_out/R_in`, not effective spot
+    `gamma * R_out/R_in`. This hard witness prevents the old empirical
+    low-fee bound from being promoted as universal.
+    """
+    p0 = Pool(343, 6094, 9999)
+    p1 = Pool(10, 8740, 9900)
+    D = 96
+    a = 0
+    err = split_lean_cont(p0, p1, float(D), float(a)) - split_prod_floor(p0, p1, D, a)
+    effective_L = lipschitz_constant(p0, p1)
+    old_bound = 2.0 * effective_L + 2.0
+    gross_bound = gross_ceiling_fee_perturbation_bound(p0, p1)
+
+    assert err > old_bound, (
+        f"expected high-fee witness to falsify effective-L bound: err={err}, "
+        f"old_bound={old_bound}")
+    assert err < gross_bound, (
+        f"gross-spot perturbation bound should cover witness: err={err}, "
+        f"gross_bound={gross_bound}")
+    print("PASS: prod_effective_L_fee_bound_falsified_high_fee "
+          f"(err={err:.4f} > 2L_eff+2={old_bound:.4f}, "
+          f"gross_bound={gross_bound:.4f})")
+
+
+# ---------------------------------------------------------------------------
+# Test 2c: Universal ceiling-fee perturbation bound with gross spot
+# ---------------------------------------------------------------------------
+
+def test_prod_gross_spot_fee_perturbation_bound_high_fee() -> None:
+    """Production: 0 <= cont - prod_floor < gross_spot_0 + gross_spot_1 + 2."""
+    rng = random.Random(20260709)
+    max_ratio = 0.0
+    total_points = 0
+    worst: tuple = ()
+    fee_choices = [0, 30, 100, 300, 1000, 3000, 5000, 9000, 9900, 9999]
+    for _ in range(500):
+        p0 = Pool(rng.randint(10, 10_000), rng.randint(10, 100_000), rng.choice(fee_choices))
+        p1 = Pool(rng.randint(10, 10_000), rng.randint(10, 100_000), rng.choice(fee_choices))
+        D = rng.randint(1, 300)
+        bound = gross_ceiling_fee_perturbation_bound(p0, p1)
+        for a in range(D + 1):
+            cont = split_lean_cont(p0, p1, float(D), float(a))
+            prod = float(split_prod_floor(p0, p1, D, a))
+            err = cont - prod
+            total_points += 1
+            ratio = err / bound if bound > 0.0 else 0.0
+            if ratio > max_ratio:
+                max_ratio = ratio
+                worst = (p0, p1, D, a, err, bound)
+            assert err >= -1e-6, (
+                f"Prod floor error NEGATIVE at a={a}: err={err}")
+            assert err < bound + 1e-6, (
+                f"Gross perturbation bound violated: err={err}, bound={bound}, "
+                f"case={(p0, p1, D, a)}")
+    assert total_points >= 50_000, f"Expected >=50000 points, got {total_points}"
+    print("PASS: prod_gross_spot_fee_perturbation_bound_high_fee "
+          f"({total_points} points, max_ratio={max_ratio:.4f}, worst={worst})")
 
 
 # ---------------------------------------------------------------------------
@@ -399,6 +524,89 @@ def test_prod_model_window_sufficiency() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Test 5b: Tight one-sided perturbation argmax distance
+# ---------------------------------------------------------------------------
+
+def test_prod_argmax_distance_tight_one_sided_perturbation_bound() -> None:
+    """Any production argmax lies within sqrt(2*tau/m) of b*.
+
+    tau: exact certified-anchor deficit f_cont(b*) - f_prod(anchor).
+    alpha + eta_bound: universal ceiling-fee envelope for tau using gross spot.
+    m: conservative pool-parameter curvature lower bound.
+    """
+    rng = random.Random(20260710)
+    fee_choices = [0, 30, 100, 300, 1000, 3000, 5000, 9000]
+    total = 0
+    nonzero_dist = 0
+    exact_tighter_than_universal = 0
+    oracle_tighter_than_anchor = 0
+    worst_exact_ratio = 0.0
+    worst: tuple = ()
+    for _ in range(300):
+        p0 = Pool(rng.randint(100, 20_000), rng.randint(100, 80_000), rng.choice(fee_choices))
+        p1 = Pool(rng.randint(100, 20_000), rng.randint(100, 80_000), rng.choice(fee_choices))
+        D = rng.randint(10, 250)
+        b_star = continuous_optimum(p0, p1, D)
+        n_star, opt_prod = discrete_optimum_prod(p0, p1, D)
+        anchor = best_continuous_integer_anchor(p0, p1, D)
+        cont_star = split_lean_cont(p0, p1, float(D), b_star)
+        cont_anchor = split_lean_cont(p0, p1, float(D), float(anchor))
+        prod_anchor = float(split_prod_floor(p0, p1, D, anchor))
+        alpha = max(0.0, cont_star - cont_anchor)
+        eta_actual = max(0.0, cont_anchor - prod_anchor)
+        eta_bound = gross_ceiling_fee_perturbation_bound(p0, p1)
+        tau_exact = max(0.0, cont_star - prod_anchor)
+        tau_oracle = max(0.0, cont_star - float(opt_prod))
+        m = strong_concavity_param_pool_lower_bound(p0, p1, D)
+        if m <= 0.0:
+            continue
+        exact_bound = math.sqrt(2.0 * tau_exact / m)
+        oracle_bound = math.sqrt(2.0 * tau_oracle / m)
+        universal_bound = math.sqrt(2.0 * (alpha + eta_bound) / m)
+        dist = abs(float(n_star) - b_star)
+        total += 1
+        if dist > 1e-9:
+            nonzero_dist += 1
+        if exact_bound < universal_bound - 1e-9:
+            exact_tighter_than_universal += 1
+        if oracle_bound < exact_bound - 1e-9:
+            oracle_tighter_than_anchor += 1
+        ratio = dist / exact_bound if exact_bound > 0.0 else 0.0
+        if ratio > worst_exact_ratio:
+            worst_exact_ratio = ratio
+            worst = (p0, p1, D, b_star, n_star, anchor, dist,
+                     alpha, eta_actual, eta_bound, tau_exact, tau_oracle, m,
+                     exact_bound, universal_bound, oracle_bound)
+        assert abs(tau_exact - (alpha + eta_actual)) <= 1e-6, (
+            f"tau decomposition failed: tau={tau_exact}, "
+            f"alpha+eta_actual={alpha + eta_actual}, case={(p0, p1, D, anchor)}")
+        assert eta_actual <= eta_bound + 1e-6, (
+            f"gross ceiling-fee envelope failed: eta_actual={eta_actual}, "
+            f"eta_bound={eta_bound}, case={(p0, p1, D, anchor)}")
+        assert oracle_bound <= exact_bound + 1e-6, (
+            f"oracle anchor should be no worse than continuous anchor: "
+            f"oracle={oracle_bound}, exact={exact_bound}, case={(p0, p1, D)}")
+        assert exact_bound <= universal_bound + 1e-6, (
+            f"exact anchor deficit should improve gross envelope: exact={exact_bound}, "
+            f"universal={universal_bound}, case={(p0, p1, D, anchor)}")
+        assert dist <= exact_bound + 1e-6, (
+            f"tight certified-anchor argmax distance bound violated: dist={dist}, "
+            f"bound={exact_bound}, tau={tau_exact}, m={m}, case={(p0, p1, D)}")
+        assert dist <= oracle_bound + 1e-6, (
+            f"oracle-tight argmax distance bound violated: dist={dist}, "
+            f"bound={oracle_bound}, tau={tau_oracle}, m={m}, case={(p0, p1, D)}")
+    assert total == 300, f"Expected 300 nondegenerate configs, got {total}"
+    assert nonzero_dist > 0, "VACUOUS: no production argmax was away from b*"
+    assert exact_tighter_than_universal > 0, (
+        "VACUOUS: exact anchor deficit never improved the gross envelope")
+    print("PASS: prod_argmax_distance_tight_one_sided_perturbation_bound "
+          f"({total} configs, nonzero_dist={nonzero_dist}, "
+          f"exact_tighter_than_universal={exact_tighter_than_universal}, "
+          f"oracle_tighter_than_anchor={oracle_tighter_than_anchor}, "
+          f"worst_exact_ratio={worst_exact_ratio:.4f}, worst={worst})")
+
+
+# ---------------------------------------------------------------------------
 # Test 6: Ternary search DP achieves the production bound
 # ---------------------------------------------------------------------------
 
@@ -487,8 +695,8 @@ def test_empirical_window_tighter() -> None:
 
 def test_exact_count() -> None:
     # Count of top-level randomized configs across all tests
-    total = 100 + 200 + 1000 + 1000 + 300 + 500 + 500
-    assert total == 3600, f"Expected 3600 top-level configs, got {total}"
+    total = 100 + 200 + 500 + 1000 + 1000 + 300 + 300 + 500 + 500
+    assert total == 4400, f"Expected 4400 top-level configs, got {total}"
     print(f"PASS: exact_count ({total} top-level configs, point counts vary by RNG)")
 
 
@@ -676,9 +884,12 @@ def test_edge_case_tie_plateau() -> None:
 if __name__ == "__main__":
     test_lean_model_floor_error_bound()
     test_prod_model_floor_error_bound()
+    test_prod_effective_L_fee_bound_falsified_high_fee()
+    test_prod_gross_spot_fee_perturbation_bound_high_fee()
     test_lean_model_argmax_proximity()
     test_prod_model_argmax_proximity()
     test_prod_model_window_sufficiency()
+    test_prod_argmax_distance_tight_one_sided_perturbation_bound()
     test_ternary_search_achieves_prod_bound()
     test_empirical_window_tighter()
     test_edge_case_L_zero()
@@ -695,7 +906,9 @@ if __name__ == "__main__":
     print("    2. Argmax proximity: floor(floor(b*)) >= opt - (L+2)  [Lean PROVEN]")
     print("    3. Window: |b - b*| < sqrt(2*(L+2)/m)  [Lean PROVEN]")
     print("  PRODUCTION MODEL (ceiling fee + floor output):")
-    print("    4. Floor error: 0 <= cont - prod < 2L+2  [empirical]")
-    print("    5. Argmax proximity: prod(floor(b*)) >= opt - (3L+2)  [empirical]")
-    print("    6. Window: |b - b*| < sqrt(2*(3L+2)/m)  [empirical]")
-    print("    7. Ternary search DP achieves (3L+2) bound  [empirical]")
+    print("    4. Effective-L fee bound 2L+2 is falsified at high fees  [empirical]")
+    print("    5. Universal perturbation: 0 <= cont - prod < gross0+gross1+2  [empirical]")
+    print("    6. Argmax proximity: prod(floor(b*)) >= opt - (3L+2) on low-fee corpus  [empirical]")
+    print("    7. Window: |b - b*| < sqrt(2*(3L+2)/m) on low-fee corpus  [empirical]")
+    print("    8. Tight certified-anchor argmax distance: |argmax_prod-b*| <= sqrt(2*tau/m)  [Lean generic + empirical tau]")
+    print("    9. Ternary search DP achieves (3L+2) bound on low-fee corpus  [empirical]")

@@ -64,10 +64,19 @@ bounds, and fixed-order min-out-cap evidence.
   into the Multiset stable-id concavity path, a deterministic runtime stable-id
   lookup certificate checker for canonical bytes and selected-ID/index
   validation, a deterministic runtime-to-Lean assumption bridge that emits and
-  re-validates a certificate-relative sorted-ID/lookup/order/hash packet, and
+  re-validates a certificate-relative sorted-ID/lookup/order/hash packet, a
+  generated Lean witness module that binds those packet constants to
+  proof-facing lookup witness obligations and typechecks against the existing
+  lookup index-order theorem, a generated Lean domain witness module that binds
+  per-pool digests to Lean-relevant concrete pool fields and typechecks an
+  executable stable-id List certificate theorem wrapper, a runtime unordered
+  domain canonicalizer that accepts valid pool-order permutations and emits the
+  same sorted proof-facing certificate and generated Lean witness source, and
   one concrete 4-pool plus one concrete 5-pool coordinate-wise checkpoint.
 - `DiscreteArgmaxProximity.lean` replaces the false discrete-concavity target
-  with an abstract argmax-proximity theorem plus CPMM conditional instantiation.
+  with abstract argmax-proximity theorems, including the certified-anchor
+  distance radius `|argmax_g-b*| <= sqrt(2*tau/m)`, plus CPMM conditional
+  instantiations for the clean model.
 - `KPoolDiscreteArgmaxProximity.lean` lifts the scalar proximity result to a
   K-pool scalar conditional theorem, with empirical simplex coverage for small
   K-pool domains.
@@ -305,7 +314,10 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
 
 ## Non-Claims
 
-- The production ceiling-fee bounds are empirical, not Lean-proven.
+- The production ceiling-fee effective-L bounds are low-fee empirical
+  regressions, not universal claims. High-fee tests falsify the effective-L
+  fee perturbation bound; the universal formal lane uses gross spot (`K/M`)
+  with the fee perturbation assumption explicit in `CeilingFeeRounding.lean`.
 - The full all-K continuous K-pool proof is not formalized over full unordered
   pool collections. This packet now proves the
   coordinate-slice kernel, a List-sum fixed-pool bridge, an explicit
@@ -339,9 +351,15 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
   selected-pair order, a runtime-to-Lean stable-id lookup assumption bridge
   that emits a canonical certificate-relative assumption packet for sorted
   stable IDs, selected lookup witnesses, selected-pair order, and certificate
-  hash, one concrete 4-pool coordinate instance, and one concrete 5-pool
-  coordinate instance. Production-specific unordered-container APIs and a
-  top-level all-K theorem remain open.
+  hash, a generated Lean witness module tying those constants to
+  `StableIdSortedLookupWitnessCont` obligations and the lookup index-order
+  theorem, a generated Lean domain witness module tying per-pool digests to
+  concrete `IdentifiedFixedPoolTermCont` fields and the executable stable-id
+  List merge-sort certificate path, a runtime unordered domain canonicalizer
+  that normalizes valid pool-order permutations to the same sorted
+  proof-facing certificate and Lean witness source, one concrete 4-pool
+  coordinate instance, and one concrete 5-pool coordinate instance.
+  Production settlement integration and a top-level all-K theorem remain open.
 - The min-out-cap game-theory evidence is a fixed-order filled-user no-gain
   check, not a full Nash equilibrium proof.
 - The concavity second-order approximation is not a universal stateful attack
@@ -353,6 +371,10 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
   for fee-bearing CPMM). The empirical scaling probe in
   `concavity_bounded_adversarial_test.py` uses `|f''(0)|` (maximum curvature)
   which gives a tighter constant but is empirical only.
+- The tightest generic argmax-distance certificate under strong concavity and
+  one-sided ceiling-fee perturbation is `sqrt(2*tau/m)`, where
+  `tau = f_cont(b*) - f_prod(anchor)`. The universal gross-spot envelope gives
+  `tau <= alpha + eta_bound`; the low-fee `3L+2` window remains empirical.
 - These files are research evidence and proof artifacts; they do not change
   consensus authority or production runtime behavior.
 - `src/core/kpool_stable_id_lookup_certificate.py` is a deterministic boundary
@@ -361,6 +383,21 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
 - The same module emits the Lean-facing assumption packet only after a
   certificate is accepted. Lean still consumes mathematical assumptions; it does
   not parse JSON bytes directly.
+- `lean-mathlib/Proofs/KPoolRuntimeLookupWitnessGenerated.lean` is generated
+  evidence for the proof-facing obligation shape. It does not prove production
+  pool economics from `pool_digest` values and is not wired into consensus
+  authority.
+- `lean-mathlib/Proofs/KPoolRuntimeDomainWitnessGenerated.lean` is generated
+  evidence for a digest-bound concrete List-domain witness. It binds example
+  `pool_digest` values to Lean-visible `K`, `M`, `c`, and fixed-input `a`
+  constants before constructing the executable stable-id List certificate
+  wrapper. It does not prove production settlement integration, consensus
+  authority, or the top-level production unordered-container API.
+- The runtime unordered domain canonicalizer is a research-only intake bridge:
+  it accepts valid pool-order permutations, rejects duplicate IDs and drift, and
+  emits the same sorted proof-facing certificate and generated Lean witness
+  source. It is not a production settlement adapter and does not change
+  consensus authority.
 
 ## Recommended GPT 5.5 Continuation
 
@@ -411,24 +448,50 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
    and remainder lookup witnesses, selected-pair order, and certificate hash.
    The tests mutate each bridge field and require named rejection for stale
    hash, sorted-ID drift, lookup drift, order drift, duplicate JSON keys, and
-   noncanonical bytes. Production-specific unordered-container APIs and a
-   top-level all-K theorem remain open.
+   noncanonical bytes. DONE:
+   `lean-mathlib/Proofs/KPoolRuntimeLookupWitnessGenerated.lean` is a
+   deterministic generated witness module for the accepted example packet. It
+   binds the certificate hash, assumption hash, sorted stable IDs, active and
+   remainder lookup constants, witness obligations, and selected-pair order to
+   the existing Lean lookup index-order theorem. The runtime tests require the
+   fixture to match the renderer byte-for-byte and reject source mutations.
+   DONE:
+   `lean-mathlib/Proofs/KPoolRuntimeDomainWitnessGenerated.lean` is a
+   deterministic generated domain witness module for the accepted example
+   packet. It binds `pool_digest` values to canonical pool-domain payloads,
+   emits concrete `IdentifiedFixedPoolTermCont` values, proves sorted stable ID
+   and in-bounds selected-index facts by computation, constructs the executable
+   stable-id List certificate, and wraps the existing concavity theorem under
+   the existing domain hypotheses. The runtime tests mutate digest, economics,
+   lookup, order, and generated source fields with named rejection.
+   DONE: the runtime unordered domain canonicalizer now accepts valid
+   pool-order permutations and emits the same sorted proof-facing certificate
+   and generated Lean witness source, while rejecting duplicate IDs,
+   noncanonical bytes, stale lookup hashes, digest/economics drift, selection
+   drift, schema drift, and duplicate JSON keys. Production settlement
+   integration and a top-level all-K theorem remain open.
    Codex review: A grade, zero findings. Confirmed Multiset permutation bridge
    soundness, stable-id Nodup transfer, selected-id-to-index ordering, lookup
    witness uniqueness, and lookup lowering all compose cleanly with the
    existing merge-sort path.
-2. Model ceiling-fee rounding in Lean to replace the production empirical
-   `2L + 2` and `3L + 2` constants with checked lemmas.
+2. Model ceiling-fee rounding in Lean to keep the production effective-L
+   empirical constants scoped and prove the conservative gross-spot lane.
    DONE: `CeilingFeeRounding.lean` formalizes the production CPMM swap
    arithmetic (ceiling fee + floor output) and proves conservative floor
    error and argmax proximity bounds (`K0/M0 + K1/M1 + 2` and
-   `L + K0/M0 + K1/M1 + 2`). The proved bounds are weaker than the
-   empirical `2L + 2` and `3L + 2` constants; the exact empirical constants
-   are not formally proved. Key theorems: `cpmm_output_lipschitz_wrt_net`
+   `L + K0/M0 + K1/M1 + 2`). It also proves the coupled continuous-split
+   Lipschitz max-bound
+   `|splitCont(x)-splitCont(y)| <= max(c0*K0/M0,c1*K1/M1)*|x-y|`,
+   replacing the looser sum-of-components argument for the continuous split
+   objective. The proved production bounds are the universal gross-spot lane;
+   the effective-L constants are low-fee empirical regressions and are
+   high-fee falsified as universal constants.
+   Key theorems: `cpmm_output_lipschitz_wrt_net`
    (K/M Lipschitz constant), `cpmm_prod_floor_error_bound_directed`
    (per-pool floor error in [0, K/M+1)), `split_prod_floor_error_bound`
    (2-pool split floor error), `production_argmax_proximity` (production
-   argmax proximity). Codex A grade achieved through a 4-iteration sub-loop
+   argmax proximity), and `split_lipschitz_coupled` (continuous split
+   Lipschitz max-bound). Codex A grade achieved through a 4-iteration sub-loop
    (A- -> A- -> A- -> A), all findings were LOW scope-wording issues.
 3. Turn the fixed-order no-gain evidence into a precise game definition.
    DONE: `MinOutCapGameTheory.lean` proves the fixed-order filled-user

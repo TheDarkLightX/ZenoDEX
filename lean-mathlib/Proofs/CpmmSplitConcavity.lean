@@ -200,18 +200,20 @@ theorem splitFunctionCont_concave
   rw [← h_eq]
   exact add_neg h_pool0 h_pool1
 
-/-! ## Strong Concavity Lower Bound From Pool Parameters
+/-! ## Curvature-Term Lower Bound From Pool Parameters
 
 For the CPMM split function `F(a) = f0(c0*a) + f1(c1*(D-a))`, the second
 derivative is `F''(a) = -T0(a) - T1(a)` where:
   `T0(a) = 2*c0^2*K0*M0/(M0+c0*a)^3`  (decreasing in a)
   `T1(a) = 2*c1^2*K1*M1/(M1+c1*(D-a))^3`  (increasing in a)
 
-The strong concavity parameter `m = inf_a |F''(a)|` satisfies:
-  `m >= T0(D) + T1(0) = 2*c0^2*K0*M0/(M0+c0*D)^3 + 2*c1^2*K1*M1/(M1+c1*D)^3`
+This section proves the arithmetic lower-bound component:
+  `T0(a) + T1(a) >= T0(D) + T1(0)`.
 
-This removes the external hypothesis on `m`: the window bound
-`sqrt(2*eps/m)` is now fully determined by pool parameters.
+Combined with an external second-derivative bridge establishing
+`|F''(a)| = T0(a) + T1(a)` on `[0,D]`, this gives a pool-parameter lower
+bound for a valid strong-concavity parameter. The second-derivative bridge is
+not proved in this file.
 
 Key lemma: `inf(f+g) >= inf(f) + inf(g)` for non-negative functions.
 Applied here: T0(a) >= T0(D) and T1(a) >= T1(0) for a in [0, D].
@@ -277,11 +279,11 @@ lemma T1_increasing_bound
   exact inv_cube_antitone_mul (M1 + c1 * (D - a)) (M1 + c1 * D) (2 * c1^2 * K1 * M1)
     hM1cDa hM1cD h_coeff_nn h_denom_le
 
-/-- **Strong Concavity Lower Bound**: For the CPMM split function
-    `F(a) = f0(c0*a) + f1(c1*(D-a))`, the strong concavity parameter m
-    satisfies:
+/-- **Curvature-Term Lower Bound**: For the CPMM split curvature terms
+    associated with `F(a) = f0(c0*a) + f1(c1*(D-a))`,
 
-    `m >= 2*c0^2*K0*M0/(M0+c0*D)^3 + 2*c1^2*K1*M1/(M1+c1*D)^3`
+    `T0(a) + T1(a) >= 2*c0^2*K0*M0/(M0+c0*D)^3
+                  + 2*c1^2*K1*M1/(M1+c1*D)^3`
 
     This is derived from:
     - `|F''(a)| = T0(a) + T1(a)` (second derivative formula, external)
@@ -290,7 +292,9 @@ lemma T1_increasing_bound
 
     Non-claims:
     - The second derivative formula `F''(a) = -T0(a) - T1(a)` is external.
-    - This is a lower bound on m, not the exact m.
+    - This is the arithmetic curvature-term bound. A function-level
+      strong-concavity parameter still needs the external second-derivative
+      identity and the usual calculus bridge.
     - The bound degenerates when `D >> M` (m -> 0), which is correct.
     - The exact m is `inf(T0+T1) >= inf T0 + inf T1`. -/
 theorem strong_concavity_lower_bound
