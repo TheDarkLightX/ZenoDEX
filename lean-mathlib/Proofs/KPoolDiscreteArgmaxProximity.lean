@@ -25,13 +25,20 @@ existing abstract theorem with `ε = k` (the number of pools).
    pools (`L < 1`):
    `F_floor(⌊b*⌋) ≥ F_floor(b) - (k + 1)`
 
-## Floor Error Bound (empirical, not formally proven here)
+## Floor Error Bound
 
-The floor error bound `0 ≤ cont - floor < k` follows from the
-single-pool bound (`cpmm_floor_error_bound`: `< 1` per pool) summed
-over k pools. A formal finset proof would require additional mathlib
-finset API work (strict upper bound for nonempty finset of terms in
-`[0, 1)`). The bound is verified empirically:
+The generic Finset sum bound is formally proven here as
+`finset_floor_error_bound`: if each per-pool floor error `e i ∈ [0, 1)`
+and the index finset is nonempty, then `∑ e < card s`.
+
+The pool-specific CPMM aggregate bridge — connecting per-pool
+`cpmm_prod_floor_error_bound_directed` outputs to the `h_floor_err`
+hypothesis of `kpool_all_k_coupled_argmax_proximity` — remains
+application-specific and is not derived in this file. It requires
+pool-specific context (net input amounts, fee parameters) that varies
+by application.
+
+Empirical verification of the aggregate bound:
 
 - k=2: max floor error = 1.98 (< 2)
 - k=3: max floor error = 2.79 (< 3)
@@ -424,19 +431,24 @@ theorem finset_floor_error_bound
     bound `< K` is supplied as a checked hypothesis over a Finset of pool
     indices.
 
-    This theorem composes:
-    1. The abstract `kpool_discrete_argmax_proximity` with `ε = K`
-    2. The Finset floor error bound `finset_floor_error_bound` proving
-       that the sum of per-pool floor errors is `< K`
+    The proof forwards `h_floor_err` to the abstract
+    `kpool_discrete_argmax_proximity` with `ε = K`. The separate
+    `finset_floor_error_bound` lemma can discharge `h_floor_err` when
+    the per-pool floor errors are each in `[0, 1)` and the index finset
+    is nonempty, but that bridge is application-specific and not
+    composed inside this proof.
 
-    The theorem takes the floor error as a hypothesis (`h_floor_err`) rather
-    than deriving it from pool parameters, because the Finset bridge from
-    per-pool CPMM floor errors to the aggregate bound requires pool-specific
-    context (net input amounts, fee parameters) that varies by application.
+    The theorem takes the floor error as a hypothesis (`h_floor_err`)
+    rather than deriving it from pool parameters, because the Finset
+    bridge from per-pool CPMM floor errors to the aggregate bound
+    requires pool-specific context (net input amounts, fee parameters)
+    that varies by application.
 
     Non-claims:
     - Uses L-infinity norm for the allocation vector.
     - The floor error bound `< K` is a checked hypothesis, not derived here.
+    - `finset_floor_error_bound` can discharge it separately when
+      per-pool errors are supplied; this proof does not compose that step.
     - Top-level production routing requires the certificate format from
       `KPoolSplitConcavity.lean`.
     - The bound degenerates when L is large (shallow pools). -/
