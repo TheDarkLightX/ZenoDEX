@@ -137,6 +137,7 @@ import Proofs.MSTCertificateNoImprovingExchange
 import Proofs.MSTCertificateSingleSwap
 import Proofs.MSTCertificateSoundness
 import Proofs.MSTCertificateSwapFinset
+import Proofs.MaximizerBracket
 import Proofs.NoRisklessYieldLaw
 import Proofs.OILiquidityFundingBound
 import Proofs.OppositeDirectionNoncommutativity
