@@ -29,6 +29,8 @@ def test_kpool_discrete_argmax_proximity_file_typechecks() -> None:
         "kpool_coupled_argmax_proximity_3pool",
         "kpool_coupled_argmax_proximity",
         "witness_kpool_gradient_bound",
+        "finset_floor_error_bound",
+        "kpool_all_k_coupled_argmax_proximity",
     )
     for theorem in required_theorems:
         assert re.search(
