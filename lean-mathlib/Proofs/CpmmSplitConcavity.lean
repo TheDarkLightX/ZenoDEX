@@ -586,9 +586,13 @@ that makes the reduction work.
     - The theorem proves the curvature minimum, not the split function
       maximum. The split function maximum follows from the
       strong-concavity chain (P2 bridge + P1/P3 argmax proximity).
-    - The `a_star` need not be in `[0, D]` for the algebra to work,
-      but the curvature bound is meaningful only when both `a` and
-      `a_star` are in the valid domain. -/
+    - This version requires both `a` and `a_star` in `[0, D]`. The
+      algebraic reduction itself does not depend on the domain bounds,
+      but the curvature bound is meaningful only in the valid domain.
+    - The hypotheses `_hK1` and `_hD` are stronger than strictly
+      necessary (`K1 > 0` follows from stationarity plus the other
+      positivity facts, and `D >= 0` follows from `0 <= a <= D`).
+      They are retained as domain documentation. -/
 theorem asymmetric_split_curvature_min_at_stationary
     (K0 M0 c0 K1 M1 c1 D a a_star : ℝ)
     (hK0 : 0 < K0) (hM0 : 0 < M0) (hc0 : 0 < c0)
