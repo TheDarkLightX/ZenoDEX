@@ -354,24 +354,26 @@ theorem witness_unfilled_profitable_deviation :
 
 The main theorems use a binary utility (output if filled, 0 otherwise).
 A more natural game-theoretic payoff is **surplus**: `output - min_out`
-if filled, 0 otherwise. This section proves the same restricted equilibrium
-holds under surplus utility.
+if filled, 0 otherwise. Under surplus utility, the result changes:
 
-The key insight: a filled user lowering min_out strictly *increases* surplus
-(surplus = output - min_out, and min_out decreases while output stays fixed).
-So lowering is actually *beneficial* under surplus utility — but only when
-the user remains filled, which is guaranteed by the fill-preservation lemma.
+- **Binary utility**: filled users have no profitable min_out deviation
+  (restricted equilibrium — `filled_user_no_profitable_min_out_deviation`).
+- **Surplus utility**: lowering min_out strictly *increases* surplus
+  (preference revelation improvement, not a no-gain result). The best
+  response is `min_out = 0`, which is a *truthful revelation* result
+  rather than a no-deviation equilibrium.
 
-However, raising min_out still risks becoming unfilled (surplus drops to 0).
-So the restricted equilibrium still holds: the user cannot do better than
-their current strategy by deviating in min_out alone, because:
-- Lowering: surplus increases but the user was already filled, so the
-  "deviation gain" is just the min_out reduction — this is a *preference
-  revelation* improvement, not a strategic manipulation of the mechanism.
-- Raising: surplus drops to 0 if the user becomes unfilled.
+The key insight: under surplus utility, a filled user lowering min_out
+strictly increases surplus (surplus = output - min_out, and min_out
+decreases while output stays fixed). This is beneficial to the user
+but is a preference revelation improvement, not a strategic manipulation
+of the mechanism.
 
-The surplus variant shows that the restricted equilibrium is robust to
-the utility specification.
+Raising min_out still risks becoming unfilled (surplus drops to 0).
+
+The surplus variant shows that the mechanism incentivizes truthful
+preference revelation (min_out = 0) under surplus utility, complementing
+the no-gain result under binary utility.
 -/
 
 /-- **Surplus utility function**: a user's surplus is `output - min_out`
@@ -415,13 +417,13 @@ theorem filled_user_lower_min_out_surplus_increases
 
 /-- **Filled user raising min_out to unfilled drops surplus to 0**: if a
     filled user raises min_out above their output, they become unfilled
-    and surplus drops to 0, which is less than their current positive surplus. -/
+    and surplus drops to 0, which is less than or equal to their current
+    surplus (equality when `output = min_out_t`). -/
 theorem filled_user_raise_min_out_surplus_drops
     (K M gamma : ℝ) (u_t u_d : UserSubmission)
     (h_amt : u_t.amount_in = u_d.amount_in)
     (h_filled : cpmmOutput K M gamma u_t.amount_in ≥ u_t.min_out)
-    (h_raised : u_d.min_out > cpmmOutput K M gamma u_t.amount_in)
-    (_h_output_pos : 0 < cpmmOutput K M gamma u_t.amount_in) :
+    (h_raised : u_d.min_out > cpmmOutput K M gamma u_t.amount_in) :
     surplusUtility K M gamma u_d ≤ surplusUtility K M gamma u_t := by
   have h_output_eq : cpmmOutput K M gamma u_d.amount_in = cpmmOutput K M gamma u_t.amount_in := by
     rw [h_amt]
