@@ -221,3 +221,132 @@ theorem batch_state_invariant_after_filled_deviation
    equilibrium but NOT SUFFICIENT. This scope note is prose, not a formal
    theorem about Nash equilibrium. -/
 
+/-! ## P4: Restricted Nash Equilibrium Among Filled Users
+
+The broad claim "full Nash equilibrium in the min-out cap game" is FALSE.
+Unfilled users can profitably deviate by lowering min_out (they go from 0
+output to some output > 0). The corrected claim restricts to FILLED users
+and min_out deviations only.
+
+A filled user has two deviation directions:
+1. Lower min_out: still fills, same output, same utility (no gain).
+   Proven in `filled_user_no_profitable_deviation` above.
+2. Raise min_out: risks becoming unfilled, utility drops to 0.
+
+This section formalizes both directions and the restricted equilibrium.
+-/
+
+/-- **Filled User Raising Min-Out May Become Unfilled**: If a user fills
+    at min_out_t and raises to min_out_d > output, the user becomes unfilled.
+    Utility drops from output to 0.
+
+    This is the key risk that prevents filled users from profitably
+    raising min_out. -/
+theorem filled_user_raise_min_out_becomes_unfilled
+    (K M gamma : ℝ) (u_t u_d : UserSubmission)
+    (h_amt : u_t.amount_in = u_d.amount_in)
+    (h_raised : u_d.min_out > cpmmOutput K M gamma u_t.amount_in)
+    : ¬ (cpmmOutput K M gamma u_d.amount_in ≥ u_d.min_out) := by
+  have h_output_eq : cpmmOutput K M gamma u_d.amount_in = cpmmOutput K M gamma u_t.amount_in := by
+    rw [h_amt]
+  rw [h_output_eq]
+  intro h_ge
+  exact not_lt_of_ge h_ge h_raised
+
+/-- **Restricted Equilibrium (Filled Users, Min-Out Deviations)**: Under
+    fixed ordering, a filled user has no profitable min_out deviation in
+    either direction:
+
+    1. Lower min_out: utility unchanged (still fills, same output).
+    2. Raise min_out: utility drops to 0 (becomes unfilled).
+
+    This is a RESTRICTED equilibrium: it applies only to filled users and
+    only to min_out deviations (not ordering or amount_in deviations).
+
+    Non-claims:
+    - NOT a full Nash equilibrium (unfilled users can profitably deviate).
+    - NOT an equilibrium over input amounts (only min_out).
+    - NOT a Bayesian or correlated equilibrium.
+    - Unfilled user deviations are welfare-improving, not strategic manipulation. -/
+theorem filled_user_no_profitable_min_out_deviation
+    (K M gamma : ℝ) (u_t u_d : UserSubmission)
+    (h_amt : u_t.amount_in = u_d.amount_in)
+    (h_filled : cpmmOutput K M gamma u_t.amount_in ≥ u_t.min_out)
+    (h_output_pos : 0 < cpmmOutput K M gamma u_t.amount_in)
+    : utility K M gamma u_d ≤ utility K M gamma u_t := by
+  by_cases h_lower : u_d.min_out ≤ u_t.min_out
+  · -- Lower min_out: still fills, same utility
+    exact filled_user_no_profitable_deviation K M gamma u_t u_d h_amt h_filled h_lower
+  · -- Higher min_out: two sub-cases
+    push_neg at h_lower
+    by_cases h_still_fills : cpmmOutput K M gamma u_d.amount_in ≥ u_d.min_out
+    · -- Still fills even with higher min_out: same output, same utility
+      have h_output_eq : cpmmOutput K M gamma u_d.amount_in = cpmmOutput K M gamma u_t.amount_in := by
+        rw [h_amt]
+      have h_util_t : utility K M gamma u_t = cpmmOutput K M gamma u_t.amount_in := by
+        unfold utility; rw [if_pos h_filled]
+      have h_util_d : utility K M gamma u_d = cpmmOutput K M gamma u_d.amount_in := by
+        unfold utility; rw [if_pos h_still_fills]
+      rw [h_util_t, h_util_d, h_output_eq]
+    · -- Becomes unfilled: utility drops to 0
+      have h_util_d : utility K M gamma u_d = 0 := by
+        unfold utility; rw [if_neg h_still_fills]
+      have h_util_t : utility K M gamma u_t = cpmmOutput K M gamma u_t.amount_in := by
+        unfold utility; rw [if_pos h_filled]
+      rw [h_util_d, h_util_t]
+      exact le_of_lt h_output_pos
+
+/-- **Unfilled User Can Profitably Deviate**: An unfilled user (output <
+    min_out_t) can profitably deviate by lowering min_out to 0, becoming
+    filled with positive output.
+
+    This FALSIFIES the broad claim of full Nash equilibrium. The restricted
+    equilibrium applies only to filled users. -/
+theorem unfilled_user_profitable_deviation
+    (K M gamma : ℝ) (u_t u_d : UserSubmission)
+    (h_amt : u_t.amount_in = u_d.amount_in)
+    (h_unfilled : cpmmOutput K M gamma u_t.amount_in < u_t.min_out)
+    (h_output_pos : 0 < cpmmOutput K M gamma u_t.amount_in)
+    (h_dev_fills : cpmmOutput K M gamma u_d.amount_in ≥ u_d.min_out)
+    : utility K M gamma u_t < utility K M gamma u_d := by
+  have h_util_t : utility K M gamma u_t = 0 := by
+    unfold utility
+    rw [if_neg]
+    intro h_ge
+    exact not_lt_of_ge h_ge h_unfilled
+  have h_util_d : utility K M gamma u_d = cpmmOutput K M gamma u_d.amount_in := by
+    unfold utility
+    rw [if_pos h_dev_fills]
+  rw [h_util_t, h_util_d]
+  have h_output_eq : cpmmOutput K M gamma u_d.amount_in = cpmmOutput K M gamma u_t.amount_in := by
+    rw [h_amt]
+  rw [h_output_eq]
+  exact h_output_pos
+
+/-- **Witness: Unfilled User Profitable Deviation**: Concrete case showing
+    an unfilled user can profit by lowering min_out.
+
+    K=1000, M=1000, gamma=1, amount_in=50, min_out_t=60 (unfilled, output=47.6),
+    min_out_d=0 (filled, utility=47.6 > 0). -/
+theorem witness_unfilled_profitable_deviation :
+    utility 1000 1000 1 { amount_in := 50, min_out := 60 } <
+    utility 1000 1000 1 { amount_in := 50, min_out := 0 } := by
+  have h_output : cpmmOutput 1000 1000 1 50 = 1000 * 1 * 50 / (1000 + 1 * 50) := by rfl
+  have h_output_val : cpmmOutput 1000 1000 1 50 = 50000 / 1050 := by
+    rw [h_output]; ring_nf
+  have h_unfilled : cpmmOutput 1000 1000 1 50 < 60 := by
+    rw [h_output_val]; norm_num
+  have h_filled : cpmmOutput 1000 1000 1 50 ≥ 0 := by
+    rw [h_output_val]; norm_num
+  have h_util_t : utility 1000 1000 1 { amount_in := 50, min_out := 60 } = 0 := by
+    unfold utility
+    rw [if_neg]
+    intro h_ge
+    exact not_lt_of_ge h_ge h_unfilled
+  have h_util_d : utility 1000 1000 1 { amount_in := 50, min_out := 0 } =
+      cpmmOutput 1000 1000 1 50 := by
+    unfold utility
+    rw [if_pos h_filled]
+  rw [h_util_t, h_util_d, h_output_val]
+  norm_num
+
