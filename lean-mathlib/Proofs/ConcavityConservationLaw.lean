@@ -517,3 +517,34 @@ theorem witness_cpmm_donation_gain_argmax_bound_with_fee
     1000 1000 100 100 (1 / 2 : ℝ) (9 / 10 : ℝ) s
     (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) hs hs_sq
+
+/-- **Existential non-vacuity witness** for the fee-free donation gain bound:
+    there exists a positive `s` satisfying the optimizer condition, so the
+    bound is non-vacuous. -/
+theorem exists_witness_cpmm_donation_gain_argmax_bound :
+    ∃ s : ℝ, s > 0 ∧ s ^ 2 = 1000 * (1000 + 100 : ℝ) ∧
+      1000 * 100 * 100 / ((1000 + 100) * (1000 + 100 + 100 : ℝ))
+        ≤ 1000 * 100 * s / ((1000 + s) * (1000 + 100 + s)) := by
+  let s := Real.sqrt (1000 * (1000 + 100 : ℝ))
+  refine ⟨s, ?_, ?_, ?_⟩
+  · exact Real.sqrt_pos_of_pos (by norm_num)
+  · exact Real.sq_sqrt (by norm_num : 0 ≤ 1000 * (1000 + 100 : ℝ))
+  · exact witness_cpmm_donation_gain_argmax_bound s
+      (Real.sqrt_pos_of_pos (by norm_num)) (Real.sq_sqrt (by norm_num))
+
+/-- **Existential non-vacuity witness** for the fee-bearing donation gain
+    bound: there exists a positive `s` satisfying the optimizer condition,
+    so the bound is non-vacuous. -/
+theorem exists_witness_cpmm_donation_gain_argmax_bound_with_fee :
+    ∃ s : ℝ, s > 0 ∧ s ^ 2 = 1000 * (1000 + (1 / 2 : ℝ) * 100) ∧
+      1000 * ((1 / 2 : ℝ) * 100) * ((9 / 10 : ℝ) * 100)
+        / ((1000 + (9 / 10 : ℝ) * 100)
+          * (1000 + (1 / 2 : ℝ) * 100 + (9 / 10 : ℝ) * 100))
+        ≤ 1000 * ((1 / 2 : ℝ) * 100) * s
+          / ((1000 + s) * (1000 + (1 / 2 : ℝ) * 100 + s)) := by
+  let s := Real.sqrt (1000 * (1000 + (1 / 2 : ℝ) * 100))
+  refine ⟨s, ?_, ?_, ?_⟩
+  · exact Real.sqrt_pos_of_pos (by norm_num)
+  · exact Real.sq_sqrt (by norm_num : 0 ≤ 1000 * (1000 + (1 / 2 : ℝ) * 100))
+  · exact witness_cpmm_donation_gain_argmax_bound_with_fee s
+      (Real.sqrt_pos_of_pos (by norm_num)) (Real.sq_sqrt (by norm_num))
