@@ -37,6 +37,8 @@ def test_concavity_conservation_law_file_typechecks() -> None:
         "witness_cpmm_donation_gain_argmax_bound_with_fee",
         "exists_witness_cpmm_donation_gain_argmax_bound",
         "exists_witness_cpmm_donation_gain_argmax_bound_with_fee",
+        "cpmm_donation_gain_closed_form_max",
+        "cpmm_donation_gain_unique_optimizer",
     )
     for theorem in required_theorems:
         assert re.search(

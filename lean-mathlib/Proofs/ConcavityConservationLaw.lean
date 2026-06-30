@@ -548,3 +548,100 @@ theorem exists_witness_cpmm_donation_gain_argmax_bound_with_fee :
   · exact Real.sq_sqrt (by norm_num : 0 ≤ 1000 * (1000 + (1 / 2 : ℝ) * 100))
   · exact witness_cpmm_donation_gain_argmax_bound_with_fee s
       (Real.sqrt_pos_of_pos (by norm_num)) (Real.sq_sqrt (by norm_num))
+
+/-! ## P5 Extension: Closed-Form Maximum and Unique Optimizer
+
+The existing `cpmm_donation_gain_argmax_bound` proves that `s` is a
+global upper bound on the donation/no-output gain, using the algebraic
+certificate `s*(a_B-s)^2 >= 0`. Two natural extensions are:
+
+1. **Closed-form maximum value**: When `s^2 = M*(M+a_A)`, the gain at
+   `a_B = s` simplifies to `K*a_A*M / (M+s)^2`. This is the exact
+   maximum gain, expressed in terms of pool parameters and the
+   optimizer `s = sqrt(M*(M+a_A))`.
+
+2. **Unique optimizer**: The algebraic certificate `s*(a_B-s)^2 = 0`
+   iff `a_B = s` (for `s > 0`) shows the bound is tight only at
+   `a_B = s`. No other attacker size achieves the maximum.
+-/
+
+/-- **Closed-form donation gain maximum**: When `s^2 = M*(M+a_A)`, the
+    donation/no-output gain at the optimizer `a_B = s` equals
+    `K*a_A*M / (M+s)^2`.
+
+    This is the exact maximum gain in closed form. The proof uses
+    `s^2 = M*(M+a_A)` to simplify the denominator:
+    `(M+s)*(M+a_A+s) = (M+s)*((s^2/M)+s) = s*(M+s)^2/M`. -/
+theorem cpmm_donation_gain_closed_form_max
+    (K M a_A s : ℝ)
+    (hK : K > 0) (hM : M > 0) (hA : a_A > 0) (hs : s > 0)
+    (hs_sq : s ^ 2 = M * (M + a_A))
+    : K * a_A * s / ((M + s) * (M + a_A + s))
+        = K * a_A * M / (M + s) ^ 2 := by
+  have hM_pos : 0 < M := hM
+  have hMs : 0 < M + s := by linarith
+  have hMs_sq : 0 < (M + s) ^ 2 := sq_pos_of_pos hMs
+  have hMsMAS : 0 < (M + s) * (M + a_A + s) := by
+    have hMAS : 0 < M + a_A + s := by linarith
+    exact mul_pos hMs hMAS
+  -- Key identity: M + a_A + s = s * (M + s) / M  (from s^2 = M*(M+a_A))
+  have h_MAS_eq : M + a_A + s = s * (M + s) / M := by
+    have h_MA_eq : M + a_A = s^2 / M := by
+      rw [eq_div_iff (ne_of_gt hM)]
+      linarith [hs_sq]
+    rw [h_MA_eq]
+    field_simp
+    ring
+  -- Substitute: (M+s) * (M+a_A+s) = (M+s) * s*(M+s)/M = s*(M+s)^2/M
+  have h_denom_eq : (M + s) * (M + a_A + s) = s * (M + s) ^ 2 / M := by
+    rw [h_MAS_eq]
+    field_simp
+  -- Now: K*a_A*s / (s*(M+s)^2/M) = K*a_A*s * M / (s*(M+s)^2) = K*a_A*M / (M+s)^2
+  rw [h_denom_eq]
+  field_simp
+
+/-- **Unique optimizer for donation gain**: The donation/no-output gain
+    achieves its maximum value only at `a_B = s`. For any `a_B ≠ s`, the
+    gain is strictly less than the maximum.
+
+    The proof uses the algebraic certificate from
+    `cpmm_donation_gain_argmax_bound`: the gap factors as
+    `s*(a_B-s)^2`, which is strictly positive when `a_B ≠ s` and `s > 0`. -/
+theorem cpmm_donation_gain_unique_optimizer
+    (K M a_A a_B s : ℝ)
+    (hK : K > 0) (hM : M > 0) (hA : a_A > 0) (hB : a_B > 0)
+    (hs : s > 0) (hs_sq : s ^ 2 = M * (M + a_A))
+    (h_ne : a_B ≠ s)
+    : K * a_A * a_B / ((M + a_B) * (M + a_A + a_B))
+        < K * a_A * s / ((M + s) * (M + a_A + s)) := by
+  have hMB : 0 < M + a_B := by linarith
+  have hMAB : 0 < M + a_A + a_B := by linarith
+  have hMS : 0 < M + s := by linarith
+  have hMAS : 0 < M + a_A + s := by linarith
+  have hD_B : 0 < (M + a_B) * (M + a_A + a_B) := mul_pos hMB hMAB
+  have hD_s : 0 < (M + s) * (M + a_A + s) := mul_pos hMS hMAS
+  -- The gap identity: s*(M+a_B)*(M+a_A+a_B) - a_B*(M+s)*(M+a_A+s) = s*(a_B-s)^2
+  have h_gap_identity :
+      s * ((M + a_B) * (M + a_A + a_B))
+        - a_B * ((M + s) * (M + a_A + s))
+        = s * (a_B - s) ^ 2 := by
+    nlinarith [hs_sq]
+  -- Since a_B ≠ s and s > 0, the gap is strictly positive
+  have h_gap_pos :
+      0 < s * ((M + a_B) * (M + a_A + a_B))
+        - a_B * ((M + s) * (M + a_A + s)) := by
+    rw [h_gap_identity]
+    have h_sq_pos : 0 < (a_B - s) ^ 2 := sq_pos_iff.mpr (sub_ne_zero.mpr h_ne)
+    exact mul_pos hs h_sq_pos
+  -- Therefore a_B / denom_B < s / denom_s
+  have h_base :
+      a_B / ((M + a_B) * (M + a_A + a_B))
+        < s / ((M + s) * (M + a_A + s)) := by
+    rw [div_lt_div_iff₀ hD_B hD_s]
+    linarith
+  have hKA_pos : 0 < K * a_A := mul_pos hK hA
+  have h_scaled :
+      K * a_A * (a_B / ((M + a_B) * (M + a_A + a_B)))
+        < K * a_A * (s / ((M + s) * (M + a_A + s))) :=
+    mul_lt_mul_of_pos_left h_base hKA_pos
+  simpa [div_eq_mul_inv, mul_comm, mul_left_comm, mul_assoc] using h_scaled
