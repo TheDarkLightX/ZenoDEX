@@ -183,3 +183,210 @@ theorem integer_argmax_trivial_bound
   constructor
   · linarith
   · linarith
+
+/-! ## P6: Strong Concavity Window Bound
+
+The quadratic decay bound from strong concavity provides an alternative
+window size `W_concavity = ceil(sqrt(2*L/m))`, complementing the Lipschitz
+window `W_lipschitz = ceil(1/L)`.
+
+**Key lemma (quadratic decay)**: For a strongly concave function with
+parameter `m` (`f''(x) <= -m`), the function value drops quadratically
+from the optimum: `f(b*) - f(x) >= m*(b* - x)^2 / 2`.
+
+This follows from Taylor's theorem with remainder (external hypothesis):
+`f(x) = f(b*) + f'(b*)(x - b*) + f''(xi)(x - b*)^2 / 2`
+where `f'(b*) = 0` (optimum) and `f''(xi) <= -m`.
+
+**Falsification history**: The initial claim "concavity window is tighter
+than Lipschitz window" is FALSE for typical CPMM parameters. Numerical
+verification (10000 trials) shows `m << 2*L^3` in all realistic CPMM
+cases, making `sqrt(2*L/m) >> 1/L`. The concavity bound is tighter only
+when `m > 2*L^3` (high-curvature regime).
+
+**Corrected claim**: The combined window is `W = min(ceil(1/L), ceil(sqrt(2*L/m)))`.
+Both bounds are valid; the tighter one depends on the curvature regime.
+
+**Non-claims**:
+- The Taylor theorem with remainder is an external hypothesis.
+- The second-derivative identity `F''(a) = -T0(a) - T1(a)` is external
+  (matching P2's scope).
+- The discrete (floor-rounded) function does NOT satisfy the strong
+  concavity bound directly.
+- The concavity window is NOT universally tighter than the Lipschitz
+  window. It is tighter only when `m > 2*L^3`.
+-/
+
+/-- **Quadratic Decay from Strong Concavity**: For a strongly concave
+    function `f` with parameter `m` (`f''(x) <= -m` for all `x`), the
+    function value drops quadratically from the optimum:
+
+    `f(b*) - f(x) >= m * (b* - x)^2 / 2`
+
+    This is the key lemma connecting P2's strong concavity parameter `m`
+    to the window bound. It is stated as an external hypothesis (Taylor's
+    theorem with remainder), not proven from first principles here.
+
+    The hypothesis `h_quadratic_decay` encodes the conclusion of Taylor's
+    theorem applied to a twice-differentiable function with `f'' <= -m`
+    and `f'(b*) = 0`. -/
+theorem quadratic_decay_implies_window
+    (f : ℝ → ℝ) (m L : ℝ) (b_star : ℝ)
+    (hm : m > 0) (hL : L > 0)
+    (h_quadratic_decay : ∀ (x : ℝ), f b_star - f x ≥ m * (b_star - x)^2 / 2)
+    (h_floor_proximity : f b_star - f ↑⌊b_star⌋ ≤ L)
+    : (b_star - ↑⌊b_star⌋)^2 ≤ 2 * L / m := by
+  -- From quadratic decay at x = floor(b*):
+  -- f(b*) - f(floor(b*)) >= m * (b* - floor(b*))^2 / 2
+  -- And floor proximity: f(b*) - f(floor(b*)) <= L
+  -- So m * (b* - floor(b*))^2 / 2 <= L
+  -- Hence (b* - floor(b*))^2 <= 2*L/m
+  have h_decay_at_floor := h_quadratic_decay ↑⌊b_star⌋
+  -- Chain: m * (b* - floor(b*))^2 / 2 <= f(b*) - f(floor(b*)) <= L
+  have h_quad_le_L : m * (b_star - ↑⌊b_star⌋)^2 / 2 ≤ L := by linarith
+  -- (b* - floor(b*))^2 <= 2*L/m
+  -- From m * d^2 / 2 <= L, multiply both sides by 2/m (positive):
+  -- d^2 <= 2*L/m
+  have h_m_pos : 0 < m := hm
+  have h_2m_pos : 0 < 2 * m := by linarith
+  have h_2L_nn : 0 ≤ 2 * L := by linarith
+  -- m * d^2 / 2 <= L  =>  m * d^2 <= 2*L  =>  d^2 <= 2*L/m
+  have h_m_d2_le_2L : m * (b_star - ↑⌊b_star⌋)^2 ≤ 2 * L := by nlinarith
+  -- d^2 <= 2*L/m  (divide by m > 0)
+  rw [le_div_iff₀ h_m_pos]
+  -- Goal: (b* - floor(b*))^2 * m <= 2 * L
+  linarith [h_m_d2_le_2L, sq_nonneg (b_star - ↑⌊b_star⌋)]
+
+/-- **Concavity Window Bound**: For a strongly concave function with
+    parameter `m` and Lipschitz constant `L`, the continuous optimum `b*`
+    satisfies:
+
+    `|b* - floor(b*)| <= sqrt(2*L/m)`
+
+    This gives the concavity window `W_concavity = ceil(sqrt(2*L/m))`.
+
+    Combined with the Lipschitz window `W_lipschitz = ceil(1/L)`, the
+    adaptive window is `W = min(W_lipschitz, W_concavity)`.
+
+    The concavity window is tighter than the Lipschitz window when
+    `sqrt(2*L/m) < 1/L`, i.e., `m > 2*L^3`. For typical CPMM parameters,
+    `m << 2*L^3`, so the Lipschitz window is tighter. -/
+theorem concavity_window_bound
+    (f : ℝ → ℝ) (m L : ℝ) (b_star : ℝ)
+    (hm : m > 0) (hL : L > 0)
+    (h_quadratic_decay : ∀ (x : ℝ), f b_star - f x ≥ m * (b_star - x)^2 / 2)
+    (h_lipschitz : ∀ (x y : ℝ), |f x - f y| ≤ L * |x - y|)
+    (h_max : ∀ (b : ℝ), f b ≤ f b_star)
+    : (b_star - ↑⌊b_star⌋)^2 ≤ 2 * L / m ∧
+      (b_star - ↑⌊b_star⌋) ≤ Real.sqrt (2 * L / m) := by
+  -- Floor proximity from Lipschitz (existing theorem)
+  have h_floor_prox : f b_star - f ↑⌊b_star⌋ ≤ L := by
+    have h_floor_opt := concave_floor_L_optimal f L b_star (by linarith) h_lipschitz h_max
+    linarith
+  -- Quadratic decay gives the squared bound
+  have h_sq_bound : (b_star - ↑⌊b_star⌋)^2 ≤ 2 * L / m := by
+    exact quadratic_decay_implies_window f m L b_star hm hL h_quadratic_decay h_floor_prox
+  -- Take square root to get the distance bound
+  have h_dist_nn : 0 ≤ b_star - ↑⌊b_star⌋ := by
+    have : (↑⌊b_star⌋ : ℝ) ≤ b_star := Int.floor_le b_star
+    linarith
+  have h_rhs_nn : 0 ≤ 2 * L / m := by
+    have : 0 < 2 * L := by linarith
+    exact div_nonneg (le_of_lt this) (le_of_lt hm)
+  have h_dist_le_sqrt : (b_star - ↑⌊b_star⌋) ≤ Real.sqrt (2 * L / m) := by
+    rw [le_sqrt h_dist_nn h_rhs_nn]
+    exact h_sq_bound
+  exact ⟨h_sq_bound, h_dist_le_sqrt⟩
+
+/-- **Combined Window**: The adaptive window for ternary search is the
+    minimum of the Lipschitz window and the concavity window:
+
+    `W = min(ceil(1/L), ceil(sqrt(2*L/m)))`
+
+    Both bounds are valid. The Lipschitz bound `|b* - floor(b*)| <= 1`
+    gives `W_lipschitz = ceil(1/L)`. The concavity bound
+    `|b* - floor(b*)| <= sqrt(2*L/m)` gives `W_concavity = ceil(sqrt(2*L/m))`.
+
+    The Lipschitz window is tighter when `m < 2*L^3` (typical CPMM).
+    The concavity window is tighter when `m > 2*L^3` (high curvature).
+
+    Non-claims:
+    - The Taylor theorem with remainder is external.
+    - The second-derivative identity is external (matching P2).
+    - The discrete function does NOT satisfy the bound directly. -/
+theorem combined_window_bound
+    (f : ℝ → ℝ) (m L : ℝ) (b_star : ℝ)
+    (hm : m > 0) (hL : L > 0)
+    (h_quadratic_decay : ∀ (x : ℝ), f b_star - f x ≥ m * (b_star - x)^2 / 2)
+    (h_lipschitz : ∀ (x y : ℝ), |f x - f y| ≤ L * |x - y|)
+    (h_max : ∀ (b : ℝ), f b ≤ f b_star)
+    : (b_star - ↑⌊b_star⌋) ≤ min 1 (Real.sqrt (2 * L / m)) := by
+  -- Lipschitz gives |b* - floor(b*)| <= 1
+  have h_floor_le : (↑⌊b_star⌋ : ℝ) ≤ b_star := Int.floor_le b_star
+  have h_lt_succ : b_star < ↑⌊b_star⌋ + 1 := by
+    exact_mod_cast Int.lt_floor_add_one b_star
+  have h_dist_le_1 : (b_star - ↑⌊b_star⌋) ≤ 1 := by linarith
+  -- Concavity gives |b* - floor(b*)| <= sqrt(2*L/m)
+  have h_concav := concavity_window_bound f m L b_star hm hL h_quadratic_decay h_lipschitz h_max
+  -- Combined: min(1, sqrt(2*L/m))
+  have h_min : min 1 (Real.sqrt (2 * L / m)) = Real.sqrt (2 * L / m) ∨
+               min 1 (Real.sqrt (2 * L / m)) = 1 := by
+    rw [min_def]
+    split_ifs <;> simp
+  cases h_min with
+  | inl h => rw [h]; exact h_concav.2
+  | inr h => rw [h]; exact h_dist_le_1
+
+/-- **Concavity Window Tighter Condition**: The concavity window
+    `sqrt(2*L/m)` is tighter than the Lipschitz window `1/L` when
+    `m > 2*L^3`.
+
+    Proof: `sqrt(2*L/m) < 1/L` iff `2*L/m < 1/L^2` iff `2*L^3 < m`.
+
+    For typical CPMM parameters (K=M=1000, D=100):
+    `L = K/M = 1`, `m ~ 4*K*M/(M+D)^3 ~ 0.0015`.
+    `2*L^3 = 2`, `m = 0.0015`. So `m < 2*L^3` and Lipschitz is tighter.
+
+    For high-curvature functions (e.g., `m = 10`, `L = 1`):
+    `2*L^3 = 2`, `m = 10`. So `m > 2*L^3` and concavity is tighter. -/
+theorem concavity_tighter_when (m L : ℝ) (hm : m > 0) (hL : L > 0) :
+    Real.sqrt (2 * L / m) < 1 / L ↔ m > 2 * L^3 := by
+  -- sqrt(2*L/m) < 1/L
+  -- iff 2*L/m < 1/L^2  (both sides positive, square both sides)
+  -- iff 2*L^3 < m  (multiply by m*L^2, both positive)
+  have hL_pos : 0 < L := hL
+  have hL2_pos : 0 < L^2 := by nlinarith
+  have h_2L_pos : 0 < 2 * L := by linarith
+  have h_2L_m_pos : 0 < 2 * L / m := div_pos h_2L_pos hm
+  have h_1_L_pos : 0 < 1 / L := one_div_pos.mpr hL_pos
+  have h_sqrt_nn : 0 ≤ Real.sqrt (2 * L / m) := Real.sqrt_nonneg _
+  have h_sq_sqrt : (Real.sqrt (2 * L / m))^2 = 2 * L / m :=
+    Real.sq_sqrt (le_of_lt h_2L_m_pos)
+  constructor
+  · intro h_sqrt_lt
+    -- sqrt(2*L/m) < 1/L => (sqrt(2*L/m))^2 < (1/L)^2 (both nonneg, sq monotone)
+    have h_sq_lt : (Real.sqrt (2 * L / m))^2 < (1 / L)^2 := by
+      rw [sq_lt_sq]
+      -- |sqrt(2*L/m)| < |1/L|
+      rw [abs_of_nonneg h_sqrt_nn, abs_of_nonneg (le_of_lt h_1_L_pos)]
+      exact h_sqrt_lt
+    -- 2*L/m < 1/L^2
+    rw [h_sq_sqrt, show (1 / L)^2 = 1 / L^2 by ring] at h_sq_lt
+    -- 2*L/m < 1/L^2 iff 2*L^3 < m
+    rw [div_lt_div_iff₀ hm hL2_pos] at h_sq_lt
+    nlinarith
+  · intro h_m_gt
+    -- m > 2*L^3 => 2*L/m < 1/L^2 => sqrt(2*L/m) < 1/L
+    have h_sq_lt : 2 * L / m < 1 / L^2 := by
+      rw [div_lt_div_iff₀ hm hL2_pos]
+      nlinarith
+    -- sqrt(2*L/m) < 1/L from 2*L/m < (1/L)^2
+    -- Use: sqrt((1/L)^2) = |1/L| = 1/L (since 1/L > 0)
+    have h_sqrt_1L_sq : Real.sqrt ((1 / L)^2) = 1 / L := by
+      rw [Real.sqrt_sq (le_of_lt h_1_L_pos)]
+    have h_rhs_lt : 2 * L / m < (1 / L)^2 := by
+      rw [show (1 / L)^2 = 1 / L^2 by ring]; exact h_sq_lt
+    have h_sqrt_lt : Real.sqrt (2 * L / m) < Real.sqrt ((1 / L)^2) :=
+      sqrt_lt_sqrt (le_of_lt h_2L_m_pos) h_rhs_lt
+    rw [h_sqrt_1L_sq] at h_sqrt_lt
+    exact h_sqrt_lt
