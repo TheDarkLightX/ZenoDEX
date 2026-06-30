@@ -36,11 +36,11 @@ The empirical result W = ceil(1/L) is tighter and was verified numerically.
 1. The tightness example: f(b) = -b²/2 has max at b*=0, L=1, m=1, and the
    feasible set {b : f(b) ≥ f(b*) - L} = {b : b² ≤ 2} is within sqrt(2) of
    b*, confirming the bound |b - b*| ≤ sqrt(2L/m) + 1 = sqrt(2) + 1.
+2. A quadratic sharpness witness for the oracle perturbation radius.
 
-The full quadratic_decay and strong_concavity_window_bound theorems require
-Taylor's theorem with remainder, which needs additional mathlib infrastructure
-(SecondDerivative module). These are left as future work. The tightness
-example below demonstrates the bound is correct and tight.
+The production CPMM oracle-distance theorem lives in `CeilingFeeRounding.lean`.
+Runtime certificates must supply the production value and strong-concavity
+facts before that theorem has production meaning.
 
 ## Comparison with WindowBound.lean
 
@@ -134,3 +134,86 @@ theorem tightness_feasible_set_bounded
     push_neg at h_not
     have h_b_gt : (b : ℝ) > 2 := by exact_mod_cast h_not
     linarith [h_b_le, h_sqrt2_lt_2]
+
+/-! ## P8: Oracle-Tight Perturbation Distance and Sharpness
+
+The tightest possible bound from only strong concavity `m` and a one-sided
+ceiling-fee perturbation is:
+
+  `|x_g - b_star| <= sqrt(2 * (f_cont(b_star) - f_prod(x_g)) / m)`
+
+where `b_star` is the clean continuous maximizer, `x_g` is the perturbed
+production argmax, `f_cont(x) <= f_cont(b_star) - (m/2)(x - b_star)^2`,
+and `f_prod(x_g) <= f_cont(x_g)`.
+
+For a usable certificate with an evaluated anchor `a`:
+
+  `|x_g - b_star| <= sqrt(2 * (f_cont(b_star) - f_prod(a)) / m)`
+
+And with the current ceiling-fee envelope:
+
+  `|x_g - b_star| <= sqrt(2 * (alpha(a) + K0/M0 + K1/M1 + 2) / m)`
+
+where `alpha(a) = f_cont(b_star) - f_cont(a)`.
+
+The important tightness result is that the constant cannot be improved
+under only those hypotheses. The quadratic witness attains the bound
+exactly, so any tighter bound needs extra structure: a better anchor,
+exact `f_prod(x_g)`, a tighter fee perturbation certificate, or stronger
+CPMM-specific curvature/value facts.
+
+`CeilingFeeRounding.lean` owns the CPMM production theorem
+`cpmm_prod_oracle_argmax_distance`. This file keeps only the generic sharpness
+witness, which shows the oracle radius cannot be improved from these
+hypotheses alone.
+-/
+
+/-- **Oracle-Tight Sharpness Witness**: The oracle-tight bound
+    `sqrt(2 * (f_cont(b_star) - f_prod(x_g)) / m)` is not an artifact of
+    a loose proof. For every `m > 0` and every achievable value drop
+    `tau >= 0`, the quadratic objective `f(x) = -(m/2)*x^2` with a
+    perturbed objective that is exactly `f_cont(b_star) - tau` everywhere
+    satisfies all hypotheses and attains the bound exactly at
+    `x_g = sqrt(2*tau/m)`.
+
+    Any tighter generic bound would reject this valid witness family.
+    Improving the constant requires extra structure: a better anchor,
+    exact `f_prod(x_g)`, a tighter fee perturbation certificate, or
+    stronger CPMM-specific curvature/value facts.
+
+    This is a generic sharpness witness. It is not a CPMM structural theorem. -/
+theorem oracle_perturbation_radius_sharp_quadratic
+    (m tau : ℝ) (hm : m > 0) (htau : tau ≥ 0) :
+    let b_star : ℝ := 0
+    let x_g : ℝ := Real.sqrt (2 * tau / m)
+    let f_cont : ℝ → ℝ := fun x => -(m / 2) * x^2
+    let f_prod : ℝ → ℝ := fun _ => f_cont 0 - tau
+    |x_g - b_star| = Real.sqrt (2 * tau / m) ∧
+      f_prod x_g ≤ f_cont x_g ∧
+      (∀ x : ℝ, f_cont x ≤ f_cont b_star - (m / 2) * (x - b_star)^2) ∧
+      f_cont b_star - f_prod x_g = tau := by
+  dsimp
+  have h_tau_nonneg : 0 ≤ 2 * tau / m := by
+    exact div_nonneg (mul_nonneg (by norm_num) htau) (le_of_lt hm)
+  have h_sq : (Real.sqrt (2 * tau / m))^2 = 2 * tau / m := Real.sq_sqrt h_tau_nonneg
+  constructor
+  · -- |x_g - 0| = sqrt(2*tau/m) since x_g >= 0
+    rw [sub_zero]
+    exact abs_of_nonneg (Real.sqrt_nonneg _)
+  constructor
+  · -- f_prod(x_g) <= f_cont(x_g)
+    -- f_prod(x_g) = f_cont(0) - tau = 0 - tau = -tau
+    -- f_cont(x_g) = -(m/2)*x_g^2 = -(m/2)*(2*tau/m) = -tau
+    -- So f_prod(x_g) = f_cont(x_g) = -tau, hence <= holds
+    rw [h_sq]
+    have h_rhs_eq : -(m / 2) * (2 * tau / m) = -tau := by
+      field_simp [ne_of_gt hm]
+    simpa using (le_of_eq h_rhs_eq.symm)
+  constructor
+  · -- Strong concavity: f_cont(x) <= f_cont(0) - (m/2)*(x-0)^2
+    intro x
+    ring_nf
+    exact le_rfl
+  · -- f_cont(0) - f_prod(x_g) = tau
+    -- f_cont(0) = 0, f_prod(x_g) = -tau, so 0 - (-tau) = tau
+    ring
