@@ -720,7 +720,9 @@ codebase pattern of treating calculus obligations as checked inputs.
 Prior art: Lemma 1 from arXiv 1312.7463 (Taylor's Theorem for Loss
 Functions) gives the general quadratic upper bound
 `f(y) ≤ f(x) + f'(x)*(y-x) + (M/2)*(y-x)^2` where `M = sup f''`.
-Our theorem is the special case with `f'(b*) = 0` and `M = -m`.
+Our theorem is the special case with `f'(b*) = 0` and `-m` as a valid
+upper bound on `f''`; using `sup f'' ≤ -m` and nonnegativity of
+`(x - b*)^2` gives the same quadratic growth conclusion.
 -/
 
 /-- **Taylor-remainder quadratic growth bridge (Lagrange form)**: if
@@ -764,15 +766,12 @@ theorem taylor_remainder_quadratic_growth_bridge
     linarith
   linarith
 
-/-- **Symmetric case: x ≤ b_star**: The Taylor-remainder bridge also
-    works when `x ≤ b_star`, with `ξ` between `x` and `b_star`. The
-    algebra is identical: `f'(b*) = 0` and `f''(ξ) ≤ -m` give the same
-    quadratic growth bound regardless of which side of `b*` the point
-    `x` is on.
-
-    This is the same theorem as `taylor_remainder_quadratic_growth_bridge`
-    but stated without requiring `b_star ≤ x`. The Lagrange remainder
-    hypothesis is symmetric in the ordering of `b_star` and `x`. -/
+/-- **Order-free forwarding theorem**: This is an alias for
+    `taylor_remainder_quadratic_growth_bridge` with identical
+    hypotheses and conclusion. The main theorem already has no ordering
+    assumption on `b_star` vs `x`; the Lagrange remainder hypothesis is
+    symmetric in the ordering. This alias is provided for call-site
+    clarity when the caller's context has `x ≤ b_star`. -/
 theorem taylor_remainder_quadratic_growth_bridge_symmetric
     (f : ℝ → ℝ) (m b_star x ξ : ℝ)
     (hm : 0 < m)
@@ -794,9 +793,15 @@ theorem taylor_remainder_quadratic_growth_bridge_symmetric
     as a direct drop-in for the `h_quadratic_growth` hypothesis of the
     argmax proximity theorems.
 
-    The Lagrange remainder existence for every `x` is a checked
-    hypothesis. In practice, this follows from `f` being twice
-    continuously differentiable on an interval containing `b_star`. -/
+    The hypotheses `h_second_deriv_bound` and `h_lagrange` are globally
+    quantified over all `ℝ`. In practice, the CPMM curvature theorems
+    above are domain-scoped (e.g., `0 ≤ a ≤ D`), so applying this
+    theorem to the CPMM split function requires either a global
+    extension of the curvature bound or restricting the conclusion to
+    the domain interval. The Lagrange remainder existence for every `x`
+    is a checked hypothesis; for the CPMM split function, it follows
+    from twice continuous differentiability on an interval containing
+    both `b_star` and the queried `x`. -/
 theorem universal_quadratic_growth_from_strong_concavity
     (f : ℝ → ℝ) (m b_star : ℝ)
     (hm : 0 < m)
