@@ -22,6 +22,12 @@ def test_concavity_conservation_law_file_typechecks() -> None:
     assert (
         "cpmm_donation_gain_argmax_bound_with_fee" in source
     ), "fee-bearing donation/no-output optimizer theorem is missing"
+    assert (
+        "exists_witness_cpmm_donation_gain_argmax_bound" in source
+    ), "existential non-vacuity witness for fee-free donation bound is missing"
+    assert (
+        "exists_witness_cpmm_donation_gain_argmax_bound_with_fee" in source
+    ), "existential non-vacuity witness for fee-bearing donation bound is missing"
 
     try:
         proc = subprocess.run(
