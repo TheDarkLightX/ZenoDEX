@@ -20,8 +20,10 @@ def test_concavity_conservation_law_file_typechecks() -> None:
         pytest.skip("mathlib4 checkout missing")
 
     source = (lean_dir / target).read_text(encoding="utf-8")
-    assert (
-        "cpmm_donation_gain_argmax_bound_with_fee" in source
+    assert re.search(
+        r"^theorem\s+cpmm_donation_gain_argmax_bound_with_fee\b",
+        source,
+        re.MULTILINE,
     ), "fee-bearing donation/no-output optimizer theorem is missing"
     assert re.search(
         r"^theorem\s+exists_witness_cpmm_donation_gain_argmax_bound\s*:",
