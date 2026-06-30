@@ -38,7 +38,8 @@ application-specific and is not derived in this file. It requires
 pool-specific context (net input amounts, fee parameters) that varies
 by application.
 
-Empirical verification of the aggregate bound:
+Empirical spot-checks of the aggregate floor error (research evidence,
+not part of the formal theorem story):
 
 - k=2: max floor error = 1.98 (< 2)
 - k=3: max floor error = 2.79 (< 3)
@@ -57,8 +58,9 @@ tight (each pool adds `< 1` unit of floor rounding error).
 Actual k-pool routing uses a `(k-1)`-dimensional simplex. A vector/simplex
 Lean statement formalizing the floor error over `Finset.sum` and the
 multi-coordinate rounding loss is left as future work. The current theorem
-applies the abstract bound with `epsilon = k` as a scalar specialization;
-the empirical tests verify the bound holds for the actual vector objective.
+applies the abstract bound with `epsilon = k` as a scalar specialization.
+The empirical spot-checks above are research evidence only and do not
+substitute for the formal theorem.
 
 For balanced pools (`L < 1`), the gap is `k + 1` (at most 6 for k=5
 pools), within integer rounding noise.
@@ -164,9 +166,11 @@ non-negative x, y):
 where `L = max_i(c_i*K_i/M_i)`.
 
 This gives an L-infinity Lipschitz bound: the function is L-Lipschitz in
-each coordinate direction. Combined with the floor error bound `< K`, the
-argmax proximity bound is `L + K` (matching the existing scalar bound, but
-now justified by the coordinate-wise gradient analysis).
+each coordinate direction. The gradient lemmas support an
+application-specific route to the `h_lipschitz` hypothesis of the
+proximity theorems; the proofs themselves forward `h_lipschitz` and
+`h_floor_err` as checked hypotheses and do not compose the gradient
+derivation or the CPMM aggregate bridge.
 
 The claim `((K+1)*L + K)` from the frontier selection is a conservative
 upper bound that accounts for the remainder coordinate's contribution
