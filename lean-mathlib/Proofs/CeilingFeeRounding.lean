@@ -486,6 +486,60 @@ theorem cpmm_prod_oracle_argmax_distance
     (fun _ : ℝ => splitFunctionProdFloor K0 M0 net_prod0_arg K1 M1 net_prod1_arg)
     m b_star b_arg hm h_prod_arg_le_cont h_strong_concave
 
+/-! ## Part 5c: Anchored Lipschitz-Perturbation Production Radius -/
+
+/-- **Production anchored Lipschitz-perturbation argmax distance**.
+
+    This theorem packages the production ceiling-fee split values into the
+    generic anchored-pair certificate from `DiscreteArgmaxProximity.lean`.
+    It applies when the continuous maximizer `b_star` need not be a production
+    candidate. A host checker supplies:
+
+    * a production anchor `anchor`,
+    * a production candidate `b_arg` whose value dominates that anchor,
+    * clean anchor loss `alpha`,
+    * anchor distance budget `rho`,
+    * pairwise perturbation variation budget `L_e`, and
+    * a radius `R` satisfying the quadratic certificate obligations.
+
+    The checker can compute the smallest admissible `R` as the larger root of
+    `alpha + L_e * (R + rho) <= (m/2) * R^2`, with `L_e <= m*R`.
+    This result is a certificate consumer; it does not search for the argmax,
+    derive `m`, or prove the ceiling-fee net-input arithmetic. -/
+theorem cpmm_prod_anchor_lipschitz_argmax_distance
+    (K0 M0 c0 K1 M1 c1 D m L_e alpha rho R b_star anchor b_arg : ℝ)
+    (net_prod0_anchor net_prod1_anchor net_prod0_arg net_prod1_arg : ℝ)
+    (hm : m > 0) (hLe : L_e ≥ 0) (halpha : alpha ≥ 0)
+    (hrho : rho ≥ 0) (hR : R ≥ 0)
+    (h_anchor_loss :
+      splitFunctionCont K0 M0 c0 K1 M1 c1 D b_star -
+      splitFunctionCont K0 M0 c0 K1 M1 c1 D anchor ≤ alpha)
+    (h_anchor_distance : |anchor - b_star| ≤ rho)
+    (h_argmax :
+      splitFunctionProdFloor K0 M0 net_prod0_anchor K1 M1 net_prod1_anchor ≤
+      splitFunctionProdFloor K0 M0 net_prod0_arg K1 M1 net_prod1_arg)
+    (h_perturbation_pair :
+      (splitFunctionProdFloor K0 M0 net_prod0_arg K1 M1 net_prod1_arg -
+        splitFunctionCont K0 M0 c0 K1 M1 c1 D b_arg) -
+      (splitFunctionProdFloor K0 M0 net_prod0_anchor K1 M1 net_prod1_anchor -
+        splitFunctionCont K0 M0 c0 K1 M1 c1 D anchor) ≤
+        L_e * |b_arg - anchor|)
+    (h_radius_certificate : alpha + L_e * (R + rho) ≤ (m / 2) * R^2)
+    (h_root_side : L_e ≤ m * R)
+    (h_strong_concave : ∀ x : ℝ,
+      splitFunctionCont K0 M0 c0 K1 M1 c1 D x ≤
+      splitFunctionCont K0 M0 c0 K1 M1 c1 D b_star -
+        (m / 2) * (x - b_star)^2)
+    : |b_arg - b_star| ≤ R := by
+  exact abstract_anchor_lipschitz_perturbed_argmax_distance
+    (splitFunctionCont K0 M0 c0 K1 M1 c1 D)
+    m L_e alpha rho R b_star anchor b_arg
+    (splitFunctionProdFloor K0 M0 net_prod0_anchor K1 M1 net_prod1_anchor)
+    (splitFunctionProdFloor K0 M0 net_prod0_arg K1 M1 net_prod1_arg)
+    hm hLe halpha hrho hR
+    h_anchor_loss h_anchor_distance h_argmax h_perturbation_pair
+    h_radius_certificate h_root_side h_strong_concave
+
 /-! ## Part 6: Non-Vacuity Witnesses -/
 
 /-- Witness: per-pool error bound is satisfied for a concrete case.

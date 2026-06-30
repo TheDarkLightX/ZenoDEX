@@ -467,6 +467,199 @@ theorem abstract_exact_anchor_perturbed_argmax_distance
     h_anchor_loss h_disc_err_at_bstar h_disc_le_arg h_argmax h_strong_concave
   simpa [zero_add] using h_bound
 
+/-- **Lipschitz-perturbation argmax movement bound**.
+
+    This is the theorem-search/prior-art companion to the value-deficit
+    radius above. Let `f_cont` have quadratic growth from its maximizer
+    `b_star` with parameter `m`, and let `e` be the perturbation term at the
+    two candidate points. If the perturbed value at `b_arg` is at least the
+    perturbed value at `b_star`, and the perturbation advantage is bounded by
+    `L_e * |b_arg - b_star|`, then
+
+    `|b_arg - b_star| <= 2 * L_e / m`.
+
+    The factor `2` matches this file's convention
+    `f(x) <= f(b*) - (m/2)*(x-b*)^2`. It is a candidate-set/pairwise theorem:
+    a full candidate-set argmax may instantiate `h_pert_arg_ge_star` because
+    `b_star` is one candidate, while a checker must still provide the
+    perturbation-variation certificate for the selected pair. -/
+theorem abstract_lipschitz_pair_perturbed_argmax_distance
+    (f_cont e : ℝ → ℝ) (L_e m : ℝ) (b_star b_arg : ℝ)
+    (hLe : L_e ≥ 0) (hm : m > 0)
+    (h_pert_arg_ge_star : f_cont b_star + e b_star ≤ f_cont b_arg + e b_arg)
+    (h_perturbation_pair : e b_arg - e b_star ≤ L_e * |b_arg - b_star|)
+    (h_quadratic_growth : ∀ x : ℝ,
+      f_cont x ≤ f_cont b_star - (m / 2) * (x - b_star)^2)
+    : |b_arg - b_star| ≤ 2 * L_e / m := by
+  have h_bound_nonneg : 0 ≤ 2 * L_e / m := by
+    exact div_nonneg (mul_nonneg (by norm_num) hLe) (le_of_lt hm)
+  by_cases hzero : |b_arg - b_star| = 0
+  · simpa [hzero] using h_bound_nonneg
+  · have hd_nonneg : 0 ≤ |b_arg - b_star| := abs_nonneg (b_arg - b_star)
+    have hd_pos : 0 < |b_arg - b_star| := lt_of_le_of_ne hd_nonneg (Ne.symm hzero)
+    have h_sc := h_quadratic_growth b_arg
+    have h_loss_lower :
+        (m / 2) * (b_arg - b_star)^2 ≤ f_cont b_star - f_cont b_arg := by
+      linarith
+    have h_loss_upper :
+        f_cont b_star - f_cont b_arg ≤ e b_arg - e b_star := by
+      linarith [h_pert_arg_ge_star]
+    have h_key :
+        (m / 2) * |b_arg - b_star|^2 ≤ L_e * |b_arg - b_star| := by
+      rw [sq_abs]
+      linarith [h_loss_lower, h_loss_upper, h_perturbation_pair]
+    have h_mul : |b_arg - b_star| * m ≤ 2 * L_e := by
+      nlinarith [h_key, hd_pos]
+    rw [le_div_iff₀ hm]
+    exact h_mul
+
+/-- Full pairwise Lipschitz form of
+    `abstract_lipschitz_pair_perturbed_argmax_distance`. -/
+theorem abstract_lipschitz_pair_perturbed_argmax_distance_of_abs
+    (f_cont e : ℝ → ℝ) (L_e m : ℝ) (b_star b_arg : ℝ)
+    (hLe : L_e ≥ 0) (hm : m > 0)
+    (h_pert_arg_ge_star : f_cont b_star + e b_star ≤ f_cont b_arg + e b_arg)
+    (h_perturbation_abs : |e b_arg - e b_star| ≤ L_e * |b_arg - b_star|)
+    (h_quadratic_growth : ∀ x : ℝ,
+      f_cont x ≤ f_cont b_star - (m / 2) * (x - b_star)^2)
+    : |b_arg - b_star| ≤ 2 * L_e / m := by
+  have h_pair : e b_arg - e b_star ≤ L_e * |b_arg - b_star| := by
+    exact le_trans (le_abs_self (e b_arg - e b_star)) h_perturbation_abs
+  exact abstract_lipschitz_pair_perturbed_argmax_distance
+    f_cont e L_e m b_star b_arg hLe hm
+    h_pert_arg_ge_star h_pair h_quadratic_growth
+
+/-- **Anchored pairwise perturbation argmax distance**.
+
+    This theorem is the production-candidate bridge for integer or otherwise
+    restricted candidate sets where the continuous maximizer `b_star` is not
+    itself a perturbed-objective candidate. A checker supplies:
+
+    * an anchor candidate `anchor`,
+    * a clean anchor loss `alpha >= f(b*) - f(anchor)`,
+    * an anchor distance `rho >= |anchor - b*|`,
+    * a pairwise perturbation-variation budget `L_e`, and
+    * a radius `R` that solves the quadratic certificate obligations.
+
+    If the perturbed value at `b_arg` dominates the anchor, and the pairwise
+    perturbation advantage from `anchor` to `b_arg` is bounded by
+    `L_e * |b_arg - anchor|`, then `|b_arg - b_star| <= R`.
+
+    The two radius-side obligations are intentionally explicit:
+
+    `alpha + L_e * (R + rho) <= (m/2) * R^2`
+    `L_e <= m * R`
+
+    A verifier can compute the smallest nonnegative such `R` as the larger root
+    of the quadratic. Lean consumes the checked certificate rather than trusting
+    the formula or any caller-supplied radius. -/
+theorem abstract_anchor_lipschitz_perturbed_argmax_distance
+    (f_cont : ℝ → ℝ)
+    (m L_e alpha rho R b_star anchor b_arg g_anchor g_arg : ℝ)
+    (hm : m > 0) (hLe : L_e ≥ 0) (_halpha : alpha ≥ 0)
+    (_hrho : rho ≥ 0) (_hR : R ≥ 0)
+    (h_anchor_loss : f_cont b_star - f_cont anchor ≤ alpha)
+    (h_anchor_distance : |anchor - b_star| ≤ rho)
+    (h_pert_arg_ge_anchor : g_anchor ≤ g_arg)
+    (h_perturbation_pair :
+      (g_arg - f_cont b_arg) - (g_anchor - f_cont anchor) ≤
+        L_e * |b_arg - anchor|)
+    (h_radius_certificate : alpha + L_e * (R + rho) ≤ (m / 2) * R^2)
+    (h_root_side : L_e ≤ m * R)
+    (h_quadratic_growth : ∀ x : ℝ,
+      f_cont x ≤ f_cont b_star - (m / 2) * (x - b_star)^2)
+    : |b_arg - b_star| ≤ R := by
+  set r : ℝ := |b_arg - b_star|
+  have hr_nonneg : 0 ≤ r := by
+    dsimp [r]
+    exact abs_nonneg _
+  have h_sc := h_quadratic_growth b_arg
+  have h_loss_lower :
+      (m / 2) * r^2 ≤ f_cont b_star - f_cont b_arg := by
+    dsimp [r]
+    rw [sq_abs]
+    linarith
+  have h_anchor_to_arg :
+      f_cont anchor - f_cont b_arg ≤
+        (g_arg - f_cont b_arg) - (g_anchor - f_cont anchor) := by
+    linarith [h_pert_arg_ge_anchor]
+  have h_pair_distance :
+      |b_arg - anchor| ≤ r + rho := by
+    have h_tri :
+        |b_arg - anchor| ≤ |b_arg - b_star| + |anchor - b_star| := by
+      calc
+        |b_arg - anchor| = |(b_arg - b_star) + (b_star - anchor)| := by ring_nf
+        _ ≤ |b_arg - b_star| + |b_star - anchor| := abs_add_le _ _
+        _ = |b_arg - b_star| + |anchor - b_star| := by rw [abs_sub_comm b_star anchor]
+    dsimp [r]
+    linarith
+  have h_pair_scaled :
+      L_e * |b_arg - anchor| ≤ L_e * (r + rho) := by
+    exact mul_le_mul_of_nonneg_left h_pair_distance hLe
+  have h_loss_upper :
+      f_cont b_star - f_cont b_arg ≤ alpha + L_e * (r + rho) := by
+    linarith [h_anchor_loss, h_anchor_to_arg, h_perturbation_pair, h_pair_scaled]
+  have h_key : (m / 2) * r^2 ≤ alpha + L_e * (r + rho) := by
+    linarith [h_loss_lower, h_loss_upper]
+  by_contra h_not
+  have hR_lt_r : R < r := lt_of_not_ge h_not
+  have h_diff_le : (m / 2) * (r^2 - R^2) ≤ L_e * (r - R) := by
+    nlinarith [h_key, h_radius_certificate]
+  have h_delta_nonneg : 0 ≤ r - R := by linarith
+  have h_linear_le : L_e * (r - R) ≤ (m * R) * (r - R) := by
+    exact mul_le_mul_of_nonneg_right h_root_side h_delta_nonneg
+  have h_chain : (m / 2) * (r^2 - R^2) ≤ (m * R) * (r - R) :=
+    le_trans h_diff_le h_linear_le
+  have h_strict : (m * R) * (r - R) < (m / 2) * (r^2 - R^2) := by
+    have h_delta_pos : 0 < r - R := by linarith
+    have h_delta_sq_pos : 0 < (r - R)^2 := sq_pos_of_ne_zero (by linarith)
+    have h_m_half_pos : 0 < m / 2 := by nlinarith
+    have h_gap_pos : 0 < (m / 2) * (r - R)^2 :=
+      mul_pos h_m_half_pos h_delta_sq_pos
+    have h_gap_identity :
+        (m / 2) * (r^2 - R^2) - (m * R) * (r - R) =
+          (m / 2) * (r - R)^2 := by
+      ring
+    nlinarith [h_gap_pos, h_gap_identity]
+  linarith
+
+/-- **Sharpness witness for the pairwise Lipschitz perturbation radius**.
+
+    For every `L_e >= 0` and `m > 0`, the quadratic objective
+    `f(x) = -(m/2)*x^2` and linear perturbation `e(x) = L_e*x` make the
+    candidate `b_arg = 2*L_e/m` tie the original maximizer `0` under the
+    perturbed objective. The perturbation variation exactly equals
+    `L_e * |b_arg|`, and the distance exactly equals `2*L_e/m`.
+
+    This shows the generic pairwise theorem cannot improve the constant from
+    these hypotheses alone. A smaller constant needs more structure, such as
+    a stronger global optimality premise, smooth first-order conditions, or a
+    tighter perturbation certificate. -/
+theorem abstract_lipschitz_pair_perturbed_argmax_distance_sharp_quadratic
+    (L_e m : ℝ) (hLe : L_e ≥ 0) (hm : m > 0) :
+    let b_arg : ℝ := 2 * L_e / m
+    let f_cont : ℝ → ℝ := fun x => - (m / 2) * x^2
+    let e : ℝ → ℝ := fun x => L_e * x
+    |b_arg - 0| = 2 * L_e / m ∧
+      f_cont 0 + e 0 = f_cont b_arg + e b_arg ∧
+      e b_arg - e 0 = L_e * |b_arg - 0| ∧
+      (∀ x : ℝ, f_cont x ≤ f_cont 0 - (m / 2) * (x - 0)^2) := by
+  dsimp
+  have h_bound_nonneg : 0 ≤ 2 * L_e / m := by
+    exact div_nonneg (mul_nonneg (by norm_num) hLe) (le_of_lt hm)
+  constructor
+  · rw [sub_zero]
+    exact abs_of_nonneg h_bound_nonneg
+  constructor
+  · field_simp [ne_of_gt hm]
+    ring
+  constructor
+  · rw [sub_zero, abs_of_nonneg h_bound_nonneg]
+    ring
+  · intro x
+    ring_nf
+    exact le_rfl
+
 private lemma quadratic_loss_at_sqrt_radius
     (m t : ℝ) (hm : m > 0) (ht : t ≥ 0) :
     0 - (-(m / 2) * (Real.sqrt (2 * t / m)) ^ 2) = t := by

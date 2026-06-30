@@ -75,6 +75,14 @@ def test_tight_argmax_certificate_rejects_mutations(mod) -> None:
     mod.test_tight_argmax_certificate_rejects_mutations()
 
 
+def test_hybrid_tight_argmax_certificate_extension(mod) -> None:
+    mod.test_hybrid_tight_argmax_certificate_extension()
+
+
+def test_hybrid_tight_argmax_rejects_unsupported_m_sources(mod) -> None:
+    mod.test_hybrid_tight_argmax_rejects_unsupported_m_sources()
+
+
 def test_tight_argmax_certificate_rejects_float_overflow_domain(mod) -> None:
     mod.test_tight_argmax_certificate_rejects_float_overflow_domain()
 

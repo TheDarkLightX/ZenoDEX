@@ -99,6 +99,17 @@ _BASE_CERTIFICATE_KEYS = frozenset({
     "tau_anchor",
     "tau_oracle",
 })
+_HYBRID_RADIUS_KEYS = frozenset({
+    "hybrid_anchor_distance",
+    "hybrid_anchored_lipschitz_radius",
+    "hybrid_lipschitz",
+    "hybrid_pair_distance",
+    "hybrid_perturbation_advantage",
+    "hybrid_radius",
+})
+_HYBRID_RADIUS_SUPPORTED_M_SOURCES = frozenset({
+    M_SOURCE_ENDPOINT,
+})
 _ENDPOINT_CERTIFICATE_KEYS = _BASE_CERTIFICATE_KEYS
 _INTERVAL_CERTIFICATE_KEYS = _BASE_CERTIFICATE_KEYS | frozenset({
     "m_certificate_schema",
@@ -145,6 +156,11 @@ class CertificateReject(str, Enum):
     ONE_SIDED_PERTURBATION_FAILED = "one_sided_perturbation_failed"
     RADIUS_UNDERSTATES_DISTANCE = "radius_understates_distance"
     RADIUS_HIERARCHY_FAILED = "radius_hierarchy_failed"
+    HYBRID_LIPSCHITZ_UNDERREPORTED = "hybrid_lipschitz_underreported"
+    HYBRID_M_SOURCE_UNSUPPORTED = "hybrid_m_source_unsupported"
+    HYBRID_RADIUS_CERTIFICATE_FAILED = "hybrid_radius_certificate_failed"
+    HYBRID_RADIUS_UNDERSTATES_DISTANCE = "hybrid_radius_understates_distance"
+    HYBRID_RADIUS_HIERARCHY_FAILED = "hybrid_radius_hierarchy_failed"
 
 
 @dataclass(frozen=True)
@@ -463,6 +479,10 @@ def _is_sha256_hex(value: object) -> bool:
     return all(char in "0123456789abcdef" for char in value)
 
 
+def _keys_match_optional_hybrid(keys: set[str], expected_keys: frozenset[str]) -> bool:
+    return keys == expected_keys or keys == expected_keys | _HYBRID_RADIUS_KEYS
+
+
 def _validate_m_source(
     p0: Pool,
     p1: Pool,
@@ -474,7 +494,7 @@ def _validate_m_source(
     source = cert.get("m_source")
     keys = set(cert.keys())
     if source == M_SOURCE_ENDPOINT:
-        if keys != _ENDPOINT_CERTIFICATE_KEYS:
+        if not _keys_match_optional_hybrid(keys, _ENDPOINT_CERTIFICATE_KEYS):
             return CertificateReject.BAD_SCHEMA
         expected_m = strong_concavity_param_pool_lower_bound(p0, p1, D)
         if not _close(m, expected_m):
@@ -486,7 +506,7 @@ def _validate_m_source(
         return CertificateReject.BAD_M_SOURCE
 
     expected_keys, expected_schema, verifier_name = config
-    if keys != expected_keys:
+    if not _keys_match_optional_hybrid(keys, expected_keys):
         return CertificateReject.BAD_SCHEMA
     if cert.get("m_certificate_schema") != expected_schema:
         return CertificateReject.BAD_M_CERTIFICATE_REF
@@ -550,6 +570,38 @@ def _tight_argmax_metrics(
     }
 
 
+def _anchored_lipschitz_radius(m: float, lipschitz: float, alpha: float, rho: float) -> float:
+    if m <= 0.0:
+        raise ValueError("m must be positive")
+    if lipschitz < 0.0 or alpha < 0.0 or rho < 0.0:
+        raise ValueError("hybrid radius inputs must be nonnegative")
+    discriminant = lipschitz * lipschitz + 2.0 * m * (alpha + lipschitz * rho)
+    return (lipschitz + math.sqrt(max(0.0, discriminant))) / m
+
+
+def _hybrid_argmax_metrics(metrics: Mapping[str, float], anchor: int, argmax: int, b_star: float, m: float) -> dict[str, float]:
+    rho = abs(float(anchor) - b_star)
+    pair_distance = abs(float(argmax) - float(anchor))
+    perturbation_advantage = (
+        (metrics["prod_argmax"] - metrics["cont_argmax"]) -
+        (metrics["prod_anchor"] - metrics["cont_anchor"])
+    )
+    if pair_distance <= CERT_TOL:
+        lipschitz = 0.0 if perturbation_advantage <= CERT_TOL else float("inf")
+    else:
+        lipschitz = max(0.0, perturbation_advantage / pair_distance)
+    anchored_radius = _anchored_lipschitz_radius(m, lipschitz, metrics["alpha"], rho)
+    hybrid_radius = min(metrics["anchor_radius"], metrics["oracle_radius"], anchored_radius)
+    return {
+        "hybrid_anchor_distance": rho,
+        "hybrid_pair_distance": pair_distance,
+        "hybrid_perturbation_advantage": perturbation_advantage,
+        "hybrid_lipschitz": lipschitz,
+        "hybrid_anchored_lipschitz_radius": anchored_radius,
+        "hybrid_radius": hybrid_radius,
+    }
+
+
 def _build_tight_argmax_certificate_payload(
     p0: Pool,
     p1: Pool,
@@ -560,6 +612,7 @@ def _build_tight_argmax_certificate_payload(
     m: float,
     m_source: str,
     extra_fields: Mapping[str, object] | None = None,
+    include_hybrid_radius: bool = False,
 ) -> dict[str, object]:
     metrics = _tight_argmax_metrics(p0, p1, D, anchor, argmax, b_star, m)
     payload: dict[str, object] = {
@@ -584,6 +637,8 @@ def _build_tight_argmax_certificate_payload(
         "prod_anchor": metrics["prod_anchor"],
         "prod_argmax": metrics["prod_argmax"],
     }
+    if include_hybrid_radius:
+        payload.update(_hybrid_argmax_metrics(metrics, anchor, argmax, b_star, m))
     if extra_fields is not None:
         payload.update(extra_fields)
     return payload
@@ -612,6 +667,34 @@ def build_tight_argmax_certificate(
         b_star,
         endpoint_m,
         M_SOURCE_ENDPOINT,
+    )
+    return _canonical_json_bytes(payload)
+
+
+def build_hybrid_tight_argmax_certificate(
+    p0: Pool,
+    p1: Pool,
+    D: int,
+    anchor: int,
+    argmax: int,
+    b_star: float,
+    m: float,
+) -> bytes:
+    if not _tight_argmax_float_domain_valid(p0, p1, D):
+        raise ValueError("tight argmax float domain invalid")
+    endpoint_m = strong_concavity_param_pool_lower_bound(p0, p1, D)
+    if not _close(m, endpoint_m):
+        raise ValueError("endpoint-source certificate requires endpoint m")
+    payload = _build_tight_argmax_certificate_payload(
+        p0,
+        p1,
+        D,
+        anchor,
+        argmax,
+        b_star,
+        endpoint_m,
+        M_SOURCE_ENDPOINT,
+        include_hybrid_radius=True,
     )
     return _canonical_json_bytes(payload)
 
@@ -750,6 +833,15 @@ def verify_tight_argmax_certificate_bytes(
     if any(value is None for value in claimed.values()):
         rejects.append(CertificateReject.BAD_NUMERIC_FIELD)
 
+    hybrid_present = _HYBRID_RADIUS_KEYS.issubset(set(cert.keys()))
+    hybrid_claimed: dict[str, float | None] = {}
+    if hybrid_present:
+        hybrid_claimed = {key: _field_float(cert, key) for key in _HYBRID_RADIUS_KEYS}
+        if any(value is None for value in hybrid_claimed.values()):
+            rejects.append(CertificateReject.BAD_NUMERIC_FIELD)
+        if cert.get("m_source") not in _HYBRID_RADIUS_SUPPORTED_M_SOURCES:
+            rejects.append(CertificateReject.HYBRID_M_SOURCE_UNSUPPORTED)
+
     if m is not None and m > 0.0:
         m_source_reject = _validate_m_source(
             p0,
@@ -786,6 +878,39 @@ def verify_tight_argmax_certificate_bytes(
         rejects.append(CertificateReject.RADIUS_HIERARCHY_FAILED)
     if metrics["anchor_radius"] > metrics["gross_radius"] + CERT_TOL:
         rejects.append(CertificateReject.RADIUS_HIERARCHY_FAILED)
+
+    if hybrid_present:
+        hybrid_metrics = _hybrid_argmax_metrics(metrics, anchor, argmax, b_star, m)
+        for key in _HYBRID_RADIUS_KEYS:
+            if not _close(float(hybrid_claimed[key]), hybrid_metrics[key]):  # type: ignore[arg-type]
+                rejects.append(CertificateReject.STALE_METRIC)
+                break
+
+        hybrid_lipschitz = float(hybrid_claimed["hybrid_lipschitz"])  # type: ignore[arg-type]
+        hybrid_pair_distance = float(hybrid_claimed["hybrid_pair_distance"])  # type: ignore[arg-type]
+        hybrid_advantage = float(hybrid_claimed["hybrid_perturbation_advantage"])  # type: ignore[arg-type]
+        hybrid_anchor_distance = float(hybrid_claimed["hybrid_anchor_distance"])  # type: ignore[arg-type]
+        hybrid_anchored_radius = float(hybrid_claimed["hybrid_anchored_lipschitz_radius"])  # type: ignore[arg-type]
+        hybrid_radius = float(hybrid_claimed["hybrid_radius"])  # type: ignore[arg-type]
+
+        if hybrid_advantage > hybrid_lipschitz * hybrid_pair_distance + CERT_TOL:
+            rejects.append(CertificateReject.HYBRID_LIPSCHITZ_UNDERREPORTED)
+
+        radius_lhs = metrics["alpha"] + hybrid_lipschitz * (
+            hybrid_anchored_radius + hybrid_anchor_distance
+        )
+        radius_rhs = (m / 2.0) * hybrid_anchored_radius ** 2
+        if radius_lhs > radius_rhs + CERT_TOL * max(1.0, abs(radius_lhs), abs(radius_rhs)):
+            rejects.append(CertificateReject.HYBRID_RADIUS_CERTIFICATE_FAILED)
+
+        if metrics["distance"] > hybrid_radius + CERT_TOL:
+            rejects.append(CertificateReject.HYBRID_RADIUS_UNDERSTATES_DISTANCE)
+        if hybrid_radius > metrics["anchor_radius"] + CERT_TOL:
+            rejects.append(CertificateReject.HYBRID_RADIUS_HIERARCHY_FAILED)
+        if hybrid_radius > metrics["oracle_radius"] + CERT_TOL:
+            rejects.append(CertificateReject.HYBRID_RADIUS_HIERARCHY_FAILED)
+        if hybrid_radius > hybrid_anchored_radius + CERT_TOL:
+            rejects.append(CertificateReject.HYBRID_RADIUS_HIERARCHY_FAILED)
 
     unique_rejects = tuple(dict.fromkeys(rejects))
     return CertificateCheckResult(
@@ -1281,6 +1406,134 @@ def test_tight_argmax_certificate_rejects_mutations() -> None:
     assert noncanonical_result.rejects == (CertificateReject.NONCANONICAL_BYTES,)
     print("PASS: tight_argmax_certificate_rejects_mutations "
           f"({len(mutation_cases) + 3} negative cases)")
+
+
+def test_hybrid_tight_argmax_certificate_extension() -> None:
+    """Hybrid radius extension is all-or-nothing and recomputed."""
+    p0, p1, D, anchor, argmax, b_star, m, _raw = _sample_certificate_case()
+    raw = build_hybrid_tight_argmax_certificate(p0, p1, D, anchor, argmax, b_star, m)
+    valid = verify_tight_argmax_certificate_bytes(p0, p1, D, raw)
+    assert valid.ok, f"valid hybrid certificate rejected: {valid.rejects}"
+
+    base = _decoded_certificate(raw)
+    assert _HYBRID_RADIUS_KEYS.issubset(set(base))
+    assert base["hybrid_radius"] <= base["oracle_radius"] + CERT_TOL
+    assert base["hybrid_radius"] <= base["anchor_radius"] + CERT_TOL
+    assert base["hybrid_radius"] <= base["hybrid_anchored_lipschitz_radius"] + CERT_TOL
+
+    partial = dict(base)
+    partial.pop("hybrid_radius")
+    partial_result = verify_tight_argmax_certificate_bytes(
+        p0,
+        p1,
+        D,
+        _canonical_json_bytes(partial),
+    )
+    assert CertificateReject.BAD_SCHEMA in partial_result.rejects
+
+    low_lipschitz = dict(base)
+    low_lipschitz["hybrid_lipschitz"] = float(low_lipschitz["hybrid_lipschitz"]) * 0.5
+    low_lipschitz_result = verify_tight_argmax_certificate_bytes(
+        p0,
+        p1,
+        D,
+        _canonical_json_bytes(low_lipschitz),
+    )
+    assert CertificateReject.HYBRID_LIPSCHITZ_UNDERREPORTED in low_lipschitz_result.rejects
+
+    stale_radius = dict(base)
+    stale_radius["hybrid_radius"] = 0.0
+    stale_radius_result = verify_tight_argmax_certificate_bytes(
+        p0,
+        p1,
+        D,
+        _canonical_json_bytes(stale_radius),
+    )
+    assert CertificateReject.STALE_METRIC in stale_radius_result.rejects
+    assert CertificateReject.HYBRID_RADIUS_UNDERSTATES_DISTANCE in stale_radius_result.rejects
+    print("PASS: hybrid_tight_argmax_certificate_extension "
+          "(valid extension plus partial/stale/underreported negatives)")
+
+
+def test_hybrid_tight_argmax_rejects_unsupported_m_sources() -> None:
+    """Hybrid radius is endpoint-only until non-endpoint metric evidence is exact."""
+    curvature = _curvature_module()
+    build_refined = getattr(curvature, "build_refined_interval_curvature_m_certificate")
+    build_stationary = getattr(curvature, "build_stationary_curvature_m_certificate")
+    construct_stationary = getattr(curvature, "_construct_fee_free_stationary_case")
+
+    p0, p1, D, anchor, argmax, b_star, _endpoint_m, _raw = _sample_certificate_case()
+    interval_m_raw = build_refined(p0, p1, D, 16, 64)
+    interval_m_result = getattr(curvature, "verify_interval_curvature_m_certificate_bytes")(
+        p0,
+        p1,
+        D,
+        interval_m_raw,
+    )
+    assert interval_m_result.accepted and interval_m_result.m is not None
+    interval_hash = hashlib.sha256(interval_m_raw).hexdigest()
+    interval_payload = _build_tight_argmax_certificate_payload(
+        p0,
+        p1,
+        D,
+        anchor,
+        argmax,
+        b_star,
+        float(interval_m_result.m),
+        M_SOURCE_INTERVAL_CERTIFICATE,
+        {
+            "m_certificate_schema": INTERVAL_M_CERTIFICATE_SCHEMA,
+            "m_certificate_sha256": interval_hash,
+        },
+        include_hybrid_radius=True,
+    )
+    interval_result = verify_tight_argmax_certificate_bytes(
+        p0,
+        p1,
+        D,
+        _canonical_json_bytes(interval_payload),
+        {interval_hash: interval_m_raw},
+    )
+    assert CertificateReject.HYBRID_M_SOURCE_UNSUPPORTED in interval_result.rejects
+
+    sp0, sp1, sD, minimizer_a = construct_stationary(315, 351, 126, 83)
+    stationary_m_raw = build_stationary(sp0, sp1, sD, minimizer_a)
+    stationary_m_result = getattr(curvature, "verify_stationary_curvature_m_certificate_bytes")(
+        sp0,
+        sp1,
+        sD,
+        stationary_m_raw,
+    )
+    assert stationary_m_result.accepted and stationary_m_result.m is not None
+    stationary_hash = hashlib.sha256(stationary_m_raw).hexdigest()
+    stationary_b_star = continuous_optimum(sp0, sp1, sD)
+    stationary_anchor = best_continuous_integer_anchor(sp0, sp1, sD)
+    stationary_argmax, _prod_argmax = discrete_optimum_prod(sp0, sp1, sD)
+    stationary_payload = _build_tight_argmax_certificate_payload(
+        sp0,
+        sp1,
+        sD,
+        stationary_anchor,
+        stationary_argmax,
+        stationary_b_star,
+        float(stationary_m_result.m),
+        M_SOURCE_STATIONARY_CERTIFICATE,
+        {
+            "m_certificate_schema": STATIONARY_M_CERTIFICATE_SCHEMA,
+            "m_certificate_sha256": stationary_hash,
+        },
+        include_hybrid_radius=True,
+    )
+    stationary_result = verify_tight_argmax_certificate_bytes(
+        sp0,
+        sp1,
+        sD,
+        _canonical_json_bytes(stationary_payload),
+        {stationary_hash: stationary_m_raw},
+    )
+    assert CertificateReject.HYBRID_M_SOURCE_UNSUPPORTED in stationary_result.rejects
+    print("PASS: hybrid_tight_argmax_rejects_unsupported_m_sources "
+          "(interval and stationary hybrid packets reject)")
 
 
 def test_tight_argmax_certificate_rejects_float_overflow_domain() -> None:
@@ -2019,6 +2272,8 @@ if __name__ == "__main__":
     test_prod_argmax_distance_tight_one_sided_perturbation_bound()
     test_tight_argmax_certificate_accepts_valid_corpus()
     test_tight_argmax_certificate_rejects_mutations()
+    test_hybrid_tight_argmax_certificate_extension()
+    test_hybrid_tight_argmax_rejects_unsupported_m_sources()
     test_tight_argmax_certificate_rejects_float_overflow_domain()
     test_interval_m_backed_tight_argmax_certificate_composition()
     test_interval_m_backed_tight_argmax_certificate_rejects_bad_composition()
@@ -2046,7 +2301,9 @@ if __name__ == "__main__":
     print("    7. Window: |b - b*| < sqrt(2*(3L+2)/m) on low-fee corpus  [empirical]")
     print("    8. Tight certified-anchor argmax distance: |argmax_prod-b*| <= sqrt(2*tau/m)  [Lean generic + empirical tau]")
     print("    9. Tight argmax certificate checker rejects stale/noncanonical packets  [empirical]")
-    print("    10. Tight argmax certificate float-domain guard  [CBC boundary]")
-    print("    11. Interval-m-backed tight argmax certificate composition  [Lean bridge + empirical]")
-    print("    12. Stationary-m-backed tight argmax certificate composition  [Lean bridge + empirical]")
-    print("    13. Ternary search DP achieves (3L+2) bound on low-fee corpus  [empirical]")
+    print("    10. Hybrid radius extension rejects partial/stale/underreported packets  [Lean bridge + empirical]")
+    print("    11. Hybrid radius rejects unsupported non-endpoint m sources  [CBC boundary]")
+    print("    12. Tight argmax certificate float-domain guard  [CBC boundary]")
+    print("    13. Interval-m-backed tight argmax certificate composition  [Lean bridge + empirical]")
+    print("    14. Stationary-m-backed tight argmax certificate composition  [Lean bridge + empirical]")
+    print("    15. Ternary search DP achieves (3L+2) bound on low-fee corpus  [empirical]")
