@@ -199,3 +199,117 @@ theorem splitFunctionCont_concave
   -- By h_eq, the sum equals the goal expression
   rw [← h_eq]
   exact add_neg h_pool0 h_pool1
+
+/-! ## Strong Concavity Lower Bound From Pool Parameters
+
+For the CPMM split function `F(a) = f0(c0*a) + f1(c1*(D-a))`, the second
+derivative is `F''(a) = -T0(a) - T1(a)` where:
+  `T0(a) = 2*c0^2*K0*M0/(M0+c0*a)^3`  (decreasing in a)
+  `T1(a) = 2*c1^2*K1*M1/(M1+c1*(D-a))^3`  (increasing in a)
+
+The strong concavity parameter `m = inf_a |F''(a)|` satisfies:
+  `m >= T0(D) + T1(0) = 2*c0^2*K0*M0/(M0+c0*D)^3 + 2*c1^2*K1*M1/(M1+c1*D)^3`
+
+This removes the external hypothesis on `m`: the window bound
+`sqrt(2*eps/m)` is now fully determined by pool parameters.
+
+Key lemma: `inf(f+g) >= inf(f) + inf(g)` for non-negative functions.
+Applied here: T0(a) >= T0(D) and T1(a) >= T1(0) for a in [0, D].
+-/
+
+/-- Helper: for positive x, y with `x <= y` and `c >= 0`, `c/x^3 >= c/y^3`.
+    The reciprocal cube is decreasing on positive reals. -/
+lemma inv_cube_antitone_mul (x y c : ℝ) (hx : 0 < x) (hy : 0 < y) (hc : c ≥ 0)
+    (hxy : x ≤ y) : c / x^3 ≥ c / y^3 := by
+  have hx3 : 0 < x^3 := pow_pos hx 3
+  have hy3 : 0 < y^3 := pow_pos hy 3
+  have hx3_le_hy3 : x^3 ≤ y^3 := by
+    have h1 : x^2 ≤ y^2 := by nlinarith [sq_nonneg (y - x), hxy]
+    nlinarith [sq_nonneg (y - x), hxy, h1]
+  -- c/y^3 <= c/x^3 since x^3 <= y^3
+  have h_key : c / y^3 ≤ c / x^3 := by
+    rw [div_le_div_iff₀ hy3 hx3]
+    exact mul_le_mul_of_nonneg_left hx3_le_hy3 hc
+  exact h_key
+
+/-- **T0 monotonicity**: `T0(a) = 2*c0^2*K0*M0/(M0+c0*a)^3` is decreasing in a.
+    For `a <= D`, `T0(a) >= T0(D)`. -/
+lemma T0_decreasing_bound
+    (K0 M0 c0 a D : ℝ)
+    (hK0 : K0 > 0) (hM0 : M0 > 0) (hc0 : c0 ≥ 0)
+    (ha_nn : 0 ≤ a) (ha_le_D : a ≤ D)
+    : 2 * c0^2 * K0 * M0 / (M0 + c0 * a)^3 ≥
+      2 * c0^2 * K0 * M0 / (M0 + c0 * D)^3 := by
+  have hM0ca : 0 < M0 + c0 * a := by nlinarith
+  have hM0cD : 0 < M0 + c0 * D := by nlinarith
+  have h_ca_le_cD : c0 * a ≤ c0 * D :=
+    mul_le_mul_of_nonneg_left ha_le_D hc0
+  have h_denom_le : M0 + c0 * a ≤ M0 + c0 * D := by linarith
+  have h_coeff_nn : 0 ≤ 2 * c0^2 * K0 * M0 := by
+    have h_c0sq : 0 ≤ c0^2 := sq_nonneg c0
+    have h_2 : (0 : ℝ) ≤ 2 := by norm_num
+    have h_2c0sq : 0 ≤ 2 * c0^2 := mul_nonneg h_2 h_c0sq
+    have h_2c0sqK0 : 0 ≤ 2 * c0^2 * K0 := mul_nonneg h_2c0sq (le_of_lt hK0)
+    exact mul_nonneg h_2c0sqK0 (le_of_lt hM0)
+  exact inv_cube_antitone_mul (M0 + c0 * a) (M0 + c0 * D) (2 * c0^2 * K0 * M0)
+    hM0ca hM0cD h_coeff_nn h_denom_le
+
+/-- **T1 monotonicity**: `T1(a) = 2*c1^2*K1*M1/(M1+c1*(D-a))^3` is increasing in a.
+    For `a >= 0`, `T1(a) >= T1(0)` (since `D-a <= D`). -/
+lemma T1_increasing_bound
+    (K1 M1 c1 a D : ℝ)
+    (hK1 : K1 > 0) (hM1 : M1 > 0) (hc1 : c1 ≥ 0)
+    (ha_nn : 0 ≤ a) (ha_le_D : a ≤ D)
+    : 2 * c1^2 * K1 * M1 / (M1 + c1 * (D - a))^3 ≥
+      2 * c1^2 * K1 * M1 / (M1 + c1 * D)^3 := by
+  have h_Da_le_D : D - a ≤ D := by nlinarith
+  have hM1cDa : 0 < M1 + c1 * (D - a) := by nlinarith
+  have hM1cD : 0 < M1 + c1 * D := by nlinarith
+  have h_cDa_le_cD : c1 * (D - a) ≤ c1 * D :=
+    mul_le_mul_of_nonneg_left h_Da_le_D hc1
+  have h_denom_le : M1 + c1 * (D - a) ≤ M1 + c1 * D := by linarith
+  have h_coeff_nn : 0 ≤ 2 * c1^2 * K1 * M1 := by
+    have h_c1sq : 0 ≤ c1^2 := sq_nonneg c1
+    have h_2 : (0 : ℝ) ≤ 2 := by norm_num
+    have h_2c1sq : 0 ≤ 2 * c1^2 := mul_nonneg h_2 h_c1sq
+    have h_2c1sqK1 : 0 ≤ 2 * c1^2 * K1 := mul_nonneg h_2c1sq (le_of_lt hK1)
+    exact mul_nonneg h_2c1sqK1 (le_of_lt hM1)
+  exact inv_cube_antitone_mul (M1 + c1 * (D - a)) (M1 + c1 * D) (2 * c1^2 * K1 * M1)
+    hM1cDa hM1cD h_coeff_nn h_denom_le
+
+/-- **Strong Concavity Lower Bound**: For the CPMM split function
+    `F(a) = f0(c0*a) + f1(c1*(D-a))`, the strong concavity parameter m
+    satisfies:
+
+    `m >= 2*c0^2*K0*M0/(M0+c0*D)^3 + 2*c1^2*K1*M1/(M1+c1*D)^3`
+
+    This is derived from:
+    - `|F''(a)| = T0(a) + T1(a)` (second derivative formula, external)
+    - `T0(a) >= T0(D)` for `a in [0, D]` (T0 decreasing, proven here)
+    - `T1(a) >= T1(0)` for `a in [0, D]` (T1 increasing, proven here)
+
+    Non-claims:
+    - The second derivative formula `F''(a) = -T0(a) - T1(a)` is external.
+    - This is a lower bound on m, not the exact m.
+    - The bound degenerates when `D >> M` (m -> 0), which is correct.
+    - The exact m is `inf(T0+T1) >= inf T0 + inf T1`. -/
+theorem strong_concavity_lower_bound
+    (K0 M0 c0 K1 M1 c1 D a : ℝ)
+    (hK0 : K0 > 0) (hM0 : M0 > 0) (hc0 : c0 ≥ 0)
+    (hK1 : K1 > 0) (hM1 : M1 > 0) (hc1 : c1 ≥ 0)
+    (_hD : D ≥ 0) (ha_nn : 0 ≤ a) (ha_le_D : a ≤ D)
+    : 2 * c0^2 * K0 * M0 / (M0 + c0 * a)^3 +
+      2 * c1^2 * K1 * M1 / (M1 + c1 * (D - a))^3 ≥
+      2 * c0^2 * K0 * M0 / (M0 + c0 * D)^3 +
+      2 * c1^2 * K1 * M1 / (M1 + c1 * D)^3 := by
+  have h0 := T0_decreasing_bound K0 M0 c0 a D hK0 hM0 hc0 ha_nn ha_le_D
+  have h1 := T1_increasing_bound K1 M1 c1 a D hK1 hM1 hc1 ha_nn ha_le_D
+  linarith
+
+/-- **Witness**: Concrete case showing the lower bound is non-vacuous and
+    strictly positive. K0=1000, M0=1000, c0=0.99, K1=2000, M1=1000,
+    c1=0.99, D=100, a=50. -/
+theorem witness_strong_concavity_bound :
+    (0 : ℝ) < 2 * (0.99)^2 * 1000 * 1000 / (1000 + 0.99 * 100)^3 +
+            2 * (0.99)^2 * 2000 * 1000 / (1000 + 0.99 * 100)^3 := by
+  norm_num
