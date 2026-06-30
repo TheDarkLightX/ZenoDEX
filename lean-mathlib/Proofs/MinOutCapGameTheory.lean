@@ -360,8 +360,8 @@ if filled, 0 otherwise. Under surplus utility, the result changes:
   (restricted equilibrium — `filled_user_no_profitable_min_out_deviation`).
 - **Surplus utility**: lowering min_out strictly *increases* surplus
   (preference revelation improvement, not a no-gain result). The best
-  response is `min_out = 0`, which is a *truthful revelation* result
-  rather than a no-deviation equilibrium.
+  response is `min_out = 0`, which is a *zero-threshold best response*
+  result rather than a no-deviation equilibrium.
 
 The key insight: under surplus utility, a filled user lowering min_out
 strictly increases surplus (surplus = output - min_out, and min_out
@@ -372,7 +372,7 @@ of the mechanism.
 Raising min_out still risks becoming unfilled (surplus drops to 0).
 
 The surplus variant shows that the mechanism incentivizes truthful
-preference revelation (min_out = 0) under surplus utility, complementing
+zero-threshold best response (min_out = 0) under surplus utility, complementing
 the no-gain result under binary utility.
 -/
 
@@ -390,10 +390,9 @@ noncomputable def surplusUtility (K M gamma : ℝ) (u : UserSubmission) : ℝ :=
     deviates to a lower min_out (and still fills), their surplus strictly
     increases.
 
-    This is NOT a strategic manipulation — it is a preference revelation
-    improvement. The user truthfully reports a lower reservation price and
-    captures more surplus. The mechanism's fill guarantee is what makes
-    this safe. -/
+    This is NOT a strategic manipulation — it is a reported-surplus
+    improvement. The user reports a lower threshold and captures more
+    surplus. The mechanism's fill guarantee is what makes this safe. -/
 theorem filled_user_lower_min_out_surplus_increases
     (K M gamma : ℝ) (u_t u_d : UserSubmission)
     (h_amt : u_t.amount_in = u_d.amount_in)
@@ -446,14 +445,13 @@ theorem filled_user_raise_min_out_surplus_drops
     surplus they would get by deviating to the *lowest* feasible min_out (0).
 
     This means the user's *best response* in the min_out dimension is to
-    report min_out = 0 (truthful preference revelation), and any higher
-    min_out is weakly dominated. The mechanism incentivizes truthful
-    preference revelation among filled users.
+    report min_out = 0 (zero-threshold best response), and any higher
+    min_out is weakly dominated under reported-surplus utility.
 
     Non-claims:
     - NOT a Nash equilibrium (lowering min_out IS profitable under surplus).
     - The result shows that min_out = 0 is the dominant strategy for filled
-      users under surplus utility, which is a *truthful revelation* result.
+      users under surplus utility, which is a *zero-threshold best response* result.
     - Unfilled users can still profitably deviate by lowering min_out. -/
 theorem filled_user_surplus_best_response_zero_min_out
     (K M gamma : ℝ) (u_t : UserSubmission)
