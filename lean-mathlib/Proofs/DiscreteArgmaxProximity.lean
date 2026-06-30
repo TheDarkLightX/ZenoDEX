@@ -505,6 +505,7 @@ theorem abstract_oracle_perturbed_argmax_distance_sharp_quadratic
     let f_cont : ℝ → ℝ := fun x => - (m / 2) * x^2
     let f_disc : ℝ → ℝ := fun _ => f_cont b_arg
     |b_arg - 0| = Real.sqrt (2 * τ / m) ∧
+      f_cont 0 - f_disc b_arg = τ ∧
       f_disc b_arg ≤ f_cont b_arg ∧
       (∀ x : ℝ, f_cont x ≤ f_cont 0 - (m / 2) * (x - 0)^2) := by
   dsimp
@@ -512,6 +513,9 @@ theorem abstract_oracle_perturbed_argmax_distance_sharp_quadratic
   constructor
   · rw [sub_zero]
     exact abs_of_nonneg (Real.sqrt_nonneg _)
+  constructor
+  · have : -(m / 2) * 0 ^ 2 = 0 := by ring
+    linarith [h_total_loss, this]
   constructor
   · exact le_rfl
   · intro x
