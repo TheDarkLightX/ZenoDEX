@@ -601,8 +601,8 @@ theorem cpmm_donation_gain_closed_form_max
   field_simp
 
 /-- **Unique optimizer for donation gain**: The donation/no-output gain
-    achieves its maximum value only at `a_B = s`. For any `a_B ≠ s`, the
-    gain is strictly less than the maximum.
+    achieves its maximum value only at `a_B = s`. For any positive
+    `a_B ≠ s`, the gain is strictly less than the maximum.
 
     The proof uses the algebraic certificate from
     `cpmm_donation_gain_argmax_bound`: the gap factors as
