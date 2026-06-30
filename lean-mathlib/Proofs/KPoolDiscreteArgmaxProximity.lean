@@ -88,17 +88,19 @@ open Real
 
     **Hypotheses** (NOT discharged here):
     - `h_floor_err_at_bstar`: floor error at `⌊b*⌋` is `< k`
-      (from summing single-pool bounds; verified empirically)
+      (supplied as hypothesis; `finset_floor_error_bound` can discharge
+      it when per-pool errors are each in `[0, 1)`)
     - `h_lipschitz`: `F_cont` is `L`-Lipschitz
-      (provable from CPMM derivative; not done here)
+      (supplied as hypothesis; gradient lemmas support an
+      application-specific route to this hypothesis, not composed here)
     - `h_max`: `b*` is the continuous global max
       (follows from strict concavity + compactness; `b*` existence assumed)
     - `h_floor_le_at_b`: floor rounds down at `b`
 
-    The floor error bound `< k` follows from `cpmm_floor_error_bound`
-    (`< 1` per pool) summed over k pools. A formal finset proof of the
-    strict upper bound requires additional API work; the bound is
-    verified empirically across 3600+ configurations. -/
+    The generic Finset floor error bound is formally proven in this file
+    as `finset_floor_error_bound`. The pool-specific CPMM aggregate
+    bridge — connecting per-pool `cpmm_prod_floor_error_bound_directed`
+    outputs to `h_floor_err_at_bstar` — remains application-specific. -/
 theorem kpool_discrete_argmax_proximity
     (F_cont F_floor : ℝ → ℝ) (L k : ℝ) (b_star b : ℝ)
     (hL : L ≥ 0)
@@ -320,15 +322,19 @@ theorem kpool_gradient_bound_coord2
     search achieves a value within `L + 3` of the discrete optimum.
 
     This applies the existing `kpool_discrete_argmax_proximity` with k = 3
-    and the coupled Lipschitz constant L from P1's gradient bound.
+    and forwards `h_lipschitz` and `h_floor_err_at_bstar` as hypotheses.
 
-    The gradient bound (proven above) shows each coordinate's gradient is
-    bounded by L, giving an L-Lipschitz function in L-inf norm. Combined
-    with floor error < 3, the proximity bound is L + 3.
+    The gradient lemmas (proven above) support an application-specific
+    route to `h_lipschitz`; this proof does not derive it. The separate
+    `finset_floor_error_bound` lemma can discharge `h_floor_err_at_bstar`
+    when per-pool floor errors are each in `[0, 1)`; the CPMM aggregate
+    bridge remains application-specific.
 
     Non-claims:
     - Uses L-infinity norm for the allocation vector.
-    - The floor error bound < 3 is empirical (each pool contributes < 1).
+    - The floor error bound < 3 is a checked hypothesis; the generic
+      Finset lemma can discharge it separately when per-pool errors
+      are supplied.
     - Quotient bridge assumes no-duplicate stable IDs (from KPoolSplitConcavity).
     - The top-level theorem requires the certificate format from
       KPoolSplitConcavity.lean for full K-pool routing. -/
@@ -348,8 +354,10 @@ theorem kpool_coupled_argmax_proximity_3pool
     a value within `L + K` of the discrete optimum.
 
     The bound `L + K` comes from:
-    - L-Lipschitz in L-inf norm (from P1's gradient bound, proven above)
-    - Floor error < K (each of K pools contributes < 1 unit)
+    - L-Lipschitz in L-inf norm (supplied as `h_lipschitz`; gradient
+      lemmas support an application-specific route, not composed here)
+    - Floor error < K (supplied as `h_floor_err`; `finset_floor_error_bound`
+      can discharge it separately when per-pool errors are in `[0, 1)`)
     - Integer proximity: ||b* - b||_inf >= 1 for b != floor(b*)
 
     The frontier selection document claims `((K+1)*L + K)`, which is a
@@ -358,7 +366,9 @@ theorem kpool_coupled_argmax_proximity_3pool
 
     Non-claims:
     - Uses L-infinity norm for the allocation vector.
-    - The floor error bound < K is empirical (verified for K up to 5).
+    - The floor error bound < K is a checked hypothesis; the generic
+      Finset lemma can discharge it separately when per-pool errors
+      are supplied. The CPMM aggregate bridge is application-specific.
     - Top-level all-K theorem requires the certificate format from
       KPoolSplitConcavity.lean.
     - The bound degenerates when L is large (shallow pools). -/
