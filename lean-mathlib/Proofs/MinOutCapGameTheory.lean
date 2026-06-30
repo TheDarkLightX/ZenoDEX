@@ -153,7 +153,7 @@ theorem filled_user_lower_min_out_same_output
     ordering only.
 
     The utility function is `if filled then output else 0`. For a filled user
-    at truthful min_out, utility = output. After lowering min_out, the user
+    at baseline min_out, utility = output. After lowering min_out, the user
     still fills (by `filled_user_lower_min_out_still_fills`) with the same
     output (by `filled_user_lower_min_out_same_output`), so utility is
     unchanged. -/
@@ -166,7 +166,7 @@ theorem filled_user_no_profitable_deviation
   -- User still fills at deviated min_out
   have h_d_fills : cpmmOutput K M gamma u_d.amount_in ≥ u_d.min_out :=
     filled_user_lower_min_out_still_fills K M gamma u_t u_d h_amt h_filled h_lower
-  -- Utility at truthful = output (since filled)
+  -- Utility at baseline = output (since filled)
   have h_util_t : utility K M gamma u_t = cpmmOutput K M gamma u_t.amount_in := by
     unfold utility
     rw [if_pos h_filled]
@@ -188,7 +188,7 @@ theorem filled_user_no_profitable_deviation
     - If filled: (M + gamma*amount_in, K - output)
     - If not filled: (M, K) unchanged
 
-    Since both truthful and deviated users fill with the same output and
+    Since both baseline and deviated users fill with the same output and
     amount_in, the conditional transition produces the same result. -/
 theorem batch_state_invariant_after_filled_deviation
     (K M gamma : ℝ) (u_t u_d : UserSubmission)
@@ -359,19 +359,19 @@ if filled, 0 otherwise. Under surplus utility, the result changes:
 - **Binary utility**: filled users have no profitable min_out deviation
   (restricted equilibrium — `filled_user_no_profitable_min_out_deviation`).
 - **Surplus utility**: lowering min_out strictly *increases* surplus
-  (preference revelation improvement, not a no-gain result). The best
+  (reported-surplus improvement, not a no-gain result). The best
   response is `min_out = 0`, which is a *zero-threshold best response*
   result rather than a no-deviation equilibrium.
 
 The key insight: under surplus utility, a filled user lowering min_out
 strictly increases surplus (surplus = output - min_out, and min_out
 decreases while output stays fixed). This is beneficial to the user
-but is a preference revelation improvement, not a strategic manipulation
+but is a reported-surplus improvement, not a strategic manipulation
 of the mechanism.
 
 Raising min_out still risks becoming unfilled (surplus drops to 0).
 
-The surplus variant shows that the mechanism incentivizes truthful
+The surplus variant shows that the mechanism incentivizes
 zero-threshold best response (min_out = 0) under surplus utility, complementing
 the no-gain result under binary utility.
 -/
