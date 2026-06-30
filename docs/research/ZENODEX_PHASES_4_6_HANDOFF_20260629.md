@@ -75,8 +75,61 @@ bounds, and fixed-order min-out-cap evidence.
   one concrete 4-pool plus one concrete 5-pool coordinate-wise checkpoint.
 - `DiscreteArgmaxProximity.lean` replaces the false discrete-concavity target
   with abstract argmax-proximity theorems, including the certified-anchor
-  distance radius `|argmax_g-b*| <= sqrt(2*tau/m)`, plus CPMM conditional
-  instantiations for the clean model.
+  distance radius `|argmax_g-b*| <= sqrt(2*tau/m)` and the oracle-tight
+  perturbation radius `sqrt(2*(f_cont(b*)-f_disc(argmax_g))/m)`, plus CPMM
+  conditional instantiations for the clean model. It also proves
+  `abstract_one_sided_perturbed_argmax_distance_sharp_quadratic`, a quadratic
+  witness showing the generic one-sided `sqrt(2*(alpha+epsilon)/m)` radius is
+  attained under the abstract hypotheses.
+- `TIGHT_ARGMAX_CEILING_FEE_BOUND_20260630.md` records the derivation ladder:
+  oracle-tight radius, best certified-anchor radius, and the production
+  gross-spot ceiling-fee envelope.
+- `discrete_argmax_proximity_test.py` now includes a research-scope tight
+  argmax certificate checker. It validates canonical certificate bytes,
+  duplicate-key absence, no-authority flags, domain hash, anchor/argmax
+  membership, production dominance, one-sided perturbation, source-typed `m`,
+  recomputed tau, and radius hierarchy before accepting the packet. Endpoint
+  `m` packets must recompute the endpoint lower bound. Interval-backed `m`
+  packets must reference a SHA-256 identified rational interval curvature
+  certificate that is resolved, domain-checked, and accepted before the tighter
+  argmax radius is accepted. The checker now rejects reserves, fee bps, or
+  total input outside its 128-bit research float lane before recomputing `m`,
+  `tau`, or radius metrics, returning `BAD_DOMAIN` rather than surfacing Python
+  float overflow.
+- `CpmmSplitConcavity.lean` now proves the endpoint curvature lower bound is
+  positive and proves `splitFunctionCont_strong_concavity_from_m_certificate`:
+  a supplied `m > 0` bounded by the endpoint curvature certificate is a valid
+  strong-concavity certificate once the second-derivative identity is supplied.
+  It also proves `splitFunctionCont_strong_concavity_from_curvature_floor`, a
+  consumer theorem for any externally checked local curvature floor, and
+  `strong_concavity_interval_lower_bound`, the local interval floor theorem
+  `T0(a)+T1(a) >= T0(hi)+T1(lo)` for `lo <= a <= hi`.
+  It also proves `strong_concavity_interval_floor_refinement`, the split
+  monotonicity theorem showing that child interval floors cannot be lower than
+  the parent interval floor.
+  `concavity_conservation_law_test.py` validates the matching research-scope
+  pool-parameter `m` certificate format with canonical bytes, duplicate-key
+  rejection, domain hash binding, no-authority flags, recomputed endpoint
+  bound, and bad-`m` rejection. It also validates a separate exact-curvature
+  research certificate schema with recomputed minimizer, exact floor, and
+  mutation rejection. The exact-curvature float lane now rejects domains above
+  its 128-bit research bound before conversion, so oversized pool-valid
+  integers return a structured boundary reject instead of overflow. It also
+  validates a rational interval certificate schema with exact `{num,den}`
+  fields, ordered interval-cover validation, recomputed interval floors, strict
+  interval schema keys, and mutation rejection. The best-cover
+  interval builder uses the same verifier, chooses among a deterministic
+  portfolio that includes uniform placement, and cannot generate a certificate
+  worse than uniform placement for the same interval count. The greedy
+  refinement builder repeatedly splits the weakest exact interval floor and is
+  backed by the Lean split-monotonicity theorem. The bounded optimal midpoint
+  audit builder searches all midpoint split schedules under a 16-interval cap,
+  emits the same interval certificate schema, and checks the greedy builder
+  against that bounded exact-DP optimum.
+  `EXACT_CURVATURE_M_CERTIFICATE_20260630.md` records the resulting sharper
+  `m` denominators for the tight argmax-radius chain; the discrete argmax
+  research checker now consumes those interval `m` certificates through an
+  explicit composition path.
 - `KPoolDiscreteArgmaxProximity.lean` lifts the scalar proximity result to a
   K-pool scalar conditional theorem, with empirical simplex coverage for small
   K-pool domains.
@@ -92,6 +145,17 @@ bounds, and fixed-order min-out-cap evidence.
   for fee-free CPMM; `cpmm_stateful_gain_bound_with_fee`: same with fee
   parameter gamma). This closes the formal gap between the generic Lipschitz
   increment and the exact stateful attack model.
+- `ConcavityConservationLaw.lean` also separates two attack semantics that were
+  easy to conflate. The finite optimizer
+  `a_B = sqrt(M*(M+a_A))` is Lean-proven for the fee-free donation/no-output
+  perturbation gain `K*a_A*a_B/((M+a_B)*(M+a_A+a_B))`, via
+  `cpmm_donation_gain_argmax_bound`. The fee-bearing single-pool version is
+  also Lean-proven via `cpmm_donation_gain_argmax_bound_with_fee`: for net
+  inputs `u = gammaA*a_A` and `v = gammaB*a_B`, the raw attacker optimizer is
+  `sqrt(M*(M+gammaA*a_A))/gammaB` when `gammaB > 0`. The filled-A state-change
+  gain has a different expression and approaches the asymptotic bound
+  `K*a_A/(M+a_A)` as `a_B` grows; the donation optimizer is empirically
+  falsified as a bound for that model.
 - Empirical tests document that a second-order concavity approximation is
   falsified as a universal stateful attack bound.
 - The honest security-side observation is that actual stateful gain decreases
@@ -311,6 +375,10 @@ SHA-256. The checker rejects hash drift, missing critical artifacts, placeholder
 Lean proof tokens, widened production or consensus claims, full Nash wording, and
 the false universal stateful-attack-bound claim. The new K-pool split wrapper is
 explicitly marked as `new_in_worktree` in the manifest until it is tracked.
+The current continuation also pins the interval-m-backed tight argmax
+composition flag and fails closed if the flag or nonclaim coverage is missing.
+It also pins the bounded optimal midpoint-refinement audit flag and fails
+closed if the bounded-audit nonclaim is missing.
 
 ## Non-Claims
 
@@ -372,9 +440,39 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
   `concavity_bounded_adversarial_test.py` uses `|f''(0)|` (maximum curvature)
   which gives a tighter constant but is empirical only.
 - The tightest generic argmax-distance certificate under strong concavity and
-  one-sided ceiling-fee perturbation is `sqrt(2*tau/m)`, where
-  `tau = f_cont(b*) - f_prod(anchor)`. The universal gross-spot envelope gives
-  `tau <= alpha + eta_bound`; the low-fee `3L+2` window remains empirical.
+  one-sided ceiling-fee perturbation is the oracle radius
+  `sqrt(2*(f_cont(b*)-f_prod(argmax))/m)`. The best certified-anchor radius is
+  `sqrt(2*tau/m)`, where `tau = f_cont(b*) - f_prod(anchor)`. The universal
+  gross-spot envelope gives `tau <= alpha + eta_bound`; the low-fee `3L+2`
+  window remains empirical.
+- The one-sided `sqrt(2*(alpha+epsilon)/m)` radius is formally sharp for the
+  abstract hypotheses via a quadratic witness. The witness is not a production
+  CPMM instance, and any tighter production radius needs additional certified
+  structure.
+- The tight argmax certificate checker is research-scope evidence only. It
+  validates a supplied packet against recomputed values and rejects stale,
+  noncanonical, authority-bearing, or radius-understating packets. It is not
+  wired into production routing, settlement, or consensus authority.
+- The tight argmax certificate float-domain guard bounds only the research
+  checker's float recomputation lane to 128-bit inputs. Larger domains need an
+  exact-arithmetic certificate path before they can be replayed in this checker.
+- The interval-m-backed tight argmax certificate path consumes a checked
+  curvature certificate before accepting a tighter radius. It does not choose
+  the production argmax, prove optimal interval placement, or change production
+  routing, settlement, or consensus authority.
+- The closed-form exact-curvature minimizer checker is bounded to the 128-bit
+  research float domain and rejects larger domains before conversion. Use the
+  rational interval certificate path for exact-arithmetic floors outside that
+  lane.
+- The bounded optimal midpoint-refinement audit is exact only within the
+  stated 16-interval midpoint-split cap. It is not a proof of unbounded greedy
+  optimality or continuous optimal interval placement.
+- The donation/no-output exact optimizer is single-pool and scoped to the
+  donation/no-output perturbation gain. The fee-bearing theorem requires a
+  positive attacker fee multiplier `gammaB`; when `gammaB = 0`, there is no
+  finite raw attacker-size optimizer. It is not a bound for the filled-A
+  state-change gain in `cpmm_stateful_gain_bound_tight`, and multi-hop donation
+  optimizer extensions remain open.
 - These files are research evidence and proof artifacts; they do not change
   consensus authority or production runtime behavior.
 - `src/core/kpool_stable_id_lookup_certificate.py` is a deterministic boundary
@@ -489,9 +587,37 @@ explicitly marked as `new_in_worktree` in the manifest until it is tracked.
    Key theorems: `cpmm_output_lipschitz_wrt_net`
    (K/M Lipschitz constant), `cpmm_prod_floor_error_bound_directed`
    (per-pool floor error in [0, K/M+1)), `split_prod_floor_error_bound`
-   (2-pool split floor error), `production_argmax_proximity` (production
-   argmax proximity), and `split_lipschitz_coupled` (continuous split
-   Lipschitz max-bound). Codex A grade achieved through a 4-iteration sub-loop
+   (2-pool split floor error), `cpmm_prod_discrete_argmax_proximity`
+   (production argmax proximity), `cpmm_prod_certified_anchor_argmax_distance`
+   (gross-envelope production argmax-distance radius), and
+   `split_lipschitz_coupled` (continuous split Lipschitz max-bound).
+   `DiscreteArgmaxProximity.lean` also includes the sharpness witness
+   `abstract_one_sided_perturbed_argmax_distance_sharp_quadratic`.
+   `docs/research/discrete_argmax_proximity_test.py` also validates the
+   derived research certificate boundary with 300 accepted certificates and 9
+   structured negative cases.
+   `docs/research/concavity_conservation_law_test.py` also validates the
+   pool-parameter `m` certificate boundary with 300 accepted certificates and
+   11 structured negative cases. This supplies the deterministic endpoint-`m`
+   certificate used by the tight argmax-radius chain. The exact-curvature
+   follow-up adds 300 accepted exact-floor certificates, 11 structured
+   mutation rejections, and a deterministic replay showing improvement over
+   the endpoint floor in 296 of 300 seeded domains. The rational interval
+   follow-up adds 300 accepted interval certificates, 15 structured mutation
+   rejections, and exact arithmetic replay showing improvement over the
+   endpoint floor in 296 of 300 seeded domains. The interval floor is a finite
+   cover lower bound, not a proof of exact equality with `inf(T0+T1)`. The
+   best-cover follow-up adds 300 generated certificates, improves over the
+   uniform 64-interval certificate in 295 of 300 seeded domains, and reaches
+   a maximum best-over-uniform improvement of `1.01264x`. The greedy
+   refinement follow-up adds the Lean split-monotonicity theorem, 300 generated
+   certificates, improvement over the base cover in 296 of 300 seeded domains,
+   and a maximum refined-over-base improvement of `1.1129x`. The exact
+   minimizer is still research replay rather than a Lean-proven formula; its
+   float lane now rejects domains above the 128-bit research bound before
+   conversion, and the second-derivative identity and Taylor-remainder bridge
+   remain explicit obligations.
+   Codex A grade achieved through a 4-iteration sub-loop
    (A- -> A- -> A- -> A), all findings were LOW scope-wording issues.
 3. Turn the fixed-order no-gain evidence into a precise game definition.
    DONE: `MinOutCapGameTheory.lean` proves the fixed-order filled-user

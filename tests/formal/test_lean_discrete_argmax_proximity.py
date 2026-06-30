@@ -18,6 +18,11 @@ def test_discrete_argmax_proximity_file_typechecks() -> None:
     if not (root / "external" / "mathlib4").exists():
         pytest.skip("mathlib4 checkout missing")
 
+    source = (lean_dir / target).read_text(encoding="utf-8")
+    assert (
+        "abstract_one_sided_perturbed_argmax_distance_sharp_quadratic" in source
+    ), "sharpness witness theorem is missing from DiscreteArgmaxProximity.lean"
+
     try:
         proc = subprocess.run(
             [lake, "env", "lean", target],

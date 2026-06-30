@@ -18,6 +18,11 @@ def test_concavity_conservation_law_file_typechecks() -> None:
     if not (root / "external" / "mathlib4").exists():
         pytest.skip("mathlib4 checkout missing")
 
+    source = (lean_dir / target).read_text(encoding="utf-8")
+    assert (
+        "cpmm_donation_gain_argmax_bound_with_fee" in source
+    ), "fee-bearing donation/no-output optimizer theorem is missing"
+
     try:
         proc = subprocess.run(
             [lake, "env", "lean", target],

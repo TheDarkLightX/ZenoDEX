@@ -63,6 +63,38 @@ def test_prod_model_window_sufficiency(mod) -> None:
     mod.test_prod_model_window_sufficiency()
 
 
+def test_prod_argmax_distance_tight_one_sided_perturbation_bound(mod) -> None:
+    mod.test_prod_argmax_distance_tight_one_sided_perturbation_bound()
+
+
+def test_tight_argmax_certificate_accepts_valid_corpus(mod) -> None:
+    mod.test_tight_argmax_certificate_accepts_valid_corpus()
+
+
+def test_tight_argmax_certificate_rejects_mutations(mod) -> None:
+    mod.test_tight_argmax_certificate_rejects_mutations()
+
+
+def test_tight_argmax_certificate_rejects_float_overflow_domain(mod) -> None:
+    mod.test_tight_argmax_certificate_rejects_float_overflow_domain()
+
+
+def test_interval_m_backed_tight_argmax_certificate_composition(mod) -> None:
+    mod.test_interval_m_backed_tight_argmax_certificate_composition()
+
+
+def test_interval_m_backed_tight_argmax_certificate_rejects_bad_composition(mod) -> None:
+    mod.test_interval_m_backed_tight_argmax_certificate_rejects_bad_composition()
+
+
+def test_stationary_m_backed_tight_argmax_certificate_composition(mod) -> None:
+    mod.test_stationary_m_backed_tight_argmax_certificate_composition()
+
+
+def test_stationary_m_backed_tight_argmax_certificate_rejects_bad_composition(mod) -> None:
+    mod.test_stationary_m_backed_tight_argmax_certificate_rejects_bad_composition()
+
+
 def test_ternary_search_achieves_prod_bound(mod) -> None:
     mod.test_ternary_search_achieves_prod_bound()
 

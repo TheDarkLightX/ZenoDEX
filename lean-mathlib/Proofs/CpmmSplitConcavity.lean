@@ -310,6 +310,241 @@ theorem strong_concavity_lower_bound
   have h1 := T1_increasing_bound K1 M1 c1 a D hK1 hM1 hc1 ha_nn ha_le_D
   linarith
 
+/-- **Interval Curvature-Term Lower Bound**: for any interval
+    `lo <= a <= hi` inside `[0,D]`, the split curvature terms satisfy
+
+    `T0(a) + T1(a) >= T0(hi) + T1(lo)`.
+
+    This is the proof-facing bridge for rational interval certificates. A
+    runtime checker can cover `[0,D]` by finitely many intervals and compute
+    the minimum of these exact endpoint floors. -/
+theorem strong_concavity_interval_lower_bound
+    (K0 M0 c0 K1 M1 c1 D lo hi a : ℝ)
+    (hK0 : K0 > 0) (hM0 : M0 > 0) (hc0 : c0 ≥ 0)
+    (hK1 : K1 > 0) (hM1 : M1 > 0) (hc1 : c1 ≥ 0)
+    (hlo_nn : 0 ≤ lo) (hlo_le_a : lo ≤ a) (ha_le_hi : a ≤ hi)
+    (hhi_le_D : hi ≤ D) :
+    2 * c0^2 * K0 * M0 / (M0 + c0 * a)^3 +
+      2 * c1^2 * K1 * M1 / (M1 + c1 * (D - a))^3 ≥
+    2 * c0^2 * K0 * M0 / (M0 + c0 * hi)^3 +
+      2 * c1^2 * K1 * M1 / (M1 + c1 * (D - lo))^3 := by
+  have ha_nn : 0 ≤ a := by linarith
+  have h0 := T0_decreasing_bound K0 M0 c0 a hi hK0 hM0 hc0 ha_nn ha_le_hi
+  have h_a_sub_lo_nn : 0 ≤ a - lo := by linarith
+  have h_a_sub_lo_le : a - lo ≤ D - lo := by linarith
+  have h1_shift := T1_increasing_bound
+    K1 M1 c1 (a - lo) (D - lo) hK1 hM1 hc1 h_a_sub_lo_nn h_a_sub_lo_le
+  have hleft :
+      M1 + c1 * ((D - lo) - (a - lo)) = M1 + c1 * (D - a) := by ring
+  have hright : M1 + c1 * (D - lo) = M1 + c1 * (D - lo) := by rfl
+  have h1 :
+      2 * c1^2 * K1 * M1 / (M1 + c1 * (D - a))^3 ≥
+      2 * c1^2 * K1 * M1 / (M1 + c1 * (D - lo))^3 := by
+    simpa [hleft, hright] using h1_shift
+  linarith
+
+/-- **Interval Floor Refinement Monotonicity**: splitting an interval cannot
+    lower the certified interval floor.
+
+    The parent interval `[lo, hi]` has floor `T0(hi)+T1(lo)`. Splitting at
+    `mid` gives child floors `T0(mid)+T1(lo)` and `T0(hi)+T1(mid)`. Since
+    `T0` decreases and `T1` increases, both child floors are at least the
+    parent floor. This is the proof-facing invariant behind adaptive rational
+    interval certificates. -/
+theorem strong_concavity_interval_floor_refinement
+    (K0 M0 c0 K1 M1 c1 D lo mid hi : ℝ)
+    (hK0 : K0 > 0) (hM0 : M0 > 0) (hc0 : c0 ≥ 0)
+    (hK1 : K1 > 0) (hM1 : M1 > 0) (hc1 : c1 ≥ 0)
+    (hlo_nn : 0 ≤ lo) (hlo_le_mid : lo ≤ mid) (hmid_le_hi : mid ≤ hi)
+    (hhi_le_D : hi ≤ D) :
+    2 * c0^2 * K0 * M0 / (M0 + c0 * hi)^3 +
+      2 * c1^2 * K1 * M1 / (M1 + c1 * (D - lo))^3 ≤
+    2 * c0^2 * K0 * M0 / (M0 + c0 * mid)^3 +
+      2 * c1^2 * K1 * M1 / (M1 + c1 * (D - lo))^3
+    ∧
+    2 * c0^2 * K0 * M0 / (M0 + c0 * hi)^3 +
+      2 * c1^2 * K1 * M1 / (M1 + c1 * (D - lo))^3 ≤
+    2 * c0^2 * K0 * M0 / (M0 + c0 * hi)^3 +
+      2 * c1^2 * K1 * M1 / (M1 + c1 * (D - mid))^3 := by
+  have hmid_nn : 0 ≤ mid := by linarith
+  have h0 := T0_decreasing_bound K0 M0 c0 mid hi hK0 hM0 hc0 hmid_nn hmid_le_hi
+  constructor
+  · linarith
+  · have h_mid_sub_lo_nn : 0 ≤ mid - lo := by linarith
+    have h_mid_sub_lo_le : mid - lo ≤ D - lo := by linarith
+    have h1_shift := T1_increasing_bound
+      K1 M1 c1 (mid - lo) (D - lo) hK1 hM1 hc1 h_mid_sub_lo_nn h_mid_sub_lo_le
+    have hleft :
+        M1 + c1 * ((D - lo) - (mid - lo)) = M1 + c1 * (D - mid) := by ring
+    have h1 :
+        2 * c1^2 * K1 * M1 / (M1 + c1 * (D - mid))^3 ≥
+        2 * c1^2 * K1 * M1 / (M1 + c1 * (D - lo))^3 := by
+      simpa [hleft] using h1_shift
+    linarith
+
+/-- **Inverse-Cube Pair Lower Bound**: for positive denominators with fixed
+    sum, the sum of inverse cubes is minimized when the denominators are equal.
+
+    This algebraic inequality is the proof kernel for the symmetric-pool exact
+    curvature minimizer. The non-negative gap factors as
+
+    `(x-y)^2 * (x^4 + 5*x^3*y + 12*x^2*y^2 + 5*x*y^3 + y^4)`
+
+    over the positive denominator `x^3*y^3*(x+y)^3`. -/
+theorem inv_cube_pair_lower_bound
+    (x y : ℝ) (hx : 0 < x) (hy : 0 < y) :
+    16 / (x + y)^3 ≤ 1 / x^3 + 1 / y^3 := by
+  have hsum : 0 < x + y := by positivity
+  have hden : 0 < x^3 * y^3 * (x + y)^3 := by positivity
+  have hgap :
+      1 / x^3 + 1 / y^3 - 16 / (x + y)^3 =
+        ((x - y)^2 *
+          (x^4 + 5*x^3*y + 12*x^2*y^2 + 5*x*y^3 + y^4)) /
+        (x^3 * y^3 * (x + y)^3) := by
+    field_simp [ne_of_gt hx, ne_of_gt hy, ne_of_gt hsum]
+    ring
+  have hpoly : 0 ≤ x^4 + 5*x^3*y + 12*x^2*y^2 + 5*x*y^3 + y^4 := by
+    positivity
+  have hnum :
+      0 ≤ (x - y)^2 *
+        (x^4 + 5*x^3*y + 12*x^2*y^2 + 5*x*y^3 + y^4) := by
+    exact mul_nonneg (sq_nonneg (x - y)) hpoly
+  have hfrac :
+      0 ≤
+        ((x - y)^2 *
+          (x^4 + 5*x^3*y + 12*x^2*y^2 + 5*x*y^3 + y^4)) /
+        (x^3 * y^3 * (x + y)^3) :=
+    div_nonneg hnum (le_of_lt hden)
+  have hdiff : 0 ≤ 1 / x^3 + 1 / y^3 - 16 / (x + y)^3 := by
+    rw [hgap]
+    exact hfrac
+  linarith
+
+/-- **Inverse-Cube Tangent Lower Bound**: the convex kernel `1/t^3` lies
+    above its tangent at `t = 1`.
+
+    This is the algebraic proof kernel for the asymmetric stationary curvature
+    certificate. The non-negative gap factors as
+
+    `(t-1)^2 * (3*t^2 + 2*t + 1) / t^3`. -/
+theorem inv_cube_tangent_lower_bound
+    (t : ℝ) (ht : 0 < t) :
+    4 - 3 * t ≤ 1 / t^3 := by
+  have ht3 : 0 < t^3 := pow_pos ht 3
+  have hgap :
+      1 / t^3 - (4 - 3 * t) =
+        ((t - 1)^2 * (3*t^2 + 2*t + 1)) / t^3 := by
+    field_simp [ne_of_gt ht]
+    ring
+  have hpoly : 0 ≤ 3*t^2 + 2*t + 1 := by
+    positivity
+  have hnum : 0 ≤ (t - 1)^2 * (3*t^2 + 2*t + 1) := by
+    exact mul_nonneg (sq_nonneg (t - 1)) hpoly
+  have hfrac : 0 ≤ ((t - 1)^2 * (3*t^2 + 2*t + 1)) / t^3 :=
+    div_nonneg hnum (le_of_lt ht3)
+  have hdiff : 0 ≤ 1 / t^3 - (4 - 3 * t) := by
+    rw [hgap]
+    exact hfrac
+  linarith
+
+/-- **Weighted Inverse-Cube Stationary Lower Bound**: if positive normalized
+    denominators `u` and `v` preserve the affine weighted average
+    `q*u + v = q + 1`, then the weighted inverse-cube sum is minimized at
+    `u = v = 1`.
+
+    This is the normalized shape of the two-pool asymmetric curvature
+    minimizer after substituting the exact stationary split. -/
+theorem weighted_inv_cube_stationary_lower_bound
+    (q u v : ℝ)
+    (hq : 0 < q) (hu : 0 < u) (hv : 0 < v)
+    (havg : q * u + v = q + 1) :
+    q + 1 ≤ q / u^3 + 1 / v^3 := by
+  have hu_tangent := inv_cube_tangent_lower_bound u hu
+  have hv_tangent := inv_cube_tangent_lower_bound v hv
+  have hq_nonneg : 0 ≤ q := le_of_lt hq
+  have hqu :
+      q * (4 - 3 * u) ≤ q * (1 / u^3) :=
+    mul_le_mul_of_nonneg_left hu_tangent hq_nonneg
+  have hsum :
+      q * (4 - 3 * u) + (4 - 3 * v) ≤
+        q * (1 / u^3) + 1 / v^3 :=
+    add_le_add hqu hv_tangent
+  have hleft : q * (4 - 3 * u) + (4 - 3 * v) = q + 1 := by
+    nlinarith [havg]
+  have hright : q * (1 / u^3) + 1 / v^3 = q / u^3 + 1 / v^3 := by
+    ring
+  rwa [hleft, hright] at hsum
+
+/-- **Normalized Asymmetric Split Curvature Stationary Certificate**: once an
+    exact stationary split has normalized denominators `u = x/x*`,
+    `v = y/y*`, exchange weight `q`, and scale `S`, every feasible split has
+    curvature at least the stationary value.
+
+    This theorem is intentionally certificate-shaped. A checker can verify the
+    affine relation `q*u + v = q + 1` and the exact stationarity relation that
+    reduces the original asymmetric CPMM curvature objective to this normalized
+    form. -/
+theorem normalized_asymmetric_split_curvature_stationary_min
+    (S q u v : ℝ)
+    (hS : 0 ≤ S) (hq : 0 < q) (hu : 0 < u) (hv : 0 < v)
+    (havg : q * u + v = q + 1) :
+    S * (1 + 1 / q) ≤ S * (1 / u^3 + 1 / (q * v^3)) := by
+  have hbase := weighted_inv_cube_stationary_lower_bound q u v hq hu hv havg
+  have hq_nonneg : 0 ≤ q := le_of_lt hq
+  have hdiv :
+      (q + 1) / q ≤ (q / u^3 + 1 / v^3) / q :=
+    div_le_div_of_nonneg_right hbase hq_nonneg
+  have hleft : (q + 1) / q = 1 + 1 / q := by
+    field_simp [ne_of_gt hq]
+  have hright :
+      (q / u^3 + 1 / v^3) / q =
+        1 / u^3 + 1 / (q * v^3) := by
+    field_simp [ne_of_gt hq, ne_of_gt hu, ne_of_gt hv]
+  rw [hleft, hright] at hdiv
+  exact mul_le_mul_of_nonneg_left hdiv hS
+
+/-- **Symmetric Split Exact Curvature Minimizer**: when the two CPMM pools have
+    identical reserves and fee multipliers, the split-curvature sum is minimized
+    at the midpoint `D/2`.
+
+    This proves the exact minimizer formula for the symmetric subfamily:
+
+    `H(a) = 2*c^2*K*M/(M+c*a)^3
+          + 2*c^2*K*M/(M+c*(D-a))^3`
+
+    satisfies `H(a) >= H(D/2)` for every `0 <= a <= D`. The arbitrary
+    asymmetric closed-form minimizer remains a separate open proof obligation. -/
+theorem symmetric_split_curvature_min_at_half
+    (K M c D a : ℝ)
+    (hK : 0 < K) (hM : 0 < M) (hc : 0 < c)
+    (hD : 0 ≤ D) (ha_nn : 0 ≤ a) (ha_le_D : a ≤ D) :
+    4 * c^2 * K * M / (M + c * (D / 2))^3 ≤
+      2 * c^2 * K * M / (M + c * a)^3 +
+      2 * c^2 * K * M / (M + c * (D - a))^3 := by
+  have hDa_nn : 0 ≤ D - a := by linarith
+  have hx : 0 < M + c * a := by positivity
+  have hy : 0 < M + c * (D - a) := by positivity
+  have hmid : 0 < M + c * (D / 2) := by positivity
+  have hsum : 0 < (M + c * a) + (M + c * (D - a)) := by positivity
+  have hcoeff : 0 ≤ 2 * c^2 * K * M := by positivity
+  have h_inv := inv_cube_pair_lower_bound
+    (M + c * a) (M + c * (D - a)) hx hy
+  have h_scaled := mul_le_mul_of_nonneg_left h_inv hcoeff
+  have hleft :
+      (2 * c^2 * K * M) *
+        (16 / ((M + c * a) + (M + c * (D - a)))^3) =
+      4 * c^2 * K * M / (M + c * (D / 2))^3 := by
+    field_simp [ne_of_gt hsum, ne_of_gt hmid]
+    ring
+  have hright :
+      (2 * c^2 * K * M) *
+        (1 / (M + c * a)^3 + 1 / (M + c * (D - a))^3) =
+      2 * c^2 * K * M / (M + c * a)^3 +
+      2 * c^2 * K * M / (M + c * (D - a))^3 := by
+    ring
+  rw [hleft, hright] at h_scaled
+  exact h_scaled
+
 /-- **Witness**: Concrete case showing the lower bound is non-vacuous and
     strictly positive. K0=1000, M0=1000, c0=0.99, K1=2000, M1=1000,
     c1=0.99, D=100, a=50. -/
@@ -318,146 +553,142 @@ theorem witness_strong_concavity_bound :
             2 * (0.99)^2 * 2000 * 1000 / (1000 + 0.99 * 100)^3 := by
   norm_num
 
-/-! ## P7: Second-Derivative Identity Bridge
+/-- The endpoint curvature lower bound is positive under positive reserves,
+    positive fee multipliers, and non-negative total input. -/
+theorem split_curvature_endpoint_lower_bound_pos
+    (K0 M0 c0 K1 M1 c1 D : ℝ)
+    (hK0 : K0 > 0) (hM0 : M0 > 0) (hc0 : c0 > 0)
+    (hK1 : K1 > 0) (hM1 : M1 > 0) (hc1 : c1 > 0)
+    (hD : D ≥ 0) :
+    (0 : ℝ) <
+      2 * c0^2 * K0 * M0 / (M0 + c0 * D)^3 +
+      2 * c1^2 * K1 * M1 / (M1 + c1 * D)^3 := by
+  have hM0cD : 0 < M0 + c0 * D := by positivity
+  have hM1cD : 0 < M1 + c1 * D := by positivity
+  have hden0 : 0 < (M0 + c0 * D)^3 := pow_pos hM0cD 3
+  have hden1 : 0 < (M1 + c1 * D)^3 := pow_pos hM1cD 3
+  have hnum0 : 0 < 2 * c0^2 * K0 * M0 := by positivity
+  have hnum1 : 0 < 2 * c1^2 * K1 * M1 := by positivity
+  have hterm0 : 0 < 2 * c0^2 * K0 * M0 / (M0 + c0 * D)^3 :=
+    div_pos hnum0 hden0
+  have hterm1 : 0 < 2 * c1^2 * K1 * M1 / (M1 + c1 * D)^3 :=
+    div_pos hnum1 hden1
+  positivity
 
-This section closes the gap between the arithmetic curvature-term lower
-bound (P2) and the function-level strong-concavity parameter by proving
-the second-derivative identity `F''(a) = -T0(a) - T1(a)`.
+/-! ## P7: Conditional Second-Derivative Identity Bridge
 
-The proof structure is:
-1. The single-pool second-derivative formula `f''(x) = -2*K*M/(M+x)^3`
-   is stated as an external hypothesis (standard calculus, verifiable
-   by sympy/symbolic differentiation).
-2. The chain-rule composition identity
-   `F''(a) = c0^2 * f0''(c0*a) + c1^2 * f1''(c1*(D-a))`
-   is proven algebraically from the second-derivative formula.
-3. Substituting gives `F''(a) = -T0(a) - T1(a)`.
+This section turns external calculus obligations into explicit hypotheses.
+Given the single-pool second-derivative formulas and the split chain-rule
+identity, Lean checks the algebraic substitution into
+`F''(a) = -T0(a) - T1(a)`.
 
-Combined with P2's `strong_concavity_lower_bound`, this gives the full
-function-level strong-concavity parameter `m = T0(D) + T1(0)`.
-
-Non-claims:
-- The single-pool second-derivative formula is an external hypothesis
-  (standard calculus fact, verifiable by symbolic differentiation).
-- The Taylor theorem with remainder (connecting `f''` to quadratic decay)
-  remains external. P7 proves the second-derivative identity only.
-- The discrete (floor-rounded) function does NOT satisfy this identity.
-- The identity holds where denominators are nonzero (`M_i + c_i * a > 0`).
+The arithmetic curvature lower bound above is fully proved in this file. The
+calculus facts needed to interpret those curvature terms as a function-level
+strong-concavity parameter remain explicit inputs to the theorems below.
 -/
 
-/-- The single-pool second-derivative formula as an axiom.
+/-- **Conditional Second-Derivative Identity**: if the two single-pool
+    derivative formulas and the split chain-rule formula are supplied, then
+    the CPMM split second derivative is `-T0(a) - T1(a)`.
 
-    `f''(x) = -2 * K * M / (M + x)^3` for `f(x) = K * x / (M + x)`.
-
-    This is a standard calculus fact, verifiable by symbolic differentiation:
-    ```
-    f(x) = K * x / (M + x)
-    f'(x) = K * M / (M + x)^2
-    f''(x) = -2 * K * M / (M + x)^3
-    ```
-
-    It is stated as a hypothesis rather than proven from first principles
-    because the Mathlib calculus API for second derivatives requires
-    significant infrastructure (eventual equality, open-set continuity)
-    that adds complexity without novel mathematical content. The novel
-    content of P7 is the chain-rule composition identity below. -/
-axiom cpmmOutputCont_second_deriv
-    (K M x : ℝ) (hMx : M + x ≠ 0) :
-    deriv (deriv (cpmmOutputCont K M)) x = -2 * K * M / (M + x)^3
-
-/-- **Chain-Rule Composition Identity**: For the CPMM split function
-    `F(a) = f0(c0*a) + f1(c1*(D-a))`, the second derivative satisfies:
-
-    `F''(a) = c0^2 * f0''(c0*a) + c1^2 * f1''(c1*(D-a))`
-
-    This is the chain rule for second derivatives of compositions with
-    linear functions. For `g(a) = f(c*a)`, `g'(a) = c * f'(c*a)` and
-    `g''(a) = c^2 * f''(c*a)` (the linear chain rule has no cross-term
-    because the inner function `c*a` has zero second derivative).
-
-    This is a standard calculus fact, verifiable by symbolic differentiation.
-    It is stated as an axiom because the Mathlib calculus API for second
-    derivatives of compositions requires significant infrastructure. The
-    novel content of P7 is the algebraic substitution below. -/
-axiom splitFunctionCont_second_deriv_chain_rule
-    (K0 M0 c0 K1 M1 c1 D a : ℝ)
-    (h_denom0 : M0 + c0 * a ≠ 0)
-    (h_denom1 : M1 + c1 * (D - a) ≠ 0) :
-    deriv (deriv (splitFunctionCont K0 M0 c0 K1 M1 c1 D)) a =
-      c0^2 * deriv (deriv (cpmmOutputCont K0 M0)) (c0 * a) +
-      c1^2 * deriv (deriv (cpmmOutputCont K1 M1)) (c1 * (D - a))
-
-/-- **Second-Derivative Identity**: For the CPMM split function
-    `F(a) = f0(c0*a) + f1(c1*(D-a))`, the second derivative is:
-
-    `F''(a) = -T0(a) - T1(a)`
-
-    where `T0(a) = 2*c0^2*K0*M0/(M0+c0*a)^3` and
-    `T1(a) = 2*c1^2*K1*M1/(M1+c1*(D-a))^3`.
-
-    This is the identity that P2 left as external. It combines:
-    - The chain-rule composition identity (proven above)
-    - The single-pool second-derivative formula (external hypothesis)
-
-    Combined with P2's `strong_concavity_lower_bound`, this gives the
-    full function-level strong-concavity parameter `m = T0(D) + T1(0)`. -/
+    The supplied formulas are standard calculus obligations for:
+    `f(x) = K*x/(M+x)` and
+    `F(a) = f0(c0*a) + f1(c1*(D-a))`. -/
 theorem splitFunctionCont_second_deriv_identity
     (K0 M0 c0 K1 M1 c1 D a : ℝ)
     (_hK0 : K0 > 0) (_hM0 : M0 > 0) (_hc0 : c0 > 0)
     (_hK1 : K1 > 0) (_hM1 : M1 > 0) (_hc1 : c1 > 0)
-    (h_denom0 : M0 + c0 * a > 0)
-    (h_denom1 : M1 + c1 * (D - a) > 0) :
+    (_h_denom0 : M0 + c0 * a > 0)
+    (_h_denom1 : M1 + c1 * (D - a) > 0)
+    (h_chain :
+      deriv (deriv (splitFunctionCont K0 M0 c0 K1 M1 c1 D)) a =
+        c0^2 * deriv (deriv (cpmmOutputCont K0 M0)) (c0 * a) +
+        c1^2 * deriv (deriv (cpmmOutputCont K1 M1)) (c1 * (D - a)))
+    (h_pool0 :
+      deriv (deriv (cpmmOutputCont K0 M0)) (c0 * a) =
+        -2 * K0 * M0 / (M0 + c0 * a)^3)
+    (h_pool1 :
+      deriv (deriv (cpmmOutputCont K1 M1)) (c1 * (D - a)) =
+        -2 * K1 * M1 / (M1 + c1 * (D - a))^3) :
     deriv (deriv (splitFunctionCont K0 M0 c0 K1 M1 c1 D)) a =
       -(2 * c0^2 * K0 * M0 / (M0 + c0 * a)^3) -
       (2 * c1^2 * K1 * M1 / (M1 + c1 * (D - a))^3) := by
-  -- Step 1: Apply the chain-rule composition identity
-  have h_ne0 : M0 + c0 * a ≠ 0 := ne_of_gt h_denom0
-  have h_ne1 : M1 + c1 * (D - a) ≠ 0 := ne_of_gt h_denom1
-  rw [splitFunctionCont_second_deriv_chain_rule K0 M0 c0 K1 M1 c1 D a h_ne0 h_ne1]
-  -- Step 2: Substitute the single-pool second-derivative formula
-  rw [cpmmOutputCont_second_deriv K0 M0 (c0 * a) h_ne0,
-      cpmmOutputCont_second_deriv K1 M1 (c1 * (D - a)) h_ne1]
-  -- Step 3: Simplify
+  rw [h_chain, h_pool0, h_pool1]
   ring
 
-/-- **Function-Level Strong Concavity**: For the CPMM split function
-    `F(a) = f0(c0*a) + f1(c1*(D-a))`, the second derivative satisfies:
+/-- **Conditional Function-Level Strong Concavity**: if the second-derivative
+    identity is supplied for `a`, the proved arithmetic lower bound gives
+    `F''(a) <= -m`, where
+    `m = T0(D) + T1(0)`.
 
-    `F''(a) <= -m` where `m = T0(D) + T1(0)`
-
-    This combines:
-    - P7's second-derivative identity: `F''(a) = -T0(a) - T1(a)`
-    - P2's arithmetic lower bound: `T0(a) + T1(a) >= T0(D) + T1(0)`
-
-    This is the full function-level strong-concavity parameter that
-    P6's window bound uses. The chain is now:
-    P2 (arithmetic bound) + P7 (second-derivative identity) -> m
-    P6 (quadratic decay) + m -> window bound W = min(ceil(1/L), ceil(sqrt(2*L/m)))
-
-    Non-claims:
-    - The single-pool second-derivative formula is external.
-    - The Taylor theorem with remainder is external.
-    - The discrete function does NOT satisfy this. -/
+    This theorem is proof-facing glue. It does not discharge the calculus facts
+    or the Taylor-remainder bridge used by window-bound arguments. -/
 theorem splitFunctionCont_strong_concavity
     (K0 M0 c0 K1 M1 c1 D a : ℝ)
     (hK0 : K0 > 0) (hM0 : M0 > 0) (hc0 : c0 > 0)
     (hK1 : K1 > 0) (hM1 : M1 > 0) (hc1 : c1 > 0)
     (hD : D ≥ 0) (ha_nn : 0 ≤ a) (ha_le_D : a ≤ D)
-    (h_denom0 : M0 + c0 * a > 0)
-    (h_denom1 : M1 + c1 * (D - a) > 0) :
+    (h_identity :
+      deriv (deriv (splitFunctionCont K0 M0 c0 K1 M1 c1 D)) a =
+        -(2 * c0^2 * K0 * M0 / (M0 + c0 * a)^3) -
+        (2 * c1^2 * K1 * M1 / (M1 + c1 * (D - a))^3)) :
     deriv (deriv (splitFunctionCont K0 M0 c0 K1 M1 c1 D)) a ≤
       -(2 * c0^2 * K0 * M0 / (M0 + c0 * D)^3 +
         2 * c1^2 * K1 * M1 / (M1 + c1 * D)^3) := by
-  -- Step 1: F''(a) = -T0(a) - T1(a) (P7 second-derivative identity)
-  have h_identity := splitFunctionCont_second_deriv_identity
-    K0 M0 c0 K1 M1 c1 D a hK0 hM0 hc0 hK1 hM1 hc1 h_denom0 h_denom1
-  -- Step 2: T0(a) + T1(a) >= T0(D) + T1(0) (P2 arithmetic bound)
   have h_arith := strong_concavity_lower_bound
     K0 M0 c0 K1 M1 c1 D a hK0 hM0 (le_of_lt hc0) hK1 hM1 (le_of_lt hc1)
     hD ha_nn ha_le_D
-  -- Step 3: F''(a) = -(T0(a) + T1(a)) <= -(T0(D) + T1(0))
   rw [h_identity]
-  -- Goal: -(T0(a)) - T1(a) <= -(T0(D) + T1(0))
-  -- From h_arith: T0(a) + T1(a) >= T0(D) + T1(0)
-  -- So -(T0(a) + T1(a)) <= -(T0(D) + T1(0))
+  linarith
+
+/-- **Curvature-Floor Certificate Soundness**: if an external checker supplies
+    a positive `m` that is a lower bound for the local curvature terms at `a`,
+    and the local second-derivative identity is supplied for `a`, then `m` is a
+    valid pointwise strong-concavity certificate at `a`.
+
+    This theorem is the Lean consumer for sharper certificates such as exact
+    minimizers or interval arithmetic floors. It does not prove any particular
+    minimizer formula; that proof remains a separate obligation. -/
+theorem splitFunctionCont_strong_concavity_from_curvature_floor
+    (K0 M0 c0 K1 M1 c1 D a m : ℝ)
+    (_hm_pos : 0 < m)
+    (hm_floor :
+      m ≤
+        2 * c0^2 * K0 * M0 / (M0 + c0 * a)^3 +
+        2 * c1^2 * K1 * M1 / (M1 + c1 * (D - a))^3)
+    (h_identity :
+      deriv (deriv (splitFunctionCont K0 M0 c0 K1 M1 c1 D)) a =
+        -(2 * c0^2 * K0 * M0 / (M0 + c0 * a)^3) -
+        (2 * c1^2 * K1 * M1 / (M1 + c1 * (D - a))^3)) :
+    deriv (deriv (splitFunctionCont K0 M0 c0 K1 M1 c1 D)) a ≤ -m := by
+  rw [h_identity]
+  linarith
+
+/-- **Pool-Parameter m Certificate Soundness**: if an external checker supplies
+    a positive `m` that does not exceed the endpoint curvature lower bound, and
+    the local second-derivative identity is supplied for `a`, then `m` is a
+    valid strong-concavity certificate at `a`.
+
+    This theorem is the Lean side of the research certificate checker. It
+    verifies the arithmetic handoff from pool parameters to the `m` consumed by
+    argmax-radius theorems. It still treats the calculus identity and the
+    Taylor-remainder bridge as explicit external obligations. -/
+theorem splitFunctionCont_strong_concavity_from_m_certificate
+    (K0 M0 c0 K1 M1 c1 D a m : ℝ)
+    (hK0 : K0 > 0) (hM0 : M0 > 0) (hc0 : c0 > 0)
+    (hK1 : K1 > 0) (hM1 : M1 > 0) (hc1 : c1 > 0)
+    (hD : D ≥ 0) (ha_nn : 0 ≤ a) (ha_le_D : a ≤ D)
+    (_hm_pos : 0 < m)
+    (hm_le :
+      m ≤
+        2 * c0^2 * K0 * M0 / (M0 + c0 * D)^3 +
+        2 * c1^2 * K1 * M1 / (M1 + c1 * D)^3)
+    (h_identity :
+      deriv (deriv (splitFunctionCont K0 M0 c0 K1 M1 c1 D)) a =
+        -(2 * c0^2 * K0 * M0 / (M0 + c0 * a)^3) -
+        (2 * c1^2 * K1 * M1 / (M1 + c1 * (D - a))^3)) :
+    deriv (deriv (splitFunctionCont K0 M0 c0 K1 M1 c1 D)) a ≤ -m := by
+  have h_endpoint := splitFunctionCont_strong_concavity
+    K0 M0 c0 K1 M1 c1 D a hK0 hM0 hc0 hK1 hM1 hc1 hD ha_nn ha_le_D
+    h_identity
   linarith

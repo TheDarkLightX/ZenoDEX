@@ -28,7 +28,19 @@ compresses multiple obligations (abstraction compression pattern).
 proves `split_lipschitz_coupled`; `ceiling_fee_rounding_test.py` now checks
 20,000 random split pairs, verifies the exact boundary-slope constant stays
 within `L`, and records that the gross production bound and low-fee effective-L
-regression are not universally ordered under fees.
+regression are not universally ordered under fees. The 2026-06-30 refinement
+adds `cpmm_prod_certified_anchor_argmax_distance`, giving the production
+ceiling-fee radius
+`sqrt(2*(alpha + K0/M0 + K1/M1 + 2)/m)` from a certified anchor, plus
+`abstract_oracle_perturbed_argmax_distance` for the exact
+`sqrt(2*(f_cont(b*)-f_prod(argmax))/m)` oracle radius. The sharpness theorem
+`abstract_one_sided_perturbed_argmax_distance_sharp_quadratic` now proves that
+the generic `sqrt(2*(alpha+epsilon)/m)` one-sided radius is attained by a
+quadratic strong-concavity witness, so the constant cannot be improved without
+additional assumptions. The matching research certificate checker now rejects
+domains outside its 128-bit float replay lane before recomputing `m`, `tau`, or
+radii, converting a concrete overflow family into a structured `BAD_DOMAIN`
+boundary result.
 
 **Claim**: `|splitCont(x) - splitCont(y)| <= L * |x - y|` where
 `L = max(c0*K0/M0, c1*K1/M1)`, tighter than the current formal bound
@@ -53,8 +65,9 @@ than the triangle-inequality bound `K0/M0 + K1/M1`.
 **Compounding value**: 4/5 surfaces. Tightens floor error (L+1 per pool),
 argmax proximity (2L+2), and unlocks P3.
 
-**Verification**: DONE in `CeilingFeeRounding.lean` and
-`docs/research/ceiling_fee_rounding_test.py`.
+**Verification**: DONE in `CeilingFeeRounding.lean`,
+`DiscreteArgmaxProximity.lean`, `docs/research/ceiling_fee_rounding_test.py`,
+and `docs/research/discrete_argmax_proximity_test.py`.
 
 **Iteration estimate**: 10-15 (key insight already found).
 
@@ -62,10 +75,31 @@ argmax proximity (2L+2), and unlocks P3.
 
 ### P2: Strong Concavity m From Pool Parameters
 
-**Status:** PARTIAL. `CpmmSplitConcavity.lean` now contains the arithmetic
-curvature-term lower-bound helper. The function-level bridge from that helper
-to a fully discharged strong-concavity parameter still depends on an external
-second-derivative identity and calculus bridge.
+**Status:** SYNTHESIS PROGRESS WITH BEST-COVER RATIONAL INTERVAL FLOOR. `CpmmSplitConcavity.lean`
+now contains the arithmetic curvature-term lower-bound helper, proves the
+endpoint lower bound is positive, proves
+`splitFunctionCont_strong_concavity_from_m_certificate`, and adds
+`splitFunctionCont_strong_concavity_from_curvature_floor`: if an external
+checker supplies a positive local curvature floor `m <= T0(a)+T1(a)`, then the
+conditional second-derivative identity implies `F''(a) <= -m`. It also proves
+`strong_concavity_interval_lower_bound`, the local interval theorem
+`T0(a)+T1(a) >= T0(hi)+T1(lo)` for `lo <= a <= hi`, and
+`strong_concavity_interval_floor_refinement`, which proves splitting an
+interval cannot lower either child interval floor.
+`concavity_conservation_law_test.py` adds three research-scope pool-parameter
+certificate checkers: endpoint, closed-form exact-minimizer replay, and a
+rational interval floor checker with exact `{num,den}` arithmetic. The
+closed-form exact-minimizer float lane now rejects domains above its 128-bit
+research bound before conversion, so oversized pool-valid integers cannot
+crash the checker with float overflow. The
+best-cover interval builder chooses the largest exact floor from a deterministic
+portfolio that includes the uniform cover, so generated best-cover certificates
+cannot be worse than uniform placement for the same interval count. The greedy
+refinement builder repeatedly splits the weakest interval and is backed by the
+Lean split-monotonicity theorem. The bounded optimal midpoint audit searches
+all midpoint split schedules under a 16-interval cap, emits the same interval
+certificate schema, and found no greedy-vs-optimal counterexample in its seeded
+exact-DP replay corpus.
 
 **Claim**: `m >= 2*c0^2*K0*M0/(M0+c0*D)^3 + 2*c1^2*K1*M1/(M1+c1*D)^3`
 
@@ -81,14 +115,39 @@ so `inf(f+g) >= inf(f)+inf(g)`.
 **Non-claims**:
 - This is a lower bound on m, not the exact m.
 - The bound degenerates when `D >> M` (m -> 0), which is correct behavior.
-- The exact m is `inf(T0+T1) >= inf T0 + inf T1`.
+- The endpoint m is `inf T0 + inf T1`; the exact m is `inf(T0+T1)` and can be
+  strictly larger.
+- The closed-form exact minimizer is deterministic research replay today, not
+  yet Lean-proven.
+- The closed-form exact-minimizer float lane is bounded to the 128-bit research
+  domain. Larger domains must use the rational interval certificate path.
+- The rational interval floor is a certified lower bound for a finite cover,
+  not a proof that the floor equals `inf(T0+T1)`.
+- The best-cover interval builder is a finite deterministic portfolio, not a
+  proof of optimal interval placement.
+- The greedy refinement theorem proves split monotonicity, not global
+  optimality of weakest-interval splitting.
+- The bounded optimal midpoint audit is exact within its 16-interval midpoint
+  search cap, not a proof of unbounded greedy optimality.
+- The interval-backed tight argmax composition path consumes a checked `m`
+  certificate before accepting a tighter radius. It does not choose the
+  production argmax.
+- The second-derivative identity and Taylor-remainder bridge are still explicit
+  external obligations.
+- The `m` certificate checkers are research evidence only and have no
+  production, settlement, or consensus authority.
 
-**Compounding value**: 3/5 surfaces. Removes external hypothesis, makes window
-bound `sqrt(2*eps/m)` fully determined by pool parameters.
+**Compounding value**: 4/5 surfaces. Supplies a deterministic pool-parameter
+`m` certificate boundary for the tight argmax-radius chain and now composes
+that boundary into the tight argmax certificate checker, while preserving the
+calculus assumptions as explicit obligations.
 
-**Verification**: Lean proof extending `CpmmSplitConcavity.lean` or
-`StrongConcavityWindowBound.lean`. Empirical test comparing lower bound vs
-actual `inf|f''|`.
+**Verification**: Lean proof in `CpmmSplitConcavity.lean`; endpoint and exact
+curvature canonical JSON checkers, rational interval checker, and mutation tests in
+`docs/research/concavity_conservation_law_test.py`; pytest wrapper in
+`tests/research/test_concavity_conservation_law.py`; reports in
+`docs/research/POOL_PARAMETER_M_CERTIFICATE_20260630.md` and
+`docs/research/EXACT_CURVATURE_M_CERTIFICATE_20260630.md`.
 
 **Iteration estimate**: 15-20.
 
@@ -148,27 +207,51 @@ game-theory test with deviation enumeration.
 
 ### P5: Tight Stateful Attack Bound With Pool Depth
 
-**Claim**: `max_{a_B} gain(a_A, a_B) = K*a_A*s / ((M+s)*(M+a_A+s))` where
-`s = sqrt(M*(M+a_A))`. The optimal attack size is `a_B* = sqrt(M*(M+a_A))`.
+**Status:** PARTIAL, with a sharper scope split and fee-bearing single-pool
+extension. The finite optimizer formula is now Lean-proven for the fee-free and
+fee-bearing single-pool donation/no-output perturbation models, and empirically
+falsified as a bound for the existing filled-A state-change gain semantics.
+`ConcavityConservationLaw.lean` proves `cpmm_donation_gain_argmax_bound` and
+`cpmm_donation_gain_argmax_bound_with_fee`; `concavity_conservation_law_test.py`
+replays both optimizers and includes a hard regression guard against applying
+the donation optimizer to the filled-A model.
 
-**Derivation**: `gain = K*a_A*a_B / ((M+a_B)*(M+a_A+a_B))`. Setting
-`d(gain)/d(a_B) = 0` yields `a_B^2 = M*(M+a_A)`, so `a_B* = sqrt(M*(M+a_A))`.
+**Donation/no-output claim**:
+`max_{a_B} gain_D(a_A, a_B) = K*a_A*s / ((M+s)*(M+a_A+s))` where
+`s = sqrt(M*(M+a_A))`. The optimal donation/no-output attacker size is
+`a_B* = sqrt(M*(M+a_A))`.
 
-**Key insight**: The tight bound decreases with pool depth M, while the
-Lipschitz bound `L*a_A = K*a_A/M` does not capture this depth dependence.
-The second-order approximation `|f''(0)|*a_A^2/2` was falsified as a universal
-bound. The exact closed form is the correct replacement.
+**Fee-bearing single-pool extension**: with net inputs
+`u = gammaA*a_A` and `v = gammaB*a_B`, the gain is
+`K*u*v / ((M+v)*(M+u+v))`. The optimum net attacker size is
+`s = sqrt(M*(M+u))`, so the raw attacker size is `s/gammaB` when
+`gammaB > 0`.
+
+**Derivation**: `gain_D = K*a_A*a_B / ((M+a_B)*(M+a_A+a_B))`. Instead of
+differentiating, the Lean proof uses the algebraic certificate
+`s*(M+a_B)*(M+a_A+a_B) - a_B*(M+s)*(M+a_A+s) = s*(a_B-s)^2`
+under `s^2 = M*(M+a_A)`.
+
+**Key insight**: There are two stateful attack semantics. The existing filled-A
+Lean model, where A receives CPMM output, has a different gain expression and
+approaches the asymptotic bound `K*a_A/(M+a_A)` as `a_B` grows. The finite
+optimizer `sqrt(M*(M+a_A))` belongs to the donation/no-output perturbation
+model. Keeping those models separate prevents a plausible but false mechanism
+claim from being promoted.
 
 **Non-claims**:
-- Fee-free CPMM only. Fee-bearing extension is open.
-- Single pool (not multi-hop).
-- The attacker optimizes a_B; a_A is fixed.
+- Single pool, not multi-hop.
+- The fee-bearing theorem needs `gammaB > 0`; when `gammaB = 0`, no finite raw
+  attacker-size optimizer is exposed.
+- Donation/no-output optimizer is not a bound for filled-A state-change gain.
+- The filled-A model still uses its existing asymptotic bound theorem.
 
 **Compounding value**: 5/5 surfaces (highest). Replaces falsified bound with
 exact form, connects security to pool depth, provides runtime risk parameter.
 
-**Verification**: Lean proof extending `ConcavityConservationLaw.lean`.
-Empirical test comparing exact vs Lipschitz vs second-order.
+**Verification**: Lean proof in `ConcavityConservationLaw.lean`; empirical
+optimizer replay and wrong-model falsifier in
+`docs/research/concavity_conservation_law_test.py`.
 
 **Iteration estimate**: 30-50 (calculus derivation, Lean formalization of
 optimization).

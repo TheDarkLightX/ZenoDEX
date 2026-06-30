@@ -27,6 +27,13 @@ TWO MODELS are verified:
      |argmax_prod - b*| <= sqrt(2*tau/m), where
        tau = f_cont(b*) - f_prod(anchor)
        tau <= alpha + eta_bound under the gross-spot ceiling-fee envelope
+   - Research-scope certificate checker:
+     validates a supplied anchor/argmax radius packet against recomputed
+     domain hash, production values, tau, gross envelope, and no-authority rail
+   - Certificate-backed m composition:
+     consumes a domain-matched rational interval curvature certificate or
+     exact-rational stationary curvature certificate before accepting a tighter
+     argmax radius
 
 The Lean proof proves the abstract theorem (abstract_discrete_argmax_proximity)
 which takes the floor error bound as a hypothesis. The CPMM-specific theorem
@@ -41,16 +48,137 @@ CONTEXT:
 
 Non-claims:
 - The production bounds are empirical unless stated as generic abstract Lean
-  consequences. The universal ceiling-fee perturbation still needs a dedicated
-  Lean model of Int.ceil to become a CPMM-specific formal theorem.
+  consequences. The universal ceiling-fee perturbation Lean lane remains
+  conditional on explicit net-input perturbation hypotheses.
 - The abstract Lean theorem covers both models; only the ε constant differs.
 
 Determinism: All tests use fixed seeds. No real time, RNG, network, or fs.
 """
 
+import hashlib
+import importlib.util
+import json
 import math
 import random
+import sys
 from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+from typing import Mapping
+
+
+CERTIFICATE_SCHEMA = "zenodex.tight_argmax_certificate.v1"
+INTERVAL_M_CERTIFICATE_SCHEMA = "zenodex.cpmm_split_interval_m_certificate.v1"
+STATIONARY_M_CERTIFICATE_SCHEMA = "zenodex.cpmm_split_stationary_m_certificate.v1"
+M_SOURCE_ENDPOINT = "endpoint_lower_bound"
+M_SOURCE_INTERVAL_CERTIFICATE = "interval_curvature_certificate"
+M_SOURCE_STATIONARY_CERTIFICATE = "stationary_curvature_certificate"
+MAX_CERTIFICATE_BYTES = 8192
+MAX_TIGHT_ARGMAX_FLOAT_DOMAIN_BITS = 128
+CERT_TOL = 1e-6
+_CURVATURE_MODULE: object | None = None
+_BASE_CERTIFICATE_KEYS = frozenset({
+    "alpha",
+    "anchor",
+    "anchor_radius",
+    "argmax",
+    "authority_effects",
+    "b_star",
+    "distance",
+    "domain_hash",
+    "eta_actual",
+    "eta_bound",
+    "gross_radius",
+    "m",
+    "m_source",
+    "oracle_radius",
+    "prod_anchor",
+    "prod_argmax",
+    "research_only",
+    "schema",
+    "tau_anchor",
+    "tau_oracle",
+})
+_ENDPOINT_CERTIFICATE_KEYS = _BASE_CERTIFICATE_KEYS
+_INTERVAL_CERTIFICATE_KEYS = _BASE_CERTIFICATE_KEYS | frozenset({
+    "m_certificate_schema",
+    "m_certificate_sha256",
+})
+_STATIONARY_CERTIFICATE_KEYS = _INTERVAL_CERTIFICATE_KEYS
+_M_CERTIFICATE_SOURCE_CONFIG = {
+    M_SOURCE_INTERVAL_CERTIFICATE: (
+        _INTERVAL_CERTIFICATE_KEYS,
+        INTERVAL_M_CERTIFICATE_SCHEMA,
+        "verify_interval_curvature_m_certificate_bytes",
+    ),
+    M_SOURCE_STATIONARY_CERTIFICATE: (
+        _STATIONARY_CERTIFICATE_KEYS,
+        STATIONARY_M_CERTIFICATE_SCHEMA,
+        "verify_stationary_curvature_m_certificate_bytes",
+    ),
+}
+
+
+class CertificateReject(str, Enum):
+    """Stable reject reasons for the research-scope argmax certificate."""
+
+    BAD_JSON = "bad_json"
+    DUPLICATE_KEY = "duplicate_key"
+    NONCANONICAL_BYTES = "noncanonical_bytes"
+    CERTIFICATE_TOO_LARGE = "certificate_too_large"
+    BAD_SCHEMA = "bad_schema"
+    AUTHORITY_EFFECTS_PRESENT = "authority_effects_present"
+    BAD_DOMAIN = "bad_domain"
+    DOMAIN_HASH_MISMATCH = "domain_hash_mismatch"
+    BAD_INDEX = "bad_index"
+    BAD_B_STAR = "bad_b_star"
+    BAD_M = "bad_m"
+    BAD_M_SOURCE = "bad_m_source"
+    BAD_M_CERTIFICATE_REF = "bad_m_certificate_ref"
+    M_CERTIFICATE_MISSING = "m_certificate_missing"
+    M_CERTIFICATE_HASH_MISMATCH = "m_certificate_hash_mismatch"
+    M_CERTIFICATE_REJECTED = "m_certificate_rejected"
+    M_SOURCE_MISMATCH = "m_source_mismatch"
+    BAD_NUMERIC_FIELD = "bad_numeric_field"
+    STALE_METRIC = "stale_metric"
+    ARGMAX_NOT_DOMINATING_ANCHOR = "argmax_not_dominating_anchor"
+    ONE_SIDED_PERTURBATION_FAILED = "one_sided_perturbation_failed"
+    RADIUS_UNDERSTATES_DISTANCE = "radius_understates_distance"
+    RADIUS_HIERARCHY_FAILED = "radius_hierarchy_failed"
+
+
+@dataclass(frozen=True)
+class CertificateCheckResult:
+    """Validated certificate result. `ok=True` is the only accepted state."""
+
+    ok: bool
+    rejects: tuple[CertificateReject, ...]
+    anchor_radius: float | None = None
+    oracle_radius: float | None = None
+    gross_radius: float | None = None
+    distance: float | None = None
+
+
+class DuplicateKey(ValueError):
+    """Raised while parsing JSON objects with duplicate keys."""
+
+
+def _curvature_module() -> object:
+    global _CURVATURE_MODULE
+    if _CURVATURE_MODULE is not None:
+        return _CURVATURE_MODULE
+    module_path = Path(__file__).with_name("concavity_conservation_law_test.py")
+    spec = importlib.util.spec_from_file_location(
+        "_zenodex_concavity_conservation_law_test",
+        module_path,
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"could not load {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    _CURVATURE_MODULE = module
+    return module
 
 
 @dataclass(frozen=True)
@@ -230,6 +358,444 @@ def best_continuous_integer_anchor(p0: Pool, p1: Pool, D: int) -> int:
             best_a = a
             best_value = value
     return best_a
+
+
+# ---------------------------------------------------------------------------
+# Research-scope tight argmax certificate checker
+# ---------------------------------------------------------------------------
+
+def _canonical_json_bytes(payload: Mapping[str, object]) -> bytes:
+    return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise DuplicateKey(key)
+        result[key] = value
+    return result
+
+
+def tight_argmax_domain_hash(p0: Pool, p1: Pool, D: int) -> str:
+    payload: dict[str, object] = {
+        "D": D,
+        "pools": [
+            {
+                "reserve_in": p0.reserve_in,
+                "reserve_out": p0.reserve_out,
+                "fee_bps": p0.fee_bps,
+            },
+            {
+                "reserve_in": p1.reserve_in,
+                "reserve_out": p1.reserve_out,
+                "fee_bps": p1.fee_bps,
+            },
+        ],
+    }
+    return hashlib.sha256(_canonical_json_bytes(payload)).hexdigest()
+
+
+def _field_int(cert: Mapping[str, object], key: str) -> int | None:
+    value = cert.get(key)
+    if type(value) is int:
+        return value
+    return None
+
+
+def _field_float(cert: Mapping[str, object], key: str) -> float | None:
+    value = cert.get(key)
+    if type(value) not in (int, float):
+        return None
+    result = float(value)
+    if not math.isfinite(result):
+        return None
+    return result
+
+
+def _bounded_int(value: object, *, positive: bool, max_bits: int) -> bool:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return False
+    if positive and value <= 0:
+        return False
+    if not positive and value < 0:
+        return False
+    return value.bit_length() <= max_bits
+
+
+def _pool_float_domain_valid(p: Pool) -> bool:
+    return (
+        _bounded_int(
+            p.reserve_in,
+            positive=True,
+            max_bits=MAX_TIGHT_ARGMAX_FLOAT_DOMAIN_BITS,
+        )
+        and _bounded_int(
+            p.reserve_out,
+            positive=True,
+            max_bits=MAX_TIGHT_ARGMAX_FLOAT_DOMAIN_BITS,
+        )
+        and type(p.fee_bps) is int
+        and 0 <= p.fee_bps < 10000
+    )
+
+
+def _tight_argmax_float_domain_valid(p0: Pool, p1: Pool, D: int) -> bool:
+    """Bound the research-only float replay lane before any float conversion."""
+    return (
+        _pool_float_domain_valid(p0)
+        and _pool_float_domain_valid(p1)
+        and _bounded_int(
+            D,
+            positive=False,
+            max_bits=MAX_TIGHT_ARGMAX_FLOAT_DOMAIN_BITS,
+        )
+    )
+
+
+def _close(a: float, b: float) -> bool:
+    return abs(a - b) <= CERT_TOL * max(1.0, abs(a), abs(b))
+
+
+def _is_sha256_hex(value: object) -> bool:
+    if not isinstance(value, str) or len(value) != 64:
+        return False
+    return all(char in "0123456789abcdef" for char in value)
+
+
+def _validate_m_source(
+    p0: Pool,
+    p1: Pool,
+    D: int,
+    cert: Mapping[str, object],
+    m: float,
+    m_certificate_resolver: Mapping[str, bytes] | None,
+) -> CertificateReject | None:
+    source = cert.get("m_source")
+    keys = set(cert.keys())
+    if source == M_SOURCE_ENDPOINT:
+        if keys != _ENDPOINT_CERTIFICATE_KEYS:
+            return CertificateReject.BAD_SCHEMA
+        expected_m = strong_concavity_param_pool_lower_bound(p0, p1, D)
+        if not _close(m, expected_m):
+            return CertificateReject.M_SOURCE_MISMATCH
+        return None
+
+    config = _M_CERTIFICATE_SOURCE_CONFIG.get(source)
+    if config is None:
+        return CertificateReject.BAD_M_SOURCE
+
+    expected_keys, expected_schema, verifier_name = config
+    if keys != expected_keys:
+        return CertificateReject.BAD_SCHEMA
+    if cert.get("m_certificate_schema") != expected_schema:
+        return CertificateReject.BAD_M_CERTIFICATE_REF
+    cert_hash = cert.get("m_certificate_sha256")
+    if not _is_sha256_hex(cert_hash):
+        return CertificateReject.BAD_M_CERTIFICATE_REF
+    assert isinstance(cert_hash, str)
+    if m_certificate_resolver is None or cert_hash not in m_certificate_resolver:
+        return CertificateReject.M_CERTIFICATE_MISSING
+
+    m_raw = m_certificate_resolver[cert_hash]
+    if hashlib.sha256(m_raw).hexdigest() != cert_hash:
+        return CertificateReject.M_CERTIFICATE_HASH_MISMATCH
+
+    curvature = _curvature_module()
+    verifier = getattr(curvature, verifier_name)
+    m_result = verifier(p0, p1, D, m_raw)
+    if not getattr(m_result, "accepted") or getattr(m_result, "m") is None:
+        return CertificateReject.M_CERTIFICATE_REJECTED
+    if not _close(m, float(getattr(m_result, "m"))):
+        return CertificateReject.M_SOURCE_MISMATCH
+    return None
+
+
+def _tight_argmax_metrics(
+    p0: Pool,
+    p1: Pool,
+    D: int,
+    anchor: int,
+    argmax: int,
+    b_star: float,
+    m: float,
+) -> dict[str, float]:
+    if not _tight_argmax_float_domain_valid(p0, p1, D):
+        raise ValueError("tight argmax float domain invalid")
+    cont_star = split_lean_cont(p0, p1, float(D), b_star)
+    cont_anchor = split_lean_cont(p0, p1, float(D), float(anchor))
+    cont_argmax = split_lean_cont(p0, p1, float(D), float(argmax))
+    prod_anchor = float(split_prod_floor(p0, p1, D, anchor))
+    prod_argmax = float(split_prod_floor(p0, p1, D, argmax))
+    alpha = max(0.0, cont_star - cont_anchor)
+    eta_actual = max(0.0, cont_anchor - prod_anchor)
+    eta_bound = gross_ceiling_fee_perturbation_bound(p0, p1)
+    tau_anchor = max(0.0, cont_star - prod_anchor)
+    tau_oracle = max(0.0, cont_star - prod_argmax)
+    return {
+        "cont_star": cont_star,
+        "cont_anchor": cont_anchor,
+        "cont_argmax": cont_argmax,
+        "prod_anchor": prod_anchor,
+        "prod_argmax": prod_argmax,
+        "alpha": alpha,
+        "eta_actual": eta_actual,
+        "eta_bound": eta_bound,
+        "tau_anchor": tau_anchor,
+        "tau_oracle": tau_oracle,
+        "anchor_radius": math.sqrt(2.0 * tau_anchor / m),
+        "oracle_radius": math.sqrt(2.0 * tau_oracle / m),
+        "gross_radius": math.sqrt(2.0 * (alpha + eta_bound) / m),
+        "distance": abs(float(argmax) - b_star),
+    }
+
+
+def _build_tight_argmax_certificate_payload(
+    p0: Pool,
+    p1: Pool,
+    D: int,
+    anchor: int,
+    argmax: int,
+    b_star: float,
+    m: float,
+    m_source: str,
+    extra_fields: Mapping[str, object] | None = None,
+) -> dict[str, object]:
+    metrics = _tight_argmax_metrics(p0, p1, D, anchor, argmax, b_star, m)
+    payload: dict[str, object] = {
+        "schema": CERTIFICATE_SCHEMA,
+        "research_only": True,
+        "authority_effects": False,
+        "domain_hash": tight_argmax_domain_hash(p0, p1, D),
+        "anchor": anchor,
+        "argmax": argmax,
+        "b_star": b_star,
+        "m": m,
+        "m_source": m_source,
+        "tau_anchor": metrics["tau_anchor"],
+        "tau_oracle": metrics["tau_oracle"],
+        "alpha": metrics["alpha"],
+        "eta_actual": metrics["eta_actual"],
+        "eta_bound": metrics["eta_bound"],
+        "anchor_radius": metrics["anchor_radius"],
+        "oracle_radius": metrics["oracle_radius"],
+        "gross_radius": metrics["gross_radius"],
+        "distance": metrics["distance"],
+        "prod_anchor": metrics["prod_anchor"],
+        "prod_argmax": metrics["prod_argmax"],
+    }
+    if extra_fields is not None:
+        payload.update(extra_fields)
+    return payload
+
+
+def build_tight_argmax_certificate(
+    p0: Pool,
+    p1: Pool,
+    D: int,
+    anchor: int,
+    argmax: int,
+    b_star: float,
+    m: float,
+) -> bytes:
+    if not _tight_argmax_float_domain_valid(p0, p1, D):
+        raise ValueError("tight argmax float domain invalid")
+    endpoint_m = strong_concavity_param_pool_lower_bound(p0, p1, D)
+    if not _close(m, endpoint_m):
+        raise ValueError("endpoint-source certificate requires endpoint m")
+    payload = _build_tight_argmax_certificate_payload(
+        p0,
+        p1,
+        D,
+        anchor,
+        argmax,
+        b_star,
+        endpoint_m,
+        M_SOURCE_ENDPOINT,
+    )
+    return _canonical_json_bytes(payload)
+
+
+def build_interval_m_backed_tight_argmax_certificate(
+    p0: Pool,
+    p1: Pool,
+    D: int,
+    anchor: int,
+    argmax: int,
+    b_star: float,
+    interval_m_certificate_raw: bytes,
+) -> bytes:
+    if not _tight_argmax_float_domain_valid(p0, p1, D):
+        raise ValueError("tight argmax float domain invalid")
+    cert_hash = hashlib.sha256(interval_m_certificate_raw).hexdigest()
+    curvature = _curvature_module()
+    verifier = getattr(curvature, "verify_interval_curvature_m_certificate_bytes")
+    m_result = verifier(p0, p1, D, interval_m_certificate_raw)
+    if not getattr(m_result, "accepted") or getattr(m_result, "m") is None:
+        raise ValueError("interval m certificate rejected")
+    m = float(getattr(m_result, "m"))
+    payload = _build_tight_argmax_certificate_payload(
+        p0,
+        p1,
+        D,
+        anchor,
+        argmax,
+        b_star,
+        m,
+        M_SOURCE_INTERVAL_CERTIFICATE,
+        {
+            "m_certificate_schema": INTERVAL_M_CERTIFICATE_SCHEMA,
+            "m_certificate_sha256": cert_hash,
+        },
+    )
+    return _canonical_json_bytes(payload)
+
+
+def build_stationary_m_backed_tight_argmax_certificate(
+    p0: Pool,
+    p1: Pool,
+    D: int,
+    anchor: int,
+    argmax: int,
+    b_star: float,
+    stationary_m_certificate_raw: bytes,
+) -> bytes:
+    if not _tight_argmax_float_domain_valid(p0, p1, D):
+        raise ValueError("tight argmax float domain invalid")
+    cert_hash = hashlib.sha256(stationary_m_certificate_raw).hexdigest()
+    curvature = _curvature_module()
+    verifier = getattr(curvature, "verify_stationary_curvature_m_certificate_bytes")
+    m_result = verifier(p0, p1, D, stationary_m_certificate_raw)
+    if not getattr(m_result, "accepted") or getattr(m_result, "m") is None:
+        raise ValueError("stationary m certificate rejected")
+    m = float(getattr(m_result, "m"))
+    payload = _build_tight_argmax_certificate_payload(
+        p0,
+        p1,
+        D,
+        anchor,
+        argmax,
+        b_star,
+        m,
+        M_SOURCE_STATIONARY_CERTIFICATE,
+        {
+            "m_certificate_schema": STATIONARY_M_CERTIFICATE_SCHEMA,
+            "m_certificate_sha256": cert_hash,
+        },
+    )
+    return _canonical_json_bytes(payload)
+
+
+def verify_tight_argmax_certificate_bytes(
+    p0: Pool,
+    p1: Pool,
+    D: int,
+    raw: bytes,
+    m_certificate_resolver: Mapping[str, bytes] | None = None,
+) -> CertificateCheckResult:
+    if len(raw) > MAX_CERTIFICATE_BYTES:
+        return CertificateCheckResult(False, (CertificateReject.CERTIFICATE_TOO_LARGE,))
+    if not _tight_argmax_float_domain_valid(p0, p1, D):
+        return CertificateCheckResult(False, (CertificateReject.BAD_DOMAIN,))
+
+    try:
+        parsed = json.loads(raw.decode("utf-8"), object_pairs_hook=_reject_duplicate_keys)
+    except DuplicateKey:
+        return CertificateCheckResult(False, (CertificateReject.DUPLICATE_KEY,))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return CertificateCheckResult(False, (CertificateReject.BAD_JSON,))
+
+    if not isinstance(parsed, dict):
+        return CertificateCheckResult(False, (CertificateReject.BAD_JSON,))
+
+    cert: Mapping[str, object] = parsed
+    if _canonical_json_bytes(cert) != raw:
+        return CertificateCheckResult(False, (CertificateReject.NONCANONICAL_BYTES,))
+
+    rejects: list[CertificateReject] = []
+    if cert.get("schema") != CERTIFICATE_SCHEMA:
+        rejects.append(CertificateReject.BAD_SCHEMA)
+    if cert.get("research_only") is not True or cert.get("authority_effects") is not False:
+        rejects.append(CertificateReject.AUTHORITY_EFFECTS_PRESENT)
+    if cert.get("domain_hash") != tight_argmax_domain_hash(p0, p1, D):
+        rejects.append(CertificateReject.DOMAIN_HASH_MISMATCH)
+
+    anchor = _field_int(cert, "anchor")
+    argmax = _field_int(cert, "argmax")
+    if anchor is None or argmax is None or anchor < 0 or argmax < 0 or anchor > D or argmax > D:
+        rejects.append(CertificateReject.BAD_INDEX)
+
+    b_star = _field_float(cert, "b_star")
+    if b_star is None or b_star < -CERT_TOL or b_star > D + CERT_TOL:
+        rejects.append(CertificateReject.BAD_B_STAR)
+
+    m = _field_float(cert, "m")
+    if m is None or m <= 0.0:
+        rejects.append(CertificateReject.BAD_M)
+
+    metric_keys = (
+        "tau_anchor",
+        "tau_oracle",
+        "alpha",
+        "eta_actual",
+        "eta_bound",
+        "anchor_radius",
+        "oracle_radius",
+        "gross_radius",
+        "distance",
+        "prod_anchor",
+        "prod_argmax",
+    )
+    claimed = {key: _field_float(cert, key) for key in metric_keys}
+    if any(value is None for value in claimed.values()):
+        rejects.append(CertificateReject.BAD_NUMERIC_FIELD)
+
+    if m is not None and m > 0.0:
+        m_source_reject = _validate_m_source(
+            p0,
+            p1,
+            D,
+            cert,
+            m,
+            m_certificate_resolver,
+        )
+        if m_source_reject is not None:
+            rejects.append(m_source_reject)
+
+    if rejects:
+        return CertificateCheckResult(False, tuple(dict.fromkeys(rejects)))
+
+    assert anchor is not None
+    assert argmax is not None
+    assert b_star is not None
+    assert m is not None
+    metrics = _tight_argmax_metrics(p0, p1, D, anchor, argmax, b_star, m)
+
+    for key in metric_keys:
+        if not _close(float(claimed[key]), metrics[key]):  # type: ignore[arg-type]
+            rejects.append(CertificateReject.STALE_METRIC)
+            break
+
+    if metrics["prod_anchor"] > metrics["prod_argmax"] + CERT_TOL:
+        rejects.append(CertificateReject.ARGMAX_NOT_DOMINATING_ANCHOR)
+    if metrics["prod_argmax"] > metrics["cont_argmax"] + CERT_TOL:
+        rejects.append(CertificateReject.ONE_SIDED_PERTURBATION_FAILED)
+    if metrics["distance"] > float(claimed["anchor_radius"]) + CERT_TOL:  # type: ignore[arg-type]
+        rejects.append(CertificateReject.RADIUS_UNDERSTATES_DISTANCE)
+    if metrics["oracle_radius"] > metrics["anchor_radius"] + CERT_TOL:
+        rejects.append(CertificateReject.RADIUS_HIERARCHY_FAILED)
+    if metrics["anchor_radius"] > metrics["gross_radius"] + CERT_TOL:
+        rejects.append(CertificateReject.RADIUS_HIERARCHY_FAILED)
+
+    unique_rejects = tuple(dict.fromkeys(rejects))
+    return CertificateCheckResult(
+        ok=not unique_rejects,
+        rejects=unique_rejects,
+        anchor_radius=metrics["anchor_radius"],
+        oracle_radius=metrics["oracle_radius"],
+        gross_radius=metrics["gross_radius"],
+        distance=metrics["distance"],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -599,11 +1165,572 @@ def test_prod_argmax_distance_tight_one_sided_perturbation_bound() -> None:
     assert nonzero_dist > 0, "VACUOUS: no production argmax was away from b*"
     assert exact_tighter_than_universal > 0, (
         "VACUOUS: exact anchor deficit never improved the gross envelope")
+    assert oracle_tighter_than_anchor > 0, (
+        "VACUOUS: oracle-tight argmax value never improved the certified-anchor "
+        "bound")
     print("PASS: prod_argmax_distance_tight_one_sided_perturbation_bound "
           f"({total} configs, nonzero_dist={nonzero_dist}, "
           f"exact_tighter_than_universal={exact_tighter_than_universal}, "
           f"oracle_tighter_than_anchor={oracle_tighter_than_anchor}, "
           f"worst_exact_ratio={worst_exact_ratio:.4f}, worst={worst})")
+
+
+# ---------------------------------------------------------------------------
+# Test 5c: Research-scope tight argmax certificate checker
+# ---------------------------------------------------------------------------
+
+def _sample_certificate_case() -> tuple[Pool, Pool, int, int, int, float, float, bytes]:
+    p0 = Pool(10_110, 17_529, 5000)
+    p1 = Pool(15_975, 27_486, 5000)
+    D = 179
+    b_star = continuous_optimum(p0, p1, D)
+    argmax, _ = discrete_optimum_prod(p0, p1, D)
+    anchor = best_continuous_integer_anchor(p0, p1, D)
+    m = strong_concavity_param_pool_lower_bound(p0, p1, D)
+    raw = build_tight_argmax_certificate(p0, p1, D, anchor, argmax, b_star, m)
+    return p0, p1, D, anchor, argmax, b_star, m, raw
+
+
+def _decoded_certificate(raw: bytes) -> dict[str, object]:
+    parsed = json.loads(raw.decode("utf-8"))
+    assert isinstance(parsed, dict)
+    return parsed
+
+
+def test_tight_argmax_certificate_accepts_valid_corpus() -> None:
+    """Research checker accepts recomputed tight-bound certificates."""
+    rng = random.Random(20260710)
+    fee_choices = [0, 30, 100, 300, 1000, 3000, 5000, 9000]
+    total = 0
+    nonzero_distance = 0
+    exact_tighter_than_gross = 0
+    oracle_tighter_than_anchor = 0
+    for _ in range(300):
+        p0 = Pool(rng.randint(100, 20_000), rng.randint(100, 80_000), rng.choice(fee_choices))
+        p1 = Pool(rng.randint(100, 20_000), rng.randint(100, 80_000), rng.choice(fee_choices))
+        D = rng.randint(10, 250)
+        b_star = continuous_optimum(p0, p1, D)
+        argmax, _ = discrete_optimum_prod(p0, p1, D)
+        anchor = best_continuous_integer_anchor(p0, p1, D)
+        m = strong_concavity_param_pool_lower_bound(p0, p1, D)
+        assert m > 0.0, f"invalid m={m} for case {(p0, p1, D)}"
+        raw = build_tight_argmax_certificate(p0, p1, D, anchor, argmax, b_star, m)
+        result = verify_tight_argmax_certificate_bytes(p0, p1, D, raw)
+        assert result.ok, f"valid certificate rejected: {result.rejects}"
+        assert result.distance is not None
+        assert result.anchor_radius is not None
+        assert result.oracle_radius is not None
+        assert result.gross_radius is not None
+        total += 1
+        if result.distance > 1e-9:
+            nonzero_distance += 1
+        if result.anchor_radius < result.gross_radius - 1e-9:
+            exact_tighter_than_gross += 1
+        if result.oracle_radius < result.anchor_radius - 1e-9:
+            oracle_tighter_than_anchor += 1
+    assert total == 300, f"Expected 300 certificates, got {total}"
+    assert nonzero_distance > 0, "VACUOUS: every argmax certificate had zero distance"
+    assert exact_tighter_than_gross > 0, (
+        "VACUOUS: exact certificate never improved the gross envelope")
+    assert oracle_tighter_than_anchor > 0, (
+        "VACUOUS: oracle certificate never improved the anchor certificate")
+    print("PASS: tight_argmax_certificate_accepts_valid_corpus "
+          f"({total} certificates, nonzero_distance={nonzero_distance}, "
+          f"exact_tighter_than_gross={exact_tighter_than_gross}, "
+          f"oracle_tighter_than_anchor={oracle_tighter_than_anchor})")
+
+
+def test_tight_argmax_certificate_rejects_mutations() -> None:
+    """Research checker rejects stale, authority-bearing, and noncanonical packets."""
+    p0, p1, D, anchor, _argmax, b_star, m, raw = _sample_certificate_case()
+    base = _decoded_certificate(raw)
+    valid = verify_tight_argmax_certificate_bytes(p0, p1, D, raw)
+    assert valid.ok, f"sample certificate invalid: {valid.rejects}"
+
+    mutation_cases: list[tuple[str, dict[str, object], CertificateReject]] = [
+        ("bad_schema", {"schema": "zenodex.tight_argmax_certificate.v0"}, CertificateReject.BAD_SCHEMA),
+        ("authority", {"authority_effects": True}, CertificateReject.AUTHORITY_EFFECTS_PRESENT),
+        ("stale_domain", {"domain_hash": "0" * 64}, CertificateReject.DOMAIN_HASH_MISMATCH),
+        ("bad_anchor", {"anchor": D + 1}, CertificateReject.BAD_INDEX),
+        ("bad_m", {"m": 0.0}, CertificateReject.BAD_M),
+        ("understated_radius", {"anchor_radius": 0.0}, CertificateReject.RADIUS_UNDERSTATES_DISTANCE),
+    ]
+    for name, updates, expected in mutation_cases:
+        mutated = dict(base)
+        mutated.update(updates)
+        result = verify_tight_argmax_certificate_bytes(p0, p1, D, _canonical_json_bytes(mutated))
+        assert expected in result.rejects, (
+            f"{name}: expected {expected}, got {result.rejects}")
+
+    bad_argmax = min(range(D + 1), key=lambda a: split_prod_floor(p0, p1, D, a))
+    assert split_prod_floor(p0, p1, D, anchor) > split_prod_floor(p0, p1, D, bad_argmax)
+    bad_argmax_raw = build_tight_argmax_certificate(p0, p1, D, anchor, bad_argmax, b_star, m)
+    bad_argmax_result = verify_tight_argmax_certificate_bytes(p0, p1, D, bad_argmax_raw)
+    assert CertificateReject.ARGMAX_NOT_DOMINATING_ANCHOR in bad_argmax_result.rejects
+
+    duplicate_raw = (
+        b'{"authority_effects":false,"research_only":true,'
+        b'"schema":"zenodex.tight_argmax_certificate.v1",'
+        b'"schema":"zenodex.tight_argmax_certificate.v1"}'
+    )
+    duplicate_result = verify_tight_argmax_certificate_bytes(p0, p1, D, duplicate_raw)
+    assert duplicate_result.rejects == (CertificateReject.DUPLICATE_KEY,)
+
+    noncanonical_raw = json.dumps(base, indent=2, sort_keys=True).encode("utf-8")
+    noncanonical_result = verify_tight_argmax_certificate_bytes(p0, p1, D, noncanonical_raw)
+    assert noncanonical_result.rejects == (CertificateReject.NONCANONICAL_BYTES,)
+    print("PASS: tight_argmax_certificate_rejects_mutations "
+          f"({len(mutation_cases) + 3} negative cases)")
+
+
+def test_tight_argmax_certificate_rejects_float_overflow_domain() -> None:
+    """Huge integer domains are rejected before the research float path."""
+    overflow_reserve = (
+        5643803094122361801063599550934354178498840916875289431586257363382552571199220880341666641086706089985
+    )
+    unsafe_p0 = Pool(reserve_in=overflow_reserve, reserve_out=1000, fee_bps=0)
+    p1 = Pool(reserve_in=1000, reserve_out=1000, fee_bps=0)
+    D = 1
+
+    assert not _tight_argmax_float_domain_valid(unsafe_p0, p1, D)
+    assert _tight_argmax_float_domain_valid(Pool(1 << 127, 1000, 0), p1, D)
+
+    try:
+        strong_concavity_param_pool_lower_bound(unsafe_p0, p1, D)
+        raise AssertionError("expected pre-guard float overflow witness")
+    except OverflowError:
+        pass
+
+    cert: dict[str, object] = {
+        "schema": CERTIFICATE_SCHEMA,
+        "research_only": True,
+        "authority_effects": False,
+        "domain_hash": tight_argmax_domain_hash(unsafe_p0, p1, D),
+        "anchor": 0,
+        "argmax": 0,
+        "b_star": 0.0,
+        "m": 1.0,
+        "m_source": M_SOURCE_ENDPOINT,
+        "tau_anchor": 0.0,
+        "tau_oracle": 0.0,
+        "alpha": 0.0,
+        "eta_actual": 0.0,
+        "eta_bound": 0.0,
+        "anchor_radius": 0.0,
+        "oracle_radius": 0.0,
+        "gross_radius": 0.0,
+        "distance": 0.0,
+        "prod_anchor": 0.0,
+        "prod_argmax": 0.0,
+    }
+    result = verify_tight_argmax_certificate_bytes(
+        unsafe_p0,
+        p1,
+        D,
+        _canonical_json_bytes(cert),
+    )
+    assert result.rejects == (CertificateReject.BAD_DOMAIN,)
+
+    try:
+        build_tight_argmax_certificate(unsafe_p0, p1, D, 0, 0, 0.0, 1.0)
+        raise AssertionError("builder accepted invalid float domain")
+    except ValueError:
+        pass
+
+    print("PASS: tight_argmax_certificate_rejects_float_overflow_domain "
+          f"(max_bits={MAX_TIGHT_ARGMAX_FLOAT_DOMAIN_BITS})")
+
+
+def test_interval_m_backed_tight_argmax_certificate_composition() -> None:
+    """Tight argmax certificates can consume checked interval-m certificates."""
+    rng = random.Random(20260730)
+    fee_choices = [0, 30, 100, 300, 1000, 3000, 5000, 9000]
+    curvature = _curvature_module()
+    build_refined = getattr(curvature, "build_refined_interval_curvature_m_certificate")
+    verify_interval = getattr(curvature, "verify_interval_curvature_m_certificate_bytes")
+    total = 0
+    interval_tighter_than_endpoint = 0
+    nonzero_distance = 0
+    max_radius_shrink = 1.0
+    for _ in range(150):
+        p0 = Pool(rng.randint(100, 20_000), rng.randint(100, 80_000), rng.choice(fee_choices))
+        p1 = Pool(rng.randint(100, 20_000), rng.randint(100, 80_000), rng.choice(fee_choices))
+        D = rng.randint(10, 250)
+        b_star = continuous_optimum(p0, p1, D)
+        argmax, _ = discrete_optimum_prod(p0, p1, D)
+        anchor = best_continuous_integer_anchor(p0, p1, D)
+        endpoint_m = strong_concavity_param_pool_lower_bound(p0, p1, D)
+        interval_m_raw = build_refined(p0, p1, D, 16, 64)
+        interval_m_result = verify_interval(p0, p1, D, interval_m_raw)
+        assert interval_m_result.accepted, interval_m_result.reject
+        cert_hash = hashlib.sha256(interval_m_raw).hexdigest()
+        endpoint_raw = build_tight_argmax_certificate(
+            p0,
+            p1,
+            D,
+            anchor,
+            argmax,
+            b_star,
+            endpoint_m,
+        )
+        interval_raw = build_interval_m_backed_tight_argmax_certificate(
+            p0,
+            p1,
+            D,
+            anchor,
+            argmax,
+            b_star,
+            interval_m_raw,
+        )
+        endpoint_result = verify_tight_argmax_certificate_bytes(p0, p1, D, endpoint_raw)
+        interval_result = verify_tight_argmax_certificate_bytes(
+            p0,
+            p1,
+            D,
+            interval_raw,
+            {cert_hash: interval_m_raw},
+        )
+        assert endpoint_result.ok, endpoint_result.rejects
+        assert interval_result.ok, interval_result.rejects
+        assert endpoint_result.anchor_radius is not None
+        assert interval_result.anchor_radius is not None
+        assert interval_result.distance is not None
+        assert interval_result.anchor_radius <= endpoint_result.anchor_radius + 1e-9
+        if interval_result.anchor_radius < endpoint_result.anchor_radius - 1e-9:
+            interval_tighter_than_endpoint += 1
+            max_radius_shrink = max(
+                max_radius_shrink,
+                endpoint_result.anchor_radius / interval_result.anchor_radius,
+            )
+        if interval_result.distance > 1e-9:
+            nonzero_distance += 1
+        total += 1
+
+    assert total == 150, f"Expected 150 composed certificates, got {total}"
+    assert nonzero_distance > 0, "VACUOUS: every composed certificate had zero distance"
+    assert interval_tighter_than_endpoint > 0, (
+        "VACUOUS: interval m certificates never tightened endpoint radius")
+    print("PASS: interval_m_backed_tight_argmax_certificate_composition "
+          f"({total} certificates, tightened={interval_tighter_than_endpoint}, "
+          f"max_radius_shrink={max_radius_shrink:.6g}x)")
+
+
+def test_interval_m_backed_tight_argmax_certificate_rejects_bad_composition() -> None:
+    """Composed certificates reject missing, stale, and mismatched m artifacts."""
+    p0, p1, D, anchor, argmax, b_star, _endpoint_m, _raw = _sample_certificate_case()
+    curvature = _curvature_module()
+    build_refined = getattr(curvature, "build_refined_interval_curvature_m_certificate")
+    interval_m_raw = build_refined(p0, p1, D, 16, 64)
+    cert_hash = hashlib.sha256(interval_m_raw).hexdigest()
+    raw = build_interval_m_backed_tight_argmax_certificate(
+        p0,
+        p1,
+        D,
+        anchor,
+        argmax,
+        b_star,
+        interval_m_raw,
+    )
+    base = _decoded_certificate(raw)
+    valid = verify_tight_argmax_certificate_bytes(p0, p1, D, raw, {cert_hash: interval_m_raw})
+    assert valid.ok, valid.rejects
+
+    missing_result = verify_tight_argmax_certificate_bytes(p0, p1, D, raw)
+    assert missing_result.rejects == (CertificateReject.M_CERTIFICATE_MISSING,)
+
+    tampered_resolver = {cert_hash: interval_m_raw + b"\n"}
+    tampered_result = verify_tight_argmax_certificate_bytes(
+        p0,
+        p1,
+        D,
+        raw,
+        tampered_resolver,
+    )
+    assert CertificateReject.M_CERTIFICATE_HASH_MISMATCH in tampered_result.rejects
+
+    wrong_domain_raw = build_refined(p0, p1, D + 1, 16, 64)
+    wrong_hash = hashlib.sha256(wrong_domain_raw).hexdigest()
+    wrong_domain_cert = dict(base)
+    wrong_domain_cert["m_certificate_sha256"] = wrong_hash
+    wrong_domain_result = verify_tight_argmax_certificate_bytes(
+        p0,
+        p1,
+        D,
+        _canonical_json_bytes(wrong_domain_cert),
+        {wrong_hash: wrong_domain_raw},
+    )
+    assert CertificateReject.M_CERTIFICATE_REJECTED in wrong_domain_result.rejects
+
+    overstated = dict(base)
+    assert isinstance(overstated["m"], (int, float))
+    overstated["m"] = float(overstated["m"]) * 1.5
+    overstated_metrics = _tight_argmax_metrics(
+        p0,
+        p1,
+        D,
+        anchor,
+        argmax,
+        b_star,
+        float(overstated["m"]),
+    )
+    for key in (
+        "tau_anchor",
+        "tau_oracle",
+        "alpha",
+        "eta_actual",
+        "eta_bound",
+        "anchor_radius",
+        "oracle_radius",
+        "gross_radius",
+        "distance",
+        "prod_anchor",
+        "prod_argmax",
+    ):
+        overstated[key] = overstated_metrics[key]
+    overstated_result = verify_tight_argmax_certificate_bytes(
+        p0,
+        p1,
+        D,
+        _canonical_json_bytes(overstated),
+        {cert_hash: interval_m_raw},
+    )
+    assert CertificateReject.M_SOURCE_MISMATCH in overstated_result.rejects
+
+    bad_source = dict(base)
+    bad_source["m_source"] = "caller_supplied"
+    bad_source.pop("m_certificate_schema")
+    bad_source.pop("m_certificate_sha256")
+    bad_source_result = verify_tight_argmax_certificate_bytes(
+        p0,
+        p1,
+        D,
+        _canonical_json_bytes(bad_source),
+        {cert_hash: interval_m_raw},
+    )
+    assert CertificateReject.BAD_M_SOURCE in bad_source_result.rejects
+
+    bad_ref = dict(base)
+    bad_ref["m_certificate_sha256"] = "not-a-sha256"
+    bad_ref_result = verify_tight_argmax_certificate_bytes(
+        p0,
+        p1,
+        D,
+        _canonical_json_bytes(bad_ref),
+        {cert_hash: interval_m_raw},
+    )
+    assert CertificateReject.BAD_M_CERTIFICATE_REF in bad_ref_result.rejects
+
+    print("PASS: interval_m_backed_tight_argmax_certificate_rejects_bad_composition "
+          "(6 negative cases)")
+
+
+def test_stationary_m_backed_tight_argmax_certificate_composition() -> None:
+    """Tight argmax certificates can consume checked stationary-m certificates."""
+    rng = random.Random(20260802)
+    curvature = _curvature_module()
+    construct = getattr(curvature, "_construct_fee_free_stationary_case")
+    build_stationary = getattr(curvature, "build_stationary_curvature_m_certificate")
+    verify_stationary = getattr(curvature, "verify_stationary_curvature_m_certificate_bytes")
+    total = 0
+    stationary_tighter_than_endpoint = 0
+    nonzero_distance = 0
+    max_radius_shrink = 1.0
+    for _ in range(120):
+        reserve_in_0 = rng.randint(10, 500)
+        reserve_in_1 = rng.randint(10, 500)
+        D = rng.randint(5, 200)
+        minimizer_int = rng.randint(1, D - 1)
+        if 2 * minimizer_int == D:
+            minimizer_int = 1 if minimizer_int != 1 else D - 1
+        p0, p1, D, minimizer_a = construct(
+            reserve_in_0,
+            reserve_in_1,
+            D,
+            minimizer_int,
+        )
+        stationary_m_raw = build_stationary(p0, p1, D, minimizer_a)
+        stationary_m_result = verify_stationary(p0, p1, D, stationary_m_raw)
+        assert stationary_m_result.accepted, stationary_m_result.reject
+        cert_hash = hashlib.sha256(stationary_m_raw).hexdigest()
+
+        b_star = continuous_optimum(p0, p1, D)
+        argmax, _ = discrete_optimum_prod(p0, p1, D)
+        anchor = best_continuous_integer_anchor(p0, p1, D)
+        endpoint_m = strong_concavity_param_pool_lower_bound(p0, p1, D)
+        endpoint_raw = build_tight_argmax_certificate(
+            p0,
+            p1,
+            D,
+            anchor,
+            argmax,
+            b_star,
+            endpoint_m,
+        )
+        stationary_raw = build_stationary_m_backed_tight_argmax_certificate(
+            p0,
+            p1,
+            D,
+            anchor,
+            argmax,
+            b_star,
+            stationary_m_raw,
+        )
+        endpoint_result = verify_tight_argmax_certificate_bytes(p0, p1, D, endpoint_raw)
+        stationary_result = verify_tight_argmax_certificate_bytes(
+            p0,
+            p1,
+            D,
+            stationary_raw,
+            {cert_hash: stationary_m_raw},
+        )
+        assert endpoint_result.ok, endpoint_result.rejects
+        assert stationary_result.ok, stationary_result.rejects
+        assert endpoint_result.anchor_radius is not None
+        assert stationary_result.anchor_radius is not None
+        assert stationary_result.distance is not None
+        assert stationary_result.anchor_radius <= endpoint_result.anchor_radius + 1e-9
+        if stationary_result.anchor_radius < endpoint_result.anchor_radius - 1e-9:
+            stationary_tighter_than_endpoint += 1
+            max_radius_shrink = max(
+                max_radius_shrink,
+                endpoint_result.anchor_radius / stationary_result.anchor_radius,
+            )
+        if stationary_result.distance > 1e-9:
+            nonzero_distance += 1
+        total += 1
+
+    assert total == 120, f"Expected 120 stationary composed certificates, got {total}"
+    assert nonzero_distance > 0, "VACUOUS: every stationary composed certificate had zero distance"
+    assert stationary_tighter_than_endpoint > 0, (
+        "VACUOUS: stationary m certificates never tightened endpoint radius")
+    print("PASS: stationary_m_backed_tight_argmax_certificate_composition "
+          f"({total} certificates, tightened={stationary_tighter_than_endpoint}, "
+          f"nonzero_distance={nonzero_distance}, "
+          f"max_radius_shrink={max_radius_shrink:.6g}x)")
+
+
+def test_stationary_m_backed_tight_argmax_certificate_rejects_bad_composition() -> None:
+    """Composed stationary-m certificates reject stale, missing, and mismatched artifacts."""
+    curvature = _curvature_module()
+    construct = getattr(curvature, "_construct_fee_free_stationary_case")
+    build_stationary = getattr(curvature, "build_stationary_curvature_m_certificate")
+    p0, p1, D, minimizer_a = construct(467, 437, 104, 56)
+    stationary_m_raw = build_stationary(p0, p1, D, minimizer_a)
+    cert_hash = hashlib.sha256(stationary_m_raw).hexdigest()
+    b_star = continuous_optimum(p0, p1, D)
+    argmax, _ = discrete_optimum_prod(p0, p1, D)
+    anchor = best_continuous_integer_anchor(p0, p1, D)
+    raw = build_stationary_m_backed_tight_argmax_certificate(
+        p0,
+        p1,
+        D,
+        anchor,
+        argmax,
+        b_star,
+        stationary_m_raw,
+    )
+    base = _decoded_certificate(raw)
+    valid = verify_tight_argmax_certificate_bytes(p0, p1, D, raw, {cert_hash: stationary_m_raw})
+    assert valid.ok, valid.rejects
+
+    missing_result = verify_tight_argmax_certificate_bytes(p0, p1, D, raw)
+    assert missing_result.rejects == (CertificateReject.M_CERTIFICATE_MISSING,)
+
+    tampered_result = verify_tight_argmax_certificate_bytes(
+        p0,
+        p1,
+        D,
+        raw,
+        {cert_hash: stationary_m_raw + b"\n"},
+    )
+    assert CertificateReject.M_CERTIFICATE_HASH_MISMATCH in tampered_result.rejects
+
+    wrong_p0, wrong_p1, wrong_D, wrong_minimizer_a = construct(467, 437, D + 1, 56)
+    wrong_domain_raw = build_stationary(wrong_p0, wrong_p1, wrong_D, wrong_minimizer_a)
+    wrong_hash = hashlib.sha256(wrong_domain_raw).hexdigest()
+    wrong_domain_cert = dict(base)
+    wrong_domain_cert["m_certificate_sha256"] = wrong_hash
+    wrong_domain_result = verify_tight_argmax_certificate_bytes(
+        p0,
+        p1,
+        D,
+        _canonical_json_bytes(wrong_domain_cert),
+        {wrong_hash: wrong_domain_raw},
+    )
+    assert CertificateReject.M_CERTIFICATE_REJECTED in wrong_domain_result.rejects
+
+    overstated = dict(base)
+    assert isinstance(overstated["m"], (int, float))
+    overstated["m"] = float(overstated["m"]) * 1.5
+    overstated_metrics = _tight_argmax_metrics(
+        p0,
+        p1,
+        D,
+        anchor,
+        argmax,
+        b_star,
+        float(overstated["m"]),
+    )
+    for key in (
+        "tau_anchor",
+        "tau_oracle",
+        "alpha",
+        "eta_actual",
+        "eta_bound",
+        "anchor_radius",
+        "oracle_radius",
+        "gross_radius",
+        "distance",
+        "prod_anchor",
+        "prod_argmax",
+    ):
+        overstated[key] = overstated_metrics[key]
+    overstated_result = verify_tight_argmax_certificate_bytes(
+        p0,
+        p1,
+        D,
+        _canonical_json_bytes(overstated),
+        {cert_hash: stationary_m_raw},
+    )
+    assert CertificateReject.M_SOURCE_MISMATCH in overstated_result.rejects
+
+    bad_schema = dict(base)
+    bad_schema["m_certificate_schema"] = INTERVAL_M_CERTIFICATE_SCHEMA
+    bad_schema_result = verify_tight_argmax_certificate_bytes(
+        p0,
+        p1,
+        D,
+        _canonical_json_bytes(bad_schema),
+        {cert_hash: stationary_m_raw},
+    )
+    assert CertificateReject.BAD_M_CERTIFICATE_REF in bad_schema_result.rejects
+
+    bad_source = dict(base)
+    bad_source["m_source"] = "caller_supplied"
+    bad_source.pop("m_certificate_schema")
+    bad_source.pop("m_certificate_sha256")
+    bad_source_result = verify_tight_argmax_certificate_bytes(
+        p0,
+        p1,
+        D,
+        _canonical_json_bytes(bad_source),
+        {cert_hash: stationary_m_raw},
+    )
+    assert CertificateReject.BAD_M_SOURCE in bad_source_result.rejects
+
+    source_schema_mismatch = dict(base)
+    source_schema_mismatch["m_source"] = M_SOURCE_INTERVAL_CERTIFICATE
+    mismatch_result = verify_tight_argmax_certificate_bytes(
+        p0,
+        p1,
+        D,
+        _canonical_json_bytes(source_schema_mismatch),
+        {cert_hash: stationary_m_raw},
+    )
+    assert CertificateReject.BAD_M_CERTIFICATE_REF in mismatch_result.rejects
+
+    print("PASS: stationary_m_backed_tight_argmax_certificate_rejects_bad_composition "
+          "(7 negative cases)")
 
 
 # ---------------------------------------------------------------------------
@@ -695,8 +1822,8 @@ def test_empirical_window_tighter() -> None:
 
 def test_exact_count() -> None:
     # Count of top-level randomized configs across all tests
-    total = 100 + 200 + 500 + 1000 + 1000 + 300 + 300 + 500 + 500
-    assert total == 4400, f"Expected 4400 top-level configs, got {total}"
+    total = 100 + 200 + 500 + 1000 + 1000 + 300 + 300 + 300 + 1 + 150 + 120 + 500 + 500
+    assert total == 4971, f"Expected 4971 top-level configs, got {total}"
     print(f"PASS: exact_count ({total} top-level configs, point counts vary by RNG)")
 
 
@@ -890,6 +2017,13 @@ if __name__ == "__main__":
     test_prod_model_argmax_proximity()
     test_prod_model_window_sufficiency()
     test_prod_argmax_distance_tight_one_sided_perturbation_bound()
+    test_tight_argmax_certificate_accepts_valid_corpus()
+    test_tight_argmax_certificate_rejects_mutations()
+    test_tight_argmax_certificate_rejects_float_overflow_domain()
+    test_interval_m_backed_tight_argmax_certificate_composition()
+    test_interval_m_backed_tight_argmax_certificate_rejects_bad_composition()
+    test_stationary_m_backed_tight_argmax_certificate_composition()
+    test_stationary_m_backed_tight_argmax_certificate_rejects_bad_composition()
     test_ternary_search_achieves_prod_bound()
     test_empirical_window_tighter()
     test_edge_case_L_zero()
@@ -911,4 +2045,8 @@ if __name__ == "__main__":
     print("    6. Argmax proximity: prod(floor(b*)) >= opt - (3L+2) on low-fee corpus  [empirical]")
     print("    7. Window: |b - b*| < sqrt(2*(3L+2)/m) on low-fee corpus  [empirical]")
     print("    8. Tight certified-anchor argmax distance: |argmax_prod-b*| <= sqrt(2*tau/m)  [Lean generic + empirical tau]")
-    print("    9. Ternary search DP achieves (3L+2) bound on low-fee corpus  [empirical]")
+    print("    9. Tight argmax certificate checker rejects stale/noncanonical packets  [empirical]")
+    print("    10. Tight argmax certificate float-domain guard  [CBC boundary]")
+    print("    11. Interval-m-backed tight argmax certificate composition  [Lean bridge + empirical]")
+    print("    12. Stationary-m-backed tight argmax certificate composition  [Lean bridge + empirical]")
+    print("    13. Ternary search DP achieves (3L+2) bound on low-fee corpus  [empirical]")

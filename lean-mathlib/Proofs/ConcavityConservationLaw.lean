@@ -23,6 +23,9 @@ This file proves:
    `out_B_without_A - out_B_with_A <= K*a_A/M = L*a_A`.
 5. `cpmm_stateful_gain_bound_with_fee`: the same bound with a fee parameter
    gamma, `gain <= gamma*K*a_A/M`, by substitution into theorem 4.
+6. `cpmm_donation_gain_argmax_bound_with_fee`: the donation/no-output exact
+   optimizer with fee-scaled net inputs. The raw attacker optimum is
+   `sqrt(M*(M+gammaA*a_A)) / gammaB` when `gammaB > 0`.
 
 ## What Is NOT Proven Here
 
@@ -396,3 +399,121 @@ theorem witness_tight_vs_lipschitz :
   constructor
   · norm_num
   · norm_num
+
+/-! ## Exact Donation/No-Output Attack Optimizer
+
+There are two related stateful attack semantics:
+
+* Filled-A state change, used by `cpmm_stateful_gain_bound_tight` above:
+  A receives CPMM output and the pool output reserve changes.
+* Donation/no-output perturbation, where A adds input liquidity without taking
+  output. This model has gain
+  `K*a_A*a_B / ((M+a_B)*(M+a_A+a_B))`.
+
+The finite optimizer `a_B = sqrt(M*(M+a_A))` belongs to the fee-free
+donation/no-output model. With fee-scaled net inputs, the optimizer is
+`sqrt(M*(M+gammaA*a_A)) / gammaB` when `gammaB > 0`. It is not the optimizer
+for the filled-A state-change gain, whose supremum is approached as `a_B`
+grows. The theorem below proves the exact donation/no-output upper bound
+without differentiating: after cross multiplication, the gap factors as
+`s*(a_B-s)^2`.
+-/
+
+/-- **Donation/no-output exact attack bound**: For the fee-free CPMM donation
+    perturbation gain
+
+    `K*a_A*a_B / ((M+a_B)*(M+a_A+a_B))`,
+
+    any positive `s` satisfying `s^2 = M*(M+a_A)` gives a global upper bound at
+    `a_B = s`.
+
+    The proof is the algebraic certificate
+    `s*(M+a_B)*(M+a_A+a_B) - a_B*(M+s)*(M+a_A+s) = s*(a_B-s)^2`,
+    after using `s^2 = M*(M+a_A)`. -/
+theorem cpmm_donation_gain_argmax_bound
+    (K M a_A a_B s : ℝ)
+    (hK : K > 0) (hM : M > 0) (hA : a_A > 0) (hB : a_B > 0)
+    (hs : s > 0) (hs_sq : s ^ 2 = M * (M + a_A))
+    : K * a_A * a_B / ((M + a_B) * (M + a_A + a_B))
+        ≤ K * a_A * s / ((M + s) * (M + a_A + s)) := by
+  have hMB : 0 < M + a_B := by linarith
+  have hMAB : 0 < M + a_A + a_B := by linarith
+  have hMS : 0 < M + s := by linarith
+  have hMAS : 0 < M + a_A + s := by linarith
+  have hD_B : 0 < (M + a_B) * (M + a_A + a_B) := mul_pos hMB hMAB
+  have hD_s : 0 < (M + s) * (M + a_A + s) := mul_pos hMS hMAS
+  have h_gap_identity :
+      s * ((M + a_B) * (M + a_A + a_B))
+        - a_B * ((M + s) * (M + a_A + s))
+        = s * (a_B - s) ^ 2 := by
+    nlinarith [hs_sq]
+  have h_gap_nonneg :
+      0 ≤ s * ((M + a_B) * (M + a_A + a_B))
+        - a_B * ((M + s) * (M + a_A + s)) := by
+    rw [h_gap_identity]
+    exact mul_nonneg (le_of_lt hs) (sq_nonneg _)
+  have h_base :
+      a_B / ((M + a_B) * (M + a_A + a_B))
+        ≤ s / ((M + s) * (M + a_A + s)) := by
+    rw [div_le_div_iff₀ hD_B hD_s]
+    linarith
+  have hKA_nonneg : 0 ≤ K * a_A := mul_nonneg (le_of_lt hK) (le_of_lt hA)
+  have h_scaled := mul_le_mul_of_nonneg_left h_base hKA_nonneg
+  simpa [div_eq_mul_inv, mul_comm, mul_left_comm, mul_assoc] using h_scaled
+
+/-- **Donation/no-output optimizer witness**: For K=1000, M=1000, a_A=100,
+    the symbolic optimizer can be supplied by any positive `s` with
+    `s^2 = 1100000`. This witness keeps the exact theorem non-vacuous without
+    requiring decimal square-root normalization. -/
+theorem witness_cpmm_donation_gain_argmax_bound
+    (s : ℝ) (hs : s > 0) (hs_sq : s ^ 2 = 1000 * (1000 + 100 : ℝ))
+    : 1000 * 100 * 100 / ((1000 + 100) * (1000 + 100 + 100 : ℝ))
+        ≤ 1000 * 100 * s / ((1000 + s) * (1000 + 100 + s)) := by
+  exact cpmm_donation_gain_argmax_bound 1000 1000 100 100 s
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) hs hs_sq
+
+/-- **Donation/no-output exact attack bound with fees**: fee parameters rescale
+    the two raw trade sizes into net input sizes. For
+
+    `u = gammaA*a_A` and `v = gammaB*a_B`,
+
+    the fee-bearing donation/no-output gain
+
+    `K*u*v / ((M+v)*(M+u+v))`
+
+    is globally bounded by its value at any positive `s` satisfying
+    `s^2 = M*(M+u)`. In raw attacker units, the optimizer is `s/gammaB` when
+    `gammaB > 0`.
+
+    The proof is a substitution into `cpmm_donation_gain_argmax_bound`; the
+    upper fee-domain constraints `gammaA <= 1`, `gammaB <= 1` are economic
+    assumptions for fee bps, but the algebra needs only positive net-input
+    scale factors. -/
+theorem cpmm_donation_gain_argmax_bound_with_fee
+    (K M a_A a_B gammaA gammaB s : ℝ)
+    (hK : K > 0) (hM : M > 0) (hA : a_A > 0) (hB : a_B > 0)
+    (hgammaA : gammaA > 0) (hgammaB : gammaB > 0)
+    (hs : s > 0) (hs_sq : s ^ 2 = M * (M + gammaA * a_A))
+    : K * (gammaA * a_A) * (gammaB * a_B)
+        / ((M + gammaB * a_B) * (M + gammaA * a_A + gammaB * a_B))
+        ≤ K * (gammaA * a_A) * s
+          / ((M + s) * (M + gammaA * a_A + s)) := by
+  have huA : 0 < gammaA * a_A := mul_pos hgammaA hA
+  have huB : 0 < gammaB * a_B := mul_pos hgammaB hB
+  exact cpmm_donation_gain_argmax_bound K M (gammaA * a_A) (gammaB * a_B) s
+    hK hM huA huB hs hs_sq
+
+/-- **Fee-bearing donation/no-output witness**: a concrete nonzero-fee instance
+    of `cpmm_donation_gain_argmax_bound_with_fee`. -/
+theorem witness_cpmm_donation_gain_argmax_bound_with_fee
+    (s : ℝ) (hs : s > 0)
+    (hs_sq : s ^ 2 = 1000 * (1000 + (1 / 2 : ℝ) * 100))
+    : 1000 * ((1 / 2 : ℝ) * 100) * ((9 / 10 : ℝ) * 100)
+        / ((1000 + (9 / 10 : ℝ) * 100)
+          * (1000 + (1 / 2 : ℝ) * 100 + (9 / 10 : ℝ) * 100))
+        ≤ 1000 * ((1 / 2 : ℝ) * 100) * s
+          / ((1000 + s) * (1000 + (1 / 2 : ℝ) * 100 + s)) := by
+  exact cpmm_donation_gain_argmax_bound_with_fee
+    1000 1000 100 100 (1 / 2 : ℝ) (9 / 10 : ℝ) s
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) hs hs_sq

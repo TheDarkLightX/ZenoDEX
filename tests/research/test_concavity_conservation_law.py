@@ -62,8 +62,80 @@ def test_min_out_cap_breaks_tradeoff(mod) -> None:
     mod.test_min_out_cap_breaks_tradeoff()
 
 
+def test_donation_no_output_exact_optimizer(mod) -> None:
+    mod.test_donation_no_output_exact_optimizer()
+
+
+def test_fee_bearing_donation_no_output_exact_optimizer(mod) -> None:
+    mod.test_fee_bearing_donation_no_output_exact_optimizer()
+
+
+def test_donation_optimizer_not_filled_stateful_gain(mod) -> None:
+    mod.test_donation_optimizer_not_filled_stateful_gain()
+
+
 def test_tradeoff_frontier_characterization(mod) -> None:
     mod.test_tradeoff_frontier_characterization()
+
+
+def test_pool_parameter_m_certificate_accepts_valid_corpus(mod) -> None:
+    mod.test_pool_parameter_m_certificate_accepts_valid_corpus()
+
+
+def test_pool_parameter_m_certificate_rejects_mutations(mod) -> None:
+    mod.test_pool_parameter_m_certificate_rejects_mutations()
+
+
+def test_endpoint_curvature_bound_is_not_exact(mod) -> None:
+    mod.test_endpoint_curvature_bound_is_not_exact()
+
+
+def test_symmetric_exact_curvature_minimizer_at_half(mod) -> None:
+    mod.test_symmetric_exact_curvature_minimizer_at_half()
+
+
+def test_stationary_curvature_m_certificate_accepts_constructive_asymmetric_corpus(mod) -> None:
+    mod.test_stationary_curvature_m_certificate_accepts_constructive_asymmetric_corpus()
+
+
+def test_stationary_curvature_m_certificate_rejects_mutations(mod) -> None:
+    mod.test_stationary_curvature_m_certificate_rejects_mutations()
+
+
+def test_exact_curvature_m_certificate_accepts_valid_corpus(mod) -> None:
+    mod.test_exact_curvature_m_certificate_accepts_valid_corpus()
+
+
+def test_exact_curvature_m_certificate_rejects_mutations(mod) -> None:
+    mod.test_exact_curvature_m_certificate_rejects_mutations()
+
+
+def test_exact_curvature_m_certificate_rejects_float_overflow_domain(mod) -> None:
+    mod.test_exact_curvature_m_certificate_rejects_float_overflow_domain()
+
+
+def test_interval_curvature_m_certificate_refines_endpoint_bound(mod) -> None:
+    mod.test_interval_curvature_m_certificate_refines_endpoint_bound()
+
+
+def test_interval_curvature_m_certificate_accepts_valid_corpus(mod) -> None:
+    mod.test_interval_curvature_m_certificate_accepts_valid_corpus()
+
+
+def test_interval_curvature_m_certificate_rejects_mutations(mod) -> None:
+    mod.test_interval_curvature_m_certificate_rejects_mutations()
+
+
+def test_best_interval_curvature_m_certificate_dominates_uniform_corpus(mod) -> None:
+    mod.test_best_interval_curvature_m_certificate_dominates_uniform_corpus()
+
+
+def test_refined_interval_curvature_m_certificate_monotone(mod) -> None:
+    mod.test_refined_interval_curvature_m_certificate_monotone()
+
+
+def test_optimal_midpoint_interval_curvature_m_certificate_audits_greedy(mod) -> None:
+    mod.test_optimal_midpoint_interval_curvature_m_certificate_audits_greedy()
 
 
 def test_exact_count(mod) -> None:
