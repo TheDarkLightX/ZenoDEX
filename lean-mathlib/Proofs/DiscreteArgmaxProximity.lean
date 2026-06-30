@@ -31,10 +31,15 @@ constant (max spot price) and `ε` is the total floor rounding error bound
 7. **Certified-anchor argmax distance**: if a perturbed argmax beats a
    certified anchor whose total value deficit is at most `τ`, every perturbed
    argmax lies within `√(2τ/m)` of `b*`.
-8. **One-sided perturbation argmax distance**: if a perturbed objective lies
+8. **Oracle-tight perturbation distance**: if the perturbed argmax value is
+   known, the sharp generic radius is `√(2(f_cont(b*) - f_disc(b_arg))/m)`.
+9. **One-sided perturbation argmax distance**: if a perturbed objective lies
    below the strongly concave objective with error at most `ε`, and the
    candidate set has an anchor within value loss `α` of the continuous
    optimum, every perturbed argmax lies within `√(2(α+ε)/m)` of `b*`.
+10. **Sharpness witness**: a quadratic strongly-concave objective attains the
+    `√(2(α+ε)/m)` radius under the abstract one-sided hypotheses, so this
+    generic constant cannot be improved without stronger assumptions.
 
 ## Argmax Corollary (PROVEN)
 
@@ -363,6 +368,36 @@ theorem abstract_certified_anchor_argmax_distance
   rw [h_abs_eq_sqrt, h_abs_sq]
   exact Real.sqrt_le_sqrt h_sq_le
 
+/-- **Oracle-tight one-sided perturbation distance**.
+
+    If the value of the perturbed argmax itself is known, no anchor slack is
+    needed. Strong concavity and the one-sided relation `f_disc b_arg <=
+    f_cont b_arg` give the exact generic certificate:
+
+    `|b_arg - b_star| <= sqrt(2 * (f_cont b_star - f_disc b_arg) / m)`.
+
+    For a finite candidate set, the oracle value is `max f_disc`. A practical
+    checker can replace it with any certified anchor value, which gives the
+    `abstract_certified_anchor_argmax_distance` theorem above. -/
+theorem abstract_oracle_perturbed_argmax_distance
+    (f_cont f_disc : ℝ → ℝ) (m : ℝ) (b_star b_arg : ℝ)
+    (hm : m > 0)
+    (h_disc_le_arg : f_disc b_arg ≤ f_cont b_arg)
+    (h_strong_concave : ∀ x : ℝ,
+      f_cont x ≤ f_cont b_star - (m / 2) * (x - b_star)^2)
+    : |b_arg - b_star| ≤
+      Real.sqrt (2 * (f_cont b_star - f_disc b_arg) / m) := by
+  have h_sc := h_strong_concave b_arg
+  have h_sq_nn : 0 ≤ (b_arg - b_star)^2 := sq_nonneg (b_arg - b_star)
+  have h_drop_nn : 0 ≤ (m / 2) * (b_arg - b_star)^2 := by
+    have hm2 : 0 ≤ m / 2 := by nlinarith
+    exact mul_nonneg hm2 h_sq_nn
+  have hτ : f_cont b_star - f_disc b_arg ≥ 0 := by
+    linarith [h_disc_le_arg, h_sc, h_drop_nn]
+  exact abstract_certified_anchor_argmax_distance
+    f_cont f_disc (f_cont b_star - f_disc b_arg) m b_star b_arg b_arg
+    hτ hm le_rfl h_disc_le_arg le_rfl h_strong_concave
+
 /-- **Tight one-sided perturbation argmax distance**.
 
     Let `f_cont` be strongly concave with maximizer `b_star`. Let `f_disc` be a
@@ -402,6 +437,86 @@ theorem abstract_one_sided_perturbed_argmax_distance
     rw [Real.sqrt_sq h_abs_nn]
   rw [h_abs_eq_sqrt, h_abs_sq]
   exact Real.sqrt_le_sqrt h_sq_le
+
+private lemma quadratic_loss_at_sqrt_radius
+    (m t : ℝ) (hm : m > 0) (ht : t ≥ 0) :
+    0 - (-(m / 2) * (Real.sqrt (2 * t / m)) ^ 2) = t := by
+  have h_arg_nn : 0 ≤ 2 * t / m := by
+    exact div_nonneg (mul_nonneg (by norm_num) ht) (le_of_lt hm)
+  have h_sq : (Real.sqrt (2 * t / m)) ^ 2 = 2 * t / m :=
+    Real.sq_sqrt h_arg_nn
+  calc
+    0 - (-(m / 2) * (Real.sqrt (2 * t / m)) ^ 2)
+        = (m / 2) * (Real.sqrt (2 * t / m)) ^ 2 := by ring
+    _ = (m / 2) * (2 * t / m) := by rw [h_sq]
+    _ = t := by
+      field_simp [ne_of_gt hm]
+
+/-- **Sharpness witness for the one-sided perturbation radius**.
+
+    The abstract `sqrt(2*(alpha+epsilon)/m)` radius is not an artifact of a
+    loose proof. For every nonnegative `alpha`, nonnegative `epsilon`, and
+    `m > 0`, the quadratic objective `f(x) = -(m/2)*x^2` with an anchor at
+    radius `sqrt(2*alpha/m)` and a dominated perturbed objective value at
+    radius `sqrt(2*(alpha+epsilon)/m)` satisfies the one-sided theorem's
+    hypotheses and attains the stated radius exactly. Any smaller generic
+    radius would reject this valid witness family. -/
+theorem abstract_one_sided_perturbed_argmax_distance_sharp_quadratic
+    (α ε m : ℝ) (hα : α ≥ 0) (hε : ε ≥ 0) (hm : m > 0) :
+    let anchor : ℝ := Real.sqrt (2 * α / m)
+    let b_arg : ℝ := Real.sqrt (2 * (α + ε) / m)
+    let f_cont : ℝ → ℝ := fun x => - (m / 2) * x^2
+    let f_disc : ℝ → ℝ := fun _ => f_cont b_arg
+    |b_arg - 0| = Real.sqrt (2 * (α + ε) / m) ∧
+      f_cont 0 - f_cont anchor = α ∧
+      f_cont anchor - f_disc anchor = ε ∧
+      f_disc b_arg ≤ f_cont b_arg ∧
+      f_disc anchor ≤ f_disc b_arg ∧
+      (∀ x : ℝ, f_cont x ≤ f_cont 0 - (m / 2) * (x - 0)^2) := by
+  dsimp
+  have h_anchor_loss := quadratic_loss_at_sqrt_radius m α hm hα
+  have h_total_nonneg : 0 ≤ α + ε := add_nonneg hα hε
+  have h_total_loss := quadratic_loss_at_sqrt_radius m (α + ε) hm h_total_nonneg
+  constructor
+  · rw [sub_zero]
+    exact abs_of_nonneg (Real.sqrt_nonneg _)
+  constructor
+  · simpa using h_anchor_loss
+  constructor
+  · linarith [h_anchor_loss, h_total_loss]
+  constructor
+  · exact le_rfl
+  constructor
+  · exact le_rfl
+  · intro x
+    ring_nf
+    exact le_rfl
+
+/-- **Sharpness witness for the oracle perturbation radius**.
+
+    The oracle bound `sqrt(2*(f_cont(b_star) - f_disc(b_arg))/m)` is tight.
+    For every `m > 0` and `τ ≥ 0`, the quadratic objective `f(x) = -(m/2)*x^2`
+    with `f_disc` constant at `f_cont(b_arg)` satisfies the oracle theorem's
+    hypotheses and attains the stated radius exactly. Any smaller generic
+    radius would reject this valid witness family. -/
+theorem abstract_oracle_perturbed_argmax_distance_sharp_quadratic
+    (τ m : ℝ) (hτ : τ ≥ 0) (hm : m > 0) :
+    let b_arg : ℝ := Real.sqrt (2 * τ / m)
+    let f_cont : ℝ → ℝ := fun x => - (m / 2) * x^2
+    let f_disc : ℝ → ℝ := fun _ => f_cont b_arg
+    |b_arg - 0| = Real.sqrt (2 * τ / m) ∧
+      f_disc b_arg ≤ f_cont b_arg ∧
+      (∀ x : ℝ, f_cont x ≤ f_cont 0 - (m / 2) * (x - 0)^2) := by
+  dsimp
+  have h_total_loss := quadratic_loss_at_sqrt_radius m τ hm hτ
+  constructor
+  · rw [sub_zero]
+    exact abs_of_nonneg (Real.sqrt_nonneg _)
+  constructor
+  · exact le_rfl
+  · intro x
+    ring_nf
+    exact le_rfl
 
 /-- **Theorem 4 (CPMM)**: Window sufficiency for the CPMM 2-pool split.
     If a discrete point `b` beats the continuous-guided point `⌊b*⌋`, then

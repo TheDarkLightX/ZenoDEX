@@ -339,6 +339,153 @@ theorem cpmm_prod_discrete_argmax_proximity
       splitFunctionCont K0 M0 c0 K1 M1 c1 D b_star := h_max b
   linarith [h_prod_floor_ge, h_floor_prox, h_max_b, h_floor_le_b]
 
+/-- **Production certified-anchor argmax distance** under ceiling-fee
+    perturbation.
+
+    Assume an anchor `anchor` is in the production candidate set, `b_arg` is a
+    production argmax or any point whose production value dominates the anchor,
+    and the clean continuous objective is strongly concave with parameter `m`.
+    If the anchor has clean continuous loss at most `alpha`, then the production
+    argmax lies within
+
+    `sqrt(2 * (alpha + (K0/M0 + K1/M1 + 2)) / m)`
+
+    of the clean continuous maximizer `b_star`.
+
+    The exact certificate is tighter when the anchor's actual production value
+    is known: use `abstract_certified_anchor_argmax_distance` with
+    `tau = f_cont(b_star) - f_prod(anchor)`. This theorem packages the
+    universal gross-spot ceiling-fee envelope for production CPMM arithmetic. -/
+theorem cpmm_prod_certified_anchor_argmax_distance
+    (K0 M0 c0 K1 M1 c1 D alpha m b_star anchor b_arg : ℝ)
+    (net_prod0_anchor net_prod1_anchor net_prod0_arg net_prod1_arg : ℝ)
+    (hK0 : K0 ≥ 0) (hM0 : M0 > 0) (hc0 : c0 ≥ 0)
+    (hK1 : K1 ≥ 0) (hM1 : M1 > 0) (hc1 : c1 ≥ 0)
+    (hD : D > 0)
+    (h_anchor_nn : 0 ≤ anchor) (h_anchor_le_D : anchor ≤ D)
+    (h_arg_nn : 0 ≤ b_arg) (h_arg_le_D : b_arg ≤ D)
+    (h_net_prod0_anchor_nn : net_prod0_anchor ≥ 0)
+    (h_net_prod1_anchor_nn : net_prod1_anchor ≥ 0)
+    (h_net_prod0_arg_nn : net_prod0_arg ≥ 0)
+    (h_net_prod1_arg_nn : net_prod1_arg ≥ 0)
+    (h_net_prod0_anchor_le : net_prod0_anchor ≤ c0 * anchor)
+    (h_net_prod1_anchor_le : net_prod1_anchor ≤ c1 * (D - anchor))
+    (h_net_prod0_arg_le : net_prod0_arg ≤ c0 * b_arg)
+    (h_net_prod1_arg_le : net_prod1_arg ≤ c1 * (D - b_arg))
+    (h_perturbation0_anchor : c0 * anchor - net_prod0_anchor < 1)
+    (h_perturbation1_anchor : c1 * (D - anchor) - net_prod1_anchor < 1)
+    (h_perturbation0_arg : c0 * b_arg - net_prod0_arg < 1)
+    (h_perturbation1_arg : c1 * (D - b_arg) - net_prod1_arg < 1)
+    (_halpha : alpha ≥ 0) (hm : m > 0)
+    (h_anchor_loss :
+      splitFunctionCont K0 M0 c0 K1 M1 c1 D b_star -
+      splitFunctionCont K0 M0 c0 K1 M1 c1 D anchor ≤ alpha)
+    (h_argmax :
+      splitFunctionProdFloor K0 M0 net_prod0_anchor K1 M1 net_prod1_anchor ≤
+      splitFunctionProdFloor K0 M0 net_prod0_arg K1 M1 net_prod1_arg)
+    (h_strong_concave : ∀ x : ℝ,
+      splitFunctionCont K0 M0 c0 K1 M1 c1 D x ≤
+      splitFunctionCont K0 M0 c0 K1 M1 c1 D b_star -
+        (m / 2) * (x - b_star)^2)
+    : |b_arg - b_star| ≤
+      Real.sqrt (2 * (alpha + (K0 / M0 + K1 / M1 + 2)) / m) := by
+  set eta : ℝ := K0 / M0 + K1 / M1 + 2
+  have hD_nn : 0 ≤ D := le_of_lt hD
+  have h_anchor_err := split_prod_floor_error_bound
+    K0 M0 c0 K1 M1 c1 D anchor net_prod0_anchor net_prod1_anchor
+    hK0 hM0 hc0 hK1 hM1 hc1
+    h_anchor_nn hD_nn h_anchor_le_D
+    h_net_prod0_anchor_nn h_net_prod1_anchor_nn
+    h_net_prod0_anchor_le h_net_prod1_anchor_le
+    h_perturbation0_anchor h_perturbation1_anchor
+  have h_arg_err := split_prod_floor_error_bound
+    K0 M0 c0 K1 M1 c1 D b_arg net_prod0_arg net_prod1_arg
+    hK0 hM0 hc0 hK1 hM1 hc1
+    h_arg_nn hD_nn h_arg_le_D
+    h_net_prod0_arg_nn h_net_prod1_arg_nn
+    h_net_prod0_arg_le h_net_prod1_arg_le
+    h_perturbation0_arg h_perturbation1_arg
+  have h_prod_arg_le_cont :
+      splitFunctionProdFloor K0 M0 net_prod0_arg K1 M1 net_prod1_arg ≤
+      splitFunctionCont K0 M0 c0 K1 M1 c1 D b_arg := by
+    linarith [h_arg_err.1]
+  have h_anchor_total_loss :
+      splitFunctionCont K0 M0 c0 K1 M1 c1 D b_star -
+      splitFunctionProdFloor K0 M0 net_prod0_anchor K1 M1 net_prod1_anchor ≤
+      alpha + eta := by
+    linarith [h_anchor_loss, h_anchor_err.2]
+  have h_sc := h_strong_concave b_arg
+  have h_key : (m / 2) * (b_arg - b_star)^2 ≤ alpha + eta := by
+    linarith [h_anchor_total_loss, h_prod_arg_le_cont, h_argmax, h_sc]
+  have h_cross : (b_arg - b_star)^2 * m ≤ 2 * (alpha + eta) := by
+    have h_2m : 2 * (m / 2 : ℝ) = m := by field_simp
+    nlinarith [h_key, hm, h_2m]
+  have h_sq_le : (b_arg - b_star)^2 ≤ 2 * (alpha + eta) / m := by
+    rw [le_div_iff₀ hm]
+    linarith [h_cross]
+  have h_abs_sq : |b_arg - b_star|^2 = (b_arg - b_star)^2 :=
+    sq_abs (b_arg - b_star)
+  have h_abs_nn : 0 ≤ |b_arg - b_star| := abs_nonneg (b_arg - b_star)
+  have h_abs_eq_sqrt : |b_arg - b_star| = Real.sqrt (|b_arg - b_star|^2) := by
+    rw [Real.sqrt_sq h_abs_nn]
+  have h_bound : |b_arg - b_star| ≤ Real.sqrt (2 * (alpha + eta) / m) := by
+    rw [h_abs_eq_sqrt, h_abs_sq]
+    exact Real.sqrt_le_sqrt h_sq_le
+  simpa [eta] using h_bound
+
+/-! ## Part 5b: Oracle-Tight Production Argmax Distance -/
+
+/-- **Production oracle argmax distance** under ceiling-fee perturbation.
+
+    If the production value at the perturbed argmax is known (or bounded
+    below), no anchor slack is needed. Strong concavity and the one-sided
+    floor relation `prodFloor(b_arg) ≤ cont(b_arg)` give the exact
+    certificate:
+
+    `|b_arg - b_star| ≤ sqrt(2 * (cont(b_star) - prodFloor(b_arg)) / m)`
+
+    This is strictly tighter than the anchor-based theorem when the
+    production value at the argmax exceeds the production value at the
+    anchor. For a finite candidate set, the oracle value is `max prodFloor`;
+    a practical checker substitutes any certified lower bound on it. -/
+theorem cpmm_prod_oracle_argmax_distance
+    (K0 M0 c0 K1 M1 c1 D m b_star b_arg : ℝ)
+    (net_prod0_arg net_prod1_arg : ℝ)
+    (hK0 : K0 ≥ 0) (hM0 : M0 > 0) (hc0 : c0 ≥ 0)
+    (hK1 : K1 ≥ 0) (hM1 : M1 > 0) (hc1 : c1 ≥ 0)
+    (hD : D > 0)
+    (h_arg_nn : 0 ≤ b_arg) (h_arg_le_D : b_arg ≤ D)
+    (h_net_prod0_arg_nn : net_prod0_arg ≥ 0)
+    (h_net_prod1_arg_nn : net_prod1_arg ≥ 0)
+    (h_net_prod0_arg_le : net_prod0_arg ≤ c0 * b_arg)
+    (h_net_prod1_arg_le : net_prod1_arg ≤ c1 * (D - b_arg))
+    (h_perturbation0_arg : c0 * b_arg - net_prod0_arg < 1)
+    (h_perturbation1_arg : c1 * (D - b_arg) - net_prod1_arg < 1)
+    (hm : m > 0)
+    (h_strong_concave : ∀ x : ℝ,
+      splitFunctionCont K0 M0 c0 K1 M1 c1 D x ≤
+      splitFunctionCont K0 M0 c0 K1 M1 c1 D b_star -
+        (m / 2) * (x - b_star)^2)
+    : |b_arg - b_star| ≤
+      Real.sqrt (2 * (splitFunctionCont K0 M0 c0 K1 M1 c1 D b_star -
+        splitFunctionProdFloor K0 M0 net_prod0_arg K1 M1 net_prod1_arg) / m) := by
+  have hD_nn : 0 ≤ D := le_of_lt hD
+  have h_arg_err := split_prod_floor_error_bound
+    K0 M0 c0 K1 M1 c1 D b_arg net_prod0_arg net_prod1_arg
+    hK0 hM0 hc0 hK1 hM1 hc1
+    h_arg_nn hD_nn h_arg_le_D
+    h_net_prod0_arg_nn h_net_prod1_arg_nn
+    h_net_prod0_arg_le h_net_prod1_arg_le
+    h_perturbation0_arg h_perturbation1_arg
+  have h_prod_arg_le_cont :
+      splitFunctionProdFloor K0 M0 net_prod0_arg K1 M1 net_prod1_arg ≤
+      splitFunctionCont K0 M0 c0 K1 M1 c1 D b_arg := by
+    linarith [h_arg_err.1]
+  exact abstract_oracle_perturbed_argmax_distance
+    (splitFunctionCont K0 M0 c0 K1 M1 c1 D)
+    (fun _ : ℝ => splitFunctionProdFloor K0 M0 net_prod0_arg K1 M1 net_prod1_arg)
+    m b_star b_arg hm h_prod_arg_le_cont h_strong_concave
+
 /-! ## Part 6: Non-Vacuity Witnesses -/
 
 /-- Witness: per-pool error bound is satisfied for a concrete case.
