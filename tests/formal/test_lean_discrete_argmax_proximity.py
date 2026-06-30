@@ -19,9 +19,15 @@ def test_discrete_argmax_proximity_file_typechecks() -> None:
         pytest.skip("mathlib4 checkout missing")
 
     source = (lean_dir / target).read_text(encoding="utf-8")
-    assert (
-        "abstract_one_sided_perturbed_argmax_distance_sharp_quadratic" in source
-    ), "sharpness witness theorem is missing from DiscreteArgmaxProximity.lean"
+    required_theorems = (
+        "abstract_one_sided_perturbed_argmax_distance_sharp_quadratic",
+        "abstract_exact_anchor_perturbed_argmax_distance",
+        "abstract_anchorless_candidate_argmax_unbounded",
+    )
+    for theorem in required_theorems:
+        assert theorem in source, (
+            f"{theorem} theorem is missing from DiscreteArgmaxProximity.lean"
+        )
 
     try:
         proc = subprocess.run(

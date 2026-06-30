@@ -140,6 +140,7 @@ import Proofs.MSTCertificateSwapFinset
 import Proofs.ExactIntervalCertificatePath
 import Proofs.IntervalCurvatureCover
 import Proofs.MaximizerBracket
+import Proofs.StationaryMCertificatePath
 import Proofs.NoRisklessYieldLaw
 import Proofs.OILiquidityFundingBound
 import Proofs.OppositeDirectionNoncommutativity

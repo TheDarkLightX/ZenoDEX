@@ -40,6 +40,8 @@ constant (max spot price) and `ε` is the total floor rounding error bound
 10. **Sharpness witness**: a quadratic strongly-concave objective attains the
     `√(2(α+ε)/m)` radius under the abstract one-sided hypotheses, so this
     generic constant cannot be improved without stronger assumptions.
+11. **Anchorless negative result**: without an anchor/lower-value premise, even
+    a two-point candidate set has no finite generic argmax-distance bound.
 
 ## Argmax Corollary (PROVEN)
 
@@ -438,6 +440,33 @@ theorem abstract_one_sided_perturbed_argmax_distance
   rw [h_abs_eq_sqrt, h_abs_sq]
   exact Real.sqrt_le_sqrt h_sq_le
 
+/-- **Exact-anchor perturbation distance**.
+
+    If the candidate set contains the continuous maximizer itself, the anchor
+    loss is `α = 0`. A one-sided perturbation envelope at `b_star` then gives
+    the tight generic ceiling-fee radius:
+
+    `|b_arg - b_star| ≤ sqrt(2*epsilon/m)`.
+
+    For integer grids this corollary usually cannot be used directly because
+    `b_star` need not be a candidate. In that case the caller must supply an
+    anchor loss `alpha` or an oracle value. -/
+theorem abstract_exact_anchor_perturbed_argmax_distance
+    (f_cont f_disc : ℝ → ℝ) (ε m : ℝ) (b_star b_arg : ℝ)
+    (hε : ε ≥ 0) (hm : m > 0)
+    (h_disc_err_at_bstar : f_cont b_star - f_disc b_star ≤ ε)
+    (h_disc_le_arg : f_disc b_arg ≤ f_cont b_arg)
+    (h_argmax : f_disc b_star ≤ f_disc b_arg)
+    (h_strong_concave : ∀ x : ℝ,
+      f_cont x ≤ f_cont b_star - (m / 2) * (x - b_star)^2)
+    : |b_arg - b_star| ≤ Real.sqrt (2 * ε / m) := by
+  have hα : (0 : ℝ) ≥ 0 := by norm_num
+  have h_anchor_loss : f_cont b_star - f_cont b_star ≤ (0 : ℝ) := by linarith
+  have h_bound := abstract_one_sided_perturbed_argmax_distance
+    f_cont f_disc 0 ε m b_star b_star b_arg hα hε hm
+    h_anchor_loss h_disc_err_at_bstar h_disc_le_arg h_argmax h_strong_concave
+  simpa [zero_add] using h_bound
+
 private lemma quadratic_loss_at_sqrt_radius
     (m t : ℝ) (hm : m > 0) (ht : t ≥ 0) :
     0 - (-(m / 2) * (Real.sqrt (2 * t / m)) ^ 2) = t := by
@@ -519,6 +548,63 @@ theorem abstract_oracle_perturbed_argmax_distance_sharp_quadratic
   constructor
   · exact le_rfl
   · intro x
+    ring_nf
+    exact le_rfl
+
+/-- **Anchorless candidate-set counterexample**.
+
+    Strong concavity plus the one-sided relation at the chosen argmax does not
+    by itself imply any finite location window. For every proposed radius `R`,
+    a quadratic strongly-concave objective and a two-point candidate set can
+    make a distant point the perturbed argmax by suppressing the value at the
+    continuous maximizer. This is the formal reason the certified-anchor,
+    oracle-value, or perturbation-lower-bound premise is load-bearing. -/
+theorem abstract_anchorless_candidate_argmax_unbounded
+    (R m : ℝ) (hR : R ≥ 0) (hm : m > 0) :
+    ∃ (f_cont f_disc : ℝ → ℝ) (candidate : ℝ → Prop) (b_star b_arg : ℝ),
+      candidate b_star ∧
+      candidate b_arg ∧
+      R < |b_arg - b_star| ∧
+      (∀ x : ℝ, candidate x → f_disc x ≤ f_cont x) ∧
+      (∀ x : ℝ, candidate x → f_disc x ≤ f_disc b_arg) ∧
+      (∀ x : ℝ, f_cont x ≤ f_cont b_star - (m / 2) * (x - b_star)^2) := by
+  let B : ℝ := R + 1
+  let f_cont : ℝ → ℝ := fun x => - (m / 2) * x^2
+  let f_disc : ℝ → ℝ := fun x => if x = B then f_cont B else f_cont B - 1
+  let candidate : ℝ → Prop := fun x => x = 0 ∨ x = B
+  have hB_pos : 0 < B := by linarith
+  have hB_ne_zero : B ≠ 0 := ne_of_gt hB_pos
+  have hzero_ne_B : (0 : ℝ) ≠ B := by exact Ne.symm hB_ne_zero
+  have hdist : R < |B - 0| := by
+    have h_abs : |B - 0| = B := by
+      rw [sub_zero]
+      exact abs_of_pos hB_pos
+    rw [h_abs]
+    linarith
+  use f_cont, f_disc, candidate, 0, B
+  constructor
+  · exact Or.inl rfl
+  constructor
+  · exact Or.inr rfl
+  constructor
+  · exact hdist
+  constructor
+  · intro x hx
+    rcases hx with rfl | rfl
+    · dsimp [f_disc, f_cont]
+      simp [hzero_ne_B]
+      nlinarith [hm, sq_nonneg B]
+    · dsimp [f_disc]
+      simp
+  constructor
+  · intro x hx
+    rcases hx with rfl | rfl
+    · dsimp [f_disc]
+      simp [hzero_ne_B]
+    · dsimp [f_disc]
+      simp
+  · intro x
+    dsimp [f_cont]
     ring_nf
     exact le_rfl
 
