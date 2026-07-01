@@ -123,6 +123,7 @@ import Proofs.MEVResistanceBound
 import Proofs.MEVResistanceOptimality
 import Proofs.PriceManipulationCostBound
 import Proofs.SlippageLowerBound
+import Proofs.ShardedBatchClearing
 import Proofs.MicroTradeFeeBypass
 import Proofs.MinOutCapGameTheory
 import Proofs.MinimumLiquidityInvariant
