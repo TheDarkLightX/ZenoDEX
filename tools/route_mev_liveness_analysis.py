@@ -180,7 +180,8 @@ def main() -> None:
               f"{rw:>7.2f}% {rr:>7.2f}% {combined:>7.2f}% {batch_rw:>9.2f}%")
 
     print("\nBounds on per-route rejection rate:")
-    print("  Upper (combined): P(RW ∪ RR) under independence assumption")
+    print("  Distribution-free upper bound: min(1, rw + rr)  [union bound]")
+    print("  Independence-based estimate:   1-(1-rw)(1-rr)   [Combined % column]")
     print("  Lower: NOT zero — route-route same-pool staleness can reject")
     print("  even with no same-sender route-writer overlap.")
     print("A precise estimate requires scheduler simulation.")
