@@ -763,6 +763,51 @@ def test_route_exact_in_rejects_float_amount_in() -> None:
         )
 
 
+def test_route_exact_in_rejects_float_protocol_fee_share_bps() -> None:
+    """Float protocol_fee_share_bps raises ValueError (Rust u32 rejects floats)."""
+    with pytest.raises(ValueError, match="must be an integer"):
+        execute_route_exact_in(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_in=100_000,
+            total_min_amount_out=0,
+            protocol_fee_share_bps=5000.5,  # type: ignore[arg-type]
+            protocol_fee_recipient=PROTOCOL_FEE_RECIPIENT,
+        )
+
+
+def test_route_exact_in_rejects_bool_protocol_fee_share_bps() -> None:
+    """Bool protocol_fee_share_bps raises ValueError (Python bool is int subclass but semantically wrong)."""
+    with pytest.raises(ValueError, match="must be an integer"):
+        execute_route_exact_in(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_in=100_000,
+            total_min_amount_out=0,
+            protocol_fee_share_bps=True,  # type: ignore[arg-type]
+            protocol_fee_recipient=PROTOCOL_FEE_RECIPIENT,
+        )
+
+
+def test_route_exact_out_rejects_float_protocol_fee_share_bps() -> None:
+    """Float protocol_fee_share_bps raises ValueError for exact-out too."""
+    with pytest.raises(ValueError, match="must be an integer"):
+        execute_route_exact_out(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_out=500,
+            total_max_amount_in=1_000_000,
+            protocol_fee_share_bps=5000.5,  # type: ignore[arg-type]
+            protocol_fee_recipient=PROTOCOL_FEE_RECIPIENT,
+        )
+
+
 def test_route_exact_in_rejects_intermediate_mul_overflow() -> None:
     """Intermediate multiplication overflow raises ValueError.
 

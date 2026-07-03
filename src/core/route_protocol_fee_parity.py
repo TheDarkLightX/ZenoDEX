@@ -195,6 +195,7 @@ def execute_route_exact_in(
     3. Verify total_min_amount_out is met.
     4. Return per-leg results, fee credits, and pool updates.
     """
+    _check_u128(protocol_fee_share_bps, "protocol_fee_share_bps")
     if not (0 <= protocol_fee_share_bps <= BPS_DENOM):
         raise ValueError("protocol_fee_share_bps must be in [0, 10000]")
     if protocol_fee_share_bps > 0 and not _recipient_is_valid(protocol_fee_recipient):
@@ -321,6 +322,7 @@ def execute_route_exact_out(
     3. Verify each leg's amount_out >= target_out.
     4. Return per-leg results, fee credits, and pool updates.
     """
+    _check_u128(protocol_fee_share_bps, "protocol_fee_share_bps")
     if not (0 <= protocol_fee_share_bps <= BPS_DENOM):
         raise ValueError("protocol_fee_share_bps must be in [0, 10000]")
     if protocol_fee_share_bps > 0 and not _recipient_is_valid(protocol_fee_recipient):

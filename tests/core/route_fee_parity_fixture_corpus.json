@@ -1,6 +1,6 @@
 {
-  "description": "Rust fixture corpus for route protocol-fee parity. Hardcoded expected values matching Rust kernel outputs. Generated from zk/state_proof_risc0/shared/src/lib.rs route test fixtures.",
-  "source": "zk/state_proof_risc0/shared/src/lib.rs",
+  "description": "Pinned regression corpus for route protocol-fee parity. Hardcoded expected values matching Rust kernel test fixture outputs. Values were computed by running the Python module against the same fixtures used by Rust unit tests (zk/state_proof_risc0/shared/src/lib.rs) and pinning the results. This is NOT a mechanical Rust/Python differential corpus (no Rust-side JSON exporter or generator command). It is a pinned regression vector set: if Python output drifts from these hardcoded values, the test fails.",
+  "source": "zk/state_proof_risc0/shared/src/lib.rs (Rust unit test fixtures)",
   "fixtures": [
     {
       "id": "single_leg_exact_in_no_fee",
