@@ -154,16 +154,16 @@ def main() -> None:
     print("stable_route_lift, NOT a simple birthday bound. A precise estimate")
     print("requires simulation of the scheduler over realistic tx mixes.")
     print("")
-    print("Two distinct probability quantities are relevant:")
-    print("  Per-route collision: P(this route's pools overlap any writer)")
-    print("  Batch collision:     P(at least one route in batch collides)")
+    print("Three distinct probability quantities are relevant:")
+    print("  RW per-route:  P(this route's pools overlap any prior writer)")
+    print("  RR per-route:  P(this route's k pools overlap any prior route's k pools)")
+    print("  Combined:      P(RW ∪ RR) = 1-(1-RW)(1-RR) under independence")
+    print("  Batch RW:      P(at least one route collides with a writer)")
     print("")
-    print("The per-route collision is the relevant quantity for expected")
-    print("per-route rejection rate. The batch collision answers 'will any")
-    print("route be rejected?' not 'what fraction will be rejected?'")
+    print("RR uses k²/n_pools overlap probability for two k-pool routes.")
     print("")
     print(f"{'routes':>8} {'writers':>8} {'pools':>8} {'ppr':>6} "
-          f"{'per-route%':>12} {'batch%':>10}")
+          f"{'RW%':>8} {'RR%':>8} {'comb%':>8} {'batchRW%':>10}")
     for n_routes, n_writers, n_pools, ppr in [
         (1, 1, 10, 1),
         (5, 5, 50, 2),
@@ -172,15 +172,15 @@ def main() -> None:
         (50, 50, 500, 3),
         (100, 100, 1000, 4),
     ]:
-        per_route_expected = ppr * n_writers / n_pools
-        per_route_rate = 1.0 - math.exp(-per_route_expected)
-        batch_expected = n_routes * ppr * n_writers / n_pools
-        batch_rate = 1.0 - math.exp(-batch_expected)
+        rw = (1.0 - math.exp(-ppr * n_writers / n_pools)) * 100
+        rr = (1.0 - math.exp(-(ppr * ppr) * (n_routes - 1) / n_pools)) * 100
+        combined = (1.0 - (1.0 - rw / 100) * (1.0 - rr / 100)) * 100
+        batch_rw = (1.0 - math.exp(-n_routes * ppr * n_writers / n_pools)) * 100
         print(f"{n_routes:>8} {n_writers:>8} {n_pools:>8} {ppr:>6} "
-              f"{per_route_rate*100:>11.2f}% {batch_rate*100:>9.2f}%")
+              f"{rw:>7.2f}% {rr:>7.2f}% {combined:>7.2f}% {batch_rw:>9.2f}%")
 
     print("\nBounds on per-route rejection rate:")
-    print("  Upper: per-route collision rate (all same-sender, no lifting)")
+    print("  Upper (combined): P(RW ∪ RR) under independence assumption")
     print("  Lower: NOT zero — route-route same-pool staleness can reject")
     print("  even with no same-sender route-writer overlap.")
     print("A precise estimate requires scheduler simulation.")
@@ -230,14 +230,14 @@ EXPECTED_FEE_SENSITIVITY = {
     300: (-3775, 1638),
 }
 
-# (n_routes, n_writers, n_pools, ppr) -> (per_route_rw_pct, per_route_rr_pct, batch_any_pct)
+# (n_routes, n_writers, n_pools, ppr) -> (rw_pct, rr_pct, combined_pct, batch_rw_pct)
 EXPECTED_COLLISION_TABLE = {
-    (1, 1, 10, 1): (9.52, 0.00, 9.52),
-    (5, 5, 50, 2): (18.13, 14.79, 63.21),
-    (10, 10, 100, 2): (18.13, 16.47, 86.47),
-    (20, 20, 200, 3): (25.92, 24.80, 99.75),
-    (50, 50, 500, 3): (25.92, 25.47, 100.00),
-    (100, 100, 1000, 4): (32.97, 32.70, 100.00),
+    (1, 1, 10, 1): (9.52, 0.00, 9.52, 9.52),
+    (5, 5, 50, 2): (18.13, 27.39, 40.55, 63.21),
+    (10, 10, 100, 2): (18.13, 30.23, 42.88, 86.47),
+    (20, 20, 200, 3): (25.92, 57.47, 68.49, 99.75),
+    (50, 50, 500, 3): (25.92, 58.60, 69.33, 100.00),
+    (100, 100, 1000, 4): (32.97, 79.48, 86.25, 100.00),
 }
 
 
@@ -276,15 +276,18 @@ def check() -> int:
                 f"Q2 fee={fee_bps}: expected loss={exp_loss}, got {s.victim_loss}"
             )
 
-    # Q4: Collision table (per-route RW, per-route RR, batch any)
-    for (n_r, n_w, n_p, ppr), (exp_rw, exp_rr, exp_batch) in EXPECTED_COLLISION_TABLE.items():
+    # Q4: Collision table (per-route RW, per-route RR, combined, batch RW)
+    for (n_r, n_w, n_p, ppr), (exp_rw, exp_rr, exp_comb, exp_batch) in EXPECTED_COLLISION_TABLE.items():
         rw = (1.0 - math.exp(-ppr * n_w / n_p)) * 100
-        rr = (1.0 - math.exp(-ppr * (n_r - 1) / n_p)) * 100
+        rr = (1.0 - math.exp(-(ppr * ppr) * (n_r - 1) / n_p)) * 100
+        combined = (1.0 - (1.0 - rw / 100) * (1.0 - rr / 100)) * 100
         batch = (1.0 - math.exp(-n_r * ppr * n_w / n_p)) * 100
         if not _approx(rw, exp_rw):
             failures.append(f"Q4 ({n_r},{n_w},{n_p},{ppr}): RW={rw:.2f}% expected={exp_rw}%")
         if not _approx(rr, exp_rr):
             failures.append(f"Q4 ({n_r},{n_w},{n_p},{ppr}): RR={rr:.2f}% expected={exp_rr}%")
+        if not _approx(combined, exp_comb):
+            failures.append(f"Q4 ({n_r},{n_w},{n_p},{ppr}): combined={combined:.2f}% expected={exp_comb}%")
         if not _approx(batch, exp_batch):
             failures.append(f"Q4 ({n_r},{n_w},{n_p},{ppr}): batch={batch:.2f}% expected={exp_batch}%")
 

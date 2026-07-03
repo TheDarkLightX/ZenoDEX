@@ -13,7 +13,7 @@ Three defense layers protect route intents from MEV extraction:
 
 **Mechanism**: The route intent binds a SHA-256 hash of the pool snapshots (reserves, fee_bps, asset ids) for every pool in the route. The hash is computed by `route_quote_receipt_hash_with_frontier_binding_v1` at intent construction time. At execution time, the ZK proof kernel recomputes the hash from the current pool state and rejects the route if the hashes mismatch.
 
-**Source**: `zk/state_proof_risc0/shared/src/lib.rs:4248` (`route_quote_receipt_hash_with_frontier_binding_v1`), `zk/state_proof_risc0/shared/src/lib.rs:2101` (mismatch check).
+**Source**: `zk/state_proof_risc0/shared/src/lib.rs:4248` (`route_quote_receipt_hash_with_frontier_binding_v1`), `zk/state_proof_risc0/shared/src/lib.rs:2111-2112` (mismatch check).
 
 **Effect**: If any pool **in the route** is touched by a prior tx in the same block, the pool's reserves change, the recomputed hash mismatches, and the route is rejected. This blocks same-route-pool front-run sandwiches: the attacker's front-run tx touches a route pool, staling the victim's quote.
 
@@ -124,27 +124,34 @@ P(batch_rw_collision) ≈ 1 - exp(-n_routes * pools_per_route * n_writers / n_po
 
 ### Route-route collision probability
 
-**Per-route** (a single route's pools overlap with any prior route's pools):
+**Per-route** (a single route's k pools overlap with any prior route's k pools). Two k-pool routes share at least one pool with probability ~k²/n_pools, so for (n_routes-1) prior routes:
 ```
-P(rr_collision) ≈ 1 - exp(-pools_per_route * (n_routes - 1) / n_pools)
+P(rr_collision) ≈ 1 - exp(-(k²) * (n_routes - 1) / n_pools)
+```
+where k = pools_per_route.
+
+### Combined per-route ceiling
+
+Under independence assumption (RW and RR collisions are independent):
+```
+P(RW ∪ RR) = 1 - (1 - P(rw)) * (1 - P(rr))
 ```
 
 ### Combined table
 
-| Routes | Writers | Pools | PPR | RW per-route % | RR per-route % | Batch any % |
-|--------|---------|-------|-----|----------------|----------------|-------------|
-| 1 | 1 | 10 | 1 | 9.52% | 0.00% | 9.52% |
-| 5 | 5 | 50 | 2 | 18.13% | 14.79% | 63.21% |
-| 10 | 10 | 100 | 2 | 18.13% | 16.47% | 86.47% |
-| 20 | 20 | 200 | 3 | 25.92% | 24.80% | 99.75% |
-| 50 | 50 | 500 | 3 | 25.92% | 25.47% | 100.00% |
-| 100 | 100 | 1000 | 4 | 32.97% | 32.70% | 100.00% |
+| Routes | Writers | Pools | PPR | RW per-route % | RR per-route % | Combined % | Batch RW % |
+|--------|---------|-------|-----|----------------|----------------|------------|------------|
+| 1 | 1 | 10 | 1 | 9.52% | 0.00% | 9.52% | 9.52% |
+| 5 | 5 | 50 | 2 | 18.13% | 27.39% | 40.55% | 63.21% |
+| 10 | 10 | 100 | 2 | 18.13% | 30.23% | 42.88% | 86.47% |
+| 20 | 20 | 200 | 3 | 25.92% | 57.47% | 68.49% | 99.75% |
+| 50 | 50 | 500 | 3 | 25.92% | 58.60% | 69.33% | 100.00% |
+| 100 | 100 | 1000 | 4 | 32.97% | 79.48% | 86.25% | 100.00% |
 
-**Note**: These are collision probabilities, not rejection probabilities. A collision only causes rejection if the scheduler cannot lift the route before the conflicting tx. The actual rejection rate depends on same-sender prefix ordering, route-route pool sharing, and scheduler behavior.
+**Note**: These are collision probabilities, not rejection probabilities. A collision only causes rejection if the scheduler cannot lift the route before the conflicting tx. The combined column assumes RW and RR are independent (upper bound under positive correlation may be lower). The actual rejection rate depends on same-sender prefix ordering, route-route pool sharing, and scheduler behavior.
 
 **Bounds on per-route rejection rate**:
-- **Upper bound (route-writer only)**: If ALL route-writer colliding pairs share a sender (same-sender barrier prevents lifting), per-route rejection from route-writer staleness = `P(rw_collision)`.
-- **Upper bound (combined)**: The total rejection ceiling is the union of route-writer and route-route staleness. With zero writers, the ceiling is `P(rr_collision)` alone.
+- **Upper bound (combined)**: `P(RW ∪ RR)` from the table above, under the independence assumption. With zero writers, ceiling = `P(rr_collision)` alone. With zero routes, ceiling = `P(rw_collision)` alone.
 - **Lower bound**: NOT zero. Route-route same-pool staleness can cause rejections even with zero writers and zero same-sender overlap. The lower bound depends on route-route pool overlap and the scheduler's ability to reorder routes within the same-sender barrier.
 
 A precise estimate requires simulation of the scheduler over realistic tx mixes.
