@@ -98,36 +98,56 @@ Under stale-quote rejection, the attacker's front-run touches a pool in the rout
 
 ## 3. Liveness Cost of Stale-Quote Rejection
 
-A route is rejected if any of its pools is touched by a prior tx in the same block AND the route cannot be lifted before the writer (same-sender barrier). Additionally, two routes sharing the same pool will stale the second route's quote if the first executes first (covered by Rust test `same_pool_prestate_route_hashes_second_rejects_without_mutation`).
+A route is rejected if its `quote_receipt_hash` mismatches at execution time. Two distinct staleness sources cause mismatch:
 
-The rejection rate depends on the same-sender prefix ordering in `stable_route_lift` and route-route pool overlap, not a simple closed-form formula. Two distinct probability quantities are relevant:
+1. **Route-writer staleness**: a prior writer tx touches a pool in the route, changing its reserves. The route cannot be lifted before the writer if they share a sender (same-sender barrier in `stable_route_lift`).
 
-**Per-route collision probability** (a single route's pools overlap with any prior writer):
-```
-P(route_collision) ≈ 1 - exp(-pools_per_route * n_writers / n_pools)
-```
+2. **Route-route staleness**: two routes sharing the same pool — the first route's execution changes the pool's reserves, staling the second route's quote. This happens even with zero writers. Covered by Rust test `same_pool_prestate_route_hashes_second_rejects_without_mutation` (`lib.rs:5349`).
 
-**Batch-level collision probability** (at least one route in the batch collides):
+The total per-route rejection probability is the **union** of these two sources:
+
 ```
-P(batch_collision) ≈ 1 - exp(-n_routes * pools_per_route * n_writers / n_pools)
+P(reject) = P(route-writer staleness) ∪ P(route-route staleness)
 ```
 
-The per-route collision probability is the relevant quantity for expected per-route rejection rate. The batch-level probability answers "will any route be rejected?" not "what fraction of routes will be rejected?"
+### Route-writer collision probability
 
-| Routes | Writers | Pools | Pools/route | Per-route collision % | Batch collision % |
-|--------|---------|-------|-------------|----------------------|-------------------|
-| 1 | 1 | 10 | 1 | 9.52% | 9.52% |
-| 5 | 5 | 50 | 2 | 18.13% | 63.21% |
-| 10 | 10 | 100 | 2 | 18.13% | 86.47% |
-| 20 | 20 | 200 | 3 | 25.92% | 99.75% |
-| 50 | 50 | 500 | 3 | 25.92% | 100.00% |
-| 100 | 100 | 1000 | 4 | 33.01% | 100.00% |
+**Per-route** (a single route's pools overlap with any prior writer):
+```
+P(rw_collision) ≈ 1 - exp(-pools_per_route * n_writers / n_pools)
+```
+
+**Batch-level** (at least one route in the batch collides with a writer):
+```
+P(batch_rw_collision) ≈ 1 - exp(-n_routes * pools_per_route * n_writers / n_pools)
+```
+
+### Route-route collision probability
+
+**Per-route** (a single route's pools overlap with any prior route's pools):
+```
+P(rr_collision) ≈ 1 - exp(-pools_per_route * (n_routes - 1) / n_pools)
+```
+
+### Combined table
+
+| Routes | Writers | Pools | PPR | RW per-route % | RR per-route % | Batch any % |
+|--------|---------|-------|-----|----------------|----------------|-------------|
+| 1 | 1 | 10 | 1 | 9.52% | 0.00% | 9.52% |
+| 5 | 5 | 50 | 2 | 18.13% | 14.79% | 63.21% |
+| 10 | 10 | 100 | 2 | 18.13% | 16.47% | 86.47% |
+| 20 | 20 | 200 | 3 | 25.92% | 24.80% | 99.75% |
+| 50 | 50 | 500 | 3 | 25.92% | 25.47% | 100.00% |
+| 100 | 100 | 1000 | 4 | 32.97% | 32.70% | 100.00% |
+
+**Note**: These are collision probabilities, not rejection probabilities. A collision only causes rejection if the scheduler cannot lift the route before the conflicting tx. The actual rejection rate depends on same-sender prefix ordering, route-route pool sharing, and scheduler behavior.
 
 **Bounds on per-route rejection rate**:
-- **Upper bound**: If ALL colliding routes share a sender with the prior writer (same-sender barrier prevents lifting), per-route rejection rate = per-route collision rate.
-- **Lower bound**: NOT zero. Even with no same-sender route-writer overlap, route-route same-pool staleness can cause rejections. Two routes sharing a pool will stale the second if the first executes first. The lower bound depends on route-route pool overlap, which is non-zero when routes share pools.
+- **Upper bound (route-writer only)**: If ALL route-writer colliding pairs share a sender (same-sender barrier prevents lifting), per-route rejection from route-writer staleness = `P(rw_collision)`.
+- **Upper bound (combined)**: The total rejection ceiling is the union of route-writer and route-route staleness. With zero writers, the ceiling is `P(rr_collision)` alone.
+- **Lower bound**: NOT zero. Route-route same-pool staleness can cause rejections even with zero writers and zero same-sender overlap. The lower bound depends on route-route pool overlap and the scheduler's ability to reorder routes within the same-sender barrier.
 
-The actual rejection rate is between the route-route overlap floor and the per-route collision ceiling, depending on the same-sender fraction, route-route pool sharing, and scheduler behavior. A precise estimate requires simulation of the scheduler over realistic tx mixes.
+A precise estimate requires simulation of the scheduler over realistic tx mixes.
 
 **Liveness vs bad-price tradeoff**: A rejected route costs the user one block of latency (must resubmit with a fresh quote). An executed route at a stale price costs the user the price impact of the prior writer. For a 30 bps fee pool with a 10% price impact writer, the bad-price cost is ~10% of the swap value, while the liveness cost is one block of latency. Stale-quote rejection is strictly better when the price impact exceeds the user's time preference.
 
@@ -135,7 +155,7 @@ The actual rejection rate is between the route-route overlap floor and the per-r
 
 Exact-out routes have a `target_out` and may overdeliver (`amount_out >= target_out`). The overdelivery surplus stays in the pool by construction — the Rust kernel credits only `target_out` to the recipient and subtracts only `target_out` from the pool's output reserve.
 
-**Source**: `zk/state_proof_risc0/shared/src/lib.rs:2102` and `zk/state_proof_risc0/shared/src/lib.rs:2111` (reserve subtraction uses `target_out`), `zk/state_proof_risc0/shared/src/lib.rs:2120` (audit records `target_out` as `reserve_out_delta`), `zk/state_proof_risc0/shared/src/lib.rs:2123` (chain passes `target_out`), `zk/state_proof_risc0/shared/src/lib.rs:2128` (recipient credited `target_out`).
+**Source**: `zk/state_proof_risc0/shared/src/lib.rs:2329` (`target_out` from `target_outs[leg_index]`), `zk/state_proof_risc0/shared/src/lib.rs:2386` and `zk/state_proof_risc0/shared/src/lib.rs:2395` (reserve subtraction uses `target_out`), `zk/state_proof_risc0/shared/src/lib.rs:2405` (audit records `target_out` as `reserve_out_delta`), `zk/state_proof_risc0/shared/src/lib.rs:2409` (chain passes `target_out`), `zk/state_proof_risc0/shared/src/lib.rs:2414` (recipient credited `target_out`).
 
 **Finding**: The overdelivery bound is a **construction property**, not a stale-quote defense property. The surplus stays in the pool regardless of whether the stale-quote defense is active. The stale-quote defense eliminates the scenario where a sandwiched route executes at a bad price with overdelivery, but the construction itself is the primary bound on overdelivery.
 

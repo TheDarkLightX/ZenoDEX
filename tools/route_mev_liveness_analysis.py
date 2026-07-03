@@ -214,31 +214,85 @@ price with overdelivery, but the construction itself is the primary bound.
 
 # Expected values for --check mode (fail-closed drift detection)
 EXPECTED_SANDWICH_30BPS = {
-    (10_000, 50_000): 640,
-    (10_000, 100_000): 1185,
-    (10_000, 500_000): 3538,
-    (100_000, 500_000): 54273,
-    (100_000, 1_000_000): 11857,
+    (10_000, 50_000): (640, 912),
+    (10_000, 100_000): (1185, 1704),
+    (10_000, 500_000): (3538, 5465),
+    (100_000, 500_000): (54273, 49070),
+    (100_000, 1_000_000): (11857, 17037),
+}
+
+EXPECTED_FEE_SENSITIVITY = {
+    1: (1721, 1711),
+    3: (1685, 1711),
+    10: (1556, 1709),
+    30: (1185, 1704),
+    100: (-110, 1686),
+    300: (-3775, 1638),
+}
+
+# (n_routes, n_writers, n_pools, ppr) -> (per_route_rw_pct, per_route_rr_pct, batch_any_pct)
+EXPECTED_COLLISION_TABLE = {
+    (1, 1, 10, 1): (9.52, 0.00, 9.52),
+    (5, 5, 50, 2): (18.13, 14.79, 63.21),
+    (10, 10, 100, 2): (18.13, 16.47, 86.47),
+    (20, 20, 200, 3): (25.92, 24.80, 99.75),
+    (50, 50, 500, 3): (25.92, 25.47, 100.00),
+    (100, 100, 1000, 4): (32.97, 32.70, 100.00),
 }
 
 
+def _approx(a: float, b: float, tol: float = 0.1) -> bool:
+    return abs(a - b) < tol
+
+
 def check() -> int:
-    """Fail-closed check: verify sandwich payoffs match expected values."""
+    """Fail-closed check: verify all printed tables match expected values."""
     failures: List[str] = []
-    for (victim_in, attacker_cap), expected_profit in EXPECTED_SANDWICH_30BPS.items():
+
+    # Q1: Sandwich payoff table (profit + victim_loss)
+    for (victim_in, attacker_cap), (exp_profit, exp_loss) in EXPECTED_SANDWICH_30BPS.items():
         r_in = 10_000_000 if attacker_cap == 1_000_000 else 1_000_000
-        r_out = r_in
-        s = sandwich_single_pool(victim_in, r_in, r_out, 30, attacker_cap)
-        if s.attacker_profit != expected_profit:
+        s = sandwich_single_pool(victim_in, r_in, r_in, 30, attacker_cap)
+        if s.attacker_profit != exp_profit:
             failures.append(
-                f"victim={victim_in} attacker={attacker_cap}: "
-                f"expected profit={expected_profit}, got {s.attacker_profit}"
+                f"Q1 victim={victim_in} attacker={attacker_cap}: "
+                f"expected profit={exp_profit}, got {s.attacker_profit}"
             )
+        if s.victim_loss != exp_loss:
+            failures.append(
+                f"Q1 victim={victim_in} attacker={attacker_cap}: "
+                f"expected loss={exp_loss}, got {s.victim_loss}"
+            )
+
+    # Q2: Fee sensitivity table (profit + victim_loss)
+    for fee_bps, (exp_profit, exp_loss) in EXPECTED_FEE_SENSITIVITY.items():
+        s = sandwich_single_pool(10_000, 1_000_000, 1_000_000, fee_bps, 100_000)
+        if s.attacker_profit != exp_profit:
+            failures.append(
+                f"Q2 fee={fee_bps}: expected profit={exp_profit}, got {s.attacker_profit}"
+            )
+        if s.victim_loss != exp_loss:
+            failures.append(
+                f"Q2 fee={fee_bps}: expected loss={exp_loss}, got {s.victim_loss}"
+            )
+
+    # Q4: Collision table (per-route RW, per-route RR, batch any)
+    for (n_r, n_w, n_p, ppr), (exp_rw, exp_rr, exp_batch) in EXPECTED_COLLISION_TABLE.items():
+        rw = (1.0 - math.exp(-ppr * n_w / n_p)) * 100
+        rr = (1.0 - math.exp(-ppr * (n_r - 1) / n_p)) * 100
+        batch = (1.0 - math.exp(-n_r * ppr * n_w / n_p)) * 100
+        if not _approx(rw, exp_rw):
+            failures.append(f"Q4 ({n_r},{n_w},{n_p},{ppr}): RW={rw:.2f}% expected={exp_rw}%")
+        if not _approx(rr, exp_rr):
+            failures.append(f"Q4 ({n_r},{n_w},{n_p},{ppr}): RR={rr:.2f}% expected={exp_rr}%")
+        if not _approx(batch, exp_batch):
+            failures.append(f"Q4 ({n_r},{n_w},{n_p},{ppr}): batch={batch:.2f}% expected={exp_batch}%")
+
     if failures:
         for f in failures:
             print(f"FAIL: {f}", file=sys.stderr)
         return 1
-    print("OK: all sandwich payoff values match expected", file=sys.stderr)
+    print("OK: all sandwich, fee-sensitivity, and collision table values match expected", file=sys.stderr)
     return 0
 
 
