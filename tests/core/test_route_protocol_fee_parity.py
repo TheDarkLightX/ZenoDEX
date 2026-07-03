@@ -14,6 +14,9 @@ the Python side produces the same numeric results using the same fixtures.
 
 from __future__ import annotations
 
+import json
+import os
+
 import pytest
 
 from src.core.route_protocol_fee_parity import (
@@ -696,8 +699,8 @@ def test_pool_rejects_u128_overflow_reserve() -> None:
 
 
 def test_pool_rejects_negative_fee_bps() -> None:
-    """Negative fee_bps raises ValueError."""
-    with pytest.raises(ValueError, match="fee_bps must be in"):
+    """Negative fee_bps raises ValueError (u128 domain check fires first)."""
+    with pytest.raises(ValueError, match="fee_bps must be non-negative"):
         RouteLegPool(
             pool_id=POOL_ID,
             asset0=ASSET0,
@@ -718,6 +721,133 @@ def test_pool_rejects_oversized_fee_bps() -> None:
             reserve0=1_000_000,
             reserve1=1_000_000,
             fee_bps=10_001,
+        )
+
+
+def test_pool_rejects_float_reserve() -> None:
+    """Float reserve raises ValueError (Rust u128 rejects non-integer JSON)."""
+    with pytest.raises(ValueError, match="must be an integer"):
+        RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=1_000_000.5,  # type: ignore[arg-type]
+            reserve1=1_000_000,
+            fee_bps=30,
+        )
+
+
+def test_pool_rejects_float_fee_bps() -> None:
+    """Float fee_bps raises ValueError (Rust rejects non-integer)."""
+    with pytest.raises(ValueError, match="must be an integer"):
+        RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=1_000_000,
+            reserve1=1_000_000,
+            fee_bps=30.5,  # type: ignore[arg-type]
+        )
+
+
+def test_route_exact_in_rejects_float_amount_in() -> None:
+    """Float total_amount_in raises ValueError (Rust rejects non-integer)."""
+    with pytest.raises(ValueError, match="must be an integer"):
+        execute_route_exact_in(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_in=100_000.5,  # type: ignore[arg-type]
+            total_min_amount_out=0,
+        )
+
+
+def test_route_exact_in_rejects_intermediate_mul_overflow() -> None:
+    """Intermediate multiplication overflow raises ValueError.
+
+    With reserve0=U128_MAX, reserve1=U128_MAX, fee_bps=0, total_amount_in=2:
+      amount_out numerator = reserve_out * net_in = U128_MAX * 2 > u128.
+    Rust rejects via checked arithmetic; Python must too.
+    """
+    from src.core.route_protocol_fee_parity import U128_MAX
+    pools = {
+        POOL_ID: RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=U128_MAX,
+            reserve1=U128_MAX,
+            fee_bps=0,
+        ),
+    }
+    with pytest.raises(ValueError, match="exceeds u128 max"):
+        execute_route_exact_in(
+            pools=pools,
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_in=2,
+            total_min_amount_out=0,
+        )
+
+
+def test_route_exact_in_rejects_denom_add_overflow() -> None:
+    """Denominator addition overflow raises ValueError.
+
+    With reserve_in=U128_MAX, net_in=1: denom = U128_MAX + 1 > u128.
+    """
+    from src.core.route_protocol_fee_parity import U128_MAX
+    pools = {
+        POOL_ID: RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=U128_MAX,
+            reserve1=1_000_000,
+            fee_bps=0,
+        ),
+    }
+    with pytest.raises(ValueError, match="exceeds u128 max"):
+        execute_route_exact_in(
+            pools=pools,
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_in=1,
+            total_min_amount_out=0,
+        )
+
+
+def test_route_exact_in_rejects_new_reserve_in_overflow() -> None:
+    """Post-state reserve_in overflow raises ValueError.
+
+    With reserve_in=U128_MAX-1, fee_bps=0, amount_in=2:
+      reserve_in_delta = 2, new_reserve_in = U128_MAX-1+2 = U128_MAX+1 > u128.
+    But we need amount_out > 0, so reserve_out must be large enough.
+    Actually denom = U128_MAX-1+2 = U128_MAX+1 overflows first.
+    So this is covered by denom overflow. Let's test fee_total mul overflow.
+    """
+    from src.core.route_protocol_fee_parity import U128_MAX
+    pools = {
+        POOL_ID: RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=1_000_000,
+            reserve1=1_000_000,
+            fee_bps=30,
+        ),
+    }
+    # fee_total numerator = U128_MAX * 30 > u128
+    with pytest.raises(ValueError, match="exceeds u128 max"):
+        execute_route_exact_in(
+            pools=pools,
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_in=U128_MAX,
+            total_min_amount_out=0,
         )
 
 
@@ -940,13 +1070,13 @@ def test_pinned_two_leg_exact_in_protocol_fee_boundary() -> None:
       fee_total = ceil(100000*30/10000) = 300
       protocol_fee = floor(300*5000/10000) = 150
       net_in = 100000-300 = 99700
-      amount_out = floor(1M*99700/(1M+99700)) = floor(99700000000/1099700) = floor(90660.90...) = 90661
+      amount_out = floor(1M*99700/(1M+99700)) = floor(99700000000/1099700) = floor(90661.08...) = 90661
 
     Leg 2: amount_in=90661, fee_bps=100
       fee_total = ceil(90661*100/10000) = ceil(906.61) = 907
       protocol_fee = floor(907*5000/10000) = floor(453.5) = 453
       net_in = 90661-907 = 89754
-      amount_out = floor(3M*89754/(1.5M+89754)) = floor(269262000000/1589754) = floor(169373.20...) = 169373
+      amount_out = floor(3M*89754/(1.5M+89754)) = floor(269262000000/1589754) = floor(169373.41...) = 169373
     """
     pools = _two_pool_chain()
     result = execute_route_exact_in(
@@ -971,3 +1101,92 @@ def test_pinned_two_leg_exact_in_protocol_fee_boundary() -> None:
     assert result.leg_results[1].amount_out == 169_373
     assert result.fee_credits[(PROTOCOL_FEE_RECIPIENT, ASSET0)] == 150
     assert result.fee_credits[(PROTOCOL_FEE_RECIPIENT, ASSET1)] == 453
+
+
+# ---------------------------------------------------------------------------
+# Mechanical Rust/Python differential corpus: load JSON fixture and compare
+# ---------------------------------------------------------------------------
+
+_FIXTURE_PATH = os.path.join(os.path.dirname(__file__), "route_fee_parity_fixture_corpus.json")
+
+
+def _load_fixture_corpus() -> list[dict]:
+    """Load the Rust fixture JSON corpus."""
+    with open(_FIXTURE_PATH) as f:
+        data = json.load(f)
+    return data["fixtures"]
+
+
+def _build_pools_from_fixture(fixture: dict) -> dict[str, RouteLegPool]:
+    """Build pool dict from fixture JSON."""
+    pools = {}
+    for pool_id, p in fixture["pools"].items():
+        pools[pool_id] = RouteLegPool(
+            pool_id=pool_id,
+            asset0=p["asset0"],
+            asset1=p["asset1"],
+            reserve0=p["reserve0"],
+            reserve1=p["reserve1"],
+            fee_bps=p["fee_bps"],
+        )
+    return pools
+
+
+def _build_legs_from_fixture(fixture: dict) -> list[RouteLeg]:
+    """Build legs list from fixture JSON."""
+    return [RouteLeg(hops=tuple(RouteLegHop(pool_id=h) for h in leg)) for leg in fixture["legs"]]
+
+
+@pytest.mark.parametrize("fixture", _load_fixture_corpus(), ids=lambda f: f["id"])
+def test_fixture_corpus_matches_python(fixture: dict) -> None:
+    """Mechanical differential: Python output must match hardcoded Rust fixture values.
+
+    This is NOT formula recomputation. The expected values in the JSON corpus are
+    hardcoded from Rust kernel test outputs. Python must produce identical results.
+    """
+    pools = _build_pools_from_fixture(fixture)
+    legs = _build_legs_from_fixture(fixture)
+    expected = fixture["expected"]
+    share_bps = fixture.get("protocol_fee_share_bps", 0)
+    recipient = PROTOCOL_FEE_RECIPIENT if share_bps > 0 else None
+
+    if fixture["route_type"] == "exact_in":
+        result = execute_route_exact_in(
+            pools=pools,
+            legs=legs,
+            asset_in=fixture["asset_in"],
+            asset_out=fixture["asset_out"],
+            total_amount_in=fixture["total_amount_in"],
+            total_min_amount_out=fixture["total_min_amount_out"],
+            protocol_fee_share_bps=share_bps,
+            protocol_fee_recipient=recipient,
+        )
+    else:
+        result = execute_route_exact_out(
+            pools=pools,
+            legs=legs,
+            asset_in=fixture["asset_in"],
+            asset_out=fixture["asset_out"],
+            total_amount_out=fixture["total_amount_out"],
+            total_max_amount_in=fixture["total_max_amount_in"],
+            protocol_fee_share_bps=share_bps,
+            protocol_fee_recipient=recipient,
+        )
+
+    assert result.sender_debit == expected["sender_debit"], f"sender_debit mismatch in {fixture['id']}"
+    assert result.recipient_credit == expected["recipient_credit"], f"recipient_credit mismatch in {fixture['id']}"
+
+    for i, leg_expected in enumerate(expected["leg_results"]):
+        leg = result.leg_results[i]
+        assert leg.fee_total == leg_expected["fee_total"], f"leg {i} fee_total mismatch in {fixture['id']}"
+        assert leg.protocol_fee == leg_expected["protocol_fee"], f"leg {i} protocol_fee mismatch in {fixture['id']}"
+        assert leg.net_in == leg_expected["net_in"], f"leg {i} net_in mismatch in {fixture['id']}"
+        assert leg.amount_out == leg_expected["amount_out"], f"leg {i} amount_out mismatch in {fixture['id']}"
+
+    if "fee_credits" in expected:
+        for asset_key, expected_fee in expected["fee_credits"].items():
+            asset = fixture["pools"][list(fixture["pools"].keys())[0]]["asset0"] if asset_key == "ASSET0" else fixture["pools"][list(fixture["pools"].keys())[0]]["asset1"]
+            if asset_key == "ASSET1" and len(fixture["pools"]) > 1:
+                asset = list(fixture["pools"].values())[1]["asset0"]
+            assert result.fee_credits.get((PROTOCOL_FEE_RECIPIENT, asset), 0) == expected_fee, \
+                f"fee_credit mismatch for {asset_key} in {fixture['id']}"

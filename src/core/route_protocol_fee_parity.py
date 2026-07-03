@@ -33,20 +33,38 @@ BPS_DENOM = 10_000
 U128_MAX = (1 << 128) - 1
 
 
+def _check_u128(value: int, name: str) -> None:
+    """Validate that value is a Python int in Rust u128 domain [0, 2^128-1]."""
+    if type(value) is not int:
+        raise ValueError(f"{name} must be an integer, got {type(value).__name__}")
+    if value < 0:
+        raise ValueError(f"{name} must be non-negative")
+    if value > U128_MAX:
+        raise ValueError(f"{name} exceeds u128 max")
+
+
+def _check_u128_add(a: int, b: int, name: str) -> int:
+    """Checked addition: result must fit in u128."""
+    result = a + b
+    if result > U128_MAX:
+        raise ValueError(f"{name} exceeds u128 max")
+    return result
+
+
+def _check_u128_mul(a: int, b: int, name: str) -> int:
+    """Checked multiplication: result must fit in u128."""
+    result = a * b
+    if result > U128_MAX:
+        raise ValueError(f"{name} exceeds u128 max")
+    return result
+
+
 def _ceil_div_nonneg(numerator: int, denominator: int) -> int:
     if denominator <= 0:
         raise ValueError("denominator must be positive")
     if numerator < 0:
         raise ValueError("numerator must be non-negative")
     return (numerator + denominator - 1) // denominator
-
-
-def _check_u128(value: int, name: str) -> None:
-    """Validate that value fits in Rust u128 domain [0, 2^128-1]."""
-    if value < 0:
-        raise ValueError(f"{name} must be non-negative")
-    if value > U128_MAX:
-        raise ValueError(f"{name} exceeds u128 max")
 
 
 @dataclass(frozen=True)
@@ -63,7 +81,8 @@ class RouteLegPool:
     def __post_init__(self) -> None:
         _check_u128(self.reserve0, "reserve0")
         _check_u128(self.reserve1, "reserve1")
-        if self.fee_bps < 0 or self.fee_bps > BPS_DENOM:
+        _check_u128(self.fee_bps, "fee_bps")
+        if self.fee_bps > BPS_DENOM:
             raise ValueError("fee_bps must be in [0, 10000]")
 
 
@@ -210,7 +229,8 @@ def execute_route_exact_in(
             raise ValueError(f"route asset chain mismatch at pool {pool_id}")
 
         fee_total = _ceil_div_nonneg(
-            current_amount * pool.fee_bps, BPS_DENOM
+            _check_u128_mul(current_amount, pool.fee_bps, "fee_total numerator"),
+            BPS_DENOM,
         )
         if fee_total > current_amount:
             raise ValueError("route fee_total exceeds current_amount")
@@ -218,22 +238,22 @@ def execute_route_exact_in(
         if net_in <= 0:
             raise ValueError("route net_in must be positive after fees")
 
-        protocol_fee = (fee_total * protocol_fee_share_bps) // BPS_DENOM
+        protocol_fee = (_check_u128_mul(fee_total, protocol_fee_share_bps, "protocol_fee numerator")) // BPS_DENOM
         if protocol_fee > fee_total:
             raise ValueError("route protocol_fee exceeds fee_total")
 
         reserve_in_delta = current_amount - protocol_fee
 
-        denom = reserve_in + net_in
+        denom = _check_u128_add(reserve_in, net_in, "denominator")
         if denom <= 0:
             raise ValueError("route denominator must be positive")
-        amount_out = (reserve_out * net_in) // denom
+        amount_out = (_check_u128_mul(reserve_out, net_in, "amount_out numerator")) // denom
         if amount_out == 0:
             raise ValueError("route amount_out is zero")
         if amount_out > reserve_out:
             raise ValueError("route amount_out exceeds reserve_out")
 
-        new_reserve_in = reserve_in + reserve_in_delta
+        new_reserve_in = _check_u128_add(reserve_in, reserve_in_delta, "new_reserve_in")
         new_reserve_out = reserve_out - amount_out
 
         if current_asset == pool.asset0:
@@ -339,14 +359,14 @@ def execute_route_exact_out(
         if required_in >= reserve_out:
             raise ValueError("route amount_out >= reserve_out")
 
-        net_in_num = reserve_in * required_in
+        net_in_num = _check_u128_mul(reserve_in, required_in, "net_in numerator")
         net_in = _ceil_div_nonneg(net_in_num, reserve_out - required_in)
 
         denom_fee = BPS_DENOM - pool.fee_bps
         if denom_fee <= 0:
             raise ValueError("route fee_bps is 10000")
 
-        gross_in = _ceil_div_nonneg(net_in * BPS_DENOM, denom_fee)
+        gross_in = _ceil_div_nonneg(_check_u128_mul(net_in, BPS_DENOM, "gross_in numerator"), denom_fee)
         required_in = gross_in
         assets.append(in_asset)
 
@@ -383,7 +403,8 @@ def execute_route_exact_out(
             raise ValueError(f"route asset chain mismatch at pool {pool_id}")
 
         fee_total = _ceil_div_nonneg(
-            current_amount * pool.fee_bps, BPS_DENOM
+            _check_u128_mul(current_amount, pool.fee_bps, "fee_total numerator"),
+            BPS_DENOM,
         )
         if fee_total > current_amount:
             raise ValueError("route fee_total exceeds current_amount")
@@ -391,22 +412,22 @@ def execute_route_exact_out(
         if net_in <= 0:
             raise ValueError("route net_in must be positive after fees")
 
-        protocol_fee = (fee_total * protocol_fee_share_bps) // BPS_DENOM
+        protocol_fee = (_check_u128_mul(fee_total, protocol_fee_share_bps, "protocol_fee numerator")) // BPS_DENOM
         if protocol_fee > fee_total:
             raise ValueError("route protocol_fee exceeds fee_total")
 
         reserve_in_delta = current_amount - protocol_fee
 
-        denom = reserve_in + net_in
+        denom = _check_u128_add(reserve_in, net_in, "denominator")
         if denom <= 0:
             raise ValueError("route denominator must be positive")
-        amount_out = (reserve_out * net_in) // denom
+        amount_out = (_check_u128_mul(reserve_out, net_in, "amount_out numerator")) // denom
         if amount_out < target_out:
             raise ValueError("route exact-out target not met")
         if amount_out > reserve_out:
             raise ValueError("route amount_out exceeds reserve_out")
 
-        new_reserve_in = reserve_in + reserve_in_delta
+        new_reserve_in = _check_u128_add(reserve_in, reserve_in_delta, "new_reserve_in")
         new_reserve_out = reserve_out - target_out
 
         if current_asset == pool.asset0:

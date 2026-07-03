@@ -1,0 +1,235 @@
+{
+  "description": "Rust fixture corpus for route protocol-fee parity. Hardcoded expected values matching Rust kernel outputs. Generated from zk/state_proof_risc0/shared/src/lib.rs route test fixtures.",
+  "source": "zk/state_proof_risc0/shared/src/lib.rs",
+  "fixtures": [
+    {
+      "id": "single_leg_exact_in_no_fee",
+      "pools": {
+        "POOL_ID": {
+          "asset0": "0x1111111111111111111111111111111111111111111111111111111111111111",
+          "asset1": "0x2222222222222222222222222222222222222222222222222222222222222222",
+          "reserve0": 1000000,
+          "reserve1": 1000000,
+          "fee_bps": 30
+        }
+      },
+      "legs": [["POOL_ID"]],
+      "asset_in": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "asset_out": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "route_type": "exact_in",
+      "total_amount_in": 100000,
+      "total_min_amount_out": 0,
+      "protocol_fee_share_bps": 0,
+      "expected": {
+        "sender_debit": 100000,
+        "recipient_credit": 90661,
+        "leg_results": [
+          {
+            "fee_total": 300,
+            "protocol_fee": 0,
+            "net_in": 99700,
+            "amount_out": 90661
+          }
+        ]
+      }
+    },
+    {
+      "id": "two_leg_exact_in_no_fee",
+      "pools": {
+        "POOL_ID": {
+          "asset0": "0x1111111111111111111111111111111111111111111111111111111111111111",
+          "asset1": "0x2222222222222222222222222222222222222222222222222222222222222222",
+          "reserve0": 1000000,
+          "reserve1": 1000000,
+          "fee_bps": 30
+        },
+        "CHAIN_POOL": {
+          "asset0": "0x2222222222222222222222222222222222222222222222222222222222222222",
+          "asset1": "0x3333333333333333333333333333333333333333333333333333333333333333",
+          "reserve0": 1500000,
+          "reserve1": 3000000,
+          "fee_bps": 100
+        }
+      },
+      "legs": [["POOL_ID"], ["CHAIN_POOL"]],
+      "asset_in": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "asset_out": "0x3333333333333333333333333333333333333333333333333333333333333333",
+      "route_type": "exact_in",
+      "total_amount_in": 100000,
+      "total_min_amount_out": 0,
+      "protocol_fee_share_bps": 0,
+      "expected": {
+        "sender_debit": 100000,
+        "recipient_credit": 169373,
+        "leg_results": [
+          {
+            "fee_total": 300,
+            "protocol_fee": 0,
+            "net_in": 99700,
+            "amount_out": 90661
+          },
+          {
+            "fee_total": 907,
+            "protocol_fee": 0,
+            "net_in": 89754,
+            "amount_out": 169373
+          }
+        ]
+      }
+    },
+    {
+      "id": "two_leg_exact_in_50pct_protocol_fee",
+      "pools": {
+        "POOL_ID": {
+          "asset0": "0x1111111111111111111111111111111111111111111111111111111111111111",
+          "asset1": "0x2222222222222222222222222222222222222222222222222222222222222222",
+          "reserve0": 1000000,
+          "reserve1": 1000000,
+          "fee_bps": 30
+        },
+        "CHAIN_POOL": {
+          "asset0": "0x2222222222222222222222222222222222222222222222222222222222222222",
+          "asset1": "0x3333333333333333333333333333333333333333333333333333333333333333",
+          "reserve0": 1500000,
+          "reserve1": 3000000,
+          "fee_bps": 100
+        }
+      },
+      "legs": [["POOL_ID"], ["CHAIN_POOL"]],
+      "asset_in": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "asset_out": "0x3333333333333333333333333333333333333333333333333333333333333333",
+      "route_type": "exact_in",
+      "total_amount_in": 100000,
+      "total_min_amount_out": 0,
+      "protocol_fee_share_bps": 5000,
+      "expected": {
+        "sender_debit": 100000,
+        "recipient_credit": 169373,
+        "leg_results": [
+          {
+            "fee_total": 300,
+            "protocol_fee": 150,
+            "net_in": 99700,
+            "amount_out": 90661
+          },
+          {
+            "fee_total": 907,
+            "protocol_fee": 453,
+            "net_in": 89754,
+            "amount_out": 169373
+          }
+        ],
+        "fee_credits": {
+          "ASSET0": 150,
+          "ASSET1": 453
+        }
+      }
+    },
+    {
+      "id": "two_leg_exact_out_no_fee",
+      "pools": {
+        "POOL_ID": {
+          "asset0": "0x1111111111111111111111111111111111111111111111111111111111111111",
+          "asset1": "0x2222222222222222222222222222222222222222222222222222222222222222",
+          "reserve0": 1000000,
+          "reserve1": 1000000,
+          "fee_bps": 30
+        },
+        "CHAIN_POOL": {
+          "asset0": "0x2222222222222222222222222222222222222222222222222222222222222222",
+          "asset1": "0x3333333333333333333333333333333333333333333333333333333333333333",
+          "reserve0": 1500000,
+          "reserve1": 3000000,
+          "fee_bps": 100
+        }
+      },
+      "legs": [["POOL_ID"], ["CHAIN_POOL"]],
+      "asset_in": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "asset_out": "0x3333333333333333333333333333333333333333333333333333333333333333",
+      "route_type": "exact_out",
+      "total_amount_out": 1000,
+      "total_max_amount_in": 1000000,
+      "protocol_fee_share_bps": 0,
+      "expected": {
+        "sender_debit": 510,
+        "recipient_credit": 1000,
+        "leg_results": [
+          {
+            "fee_total": 2,
+            "protocol_fee": 0,
+            "net_in": 508,
+            "amount_out": 507
+          },
+          {
+            "fee_total": 6,
+            "protocol_fee": 0,
+            "net_in": 501,
+            "amount_out": 1001
+          }
+        ]
+      }
+    },
+    {
+      "id": "single_leg_exact_in_boundary_334",
+      "pools": {
+        "POOL_ID": {
+          "asset0": "0x1111111111111111111111111111111111111111111111111111111111111111",
+          "asset1": "0x2222222222222222222222222222222222222222222222222222222222222222",
+          "reserve0": 1000000,
+          "reserve1": 1000000,
+          "fee_bps": 30
+        }
+      },
+      "legs": [["POOL_ID"]],
+      "asset_in": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "asset_out": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "route_type": "exact_in",
+      "total_amount_in": 334,
+      "total_min_amount_out": 0,
+      "protocol_fee_share_bps": 0,
+      "expected": {
+        "sender_debit": 334,
+        "recipient_credit": 331,
+        "leg_results": [
+          {
+            "fee_total": 2,
+            "protocol_fee": 0,
+            "net_in": 332,
+            "amount_out": 331
+          }
+        ]
+      }
+    },
+    {
+      "id": "single_leg_exact_in_zero_fee",
+      "pools": {
+        "POOL_ID": {
+          "asset0": "0x1111111111111111111111111111111111111111111111111111111111111111",
+          "asset1": "0x2222222222222222222222222222222222222222222222222222222222222222",
+          "reserve0": 1000000,
+          "reserve1": 1000000,
+          "fee_bps": 0
+        }
+      },
+      "legs": [["POOL_ID"]],
+      "asset_in": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "asset_out": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "route_type": "exact_in",
+      "total_amount_in": 1000,
+      "total_min_amount_out": 0,
+      "protocol_fee_share_bps": 0,
+      "expected": {
+        "sender_debit": 1000,
+        "recipient_credit": 999,
+        "leg_results": [
+          {
+            "fee_total": 0,
+            "protocol_fee": 0,
+            "net_in": 1000,
+            "amount_out": 999
+          }
+        ]
+      }
+    }
+  ]
+}
