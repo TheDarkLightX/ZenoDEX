@@ -158,7 +158,7 @@ This is a point estimate, not a bound. The distribution-free upper bound is the 
 
 A precise estimate requires simulation of the scheduler over realistic tx mixes.
 
-**Liveness vs bad-price tradeoff**: A rejected route costs the user one block of latency (must resubmit with a fresh quote). An executed route at a stale price costs the user the price impact of the prior writer. For a 30 bps fee pool with a 10% price impact writer, the bad-price cost is ~10% of the swap value, while the liveness cost is one block of latency. Stale-quote rejection is strictly better when the price impact exceeds the user's time preference.
+**Liveness vs bad-price tradeoff**: A rejected route costs the user one block of latency (must resubmit with a fresh quote). An executed route at a stale price costs the user the price impact of the prior pool-mutating tx. For a 30 bps fee pool with a 10% price impact writer, the bad-price cost is ~10% of the swap value, while the liveness cost is one block of latency. Stale-quote rejection is generally preferable when the price impact exceeds the user's latency cost, though a formal comparison requires an explicit latency utility model (out of scope here).
 
 ## 4. Exact-Out Overdelivery and Sandwich Payoff
 
