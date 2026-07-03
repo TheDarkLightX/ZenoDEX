@@ -229,6 +229,36 @@ def test_route_exact_in_rejects_whitespace_recipient() -> None:
         )
 
 
+def test_route_exact_in_rejects_bytes_recipient() -> None:
+    """Fail-closed: bytes recipient raises (Rust rejects non-string at context parsing)."""
+    with pytest.raises(ValueError, match="protocol_fee_recipient required"):
+        execute_route_exact_in(
+            pools=_two_pool_chain(),
+            legs=_two_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET2,
+            total_amount_in=100_000,
+            total_min_amount_out=0,
+            protocol_fee_share_bps=1_000,
+            protocol_fee_recipient=b"0xbbbb",  # type: ignore[arg-type]
+        )
+
+
+def test_route_exact_out_rejects_bytes_recipient() -> None:
+    """Fail-closed: bytes recipient raises for exact-out too."""
+    with pytest.raises(ValueError, match="protocol_fee_recipient required"):
+        execute_route_exact_out(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_out=500,
+            total_max_amount_in=1_000_000,
+            protocol_fee_share_bps=1_000,
+            protocol_fee_recipient=b"0xbbbb",  # type: ignore[arg-type]
+        )
+
+
 def test_route_exact_in_rejects_oversized_share_before_recipient() -> None:
     """Reject precedence: range check fires before recipient check (matches Rust)."""
     with pytest.raises(ValueError, match="protocol_fee_share_bps must be in"):
@@ -1149,14 +1179,16 @@ def test_pinned_two_leg_exact_in_protocol_fee_boundary() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Mechanical Rust/Python differential corpus: load JSON fixture and compare
+# Pinned Python regression corpus: load JSON fixture and compare
+# These are pinned regression vectors using Rust unit-test fixtures.
+# NOT a mechanical Rust/Python differential corpus (no Rust-side JSON exporter).
 # ---------------------------------------------------------------------------
 
 _FIXTURE_PATH = os.path.join(os.path.dirname(__file__), "route_fee_parity_fixture_corpus.json")
 
 
 def _load_fixture_corpus() -> list[dict]:
-    """Load the Rust fixture JSON corpus."""
+    """Load the pinned regression fixture corpus."""
     with open(_FIXTURE_PATH) as f:
         data = json.load(f)
     return data["fixtures"]
@@ -1184,10 +1216,11 @@ def _build_legs_from_fixture(fixture: dict) -> list[RouteLeg]:
 
 @pytest.mark.parametrize("fixture", _load_fixture_corpus(), ids=lambda f: f["id"])
 def test_fixture_corpus_matches_python(fixture: dict) -> None:
-    """Mechanical differential: Python output must match hardcoded Rust fixture values.
+    """Pinned regression: Python output must match hardcoded fixture values.
 
     This is NOT formula recomputation. The expected values in the JSON corpus are
-    hardcoded from Rust kernel test outputs. Python must produce identical results.
+    pinned from Python output against Rust unit-test fixtures. If Python output
+    drifts from these hardcoded values, the test fails.
     """
     pools = _build_pools_from_fixture(fixture)
     legs = _build_legs_from_fixture(fixture)

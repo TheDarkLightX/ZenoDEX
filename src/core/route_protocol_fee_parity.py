@@ -129,12 +129,16 @@ class RouteLegResult:
 
 def _recipient_is_valid(recipient: Optional[str]) -> bool:
     """
-    Check that a protocol-fee recipient is present and non-blank.
+    Check that a protocol-fee recipient is a non-blank string.
 
     Mirrors the Rust kernel's `filter(|r| !r.trim().is_empty())` check:
-    None, empty string, and whitespace-only strings are all rejected.
+    None, empty string, whitespace-only strings, and non-string types
+    (bytes, int, etc.) are all rejected. Rust rejects non-string recipients
+    at context parsing (main.rs).
     """
     if recipient is None:
+        return False
+    if type(recipient) is not str:
         return False
     return recipient.strip() != ""
 
