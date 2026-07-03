@@ -152,9 +152,9 @@ This is a point estimate, not a bound. The distribution-free upper bound is the 
 **Note**: These are collision probabilities, not rejection probabilities. A collision only causes rejection if the scheduler cannot lift the route before the conflicting tx. The "Combined %" column is an **independence-based estimate** (`1-(1-rw)(1-rr)`), NOT a distribution-free ceiling. Under positive correlation between RW and RR collisions, the true P(RW ∪ RR) may be lower; under negative correlation, it may be higher. A distribution-free upper bound is the **union bound**: `min(1, rw + rr)`. The actual rejection rate depends on same-sender prefix ordering, route-route pool sharing, and scheduler behavior.
 
 **Bounds on per-route rejection rate**:
-- **Distribution-free upper bound**: `min(1, P(rw) + P(rr))` (union bound). With zero writers, this reduces to `P(rr_collision)`. With zero routes, this reduces to `P(rw_collision)`.
+- **Distribution-free upper bound**: `min(1, P(rw) + P(rr))` (union bound). With no prior writers, this reduces to `P(rr_collision)`. With no competing prior routes (P(rr)=0), this reduces to `P(rw_collision)`.
 - **Independence-based estimate**: `1 - (1-P(rw))*(1-P(rr))` (the "Combined %" column). This is a point estimate, not a bound — it is exact only if RW and RR are independent.
-- **Lower bound**: NOT zero. Route-route same-pool staleness can cause rejections even with zero writers and zero same-sender overlap. The lower bound depends on route-route pool overlap and the scheduler's ability to reorder routes within the same-sender barrier.
+- **Distribution-free lower bound**: Zero. A route with no conflicting prior txs is never rejected. However, for a concrete conflicting batch with route-route same-pool overlap, the realized rejection rate is positive (route-route staleness rejects the second route sharing a pool, even with zero writers and zero same-sender overlap).
 
 A precise estimate requires simulation of the scheduler over realistic tx mixes.
 

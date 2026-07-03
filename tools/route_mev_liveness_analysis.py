@@ -182,8 +182,9 @@ def main() -> None:
     print("\nBounds on per-route rejection rate:")
     print("  Distribution-free upper bound: min(1, rw + rr)  [union bound]")
     print("  Independence-based estimate:   1-(1-rw)(1-rr)   [Combined % column]")
-    print("  Lower: NOT zero — route-route same-pool staleness can reject")
-    print("  even with no same-sender route-writer overlap.")
+    print("  Lower (distribution-free): zero — a route with no conflicting")
+    print("  prior txs is never rejected. For a concrete conflicting batch")
+    print("  with route-route same-pool overlap, realized rejection is positive.")
     print("A precise estimate requires scheduler simulation.")
 
     print("\n" + "=" * 72)
@@ -195,9 +196,12 @@ for same-route-pool front-run sandwiches, reducing them to zero. Sandwiches
 ARE profitable at 30 bps fee (contrary to a naive fee-drag argument), so
 the defense is necessary, not merely defense-in-depth.
 
-The liveness cost is bounded above by the birthday collision rate but
-the actual rejection rate depends on same-sender prefix ordering in
-stable_route_lift. A precise estimate requires scheduler simulation.
+The liveness collision probabilities are Poisson approximations of pool
+overlap events. The distribution-free rejection ceiling is the union bound
+min(1, P(rw)+P(rr)); the Combined % column is an independence-based point
+estimate, not a bound. The actual rejection rate depends on same-sender
+prefix ordering in stable_route_lift. A precise estimate requires scheduler
+simulation.
 
 Residual MEV surfaces (NOT blocked by quote_receipt_hash):
   - Post-route back-running (attacker swaps after victim, no front-run)
