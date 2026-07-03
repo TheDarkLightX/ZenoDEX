@@ -13,11 +13,16 @@ Three defense layers analyzed:
      writers, preventing the "front-run" half of a sandwich.
   3. component_repair: FPT scheduler that repairs small conflict components,
      scaling past the bruteforce oracle cap.
+
+Usage:
+  python3 tools/route_mev_liveness_analysis.py          # print analysis
+  python3 tools/route_mev_liveness_analysis.py --check   # fail-closed check
 """
 
 from __future__ import annotations
 
 import math
+import sys
 from dataclasses import dataclass
 from typing import List, Tuple
 
@@ -149,12 +154,16 @@ def main() -> None:
     print("stable_route_lift, NOT a simple birthday bound. A precise estimate")
     print("requires simulation of the scheduler over realistic tx mixes.")
     print("")
-    print("Upper bound: if ALL routes share a sender with a prior writer,")
-    print("rejection rate = collision_rate. Lower bound: if NO routes share")
-    print("a sender, rejection rate = 0 (all routes are lifted).")
+    print("Two distinct probability quantities are relevant:")
+    print("  Per-route collision: P(this route's pools overlap any writer)")
+    print("  Batch collision:     P(at least one route in batch collides)")
     print("")
-    print("The birthday collision rate (P(any route-writer pool overlap)) is:")
-    print(f"{'routes':>8} {'writers':>8} {'pools':>8} {'ppr':>6} {'collision%':>12}")
+    print("The per-route collision is the relevant quantity for expected")
+    print("per-route rejection rate. The batch collision answers 'will any")
+    print("route be rejected?' not 'what fraction will be rejected?'")
+    print("")
+    print(f"{'routes':>8} {'writers':>8} {'pools':>8} {'ppr':>6} "
+          f"{'per-route%':>12} {'batch%':>10}")
     for n_routes, n_writers, n_pools, ppr in [
         (1, 1, 10, 1),
         (5, 5, 50, 2),
@@ -163,14 +172,18 @@ def main() -> None:
         (50, 50, 500, 3),
         (100, 100, 1000, 4),
     ]:
-        expected_collisions = n_routes * ppr * n_writers / n_pools
-        collision_rate = 1.0 - math.exp(-expected_collisions)
+        per_route_expected = ppr * n_writers / n_pools
+        per_route_rate = 1.0 - math.exp(-per_route_expected)
+        batch_expected = n_routes * ppr * n_writers / n_pools
+        batch_rate = 1.0 - math.exp(-batch_expected)
         print(f"{n_routes:>8} {n_writers:>8} {n_pools:>8} {ppr:>6} "
-              f"{collision_rate*100:>11.2f}%")
+              f"{per_route_rate*100:>11.2f}% {batch_rate*100:>9.2f}%")
 
-    print("\nThe actual rejection rate is between 0 and collision_rate,")
-    print("depending on the same-sender fraction and scheduler behavior.")
-    print("A precise estimate requires simulation, not a closed-form formula.")
+    print("\nBounds on per-route rejection rate:")
+    print("  Upper: per-route collision rate (all same-sender, no lifting)")
+    print("  Lower: NOT zero — route-route same-pool staleness can reject")
+    print("  even with no same-sender route-writer overlap.")
+    print("A precise estimate requires scheduler simulation.")
 
     print("\n" + "=" * 72)
     print("CONCLUSION")
@@ -199,5 +212,37 @@ price with overdelivery, but the construction itself is the primary bound.
 """)
 
 
+# Expected values for --check mode (fail-closed drift detection)
+EXPECTED_SANDWICH_30BPS = {
+    (10_000, 50_000): 640,
+    (10_000, 100_000): 1185,
+    (10_000, 500_000): 3538,
+    (100_000, 500_000): 54273,
+    (100_000, 1_000_000): 11857,
+}
+
+
+def check() -> int:
+    """Fail-closed check: verify sandwich payoffs match expected values."""
+    failures: List[str] = []
+    for (victim_in, attacker_cap), expected_profit in EXPECTED_SANDWICH_30BPS.items():
+        r_in = 10_000_000 if attacker_cap == 1_000_000 else 1_000_000
+        r_out = r_in
+        s = sandwich_single_pool(victim_in, r_in, r_out, 30, attacker_cap)
+        if s.attacker_profit != expected_profit:
+            failures.append(
+                f"victim={victim_in} attacker={attacker_cap}: "
+                f"expected profit={expected_profit}, got {s.attacker_profit}"
+            )
+    if failures:
+        for f in failures:
+            print(f"FAIL: {f}", file=sys.stderr)
+        return 1
+    print("OK: all sandwich payoff values match expected", file=sys.stderr)
+    return 0
+
+
 if __name__ == "__main__":
+    if "--check" in sys.argv:
+        sys.exit(check())
     main()
