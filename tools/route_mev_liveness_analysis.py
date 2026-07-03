@@ -148,8 +148,9 @@ def main() -> None:
     # --- Q4: Liveness cost ---
     print("\n## Q4: Liveness cost of stale-quote rejection")
     print("A route is rejected if any of its pools is touched by a prior")
-    print("pool-mutating tx (writer OR prior route) AND the route cannot be")
-    print("lifted before that tx (same-sender barrier).")
+    print("pool-mutating tx (writer OR prior route). For route-writer conflicts,")
+    print("the same-sender barrier blocks lifting. For route-route conflicts,")
+    print("the scheduler selects one route to win; the other is rejected.")
     print("")
     print("The rejection rate depends on the same-sender prefix ordering in")
     print("stable_route_lift, NOT a simple birthday bound. A precise estimate")

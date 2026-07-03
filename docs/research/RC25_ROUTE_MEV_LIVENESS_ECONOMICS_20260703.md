@@ -124,7 +124,7 @@ P(batch_rw_collision) ≈ 1 - exp(-n_routes * pools_per_route * n_writers / n_po
 
 ### Route-route collision probability
 
-**Per-route** (a single route's k pools overlap with any prior route's k pools). Two k-pool routes share at least one pool with probability ~k²/n_pools, so for (n_routes-1) prior routes:
+**Per-route** (a single route's k pools overlap with any other route's k pools, in worst position where all other routes execute first). Two k-pool routes share at least one pool with probability ~k²/n_pools, so for (n_routes-1) other routes:
 ```
 P(rr_collision) ≈ 1 - exp(-(k²) * (n_routes - 1) / n_pools)
 ```
