@@ -3,7 +3,7 @@
 **Date**: 2026-07-03
 **Scope**: Analysis of route MEV (sandwich/back-running) payoff boundaries under the `quote_receipt_hash` stale-quote defense, the `stable_route_lift` and `component_repair` tx-ordering schedulers, and the liveness cost of stale-quote rejection vs executing at bad prices.
 **Evidence**: Python analysis script (`tools/route_mev_liveness_analysis.py`), Rust kernel source (`zk/state_proof_risc0/shared/src/lib.rs`), Rust test suite (`cargo test --all`).
-**Non-claims**: This is a research analysis, not a production security claim. The sandwich payoff model uses standard CPMM math with integer arithmetic; real-world attacker strategies may differ. Cross-block and cross-venue MEV are out of scope. The liveness cost is an upper bound, not a precise estimate.
+**Non-claims**: This is a research analysis, not a production security claim. The sandwich payoff model uses standard CPMM math with integer arithmetic; real-world attacker strategies may differ. Cross-block and cross-venue MEV are out of scope. The liveness collision probabilities are Poisson approximations of pool overlap events; the distribution-free rejection ceiling is the union bound `min(1, P(rw) + P(rr))`, while the "Combined %" column is an independence-based point estimate, not a bound.
 
 ## 1. Defense Architecture
 
@@ -130,12 +130,13 @@ P(rr_collision) ≈ 1 - exp(-(k²) * (n_routes - 1) / n_pools)
 ```
 where k = pools_per_route.
 
-### Combined per-route ceiling
+### Combined per-route independence estimate
 
 Under independence assumption (RW and RR collisions are independent):
 ```
-P(RW ∪ RR) = 1 - (1 - P(rw)) * (1 - P(rr))
+P(RW ∪ RR) ≈ 1 - (1 - P(rw)) * (1 - P(rr))
 ```
+This is a point estimate, not a bound. The distribution-free upper bound is the union bound `min(1, P(rw) + P(rr))`.
 
 ### Combined table
 
@@ -194,7 +195,7 @@ After all three defense layers, the residual MEV surfaces are:
 
 The stale-quote defense (`quote_receipt_hash`) is the **PRIMARY MEV barrier** for same-route-pool front-run sandwiches, reducing them to zero. Sandwiches are profitable at 30 bps fee (attacker profit ~12% of victim amount), so the defense is necessary, not merely defense-in-depth.
 
-The liveness cost is bounded above by the birthday collision rate, but the actual rejection rate depends on same-sender prefix ordering in `stable_route_lift`. A precise estimate requires scheduler simulation.
+The liveness collision probabilities are Poisson approximations of pool overlap events. The distribution-free rejection ceiling is the union bound `min(1, P(rw) + P(rr))`; the "Combined %" column is an independence-based point estimate. The actual rejection rate depends on same-sender prefix ordering in `stable_route_lift`. A precise estimate requires scheduler simulation.
 
 **Defense layer summary**:
 - Layer 1 (`quote_receipt_hash`): same-route-pool front-run sandwich -> 0 MEV
@@ -228,4 +229,4 @@ python3 -m pytest tests/core/test_route_protocol_fee_parity.py -v
 1. **Post-route back-running**: Quantify the extractable MEV from back-running a route without front-running. The attacker swaps in the opposite direction after the victim's route executes.
 2. **Frontier signature certificates (v2 binding)**: Extend the `quote_receipt_hash` to bind a broader state frontier, closing the correlated-pool MEV gap.
 3. **Slippage tolerance check**: Add a reference-price-based slippage check that rejects routes with excessive price impact, independent of the `quote_receipt_hash` binding.
-4. **Scheduler simulation**: Build a simulation of `stable_route_lift` over realistic tx mixes to estimate the actual rejection rate, replacing the birthday-bound upper bound.
+4. **Scheduler simulation**: Build a simulation of `stable_route_lift` over realistic tx mixes to estimate the actual rejection rate, replacing the Poisson approximation and union bound.
