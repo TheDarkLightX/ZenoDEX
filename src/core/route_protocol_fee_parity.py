@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 BPS_DENOM = 10_000
+U128_MAX = (1 << 128) - 1
 
 
 def _ceil_div_nonneg(numerator: int, denominator: int) -> int:
@@ -38,6 +39,14 @@ def _ceil_div_nonneg(numerator: int, denominator: int) -> int:
     if numerator < 0:
         raise ValueError("numerator must be non-negative")
     return (numerator + denominator - 1) // denominator
+
+
+def _check_u128(value: int, name: str) -> None:
+    """Validate that value fits in Rust u128 domain [0, 2^128-1]."""
+    if value < 0:
+        raise ValueError(f"{name} must be non-negative")
+    if value > U128_MAX:
+        raise ValueError(f"{name} exceeds u128 max")
 
 
 @dataclass(frozen=True)
@@ -50,6 +59,12 @@ class RouteLegPool:
     reserve1: int
     fee_bps: int
     status: str = "ACTIVE"
+
+    def __post_init__(self) -> None:
+        _check_u128(self.reserve0, "reserve0")
+        _check_u128(self.reserve1, "reserve1")
+        if self.fee_bps < 0 or self.fee_bps > BPS_DENOM:
+            raise ValueError("fee_bps must be in [0, 10000]")
 
 
 @dataclass(frozen=True)
@@ -167,6 +182,8 @@ def execute_route_exact_in(
         raise ValueError(
             "protocol_fee_recipient required when protocol_fee_share_bps > 0"
         )
+    _check_u128(total_amount_in, "total_amount_in")
+    _check_u128(total_min_amount_out, "total_min_amount_out")
     _validate_route_envelope(
         pools=pools, legs=legs, asset_in=asset_in, asset_out=asset_out
     )
@@ -290,6 +307,8 @@ def execute_route_exact_out(
         raise ValueError(
             "protocol_fee_recipient required when protocol_fee_share_bps > 0"
         )
+    _check_u128(total_amount_out, "total_amount_out")
+    _check_u128(total_max_amount_in, "total_max_amount_in")
     _validate_route_envelope(
         pools=pools, legs=legs, asset_in=asset_in, asset_out=asset_out
     )

@@ -649,3 +649,325 @@ def test_route_exact_out_rejects_duplicate_pool_ids() -> None:
             total_amount_out=5_000,
             total_max_amount_in=1_000_000,
         )
+
+
+# ---------------------------------------------------------------------------
+# Domain validation: malformed states outside Rust u128 domain
+# ---------------------------------------------------------------------------
+
+
+def test_pool_rejects_negative_reserve0() -> None:
+    """Negative reserve0 raises ValueError (Rust u128 cannot represent)."""
+    with pytest.raises(ValueError, match="reserve0 must be non-negative"):
+        RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=-1,
+            reserve1=1_000_000,
+            fee_bps=30,
+        )
+
+
+def test_pool_rejects_negative_reserve1() -> None:
+    """Negative reserve1 raises ValueError (Rust u128 cannot represent)."""
+    with pytest.raises(ValueError, match="reserve1 must be non-negative"):
+        RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=1_000_000,
+            reserve1=-100,
+            fee_bps=30,
+        )
+
+
+def test_pool_rejects_u128_overflow_reserve() -> None:
+    """Reserve exceeding u128 max raises ValueError."""
+    with pytest.raises(ValueError, match="exceeds u128 max"):
+        RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=(1 << 128),
+            reserve1=1_000_000,
+            fee_bps=30,
+        )
+
+
+def test_pool_rejects_negative_fee_bps() -> None:
+    """Negative fee_bps raises ValueError."""
+    with pytest.raises(ValueError, match="fee_bps must be in"):
+        RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=1_000_000,
+            reserve1=1_000_000,
+            fee_bps=-1,
+        )
+
+
+def test_pool_rejects_oversized_fee_bps() -> None:
+    """fee_bps > 10000 raises ValueError."""
+    with pytest.raises(ValueError, match="fee_bps must be in"):
+        RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=1_000_000,
+            reserve1=1_000_000,
+            fee_bps=10_001,
+        )
+
+
+def test_route_exact_in_rejects_negative_amount_in() -> None:
+    """Negative total_amount_in raises ValueError (Rust u32/u128 domain)."""
+    with pytest.raises(ValueError, match="total_amount_in must be non-negative"):
+        execute_route_exact_in(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_in=-1,
+            total_min_amount_out=0,
+        )
+
+
+def test_route_exact_in_rejects_u128_overflow_amount() -> None:
+    """total_amount_in exceeding u128 max raises ValueError."""
+    with pytest.raises(ValueError, match="total_amount_in exceeds u128 max"):
+        execute_route_exact_in(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_in=(1 << 128),
+            total_min_amount_out=0,
+        )
+
+
+def test_route_exact_out_rejects_negative_amount_out() -> None:
+    """Negative total_amount_out raises ValueError (Rust u128 domain)."""
+    with pytest.raises(ValueError, match="total_amount_out must be non-negative"):
+        execute_route_exact_out(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_out=-1,
+            total_max_amount_in=1_000_000,
+        )
+
+
+def test_route_exact_out_rejects_u128_overflow_amount() -> None:
+    """total_amount_out exceeding u128 max raises ValueError."""
+    with pytest.raises(ValueError, match="total_amount_out exceeds u128 max"):
+        execute_route_exact_out(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_out=(1 << 128),
+            total_max_amount_in=1_000_000,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Pinned boundary corpus: hardcoded expected values (not formula recomputation)
+# These pin specific small/edge cases that a Rust-generated corpus would cover.
+# ---------------------------------------------------------------------------
+
+
+def test_pinned_single_leg_exact_in_tiny_amount_rejects() -> None:
+    """Pinned: 1-unit input, fee 30bps -> net_in=0 -> reject."""
+    with pytest.raises(ValueError, match="net_in must be positive"):
+        execute_route_exact_in(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_in=1,
+            total_min_amount_out=0,
+        )
+
+
+def test_pinned_single_leg_exact_in_boundary_amount() -> None:
+    """Pinned: 334 units, fee 30bps -> fee=ceil(334*30/10000)=2, net_in=332.
+
+    amount_out = floor(1000000*332/(1000000+332)) = floor(332*1000000/1000332)
+    = floor(331.89...) = 331
+    """
+    pools = _single_pool()
+    result = execute_route_exact_in(
+        pools=pools,
+        legs=_single_leg_route(),
+        asset_in=ASSET0,
+        asset_out=ASSET1,
+        total_amount_in=334,
+        total_min_amount_out=0,
+    )
+    assert result.sender_debit == 334
+    assert result.recipient_credit == 331
+    assert result.leg_results[0].fee_total == 2
+    assert result.leg_results[0].net_in == 332
+    assert result.leg_results[0].amount_out == 331
+
+
+def test_pinned_single_leg_exact_in_zero_fee() -> None:
+    """Pinned: 1000 units, fee 0bps -> fee=0, net_in=1000.
+
+    amount_out = floor(1000000*1000/(1000000+1000)) = floor(999000000/1001000)
+    = floor(999.000...) = 999
+    """
+    pools = {
+        POOL_ID: RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=1_000_000,
+            reserve1=1_000_000,
+            fee_bps=0,
+        ),
+    }
+    result = execute_route_exact_in(
+        pools=pools,
+        legs=_single_leg_route(),
+        asset_in=ASSET0,
+        asset_out=ASSET1,
+        total_amount_in=1_000,
+        total_min_amount_out=0,
+    )
+    assert result.sender_debit == 1_000
+    assert result.recipient_credit == 999
+    assert result.leg_results[0].fee_total == 0
+    assert result.leg_results[0].net_in == 1_000
+    assert result.leg_results[0].amount_out == 999
+
+
+def test_pinned_single_leg_exact_in_max_fee_boundary() -> None:
+    """Pinned: 10000 units, fee 10000bps (100%) -> fee=10000, net_in=0 -> reject."""
+    pools = {
+        POOL_ID: RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=1_000_000,
+            reserve1=1_000_000,
+            fee_bps=10_000,
+        ),
+    }
+    with pytest.raises(ValueError, match="net_in must be positive"):
+        execute_route_exact_in(
+            pools=pools,
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_in=10_000,
+            total_min_amount_out=0,
+        )
+
+
+def test_pinned_two_leg_exact_out_boundary() -> None:
+    """Pinned: 2-leg exact-out, target 1000 ASSET2. Hardcoded expected values.
+
+    Reverse pass:
+    - Leg 2 (CHAIN_POOL: ASSET1/ASSET2, 1.5M/3M, fee 100bps):
+      target_out=1000, reserve_in=1.5M, reserve_out=3M
+      net_in = ceil(1.5M*1000/(3M-1000)) = ceil(1500000000/2999000) = ceil(500.16...) = 501
+      gross_in = ceil(501*10000/(10000-100)) = ceil(5010000/9900) = ceil(506.06...) = 507
+    - Leg 1 (POOL_ID: ASSET0/ASSET1, 1M/1M, fee 30bps):
+      target_out=507, reserve_in=1M, reserve_out=1M
+      net_in = ceil(1M*507/(1M-507)) = ceil(507000000/999493) = ceil(507.25...) = 508
+      gross_in = ceil(508*10000/(10000-30)) = ceil(5080000/9970) = ceil(509.52...) = 510
+
+    Forward pass (no protocol fee):
+    - Leg 1: fee=ceil(510*30/10000)=ceil(1.53)=2, net_in=508
+      amount_out = floor(1M*508/(1M+508)) = floor(508000000/1000508) = floor(507.74...) = 507
+    - Leg 2: fee=ceil(507*100/10000)=ceil(5.07)=6, net_in=501
+      amount_out = floor(3M*501/(1.5M+501)) = floor(1503000000/1500501) = floor(1001.66...) = 1001
+
+    recipient_credit = 1000 (target_out for last leg)
+    sender_debit = 510 (required_in)
+    """
+    pools = _two_pool_chain()
+    result = execute_route_exact_out(
+        pools=pools,
+        legs=_two_leg_route(),
+        asset_in=ASSET0,
+        asset_out=ASSET2,
+        total_amount_out=1_000,
+        total_max_amount_in=1_000_000,
+    )
+    assert result.sender_debit == 510
+    assert result.recipient_credit == 1_000
+    assert result.leg_results[0].amount_out == 507
+    assert result.leg_results[1].amount_out == 1_001
+    assert result.leg_results[0].fee_total == 2
+    assert result.leg_results[1].fee_total == 6
+
+
+def test_pinned_single_leg_exact_out_overdelivery() -> None:
+    """Pinned: exact-out overdelivery. target=500, expect amount_out >= 500.
+
+    Reverse: net_in = ceil(1M*500/(1M-500)) = ceil(500000000/999500) = ceil(500.25) = 501
+    gross_in = ceil(501*10000/9970) = ceil(5010000/9970) = ceil(502.50...) = 503
+
+    Forward: fee = ceil(503*30/10000) = ceil(1.509) = 2, net_in = 501
+    amount_out = floor(1M*501/(1M+501)) = floor(501000000/1000501) = floor(500.74...) = 500
+
+    Overdelivery = amount_out - target_out = 500 - 500 = 0 (exact in this case)
+    """
+    pools = _single_pool()
+    result = execute_route_exact_out(
+        pools=pools,
+        legs=_single_leg_route(),
+        asset_in=ASSET0,
+        asset_out=ASSET1,
+        total_amount_out=500,
+        total_max_amount_in=1_000_000,
+    )
+    assert result.sender_debit == 503
+    assert result.recipient_credit == 500
+    assert result.leg_results[0].amount_out == 500
+    assert result.leg_results[0].amount_out >= 500  # overdelivery >= 0
+
+
+def test_pinned_two_leg_exact_in_protocol_fee_boundary() -> None:
+    """Pinned: 2-leg exact-in with 50% protocol fee. Hardcoded expected.
+
+    Leg 1: amount_in=100000, fee_bps=30
+      fee_total = ceil(100000*30/10000) = 300
+      protocol_fee = floor(300*5000/10000) = 150
+      net_in = 100000-300 = 99700
+      amount_out = floor(1M*99700/(1M+99700)) = floor(99700000000/1099700) = floor(90660.90...) = 90661
+
+    Leg 2: amount_in=90661, fee_bps=100
+      fee_total = ceil(90661*100/10000) = ceil(906.61) = 907
+      protocol_fee = floor(907*5000/10000) = floor(453.5) = 453
+      net_in = 90661-907 = 89754
+      amount_out = floor(3M*89754/(1.5M+89754)) = floor(269262000000/1589754) = floor(169373.20...) = 169373
+    """
+    pools = _two_pool_chain()
+    result = execute_route_exact_in(
+        pools=pools,
+        legs=_two_leg_route(),
+        asset_in=ASSET0,
+        asset_out=ASSET2,
+        total_amount_in=100_000,
+        total_min_amount_out=0,
+        protocol_fee_share_bps=5_000,
+        protocol_fee_recipient=PROTOCOL_FEE_RECIPIENT,
+    )
+    assert result.sender_debit == 100_000
+    assert result.recipient_credit == 169_373
+    assert result.leg_results[0].fee_total == 300
+    assert result.leg_results[0].protocol_fee == 150
+    assert result.leg_results[0].net_in == 99_700
+    assert result.leg_results[0].amount_out == 90_661
+    assert result.leg_results[1].fee_total == 907
+    assert result.leg_results[1].protocol_fee == 453
+    assert result.leg_results[1].net_in == 89_754
+    assert result.leg_results[1].amount_out == 169_373
+    assert result.fee_credits[(PROTOCOL_FEE_RECIPIENT, ASSET0)] == 150
+    assert result.fee_credits[(PROTOCOL_FEE_RECIPIENT, ASSET1)] == 453
