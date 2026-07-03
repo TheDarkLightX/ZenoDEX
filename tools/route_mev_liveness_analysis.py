@@ -160,7 +160,7 @@ def main() -> None:
     print("")
     print("Three distinct probability quantities are relevant:")
     print("  RW per-route:  P(this route's pools overlap any prior writer)")
-    print("  RR per-route:  P(this route's k pools overlap any prior route's k pools)")
+    print("  RR per-route:  P(this route's k pools overlap any other route's k pools)")
     print("  Combined:      P(RW ∪ RR) = 1-(1-RW)(1-RR) under independence")
     print("  Batch RW:      P(at least one route collides with a writer)")
     print("")
@@ -204,8 +204,8 @@ The liveness collision probabilities are Poisson approximations of pool
 overlap events. The distribution-free rejection ceiling is the union bound
 min(1, P(rw)+P(rr)); the Combined % column is an independence-based point
 estimate, not a bound. The actual rejection rate depends on same-sender
-prefix ordering in stable_route_lift. A precise estimate requires scheduler
-simulation.
+prefix ordering, route-route pool sharing, and scheduler behavior in
+stable_route_lift. A precise estimate requires scheduler simulation.
 
 Residual MEV surfaces (NOT blocked by quote_receipt_hash):
   - Post-route back-running (attacker swaps after victim, no front-run)

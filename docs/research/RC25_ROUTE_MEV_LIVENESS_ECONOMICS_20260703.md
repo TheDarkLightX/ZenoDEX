@@ -89,8 +89,8 @@ A classic sandwich attack on a `swap_exact_in` victim:
 
 Under stale-quote rejection, the attacker's front-run touches a pool in the route, making the victim's `quote_receipt_hash` stale. The victim's route is **rejected** before execution.
 
-- Attacker profit = 0 (no victim to back-run into)
-- Attacker is left with a single swap (no sandwich), paying fees
+- Victim-extractive sandwich MEV = 0 (no victim to back-run into; the victim's route is rejected)
+- Attacker is left with a single swap (no sandwich), paying fees; attacker PnL after failed front-run/unwind is strategy-dependent and likely fee-negative in the simple unwind case
 - Victim loss = 0 (route rejected, no execution at bad price)
 - **Same-route-pool front-run sandwich MEV = 0** (under `quote_receipt_hash`)
 
