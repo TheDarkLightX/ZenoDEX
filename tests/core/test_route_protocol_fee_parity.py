@@ -231,7 +231,7 @@ def test_route_exact_in_rejects_whitespace_recipient() -> None:
 
 def test_route_exact_in_rejects_bytes_recipient() -> None:
     """Fail-closed: bytes recipient raises (Rust rejects non-string at context parsing)."""
-    with pytest.raises(ValueError, match="protocol_fee_recipient required"):
+    with pytest.raises(ValueError, match="protocol_fee_recipient must be a string"):
         execute_route_exact_in(
             pools=_two_pool_chain(),
             legs=_two_leg_route(),
@@ -246,7 +246,7 @@ def test_route_exact_in_rejects_bytes_recipient() -> None:
 
 def test_route_exact_out_rejects_bytes_recipient() -> None:
     """Fail-closed: bytes recipient raises for exact-out too."""
-    with pytest.raises(ValueError, match="protocol_fee_recipient required"):
+    with pytest.raises(ValueError, match="protocol_fee_recipient must be a string"):
         execute_route_exact_out(
             pools=_single_pool(),
             legs=_single_leg_route(),
@@ -256,6 +256,36 @@ def test_route_exact_out_rejects_bytes_recipient() -> None:
             total_max_amount_in=1_000_000,
             protocol_fee_share_bps=1_000,
             protocol_fee_recipient=b"0xbbbb",  # type: ignore[arg-type]
+        )
+
+
+def test_route_exact_in_rejects_bytes_recipient_zero_share() -> None:
+    """Fail-closed: bytes recipient rejected even when share=0 (Rust rejects at parse)."""
+    with pytest.raises(ValueError, match="protocol_fee_recipient must be a string"):
+        execute_route_exact_in(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_in=100_000,
+            total_min_amount_out=0,
+            protocol_fee_share_bps=0,
+            protocol_fee_recipient=b"0xbbbb",  # type: ignore[arg-type]
+        )
+
+
+def test_route_exact_out_rejects_int_recipient_zero_share() -> None:
+    """Fail-closed: int recipient rejected even when share=0."""
+    with pytest.raises(ValueError, match="protocol_fee_recipient must be a string"):
+        execute_route_exact_out(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_out=500,
+            total_max_amount_in=1_000_000,
+            protocol_fee_share_bps=0,
+            protocol_fee_recipient=12345,  # type: ignore[arg-type]
         )
 
 
@@ -681,6 +711,82 @@ def test_route_exact_out_rejects_duplicate_pool_ids() -> None:
             asset_out=ASSET1,
             total_amount_out=5_000,
             total_max_amount_in=1_000_000,
+        )
+
+
+# ---------------------------------------------------------------------------
+# String boundary validation: pool_id, asset0, asset1, hop pool_id, asset_in/out
+# ---------------------------------------------------------------------------
+
+
+def test_pool_rejects_non_string_pool_id() -> None:
+    """Non-string pool_id raises ValueError (Rust JSON parsing is string-only)."""
+    with pytest.raises(ValueError, match="pool_id must be a string"):
+        RouteLegPool(
+            pool_id=99,  # type: ignore[arg-type]
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=1_000_000,
+            reserve1=1_000_000,
+            fee_bps=30,
+        )
+
+
+def test_pool_rejects_non_string_asset0() -> None:
+    """Non-string asset0 raises ValueError."""
+    with pytest.raises(ValueError, match="asset0 must be a string"):
+        RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=1,  # type: ignore[arg-type]
+            asset1=ASSET1,
+            reserve0=1_000_000,
+            reserve1=1_000_000,
+            fee_bps=30,
+        )
+
+
+def test_pool_rejects_non_string_asset1() -> None:
+    """Non-string asset1 raises ValueError."""
+    with pytest.raises(ValueError, match="asset1 must be a string"):
+        RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=2,  # type: ignore[arg-type]
+            reserve0=1_000_000,
+            reserve1=1_000_000,
+            fee_bps=30,
+        )
+
+
+def test_hop_rejects_non_string_pool_id() -> None:
+    """Non-string hop pool_id raises ValueError."""
+    with pytest.raises(ValueError, match="hop pool_id must be a string"):
+        RouteLegHop(pool_id=99)  # type: ignore[arg-type]
+
+
+def test_route_exact_in_rejects_non_string_asset_in() -> None:
+    """Non-string asset_in raises ValueError."""
+    with pytest.raises(ValueError, match="asset_in must be a string"):
+        execute_route_exact_in(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in=1,  # type: ignore[arg-type]
+            asset_out=ASSET1,
+            total_amount_in=100_000,
+            total_min_amount_out=0,
+        )
+
+
+def test_route_exact_in_rejects_non_string_asset_out() -> None:
+    """Non-string asset_out raises ValueError."""
+    with pytest.raises(ValueError, match="asset_out must be a string"):
+        execute_route_exact_in(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=2,  # type: ignore[arg-type]
+            total_amount_in=100_000,
+            total_min_amount_out=0,
         )
 
 

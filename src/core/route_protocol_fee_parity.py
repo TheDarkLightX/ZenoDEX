@@ -43,6 +43,12 @@ def _check_u128(value: int, name: str) -> None:
         raise ValueError(f"{name} exceeds u128 max")
 
 
+def _check_str(value: object, name: str) -> None:
+    """Validate that value is a Python str (Rust JSON parsing is string-only)."""
+    if type(value) is not str:
+        raise ValueError(f"{name} must be a string, got {type(value).__name__}")
+
+
 def _check_u128_add(a: int, b: int, name: str) -> int:
     """Checked addition: result must fit in u128."""
     result = a + b
@@ -79,6 +85,9 @@ class RouteLegPool:
     status: str = "ACTIVE"
 
     def __post_init__(self) -> None:
+        _check_str(self.pool_id, "pool_id")
+        _check_str(self.asset0, "asset0")
+        _check_str(self.asset1, "asset1")
         _check_u128(self.reserve0, "reserve0")
         _check_u128(self.reserve1, "reserve1")
         _check_u128(self.fee_bps, "fee_bps")
@@ -90,6 +99,9 @@ class RouteLegPool:
 class RouteLegHop:
     """Single hop in a route leg."""
     pool_id: str
+
+    def __post_init__(self) -> None:
+        _check_str(self.pool_id, "hop pool_id")
 
 
 @dataclass(frozen=True)
@@ -162,6 +174,8 @@ def _validate_route_envelope(
     guards, or empty ``pool_id`` in read-set handling. Those are enforced by
     the Rust ZK proof kernel at the transition boundary.
     """
+    _check_str(asset_in, "asset_in")
+    _check_str(asset_out, "asset_out")
     if not legs:
         raise ValueError("route must have at least one leg")
     seen_pool_ids: set[str] = set()
@@ -202,6 +216,8 @@ def execute_route_exact_in(
     _check_u128(protocol_fee_share_bps, "protocol_fee_share_bps")
     if not (0 <= protocol_fee_share_bps <= BPS_DENOM):
         raise ValueError("protocol_fee_share_bps must be in [0, 10000]")
+    if protocol_fee_recipient is not None and type(protocol_fee_recipient) is not str:
+        raise ValueError("protocol_fee_recipient must be a string or None")
     if protocol_fee_share_bps > 0 and not _recipient_is_valid(protocol_fee_recipient):
         raise ValueError(
             "protocol_fee_recipient required when protocol_fee_share_bps > 0"
@@ -329,6 +345,8 @@ def execute_route_exact_out(
     _check_u128(protocol_fee_share_bps, "protocol_fee_share_bps")
     if not (0 <= protocol_fee_share_bps <= BPS_DENOM):
         raise ValueError("protocol_fee_share_bps must be in [0, 10000]")
+    if protocol_fee_recipient is not None and type(protocol_fee_recipient) is not str:
+        raise ValueError("protocol_fee_recipient must be a string or None")
     if protocol_fee_share_bps > 0 and not _recipient_is_valid(protocol_fee_recipient):
         raise ValueError(
             "protocol_fee_recipient required when protocol_fee_share_bps > 0"
