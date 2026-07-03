@@ -195,7 +195,7 @@ After all three defense layers, the residual MEV surfaces are:
 
 The stale-quote defense (`quote_receipt_hash`) is the **PRIMARY MEV barrier** for same-route-pool front-run sandwiches, reducing them to zero. Sandwiches are profitable at 30 bps fee (attacker profit ~12% of victim amount), so the defense is necessary, not merely defense-in-depth.
 
-The liveness collision probabilities are Poisson approximations of pool overlap events. The distribution-free rejection ceiling is the union bound `min(1, P(rw) + P(rr))`; the "Combined %" column is an independence-based point estimate. The actual rejection rate depends on same-sender prefix ordering in `stable_route_lift`. A precise estimate requires scheduler simulation.
+The liveness collision probabilities are Poisson approximations of pool overlap events. The distribution-free rejection ceiling is the union bound `min(1, P(rw) + P(rr))`; the "Combined %" column is an independence-based point estimate. The actual rejection rate depends on same-sender prefix ordering, route-route pool sharing, and scheduler behavior in `stable_route_lift`. A precise estimate requires scheduler simulation.
 
 **Defense layer summary**:
 - Layer 1 (`quote_receipt_hash`): same-route-pool front-run sandwich -> 0 MEV
