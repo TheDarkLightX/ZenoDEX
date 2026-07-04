@@ -1006,11 +1006,12 @@ def test_route_exact_in_rejects_denom_add_overflow() -> None:
 def test_route_exact_in_rejects_new_reserve_in_overflow() -> None:
     """Post-state reserve_in overflow raises ValueError.
 
-    With reserve_in=U128_MAX-1, fee_bps=0, amount_in=2:
-      reserve_in_delta = 2, new_reserve_in = U128_MAX-1+2 = U128_MAX+1 > u128.
-    But we need amount_out > 0, so reserve_out must be large enough.
-    Actually denom = U128_MAX-1+2 = U128_MAX+1 overflows first.
-    So this is covered by denom overflow. Let's test fee_total mul overflow.
+    With fee_bps=9999, protocol_fee_share_bps=1000, current_amount=10000:
+      fee_total=9999, net_in=1, protocol_fee=999, reserve_in_delta=9001.
+    reserve_in=U128_MAX-9000, reserve_out=U128_MAX-8999:
+      denom = reserve_in + net_in = U128_MAX-8999 (no overflow)
+      amount_out = (reserve_out * 1) // denom = 1 (no mul overflow)
+      new_reserve_in = reserve_in + 9001 = U128_MAX+1 (overflow).
     """
     from src.core.route_protocol_fee_parity import U128_MAX
     pools = {
@@ -1018,20 +1019,21 @@ def test_route_exact_in_rejects_new_reserve_in_overflow() -> None:
             pool_id=POOL_ID,
             asset0=ASSET0,
             asset1=ASSET1,
-            reserve0=1_000_000,
-            reserve1=1_000_000,
-            fee_bps=30,
+            reserve0=U128_MAX - 9000,
+            reserve1=U128_MAX - 8999,
+            fee_bps=9999,
         ),
     }
-    # fee_total numerator = U128_MAX * 30 > u128
-    with pytest.raises(ValueError, match="exceeds u128 max"):
+    with pytest.raises(ValueError, match="new_reserve_in exceeds u128 max"):
         execute_route_exact_in(
             pools=pools,
             legs=_single_leg_route(),
             asset_in=ASSET0,
             asset_out=ASSET1,
-            total_amount_in=U128_MAX,
+            total_amount_in=10_000,
             total_min_amount_out=0,
+            protocol_fee_share_bps=1_000,
+            protocol_fee_recipient=PROTOCOL_FEE_RECIPIENT,
         )
 
 
