@@ -1136,6 +1136,47 @@ def test_route_rejects_lookalike_pool_object() -> None:
         )
 
 
+def test_route_leg_rejects_non_routeleghop_hops() -> None:
+    """RouteLeg with non-RouteLegHop in hops raises ValueError (not AttributeError)."""
+    with pytest.raises(ValueError, match="must be a RouteLegHop instance"):
+        RouteLeg(hops=("POOL_ID",))  # type: ignore[arg-type]
+
+
+def test_route_leg_rejects_non_tuple_hops() -> None:
+    """RouteLeg with non-tuple hops raises ValueError."""
+    with pytest.raises(ValueError, match="hops must be a tuple"):
+        RouteLeg(hops=[RouteLegHop(POOL_ID)])  # type: ignore[arg-type]
+
+
+def test_route_rejects_pool_key_pool_id_mismatch() -> None:
+    """Pool dict key differing from pool's pool_id raises ValueError.
+
+    Rust snapshots key pools by the pool's own pool_id, so a key/pool_id
+    split is outside Rust-representable state. The dict key must match
+    the leg's pool_id (so the pool is found), but the pool's internal
+    pool_id must differ from the key.
+    """
+    pools = {
+        POOL_ID: RouteLegPool(
+            pool_id="DIFFERENT_POOL_ID",
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=1_000_000,
+            reserve1=1_000_000,
+            fee_bps=30,
+        ),
+    }
+    with pytest.raises(ValueError, match="key/pool_id mismatch"):
+        execute_route_exact_in(
+            pools=pools,
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_in=100_000,
+            total_min_amount_out=0,
+        )
+
+
 # ---------------------------------------------------------------------------
 # Pinned boundary corpus: hardcoded expected values (not formula recomputation)
 # These pin specific small/edge cases that a Rust-generated corpus would cover.

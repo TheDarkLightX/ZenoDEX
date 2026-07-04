@@ -110,6 +110,13 @@ class RouteLeg:
     """Route leg containing one hop (proof v1: one pool per leg)."""
     hops: Tuple[RouteLegHop, ...]
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.hops, tuple):
+            raise ValueError("RouteLeg.hops must be a tuple")
+        for i, hop in enumerate(self.hops):
+            if not isinstance(hop, RouteLegHop):
+                raise ValueError(f"RouteLeg.hops[{i}] must be a RouteLegHop instance")
+
 
 @dataclass(frozen=True)
 class RouteExecutionResult:
@@ -194,6 +201,10 @@ def _validate_route_envelope(
             raise ValueError(f"route pool not found: {pool_id}")
         if not isinstance(pool, RouteLegPool):
             raise ValueError(f"route pool must be a RouteLegPool instance: {pool_id}")
+        if pool.pool_id != pool_id:
+            raise ValueError(
+                f"route pool key/pool_id mismatch: key={pool_id} pool_id={pool.pool_id}"
+            )
         if not getattr(pool, "status", "ACTIVE") == "ACTIVE":
             raise ValueError(f"route pool not active: {pool_id}")
 
