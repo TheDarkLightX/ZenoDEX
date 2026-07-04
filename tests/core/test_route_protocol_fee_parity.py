@@ -1137,6 +1137,102 @@ def test_route_exact_out_rejects_gross_in_numerator_overflow() -> None:
         )
 
 
+def test_route_exact_out_rejects_forward_fee_total_overflow() -> None:
+    """Forward-pass fee_total numerator overflow raises ValueError."""
+    from src.core.route_protocol_fee_parity import U128_MAX
+    pools = {
+        POOL_ID: RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=1,
+            reserve1=U128_MAX,
+            fee_bps=9_999,
+        ),
+    }
+    with pytest.raises(ValueError, match="fee_total numerator exceeds u128 max"):
+        execute_route_exact_out(
+            pools=pools,
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_out=U128_MAX - 10_000,
+            total_max_amount_in=U128_MAX,
+        )
+
+
+def test_route_exact_out_rejects_forward_denom_overflow() -> None:
+    """Forward-pass denominator overflow raises ValueError."""
+    from src.core.route_protocol_fee_parity import U128_MAX
+    pools = {
+        POOL_ID: RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=U128_MAX,
+            reserve1=U128_MAX,
+            fee_bps=0,
+        ),
+    }
+    with pytest.raises(ValueError, match="denominator exceeds u128 max"):
+        execute_route_exact_out(
+            pools=pools,
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_out=1,
+            total_max_amount_in=U128_MAX,
+        )
+
+
+def test_route_exact_out_rejects_forward_amount_out_numerator_overflow() -> None:
+    """Forward-pass amount_out numerator overflow raises ValueError."""
+    from src.core.route_protocol_fee_parity import U128_MAX
+    pools = {
+        POOL_ID: RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=U128_MAX // 2,
+            reserve1=U128_MAX,
+            fee_bps=0,
+        ),
+    }
+    with pytest.raises(ValueError, match="amount_out numerator exceeds u128 max"):
+        execute_route_exact_out(
+            pools=pools,
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_out=2,
+            total_max_amount_in=U128_MAX,
+        )
+
+
+def test_route_exact_out_rejects_forward_new_reserve_in_overflow() -> None:
+    """Forward-pass new_reserve_in overflow raises ValueError."""
+    from src.core.route_protocol_fee_parity import U128_MAX
+    pools = {
+        POOL_ID: RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=U128_MAX - 1,
+            reserve1=U128_MAX,
+            fee_bps=5_000,
+        ),
+    }
+    with pytest.raises(ValueError, match="new_reserve_in exceeds u128 max"):
+        execute_route_exact_out(
+            pools=pools,
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_out=1,
+            total_max_amount_in=U128_MAX,
+        )
+
+
 def test_route_exact_out_positive_overdelivery_updates_reserve() -> None:
     """Positive overdelivery: amount_out > target_out, reserve_out -= target_out (not amount_out).
 
