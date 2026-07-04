@@ -495,6 +495,21 @@ pub fn recursive_child_verification_claim_hash_v1(
     Ok(hasher.finalize().into())
 }
 
+pub fn recursive_child_verifier_id_v1(
+    image_id: &[u32; 8],
+    profile: &str,
+) -> Result<[u8; 32], TransitionError> {
+    require_nonempty(profile, "child profile empty")?;
+    if image_id.iter().all(|word| *word == 0) {
+        return Err(TransitionError::InvalidInput("child image id zero"));
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(b"zenodex.risc0.recursive.child_verifier_id.v1");
+    write_image_id(&mut hasher, image_id);
+    write_str(&mut hasher, profile);
+    Ok(hasher.finalize().into())
+}
+
 pub fn recursive_effect_summary_hash_v1(summary: &RecursiveEffectSummaryV1) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(b"zenodex.risc0.recursive.effect_summary_hash.v1");
@@ -705,12 +720,21 @@ fn validate_child_effect_v1(
     {
         return Err(TransitionError::InvalidInput("child image id zero"));
     }
-    if !allowed_verifiers.contains(&child.descriptor.child_verifier_id) {
+    require_nonempty(&child.descriptor.child_profile, "child profile empty")?;
+    let expected_verifier_id = recursive_child_verifier_id_v1(
+        &child.descriptor.child_image_id,
+        &child.descriptor.child_profile,
+    )?;
+    if child.descriptor.child_verifier_id != expected_verifier_id {
+        return Err(TransitionError::InvalidInput(
+            "child verifier id image binding mismatch",
+        ));
+    }
+    if !allowed_verifiers.contains(&expected_verifier_id) {
         return Err(TransitionError::InvalidInput(
             "child verifier id not allowed",
         ));
     }
-    require_nonempty(&child.descriptor.child_profile, "child profile empty")?;
     let child_journal_len = checked_len_u32(
         child.child_journal_bytes.len(),
         "child journal bytes length too large",
@@ -1123,7 +1147,6 @@ mod tests {
         lane: &str,
         receipt_byte: u8,
         journal_byte: u8,
-        verifier_id: [u8; 32],
         rows: Vec<RecursiveAssetDeltaRowV1>,
         outbox: Vec<RecursiveCrossShardMessageV1>,
         inbox: Vec<RecursiveCrossShardMessageV1>,
@@ -1168,6 +1191,9 @@ mod tests {
             &child_journal_bytes,
         )
         .unwrap();
+        let child_verifier_id =
+            recursive_child_verifier_id_v1(&summary.risc0_image_id, &summary.proof_profile)
+                .unwrap();
         RecursiveChildEffectV1 {
             descriptor: RecursiveChildDescriptorV1 {
                 child_verification_claim_hash,
@@ -1175,7 +1201,7 @@ mod tests {
                 child_effect_summary_hash: summary_hash,
                 child_statement_hash: summary.statement_hash,
                 child_image_id: summary.risc0_image_id,
-                child_verifier_id: verifier_id,
+                child_verifier_id,
                 child_profile: summary.proof_profile.clone(),
             },
             child_journal_bytes,
@@ -1189,13 +1215,11 @@ mod tests {
     }
 
     fn valid_input() -> RecursiveCompositionInputV1 {
-        let verifier_ids = alloc::vec![h(4), h(5)];
         let authority_roots = alloc::vec![h(6)];
         let left = child(
             "lane-a",
             21,
             31,
-            h(4),
             alloc::vec![asset_row("ASSET0", 10, 0), asset_row("ASSET1", 0, 5)],
             alloc::vec![message(44)],
             Vec::new(),
@@ -1205,12 +1229,16 @@ mod tests {
             "lane-b",
             22,
             32,
-            h(5),
             alloc::vec![asset_row("ASSET0", 0, 10), asset_row("ASSET1", 5, 0)],
             Vec::new(),
             alloc::vec![message(44)],
             alloc::vec![h(82)],
         );
+        let mut verifier_ids = alloc::vec![
+            left.descriptor.child_verifier_id,
+            right.descriptor.child_verifier_id,
+        ];
+        verifier_ids.sort();
         let pre_state_root = recursive_root_list_root_v1(
             b"zenodex.risc0.recursive.pre_state_vector_root.v1",
             &[left.summary.pre_state_root, right.summary.pre_state_root],
@@ -1353,9 +1381,23 @@ mod tests {
     }
 
     #[test]
-    fn recursive_composition_rejects_stale_verifier_id() {
+    fn recursive_composition_rejects_child_verifier_id_image_binding_mismatch() {
         let mut input = valid_input();
         input.children[0].descriptor.child_verifier_id = h(99);
+        assert!(matches!(
+            compose_recursive_epoch_journal_v1(&input),
+            Err(TransitionError::InvalidInput(
+                "child verifier id image binding mismatch"
+            ))
+        ));
+    }
+
+    #[test]
+    fn recursive_composition_rejects_stale_verifier_id() {
+        let mut input = valid_input();
+        input.allowed_verifier_ids = alloc::vec![input.children[1].descriptor.child_verifier_id];
+        input.statement.verifier_set_root =
+            recursive_verifier_set_root_v1(&input.allowed_verifier_ids).unwrap();
         assert!(matches!(
             compose_recursive_epoch_journal_v1(&input),
             Err(TransitionError::InvalidInput(

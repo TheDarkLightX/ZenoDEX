@@ -280,6 +280,11 @@ journals therefore bind `child_verification_claims_root` and
 `child_journals_root`, with any receipt-artifact root kept outside the guest
 trust boundary.
 
+The verifier set must not be a free host label. A child verifier ID must be
+derived from `(child_image_id, child_profile)` and the recursive guest must
+reject any descriptor whose `child_verifier_id` does not equal that derived ID.
+The committed `verifier_set_root` is the sorted set of those derived IDs.
+
 Every child descriptor must bind:
 
 ```text

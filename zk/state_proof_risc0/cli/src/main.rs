@@ -2895,10 +2895,10 @@ mod tests {
     use tau_state_proof_risc0_shared::{
         recursive_asset_delta_root_v1, recursive_authority_set_root_v1,
         recursive_child_journal_hash_v1, recursive_child_verification_claim_hash_v1,
-        recursive_cross_shard_messages_root_v1, recursive_effect_summary_hash_v1,
-        recursive_receipt_ids_root_v1, recursive_vector_root_v1, recursive_verifier_set_root_v1,
-        RecursiveAssetDeltaRowV1, RecursiveChildDescriptorV1, RecursiveChildEffectV1,
-        RecursiveCrossShardMessageV1, RecursiveEffectSummaryV1,
+        recursive_child_verifier_id_v1, recursive_cross_shard_messages_root_v1,
+        recursive_effect_summary_hash_v1, recursive_receipt_ids_root_v1, recursive_vector_root_v1,
+        recursive_verifier_set_root_v1, RecursiveAssetDeltaRowV1, RecursiveChildDescriptorV1,
+        RecursiveChildEffectV1, RecursiveCrossShardMessageV1, RecursiveEffectSummaryV1,
         RECURSIVE_EFFECT_SUMMARY_VERSION_V1, RECURSIVE_STATEMENT_VERSION_V1,
         RECURSIVE_STRICT_CROSS_SHARD_MODE_V1,
     };
@@ -2934,7 +2934,6 @@ mod tests {
         lane_id: &str,
         image_byte: u8,
         journal_byte: u8,
-        verifier_id: [u8; 32],
         asset_delta_rows: Vec<RecursiveAssetDeltaRowV1>,
         accepted_receipt_ids: Vec<[u8; 32]>,
     ) -> RecursiveChildEffectV1 {
@@ -2979,6 +2978,9 @@ mod tests {
         )
         .unwrap();
         let child_effect_summary_hash = recursive_effect_summary_hash_v1(&summary);
+        let child_verifier_id =
+            recursive_child_verifier_id_v1(&summary.risc0_image_id, &summary.proof_profile)
+                .unwrap();
         RecursiveChildEffectV1 {
             descriptor: RecursiveChildDescriptorV1 {
                 child_verification_claim_hash,
@@ -2986,7 +2988,7 @@ mod tests {
                 child_effect_summary_hash,
                 child_statement_hash: summary.statement_hash,
                 child_image_id: summary.risc0_image_id,
-                child_verifier_id: verifier_id,
+                child_verifier_id,
                 child_profile: summary.proof_profile.clone(),
             },
             child_journal_bytes,
@@ -3000,13 +3002,11 @@ mod tests {
     }
 
     fn recursive_input() -> RecursiveCompositionInputV1 {
-        let verifier_ids = vec![h(4), h(5)];
         let authority_roots = vec![h(6)];
         let left = recursive_child(
             "lane-a",
             21,
             31,
-            h(4),
             vec![
                 recursive_asset_row("ASSET0", 10, 0),
                 recursive_asset_row("ASSET1", 0, 5),
@@ -3017,13 +3017,17 @@ mod tests {
             "lane-b",
             22,
             32,
-            h(5),
             vec![
                 recursive_asset_row("ASSET0", 0, 10),
                 recursive_asset_row("ASSET1", 5, 0),
             ],
             vec![h(82)],
         );
+        let mut verifier_ids = vec![
+            left.descriptor.child_verifier_id,
+            right.descriptor.child_verifier_id,
+        ];
+        verifier_ids.sort();
         let pre_state_root = recursive_vector_root_v1(
             b"zenodex.risc0.recursive.pre_state_vector_root.v1",
             &[left.summary.pre_state_root, right.summary.pre_state_root],

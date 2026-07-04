@@ -577,6 +577,11 @@ RecursiveEpochJournalV1 {
 are host audit metadata; they are not a guest-verifiable root unless a separate
 receipt-hash adapter proves that binding.
 
+The committed verifier set is a set of derived verifier IDs, not arbitrary
+labels. Each child verifier ID is computed from `(child_image_id,
+child_profile)`, so membership in `verifier_set_root` authorizes the same image
+ID that the RISC0 `env::verify` call checks.
+
 ## ZenoLedger / Tau Acceptance Algorithm
 
 The block verifier must not accept recursive metadata by itself. It accepts only
