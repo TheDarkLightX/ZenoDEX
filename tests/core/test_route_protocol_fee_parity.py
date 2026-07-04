@@ -1177,6 +1177,102 @@ def test_route_rejects_pool_key_pool_id_mismatch() -> None:
         )
 
 
+def test_route_rejects_unreferenced_mismatched_pool() -> None:
+    """Unreferenced pool with key/pool_id mismatch also rejected (full snapshot parity)."""
+    pools = {
+        POOL_ID: RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=1_000_000,
+            reserve1=1_000_000,
+            fee_bps=30,
+        ),
+        "EXTRA_KEY": RouteLegPool(
+            pool_id="DIFFERENT_EXTRA",
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=500_000,
+            reserve1=500_000,
+            fee_bps=30,
+        ),
+    }
+    with pytest.raises(ValueError, match="key/pool_id mismatch"):
+        execute_route_exact_in(
+            pools=pools,
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_in=100_000,
+            total_min_amount_out=0,
+        )
+
+
+def test_route_rejects_non_dict_pools() -> None:
+    """Non-dict pools raises ValueError (not AttributeError)."""
+    with pytest.raises(ValueError, match="pools must be a dict"):
+        execute_route_exact_in(
+            pools=[("POOL_ID", _single_pool()[POOL_ID])],  # type: ignore[arg-type]
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_in=100_000,
+            total_min_amount_out=0,
+        )
+
+
+def test_route_rejects_non_iterable_legs() -> None:
+    """Non-iterable legs raises ValueError (not TypeError)."""
+    with pytest.raises(ValueError, match="legs must be a list or tuple"):
+        execute_route_exact_in(
+            pools=_single_pool(),
+            legs=42,  # type: ignore[arg-type]
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_in=100_000,
+            total_min_amount_out=0,
+        )
+
+
+def test_pool_rejects_empty_pool_id() -> None:
+    """Empty pool_id raises ValueError (Rust rejects empty snapshot/read-set pool ids)."""
+    with pytest.raises(ValueError, match="pool_id must not be empty"):
+        RouteLegPool(
+            pool_id="",
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=1_000_000,
+            reserve1=1_000_000,
+            fee_bps=30,
+        )
+
+
+def test_pool_rejects_empty_asset0() -> None:
+    """Empty asset0 raises ValueError."""
+    with pytest.raises(ValueError, match="asset0 must not be empty"):
+        RouteLegPool(
+            pool_id=POOL_ID,
+            asset0="",
+            asset1=ASSET1,
+            reserve0=1_000_000,
+            reserve1=1_000_000,
+            fee_bps=30,
+        )
+
+
+def test_route_rejects_empty_asset_in() -> None:
+    """Empty asset_in raises ValueError."""
+    with pytest.raises(ValueError, match="asset_in must not be empty"):
+        execute_route_exact_in(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in="",
+            asset_out=ASSET1,
+            total_amount_in=100_000,
+            total_min_amount_out=0,
+        )
+
+
 # ---------------------------------------------------------------------------
 # Pinned boundary corpus: hardcoded expected values (not formula recomputation)
 # These pin specific small/edge cases that a Rust-generated corpus would cover.

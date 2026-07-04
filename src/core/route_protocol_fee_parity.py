@@ -44,9 +44,11 @@ def _check_u128(value: int, name: str) -> None:
 
 
 def _check_str(value: object, name: str) -> None:
-    """Validate that value is a Python str (Rust JSON parsing is string-only)."""
+    """Validate that value is a non-empty Python str (Rust JSON parsing is string-only)."""
     if type(value) is not str:
         raise ValueError(f"{name} must be a string, got {type(value).__name__}")
+    if value == "":
+        raise ValueError(f"{name} must not be empty")
 
 
 def _check_u128_add(a: int, b: int, name: str) -> int:
@@ -184,8 +186,20 @@ def _validate_route_envelope(
     """
     _check_str(asset_in, "asset_in")
     _check_str(asset_out, "asset_out")
+    if not isinstance(pools, dict):
+        raise ValueError("pools must be a dict")
+    if not isinstance(legs, (list, tuple)):
+        raise ValueError("legs must be a list or tuple")
     if not legs:
         raise ValueError("route must have at least one leg")
+    # Validate all pools for key/pool_id consistency (Rust snapshots by pool's own pool_id)
+    for key, pool in pools.items():
+        if not isinstance(pool, RouteLegPool):
+            raise ValueError(f"route pool must be a RouteLegPool instance: {key}")
+        if pool.pool_id != key:
+            raise ValueError(
+                f"route pool key/pool_id mismatch: key={key} pool_id={pool.pool_id}"
+            )
     seen_pool_ids: set[str] = set()
     for leg in legs:
         if not isinstance(leg, RouteLeg):
@@ -199,12 +213,6 @@ def _validate_route_envelope(
         pool = pools.get(pool_id)
         if pool is None:
             raise ValueError(f"route pool not found: {pool_id}")
-        if not isinstance(pool, RouteLegPool):
-            raise ValueError(f"route pool must be a RouteLegPool instance: {pool_id}")
-        if pool.pool_id != pool_id:
-            raise ValueError(
-                f"route pool key/pool_id mismatch: key={pool_id} pool_id={pool.pool_id}"
-            )
         if not getattr(pool, "status", "ACTIVE") == "ACTIVE":
             raise ValueError(f"route pool not active: {pool_id}")
 
