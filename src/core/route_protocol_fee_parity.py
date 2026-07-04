@@ -402,6 +402,8 @@ def execute_route_exact_out(
     _check_u128(total_max_amount_in, "total_max_amount_in")
     if total_amount_out == 0:
         raise ValueError("total_amount_out must be positive")
+    if total_max_amount_in == 0:
+        raise ValueError("total_max_amount_in must be positive")
     _validate_route_envelope(
         pools=pools, legs=legs, asset_in=asset_in, asset_out=asset_out
     )

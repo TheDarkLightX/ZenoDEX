@@ -5709,14 +5709,7 @@ mod tests {
     }
 
     fn chained_exact_out_route_intent(intent_id: &str) -> RouteIntentV1 {
-        let mut intent = default_route_intent(
-            intent_id,
-            "ROUTE_EXACT_OUT",
-            0,
-            0,
-            1_000,
-            1_000_000,
-        );
+        let mut intent = default_route_intent(intent_id, "ROUTE_EXACT_OUT", 0, 0, 1_000, 1_000_000);
         intent.asset_out = ASSET2.to_string();
         intent.leg_indices = alloc::vec![0, 1];
         intent.legs = alloc::vec![
@@ -9892,13 +9885,10 @@ mod tests {
             second_pool.reserve0 * total_amount_out,
             second_pool.reserve1 - total_amount_out,
         );
-        let second_gross_in = ceil_div_u128(
-            second_net_in * 10_000,
-            10_000 - second_pool.fee_bps as u128,
-        );
+        let second_gross_in =
+            ceil_div_u128(second_net_in * 10_000, 10_000 - second_pool.fee_bps as u128);
         let second_fee_total = second_gross_in - second_net_in;
-        let second_protocol_fee =
-            second_fee_total * fee_config.share_bps as u128 / 10_000;
+        let second_protocol_fee = second_fee_total * fee_config.share_bps as u128 / 10_000;
         let second_target_out = second_gross_in;
 
         let first_pool = state.pools.get(POOL_ID).cloned().unwrap();
@@ -9906,18 +9896,18 @@ mod tests {
             first_pool.reserve0 * second_target_out,
             first_pool.reserve1 - second_target_out,
         );
-        let first_gross_in = ceil_div_u128(
-            first_net_in * 10_000,
-            10_000 - first_pool.fee_bps as u128,
-        );
+        let first_gross_in =
+            ceil_div_u128(first_net_in * 10_000, 10_000 - first_pool.fee_bps as u128);
         let first_fee_total = first_gross_in - first_net_in;
-        let first_protocol_fee =
-            first_fee_total * fee_config.share_bps as u128 / 10_000;
+        let first_protocol_fee = first_fee_total * fee_config.share_bps as u128 / 10_000;
 
         state.apply_tx(&route_tx(intent), 1, &fee_config).unwrap();
 
         // Sender debited total gross_in (first leg only, in ASSET0).
-        assert_eq!(state.get_balance(SENDER, ASSET0), 10_000_000 - first_gross_in);
+        assert_eq!(
+            state.get_balance(SENDER, ASSET0),
+            10_000_000 - first_gross_in
+        );
         // Protocol fee captured in ASSET0 (first leg) and ASSET1 (second leg).
         assert_eq!(
             state.get_balance(PROTOCOL_FEE_RECIPIENT, ASSET0),
@@ -9942,7 +9932,10 @@ mod tests {
             post_second.reserve0,
             second_pool.reserve0 + second_gross_in - second_protocol_fee
         );
-        assert_eq!(post_second.reserve1, second_pool.reserve1 - total_amount_out);
+        assert_eq!(
+            post_second.reserve1,
+            second_pool.reserve1 - total_amount_out
+        );
     }
 
     #[test]

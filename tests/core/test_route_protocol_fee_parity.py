@@ -1113,6 +1113,19 @@ def test_route_exact_out_rejects_zero_total_amount_out() -> None:
         )
 
 
+def test_route_exact_out_rejects_zero_total_max_amount_in() -> None:
+    """Zero total_max_amount_in raises ValueError early (matching Rust CLI admission)."""
+    with pytest.raises(ValueError, match="total_max_amount_in must be positive"):
+        execute_route_exact_out(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_out=500,
+            total_max_amount_in=0,
+        )
+
+
 def test_route_exact_in_rejects_blank_recipient() -> None:
     """Blank/whitespace protocol_fee_recipient raises ValueError (Rust trims blanks)."""
     with pytest.raises(ValueError, match="protocol_fee_recipient must not be blank"):
