@@ -88,6 +88,7 @@ class RouteLegPool:
         _check_str(self.pool_id, "pool_id")
         _check_str(self.asset0, "asset0")
         _check_str(self.asset1, "asset1")
+        _check_str(self.status, "status")
         _check_u128(self.reserve0, "reserve0")
         _check_u128(self.reserve1, "reserve1")
         _check_u128(self.fee_bps, "fee_bps")
@@ -180,6 +181,8 @@ def _validate_route_envelope(
         raise ValueError("route must have at least one leg")
     seen_pool_ids: set[str] = set()
     for leg in legs:
+        if not isinstance(leg, RouteLeg):
+            raise ValueError("route leg must be a RouteLeg instance")
         if len(leg.hops) != 1:
             raise ValueError("route leg must have exactly one hop (proof v1)")
         pool_id = leg.hops[0].pool_id
@@ -189,6 +192,8 @@ def _validate_route_envelope(
         pool = pools.get(pool_id)
         if pool is None:
             raise ValueError(f"route pool not found: {pool_id}")
+        if not isinstance(pool, RouteLegPool):
+            raise ValueError(f"route pool must be a RouteLegPool instance: {pool_id}")
         if not getattr(pool, "status", "ACTIVE") == "ACTIVE":
             raise ValueError(f"route pool not active: {pool_id}")
 

@@ -1084,6 +1084,58 @@ def test_route_exact_out_rejects_u128_overflow_amount() -> None:
         )
 
 
+def test_pool_rejects_non_string_status() -> None:
+    """Non-string status raises ValueError (all string fields must be runtime-checked)."""
+    with pytest.raises(ValueError, match="status must be a string"):
+        RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=1_000_000,
+            reserve1=1_000_000,
+            fee_bps=30,
+            status=123,  # type: ignore[arg-type]
+        )
+
+
+def test_route_rejects_lookalike_leg_object() -> None:
+    """Non-RouteLeg object in legs raises ValueError (dataclass boundary check)."""
+    class FakeLeg:
+        hops = (RouteLegHop(POOL_ID),)
+
+    with pytest.raises(ValueError, match="route leg must be a RouteLeg instance"):
+        execute_route_exact_in(
+            pools=_single_pool(),
+            legs=[FakeLeg()],  # type: ignore[arg-type]
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_in=100_000,
+            total_min_amount_out=0,
+        )
+
+
+def test_route_rejects_lookalike_pool_object() -> None:
+    """Non-RouteLegPool object in pools raises ValueError (dataclass boundary check)."""
+    class FakePool:
+        pool_id = POOL_ID
+        asset0 = ASSET0
+        asset1 = ASSET1
+        reserve0 = 1_000_000
+        reserve1 = 1_000_000
+        fee_bps = 30
+        status = "ACTIVE"
+
+    with pytest.raises(ValueError, match="route pool must be a RouteLegPool instance"):
+        execute_route_exact_in(
+            pools={POOL_ID: FakePool()},  # type: ignore[arg-type]
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_in=100_000,
+            total_min_amount_out=0,
+        )
+
+
 # ---------------------------------------------------------------------------
 # Pinned boundary corpus: hardcoded expected values (not formula recomputation)
 # These pin specific small/edge cases that a Rust-generated corpus would cover.
