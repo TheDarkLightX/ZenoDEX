@@ -239,11 +239,15 @@ def execute_route_exact_in(
     """
     Execute a ROUTE_EXACT_IN with per-leg protocol fee capture.
 
-    Mirrors the Rust `apply_route` ROUTE_EXACT_IN path exactly:
+    Mirrors the Rust `apply_route` ROUTE_EXACT_IN route arithmetic/accounting
+    path (fee_total, protocol_fee, net_in, amount_out, reserve deltas):
     1. Validate route envelope (legs, hops, duplicate pools, pool status).
     2. Walk legs forward, computing per-leg swap with fee capture.
     3. Verify total_min_amount_out is met.
     4. Return per-leg results, fee credits, and pool updates.
+
+    This is a Python helper subset of the Rust transition; it does not cover
+    Rust-only envelope checks (leg_indices, quote_receipt_hash, etc.).
     """
     _check_u128(protocol_fee_share_bps, "protocol_fee_share_bps")
     if not (0 <= protocol_fee_share_bps <= BPS_DENOM):
@@ -368,11 +372,16 @@ def execute_route_exact_out(
     """
     Execute a ROUTE_EXACT_OUT with per-leg protocol fee capture.
 
-    Mirrors the Rust `apply_route` ROUTE_EXACT_OUT path exactly:
+    Mirrors the Rust `apply_route` ROUTE_EXACT_OUT route arithmetic/accounting
+    path (reverse pass, fee_total, protocol_fee, net_in, amount_out, reserve
+    deltas):
     1. Walk legs in reverse to compute required_in and target_outs.
     2. Walk legs forward, capturing protocol fees per leg.
     3. Verify each leg's amount_out >= target_out.
     4. Return per-leg results, fee credits, and pool updates.
+
+    This is a Python helper subset of the Rust transition; it does not cover
+    Rust-only envelope checks (leg_indices, quote_receipt_hash, etc.).
     """
     _check_u128(protocol_fee_share_bps, "protocol_fee_share_bps")
     if not (0 <= protocol_fee_share_bps <= BPS_DENOM):
