@@ -254,12 +254,16 @@ def execute_route_exact_in(
         raise ValueError("protocol_fee_share_bps must be in [0, 10000]")
     if protocol_fee_recipient is not None and type(protocol_fee_recipient) is not str:
         raise ValueError("protocol_fee_recipient must be a string or None")
+    if protocol_fee_recipient is not None and protocol_fee_recipient.strip() == "":
+        raise ValueError("protocol_fee_recipient must not be blank")
     if protocol_fee_share_bps > 0 and not _recipient_is_valid(protocol_fee_recipient):
         raise ValueError(
             "protocol_fee_recipient required when protocol_fee_share_bps > 0"
         )
     _check_u128(total_amount_in, "total_amount_in")
     _check_u128(total_min_amount_out, "total_min_amount_out")
+    if total_amount_in == 0:
+        raise ValueError("total_amount_in must be positive")
     _validate_route_envelope(
         pools=pools, legs=legs, asset_in=asset_in, asset_out=asset_out
     )
@@ -388,12 +392,16 @@ def execute_route_exact_out(
         raise ValueError("protocol_fee_share_bps must be in [0, 10000]")
     if protocol_fee_recipient is not None and type(protocol_fee_recipient) is not str:
         raise ValueError("protocol_fee_recipient must be a string or None")
+    if protocol_fee_recipient is not None and protocol_fee_recipient.strip() == "":
+        raise ValueError("protocol_fee_recipient must not be blank")
     if protocol_fee_share_bps > 0 and not _recipient_is_valid(protocol_fee_recipient):
         raise ValueError(
             "protocol_fee_recipient required when protocol_fee_share_bps > 0"
         )
     _check_u128(total_amount_out, "total_amount_out")
     _check_u128(total_max_amount_in, "total_max_amount_in")
+    if total_amount_out == 0:
+        raise ValueError("total_amount_out must be positive")
     _validate_route_envelope(
         pools=pools, legs=legs, asset_in=asset_in, asset_out=asset_out
     )

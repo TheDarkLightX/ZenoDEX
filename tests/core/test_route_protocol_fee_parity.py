@@ -219,7 +219,7 @@ def test_route_exact_in_rejects_nonzero_fee_without_recipient() -> None:
 
 def test_route_exact_in_rejects_whitespace_recipient() -> None:
     """Fail-closed: whitespace-only recipient raises (matches Rust trim check)."""
-    with pytest.raises(ValueError, match="protocol_fee_recipient required"):
+    with pytest.raises(ValueError, match="protocol_fee_recipient must not be blank"):
         execute_route_exact_in(
             pools=_two_pool_chain(),
             legs=_two_leg_route(),
@@ -428,7 +428,7 @@ def test_route_exact_out_rejects_nonzero_fee_without_recipient() -> None:
 
 def test_route_exact_out_rejects_whitespace_recipient() -> None:
     """Fail-closed: whitespace-only recipient raises (matches Rust trim check)."""
-    with pytest.raises(ValueError, match="protocol_fee_recipient required"):
+    with pytest.raises(ValueError, match="protocol_fee_recipient must not be blank"):
         execute_route_exact_out(
             pools=_single_pool(),
             legs=_single_leg_route(),
@@ -1084,6 +1084,62 @@ def test_route_exact_out_rejects_u128_overflow_amount() -> None:
             asset_out=ASSET1,
             total_amount_out=(1 << 128),
             total_max_amount_in=1_000_000,
+        )
+
+
+def test_route_exact_in_rejects_zero_total_amount_in() -> None:
+    """Zero total_amount_in raises ValueError early (matching Rust admission reject)."""
+    with pytest.raises(ValueError, match="total_amount_in must be positive"):
+        execute_route_exact_in(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_in=0,
+            total_min_amount_out=0,
+        )
+
+
+def test_route_exact_out_rejects_zero_total_amount_out() -> None:
+    """Zero total_amount_out raises ValueError early (matching Rust admission reject)."""
+    with pytest.raises(ValueError, match="total_amount_out must be positive"):
+        execute_route_exact_out(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_out=0,
+            total_max_amount_in=1_000_000,
+        )
+
+
+def test_route_exact_in_rejects_blank_recipient() -> None:
+    """Blank/whitespace protocol_fee_recipient raises ValueError (Rust trims blanks)."""
+    with pytest.raises(ValueError, match="protocol_fee_recipient must not be blank"):
+        execute_route_exact_in(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_in=100_000,
+            total_min_amount_out=0,
+            protocol_fee_share_bps=1_000,
+            protocol_fee_recipient="   ",
+        )
+
+
+def test_route_exact_out_rejects_blank_recipient() -> None:
+    """Blank/whitespace protocol_fee_recipient raises ValueError for exact-out too."""
+    with pytest.raises(ValueError, match="protocol_fee_recipient must not be blank"):
+        execute_route_exact_out(
+            pools=_single_pool(),
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_out=500,
+            total_max_amount_in=1_000_000,
+            protocol_fee_share_bps=1_000,
+            protocol_fee_recipient="  ",
         )
 
 
