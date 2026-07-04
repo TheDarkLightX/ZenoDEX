@@ -1089,6 +1089,85 @@ def test_route_exact_out_rejects_u128_overflow_amount() -> None:
         )
 
 
+def test_route_exact_out_rejects_net_in_numerator_overflow() -> None:
+    """Reverse-pass net_in numerator overflow raises ValueError (matching Rust)."""
+    from src.core.route_protocol_fee_parity import U128_MAX
+    pools = {
+        POOL_ID: RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=U128_MAX,
+            reserve1=U128_MAX,
+            fee_bps=0,
+        ),
+    }
+    with pytest.raises(ValueError, match="net_in numerator exceeds u128 max"):
+        execute_route_exact_out(
+            pools=pools,
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_out=U128_MAX - 1,
+            total_max_amount_in=U128_MAX,
+        )
+
+
+def test_route_exact_out_rejects_gross_in_numerator_overflow() -> None:
+    """Reverse-pass gross_in numerator overflow raises ValueError (net_in_num fits)."""
+    from src.core.route_protocol_fee_parity import U128_MAX
+    pools = {
+        POOL_ID: RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=U128_MAX,
+            reserve1=2,
+            fee_bps=1,
+        ),
+    }
+    with pytest.raises(ValueError, match="gross_in numerator exceeds u128 max"):
+        execute_route_exact_out(
+            pools=pools,
+            legs=_single_leg_route(),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            total_amount_out=1,
+            total_max_amount_in=U128_MAX,
+        )
+
+
+def test_route_exact_out_positive_overdelivery_updates_reserve() -> None:
+    """Positive overdelivery: amount_out > target_out, reserve_out -= target_out (not amount_out).
+
+    With reserve0=1, reserve1=4, fee_bps=0, total_amount_out=1:
+      net_in_num = 1*1 = 1, net_in = ceil(1/3) = 1, gross_in = ceil(1*10000/10000) = 1.
+      Forward: fee_total=0, net_in=1, denom=2, amount_out = (4*1)//2 = 2 > target=1.
+      new_reserve_out = 4 - 1 = 3 (uses target_out, not amount_out=2).
+    """
+    pools = {
+        POOL_ID: RouteLegPool(
+            pool_id=POOL_ID,
+            asset0=ASSET0,
+            asset1=ASSET1,
+            reserve0=1,
+            reserve1=4,
+            fee_bps=0,
+        ),
+    }
+    result = execute_route_exact_out(
+        pools=pools,
+        legs=_single_leg_route(),
+        asset_in=ASSET0,
+        asset_out=ASSET1,
+        total_amount_out=1,
+        total_max_amount_in=1_000_000,
+    )
+    assert result.leg_results[0].amount_out == 2  # overdelivery: 2 > target 1
+    assert result.leg_results[0].reserve_out_delta == 1  # target_out, not amount_out
+    assert result.pool_updates[POOL_ID] == (2, 3)  # reserve0+1, reserve1-1 (target)
+
+
 def test_route_exact_in_rejects_zero_total_amount_in() -> None:
     """Zero total_amount_in raises ValueError early (matching Rust admission reject)."""
     with pytest.raises(ValueError, match="total_amount_in must be positive"):
@@ -1191,8 +1270,9 @@ def test_route_exact_out_accepts_blank_recipient_at_zero_share() -> None:
 def test_route_exact_in_rejects_fee_credits_accumulation_overflow() -> None:
     """fee_credits accumulation overflow guard fires (matching Rust checked add_balance).
 
-    Each (recipient, asset) key is credited at most once per route, so the guard
-    is defensive. Test it directly via _check_u128_add to confirm it rejects.
+    Asset-cycle routes across distinct pools can credit the same (recipient, asset)
+    key more than once, so the guard is reachable. Test it directly via
+    _check_u128_add to confirm it rejects on u128 overflow.
     """
     from src.core.route_protocol_fee_parity import U128_MAX, _check_u128_add
     with pytest.raises(ValueError, match="fee_credits accumulation exceeds u128 max"):
