@@ -1158,6 +1158,47 @@ def test_route_exact_out_rejects_blank_recipient() -> None:
         )
 
 
+def test_route_exact_in_accepts_blank_recipient_at_zero_share() -> None:
+    """Blank recipient with share_bps=0 is accepted (Rust maps blank to None)."""
+    result = execute_route_exact_in(
+        pools=_single_pool(),
+        legs=_single_leg_route(),
+        asset_in=ASSET0,
+        asset_out=ASSET1,
+        total_amount_in=100_000,
+        total_min_amount_out=0,
+        protocol_fee_share_bps=0,
+        protocol_fee_recipient="   ",
+    )
+    assert result.fee_credits == {}
+
+
+def test_route_exact_out_accepts_blank_recipient_at_zero_share() -> None:
+    """Blank recipient with share_bps=0 is accepted for exact-out too."""
+    result = execute_route_exact_out(
+        pools=_single_pool(),
+        legs=_single_leg_route(),
+        asset_in=ASSET0,
+        asset_out=ASSET1,
+        total_amount_out=500,
+        total_max_amount_in=1_000_000,
+        protocol_fee_share_bps=0,
+        protocol_fee_recipient="  ",
+    )
+    assert result.fee_credits == {}
+
+
+def test_route_exact_in_rejects_fee_credits_accumulation_overflow() -> None:
+    """fee_credits accumulation overflow guard fires (matching Rust checked add_balance).
+
+    Each (recipient, asset) key is credited at most once per route, so the guard
+    is defensive. Test it directly via _check_u128_add to confirm it rejects.
+    """
+    from src.core.route_protocol_fee_parity import U128_MAX, _check_u128_add
+    with pytest.raises(ValueError, match="fee_credits accumulation exceeds u128 max"):
+        _check_u128_add(U128_MAX, 1, "fee_credits accumulation")
+
+
 def test_pool_rejects_non_string_status() -> None:
     """Non-string status raises ValueError (all string fields must be runtime-checked)."""
     with pytest.raises(ValueError, match="status must be a string"):

@@ -10038,6 +10038,65 @@ mod tests {
     }
 
     #[test]
+    fn route_exact_out_rejects_net_in_num_overflow() {
+        let mut snapshot = sender_balance_snapshot(ASSET0, u128::MAX);
+        snapshot.pools[0].reserve0 = u128::MAX;
+        snapshot.pools[0].reserve1 = u128::MAX;
+        snapshot.pools[0].fee_bps = 0;
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let fee_config = ProtocolFeeConfig::default();
+        let mut intent = default_route_intent(
+            "route-exact-out-net-in-num-overflow",
+            "ROUTE_EXACT_OUT",
+            0,
+            0,
+            u128::MAX - 1,
+            u128::MAX,
+        );
+        bind_route_hash(&mut intent, &state, &fee_config);
+        let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
+        assert!(
+            matches!(
+                result,
+                Err(TransitionError::Arithmetic("route net_in num overflow"))
+            ),
+            "expected route net_in num overflow, got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn route_exact_out_rejects_gross_in_mul_overflow() {
+        // net_in_num = reserve_in * required_in = u128::MAX * 1 (fits)
+        // net_in = ceil(u128::MAX / 1) = u128::MAX
+        // gross_in = ceil(u128::MAX * 10000 / 9999) -> mul overflow
+        let mut snapshot = sender_balance_snapshot(ASSET0, u128::MAX);
+        snapshot.pools[0].reserve0 = u128::MAX;
+        snapshot.pools[0].reserve1 = 2;
+        snapshot.pools[0].fee_bps = 1;
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let fee_config = ProtocolFeeConfig::default();
+        let mut intent = default_route_intent(
+            "route-exact-out-gross-in-overflow",
+            "ROUTE_EXACT_OUT",
+            0,
+            0,
+            1,
+            u128::MAX,
+        );
+        bind_route_hash(&mut intent, &state, &fee_config);
+        let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
+        assert!(
+            matches!(
+                result,
+                Err(TransitionError::Arithmetic("route gross_in mul overflow"))
+            ),
+            "expected route gross_in mul overflow, got {:?}",
+            result
+        );
+    }
+
+    #[test]
     fn route_audit_catches_wrong_final_asset() {
         // Codex round 3 MEDIUM: last pool asset_out must == route asset_out.
         let mut snapshot = sender_balance_snapshot(ASSET0, 10_000_000);
