@@ -218,10 +218,10 @@ def _validate_route_envelope(
         if pool_id in seen_pool_ids:
             raise ValueError(f"route duplicate pool_id across legs: {pool_id}")
         seen_pool_ids.add(pool_id)
-        pool = pools.get(pool_id)
-        if pool is None:
+        referenced_pool = pools.get(pool_id)
+        if referenced_pool is None:
             raise ValueError(f"route pool not found: {pool_id}")
-        if not getattr(pool, "status", "ACTIVE") == "ACTIVE":
+        if not getattr(referenced_pool, "status", "ACTIVE") == "ACTIVE":
             raise ValueError(f"route pool not active: {pool_id}")
 
 
@@ -318,7 +318,7 @@ def execute_route_exact_in(
         else:
             pool_updates[pool_id] = (new_reserve_out, new_reserve_in)
 
-        if protocol_fee > 0:
+        if protocol_fee > 0 and protocol_fee_recipient is not None:
             key = (protocol_fee_recipient, current_asset)
             fee_credits[key] = fee_credits.get(key, 0) + protocol_fee
 
@@ -500,7 +500,7 @@ def execute_route_exact_out(
         else:
             pool_updates[pool_id] = (new_reserve_out, new_reserve_in)
 
-        if protocol_fee > 0:
+        if protocol_fee > 0 and protocol_fee_recipient is not None:
             key = (protocol_fee_recipient, current_asset)
             fee_credits[key] = fee_credits.get(key, 0) + protocol_fee
 

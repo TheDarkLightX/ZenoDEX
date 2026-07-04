@@ -927,7 +927,7 @@ def test_route_exact_in_rejects_bool_protocol_fee_share_bps() -> None:
             asset_out=ASSET1,
             total_amount_in=100_000,
             total_min_amount_out=0,
-            protocol_fee_share_bps=True,  # type: ignore[arg-type]
+            protocol_fee_share_bps=True,  # bool is int subclass; runtime rejects via type() is not int
             protocol_fee_recipient=PROTOCOL_FEE_RECIPIENT,
         )
 
@@ -1109,7 +1109,7 @@ def test_route_rejects_lookalike_leg_object() -> None:
     with pytest.raises(ValueError, match="route leg must be a RouteLeg instance"):
         execute_route_exact_in(
             pools=_single_pool(),
-            legs=[FakeLeg()],  # type: ignore[arg-type]
+            legs=[FakeLeg()],  # type: ignore[list-item]
             asset_in=ASSET0,
             asset_out=ASSET1,
             total_amount_in=100_000,
@@ -1130,7 +1130,7 @@ def test_route_rejects_lookalike_pool_object() -> None:
 
     with pytest.raises(ValueError, match="route pool must be a RouteLegPool instance"):
         execute_route_exact_in(
-            pools={POOL_ID: FakePool()},  # type: ignore[arg-type]
+            pools={POOL_ID: FakePool()},  # type: ignore[dict-item]
             legs=_single_leg_route(),
             asset_in=ASSET0,
             asset_out=ASSET1,
