@@ -542,12 +542,14 @@ The root proof journal must be small and verifier-oriented:
 ```text
 RecursiveEpochJournalV1 {
   journal_version
+  proof_type = "risc0.zenodex_recursive_epoch.v1"
   chain_id
   epoch_id
   proof_profile = "recursive_block_v1"
   recursive_statement_hash
   verifier_set_root
-  child_receipts_root
+  child_verification_claims_root
+  child_journals_root
   child_effect_summaries_root
   pre_state_root
   post_state_root
@@ -569,8 +571,11 @@ RecursiveEpochJournalV1 {
 }
 ```
 
-`child_receipts_root` must be nonzero for `proof_kind = recursive_epoch_v0`,
-matching the current `src/integration/zeno_ledger_v0.py` metadata discipline.
+`child_verification_claims_root` must be nonzero for
+`proof_kind = recursive_epoch_v0`. The RISC0 guest verifies child claims as
+`(child_image_id, child_journal_bytes)`. Exact serialized child receipt hashes
+are host audit metadata; they are not a guest-verifiable root unless a separate
+receipt-hash adapter proves that binding.
 
 ## ZenoLedger / Tau Acceptance Algorithm
 
@@ -583,7 +588,8 @@ after this sequence:
 3. Require proof_profile == "recursive_block_v1".
 4. Verify the recursive root proof under program_id/verifier_id.
 5. Decode RecursiveEpochJournalV1.
-6. Require journal.child_receipts_root == metadata.child_receipts_root.
+6. Require journal.child_verification_claims_root ==
+   metadata.child_verification_claims_root.
 7. Require journal.pre_state_root == header.pre_state_root.
 8. Require journal.post_state_root == header.post_state_root.
 9. Require journal.tx_root == body.tx_root.
@@ -666,7 +672,7 @@ This design targets the following disaster states:
 | child proof from wrong chain | `chain_id` mismatch reject |
 | child proof from wrong feature set | `feature_suite_hash` mismatch reject |
 | child proof using stale verifier | `verifier_set_root` reject |
-| metadata claims recursive proof without children | nonzero `child_receipts_root` required |
+| metadata claims recursive proof without children | nonzero `child_verification_claims_root` required |
 | valid child proofs from different epochs mixed | `epoch_id` mismatch reject |
 | missing shard hidden by aggregation | expected shard set or partition root required |
 | cross-shard debit without credit | message multiset/carry-queue check |
@@ -775,7 +781,7 @@ The ZenoLedger/Tau contract must see the same `RecursiveEpochJournalV1`.
 Wire `proof_kind = recursive_epoch_v0` into block admission:
 
 - require real root proof verification;
-- require nonzero `child_receipts_root`;
+- require nonzero `child_verification_claims_root`;
 - require root journal/header/body equality;
 - require DA policy acceptance;
 - emit a recursive block receipt for wallet/explorer display.
@@ -861,7 +867,8 @@ root: aggregate both leaves
 Required negative smokes:
 
 - swap child proofs from different epochs;
-- tamper child receipt root;
+- tamper child verification-claim root;
+- tamper child journal bytes;
 - tamper post state root;
 - duplicate receipt ID;
 - unbalanced asset delta row;
@@ -892,8 +899,9 @@ message fails.
 
 This spec does not claim:
 
-- recursive STARK implementation exists in this repo;
-- current Risc0 proofs can already be recursively aggregated;
+- the recursive RISC0 lane is production-ready;
+- current spot child journals already expose chain-bound `EffectSummaryV1`
+  summaries without an adapter;
 - the current `recursive_block_v1` profile is production-ready;
 - all spot/perps/zUSD/oracle transitions have leaf proofs;
 - DA is solved by proof recursion;
@@ -902,7 +910,6 @@ This spec does not claim:
 
 ## Next Frontier
 
-The highest-value next step is Phase 1: implement a deterministic
-`EffectSummaryV1` and `RecursiveEpochJournalV1` composition checker with
-negative tests. That gives the circuit team a precise target and flushes out
-composition bugs before recursive proving work begins.
+The highest-value next step after the recursive root guest/CLI lane is a
+summary-adapter proof for existing spot journals, so spot children can produce
+chain-bound `EffectSummaryV1` journals without weakening the root verifier.

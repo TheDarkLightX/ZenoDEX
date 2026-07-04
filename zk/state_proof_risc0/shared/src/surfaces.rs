@@ -8,7 +8,7 @@ use core::cmp::Ordering;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{StateProofInputV1, TransitionError, JOURNAL_VERSION};
+use crate::{RecursiveCompositionInputV1, StateProofInputV1, TransitionError, JOURNAL_VERSION};
 
 pub const PROOF_TYPE_PERPS_NP: &str = "risc0.zenodex_perps_np_transition.v1";
 pub const PROOF_TYPE_ZUSD: &str = "risc0.zenodex_zusd_transition.v1";
@@ -24,6 +24,7 @@ pub enum ZenoProofInputV1 {
     Spot(StateProofInputV1),
     PerpsNp(PerpsNpTransitionInputV1),
     Zusd(ZusdTransitionInputV1),
+    Recursive(RecursiveCompositionInputV1),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

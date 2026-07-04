@@ -4,9 +4,10 @@
 extern crate alloc;
 
 use alloc::vec;
-use risc0_zkvm::guest::env;
+use risc0_zkvm::guest::{abort, env};
 use tau_state_proof_risc0_shared::{
-    execute_perps_np_transition_v1, execute_state_proof_input_v1, execute_zusd_transition_v1,
+    compose_recursive_epoch_journal_v1, execute_perps_np_transition_v1,
+    execute_state_proof_input_v1, execute_zusd_transition_v1, RecursiveEffectSummaryV1,
     ZenoProofInputV1,
 };
 
@@ -17,28 +18,64 @@ pub fn main() {
     env::read_slice(core::slice::from_mut(&mut input_len));
     let mut input_bytes = vec![0u8; input_len as usize];
     env::read_slice(&mut input_bytes);
-    let input: ZenoProofInputV1 =
-        postcard::from_bytes(&input_bytes).expect("failed to decode postcard proof input");
+    let input: ZenoProofInputV1 = match postcard::from_bytes(&input_bytes) {
+        Ok(value) => value,
+        Err(_) => abort("failed to decode postcard proof input"),
+    };
     match input {
         ZenoProofInputV1::Spot(input) => {
-            let journal =
-                execute_state_proof_input_v1(input).expect("tauswap proof transition rejected");
+            let journal = match execute_state_proof_input_v1(input) {
+                Ok(value) => value,
+                Err(_) => abort("tauswap proof transition rejected"),
+            };
             commit_journal(&journal);
         }
         ZenoProofInputV1::PerpsNp(input) => {
-            let journal =
-                execute_perps_np_transition_v1(input).expect("perps np proof transition rejected");
+            let journal = match execute_perps_np_transition_v1(input) {
+                Ok(value) => value,
+                Err(_) => abort("perps np proof transition rejected"),
+            };
             commit_journal(&journal);
         }
         ZenoProofInputV1::Zusd(input) => {
-            let journal =
-                execute_zusd_transition_v1(input).expect("zusd proof transition rejected");
+            let journal = match execute_zusd_transition_v1(input) {
+                Ok(value) => value,
+                Err(_) => abort("zusd proof transition rejected"),
+            };
+            commit_journal(&journal);
+        }
+        ZenoProofInputV1::Recursive(input) => {
+            for child in &input.children {
+                let decoded_summary: RecursiveEffectSummaryV1 =
+                    match postcard::from_bytes(&child.child_journal_bytes) {
+                        Ok(value) => value,
+                        Err(_) => abort("failed to decode recursive child summary journal"),
+                    };
+                if decoded_summary != child.summary {
+                    abort("recursive child summary journal mismatch");
+                }
+                if env::verify(
+                    child.descriptor.child_image_id,
+                    child.child_journal_bytes.as_slice(),
+                )
+                .is_err()
+                {
+                    abort("recursive child receipt verification failed");
+                }
+            }
+            let journal = match compose_recursive_epoch_journal_v1(&input) {
+                Ok(value) => value,
+                Err(_) => abort("recursive proof rejected"),
+            };
             commit_journal(&journal);
         }
     }
 }
 
 fn commit_journal<T: serde::Serialize>(journal: &T) {
-    let journal_bytes = postcard::to_allocvec(journal).expect("failed to encode postcard journal");
+    let journal_bytes = match postcard::to_allocvec(journal) {
+        Ok(value) => value,
+        Err(_) => abort("failed to encode postcard journal"),
+    };
     env::commit_slice(&journal_bytes);
 }

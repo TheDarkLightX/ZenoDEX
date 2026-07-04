@@ -107,9 +107,12 @@ Recursive statements additionally require:
 
 ```text
 RecursiveStatementV1 {
-  child_receipts_root
+  child_verification_claims_root
+  child_journals_root
   child_effect_summaries_root
   child_count
+  max_child_journal_bytes
+  max_total_child_journal_bytes
   max_recursion_depth
   conflict_schedule_hash
   carry_queue_pre_root
@@ -189,7 +192,8 @@ Recursive journals additionally require:
 ```text
 RecursiveJournalV1 {
   verifier_set_root
-  child_receipts_root
+  child_verification_claims_root
+  child_journals_root
   child_effect_summaries_root
   child_count
   conflict_schedule_hash
@@ -253,14 +257,15 @@ Intended shape:
 ```text
 host:
   build child receipts
-  compute child journal digests
+  compute child journal bytes and verification-claim digests
   add child receipts as assumptions
 
 guest:
   parse bounded child descriptors
-  verify every child receipt against child image ID and journal digest
+  verify every child receipt assumption against child image ID and exact child
+  journal bytes
   check child image ID is allowed by verifier_set_root
-  decode child journal after verification
+  decode child summary journal after verification
   compose EffectSummaryV1 values
   commit RecursiveJournalV1
 ```
@@ -268,17 +273,24 @@ guest:
 Child journal bytes without in-guest receipt verification are data. They do not
 carry proof authority.
 
+RISC0 guest recursion verifies a claim of the form `(child_image_id,
+child_journal_bytes)`. Exact serialized child receipt hashes are useful host
+audit metadata, but they are not what the guest verifier checks. Recursive
+journals therefore bind `child_verification_claims_root` and
+`child_journals_root`, with any receipt-artifact root kept outside the guest
+trust boundary.
+
 Every child descriptor must bind:
 
 ```text
 ChildDescriptorV1 {
   child_image_id
-  child_receipt_kind
-  child_journal_digest
+  child_verification_claim_hash
+  child_journal_hash
   child_effect_summary_hash
   child_statement_hash
-  child_lane_id
-  child_epoch_or_height_range
+  child_verifier_id
+  child_profile
 }
 ```
 
@@ -446,7 +458,8 @@ These are review budgets, not automatic rejection rules:
 | function length | prefer under 60 lines on critical paths |
 | branching | prefer under 12 decision points per critical function |
 | nesting | prefer depth at most 3 |
-| panic paths | none in verifier, guest, or shared production logic |
+| verifier panic paths | none in host verifier or shared production logic |
+| guest abort paths | explicit `risc0_zkvm::guest::abort` for invalid witness rejection |
 | public roots | bounded and named |
 | witness rows | bounded by statement |
 
@@ -495,7 +508,8 @@ Before a recursive proof lane can be described as implemented, add:
 1. Root guest verifies child receipts in guest.
 2. Child verifier IDs are checked against `verifier_set_root`.
 3. `EffectSummaryV1` composition checker exists outside the circuit.
-4. Recursive root journal binds child receipt root and child summary root.
+4. Recursive root journal binds child verification-claim root, child journal
+   root, and child summary root.
 5. Negative tests cover omitted child, swapped child, duplicate receipt,
    duplicate message, unbalanced aggregate delta, missing DA root, and metadata
    drift.

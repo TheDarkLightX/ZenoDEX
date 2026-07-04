@@ -1,7 +1,7 @@
 extern crate alloc;
 
 use alloc::collections::{BTreeMap, BTreeSet};
-use alloc::string::String;
+use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
 use serde::{Deserialize, Serialize};
@@ -9,6 +9,7 @@ use sha2::{Digest, Sha256};
 
 use crate::TransitionError;
 
+pub const PROOF_TYPE_RECURSIVE: &str = "risc0.zenodex_recursive_epoch.v1";
 pub const RECURSIVE_EFFECT_SUMMARY_VERSION_V1: u32 = 1;
 pub const RECURSIVE_STATEMENT_VERSION_V1: u32 = 1;
 pub const RECURSIVE_JOURNAL_VERSION_V1: u32 = 1;
@@ -36,6 +37,8 @@ pub struct RecursiveCompositionStatementV1 {
     pub data_availability_root: [u8; 32],
     pub expected_child_count: u32,
     pub max_children: u32,
+    pub max_child_journal_bytes: u32,
+    pub max_total_child_journal_bytes: u32,
     pub max_asset_delta_rows: u32,
     pub max_cross_shard_messages: u32,
     pub max_receipt_ids: u32,
@@ -44,7 +47,7 @@ pub struct RecursiveCompositionStatementV1 {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecursiveChildDescriptorV1 {
-    pub child_receipt_hash: [u8; 32],
+    pub child_verification_claim_hash: [u8; 32],
     pub child_journal_hash: [u8; 32],
     pub child_effect_summary_hash: [u8; 32],
     pub child_statement_hash: [u8; 32],
@@ -107,6 +110,7 @@ pub struct RecursiveCrossShardMessageV1 {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecursiveChildEffectV1 {
     pub descriptor: RecursiveChildDescriptorV1,
+    pub child_journal_bytes: Vec<u8>,
     pub summary: RecursiveEffectSummaryV1,
     pub asset_delta_rows: Vec<RecursiveAssetDeltaRowV1>,
     pub outbox_messages: Vec<RecursiveCrossShardMessageV1>,
@@ -126,6 +130,7 @@ pub struct RecursiveCompositionInputV1 {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecursiveEpochJournalV1 {
     pub journal_version: u32,
+    pub proof_type: String,
     pub domain_separator: String,
     pub chain_id: String,
     pub epoch_id: u64,
@@ -133,7 +138,7 @@ pub struct RecursiveEpochJournalV1 {
     pub statement_hash: [u8; 32],
     pub verifier_set_root: [u8; 32],
     pub allowed_authority_roots_root: [u8; 32],
-    pub child_receipts_root: [u8; 32],
+    pub child_verification_claims_root: [u8; 32],
     pub child_journals_root: [u8; 32],
     pub child_effect_summaries_root: [u8; 32],
     pub child_count: u32,
@@ -201,7 +206,7 @@ pub fn compose_recursive_epoch_journal_v1(
         input.allowed_authority_roots.iter().copied().collect();
 
     let mut previous_lane: Option<&str> = None;
-    let mut child_receipt_hashes = Vec::new();
+    let mut child_verification_claim_hashes = Vec::new();
     let mut child_journal_hashes = Vec::new();
     let mut child_summary_hashes = Vec::new();
     let mut pre_roots = Vec::new();
@@ -218,9 +223,24 @@ pub fn compose_recursive_epoch_journal_v1(
     let mut all_inbox = Vec::new();
     let mut all_accepted_receipts = Vec::new();
     let mut all_rejected_receipts = Vec::new();
+    let mut total_child_journal_bytes = 0usize;
 
     for child in &input.children {
         validate_child_effect_v1(child, &input.statement, &allowed_verifiers)?;
+        total_child_journal_bytes = total_child_journal_bytes
+            .checked_add(child.child_journal_bytes.len())
+            .ok_or(TransitionError::Arithmetic(
+                "recursive child journal byte count overflow",
+            ))?;
+        let max_total_child_journal_bytes =
+            usize::try_from(input.statement.max_total_child_journal_bytes).map_err(|_| {
+                TransitionError::Arithmetic("recursive max_total_child_journal_bytes overflow")
+            })?;
+        if total_child_journal_bytes > max_total_child_journal_bytes {
+            return Err(TransitionError::InvalidInput(
+                "recursive total child journal bytes exceeds max",
+            ));
+        }
         match previous_lane {
             Some(prev) if prev >= child.summary.lane_id.as_str() => {
                 return Err(TransitionError::InvalidInput(
@@ -231,6 +251,19 @@ pub fn compose_recursive_epoch_journal_v1(
         }
 
         let summary_hash = recursive_effect_summary_hash_v1(&child.summary);
+        let child_journal_hash = recursive_child_journal_hash_v1(&child.child_journal_bytes)?;
+        if child_journal_hash != child.descriptor.child_journal_hash {
+            return Err(TransitionError::InvalidInput("child journal hash mismatch"));
+        }
+        let child_verification_claim_hash = recursive_child_verification_claim_hash_v1(
+            &child.descriptor.child_image_id,
+            &child.child_journal_bytes,
+        )?;
+        if child_verification_claim_hash != child.descriptor.child_verification_claim_hash {
+            return Err(TransitionError::InvalidInput(
+                "child verification claim hash mismatch",
+            ));
+        }
         if summary_hash != child.descriptor.child_effect_summary_hash {
             return Err(TransitionError::InvalidInput(
                 "child effect summary hash mismatch",
@@ -280,8 +313,8 @@ pub fn compose_recursive_epoch_journal_v1(
             ));
         }
 
-        child_receipt_hashes.push(child.descriptor.child_receipt_hash);
-        child_journal_hashes.push(child.descriptor.child_journal_hash);
+        child_verification_claim_hashes.push(child_verification_claim_hash);
+        child_journal_hashes.push(child_journal_hash);
         child_summary_hashes.push(summary_hash);
         pre_roots.push(child.summary.pre_state_root);
         post_roots.push(child.summary.post_state_root);
@@ -351,6 +384,7 @@ pub fn compose_recursive_epoch_journal_v1(
 
     Ok(RecursiveEpochJournalV1 {
         journal_version: RECURSIVE_JOURNAL_VERSION_V1,
+        proof_type: PROOF_TYPE_RECURSIVE.to_string(),
         domain_separator: input.statement.domain_separator.clone(),
         chain_id: input.statement.chain_id.clone(),
         epoch_id: input.statement.epoch_id,
@@ -358,9 +392,9 @@ pub fn compose_recursive_epoch_journal_v1(
         statement_hash,
         verifier_set_root: input.statement.verifier_set_root,
         allowed_authority_roots_root: input.statement.allowed_authority_roots_root,
-        child_receipts_root: recursive_root_list_root_v1(
-            b"zenodex.risc0.recursive.child_receipts_root.v1",
-            &child_receipt_hashes,
+        child_verification_claims_root: recursive_root_list_root_v1(
+            b"zenodex.risc0.recursive.child_verification_claims_root.v1",
+            &child_verification_claim_hashes,
         )?,
         child_journals_root: recursive_root_list_root_v1(
             b"zenodex.risc0.recursive.child_journals_root.v1",
@@ -420,11 +454,45 @@ pub fn recursive_statement_hash_v1(statement: &RecursiveCompositionStatementV1) 
     write_bytes32(&mut hasher, &statement.data_availability_root);
     write_u32(&mut hasher, statement.expected_child_count);
     write_u32(&mut hasher, statement.max_children);
+    write_u32(&mut hasher, statement.max_child_journal_bytes);
+    write_u32(&mut hasher, statement.max_total_child_journal_bytes);
     write_u32(&mut hasher, statement.max_asset_delta_rows);
     write_u32(&mut hasher, statement.max_cross_shard_messages);
     write_u32(&mut hasher, statement.max_receipt_ids);
     write_str(&mut hasher, &statement.cross_shard_mode);
     hasher.finalize().into()
+}
+
+pub fn recursive_child_journal_hash_v1(journal_bytes: &[u8]) -> Result<[u8; 32], TransitionError> {
+    if journal_bytes.is_empty() {
+        return Err(TransitionError::InvalidInput("child journal bytes empty"));
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(b"zenodex.risc0.recursive.child_journal_hash.v1");
+    write_u32(
+        &mut hasher,
+        checked_len_u32(journal_bytes.len(), "child journal bytes too large")?,
+    );
+    hasher.update(journal_bytes);
+    Ok(hasher.finalize().into())
+}
+
+pub fn recursive_child_verification_claim_hash_v1(
+    image_id: &[u32; 8],
+    journal_bytes: &[u8],
+) -> Result<[u8; 32], TransitionError> {
+    if journal_bytes.is_empty() {
+        return Err(TransitionError::InvalidInput("child journal bytes empty"));
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(b"zenodex.risc0.recursive.child_verification_claim_hash.v1");
+    write_image_id(&mut hasher, image_id);
+    write_u32(
+        &mut hasher,
+        checked_len_u32(journal_bytes.len(), "child journal bytes too large")?,
+    );
+    hasher.update(journal_bytes);
+    Ok(hasher.finalize().into())
 }
 
 pub fn recursive_effect_summary_hash_v1(summary: &RecursiveEffectSummaryV1) -> [u8; 32] {
@@ -582,6 +650,14 @@ fn validate_recursive_statement_v1(
             "recursive max_children invalid",
         ));
     }
+    if statement.max_child_journal_bytes == 0
+        || statement.max_total_child_journal_bytes == 0
+        || statement.max_child_journal_bytes > statement.max_total_child_journal_bytes
+    {
+        return Err(TransitionError::InvalidInput(
+            "recursive child journal byte bounds invalid",
+        ));
+    }
     if statement.max_asset_delta_rows == 0
         || statement.max_cross_shard_messages == 0
         || statement.max_receipt_ids == 0
@@ -602,8 +678,8 @@ fn validate_child_effect_v1(
     allowed_verifiers: &BTreeSet<[u8; 32]>,
 ) -> Result<(), TransitionError> {
     require_nonzero_root(
-        &child.descriptor.child_receipt_hash,
-        "child receipt hash zero",
+        &child.descriptor.child_verification_claim_hash,
+        "child verification claim hash zero",
     )?;
     require_nonzero_root(
         &child.descriptor.child_journal_hash,
@@ -635,6 +711,18 @@ fn validate_child_effect_v1(
         ));
     }
     require_nonempty(&child.descriptor.child_profile, "child profile empty")?;
+    let child_journal_len = checked_len_u32(
+        child.child_journal_bytes.len(),
+        "child journal bytes length too large",
+    )?;
+    if child_journal_len == 0 {
+        return Err(TransitionError::InvalidInput("child journal bytes empty"));
+    }
+    if child_journal_len > statement.max_child_journal_bytes {
+        return Err(TransitionError::InvalidInput(
+            "child journal bytes exceeds max",
+        ));
+    }
 
     let summary = &child.summary;
     if summary.summary_version != RECURSIVE_EFFECT_SUMMARY_VERSION_V1 {
@@ -1073,16 +1161,24 @@ mod tests {
             toolchain_lock_hash: h(13),
         };
         let summary_hash = recursive_effect_summary_hash_v1(&summary);
+        let child_journal_bytes = alloc::vec![journal_byte, receipt_byte];
+        let child_journal_hash = recursive_child_journal_hash_v1(&child_journal_bytes).unwrap();
+        let child_verification_claim_hash = recursive_child_verification_claim_hash_v1(
+            &summary.risc0_image_id,
+            &child_journal_bytes,
+        )
+        .unwrap();
         RecursiveChildEffectV1 {
             descriptor: RecursiveChildDescriptorV1 {
-                child_receipt_hash: h(receipt_byte),
-                child_journal_hash: h(journal_byte),
+                child_verification_claim_hash,
+                child_journal_hash,
                 child_effect_summary_hash: summary_hash,
                 child_statement_hash: summary.statement_hash,
                 child_image_id: summary.risc0_image_id,
                 child_verifier_id: verifier_id,
                 child_profile: summary.proof_profile.clone(),
             },
+            child_journal_bytes,
             summary,
             asset_delta_rows: rows,
             outbox_messages: outbox,
@@ -1147,6 +1243,8 @@ mod tests {
                 data_availability_root: h(16),
                 expected_child_count: 2,
                 max_children: 8,
+                max_child_journal_bytes: 64,
+                max_total_child_journal_bytes: 128,
                 max_asset_delta_rows: 16,
                 max_cross_shard_messages: 16,
                 max_receipt_ids: 16,
@@ -1163,8 +1261,11 @@ mod tests {
         let input = valid_input();
         let journal = compose_recursive_epoch_journal_v1(&input).unwrap();
         assert_eq!(journal.child_count, 2);
+        assert_eq!(journal.proof_type, PROOF_TYPE_RECURSIVE);
         assert_eq!(journal.chain_id, "tau-test");
         assert_eq!(journal.proof_profile, "recursive_block_v1");
+        assert_ne!(journal.child_verification_claims_root, [0u8; 32]);
+        assert_ne!(journal.child_journals_root, [0u8; 32]);
         assert_eq!(
             journal.pre_state_root,
             input.statement.expected_pre_state_root
@@ -1200,6 +1301,53 @@ mod tests {
             compose_recursive_epoch_journal_v1(&input),
             Err(TransitionError::InvalidInput(
                 "child effect summary hash mismatch"
+            ))
+        ));
+    }
+
+    #[test]
+    fn recursive_composition_rejects_child_journal_hash_mismatch() {
+        let mut input = valid_input();
+        input.children[0].descriptor.child_journal_hash = h(99);
+        assert!(matches!(
+            compose_recursive_epoch_journal_v1(&input),
+            Err(TransitionError::InvalidInput("child journal hash mismatch"))
+        ));
+    }
+
+    #[test]
+    fn recursive_composition_rejects_child_verification_claim_hash_mismatch() {
+        let mut input = valid_input();
+        input.children[0].descriptor.child_verification_claim_hash = h(99);
+        assert!(matches!(
+            compose_recursive_epoch_journal_v1(&input),
+            Err(TransitionError::InvalidInput(
+                "child verification claim hash mismatch"
+            ))
+        ));
+    }
+
+    #[test]
+    fn recursive_composition_rejects_child_journal_bytes_over_bound() {
+        let mut input = valid_input();
+        input.statement.max_child_journal_bytes = 1;
+        assert!(matches!(
+            compose_recursive_epoch_journal_v1(&input),
+            Err(TransitionError::InvalidInput(
+                "child journal bytes exceeds max"
+            ))
+        ));
+    }
+
+    #[test]
+    fn recursive_composition_rejects_total_child_journal_bytes_over_bound() {
+        let mut input = valid_input();
+        input.statement.max_child_journal_bytes = 2;
+        input.statement.max_total_child_journal_bytes = 3;
+        assert!(matches!(
+            compose_recursive_epoch_journal_v1(&input),
+            Err(TransitionError::InvalidInput(
+                "recursive total child journal bytes exceeds max"
             ))
         ));
     }

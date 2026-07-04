@@ -10,7 +10,8 @@ use tau_state_proof_risc0_methods::{
     TAU_STATE_PROOF_RISC0_GUEST_ID as TAU_STATE_PROOF_GUEST_ID,
 };
 use tau_state_proof_risc0_shared::{
-    accepted_receipts_root_v1, frontier_signature_certificates_root_v1, ingress_commitment_v1,
+    accepted_receipts_root_v1, compose_recursive_epoch_journal_v1,
+    frontier_signature_certificates_root_v1, ingress_commitment_v1,
     perps_np_collateral_bindings_hash_v1, perps_np_operation_hash_v1,
     perps_np_oracle_bindings_hash_v1, route_price_interval_authority_policy_root_v1,
     route_price_interval_authority_root_v1, route_price_intervals_root_v1,
@@ -18,12 +19,13 @@ use tau_state_proof_risc0_shared::{
     zusd_operation_oracle_binding_hash_v1, ChainBalanceV1, CollateralBindingV1, DexSnapshotV1,
     DexStateV1, NonceEntryV1, NonceStateV1, OracleBindingV1, PerpsAccountV1, PerpsIntentV1,
     PerpsMarketParamsV1, PerpsNpActionV1, PerpsNpSnapshotV1, PerpsNpTransitionInputV1,
-    PerpsNpTransitionJournalV1, RoutePriceIntervalAuthorityPolicySourceV1,
-    RoutePriceIntervalAuthorityPolicyV1, RoutePriceIntervalAuthorityV1, RoutePriceIntervalV1,
-    SharedPoolFrontierSignatureCertificateV1, StateProofInputV1, StateProofJournalV1,
-    TauTxAppOpsV1, TauTxV1, TxIngressFactV1, ZenoProofInputV1, ZusdBalanceEntryV1, ZusdOperationV1,
-    ZusdSnapshotV1, ZusdTransitionInputV1, ZusdTransitionJournalV1, ZusdVaultEntryV1, PROOF_TYPE,
-    PROOF_TYPE_PERPS_NP, PROOF_TYPE_ZUSD,
+    PerpsNpTransitionJournalV1, RecursiveCompositionInputV1, RecursiveEpochJournalV1,
+    RoutePriceIntervalAuthorityPolicySourceV1, RoutePriceIntervalAuthorityPolicyV1,
+    RoutePriceIntervalAuthorityV1, RoutePriceIntervalV1, SharedPoolFrontierSignatureCertificateV1,
+    StateProofInputV1, StateProofJournalV1, TauTxAppOpsV1, TauTxV1, TxIngressFactV1,
+    ZenoProofInputV1, ZusdBalanceEntryV1, ZusdOperationV1, ZusdSnapshotV1, ZusdTransitionInputV1,
+    ZusdTransitionJournalV1, ZusdVaultEntryV1, PROOF_TYPE, PROOF_TYPE_PERPS_NP,
+    PROOF_TYPE_RECURSIVE, PROOF_TYPE_ZUSD, RECURSIVE_DOMAIN_SEPARATOR_V1,
 };
 
 #[derive(Clone, Copy)]
@@ -115,6 +117,7 @@ fn handle_generate(req: &Value) {
         PROOF_TYPE => handle_generate_spot(req),
         PROOF_TYPE_PERPS_NP => handle_generate_perps_np(req),
         PROOF_TYPE_ZUSD => handle_generate_zusd(req),
+        PROOF_TYPE_RECURSIVE => handle_generate_recursive(req),
         _ => die("unsupported proof_type"),
     }
 }
@@ -470,6 +473,44 @@ fn handle_generate_zusd(req: &Value) {
     write_json_stdout(&out);
 }
 
+fn handle_generate_recursive(req: &Value) {
+    if req.get("schema_version").and_then(Value::as_i64) != Some(1) {
+        die("unexpected schema_version (expected tau_state_proof_request v1)");
+    }
+    validate_embedded_methods();
+
+    let state_hash_hex = require_str(req.get("state_hash"), "state_hash");
+    let state_hash = parse_hex32(&state_hash_hex).unwrap_or_else(|e| die(&e));
+    let input = parse_recursive_input(req).unwrap_or_else(|e| die(&e));
+    if input.statement.expected_post_state_root != state_hash {
+        die("state_hash must equal recursive_input.statement.expected_post_state_root");
+    }
+    let child_receipts = parse_recursive_child_receipts(req, &input).unwrap_or_else(|e| die(&e));
+
+    let guest_input = ZenoProofInputV1::Recursive(input);
+    let (receipt, journal): (Receipt, RecursiveEpochJournalV1) =
+        prove_guest_input_with_assumptions(&guest_input, &child_receipts);
+    if journal.proof_type != PROOF_TYPE_RECURSIVE {
+        die("journal proof_type mismatch");
+    }
+    if journal.domain_separator != RECURSIVE_DOMAIN_SEPARATOR_V1 {
+        die("journal domain_separator mismatch");
+    }
+    if journal.post_state_root != state_hash {
+        die("journal.post_state_root mismatch");
+    }
+
+    let out = json!({
+        "schema": "tau_state_proof",
+        "schema_version": 1,
+        "state_hash": normalize_hex64(&state_hash_hex),
+        "proof_type": PROOF_TYPE_RECURSIVE,
+        "proof": encode_receipt(&receipt),
+        "meta": recursive_meta(&journal),
+    });
+    write_json_stdout(&out);
+}
+
 fn handle_verify(req: &Value) {
     let out = match try_verify(req) {
         Ok(()) => json!({ "ok": true }),
@@ -504,6 +545,9 @@ fn try_verify(req: &Value) -> Result<(), String> {
     }
     if proof_type == PROOF_TYPE_ZUSD {
         return try_verify_zusd(req, proof, expected_state_hash);
+    }
+    if proof_type == PROOF_TYPE_RECURSIVE {
+        return try_verify_recursive(req, proof, expected_state_hash);
     }
     if proof_type != PROOF_TYPE {
         return Err("unsupported proof_type".into());
@@ -768,6 +812,59 @@ fn try_verify_zusd(
     Ok(())
 }
 
+fn try_verify_recursive(
+    _req: &Value,
+    proof: &Value,
+    expected_state_hash: [u8; 32],
+) -> Result<(), String> {
+    check_proof_meta_image_id(proof)?;
+    let receipt = decode_verified_receipt_from_proof(proof)?;
+    let journal: RecursiveEpochJournalV1 = decode_postcard_journal(&receipt, "recursive journal")?;
+    if journal.proof_type != PROOF_TYPE_RECURSIVE {
+        return Err("journal proof_type mismatch".into());
+    }
+    if journal.domain_separator != RECURSIVE_DOMAIN_SEPARATOR_V1 {
+        return Err("journal domain_separator mismatch".into());
+    }
+    if journal.post_state_root != expected_state_hash {
+        return Err("journal.post_state_root mismatch".into());
+    }
+    expect_meta_hash(proof, "statement_hash", journal.statement_hash)?;
+    expect_meta_hash(proof, "verifier_set_root", journal.verifier_set_root)?;
+    expect_meta_hash(
+        proof,
+        "child_verification_claims_root",
+        journal.child_verification_claims_root,
+    )?;
+    expect_meta_hash(proof, "child_journals_root", journal.child_journals_root)?;
+    expect_meta_hash(
+        proof,
+        "child_effect_summaries_root",
+        journal.child_effect_summaries_root,
+    )?;
+    expect_meta_hash(
+        proof,
+        "aggregate_asset_delta_root",
+        journal.aggregate_asset_delta_root,
+    )?;
+    expect_meta_hash(
+        proof,
+        "cross_shard_outbox_root",
+        journal.cross_shard_outbox_root,
+    )?;
+    expect_meta_hash(
+        proof,
+        "cross_shard_inbox_root",
+        journal.cross_shard_inbox_root,
+    )?;
+    expect_meta_hash(
+        proof,
+        "data_availability_root",
+        journal.data_availability_root,
+    )?;
+    Ok(())
+}
+
 fn verify_surface_request_bindings(
     req: &Value,
     proof: &Value,
@@ -844,6 +941,16 @@ fn prove_guest_input<T>(guest_input: &ZenoProofInputV1) -> (Receipt, T)
 where
     T: DeserializeOwned,
 {
+    prove_guest_input_with_assumptions(guest_input, &[])
+}
+
+fn prove_guest_input_with_assumptions<T>(
+    guest_input: &ZenoProofInputV1,
+    assumptions: &[Receipt],
+) -> (Receipt, T)
+where
+    T: DeserializeOwned,
+{
     let input_bytes = postcard::to_allocvec(guest_input)
         .unwrap_or_else(|e| die(&format!("failed to encode postcard input: {e}")));
     let input_len: u32 = input_bytes
@@ -852,6 +959,9 @@ where
         .unwrap_or_else(|_| die("guest input too large"));
     let mut builder = ExecutorEnv::builder();
     builder.write_slice(&[input_len]).write_slice(&input_bytes);
+    for receipt in assumptions {
+        builder.add_assumption(receipt.clone());
+    }
     let env = builder
         .build()
         .unwrap_or_else(|e| die(&format!("failed to build env: {e}")));
@@ -1607,6 +1717,54 @@ fn parse_verify_zusd_operation(req: &Value) -> Result<ZusdOperationV1, String> {
     parse_zusd_operation_value(value).map_err(|e| format!("operation schema mismatch: {e}"))
 }
 
+fn parse_recursive_input(req: &Value) -> Result<RecursiveCompositionInputV1, String> {
+    let value = req
+        .get("recursive_input")
+        .cloned()
+        .ok_or_else(|| "recursive_input missing for recursive proof".to_string())?;
+    let input: RecursiveCompositionInputV1 = serde_json::from_value(value)
+        .map_err(|e| format!("recursive_input schema mismatch: {e}"))?;
+    compose_recursive_epoch_journal_v1(&input).map_err(transition_error_str)?;
+    Ok(input)
+}
+
+fn parse_recursive_child_receipts(
+    req: &Value,
+    input: &RecursiveCompositionInputV1,
+) -> Result<Vec<Receipt>, String> {
+    let values = req
+        .get("child_proofs")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "child_proofs must be a list".to_string())?;
+    if values.len() != input.children.len() {
+        return Err("child_proofs length mismatch".into());
+    }
+    let mut receipts = Vec::with_capacity(values.len());
+    for (index, value) in values.iter().enumerate() {
+        let proof_b64 = value
+            .as_str()
+            .ok_or_else(|| format!("child_proofs[{index}] must be a base64 receipt"))?;
+        let receipt =
+            decode_receipt_b64(proof_b64).map_err(|e| format!("child_proofs[{index}]: {e}"))?;
+        let child = &input.children[index];
+        receipt
+            .verify(child.descriptor.child_image_id)
+            .map_err(|e| format!("child_proofs[{index}] verification failed: {e}"))?;
+        if receipt.journal.bytes != child.child_journal_bytes {
+            return Err(format!("child_proofs[{index}] journal bytes mismatch"));
+        }
+        receipts.push(receipt);
+    }
+    Ok(receipts)
+}
+
+fn decode_receipt_b64(proof_b64: &str) -> Result<Receipt, String> {
+    let proof_bytes = base64::engine::general_purpose::STANDARD
+        .decode(proof_b64)
+        .map_err(|e| format!("invalid base64 proof: {e}"))?;
+    bincode::deserialize(&proof_bytes).map_err(|e| format!("invalid receipt bytes: {e}"))
+}
+
 fn perps_np_meta(journal: &PerpsNpTransitionJournalV1) -> Value {
     json!({
         "risc0_image_id": hex_u32_words(journal.risc0_image_id),
@@ -1642,6 +1800,42 @@ fn zusd_meta(journal: &ZusdTransitionJournalV1) -> Value {
         "minted_zusd_e8": journal.minted_zusd_e8.to_string(),
         "collateral_value_e8": journal.collateral_value_e8.to_string(),
         "mcr_bps": journal.mcr_bps,
+    })
+}
+
+fn recursive_meta(journal: &RecursiveEpochJournalV1) -> Value {
+    json!({
+        "risc0_image_id": hex_u32_words(TAU_STATE_PROOF_GUEST_ID),
+        "proof_type": journal.proof_type,
+        "domain_separator": journal.domain_separator,
+        "chain_id": journal.chain_id,
+        "epoch_id": journal.epoch_id,
+        "proof_profile": journal.proof_profile,
+        "statement_hash": hex_lower(&journal.statement_hash),
+        "verifier_set_root": hex_lower(&journal.verifier_set_root),
+        "allowed_authority_roots_root": hex_lower(&journal.allowed_authority_roots_root),
+        "child_verification_claims_root": hex_lower(&journal.child_verification_claims_root),
+        "child_journals_root": hex_lower(&journal.child_journals_root),
+        "child_effect_summaries_root": hex_lower(&journal.child_effect_summaries_root),
+        "child_count": journal.child_count,
+        "pre_state_root": hex_lower(&journal.pre_state_root),
+        "post_state_root": hex_lower(&journal.post_state_root),
+        "tx_root": hex_lower(&journal.tx_root),
+        "evidence_root": hex_lower(&journal.evidence_root),
+        "receipt_root": hex_lower(&journal.receipt_root),
+        "accepted_receipts_root": hex_lower(&journal.accepted_receipts_root),
+        "rejected_receipts_root": hex_lower(&journal.rejected_receipts_root),
+        "aggregate_asset_delta_root": hex_lower(&journal.aggregate_asset_delta_root),
+        "cross_shard_outbox_root": hex_lower(&journal.cross_shard_outbox_root),
+        "cross_shard_inbox_root": hex_lower(&journal.cross_shard_inbox_root),
+        "carry_queue_pre_root": hex_lower(&journal.carry_queue_pre_root),
+        "carry_queue_post_root": hex_lower(&journal.carry_queue_post_root),
+        "conflict_schedule_hash": hex_lower(&journal.conflict_schedule_hash),
+        "data_availability_root": hex_lower(&journal.data_availability_root),
+        "public_policy_hash": hex_lower(&journal.public_policy_hash),
+        "feature_suite_hash": hex_lower(&journal.feature_suite_hash),
+        "dependency_lock_hash": hex_lower(&journal.dependency_lock_hash),
+        "toolchain_lock_hash": hex_lower(&journal.toolchain_lock_hash),
     })
 }
 
@@ -2698,6 +2892,16 @@ fn die(msg: &str) -> ! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tau_state_proof_risc0_shared::{
+        recursive_asset_delta_root_v1, recursive_authority_set_root_v1,
+        recursive_child_journal_hash_v1, recursive_child_verification_claim_hash_v1,
+        recursive_cross_shard_messages_root_v1, recursive_effect_summary_hash_v1,
+        recursive_receipt_ids_root_v1, recursive_vector_root_v1, recursive_verifier_set_root_v1,
+        RecursiveAssetDeltaRowV1, RecursiveChildDescriptorV1, RecursiveChildEffectV1,
+        RecursiveCrossShardMessageV1, RecursiveEffectSummaryV1,
+        RECURSIVE_EFFECT_SUMMARY_VERSION_V1, RECURSIVE_STATEMENT_VERSION_V1,
+        RECURSIVE_STRICT_CROSS_SHARD_MODE_V1,
+    };
 
     fn h(byte: u8) -> [u8; 32] {
         [byte; 32]
@@ -2705,6 +2909,164 @@ mod tests {
 
     fn hx(byte: u8) -> String {
         hex::encode(h(byte))
+    }
+
+    fn recursive_image(byte: u32) -> [u32; 8] {
+        [byte; 8]
+    }
+
+    fn recursive_asset_row(
+        asset_id: &str,
+        debit_atoms: u128,
+        credit_atoms: u128,
+    ) -> RecursiveAssetDeltaRowV1 {
+        RecursiveAssetDeltaRowV1 {
+            asset_id: asset_id.to_string(),
+            debit_atoms,
+            credit_atoms,
+            authorized_mint_atoms: 0,
+            authorized_burn_atoms: 0,
+            authority_root: [0u8; 32],
+        }
+    }
+
+    fn recursive_child(
+        lane_id: &str,
+        image_byte: u8,
+        journal_byte: u8,
+        verifier_id: [u8; 32],
+        asset_delta_rows: Vec<RecursiveAssetDeltaRowV1>,
+        accepted_receipt_ids: Vec<[u8; 32]>,
+    ) -> RecursiveChildEffectV1 {
+        let outbox_messages: Vec<RecursiveCrossShardMessageV1> = Vec::new();
+        let inbox_messages: Vec<RecursiveCrossShardMessageV1> = Vec::new();
+        let rejected_receipt_ids: Vec<[u8; 32]> = Vec::new();
+        let asset_delta_root = recursive_asset_delta_root_v1(&asset_delta_rows).unwrap();
+        let accepted_receipts_root = recursive_receipt_ids_root_v1(&accepted_receipt_ids).unwrap();
+        let rejected_receipts_root = recursive_receipt_ids_root_v1(&rejected_receipt_ids).unwrap();
+        let summary = RecursiveEffectSummaryV1 {
+            summary_version: RECURSIVE_EFFECT_SUMMARY_VERSION_V1,
+            lane_id: lane_id.to_string(),
+            lane_kind: "spot".to_string(),
+            chain_id: "tau-test".to_string(),
+            epoch_id: 7,
+            proof_profile: "recursive_block_v1".to_string(),
+            risc0_image_id: recursive_image(image_byte as u32),
+            statement_hash: h(image_byte + 30),
+            pre_state_root: h(image_byte + 40),
+            post_state_root: h(image_byte + 50),
+            tx_root: h(image_byte + 60),
+            evidence_root: h(image_byte + 70),
+            receipt_root: h(image_byte + 80),
+            accepted_receipts_root,
+            rejected_receipts_root,
+            asset_delta_root,
+            cross_shard_outbox_root: recursive_cross_shard_messages_root_v1(&outbox_messages)
+                .unwrap(),
+            cross_shard_inbox_root: recursive_cross_shard_messages_root_v1(&inbox_messages)
+                .unwrap(),
+            write_set_root: h(image_byte + 90),
+            public_policy_hash: h(10),
+            feature_suite_hash: h(11),
+            dependency_lock_hash: h(12),
+            toolchain_lock_hash: h(13),
+        };
+        let child_journal_bytes = vec![journal_byte, image_byte];
+        let child_journal_hash = recursive_child_journal_hash_v1(&child_journal_bytes).unwrap();
+        let child_verification_claim_hash = recursive_child_verification_claim_hash_v1(
+            &summary.risc0_image_id,
+            &child_journal_bytes,
+        )
+        .unwrap();
+        let child_effect_summary_hash = recursive_effect_summary_hash_v1(&summary);
+        RecursiveChildEffectV1 {
+            descriptor: RecursiveChildDescriptorV1 {
+                child_verification_claim_hash,
+                child_journal_hash,
+                child_effect_summary_hash,
+                child_statement_hash: summary.statement_hash,
+                child_image_id: summary.risc0_image_id,
+                child_verifier_id: verifier_id,
+                child_profile: summary.proof_profile.clone(),
+            },
+            child_journal_bytes,
+            summary,
+            asset_delta_rows,
+            outbox_messages,
+            inbox_messages,
+            accepted_receipt_ids,
+            rejected_receipt_ids,
+        }
+    }
+
+    fn recursive_input() -> RecursiveCompositionInputV1 {
+        let verifier_ids = vec![h(4), h(5)];
+        let authority_roots = vec![h(6)];
+        let left = recursive_child(
+            "lane-a",
+            21,
+            31,
+            h(4),
+            vec![
+                recursive_asset_row("ASSET0", 10, 0),
+                recursive_asset_row("ASSET1", 0, 5),
+            ],
+            vec![h(81)],
+        );
+        let right = recursive_child(
+            "lane-b",
+            22,
+            32,
+            h(5),
+            vec![
+                recursive_asset_row("ASSET0", 0, 10),
+                recursive_asset_row("ASSET1", 5, 0),
+            ],
+            vec![h(82)],
+        );
+        let pre_state_root = recursive_vector_root_v1(
+            b"zenodex.risc0.recursive.pre_state_vector_root.v1",
+            &[left.summary.pre_state_root, right.summary.pre_state_root],
+        )
+        .unwrap();
+        let post_state_root = recursive_vector_root_v1(
+            b"zenodex.risc0.recursive.post_state_vector_root.v1",
+            &[left.summary.post_state_root, right.summary.post_state_root],
+        )
+        .unwrap();
+        RecursiveCompositionInputV1 {
+            statement: tau_state_proof_risc0_shared::RecursiveCompositionStatementV1 {
+                domain_separator: RECURSIVE_DOMAIN_SEPARATOR_V1.to_string(),
+                schema_version: RECURSIVE_STATEMENT_VERSION_V1,
+                chain_id: "tau-test".to_string(),
+                epoch_id: 7,
+                proof_profile: "recursive_block_v1".to_string(),
+                verifier_set_root: recursive_verifier_set_root_v1(&verifier_ids).unwrap(),
+                allowed_authority_roots_root: recursive_authority_set_root_v1(&authority_roots)
+                    .unwrap(),
+                public_policy_hash: h(10),
+                feature_suite_hash: h(11),
+                dependency_lock_hash: h(12),
+                toolchain_lock_hash: h(13),
+                expected_pre_state_root: pre_state_root,
+                expected_post_state_root: post_state_root,
+                conflict_schedule_hash: h(14),
+                carry_queue_pre_root: h(15),
+                carry_queue_post_root: h(15),
+                data_availability_root: h(16),
+                expected_child_count: 2,
+                max_children: 8,
+                max_child_journal_bytes: 64,
+                max_total_child_journal_bytes: 128,
+                max_asset_delta_rows: 16,
+                max_cross_shard_messages: 16,
+                max_receipt_ids: 16,
+                cross_shard_mode: RECURSIVE_STRICT_CROSS_SHARD_MODE_V1.to_string(),
+            },
+            allowed_verifier_ids: verifier_ids,
+            allowed_authority_roots: authority_roots,
+            children: vec![left, right],
+        }
     }
 
     fn strict_req() -> Value {
@@ -2751,6 +3113,35 @@ mod tests {
             oracle_binding_hash: h(5),
             participant_set_hash: h(6),
         }
+    }
+
+    #[test]
+    fn recursive_meta_binds_verification_claim_and_journal_roots() {
+        let input = recursive_input();
+        let journal = compose_recursive_epoch_journal_v1(&input).unwrap();
+        let meta = recursive_meta(&journal);
+        assert_eq!(
+            meta["child_verification_claims_root"],
+            Value::String(hex_lower(&journal.child_verification_claims_root))
+        );
+        assert_eq!(
+            meta["child_journals_root"],
+            Value::String(hex_lower(&journal.child_journals_root))
+        );
+        assert_eq!(
+            meta["child_effect_summaries_root"],
+            Value::String(hex_lower(&journal.child_effect_summaries_root))
+        );
+    }
+
+    #[test]
+    fn recursive_child_proofs_reject_omitted_child_receipt() {
+        let input = recursive_input();
+        let req = json!({"child_proofs": []});
+        assert_eq!(
+            parse_recursive_child_receipts(&req, &input).unwrap_err(),
+            "child_proofs length mismatch"
+        );
     }
 
     fn spot_fee_journal(
