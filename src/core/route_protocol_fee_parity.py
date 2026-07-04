@@ -44,7 +44,15 @@ def _check_u128(value: int, name: str) -> None:
 
 
 def _check_str(value: object, name: str) -> None:
-    """Validate that value is a non-empty Python str (Rust JSON parsing is string-only)."""
+    """Validate that value is a non-empty Python str.
+
+    Rust JSON parsing is string-only, so non-string types are rejected.
+    Empty strings are rejected as stricter Python admission. Rust clearly
+    rejects empty pool_id and route asset_in, but does not have equivalent
+    snapshot rejection for pool asset0/asset1. The empty-string check for
+    asset0/asset1 is therefore stricter-than-Rust Python admission, not
+    exact Rust parity for every string field.
+    """
     if type(value) is not str:
         raise ValueError(f"{name} must be a string, got {type(value).__name__}")
     if value == "":
