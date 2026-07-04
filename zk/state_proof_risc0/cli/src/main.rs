@@ -10,16 +10,47 @@ use tau_state_proof_risc0_methods::{
     TAU_STATE_PROOF_RISC0_GUEST_ID as TAU_STATE_PROOF_GUEST_ID,
 };
 use tau_state_proof_risc0_shared::{
-    accepted_receipts_root_v1, ingress_commitment_v1, perps_np_collateral_bindings_hash_v1,
-    perps_np_operation_hash_v1, perps_np_oracle_bindings_hash_v1, txs_commitment_v1,
-    zusd_operation_hash_v1, zusd_operation_oracle_binding_hash_v1, ChainBalanceV1,
-    CollateralBindingV1, DexSnapshotV1, DexStateV1, NonceEntryV1, NonceStateV1, OracleBindingV1,
-    PerpsAccountV1, PerpsIntentV1, PerpsMarketParamsV1, PerpsNpActionV1, PerpsNpSnapshotV1,
-    PerpsNpTransitionInputV1, PerpsNpTransitionJournalV1, StateProofInputV1, StateProofJournalV1,
+    accepted_receipts_root_v1, frontier_signature_certificates_root_v1, ingress_commitment_v1,
+    perps_np_collateral_bindings_hash_v1, perps_np_operation_hash_v1,
+    perps_np_oracle_bindings_hash_v1, route_price_interval_authority_policy_root_v1,
+    route_price_interval_authority_root_v1, route_price_intervals_root_v1,
+    tx_execution_order_commitment_v1, txs_commitment_v1, zusd_operation_hash_v1,
+    zusd_operation_oracle_binding_hash_v1, ChainBalanceV1, CollateralBindingV1, DexSnapshotV1,
+    DexStateV1, NonceEntryV1, NonceStateV1, OracleBindingV1, PerpsAccountV1, PerpsIntentV1,
+    PerpsMarketParamsV1, PerpsNpActionV1, PerpsNpSnapshotV1, PerpsNpTransitionInputV1,
+    PerpsNpTransitionJournalV1, RoutePriceIntervalAuthorityPolicySourceV1,
+    RoutePriceIntervalAuthorityPolicyV1, RoutePriceIntervalAuthorityV1, RoutePriceIntervalV1,
+    SharedPoolFrontierSignatureCertificateV1, StateProofInputV1, StateProofJournalV1,
     TauTxAppOpsV1, TauTxV1, TxIngressFactV1, ZenoProofInputV1, ZusdBalanceEntryV1, ZusdOperationV1,
     ZusdSnapshotV1, ZusdTransitionInputV1, ZusdTransitionJournalV1, ZusdVaultEntryV1, PROOF_TYPE,
     PROOF_TYPE_PERPS_NP, PROOF_TYPE_ZUSD,
 };
+
+#[derive(Clone, Copy)]
+struct SurfaceBindingExpectations<'a> {
+    journal_chain_id: &'a str,
+    pre_app_hash_present: bool,
+    pre_app_hash: [u8; 32],
+    post_app_hash: [u8; 32],
+    operation_hash: [u8; 32],
+    state_delta_hash: [u8; 32],
+    oracle_binding_hash: [u8; 32],
+    participant_set_hash: [u8; 32],
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ProtocolFeeFields {
+    share_bps: u32,
+    recipient_pubkey: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct RouteTotals {
+    total_amount_in: u128,
+    total_min_amount_out: u128,
+    total_amount_out: u128,
+    total_max_amount_in: u128,
+}
 
 fn main() {
     let mut stdin = String::new();
@@ -40,11 +71,39 @@ fn main() {
     match schema {
         "tau_state_proof_request" => handle_generate(&req),
         "tau_state_proof_verify" => handle_verify(&req),
+        "tau_state_proof_txs_commitment" => handle_txs_commitment(&req),
         _ => {
             eprintln!("unexpected schema");
             std::process::exit(2);
         }
     }
+}
+
+fn handle_txs_commitment(req: &Value) {
+    let out = match txs_commitment_response(req) {
+        Ok(value) => value,
+        Err(err) => die(&err),
+    };
+    println!(
+        "{}",
+        serde_json::to_string(&out).expect("commitment response serializes")
+    );
+}
+
+fn txs_commitment_response(req: &Value) -> Result<Value, String> {
+    if req.get("schema_version").and_then(Value::as_i64) != Some(1) {
+        return Err(
+            "unexpected schema_version (expected tau_state_proof_txs_commitment v1)".into(),
+        );
+    }
+    let txs = parse_txs(req.get("transactions"), "transactions")?;
+    Ok(json!({
+        "schema": "tau_state_proof_txs_commitment_result",
+        "schema_version": 1,
+        "ok": true,
+        "tx_count": txs.len(),
+        "txs_commitment": hex_lower(&txs_commitment_v1(&txs)),
+    }))
 }
 
 fn handle_generate(req: &Value) {
@@ -101,6 +160,7 @@ fn handle_generate_spot(req: &Value) {
     if !context.is_object() {
         die("context must be an object (required for risc0 proof)");
     }
+    let context_obj = context.as_object().expect("checked object");
 
     let pre_app_state_json = context
         .get("app_state_pre")
@@ -139,6 +199,21 @@ fn handle_generate_spot(req: &Value) {
     let pre_nonces = parse_pre_nonces(context.get("pre_nonces"), "context.pre_nonces")
         .unwrap_or_else(|e| die(&e));
 
+    let protocol_fee_fields = parse_protocol_fee_context(context_obj).unwrap_or_else(|e| die(&e));
+    let tx_execution_order =
+        parse_tx_execution_order_context(context_obj).unwrap_or_else(|e| die(&e));
+    let route_price_intervals =
+        parse_route_price_intervals_context(context_obj).unwrap_or_else(|e| die(&e));
+    let route_price_interval_authority =
+        parse_route_price_interval_authority_context(context_obj).unwrap_or_else(|e| die(&e));
+    let route_price_interval_authority_policy =
+        parse_route_price_interval_authority_policy_context(context_obj)
+            .unwrap_or_else(|e| die(&e));
+    let route_price_interval_max_width_bps =
+        parse_route_price_interval_max_width_bps_context(context_obj).unwrap_or_else(|e| die(&e));
+    let shared_pool_frontier_signature_certificates =
+        parse_frontier_signature_certificates_context(context_obj).unwrap_or_else(|e| die(&e));
+
     let input = StateProofInputV1 {
         state_hash,
         block_timestamp,
@@ -146,10 +221,18 @@ fn handle_generate_spot(req: &Value) {
         pre_app_hash,
         pre_state,
         txs,
+        tx_execution_order,
+        route_price_intervals,
+        route_price_interval_authority: route_price_interval_authority.map(Box::new),
+        route_price_interval_authority_policy: route_price_interval_authority_policy.map(Box::new),
+        route_price_interval_max_width_bps,
         pre_nonces,
         tx_ingress,
         chain_balances_post,
         expected_post_app_hash,
+        protocol_fee_share_bps: protocol_fee_fields.share_bps,
+        protocol_fee_recipient_pubkey: protocol_fee_fields.recipient_pubkey,
+        shared_pool_frontier_signature_certificates,
     };
 
     let guest_input = ZenoProofInputV1::Spot(input);
@@ -171,6 +254,10 @@ fn handle_generate_spot(req: &Value) {
     meta.insert(
         "txs_commitment".to_string(),
         Value::String(hex_lower(&journal.txs_commitment)),
+    );
+    meta.insert(
+        "tx_execution_order_commitment".to_string(),
+        Value::String(hex_lower(&journal.tx_execution_order_commitment)),
     );
     meta.insert(
         "ingress_commitment".to_string(),
@@ -199,6 +286,52 @@ fn handle_generate_spot(req: &Value) {
     meta.insert(
         "post_app_hash".to_string(),
         Value::String(hex_lower(&journal.post_app_hash)),
+    );
+    meta.insert(
+        "protocol_fee_share_bps".to_string(),
+        Value::from(journal.protocol_fee_share_bps),
+    );
+    meta.insert(
+        "protocol_fee_recipient_pubkey".to_string(),
+        match &journal.protocol_fee_recipient_pubkey {
+            Some(s) => Value::String(s.clone()),
+            None => Value::Null,
+        },
+    );
+    meta.insert(
+        "route_price_interval_count".to_string(),
+        Value::from(journal.route_price_interval_count),
+    );
+    meta.insert(
+        "route_price_intervals_root".to_string(),
+        Value::String(hex_lower(&journal.route_price_intervals_root)),
+    );
+    meta.insert(
+        "route_price_interval_authority_root".to_string(),
+        Value::String(hex_lower(&journal.route_price_interval_authority_root)),
+    );
+    meta.insert(
+        "route_price_interval_authority_policy_root".to_string(),
+        Value::String(hex_lower(
+            &journal.route_price_interval_authority_policy_root,
+        )),
+    );
+    meta.insert(
+        "route_price_interval_max_width_bps".to_string(),
+        match journal.route_price_interval_max_width_bps {
+            Some(value) => Value::from(value),
+            None => Value::Null,
+        },
+    );
+    meta.insert(
+        "shared_pool_frontier_signature_certificate_count".to_string(),
+        Value::from(journal.shared_pool_frontier_signature_certificate_count),
+    );
+    meta.insert(
+        "shared_pool_frontier_signature_certificates_root".to_string(),
+        Value::String(hex_lower(
+            &journal.shared_pool_frontier_signature_certificates_root,
+        )),
     );
 
     let out = json!({
@@ -397,6 +530,12 @@ fn try_verify(req: &Value) -> Result<(), String> {
     if journal.state_hash != expected_state_hash {
         return Err("journal.state_hash mismatch".into());
     }
+    check_spot_protocol_fee_bindings(req, proof, &journal)?;
+    expect_meta_hash(
+        proof,
+        "tx_execution_order_commitment",
+        journal.tx_execution_order_commitment,
+    )?;
 
     let mut verified_ingress: Option<Vec<TxIngressFactV1>> = None;
 
@@ -424,6 +563,12 @@ fn try_verify(req: &Value) -> Result<(), String> {
         let expected_commitment = txs_commitment_v1(&txs);
         if expected_commitment != journal.txs_commitment {
             return Err("txs_commitment mismatch".into());
+        }
+        let expected_order = tx_execution_order_from_context(req, txs.len())?;
+        let expected_order_commitment =
+            tx_execution_order_commitment_v1(&expected_order).map_err(transition_error_str)?;
+        if expected_order_commitment != journal.tx_execution_order_commitment {
+            return Err("tx_execution_order_commitment mismatch".into());
         }
         let ingress =
             parse_block_ingress_facts(block.get("transactions")).map_err(|e| e.to_string())?;
@@ -532,14 +677,16 @@ fn try_verify_perps_np(
     verify_surface_request_bindings(
         req,
         proof,
-        &journal.chain_id,
-        journal.pre_app_hash_present,
-        journal.pre_app_hash,
-        journal.post_app_hash,
-        journal.operation_hash,
-        journal.state_delta_hash,
-        journal.oracle_binding_hash,
-        journal.participant_set_hash,
+        SurfaceBindingExpectations {
+            journal_chain_id: &journal.chain_id,
+            pre_app_hash_present: journal.pre_app_hash_present,
+            pre_app_hash: journal.pre_app_hash,
+            post_app_hash: journal.post_app_hash,
+            operation_hash: journal.operation_hash,
+            state_delta_hash: journal.state_delta_hash,
+            oracle_binding_hash: journal.oracle_binding_hash,
+            participant_set_hash: journal.participant_set_hash,
+        },
     )?;
     let context = strict_context_obj(req)?;
     expect_meta_hash(
@@ -590,14 +737,16 @@ fn try_verify_zusd(
     verify_surface_request_bindings(
         req,
         proof,
-        &journal.chain_id,
-        journal.pre_app_hash_present,
-        journal.pre_app_hash,
-        journal.post_app_hash,
-        journal.operation_hash,
-        journal.state_delta_hash,
-        journal.oracle_binding_hash,
-        journal.participant_set_hash,
+        SurfaceBindingExpectations {
+            journal_chain_id: &journal.chain_id,
+            pre_app_hash_present: journal.pre_app_hash_present,
+            pre_app_hash: journal.pre_app_hash,
+            post_app_hash: journal.post_app_hash,
+            operation_hash: journal.operation_hash,
+            state_delta_hash: journal.state_delta_hash,
+            oracle_binding_hash: journal.oracle_binding_hash,
+            participant_set_hash: journal.participant_set_hash,
+        },
     )?;
     let context = strict_context_obj(req)?;
     expect_meta_hash(
@@ -622,14 +771,7 @@ fn try_verify_zusd(
 fn verify_surface_request_bindings(
     req: &Value,
     proof: &Value,
-    journal_chain_id: &str,
-    pre_app_hash_present: bool,
-    pre_app_hash: [u8; 32],
-    post_app_hash: [u8; 32],
-    operation_hash: [u8; 32],
-    state_delta_hash: [u8; 32],
-    oracle_binding_hash: [u8; 32],
-    participant_set_hash: [u8; 32],
+    expected: SurfaceBindingExpectations<'_>,
 ) -> Result<(), String> {
     let context = req
         .get("context")
@@ -640,7 +782,7 @@ fn verify_surface_request_bindings(
         .and_then(Value::as_str)
         .or_else(|| context.get("chain_id").and_then(Value::as_str))
         .ok_or_else(|| "chain_id missing for strict surface verification".to_string())?;
-    if expected_chain != journal_chain_id {
+    if expected_chain != expected.journal_chain_id {
         return Err("chain_id mismatch".into());
     }
     let tau_state = req
@@ -652,7 +794,7 @@ fn verify_surface_request_bindings(
         .and_then(Value::as_str)
         .ok_or_else(|| "tau_state.app_hash missing".to_string())
         .and_then(parse_hex32_err)?;
-    if expected_post != post_app_hash {
+    if expected_post != expected.post_app_hash {
         return Err("post_app_hash mismatch".into());
     }
     let expected_pre_raw = context
@@ -660,28 +802,32 @@ fn verify_surface_request_bindings(
         .and_then(Value::as_str)
         .ok_or_else(|| "context.app_hash_pre missing".to_string())?;
     if expected_pre_raw.trim().is_empty() {
-        if pre_app_hash_present {
+        if expected.pre_app_hash_present {
             return Err("pre_app_hash present but expected empty".into());
         }
     } else {
         let expected_pre = parse_hex32(expected_pre_raw)?;
-        if !pre_app_hash_present {
+        if !expected.pre_app_hash_present {
             return Err("pre_app_hash missing but expected present".into());
         }
-        if expected_pre != pre_app_hash {
+        if expected_pre != expected.pre_app_hash {
             return Err("pre_app_hash mismatch".into());
         }
     }
-    expect_meta_hash(proof, "post_app_hash", post_app_hash)?;
-    expect_meta_pre_hash(proof, pre_app_hash_present, pre_app_hash)?;
-    expect_meta_hash(proof, "operation_hash", operation_hash)?;
-    expect_meta_hash(proof, "state_delta_hash", state_delta_hash)?;
-    expect_meta_hash(proof, "oracle_binding_hash", oracle_binding_hash)?;
-    expect_meta_hash(proof, "participant_set_hash", participant_set_hash)?;
-    expect_context_hash(context, "operation_hash", operation_hash)?;
-    expect_context_hash(context, "state_delta_hash", state_delta_hash)?;
-    expect_context_hash(context, "oracle_binding_hash", oracle_binding_hash)?;
-    expect_context_hash(context, "participant_set_hash", participant_set_hash)?;
+    expect_meta_hash(proof, "post_app_hash", expected.post_app_hash)?;
+    expect_meta_pre_hash(proof, expected.pre_app_hash_present, expected.pre_app_hash)?;
+    expect_meta_hash(proof, "operation_hash", expected.operation_hash)?;
+    expect_meta_hash(proof, "state_delta_hash", expected.state_delta_hash)?;
+    expect_meta_hash(proof, "oracle_binding_hash", expected.oracle_binding_hash)?;
+    expect_meta_hash(proof, "participant_set_hash", expected.participant_set_hash)?;
+    expect_context_hash(context, "operation_hash", expected.operation_hash)?;
+    expect_context_hash(context, "state_delta_hash", expected.state_delta_hash)?;
+    expect_context_hash(context, "oracle_binding_hash", expected.oracle_binding_hash)?;
+    expect_context_hash(
+        context,
+        "participant_set_hash",
+        expected.participant_set_hash,
+    )?;
     Ok(())
 }
 
@@ -905,6 +1051,239 @@ fn obj_u32(
         return Err(format!("{key} must be a u32"));
     }
     Ok(n as u32)
+}
+
+fn parse_protocol_fee_context(
+    context: &serde_json::Map<String, Value>,
+) -> Result<ProtocolFeeFields, String> {
+    let share_bps = match context.get("protocol_fee_share_bps") {
+        None => 0,
+        Some(Value::Number(n)) => {
+            let raw = n
+                .as_u64()
+                .ok_or_else(|| "context.protocol_fee_share_bps must be a u32".to_string())?;
+            if raw > u32::MAX as u64 {
+                return Err("context.protocol_fee_share_bps must be a u32".to_string());
+            }
+            raw as u32
+        }
+        Some(_) => return Err("context.protocol_fee_share_bps must be a u32".to_string()),
+    };
+    if share_bps > 10_000 {
+        return Err("context.protocol_fee_share_bps out of range".to_string());
+    }
+    let recipient_pubkey = match context.get("protocol_fee_recipient_pubkey") {
+        None => None,
+        Some(Value::String(s)) if s.trim().is_empty() => None,
+        Some(Value::String(s)) => Some(s.clone()),
+        Some(_) => return Err("context.protocol_fee_recipient_pubkey must be a string".to_string()),
+    };
+    if share_bps > 0 && recipient_pubkey.is_none() {
+        return Err(
+            "context.protocol_fee_recipient_pubkey required when share_bps > 0".to_string(),
+        );
+    }
+    Ok(ProtocolFeeFields {
+        share_bps,
+        recipient_pubkey,
+    })
+}
+
+fn parse_tx_execution_order_context(
+    context: &serde_json::Map<String, Value>,
+) -> Result<Vec<u32>, String> {
+    let Some(value) = context.get("tx_execution_order") else {
+        return Ok(Vec::new());
+    };
+    let entries = value
+        .as_array()
+        .ok_or_else(|| "context.tx_execution_order must be a list".to_string())?;
+    let mut order = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let raw = entry
+            .as_u64()
+            .ok_or_else(|| "context.tx_execution_order entries must be u32".to_string())?;
+        if raw > u32::MAX as u64 {
+            return Err("context.tx_execution_order entries must be u32".to_string());
+        }
+        order.push(raw as u32);
+    }
+    Ok(order)
+}
+
+fn parse_route_price_intervals_context(
+    context: &serde_json::Map<String, Value>,
+) -> Result<Vec<RoutePriceIntervalV1>, String> {
+    let Some(value) = context.get("route_price_intervals") else {
+        return Ok(Vec::new());
+    };
+    if !value.is_array() {
+        return Err("context.route_price_intervals must be a list".to_string());
+    }
+    serde_json::from_value(value.clone())
+        .map_err(|e| format!("context.route_price_intervals schema mismatch: {e}"))
+}
+
+fn parse_optional_u64_field(
+    obj: &serde_json::Map<String, Value>,
+    key: &str,
+    name: &str,
+) -> Result<Option<u64>, String> {
+    let Some(value) = obj.get(key) else {
+        return Ok(None);
+    };
+    if value.is_null() {
+        return Ok(None);
+    }
+    let parsed = parse_u128_value(value, name)?;
+    if parsed > u64::MAX as u128 {
+        return Err(format!("{name} must be a u64"));
+    }
+    Ok(Some(parsed as u64))
+}
+
+fn parse_route_price_interval_max_width_bps_context(
+    context: &serde_json::Map<String, Value>,
+) -> Result<Option<u64>, String> {
+    parse_optional_u64_field(
+        context,
+        "route_price_interval_max_width_bps",
+        "context.route_price_interval_max_width_bps",
+    )
+}
+
+fn parse_route_price_interval_max_width_bps_meta(
+    meta: &serde_json::Map<String, Value>,
+) -> Result<Option<u64>, String> {
+    parse_optional_u64_field(
+        meta,
+        "route_price_interval_max_width_bps",
+        "proof.meta.route_price_interval_max_width_bps",
+    )
+}
+
+fn parse_route_price_interval_authority_context(
+    context: &serde_json::Map<String, Value>,
+) -> Result<Option<RoutePriceIntervalAuthorityV1>, String> {
+    let Some(value) = context.get("route_price_interval_authority") else {
+        return Ok(None);
+    };
+    if value.is_null() {
+        return Ok(None);
+    }
+    let obj = value_obj(value, "context.route_price_interval_authority")?;
+    let source_root_hex = obj_str(obj, "source_root", None)?;
+    let route_price_intervals_root_hex = obj_str(obj, "route_price_intervals_root", None)?;
+    Ok(Some(RoutePriceIntervalAuthorityV1 {
+        schema: obj_str(obj, "schema", None)?,
+        source_id: obj_str(obj, "source_id", None)?,
+        source_root: parse_hex32(&source_root_hex)
+            .map_err(|e| format!("context.route_price_interval_authority.source_root {e}"))?,
+        price_timestamp: obj_u64(obj, "price_timestamp", None)?,
+        max_staleness_seconds: obj_u64(obj, "max_staleness_seconds", None)?,
+        route_price_intervals_root: parse_hex32(&route_price_intervals_root_hex).map_err(|e| {
+            format!("context.route_price_interval_authority.route_price_intervals_root {e}")
+        })?,
+    }))
+}
+
+fn parse_route_price_interval_authority_policy_context(
+    context: &serde_json::Map<String, Value>,
+) -> Result<Option<RoutePriceIntervalAuthorityPolicyV1>, String> {
+    let Some(value) = context.get("route_price_interval_authority_policy") else {
+        return Ok(None);
+    };
+    if value.is_null() {
+        return Ok(None);
+    }
+    let obj = value_obj(value, "context.route_price_interval_authority_policy")?;
+    let sources_value = obj.get("sources").ok_or_else(|| {
+        "context.route_price_interval_authority_policy.sources missing".to_string()
+    })?;
+    let sources = sources_value.as_array().ok_or_else(|| {
+        "context.route_price_interval_authority_policy.sources must be a list".to_string()
+    })?;
+    let mut parsed_sources = Vec::with_capacity(sources.len());
+    for (index, source_value) in sources.iter().enumerate() {
+        let source_obj = value_obj(
+            source_value,
+            &format!("context.route_price_interval_authority_policy.sources[{index}]"),
+        )?;
+        let source_root_hex = obj_str(source_obj, "source_root", None)?;
+        let verification_root_hex = obj_str(source_obj, "verification_root", None)?;
+        parsed_sources.push(RoutePriceIntervalAuthorityPolicySourceV1 {
+            source_id: obj_str(source_obj, "source_id", None)?,
+            source_root: parse_hex32(&source_root_hex).map_err(|e| {
+                format!("context.route_price_interval_authority_policy.sources[{index}].source_root {e}")
+            })?,
+            verification_root: parse_hex32(&verification_root_hex).map_err(|e| {
+                format!("context.route_price_interval_authority_policy.sources[{index}].verification_root {e}")
+            })?,
+            verification_status: obj_str(source_obj, "verification_status", None)?,
+        });
+    }
+    Ok(Some(RoutePriceIntervalAuthorityPolicyV1 {
+        schema: obj_str(obj, "schema", None)?,
+        policy_id: obj_str(obj, "policy_id", None)?,
+        sources: parsed_sources,
+    }))
+}
+
+fn parse_frontier_signature_certificates_context(
+    context: &serde_json::Map<String, Value>,
+) -> Result<Vec<SharedPoolFrontierSignatureCertificateV1>, String> {
+    let Some(value) = context.get("shared_pool_frontier_signature_certificates") else {
+        return Ok(Vec::new());
+    };
+    if !value.is_array() {
+        return Err(
+            "context.shared_pool_frontier_signature_certificates must be a list".to_string(),
+        );
+    }
+    serde_json::from_value(value.clone()).map_err(|e| {
+        format!("context.shared_pool_frontier_signature_certificates schema mismatch: {e}")
+    })
+}
+
+fn parse_protocol_fee_meta(
+    meta: &serde_json::Map<String, Value>,
+) -> Result<ProtocolFeeFields, String> {
+    let share_bps = match meta.get("protocol_fee_share_bps") {
+        Some(Value::Number(n)) => {
+            let raw = n
+                .as_u64()
+                .ok_or_else(|| "proof.meta.protocol_fee_share_bps must be a u32".to_string())?;
+            if raw > u32::MAX as u64 {
+                return Err("proof.meta.protocol_fee_share_bps must be a u32".to_string());
+            }
+            raw as u32
+        }
+        Some(_) => return Err("proof.meta.protocol_fee_share_bps must be a u32".to_string()),
+        None => 0,
+    };
+    if share_bps > 10_000 {
+        return Err("proof.meta.protocol_fee_share_bps out of range".to_string());
+    }
+    let recipient_pubkey = match meta.get("protocol_fee_recipient_pubkey") {
+        Some(Value::Null) => None,
+        Some(Value::String(s)) if s.trim().is_empty() => None,
+        Some(Value::String(s)) => Some(s.clone()),
+        Some(_) => {
+            return Err(
+                "proof.meta.protocol_fee_recipient_pubkey must be a string or null".to_string(),
+            )
+        }
+        None => None,
+    };
+    if share_bps > 0 && recipient_pubkey.is_none() {
+        return Err(
+            "proof.meta.protocol_fee_recipient_pubkey required when share_bps > 0".to_string(),
+        );
+    }
+    Ok(ProtocolFeeFields {
+        share_bps,
+        recipient_pubkey,
+    })
 }
 
 fn obj_i32(
@@ -1286,6 +1665,247 @@ fn proof_meta_obj(proof: &Value) -> Result<&serde_json::Map<String, Value>, Stri
         .ok_or_else(|| "proof.meta must be an object".to_string())
 }
 
+fn check_spot_protocol_fee_bindings(
+    req: &Value,
+    proof: &Value,
+    journal: &StateProofJournalV1,
+) -> Result<(), String> {
+    let meta = proof_meta_obj(proof)?;
+    let meta_fee = parse_protocol_fee_meta(meta)?;
+    if meta_fee.share_bps != journal.protocol_fee_share_bps {
+        return Err("proof.meta.protocol_fee_share_bps mismatch".to_string());
+    }
+    if meta_fee.recipient_pubkey != journal.protocol_fee_recipient_pubkey {
+        return Err("proof.meta.protocol_fee_recipient_pubkey mismatch".to_string());
+    }
+    let empty_route_price_intervals_root =
+        route_price_intervals_root_v1(&[]).map_err(transition_error_str)?;
+    let legacy_empty_route_price_intervals = journal.route_price_interval_count == 0
+        && journal.route_price_intervals_root == empty_route_price_intervals_root;
+    let meta_route_price_interval_count = match meta
+        .get("route_price_interval_count")
+        .and_then(Value::as_u64)
+    {
+        Some(count) => count,
+        None if legacy_empty_route_price_intervals => 0,
+        None => {
+            return Err("proof.meta.route_price_interval_count missing/invalid".to_string());
+        }
+    };
+    if meta_route_price_interval_count > u32::MAX as u64 {
+        return Err("proof.meta.route_price_interval_count missing/invalid".to_string());
+    }
+    if meta_route_price_interval_count as u32 != journal.route_price_interval_count {
+        return Err("proof.meta.route_price_interval_count mismatch".to_string());
+    }
+    if let Some(actual_root) = meta
+        .get("route_price_intervals_root")
+        .and_then(Value::as_str)
+    {
+        if normalize_hex64(actual_root) != hex_lower(&journal.route_price_intervals_root) {
+            return Err("proof.meta.route_price_intervals_root mismatch".to_string());
+        }
+    } else if !legacy_empty_route_price_intervals {
+        return Err("proof.meta.route_price_intervals_root missing".to_string());
+    }
+    let empty_route_price_interval_authority_root =
+        route_price_interval_authority_root_v1(None).map_err(transition_error_str)?;
+    let legacy_empty_route_price_interval_authority = journal.route_price_interval_count == 0
+        && journal.route_price_interval_authority_root == empty_route_price_interval_authority_root;
+    if let Some(actual_root) = meta
+        .get("route_price_interval_authority_root")
+        .and_then(Value::as_str)
+    {
+        if normalize_hex64(actual_root) != hex_lower(&journal.route_price_interval_authority_root) {
+            return Err("proof.meta.route_price_interval_authority_root mismatch".to_string());
+        }
+    } else if !legacy_empty_route_price_interval_authority {
+        return Err("proof.meta.route_price_interval_authority_root missing".to_string());
+    }
+    let empty_route_price_interval_authority_policy_root =
+        route_price_interval_authority_policy_root_v1(None).map_err(transition_error_str)?;
+    let legacy_empty_route_price_interval_authority_policy = journal.route_price_interval_count
+        == 0
+        && journal.route_price_interval_authority_policy_root
+            == empty_route_price_interval_authority_policy_root;
+    if let Some(actual_root) = meta
+        .get("route_price_interval_authority_policy_root")
+        .and_then(Value::as_str)
+    {
+        if normalize_hex64(actual_root)
+            != hex_lower(&journal.route_price_interval_authority_policy_root)
+        {
+            return Err(
+                "proof.meta.route_price_interval_authority_policy_root mismatch".to_string(),
+            );
+        }
+    } else if !legacy_empty_route_price_interval_authority_policy {
+        return Err("proof.meta.route_price_interval_authority_policy_root missing".to_string());
+    }
+    let meta_max_width = parse_route_price_interval_max_width_bps_meta(meta)?;
+    if meta_max_width != journal.route_price_interval_max_width_bps {
+        return Err("proof.meta.route_price_interval_max_width_bps mismatch".to_string());
+    }
+    if journal.route_price_interval_count > 0 {
+        let trusted_policy_root = req
+            .get("trusted_route_price_interval_authority_policy_root")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                "trusted_route_price_interval_authority_policy_root required".to_string()
+            })?;
+        if normalize_hex64(trusted_policy_root)
+            != hex_lower(&journal.route_price_interval_authority_policy_root)
+        {
+            return Err("trusted_route_price_interval_authority_policy_root mismatch".to_string());
+        }
+    }
+
+    let empty_frontier_root =
+        frontier_signature_certificates_root_v1(&[]).map_err(transition_error_str)?;
+    let legacy_empty_frontier = journal.shared_pool_frontier_signature_certificate_count == 0
+        && journal.shared_pool_frontier_signature_certificates_root == empty_frontier_root;
+    let meta_frontier_count = match meta
+        .get("shared_pool_frontier_signature_certificate_count")
+        .and_then(Value::as_u64)
+    {
+        Some(count) => count,
+        None if legacy_empty_frontier => 0,
+        None => {
+            return Err(
+                "proof.meta.shared_pool_frontier_signature_certificate_count missing/invalid"
+                    .to_string(),
+            )
+        }
+    };
+    if meta_frontier_count > u32::MAX as u64 {
+        return Err(
+            "proof.meta.shared_pool_frontier_signature_certificate_count missing/invalid"
+                .to_string(),
+        );
+    }
+    if meta_frontier_count as u32 != journal.shared_pool_frontier_signature_certificate_count {
+        return Err(
+            "proof.meta.shared_pool_frontier_signature_certificate_count mismatch".to_string(),
+        );
+    }
+    if let Some(actual_root) = meta
+        .get("shared_pool_frontier_signature_certificates_root")
+        .and_then(Value::as_str)
+    {
+        if normalize_hex64(actual_root)
+            != hex_lower(&journal.shared_pool_frontier_signature_certificates_root)
+        {
+            return Err(
+                "proof.meta.shared_pool_frontier_signature_certificates_root mismatch".to_string(),
+            );
+        }
+    } else if !legacy_empty_frontier {
+        return Err(
+            "proof.meta.shared_pool_frontier_signature_certificates_root missing".to_string(),
+        );
+    }
+
+    if let Some(context_value) = req.get("context") {
+        let context = context_value
+            .as_object()
+            .ok_or_else(|| "context must be an object".to_string())?;
+        let context_fee = parse_protocol_fee_context(context)?;
+        if context_fee.share_bps != journal.protocol_fee_share_bps {
+            return Err("context.protocol_fee_share_bps mismatch".to_string());
+        }
+        if context_fee.recipient_pubkey != journal.protocol_fee_recipient_pubkey {
+            return Err("context.protocol_fee_recipient_pubkey mismatch".to_string());
+        }
+        let context_route_price_intervals = parse_route_price_intervals_context(context)?;
+        if context_route_price_intervals.len() as u32 != journal.route_price_interval_count {
+            return Err("context.route_price_interval_count mismatch".to_string());
+        }
+        let context_route_price_intervals_root =
+            route_price_intervals_root_v1(&context_route_price_intervals)
+                .map_err(transition_error_str)?;
+        if context_route_price_intervals_root != journal.route_price_intervals_root {
+            return Err("context.route_price_intervals_root mismatch".to_string());
+        }
+        let context_route_price_interval_authority =
+            parse_route_price_interval_authority_context(context)?;
+        let context_route_price_interval_authority_root =
+            route_price_interval_authority_root_v1(context_route_price_interval_authority.as_ref())
+                .map_err(transition_error_str)?;
+        if context_route_price_interval_authority_root
+            != journal.route_price_interval_authority_root
+        {
+            return Err("context.route_price_interval_authority_root mismatch".to_string());
+        }
+        let context_route_price_interval_authority_policy =
+            parse_route_price_interval_authority_policy_context(context)?;
+        let context_route_price_interval_authority_policy_root =
+            route_price_interval_authority_policy_root_v1(
+                context_route_price_interval_authority_policy.as_ref(),
+            )
+            .map_err(transition_error_str)?;
+        if context_route_price_interval_authority_policy_root
+            != journal.route_price_interval_authority_policy_root
+        {
+            return Err("context.route_price_interval_authority_policy_root mismatch".to_string());
+        }
+        let context_max_width = parse_route_price_interval_max_width_bps_context(context)?;
+        if context_max_width != journal.route_price_interval_max_width_bps {
+            return Err("context.route_price_interval_max_width_bps mismatch".to_string());
+        }
+        let context_frontier_certs = parse_frontier_signature_certificates_context(context)?;
+        if context_frontier_certs.len() as u32
+            != journal.shared_pool_frontier_signature_certificate_count
+        {
+            return Err(
+                "context.shared_pool_frontier_signature_certificate_count mismatch".to_string(),
+            );
+        }
+        let context_frontier_root =
+            frontier_signature_certificates_root_v1(&context_frontier_certs)
+                .map_err(transition_error_str)?;
+        if context_frontier_root != journal.shared_pool_frontier_signature_certificates_root {
+            return Err(
+                "context.shared_pool_frontier_signature_certificates_root mismatch".to_string(),
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn tx_execution_order_from_context(req: &Value, tx_count: usize) -> Result<Vec<usize>, String> {
+    let raw_order = if let Some(context_value) = req.get("context") {
+        let context = context_value
+            .as_object()
+            .ok_or_else(|| "context must be an object".to_string())?;
+        parse_tx_execution_order_context(context)?
+    } else {
+        Vec::new()
+    };
+    if raw_order.is_empty() {
+        return Ok((0..tx_count).collect());
+    }
+    if raw_order.len() != tx_count {
+        return Err("context.tx_execution_order length mismatch".to_string());
+    }
+
+    let mut seen = vec![false; tx_count];
+    let mut order = Vec::with_capacity(tx_count);
+    for raw_index in raw_order {
+        let index = usize::try_from(raw_index)
+            .map_err(|_| "context.tx_execution_order entries must be u32".to_string())?;
+        if index >= tx_count {
+            return Err("context.tx_execution_order index out of range".to_string());
+        }
+        if seen[index] {
+            return Err("context.tx_execution_order duplicate index".to_string());
+        }
+        seen[index] = true;
+        order.push(index);
+    }
+    Ok(order)
+}
+
 fn strict_context_obj(req: &Value) -> Result<&serde_json::Map<String, Value>, String> {
     req.get("context")
         .and_then(Value::as_object)
@@ -1409,11 +2029,7 @@ fn parse_block_ingress_facts(v: Option<&Value>) -> Result<Vec<TxIngressFactV1>, 
         let tx_obj = tx
             .as_object()
             .ok_or_else(|| "tx must be an object".to_string())?;
-        let sender = tx_obj
-            .get("sender_pubkey")
-            .and_then(Value::as_str)
-            .ok_or_else(|| "tx.sender_pubkey missing".to_string())?
-            .to_string();
+        let sender = tx_sender_identity_v1(tx_obj)?;
         let nonce = tx_obj
             .get("nonce")
             .and_then(Value::as_u64)
@@ -1466,19 +2082,19 @@ fn transition_error_str(err: tau_state_proof_risc0_shared::TransitionError) -> S
 }
 
 fn parse_block_txs(v: Option<&Value>) -> Result<Vec<TauTxV1>, String> {
+    parse_txs(v, "block.transactions")
+}
+
+fn parse_txs(v: Option<&Value>, name: &str) -> Result<Vec<TauTxV1>, String> {
     let txs = v
         .and_then(Value::as_array)
-        .ok_or_else(|| "block.transactions must be a list".to_string())?;
+        .ok_or_else(|| format!("{name} must be a list"))?;
     let mut out = Vec::with_capacity(txs.len());
     for tx in txs {
         let tx_obj = tx
             .as_object()
             .ok_or_else(|| "tx must be an object".to_string())?;
-        let sender = tx_obj
-            .get("sender_pubkey")
-            .and_then(Value::as_str)
-            .ok_or_else(|| "tx.sender_pubkey missing".to_string())?
-            .to_string();
+        let sender = tx_sender_identity_v1(tx_obj)?;
 
         let ops = tx_obj
             .get("operations")
@@ -1493,7 +2109,7 @@ fn parse_block_txs(v: Option<&Value>) -> Result<Vec<TauTxV1>, String> {
             (false, vec![])
         };
         let (has_intents, intents) = if let Some(v2) = ops_obj.get("2") {
-            (true, parse_intents(v2)?)
+            (true, parse_intents(v2, &sender)?)
         } else {
             (false, vec![])
         };
@@ -1509,6 +2125,32 @@ fn parse_block_txs(v: Option<&Value>) -> Result<Vec<TauTxV1>, String> {
         });
     }
     Ok(out)
+}
+
+fn tx_sender_identity_v1(tx_obj: &serde_json::Map<String, Value>) -> Result<String, String> {
+    let tx_sender = tx_obj.get("tx_sender_pubkey").and_then(Value::as_str);
+    let legacy_sender = tx_obj.get("sender_pubkey").and_then(Value::as_str);
+    if let Some(sender) = tx_sender {
+        if sender.is_empty() {
+            return Err("tx.tx_sender_pubkey must be non-empty".to_string());
+        }
+        if let Some(legacy) = legacy_sender {
+            if legacy.is_empty() {
+                return Err("tx.sender_pubkey must be non-empty when present".to_string());
+            }
+            if legacy != sender {
+                return Err("tx.sender_pubkey must match tx_sender_pubkey".to_string());
+            }
+        }
+        return Ok(sender.to_string());
+    }
+    if let Some(sender) = legacy_sender {
+        if sender.is_empty() {
+            return Err("tx.sender_pubkey must be non-empty".to_string());
+        }
+        return Ok(sender.to_string());
+    }
+    Err("tx.sender_pubkey missing".to_string())
 }
 
 fn parse_faucet(v4: &Value) -> Result<Vec<tau_state_proof_risc0_shared::FaucetMintV1>, String> {
@@ -1565,7 +2207,10 @@ fn parse_faucet(v4: &Value) -> Result<Vec<tau_state_proof_risc0_shared::FaucetMi
     Ok(out)
 }
 
-fn parse_intents(v2: &Value) -> Result<Vec<tau_state_proof_risc0_shared::SignedIntentV1>, String> {
+fn parse_intents(
+    v2: &Value,
+    tx_sender_pubkey: &str,
+) -> Result<Vec<tau_state_proof_risc0_shared::SignedIntentV1>, String> {
     let arr = v2
         .as_array()
         .ok_or_else(|| "operations['2'] must be a list".to_string())?;
@@ -1580,6 +2225,7 @@ fn parse_intents(v2: &Value) -> Result<Vec<tau_state_proof_risc0_shared::SignedI
                 .ok_or_else(|| "intent must be an object".to_string())?;
             let sig = pair[1].as_str().map(|s| s.to_string());
             let intent = parse_intent_obj(intent_obj)?;
+            verify_intent_sender_matches_tx(&intent, tx_sender_pubkey)?;
             out.push(tau_state_proof_risc0_shared::SignedIntentV1 {
                 intent,
                 signature: sig,
@@ -1590,12 +2236,31 @@ fn parse_intents(v2: &Value) -> Result<Vec<tau_state_proof_risc0_shared::SignedI
             .as_object()
             .ok_or_else(|| "intent entry must be [intent, sig] or object".to_string())?;
         let intent = parse_intent_obj(obj)?;
+        verify_intent_sender_matches_tx(&intent, tx_sender_pubkey)?;
         out.push(tau_state_proof_risc0_shared::SignedIntentV1 {
             intent,
             signature: None,
         });
     }
     Ok(out)
+}
+
+fn verify_intent_sender_matches_tx(
+    intent: &tau_state_proof_risc0_shared::DexIntentV1,
+    tx_sender_pubkey: &str,
+) -> Result<(), String> {
+    let intent_sender = match intent {
+        tau_state_proof_risc0_shared::DexIntentV1::CreatePool(intent) => &intent.sender_pubkey,
+        tau_state_proof_risc0_shared::DexIntentV1::SwapExactIn(intent) => &intent.sender_pubkey,
+        tau_state_proof_risc0_shared::DexIntentV1::AddLiquidity(intent) => &intent.sender_pubkey,
+        tau_state_proof_risc0_shared::DexIntentV1::RemoveLiquidity(intent) => &intent.sender_pubkey,
+        tau_state_proof_risc0_shared::DexIntentV1::SwapExactOut(intent) => &intent.sender_pubkey,
+        tau_state_proof_risc0_shared::DexIntentV1::Route(intent) => &intent.sender_pubkey,
+    };
+    if intent_sender != tx_sender_pubkey {
+        return Err("intent.sender_pubkey must match tx.sender_pubkey".to_string());
+    }
+    Ok(())
 }
 
 fn parse_intent_obj(
@@ -1789,8 +2454,196 @@ fn parse_intent_obj(
                 },
             ))
         }
+        "SWAP_EXACT_OUT" => {
+            let pool_id = obj
+                .get("pool_id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "intent.pool_id missing".to_string())?;
+            let asset_in = obj
+                .get("asset_in")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "intent.asset_in missing".to_string())?;
+            let asset_out = obj
+                .get("asset_out")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "intent.asset_out missing".to_string())?;
+            let amount_out = obj_u128(obj, "amount_out", None)?;
+            let max_amount_in = obj_u128(obj, "max_amount_in", None)?;
+            let recipient = obj
+                .get("recipient")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "intent.recipient missing".to_string())?;
+            Ok(tau_state_proof_risc0_shared::DexIntentV1::SwapExactOut(
+                tau_state_proof_risc0_shared::SwapExactOutIntentV1 {
+                    module: module.to_string(),
+                    version: version.to_string(),
+                    intent_id: intent_id.to_string(),
+                    sender_pubkey: sender.to_string(),
+                    deadline,
+                    pool_id: pool_id.to_string(),
+                    asset_in: asset_in.to_string(),
+                    asset_out: asset_out.to_string(),
+                    amount_out,
+                    max_amount_in,
+                    recipient: recipient.to_string(),
+                    salt,
+                },
+            ))
+        }
+        "ROUTE_EXACT_IN" | "ROUTE_EXACT_OUT" => {
+            let quote_receipt_hash = obj
+                .get("quote_receipt_hash")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "intent.quote_receipt_hash missing".to_string())?;
+            let asset_in = obj
+                .get("asset_in")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "intent.asset_in missing".to_string())?;
+            let asset_out = obj
+                .get("asset_out")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "intent.asset_out missing".to_string())?;
+            let leg_indices = obj
+                .get("leg_indices")
+                .and_then(Value::as_array)
+                .ok_or_else(|| "intent.leg_indices missing".to_string())?
+                .iter()
+                .map(|v| {
+                    v.as_u64()
+                        .filter(|n| *n <= u32::MAX as u64)
+                        .map(|n| n as u32)
+                        .ok_or_else(|| "leg_indices entry must be u32".to_string())
+                })
+                .collect::<Result<Vec<u32>, String>>()?;
+            let legs = obj
+                .get("legs")
+                .and_then(Value::as_array)
+                .ok_or_else(|| "intent.legs missing".to_string())?
+                .iter()
+                .map(|leg_obj| {
+                    let hops = leg_obj
+                        .get("hops")
+                        .and_then(Value::as_array)
+                        .ok_or_else(|| "leg.hops missing".to_string())?
+                        .iter()
+                        .map(|hop_obj| {
+                            let pool_id = hop_obj
+                                .get("pool_id")
+                                .and_then(Value::as_str)
+                                .ok_or_else(|| "hop.pool_id missing".to_string())?;
+                            Ok::<_, String>(tau_state_proof_risc0_shared::RouteLegHopV1 {
+                                pool_id: pool_id.to_string(),
+                            })
+                        })
+                        .collect::<Result<Vec<_>, String>>()?;
+                    Ok::<_, String>(tau_state_proof_risc0_shared::RouteLegV1 { hops })
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            let totals = parse_route_totals(obj, kind)?;
+            let recipient = obj
+                .get("recipient")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "intent.recipient missing".to_string())?;
+            Ok(tau_state_proof_risc0_shared::DexIntentV1::Route(
+                tau_state_proof_risc0_shared::RouteIntentV1 {
+                    module: module.to_string(),
+                    version: version.to_string(),
+                    intent_id: intent_id.to_string(),
+                    sender_pubkey: sender.to_string(),
+                    deadline,
+                    quote_receipt_hash: quote_receipt_hash.to_string(),
+                    asset_in: asset_in.to_string(),
+                    asset_out: asset_out.to_string(),
+                    leg_indices,
+                    legs,
+                    kind: kind.to_string(),
+                    total_amount_in: totals.total_amount_in,
+                    total_min_amount_out: totals.total_min_amount_out,
+                    total_amount_out: totals.total_amount_out,
+                    total_max_amount_in: totals.total_max_amount_in,
+                    recipient: recipient.to_string(),
+                    salt,
+                },
+            ))
+        }
         _ => Err("unsupported intent.kind".into()),
     }
+}
+
+fn parse_route_totals(
+    obj: &serde_json::Map<String, Value>,
+    kind: &str,
+) -> Result<RouteTotals, String> {
+    let total_amount_in = obj_u128(
+        obj,
+        "total_amount_in",
+        if kind == "ROUTE_EXACT_IN" {
+            None
+        } else {
+            Some(0)
+        },
+    )?;
+    let total_min_amount_out = obj_u128(obj, "total_min_amount_out", Some(0))?;
+    let total_amount_out = obj_u128(
+        obj,
+        "total_amount_out",
+        if kind == "ROUTE_EXACT_OUT" {
+            None
+        } else {
+            Some(0)
+        },
+    )?;
+    let total_max_amount_in = obj_u128(
+        obj,
+        "total_max_amount_in",
+        if kind == "ROUTE_EXACT_OUT" {
+            None
+        } else {
+            Some(0)
+        },
+    )?;
+    match kind {
+        "ROUTE_EXACT_IN" => {
+            if total_amount_in == 0 {
+                return Err("total_amount_in must be positive".to_string());
+            }
+            if total_amount_out != 0 {
+                return Err(
+                    "total_amount_out must be absent or zero for ROUTE_EXACT_IN".to_string()
+                );
+            }
+            if total_max_amount_in != 0 {
+                return Err(
+                    "total_max_amount_in must be absent or zero for ROUTE_EXACT_IN".to_string(),
+                );
+            }
+        }
+        "ROUTE_EXACT_OUT" => {
+            if total_amount_out == 0 {
+                return Err("total_amount_out must be positive".to_string());
+            }
+            if total_max_amount_in == 0 {
+                return Err("total_max_amount_in must be positive".to_string());
+            }
+            if total_amount_in != 0 {
+                return Err(
+                    "total_amount_in must be absent or zero for ROUTE_EXACT_OUT".to_string()
+                );
+            }
+            if total_min_amount_out != 0 {
+                return Err(
+                    "total_min_amount_out must be absent or zero for ROUTE_EXACT_OUT".to_string(),
+                );
+            }
+        }
+        _ => return Err("unsupported route kind".to_string()),
+    }
+    Ok(RouteTotals {
+        total_amount_in,
+        total_min_amount_out,
+        total_amount_out,
+        total_max_amount_in,
+    })
 }
 
 fn require_str(v: Option<&Value>, name: &str) -> String {
@@ -1887,23 +2740,288 @@ mod tests {
         })
     }
 
+    fn strict_binding_expectations(journal_chain_id: &str) -> SurfaceBindingExpectations<'_> {
+        SurfaceBindingExpectations {
+            journal_chain_id,
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            post_app_hash: h(2),
+            operation_hash: h(3),
+            state_delta_hash: h(4),
+            oracle_binding_hash: h(5),
+            participant_set_hash: h(6),
+        }
+    }
+
+    fn spot_fee_journal(
+        protocol_fee_share_bps: u32,
+        protocol_fee_recipient_pubkey: Option<&str>,
+    ) -> StateProofJournalV1 {
+        StateProofJournalV1 {
+            journal_version: 1,
+            state_hash: h(1),
+            txs_commitment: h(2),
+            tx_execution_order_commitment: h(3),
+            ingress_commitment: h(4),
+            pre_nonce_root: h(5),
+            post_nonce_root: h(6),
+            accepted_receipts_root: h(7),
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            post_app_hash: h(8),
+            protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey: protocol_fee_recipient_pubkey.map(str::to_string),
+            route_price_interval_count: 0,
+            route_price_intervals_root: route_price_intervals_root_v1(&[]).unwrap(),
+            route_price_interval_authority_root: route_price_interval_authority_root_v1(None)
+                .unwrap(),
+            route_price_interval_authority_policy_root:
+                route_price_interval_authority_policy_root_v1(None).unwrap(),
+            route_price_interval_max_width_bps: None,
+            shared_pool_frontier_signature_certificate_count: 0,
+            shared_pool_frontier_signature_certificates_root:
+                frontier_signature_certificates_root_v1(&[]).unwrap(),
+        }
+    }
+
+    fn spot_proof_meta(protocol_fee_share_bps: u32, recipient: Value) -> Value {
+        json!({
+            "proof_type": PROOF_TYPE,
+            "proof": "unused",
+            "meta": {
+                "risc0_image_id": hex_u32_words(TAU_STATE_PROOF_GUEST_ID),
+                "protocol_fee_share_bps": protocol_fee_share_bps,
+                "protocol_fee_recipient_pubkey": recipient,
+                "route_price_interval_count": 0,
+                "route_price_intervals_root": hex_lower(
+                    &route_price_intervals_root_v1(&[]).unwrap()
+                ),
+                "route_price_interval_authority_root": hex_lower(
+                    &route_price_interval_authority_root_v1(None).unwrap()
+                ),
+                "route_price_interval_authority_policy_root": hex_lower(
+                    &route_price_interval_authority_policy_root_v1(None).unwrap()
+                ),
+                "route_price_interval_max_width_bps": Value::Null,
+                "shared_pool_frontier_signature_certificate_count": 0,
+                "shared_pool_frontier_signature_certificates_root": hex_lower(
+                    &frontier_signature_certificates_root_v1(&[]).unwrap()
+                )
+            }
+        })
+    }
+
+    fn route_interval_authority_for_root(interval_root: [u8; 32]) -> RoutePriceIntervalAuthorityV1 {
+        RoutePriceIntervalAuthorityV1 {
+            schema: "zenodex.route_order.price_interval_authority.v1".to_string(),
+            source_id: "test-route-interval-oracle".to_string(),
+            source_root: h(7),
+            price_timestamp: 10,
+            max_staleness_seconds: 60,
+            route_price_intervals_root: interval_root,
+        }
+    }
+
+    fn route_interval_authority_json(authority: &RoutePriceIntervalAuthorityV1) -> Value {
+        json!({
+            "schema": authority.schema,
+            "source_id": authority.source_id,
+            "source_root": hex_lower(&authority.source_root),
+            "price_timestamp": authority.price_timestamp,
+            "max_staleness_seconds": authority.max_staleness_seconds,
+            "route_price_intervals_root": hex_lower(&authority.route_price_intervals_root)
+        })
+    }
+
+    fn route_interval_authority_policy_for(
+        authority: &RoutePriceIntervalAuthorityV1,
+    ) -> RoutePriceIntervalAuthorityPolicyV1 {
+        RoutePriceIntervalAuthorityPolicyV1 {
+            schema: "zenodex.route_order.price_interval_authority_policy.v1".to_string(),
+            policy_id: "test-route-interval-policy".to_string(),
+            sources: vec![RoutePriceIntervalAuthorityPolicySourceV1 {
+                source_id: authority.source_id.clone(),
+                source_root: authority.source_root,
+                verification_root: h(8),
+                verification_status: "verified".to_string(),
+            }],
+        }
+    }
+
+    fn route_interval_authority_policy_json(policy: &RoutePriceIntervalAuthorityPolicyV1) -> Value {
+        let sources: Vec<Value> = policy
+            .sources
+            .iter()
+            .map(|source| {
+                json!({
+                    "source_id": source.source_id,
+                    "source_root": hex_lower(&source.source_root),
+                    "verification_root": hex_lower(&source.verification_root),
+                    "verification_status": source.verification_status,
+                })
+            })
+            .collect();
+        json!({
+            "schema": policy.schema,
+            "policy_id": policy.policy_id,
+            "sources": sources,
+        })
+    }
+
+    fn frontier_signature_certificate_json() -> Value {
+        json!({
+            "schema": "zenodex.mev.shared_pool_frontier_signature_certificate.v1",
+            "pool_id": "pool:cpmm:frontier-delta-witness-min",
+            "fee_bps": 0,
+            "row_states": [
+                {"reserve_a_atoms": 1, "reserve_b_atoms": 1},
+                {"reserve_a_atoms": 1, "reserve_b_atoms": 2}
+            ],
+            "victims": [
+                {"direction": "B_TO_A", "amount_in_atoms": 1, "min_out_atoms": 1},
+                {"direction": "A_TO_B", "amount_in_atoms": 1, "min_out_atoms": 1}
+            ],
+            "signatures": [
+                {
+                    "state": {"reserve_a_atoms": 1, "reserve_b_atoms": 1},
+                    "suffix_signature_masks": [0]
+                },
+                {
+                    "state": {"reserve_a_atoms": 1, "reserve_b_atoms": 2},
+                    "suffix_signature_masks": [0, 2, 3]
+                }
+            ],
+            "claimed_frontier_states": [
+                {"reserve_a_atoms": 1, "reserve_b_atoms": 2}
+            ]
+        })
+    }
+
+    fn route_intent_json(kind: &str) -> Value {
+        let mut value = json!({
+            "module": "TauSwap",
+            "version": "v1",
+            "kind": kind,
+            "intent_id": "route-bdd",
+            "sender_pubkey": "alice",
+            "deadline": 100,
+            "quote_receipt_hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+            "asset_in": "A",
+            "asset_out": "B",
+            "leg_indices": [0],
+            "legs": [{"hops": [{"pool_id": "pool"}]}],
+            "recipient": "bob",
+            "total_amount_in": 10,
+            "total_min_amount_out": 1,
+            "total_amount_out": 2,
+            "total_max_amount_in": 20
+        });
+        match kind {
+            "ROUTE_EXACT_IN" => {
+                value.as_object_mut().unwrap().remove("total_amount_out");
+                value.as_object_mut().unwrap().remove("total_max_amount_in");
+            }
+            "ROUTE_EXACT_OUT" => {
+                value.as_object_mut().unwrap().remove("total_amount_in");
+                value
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("total_min_amount_out");
+            }
+            _ => {}
+        }
+        value
+    }
+
+    fn swap_exact_out_intent_json() -> Value {
+        json!({
+            "module": "TauSwap",
+            "version": "v1",
+            "kind": "SWAP_EXACT_OUT",
+            "intent_id": "swap-exact-out-bdd",
+            "sender_pubkey": "alice",
+            "deadline": 100,
+            "pool_id": "pool",
+            "asset_in": "A",
+            "asset_out": "B",
+            "amount_out": 2,
+            "max_amount_in": 20,
+            "recipient": "bob"
+        })
+    }
+
+    fn create_pool_intent_json() -> Value {
+        json!({
+            "module": "TauSwap",
+            "version": "v1",
+            "kind": "CREATE_POOL",
+            "intent_id": "create-pool-bdd",
+            "sender_pubkey": "alice",
+            "deadline": 100,
+            "asset0": "A",
+            "asset1": "B",
+            "fee_bps": 30,
+            "amount0": 10,
+            "amount1": 20
+        })
+    }
+
+    fn swap_exact_in_intent_json() -> Value {
+        json!({
+            "module": "TauSwap",
+            "version": "v1",
+            "kind": "SWAP_EXACT_IN",
+            "intent_id": "swap-exact-in-bdd",
+            "sender_pubkey": "alice",
+            "deadline": 100,
+            "pool_id": "pool",
+            "asset_in": "A",
+            "asset_out": "B",
+            "amount_in": 10,
+            "min_amount_out": 1,
+            "recipient": "bob"
+        })
+    }
+
+    fn add_liquidity_intent_json() -> Value {
+        json!({
+            "module": "TauSwap",
+            "version": "v1",
+            "kind": "ADD_LIQUIDITY",
+            "intent_id": "add-liquidity-bdd",
+            "sender_pubkey": "alice",
+            "deadline": 100,
+            "pool_id": "pool",
+            "amount0_desired": 10,
+            "amount1_desired": 20,
+            "amount0_min": 1,
+            "amount1_min": 2,
+            "recipient": "bob"
+        })
+    }
+
+    fn remove_liquidity_intent_json() -> Value {
+        json!({
+            "module": "TauSwap",
+            "version": "v1",
+            "kind": "REMOVE_LIQUIDITY",
+            "intent_id": "remove-liquidity-bdd",
+            "sender_pubkey": "alice",
+            "deadline": 100,
+            "pool_id": "pool",
+            "lp_amount": 10,
+            "amount0_min": 1,
+            "amount1_min": 2,
+            "recipient": "bob"
+        })
+    }
+
     #[test]
     fn strict_surface_bindings_accept_matching_context() {
         let req = strict_req();
         let proof = strict_proof_meta();
-        verify_surface_request_bindings(
-            &req,
-            &proof,
-            "devnet",
-            false,
-            [0u8; 32],
-            h(2),
-            h(3),
-            h(4),
-            h(5),
-            h(6),
-        )
-        .unwrap();
+        verify_surface_request_bindings(&req, &proof, strict_binding_expectations("devnet"))
+            .unwrap();
     }
 
     #[test]
@@ -1913,14 +3031,7 @@ mod tests {
         let err = verify_surface_request_bindings(
             &req,
             &proof,
-            "other-chain",
-            false,
-            [0u8; 32],
-            h(2),
-            h(3),
-            h(4),
-            h(5),
-            h(6),
+            strict_binding_expectations("other-chain"),
         )
         .unwrap_err();
         assert_eq!(err, "chain_id mismatch");
@@ -1930,14 +3041,7 @@ mod tests {
         let err = verify_surface_request_bindings(
             &bad_req,
             &proof,
-            "devnet",
-            false,
-            [0u8; 32],
-            h(2),
-            h(3),
-            h(4),
-            h(5),
-            h(6),
+            strict_binding_expectations("devnet"),
         )
         .unwrap_err();
         assert_eq!(err, "context.operation_hash mismatch");
@@ -1948,24 +3052,959 @@ mod tests {
         let mut req = strict_req();
         req["tau_state"]["app_hash"] = Value::String(hx(8));
         let proof = strict_proof_meta();
-        let err = verify_surface_request_bindings(
-            &req,
-            &proof,
-            "devnet",
-            false,
-            [0u8; 32],
-            h(2),
-            h(3),
-            h(4),
-            h(5),
-            h(6),
-        )
-        .unwrap_err();
+        let err =
+            verify_surface_request_bindings(&req, &proof, strict_binding_expectations("devnet"))
+                .unwrap_err();
         assert_eq!(err, "post_app_hash mismatch");
 
         let mut bad_image = strict_proof_meta();
         bad_image["meta"]["risc0_image_id"] = Value::String(hx(9));
         let err = check_proof_meta_image_id(&bad_image).unwrap_err();
         assert_eq!(err, "risc0_image_id mismatch");
+    }
+
+    #[test]
+    fn spot_fee_bindings_accept_matching_meta_and_context() {
+        let proof = spot_proof_meta(2500, Value::String("0xfee".to_string()));
+        let req = json!({
+            "context": {
+                "protocol_fee_share_bps": 2500,
+                "protocol_fee_recipient_pubkey": "0xfee"
+            }
+        });
+        let journal = spot_fee_journal(2500, Some("0xfee"));
+
+        check_spot_protocol_fee_bindings(&req, &proof, &journal).unwrap();
+    }
+
+    #[test]
+    fn route_price_intervals_context_accepts_valid_values() {
+        let context = json!({
+            "route_price_intervals": [
+                {"asset": "ASSET0", "low_e8": 1, "point_e8": 2, "high_e8": 3}
+            ]
+        });
+        let obj = context.as_object().unwrap();
+
+        let intervals = parse_route_price_intervals_context(obj).unwrap();
+
+        assert_eq!(intervals.len(), 1);
+        assert_ne!(
+            route_price_intervals_root_v1(&intervals).unwrap(),
+            route_price_intervals_root_v1(&[]).unwrap()
+        );
+    }
+
+    #[test]
+    fn route_price_interval_authority_context_accepts_valid_values() {
+        let interval_root = h(3);
+        let authority = route_interval_authority_for_root(interval_root);
+        let context = json!({
+            "route_price_interval_authority": route_interval_authority_json(&authority)
+        });
+        let obj = context.as_object().unwrap();
+
+        let parsed = parse_route_price_interval_authority_context(obj).unwrap();
+
+        assert_eq!(parsed, Some(authority));
+    }
+
+    #[test]
+    fn route_price_interval_authority_policy_context_accepts_valid_values() {
+        let interval_root = h(3);
+        let authority = route_interval_authority_for_root(interval_root);
+        let policy = route_interval_authority_policy_for(&authority);
+        let context = json!({
+            "route_price_interval_authority_policy": route_interval_authority_policy_json(&policy)
+        });
+        let obj = context.as_object().unwrap();
+
+        let parsed = parse_route_price_interval_authority_policy_context(obj).unwrap();
+
+        assert_eq!(parsed, Some(policy));
+    }
+
+    #[test]
+    fn route_price_interval_max_width_context_accepts_string_or_number() {
+        let numeric_context = json!({"route_price_interval_max_width_bps": 200});
+        assert_eq!(
+            parse_route_price_interval_max_width_bps_context(numeric_context.as_object().unwrap())
+                .unwrap(),
+            Some(200)
+        );
+
+        let string_context = json!({"route_price_interval_max_width_bps": "201"});
+        assert_eq!(
+            parse_route_price_interval_max_width_bps_context(string_context.as_object().unwrap())
+                .unwrap(),
+            Some(201)
+        );
+    }
+
+    #[test]
+    fn route_price_interval_max_width_context_rejects_over_u64() {
+        let context = json!({"route_price_interval_max_width_bps": "18446744073709551616"});
+
+        assert_eq!(
+            parse_route_price_interval_max_width_bps_context(context.as_object().unwrap())
+                .unwrap_err(),
+            "context.route_price_interval_max_width_bps must be a u64"
+        );
+    }
+
+    #[test]
+    fn route_price_intervals_context_rejects_non_list() {
+        let context = json!({"route_price_intervals": {}});
+        let obj = context.as_object().unwrap();
+
+        assert_eq!(
+            parse_route_price_intervals_context(obj).unwrap_err(),
+            "context.route_price_intervals must be a list"
+        );
+    }
+
+    #[test]
+    fn spot_route_price_interval_bindings_accept_matching_meta_and_context() {
+        let intervals = vec![RoutePriceIntervalV1 {
+            asset: "ASSET0".to_string(),
+            low_e8: 1,
+            point_e8: 2,
+            high_e8: 3,
+        }];
+        let interval_root = route_price_intervals_root_v1(&intervals).unwrap();
+        let authority = route_interval_authority_for_root(interval_root);
+        let authority_root = route_price_interval_authority_root_v1(Some(&authority)).unwrap();
+        let policy = route_interval_authority_policy_for(&authority);
+        let policy_root = route_price_interval_authority_policy_root_v1(Some(&policy)).unwrap();
+        let mut proof = spot_proof_meta(0, Value::Null);
+        proof["meta"]["route_price_interval_count"] = Value::from(1);
+        proof["meta"]["route_price_intervals_root"] = Value::String(hex_lower(&interval_root));
+        proof["meta"]["route_price_interval_authority_root"] =
+            Value::String(hex_lower(&authority_root));
+        proof["meta"]["route_price_interval_authority_policy_root"] =
+            Value::String(hex_lower(&policy_root));
+        proof["meta"]["route_price_interval_max_width_bps"] = Value::from(10_000);
+        let req = json!({
+            "trusted_route_price_interval_authority_policy_root": hex_lower(&policy_root),
+            "context": {
+                "route_price_interval_max_width_bps": 10000,
+                "route_price_intervals": [
+                    {"asset": "ASSET0", "low_e8": 1, "point_e8": 2, "high_e8": 3}
+                ],
+                "route_price_interval_authority": route_interval_authority_json(&authority),
+                "route_price_interval_authority_policy": route_interval_authority_policy_json(&policy)
+            }
+        });
+        let mut journal = spot_fee_journal(0, None);
+        journal.route_price_interval_count = 1;
+        journal.route_price_intervals_root = interval_root;
+        journal.route_price_interval_authority_root = authority_root;
+        journal.route_price_interval_authority_policy_root = policy_root;
+        journal.route_price_interval_max_width_bps = Some(10_000);
+
+        check_spot_protocol_fee_bindings(&req, &proof, &journal).unwrap();
+    }
+
+    #[test]
+    fn spot_route_price_interval_bindings_reject_meta_max_width_mismatch() {
+        let mut proof = spot_proof_meta(0, Value::Null);
+        proof["meta"]["route_price_interval_max_width_bps"] = Value::from(200);
+        let req = json!({});
+        let mut journal = spot_fee_journal(0, None);
+        journal.route_price_interval_max_width_bps = Some(100);
+
+        assert_eq!(
+            check_spot_protocol_fee_bindings(&req, &proof, &journal).unwrap_err(),
+            "proof.meta.route_price_interval_max_width_bps mismatch"
+        );
+    }
+
+    #[test]
+    fn spot_route_price_interval_bindings_reject_context_max_width_mismatch() {
+        let mut proof = spot_proof_meta(0, Value::Null);
+        proof["meta"]["route_price_interval_max_width_bps"] = Value::from(100);
+        let req = json!({
+            "context": {
+                "route_price_interval_max_width_bps": 200
+            }
+        });
+        let mut journal = spot_fee_journal(0, None);
+        journal.route_price_interval_max_width_bps = Some(100);
+
+        assert_eq!(
+            check_spot_protocol_fee_bindings(&req, &proof, &journal).unwrap_err(),
+            "context.route_price_interval_max_width_bps mismatch"
+        );
+    }
+
+    #[test]
+    fn spot_route_price_interval_bindings_reject_tampered_meta_root() {
+        let intervals = vec![RoutePriceIntervalV1 {
+            asset: "ASSET0".to_string(),
+            low_e8: 1,
+            point_e8: 2,
+            high_e8: 3,
+        }];
+        let authority =
+            route_interval_authority_for_root(route_price_intervals_root_v1(&intervals).unwrap());
+        let policy = route_interval_authority_policy_for(&authority);
+        let mut proof = spot_proof_meta(0, Value::Null);
+        proof["meta"]["route_price_interval_count"] = Value::from(1);
+        proof["meta"]["route_price_intervals_root"] = Value::String(hx(9));
+        let req = json!({});
+        let mut journal = spot_fee_journal(0, None);
+        journal.route_price_interval_count = 1;
+        journal.route_price_intervals_root = route_price_intervals_root_v1(&intervals).unwrap();
+        journal.route_price_interval_authority_root =
+            route_price_interval_authority_root_v1(Some(&authority)).unwrap();
+        journal.route_price_interval_authority_policy_root =
+            route_price_interval_authority_policy_root_v1(Some(&policy)).unwrap();
+
+        assert_eq!(
+            check_spot_protocol_fee_bindings(&req, &proof, &journal).unwrap_err(),
+            "proof.meta.route_price_intervals_root mismatch"
+        );
+    }
+
+    #[test]
+    fn spot_route_price_interval_bindings_reject_missing_authority_meta_root() {
+        let intervals = vec![RoutePriceIntervalV1 {
+            asset: "ASSET0".to_string(),
+            low_e8: 1,
+            point_e8: 2,
+            high_e8: 3,
+        }];
+        let interval_root = route_price_intervals_root_v1(&intervals).unwrap();
+        let authority = route_interval_authority_for_root(interval_root);
+        let authority_root = route_price_interval_authority_root_v1(Some(&authority)).unwrap();
+        let policy = route_interval_authority_policy_for(&authority);
+        let policy_root = route_price_interval_authority_policy_root_v1(Some(&policy)).unwrap();
+        let mut proof = spot_proof_meta(0, Value::Null);
+        proof["meta"]["route_price_interval_count"] = Value::from(1);
+        proof["meta"]["route_price_intervals_root"] = Value::String(hex_lower(&interval_root));
+        proof["meta"]["route_price_interval_authority_policy_root"] =
+            Value::String(hex_lower(&policy_root));
+        proof["meta"]
+            .as_object_mut()
+            .unwrap()
+            .remove("route_price_interval_authority_root");
+        let req = json!({});
+        let mut journal = spot_fee_journal(0, None);
+        journal.route_price_interval_count = 1;
+        journal.route_price_intervals_root = interval_root;
+        journal.route_price_interval_authority_root = authority_root;
+        journal.route_price_interval_authority_policy_root = policy_root;
+
+        assert_eq!(
+            check_spot_protocol_fee_bindings(&req, &proof, &journal).unwrap_err(),
+            "proof.meta.route_price_interval_authority_root missing"
+        );
+    }
+
+    #[test]
+    fn spot_route_price_interval_bindings_reject_context_authority_root_mismatch() {
+        let intervals = vec![RoutePriceIntervalV1 {
+            asset: "ASSET0".to_string(),
+            low_e8: 1,
+            point_e8: 2,
+            high_e8: 3,
+        }];
+        let interval_root = route_price_intervals_root_v1(&intervals).unwrap();
+        let authority = route_interval_authority_for_root(interval_root);
+        let authority_root = route_price_interval_authority_root_v1(Some(&authority)).unwrap();
+        let policy = route_interval_authority_policy_for(&authority);
+        let policy_root = route_price_interval_authority_policy_root_v1(Some(&policy)).unwrap();
+        let mut wrong_authority = authority.clone();
+        wrong_authority.source_root = h(8);
+        let mut proof = spot_proof_meta(0, Value::Null);
+        proof["meta"]["route_price_interval_count"] = Value::from(1);
+        proof["meta"]["route_price_intervals_root"] = Value::String(hex_lower(&interval_root));
+        proof["meta"]["route_price_interval_authority_root"] =
+            Value::String(hex_lower(&authority_root));
+        proof["meta"]["route_price_interval_authority_policy_root"] =
+            Value::String(hex_lower(&policy_root));
+        let req = json!({
+            "trusted_route_price_interval_authority_policy_root": hex_lower(&policy_root),
+            "context": {
+                "route_price_intervals": [
+                    {"asset": "ASSET0", "low_e8": 1, "point_e8": 2, "high_e8": 3}
+                ],
+                "route_price_interval_authority": route_interval_authority_json(&wrong_authority),
+                "route_price_interval_authority_policy": route_interval_authority_policy_json(&policy)
+            }
+        });
+        let mut journal = spot_fee_journal(0, None);
+        journal.route_price_interval_count = 1;
+        journal.route_price_intervals_root = interval_root;
+        journal.route_price_interval_authority_root = authority_root;
+        journal.route_price_interval_authority_policy_root = policy_root;
+
+        assert_eq!(
+            check_spot_protocol_fee_bindings(&req, &proof, &journal).unwrap_err(),
+            "context.route_price_interval_authority_root mismatch"
+        );
+    }
+
+    #[test]
+    fn spot_route_price_interval_bindings_reject_missing_trusted_policy_root() {
+        let intervals = vec![RoutePriceIntervalV1 {
+            asset: "ASSET0".to_string(),
+            low_e8: 1,
+            point_e8: 2,
+            high_e8: 3,
+        }];
+        let interval_root = route_price_intervals_root_v1(&intervals).unwrap();
+        let authority = route_interval_authority_for_root(interval_root);
+        let authority_root = route_price_interval_authority_root_v1(Some(&authority)).unwrap();
+        let policy = route_interval_authority_policy_for(&authority);
+        let policy_root = route_price_interval_authority_policy_root_v1(Some(&policy)).unwrap();
+        let mut proof = spot_proof_meta(0, Value::Null);
+        proof["meta"]["route_price_interval_count"] = Value::from(1);
+        proof["meta"]["route_price_intervals_root"] = Value::String(hex_lower(&interval_root));
+        proof["meta"]["route_price_interval_authority_root"] =
+            Value::String(hex_lower(&authority_root));
+        proof["meta"]["route_price_interval_authority_policy_root"] =
+            Value::String(hex_lower(&policy_root));
+        let req = json!({
+            "context": {
+                "route_price_intervals": [
+                    {"asset": "ASSET0", "low_e8": 1, "point_e8": 2, "high_e8": 3}
+                ],
+                "route_price_interval_authority": route_interval_authority_json(&authority),
+                "route_price_interval_authority_policy": route_interval_authority_policy_json(&policy)
+            }
+        });
+        let mut journal = spot_fee_journal(0, None);
+        journal.route_price_interval_count = 1;
+        journal.route_price_intervals_root = interval_root;
+        journal.route_price_interval_authority_root = authority_root;
+        journal.route_price_interval_authority_policy_root = policy_root;
+
+        assert_eq!(
+            check_spot_protocol_fee_bindings(&req, &proof, &journal).unwrap_err(),
+            "trusted_route_price_interval_authority_policy_root required"
+        );
+    }
+
+    #[test]
+    fn spot_route_price_interval_bindings_reject_self_selected_expected_policy_root() {
+        let intervals = vec![RoutePriceIntervalV1 {
+            asset: "ASSET0".to_string(),
+            low_e8: 1,
+            point_e8: 2,
+            high_e8: 3,
+        }];
+        let interval_root = route_price_intervals_root_v1(&intervals).unwrap();
+        let authority = route_interval_authority_for_root(interval_root);
+        let authority_root = route_price_interval_authority_root_v1(Some(&authority)).unwrap();
+        let policy = route_interval_authority_policy_for(&authority);
+        let policy_root = route_price_interval_authority_policy_root_v1(Some(&policy)).unwrap();
+        let mut proof = spot_proof_meta(0, Value::Null);
+        proof["meta"]["route_price_interval_count"] = Value::from(1);
+        proof["meta"]["route_price_intervals_root"] = Value::String(hex_lower(&interval_root));
+        proof["meta"]["route_price_interval_authority_root"] =
+            Value::String(hex_lower(&authority_root));
+        proof["meta"]["route_price_interval_authority_policy_root"] =
+            Value::String(hex_lower(&policy_root));
+        let req = json!({
+            "expected_route_price_interval_authority_policy_root": hex_lower(&policy_root),
+            "context": {
+                "route_price_intervals": [
+                    {"asset": "ASSET0", "low_e8": 1, "point_e8": 2, "high_e8": 3}
+                ],
+                "route_price_interval_authority": route_interval_authority_json(&authority),
+                "route_price_interval_authority_policy": route_interval_authority_policy_json(&policy)
+            }
+        });
+        let mut journal = spot_fee_journal(0, None);
+        journal.route_price_interval_count = 1;
+        journal.route_price_intervals_root = interval_root;
+        journal.route_price_interval_authority_root = authority_root;
+        journal.route_price_interval_authority_policy_root = policy_root;
+
+        assert_eq!(
+            check_spot_protocol_fee_bindings(&req, &proof, &journal).unwrap_err(),
+            "trusted_route_price_interval_authority_policy_root required"
+        );
+    }
+
+    #[test]
+    fn spot_route_price_interval_bindings_reject_context_policy_root_mismatch() {
+        let intervals = vec![RoutePriceIntervalV1 {
+            asset: "ASSET0".to_string(),
+            low_e8: 1,
+            point_e8: 2,
+            high_e8: 3,
+        }];
+        let interval_root = route_price_intervals_root_v1(&intervals).unwrap();
+        let authority = route_interval_authority_for_root(interval_root);
+        let authority_root = route_price_interval_authority_root_v1(Some(&authority)).unwrap();
+        let policy = route_interval_authority_policy_for(&authority);
+        let policy_root = route_price_interval_authority_policy_root_v1(Some(&policy)).unwrap();
+        let mut wrong_policy = policy.clone();
+        wrong_policy.sources[0].verification_root = h(9);
+        let mut proof = spot_proof_meta(0, Value::Null);
+        proof["meta"]["route_price_interval_count"] = Value::from(1);
+        proof["meta"]["route_price_intervals_root"] = Value::String(hex_lower(&interval_root));
+        proof["meta"]["route_price_interval_authority_root"] =
+            Value::String(hex_lower(&authority_root));
+        proof["meta"]["route_price_interval_authority_policy_root"] =
+            Value::String(hex_lower(&policy_root));
+        let req = json!({
+            "trusted_route_price_interval_authority_policy_root": hex_lower(&policy_root),
+            "context": {
+                "route_price_intervals": [
+                    {"asset": "ASSET0", "low_e8": 1, "point_e8": 2, "high_e8": 3}
+                ],
+                "route_price_interval_authority": route_interval_authority_json(&authority),
+                "route_price_interval_authority_policy": route_interval_authority_policy_json(&wrong_policy)
+            }
+        });
+        let mut journal = spot_fee_journal(0, None);
+        journal.route_price_interval_count = 1;
+        journal.route_price_intervals_root = interval_root;
+        journal.route_price_interval_authority_root = authority_root;
+        journal.route_price_interval_authority_policy_root = policy_root;
+
+        assert_eq!(
+            check_spot_protocol_fee_bindings(&req, &proof, &journal).unwrap_err(),
+            "context.route_price_interval_authority_policy_root mismatch"
+        );
+    }
+
+    #[test]
+    fn spot_fee_bindings_reject_tampered_meta_share() {
+        let proof = spot_proof_meta(1000, Value::String("0xfee".to_string()));
+        let req = json!({});
+        let journal = spot_fee_journal(2500, Some("0xfee"));
+
+        assert_eq!(
+            check_spot_protocol_fee_bindings(&req, &proof, &journal).unwrap_err(),
+            "proof.meta.protocol_fee_share_bps mismatch"
+        );
+    }
+
+    #[test]
+    fn spot_fee_bindings_reject_tampered_context_recipient() {
+        let proof = spot_proof_meta(2500, Value::String("0xfee".to_string()));
+        let req = json!({
+            "context": {
+                "protocol_fee_share_bps": 2500,
+                "protocol_fee_recipient_pubkey": "0xother"
+            }
+        });
+        let journal = spot_fee_journal(2500, Some("0xfee"));
+
+        assert_eq!(
+            check_spot_protocol_fee_bindings(&req, &proof, &journal).unwrap_err(),
+            "context.protocol_fee_recipient_pubkey mismatch"
+        );
+    }
+
+    #[test]
+    fn spot_fee_bindings_accept_legacy_missing_meta_fee_fields_for_zero_fee() {
+        let proof = json!({"meta": {}});
+        let req = json!({});
+        let journal = spot_fee_journal(0, None);
+
+        check_spot_protocol_fee_bindings(&req, &proof, &journal).unwrap();
+    }
+
+    #[test]
+    fn spot_fee_bindings_reject_missing_meta_fee_fields_for_nonzero_journal() {
+        let proof = json!({"meta": {}});
+        let req = json!({});
+        let journal = spot_fee_journal(2500, Some("0xfee"));
+
+        assert_eq!(
+            check_spot_protocol_fee_bindings(&req, &proof, &journal).unwrap_err(),
+            "proof.meta.protocol_fee_share_bps mismatch"
+        );
+    }
+
+    #[test]
+    fn frontier_signature_cert_context_accepts_minimal_fixture() {
+        let context = json!({
+            "shared_pool_frontier_signature_certificates": [
+                frontier_signature_certificate_json()
+            ]
+        });
+        let obj = context.as_object().unwrap();
+
+        let certificates = parse_frontier_signature_certificates_context(obj).unwrap();
+
+        assert_eq!(certificates.len(), 1);
+        assert_ne!(
+            frontier_signature_certificates_root_v1(&certificates).unwrap(),
+            frontier_signature_certificates_root_v1(&[]).unwrap()
+        );
+    }
+
+    #[test]
+    fn frontier_signature_cert_context_rejects_non_list() {
+        let context = json!({
+            "shared_pool_frontier_signature_certificates": {}
+        });
+        let obj = context.as_object().unwrap();
+
+        assert_eq!(
+            parse_frontier_signature_certificates_context(obj).unwrap_err(),
+            "context.shared_pool_frontier_signature_certificates must be a list"
+        );
+    }
+
+    #[test]
+    fn spot_frontier_bindings_reject_missing_meta_fields_for_nonempty_journal() {
+        let proof = json!({
+            "meta": {
+                "protocol_fee_share_bps": 0,
+                "protocol_fee_recipient_pubkey": null
+            }
+        });
+        let req = json!({});
+        let mut journal = spot_fee_journal(0, None);
+        journal.shared_pool_frontier_signature_certificate_count = 1;
+        journal.shared_pool_frontier_signature_certificates_root = h(9);
+
+        assert_eq!(
+            check_spot_protocol_fee_bindings(&req, &proof, &journal).unwrap_err(),
+            "proof.meta.shared_pool_frontier_signature_certificate_count missing/invalid"
+        );
+    }
+
+    #[test]
+    fn spot_frontier_bindings_reject_tampered_meta_root() {
+        let mut proof = spot_proof_meta(0, Value::Null);
+        proof["meta"]["shared_pool_frontier_signature_certificate_count"] = Value::from(1);
+        proof["meta"]["shared_pool_frontier_signature_certificates_root"] = Value::String(hx(8));
+        let req = json!({});
+        let mut journal = spot_fee_journal(0, None);
+        journal.shared_pool_frontier_signature_certificate_count = 1;
+        journal.shared_pool_frontier_signature_certificates_root = h(9);
+
+        assert_eq!(
+            check_spot_protocol_fee_bindings(&req, &proof, &journal).unwrap_err(),
+            "proof.meta.shared_pool_frontier_signature_certificates_root mismatch"
+        );
+    }
+
+    #[test]
+    fn route_parser_accepts_required_totals_for_both_kinds() {
+        let exact_in =
+            parse_intent_obj(route_intent_json("ROUTE_EXACT_IN").as_object().unwrap()).unwrap();
+        match exact_in {
+            tau_state_proof_risc0_shared::DexIntentV1::Route(route) => {
+                assert_eq!(route.kind, "ROUTE_EXACT_IN");
+                assert_eq!(route.total_amount_in, 10);
+                assert_eq!(route.total_min_amount_out, 1);
+                assert_eq!(route.total_amount_out, 0);
+                assert_eq!(route.total_max_amount_in, 0);
+            }
+            _ => panic!("expected route intent"),
+        }
+
+        let exact_out =
+            parse_intent_obj(route_intent_json("ROUTE_EXACT_OUT").as_object().unwrap()).unwrap();
+        match exact_out {
+            tau_state_proof_risc0_shared::DexIntentV1::Route(route) => {
+                assert_eq!(route.kind, "ROUTE_EXACT_OUT");
+                assert_eq!(route.total_amount_in, 0);
+                assert_eq!(route.total_min_amount_out, 0);
+                assert_eq!(route.total_amount_out, 2);
+                assert_eq!(route.total_max_amount_in, 20);
+            }
+            _ => panic!("expected route intent"),
+        }
+    }
+
+    #[test]
+    fn swap_exact_out_parser_accepts_string_encoded_u128_amounts() {
+        let mut v = swap_exact_out_intent_json();
+        let amount_out = (u64::MAX as u128) + 1;
+        let max_amount_in = amount_out + 9;
+        v["amount_out"] = Value::String(amount_out.to_string());
+        v["max_amount_in"] = Value::String(max_amount_in.to_string());
+
+        let intent = parse_intent_obj(v.as_object().unwrap()).unwrap();
+        match intent {
+            tau_state_proof_risc0_shared::DexIntentV1::SwapExactOut(swap) => {
+                assert_eq!(swap.amount_out, amount_out);
+                assert_eq!(swap.max_amount_in, max_amount_in);
+            }
+            _ => panic!("expected exact-out intent"),
+        }
+    }
+
+    #[test]
+    fn route_parser_rejects_malformed_total_min_amount_out() {
+        let mut v = route_intent_json("ROUTE_EXACT_IN");
+        v["total_min_amount_out"] = Value::String("not-a-number".to_string());
+
+        assert_eq!(
+            parse_intent_obj(v.as_object().unwrap()).unwrap_err(),
+            "total_min_amount_out must be a u128"
+        );
+    }
+
+    #[test]
+    fn route_parser_rejects_missing_required_exact_out_total_max() {
+        let mut v = route_intent_json("ROUTE_EXACT_OUT");
+        v.as_object_mut().unwrap().remove("total_max_amount_in");
+
+        assert_eq!(
+            parse_intent_obj(v.as_object().unwrap()).unwrap_err(),
+            "total_max_amount_in missing"
+        );
+    }
+
+    #[test]
+    fn route_parser_rejects_ambiguous_unused_totals() {
+        let mut exact_in = route_intent_json("ROUTE_EXACT_IN");
+        exact_in["total_amount_out"] = Value::String("2".to_string());
+        assert_eq!(
+            parse_intent_obj(exact_in.as_object().unwrap()).unwrap_err(),
+            "total_amount_out must be absent or zero for ROUTE_EXACT_IN"
+        );
+
+        let mut exact_out = route_intent_json("ROUTE_EXACT_OUT");
+        exact_out["total_amount_in"] = Value::String("10".to_string());
+        assert_eq!(
+            parse_intent_obj(exact_out.as_object().unwrap()).unwrap_err(),
+            "total_amount_in must be absent or zero for ROUTE_EXACT_OUT"
+        );
+    }
+
+    #[test]
+    fn route_parser_rejects_zero_required_totals() {
+        let mut exact_in = route_intent_json("ROUTE_EXACT_IN");
+        exact_in["total_amount_in"] = Value::from(0);
+        assert_eq!(
+            parse_intent_obj(exact_in.as_object().unwrap()).unwrap_err(),
+            "total_amount_in must be positive"
+        );
+
+        let mut exact_out = route_intent_json("ROUTE_EXACT_OUT");
+        exact_out["total_amount_out"] = Value::from(0);
+        assert_eq!(
+            parse_intent_obj(exact_out.as_object().unwrap()).unwrap_err(),
+            "total_amount_out must be positive"
+        );
+
+        let mut exact_out_max = route_intent_json("ROUTE_EXACT_OUT");
+        exact_out_max["total_max_amount_in"] = Value::from(0);
+        assert_eq!(
+            parse_intent_obj(exact_out_max.as_object().unwrap()).unwrap_err(),
+            "total_max_amount_in must be positive"
+        );
+    }
+
+    #[test]
+    fn block_parser_prefers_tx_sender_pubkey_and_rejects_alias_split() {
+        let txs = json!([
+            {
+                "tx_sender_pubkey": "canonical-sender",
+                "operations": {}
+            },
+            {
+                "sender_pubkey": "legacy-sender",
+                "tx_sender_pubkey": "legacy-sender",
+                "operations": {}
+            }
+        ]);
+
+        let parsed = parse_block_txs(Some(&txs)).unwrap();
+
+        assert_eq!(parsed[0].sender_pubkey, "canonical-sender");
+        assert_eq!(parsed[1].sender_pubkey, "legacy-sender");
+
+        let bad = json!([
+            {
+                "sender_pubkey": "alias",
+                "tx_sender_pubkey": "canonical-sender",
+                "operations": {}
+            }
+        ]);
+        assert_eq!(
+            parse_block_txs(Some(&bad)).unwrap_err(),
+            "tx.sender_pubkey must match tx_sender_pubkey"
+        );
+    }
+
+    #[test]
+    fn ingress_parser_uses_same_tx_sender_identity_rule() {
+        let txs = json!([
+            {
+                "tx_sender_pubkey": "canonical-sender",
+                "nonce": 7,
+                "operations": {}
+            }
+        ]);
+
+        let parsed = parse_block_ingress_facts(Some(&txs)).unwrap();
+
+        assert_eq!(parsed[0].sender_pubkey, "canonical-sender");
+        assert_eq!(parsed[0].nonce, 7);
+
+        let bad = json!([
+            {
+                "sender_pubkey": "alias",
+                "tx_sender_pubkey": "canonical-sender",
+                "nonce": 7,
+                "operations": {}
+            }
+        ]);
+        assert_eq!(
+            parse_block_ingress_facts(Some(&bad)).unwrap_err(),
+            "tx.sender_pubkey must match tx_sender_pubkey"
+        );
+    }
+
+    #[test]
+    fn block_parser_accepts_projected_route_body_shape() {
+        let mut route = route_intent_json("ROUTE_EXACT_IN");
+        route["sender_pubkey"] = Value::String("route-sender".to_string());
+        route["quote_receipt"] = json!({
+            "body": {
+                "schema": "zenodex/route_quote_receipt/v1",
+                "kind": "exact_in",
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_in": 10,
+                "amount_out": 2,
+                "legs": [
+                    {
+                        "amount_in": 10,
+                        "amount_out": 2,
+                        "hops": [
+                            {
+                                "pool_id": "pool",
+                                "asset_in": "A",
+                                "asset_out": "B",
+                                "amount_in": 10,
+                                "amount_out": 2
+                            }
+                        ]
+                    }
+                ],
+                "pools": {"pool": "fingerprint"}
+            },
+            "receipt_hash": "0x2222222222222222222222222222222222222222222222222222222222222222",
+            "risc0_route_quote_receipt_binding_hash": "0x1111111111111111111111111111111111111111111111111111111111111111"
+        });
+        let txs = json!([
+            {
+                "tx_sender_pubkey": "route-sender",
+                "sender_pubkey": "route-sender",
+                "nonce": 7,
+                "operations": {"2": [route]}
+            }
+        ]);
+
+        let parsed = parse_block_txs(Some(&txs)).unwrap();
+
+        assert_eq!(parsed[0].sender_pubkey, "route-sender");
+        assert_eq!(parsed[0].app_ops.intents.len(), 1);
+        match &parsed[0].app_ops.intents[0].intent {
+            tau_state_proof_risc0_shared::DexIntentV1::Route(route) => {
+                assert_eq!(route.sender_pubkey, "route-sender");
+                assert_eq!(route.kind, "ROUTE_EXACT_IN");
+                assert_eq!(route.quote_receipt_hash, format!("0x{}", hx(0x11)));
+                assert_eq!(route.total_amount_in, 10);
+                assert_eq!(route.total_min_amount_out, 1);
+                assert_eq!(route.total_amount_out, 0);
+                assert_eq!(route.total_max_amount_in, 0);
+            }
+            _ => panic!("expected route intent"),
+        }
+    }
+
+    #[test]
+    fn txs_commitment_command_uses_rust_block_parser() {
+        let mut route = route_intent_json("ROUTE_EXACT_IN");
+        route["sender_pubkey"] = Value::String("route-sender".to_string());
+        let txs = json!([
+            {
+                "tx_sender_pubkey": "route-sender",
+                "sender_pubkey": "route-sender",
+                "nonce": 7,
+                "operations": {"2": [route]}
+            }
+        ]);
+        let req = json!({
+            "schema": "tau_state_proof_txs_commitment",
+            "schema_version": 1,
+            "transactions": txs
+        });
+
+        let out = txs_commitment_response(&req).unwrap();
+        let parsed = parse_block_txs(req.get("transactions")).unwrap();
+
+        assert_eq!(out["schema"], "tau_state_proof_txs_commitment_result");
+        assert_eq!(out["schema_version"], 1);
+        assert_eq!(out["ok"], true);
+        assert_eq!(out["tx_count"], 1);
+        assert_eq!(
+            out["txs_commitment"],
+            Value::String(hex_lower(&txs_commitment_v1(&parsed)))
+        );
+    }
+
+    #[test]
+    fn txs_commitment_command_rejects_sender_alias_split() {
+        let req = json!({
+            "schema": "tau_state_proof_txs_commitment",
+            "schema_version": 1,
+            "transactions": [
+                {
+                    "tx_sender_pubkey": "tx-sender",
+                    "operations": {"2": [[swap_exact_in_intent_json(), "0xsig"]]}
+                }
+            ]
+        });
+
+        assert_eq!(
+            txs_commitment_response(&req).unwrap_err(),
+            "intent.sender_pubkey must match tx.sender_pubkey"
+        );
+    }
+
+    #[test]
+    fn block_parser_rejects_intent_sender_alias_split_for_all_intent_kinds() {
+        for intent in [
+            create_pool_intent_json(),
+            swap_exact_in_intent_json(),
+            add_liquidity_intent_json(),
+            remove_liquidity_intent_json(),
+            swap_exact_out_intent_json(),
+            route_intent_json("ROUTE_EXACT_IN"),
+            route_intent_json("ROUTE_EXACT_OUT"),
+        ] {
+            let kind = intent
+                .get("kind")
+                .and_then(Value::as_str)
+                .unwrap_or("missing-kind");
+            let txs = json!([
+                {
+                    "tx_sender_pubkey": "tx-sender",
+                    "operations": {"2": [intent]}
+                }
+            ]);
+
+            assert_eq!(
+                parse_block_txs(Some(&txs)).unwrap_err(),
+                "intent.sender_pubkey must match tx.sender_pubkey",
+                "kind={kind}"
+            );
+        }
+    }
+
+    #[test]
+    fn block_parser_rejects_signed_pair_intent_sender_alias_split() {
+        let txs = json!([
+            {
+                "tx_sender_pubkey": "tx-sender",
+                "operations": {"2": [[swap_exact_in_intent_json(), "0xsig"]]}
+            }
+        ]);
+
+        assert_eq!(
+            parse_block_txs(Some(&txs)).unwrap_err(),
+            "intent.sender_pubkey must match tx.sender_pubkey"
+        );
+    }
+
+    #[test]
+    fn protocol_fee_context_defaults_when_absent() {
+        let context = json!({});
+        let obj = context.as_object().unwrap();
+        assert_eq!(
+            parse_protocol_fee_context(obj).unwrap(),
+            ProtocolFeeFields {
+                share_bps: 0,
+                recipient_pubkey: None,
+            }
+        );
+    }
+
+    #[test]
+    fn protocol_fee_context_accepts_valid_values() {
+        let context = json!({
+            "protocol_fee_share_bps": 2500,
+            "protocol_fee_recipient_pubkey": "0xfee"
+        });
+        let obj = context.as_object().unwrap();
+        assert_eq!(
+            parse_protocol_fee_context(obj).unwrap(),
+            ProtocolFeeFields {
+                share_bps: 2500,
+                recipient_pubkey: Some("0xfee".to_string()),
+            }
+        );
+    }
+
+    #[test]
+    fn protocol_fee_context_rejects_non_numeric_share() {
+        let context = json!({"protocol_fee_share_bps": "2500"});
+        let obj = context.as_object().unwrap();
+        assert_eq!(
+            parse_protocol_fee_context(obj).unwrap_err(),
+            "context.protocol_fee_share_bps must be a u32"
+        );
+    }
+
+    #[test]
+    fn protocol_fee_context_rejects_oversized_share() {
+        let context = json!({"protocol_fee_share_bps": (u32::MAX as u64) + 1});
+        let obj = context.as_object().unwrap();
+        assert_eq!(
+            parse_protocol_fee_context(obj).unwrap_err(),
+            "context.protocol_fee_share_bps must be a u32"
+        );
+    }
+
+    #[test]
+    fn protocol_fee_context_rejects_share_above_bps_scale() {
+        let context = json!({"protocol_fee_share_bps": 10001});
+        let obj = context.as_object().unwrap();
+        assert_eq!(
+            parse_protocol_fee_context(obj).unwrap_err(),
+            "context.protocol_fee_share_bps out of range"
+        );
+    }
+
+    #[test]
+    fn protocol_fee_context_rejects_non_string_recipient() {
+        let context = json!({"protocol_fee_recipient_pubkey": 7});
+        let obj = context.as_object().unwrap();
+        assert_eq!(
+            parse_protocol_fee_context(obj).unwrap_err(),
+            "context.protocol_fee_recipient_pubkey must be a string"
+        );
+    }
+
+    #[test]
+    fn protocol_fee_context_rejects_positive_share_with_blank_recipient() {
+        let context = json!({
+            "protocol_fee_share_bps": 1,
+            "protocol_fee_recipient_pubkey": "  "
+        });
+        let obj = context.as_object().unwrap();
+        assert_eq!(
+            parse_protocol_fee_context(obj).unwrap_err(),
+            "context.protocol_fee_recipient_pubkey required when share_bps > 0"
+        );
+    }
+
+    #[test]
+    fn protocol_fee_meta_rejects_positive_share_with_null_recipient() {
+        let meta = json!({
+            "protocol_fee_share_bps": 1,
+            "protocol_fee_recipient_pubkey": null
+        });
+        let obj = meta.as_object().unwrap();
+        assert_eq!(
+            parse_protocol_fee_meta(obj).unwrap_err(),
+            "proof.meta.protocol_fee_recipient_pubkey required when share_bps > 0"
+        );
     }
 }
