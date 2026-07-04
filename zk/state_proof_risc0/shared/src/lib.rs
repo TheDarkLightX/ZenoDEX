@@ -4,6 +4,7 @@ extern crate alloc;
 #[cfg(test)]
 extern crate std;
 
+use alloc::boxed::Box;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -26,6 +27,7 @@ pub const MAX_FPT_PREFIX_PACKING_TXS: usize = 64;
 pub const MAX_PREFIX_DP_TXS: usize = 32;
 pub const MAX_PREFIX_DP_ROUTE_TXS: usize = 32;
 pub const MAX_PREFIX_DP_STATES: usize = 50_000;
+pub const MAX_ROUTE_PRICE_INTERVALS: usize = 64;
 
 pub const CURVE_TAG: &str = "CPMM";
 pub const CURVE_PARAMS: &str = "";
@@ -217,6 +219,68 @@ pub struct RouteIntentV1 {
     pub salt: Option<String>,
 }
 
+pub const FRONTIER_SIGNATURE_CERT_SCHEMA_V1: &str =
+    "zenodex.mev.shared_pool_frontier_signature_certificate.v1";
+pub const FRONTIER_DIRECTION_A_TO_B: &str = "A_TO_B";
+pub const FRONTIER_DIRECTION_B_TO_A: &str = "B_TO_A";
+pub const MAX_FRONTIER_POOL_ID_BYTES: usize = 96;
+pub const MAX_FRONTIER_ROW_STATES: usize = 128;
+pub const MAX_FRONTIER_VICTIMS: usize = 16;
+pub const MAX_FRONTIER_SIGNATURE_CERTIFICATES: usize = 16;
+pub const FRONTIER_SIGNATURE_CERTIFICATES_ROOT_DOMAIN_V1: &str =
+    "zenodex.mev.shared_pool_frontier_signature_certificates_root.v1";
+pub const ROUTE_PRICE_INTERVALS_ROOT_DOMAIN_V1: &str =
+    "zenodex.route_order.price_intervals_root.v1";
+pub const ROUTE_PRICE_INTERVAL_AUTHORITY_SCHEMA_V1: &str =
+    "zenodex.route_order.price_interval_authority.v1";
+pub const ROUTE_PRICE_INTERVAL_AUTHORITY_ROOT_DOMAIN_V1: &str =
+    "zenodex.route_order.price_interval_authority_root.v1";
+pub const ROUTE_PRICE_INTERVAL_AUTHORITY_POLICY_SCHEMA_V1: &str =
+    "zenodex.route_order.price_interval_authority_policy.v1";
+pub const ROUTE_PRICE_INTERVAL_AUTHORITY_POLICY_ROOT_DOMAIN_V1: &str =
+    "zenodex.route_order.price_interval_authority_policy_root.v1";
+pub const ROUTE_PRICE_INTERVAL_SOURCE_VERIFICATION_STATUS_VERIFIED: &str = "verified";
+pub const MAX_ROUTE_PRICE_INTERVAL_STALENESS_SECONDS: u64 = 300;
+pub const MAX_ROUTE_PRICE_INTERVAL_AUTHORITY_POLICY_SOURCES: usize = 16;
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct SharedPoolFrontierStateV1 {
+    pub reserve_a_atoms: u128,
+    pub reserve_b_atoms: u128,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct SharedPoolFrontierFlowV1 {
+    pub direction: String,
+    pub amount_in_atoms: u128,
+    pub min_out_atoms: u128,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct FrontierSignatureRowV1 {
+    pub state: SharedPoolFrontierStateV1,
+    pub suffix_signature_masks: Vec<u32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SharedPoolFrontierSignatureCertificateV1 {
+    pub schema: String,
+    pub pool_id: String,
+    pub fee_bps: u32,
+    pub row_states: Vec<SharedPoolFrontierStateV1>,
+    pub victims: Vec<SharedPoolFrontierFlowV1>,
+    pub signatures: Vec<FrontierSignatureRowV1>,
+    pub claimed_frontier_states: Vec<SharedPoolFrontierStateV1>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SharedPoolFrontierSignatureVerdictV1 {
+    pub frontier_size: u32,
+    pub signature_row_count: u32,
+    pub signature_class_count: u32,
+    pub certificate_sha256: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteConflictEdgeV1 {
     pub left_route_index: u32,
@@ -243,8 +307,59 @@ pub struct TxPoolConflictScheduleEntryV1 {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RouteProtectedValueV1 {
+    pub asset: String,
+    pub amount_atoms: u128,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RoutePriceIntervalV1 {
+    pub asset: String,
+    pub low_e8: u128,
+    pub point_e8: u128,
+    pub high_e8: u128,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RoutePriceIntervalDistortionCertificateV1 {
+    pub route_price_intervals_root: [u8; 32],
+    pub max_downside_e8: u128,
+    pub max_upside_e8: u128,
+    pub max_width_e8: u128,
+    pub max_downside_bps: u128,
+    pub max_upside_bps: u128,
+    pub max_width_bps: u128,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RoutePriceIntervalAuthorityV1 {
+    pub schema: String,
+    pub source_id: String,
+    pub source_root: [u8; 32],
+    pub price_timestamp: u64,
+    pub max_staleness_seconds: u64,
+    pub route_price_intervals_root: [u8; 32],
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RoutePriceIntervalAuthorityPolicySourceV1 {
+    pub source_id: String,
+    pub source_root: [u8; 32],
+    pub verification_root: [u8; 32],
+    pub verification_status: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RoutePriceIntervalAuthorityPolicyV1 {
+    pub schema: String,
+    pub policy_id: String,
+    pub sources: Vec<RoutePriceIntervalAuthorityPolicySourceV1>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TxPoolConflictOrderPlanV1 {
     pub ordered_tx_indices: Vec<u32>,
+    pub accepted_route_protected_values: Vec<RouteProtectedValueV1>,
     pub accepted_route_count: u32,
     pub deferred_route_count: u32,
     pub schedule: Vec<TxPoolConflictScheduleEntryV1>,
@@ -314,6 +429,16 @@ pub struct StateProofInputV1 {
     pub protocol_fee_recipient_pubkey: Option<String>,
     #[serde(default)]
     pub tx_execution_order: Vec<u32>,
+    #[serde(default)]
+    pub route_price_intervals: Vec<RoutePriceIntervalV1>,
+    #[serde(default)]
+    pub route_price_interval_authority: Option<Box<RoutePriceIntervalAuthorityV1>>,
+    #[serde(default)]
+    pub route_price_interval_authority_policy: Option<Box<RoutePriceIntervalAuthorityPolicyV1>>,
+    #[serde(default)]
+    pub route_price_interval_max_width_bps: Option<u64>,
+    #[serde(default)]
+    pub shared_pool_frontier_signature_certificates: Vec<SharedPoolFrontierSignatureCertificateV1>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -331,6 +456,13 @@ pub struct StateProofJournalV1 {
     pub protocol_fee_share_bps: u32,
     pub protocol_fee_recipient_pubkey: Option<String>,
     pub tx_execution_order_commitment: [u8; 32],
+    pub route_price_interval_count: u32,
+    pub route_price_intervals_root: [u8; 32],
+    pub route_price_interval_authority_root: [u8; 32],
+    pub route_price_interval_authority_policy_root: [u8; 32],
+    pub route_price_interval_max_width_bps: Option<u64>,
+    pub shared_pool_frontier_signature_certificate_count: u32,
+    pub shared_pool_frontier_signature_certificates_root: [u8; 32],
 }
 
 pub fn execute_state_proof_input_v1(
@@ -362,12 +494,34 @@ pub fn execute_state_proof_input_v1(
         recipient_pubkey: input.protocol_fee_recipient_pubkey.clone(),
     };
 
-    let execution_order = resolve_tx_execution_order_v1(&input.txs, &input.tx_execution_order)?;
+    let route_price_interval_count = vec_len_u32(input.route_price_intervals.len())?;
+    let route_price_intervals_root = route_price_intervals_root_v1(&input.route_price_intervals)?;
+    let (route_price_interval_authority_root, route_price_interval_authority_policy_root) =
+        validate_route_price_interval_authority_v1(
+            &input.route_price_intervals,
+            &route_price_intervals_root,
+            input.route_price_interval_authority.as_deref(),
+            input.route_price_interval_authority_policy.as_deref(),
+            input.block_timestamp,
+        )?;
+    if let Some(max_width_bps) = input.route_price_interval_max_width_bps {
+        validate_route_price_interval_width_policy_v1(&input.route_price_intervals, max_width_bps)?;
+    }
+    let execution_order = resolve_tx_execution_order_v1(
+        &input.txs,
+        &input.tx_execution_order,
+        &input.route_price_intervals,
+    )?;
     let txs_commitment = txs_commitment_v1(&input.txs);
     let tx_execution_order_commitment = tx_execution_order_commitment_v1(&execution_order)?;
     let ingress_commitment = ingress_commitment_v1(&input.tx_ingress);
     let pre_nonce_root = nonce_state.root();
     let accepted_receipts_root = accepted_receipts_root_v1(&input.txs, &input.tx_ingress)?;
+    let shared_pool_frontier_signature_certificate_count =
+        vec_len_u32(input.shared_pool_frontier_signature_certificates.len())?;
+    let shared_pool_frontier_signature_certificates_root = frontier_signature_certificates_root_v1(
+        &input.shared_pool_frontier_signature_certificates,
+    )?;
 
     for tx_index in execution_order {
         let tx = input.txs.get(tx_index).ok_or(TransitionError::Arithmetic(
@@ -380,7 +534,13 @@ pub fn execute_state_proof_input_v1(
                 "execution ingress index out of range",
             ))?;
         nonce_state.apply_ingress(tx, ingress)?;
-        state.apply_tx(tx, input.block_timestamp, &fee_config)?;
+        state.apply_tx_with_frontier_binding(
+            tx,
+            input.block_timestamp,
+            &fee_config,
+            shared_pool_frontier_signature_certificate_count,
+            &shared_pool_frontier_signature_certificates_root,
+        )?;
     }
     let post_nonce_root = nonce_state.root();
 
@@ -405,6 +565,13 @@ pub fn execute_state_proof_input_v1(
         post_app_hash: post,
         protocol_fee_share_bps: fee_config.share_bps,
         protocol_fee_recipient_pubkey: fee_config.recipient_pubkey.clone(),
+        route_price_interval_count,
+        route_price_intervals_root,
+        route_price_interval_authority_root,
+        route_price_interval_authority_policy_root,
+        route_price_interval_max_width_bps: input.route_price_interval_max_width_bps,
+        shared_pool_frontier_signature_certificate_count,
+        shared_pool_frontier_signature_certificates_root,
     })
 }
 
@@ -869,6 +1036,24 @@ impl DexStateV1 {
         block_timestamp: u64,
         fee_config: &ProtocolFeeConfig,
     ) -> Result<(), TransitionError> {
+        let empty_frontier_root = frontier_signature_certificates_root_v1(&[])?;
+        self.apply_tx_with_frontier_binding(
+            tx,
+            block_timestamp,
+            fee_config,
+            0,
+            &empty_frontier_root,
+        )
+    }
+
+    fn apply_tx_with_frontier_binding(
+        &mut self,
+        tx: &TauTxV1,
+        block_timestamp: u64,
+        fee_config: &ProtocolFeeConfig,
+        frontier_signature_certificate_count: u32,
+        frontier_signature_certificates_root: &[u8; 32],
+    ) -> Result<(), TransitionError> {
         if tx.sender_pubkey.is_empty() {
             return Err(TransitionError::InvalidInput("tx.sender_pubkey empty"));
         }
@@ -908,7 +1093,14 @@ impl DexStateV1 {
             }
             DexIntentV1::Route(intent) => {
                 let mut staged = self.clone();
-                staged.apply_route(intent, &tx.sender_pubkey, block_timestamp, fee_config)?;
+                staged.apply_route(
+                    intent,
+                    &tx.sender_pubkey,
+                    block_timestamp,
+                    fee_config,
+                    frontier_signature_certificate_count,
+                    frontier_signature_certificates_root,
+                )?;
                 *self = staged;
                 Ok(())
             }
@@ -1957,6 +2149,8 @@ impl DexStateV1 {
         tx_sender_pubkey: &str,
         block_timestamp: u64,
         fee_config: &ProtocolFeeConfig,
+        frontier_signature_certificate_count: u32,
+        frontier_signature_certificates_root: &[u8; 32],
     ) -> Result<(), TransitionError> {
         if intent.module != "TauSwap" {
             return Err(TransitionError::InvalidInput(
@@ -2008,7 +2202,13 @@ impl DexStateV1 {
         if intent.quote_receipt_hash.is_empty() {
             return Err(TransitionError::InvalidInput("quote_receipt_hash required"));
         }
-        let expected_quote_hash = route_quote_receipt_hash_v1(intent, &self.pools, fee_config)?;
+        let expected_quote_hash = route_quote_receipt_hash_with_frontier_binding_v1(
+            intent,
+            &self.pools,
+            fee_config,
+            frontier_signature_certificate_count,
+            frontier_signature_certificates_root,
+        )?;
         if intent.quote_receipt_hash != expected_quote_hash {
             return Err(TransitionError::InvalidInput("quote_receipt_hash mismatch"));
         }
@@ -2656,6 +2856,872 @@ pub fn route_read_set_v1(intent: &RouteIntentV1) -> Result<Vec<String>, Transiti
     Ok(pool_ids.into_iter().collect())
 }
 
+pub fn validate_shared_pool_frontier_signature_certificate_v1(
+    certificate: &SharedPoolFrontierSignatureCertificateV1,
+) -> Result<SharedPoolFrontierSignatureVerdictV1, TransitionError> {
+    validate_frontier_signature_certificate_shape(certificate)?;
+
+    let full_mask = frontier_full_mask(certificate.victims.len())?;
+    let mut signature_map: BTreeMap<SharedPoolFrontierStateV1, BTreeSet<u32>> = BTreeMap::new();
+    for row in &certificate.signatures {
+        if row
+            .suffix_signature_masks
+            .iter()
+            .any(|mask| *mask > full_mask)
+        {
+            return Err(TransitionError::InvalidInput(
+                "signature mask outside suffix domain",
+            ));
+        }
+        let expected =
+            frontier_suffix_signature_masks(&row.state, &certificate.victims, certificate.fee_bps)?;
+        if row.suffix_signature_masks != expected {
+            return Err(TransitionError::InvalidInput("signature row mismatch"));
+        }
+        signature_map.insert(
+            row.state.clone(),
+            row.suffix_signature_masks.iter().copied().collect(),
+        );
+    }
+
+    let (frontier, signature_class_count) =
+        frontier_from_signature_map(&certificate.row_states, &signature_map)?;
+    if certificate.claimed_frontier_states != frontier {
+        return Err(TransitionError::InvalidInput(
+            "claimed_frontier_states mismatch",
+        ));
+    }
+
+    Ok(SharedPoolFrontierSignatureVerdictV1 {
+        frontier_size: vec_len_u32(frontier.len())?,
+        signature_row_count: vec_len_u32(certificate.signatures.len())?,
+        signature_class_count: vec_len_u32(signature_class_count)?,
+        certificate_sha256: frontier_signature_certificate_sha256_v1(certificate)?,
+    })
+}
+
+pub fn frontier_signature_certificate_sha256_v1(
+    certificate: &SharedPoolFrontierSignatureCertificateV1,
+) -> Result<String, TransitionError> {
+    validate_frontier_signature_certificate_shape(certificate)?;
+    let json = canonical_frontier_signature_certificate_json(certificate);
+    let digest = Sha256::digest(json.as_bytes());
+    Ok(hex_lower(&digest))
+}
+
+pub fn frontier_signature_certificates_root_v1(
+    certificates: &[SharedPoolFrontierSignatureCertificateV1],
+) -> Result<[u8; 32], TransitionError> {
+    if certificates.len() > MAX_FRONTIER_SIGNATURE_CERTIFICATES {
+        return Err(TransitionError::InvalidInput(
+            "frontier signature certificates exceeds max",
+        ));
+    }
+    let mut hasher = Sha256::new();
+    write_str(&mut hasher, FRONTIER_SIGNATURE_CERTIFICATES_ROOT_DOMAIN_V1);
+    write_u32(&mut hasher, vec_len_u32(certificates.len())?);
+    for certificate in certificates {
+        let verdict = validate_shared_pool_frontier_signature_certificate_v1(certificate)?;
+        write_str(&mut hasher, &verdict.certificate_sha256);
+    }
+    Ok(hasher.finalize().into())
+}
+
+pub fn route_price_intervals_root_v1(
+    intervals: &[RoutePriceIntervalV1],
+) -> Result<[u8; 32], TransitionError> {
+    let intervals_by_asset = route_price_intervals_to_map(intervals)?;
+    let mut hasher = Sha256::new();
+    write_str(&mut hasher, ROUTE_PRICE_INTERVALS_ROOT_DOMAIN_V1);
+    write_u32(&mut hasher, vec_len_u32(intervals_by_asset.len())?);
+    for (asset, interval) in intervals_by_asset {
+        write_str(&mut hasher, &asset);
+        write_u128(&mut hasher, interval.low_e8);
+        write_u128(&mut hasher, interval.point_e8);
+        write_u128(&mut hasher, interval.high_e8);
+    }
+    Ok(hasher.finalize().into())
+}
+
+pub fn route_price_interval_distortion_certificate_v1(
+    intervals: &[RoutePriceIntervalV1],
+) -> Result<RoutePriceIntervalDistortionCertificateV1, TransitionError> {
+    let intervals_by_asset = route_price_intervals_to_map(intervals)?;
+    let route_price_intervals_root = route_price_intervals_root_v1(intervals)?;
+    let mut max_downside_e8 = 0u128;
+    let mut max_upside_e8 = 0u128;
+    let mut max_width_e8 = 0u128;
+    let mut max_downside_bps = 0u128;
+    let mut max_upside_bps = 0u128;
+    let mut max_width_bps = 0u128;
+
+    for interval in intervals_by_asset.values() {
+        let bounds = route_price_interval_distortion_bounds_bps(interval)?;
+        max_downside_e8 = max_downside_e8.max(bounds.downside_e8);
+        max_upside_e8 = max_upside_e8.max(bounds.upside_e8);
+        max_width_e8 = max_width_e8.max(bounds.width_e8);
+        max_downside_bps = max_downside_bps.max(bounds.downside_bps);
+        max_upside_bps = max_upside_bps.max(bounds.upside_bps);
+        max_width_bps = max_width_bps.max(bounds.width_bps);
+    }
+
+    Ok(RoutePriceIntervalDistortionCertificateV1 {
+        route_price_intervals_root,
+        max_downside_e8,
+        max_upside_e8,
+        max_width_e8,
+        max_downside_bps,
+        max_upside_bps,
+        max_width_bps,
+    })
+}
+
+pub fn validate_route_price_interval_width_policy_v1(
+    intervals: &[RoutePriceIntervalV1],
+    max_width_bps: u64,
+) -> Result<RoutePriceIntervalDistortionCertificateV1, TransitionError> {
+    let certificate = route_price_interval_distortion_certificate_v1(intervals)?;
+    if certificate.max_width_bps > max_width_bps as u128 {
+        return Err(TransitionError::InvalidInput(
+            "route price interval width exceeds max policy",
+        ));
+    }
+    Ok(certificate)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct RoutePriceIntervalDistortionBoundsV1 {
+    downside_e8: u128,
+    upside_e8: u128,
+    width_e8: u128,
+    downside_bps: u128,
+    upside_bps: u128,
+    width_bps: u128,
+}
+
+fn route_price_interval_distortion_bounds_bps(
+    interval: &RoutePriceIntervalV1,
+) -> Result<RoutePriceIntervalDistortionBoundsV1, TransitionError> {
+    let downside_e8 =
+        interval
+            .point_e8
+            .checked_sub(interval.low_e8)
+            .ok_or(TransitionError::Arithmetic(
+                "route price interval downside underflow",
+            ))?;
+    let upside_e8 =
+        interval
+            .high_e8
+            .checked_sub(interval.point_e8)
+            .ok_or(TransitionError::Arithmetic(
+                "route price interval upside underflow",
+            ))?;
+    let width_e8 =
+        interval
+            .high_e8
+            .checked_sub(interval.low_e8)
+            .ok_or(TransitionError::Arithmetic(
+                "route price interval width underflow",
+            ))?;
+
+    if interval.point_e8 == 0 {
+        if width_e8 == 0 {
+            return Ok(RoutePriceIntervalDistortionBoundsV1 {
+                downside_e8,
+                upside_e8,
+                width_e8,
+                downside_bps: 0,
+                upside_bps: 0,
+                width_bps: 0,
+            });
+        }
+        return Err(TransitionError::InvalidInput(
+            "route price interval point_e8 zero with positive width",
+        ));
+    }
+
+    let downside_bps = route_price_interval_ratio_bps(
+        downside_e8,
+        interval.point_e8,
+        "route price interval downside bps overflow",
+    )?;
+    let upside_bps = route_price_interval_ratio_bps(
+        upside_e8,
+        interval.point_e8,
+        "route price interval upside bps overflow",
+    )?;
+    let width_bps = route_price_interval_ratio_bps(
+        width_e8,
+        interval.point_e8,
+        "route price interval width bps overflow",
+    )?;
+
+    Ok(RoutePriceIntervalDistortionBoundsV1 {
+        downside_e8,
+        upside_e8,
+        width_e8,
+        downside_bps,
+        upside_bps,
+        width_bps,
+    })
+}
+
+fn route_price_interval_ratio_bps(
+    numerator_e8: u128,
+    point_e8: u128,
+    overflow_reason: &'static str,
+) -> Result<u128, TransitionError> {
+    let scaled = numerator_e8
+        .checked_mul(10_000)
+        .ok_or(TransitionError::Arithmetic(overflow_reason))?;
+    Ok(ceil_div_u128(scaled, point_e8))
+}
+
+pub fn route_price_interval_authority_root_v1(
+    authority: Option<&RoutePriceIntervalAuthorityV1>,
+) -> Result<[u8; 32], TransitionError> {
+    let mut hasher = Sha256::new();
+    write_str(&mut hasher, ROUTE_PRICE_INTERVAL_AUTHORITY_ROOT_DOMAIN_V1);
+    match authority {
+        None => {
+            hasher.update([0u8]);
+        }
+        Some(authority) => {
+            validate_route_price_interval_authority_shape(authority)?;
+            hasher.update([1u8]);
+            write_str(&mut hasher, &authority.schema);
+            write_str(&mut hasher, &authority.source_id);
+            hasher.update(authority.source_root);
+            write_u64(&mut hasher, authority.price_timestamp);
+            write_u64(&mut hasher, authority.max_staleness_seconds);
+            hasher.update(authority.route_price_intervals_root);
+        }
+    }
+    Ok(hasher.finalize().into())
+}
+
+pub fn route_price_interval_authority_policy_root_v1(
+    policy: Option<&RoutePriceIntervalAuthorityPolicyV1>,
+) -> Result<[u8; 32], TransitionError> {
+    let mut hasher = Sha256::new();
+    write_str(
+        &mut hasher,
+        ROUTE_PRICE_INTERVAL_AUTHORITY_POLICY_ROOT_DOMAIN_V1,
+    );
+    match policy {
+        None => {
+            hasher.update([0u8]);
+        }
+        Some(policy) => {
+            validate_route_price_interval_authority_policy_shape(policy)?;
+            hasher.update([1u8]);
+            write_str(&mut hasher, &policy.schema);
+            write_str(&mut hasher, &policy.policy_id);
+            write_u32(&mut hasher, vec_len_u32(policy.sources.len())?);
+            for source in &policy.sources {
+                write_str(&mut hasher, &source.source_id);
+                hasher.update(source.source_root);
+                hasher.update(source.verification_root);
+                write_str(&mut hasher, &source.verification_status);
+            }
+        }
+    }
+    Ok(hasher.finalize().into())
+}
+
+fn validate_route_price_interval_authority_v1(
+    intervals: &[RoutePriceIntervalV1],
+    intervals_root: &[u8; 32],
+    authority: Option<&RoutePriceIntervalAuthorityV1>,
+    policy: Option<&RoutePriceIntervalAuthorityPolicyV1>,
+    block_timestamp: u64,
+) -> Result<([u8; 32], [u8; 32]), TransitionError> {
+    if intervals.is_empty() {
+        if authority.is_some() {
+            return Err(TransitionError::InvalidInput(
+                "route price interval authority without intervals",
+            ));
+        }
+        if policy.is_some() {
+            return Err(TransitionError::InvalidInput(
+                "route price interval authority policy without intervals",
+            ));
+        }
+        return Ok((
+            route_price_interval_authority_root_v1(None)?,
+            route_price_interval_authority_policy_root_v1(None)?,
+        ));
+    }
+
+    let Some(authority) = authority else {
+        return Err(TransitionError::InvalidInput(
+            "route price interval authority required",
+        ));
+    };
+    let Some(policy) = policy else {
+        return Err(TransitionError::InvalidInput(
+            "route price interval authority policy required",
+        ));
+    };
+    validate_route_price_interval_authority_shape(authority)?;
+    validate_route_price_interval_authority_policy_shape(policy)?;
+    validate_route_price_interval_authority_source_policy(authority, policy)?;
+    if &authority.route_price_intervals_root != intervals_root {
+        return Err(TransitionError::InvalidInput(
+            "route price interval authority root mismatch",
+        ));
+    }
+    if authority.price_timestamp > block_timestamp {
+        return Err(TransitionError::InvalidInput(
+            "route price interval authority timestamp future",
+        ));
+    }
+    let age = block_timestamp
+        .checked_sub(authority.price_timestamp)
+        .ok_or(TransitionError::Arithmetic(
+            "route price interval authority age underflow",
+        ))?;
+    if age > authority.max_staleness_seconds {
+        return Err(TransitionError::InvalidInput(
+            "route price interval authority stale",
+        ));
+    }
+    Ok((
+        route_price_interval_authority_root_v1(Some(authority))?,
+        route_price_interval_authority_policy_root_v1(Some(policy))?,
+    ))
+}
+
+fn validate_route_price_interval_authority_shape(
+    authority: &RoutePriceIntervalAuthorityV1,
+) -> Result<(), TransitionError> {
+    if authority.schema != ROUTE_PRICE_INTERVAL_AUTHORITY_SCHEMA_V1 {
+        return Err(TransitionError::InvalidInput(
+            "route price interval authority schema mismatch",
+        ));
+    }
+    if authority.source_id.is_empty() {
+        return Err(TransitionError::InvalidInput(
+            "route price interval authority source empty",
+        ));
+    }
+    if authority.source_root == [0u8; 32] {
+        return Err(TransitionError::InvalidInput(
+            "route price interval authority source root empty",
+        ));
+    }
+    if authority.max_staleness_seconds == 0 {
+        return Err(TransitionError::InvalidInput(
+            "route price interval authority staleness zero",
+        ));
+    }
+    if authority.max_staleness_seconds > MAX_ROUTE_PRICE_INTERVAL_STALENESS_SECONDS {
+        return Err(TransitionError::InvalidInput(
+            "route price interval authority staleness exceeds max",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_route_price_interval_authority_policy_shape(
+    policy: &RoutePriceIntervalAuthorityPolicyV1,
+) -> Result<(), TransitionError> {
+    if policy.schema != ROUTE_PRICE_INTERVAL_AUTHORITY_POLICY_SCHEMA_V1 {
+        return Err(TransitionError::InvalidInput(
+            "route price interval authority policy schema mismatch",
+        ));
+    }
+    if policy.policy_id.is_empty() {
+        return Err(TransitionError::InvalidInput(
+            "route price interval authority policy_id empty",
+        ));
+    }
+    if policy.sources.is_empty() {
+        return Err(TransitionError::InvalidInput(
+            "route price interval authority policy sources empty",
+        ));
+    }
+    if policy.sources.len() > MAX_ROUTE_PRICE_INTERVAL_AUTHORITY_POLICY_SOURCES {
+        return Err(TransitionError::InvalidInput(
+            "route price interval authority policy sources exceeds max",
+        ));
+    }
+    let mut seen: BTreeSet<(&str, [u8; 32])> = BTreeSet::new();
+    for source in &policy.sources {
+        if source.source_id.is_empty() {
+            return Err(TransitionError::InvalidInput(
+                "route price interval authority policy source_id empty",
+            ));
+        }
+        if source.source_root == [0u8; 32] {
+            return Err(TransitionError::InvalidInput(
+                "route price interval authority policy source_root empty",
+            ));
+        }
+        if source.verification_root == [0u8; 32] {
+            return Err(TransitionError::InvalidInput(
+                "route price interval authority policy verification_root empty",
+            ));
+        }
+        if source.verification_status != ROUTE_PRICE_INTERVAL_SOURCE_VERIFICATION_STATUS_VERIFIED {
+            return Err(TransitionError::InvalidInput(
+                "route price interval authority policy source unverified",
+            ));
+        }
+        let key = (source.source_id.as_str(), source.source_root);
+        if !seen.insert(key) {
+            return Err(TransitionError::InvalidInput(
+                "route price interval authority policy duplicate source",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_route_price_interval_authority_source_policy(
+    authority: &RoutePriceIntervalAuthorityV1,
+    policy: &RoutePriceIntervalAuthorityPolicyV1,
+) -> Result<(), TransitionError> {
+    if policy.sources.iter().any(|source| {
+        source.source_id == authority.source_id && source.source_root == authority.source_root
+    }) {
+        return Ok(());
+    }
+    Err(TransitionError::InvalidInput(
+        "route price interval authority source not in policy",
+    ))
+}
+
+fn route_price_intervals_to_map(
+    intervals: &[RoutePriceIntervalV1],
+) -> Result<BTreeMap<String, RoutePriceIntervalV1>, TransitionError> {
+    if intervals.len() > MAX_ROUTE_PRICE_INTERVALS {
+        return Err(TransitionError::InvalidInput(
+            "route price intervals exceeds max",
+        ));
+    }
+    let mut by_asset = BTreeMap::new();
+    for interval in intervals {
+        if interval.asset.is_empty() {
+            return Err(TransitionError::InvalidInput(
+                "route price interval asset empty",
+            ));
+        }
+        if by_asset.contains_key(&interval.asset) {
+            return Err(TransitionError::InvalidInput(
+                "duplicate route price interval asset",
+            ));
+        }
+        if interval.low_e8 > interval.point_e8 || interval.point_e8 > interval.high_e8 {
+            return Err(TransitionError::InvalidInput(
+                "route price interval bounds invalid",
+            ));
+        }
+        by_asset.insert(interval.asset.clone(), interval.clone());
+    }
+    Ok(by_asset)
+}
+
+fn validate_frontier_signature_certificate_shape(
+    certificate: &SharedPoolFrontierSignatureCertificateV1,
+) -> Result<(), TransitionError> {
+    if certificate.schema != FRONTIER_SIGNATURE_CERT_SCHEMA_V1 {
+        return Err(TransitionError::InvalidInput("unsupported schema"));
+    }
+    validate_frontier_pool_id(&certificate.pool_id)?;
+    if certificate.fee_bps > 10_000 {
+        return Err(TransitionError::InvalidInput("fee_bps out of range"));
+    }
+    validate_frontier_states(&certificate.row_states, "row_states")?;
+    validate_frontier_flows(&certificate.victims)?;
+    validate_frontier_states(
+        &certificate.claimed_frontier_states,
+        "claimed_frontier_states",
+    )?;
+    validate_frontier_signature_rows(&certificate.signatures)?;
+
+    let row_set: BTreeSet<SharedPoolFrontierStateV1> =
+        certificate.row_states.iter().cloned().collect();
+    let signature_state_set: BTreeSet<SharedPoolFrontierStateV1> = certificate
+        .signatures
+        .iter()
+        .map(|row| row.state.clone())
+        .collect();
+    if signature_state_set != row_set {
+        return Err(TransitionError::InvalidInput(
+            "signature rows mismatch row_states",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_frontier_pool_id(pool_id: &str) -> Result<(), TransitionError> {
+    if pool_id.is_empty() {
+        return Err(TransitionError::InvalidInput("pool_id must be non-empty"));
+    }
+    if pool_id.len() > MAX_FRONTIER_POOL_ID_BYTES {
+        return Err(TransitionError::InvalidInput("pool_id exceeds max bytes"));
+    }
+    if !pool_id
+        .bytes()
+        .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b':' | b'-'))
+    {
+        return Err(TransitionError::InvalidInput(
+            "pool_id contains non-canonical characters",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_frontier_states(
+    states: &[SharedPoolFrontierStateV1],
+    error_name: &'static str,
+) -> Result<(), TransitionError> {
+    if states.is_empty() {
+        return Err(TransitionError::InvalidInput(error_name));
+    }
+    if states.len() > MAX_FRONTIER_ROW_STATES {
+        return Err(TransitionError::InvalidInput("row_states exceeds max"));
+    }
+    let mut previous: Option<&SharedPoolFrontierStateV1> = None;
+    for state in states {
+        if state.reserve_a_atoms == 0 || state.reserve_b_atoms == 0 {
+            return Err(TransitionError::InvalidInput(
+                "state reserves must be positive",
+            ));
+        }
+        if let Some(prev) = previous {
+            if prev >= state {
+                return Err(TransitionError::InvalidInput(
+                    "states must be sorted unique",
+                ));
+            }
+        }
+        previous = Some(state);
+    }
+    Ok(())
+}
+
+fn validate_frontier_flows(flows: &[SharedPoolFrontierFlowV1]) -> Result<(), TransitionError> {
+    if flows.is_empty() {
+        return Err(TransitionError::InvalidInput("victims must be non-empty"));
+    }
+    if flows.len() > MAX_FRONTIER_VICTIMS {
+        return Err(TransitionError::InvalidInput("victims exceeds max"));
+    }
+    for flow in flows {
+        if flow.direction != FRONTIER_DIRECTION_A_TO_B
+            && flow.direction != FRONTIER_DIRECTION_B_TO_A
+        {
+            return Err(TransitionError::InvalidInput(
+                "direction must be A_TO_B or B_TO_A",
+            ));
+        }
+        if flow.amount_in_atoms == 0 {
+            return Err(TransitionError::InvalidInput(
+                "amount_in_atoms must be positive",
+            ));
+        }
+        if flow.min_out_atoms == 0 {
+            return Err(TransitionError::InvalidInput(
+                "min_out_atoms must be positive",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_frontier_signature_rows(
+    rows: &[FrontierSignatureRowV1],
+) -> Result<(), TransitionError> {
+    if rows.is_empty() {
+        return Err(TransitionError::InvalidInput(
+            "signatures must be non-empty",
+        ));
+    }
+    if rows.len() > MAX_FRONTIER_ROW_STATES {
+        return Err(TransitionError::InvalidInput("signatures exceeds max"));
+    }
+    let mut previous: Option<&FrontierSignatureRowV1> = None;
+    for row in rows {
+        validate_suffix_signature_masks(&row.suffix_signature_masks)?;
+        if let Some(prev) = previous {
+            if prev >= row {
+                return Err(TransitionError::InvalidInput("signatures must be sorted"));
+            }
+        }
+        previous = Some(row);
+    }
+    Ok(())
+}
+
+fn validate_suffix_signature_masks(masks: &[u32]) -> Result<(), TransitionError> {
+    if masks.is_empty() {
+        return Err(TransitionError::InvalidInput(
+            "suffix_signature_masks must be non-empty",
+        ));
+    }
+    let mut previous: Option<u32> = None;
+    for mask in masks {
+        if let Some(prev) = previous {
+            if prev >= *mask {
+                return Err(TransitionError::InvalidInput(
+                    "suffix_signature_masks must be sorted unique",
+                ));
+            }
+        }
+        previous = Some(*mask);
+    }
+    Ok(())
+}
+
+fn frontier_full_mask(victim_count: usize) -> Result<u32, TransitionError> {
+    if victim_count > MAX_FRONTIER_VICTIMS {
+        return Err(TransitionError::InvalidInput("victims exceeds max"));
+    }
+    Ok((1u32 << victim_count) - 1)
+}
+
+fn frontier_suffix_signature_masks(
+    state: &SharedPoolFrontierStateV1,
+    victims: &[SharedPoolFrontierFlowV1],
+    fee_bps: u32,
+) -> Result<Vec<u32>, TransitionError> {
+    let full_mask = frontier_full_mask(victims.len())?;
+    let mut reached: BTreeMap<u32, BTreeSet<SharedPoolFrontierStateV1>> = BTreeMap::new();
+    let mut signature = BTreeSet::new();
+    reached.insert(0, BTreeSet::from([state.clone()]));
+    signature.insert(0);
+
+    for suffix_mask in 0..=full_mask {
+        let current_states: Vec<SharedPoolFrontierStateV1> = reached
+            .get(&suffix_mask)
+            .map(|states| states.iter().cloned().collect())
+            .unwrap_or_default();
+        for current in current_states {
+            signature.insert(suffix_mask);
+            let mut available = full_mask & !suffix_mask;
+            while available != 0 {
+                let bit = available & available.wrapping_neg();
+                let victim_index = bit.trailing_zeros() as usize;
+                available -= bit;
+                if let Some(next_state) =
+                    try_apply_frontier_flow(&current, &victims[victim_index], fee_bps)?
+                {
+                    reached
+                        .entry(suffix_mask | bit)
+                        .or_default()
+                        .insert(next_state);
+                }
+            }
+        }
+    }
+    Ok(signature.into_iter().collect())
+}
+
+fn try_apply_frontier_flow(
+    state: &SharedPoolFrontierStateV1,
+    flow: &SharedPoolFrontierFlowV1,
+    fee_bps: u32,
+) -> Result<Option<SharedPoolFrontierStateV1>, TransitionError> {
+    let (reserve_in, reserve_out) = if flow.direction == FRONTIER_DIRECTION_A_TO_B {
+        (state.reserve_a_atoms, state.reserve_b_atoms)
+    } else {
+        (state.reserve_b_atoms, state.reserve_a_atoms)
+    };
+    let fee_total = ceil_div_u128(
+        flow.amount_in_atoms
+            .checked_mul(fee_bps as u128)
+            .ok_or(TransitionError::Arithmetic("fee mul overflow"))?,
+        10_000,
+    );
+    if fee_total > flow.amount_in_atoms {
+        return Ok(None);
+    }
+    let net_in = flow.amount_in_atoms - fee_total;
+    let denom = reserve_in
+        .checked_add(net_in)
+        .ok_or(TransitionError::Arithmetic("denom overflow"))?;
+    let amount_out = reserve_out
+        .checked_mul(net_in)
+        .ok_or(TransitionError::Arithmetic("numerator overflow"))?
+        / denom;
+    if amount_out < flow.min_out_atoms || amount_out > reserve_out {
+        return Ok(None);
+    }
+    if flow.direction == FRONTIER_DIRECTION_A_TO_B {
+        Ok(Some(SharedPoolFrontierStateV1 {
+            reserve_a_atoms: state
+                .reserve_a_atoms
+                .checked_add(flow.amount_in_atoms)
+                .ok_or(TransitionError::Arithmetic("reserve_a overflow"))?,
+            reserve_b_atoms: state
+                .reserve_b_atoms
+                .checked_sub(amount_out)
+                .ok_or(TransitionError::Arithmetic("reserve_b underflow"))?,
+        }))
+    } else {
+        Ok(Some(SharedPoolFrontierStateV1 {
+            reserve_a_atoms: state
+                .reserve_a_atoms
+                .checked_sub(amount_out)
+                .ok_or(TransitionError::Arithmetic("reserve_a underflow"))?,
+            reserve_b_atoms: state
+                .reserve_b_atoms
+                .checked_add(flow.amount_in_atoms)
+                .ok_or(TransitionError::Arithmetic("reserve_b overflow"))?,
+        }))
+    }
+}
+
+fn frontier_from_signature_map(
+    row_states: &[SharedPoolFrontierStateV1],
+    signatures: &BTreeMap<SharedPoolFrontierStateV1, BTreeSet<u32>>,
+) -> Result<(Vec<SharedPoolFrontierStateV1>, usize), TransitionError> {
+    let signature_classes: BTreeSet<BTreeSet<u32>> = signatures.values().cloned().collect();
+    let mut frontier = Vec::new();
+    for state in row_states {
+        let state_signature = signatures
+            .get(state)
+            .ok_or(TransitionError::InvalidInput("signature missing for state"))?;
+        let excluded = signatures.iter().any(|(other_state, other_signature)| {
+            other_state != state
+                && frontier_signature_excludes(state, state_signature, other_state, other_signature)
+        });
+        if !excluded {
+            frontier.push(state.clone());
+        }
+    }
+    Ok((frontier, signature_classes.len()))
+}
+
+fn frontier_signature_excludes(
+    dominated_state: &SharedPoolFrontierStateV1,
+    dominated_signature: &BTreeSet<u32>,
+    dominating_state: &SharedPoolFrontierStateV1,
+    dominating_signature: &BTreeSet<u32>,
+) -> bool {
+    if dominated_signature.is_subset(dominating_signature)
+        && dominated_signature != dominating_signature
+    {
+        return true;
+    }
+    dominated_signature == dominating_signature && dominating_state < dominated_state
+}
+
+fn vec_len_u32(len: usize) -> Result<u32, TransitionError> {
+    u32::try_from(len).map_err(|_| TransitionError::Arithmetic("length exceeds u32"))
+}
+
+fn canonical_frontier_signature_certificate_json(
+    certificate: &SharedPoolFrontierSignatureCertificateV1,
+) -> String {
+    let mut out = String::new();
+    out.push('{');
+    out.push_str("\"claimed_frontier_states\":");
+    push_frontier_state_array_json(&mut out, &certificate.claimed_frontier_states);
+    out.push_str(",\"fee_bps\":");
+    out.push_str(&certificate.fee_bps.to_string());
+    out.push_str(",\"pool_id\":");
+    push_json_str(&mut out, &certificate.pool_id);
+    out.push_str(",\"row_states\":");
+    push_frontier_state_array_json(&mut out, &certificate.row_states);
+    out.push_str(",\"schema\":");
+    push_json_str(&mut out, &certificate.schema);
+    out.push_str(",\"signatures\":");
+    push_frontier_signature_rows_json(&mut out, &certificate.signatures);
+    out.push_str(",\"victims\":");
+    push_frontier_flows_json(&mut out, &certificate.victims);
+    out.push('}');
+    out
+}
+
+fn push_frontier_state_array_json(out: &mut String, states: &[SharedPoolFrontierStateV1]) {
+    out.push('[');
+    for (index, state) in states.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        push_frontier_state_json(out, state);
+    }
+    out.push(']');
+}
+
+fn push_frontier_state_json(out: &mut String, state: &SharedPoolFrontierStateV1) {
+    out.push('{');
+    out.push_str("\"reserve_a_atoms\":");
+    out.push_str(&state.reserve_a_atoms.to_string());
+    out.push_str(",\"reserve_b_atoms\":");
+    out.push_str(&state.reserve_b_atoms.to_string());
+    out.push('}');
+}
+
+fn push_frontier_flows_json(out: &mut String, flows: &[SharedPoolFrontierFlowV1]) {
+    out.push('[');
+    for (index, flow) in flows.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        out.push('{');
+        out.push_str("\"amount_in_atoms\":");
+        out.push_str(&flow.amount_in_atoms.to_string());
+        out.push_str(",\"direction\":");
+        push_json_str(out, &flow.direction);
+        out.push_str(",\"min_out_atoms\":");
+        out.push_str(&flow.min_out_atoms.to_string());
+        out.push('}');
+    }
+    out.push(']');
+}
+
+fn push_frontier_signature_rows_json(out: &mut String, rows: &[FrontierSignatureRowV1]) {
+    out.push('[');
+    for (index, row) in rows.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        out.push('{');
+        out.push_str("\"state\":");
+        push_frontier_state_json(out, &row.state);
+        out.push_str(",\"suffix_signature_masks\":");
+        push_u32_array_json(out, &row.suffix_signature_masks);
+        out.push('}');
+    }
+    out.push(']');
+}
+
+fn push_u32_array_json(out: &mut String, values: &[u32]) {
+    out.push('[');
+    for (index, value) in values.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        out.push_str(&value.to_string());
+    }
+    out.push(']');
+}
+
+fn push_json_str(out: &mut String, value: &str) {
+    out.push('"');
+    for ch in value.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if c < ' ' => {
+                out.push_str("\\u00");
+                let byte = c as u8;
+                out.push(hex_nibble((byte >> 4) & 0x0f) as char);
+                out.push(hex_nibble(byte & 0x0f) as char);
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+}
+
 pub fn route_conflict_edges_v1(
     routes: &[RouteIntentV1],
 ) -> Result<Vec<RouteConflictEdgeV1>, TransitionError> {
@@ -2741,6 +3807,39 @@ pub fn tx_pool_write_set_v1(tx: &TauTxV1) -> Result<Vec<String>, TransitionError
     }
 }
 
+pub fn tx_route_protected_values_v1(
+    tx: &TauTxV1,
+) -> Result<Vec<RouteProtectedValueV1>, TransitionError> {
+    match proof_v1_single_intent(tx)? {
+        Some(DexIntentV1::Route(intent)) => route_protected_values_v1(intent),
+        _ => Ok(Vec::new()),
+    }
+}
+
+pub fn route_protected_values_v1(
+    intent: &RouteIntentV1,
+) -> Result<Vec<RouteProtectedValueV1>, TransitionError> {
+    let amount_atoms = match intent.kind_str() {
+        "ROUTE_EXACT_IN" => intent.total_amount_in,
+        "ROUTE_EXACT_OUT" => intent.total_max_amount_in,
+        _ => {
+            return Err(TransitionError::InvalidInput("intent.kind mismatch"));
+        }
+    };
+    if amount_atoms == 0 {
+        return Ok(Vec::new());
+    }
+    if intent.asset_in.is_empty() {
+        return Err(TransitionError::InvalidInput(
+            "route protected value asset_in empty",
+        ));
+    }
+    Ok(alloc::vec![RouteProtectedValueV1 {
+        asset: intent.asset_in.clone(),
+        amount_atoms,
+    }])
+}
+
 pub fn schedule_prestate_tx_pool_conflicts_v1(
     txs: &[TauTxV1],
 ) -> Result<Vec<TxPoolConflictScheduleEntryV1>, TransitionError> {
@@ -2794,6 +3893,7 @@ pub fn optimize_prestate_tx_order_bruteforce_v1(
     if txs.is_empty() {
         return Ok(TxPoolConflictOrderPlanV1 {
             ordered_tx_indices: Vec::new(),
+            accepted_route_protected_values: Vec::new(),
             accepted_route_count: 0,
             deferred_route_count: 0,
             schedule: Vec::new(),
@@ -3483,13 +4583,53 @@ fn evaluate_prestate_tx_order(
     let schedule = schedule_prestate_tx_pool_conflicts_v1(&ordered_txs)?;
     let accepted_route_count = count_routes_by_schedule_status(&schedule, true)?;
     let deferred_route_count = count_routes_by_schedule_status(&schedule, false)?;
+    let accepted_route_protected_values =
+        accepted_route_protected_values_by_schedule(&ordered_txs, &schedule)?;
 
     Ok(TxPoolConflictOrderPlanV1 {
         ordered_tx_indices,
+        accepted_route_protected_values,
         accepted_route_count,
         deferred_route_count,
         schedule,
     })
+}
+
+fn accepted_route_protected_values_by_schedule(
+    ordered_txs: &[TauTxV1],
+    schedule: &[TxPoolConflictScheduleEntryV1],
+) -> Result<Vec<RouteProtectedValueV1>, TransitionError> {
+    let mut values_by_asset: BTreeMap<String, u128> = BTreeMap::new();
+    for entry in schedule {
+        if !entry.accepted || entry.route_read_pool_ids.is_empty() {
+            continue;
+        }
+        let tx_index = usize::try_from(entry.tx_index)
+            .map_err(|_| TransitionError::Arithmetic("schedule tx_index overflow"))?;
+        let Some(tx) = ordered_txs.get(tx_index) else {
+            return Err(TransitionError::Arithmetic(
+                "schedule tx_index out of range",
+            ));
+        };
+        for value in tx_route_protected_values_v1(tx)? {
+            let previous = values_by_asset.get(&value.asset).copied().unwrap_or(0);
+            let total =
+                previous
+                    .checked_add(value.amount_atoms)
+                    .ok_or(TransitionError::Arithmetic(
+                        "accepted route protected value overflow",
+                    ))?;
+            values_by_asset.insert(value.asset, total);
+        }
+    }
+    Ok(values_by_asset
+        .into_iter()
+        .filter(|(_asset, amount_atoms)| *amount_atoms > 0)
+        .map(|(asset, amount_atoms)| RouteProtectedValueV1 {
+            asset,
+            amount_atoms,
+        })
+        .collect())
 }
 
 fn prestate_tx_order_is_better(
@@ -3499,19 +4639,64 @@ fn prestate_tx_order_is_better(
     let Some(best) = current_best else {
         return true;
     };
+    if protected_values_dominate(
+        &candidate.accepted_route_protected_values,
+        &best.accepted_route_protected_values,
+    ) {
+        return true;
+    }
+    if protected_values_dominate(
+        &best.accepted_route_protected_values,
+        &candidate.accepted_route_protected_values,
+    ) {
+        return false;
+    }
     candidate.accepted_route_count > best.accepted_route_count
         || (candidate.accepted_route_count == best.accepted_route_count
             && candidate.ordered_tx_indices < best.ordered_tx_indices)
 }
 
+fn protected_values_dominate(
+    left: &[RouteProtectedValueV1],
+    right: &[RouteProtectedValueV1],
+) -> bool {
+    let left_map = protected_values_to_map(left);
+    let right_map = protected_values_to_map(right);
+    let mut strictly_greater = false;
+    for asset in left_map.keys().chain(right_map.keys()) {
+        let left_amount = left_map.get(asset).copied().unwrap_or(0);
+        let right_amount = right_map.get(asset).copied().unwrap_or(0);
+        if left_amount < right_amount {
+            return false;
+        }
+        if left_amount > right_amount {
+            strictly_greater = true;
+        }
+    }
+    strictly_greater
+}
+
+fn protected_values_to_map(values: &[RouteProtectedValueV1]) -> BTreeMap<String, u128> {
+    values
+        .iter()
+        .filter(|value| value.amount_atoms > 0)
+        .map(|value| (value.asset.clone(), value.amount_atoms))
+        .collect()
+}
+
 fn resolve_tx_execution_order_v1(
     txs: &[TauTxV1],
     certificate_order: &[u32],
+    route_price_intervals: &[RoutePriceIntervalV1],
 ) -> Result<Vec<usize>, TransitionError> {
     if certificate_order.is_empty() {
         return Ok((0..txs.len()).collect());
     }
-    verify_tx_execution_order_certificate_v1(txs, certificate_order)?;
+    verify_tx_execution_order_certificate_with_price_intervals_v1(
+        txs,
+        certificate_order,
+        route_price_intervals,
+    )?;
     decode_tx_execution_order_indices(txs.len(), certificate_order)
 }
 
@@ -3519,16 +4704,90 @@ pub fn verify_tx_execution_order_certificate_v1(
     txs: &[TauTxV1],
     certificate_order: &[u32],
 ) -> Result<TxPoolConflictOrderPlanV1, TransitionError> {
+    verify_tx_execution_order_certificate_with_price_intervals_v1(txs, certificate_order, &[])
+}
+
+pub fn verify_tx_execution_order_certificate_with_price_intervals_v1(
+    txs: &[TauTxV1],
+    certificate_order: &[u32],
+    route_price_intervals: &[RoutePriceIntervalV1],
+) -> Result<TxPoolConflictOrderPlanV1, TransitionError> {
     let order = decode_tx_execution_order_indices(txs.len(), certificate_order)?;
     verify_same_sender_order_v1(txs, &order)?;
     let candidate = evaluate_prestate_tx_order(txs, &order)?;
     let baseline = component_repair_prestate_tx_order_v1(txs)?;
-    if candidate.accepted_route_count < baseline.accepted_route_count {
+    if protected_values_dominate(
+        &baseline.accepted_route_protected_values,
+        &candidate.accepted_route_protected_values,
+    ) {
+        return Err(TransitionError::InvalidInput(
+            "tx_execution_order worsens route protected value",
+        ));
+    }
+    let interval_dominates = if route_price_intervals.is_empty() {
+        false
+    } else {
+        protected_values_interval_dominates(
+            &candidate.accepted_route_protected_values,
+            &baseline.accepted_route_protected_values,
+            route_price_intervals,
+        )?
+    };
+    if !protected_values_dominate(
+        &candidate.accepted_route_protected_values,
+        &baseline.accepted_route_protected_values,
+    ) && candidate.accepted_route_count < baseline.accepted_route_count
+        && !interval_dominates
+    {
         return Err(TransitionError::InvalidInput(
             "tx_execution_order worsens route acceptance",
         ));
     }
     Ok(candidate)
+}
+
+fn protected_values_interval_dominates(
+    left: &[RouteProtectedValueV1],
+    right: &[RouteProtectedValueV1],
+    intervals: &[RoutePriceIntervalV1],
+) -> Result<bool, TransitionError> {
+    let interval_map = route_price_intervals_to_map(intervals)?;
+    let left_lower = protected_value_at_interval_side(left, &interval_map, true)?;
+    let right_upper = protected_value_at_interval_side(right, &interval_map, false)?;
+    Ok(left_lower > right_upper)
+}
+
+fn protected_value_at_interval_side(
+    values: &[RouteProtectedValueV1],
+    intervals: &BTreeMap<String, RoutePriceIntervalV1>,
+    use_low: bool,
+) -> Result<u128, TransitionError> {
+    let mut total = 0u128;
+    for value in values {
+        if value.amount_atoms == 0 {
+            continue;
+        }
+        let interval = intervals
+            .get(&value.asset)
+            .ok_or(TransitionError::InvalidInput(
+                "route price interval missing protected asset",
+            ))?;
+        let price_e8 = if use_low {
+            interval.low_e8
+        } else {
+            interval.high_e8
+        };
+        let term = value
+            .amount_atoms
+            .checked_mul(price_e8)
+            .ok_or(TransitionError::Arithmetic(
+                "route protected value overflow",
+            ))?;
+        total = total.checked_add(term).ok_or(TransitionError::Arithmetic(
+            "route protected value overflow",
+        ))?;
+    }
+    Ok(total)
 }
 
 fn decode_tx_execution_order_indices(
@@ -3659,17 +4918,47 @@ fn tx_index_u32(index: usize) -> Result<u32, TransitionError> {
     Ok(index as u32)
 }
 
+#[cfg(test)]
 fn route_quote_receipt_hash_v1(
     intent: &RouteIntentV1,
     pools: &BTreeMap<String, DexPoolEntryV1>,
     fee_config: &ProtocolFeeConfig,
 ) -> Result<String, TransitionError> {
+    let empty_frontier_root = frontier_signature_certificates_root_v1(&[])?;
+    route_quote_receipt_hash_with_frontier_binding_v1(
+        intent,
+        pools,
+        fee_config,
+        0,
+        &empty_frontier_root,
+    )
+}
+
+fn route_quote_receipt_hash_with_frontier_binding_v1(
+    intent: &RouteIntentV1,
+    pools: &BTreeMap<String, DexPoolEntryV1>,
+    fee_config: &ProtocolFeeConfig,
+    frontier_signature_certificate_count: u32,
+    frontier_signature_certificates_root: &[u8; 32],
+) -> Result<String, TransitionError> {
     let kind = intent.kind_str();
     if kind != "ROUTE_EXACT_IN" && kind != "ROUTE_EXACT_OUT" {
         return Err(TransitionError::InvalidInput("intent.kind mismatch"));
     }
+    if frontier_signature_certificate_count > MAX_FRONTIER_SIGNATURE_CERTIFICATES as u32 {
+        return Err(TransitionError::InvalidInput(
+            "frontier_signature_certificate_count out of range",
+        ));
+    }
+    let empty_frontier_root = frontier_signature_certificates_root_v1(&[])?;
+    let uses_frontier_v2 = frontier_signature_certificate_count != 0
+        || *frontier_signature_certificates_root != empty_frontier_root;
     let mut hasher = Sha256::new();
-    hasher.update(b"zenodex.risc0.route_quote_receipt_binding.v1:");
+    if uses_frontier_v2 {
+        hasher.update(b"zenodex.risc0.route_quote_receipt_binding.v2:");
+    } else {
+        hasher.update(b"zenodex.risc0.route_quote_receipt_binding.v1:");
+    }
     write_str(&mut hasher, kind);
     write_str(&mut hasher, &intent.asset_in);
     write_str(&mut hasher, &intent.asset_out);
@@ -3679,6 +4968,10 @@ fn route_quote_receipt_hash_v1(
     write_u128(&mut hasher, intent.total_max_amount_in);
     write_u32(&mut hasher, fee_config.share_bps);
     write_opt_str(&mut hasher, fee_config.recipient_pubkey.as_deref());
+    if uses_frontier_v2 {
+        write_u32(&mut hasher, frontier_signature_certificate_count);
+        hasher.update(frontier_signature_certificates_root);
+    }
     write_u32(&mut hasher, intent.leg_indices.len() as u32);
     for index in &intent.leg_indices {
         write_u32(&mut hasher, *index);
@@ -4274,6 +5567,36 @@ mod tests {
         }
     }
 
+    fn route_price_interval_authority_for(
+        intervals: &[RoutePriceIntervalV1],
+        block_timestamp: u64,
+    ) -> RoutePriceIntervalAuthorityV1 {
+        RoutePriceIntervalAuthorityV1 {
+            schema: ROUTE_PRICE_INTERVAL_AUTHORITY_SCHEMA_V1.to_string(),
+            source_id: "test-route-interval-oracle".to_string(),
+            source_root: [7u8; 32],
+            price_timestamp: block_timestamp,
+            max_staleness_seconds: 60,
+            route_price_intervals_root: route_price_intervals_root_v1(intervals).unwrap(),
+        }
+    }
+
+    fn route_price_interval_authority_policy_for(
+        authority: &RoutePriceIntervalAuthorityV1,
+    ) -> RoutePriceIntervalAuthorityPolicyV1 {
+        RoutePriceIntervalAuthorityPolicyV1 {
+            schema: ROUTE_PRICE_INTERVAL_AUTHORITY_POLICY_SCHEMA_V1.to_string(),
+            policy_id: "test-route-interval-policy".to_string(),
+            sources: alloc::vec![RoutePriceIntervalAuthorityPolicySourceV1 {
+                source_id: authority.source_id.clone(),
+                source_root: authority.source_root,
+                verification_root: [8u8; 32],
+                verification_status: ROUTE_PRICE_INTERVAL_SOURCE_VERIFICATION_STATUS_VERIFIED
+                    .to_string(),
+            }],
+        }
+    }
+
     fn two_disjoint_pool_snapshot() -> DexSnapshotV1 {
         let mut snapshot = sender_balance_snapshot(ASSET0, 10_000_000);
         snapshot.balances.push(DexBalanceEntryV1 {
@@ -4385,6 +5708,32 @@ mod tests {
         intent
     }
 
+    fn chained_exact_out_route_intent(intent_id: &str) -> RouteIntentV1 {
+        let mut intent = default_route_intent(
+            intent_id,
+            "ROUTE_EXACT_OUT",
+            0,
+            0,
+            1_000,
+            1_000_000,
+        );
+        intent.asset_out = ASSET2.to_string();
+        intent.leg_indices = alloc::vec![0, 1];
+        intent.legs = alloc::vec![
+            RouteLegV1 {
+                hops: alloc::vec![RouteLegHopV1 {
+                    pool_id: POOL_ID.to_string(),
+                }],
+            },
+            RouteLegV1 {
+                hops: alloc::vec![RouteLegHopV1 {
+                    pool_id: "CHAIN_POOL".to_string(),
+                }],
+            },
+        ];
+        intent
+    }
+
     fn bind_route_hash(
         intent: &mut RouteIntentV1,
         state: &DexStateV1,
@@ -4392,6 +5741,56 @@ mod tests {
     ) {
         intent.quote_receipt_hash =
             route_quote_receipt_hash_v1(intent, &state.pools, fee_config).unwrap();
+    }
+
+    fn minimal_frontier_signature_certificate() -> SharedPoolFrontierSignatureCertificateV1 {
+        SharedPoolFrontierSignatureCertificateV1 {
+            schema: FRONTIER_SIGNATURE_CERT_SCHEMA_V1.to_string(),
+            pool_id: "pool:cpmm:frontier-delta-witness-min".to_string(),
+            fee_bps: 0,
+            row_states: alloc::vec![
+                SharedPoolFrontierStateV1 {
+                    reserve_a_atoms: 1,
+                    reserve_b_atoms: 1,
+                },
+                SharedPoolFrontierStateV1 {
+                    reserve_a_atoms: 1,
+                    reserve_b_atoms: 2,
+                },
+            ],
+            victims: alloc::vec![
+                SharedPoolFrontierFlowV1 {
+                    direction: FRONTIER_DIRECTION_B_TO_A.to_string(),
+                    amount_in_atoms: 1,
+                    min_out_atoms: 1,
+                },
+                SharedPoolFrontierFlowV1 {
+                    direction: FRONTIER_DIRECTION_A_TO_B.to_string(),
+                    amount_in_atoms: 1,
+                    min_out_atoms: 1,
+                },
+            ],
+            signatures: alloc::vec![
+                FrontierSignatureRowV1 {
+                    state: SharedPoolFrontierStateV1 {
+                        reserve_a_atoms: 1,
+                        reserve_b_atoms: 1,
+                    },
+                    suffix_signature_masks: alloc::vec![0],
+                },
+                FrontierSignatureRowV1 {
+                    state: SharedPoolFrontierStateV1 {
+                        reserve_a_atoms: 1,
+                        reserve_b_atoms: 2,
+                    },
+                    suffix_signature_masks: alloc::vec![0, 2, 3],
+                },
+            ],
+            claimed_frontier_states: alloc::vec![SharedPoolFrontierStateV1 {
+                reserve_a_atoms: 1,
+                reserve_b_atoms: 2,
+            }],
+        }
     }
 
     fn route_tx(intent: RouteIntentV1) -> TauTxV1 {
@@ -4523,6 +5922,117 @@ mod tests {
             hash,
             "0x29d7543ef7bac99812f3e37310f0960b168b36bfede112f6eaee7e1c58569acd"
         );
+    }
+
+    #[test]
+    fn route_quote_receipt_hash_binds_frontier_signature_root() {
+        let state = DexStateV1::from_snapshot(sender_balance_snapshot(ASSET0, 10_000_000)).unwrap();
+        let intent =
+            default_route_intent("route-frontier-root", "ROUTE_EXACT_IN", 100_000, 0, 0, 0);
+        let legacy =
+            route_quote_receipt_hash_v1(&intent, &state.pools, &ProtocolFeeConfig::default())
+                .unwrap();
+        let root_a = [0xaau8; 32];
+        let root_b = [0xbbu8; 32];
+        let hash_a = route_quote_receipt_hash_with_frontier_binding_v1(
+            &intent,
+            &state.pools,
+            &ProtocolFeeConfig::default(),
+            1,
+            &root_a,
+        )
+        .unwrap();
+        let hash_b = route_quote_receipt_hash_with_frontier_binding_v1(
+            &intent,
+            &state.pools,
+            &ProtocolFeeConfig::default(),
+            1,
+            &root_b,
+        )
+        .unwrap();
+
+        assert_ne!(hash_a, legacy);
+        assert_ne!(hash_a, hash_b);
+        assert_eq!(
+            hash_a,
+            "0x2947058fff8c0e7f6529b9faedf25459479bc86bd03c8133e3e138d5db9786b2"
+        );
+    }
+
+    #[test]
+    fn frontier_signature_certificate_json_matches_python_vector() {
+        let cert = minimal_frontier_signature_certificate();
+        let json = canonical_frontier_signature_certificate_json(&cert);
+
+        assert_eq!(
+            json,
+            "{\"claimed_frontier_states\":[{\"reserve_a_atoms\":1,\"reserve_b_atoms\":2}],\"fee_bps\":0,\"pool_id\":\"pool:cpmm:frontier-delta-witness-min\",\"row_states\":[{\"reserve_a_atoms\":1,\"reserve_b_atoms\":1},{\"reserve_a_atoms\":1,\"reserve_b_atoms\":2}],\"schema\":\"zenodex.mev.shared_pool_frontier_signature_certificate.v1\",\"signatures\":[{\"state\":{\"reserve_a_atoms\":1,\"reserve_b_atoms\":1},\"suffix_signature_masks\":[0]},{\"state\":{\"reserve_a_atoms\":1,\"reserve_b_atoms\":2},\"suffix_signature_masks\":[0,2,3]}],\"victims\":[{\"amount_in_atoms\":1,\"direction\":\"B_TO_A\",\"min_out_atoms\":1},{\"amount_in_atoms\":1,\"direction\":\"A_TO_B\",\"min_out_atoms\":1}]}"
+        );
+    }
+
+    #[test]
+    fn frontier_signature_certificate_hash_matches_python_vector() {
+        let cert = minimal_frontier_signature_certificate();
+
+        assert_eq!(
+            frontier_signature_certificate_sha256_v1(&cert).unwrap(),
+            "f694279c47ca8bfae5dfef1e7456b63ec3cbc588d369fe2adb73f79db080c2eb"
+        );
+    }
+
+    #[test]
+    fn frontier_signature_certificate_accepts_minimal_python_fixture() {
+        let cert = minimal_frontier_signature_certificate();
+
+        let verdict = validate_shared_pool_frontier_signature_certificate_v1(&cert).unwrap();
+
+        assert_eq!(verdict.frontier_size, 1);
+        assert_eq!(verdict.signature_row_count, 2);
+        assert_eq!(verdict.signature_class_count, 2);
+        assert_eq!(
+            verdict.certificate_sha256,
+            "f694279c47ca8bfae5dfef1e7456b63ec3cbc588d369fe2adb73f79db080c2eb"
+        );
+    }
+
+    #[test]
+    fn frontier_signature_certificate_rejects_signature_row_mismatch() {
+        let mut cert = minimal_frontier_signature_certificate();
+        cert.signatures[0].suffix_signature_masks = alloc::vec![1];
+
+        assert!(matches!(
+            validate_shared_pool_frontier_signature_certificate_v1(&cert),
+            Err(TransitionError::InvalidInput("signature row mismatch"))
+        ));
+    }
+
+    #[test]
+    fn frontier_signature_certificate_rejects_claimed_frontier_mismatch() {
+        let mut cert = minimal_frontier_signature_certificate();
+        cert.claimed_frontier_states = alloc::vec![SharedPoolFrontierStateV1 {
+            reserve_a_atoms: 1,
+            reserve_b_atoms: 1,
+        }];
+
+        assert!(matches!(
+            validate_shared_pool_frontier_signature_certificate_v1(&cert),
+            Err(TransitionError::InvalidInput(
+                "claimed_frontier_states mismatch"
+            ))
+        ));
+    }
+
+    #[test]
+    fn frontier_signature_exclusion_is_not_reflexive_on_ties() {
+        let signature: BTreeSet<u32> = alloc::vec![0, 2, 3].into_iter().collect();
+        let state = SharedPoolFrontierStateV1 {
+            reserve_a_atoms: 1,
+            reserve_b_atoms: 2,
+        };
+
+        assert!(!frontier_signature_excludes(
+            &state, &signature, &state, &signature
+        ));
     }
 
     #[test]
@@ -4860,7 +6370,7 @@ mod tests {
         assert!(matches!(
             verify_tx_execution_order_certificate_v1(&txs, &[0, 1]),
             Err(TransitionError::InvalidInput(
-                "tx_execution_order worsens route acceptance"
+                "tx_execution_order worsens route protected value"
             ))
         ));
 
@@ -4882,6 +6392,261 @@ mod tests {
         assert_eq!(
             hex_lower(&tx_execution_order_commitment_v1(&[1, 0]).unwrap()),
             "119fdae071d9a00562a44ef55cd0233774eb8bc3527036d64e8d97db23984280"
+        );
+    }
+
+    #[derive(Deserialize)]
+    struct TxExecutionOrderAbiCorpus {
+        domain_ascii: String,
+        hash: String,
+        length_encoding: String,
+        index_encoding: String,
+        proof_type: String,
+        receipt_schema: String,
+        positive_cases: Vec<TxExecutionOrderAbiPositiveCase>,
+        negative_cases: Vec<TxExecutionOrderAbiNegativeCase>,
+    }
+
+    #[derive(Deserialize)]
+    struct TxExecutionOrderAbiPositiveCase {
+        normalized_order: Vec<u32>,
+        commitment: String,
+        receipt: TxExecutionOrderAbiReceipt,
+    }
+
+    #[derive(Deserialize)]
+    struct TxExecutionOrderAbiReceipt {
+        schema: String,
+        proof_type: String,
+        tx_execution_order_commitment: String,
+    }
+
+    #[derive(Deserialize)]
+    struct TxExecutionOrderAbiNegativeCase {
+        name: String,
+        tx_count: u32,
+        raw_order: serde_json::Value,
+        error: String,
+    }
+
+    #[derive(Deserialize)]
+    struct RoutePriceIntervalsAbiCorpus {
+        domain_ascii: String,
+        hash: String,
+        string_encoding: String,
+        count_encoding: String,
+        integer_encoding: String,
+        max_intervals: usize,
+        positive_cases: Vec<RoutePriceIntervalsAbiCase>,
+        negative_cases: Vec<RoutePriceIntervalsAbiCase>,
+    }
+
+    #[derive(Deserialize)]
+    struct RoutePriceIntervalsAbiCase {
+        name: String,
+        intervals: Vec<RoutePriceIntervalV1>,
+        root: Option<String>,
+        error: Option<String>,
+    }
+
+    #[test]
+    fn tx_execution_order_commitment_matches_shared_abi_corpus() {
+        let corpus: TxExecutionOrderAbiCorpus = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/risc0_tx_execution_order_abi_v1.json"
+        ))
+        .unwrap();
+
+        assert_eq!(
+            corpus.domain_ascii,
+            "tau_state_proof_tx_execution_order_v1:"
+        );
+        assert_eq!(corpus.hash, "sha256");
+        assert_eq!(corpus.length_encoding, "u32_be");
+        assert_eq!(corpus.index_encoding, "u32_be");
+        assert_eq!(corpus.proof_type, PROOF_TYPE);
+        assert_eq!(
+            corpus.receipt_schema,
+            "zenodex/zeno_ledger/risc0_tx_execution_order_commitment/v0"
+        );
+
+        for case in corpus.positive_cases {
+            let order: Vec<usize> = case
+                .normalized_order
+                .iter()
+                .map(|index| usize::try_from(*index).unwrap())
+                .collect();
+            let commitment = hex_lower(&tx_execution_order_commitment_v1(&order).unwrap());
+            assert_eq!(commitment, case.commitment);
+            assert_eq!(
+                case.receipt.schema,
+                "zenodex/zeno_ledger/risc0_tx_execution_order_commitment/v0"
+            );
+            assert_eq!(case.receipt.proof_type, PROOF_TYPE);
+            assert_eq!(case.receipt.tx_execution_order_commitment, case.commitment);
+        }
+    }
+
+    #[test]
+    fn tx_execution_order_shared_abi_corpus_rejects_numeric_negative_cases() {
+        let corpus: TxExecutionOrderAbiCorpus = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/risc0_tx_execution_order_abi_v1.json"
+        ))
+        .unwrap();
+
+        for case in corpus.negative_cases {
+            let raw_entries = case
+                .raw_order
+                .as_array()
+                .expect("ABI negative raw_order must be an array");
+            let mut raw_order = Vec::with_capacity(raw_entries.len());
+            let mut has_non_u32_json = false;
+            for entry in raw_entries {
+                let Some(index) = entry.as_u64() else {
+                    has_non_u32_json = true;
+                    break;
+                };
+                let Ok(index_u32) = u32::try_from(index) else {
+                    has_non_u32_json = true;
+                    break;
+                };
+                raw_order.push(index_u32);
+            }
+            if has_non_u32_json {
+                assert_eq!(
+                    case.error, "tx_execution_order entries must be u32",
+                    "{}",
+                    case.name
+                );
+                continue;
+            }
+
+            let result = decode_tx_execution_order_indices(case.tx_count as usize, &raw_order);
+            match result {
+                Err(TransitionError::InvalidInput(message)) => {
+                    assert_eq!(message, case.error, "{}", case.name);
+                }
+                other => panic!(
+                    "unexpected result for ABI negative case {}: {:?}",
+                    case.name, other
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn route_price_intervals_root_matches_shared_abi_corpus() {
+        let corpus: RoutePriceIntervalsAbiCorpus = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/risc0_route_price_intervals_abi_v1.json"
+        ))
+        .unwrap();
+
+        assert_eq!(corpus.domain_ascii, ROUTE_PRICE_INTERVALS_ROOT_DOMAIN_V1);
+        assert_eq!(corpus.hash, "sha256");
+        assert_eq!(corpus.string_encoding, "u32_be_length_prefixed_utf8");
+        assert_eq!(corpus.count_encoding, "u32_be");
+        assert_eq!(corpus.integer_encoding, "u128_be");
+        assert_eq!(corpus.max_intervals, MAX_ROUTE_PRICE_INTERVALS);
+
+        for case in corpus.positive_cases {
+            let root = hex_lower(&route_price_intervals_root_v1(&case.intervals).unwrap());
+            assert_eq!(Some(root), case.root, "{}", case.name);
+        }
+    }
+
+    #[test]
+    fn route_price_intervals_shared_abi_corpus_rejects_negative_cases() {
+        let corpus: RoutePriceIntervalsAbiCorpus = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/risc0_route_price_intervals_abi_v1.json"
+        ))
+        .unwrap();
+
+        for case in corpus.negative_cases {
+            let result = route_price_intervals_root_v1(&case.intervals);
+            match result {
+                Err(TransitionError::InvalidInput(message)) => {
+                    assert_eq!(Some(message.to_string()), case.error, "{}", case.name);
+                }
+                other => panic!(
+                    "unexpected result for route price interval ABI negative case {}: {:?}",
+                    case.name, other
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn route_price_interval_distortion_certificate_bounds_width_bps() {
+        let intervals = alloc::vec![RoutePriceIntervalV1 {
+            asset: ASSET0.to_string(),
+            low_e8: 99,
+            point_e8: 100,
+            high_e8: 101,
+        }];
+
+        let certificate = route_price_interval_distortion_certificate_v1(&intervals).unwrap();
+
+        assert_eq!(
+            certificate.route_price_intervals_root,
+            route_price_intervals_root_v1(&intervals).unwrap()
+        );
+        assert_eq!(certificate.max_downside_e8, 1);
+        assert_eq!(certificate.max_upside_e8, 1);
+        assert_eq!(certificate.max_width_e8, 2);
+        assert_eq!(certificate.max_downside_bps, 100);
+        assert_eq!(certificate.max_upside_bps, 100);
+        assert_eq!(certificate.max_width_bps, 200);
+        assert!(validate_route_price_interval_width_policy_v1(&intervals, 200).is_ok());
+        assert!(matches!(
+            validate_route_price_interval_width_policy_v1(&intervals, 199),
+            Err(TransitionError::InvalidInput(
+                "route price interval width exceeds max policy"
+            ))
+        ));
+    }
+
+    #[test]
+    fn route_price_interval_distortion_rejects_zero_point_positive_width() {
+        let intervals = alloc::vec![RoutePriceIntervalV1 {
+            asset: ASSET0.to_string(),
+            low_e8: 0,
+            point_e8: 0,
+            high_e8: 1,
+        }];
+
+        assert!(matches!(
+            route_price_interval_distortion_certificate_v1(&intervals),
+            Err(TransitionError::InvalidInput(
+                "route price interval point_e8 zero with positive width"
+            ))
+        ));
+    }
+
+    #[test]
+    fn route_price_interval_authority_root_matches_python_known_vectors() {
+        let intervals = alloc::vec![RoutePriceIntervalV1 {
+            asset: "ASSET0".to_string(),
+            low_e8: 1,
+            point_e8: 2,
+            high_e8: 3,
+        }];
+        let authority = route_price_interval_authority_for(&intervals, 10);
+        let policy = route_price_interval_authority_policy_for(&authority);
+
+        assert_eq!(
+            hex_lower(&route_price_interval_authority_root_v1(None).unwrap()),
+            "609d2988748b0a03f6952c4fbd9c4fcc376398210826d653ce6ec1bbf2fdb2b5"
+        );
+        assert_eq!(
+            hex_lower(&route_price_interval_authority_root_v1(Some(&authority)).unwrap()),
+            "4c5557350855d1a9ba0084567b1f37bec405d554f04102896036aef99f3c6315"
+        );
+        assert_eq!(
+            hex_lower(&route_price_interval_authority_policy_root_v1(None).unwrap()),
+            "41e70305b4f8f20a1345d691514a5248b15d1bf74bb750cad2b662549225fa03"
+        );
+        assert_eq!(
+            hex_lower(&route_price_interval_authority_policy_root_v1(Some(&policy)).unwrap()),
+            "1fe535be0b989f27bcc851bda12d3af65fa521672db4d63b53e03228f428053f"
         );
     }
 
@@ -5089,6 +6854,254 @@ mod tests {
         assert_eq!(stable.accepted_route_count, 1);
         assert_eq!(repaired.accepted_route_count, 2);
         assert_ne!(repaired.ordered_tx_indices, stable.ordered_tx_indices);
+    }
+
+    #[test]
+    fn order_oracle_prefers_unit_dominating_route_value_over_count() {
+        let mut wide_intent = two_pool_route_intent("route-value-wide");
+        wide_intent.total_amount_in = 300_000;
+        let mut wide = route_tx(wide_intent);
+
+        let mut narrow_a_intent =
+            default_route_intent("route-value-narrow-a", "ROUTE_EXACT_IN", 100_000, 0, 0, 0);
+        narrow_a_intent.asset_in = ASSET0.to_string();
+        let mut narrow_a = route_tx(narrow_a_intent);
+
+        let mut narrow_b_intent = second_pool_route_intent("route-value-narrow-b");
+        narrow_b_intent.asset_in = ASSET0.to_string();
+        let mut narrow_b = route_tx(narrow_b_intent);
+
+        retarget_tx_sender(&mut wide, "route-value-wide");
+        retarget_tx_sender(&mut narrow_a, "route-value-narrow-a");
+        retarget_tx_sender(&mut narrow_b, "route-value-narrow-b");
+
+        let plan = optimize_prestate_tx_order_bruteforce_v1(&[narrow_a, narrow_b, wide]).unwrap();
+
+        assert_eq!(plan.ordered_tx_indices, alloc::vec![2, 0, 1]);
+        assert_eq!(plan.accepted_route_count, 1);
+        assert_eq!(
+            plan.accepted_route_protected_values,
+            alloc::vec![RouteProtectedValueV1 {
+                asset: ASSET0.to_string(),
+                amount_atoms: 300_000,
+            }]
+        );
+    }
+
+    #[test]
+    fn tx_execution_order_certificate_accepts_value_better_lower_count_order() {
+        let mut wide_intent = two_pool_route_intent("route-cert-value-wide");
+        wide_intent.total_amount_in = 300_000;
+        let mut wide = route_tx(wide_intent);
+
+        let mut narrow_a_intent = default_route_intent(
+            "route-cert-value-narrow-a",
+            "ROUTE_EXACT_IN",
+            100_000,
+            0,
+            0,
+            0,
+        );
+        narrow_a_intent.asset_in = ASSET0.to_string();
+        let mut narrow_a = route_tx(narrow_a_intent);
+
+        let mut narrow_b_intent = second_pool_route_intent("route-cert-value-narrow-b");
+        narrow_b_intent.asset_in = ASSET0.to_string();
+        let mut narrow_b = route_tx(narrow_b_intent);
+
+        retarget_tx_sender(&mut wide, "route-cert-value-wide");
+        retarget_tx_sender(&mut narrow_a, "route-cert-value-narrow-a");
+        retarget_tx_sender(&mut narrow_b, "route-cert-value-narrow-b");
+
+        let txs = alloc::vec![narrow_a, narrow_b, wide];
+        let accepted = verify_tx_execution_order_certificate_v1(&txs, &[2, 0, 1]).unwrap();
+
+        assert_eq!(accepted.accepted_route_count, 1);
+        assert_eq!(
+            accepted.accepted_route_protected_values,
+            alloc::vec![RouteProtectedValueV1 {
+                asset: ASSET0.to_string(),
+                amount_atoms: 300_000,
+            }]
+        );
+    }
+
+    #[test]
+    fn tx_execution_order_certificate_rejects_incomparable_cross_asset_lower_count_order() {
+        let mut wide_intent = two_pool_route_intent("route-cross-asset-wide");
+        wide_intent.total_amount_in = 300_000;
+        wide_intent.asset_in = ASSET0.to_string();
+        let mut wide = route_tx(wide_intent);
+
+        let mut narrow_a_intent = default_route_intent(
+            "route-cross-asset-narrow-a",
+            "ROUTE_EXACT_IN",
+            100_000,
+            0,
+            0,
+            0,
+        );
+        narrow_a_intent.asset_in = ASSET2.to_string();
+        let mut narrow_a = route_tx(narrow_a_intent);
+
+        let mut narrow_b_intent = second_pool_route_intent("route-cross-asset-narrow-b");
+        narrow_b_intent.asset_in = ASSET2.to_string();
+        let mut narrow_b = route_tx(narrow_b_intent);
+
+        retarget_tx_sender(&mut wide, "route-cross-asset-wide");
+        retarget_tx_sender(&mut narrow_a, "route-cross-asset-narrow-a");
+        retarget_tx_sender(&mut narrow_b, "route-cross-asset-narrow-b");
+
+        let txs = alloc::vec![narrow_a, narrow_b, wide];
+
+        assert!(matches!(
+            verify_tx_execution_order_certificate_v1(&txs, &[2, 0, 1]),
+            Err(TransitionError::InvalidInput(
+                "tx_execution_order worsens route acceptance"
+            ))
+        ));
+    }
+
+    #[test]
+    fn tx_execution_order_certificate_accepts_interval_dominating_cross_asset_lower_count_order() {
+        let mut wide_intent = two_pool_route_intent("route-interval-wide");
+        wide_intent.total_amount_in = 300_000;
+        wide_intent.asset_in = ASSET0.to_string();
+        let mut wide = route_tx(wide_intent);
+
+        let mut narrow_a_intent = default_route_intent(
+            "route-interval-narrow-a",
+            "ROUTE_EXACT_IN",
+            100_000,
+            0,
+            0,
+            0,
+        );
+        narrow_a_intent.asset_in = ASSET2.to_string();
+        let mut narrow_a = route_tx(narrow_a_intent);
+
+        let mut narrow_b_intent = second_pool_route_intent("route-interval-narrow-b");
+        narrow_b_intent.asset_in = ASSET2.to_string();
+        let mut narrow_b = route_tx(narrow_b_intent);
+
+        retarget_tx_sender(&mut wide, "route-interval-wide");
+        retarget_tx_sender(&mut narrow_a, "route-interval-narrow-a");
+        retarget_tx_sender(&mut narrow_b, "route-interval-narrow-b");
+
+        let txs = alloc::vec![narrow_a, narrow_b, wide];
+        let intervals = alloc::vec![
+            RoutePriceIntervalV1 {
+                asset: ASSET0.to_string(),
+                low_e8: 2,
+                point_e8: 2,
+                high_e8: 2,
+            },
+            RoutePriceIntervalV1 {
+                asset: ASSET2.to_string(),
+                low_e8: 1,
+                point_e8: 1,
+                high_e8: 1,
+            },
+        ];
+
+        let accepted = verify_tx_execution_order_certificate_with_price_intervals_v1(
+            &txs,
+            &[2, 0, 1],
+            &intervals,
+        )
+        .unwrap();
+
+        assert_eq!(accepted.accepted_route_count, 1);
+        assert_eq!(
+            accepted.accepted_route_protected_values,
+            alloc::vec![RouteProtectedValueV1 {
+                asset: ASSET0.to_string(),
+                amount_atoms: 300_000,
+            }]
+        );
+    }
+
+    #[test]
+    fn tx_execution_order_certificate_rejects_interval_candidate_missing_asset_price() {
+        let mut wide_intent = two_pool_route_intent("route-interval-missing-wide");
+        wide_intent.total_amount_in = 300_000;
+        wide_intent.asset_in = ASSET0.to_string();
+        let mut wide = route_tx(wide_intent);
+
+        let mut narrow_a_intent = default_route_intent(
+            "route-interval-missing-narrow-a",
+            "ROUTE_EXACT_IN",
+            100_000,
+            0,
+            0,
+            0,
+        );
+        narrow_a_intent.asset_in = ASSET2.to_string();
+        let mut narrow_a = route_tx(narrow_a_intent);
+
+        let mut narrow_b_intent = second_pool_route_intent("route-interval-missing-narrow-b");
+        narrow_b_intent.asset_in = ASSET2.to_string();
+        let mut narrow_b = route_tx(narrow_b_intent);
+
+        retarget_tx_sender(&mut wide, "route-interval-missing-wide");
+        retarget_tx_sender(&mut narrow_a, "route-interval-missing-narrow-a");
+        retarget_tx_sender(&mut narrow_b, "route-interval-missing-narrow-b");
+
+        let txs = alloc::vec![narrow_a, narrow_b, wide];
+        let intervals = alloc::vec![RoutePriceIntervalV1 {
+            asset: ASSET0.to_string(),
+            low_e8: 2,
+            point_e8: 2,
+            high_e8: 2,
+        }];
+
+        assert!(matches!(
+            verify_tx_execution_order_certificate_with_price_intervals_v1(
+                &txs,
+                &[2, 0, 1],
+                &intervals,
+            ),
+            Err(TransitionError::InvalidInput(
+                "route price interval missing protected asset"
+            ))
+        ));
+    }
+
+    #[test]
+    fn route_price_intervals_root_rejects_duplicate_or_invalid_bounds() {
+        let duplicate = alloc::vec![
+            RoutePriceIntervalV1 {
+                asset: ASSET0.to_string(),
+                low_e8: 1,
+                point_e8: 1,
+                high_e8: 2,
+            },
+            RoutePriceIntervalV1 {
+                asset: ASSET0.to_string(),
+                low_e8: 1,
+                point_e8: 1,
+                high_e8: 2,
+            },
+        ];
+        assert!(matches!(
+            route_price_intervals_root_v1(&duplicate),
+            Err(TransitionError::InvalidInput(
+                "duplicate route price interval asset"
+            ))
+        ));
+
+        let invalid_bounds = alloc::vec![RoutePriceIntervalV1 {
+            asset: ASSET0.to_string(),
+            low_e8: 2,
+            point_e8: 1,
+            high_e8: 2,
+        }];
+        assert!(matches!(
+            route_price_intervals_root_v1(&invalid_bounds),
+            Err(TransitionError::InvalidInput(
+                "route price interval bounds invalid"
+            ))
+        ));
     }
 
     #[test]
@@ -5928,6 +7941,10 @@ mod tests {
             pre_state: snapshot,
             txs: txs.clone(),
             tx_execution_order: Vec::new(),
+            route_price_intervals: Vec::new(),
+            route_price_interval_authority: None,
+            route_price_interval_authority_policy: None,
+            route_price_interval_max_width_bps: None,
             pre_nonces: Vec::new(),
             tx_ingress: alloc::vec![TxIngressFactV1 {
                 sender_pubkey: SENDER.to_string(),
@@ -5939,6 +7956,7 @@ mod tests {
             ),
             protocol_fee_share_bps: 0,
             protocol_fee_recipient_pubkey: None,
+            shared_pool_frontier_signature_certificates: Vec::new(),
         };
 
         let journal = execute_state_proof_input_v1(input.clone()).unwrap();
@@ -5960,6 +7978,11 @@ mod tests {
         assert!(journal.pre_app_hash_present);
         assert_eq!(journal.pre_app_hash, input.pre_app_hash);
         assert_eq!(journal.post_app_hash, input.expected_post_app_hash);
+        assert_eq!(journal.shared_pool_frontier_signature_certificate_count, 0);
+        assert_eq!(
+            journal.shared_pool_frontier_signature_certificates_root,
+            frontier_signature_certificates_root_v1(&[]).unwrap()
+        );
 
         let mut bad_pre = input.clone();
         bad_pre.pre_app_hash = [8u8; 32];
@@ -5980,6 +8003,522 @@ mod tests {
         assert!(matches!(
             execute_state_proof_input_v1(bad_nonce),
             Err(TransitionError::InvalidInput("ingress nonce mismatch"))
+        ));
+    }
+
+    #[test]
+    fn state_proof_journal_binds_frontier_signature_certificate_root() {
+        let snapshot = empty_snapshot();
+        let expected_post_app_hash = DexStateV1::from_snapshot(snapshot.clone())
+            .unwrap()
+            .canonical_app_hash_sha256();
+        let certificate = minimal_frontier_signature_certificate();
+        let expected_root =
+            frontier_signature_certificates_root_v1(&[certificate.clone()]).unwrap();
+
+        let input = StateProofInputV1 {
+            state_hash: [11u8; 32],
+            block_timestamp: 1,
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            pre_state: snapshot,
+            txs: Vec::new(),
+            tx_execution_order: Vec::new(),
+            route_price_intervals: Vec::new(),
+            route_price_interval_authority: None,
+            route_price_interval_authority_policy: None,
+            route_price_interval_max_width_bps: None,
+            pre_nonces: Vec::new(),
+            tx_ingress: Vec::new(),
+            chain_balances_post: Vec::new(),
+            expected_post_app_hash,
+            protocol_fee_share_bps: 0,
+            protocol_fee_recipient_pubkey: None,
+            shared_pool_frontier_signature_certificates: alloc::vec![certificate],
+        };
+
+        let journal = execute_state_proof_input_v1(input).unwrap();
+
+        assert_eq!(journal.shared_pool_frontier_signature_certificate_count, 1);
+        assert_eq!(
+            journal.shared_pool_frontier_signature_certificates_root,
+            expected_root
+        );
+        assert_ne!(
+            journal.shared_pool_frontier_signature_certificates_root,
+            frontier_signature_certificates_root_v1(&[]).unwrap()
+        );
+    }
+
+    #[test]
+    fn state_proof_journal_binds_route_price_intervals_root() {
+        let snapshot = empty_snapshot();
+        let expected_post_app_hash = DexStateV1::from_snapshot(snapshot.clone())
+            .unwrap()
+            .canonical_app_hash_sha256();
+        let intervals = alloc::vec![RoutePriceIntervalV1 {
+            asset: ASSET0.to_string(),
+            low_e8: 1,
+            point_e8: 2,
+            high_e8: 3,
+        }];
+        let expected_root = route_price_intervals_root_v1(&intervals).unwrap();
+        let authority = route_price_interval_authority_for(&intervals, 1);
+        let policy = route_price_interval_authority_policy_for(&authority);
+        let expected_authority_root =
+            route_price_interval_authority_root_v1(Some(&authority)).unwrap();
+        let expected_policy_root =
+            route_price_interval_authority_policy_root_v1(Some(&policy)).unwrap();
+
+        let input = StateProofInputV1 {
+            state_hash: [13u8; 32],
+            block_timestamp: 1,
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            pre_state: snapshot,
+            txs: Vec::new(),
+            tx_execution_order: Vec::new(),
+            route_price_interval_authority: Some(Box::new(authority)),
+            route_price_interval_authority_policy: Some(Box::new(policy)),
+            route_price_intervals: intervals,
+            route_price_interval_max_width_bps: None,
+            pre_nonces: Vec::new(),
+            tx_ingress: Vec::new(),
+            chain_balances_post: Vec::new(),
+            expected_post_app_hash,
+            protocol_fee_share_bps: 0,
+            protocol_fee_recipient_pubkey: None,
+            shared_pool_frontier_signature_certificates: Vec::new(),
+        };
+
+        let journal = execute_state_proof_input_v1(input).unwrap();
+
+        assert_eq!(journal.route_price_interval_count, 1);
+        assert_eq!(journal.route_price_intervals_root, expected_root);
+        assert_eq!(
+            journal.route_price_interval_authority_root,
+            expected_authority_root
+        );
+        assert_eq!(
+            journal.route_price_interval_authority_policy_root,
+            expected_policy_root
+        );
+        assert_ne!(
+            journal.route_price_intervals_root,
+            route_price_intervals_root_v1(&[]).unwrap()
+        );
+    }
+
+    #[test]
+    fn state_proof_journal_binds_route_price_interval_max_width_policy() {
+        let snapshot = empty_snapshot();
+        let expected_post_app_hash = DexStateV1::from_snapshot(snapshot.clone())
+            .unwrap()
+            .canonical_app_hash_sha256();
+        let intervals = alloc::vec![RoutePriceIntervalV1 {
+            asset: ASSET0.to_string(),
+            low_e8: 99,
+            point_e8: 100,
+            high_e8: 101,
+        }];
+        let authority = route_price_interval_authority_for(&intervals, 1);
+        let policy = route_price_interval_authority_policy_for(&authority);
+
+        let input = StateProofInputV1 {
+            state_hash: [14u8; 32],
+            block_timestamp: 1,
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            pre_state: snapshot,
+            txs: Vec::new(),
+            tx_execution_order: Vec::new(),
+            route_price_intervals: intervals,
+            route_price_interval_authority: Some(Box::new(authority)),
+            route_price_interval_authority_policy: Some(Box::new(policy)),
+            route_price_interval_max_width_bps: Some(200),
+            pre_nonces: Vec::new(),
+            tx_ingress: Vec::new(),
+            chain_balances_post: Vec::new(),
+            expected_post_app_hash,
+            protocol_fee_share_bps: 0,
+            protocol_fee_recipient_pubkey: None,
+            shared_pool_frontier_signature_certificates: Vec::new(),
+        };
+
+        let journal = execute_state_proof_input_v1(input).unwrap();
+
+        assert_eq!(journal.route_price_interval_max_width_bps, Some(200));
+    }
+
+    #[test]
+    fn state_proof_rejects_route_price_interval_width_above_policy() {
+        let snapshot = empty_snapshot();
+        let expected_post_app_hash = DexStateV1::from_snapshot(snapshot.clone())
+            .unwrap()
+            .canonical_app_hash_sha256();
+        let intervals = alloc::vec![RoutePriceIntervalV1 {
+            asset: ASSET0.to_string(),
+            low_e8: 1,
+            point_e8: 1,
+            high_e8: 1_000_000_000_000,
+        }];
+        let authority = route_price_interval_authority_for(&intervals, 1);
+        let policy = route_price_interval_authority_policy_for(&authority);
+
+        let input = StateProofInputV1 {
+            state_hash: [15u8; 32],
+            block_timestamp: 1,
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            pre_state: snapshot,
+            txs: Vec::new(),
+            tx_execution_order: Vec::new(),
+            route_price_intervals: intervals,
+            route_price_interval_authority: Some(Box::new(authority)),
+            route_price_interval_authority_policy: Some(Box::new(policy)),
+            route_price_interval_max_width_bps: Some(100),
+            pre_nonces: Vec::new(),
+            tx_ingress: Vec::new(),
+            chain_balances_post: Vec::new(),
+            expected_post_app_hash,
+            protocol_fee_share_bps: 0,
+            protocol_fee_recipient_pubkey: None,
+            shared_pool_frontier_signature_certificates: Vec::new(),
+        };
+
+        assert!(matches!(
+            execute_state_proof_input_v1(input),
+            Err(TransitionError::InvalidInput(
+                "route price interval width exceeds max policy"
+            ))
+        ));
+    }
+
+    #[test]
+    fn state_proof_rejects_route_price_intervals_without_authority() {
+        let snapshot = empty_snapshot();
+        let expected_post_app_hash = DexStateV1::from_snapshot(snapshot.clone())
+            .unwrap()
+            .canonical_app_hash_sha256();
+        let intervals = alloc::vec![RoutePriceIntervalV1 {
+            asset: ASSET0.to_string(),
+            low_e8: 1,
+            point_e8: 2,
+            high_e8: 3,
+        }];
+
+        let input = StateProofInputV1 {
+            state_hash: [13u8; 32],
+            block_timestamp: 1,
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            pre_state: snapshot,
+            txs: Vec::new(),
+            tx_execution_order: Vec::new(),
+            route_price_intervals: intervals,
+            route_price_interval_authority: None,
+            route_price_interval_authority_policy: None,
+            route_price_interval_max_width_bps: None,
+            pre_nonces: Vec::new(),
+            tx_ingress: Vec::new(),
+            chain_balances_post: Vec::new(),
+            expected_post_app_hash,
+            protocol_fee_share_bps: 0,
+            protocol_fee_recipient_pubkey: None,
+            shared_pool_frontier_signature_certificates: Vec::new(),
+        };
+
+        assert!(matches!(
+            execute_state_proof_input_v1(input),
+            Err(TransitionError::InvalidInput(
+                "route price interval authority required"
+            ))
+        ));
+    }
+
+    #[test]
+    fn state_proof_rejects_route_price_intervals_without_authority_policy() {
+        let snapshot = empty_snapshot();
+        let expected_post_app_hash = DexStateV1::from_snapshot(snapshot.clone())
+            .unwrap()
+            .canonical_app_hash_sha256();
+        let intervals = alloc::vec![RoutePriceIntervalV1 {
+            asset: ASSET0.to_string(),
+            low_e8: 1,
+            point_e8: 2,
+            high_e8: 3,
+        }];
+        let authority = route_price_interval_authority_for(&intervals, 1);
+
+        let input = StateProofInputV1 {
+            state_hash: [13u8; 32],
+            block_timestamp: 1,
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            pre_state: snapshot,
+            txs: Vec::new(),
+            tx_execution_order: Vec::new(),
+            route_price_intervals: intervals,
+            route_price_interval_authority: Some(Box::new(authority)),
+            route_price_interval_authority_policy: None,
+            route_price_interval_max_width_bps: None,
+            pre_nonces: Vec::new(),
+            tx_ingress: Vec::new(),
+            chain_balances_post: Vec::new(),
+            expected_post_app_hash,
+            protocol_fee_share_bps: 0,
+            protocol_fee_recipient_pubkey: None,
+            shared_pool_frontier_signature_certificates: Vec::new(),
+        };
+
+        assert!(matches!(
+            execute_state_proof_input_v1(input),
+            Err(TransitionError::InvalidInput(
+                "route price interval authority policy required"
+            ))
+        ));
+    }
+
+    #[test]
+    fn state_proof_rejects_route_price_interval_authority_source_not_in_policy() {
+        let snapshot = empty_snapshot();
+        let expected_post_app_hash = DexStateV1::from_snapshot(snapshot.clone())
+            .unwrap()
+            .canonical_app_hash_sha256();
+        let intervals = alloc::vec![RoutePriceIntervalV1 {
+            asset: ASSET0.to_string(),
+            low_e8: 1,
+            point_e8: 2,
+            high_e8: 3,
+        }];
+        let authority = route_price_interval_authority_for(&intervals, 1);
+        let mut policy = route_price_interval_authority_policy_for(&authority);
+        policy.sources[0].source_root = [9u8; 32];
+
+        let input = StateProofInputV1 {
+            state_hash: [13u8; 32],
+            block_timestamp: 1,
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            pre_state: snapshot,
+            txs: Vec::new(),
+            tx_execution_order: Vec::new(),
+            route_price_intervals: intervals,
+            route_price_interval_authority: Some(Box::new(authority)),
+            route_price_interval_authority_policy: Some(Box::new(policy)),
+            route_price_interval_max_width_bps: None,
+            pre_nonces: Vec::new(),
+            tx_ingress: Vec::new(),
+            chain_balances_post: Vec::new(),
+            expected_post_app_hash,
+            protocol_fee_share_bps: 0,
+            protocol_fee_recipient_pubkey: None,
+            shared_pool_frontier_signature_certificates: Vec::new(),
+        };
+
+        assert!(matches!(
+            execute_state_proof_input_v1(input),
+            Err(TransitionError::InvalidInput(
+                "route price interval authority source not in policy"
+            ))
+        ));
+    }
+
+    #[test]
+    fn state_proof_rejects_stale_route_price_interval_authority() {
+        let snapshot = empty_snapshot();
+        let expected_post_app_hash = DexStateV1::from_snapshot(snapshot.clone())
+            .unwrap()
+            .canonical_app_hash_sha256();
+        let intervals = alloc::vec![RoutePriceIntervalV1 {
+            asset: ASSET0.to_string(),
+            low_e8: 1,
+            point_e8: 2,
+            high_e8: 3,
+        }];
+        let mut authority = route_price_interval_authority_for(&intervals, 1);
+        authority.price_timestamp = 1;
+        let policy = route_price_interval_authority_policy_for(&authority);
+
+        let input = StateProofInputV1 {
+            state_hash: [13u8; 32],
+            block_timestamp: 62,
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            pre_state: snapshot,
+            txs: Vec::new(),
+            tx_execution_order: Vec::new(),
+            route_price_intervals: intervals,
+            route_price_interval_authority: Some(Box::new(authority)),
+            route_price_interval_authority_policy: Some(Box::new(policy)),
+            route_price_interval_max_width_bps: None,
+            pre_nonces: Vec::new(),
+            tx_ingress: Vec::new(),
+            chain_balances_post: Vec::new(),
+            expected_post_app_hash,
+            protocol_fee_share_bps: 0,
+            protocol_fee_recipient_pubkey: None,
+            shared_pool_frontier_signature_certificates: Vec::new(),
+        };
+
+        assert!(matches!(
+            execute_state_proof_input_v1(input),
+            Err(TransitionError::InvalidInput(
+                "route price interval authority stale"
+            ))
+        ));
+    }
+
+    #[test]
+    fn state_proof_rejects_route_price_interval_authority_root_mismatch() {
+        let snapshot = empty_snapshot();
+        let expected_post_app_hash = DexStateV1::from_snapshot(snapshot.clone())
+            .unwrap()
+            .canonical_app_hash_sha256();
+        let intervals = alloc::vec![RoutePriceIntervalV1 {
+            asset: ASSET0.to_string(),
+            low_e8: 1,
+            point_e8: 2,
+            high_e8: 3,
+        }];
+        let mut authority = route_price_interval_authority_for(&intervals, 1);
+        authority.route_price_intervals_root = [9u8; 32];
+        let policy = route_price_interval_authority_policy_for(&authority);
+
+        let input = StateProofInputV1 {
+            state_hash: [13u8; 32],
+            block_timestamp: 1,
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            pre_state: snapshot,
+            txs: Vec::new(),
+            tx_execution_order: Vec::new(),
+            route_price_intervals: intervals,
+            route_price_interval_authority: Some(Box::new(authority)),
+            route_price_interval_authority_policy: Some(Box::new(policy)),
+            route_price_interval_max_width_bps: None,
+            pre_nonces: Vec::new(),
+            tx_ingress: Vec::new(),
+            chain_balances_post: Vec::new(),
+            expected_post_app_hash,
+            protocol_fee_share_bps: 0,
+            protocol_fee_recipient_pubkey: None,
+            shared_pool_frontier_signature_certificates: Vec::new(),
+        };
+
+        assert!(matches!(
+            execute_state_proof_input_v1(input),
+            Err(TransitionError::InvalidInput(
+                "route price interval authority root mismatch"
+            ))
+        ));
+    }
+
+    #[test]
+    fn state_proof_route_quote_hash_binds_frontier_signature_root() {
+        let fee_config = ProtocolFeeConfig::default();
+        let snapshot = sender_balance_snapshot(ASSET0, 10_000_000);
+        let quote_state = DexStateV1::from_snapshot(snapshot.clone()).unwrap();
+        let certificate = minimal_frontier_signature_certificate();
+        let frontier_root =
+            frontier_signature_certificates_root_v1(&[certificate.clone()]).unwrap();
+
+        let mut route_intent = default_route_intent(
+            "route-frontier-state-proof",
+            "ROUTE_EXACT_IN",
+            100_000,
+            0,
+            0,
+            0,
+        );
+        route_intent.quote_receipt_hash = route_quote_receipt_hash_with_frontier_binding_v1(
+            &route_intent,
+            &quote_state.pools,
+            &fee_config,
+            1,
+            &frontier_root,
+        )
+        .unwrap();
+        let frontier_route_tx = route_tx(route_intent.clone());
+
+        let mut expected_state = DexStateV1::from_snapshot(snapshot.clone()).unwrap();
+        expected_state
+            .apply_tx_with_frontier_binding(&frontier_route_tx, 1, &fee_config, 1, &frontier_root)
+            .expect("frontier-bound route hash should execute");
+        let input = StateProofInputV1 {
+            state_hash: [17u8; 32],
+            block_timestamp: 1,
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            pre_state: snapshot.clone(),
+            txs: alloc::vec![frontier_route_tx],
+            tx_execution_order: Vec::new(),
+            route_price_intervals: Vec::new(),
+            route_price_interval_authority: None,
+            route_price_interval_authority_policy: None,
+            route_price_interval_max_width_bps: None,
+            pre_nonces: Vec::new(),
+            tx_ingress: alloc::vec![TxIngressFactV1 {
+                sender_pubkey: SENDER.to_string(),
+                nonce: 0,
+            }],
+            chain_balances_post: Vec::new(),
+            expected_post_app_hash: expected_state.canonical_app_hash_sha256(),
+            protocol_fee_share_bps: 0,
+            protocol_fee_recipient_pubkey: None,
+            shared_pool_frontier_signature_certificates: alloc::vec![certificate.clone()],
+        };
+
+        let journal = execute_state_proof_input_v1(input.clone()).unwrap();
+        assert_eq!(
+            journal.shared_pool_frontier_signature_certificates_root,
+            frontier_root
+        );
+
+        let mut stale_intent = route_intent;
+        stale_intent.quote_receipt_hash =
+            route_quote_receipt_hash_v1(&stale_intent, &quote_state.pools, &fee_config).unwrap();
+        let mut stale_input = input;
+        stale_input.txs = alloc::vec![route_tx(stale_intent)];
+        assert!(matches!(
+            execute_state_proof_input_v1(stale_input),
+            Err(TransitionError::InvalidInput("quote_receipt_hash mismatch"))
+        ));
+    }
+
+    #[test]
+    fn state_proof_rejects_malformed_frontier_signature_certificate() {
+        let snapshot = empty_snapshot();
+        let expected_post_app_hash = DexStateV1::from_snapshot(snapshot.clone())
+            .unwrap()
+            .canonical_app_hash_sha256();
+        let mut certificate = minimal_frontier_signature_certificate();
+        certificate.signatures[0].suffix_signature_masks = alloc::vec![1];
+
+        let input = StateProofInputV1 {
+            state_hash: [12u8; 32],
+            block_timestamp: 1,
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            pre_state: snapshot,
+            txs: Vec::new(),
+            tx_execution_order: Vec::new(),
+            route_price_intervals: Vec::new(),
+            route_price_interval_authority: None,
+            route_price_interval_authority_policy: None,
+            route_price_interval_max_width_bps: None,
+            pre_nonces: Vec::new(),
+            tx_ingress: Vec::new(),
+            chain_balances_post: Vec::new(),
+            expected_post_app_hash,
+            protocol_fee_share_bps: 0,
+            protocol_fee_recipient_pubkey: None,
+            shared_pool_frontier_signature_certificates: alloc::vec![certificate],
+        };
+
+        assert!(matches!(
+            execute_state_proof_input_v1(input),
+            Err(TransitionError::InvalidInput("signature row mismatch"))
         ));
     }
 
@@ -6028,12 +8567,17 @@ mod tests {
             pre_state: snapshot,
             txs: txs.clone(),
             tx_execution_order: alloc::vec![1, 0],
+            route_price_intervals: Vec::new(),
+            route_price_interval_authority: None,
+            route_price_interval_authority_policy: None,
+            route_price_interval_max_width_bps: None,
             pre_nonces: Vec::new(),
             tx_ingress,
             chain_balances_post: Vec::new(),
             expected_post_app_hash,
             protocol_fee_share_bps: 0,
             protocol_fee_recipient_pubkey: None,
+            shared_pool_frontier_signature_certificates: Vec::new(),
         };
 
         let journal = execute_state_proof_input_v1(input.clone()).unwrap();
@@ -7002,12 +9546,17 @@ mod tests {
             pre_state: snapshot,
             txs: Vec::new(),
             tx_execution_order: Vec::new(),
+            route_price_intervals: Vec::new(),
+            route_price_interval_authority: None,
+            route_price_interval_authority_policy: None,
+            route_price_interval_max_width_bps: None,
             pre_nonces: Vec::new(),
             tx_ingress: Vec::new(),
             chain_balances_post: Vec::new(),
             expected_post_app_hash: [0u8; 32],
             protocol_fee_share_bps: 10_001,
             protocol_fee_recipient_pubkey: Some(RECIPIENT.to_string()),
+            shared_pool_frontier_signature_certificates: Vec::new(),
         };
         assert!(matches!(
             execute_state_proof_input_v1(input),
@@ -7311,6 +9860,89 @@ mod tests {
         let post_pool = state.pools.get(POOL_ID).unwrap();
         assert_eq!(post_pool.reserve0, pool.reserve0 + gross_in - protocol_fee);
         assert_eq!(post_pool.reserve1, pool.reserve1 - 10_000);
+    }
+
+    #[test]
+    fn route_exact_out_two_leg_captures_protocol_fee_per_leg() {
+        // Two-leg exact-out with 50% protocol fee: ASSET0 -> ASSET1 -> ASSET2.
+        // Mirrors the Python pinned vector two_leg_exact_out_50pct_protocol_fee.
+        let mut snapshot = chained_two_pool_snapshot();
+        snapshot.balances.push(DexBalanceEntryV1 {
+            pubkey: PROTOCOL_FEE_RECIPIENT.to_string(),
+            asset: ASSET0.to_string(),
+            amount: 0,
+        });
+        snapshot.balances.push(DexBalanceEntryV1 {
+            pubkey: PROTOCOL_FEE_RECIPIENT.to_string(),
+            asset: ASSET1.to_string(),
+            amount: 0,
+        });
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let fee_config = ProtocolFeeConfig {
+            share_bps: 5_000,
+            recipient_pubkey: Some(PROTOCOL_FEE_RECIPIENT.to_string()),
+        };
+        let mut intent = chained_exact_out_route_intent("route-fee-exact-out-two-leg");
+        bind_route_hash(&mut intent, &state, &fee_config);
+        let total_amount_out = intent.total_amount_out;
+
+        // Reverse pass: compute required_in for second leg, then first leg.
+        let second_pool = state.pools.get("CHAIN_POOL").cloned().unwrap();
+        let second_net_in = ceil_div_u128(
+            second_pool.reserve0 * total_amount_out,
+            second_pool.reserve1 - total_amount_out,
+        );
+        let second_gross_in = ceil_div_u128(
+            second_net_in * 10_000,
+            10_000 - second_pool.fee_bps as u128,
+        );
+        let second_fee_total = second_gross_in - second_net_in;
+        let second_protocol_fee =
+            second_fee_total * fee_config.share_bps as u128 / 10_000;
+        let second_target_out = second_gross_in;
+
+        let first_pool = state.pools.get(POOL_ID).cloned().unwrap();
+        let first_net_in = ceil_div_u128(
+            first_pool.reserve0 * second_target_out,
+            first_pool.reserve1 - second_target_out,
+        );
+        let first_gross_in = ceil_div_u128(
+            first_net_in * 10_000,
+            10_000 - first_pool.fee_bps as u128,
+        );
+        let first_fee_total = first_gross_in - first_net_in;
+        let first_protocol_fee =
+            first_fee_total * fee_config.share_bps as u128 / 10_000;
+
+        state.apply_tx(&route_tx(intent), 1, &fee_config).unwrap();
+
+        // Sender debited total gross_in (first leg only, in ASSET0).
+        assert_eq!(state.get_balance(SENDER, ASSET0), 10_000_000 - first_gross_in);
+        // Protocol fee captured in ASSET0 (first leg) and ASSET1 (second leg).
+        assert_eq!(
+            state.get_balance(PROTOCOL_FEE_RECIPIENT, ASSET0),
+            first_protocol_fee
+        );
+        assert_eq!(
+            state.get_balance(PROTOCOL_FEE_RECIPIENT, ASSET1),
+            second_protocol_fee
+        );
+        // Recipient gets total_amount_out in ASSET2.
+        assert_eq!(state.get_balance(RECIPIENT, ASSET2), total_amount_out);
+        // First pool reserves updated (net of protocol fee).
+        let post_first = state.pools.get(POOL_ID).unwrap();
+        assert_eq!(
+            post_first.reserve0,
+            first_pool.reserve0 + first_gross_in - first_protocol_fee
+        );
+        assert_eq!(post_first.reserve1, first_pool.reserve1 - second_target_out);
+        // Second pool reserves updated (net of protocol fee).
+        let post_second = state.pools.get("CHAIN_POOL").unwrap();
+        assert_eq!(
+            post_second.reserve0,
+            second_pool.reserve0 + second_gross_in - second_protocol_fee
+        );
+        assert_eq!(post_second.reserve1, second_pool.reserve1 - total_amount_out);
     }
 
     #[test]
@@ -7853,12 +10485,17 @@ mod tests {
             pre_state: snapshot,
             txs: Vec::new(),
             tx_execution_order: Vec::new(),
+            route_price_intervals: Vec::new(),
+            route_price_interval_authority: None,
+            route_price_interval_authority_policy: None,
+            route_price_interval_max_width_bps: None,
             pre_nonces: Vec::new(),
             tx_ingress: Vec::new(),
             chain_balances_post: Vec::new(),
             expected_post_app_hash: [0u8; 32],
             protocol_fee_share_bps: 1_000,
             protocol_fee_recipient_pubkey: None,
+            shared_pool_frontier_signature_certificates: Vec::new(),
         };
         assert!(matches!(
             execute_state_proof_input_v1(input),

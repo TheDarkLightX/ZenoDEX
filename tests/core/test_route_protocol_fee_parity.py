@@ -1,15 +1,18 @@
 """
-Python/Rust route protocol-fee parity tests.
+Python route protocol-fee parity tests.
 
 Verifies that the Python route execution module
-(src/core/route_protocol_fee_parity.py) produces identical results to the
-Rust ZK proof kernel (zk/state_proof_risc0/shared/src/lib.rs) for route
-exact-in and exact-out with per-leg protocol fee capture.
+(src/core/route_protocol_fee_parity.py) mirrors the Rust ZK proof kernel's
+(zk/state_proof_risc0/shared/src/lib.rs) route arithmetic/accounting path
+for exact-in and exact-out with per-leg protocol fee capture.
 
-The Rust side is verified by its own unit tests
-(route_exact_in_captures_protocol_fee_per_leg,
-route_exact_out_captures_protocol_fee_in_input_asset). These tests verify
-the Python side produces the same numeric results using the same fixtures.
+The Rust side is verified by its own unit tests. The Python helper is a
+subset of the Rust transition (it does not cover Rust-only envelope checks
+like leg_indices or quote_receipt_hash). The pinned regression corpus is
+Python-generated, not a mechanical Rust/Python differential corpus. These
+tests verify the Python side produces correct numeric results using the
+same formula structure as Rust, plus boundary, type-validation, and
+overflow-rejection coverage.
 """
 
 from __future__ import annotations
@@ -1557,9 +1560,10 @@ def test_fixture_corpus_matches_python(fixture: dict) -> None:
         assert leg.amount_out == leg_expected["amount_out"], f"leg {i} amount_out mismatch in {fixture['id']}"
 
     if "fee_credits" in expected:
-        for asset_key, expected_fee in expected["fee_credits"].items():
-            asset = fixture["pools"][list(fixture["pools"].keys())[0]]["asset0"] if asset_key == "ASSET0" else fixture["pools"][list(fixture["pools"].keys())[0]]["asset1"]
-            if asset_key == "ASSET1" and len(fixture["pools"]) > 1:
-                asset = list(fixture["pools"].values())[1]["asset0"]
-            assert result.fee_credits.get((PROTOCOL_FEE_RECIPIENT, asset), 0) == expected_fee, \
-                f"fee_credit mismatch for {asset_key} in {fixture['id']}"
+        expected_credits = {
+            (PROTOCOL_FEE_RECIPIENT, asset_id): fee
+            for asset_id, fee in expected["fee_credits"].items()
+        }
+        assert result.fee_credits == expected_credits, \
+            f"fee_credits dict mismatch in {fixture['id']}: " \
+            f"got {result.fee_credits}, expected {expected_credits}"
