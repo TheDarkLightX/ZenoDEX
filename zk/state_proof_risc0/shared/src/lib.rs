@@ -10097,6 +10097,131 @@ mod tests {
     }
 
     #[test]
+    fn route_exact_out_rejects_forward_fee_mul_overflow() {
+        // Reverse pass fits (fee_bps=9999, reserve0=1, reserve1=U128_MAX,
+        // out=U128_MAX-10000): net_in_num=U128_MAX-10000 fits, net_in=ceil((U128_MAX-10000)/10000),
+        // gross_in=ceil(net_in*10000/1) fits. Forward: current_amount*9999 overflows.
+        let mut snapshot = sender_balance_snapshot(ASSET0, u128::MAX);
+        snapshot.pools[0].reserve0 = 1;
+        snapshot.pools[0].reserve1 = u128::MAX;
+        snapshot.pools[0].fee_bps = 9_999;
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let fee_config = ProtocolFeeConfig::default();
+        let mut intent = default_route_intent(
+            "route-exact-out-fwd-fee-mul-overflow",
+            "ROUTE_EXACT_OUT",
+            0,
+            0,
+            u128::MAX - 10_000,
+            u128::MAX,
+        );
+        bind_route_hash(&mut intent, &state, &fee_config);
+        let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
+        assert!(
+            matches!(
+                result,
+                Err(TransitionError::Arithmetic("route fee mul overflow"))
+            ),
+            "expected route fee mul overflow, got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn route_exact_out_rejects_forward_denom_overflow() {
+        // Reverse pass fits (fee_bps=0, reserve0=U128_MAX, reserve1=U128_MAX,
+        // out=1): net_in_num=U128_MAX fits, net_in=2, gross_in=2.
+        // Forward: denom=U128_MAX+2 overflows.
+        let mut snapshot = sender_balance_snapshot(ASSET0, u128::MAX);
+        snapshot.pools[0].reserve0 = u128::MAX;
+        snapshot.pools[0].reserve1 = u128::MAX;
+        snapshot.pools[0].fee_bps = 0;
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let fee_config = ProtocolFeeConfig::default();
+        let mut intent = default_route_intent(
+            "route-exact-out-fwd-denom-overflow",
+            "ROUTE_EXACT_OUT",
+            0,
+            0,
+            1,
+            u128::MAX,
+        );
+        bind_route_hash(&mut intent, &state, &fee_config);
+        let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
+        assert!(
+            matches!(
+                result,
+                Err(TransitionError::Arithmetic("route denom overflow"))
+            ),
+            "expected route denom overflow, got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn route_exact_out_rejects_forward_numerator_overflow() {
+        // Reverse pass fits (fee_bps=0, reserve0=U128_MAX/2, reserve1=U128_MAX,
+        // out=2): net_in_num=(U128_MAX/2)*2=U128_MAX-1 fits, net_in=2, gross_in=2.
+        // Forward: numerator=U128_MAX*2 overflows.
+        let mut snapshot = sender_balance_snapshot(ASSET0, u128::MAX);
+        snapshot.pools[0].reserve0 = u128::MAX / 2;
+        snapshot.pools[0].reserve1 = u128::MAX;
+        snapshot.pools[0].fee_bps = 0;
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let fee_config = ProtocolFeeConfig::default();
+        let mut intent = default_route_intent(
+            "route-exact-out-fwd-numerator-overflow",
+            "ROUTE_EXACT_OUT",
+            0,
+            0,
+            2,
+            u128::MAX,
+        );
+        bind_route_hash(&mut intent, &state, &fee_config);
+        let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
+        assert!(
+            matches!(
+                result,
+                Err(TransitionError::Arithmetic("route numerator overflow"))
+            ),
+            "expected route numerator overflow, got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn route_exact_out_rejects_forward_reserve0_overflow() {
+        // Reverse pass fits (fee_bps=5000, reserve0=U128_MAX-1, reserve1=U128_MAX,
+        // out=1): net_in_num=U128_MAX-1 fits, net_in=1, gross_in=2.
+        // Forward: fee_total=1, net_in=1, denom=U128_MAX fits, numerator=U128_MAX fits,
+        // amount_out=1, reserve_in_delta=2, reserve0+2=U128_MAX+1 overflows.
+        let mut snapshot = sender_balance_snapshot(ASSET0, u128::MAX);
+        snapshot.pools[0].reserve0 = u128::MAX - 1;
+        snapshot.pools[0].reserve1 = u128::MAX;
+        snapshot.pools[0].fee_bps = 5_000;
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let fee_config = ProtocolFeeConfig::default();
+        let mut intent = default_route_intent(
+            "route-exact-out-fwd-reserve0-overflow",
+            "ROUTE_EXACT_OUT",
+            0,
+            0,
+            1,
+            u128::MAX,
+        );
+        bind_route_hash(&mut intent, &state, &fee_config);
+        let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
+        assert!(
+            matches!(
+                result,
+                Err(TransitionError::Arithmetic("route reserve0 overflow"))
+            ),
+            "expected route reserve0 overflow, got {:?}",
+            result
+        );
+    }
+
+    #[test]
     fn route_audit_catches_wrong_final_asset() {
         // Codex round 3 MEDIUM: last pool asset_out must == route asset_out.
         let mut snapshot = sender_balance_snapshot(ASSET0, 10_000_000);
