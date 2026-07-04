@@ -254,12 +254,13 @@ def execute_route_exact_in(
         raise ValueError("protocol_fee_share_bps must be in [0, 10000]")
     if protocol_fee_recipient is not None and type(protocol_fee_recipient) is not str:
         raise ValueError("protocol_fee_recipient must be a string or None")
-    if protocol_fee_recipient is not None and protocol_fee_recipient.strip() == "":
-        raise ValueError("protocol_fee_recipient must not be blank")
-    if protocol_fee_share_bps > 0 and not _recipient_is_valid(protocol_fee_recipient):
-        raise ValueError(
-            "protocol_fee_recipient required when protocol_fee_share_bps > 0"
-        )
+    if protocol_fee_share_bps > 0:
+        if protocol_fee_recipient is not None and protocol_fee_recipient.strip() == "":
+            raise ValueError("protocol_fee_recipient must not be blank")
+        if not _recipient_is_valid(protocol_fee_recipient):
+            raise ValueError(
+                "protocol_fee_recipient required when protocol_fee_share_bps > 0"
+            )
     _check_u128(total_amount_in, "total_amount_in")
     _check_u128(total_min_amount_out, "total_min_amount_out")
     if total_amount_in == 0:
@@ -324,7 +325,9 @@ def execute_route_exact_in(
 
         if protocol_fee > 0 and protocol_fee_recipient is not None:
             key = (protocol_fee_recipient, current_asset)
-            fee_credits[key] = fee_credits.get(key, 0) + protocol_fee
+            fee_credits[key] = _check_u128_add(
+                fee_credits.get(key, 0), protocol_fee, "fee_credits accumulation"
+            )
 
         leg_results.append(
             RouteLegResult(
@@ -392,12 +395,13 @@ def execute_route_exact_out(
         raise ValueError("protocol_fee_share_bps must be in [0, 10000]")
     if protocol_fee_recipient is not None and type(protocol_fee_recipient) is not str:
         raise ValueError("protocol_fee_recipient must be a string or None")
-    if protocol_fee_recipient is not None and protocol_fee_recipient.strip() == "":
-        raise ValueError("protocol_fee_recipient must not be blank")
-    if protocol_fee_share_bps > 0 and not _recipient_is_valid(protocol_fee_recipient):
-        raise ValueError(
-            "protocol_fee_recipient required when protocol_fee_share_bps > 0"
-        )
+    if protocol_fee_share_bps > 0:
+        if protocol_fee_recipient is not None and protocol_fee_recipient.strip() == "":
+            raise ValueError("protocol_fee_recipient must not be blank")
+        if not _recipient_is_valid(protocol_fee_recipient):
+            raise ValueError(
+                "protocol_fee_recipient required when protocol_fee_share_bps > 0"
+            )
     _check_u128(total_amount_out, "total_amount_out")
     _check_u128(total_max_amount_in, "total_max_amount_in")
     if total_amount_out == 0:
@@ -512,7 +516,9 @@ def execute_route_exact_out(
 
         if protocol_fee > 0 and protocol_fee_recipient is not None:
             key = (protocol_fee_recipient, current_asset)
-            fee_credits[key] = fee_credits.get(key, 0) + protocol_fee
+            fee_credits[key] = _check_u128_add(
+                fee_credits.get(key, 0), protocol_fee, "fee_credits accumulation"
+            )
 
         leg_results.append(
             RouteLegResult(

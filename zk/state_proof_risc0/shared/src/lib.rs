@@ -9939,6 +9939,105 @@ mod tests {
     }
 
     #[test]
+    fn route_exact_in_rejects_fee_mul_overflow() {
+        let mut snapshot = sender_balance_snapshot(ASSET0, u128::MAX);
+        snapshot.pools[0].fee_bps = 10_000;
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let fee_config = ProtocolFeeConfig::default();
+        let mut intent = default_route_intent(
+            "route-fee-mul-overflow",
+            "ROUTE_EXACT_IN",
+            u128::MAX,
+            0,
+            0,
+            0,
+        );
+        bind_route_hash(&mut intent, &state, &fee_config);
+        let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
+        assert!(
+            matches!(
+                result,
+                Err(TransitionError::Arithmetic("route fee mul overflow"))
+            ),
+            "expected route fee mul overflow, got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn route_exact_in_rejects_denom_overflow() {
+        let mut snapshot = sender_balance_snapshot(ASSET0, 10_000_000);
+        snapshot.pools[0].reserve0 = u128::MAX;
+        snapshot.pools[0].fee_bps = 0;
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let fee_config = ProtocolFeeConfig::default();
+        let mut intent =
+            default_route_intent("route-denom-overflow", "ROUTE_EXACT_IN", 10, 0, 0, 0);
+        bind_route_hash(&mut intent, &state, &fee_config);
+        let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
+        assert!(
+            matches!(
+                result,
+                Err(TransitionError::Arithmetic("route denom overflow"))
+            ),
+            "expected route denom overflow, got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn route_exact_in_rejects_numerator_overflow() {
+        let mut snapshot = sender_balance_snapshot(ASSET0, u128::MAX);
+        snapshot.pools[0].reserve0 = u128::MAX - 2;
+        snapshot.pools[0].reserve1 = u128::MAX;
+        snapshot.pools[0].fee_bps = 0;
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let fee_config = ProtocolFeeConfig::default();
+        let mut intent =
+            default_route_intent("route-numerator-overflow", "ROUTE_EXACT_IN", 2, 0, 0, 0);
+        bind_route_hash(&mut intent, &state, &fee_config);
+        let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
+        assert!(
+            matches!(
+                result,
+                Err(TransitionError::Arithmetic("route numerator overflow"))
+            ),
+            "expected route numerator overflow, got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn route_exact_in_rejects_reserve0_overflow() {
+        let mut snapshot = sender_balance_snapshot(ASSET0, 10_000_000);
+        snapshot.pools[0].reserve0 = u128::MAX - 9_000;
+        snapshot.pools[0].reserve1 = u128::MAX - 8_999;
+        snapshot.pools[0].fee_bps = 9_999;
+        snapshot.balances.push(DexBalanceEntryV1 {
+            pubkey: PROTOCOL_FEE_RECIPIENT.to_string(),
+            asset: ASSET0.to_string(),
+            amount: 0,
+        });
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let fee_config = ProtocolFeeConfig {
+            share_bps: 1_000,
+            recipient_pubkey: Some(PROTOCOL_FEE_RECIPIENT.to_string()),
+        };
+        let mut intent =
+            default_route_intent("route-reserve0-overflow", "ROUTE_EXACT_IN", 10_000, 0, 0, 0);
+        bind_route_hash(&mut intent, &state, &fee_config);
+        let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
+        assert!(
+            matches!(
+                result,
+                Err(TransitionError::Arithmetic("route reserve0 overflow"))
+            ),
+            "expected route reserve0 overflow, got {:?}",
+            result
+        );
+    }
+
+    #[test]
     fn route_audit_catches_wrong_final_asset() {
         // Codex round 3 MEDIUM: last pool asset_out must == route asset_out.
         let mut snapshot = sender_balance_snapshot(ASSET0, 10_000_000);
