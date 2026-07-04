@@ -13,7 +13,9 @@ use core::cmp::Ordering;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+mod recursive;
 mod surfaces;
+pub use recursive::*;
 pub use surfaces::*;
 
 pub const PROOF_TYPE: &str = "risc0.zenodex_spot_transition.v1";
