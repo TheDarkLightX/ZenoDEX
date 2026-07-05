@@ -23,6 +23,7 @@ pub const RECURSIVE_STATEMENT_VERSION_V1: u32 = 1;
 pub const RECURSIVE_JOURNAL_VERSION_V1: u32 = 1;
 pub const RECURSIVE_STRICT_CROSS_SHARD_MODE_V1: &str = "strict";
 pub const RECURSIVE_DOMAIN_SEPARATOR_V1: &str = "zenodex.risc0.recursive_epoch.v1";
+pub const RECURSIVE_EPOCH_PROFILE_V1: &str = "recursive_epoch_v1";
 pub const RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1: &str = "recursive_summary_leaf_test_v1";
 pub const RECURSIVE_SPOT_LEAF_PROFILE_V1: &str = "recursive_spot_leaf_v1";
 pub const RECURSIVE_PERPS_NP_LEAF_PROFILE_V1: &str = "recursive_perps_np_leaf_v1";
@@ -1335,9 +1336,6 @@ fn validate_child_effect_v1(
     if summary.epoch_id != statement.epoch_id {
         return Err(TransitionError::InvalidInput("child epoch_id mismatch"));
     }
-    if summary.proof_profile != statement.proof_profile {
-        return Err(TransitionError::InvalidInput("child profile mismatch"));
-    }
     if summary.public_policy_hash != statement.public_policy_hash {
         return Err(TransitionError::InvalidInput("child policy hash mismatch"));
     }
@@ -2089,6 +2087,99 @@ mod tests {
             input.statement.expected_post_state_root
         );
         assert_eq!(journal.verifier_set_root, input.statement.verifier_set_root);
+    }
+
+    #[test]
+    fn recursive_composition_accepts_heterogeneous_child_profiles() {
+        let authority_roots = alloc::vec![h(6)];
+        let mut left = child(
+            "lane-a",
+            21,
+            31,
+            alloc::vec![asset_row("ASSET0", 10, 0)],
+            Vec::new(),
+            Vec::new(),
+            alloc::vec![h(81)],
+        );
+        left.summary.proof_profile = RECURSIVE_SPOT_LEAF_PROFILE_V1.to_string();
+        left.descriptor.child_profile = left.summary.proof_profile.clone();
+        left.descriptor.child_verifier_id = recursive_child_verifier_id_v1(
+            &left.summary.risc0_image_id,
+            &left.summary.proof_profile,
+        )
+        .unwrap();
+        left.descriptor.child_effect_summary_hash = recursive_effect_summary_hash_v1(&left.summary);
+
+        let mut right = child(
+            "lane-b",
+            22,
+            32,
+            alloc::vec![asset_row("ASSET0", 0, 10)],
+            Vec::new(),
+            Vec::new(),
+            alloc::vec![h(82)],
+        );
+        right.summary.proof_profile = RECURSIVE_ZUSD_LEAF_PROFILE_V1.to_string();
+        right.descriptor.child_profile = right.summary.proof_profile.clone();
+        right.descriptor.child_verifier_id = recursive_child_verifier_id_v1(
+            &right.summary.risc0_image_id,
+            &right.summary.proof_profile,
+        )
+        .unwrap();
+        right.descriptor.child_effect_summary_hash =
+            recursive_effect_summary_hash_v1(&right.summary);
+
+        let mut verifier_ids = alloc::vec![
+            left.descriptor.child_verifier_id,
+            right.descriptor.child_verifier_id,
+        ];
+        verifier_ids.sort();
+        let pre_state_root = recursive_root_list_root_v1(
+            b"zenodex.risc0.recursive.pre_state_vector_root.v1",
+            &[left.summary.pre_state_root, right.summary.pre_state_root],
+        )
+        .unwrap();
+        let post_state_root = recursive_root_list_root_v1(
+            b"zenodex.risc0.recursive.post_state_vector_root.v1",
+            &[left.summary.post_state_root, right.summary.post_state_root],
+        )
+        .unwrap();
+        let input = RecursiveCompositionInputV1 {
+            statement: RecursiveCompositionStatementV1 {
+                domain_separator: RECURSIVE_DOMAIN_SEPARATOR_V1.to_string(),
+                schema_version: RECURSIVE_STATEMENT_VERSION_V1,
+                chain_id: "tau-test".to_string(),
+                epoch_id: 7,
+                proof_profile: RECURSIVE_EPOCH_PROFILE_V1.to_string(),
+                verifier_set_root: recursive_verifier_set_root_v1(&verifier_ids).unwrap(),
+                allowed_authority_roots_root: recursive_authority_set_root_v1(&authority_roots)
+                    .unwrap(),
+                public_policy_hash: h(10),
+                feature_suite_hash: h(11),
+                dependency_lock_hash: h(12),
+                toolchain_lock_hash: h(13),
+                expected_pre_state_root: pre_state_root,
+                expected_post_state_root: post_state_root,
+                conflict_schedule_hash: h(14),
+                carry_queue_pre_root: h(15),
+                carry_queue_post_root: h(15),
+                data_availability_root: h(16),
+                expected_child_count: 2,
+                max_children: 8,
+                max_child_journal_bytes: 64,
+                max_total_child_journal_bytes: 128,
+                max_asset_delta_rows: 16,
+                max_cross_shard_messages: 16,
+                max_receipt_ids: 16,
+                cross_shard_mode: RECURSIVE_STRICT_CROSS_SHARD_MODE_V1.to_string(),
+            },
+            allowed_verifier_ids: verifier_ids,
+            allowed_authority_roots: authority_roots,
+            children: alloc::vec![left, right],
+        };
+        let journal = compose_recursive_epoch_journal_v1(&input).unwrap();
+        assert_eq!(journal.proof_profile, RECURSIVE_EPOCH_PROFILE_V1);
+        assert_eq!(journal.child_count, 2);
     }
 
     #[test]

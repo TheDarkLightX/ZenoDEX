@@ -11,8 +11,9 @@ claim.
 
 Existing repo artifacts already cover local pieces:
 
-- `config/proof_profiles/zeno_ledger_profiles.json` names
-  `recursive_block_v1`.
+- `config/proof_profiles/zeno_ledger_profiles.json` names the planned
+  recursive profile. The current RISC0 local root profile is
+  `recursive_epoch_v1`.
 - `docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json` lists
   `recursive_epoch_real_proof` as an explicit gap.
 - `docs/research/SHARDED_SETTLEMENT_CERTIFICATE_20260701.md` defines a
@@ -156,7 +157,7 @@ RISC0 proof generation is not verification. The production verifier must check:
 receipt.verify(expected_image_id)
 journal.risc0_image_id == expected_image_id
 hash(canonical_journal) == expected_journal_hash
-proof_profile == expected_profile
+proof_profile == expected_root_profile
 metadata roots == journal roots == block/header roots
 ```
 
@@ -545,7 +546,7 @@ RecursiveEpochJournalV1 {
   proof_type = "risc0.zenodex_recursive_epoch.v1"
   chain_id
   epoch_id
-  proof_profile = "recursive_block_v1"
+  proof_profile = "recursive_epoch_v1"
   recursive_statement_hash
   verifier_set_root
   child_verification_claims_root
@@ -581,6 +582,13 @@ The committed verifier set is a set of derived verifier IDs, not arbitrary
 labels. Each child verifier ID is computed from `(child_image_id,
 child_profile)`, so membership in `verifier_set_root` authorizes the same image
 ID that the RISC0 `env::verify` call checks.
+
+The root proof profile is the aggregate profile. In the current implementation
+that profile is `recursive_epoch_v1`. Child profiles may differ, for example
+`recursive_spot_leaf_v1`, `recursive_zusd_leaf_v1`, and
+`recursive_perps_np_leaf_v1`, because each child profile is bound through the
+child descriptor and derived verifier ID. The root still requires common chain,
+epoch, policy, feature, dependency, and toolchain hashes.
 
 This repo includes `risc0.zenodex_recursive_summary_leaf.v1` as a dedicated
 summary-leaf image for recursive plumbing and smoke tests. It accepts only the
@@ -625,11 +633,14 @@ source verification beyond hash-bound references, or oracle truth.
 The repeatable smoke helper is
 `zk/state_proof_risc0/cli/examples/recursive_summary_leaf_smoke.rs`. It builds a
 summary-leaf, spot-leaf, zUSD-leaf, or perps-NP-leaf proof request, then builds
-a recursive root proof request that uses that leaf receipt as a child proof
-assumption. The 2026-07-04 summary-leaf, spot-leaf, zUSD-leaf, and
+a recursive root proof request that uses one or more leaf receipts as child
+proof assumptions. The 2026-07-04 summary-leaf, spot-leaf, zUSD-leaf, and
 perps-NP-leaf local smokes verified one-child root receipts with `{"ok":true}`.
-The spot, zUSD, and perps NP leaf smokes are transition evidence for their
-scoped local profiles; the summary-leaf smoke remains plumbing evidence only.
+The 2026-07-04 multi-leaf smoke also verified one recursive root receipt over
+spot, zUSD, and perps child receipts with `child_count = 3` and
+`proof_profile = recursive_epoch_v1`. The spot, zUSD, and perps NP leaf smokes
+are transition evidence for their scoped local profiles; the summary-leaf smoke
+remains plumbing evidence only.
 
 ## ZenoLedger / Tau Acceptance Algorithm
 
@@ -639,7 +650,7 @@ after this sequence:
 ```text
 1. Validate proof_metadata_v0.
 2. Require proof_kind == "recursive_epoch_v0".
-3. Require proof_profile == "recursive_block_v1".
+3. Require proof_profile == "recursive_epoch_v1".
 4. Verify the recursive root proof under program_id/verifier_id.
 5. Decode RecursiveEpochJournalV1.
 6. Require journal.child_verification_claims_root ==
@@ -957,7 +968,7 @@ This spec does not claim:
 - the summary-leaf test image proves any value-moving transition;
 - current spot, zUSD, or perps NP child journals expose full native-ledger asset
   deltas;
-- the current `recursive_block_v1` profile is production-ready;
+- the current `recursive_epoch_v1` profile is production-ready;
 - all spot/perps/zUSD/oracle transitions have leaf proofs;
 - DA is solved by proof recursion;
 - Tau mainnet accepts this proof format;

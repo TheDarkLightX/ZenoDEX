@@ -285,6 +285,14 @@ derived from `(child_image_id, child_profile)` and the recursive guest must
 reject any descriptor whose `child_verifier_id` does not equal that derived ID.
 The committed `verifier_set_root` is the sorted set of those derived IDs.
 
+The recursive root profile describes the aggregate proof, not every child leaf.
+For v1, the aggregate profile is `recursive_epoch_v1`. Child leaves may use
+different profiles, such as `recursive_spot_leaf_v1`,
+`recursive_zusd_leaf_v1`, and `recursive_perps_np_leaf_v1`, as long as each
+child descriptor binds its own `child_profile`, `child_image_id`, verifier ID,
+journal hash, statement hash, and effect summary hash. The root still requires
+common chain, epoch, policy, feature, dependency, and toolchain hashes.
+
 The `risc0.zenodex_recursive_summary_leaf.v1` method is a dedicated
 summary-leaf image for recursive plumbing and smoke tests. It accepts only
 `recursive_summary_leaf_test_v1`. It proves that a bounded summary was committed
@@ -379,15 +387,23 @@ cargo run -q -p tau-state-proof-risc0-cli --example recursive_summary_leaf_smoke
   root /tmp/perps-np-leaf.proof.json > /tmp/perps-np-recursive-root.request.json
 RISC0_FORCE_BUILD=1 cargo run -q -p tau-state-proof-risc0-cli \
   < /tmp/perps-np-recursive-root.request.json > /tmp/perps-np-recursive-root.proof.json
+
+cargo run -q -p tau-state-proof-risc0-cli --example recursive_summary_leaf_smoke -- \
+  root /tmp/spot-leaf.proof.json /tmp/zusd-leaf.proof.json \
+  /tmp/perps-np-leaf.proof.json > /tmp/multi-leaf-recursive-root.request.json
+RISC0_FORCE_BUILD=1 cargo run -q -p tau-state-proof-risc0-cli \
+  < /tmp/multi-leaf-recursive-root.request.json \
+  > /tmp/multi-leaf-recursive-root.proof.json
 ```
 
 The summary-leaf smoke proves recursive plumbing only. The spot-leaf smoke also
 proves a checked local spot transition. The zUSD-leaf smoke proves a checked
 local zUSD deposit-mint transition. The perps-NP-leaf smoke proves a checked
 four-participant local perps epoch transition. These transition-specific smokes
-verify the child receipt through the recursive root. They do not upgrade
-cross-shard, native-ledger, complete stablecoin or perps lifecycle, or
-production-validator claims.
+verify child receipts through recursive roots. The multi-leaf smoke verifies
+spot, zUSD, and perps child receipts under one `recursive_epoch_v1` root. These
+smokes do not upgrade cross-shard, native-ledger, complete stablecoin or perps
+lifecycle, or production-validator claims.
 
 Every child descriptor must bind:
 
@@ -674,6 +690,9 @@ Use this checklist before merging or promoting a circuit change:
 
 ## Next Frontier
 
-The highest-value implementation target is a deterministic
-`EffectSummaryV1` / `RecursiveJournalV1` composition checker outside the circuit.
-That checker should become the reference model for the future recursive guest.
+The highest-value implementation target is native-ledger asset-delta row
+extraction for spot, zUSD, and perps leaves. The recursive root now aggregates
+heterogeneous child profiles, but v1 transition-specific leaves still expose
+empty native-ledger delta rows. A later profile must derive those rows from
+checked transition journals or a dedicated ledger-delta certificate before any
+cross-lane asset-conservation claim is production-grade.

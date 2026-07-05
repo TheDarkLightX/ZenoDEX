@@ -13,7 +13,7 @@ use tau_state_proof_risc0_shared::{
     RecursiveCompositionInputV1, RecursiveCompositionStatementV1, RecursiveEffectSummaryV1,
     SpotRecursiveLeafInputV1, StateProofInputV1, ZusdBalanceEntryV1, ZusdOperationV1,
     ZusdRecursiveLeafInputV1, ZusdSnapshotV1, ZusdTransitionInputV1, ZusdVaultEntryV1,
-    RECURSIVE_DOMAIN_SEPARATOR_V1, RECURSIVE_EFFECT_SUMMARY_VERSION_V1,
+    RECURSIVE_DOMAIN_SEPARATOR_V1, RECURSIVE_EFFECT_SUMMARY_VERSION_V1, RECURSIVE_EPOCH_PROFILE_V1,
     RECURSIVE_PERPS_NP_LEAF_MAX_INPUT_BYTES, RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES,
     RECURSIVE_STATEMENT_VERSION_V1, RECURSIVE_STRICT_CROSS_SHARD_MODE_V1,
     RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES, RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1,
@@ -400,15 +400,7 @@ fn summary_from_meta(meta: &Value) -> Result<RecursiveEffectSummaryV1, String> {
     })
 }
 
-fn print_root_request(proof_path: &str) -> Result<(), String> {
-    let proof_json: Value = serde_json::from_str(
-        &fs::read_to_string(proof_path).map_err(|e| format!("read proof json: {e}"))?,
-    )
-    .map_err(|e| format!("proof json: {e}"))?;
-    let proof = proof_json["proof"]
-        .as_str()
-        .ok_or("proof field missing")?
-        .to_string();
+fn child_from_proof_json(proof_json: &Value) -> Result<(String, RecursiveChildEffectV1), String> {
     let summary = summary_from_meta(&proof_json["meta"])?;
     let child_journal_bytes =
         postcard::to_allocvec(&summary).map_err(|e| format!("postcard summary: {e}"))?;
@@ -421,6 +413,10 @@ fn print_root_request(proof_path: &str) -> Result<(), String> {
     let child_verifier_id =
         recursive_child_verifier_id_v1(&summary.risc0_image_id, &summary.proof_profile)
             .map_err(|e| format!("{e:?}"))?;
+    let proof = proof_json["proof"]
+        .as_str()
+        .ok_or("proof field missing")?
+        .to_string();
     let child = RecursiveChildEffectV1 {
         descriptor: RecursiveChildDescriptorV1 {
             child_verification_claim_hash,
@@ -439,16 +435,82 @@ fn print_root_request(proof_path: &str) -> Result<(), String> {
         accepted_receipt_ids: Vec::new(),
         rejected_receipt_ids: Vec::new(),
     };
-    let verifier_ids = vec![child_verifier_id];
-    let authority_roots = vec![summary.public_policy_hash];
+    Ok((proof, child))
+}
+
+fn print_root_request(proof_paths: &[String]) -> Result<(), String> {
+    let mut child_proofs = Vec::new();
+    let mut children = Vec::new();
+    for proof_path in proof_paths {
+        let proof_json: Value = serde_json::from_str(
+            &fs::read_to_string(proof_path).map_err(|e| format!("read proof json: {e}"))?,
+        )
+        .map_err(|e| format!("proof json: {e}"))?;
+        let (proof, child) = child_from_proof_json(&proof_json)?;
+        child_proofs.push((child.summary.lane_id.clone(), proof));
+        children.push(child);
+    }
+    children.sort_by(|left, right| left.summary.lane_id.cmp(&right.summary.lane_id));
+    child_proofs.sort_by(|left, right| left.0.cmp(&right.0));
+
+    let summary = children
+        .first()
+        .ok_or("at least one recursive leaf proof required")?
+        .summary
+        .clone();
+    for child in &children {
+        if child.summary.chain_id != summary.chain_id {
+            return Err("child chain_id mismatch".to_string());
+        }
+        if child.summary.epoch_id != summary.epoch_id {
+            return Err("child epoch_id mismatch".to_string());
+        }
+        if child.summary.public_policy_hash != summary.public_policy_hash {
+            return Err("child public_policy_hash mismatch".to_string());
+        }
+        if child.summary.feature_suite_hash != summary.feature_suite_hash {
+            return Err("child feature_suite_hash mismatch".to_string());
+        }
+        if child.summary.dependency_lock_hash != summary.dependency_lock_hash {
+            return Err("child dependency_lock_hash mismatch".to_string());
+        }
+        if child.summary.toolchain_lock_hash != summary.toolchain_lock_hash {
+            return Err("child toolchain_lock_hash mismatch".to_string());
+        }
+    }
+
+    let mut verifier_ids: Vec<[u8; 32]> = children
+        .iter()
+        .map(|child| child.descriptor.child_verifier_id)
+        .collect();
+    verifier_ids.sort();
+    let mut authority_roots: Vec<[u8; 32]> = children
+        .iter()
+        .map(|child| child.summary.public_policy_hash)
+        .collect();
+    authority_roots.sort();
+    authority_roots.dedup();
+    let pre_state_roots: Vec<[u8; 32]> = children
+        .iter()
+        .map(|child| child.summary.pre_state_root)
+        .collect();
+    let post_state_roots: Vec<[u8; 32]> = children
+        .iter()
+        .map(|child| child.summary.post_state_root)
+        .collect();
+    let child_count =
+        u32::try_from(children.len()).map_err(|_| "too many child proofs".to_string())?;
+    let max_total_child_journal_bytes = RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES
+        .checked_mul(child_count)
+        .ok_or("max_total_child_journal_bytes overflow")?;
     let expected_pre_state_root = recursive_vector_root_v1(
         b"zenodex.risc0.recursive.pre_state_vector_root.v1",
-        &[summary.pre_state_root],
+        &pre_state_roots,
     )
     .map_err(|e| format!("{e:?}"))?;
     let expected_post_state_root = recursive_vector_root_v1(
         b"zenodex.risc0.recursive.post_state_vector_root.v1",
-        &[summary.post_state_root],
+        &post_state_roots,
     )
     .map_err(|e| format!("{e:?}"))?;
     let input = RecursiveCompositionInputV1 {
@@ -457,7 +519,7 @@ fn print_root_request(proof_path: &str) -> Result<(), String> {
             schema_version: RECURSIVE_STATEMENT_VERSION_V1,
             chain_id: summary.chain_id.clone(),
             epoch_id: summary.epoch_id,
-            proof_profile: summary.proof_profile.clone(),
+            proof_profile: RECURSIVE_EPOCH_PROFILE_V1.to_string(),
             verifier_set_root: recursive_verifier_set_root_v1(&verifier_ids)
                 .map_err(|e| format!("{e:?}"))?,
             allowed_authority_roots_root: recursive_authority_set_root_v1(&authority_roots)
@@ -472,10 +534,10 @@ fn print_root_request(proof_path: &str) -> Result<(), String> {
             carry_queue_pre_root: root(13),
             carry_queue_post_root: root(13),
             data_availability_root: root(14),
-            expected_child_count: 1,
+            expected_child_count: child_count,
             max_children: 8,
             max_child_journal_bytes: RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES,
-            max_total_child_journal_bytes: RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES,
+            max_total_child_journal_bytes,
             max_asset_delta_rows: 16,
             max_cross_shard_messages: 16,
             max_receipt_ids: 16,
@@ -483,8 +545,9 @@ fn print_root_request(proof_path: &str) -> Result<(), String> {
         },
         allowed_verifier_ids: verifier_ids,
         allowed_authority_roots: authority_roots,
-        children: vec![child],
+        children,
     };
+    let child_proofs: Vec<String> = child_proofs.into_iter().map(|(_, proof)| proof).collect();
     println!(
         "{}",
         serde_json::to_string(&json!({
@@ -493,7 +556,7 @@ fn print_root_request(proof_path: &str) -> Result<(), String> {
             "state_hash": hex_bytes(&expected_post_state_root),
             "proof_type": "risc0.zenodex_recursive_epoch.v1",
             "recursive_input": input,
-            "child_proofs": [proof],
+            "child_proofs": child_proofs,
         }))
         .map_err(|e| format!("root request json: {e}"))?
     );
@@ -507,8 +570,10 @@ fn main() {
         [_, mode, image_id_hex] if mode == "perps" => print_perps_request(image_id_hex),
         [_, mode, image_id_hex] if mode == "spot" => print_spot_request(image_id_hex),
         [_, mode, image_id_hex] if mode == "zusd" => print_zusd_request(image_id_hex),
-        [_, mode, proof_path] if mode == "root" => print_root_request(proof_path),
-        _ => Err("usage: recursive_summary_leaf_smoke summary <image-id-hex> | perps <image-id-hex> | spot <image-id-hex> | zusd <image-id-hex> | root <recursive-leaf-proof-json>".to_string()),
+        [_, mode, proof_paths @ ..] if mode == "root" && !proof_paths.is_empty() => {
+            print_root_request(proof_paths)
+        }
+        _ => Err("usage: recursive_summary_leaf_smoke summary <image-id-hex> | perps <image-id-hex> | spot <image-id-hex> | zusd <image-id-hex> | root <recursive-leaf-proof-json> [more-leaf-proof-json...]".to_string()),
     };
     if let Err(err) = result {
         eprintln!("{err}");
