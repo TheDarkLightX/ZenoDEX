@@ -630,29 +630,9 @@ pub fn compose_spot_recursive_leaf_summary_v1(
     if input.risc0_image_id.iter().all(|word| *word == 0) {
         return Err(TransitionError::InvalidInput("spot leaf image id zero"));
     }
-    if input
-        .spot_input
-        .txs
-        .iter()
-        .any(|tx| tx.app_ops.has_faucet || !tx.app_ops.faucet_mint.is_empty())
-    {
-        return Err(TransitionError::InvalidInput(
-            "spot recursive leaf faucet mint unsupported",
-        ));
-    }
-    if !input.spot_input.chain_balances_post.is_empty()
-        || input
-            .spot_input
-            .pre_state
-            .balances
-            .iter()
-            .any(|entry| entry.asset == NATIVE_ASSET)
-    {
-        return Err(TransitionError::InvalidInput(
-            "spot recursive leaf native balance sync unsupported",
-        ));
-    }
 
+    let asset_delta_rows =
+        spot_recursive_leaf_asset_delta_rows_v1(&input.spot_input, input.public_policy_hash)?;
     let journal = execute_state_proof_input_v1(input.spot_input)?;
     if !journal.pre_app_hash_present {
         return Err(TransitionError::InvalidInput(
@@ -665,7 +645,6 @@ pub fn compose_spot_recursive_leaf_summary_v1(
         ));
     }
 
-    let empty_asset_rows = Vec::new();
     let empty_messages = Vec::new();
     let empty_receipt_ids = Vec::new();
     let summary = RecursiveEffectSummaryV1 {
@@ -690,7 +669,7 @@ pub fn compose_spot_recursive_leaf_summary_v1(
         receipt_root: journal.accepted_receipts_root,
         accepted_receipts_root: recursive_receipt_ids_root_v1(&empty_receipt_ids)?,
         rejected_receipts_root: recursive_receipt_ids_root_v1(&empty_receipt_ids)?,
-        asset_delta_root: recursive_asset_delta_root_v1(&empty_asset_rows)?,
+        asset_delta_root: recursive_asset_delta_root_v1(&asset_delta_rows)?,
         cross_shard_outbox_root: recursive_cross_shard_messages_root_v1(&empty_messages)?,
         cross_shard_inbox_root: recursive_cross_shard_messages_root_v1(&empty_messages)?,
         write_set_root: spot_recursive_leaf_write_set_root_v1(&journal),
@@ -812,6 +791,178 @@ pub fn zusd_recursive_leaf_asset_delta_rows_v1(
     }]))
 }
 
+pub fn spot_recursive_leaf_asset_delta_rows_v1(
+    input: &StateProofInputV1,
+    authority_root: [u8; 32],
+) -> Result<Vec<RecursiveAssetDeltaRowV1>, TransitionError> {
+    let mut rows = Vec::new();
+    for tx in &input.txs {
+        if !tx.app_ops.has_faucet && !tx.app_ops.faucet_mint.is_empty() {
+            return Err(TransitionError::InvalidInput(
+                "spot recursive leaf faucet mint flag mismatch",
+            ));
+        }
+        if !tx.app_ops.has_faucet {
+            continue;
+        }
+        for mint in &tx.app_ops.faucet_mint {
+            if mint.pubkey.is_empty() || mint.asset.is_empty() {
+                return Err(TransitionError::InvalidInput(
+                    "faucet mint pubkey/asset empty",
+                ));
+            }
+            if mint.asset == NATIVE_ASSET {
+                return Err(TransitionError::InvalidInput(
+                    "faucet cannot mint native asset",
+                ));
+            }
+            if mint.amount == 0 {
+                return Err(TransitionError::InvalidInput(
+                    "faucet mint amount must be positive",
+                ));
+            }
+            require_nonzero_root(&authority_root, "spot asset authority_root zero")?;
+            rows.push(RecursiveAssetDeltaRowV1 {
+                asset_id: mint.asset.clone(),
+                debit_atoms: 0,
+                credit_atoms: mint.amount,
+                authorized_mint_atoms: mint.amount,
+                authorized_burn_atoms: 0,
+                authority_root,
+            });
+        }
+    }
+
+    let mut pre_native_balances = BTreeMap::new();
+    for entry in &input.pre_state.balances {
+        if entry.asset != NATIVE_ASSET || entry.amount == 0 {
+            continue;
+        }
+        if pre_native_balances
+            .insert(entry.pubkey.clone(), entry.amount)
+            .is_some()
+        {
+            return Err(TransitionError::InvalidInput(
+                "spot recursive native pre balance duplicate",
+            ));
+        }
+    }
+
+    let mut post_native_balances = BTreeMap::new();
+    for entry in &input.chain_balances_post {
+        if entry.amount == 0 {
+            post_native_balances.remove(&entry.pubkey);
+        } else {
+            post_native_balances.insert(entry.pubkey.clone(), entry.amount);
+        }
+    }
+
+    let mut native_pubkeys = BTreeSet::new();
+    native_pubkeys.extend(pre_native_balances.keys().cloned());
+    native_pubkeys.extend(post_native_balances.keys().cloned());
+    for pubkey in native_pubkeys {
+        let pre_amount = pre_native_balances.get(&pubkey).copied().unwrap_or(0);
+        let post_amount = post_native_balances.get(&pubkey).copied().unwrap_or(0);
+        match post_amount.cmp(&pre_amount) {
+            core::cmp::Ordering::Greater => rows.push(RecursiveAssetDeltaRowV1 {
+                asset_id: NATIVE_ASSET.to_string(),
+                debit_atoms: 0,
+                credit_atoms: post_amount - pre_amount,
+                authorized_mint_atoms: 0,
+                authorized_burn_atoms: 0,
+                authority_root: [0u8; 32],
+            }),
+            core::cmp::Ordering::Less => rows.push(RecursiveAssetDeltaRowV1 {
+                asset_id: NATIVE_ASSET.to_string(),
+                debit_atoms: pre_amount - post_amount,
+                credit_atoms: 0,
+                authorized_mint_atoms: 0,
+                authorized_burn_atoms: 0,
+                authority_root: [0u8; 32],
+            }),
+            core::cmp::Ordering::Equal => {}
+        }
+    }
+
+    let mut allowed_authorities = BTreeSet::new();
+    if authority_root != [0u8; 32] {
+        allowed_authorities.insert(authority_root);
+    }
+    canonical_asset_delta_rows_v1(&rows, &allowed_authorities)
+}
+
+pub fn perps_np_recursive_leaf_asset_delta_rows_v1(
+    input: &PerpsNpTransitionInputV1,
+) -> Result<Vec<RecursiveAssetDeltaRowV1>, TransitionError> {
+    let mut rows = Vec::new();
+    for action in &input.actions {
+        match action {
+            PerpsNpActionV1::InitMarket {
+                collateral_asset,
+                insurance_seed_e8,
+                ..
+            } => {
+                if *insurance_seed_e8 < 0 {
+                    return Err(TransitionError::InvalidInput("insurance seed negative"));
+                }
+                if *insurance_seed_e8 > 0 {
+                    rows.push(ordinary_asset_delta_row_v1(
+                        collateral_asset,
+                        0,
+                        i128_to_u128_v1(*insurance_seed_e8, "insurance seed amount invalid")?,
+                    ));
+                }
+            }
+            PerpsNpActionV1::DepositCollateral {
+                asset, amount_e8, ..
+            } => {
+                rows.push(ordinary_asset_delta_row_v1(
+                    asset,
+                    0,
+                    positive_i128_to_u128_v1(*amount_e8, "deposit must be positive")?,
+                ));
+            }
+            PerpsNpActionV1::WithdrawCollateral {
+                asset, amount_e8, ..
+            } => {
+                rows.push(ordinary_asset_delta_row_v1(
+                    asset,
+                    positive_i128_to_u128_v1(*amount_e8, "withdraw must be positive")?,
+                    0,
+                ));
+            }
+            PerpsNpActionV1::SubmitIntent { .. } | PerpsNpActionV1::RunEpoch { .. } => {}
+        }
+    }
+    canonical_asset_delta_rows_v1(&rows, &BTreeSet::new())
+}
+
+fn ordinary_asset_delta_row_v1(
+    asset_id: &str,
+    debit_atoms: u128,
+    credit_atoms: u128,
+) -> RecursiveAssetDeltaRowV1 {
+    RecursiveAssetDeltaRowV1 {
+        asset_id: asset_id.to_string(),
+        debit_atoms,
+        credit_atoms,
+        authorized_mint_atoms: 0,
+        authorized_burn_atoms: 0,
+        authority_root: [0u8; 32],
+    }
+}
+
+fn positive_i128_to_u128_v1(value: i128, err: &'static str) -> Result<u128, TransitionError> {
+    if value <= 0 {
+        return Err(TransitionError::InvalidInput(err));
+    }
+    i128_to_u128_v1(value, err)
+}
+
+fn i128_to_u128_v1(value: i128, err: &'static str) -> Result<u128, TransitionError> {
+    u128::try_from(value).map_err(|_| TransitionError::InvalidInput(err))
+}
+
 pub fn compose_perps_np_recursive_leaf_summary_v1(
     input: PerpsNpRecursiveLeafInputV1,
 ) -> Result<RecursiveEffectSummaryV1, TransitionError> {
@@ -844,17 +995,13 @@ pub fn compose_perps_np_recursive_leaf_summary_v1(
     if input.risc0_image_id.iter().all(|word| *word == 0) {
         return Err(TransitionError::InvalidInput("perps NP leaf image id zero"));
     }
-    if input
+    let has_run_epoch = input
         .perps_input
         .actions
         .iter()
-        .any(|action| !matches!(action, PerpsNpActionV1::RunEpoch { .. }))
-    {
-        return Err(TransitionError::InvalidInput(
-            "perps NP recursive leaf action unsupported",
-        ));
-    }
+        .any(|action| matches!(action, PerpsNpActionV1::RunEpoch { .. }));
 
+    let asset_delta_rows = perps_np_recursive_leaf_asset_delta_rows_v1(&input.perps_input)?;
     let journal = execute_perps_np_transition_v1(input.perps_input)?;
     if !journal.pre_app_hash_present {
         return Err(TransitionError::InvalidInput(
@@ -871,7 +1018,7 @@ pub fn compose_perps_np_recursive_leaf_summary_v1(
             "perps NP recursive leaf image id mismatch",
         ));
     }
-    if journal.participant_count < RECURSIVE_PERPS_NP_MIN_PARTICIPANTS {
+    if has_run_epoch && journal.participant_count < RECURSIVE_PERPS_NP_MIN_PARTICIPANTS {
         return Err(TransitionError::InvalidInput(
             "perps NP recursive leaf participant floor",
         ));
@@ -882,7 +1029,6 @@ pub fn compose_perps_np_recursive_leaf_summary_v1(
         ));
     }
 
-    let empty_asset_rows = Vec::new();
     let empty_messages = Vec::new();
     let empty_receipt_ids = Vec::new();
     let summary = RecursiveEffectSummaryV1 {
@@ -907,7 +1053,7 @@ pub fn compose_perps_np_recursive_leaf_summary_v1(
         receipt_root: journal.receipt_root,
         accepted_receipts_root: recursive_receipt_ids_root_v1(&empty_receipt_ids)?,
         rejected_receipts_root: recursive_receipt_ids_root_v1(&empty_receipt_ids)?,
-        asset_delta_root: recursive_asset_delta_root_v1(&empty_asset_rows)?,
+        asset_delta_root: recursive_asset_delta_root_v1(&asset_delta_rows)?,
         cross_shard_outbox_root: recursive_cross_shard_messages_root_v1(&empty_messages)?,
         cross_shard_inbox_root: recursive_cross_shard_messages_root_v1(&empty_messages)?,
         write_set_root: perps_np_recursive_leaf_write_set_root_v1(&journal),
@@ -1754,8 +1900,9 @@ mod tests {
         sha256_canonical_perps_np_snapshot_v1, sha256_canonical_zusd_snapshot_v1,
         zusd_balance_root_hash_v1, ChainBalanceV1, DexBalanceEntryV1, DexStateV1, FaucetMintV1,
         OracleBindingV1, PerpsAccountV1, PerpsMarketParamsV1, PerpsNpActionV1, PerpsNpSnapshotV1,
-        PerpsNpTransitionInputV1, StateProofInputV1, TauTxAppOpsV1, TauTxV1, ZusdBalanceEntryV1,
-        ZusdOperationV1, ZusdSnapshotV1, ZusdTransitionInputV1, ZusdVaultEntryV1,
+        PerpsNpTransitionInputV1, StateProofInputV1, TauTxAppOpsV1, TauTxV1, TxIngressFactV1,
+        ZusdBalanceEntryV1, ZusdOperationV1, ZusdSnapshotV1, ZusdTransitionInputV1,
+        ZusdVaultEntryV1,
     };
     use alloc::string::ToString;
 
@@ -1824,42 +1971,6 @@ mod tests {
             compose_perps_np_recursive_leaf_summary_v1(input),
             Err(TransitionError::InvalidInput(
                 "perps NP recursive leaf image id mismatch"
-            ))
-        ));
-    }
-
-    #[test]
-    fn perps_np_recursive_leaf_rejects_deposit_without_asset_rows() {
-        let mut input = perps_leaf_input();
-        input.perps_input.actions = alloc::vec![PerpsNpActionV1::DepositCollateral {
-            pubkey: "wallet-a".to_string(),
-            asset: "zUSD".to_string(),
-            amount_e8: 1,
-            nonce: 2,
-            collateral_binding: None,
-        }];
-        assert!(matches!(
-            compose_perps_np_recursive_leaf_summary_v1(input),
-            Err(TransitionError::InvalidInput(
-                "perps NP recursive leaf action unsupported"
-            ))
-        ));
-    }
-
-    #[test]
-    fn perps_np_recursive_leaf_rejects_init_market_without_asset_rows() {
-        let mut input = perps_leaf_input();
-        input.perps_input.actions = alloc::vec![PerpsNpActionV1::InitMarket {
-            market_id: "ETH-PERP".to_string(),
-            collateral_asset: "zUSD".to_string(),
-            index_price_e8: 100_000_000,
-            params: PerpsMarketParamsV1::default(),
-            insurance_seed_e8: 1,
-        }];
-        assert!(matches!(
-            compose_perps_np_recursive_leaf_summary_v1(input),
-            Err(TransitionError::InvalidInput(
-                "perps NP recursive leaf action unsupported"
             ))
         ));
     }
@@ -2489,8 +2600,9 @@ mod tests {
     }
 
     #[test]
-    fn spot_recursive_leaf_rejects_faucet_mints_without_asset_rows() {
+    fn spot_recursive_leaf_derives_faucet_asset_rows() {
         let mut input = spot_leaf_input();
+        let authority_root = input.public_policy_hash;
         input.spot_input.txs = alloc::vec![TauTxV1 {
             sender_pubkey: "wallet-a".to_string(),
             app_ops: TauTxAppOpsV1 {
@@ -2498,49 +2610,99 @@ mod tests {
                 faucet_mint: alloc::vec![FaucetMintV1 {
                     pubkey: "wallet-a".to_string(),
                     asset: "TEST".to_string(),
-                    amount: 1,
+                    amount: 7,
+                }],
+                has_intents: false,
+                intents: Vec::new(),
+            },
+        }];
+        input.spot_input.tx_ingress = alloc::vec![TxIngressFactV1 {
+            sender_pubkey: "wallet-a".to_string(),
+            nonce: 0,
+        }];
+        let mut post_state = DexStateV1::empty();
+        post_state.add_balance("wallet-a", "TEST", 7).unwrap();
+        input.spot_input.expected_post_app_hash = post_state.canonical_app_hash_sha256();
+        input.spot_input.state_hash = input.spot_input.expected_post_app_hash;
+
+        let rows =
+            spot_recursive_leaf_asset_delta_rows_v1(&input.spot_input, authority_root).unwrap();
+        let summary = compose_spot_recursive_leaf_summary_v1(input).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].asset_id, "TEST");
+        assert_eq!(rows[0].credit_atoms, 7);
+        assert_eq!(rows[0].authorized_mint_atoms, 7);
+        assert_eq!(rows[0].authority_root, authority_root);
+        assert_eq!(
+            summary.asset_delta_root,
+            recursive_asset_delta_root_v1(&rows).unwrap()
+        );
+    }
+
+    #[test]
+    fn spot_recursive_leaf_rejects_faucet_mint_flag_mismatch() {
+        let mut input = spot_leaf_input();
+        input.spot_input.txs = alloc::vec![TauTxV1 {
+            sender_pubkey: "wallet-a".to_string(),
+            app_ops: TauTxAppOpsV1 {
+                has_faucet: false,
+                faucet_mint: alloc::vec![FaucetMintV1 {
+                    pubkey: "wallet-a".to_string(),
+                    asset: "TEST".to_string(),
+                    amount: 7,
                 }],
                 has_intents: false,
                 intents: Vec::new(),
             },
         }];
         assert!(matches!(
-            compose_spot_recursive_leaf_summary_v1(input),
+            spot_recursive_leaf_asset_delta_rows_v1(&input.spot_input, input.public_policy_hash),
             Err(TransitionError::InvalidInput(
-                "spot recursive leaf faucet mint unsupported"
+                "spot recursive leaf faucet mint flag mismatch"
             ))
         ));
     }
 
     #[test]
-    fn spot_recursive_leaf_rejects_native_balance_sync_without_asset_rows() {
-        let mut input = spot_leaf_input();
-        input.spot_input.chain_balances_post = alloc::vec![ChainBalanceV1 {
-            pubkey: "wallet-a".to_string(),
-            amount: 1,
-        }];
-        assert!(matches!(
-            compose_spot_recursive_leaf_summary_v1(input),
-            Err(TransitionError::InvalidInput(
-                "spot recursive leaf native balance sync unsupported"
-            ))
-        ));
-    }
-
-    #[test]
-    fn spot_recursive_leaf_rejects_native_pre_balance_without_asset_rows() {
+    fn spot_recursive_leaf_derives_native_balance_sync_rows() {
         let mut input = spot_leaf_input();
         input.spot_input.pre_state.balances = alloc::vec![DexBalanceEntryV1 {
             pubkey: "wallet-a".to_string(),
             asset: NATIVE_ASSET.to_string(),
-            amount: 1,
+            amount: 10,
         }];
-        assert!(matches!(
-            compose_spot_recursive_leaf_summary_v1(input),
-            Err(TransitionError::InvalidInput(
-                "spot recursive leaf native balance sync unsupported"
-            ))
-        ));
+        input.spot_input.chain_balances_post = alloc::vec![
+            ChainBalanceV1 {
+                pubkey: "wallet-a".to_string(),
+                amount: 4,
+            },
+            ChainBalanceV1 {
+                pubkey: "wallet-b".to_string(),
+                amount: 11,
+            }
+        ];
+        let pre_state = DexStateV1::from_snapshot(input.spot_input.pre_state.clone()).unwrap();
+        let pre_hash = pre_state.canonical_app_hash_sha256();
+        let mut post_state = pre_state;
+        post_state.sync_native_balances_post(&input.spot_input.chain_balances_post);
+        let post_hash = post_state.canonical_app_hash_sha256();
+        input.spot_input.pre_app_hash = pre_hash;
+        input.spot_input.expected_post_app_hash = post_hash;
+        input.spot_input.state_hash = post_hash;
+
+        let rows =
+            spot_recursive_leaf_asset_delta_rows_v1(&input.spot_input, input.public_policy_hash)
+                .unwrap();
+        let summary = compose_spot_recursive_leaf_summary_v1(input).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].asset_id, NATIVE_ASSET);
+        assert_eq!(rows[0].debit_atoms, 6);
+        assert_eq!(rows[0].credit_atoms, 11);
+        assert_eq!(rows[0].authority_root, [0u8; 32]);
+        assert_eq!(
+            summary.asset_delta_root,
+            recursive_asset_delta_root_v1(&rows).unwrap()
+        );
     }
 
     #[test]
@@ -2640,6 +2802,7 @@ mod tests {
     fn perps_np_recursive_leaf_derives_summary_from_checked_transition() {
         let input = perps_leaf_input();
         let journal = execute_perps_np_transition_v1(input.perps_input.clone()).unwrap();
+        let rows = perps_np_recursive_leaf_asset_delta_rows_v1(&input.perps_input).unwrap();
         let summary = compose_perps_np_recursive_leaf_summary_v1(input).unwrap();
         assert_eq!(summary.lane_kind, "perps_np");
         assert_eq!(summary.proof_profile, RECURSIVE_PERPS_NP_LEAF_PROFILE_V1);
@@ -2651,7 +2814,174 @@ mod tests {
         assert_eq!(journal.net_position_base, 0);
         assert_eq!(
             summary.asset_delta_root,
-            recursive_asset_delta_root_v1(&[]).unwrap()
+            recursive_asset_delta_root_v1(&rows).unwrap()
+        );
+        assert!(rows.is_empty());
+    }
+
+    #[test]
+    fn perps_np_recursive_leaf_derives_init_market_seed_rows() {
+        let pre_state = PerpsNpSnapshotV1 {
+            version: 1,
+            market_id: String::new(),
+            collateral_asset: String::new(),
+            index_price_e8: 0,
+            params: PerpsMarketParamsV1::default(),
+            accounts: Vec::new(),
+            pending_intents: Vec::new(),
+            now_epoch: 0,
+            fee_pool_e8: 0,
+            insurance_e8: 0,
+            insurance_ext_e8: 0,
+            claims_paid_e8: 0,
+            net_deposited_e8: 0,
+        };
+        let post_state = PerpsNpSnapshotV1 {
+            version: 1,
+            market_id: "ETH-PERP".to_string(),
+            collateral_asset: "USDC".to_string(),
+            index_price_e8: 100_000_000,
+            params: PerpsMarketParamsV1::default(),
+            accounts: Vec::new(),
+            pending_intents: Vec::new(),
+            now_epoch: 0,
+            fee_pool_e8: 0,
+            insurance_e8: 19,
+            insurance_ext_e8: 19,
+            claims_paid_e8: 0,
+            net_deposited_e8: 0,
+        };
+        let pre_app_hash = sha256_canonical_perps_np_snapshot_v1(&pre_state);
+        let post_app_hash = sha256_canonical_perps_np_snapshot_v1(&post_state);
+        let input = PerpsNpRecursiveLeafInputV1 {
+            chain_id: "tau-test".to_string(),
+            epoch_id: 7,
+            lane_id: "perps-np-lane-a".to_string(),
+            risc0_image_id: image(44),
+            public_policy_hash: h(10),
+            feature_suite_hash: h(11),
+            dependency_lock_hash: h(12),
+            toolchain_lock_hash: h(13),
+            perps_input: PerpsNpTransitionInputV1 {
+                state_hash: post_app_hash,
+                chain_id: "tau-test".to_string(),
+                pre_app_hash_present: true,
+                pre_app_hash,
+                pre_state,
+                actions: alloc::vec![PerpsNpActionV1::InitMarket {
+                    market_id: "ETH-PERP".to_string(),
+                    collateral_asset: "USDC".to_string(),
+                    index_price_e8: 100_000_000,
+                    params: PerpsMarketParamsV1::default(),
+                    insurance_seed_e8: 19,
+                }],
+                expected_post_app_hash: post_app_hash,
+                risc0_image_id: image(44),
+            },
+        };
+        let rows = perps_np_recursive_leaf_asset_delta_rows_v1(&input.perps_input).unwrap();
+        let summary = compose_perps_np_recursive_leaf_summary_v1(input).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].asset_id, "USDC");
+        assert_eq!(rows[0].credit_atoms, 19);
+        assert_eq!(
+            summary.asset_delta_root,
+            recursive_asset_delta_root_v1(&rows).unwrap()
+        );
+    }
+
+    #[test]
+    fn perps_np_recursive_leaf_derives_deposit_rows_without_epoch_floor() {
+        let e8 = 100_000_000i128;
+        let mut pre_state = perps_snapshot(0);
+        pre_state.collateral_asset = "USDC".to_string();
+        let mut post_state = pre_state.clone();
+        post_state.accounts[0].collateral_e8 += 3 * e8;
+        post_state.accounts[0].nonce = 2;
+        post_state.net_deposited_e8 += 3 * e8;
+        let pre_app_hash = sha256_canonical_perps_np_snapshot_v1(&pre_state);
+        let post_app_hash = sha256_canonical_perps_np_snapshot_v1(&post_state);
+        let input = PerpsNpRecursiveLeafInputV1 {
+            chain_id: "tau-test".to_string(),
+            epoch_id: 7,
+            lane_id: "perps-np-lane-a".to_string(),
+            risc0_image_id: image(44),
+            public_policy_hash: h(10),
+            feature_suite_hash: h(11),
+            dependency_lock_hash: h(12),
+            toolchain_lock_hash: h(13),
+            perps_input: PerpsNpTransitionInputV1 {
+                state_hash: post_app_hash,
+                chain_id: "tau-test".to_string(),
+                pre_app_hash_present: true,
+                pre_app_hash,
+                pre_state,
+                actions: alloc::vec![PerpsNpActionV1::DepositCollateral {
+                    pubkey: "wallet-a".to_string(),
+                    asset: "USDC".to_string(),
+                    amount_e8: 3 * e8,
+                    nonce: 2,
+                    collateral_binding: None,
+                }],
+                expected_post_app_hash: post_app_hash,
+                risc0_image_id: image(44),
+            },
+        };
+        let rows = perps_np_recursive_leaf_asset_delta_rows_v1(&input.perps_input).unwrap();
+        let summary = compose_perps_np_recursive_leaf_summary_v1(input).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].asset_id, "USDC");
+        assert_eq!(rows[0].credit_atoms, (3 * e8) as u128);
+        assert_eq!(
+            summary.asset_delta_root,
+            recursive_asset_delta_root_v1(&rows).unwrap()
+        );
+    }
+
+    #[test]
+    fn perps_np_recursive_leaf_derives_withdraw_rows_without_epoch_floor() {
+        let e8 = 100_000_000i128;
+        let mut pre_state = perps_snapshot(0);
+        pre_state.collateral_asset = "USDC".to_string();
+        let mut post_state = pre_state.clone();
+        post_state.accounts[0].collateral_e8 -= 2 * e8;
+        post_state.accounts[0].nonce = 2;
+        post_state.net_deposited_e8 -= 2 * e8;
+        let pre_app_hash = sha256_canonical_perps_np_snapshot_v1(&pre_state);
+        let post_app_hash = sha256_canonical_perps_np_snapshot_v1(&post_state);
+        let input = PerpsNpRecursiveLeafInputV1 {
+            chain_id: "tau-test".to_string(),
+            epoch_id: 7,
+            lane_id: "perps-np-lane-a".to_string(),
+            risc0_image_id: image(44),
+            public_policy_hash: h(10),
+            feature_suite_hash: h(11),
+            dependency_lock_hash: h(12),
+            toolchain_lock_hash: h(13),
+            perps_input: PerpsNpTransitionInputV1 {
+                state_hash: post_app_hash,
+                chain_id: "tau-test".to_string(),
+                pre_app_hash_present: true,
+                pre_app_hash,
+                pre_state,
+                actions: alloc::vec![PerpsNpActionV1::WithdrawCollateral {
+                    pubkey: "wallet-a".to_string(),
+                    asset: "USDC".to_string(),
+                    amount_e8: 2 * e8,
+                    nonce: 2,
+                }],
+                expected_post_app_hash: post_app_hash,
+                risc0_image_id: image(44),
+            },
+        };
+        let rows = perps_np_recursive_leaf_asset_delta_rows_v1(&input.perps_input).unwrap();
+        let summary = compose_perps_np_recursive_leaf_summary_v1(input).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].asset_id, "USDC");
+        assert_eq!(rows[0].debit_atoms, (2 * e8) as u128);
+        assert_eq!(
+            summary.asset_delta_root,
+            recursive_asset_delta_root_v1(&rows).unwrap()
         );
     }
 

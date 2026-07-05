@@ -602,11 +602,15 @@ This repo also includes `risc0.zenodex_recursive_spot_leaf.v1`, the first
 transition-specific recursive leaf. It executes the existing checked spot
 transition and derives a recursive summary from `StateProofJournalV1`. The v1
 profile is intentionally local: recursive accepted/rejected receipt ID sets,
-asset-delta rows, and cross-shard messages are empty, while the native spot
-accepted-receipts root is committed as `receipt_root`. This proves local spot
-app-state transitions under recursion. To keep the empty asset-delta row set
-honest, v1 rejects faucet mints and native balance sync paths. It does not
-claim cross-shard settlement or native ledger balance deltas.
+and cross-shard messages are empty, while the native spot accepted-receipts root
+is committed as `receipt_root`. The leaf derives asset-delta rows for checked
+faucet mints and native balance sync. Faucet mints become authorized mint rows
+under the public policy hash; native sync becomes ordinary debit/credit rows for
+the native asset. The CLI emits those rows in metadata and verifies that their
+recomputed root equals the journal `asset_delta_root`. This proves local spot
+app-state transitions and row-root binding for the spot lifecycle verbs present
+in the Rust proof input. It does not claim cross-shard settlement or native-chain
+source finality.
 
 This repo also includes `risc0.zenodex_recursive_zusd_leaf.v1`, the second
 transition-specific recursive leaf. It executes the existing checked zUSD
@@ -626,16 +630,18 @@ This repo also includes `risc0.zenodex_recursive_perps_np_leaf.v1`, the third
 transition-specific recursive leaf. It executes the existing checked perps NP
 transition and derives a recursive summary from `PerpsNpTransitionJournalV1`.
 The v1 profile is intentionally local: recursive accepted/rejected receipt ID
-sets, asset-delta rows, and cross-shard messages are empty. The summary binds
-the perps operation hash, oracle bindings, collateral bindings, participant set,
-receipt root, participant count, net position, total collateral, funding
-residual, and matched base volume. To keep the empty asset-delta row set honest,
-v1 accepts `RunEpoch` actions only and rejects deposit/withdraw/init/submit
-lifecycle actions until those effects have row-bearing certificates. This proves
-one checked local perps NP epoch transition under recursion. It does not claim
-complete perps lifecycle coverage, cross-shard collateral movement, native
-ledger balance deltas, zUSD collateral source verification beyond hash-bound
-references, or oracle truth.
+sets and cross-shard messages are empty. The summary binds the perps operation
+hash, oracle bindings, collateral bindings, participant set, receipt root,
+participant count, net position, total collateral, funding residual, and matched
+base volume. The leaf derives ordinary asset-delta rows for `InitMarket`
+insurance seed credits, `DepositCollateral` credits, and `WithdrawCollateral`
+debits. `SubmitIntent` and `RunEpoch` emit no external asset rows in the current
+Rust transition language; the four-participant floor is scoped to `RunEpoch`.
+The CLI emits those rows in metadata and verifies that their recomputed root
+equals the journal `asset_delta_root`. This proves checked local perps NP
+lifecycle and epoch transitions under recursion. It does not claim cross-shard
+collateral movement, native-chain source finality, zUSD collateral source
+verification beyond hash-bound references, or oracle truth.
 
 The repeatable smoke helper is
 `zk/state_proof_risc0/cli/examples/recursive_summary_leaf_smoke.rs`. It builds a
@@ -675,6 +681,16 @@ after this sequence:
 ```
 
 Any mismatch is a typed reject and must be no-op.
+
+If Tau execution, linting, or trace tooling is unavailable, the fallback lane is
+a deterministic host admission checker that enforces the same projected facts:
+receipt verification, supported profile, leaf row derivation, row-root binding,
+aggregate row balance, allowed authority roots, unsupported lifecycle absence,
+Tau/header root binding, and transcript binding. This fallback can preserve
+local replay and testnet evidence, but public status must be downgraded until
+the Tau semantic contract and traces pass again. The fallback must recompute row
+roots and journal bindings; it cannot accept host-supplied verdict booleans as
+authority.
 
 ## Data Availability Contract
 
@@ -864,6 +880,8 @@ Lower the root-journal acceptance rules into Tau-compatible semantic contracts.
 
 The Tau contract should validate bounded public fields and delegate cryptographic
 proof verification to the active verifier adapter.
+The row-bearing lifecycle admission gate is
+`recursive_lifecycle_asset_delta_admission_v1`.
 
 ## Formal Obligations
 
@@ -973,8 +991,9 @@ This spec does not claim:
 
 - the recursive RISC0 lane is production-ready;
 - the summary-leaf test image proves any value-moving transition;
-- current spot, perps NP, or non-deposit-mint zUSD child journals expose full
-  native-ledger asset deltas;
+- current spot, perps NP, or zUSD child journals prove native-chain source
+  finality;
+- non-deposit-mint zUSD child journals expose full stablecoin lifecycle deltas;
 - the current `recursive_epoch_v1` profile is production-ready;
 - all spot/perps/zUSD/oracle transitions have leaf proofs;
 - DA is solved by proof recursion;
@@ -983,8 +1002,9 @@ This spec does not claim:
 
 ## Next Frontier
 
-The highest-value next step is native-ledger asset-delta rows for spot and perps
-NP leaves, plus the remaining zUSD lifecycle rows outside deposit-mint. Those
-gaps are what separate current local transition-recursion evidence from a root
-proof that can claim global ledger conservation across spot, zUSD, and perps
-lanes.
+The highest-value next step is production admission hardening around recursive
+proofs: release-manifest evidence, header binding in the runtime admission path,
+and source-finality certificates for native-chain or cross-lane collateral
+movements. zUSD still only exposes the current Rust `DepositMint` lifecycle
+verb. Later zUSD repay, redeem, or liquidation verbs need exhaustive row
+extractors before they can share the recursive asset-conservation claim.

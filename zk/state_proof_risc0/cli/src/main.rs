@@ -22,9 +22,10 @@ use tau_state_proof_risc0_shared::{
     compose_recursive_epoch_journal_v1, compose_spot_recursive_leaf_summary_v1,
     compose_zusd_recursive_leaf_summary_v1, frontier_signature_certificates_root_v1,
     ingress_commitment_v1, perps_np_collateral_bindings_hash_v1, perps_np_operation_hash_v1,
-    perps_np_oracle_bindings_hash_v1, recursive_asset_delta_root_v1,
-    route_price_interval_authority_policy_root_v1, route_price_interval_authority_root_v1,
-    route_price_intervals_root_v1, tx_execution_order_commitment_v1, txs_commitment_v1,
+    perps_np_oracle_bindings_hash_v1, perps_np_recursive_leaf_asset_delta_rows_v1,
+    recursive_asset_delta_root_v1, route_price_interval_authority_policy_root_v1,
+    route_price_interval_authority_root_v1, route_price_intervals_root_v1,
+    spot_recursive_leaf_asset_delta_rows_v1, tx_execution_order_commitment_v1, txs_commitment_v1,
     validate_recursive_effect_summary_shape_v1, zusd_operation_hash_v1,
     zusd_operation_oracle_binding_hash_v1, zusd_recursive_leaf_asset_delta_rows_v1, ChainBalanceV1,
     CollateralBindingV1, DexSnapshotV1, DexStateV1, NonceEntryV1, NonceStateV1, OracleBindingV1,
@@ -560,6 +561,23 @@ fn handle_generate_recursive_spot_leaf(req: &Value) {
                 transition_error_str(e)
             ))
         });
+    let asset_delta_rows =
+        spot_recursive_leaf_asset_delta_rows_v1(&input.spot_input, input.public_policy_hash)
+            .unwrap_or_else(|e| {
+                die(&format!(
+                    "recursive spot leaf asset deltas rejected: {}",
+                    transition_error_str(e)
+                ))
+            });
+    let asset_delta_root = recursive_asset_delta_root_v1(&asset_delta_rows).unwrap_or_else(|e| {
+        die(&format!(
+            "recursive spot leaf asset delta root rejected: {}",
+            transition_error_str(e)
+        ))
+    });
+    if asset_delta_root != expected_summary.asset_delta_root {
+        die("recursive spot leaf asset delta root mismatch");
+    }
 
     let (receipt, journal): (Receipt, RecursiveEffectSummaryV1) = prove_direct_guest_input(
         &input,
@@ -580,7 +598,7 @@ fn handle_generate_recursive_spot_leaf(req: &Value) {
         "state_hash": normalize_hex64(&state_hash_hex),
         "proof_type": PROOF_TYPE_RECURSIVE_SPOT_LEAF,
         "proof": encode_receipt(&receipt),
-        "meta": recursive_spot_leaf_meta(&journal),
+        "meta": recursive_spot_leaf_meta(&journal, &asset_delta_rows),
     });
     write_json_stdout(&out);
 }
@@ -615,6 +633,22 @@ fn handle_generate_recursive_perps_np_leaf(req: &Value) {
                 transition_error_str(e)
             ))
         });
+    let asset_delta_rows = perps_np_recursive_leaf_asset_delta_rows_v1(&input.perps_input)
+        .unwrap_or_else(|e| {
+            die(&format!(
+                "recursive perps NP leaf asset deltas rejected: {}",
+                transition_error_str(e)
+            ))
+        });
+    let asset_delta_root = recursive_asset_delta_root_v1(&asset_delta_rows).unwrap_or_else(|e| {
+        die(&format!(
+            "recursive perps NP leaf asset delta root rejected: {}",
+            transition_error_str(e)
+        ))
+    });
+    if asset_delta_root != expected_summary.asset_delta_root {
+        die("recursive perps NP leaf asset delta root mismatch");
+    }
 
     let (receipt, journal): (Receipt, RecursiveEffectSummaryV1) = prove_direct_guest_input(
         &input,
@@ -635,7 +669,7 @@ fn handle_generate_recursive_perps_np_leaf(req: &Value) {
         "state_hash": normalize_hex64(&state_hash_hex),
         "proof_type": PROOF_TYPE_RECURSIVE_PERPS_NP_LEAF,
         "proof": encode_receipt(&receipt),
-        "meta": recursive_perps_np_leaf_meta(&journal),
+        "meta": recursive_perps_np_leaf_meta(&journal, &asset_delta_rows),
     });
     write_json_stdout(&out);
 }
@@ -1187,6 +1221,8 @@ fn try_verify_recursive_spot_leaf(
     expect_meta_hash(proof, "tx_root", journal.tx_root)?;
     expect_meta_hash(proof, "evidence_root", journal.evidence_root)?;
     expect_meta_hash(proof, "receipt_root", journal.receipt_root)?;
+    expect_meta_hash(proof, "asset_delta_root", journal.asset_delta_root)?;
+    expect_recursive_asset_delta_rows_meta(proof, journal.asset_delta_root)?;
     Ok(())
 }
 
@@ -1220,6 +1256,8 @@ fn try_verify_recursive_perps_np_leaf(
     expect_meta_hash(proof, "tx_root", journal.tx_root)?;
     expect_meta_hash(proof, "evidence_root", journal.evidence_root)?;
     expect_meta_hash(proof, "receipt_root", journal.receipt_root)?;
+    expect_meta_hash(proof, "asset_delta_root", journal.asset_delta_root)?;
+    expect_recursive_asset_delta_rows_meta(proof, journal.asset_delta_root)?;
     Ok(())
 }
 
@@ -1253,6 +1291,8 @@ fn try_verify_recursive_zusd_leaf(
     expect_meta_hash(proof, "tx_root", journal.tx_root)?;
     expect_meta_hash(proof, "evidence_root", journal.evidence_root)?;
     expect_meta_hash(proof, "receipt_root", journal.receipt_root)?;
+    expect_meta_hash(proof, "asset_delta_root", journal.asset_delta_root)?;
+    expect_recursive_asset_delta_rows_meta(proof, journal.asset_delta_root)?;
     Ok(())
 }
 
@@ -2367,7 +2407,10 @@ fn recursive_summary_leaf_meta(journal: &RecursiveEffectSummaryV1) -> Value {
     })
 }
 
-fn recursive_spot_leaf_meta(journal: &RecursiveEffectSummaryV1) -> Value {
+fn recursive_spot_leaf_meta(
+    journal: &RecursiveEffectSummaryV1,
+    asset_delta_rows: &[RecursiveAssetDeltaRowV1],
+) -> Value {
     json!({
         "risc0_image_id": hex_u32_words(TAU_STATE_PROOF_SPOT_LEAF_ID),
         "proof_type": PROOF_TYPE_RECURSIVE_SPOT_LEAF,
@@ -2387,6 +2430,7 @@ fn recursive_spot_leaf_meta(journal: &RecursiveEffectSummaryV1) -> Value {
         "accepted_receipts_root": hex_lower(&journal.accepted_receipts_root),
         "rejected_receipts_root": hex_lower(&journal.rejected_receipts_root),
         "asset_delta_root": hex_lower(&journal.asset_delta_root),
+        "asset_delta_rows": recursive_asset_delta_rows_meta(asset_delta_rows),
         "cross_shard_outbox_root": hex_lower(&journal.cross_shard_outbox_root),
         "cross_shard_inbox_root": hex_lower(&journal.cross_shard_inbox_root),
         "write_set_root": hex_lower(&journal.write_set_root),
@@ -2397,7 +2441,10 @@ fn recursive_spot_leaf_meta(journal: &RecursiveEffectSummaryV1) -> Value {
     })
 }
 
-fn recursive_perps_np_leaf_meta(journal: &RecursiveEffectSummaryV1) -> Value {
+fn recursive_perps_np_leaf_meta(
+    journal: &RecursiveEffectSummaryV1,
+    asset_delta_rows: &[RecursiveAssetDeltaRowV1],
+) -> Value {
     json!({
         "risc0_image_id": hex_u32_words(TAU_STATE_PROOF_PERPS_NP_LEAF_ID),
         "proof_type": PROOF_TYPE_RECURSIVE_PERPS_NP_LEAF,
@@ -2417,6 +2464,7 @@ fn recursive_perps_np_leaf_meta(journal: &RecursiveEffectSummaryV1) -> Value {
         "accepted_receipts_root": hex_lower(&journal.accepted_receipts_root),
         "rejected_receipts_root": hex_lower(&journal.rejected_receipts_root),
         "asset_delta_root": hex_lower(&journal.asset_delta_root),
+        "asset_delta_rows": recursive_asset_delta_rows_meta(asset_delta_rows),
         "cross_shard_outbox_root": hex_lower(&journal.cross_shard_outbox_root),
         "cross_shard_inbox_root": hex_lower(&journal.cross_shard_inbox_root),
         "write_set_root": hex_lower(&journal.write_set_root),
@@ -2500,6 +2548,75 @@ fn proof_meta_obj(proof: &Value) -> Result<&serde_json::Map<String, Value>, Stri
         .get("meta")
         .and_then(Value::as_object)
         .ok_or_else(|| "proof.meta must be an object".to_string())
+}
+
+fn parse_recursive_asset_delta_rows_meta(
+    meta: &serde_json::Map<String, Value>,
+) -> Result<Vec<RecursiveAssetDeltaRowV1>, String> {
+    let rows = meta
+        .get("asset_delta_rows")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "proof.meta.asset_delta_rows missing".to_string())?;
+    let mut parsed = Vec::with_capacity(rows.len());
+    for (index, row) in rows.iter().enumerate() {
+        let obj = row
+            .as_object()
+            .ok_or_else(|| format!("proof.meta.asset_delta_rows[{index}] must be an object"))?;
+        let field = |key: &str| {
+            obj.get(key)
+                .ok_or_else(|| format!("proof.meta.asset_delta_rows[{index}].{key} missing"))
+        };
+        let asset_id = field("asset_id")?
+            .as_str()
+            .ok_or_else(|| {
+                format!("proof.meta.asset_delta_rows[{index}].asset_id must be a string")
+            })?
+            .to_string();
+        let debit_atoms = parse_u128_value(
+            field("debit_atoms")?,
+            "proof.meta.asset_delta_rows[].debit_atoms",
+        )?;
+        let credit_atoms = parse_u128_value(
+            field("credit_atoms")?,
+            "proof.meta.asset_delta_rows[].credit_atoms",
+        )?;
+        let authorized_mint_atoms = parse_u128_value(
+            field("authorized_mint_atoms")?,
+            "proof.meta.asset_delta_rows[].authorized_mint_atoms",
+        )?;
+        let authorized_burn_atoms = parse_u128_value(
+            field("authorized_burn_atoms")?,
+            "proof.meta.asset_delta_rows[].authorized_burn_atoms",
+        )?;
+        let authority_root = field("authority_root")?
+            .as_str()
+            .ok_or_else(|| {
+                format!("proof.meta.asset_delta_rows[{index}].authority_root must be a hex string")
+            })
+            .and_then(parse_hex32_err)?;
+        parsed.push(RecursiveAssetDeltaRowV1 {
+            asset_id,
+            debit_atoms,
+            credit_atoms,
+            authorized_mint_atoms,
+            authorized_burn_atoms,
+            authority_root,
+        });
+    }
+    Ok(parsed)
+}
+
+fn expect_recursive_asset_delta_rows_meta(
+    proof: &Value,
+    expected_root: [u8; 32],
+) -> Result<(), String> {
+    let meta = proof_meta_obj(proof)?;
+    let rows = parse_recursive_asset_delta_rows_meta(meta)?;
+    let actual_root = recursive_asset_delta_root_v1(&rows).map_err(transition_error_str)?;
+    if actual_root != expected_root {
+        return Err("proof.meta.asset_delta_rows root mismatch".to_string());
+    }
+    Ok(())
 }
 
 fn check_spot_protocol_fee_bindings(
@@ -3839,7 +3956,7 @@ mod tests {
     #[test]
     fn recursive_spot_leaf_meta_binds_spot_leaf_image_id() {
         let summary = recursive_spot_leaf_summary();
-        let meta = recursive_spot_leaf_meta(&summary);
+        let meta = recursive_spot_leaf_meta(&summary, &[]);
         assert_eq!(
             meta["risc0_image_id"],
             Value::String(hex_u32_words(TAU_STATE_PROOF_SPOT_LEAF_ID))
@@ -3856,13 +3973,14 @@ mod tests {
             meta["proof_profile"],
             Value::String(RECURSIVE_SPOT_LEAF_PROFILE_V1.to_string())
         );
+        assert_eq!(meta["asset_delta_rows"], Value::Array(vec![]));
         assert!(validate_recursive_effect_summary_shape_v1(&summary).is_ok());
     }
 
     #[test]
     fn recursive_perps_np_leaf_meta_binds_perps_np_leaf_image_id() {
         let summary = recursive_perps_np_leaf_summary();
-        let meta = recursive_perps_np_leaf_meta(&summary);
+        let meta = recursive_perps_np_leaf_meta(&summary, &[]);
         assert_eq!(
             meta["risc0_image_id"],
             Value::String(hex_u32_words(TAU_STATE_PROOF_PERPS_NP_LEAF_ID))
@@ -3880,6 +3998,7 @@ mod tests {
             Value::String(RECURSIVE_PERPS_NP_LEAF_PROFILE_V1.to_string())
         );
         assert_eq!(meta["lane_kind"], Value::String("perps_np".to_string()));
+        assert_eq!(meta["asset_delta_rows"], Value::Array(vec![]));
         assert!(validate_recursive_effect_summary_shape_v1(&summary).is_ok());
     }
 
@@ -3934,6 +4053,89 @@ mod tests {
         assert_eq!(
             meta["asset_delta_rows"][0]["authority_root"],
             Value::String(hx(10))
+        );
+    }
+
+    #[test]
+    fn recursive_spot_leaf_meta_includes_exact_asset_delta_rows() {
+        let mut summary = recursive_spot_leaf_summary();
+        let rows = vec![RecursiveAssetDeltaRowV1 {
+            asset_id: "TEST".to_string(),
+            debit_atoms: 0,
+            credit_atoms: 7,
+            authorized_mint_atoms: 7,
+            authorized_burn_atoms: 0,
+            authority_root: h(10),
+        }];
+        summary.asset_delta_root = recursive_asset_delta_root_v1(&rows).unwrap();
+
+        let meta = recursive_spot_leaf_meta(&summary, &rows);
+
+        assert_eq!(
+            meta["asset_delta_root"],
+            Value::String(hex_lower(&summary.asset_delta_root))
+        );
+        assert_eq!(meta["asset_delta_rows"][0]["asset_id"], "TEST");
+        assert_eq!(meta["asset_delta_rows"][0]["credit_atoms"], "7");
+        assert_eq!(meta["asset_delta_rows"][0]["authorized_mint_atoms"], "7");
+        let parsed = parse_recursive_asset_delta_rows_meta(meta.as_object().unwrap()).unwrap();
+        assert_eq!(
+            recursive_asset_delta_root_v1(&parsed).unwrap(),
+            summary.asset_delta_root
+        );
+    }
+
+    #[test]
+    fn recursive_perps_np_leaf_meta_includes_exact_asset_delta_rows() {
+        let mut summary = recursive_perps_np_leaf_summary();
+        let rows = vec![RecursiveAssetDeltaRowV1 {
+            asset_id: "USDC".to_string(),
+            debit_atoms: 5,
+            credit_atoms: 0,
+            authorized_mint_atoms: 0,
+            authorized_burn_atoms: 0,
+            authority_root: [0u8; 32],
+        }];
+        summary.asset_delta_root = recursive_asset_delta_root_v1(&rows).unwrap();
+
+        let meta = recursive_perps_np_leaf_meta(&summary, &rows);
+
+        assert_eq!(
+            meta["asset_delta_root"],
+            Value::String(hex_lower(&summary.asset_delta_root))
+        );
+        assert_eq!(meta["asset_delta_rows"][0]["asset_id"], "USDC");
+        assert_eq!(meta["asset_delta_rows"][0]["debit_atoms"], "5");
+        assert_eq!(
+            meta["asset_delta_rows"][0]["authority_root"],
+            Value::String(hx(0))
+        );
+        let parsed = parse_recursive_asset_delta_rows_meta(meta.as_object().unwrap()).unwrap();
+        assert_eq!(
+            recursive_asset_delta_root_v1(&parsed).unwrap(),
+            summary.asset_delta_root
+        );
+    }
+
+    #[test]
+    fn recursive_leaf_meta_asset_delta_rows_reject_root_mismatch() {
+        let mut summary = recursive_spot_leaf_summary();
+        let rows = vec![RecursiveAssetDeltaRowV1 {
+            asset_id: "TEST".to_string(),
+            debit_atoms: 0,
+            credit_atoms: 7,
+            authorized_mint_atoms: 7,
+            authorized_burn_atoms: 0,
+            authority_root: h(10),
+        }];
+        summary.asset_delta_root = h(99);
+        let proof = json!({
+            "meta": recursive_spot_leaf_meta(&summary, &rows),
+        });
+
+        assert_eq!(
+            expect_recursive_asset_delta_rows_meta(&proof, summary.asset_delta_root).unwrap_err(),
+            "proof.meta.asset_delta_rows root mismatch"
         );
     }
 

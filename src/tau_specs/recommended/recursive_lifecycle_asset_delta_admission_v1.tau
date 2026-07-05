@@ -1,0 +1,37 @@
+# Recursive Lifecycle Asset Delta Admission v1
+#
+# PURPOSE:
+# Admit recursive lifecycle proof summaries only when the deterministic host has
+# verified the RISC0 receipt, derived lifecycle asset-delta rows, bound those
+# rows to the journal root, checked aggregate conservation, checked authority
+# roots, and bound the proof transcript to the Tau header context.
+#
+# i1 = proof_requested (sbf)
+# i2 = proof_verified (sbf)
+# i3 = proof_profile_supported (sbf)
+# i4 = leaf_rows_derived (sbf)
+# i5 = asset_delta_root_bound (sbf)
+# i6 = aggregate_rows_balanced (sbf)
+# i7 = authority_roots_allowed (sbf)
+# i8 = unsupported_lifecycle_absent (sbf)
+# i9 = tau_header_binding_ok (sbf)
+# i10 = transcript_binding_ok (sbf)
+#
+# o1 = row_certificate_ok
+# o2 = aggregate_conservation_ok
+# o3 = proof_binding_ok
+# o4 = recursive_lifecycle_admissible
+
+set charvar off
+
+row_certificate_ok(leaf_rows_derived : sbf, asset_delta_root_bound : sbf, unsupported_lifecycle_absent : sbf) := (leaf_rows_derived = 1:sbf) && (asset_delta_root_bound = 1:sbf) && (unsupported_lifecycle_absent = 1:sbf).
+
+aggregate_conservation_ok(aggregate_rows_balanced : sbf, authority_roots_allowed : sbf) := (aggregate_rows_balanced = 1:sbf) && (authority_roots_allowed = 1:sbf).
+
+proof_binding_ok(proof_verified : sbf, proof_profile_supported : sbf, tau_header_binding_ok : sbf, transcript_binding_ok : sbf) := (proof_verified = 1:sbf) && (proof_profile_supported = 1:sbf) && (tau_header_binding_ok = 1:sbf) && (transcript_binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> row_certificate_ok(i4[t]:sbf, i5[t]:sbf, i8[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> aggregate_conservation_ok(i6[t]:sbf, i7[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> proof_binding_ok(i2[t]:sbf, i3[t]:sbf, i9[t]:sbf, i10[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && row_certificate_ok(i4[t]:sbf, i5[t]:sbf, i8[t]:sbf) && aggregate_conservation_ok(i6[t]:sbf, i7[t]:sbf) && proof_binding_ok(i2[t]:sbf, i3[t]:sbf, i9[t]:sbf, i10[t]:sbf))).

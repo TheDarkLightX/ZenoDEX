@@ -217,6 +217,32 @@ proof_profile == expected_profile
 Proof generation is never enough. A generated receipt must be verified against
 the expected image ID and expected journal before it is used by a higher layer.
 
+## Tau-Unavailable Fallback
+
+Tau compatibility is an admission target, not a hidden dependency inside the
+RISC0 statement. If Tau execution, linting, or trace tooling is unavailable, the
+proof lane may still produce replayable local or testnet evidence only through a
+deterministic host checker that enforces the same Boolean contract:
+
+```text
+proof_requested
+&& proof_verified
+&& proof_profile_supported
+&& leaf_rows_derived
+&& asset_delta_root_bound
+&& aggregate_rows_balanced
+&& authority_roots_allowed
+&& unsupported_lifecycle_absent
+&& tau_header_binding_ok
+&& transcript_binding_ok
+```
+
+The fallback checker must recompute roots from public metadata and journals. It
+must not accept host-supplied row verdicts without recomputation. If Tau is down
+or incompatible, public status must be downgraded to local replay or testnet
+evidence; production or Tau-compatible claims remain false until the Tau spec,
+semantic contract lint, and admission traces pass again.
+
 ## RISC0 Receipt Profiles
 
 Receipt kind must be explicit at every boundary.
@@ -308,11 +334,15 @@ executes the checked spot transition, requires `pre_app_hash` to be present,
 requires the leaf `state_hash` to equal the checked post app root, and derives
 `EffectSummaryV1` from the resulting `StateProofJournalV1`. Its
 `receipt_root` is the native spot accepted-receipts root. Its recursive
-accepted/rejected receipt ID sets, cross-shard message sets, and asset-delta rows
-are empty in v1, so this profile proves local spot app-state transitions only.
-To keep that empty row set honest, v1 rejects faucet mints and native balance
-sync paths. It does not claim cross-shard asset movement or native ledger
-balance deltas.
+accepted/rejected receipt ID sets and cross-shard message sets are empty in v1.
+For lifecycle accounting, the leaf derives asset-delta rows from checked
+transition input data: faucet mints become authorized mint rows under the public
+policy hash, and native balance sync becomes ordinary debit/credit rows for the
+native asset. The CLI metadata must expose the exact rows and their recomputed
+root must equal the journal `asset_delta_root`. This profile proves local spot
+app-state transitions and row-root binding for the spot lifecycle verbs present
+in `StateProofInputV1`. It does not claim cross-shard settlement or native-chain
+source finality.
 
 The `risc0.zenodex_recursive_zusd_leaf.v1` method is the second
 transition-specific recursive leaf. It accepts `ZusdRecursiveLeafInputV1`,
@@ -335,21 +365,23 @@ The `risc0.zenodex_recursive_perps_np_leaf.v1` method is the third
 transition-specific recursive leaf. It accepts `PerpsNpRecursiveLeafInputV1`,
 executes the checked perps NP transition, requires `pre_app_hash` to be present,
 requires the leaf `state_hash` to equal the checked post app root, requires the
-inner perps journal image ID to match the perps-NP-leaf image ID, requires at
-least four participants, requires net base position zero, and derives
+inner perps journal image ID to match the perps-NP-leaf image ID, requires net
+base position zero, and derives
 `EffectSummaryV1` from `PerpsNpTransitionJournalV1`. Its `tx_root` is the perps
 operation hash. Its `evidence_root` binds oracle bindings, collateral bindings,
 participant set, receipt root, participant count, net position, total
 collateral, funding residual, and matched base volume. Its `receipt_root` is the
 checked perps receipt root. Recursive accepted/rejected receipt ID sets,
-cross-shard message sets, and asset-delta rows are empty in v1. To keep that
-empty row set honest, v1 accepts `RunEpoch` actions only and rejects
-deposit/withdraw/init/submit lifecycle actions until those effects have
-row-bearing certificates. This profile proves one local perps NP epoch
-transition under the existing perps surface. It does not claim full perps
-lifecycle coverage, cross-shard collateral movement, native ledger balance
-deltas, zUSD collateral source verification beyond hash-bound references, or
-oracle truth.
+cross-shard message sets are empty in v1. For lifecycle accounting, the leaf
+derives ordinary asset-delta rows for `InitMarket` insurance seed credits,
+`DepositCollateral` credits, and `WithdrawCollateral` debits. `SubmitIntent` and
+`RunEpoch` emit no external asset rows in the current Rust transition language;
+the four-participant floor is scoped to `RunEpoch`. The CLI metadata must expose
+the exact rows and their recomputed root must equal the journal
+`asset_delta_root`. This profile proves checked local perps NP lifecycle and
+epoch transitions under the existing perps surface. It does not claim cross-shard
+collateral movement, native ledger source finality, zUSD collateral source
+verification beyond hash-bound references, or oracle truth.
 
 Repeatable local smoke path:
 
@@ -698,11 +730,10 @@ Use this checklist before merging or promoting a circuit change:
 
 ## Next Frontier
 
-The highest-value implementation target is native-ledger asset-delta row
-extraction for spot and perps leaves, plus the remaining zUSD lifecycle rows
-outside deposit-mint. The recursive root now aggregates heterogeneous child
-profiles and the zUSD deposit-mint leaf exposes its authorized mint row, but
-spot/perps v1 leaves still expose empty native-ledger delta rows. A later
-profile must derive those rows from checked transition journals or a dedicated
-ledger-delta certificate before any cross-lane asset-conservation claim is
-production-grade.
+The highest-value implementation target is now admission hardening around
+row-bearing recursive proofs: production header binding, release-manifest
+evidence, and dedicated source-finality certificates for native-chain or
+cross-lane collateral movements. zUSD still only exposes the current Rust
+`DepositMint` lifecycle verb; later zUSD repay, redeem, or liquidation verbs must
+add exhaustive row extractors before they can share the same recursive
+asset-conservation claim.
