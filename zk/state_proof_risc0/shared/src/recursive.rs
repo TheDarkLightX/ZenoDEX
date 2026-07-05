@@ -7,18 +7,23 @@ use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::TransitionError;
+use crate::{
+    execute_state_proof_input_v1, StateProofInputV1, StateProofJournalV1, TransitionError,
+};
 
 pub const PROOF_TYPE_RECURSIVE: &str = "risc0.zenodex_recursive_epoch.v1";
 pub const PROOF_TYPE_RECURSIVE_SUMMARY_LEAF: &str = "risc0.zenodex_recursive_summary_leaf.v1";
+pub const PROOF_TYPE_RECURSIVE_SPOT_LEAF: &str = "risc0.zenodex_recursive_spot_leaf.v1";
 pub const RECURSIVE_EFFECT_SUMMARY_VERSION_V1: u32 = 1;
 pub const RECURSIVE_STATEMENT_VERSION_V1: u32 = 1;
 pub const RECURSIVE_JOURNAL_VERSION_V1: u32 = 1;
 pub const RECURSIVE_STRICT_CROSS_SHARD_MODE_V1: &str = "strict";
 pub const RECURSIVE_DOMAIN_SEPARATOR_V1: &str = "zenodex.risc0.recursive_epoch.v1";
 pub const RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1: &str = "recursive_summary_leaf_test_v1";
+pub const RECURSIVE_SPOT_LEAF_PROFILE_V1: &str = "recursive_spot_leaf_v1";
 pub const RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES: u32 = 4096;
 pub const RECURSIVE_SUMMARY_TEXT_MAX_BYTES: usize = 128;
+pub const RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES: u32 = 1_048_576;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecursiveCompositionStatementV1 {
@@ -129,6 +134,19 @@ pub struct RecursiveCompositionInputV1 {
     pub allowed_verifier_ids: Vec<[u8; 32]>,
     pub allowed_authority_roots: Vec<[u8; 32]>,
     pub children: Vec<RecursiveChildEffectV1>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SpotRecursiveLeafInputV1 {
+    pub chain_id: String,
+    pub epoch_id: u64,
+    pub lane_id: String,
+    pub risc0_image_id: [u32; 8],
+    pub public_policy_hash: [u8; 32],
+    pub feature_suite_hash: [u8; 32],
+    pub dependency_lock_hash: [u8; 32],
+    pub toolchain_lock_hash: [u8; 32],
+    pub spot_input: StateProofInputV1,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -540,6 +558,163 @@ pub fn recursive_effect_summary_hash_v1(summary: &RecursiveEffectSummaryV1) -> [
     write_bytes32(&mut hasher, &summary.feature_suite_hash);
     write_bytes32(&mut hasher, &summary.dependency_lock_hash);
     write_bytes32(&mut hasher, &summary.toolchain_lock_hash);
+    hasher.finalize().into()
+}
+
+pub fn compose_spot_recursive_leaf_summary_v1(
+    input: SpotRecursiveLeafInputV1,
+) -> Result<RecursiveEffectSummaryV1, TransitionError> {
+    require_nonempty_bounded(
+        &input.chain_id,
+        "spot leaf chain_id empty",
+        "spot leaf chain_id too long",
+    )?;
+    require_nonempty_bounded(
+        &input.lane_id,
+        "spot leaf lane_id empty",
+        "spot leaf lane_id too long",
+    )?;
+    require_nonzero_root(
+        &input.public_policy_hash,
+        "spot leaf public_policy_hash zero",
+    )?;
+    require_nonzero_root(
+        &input.feature_suite_hash,
+        "spot leaf feature_suite_hash zero",
+    )?;
+    require_nonzero_root(
+        &input.dependency_lock_hash,
+        "spot leaf dependency_lock_hash zero",
+    )?;
+    require_nonzero_root(
+        &input.toolchain_lock_hash,
+        "spot leaf toolchain_lock_hash zero",
+    )?;
+    if input.risc0_image_id.iter().all(|word| *word == 0) {
+        return Err(TransitionError::InvalidInput("spot leaf image id zero"));
+    }
+
+    let journal = execute_state_proof_input_v1(input.spot_input)?;
+    if !journal.pre_app_hash_present {
+        return Err(TransitionError::InvalidInput(
+            "spot recursive leaf requires pre_app_hash",
+        ));
+    }
+    if journal.state_hash != journal.post_app_hash {
+        return Err(TransitionError::InvalidInput(
+            "spot recursive leaf state_hash must equal post_app_hash",
+        ));
+    }
+
+    let empty_asset_rows = Vec::new();
+    let empty_messages = Vec::new();
+    let empty_receipt_ids = Vec::new();
+    let summary = RecursiveEffectSummaryV1 {
+        summary_version: RECURSIVE_EFFECT_SUMMARY_VERSION_V1,
+        lane_id: input.lane_id,
+        lane_kind: "spot".to_string(),
+        chain_id: input.chain_id,
+        epoch_id: input.epoch_id,
+        proof_profile: RECURSIVE_SPOT_LEAF_PROFILE_V1.to_string(),
+        risc0_image_id: input.risc0_image_id,
+        statement_hash: spot_recursive_leaf_statement_hash_v1(
+            &journal,
+            input.public_policy_hash,
+            input.feature_suite_hash,
+            input.dependency_lock_hash,
+            input.toolchain_lock_hash,
+        ),
+        pre_state_root: journal.pre_app_hash,
+        post_state_root: journal.post_app_hash,
+        tx_root: journal.txs_commitment,
+        evidence_root: spot_recursive_leaf_evidence_root_v1(&journal),
+        receipt_root: journal.accepted_receipts_root,
+        accepted_receipts_root: recursive_receipt_ids_root_v1(&empty_receipt_ids)?,
+        rejected_receipts_root: recursive_receipt_ids_root_v1(&empty_receipt_ids)?,
+        asset_delta_root: recursive_asset_delta_root_v1(&empty_asset_rows)?,
+        cross_shard_outbox_root: recursive_cross_shard_messages_root_v1(&empty_messages)?,
+        cross_shard_inbox_root: recursive_cross_shard_messages_root_v1(&empty_messages)?,
+        write_set_root: spot_recursive_leaf_write_set_root_v1(&journal),
+        public_policy_hash: input.public_policy_hash,
+        feature_suite_hash: input.feature_suite_hash,
+        dependency_lock_hash: input.dependency_lock_hash,
+        toolchain_lock_hash: input.toolchain_lock_hash,
+    };
+    validate_recursive_effect_summary_shape_v1(&summary)?;
+    Ok(summary)
+}
+
+pub fn spot_recursive_leaf_statement_hash_v1(
+    journal: &StateProofJournalV1,
+    public_policy_hash: [u8; 32],
+    feature_suite_hash: [u8; 32],
+    dependency_lock_hash: [u8; 32],
+    toolchain_lock_hash: [u8; 32],
+) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"zenodex.risc0.recursive.spot_leaf.statement.v1");
+    write_u32(&mut hasher, journal.journal_version);
+    write_bytes32(&mut hasher, &journal.state_hash);
+    write_bytes32(&mut hasher, &journal.txs_commitment);
+    write_bytes32(&mut hasher, &journal.ingress_commitment);
+    write_bytes32(&mut hasher, &journal.pre_nonce_root);
+    write_bytes32(&mut hasher, &journal.post_nonce_root);
+    write_bytes32(&mut hasher, &journal.accepted_receipts_root);
+    hasher.update([journal.pre_app_hash_present as u8]);
+    write_bytes32(&mut hasher, &journal.pre_app_hash);
+    write_bytes32(&mut hasher, &journal.post_app_hash);
+    write_u32(&mut hasher, journal.protocol_fee_share_bps);
+    match &journal.protocol_fee_recipient_pubkey {
+        Some(value) => {
+            hasher.update([1u8]);
+            write_str(&mut hasher, value);
+        }
+        None => hasher.update([0u8]),
+    }
+    write_bytes32(&mut hasher, &journal.tx_execution_order_commitment);
+    write_bytes32(&mut hasher, &public_policy_hash);
+    write_bytes32(&mut hasher, &feature_suite_hash);
+    write_bytes32(&mut hasher, &dependency_lock_hash);
+    write_bytes32(&mut hasher, &toolchain_lock_hash);
+    hasher.finalize().into()
+}
+
+pub fn spot_recursive_leaf_evidence_root_v1(journal: &StateProofJournalV1) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"zenodex.risc0.recursive.spot_leaf.evidence_root.v1");
+    write_bytes32(&mut hasher, &journal.ingress_commitment);
+    write_bytes32(&mut hasher, &journal.tx_execution_order_commitment);
+    write_bytes32(&mut hasher, &journal.route_price_intervals_root);
+    write_bytes32(&mut hasher, &journal.route_price_interval_authority_root);
+    write_bytes32(
+        &mut hasher,
+        &journal.route_price_interval_authority_policy_root,
+    );
+    match journal.route_price_interval_max_width_bps {
+        Some(value) => {
+            hasher.update([1u8]);
+            write_u64(&mut hasher, value);
+        }
+        None => hasher.update([0u8]),
+    }
+    write_u32(
+        &mut hasher,
+        journal.shared_pool_frontier_signature_certificate_count,
+    );
+    write_bytes32(
+        &mut hasher,
+        &journal.shared_pool_frontier_signature_certificates_root,
+    );
+    hasher.finalize().into()
+}
+
+pub fn spot_recursive_leaf_write_set_root_v1(journal: &StateProofJournalV1) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"zenodex.risc0.recursive.spot_leaf.write_set_root.v1");
+    write_bytes32(&mut hasher, &journal.pre_nonce_root);
+    write_bytes32(&mut hasher, &journal.post_nonce_root);
+    write_bytes32(&mut hasher, &journal.pre_app_hash);
+    write_bytes32(&mut hasher, &journal.post_app_hash);
     hasher.finalize().into()
 }
 
@@ -1179,6 +1354,7 @@ fn write_cross_shard_message(hasher: &mut Sha256, row: &RecursiveCrossShardMessa
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{accepted_receipts_root_v1, DexStateV1, StateProofInputV1};
     use alloc::string::ToString;
 
     fn h(byte: u8) -> [u8; 32] {
@@ -1187,6 +1363,43 @@ mod tests {
 
     fn image(byte: u32) -> [u32; 8] {
         [byte; 8]
+    }
+
+    fn spot_leaf_input() -> SpotRecursiveLeafInputV1 {
+        let snapshot = DexStateV1::empty().to_snapshot();
+        let app_hash = DexStateV1::from_snapshot(snapshot.clone())
+            .unwrap()
+            .canonical_app_hash_sha256();
+        SpotRecursiveLeafInputV1 {
+            chain_id: "tau-test".to_string(),
+            epoch_id: 7,
+            lane_id: "spot-lane-a".to_string(),
+            risc0_image_id: image(41),
+            public_policy_hash: h(10),
+            feature_suite_hash: h(11),
+            dependency_lock_hash: h(12),
+            toolchain_lock_hash: h(13),
+            spot_input: StateProofInputV1 {
+                state_hash: app_hash,
+                block_timestamp: 1,
+                pre_app_hash_present: true,
+                pre_app_hash: app_hash,
+                pre_state: snapshot,
+                txs: Vec::new(),
+                pre_nonces: Vec::new(),
+                tx_ingress: Vec::new(),
+                chain_balances_post: Vec::new(),
+                expected_post_app_hash: app_hash,
+                protocol_fee_share_bps: 0,
+                protocol_fee_recipient_pubkey: None,
+                tx_execution_order: Vec::new(),
+                route_price_intervals: Vec::new(),
+                route_price_interval_authority: None,
+                route_price_interval_authority_policy: None,
+                route_price_interval_max_width_bps: None,
+                shared_pool_frontier_signature_certificates: Vec::new(),
+            },
+        }
     }
 
     fn asset_row(asset_id: &str, debit: u128, credit: u128) -> RecursiveAssetDeltaRowV1 {
@@ -1434,6 +1647,53 @@ mod tests {
         assert!(matches!(
             validate_recursive_effect_summary_shape_v1(&summary),
             Err(TransitionError::InvalidInput("summary lane_id too long"))
+        ));
+    }
+
+    #[test]
+    fn spot_recursive_leaf_derives_summary_from_checked_transition() {
+        let input = spot_leaf_input();
+        let expected_receipt_root =
+            accepted_receipts_root_v1(&input.spot_input.txs, &input.spot_input.tx_ingress).unwrap();
+        let app_hash = input.spot_input.expected_post_app_hash;
+        let summary = compose_spot_recursive_leaf_summary_v1(input).unwrap();
+        assert_eq!(summary.lane_kind, "spot");
+        assert_eq!(summary.proof_profile, RECURSIVE_SPOT_LEAF_PROFILE_V1);
+        assert_eq!(summary.pre_state_root, app_hash);
+        assert_eq!(summary.post_state_root, app_hash);
+        assert_eq!(summary.receipt_root, expected_receipt_root);
+        assert_eq!(
+            summary.accepted_receipts_root,
+            recursive_receipt_ids_root_v1(&[]).unwrap()
+        );
+        assert_eq!(
+            summary.asset_delta_root,
+            recursive_asset_delta_root_v1(&[]).unwrap()
+        );
+    }
+
+    #[test]
+    fn spot_recursive_leaf_rejects_missing_pre_app_hash() {
+        let mut input = spot_leaf_input();
+        input.spot_input.pre_app_hash_present = false;
+        input.spot_input.pre_app_hash = [0u8; 32];
+        assert!(matches!(
+            compose_spot_recursive_leaf_summary_v1(input),
+            Err(TransitionError::InvalidInput(
+                "spot recursive leaf requires pre_app_hash"
+            ))
+        ));
+    }
+
+    #[test]
+    fn spot_recursive_leaf_rejects_state_hash_post_root_drift() {
+        let mut input = spot_leaf_input();
+        input.spot_input.state_hash = h(200);
+        assert!(matches!(
+            compose_spot_recursive_leaf_summary_v1(input),
+            Err(TransitionError::InvalidInput(
+                "spot recursive leaf state_hash must equal post_app_hash"
+            ))
         ));
     }
 

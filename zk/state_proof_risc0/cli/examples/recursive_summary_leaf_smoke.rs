@@ -6,9 +6,10 @@ use tau_state_proof_risc0_shared::{
     recursive_child_journal_hash_v1, recursive_child_verification_claim_hash_v1,
     recursive_child_verifier_id_v1, recursive_cross_shard_messages_root_v1,
     recursive_effect_summary_hash_v1, recursive_receipt_ids_root_v1, recursive_vector_root_v1,
-    recursive_verifier_set_root_v1, RecursiveChildDescriptorV1, RecursiveChildEffectV1,
+    recursive_verifier_set_root_v1, DexStateV1, RecursiveChildDescriptorV1, RecursiveChildEffectV1,
     RecursiveCompositionInputV1, RecursiveCompositionStatementV1, RecursiveEffectSummaryV1,
-    RECURSIVE_DOMAIN_SEPARATOR_V1, RECURSIVE_EFFECT_SUMMARY_VERSION_V1,
+    SpotRecursiveLeafInputV1, StateProofInputV1, RECURSIVE_DOMAIN_SEPARATOR_V1,
+    RECURSIVE_EFFECT_SUMMARY_VERSION_V1, RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES,
     RECURSIVE_STATEMENT_VERSION_V1, RECURSIVE_STRICT_CROSS_SHARD_MODE_V1,
     RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES, RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1,
 };
@@ -92,6 +93,59 @@ fn print_summary_request(image_id_hex: &str) -> Result<(), String> {
             "recursive_summary": summary,
         }))
         .map_err(|e| format!("summary request json: {e}"))?
+    );
+    Ok(())
+}
+
+fn print_spot_request(image_id_hex: &str) -> Result<(), String> {
+    let snapshot = DexStateV1::empty().to_snapshot();
+    let app_hash = DexStateV1::from_snapshot(snapshot.clone())
+        .map_err(|e| format!("spot pre-state rejected: {e:?}"))?
+        .canonical_app_hash_sha256();
+    let input = SpotRecursiveLeafInputV1 {
+        chain_id: "tau-devnet-recursive-smoke".to_string(),
+        epoch_id: 1,
+        lane_id: "spot-root-child-0001".to_string(),
+        risc0_image_id: parse_image_id(image_id_hex)?,
+        public_policy_hash: root(8),
+        feature_suite_hash: root(9),
+        dependency_lock_hash: root(10),
+        toolchain_lock_hash: root(11),
+        spot_input: StateProofInputV1 {
+            state_hash: app_hash,
+            block_timestamp: 1,
+            pre_app_hash_present: true,
+            pre_app_hash: app_hash,
+            pre_state: snapshot,
+            txs: Vec::new(),
+            pre_nonces: Vec::new(),
+            tx_ingress: Vec::new(),
+            chain_balances_post: Vec::new(),
+            expected_post_app_hash: app_hash,
+            protocol_fee_share_bps: 0,
+            protocol_fee_recipient_pubkey: None,
+            tx_execution_order: Vec::new(),
+            route_price_intervals: Vec::new(),
+            route_price_interval_authority: None,
+            route_price_interval_authority_policy: None,
+            route_price_interval_max_width_bps: None,
+            shared_pool_frontier_signature_certificates: Vec::new(),
+        },
+    };
+    let bytes = postcard::to_allocvec(&input).map_err(|e| format!("postcard spot leaf: {e}"))?;
+    if bytes.len() > RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES as usize {
+        return Err("spot leaf input exceeds input byte cap".to_string());
+    }
+    println!(
+        "{}",
+        serde_json::to_string(&json!({
+            "schema": "tau_state_proof_request",
+            "schema_version": 1,
+            "state_hash": hex_bytes(&app_hash),
+            "proof_type": "risc0.zenodex_recursive_spot_leaf.v1",
+            "spot_recursive_leaf_input": input,
+        }))
+        .map_err(|e| format!("spot request json: {e}"))?
     );
     Ok(())
 }
@@ -282,8 +336,9 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let result = match args.as_slice() {
         [_, mode, image_id_hex] if mode == "summary" => print_summary_request(image_id_hex),
+        [_, mode, image_id_hex] if mode == "spot" => print_spot_request(image_id_hex),
         [_, mode, proof_path] if mode == "root" => print_root_request(proof_path),
-        _ => Err("usage: recursive_summary_leaf_smoke summary <image-id-hex> | root <summary-leaf-proof-json>".to_string()),
+        _ => Err("usage: recursive_summary_leaf_smoke summary <image-id-hex> | spot <image-id-hex> | root <recursive-leaf-proof-json>".to_string()),
     };
     if let Err(err) = result {
         eprintln!("{err}");

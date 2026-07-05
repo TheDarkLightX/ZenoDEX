@@ -294,6 +294,16 @@ semantics. Production recursive leaves must use transition-specific images that
 derive their `EffectSummaryV1` from the checked transition, or an adapter proof
 that verifies the source receipt and proves the summary binding.
 
+The `risc0.zenodex_recursive_spot_leaf.v1` method is the first
+transition-specific recursive leaf. It accepts `SpotRecursiveLeafInputV1`,
+executes the checked spot transition, requires `pre_app_hash` to be present,
+requires the leaf `state_hash` to equal the checked post app root, and derives
+`EffectSummaryV1` from the resulting `StateProofJournalV1`. Its
+`receipt_root` is the native spot accepted-receipts root. Its recursive
+accepted/rejected receipt ID sets, cross-shard message sets, and asset-delta rows
+are empty in v1, so this profile proves local spot app-state transitions only.
+It does not claim cross-shard asset movement or native ledger balance deltas.
+
 Repeatable local smoke path:
 
 ```bash
@@ -308,11 +318,22 @@ cargo run -q -p tau-state-proof-risc0-cli --example recursive_summary_leaf_smoke
   root /tmp/summary-leaf.proof.json > /tmp/recursive-root.request.json
 RISC0_FORCE_BUILD=1 cargo run -q -p tau-state-proof-risc0-cli \
   < /tmp/recursive-root.request.json > /tmp/recursive-root.proof.json
+
+SPOT_IMAGE_ID_HEX=<hex spot leaf image ID from generated methods.rs>
+cargo run -q -p tau-state-proof-risc0-cli --example recursive_summary_leaf_smoke -- \
+  spot "$SPOT_IMAGE_ID_HEX" > /tmp/spot-leaf.request.json
+RISC0_FORCE_BUILD=1 cargo run -q -p tau-state-proof-risc0-cli \
+  < /tmp/spot-leaf.request.json > /tmp/spot-leaf.proof.json
+cargo run -q -p tau-state-proof-risc0-cli --example recursive_summary_leaf_smoke -- \
+  root /tmp/spot-leaf.proof.json > /tmp/spot-recursive-root.request.json
+RISC0_FORCE_BUILD=1 cargo run -q -p tau-state-proof-risc0-cli \
+  < /tmp/spot-recursive-root.request.json > /tmp/spot-recursive-root.proof.json
 ```
 
-This smoke proves recursive plumbing only: the root receipt verifies one child
-receipt through RISC0 assumptions and checks the bounded summary shape. It does
-not upgrade any transition-specific production claim.
+The summary-leaf smoke proves recursive plumbing only. The spot-leaf smoke also
+proves a checked local spot transition, then verifies that child receipt through
+the recursive root. Neither smoke upgrades cross-shard or native-ledger
+production claims.
 
 Every child descriptor must bind:
 

@@ -590,12 +590,22 @@ real assumption-based recursion, but it is not a production transition leaf
 because it does not derive the summary from spot, perps, zUSD, oracle, or ledger
 semantics.
 
+This repo also includes `risc0.zenodex_recursive_spot_leaf.v1`, the first
+transition-specific recursive leaf. It executes the existing checked spot
+transition and derives a recursive summary from `StateProofJournalV1`. The v1
+profile is intentionally local: recursive accepted/rejected receipt ID sets,
+asset-delta rows, and cross-shard messages are empty, while the native spot
+accepted-receipts root is committed as `receipt_root`. This proves local spot
+app-state transitions under recursion; it does not claim cross-shard settlement
+or native ledger balance deltas.
+
 The repeatable smoke helper is
 `zk/state_proof_risc0/cli/examples/recursive_summary_leaf_smoke.rs`. It builds a
-summary-leaf proof request, then builds a recursive root proof request that uses
-the summary-leaf receipt as a child proof assumption. The 2026-07-04 local smoke
-verified a one-child root receipt with `{"ok":true}`. This is plumbing evidence,
-not a production transition claim.
+summary-leaf or spot-leaf proof request, then builds a recursive root proof
+request that uses that leaf receipt as a child proof assumption. The 2026-07-04
+summary-leaf and spot-leaf local smokes both verified one-child root receipts
+with `{"ok":true}`. The spot-leaf smoke is transition evidence for the scoped
+local spot profile; the summary-leaf smoke remains plumbing evidence only.
 
 ## ZenoLedger / Tau Acceptance Algorithm
 

@@ -10,4 +10,4 @@ risc0-build = "1.2"
 [dependencies]
 
 [package.metadata.risc0]
-methods = ["guest", "summary_leaf"]
+methods = ["guest", "spot_leaf", "summary_leaf"]

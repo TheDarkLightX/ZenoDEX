@@ -46,6 +46,8 @@ fn write_placeholder(methods_rs: &std::path::Path) {
 
 pub const TAU_STATE_PROOF_RISC0_GUEST_ELF: &[u8] = &[];
 pub const TAU_STATE_PROOF_RISC0_GUEST_ID: [u32; 8] = [0; 8];
+pub const TAU_STATE_PROOF_RISC0_SPOT_LEAF_ELF: &[u8] = &[];
+pub const TAU_STATE_PROOF_RISC0_SPOT_LEAF_ID: [u32; 8] = [0; 8];
 pub const TAU_STATE_PROOF_RISC0_SUMMARY_LEAF_ELF: &[u8] = &[];
 pub const TAU_STATE_PROOF_RISC0_SUMMARY_LEAF_ID: [u32; 8] = [0; 8];
 "#;
