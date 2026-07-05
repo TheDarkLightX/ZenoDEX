@@ -34,6 +34,7 @@ PATH_VALUE_FLAGS = {
     "--prev-snapshot",
     "--profile",
     "--proof-mining-state",
+    "--recursive-lifecycle-admission-dir",
     "--source-root",
     "--tau-app-state",
     "--tau-chain-balances",

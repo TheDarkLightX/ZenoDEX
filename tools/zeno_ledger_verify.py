@@ -25,6 +25,9 @@ from src.integration.zeno_ledger_v0 import (  # noqa: E402
     validate_proof_metadata_header_binding_v0,
     validate_proof_metadata_v0,
 )
+from tools.check_recursive_lifecycle_admission import (  # noqa: E402
+    validate_recursive_lifecycle_admission_packet_v1,
+)
 
 ZERO_ROOT = "0x" + "00" * 32
 REPORT_SCHEMA = "zenodex.zeno_ledger.verify_report.v0"
@@ -51,11 +54,13 @@ def verify_zeno_ledger_v0(
     proof_metadata_dir: Path | None = None,
     proof_verification_report_dir: Path | None = None,
     require_proof_verification_report: bool = False,
+    recursive_lifecycle_admission_dir: Path | None = None,
 ) -> dict[str, Any]:
     errors: list[str] = []
     checked_heights: list[int] = []
     proof_metadata_checked_heights: list[int] = []
     proof_verification_checked_heights: list[int] = []
+    recursive_lifecycle_admission_checked_heights: list[int] = []
     last_header_hash: str | None = None
     last_post_state_root: str | None = None
     last_app_hash: str | None = None
@@ -73,6 +78,8 @@ def verify_zeno_ledger_v0(
         errors.append("proof_metadata_dir_missing")
     if proof_verification_report_dir is not None and not proof_verification_report_dir.is_dir():
         errors.append("proof_verification_report_dir_missing")
+    if recursive_lifecycle_admission_dir is not None and not recursive_lifecycle_admission_dir.is_dir():
+        errors.append("recursive_lifecycle_admission_dir_missing")
     if require_proof_verification_report and proof_verification_report_dir is None:
         errors.append("require_proof_verification_report_requires_dir")
     if proof_verification_report_dir is not None and proof_metadata_dir is None:
@@ -102,6 +109,7 @@ def verify_zeno_ledger_v0(
             checked_heights=checked_heights,
             proof_metadata_checked_heights=proof_metadata_checked_heights,
             proof_verification_checked_heights=proof_verification_checked_heights,
+            recursive_lifecycle_admission_checked_heights=recursive_lifecycle_admission_checked_heights,
             last_header_hash=last_header_hash,
             last_post_state_root=last_post_state_root,
             last_app_hash=last_app_hash,
@@ -132,6 +140,14 @@ def verify_zeno_ledger_v0(
                     raise ValueError(f"proof metadata missing at height {height}")
                 proof_metadata = dict(_load_json_object(proof_metadata_path))
                 validate_proof_metadata_header_binding_v0(proof_metadata, header)
+                if proof_metadata.get("proof_kind") == "recursive_epoch_v0":
+                    _validate_recursive_lifecycle_admission_for_height_v0(
+                        height=height,
+                        recursive_lifecycle_admission_dir=recursive_lifecycle_admission_dir,
+                        proof_metadata=proof_metadata,
+                        header=header,
+                    )
+                    recursive_lifecycle_admission_checked_heights.append(height)
                 proof_metadata_checked_heights.append(height)
                 if proof_verification_report_dir is not None:
                     report_path = proof_verification_report_dir / f"{height}.json"
@@ -166,6 +182,7 @@ def verify_zeno_ledger_v0(
         checked_heights=checked_heights,
         proof_metadata_checked_heights=proof_metadata_checked_heights,
         proof_verification_checked_heights=proof_verification_checked_heights,
+        recursive_lifecycle_admission_checked_heights=recursive_lifecycle_admission_checked_heights,
         last_header_hash=last_header_hash,
         last_post_state_root=last_post_state_root,
         last_app_hash=last_app_hash,
@@ -178,6 +195,7 @@ def _report(
     checked_heights: list[int],
     proof_metadata_checked_heights: list[int],
     proof_verification_checked_heights: list[int],
+    recursive_lifecycle_admission_checked_heights: list[int],
     last_header_hash: str | None,
     last_post_state_root: str | None,
     last_app_hash: str | None,
@@ -190,6 +208,7 @@ def _report(
         "checked_heights": checked_heights,
         "proof_metadata_checked_heights": proof_metadata_checked_heights,
         "proof_verification_checked_heights": proof_verification_checked_heights,
+        "recursive_lifecycle_admission_checked_heights": recursive_lifecycle_admission_checked_heights,
         "last_header_hash": last_header_hash,
         "last_post_state_root": last_post_state_root,
         "last_app_hash": last_app_hash,
@@ -207,6 +226,71 @@ def _require_str(value: object, *, name: str) -> str:
     if not isinstance(value, str) or value == "":
         raise ValueError(f"{name} must be a non-empty str")
     return value
+
+
+def _validate_recursive_lifecycle_admission_for_height_v0(
+    *,
+    height: int,
+    recursive_lifecycle_admission_dir: Path | None,
+    proof_metadata: Mapping[str, Any],
+    header: Mapping[str, Any],
+) -> None:
+    if recursive_lifecycle_admission_dir is None:
+        raise ValueError("recursive lifecycle admission packet dir required")
+    packet_path = recursive_lifecycle_admission_dir / f"{height}.json"
+    if not packet_path.is_file():
+        raise ValueError(f"recursive lifecycle admission packet missing at height {height}")
+
+    packet = dict(_load_json_object(packet_path))
+    admission_report = validate_recursive_lifecycle_admission_packet_v1(packet)
+    if admission_report.get("ok") is not True:
+        errors = admission_report.get("errors")
+        if not isinstance(errors, list):
+            errors = ["invalid recursive lifecycle admission report"]
+        raise ValueError("recursive lifecycle admission rejected: " + "; ".join(str(error) for error in errors))
+
+    packet_header = _load_mapping(packet.get("header"), name="recursive_lifecycle_admission.header")
+    packet_meta = _load_mapping(packet.get("proof_meta"), name="recursive_lifecycle_admission.proof_meta")
+    for key in (
+        "post_state_root",
+        "tx_root",
+        "evidence_root",
+        "data_availability_root",
+    ):
+        _require_same_hex32_no_prefix(
+            actual=packet_header.get(key),
+            expected=header.get(key),
+            name=f"recursive lifecycle admission/header {key}",
+        )
+    _require_same_hex32_no_prefix(
+        actual=packet_header.get("feature_suite_hash"),
+        expected=proof_metadata.get("feature_suite_hash"),
+        name="recursive lifecycle admission/proof_metadata feature_suite_hash",
+    )
+    _require_same_hex32_no_prefix(
+        actual=packet_meta.get("aggregate_asset_delta_root"),
+        expected=admission_report.get("computed_aggregate_asset_delta_root"),
+        name="recursive lifecycle admission/aggregate_asset_delta_root",
+    )
+
+
+def _require_same_hex32_no_prefix(*, actual: object, expected: object, name: str) -> None:
+    actual_hex = _hex32_no_prefix(actual, name=f"{name}.actual")
+    expected_hex = _hex32_no_prefix(expected, name=f"{name}.expected")
+    if actual_hex != expected_hex:
+        raise ValueError(f"{name} mismatch")
+
+
+def _hex32_no_prefix(value: object, *, name: str) -> str:
+    raw = _require_str(value, name=name)
+    raw = raw[2:] if raw.startswith("0x") else raw
+    if len(raw) != 64:
+        raise ValueError(f"{name} must be a hex32 string")
+    try:
+        bytes.fromhex(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a hex32 string") from exc
+    return raw.lower()
 
 
 def validate_proof_verification_report_v0(
@@ -262,6 +346,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--proof-metadata-dir", type=Path)
     parser.add_argument("--proof-verification-report-dir", type=Path)
     parser.add_argument("--require-proof-verification-report", action="store_true")
+    parser.add_argument("--recursive-lifecycle-admission-dir", type=Path)
     parser.add_argument("--profile", type=Path)
     parser.add_argument("--from-height", required=True, type=int)
     parser.add_argument("--to-height", required=True, type=int)
@@ -279,6 +364,7 @@ def main(argv: list[str] | None = None) -> int:
         proof_metadata_dir=args.proof_metadata_dir,
         proof_verification_report_dir=args.proof_verification_report_dir,
         require_proof_verification_report=bool(args.require_proof_verification_report),
+        recursive_lifecycle_admission_dir=args.recursive_lifecycle_admission_dir,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["ok"] else 1
