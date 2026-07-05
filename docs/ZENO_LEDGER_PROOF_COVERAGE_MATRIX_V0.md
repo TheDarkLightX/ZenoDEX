@@ -32,7 +32,11 @@ Current supported surfaces cover:
   checkpoint quorum;
 - recursive lifecycle asset-delta row coverage for the current spot, zUSD
   DepositMint, and perps NP recursive leaf surfaces, with CLI row-root metadata
-  binding and a Tau-compatible lifecycle admission gate.
+  binding and a Tau-compatible lifecycle admission gate;
+- deterministic recursive lifecycle admission packet checking that recomputes
+  row roots, checks aggregate conservation, authority roots, header roots,
+  transcript binding, supported profile flags, and emits the same
+  Tau-compatible admission booleans.
 
 Current explicit gaps cover UPBA v2/v3 proof execution, Oracle critical-action
 proof execution, zUSD proof execution, perps proof execution, proof-market

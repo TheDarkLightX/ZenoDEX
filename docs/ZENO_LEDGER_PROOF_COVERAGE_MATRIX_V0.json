@@ -48,6 +48,12 @@
       "claim_id": "rust_tau:zeno_ledger:recursive_lifecycle_asset_delta_rows_v1",
       "coverage": "Recursive spot, zUSD deposit-mint, and perps NP leaf summaries derive lifecycle asset-delta rows from checked transition inputs or journals, bind those rows through asset_delta_root, require CLI metadata rows to recompute to the journal root, and expose a Tau-compatible recursive lifecycle admission gate over host-projected proof, row, aggregate, authority, header, and transcript booleans.",
       "proof_kind": "recursive_risc0_local_leaf_and_tau_admission"
+    },
+    {
+      "id": "recursive_lifecycle_admission_packet_checker",
+      "claim_id": "py:zeno_ledger:recursive_lifecycle_admission_packet_v1",
+      "coverage": "Deterministic recursive lifecycle admission packet checker recomputes the aggregate asset-delta row root, checks aggregate row conservation, authority roots, proof profile, proof verification flag, header root binding, transcript binding, and emits the Tau-compatible admission booleans. This is a local fail-closed admission checker and does not claim production recursive runtime integration, data availability, source finality, or recursive proof cryptographic soundness.",
+      "proof_kind": "deterministic_admission_checker"
     }
   ],
   "gap_surfaces": [

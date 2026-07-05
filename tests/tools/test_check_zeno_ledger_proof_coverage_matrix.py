@@ -18,11 +18,12 @@ def test_proof_coverage_matrix_accepts_default_matrix() -> None:
     report = validate_proof_coverage_matrix_v0(_matrix())
 
     assert report["ok"] is True
-    assert report["supported_surface_count"] == 8
+    assert report["supported_surface_count"] == 9
     assert report["gap_surface_count"] == 10
     assert report["non_claim_count"] == 10
     supported_by_id = {item["id"]: item for item in report["supported_surfaces"]}
     assert supported_by_id["recursive_lifecycle_asset_delta_rows"]["claim_status"] == "supported"
+    assert supported_by_id["recursive_lifecycle_admission_packet_checker"]["claim_status"] == "supported"
     assert {item["claim_status"] for item in report["supported_surfaces"]} <= {"proved", "supported"}
 
 
@@ -90,6 +91,22 @@ def test_proof_coverage_matrix_rejects_missing_recursive_lifecycle_supported_sur
     assert report["ok"] is False
     assert any(
         "missing required supported surfaces: recursive_lifecycle_asset_delta_rows" == err
+        for err in report["errors"]
+    )
+
+
+def test_proof_coverage_matrix_rejects_missing_recursive_lifecycle_checker_surface() -> None:
+    matrix = _matrix()
+    supported = list(matrix["supported_surfaces"])  # type: ignore[arg-type]
+    matrix["supported_surfaces"] = [
+        item for item in supported if item["id"] != "recursive_lifecycle_admission_packet_checker"  # type: ignore[index]
+    ]
+
+    report = validate_proof_coverage_matrix_v0(matrix)
+
+    assert report["ok"] is False
+    assert any(
+        "missing required supported surfaces: recursive_lifecycle_admission_packet_checker" == err
         for err in report["errors"]
     )
 

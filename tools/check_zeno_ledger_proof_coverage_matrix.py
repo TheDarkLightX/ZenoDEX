@@ -30,6 +30,7 @@ REQUIRED_SUPPORTED_IDS = frozenset(
         "proof_verification_report_replay",
         "light_client_checkpoint_quorum",
         "recursive_lifecycle_asset_delta_rows",
+        "recursive_lifecycle_admission_packet_checker",
     }
 )
 

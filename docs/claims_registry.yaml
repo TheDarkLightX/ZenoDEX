@@ -1218,6 +1218,32 @@ claims:
         - docs/RISC0_CIRCUIT_QUALITY_CBC_SPEC.md
         - docs/research/RECURSIVE_STARK_SCALING_ARCHITECTURE_20260704.md
 
+  - id: py:zeno_ledger:recursive_lifecycle_admission_packet_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The recursive lifecycle admission packet checker is a deterministic,
+      fail-closed mirror of the Tau admission predicate for host-projected
+      recursive lifecycle proofs. It accepts only when the packet schema,
+      proof-requested flag, verifier-backed proof flag, supported recursive
+      profile, derived asset-delta row root, aggregate row conservation,
+      allowed authority roots, unsupported-lifecycle absence, header-bound
+      roots, transcript binding, and child-count witness all pass. This is a
+      local admission-checker claim. It does not verify RISC0 cryptography, does
+      not prove production runtime integration, and does not close data
+      availability or source-finality requirements.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 -m py_compile tools/check_recursive_lifecycle_admission.py tests/tools/test_check_recursive_lifecycle_admission.py
+        - cmd: python3 -m pytest -q tests/tools/test_check_recursive_lifecycle_admission.py
+      files:
+        - tools/check_recursive_lifecycle_admission.py
+        - tests/tools/test_check_recursive_lifecycle_admission.py
+        - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
+        - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.md
+        - docs/claims_registry.yaml
+
   - id: py:zeno_ledger:proof_coverage_matrix_v0
     status: supported
     layer: assurance
