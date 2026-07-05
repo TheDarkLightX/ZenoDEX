@@ -6,5 +6,6 @@ members = [
   "methods/guest",
   "methods/spot_leaf",
   "methods/summary_leaf",
+  "methods/zusd_leaf",
   "cli",
 ]

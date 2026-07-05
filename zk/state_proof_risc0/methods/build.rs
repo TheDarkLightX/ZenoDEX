@@ -50,6 +50,8 @@ pub const TAU_STATE_PROOF_RISC0_SPOT_LEAF_ELF: &[u8] = &[];
 pub const TAU_STATE_PROOF_RISC0_SPOT_LEAF_ID: [u32; 8] = [0; 8];
 pub const TAU_STATE_PROOF_RISC0_SUMMARY_LEAF_ELF: &[u8] = &[];
 pub const TAU_STATE_PROOF_RISC0_SUMMARY_LEAF_ID: [u32; 8] = [0; 8];
+pub const TAU_STATE_PROOF_RISC0_ZUSD_LEAF_ELF: &[u8] = &[];
+pub const TAU_STATE_PROOF_RISC0_ZUSD_LEAF_ID: [u32; 8] = [0; 8];
 "#;
     fs::write(methods_rs, stub).expect("write placeholder methods.rs");
 }

@@ -6,12 +6,15 @@ use tau_state_proof_risc0_shared::{
     recursive_child_journal_hash_v1, recursive_child_verification_claim_hash_v1,
     recursive_child_verifier_id_v1, recursive_cross_shard_messages_root_v1,
     recursive_effect_summary_hash_v1, recursive_receipt_ids_root_v1, recursive_vector_root_v1,
-    recursive_verifier_set_root_v1, DexStateV1, RecursiveChildDescriptorV1, RecursiveChildEffectV1,
-    RecursiveCompositionInputV1, RecursiveCompositionStatementV1, RecursiveEffectSummaryV1,
-    SpotRecursiveLeafInputV1, StateProofInputV1, RECURSIVE_DOMAIN_SEPARATOR_V1,
+    recursive_verifier_set_root_v1, sha256_canonical_zusd_snapshot_v1, DexStateV1, OracleBindingV1,
+    RecursiveChildDescriptorV1, RecursiveChildEffectV1, RecursiveCompositionInputV1,
+    RecursiveCompositionStatementV1, RecursiveEffectSummaryV1, SpotRecursiveLeafInputV1,
+    StateProofInputV1, ZusdBalanceEntryV1, ZusdOperationV1, ZusdRecursiveLeafInputV1,
+    ZusdSnapshotV1, ZusdTransitionInputV1, ZusdVaultEntryV1, RECURSIVE_DOMAIN_SEPARATOR_V1,
     RECURSIVE_EFFECT_SUMMARY_VERSION_V1, RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES,
     RECURSIVE_STATEMENT_VERSION_V1, RECURSIVE_STRICT_CROSS_SHARD_MODE_V1,
     RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES, RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1,
+    RECURSIVE_ZUSD_LEAF_MAX_INPUT_BYTES,
 };
 
 fn root(byte: u8) -> [u8; 32] {
@@ -146,6 +149,88 @@ fn print_spot_request(image_id_hex: &str) -> Result<(), String> {
             "spot_recursive_leaf_input": input,
         }))
         .map_err(|e| format!("spot request json: {e}"))?
+    );
+    Ok(())
+}
+
+fn smoke_oracle(price_e8: i128) -> OracleBindingV1 {
+    OracleBindingV1 {
+        oracle_bridge_id: "oracle-bridge-a".to_string(),
+        oracle_bridge_hash: "1111111111111111111111111111111111111111111111111111111111111111"
+            .to_string(),
+        price_e8,
+        price_timestamp: 10,
+        max_staleness_seconds: 10,
+        observed_at: 12,
+        pre_price_batch_commitment:
+            "2222222222222222222222222222222222222222222222222222222222222222".to_string(),
+    }
+}
+
+fn print_zusd_request(image_id_hex: &str) -> Result<(), String> {
+    let e8 = 100_000_000u128;
+    let image_id = parse_image_id(image_id_hex)?;
+    let pre_state = ZusdSnapshotV1::empty();
+    let pre_app_hash = sha256_canonical_zusd_snapshot_v1(&pre_state);
+    let operation = ZusdOperationV1::DepositMint {
+        pubkey: "wallet-a".to_string(),
+        collateral_asset: "tAGRS".to_string(),
+        deposit_amount_e8: 2_000 * e8,
+        mint_amount_e8: 1_000 * e8,
+        oracle: smoke_oracle(e8 as i128),
+        mcr_bps: 11_000,
+        nonce: 1,
+    };
+    let post_state = ZusdSnapshotV1 {
+        version: 1,
+        vaults: vec![ZusdVaultEntryV1 {
+            pubkey: "wallet-a".to_string(),
+            collateral_asset: "tAGRS".to_string(),
+            collateral_amount_e8: 2_000 * e8,
+            debt_zusd_e8: 1_000 * e8,
+            nonce: 1,
+        }],
+        balances: vec![ZusdBalanceEntryV1 {
+            pubkey: "wallet-a".to_string(),
+            amount_e8: 1_000 * e8,
+        }],
+        total_debt_zusd_e8: 1_000 * e8,
+    };
+    let post_app_hash = sha256_canonical_zusd_snapshot_v1(&post_state);
+    let input = ZusdRecursiveLeafInputV1 {
+        chain_id: "tau-devnet-recursive-smoke".to_string(),
+        epoch_id: 1,
+        lane_id: "zusd-root-child-0001".to_string(),
+        risc0_image_id: image_id,
+        public_policy_hash: root(8),
+        feature_suite_hash: root(9),
+        dependency_lock_hash: root(10),
+        toolchain_lock_hash: root(11),
+        zusd_input: ZusdTransitionInputV1 {
+            state_hash: post_app_hash,
+            chain_id: "tau-devnet-recursive-smoke".to_string(),
+            pre_app_hash_present: true,
+            pre_app_hash,
+            pre_state,
+            operation,
+            expected_post_app_hash: post_app_hash,
+            risc0_image_id: image_id,
+        },
+    };
+    let bytes = postcard::to_allocvec(&input).map_err(|e| format!("postcard zUSD leaf: {e}"))?;
+    if bytes.len() > RECURSIVE_ZUSD_LEAF_MAX_INPUT_BYTES as usize {
+        return Err("zUSD leaf input exceeds input byte cap".to_string());
+    }
+    println!(
+        "{}",
+        serde_json::to_string(&json!({
+            "schema": "tau_state_proof_request",
+            "schema_version": 1,
+            "state_hash": hex_bytes(&post_app_hash),
+            "proof_type": "risc0.zenodex_recursive_zusd_leaf.v1",
+            "zusd_recursive_leaf_input": input,
+        }))
+        .map_err(|e| format!("zUSD request json: {e}"))?
     );
     Ok(())
 }
@@ -337,8 +422,9 @@ fn main() {
     let result = match args.as_slice() {
         [_, mode, image_id_hex] if mode == "summary" => print_summary_request(image_id_hex),
         [_, mode, image_id_hex] if mode == "spot" => print_spot_request(image_id_hex),
+        [_, mode, image_id_hex] if mode == "zusd" => print_zusd_request(image_id_hex),
         [_, mode, proof_path] if mode == "root" => print_root_request(proof_path),
-        _ => Err("usage: recursive_summary_leaf_smoke summary <image-id-hex> | spot <image-id-hex> | root <recursive-leaf-proof-json>".to_string()),
+        _ => Err("usage: recursive_summary_leaf_smoke summary <image-id-hex> | spot <image-id-hex> | zusd <image-id-hex> | root <recursive-leaf-proof-json>".to_string()),
     };
     if let Err(err) = result {
         eprintln!("{err}");

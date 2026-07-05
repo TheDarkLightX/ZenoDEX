@@ -2079,6 +2079,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tau-state-proof-risc0-zusd-leaf"
+version = "0.1.0"
+dependencies = [
+ "postcard",
+ "risc0-zkvm",
+ "serde",
+ "tau-state-proof-risc0-shared",
+]
+
+[[package]]
 name = "tempfile"
 version = "3.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

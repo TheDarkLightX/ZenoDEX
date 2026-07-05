@@ -12,11 +12,14 @@ use tau_state_proof_risc0_methods::{
     TAU_STATE_PROOF_RISC0_SPOT_LEAF_ID as TAU_STATE_PROOF_SPOT_LEAF_ID,
     TAU_STATE_PROOF_RISC0_SUMMARY_LEAF_ELF as TAU_STATE_PROOF_SUMMARY_LEAF_ELF,
     TAU_STATE_PROOF_RISC0_SUMMARY_LEAF_ID as TAU_STATE_PROOF_SUMMARY_LEAF_ID,
+    TAU_STATE_PROOF_RISC0_ZUSD_LEAF_ELF as TAU_STATE_PROOF_ZUSD_LEAF_ELF,
+    TAU_STATE_PROOF_RISC0_ZUSD_LEAF_ID as TAU_STATE_PROOF_ZUSD_LEAF_ID,
 };
 use tau_state_proof_risc0_shared::{
     accepted_receipts_root_v1, compose_recursive_epoch_journal_v1,
-    compose_spot_recursive_leaf_summary_v1, frontier_signature_certificates_root_v1,
-    ingress_commitment_v1, perps_np_collateral_bindings_hash_v1, perps_np_operation_hash_v1,
+    compose_spot_recursive_leaf_summary_v1, compose_zusd_recursive_leaf_summary_v1,
+    frontier_signature_certificates_root_v1, ingress_commitment_v1,
+    perps_np_collateral_bindings_hash_v1, perps_np_operation_hash_v1,
     perps_np_oracle_bindings_hash_v1, route_price_interval_authority_policy_root_v1,
     route_price_interval_authority_root_v1, route_price_intervals_root_v1,
     tx_execution_order_commitment_v1, txs_commitment_v1,
@@ -29,12 +32,14 @@ use tau_state_proof_risc0_shared::{
     RoutePriceIntervalAuthorityPolicyV1, RoutePriceIntervalAuthorityV1, RoutePriceIntervalV1,
     SharedPoolFrontierSignatureCertificateV1, SpotRecursiveLeafInputV1, StateProofInputV1,
     StateProofJournalV1, TauTxAppOpsV1, TauTxV1, TxIngressFactV1, ZenoProofInputV1,
-    ZusdBalanceEntryV1, ZusdOperationV1, ZusdSnapshotV1, ZusdTransitionInputV1,
-    ZusdTransitionJournalV1, ZusdVaultEntryV1, PROOF_TYPE, PROOF_TYPE_PERPS_NP,
-    PROOF_TYPE_RECURSIVE, PROOF_TYPE_RECURSIVE_SPOT_LEAF, PROOF_TYPE_RECURSIVE_SUMMARY_LEAF,
-    PROOF_TYPE_ZUSD, RECURSIVE_DOMAIN_SEPARATOR_V1, RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES,
+    ZusdBalanceEntryV1, ZusdOperationV1, ZusdRecursiveLeafInputV1, ZusdSnapshotV1,
+    ZusdTransitionInputV1, ZusdTransitionJournalV1, ZusdVaultEntryV1, PROOF_TYPE,
+    PROOF_TYPE_PERPS_NP, PROOF_TYPE_RECURSIVE, PROOF_TYPE_RECURSIVE_SPOT_LEAF,
+    PROOF_TYPE_RECURSIVE_SUMMARY_LEAF, PROOF_TYPE_RECURSIVE_ZUSD_LEAF, PROOF_TYPE_ZUSD,
+    RECURSIVE_DOMAIN_SEPARATOR_V1, RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES,
     RECURSIVE_SPOT_LEAF_PROFILE_V1, RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES,
-    RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1,
+    RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1, RECURSIVE_ZUSD_LEAF_MAX_INPUT_BYTES,
+    RECURSIVE_ZUSD_LEAF_PROFILE_V1,
 };
 
 #[derive(Clone, Copy)]
@@ -128,6 +133,7 @@ fn handle_generate(req: &Value) {
         PROOF_TYPE_ZUSD => handle_generate_zusd(req),
         PROOF_TYPE_RECURSIVE => handle_generate_recursive(req),
         PROOF_TYPE_RECURSIVE_SPOT_LEAF => handle_generate_recursive_spot_leaf(req),
+        PROOF_TYPE_RECURSIVE_ZUSD_LEAF => handle_generate_recursive_zusd_leaf(req),
         PROOF_TYPE_RECURSIVE_SUMMARY_LEAF => handle_generate_recursive_summary_leaf(req),
         _ => die("unsupported proof_type"),
     }
@@ -574,6 +580,58 @@ fn handle_generate_recursive_spot_leaf(req: &Value) {
     write_json_stdout(&out);
 }
 
+fn handle_generate_recursive_zusd_leaf(req: &Value) {
+    if req.get("schema_version").and_then(Value::as_i64) != Some(1) {
+        die("unexpected schema_version (expected tau_state_proof_request v1)");
+    }
+    validate_zusd_leaf_method();
+
+    let state_hash_hex = require_str(req.get("state_hash"), "state_hash");
+    let state_hash = parse_hex32(&state_hash_hex).unwrap_or_else(|e| die(&e));
+    let input = parse_zusd_recursive_leaf_input(req).unwrap_or_else(|e| die(&e));
+    if input.risc0_image_id != TAU_STATE_PROOF_ZUSD_LEAF_ID {
+        die("zusd_recursive_leaf_input.risc0_image_id must equal the zUSD leaf image ID");
+    }
+    if input.zusd_input.state_hash != state_hash {
+        die("state_hash must equal zusd_recursive_leaf_input.zusd_input.state_hash");
+    }
+    let input_bytes = postcard::to_allocvec(&input)
+        .unwrap_or_else(|e| die(&format!("failed to encode recursive zUSD leaf input: {e}")));
+    if input_bytes.len() > RECURSIVE_ZUSD_LEAF_MAX_INPUT_BYTES as usize {
+        die("recursive zUSD leaf input exceeds max bytes");
+    }
+    let expected_summary =
+        compose_zusd_recursive_leaf_summary_v1(input.clone()).unwrap_or_else(|e| {
+            die(&format!(
+                "recursive zUSD leaf input rejected: {}",
+                transition_error_str(e)
+            ))
+        });
+
+    let (receipt, journal): (Receipt, RecursiveEffectSummaryV1) = prove_direct_guest_input(
+        &input,
+        TAU_STATE_PROOF_ZUSD_LEAF_ELF,
+        TAU_STATE_PROOF_ZUSD_LEAF_ID,
+        &[],
+    );
+    if journal != expected_summary {
+        die("recursive zUSD leaf journal mismatch");
+    }
+    if journal.post_state_root != state_hash {
+        die("journal.post_state_root mismatch");
+    }
+
+    let out = json!({
+        "schema": "tau_state_proof",
+        "schema_version": 1,
+        "state_hash": normalize_hex64(&state_hash_hex),
+        "proof_type": PROOF_TYPE_RECURSIVE_ZUSD_LEAF,
+        "proof": encode_receipt(&receipt),
+        "meta": recursive_zusd_leaf_meta(&journal),
+    });
+    write_json_stdout(&out);
+}
+
 fn handle_generate_recursive_summary_leaf(req: &Value) {
     if req.get("schema_version").and_then(Value::as_i64) != Some(1) {
         die("unexpected schema_version (expected tau_state_proof_request v1)");
@@ -659,6 +717,9 @@ fn try_verify(req: &Value) -> Result<(), String> {
     }
     if proof_type == PROOF_TYPE_RECURSIVE_SPOT_LEAF {
         return try_verify_recursive_spot_leaf(proof, expected_state_hash);
+    }
+    if proof_type == PROOF_TYPE_RECURSIVE_ZUSD_LEAF {
+        return try_verify_recursive_zusd_leaf(proof, expected_state_hash);
     }
     if proof_type == PROOF_TYPE_RECURSIVE_SUMMARY_LEAF {
         return try_verify_recursive_summary_leaf(proof, expected_state_hash);
@@ -1041,6 +1102,39 @@ fn try_verify_recursive_spot_leaf(
     Ok(())
 }
 
+fn try_verify_recursive_zusd_leaf(
+    proof: &Value,
+    expected_state_hash: [u8; 32],
+) -> Result<(), String> {
+    check_proof_meta_image_id_for(proof, TAU_STATE_PROOF_ZUSD_LEAF_ID)?;
+    let receipt = decode_receipt_from_proof(proof)?;
+    receipt
+        .verify(TAU_STATE_PROOF_ZUSD_LEAF_ID)
+        .map_err(|e| format!("zUSD leaf receipt verification failed: {e}"))?;
+    let journal: RecursiveEffectSummaryV1 =
+        decode_postcard_journal(&receipt, "recursive zUSD leaf journal")?;
+    if journal.proof_profile != RECURSIVE_ZUSD_LEAF_PROFILE_V1 {
+        return Err("recursive zUSD leaf profile mismatch".into());
+    }
+    if journal.lane_kind != "zusd" {
+        return Err("recursive zUSD leaf lane kind mismatch".into());
+    }
+    if journal.risc0_image_id != TAU_STATE_PROOF_ZUSD_LEAF_ID {
+        return Err("recursive zUSD leaf image id mismatch".into());
+    }
+    if journal.post_state_root != expected_state_hash {
+        return Err("journal.post_state_root mismatch".into());
+    }
+    validate_recursive_effect_summary_shape_v1(&journal).map_err(transition_error_str)?;
+    expect_meta_hash(proof, "statement_hash", journal.statement_hash)?;
+    expect_meta_hash(proof, "pre_state_root", journal.pre_state_root)?;
+    expect_meta_hash(proof, "post_state_root", journal.post_state_root)?;
+    expect_meta_hash(proof, "tx_root", journal.tx_root)?;
+    expect_meta_hash(proof, "evidence_root", journal.evidence_root)?;
+    expect_meta_hash(proof, "receipt_root", journal.receipt_root)?;
+    Ok(())
+}
+
 fn verify_surface_request_bindings(
     req: &Value,
     proof: &Value,
@@ -1128,6 +1222,15 @@ fn validate_spot_leaf_method() {
     }
     if TAU_STATE_PROOF_SPOT_LEAF_ID.iter().all(|w| *w == 0) {
         die("Risc0 spot leaf image ID is all-zero (methods not embedded). Install the Risc0 toolchain/target and rebuild.");
+    }
+}
+
+fn validate_zusd_leaf_method() {
+    if TAU_STATE_PROOF_ZUSD_LEAF_ELF.is_empty() {
+        die("Risc0 zUSD leaf ELF is empty (methods not embedded). Install the Risc0 toolchain/target and rebuild.");
+    }
+    if TAU_STATE_PROOF_ZUSD_LEAF_ID.iter().all(|w| *w == 0) {
+        die("Risc0 zUSD leaf image ID is all-zero (methods not embedded). Install the Risc0 toolchain/target and rebuild.");
     }
 }
 
@@ -1956,6 +2059,19 @@ fn parse_spot_recursive_leaf_input(req: &Value) -> Result<SpotRecursiveLeafInput
     Ok(input)
 }
 
+fn parse_zusd_recursive_leaf_input(req: &Value) -> Result<ZusdRecursiveLeafInputV1, String> {
+    let value = req
+        .get("zusd_recursive_leaf_input")
+        .cloned()
+        .ok_or_else(|| {
+            "zusd_recursive_leaf_input missing for recursive zUSD leaf proof".to_string()
+        })?;
+    let input: ZusdRecursiveLeafInputV1 = serde_json::from_value(value)
+        .map_err(|e| format!("zusd_recursive_leaf_input schema mismatch: {e}"))?;
+    compose_zusd_recursive_leaf_summary_v1(input.clone()).map_err(transition_error_str)?;
+    Ok(input)
+}
+
 fn parse_recursive_summary(req: &Value) -> Result<RecursiveEffectSummaryV1, String> {
     let value = req
         .get("recursive_summary")
@@ -2112,6 +2228,36 @@ fn recursive_spot_leaf_meta(journal: &RecursiveEffectSummaryV1) -> Value {
     json!({
         "risc0_image_id": hex_u32_words(TAU_STATE_PROOF_SPOT_LEAF_ID),
         "proof_type": PROOF_TYPE_RECURSIVE_SPOT_LEAF,
+        "summary_version": journal.summary_version,
+        "lane_id": journal.lane_id,
+        "lane_kind": journal.lane_kind,
+        "chain_id": journal.chain_id,
+        "epoch_id": journal.epoch_id,
+        "proof_profile": journal.proof_profile,
+        "child_image_id": hex_u32_words(journal.risc0_image_id),
+        "statement_hash": hex_lower(&journal.statement_hash),
+        "pre_state_root": hex_lower(&journal.pre_state_root),
+        "post_state_root": hex_lower(&journal.post_state_root),
+        "tx_root": hex_lower(&journal.tx_root),
+        "evidence_root": hex_lower(&journal.evidence_root),
+        "receipt_root": hex_lower(&journal.receipt_root),
+        "accepted_receipts_root": hex_lower(&journal.accepted_receipts_root),
+        "rejected_receipts_root": hex_lower(&journal.rejected_receipts_root),
+        "asset_delta_root": hex_lower(&journal.asset_delta_root),
+        "cross_shard_outbox_root": hex_lower(&journal.cross_shard_outbox_root),
+        "cross_shard_inbox_root": hex_lower(&journal.cross_shard_inbox_root),
+        "write_set_root": hex_lower(&journal.write_set_root),
+        "public_policy_hash": hex_lower(&journal.public_policy_hash),
+        "feature_suite_hash": hex_lower(&journal.feature_suite_hash),
+        "dependency_lock_hash": hex_lower(&journal.dependency_lock_hash),
+        "toolchain_lock_hash": hex_lower(&journal.toolchain_lock_hash),
+    })
+}
+
+fn recursive_zusd_leaf_meta(journal: &RecursiveEffectSummaryV1) -> Value {
+    json!({
+        "risc0_image_id": hex_u32_words(TAU_STATE_PROOF_ZUSD_LEAF_ID),
+        "proof_type": PROOF_TYPE_RECURSIVE_ZUSD_LEAF,
         "summary_version": journal.summary_version,
         "lane_id": journal.lane_id,
         "lane_kind": journal.lane_kind,
@@ -3390,6 +3536,14 @@ mod tests {
         summary
     }
 
+    fn recursive_zusd_leaf_summary() -> RecursiveEffectSummaryV1 {
+        let mut summary = recursive_input().children[0].summary.clone();
+        summary.lane_kind = "zusd".to_string();
+        summary.proof_profile = RECURSIVE_ZUSD_LEAF_PROFILE_V1.to_string();
+        summary.risc0_image_id = TAU_STATE_PROOF_ZUSD_LEAF_ID;
+        summary
+    }
+
     fn strict_req() -> Value {
         json!({
             "schema": "tau_state_proof_verify",
@@ -3500,6 +3654,30 @@ mod tests {
             meta["proof_profile"],
             Value::String(RECURSIVE_SPOT_LEAF_PROFILE_V1.to_string())
         );
+        assert!(validate_recursive_effect_summary_shape_v1(&summary).is_ok());
+    }
+
+    #[test]
+    fn recursive_zusd_leaf_meta_binds_zusd_leaf_image_id() {
+        let summary = recursive_zusd_leaf_summary();
+        let meta = recursive_zusd_leaf_meta(&summary);
+        assert_eq!(
+            meta["risc0_image_id"],
+            Value::String(hex_u32_words(TAU_STATE_PROOF_ZUSD_LEAF_ID))
+        );
+        assert_eq!(
+            meta["child_image_id"],
+            Value::String(hex_u32_words(TAU_STATE_PROOF_ZUSD_LEAF_ID))
+        );
+        assert_eq!(
+            meta["proof_type"],
+            Value::String(PROOF_TYPE_RECURSIVE_ZUSD_LEAF.to_string())
+        );
+        assert_eq!(
+            meta["proof_profile"],
+            Value::String(RECURSIVE_ZUSD_LEAF_PROFILE_V1.to_string())
+        );
+        assert_eq!(meta["lane_kind"], Value::String("zusd".to_string()));
         assert!(validate_recursive_effect_summary_shape_v1(&summary).is_ok());
     }
 

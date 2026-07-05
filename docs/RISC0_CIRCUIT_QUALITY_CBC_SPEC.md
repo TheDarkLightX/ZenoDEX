@@ -304,6 +304,20 @@ accepted/rejected receipt ID sets, cross-shard message sets, and asset-delta row
 are empty in v1, so this profile proves local spot app-state transitions only.
 It does not claim cross-shard asset movement or native ledger balance deltas.
 
+The `risc0.zenodex_recursive_zusd_leaf.v1` method is the second
+transition-specific recursive leaf. It accepts `ZusdRecursiveLeafInputV1`,
+executes the checked zUSD transition, requires `pre_app_hash` to be present,
+requires the leaf `state_hash` to equal the checked post app root, requires the
+inner zUSD journal image ID to match the zUSD-leaf image ID, and derives
+`EffectSummaryV1` from `ZusdTransitionJournalV1`. Its `tx_root` is the zUSD
+operation hash. Its `evidence_root` binds the oracle binding, zUSD balance root,
+zUSD vault root, participant set, minted amount, collateral value, and MCR. Its
+`receipt_root` is the checked zUSD balance root. Recursive accepted/rejected
+receipt ID sets, cross-shard message sets, and asset-delta rows are empty in
+v1. This profile proves one local zUSD transition under the existing zUSD
+surface. It does not claim full zUSD lifecycle coverage, native ledger balance
+deltas, cross-shard mint/burn accounting, or oracle truth.
+
 Repeatable local smoke path:
 
 ```bash
@@ -328,12 +342,24 @@ cargo run -q -p tau-state-proof-risc0-cli --example recursive_summary_leaf_smoke
   root /tmp/spot-leaf.proof.json > /tmp/spot-recursive-root.request.json
 RISC0_FORCE_BUILD=1 cargo run -q -p tau-state-proof-risc0-cli \
   < /tmp/spot-recursive-root.request.json > /tmp/spot-recursive-root.proof.json
+
+ZUSD_IMAGE_ID_HEX=<hex zUSD leaf image ID from generated methods.rs>
+cargo run -q -p tau-state-proof-risc0-cli --example recursive_summary_leaf_smoke -- \
+  zusd "$ZUSD_IMAGE_ID_HEX" > /tmp/zusd-leaf.request.json
+RISC0_FORCE_BUILD=1 cargo run -q -p tau-state-proof-risc0-cli \
+  < /tmp/zusd-leaf.request.json > /tmp/zusd-leaf.proof.json
+cargo run -q -p tau-state-proof-risc0-cli --example recursive_summary_leaf_smoke -- \
+  root /tmp/zusd-leaf.proof.json > /tmp/zusd-recursive-root.request.json
+RISC0_FORCE_BUILD=1 cargo run -q -p tau-state-proof-risc0-cli \
+  < /tmp/zusd-recursive-root.request.json > /tmp/zusd-recursive-root.proof.json
 ```
 
 The summary-leaf smoke proves recursive plumbing only. The spot-leaf smoke also
-proves a checked local spot transition, then verifies that child receipt through
-the recursive root. Neither smoke upgrades cross-shard or native-ledger
-production claims.
+proves a checked local spot transition. The zUSD-leaf smoke proves a checked
+local zUSD deposit-mint transition. Both transition-specific smokes verify the
+child receipt through the recursive root. These smokes do not upgrade
+cross-shard, native-ledger, complete stablecoin-lifecycle, or production
+validator claims.
 
 Every child descriptor must bind:
 
