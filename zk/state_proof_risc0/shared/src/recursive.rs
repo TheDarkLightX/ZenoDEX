@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 use crate::{
     execute_perps_np_transition_v1, execute_state_proof_input_v1, execute_zusd_transition_v1,
     PerpsNpTransitionInputV1, PerpsNpTransitionJournalV1, StateProofInputV1, StateProofJournalV1,
-    TransitionError, ZusdTransitionInputV1, ZusdTransitionJournalV1,
+    TransitionError, ZusdTransitionInputV1, ZusdTransitionJournalV1, NATIVE_ASSET,
 };
 
 pub const PROOF_TYPE_RECURSIVE: &str = "risc0.zenodex_recursive_epoch.v1";
@@ -628,6 +628,28 @@ pub fn compose_spot_recursive_leaf_summary_v1(
     )?;
     if input.risc0_image_id.iter().all(|word| *word == 0) {
         return Err(TransitionError::InvalidInput("spot leaf image id zero"));
+    }
+    if input
+        .spot_input
+        .txs
+        .iter()
+        .any(|tx| tx.app_ops.has_faucet || !tx.app_ops.faucet_mint.is_empty())
+    {
+        return Err(TransitionError::InvalidInput(
+            "spot recursive leaf faucet mint unsupported",
+        ));
+    }
+    if !input.spot_input.chain_balances_post.is_empty()
+        || input
+            .spot_input
+            .pre_state
+            .balances
+            .iter()
+            .any(|entry| entry.asset == NATIVE_ASSET)
+    {
+        return Err(TransitionError::InvalidInput(
+            "spot recursive leaf native balance sync unsupported",
+        ));
     }
 
     let journal = execute_state_proof_input_v1(input.spot_input)?;
@@ -1719,10 +1741,10 @@ mod tests {
     use crate::{
         accepted_receipts_root_v1, execute_perps_np_transition_v1, execute_zusd_transition_v1,
         sha256_canonical_perps_np_snapshot_v1, sha256_canonical_zusd_snapshot_v1,
-        zusd_balance_root_hash_v1, DexStateV1, OracleBindingV1, PerpsAccountV1,
-        PerpsMarketParamsV1, PerpsNpActionV1, PerpsNpSnapshotV1, PerpsNpTransitionInputV1,
-        StateProofInputV1, ZusdBalanceEntryV1, ZusdOperationV1, ZusdSnapshotV1,
-        ZusdTransitionInputV1, ZusdVaultEntryV1,
+        zusd_balance_root_hash_v1, ChainBalanceV1, DexBalanceEntryV1, DexStateV1, FaucetMintV1,
+        OracleBindingV1, PerpsAccountV1, PerpsMarketParamsV1, PerpsNpActionV1, PerpsNpSnapshotV1,
+        PerpsNpTransitionInputV1, StateProofInputV1, TauTxAppOpsV1, TauTxV1, ZusdBalanceEntryV1,
+        ZusdOperationV1, ZusdSnapshotV1, ZusdTransitionInputV1, ZusdVaultEntryV1,
     };
     use alloc::string::ToString;
 
@@ -2415,6 +2437,61 @@ mod tests {
             compose_spot_recursive_leaf_summary_v1(input),
             Err(TransitionError::InvalidInput(
                 "spot recursive leaf state_hash must equal post_app_hash"
+            ))
+        ));
+    }
+
+    #[test]
+    fn spot_recursive_leaf_rejects_faucet_mints_without_asset_rows() {
+        let mut input = spot_leaf_input();
+        input.spot_input.txs = alloc::vec![TauTxV1 {
+            sender_pubkey: "wallet-a".to_string(),
+            app_ops: TauTxAppOpsV1 {
+                has_faucet: true,
+                faucet_mint: alloc::vec![FaucetMintV1 {
+                    pubkey: "wallet-a".to_string(),
+                    asset: "TEST".to_string(),
+                    amount: 1,
+                }],
+                has_intents: false,
+                intents: Vec::new(),
+            },
+        }];
+        assert!(matches!(
+            compose_spot_recursive_leaf_summary_v1(input),
+            Err(TransitionError::InvalidInput(
+                "spot recursive leaf faucet mint unsupported"
+            ))
+        ));
+    }
+
+    #[test]
+    fn spot_recursive_leaf_rejects_native_balance_sync_without_asset_rows() {
+        let mut input = spot_leaf_input();
+        input.spot_input.chain_balances_post = alloc::vec![ChainBalanceV1 {
+            pubkey: "wallet-a".to_string(),
+            amount: 1,
+        }];
+        assert!(matches!(
+            compose_spot_recursive_leaf_summary_v1(input),
+            Err(TransitionError::InvalidInput(
+                "spot recursive leaf native balance sync unsupported"
+            ))
+        ));
+    }
+
+    #[test]
+    fn spot_recursive_leaf_rejects_native_pre_balance_without_asset_rows() {
+        let mut input = spot_leaf_input();
+        input.spot_input.pre_state.balances = alloc::vec![DexBalanceEntryV1 {
+            pubkey: "wallet-a".to_string(),
+            asset: NATIVE_ASSET.to_string(),
+            amount: 1,
+        }];
+        assert!(matches!(
+            compose_spot_recursive_leaf_summary_v1(input),
+            Err(TransitionError::InvalidInput(
+                "spot recursive leaf native balance sync unsupported"
             ))
         ));
     }

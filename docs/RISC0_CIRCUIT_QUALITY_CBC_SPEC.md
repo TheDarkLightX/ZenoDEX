@@ -310,7 +310,9 @@ requires the leaf `state_hash` to equal the checked post app root, and derives
 `receipt_root` is the native spot accepted-receipts root. Its recursive
 accepted/rejected receipt ID sets, cross-shard message sets, and asset-delta rows
 are empty in v1, so this profile proves local spot app-state transitions only.
-It does not claim cross-shard asset movement or native ledger balance deltas.
+To keep that empty row set honest, v1 rejects faucet mints and native balance
+sync paths. It does not claim cross-shard asset movement or native ledger
+balance deltas.
 
 The `risc0.zenodex_recursive_zusd_leaf.v1` method is the second
 transition-specific recursive leaf. It accepts `ZusdRecursiveLeafInputV1`,

@@ -604,8 +604,9 @@ transition and derives a recursive summary from `StateProofJournalV1`. The v1
 profile is intentionally local: recursive accepted/rejected receipt ID sets,
 asset-delta rows, and cross-shard messages are empty, while the native spot
 accepted-receipts root is committed as `receipt_root`. This proves local spot
-app-state transitions under recursion; it does not claim cross-shard settlement
-or native ledger balance deltas.
+app-state transitions under recursion. To keep the empty asset-delta row set
+honest, v1 rejects faucet mints and native balance sync paths. It does not
+claim cross-shard settlement or native ledger balance deltas.
 
 This repo also includes `risc0.zenodex_recursive_zusd_leaf.v1`, the second
 transition-specific recursive leaf. It executes the existing checked zUSD
