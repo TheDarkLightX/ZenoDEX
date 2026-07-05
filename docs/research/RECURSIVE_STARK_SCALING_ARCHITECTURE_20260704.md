@@ -582,6 +582,14 @@ labels. Each child verifier ID is computed from `(child_image_id,
 child_profile)`, so membership in `verifier_set_root` authorizes the same image
 ID that the RISC0 `env::verify` call checks.
 
+This repo includes `risc0.zenodex_recursive_summary_leaf.v1` as a dedicated
+summary-leaf image for recursive plumbing and smoke tests. It accepts only the
+`recursive_summary_leaf_test_v1` profile and enforces bounded summary inputs
+(4096-byte postcard cap, 128-byte summary text fields). It is useful for testing
+real assumption-based recursion, but it is not a production transition leaf
+because it does not derive the summary from spot, perps, zUSD, oracle, or ledger
+semantics.
+
 ## ZenoLedger / Tau Acceptance Algorithm
 
 The block verifier must not accept recursive metadata by itself. It accepts only
@@ -905,6 +913,7 @@ message fails.
 This spec does not claim:
 
 - the recursive RISC0 lane is production-ready;
+- the summary-leaf test image proves any value-moving transition;
 - current spot child journals already expose chain-bound `EffectSummaryV1`
   summaries without an adapter;
 - the current `recursive_block_v1` profile is production-ready;

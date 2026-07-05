@@ -4,6 +4,6 @@ members = [
   "shared",
   "methods",
   "methods/guest",
+  "methods/summary_leaf",
   "cli",
 ]
-

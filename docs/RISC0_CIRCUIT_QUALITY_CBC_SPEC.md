@@ -285,6 +285,15 @@ derived from `(child_image_id, child_profile)` and the recursive guest must
 reject any descriptor whose `child_verifier_id` does not equal that derived ID.
 The committed `verifier_set_root` is the sorted set of those derived IDs.
 
+The `risc0.zenodex_recursive_summary_leaf.v1` method is a dedicated
+summary-leaf image for recursive plumbing and smoke tests. It accepts only
+`recursive_summary_leaf_test_v1`. It proves that a bounded summary was committed
+by that image, with a 4096-byte postcard input cap and 128-byte caps on summary
+text fields. It does not prove spot, perps, zUSD, oracle, or ledger transition
+semantics. Production recursive leaves must use transition-specific images that
+derive their `EffectSummaryV1` from the checked transition, or an adapter proof
+that verifies the source receipt and proves the summary binding.
+
 Every child descriptor must bind:
 
 ```text

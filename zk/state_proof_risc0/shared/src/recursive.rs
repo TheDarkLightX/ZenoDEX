@@ -10,11 +10,15 @@ use sha2::{Digest, Sha256};
 use crate::TransitionError;
 
 pub const PROOF_TYPE_RECURSIVE: &str = "risc0.zenodex_recursive_epoch.v1";
+pub const PROOF_TYPE_RECURSIVE_SUMMARY_LEAF: &str = "risc0.zenodex_recursive_summary_leaf.v1";
 pub const RECURSIVE_EFFECT_SUMMARY_VERSION_V1: u32 = 1;
 pub const RECURSIVE_STATEMENT_VERSION_V1: u32 = 1;
 pub const RECURSIVE_JOURNAL_VERSION_V1: u32 = 1;
 pub const RECURSIVE_STRICT_CROSS_SHARD_MODE_V1: &str = "strict";
 pub const RECURSIVE_DOMAIN_SEPARATOR_V1: &str = "zenodex.risc0.recursive_epoch.v1";
+pub const RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1: &str = "recursive_summary_leaf_test_v1";
+pub const RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES: u32 = 4096;
+pub const RECURSIVE_SUMMARY_TEXT_MAX_BYTES: usize = 128;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecursiveCompositionStatementV1 {
@@ -539,6 +543,61 @@ pub fn recursive_effect_summary_hash_v1(summary: &RecursiveEffectSummaryV1) -> [
     hasher.finalize().into()
 }
 
+pub fn validate_recursive_effect_summary_shape_v1(
+    summary: &RecursiveEffectSummaryV1,
+) -> Result<(), TransitionError> {
+    if summary.summary_version != RECURSIVE_EFFECT_SUMMARY_VERSION_V1 {
+        return Err(TransitionError::InvalidInput("summary_version mismatch"));
+    }
+    require_nonempty_bounded(
+        &summary.lane_id,
+        "summary lane_id empty",
+        "summary lane_id too long",
+    )?;
+    require_nonempty_bounded(
+        &summary.lane_kind,
+        "summary lane_kind empty",
+        "summary lane_kind too long",
+    )?;
+    require_nonempty_bounded(
+        &summary.chain_id,
+        "summary chain_id empty",
+        "summary chain_id too long",
+    )?;
+    require_nonempty_bounded(
+        &summary.proof_profile,
+        "summary proof_profile empty",
+        "summary proof_profile too long",
+    )?;
+    if summary.risc0_image_id.iter().all(|word| *word == 0) {
+        return Err(TransitionError::InvalidInput("summary image id zero"));
+    }
+    require_nonzero_root(&summary.statement_hash, "summary statement_hash zero")?;
+    require_nonzero_root(&summary.pre_state_root, "summary pre_state_root zero")?;
+    require_nonzero_root(&summary.post_state_root, "summary post_state_root zero")?;
+    require_nonzero_root(&summary.tx_root, "summary tx_root zero")?;
+    require_nonzero_root(&summary.evidence_root, "summary evidence_root zero")?;
+    require_nonzero_root(&summary.receipt_root, "summary receipt_root zero")?;
+    require_nonzero_root(&summary.write_set_root, "summary write_set_root zero")?;
+    require_nonzero_root(
+        &summary.public_policy_hash,
+        "summary public_policy_hash zero",
+    )?;
+    require_nonzero_root(
+        &summary.feature_suite_hash,
+        "summary feature_suite_hash zero",
+    )?;
+    require_nonzero_root(
+        &summary.dependency_lock_hash,
+        "summary dependency_lock_hash zero",
+    )?;
+    require_nonzero_root(
+        &summary.toolchain_lock_hash,
+        "summary toolchain_lock_hash zero",
+    )?;
+    Ok(())
+}
+
 pub fn recursive_verifier_set_root_v1(ids: &[[u8; 32]]) -> Result<[u8; 32], TransitionError> {
     validate_sorted_unique_roots_v1(ids, "verifier id")?;
     recursive_root_list_root_v1(b"zenodex.risc0.recursive.verifier_set_root.v1", ids)
@@ -1050,6 +1109,19 @@ fn require_nonempty(value: &str, msg: &'static str) -> Result<(), TransitionErro
     }
 }
 
+fn require_nonempty_bounded(
+    value: &str,
+    empty_msg: &'static str,
+    too_long_msg: &'static str,
+) -> Result<(), TransitionError> {
+    require_nonempty(value, empty_msg)?;
+    if value.len() > RECURSIVE_SUMMARY_TEXT_MAX_BYTES {
+        Err(TransitionError::InvalidInput(too_long_msg))
+    } else {
+        Ok(())
+    }
+}
+
 fn require_nonzero_root(root: &[u8; 32], msg: &'static str) -> Result<(), TransitionError> {
     if root.iter().all(|b| *b == 0) {
         Err(TransitionError::InvalidInput(msg))
@@ -1340,6 +1412,28 @@ mod tests {
         assert!(matches!(
             compose_recursive_epoch_journal_v1(&input),
             Err(TransitionError::InvalidInput("child journal hash mismatch"))
+        ));
+    }
+
+    #[test]
+    fn recursive_effect_summary_shape_rejects_zero_image_id() {
+        let input = valid_input();
+        let mut summary = input.children[0].summary.clone();
+        summary.risc0_image_id = [0u32; 8];
+        assert!(matches!(
+            validate_recursive_effect_summary_shape_v1(&summary),
+            Err(TransitionError::InvalidInput("summary image id zero"))
+        ));
+    }
+
+    #[test]
+    fn recursive_effect_summary_shape_rejects_oversized_text() {
+        let input = valid_input();
+        let mut summary = input.children[0].summary.clone();
+        summary.lane_id = "x".repeat(RECURSIVE_SUMMARY_TEXT_MAX_BYTES + 1);
+        assert!(matches!(
+            validate_recursive_effect_summary_shape_v1(&summary),
+            Err(TransitionError::InvalidInput("summary lane_id too long"))
         ));
     }
 

@@ -8,6 +8,8 @@ use serde_json::{json, Value};
 use tau_state_proof_risc0_methods::{
     TAU_STATE_PROOF_RISC0_GUEST_ELF as TAU_STATE_PROOF_GUEST_ELF,
     TAU_STATE_PROOF_RISC0_GUEST_ID as TAU_STATE_PROOF_GUEST_ID,
+    TAU_STATE_PROOF_RISC0_SUMMARY_LEAF_ELF as TAU_STATE_PROOF_SUMMARY_LEAF_ELF,
+    TAU_STATE_PROOF_RISC0_SUMMARY_LEAF_ID as TAU_STATE_PROOF_SUMMARY_LEAF_ID,
 };
 use tau_state_proof_risc0_shared::{
     accepted_receipts_root_v1, compose_recursive_epoch_journal_v1,
@@ -15,17 +17,20 @@ use tau_state_proof_risc0_shared::{
     perps_np_collateral_bindings_hash_v1, perps_np_operation_hash_v1,
     perps_np_oracle_bindings_hash_v1, route_price_interval_authority_policy_root_v1,
     route_price_interval_authority_root_v1, route_price_intervals_root_v1,
-    tx_execution_order_commitment_v1, txs_commitment_v1, zusd_operation_hash_v1,
+    tx_execution_order_commitment_v1, txs_commitment_v1,
+    validate_recursive_effect_summary_shape_v1, zusd_operation_hash_v1,
     zusd_operation_oracle_binding_hash_v1, ChainBalanceV1, CollateralBindingV1, DexSnapshotV1,
     DexStateV1, NonceEntryV1, NonceStateV1, OracleBindingV1, PerpsAccountV1, PerpsIntentV1,
     PerpsMarketParamsV1, PerpsNpActionV1, PerpsNpSnapshotV1, PerpsNpTransitionInputV1,
-    PerpsNpTransitionJournalV1, RecursiveCompositionInputV1, RecursiveEpochJournalV1,
-    RoutePriceIntervalAuthorityPolicySourceV1, RoutePriceIntervalAuthorityPolicyV1,
-    RoutePriceIntervalAuthorityV1, RoutePriceIntervalV1, SharedPoolFrontierSignatureCertificateV1,
-    StateProofInputV1, StateProofJournalV1, TauTxAppOpsV1, TauTxV1, TxIngressFactV1,
-    ZenoProofInputV1, ZusdBalanceEntryV1, ZusdOperationV1, ZusdSnapshotV1, ZusdTransitionInputV1,
-    ZusdTransitionJournalV1, ZusdVaultEntryV1, PROOF_TYPE, PROOF_TYPE_PERPS_NP,
-    PROOF_TYPE_RECURSIVE, PROOF_TYPE_ZUSD, RECURSIVE_DOMAIN_SEPARATOR_V1,
+    PerpsNpTransitionJournalV1, RecursiveCompositionInputV1, RecursiveEffectSummaryV1,
+    RecursiveEpochJournalV1, RoutePriceIntervalAuthorityPolicySourceV1,
+    RoutePriceIntervalAuthorityPolicyV1, RoutePriceIntervalAuthorityV1, RoutePriceIntervalV1,
+    SharedPoolFrontierSignatureCertificateV1, StateProofInputV1, StateProofJournalV1,
+    TauTxAppOpsV1, TauTxV1, TxIngressFactV1, ZenoProofInputV1, ZusdBalanceEntryV1, ZusdOperationV1,
+    ZusdSnapshotV1, ZusdTransitionInputV1, ZusdTransitionJournalV1, ZusdVaultEntryV1, PROOF_TYPE,
+    PROOF_TYPE_PERPS_NP, PROOF_TYPE_RECURSIVE, PROOF_TYPE_RECURSIVE_SUMMARY_LEAF, PROOF_TYPE_ZUSD,
+    RECURSIVE_DOMAIN_SEPARATOR_V1, RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES,
+    RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1,
 };
 
 #[derive(Clone, Copy)]
@@ -118,6 +123,7 @@ fn handle_generate(req: &Value) {
         PROOF_TYPE_PERPS_NP => handle_generate_perps_np(req),
         PROOF_TYPE_ZUSD => handle_generate_zusd(req),
         PROOF_TYPE_RECURSIVE => handle_generate_recursive(req),
+        PROOF_TYPE_RECURSIVE_SUMMARY_LEAF => handle_generate_recursive_summary_leaf(req),
         _ => die("unsupported proof_type"),
     }
 }
@@ -511,6 +517,51 @@ fn handle_generate_recursive(req: &Value) {
     write_json_stdout(&out);
 }
 
+fn handle_generate_recursive_summary_leaf(req: &Value) {
+    if req.get("schema_version").and_then(Value::as_i64) != Some(1) {
+        die("unexpected schema_version (expected tau_state_proof_request v1)");
+    }
+    validate_summary_leaf_method();
+
+    let state_hash_hex = require_str(req.get("state_hash"), "state_hash");
+    let state_hash = parse_hex32(&state_hash_hex).unwrap_or_else(|e| die(&e));
+    let summary = parse_recursive_summary(req).unwrap_or_else(|e| die(&e));
+    if summary.proof_profile != RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1 {
+        die("recursive summary leaf requires recursive_summary_leaf_test_v1 profile");
+    }
+    if summary.risc0_image_id != TAU_STATE_PROOF_SUMMARY_LEAF_ID {
+        die("recursive_summary.risc0_image_id must equal the summary leaf image ID");
+    }
+    if summary.post_state_root != state_hash {
+        die("state_hash must equal recursive_summary.post_state_root");
+    }
+    let summary_bytes = postcard::to_allocvec(&summary)
+        .unwrap_or_else(|e| die(&format!("failed to encode recursive summary: {e}")));
+    if summary_bytes.len() > RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES as usize {
+        die("recursive summary leaf input exceeds max bytes");
+    }
+
+    let (receipt, journal): (Receipt, RecursiveEffectSummaryV1) = prove_direct_guest_input(
+        &summary,
+        TAU_STATE_PROOF_SUMMARY_LEAF_ELF,
+        TAU_STATE_PROOF_SUMMARY_LEAF_ID,
+        &[],
+    );
+    if journal != summary {
+        die("recursive summary leaf journal mismatch");
+    }
+
+    let out = json!({
+        "schema": "tau_state_proof",
+        "schema_version": 1,
+        "state_hash": normalize_hex64(&state_hash_hex),
+        "proof_type": PROOF_TYPE_RECURSIVE_SUMMARY_LEAF,
+        "proof": encode_receipt(&receipt),
+        "meta": recursive_summary_leaf_meta(&journal),
+    });
+    write_json_stdout(&out);
+}
+
 fn handle_verify(req: &Value) {
     let out = match try_verify(req) {
         Ok(()) => json!({ "ok": true }),
@@ -548,6 +599,9 @@ fn try_verify(req: &Value) -> Result<(), String> {
     }
     if proof_type == PROOF_TYPE_RECURSIVE {
         return try_verify_recursive(req, proof, expected_state_hash);
+    }
+    if proof_type == PROOF_TYPE_RECURSIVE_SUMMARY_LEAF {
+        return try_verify_recursive_summary_leaf(proof, expected_state_hash);
     }
     if proof_type != PROOF_TYPE {
         return Err("unsupported proof_type".into());
@@ -865,6 +919,35 @@ fn try_verify_recursive(
     Ok(())
 }
 
+fn try_verify_recursive_summary_leaf(
+    proof: &Value,
+    expected_state_hash: [u8; 32],
+) -> Result<(), String> {
+    check_proof_meta_image_id_for(proof, TAU_STATE_PROOF_SUMMARY_LEAF_ID)?;
+    let receipt = decode_receipt_from_proof(proof)?;
+    receipt
+        .verify(TAU_STATE_PROOF_SUMMARY_LEAF_ID)
+        .map_err(|e| format!("summary leaf receipt verification failed: {e}"))?;
+    let journal: RecursiveEffectSummaryV1 =
+        decode_postcard_journal(&receipt, "recursive summary leaf journal")?;
+    if journal.proof_profile != RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1 {
+        return Err("recursive summary leaf profile mismatch".into());
+    }
+    if journal.risc0_image_id != TAU_STATE_PROOF_SUMMARY_LEAF_ID {
+        return Err("recursive summary leaf image id mismatch".into());
+    }
+    if journal.post_state_root != expected_state_hash {
+        return Err("journal.post_state_root mismatch".into());
+    }
+    validate_recursive_effect_summary_shape_v1(&journal).map_err(transition_error_str)?;
+    expect_meta_hash(proof, "statement_hash", journal.statement_hash)?;
+    expect_meta_hash(proof, "pre_state_root", journal.pre_state_root)?;
+    expect_meta_hash(proof, "post_state_root", journal.post_state_root)?;
+    expect_meta_hash(proof, "asset_delta_root", journal.asset_delta_root)?;
+    expect_meta_hash(proof, "receipt_root", journal.receipt_root)?;
+    Ok(())
+}
+
 fn verify_surface_request_bindings(
     req: &Value,
     proof: &Value,
@@ -937,6 +1020,15 @@ fn validate_embedded_methods() {
     }
 }
 
+fn validate_summary_leaf_method() {
+    if TAU_STATE_PROOF_SUMMARY_LEAF_ELF.is_empty() {
+        die("Risc0 summary leaf ELF is empty (methods not embedded). Install the Risc0 toolchain/target and rebuild.");
+    }
+    if TAU_STATE_PROOF_SUMMARY_LEAF_ID.iter().all(|w| *w == 0) {
+        die("Risc0 summary leaf image ID is all-zero (methods not embedded). Install the Risc0 toolchain/target and rebuild.");
+    }
+}
+
 fn prove_guest_input<T>(guest_input: &ZenoProofInputV1) -> (Receipt, T)
 where
     T: DeserializeOwned,
@@ -951,7 +1043,25 @@ fn prove_guest_input_with_assumptions<T>(
 where
     T: DeserializeOwned,
 {
-    let input_bytes = postcard::to_allocvec(guest_input)
+    prove_direct_guest_input(
+        guest_input,
+        TAU_STATE_PROOF_GUEST_ELF,
+        TAU_STATE_PROOF_GUEST_ID,
+        assumptions,
+    )
+}
+
+fn prove_direct_guest_input<I, T>(
+    input: &I,
+    elf: &[u8],
+    image_id: [u32; 8],
+    assumptions: &[Receipt],
+) -> (Receipt, T)
+where
+    I: serde::Serialize,
+    T: DeserializeOwned,
+{
+    let input_bytes = postcard::to_allocvec(input)
         .unwrap_or_else(|e| die(&format!("failed to encode postcard input: {e}")));
     let input_len: u32 = input_bytes
         .len()
@@ -968,11 +1078,11 @@ where
 
     let prover = default_prover();
     let prove_info = prover
-        .prove(env, TAU_STATE_PROOF_GUEST_ELF)
+        .prove(env, elf)
         .unwrap_or_else(|e| die(&format!("proving failed: {e}")));
     let receipt = prove_info.receipt;
     receipt
-        .verify(TAU_STATE_PROOF_GUEST_ID)
+        .verify(image_id)
         .unwrap_or_else(|e| die(&format!("receipt verification failed: {e}")));
     let journal: T = decode_postcard_journal(&receipt, "journal")
         .unwrap_or_else(|e| die(&format!("failed to decode {e}")));
@@ -993,6 +1103,14 @@ fn encode_receipt(receipt: &Receipt) -> String {
 }
 
 fn decode_verified_receipt_from_proof(proof: &Value) -> Result<Receipt, String> {
+    let receipt = decode_receipt_from_proof(proof)?;
+    receipt
+        .verify(TAU_STATE_PROOF_GUEST_ID)
+        .map_err(|e| format!("receipt verification failed: {e}"))?;
+    Ok(receipt)
+}
+
+fn decode_receipt_from_proof(proof: &Value) -> Result<Receipt, String> {
     let proof_b64 = proof
         .get("proof")
         .and_then(Value::as_str)
@@ -1000,12 +1118,7 @@ fn decode_verified_receipt_from_proof(proof: &Value) -> Result<Receipt, String> 
     let proof_bytes = base64::engine::general_purpose::STANDARD
         .decode(proof_b64)
         .map_err(|e| format!("invalid base64 proof: {e}"))?;
-    let receipt: Receipt =
-        bincode::deserialize(&proof_bytes).map_err(|e| format!("invalid receipt bytes: {e}"))?;
-    receipt
-        .verify(TAU_STATE_PROOF_GUEST_ID)
-        .map_err(|e| format!("receipt verification failed: {e}"))?;
-    Ok(receipt)
+    bincode::deserialize(&proof_bytes).map_err(|e| format!("invalid receipt bytes: {e}"))
 }
 
 fn expected_post_app_hash_hex(req: &Value) -> String {
@@ -1728,6 +1841,17 @@ fn parse_recursive_input(req: &Value) -> Result<RecursiveCompositionInputV1, Str
     Ok(input)
 }
 
+fn parse_recursive_summary(req: &Value) -> Result<RecursiveEffectSummaryV1, String> {
+    let value = req
+        .get("recursive_summary")
+        .cloned()
+        .ok_or_else(|| "recursive_summary missing for recursive summary leaf proof".to_string())?;
+    let summary: RecursiveEffectSummaryV1 = serde_json::from_value(value)
+        .map_err(|e| format!("recursive_summary schema mismatch: {e}"))?;
+    validate_recursive_effect_summary_shape_v1(&summary).map_err(transition_error_str)?;
+    Ok(summary)
+}
+
 fn parse_recursive_child_receipts(
     req: &Value,
     input: &RecursiveCompositionInputV1,
@@ -1839,13 +1963,47 @@ fn recursive_meta(journal: &RecursiveEpochJournalV1) -> Value {
     })
 }
 
+fn recursive_summary_leaf_meta(journal: &RecursiveEffectSummaryV1) -> Value {
+    json!({
+        "risc0_image_id": hex_u32_words(TAU_STATE_PROOF_SUMMARY_LEAF_ID),
+        "proof_type": PROOF_TYPE_RECURSIVE_SUMMARY_LEAF,
+        "summary_version": journal.summary_version,
+        "lane_id": journal.lane_id,
+        "lane_kind": journal.lane_kind,
+        "chain_id": journal.chain_id,
+        "epoch_id": journal.epoch_id,
+        "proof_profile": journal.proof_profile,
+        "child_image_id": hex_u32_words(journal.risc0_image_id),
+        "statement_hash": hex_lower(&journal.statement_hash),
+        "pre_state_root": hex_lower(&journal.pre_state_root),
+        "post_state_root": hex_lower(&journal.post_state_root),
+        "tx_root": hex_lower(&journal.tx_root),
+        "evidence_root": hex_lower(&journal.evidence_root),
+        "receipt_root": hex_lower(&journal.receipt_root),
+        "accepted_receipts_root": hex_lower(&journal.accepted_receipts_root),
+        "rejected_receipts_root": hex_lower(&journal.rejected_receipts_root),
+        "asset_delta_root": hex_lower(&journal.asset_delta_root),
+        "cross_shard_outbox_root": hex_lower(&journal.cross_shard_outbox_root),
+        "cross_shard_inbox_root": hex_lower(&journal.cross_shard_inbox_root),
+        "write_set_root": hex_lower(&journal.write_set_root),
+        "public_policy_hash": hex_lower(&journal.public_policy_hash),
+        "feature_suite_hash": hex_lower(&journal.feature_suite_hash),
+        "dependency_lock_hash": hex_lower(&journal.dependency_lock_hash),
+        "toolchain_lock_hash": hex_lower(&journal.toolchain_lock_hash),
+    })
+}
+
 fn check_proof_meta_image_id(proof: &Value) -> Result<(), String> {
+    check_proof_meta_image_id_for(proof, TAU_STATE_PROOF_GUEST_ID)
+}
+
+fn check_proof_meta_image_id_for(proof: &Value, expected_id: [u32; 8]) -> Result<(), String> {
     let meta = proof_meta_obj(proof)?;
     let image_id = meta
         .get("risc0_image_id")
         .and_then(Value::as_str)
         .ok_or_else(|| "proof.meta.risc0_image_id missing".to_string())?;
-    let expected = hex_u32_words(TAU_STATE_PROOF_GUEST_ID);
+    let expected = hex_u32_words(expected_id);
     if normalize_hex64(image_id) != expected {
         return Err("risc0_image_id mismatch".into());
     }
@@ -3073,6 +3231,13 @@ mod tests {
         }
     }
 
+    fn recursive_summary_leaf_summary() -> RecursiveEffectSummaryV1 {
+        let mut summary = recursive_input().children[0].summary.clone();
+        summary.proof_profile = RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1.to_string();
+        summary.risc0_image_id = TAU_STATE_PROOF_SUMMARY_LEAF_ID;
+        summary
+    }
+
     fn strict_req() -> Value {
         json!({
             "schema": "tau_state_proof_verify",
@@ -3146,6 +3311,21 @@ mod tests {
             parse_recursive_child_receipts(&req, &input).unwrap_err(),
             "child_proofs length mismatch"
         );
+    }
+
+    #[test]
+    fn recursive_summary_leaf_meta_binds_summary_leaf_image_id() {
+        let summary = recursive_summary_leaf_summary();
+        let meta = recursive_summary_leaf_meta(&summary);
+        assert_eq!(
+            meta["risc0_image_id"],
+            Value::String(hex_u32_words(TAU_STATE_PROOF_SUMMARY_LEAF_ID))
+        );
+        assert_eq!(
+            meta["child_image_id"],
+            Value::String(hex_u32_words(TAU_STATE_PROOF_SUMMARY_LEAF_ID))
+        );
+        assert!(validate_recursive_effect_summary_shape_v1(&summary).is_ok());
     }
 
     fn spot_fee_journal(
