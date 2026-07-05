@@ -1180,6 +1180,44 @@ claims:
         - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
         - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.md
 
+  - id: rust_tau:zeno_ledger:recursive_lifecycle_asset_delta_rows_v1
+    status: supported
+    layer: runtime
+    statement: >
+      The recursive RISC0 lifecycle lane derives asset-delta rows for the
+      currently supported recursive leaf surfaces rather than accepting
+      host-supplied row verdicts. Spot faucet mints produce authorized mint
+      rows under the public policy hash, spot native balance sync produces
+      ordinary native debit/credit rows, zUSD DepositMint produces an authorized
+      zUSD mint row, and perps NP InitMarket, DepositCollateral, and
+      WithdrawCollateral produce local insurance/collateral rows. The CLI emits
+      those rows in proof metadata and rejects metadata whose row root does not
+      match the journal `asset_delta_root`. The Tau semantic contract
+      `recursive_lifecycle_asset_delta_admission_v1` admits only when the
+      deterministic host projects proof verification, supported profile,
+      derived rows, row-root binding, aggregate balance, allowed authorities,
+      unsupported-lifecycle absence, Tau/header binding, and transcript binding
+      as true. This is scoped local recursive leaf and admission-gate coverage.
+      It does not claim oracle recursive leaf coverage, complete zUSD lifecycle
+      row coverage, production recursive root admission, data availability, or
+      native-chain source finality.
+    evidence:
+      kind: rust_tau_pytest
+      check:
+        - cmd: cd zk/state_proof_risc0 && cargo test -p tau-state-proof-risc0-shared recursive_leaf -- --nocapture
+        - cmd: cd zk/state_proof_risc0 && cargo test -p tau-state-proof-risc0-cli recursive_ -- --nocapture
+        - cmd: cd zk/state_proof_risc0 && cargo test --all
+        - cmd: cd zk/state_proof_risc0 && cargo clippy --all -- -D warnings
+        - cmd: python3 tools/tau_semantic_contract_lint.py
+        - cmd: python3 -m pytest -q tests/tau/test_tau_semantic_contracts.py::test_tau_semantic_contracts_lint tests/tau/test_tau_semantic_contracts.py::test_tau_semantic_contract_traces
+      files:
+        - zk/state_proof_risc0/shared/src/recursive.rs
+        - zk/state_proof_risc0/cli/src/main.rs
+        - src/tau_specs/recommended/recursive_lifecycle_asset_delta_admission_v1.tau
+        - src/tau_specs/recommended/semantic_contracts.json
+        - docs/RISC0_CIRCUIT_QUALITY_CBC_SPEC.md
+        - docs/research/RECURSIVE_STARK_SCALING_ARCHITECTURE_20260704.md
+
   - id: py:zeno_ledger:proof_coverage_matrix_v0
     status: supported
     layer: assurance

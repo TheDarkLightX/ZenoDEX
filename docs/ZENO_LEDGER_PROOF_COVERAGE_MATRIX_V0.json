@@ -42,6 +42,12 @@
       "claim_id": "py:zeno_ledger:light_client_checkpoint_quorum_v0",
       "coverage": "Local light-client checkpoint verifier binds verified header/body/checkpoint replay to a signer-registry signature-set root and BLS checkpoint quorum.",
       "proof_kind": "checkpoint_quorum_replay"
+    },
+    {
+      "id": "recursive_lifecycle_asset_delta_rows",
+      "claim_id": "rust_tau:zeno_ledger:recursive_lifecycle_asset_delta_rows_v1",
+      "coverage": "Recursive spot, zUSD deposit-mint, and perps NP leaf summaries derive lifecycle asset-delta rows from checked transition inputs or journals, bind those rows through asset_delta_root, require CLI metadata rows to recompute to the journal root, and expose a Tau-compatible recursive lifecycle admission gate over host-projected proof, row, aggregate, authority, header, and transcript booleans.",
+      "proof_kind": "recursive_risc0_local_leaf_and_tau_admission"
     }
   ],
   "gap_surfaces": [
@@ -78,7 +84,22 @@
     {
       "id": "recursive_epoch_real_proof",
       "required_for": "Recursive proof coverage",
-      "gap": "Recursive proof metadata fields are modeled and validated, but no real recursive epoch receipt aggregation is implemented."
+      "gap": "Local recursive leaf/root plumbing and lifecycle row roots exist, but production recursive epoch coverage still lacks release-manifest evidence for real root receipts, runtime header admission binding, data availability policy, and source-finality certificates."
+    },
+    {
+      "id": "recursive_oracle_leaf_real_proof",
+      "required_for": "Recursive oracle proof coverage",
+      "gap": "No recursive RISC0 oracle leaf currently derives an oracle critical-action or aggregate report summary, and no recursive proof claim covers oracle truth, reporter honesty, feed governance, or live source availability."
+    },
+    {
+      "id": "recursive_production_admission",
+      "required_for": "Production recursive ZenoLedger/Tau admission",
+      "gap": "The recursive lifecycle Tau gate is available as a host-projected admission contract, but production runtime admission still needs release evidence that root proof verification, header root binding, transcript binding, authority roots, and DA/source-finality certificates are enforced together."
+    },
+    {
+      "id": "zusd_non_deposit_mint_lifecycle_rows",
+      "required_for": "Complete zUSD lifecycle proof coverage",
+      "gap": "The recursive zUSD leaf exposes the current DepositMint row, but repay, redeem, burn, liquidation, stability-pool movement, and native collateral movement still need exhaustive row extractors before sharing a full recursive asset-conservation claim."
     }
   ],
   "non_claims": [
@@ -88,6 +109,9 @@
     "does_not_claim_zusd_or_perps_zk_execution",
     "does_not_claim_proof_market_zk_execution",
     "does_not_claim_light_client_finality",
-    "does_not_claim_recursive_epoch_proof_soundness"
+    "does_not_claim_recursive_epoch_proof_soundness",
+    "does_not_claim_recursive_oracle_leaf_coverage",
+    "does_not_claim_recursive_production_admission",
+    "does_not_claim_full_zusd_lifecycle_rows"
   ]
 }
