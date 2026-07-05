@@ -610,14 +610,26 @@ transition under recursion. It does not claim complete stablecoin lifecycle
 coverage, cross-shard mint/burn accounting, native ledger balance deltas, or
 oracle truth.
 
+This repo also includes `risc0.zenodex_recursive_perps_np_leaf.v1`, the third
+transition-specific recursive leaf. It executes the existing checked perps NP
+transition and derives a recursive summary from `PerpsNpTransitionJournalV1`.
+The v1 profile is intentionally local: recursive accepted/rejected receipt ID
+sets, asset-delta rows, and cross-shard messages are empty. The summary binds
+the perps operation hash, oracle bindings, collateral bindings, participant set,
+receipt root, participant count, net position, total collateral, funding
+residual, and matched base volume. This proves one checked local perps NP
+transition under recursion. It does not claim complete perps lifecycle coverage,
+cross-shard collateral movement, native ledger balance deltas, zUSD collateral
+source verification beyond hash-bound references, or oracle truth.
+
 The repeatable smoke helper is
 `zk/state_proof_risc0/cli/examples/recursive_summary_leaf_smoke.rs`. It builds a
-summary-leaf, spot-leaf, or zUSD-leaf proof request, then builds a recursive
-root proof request that uses that leaf receipt as a child proof assumption. The
-2026-07-04 summary-leaf, spot-leaf, and zUSD-leaf local smokes verified
-one-child root receipts with `{"ok":true}`. The spot-leaf and zUSD-leaf smokes
-are transition evidence for their scoped local profiles; the summary-leaf smoke
-remains plumbing evidence only.
+summary-leaf, spot-leaf, zUSD-leaf, or perps-NP-leaf proof request, then builds
+a recursive root proof request that uses that leaf receipt as a child proof
+assumption. The 2026-07-04 summary-leaf, spot-leaf, zUSD-leaf, and
+perps-NP-leaf local smokes verified one-child root receipts with `{"ok":true}`.
+The spot, zUSD, and perps NP leaf smokes are transition evidence for their
+scoped local profiles; the summary-leaf smoke remains plumbing evidence only.
 
 ## ZenoLedger / Tau Acceptance Algorithm
 
@@ -943,7 +955,8 @@ This spec does not claim:
 
 - the recursive RISC0 lane is production-ready;
 - the summary-leaf test image proves any value-moving transition;
-- current spot or zUSD child journals expose full native-ledger asset deltas;
+- current spot, zUSD, or perps NP child journals expose full native-ledger asset
+  deltas;
 - the current `recursive_block_v1` profile is production-ready;
 - all spot/perps/zUSD/oracle transitions have leaf proofs;
 - DA is solved by proof recursion;
@@ -952,8 +965,8 @@ This spec does not claim:
 
 ## Next Frontier
 
-The highest-value next step is a perps NP recursive leaf that derives
-`EffectSummaryV1` from `PerpsNpTransitionJournalV1`, followed by native-ledger
-asset-delta rows for spot and zUSD leaves. Those two gaps are what separate the
-current local transition-recursion evidence from a root proof that can claim
-global ledger conservation across spot, zUSD, and perps lanes.
+The highest-value next step is native-ledger asset-delta rows for spot, zUSD,
+and perps NP leaves, followed by multi-leaf root smokes that aggregate all three
+transition lanes in one recursive root. Those gaps are what separate current
+local transition-recursion evidence from a root proof that can claim global
+ledger conservation across spot, zUSD, and perps lanes.

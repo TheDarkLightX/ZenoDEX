@@ -318,6 +318,23 @@ v1. This profile proves one local zUSD transition under the existing zUSD
 surface. It does not claim full zUSD lifecycle coverage, native ledger balance
 deltas, cross-shard mint/burn accounting, or oracle truth.
 
+The `risc0.zenodex_recursive_perps_np_leaf.v1` method is the third
+transition-specific recursive leaf. It accepts `PerpsNpRecursiveLeafInputV1`,
+executes the checked perps NP transition, requires `pre_app_hash` to be present,
+requires the leaf `state_hash` to equal the checked post app root, requires the
+inner perps journal image ID to match the perps-NP-leaf image ID, requires at
+least four participants, requires net base position zero, and derives
+`EffectSummaryV1` from `PerpsNpTransitionJournalV1`. Its `tx_root` is the perps
+operation hash. Its `evidence_root` binds oracle bindings, collateral bindings,
+participant set, receipt root, participant count, net position, total
+collateral, funding residual, and matched base volume. Its `receipt_root` is the
+checked perps receipt root. Recursive accepted/rejected receipt ID sets,
+cross-shard message sets, and asset-delta rows are empty in v1. This profile
+proves one local perps NP transition under the existing perps surface. It does
+not claim full perps lifecycle coverage, cross-shard collateral movement, native
+ledger balance deltas, zUSD collateral source verification beyond hash-bound
+references, or oracle truth.
+
 Repeatable local smoke path:
 
 ```bash
@@ -352,14 +369,25 @@ cargo run -q -p tau-state-proof-risc0-cli --example recursive_summary_leaf_smoke
   root /tmp/zusd-leaf.proof.json > /tmp/zusd-recursive-root.request.json
 RISC0_FORCE_BUILD=1 cargo run -q -p tau-state-proof-risc0-cli \
   < /tmp/zusd-recursive-root.request.json > /tmp/zusd-recursive-root.proof.json
+
+PERPS_IMAGE_ID_HEX=<hex perps NP leaf image ID from generated methods.rs>
+cargo run -q -p tau-state-proof-risc0-cli --example recursive_summary_leaf_smoke -- \
+  perps "$PERPS_IMAGE_ID_HEX" > /tmp/perps-np-leaf.request.json
+RISC0_FORCE_BUILD=1 cargo run -q -p tau-state-proof-risc0-cli \
+  < /tmp/perps-np-leaf.request.json > /tmp/perps-np-leaf.proof.json
+cargo run -q -p tau-state-proof-risc0-cli --example recursive_summary_leaf_smoke -- \
+  root /tmp/perps-np-leaf.proof.json > /tmp/perps-np-recursive-root.request.json
+RISC0_FORCE_BUILD=1 cargo run -q -p tau-state-proof-risc0-cli \
+  < /tmp/perps-np-recursive-root.request.json > /tmp/perps-np-recursive-root.proof.json
 ```
 
 The summary-leaf smoke proves recursive plumbing only. The spot-leaf smoke also
 proves a checked local spot transition. The zUSD-leaf smoke proves a checked
-local zUSD deposit-mint transition. Both transition-specific smokes verify the
-child receipt through the recursive root. These smokes do not upgrade
-cross-shard, native-ledger, complete stablecoin-lifecycle, or production
-validator claims.
+local zUSD deposit-mint transition. The perps-NP-leaf smoke proves a checked
+four-participant local perps epoch transition. These transition-specific smokes
+verify the child receipt through the recursive root. They do not upgrade
+cross-shard, native-ledger, complete stablecoin or perps lifecycle, or
+production-validator claims.
 
 Every child descriptor must bind:
 

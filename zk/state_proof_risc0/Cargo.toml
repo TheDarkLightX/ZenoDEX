@@ -4,6 +4,7 @@ members = [
   "shared",
   "methods",
   "methods/guest",
+  "methods/perps_np_leaf",
   "methods/spot_leaf",
   "methods/summary_leaf",
   "methods/zusd_leaf",

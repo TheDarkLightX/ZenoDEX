@@ -2051,6 +2051,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tau-state-proof-risc0-perps-np-leaf"
+version = "0.1.0"
+dependencies = [
+ "postcard",
+ "risc0-zkvm",
+ "serde",
+ "tau-state-proof-risc0-shared",
+]
+
+[[package]]
 name = "tau-state-proof-risc0-shared"
 version = "0.1.0"
 dependencies = [

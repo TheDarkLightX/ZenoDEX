@@ -6,12 +6,15 @@ use tau_state_proof_risc0_shared::{
     recursive_child_journal_hash_v1, recursive_child_verification_claim_hash_v1,
     recursive_child_verifier_id_v1, recursive_cross_shard_messages_root_v1,
     recursive_effect_summary_hash_v1, recursive_receipt_ids_root_v1, recursive_vector_root_v1,
-    recursive_verifier_set_root_v1, sha256_canonical_zusd_snapshot_v1, DexStateV1, OracleBindingV1,
-    RecursiveChildDescriptorV1, RecursiveChildEffectV1, RecursiveCompositionInputV1,
-    RecursiveCompositionStatementV1, RecursiveEffectSummaryV1, SpotRecursiveLeafInputV1,
-    StateProofInputV1, ZusdBalanceEntryV1, ZusdOperationV1, ZusdRecursiveLeafInputV1,
-    ZusdSnapshotV1, ZusdTransitionInputV1, ZusdVaultEntryV1, RECURSIVE_DOMAIN_SEPARATOR_V1,
-    RECURSIVE_EFFECT_SUMMARY_VERSION_V1, RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES,
+    recursive_verifier_set_root_v1, sha256_canonical_perps_np_snapshot_v1,
+    sha256_canonical_zusd_snapshot_v1, DexStateV1, OracleBindingV1, PerpsAccountV1,
+    PerpsMarketParamsV1, PerpsNpActionV1, PerpsNpRecursiveLeafInputV1, PerpsNpSnapshotV1,
+    PerpsNpTransitionInputV1, RecursiveChildDescriptorV1, RecursiveChildEffectV1,
+    RecursiveCompositionInputV1, RecursiveCompositionStatementV1, RecursiveEffectSummaryV1,
+    SpotRecursiveLeafInputV1, StateProofInputV1, ZusdBalanceEntryV1, ZusdOperationV1,
+    ZusdRecursiveLeafInputV1, ZusdSnapshotV1, ZusdTransitionInputV1, ZusdVaultEntryV1,
+    RECURSIVE_DOMAIN_SEPARATOR_V1, RECURSIVE_EFFECT_SUMMARY_VERSION_V1,
+    RECURSIVE_PERPS_NP_LEAF_MAX_INPUT_BYTES, RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES,
     RECURSIVE_STATEMENT_VERSION_V1, RECURSIVE_STRICT_CROSS_SHARD_MODE_V1,
     RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES, RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1,
     RECURSIVE_ZUSD_LEAF_MAX_INPUT_BYTES,
@@ -235,6 +238,86 @@ fn print_zusd_request(image_id_hex: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn perps_snapshot(now_epoch: u64) -> PerpsNpSnapshotV1 {
+    let e8 = 100_000_000i128;
+    PerpsNpSnapshotV1 {
+        version: 1,
+        market_id: "BTC-PERP".to_string(),
+        collateral_asset: "zUSD".to_string(),
+        index_price_e8: 100 * e8,
+        params: PerpsMarketParamsV1::default(),
+        accounts: ["wallet-a", "wallet-b", "wallet-c", "wallet-d"]
+            .iter()
+            .map(|wallet| PerpsAccountV1 {
+                pubkey: (*wallet).to_string(),
+                position_base: 0,
+                entry_price_e8: 0,
+                collateral_e8: 2_000 * e8,
+                funding_paid_cum_e8: 0,
+                nonce: 1,
+            })
+            .collect(),
+        pending_intents: Vec::new(),
+        now_epoch,
+        fee_pool_e8: 0,
+        insurance_e8: 1_000_000_000,
+        insurance_ext_e8: 1_000_000_000,
+        claims_paid_e8: 0,
+        net_deposited_e8: 4 * 2_000 * e8,
+    }
+}
+
+fn print_perps_request(image_id_hex: &str) -> Result<(), String> {
+    let e8 = 100_000_000i128;
+    let image_id = parse_image_id(image_id_hex)?;
+    let pre_state = perps_snapshot(0);
+    let post_state = perps_snapshot(1);
+    let pre_app_hash = sha256_canonical_perps_np_snapshot_v1(&pre_state);
+    let post_app_hash = sha256_canonical_perps_np_snapshot_v1(&post_state);
+    let input = PerpsNpRecursiveLeafInputV1 {
+        chain_id: "tau-devnet-recursive-smoke".to_string(),
+        epoch_id: 1,
+        lane_id: "perps-np-root-child-0001".to_string(),
+        risc0_image_id: image_id,
+        public_policy_hash: root(8),
+        feature_suite_hash: root(9),
+        dependency_lock_hash: root(10),
+        toolchain_lock_hash: root(11),
+        perps_input: PerpsNpTransitionInputV1 {
+            state_hash: post_app_hash,
+            chain_id: "tau-devnet-recursive-smoke".to_string(),
+            pre_app_hash_present: true,
+            pre_app_hash,
+            pre_state,
+            actions: vec![PerpsNpActionV1::RunEpoch {
+                oracle: smoke_oracle(100 * e8),
+                clearing_price_e8: 100 * e8,
+                funding_rate_bps: 0,
+                intents: Vec::new(),
+            }],
+            expected_post_app_hash: post_app_hash,
+            risc0_image_id: image_id,
+        },
+    };
+    let bytes =
+        postcard::to_allocvec(&input).map_err(|e| format!("postcard perps NP leaf: {e}"))?;
+    if bytes.len() > RECURSIVE_PERPS_NP_LEAF_MAX_INPUT_BYTES as usize {
+        return Err("perps NP leaf input exceeds input byte cap".to_string());
+    }
+    println!(
+        "{}",
+        serde_json::to_string(&json!({
+            "schema": "tau_state_proof_request",
+            "schema_version": 1,
+            "state_hash": hex_bytes(&post_app_hash),
+            "proof_type": "risc0.zenodex_recursive_perps_np_leaf.v1",
+            "perps_np_recursive_leaf_input": input,
+        }))
+        .map_err(|e| format!("perps NP request json: {e}"))?
+    );
+    Ok(())
+}
+
 fn summary_from_meta(meta: &Value) -> Result<RecursiveEffectSummaryV1, String> {
     Ok(RecursiveEffectSummaryV1 {
         summary_version: meta["summary_version"]
@@ -421,10 +504,11 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let result = match args.as_slice() {
         [_, mode, image_id_hex] if mode == "summary" => print_summary_request(image_id_hex),
+        [_, mode, image_id_hex] if mode == "perps" => print_perps_request(image_id_hex),
         [_, mode, image_id_hex] if mode == "spot" => print_spot_request(image_id_hex),
         [_, mode, image_id_hex] if mode == "zusd" => print_zusd_request(image_id_hex),
         [_, mode, proof_path] if mode == "root" => print_root_request(proof_path),
-        _ => Err("usage: recursive_summary_leaf_smoke summary <image-id-hex> | spot <image-id-hex> | zusd <image-id-hex> | root <recursive-leaf-proof-json>".to_string()),
+        _ => Err("usage: recursive_summary_leaf_smoke summary <image-id-hex> | perps <image-id-hex> | spot <image-id-hex> | zusd <image-id-hex> | root <recursive-leaf-proof-json>".to_string()),
     };
     if let Err(err) = result {
         eprintln!("{err}");

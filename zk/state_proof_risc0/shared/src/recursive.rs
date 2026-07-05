@@ -8,13 +8,15 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    execute_state_proof_input_v1, execute_zusd_transition_v1, StateProofInputV1,
-    StateProofJournalV1, TransitionError, ZusdTransitionInputV1, ZusdTransitionJournalV1,
+    execute_perps_np_transition_v1, execute_state_proof_input_v1, execute_zusd_transition_v1,
+    PerpsNpTransitionInputV1, PerpsNpTransitionJournalV1, StateProofInputV1, StateProofJournalV1,
+    TransitionError, ZusdTransitionInputV1, ZusdTransitionJournalV1,
 };
 
 pub const PROOF_TYPE_RECURSIVE: &str = "risc0.zenodex_recursive_epoch.v1";
 pub const PROOF_TYPE_RECURSIVE_SUMMARY_LEAF: &str = "risc0.zenodex_recursive_summary_leaf.v1";
 pub const PROOF_TYPE_RECURSIVE_SPOT_LEAF: &str = "risc0.zenodex_recursive_spot_leaf.v1";
+pub const PROOF_TYPE_RECURSIVE_PERPS_NP_LEAF: &str = "risc0.zenodex_recursive_perps_np_leaf.v1";
 pub const PROOF_TYPE_RECURSIVE_ZUSD_LEAF: &str = "risc0.zenodex_recursive_zusd_leaf.v1";
 pub const RECURSIVE_EFFECT_SUMMARY_VERSION_V1: u32 = 1;
 pub const RECURSIVE_STATEMENT_VERSION_V1: u32 = 1;
@@ -23,11 +25,14 @@ pub const RECURSIVE_STRICT_CROSS_SHARD_MODE_V1: &str = "strict";
 pub const RECURSIVE_DOMAIN_SEPARATOR_V1: &str = "zenodex.risc0.recursive_epoch.v1";
 pub const RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1: &str = "recursive_summary_leaf_test_v1";
 pub const RECURSIVE_SPOT_LEAF_PROFILE_V1: &str = "recursive_spot_leaf_v1";
+pub const RECURSIVE_PERPS_NP_LEAF_PROFILE_V1: &str = "recursive_perps_np_leaf_v1";
 pub const RECURSIVE_ZUSD_LEAF_PROFILE_V1: &str = "recursive_zusd_leaf_v1";
 pub const RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES: u32 = 4096;
 pub const RECURSIVE_SUMMARY_TEXT_MAX_BYTES: usize = 128;
 pub const RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES: u32 = 1_048_576;
+pub const RECURSIVE_PERPS_NP_LEAF_MAX_INPUT_BYTES: u32 = 1_048_576;
 pub const RECURSIVE_ZUSD_LEAF_MAX_INPUT_BYTES: u32 = 1_048_576;
+pub const RECURSIVE_PERPS_NP_MIN_PARTICIPANTS: u32 = 4;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecursiveCompositionStatementV1 {
@@ -164,6 +169,19 @@ pub struct ZusdRecursiveLeafInputV1 {
     pub dependency_lock_hash: [u8; 32],
     pub toolchain_lock_hash: [u8; 32],
     pub zusd_input: ZusdTransitionInputV1,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PerpsNpRecursiveLeafInputV1 {
+    pub chain_id: String,
+    pub epoch_id: u64,
+    pub lane_id: String,
+    pub risc0_image_id: [u32; 8],
+    pub public_policy_hash: [u8; 32],
+    pub feature_suite_hash: [u8; 32],
+    pub dependency_lock_hash: [u8; 32],
+    pub toolchain_lock_hash: [u8; 32],
+    pub perps_input: PerpsNpTransitionInputV1,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -749,6 +767,104 @@ pub fn compose_zusd_recursive_leaf_summary_v1(
     Ok(summary)
 }
 
+pub fn compose_perps_np_recursive_leaf_summary_v1(
+    input: PerpsNpRecursiveLeafInputV1,
+) -> Result<RecursiveEffectSummaryV1, TransitionError> {
+    require_nonempty_bounded(
+        &input.chain_id,
+        "perps NP leaf chain_id empty",
+        "perps NP leaf chain_id too long",
+    )?;
+    require_nonempty_bounded(
+        &input.lane_id,
+        "perps NP leaf lane_id empty",
+        "perps NP leaf lane_id too long",
+    )?;
+    require_nonzero_root(
+        &input.public_policy_hash,
+        "perps NP leaf public_policy_hash zero",
+    )?;
+    require_nonzero_root(
+        &input.feature_suite_hash,
+        "perps NP leaf feature_suite_hash zero",
+    )?;
+    require_nonzero_root(
+        &input.dependency_lock_hash,
+        "perps NP leaf dependency_lock_hash zero",
+    )?;
+    require_nonzero_root(
+        &input.toolchain_lock_hash,
+        "perps NP leaf toolchain_lock_hash zero",
+    )?;
+    if input.risc0_image_id.iter().all(|word| *word == 0) {
+        return Err(TransitionError::InvalidInput("perps NP leaf image id zero"));
+    }
+
+    let journal = execute_perps_np_transition_v1(input.perps_input)?;
+    if !journal.pre_app_hash_present {
+        return Err(TransitionError::InvalidInput(
+            "perps NP recursive leaf requires pre_app_hash",
+        ));
+    }
+    if journal.state_hash != journal.post_app_hash {
+        return Err(TransitionError::InvalidInput(
+            "perps NP recursive leaf state_hash must equal post_app_hash",
+        ));
+    }
+    if journal.risc0_image_id != input.risc0_image_id {
+        return Err(TransitionError::InvalidInput(
+            "perps NP recursive leaf image id mismatch",
+        ));
+    }
+    if journal.participant_count < RECURSIVE_PERPS_NP_MIN_PARTICIPANTS {
+        return Err(TransitionError::InvalidInput(
+            "perps NP recursive leaf participant floor",
+        ));
+    }
+    if journal.net_position_base != 0 {
+        return Err(TransitionError::InvalidInput(
+            "perps NP recursive leaf net position nonzero",
+        ));
+    }
+
+    let empty_asset_rows = Vec::new();
+    let empty_messages = Vec::new();
+    let empty_receipt_ids = Vec::new();
+    let summary = RecursiveEffectSummaryV1 {
+        summary_version: RECURSIVE_EFFECT_SUMMARY_VERSION_V1,
+        lane_id: input.lane_id,
+        lane_kind: "perps_np".to_string(),
+        chain_id: input.chain_id,
+        epoch_id: input.epoch_id,
+        proof_profile: RECURSIVE_PERPS_NP_LEAF_PROFILE_V1.to_string(),
+        risc0_image_id: input.risc0_image_id,
+        statement_hash: perps_np_recursive_leaf_statement_hash_v1(
+            &journal,
+            input.public_policy_hash,
+            input.feature_suite_hash,
+            input.dependency_lock_hash,
+            input.toolchain_lock_hash,
+        ),
+        pre_state_root: journal.pre_app_hash,
+        post_state_root: journal.post_app_hash,
+        tx_root: journal.operation_hash,
+        evidence_root: perps_np_recursive_leaf_evidence_root_v1(&journal),
+        receipt_root: journal.receipt_root,
+        accepted_receipts_root: recursive_receipt_ids_root_v1(&empty_receipt_ids)?,
+        rejected_receipts_root: recursive_receipt_ids_root_v1(&empty_receipt_ids)?,
+        asset_delta_root: recursive_asset_delta_root_v1(&empty_asset_rows)?,
+        cross_shard_outbox_root: recursive_cross_shard_messages_root_v1(&empty_messages)?,
+        cross_shard_inbox_root: recursive_cross_shard_messages_root_v1(&empty_messages)?,
+        write_set_root: perps_np_recursive_leaf_write_set_root_v1(&journal),
+        public_policy_hash: input.public_policy_hash,
+        feature_suite_hash: input.feature_suite_hash,
+        dependency_lock_hash: input.dependency_lock_hash,
+        toolchain_lock_hash: input.toolchain_lock_hash,
+    };
+    validate_recursive_effect_summary_shape_v1(&summary)?;
+    Ok(summary)
+}
+
 pub fn spot_recursive_leaf_statement_hash_v1(
     journal: &StateProofJournalV1,
     public_policy_hash: [u8; 32],
@@ -817,6 +933,41 @@ pub fn zusd_recursive_leaf_statement_hash_v1(
     hasher.finalize().into()
 }
 
+pub fn perps_np_recursive_leaf_statement_hash_v1(
+    journal: &PerpsNpTransitionJournalV1,
+    public_policy_hash: [u8; 32],
+    feature_suite_hash: [u8; 32],
+    dependency_lock_hash: [u8; 32],
+    toolchain_lock_hash: [u8; 32],
+) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"zenodex.risc0.recursive.perps_np_leaf.statement.v1");
+    write_u32(&mut hasher, journal.journal_version);
+    write_str(&mut hasher, &journal.proof_type);
+    write_bytes32(&mut hasher, &journal.state_hash);
+    write_str(&mut hasher, &journal.chain_id);
+    hasher.update([journal.pre_app_hash_present as u8]);
+    write_bytes32(&mut hasher, &journal.pre_app_hash);
+    write_bytes32(&mut hasher, &journal.post_app_hash);
+    write_bytes32(&mut hasher, &journal.operation_hash);
+    write_bytes32(&mut hasher, &journal.state_delta_hash);
+    write_bytes32(&mut hasher, &journal.oracle_binding_hash);
+    write_bytes32(&mut hasher, &journal.collateral_binding_hash);
+    write_bytes32(&mut hasher, &journal.participant_set_hash);
+    write_bytes32(&mut hasher, &journal.receipt_root);
+    write_image_id(&mut hasher, &journal.risc0_image_id);
+    write_u32(&mut hasher, journal.participant_count);
+    write_i128(&mut hasher, journal.net_position_base);
+    write_i128(&mut hasher, journal.total_collateral_e8);
+    write_i128(&mut hasher, journal.funding_residual_e8);
+    write_i128(&mut hasher, journal.matched_base_volume);
+    write_bytes32(&mut hasher, &public_policy_hash);
+    write_bytes32(&mut hasher, &feature_suite_hash);
+    write_bytes32(&mut hasher, &dependency_lock_hash);
+    write_bytes32(&mut hasher, &toolchain_lock_hash);
+    hasher.finalize().into()
+}
+
 pub fn spot_recursive_leaf_evidence_root_v1(journal: &StateProofJournalV1) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(b"zenodex.risc0.recursive.spot_leaf.evidence_root.v1");
@@ -846,6 +997,21 @@ pub fn spot_recursive_leaf_evidence_root_v1(journal: &StateProofJournalV1) -> [u
     hasher.finalize().into()
 }
 
+pub fn perps_np_recursive_leaf_evidence_root_v1(journal: &PerpsNpTransitionJournalV1) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"zenodex.risc0.recursive.perps_np_leaf.evidence_root.v1");
+    write_bytes32(&mut hasher, &journal.oracle_binding_hash);
+    write_bytes32(&mut hasher, &journal.collateral_binding_hash);
+    write_bytes32(&mut hasher, &journal.participant_set_hash);
+    write_bytes32(&mut hasher, &journal.receipt_root);
+    write_u32(&mut hasher, journal.participant_count);
+    write_i128(&mut hasher, journal.net_position_base);
+    write_i128(&mut hasher, journal.total_collateral_e8);
+    write_i128(&mut hasher, journal.funding_residual_e8);
+    write_i128(&mut hasher, journal.matched_base_volume);
+    hasher.finalize().into()
+}
+
 pub fn zusd_recursive_leaf_evidence_root_v1(journal: &ZusdTransitionJournalV1) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(b"zenodex.risc0.recursive.zusd_leaf.evidence_root.v1");
@@ -866,6 +1032,17 @@ pub fn spot_recursive_leaf_write_set_root_v1(journal: &StateProofJournalV1) -> [
     write_bytes32(&mut hasher, &journal.post_nonce_root);
     write_bytes32(&mut hasher, &journal.pre_app_hash);
     write_bytes32(&mut hasher, &journal.post_app_hash);
+    hasher.finalize().into()
+}
+
+pub fn perps_np_recursive_leaf_write_set_root_v1(journal: &PerpsNpTransitionJournalV1) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"zenodex.risc0.recursive.perps_np_leaf.write_set_root.v1");
+    write_bytes32(&mut hasher, &journal.pre_app_hash);
+    write_bytes32(&mut hasher, &journal.post_app_hash);
+    write_bytes32(&mut hasher, &journal.state_delta_hash);
+    write_bytes32(&mut hasher, &journal.participant_set_hash);
+    write_bytes32(&mut hasher, &journal.receipt_root);
     hasher.finalize().into()
 }
 
@@ -1483,6 +1660,10 @@ fn write_u128(hasher: &mut Sha256, n: u128) {
     hasher.update(n.to_be_bytes());
 }
 
+fn write_i128(hasher: &mut Sha256, n: i128) {
+    hasher.update(n.to_be_bytes());
+}
+
 fn write_str(hasher: &mut Sha256, value: &str) {
     let bytes = value.as_bytes();
     let len = u32::try_from(bytes.len()).expect("recursive hash string length exceeds u32");
@@ -1517,10 +1698,12 @@ fn write_cross_shard_message(hasher: &mut Sha256, row: &RecursiveCrossShardMessa
 mod tests {
     use super::*;
     use crate::{
-        accepted_receipts_root_v1, execute_zusd_transition_v1, sha256_canonical_zusd_snapshot_v1,
-        zusd_balance_root_hash_v1, DexStateV1, OracleBindingV1, StateProofInputV1,
-        ZusdBalanceEntryV1, ZusdOperationV1, ZusdSnapshotV1, ZusdTransitionInputV1,
-        ZusdVaultEntryV1,
+        accepted_receipts_root_v1, execute_perps_np_transition_v1, execute_zusd_transition_v1,
+        sha256_canonical_perps_np_snapshot_v1, sha256_canonical_zusd_snapshot_v1,
+        zusd_balance_root_hash_v1, DexStateV1, OracleBindingV1, PerpsAccountV1,
+        PerpsMarketParamsV1, PerpsNpActionV1, PerpsNpSnapshotV1, PerpsNpTransitionInputV1,
+        StateProofInputV1, ZusdBalanceEntryV1, ZusdOperationV1, ZusdSnapshotV1,
+        ZusdTransitionInputV1, ZusdVaultEntryV1,
     };
     use alloc::string::ToString;
 
@@ -1577,6 +1760,18 @@ mod tests {
             compose_zusd_recursive_leaf_summary_v1(input),
             Err(TransitionError::InvalidInput(
                 "zUSD recursive leaf image id mismatch"
+            ))
+        ));
+    }
+
+    #[test]
+    fn perps_np_recursive_leaf_rejects_inner_image_id_mismatch() {
+        let mut input = perps_leaf_input();
+        input.perps_input.risc0_image_id = image(45);
+        assert!(matches!(
+            compose_perps_np_recursive_leaf_summary_v1(input),
+            Err(TransitionError::InvalidInput(
+                "perps NP recursive leaf image id mismatch"
             ))
         ));
     }
@@ -1642,6 +1837,68 @@ mod tests {
                 operation,
                 expected_post_app_hash: post_app_hash,
                 risc0_image_id: image(42),
+            },
+        }
+    }
+
+    fn perps_snapshot(now_epoch: u64) -> PerpsNpSnapshotV1 {
+        let e8 = 100_000_000i128;
+        PerpsNpSnapshotV1 {
+            version: 1,
+            market_id: "BTC-PERP".to_string(),
+            collateral_asset: "zUSD".to_string(),
+            index_price_e8: 100 * e8,
+            params: PerpsMarketParamsV1::default(),
+            accounts: ["wallet-a", "wallet-b", "wallet-c", "wallet-d"]
+                .iter()
+                .map(|wallet| PerpsAccountV1 {
+                    pubkey: (*wallet).to_string(),
+                    position_base: 0,
+                    entry_price_e8: 0,
+                    collateral_e8: 2_000 * e8,
+                    funding_paid_cum_e8: 0,
+                    nonce: 1,
+                })
+                .collect(),
+            pending_intents: Vec::new(),
+            now_epoch,
+            fee_pool_e8: 0,
+            insurance_e8: 1_000_000_000,
+            insurance_ext_e8: 1_000_000_000,
+            claims_paid_e8: 0,
+            net_deposited_e8: 4 * 2_000 * e8,
+        }
+    }
+
+    fn perps_leaf_input() -> PerpsNpRecursiveLeafInputV1 {
+        let e8 = 100_000_000i128;
+        let pre_state = perps_snapshot(0);
+        let post_state = perps_snapshot(1);
+        let pre_app_hash = sha256_canonical_perps_np_snapshot_v1(&pre_state);
+        let post_app_hash = sha256_canonical_perps_np_snapshot_v1(&post_state);
+        PerpsNpRecursiveLeafInputV1 {
+            chain_id: "tau-test".to_string(),
+            epoch_id: 7,
+            lane_id: "perps-np-lane-a".to_string(),
+            risc0_image_id: image(44),
+            public_policy_hash: h(10),
+            feature_suite_hash: h(11),
+            dependency_lock_hash: h(12),
+            toolchain_lock_hash: h(13),
+            perps_input: PerpsNpTransitionInputV1 {
+                state_hash: post_app_hash,
+                chain_id: "tau-test".to_string(),
+                pre_app_hash_present: true,
+                pre_app_hash,
+                pre_state,
+                actions: alloc::vec![PerpsNpActionV1::RunEpoch {
+                    oracle: oracle(100 * e8),
+                    clearing_price_e8: 100 * e8,
+                    funding_rate_bps: 0,
+                    intents: Vec::new(),
+                }],
+                expected_post_app_hash: post_app_hash,
+                risc0_image_id: image(44),
             },
         }
     }
@@ -1994,6 +2251,50 @@ mod tests {
             compose_zusd_recursive_leaf_summary_v1(input),
             Err(TransitionError::InvalidInput(
                 "zUSD recursive leaf state_hash must equal post_app_hash"
+            ))
+        ));
+    }
+
+    #[test]
+    fn perps_np_recursive_leaf_derives_summary_from_checked_transition() {
+        let input = perps_leaf_input();
+        let journal = execute_perps_np_transition_v1(input.perps_input.clone()).unwrap();
+        let summary = compose_perps_np_recursive_leaf_summary_v1(input).unwrap();
+        assert_eq!(summary.lane_kind, "perps_np");
+        assert_eq!(summary.proof_profile, RECURSIVE_PERPS_NP_LEAF_PROFILE_V1);
+        assert_eq!(summary.pre_state_root, journal.pre_app_hash);
+        assert_eq!(summary.post_state_root, journal.post_app_hash);
+        assert_eq!(summary.tx_root, journal.operation_hash);
+        assert_eq!(summary.receipt_root, journal.receipt_root);
+        assert_eq!(journal.participant_count, 4);
+        assert_eq!(journal.net_position_base, 0);
+        assert_eq!(
+            summary.asset_delta_root,
+            recursive_asset_delta_root_v1(&[]).unwrap()
+        );
+    }
+
+    #[test]
+    fn perps_np_recursive_leaf_rejects_missing_pre_app_hash() {
+        let mut input = perps_leaf_input();
+        input.perps_input.pre_app_hash_present = false;
+        input.perps_input.pre_app_hash = [0u8; 32];
+        assert!(matches!(
+            compose_perps_np_recursive_leaf_summary_v1(input),
+            Err(TransitionError::InvalidInput(
+                "perps NP recursive leaf requires pre_app_hash"
+            ))
+        ));
+    }
+
+    #[test]
+    fn perps_np_recursive_leaf_rejects_state_hash_post_root_drift() {
+        let mut input = perps_leaf_input();
+        input.perps_input.state_hash = h(202);
+        assert!(matches!(
+            compose_perps_np_recursive_leaf_summary_v1(input),
+            Err(TransitionError::InvalidInput(
+                "perps NP recursive leaf state_hash must equal post_app_hash"
             ))
         ));
     }
