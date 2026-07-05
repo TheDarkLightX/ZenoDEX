@@ -351,8 +351,8 @@ AssetDeltaRowV1 {
 Global conservation at an aggregation node requires, for each asset:
 
 ```text
-sum(debit_atoms) + sum(authorized_burn_atoms)
-  = sum(credit_atoms) + sum(authorized_mint_atoms)
+sum(debit_atoms) + sum(authorized_mint_atoms)
+  = sum(credit_atoms) + sum(authorized_burn_atoms)
 ```
 
 Rows with nonzero mint or burn require an authority root from an allowed policy:

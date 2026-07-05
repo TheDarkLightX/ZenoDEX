@@ -1428,11 +1428,11 @@ fn validate_asset_conservation_v1(
     for row in rows {
         let debit_side = row
             .debit_atoms
-            .checked_add(row.authorized_burn_atoms)
+            .checked_add(row.authorized_mint_atoms)
             .ok_or(TransitionError::Arithmetic("asset debit total overflow"))?;
         let credit_side = row
             .credit_atoms
-            .checked_add(row.authorized_mint_atoms)
+            .checked_add(row.authorized_burn_atoms)
             .ok_or(TransitionError::Arithmetic("asset credit total overflow"))?;
         if debit_side != credit_side {
             return Err(TransitionError::InvalidInput(
@@ -1912,6 +1912,24 @@ mod tests {
         }
     }
 
+    fn authorized_asset_row(
+        asset_id: &str,
+        debit: u128,
+        credit: u128,
+        authorized_mint: u128,
+        authorized_burn: u128,
+        authority_root: [u8; 32],
+    ) -> RecursiveAssetDeltaRowV1 {
+        RecursiveAssetDeltaRowV1 {
+            asset_id: asset_id.to_string(),
+            debit_atoms: debit,
+            credit_atoms: credit,
+            authorized_mint_atoms: authorized_mint,
+            authorized_burn_atoms: authorized_burn,
+            authority_root,
+        }
+    }
+
     fn message(byte: u8) -> RecursiveCrossShardMessageV1 {
         RecursiveCrossShardMessageV1 {
             message_id: h(byte),
@@ -2068,6 +2086,51 @@ mod tests {
         }
     }
 
+    fn refresh_child_effect_hashes(child: &mut RecursiveChildEffectV1) {
+        child.summary.asset_delta_root =
+            recursive_asset_delta_root_v1(&child.asset_delta_rows).expect("test asset rows hash");
+        child.summary.cross_shard_outbox_root =
+            recursive_cross_shard_messages_root_v1(&child.outbox_messages)
+                .expect("test outbox rows hash");
+        child.summary.cross_shard_inbox_root =
+            recursive_cross_shard_messages_root_v1(&child.inbox_messages)
+                .expect("test inbox rows hash");
+        child.summary.accepted_receipts_root =
+            recursive_receipt_ids_root_v1(&child.accepted_receipt_ids)
+                .expect("test accepted receipt root");
+        child.summary.rejected_receipts_root =
+            recursive_receipt_ids_root_v1(&child.rejected_receipt_ids)
+                .expect("test rejected receipt root");
+        child.descriptor.child_effect_summary_hash =
+            recursive_effect_summary_hash_v1(&child.summary);
+    }
+
+    fn single_child_input_with_rows(
+        rows: Vec<RecursiveAssetDeltaRowV1>,
+    ) -> RecursiveCompositionInputV1 {
+        let mut input = valid_input();
+        input.children.truncate(1);
+        input.children[0].asset_delta_rows = rows;
+        input.children[0].outbox_messages = Vec::new();
+        input.children[0].inbox_messages = Vec::new();
+        refresh_child_effect_hashes(&mut input.children[0]);
+        input.allowed_verifier_ids = alloc::vec![input.children[0].descriptor.child_verifier_id];
+        input.statement.verifier_set_root =
+            recursive_verifier_set_root_v1(&input.allowed_verifier_ids).unwrap();
+        input.statement.expected_child_count = 1;
+        input.statement.expected_pre_state_root = recursive_root_list_root_v1(
+            b"zenodex.risc0.recursive.pre_state_vector_root.v1",
+            &[input.children[0].summary.pre_state_root],
+        )
+        .unwrap();
+        input.statement.expected_post_state_root = recursive_root_list_root_v1(
+            b"zenodex.risc0.recursive.post_state_vector_root.v1",
+            &[input.children[0].summary.post_state_root],
+        )
+        .unwrap();
+        input
+    }
+
     #[test]
     fn recursive_composition_accepts_balanced_strict_children() {
         let input = valid_input();
@@ -2087,6 +2150,52 @@ mod tests {
             input.statement.expected_post_state_root
         );
         assert_eq!(journal.verifier_set_root, input.statement.verifier_set_root);
+    }
+
+    #[test]
+    fn recursive_composition_accepts_authorized_mint_credit() {
+        let input = single_child_input_with_rows(alloc::vec![authorized_asset_row(
+            "zUSD",
+            0,
+            100,
+            100,
+            0,
+            h(6),
+        )]);
+        let journal = compose_recursive_epoch_journal_v1(&input).unwrap();
+        assert_eq!(journal.child_count, 1);
+    }
+
+    #[test]
+    fn recursive_composition_accepts_authorized_burn_debit() {
+        let input = single_child_input_with_rows(alloc::vec![authorized_asset_row(
+            "zUSD",
+            100,
+            0,
+            0,
+            100,
+            h(6),
+        )]);
+        let journal = compose_recursive_epoch_journal_v1(&input).unwrap();
+        assert_eq!(journal.child_count, 1);
+    }
+
+    #[test]
+    fn recursive_composition_rejects_inverted_authorized_burn_credit() {
+        let input = single_child_input_with_rows(alloc::vec![authorized_asset_row(
+            "zUSD",
+            0,
+            100,
+            0,
+            100,
+            h(6),
+        )]);
+        assert!(matches!(
+            compose_recursive_epoch_journal_v1(&input),
+            Err(TransitionError::InvalidInput(
+                "aggregate asset delta unbalanced"
+            ))
+        ));
     }
 
     #[test]
