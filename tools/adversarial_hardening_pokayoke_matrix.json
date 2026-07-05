@@ -1,0 +1,584 @@
+{
+  "schema": "zenodex/adversarial_hardening_pokayoke_matrix/v1",
+  "status": "research_obligation_matrix",
+  "updated_at": "2026-07-05",
+  "promotion_boundary": {
+    "public_claim_allowed": false,
+    "claim_registry_entry_allowed": false,
+    "model_authority": "advisory_only",
+    "non_claims": [
+      "no_unknown_disaster_absence_claim",
+      "no_production_security_claim",
+      "no_model_authority",
+      "no_settlement_authority",
+      "no_side_channel_elimination_claim"
+    ]
+  },
+  "actors": [
+    {
+      "id": "alice",
+      "role": "honest trader",
+      "authority": "submits signed intents within wallet capability",
+      "incentive": "receive expected execution or safe rejection"
+    },
+    {
+      "id": "bob",
+      "role": "liquidity provider",
+      "authority": "supplies liquidity under pool and receipt rules",
+      "incentive": "earn fees without hidden liability drift"
+    },
+    {
+      "id": "mallory",
+      "role": "adversary",
+      "authority": "may submit malformed inputs, observe public metadata, collude, censor, replay, and exploit timing",
+      "incentive": "extract value, grief, or create trusted false evidence"
+    },
+    {
+      "id": "sequencer",
+      "role": "ordering and inclusion actor",
+      "authority": "orders, delays, or withholds candidate transactions within modeled limits",
+      "incentive": "fees, side payments, or censorship leverage"
+    },
+    {
+      "id": "proof_aggregator",
+      "role": "recursive proof aggregation actor",
+      "authority": "assembles child receipts and recursive lifecycle admission packets for verifier admission",
+      "incentive": "receive aggregation or proof-market rewards without losing admissibility"
+    },
+    {
+      "id": "oracle_reporter",
+      "role": "price and state reporter",
+      "authority": "submits signed reports subject to policy, bond, and freshness gates",
+      "incentive": "report rewards minus slash and lost future value"
+    },
+    {
+      "id": "governance_operator",
+      "role": "policy and release actor",
+      "authority": "proposes or deploys configuration and policy changes",
+      "incentive": "ship upgrades without introducing weaker authority"
+    }
+  ],
+  "control_classes": [
+    {
+      "id": "typed_state_binding",
+      "description": "Bind action receipts to explicit state roots and critical substate hashes.",
+      "defense_layer": "unrepresentable"
+    },
+    {
+      "id": "canonical_transcript",
+      "description": "Commit to deterministic ordering, serialization, and transcript hashes.",
+      "defense_layer": "unrepresentable"
+    },
+    {
+      "id": "authority_binding",
+      "description": "Require the exact verifier, signer, policy, evidence class, and scope authorized for the action.",
+      "defense_layer": "guarded_transition"
+    },
+    {
+      "id": "reject_is_no_op",
+      "description": "Rejected traces must leave committed state unchanged.",
+      "defense_layer": "guarded_transition"
+    },
+    {
+      "id": "bonded_downside",
+      "description": "Value-moving roles need slashable downside or a hard authority cap.",
+      "defense_layer": "guarded_transition"
+    },
+    {
+      "id": "side_channel_budget",
+      "description": "Observable timing, error, and status surfaces must be classified and budgeted.",
+      "defense_layer": "detected_at_commit"
+    },
+    {
+      "id": "covert_channel_budget",
+      "description": "Metadata, ordering, storage, and receipt fields must not become unbounded coordination channels.",
+      "defense_layer": "detected_at_commit"
+    },
+    {
+      "id": "receipt_dag_closure",
+      "description": "Terminal receipts close over every required upstream proof, policy, registry, and economic receipt.",
+      "defense_layer": "guarded_transition"
+    },
+    {
+      "id": "evidence_class_binding",
+      "description": "Devnet, fixture, O2, replay, public-testnet, and production evidence classes are non-interchangeable.",
+      "defense_layer": "guarded_transition"
+    },
+    {
+      "id": "value_at_risk_tier",
+      "description": "Critical actions must respect value-at-risk tiers for quorum, freshness, reporter independence, and economics.",
+      "defense_layer": "guarded_transition"
+    },
+    {
+      "id": "release_config_ratchet",
+      "description": "Production and public-testnet profiles reject weaker flags, malformed booleans, faucet modes, and path lookup.",
+      "defense_layer": "guarded_transition"
+    },
+    {
+      "id": "resource_budget",
+      "description": "Bound parser, verifier, search, retry, and transport work before attacker-controlled inputs choose cost.",
+      "defense_layer": "bounded_blast_radius"
+    },
+    {
+      "id": "advisory_model_sandbox",
+      "description": "Models, rankers, simulations, and subagents rank candidates but cannot authorize settlement or public claims.",
+      "defense_layer": "guarded_transition"
+    },
+    {
+      "id": "pokayoke_interlock",
+      "description": "User-facing or operator-facing controls block unsafe action classes before signing or committing.",
+      "defense_layer": "guarded_transition"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "AH-PK-001",
+      "title": "Alice swap with Mallory boundary MEV and stale quote reuse",
+      "severity": "high",
+      "stage": "promotion_target",
+      "actors": ["alice", "bob", "mallory", "sequencer"],
+      "game_surface": {
+        "players": "Alice signs a swap, Bob supplies pool liquidity, Mallory observes metadata and may influence inclusion, the sequencer orders or withholds.",
+        "actions": "submit intent, quote route, admit batch, reorder within allowed window, settle or reject",
+        "information_sets": "public mempool hints, quote age, batch boundary, pool reserves, visible reject class",
+        "timing": "quote build, user signature, batch close, settlement commit",
+        "state": "pool reserves, quote certificate, settlement profile, nonce, batch transcript",
+        "payoff": "Mallory profit from stale quote, profile drift, or inclusion timing minus costs"
+      },
+      "attack_query": "exists Mallory strategy: profit_atoms > 0 while stale or profile-drifted quote is accepted",
+      "bounded_model": {
+        "variables": ["profit_atoms", "quote_age_epochs", "profile_id", "batch_id", "slippage_bps"],
+        "bounds": ["profit_atoms >= 0", "0 <= slippage_bps <= 10000", "quote_age_epochs <= max_quote_age_epochs + 1"],
+        "assumptions": ["integer token atoms", "deterministic batch transcript", "fixed admission policy"],
+        "exclusions": ["external venue arbitrage outside the settlement profile"]
+      },
+      "disaster_state": "settlement accepts a quote certificate under stale state, wrong profile, or Mallory-controlled batch-boundary information",
+      "defense_layers": ["unrepresentable", "guarded_transition", "detected_at_commit"],
+      "controls": [
+        "typed_state_binding",
+        "canonical_transcript",
+        "reject_is_no_op",
+        "side_channel_budget",
+        "covert_channel_budget",
+        "pokayoke_interlock"
+      ],
+      "side_channels": [
+        {
+          "channel": "error class reveals exact quote age or pool path before batch close",
+          "control": "deterministic reject class with redacted public detail and full private receipt"
+        }
+      ],
+      "covert_channels": [
+        {
+          "channel": "partial-fill or retry metadata signals batch-boundary decisions",
+          "control": "canonical batch transcript and bounded retry envelope"
+        }
+      ],
+      "mechanism_update": "Settlement profiles must be transcript-bound and quote reuse must fail closed when state, profile, or batch identity differs.",
+      "game_theory_condition": "MalloryAcceptGain <= rejected_value_atoms + slash_or_fee_cost_atoms under the fixed admission model",
+      "evidence_lane": {
+        "status": "mapped_partial",
+        "next_command": "pytest -q tests/core/test_quote_receipts.py tests/integration/test_dex_dispatch_slippage_handlers.py",
+        "promotion_requirement": "negative stale/profile-drift replay with reject-is-no-op state check"
+      },
+      "promotion_boundary": {
+        "claim_status": "hypothesis",
+        "non_claim": "No global MEV elimination or unknown side-channel absence claim."
+      }
+    },
+    {
+      "id": "AH-PK-002",
+      "title": "Oracle reporter collusion captures median value",
+      "severity": "high",
+      "stage": "promotion_target",
+      "actors": ["mallory", "oracle_reporter", "governance_operator"],
+      "game_surface": {
+        "players": "Mallory controls or bribes reporters, honest reporters submit fresh values, governance chooses feed policy.",
+        "actions": "register reporter, deposit bond, submit report, aggregate, dispute, slash, consume critical read",
+        "information_sets": "reporter set, bond size, value-at-risk, report windows, dispute evidence",
+        "timing": "registration, report submission, aggregation, critical action admission",
+        "state": "reporter registry, feed policy, aggregate receipt, dispute ledger, slash ledger",
+        "payoff": "Mallory gain from moving the aggregate minus expected slash and future value lost"
+      },
+      "attack_query": "exists two controlled reporters in median3: critical read accepted and DefectGain > expected downside",
+      "bounded_model": {
+        "variables": ["controlled_reporters", "reporter_bond_e8", "value_at_risk_e8", "slash_e8", "detection_probability_num", "detection_probability_den"],
+        "bounds": ["controlled_reporters <= reporter_count", "reporter_bond_e8 >= 0", "value_at_risk_e8 >= 0"],
+        "assumptions": ["rational detection probability encoded by numerator and denominator", "slash and rewards in integer e8 units"],
+        "exclusions": ["hidden real-world beneficial ownership unless separately attested or disputed"]
+      },
+      "disaster_state": "a median3 feed authorizes a high-value action while two accepted reporters are within Mallory's control budget",
+      "defense_layers": ["guarded_transition", "detected_at_commit"],
+      "controls": [
+        "authority_binding",
+        "bonded_downside",
+        "value_at_risk_tier",
+        "reject_is_no_op",
+        "side_channel_budget",
+        "covert_channel_budget",
+        "receipt_dag_closure"
+      ],
+      "side_channels": [
+        {
+          "channel": "report timing leaks which reporters are needed to swing the aggregate",
+          "control": "receipt-level timing disclosure policy and bounded observation fields"
+        }
+      ],
+      "covert_channels": [
+        {
+          "channel": "reporter metadata or ordering fields coordinate colluding reports",
+          "control": "canonical report transcript with non-semantic metadata excluded from aggregate authority"
+        }
+      ],
+      "mechanism_update": "Critical feed policy needs value-at-risk tiers that reject or downgrade weak quorum structures under the modeled control budget.",
+      "game_theory_condition": "DefectGain <= DetectionProbability * SlashAmount + FutureValueLost",
+      "evidence_lane": {
+        "status": "implemented_checker",
+        "next_command": "pytest -q tests/test_zenodex_oracle_collusion_bound.py tests/test_zenodex_oracle_reporter_economics_replay.py tests/test_zenodex_oracle_reporter_token_settlement_replay.py",
+        "promotion_requirement": "collusion envelope rejects median3 control when bonded downside is below value-at-risk, plus reporter economics replay"
+      },
+      "promotion_boundary": {
+        "claim_status": "hypothesis",
+        "non_claim": "No hidden-beneficial-owner closure claim from on-chain artifacts alone."
+      }
+    },
+    {
+      "id": "AH-PK-003",
+      "title": "Proof-mining duplicate reward and claim replay",
+      "severity": "high",
+      "stage": "promotion_target",
+      "actors": ["mallory", "governance_operator"],
+      "game_surface": {
+        "players": "Mallory submits proof work, verifier checks receipts, reward manager pays approved claims.",
+        "actions": "submit claim, mutate proof metadata, replay payout, withdraw or reassign reward",
+        "information_sets": "claim identity, proof hash, verifier identity, reward pool, previous payouts",
+        "timing": "claim submit, verification, reward assignment, payout commit",
+        "state": "claim ledger, proof receipts, payout nonce, reward pool balances",
+        "payoff": "duplicate reward extraction minus slash, clawback, and future exclusion"
+      },
+      "attack_query": "exists replay or alias of a valid claim: payout accepted twice or reward pool goes negative",
+      "bounded_model": {
+        "variables": ["claim_id", "proof_hash", "payout_nonce", "reward_e8", "reward_pool_e8"],
+        "bounds": ["reward_e8 >= 0", "reward_pool_e8 >= 0", "nonce is a deterministic integer or hash"],
+        "assumptions": ["canonical claim identity", "integer reward accounting", "single verifier profile per claim"],
+        "exclusions": ["manual off-ledger payment systems"]
+      },
+      "disaster_state": "one proof-carrying task pays more than once or mutates authority after verification",
+      "defense_layers": ["unrepresentable", "guarded_transition"],
+      "controls": [
+        "typed_state_binding",
+        "canonical_transcript",
+        "reject_is_no_op",
+        "receipt_dag_closure",
+        "side_channel_budget",
+        "covert_channel_budget",
+        "pokayoke_interlock"
+      ],
+      "side_channels": [
+        {
+          "channel": "verifier timing reveals which mutation is closest to acceptance",
+          "control": "stable rejection families and bounded diagnostic disclosure"
+        }
+      ],
+      "covert_channels": [
+        {
+          "channel": "claim metadata encodes off-protocol coordination for reward splitting",
+          "control": "metadata excluded from payout identity or committed as non-authoritative"
+        }
+      ],
+      "mechanism_update": "Reward eligibility must be a function of canonical proof identity, verifier profile, and payout nonce, with duplicate rejection before balance mutation.",
+      "game_theory_condition": "DuplicateRewardGain <= SlashAmount + FutureValueLost after deterministic duplicate detection",
+      "evidence_lane": {
+        "status": "mapped_partial",
+        "next_command": "pytest -q tests/runtime/test_proof_mining_flag_binding_regression.py tests/runtime/test_full_runtime_disaster_regressions.py",
+        "promotion_requirement": "stateful replay mutator showing duplicate and alias claims reject with no state change"
+      },
+      "promotion_boundary": {
+        "claim_status": "hypothesis",
+        "non_claim": "No claim that every future proof-market payout mode is covered."
+      }
+    },
+    {
+      "id": "AH-PK-004",
+      "title": "Perps or zUSD action reuses stale or wrong oracle state",
+      "severity": "high",
+      "stage": "promotion_target",
+      "actors": ["alice", "mallory", "oracle_reporter"],
+      "game_surface": {
+        "players": "Alice holds a position or vault, Mallory targets liquidation or mint path, reporters provide oracle values.",
+        "actions": "report price, build authorization, mutate vault or position root, liquidate, mint, settle funding",
+        "information_sets": "oracle freshness, position root, vault state, collateral root, action id fields",
+        "timing": "oracle observation, action authorization, state mutation, commit",
+        "state": "positions, collateral, vault debt, oracle receipt, risk parameters",
+        "payoff": "Mallory gain from stale price or unbound state root minus rejected action cost"
+      },
+      "attack_query": "exists action authorization with matching opaque id but stale oracle value or mismatched state root that still commits",
+      "bounded_model": {
+        "variables": ["oracle_price_e8", "prev_price_e8", "position_root", "collateral_root", "vault_root", "max_stale_epochs"],
+        "bounds": ["oracle_price_e8 > 0", "prev_price_e8 > 0", "max_stale_epochs >= 0"],
+        "assumptions": ["explicit integer price scale", "state roots are canonical hashes", "risk parameters are versioned"],
+        "exclusions": ["oracle-source external market manipulation beyond declared feed model"]
+      },
+      "disaster_state": "critical perps or zUSD action commits using a receipt that is fresh for one state but applied to another",
+      "defense_layers": ["unrepresentable", "guarded_transition"],
+      "controls": [
+        "typed_state_binding",
+        "authority_binding",
+        "reject_is_no_op",
+        "receipt_dag_closure",
+        "side_channel_budget",
+        "covert_channel_budget",
+        "pokayoke_interlock"
+      ],
+      "side_channels": [
+        {
+          "channel": "liquidation rejection detail reveals margin threshold search information",
+          "control": "bounded reject detail for public responses and full private audit receipt"
+        }
+      ],
+      "covert_channels": [
+        {
+          "channel": "optional action fields signal privileged oracle windows",
+          "control": "schema-total action facts with canonical optional-field policy"
+        }
+      ],
+      "mechanism_update": "Critical action authorization must bind the consumed oracle value to the exact position, collateral, vault, and risk-parameter roots.",
+      "game_theory_condition": "AttackGainFromStaleRoot <= 0 when root mismatch rejection precedes any state mutation",
+      "evidence_lane": {
+        "status": "mapped_partial",
+        "next_command": "pytest -q tests/integration/test_oracle_authorization_semantic_binding.py tests/core/test_perp_runtime_risk_gate.py tests/core/test_perp_np_clearinghouse.py",
+        "promotion_requirement": "negative stale-root and wrong-value tests for each critical action family"
+      },
+      "promotion_boundary": {
+        "claim_status": "hypothesis",
+        "non_claim": "No broad oracle correctness claim beyond scoped authorization binding."
+      }
+    },
+    {
+      "id": "AH-PK-005",
+      "title": "Cross-shard or watcher metadata becomes covert finality channel",
+      "severity": "high",
+      "stage": "promotion_target",
+      "actors": ["mallory", "sequencer", "governance_operator"],
+      "game_surface": {
+        "players": "Mallory observes watchers, sequencer posts or delays shard summaries, governance configures finality thresholds.",
+        "actions": "post summary, delay body, reorder watcher attestations, reveal status fields, finalize or timeout",
+        "information_sets": "posting order, watcher height, timeout window, summary roots, status endpoint fields",
+        "timing": "local shard commit, summary posting, watcher quorum, timeout finality",
+        "state": "summary set root, watcher quorum, local ledger effects, finality status",
+        "payoff": "Mallory gain from learning or steering finality before public canonical receipt"
+      },
+      "attack_query": "exists metadata or timing signal that lets Mallory coordinate profitable inclusion or censorship before finality receipt is canonical",
+      "bounded_model": {
+        "variables": ["watcher_count", "quorum_count", "timeout_epochs", "metadata_bits", "posted_summary_count"],
+        "bounds": ["watcher_count >= quorum_count", "metadata_bits <= declared_budget_bits", "timeout_epochs >= 0"],
+        "assumptions": ["canonical summary roots", "bounded status endpoint fields", "deterministic timeout policy"],
+        "exclusions": ["network-layer traffic analysis outside application transcript fields"]
+      },
+      "disaster_state": "non-authoritative watcher or posting metadata acts as an unbounded covert channel for finality or censorship coordination",
+      "defense_layers": ["guarded_transition", "detected_at_commit", "bounded_blast_radius"],
+      "controls": [
+        "canonical_transcript",
+        "authority_binding",
+        "reject_is_no_op",
+        "side_channel_budget",
+        "covert_channel_budget",
+        "resource_budget",
+        "receipt_dag_closure"
+      ],
+      "side_channels": [
+        {
+          "channel": "status endpoint timing reveals pre-finality state",
+          "control": "bounded status classes and finality-state redaction before quorum"
+        }
+      ],
+      "covert_channels": [
+        {
+          "channel": "posting order or watcher metadata encodes off-protocol messages",
+          "control": "canonical summary-set root and non-authoritative metadata exclusion"
+        }
+      ],
+      "mechanism_update": "Finality claims must depend on canonical receipts and quorum roots, while observer metadata remains bounded and non-authoritative.",
+      "game_theory_condition": "CovertSignalValue <= cost_of_censorship_or_withholding under timeout and quorum policy",
+      "evidence_lane": {
+        "status": "mapped_partial",
+        "next_command": "pytest -q tests/research/test_zeno_ledger_watcher_quorum.py tests/research/test_zeno_ledger_state_root_bound_watcher_quorum.py",
+        "promotion_requirement": "bounded metadata audit plus negative watcher/posting drift replay"
+      },
+      "promotion_boundary": {
+        "claim_status": "hypothesis",
+        "non_claim": "No network-layer traffic-analysis closure claim."
+      }
+    },
+    {
+      "id": "AH-PK-006",
+      "title": "Production configuration disables a required verifier or bridge",
+      "severity": "high",
+      "stage": "promotion_target",
+      "actors": ["mallory", "governance_operator"],
+      "game_surface": {
+        "players": "Mallory supplies malformed config or environment, governance/operator deploys profiles, release gate checks posture.",
+        "actions": "set flag, omit verifier, enable fixture mode, start service, admit critical action",
+        "information_sets": "deployment profile, environment variables, release manifest, startup logs",
+        "timing": "build, package, deploy, startup, first critical action",
+        "state": "runtime policy, key policy, verifier policy, oracle bridge policy",
+        "payoff": "Mallory gains weaker authority path or fixture signing surface"
+      },
+      "attack_query": "exists production profile with weaker verifier, bridge, key, faucet, or path-lookup flag that starts and admits a critical action",
+      "bounded_model": {
+        "variables": ["profile_id", "flag_value", "verifier_required", "bridge_required", "fixture_mode_enabled"],
+        "bounds": ["profile_id in declared_profiles", "flag_value is bool or rejected"],
+        "assumptions": ["deployment profiles are checked before service start", "release gate reads explicit config"],
+        "exclusions": ["manual operator bypass outside the checked launch path"]
+      },
+      "disaster_state": "production or public-testnet service starts with a weaker authority surface than the profile claims",
+      "defense_layers": ["guarded_transition", "detected_at_commit"],
+      "controls": [
+        "release_config_ratchet",
+        "authority_binding",
+        "evidence_class_binding",
+        "reject_is_no_op",
+        "side_channel_budget",
+        "covert_channel_budget",
+        "pokayoke_interlock"
+      ],
+      "side_channels": [
+        {
+          "channel": "startup error detail reveals production secret or profile internals",
+          "control": "stable public failure code and private diagnostic log redaction"
+        }
+      ],
+      "covert_channels": [
+        {
+          "channel": "unused config fields carry off-protocol launch instructions",
+          "control": "schema-total config parser rejects unknown or malformed production fields"
+        }
+      ],
+      "mechanism_update": "Release profiles must fail closed on weaker flags, malformed booleans, missing verifier contracts, fixture keys, faucet modes, and path lookup.",
+      "game_theory_condition": "ConfigBypassGain <= 0 because startup or admission rejects before the weakened service can commit value",
+      "evidence_lane": {
+        "status": "mapped_partial",
+        "next_command": "pytest -q tests/test_runtime_hardening_gates.py tests/test_check_production_boundary.py",
+        "promotion_requirement": "negative production-profile tests for each required bridge and verifier flag"
+      },
+      "promotion_boundary": {
+        "claim_status": "hypothesis",
+        "non_claim": "No production readiness claim until release gates and public evidence manifests pass."
+      }
+    },
+    {
+      "id": "AH-PK-007",
+      "title": "Advisory model or subagent output tries to authorize settlement",
+      "severity": "high",
+      "stage": "promotion_target",
+      "actors": ["alice", "mallory", "governance_operator"],
+      "game_surface": {
+        "players": "Model ranks candidates, Mallory supplies prompt or corpus poison, verifier checks deterministic receipts, user or operator consumes recommendations.",
+        "actions": "rank trace, propose patch, generate receipt-like text, request promotion, settle or reject",
+        "information_sets": "model score, candidate trace, verifier result, replay command, evidence manifest",
+        "timing": "research search, candidate selection, verifier run, claim promotion",
+        "state": "advisory artifacts, replay receipts, claims registry, settlement state roots",
+        "payoff": "Mallory gains authority by laundering advisory output as verifier evidence"
+      },
+      "attack_query": "exists advisory output that changes settlement authority, state root, or public claim without a local verifier accepting the scoped statement",
+      "bounded_model": {
+        "variables": ["model_score", "verifier_accepts", "claim_status", "state_root_changes"],
+        "bounds": ["verifier_accepts in {0,1}", "state_root_changes in {0,1}", "claim_status in scoped_status_set"],
+        "assumptions": ["models have no direct imports into verifier-critical paths", "claim promotion reads local evidence"],
+        "exclusions": ["human manual override outside repo gates"]
+      },
+      "disaster_state": "advisory search result or subagent transcript becomes authority for settlement, state roots, or production claims",
+      "defense_layers": ["guarded_transition", "detected_at_commit"],
+      "controls": [
+        "advisory_model_sandbox",
+        "authority_binding",
+        "evidence_class_binding",
+        "reject_is_no_op",
+        "side_channel_budget",
+        "covert_channel_budget",
+        "pokayoke_interlock"
+      ],
+      "side_channels": [
+        {
+          "channel": "model confidence or trace order reveals private search priorities",
+          "control": "publish only verifier-backed evidence and scoped residual-risk summaries"
+        }
+      ],
+      "covert_channels": [
+        {
+          "channel": "model-generated fields mimic receipt IDs or verifier labels",
+          "control": "receipt parser accepts only deterministic local verifier output with schema and hash checks"
+        }
+      ],
+      "mechanism_update": "Advisory systems may rank candidates, but verifier gates alone decide settlement authority and public claim promotion.",
+      "game_theory_condition": "AdvisoryGainFromForgery <= 0 when forged evidence has no authority and verifier mismatch rejects",
+      "evidence_lane": {
+        "status": "mapped_partial",
+        "next_command": "pytest -q tests/energy tests/test_check_production_boundary.py",
+        "promotion_requirement": "authority-boundary tests showing advisory output cannot authorize settlement or enter state roots"
+      },
+      "promotion_boundary": {
+        "claim_status": "hypothesis",
+        "non_claim": "No model safety oracle claim."
+      }
+    },
+    {
+      "id": "AH-PK-008",
+      "title": "Recursive lifecycle packet replay or stale aggregate admission",
+      "severity": "high",
+      "stage": "promotion_target",
+      "actors": ["alice", "bob", "mallory", "sequencer", "proof_aggregator", "governance_operator"],
+      "game_surface": {
+        "players": "Alice and Bob rely on recursive lifecycle proofs, Mallory supplies stale or malformed packets, the sequencer orders packets, the proof aggregator assembles child receipts, governance configures verifier policy.",
+        "actions": "aggregate child receipts, compute asset-delta rows, bind header fields, submit recursive packet, verify, admit or reject",
+        "information_sets": "child receipt roots, aggregate asset-delta root, proof profile, public policy hash, feature suite hash, packet reject class",
+        "timing": "child proof close, recursive packet assembly, ledger admission, Tau export",
+        "state": "header roots, proof metadata, recursive lifecycle admission packet, aggregate asset-delta rows, verifier profile",
+        "payoff": "Mallory gain from making stale, malformed, or wrong-profile recursive evidence appear admissible"
+      },
+      "attack_query": "exists stale or malformed recursive packet accepted while any header-bound root, aggregate asset-delta root, proof profile, or child receipt set differs from the ledger context",
+      "bounded_model": {
+        "variables": ["child_count", "aggregate_asset_delta_root", "post_state_root", "feature_suite_hash", "proof_profile", "reject_class_bits"],
+        "bounds": ["child_count >= 1", "reject_class_bits <= declared_budget_bits", "proof_profile in supported_recursive_profiles"],
+        "assumptions": ["integer asset atoms", "canonical recursive packet JSON", "deterministic ledger admission path"],
+        "exclusions": ["cryptographic soundness of RISC0 receipt verification beyond local verifier result"]
+      },
+      "disaster_state": "ledger or Tau admission accepts recursive lifecycle proof evidence whose packet is stale, malformed, wrong-profile, or asset-delta divergent",
+      "defense_layers": ["guarded_transition", "detected_at_commit", "bounded_blast_radius"],
+      "controls": [
+        "typed_state_binding",
+        "canonical_transcript",
+        "authority_binding",
+        "reject_is_no_op",
+        "side_channel_budget",
+        "covert_channel_budget",
+        "receipt_dag_closure",
+        "evidence_class_binding",
+        "resource_budget"
+      ],
+      "side_channels": [
+        {
+          "channel": "packet reject class reveals exact mutation distance or missing child position",
+          "control": "stable public reject class with detailed diagnostics kept in private replay evidence"
+        }
+      ],
+      "covert_channels": [
+        {
+          "channel": "child receipt order, unused packet fields, or aggregate-row ordering encodes off-protocol coordination data",
+          "control": "schema-total packet validation, sorted unique asset rows, canonical transcript binding, and unknown-field rejection"
+        }
+      ],
+      "mechanism_update": "Recursive lifecycle proof admission requires a packet checker bound to the actual ledger header and proof metadata before any recursive proof packet can advance checked heights.",
+      "game_theory_condition": "MalformedPacketGain <= 0 because stale or malformed recursive evidence rejects before height acceptance and leaves no accepted app-hash output",
+      "evidence_lane": {
+        "status": "implemented_checker",
+        "next_command": "python3 -m pytest tests/integration/test_zeno_ledger_recursive_lifecycle_admission.py -q && python3 -m pytest tests/tools/test_check_recursive_lifecycle_admission.py -q",
+        "promotion_requirement": "reject-is-no-op integration tests for missing, malformed, and stale recursive packets plus checker tests for packet obligations"
+      },
+      "promotion_boundary": {
+        "claim_status": "hypothesis",
+        "non_claim": "No claim that recursive proof aggregation closes all covert channels or proves RISC0 receipt soundness."
+      }
+    }
+  ]
+}
