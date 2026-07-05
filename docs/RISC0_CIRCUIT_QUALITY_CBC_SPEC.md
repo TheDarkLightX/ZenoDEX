@@ -342,11 +342,14 @@ operation hash. Its `evidence_root` binds oracle bindings, collateral bindings,
 participant set, receipt root, participant count, net position, total
 collateral, funding residual, and matched base volume. Its `receipt_root` is the
 checked perps receipt root. Recursive accepted/rejected receipt ID sets,
-cross-shard message sets, and asset-delta rows are empty in v1. This profile
-proves one local perps NP transition under the existing perps surface. It does
-not claim full perps lifecycle coverage, cross-shard collateral movement, native
-ledger balance deltas, zUSD collateral source verification beyond hash-bound
-references, or oracle truth.
+cross-shard message sets, and asset-delta rows are empty in v1. To keep that
+empty row set honest, v1 accepts `RunEpoch` actions only and rejects
+deposit/withdraw/init/submit lifecycle actions until those effects have
+row-bearing certificates. This profile proves one local perps NP epoch
+transition under the existing perps surface. It does not claim full perps
+lifecycle coverage, cross-shard collateral movement, native ledger balance
+deltas, zUSD collateral source verification beyond hash-bound references, or
+oracle truth.
 
 Repeatable local smoke path:
 

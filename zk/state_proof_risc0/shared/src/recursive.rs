@@ -9,8 +9,9 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     execute_perps_np_transition_v1, execute_state_proof_input_v1, execute_zusd_transition_v1,
-    PerpsNpTransitionInputV1, PerpsNpTransitionJournalV1, StateProofInputV1, StateProofJournalV1,
-    TransitionError, ZusdTransitionInputV1, ZusdTransitionJournalV1, NATIVE_ASSET,
+    PerpsNpActionV1, PerpsNpTransitionInputV1, PerpsNpTransitionJournalV1, StateProofInputV1,
+    StateProofJournalV1, TransitionError, ZusdTransitionInputV1, ZusdTransitionJournalV1,
+    NATIVE_ASSET,
 };
 
 pub const PROOF_TYPE_RECURSIVE: &str = "risc0.zenodex_recursive_epoch.v1";
@@ -842,6 +843,16 @@ pub fn compose_perps_np_recursive_leaf_summary_v1(
     )?;
     if input.risc0_image_id.iter().all(|word| *word == 0) {
         return Err(TransitionError::InvalidInput("perps NP leaf image id zero"));
+    }
+    if input
+        .perps_input
+        .actions
+        .iter()
+        .any(|action| !matches!(action, PerpsNpActionV1::RunEpoch { .. }))
+    {
+        return Err(TransitionError::InvalidInput(
+            "perps NP recursive leaf action unsupported",
+        ));
     }
 
     let journal = execute_perps_np_transition_v1(input.perps_input)?;
@@ -1813,6 +1824,42 @@ mod tests {
             compose_perps_np_recursive_leaf_summary_v1(input),
             Err(TransitionError::InvalidInput(
                 "perps NP recursive leaf image id mismatch"
+            ))
+        ));
+    }
+
+    #[test]
+    fn perps_np_recursive_leaf_rejects_deposit_without_asset_rows() {
+        let mut input = perps_leaf_input();
+        input.perps_input.actions = alloc::vec![PerpsNpActionV1::DepositCollateral {
+            pubkey: "wallet-a".to_string(),
+            asset: "zUSD".to_string(),
+            amount_e8: 1,
+            nonce: 2,
+            collateral_binding: None,
+        }];
+        assert!(matches!(
+            compose_perps_np_recursive_leaf_summary_v1(input),
+            Err(TransitionError::InvalidInput(
+                "perps NP recursive leaf action unsupported"
+            ))
+        ));
+    }
+
+    #[test]
+    fn perps_np_recursive_leaf_rejects_init_market_without_asset_rows() {
+        let mut input = perps_leaf_input();
+        input.perps_input.actions = alloc::vec![PerpsNpActionV1::InitMarket {
+            market_id: "ETH-PERP".to_string(),
+            collateral_asset: "zUSD".to_string(),
+            index_price_e8: 100_000_000,
+            params: PerpsMarketParamsV1::default(),
+            insurance_seed_e8: 1,
+        }];
+        assert!(matches!(
+            compose_perps_np_recursive_leaf_summary_v1(input),
+            Err(TransitionError::InvalidInput(
+                "perps NP recursive leaf action unsupported"
             ))
         ));
     }

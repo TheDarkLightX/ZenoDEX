@@ -629,10 +629,13 @@ The v1 profile is intentionally local: recursive accepted/rejected receipt ID
 sets, asset-delta rows, and cross-shard messages are empty. The summary binds
 the perps operation hash, oracle bindings, collateral bindings, participant set,
 receipt root, participant count, net position, total collateral, funding
-residual, and matched base volume. This proves one checked local perps NP
-transition under recursion. It does not claim complete perps lifecycle coverage,
-cross-shard collateral movement, native ledger balance deltas, zUSD collateral
-source verification beyond hash-bound references, or oracle truth.
+residual, and matched base volume. To keep the empty asset-delta row set honest,
+v1 accepts `RunEpoch` actions only and rejects deposit/withdraw/init/submit
+lifecycle actions until those effects have row-bearing certificates. This proves
+one checked local perps NP epoch transition under recursion. It does not claim
+complete perps lifecycle coverage, cross-shard collateral movement, native
+ledger balance deltas, zUSD collateral source verification beyond hash-bound
+references, or oracle truth.
 
 The repeatable smoke helper is
 `zk/state_proof_risc0/cli/examples/recursive_summary_leaf_smoke.rs`. It builds a
