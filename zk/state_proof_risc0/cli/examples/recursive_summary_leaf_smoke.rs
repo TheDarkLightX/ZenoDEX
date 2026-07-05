@@ -9,15 +9,15 @@ use tau_state_proof_risc0_shared::{
     recursive_verifier_set_root_v1, sha256_canonical_perps_np_snapshot_v1,
     sha256_canonical_zusd_snapshot_v1, DexStateV1, OracleBindingV1, PerpsAccountV1,
     PerpsMarketParamsV1, PerpsNpActionV1, PerpsNpRecursiveLeafInputV1, PerpsNpSnapshotV1,
-    PerpsNpTransitionInputV1, RecursiveChildDescriptorV1, RecursiveChildEffectV1,
-    RecursiveCompositionInputV1, RecursiveCompositionStatementV1, RecursiveEffectSummaryV1,
-    SpotRecursiveLeafInputV1, StateProofInputV1, ZusdBalanceEntryV1, ZusdOperationV1,
-    ZusdRecursiveLeafInputV1, ZusdSnapshotV1, ZusdTransitionInputV1, ZusdVaultEntryV1,
-    RECURSIVE_DOMAIN_SEPARATOR_V1, RECURSIVE_EFFECT_SUMMARY_VERSION_V1, RECURSIVE_EPOCH_PROFILE_V1,
-    RECURSIVE_PERPS_NP_LEAF_MAX_INPUT_BYTES, RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES,
-    RECURSIVE_STATEMENT_VERSION_V1, RECURSIVE_STRICT_CROSS_SHARD_MODE_V1,
-    RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES, RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1,
-    RECURSIVE_ZUSD_LEAF_MAX_INPUT_BYTES,
+    PerpsNpTransitionInputV1, RecursiveAssetDeltaRowV1, RecursiveChildDescriptorV1,
+    RecursiveChildEffectV1, RecursiveCompositionInputV1, RecursiveCompositionStatementV1,
+    RecursiveEffectSummaryV1, SpotRecursiveLeafInputV1, StateProofInputV1, ZusdBalanceEntryV1,
+    ZusdOperationV1, ZusdRecursiveLeafInputV1, ZusdSnapshotV1, ZusdTransitionInputV1,
+    ZusdVaultEntryV1, RECURSIVE_DOMAIN_SEPARATOR_V1, RECURSIVE_EFFECT_SUMMARY_VERSION_V1,
+    RECURSIVE_EPOCH_PROFILE_V1, RECURSIVE_PERPS_NP_LEAF_MAX_INPUT_BYTES,
+    RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES, RECURSIVE_STATEMENT_VERSION_V1,
+    RECURSIVE_STRICT_CROSS_SHARD_MODE_V1, RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES,
+    RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1, RECURSIVE_ZUSD_LEAF_MAX_INPUT_BYTES,
 };
 
 fn root(byte: u8) -> [u8; 32] {
@@ -400,8 +400,83 @@ fn summary_from_meta(meta: &Value) -> Result<RecursiveEffectSummaryV1, String> {
     })
 }
 
+fn parse_u128_meta(value: &Value, field: &str) -> Result<u128, String> {
+    if let Some(s) = value.as_str() {
+        return s
+            .parse::<u128>()
+            .map_err(|e| format!("{field} invalid u128 string: {e}"));
+    }
+    if let Some(n) = value.as_u64() {
+        return Ok(n as u128);
+    }
+    Err(format!(
+        "{field} must be a decimal string or nonnegative integer"
+    ))
+}
+
+fn asset_delta_rows_from_meta(meta: &Value) -> Result<Vec<RecursiveAssetDeltaRowV1>, String> {
+    let Some(raw_rows) = meta.get("asset_delta_rows") else {
+        return Ok(Vec::new());
+    };
+    let rows = raw_rows
+        .as_array()
+        .ok_or("asset_delta_rows must be an array")?;
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        let obj = row
+            .as_object()
+            .ok_or("asset_delta_rows entry must be an object")?;
+        let asset_id = obj
+            .get("asset_id")
+            .and_then(Value::as_str)
+            .ok_or("asset_delta_rows.asset_id missing")?
+            .to_string();
+        let debit_atoms = parse_u128_meta(
+            obj.get("debit_atoms")
+                .ok_or("asset_delta_rows.debit_atoms missing")?,
+            "asset_delta_rows.debit_atoms",
+        )?;
+        let credit_atoms = parse_u128_meta(
+            obj.get("credit_atoms")
+                .ok_or("asset_delta_rows.credit_atoms missing")?,
+            "asset_delta_rows.credit_atoms",
+        )?;
+        let authorized_mint_atoms = parse_u128_meta(
+            obj.get("authorized_mint_atoms")
+                .ok_or("asset_delta_rows.authorized_mint_atoms missing")?,
+            "asset_delta_rows.authorized_mint_atoms",
+        )?;
+        let authorized_burn_atoms = parse_u128_meta(
+            obj.get("authorized_burn_atoms")
+                .ok_or("asset_delta_rows.authorized_burn_atoms missing")?,
+            "asset_delta_rows.authorized_burn_atoms",
+        )?;
+        let authority_root = parse_hex32(
+            obj.get("authority_root")
+                .and_then(Value::as_str)
+                .ok_or("asset_delta_rows.authority_root missing")?,
+        )?;
+        out.push(RecursiveAssetDeltaRowV1 {
+            asset_id,
+            debit_atoms,
+            credit_atoms,
+            authorized_mint_atoms,
+            authorized_burn_atoms,
+            authority_root,
+        });
+    }
+    recursive_asset_delta_root_v1(&out).map_err(|e| format!("asset_delta_rows invalid: {e:?}"))?;
+    Ok(out)
+}
+
 fn child_from_proof_json(proof_json: &Value) -> Result<(String, RecursiveChildEffectV1), String> {
     let summary = summary_from_meta(&proof_json["meta"])?;
+    let asset_delta_rows = asset_delta_rows_from_meta(&proof_json["meta"])?;
+    let asset_delta_root =
+        recursive_asset_delta_root_v1(&asset_delta_rows).map_err(|e| format!("{e:?}"))?;
+    if asset_delta_root != summary.asset_delta_root {
+        return Err("asset_delta_rows root mismatch".to_string());
+    }
     let child_journal_bytes =
         postcard::to_allocvec(&summary).map_err(|e| format!("postcard summary: {e}"))?;
     let child_verification_claim_hash =
@@ -429,7 +504,7 @@ fn child_from_proof_json(proof_json: &Value) -> Result<(String, RecursiveChildEf
         },
         child_journal_bytes,
         summary: summary.clone(),
-        asset_delta_rows: Vec::new(),
+        asset_delta_rows,
         outbox_messages: Vec::new(),
         inbox_messages: Vec::new(),
         accepted_receipt_ids: Vec::new(),
@@ -561,6 +636,98 @@ fn print_root_request(proof_paths: &[String]) -> Result<(), String> {
         .map_err(|e| format!("root request json: {e}"))?
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn image_hex(words: [u32; 8]) -> String {
+        let mut bytes = Vec::new();
+        for word in words {
+            bytes.extend_from_slice(&word.to_be_bytes());
+        }
+        hex_bytes(&bytes)
+    }
+
+    fn row_json(row: &RecursiveAssetDeltaRowV1) -> Value {
+        json!({
+            "asset_id": row.asset_id.as_str(),
+            "debit_atoms": row.debit_atoms.to_string(),
+            "credit_atoms": row.credit_atoms.to_string(),
+            "authorized_mint_atoms": row.authorized_mint_atoms.to_string(),
+            "authorized_burn_atoms": row.authorized_burn_atoms.to_string(),
+            "authority_root": hex_bytes(&row.authority_root),
+        })
+    }
+
+    fn proof_json(summary: &RecursiveEffectSummaryV1, rows: &[RecursiveAssetDeltaRowV1]) -> Value {
+        json!({
+            "proof": "opaque-child-proof",
+            "meta": {
+                "summary_version": summary.summary_version,
+                "lane_id": summary.lane_id,
+                "lane_kind": summary.lane_kind,
+                "chain_id": summary.chain_id,
+                "epoch_id": summary.epoch_id,
+                "proof_profile": summary.proof_profile,
+                "risc0_image_id": image_hex(summary.risc0_image_id),
+                "statement_hash": hex_bytes(&summary.statement_hash),
+                "pre_state_root": hex_bytes(&summary.pre_state_root),
+                "post_state_root": hex_bytes(&summary.post_state_root),
+                "tx_root": hex_bytes(&summary.tx_root),
+                "evidence_root": hex_bytes(&summary.evidence_root),
+                "receipt_root": hex_bytes(&summary.receipt_root),
+                "accepted_receipts_root": hex_bytes(&summary.accepted_receipts_root),
+                "rejected_receipts_root": hex_bytes(&summary.rejected_receipts_root),
+                "asset_delta_root": hex_bytes(&summary.asset_delta_root),
+                "asset_delta_rows": rows.iter().map(row_json).collect::<Vec<_>>(),
+                "cross_shard_outbox_root": hex_bytes(&summary.cross_shard_outbox_root),
+                "cross_shard_inbox_root": hex_bytes(&summary.cross_shard_inbox_root),
+                "write_set_root": hex_bytes(&summary.write_set_root),
+                "public_policy_hash": hex_bytes(&summary.public_policy_hash),
+                "feature_suite_hash": hex_bytes(&summary.feature_suite_hash),
+                "dependency_lock_hash": hex_bytes(&summary.dependency_lock_hash),
+                "toolchain_lock_hash": hex_bytes(&summary.toolchain_lock_hash),
+            },
+        })
+    }
+
+    fn zusd_mint_row() -> RecursiveAssetDeltaRowV1 {
+        RecursiveAssetDeltaRowV1 {
+            asset_id: "zUSD".to_string(),
+            debit_atoms: 0,
+            credit_atoms: 100,
+            authorized_mint_atoms: 100,
+            authorized_burn_atoms: 0,
+            authority_root: root(8),
+        }
+    }
+
+    #[test]
+    fn child_from_proof_json_carries_asset_delta_rows() {
+        let rows = vec![zusd_mint_row()];
+        let mut summary = summary(&hex_bytes(&root(1))).unwrap();
+        summary.asset_delta_root = recursive_asset_delta_root_v1(&rows).unwrap();
+        let proof = proof_json(&summary, &rows);
+
+        let (_receipt, child) = child_from_proof_json(&proof).unwrap();
+
+        assert_eq!(child.asset_delta_rows, rows);
+        assert_eq!(child.summary.asset_delta_root, summary.asset_delta_root);
+    }
+
+    #[test]
+    fn child_from_proof_json_rejects_asset_delta_row_root_mismatch() {
+        let rows = vec![zusd_mint_row()];
+        let summary = summary(&hex_bytes(&root(1))).unwrap();
+        let proof = proof_json(&summary, &rows);
+
+        assert_eq!(
+            child_from_proof_json(&proof).unwrap_err(),
+            "asset_delta_rows root mismatch"
+        );
+    }
 }
 
 fn main() {

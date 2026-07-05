@@ -610,13 +610,16 @@ or native ledger balance deltas.
 This repo also includes `risc0.zenodex_recursive_zusd_leaf.v1`, the second
 transition-specific recursive leaf. It executes the existing checked zUSD
 transition and derives a recursive summary from `ZusdTransitionJournalV1`. The
-v1 profile is intentionally local: recursive accepted/rejected receipt ID sets,
-asset-delta rows, and cross-shard messages are empty. The summary binds the zUSD
+v1 profile is intentionally local: recursive accepted/rejected receipt ID sets
+and cross-shard messages are empty. For deposit-mint transitions, the leaf
+derives one authorized `zUSD` mint asset-delta row from `minted_zusd_e8` and
+binds that row through `asset_delta_root`. The summary also binds the zUSD
 operation hash, oracle binding, balance root, vault root, participant set,
 minted amount, collateral value, and MCR. This proves one checked local zUSD
-transition under recursion. It does not claim complete stablecoin lifecycle
-coverage, cross-shard mint/burn accounting, native ledger balance deltas, or
-oracle truth.
+transition under recursion and exposes the authorized mint effect to recursive
+aggregation. It does not claim complete stablecoin lifecycle coverage,
+redemption/burn rows, cross-shard mint/burn accounting, native collateral
+ledger balance deltas, or oracle truth.
 
 This repo also includes `risc0.zenodex_recursive_perps_np_leaf.v1`, the third
 transition-specific recursive leaf. It executes the existing checked perps NP
@@ -966,8 +969,8 @@ This spec does not claim:
 
 - the recursive RISC0 lane is production-ready;
 - the summary-leaf test image proves any value-moving transition;
-- current spot, zUSD, or perps NP child journals expose full native-ledger asset
-  deltas;
+- current spot, perps NP, or non-deposit-mint zUSD child journals expose full
+  native-ledger asset deltas;
 - the current `recursive_epoch_v1` profile is production-ready;
 - all spot/perps/zUSD/oracle transitions have leaf proofs;
 - DA is solved by proof recursion;
@@ -976,8 +979,8 @@ This spec does not claim:
 
 ## Next Frontier
 
-The highest-value next step is native-ledger asset-delta rows for spot, zUSD,
-and perps NP leaves, followed by multi-leaf root smokes that aggregate all three
-transition lanes in one recursive root. Those gaps are what separate current
-local transition-recursion evidence from a root proof that can claim global
-ledger conservation across spot, zUSD, and perps lanes.
+The highest-value next step is native-ledger asset-delta rows for spot and perps
+NP leaves, plus the remaining zUSD lifecycle rows outside deposit-mint. Those
+gaps are what separate current local transition-recursion evidence from a root
+proof that can claim global ledger conservation across spot, zUSD, and perps
+lanes.

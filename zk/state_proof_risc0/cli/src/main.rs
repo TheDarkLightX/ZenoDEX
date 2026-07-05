@@ -22,14 +22,15 @@ use tau_state_proof_risc0_shared::{
     compose_recursive_epoch_journal_v1, compose_spot_recursive_leaf_summary_v1,
     compose_zusd_recursive_leaf_summary_v1, frontier_signature_certificates_root_v1,
     ingress_commitment_v1, perps_np_collateral_bindings_hash_v1, perps_np_operation_hash_v1,
-    perps_np_oracle_bindings_hash_v1, route_price_interval_authority_policy_root_v1,
-    route_price_interval_authority_root_v1, route_price_intervals_root_v1,
-    tx_execution_order_commitment_v1, txs_commitment_v1,
+    perps_np_oracle_bindings_hash_v1, recursive_asset_delta_root_v1,
+    route_price_interval_authority_policy_root_v1, route_price_interval_authority_root_v1,
+    route_price_intervals_root_v1, tx_execution_order_commitment_v1, txs_commitment_v1,
     validate_recursive_effect_summary_shape_v1, zusd_operation_hash_v1,
-    zusd_operation_oracle_binding_hash_v1, ChainBalanceV1, CollateralBindingV1, DexSnapshotV1,
-    DexStateV1, NonceEntryV1, NonceStateV1, OracleBindingV1, PerpsAccountV1, PerpsIntentV1,
-    PerpsMarketParamsV1, PerpsNpActionV1, PerpsNpRecursiveLeafInputV1, PerpsNpSnapshotV1,
-    PerpsNpTransitionInputV1, PerpsNpTransitionJournalV1, RecursiveCompositionInputV1,
+    zusd_operation_oracle_binding_hash_v1, zusd_recursive_leaf_asset_delta_rows_v1, ChainBalanceV1,
+    CollateralBindingV1, DexSnapshotV1, DexStateV1, NonceEntryV1, NonceStateV1, OracleBindingV1,
+    PerpsAccountV1, PerpsIntentV1, PerpsMarketParamsV1, PerpsNpActionV1,
+    PerpsNpRecursiveLeafInputV1, PerpsNpSnapshotV1, PerpsNpTransitionInputV1,
+    PerpsNpTransitionJournalV1, RecursiveAssetDeltaRowV1, RecursiveCompositionInputV1,
     RecursiveEffectSummaryV1, RecursiveEpochJournalV1, RoutePriceIntervalAuthorityPolicySourceV1,
     RoutePriceIntervalAuthorityPolicyV1, RoutePriceIntervalAuthorityV1, RoutePriceIntervalV1,
     SharedPoolFrontierSignatureCertificateV1, SpotRecursiveLeafInputV1, StateProofInputV1,
@@ -666,6 +667,31 @@ fn handle_generate_recursive_zusd_leaf(req: &Value) {
                 transition_error_str(e)
             ))
         });
+    let zusd_journal =
+        tau_state_proof_risc0_shared::execute_zusd_transition_v1(input.zusd_input.clone())
+            .unwrap_or_else(|e| {
+                die(&format!(
+                    "recursive zUSD leaf transition rejected: {}",
+                    transition_error_str(e)
+                ))
+            });
+    let asset_delta_rows =
+        zusd_recursive_leaf_asset_delta_rows_v1(&zusd_journal, input.public_policy_hash)
+            .unwrap_or_else(|e| {
+                die(&format!(
+                    "recursive zUSD leaf asset deltas rejected: {}",
+                    transition_error_str(e)
+                ))
+            });
+    let asset_delta_root = recursive_asset_delta_root_v1(&asset_delta_rows).unwrap_or_else(|e| {
+        die(&format!(
+            "recursive zUSD leaf asset delta root rejected: {}",
+            transition_error_str(e)
+        ))
+    });
+    if asset_delta_root != expected_summary.asset_delta_root {
+        die("recursive zUSD leaf asset delta root mismatch");
+    }
 
     let (receipt, journal): (Receipt, RecursiveEffectSummaryV1) = prove_direct_guest_input(
         &input,
@@ -686,7 +712,7 @@ fn handle_generate_recursive_zusd_leaf(req: &Value) {
         "state_hash": normalize_hex64(&state_hash_hex),
         "proof_type": PROOF_TYPE_RECURSIVE_ZUSD_LEAF,
         "proof": encode_receipt(&receipt),
-        "meta": recursive_zusd_leaf_meta(&journal),
+        "meta": recursive_zusd_leaf_meta(&journal, &asset_delta_rows),
     });
     write_json_stdout(&out);
 }
@@ -2401,7 +2427,27 @@ fn recursive_perps_np_leaf_meta(journal: &RecursiveEffectSummaryV1) -> Value {
     })
 }
 
-fn recursive_zusd_leaf_meta(journal: &RecursiveEffectSummaryV1) -> Value {
+fn recursive_asset_delta_rows_meta(rows: &[RecursiveAssetDeltaRowV1]) -> Value {
+    Value::Array(
+        rows.iter()
+            .map(|row| {
+                json!({
+                    "asset_id": row.asset_id.as_str(),
+                    "debit_atoms": row.debit_atoms.to_string(),
+                    "credit_atoms": row.credit_atoms.to_string(),
+                    "authorized_mint_atoms": row.authorized_mint_atoms.to_string(),
+                    "authorized_burn_atoms": row.authorized_burn_atoms.to_string(),
+                    "authority_root": hex_lower(&row.authority_root),
+                })
+            })
+            .collect(),
+    )
+}
+
+fn recursive_zusd_leaf_meta(
+    journal: &RecursiveEffectSummaryV1,
+    asset_delta_rows: &[RecursiveAssetDeltaRowV1],
+) -> Value {
     json!({
         "risc0_image_id": hex_u32_words(TAU_STATE_PROOF_ZUSD_LEAF_ID),
         "proof_type": PROOF_TYPE_RECURSIVE_ZUSD_LEAF,
@@ -2421,6 +2467,7 @@ fn recursive_zusd_leaf_meta(journal: &RecursiveEffectSummaryV1) -> Value {
         "accepted_receipts_root": hex_lower(&journal.accepted_receipts_root),
         "rejected_receipts_root": hex_lower(&journal.rejected_receipts_root),
         "asset_delta_root": hex_lower(&journal.asset_delta_root),
+        "asset_delta_rows": recursive_asset_delta_rows_meta(asset_delta_rows),
         "cross_shard_outbox_root": hex_lower(&journal.cross_shard_outbox_root),
         "cross_shard_inbox_root": hex_lower(&journal.cross_shard_inbox_root),
         "write_set_root": hex_lower(&journal.write_set_root),
@@ -3839,7 +3886,7 @@ mod tests {
     #[test]
     fn recursive_zusd_leaf_meta_binds_zusd_leaf_image_id() {
         let summary = recursive_zusd_leaf_summary();
-        let meta = recursive_zusd_leaf_meta(&summary);
+        let meta = recursive_zusd_leaf_meta(&summary, &[]);
         assert_eq!(
             meta["risc0_image_id"],
             Value::String(hex_u32_words(TAU_STATE_PROOF_ZUSD_LEAF_ID))
@@ -3858,6 +3905,36 @@ mod tests {
         );
         assert_eq!(meta["lane_kind"], Value::String("zusd".to_string()));
         assert!(validate_recursive_effect_summary_shape_v1(&summary).is_ok());
+    }
+
+    #[test]
+    fn recursive_zusd_leaf_meta_includes_exact_asset_delta_rows() {
+        let mut summary = recursive_zusd_leaf_summary();
+        let rows = vec![RecursiveAssetDeltaRowV1 {
+            asset_id: "zUSD".to_string(),
+            debit_atoms: 0,
+            credit_atoms: 11,
+            authorized_mint_atoms: 11,
+            authorized_burn_atoms: 0,
+            authority_root: h(10),
+        }];
+        summary.asset_delta_root = recursive_asset_delta_root_v1(&rows).unwrap();
+
+        let meta = recursive_zusd_leaf_meta(&summary, &rows);
+
+        assert_eq!(
+            meta["asset_delta_root"],
+            Value::String(hex_lower(&summary.asset_delta_root))
+        );
+        assert_eq!(meta["asset_delta_rows"][0]["asset_id"], "zUSD");
+        assert_eq!(meta["asset_delta_rows"][0]["debit_atoms"], "0");
+        assert_eq!(meta["asset_delta_rows"][0]["credit_atoms"], "11");
+        assert_eq!(meta["asset_delta_rows"][0]["authorized_mint_atoms"], "11");
+        assert_eq!(meta["asset_delta_rows"][0]["authorized_burn_atoms"], "0");
+        assert_eq!(
+            meta["asset_delta_rows"][0]["authority_root"],
+            Value::String(hx(10))
+        );
     }
 
     fn spot_fee_journal(

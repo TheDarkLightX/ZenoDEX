@@ -730,7 +730,8 @@ pub fn compose_zusd_recursive_leaf_summary_v1(
         ));
     }
 
-    let empty_asset_rows = Vec::new();
+    let asset_delta_rows =
+        zusd_recursive_leaf_asset_delta_rows_v1(&journal, input.public_policy_hash)?;
     let empty_messages = Vec::new();
     let empty_receipt_ids = Vec::new();
     let summary = RecursiveEffectSummaryV1 {
@@ -755,7 +756,7 @@ pub fn compose_zusd_recursive_leaf_summary_v1(
         receipt_root: journal.zusd_balance_root_hash,
         accepted_receipts_root: recursive_receipt_ids_root_v1(&empty_receipt_ids)?,
         rejected_receipts_root: recursive_receipt_ids_root_v1(&empty_receipt_ids)?,
-        asset_delta_root: recursive_asset_delta_root_v1(&empty_asset_rows)?,
+        asset_delta_root: recursive_asset_delta_root_v1(&asset_delta_rows)?,
         cross_shard_outbox_root: recursive_cross_shard_messages_root_v1(&empty_messages)?,
         cross_shard_inbox_root: recursive_cross_shard_messages_root_v1(&empty_messages)?,
         write_set_root: zusd_recursive_leaf_write_set_root_v1(&journal),
@@ -766,6 +767,26 @@ pub fn compose_zusd_recursive_leaf_summary_v1(
     };
     validate_recursive_effect_summary_shape_v1(&summary)?;
     Ok(summary)
+}
+
+pub fn zusd_recursive_leaf_asset_delta_rows_v1(
+    journal: &ZusdTransitionJournalV1,
+    authority_root: [u8; 32],
+) -> Result<Vec<RecursiveAssetDeltaRowV1>, TransitionError> {
+    require_nonzero_root(&authority_root, "zUSD asset authority_root zero")?;
+    if journal.minted_zusd_e8 == 0 {
+        return Err(TransitionError::InvalidInput(
+            "zUSD recursive leaf minted amount zero",
+        ));
+    }
+    Ok(Vec::from([RecursiveAssetDeltaRowV1 {
+        asset_id: "zUSD".to_string(),
+        debit_atoms: 0,
+        credit_atoms: journal.minted_zusd_e8,
+        authorized_mint_atoms: journal.minted_zusd_e8,
+        authorized_burn_atoms: 0,
+        authority_root,
+    }]))
 }
 
 pub fn compose_perps_np_recursive_leaf_summary_v1(
@@ -2401,7 +2422,10 @@ mod tests {
     #[test]
     fn zusd_recursive_leaf_derives_summary_from_checked_transition() {
         let input = zusd_leaf_input();
+        let authority_root = input.public_policy_hash;
         let journal = execute_zusd_transition_v1(input.zusd_input.clone()).unwrap();
+        let asset_delta_rows =
+            zusd_recursive_leaf_asset_delta_rows_v1(&journal, authority_root).unwrap();
         let expected_balance_root = zusd_balance_root_hash_v1(&ZusdSnapshotV1 {
             version: 1,
             vaults: alloc::vec![ZusdVaultEntryV1 {
@@ -2426,8 +2450,41 @@ mod tests {
         assert_eq!(summary.receipt_root, expected_balance_root);
         assert_eq!(
             summary.asset_delta_root,
-            recursive_asset_delta_root_v1(&[]).unwrap()
+            recursive_asset_delta_root_v1(&asset_delta_rows).unwrap()
         );
+        assert_eq!(asset_delta_rows.len(), 1);
+        assert_eq!(asset_delta_rows[0].asset_id, "zUSD");
+        assert_eq!(asset_delta_rows[0].credit_atoms, journal.minted_zusd_e8);
+        assert_eq!(
+            asset_delta_rows[0].authorized_mint_atoms,
+            journal.minted_zusd_e8
+        );
+        assert_eq!(asset_delta_rows[0].authority_root, authority_root);
+    }
+
+    #[test]
+    fn zusd_recursive_leaf_asset_delta_row_rejects_zero_authority_root() {
+        let input = zusd_leaf_input();
+        let journal = execute_zusd_transition_v1(input.zusd_input.clone()).unwrap();
+        assert!(matches!(
+            zusd_recursive_leaf_asset_delta_rows_v1(&journal, [0u8; 32]),
+            Err(TransitionError::InvalidInput(
+                "zUSD asset authority_root zero"
+            ))
+        ));
+    }
+
+    #[test]
+    fn zusd_recursive_leaf_asset_delta_row_rejects_zero_minted_amount() {
+        let input = zusd_leaf_input();
+        let mut journal = execute_zusd_transition_v1(input.zusd_input.clone()).unwrap();
+        journal.minted_zusd_e8 = 0;
+        assert!(matches!(
+            zusd_recursive_leaf_asset_delta_rows_v1(&journal, input.public_policy_hash),
+            Err(TransitionError::InvalidInput(
+                "zUSD recursive leaf minted amount zero"
+            ))
+        ));
     }
 
     #[test]

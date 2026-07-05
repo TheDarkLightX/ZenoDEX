@@ -321,10 +321,13 @@ inner zUSD journal image ID to match the zUSD-leaf image ID, and derives
 operation hash. Its `evidence_root` binds the oracle binding, zUSD balance root,
 zUSD vault root, participant set, minted amount, collateral value, and MCR. Its
 `receipt_root` is the checked zUSD balance root. Recursive accepted/rejected
-receipt ID sets, cross-shard message sets, and asset-delta rows are empty in
-v1. This profile proves one local zUSD transition under the existing zUSD
-surface. It does not claim full zUSD lifecycle coverage, native ledger balance
-deltas, cross-shard mint/burn accounting, or oracle truth.
+receipt ID sets and cross-shard message sets are empty in v1. For deposit-mint
+transitions, the leaf derives one authorized `zUSD` mint asset-delta row from
+`minted_zusd_e8` and binds that row through `asset_delta_root`. This profile
+proves one local zUSD transition under the existing zUSD surface and exposes the
+authorized mint effect to recursive aggregation. It does not claim full zUSD
+lifecycle coverage, native collateral ledger balance deltas, cross-shard
+mint/burn accounting, redemption/burn rows, or oracle truth.
 
 The `risc0.zenodex_recursive_perps_np_leaf.v1` method is the third
 transition-specific recursive leaf. It accepts `PerpsNpRecursiveLeafInputV1`,
@@ -691,8 +694,10 @@ Use this checklist before merging or promoting a circuit change:
 ## Next Frontier
 
 The highest-value implementation target is native-ledger asset-delta row
-extraction for spot, zUSD, and perps leaves. The recursive root now aggregates
-heterogeneous child profiles, but v1 transition-specific leaves still expose
-empty native-ledger delta rows. A later profile must derive those rows from
-checked transition journals or a dedicated ledger-delta certificate before any
-cross-lane asset-conservation claim is production-grade.
+extraction for spot and perps leaves, plus the remaining zUSD lifecycle rows
+outside deposit-mint. The recursive root now aggregates heterogeneous child
+profiles and the zUSD deposit-mint leaf exposes its authorized mint row, but
+spot/perps v1 leaves still expose empty native-ledger delta rows. A later
+profile must derive those rows from checked transition journals or a dedicated
+ledger-delta certificate before any cross-lane asset-conservation claim is
+production-grade.
