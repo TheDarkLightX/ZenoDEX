@@ -590,6 +590,13 @@ real assumption-based recursion, but it is not a production transition leaf
 because it does not derive the summary from spot, perps, zUSD, oracle, or ledger
 semantics.
 
+The repeatable smoke helper is
+`zk/state_proof_risc0/cli/examples/recursive_summary_leaf_smoke.rs`. It builds a
+summary-leaf proof request, then builds a recursive root proof request that uses
+the summary-leaf receipt as a child proof assumption. The 2026-07-04 local smoke
+verified a one-child root receipt with `{"ok":true}`. This is plumbing evidence,
+not a production transition claim.
+
 ## ZenoLedger / Tau Acceptance Algorithm
 
 The block verifier must not accept recursive metadata by itself. It accepts only

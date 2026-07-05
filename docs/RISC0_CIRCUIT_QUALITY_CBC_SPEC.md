@@ -294,6 +294,26 @@ semantics. Production recursive leaves must use transition-specific images that
 derive their `EffectSummaryV1` from the checked transition, or an adapter proof
 that verifies the source receipt and proves the summary binding.
 
+Repeatable local smoke path:
+
+```bash
+cd zk/state_proof_risc0
+RISC0_FORCE_BUILD=1 cargo check -p tau-state-proof-risc0-cli
+SUMMARY_IMAGE_ID_HEX=<hex image ID from generated methods.rs>
+cargo run -q -p tau-state-proof-risc0-cli --example recursive_summary_leaf_smoke -- \
+  summary "$SUMMARY_IMAGE_ID_HEX" > /tmp/summary-leaf.request.json
+RISC0_FORCE_BUILD=1 cargo run -q -p tau-state-proof-risc0-cli \
+  < /tmp/summary-leaf.request.json > /tmp/summary-leaf.proof.json
+cargo run -q -p tau-state-proof-risc0-cli --example recursive_summary_leaf_smoke -- \
+  root /tmp/summary-leaf.proof.json > /tmp/recursive-root.request.json
+RISC0_FORCE_BUILD=1 cargo run -q -p tau-state-proof-risc0-cli \
+  < /tmp/recursive-root.request.json > /tmp/recursive-root.proof.json
+```
+
+This smoke proves recursive plumbing only: the root receipt verifies one child
+receipt through RISC0 assumptions and checks the bounded summary shape. It does
+not upgrade any transition-specific production claim.
+
 Every child descriptor must bind:
 
 ```text
