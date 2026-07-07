@@ -1,7 +1,7 @@
 {
   "authority_boundary": "research-only producer-manifest evidence; no settlement, state-root, production, routing, matching, pool-mutation, or governance authority",
   "date": "2026-06-29",
-  "elapsed_ms": 31303.008,
+  "elapsed_ms": 30327.506,
   "hypothesis_card": {
     "expected_metric_delta": {
       "cap_efficiency": "0",
@@ -36,7 +36,7 @@
       "witness_merkle_digest_matches_canonical": true,
       "witness_rows_digest_matches_witness_compression": true
     },
-    "manifest_hash": "5ed4c243e5c66637469f04f813301c171c44ff9e2d2d0a0b923eb8a1b7e5164f",
+    "manifest_hash": "9a79ac58b6566055e2f895fffd97df5cc5fc81f2b3f29fe61f14fa0f51c80ea6",
     "no_authority_effect": true,
     "non_claims": [
       "bounded n=7 zero-min corpus only",
@@ -112,7 +112,7 @@
         "report_ok": true,
         "report_path": "generated/zenodex_ab_reserve_state_child_frontier_witness_compression_20260629/report.json",
         "report_schema": "zenodex.ab_reserve_state_child_frontier_witness_compression_report.v1",
-        "report_sha256": "9769b04cfcc995d4bbfa3b96578a443015c448e430a1143ab33d694a23fb4f69",
+        "report_sha256": "07428c09a6418c8b2c3e808c16a25cba4afc1a7ee3e0b6ee3ebcaed0c62acca2",
         "script_path": "tools/check_ab_reserve_state_child_frontier_witness_compression_20260629.py",
         "script_sha256": "15d83d36de5369efc5d7882e43f8e5648742a08813534699363cb1421ec0c57a",
         "source_seed": "2026062907",

@@ -1012,17 +1012,21 @@ claims:
     status: supported
     layer: runtime
     statement: >
-      The ZenoLedger range verifier requires a proof metadata directory whenever
-      the active profile requires a proof journal directly or through its bridge
+      The ZenoLedger range verifier requires both a proof metadata directory
+      and a verifier-backed proof-verification report directory whenever the
+      active profile requires a proof journal directly or through its bridge
       policy. In that mode, every checked height must include proof metadata
-      whose hash equals the header `proof_journal_hash` and whose public roots
-      match the header. This is a replay-gating claim; it does not verify any
-      zkVM receipt cryptography or TEE hardware attestation.
+      whose hash equals the header `proof_journal_hash`, whose public roots
+      match the header, and whose verification report confirms the matching
+      proof kind is verifier-backed. Risc0 reports must also confirm body
+      checking and post-app-hash binding to the header app hash or post-state
+      root. Metadata-only replay is rejected for proof-required profiles.
+      Cryptographic soundness still comes from the verifier binaries that
+      generated those reports.
     evidence:
       kind: pytest
       check:
-        - cmd: pytest -q tests/integration/test_zeno_ledger_verify_cli.py::test_proof_required_profile_requires_metadata_replay tests/integration/test_zeno_ledger_verify_cli.py::test_run_local_builds_structured_proof_metadata tests/integration/test_zeno_ledger_verify_cli.py::test_verify_cli_rejects_tau_exclusive_profile_without_proof
-        - cmd: pytest -q tests/integration/test_zeno_ledger_verify_cli.py
+        - cmd: pytest -q tests/integration/test_zeno_ledger_verify_cli.py::test_proof_required_profile_requires_metadata_and_verifier_report_replay tests/integration/test_zeno_ledger_verify_cli.py::test_run_local_builds_structured_proof_metadata tests/integration/test_zeno_ledger_verify_cli.py::test_verify_cli_rejects_tau_exclusive_profile_without_proof
       files:
         - tools/zeno_ledger_verify.py
         - tests/integration/test_zeno_ledger_verify_cli.py
@@ -1137,19 +1141,31 @@ claims:
       must include a report whose proof journal hash, proof kind, program id,
       verifier id, and kind-specific verifier flag match the header-bound
       proof metadata. Risc0 metadata requires a Risc0 verification report with
-      `risc0_verified = true`; TEE metadata requires a TEE verification report
-      with `tee_verified = true` and matching measurement hash. This gates
-      metadata-only replay from being accepted as verifier-backed replay. The
-      reports still remain replay artifacts; cryptographic soundness comes from
-      the verifier binaries that generated them.
+      `risc0_verified = true`, body checking, and post-app-hash binding to the
+      header app hash or post-state root; TEE metadata requires a TEE
+      verification report with `tee_verified = true` and matching measurement
+      hash. In explicit signed-report mode, the verifier requires a
+      proof-report signer registry plus per-height envelope bundle, checks BLS
+      quorum over the canonical `proof_verification_report` artifact hash, and
+      records the signed-report checked heights plus compact per-height quorum
+      report hashes. This gates metadata-only replay from being accepted as
+      verifier-backed replay. The reports still remain replay artifacts;
+      cryptographic soundness comes from the verifier binaries that generated
+      them, plus the configured signer-registry trust assumption when the
+      optional signed-report quorum path is used.
     evidence:
       kind: pytest
       check:
         - cmd: python3 -m py_compile tools/zeno_ledger_verify.py tests/integration/test_zeno_ledger_verify_cli.py
-        - cmd: pytest -q tests/integration/test_zeno_ledger_verify_cli.py::test_verify_can_require_proof_verification_report_replay tests/integration/test_zeno_ledger_verify_cli.py::test_proof_required_profile_requires_metadata_replay tests/integration/test_zeno_ledger_verify_cli.py::test_run_local_builds_structured_proof_metadata
+        - cmd: pytest -q tests/integration/test_zeno_ledger_verify_cli.py::test_verify_can_require_proof_verification_report_replay tests/integration/test_zeno_ledger_verify_cli.py::test_proof_required_profile_requires_metadata_and_verifier_report_replay tests/integration/test_zeno_ledger_verify_cli.py::test_run_local_builds_structured_proof_metadata
+        - cmd: python3 -m pytest tests/integration/test_zeno_ledger_verify_cli.py::test_verify_can_require_proof_verification_report_replay tests/integration/test_zeno_ledger_verify_cli.py::test_bls_signer_registry_accepts_proof_verification_report_quorum tests/integration/test_zeno_ledger_verify_cli.py::test_signed_artifact_envelope_binds_proof_verification_report -q
       files:
         - tools/zeno_ledger_verify.py
         - tests/integration/test_zeno_ledger_verify_cli.py
+        - src/integration/zeno_ledger_signature.py
+        - src/integration/zeno_ledger_signer_registry.py
+        - tools/zeno_ledger_make_signer_registry.py
+        - tools/zeno_ledger_verify_signature_quorum.py
         - tools/zeno_ledger_risc0_proof_metadata.py
         - tools/zeno_ledger_tee_proof_metadata.py
 

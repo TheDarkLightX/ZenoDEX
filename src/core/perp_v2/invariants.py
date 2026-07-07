@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from .math import maint_margin_req
+from .math import BPS_SCALE, maint_margin_req
 from .types import EpochPhase, PerpState
 
 
@@ -94,6 +94,24 @@ def inv_insurance_conservation(s: PerpState) -> bool:
 def inv_liquidation_ic_guard(s: PerpState) -> bool:
     eff_maint = s.maintenance_margin_bps + s.depeg_buffer_bps
     return s.liquidation_penalty_bps < eff_maint
+
+
+def funded_liquidation_params_ok_bps(
+    *,
+    max_oracle_move_bps: int,
+    maintenance_margin_bps: int,
+    depeg_buffer_bps: int,
+    liquidation_penalty_bps: int,
+) -> bool:
+    """True when post-move margin headroom can fund the liquidation penalty."""
+    if min(max_oracle_move_bps, maintenance_margin_bps, depeg_buffer_bps, liquidation_penalty_bps) < 0:
+        return False
+    eff_maint_bps = maintenance_margin_bps + depeg_buffer_bps
+    if max_oracle_move_bps >= eff_maint_bps:
+        return False
+    return liquidation_penalty_bps * (BPS_SCALE + max_oracle_move_bps) <= (
+        BPS_SCALE * (eff_maint_bps - max_oracle_move_bps)
+    )
 
 
 def inv_funding_epoch_gated(s: PerpState) -> bool:

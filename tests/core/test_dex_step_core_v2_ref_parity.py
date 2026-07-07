@@ -11,10 +11,10 @@ from typing import Any, Mapping
 import pytest
 
 from src.core import DexConfig, DexState, dex_step
+from src.core.settlement import FillAction
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
 from src.state.pools import PoolState, PoolStatus, compute_pool_id
-from src.core.settlement import FillAction
 
 
 def _import_kernel(module_name: str, rel_path: str) -> Any:
@@ -51,6 +51,7 @@ ASSET_B = "0x" + "02" * 32
 FEE_BPS = 30
 
 POOL_ID = compute_pool_id(ASSET_A, ASSET_B, FEE_BPS)
+_PARITY_CONFIG = DexConfig(reject_settlements_with_rejected_intents=False)
 
 
 def _pk(idx: int) -> str:
@@ -187,7 +188,7 @@ def test_dex_step_core_v2_create_pool_bva_parity() -> None:
                     "recipient": _pk(creator),  # match kernel's lp_recipient=creator
                 },
             )
-            py_res = dex_step(DexConfig(), py_pre, [py_intent])
+            py_res = dex_step(_PARITY_CONFIG, py_pre, [py_intent])
 
             assert py_res.ok, py_res.error
             assert py_res.state is not None
@@ -262,7 +263,7 @@ def test_dex_step_core_v2_swap_exact_in_bva_parity() -> None:
                     "recipient": _pk(trader),
                 },
             )
-            py_res = dex_step(DexConfig(), py_s, [py_intent])
+            py_res = dex_step(_PARITY_CONFIG, py_s, [py_intent])
 
             assert py_res.ok, py_res.error
             assert py_res.state is not None
@@ -338,7 +339,7 @@ def test_dex_step_core_v2_swap_exact_out_reserve_boundary_parity() -> None:
                     "recipient": _pk(trader),
                 },
             )
-            py_res = dex_step(DexConfig(), py_s, [py_intent])
+            py_res = dex_step(_PARITY_CONFIG, py_s, [py_intent])
 
             assert py_res.ok, py_res.error
             assert py_res.state is not None
@@ -411,7 +412,7 @@ def test_dex_step_core_v2_swap_exact_in_bva_parity_b_for_a() -> None:
                     "recipient": _pk(trader),
                 },
             )
-            py_res = dex_step(DexConfig(), py_s, [py_intent])
+            py_res = dex_step(_PARITY_CONFIG, py_s, [py_intent])
 
             assert py_res.ok, py_res.error
             assert py_res.state is not None
@@ -507,7 +508,7 @@ def test_dex_step_core_v2_add_and_remove_liquidity_bva_parity() -> None:
                 "recipient": _pk(provider),
             },
         )
-        py_out = dex_step(DexConfig(), py_s, [py_intent])
+        py_out = dex_step(_PARITY_CONFIG, py_s, [py_intent])
 
         assert py_out.ok, py_out.error
         assert py_out.state is not None
@@ -562,7 +563,7 @@ def test_dex_step_core_v2_add_and_remove_liquidity_bva_parity() -> None:
                 "recipient": _pk(burner),
             },
         )
-        py_out = dex_step(DexConfig(), py_s, [py_intent])
+        py_out = dex_step(_PARITY_CONFIG, py_s, [py_intent])
 
         assert py_out.ok, py_out.error
         assert py_out.state is not None

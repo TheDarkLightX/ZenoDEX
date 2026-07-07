@@ -199,6 +199,82 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
                 }
                 if int(perps.version) >= PERPS_STATE_VERSION_V5:
                     out_entry["kind"] = str(getattr(market, "kind", PERP_MARKET_KIND_ISOLATED_V2))
+                    pending_roots = tuple(getattr(market, "pending_funding_closeout_root_hashes", ()))
+                    if pending_roots:
+                        out_entry["pending_funding_closeout_root_hashes"] = [str(root) for root in pending_roots]
+                    pending_source_roots = tuple(
+                        getattr(market, "pending_funding_closeout_source_availability_hashes", ())
+                    )
+                    if pending_source_roots:
+                        out_entry["pending_funding_closeout_source_availability_hashes"] = [
+                            str(root) for root in pending_source_roots
+                        ]
+                    pending_carried_roots = tuple(
+                        getattr(market, "pending_funding_closeout_carried_liability_hashes", ())
+                    )
+                    if pending_carried_roots:
+                        out_entry["pending_funding_closeout_carried_liability_hashes"] = [
+                            str(root) for root in pending_carried_roots
+                        ]
+                    policy_ledger_roots = tuple(
+                        getattr(market, "funding_closeout_policy_ledger_hashes", ())
+                    )
+                    if policy_ledger_roots:
+                        out_entry["funding_closeout_policy_ledger_hashes"] = [
+                            str(root) for root in policy_ledger_roots
+                        ]
+                    sink_claimant_balances = tuple(
+                        getattr(
+                            market,
+                            "funding_closeout_sink_claimant_balances_quote",
+                            (),
+                        )
+                    )
+                    if sink_claimant_balances:
+                        out_entry["funding_closeout_sink_claimant_balances_quote"] = [
+                            {
+                                "claimant": str(claimant),
+                                "balance_quote": int(balance_quote),
+                            }
+                            for claimant, balance_quote in sink_claimant_balances
+                        ]
+                    receiver_claim_balances = tuple(
+                        getattr(
+                            market,
+                            "funding_closeout_receiver_claim_balances_quote",
+                            (),
+                        )
+                    )
+                    if receiver_claim_balances:
+                        out_entry["funding_closeout_receiver_claim_balances_quote"] = [
+                            {
+                                "account_pubkey": str(account_pubkey),
+                                "balance_quote": int(balance_quote),
+                            }
+                            for account_pubkey, balance_quote in receiver_claim_balances
+                        ]
+                    receiver_claim_lots = tuple(
+                        getattr(
+                            market,
+                            "funding_closeout_receiver_claim_lots_quote",
+                            (),
+                        )
+                    )
+                    if receiver_claim_lots:
+                        out_entry["funding_closeout_receiver_claim_lots_quote"] = [
+                            {
+                                "account_pubkey": str(account_pubkey),
+                                "lot_id": str(lot_id),
+                                "balance_quote": int(balance_quote),
+                                "expires_at_epoch": int(expires_at_epoch),
+                            }
+                            for (
+                                account_pubkey,
+                                lot_id,
+                                balance_quote,
+                                expires_at_epoch,
+                            ) in receiver_claim_lots
+                        ]
                 markets_entries.append(out_entry)
                 continue
 
@@ -718,11 +794,210 @@ def state_from_snapshot(
                             ),
                         )
 
+                    pending_root_entries = entry.get("pending_funding_closeout_root_hashes")
+                    if pending_root_entries is None:
+                        pending_root_hashes = ()
+                    else:
+                        if not isinstance(pending_root_entries, list):
+                            raise TypeError("perps.pending_funding_closeout_root_hashes must be a list")
+                        pending_root_hashes = tuple(
+                            _require_str(
+                                root_hash,
+                                name="perps.pending_funding_closeout_root_hash",
+                                non_empty=True,
+                                max_len=len("sha256:") + 64,
+                            )
+                            for root_hash in pending_root_entries
+                        )
+
+                    pending_source_root_entries = entry.get(
+                        "pending_funding_closeout_source_availability_hashes"
+                    )
+                    if pending_source_root_entries is None:
+                        pending_source_root_hashes = ()
+                    else:
+                        if not isinstance(pending_source_root_entries, list):
+                            raise TypeError(
+                                "perps.pending_funding_closeout_source_availability_hashes must be a list"
+                            )
+                        pending_source_root_hashes = tuple(
+                            _require_str(
+                                root_hash,
+                                name="perps.pending_funding_closeout_source_availability_hash",
+                                non_empty=True,
+                                max_len=len("sha256:") + 64,
+                            )
+                            for root_hash in pending_source_root_entries
+                        )
+
+                    pending_carried_root_entries = entry.get(
+                        "pending_funding_closeout_carried_liability_hashes"
+                    )
+                    if pending_carried_root_entries is None:
+                        pending_carried_root_hashes = ()
+                    else:
+                        if not isinstance(pending_carried_root_entries, list):
+                            raise TypeError(
+                                "perps.pending_funding_closeout_carried_liability_hashes must be a list"
+                            )
+                        pending_carried_root_hashes = tuple(
+                            _require_str(
+                                root_hash,
+                                name="perps.pending_funding_closeout_carried_liability_hash",
+                                non_empty=True,
+                                max_len=len("sha256:") + 64,
+                            )
+                            for root_hash in pending_carried_root_entries
+                        )
+
+                    policy_ledger_root_entries = entry.get(
+                        "funding_closeout_policy_ledger_hashes"
+                    )
+                    if policy_ledger_root_entries is None:
+                        policy_ledger_hashes = ()
+                    else:
+                        if not isinstance(policy_ledger_root_entries, list):
+                            raise TypeError(
+                                "perps.funding_closeout_policy_ledger_hashes must be a list"
+                            )
+                        policy_ledger_hashes = tuple(
+                            _require_str(
+                                root_hash,
+                                name="perps.funding_closeout_policy_ledger_hash",
+                                non_empty=True,
+                                max_len=len("sha256:") + 64,
+                            )
+                            for root_hash in policy_ledger_root_entries
+                        )
+
+                    sink_claimant_balance_entries = entry.get(
+                        "funding_closeout_sink_claimant_balances_quote"
+                    )
+                    if sink_claimant_balance_entries is None:
+                        sink_claimant_balances = ()
+                    else:
+                        if not isinstance(sink_claimant_balance_entries, list):
+                            raise TypeError(
+                                "perps.funding_closeout_sink_claimant_balances_quote must be a list"
+                            )
+                        sink_claimant_balances_list = []
+                        for row in sink_claimant_balance_entries:
+                            if not isinstance(row, Mapping):
+                                raise TypeError(
+                                    "perps.funding_closeout_sink_claimant_balances_quote entries must be objects"
+                                )
+                            sink_claimant_balances_list.append(
+                                (
+                                    _require_str(
+                                        row.get("claimant"),
+                                        name="perps.funding_closeout_sink_claimant",
+                                        non_empty=True,
+                                        max_len=min(256, max_str_len),
+                                    ),
+                                    _require_int(
+                                        row.get("balance_quote", 0),
+                                        name="perps.funding_closeout_sink_claimant.balance_quote",
+                                    ),
+                                )
+                            )
+                        sink_claimant_balances = tuple(sink_claimant_balances_list)
+
+                    receiver_claim_balance_entries = entry.get(
+                        "funding_closeout_receiver_claim_balances_quote"
+                    )
+                    if receiver_claim_balance_entries is None:
+                        receiver_claim_balances = ()
+                    else:
+                        if not isinstance(receiver_claim_balance_entries, list):
+                            raise TypeError(
+                                "perps.funding_closeout_receiver_claim_balances_quote must be a list"
+                            )
+                        receiver_claim_balances_list = []
+                        for row in receiver_claim_balance_entries:
+                            if not isinstance(row, Mapping):
+                                raise TypeError(
+                                    "perps.funding_closeout_receiver_claim_balances_quote entries must be objects"
+                                )
+                            receiver_claim_balances_list.append(
+                                (
+                                    _require_str(
+                                        row.get("account_pubkey"),
+                                        name="perps.funding_closeout_receiver_claim_account",
+                                        non_empty=True,
+                                        max_len=min(512, max_str_len),
+                                    ),
+                                    _require_int(
+                                        row.get("balance_quote", 0),
+                                        name="perps.funding_closeout_receiver_claim.balance_quote",
+                                    ),
+                                )
+                            )
+                        receiver_claim_balances = tuple(receiver_claim_balances_list)
+
+                    receiver_claim_lot_entries = entry.get(
+                        "funding_closeout_receiver_claim_lots_quote"
+                    )
+                    if receiver_claim_lot_entries is None:
+                        receiver_claim_lots = ()
+                    else:
+                        if not isinstance(receiver_claim_lot_entries, list):
+                            raise TypeError(
+                                "perps.funding_closeout_receiver_claim_lots_quote must be a list"
+                            )
+                        receiver_claim_lots_list = []
+                        for row in receiver_claim_lot_entries:
+                            if not isinstance(row, Mapping):
+                                raise TypeError(
+                                    "perps.funding_closeout_receiver_claim_lots_quote entries must be objects"
+                                )
+                            receiver_claim_lots_list.append(
+                                (
+                                    _require_str(
+                                        row.get("account_pubkey"),
+                                        name="perps.funding_closeout_receiver_claim_lot.account_pubkey",
+                                        non_empty=True,
+                                        max_len=min(512, max_str_len),
+                                    ),
+                                    _require_str(
+                                        row.get("lot_id"),
+                                        name="perps.funding_closeout_receiver_claim_lot.lot_id",
+                                        non_empty=True,
+                                        max_len=min(256, max_str_len),
+                                    ),
+                                    _require_int(
+                                        row.get("balance_quote", 0),
+                                        name="perps.funding_closeout_receiver_claim_lot.balance_quote",
+                                    ),
+                                    _require_int(
+                                        row.get("expires_at_epoch", 0),
+                                        name="perps.funding_closeout_receiver_claim_lot.expires_at_epoch",
+                                    ),
+                                )
+                            )
+                        receiver_claim_lots = tuple(receiver_claim_lots_list)
+
                     markets[market_id] = PerpMarketState(
                         kind=PERP_MARKET_KIND_ISOLATED_V2,
                         quote_asset=quote_asset,
                         global_state=global_state_dict,
                         accounts=accounts,
+                        pending_funding_closeout_root_hashes=pending_root_hashes,
+                        pending_funding_closeout_source_availability_hashes=(
+                            pending_source_root_hashes
+                        ),
+                        pending_funding_closeout_carried_liability_hashes=(
+                            pending_carried_root_hashes
+                        ),
+                        funding_closeout_policy_ledger_hashes=policy_ledger_hashes,
+                        funding_closeout_sink_claimant_balances_quote=(
+                            sink_claimant_balances
+                        ),
+                        funding_closeout_receiver_claim_balances_quote=(
+                            receiver_claim_balances
+                        ),
+                        funding_closeout_receiver_claim_lots_quote=(
+                            receiver_claim_lots
+                        ),
                     )
                     continue
 

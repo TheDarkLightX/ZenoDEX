@@ -57,7 +57,7 @@
       "selected_min_reserve_bound": true,
       "selected_suffix_executable_bound": true
     },
-    "elapsed_ms": 21701.292,
+    "elapsed_ms": 20526.729,
     "lean_surface": {
       "placeholder_free": true,
       "required_theorem_count": 8,
@@ -146,7 +146,7 @@
       "claims_registry": {
         "command": "/usr/bin/python3 tools/check_claims_registry.py",
         "cwd": ".",
-        "elapsed_s": 0.325663,
+        "elapsed_s": 0.306947,
         "ok": true,
         "returncode": 0,
         "stderr_tail": "",
@@ -155,16 +155,16 @@
       "focused_pytest": {
         "command": "/usr/bin/python3 -m pytest -q tests/formal/test_lean_ab_strict_zero_min_monotone.py",
         "cwd": ".",
-        "elapsed_s": 9.186862,
+        "elapsed_s": 9.045464,
         "ok": true,
         "returncode": 0,
         "stderr_tail": "",
-        "stdout_tail": ".                                                                        [100%]\n1 passed in 8.85s\n"
+        "stdout_tail": ".                                                                        [100%]\n1 passed in 8.65s\n"
       },
       "lake_build_module": {
         "command": "lake build Proofs.ABStrictZeroMinMonotone",
         "cwd": "lean-mathlib",
-        "elapsed_s": 2.580031,
+        "elapsed_s": 2.268503,
         "ok": true,
         "returncode": 0,
         "stderr_tail": "",
@@ -173,7 +173,7 @@
       "lake_env_lean": {
         "command": "lake env lean Proofs/ABStrictZeroMinMonotone.lean",
         "cwd": "lean-mathlib",
-        "elapsed_s": 9.085909,
+        "elapsed_s": 8.411766,
         "ok": true,
         "returncode": 0,
         "stderr_tail": "",
@@ -182,7 +182,7 @@
       "public_claim_scope": {
         "command": "/usr/bin/python3 tools/check_public_claim_scope.py --root . --json",
         "cwd": ".",
-        "elapsed_s": 0.415539,
+        "elapsed_s": 0.390178,
         "ok": true,
         "returncode": 0,
         "stderr_tail": "",

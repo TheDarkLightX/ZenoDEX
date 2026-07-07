@@ -506,12 +506,22 @@ export function apiGetPools(options = {}) {
   return apiFetchJson(path, { method: 'GET', ...fetchOptions });
 }
 
+function isSwapExactOutRequest({ kind, amountOut, maxAmountIn }) {
+  if (typeof kind === 'string' && kind.trim().toUpperCase() === 'SWAP_EXACT_OUT') {
+    return true;
+  }
+  return amountOut != null || maxAmountIn != null;
+}
+
 export function apiSwap(
   {
     from,
     to,
     amountIn,
     minAmountOut = 1,
+    amountOut = null,
+    maxAmountIn = null,
+    kind = null,
     poolId = null,
     assetIn = null,
     assetOut = null,
@@ -519,15 +529,23 @@ export function apiSwap(
     recipient = null,
     deadline = null,
     signature = null,
+    nonce = null,
+    timeMs = null,
+    txId = null,
   },
   options = {},
 ) {
-  const body = {
-    from,
-    to,
-    amountIn,
-    minAmountOut,
-  };
+  const exactOut = isSwapExactOutRequest({ kind, amountOut, maxAmountIn });
+  const body = { from, to };
+  if (exactOut) {
+    body.kind = 'SWAP_EXACT_OUT';
+    body.amountOut = amountOut;
+    body.maxAmountIn = maxAmountIn;
+  } else {
+    body.amountIn = amountIn;
+    body.minAmountOut = minAmountOut;
+  }
+  if (kind && !exactOut) body.kind = kind;
   if (poolId) body.poolId = poolId;
   if (assetIn) body.assetIn = assetIn;
   if (assetOut) body.assetOut = assetOut;
@@ -535,7 +553,75 @@ export function apiSwap(
   if (recipient) body.recipient = recipient;
   if (deadline) body.deadline = deadline;
   if (signature) body.signature = signature;
+  if (nonce != null) body.nonce = nonce;
+  if (timeMs != null) body.time_ms = timeMs;
+  if (txId) body.tx_id = txId;
   return apiFetchJson('/api/swap', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    ...(options || {}),
+  });
+}
+
+export function apiRoute(
+  {
+    quoteReceipt,
+    kind,
+    legIndices = null,
+    totalAmountIn = null,
+    totalMinAmountOut = null,
+    totalAmountOut = null,
+    totalMaxAmountIn = null,
+    senderPubkey = null,
+    recipient = null,
+    deadline = null,
+    nonce = null,
+    signature = null,
+    timeMs = null,
+    txId = null,
+  },
+  options = {},
+) {
+  const body = { quoteReceipt, kind };
+  if (legIndices != null) body.legIndices = legIndices;
+  if (totalAmountIn != null) body.totalAmountIn = totalAmountIn;
+  if (totalMinAmountOut != null) body.totalMinAmountOut = totalMinAmountOut;
+  if (totalAmountOut != null) body.totalAmountOut = totalAmountOut;
+  if (totalMaxAmountIn != null) body.totalMaxAmountIn = totalMaxAmountIn;
+  if (senderPubkey) body.senderPubkey = senderPubkey;
+  if (recipient) body.recipient = recipient;
+  if (deadline) body.deadline = deadline;
+  if (nonce != null) body.nonce = nonce;
+  if (signature) body.signature = signature;
+  if (timeMs != null) body.time_ms = timeMs;
+  if (txId) body.tx_id = txId;
+  return apiFetchJson('/api/route', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    ...(options || {}),
+  });
+}
+
+export function apiDexQuote(
+  {
+    kind,
+    from,
+    to,
+    amountIn = null,
+    amountOut = null,
+    routingMode = null,
+    fastTopkMax = null,
+    quoteEpoch = null,
+  },
+  options = {},
+) {
+  const body = { kind, asset_in: from, asset_out: to };
+  if (amountIn != null) body.amount_in = amountIn;
+  if (amountOut != null) body.amount_out = amountOut;
+  if (routingMode) body.routing_mode = routingMode;
+  if (fastTopkMax != null) body.fast_topk_max = fastTopkMax;
+  if (quoteEpoch != null) body.quote_epoch = quoteEpoch;
+  return apiFetchJson('/api/dex/quote', {
     method: 'POST',
     body: JSON.stringify(body),
     ...(options || {}),

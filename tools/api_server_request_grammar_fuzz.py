@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Deterministic grammar-based request-envelope explorer for `src.integration.api_server`.
 
@@ -17,6 +15,9 @@ and regression pinning, not as acceptance proof for functional-core correctness.
 It also performs one-step local repairs and small field sweeps so nearby guard
 boundaries can be crossed deliberately.
 """
+# ruff: noqa: E402,I001
+
+from __future__ import annotations
 
 import argparse
 import copy
@@ -34,7 +35,8 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from src.integration import api_server
+from src.integration import api_server  # noqa: E402
+from src.integration import api_server_dex_dispatch as _api_server_dex_dispatch  # noqa: E402,F401
 
 
 RunnerFn = Callable[[object], str]
@@ -86,17 +88,28 @@ class GrammarTarget:
 
 
 API_SERVER_FILE = Path(api_server.__file__).resolve()
+DEX_API_HELPERS_FILE = ROOT_DIR / "src" / "integration" / "_dex_api_helpers.py"
+DEX_DISPATCH_RECEIPT_HANDLERS_FILE = ROOT_DIR / "src" / "integration" / "dex_dispatch_receipt_handlers.py"
 
 
 class _FakeServer:
     cors_origins: set[str]
     demo_api_token: str
     dex_api_enabled: bool
+    external_auth_enforced: bool
 
-    def __init__(self, *, cors_origins: set[str] | None = None, demo_api_token: str = "", dex_api_enabled: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        cors_origins: set[str] | None = None,
+        demo_api_token: str = "",
+        dex_api_enabled: bool = True,
+        external_auth_enforced: bool = False,
+    ) -> None:
         self.cors_origins = set() if cors_origins is None else set(cors_origins)
         self.demo_api_token = str(demo_api_token)
         self.dex_api_enabled = bool(dex_api_enabled)
+        self.external_auth_enforced = bool(external_auth_enforced)
 
 
 class _HandlerHarness:
@@ -108,12 +121,14 @@ class _HandlerHarness:
         cors_origins: set[str] | None = None,
         demo_api_token: str = "",
         dex_api_enabled: bool = True,
+        external_auth_enforced: bool = False,
     ) -> None:
         self.handler = object.__new__(api_server._Handler)
         self.handler.server = _FakeServer(
             cors_origins=cors_origins,
             demo_api_token=demo_api_token,
             dex_api_enabled=dex_api_enabled,
+            external_auth_enforced=external_auth_enforced,
         )
         self.handler.client_address = ("127.0.0.1", 12345)
         self.handler.headers = {} if headers is None else dict(headers)
@@ -202,6 +217,7 @@ def _run_demo_auth(payload: object) -> str:
     harness = _HandlerHarness(
         headers=payload.get("headers") if isinstance(payload.get("headers"), dict) else None,
         demo_api_token=str(payload.get("token", "")),
+        external_auth_enforced=False,
     )
     return f"ok:{int(harness.handler._demo_auth_ok())}"
 
@@ -244,6 +260,7 @@ def _run_dex_request_envelope(payload: object) -> str:
         cors_origins=set(payload.get("cors_origins", [])) if isinstance(payload.get("cors_origins"), list) else None,
         demo_api_token=str(payload.get("token", "")),
         dex_api_enabled=bool(payload.get("dex_api_enabled", True)),
+        external_auth_enforced=bool(payload.get("external_auth_enforced", not bool(payload.get("token", "")))),
     )
     handled = harness.handler._maybe_handle_dex_api(
         method=str(payload.get("method", "POST")),
@@ -512,7 +529,7 @@ TARGETS: tuple[GrammarTarget, ...] = (
     GrammarTarget(
         name="dex_request_envelope",
         runner=_run_dex_request_envelope,
-        trace_files=(API_SERVER_FILE,),
+        trace_files=(API_SERVER_FILE, DEX_API_HELPERS_FILE, DEX_DISPATCH_RECEIPT_HANDLERS_FILE),
         repair_fn=_derive_dex_envelope_repairs,
         cases=(
             GrammarCase("DexReq->NonDexPath", {"method": "POST", "path": "/api/perps/markets", "raw_body": b'{}'}),

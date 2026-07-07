@@ -9,6 +9,7 @@ from src.core.batch_clearing import (
     compute_settlement,
     validate_settlement,
 )
+from src.core.batch_clearing_ordering import _OptimalAbBoundedRequest
 from src.state.lp import LPTable
 from tools.metamuse_batch_ordering_lane import (
     BATCH_MCI_CURATED_CASES,
@@ -26,10 +27,12 @@ def test_mci_global_matches_bounded_optimum_on_curated_corpus() -> None:
         mci_seed = _order_swaps_mci_ab(intents, pool_state=pool, reserves=reserves)
         mci_order = _refine_ab_ordering_global(mci_seed, pool_state=pool, reserves=reserves)
         optimal_order = _order_swaps_optimal_ab_bounded(
-            intents,
-            pool_state=pool,
-            balances=balances,
-            reserves=reserves,
+            _OptimalAbBoundedRequest(
+                intents=intents,
+                pool_state=pool,
+                balances=balances,
+                reserves=reserves,
+            )
         )
 
         assert _eval_ordering_ab(mci_order, pool, reserves) == case.expected_ab

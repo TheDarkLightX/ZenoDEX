@@ -2,37 +2,37 @@ import Mathlib.Data.Rat.Lemmas
 import Mathlib.Tactic
 
 /-!
-# Information-Theoretic Slippage Lower Bound
+# CPMM Slippage Formula and Lower-Bound Schema
 
-This file proves that any market mechanism with finite liquidity M has
-slippage Ω(x/M) for trade size x. CPMM achieves this bound exactly,
-making CPMM slippage **optimal** among all mechanisms with the same liquidity.
+This file proves exact rational CPMM slippage formulas and a reusable
+lower-bound schema. It does not encode arbitrary market mechanisms, so it should
+not be cited as a universal information-theoretic optimality theorem without an
+external model proving that every admissible mechanism has slippage at least
+`x / (M + x)`.
 
 ## Main Results
 
 1. **CPMM Slippage Formula** (`cpmm_slippage`): The relative slippage of a
    CPMM trade of size x with reserve M is `x / (M + x)`.
 
-2. **Slippage Lower Bound** (`slippage_lower_bound`): For ANY mechanism with
-   finite liquidity M, the relative slippage of a trade of size x is at least
-   `x / (M + x)`. This is the information-theoretic lower bound.
+2. **CPMM Slippage Fraction Bounds** (`cpmm_slippage_fraction_bounds`): The
+   candidate floor `x / (M + x)` lies in `(0, 1]`.
 
-3. **CPMM Slippage is Optimal** (`cpmm_slippage_optimal`): CPMM achieves
-   exactly the information-theoretic lower bound. No mechanism with the same
-   liquidity can have lower slippage.
+3. **CPMM Matches Assumed Floor** (`cpmm_slippage_matches_assumed_floor`): If
+   a separate model establishes `x / (M + x)` as a lower-bound floor, CPMM
+   matches it exactly.
 
 4. **Slippage Scales as x/M** (`slippage_linear_regime`): For small trades
    (x ≤ M), slippage is at least x/(2M), confirming the linear regime.
 
-5. **No Free Lunch** (`no_free_lunch_slippage`): No mechanism can offer both
-   zero slippage and finite liquidity.
+5. **CPMM Positive Slippage** (`cpmm_positive_slippage`): CPMM slippage is
+   positive for positive trade size and reserve.
 
 ## Why This Matters
 
-Combined with the Global AMM Impossibility Theorem, this proves the
-slippage-IL tradeoff is **fundamental**, not an artifact of CPMM. No mechanism
-can improve slippage beyond the information-theoretic lower bound, so the only
-way to reduce slippage is to increase liquidity M.
+These lemmas are useful as a CPMM certificate and as a proof target for a
+future universal lower-bound model. The universal model remains a separate
+obligation.
 -/
 
 namespace Proofs
@@ -57,12 +57,11 @@ theorem cpmm_slippage (M K x : ℚ) (hM : 0 < M) (hK : 0 < K) (hx : 0 < x) :
 
 /-! ## Section 2: Slippage Lower Bound -/
 
-/-- The slippage lower bound: any mechanism with liquidity M has relative
-    slippage at least `x / (M + x)` for trade size x. -/
-theorem slippage_lower_bound (M x : ℚ) (hM : 0 < M) (hx : 0 < x) :
+/-- The CPMM slippage floor candidate lies in `(0, 1]`. -/
+theorem cpmm_slippage_fraction_bounds (M x : ℚ) (hM : 0 < M) (hx : 0 < x) :
     x / (M + x) ≤ 1 ∧ 0 < x / (M + x) := by
   have hMx : 0 < M + x := by linarith [hM, hx]
-  refine ⟨?_, ?_⟩
+  constructor
   · rw [div_le_iff₀ hMx]
     linarith [hM]
   · rw [lt_div_iff₀ hMx]
@@ -70,16 +69,18 @@ theorem slippage_lower_bound (M x : ℚ) (hM : 0 < M) (hx : 0 < x) :
 
 /-! ## Section 3: CPMM Slippage is Optimal -/
 
-/-- CPMM achieves exactly the information-theoretic slippage lower bound.
-    No mechanism with the same liquidity can have lower slippage. -/
-theorem cpmm_slippage_optimal (M K x : ℚ) (hM : 0 < M) (hK : 0 < K) (hx : 0 < x) :
+/-- CPMM exactly matches the candidate floor `x/(M+x)`. If a separate model
+    proves every admissible mechanism has slippage at least this floor, this
+    theorem is the CPMM-side achievability witness. -/
+theorem cpmm_slippage_matches_assumed_floor (M K x : ℚ) (hM : 0 < M) (hK : 0 < K) (hx : 0 < x) :
     relativeSlippage M K x = x / (M + x) ∧
     ∀ (s : ℚ), s ≥ x / (M + x) → s ≥ relativeSlippage M K x := by
   have h_slippage := cpmm_slippage M K x hM hK hx
-  refine ⟨h_slippage, ?_⟩
-  intro s hs
-  rw [h_slippage]
-  exact hs
+  constructor
+  · exact h_slippage
+  · intro s hs
+    rw [h_slippage]
+    exact hs
 
 /-! ## Section 4: Slippage Scales as x/M -/
 
@@ -93,18 +94,19 @@ theorem slippage_linear_regime (M x : ℚ) (hM : 0 < M) (hx : 0 < x) (hx' : x �
   nlinarith [hM, hx, hx']
 
 /-- For small trades (x ≤ M/10), slippage ≥ 10x/(11M) ≈ x/M. -/
-theorem slippage_small_trade_approx (M x : ℚ) (hM : 0 < M) (hx : 0 < x) (hx' : x ≤ M/10) :
+theorem slippage_small_trade_approx (M x : ℚ) (_hM : 0 < M) (hx : 0 < x) (hx' : x ≤ M/10) :
     x / (M + x) ≥ 10 * x / (11 * M) := by
-  have hMx : 0 < M + x := by linarith [hM, hx]
-  have h11M : 0 < 11 * M := by linarith [hM]
+  have hMpos : 0 < M := by nlinarith [hx, hx']
+  have hMx : 0 < M + x := by linarith [hMpos, hx]
+  have h11M : 0 < 11 * M := by linarith [hMpos]
   show 10 * x / (11 * M) ≤ x / (M + x)
   rw [div_le_div_iff₀ h11M hMx]
   nlinarith [hx, hx']
 
-/-! ## Section 5: No Free Lunch -/
+/-! ## Section 5: Positive CPMM Slippage -/
 
-/-- No mechanism can offer zero slippage with finite liquidity. -/
-theorem no_free_lunch_slippage (M x : ℚ) (hM : 0 < M) (hx : 0 < x) :
+/-- CPMM slippage is positive for positive reserve and trade size. -/
+theorem cpmm_positive_slippage (M x : ℚ) (hM : 0 < M) (hx : 0 < x) :
     0 < x / (M + x) := by
   have hMx : 0 < M + x := by linarith [hM, hx]
   rw [lt_div_iff₀ hMx]
@@ -129,8 +131,9 @@ theorem witness_slippage_1pct :
   have hM : (0 : ℚ) < 10000 := by norm_num
   have hK : (0 : ℚ) < 10000 := by norm_num
   have hx : (0 : ℚ) < 100 := by norm_num
-  refine ⟨cpmm_slippage 10000 10000 100 hM hK hx, ?_⟩
-  norm_num
+  constructor
+  · exact cpmm_slippage 10000 10000 100 hM hK hx
+  · norm_num
 
 /-- Witness: pool with M=1000000, trade x=1000.
     Slippage = 1000/1001000 ≈ 0.1%, confirming slippage ≈ x/M for large pools. -/
@@ -140,8 +143,9 @@ theorem witness_slippage_large_pool :
   have hM : (0 : ℚ) < 1000000 := by norm_num
   have hK : (0 : ℚ) < 1000000 := by norm_num
   have hx : (0 : ℚ) < 1000 := by norm_num
-  refine ⟨cpmm_slippage 1000000 1000000 1000 hM hK hx, ?_⟩
-  norm_num
+  constructor
+  · exact cpmm_slippage 1000000 1000000 1000 hM hK hx
+  · norm_num
 
 /-! ## Section 7: Slippage and Liquidity Tradeoff -/
 

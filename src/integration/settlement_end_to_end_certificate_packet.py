@@ -395,6 +395,8 @@ def enforce_settlement_end_to_end_certificate(
     mode: str = "strong_replay",
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Optional[str] = None,
 ) -> tuple[bool, str | None, SettlementEndToEndCertificatePacket | None]:
     ok, err = validate_settlement_strong(
         settlement=settlement,
@@ -405,6 +407,8 @@ def enforce_settlement_end_to_end_certificate(
         mode=mode,
         allow_cow_netting=allow_cow_netting,
         allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
     )
     if not ok:
         return False, err, None

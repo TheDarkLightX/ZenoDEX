@@ -21,19 +21,19 @@ def test_price_manipulation_cost_bound_file_typechecks() -> None:
 
     source = (lean_dir / target).read_text(encoding="utf-8")
     required_theorems = (
-        "cpmm_price_after_trade",
-        "price_decreases_after_trade",
-        "relative_price_change_eq",
-        "relative_change_increasing",
-        "manipulation_cost_lower_bound",
-        "manipulation_cost_achievable",
-        "manipulation_cost_approx",
-        "batch_relative_price_change",
-        "batch_manipulation_cost",
-        "no_cheap_manipulation",
+        "cpmm_average_execution_price_eq",
+        "average_execution_price_decreases",
+        "relative_average_price_change_eq",
+        "relative_average_change_increasing",
+        "average_price_move_cost_lower_bound",
+        "average_price_move_cost_achievable",
+        "average_price_move_cost_approx",
+        "batch_relative_average_price_change",
+        "batch_average_price_move_cost",
+        "no_cheap_average_price_manipulation",
         "witness_manipulation_10pct",
         "witness_manipulation_1pct",
-        "manipulation_cost_scales_linearly",
+        "average_price_move_cost_scales_linearly",
     )
     for theorem in required_theorems:
         assert re.search(
@@ -58,3 +58,5 @@ def test_price_manipulation_cost_bound_file_typechecks() -> None:
     combined = (proc.stdout + proc.stderr).lower()
     assert "sorry" not in combined, f"sorry placeholder found in {target}"
     assert "error:" not in combined, f"error in {target}: {proc.stderr}"
+    assert "post-trade cpmm marginal price" in source.lower()
+    assert "clearing price" not in source.lower()

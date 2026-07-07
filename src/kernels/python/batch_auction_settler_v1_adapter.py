@@ -16,7 +16,7 @@ from typing import Any, Callable, Mapping
 
 # Bound to the kernel IR hash of `src/kernels/dex/batch_auction_settler_v1.yaml`.
 # Checked by the toolchain's adapter lint step (fail-closed by default).
-IR_HASH = "sha256:f9654775e34021e3586a154a955ace665d4df32d738f4b565e45b422fc142e73"
+IR_HASH = "sha256:b4a7eca7617c99cb1be88d57517f4f46c19fd161e7cf2e512cb9fc969680bedc"
 
 
 def _kernel_step(*, state: Mapping[str, Any], command: Any, ir: Any) -> Any:

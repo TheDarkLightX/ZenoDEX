@@ -138,6 +138,29 @@ def test_market_params_rejects_bad_bounds(field: str, bad_value: object):
         C.MarketParams(**{field: bad_value})  # type: ignore[arg-type]
 
 
+def test_market_params_rejects_unfunded_liquidation_cone():
+    with pytest.raises(ValueError, match="liquidation_penalty_bps \\* \\(10000 \\+ max_oracle_move_bps\\)"):
+        C.MarketParams(
+            initial_margin_bps=1000,
+            maintenance_margin_bps=600,
+            depeg_buffer_bps=0,
+            max_oracle_move_bps=500,
+            liquidation_penalty_bps=100,
+        )
+
+
+def test_market_params_accepts_exact_funded_liquidation_boundary():
+    params = C.MarketParams(
+        initial_margin_bps=1000,
+        maintenance_margin_bps=600,
+        depeg_buffer_bps=0,
+        max_oracle_move_bps=500,
+        liquidation_penalty_bps=95,
+    )
+
+    assert params.liquidation_penalty_bps == 95
+
+
 def test_matcher_higher_valid_nonce_supersedes_lower_valid_intent():
     params = MatchParams(initial_margin_bps=1000, max_position_abs=1_000_000)
     price = 100 * E8
@@ -271,6 +294,29 @@ def test_state_type_rejects_np_param_values_outside_engine_bounds():
     gs["max_position_abs"] = 0
     with pytest.raises(ValueError, match="max_position_abs.*out of range"):
         PerpClearinghouseNpMarketState(quote_asset="zUSD", global_state=gs, accounts=())
+
+
+def test_state_type_rejects_unfunded_np_liquidation_cone():
+    gs = _global_state(0)
+    gs["maintenance_margin_bps"] = 600
+    gs["depeg_buffer_bps"] = 0
+    gs["max_oracle_move_bps"] = 500
+    gs["liquidation_penalty_bps"] = 100
+
+    with pytest.raises(ValueError, match="liquidation_penalty_bps \\* \\(10000 \\+ max_oracle_move_bps\\)"):
+        PerpClearinghouseNpMarketState(quote_asset="zUSD", global_state=gs, accounts=())
+
+
+def test_state_type_accepts_exact_np_liquidation_boundary():
+    gs = _global_state(0)
+    gs["maintenance_margin_bps"] = 600
+    gs["depeg_buffer_bps"] = 0
+    gs["max_oracle_move_bps"] = 500
+    gs["liquidation_penalty_bps"] = 95
+
+    market = PerpClearinghouseNpMarketState(quote_asset="zUSD", global_state=gs, accounts=())
+
+    assert market.global_state["liquidation_penalty_bps"] == 95
 
 
 def test_state_type_rejects_duplicate_members():

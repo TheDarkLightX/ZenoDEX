@@ -82,7 +82,11 @@ from .batch_clearing_ordering import (
     _refine_b_ordering,
     _simulate_swap_reserves,
 )
-from .batch_clearing_requests import ComputeSettlementRequest, ClearBatchSinglePoolRequest, validate_swap_tiebreak_seed
+from .batch_clearing_requests import (
+    ClearBatchSinglePoolRequest,
+    ComputeSettlementRequest,
+    validate_swap_tiebreak_seed,
+)
 from .batch_clearing_single_pool import (
     _ClearSinglePoolRequest,
     _SinglePoolFactories,

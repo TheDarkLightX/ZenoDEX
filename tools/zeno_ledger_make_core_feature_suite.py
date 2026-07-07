@@ -24,7 +24,11 @@ from tools.zeno_ledger_make_testnet_bundle import (
     _root,
     build_testnet_bundle_v0,
 )
+from src.core.dex import DexState
+from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.zeno_ledger_feature_suite import build_feature_suite_manifest_v0
+from src.state.balances import BalanceTable
+from src.state.lp import LPTable
 
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_core_feature_suite_report.v0"
@@ -316,7 +320,10 @@ def build_core_feature_suite_v0(
     tau_body_path = tau_app_dir / "source" / "tau_app_spot_body.json"
     tau_app_state_path = tau_app_dir / "source" / "app_state.json"
     tau_app_state_path.parent.mkdir(parents=True, exist_ok=True)
-    tau_app_state_path.write_text("", encoding="utf-8")
+    _empty_dex_snapshot = snapshot_from_state(
+        DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    )
+    _write_json(tau_app_state_path, _empty_dex_snapshot.data)
     _write_json(
         tau_body_path,
         _tau_app_spot_body_v0(

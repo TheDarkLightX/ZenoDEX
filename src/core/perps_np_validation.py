@@ -6,6 +6,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from .perp_liquidation_envelope import require_perp_liquidation_envelope_bps
+
 
 class PubkeyBytes48(Protocol):
     def __call__(self, pubkey: str, *, name: str) -> bytes: ...
@@ -182,6 +184,16 @@ def _validate_global_bounds(global_state: Mapping[str, int]) -> None:
             raise ValueError(f"global_state[{key!r}] out of range: {value} not in [{lo}, {hi}]")
 
 
+def _validate_global_liquidation_envelope(global_state: Mapping[str, int]) -> None:
+    require_perp_liquidation_envelope_bps(
+        initial_margin_bps=global_state["initial_margin_bps"],
+        maintenance_margin_bps=global_state["maintenance_margin_bps"],
+        depeg_buffer_bps=global_state["depeg_buffer_bps"],
+        max_oracle_move_bps=global_state["max_oracle_move_bps"],
+        liquidation_penalty_bps=global_state["liquidation_penalty_bps"],
+    )
+
+
 def _validate_global_state(global_state: dict[str, int]) -> None:
     if not isinstance(global_state, dict):
         raise TypeError("global_state must be a dict")
@@ -190,6 +202,7 @@ def _validate_global_state(global_state: dict[str, int]) -> None:
     _validate_global_types(global_state)
     _validate_global_nonnegative(global_state)
     _validate_global_bounds(global_state)
+    _validate_global_liquidation_envelope(global_state)
 
 
 def _validate_account_collection(

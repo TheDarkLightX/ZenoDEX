@@ -21,17 +21,17 @@ def test_mev_resistance_optimality_file_typechecks() -> None:
 
     source = (lean_dir / target).read_text(encoding="utf-8")
     required_theorems = (
-        "mev_lower_bound_witness",
-        "mev_upper_bound_symmetry",
-        "mev_bound_is_tight",
-        "no_mechanism_beats_one_over_n",
-        "mev_reduction_optimal_nontrivial",
+        "quota_floor_witness",
+        "quota_upper_bound_from_mul_le",
+        "quota_floor_bound_is_tight",
+        "no_quota_bound_below_floor",
+        "quota_elimination_floor_residual_nontrivial",
         "witness_optimality_batch10",
         "witness_optimality_batch100",
         "witness_optimality_batch2",
         "residual_mev_decreases",
         "reduction_approaches_one",
-        "min_batch_for_exact_target",
+        "quota_min_batch_for_exact_fraction_target",
     )
     for theorem in required_theorems:
         assert re.search(
@@ -56,3 +56,5 @@ def test_mev_resistance_optimality_file_typechecks() -> None:
     combined = (proc.stdout + proc.stderr).lower()
     assert "sorry" not in combined, f"sorry placeholder found in {target}"
     assert "error:" not in combined, f"error in {target}: {proc.stderr}"
+    assert "no sealed-bid batch mechanism" not in source.lower()
+    assert "strongest provable mev resistance claim" not in source.lower()

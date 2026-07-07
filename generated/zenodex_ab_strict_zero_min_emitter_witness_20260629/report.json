@@ -381,7 +381,7 @@
         ]
       }
     ],
-    "elapsed_ms": 452.605,
+    "elapsed_ms": 431.969,
     "first_invalid_packet": null,
     "first_mutation_accept": null,
     "first_packet": {

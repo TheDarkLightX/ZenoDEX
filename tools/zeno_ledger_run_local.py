@@ -11,15 +11,36 @@ import sys
 from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.core.dex import DexConfig, DexState
 from src.integration.dex_engine import DexEngineConfig
 from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
 from src.integration.proof_toolchain_lock import proof_toolchain_lock_hash_v0
+from src.integration.risc0_tx_order_body_summary import (
+    apply_route_order_receipt_policy_to_body_v1,
+)
+from src.integration.zeno_ledger_cross_shard_effect_application import (
+    apply_terminal_cross_shard_ledger_effects_to_state_v0,
+    build_cross_shard_ledger_effects_artifact_v0,
+    cross_shard_applied_effects_state_from_payload_v0,
+    empty_cross_shard_applied_effects_state_v0,
+)
+from src.integration.zeno_ledger_cross_shard_global_conservation import (
+    build_cross_shard_global_conservation_receipt_v0,
+)
+from src.integration.zeno_ledger_tau_export import (
+    CROSS_SHARD_POSTING_SUMMARY_FORBIDDEN_V0,
+    CROSS_SHARD_POSTING_SUMMARY_REQUIRED_V0,
+    CrossShardPostingSummaryBodyEvidenceV0,
+    infer_cross_shard_posting_summary_body_evidence_detail_v0,
+    cross_shard_terminal_admission_set_hash_v0,
+    validate_cross_shard_posting_summary_export_v0,
+)
 from src.integration.zeno_ledger_v0 import (
     apply_body_transactions_v0,
     build_proof_metadata_v0,
@@ -29,18 +50,23 @@ from src.integration.zeno_ledger_v0 import (
     canonical_body_root_v0,
     canonical_header_hash_v0,
     compute_app_hash_v0,
+    compute_dex_snapshot_app_root_v0,
     compute_evidence_root_v0,
     compute_ingress_root_v0,
+    compute_tau_app_state_app_root_v0,
     compute_tx_root_v0,
-    dex_state_root_v0,
     hash_v0,
     proof_metadata_hash_v0,
     stable_error_code_v0,
+    TAU_APP_STATE_SCHEMA_V1,
+    TAU_APP_STATE_VERSION_V1,
     tx_hash_v0,
     validate_body_v0,
     validate_proof_metadata_header_binding_v0,
 )
-from src.state.canonical import canonical_hex_fixed_allow_0x
+from src.state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
+from src.state.balances import BalanceTable
+from src.state.lp import LPTable
 
 ZERO_ROOT = "0x" + "00" * 32
 REPORT_SCHEMA = "zenodex.zeno_ledger.run_local_report.v0"
@@ -61,6 +87,356 @@ def _write_json(path: Path, value: object) -> None:
 def _write_text(path: Path, value: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(value, encoding="utf-8")
+
+
+def _normalize_cross_shard_posting_summary_paths_v0(
+    *,
+    posting_summary_path: Path | None,
+    posting_summary_paths: Sequence[Path] | None,
+) -> tuple[Path, ...]:
+    single = () if posting_summary_path is None else (posting_summary_path,)
+    many = () if posting_summary_paths is None else tuple(posting_summary_paths)
+    if single and many:
+        raise ValueError(
+            "use either cross_shard_posting_summary_path or "
+            "cross_shard_posting_summary_paths"
+        )
+    return tuple(Path(path) for path in (*single, *many))
+
+
+def _normalize_cross_shard_terminal_admission_paths_v0(
+    terminal_admission_paths: Sequence[Path] | None,
+) -> tuple[Path, ...]:
+    if terminal_admission_paths is None:
+        return ()
+    return tuple(Path(path) for path in terminal_admission_paths)
+
+
+def _load_cross_shard_writer_posting_summaries_v0(
+    *,
+    body: Mapping[str, Any],
+    posting_summary_paths: Sequence[Path],
+) -> tuple[Mapping[str, Any], ...]:
+    body_evidence = infer_cross_shard_posting_summary_body_evidence_detail_v0(body)
+    requirement = body_evidence.requirement
+    if (
+        requirement == CROSS_SHARD_POSTING_SUMMARY_REQUIRED_V0
+        and not posting_summary_paths
+    ):
+        raise ValueError("cross-shard posting summary is required by body evidence")
+    if (
+        requirement == CROSS_SHARD_POSTING_SUMMARY_FORBIDDEN_V0
+        and posting_summary_paths
+    ):
+        raise ValueError("cross-shard posting summary is forbidden by body evidence")
+    if not posting_summary_paths:
+        return ()
+    if (
+        body_evidence.expected_posting_summary_hash is not None
+        and len(posting_summary_paths) != 1
+    ):
+        raise ValueError(
+            "body-pinned cross-shard posting summary hash requires exactly one "
+            "posting summary"
+        )
+    posting_summaries = tuple(
+        validate_cross_shard_posting_summary_export_v0(_load_json_object(path))
+        for path in posting_summary_paths
+    )
+    posting_hashes = tuple(
+        str(posting_summary["posting_summary_hash"])
+        for posting_summary in posting_summaries
+    )
+    if len(set(posting_hashes)) != len(posting_hashes):
+        raise ValueError("duplicate cross-shard posting summary hash")
+    sorted_posting_summaries = tuple(
+        sorted(
+            posting_summaries,
+            key=lambda posting_summary: str(posting_summary["posting_summary_hash"]),
+        )
+    )
+    sorted_posting_hashes = tuple(
+        str(posting_summary["posting_summary_hash"])
+        for posting_summary in sorted_posting_summaries
+    )
+    if (
+        body_evidence.expected_posting_summary_hash is not None
+        and posting_summaries[0]["posting_summary_hash"]
+        != body_evidence.expected_posting_summary_hash
+    ):
+        raise ValueError("cross-shard posting summary hash conflicts with body evidence")
+    if (
+        body_evidence.expected_posting_summary_set_hash is not None
+        and sorted_posting_hashes != body_evidence.expected_posting_summary_hashes
+    ):
+        raise ValueError("cross-shard posting summary set conflicts with body evidence")
+    return sorted_posting_summaries
+
+
+def _load_cross_shard_writer_terminal_admissions_v0(
+    *,
+    body: Mapping[str, Any],
+    posting_summaries: Sequence[Mapping[str, Any]],
+    terminal_admission_paths: Sequence[Path],
+) -> tuple[Mapping[str, Any], ...]:
+    body_evidence = infer_cross_shard_posting_summary_body_evidence_detail_v0(body)
+    if not posting_summaries:
+        if terminal_admission_paths:
+            raise ValueError("cross-shard terminal admission supplied without posting summary")
+        return ()
+    if not terminal_admission_paths:
+        raise ValueError("cross-shard terminal admission is required for posting summary application")
+    if len(terminal_admission_paths) != len(posting_summaries):
+        raise ValueError("cross-shard terminal admission count must match posting summary count")
+
+    admissions = tuple(_load_json_object(path) for path in terminal_admission_paths)
+    admission_hashes = tuple(
+        _terminal_admission_posting_summary_hash_v0(admission)
+        for admission in admissions
+    )
+    if len(set(admission_hashes)) != len(admission_hashes):
+        raise ValueError("duplicate cross-shard terminal admission posting summary hash")
+    sorted_admissions = tuple(
+        admission
+        for _, admission in sorted(zip(admission_hashes, admissions), key=lambda row: row[0])
+    )
+    expected_hashes = tuple(
+        str(posting_summary["posting_summary_hash"])
+        for posting_summary in posting_summaries
+    )
+    sorted_admission_hashes = tuple(
+        _terminal_admission_posting_summary_hash_v0(admission)
+        for admission in sorted_admissions
+    )
+    if sorted_admission_hashes != expected_hashes:
+        raise ValueError("cross-shard terminal admission set conflicts with posting summaries")
+    _validate_body_pinned_terminal_admissions_v0(
+        sorted_admissions=sorted_admissions,
+        body_evidence=body_evidence,
+    )
+    return sorted_admissions
+
+
+def _validate_body_pinned_terminal_admissions_v0(
+    *,
+    sorted_admissions: Sequence[Mapping[str, Any]],
+    body_evidence: CrossShardPostingSummaryBodyEvidenceV0,
+) -> None:
+    expected_terminal_hashes = body_evidence.expected_terminal_admission_hashes
+    if not expected_terminal_hashes:
+        return
+    supplied_terminal_hashes = tuple(
+        _terminal_admission_hash_v0(admission)
+        for admission in sorted_admissions
+    )
+    if body_evidence.expected_terminal_admission_set_hash is None:
+        if len(supplied_terminal_hashes) != 1:
+            raise ValueError(
+                "body-pinned cross-shard terminal admission hash requires exactly "
+                "one terminal admission"
+            )
+        if supplied_terminal_hashes[0] != expected_terminal_hashes[0]:
+            raise ValueError(
+                "cross-shard terminal admission hash conflicts with body evidence"
+            )
+        return
+    canonical_supplied_hashes = tuple(sorted(supplied_terminal_hashes))
+    if canonical_supplied_hashes != expected_terminal_hashes:
+        raise ValueError(
+            "cross-shard terminal admission set conflicts with body evidence"
+        )
+    if (
+        cross_shard_terminal_admission_set_hash_v0(canonical_supplied_hashes)
+        != body_evidence.expected_terminal_admission_set_hash
+    ):
+        raise ValueError(
+            "cross-shard terminal admission set hash conflicts with body evidence"
+        )
+
+
+def _terminal_admission_hash_v0(admission: Mapping[str, Any]) -> str:
+    value = admission.get("admission_hash")
+    if not isinstance(value, str):
+        raise TypeError("cross-shard terminal admission admission_hash must be a string")
+    canonical = canonical_hex_fixed_allow_0x(
+        value,
+        nbytes=32,
+        name="cross_shard_terminal_admission.admission_hash",
+    )
+    if value != canonical:
+        raise ValueError("cross-shard terminal admission admission_hash must be canonical")
+    return canonical
+
+
+def _terminal_admission_posting_summary_hash_v0(admission: Mapping[str, Any]) -> str:
+    value = admission.get("posting_summary_hash")
+    if not isinstance(value, str):
+        raise TypeError("cross-shard terminal admission posting_summary_hash must be a string")
+    canonical = canonical_hex_fixed_allow_0x(
+        value,
+        nbytes=32,
+        name="cross_shard_terminal_admission.posting_summary_hash",
+    )
+    if value != canonical:
+        raise ValueError(
+            "cross-shard terminal admission posting_summary_hash must be canonical"
+        )
+    return canonical
+
+
+def _load_cross_shard_writer_posting_summary_v0(
+    *,
+    body: Mapping[str, Any],
+    posting_summary_path: Path | None,
+) -> Mapping[str, Any] | None:
+    posting_summaries = _load_cross_shard_writer_posting_summaries_v0(
+        body=body,
+        posting_summary_paths=()
+        if posting_summary_path is None
+        else (posting_summary_path,),
+    )
+    if not posting_summaries:
+        return None
+    return posting_summaries[0]
+
+
+def _canonical_json_text_v0(value: object) -> str:
+    return canonical_json_bytes(value).decode("utf-8")
+
+
+def _cross_shard_replay_state_from_optional_payload_v0(value: object):
+    if value is None:
+        return empty_cross_shard_applied_effects_state_v0()
+    if not isinstance(value, Mapping):
+        raise TypeError("cross_shard replay state must be an object or null")
+    return cross_shard_applied_effects_state_from_payload_v0(value)
+
+
+def _preserve_snapshot_app_root_lanes_v0(
+    *,
+    source_snapshot: Mapping[str, Any],
+    target_snapshot: dict[str, Any],
+) -> dict[str, Any]:
+    if "cross_shard" in source_snapshot and "cross_shard" not in target_snapshot:
+        target_snapshot["cross_shard"] = source_snapshot["cross_shard"]
+    if "governance" in source_snapshot and "governance" not in target_snapshot:
+        target_snapshot["governance"] = source_snapshot["governance"]
+    return target_snapshot
+
+
+def _apply_cross_shard_writer_effects_to_snapshot_v0(
+    *,
+    snapshot: Mapping[str, Any],
+    posting_summary: Mapping[str, Any],
+    effects_artifact: Mapping[str, Any],
+    terminal_admission: Mapping[str, Any],
+):
+    snapshot_obj = dict(snapshot)
+    replay_state = _cross_shard_replay_state_from_optional_payload_v0(
+        snapshot_obj.get("cross_shard")
+    )
+    state = state_from_snapshot(snapshot_obj)
+    result = apply_terminal_cross_shard_ledger_effects_to_state_v0(
+        balances=state.balances,
+        effects_artifact=effects_artifact,
+        body_pinned_posting_summary_hash=str(posting_summary["posting_summary_hash"]),
+        replay_state=replay_state,
+        terminal_admission=terminal_admission,
+        posting_summary=posting_summary,
+    )
+    if not result.ok:
+        raise ValueError(str(result.error))
+    receipt = build_cross_shard_global_conservation_receipt_v0(
+        posting_summary=posting_summary,
+        effects_artifact=effects_artifact,
+        pre_replay_state=replay_state,
+        post_replay_state=result.post_replay_state,  # type: ignore[arg-type]
+    )
+    updated = snapshot_from_state(state).data
+    _preserve_snapshot_app_root_lanes_v0(
+        source_snapshot=snapshot_obj,
+        target_snapshot=updated,
+    )
+    updated["cross_shard"] = result.post_replay_state.to_payload()  # type: ignore[union-attr]
+    return updated, result, receipt
+
+
+def _tau_app_state_obj_from_json_v0(app_state_json: str) -> dict[str, Any]:
+    raw = (app_state_json or "").strip()
+    if not raw:
+        obj: Mapping[str, Any] = snapshot_from_state(
+            DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+        ).data
+    else:
+        obj = json.loads(raw)
+    if not isinstance(obj, Mapping):
+        raise TypeError("tau app state must decode to a JSON object")
+    if obj.get("schema") == TAU_APP_STATE_SCHEMA_V1:
+        return dict(obj)
+    return {
+        "schema": TAU_APP_STATE_SCHEMA_V1,
+        "version": TAU_APP_STATE_VERSION_V1,
+        "dex_state": dict(obj),
+    }
+
+
+def _preserve_tau_wrapper_lanes_v0(
+    *,
+    source_app_state: Mapping[str, Any] | None,
+    target_app_state: dict[str, Any],
+) -> dict[str, Any]:
+    if source_app_state is None:
+        return target_app_state
+    for key in (
+        "proof_mining",
+        "zusd_monetary",
+        "clob",
+        "orderbook",
+        "cross_shard",
+        "governance",
+    ):
+        if key in source_app_state and key not in target_app_state:
+            target_app_state[key] = source_app_state[key]
+    return target_app_state
+
+
+def _apply_cross_shard_writer_effects_to_tau_app_state_v0(
+    *,
+    app_state_json: str,
+    pre_app_state: Mapping[str, Any] | None,
+    posting_summary: Mapping[str, Any],
+    effects_artifact: Mapping[str, Any],
+    terminal_admission: Mapping[str, Any],
+):
+    app_state = _tau_app_state_obj_from_json_v0(app_state_json)
+    _preserve_tau_wrapper_lanes_v0(
+        source_app_state=pre_app_state,
+        target_app_state=app_state,
+    )
+    dex_snapshot = app_state.get("dex_state")
+    if not isinstance(dex_snapshot, Mapping):
+        raise TypeError("app_state.dex_state must be an object")
+    updated_dex_snapshot, result, receipt = _apply_cross_shard_writer_effects_to_snapshot_v0(
+        snapshot=dex_snapshot,
+        posting_summary=posting_summary,
+        effects_artifact=effects_artifact,
+        terminal_admission=terminal_admission,
+    )
+    app_state["dex_state"] = updated_dex_snapshot
+    app_state["cross_shard"] = result.post_replay_state.to_payload()  # type: ignore[union-attr]
+    return app_state, result, receipt
+
+
+def _cross_shard_writer_output_path_v0(
+    *,
+    out_dir: Path,
+    subdir: str,
+    height: int,
+    index: int,
+    count: int,
+) -> Path:
+    name = f"{height}.json" if count == 1 else f"{height}-{index:04d}.json"
+    return out_dir / subdir / name
 
 
 def _load_chain_balances(path: Path | None) -> dict[str, int]:
@@ -1246,6 +1622,7 @@ def _execute_tau_app_body_v0(
     tau_chain_id: str,
     allow_missing_settlement: bool,
     require_intent_signatures: bool,
+    allow_unsigned_intents_if_tx_sender_matches: bool = False,
     enable_faucet: bool,
     default_block_timestamp: int,
 ) -> tuple[str, str, str, dict[str, Any], list[dict[str, Any]]]:
@@ -1256,6 +1633,9 @@ def _execute_tau_app_body_v0(
     env = {
         "TAU_DEX_ALLOW_MISSING_SETTLEMENT": "1" if allow_missing_settlement else "0",
         "TAU_DEX_REQUIRE_INTENT_SIGS": "1" if require_intent_signatures else "0",
+        "TAU_DEX_ALLOW_UNSIGNED_INTENTS_IF_TX_SENDER_MATCHES": (
+            "1" if allow_unsigned_intents_if_tx_sender_matches else "0"
+        ),
         "TAU_DEX_FAUCET": "1" if enable_faucet else "0",
         "TAU_DEX_CHAIN_ID": tau_chain_id,
     }
@@ -1389,15 +1769,29 @@ def build_local_block_v0(
     config_digest: str,
     module_versions_digest: str,
     signature_set_root: str,
+    cross_shard_posting_summary_path: Path | None = None,
+    cross_shard_posting_summary_paths: Sequence[Path] | None = None,
+    cross_shard_terminal_admission_paths: Sequence[Path] | None = None,
     allow_missing_settlement: bool = False,
     require_intent_signatures: bool = True,
+    allow_unsigned_intents_if_tx_sender_matches: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: str | None = None,
+    min_lp_position_age_seconds: int = 0,
+    lp_duration_risk_policy: object | None = None,
 ) -> dict[str, Any]:
     body = dict(_load_json_object(body_path))
     validate_body_v0(body)
+    route_order_receipt_attached = apply_route_order_receipt_policy_to_body_v1(body)
+    if route_order_receipt_attached:
+        validate_body_v0(body)
     height = int(body["height"])
     chain_id = str(body["chain_id"])
     receipts: list[dict[str, Any]] = []
     post_snapshot: dict[str, Any] | None = None
+    pre_tau_app_state_obj: dict[str, Any] | None = None
+    cross_shard_application_results: list[Any] = []
+    cross_shard_global_conservation_receipts: list[dict[str, Any]] = []
 
     supplied_state_modes = sum(
         value is not None
@@ -1425,22 +1819,35 @@ def build_local_block_v0(
     if pre_snapshot_path is not None:
         pre_snapshot = _load_json_object(pre_snapshot_path)
         pre_state = state_from_snapshot(pre_snapshot)
-        pre_state_root = dex_state_root_v0(pre_state)
+        pre_state_root = compute_dex_snapshot_app_root_v0(pre_snapshot)
         engine_config = DexEngineConfig(
             allow_missing_settlement=allow_missing_settlement,
             require_intent_signatures=require_intent_signatures,
+            allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_intents_if_tx_sender_matches,
+            chain_id=chain_id,
+            dex_config=DexConfig(
+                protocol_fee_share_bps=protocol_fee_share_bps,
+                protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+            ),
+            min_lp_position_age_seconds=min_lp_position_age_seconds,
+            lp_duration_risk_policy=lp_duration_risk_policy,
         )
         post_state, body, receipts = apply_body_transactions_v0(
             state=pre_state,
             body=body,
             config=engine_config,
         )
-        post_state_root = dex_state_root_v0(post_state)
         post_snapshot = snapshot_from_state(post_state).data
+        _preserve_snapshot_app_root_lanes_v0(
+            source_snapshot=pre_snapshot,
+            target_snapshot=post_snapshot,
+        )
+        post_state_root = compute_dex_snapshot_app_root_v0(post_snapshot)
 
     post_app_state_json: str | None = None
     if tau_app_state_path is not None:
         pre_app_state_json = tau_app_state_path.read_text(encoding="utf-8")
+        pre_tau_app_state_obj = _tau_app_state_obj_from_json_v0(pre_app_state_json)
         pre_state_root, post_state_root, post_app_state_json, body, receipts = _execute_tau_app_body_v0(
             app_state_json=pre_app_state_json,
             body=body,
@@ -1448,6 +1855,7 @@ def build_local_block_v0(
             tau_chain_id=tau_chain_id or chain_id,
             allow_missing_settlement=allow_missing_settlement,
             require_intent_signatures=require_intent_signatures,
+            allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_intents_if_tx_sender_matches,
             enable_faucet=tau_enable_faucet,
             default_block_timestamp=max(0, time_ms // 1000),
         )
@@ -1515,6 +1923,64 @@ def build_local_block_v0(
             confidential_state=pre_confidential_state,
             body=body,
         )
+
+    normalized_cross_shard_posting_summary_paths = (
+        _normalize_cross_shard_posting_summary_paths_v0(
+            posting_summary_path=cross_shard_posting_summary_path,
+            posting_summary_paths=cross_shard_posting_summary_paths,
+        )
+    )
+    cross_shard_posting_summaries = _load_cross_shard_writer_posting_summaries_v0(
+        body=body,
+        posting_summary_paths=normalized_cross_shard_posting_summary_paths,
+    )
+    cross_shard_terminal_admissions = _load_cross_shard_writer_terminal_admissions_v0(
+        body=body,
+        posting_summaries=cross_shard_posting_summaries,
+        terminal_admission_paths=_normalize_cross_shard_terminal_admission_paths_v0(
+            cross_shard_terminal_admission_paths
+        ),
+    )
+    cross_shard_ledger_effects_artifacts = tuple(
+        build_cross_shard_ledger_effects_artifact_v0(
+            posting_summary=posting_summary
+        )
+        for posting_summary in cross_shard_posting_summaries
+    )
+
+    for posting_summary, effects_artifact, terminal_admission in zip(
+        cross_shard_posting_summaries,
+        cross_shard_ledger_effects_artifacts,
+        cross_shard_terminal_admissions,
+        strict=True,
+    ):
+        if post_snapshot is not None:
+            post_snapshot, result, receipt = _apply_cross_shard_writer_effects_to_snapshot_v0(
+                snapshot=post_snapshot,
+                posting_summary=posting_summary,
+                effects_artifact=effects_artifact,
+                terminal_admission=terminal_admission,
+            )
+            post_state_root = compute_dex_snapshot_app_root_v0(post_snapshot)
+        elif post_app_state_json is not None:
+            post_app_state, result, receipt = (
+                _apply_cross_shard_writer_effects_to_tau_app_state_v0(
+                    app_state_json=post_app_state_json,
+                    pre_app_state=pre_tau_app_state_obj,
+                    posting_summary=posting_summary,
+                    effects_artifact=effects_artifact,
+                    terminal_admission=terminal_admission,
+                )
+            )
+            post_app_state_json = _canonical_json_text_v0(post_app_state)
+            post_state_root = compute_tau_app_state_app_root_v0(post_app_state)
+        else:
+            raise ValueError(
+                "cross-shard posting summary requires --pre-snapshot or --tau-app-state "
+                "to persist replay state"
+            )
+        cross_shard_application_results.append(result)
+        cross_shard_global_conservation_receipts.append(receipt)
 
     if pre_state_root is None:
         raise ValueError("pre_state_root is required when --pre-snapshot is not supplied")
@@ -1612,6 +2078,47 @@ def build_local_block_v0(
     checkpoint_path = out_dir / "checkpoints" / f"{height}.json"
     receipts_path = out_dir / "receipts" / f"{height}.json"
     proof_metadata_path = out_dir / "proof_metadata" / f"{height}.json"
+    cross_shard_artifact_count = len(cross_shard_posting_summaries)
+    cross_shard_posting_summary_output_paths = tuple(
+        _cross_shard_writer_output_path_v0(
+            out_dir=out_dir,
+            subdir="cross_shard_posting_summaries",
+            height=height,
+            index=index,
+            count=cross_shard_artifact_count,
+        )
+        for index in range(cross_shard_artifact_count)
+    )
+    cross_shard_ledger_effects_output_paths = tuple(
+        _cross_shard_writer_output_path_v0(
+            out_dir=out_dir,
+            subdir="cross_shard_ledger_effects",
+            height=height,
+            index=index,
+            count=cross_shard_artifact_count,
+        )
+        for index in range(cross_shard_artifact_count)
+    )
+    cross_shard_terminal_admission_output_paths = tuple(
+        _cross_shard_writer_output_path_v0(
+            out_dir=out_dir,
+            subdir="cross_shard_terminal_admissions",
+            height=height,
+            index=index,
+            count=cross_shard_artifact_count,
+        )
+        for index in range(cross_shard_artifact_count)
+    )
+    cross_shard_global_conservation_receipt_output_paths = tuple(
+        _cross_shard_writer_output_path_v0(
+            out_dir=out_dir,
+            subdir="cross_shard_global_conservation_receipts",
+            height=height,
+            index=index,
+            count=cross_shard_artifact_count,
+        )
+        for index in range(cross_shard_artifact_count)
+    )
     post_snapshot_path = out_dir / "snapshots" / f"{height}.json"
     post_app_state_path = out_dir / "app_states" / f"{height}.json"
     post_zusd_state_path = out_dir / "zusd_states" / f"{height}.json"
@@ -1626,6 +2133,30 @@ def build_local_block_v0(
     _write_json(output_body_path, body)
     _write_json(checkpoint_path, checkpoint)
     _write_json(receipts_path, receipts)
+    for path, posting_summary in zip(
+        cross_shard_posting_summary_output_paths,
+        cross_shard_posting_summaries,
+        strict=True,
+    ):
+        _write_json(path, posting_summary)
+    for path, effects_artifact in zip(
+        cross_shard_ledger_effects_output_paths,
+        cross_shard_ledger_effects_artifacts,
+        strict=True,
+    ):
+        _write_json(path, effects_artifact)
+    for path, terminal_admission in zip(
+        cross_shard_terminal_admission_output_paths,
+        cross_shard_terminal_admissions,
+        strict=True,
+    ):
+        _write_json(path, terminal_admission)
+    for path, receipt in zip(
+        cross_shard_global_conservation_receipt_output_paths,
+        cross_shard_global_conservation_receipts,
+        strict=True,
+    ):
+        _write_json(path, receipt)
     if proof_metadata is not None:
         _write_json(proof_metadata_path, proof_metadata)
     if post_snapshot is not None:
@@ -1666,6 +2197,103 @@ def build_local_block_v0(
     if proof_metadata is not None:
         report["proof_metadata_path"] = str(proof_metadata_path)
         report["proof_journal_hash"] = proof_journal_hash
+    if route_order_receipt_attached:
+        report["body_tx_execution_order_commitment_receipt_attached"] = True
+    if cross_shard_posting_summaries:
+        report["cross_shard_posting_summary_paths"] = [
+            str(path) for path in cross_shard_posting_summary_output_paths
+        ]
+        report["cross_shard_posting_summary_hashes"] = [
+            posting_summary["posting_summary_hash"]
+            for posting_summary in cross_shard_posting_summaries
+        ]
+        report["cross_shard_ledger_effects_paths"] = [
+            str(path) for path in cross_shard_ledger_effects_output_paths
+        ]
+        report["cross_shard_ledger_effects_hashes"] = [
+            effects_artifact["ledger_effects_hash"]
+            for effects_artifact in cross_shard_ledger_effects_artifacts
+        ]
+        report["cross_shard_terminal_admission_paths"] = [
+            str(path) for path in cross_shard_terminal_admission_output_paths
+        ]
+        report["cross_shard_terminal_admission_hashes"] = [
+            terminal_admission["admission_hash"]
+            for terminal_admission in cross_shard_terminal_admissions
+        ]
+        report["cross_shard_global_conservation_receipt_paths"] = [
+            str(path) for path in cross_shard_global_conservation_receipt_output_paths
+        ]
+        report["cross_shard_global_conservation_receipt_hashes"] = [
+            receipt["receipt_hash"]
+            for receipt in cross_shard_global_conservation_receipts
+        ]
+    if len(cross_shard_posting_summaries) == 1:
+        cross_shard_posting_summary = cross_shard_posting_summaries[0]
+        report["cross_shard_posting_summary_path"] = str(
+            cross_shard_posting_summary_output_paths[0]
+        )
+        report["cross_shard_posting_summary_hash"] = cross_shard_posting_summary[
+            "posting_summary_hash"
+        ]
+    if len(cross_shard_ledger_effects_artifacts) == 1:
+        cross_shard_ledger_effects = cross_shard_ledger_effects_artifacts[0]
+        report["cross_shard_ledger_effects_path"] = str(
+            cross_shard_ledger_effects_output_paths[0]
+        )
+        report["cross_shard_ledger_effects_hash"] = cross_shard_ledger_effects[
+            "ledger_effects_hash"
+        ]
+    if len(cross_shard_terminal_admissions) == 1:
+        cross_shard_terminal_admission = cross_shard_terminal_admissions[0]
+        report["cross_shard_terminal_admission_path"] = str(
+            cross_shard_terminal_admission_output_paths[0]
+        )
+        report["cross_shard_terminal_admission_hash"] = (
+            cross_shard_terminal_admission["admission_hash"]
+        )
+    if len(cross_shard_global_conservation_receipts) == 1:
+        cross_shard_global_conservation_receipt = (
+            cross_shard_global_conservation_receipts[0]
+        )
+        report["cross_shard_global_conservation_receipt_path"] = str(
+            cross_shard_global_conservation_receipt_output_paths[0]
+        )
+        report["cross_shard_global_conservation_receipt_hash"] = (
+            cross_shard_global_conservation_receipt["receipt_hash"]
+        )
+    if cross_shard_application_results:
+        report["cross_shard_replay_state_pre_root"] = (
+            cross_shard_application_results[0].pre_replay_state_root
+        )
+        report["cross_shard_replay_state_post_root"] = (
+            cross_shard_application_results[-1].post_replay_state_root
+        )
+        report["cross_shard_replay_transitions"] = [
+            {
+                "ledger_effects_hash": effects_artifact["ledger_effects_hash"],
+                "terminal_admission_hash": result.terminal_admission_hash,
+                "pre_replay_state_root": result.pre_replay_state_root,
+                "post_replay_state_root": result.post_replay_state_root,
+            }
+            for effects_artifact, result in zip(
+                cross_shard_ledger_effects_artifacts,
+                cross_shard_application_results,
+                strict=True,
+            )
+        ]
+        report["cross_shard_applied_effect_count"] = sum(
+            int(result.applied_effect_count)
+            for result in cross_shard_application_results
+        )
+        report["cross_shard_total_debit_atoms"] = sum(
+            int(result.total_debit_atoms)
+            for result in cross_shard_application_results
+        )
+        report["cross_shard_total_credit_atoms"] = sum(
+            int(result.total_credit_atoms)
+            for result in cross_shard_application_results
+        )
     if post_snapshot is not None:
         report["post_snapshot_path"] = str(post_snapshot_path)
     if post_app_state_json is not None:
@@ -1731,6 +2359,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config-digest", required=True)
     parser.add_argument("--module-versions-digest", required=True)
     parser.add_argument("--signature-set-root", default=ZERO_ROOT)
+    parser.add_argument("--cross-shard-posting-summary", type=Path, action="append")
+    parser.add_argument("--cross-shard-terminal-admission", type=Path, action="append")
     parser.add_argument("--allow-missing-settlement", action="store_true")
     parser.add_argument("--disable-intent-signatures", action="store_true")
     args = parser.parse_args(argv)
@@ -1775,8 +2405,11 @@ def main(argv: list[str] | None = None) -> int:
             config_digest=args.config_digest,
             module_versions_digest=args.module_versions_digest,
             signature_set_root=args.signature_set_root,
+            cross_shard_posting_summary_paths=args.cross_shard_posting_summary,
+            cross_shard_terminal_admission_paths=args.cross_shard_terminal_admission,
             allow_missing_settlement=args.allow_missing_settlement,
             require_intent_signatures=not args.disable_intent_signatures,
+            allow_unsigned_intents_if_tx_sender_matches=args.disable_intent_signatures,
         )
     except Exception as exc:
         result = {

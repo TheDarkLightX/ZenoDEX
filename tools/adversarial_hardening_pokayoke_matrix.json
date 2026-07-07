@@ -202,9 +202,9 @@
       },
       "attack_query": "exists two controlled reporters in median3: critical read accepted and DefectGain > expected downside",
       "bounded_model": {
-        "variables": ["controlled_reporters", "reporter_bond_e8", "value_at_risk_e8", "slash_e8", "detection_probability_num", "detection_probability_den"],
-        "bounds": ["controlled_reporters <= reporter_count", "reporter_bond_e8 >= 0", "value_at_risk_e8 >= 0"],
-        "assumptions": ["rational detection probability encoded by numerator and denominator", "slash and rewards in integer e8 units"],
+        "variables": ["controlled_reporters", "reporter_bond_required_e8", "value_at_risk_e8", "slash_e8", "detection_probability_bps", "future_value_lost_e8", "deterrence_margin_bps"],
+        "bounds": ["controlled_reporters <= reporter_count", "reporter_bond_required_e8 >= 1", "value_at_risk_e8 >= 0", "0 <= detection_probability_bps <= 10000", "0 <= deterrence_margin_bps <= 2000"],
+        "assumptions": ["detection probability encoded in basis points", "slash and rewards in integer e8 units"],
         "exclusions": ["hidden real-world beneficial ownership unless separately attested or disputed"]
       },
       "disaster_state": "a median3 feed authorizes a high-value action while two accepted reporters are within Mallory's control budget",
@@ -230,12 +230,12 @@
           "control": "canonical report transcript with non-semantic metadata excluded from aggregate authority"
         }
       ],
-      "mechanism_update": "Critical feed policy needs value-at-risk tiers that reject or downgrade weak quorum structures under the modeled control budget.",
+      "mechanism_update": "Critical feed policy needs value-at-risk tiers that reject or downgrade weak quorum structures under the modeled control budget, and critical runtime admission must require the same economic envelope to bind the consumed receipt graph.",
       "game_theory_condition": "DefectGain <= DetectionProbability * SlashAmount + FutureValueLost",
       "evidence_lane": {
         "status": "implemented_checker",
-        "next_command": "pytest -q tests/test_zenodex_oracle_collusion_bound.py tests/test_zenodex_oracle_reporter_economics_replay.py tests/test_zenodex_oracle_reporter_token_settlement_replay.py",
-        "promotion_requirement": "collusion envelope rejects median3 control when bonded downside is below value-at-risk, plus reporter economics replay"
+        "next_command": "python3 tools/check_zenodex_oracle_collusion_economic_binding.py sample && python3 tools/zenodex_oracle_collusion_bound_smt.py --timeout-ms 5000 && pytest -q tests/test_zenodex_oracle_collusion_bound.py tests/test_zenodex_oracle_collusion_bound_smt.py tests/test_check_zenodex_oracle_collusion_economic_binding.py tests/integration/test_oracle_authorization_semantic_binding.py tests/test_zenodex_oracle_reporter_economics_replay.py tests/test_zenodex_oracle_reporter_token_settlement_replay.py",
+        "promotion_requirement": "collusion envelope rejects median3 control when bonded downside is below value-at-risk, Z3 proves unsafe median-control acceptance UNSAT over the bounded model, economic-security binding prevents shared input drift, critical admission requires and binds the same economic envelope to the consumed receipt graph, plus reporter economics replay"
       },
       "promotion_boundary": {
         "claim_status": "hypothesis",

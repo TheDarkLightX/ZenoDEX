@@ -71,7 +71,7 @@
       "packet_hash_mismatch",
       "witness_child_not_in_frontier"
     ],
-    "elapsed_ms": 0.911,
+    "elapsed_ms": 1.15,
     "extra_generated_state_count": 3,
     "full_baseline": {
       "extra_generated_state_count": 0,

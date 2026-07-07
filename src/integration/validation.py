@@ -12,7 +12,10 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 from ..core.batch_clearing import apply_settlement
 from ..core.settlement import Settlement
 from ..core.settlement_strong_validator import validate_settlement_strong
-from ..core.uniform_batch_clearing import UniformBatchCertificateV1, validate_uniform_batch_settlement_v1
+from ..core.uniform_batch_clearing import (
+    UniformBatchCertificateV1,
+    validate_uniform_batch_settlement_v1,
+)
 from ..state.balances import BalanceTable
 from ..state.intents import Intent
 from ..state.lp import LPTable
@@ -47,6 +50,8 @@ def validate_operations(
     require_settlement_end_to_end_certificate: bool = False,
     settlement_end_to_end_certificate_inputs: Optional[SettlementEndToEndCertificateInputs] = None,
     uniform_batch_certificate: Optional[Dict[str, object]] = None,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Optional[str] = None,
 ) -> Tuple[bool, Optional[str]]:
     """
     Validate ZenoDEX operations using Tau Language validation.
@@ -112,6 +117,8 @@ def validate_operations(
                     mode=str(settlement_validation),
                     allow_cow_netting=bool(allow_cow_netting),
                     allow_snapshot_bound_quote_bindings=bool(quote_bindings_validated),
+                    protocol_fee_share_bps=protocol_fee_share_bps,
+                    protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
                 )
             except Exception as exc:
                 return False, f"invalid settlement end-to-end certificate inputs: {exc}"
@@ -126,6 +133,8 @@ def validate_operations(
                 mode=str(settlement_validation),
                 allow_cow_netting=bool(allow_cow_netting),
                 allow_snapshot_bound_quote_bindings=bool(quote_bindings_validated),
+                protocol_fee_share_bps=protocol_fee_share_bps,
+                protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
             )
         if not is_valid:
             return False, error

@@ -4,11 +4,13 @@ import random
 
 import pytest
 
+from src.core import sandwich_risk as sandwich_risk_module
 from src.core.cpmm import swap_exact_in
 from src.core.sandwich_risk import (
     SandwichRisk,
     attacker_amount_in_cutoff_upper_bound_cpmm_exact_in,
     max_sandwich_profit_exact_in_cpmm_bounded,
+    max_sandwich_profit_exact_in_cpmm_front_output_quotient_bounded,
     sandwich_profit_exact_in_cpmm,
 )
 
@@ -56,6 +58,91 @@ def test_known_profitable_sandwich_case_is_detected() -> None:
     assert res.status == "ok"
     assert res.max_profit == 1
     assert 0 < res.attacker_amount_in <= res.scanned_max_attacker_amount_in
+
+
+def test_integer_rounding_requires_interior_sandwich_scan() -> None:
+    # Minimized fee-free counterexample to a boundary-only shortcut:
+    # the largest feasible attacker input is 3 with profit 0, while a=2 profits 1.
+    fee_free = max_sandwich_profit_exact_in_cpmm_bounded(
+        reserve_in=4,
+        reserve_out=4,
+        fee_bps=0,
+        victim_amount_in=4,
+        victim_min_out=1,
+        max_attacker_amount_in=20,
+    )
+    assert fee_free.status == "ok"
+    assert fee_free.max_profit == 1
+    assert fee_free.attacker_amount_in == 2
+
+    # The same failure mode survives positive fees; floors make profit a step
+    # function, so the feasible boundary is not enough to certify the optimum.
+    fee_positive = max_sandwich_profit_exact_in_cpmm_bounded(
+        reserve_in=5,
+        reserve_out=5,
+        fee_bps=30,
+        victim_amount_in=8,
+        victim_min_out=1,
+        max_attacker_amount_in=30,
+    )
+    assert fee_positive.status == "ok"
+    assert fee_positive.max_profit == 1
+    assert fee_positive.attacker_amount_in == 5
+
+
+def test_front_output_quotient_matches_exhaustive_sandwich_scan_witnesses() -> None:
+    for reserve, victim_in, fee_bps, min_out, cap in (
+        (4, 4, 0, 1, 20),
+        (5, 8, 30, 1, 30),
+        (1000, 50, 0, 46, 2000),
+    ):
+        exhaustive = max_sandwich_profit_exact_in_cpmm_bounded(
+            reserve_in=reserve,
+            reserve_out=reserve,
+            fee_bps=fee_bps,
+            victim_amount_in=victim_in,
+            victim_min_out=min_out,
+            max_attacker_amount_in=cap,
+        )
+        quotient = max_sandwich_profit_exact_in_cpmm_front_output_quotient_bounded(
+            reserve_in=reserve,
+            reserve_out=reserve,
+            fee_bps=fee_bps,
+            victim_amount_in=victim_in,
+            victim_min_out=min_out,
+            max_attacker_amount_in=cap,
+        )
+        assert quotient == exhaustive
+
+
+def test_front_output_quotient_falls_back_when_output_atoms_are_expensive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def reject_representative_lookup(**_: object) -> int:
+        raise AssertionError("quotient representative lookup should not run")
+
+    monkeypatch.setattr(
+        sandwich_risk_module,
+        "_first_attacker_amount_in_for_front_output_atom",
+        reject_representative_lookup,
+    )
+    exhaustive = max_sandwich_profit_exact_in_cpmm_bounded(
+        reserve_in=2,
+        reserve_out=1000,
+        fee_bps=0,
+        victim_amount_in=1,
+        victim_min_out=1,
+        max_attacker_amount_in=50,
+    )
+    quotient = max_sandwich_profit_exact_in_cpmm_front_output_quotient_bounded(
+        reserve_in=2,
+        reserve_out=1000,
+        fee_bps=0,
+        victim_amount_in=1,
+        victim_min_out=1,
+        max_attacker_amount_in=50,
+    )
+    assert quotient == exhaustive
 
 
 def test_bounded_search_matches_reference_scan() -> None:

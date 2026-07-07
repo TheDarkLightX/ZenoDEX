@@ -14,7 +14,7 @@ try:
     from py_ecc.optimized_bls12_381 import curve_order as _BLS12_381_CURVE_ORDER
 
     _BLS_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency guard
+except ImportError:  # pragma: no cover - optional dependency guard
     G2Basic = None
     _BLS12_381_CURVE_ORDER = None
     _BLS_AVAILABLE = False
@@ -23,6 +23,18 @@ except Exception:  # pragma: no cover - optional dependency guard
 SIGNED_ARTIFACT_ENVELOPE_SCHEMA_V0 = "zenodex/zeno_ledger/signed_artifact_envelope/v0"
 SIGNED_ARTIFACT_ALGORITHM_HMAC_SHA256_V0 = "hmac-sha256-testnet-v0"
 SIGNED_ARTIFACT_ALGORITHM_BLS12_381_G2_BASIC_V0 = "bls12-381-g2-basic-release-v0"
+PROOFUX_SWAP_REGRET_TAU_BINDING_PAYLOAD_KIND_V0 = "proofux_swap_regret_tau_binding"
+PERP_SOURCE_ADMISSION_VERIFIER_BUILD_RECEIPT_PAYLOAD_KIND_V0 = (
+    "perp_source_admission_verifier_build_receipt"
+)
+PERP_SOURCE_ADMISSION_VERIFIER_RELEASE_BUNDLE_PAYLOAD_KIND_V0 = (
+    "perp_source_admission_verifier_release_bundle"
+)
+PERP_SOURCE_ADMISSION_VERIFIER_RELEASE_REGISTRY_SNAPSHOT_PAYLOAD_KIND_V0 = (
+    "perp_source_admission_verifier_release_registry_snapshot"
+)
+PROOF_VERIFICATION_REPORT_PAYLOAD_KIND_V0 = "proof_verification_report"
+ROUTE_INTERVAL_POLICY_ROOT_BUNDLE_PAYLOAD_KIND_V0 = "route_interval_policy_root_bundle"
 
 SUPPORTED_SIGNATURE_ALGORITHMS_V0 = frozenset(
     {
@@ -41,6 +53,12 @@ SUPPORTED_PAYLOAD_KINDS_V0 = frozenset(
         "perps_wallet_authority_profile",
         "perps_wallet_recovery_exercise",
         "perps_wallet_rotation_exercise",
+        PROOFUX_SWAP_REGRET_TAU_BINDING_PAYLOAD_KIND_V0,
+        PERP_SOURCE_ADMISSION_VERIFIER_BUILD_RECEIPT_PAYLOAD_KIND_V0,
+        PERP_SOURCE_ADMISSION_VERIFIER_RELEASE_BUNDLE_PAYLOAD_KIND_V0,
+        PERP_SOURCE_ADMISSION_VERIFIER_RELEASE_REGISTRY_SNAPSHOT_PAYLOAD_KIND_V0,
+        PROOF_VERIFICATION_REPORT_PAYLOAD_KIND_V0,
+        ROUTE_INTERVAL_POLICY_ROOT_BUNDLE_PAYLOAD_KIND_V0,
     }
 )
 
@@ -118,7 +136,7 @@ def _signature_body(
     key_id: str,
     algorithm: str,
     public_key: str | None = None,
-) -> dict[str, Any]:
+) -> Mapping[str, Any]:
     kind = _require_str(payload_kind, name="payload_kind")
     if kind not in SUPPORTED_PAYLOAD_KINDS_V0:
         raise ValueError("payload_kind is not supported")
@@ -187,7 +205,7 @@ def build_signed_artifact_envelope_v0(
     signer_id: str,
     key_id: str,
     secret_hex: str,
-) -> dict[str, Any]:
+) -> Mapping[str, Any]:
     """Build a deterministic HMAC-signed envelope over an artifact hash."""
 
     body = _signature_body(
@@ -209,7 +227,7 @@ def build_bls_signed_artifact_envelope_v0(
     signer_id: str,
     key_id: str,
     private_key_hex: str,
-) -> dict[str, Any]:
+) -> Mapping[str, Any]:
     """Build a BLS12-381 public-key signed envelope over an artifact hash."""
 
     public_key = bls_public_key_hex_from_private_key_v0(private_key_hex)
@@ -303,4 +321,8 @@ def infer_artifact_hash_v0(*, artifact: Mapping[str, Any], payload_kind: str) ->
         return _require_root(obj.get("exercise_hash"), name="artifact.exercise_hash")
     if kind == "perps_wallet_rotation_exercise":
         return _require_root(obj.get("exercise_hash"), name="artifact.exercise_hash")
+    if kind == PROOF_VERIFICATION_REPORT_PAYLOAD_KIND_V0:
+        return hash_v0("zeno_ledger_proof_verification_report_artifact_v0", obj)
+    if kind == PROOFUX_SWAP_REGRET_TAU_BINDING_PAYLOAD_KIND_V0:
+        return _require_root(obj.get("binding_root_hash"), name="artifact.binding_root_hash")
     raise ValueError("payload_kind is not supported")

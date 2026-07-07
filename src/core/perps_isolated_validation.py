@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .perp_apply_funding_auto_gate import is_derivatives_safe_mark_price_source
+from .perp_liquidation_envelope import require_perp_liquidation_envelope_bps
 
 Value = bool | int | str
 
@@ -239,6 +240,20 @@ def _validate_margin_params(ctx: _IsolatedValidationContext) -> None:
         raise ValueError("invalid margin params ordering (max_move <= maint+depeg <= initial)")
     if ctx.liquidation_penalty_bps >= eff_maint:
         raise ValueError("invalid liquidation_penalty_bps (must be < maintenance_margin_bps + depeg_buffer_bps)")
+    try:
+        require_perp_liquidation_envelope_bps(
+            initial_margin_bps=ctx.initial_margin_bps,
+            max_oracle_move_bps=ctx.max_oracle_move_bps,
+            maintenance_margin_bps=ctx.maintenance_margin_bps,
+            depeg_buffer_bps=ctx.depeg_buffer_bps,
+            liquidation_penalty_bps=ctx.liquidation_penalty_bps,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "invalid funded liquidation params "
+            "(liquidation_penalty_bps * (10000 + max_oracle_move_bps) <= "
+            "10000 * (maintenance_margin_bps + depeg_buffer_bps - max_oracle_move_bps))"
+        ) from exc
 
 
 def _validate_funding_bounds(ctx: _IsolatedValidationContext) -> None:

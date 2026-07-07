@@ -18,13 +18,13 @@ REQUIRED_PROFILES = {
     "spot_v1_single_pool_success",
     "spot_v2_upba",
     "ingress_v1",
-    "recursive_block_v1",
+    "recursive_epoch_v1",
 }
 REQUIRED_PROFILE_COVERAGE = {
     "spot_v1_single_pool_success": {"swap_exact_in", "accepted_receipts_root"},
     "spot_v2_upba": {"upba_batch_clearing_inside_guest", "bounded_grid_certificate_verification"},
     "ingress_v1": {"rejected_receipts", "production_admission_semantics"},
-    "recursive_block_v1": {"transaction_proof_aggregation", "block_level_receipt"},
+    "recursive_epoch_v1": {"transaction_proof_aggregation", "block_level_receipt"},
 }
 
 

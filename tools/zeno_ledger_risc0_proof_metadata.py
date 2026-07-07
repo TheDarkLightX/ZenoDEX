@@ -15,6 +15,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.core.frontier_signature_root import (  # noqa: E402
+    FRONTIER_SIGNATURE_CERTIFICATES_EMPTY_ROOT_V1,
+    normalize_frontier_signature_binding,
+)
 from src.integration.proof_toolchain_lock import proof_toolchain_lock_hash_v0  # noqa: E402
 from src.integration.zeno_ledger_v0 import (  # noqa: E402
     ZERO_ROOT_V0,
@@ -32,6 +36,9 @@ TAU_STATE_PROOF_SCHEMA_VERSION = 1
 RISC0_ZENODEX_SPOT_PROOF_TYPE_V1 = "risc0.zenodex_spot_transition.v1"
 RISC0_VERIFY_REQUEST_SCHEMA = "tau_state_proof_verify"
 RISC0_VERIFY_REQUEST_SCHEMA_VERSION = 1
+RISC0_TX_EXECUTION_ORDER_COMMITMENT_RECEIPT_SCHEMA = (
+    "zenodex/zeno_ledger/risc0_tx_execution_order_commitment/v0"
+)
 
 
 def _load_json_object(path: Path) -> dict[str, Any]:
@@ -70,6 +77,42 @@ def _normalize_hex32(value: str, *, name: str, allow_empty: bool = False) -> str
     return raw
 
 
+def _require_u32(obj: Mapping[str, Any], key: str) -> int:
+    value = obj.get(key)
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{key} must be an integer")
+    if value < 0 or value > 2**32 - 1:
+        raise ValueError(f"{key} must be a u32")
+    return value
+
+
+def _require_optional_str(obj: Mapping[str, Any], key: str) -> str | None:
+    value = obj.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise TypeError(f"{key} must be a string or null")
+    if value == "":
+        return None
+    return value
+
+
+def _frontier_signature_meta_from_risc0_meta(meta: Mapping[str, Any]) -> tuple[int, str]:
+    has_count = "shared_pool_frontier_signature_certificate_count" in meta
+    has_root = "shared_pool_frontier_signature_certificates_root" in meta
+    if not has_count and not has_root:
+        return 0, FRONTIER_SIGNATURE_CERTIFICATES_EMPTY_ROOT_V1[2:]
+    if has_count != has_root:
+        raise ValueError("risc0 frontier signature meta partial")
+    count, root = normalize_frontier_signature_binding(
+        count=meta.get("shared_pool_frontier_signature_certificate_count"),
+        root=meta.get("shared_pool_frontier_signature_certificates_root"),
+        count_name="meta.shared_pool_frontier_signature_certificate_count",
+        root_name="meta.shared_pool_frontier_signature_certificates_root",
+    )
+    return count, root[2:]
+
+
 def _header_root_hex(header: Mapping[str, Any], field: str) -> str:
     return _normalize_hex32(_require_str(header, field), name=f"header.{field}")
 
@@ -96,21 +139,33 @@ def _validate_risc0_tau_state_proof(envelope: Mapping[str, Any]) -> dict[str, An
     meta = envelope.get("meta")
     if not isinstance(meta, Mapping):
         raise TypeError("meta must be a JSON object")
-    expected_meta = {
+    required_meta = {
         "risc0_image_id",
         "txs_commitment",
+        "tx_execution_order_commitment",
         "ingress_commitment",
         "pre_nonce_root",
         "post_nonce_root",
         "accepted_receipts_root",
         "pre_app_hash",
         "post_app_hash",
+        "protocol_fee_share_bps",
+        "protocol_fee_recipient_pubkey",
     }
-    if set(meta.keys()) != expected_meta:
+    optional_frontier_meta = {
+        "shared_pool_frontier_signature_certificate_count",
+        "shared_pool_frontier_signature_certificates_root",
+    }
+    meta_keys = set(meta.keys())
+    if not required_meta.issubset(meta_keys) or not meta_keys.issubset(required_meta | optional_frontier_meta):
         raise ValueError("risc0 meta keys mismatch")
 
     image_id = _normalize_hex32(_require_str(meta, "risc0_image_id"), name="meta.risc0_image_id")
     txs_commitment = _normalize_hex32(_require_str(meta, "txs_commitment"), name="meta.txs_commitment")
+    tx_execution_order_commitment = _normalize_hex32(
+        _require_str(meta, "tx_execution_order_commitment"),
+        name="meta.tx_execution_order_commitment",
+    )
     ingress_commitment = _normalize_hex32(
         _require_str(meta, "ingress_commitment"),
         name="meta.ingress_commitment",
@@ -127,6 +182,13 @@ def _validate_risc0_tau_state_proof(envelope: Mapping[str, Any]) -> dict[str, An
         allow_empty=True,
     )
     post_app_hash = _normalize_hex32(_require_str(meta, "post_app_hash"), name="meta.post_app_hash")
+    protocol_fee_share_bps = _require_u32(meta, "protocol_fee_share_bps")
+    if protocol_fee_share_bps > 10_000:
+        raise ValueError("meta.protocol_fee_share_bps must be <= 10000")
+    protocol_fee_recipient_pubkey = _require_optional_str(meta, "protocol_fee_recipient_pubkey")
+    if protocol_fee_share_bps > 0 and protocol_fee_recipient_pubkey is None:
+        raise ValueError("meta.protocol_fee_recipient_pubkey required when share_bps > 0")
+    frontier_count, frontier_root = _frontier_signature_meta_from_risc0_meta(meta)
     return {
         "schema": TAU_STATE_PROOF_SCHEMA,
         "schema_version": TAU_STATE_PROOF_SCHEMA_VERSION,
@@ -136,12 +198,17 @@ def _validate_risc0_tau_state_proof(envelope: Mapping[str, Any]) -> dict[str, An
         "meta": {
             "risc0_image_id": image_id,
             "txs_commitment": txs_commitment,
+            "tx_execution_order_commitment": tx_execution_order_commitment,
             "ingress_commitment": ingress_commitment,
             "pre_nonce_root": pre_nonce_root,
             "post_nonce_root": post_nonce_root,
             "accepted_receipts_root": accepted_receipts_root,
             "pre_app_hash": pre_app_hash,
             "post_app_hash": post_app_hash,
+            "protocol_fee_share_bps": protocol_fee_share_bps,
+            "protocol_fee_recipient_pubkey": protocol_fee_recipient_pubkey,
+            "shared_pool_frontier_signature_certificate_count": frontier_count,
+            "shared_pool_frontier_signature_certificates_root": frontier_root,
         },
     }
 
@@ -166,6 +233,7 @@ def build_risc0_proof_metadata_v0(
         "proof_type": proof["proof_type"],
         "state_hash": proof["state_hash"],
         "txs_commitment": meta["txs_commitment"],
+        "tx_execution_order_commitment": meta["tx_execution_order_commitment"],
         "ingress_commitment": meta["ingress_commitment"],
         "pre_nonce_root": meta["pre_nonce_root"],
         "post_nonce_root": meta["post_nonce_root"],
@@ -173,6 +241,14 @@ def build_risc0_proof_metadata_v0(
         "pre_app_hash_present": meta["pre_app_hash"] != "",
         "pre_app_hash": meta["pre_app_hash"],
         "post_app_hash": meta["post_app_hash"],
+        "protocol_fee_share_bps": meta["protocol_fee_share_bps"],
+        "protocol_fee_recipient_pubkey": meta["protocol_fee_recipient_pubkey"],
+        "shared_pool_frontier_signature_certificate_count": (
+            meta["shared_pool_frontier_signature_certificate_count"]
+        ),
+        "shared_pool_frontier_signature_certificates_root": (
+            meta["shared_pool_frontier_signature_certificates_root"]
+        ),
     }
     journal = {
         "journal_version": 1,
@@ -234,12 +310,58 @@ def _run_risc0_verifier_cmd(*, command: Path, proof: Mapping[str, Any]) -> None:
         raise ValueError(f"risc0 verifier rejected proof: {error}")
 
 
+def _validate_body_tx_execution_order_commitment_v0(
+    *,
+    body: Mapping[str, Any] | None,
+    proof: Mapping[str, Any],
+    required: bool,
+) -> bool:
+    if body is None:
+        if required:
+            raise ValueError("--require-body-tx-execution-order-commitment requires --body")
+        return False
+
+    evidence = body.get("evidence")
+    if not isinstance(evidence, Mapping):
+        raise TypeError("body.evidence must be a JSON object")
+    proof_receipts = evidence.get("proof_receipts")
+    if not isinstance(proof_receipts, list):
+        raise TypeError("body.evidence.proof_receipts must be a list")
+
+    commitments: list[str] = []
+    for index, raw_receipt in enumerate(proof_receipts):
+        if not isinstance(raw_receipt, Mapping):
+            continue
+        if raw_receipt.get("schema") != RISC0_TX_EXECUTION_ORDER_COMMITMENT_RECEIPT_SCHEMA:
+            continue
+        if _require_str(raw_receipt, "proof_type") != proof["proof_type"]:
+            raise ValueError(f"body proof_receipts[{index}] proof_type mismatch")
+        commitments.append(
+            _normalize_hex32(
+                _require_str(raw_receipt, "tx_execution_order_commitment"),
+                name=f"body.proof_receipts[{index}].tx_execution_order_commitment",
+            )
+        )
+
+    if not commitments:
+        if required:
+            raise ValueError("body tx_execution_order_commitment receipt missing")
+        return False
+    if len(commitments) != 1:
+        raise ValueError("body tx_execution_order_commitment receipt ambiguous")
+    proof_commitment = str(proof["meta"]["tx_execution_order_commitment"])
+    if commitments[0] != proof_commitment:
+        raise ValueError("body tx_execution_order_commitment/proof meta mismatch")
+    return True
+
+
 def _report(
     *,
     metadata: dict[str, Any],
     metadata_path: Path | None,
     header_bound: bool,
     body_checked: bool,
+    body_tx_execution_order_commitment_checked: bool,
     post_app_hash_checked: bool,
     post_state_root_checked: bool,
     pre_state_root_checked: bool,
@@ -256,6 +378,7 @@ def _report(
         "toolchain_lock_hash": metadata["toolchain_lock_hash"],
         "header_bound": header_bound,
         "body_checked": body_checked,
+        "body_tx_execution_order_commitment_checked": body_tx_execution_order_commitment_checked,
         "post_app_hash_checked": post_app_hash_checked,
         "post_state_root_checked": post_state_root_checked,
         "pre_state_root_checked": pre_state_root_checked,
@@ -287,6 +410,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Require the Risc0 post_app_hash journal field to equal header.app_hash",
     )
     parser.add_argument(
+        "--require-body-tx-execution-order-commitment",
+        action="store_true",
+        help="Require a body proof_receipts entry that matches meta.tx_execution_order_commitment",
+    )
+    parser.add_argument(
         "--require-post-app-hash-header-post-state-root",
         action="store_true",
         help="Require the Risc0 post_app_hash journal field to equal header.post_state_root",
@@ -311,12 +439,19 @@ def main(argv: list[str] | None = None) -> int:
     try:
         proof = _load_json_object(args.proof)
         header = _load_json_object(args.header)
+        body: dict[str, Any] | None = None
         body_checked = False
         if args.body is not None:
-            validate_header_body_roots_v0(header, _load_json_object(args.body))
+            body = _load_json_object(args.body)
+            validate_header_body_roots_v0(header, body)
             body_checked = True
 
         normalized_proof = _validate_risc0_tau_state_proof(proof)
+        body_tx_execution_order_commitment_checked = _validate_body_tx_execution_order_commitment_v0(
+            body=body,
+            proof=normalized_proof,
+            required=args.require_body_tx_execution_order_commitment,
+        )
         risc0_verified = False
         if args.require_risc0_verifier and args.risc0_verify_cmd is None:
             raise ValueError("--require-risc0-verifier requires --risc0-verify-cmd")
@@ -364,6 +499,7 @@ def main(argv: list[str] | None = None) -> int:
                     metadata_path=args.out,
                     header_bound=header_bound,
                     body_checked=body_checked,
+                    body_tx_execution_order_commitment_checked=body_tx_execution_order_commitment_checked,
                     post_app_hash_checked=args.require_post_app_hash_header_app_hash,
                     post_state_root_checked=args.require_post_app_hash_header_post_state_root,
                     pre_state_root_checked=args.require_pre_app_hash_header_pre_state_root,

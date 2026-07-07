@@ -109,7 +109,7 @@
       "valid_membership_count": 2,
       "witness_count": 2
     },
-    "elapsed_ms": 3.741,
+    "elapsed_ms": 3.505,
     "negative_control_accept_count": 0,
     "negative_control_count": 10,
     "negative_controls": [

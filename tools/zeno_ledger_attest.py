@@ -14,7 +14,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.integration.zeno_ledger_v0 import ZERO_ROOT_V0
-from src.integration.zeno_ledger_watcher import build_watcher_attestation_v0
+from src.integration.zeno_ledger_watcher import (
+    build_compact_watcher_attestation_v0,
+    build_watcher_attestation_v0,
+    compact_verify_report_v0,
+)
 from tools.zeno_ledger_verify import verify_zeno_ledger_v0
 
 
@@ -72,6 +76,14 @@ def main(argv: list[str] | None = None) -> int:
             verifier_ref=args.verifier_ref,
             profile=profile,
         )
+        compact_verify_report = compact_verify_report_v0(verify_report)
+        compact_attestation = build_compact_watcher_attestation_v0(
+            verify_report=compact_verify_report,
+            watcher_id=args.watcher_id,
+            observed_time_ms=args.observed_time_ms,
+            verifier_ref=args.verifier_ref,
+            profile=profile,
+        )
         if args.out is not None:
             _write_json(args.out, attestation)
         report = {
@@ -80,6 +92,8 @@ def main(argv: list[str] | None = None) -> int:
             "status": "accepted",
             "verify_report": verify_report,
             "attestation": attestation,
+            "compact_verify_report": compact_verify_report,
+            "compact_attestation": compact_attestation,
         }
         if args.out is not None:
             report["attestation_path"] = str(args.out)

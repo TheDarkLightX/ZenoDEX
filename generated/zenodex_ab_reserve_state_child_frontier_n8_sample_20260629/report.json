@@ -211,7 +211,7 @@
         "sampled_n8_bound_missing"
       ]
     },
-    "elapsed_ms": 9061.432,
+    "elapsed_ms": 9028.328,
     "extra_generated_state_count": 0,
     "first_case": {
       "bit_count": 8,

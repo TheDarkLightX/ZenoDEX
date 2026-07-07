@@ -1104,14 +1104,26 @@ def build_settlement_price_rails_aligned_v1_step(
 
 def build_settlement_module_flag_bundle_v1_step(
     *,
-    core_module_ok: int = 1,
-    feature_extension_ok: int = 1,
-    proof_binding_ok: int = 1,
+    cpmm_ok: int = 1,
+    balance_ok: int = 1,
+    token_ok: int = 1,
+    buyback_floor_ok: int = 1,
+    buyback_floor_fixedpoint_ok: int = 1,
+    rebate_ok: int = 1,
+    lock_weight_ok: int = 1,
+    proof_ok: int = 1,
+    binding_ok: int = 1,
 ) -> Dict[str, int]:
     return {
-        "i1": _sbf("core_module_ok", core_module_ok),
-        "i2": _sbf("feature_extension_ok", feature_extension_ok),
-        "i3": _sbf("proof_binding_ok", proof_binding_ok),
+        "i1": _sbf("cpmm_ok", cpmm_ok),
+        "i2": _sbf("balance_ok", balance_ok),
+        "i3": _sbf("token_ok", token_ok),
+        "i4": _sbf("buyback_floor_ok", buyback_floor_ok),
+        "i5": _sbf("buyback_floor_fixedpoint_ok", buyback_floor_fixedpoint_ok),
+        "i6": _sbf("rebate_ok", rebate_ok),
+        "i7": _sbf("lock_weight_ok", lock_weight_ok),
+        "i8": _sbf("proof_ok", proof_ok),
+        "i9": _sbf("binding_ok", binding_ok),
     }
 
 

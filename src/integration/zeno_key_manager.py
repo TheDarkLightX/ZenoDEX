@@ -8,6 +8,7 @@ is limited to public key references and policy metadata.
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
@@ -56,15 +57,84 @@ SUPPORTED_KEY_ENVIRONMENTS = frozenset(
 
 SECRET_FIELD_NAMES = frozenset(
     {
+        "access_token",
+        "accesstoken",
+        "api_key",
+        "apikey",
+        "auth_token",
+        "authtoken",
+        "bearer_token",
+        "bearertoken",
+        "mnemonic",
         "private_key",
         "private_key_hex",
+        "privatekey",
+        "privatekeyhex",
         "privkey",
         "privkey_hex",
+        "privkeyhex",
         "secret",
         "secret_hex",
+        "secretkey",
+        "secret_key",
+        "secretkeyhex",
+        "secret_key_hex",
         "seed",
+        "seed_phrase",
+        "seedphrase",
     }
 )
+SECRET_FIELD_NORMALIZED_NAMES = frozenset(
+    "".join(ch for ch in name.lower() if ch.isalnum()) for name in SECRET_FIELD_NAMES
+)
+SECRET_FIELD_NORMALIZED_PUBLIC_POSTURE_NAMES = frozenset(
+    {
+        "nolivesecrets",
+        "norawprivatekeyexposure",
+        "rawprivatekeyimported",
+        "secretscan",
+        "secretscanfindingcount",
+        "secretscanok",
+    }
+)
+SECRET_FIELD_TOKEN_NAMES = frozenset({"mnemonic", "secret", "seed"})
+SECRET_FIELD_TOKEN_PAIRS = frozenset(
+    {
+        ("access", "token"),
+        ("api", "key"),
+        ("auth", "token"),
+        ("bearer", "token"),
+        ("private", "key"),
+        ("priv", "key"),
+        ("secret", "key"),
+        ("seed", "phrase"),
+    }
+)
+_CAMEL_CASE_BOUNDARY_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+_FIELD_TOKEN_SPLIT_RE = re.compile(r"[^A-Za-z0-9]+")
+
+
+def _field_name_tokens(key: object) -> tuple[str, ...]:
+    text = _CAMEL_CASE_BOUNDARY_RE.sub("_", str(key).strip())
+    return tuple(token.lower() for token in _FIELD_TOKEN_SPLIT_RE.split(text) if token)
+
+
+def is_secret_field_name(key: object) -> bool:
+    raw_text = str(key).strip()
+    text = raw_text.lower()
+    if text in SECRET_FIELD_NAMES:
+        return True
+    normalized = "".join(ch for ch in text if ch.isalnum())
+    if not normalized:
+        return False
+    if normalized in SECRET_FIELD_NORMALIZED_PUBLIC_POSTURE_NAMES:
+        return False
+    if normalized in SECRET_FIELD_NORMALIZED_NAMES:
+        return True
+    tokens = _field_name_tokens(raw_text)
+    if any(token in SECRET_FIELD_TOKEN_NAMES for token in tokens):
+        return True
+    return any(pair in zip(tokens, tokens[1:]) for pair in SECRET_FIELD_TOKEN_PAIRS)
 
 
 def _require_str(value: object, *, name: str) -> str:

@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from src.core.pokayoke_swap_guardrails import SwapGuardrailContext, decide_swap_guardrails
+from src.core.pokayoke_swap_guardrails import (
+    SwapGuardrailContext,
+    build_swap_proofux_regret_decision,
+    decide_swap_guardrails,
+    default_swap_proofux_minimax_policy,
+)
 
 
 @pytest.mark.parametrize(
@@ -137,3 +142,88 @@ def test_guardrails_bva_user_slippage_input_validation(bad_bps, reason: str) -> 
     with pytest.raises((TypeError, ValueError)):
         decide_swap_guardrails(ctx=ctx, user_slippage_bps=bad_bps)  # type: ignore[arg-type]
 
+
+def test_proofux_minimax_selects_wait_when_execution_regret_exceeds_inaction() -> None:
+    ctx = SwapGuardrailContext(
+        price_impact_bps=10,
+        slippage_advice_status="ok",
+        required_slippage_bps=0,
+        recommended_slippage_bps_revert_safe=50,
+        recommended_slippage_bps_mev_safe=50,
+        recommended_slippage_bps=50,
+    )
+
+    out = build_swap_proofux_regret_decision(
+        ctx=ctx,
+        user_slippage_bps=300,
+        inaction_regret_bps=20,
+    )
+
+    assert out.legacy_action == "confirm"
+    assert out.selected_action == "wait_or_requote"
+    assert out.regret_within_limit_ok is False
+    assert out.minimax_certificate.safety_regret_delta == 230
+    assert out.minimax_certificate.best_certificate_id == "wait_or_requote"
+
+
+def test_proofux_minimax_keeps_execution_when_inaction_regret_is_higher() -> None:
+    ctx = SwapGuardrailContext(
+        price_impact_bps=10,
+        slippage_advice_status="ok",
+        required_slippage_bps=0,
+        recommended_slippage_bps_revert_safe=50,
+        recommended_slippage_bps_mev_safe=50,
+        recommended_slippage_bps=50,
+    )
+
+    out = build_swap_proofux_regret_decision(
+        ctx=ctx,
+        user_slippage_bps=300,
+        inaction_regret_bps=800,
+    )
+
+    assert out.legacy_action == "confirm"
+    assert out.selected_action == "confirm"
+    assert out.regret_within_limit_ok is True
+    assert out.minimax_certificate.safety_regret_delta == 0
+
+
+def test_proofux_safety_budget_rejects_execution_even_with_high_inaction() -> None:
+    ctx = SwapGuardrailContext(
+        price_impact_bps=10,
+        slippage_advice_status="ok",
+        required_slippage_bps=0,
+        recommended_slippage_bps_revert_safe=50,
+        recommended_slippage_bps_mev_safe=50,
+        recommended_slippage_bps=50,
+    )
+    policy = default_swap_proofux_minimax_policy(max_mev_exposure_bps=200)
+
+    out = build_swap_proofux_regret_decision(
+        ctx=ctx,
+        user_slippage_bps=300,
+        inaction_regret_bps=800,
+        policy=policy,
+    )
+
+    assert out.selected_action == "wait_or_requote"
+    assert out.minimax_certificate.rejected_candidate_ids == ("execute_confirm",)
+    assert out.regret_within_limit_ok is False
+
+
+def test_proofux_rejects_invalid_inaction_regret() -> None:
+    ctx = SwapGuardrailContext(
+        price_impact_bps=0,
+        slippage_advice_status="ok",
+        required_slippage_bps=0,
+        recommended_slippage_bps_revert_safe=None,
+        recommended_slippage_bps_mev_safe=None,
+        recommended_slippage_bps=None,
+    )
+
+    with pytest.raises((TypeError, ValueError)):
+        build_swap_proofux_regret_decision(
+            ctx=ctx,
+            user_slippage_bps=50,
+            inaction_regret_bps=True,  # type: ignore[arg-type]
+        )

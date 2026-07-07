@@ -7,11 +7,15 @@ ledger witness paths that turn advisory output into value-moving actions.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from typing import Any, Mapping
 
 from src.core.pokayoke_swap_guardrails import (
     SwapGuardrailContext,
+    build_swap_proofux_regret_decision,
+    default_swap_proofux_minimax_policy,
     decide_swap_guardrails,
 )
 from src.core.pokayoke_swap_suggest import (
@@ -20,6 +24,10 @@ from src.core.pokayoke_swap_suggest import (
     suggest_amount_in_for_required_slippage_le_bps,
 )
 from src.core.slippage_advisor import slippage_advice_exact_in_cpmm
+from src.core.zeno_ux_certificate import (
+    zeno_ux_minimax_regret_certificate_hash,
+    zeno_ux_minimax_regret_certificate_to_payload,
+)
 from src.integration.api_server_dex_dispatch import (
     DexRequestContext,
     DexResponse,
@@ -39,6 +47,32 @@ class _SuggestionInputs:
     confidence_bps: int
     user_slippage_bps: int | None
     max_option_bps: int | None
+
+
+@dataclass(frozen=True)
+class SwapExecutionRegretTauProjection:
+    tau_step: Mapping[str, int]
+    certificate_hash: str | None
+    reason: str
+
+
+@dataclass(frozen=True)
+class SwapExecutionRegretTauBinding:
+    schema: str
+    binding_hash: str
+    certificate_hash: str
+    request_hash: str
+    quote_snapshot_hash: str
+    tau_fact_hash: str
+    spec_id: str
+    spec_path: str
+    projection_reason: str
+
+
+_SWAP_EXECUTION_REGRET_TAU_SLOTS: tuple[str, ...] = tuple(f"i{i}" for i in range(1, 13))
+_SWAP_EXECUTION_REGRET_TAU_BINDING_SCHEMA = "zenodex.proofux.swap_execution_regret_tau_binding.v1"
+_SWAP_EXECUTION_REGRET_TAU_SPEC_ID = "swap_execution_regret_guard_v1"
+_SWAP_EXECUTION_REGRET_TAU_SPEC_PATH = "src/tau_specs/recommended/swap_execution_regret_guard_v1.tau"
 
 
 def _coerce_int(value: Any, field: str) -> int:
@@ -68,7 +102,226 @@ def _slippage_options(raw_opts: Any, *, clamp_to_bps: bool) -> list[int] | None:
     return values
 
 
-def _guardrail_payload_from_advice(advice: Any, user_slippage_bps: int) -> dict[str, Any]:
+def _canonical_json_bytes(value: Mapping[str, Any]) -> bytes:
+    try:
+        return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise ValueError("binding payload must be canonical JSON-compatible") from exc
+
+
+def _canonical_json_hash(value: Mapping[str, Any]) -> str:
+    return "sha256:" + hashlib.sha256(_canonical_json_bytes(value)).hexdigest()
+
+
+def _require_sha256_hash(value: Any, *, field: str) -> str:
+    if not isinstance(value, str):
+        raise TypeError(f"{field} must be a sha256 string")
+    if len(value) != 71 or not value.startswith("sha256:"):
+        raise ValueError(f"{field} must use sha256:<64 hex chars>")
+    hex_part = value.removeprefix("sha256:")
+    try:
+        int(hex_part, 16)
+    except ValueError as exc:
+        raise ValueError(f"{field} must use sha256:<64 hex chars>") from exc
+    return value
+
+
+def _normalize_tau_step(tau_step: Mapping[str, int]) -> Mapping[str, int]:
+    if not isinstance(tau_step, Mapping):
+        raise TypeError("tau_step must be a mapping")
+    normalized: dict[str, int] = {}
+    for slot in _SWAP_EXECUTION_REGRET_TAU_SLOTS:
+        raw = tau_step.get(slot)
+        if isinstance(raw, bool) or not isinstance(raw, int):
+            raise TypeError(f"{slot} must be int 0 or 1")
+        if raw not in (0, 1):
+            raise ValueError(f"{slot} must be 0 or 1")
+        normalized[slot] = int(raw)
+    if set(tau_step) != set(_SWAP_EXECUTION_REGRET_TAU_SLOTS):
+        raise ValueError("tau_step must contain exactly i1..i12")
+    return normalized
+
+
+def _sbf_flag(value: bool) -> int:
+    if not isinstance(value, bool):
+        raise TypeError("Tau projection flags must be bool")
+    return 1 if value else 0
+
+
+def _zero_swap_execution_regret_tau_projection(reason: str) -> SwapExecutionRegretTauProjection:
+    return SwapExecutionRegretTauProjection(
+        tau_step={slot: 0 for slot in _SWAP_EXECUTION_REGRET_TAU_SLOTS},
+        certificate_hash=None,
+        reason=reason,
+    )
+
+
+def project_swap_execution_regret_tau_facts(
+    pokayoke_payload: Mapping[str, Any],
+    *,
+    impact_within_limit_ok: bool,
+    quote_age_within_limit_ok: bool,
+    hop_count_within_limit_ok: bool,
+    route_cert_ok: bool,
+    oracle_fresh_ok: bool,
+    not_expired_ok: bool,
+    require_route_cert: bool,
+    require_oracle_fresh: bool,
+    require_not_expired: bool,
+    proof_ok: bool,
+    binding_ok: bool,
+) -> SwapExecutionRegretTauProjection:
+    """Project ProofUX swap regret evidence into `swap_execution_regret_guard_v1`.
+
+    Missing or malformed ProofUX evidence projects to all-zero Tau facts, so
+    the Tau guard fails closed rather than inferring a missing regret witness.
+    """
+    if not isinstance(pokayoke_payload, Mapping):
+        return _zero_swap_execution_regret_tau_projection("missing_pokayoke_payload")
+    proofux = pokayoke_payload.get("proofux")
+    if not isinstance(proofux, Mapping):
+        return _zero_swap_execution_regret_tau_projection("missing_proofux_payload")
+    certificate_hash = proofux.get("minimax_certificate_hash")
+    if not isinstance(certificate_hash, str) or not certificate_hash.startswith("sha256:"):
+        return _zero_swap_execution_regret_tau_projection("missing_minimax_certificate_hash")
+    regret_ok = proofux.get("regret_within_limit_ok")
+    if not isinstance(regret_ok, bool):
+        return _zero_swap_execution_regret_tau_projection("malformed_regret_flag")
+
+    tau_step = {
+        "i1": _sbf_flag(regret_ok),
+        "i2": _sbf_flag(impact_within_limit_ok),
+        "i3": _sbf_flag(quote_age_within_limit_ok),
+        "i4": _sbf_flag(hop_count_within_limit_ok),
+        "i5": _sbf_flag(route_cert_ok),
+        "i6": _sbf_flag(oracle_fresh_ok),
+        "i7": _sbf_flag(not_expired_ok),
+        "i8": _sbf_flag(require_route_cert),
+        "i9": _sbf_flag(require_oracle_fresh),
+        "i10": _sbf_flag(require_not_expired),
+        "i11": _sbf_flag(proof_ok),
+        "i12": _sbf_flag(binding_ok),
+    }
+    reason = "ok" if regret_ok else "regret_outside_limit"
+    return SwapExecutionRegretTauProjection(
+        tau_step=tau_step,
+        certificate_hash=certificate_hash,
+        reason=reason,
+    )
+
+
+def swap_execution_regret_tau_binding_to_payload(
+    binding: SwapExecutionRegretTauBinding,
+) -> Mapping[str, Any]:
+    return {
+        "schema": binding.schema,
+        "binding_hash": binding.binding_hash,
+        "certificate_hash": binding.certificate_hash,
+        "request_hash": binding.request_hash,
+        "quote_snapshot_hash": binding.quote_snapshot_hash,
+        "tau_fact_hash": binding.tau_fact_hash,
+        "spec_id": binding.spec_id,
+        "spec_path": binding.spec_path,
+        "projection_reason": binding.projection_reason,
+    }
+
+
+def build_swap_execution_regret_tau_binding(
+    *,
+    request_snapshot: Mapping[str, Any],
+    quote_snapshot: Mapping[str, Any],
+    projection: SwapExecutionRegretTauProjection,
+) -> SwapExecutionRegretTauBinding:
+    """Bind ProofUX certificate hash, request, quote snapshot, and Tau facts."""
+    certificate_hash = _require_sha256_hash(projection.certificate_hash, field="certificate_hash")
+    tau_step = _normalize_tau_step(projection.tau_step)
+    request_hash = _canonical_json_hash(
+        {
+            "schema": "zenodex.proofux.swap_execution_request_snapshot.v1",
+            "request": dict(request_snapshot),
+        }
+    )
+    quote_snapshot_hash = _canonical_json_hash(
+        {
+            "schema": "zenodex.proofux.swap_execution_quote_snapshot.v1",
+            "quote_snapshot": dict(quote_snapshot),
+        }
+    )
+    tau_fact_hash = _canonical_json_hash(
+        {
+            "schema": "zenodex.proofux.swap_execution_tau_facts.v1",
+            "spec_id": _SWAP_EXECUTION_REGRET_TAU_SPEC_ID,
+            "spec_path": _SWAP_EXECUTION_REGRET_TAU_SPEC_PATH,
+            "tau_step": tau_step,
+        }
+    )
+    unsigned_payload = {
+        "schema": _SWAP_EXECUTION_REGRET_TAU_BINDING_SCHEMA,
+        "certificate_hash": certificate_hash,
+        "projection_reason": str(projection.reason),
+        "quote_snapshot_hash": quote_snapshot_hash,
+        "request_hash": request_hash,
+        "spec_id": _SWAP_EXECUTION_REGRET_TAU_SPEC_ID,
+        "spec_path": _SWAP_EXECUTION_REGRET_TAU_SPEC_PATH,
+        "tau_fact_hash": tau_fact_hash,
+    }
+    return SwapExecutionRegretTauBinding(
+        schema=_SWAP_EXECUTION_REGRET_TAU_BINDING_SCHEMA,
+        binding_hash=_canonical_json_hash(unsigned_payload),
+        certificate_hash=certificate_hash,
+        request_hash=request_hash,
+        quote_snapshot_hash=quote_snapshot_hash,
+        tau_fact_hash=tau_fact_hash,
+        spec_id=_SWAP_EXECUTION_REGRET_TAU_SPEC_ID,
+        spec_path=_SWAP_EXECUTION_REGRET_TAU_SPEC_PATH,
+        projection_reason=str(projection.reason),
+    )
+
+
+def verify_swap_execution_regret_tau_binding(
+    binding_payload: Mapping[str, Any],
+    *,
+    request_snapshot: Mapping[str, Any],
+    quote_snapshot: Mapping[str, Any],
+    projection: SwapExecutionRegretTauProjection,
+) -> bool:
+    if not isinstance(binding_payload, Mapping):
+        return False
+    try:
+        expected = swap_execution_regret_tau_binding_to_payload(
+            build_swap_execution_regret_tau_binding(
+                request_snapshot=request_snapshot,
+                quote_snapshot=quote_snapshot,
+                projection=projection,
+            )
+        )
+    except (TypeError, ValueError):
+        return False
+    return dict(binding_payload) == dict(expected)
+
+
+def _proofux_payload_from_decision(decision: Any) -> Mapping[str, Any]:
+    certificate = decision.minimax_certificate
+    return {
+        "selected_action": str(decision.selected_action),
+        "legacy_action": str(decision.legacy_action),
+        "regret_within_limit_ok": bool(decision.regret_within_limit_ok),
+        "inaction_regret_bps": int(decision.inaction_regret_bps),
+        "candidate_ids": [str(item) for item in decision.candidate_ids],
+        "minimax_certificate": zeno_ux_minimax_regret_certificate_to_payload(certificate),
+        "minimax_certificate_hash": zeno_ux_minimax_regret_certificate_hash(certificate),
+    }
+
+
+def _guardrail_payload_from_advice(
+    advice: Any,
+    user_slippage_bps: int,
+    *,
+    inaction_regret_bps: int | None = None,
+    proofux_max_value_loss_bps: int | None = None,
+    proofux_max_mev_exposure_bps: int | None = None,
+    proofux_max_capital_at_risk_bps: int | None = None,
+) -> dict[str, Any]:
     inner_ctx = SwapGuardrailContext(
         price_impact_bps=int(advice.price_impact_bps),
         slippage_advice_status=str(advice.status),
@@ -90,11 +343,27 @@ def _guardrail_payload_from_advice(advice: Any, user_slippage_bps: int) -> dict[
         ),
     )
     decision = decide_swap_guardrails(ctx=inner_ctx, user_slippage_bps=user_slippage_bps)
+    proofux = None
+    if inaction_regret_bps is not None:
+        proofux_policy = default_swap_proofux_minimax_policy(
+            max_value_loss_bps=proofux_max_value_loss_bps,
+            max_mev_exposure_bps=proofux_max_mev_exposure_bps,
+            max_capital_at_risk_bps=proofux_max_capital_at_risk_bps,
+        )
+        proofux = _proofux_payload_from_decision(
+            build_swap_proofux_regret_decision(
+                ctx=inner_ctx,
+                user_slippage_bps=user_slippage_bps,
+                inaction_regret_bps=inaction_regret_bps,
+                policy=proofux_policy,
+            )
+        )
     return {
         "action": str(decision.action),
         "reasons": list(decision.reasons),
         "messages": list(decision.messages),
         "typed_confirm_phrase": decision.typed_confirm_phrase,
+        "proofux": proofux,
     }
 
 
@@ -154,6 +423,19 @@ def _handle_slippage_advice(obj: Mapping[str, Any], ctx: DexRequestContext) -> D
             obj.get("max_attacker_amount_in", 5000), "max_attacker_amount_in"
         )
         user_slippage_bps = _optional_int(obj.get("user_slippage_bps", None), "user_slippage_bps")
+        inaction_regret_bps = _optional_int(obj.get("inaction_regret_bps", None), "inaction_regret_bps")
+        proofux_max_value_loss_bps = _optional_int(
+            obj.get("proofux_max_value_loss_bps", None),
+            "proofux_max_value_loss_bps",
+        )
+        proofux_max_mev_exposure_bps = _optional_int(
+            obj.get("proofux_max_mev_exposure_bps", None),
+            "proofux_max_mev_exposure_bps",
+        )
+        proofux_max_capital_at_risk_bps = _optional_int(
+            obj.get("proofux_max_capital_at_risk_bps", None),
+            "proofux_max_capital_at_risk_bps",
+        )
         slippage_options_bps = _slippage_options(obj.get("slippage_options_bps"), clamp_to_bps=False)
 
         advice = slippage_advice_exact_in_cpmm(
@@ -167,7 +449,14 @@ def _handle_slippage_advice(obj: Mapping[str, Any], ctx: DexRequestContext) -> D
             max_attacker_amount_in=max_attacker_amount_in,
         )
         pokayoke = (
-            _guardrail_payload_from_advice(advice, user_slippage_bps)
+            _guardrail_payload_from_advice(
+                advice,
+                user_slippage_bps,
+                inaction_regret_bps=inaction_regret_bps,
+                proofux_max_value_loss_bps=proofux_max_value_loss_bps,
+                proofux_max_mev_exposure_bps=proofux_max_mev_exposure_bps,
+                proofux_max_capital_at_risk_bps=proofux_max_capital_at_risk_bps,
+            )
             if user_slippage_bps is not None
             else None
         )

@@ -26,6 +26,7 @@ from tools.zenodex_oracle_collusion_bound import (
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOL = REPO_ROOT / "tools" / "zenodex_oracle_collusion_bound.py"
+BPS_SCALE = 10_000
 
 
 def _base_envelope(**overrides: object) -> dict[str, object]:
@@ -40,6 +41,33 @@ def _write_temp_env(tmp_path: Path, env: dict[str, object]) -> Path:
     return p
 
 
+def _median_var_terms(
+    *,
+    reporter_count: int,
+    controlled_reporter_count: int,
+    critical_value_at_risk_e8: int,
+    reporter_bond_required_e8: int,
+    slash_fraction_bps: int,
+    detection_probability_bps: int,
+    future_value_lost_e8: int,
+    deterrence_margin_bps: int,
+) -> tuple[bool, int, int, int, int]:
+    threshold = (reporter_count // 2) + 1
+    median_control_possible = controlled_reporter_count >= threshold
+    slash_amount = (reporter_bond_required_e8 * slash_fraction_bps) // BPS_SCALE
+    expected_downside_scaled = detection_probability_bps * slash_amount
+    expected_downside_scaled += future_value_lost_e8 * BPS_SCALE
+    required_downside_scaled = critical_value_at_risk_e8 * (BPS_SCALE + deterrence_margin_bps)
+    max_critical_value_at_risk = expected_downside_scaled // (BPS_SCALE + deterrence_margin_bps)
+    return (
+        median_control_possible,
+        slash_amount,
+        expected_downside_scaled,
+        required_downside_scaled,
+        max_critical_value_at_risk,
+    )
+
+
 # --- Schema Validation ---
 
 
@@ -50,6 +78,12 @@ class TestSchemaValidation:
         result = verify_collusion_envelope(env)
         assert result.status == "rejected"
         assert "missing_required_field:dispute_bond_e8" in result.errors
+
+    def test_unknown_field_rejected(self) -> None:
+        env = _base_envelope(hidden_signal=1)
+        result = verify_collusion_envelope(env)
+        assert result.status == "rejected"
+        assert "unknown_collusion_field:hidden_signal" in result.errors
 
     def test_bond_must_be_positive(self) -> None:
         env = _base_envelope(dispute_bond_e8=0)
@@ -106,6 +140,12 @@ class TestSchemaValidation:
         assert result.status == "rejected"
         assert "top_level_must_be_object" in result.errors
 
+    def test_controlled_reporter_count_cannot_exceed_reporter_count(self) -> None:
+        env = _base_envelope(reporter_count=3, controlled_reporter_count=4)
+        result = verify_collusion_envelope(env)
+        assert result.status == "rejected"
+        assert "controlled_reporter_count_exceeds_reporter_count" in result.errors
+
 
 # --- Per-Identity Bond + Per-Head Reward (Collusion Invariance) ---
 
@@ -145,6 +185,161 @@ class TestPerIdentityPerHead:
         assert result.single_deterred is False
         assert result.collusion_deterred is False
         assert result.status == "rejected"
+
+
+# --- Median3 Critical Value-At-Risk Control ---
+
+
+class TestMedian3ValueAtRiskControl:
+    def test_two_controlled_reporters_rejected_when_downside_below_value_at_risk(self) -> None:
+        env = _base_envelope(
+            reporter_count=3,
+            controlled_reporter_count=2,
+            critical_value_at_risk_e8=200_000_000_000,
+            reporter_bond_required_e8=250_000_000_000,
+            slash_fraction_bps=5_000,
+            detection_probability_bps=10_000,
+            future_value_lost_e8=0,
+            deterrence_margin_bps=2_000,
+        )
+        result = verify_collusion_envelope(env)
+        assert result.status == "rejected"
+        assert result.median_control_possible is True
+        assert result.value_at_risk_downside_ok is False
+        assert result.slash_amount_e8 == 125_000_000_000
+        assert result.expected_downside_scaled == 1_250_000_000_000_000
+        assert result.required_downside_scaled == 2_400_000_000_000_000
+        assert result.max_critical_value_at_risk_e8 == 104_166_666_666
+        assert "median3_control_budget_reaches_threshold" in result.errors
+        assert "value_at_risk_downside_below_required_margin" in result.errors
+
+    def test_two_controlled_reporters_accepted_when_bonded_downside_covers_value_at_risk(self) -> None:
+        env = _base_envelope(
+            reporter_count=3,
+            controlled_reporter_count=2,
+            critical_value_at_risk_e8=100_000_000_000,
+            reporter_bond_required_e8=250_000_000_000,
+            slash_fraction_bps=5_000,
+            detection_probability_bps=10_000,
+            future_value_lost_e8=0,
+            deterrence_margin_bps=2_000,
+        )
+        result = verify_collusion_envelope(env)
+        assert result.status == "accepted"
+        assert result.median_control_possible is True
+        assert result.value_at_risk_downside_ok is True
+        assert result.expected_downside_scaled == 1_250_000_000_000_000
+        assert result.required_downside_scaled == 1_200_000_000_000_000
+        assert result.max_critical_value_at_risk_e8 == 104_166_666_666
+
+    def test_single_controlled_reporter_does_not_own_median3(self) -> None:
+        env = _base_envelope(
+            reporter_count=3,
+            controlled_reporter_count=1,
+            critical_value_at_risk_e8=10**30,
+        )
+        result = verify_collusion_envelope(env)
+        assert result.status == "accepted"
+        assert result.median_control_threshold == 2
+        assert result.median_control_possible is False
+
+    def test_value_at_risk_boundary_is_exact_floor(self) -> None:
+        terms = _median_var_terms(
+            reporter_count=3,
+            controlled_reporter_count=2,
+            critical_value_at_risk_e8=0,
+            reporter_bond_required_e8=250_000_000_000,
+            slash_fraction_bps=5_000,
+            detection_probability_bps=10_000,
+            future_value_lost_e8=0,
+            deterrence_margin_bps=2_000,
+        )
+        max_value_at_risk = terms[4]
+
+        accepted = verify_collusion_envelope(
+            _base_envelope(
+                reporter_count=3,
+                controlled_reporter_count=2,
+                critical_value_at_risk_e8=max_value_at_risk,
+            )
+        )
+        rejected = verify_collusion_envelope(
+            _base_envelope(
+                reporter_count=3,
+                controlled_reporter_count=2,
+                critical_value_at_risk_e8=max_value_at_risk + 1,
+            )
+        )
+
+        assert accepted.status == "accepted"
+        assert accepted.value_at_risk_downside_ok is True
+        assert rejected.status == "rejected"
+        assert rejected.value_at_risk_downside_ok is False
+        assert "value_at_risk_downside_below_required_margin" in rejected.errors
+
+    def test_bounded_value_at_risk_sweep_matches_independent_formula(self) -> None:
+        cases = 0
+        for reporter_count in [3, 5, 7]:
+            for controlled_reporter_count in range(reporter_count + 1):
+                for critical_value_at_risk in [0, 1, 50_000_000_000, 125_000_000_000]:
+                    for reporter_bond in [1, 250_000_000_000]:
+                        for slash_fraction in [0, 5_000, 10_000]:
+                            for detection_probability in [0, 2_500, 10_000]:
+                                for future_value_lost in [0, 25_000_000_000]:
+                                    for deterrence_margin in [0, 2_000]:
+                                        expected = _median_var_terms(
+                                            reporter_count=reporter_count,
+                                            controlled_reporter_count=controlled_reporter_count,
+                                            critical_value_at_risk_e8=critical_value_at_risk,
+                                            reporter_bond_required_e8=reporter_bond,
+                                            slash_fraction_bps=slash_fraction,
+                                            detection_probability_bps=detection_probability,
+                                            future_value_lost_e8=future_value_lost,
+                                            deterrence_margin_bps=deterrence_margin,
+                                        )
+                                        result = verify_collusion_envelope(
+                                            _base_envelope(
+                                                reporter_count=reporter_count,
+                                                controlled_reporter_count=controlled_reporter_count,
+                                                critical_value_at_risk_e8=critical_value_at_risk,
+                                                reporter_bond_required_e8=reporter_bond,
+                                                slash_fraction_bps=slash_fraction,
+                                                detection_probability_bps=detection_probability,
+                                                future_value_lost_e8=future_value_lost,
+                                                deterrence_margin_bps=deterrence_margin,
+                                            )
+                                        )
+                                        (
+                                            median_control_possible,
+                                            slash_amount,
+                                            expected_downside,
+                                            required_downside,
+                                            max_value_at_risk,
+                                        ) = expected
+                                        downside_ok = expected_downside >= required_downside
+
+                                        assert result.median_control_possible is median_control_possible
+                                        assert result.slash_amount_e8 == slash_amount
+                                        assert result.expected_downside_scaled == expected_downside
+                                        assert result.required_downside_scaled == required_downside
+                                        assert result.max_critical_value_at_risk_e8 == max_value_at_risk
+                                        assert result.value_at_risk_downside_ok is downside_ok
+                                        if median_control_possible and not downside_ok:
+                                            assert result.status == "rejected"
+                                            assert "median3_control_budget_reaches_threshold" in result.errors
+                                            assert (
+                                                "value_at_risk_downside_below_required_margin"
+                                                in result.errors
+                                            )
+                                        else:
+                                            assert "median3_control_budget_reaches_threshold" not in result.errors
+                                            assert (
+                                                "value_at_risk_downside_below_required_margin"
+                                                not in result.errors
+                                            )
+                                        cases += 1
+
+        assert cases == 5184
 
 
 # --- Per-Identity Bond + Split Reward (Deterrence Amplification) ---

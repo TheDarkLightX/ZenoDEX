@@ -282,7 +282,7 @@
         "transition_min_reserve_failure"
       ]
     },
-    "elapsed_ms": 6348.73,
+    "elapsed_ms": 5943.094,
     "first_case": {
       "bit_count": 7,
       "candidate_child_membership_count": 448,

@@ -418,7 +418,7 @@
     },
     "dominance_check_compression_ratio": 2.688583,
     "dominance_check_compression_saved": 101293,
-    "elapsed_ms": 56108.158,
+    "elapsed_ms": 56962.835,
     "first_case": {
       "baseline_full_dominance_check_count": 40320,
       "bit_count": 7,

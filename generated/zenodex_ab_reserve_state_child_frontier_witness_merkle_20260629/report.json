@@ -195,7 +195,7 @@
     },
     "covered_child_state_count": 864,
     "duplicate_bound_row_count": 0,
-    "elapsed_ms": 3997.409,
+    "elapsed_ms": 4009.26,
     "expected_child_state_count": 864,
     "extra_child_bound_count": 0,
     "first_case": {

@@ -24,6 +24,7 @@ from src.integration.zeno_ledger_v0 import (
     canonical_header_hash_v0,
     compute_app_hash_v0,
     dex_state_root_v0,
+    tx_hash_v0,
 )
 from src.kernels.python.settlement_swap_runtime_v1 import quote_cpmm_swap_exact_out
 from src.state.balances import BalanceTable
@@ -49,6 +50,7 @@ from tools.zeno_ledger_node import (
     _ui_tokenomics_response_v0,
     _validate_tokenomics_claim_idempotent_payload_v0,
     append_dex_transaction_v0,
+    append_dex_transactions_v0,
     append_testnet_faucet_v0,
     build_public_network_config_v0,
     check_peer_status_v0,
@@ -513,7 +515,7 @@ def test_append_dex_transaction_tx_id_is_idempotency_key(tmp_path: Path) -> None
         "ok": True,
         "status": "accepted",
         "height": 6,
-        "tx_hash": "0x" + "22" * 32,
+        "tx_hash": tx_hash_v0(tx),
         "receipt": receipt,
     }
     (data_dir / "live_ledger" / "bodies" / "6.json").write_text(json.dumps(body), encoding="utf-8")
@@ -539,6 +541,224 @@ def test_append_dex_transaction_tx_id_is_idempotency_key(tmp_path: Path) -> None
             tx=mismatched,
             max_height=6,
         )
+
+
+def test_append_report_tx_id_replay_returns_matching_receipt_index(tmp_path: Path) -> None:
+    data_dir = tmp_path / "node"
+    (data_dir / "live_ledger" / "bodies").mkdir(parents=True)
+    (data_dir / "live_ledger" / "receipts").mkdir(parents=True)
+    (data_dir / "append_reports").mkdir(parents=True)
+    tx_a = {
+        "tx_id": "batch-idempotency-a-v0",
+        "block_timestamp": 1_778_731_121,
+        "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+        "operations": {"2": [{"module": "TauSwap", "kind": "SWAP_EXACT_IN", "pool_id": "pool-a"}]},
+    }
+    tx_b = {
+        "tx_id": "batch-idempotency-b-v0",
+        "block_timestamp": 1_778_731_121,
+        "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+        "operations": {"2": [{"module": "TauSwap", "kind": "SWAP_EXACT_IN", "pool_id": "pool-b"}]},
+    }
+    receipts = [
+        {"accepted": False, "index": 0, "tx_hash": tx_hash_v0(tx_a), "marker": "a"},
+        {"accepted": True, "index": 1, "tx_hash": tx_hash_v0(tx_b), "marker": "b"},
+    ]
+    receipts_path = data_dir / "live_ledger" / "receipts" / "6.json"
+    body = {
+        "schema": "zeno_ledger_body_v0",
+        "chain_id": "zeno-ledger-batch-idempotency",
+        "height": 6,
+        "ingress": [],
+        "transactions": [tx_a, tx_b],
+        "settlement_envelopes": [],
+        "evidence": {},
+    }
+    report = {
+        "schema": "zeno_ledger_append_report_v0",
+        "ok": True,
+        "status": "accepted",
+        "height": 6,
+        "tx_count": 2,
+        "receipts_path": str(receipts_path),
+    }
+    (data_dir / "live_ledger" / "bodies" / "6.json").write_text(json.dumps(body), encoding="utf-8")
+    receipts_path.write_text(json.dumps(receipts), encoding="utf-8")
+    (data_dir / "append_reports" / "6.json").write_text(json.dumps(report), encoding="utf-8")
+
+    replay = _existing_append_report_for_tx_id_v0(
+        data_dir=data_dir,
+        tx_id="batch-idempotency-b-v0",
+        tx=tx_b,
+        max_height=6,
+    )
+
+    assert replay is not None
+    assert replay["idempotent_replay"] is True
+    assert replay["tx_index"] == 1
+    assert replay["batch_tx_count"] == 2
+    assert replay["tx_hash"] == tx_hash_v0(tx_b)
+    assert replay["receipt"]["marker"] == "b"
+
+
+def _node_route_order_transactions(*, malformed_pool_map: bool = False) -> list[dict[str, object]]:
+    pool_map = {"pool-b": "fingerprint-b"} if malformed_pool_map else {"pool-a": "fingerprint-a"}
+    return [
+        {
+            "tx_id": "node-route-order-writer-v0",
+            "sender_pubkey": "writer",
+            "tx_sender_pubkey": "writer",
+            "block_timestamp": 1_778_731_121,
+            "operations": {
+                "2": [
+                    {
+                        "module": "TauSwap",
+                        "version": "0.1",
+                        "kind": "SWAP_EXACT_IN",
+                        "pool_id": "pool-a",
+                    }
+                ]
+            },
+        },
+        {
+            "tx_id": "node-route-order-route-v0",
+            "sender_pubkey": "route-sender",
+            "tx_sender_pubkey": "route-sender",
+            "block_timestamp": 1_778_731_121,
+            "operations": {
+                "5": [
+                    {
+                        "module": "TauSwap",
+                        "version": "0.1",
+                        "kind": "ROUTE_EXACT_IN",
+                        "quote_receipt": {
+                            "body": {
+                                "legs": [{"hops": [{"pool_id": "pool-a"}]}],
+                                "pools": pool_map,
+                            },
+                            "receipt_hash": "0xreceipt",
+                        },
+                    }
+                ]
+            },
+        },
+    ]
+
+
+def _run_node_for_batch_append_test(tmp_path: Path, *, name: str) -> tuple[Path, Path]:
+    bundle_root = tmp_path / f"{name}-bundle"
+    build_report = build_public_testnet_bundle_v0(
+        out_dir=bundle_root,
+        network_id=f"zeno-ledger-{name}",
+        chain_id=f"zeno-ledger-{name}",
+        sequencer_id=f"sequencer-{name}",
+        time_ms=1_778_730_123_000,
+        token_symbol="tZENO",
+    )
+    assert build_report["ok"] is True
+    node_dir = tmp_path / f"{name}-node"
+    node_report = run_node_once_v0(
+        bundle_root=bundle_root,
+        node_id=f"node-{name}",
+        data_dir=node_dir,
+    )
+    assert node_report["ok"] is True
+    return bundle_root, node_dir
+
+
+def test_append_dex_transactions_batch_emits_route_order_receipt(tmp_path: Path) -> None:
+    _bundle_root, node_dir = _run_node_for_batch_append_test(tmp_path, name="route-order-batch")
+
+    report = append_dex_transactions_v0(
+        data_dir=node_dir,
+        txs=_node_route_order_transactions(),
+        time_ms=1_778_731_121_000,
+    )
+
+    assert report["ok"] is True
+    assert report["append_kind"] == "dex_transaction_batch"
+    assert report["tx_count"] == 2
+    assert report["body_tx_execution_order_commitment_receipt_attached"] is True
+    source_body_path = Path(str(report["source_body_path"]))
+    assert source_body_path.exists()
+    committed_body = json.loads(Path(str(report["body_path"])).read_text(encoding="utf-8"))
+    assert len(committed_body["transactions"]) == 2
+    assert committed_body["evidence"]["proof_receipts"]
+    receipts = json.loads(Path(str(report["receipts_path"])).read_text(encoding="utf-8"))
+    assert [receipt["index"] for receipt in receipts] == [0, 1]
+    assert [receipt["tx_hash"] for receipt in receipts] == [
+        tx_hash_v0(committed_body["transactions"][0]),
+        tx_hash_v0(committed_body["transactions"][1]),
+    ]
+
+
+def test_append_dex_transactions_rejects_bad_route_order_without_live_tip_mutation(tmp_path: Path) -> None:
+    _bundle_root, node_dir = _run_node_for_batch_append_test(tmp_path, name="bad-route-order-batch")
+    before_status = load_node_status_v0(node_dir)
+    next_height = int(before_status["latest_height"]) + 1
+
+    with pytest.raises(ValueError, match="pool map must match leg hop pool ids"):
+        append_dex_transactions_v0(
+            data_dir=node_dir,
+            txs=_node_route_order_transactions(malformed_pool_map=True),
+            time_ms=1_778_731_121_000,
+        )
+
+    after_status = load_node_status_v0(node_dir)
+    assert after_status["latest_height"] == before_status["latest_height"]
+    assert not (node_dir / "live_state.json").exists()
+    assert not (node_dir / "live_bodies" / f"{next_height}.json").exists()
+    assert not (node_dir / "live_bodies" / f".{next_height}.pending.json").exists()
+    assert not (node_dir / "live_ledger" / "headers" / f"{next_height}.json").exists()
+
+
+def test_tx_batch_endpoint_exposes_route_order_batch_with_fail_closed_reject(tmp_path: Path) -> None:
+    _bundle_root, node_dir = _run_node_for_batch_append_test(tmp_path, name="tx-batch-endpoint")
+    before_status = load_node_status_v0(node_dir)
+    next_height = int(before_status["latest_height"]) + 1
+    server = make_node_http_server_v0(
+        data_dir=node_dir,
+        host="127.0.0.1",
+        port=0,
+        enable_testnet_intake=True,
+        allow_unauthenticated_testnet_writes=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        bad_status, bad_report = _post_url_json_status(
+            f"http://{host}:{port}/tx/batch",
+            {
+                "transactions": _node_route_order_transactions(malformed_pool_map=True),
+                "time_ms": 1_778_731_121_000,
+            },
+        )
+        after_bad_status = load_node_status_v0(node_dir)
+        assert after_bad_status["latest_height"] == before_status["latest_height"]
+        assert not (node_dir / "live_bodies" / f"{next_height}.json").exists()
+        assert not (node_dir / "live_bodies" / f".{next_height}.pending.json").exists()
+        assert not (node_dir / "live_ledger" / "headers" / f"{next_height}.json").exists()
+        good_status, good_report = _post_url_json_status(
+            f"http://{host}:{port}/tx/batch",
+            {
+                "txs": _node_route_order_transactions(),
+                "time_ms": 1_778_731_122_000,
+            },
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert bad_status == HTTPStatus.BAD_REQUEST
+    assert "pool map must match leg hop pool ids" in str(bad_report["error"])
+
+    assert good_status == HTTPStatus.OK
+    assert good_report["ok"] is True
+    assert good_report["append_kind"] == "dex_transaction_batch"
+    assert good_report["tx_count"] == 2
+    assert good_report["body_tx_execution_order_commitment_receipt_attached"] is True
+    assert [receipt["index"] for receipt in good_report["receipts"]] == [0, 1]
 
 
 def test_tokenomics_claim_tx_id_replay_validates_supplied_payload_fields(tmp_path: Path) -> None:

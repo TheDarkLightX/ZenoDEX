@@ -22,11 +22,11 @@ def test_slippage_lower_bound_file_typechecks() -> None:
     source = (lean_dir / target).read_text(encoding="utf-8")
     required_theorems = (
         "cpmm_slippage",
-        "slippage_lower_bound",
-        "cpmm_slippage_optimal",
+        "cpmm_slippage_fraction_bounds",
+        "cpmm_slippage_matches_assumed_floor",
         "slippage_linear_regime",
         "slippage_small_trade_approx",
-        "no_free_lunch_slippage",
+        "cpmm_positive_slippage",
         "slippage_increasing",
         "witness_slippage_1pct",
         "witness_slippage_large_pool",
@@ -56,3 +56,5 @@ def test_slippage_lower_bound_file_typechecks() -> None:
     combined = (proc.stdout + proc.stderr).lower()
     assert "sorry" not in combined, f"sorry placeholder found in {target}"
     assert "error:" not in combined, f"error in {target}: {proc.stderr}"
+    assert "any market mechanism" not in source.lower()
+    assert "no mechanism with the same liquidity" not in source.lower()

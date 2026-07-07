@@ -103,7 +103,7 @@
     "count_aware_rejects_honest_extra": true,
     "count_aware_rejects_lying_count": true,
     "coverage_only_rejected": true,
-    "elapsed_ms": 4.064,
+    "elapsed_ms": 4.352,
     "hidden_extra_state": {
       "processed_reserve_in": 170,
       "reserve_out": 9830

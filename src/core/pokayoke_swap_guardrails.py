@@ -14,6 +14,36 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .zeno_ux_certificate import (
+    CERT_SCHEMA,
+    MINIMAX_REGRET_POLICY_SCHEMA,
+    ZenoUXCertificate,
+    ZenoUXMinimaxRegretCertificate,
+    ZenoUXMinimaxRegretPolicy,
+    build_zeno_ux_minimax_regret_certificate,
+    choose_minimax_regret_zeno_ux_certificate,
+)
+
+
+_SWAP_PROOFUX_POLICY_ID = "swap_execution_minimax_v1"
+_SWAP_PROOFUX_SURFACE = "swap_execution"
+_SWAP_PROOFUX_SCENARIO = "pokayoke_exact_in"
+_SWAP_PROOFUX_EVIDENCE_REF = "runtime:pokayoke_swap_guardrails"
+_ACTION_COGNITIVE_STEPS: dict[str, int] = {
+    "allow": 0,
+    "confirm": 1,
+    "typed_confirm": 2,
+    "block": 3,
+    "wait_or_requote": 1,
+}
+_ACTION_LATENCY_MS: dict[str, int] = {
+    "allow": 0,
+    "confirm": 2_000,
+    "typed_confirm": 10_000,
+    "block": 0,
+    "wait_or_requote": 30_000,
+}
+
 
 @dataclass(frozen=True)
 class SwapGuardrailContext:
@@ -43,6 +73,16 @@ class SwapGuardrailDecision:
     typed_confirm_phrase: str | None
 
 
+@dataclass(frozen=True)
+class SwapProofUXDecision:
+    selected_action: str
+    legacy_action: str
+    regret_within_limit_ok: bool
+    inaction_regret_bps: int
+    candidate_ids: tuple[str, ...]
+    minimax_certificate: ZenoUXMinimaxRegretCertificate
+
+
 @dataclass
 class _GuardrailNotes:
     reasons: list[str]
@@ -55,6 +95,12 @@ def _validate_bps(name: str, v: int) -> int:
     if v < 0 or v > 10_000:
         raise ValueError(f"{name} must be in [0, 10_000]")
     return int(v)
+
+
+def _validate_optional_bps(name: str, v: int | None) -> int | None:
+    if v is None:
+        return None
+    return _validate_bps(name, v)
 
 
 def _bps_to_percent_str(bps: int) -> str:
@@ -146,6 +192,181 @@ def _guardrail_action_for_reasons(reasons: list[str]) -> tuple[str, str | None]:
     if any(r in confirm_triggers for r in reasons) or any(r.startswith("status_") for r in reasons):
         return "confirm", None
     return "allow", None
+
+
+def default_swap_proofux_minimax_policy(
+    *,
+    max_value_loss_bps: int | None = None,
+    max_mev_exposure_bps: int | None = None,
+    max_capital_at_risk_bps: int | None = None,
+) -> ZenoUXMinimaxRegretPolicy:
+    budgets: list[tuple[str, int]] = []
+    value_budget = _validate_optional_bps("max_value_loss_bps", max_value_loss_bps)
+    mev_budget = _validate_optional_bps("max_mev_exposure_bps", max_mev_exposure_bps)
+    capital_budget = _validate_optional_bps(
+        "max_capital_at_risk_bps",
+        max_capital_at_risk_bps,
+    )
+    if value_budget is not None:
+        budgets.append(("value_loss_bound_bps", value_budget))
+    if mev_budget is not None:
+        budgets.append(("mev_exposure_bound_bps", mev_budget))
+    if capital_budget is not None:
+        budgets.append(("capital_at_risk_bps", capital_budget))
+    return ZenoUXMinimaxRegretPolicy(
+        schema=MINIMAX_REGRET_POLICY_SCHEMA,
+        policy_id=_SWAP_PROOFUX_POLICY_ID,
+        safety_axes=(
+            "value_loss_bound_bps",
+            "mev_exposure_bound_bps",
+            "capital_at_risk_bps",
+        ),
+        safety_budgets=tuple(budgets),
+        friction_weights={
+            "cognitive_steps": 250,
+            "latency_bound_ms": 1,
+        },
+        max_safety_regret=0,
+        max_friction_score=0,
+    )
+
+
+def _action_cognitive_steps(action: str) -> int:
+    return _ACTION_COGNITIVE_STEPS.get(str(action), 9)
+
+
+def _action_latency_ms(action: str) -> int:
+    return _ACTION_LATENCY_MS.get(str(action), 30_000)
+
+
+def _execution_mev_exposure_bps(
+    *,
+    ctx: SwapGuardrailContext,
+    user_slippage_bps: int,
+    reasons: tuple[str, ...],
+) -> int:
+    rec_mev = ctx.recommended_slippage_bps_mev_safe
+    if rec_mev is not None:
+        safe = _validate_bps("recommended_slippage_bps_mev_safe", int(rec_mev))
+        return max(0, int(user_slippage_bps) - safe)
+    if "mev_conflict" in reasons or "inconclusive_mev" in reasons:
+        return 10_000
+    return 0
+
+
+def _execution_value_loss_bps(
+    *,
+    ctx: SwapGuardrailContext,
+    user_slippage_bps: int,
+) -> int:
+    required_gap = max(0, int(ctx.required_slippage_bps) - int(user_slippage_bps))
+    return max(int(ctx.price_impact_bps), required_gap)
+
+
+def _execution_capital_at_risk_bps(reasons: tuple[str, ...]) -> int:
+    if "no_revert_safe_option" in reasons:
+        return 10_000
+    return 0
+
+
+def _proofux_certificate(
+    *,
+    certificate_id: str,
+    next_action: str,
+    decision_class: str,
+    latency_bound_ms: int,
+    value_loss_bound_bps: int,
+    mev_exposure_bound_bps: int,
+    capital_at_risk_bps: int,
+    cognitive_steps: int,
+    explanation_code: str,
+    evidence_refs: tuple[str, ...],
+) -> ZenoUXCertificate:
+    return ZenoUXCertificate(
+        schema=CERT_SCHEMA,
+        certificate_id=certificate_id,
+        surface=_SWAP_PROOFUX_SURFACE,
+        scenario_id=_SWAP_PROOFUX_SCENARIO,
+        decision_class=decision_class,
+        latency_bound_ms=int(latency_bound_ms),
+        value_loss_bound_bps=value_loss_bound_bps,
+        mev_exposure_bound_bps=mev_exposure_bound_bps,
+        finality_bound_blocks=0,
+        capital_at_risk_bps=capital_at_risk_bps,
+        privacy_leakage_bits=0,
+        cognitive_steps=int(cognitive_steps),
+        explanation_code=explanation_code,
+        next_action=next_action,
+        evidence_refs=evidence_refs,
+    )
+
+
+def build_swap_proofux_regret_decision(
+    *,
+    ctx: SwapGuardrailContext,
+    user_slippage_bps: int,
+    inaction_regret_bps: int = 0,
+    policy: ZenoUXMinimaxRegretPolicy | None = None,
+) -> SwapProofUXDecision:
+    """Compare current execution against wait/requote using ProofUX minimax regret.
+
+    This is UX-only. It does not mutate swap state or authorize settlement.
+    """
+    user_slip = _validate_bps("user_slippage_bps", user_slippage_bps)
+    inaction = _validate_bps("inaction_regret_bps", inaction_regret_bps)
+    legacy = decide_swap_guardrails(ctx=ctx, user_slippage_bps=user_slip)
+    reasons = tuple(legacy.reasons)
+    execution = _proofux_certificate(
+        certificate_id=f"execute_{legacy.action}",
+        next_action=str(legacy.action),
+        decision_class="certified_approx",
+        latency_bound_ms=_action_latency_ms(legacy.action),
+        value_loss_bound_bps=_execution_value_loss_bps(
+            ctx=ctx,
+            user_slippage_bps=user_slip,
+        ),
+        mev_exposure_bound_bps=_execution_mev_exposure_bps(
+            ctx=ctx,
+            user_slippage_bps=user_slip,
+            reasons=reasons,
+        ),
+        capital_at_risk_bps=_execution_capital_at_risk_bps(reasons),
+        cognitive_steps=_action_cognitive_steps(legacy.action),
+        explanation_code="swap_execute_current",
+        evidence_refs=(_SWAP_PROOFUX_EVIDENCE_REF,),
+    )
+    wait = _proofux_certificate(
+        certificate_id="wait_or_requote",
+        next_action="wait_or_requote",
+        decision_class="deferred",
+        latency_bound_ms=_action_latency_ms("wait_or_requote"),
+        value_loss_bound_bps=inaction,
+        mev_exposure_bound_bps=0,
+        capital_at_risk_bps=0,
+        cognitive_steps=_action_cognitive_steps("wait_or_requote"),
+        explanation_code="swap_wait_or_requote",
+        evidence_refs=(),
+    )
+    candidates = (execution, wait)
+    active_policy = policy or default_swap_proofux_minimax_policy()
+    selected = choose_minimax_regret_zeno_ux_certificate(
+        candidates,
+        policy=active_policy,
+    )
+    certificate = build_zeno_ux_minimax_regret_certificate(
+        candidates,
+        chosen_certificate_id=execution.certificate_id,
+        policy=active_policy,
+        evidence_refs=(_SWAP_PROOFUX_EVIDENCE_REF,),
+    )
+    return SwapProofUXDecision(
+        selected_action=str(selected.next_action),
+        legacy_action=str(legacy.action),
+        regret_within_limit_ok=bool(certificate.regret_ok),
+        inaction_regret_bps=inaction,
+        candidate_ids=tuple(candidate.certificate_id for candidate in candidates),
+        minimax_certificate=certificate,
+    )
 
 
 def decide_swap_guardrails(

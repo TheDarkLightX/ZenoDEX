@@ -63,7 +63,7 @@ services:
     cap_drop: &cap_drop
       - ALL
     pids_limit: 256
-    mem_limit: 768m
+    mem_limit: 2g
     read_only: true
     tmpfs: &tmpfs
       - /tmp:mode=1777,noexec,nosuid,nodev,size=128m
@@ -73,6 +73,7 @@ services:
     depends_on:
       zeno-ledger-bootstrap:
         condition: service_started
+    restart: on-failure
     command:
       - tools/zeno_ledger_multidocker_scenario.py
       - serve-node
@@ -131,6 +132,7 @@ services:
     depends_on:
       zeno-ledger-writer:
         condition: service_started
+    restart: on-failure
     command:
       - tools/zeno_ledger_multidocker_scenario.py
       - serve-node
@@ -182,6 +184,7 @@ services:
     depends_on:
       zeno-ledger-writer:
         condition: service_started
+    restart: on-failure
     command:
       - tools/zeno_ledger_multidocker_scenario.py
       - serve-node

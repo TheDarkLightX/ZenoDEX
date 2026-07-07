@@ -152,7 +152,7 @@
     },
     "covered_transition_count": 2777,
     "duplicate_transition_row_count": 0,
-    "elapsed_ms": 11708.973,
+    "elapsed_ms": 11472.213,
     "expected_transition_count": 2777,
     "extra_transition_count": 0,
     "first_case": {

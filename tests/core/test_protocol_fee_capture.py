@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from src.core.batch_clearing import apply_settlement_pure, compute_settlement
+from src.core.cpmm import swap_exact_in_with_protocol_fee
 from src.core.settlement import FillAction
 from src.core.settlement_strong_validator import validate_settlement_strong
 from src.state.balances import BalanceTable
@@ -94,6 +95,23 @@ def test_compute_settlement_captures_exact_in_protocol_fee_to_treasury() -> None
     assert next_balances.get(BOB, ASSET1) == 9_802
     assert next_pools[POOL_ID].reserve0 == 1_009_950
     assert next_pools[POOL_ID].reserve1 == 990_198
+
+
+def test_cpmm_exact_in_protocol_fee_is_deducted_from_input_reserve() -> None:
+    quote = swap_exact_in_with_protocol_fee(
+        reserve_in=1_000_000,
+        reserve_out=1_000_000,
+        amount_in=10_000,
+        fee_bps=100,
+        protocol_fee_share_bps=5_000,
+    )
+
+    assert quote.fee_total == 100
+    assert quote.protocol_fee == 50
+    assert quote.lp_fee == 50
+    assert quote.new_reserve_in == 1_000_000 + 10_000 - quote.protocol_fee
+    assert quote.new_reserve_in == 1_009_950
+    assert quote.new_reserve_out == 990_198
 
 
 def test_strong_validator_rejects_exact_in_protocol_fee_without_recipient() -> None:

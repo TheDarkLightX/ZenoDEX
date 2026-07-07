@@ -34,6 +34,7 @@ def test_app_root_binds_full_keystone_lane_set_order_independently() -> None:
         _leaf("perps", "market:BTC-PERP", "perps"),
         _leaf("zusd", "system", "zusd"),
         _leaf("clob", "book:BTC-USDC", "clob"),
+        _leaf("cross_shard", "global", "cross_shard"),
         _leaf("proof_mining", "global", "proof_mining"),
         _leaf("governance", "global", "governance"),
     ]
@@ -68,6 +69,7 @@ def test_required_app_root_rejects_missing_lane_kinds() -> None:
         _leaf("vault", "protocol", "vault"),
         _leaf("perps", "market:BTC-PERP", "perps"),
         _leaf("zusd", "system", "zusd"),
+        _leaf("cross_shard", "global", "cross_shard"),
         _leaf("proof_mining", "global", "proof_mining"),
         _leaf("governance", "global", "governance"),
     ]

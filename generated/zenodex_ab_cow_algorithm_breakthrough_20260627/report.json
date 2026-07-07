@@ -87,10 +87,10 @@
       }
     ],
     "measured_n8": {
-      "bruteforce_s": 4.231782061979175,
+      "bruteforce_s": 4.136932180997974,
       "same_order": true,
-      "speedup": 183.10716176692168,
-      "subset_dp_s": 0.023110958747565746
+      "speedup": 179.79311246957863,
+      "subset_dp_s": 0.023009402997558936
     },
     "n12_permutation_vs_compressed_proxy": {
       "n_squared_times_2_to_n": 589824,
@@ -1682,7 +1682,7 @@
           ]
         ]
       ],
-      "assignment_s": 0.012214054819196463,
+      "assignment_s": 0.012003677002212498,
       "greedy_key": [
         3847,
         894,
@@ -1765,11 +1765,11 @@
       "selected_pair_count": 20
     },
     "measured_6x6": {
-      "assignment_s": 0.00033477600663900375,
-      "bruteforce_s": 0.013996962923556566,
+      "assignment_s": 0.00032606000604573637,
+      "bruteforce_s": 0.014511652996588964,
       "same_economic_key": true,
       "same_pair_id_tie": true,
-      "speedup": 41.80993454124625
+      "speedup": 44.50608086707027
     },
     "n20_perfect_matching_vs_hungarian_proxy": {
       "n_cubed": 8000,

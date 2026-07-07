@@ -14,6 +14,9 @@ ACTION_DEPOSIT_COLLATERAL = 7
 ACTION_WITHDRAW_COLLATERAL = 8
 ACTION_SET_POSITION = 9
 ACTION_PARTIAL_LIQUIDATE = 10
+ACTION_CARRY_FUNDING_CLOSEOUT_LIABILITY = 11
+ACTION_SETTLE_FUNDING_CLOSEOUT_CARRIED_LIABILITY = 12
+ACTION_SETTLE_FUNDING_CLOSEOUT_RECOVERY = 13
 
 REJECT_OK = "Ok"
 REJECT_INVALID_ACTION = "InvalidAction"
@@ -34,6 +37,9 @@ _OPERATOR_ACTIONS = frozenset(
         ACTION_SETTLE_EPOCH,
         ACTION_CLEAR_BREAKER,
         ACTION_SET_MARKET_PARAMS,
+        ACTION_CARRY_FUNDING_CLOSEOUT_LIABILITY,
+        ACTION_SETTLE_FUNDING_CLOSEOUT_CARRIED_LIABILITY,
+        ACTION_SETTLE_FUNDING_CLOSEOUT_RECOVERY,
     }
 )
 _SENDER_BOUND_ACTIONS = frozenset(
@@ -103,7 +109,7 @@ def _require_flag(value: Any, *, name: str) -> bool:
 def _require_action_kind(value: Any, *, name: str = "action_kind") -> int:
     if not isinstance(value, int) or isinstance(value, bool):
         raise TypeError(f"{name} must be an int")
-    if value < ACTION_INVALID or value > ACTION_PARTIAL_LIQUIDATE:
+    if value < ACTION_INVALID or value > ACTION_SETTLE_FUNDING_CLOSEOUT_RECOVERY:
         raise ValueError(f"{name} out of range")
     return int(value)
 

@@ -300,7 +300,7 @@
       }
     },
     "dominance_check_count": 161280,
-    "elapsed_ms": 27740.706,
+    "elapsed_ms": 27612.127,
     "first_case": {
       "bit_count": 7,
       "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",

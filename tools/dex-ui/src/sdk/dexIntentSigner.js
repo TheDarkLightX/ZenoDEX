@@ -10,6 +10,7 @@ const COMMON_INTENT_KEYS = new Set([
   'deadline',
   'salt',
   'fields',
+  'quote_receipt',
 ]);
 
 function bytesToHex(bytes) {
@@ -393,6 +394,57 @@ export async function buildAndSignLiquidityIntent({
   };
 }
 
+const NONCE_U32_MAX = 0xFFFFFFFF;
+
+function pyGetShadow(obj, key, fallback) {
+  if (Object.prototype.hasOwnProperty.call(obj, key)) {
+    return obj[key];
+  }
+  return fallback;
+}
+
+function swapModeMarker(payload) {
+  const modeRaw = pyGetShadow(payload, 'mode', payload.kind);
+  if (typeof modeRaw === 'string') {
+    const mode = modeRaw.trim().toLowerCase().replace(/-/g, '_');
+    if (mode === 'swap_exact_out' || mode === 'exact_out' || mode === 'out') {
+      return 'out';
+    }
+    if (mode === 'swap_exact_in' || mode === 'exact_in' || mode === 'in') {
+      return 'in';
+    }
+  }
+  return null;
+}
+
+export function isSwapExactOutPayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+  const marker = swapModeMarker(payload);
+  if (marker === 'out') {
+    return true;
+  }
+  if (marker === 'in') {
+    return false;
+  }
+  return payload.amountOut != null || payload.amount_out != null
+    || payload.maxAmountIn != null || payload.max_amount_in != null;
+}
+
+function requireUnambiguousSwapPayload(payload) {
+  const inPresent = payload.amountIn != null || payload.amount_in != null
+    || payload.minAmountOut != null || payload.min_amount_out != null;
+  const outPresent = payload.amountOut != null || payload.amount_out != null
+    || payload.maxAmountIn != null || payload.max_amount_in != null;
+  const marker = swapModeMarker(payload);
+  const markerOut = marker === 'out';
+  const markerIn = marker === 'in';
+  if ((inPresent && outPresent) || (markerOut && inPresent) || (markerIn && outPresent)) {
+    throw new Error('ambiguous_swap_intent_specify_exact_in_or_exact_out_not_both');
+  }
+}
+
 export async function buildAndSignSwapIntent({
   pool,
   payload,
@@ -403,13 +455,15 @@ export async function buildAndSignSwapIntent({
   if (!pool || typeof pool !== 'object' || Array.isArray(pool)) {
     throw new Error('pool_must_be_object');
   }
+  requireUnambiguousSwapPayload(payload);
   const sender = String(payload.senderPubkey || payload.sender_pubkey || '').trim();
   const recipient = String(payload.recipient || sender).trim();
   const poolId = String(payload.poolId || payload.pool_id || pool.poolId || pool.pool_id || '').trim();
   const deadline = asInt(payload.deadline ?? 1_999_999_999, 'deadline');
   const nonce = asInt(payload.nonce, 'nonce');
-  const amountIn = asInt(payload.amountIn ?? payload.amount_in, 'amount_in');
-  const minAmountOut = asInt(payload.minAmountOut ?? payload.min_amount_out ?? 1, 'min_amount_out');
+  if (nonce > NONCE_U32_MAX) {
+    throw new Error('nonce_must_fit_u32');
+  }
   const rawAssetIn = payload.assetIn ?? payload.asset_in;
   const rawAssetOut = payload.assetOut ?? payload.asset_out;
   const assetIn = canonicalAssetId(rawAssetIn, 'asset_in');
@@ -417,20 +471,33 @@ export async function buildAndSignSwapIntent({
   if (assetIn === assetOut) {
     throw new Error('swap_assets_must_differ');
   }
+  const exactOut = isSwapExactOutPayload(payload);
+  let amountFields;
+  let kind;
+  if (exactOut) {
+    const amountOut = asInt(payload.amountOut ?? payload.amount_out, 'amount_out');
+    const maxAmountIn = asInt(payload.maxAmountIn ?? payload.max_amount_in, 'max_amount_in');
+    amountFields = { amount_out: amountOut, max_amount_in: maxAmountIn };
+    kind = 'SWAP_EXACT_OUT';
+  } else {
+    const amountIn = asInt(payload.amountIn ?? payload.amount_in, 'amount_in');
+    const minAmountOut = asInt(payload.minAmountOut ?? payload.min_amount_out ?? 1, 'min_amount_out');
+    amountFields = { amount_in: amountIn, min_amount_out: minAmountOut };
+    kind = 'SWAP_EXACT_IN';
+  }
   const intentPayload = {
     sender_pubkey: sender,
     recipient,
     pool_id: poolId,
     asset_in: assetIn,
     asset_out: assetOut,
-    amount_in: amountIn,
-    min_amount_out: minAmountOut,
+    ...amountFields,
     nonce,
   };
   const operation = {
     module: 'TauSwap',
     version: '0.1',
-    kind: 'SWAP_EXACT_IN',
+    kind,
     intent_id: await hashV0('ui_swap_intent_v0', intentPayload),
     sender_pubkey: sender,
     deadline,
@@ -438,9 +505,138 @@ export async function buildAndSignSwapIntent({
     pool_id: poolId,
     asset_in: assetIn,
     asset_out: assetOut,
-    amount_in: amountIn,
-    min_amount_out: minAmountOut,
+    ...amountFields,
     recipient,
+  };
+  return {
+    intent: operation,
+    signature: await signDexIntentWithAvailableSigner(operation, { privkey, chainId, signDexIntent }),
+  };
+}
+
+export async function buildAndSignRouteIntent({
+  payload,
+  privkey,
+  signDexIntent,
+  chainId = 'zeno-ledger-localtest-v0',
+}) {
+  const sender = String(payload.senderPubkey || payload.sender_pubkey || '').trim();
+  const recipient = String(payload.recipient || sender).trim();
+  const deadline = asInt(payload.deadline ?? 1_999_999_999, 'deadline');
+  const nonce = asInt(payload.nonce, 'nonce');
+  if (nonce > NONCE_U32_MAX) {
+    throw new Error('nonce_must_fit_u32');
+  }
+  const quoteReceipt = payload.quoteReceipt || payload.quote_receipt;
+  if (!quoteReceipt || typeof quoteReceipt !== 'object') {
+    throw new Error('quote_receipt_required');
+  }
+  const receiptBody = quoteReceipt.body;
+  if (!receiptBody || typeof receiptBody !== 'object') {
+    throw new Error('quote_receipt_body_required');
+  }
+  const receiptKind = String(receiptBody.kind || '').trim().toLowerCase();
+  if (receiptKind !== 'exact_in' && receiptKind !== 'exact_out') {
+    throw new Error('quote_receipt_kind_must_be_exact_in_or_exact_out');
+  }
+  const kindMarker = String(payload.kind || payload.routeKind || payload.mode || '').trim().toLowerCase().replace(/-/g, '_');
+  if (kindMarker && kindMarker !== receiptKind
+    && !(kindMarker === 'route_exact_in' && receiptKind === 'exact_in')
+    && !(kindMarker === 'route_exact_out' && receiptKind === 'exact_out')) {
+    throw new Error('route_kind_mismatch');
+  }
+  const assetIn = canonicalAssetId(receiptBody.asset_in, 'asset_in');
+  const assetOut = canonicalAssetId(receiptBody.asset_out, 'asset_out');
+  if (assetIn === assetOut) {
+    throw new Error('swap_assets_must_differ');
+  }
+  const legs = receiptBody.legs;
+  if (!Array.isArray(legs) || legs.length === 0) {
+    throw new Error('quote_receipt_legs_required');
+  }
+  for (const leg of legs) {
+    if (!Array.isArray(leg.hops) || leg.hops.length !== 1) {
+      throw new Error('route_multihop_unsupported');
+    }
+  }
+  const expectedLegIndices = Array.from({ length: legs.length }, (_, i) => i);
+  const rawLegIndices = payload.legIndices ?? payload.leg_indices;
+  if (rawLegIndices != null) {
+    if (!Array.isArray(rawLegIndices) || rawLegIndices.length !== expectedLegIndices.length
+      || !rawLegIndices.every((v, i) => v === i)) {
+      throw new Error('leg_indices_must_cover_full_receipt');
+    }
+  }
+  const legIndices = expectedLegIndices;
+  const canonicalReceiptHash = String(quoteReceipt.receipt_hash || '').trim();
+  if (!canonicalReceiptHash) {
+    throw new Error('quote_receipt_hash_required');
+  }
+  const bodyAmountIn = asInt(receiptBody.amount_in, 'amount_in');
+  const bodyAmountOut = asInt(receiptBody.amount_out, 'amount_out');
+  let amountFields;
+  let kind;
+  let usesDefaultRouteTotals;
+  if (receiptKind === 'exact_in') {
+    const totalAmountIn = asInt(payload.totalAmountIn ?? payload.total_amount_in ?? bodyAmountIn, 'total_amount_in');
+    const totalMinAmountOut = asInt(payload.totalMinAmountOut ?? payload.total_min_amount_out ?? bodyAmountOut, 'total_min_amount_out');
+    if (totalAmountIn !== bodyAmountIn) {
+      throw new Error('total_amount_in_must_match_receipt');
+    }
+    amountFields = { total_amount_in: totalAmountIn, total_min_amount_out: totalMinAmountOut };
+    usesDefaultRouteTotals = totalMinAmountOut === bodyAmountOut;
+    kind = 'ROUTE_EXACT_IN';
+  } else {
+    const totalAmountOut = asInt(payload.totalAmountOut ?? payload.total_amount_out ?? bodyAmountOut, 'total_amount_out');
+    const totalMaxAmountIn = asInt(payload.totalMaxAmountIn ?? payload.total_max_amount_in ?? bodyAmountIn, 'total_max_amount_in');
+    if (totalAmountOut !== bodyAmountOut) {
+      throw new Error('total_amount_out_must_match_receipt');
+    }
+    amountFields = { total_amount_out: totalAmountOut, total_max_amount_in: totalMaxAmountIn };
+    usesDefaultRouteTotals = totalMaxAmountIn === bodyAmountIn;
+    kind = 'ROUTE_EXACT_OUT';
+  }
+  const explicitBindingHash = payload.risc0RouteQuoteReceiptBindingHash
+    ?? payload.risc0_route_quote_receipt_binding_hash
+    ?? payload.quoteReceiptBindingHash
+    ?? payload.quote_receipt_binding_hash;
+  const receiptBindingHash = quoteReceipt.risc0_route_quote_receipt_binding_hash;
+  if (!usesDefaultRouteTotals && explicitBindingHash == null) {
+    throw new Error('risc0_route_binding_hash_required_for_custom_totals');
+  }
+  const resolvedBindingHash = explicitBindingHash ?? receiptBindingHash;
+  if (resolvedBindingHash == null) {
+    throw new Error('risc0_route_binding_hash_required');
+  }
+  const receiptHash = String(resolvedBindingHash).trim();
+  if (!receiptHash) {
+    throw new Error('quote_receipt_hash_required');
+  }
+  const intentPayload = {
+    sender_pubkey: sender,
+    recipient,
+    quote_receipt_hash: receiptHash,
+    asset_in: assetIn,
+    asset_out: assetOut,
+    leg_indices: legIndices,
+    ...amountFields,
+    nonce,
+  };
+  const operation = {
+    module: 'TauSwap',
+    version: '0.1',
+    kind,
+    intent_id: await hashV0('ui_route_intent_v0', intentPayload),
+    sender_pubkey: sender,
+    deadline,
+    nonce,
+    quote_receipt_hash: receiptHash,
+    asset_in: assetIn,
+    asset_out: assetOut,
+    leg_indices: legIndices,
+    ...amountFields,
+    recipient,
+    quote_receipt: quoteReceipt,
   };
   return {
     intent: operation,

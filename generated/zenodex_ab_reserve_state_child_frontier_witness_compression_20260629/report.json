@@ -152,7 +152,7 @@
     },
     "covered_child_state_count": 864,
     "duplicate_witness_count": 0,
-    "elapsed_ms": 2589.028,
+    "elapsed_ms": 2324.224,
     "expected_child_state_count": 864,
     "extra_child_state_witness_count": 0,
     "first_case": {

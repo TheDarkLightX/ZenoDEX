@@ -6,6 +6,7 @@ import pytest
 
 from src.core.liquidity import create_pool
 from src.state import BalanceTable, LPTable
+from src.state.lp import LPDurationRiskMetadata
 from src.state.nonces import NonceTable
 from src.state.state_root import STATE_ROOT_VERSION, compute_state_root
 
@@ -316,3 +317,96 @@ def test_state_root_changes_when_curve_configuration_changes() -> None:
     root_a = compute_state_root(balances=BalanceTable(), pools={pool_id: pool_a}, lp_balances=LPTable())
     root_b = compute_state_root(balances=BalanceTable(), pools={pool_id: pool_b}, lp_balances=LPTable())
     assert root_a != root_b
+
+
+def test_state_root_commits_lp_duration_risk_metadata() -> None:
+    pk = "0x" + "11" * 48
+    pool_id = "0x" + "22" * 32
+
+    lp = LPTable()
+    lp.set(pk, pool_id, 10)
+    root_without_metadata = compute_state_root(
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=lp,
+    )
+
+    lp.set_last_mint_timestamp(pk, pool_id, 7)
+    lp.set_last_remove_timestamp(pk, pool_id, 11)
+    lp.set_churn_tier(pk, pool_id, 2)
+    lp.set_last_churn_update_timestamp(pk, pool_id, 13)
+    root_with_metadata = compute_state_root(
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=lp,
+    )
+
+    assert root_without_metadata != root_with_metadata
+
+
+def test_state_root_rejects_duplicate_decoded_lp_duration_risk_keys() -> None:
+    pk_lower = "0x" + "aa" * 48
+    pk_upper = "0x" + "AA" * 48
+    pool_id = "0x" + "33" * 32
+
+    lp = LPTable()
+    lp.set(pk_lower, pool_id, 10)
+    lp.set_last_mint_timestamp(pk_lower, pool_id, 1)
+    lp.set_last_remove_timestamp(pk_upper, pool_id, 2)
+
+    with pytest.raises(ValueError, match="duplicate decoded \\(pubkey, pool_id\\) in lp_duration_risk"):
+        compute_state_root(balances=BalanceTable(), pools={}, lp_balances=lp)
+
+
+def test_state_root_rejects_corrupt_lp_duration_risk_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pk = "0x" + "11" * 48
+    pool_id = "0x" + "22" * 32
+
+    lp = LPTable()
+    lp.set(pk, pool_id, 10)
+    lp._last_mint_timestamps[(pk, pool_id)] = -1  # type: ignore[assignment]
+    with pytest.raises(ValueError, match="invalid LP mint timestamp"):
+        compute_state_root(balances=BalanceTable(), pools={}, lp_balances=lp)
+
+    lp = LPTable()
+    monkeypatch.setattr(
+        lp,
+        "get_all_duration_risk_metadata",
+        lambda: {(pk, pool_id): LPDurationRiskMetadata(churn_tier=True)},  # type: ignore[arg-type]
+    )
+    with pytest.raises(ValueError, match="invalid LP churn tier"):
+        compute_state_root(balances=BalanceTable(), pools={}, lp_balances=lp)
+
+
+def test_state_root_rejects_duplicate_decoded_nonce_pubkeys() -> None:
+    pk_lower = "0x" + "aa" * 48
+    pk_upper = "0x" + "AA" * 48
+
+    nonces = NonceTable()
+    nonces._last[pk_lower] = 1
+    nonces._last[pk_upper] = 2
+
+    with pytest.raises(ValueError, match="duplicate decoded pubkey in nonces"):
+        compute_state_root(
+            balances=BalanceTable(),
+            pools={},
+            lp_balances=LPTable(),
+            nonces=nonces,
+        )
+
+
+def test_state_root_rejects_corrupt_nonce_amount() -> None:
+    pk = "0x" + "11" * 48
+
+    nonces = NonceTable()
+    nonces._last[pk] = True  # type: ignore[assignment]
+
+    with pytest.raises(ValueError, match="invalid nonce amount"):
+        compute_state_root(
+            balances=BalanceTable(),
+            pools={},
+            lp_balances=LPTable(),
+            nonces=nonces,
+        )

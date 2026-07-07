@@ -1386,7 +1386,11 @@ fn validate_recursive_statement_v1(
         ));
     }
     require_nonempty(&statement.chain_id, "recursive chain_id empty")?;
-    require_nonempty(&statement.proof_profile, "recursive proof_profile empty")?;
+    if statement.proof_profile != RECURSIVE_EPOCH_PROFILE_V1 {
+        return Err(TransitionError::Unsupported(
+            "recursive proof_profile unsupported",
+        ));
+    }
     if statement.cross_shard_mode != RECURSIVE_STRICT_CROSS_SHARD_MODE_V1 {
         return Err(TransitionError::Unsupported(
             "recursive cross_shard_mode unsupported",
@@ -2258,7 +2262,7 @@ mod tests {
                 schema_version: RECURSIVE_STATEMENT_VERSION_V1,
                 chain_id: "tau-test".to_string(),
                 epoch_id: 7,
-                proof_profile: "recursive_block_v1".to_string(),
+                proof_profile: RECURSIVE_EPOCH_PROFILE_V1.to_string(),
                 verifier_set_root: recursive_verifier_set_root_v1(&verifier_ids).unwrap(),
                 allowed_authority_roots_root: recursive_authority_set_root_v1(&authority_roots)
                     .unwrap(),
@@ -2339,7 +2343,7 @@ mod tests {
         assert_eq!(journal.child_count, 2);
         assert_eq!(journal.proof_type, PROOF_TYPE_RECURSIVE);
         assert_eq!(journal.chain_id, "tau-test");
-        assert_eq!(journal.proof_profile, "recursive_block_v1");
+        assert_eq!(journal.proof_profile, RECURSIVE_EPOCH_PROFILE_V1);
         assert_ne!(journal.child_verification_claims_root, [0u8; 32]);
         assert_ne!(journal.child_journals_root, [0u8; 32]);
         assert_eq!(
@@ -2365,6 +2369,19 @@ mod tests {
         )]);
         let journal = compose_recursive_epoch_journal_v1(&input).unwrap();
         assert_eq!(journal.child_count, 1);
+    }
+
+    #[test]
+    fn recursive_composition_rejects_wrong_aggregate_profile() {
+        let mut input = valid_input();
+        input.statement.proof_profile = "recursive_block_v1".to_string();
+
+        assert!(matches!(
+            compose_recursive_epoch_journal_v1(&input),
+            Err(TransitionError::Unsupported(
+                "recursive proof_profile unsupported"
+            ))
+        ));
     }
 
     #[test]

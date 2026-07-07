@@ -28,14 +28,14 @@
     {
       "id": "proof_required_range_replay",
       "claim_id": "py:zeno_ledger:proof_required_profile_metadata_replay_v0",
-      "coverage": "ZenoLedger range verifier requires proof metadata per checked height when the active profile or bridge policy requires proof journals.",
+      "coverage": "ZenoLedger range verifier requires proof metadata plus verifier-backed proof-verification reports per checked height when the active profile or bridge policy requires proof journals; Risc0 reports must be body-checked and bind post_app_hash to the header app hash or post-state root.",
       "proof_kind": "metadata_replay"
     },
     {
       "id": "proof_verification_report_replay",
       "claim_id": "py:zeno_ledger:proof_verification_report_replay_v0",
-      "coverage": "ZenoLedger range verifier can require per-height proof-verification reports that match header-bound proof metadata.",
-      "proof_kind": "metadata_replay"
+      "coverage": "ZenoLedger range verifier can require per-height proof-verification reports that match header-bound proof metadata and Risc0 semantic binding checks; explicit signed-report mode requires a proof-report signer registry and per-height envelope bundle, then verifies BLS quorum over the canonical report artifact hash and emits per-height quorum report hashes.",
+      "proof_kind": "metadata_replay_with_optional_report_quorum"
     },
     {
       "id": "light_client_checkpoint_quorum",

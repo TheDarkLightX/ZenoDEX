@@ -79,6 +79,203 @@ theorem sharded_conservation (sharding : Sharding)
     rw [ih (fun s hs => hAll s (List.mem_cons_of_mem _ hs))]
     ring
 
+/-! ## Section 2b: Body-Pinned Posting-Summary Sets -/
+
+/-- Abstract shape of a runtime posting summary: a canonical summary hash and
+the shard settlement it represents. -/
+structure PostingSummary (Hash : Type) where
+  postingHash : Hash
+  shard : Shard
+
+def postingSummaryHashes {Hash : Type}
+    (summaries : List (PostingSummary Hash)) : List Hash :=
+  summaries.map PostingSummary.postingHash
+
+def postingSummarySharding {Hash : Type}
+    (summaries : List (PostingSummary Hash)) : Sharding :=
+  summaries.map PostingSummary.shard
+
+/-- Body evidence pins exactly the emitted posting summaries when the emitted
+summary hashes equal the body-pinned canonical hash list. -/
+def BodyPinnedPostingSummarySet {Hash : Type}
+    (expectedHashes : List Hash)
+    (summaries : List (PostingSummary Hash)) : Prop :=
+  postingSummaryHashes summaries = expectedHashes
+
+def PostingSummarySetBalanced {Hash : Type}
+    (summaries : List (PostingSummary Hash)) : Prop :=
+  ∀ summary ∈ summaries, (shardSettlement summary.shard).isBalanced
+
+/-- If the body-pinned posting-summary set is exact and every selected summary
+is balanced, then the selected aggregate is balanced and the emitted hashes are
+exactly the body-pinned hashes. -/
+theorem body_pinned_summary_set_conservation_and_exactness
+    {Hash : Type} {expectedHashes : List Hash}
+    {summaries : List (PostingSummary Hash)}
+    (hPinned : BodyPinnedPostingSummarySet expectedHashes summaries)
+    (hBalanced : PostingSummarySetBalanced summaries) :
+    (aggregateSettlement (postingSummarySharding summaries)).isBalanced ∧
+      postingSummaryHashes summaries = expectedHashes := by
+  constructor
+  · apply sharded_conservation
+    intro shard hmem
+    rw [postingSummarySharding] at hmem
+    rcases List.mem_map.mp hmem with ⟨summary, hSummary, hShard⟩
+    rw [← hShard]
+    exact hBalanced summary hSummary
+  · exact hPinned
+
+/-- Exact body pinning preserves the canonical expected cardinality. This is the
+formal count side of "no missing or extra posting summaries". -/
+theorem body_pinned_summary_set_no_missing_or_extra_count
+    {Hash : Type} {expectedHashes : List Hash}
+    {summaries : List (PostingSummary Hash)}
+    (hPinned : BodyPinnedPostingSummarySet expectedHashes summaries) :
+    summaries.length = expectedHashes.length := by
+  have hlen := congrArg List.length hPinned
+  simpa [postingSummaryHashes] using hlen
+
+/-- If the body-pinned hash list has no duplicates, neither does the emitted
+summary hash list. -/
+theorem body_pinned_summary_set_supplied_hashes_nodup
+    {Hash : Type} {expectedHashes : List Hash}
+    {summaries : List (PostingSummary Hash)}
+    (hPinned : BodyPinnedPostingSummarySet expectedHashes summaries)
+    (hExpectedNodup : expectedHashes.Nodup) :
+    (postingSummaryHashes summaries).Nodup := by
+  rw [hPinned]
+  exact hExpectedNodup
+
+/-- Exact body pinning gives the membership contract consumed by runtime
+validators: a hash is expected exactly when some supplied summary carries it. -/
+theorem body_pinned_summary_set_hash_mem_iff
+    {Hash : Type} {expectedHashes : List Hash}
+    {summaries : List (PostingSummary Hash)}
+    (hPinned : BodyPinnedPostingSummarySet expectedHashes summaries)
+    (h : Hash) :
+    h ∈ expectedHashes ↔
+      ∃ summary ∈ summaries, summary.postingHash = h := by
+  constructor
+  · intro hMem
+    rw [← hPinned] at hMem
+    exact List.mem_map.mp hMem
+  · intro hMem
+    rcases hMem with ⟨summary, hSummary, hHash⟩
+    rw [← hPinned]
+    exact List.mem_map.mpr ⟨summary, hSummary, hHash⟩
+
+/-! ## Section 2c: Body-Pinned Terminal Admission Sets -/
+
+/-- Runtime shape after terminal body evidence is enforced: a posting-summary
+hash, terminal-admission hash, and the shard settlement represented by that
+terminally admitted summary. -/
+structure TerminalPostingSummary (Hash : Type) where
+  postingHash : Hash
+  terminalAdmissionHash : Hash
+  shard : Shard
+
+def terminalPostingSummaryHashes {Hash : Type}
+    (summaries : List (TerminalPostingSummary Hash)) : List Hash :=
+  summaries.map TerminalPostingSummary.postingHash
+
+def terminalAdmissionHashes {Hash : Type}
+    (summaries : List (TerminalPostingSummary Hash)) : List Hash :=
+  summaries.map TerminalPostingSummary.terminalAdmissionHash
+
+def terminalPostingSummarySharding {Hash : Type}
+    (summaries : List (TerminalPostingSummary Hash)) : Sharding :=
+  summaries.map TerminalPostingSummary.shard
+
+/-- Body evidence pins exactly both artifact families consumed by the runtime
+writer: posting summaries and terminal admissions. -/
+def BodyPinnedTerminalPostingSummarySet {Hash : Type}
+    (expectedPostingHashes expectedTerminalAdmissionHashes : List Hash)
+    (summaries : List (TerminalPostingSummary Hash)) : Prop :=
+  terminalPostingSummaryHashes summaries = expectedPostingHashes ∧
+    terminalAdmissionHashes summaries = expectedTerminalAdmissionHashes
+
+def TerminalPostingSummarySetBalanced {Hash : Type}
+    (summaries : List (TerminalPostingSummary Hash)) : Prop :=
+  ∀ summary ∈ summaries, (shardSettlement summary.shard).isBalanced
+
+/-- Terminal body pinning composes the selected shard settlements and preserves
+both exact artifact hash lists. -/
+theorem terminal_body_pinned_summary_set_conservation_and_exactness
+    {Hash : Type} {expectedPostingHashes expectedTerminalAdmissionHashes : List Hash}
+    {summaries : List (TerminalPostingSummary Hash)}
+    (hPinned :
+      BodyPinnedTerminalPostingSummarySet
+        expectedPostingHashes
+        expectedTerminalAdmissionHashes
+        summaries)
+    (hBalanced : TerminalPostingSummarySetBalanced summaries) :
+    (aggregateSettlement (terminalPostingSummarySharding summaries)).isBalanced ∧
+      terminalPostingSummaryHashes summaries = expectedPostingHashes ∧
+      terminalAdmissionHashes summaries = expectedTerminalAdmissionHashes := by
+  constructor
+  · apply sharded_conservation
+    intro shard hmem
+    rw [terminalPostingSummarySharding] at hmem
+    rcases List.mem_map.mp hmem with ⟨summary, hSummary, hShard⟩
+    rw [← hShard]
+    exact hBalanced summary hSummary
+  · exact hPinned
+
+/-- Exact terminal body pinning prevents missing or extra posting summaries and
+terminal admissions at the count level. -/
+theorem terminal_body_pinned_summary_set_no_missing_or_extra_count
+    {Hash : Type} {expectedPostingHashes expectedTerminalAdmissionHashes : List Hash}
+    {summaries : List (TerminalPostingSummary Hash)}
+    (hPinned :
+      BodyPinnedTerminalPostingSummarySet
+        expectedPostingHashes
+        expectedTerminalAdmissionHashes
+        summaries) :
+    summaries.length = expectedPostingHashes.length ∧
+      summaries.length = expectedTerminalAdmissionHashes.length := by
+  constructor
+  · have hlen := congrArg List.length hPinned.1
+    simpa [terminalPostingSummaryHashes] using hlen
+  · have hlen := congrArg List.length hPinned.2
+    simpa [terminalAdmissionHashes] using hlen
+
+/-- If the body-pinned terminal-admission hash list is duplicate-free, then the
+supplied terminal admissions are duplicate-free. -/
+theorem terminal_body_pinned_summary_set_terminal_hashes_nodup
+    {Hash : Type} {expectedPostingHashes expectedTerminalAdmissionHashes : List Hash}
+    {summaries : List (TerminalPostingSummary Hash)}
+    (hPinned :
+      BodyPinnedTerminalPostingSummarySet
+        expectedPostingHashes
+        expectedTerminalAdmissionHashes
+        summaries)
+    (hExpectedNodup : expectedTerminalAdmissionHashes.Nodup) :
+    (terminalAdmissionHashes summaries).Nodup := by
+  rw [hPinned.2]
+  exact hExpectedNodup
+
+/-- Terminal body pinning gives the terminal-admission membership contract
+consumed by runtime validators. -/
+theorem terminal_body_pinned_summary_set_terminal_hash_mem_iff
+    {Hash : Type} {expectedPostingHashes expectedTerminalAdmissionHashes : List Hash}
+    {summaries : List (TerminalPostingSummary Hash)}
+    (hPinned :
+      BodyPinnedTerminalPostingSummarySet
+        expectedPostingHashes
+        expectedTerminalAdmissionHashes
+        summaries)
+    (h : Hash) :
+    h ∈ expectedTerminalAdmissionHashes ↔
+      ∃ summary ∈ summaries, summary.terminalAdmissionHash = h := by
+  constructor
+  · intro hMem
+    rw [← hPinned.2] at hMem
+    exact List.mem_map.mp hMem
+  · intro hMem
+    rcases hMem with ⟨summary, hSummary, hHash⟩
+    rw [← hPinned.2]
+    exact List.mem_map.mpr ⟨summary, hSummary, hHash⟩
+
 /-! ## Section 3: Partition Properties -/
 
 theorem aggregate_concat (s₁ s₂ : Sharding) :

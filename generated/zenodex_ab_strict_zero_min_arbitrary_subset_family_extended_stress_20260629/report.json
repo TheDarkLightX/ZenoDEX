@@ -5174,7 +5174,7 @@
       }
     },
     "dominance_check_count": 106380,
-    "elapsed_ms": 16741.815,
+    "elapsed_ms": 16625.97,
     "first_case": {
       "bit_count": 2,
       "case_id": "extended_000_balanced_mid_tie_heavy_flat_n2_fee0",

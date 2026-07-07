@@ -266,7 +266,7 @@
         "packet_lean_contract_mismatch"
       ]
     },
-    "elapsed_ms": 2604.31,
+    "elapsed_ms": 2629.666,
     "extra_generated_state_count": 0,
     "first_case": {
       "bit_count": 7,

@@ -19,6 +19,10 @@ from typing import Any, Dict, Tuple
 
 from ..core import quote_receipt_gates as _quote_receipt_gates
 from ..core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
+from ..core.frontier_signature_root import (
+    FrontierSignatureCertificatesRootBinding,
+    normalize_frontier_signature_binding,
+)
 from ..core.quote_receipt_body_verification import (
     _precheck_receipt_body,
     _ReceiptBodyContext,
@@ -27,6 +31,9 @@ from ..core.quote_receipt_body_verification import (
     _verify_pool_snapshots,
 )
 from ..core.quote_receipt_building import (
+    attach_frontier_signature_binding_to_route_quote_receipt,
+    make_risc0_route_quote_receipt_binding_hash,
+    make_risc0_route_quote_receipt_binding_hash_from_body,
     make_route_quote_receipt,
     pool_state_fingerprint,
     receipt_hash,
@@ -50,7 +57,10 @@ from ..core.quote_receipt_limits import ROUTE_QUOTE_RECEIPT_MAX_HOPS_PER_LEG
 from ..state.pools import PoolState
 
 __all__ = [
+    "attach_frontier_signature_binding_to_route_quote_receipt",
     "make_route_quote_receipt",
+    "make_risc0_route_quote_receipt_binding_hash",
+    "make_risc0_route_quote_receipt_binding_hash_from_body",
     "pool_state_fingerprint",
     "receipt_hash",
     "verify_route_quote_receipt",
@@ -143,8 +153,8 @@ def _hop_field(hop: object, key: str) -> object:
 def _extract_receipt_hop_fields(ctx: _ReceiptHopContext) -> _ReceiptHopFields:
     hop_dict_ok = isinstance(ctx.hop, dict)
     pid = _hop_field(ctx.hop, "pool_id")
-    pool_id_ok = isinstance(pid, str) and bool(pid)
-    pool = ctx.working_pools.get(pid) if pool_id_ok else None
+    pid_str = pid if isinstance(pid, str) and bool(pid) else None
+    pool = ctx.working_pools.get(pid_str) if pid_str is not None else None
     return _ReceiptHopFields(
         hop_dict_ok=hop_dict_ok,
         pool_id=pid,
@@ -301,11 +311,49 @@ def _verify_receipt_legs_and_totals(ctx: _ReceiptLegsContext) -> Tuple[bool, str
     return True, "ok"
 
 
+def _verify_expected_frontier_signature_binding(
+    *,
+    body: Dict[str, Any],
+    expected_binding: FrontierSignatureCertificatesRootBinding | None,
+) -> Tuple[bool, str]:
+    body_count = body.get("shared_pool_frontier_signature_certificate_count")
+    body_root = body.get("shared_pool_frontier_signature_certificates_root")
+    body_has_count = "shared_pool_frontier_signature_certificate_count" in body
+    body_has_root = "shared_pool_frontier_signature_certificates_root" in body
+
+    if body_has_count != body_has_root:
+        return False, "frontier_signature_binding_partial"
+
+    body_binding: tuple[int, str] | None = None
+    if body_has_count and body_has_root:
+        try:
+            body_binding = normalize_frontier_signature_binding(
+                count=body_count,
+                root=body_root,
+                count_name="shared_pool_frontier_signature_certificate_count",
+                root_name="shared_pool_frontier_signature_certificates_root",
+            )
+        except (TypeError, ValueError):
+            return False, "bad_frontier_signature_binding"
+
+    if expected_binding is None:
+        return True, "ok"
+
+    if body_binding is None:
+        return False, "missing_frontier_signature_binding"
+    if body_binding[0] != expected_binding.certificate_count:
+        return False, "frontier_signature_count_mismatch"
+    if body_binding[1] != expected_binding.certificates_root:
+        return False, "frontier_signature_root_mismatch"
+    return True, "ok"
+
+
 def _verify_prechecked_route_quote_receipt(
     *,
     ctx: _ReceiptBodyContext,
     pools_by_id: Dict[str, PoolState],
     expected_quote_epoch: int | None,
+    expected_frontier_signature_binding: FrontierSignatureCertificatesRootBinding | None,
 ) -> Tuple[bool, str]:
     epoch_ok, epoch_err = _verify_expected_quote_epoch(
         quote_epoch_value=ctx.quote_epoch_value,
@@ -313,6 +361,13 @@ def _verify_prechecked_route_quote_receipt(
     )
     if not epoch_ok:
         return False, epoch_err
+
+    frontier_ok, frontier_err = _verify_expected_frontier_signature_binding(
+        body=ctx.body,
+        expected_binding=expected_frontier_signature_binding,
+    )
+    if not frontier_ok:
+        return False, frontier_err
 
     certificate_ok, certificate_err = _verify_canonical_route_certificate(
         canonical_route_certificate=ctx.canonical_route_certificate,
@@ -349,6 +404,7 @@ def verify_route_quote_receipt(
     *,
     pools_by_id: Dict[str, PoolState],
     expected_quote_epoch: int | None = None,
+    expected_frontier_signature_binding: FrontierSignatureCertificatesRootBinding | None = None,
 ) -> Tuple[bool, str]:
     """
     Verify a quote receipt against pool snapshots and AMM semantics.
@@ -377,4 +433,5 @@ def verify_route_quote_receipt(
         ctx=ctx,
         pools_by_id=pools_by_id,
         expected_quote_epoch=expected_quote_epoch,
+        expected_frontier_signature_binding=expected_frontier_signature_binding,
     )

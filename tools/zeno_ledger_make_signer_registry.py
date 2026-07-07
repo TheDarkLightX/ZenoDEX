@@ -52,6 +52,8 @@ def main(argv: list[str] | None = None) -> int:
             "tau_export_packet",
             "checkpoint",
             "oracle_authority_profile",
+            "proof_verification_report",
+            "route_interval_policy_root_bundle",
         ],
     )
     parser.add_argument("--threshold", required=True, type=int)

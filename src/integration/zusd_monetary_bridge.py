@@ -16,15 +16,20 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, replace
-from typing import Any, Mapping, Optional, Tuple
+from typing import Any, Mapping, Optional
 
 from ..core.dex import DexState
+from ..core.perps import (
+    PerpClearinghouse2pMarketState,
+    PerpClearinghouse3pTransferMarketState,
+    PerpClearinghouseNpMarketState,
+    PerpMarketState,
+)
 from ..core.zusd import BPS_SCALE, E8, ZUSDCommand, ZUSDState, check_invariants, init_state, step
-from ..state.balances import BalanceTable, NATIVE_ASSET
+from ..state.balances import NATIVE_ASSET, BalanceTable
 from ..state.canonical import bounded_json_utf8_size, canonical_hex_fixed_allow_0x
 from ..state.nonces import NonceTable
 from .zusd_tau_token import derive_zusd_tau_asset_id
-
 
 ZUSD_MONETARY_SCHEMA = "zenodex/zusd_monetary_state/v1"
 ZUSD_MONETARY_MODULE = "ZUSDFinance"
@@ -34,6 +39,7 @@ _U32_MAX = 0xFFFFFFFF
 _MAX_OPS = 128
 _MAX_OP_BYTES = 64_000
 _MAX_TOTAL_OPS_BYTES = 512_000
+_FEE_ACC_SCALE = 1_000_000
 
 
 @dataclass(frozen=True)
@@ -43,12 +49,38 @@ class ZUSDMonetaryConfig:
     asset_id: Optional[str] = None
     liquidation_gas_comp_fixed_collateral_e8: int = 0
     liquidation_gas_comp_bps: int = 0
+    borrow_fee_floor_bps: int = 0
+    borrow_fee_max_bps: int = 1_000
+    host_protocol_fee_share_bps: int = 0
+    fee_stake_asset_id: Optional[str] = None
+    staking_activation_delay_epochs: int = 1
+
+    def __post_init__(self) -> None:
+        _require_int(self.borrow_fee_floor_bps, name="borrow_fee_floor_bps", minimum=0, maximum=BPS_SCALE)
+        _require_int(self.borrow_fee_max_bps, name="borrow_fee_max_bps", minimum=0, maximum=BPS_SCALE)
+        if int(self.borrow_fee_floor_bps) > int(self.borrow_fee_max_bps):
+            raise ValueError("borrow_fee bps bounds invalid")
+        _require_int(
+            self.host_protocol_fee_share_bps,
+            name="host_protocol_fee_share_bps",
+            minimum=0,
+            maximum=BPS_SCALE,
+        )
+        _require_nonnegative_int(self.staking_activation_delay_epochs, name="staking_activation_delay_epochs")
+        if self.fee_stake_asset_id is not None:
+            _canonical_asset(self.fee_stake_asset_id, name="fee_stake_asset_id")
 
     @property
     def zusd_asset(self) -> str:
         if self.asset_id is not None:
             return _canonical_asset(self.asset_id, name="asset_id")
         return derive_zusd_tau_asset_id(chain_id=self.chain_id)
+
+    @property
+    def fee_stake_asset(self) -> str | None:
+        if self.fee_stake_asset_id is None:
+            return None
+        return _canonical_asset(self.fee_stake_asset_id, name="fee_stake_asset_id")
 
 
 @dataclass(frozen=True)
@@ -57,18 +89,62 @@ class ZUSDMonetaryState:
     vault_owner_pubkey: Optional[str] = None
     sp_deposits_e8: Mapping[str, int] | None = None
     sp_collateral_claims_e8: Mapping[str, int] | None = None
+    protocol_zusd_fee_reserve_e8: int = 0
+    staking_zusd_fee_pool_e8: int = 0
+    staking_zusd_fee_acc_per_share_e8: int = 0
+    host_zusd_fee_pool_e8: int = 0
+    host_zusd_fee_cum_e8: int = 0
+    host_zusd_fees_e8: Mapping[str, int] | None = None
+    active_fee_stakes: Mapping[str, int] | None = None
+    pending_fee_stakes: Mapping[str, int] | None = None
+    pending_fee_stake_activation_epochs: Mapping[str, int] | None = None
+    fee_stake_reward_debt_e8: Mapping[str, int] | None = None
 
     def __post_init__(self) -> None:
         if self.vault_owner_pubkey is not None:
             _canonical_pubkey(self.vault_owner_pubkey, name="vault_owner_pubkey")
         deposits = dict(self.sp_deposits_e8 or {})
         claims = dict(self.sp_collateral_claims_e8 or {})
-        for table_name, table in (("sp_deposits_e8", deposits), ("sp_collateral_claims_e8", claims)):
+        host_fees = dict(self.host_zusd_fees_e8 or {})
+        active_stakes = dict(self.active_fee_stakes or {})
+        pending_stakes = dict(self.pending_fee_stakes or {})
+        pending_epochs = dict(self.pending_fee_stake_activation_epochs or {})
+        reward_debt = dict(self.fee_stake_reward_debt_e8 or {})
+        for field_name in (
+            "protocol_zusd_fee_reserve_e8",
+            "staking_zusd_fee_pool_e8",
+            "staking_zusd_fee_acc_per_share_e8",
+            "host_zusd_fee_pool_e8",
+            "host_zusd_fee_cum_e8",
+        ):
+            _require_nonnegative_int(getattr(self, field_name), name=field_name)
+        for table_name, table in (
+            ("sp_deposits_e8", deposits),
+            ("sp_collateral_claims_e8", claims),
+            ("host_zusd_fees_e8", host_fees),
+            ("active_fee_stakes", active_stakes),
+            ("pending_fee_stakes", pending_stakes),
+            ("fee_stake_reward_debt_e8", reward_debt),
+        ):
             for pk, amount in table.items():
                 _canonical_pubkey(pk, name=f"{table_name}.pubkey")
                 _require_nonnegative_int(amount, name=f"{table_name}[{pk}]")
+        for pk, epoch in pending_epochs.items():
+            _canonical_pubkey(pk, name="pending_fee_stake_activation_epochs.pubkey")
+            _require_nonnegative_int(epoch, name=f"pending_fee_stake_activation_epochs[{pk}]")
+        if set(pending_epochs) != set(pending_stakes):
+            raise ValueError("pending fee stake activation keys mismatch")
         object.__setattr__(self, "sp_deposits_e8", deposits)
         object.__setattr__(self, "sp_collateral_claims_e8", claims)
+        object.__setattr__(self, "host_zusd_fees_e8", {pk: amount for pk, amount in host_fees.items() if amount > 0})
+        object.__setattr__(self, "active_fee_stakes", {pk: amount for pk, amount in active_stakes.items() if amount > 0})
+        object.__setattr__(self, "pending_fee_stakes", {pk: amount for pk, amount in pending_stakes.items() if amount > 0})
+        object.__setattr__(self, "pending_fee_stake_activation_epochs", pending_epochs)
+        object.__setattr__(
+            self,
+            "fee_stake_reward_debt_e8",
+            {pk: amount for pk, amount in reward_debt.items() if amount > 0},
+        )
 
 
 @dataclass(frozen=True)
@@ -96,9 +172,30 @@ def init_monetary_state(config: ZUSDMonetaryConfig | None = None) -> ZUSDMonetar
                     minimum=0,
                     maximum=BPS_SCALE,
                 ),
+                "borrow_fee_floor_bps": _require_int(
+                    config.borrow_fee_floor_bps,
+                    name="borrow_fee_floor_bps",
+                    minimum=0,
+                    maximum=BPS_SCALE,
+                ),
+                "borrow_fee_max_bps": _require_int(
+                    config.borrow_fee_max_bps,
+                    name="borrow_fee_max_bps",
+                    minimum=0,
+                    maximum=BPS_SCALE,
+                ),
             }
         )
-    return ZUSDMonetaryState(core=core, sp_deposits_e8={}, sp_collateral_claims_e8={})
+    return ZUSDMonetaryState(
+        core=core,
+        sp_deposits_e8={},
+        sp_collateral_claims_e8={},
+        host_zusd_fees_e8={},
+        active_fee_stakes={},
+        pending_fee_stakes={},
+        pending_fee_stake_activation_epochs={},
+        fee_stake_reward_debt_e8={},
+    )
 
 
 def stability_pool_pubkey(*, chain_id: str) -> str:
@@ -125,6 +222,18 @@ def zusd_monetary_state_to_obj(state: ZUSDMonetaryState) -> dict[str, Any]:
         for pk, amount in sorted(dict(state.sp_collateral_claims_e8 or {}).items())
         if int(amount) > 0
     ]
+    host_fees = _account_amount_entries(state.host_zusd_fees_e8, amount_key="amount_e8")
+    active_stakes = _account_amount_entries(state.active_fee_stakes, amount_key="amount")
+    pending_stakes = [
+        {
+            "pubkey": pk,
+            "amount": int(amount),
+            "activation_epoch": int(dict(state.pending_fee_stake_activation_epochs or {}).get(pk, 0)),
+        }
+        for pk, amount in sorted(dict(state.pending_fee_stakes or {}).items())
+        if int(amount) > 0
+    ]
+    reward_debt = _account_amount_entries(state.fee_stake_reward_debt_e8, amount_key="amount_e8")
     return {
         "schema": ZUSD_MONETARY_SCHEMA,
         "version": 1,
@@ -132,6 +241,15 @@ def zusd_monetary_state_to_obj(state: ZUSDMonetaryState) -> dict[str, Any]:
         "vault_owner_pubkey": state.vault_owner_pubkey,
         "sp_deposits": deposits,
         "sp_collateral_claims": claims,
+        "protocol_zusd_fee_reserve_e8": int(state.protocol_zusd_fee_reserve_e8),
+        "staking_zusd_fee_pool_e8": int(state.staking_zusd_fee_pool_e8),
+        "staking_zusd_fee_acc_per_share_e8": int(state.staking_zusd_fee_acc_per_share_e8),
+        "host_zusd_fee_pool_e8": int(state.host_zusd_fee_pool_e8),
+        "host_zusd_fee_cum_e8": int(state.host_zusd_fee_cum_e8),
+        "host_zusd_fees": host_fees,
+        "active_fee_stakes": active_stakes,
+        "pending_fee_stakes": pending_stakes,
+        "fee_stake_reward_debt": reward_debt,
     }
 
 
@@ -152,11 +270,47 @@ def zusd_monetary_state_from_obj(obj: Mapping[str, Any]) -> ZUSDMonetaryState:
     owner = None if owner_raw is None else _canonical_pubkey(owner_raw, name="zusd_monetary.vault_owner_pubkey")
     deposits = _parse_account_amount_entries(obj.get("sp_deposits"), name="zusd_monetary.sp_deposits")
     claims = _parse_account_amount_entries(obj.get("sp_collateral_claims"), name="zusd_monetary.sp_collateral_claims")
+    pending_stakes, pending_epochs = _parse_pending_fee_stake_entries(obj.get("pending_fee_stakes"))
     state = ZUSDMonetaryState(
         core=core,
         vault_owner_pubkey=owner,
         sp_deposits_e8=deposits,
         sp_collateral_claims_e8=claims,
+        protocol_zusd_fee_reserve_e8=_require_nonnegative_int(
+            obj.get("protocol_zusd_fee_reserve_e8", 0),
+            name="zusd_monetary.protocol_zusd_fee_reserve_e8",
+        ),
+        staking_zusd_fee_pool_e8=_require_nonnegative_int(
+            obj.get("staking_zusd_fee_pool_e8", 0),
+            name="zusd_monetary.staking_zusd_fee_pool_e8",
+        ),
+        staking_zusd_fee_acc_per_share_e8=_require_nonnegative_int(
+            obj.get("staking_zusd_fee_acc_per_share_e8", 0),
+            name="zusd_monetary.staking_zusd_fee_acc_per_share_e8",
+        ),
+        host_zusd_fee_pool_e8=_require_nonnegative_int(
+            obj.get("host_zusd_fee_pool_e8", 0),
+            name="zusd_monetary.host_zusd_fee_pool_e8",
+        ),
+        host_zusd_fee_cum_e8=_require_nonnegative_int(
+            obj.get("host_zusd_fee_cum_e8", 0),
+            name="zusd_monetary.host_zusd_fee_cum_e8",
+        ),
+        host_zusd_fees_e8=_parse_account_amount_entries(
+            obj.get("host_zusd_fees"),
+            name="zusd_monetary.host_zusd_fees",
+        ),
+        active_fee_stakes=_parse_account_amount_entries(
+            obj.get("active_fee_stakes"),
+            name="zusd_monetary.active_fee_stakes",
+            amount_key="amount",
+        ),
+        pending_fee_stakes=pending_stakes,
+        pending_fee_stake_activation_epochs=pending_epochs,
+        fee_stake_reward_debt_e8=_parse_account_amount_entries(
+            obj.get("fee_stake_reward_debt"),
+            name="zusd_monetary.fee_stake_reward_debt",
+        ),
     )
     err = _state_invariant_error(state)
     if err is not None:
@@ -186,6 +340,7 @@ def apply_zusd_monetary_ops(
         effects: list[dict[str, Any]] = []
         zusd_asset = config.zusd_asset
         sp_pubkey = stability_pool_pubkey(chain_id=config.chain_id)
+        perps_zusd_liability_e8 = _perps_quote_liability_e8(state, zusd_asset=zusd_asset)
         native_sender = _native_sender_key(
             balances,
             sender=sender,
@@ -194,6 +349,13 @@ def apply_zusd_monetary_ops(
         )
 
         _assert_sp_escrow_matches(balances, working, zusd_asset=zusd_asset, sp_pubkey=sp_pubkey)
+        _assert_free_debt_liability_cover(
+            balances,
+            working,
+            zusd_asset=zusd_asset,
+            sp_pubkey=sp_pubkey,
+            perps_zusd_liability_e8=perps_zusd_liability_e8,
+        )
 
         nonce_key = zusd_monetary_sender_nonce_key(sender)
         for i, op in enumerate(ops):
@@ -233,6 +395,13 @@ def apply_zusd_monetary_ops(
             effect = {"i": i, "action": action, "effects": balance_effect}
             effects.append(effect)
             _assert_sp_escrow_matches(balances, working, zusd_asset=zusd_asset, sp_pubkey=sp_pubkey)
+            _assert_free_debt_liability_cover(
+                balances,
+                working,
+                zusd_asset=zusd_asset,
+                sp_pubkey=sp_pubkey,
+                perps_zusd_liability_e8=perps_zusd_liability_e8,
+            )
 
         next_state = replace(state, balances=balances, nonces=nonces)
         return ZUSDMonetaryTxResult(ok=True, state=next_state, zusd_state=working, effects=effects)
@@ -256,6 +425,7 @@ def _apply_one(
     owner = monetary_state.vault_owner_pubkey
     deposits = dict(monetary_state.sp_deposits_e8 or {})
     claims = dict(monetary_state.sp_collateral_claims_e8 or {})
+    fee_fields = _fee_state_fields(monetary_state)
 
     if action in {"bootstrap_oracle", "oracle_report", "oracle_commit"}:
         _require_oracle_sender(config, sender=sender)
@@ -265,7 +435,13 @@ def _apply_one(
         result = step(core, ZUSDCommand(tag=action, args=args))
         if not result.ok or result.state is None:
             raise ValueError(result.error or f"{action} rejected")
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = ZUSDMonetaryState(
+            core=result.state,
+            vault_owner_pubkey=owner,
+            sp_deposits_e8=deposits,
+            sp_collateral_claims_e8=claims,
+            **fee_fields,
+        )
         _raise_if_bad_state(next_state)
         return next_state, dict(result.effects or {})
 
@@ -274,7 +450,14 @@ def _apply_one(
         result = step(core, ZUSDCommand(tag=action, args={"delta": delta}))
         if not result.ok or result.state is None:
             raise ValueError(result.error or "advance_epoch rejected")
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        fee_fields = _activate_ready_fee_stakes(fee_fields, now_epoch=int(result.state.now_epoch))
+        next_state = ZUSDMonetaryState(
+            core=result.state,
+            vault_owner_pubkey=owner,
+            sp_deposits_e8=deposits,
+            sp_collateral_claims_e8=claims,
+            **fee_fields,
+        )
         _raise_if_bad_state(next_state)
         return next_state, dict(result.effects or {})
 
@@ -297,7 +480,13 @@ def _apply_one(
         if not result.ok or result.state is None:
             raise ValueError(result.error or "deposit_collateral rejected")
         balances.subtract(native_sender, NATIVE_ASSET, amount_e8)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = ZUSDMonetaryState(
+            core=result.state,
+            vault_owner_pubkey=owner,
+            sp_deposits_e8=deposits,
+            sp_collateral_claims_e8=claims,
+            **fee_fields,
+        )
         _raise_if_bad_state(next_state)
         return next_state, {**dict(result.effects or {}), "native_balance_delta_e8": -amount_e8}
 
@@ -307,7 +496,13 @@ def _apply_one(
         if not result.ok or result.state is None:
             raise ValueError(result.error or "withdraw_collateral rejected")
         balances.add(native_sender, NATIVE_ASSET, amount_e8)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = ZUSDMonetaryState(
+            core=result.state,
+            vault_owner_pubkey=owner,
+            sp_deposits_e8=deposits,
+            sp_collateral_claims_e8=claims,
+            **fee_fields,
+        )
         _raise_if_bad_state(next_state)
         return next_state, {**dict(result.effects or {}), "native_balance_delta_e8": amount_e8}
 
@@ -316,11 +511,24 @@ def _apply_one(
         result = step(core, ZUSDCommand(tag=action, args={"amount_e8": amount_e8}))
         if not result.ok or result.state is None:
             raise ValueError(result.error or "mint_zusd rejected")
-        minted_units = _e8_to_whole_units(int((result.effects or {}).get("principal_e8", amount_e8)), name="mint_zusd.principal_e8")
+        effects = dict(result.effects or {})
+        minted_units = _e8_to_whole_units(int(effects.get("principal_e8", amount_e8)), name="mint_zusd.principal_e8")
         balances.add(sender, zusd_asset, minted_units)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        fee_fields, fee_effects = _route_mint_fee(
+            config=config,
+            fee_fields=fee_fields,
+            mint_fee_e8=int(effects.get("mint_fee_e8", 0)),
+            host_pubkey=op.get("host_pubkey"),
+        )
+        next_state = ZUSDMonetaryState(
+            core=result.state,
+            vault_owner_pubkey=owner,
+            sp_deposits_e8=deposits,
+            sp_collateral_claims_e8=claims,
+            **fee_fields,
+        )
         _raise_if_bad_state(next_state)
-        return next_state, {**dict(result.effects or {}), "zusd_balance_delta": minted_units}
+        return next_state, {**effects, **fee_effects, "zusd_balance_delta": minted_units}
 
     if action == "repay_zusd":
         amount_e8 = _require_whole_zusd_amount(op.get("amount_e8"), name="repay_zusd.amount_e8")
@@ -331,7 +539,13 @@ def _apply_one(
         if not result.ok or result.state is None:
             raise ValueError(result.error or "repay_zusd rejected")
         balances.subtract(sender, zusd_asset, units)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = ZUSDMonetaryState(
+            core=result.state,
+            vault_owner_pubkey=owner,
+            sp_deposits_e8=deposits,
+            sp_collateral_claims_e8=claims,
+            **fee_fields,
+        )
         _raise_if_bad_state(next_state)
         return next_state, {**dict(result.effects or {}), "zusd_balance_delta": -units}
 
@@ -347,7 +561,13 @@ def _apply_one(
         balances.subtract(account, zusd_asset, units)
         balances.add(sp_pubkey, zusd_asset, units)
         deposits[account] = int(deposits.get(account, 0)) + amount_e8
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = ZUSDMonetaryState(
+            core=result.state,
+            vault_owner_pubkey=owner,
+            sp_deposits_e8=deposits,
+            sp_collateral_claims_e8=claims,
+            **fee_fields,
+        )
         _raise_if_bad_state(next_state)
         return next_state, {**dict(result.effects or {}), "zusd_balance_delta": -units, "sp_escrow_delta": units}
 
@@ -366,7 +586,13 @@ def _apply_one(
         balances.subtract(sp_pubkey, zusd_asset, units)
         balances.add(account, zusd_asset, units)
         deposits = _set_or_drop(deposits, account, current - amount_e8)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = ZUSDMonetaryState(
+            core=result.state,
+            vault_owner_pubkey=owner,
+            sp_deposits_e8=deposits,
+            sp_collateral_claims_e8=claims,
+            **fee_fields,
+        )
         _raise_if_bad_state(next_state)
         return next_state, {**dict(result.effects or {}), "zusd_balance_delta": units, "sp_escrow_delta": -units}
 
@@ -383,7 +609,13 @@ def _apply_one(
         balances.subtract(account, zusd_asset, units)
         native_account = native_sender if account == sender else account
         balances.add(native_account, NATIVE_ASSET, collateral_out)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = ZUSDMonetaryState(
+            core=result.state,
+            vault_owner_pubkey=owner,
+            sp_deposits_e8=deposits,
+            sp_collateral_claims_e8=claims,
+            **fee_fields,
+        )
         _raise_if_bad_state(next_state)
         return next_state, {**dict(result.effects or {}), "zusd_balance_delta": -units, "native_balance_delta_e8": collateral_out}
 
@@ -412,7 +644,13 @@ def _apply_one(
         deposits, coll_gains = _allocate_liquidation(pre_deposits, debt_e8=liquidated_debt, collateral_e8=liquidated_coll)
         for pk, gain in coll_gains.items():
             claims[pk] = int(claims.get(pk, 0)) + int(gain)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = ZUSDMonetaryState(
+            core=result.state,
+            vault_owner_pubkey=owner,
+            sp_deposits_e8=deposits,
+            sp_collateral_claims_e8=claims,
+            **fee_fields,
+        )
         _raise_if_bad_state(next_state)
         return next_state, {
             **dict(result.effects or {}),
@@ -436,9 +674,125 @@ def _apply_one(
         native_account = native_sender if account == sender else account
         balances.add(native_account, NATIVE_ASSET, amount_e8)
         claims = _set_or_drop(claims, account, current - amount_e8)
-        next_state = ZUSDMonetaryState(core=next_core, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = ZUSDMonetaryState(
+            core=next_core,
+            vault_owner_pubkey=owner,
+            sp_deposits_e8=deposits,
+            sp_collateral_claims_e8=claims,
+            **fee_fields,
+        )
         _raise_if_bad_state(next_state)
         return next_state, {"event": "sp_collateral_claimed", "amount_e8": amount_e8, "native_balance_delta_e8": amount_e8}
+
+    if action == "stake_fee_shares":
+        stake_asset = config.fee_stake_asset
+        if stake_asset is None:
+            raise ValueError("fee staking asset not configured")
+        amount = _require_int(op.get("amount"), name="stake_fee_shares.amount", minimum=1)
+        if balances.get(sender, stake_asset) < amount:
+            raise ValueError("insufficient fee stake balance")
+        balances.subtract(sender, stake_asset, amount)
+        pending = dict(fee_fields["pending_fee_stakes"])
+        pending_epochs = dict(fee_fields["pending_fee_stake_activation_epochs"])
+        activation_epoch = int(core.now_epoch) + int(config.staking_activation_delay_epochs)
+        pending[sender] = int(pending.get(sender, 0)) + amount
+        pending_epochs[sender] = max(int(pending_epochs.get(sender, 0)), activation_epoch)
+        fee_fields = {**fee_fields, "pending_fee_stakes": pending, "pending_fee_stake_activation_epochs": pending_epochs}
+        next_state = ZUSDMonetaryState(
+            core=core,
+            vault_owner_pubkey=owner,
+            sp_deposits_e8=deposits,
+            sp_collateral_claims_e8=claims,
+            **fee_fields,
+        )
+        _raise_if_bad_state(next_state)
+        return next_state, {
+            "event": "fee_shares_staked_pending",
+            "amount": amount,
+            "activation_epoch": activation_epoch,
+        }
+
+    if action == "unstake_fee_shares":
+        stake_asset = config.fee_stake_asset
+        if stake_asset is None:
+            raise ValueError("fee staking asset not configured")
+        amount = _require_int(op.get("amount"), name="unstake_fee_shares.amount", minimum=1)
+        active = dict(fee_fields["active_fee_stakes"])
+        current = int(active.get(sender, 0))
+        if amount > current:
+            raise ValueError("unstake_fee_shares exceeds active stake")
+        if _fee_stake_claimable_e8(fee_fields, sender) > 0:
+            raise ValueError("claim staking fees before unstake")
+        active = _set_or_drop(active, sender, current - amount)
+        reward_debt = dict(fee_fields["fee_stake_reward_debt_e8"])
+        if sender in active:
+            reward_debt[sender] = _fee_stake_debt_for(active[sender], int(fee_fields["staking_zusd_fee_acc_per_share_e8"]))
+        else:
+            reward_debt.pop(sender, None)
+        balances.add(sender, stake_asset, amount)
+        fee_fields = {**fee_fields, "active_fee_stakes": active, "fee_stake_reward_debt_e8": reward_debt}
+        next_state = ZUSDMonetaryState(
+            core=core,
+            vault_owner_pubkey=owner,
+            sp_deposits_e8=deposits,
+            sp_collateral_claims_e8=claims,
+            **fee_fields,
+        )
+        _raise_if_bad_state(next_state)
+        return next_state, {"event": "fee_shares_unstaked", "amount": amount}
+
+    if action == "claim_host_fees":
+        amount_e8 = _optional_whole_zusd_amount(op.get("amount_e8"), name="claim_host_fees.amount_e8")
+        host_fees = dict(fee_fields["host_zusd_fees_e8"])
+        current = int(host_fees.get(sender, 0))
+        claim_e8 = current if amount_e8 is None else amount_e8
+        if claim_e8 <= 0:
+            raise ValueError("no host fees claimable")
+        if claim_e8 > current:
+            raise ValueError("claim_host_fees exceeds host claim")
+        units = _e8_to_whole_units(claim_e8, name="claim_host_fees.amount_e8")
+        balances.add(sender, zusd_asset, units)
+        fee_fields = {
+            **fee_fields,
+            "host_zusd_fee_pool_e8": int(fee_fields["host_zusd_fee_pool_e8"]) - claim_e8,
+            "host_zusd_fees_e8": _set_or_drop(host_fees, sender, current - claim_e8),
+        }
+        next_state = ZUSDMonetaryState(
+            core=core,
+            vault_owner_pubkey=owner,
+            sp_deposits_e8=deposits,
+            sp_collateral_claims_e8=claims,
+            **fee_fields,
+        )
+        _raise_if_bad_state(next_state)
+        return next_state, {"event": "host_zusd_fees_claimed", "amount_e8": claim_e8, "zusd_balance_delta": units}
+
+    if action == "claim_staking_fees":
+        claimable_e8 = _fee_stake_claimable_e8(fee_fields, sender)
+        amount_e8 = _optional_whole_zusd_amount(op.get("amount_e8"), name="claim_staking_fees.amount_e8")
+        claim_e8 = claimable_e8 if amount_e8 is None else amount_e8
+        if claim_e8 <= 0:
+            raise ValueError("no staking fees claimable")
+        if claim_e8 > claimable_e8:
+            raise ValueError("claim_staking_fees exceeds claimable fees")
+        units = _e8_to_whole_units(claim_e8, name="claim_staking_fees.amount_e8")
+        balances.add(sender, zusd_asset, units)
+        reward_debt = dict(fee_fields["fee_stake_reward_debt_e8"])
+        reward_debt[sender] = int(reward_debt.get(sender, 0)) + claim_e8
+        fee_fields = {
+            **fee_fields,
+            "staking_zusd_fee_pool_e8": int(fee_fields["staking_zusd_fee_pool_e8"]) - claim_e8,
+            "fee_stake_reward_debt_e8": reward_debt,
+        }
+        next_state = ZUSDMonetaryState(
+            core=core,
+            vault_owner_pubkey=owner,
+            sp_deposits_e8=deposits,
+            sp_collateral_claims_e8=claims,
+            **fee_fields,
+        )
+        _raise_if_bad_state(next_state)
+        return next_state, {"event": "staking_zusd_fees_claimed", "amount_e8": claim_e8, "zusd_balance_delta": units}
 
     raise ValueError(f"unknown action: {action}")
 
@@ -486,6 +840,10 @@ def _require_action(op: Mapping[str, Any], *, index: int) -> str:
         "redeem_zusd",
         "liquidate",
         "claim_sp_collateral",
+        "stake_fee_shares",
+        "unstake_fee_shares",
+        "claim_host_fees",
+        "claim_staking_fees",
     }:
         raise ValueError(f"zusd op[{index}] action unsupported: {action!r}")
     return action
@@ -499,10 +857,16 @@ def _allowed_fields_for_action(action: str) -> set[str]:
         return base | {"price_e8"}
     if action == "oracle_commit":
         return base
-    if action in {"deposit_collateral", "withdraw_collateral", "mint_zusd", "repay_zusd"}:
+    if action == "mint_zusd":
+        return base | {"owner_pubkey", "amount_e8", "host_pubkey"}
+    if action in {"deposit_collateral", "withdraw_collateral", "repay_zusd"}:
         return base | {"owner_pubkey", "amount_e8"}
     if action in {"deposit_sp", "withdraw_sp", "redeem_zusd", "claim_sp_collateral"}:
         return base | {"account_pubkey", "amount_e8"}
+    if action in {"stake_fee_shares", "unstake_fee_shares"}:
+        return base | {"amount"}
+    if action in {"claim_host_fees", "claim_staking_fees"}:
+        return base | {"amount_e8"}
     if action == "liquidate":
         return base
     return base
@@ -560,6 +924,12 @@ def _require_whole_zusd_amount(value: Any, *, name: str) -> int:
     return amount
 
 
+def _optional_whole_zusd_amount(value: Any, *, name: str) -> int | None:
+    if value is None:
+        return None
+    return _require_whole_zusd_amount(value, name=name)
+
+
 def _e8_to_whole_units(amount_e8: int, *, name: str) -> int:
     amount = _require_whole_zusd_amount(amount_e8, name=name)
     return amount // E8
@@ -594,7 +964,15 @@ def _copy_nonce_table(nonces: NonceTable) -> NonceTable:
     return copied
 
 
-def _parse_account_amount_entries(value: Any, *, name: str) -> dict[str, int]:
+def _account_amount_entries(value: Mapping[str, int] | None, *, amount_key: str) -> list[dict[str, Any]]:
+    return [
+        {"pubkey": pk, amount_key: int(amount)}
+        for pk, amount in sorted(dict(value or {}).items())
+        if int(amount) > 0
+    ]
+
+
+def _parse_account_amount_entries(value: Any, *, name: str, amount_key: str = "amount_e8") -> dict[str, int]:
     if value is None:
         return {}
     if not isinstance(value, list):
@@ -604,13 +982,41 @@ def _parse_account_amount_entries(value: Any, *, name: str) -> dict[str, int]:
         if not isinstance(entry, Mapping):
             raise TypeError(f"{name}[{i}] must be an object")
         pk = _canonical_pubkey(entry.get("pubkey"), name=f"{name}[{i}].pubkey")
-        amount = _require_nonnegative_int(entry.get("amount_e8"), name=f"{name}[{i}].amount_e8")
+        amount = _require_nonnegative_int(entry.get(amount_key), name=f"{name}[{i}].{amount_key}")
         if amount == 0:
             continue
         if pk in out:
             raise ValueError(f"{name}[{i}] duplicate pubkey")
         out[pk] = int(amount)
     return out
+
+
+def _parse_pending_fee_stake_entries(value: Any) -> tuple[dict[str, int], dict[str, int]]:
+    if value is None:
+        return {}, {}
+    if not isinstance(value, list):
+        raise TypeError("zusd_monetary.pending_fee_stakes must be a list")
+    stakes: dict[str, int] = {}
+    epochs: dict[str, int] = {}
+    for i, entry in enumerate(value):
+        if not isinstance(entry, Mapping):
+            raise TypeError(f"zusd_monetary.pending_fee_stakes[{i}] must be an object")
+        pk = _canonical_pubkey(entry.get("pubkey"), name=f"zusd_monetary.pending_fee_stakes[{i}].pubkey")
+        amount = _require_nonnegative_int(
+            entry.get("amount"),
+            name=f"zusd_monetary.pending_fee_stakes[{i}].amount",
+        )
+        activation_epoch = _require_nonnegative_int(
+            entry.get("activation_epoch"),
+            name=f"zusd_monetary.pending_fee_stakes[{i}].activation_epoch",
+        )
+        if amount == 0:
+            continue
+        if pk in stakes:
+            raise ValueError(f"zusd_monetary.pending_fee_stakes[{i}] duplicate pubkey")
+        stakes[pk] = amount
+        epochs[pk] = activation_epoch
+    return stakes, epochs
 
 
 def _deadline_error(*, op: Mapping[str, Any], block_timestamp: int, index: int) -> str | None:
@@ -647,16 +1053,127 @@ def _set_or_drop(table: dict[str, int], key: str, value: int) -> dict[str, int]:
     return out
 
 
+def _fee_state_fields(state: ZUSDMonetaryState) -> dict[str, Any]:
+    return {
+        "protocol_zusd_fee_reserve_e8": int(state.protocol_zusd_fee_reserve_e8),
+        "staking_zusd_fee_pool_e8": int(state.staking_zusd_fee_pool_e8),
+        "staking_zusd_fee_acc_per_share_e8": int(state.staking_zusd_fee_acc_per_share_e8),
+        "host_zusd_fee_pool_e8": int(state.host_zusd_fee_pool_e8),
+        "host_zusd_fee_cum_e8": int(state.host_zusd_fee_cum_e8),
+        "host_zusd_fees_e8": dict(state.host_zusd_fees_e8 or {}),
+        "active_fee_stakes": dict(state.active_fee_stakes or {}),
+        "pending_fee_stakes": dict(state.pending_fee_stakes or {}),
+        "pending_fee_stake_activation_epochs": dict(state.pending_fee_stake_activation_epochs or {}),
+        "fee_stake_reward_debt_e8": dict(state.fee_stake_reward_debt_e8 or {}),
+    }
+
+
+def _fee_stake_debt_for(shares: int, acc_per_share_e8: int) -> int:
+    return (int(shares) * int(acc_per_share_e8)) // _FEE_ACC_SCALE
+
+
+def _fee_stake_claimable_e8(fee_fields: Mapping[str, Any], account: str) -> int:
+    active = dict(fee_fields["active_fee_stakes"])
+    reward_debt = dict(fee_fields["fee_stake_reward_debt_e8"])
+    shares = int(active.get(account, 0))
+    if shares <= 0:
+        return 0
+    accrued = _fee_stake_debt_for(shares, int(fee_fields["staking_zusd_fee_acc_per_share_e8"]))
+    return max(0, accrued - int(reward_debt.get(account, 0)))
+
+
+def _activate_ready_fee_stakes(fee_fields: Mapping[str, Any], *, now_epoch: int) -> dict[str, Any]:
+    out = dict(fee_fields)
+    active = dict(out["active_fee_stakes"])
+    pending = dict(out["pending_fee_stakes"])
+    pending_epochs = dict(out["pending_fee_stake_activation_epochs"])
+    reward_debt = dict(out["fee_stake_reward_debt_e8"])
+    acc = int(out["staking_zusd_fee_acc_per_share_e8"])
+    for pk, amount in sorted(list(pending.items())):
+        activation_epoch = int(pending_epochs.get(pk, 0))
+        if activation_epoch > now_epoch:
+            continue
+        active[pk] = int(active.get(pk, 0)) + int(amount)
+        reward_debt[pk] = int(reward_debt.get(pk, 0)) + _fee_stake_debt_for(int(amount), acc)
+        pending.pop(pk, None)
+        pending_epochs.pop(pk, None)
+    out["active_fee_stakes"] = active
+    out["pending_fee_stakes"] = pending
+    out["pending_fee_stake_activation_epochs"] = pending_epochs
+    out["fee_stake_reward_debt_e8"] = reward_debt
+    return out
+
+
+def _route_mint_fee(
+    *,
+    config: ZUSDMonetaryConfig,
+    fee_fields: Mapping[str, Any],
+    mint_fee_e8: int,
+    host_pubkey: Any,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    fee_e8 = _require_nonnegative_int(mint_fee_e8, name="mint_fee_e8")
+    out = dict(fee_fields)
+    if fee_e8 == 0:
+        return out, {"mint_fee_host_e8": 0, "mint_fee_staking_e8": 0, "mint_fee_protocol_e8": 0}
+
+    host_fee_e8 = 0
+    host: str | None = None
+    if host_pubkey is not None:
+        host = _canonical_pubkey(host_pubkey, name="mint_zusd.host_pubkey")
+        host_fee_e8 = (fee_e8 * int(config.host_protocol_fee_share_bps)) // BPS_SCALE
+    non_host_fee_e8 = fee_e8 - host_fee_e8
+
+    if host is not None and host_fee_e8 > 0:
+        host_fees = dict(out["host_zusd_fees_e8"])
+        host_fees[host] = int(host_fees.get(host, 0)) + host_fee_e8
+        out["host_zusd_fees_e8"] = host_fees
+        out["host_zusd_fee_pool_e8"] = int(out["host_zusd_fee_pool_e8"]) + host_fee_e8
+        out["host_zusd_fee_cum_e8"] = int(out["host_zusd_fee_cum_e8"]) + host_fee_e8
+
+    active_total = sum(int(v) for v in dict(out["active_fee_stakes"]).values())
+    staking_fee_e8 = 0
+    protocol_fee_e8 = 0
+    if active_total > 0 and non_host_fee_e8 > 0:
+        staking_fee_e8 = non_host_fee_e8
+        out["staking_zusd_fee_pool_e8"] = int(out["staking_zusd_fee_pool_e8"]) + staking_fee_e8
+        out["staking_zusd_fee_acc_per_share_e8"] = int(out["staking_zusd_fee_acc_per_share_e8"]) + (
+            staking_fee_e8 * _FEE_ACC_SCALE
+        ) // active_total
+    else:
+        protocol_fee_e8 = non_host_fee_e8
+        out["protocol_zusd_fee_reserve_e8"] = int(out["protocol_zusd_fee_reserve_e8"]) + protocol_fee_e8
+
+    return out, {
+        "mint_fee_host_e8": host_fee_e8,
+        "mint_fee_staking_e8": staking_fee_e8,
+        "mint_fee_protocol_e8": protocol_fee_e8,
+    }
+
+
 def _state_invariant_error(state: ZUSDMonetaryState) -> str | None:
     failed = check_invariants(state.core)
     if failed:
         return f"invariant violation: {','.join(failed)}"
     deposits = {pk: int(amount) for pk, amount in dict(state.sp_deposits_e8 or {}).items() if int(amount) > 0}
     claims = {pk: int(amount) for pk, amount in dict(state.sp_collateral_claims_e8 or {}).items() if int(amount) > 0}
+    host_fees = {pk: int(amount) for pk, amount in dict(state.host_zusd_fees_e8 or {}).items() if int(amount) > 0}
+    active_stakes = {pk: int(amount) for pk, amount in dict(state.active_fee_stakes or {}).items() if int(amount) > 0}
+    pending_stakes = {pk: int(amount) for pk, amount in dict(state.pending_fee_stakes or {}).items() if int(amount) > 0}
+    pending_epochs = dict(state.pending_fee_stake_activation_epochs or {})
     if sum(deposits.values()) != int(state.core.sp_debt_e8):
         return "stability pool account deposits do not match core sp_debt_e8"
     if sum(claims.values()) > int(state.core.sp_coll_e8):
         return "stability pool collateral claims exceed core sp_coll_e8"
+    if sum(host_fees.values()) != int(state.host_zusd_fee_pool_e8):
+        return "host zUSD fee claims do not match host_zusd_fee_pool_e8"
+    if int(state.host_zusd_fee_pool_e8) > int(state.host_zusd_fee_cum_e8):
+        return "host_zusd_fee_pool_e8 exceeds host_zusd_fee_cum_e8"
+    if set(pending_epochs) != set(pending_stakes):
+        return "pending fee stake activation keys mismatch"
+    fee_fields = _fee_state_fields(state)
+    total_claimable = sum(_fee_stake_claimable_e8(fee_fields, pk) for pk in active_stakes)
+    if total_claimable > int(state.staking_zusd_fee_pool_e8):
+        return "staking zUSD fee claimables exceed staking_zusd_fee_pool_e8"
     if state.vault_owner_pubkey is None and (state.core.collateral_e8 > 0 or state.core.debt_e8 > 0):
         return "non-empty vault requires vault_owner_pubkey"
     return None
@@ -666,6 +1183,27 @@ def _raise_if_bad_state(state: ZUSDMonetaryState) -> None:
     err = _state_invariant_error(state)
     if err is not None:
         raise ValueError(err)
+
+
+def _perps_quote_liability_e8(state: DexState, *, zusd_asset: str) -> int:
+    perps = state.perps
+    if perps is None:
+        return 0
+
+    total = 0
+    for market in perps.markets.values():
+        if market.quote_asset != zusd_asset:
+            continue
+        if isinstance(market, PerpMarketState):
+            total += sum(int(account.collateral_quote) for account in market.accounts.values()) * E8
+            total += int(market.global_state.get("fee_pool_quote", 0)) * E8
+            total += int(market.global_state.get("insurance_balance", 0)) * E8
+        elif isinstance(market, (PerpClearinghouse2pMarketState, PerpClearinghouse3pTransferMarketState)):
+            total += int(market.state.get("net_deposited_e8", 0))
+        elif isinstance(market, PerpClearinghouseNpMarketState):
+            total += int(market.global_state.get("net_deposited_e8", 0))
+            total += int(market.global_state.get("insurance_ext_e8", 0))
+    return total
 
 
 def _assert_sp_escrow_matches(
@@ -679,6 +1217,29 @@ def _assert_sp_escrow_matches(
     actual = int(balances.get(sp_pubkey, zusd_asset))
     if actual != expected:
         raise ValueError(f"stability pool escrow mismatch (expected {expected}, got {actual})")
+
+
+def _assert_free_debt_liability_cover(
+    balances: BalanceTable,
+    state: ZUSDMonetaryState,
+    *,
+    zusd_asset: str,
+    sp_pubkey: str,
+    perps_zusd_liability_e8: int,
+) -> None:
+    external_free_e8 = 0
+    for (pubkey, asset), amount in balances.get_all_balances().items():
+        if asset == zusd_asset and pubkey != sp_pubkey:
+            external_free_e8 += int(amount) * E8
+    internal_liabilities_e8 = (
+        int(state.protocol_zusd_fee_reserve_e8)
+        + int(state.staking_zusd_fee_pool_e8)
+        + int(state.host_zusd_fee_pool_e8)
+    )
+    expected = external_free_e8 + perps_zusd_liability_e8 + internal_liabilities_e8
+    actual = int(state.core.free_debt_e8)
+    if actual != expected:
+        raise ValueError(f"free debt liability cover mismatch (expected {expected}, got {actual})")
 
 
 def _allocate_liquidation(

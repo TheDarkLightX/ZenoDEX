@@ -76,10 +76,53 @@ class _CowPairAttempt:
     cur_deb1: int
 
 
+@dataclass(frozen=True)
+class _CowComponent:
+    side_01: List[_CowCandidateExactIn]
+    side_10: List[_CowCandidateExactIn]
+
+
+@dataclass(frozen=True)
+class _CowSenderSlot:
+    candidates: List[_CowCandidateExactIn]
+
+
+@dataclass
+class _CowFlowEdge:
+    to: int
+    rev: int
+    cap: int
+    cost: int
+
+
+@dataclass(frozen=True)
+class _CowComponentStatus:
+    status: str
+    raw_side_01_count: int
+    raw_side_10_count: int
+    pruned_side_01_count: int
+    pruned_side_10_count: int
+    raw_state_estimate: int
+    pruned_state_estimate: int
+    selected_pair_count: int
+    selected_netted_volume: int
+    selected_pair_intent_ids: Tuple[Tuple[str, str], ...]
+    deferred_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class _CowSelectionDiagnostics:
+    pairs: List["_CowPair"]
+    component_statuses: Tuple[_CowComponentStatus, ...]
+
+
 _CowPair = tuple[_CowCandidateExactIn, _CowCandidateExactIn]
 _CowPairSelectionKey = tuple[int, int, Tuple[Tuple[str, str], ...]]
 _COW_BRUTE_FORCE_CAP = 8
 _COW_COUPLED_EXACT_DP_CAP = 14
+_COW_COUPLED_EXACT_DP_STATE_CAP = 65_536
+_COW_ATOMIC_BMATCHING_EDGE_CAP = 512
+_COW_ATOMIC_BMATCHING_FLOW_CAP = 512
 
 
 def _partition_cow_candidates(
@@ -112,17 +155,139 @@ def _select_cow_pairs(
     *,
     context: _CowSelectionContext,
 ) -> List[_CowPair]:
+    return _select_cow_pairs_with_status(side_01, side_10, context=context).pairs
+
+
+def _select_cow_pairs_with_status(
+    side_01: List[_CowCandidateExactIn],
+    side_10: List[_CowCandidateExactIn],
+    *,
+    context: _CowSelectionContext,
+) -> _CowSelectionDiagnostics:
+    raw_side_01_count = len(side_01)
+    raw_side_10_count = len(side_10)
+    raw_state_estimate = _cow_capacity_dp_state_estimate(side_01, side_10)
+    side_01, side_10 = _filter_individually_fundable_cow_candidates(
+        side_01,
+        side_10,
+        context=context,
+    )
+    pruned_side_01_count = len(side_01)
+    pruned_side_10_count = len(side_10)
+    pruned_state_estimate = _cow_capacity_dp_state_estimate(side_01, side_10)
+
+    def diagnostics(
+        pairs: List[_CowPair],
+        status: str,
+        *,
+        deferred_reason: str | None = None,
+    ) -> _CowSelectionDiagnostics:
+        if status.startswith("exact_") and (
+            pruned_side_01_count != raw_side_01_count or pruned_side_10_count != raw_side_10_count
+        ):
+            status = "exact_after_prune_" + status.removeprefix("exact_")
+        return _CowSelectionDiagnostics(
+            pairs=pairs,
+            component_statuses=(
+                _cow_component_status(
+                    status=status,
+                    raw_side_01_count=raw_side_01_count,
+                    raw_side_10_count=raw_side_10_count,
+                    pruned_side_01_count=pruned_side_01_count,
+                    pruned_side_10_count=pruned_side_10_count,
+                    raw_state_estimate=raw_state_estimate,
+                    pruned_state_estimate=pruned_state_estimate,
+                    pairs=pairs,
+                    deferred_reason=deferred_reason,
+                    seed=context.seed,
+                ),
+            ),
+        )
+
+    if not side_01 or not side_10:
+        return diagnostics([], "exact_no_counterparty", deferred_reason="no_opposite_side_candidate")
     if len(side_01) + len(side_10) <= _COW_BRUTE_FORCE_CAP:
-        return _select_cow_pairs_bruteforce(
-            side_01,
-            side_10,
-            context=context,
+        return diagnostics(
+            _select_cow_pairs_bruteforce(
+                side_01,
+                side_10,
+                context=context,
+            ),
+            "exact_bruteforce",
         )
     if _assignment_balance_safe(side_01, side_10, context=context):
-        return _select_cow_pairs_assignment(side_01, side_10, context=context)
-    if len(side_01) + len(side_10) <= _COW_COUPLED_EXACT_DP_CAP:
-        return _select_cow_pairs_capacity_dp(side_01, side_10, context=context)
-    return _select_cow_pairs_greedy(side_01, side_10, context=context)
+        return diagnostics(
+            _select_cow_pairs_assignment(side_01, side_10, context=context),
+            "exact_assignment",
+        )
+    if pruned_state_estimate <= _COW_COUPLED_EXACT_DP_STATE_CAP:
+        return diagnostics(
+            _select_cow_pairs_capacity_dp(side_01, side_10, context=context),
+            "exact_capacity_dp",
+        )
+    return _select_cow_pairs_large_coupled_defer_with_status(
+        side_01,
+        side_10,
+        context=context,
+    )
+
+
+def _cow_component_status(
+    *,
+    status: str,
+    raw_side_01_count: int,
+    raw_side_10_count: int,
+    pruned_side_01_count: int,
+    pruned_side_10_count: int,
+    raw_state_estimate: int,
+    pruned_state_estimate: int,
+    pairs: List[_CowPair],
+    seed: bytes | None,
+    deferred_reason: str | None = None,
+) -> _CowComponentStatus:
+    return _CowComponentStatus(
+        status=status,
+        raw_side_01_count=int(raw_side_01_count),
+        raw_side_10_count=int(raw_side_10_count),
+        pruned_side_01_count=int(pruned_side_01_count),
+        pruned_side_10_count=int(pruned_side_10_count),
+        raw_state_estimate=int(raw_state_estimate),
+        pruned_state_estimate=int(pruned_state_estimate),
+        selected_pair_count=len(pairs),
+        selected_netted_volume=int(_cow_pair_selection_key(pairs, seed=seed)[0]),
+        selected_pair_intent_ids=_selected_pair_intent_ids_from_pairs(pairs),
+        deferred_reason=deferred_reason,
+    )
+
+
+def _selected_pair_intent_ids_from_pairs(
+    pairs: List[_CowPair],
+) -> Tuple[Tuple[str, str], ...]:
+    return tuple(
+        sorted(
+            (
+                x.intent.intent_id,
+                y.intent.intent_id,
+            )
+            for x, y in pairs
+        )
+    )
+
+
+def _filter_individually_fundable_cow_candidates(
+    side_01: List[_CowCandidateExactIn],
+    side_10: List[_CowCandidateExactIn],
+    *,
+    context: _CowSelectionContext,
+) -> tuple[List[_CowCandidateExactIn], List[_CowCandidateExactIn]]:
+    def is_fundable(candidate: _CowCandidateExactIn, asset: AssetId) -> bool:
+        balance = int(context.balances.get(candidate.sender, asset))
+        return int(candidate.amount_in) <= balance
+
+    return (
+        [candidate for candidate in side_01 if is_fundable(candidate, context.asset0)],
+        [candidate for candidate in side_10 if is_fundable(candidate, context.asset1)],
+    )
 
 
 def _candidate_from_intent(intent: Intent, pool_state: PoolState) -> _CowCandidateExactIn | None:
@@ -294,19 +459,602 @@ def _select_cow_pairs_greedy(
     return best_pairs
 
 
+def _select_cow_pairs_large_coupled_defer(
+    side_01: List[_CowCandidateExactIn],
+    side_10: List[_CowCandidateExactIn],
+    *,
+    context: _CowSelectionContext,
+) -> List[_CowPair]:
+    """Solve independent safe components and defer only large coupled components.
+
+    This branch is reached only when the uncoupled Hungarian certificate is
+    inapplicable and the exact coupled-capacity DP cap has been exceeded.
+    A conservative conflict graph lets independent small components still use
+    exact local solving while large coupled components stay on the normal
+    batch-clearing path.
+    """
+    return _select_cow_pairs_large_coupled_defer_with_status(side_01, side_10, context=context).pairs
+
+
+def _select_cow_pairs_large_coupled_defer_with_status(
+    side_01: List[_CowCandidateExactIn],
+    side_10: List[_CowCandidateExactIn],
+    *,
+    context: _CowSelectionContext,
+) -> _CowSelectionDiagnostics:
+    out: List[_CowPair] = []
+    statuses: List[_CowComponentStatus] = []
+    for component in _cow_conflict_components(side_01, side_10, context=context):
+        result = _select_cow_component_pairs_with_status(component, context=context)
+        out.extend(result.pairs)
+        statuses.extend(result.component_statuses)
+    return _CowSelectionDiagnostics(pairs=out, component_statuses=tuple(statuses))
+
+
+def _cow_conflict_components(
+    side_01: List[_CowCandidateExactIn],
+    side_10: List[_CowCandidateExactIn],
+    *,
+    context: _CowSelectionContext,
+) -> List[_CowComponent]:
+    node_count = len(side_01) + len(side_10)
+    parent = list(range(node_count))
+
+    def find(node: int) -> int:
+        while parent[node] != node:
+            parent[node] = parent[parent[node]]
+            node = parent[node]
+        return node
+
+    def union(left: int, right: int) -> None:
+        left_root = find(left)
+        right_root = find(right)
+        if left_root != right_root:
+            parent[right_root] = left_root
+
+    for i, x in enumerate(side_01):
+        for j, y in enumerate(side_10):
+            if _pair_feasible(x, y):
+                union(i, len(side_01) + j)
+
+    _union_capacity_constrained_senders(
+        side_01,
+        asset=context.asset0,
+        balances=context.balances,
+        index_offset=0,
+        union=union,
+    )
+    _union_capacity_constrained_senders(
+        side_10,
+        asset=context.asset1,
+        balances=context.balances,
+        index_offset=len(side_01),
+        union=union,
+    )
+
+    grouped: Dict[int, tuple[List[_CowCandidateExactIn], List[_CowCandidateExactIn]]] = {}
+    for index, candidate in enumerate(side_01):
+        root = find(index)
+        grouped.setdefault(root, ([], []))[0].append(candidate)
+    for index, candidate in enumerate(side_10):
+        root = find(len(side_01) + index)
+        grouped.setdefault(root, ([], []))[1].append(candidate)
+
+    return [
+        _CowComponent(side_01=left, side_10=right)
+        for left, right in grouped.values()
+    ]
+
+
+def _union_capacity_constrained_senders(
+    candidates: List[_CowCandidateExactIn],
+    *,
+    asset: AssetId,
+    balances: BalanceTable,
+    index_offset: int,
+    union: Callable[[int, int], None],
+) -> None:
+    by_sender: Dict[PubKey, List[int]] = defaultdict(list)
+    demand_by_sender: Dict[PubKey, int] = defaultdict(int)
+    for index, candidate in enumerate(candidates):
+        by_sender[candidate.sender].append(index_offset + index)
+        demand_by_sender[candidate.sender] += int(candidate.amount_in)
+
+    for sender, indices in by_sender.items():
+        if len(indices) <= 1:
+            continue
+        if demand_by_sender[sender] <= int(balances.get(sender, asset)):
+            continue
+        first = indices[0]
+        for index in indices[1:]:
+            union(first, index)
+
+
+def _select_cow_component_pairs(
+    component: _CowComponent,
+    *,
+    context: _CowSelectionContext,
+) -> List[_CowPair]:
+    return _select_cow_component_pairs_with_status(component, context=context).pairs
+
+
+def _select_cow_component_pairs_with_status(
+    component: _CowComponent,
+    *,
+    context: _CowSelectionContext,
+) -> _CowSelectionDiagnostics:
+    state_estimate = _cow_capacity_dp_state_estimate(component.side_01, component.side_10)
+
+    def diagnostics(
+        pairs: List[_CowPair],
+        status: str,
+        *,
+        deferred_reason: str | None = None,
+    ) -> _CowSelectionDiagnostics:
+        return _CowSelectionDiagnostics(
+            pairs=pairs,
+            component_statuses=(
+                _cow_component_status(
+                    status=status,
+                    raw_side_01_count=len(component.side_01),
+                    raw_side_10_count=len(component.side_10),
+                    pruned_side_01_count=len(component.side_01),
+                    pruned_side_10_count=len(component.side_10),
+                    raw_state_estimate=state_estimate,
+                    pruned_state_estimate=state_estimate,
+                    pairs=pairs,
+                    deferred_reason=deferred_reason,
+                    seed=context.seed,
+                ),
+            ),
+        )
+
+    if not component.side_01 or not component.side_10:
+        return diagnostics([], "exact_no_counterparty", deferred_reason="no_opposite_side_candidate")
+    if _assignment_balance_safe(component.side_01, component.side_10, context=context):
+        return diagnostics(
+            _select_cow_pairs_assignment(component.side_01, component.side_10, context=context),
+            "exact_assignment",
+        )
+    if state_estimate <= _COW_COUPLED_EXACT_DP_STATE_CAP:
+        return diagnostics(
+            _select_cow_pairs_capacity_dp(component.side_01, component.side_10, context=context),
+            "exact_capacity_dp",
+        )
+    bmatching_pairs = _select_cow_pairs_atomic_bmatching(component, context=context)
+    if bmatching_pairs is not None:
+        return diagnostics(bmatching_pairs, "exact_atomic_bmatching")
+    slot_pairs = _select_cow_pairs_sender_slot_quotient(component, context=context)
+    if slot_pairs is not None:
+        return diagnostics(slot_pairs, "exact_sender_slot_quotient")
+    star_pairs = _select_cow_pairs_single_choice_star(component, context=context)
+    if star_pairs is not None:
+        return diagnostics(star_pairs, "exact_single_choice_star")
+    return diagnostics([], "deferred", deferred_reason="state_cap_exceeded_no_exact_quotient")
+
+
+def _select_cow_pairs_sender_slot_quotient(
+    component: _CowComponent,
+    *,
+    context: _CowSelectionContext,
+) -> List[_CowPair] | None:
+    left_slots = _cow_sender_slots(
+        component.side_01,
+        asset=context.asset0,
+        balances=context.balances,
+    )
+    right_slots = _cow_sender_slots(
+        component.side_10,
+        asset=context.asset1,
+        balances=context.balances,
+    )
+    if left_slots is None or right_slots is None:
+        return None
+    return _select_cow_slot_pairs(
+        component.side_01,
+        component.side_10,
+        left_slots,
+        right_slots,
+        context=context,
+    )
+
+
+def _select_cow_pairs_atomic_bmatching(
+    component: _CowComponent,
+    *,
+    context: _CowSelectionContext,
+) -> List[_CowPair] | None:
+    left_caps = _uniform_sender_row_caps(
+        component.side_01,
+        asset=context.asset0,
+        balances=context.balances,
+    )
+    right_caps = _uniform_sender_row_caps(
+        component.side_10,
+        asset=context.asset1,
+        balances=context.balances,
+    )
+    if left_caps is None or right_caps is None:
+        return None
+    max_pairs = min(
+        len(component.side_01),
+        len(component.side_10),
+        sum(left_caps.values()),
+        sum(right_caps.values()),
+    )
+    if max_pairs <= 0:
+        return []
+    if max_pairs > _COW_ATOMIC_BMATCHING_FLOW_CAP:
+        return None
+    if len(component.side_01) * len(component.side_10) > _COW_ATOMIC_BMATCHING_EDGE_CAP:
+        return None
+
+    feasible_edges = [
+        (i, j)
+        for i, x in enumerate(component.side_01)
+        for j, y in enumerate(component.side_10)
+        if _pair_feasible(x, y)
+    ]
+    if not feasible_edges:
+        return []
+    if len(feasible_edges) > _COW_ATOMIC_BMATCHING_EDGE_CAP:
+        return None
+
+    return _select_cow_pairs_atomic_bmatching_flow(
+        component.side_01,
+        component.side_10,
+        left_caps=left_caps,
+        right_caps=right_caps,
+        feasible_edges=feasible_edges,
+        max_pairs=max_pairs,
+        context=context,
+    )
+
+
+def _uniform_sender_row_caps(
+    candidates: List[_CowCandidateExactIn],
+    *,
+    asset: AssetId,
+    balances: BalanceTable,
+) -> Dict[PubKey, int] | None:
+    by_sender: Dict[PubKey, List[_CowCandidateExactIn]] = defaultdict(list)
+    for candidate in candidates:
+        by_sender[candidate.sender].append(candidate)
+
+    caps: Dict[PubKey, int] = {}
+    for sender, group in by_sender.items():
+        amounts = {int(candidate.amount_in) for candidate in group}
+        if len(amounts) != 1:
+            return None
+        amount = amounts.pop()
+        if amount <= 0:
+            return None
+        caps[sender] = int(balances.get(sender, asset)) // amount
+    return caps
+
+
+def _select_cow_pairs_atomic_bmatching_flow(
+    side_01: List[_CowCandidateExactIn],
+    side_10: List[_CowCandidateExactIn],
+    *,
+    left_caps: Dict[PubKey, int],
+    right_caps: Dict[PubKey, int],
+    feasible_edges: List[tuple[int, int]],
+    max_pairs: int,
+    context: _CowSelectionContext,
+) -> List[_CowPair]:
+    left_senders = tuple(sorted(left_caps))
+    right_senders = tuple(sorted(right_caps))
+    source = 0
+    left_sender_offset = 1
+    left_row_offset = left_sender_offset + len(left_senders)
+    right_row_offset = left_row_offset + len(side_01)
+    right_sender_offset = right_row_offset + len(side_10)
+    sink = right_sender_offset + len(right_senders)
+    graph: List[List[_CowFlowEdge]] = [[] for _ in range(sink + 1)]
+
+    def add_edge(src: int, dst: int, cap: int, cost: int) -> _CowFlowEdge:
+        forward = _CowFlowEdge(to=dst, rev=len(graph[dst]), cap=int(cap), cost=int(cost))
+        reverse = _CowFlowEdge(to=src, rev=len(graph[src]), cap=0, cost=-int(cost))
+        graph[src].append(forward)
+        graph[dst].append(reverse)
+        return forward
+
+    left_sender_index = {sender: index for index, sender in enumerate(left_senders)}
+    right_sender_index = {sender: index for index, sender in enumerate(right_senders)}
+    for sender, index in left_sender_index.items():
+        add_edge(source, left_sender_offset + index, min(int(left_caps[sender]), max_pairs), 0)
+    for sender, index in right_sender_index.items():
+        add_edge(right_sender_offset + index, sink, min(int(right_caps[sender]), max_pairs), 0)
+    for row_index, candidate in enumerate(side_01):
+        sender_node = left_sender_offset + left_sender_index[candidate.sender]
+        add_edge(sender_node, left_row_offset + row_index, 1, 0)
+    for row_index, candidate in enumerate(side_10):
+        sender_node = right_sender_offset + right_sender_index[candidate.sender]
+        add_edge(right_row_offset + row_index, sender_node, 1, 0)
+
+    pair_ranks = _cow_pair_rank_map(side_01, side_10, seed=context.seed)
+    pair_tie_values = _cow_pair_lex_tie_values(pair_ranks, max_pairs=max_pairs)
+    max_tie_bonus = sum(sorted(pair_tie_values.values(), reverse=True)[:max_pairs])
+    max_total_volume = sum(int(candidate.amount_in) for candidate in side_01)
+    max_total_volume += sum(int(candidate.amount_in) for candidate in side_10)
+    tie_scale = max_tie_bonus + 1
+    volume_scale = (max_total_volume + 1) * tie_scale
+
+    pair_edges: List[tuple[int, int, _CowFlowEdge]] = []
+    for left_index, right_index in feasible_edges:
+        x = side_01[left_index]
+        y = side_10[right_index]
+        volume = int(x.amount_in + y.amount_in)
+        surplus = int(y.amount_in - x.min_amount_out + x.amount_in - y.min_amount_out)
+        score = (
+            volume * volume_scale
+            + surplus * tie_scale
+            + int(pair_tie_values[(left_index, right_index)])
+        )
+        edge = add_edge(left_row_offset + left_index, right_row_offset + right_index, 1, score)
+        pair_edges.append((left_index, right_index, edge))
+
+    _augment_positive_score_flow(graph, source, sink, max_pairs=max_pairs)
+    return [
+        (side_01[left_index], side_10[right_index])
+        for left_index, right_index, edge in pair_edges
+        if edge.cap == 0
+    ]
+
+
+def _augment_positive_score_flow(
+    graph: List[List[_CowFlowEdge]],
+    source: int,
+    sink: int,
+    *,
+    max_pairs: int,
+) -> None:
+    for _ in range(max_pairs):
+        parent = _best_positive_score_path(graph, source, sink)
+        if parent is None:
+            return
+        node = sink
+        while node != source:
+            prev_node, edge_index = parent[node]
+            edge = graph[prev_node][edge_index]
+            edge.cap -= 1
+            graph[node][edge.rev].cap += 1
+            node = prev_node
+
+
+def _best_positive_score_path(
+    graph: List[List[_CowFlowEdge]],
+    source: int,
+    sink: int,
+) -> Dict[int, tuple[int, int]] | None:
+    node_count = len(graph)
+    dist: List[int | None] = [None] * node_count
+    parent: Dict[int, tuple[int, int]] = {}
+    dist[source] = 0
+    for _ in range(node_count - 1):
+        changed = False
+        for node, edges in enumerate(graph):
+            if dist[node] is None:
+                continue
+            base = int(dist[node])
+            for edge_index, edge in enumerate(edges):
+                if edge.cap <= 0:
+                    continue
+                candidate = base + int(edge.cost)
+                if dist[edge.to] is None or candidate > int(dist[edge.to]):
+                    dist[edge.to] = candidate
+                    parent[edge.to] = (node, edge_index)
+                    changed = True
+        if not changed:
+            break
+    if dist[sink] is None or int(dist[sink]) <= 0:
+        return None
+    return parent
+
+
+def _cow_sender_slots(
+    candidates: List[_CowCandidateExactIn],
+    *,
+    asset: AssetId,
+    balances: BalanceTable,
+) -> List[_CowSenderSlot] | None:
+    by_sender: Dict[PubKey, List[_CowCandidateExactIn]] = defaultdict(list)
+    for candidate in candidates:
+        by_sender[candidate.sender].append(candidate)
+
+    slots: List[_CowSenderSlot] = []
+    for sender, group in by_sender.items():
+        if len(group) == 1:
+            slots.append(_CowSenderSlot(candidates=list(group)))
+            continue
+        cap = int(balances.get(sender, asset))
+        total = sum(int(candidate.amount_in) for candidate in group)
+        if total <= cap:
+            slots.extend(_CowSenderSlot(candidates=[candidate]) for candidate in group)
+            continue
+        if _is_single_choice_sender_group(group, cap):
+            slots.append(_CowSenderSlot(candidates=list(group)))
+            continue
+        return None
+    return slots
+
+
+def _is_single_choice_sender_group(
+    candidates: List[_CowCandidateExactIn],
+    cap: int,
+) -> bool:
+    if len(candidates) < 2:
+        return False
+    amounts = sorted(int(candidate.amount_in) for candidate in candidates)
+    return amounts[0] + amounts[1] > int(cap)
+
+
+def _select_cow_slot_pairs(
+    side_01: List[_CowCandidateExactIn],
+    side_10: List[_CowCandidateExactIn],
+    left_slots: List[_CowSenderSlot],
+    right_slots: List[_CowSenderSlot],
+    *,
+    context: _CowSelectionContext,
+) -> List[_CowPair]:
+    if not left_slots or not right_slots:
+        return []
+
+    left_index = {id(candidate): index for index, candidate in enumerate(side_01)}
+    right_index = {id(candidate): index for index, candidate in enumerate(side_10)}
+    pair_ranks = _cow_pair_rank_map(side_01, side_10, seed=context.seed)
+    max_pairs = min(len(left_slots), len(right_slots))
+    pair_tie_values = _cow_pair_lex_tie_values(pair_ranks, max_pairs=max_pairs)
+    max_tie_bonus = sum(sorted(pair_tie_values.values(), reverse=True)[:max_pairs])
+    max_total_volume = sum(int(candidate.amount_in) for candidate in side_01)
+    max_total_volume += sum(int(candidate.amount_in) for candidate in side_10)
+    tie_scale = max_tie_bonus + 1
+    volume_scale = (max_total_volume + 1) * tie_scale
+    max_edge_score = max(1, max_total_volume * volume_scale + max_total_volume * tie_scale + max_tie_bonus)
+    impossible_cost = max_edge_score * (len(left_slots) + len(right_slots) + 1)
+
+    size = len(left_slots) + len(right_slots)
+    costs = [[0 for _ in range(size)] for _ in range(size)]
+    slot_pairs: Dict[tuple[int, int], _CowPair] = {}
+    for i, left_slot in enumerate(left_slots):
+        for j, right_slot in enumerate(right_slots):
+            pair, score = _best_cow_slot_edge(
+                left_slot,
+                right_slot,
+                left_index=left_index,
+                right_index=right_index,
+                pair_tie_values=pair_tie_values,
+                volume_scale=volume_scale,
+                tie_scale=tie_scale,
+                context=context,
+            )
+            if pair is None or score is None:
+                costs[i][j] = impossible_cost
+                continue
+            costs[i][j] = -int(score)
+            slot_pairs[(i, j)] = pair
+
+    assignment = _hungarian_min_assignment(costs)
+    pairs: List[_CowPair] = []
+    for i, j in enumerate(assignment[:len(left_slots)]):
+        if 0 <= j < len(right_slots) and costs[i][j] < 0:
+            pairs.append(slot_pairs[(i, j)])
+    return pairs
+
+
+def _best_cow_slot_edge(
+    left_slot: _CowSenderSlot,
+    right_slot: _CowSenderSlot,
+    *,
+    left_index: Dict[int, int],
+    right_index: Dict[int, int],
+    pair_tie_values: Dict[tuple[int, int], int],
+    volume_scale: int,
+    tie_scale: int,
+    context: _CowSelectionContext,
+) -> tuple[_CowPair | None, int | None]:
+    best_pair: _CowPair | None = None
+    best_score: int | None = None
+    for x in left_slot.candidates:
+        if int(x.amount_in) > int(context.balances.get(x.sender, context.asset0)):
+            continue
+        for y in right_slot.candidates:
+            if int(y.amount_in) > int(context.balances.get(y.sender, context.asset1)):
+                continue
+            if not _pair_feasible(x, y):
+                continue
+            pair_index = (left_index[id(x)], right_index[id(y)])
+            volume = int(x.amount_in + y.amount_in)
+            surplus = int(y.amount_in - x.min_amount_out + x.amount_in - y.min_amount_out)
+            tie_bonus = int(pair_tie_values[pair_index])
+            score = volume * volume_scale + surplus * tie_scale + tie_bonus
+            if best_score is None or score > best_score:
+                best_pair = (x, y)
+                best_score = score
+    return best_pair, best_score
+
+
+def _select_cow_pairs_single_choice_star(
+    component: _CowComponent,
+    *,
+    context: _CowSelectionContext,
+) -> List[_CowPair] | None:
+    if _is_single_choice_star(component.side_01, asset=context.asset0, balances=context.balances):
+        return _best_single_cow_pair(component, context=context)
+    if _is_single_choice_star(component.side_10, asset=context.asset1, balances=context.balances):
+        return _best_single_cow_pair(component, context=context)
+    return None
+
+
+def _is_single_choice_star(
+    candidates: List[_CowCandidateExactIn],
+    *,
+    asset: AssetId,
+    balances: BalanceTable,
+) -> bool:
+    if len(candidates) < 2:
+        return False
+    sender = candidates[0].sender
+    if any(candidate.sender != sender for candidate in candidates):
+        return False
+    cap = int(balances.get(sender, asset))
+    smallest = sorted(int(candidate.amount_in) for candidate in candidates)[:2]
+    return len(smallest) == 2 and smallest[0] + smallest[1] > cap
+
+
+def _best_single_cow_pair(
+    component: _CowComponent,
+    *,
+    context: _CowSelectionContext,
+) -> List[_CowPair]:
+    best_pair: _CowPair | None = None
+    best_key: _CowPairSelectionKey | None = None
+    for x in component.side_01:
+        if int(x.amount_in) > int(context.balances.get(x.sender, context.asset0)):
+            continue
+        for y in component.side_10:
+            if int(y.amount_in) > int(context.balances.get(y.sender, context.asset1)):
+                continue
+            if not _pair_feasible(x, y):
+                continue
+            pair = (x, y)
+            key = _cow_pair_selection_key([pair], seed=context.seed)
+            if _is_better_cow_pair_key(key, best_key):
+                best_key = key
+                best_pair = pair
+    return [] if best_pair is None else [best_pair]
+
+
 def _select_cow_pairs_capacity_dp(
     side_01: List[_CowCandidateExactIn],
     side_10: List[_CowCandidateExactIn],
     *,
     context: _CowSelectionContext,
 ) -> List[_CowPair]:
-    """Exact bounded DP for CoW matching with per-sender capacity coupling.
+    """Exact bounded DP for CoW matching with per-sender capacity coupling."""
+    if len(side_10) <= len(side_01):
+        return _select_cow_pairs_capacity_dp_left_prefix(side_01, side_10, context=context)
+    return _select_cow_pairs_capacity_dp_right_prefix(side_01, side_10, context=context)
 
-    State is the processed left prefix, used right-side mask, and aggregate
-    debits per sender/asset. This preserves the brute-force objective while
-    avoiding permutation-style repeated exploration on the coupled fallback
-    surface.
-    """
+
+def _cow_capacity_dp_state_estimate(
+    side_01: List[_CowCandidateExactIn],
+    side_10: List[_CowCandidateExactIn],
+) -> int:
+    """Conservative orientation-aware lower estimate for exact DP state count."""
+    masked_len = min(len(side_01), len(side_10))
+    processed_len = max(len(side_01), len(side_10))
+    return (processed_len + 1) * (1 << masked_len)
+
+
+def _select_cow_pairs_capacity_dp_left_prefix(
+    side_01: List[_CowCandidateExactIn],
+    side_10: List[_CowCandidateExactIn],
+    *,
+    context: _CowSelectionContext,
+) -> List[_CowPair]:
+    """Exact DP with a processed left prefix and used-right mask."""
     if not side_01 or not side_10:
         return []
     senders0 = tuple(sorted({candidate.sender for candidate in side_01}))
@@ -375,6 +1123,87 @@ def _select_cow_pairs_capacity_dp(
     return _pairs_from_indices(index_pairs)
 
 
+def _select_cow_pairs_capacity_dp_right_prefix(
+    side_01: List[_CowCandidateExactIn],
+    side_10: List[_CowCandidateExactIn],
+    *,
+    context: _CowSelectionContext,
+) -> List[_CowPair]:
+    """Exact DP with a processed right prefix and used-left mask.
+
+    This is the same objective and feasibility relation as the left-prefix DP,
+    but it masks the smaller side when the left side is smaller. That turns
+    large one-sided multi-choice components from a count-cap defer into an exact
+    state-gated solve.
+    """
+    if not side_01 or not side_10:
+        return []
+    senders0 = tuple(sorted({candidate.sender for candidate in side_01}))
+    senders1 = tuple(sorted({candidate.sender for candidate in side_10}))
+    sender0_index = {sender: idx for idx, sender in enumerate(senders0)}
+    sender1_index = {sender: idx for idx, sender in enumerate(senders1)}
+    caps0 = tuple(int(context.balances.get(sender, context.asset0)) for sender in senders0)
+    caps1 = tuple(int(context.balances.get(sender, context.asset1)) for sender in senders1)
+
+    def _pairs_from_indices(index_pairs: tuple[tuple[int, int], ...]) -> List[_CowPair]:
+        return [(side_01[i], side_10[j]) for i, j in index_pairs]
+
+    def _is_better_index_pairs(
+        candidate: tuple[tuple[int, int], ...],
+        best: tuple[tuple[int, int], ...],
+    ) -> bool:
+        return _is_better_cow_pair_key(
+            _cow_pair_selection_key(_pairs_from_indices(candidate), seed=context.seed),
+            _cow_pair_selection_key(_pairs_from_indices(best), seed=context.seed),
+        )
+
+    @lru_cache(maxsize=None)
+    def rec(
+        side10_index: int,
+        used_side01_mask: int,
+        debits0: tuple[int, ...],
+        debits1: tuple[int, ...],
+    ) -> tuple[tuple[int, int], ...]:
+        if side10_index >= len(side_10):
+            return ()
+
+        best = rec(side10_index + 1, used_side01_mask, debits0, debits1)
+        y = side_10[side10_index]
+        y_sender_index = sender1_index[y.sender]
+        next_y_debit = int(debits1[y_sender_index]) + int(y.amount_in)
+        if next_y_debit > int(caps1[y_sender_index]):
+            return best
+
+        for side01_index, x in enumerate(side_01):
+            if used_side01_mask & (1 << side01_index):
+                continue
+            if not _pair_feasible(x, y):
+                continue
+            x_sender_index = sender0_index[x.sender]
+            next_x_debit = int(debits0[x_sender_index]) + int(x.amount_in)
+            if next_x_debit > int(caps0[x_sender_index]):
+                continue
+            next_debits0 = list(debits0)
+            next_debits1 = list(debits1)
+            next_debits0[x_sender_index] = next_x_debit
+            next_debits1[y_sender_index] = next_y_debit
+            candidate = (
+                (side01_index, side10_index),
+                *rec(
+                    side10_index + 1,
+                    used_side01_mask | (1 << side01_index),
+                    tuple(next_debits0),
+                    tuple(next_debits1),
+                ),
+            )
+            if _is_better_index_pairs(candidate, best):
+                best = candidate
+        return best
+
+    index_pairs = rec(0, 0, tuple(0 for _ in senders0), tuple(0 for _ in senders1))
+    return _pairs_from_indices(index_pairs)
+
+
 def _assignment_balance_safe(
     side_01: List[_CowCandidateExactIn],
     side_10: List[_CowCandidateExactIn],
@@ -383,10 +1212,11 @@ def _assignment_balance_safe(
 ) -> bool:
     """Return True when candidate matching cannot violate aggregate balances.
 
-    The CoW pair graph is a pure bipartite matching problem only when selecting
-    every candidate from a sender would still fit that sender's balance. If a
-    sender is capacity-coupled across multiple intents, the problem includes a
-    knapsack-style side constraint and must stay on the fail-closed greedy path.
+    The CoW pair graph is an ordinary bipartite matching problem only when
+    selecting every candidate from a sender would still fit that sender's
+    balance. If a sender is capacity-coupled across multiple intents, the
+    problem includes a knapsack-style side constraint and must stay on exact DP
+    or fail-closed defer.
     """
     debits_asset0: Dict[PubKey, int] = defaultdict(int)
     debits_asset1: Dict[PubKey, int] = defaultdict(int)

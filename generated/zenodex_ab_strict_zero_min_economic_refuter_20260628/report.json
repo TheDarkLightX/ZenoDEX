@@ -23,7 +23,7 @@
     "brute_mismatch_count": 0,
     "case_count": 600,
     "descending_amount_greedy_failure_count": 161,
-    "elapsed_ms": 10873.921,
+    "elapsed_ms": 11010.983,
     "first_ascending_amount_greedy_failure": {
       "amounts": [
         21,

@@ -46,6 +46,12 @@ from .perps_np_validation import (
 # Kernel value domain (mirrors the YAML spec / generated refs): bool | int | str
 Value = bool | int | str
 
+MAX_PENDING_FUNDING_CLOSEOUT_ROOT_HASHES = 64
+MAX_FUNDING_CLOSEOUT_SINK_CLAIMANT_BALANCES = 128
+MAX_FUNDING_CLOSEOUT_RECEIVER_CLAIM_BALANCES = 128
+MAX_FUNDING_CLOSEOUT_RECEIVER_CLAIM_LOTS = 256
+FUNDING_CLOSEOUT_RECEIVER_CLAIM_NO_EXPIRY_EPOCH = 2**63 - 1
+
 
 PERPS_STATE_VERSION_V4 = 4
 PERPS_STATE_VERSION_V5 = 5
@@ -74,6 +80,206 @@ def _is_zero_one_int(value: object) -> bool:
 
 def _is_non_empty_str(value: object) -> bool:
     return isinstance(value, str) and bool(value)
+
+
+def _is_sha256_hash(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    if not value.startswith("sha256:") or len(value) != len("sha256:") + 64:
+        return False
+    suffix = value[len("sha256:") :]
+    return suffix.lower() == suffix and all(ch in "0123456789abcdef" for ch in suffix)
+
+
+def _normalize_pending_funding_closeout_root_hashes(value: object) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, tuple):
+        raise TypeError("pending_funding_closeout_root_hashes must be a tuple")
+    if len(value) > MAX_PENDING_FUNDING_CLOSEOUT_ROOT_HASHES:
+        raise ValueError("too many pending funding closeout root hashes")
+    roots: list[str] = []
+    for root_hash in value:
+        if not _is_sha256_hash(root_hash):
+            raise ValueError("pending funding closeout root hash must be sha256:<64 lowercase hex chars>")
+        roots.append(str(root_hash))
+    return tuple(sorted(set(roots)))
+
+
+def _normalize_pending_funding_closeout_source_availability_hashes(
+    value: object,
+) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, tuple):
+        raise TypeError("pending_funding_closeout_source_availability_hashes must be a tuple")
+    if len(value) > MAX_PENDING_FUNDING_CLOSEOUT_ROOT_HASHES:
+        raise ValueError("too many pending funding closeout source availability hashes")
+    roots: list[str] = []
+    for root_hash in value:
+        if not _is_sha256_hash(root_hash):
+            raise ValueError(
+                "pending funding closeout source availability hash must be sha256:<64 lowercase hex chars>"
+            )
+        roots.append(str(root_hash))
+    return tuple(sorted(set(roots)))
+
+
+def _normalize_pending_funding_closeout_carried_liability_hashes(
+    value: object,
+) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, tuple):
+        raise TypeError("pending_funding_closeout_carried_liability_hashes must be a tuple")
+    if len(value) > MAX_PENDING_FUNDING_CLOSEOUT_ROOT_HASHES:
+        raise ValueError("too many pending funding closeout carried liability hashes")
+    roots: list[str] = []
+    for root_hash in value:
+        if not _is_sha256_hash(root_hash):
+            raise ValueError(
+                "pending funding closeout carried liability hash must be sha256:<64 lowercase hex chars>"
+            )
+        roots.append(str(root_hash))
+    return tuple(sorted(set(roots)))
+
+
+def _normalize_funding_closeout_policy_ledger_hashes(
+    value: object,
+) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, tuple):
+        raise TypeError("funding_closeout_policy_ledger_hashes must be a tuple")
+    if len(value) > MAX_PENDING_FUNDING_CLOSEOUT_ROOT_HASHES:
+        raise ValueError("too many funding closeout policy ledger hashes")
+    roots: list[str] = []
+    for root_hash in value:
+        if not _is_sha256_hash(root_hash):
+            raise ValueError(
+                "funding closeout policy ledger hash must be sha256:<64 lowercase hex chars>"
+            )
+        roots.append(str(root_hash))
+    return tuple(sorted(set(roots)))
+
+
+def _normalize_funding_closeout_sink_claimant_balances(
+    value: object,
+) -> tuple[tuple[str, int], ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, tuple):
+        raise TypeError("funding_closeout_sink_claimant_balances_quote must be a tuple")
+    if len(value) > MAX_FUNDING_CLOSEOUT_SINK_CLAIMANT_BALANCES:
+        raise ValueError("too many funding closeout sink claimant balances")
+    balances: list[tuple[str, int]] = []
+    seen: set[str] = set()
+    for row in value:
+        if not isinstance(row, tuple) or len(row) != 2:
+            raise TypeError("funding closeout sink claimant balance row must be a pair")
+        claimant, balance_quote = row
+        if not _is_non_empty_str(claimant):
+            raise TypeError("funding closeout sink claimant must be a non-empty string")
+        if len(str(claimant)) > 256:
+            raise ValueError("funding closeout sink claimant too large")
+        if claimant in seen:
+            raise ValueError("duplicate funding closeout sink claimant balance")
+        if not _is_non_bool_int(balance_quote):
+            raise TypeError("funding closeout sink claimant balance must be an int")
+        if int(balance_quote) <= 0:
+            raise ValueError("funding closeout sink claimant balance must be positive")
+        seen.add(str(claimant))
+        balances.append((str(claimant), int(balance_quote)))
+    return tuple(sorted(balances, key=lambda item: item[0]))
+
+
+def _normalize_funding_closeout_receiver_claim_balances(
+    value: object,
+) -> tuple[tuple[str, int], ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, tuple):
+        raise TypeError("funding_closeout_receiver_claim_balances_quote must be a tuple")
+    if len(value) > MAX_FUNDING_CLOSEOUT_RECEIVER_CLAIM_BALANCES:
+        raise ValueError("too many funding closeout receiver claim balances")
+    balances: list[tuple[str, int]] = []
+    seen: set[str] = set()
+    for row in value:
+        if not isinstance(row, tuple) or len(row) != 2:
+            raise TypeError("funding closeout receiver claim balance row must be a pair")
+        account_pubkey, balance_quote = row
+        if not _is_non_empty_str(account_pubkey):
+            raise TypeError("funding closeout receiver claim account must be a non-empty string")
+        if len(str(account_pubkey)) > 512:
+            raise ValueError("funding closeout receiver claim account too large")
+        if account_pubkey in seen:
+            raise ValueError("duplicate funding closeout receiver claim balance")
+        if not _is_non_bool_int(balance_quote):
+            raise TypeError("funding closeout receiver claim balance must be an int")
+        if int(balance_quote) <= 0:
+            raise ValueError("funding closeout receiver claim balance must be positive")
+        seen.add(str(account_pubkey))
+        balances.append((str(account_pubkey), int(balance_quote)))
+    return tuple(sorted(balances, key=lambda item: item[0]))
+
+
+def _normalize_funding_closeout_receiver_claim_lots(
+    value: object,
+) -> tuple[tuple[str, str, int, int], ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, tuple):
+        raise TypeError("funding_closeout_receiver_claim_lots_quote must be a tuple")
+    if len(value) > MAX_FUNDING_CLOSEOUT_RECEIVER_CLAIM_LOTS:
+        raise ValueError("too many funding closeout receiver claim lots")
+    lots: list[tuple[str, str, int, int]] = []
+    seen: set[tuple[str, str]] = set()
+    for row in value:
+        if not isinstance(row, tuple) or len(row) != 4:
+            raise TypeError("funding closeout receiver claim lot row must be a 4-tuple")
+        account_pubkey, lot_id, balance_quote, expires_at_epoch = row
+        if not _is_non_empty_str(account_pubkey):
+            raise TypeError("funding closeout receiver claim lot account must be a non-empty string")
+        if len(str(account_pubkey)) > 512:
+            raise ValueError("funding closeout receiver claim lot account too large")
+        if not _is_non_empty_str(lot_id):
+            raise TypeError("funding closeout receiver claim lot_id must be a non-empty string")
+        if len(str(lot_id)) > 256:
+            raise ValueError("funding closeout receiver claim lot_id too large")
+        key = (str(account_pubkey), str(lot_id))
+        if key in seen:
+            raise ValueError("duplicate funding closeout receiver claim lot")
+        if not _is_non_bool_int(balance_quote):
+            raise TypeError("funding closeout receiver claim lot balance must be an int")
+        if int(balance_quote) <= 0:
+            raise ValueError("funding closeout receiver claim lot balance must be positive")
+        if not _is_non_bool_int(expires_at_epoch):
+            raise TypeError("funding closeout receiver claim lot expiry must be an int")
+        if int(expires_at_epoch) < 0:
+            raise ValueError("funding closeout receiver claim lot expiry must be non-negative")
+        seen.add(key)
+        lots.append(
+            (
+                str(account_pubkey),
+                str(lot_id),
+                int(balance_quote),
+                int(expires_at_epoch),
+            )
+        )
+    return tuple(sorted(lots, key=lambda item: (item[0], item[3], item[1])))
+
+
+def funding_closeout_receiver_claim_balances_from_lots(
+    lots: tuple[tuple[str, str, int, int], ...],
+) -> tuple[tuple[str, int], ...]:
+    balances: dict[str, int] = {}
+    for account_pubkey, _lot_id, balance_quote, _expires_at_epoch in lots:
+        balances[str(account_pubkey)] = (
+            int(balances.get(str(account_pubkey), 0)) + int(balance_quote)
+        )
+    if len(balances) > MAX_FUNDING_CLOSEOUT_RECEIVER_CLAIM_BALANCES:
+        raise ValueError("too many funding closeout receiver claim balance accounts")
+    return tuple(sorted((key, value) for key, value in balances.items() if value > 0))
 
 
 def _infer_epoch_phase(gs: dict) -> int:
@@ -261,6 +467,13 @@ class PerpMarketState:
     global_state: Dict[str, Value]
     accounts: Dict[str, PerpAccountState]
     kind: Literal["isolated_v2"] = PERP_MARKET_KIND_ISOLATED_V2
+    pending_funding_closeout_root_hashes: tuple[str, ...] = ()
+    pending_funding_closeout_source_availability_hashes: tuple[str, ...] = ()
+    pending_funding_closeout_carried_liability_hashes: tuple[str, ...] = ()
+    funding_closeout_policy_ledger_hashes: tuple[str, ...] = ()
+    funding_closeout_sink_claimant_balances_quote: tuple[tuple[str, int], ...] = ()
+    funding_closeout_receiver_claim_balances_quote: tuple[tuple[str, int], ...] = ()
+    funding_closeout_receiver_claim_lots_quote: tuple[tuple[str, str, int, int], ...] = ()
 
     def __post_init__(self) -> None:
         _validate_isolated_market_header(
@@ -273,7 +486,71 @@ class PerpMarketState:
         _validate_isolated_global_keys(self.global_state)
         _normalize_isolated_epoch_phase(self.global_state)
         _normalize_isolated_global_values(self.global_state)
+        object.__setattr__(
+            self,
+            "pending_funding_closeout_root_hashes",
+            _normalize_pending_funding_closeout_root_hashes(
+                self.pending_funding_closeout_root_hashes,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "pending_funding_closeout_source_availability_hashes",
+            _normalize_pending_funding_closeout_source_availability_hashes(
+                self.pending_funding_closeout_source_availability_hashes,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "pending_funding_closeout_carried_liability_hashes",
+            _normalize_pending_funding_closeout_carried_liability_hashes(
+                self.pending_funding_closeout_carried_liability_hashes,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "funding_closeout_policy_ledger_hashes",
+            _normalize_funding_closeout_policy_ledger_hashes(
+                self.funding_closeout_policy_ledger_hashes,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "funding_closeout_sink_claimant_balances_quote",
+            _normalize_funding_closeout_sink_claimant_balances(
+                self.funding_closeout_sink_claimant_balances_quote,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "funding_closeout_receiver_claim_lots_quote",
+            _normalize_funding_closeout_receiver_claim_lots(
+                self.funding_closeout_receiver_claim_lots_quote,
+            ),
+        )
+        normalized_receiver_claim_balances = (
+            _normalize_funding_closeout_receiver_claim_balances(
+                self.funding_closeout_receiver_claim_balances_quote
+            )
+        )
+        if self.funding_closeout_receiver_claim_lots_quote:
+            lot_projection = funding_closeout_receiver_claim_balances_from_lots(
+                self.funding_closeout_receiver_claim_lots_quote
+            )
+            if normalized_receiver_claim_balances and (
+                normalized_receiver_claim_balances != lot_projection
+            ):
+                raise ValueError(
+                    "funding closeout receiver claim balance projection mismatch"
+                )
+            normalized_receiver_claim_balances = lot_projection
+        object.__setattr__(
+            self,
+            "funding_closeout_receiver_claim_balances_quote",
+            normalized_receiver_claim_balances,
+        )
         self._validate_isolated_state_consistency()
+        self._validate_funding_closeout_sink_claimant_balances()
 
     def _validate_isolated_state_consistency(self) -> None:
         """Validate consensus-critical invariants on the persistent isolated-market state.
@@ -286,6 +563,22 @@ class PerpMarketState:
             accounts=self.accounts,
             epoch_phase_int_to_str=_EPOCH_PHASE_INT_TO_STR,
         )
+
+    def _validate_funding_closeout_sink_claimant_balances(self) -> None:
+        total = sum(
+            balance_quote
+            for _, balance_quote in self.funding_closeout_sink_claimant_balances_quote
+        )
+        if total == 0:
+            return
+        for key in ("fee_pool_quote", "fee_income", "insurance_balance"):
+            value = self.global_state.get(key)
+            if not _is_non_bool_int(value):
+                raise TypeError(f"global_state[{key!r}] must be an int")
+            if total > int(value):
+                raise ValueError(
+                    "funding closeout sink claimant balances exceed aggregate sink balance"
+                )
 
     def kernel_state_for_account(self, account: PerpAccountState) -> dict[str, Value]:
         # Merge global + account state into a single kernel state dict.

@@ -41,10 +41,11 @@ use tau_state_proof_risc0_shared::{
     PROOF_TYPE_PERPS_NP, PROOF_TYPE_RECURSIVE, PROOF_TYPE_RECURSIVE_PERPS_NP_LEAF,
     PROOF_TYPE_RECURSIVE_SPOT_LEAF, PROOF_TYPE_RECURSIVE_SUMMARY_LEAF,
     PROOF_TYPE_RECURSIVE_ZUSD_LEAF, PROOF_TYPE_ZUSD, RECURSIVE_DOMAIN_SEPARATOR_V1,
-    RECURSIVE_PERPS_NP_LEAF_MAX_INPUT_BYTES, RECURSIVE_PERPS_NP_LEAF_PROFILE_V1,
-    RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES, RECURSIVE_SPOT_LEAF_PROFILE_V1,
-    RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES, RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1,
-    RECURSIVE_ZUSD_LEAF_MAX_INPUT_BYTES, RECURSIVE_ZUSD_LEAF_PROFILE_V1,
+    RECURSIVE_EPOCH_PROFILE_V1, RECURSIVE_PERPS_NP_LEAF_MAX_INPUT_BYTES,
+    RECURSIVE_PERPS_NP_LEAF_PROFILE_V1, RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES,
+    RECURSIVE_SPOT_LEAF_PROFILE_V1, RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES,
+    RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1, RECURSIVE_ZUSD_LEAF_MAX_INPUT_BYTES,
+    RECURSIVE_ZUSD_LEAF_PROFILE_V1,
 };
 
 #[derive(Clone, Copy)]
@@ -1123,11 +1124,24 @@ fn try_verify_recursive(
     if journal.domain_separator != RECURSIVE_DOMAIN_SEPARATOR_V1 {
         return Err("journal domain_separator mismatch".into());
     }
+    if journal.proof_profile != RECURSIVE_EPOCH_PROFILE_V1 {
+        return Err("journal proof_profile mismatch".into());
+    }
     if journal.post_state_root != expected_state_hash {
         return Err("journal.post_state_root mismatch".into());
     }
+    expect_meta_str(proof, "proof_type", PROOF_TYPE_RECURSIVE)?;
+    expect_meta_str(proof, "domain_separator", RECURSIVE_DOMAIN_SEPARATOR_V1)?;
+    expect_meta_str(proof, "chain_id", &journal.chain_id)?;
+    expect_meta_u64(proof, "epoch_id", journal.epoch_id)?;
+    expect_meta_str(proof, "proof_profile", RECURSIVE_EPOCH_PROFILE_V1)?;
     expect_meta_hash(proof, "statement_hash", journal.statement_hash)?;
     expect_meta_hash(proof, "verifier_set_root", journal.verifier_set_root)?;
+    expect_meta_hash(
+        proof,
+        "allowed_authority_roots_root",
+        journal.allowed_authority_roots_root,
+    )?;
     expect_meta_hash(
         proof,
         "child_verification_claims_root",
@@ -1138,6 +1152,22 @@ fn try_verify_recursive(
         proof,
         "child_effect_summaries_root",
         journal.child_effect_summaries_root,
+    )?;
+    expect_meta_u64(proof, "child_count", journal.child_count as u64)?;
+    expect_meta_hash(proof, "pre_state_root", journal.pre_state_root)?;
+    expect_meta_hash(proof, "post_state_root", journal.post_state_root)?;
+    expect_meta_hash(proof, "tx_root", journal.tx_root)?;
+    expect_meta_hash(proof, "evidence_root", journal.evidence_root)?;
+    expect_meta_hash(proof, "receipt_root", journal.receipt_root)?;
+    expect_meta_hash(
+        proof,
+        "accepted_receipts_root",
+        journal.accepted_receipts_root,
+    )?;
+    expect_meta_hash(
+        proof,
+        "rejected_receipts_root",
+        journal.rejected_receipts_root,
     )?;
     expect_meta_hash(
         proof,
@@ -1154,11 +1184,26 @@ fn try_verify_recursive(
         "cross_shard_inbox_root",
         journal.cross_shard_inbox_root,
     )?;
+    expect_meta_hash(proof, "carry_queue_pre_root", journal.carry_queue_pre_root)?;
+    expect_meta_hash(
+        proof,
+        "carry_queue_post_root",
+        journal.carry_queue_post_root,
+    )?;
+    expect_meta_hash(
+        proof,
+        "conflict_schedule_hash",
+        journal.conflict_schedule_hash,
+    )?;
     expect_meta_hash(
         proof,
         "data_availability_root",
         journal.data_availability_root,
     )?;
+    expect_meta_hash(proof, "public_policy_hash", journal.public_policy_hash)?;
+    expect_meta_hash(proof, "feature_suite_hash", journal.feature_suite_hash)?;
+    expect_meta_hash(proof, "dependency_lock_hash", journal.dependency_lock_hash)?;
+    expect_meta_hash(proof, "toolchain_lock_hash", journal.toolchain_lock_hash)?;
     Ok(())
 }
 
@@ -2878,6 +2923,30 @@ fn expect_meta_hash(proof: &Value, key: &str, expected: [u8; 32]) -> Result<(), 
     Ok(())
 }
 
+fn expect_meta_str(proof: &Value, key: &str, expected: &str) -> Result<(), String> {
+    let meta = proof_meta_obj(proof)?;
+    let actual = meta
+        .get(key)
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("proof.meta.{key} missing"))?;
+    if actual != expected {
+        return Err(format!("proof.meta.{key} mismatch"));
+    }
+    Ok(())
+}
+
+fn expect_meta_u64(proof: &Value, key: &str, expected: u64) -> Result<(), String> {
+    let meta = proof_meta_obj(proof)?;
+    let actual = meta
+        .get(key)
+        .and_then(Value::as_u64)
+        .ok_or_else(|| format!("proof.meta.{key} missing"))?;
+    if actual != expected {
+        return Err(format!("proof.meta.{key} mismatch"));
+    }
+    Ok(())
+}
+
 fn expect_meta_pre_hash(proof: &Value, present: bool, expected: [u8; 32]) -> Result<(), String> {
     let meta = proof_meta_obj(proof)?;
     let actual = meta
@@ -3659,8 +3728,9 @@ mod tests {
         recursive_effect_summary_hash_v1, recursive_receipt_ids_root_v1, recursive_vector_root_v1,
         recursive_verifier_set_root_v1, RecursiveAssetDeltaRowV1, RecursiveChildDescriptorV1,
         RecursiveChildEffectV1, RecursiveCrossShardMessageV1, RecursiveEffectSummaryV1,
-        RECURSIVE_EFFECT_SUMMARY_VERSION_V1, RECURSIVE_SPOT_LEAF_PROFILE_V1,
-        RECURSIVE_STATEMENT_VERSION_V1, RECURSIVE_STRICT_CROSS_SHARD_MODE_V1,
+        RECURSIVE_EFFECT_SUMMARY_VERSION_V1, RECURSIVE_EPOCH_PROFILE_V1,
+        RECURSIVE_SPOT_LEAF_PROFILE_V1, RECURSIVE_STATEMENT_VERSION_V1,
+        RECURSIVE_STRICT_CROSS_SHARD_MODE_V1,
     };
 
     fn h(byte: u8) -> [u8; 32] {
@@ -3804,7 +3874,7 @@ mod tests {
                 schema_version: RECURSIVE_STATEMENT_VERSION_V1,
                 chain_id: "tau-test".to_string(),
                 epoch_id: 7,
-                proof_profile: "recursive_block_v1".to_string(),
+                proof_profile: RECURSIVE_EPOCH_PROFILE_V1.to_string(),
                 verifier_set_root: recursive_verifier_set_root_v1(&verifier_ids).unwrap(),
                 allowed_authority_roots_root: recursive_authority_set_root_v1(&authority_roots)
                     .unwrap(),
@@ -3915,6 +3985,10 @@ mod tests {
         let journal = compose_recursive_epoch_journal_v1(&input).unwrap();
         let meta = recursive_meta(&journal);
         assert_eq!(
+            meta["proof_profile"],
+            Value::String(RECURSIVE_EPOCH_PROFILE_V1.to_string())
+        );
+        assert_eq!(
             meta["child_verification_claims_root"],
             Value::String(hex_lower(&journal.child_verification_claims_root))
         );
@@ -3925,6 +3999,34 @@ mod tests {
         assert_eq!(
             meta["child_effect_summaries_root"],
             Value::String(hex_lower(&journal.child_effect_summaries_root))
+        );
+        assert_eq!(
+            meta["allowed_authority_roots_root"],
+            Value::String(hex_lower(&journal.allowed_authority_roots_root))
+        );
+        assert_eq!(
+            meta["accepted_receipts_root"],
+            Value::String(hex_lower(&journal.accepted_receipts_root))
+        );
+        assert_eq!(
+            meta["rejected_receipts_root"],
+            Value::String(hex_lower(&journal.rejected_receipts_root))
+        );
+        assert_eq!(
+            meta["carry_queue_pre_root"],
+            Value::String(hex_lower(&journal.carry_queue_pre_root))
+        );
+        assert_eq!(
+            meta["carry_queue_post_root"],
+            Value::String(hex_lower(&journal.carry_queue_post_root))
+        );
+        assert_eq!(
+            meta["dependency_lock_hash"],
+            Value::String(hex_lower(&journal.dependency_lock_hash))
+        );
+        assert_eq!(
+            meta["toolchain_lock_hash"],
+            Value::String(hex_lower(&journal.toolchain_lock_hash))
         );
     }
 

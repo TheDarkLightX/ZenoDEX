@@ -15,6 +15,43 @@ DEFAULT_PROFILE_DIR = ROOT / "config" / "deploy"
 SCHEMA = "zenodex/deployment_profile/v1"
 REPORT_SCHEMA = "zenodex/deployment_profiles_report/v1"
 REQUIRED_PROFILES = ("local-dev", "public-testnet", "production-strict")
+PRODUCTION_RUNTIME_POLICY: dict[str, bool] = {
+    "allow_path_lookup": False,
+    "plaintext_fixture_keys_allowed": False,
+    "local_only_routes_allowed": False,
+    "proof_mining_payout_template_enabled": False,
+    "env_config_file_allowlist_required": True,
+    "dependency_sbom_required": True,
+    "secret_scan_required": True,
+    "external_static_analysis_required_in_ci": True,
+}
+PRODUCTION_KEY_POLICY: dict[str, bool] = {
+    "raw_private_key_flags_allowed": False,
+    "production_key_receipts_required": True,
+    "browser_key_generation_allowed": False,
+    "external_signer_required": True,
+    "signer_user_approval_required": True,
+}
+STRICT_PERPS_POLICY: dict[str, bool] = {
+    "isolated_partial_liquidate_tau_source_binding_required": True,
+    "isolated_partial_liquidate_tau_source_state_root_binding_required": True,
+    "isolated_partial_liquidate_tau_source_membership_proof_required": True,
+    "isolated_partial_liquidate_tau_source_root_authority_required": True,
+    "isolated_partial_liquidate_tau_source_admission_envelope_required": True,
+    "isolated_partial_liquidate_tau_source_authority_policy_receipt_required": True,
+    "isolated_partial_liquidate_tau_source_authority_policy_receipt_verifier_required": True,
+    "isolated_partial_liquidate_tau_source_authority_policy_receipt_verifier_sha256_required": True,
+    "isolated_partial_liquidate_tau_source_authority_policy_receipt_verifier_build_receipt_required": True,
+    "isolated_partial_liquidate_tau_source_authority_policy_receipt_verifier_build_receipt_signature_required": True,
+    "isolated_partial_liquidate_tau_source_authority_policy_receipt_verifier_release_bundle_required": True,
+    "isolated_partial_liquidate_tau_source_authority_policy_receipt_verifier_release_registry_required": True,
+}
+STRICT_SPOT_POLICY: dict[str, bool] = {
+    "route_price_interval_trusted_policy_root_required": True,
+    "route_price_interval_trusted_policy_root_bundle_required": True,
+    "route_price_interval_trusted_policy_root_bundle_quorum_required": True,
+    "route_price_interval_max_width_bps_required": True,
+}
 
 
 def _mapping(value: Any, name: str, errors: list[str]) -> Mapping[str, Any]:
@@ -47,21 +84,38 @@ def validate_deployment_profile(profile: Any) -> dict[str, Any]:
     if not isinstance(routes, list) or not routes or not all(isinstance(item, str) and item for item in routes):
         errors.append("allowed_routes must be a non-empty string list")
 
-    for key in ("required_auth", "key_policy", "proof_policy", "peer_policy", "gossip_policy", "observability_policy"):
+    for key in (
+        "required_auth",
+        "key_policy",
+        "proof_policy",
+        "spot_policy",
+        "runtime_policy",
+        "perps_policy",
+        "peer_policy",
+        "gossip_policy",
+        "observability_policy",
+    ):
         _mapping(obj.get(key), key, errors)
 
     key_policy = _mapping(obj.get("key_policy"), "key_policy", errors)
     proof_policy = _mapping(obj.get("proof_policy"), "proof_policy", errors)
+    spot_policy = _mapping(obj.get("spot_policy"), "spot_policy", errors)
+    runtime_policy = _mapping(obj.get("runtime_policy"), "runtime_policy", errors)
+    perps_policy = _mapping(obj.get("perps_policy"), "perps_policy", errors)
     peer_policy = _mapping(obj.get("peer_policy"), "peer_policy", errors)
     gossip_policy = _mapping(obj.get("gossip_policy"), "gossip_policy", errors)
     observability_policy = _mapping(obj.get("observability_policy"), "observability_policy", errors)
 
     raw_keys = _require_bool(key_policy, "raw_private_key_flags_allowed", errors, "key_policy")
-    key_receipts = _require_bool(key_policy, "production_key_receipts_required", errors, "key_policy")
+    _require_bool(key_policy, "production_key_receipts_required", errors, "key_policy")
+    browser_keygen = _require_bool(key_policy, "browser_key_generation_allowed", errors, "key_policy")
     proof_required = _require_bool(proof_policy, "proof_metadata_required", errors, "proof_policy")
     dynamic_peer_cap = _require_bool(peer_policy, "dynamic_peer_cap_required", errors, "peer_policy")
     transport_auth = _require_bool(gossip_policy, "transport_auth_required", errors, "gossip_policy")
     metrics_required = _require_bool(observability_policy, "metrics_required", errors, "observability_policy")
+    runtime_allow_path_lookup = _require_bool(
+        runtime_policy, "allow_path_lookup", errors, "runtime_policy"
+    )
 
     upba_policy = obj.get("upba_policy")
     if upba_policy not in {"conservative", "balanced", "fast"}:
@@ -70,10 +124,28 @@ def validate_deployment_profile(profile: Any) -> dict[str, Any]:
     if profile_id == "production-strict":
         if raw_keys is not False:
             errors.append("production-strict must reject raw private key flags")
-        if key_receipts is not True:
-            errors.append("production-strict must require production key receipts")
+        for key, expected in PRODUCTION_KEY_POLICY.items():
+            if key_policy.get(key) is not expected:
+                errors.append(
+                    f"production-strict key_policy.{key} must be {str(expected).lower()}"
+                )
         if proof_required is not True:
             errors.append("production-strict must require proof metadata")
+        for key, expected in PRODUCTION_RUNTIME_POLICY.items():
+            if runtime_policy.get(key) is not expected:
+                errors.append(
+                    f"production-strict runtime_policy.{key} must be {str(expected).lower()}"
+                )
+        for key, expected in STRICT_PERPS_POLICY.items():
+            if perps_policy.get(key) is not expected:
+                errors.append(
+                    f"production-strict perps_policy.{key} must be {str(expected).lower()}"
+                )
+        for key, expected in STRICT_SPOT_POLICY.items():
+            if spot_policy.get(key) is not expected:
+                errors.append(
+                    f"production-strict spot_policy.{key} must be {str(expected).lower()}"
+                )
         if dynamic_peer_cap is not True:
             errors.append("production-strict must require dynamic peer cap")
         if transport_auth is not True:
@@ -85,6 +157,16 @@ def validate_deployment_profile(profile: Any) -> dict[str, Any]:
 
     if profile_id == "public-testnet" and raw_keys is not False:
         errors.append("public-testnet must reject raw private key flags")
+    if profile_id == "public-testnet":
+        for key, expected in STRICT_SPOT_POLICY.items():
+            if spot_policy.get(key) is not expected:
+                errors.append(
+                    f"public-testnet spot_policy.{key} must be {str(expected).lower()}"
+                )
+        if browser_keygen is not False:
+            errors.append("public-testnet must disable browser key generation")
+        if runtime_allow_path_lookup is not False:
+            errors.append("public-testnet must disable runtime path lookup")
 
     return {
         "profile_id": profile_id,
@@ -100,7 +182,7 @@ def validate_profile_dir(profile_dir: Path = DEFAULT_PROFILE_DIR) -> dict[str, A
     for path in sorted(profile_dir.glob("*.yaml")):
         try:
             payload = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except Exception as exc:  # pragma: no cover
+        except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:  # pragma: no cover
             reports.append({"path": str(path), "profile_id": "", "ok": False, "errors": [f"parse failed: {exc}"]})
             continue
         report = validate_deployment_profile(payload)

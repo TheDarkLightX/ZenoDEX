@@ -71,6 +71,7 @@ ALLOWED_REASONS = {
     "fee_split_treasury",
     "fee_split_burn",
     "report_reward_payout",
+    "report_reward_clawback",
     "reporter_slash",
     "dispute_reward_payout",
     "bond_withdrawal",
@@ -81,6 +82,7 @@ REASON_TOTAL_FIELDS = {
     "fee_split_treasury": "fee_treasury_settled_e8",
     "fee_split_burn": "fee_burn_settled_e8",
     "report_reward_payout": "report_reward_settled_e8",
+    "report_reward_clawback": "report_reward_clawback_settled_e8",
     "reporter_slash": "slash_settled_e8",
     "dispute_reward_payout": "dispute_reward_settled_e8",
     "bond_withdrawal": "withdrawal_settled_e8",
@@ -91,6 +93,19 @@ NOT_CLAIMED = [
     "does_not_claim_reporter_honesty",
     "does_not_claim_oracle_truth",
 ]
+
+
+@dataclass(frozen=True)
+class FalseReportPenaltyRow:
+    dispute_id: str
+    report_id: str
+    reporter_id: str
+    reward_paid_e8: int
+    slash_or_clawback_e8: int
+
+    @property
+    def covered(self) -> bool:
+        return self.slash_or_clawback_e8 >= self.reward_paid_e8
 
 
 @dataclass(frozen=True)
@@ -109,9 +124,14 @@ class TokenSettlementResult:
     fee_treasury_settled_e8: int = 0
     fee_burn_settled_e8: int = 0
     report_reward_settled_e8: int = 0
+    report_reward_clawback_settled_e8: int = 0
     slash_settled_e8: int = 0
     dispute_reward_settled_e8: int = 0
     withdrawal_settled_e8: int = 0
+    upheld_report_count: int = 0
+    upheld_report_reward_e8: int = 0
+    upheld_report_penalty_covered_e8: int = 0
+    upheld_report_penalty_coverage_ok: bool = True
     final_balances_e8: Mapping[str, int] | None = None
 
     def to_json_obj(self) -> dict[str, Any]:
@@ -131,9 +151,14 @@ class TokenSettlementResult:
             "fee_treasury_settled_e8": self.fee_treasury_settled_e8,
             "fee_burn_settled_e8": self.fee_burn_settled_e8,
             "report_reward_settled_e8": self.report_reward_settled_e8,
+            "report_reward_clawback_settled_e8": self.report_reward_clawback_settled_e8,
             "slash_settled_e8": self.slash_settled_e8,
             "dispute_reward_settled_e8": self.dispute_reward_settled_e8,
             "withdrawal_settled_e8": self.withdrawal_settled_e8,
+            "upheld_report_count": self.upheld_report_count,
+            "upheld_report_reward_e8": self.upheld_report_reward_e8,
+            "upheld_report_penalty_covered_e8": self.upheld_report_penalty_covered_e8,
+            "upheld_report_penalty_coverage_ok": self.upheld_report_penalty_coverage_ok,
             "final_balances_e8": dict(self.final_balances_e8 or {}),
             "errors": list(self.errors),
             "not_claimed": list(NOT_CLAIMED),
@@ -413,6 +438,8 @@ def _event_reason_totals(replay: Mapping[str, Any]) -> dict[str, int]:
             totals["fee_split_burn"] += int(event.get("burn_delta_e8", 0))
         elif event_type == "submit_report":
             totals["report_reward_payout"] += int(event.get("reward_e8", 0))
+        elif event_type == "clawback_report_reward":
+            totals["report_reward_clawback"] += int(event.get("amount_e8", 0))
         elif event_type == "slash_reporter":
             totals["reporter_slash"] += int(event.get("amount_e8", 0))
         elif event_type == "pay_dispute_reward":
@@ -420,6 +447,66 @@ def _event_reason_totals(replay: Mapping[str, Any]) -> dict[str, int]:
         elif event_type == "withdraw_bond":
             totals["bond_withdrawal"] += int(event.get("amount_e8", 0))
     return totals
+
+
+def _upheld_false_report_penalty_rows(replay: Mapping[str, Any]) -> list[FalseReportPenaltyRow]:
+    reports: dict[str, dict[str, Any]] = {}
+    disputes: dict[str, dict[str, Any]] = {}
+    slashes: dict[str, int] = {}
+    clawbacks: dict[str, int] = {}
+
+    for event in replay.get("events", []):
+        if not isinstance(event, Mapping):
+            continue
+        event_type = event.get("type")
+        if event_type == "submit_report":
+            report_id = event.get("report_id")
+            reporter_id = event.get("reporter_id")
+            reward = event.get("reward_e8")
+            if isinstance(report_id, str) and isinstance(reporter_id, str) and isinstance(reward, int):
+                reports[report_id] = {
+                    "reporter_id": reporter_id,
+                    "reward_paid_e8": reward,
+                }
+        elif event_type == "open_dispute":
+            dispute_id = event.get("dispute_id")
+            report_id = event.get("report_id")
+            if isinstance(dispute_id, str) and isinstance(report_id, str):
+                disputes[dispute_id] = {"report_id": report_id, "upheld": False}
+        elif event_type == "slash_reporter":
+            dispute_id = event.get("dispute_id")
+            amount = event.get("amount_e8")
+            if isinstance(dispute_id, str) and isinstance(amount, int):
+                slashes[dispute_id] = slashes.get(dispute_id, 0) + amount
+        elif event_type == "clawback_report_reward":
+            dispute_id = event.get("dispute_id")
+            amount = event.get("amount_e8")
+            if isinstance(dispute_id, str) and isinstance(amount, int):
+                clawbacks[dispute_id] = clawbacks.get(dispute_id, 0) + amount
+        elif event_type == "resolve_dispute" and event.get("outcome") == "upheld":
+            dispute_id = event.get("dispute_id")
+            if isinstance(dispute_id, str) and dispute_id in disputes:
+                disputes[dispute_id]["upheld"] = True
+
+    rows: list[FalseReportPenaltyRow] = []
+    for dispute_id in sorted(disputes):
+        dispute = disputes[dispute_id]
+        if not dispute.get("upheld"):
+            continue
+        report_id = str(dispute["report_id"])
+        report = reports.get(report_id)
+        if report is None:
+            continue
+        rows.append(
+            FalseReportPenaltyRow(
+                dispute_id=dispute_id,
+                report_id=report_id,
+                reporter_id=str(report["reporter_id"]),
+                reward_paid_e8=int(report["reward_paid_e8"]),
+                slash_or_clawback_e8=int(slashes.get(dispute_id, 0)) + int(clawbacks.get(dispute_id, 0)),
+            )
+        )
+    return rows
 
 
 def verify_reporter_token_settlement(obj: Mapping[str, Any]) -> TokenSettlementResult:
@@ -514,6 +601,8 @@ def verify_reporter_token_settlement(obj: Mapping[str, Any]) -> TokenSettlementR
             errors.append("bond_deposit_total_mismatch")
         if reason_totals["report_reward_payout"] != int(economics_result.total_rewards_paid_e8 or 0):
             errors.append("report_reward_total_mismatch")
+        if reason_totals["report_reward_clawback"] != int(economics_result.total_rewards_clawed_back_e8 or 0):
+            errors.append("report_reward_clawback_total_mismatch")
         if reason_totals["reporter_slash"] != int(economics_result.total_slashed_e8 or 0):
             errors.append("slash_total_mismatch")
         if reason_totals["bond_withdrawal"] != int(economics_result.total_withdrawn_e8 or 0):
@@ -536,6 +625,18 @@ def verify_reporter_token_settlement(obj: Mapping[str, Any]) -> TokenSettlementR
         if balances.get("oracle.bond_escrow", 0) != int(economics_result.bond_locked_e8 or 0):
             errors.append("bond_escrow_final_balance_mismatch")
 
+    penalty_rows = _upheld_false_report_penalty_rows(economics)
+    upheld_report_reward = sum(row.reward_paid_e8 for row in penalty_rows)
+    upheld_report_penalty = sum(row.slash_or_clawback_e8 for row in penalty_rows)
+    penalty_coverage_ok = all(row.covered for row in penalty_rows)
+    if economics_result.status == "accepted":
+        for row in penalty_rows:
+            if not row.covered:
+                errors.append(
+                    "upheld_report_penalty_below_reward:"
+                    f"{row.dispute_id}:{row.slash_or_clawback_e8}!>={row.reward_paid_e8}"
+                )
+
     token_conservation_ok = total_debits == total_credits
     if not token_conservation_ok:
         errors.append("token_conservation_mismatch")
@@ -555,9 +656,14 @@ def verify_reporter_token_settlement(obj: Mapping[str, Any]) -> TokenSettlementR
         fee_treasury_settled_e8=reason_totals["fee_split_treasury"],
         fee_burn_settled_e8=reason_totals["fee_split_burn"],
         report_reward_settled_e8=reason_totals["report_reward_payout"],
+        report_reward_clawback_settled_e8=reason_totals["report_reward_clawback"],
         slash_settled_e8=reason_totals["reporter_slash"],
         dispute_reward_settled_e8=reason_totals["dispute_reward_payout"],
         withdrawal_settled_e8=reason_totals["bond_withdrawal"],
+        upheld_report_count=len(penalty_rows),
+        upheld_report_reward_e8=upheld_report_reward,
+        upheld_report_penalty_covered_e8=upheld_report_penalty,
+        upheld_report_penalty_coverage_ok=penalty_coverage_ok,
         final_balances_e8=dict(sorted(balances.items())),
     )
 

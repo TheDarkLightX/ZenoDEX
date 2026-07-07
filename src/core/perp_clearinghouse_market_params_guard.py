@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from .perp_liquidation_envelope import perp_liquidation_envelope_ok_bps
+
 
 MARKET_KIND_INVALID = 0
 MARKET_KIND_CH2P = 1
@@ -14,6 +16,7 @@ REJECT_OPERATOR_ONLY = "OperatorOnly"
 REJECT_MID_EPOCH = "MidEpoch"
 REJECT_PENALTY_INCREASE_WHILE_OPEN = "PenaltyIncreaseWhileOpen"
 REJECT_PENALTY_ABOVE_MAINTENANCE = "PenaltyAboveMaintenance"
+REJECT_UNFUNDED_LIQUIDATION_PENALTY = "UnfundedLiquidationPenalty"
 
 
 @dataclass(frozen=True)
@@ -25,6 +28,7 @@ class PerpClearinghouseMarketParamsGuardOutcome:
     positions_open: bool
     penalty_increase_ok: bool
     penalty_below_maintenance_ok: bool
+    funded_liquidation_ok: bool
     admission_ok: bool
     reject_code: str
     checks: Mapping[str, bool | int]
@@ -64,7 +68,9 @@ def evaluate_perp_clearinghouse_market_params_guard(
     position_base_c: Any,
     old_liquidation_penalty_bps: Any,
     new_liquidation_penalty_bps: Any,
+    new_initial_margin_bps: Any,
     new_maintenance_margin_bps: Any,
+    new_max_oracle_move_bps: Any,
 ) -> PerpClearinghouseMarketParamsGuardOutcome:
     kind = _require_market_kind(market_kind)
     operator = _require_flag(operator_ok, name="operator_ok")
@@ -74,7 +80,9 @@ def evaluate_perp_clearinghouse_market_params_guard(
     pos_c = _require_int(position_base_c, name="position_base_c")
     old_penalty = _require_int(old_liquidation_penalty_bps, name="old_liquidation_penalty_bps")
     new_penalty = _require_int(new_liquidation_penalty_bps, name="new_liquidation_penalty_bps")
+    new_initial = _require_int(new_initial_margin_bps, name="new_initial_margin_bps")
     new_maintenance = _require_int(new_maintenance_margin_bps, name="new_maintenance_margin_bps")
+    new_max_move = _require_int(new_max_oracle_move_bps, name="new_max_oracle_move_bps")
 
     market_kind_ok = bool(kind in (MARKET_KIND_CH2P, MARKET_KIND_CH3P))
     if kind == MARKET_KIND_CH2P:
@@ -86,6 +94,13 @@ def evaluate_perp_clearinghouse_market_params_guard(
 
     penalty_increase_ok = bool((not positions_open) or new_penalty <= old_penalty)
     penalty_below_maintenance_ok = bool(new_penalty < new_maintenance)
+    funded_liquidation_ok = perp_liquidation_envelope_ok_bps(
+        initial_margin_bps=new_initial,
+        maintenance_margin_bps=new_maintenance,
+        depeg_buffer_bps=0,
+        max_oracle_move_bps=new_max_move,
+        liquidation_penalty_bps=new_penalty,
+    )
 
     if not market_kind_ok:
         reject_code = REJECT_INVALID_MARKET_KIND
@@ -97,6 +112,8 @@ def evaluate_perp_clearinghouse_market_params_guard(
         reject_code = REJECT_PENALTY_INCREASE_WHILE_OPEN
     elif not penalty_below_maintenance_ok:
         reject_code = REJECT_PENALTY_ABOVE_MAINTENANCE
+    elif not funded_liquidation_ok:
+        reject_code = REJECT_UNFUNDED_LIQUIDATION_PENALTY
     else:
         reject_code = REJECT_OK
 
@@ -108,6 +125,7 @@ def evaluate_perp_clearinghouse_market_params_guard(
         positions_open=positions_open,
         penalty_increase_ok=penalty_increase_ok,
         penalty_below_maintenance_ok=penalty_below_maintenance_ok,
+        funded_liquidation_ok=funded_liquidation_ok,
         admission_ok=bool(reject_code == REJECT_OK),
         reject_code=reject_code,
         checks={
@@ -117,6 +135,11 @@ def evaluate_perp_clearinghouse_market_params_guard(
             "positions_open": positions_open,
             "penalty_increase_ok": penalty_increase_ok,
             "penalty_below_maintenance_ok": penalty_below_maintenance_ok,
+            "funded_liquidation_ok": funded_liquidation_ok,
+            "new_initial_margin_bps": new_initial,
+            "new_maintenance_margin_bps": new_maintenance,
+            "new_max_oracle_move_bps": new_max_move,
+            "new_liquidation_penalty_bps": new_penalty,
         },
     )
 
@@ -134,4 +157,10 @@ def perp_clearinghouse_market_params_guard_error(
         return "invalid params: cannot increase liquidation_penalty_bps while positions are open"
     if outcome.reject_code == REJECT_PENALTY_ABOVE_MAINTENANCE:
         return "invalid params: require liquidation_penalty_bps < maintenance_margin_bps"
+    if outcome.reject_code == REJECT_UNFUNDED_LIQUIDATION_PENALTY:
+        return (
+            "invalid params: require funded liquidation "
+            "liquidation_penalty_bps * (10000 + max_oracle_move_bps) <= "
+            "10000 * (maintenance_margin_bps - max_oracle_move_bps)"
+        )
     return None

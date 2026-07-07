@@ -3985,6 +3985,615 @@ def test_cow_pair_netting_assignment_beats_greedy_above_old_cap() -> None:
     assert sorted(intent.intent_id for intent in remaining) == [_iid(n) for n in range(1394, 1399)]
 
 
+def test_cow_pair_netting_large_coupled_solves_independent_small_component() -> None:
+    from src.core.batch_clearing_cow_search import (
+        _CowSelectionContext,
+        _cow_pair_selection_key,
+        _partition_cow_candidates,
+        _select_cow_pairs,
+        _select_cow_pairs_large_coupled_defer,
+    )
+
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool = PoolState(
+        pool_id="0x" + "ac" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000_000,
+        reserve1=1_000_000,
+        fee_bps=30,
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+
+    def _swap(intent_id: int, sender: str, asset_in: str, asset_out: str, amount_in: int, min_amount_out: int) -> Intent:
+        return Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(intent_id),
+            sender_pubkey=sender,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool.pool_id,
+                "asset_in": asset_in,
+                "asset_out": asset_out,
+                "amount_in": amount_in,
+                "min_amount_out": min_amount_out,
+            },
+        )
+
+    coupled_sender = "0x" + "b1" * 48
+    balances.set(coupled_sender, asset0, 100)
+    large_left = [
+        _swap(1500 + index, coupled_sender, asset0, asset1, 100, 90)
+        for index in range(8)
+    ]
+    large_right = []
+    for index in range(7):
+        sender = "0x" + f"{0xc0 + index:02x}" * 48
+        balances.set(sender, asset1, 100)
+        large_right.append(_swap(1510 + index, sender, asset1, asset0, 100, 90))
+
+    small_left_sender = "0x" + "d1" * 48
+    small_right_sender = "0x" + "d2" * 48
+    balances.set(small_left_sender, asset0, 5)
+    balances.set(small_right_sender, asset1, 5)
+    small_left = _swap(1520, small_left_sender, asset0, asset1, 5, 5)
+    small_right = _swap(1521, small_right_sender, asset1, asset0, 5, 5)
+
+    partition = _partition_cow_candidates([*large_left, *large_right, small_left, small_right], pool)
+    context = _CowSelectionContext(balances=balances, asset0=asset0, asset1=asset1)
+
+    selected_pairs = _select_cow_pairs(partition.side_01, partition.side_10, context=context)
+    componentized_pairs = _select_cow_pairs_large_coupled_defer(
+        partition.side_01,
+        partition.side_10,
+        context=context,
+    )
+
+    assert _cow_pair_selection_key(selected_pairs) == _cow_pair_selection_key(componentized_pairs)
+    selected_ids = [(x.intent.intent_id, y.intent.intent_id) for x, y in selected_pairs]
+    assert (small_left.intent_id, small_right.intent_id) in selected_ids
+    assert sorted(int(x.amount_in + y.amount_in) for x, y in selected_pairs) == [10, 200]
+
+
+def test_cow_pair_netting_large_star_capacity_component_selects_best_single_pair() -> None:
+    from src.core.batch_clearing_cow_search import (
+        _CowSelectionContext,
+        _cow_pair_selection_key,
+        _partition_cow_candidates,
+        _select_cow_pairs,
+    )
+
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool = PoolState(
+        pool_id="0x" + "ad" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000_000,
+        reserve1=1_000_000,
+        fee_bps=30,
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+
+    def _swap(intent_id: int, sender: str, asset_in: str, asset_out: str) -> Intent:
+        return Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(intent_id),
+            sender_pubkey=sender,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool.pool_id,
+                "asset_in": asset_in,
+                "asset_out": asset_out,
+                "amount_in": 100,
+                "min_amount_out": 90,
+            },
+        )
+
+    coupled_sender = "0x" + "e1" * 48
+    balances.set(coupled_sender, asset0, 100)
+    intents = [_swap(1530 + index, coupled_sender, asset0, asset1) for index in range(8)]
+    for index in range(7):
+        sender = "0x" + f"{0xe8 + index:02x}" * 48
+        balances.set(sender, asset1, 100)
+        intents.append(_swap(1540 + index, sender, asset1, asset0))
+
+    partition = _partition_cow_candidates(intents, pool)
+    context = _CowSelectionContext(balances=balances, asset0=asset0, asset1=asset1)
+
+    pairs = _select_cow_pairs(partition.side_01, partition.side_10, context=context)
+
+    assert len(pairs) == 1
+    assert _cow_pair_selection_key(pairs)[0] == 200
+    x, y = pairs[0]
+    assert x.sender == coupled_sender
+    assert y.sender != coupled_sender
+
+
+def test_cow_pair_netting_large_sender_slot_component_selects_best_matching() -> None:
+    from src.core.batch_clearing_cow_search import (
+        _CowSelectionContext,
+        _cow_pair_selection_key,
+        _partition_cow_candidates,
+        _select_cow_pairs,
+    )
+
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool = PoolState(
+        pool_id="0x" + "ae" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000_000,
+        reserve1=1_000_000,
+        fee_bps=30,
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+
+    def _swap(intent_id: int, sender: str, asset_in: str, asset_out: str) -> Intent:
+        return Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(intent_id),
+            sender_pubkey=sender,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool.pool_id,
+                "asset_in": asset_in,
+                "asset_out": asset_out,
+                "amount_in": 100,
+                "min_amount_out": 90,
+            },
+        )
+
+    left_sender_a = "0x" + "a1" * 48
+    left_sender_b = "0x" + "a2" * 48
+    balances.set(left_sender_a, asset0, 100)
+    balances.set(left_sender_b, asset0, 100)
+    intents = [_swap(1550 + index, left_sender_a, asset0, asset1) for index in range(4)]
+    intents.extend(_swap(1560 + index, left_sender_b, asset0, asset1) for index in range(4))
+    for index in range(7):
+        sender = "0x" + f"{0xd8 + index:02x}" * 48
+        balances.set(sender, asset1, 100)
+        intents.append(_swap(1570 + index, sender, asset1, asset0))
+
+    partition = _partition_cow_candidates(intents, pool)
+    context = _CowSelectionContext(balances=balances, asset0=asset0, asset1=asset1)
+
+    pairs = _select_cow_pairs(partition.side_01, partition.side_10, context=context)
+
+    assert len(pairs) == 2
+    assert _cow_pair_selection_key(pairs)[0] == 400
+    assert {x.sender for x, _y in pairs} == {left_sender_a, left_sender_b}
+
+
+def test_cow_pair_netting_large_multi_choice_component_uses_oriented_dp() -> None:
+    from src.core.batch_clearing_cow_search import (
+        _CowSelectionContext,
+        _cow_pair_selection_key,
+        _partition_cow_candidates,
+        _select_cow_pairs,
+    )
+
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool = PoolState(
+        pool_id="0x" + "bf" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000_000,
+        reserve1=1_000_000,
+        fee_bps=30,
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+
+    def _swap(
+        intent_id: int,
+        sender: str,
+        asset_in: str,
+        asset_out: str,
+        amount_in: int,
+    ) -> Intent:
+        return Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(intent_id),
+            sender_pubkey=sender,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool.pool_id,
+                "asset_in": asset_in,
+                "asset_out": asset_out,
+                "amount_in": amount_in,
+                "min_amount_out": 1,
+            },
+        )
+
+    multi_choice_sender = "0x" + "f1" * 48
+    balances.set(multi_choice_sender, asset0, 120)
+    intents = [
+        _swap(1580 + index, multi_choice_sender, asset0, asset1, 60)
+        for index in range(3)
+    ]
+    for index in range(12):
+        sender = "0x" + f"{0x80 + index:02x}" * 48
+        balances.set(sender, asset1, 60)
+        intents.append(_swap(1590 + index, sender, asset1, asset0, 60))
+
+    partition = _partition_cow_candidates(intents, pool)
+    context = _CowSelectionContext(balances=balances, asset0=asset0, asset1=asset1)
+    pairs = _select_cow_pairs(partition.side_01, partition.side_10, context=context)
+
+    assert len(pairs) == 2
+    assert _cow_pair_selection_key(pairs)[0] == 240
+    assert {x.sender for x, _y in pairs} == {multi_choice_sender}
+    assert len({x.intent.intent_id for x, _y in pairs}) == 2
+    assert len({y.intent.intent_id for _x, y in pairs}) == 2
+
+
+def test_cow_capacity_dp_orients_to_smaller_mask_side() -> None:
+    from src.core.batch_clearing_cow_search import (
+        _CowSelectionContext,
+        _cow_capacity_dp_state_estimate,
+        _cow_pair_selection_key,
+        _partition_cow_candidates,
+        _select_cow_pairs_bruteforce,
+        _select_cow_pairs_capacity_dp,
+    )
+
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool = PoolState(
+        pool_id="0x" + "c1" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000_000,
+        reserve1=1_000_000,
+        fee_bps=30,
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+
+    def _swap(
+        intent_id: int,
+        sender: str,
+        asset_in: str,
+        asset_out: str,
+        amount_in: int,
+        min_out: int,
+    ) -> Intent:
+        return Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(intent_id),
+            sender_pubkey=sender,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool.pool_id,
+                "asset_in": asset_in,
+                "asset_out": asset_out,
+                "amount_in": amount_in,
+                "min_amount_out": min_out,
+            },
+        )
+
+    left_sender = "0x" + "19" * 48
+    balances.set(left_sender, asset0, 120)
+    intents = [
+        _swap(1640 + index, left_sender, asset0, asset1, 60, 1)
+        for index in range(3)
+    ]
+    for index in range(6):
+        sender = "0x" + f"{0x40 + index:02x}" * 48
+        balances.set(sender, asset1, 60)
+        intents.append(_swap(1650 + index, sender, asset1, asset0, 60, 1))
+
+    partition = _partition_cow_candidates(intents, pool)
+    context = _CowSelectionContext(balances=balances, asset0=asset0, asset1=asset1)
+
+    assert len(partition.side_10) > len(partition.side_01)
+    assert _cow_capacity_dp_state_estimate(partition.side_01, partition.side_10) == 56
+
+    dp_pairs = _select_cow_pairs_capacity_dp(partition.side_01, partition.side_10, context=context)
+    brute_pairs = _select_cow_pairs_bruteforce(partition.side_01, partition.side_10, context=context)
+
+    assert _cow_pair_selection_key(dp_pairs) == _cow_pair_selection_key(brute_pairs)
+
+
+def test_cow_large_equal_amount_component_uses_atomic_bmatching() -> None:
+    from src.core.batch_clearing_cow_search import (
+        _COW_COUPLED_EXACT_DP_STATE_CAP,
+        _CowSelectionContext,
+        _cow_capacity_dp_state_estimate,
+        _cow_pair_selection_key,
+        _partition_cow_candidates,
+        _select_cow_pairs,
+    )
+
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool = PoolState(
+        pool_id="0x" + "c2" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000_000,
+        reserve1=1_000_000,
+        fee_bps=30,
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+
+    def _swap(intent_id: int, sender: str, asset_in: str, asset_out: str) -> Intent:
+        return Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(intent_id),
+            sender_pubkey=sender,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool.pool_id,
+                "asset_in": asset_in,
+                "asset_out": asset_out,
+                "amount_in": 10,
+                "min_amount_out": 1,
+            },
+        )
+
+    left_sender = "0x" + "1a" * 48
+    right_sender = "0x" + "2a" * 48
+    balances.set(left_sender, asset0, 60)
+    balances.set(right_sender, asset1, 60)
+    intents = [_swap(1720 + index, left_sender, asset0, asset1) for index in range(13)]
+    intents.extend(_swap(1740 + index, right_sender, asset1, asset0) for index in range(13))
+
+    partition = _partition_cow_candidates(intents, pool)
+    context = _CowSelectionContext(balances=balances, asset0=asset0, asset1=asset1)
+
+    assert _cow_capacity_dp_state_estimate(partition.side_01, partition.side_10) > _COW_COUPLED_EXACT_DP_STATE_CAP
+    pairs = _select_cow_pairs(partition.side_01, partition.side_10, context=context)
+
+    assert len(pairs) == 6
+    assert _cow_pair_selection_key(pairs)[0] == 120
+    assert len({x.intent.intent_id for x, _y in pairs}) == 6
+    assert len({y.intent.intent_id for _x, y in pairs}) == 6
+    assert sum(int(x.amount_in) for x, _y in pairs if x.sender == left_sender) == 60
+    assert sum(int(y.amount_in) for _x, y in pairs if y.sender == right_sender) == 60
+
+
+def test_cow_nonuniform_overbalance_rows_pruned_before_state_cap() -> None:
+    from src.core.batch_clearing_cow_search import (
+        _COW_COUPLED_EXACT_DP_STATE_CAP,
+        _CowSelectionContext,
+        _cow_capacity_dp_state_estimate,
+        _cow_pair_selection_key,
+        _partition_cow_candidates,
+        _select_cow_pairs,
+    )
+
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool = PoolState(
+        pool_id="0x" + "c4" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000_000,
+        reserve1=1_000_000,
+        fee_bps=30,
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+
+    def _swap(
+        intent_id: int,
+        sender: str,
+        asset_in: str,
+        asset_out: str,
+        amount_in: int,
+    ) -> Intent:
+        return Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(intent_id),
+            sender_pubkey=sender,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool.pool_id,
+                "asset_in": asset_in,
+                "asset_out": asset_out,
+                "amount_in": amount_in,
+                "min_amount_out": 0,
+            },
+        )
+
+    scale = 14
+    left_sender = "0x" + "1c" * 48
+    balances.set(left_sender, asset0, 10 * scale)
+    left_weights = [6, 5, 5, *range(11, 21)]
+    intents = [
+        _swap(1780 + index, left_sender, asset0, asset1, weight * scale)
+        for index, weight in enumerate(left_weights)
+    ]
+    for index in range(13):
+        sender = "0x" + f"{0x90 + index:02x}" * 48
+        balances.set(sender, asset1, 1)
+        intents.append(_swap(1800 + index, sender, asset1, asset0, 1))
+
+    partition = _partition_cow_candidates(intents, pool)
+    context = _CowSelectionContext(balances=balances, asset0=asset0, asset1=asset1)
+
+    assert _cow_capacity_dp_state_estimate(partition.side_01, partition.side_10) > _COW_COUPLED_EXACT_DP_STATE_CAP
+    pairs = _select_cow_pairs(partition.side_01, partition.side_10, context=context)
+
+    selected_weights = sorted(int(x.amount_in) // scale for x, _y in pairs)
+    assert selected_weights == [5, 5]
+    assert sum(selected_weights) == 10
+    assert _cow_pair_selection_key(pairs)[0] == 10 * scale + 2
+    assert all(int(x.amount_in) <= int(balances.get(x.sender, asset0)) for x, _y in pairs)
+    assert len({y.intent.intent_id for _x, y in pairs}) == 2
+
+
+def test_cow_atomic_bmatching_matches_capacity_dp_below_state_cap() -> None:
+    from src.core.batch_clearing_cow_search import (
+        _CowComponent,
+        _CowSelectionContext,
+        _cow_pair_selection_key,
+        _partition_cow_candidates,
+        _select_cow_pairs_atomic_bmatching,
+        _select_cow_pairs_capacity_dp,
+    )
+
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool = PoolState(
+        pool_id="0x" + "c3" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000_000,
+        reserve1=1_000_000,
+        fee_bps=30,
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+
+    def _swap(
+        intent_id: int,
+        sender: str,
+        asset_in: str,
+        asset_out: str,
+        min_out: int,
+    ) -> Intent:
+        return Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(intent_id),
+            sender_pubkey=sender,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool.pool_id,
+                "asset_in": asset_in,
+                "asset_out": asset_out,
+                "amount_in": 10,
+                "min_amount_out": min_out,
+            },
+        )
+
+    left_sender = "0x" + "1b" * 48
+    right_sender = "0x" + "2b" * 48
+    balances.set(left_sender, asset0, 20)
+    balances.set(right_sender, asset1, 20)
+    intents = [_swap(1760 + index, left_sender, asset0, asset1, 1 + index) for index in range(4)]
+    intents.extend(_swap(1770 + index, right_sender, asset1, asset0, 1 + index) for index in range(5))
+
+    partition = _partition_cow_candidates(intents, pool)
+    context = _CowSelectionContext(balances=balances, asset0=asset0, asset1=asset1)
+    component = _CowComponent(side_01=partition.side_01, side_10=partition.side_10)
+
+    bmatching_pairs = _select_cow_pairs_atomic_bmatching(component, context=context)
+    dp_pairs = _select_cow_pairs_capacity_dp(partition.side_01, partition.side_10, context=context)
+
+    assert bmatching_pairs is not None
+    assert _cow_pair_selection_key(bmatching_pairs) == _cow_pair_selection_key(dp_pairs)
+
+
+def test_cow_sender_slot_quotient_matches_capacity_dp_below_cap() -> None:
+    from src.core.batch_clearing_cow_search import (
+        _CowComponent,
+        _CowSelectionContext,
+        _cow_pair_selection_key,
+        _partition_cow_candidates,
+        _select_cow_pairs_capacity_dp,
+        _select_cow_pairs_sender_slot_quotient,
+    )
+
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool = PoolState(
+        pool_id="0x" + "c0" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000_000,
+        reserve1=1_000_000,
+        fee_bps=30,
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+
+    def _swap(intent_id: int, sender: str, asset_in: str, asset_out: str, amount_in: int, min_out: int) -> Intent:
+        return Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(intent_id),
+            sender_pubkey=sender,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool.pool_id,
+                "asset_in": asset_in,
+                "asset_out": asset_out,
+                "amount_in": amount_in,
+                "min_amount_out": min_out,
+            },
+        )
+
+    left_a = "0x" + "11" * 48
+    left_b = "0x" + "22" * 48
+    balances.set(left_a, asset0, 100)
+    balances.set(left_b, asset0, 100)
+    intents = [
+        _swap(1620, left_a, asset0, asset1, 100, 90),
+        _swap(1621, left_a, asset0, asset1, 100, 95),
+        _swap(1622, left_b, asset0, asset1, 100, 80),
+        _swap(1623, left_b, asset0, asset1, 100, 90),
+    ]
+    for index in range(4):
+        sender = "0x" + f"{0x30 + index:02x}" * 48
+        balances.set(sender, asset1, 100)
+        intents.append(_swap(1630 + index, sender, asset1, asset0, 100, 85 + index))
+
+    partition = _partition_cow_candidates(intents, pool)
+    context = _CowSelectionContext(balances=balances, asset0=asset0, asset1=asset1)
+    component = _CowComponent(side_01=partition.side_01, side_10=partition.side_10)
+
+    quotient_pairs = _select_cow_pairs_sender_slot_quotient(component, context=context)
+    dp_pairs = _select_cow_pairs_capacity_dp(partition.side_01, partition.side_10, context=context)
+
+    assert quotient_pairs is not None
+    assert _cow_pair_selection_key(quotient_pairs) == _cow_pair_selection_key(dp_pairs)
+
+
 def test_apply_settlement_updates_asset1_reserve_branch() -> None:
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32

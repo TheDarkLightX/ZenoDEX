@@ -21,7 +21,7 @@ from .batch_clearing import apply_settlement_pure, compute_settlement, validate_
 from .fees import FeeAccumulatorState, FeeSplitParams, FeeSplitResult, split_fee_with_dust_carry
 from .oracle import OracleState
 from .perps import PerpsState
-from .settlement import Settlement
+from .settlement import FillAction, Settlement
 from .settlement_fill_fields import read_optional_non_negative_fill_int
 from .settlement_strong_validator import validate_settlement_strong
 from .vault import VaultState
@@ -52,6 +52,14 @@ class DexConfig:
     # Quote-bound snapshot markers are only accepted after a higher layer
     # validates and strips raw receipt transport metadata.
     allow_snapshot_bound_quote_bindings: bool = False
+    # A transaction-level DEX step is accepted only when every submitted intent is
+    # filled. Batch-clearing internals may represent unfillable intents as
+    # REJECT fills, but the public execution boundary fails closed on them.
+    reject_settlements_with_rejected_intents: bool = True
+    # Exact-in CPMM protocol-fee capture. A nonzero share removes that portion
+    # of the swap fee from pool reserves and credits `protocol_fee_recipient_pubkey`.
+    protocol_fee_share_bps: int = 0
+    protocol_fee_recipient_pubkey: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -109,9 +117,14 @@ def _validate_and_apply_settlement(
             mode=str(config.settlement_validation),
             allow_cow_netting=bool(allow_cow),
             allow_snapshot_bound_quote_bindings=bool(config.allow_snapshot_bound_quote_bindings),
+            protocol_fee_share_bps=config.protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=config.protocol_fee_recipient_pubkey,
         )
     if not ok:
         return DexStepResult(ok=False, error=err or "settlement invalid")
+    reject_error = _reject_settlement_public_boundary_error(config, settlement)
+    if reject_error is not None:
+        return DexStepResult(ok=False, error=reject_error)
 
     next_balances, next_pools, next_lp = apply_settlement_pure(
         settlement=settlement,
@@ -151,6 +164,27 @@ def _validate_and_apply_settlement(
             "fee_split": fee_split,
         },
     )
+
+
+def _reject_settlement_public_boundary_error(
+    config: DexConfig,
+    settlement: Settlement,
+) -> Optional[str]:
+    if not config.reject_settlements_with_rejected_intents:
+        return None
+    for intent_id, action in settlement.included_intents:
+        if action == FillAction.REJECT:
+            return (
+                "settlement contains rejected intent at public DEX boundary: "
+                f"{intent_id}"
+            )
+    for fill in settlement.fills:
+        if fill.action == FillAction.REJECT:
+            return (
+                "settlement contains rejected fill at public DEX boundary: "
+                f"{fill.intent_id}"
+            )
+    return None
 
 
 def _sum_settlement_swap_fees(settlement: Settlement) -> int:
@@ -215,6 +249,8 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
             balances=state.balances,
             lp_balances=state.lp_balances,
             swap_ordering=str(config.swap_ordering),
+            protocol_fee_share_bps=config.protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=config.protocol_fee_recipient_pubkey,
         )
         return _validate_and_apply_settlement(
             config,

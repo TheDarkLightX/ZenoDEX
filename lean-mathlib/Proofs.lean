@@ -124,6 +124,13 @@ import Proofs.MEVResistanceOptimality
 import Proofs.PriceManipulationCostBound
 import Proofs.SlippageLowerBound
 import Proofs.ShardedBatchClearing
+import Proofs.CoWNettingStreaming
+import Proofs.FundingCloseoutConservation
+import Proofs.CascadeBound
+import Proofs.OracleMedian
+import Proofs.SharedPoolEnvelopeRecurrence
+import Proofs.SharedPoolDustFuelBound
+import Proofs.SharedPoolFrontierAntichain
 import Proofs.MicroTradeFeeBypass
 import Proofs.MinOutCapGameTheory
 import Proofs.MinimumLiquidityInvariant
@@ -357,6 +364,9 @@ import Proofs.ZUSDMultiRedeemSelector
 import Proofs.ZUSDFeeStakingAccounting
 import Proofs.ZUSDRedemptionDrainGuards
 import Proofs.ZUSDSPConvexity
+import Proofs.ZKClearingPriceCorrectness
+import Proofs.CrossShardAtomicSettlement
+import Proofs.UnifiedMEVModel
 
 /-!
 Proofs library root.

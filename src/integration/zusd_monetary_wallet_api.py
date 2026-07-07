@@ -645,6 +645,16 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             lo=0,
             hi=10_000,
         ),
+        borrow_fee_floor_bps=_env_int("TAU_DEX_ZUSD_BORROW_FEE_FLOOR_BPS", 0, lo=0, hi=10_000),
+        borrow_fee_max_bps=_env_int("TAU_DEX_ZUSD_BORROW_FEE_MAX_BPS", 1_000, lo=0, hi=10_000),
+        host_protocol_fee_share_bps=_env_int("TAU_DEX_ZUSD_HOST_PROTOCOL_FEE_SHARE_BPS", 0, lo=0, hi=10_000),
+        fee_stake_asset_id=os.environ.get("TAU_DEX_ZUSD_FEE_STAKE_ASSET_ID", "").strip() or None,
+        staking_activation_delay_epochs=_env_int(
+            "TAU_DEX_ZUSD_STAKING_ACTIVATION_DELAY_EPOCHS",
+            1,
+            lo=0,
+            hi=10_000,
+        ),
     )
 
     client = _tau_client()
@@ -722,6 +732,11 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "stream_key": _STREAM_KEY,
             "liquidation_gas_comp_fixed_collateral_e8": config.liquidation_gas_comp_fixed_collateral_e8,
             "liquidation_gas_comp_bps": config.liquidation_gas_comp_bps,
+            "borrow_fee_floor_bps": config.borrow_fee_floor_bps,
+            "borrow_fee_max_bps": config.borrow_fee_max_bps,
+            "host_protocol_fee_share_bps": config.host_protocol_fee_share_bps,
+            "fee_stake_asset_id": config.fee_stake_asset_id,
+            "staking_activation_delay_epochs": config.staking_activation_delay_epochs,
             "allow_local_signing": _allow_signing(),
             "signing_mode": signing_mode,
             "auto_mine": _auto_mine(),
@@ -818,6 +833,16 @@ def _status_payload() -> Dict[str, Any]:
         lo=0,
         hi=10_000,
     )
+    borrow_fee_floor_bps = _env_int("TAU_DEX_ZUSD_BORROW_FEE_FLOOR_BPS", 0, lo=0, hi=10_000)
+    borrow_fee_max_bps = _env_int("TAU_DEX_ZUSD_BORROW_FEE_MAX_BPS", 1_000, lo=0, hi=10_000)
+    host_protocol_fee_share_bps = _env_int("TAU_DEX_ZUSD_HOST_PROTOCOL_FEE_SHARE_BPS", 0, lo=0, hi=10_000)
+    fee_stake_asset_id = os.environ.get("TAU_DEX_ZUSD_FEE_STAKE_ASSET_ID", "").strip() or None
+    staking_activation_delay_epochs = _env_int(
+        "TAU_DEX_ZUSD_STAKING_ACTIVATION_DELAY_EPOCHS",
+        1,
+        lo=0,
+        hi=10_000,
+    )
     status: Dict[str, Any] = {
         "enabled": True,
         "chain_id": chain_id,
@@ -837,6 +862,11 @@ def _status_payload() -> Dict[str, Any]:
         "liquidation_fee_comp_bps": liquidation_fee_comp_bps,
         "liquidation_gas_comp_fixed_collateral_e8": liquidation_fee_comp_fixed_collateral_e8,
         "liquidation_gas_comp_bps": liquidation_fee_comp_bps,
+        "borrow_fee_floor_bps": borrow_fee_floor_bps,
+        "borrow_fee_max_bps": borrow_fee_max_bps,
+        "host_protocol_fee_share_bps": host_protocol_fee_share_bps,
+        "fee_stake_asset_id": fee_stake_asset_id,
+        "staking_activation_delay_epochs": staking_activation_delay_epochs,
         "proof_profile": _zusd_proof_profile(),
     }
     try:

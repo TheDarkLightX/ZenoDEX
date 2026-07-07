@@ -258,7 +258,7 @@
         "observed_winner_not_selected_family_dominator"
       ]
     },
-    "elapsed_ms": 28308.112,
+    "elapsed_ms": 27587.18,
     "first_invalid_packet": null,
     "first_mutation_accept": null,
     "first_packet": {

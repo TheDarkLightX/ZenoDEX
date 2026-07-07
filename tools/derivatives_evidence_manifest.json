@@ -64,7 +64,7 @@
     },
     {
       "path": "tests/core/test_volatility_tier.py",
-      "sha256": "f29a38f2c8028678849a37882cdcc4f6f076739d74f89fd59248c41d79aecae0"
+      "sha256": "d6e1d2c713369ddbb372b89c080518e8d27593d154a743ec3661170f559e693d"
     },
     {
       "path": "tests/core/test_volatility_tier_ref_parity.py",

@@ -10156,7 +10156,7 @@
       ]
     },
     "dominance_check_count": 212760,
-    "elapsed_ms": 33424.608,
+    "elapsed_ms": 33112.965,
     "first_invalid_case": null,
     "first_packet": {
       "amounts": [

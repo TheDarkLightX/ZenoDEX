@@ -303,6 +303,26 @@ def test_slippage_advice_with_user_slippage_includes_pokayoke() -> None:
         _stop_test_server(httpd, t)
 
 
+def test_slippage_advice_with_inaction_regret_includes_proofux_payload() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host, port, "/api/dex/slippage_advice",
+            {"reserve_in": 1_000_000, "reserve_out": 1_000_000, "amount_in": 10_000, "fee_bps": 30,
+             "user_slippage_bps": 50, "slippage_options_bps": [10, 50, 100],
+             "inaction_regret_bps": 800},
+        )
+        assert status == 200
+        assert body["ok"] is True
+        proofux = body["advice"]["pokayoke"]["proofux"]
+        assert proofux["legacy_action"] == "typed_confirm"
+        assert proofux["selected_action"] == "wait_or_requote"
+        assert proofux["regret_within_limit_ok"] is False
+        assert proofux["minimax_certificate"]["best_certificate_id"] == "wait_or_requote"
+    finally:
+        _stop_test_server(httpd, t)
+
+
 def test_pokayoke_swap_suggest_byte_shape() -> None:
     httpd, t, host, port = _start_test_server()
     try:

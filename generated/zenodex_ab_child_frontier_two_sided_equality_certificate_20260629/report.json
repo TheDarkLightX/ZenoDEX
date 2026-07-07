@@ -91,7 +91,7 @@
       "witness_count": 2
     },
     "coverage_only_rejected": true,
-    "elapsed_ms": 1.924,
+    "elapsed_ms": 1.961,
     "equality_certificate_valid": true,
     "extra_world": {
       "child_state_count": 2,

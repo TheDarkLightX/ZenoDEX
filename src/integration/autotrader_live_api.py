@@ -20,15 +20,15 @@ from ..core.quote_receipts import make_route_quote_receipt
 from ..core.routing import best_route_exact_in_2hop
 from ..state.canonical import canonical_hex_fixed_allow_0x
 from ..state.pools import PoolState, PoolStatus
-from .autotrader_supervisor_profile import evaluate_autotrader_supervisor_profile_v1
 from .autotrader_controller import AutoTraderControllerState
 from .autotrader_live import AutoTraderLiveReport, prepare_autotrader_live_quote_receipt
 from .autotrader_risk_disclosure import build_autotrader_risk_disclosure
+from .autotrader_supervisor_profile import evaluate_autotrader_supervisor_profile_v1
 from .dex_snapshot import state_from_snapshot
 from .tau_net_client import (
+    TauNetRpcError,
     TauNetTcpClient,
     TauNetTcpConfig,
-    TauNetRpcError,
     bls_pubkey_hex_from_privkey,
     build_signed_tau_transaction,
     encode_tau_operations_for_wire,
@@ -37,7 +37,6 @@ from .tau_net_client import (
     verify_tau_transaction_payload_signature,
 )
 from .zeno_ledger_v0 import hash_v0
-
 
 MAX_POST_BODY = 96_000
 ResponseT = Tuple[int, Dict[str, Any]]
@@ -1743,24 +1742,26 @@ def _build_execute_once_response(
         return {"ok": False, "error": "execution_key_table_unavailable"}
 
     execution_id = _request_execution_id(body)
-    if _execution_already_consumed(execution_keys, execution_id):
-        return {
-            "ok": False,
-            "error": "execution_replay",
-            "execution": {
-                "execution_id": execution_id,
-                "replay_guard": "already_consumed",
-            },
-        }
+    with _SUPERVISOR_EXECUTION_LOCK:
+        if _execution_already_consumed(execution_keys, execution_id):
+            return {
+                "ok": False,
+                "error": "execution_replay",
+                "execution": {
+                    "execution_id": execution_id,
+                    "replay_guard": "already_consumed",
+                },
+            }
 
-    _consume_execution_id(
-        execution_keys,
-        execution_id,
-        surface="autotrader_live_execute_once",
-    )
-    submitted = _build_submit_response(body)
-    if submitted.get("ok") is not True:
-        return submitted
+        submitted = _build_submit_response(body)
+        if submitted.get("ok") is not True:
+            return submitted
+
+        _consume_execution_id(
+            execution_keys,
+            execution_id,
+            surface="autotrader_live_execute_once",
+        )
 
     return {
         **submitted,

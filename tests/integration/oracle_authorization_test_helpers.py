@@ -30,7 +30,7 @@ def terminal_receipt_graph_for_authorization(authorization: Mapping[str, Any]) -
             "source_id": source_id,
             "source_observed_epoch": int(authorization["observed_epoch"]),
         }
-        for i, (report_id, source_id) in enumerate(zip(report_ids, source_ids))
+        for i, (report_id, source_id) in enumerate(zip(report_ids, source_ids, strict=True))
     ]
     leaves = sorted(leaves_unsorted, key=lambda leaf: str(leaf["report_id"]))
     report_ids = [str(leaf["report_id"]) for leaf in leaves]
@@ -68,12 +68,62 @@ def terminal_receipt_graph_for_authorization(authorization: Mapping[str, Any]) -
     return body
 
 
-def authorization_bundle(authorization: Mapping[str, Any]) -> dict[str, Any]:
+def economic_envelope_for_authorization(
+    authorization: Mapping[str, Any],
+    *,
+    notional_value_e8: int = 1_000_000_000_000,
+    max_extractable_value_e8: int = 1_000,
+    reporter_count: int = 3,
+    reporter_bond_required_e8: int = 1_000,
+) -> dict[str, Any]:
+    return {
+        "schema": "zenodex.oracle.economic_security_envelope.v1",
+        "query_id": authorization["query_id"],
+        "consumer_module": authorization["consumer_module"],
+        "action_kind": authorization["action_kind"],
+        "notional_value_e8": notional_value_e8,
+        "max_extractable_value_e8": max_extractable_value_e8,
+        "attack_cost_floor_e8": max_extractable_value_e8,
+        "required_attack_margin_bps": 0,
+        "reporter_count": reporter_count,
+        "reporter_reward_budget_e8": 90_000_000,
+        "reporter_reward_per_report_e8": 30_000_000,
+        "honest_reporter_cost_e8": 20_000_000,
+        "honest_reporter_risk_premium_e8": 5_000_000,
+        "reporter_bond_required_e8": reporter_bond_required_e8,
+        "slash_fraction_bps": 10_000,
+        "expected_cheat_gain_e8": max_extractable_value_e8,
+        "deterrence_margin_bps": 0,
+        "dispute_reward_e8": 10_000_000,
+        "dispute_budget_e8": 20_000_000,
+        "fee_paid_e8": 100_000_000,
+        "reporter_fee_share_e8": 30_000_000,
+        "treasury_fee_share_e8": 40_000_000,
+        "burn_fee_share_e8": 30_000_000,
+    }
+
+
+def economic_envelope_hash(envelope: Mapping[str, Any]) -> str:
+    return semantic_hash("zenodex.oracle.economic_envelope.v1", envelope)
+
+
+def authorization_bundle(
+    authorization: Mapping[str, Any],
+    *,
+    include_economic_envelope: bool = True,
+    bind_economic_envelope_id: bool = True,
+) -> dict[str, Any]:
     auth = dict(authorization)
     graph = terminal_receipt_graph_for_authorization(auth)
     auth["receipt_graph_root"] = graph["receipt_graph_root"]
-    return {
+    bundle = {
         "schema": "zeno_oracle.oracle_authorization_bundle.v1",
         "authorization": auth,
         "receipt_graph": graph,
     }
+    if include_economic_envelope:
+        envelope = economic_envelope_for_authorization(auth)
+        if bind_economic_envelope_id:
+            auth["economic_envelope_id"] = economic_envelope_hash(envelope)
+        bundle["economic_envelope"] = envelope
+    return bundle

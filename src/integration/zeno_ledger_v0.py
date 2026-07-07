@@ -14,6 +14,7 @@ from typing import Any, Iterable, Mapping, Sequence
 from src.core.dex import DexState
 from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.dex_snapshot import snapshot_from_state
+from src.integration.risc0_tx_order_body_summary import tx_execution_order_for_body_v1
 from src.state.app_root import APP_ROOT_LANE_KINDS, AppRootLeaf, compute_required_app_root
 from src.state.canonical import (
     canonical_hex_fixed_allow_0x,
@@ -24,7 +25,6 @@ from src.state.canonical import (
     hex_to_bytes_fixed,
     sha256_hex,
 )
-from src.state.state_root import compute_state_root
 
 HEADER_SCHEMA_V0 = "zenodex/zeno_ledger/header/v0"
 BODY_SCHEMA_V0 = "zenodex/zeno_ledger/body/v0"
@@ -274,13 +274,7 @@ def compute_tx_root_v0(transactions: list[object]) -> str:
 def dex_state_root_v0(state: DexState) -> str:
     if not isinstance(state, DexState):
         raise TypeError("state must be a DexState")
-    return compute_state_root(
-        balances=state.balances,
-        pools=state.pools,
-        lp_balances=state.lp_balances,
-        nonces=state.nonces,
-        fee_accumulator=state.fee_accumulator,
-    )
+    return compute_dex_state_app_root_v0(state)
 
 
 def _require_positive_int(value: object, *, name: str) -> int:
@@ -430,6 +424,15 @@ def app_root_lanes_from_dex_snapshot_v0(snapshot: Mapping[str, Any]) -> tuple[Ap
             ),
         ),
         AppRootLeaf.from_json(
+            lane_kind="cross_shard",
+            lane_id="global",
+            payload=_snapshot_singleton_lane_payload_v0(
+                lane_kind="cross_shard",
+                snapshot_version=version,
+                state=obj.get("cross_shard"),
+            ),
+        ),
+        AppRootLeaf.from_json(
             lane_kind="governance",
             lane_id="global",
             payload=_snapshot_singleton_lane_payload_v0(
@@ -508,6 +511,7 @@ def app_root_lanes_from_tau_app_state_v0(app_state: Mapping[str, Any]) -> tuple[
         "zusd_monetary",
         "clob",
         "orderbook",
+        "cross_shard",
         "governance",
     }
     extra = sorted(set(obj) - allowed_keys)
@@ -553,6 +557,16 @@ def app_root_lanes_from_tau_app_state_v0(app_state: Mapping[str, Any]) -> tuple[
                     app_state_version=version,
                     source_key=clob_source_key,
                     state=clob_state,
+                ),
+            ),
+            AppRootLeaf.from_json(
+                lane_kind="cross_shard",
+                lane_id="global",
+                payload=_wrapper_singleton_lane_payload_v0(
+                    lane_kind="cross_shard",
+                    app_state_version=version,
+                    source_key="cross_shard" if "cross_shard" in obj else "missing",
+                    state=obj.get("cross_shard"),
                 ),
             ),
             AppRootLeaf.from_json(
@@ -803,7 +817,14 @@ def apply_body_transactions_v0(
     rejection_receipts = executed_body["evidence"]["rejection_receipts"]
     height = _require_nonnegative_int(executed_body["height"], name="body.height")
 
-    for index, tx in enumerate(executed_body["transactions"]):
+    transactions = executed_body["transactions"]
+    execution_order = tx_execution_order_for_body_v1(executed_body)
+    if len(execution_order) != len(transactions):
+        raise ValueError("tx execution order length mismatch")
+    receipts_by_index: list[dict[str, Any] | None] = [None] * len(transactions)
+
+    for index in execution_order:
+        tx = transactions[index]
         tx_hash = tx_hash_v0(tx)
         try:
             operations = dict(_extract_tx_operations_v0(tx, index=index))
@@ -853,6 +874,12 @@ def apply_body_transactions_v0(
                 state_changed=False,
             )
             rejection_receipts.append(receipt)
+        receipts_by_index[index] = receipt
+
+    receipts = []
+    for index, receipt in enumerate(receipts_by_index):
+        if receipt is None:
+            raise ValueError(f"transactions[{index}] was not executed")
         receipts.append(receipt)
 
     validate_body_v0(executed_body)

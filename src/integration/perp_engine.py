@@ -38,7 +38,7 @@ from __future__ import annotations
 import hashlib
 import re
 import sys
-from dataclasses import dataclass, fields, replace
+from dataclasses import asdict, dataclass, fields, replace
 from functools import lru_cache
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
@@ -58,6 +58,21 @@ from ..core.perp_clearinghouse_market_params_guard import (
     evaluate_perp_clearinghouse_market_params_guard,
     perp_clearinghouse_market_params_guard_error,
 )
+from ..core.perp_liquidation_envelope import require_perp_liquidation_envelope_bps
+from ..core.perp_liquidation_tau_source_binding import (
+    PARTIAL_LIQUIDATE_ACTION as TAU_PARTIAL_LIQUIDATE_ACTION,
+    PerpLiquidationTauSourceBinding,
+    PerpLiquidationTauSourceFacts,
+    derive_perp_liquidation_flags_from_source_binding,
+    expected_perp_liquidation_o4,
+    perp_liquidation_tau_source_binding_from_payload,
+    perp_liquidation_tau_source_facts_hash,
+    source_admission_envelope_reject_reason,
+    source_membership_proof_reject_reason,
+    source_root_authority_reject_reason,
+    source_state_root_binding_reject_reason,
+    source_binding_reject_reasons,
+)
 from ..core.perp_epoch import (
     perp_epoch_isolated_default_apply,
     perp_epoch_isolated_default_fee_pool_max_quote,
@@ -70,6 +85,68 @@ from ..core.perp_market_version_prefix_guard import (
     REJECT_ISOLATED_PREFIX_CONFLICT,
     evaluate_perp_market_version_prefix_guard,
 )
+from ..core.perp_oi_depth_certificate import (
+    verify_oi_depth_certificate_payload,
+    verify_oi_depth_source_authority_binding_payload,
+    verify_oi_depth_source_authority_payload,
+)
+from ..core.perp_depth_source_quorum_economics import (
+    verify_depth_source_quorum_economics_payload,
+)
+from ..core.perp_funding_closeout_liability_certificate import (
+    ClosedFundingSourceRow,
+    PositionAccount,
+    RATIONED_ALLOCATION_RECEIPT_SCHEMA,
+    SOURCE_BOUND_RATIONED_ALLOCATION_RECEIPT_SCHEMA,
+    SOURCE_PORTFOLIO_BOUND_RATIONED_ALLOCATION_RECEIPT_SCHEMA,
+    carried_funding_closeout_liability_hash,
+    funding_closeout_carry_forward_receipt_from_payload,
+    funding_closeout_carry_forward_receipt_to_payload,
+    funding_closeout_source_availability_hash,
+    funding_closeout_allocation_receipt_from_payload,
+    funding_closeout_rationed_allocation_receipt_from_payload,
+    funding_closeout_source_bound_rationed_allocation_receipt_from_payload,
+    funding_closeout_source_portfolio_bound_rationed_allocation_receipt_from_payload,
+    post_open_receiver_claim_rows,
+    pre_close_position_snapshot_hash,
+    verify_funding_closeout_allocation_receipt_payload,
+    verify_funding_closeout_carry_forward_receipt_payload,
+    verify_funding_closeout_liability_certificate_payload,
+    verify_funding_closeout_liability_receipt_payload,
+    verify_funding_closeout_rationed_allocation_receipt_payload,
+    verify_funding_closeout_source_bound_rationed_allocation_receipt_payload,
+    verify_funding_closeout_source_portfolio_bound_rationed_allocation_receipt_payload,
+)
+from ..core.perp_funding_closeout_mixed_open_netting import (
+    MIXED_OPEN_NETTING_SCHEMA,
+    mixed_open_funding_netting_certificate_from_payload,
+    verify_mixed_open_funding_netting_certificate_payload,
+)
+from ..core.perp_funding_closeout_policy_ledger import (
+    HAIRCUT_POLICY_RECOVERABLE_CLAIM,
+    funding_closeout_policy_ledger_from_payload,
+    funding_closeout_policy_ledger_hash,
+    funding_closeout_policy_ledger_to_payload,
+    verify_funding_closeout_policy_ledger_payload,
+)
+from ..core.perp_funding_closeout_priority import (
+    funding_closeout_receiver_recovery_distribution_certificate_from_payload,
+    funding_closeout_receiver_recovery_distribution_certificate_hash,
+    funding_closeout_recovery_collection_receipt_from_payload,
+    funding_closeout_recovery_collection_receipt_hash,
+    funding_closeout_recovery_priority_certificate_from_payload,
+    funding_closeout_recovery_priority_certificate_hash,
+    funding_closeout_recovery_source_authority_binding_hash,
+    funding_closeout_recovery_source_authority_hash,
+    funding_closeout_sink_recovery_distribution_certificate_from_payload,
+    funding_closeout_sink_recovery_distribution_certificate_hash,
+    validate_receiver_recovery_distribution_against_sources,
+    validate_recovery_collection_receipt_against_sources,
+    validate_recovery_priority_certificate_against_policy_ledger,
+    validate_sink_recovery_distribution_against_sources,
+    verify_funding_closeout_recovery_source_authority_binding_payload,
+    verify_funding_closeout_recovery_source_authority_payload,
+)
 from ..core.perp_np_matching import Intent as _NpIntent
 from ..core.perp_runtime_risk_gate import (
     ACTION_ADVANCE_EPOCH as RUNTIME_ACTION_ADVANCE_EPOCH,
@@ -79,6 +156,15 @@ from ..core.perp_runtime_risk_gate import (
 )
 from ..core.perp_runtime_risk_gate import (
     ACTION_CLEAR_BREAKER as RUNTIME_ACTION_CLEAR_BREAKER,
+)
+from ..core.perp_runtime_risk_gate import (
+    ACTION_CARRY_FUNDING_CLOSEOUT_LIABILITY as RUNTIME_ACTION_CARRY_FUNDING_CLOSEOUT_LIABILITY,
+)
+from ..core.perp_runtime_risk_gate import (
+    ACTION_SETTLE_FUNDING_CLOSEOUT_CARRIED_LIABILITY as RUNTIME_ACTION_SETTLE_FUNDING_CLOSEOUT_CARRIED_LIABILITY,
+)
+from ..core.perp_runtime_risk_gate import (
+    ACTION_SETTLE_FUNDING_CLOSEOUT_RECOVERY as RUNTIME_ACTION_SETTLE_FUNDING_CLOSEOUT_RECOVERY,
 )
 from ..core.perp_runtime_risk_gate import (
     ACTION_DEPOSIT_COLLATERAL as RUNTIME_ACTION_DEPOSIT_COLLATERAL,
@@ -123,12 +209,14 @@ from ..core.perp_submission_auth_message import (
     build_perp_op_auth_signing_dict_v1,
     hash_perp_op_auth_message_v1,
 )
-from ..core.perp_v2.invariants import funded_liquidation_params_ok_bps
+from ..core.perp_v2.oi_liquidity_bound import evaluate_oi_liquidity_bound
 from ..core.perp_v2.math import MAX_COLLATERAL
+from ..core.perp_v2.math import MAX_FUNDING_CUMULATIVE
 from ..core.perp_v2.math import funding_payment as _perp_v2_funding_payment
 from ..core.perp_v2.math import liq_penalty as _perp_v2_liq_penalty
 from ..core.perp_v2.math import maint_margin_req as _perp_v2_maint_margin_req
 from ..core.perps import (
+    FUNDING_CLOSEOUT_RECEIVER_CLAIM_NO_EXPIRY_EPOCH,
     PERP_CLEARINGHOUSE_2P_STATE_KEYS,
     PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS,
     PERP_GLOBAL_KEYS,
@@ -141,6 +229,7 @@ from ..core.perps import (
     PerpClearinghouse3pTransferMarketState,
     PerpMarketState,
     PerpsState,
+    funding_closeout_receiver_claim_balances_from_lots,
 )
 from ..core.perps import (
     PerpClearinghouseNpAccount as _NpAccount,
@@ -193,6 +282,7 @@ _HEX_CHARS_RE = re.compile(r"^[0-9a-fA-F]+$")
 _U32_MAX = 0xFFFFFFFF
 _BPS_SCALE = 10_000
 OracleAdapterBridgeVerifier = Callable[[Mapping[str, Any]], Any]
+TauSourceAuthorityPolicyReceiptVerifier = Callable[[Mapping[str, Any]], Any]
 
 
 def _safe_error_str(exc: Exception) -> str:
@@ -341,21 +431,26 @@ def _isolated_global_with_param_updates(market: PerpMarketState, updates: Mappin
     return new_global
 
 
-def _validate_isolated_liquidation_bounty_shock(market: PerpMarketState, new_global: Mapping[str, Any]) -> None:
+def _validate_isolated_open_position_param_softening(market: PerpMarketState, new_global: Mapping[str, Any]) -> None:
     old_liquidation_penalty_bps = int(market.global_state["liquidation_penalty_bps"])
     old_min_notional_for_bounty = int(market.global_state["min_notional_for_bounty"])
+    old_max_oracle_staleness_epochs = int(market.global_state["max_oracle_staleness_epochs"])
     new_liquidation_penalty_bps = int(new_global["liquidation_penalty_bps"])
     new_min_notional_for_bounty = int(new_global["min_notional_for_bounty"])
+    new_max_oracle_staleness_epochs = int(new_global["max_oracle_staleness_epochs"])
     has_open_positions = any(int(acct.position_base) != 0 for acct in market.accounts.values())
 
     # Scientist hardening (bounty-farming lane):
     # while positions are open, reject parameter shocks that increase liquidation keeper payoff
-    # by raising penalty bps or lowering the bounty-eligible notional threshold.
+    # by raising penalty bps, lowering the bounty-eligible notional threshold,
+    # or widening the stale-oracle action window.
     if has_open_positions:
         if new_liquidation_penalty_bps > old_liquidation_penalty_bps:
             raise ValueError("invalid params: cannot increase liquidation_penalty_bps while positions are open")
         if new_min_notional_for_bounty < old_min_notional_for_bounty:
             raise ValueError("invalid params: cannot decrease min_notional_for_bounty while positions are open")
+        if new_max_oracle_staleness_epochs > old_max_oracle_staleness_epochs:
+            raise ValueError("invalid params: cannot increase max_oracle_staleness_epochs while positions are open")
 
 
 def _clamp_isolated_funding_rate_to_cap(new_global: Dict[str, Any]) -> None:
@@ -385,17 +480,20 @@ def _validate_isolated_margin_and_liquidation_params(new_global: Mapping[str, An
         raise ValueError("invalid params: require liquidation_penalty_bps < maintenance_margin_bps + depeg_buffer_bps")
     if liquidation_penalty_bps <= 0:
         raise ValueError("invalid params: require liquidation_penalty_bps > 0")
-    if not funded_liquidation_params_ok_bps(
-        max_oracle_move_bps=max_oracle_move_bps,
-        maintenance_margin_bps=maintenance_margin_bps,
-        depeg_buffer_bps=depeg_buffer_bps,
-        liquidation_penalty_bps=liquidation_penalty_bps,
-    ):
+    try:
+        require_perp_liquidation_envelope_bps(
+            initial_margin_bps=initial_margin_bps,
+            maintenance_margin_bps=maintenance_margin_bps,
+            depeg_buffer_bps=depeg_buffer_bps,
+            max_oracle_move_bps=max_oracle_move_bps,
+            liquidation_penalty_bps=liquidation_penalty_bps,
+        )
+    except (TypeError, ValueError) as exc:
         raise ValueError(
             "invalid params: require funded liquidation "
             "liquidation_penalty_bps * (10000 + max_oracle_move_bps) <= "
             "10000 * (maintenance_margin_bps + depeg_buffer_bps - max_oracle_move_bps)"
-        )
+        ) from exc
 
 
 def _validate_isolated_liquidation_bounty_floor(
@@ -448,6 +546,174 @@ def _validate_isolated_open_account_safety(market: PerpMarketState, new_global: 
             raise ValueError(f"invalid params: account {pk} would be under maintenance margin")
 
 
+def _isolated_oi_policy_configured(config: "PerpEngineConfig") -> bool:
+    spot_depth = config.isolated_oi_spot_depth_quote
+    absorb = config.isolated_oi_arbitrage_absorb_bps
+    return (
+        spot_depth is not None
+        or absorb is not None
+        or config.isolated_oi_depth_certificate is not None
+        or bool(config.require_isolated_oi_depth_certificate)
+        or config.isolated_oi_depth_source_authority is not None
+        or bool(config.require_isolated_oi_depth_source_authority)
+        or config.isolated_oi_depth_source_authority_binding is not None
+        or bool(config.require_isolated_oi_depth_source_authority_binding)
+        or config.isolated_oi_depth_source_quorum_economics is not None
+        or bool(config.require_isolated_oi_depth_source_quorum_economics)
+    )
+
+
+def _isolated_position_notional_quote_ceil(*, position_base: int, index_price_e8: int) -> int:
+    if index_price_e8 <= 0:
+        raise ValueError("index_price_e8 must be positive")
+    return _ceil_div_nonnegative(abs(int(position_base)) * int(index_price_e8), _E8_SCALE)
+
+
+def _isolated_open_interest_quote_ceil(
+    accounts: Mapping[str, PerpAccountState],
+    *,
+    index_price_e8: int,
+) -> int:
+    total = 0
+    for pk in sorted(accounts.keys()):
+        total += _isolated_position_notional_quote_ceil(
+            position_base=int(accounts[pk].position_base),
+            index_price_e8=index_price_e8,
+        )
+    return total
+
+
+def _isolated_oi_liquidity_policy_error(
+    config: "PerpEngineConfig",
+    *,
+    market_id: str,
+    market: PerpMarketState,
+    accounts_after: Mapping[str, PerpAccountState],
+) -> Optional[str]:
+    if not _isolated_oi_policy_configured(config):
+        return None
+    spot_depth_quote = config.isolated_oi_spot_depth_quote
+    arbitrage_absorb_bps = config.isolated_oi_arbitrage_absorb_bps
+    economics_requested = (
+        config.require_isolated_oi_depth_source_quorum_economics
+        or config.isolated_oi_depth_source_quorum_economics is not None
+    )
+    if config.require_isolated_oi_depth_certificate and config.isolated_oi_depth_certificate is None:
+        return "isolated OI depth certificate required"
+    if economics_requested and config.isolated_oi_depth_certificate is None:
+        return "isolated OI depth certificate required for source quorum economics"
+    if (
+        config.require_isolated_oi_depth_source_quorum_economics
+        and config.isolated_oi_depth_source_quorum_economics is None
+    ):
+        return "isolated OI depth source quorum economics envelope required"
+    if (
+        (
+            config.require_isolated_oi_depth_source_authority
+            or config.isolated_oi_depth_source_authority is not None
+            or config.require_isolated_oi_depth_source_authority_binding
+            or config.isolated_oi_depth_source_authority_binding is not None
+        )
+        and config.isolated_oi_depth_certificate is None
+    ):
+        return "isolated OI depth certificate required for source authority"
+    if config.isolated_oi_depth_certificate is not None:
+        verdict = verify_oi_depth_certificate_payload(
+            config.isolated_oi_depth_certificate,
+            expected_market_id=market_id,
+            now_epoch=int(market.global_state["now_epoch"]),
+            expected_spot_depth_quote=spot_depth_quote,
+            expected_arbitrage_absorb_bps=arbitrage_absorb_bps,
+        )
+        if not verdict.ok or verdict.certificate is None:
+            return f"invalid isolated OI depth certificate: {verdict.error or 'rejected'}"
+        if economics_requested and config.isolated_oi_depth_source_authority is None:
+            return "isolated OI depth source authority required for source quorum economics"
+        if config.require_isolated_oi_depth_source_authority and config.isolated_oi_depth_source_authority is None:
+            return "isolated OI depth source authority required"
+        authority = None
+        if config.isolated_oi_depth_source_authority is not None:
+            authority_verdict = verify_oi_depth_source_authority_payload(
+                config.isolated_oi_depth_source_authority,
+                expected_market_id=market_id,
+                now_epoch=int(market.global_state["now_epoch"]),
+                required_source_ids=verdict.certificate.source_ids,
+            )
+            if not authority_verdict.ok or authority_verdict.authority is None:
+                return f"invalid isolated OI depth source authority: {authority_verdict.error or 'rejected'}"
+            authority = authority_verdict.authority
+        if economics_requested and config.isolated_oi_depth_source_authority_binding is None:
+            return "isolated OI depth source authority binding required for source quorum economics"
+        if (
+            config.require_isolated_oi_depth_source_authority_binding
+            or config.isolated_oi_depth_source_authority_binding is not None
+        ):
+            if authority is None:
+                return "isolated OI depth source authority required for binding"
+            if config.require_isolated_oi_depth_source_authority_binding and (
+                config.isolated_oi_depth_source_authority_binding is None
+            ):
+                return "isolated OI depth source authority binding required"
+            if config.isolated_oi_depth_source_authority_binding is not None:
+                binding_verdict = verify_oi_depth_source_authority_binding_payload(
+                    config.isolated_oi_depth_source_authority_binding,
+                    authority=authority,
+                    expected_market_id=market_id,
+                    now_epoch=int(market.global_state["now_epoch"]),
+                    expected_authority_state_root_hash=config.isolated_oi_depth_source_authority_state_root_hash,
+                    expected_policy_hash=config.isolated_oi_depth_source_authority_policy_hash,
+                    allowed_signer_pubkeys=config.isolated_oi_depth_source_authority_signer_pubkeys,
+                )
+                if not binding_verdict.ok or binding_verdict.binding is None:
+                    return f"invalid isolated OI depth source authority binding: {binding_verdict.error or 'rejected'}"
+        if economics_requested:
+            economics_policy_hash = (
+                config.isolated_oi_depth_source_quorum_economics_policy_hash
+                or config.isolated_oi_depth_source_authority_policy_hash
+            )
+            if economics_policy_hash is None:
+                return "isolated OI depth source quorum economics policy hash required"
+            economics_verdict = verify_depth_source_quorum_economics_payload(
+                config.isolated_oi_depth_source_quorum_economics,
+                expected_market_id=market_id,
+                now_epoch=int(market.global_state["now_epoch"]),
+                expected_policy_hash=economics_policy_hash,
+                expected_reported_depth_quote=int(verdict.certificate.spot_depth_quote),
+                expected_arbitrage_absorb_bps=int(verdict.certificate.arbitrage_absorb_bps),
+                expected_source_ids=verdict.certificate.source_ids,
+            )
+            if not economics_verdict.ok:
+                return (
+                    "invalid isolated OI depth source quorum economics: "
+                    f"{economics_verdict.error or 'rejected'}"
+                )
+        spot_depth_quote = int(verdict.certificate.spot_depth_quote)
+        arbitrage_absorb_bps = int(verdict.certificate.arbitrage_absorb_bps)
+    if spot_depth_quote is None or arbitrage_absorb_bps is None:
+        return "invalid isolated OI liquidity policy: spot depth and absorb bps are both required"
+
+    try:
+        open_interest_quote = _isolated_open_interest_quote_ceil(
+            accounts_after,
+            index_price_e8=int(market.global_state["index_price_e8"]),
+        )
+        outcome = evaluate_oi_liquidity_bound(
+            open_interest_quote=open_interest_quote,
+            spot_depth_quote=int(spot_depth_quote),
+            arbitrage_absorb_bps=int(arbitrage_absorb_bps),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        return f"invalid isolated OI liquidity policy: {_safe_error_str(exc)}"
+
+    if not outcome.bound_ok:
+        return (
+            "set_position open interest exceeds liquidity-depth bound: "
+            f"open_interest_quote={outcome.open_interest_quote} "
+            f"max_open_interest_quote={outcome.max_open_interest_quote}"
+        )
+    return None
+
+
 def _apply_isolated_market_params(
     market: PerpMarketState,
     *,
@@ -459,7 +725,7 @@ def _apply_isolated_market_params(
         return market
 
     new_global = dict(_isolated_global_with_param_updates(market, updates))
-    _validate_isolated_liquidation_bounty_shock(market, new_global)
+    _validate_isolated_open_position_param_softening(market, new_global)
     _clamp_isolated_funding_rate_to_cap(new_global)
     _validate_isolated_margin_and_liquidation_params(new_global)
     _validate_isolated_liquidation_bounty_floor(
@@ -468,10 +734,10 @@ def _apply_isolated_market_params(
     )
     _validate_isolated_open_account_safety(market, new_global)
 
-    return PerpMarketState(
-        quote_asset=market.quote_asset,
+    return _isolated_market_with(
+        market,
         global_state=new_global,
-        accounts=dict(market.accounts),
+        accounts=market.accounts,
     )
 
 
@@ -501,7 +767,9 @@ def _apply_clearinghouse_market_params(
         position_base_c=int(state.get("position_base_c", 0)),
         old_liquidation_penalty_bps=int(state.get("liquidation_penalty_bps", 0)),
         new_liquidation_penalty_bps=int(new_state.get("liquidation_penalty_bps", 0)),
+        new_initial_margin_bps=int(new_state.get("initial_margin_bps", 0)),
         new_maintenance_margin_bps=int(new_state.get("maintenance_margin_bps", 0)),
+        new_max_oracle_move_bps=int(new_state.get("max_oracle_move_bps", 0)),
     )
     if not guard.admission_ok:
         raise ValueError(perp_clearinghouse_market_params_guard_error(guard) or "invalid clearinghouse market params")
@@ -671,6 +939,20 @@ class PerpEngineConfig:
     oracle_adapter_bridge_verifier: Optional[OracleAdapterBridgeVerifier] = None
     require_oracle_adapter_for_isolated_settle_epoch: bool = False
     require_oracle_adapter_for_isolated_partial_liquidate: bool = False
+    require_tau_source_binding_for_isolated_partial_liquidate: bool = False
+    require_tau_source_state_root_binding_for_isolated_partial_liquidate: bool = False
+    require_tau_source_membership_proof_for_isolated_partial_liquidate: bool = False
+    require_tau_source_root_authority_for_isolated_partial_liquidate: bool = False
+    require_tau_source_admission_envelope_for_isolated_partial_liquidate: bool = False
+    require_tau_source_authority_policy_receipt_for_isolated_partial_liquidate: bool = False
+    tau_source_authority_policy_receipt_verifier: Optional[
+        TauSourceAuthorityPolicyReceiptVerifier
+    ] = None
+    isolated_partial_liquidate_tau_source_state_root_hash: Optional[str] = None
+    isolated_partial_liquidate_tau_source_state_root_kind: Optional[str] = None
+    isolated_partial_liquidate_tau_source_root_authority_state_root_hash: Optional[str] = None
+    isolated_partial_liquidate_tau_source_root_authority_policy_hash: Optional[str] = None
+    isolated_partial_liquidate_tau_source_root_authority_signer_pubkeys: tuple[str, ...] = ()
     require_oracle_adapter_for_clearinghouse_settle_epoch: bool = False
     # Scientist-derived anti-bounty-farming posture guard:
     # require a non-trivial minimum collectible liquidation penalty for bounty-eligible notional.
@@ -679,6 +961,34 @@ class PerpEngineConfig:
     # isolated perps settlement can consume the current oracle/index snapshot.
     require_oracle_authorization_for_isolated_settle: bool = False
     require_oracle_authorization_for_clearinghouse_settle_epoch: bool = False
+    # Optional isolated-perps scaling policy. When both fields are set, each
+    # set_position must keep aggregate open interest within the depth-supported
+    # TWAP-funding manipulation budget.
+    isolated_oi_spot_depth_quote: Optional[int] = None
+    isolated_oi_arbitrage_absorb_bps: Optional[int] = None
+    isolated_oi_depth_certificate: Optional[Mapping[str, Any]] = None
+    require_isolated_oi_depth_certificate: bool = False
+    isolated_oi_depth_source_authority: Optional[Mapping[str, Any]] = None
+    require_isolated_oi_depth_source_authority: bool = False
+    isolated_oi_depth_source_authority_binding: Optional[Mapping[str, Any]] = None
+    require_isolated_oi_depth_source_authority_binding: bool = False
+    isolated_oi_depth_source_authority_state_root_hash: Optional[str] = None
+    isolated_oi_depth_source_authority_policy_hash: Optional[str] = None
+    isolated_oi_depth_source_authority_signer_pubkeys: tuple[str, ...] = ()
+    isolated_oi_depth_source_quorum_economics: Optional[Mapping[str, Any]] = None
+    require_isolated_oi_depth_source_quorum_economics: bool = False
+    isolated_oi_depth_source_quorum_economics_policy_hash: Optional[str] = None
+    require_isolated_funding_closeout_liability_certificate_on_negative_net_funding: bool = False
+    isolated_funding_closeout_pre_due_vector_hash: Optional[str] = None
+    require_isolated_funding_closeout_liability_receipt_on_negative_net_funding: bool = False
+    require_isolated_funding_closeout_allocation_receipt_on_negative_net_funding: bool = False
+    isolated_funding_closeout_pre_state_root_hash: Optional[str] = None
+    isolated_funding_closeout_source_availability_hash: Optional[str] = None
+    isolated_funding_closeout_recovery_source_authority: Optional[Mapping[str, Any]] = None
+    isolated_funding_closeout_recovery_source_authority_binding: Optional[Mapping[str, Any]] = None
+    isolated_funding_closeout_recovery_source_authority_state_root_hash: Optional[str] = None
+    isolated_funding_closeout_recovery_source_authority_policy_hash: Optional[str] = None
+    isolated_funding_closeout_recovery_source_authority_signer_pubkeys: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -687,6 +997,343 @@ class PerpOp:
     action: str
     version: str
     data: Dict[str, Any]
+
+
+_KEEP_PENDING_FUNDING_CLOSEOUT_ROOTS = object()
+_KEEP_PENDING_FUNDING_CLOSEOUT_SOURCE_ROOTS = object()
+_KEEP_PENDING_FUNDING_CLOSEOUT_CARRIED_ROOTS = object()
+_KEEP_FUNDING_CLOSEOUT_POLICY_LEDGER_ROOTS = object()
+_KEEP_FUNDING_CLOSEOUT_SINK_CLAIMANT_BALANCES = object()
+_KEEP_FUNDING_CLOSEOUT_RECEIVER_CLAIM_BALANCES = object()
+_KEEP_FUNDING_CLOSEOUT_RECEIVER_CLAIM_LOTS = object()
+
+
+def _isolated_market_with(
+    market: PerpMarketState,
+    *,
+    global_state: Mapping[str, Any],
+    accounts: Mapping[str, PerpAccountState],
+    pending_funding_closeout_root_hashes: object = _KEEP_PENDING_FUNDING_CLOSEOUT_ROOTS,
+    pending_funding_closeout_source_availability_hashes: object = (
+        _KEEP_PENDING_FUNDING_CLOSEOUT_SOURCE_ROOTS
+    ),
+    pending_funding_closeout_carried_liability_hashes: object = (
+        _KEEP_PENDING_FUNDING_CLOSEOUT_CARRIED_ROOTS
+    ),
+    funding_closeout_policy_ledger_hashes: object = (
+        _KEEP_FUNDING_CLOSEOUT_POLICY_LEDGER_ROOTS
+    ),
+    funding_closeout_sink_claimant_balances_quote: object = (
+        _KEEP_FUNDING_CLOSEOUT_SINK_CLAIMANT_BALANCES
+    ),
+    funding_closeout_receiver_claim_balances_quote: object = (
+        _KEEP_FUNDING_CLOSEOUT_RECEIVER_CLAIM_BALANCES
+    ),
+    funding_closeout_receiver_claim_lots_quote: object = (
+        _KEEP_FUNDING_CLOSEOUT_RECEIVER_CLAIM_LOTS
+    ),
+) -> PerpMarketState:
+    if pending_funding_closeout_root_hashes is _KEEP_PENDING_FUNDING_CLOSEOUT_ROOTS:
+        pending_roots = tuple(getattr(market, "pending_funding_closeout_root_hashes", ()))
+    else:
+        pending_roots = tuple(pending_funding_closeout_root_hashes)  # type: ignore[arg-type]
+    if (
+        pending_funding_closeout_source_availability_hashes
+        is _KEEP_PENDING_FUNDING_CLOSEOUT_SOURCE_ROOTS
+    ):
+        pending_source_roots = tuple(
+            getattr(market, "pending_funding_closeout_source_availability_hashes", ())
+        )
+    else:
+        pending_source_roots = tuple(
+            pending_funding_closeout_source_availability_hashes
+        )  # type: ignore[arg-type]
+    if (
+        pending_funding_closeout_carried_liability_hashes
+        is _KEEP_PENDING_FUNDING_CLOSEOUT_CARRIED_ROOTS
+    ):
+        pending_carried_roots = tuple(
+            getattr(market, "pending_funding_closeout_carried_liability_hashes", ())
+        )
+    else:
+        pending_carried_roots = tuple(
+            pending_funding_closeout_carried_liability_hashes
+        )  # type: ignore[arg-type]
+    if (
+        funding_closeout_policy_ledger_hashes
+        is _KEEP_FUNDING_CLOSEOUT_POLICY_LEDGER_ROOTS
+    ):
+        policy_ledger_roots = tuple(
+            getattr(market, "funding_closeout_policy_ledger_hashes", ())
+        )
+    else:
+        policy_ledger_roots = tuple(
+            funding_closeout_policy_ledger_hashes
+        )  # type: ignore[arg-type]
+    if (
+        funding_closeout_sink_claimant_balances_quote
+        is _KEEP_FUNDING_CLOSEOUT_SINK_CLAIMANT_BALANCES
+    ):
+        sink_claimant_balances = tuple(
+            getattr(market, "funding_closeout_sink_claimant_balances_quote", ())
+        )
+    else:
+        sink_claimant_balances = tuple(
+            funding_closeout_sink_claimant_balances_quote
+        )  # type: ignore[arg-type]
+    if (
+        funding_closeout_receiver_claim_balances_quote
+        is _KEEP_FUNDING_CLOSEOUT_RECEIVER_CLAIM_BALANCES
+    ):
+        receiver_claim_balances = tuple(
+            getattr(market, "funding_closeout_receiver_claim_balances_quote", ())
+        )
+    else:
+        receiver_claim_balances = tuple(
+            funding_closeout_receiver_claim_balances_quote
+        )  # type: ignore[arg-type]
+    if (
+        funding_closeout_receiver_claim_lots_quote
+        is _KEEP_FUNDING_CLOSEOUT_RECEIVER_CLAIM_LOTS
+    ):
+        receiver_claim_lots = tuple(
+            getattr(market, "funding_closeout_receiver_claim_lots_quote", ())
+        )
+    else:
+        receiver_claim_lots = tuple(
+            funding_closeout_receiver_claim_lots_quote
+        )  # type: ignore[arg-type]
+    return PerpMarketState(
+        quote_asset=market.quote_asset,
+        global_state=dict(global_state),
+        accounts=dict(accounts),
+        pending_funding_closeout_root_hashes=pending_roots,
+        pending_funding_closeout_source_availability_hashes=pending_source_roots,
+        pending_funding_closeout_carried_liability_hashes=pending_carried_roots,
+        funding_closeout_policy_ledger_hashes=policy_ledger_roots,
+        funding_closeout_sink_claimant_balances_quote=sink_claimant_balances,
+        funding_closeout_receiver_claim_balances_quote=receiver_claim_balances,
+        funding_closeout_receiver_claim_lots_quote=receiver_claim_lots,
+    )
+
+
+def _funding_closeout_receiver_claim_lot_id(
+    *,
+    policy_hash: str | None,
+    account_pubkey: str,
+) -> str:
+    payload = {
+        "schema": "zenodex.perps.funding_closeout.receiver_claim_lot.v1",
+        "policy_hash": policy_hash or "unbound-policy",
+        "account_pubkey": str(account_pubkey),
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _legacy_funding_closeout_receiver_claim_lot_id(account_pubkey: str) -> str:
+    payload = {
+        "schema": "zenodex.perps.funding_closeout.receiver_claim_legacy_lot.v1",
+        "account_pubkey": str(account_pubkey),
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _receiver_claim_lots_for_mutation(
+    market: PerpMarketState,
+    *,
+    materialize_legacy_balances: bool,
+) -> tuple[tuple[str, str, int, int], ...]:
+    lots = tuple(getattr(market, "funding_closeout_receiver_claim_lots_quote", ()))
+    if lots or not materialize_legacy_balances:
+        return lots
+    balances = tuple(
+        getattr(market, "funding_closeout_receiver_claim_balances_quote", ())
+    )
+    return tuple(
+        (
+            str(account_pubkey),
+            _legacy_funding_closeout_receiver_claim_lot_id(str(account_pubkey)),
+            int(balance_quote),
+            FUNDING_CLOSEOUT_RECEIVER_CLAIM_NO_EXPIRY_EPOCH,
+        )
+        for account_pubkey, balance_quote in balances
+    )
+
+
+def _add_funding_closeout_receiver_claim_lots(
+    market: PerpMarketState,
+    *,
+    receiver_claims_by_account: Mapping[str, int],
+    policy_hash: str | None,
+) -> tuple[tuple[str, str, int, int], ...]:
+    claims = {
+        str(account_pubkey): int(claim_quote)
+        for account_pubkey, claim_quote in dict(receiver_claims_by_account).items()
+        if int(claim_quote) != 0
+    }
+    lots = list(
+        _receiver_claim_lots_for_mutation(
+            market,
+            materialize_legacy_balances=bool(claims),
+        )
+    )
+    by_key = {
+        (str(account_pubkey), str(lot_id)): (
+            str(account_pubkey),
+            str(lot_id),
+            int(balance_quote),
+            int(expires_at_epoch),
+        )
+        for account_pubkey, lot_id, balance_quote, expires_at_epoch in lots
+    }
+    for account_pubkey, claim_quote in claims.items():
+        claim = int(claim_quote)
+        if claim == 0:
+            continue
+        lot_id = _funding_closeout_receiver_claim_lot_id(
+            policy_hash=policy_hash,
+            account_pubkey=str(account_pubkey),
+        )
+        key = (str(account_pubkey), lot_id)
+        existing = by_key.get(key)
+        if existing is None:
+            by_key[key] = (
+                str(account_pubkey),
+                lot_id,
+                int(claim),
+                FUNDING_CLOSEOUT_RECEIVER_CLAIM_NO_EXPIRY_EPOCH,
+            )
+            continue
+        by_key[key] = (
+            existing[0],
+            existing[1],
+            int(existing[2]) + int(claim),
+            existing[3],
+        )
+    return tuple(sorted(by_key.values(), key=lambda row: (row[0], row[3], row[1])))
+
+
+def _debit_funding_closeout_receiver_claim_lots(
+    market: PerpMarketState,
+    receiver_recoveries: Mapping[str, int],
+) -> tuple[Optional[str], tuple[tuple[str, str, int, int], ...], list[dict[str, Any]]]:
+    rows = list(
+        _receiver_claim_lots_for_mutation(
+            market,
+            materialize_legacy_balances=True,
+        )
+    )
+    debits: list[dict[str, Any]] = []
+    for account_pubkey, recovery_quote in sorted(receiver_recoveries.items()):
+        remaining = int(recovery_quote)
+        if remaining == 0:
+            continue
+        for index, row in enumerate(list(rows)):
+            lot_account, lot_id, balance_quote, expires_at_epoch = row
+            if lot_account != account_pubkey or remaining == 0:
+                continue
+            debit = min(int(balance_quote), remaining)
+            next_balance = int(balance_quote) - debit
+            remaining -= debit
+            debits.append(
+                {
+                    "account_pubkey": lot_account,
+                    "lot_id": lot_id,
+                    "debited_quote": int(debit),
+                    "remaining_lot_balance_quote": int(next_balance),
+                    "expires_at_epoch": int(expires_at_epoch),
+                }
+            )
+            if next_balance == 0:
+                rows[index] = ("", "", 0, 0)
+            else:
+                rows[index] = (lot_account, lot_id, next_balance, expires_at_epoch)
+        rows = [row for row in rows if row[2] > 0]
+        if remaining != 0:
+            return "funding closeout recovery exceeds receiver claim lot balance", (), []
+    next_lots = tuple(sorted(rows, key=lambda row: (row[0], row[3], row[1])))
+    return None, next_lots, debits
+
+
+def _isolated_open_position_accounts(accounts: Mapping[str, PerpAccountState]) -> tuple[PositionAccount, ...]:
+    return tuple(
+        PositionAccount(str(account_pubkey), int(account.position_base))
+        for account_pubkey, account in sorted(accounts.items())
+        if int(account.position_base) != 0
+    )
+
+
+def _append_pending_funding_closeout_root(
+    market: PerpMarketState,
+    root_hash: str,
+) -> tuple[str, ...]:
+    return tuple(sorted(set(tuple(getattr(market, "pending_funding_closeout_root_hashes", ())) + (root_hash,))))
+
+
+def _append_pending_funding_closeout_source_availability_hash(
+    market: PerpMarketState,
+    root_hash: str,
+) -> tuple[str, ...]:
+    existing = tuple(
+        getattr(market, "pending_funding_closeout_source_availability_hashes", ())
+    )
+    return tuple(sorted(set(existing + (root_hash,))))
+
+
+def _append_pending_funding_closeout_carried_liability_hash(
+    market: PerpMarketState,
+    root_hash: str,
+) -> tuple[str, ...]:
+    existing = tuple(
+        getattr(market, "pending_funding_closeout_carried_liability_hashes", ())
+    )
+    return tuple(sorted(set(existing + (root_hash,))))
+
+
+def _append_funding_closeout_policy_ledger_hash(
+    market: PerpMarketState,
+    root_hash: str,
+) -> tuple[str, ...]:
+    existing = tuple(getattr(market, "funding_closeout_policy_ledger_hashes", ()))
+    return tuple(sorted(set(existing + (root_hash,))))
+
+
+def _remove_funding_closeout_policy_ledger_hash(
+    market: PerpMarketState,
+    root_hash: str,
+) -> tuple[str, ...]:
+    existing = tuple(getattr(market, "funding_closeout_policy_ledger_hashes", ()))
+    return tuple(root for root in existing if root != root_hash)
+
+
+def _isolated_pending_funding_closeout_boundary_error(
+    action: str,
+    market: PerpMarketState,
+) -> Optional[str]:
+    pending_roots = tuple(getattr(market, "pending_funding_closeout_root_hashes", ()))
+    pending_source_roots = tuple(
+        getattr(market, "pending_funding_closeout_source_availability_hashes", ())
+    )
+    if pending_roots or pending_source_roots:
+        return (
+            f"{action} requires pending funding closeout liabilities "
+            "to be consumed before epoch boundary"
+        )
+    return None
+
+
+def _funding_closeout_source_availability_row_for_closeout(
+    *,
+    account_pubkey: str,
+    epoch: int,
+    result: _IsolatedPartialLiquidateResult,
+) -> ClosedFundingSourceRow:
+    return ClosedFundingSourceRow(
+        account_pubkey=str(account_pubkey),
+        epoch=int(epoch),
+        payer_available_quote=max(0, int(result.account.collateral_quote)),
+        sink_capacity_quote=max(0, int(result.global_state.get("fee_pool_quote", 0))),
+    )
 
 
 @dataclass(frozen=True)
@@ -713,6 +1360,14 @@ def _require_int(value: Any, *, name: str, non_negative: bool = False) -> int:
     if non_negative and value < 0:
         raise ValueError(f"{name} must be non-negative")
     return int(value)
+
+
+def _ceil_div_nonnegative(numerator: int, denominator: int) -> int:
+    if denominator <= 0:
+        raise ValueError("denominator must be positive")
+    if numerator < 0:
+        raise ValueError("numerator must be non-negative")
+    return (numerator + denominator - 1) // denominator
 
 
 def _require_int_u32_pos(value: Any, *, name: str) -> int:
@@ -1135,41 +1790,62 @@ class _OracleAdapterBridgeRequirement:
     required: bool = False
 
 
-def _require_oracle_adapter_bridge(requirement: _OracleAdapterBridgeRequirement) -> Optional[str]:
+@dataclass(frozen=True)
+class _LiquidateAccountOracleRuntimeRequest:
+    config: PerpEngineConfig
+    market_id: str
+    market: PerpMarketState
+    account_pubkey: str
+    fraction_bps: int
+
+
+def _check_oracle_adapter_bridge(
+    requirement: _OracleAdapterBridgeRequirement,
+) -> tuple[Optional[str], Any | None]:
     if "oracle_adapter_bridge" not in requirement.data:
         if requirement.required:
-            return f"{requirement.action_kind} requires oracle_adapter_bridge"
-        return None
+            return f"{requirement.action_kind} requires oracle_adapter_bridge", None
+        return None, None
 
     bridge = requirement.data.get("oracle_adapter_bridge")
     if not isinstance(bridge, Mapping):
-        return "oracle_adapter_bridge must be an object"
+        return "oracle_adapter_bridge must be an object", None
     verifier = requirement.config.oracle_adapter_bridge_verifier
     if verifier is None:
-        return "oracle_adapter_bridge verifier not configured"
+        return "oracle_adapter_bridge verifier not configured", None
     try:
         result = verifier(bridge)
     except Exception as exc:
-        return f"oracle_adapter_bridge verifier error: {_safe_error_str(exc)}"
+        return f"oracle_adapter_bridge verifier error: {_safe_error_str(exc)}", None
 
     if _oracle_adapter_result_get(result, "status") != "accepted":
-        return f"oracle_adapter_bridge rejected: {_oracle_adapter_error_summary(result)}"
+        return (
+            f"oracle_adapter_bridge rejected: {_oracle_adapter_error_summary(result)}",
+            None,
+        )
     result_consumer = _oracle_adapter_result_get(result, "consumer_module")
     result_action = _oracle_adapter_result_get(result, "action_kind")
     if result_consumer != requirement.consumer_module:
-        return "oracle_adapter_bridge consumer mismatch"
+        return "oracle_adapter_bridge consumer mismatch", None
     if result_action != requirement.action_kind:
-        return "oracle_adapter_bridge action mismatch"
+        return "oracle_adapter_bridge action mismatch", None
     result_query_id = _oracle_adapter_result_get(result, "query_id")
     if requirement.expected_query_id is not None and result_query_id != requirement.expected_query_id:
-        return "oracle_adapter_bridge query mismatch"
+        return "oracle_adapter_bridge query mismatch", None
     result_profile_id = _oracle_adapter_result_get(result, "profile_id")
     if requirement.expected_profile_id is not None and result_profile_id != requirement.expected_profile_id:
-        return "oracle_adapter_bridge profile mismatch"
+        return "oracle_adapter_bridge profile mismatch", None
     result_action_id = _oracle_adapter_result_get(result, "action_id")
     if requirement.expected_action_id is not None and result_action_id != requirement.expected_action_id:
-        return "oracle_adapter_bridge action_id mismatch"
-    return None
+        return "oracle_adapter_bridge action_id mismatch", None
+    return None, result
+
+
+def _require_oracle_adapter_bridge(
+    requirement: _OracleAdapterBridgeRequirement,
+) -> Optional[str]:
+    err, _result = _check_oracle_adapter_bridge(requirement)
+    return err
 
 
 def _perps_runtime_oracle_action_id(
@@ -1197,13 +1873,22 @@ def _perps_runtime_oracle_action_id(
 
 
 def _perps_liquidate_account_runtime_oracle_action_id(
-    config: PerpEngineConfig,
+    config: PerpEngineConfig | _LiquidateAccountOracleRuntimeRequest,
     *,
-    market_id: str,
-    market: PerpMarketState,
-    account_pubkey: str,
-    fraction_bps: int,
+    market_id: Optional[str] = None,
+    market: Optional[PerpMarketState] = None,
+    account_pubkey: Optional[str] = None,
+    fraction_bps: Optional[int] = None,
 ) -> str:
+    if isinstance(config, _LiquidateAccountOracleRuntimeRequest):
+        request = config
+        config = request.config
+        market_id = request.market_id
+        market = request.market
+        account_pubkey = request.account_pubkey
+        fraction_bps = request.fraction_bps
+    if market_id is None or market is None or account_pubkey is None or fraction_bps is None:
+        raise TypeError("missing liquidate-account runtime oracle action fields")
     global_state = market.global_state
     acct = market.accounts.get(account_pubkey) or _kernel_initial_account_state()
     payload = {
@@ -1714,6 +2399,27 @@ class _IsolatedFundingAccountApply:
 
 
 @dataclass(frozen=True)
+class _IsolatedCarriedFundingSettlement:
+    accounts: Dict[str, PerpAccountState]
+    total_claim_quote: int
+    total_payable_quote: int
+    total_haircut_quote: int
+    receiver_payments_by_account: Mapping[str, int]
+    receiver_haircuts_by_account: Mapping[str, int]
+
+
+@dataclass(frozen=True)
+class _IsolatedFundingCloseoutAdmission:
+    projected_net_funding_quote: int
+    receiver_haircut_quote: int
+    receiver_haircuts_by_account: Mapping[str, int]
+    allocation_receipt_applied: bool
+    policy_ledger_hash: str | None = None
+    policy_ledger_payload: Mapping[str, Any] | None = None
+    receiver_claims_by_account: Mapping[str, int] | None = None
+
+
+@dataclass(frozen=True)
 class _IsolatedPartialLiquidateResult:
     global_state: Mapping[str, Any]
     account: PerpAccountState
@@ -2013,7 +2719,9 @@ def _apply_clearinghouse_set_market_params(
         position_base_c=int(state.get("position_base_c", 0)),
         old_liquidation_penalty_bps=int(state.get("liquidation_penalty_bps", 0)),
         new_liquidation_penalty_bps=int(state.get("liquidation_penalty_bps", 0)),
+        new_initial_margin_bps=int(state.get("initial_margin_bps", 0)),
         new_maintenance_margin_bps=int(state.get("maintenance_margin_bps", 0)),
+        new_max_oracle_move_bps=int(state.get("max_oracle_move_bps", 0)),
     )
     pre_guard_error = perp_clearinghouse_market_params_guard_error(pre_guard)
     if pre_guard_error is not None:
@@ -2836,6 +3544,12 @@ def _apply_isolated_advance_epoch(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mar
     )
     if gate_error is not None:
         return gate_error
+    pending_closeout_error = _isolated_pending_funding_closeout_boundary_error(
+        action,
+        market,
+    )
+    if pending_closeout_error is not None:
+        return pending_closeout_error
     delta = _require_int(data.get("delta"), name="delta", non_negative=True)
 
     dummy = _kernel_initial_account_state()
@@ -2850,10 +3564,10 @@ def _apply_isolated_advance_epoch(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mar
     _preserve_isolated_shell_global_fields(pre_global=market.global_state, post_global=new_global)
     if new_dummy != dummy:
         return "internal error: global op mutated account state"
-    ctx.markets[market_id] = PerpMarketState(
-        quote_asset=market.quote_asset,
+    ctx.markets[market_id] = _isolated_market_with(
+        market,
         global_state=new_global,
-        accounts=dict(market.accounts),
+        accounts=market.accounts,
     )
     ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": dict(res.effects or {})})
     return None
@@ -2907,10 +3621,10 @@ def _apply_isolated_publish_clearing_price(
     new_global["mark_price_source_kind"] = mark_price_source_kind
     if new_dummy != dummy:
         return "internal error: global op mutated account state"
-    ctx.markets[market_id] = PerpMarketState(
-        quote_asset=market.quote_asset,
+    ctx.markets[market_id] = _isolated_market_with(
+        market,
         global_state=new_global,
-        accounts=dict(market.accounts),
+        accounts=market.accounts,
     )
     ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": dict(res.effects or {})})
     return None
@@ -2921,13 +3635,555 @@ def _isolated_apply_funding_auto_admission_error(
     *,
     op: PerpOp,
 ) -> Optional[str]:
-    allowed = {"module", "version", "market_id", "action"}
+    allowed = {
+        "module",
+        "version",
+        "market_id",
+        "action",
+        "funding_closeout_liability_certificate",
+        "funding_closeout_liability_receipt",
+        "funding_closeout_allocation_receipt",
+        "funding_closeout_policy_ledger",
+    }
     return _operator_gate_error(
         action_kind=RUNTIME_ACTION_APPLY_FUNDING_AUTO,
         action=op.action,
         operator_err=_require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey),
         unknown_fields_ok=not (set(op.data.keys()) - allowed),
     )
+
+
+def _funding_closeout_receipt_expected_root(
+    ctx: _PerpApplyCtx,
+    *,
+    market: PerpMarketState,
+    receipt_payload: object,
+) -> tuple[Optional[str], Optional[str]]:
+    pending_roots = tuple(getattr(market, "pending_funding_closeout_root_hashes", ()))
+    if pending_roots:
+        if not isinstance(receipt_payload, Mapping):
+            return "invalid funding closeout liability receipt: receipt must be an object", None
+        receipt_root = receipt_payload.get("pre_close_state_root_hash")
+        if not isinstance(receipt_root, str) or receipt_root not in pending_roots:
+            return "funding closeout receipt root not pending", None
+        return None, receipt_root
+    expected_root = ctx.config.isolated_funding_closeout_pre_state_root_hash
+    if expected_root is None:
+        return "funding closeout pre_close_state_root_hash required", None
+    return None, expected_root
+
+
+def _funding_closeout_source_expected_hash(
+    ctx: _PerpApplyCtx,
+    *,
+    market: PerpMarketState,
+    receipt_payload: object,
+) -> tuple[Optional[str], Optional[str]]:
+    pending_source_roots = tuple(
+        getattr(market, "pending_funding_closeout_source_availability_hashes", ())
+    )
+    if pending_source_roots:
+        if len(pending_source_roots) != 1:
+            return "funding closeout source availability root is ambiguous", None
+        if not isinstance(receipt_payload, Mapping):
+            return "invalid funding closeout allocation receipt: allocation_receipt must be an object", None
+        receipt_source_hash = receipt_payload.get("source_availability_hash")
+        if not isinstance(receipt_source_hash, str) or receipt_source_hash not in pending_source_roots:
+            return "funding closeout source availability root not pending", None
+        return None, receipt_source_hash
+    expected_source_hash = ctx.config.isolated_funding_closeout_source_availability_hash
+    if expected_source_hash is None:
+        return "funding closeout source availability hash required", None
+    return None, expected_source_hash
+
+
+def _isolated_funding_closeout_admission(
+    ctx: _PerpApplyCtx,
+    *,
+    op: PerpOp,
+    market: PerpMarketState,
+    snapshot: _IsolatedFundingSnapshot,
+    funding_rate_bps: int,
+    raw_projected_net_funding_quote: int,
+) -> tuple[Optional[str], _IsolatedFundingCloseoutAdmission]:
+    default = _IsolatedFundingCloseoutAdmission(
+        projected_net_funding_quote=int(raw_projected_net_funding_quote),
+        receiver_haircut_quote=0,
+        receiver_haircuts_by_account={},
+        allocation_receipt_applied=False,
+    )
+    cert_payload = op.data.get("funding_closeout_liability_certificate")
+    receipt_payload = op.data.get("funding_closeout_liability_receipt")
+    allocation_receipt_payload = op.data.get("funding_closeout_allocation_receipt")
+    policy_ledger_payload = op.data.get("funding_closeout_policy_ledger")
+    if policy_ledger_payload is not None and allocation_receipt_payload is None:
+        return "funding closeout policy ledger requires source-portfolio allocation receipt", default
+    if (
+        int(cert_payload is not None)
+        + int(receipt_payload is not None)
+        + int(allocation_receipt_payload is not None)
+        > 1
+    ):
+        return "funding closeout certificate and receipt are mutually exclusive", default
+
+    allocation_required = (
+        bool(
+            ctx.config.require_isolated_funding_closeout_allocation_receipt_on_negative_net_funding
+        )
+        and int(raw_projected_net_funding_quote) < 0
+    )
+    if allocation_receipt_payload is not None or allocation_required:
+        if allocation_receipt_payload is None:
+            return "funding closeout allocation receipt required for negative net funding", default
+        if int(raw_projected_net_funding_quote) >= 0:
+            return "funding closeout allocation receipt only allowed for negative net funding", default
+        if not isinstance(allocation_receipt_payload, Mapping):
+            return "invalid funding closeout allocation receipt: allocation_receipt must be an object", default
+        allocation_schema = allocation_receipt_payload.get("schema")
+        pending_source_roots = tuple(
+            getattr(market, "pending_funding_closeout_source_availability_hashes", ())
+        )
+        source_binding_required = bool(
+            pending_source_roots
+        ) or (
+            ctx.config.isolated_funding_closeout_source_availability_hash is not None
+        )
+        if (
+            len(pending_source_roots) > 1
+            and allocation_schema
+            != SOURCE_PORTFOLIO_BOUND_RATIONED_ALLOCATION_RECEIPT_SCHEMA
+        ):
+            return "funding closeout source-portfolio allocation receipt required", default
+        if (
+            source_binding_required
+            and allocation_schema
+            not in (
+                SOURCE_BOUND_RATIONED_ALLOCATION_RECEIPT_SCHEMA,
+                SOURCE_PORTFOLIO_BOUND_RATIONED_ALLOCATION_RECEIPT_SCHEMA,
+            )
+        ):
+            return "funding closeout source-bound allocation receipt required", default
+        if allocation_schema == SOURCE_PORTFOLIO_BOUND_RATIONED_ALLOCATION_RECEIPT_SCHEMA:
+            if not pending_source_roots:
+                return "funding closeout source-portfolio allocation receipt requires pending source roots", default
+            post_open_accounts = tuple(
+                PositionAccount(pk, acct.position_base)
+                for pk, acct in snapshot.open_accounts
+            )
+            expected_receiver_claim_rows = post_open_receiver_claim_rows(
+                post_open_accounts,
+                price_e8=int(market.global_state.get("index_price_e8", 0)),
+                funding_rate_bps=int(funding_rate_bps),
+            )
+            if len(expected_receiver_claim_rows) == 0:
+                return "funding closeout rationed allocation receipt requires open funding receivers", default
+            receiver_claim_sum = sum(
+                row.claim_quote for row in expected_receiver_claim_rows
+            )
+            if -int(receiver_claim_sum) != int(raw_projected_net_funding_quote):
+                return "funding closeout rationed allocation receipt requires only open funding receivers", default
+            root_error, expected_root = _funding_closeout_receipt_expected_root(
+                ctx,
+                market=market,
+                receipt_payload=allocation_receipt_payload,
+            )
+            if root_error is not None:
+                return root_error, default
+            verdict = verify_funding_closeout_source_portfolio_bound_rationed_allocation_receipt_payload(
+                allocation_receipt_payload,
+                expected_market_id=op.market_id,
+                expected_epoch=int(market.global_state.get("now_epoch", 0)),
+                expected_price_e8=int(market.global_state.get("index_price_e8", 0)),
+                expected_funding_rate_bps=int(funding_rate_bps),
+                expected_pre_close_state_root_hash=expected_root,
+                expected_pending_source_availability_hashes=pending_source_roots,
+                expected_aggregate_sink_capacity_quote=int(
+                    market.global_state.get("fee_pool_quote", 0)
+                ),
+                expected_raw_post_open_due_sum_quote=int(raw_projected_net_funding_quote),
+                expected_receiver_claim_rows=expected_receiver_claim_rows,
+            )
+            if not verdict.ok:
+                return (
+                    f"invalid funding closeout source-portfolio allocation receipt: {verdict.error or 'rejected'}",
+                    default,
+                )
+            try:
+                source_portfolio_receipt = (
+                    funding_closeout_source_portfolio_bound_rationed_allocation_receipt_from_payload(
+                        allocation_receipt_payload
+                    )
+                )
+            except (TypeError, ValueError) as exc:
+                return f"invalid funding closeout source-portfolio allocation receipt: {exc}", default
+            if policy_ledger_payload is None:
+                return (
+                    "funding closeout policy ledger required for source-portfolio allocation receipt",
+                    default,
+                )
+            if not isinstance(policy_ledger_payload, Mapping):
+                return "invalid funding closeout policy ledger: policy_ledger must be an object", default
+            policy_verdict = verify_funding_closeout_policy_ledger_payload(
+                policy_ledger_payload,
+                source_portfolio_receipt=source_portfolio_receipt,
+            )
+            if not policy_verdict.ok:
+                return (
+                    f"invalid funding closeout policy ledger: {policy_verdict.error or 'rejected'}",
+                    default,
+                )
+            try:
+                policy_ledger = funding_closeout_policy_ledger_from_payload(
+                    policy_ledger_payload
+                )
+            except (TypeError, ValueError) as exc:
+                return f"invalid funding closeout policy ledger: {exc}", default
+            policy_ledger_root = funding_closeout_policy_ledger_hash(policy_ledger)
+            canonical_policy_payload = funding_closeout_policy_ledger_to_payload(
+                policy_ledger
+            )
+            receiver_claims = {}
+            if policy_ledger.haircut_policy == HAIRCUT_POLICY_RECOVERABLE_CLAIM:
+                receiver_claims = {
+                    row.account_pubkey: int(row.recoverable_claim_quote)
+                    for row in policy_ledger.receiver_haircut_rows
+                    if int(row.recoverable_claim_quote) > 0
+                }
+            payable_net_funding = int(
+                source_portfolio_receipt.certificate.payable_post_open_due_sum_quote
+            )
+            receiver_haircuts = {
+                row.account_pubkey: int(row.haircut_quote)
+                for row in source_portfolio_receipt.receiver_haircut_rationing.receiver_rows
+            }
+            receiver_haircut = sum(receiver_haircuts.values())
+            if payable_net_funding > 0 or payable_net_funding < int(raw_projected_net_funding_quote):
+                return "funding closeout allocation payable sum out of bounds", default
+            if int(raw_projected_net_funding_quote) + receiver_haircut != payable_net_funding:
+                return "funding closeout allocation payable sum mismatch", default
+            return (
+                None,
+                _IsolatedFundingCloseoutAdmission(
+                    projected_net_funding_quote=payable_net_funding,
+                    receiver_haircut_quote=receiver_haircut,
+                    receiver_haircuts_by_account=receiver_haircuts,
+                    allocation_receipt_applied=True,
+                    policy_ledger_hash=policy_ledger_root,
+                    policy_ledger_payload=canonical_policy_payload,
+                    receiver_claims_by_account=receiver_claims,
+                ),
+            )
+        if policy_ledger_payload is not None:
+            return "funding closeout policy ledger only allowed for source-portfolio allocation receipt", default
+        if allocation_schema == MIXED_OPEN_NETTING_SCHEMA:
+            post_open_accounts = tuple(
+                PositionAccount(pk, acct.position_base)
+                for pk, acct in snapshot.open_accounts
+            )
+            verdict = verify_mixed_open_funding_netting_certificate_payload(
+                allocation_receipt_payload,
+                post_accounts=post_open_accounts,
+            )
+            if not verdict.ok:
+                return (
+                    f"invalid funding closeout mixed-open netting receipt: {verdict.error or 'rejected'}",
+                    default,
+                )
+            try:
+                mixed_receipt = mixed_open_funding_netting_certificate_from_payload(
+                    allocation_receipt_payload
+                )
+            except (TypeError, ValueError) as exc:
+                return f"invalid funding closeout mixed-open netting receipt: {exc}", default
+            if int(mixed_receipt.epoch) != int(
+                market.global_state.get("now_epoch", 0)
+            ):
+                return "invalid funding closeout mixed-open netting receipt: epoch mismatch", default
+            if int(mixed_receipt.price_e8) != int(
+                market.global_state.get("index_price_e8", 0)
+            ):
+                return "invalid funding closeout mixed-open netting receipt: price_e8 mismatch", default
+            if int(mixed_receipt.funding_rate_bps) != int(funding_rate_bps):
+                return "invalid funding closeout mixed-open netting receipt: funding_rate_bps mismatch", default
+            payable_net_funding = int(mixed_receipt.payable_post_open_due_sum_quote)
+            receiver_haircuts = {
+                row.account_pubkey: int(row.haircut_quote)
+                for row in mixed_receipt.receiver_haircut_rationing.receiver_rows
+            }
+            receiver_haircut = sum(receiver_haircuts.values())
+            if int(mixed_receipt.raw_post_open_due_sum_quote) != int(
+                raw_projected_net_funding_quote
+            ):
+                return "funding closeout mixed-open netting raw sum mismatch", default
+            if payable_net_funding > 0 or payable_net_funding < int(
+                raw_projected_net_funding_quote
+            ):
+                return "funding closeout allocation payable sum out of bounds", default
+            if (
+                int(raw_projected_net_funding_quote) + receiver_haircut
+                != payable_net_funding
+            ):
+                return "funding closeout allocation payable sum mismatch", default
+            return (
+                None,
+                _IsolatedFundingCloseoutAdmission(
+                    projected_net_funding_quote=payable_net_funding,
+                    receiver_haircut_quote=receiver_haircut,
+                    receiver_haircuts_by_account=receiver_haircuts,
+                    allocation_receipt_applied=True,
+                ),
+            )
+        if allocation_schema == SOURCE_BOUND_RATIONED_ALLOCATION_RECEIPT_SCHEMA:
+            source_error, expected_source_hash = _funding_closeout_source_expected_hash(
+                ctx,
+                market=market,
+                receipt_payload=allocation_receipt_payload,
+            )
+            if source_error is not None:
+                return source_error, default
+            post_open_accounts = tuple(
+                PositionAccount(pk, acct.position_base)
+                for pk, acct in snapshot.open_accounts
+            )
+            expected_receiver_claim_rows = post_open_receiver_claim_rows(
+                post_open_accounts,
+                price_e8=int(market.global_state.get("index_price_e8", 0)),
+                funding_rate_bps=int(funding_rate_bps),
+            )
+            if len(expected_receiver_claim_rows) == 0:
+                return "funding closeout rationed allocation receipt requires open funding receivers", default
+            receiver_claim_sum = sum(
+                row.claim_quote for row in expected_receiver_claim_rows
+            )
+            if -int(receiver_claim_sum) != int(raw_projected_net_funding_quote):
+                return "funding closeout rationed allocation receipt requires only open funding receivers", default
+            root_error, expected_root = _funding_closeout_receipt_expected_root(
+                ctx,
+                market=market,
+                receipt_payload=allocation_receipt_payload,
+            )
+            if root_error is not None:
+                return root_error, default
+            verdict = verify_funding_closeout_source_bound_rationed_allocation_receipt_payload(
+                allocation_receipt_payload,
+                expected_market_id=op.market_id,
+                expected_epoch=int(market.global_state.get("now_epoch", 0)),
+                expected_price_e8=int(market.global_state.get("index_price_e8", 0)),
+                expected_funding_rate_bps=int(funding_rate_bps),
+                expected_pre_close_state_root_hash=expected_root,
+                expected_source_availability_hash=expected_source_hash,
+                expected_raw_post_open_due_sum_quote=int(raw_projected_net_funding_quote),
+                expected_receiver_claim_rows=expected_receiver_claim_rows,
+            )
+            if not verdict.ok:
+                return (
+                    f"invalid funding closeout source-bound allocation receipt: {verdict.error or 'rejected'}",
+                    default,
+                )
+            try:
+                source_bound_receipt = (
+                    funding_closeout_source_bound_rationed_allocation_receipt_from_payload(
+                        allocation_receipt_payload
+                    )
+                )
+            except (TypeError, ValueError) as exc:
+                return f"invalid funding closeout source-bound allocation receipt: {exc}", default
+            payable_net_funding = int(
+                source_bound_receipt.certificate.payable_post_open_due_sum_quote
+            )
+            receiver_haircuts = {
+                row.account_pubkey: int(row.haircut_quote)
+                for row in source_bound_receipt.receiver_haircut_rationing.receiver_rows
+            }
+            receiver_haircut = sum(receiver_haircuts.values())
+            if payable_net_funding > 0 or payable_net_funding < int(raw_projected_net_funding_quote):
+                return "funding closeout allocation payable sum out of bounds", default
+            if int(raw_projected_net_funding_quote) + receiver_haircut != payable_net_funding:
+                return "funding closeout allocation payable sum mismatch", default
+            return (
+                None,
+                _IsolatedFundingCloseoutAdmission(
+                    projected_net_funding_quote=payable_net_funding,
+                    receiver_haircut_quote=receiver_haircut,
+                    receiver_haircuts_by_account=receiver_haircuts,
+                    allocation_receipt_applied=True,
+                ),
+            )
+        if allocation_schema == RATIONED_ALLOCATION_RECEIPT_SCHEMA:
+            post_open_accounts = tuple(
+                PositionAccount(pk, acct.position_base)
+                for pk, acct in snapshot.open_accounts
+            )
+            expected_receiver_claim_rows = post_open_receiver_claim_rows(
+                post_open_accounts,
+                price_e8=int(market.global_state.get("index_price_e8", 0)),
+                funding_rate_bps=int(funding_rate_bps),
+            )
+            if len(expected_receiver_claim_rows) == 0:
+                return "funding closeout rationed allocation receipt requires open funding receivers", default
+            receiver_claim_sum = sum(
+                row.claim_quote for row in expected_receiver_claim_rows
+            )
+            if -int(receiver_claim_sum) != int(raw_projected_net_funding_quote):
+                return "funding closeout rationed allocation receipt requires only open funding receivers", default
+            root_error, expected_root = _funding_closeout_receipt_expected_root(
+                ctx,
+                market=market,
+                receipt_payload=allocation_receipt_payload,
+            )
+            if root_error is not None:
+                return root_error, default
+            verdict = verify_funding_closeout_rationed_allocation_receipt_payload(
+                allocation_receipt_payload,
+                expected_market_id=op.market_id,
+                expected_epoch=int(market.global_state.get("now_epoch", 0)),
+                expected_price_e8=int(market.global_state.get("index_price_e8", 0)),
+                expected_funding_rate_bps=int(funding_rate_bps),
+                expected_pre_close_state_root_hash=expected_root,
+                expected_raw_post_open_due_sum_quote=int(raw_projected_net_funding_quote),
+                expected_receiver_claim_rows=expected_receiver_claim_rows,
+            )
+            if not verdict.ok:
+                return (
+                    f"invalid funding closeout rationed allocation receipt: {verdict.error or 'rejected'}",
+                    default,
+                )
+            try:
+                rationed_receipt = (
+                    funding_closeout_rationed_allocation_receipt_from_payload(
+                        allocation_receipt_payload
+                    )
+                )
+            except (TypeError, ValueError) as exc:
+                return f"invalid funding closeout rationed allocation receipt: {exc}", default
+            payable_net_funding = int(
+                rationed_receipt.certificate.payable_post_open_due_sum_quote
+            )
+            receiver_haircuts = {
+                row.account_pubkey: int(row.haircut_quote)
+                for row in rationed_receipt.receiver_haircut_rationing.receiver_rows
+            }
+            receiver_haircut = sum(receiver_haircuts.values())
+            if payable_net_funding > 0 or payable_net_funding < int(raw_projected_net_funding_quote):
+                return "funding closeout allocation payable sum out of bounds", default
+            if int(raw_projected_net_funding_quote) + receiver_haircut != payable_net_funding:
+                return "funding closeout allocation payable sum mismatch", default
+            return (
+                None,
+                _IsolatedFundingCloseoutAdmission(
+                    projected_net_funding_quote=payable_net_funding,
+                    receiver_haircut_quote=receiver_haircut,
+                    receiver_haircuts_by_account=receiver_haircuts,
+                    allocation_receipt_applied=True,
+                ),
+            )
+        if len(snapshot.open_accounts) != 1:
+            return "funding closeout allocation receipt requires exactly one open funding receiver", default
+        receiver_pk, receiver_account = snapshot.open_accounts[0]
+        raw_account_funding = _perp_v2_funding_payment(
+            receiver_account.position_base,
+            int(market.global_state.get("index_price_e8", 0)),
+            int(funding_rate_bps),
+        )
+        if int(raw_account_funding) >= 0:
+            return "funding closeout allocation receipt requires open funding receiver", default
+        root_error, expected_root = _funding_closeout_receipt_expected_root(
+            ctx,
+            market=market,
+            receipt_payload=allocation_receipt_payload,
+        )
+        if root_error is not None:
+            return root_error, default
+        verdict = verify_funding_closeout_allocation_receipt_payload(
+            allocation_receipt_payload,
+            expected_market_id=op.market_id,
+            expected_epoch=int(market.global_state.get("now_epoch", 0)),
+            expected_price_e8=int(market.global_state.get("index_price_e8", 0)),
+            expected_funding_rate_bps=int(funding_rate_bps),
+            expected_pre_close_state_root_hash=expected_root,
+            expected_raw_post_open_due_sum_quote=int(raw_projected_net_funding_quote),
+        )
+        if not verdict.ok:
+            return (
+                f"invalid funding closeout allocation receipt: {verdict.error or 'rejected'}",
+                default,
+            )
+        try:
+            allocation_receipt = funding_closeout_allocation_receipt_from_payload(
+                allocation_receipt_payload
+            )
+        except (TypeError, ValueError) as exc:
+            return f"invalid funding closeout allocation receipt: {exc}", default
+        payable_net_funding = int(
+            allocation_receipt.certificate.payable_post_open_due_sum_quote
+        )
+        receiver_haircut = int(
+            allocation_receipt.certificate.receiver_haircut_sum_quote
+        )
+        if payable_net_funding > 0 or payable_net_funding < int(raw_projected_net_funding_quote):
+            return "funding closeout allocation payable sum out of bounds", default
+        if int(raw_projected_net_funding_quote) + receiver_haircut != payable_net_funding:
+            return "funding closeout allocation payable sum mismatch", default
+        return (
+            None,
+                _IsolatedFundingCloseoutAdmission(
+                    projected_net_funding_quote=payable_net_funding,
+                    receiver_haircut_quote=receiver_haircut,
+                    receiver_haircuts_by_account={str(receiver_pk): receiver_haircut},
+                    allocation_receipt_applied=True,
+                ),
+            )
+
+    receipt_required = (
+        bool(ctx.config.require_isolated_funding_closeout_liability_receipt_on_negative_net_funding)
+        and int(raw_projected_net_funding_quote) < 0
+    )
+    if receipt_payload is not None or receipt_required:
+        if receipt_payload is None:
+            return "funding closeout liability receipt required for negative net funding", default
+        root_error, expected_root = _funding_closeout_receipt_expected_root(
+            ctx,
+            market=market,
+            receipt_payload=receipt_payload,
+        )
+        if root_error is not None:
+            return root_error, default
+        verdict = verify_funding_closeout_liability_receipt_payload(
+            receipt_payload,
+            expected_market_id=op.market_id,
+            expected_epoch=int(market.global_state.get("now_epoch", 0)),
+            expected_price_e8=int(market.global_state.get("index_price_e8", 0)),
+            expected_funding_rate_bps=int(funding_rate_bps),
+            expected_pre_close_state_root_hash=expected_root,
+            expected_post_open_due_sum_quote=int(raw_projected_net_funding_quote),
+        )
+        if not verdict.ok:
+            return f"invalid funding closeout liability receipt: {verdict.error or 'rejected'}", default
+        return None, default
+
+    cert_required = (
+        bool(ctx.config.require_isolated_funding_closeout_liability_certificate_on_negative_net_funding)
+        and int(raw_projected_net_funding_quote) < 0
+    )
+    if cert_payload is None:
+        if cert_required:
+            return "funding closeout liability certificate required for negative net funding", default
+        return None, default
+
+    expected_hash = ctx.config.isolated_funding_closeout_pre_due_vector_hash
+    if expected_hash is None:
+        return "funding closeout pre_due_vector_hash required", default
+    verdict = verify_funding_closeout_liability_certificate_payload(
+        cert_payload,
+        expected_epoch=int(market.global_state.get("now_epoch", 0)),
+        expected_price_e8=int(market.global_state.get("index_price_e8", 0)),
+        expected_funding_rate_bps=int(funding_rate_bps),
+        expected_pre_due_vector_hash=expected_hash,
+        expected_post_open_due_sum_quote=int(raw_projected_net_funding_quote),
+    )
+    if not verdict.ok:
+        return f"invalid funding closeout liability certificate: {verdict.error or 'rejected'}", default
+    return None, default
 
 
 def _isolated_funding_snapshot(market: PerpMarketState) -> _IsolatedFundingSnapshot:
@@ -2998,6 +4254,8 @@ def _apply_isolated_funding_to_accounts(
     snapshot: _IsolatedFundingSnapshot,
     *,
     new_rate_bps: int,
+    receiver_haircut_quote: int = 0,
+    receiver_haircuts_by_account: Mapping[str, int] | None = None,
 ) -> tuple[Optional[str], Optional[_IsolatedFundingAccountApply]]:
     pre_global = dict(market.global_state)
     expected_account_global = dict(pre_global)
@@ -3019,6 +4277,42 @@ def _apply_isolated_funding_to_accounts(
             return "internal error: apply_funding mutated unexpected global fields", None
         new_accounts[str(pk)] = post_acct
         applied_accounts += 1
+    haircut_by_account = {
+        str(pk): int(amount)
+        for pk, amount in dict(receiver_haircuts_by_account or {}).items()
+        if int(amount) != 0
+    }
+    if not haircut_by_account and int(receiver_haircut_quote) > 0:
+        if len(snapshot.open_accounts) != 1:
+            return "funding closeout allocation haircut requires exactly one open funding receiver", None
+        pk, _pre_acct = snapshot.open_accounts[0]
+        haircut_by_account[str(pk)] = int(receiver_haircut_quote)
+    if sum(haircut_by_account.values()) != int(receiver_haircut_quote):
+        return "funding closeout allocation haircut map mismatch", None
+    open_accounts = {str(pk): acct for pk, acct in snapshot.open_accounts}
+    for pk, haircut_quote in haircut_by_account.items():
+        if haircut_quote < 0:
+            return "funding closeout allocation haircut must be non-negative", None
+        if pk not in open_accounts:
+            return "funding closeout allocation haircut account is not open", None
+        pre_acct = open_accounts[pk]
+        raw_account_funding = _perp_v2_funding_payment(
+            pre_acct.position_base,
+            int(market.global_state.get("index_price_e8", 0)),
+            int(new_rate_bps),
+        )
+        if int(raw_account_funding) >= 0:
+            return "funding closeout allocation haircut requires open funding receiver", None
+        post_acct = new_accounts[pk]
+        adjusted_collateral = int(post_acct.collateral_quote) - int(haircut_quote)
+        adjusted_funding_paid = int(post_acct.funding_paid_cumulative) + int(haircut_quote)
+        if adjusted_collateral < 0 or adjusted_collateral > MAX_COLLATERAL:
+            return "funding closeout allocation haircut would violate collateral bounds", None
+        new_accounts[pk] = replace(
+            post_acct,
+            collateral_quote=adjusted_collateral,
+            funding_paid_cumulative=adjusted_funding_paid,
+        )
     return None, _IsolatedFundingAccountApply(accounts=new_accounts, applied_accounts=int(applied_accounts))
 
 
@@ -3031,6 +4325,12 @@ def _commit_isolated_apply_funding_auto(
     funding_gate: Any,
     account_apply: _IsolatedFundingAccountApply,
     projected_net_funding_quote: int,
+    receiver_haircut_quote: int = 0,
+    receiver_haircuts_by_account: Mapping[str, int] | None = None,
+    allocation_receipt_applied: bool = False,
+    policy_ledger_hash: str | None = None,
+    policy_ledger_payload: Mapping[str, Any] | None = None,
+    receiver_claims_by_account: Mapping[str, int] | None = None,
 ) -> None:
     expected_global = dict(market.global_state)
     expected_global["funding_rate_bps"] = int(funding_gate.funding_rate_bps)
@@ -3038,10 +4338,45 @@ def _commit_isolated_apply_funding_auto(
     expected_global["fee_income"] = int(funding_gate.fee_income_after_funding_quote)
     expected_global["insurance_balance"] = int(funding_gate.insurance_after_funding_quote)
 
-    ctx.markets[op.market_id] = PerpMarketState(
-        quote_asset=market.quote_asset,
+    consumed_roots = tuple(getattr(market, "pending_funding_closeout_root_hashes", ()))
+    consumed_source_roots = tuple(
+        getattr(market, "pending_funding_closeout_source_availability_hashes", ())
+    )
+    policy_ledger_roots = tuple(
+        getattr(market, "funding_closeout_policy_ledger_hashes", ())
+    )
+    if policy_ledger_hash is not None:
+        policy_ledger_roots = _append_funding_closeout_policy_ledger_hash(
+            market,
+            policy_ledger_hash,
+        )
+    receiver_claim_lots = _add_funding_closeout_receiver_claim_lots(
+        market,
+        receiver_claims_by_account=receiver_claims_by_account or {},
+        policy_hash=policy_ledger_hash,
+    )
+    if receiver_claim_lots:
+        receiver_claim_balances = funding_closeout_receiver_claim_balances_from_lots(
+            receiver_claim_lots
+        )
+    else:
+        receiver_claim_balances = tuple(
+            getattr(market, "funding_closeout_receiver_claim_balances_quote", ())
+        )
+    next_receiver_claim_lots = (
+        receiver_claim_lots
+        if receiver_claim_lots
+        else tuple(getattr(market, "funding_closeout_receiver_claim_lots_quote", ()))
+    )
+    ctx.markets[op.market_id] = _isolated_market_with(
+        market,
         global_state=expected_global,
         accounts=account_apply.accounts,
+        pending_funding_closeout_root_hashes=(),
+        pending_funding_closeout_source_availability_hashes=(),
+        funding_closeout_policy_ledger_hashes=policy_ledger_roots,
+        funding_closeout_receiver_claim_balances_quote=receiver_claim_balances,
+        funding_closeout_receiver_claim_lots_quote=next_receiver_claim_lots,
     )
     ctx.effects.append(
         {
@@ -3056,6 +4391,43 @@ def _commit_isolated_apply_funding_auto(
             "fee_pool_after_quote": int(funding_gate.fee_pool_after_funding_quote),
             "fee_income_after_quote": int(funding_gate.fee_income_after_funding_quote),
             "insurance_after_quote": int(funding_gate.insurance_after_funding_quote),
+            "funding_closeout_pending_root_hashes_consumed": list(consumed_roots),
+            "funding_closeout_pending_source_availability_hashes_consumed": list(
+                consumed_source_roots
+            ),
+            "funding_closeout_receiver_haircut_quote": int(receiver_haircut_quote),
+            "funding_closeout_receiver_haircuts_quote_by_account": dict(
+                sorted(
+                    {
+                        str(pk): int(amount)
+                        for pk, amount in dict(
+                            receiver_haircuts_by_account or {}
+                        ).items()
+                    }.items()
+                )
+            ),
+            "funding_closeout_allocation_receipt_applied": bool(
+                allocation_receipt_applied
+            ),
+            "funding_closeout_policy_ledger_emitted": policy_ledger_hash is not None,
+            "funding_closeout_policy_ledger_hash": policy_ledger_hash,
+            "funding_closeout_policy_ledger": (
+                dict(policy_ledger_payload) if policy_ledger_payload is not None else None
+            ),
+            "funding_closeout_receiver_claim_balances_quote": dict(
+                receiver_claim_balances
+            ),
+            "funding_closeout_receiver_claim_lots_quote": [
+                {
+                    "account_pubkey": account_pubkey,
+                    "lot_id": lot_id,
+                    "balance_quote": int(balance_quote),
+                    "expires_at_epoch": int(expires_at_epoch),
+                }
+                for account_pubkey, lot_id, balance_quote, expires_at_epoch in (
+                    next_receiver_claim_lots
+                )
+            ],
         }
     )
 
@@ -3079,10 +4451,20 @@ def _apply_isolated_apply_funding_auto(
         snapshot,
         new_rate_bps=new_rate_bps,
     )
+    gate_error, closeout_admission = _isolated_funding_closeout_admission(
+        ctx,
+        op=op,
+        market=market,
+        snapshot=snapshot,
+        funding_rate_bps=new_rate_bps,
+        raw_projected_net_funding_quote=projected_net_funding,
+    )
+    if gate_error is not None:
+        return gate_error
     funding_gate = _evaluate_isolated_funding_gate(
         market,
         snapshot,
-        projected_net_funding_quote=projected_net_funding,
+        projected_net_funding_quote=closeout_admission.projected_net_funding_quote,
     )
     gate_error = perp_apply_funding_auto_gate_error(funding_gate)
     if gate_error is not None:
@@ -3092,6 +4474,8 @@ def _apply_isolated_apply_funding_auto(
         market,
         snapshot,
         new_rate_bps=int(funding_gate.funding_rate_bps),
+        receiver_haircut_quote=closeout_admission.receiver_haircut_quote,
+        receiver_haircuts_by_account=closeout_admission.receiver_haircuts_by_account,
     )
     if err is not None:
         return err
@@ -3105,7 +4489,697 @@ def _apply_isolated_apply_funding_auto(
         market=market,
         funding_gate=funding_gate,
         account_apply=account_apply,
-        projected_net_funding_quote=projected_net_funding,
+        projected_net_funding_quote=closeout_admission.projected_net_funding_quote,
+        receiver_haircut_quote=closeout_admission.receiver_haircut_quote,
+        receiver_haircuts_by_account=closeout_admission.receiver_haircuts_by_account,
+        allocation_receipt_applied=closeout_admission.allocation_receipt_applied,
+        policy_ledger_hash=closeout_admission.policy_ledger_hash,
+        policy_ledger_payload=closeout_admission.policy_ledger_payload,
+        receiver_claims_by_account=closeout_admission.receiver_claims_by_account,
+    )
+    return None
+
+
+def _apply_isolated_carry_funding_closeout_liability(
+    ctx: _PerpApplyCtx,
+    *,
+    i: int,
+    op: PerpOp,
+    market: PerpMarketState,
+) -> Optional[str]:
+    data = op.data
+    allowed = {
+        "module",
+        "version",
+        "market_id",
+        "action",
+        "funding_closeout_carry_forward_receipt",
+    }
+    gate_error = _operator_gate_error(
+        action_kind=RUNTIME_ACTION_CARRY_FUNDING_CLOSEOUT_LIABILITY,
+        action=op.action,
+        operator_err=_require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey),
+        unknown_fields_ok=not (set(data.keys()) - allowed),
+    )
+    if gate_error is not None:
+        return gate_error
+
+    pending_roots = tuple(getattr(market, "pending_funding_closeout_root_hashes", ()))
+    pending_source_roots = tuple(
+        getattr(market, "pending_funding_closeout_source_availability_hashes", ())
+    )
+    if not pending_roots:
+        return "funding closeout root required for carry-forward"
+    if not pending_source_roots:
+        return "funding closeout source availability root required for carry-forward"
+
+    receipt_payload = data.get("funding_closeout_carry_forward_receipt")
+    if not isinstance(receipt_payload, Mapping):
+        return "invalid funding closeout carry-forward receipt: receipt must be an object"
+    pre_close_root = receipt_payload.get("pre_close_state_root_hash")
+    if not isinstance(pre_close_root, str) or pre_close_root not in pending_roots:
+        return "funding closeout carry-forward root not pending"
+
+    now_epoch = int(market.global_state.get("now_epoch", 0))
+    carry_epoch = now_epoch + 1
+    verdict = verify_funding_closeout_carry_forward_receipt_payload(
+        receipt_payload,
+        expected_market_id=op.market_id,
+        expected_source_epoch=now_epoch,
+        expected_carry_epoch=carry_epoch,
+        expected_pre_close_state_root_hash=pre_close_root,
+        expected_pending_source_availability_hashes=pending_source_roots,
+        expected_aggregate_sink_capacity_quote=int(market.global_state.get("fee_pool_quote", 0)),
+    )
+    if not verdict.ok:
+        return f"invalid funding closeout carry-forward receipt: {verdict.error or 'rejected'}"
+
+    try:
+        receipt = funding_closeout_carry_forward_receipt_from_payload(receipt_payload)
+    except (TypeError, ValueError) as exc:
+        return f"invalid funding closeout carry-forward receipt: {exc}"
+    carried_hash = carried_funding_closeout_liability_hash(receipt)
+    carried_roots = _append_pending_funding_closeout_carried_liability_hash(
+        market,
+        carried_hash,
+    )
+
+    ctx.markets[op.market_id] = _isolated_market_with(
+        market,
+        global_state=market.global_state,
+        accounts=market.accounts,
+        pending_funding_closeout_root_hashes=(),
+        pending_funding_closeout_source_availability_hashes=(),
+        pending_funding_closeout_carried_liability_hashes=carried_roots,
+    )
+    ctx.effects.append(
+        {
+            "i": i,
+            "market_id": op.market_id,
+            "action": op.action,
+            "source_epoch": int(receipt.source_epoch),
+            "carry_epoch": int(receipt.carry_epoch),
+            "funding_closeout_pending_root_hashes_consumed": list(pending_roots),
+            "funding_closeout_pending_source_availability_hashes_consumed": list(
+                pending_source_roots
+            ),
+            "funding_closeout_carried_liability_hash": carried_hash,
+            "funding_closeout_carry_forward_receipt": (
+                funding_closeout_carry_forward_receipt_to_payload(receipt)
+            ),
+        }
+    )
+    return None
+
+
+def _remove_pending_funding_closeout_carried_liability_hash(
+    market: PerpMarketState,
+    carried_hash: str,
+) -> tuple[str, ...]:
+    pending_roots = tuple(
+        getattr(market, "pending_funding_closeout_carried_liability_hashes", ())
+    )
+    return tuple(root for root in pending_roots if root != carried_hash)
+
+
+def _apply_isolated_carried_funding_to_receivers(
+    market: PerpMarketState,
+    receipt: Any,
+) -> tuple[Optional[str], Optional[_IsolatedCarriedFundingSettlement]]:
+    rows = tuple(receipt.source_portfolio_receipt.receiver_haircut_rationing.receiver_rows)
+    if not rows:
+        return "funding closeout carried settlement requires receiver rows", None
+
+    accounts: Dict[str, PerpAccountState] = dict(market.accounts)
+    receiver_payments: Dict[str, int] = {}
+    receiver_haircuts: Dict[str, int] = {}
+    total_claim = 0
+    total_payable = 0
+    total_haircut = 0
+    source_epoch = int(receipt.source_epoch)
+    for row in rows:
+        pk = str(row.account_pubkey)
+        claim_quote = int(row.claim_quote)
+        payable_quote = int(row.payable_quote)
+        haircut_quote = int(row.haircut_quote)
+        account = accounts.get(pk)
+        if account is None:
+            return "funding closeout carried settlement receiver account missing", None
+
+        collateral_quote = int(account.collateral_quote) + payable_quote
+        funding_paid_cumulative = int(account.funding_paid_cumulative) - payable_quote
+        if collateral_quote < 0 or collateral_quote > MAX_COLLATERAL:
+            return "funding closeout carried settlement would violate collateral bounds", None
+        if abs(funding_paid_cumulative) > MAX_FUNDING_CUMULATIVE:
+            return (
+                "funding closeout carried settlement would violate cumulative funding bounds",
+                None,
+            )
+
+        accounts[pk] = replace(
+            account,
+            collateral_quote=collateral_quote,
+            funding_paid_cumulative=funding_paid_cumulative,
+            funding_last_applied_epoch=max(
+                int(account.funding_last_applied_epoch),
+                source_epoch,
+            ),
+            liquidated_this_step=False,
+        )
+        receiver_payments[pk] = int(receiver_payments.get(pk, 0)) + payable_quote
+        receiver_haircuts[pk] = int(receiver_haircuts.get(pk, 0)) + haircut_quote
+        total_claim += claim_quote
+        total_payable += payable_quote
+        total_haircut += haircut_quote
+
+    return None, _IsolatedCarriedFundingSettlement(
+        accounts=accounts,
+        total_claim_quote=int(total_claim),
+        total_payable_quote=int(total_payable),
+        total_haircut_quote=int(total_haircut),
+        receiver_payments_by_account=dict(sorted(receiver_payments.items())),
+        receiver_haircuts_by_account=dict(sorted(receiver_haircuts.items())),
+    )
+
+
+def _settle_carried_funding_global_state(
+    market: PerpMarketState,
+    *,
+    total_payable_quote: int,
+) -> tuple[Optional[str], Optional[Dict[str, Any]]]:
+    payable = int(total_payable_quote)
+    max_fee_pool = int(perp_epoch_isolated_default_fee_pool_max_quote())
+    next_fee_pool = int(market.global_state.get("fee_pool_quote", 0)) - payable
+    next_fee_income = int(market.global_state.get("fee_income", 0)) - payable
+    next_insurance = int(market.global_state.get("insurance_balance", 0)) - payable
+    if (
+        next_fee_pool < 0
+        or next_fee_income < 0
+        or next_insurance < 0
+        or next_fee_pool > max_fee_pool
+        or next_fee_income > max_fee_pool
+        or next_insurance > max_fee_pool
+    ):
+        return (
+            f"funding closeout carried settlement would violate funding sink bounds (payable={payable})",
+            None,
+        )
+
+    next_global = dict(market.global_state)
+    next_global["fee_pool_quote"] = int(next_fee_pool)
+    next_global["fee_income"] = int(next_fee_income)
+    next_global["insurance_balance"] = int(next_insurance)
+    return None, next_global
+
+
+def _apply_isolated_settle_funding_closeout_carried_liability(
+    ctx: _PerpApplyCtx,
+    *,
+    i: int,
+    op: PerpOp,
+    market: PerpMarketState,
+) -> Optional[str]:
+    data = op.data
+    allowed = {
+        "module",
+        "version",
+        "market_id",
+        "action",
+        "funding_closeout_carry_forward_receipt",
+    }
+    gate_error = _operator_gate_error(
+        action_kind=RUNTIME_ACTION_SETTLE_FUNDING_CLOSEOUT_CARRIED_LIABILITY,
+        action=op.action,
+        operator_err=_require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey),
+        unknown_fields_ok=not (set(data.keys()) - allowed),
+    )
+    if gate_error is not None:
+        return gate_error
+    now_epoch = int(market.global_state.get("now_epoch", 0))
+    current_epoch_price_seen = bool(
+        market.global_state.get("clearing_price_seen", False)
+    ) and int(market.global_state.get("clearing_price_epoch", 0)) == now_epoch
+    if current_epoch_price_seen:
+        return "cannot settle carried funding closeout after clearing price is published"
+
+    receipt_payload = data.get("funding_closeout_carry_forward_receipt")
+    if not isinstance(receipt_payload, Mapping):
+        return "invalid funding closeout carry-forward receipt: receipt must be an object"
+    expected_carried_hash = receipt_payload.get("carried_liability_hash")
+    pending_carried_roots = tuple(
+        getattr(market, "pending_funding_closeout_carried_liability_hashes", ())
+    )
+    if not isinstance(expected_carried_hash, str) or expected_carried_hash not in pending_carried_roots:
+        return "funding closeout carried liability root not pending"
+
+    verdict = verify_funding_closeout_carry_forward_receipt_payload(
+        receipt_payload,
+        expected_market_id=op.market_id,
+        expected_carry_epoch=now_epoch,
+        expected_carried_liability_hash=expected_carried_hash,
+        expected_aggregate_sink_capacity_quote=int(market.global_state.get("fee_pool_quote", 0)),
+    )
+    if not verdict.ok:
+        return f"invalid funding closeout carry-forward receipt: {verdict.error or 'rejected'}"
+
+    try:
+        receipt = funding_closeout_carry_forward_receipt_from_payload(receipt_payload)
+    except (TypeError, ValueError) as exc:
+        return f"invalid funding closeout carry-forward receipt: {exc}"
+    carried_hash = carried_funding_closeout_liability_hash(receipt)
+    if carried_hash != expected_carried_hash:
+        return "funding closeout carried liability root mismatch"
+
+    err, settlement = _apply_isolated_carried_funding_to_receivers(market, receipt)
+    if err is not None:
+        return err
+    if settlement is None:
+        return "internal error: carried funding settlement missing"
+    err, next_global = _settle_carried_funding_global_state(
+        market,
+        total_payable_quote=settlement.total_payable_quote,
+    )
+    if err is not None:
+        return err
+    if next_global is None:
+        return "internal error: carried funding settlement global state missing"
+
+    remaining_roots = _remove_pending_funding_closeout_carried_liability_hash(
+        market,
+        carried_hash,
+    )
+    ctx.markets[op.market_id] = _isolated_market_with(
+        market,
+        global_state=next_global,
+        accounts=settlement.accounts,
+        pending_funding_closeout_carried_liability_hashes=remaining_roots,
+    )
+    ctx.effects.append(
+        {
+            "i": i,
+            "market_id": op.market_id,
+            "action": op.action,
+            "source_epoch": int(receipt.source_epoch),
+            "carry_epoch": int(receipt.carry_epoch),
+            "funding_closeout_carried_liability_hash_consumed": carried_hash,
+            "funding_closeout_carried_total_claim_quote": int(
+                settlement.total_claim_quote
+            ),
+            "funding_closeout_carried_total_payable_quote": int(
+                settlement.total_payable_quote
+            ),
+            "funding_closeout_carried_total_haircut_quote": int(
+                settlement.total_haircut_quote
+            ),
+            "funding_closeout_carried_receiver_payments_quote_by_account": dict(
+                settlement.receiver_payments_by_account
+            ),
+            "funding_closeout_carried_receiver_haircuts_quote_by_account": dict(
+                settlement.receiver_haircuts_by_account
+            ),
+            "fee_pool_delta_quote": -int(settlement.total_payable_quote),
+            "fee_pool_after_quote": int(next_global["fee_pool_quote"]),
+            "fee_income_after_quote": int(next_global["fee_income"]),
+            "insurance_after_quote": int(next_global["insurance_balance"]),
+            "funding_closeout_carry_forward_receipt": (
+                funding_closeout_carry_forward_receipt_to_payload(receipt)
+            ),
+        }
+    )
+    return None
+
+
+def _apply_isolated_settle_funding_closeout_recovery(
+    ctx: _PerpApplyCtx,
+    *,
+    i: int,
+    op: PerpOp,
+    market: PerpMarketState,
+) -> Optional[str]:
+    data = op.data
+    allowed = {
+        "module",
+        "version",
+        "market_id",
+        "action",
+        "funding_closeout_policy_ledger",
+        "funding_closeout_recovery_priority_certificate",
+        "funding_closeout_recovery_collection_receipt",
+        "funding_closeout_receiver_recovery_distribution",
+        "funding_closeout_sink_recovery_distribution",
+    }
+    gate_error = _operator_gate_error(
+        action_kind=RUNTIME_ACTION_SETTLE_FUNDING_CLOSEOUT_RECOVERY,
+        action=op.action,
+        operator_err=_require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey),
+        unknown_fields_ok=not (set(data.keys()) - allowed),
+    )
+    if gate_error is not None:
+        return gate_error
+
+    policy_payload = data.get("funding_closeout_policy_ledger")
+    priority_payload = data.get("funding_closeout_recovery_priority_certificate")
+    collection_payload = data.get("funding_closeout_recovery_collection_receipt")
+    distribution_payload = data.get("funding_closeout_receiver_recovery_distribution")
+    sink_distribution_payload = data.get("funding_closeout_sink_recovery_distribution")
+    if not isinstance(policy_payload, Mapping):
+        return "invalid funding closeout policy ledger: policy_ledger must be an object"
+    if not isinstance(priority_payload, Mapping):
+        return "invalid funding closeout recovery priority certificate: certificate must be an object"
+    if collection_payload is None:
+        return "funding closeout recovery collection receipt required"
+    if not isinstance(collection_payload, Mapping):
+        return "invalid funding closeout recovery collection receipt: receipt must be an object"
+    if not isinstance(distribution_payload, Mapping):
+        return "invalid funding closeout receiver distribution: distribution must be an object"
+    if sink_distribution_payload is None:
+        return "funding closeout sink distribution required"
+    if not isinstance(sink_distribution_payload, Mapping):
+        return "invalid funding closeout sink distribution: distribution must be an object"
+
+    try:
+        policy_ledger = funding_closeout_policy_ledger_from_payload(policy_payload)
+    except (TypeError, ValueError) as exc:
+        return f"invalid funding closeout policy ledger: {exc}"
+    policy_hash = funding_closeout_policy_ledger_hash(policy_ledger)
+    pending_policy_roots = tuple(
+        getattr(market, "funding_closeout_policy_ledger_hashes", ())
+    )
+    if policy_hash not in pending_policy_roots:
+        return "funding closeout policy ledger root not pending"
+
+    try:
+        priority_certificate = (
+            funding_closeout_recovery_priority_certificate_from_payload(
+                priority_payload
+            )
+        )
+        validate_recovery_priority_certificate_against_policy_ledger(
+            priority_certificate,
+            policy_ledger,
+        )
+    except (TypeError, ValueError) as exc:
+        return f"invalid funding closeout recovery priority certificate: {exc}"
+
+    try:
+        collection_receipt = funding_closeout_recovery_collection_receipt_from_payload(
+            collection_payload
+        )
+        validate_recovery_collection_receipt_against_sources(
+            collection_receipt,
+            policy_ledger,
+            priority_certificate,
+        )
+    except (TypeError, ValueError) as exc:
+        return f"invalid funding closeout recovery collection receipt: {exc}"
+
+    authority_payload = ctx.config.isolated_funding_closeout_recovery_source_authority
+    if authority_payload is None:
+        return "funding closeout recovery source authority required"
+    authority_verdict = verify_funding_closeout_recovery_source_authority_payload(
+        authority_payload,
+        expected_market_id=op.market_id,
+        now_epoch=int(market.global_state.get("now_epoch", policy_ledger.epoch)),
+        required_source_ids=(collection_receipt.source_id,),
+    )
+    if not authority_verdict.ok or authority_verdict.authority is None:
+        return (
+            "invalid funding closeout recovery source authority: "
+            f"{authority_verdict.error or 'rejected'}"
+        )
+    recovery_source_authority = authority_verdict.authority
+    binding_payload = (
+        ctx.config.isolated_funding_closeout_recovery_source_authority_binding
+    )
+    if binding_payload is None:
+        return "funding closeout recovery source authority binding required"
+    authority_state_root_hash = (
+        ctx.config
+        .isolated_funding_closeout_recovery_source_authority_state_root_hash
+    )
+    if authority_state_root_hash is None:
+        return "funding closeout recovery source authority state root required"
+    authority_policy_hash = (
+        ctx.config.isolated_funding_closeout_recovery_source_authority_policy_hash
+    )
+    if authority_policy_hash is None:
+        return "funding closeout recovery source authority policy hash required"
+    allowed_signers = (
+        ctx.config.isolated_funding_closeout_recovery_source_authority_signer_pubkeys
+    )
+    if not allowed_signers:
+        return "funding closeout recovery source authority signer registry required"
+    binding_verdict = (
+        verify_funding_closeout_recovery_source_authority_binding_payload(
+            binding_payload,
+            authority=recovery_source_authority,
+            expected_market_id=op.market_id,
+            now_epoch=int(market.global_state.get("now_epoch", policy_ledger.epoch)),
+            expected_authority_state_root_hash=authority_state_root_hash,
+            expected_policy_hash=authority_policy_hash,
+            allowed_signer_pubkeys=allowed_signers,
+        )
+    )
+    if not binding_verdict.ok or binding_verdict.binding is None:
+        return (
+            "invalid funding closeout recovery source authority binding: "
+            f"{binding_verdict.error or 'rejected'}"
+        )
+    recovery_source_authority_binding = binding_verdict.binding
+
+    try:
+        distribution_certificate = (
+            funding_closeout_receiver_recovery_distribution_certificate_from_payload(
+                distribution_payload
+            )
+        )
+        validate_receiver_recovery_distribution_against_sources(
+            distribution_certificate,
+            policy_ledger,
+            priority_certificate,
+        )
+    except (TypeError, ValueError) as exc:
+        return f"invalid funding closeout receiver distribution: {exc}"
+
+    try:
+        sink_distribution_certificate = (
+            funding_closeout_sink_recovery_distribution_certificate_from_payload(
+                sink_distribution_payload
+            )
+        )
+        validate_sink_recovery_distribution_against_sources(
+            sink_distribution_certificate,
+            policy_ledger,
+            priority_certificate,
+        )
+    except (TypeError, ValueError) as exc:
+        return f"invalid funding closeout sink distribution: {exc}"
+
+    receiver_claim_lots = _receiver_claim_lots_for_mutation(
+        market,
+        materialize_legacy_balances=bool(
+            getattr(market, "funding_closeout_receiver_claim_balances_quote", ())
+        ),
+    )
+    receiver_claim_balance_rows = (
+        funding_closeout_receiver_claim_balances_from_lots(receiver_claim_lots)
+        if receiver_claim_lots
+        else tuple(getattr(market, "funding_closeout_receiver_claim_balances_quote", ()))
+    )
+    receiver_claim_balances = {
+        str(account_pubkey): int(balance_quote)
+        for account_pubkey, balance_quote in receiver_claim_balance_rows
+    }
+    accounts: Dict[str, PerpAccountState] = dict(market.accounts)
+    receiver_recoveries: Dict[str, int] = {}
+    total_receiver_recovery = 0
+    for row in distribution_certificate.receiver_rows:
+        pk = str(row.account_pubkey)
+        recovery_quote = int(row.recovery_quote)
+        if recovery_quote > int(receiver_claim_balances.get(pk, 0)):
+            return "funding closeout recovery exceeds receiver claim balance"
+        account = accounts.get(pk)
+        if account is None:
+            return "funding closeout recovery receiver account missing"
+        collateral_quote = int(account.collateral_quote) + recovery_quote
+        funding_paid_cumulative = int(account.funding_paid_cumulative) - recovery_quote
+        if collateral_quote < 0 or collateral_quote > MAX_COLLATERAL:
+            return "funding closeout recovery would violate collateral bounds"
+        if abs(funding_paid_cumulative) > MAX_FUNDING_CUMULATIVE:
+            return "funding closeout recovery would violate cumulative funding bounds"
+        accounts[pk] = replace(
+            account,
+            collateral_quote=collateral_quote,
+            funding_paid_cumulative=funding_paid_cumulative,
+            funding_last_applied_epoch=max(
+                int(account.funding_last_applied_epoch),
+                int(policy_ledger.epoch),
+            ),
+            liquidated_this_step=False,
+        )
+        receiver_recoveries[pk] = int(receiver_recoveries.get(pk, 0)) + recovery_quote
+        total_receiver_recovery += recovery_quote
+    lot_debit_error, next_receiver_claim_lots, receiver_claim_lot_debits = (
+        _debit_funding_closeout_receiver_claim_lots(market, receiver_recoveries)
+    )
+    if lot_debit_error is not None:
+        return lot_debit_error
+    next_receiver_claim_balances = (
+        funding_closeout_receiver_claim_balances_from_lots(next_receiver_claim_lots)
+        if next_receiver_claim_lots
+        else ()
+    )
+
+    sink_recovery = int(sink_distribution_certificate.total_sink_recovery_quote)
+    sink_recoveries_by_claimant: Dict[str, int] = {}
+    sink_recovery_rows = []
+    for row in sink_distribution_certificate.sink_rows:
+        claimant = str(row.claimant)
+        recovery_quote = int(row.recovery_quote)
+        sink_recoveries_by_claimant[claimant] = (
+            int(sink_recoveries_by_claimant.get(claimant, 0)) + recovery_quote
+        )
+        sink_recovery_rows.append(
+            {
+                "account_pubkey": str(row.account_pubkey),
+                "claimant": claimant,
+                "subrogated_claim_quote": int(row.subrogated_claim_quote),
+                "recovery_quote": recovery_quote,
+            }
+        )
+    max_fee_pool = int(perp_epoch_isolated_default_fee_pool_max_quote())
+    next_global = dict(market.global_state)
+    for key in ("fee_pool_quote", "fee_income", "insurance_balance"):
+        next_value = int(next_global.get(key, 0)) + sink_recovery
+        if next_value < 0 or next_value > max_fee_pool:
+            return (
+                "funding closeout recovery would violate funding sink bounds "
+                f"(sink_recovery={sink_recovery})"
+            )
+        next_global[key] = int(next_value)
+
+    sink_claimant_balances = {
+        str(claimant): int(balance_quote)
+        for claimant, balance_quote in tuple(
+            getattr(market, "funding_closeout_sink_claimant_balances_quote", ())
+        )
+    }
+    for claimant, recovery_quote in sink_recoveries_by_claimant.items():
+        if recovery_quote == 0:
+            continue
+        next_value = int(sink_claimant_balances.get(claimant, 0)) + int(
+            recovery_quote
+        )
+        if next_value <= 0 or next_value > max_fee_pool:
+            return (
+                "funding closeout recovery would violate sink claimant bounds "
+                f"(claimant={claimant})"
+            )
+        sink_claimant_balances[claimant] = int(next_value)
+    next_sink_claimant_balances = tuple(sorted(sink_claimant_balances.items()))
+    total_sink_claimant_balance = sum(
+        int(balance_quote) for _, balance_quote in next_sink_claimant_balances
+    )
+    for key in ("fee_pool_quote", "fee_income", "insurance_balance"):
+        if total_sink_claimant_balance > int(next_global[key]):
+            return (
+                "funding closeout recovery would violate sink claimant conservation"
+            )
+
+    remaining_policy_roots = _remove_funding_closeout_policy_ledger_hash(
+        market,
+        policy_hash,
+    )
+    ctx.markets[op.market_id] = _isolated_market_with(
+        market,
+        global_state=next_global,
+        accounts=accounts,
+        funding_closeout_policy_ledger_hashes=remaining_policy_roots,
+        funding_closeout_sink_claimant_balances_quote=next_sink_claimant_balances,
+        funding_closeout_receiver_claim_balances_quote=next_receiver_claim_balances,
+        funding_closeout_receiver_claim_lots_quote=next_receiver_claim_lots,
+    )
+    ctx.effects.append(
+        {
+            "i": i,
+            "market_id": op.market_id,
+            "action": op.action,
+            "funding_closeout_policy_ledger_hash_consumed": policy_hash,
+            "funding_closeout_recovery_priority_certificate_hash": (
+                funding_closeout_recovery_priority_certificate_hash(
+                    priority_certificate
+                )
+            ),
+            "funding_closeout_recovery_collection_receipt_hash": (
+                funding_closeout_recovery_collection_receipt_hash(collection_receipt)
+            ),
+            "funding_closeout_recovery_source_authority_hash": (
+                funding_closeout_recovery_source_authority_hash(
+                    recovery_source_authority
+                )
+            ),
+            "funding_closeout_recovery_source_authority_binding_hash": (
+                funding_closeout_recovery_source_authority_binding_hash(
+                    recovery_source_authority_binding
+                )
+            ),
+            "funding_closeout_receiver_recovery_distribution_hash": (
+                funding_closeout_receiver_recovery_distribution_certificate_hash(
+                    distribution_certificate
+                )
+            ),
+            "funding_closeout_sink_recovery_distribution_hash": (
+                funding_closeout_sink_recovery_distribution_certificate_hash(
+                    sink_distribution_certificate
+                )
+            ),
+            "funding_closeout_collected_source_quote": int(
+                collection_receipt.collected_source_quote
+            ),
+            "funding_closeout_recovery_collection_source_id": str(
+                collection_receipt.source_id
+            ),
+            "funding_closeout_recovery_collection_nonce": int(
+                collection_receipt.collection_nonce
+            ),
+            "funding_closeout_receiver_recovery_quote": int(
+                total_receiver_recovery
+            ),
+            "funding_closeout_receiver_recoveries_quote_by_account": dict(
+                sorted(receiver_recoveries.items())
+            ),
+            "funding_closeout_sink_recovery_quote": int(sink_recovery),
+            "funding_closeout_sink_recoveries_quote_by_claimant": dict(
+                sorted(sink_recoveries_by_claimant.items())
+            ),
+            "funding_closeout_sink_recovery_rows": sink_recovery_rows,
+            "funding_closeout_sink_claimant_balances_quote": dict(
+                next_sink_claimant_balances
+            ),
+            "funding_closeout_receiver_claim_balances_quote": dict(
+                next_receiver_claim_balances
+            ),
+            "funding_closeout_receiver_claim_lot_debits_quote": (
+                receiver_claim_lot_debits
+            ),
+            "funding_closeout_receiver_claim_lots_quote": [
+                {
+                    "account_pubkey": account_pubkey,
+                    "lot_id": lot_id,
+                    "balance_quote": int(balance_quote),
+                    "expires_at_epoch": int(expires_at_epoch),
+                }
+                for account_pubkey, lot_id, balance_quote, expires_at_epoch in (
+                    next_receiver_claim_lots
+                )
+            ],
+            "funding_closeout_source_capacity_quote": int(
+                priority_certificate.source_capacity_quote
+            ),
+            "fee_pool_after_quote": int(next_global["fee_pool_quote"]),
+            "fee_income_after_quote": int(next_global["fee_income"]),
+            "insurance_after_quote": int(next_global["insurance_balance"]),
+        }
     )
     return None
 
@@ -3328,9 +5402,9 @@ def _commit_isolated_settle_epoch(
     totals: _IsolatedSettleTotals,
     kernel_effects: Mapping[str, Any],
 ) -> None:
-    ctx.markets[op.market_id] = PerpMarketState(
-        quote_asset=market.quote_asset,
-        global_state=dict(next_global),
+    ctx.markets[op.market_id] = _isolated_market_with(
+        market,
+        global_state=next_global,
         accounts=totals.accounts,
     )
     ctx.effects.append(
@@ -3352,6 +5426,12 @@ def _apply_isolated_settle_epoch(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mark
     auth_error = _isolated_settle_authorization_error(ctx, op=op, market=market)
     if auth_error is not None:
         return auth_error
+    pending_closeout_error = _isolated_pending_funding_closeout_boundary_error(
+        op.action,
+        market,
+    )
+    if pending_closeout_error is not None:
+        return pending_closeout_error
 
     accounting = _isolated_settle_pre_accounting(market)
     err, global_step = _derive_isolated_settle_global_step(market)
@@ -3425,10 +5505,10 @@ def _apply_isolated_clear_breaker(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mar
     if new_dummy != dummy:
         return "internal error: clear_breaker mutated dummy account state"
 
-    ctx.markets[market_id] = PerpMarketState(
-        quote_asset=market.quote_asset,
+    ctx.markets[market_id] = _isolated_market_with(
+        market,
         global_state=new_global,
-        accounts=dict(market.accounts),
+        accounts=market.accounts,
     )
     ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": dict(res.effects or {})})
     return None
@@ -3552,9 +5632,9 @@ def _apply_isolated_deposit_collateral(
         return "internal error: deposit mutated global state"
     ctx.balances.subtract(account_pubkey, market.quote_asset, amount)
     accounts[account_pubkey] = post_acct
-    ctx.markets[market_id] = PerpMarketState(
-        quote_asset=market.quote_asset,
-        global_state=dict(market.global_state),
+    ctx.markets[market_id] = _isolated_market_with(
+        market,
+        global_state=market.global_state,
         accounts=accounts,
     )
     ctx.effects.append(
@@ -3601,9 +5681,9 @@ def _apply_isolated_withdraw_collateral(
         return "internal error: withdraw mutated global state"
     ctx.balances.add(account_pubkey, market.quote_asset, amount)
     accounts[account_pubkey] = post_acct
-    ctx.markets[market_id] = PerpMarketState(
-        quote_asset=market.quote_asset,
-        global_state=dict(market.global_state),
+    ctx.markets[market_id] = _isolated_market_with(
+        market,
+        global_state=market.global_state,
         accounts=accounts,
     )
     ctx.effects.append(
@@ -3657,10 +5737,10 @@ def _apply_isolated_deposit_insurance(
     post_global, _post_acct = _split_kernel_state(res.state)
     _preserve_isolated_shell_global_fields(pre_global=market.global_state, post_global=post_global)
     ctx.balances.subtract(account_pubkey, market.quote_asset, amount)
-    ctx.markets[market_id] = PerpMarketState(
-        quote_asset=market.quote_asset,
+    ctx.markets[market_id] = _isolated_market_with(
+        market,
         global_state=post_global,
-        accounts=dict(market.accounts),
+        accounts=market.accounts,
     )
     ctx.effects.append(
         {
@@ -3737,9 +5817,17 @@ def _apply_isolated_set_position(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mark
     if post_global != market.global_state:
         return "internal error: set_position mutated global state"
     accounts[account_pubkey] = post_acct
-    ctx.markets[market_id] = PerpMarketState(
-        quote_asset=market.quote_asset,
-        global_state=dict(market.global_state),
+    oi_error = _isolated_oi_liquidity_policy_error(
+        ctx.config,
+        market_id=market_id,
+        market=market,
+        accounts_after=accounts,
+    )
+    if oi_error is not None:
+        return oi_error
+    ctx.markets[market_id] = _isolated_market_with(
+        market,
+        global_state=market.global_state,
         accounts=accounts,
     )
     ctx.effects.append(
@@ -3763,6 +5851,9 @@ _ISOLATED_PARTIAL_LIQUIDATE_FIELDS = frozenset(
         "account_pubkey",
         "fraction_bps",
         "oracle_adapter_bridge",
+        "tau_source_binding",
+        "tau_source_authority_policy_context",
+        "tau_source_authority_policy_receipt",
     }
 )
 
@@ -3798,15 +5889,15 @@ def _partial_liquidate_bound_account(
     return None, account_pubkey
 
 
-def _partial_liquidate_oracle_bridge_error(
+def _partial_liquidate_oracle_bridge_result(
     ctx: _PerpApplyCtx,
     *,
     op: PerpOp,
     market: PerpMarketState,
     account_pubkey: str,
     fraction_bps: int,
-) -> Optional[str]:
-    return _require_oracle_adapter_bridge(
+) -> tuple[Optional[str], Any | None]:
+    return _check_oracle_adapter_bridge(
         _OracleAdapterBridgeRequirement(
             config=ctx.config,
             data=op.data,
@@ -3824,6 +5915,279 @@ def _partial_liquidate_oracle_bridge_error(
             required=ctx.config.require_oracle_adapter_for_isolated_partial_liquidate,
         )
     )
+
+
+def _partial_liquidate_tau_source_facts(
+    ctx: _PerpApplyCtx,
+    *,
+    op: PerpOp,
+    market: PerpMarketState,
+    account_pubkey: str,
+    account: PerpAccountState,
+    fraction_bps: int,
+    binding: PerpLiquidationTauSourceBinding,
+) -> PerpLiquidationTauSourceFacts:
+    global_state = market.global_state
+    return PerpLiquidationTauSourceFacts(
+        request_id=_perps_liquidate_account_runtime_oracle_action_id(
+            ctx.config,
+            market_id=op.market_id,
+            market=market,
+            account_pubkey=account_pubkey,
+            fraction_bps=fraction_bps,
+        ),
+        market_id=op.market_id,
+        account_id=account_pubkey,
+        action=TAU_PARTIAL_LIQUIDATE_ACTION,
+        fraction_bps=fraction_bps,
+        now_epoch=int(global_state.get("now_epoch", 0)),
+        position_base=int(account.position_base),
+        collateral_quote=int(account.collateral_quote),
+        index_price_e8=int(global_state.get("index_price_e8", 0)),
+        maintenance_margin_bps=int(global_state.get("maintenance_margin_bps", 0)),
+        depeg_buffer_bps=int(global_state.get("depeg_buffer_bps", 0)),
+        oracle_seen=bool(global_state.get("oracle_seen", False)),
+        oracle_last_update_epoch=int(global_state.get("oracle_last_update_epoch", 0)),
+        max_oracle_staleness_epochs=int(
+            global_state.get("max_oracle_staleness_epochs", 0)
+        ),
+        clearing_price_e8=int(global_state.get("clearing_price_e8", 0)),
+        max_oracle_move_bps=int(global_state.get("max_oracle_move_bps", 0)),
+        breaker_active=bool(global_state.get("breaker_active", False)),
+        proof_result_ok=bool(binding.facts.proof_result_ok),
+        proof_receipt_hash=str(binding.facts.proof_receipt_hash),
+    )
+
+
+def _partial_liquidate_authority_policy_receipt_error(
+    ctx: _PerpApplyCtx,
+    *,
+    op: PerpOp,
+    raw_binding: Mapping[str, Any],
+    binding: PerpLiquidationTauSourceBinding,
+    oracle_adapter_bridge_result: Any | None,
+) -> Optional[str]:
+    context_supplied = "tau_source_authority_policy_context" in op.data
+    receipt_supplied = "tau_source_authority_policy_receipt" in op.data
+    receipt_required = (
+        ctx.config.require_tau_source_authority_policy_receipt_for_isolated_partial_liquidate
+    )
+    if not (receipt_required or context_supplied or receipt_supplied):
+        return None
+    if binding.source_admission_envelope is None:
+        return "tau_source_binding rejects: missing_source_admission_envelope"
+
+    context = op.data.get("tau_source_authority_policy_context")
+    if not isinstance(context, Mapping):
+        return "tau_source_binding rejects: source_admission_envelope_missing_authority_policy_context"
+    receipt = op.data.get("tau_source_authority_policy_receipt")
+    if not isinstance(receipt, Mapping):
+        return "tau_source_binding rejects: source_admission_envelope_missing_authority_policy_receipt"
+
+    verifier = ctx.config.tau_source_authority_policy_receipt_verifier
+    if verifier is None:
+        return "tau_source_binding authority policy receipt verifier not configured"
+
+    oracle_adapter_proof_receipt_hash = None
+    if oracle_adapter_bridge_result is not None:
+        oracle_adapter_proof_receipt_hash = _oracle_adapter_result_get(
+            oracle_adapter_bridge_result,
+            "proof_receipt_hash",
+        )
+    verifier_input = {
+        "schema": "zenodex.perp_liquidation_tau_source_authority_policy_runtime_check.v1",
+        "tau_source_binding": raw_binding,
+        "oracle_adapter_proof_receipt_hash": oracle_adapter_proof_receipt_hash,
+        "authority_policy_context": context,
+        "authority_policy_receipt": receipt,
+    }
+    try:
+        result = verifier(verifier_input)
+    except (TypeError, ValueError, RuntimeError) as exc:
+        return f"tau_source_binding authority policy receipt verifier error: {_safe_error_str(exc)}"
+
+    if _oracle_adapter_result_get(result, "status") != "accepted":
+        return (
+            "tau_source_binding rejects: "
+            f"{_oracle_adapter_error_summary(result)}"
+        )
+    if _oracle_adapter_result_get(result, "authority_policy_verified") is not True:
+        return "tau_source_binding rejects: source_admission_envelope_authority_policy_not_verified"
+    if _oracle_adapter_result_get(result, "authority_policy_receipt_verified") is not True:
+        return "tau_source_binding rejects: source_admission_envelope_authority_policy_receipt_not_verified"
+    return None
+
+
+def _partial_liquidate_tau_source_binding_error(
+    ctx: _PerpApplyCtx,
+    *,
+    op: PerpOp,
+    market: PerpMarketState,
+    account_pubkey: str,
+    account: PerpAccountState,
+    fraction_bps: int,
+    oracle_adapter_bridge_result: Any | None = None,
+) -> Optional[str]:
+    raw_binding = op.data.get("tau_source_binding")
+    if raw_binding is None:
+        if ctx.config.require_tau_source_binding_for_isolated_partial_liquidate:
+            return "partial_liquidate requires tau_source_binding"
+        return None
+    if not isinstance(raw_binding, Mapping):
+        return "tau_source_binding must be an object"
+    try:
+        binding = perp_liquidation_tau_source_binding_from_payload(raw_binding)
+    except (TypeError, ValueError) as exc:
+        return f"tau_source_binding invalid: {_safe_error_str(exc)}"
+
+    expected_facts = _partial_liquidate_tau_source_facts(
+        ctx,
+        op=op,
+        market=market,
+        account_pubkey=account_pubkey,
+        account=account,
+        fraction_bps=fraction_bps,
+        binding=binding,
+    )
+    if binding.facts != expected_facts:
+        return "tau_source_binding source facts mismatch"
+
+    expected_hash = perp_liquidation_tau_source_facts_hash(expected_facts)
+    if (
+        binding.expected_source_facts_hash != expected_hash
+        or binding.proof_source_facts_hash != expected_hash
+    ):
+        return "tau_source_binding source hash mismatch"
+
+    flags = derive_perp_liquidation_flags_from_source_binding(binding)
+    if expected_perp_liquidation_o4(flags) != 1:
+        reasons = ",".join(source_binding_reject_reasons(binding))
+        if not reasons:
+            reasons = "tau_guard_rejected"
+        return f"tau_source_binding rejects: {reasons}"
+    root_expected = (
+        ctx.config.isolated_partial_liquidate_tau_source_state_root_hash is not None
+        or ctx.config.isolated_partial_liquidate_tau_source_state_root_kind is not None
+    )
+    membership_required = (
+        ctx.config.require_tau_source_membership_proof_for_isolated_partial_liquidate
+    )
+    root_required = (
+        ctx.config.require_tau_source_state_root_binding_for_isolated_partial_liquidate
+        or root_expected
+        or membership_required
+    )
+    if (
+        ctx.config.require_tau_source_state_root_binding_for_isolated_partial_liquidate
+        and ctx.config.isolated_partial_liquidate_tau_source_state_root_hash is None
+    ):
+        return "tau_source_binding source state root expected but not configured"
+    if (
+        membership_required
+        and ctx.config.isolated_partial_liquidate_tau_source_state_root_hash is None
+    ):
+        return "tau_source_binding source membership root expected but not configured"
+    root_reason = source_state_root_binding_reject_reason(
+        binding,
+        expected_source_state_root_hash=(
+            ctx.config.isolated_partial_liquidate_tau_source_state_root_hash
+        ),
+        expected_state_root_kind=(
+            ctx.config.isolated_partial_liquidate_tau_source_state_root_kind
+        ),
+    )
+    if root_reason is not None:
+        root_supplied = binding.source_state_root_binding is not None
+        if (
+            root_reason == "missing_source_state_root_binding"
+            and not root_required
+        ):
+            return None
+        if root_supplied or root_required:
+            return f"tau_source_binding rejects: {root_reason}"
+    membership_supplied = (
+        binding.source_state_root_binding is not None
+        and binding.source_state_root_binding.source_membership_proof is not None
+    )
+    if membership_required or membership_supplied:
+        membership_reason = source_membership_proof_reject_reason(binding)
+        if membership_reason is not None:
+            return f"tau_source_binding rejects: {membership_reason}"
+    authority_supplied = (
+        binding.source_state_root_binding is not None
+        and (
+            binding.source_state_root_binding.source_root_authority is not None
+            or binding.source_state_root_binding.source_root_authority_binding
+            is not None
+        )
+    )
+    authority_required = (
+        ctx.config.require_tau_source_root_authority_for_isolated_partial_liquidate
+    )
+    if authority_required or authority_supplied:
+        if (
+            ctx.config.isolated_partial_liquidate_tau_source_root_authority_state_root_hash
+            is None
+        ):
+            return "tau_source_binding source root authority state root expected but not configured"
+        if (
+            ctx.config.isolated_partial_liquidate_tau_source_root_authority_policy_hash
+            is None
+        ):
+            return "tau_source_binding source root authority policy expected but not configured"
+        if not ctx.config.isolated_partial_liquidate_tau_source_root_authority_signer_pubkeys:
+            return "tau_source_binding source root authority signer set expected but not configured"
+        authority_reason = source_root_authority_reject_reason(
+            binding,
+            now_epoch=int(market.global_state.get("now_epoch", 0)),
+            expected_authority_state_root_hash=(
+                ctx.config.isolated_partial_liquidate_tau_source_root_authority_state_root_hash
+            ),
+            expected_policy_hash=(
+                ctx.config.isolated_partial_liquidate_tau_source_root_authority_policy_hash
+            ),
+            allowed_signer_pubkeys=(
+                ctx.config.isolated_partial_liquidate_tau_source_root_authority_signer_pubkeys
+            ),
+        )
+        if authority_reason is not None:
+            return f"tau_source_binding rejects: {authority_reason}"
+    envelope_supplied = binding.source_admission_envelope is not None
+    envelope_required = (
+        ctx.config.require_tau_source_admission_envelope_for_isolated_partial_liquidate
+    )
+    if envelope_required or envelope_supplied:
+        oracle_adapter_proof_receipt_hash = None
+        if oracle_adapter_bridge_result is not None:
+            oracle_adapter_proof_receipt_hash = _oracle_adapter_result_get(
+                oracle_adapter_bridge_result,
+                "proof_receipt_hash",
+            )
+        try:
+            envelope_reason = source_admission_envelope_reject_reason(
+                binding,
+                oracle_adapter_proof_receipt_hash=(
+                    None
+                    if oracle_adapter_proof_receipt_hash is None
+                    else str(oracle_adapter_proof_receipt_hash)
+                ),
+            )
+        except (TypeError, ValueError) as exc:
+            envelope_reason = (
+                f"source_admission_envelope_invalid: {_safe_error_str(exc)}"
+            )
+        if envelope_reason is not None:
+            return f"tau_source_binding rejects: {envelope_reason}"
+    authority_policy_receipt_error = _partial_liquidate_authority_policy_receipt_error(
+        ctx,
+        op=op,
+        raw_binding=raw_binding,
+        binding=binding,
+        oracle_adapter_bridge_result=oracle_adapter_bridge_result,
+    )
+    if authority_policy_receipt_error is not None:
+        return authority_policy_receipt_error
+    return None
 
 
 def _run_isolated_partial_liquidate(
@@ -3858,11 +6222,45 @@ def _commit_isolated_partial_liquidate(
     result: _IsolatedPartialLiquidateResult,
 ) -> None:
     accounts = dict(market.accounts)
+    pre_account = accounts.get(account_pubkey) or _kernel_initial_account_state()
     accounts[account_pubkey] = result.account
-    ctx.markets[op.market_id] = PerpMarketState(
-        quote_asset=market.quote_asset,
-        global_state=dict(result.global_state),
+    emitted_root: str | None = None
+    emitted_source_hash: str | None = None
+    emitted_source_rows: tuple[ClosedFundingSourceRow, ...] = ()
+    pending_roots = tuple(getattr(market, "pending_funding_closeout_root_hashes", ()))
+    pending_source_roots = tuple(
+        getattr(market, "pending_funding_closeout_source_availability_hashes", ())
+    )
+    if int(pre_account.position_base) != 0 and int(result.account.position_base) == 0:
+        pre_accounts = _isolated_open_position_accounts(market.accounts)
+        if pre_accounts:
+            emitted_root = pre_close_position_snapshot_hash(
+                pre_accounts,
+                market_id=op.market_id,
+                epoch=int(market.global_state.get("now_epoch", 0)),
+            )
+            pending_roots = _append_pending_funding_closeout_root(market, emitted_root)
+            emitted_source_rows = (
+                _funding_closeout_source_availability_row_for_closeout(
+                    account_pubkey=account_pubkey,
+                    epoch=int(market.global_state.get("now_epoch", 0)),
+                    result=result,
+                ),
+            )
+            emitted_source_hash = funding_closeout_source_availability_hash(
+                emitted_source_rows
+            )
+            pending_source_roots = _append_pending_funding_closeout_source_availability_hash(
+                market,
+                emitted_source_hash,
+            )
+
+    ctx.markets[op.market_id] = _isolated_market_with(
+        market,
+        global_state=result.global_state,
         accounts=accounts,
+        pending_funding_closeout_root_hashes=pending_roots,
+        pending_funding_closeout_source_availability_hashes=pending_source_roots,
     )
     ctx.effects.append(
         {
@@ -3870,6 +6268,11 @@ def _commit_isolated_partial_liquidate(
             "market_id": op.market_id,
             "action": op.action,
             "account_pubkey": account_pubkey,
+            "funding_closeout_pre_close_position_root_hash": emitted_root,
+            "funding_closeout_source_availability_hash": emitted_source_hash,
+            "funding_closeout_source_availability_rows": [
+                asdict(row) for row in emitted_source_rows
+            ],
             "effects": dict(result.effects),
         }
     )
@@ -3885,7 +6288,8 @@ def _apply_isolated_partial_liquidate(
         return "internal error: partial_liquidate account missing"
 
     fraction_bps = _require_int(op.data.get("fraction_bps", 0), name="fraction_bps", non_negative=True)
-    err = _partial_liquidate_oracle_bridge_error(
+    acct = market.accounts.get(account_pubkey) or _kernel_initial_account_state()
+    err, oracle_adapter_bridge_result = _partial_liquidate_oracle_bridge_result(
         ctx,
         op=op,
         market=market,
@@ -3895,7 +6299,18 @@ def _apply_isolated_partial_liquidate(
     if err is not None:
         return err
 
-    acct = market.accounts.get(account_pubkey) or _kernel_initial_account_state()
+    err = _partial_liquidate_tau_source_binding_error(
+        ctx,
+        op=op,
+        market=market,
+        account_pubkey=account_pubkey,
+        account=acct,
+        fraction_bps=fraction_bps,
+        oracle_adapter_bridge_result=oracle_adapter_bridge_result,
+    )
+    if err is not None:
+        return err
+
     err, result = _run_isolated_partial_liquidate(
         market,
         account=acct,
@@ -3929,6 +6344,13 @@ _ISOLATED_ACTION_HANDLERS = {
     "deposit_insurance": _apply_isolated_deposit_insurance,
     "set_position": _apply_isolated_set_position,
     "partial_liquidate": _apply_isolated_partial_liquidate,
+    "carry_funding_closeout_liability": _apply_isolated_carry_funding_closeout_liability,
+    "settle_funding_closeout_carried_liability": (
+        _apply_isolated_settle_funding_closeout_carried_liability
+    ),
+    "settle_funding_closeout_recovery": (
+        _apply_isolated_settle_funding_closeout_recovery
+    ),
 }
 
 

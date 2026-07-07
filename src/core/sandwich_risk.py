@@ -285,6 +285,195 @@ def max_sandwich_profit_exact_in_cpmm_bounded(
     )
 
 
+def _front_run_output_at(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    fee_bps: int,
+    attacker_amount_in: int,
+) -> int | None:
+    out = _try_swap_exact_in(
+        reserve_in=int(reserve_in),
+        reserve_out=int(reserve_out),
+        amount_in=int(attacker_amount_in),
+        fee_bps=int(fee_bps),
+    )
+    if out is None:
+        return None
+    attacker_amount_out, _ = out
+    return int(attacker_amount_out)
+
+
+def _first_attacker_amount_in_for_front_output_atom(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    fee_bps: int,
+    front_output_atom: int,
+    scan_max_attacker_amount_in: int,
+) -> int | None:
+    lo = 1
+    hi = int(scan_max_attacker_amount_in)
+    best: int | None = None
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        out = _front_run_output_at(
+            reserve_in=reserve_in,
+            reserve_out=reserve_out,
+            fee_bps=fee_bps,
+            attacker_amount_in=mid,
+        )
+        if out is None or out < int(front_output_atom):
+            lo = mid + 1
+            continue
+        best = mid
+        hi = mid - 1
+    if best is None:
+        return None
+    out = _front_run_output_at(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        fee_bps=fee_bps,
+        attacker_amount_in=best,
+    )
+    if out != int(front_output_atom):
+        return None
+    return int(best)
+
+
+def _front_output_quotient_probe_budget(
+    *,
+    max_front_output: int,
+    scan_max_attacker_amount_in: int,
+) -> int:
+    if int(max_front_output) <= 0 or int(scan_max_attacker_amount_in) <= 0:
+        return 0
+    return int(max_front_output) * (int(scan_max_attacker_amount_in).bit_length() + 1)
+
+
+def max_sandwich_profit_exact_in_cpmm_front_output_quotient_bounded(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    fee_bps: int,
+    victim_amount_in: int,
+    victim_min_out: int,
+    max_attacker_amount_in: int = 5_000,
+) -> SandwichRisk:
+    """Bounded sandwich search over earliest front-run output representatives.
+
+    The output contract matches `max_sandwich_profit_exact_in_cpmm_bounded`.
+    It uses the same analytic feasible-range cutoff, then checks only the
+    earliest attacker input that produces each front-run output atom. If the cap
+    does not cover the analytic cutoff, status remains "inconclusive".
+    The representative choice is backed by the fixed-front-output dominance
+    replay in `docs/research/aggregate_sandwich_fixed_front_atom_lipschitz_test.py`.
+    """
+    if max_attacker_amount_in < 0:
+        raise ValueError("max_attacker_amount_in must be non-negative")
+
+    base = _try_swap_exact_in(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_in=victim_amount_in,
+        fee_bps=fee_bps,
+    )
+    if base is None:
+        return SandwichRisk(
+            status="victim_reverts",
+            max_profit=0,
+            attacker_amount_in=0,
+            victim_amount_out=0,
+            victim_amount_out_isolated=0,
+            scanned_max_attacker_amount_in=int(max_attacker_amount_in),
+        )
+    victim_out_iso, _ = base
+    if victim_out_iso < victim_min_out:
+        return SandwichRisk(
+            status="victim_reverts",
+            max_profit=0,
+            attacker_amount_in=0,
+            victim_amount_out=int(victim_out_iso),
+            victim_amount_out_isolated=int(victim_out_iso),
+            scanned_max_attacker_amount_in=int(max_attacker_amount_in),
+        )
+
+    cutoff = attacker_amount_in_cutoff_upper_bound_cpmm_exact_in(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        fee_bps=fee_bps,
+        victim_amount_in=victim_amount_in,
+        victim_min_out=victim_min_out,
+    )
+    if cutoff is None:
+        scan_max = int(max_attacker_amount_in)
+        covered_all_feasible = False
+    else:
+        feasible_a_max = max(0, int(cutoff) - 1)
+        scan_max = min(int(max_attacker_amount_in), int(feasible_a_max))
+        covered_all_feasible = bool(int(max_attacker_amount_in) >= int(feasible_a_max))
+
+    best_profit = 0
+    best_a = 0
+    best_victim_out = int(victim_out_iso)
+    max_front_output = _front_run_output_at(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        fee_bps=fee_bps,
+        attacker_amount_in=scan_max,
+    )
+    if max_front_output is None:
+        max_front_output = 0
+    if _front_output_quotient_probe_budget(
+        max_front_output=int(max_front_output),
+        scan_max_attacker_amount_in=int(scan_max),
+    ) >= int(scan_max) + 1:
+        return max_sandwich_profit_exact_in_cpmm_bounded(
+            reserve_in=reserve_in,
+            reserve_out=reserve_out,
+            fee_bps=fee_bps,
+            victim_amount_in=victim_amount_in,
+            victim_min_out=victim_min_out,
+            max_attacker_amount_in=max_attacker_amount_in,
+        )
+
+    for front_output_atom in range(1, int(max_front_output) + 1):
+        a = _first_attacker_amount_in_for_front_output_atom(
+            reserve_in=reserve_in,
+            reserve_out=reserve_out,
+            fee_bps=fee_bps,
+            front_output_atom=front_output_atom,
+            scan_max_attacker_amount_in=scan_max,
+        )
+        if a is None:
+            continue
+        profit = sandwich_profit_exact_in_cpmm(
+            reserve_in=reserve_in,
+            reserve_out=reserve_out,
+            fee_bps=fee_bps,
+            victim_amount_in=victim_amount_in,
+            victim_min_out=victim_min_out,
+            attacker_amount_in=a,
+        )
+        if profit is None or profit <= best_profit:
+            continue
+        _, (rin1, rout1) = swap_exact_in(reserve_in, reserve_out, a, fee_bps)
+        victim_out, _ = swap_exact_in(rin1, rout1, victim_amount_in, fee_bps)
+        best_profit = int(profit)
+        best_a = int(a)
+        best_victim_out = int(victim_out)
+
+    status = "ok" if covered_all_feasible else "inconclusive"
+    return SandwichRisk(
+        status=status,
+        max_profit=int(best_profit),
+        attacker_amount_in=int(best_a),
+        victim_amount_out=int(best_victim_out),
+        victim_amount_out_isolated=int(victim_out_iso),
+        scanned_max_attacker_amount_in=int(scan_max),
+    )
+
+
 def sandwich_profit_exact_in_cpmm_dynamic_fee(
     *,
     reserve_in: int,

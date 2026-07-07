@@ -8,7 +8,7 @@ research-only producer-manifest evidence; no settlement, state-root, production,
 
 ## Producer Manifest
 
-- Manifest hash: `5ed4c243e5c66637469f04f813301c171c44ff9e2d2d0a0b923eb8a1b7e5164f`
+- Manifest hash: `9a79ac58b6566055e2f895fffd97df5cc5fc81f2b3f29fe61f14fa0f51c80ea6`
 - Source seed: `2026062907`
 - Stage order: `generation, canonical_merkle, witness_compression, witness_merkle_cross_binding, corpus_root`
 - Stage replay enabled: `True`

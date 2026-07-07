@@ -8,12 +8,23 @@ from pathlib import Path
 
 from src.core.dex import DexState
 from src.integration.dex_snapshot import snapshot_from_state
+from src.integration.tau_export_acceptance_retrieval import (
+    build_tau_finality_checkpoint_from_compact_watcher_app_hash_history_proof_v0,
+    build_tau_finality_checkpoint_from_watcher_app_hash_history_proof_v0,
+    build_tau_finality_checkpoint_from_watcher_app_hash_history_v0,
+)
+from src.integration.zeno_ledger_app_hash_history import (
+    app_hash_history_merkle_root_v0,
+    build_app_hash_history_merkle_proof_v0,
+    checked_range_hash_v0,
+    checked_range_summary_v0,
+)
+from src.integration.zeno_ledger_mirror import validate_mirror_index_v0
 from src.integration.zeno_ledger_profile import (
     sample_local_sandbox_profile_v0,
     sample_tau_exclusive_release_profile_v0,
     sample_zeno_sovereign_testnet_profile_v0,
 )
-from src.integration.zeno_ledger_mirror import validate_mirror_index_v0
 from src.integration.zeno_ledger_signature import validate_signed_artifact_envelope_v0
 from src.integration.zeno_ledger_tau_export import validate_tau_export_packet_v0
 from src.integration.zeno_ledger_testnet_status import validate_testnet_status_v0
@@ -36,7 +47,6 @@ from src.integration.zeno_ledger_v0 import (
 from src.integration.zeno_ledger_watcher import validate_watcher_attestation_v0
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
-
 
 ROOT = Path(__file__).resolve().parents[2]
 VERIFY_SCRIPT = ROOT / "tools" / "zeno_ledger_verify.py"
@@ -688,7 +698,7 @@ def test_run_local_builds_structured_proof_metadata(tmp_path: Path) -> None:
     assert verify_with_metadata_payload["proof_metadata_checked_heights"] == [1]
 
 
-def test_proof_required_profile_requires_metadata_replay(tmp_path: Path) -> None:
+def test_proof_required_profile_requires_metadata_and_verifier_report_replay(tmp_path: Path) -> None:
     body = _body(1)
     body_path = tmp_path / "input_body.json"
     out_dir = tmp_path / "ledger"
@@ -762,7 +772,7 @@ def test_proof_required_profile_requires_metadata_replay(tmp_path: Path) -> None
     missing_payload = json.loads(missing_metadata.stdout)
     assert "profile_requires_proof_metadata_dir" in missing_payload["errors"]
 
-    with_metadata = _run_verify(
+    metadata_only = _run_verify(
         "--headers-dir",
         str(out_dir / "headers"),
         "--bodies-dir",
@@ -778,9 +788,58 @@ def test_proof_required_profile_requires_metadata_replay(tmp_path: Path) -> None
         "--to-height",
         "1",
     )
-    assert with_metadata.returncode == 0, with_metadata.stderr
-    with_payload = json.loads(with_metadata.stdout)
+    assert metadata_only.returncode == 1
+    metadata_only_payload = json.loads(metadata_only.stdout)
+    assert "profile_requires_proof_verification_report_dir" in metadata_only_payload["errors"]
+
+    report_dir = tmp_path / "proof_verification_reports"
+    report_dir.mkdir()
+    payload = json.loads(proc.stdout)
+    header = json.loads(Path(str(payload["header_path"])).read_text(encoding="utf-8"))
+    metadata = json.loads(Path(str(payload["proof_metadata_path"])).read_text(encoding="utf-8"))
+    _write_json(
+        report_dir / "1.json",
+        {
+            "schema": "zenodex.zeno_ledger.risc0_proof_metadata_report.v0",
+            "ok": True,
+            "metadata_path": str(payload["proof_metadata_path"]),
+            "proof_journal_hash": header["proof_journal_hash"],
+            "proof_kind": metadata["proof_kind"],
+            "program_id": metadata["program_id"],
+            "verifier_id": metadata["verifier_id"],
+            "toolchain_lock_hash": metadata["toolchain_lock_hash"],
+            "header_bound": True,
+            "body_checked": True,
+            "body_tx_execution_order_commitment_checked": False,
+            "post_app_hash_checked": True,
+            "post_state_root_checked": False,
+            "pre_state_root_checked": False,
+            "risc0_verified": True,
+        },
+    )
+
+    with_report = _run_verify(
+        "--headers-dir",
+        str(out_dir / "headers"),
+        "--bodies-dir",
+        str(out_dir / "bodies"),
+        "--checkpoints-dir",
+        str(out_dir / "checkpoints"),
+        "--proof-metadata-dir",
+        str(out_dir / "proof_metadata"),
+        "--proof-verification-report-dir",
+        str(report_dir),
+        "--profile",
+        str(profile_path),
+        "--from-height",
+        "1",
+        "--to-height",
+        "1",
+    )
+    assert with_report.returncode == 0, with_report.stderr
+    with_payload = json.loads(with_report.stdout)
     assert with_payload["proof_metadata_checked_heights"] == [1]
+    assert with_payload["proof_verification_checked_heights"] == [1]
 
 
 def test_verify_can_require_proof_verification_report_replay(tmp_path: Path) -> None:
@@ -841,9 +900,13 @@ def test_verify_can_require_proof_verification_report_replay(tmp_path: Path) -> 
             "proof_kind": metadata["proof_kind"],
             "program_id": metadata["program_id"],
             "verifier_id": metadata["verifier_id"],
+            "toolchain_lock_hash": metadata["toolchain_lock_hash"],
             "header_bound": True,
             "body_checked": True,
+            "body_tx_execution_order_commitment_checked": False,
             "post_app_hash_checked": True,
+            "post_state_root_checked": False,
+            "pre_state_root_checked": False,
             "risc0_verified": True,
         },
     )
@@ -885,7 +948,221 @@ def test_verify_can_require_proof_verification_report_replay(tmp_path: Path) -> 
     assert with_report_payload["proof_metadata_checked_heights"] == [1]
     assert with_report_payload["proof_verification_checked_heights"] == [1]
 
+    signed_required_without_inputs = _run_verify(
+        "--headers-dir",
+        str(out_dir / "headers"),
+        "--bodies-dir",
+        str(out_dir / "bodies"),
+        "--proof-metadata-dir",
+        str(out_dir / "proof_metadata"),
+        "--proof-verification-report-dir",
+        str(report_dir),
+        "--require-proof-verification-report",
+        "--require-proof-verification-report-signature",
+        "--from-height",
+        "1",
+        "--to-height",
+        "1",
+    )
+    assert signed_required_without_inputs.returncode == 1
+    signed_required_without_inputs_payload = json.loads(signed_required_without_inputs.stdout)
+    assert (
+        "require_proof_verification_report_signature_requires_registry_and_envelope_dir"
+        in signed_required_without_inputs_payload["errors"]
+    )
+
+    envelope_dir = tmp_path / "proof_verification_report_envelopes"
+    envelope_dir.mkdir()
+    envelope_a_path = tmp_path / "proof_verification_report.a.sig.json"
+    envelope_b_path = tmp_path / "proof_verification_report.b.sig.json"
+    registry_path = tmp_path / "proof_report_signer_registry.json"
+    sign_a = _run_sign_artifact(
+        "--artifact",
+        str(report_dir / "1.json"),
+        "--payload-kind",
+        "proof_verification_report",
+        "--signer-id",
+        "proof-verifier-a",
+        "--key-id",
+        "release-bls-key-a",
+        "--algorithm",
+        "bls12-381-g2-basic-release-v0",
+        "--bls-private-key-hex",
+        TEST_BLS_PRIVATE_KEY,
+        "--out",
+        str(envelope_a_path),
+    )
+    assert sign_a.returncode == 0, sign_a.stderr
+    public_key_a = json.loads(sign_a.stdout)["envelope"]["public_key"]
+    sign_b = _run_sign_artifact(
+        "--artifact",
+        str(report_dir / "1.json"),
+        "--payload-kind",
+        "proof_verification_report",
+        "--signer-id",
+        "proof-verifier-b",
+        "--key-id",
+        "release-bls-key-b",
+        "--algorithm",
+        "bls12-381-g2-basic-release-v0",
+        "--bls-private-key-hex",
+        TEST_BLS_PRIVATE_KEY_2,
+        "--out",
+        str(envelope_b_path),
+    )
+    assert sign_b.returncode == 0, sign_b.stderr
+    public_key_b = json.loads(sign_b.stdout)["envelope"]["public_key"]
+    make_registry = _run_make_signer_registry(
+        "--registry-id",
+        "proof-report-verifiers-v0",
+        "--payload-kind",
+        "proof_verification_report",
+        "--threshold",
+        "2",
+        "--signer",
+        f"proof-verifier-a:release-bls-key-a:{public_key_a}:1",
+        "--signer",
+        f"proof-verifier-b:release-bls-key-b:{public_key_b}:1",
+        "--out",
+        str(registry_path),
+    )
+    assert make_registry.returncode == 0, make_registry.stderr
+    _write_json(
+        envelope_dir / "1.json",
+        {
+            "schema": "zenodex.zeno_ledger.proof_verification_report_envelopes.v0",
+            "envelopes": [
+                json.loads(envelope_a_path.read_text(encoding="utf-8")),
+                json.loads(envelope_b_path.read_text(encoding="utf-8")),
+            ],
+        },
+    )
+    with_signed_report = _run_verify(
+        "--headers-dir",
+        str(out_dir / "headers"),
+        "--bodies-dir",
+        str(out_dir / "bodies"),
+        "--proof-metadata-dir",
+        str(out_dir / "proof_metadata"),
+        "--proof-verification-report-dir",
+        str(report_dir),
+        "--proof-verification-report-registry",
+        str(registry_path),
+        "--proof-verification-report-envelope-dir",
+        str(envelope_dir),
+        "--require-proof-verification-report",
+        "--require-proof-verification-report-signature",
+        "--from-height",
+        "1",
+        "--to-height",
+        "1",
+    )
+    assert with_signed_report.returncode == 0, with_signed_report.stderr
+    signed_payload = json.loads(with_signed_report.stdout)
+    assert signed_payload["proof_verification_signature_checked_heights"] == [1]
+    signed_quorum_reports = signed_payload["proof_verification_signature_quorum_reports"]
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    assert signed_quorum_reports == [
+        {
+            "height": 1,
+            "registry_hash": registry["registry_hash"],
+            "quorum_report_hash": signed_quorum_reports[0]["quorum_report_hash"],
+            "accepted_weight": 2,
+            "threshold": 2,
+        }
+    ]
+    assert isinstance(signed_quorum_reports[0]["quorum_report_hash"], str)
+    assert signed_quorum_reports[0]["quorum_report_hash"].startswith("0x")
+
+    _write_json(
+        envelope_dir / "1.json",
+        {
+            "schema": "zenodex.zeno_ledger.proof_verification_report_envelopes.v0",
+            "envelopes": [json.loads(envelope_a_path.read_text(encoding="utf-8"))],
+        },
+    )
+    insufficient_signed_report = _run_verify(
+        "--headers-dir",
+        str(out_dir / "headers"),
+        "--bodies-dir",
+        str(out_dir / "bodies"),
+        "--proof-metadata-dir",
+        str(out_dir / "proof_metadata"),
+        "--proof-verification-report-dir",
+        str(report_dir),
+        "--proof-verification-report-registry",
+        str(registry_path),
+        "--proof-verification-report-envelope-dir",
+        str(envelope_dir),
+        "--require-proof-verification-report",
+        "--from-height",
+        "1",
+        "--to-height",
+        "1",
+    )
+    assert insufficient_signed_report.returncode == 1
+    insufficient_signed_payload = json.loads(insufficient_signed_report.stdout)
+    assert "signature quorum threshold not met" in insufficient_signed_payload["errors"][0]
+    _write_json(
+        envelope_dir / "1.json",
+        {
+            "schema": "zenodex.zeno_ledger.proof_verification_report_envelopes.v0",
+            "envelopes": [
+                json.loads(envelope_a_path.read_text(encoding="utf-8")),
+                json.loads(envelope_b_path.read_text(encoding="utf-8")),
+            ],
+        },
+    )
+
+    semantically_unbound = json.loads((report_dir / "1.json").read_text(encoding="utf-8"))
+    semantically_unbound["post_app_hash_checked"] = False
+    semantically_unbound["post_state_root_checked"] = False
+    _write_json(report_dir / "1.json", semantically_unbound)
+    rejected_semantic = _run_verify(
+        "--headers-dir",
+        str(out_dir / "headers"),
+        "--bodies-dir",
+        str(out_dir / "bodies"),
+        "--proof-metadata-dir",
+        str(out_dir / "proof_metadata"),
+        "--proof-verification-report-dir",
+        str(report_dir),
+        "--require-proof-verification-report",
+        "--from-height",
+        "1",
+        "--to-height",
+        "1",
+    )
+    assert rejected_semantic.returncode == 1
+    semantic_payload = json.loads(rejected_semantic.stdout)
+    assert "risc0 proof verification report must bind post_app_hash to header" in semantic_payload["errors"][0]
+
+    body_unchecked = json.loads((report_dir / "1.json").read_text(encoding="utf-8"))
+    body_unchecked["body_checked"] = False
+    body_unchecked["post_app_hash_checked"] = True
+    _write_json(report_dir / "1.json", body_unchecked)
+    rejected_body_unchecked = _run_verify(
+        "--headers-dir",
+        str(out_dir / "headers"),
+        "--bodies-dir",
+        str(out_dir / "bodies"),
+        "--proof-metadata-dir",
+        str(out_dir / "proof_metadata"),
+        "--proof-verification-report-dir",
+        str(report_dir),
+        "--require-proof-verification-report",
+        "--from-height",
+        "1",
+        "--to-height",
+        "1",
+    )
+    assert rejected_body_unchecked.returncode == 1
+    body_unchecked_payload = json.loads(rejected_body_unchecked.stdout)
+    assert "risc0 proof verification report must be body-checked" in body_unchecked_payload["errors"][0]
+
     bad = json.loads((report_dir / "1.json").read_text(encoding="utf-8"))
+    bad["body_checked"] = True
+    bad["post_app_hash_checked"] = True
     bad["risc0_verified"] = False
     _write_json(report_dir / "1.json", bad)
     rejected = _run_verify(
@@ -1458,6 +1735,20 @@ def test_make_testnet_bundle_can_run_and_verify_bootstrap_scenario(tmp_path: Pat
     assert verify_report["checked_heights"] == [1, 2, 3, 4, 5]
 
 
+def test_make_testnet_bundle_rejects_proof_required_without_verifier_reports(tmp_path: Path) -> None:
+    bundle_dir = tmp_path / "bundle"
+    proc = _run_make_bundle("--out-dir", str(bundle_dir), "--proof-required")
+
+    assert proc.returncode == 1
+    report = json.loads(proc.stdout)
+    assert report == {
+        "schema": "zenodex.zeno_ledger.make_testnet_bundle_report.v0",
+        "ok": False,
+        "status": "rejected",
+        "errors": ["proof_required_bundle_requires_verifier_report_generation"],
+    }
+
+
 def test_run_manifest_executes_generated_testnet_bundle(tmp_path: Path) -> None:
     bundle_dir = tmp_path / "bundle"
     proc = _run_make_bundle("--out-dir", str(bundle_dir))
@@ -1521,11 +1812,93 @@ def test_watcher_attestation_binds_verified_sovereign_range(tmp_path: Path) -> N
     assert attestation["deployment_mode"] == "zeno_sovereign_testnet"
     assert attestation["checked_heights"] == [1, 2, 3, 4, 5]
     assert attestation["last_header_hash"] == attest_report["verify_report"]["last_header_hash"]
+    history = attest_report["verify_report"]["app_hashes_by_height"]
+    assert [row["height"] for row in history] == [1, 2, 3, 4, 5]
+    headers_dir = ledger_out_dir / "headers"
+    header_1 = json.loads((headers_dir / "1.json").read_text(encoding="utf-8"))
+    header_5 = json.loads((headers_dir / "5.json").read_text(encoding="utf-8"))
+    assert history[0]["app_hash"] == header_1["app_hash"]
+    assert history[-1]["app_hash"] == header_5["app_hash"]
+    assert history[-1]["app_hash"] == attest_report["verify_report"]["last_app_hash"]
+    assert attest_report["verify_report"]["app_hash_history_root"] == app_hash_history_merkle_root_v0(history)
+    assert attest_report["verify_report"]["checked_range"] == {
+        "from_height": 1,
+        "to_height": 5,
+        "height_count": 5,
+    }
+    assert attest_report["verify_report"]["checked_range_hash"] == checked_range_hash_v0(
+        checked_range_summary_v0([1, 2, 3, 4, 5])
+    )
     validate_watcher_attestation_v0(
         attestation=attestation,
         verify_report=attest_report["verify_report"],
         profile=profile,
     )
+    checkpoint = build_tau_finality_checkpoint_from_watcher_app_hash_history_v0(
+        watcher_attestations=[attestation],
+        verify_reports=[attest_report["verify_report"]],
+        state_hash="0x" + ("ab" * 32),
+        snapshot_height=1,
+        profile=profile,
+        required_watcher_count=1,
+    )
+    assert checkpoint["source_kind"] == "zeno_ledger_watcher_app_hash_history_v0"
+    assert checkpoint["snapshot_height"] == 1
+    assert checkpoint["latest_height"] == 5
+    assert checkpoint["app_hash"] == header_1["app_hash"]
+    assert checkpoint["range_tip_app_hash"] == header_5["app_hash"]
+    compact_proof = build_app_hash_history_merkle_proof_v0(history, snapshot_height=1)
+    compact_checkpoint = build_tau_finality_checkpoint_from_watcher_app_hash_history_proof_v0(
+        watcher_attestations=[attestation],
+        verify_reports=[attest_report["verify_report"]],
+        app_hash_history_proofs=[compact_proof],
+        state_hash="0x" + ("ab" * 32),
+        snapshot_height=1,
+        profile=profile,
+        required_watcher_count=1,
+    )
+    assert compact_checkpoint["source_kind"] == "zeno_ledger_watcher_app_hash_history_merkle_v0"
+    assert compact_checkpoint["snapshot_height"] == 1
+    assert compact_checkpoint["latest_height"] == 5
+    assert compact_checkpoint["app_hash"] == header_1["app_hash"]
+    assert compact_checkpoint["range_tip_app_hash"] == header_5["app_hash"]
+    assert compact_checkpoint["app_hash_history_roots"] == [
+        attest_report["verify_report"]["app_hash_history_root"]
+    ]
+    compact_report = attest_report["compact_verify_report"]
+    compact_attestation = attest_report["compact_attestation"]
+    assert "checked_heights" not in compact_report
+    assert "app_hashes_by_height" not in compact_report
+    assert "checked_heights" not in compact_attestation
+    assert compact_report["checked_range_hash"] == attest_report["verify_report"]["checked_range_hash"]
+    compact_range_checkpoint = build_tau_finality_checkpoint_from_compact_watcher_app_hash_history_proof_v0(
+        watcher_attestations=[compact_attestation],
+        verify_reports=[compact_report],
+        app_hash_history_proofs=[compact_proof],
+        state_hash="0x" + ("ab" * 32),
+        snapshot_height=1,
+        profile=profile,
+        required_watcher_count=1,
+    )
+    assert compact_range_checkpoint["source_kind"] == "zeno_ledger_compact_watcher_app_hash_history_merkle_v0"
+    assert compact_range_checkpoint["snapshot_height"] == 1
+    assert compact_range_checkpoint["latest_height"] == 5
+    assert compact_range_checkpoint["app_hash"] == header_1["app_hash"]
+    assert compact_range_checkpoint["checked_range"] == {"from_height": 1, "to_height": 5, "height_count": 5}
+    assert "checked_heights" not in compact_range_checkpoint
+
+    tampered_report = json.loads(json.dumps(attest_report["verify_report"]))
+    tampered_report["app_hashes_by_height"][0]["app_hash"] = header_5["app_hash"]
+    try:
+        validate_watcher_attestation_v0(
+            attestation=attestation,
+            verify_report=tampered_report,
+            profile=profile,
+        )
+    except ValueError as exc:
+        assert "binding mismatch" in str(exc)
+    else:
+        raise AssertionError("tampered app_hashes_by_height accepted")
 
 
 def test_watcher_attestation_rejects_tampered_verified_range(tmp_path: Path) -> None:
@@ -3571,7 +3944,13 @@ def test_make_public_testnet_bundle_runs_core_features_and_status(tmp_path: Path
     assert launch_manifest["tau_posture"]["testnet_liveness_dependency"] == "zeno_ledger"
     assert launch_manifest["token_posture"]["testnet_scope"] == "zeno_ledger_testnet"
     assert launch_manifest["token_posture"]["release_scope"] == "tau_net_exclusive"
-    assert [item["symbol"] for item in launch_manifest["test_token_catalog"]] == ["tZENO", "tASSET0", "tASSET1"]
+    assert [item["symbol"] for item in launch_manifest["test_token_catalog"]] == ["tAGRS", "tZDEX", "zUSD"]
+    assert launch_manifest["token_posture"]["release_aligned_test_assets"] == ["tAGRS", "tZDEX", "zUSD"]
+    assert launch_manifest["token_posture"]["default_faucet_token"] == "tAGRS"
+    assert launch_manifest["token_posture"]["default_zusd_collateral"] == "tAGRS"
+    assert launch_manifest["token_posture"]["default_spot_pool_symbols"] == ["tAGRS", "tZDEX"]
+    assert launch_manifest["test_token_catalog"][2]["created_through_collateralized_zusd_flow"] is True
+    assert launch_manifest["test_token_catalog"][2]["faucet_mint_allowed"] is False
     assert launch_manifest["testnet_faucet_posture"]["supports_fixture_mint"] is True
 
     status = json.loads(Path(report["testnet_status_path"]).read_text(encoding="utf-8"))
@@ -3939,6 +4318,77 @@ def test_signed_artifact_envelope_binds_watcher_attestation_and_mirror_index(tmp
     )
 
 
+def test_signed_artifact_envelope_binds_proof_verification_report(tmp_path: Path) -> None:
+    report_path = tmp_path / "proof_verification_report.json"
+    envelope_path = tmp_path / "proof_verification_report.sig.json"
+    report = {
+        "schema": "zenodex.zeno_ledger.risc0_proof_metadata_report.v0",
+        "ok": True,
+        "metadata_path": str(tmp_path / "proof_metadata" / "1.json"),
+        "proof_journal_hash": _root("proof-journal"),
+        "proof_kind": "risc0_zkvm_v0",
+        "program_id": "risc0:zenodex-spot-transition-v1",
+        "verifier_id": "risc0:receipt-verifier-v1",
+        "toolchain_lock_hash": _root("toolchain"),
+        "header_bound": True,
+        "body_checked": True,
+        "body_tx_execution_order_commitment_checked": False,
+        "post_app_hash_checked": True,
+        "post_state_root_checked": False,
+        "pre_state_root_checked": False,
+        "risc0_verified": True,
+    }
+    _write_json(report_path, report)
+
+    sign = _run_sign_artifact(
+        "--artifact",
+        str(report_path),
+        "--payload-kind",
+        "proof_verification_report",
+        "--signer-id",
+        "proof-verifier-0",
+        "--key-id",
+        "testnet-key-0",
+        "--secret-hex",
+        TEST_SIGNING_SECRET,
+        "--out",
+        str(envelope_path),
+    )
+    assert sign.returncode == 0, sign.stderr
+
+    verify = _run_verify_artifact_signature(
+        "--artifact",
+        str(report_path),
+        "--envelope",
+        str(envelope_path),
+        "--payload-kind",
+        "proof_verification_report",
+        "--secret-hex",
+        TEST_SIGNING_SECRET,
+    )
+    assert verify.returncode == 0, verify.stderr
+    verify_report = json.loads(verify.stdout)
+    assert verify_report["payload_kind"] == "proof_verification_report"
+
+    tampered_path = tmp_path / "tampered_proof_verification_report.json"
+    tampered = {**report, "post_app_hash_checked": False}
+    _write_json(tampered_path, tampered)
+
+    rejected = _run_verify_artifact_signature(
+        "--artifact",
+        str(tampered_path),
+        "--envelope",
+        str(envelope_path),
+        "--payload-kind",
+        "proof_verification_report",
+        "--secret-hex",
+        TEST_SIGNING_SECRET,
+    )
+    assert rejected.returncode == 1
+    rejected_report = json.loads(rejected.stdout)
+    assert any("binding mismatch" in error for error in rejected_report["errors"])
+
+
 def test_signed_artifact_envelope_rejects_tampered_artifact_hash(tmp_path: Path) -> None:
     bundle_dir = tmp_path / "bundle"
     proc = _run_make_bundle("--out-dir", str(bundle_dir))
@@ -4151,6 +4601,125 @@ def test_bls_signer_registry_enforces_signature_quorum(tmp_path: Path) -> None:
     insufficient_report = json.loads(insufficient.stdout)
     assert insufficient_report["ok"] is False
     assert any("threshold not met" in error for error in insufficient_report["errors"])
+
+
+def test_bls_signer_registry_accepts_proof_verification_report_quorum(tmp_path: Path) -> None:
+    report_path = tmp_path / "proof_verification_report.json"
+    envelope_a_path = tmp_path / "proof_verification_report.a.sig.json"
+    envelope_b_path = tmp_path / "proof_verification_report.b.sig.json"
+    registry_path = tmp_path / "proof_report_signer_registry.json"
+    quorum_report_path = tmp_path / "proof_report_quorum_report.json"
+    report = {
+        "schema": "zenodex.zeno_ledger.risc0_proof_metadata_report.v0",
+        "ok": True,
+        "metadata_path": str(tmp_path / "proof_metadata" / "1.json"),
+        "proof_journal_hash": _root("proof-journal-quorum"),
+        "proof_kind": "risc0_zkvm_v0",
+        "program_id": "risc0:zenodex-spot-transition-v1",
+        "verifier_id": "risc0:receipt-verifier-v1",
+        "toolchain_lock_hash": _root("toolchain-quorum"),
+        "header_bound": True,
+        "body_checked": True,
+        "body_tx_execution_order_commitment_checked": False,
+        "post_app_hash_checked": True,
+        "post_state_root_checked": False,
+        "pre_state_root_checked": False,
+        "risc0_verified": True,
+    }
+    _write_json(report_path, report)
+
+    sign_a = _run_sign_artifact(
+        "--artifact",
+        str(report_path),
+        "--payload-kind",
+        "proof_verification_report",
+        "--signer-id",
+        "proof-verifier-a",
+        "--key-id",
+        "release-bls-key-a",
+        "--algorithm",
+        "bls12-381-g2-basic-release-v0",
+        "--bls-private-key-hex",
+        TEST_BLS_PRIVATE_KEY,
+        "--out",
+        str(envelope_a_path),
+    )
+    assert sign_a.returncode == 0, sign_a.stderr
+    public_key_a = json.loads(sign_a.stdout)["envelope"]["public_key"]
+
+    sign_b = _run_sign_artifact(
+        "--artifact",
+        str(report_path),
+        "--payload-kind",
+        "proof_verification_report",
+        "--signer-id",
+        "proof-verifier-b",
+        "--key-id",
+        "release-bls-key-b",
+        "--algorithm",
+        "bls12-381-g2-basic-release-v0",
+        "--bls-private-key-hex",
+        TEST_BLS_PRIVATE_KEY_2,
+        "--out",
+        str(envelope_b_path),
+    )
+    assert sign_b.returncode == 0, sign_b.stderr
+    public_key_b = json.loads(sign_b.stdout)["envelope"]["public_key"]
+
+    make_registry = _run_make_signer_registry(
+        "--registry-id",
+        "proof-report-verifiers-v0",
+        "--payload-kind",
+        "proof_verification_report",
+        "--threshold",
+        "2",
+        "--signer",
+        f"proof-verifier-a:release-bls-key-a:{public_key_a}:1",
+        "--signer",
+        f"proof-verifier-b:release-bls-key-b:{public_key_b}:1",
+        "--out",
+        str(registry_path),
+    )
+    assert make_registry.returncode == 0, make_registry.stderr
+
+    verify = _run_verify_signature_quorum(
+        "--artifact",
+        str(report_path),
+        "--registry",
+        str(registry_path),
+        "--payload-kind",
+        "proof_verification_report",
+        "--envelope",
+        str(envelope_a_path),
+        "--envelope",
+        str(envelope_b_path),
+        "--out",
+        str(quorum_report_path),
+    )
+    assert verify.returncode == 0, verify.stderr
+    verify_report = json.loads(verify.stdout)
+    assert verify_report["ok"] is True
+    assert verify_report["quorum_report"]["accepted_weight"] == 2
+    assert Path(verify_report["quorum_report_path"]).is_file()
+
+    tampered_path = tmp_path / "tampered_proof_verification_report.json"
+    _write_json(tampered_path, {**report, "body_checked": False})
+    rejected = _run_verify_signature_quorum(
+        "--artifact",
+        str(tampered_path),
+        "--registry",
+        str(registry_path),
+        "--payload-kind",
+        "proof_verification_report",
+        "--envelope",
+        str(envelope_a_path),
+        "--envelope",
+        str(envelope_b_path),
+    )
+    assert rejected.returncode == 1
+    rejected_report = json.loads(rejected.stdout)
+    assert rejected_report["ok"] is False
+    assert any("BLS signature invalid" in error or "binding mismatch" in error for error in rejected_report["errors"])
 
 
 def test_publish_mirror_copies_indexed_artifacts_and_extra_signature(tmp_path: Path) -> None:

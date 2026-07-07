@@ -116,7 +116,7 @@
     },
     "covered_row_receipt_count": 864,
     "duplicate_row_receipt_count": 0,
-    "elapsed_ms": 5217.414,
+    "elapsed_ms": 5231.285,
     "expected_case_count": 4,
     "expected_corpus_root": "8f4a1a08cf51215cdc9fd382dd2538cc199db35b87597aa9c468358925dfd3b0",
     "expected_row_receipt_count": 864,
