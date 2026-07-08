@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiGetZusdWalletStatus, apiPrepareZusdWallet, apiSubmitZusdWallet } from '../lib/api.js';
+import { formatZusdStatusIssue } from './zusd/statusCopy.js';
 import './ZUSDTauWalletSurface.css';
 
 const EMPTY_FORM = {
@@ -167,6 +168,7 @@ function ZUSDTauWalletSurface({ wallet = null }) {
   }, [busy, status]);
 
   const accountTokenBalance = status?.account_view ? Number(status.account_view.balance ?? 0) : null;
+  const statusIssue = formatZusdStatusIssue(statusError);
 
   return (
     <section className="zusd-wallet-surface">
@@ -191,7 +193,15 @@ function ZUSDTauWalletSurface({ wallet = null }) {
               <div className="zusd-wallet-kv"><span>Operator</span><span className="zusd-mono">{status?.token_operator_pubkey || 'not configured'}</span></div>
             </div>
           </details>
-          {statusError ? <p className="zusd-wallet-error">Status error: {statusError}</p> : null}
+          {statusIssue ? (
+            <div className="zusd-status-callout" role="status">
+              <strong>Transfer status unavailable</strong>
+              <span>{statusIssue}</span>
+              <button className="btn btn-secondary" type="button" onClick={loadStatus}>
+                Retry status
+              </button>
+            </div>
+          ) : null}
         </div>
 
         <div className="panel zusd-wallet-card">

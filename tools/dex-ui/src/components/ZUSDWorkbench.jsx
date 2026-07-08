@@ -452,7 +452,15 @@ function ZUSDWorkbench({ wallet = null, onConnect = null, onOpenKeys = null }) {
           onConnect={onConnect}
           onOpenKeys={onOpenKeys}
         />
-        {walletConnected && <ZUSDTauWalletSurface wallet={wallet} />}
+        {walletConnected && (
+          <details className="zusd-secondary-transfer">
+            <summary>
+              <span>Transfer zUSD</span>
+              <small>Send zUSD after minting or receiving funds.</small>
+            </summary>
+            <ZUSDTauWalletSurface wallet={wallet} />
+          </details>
+        )}
       </section>
     );
   }

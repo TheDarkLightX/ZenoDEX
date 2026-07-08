@@ -191,6 +191,21 @@
       "reason": "zUSD prompts wallet protection before value-moving actions"
     },
     {
+      "path": "src/components/ZUSDMonetarySurface.jsx",
+      "contains": "Local testnet unavailable",
+      "reason": "zUSD uses user-facing unavailable status language instead of raw transport errors"
+    },
+    {
+      "path": "src/components/ZUSDWorkbench.jsx",
+      "contains": "zusd-secondary-transfer",
+      "reason": "zUSD transfer is progressively disclosed behind the primary vault job"
+    },
+    {
+      "path": "src/components/zusd/statusCopy.js",
+      "contains": "Local testnet is unavailable. Start or reconnect the local node, then retry.",
+      "reason": "zUSD status copy maps raw transport failures to user-facing recovery guidance"
+    },
+    {
       "path": "src/components/WalletRecoveryPrompt.jsx",
       "contains": "Cloud or email access alone cannot move funds.",
       "reason": "recovery copy preserves authority boundaries for external storage"
@@ -236,6 +251,16 @@
       "path": "src/components/ZUSDMonetarySurface.jsx",
       "forbids": "Network required",
       "reason": "zUSD primary UI should name the recovery action instead of exposing a raw requirement chip"
+    },
+    {
+      "path": "src/components/ZUSDMonetarySurface.jsx",
+      "forbids": "Status error:",
+      "reason": "zUSD monetary UI should not expose raw transport status copy"
+    },
+    {
+      "path": "src/components/ZUSDTauWalletSurface.jsx",
+      "forbids": "Status error:",
+      "reason": "zUSD transfer UI should not expose raw transport status copy"
     },
     {
       "path": "src/components/WalletRecoveryPrompt.jsx",

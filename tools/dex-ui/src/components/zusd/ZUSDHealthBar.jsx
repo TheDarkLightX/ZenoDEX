@@ -3,6 +3,7 @@
 // disconnected / healthy / stale / warning / liquidatable / error
 
 import { useEffect, useState } from 'react';
+import { formatZusdStatusIssue } from './statusCopy.js';
 
 const STALE_THRESHOLD_MS = 60_000;
 
@@ -30,6 +31,7 @@ export default function ZUSDHealthBar({
     : '';
 
   const isStale = lastFetchTs > 0 && ageMs > STALE_THRESHOLD_MS;
+  const statusIssue = formatZusdStatusIssue(statusError);
 
   // Derive vault state
   const E8 = 100_000_000;
@@ -79,9 +81,12 @@ export default function ZUSDHealthBar({
         <span className={`zusd-health-label ${stateKey}`}>{stateLabel}</span>
 
         {stateKey === 'error' ? (
-          <button className="zusd-health-action" type="button" onClick={onRetry}>
-            Retry
-          </button>
+          <>
+            <span className="zusd-health-meta">{statusIssue}</span>
+            <button className="zusd-health-action" type="button" onClick={onRetry}>
+              Retry
+            </button>
+          </>
         ) : stateKey === 'disconnected' ? (
           <span className="zusd-health-meta">Connect wallet to view your vault</span>
         ) : (

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiGetZusdMonetaryStatus, apiPrepareZusdMonetary, apiSubmitZusdMonetary } from '../lib/api.js';
 import WalletConnect from './WalletConnect.jsx';
 import WalletRecoveryPrompt from './WalletRecoveryPrompt.jsx';
+import { formatZusdStatusIssue } from './zusd/statusCopy.js';
 import './ZUSDTauWalletSurface.css';
 
 const E8 = 100_000_000;
@@ -636,6 +637,7 @@ function ZUSDMonetarySurface({ wallet = null, onStatusChange = null, onConnect =
   const localTestnetLabel = status?.node_reachable
     ? 'Local testnet connected'
     : 'Connect local testnet to manage your vault';
+  const statusIssue = formatZusdStatusIssue(statusError);
 
   return (
     <section className="zusd-wallet-surface">
@@ -743,7 +745,15 @@ function ZUSDMonetarySurface({ wallet = null, onStatusChange = null, onConnect =
             </div>
           </div>
 
-          {statusError ? <p className="zusd-wallet-error">Status error: {statusError}</p> : null}
+          {statusIssue ? (
+            <div className="zusd-status-callout" role="status">
+              <strong>Local testnet unavailable</strong>
+              <span>{statusIssue}</span>
+              <button className="btn btn-secondary" type="button" onClick={loadStatus}>
+                Retry status
+              </button>
+            </div>
+          ) : null}
         </div>
 
         <div className="panel zusd-wallet-card zusd-vault-manager">
