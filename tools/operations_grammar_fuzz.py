@@ -253,7 +253,7 @@ def _signed_intent_cases() -> tuple[GrammarCase, ...]:
                     [{**copy.deepcopy(valid_intent), "signature": valid_sig}, valid_sig],
                     copy.deepcopy(valid_intent),
                 ],
-                "9": {"dead": True},
+                "23": {"dead": True},
             },
         ),
         GrammarCase("SignedOps->OneEntry ; Entry->DuplicateSignatureDiffers", {"2": [[{**copy.deepcopy(valid_intent), "signature": valid_sig}, "sig-2"]]}),

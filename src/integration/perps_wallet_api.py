@@ -88,7 +88,7 @@ from .zusd_tau_token import derive_zusd_tau_asset_id
 
 MAX_POST_BODY = 65_536
 ResponseT = Tuple[int, Dict[str, Any]]
-_STREAM_KEY = "8"
+_STREAM_KEY = "22"
 _ENGINE_STREAM_KEY = "5"
 _U32_MAX = 0xFFFFFFFF
 _ACTIONS = {
@@ -2670,7 +2670,7 @@ def _build_testnet_faucet_response(body: Mapping[str, Any]) -> Dict[str, Any]:
     app_state_before, app_hash_before = _load_app_state(client)
     balance_before = _balance_for_asset(app_state_before, pubkey=to_pubkey, asset_id=asset)
     tx_sequence_number = int(client.get_sequence(_pubkey_for_rpc(signer_pubkey)))
-    operations = {"7": {"mint": [{"pubkey": to_pubkey, "asset": asset, "amount": amount}]}}
+    operations = {"14": {"mint": [{"pubkey": to_pubkey, "asset": asset, "amount": amount}]}}
     tau_tx_payload = build_signed_tau_transaction(
         privkey=cast(Any, signer_privkey),
         sequence_number=tx_sequence_number,
@@ -2755,7 +2755,7 @@ def _build_testnet_faucet_response(body: Mapping[str, Any]) -> Dict[str, Any]:
         "app_hash_before": app_hash_before,
         "app_hash_after": app_hash_after,
         "transport": {
-            "stream_key": "7",
+            "stream_key": "21",
             "tx_sender_pubkey": signer_pubkey,
             "testnet_faucet_authority_pubkey": authority_pubkey,
             "tx_sequence_number": tx_sequence_number,

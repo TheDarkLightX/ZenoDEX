@@ -27,6 +27,8 @@ _RELEVANT_ENV = (
     "ZUSD_MONETARY_WALLET_API_ENABLED",
     "AUTOTRADER_LIVE_API_ENABLED",
     "CONFIDENTIAL_ATTESTATION_API_ENABLED",
+    "CONFIDENTIAL_SEALED_BID_API_ENABLED",
+    "CONFIDENTIAL_SEALED_BID_ENABLED",
     "DEX_API_ENABLED",
     "ZENODEX_EXTERNAL_AUTH_ENFORCED",
     "ALLOW_DEMO_TOKEN_AUTH",
@@ -55,6 +57,13 @@ def test_production_strict_blocks_value_moving_routes_at_startup(clean_env):
 def test_production_strict_blocks_dex_route(clean_env):
     clean_env.setenv("ZENODEX_API_SURFACE_PROFILE", "production-strict")
     clean_env.setenv("DEX_API_ENABLED", "1")
+    clean_env.setenv("ZENODEX_EXTERNAL_AUTH_ENFORCED", "1")
+    assert api_server.main([]) == 2
+
+
+def test_production_strict_blocks_confidential_route(clean_env):
+    clean_env.setenv("ZENODEX_API_SURFACE_PROFILE", "production-strict")
+    clean_env.setenv("CONFIDENTIAL_SEALED_BID_API_ENABLED", "1")
     clean_env.setenv("ZENODEX_EXTERNAL_AUTH_ENFORCED", "1")
     assert api_server.main([]) == 2
 
@@ -98,7 +107,7 @@ def test_policy_public_testnet_requires_demo_token():
         zusd_enabled=True,
         dex_enabled=False,
     )
-    assert any("requires DEMO_API_TOKEN" in r for r in v)
+    assert any("requires an API bearer token" in r for r in v)
     # with a token, public-testnet permits the routes
     v2 = api_surface_profile_violations(
         profile_id="public-testnet",
@@ -117,5 +126,6 @@ def test_policy_local_demo_allows_everything():
         perps_enabled=True,
         zusd_enabled=True,
         dex_enabled=True,
+        confidential_enabled=True,
     )
     assert v == ()

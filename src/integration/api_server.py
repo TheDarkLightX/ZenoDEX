@@ -10,7 +10,8 @@ Security posture:
 - Default-deny CORS (no wildcard by default)
 - Basic rate limiting (per-IP, token bucket)
 - Tight request parsing and bounded request sizes
-- Demo bearer-token auth for explicitly approved demo/dev routes (DEMO_API_TOKEN)
+- Bearer-token auth for explicitly approved API routes
+  (ZENODEX_API_BEARER_TOKEN, with DEMO_API_TOKEN as a legacy local alias)
 """
 
 from __future__ import annotations
@@ -982,6 +983,8 @@ class _Handler(BaseHTTPRequestHandler):
             return 96_000
         if path.startswith("/api/confidential/attestation/"):
             return 96_000
+        if path.startswith("/api/confidential/sealed-bid/"):
+            return 96_000
         if path.startswith("/api/autogov/"):
             return 8 * 1024 * 1024
         return 65_536
@@ -1179,6 +1182,46 @@ class _Handler(BaseHTTPRequestHandler):
                 path,
                 raw_body,
                 request_table=request_table,
+            )
+        self._write_json(status, resp, cors_origin=cors_origin)
+        return True
+
+    def _maybe_handle_confidential_sealed_bid_api(
+        self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
+    ) -> bool:
+        if not path.startswith("/api/confidential/sealed-bid/"):
+            return False
+        if not getattr(self.server, "confidential_sealed_bid_api_enabled", False):
+            return False
+        if not self._demo_auth_ok():
+            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
+            return True
+        from src.integration.confidential_sealed_bid_api import handle_confidential_sealed_bid_request
+
+        state_store = getattr(self.server, "confidential_sealed_bid_state", None)  # type: ignore[attr-defined]
+        if not isinstance(state_store, dict):
+            state_store = {}
+            setattr(self.server, "confidential_sealed_bid_state", state_store)
+        state_file = getattr(self.server, "confidential_sealed_bid_state_file", "")  # type: ignore[attr-defined]
+        if not isinstance(state_file, str):
+            state_file = ""
+        state_lock = getattr(self.server, "confidential_sealed_bid_lock", None)  # type: ignore[attr-defined]
+        if state_lock is not None:
+            with state_lock:
+                status, resp = handle_confidential_sealed_bid_request(
+                    method,
+                    path,
+                    raw_body,
+                    state_store=state_store,
+                    state_file=state_file,
+                )
+        else:
+            status, resp = handle_confidential_sealed_bid_request(
+                method,
+                path,
+                raw_body,
+                state_store=state_store,
+                state_file=state_file,
             )
         self._write_json(status, resp, cors_origin=cors_origin)
         return True
@@ -1903,7 +1946,7 @@ class _Handler(BaseHTTPRequestHandler):
                     "tx_id": "proof-mining-payout-" + _template_hash("tx")[:24],
                     "tx_sender_pubkey": tx_sender_pubkey,
                     "operations": {
-                        "10": {
+                        "24": {
                             "module": "ZenoProofMining",
                             "action": "submit_proof",
                             "claim": claim,
@@ -7012,6 +7055,8 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if self._maybe_handle_confidential_attestation_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
             return
+        if self._maybe_handle_confidential_sealed_bid_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
+            return
 
         self._write_json(404, {"ok": False, "error": "not_found"}, cors_origin=cors_origin)
 
@@ -7031,6 +7076,7 @@ class _Handler(BaseHTTPRequestHandler):
             or path.startswith("/api/autogov/")
             or path.startswith("/api/strategy/autotrader/")
             or path.startswith("/api/confidential/attestation/")
+            or path.startswith("/api/confidential/sealed-bid/")
         ):
             ctype = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
             if ctype and ctype != "application/json":
@@ -7051,6 +7097,8 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if self._maybe_handle_confidential_attestation_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
             return
+        if self._maybe_handle_confidential_sealed_bid_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
+            return
         if self._maybe_handle_dex_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
             return
 
@@ -7069,8 +7117,23 @@ class _Handler(BaseHTTPRequestHandler):
         print(f"zenodex-api request status={safe_code} size={safe_size}")
 
 
+def _api_bearer_token_from_env() -> str:
+    """Return the configured direct API bearer token.
+
+    ``DEMO_API_TOKEN`` is kept as a legacy local/dev alias. Prefer
+    ``ZENODEX_API_BEARER_TOKEN`` because the Docker/nginx local-testnet stack
+    and UI runtime config use that name.
+    """
+
+    return _env_str("ZENODEX_API_BEARER_TOKEN", "") or _env_str("DEMO_API_TOKEN", "")
+
+
+def _legacy_demo_auth_only_from_env() -> bool:
+    return _env_str("DEMO_API_TOKEN", "") != "" and _env_str("ZENODEX_API_BEARER_TOKEN", "") == ""
+
+
 def _demo_auth_configured_from_env() -> bool:
-    return _env_str("DEMO_API_TOKEN", "") != ""
+    return _api_bearer_token_from_env() != ""
 
 
 def _api_auth_posture_error_code(
@@ -7081,13 +7144,14 @@ def _api_auth_posture_error_code(
     allow_demo_auth: bool,
     loopback_host: bool,
 ) -> str | None:
-    demo_auth_configured = _demo_auth_configured_from_env()
-    if protected_api_enabled and not external_auth_enforced and not demo_auth_configured:
+    api_bearer_token_configured = _demo_auth_configured_from_env()
+    legacy_demo_auth_only = _legacy_demo_auth_only_from_env()
+    if protected_api_enabled and not external_auth_enforced and not api_bearer_token_configured:
         return "missing_auth"
     if (
         protected_api_enabled
         and not external_auth_enforced
-        and demo_auth_configured
+        and legacy_demo_auth_only
         and production_mode
         and not allow_demo_auth
     ):
@@ -7095,7 +7159,7 @@ def _api_auth_posture_error_code(
     if (
         protected_api_enabled
         and not external_auth_enforced
-        and demo_auth_configured
+        and legacy_demo_auth_only
         and not loopback_host
         and not allow_demo_auth
     ):
@@ -7105,7 +7169,10 @@ def _api_auth_posture_error_code(
 
 def _print_api_auth_posture_error(code: str) -> None:
     messages = {
-        "missing_auth": "Refusing to start: protected APIs enabled without external auth or demo credential.",
+        "missing_auth": (
+            "Refusing to start: protected APIs enabled without external auth or "
+            "ZENODEX_API_BEARER_TOKEN."
+        ),
         "demo_auth_in_production": (
             "Refusing to start: the configured demo credential is demo/dev auth only. "
             "Set ZENODEX_EXTERNAL_AUTH_ENFORCED=1 for a real auth gateway, or "
@@ -7146,6 +7213,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         confidential_attestation_enabled = _env_bool(
             "CONFIDENTIAL_ATTESTATION_API_ENABLED", False
         )
+        confidential_sealed_bid_feature_enabled = _env_bool("CONFIDENTIAL_SEALED_BID_ENABLED", True)
+        confidential_sealed_bid_enabled = _env_bool(
+            "CONFIDENTIAL_SEALED_BID_API_ENABLED",
+            confidential_attestation_enabled and confidential_sealed_bid_feature_enabled,
+        )
         dex_enabled = _env_bool("DEX_API_ENABLED", False)
         external_auth_enforced = _env_bool("ZENODEX_EXTERNAL_AUTH_ENFORCED", False)
         allow_demo_token_auth = _env_bool("ALLOW_DEMO_TOKEN_AUTH", False)
@@ -7168,6 +7240,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         or autotrader_live_enabled
         or autogov_live_apply_enabled
         or confidential_attestation_enabled
+        or confidential_sealed_bid_enabled
         or dex_enabled
     )
     runtime_env = _env_str("ZENODEX_ENV", _env_str("APP_ENV", "production")).lower()
@@ -7197,9 +7270,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 {
                     "sensitive_api_enabled": sensitive_api_enabled,
                     "external_auth_enforced": external_auth_enforced,
-                    "auth_bearer_token_set": _demo_auth_configured_from_env(),
+                    "auth_bearer_token_set": _api_bearer_token_from_env() != "",
                     "allow_demo_token_auth": allow_demo_token_auth,
-                    "legacy_demo_token_active": _demo_auth_configured_from_env(),
+                    "legacy_demo_token_active": _env_str("DEMO_API_TOKEN", "") != "",
                     "confidential_sealed_bid_allow_in_memory_state": _env_bool(
                         "CONFIDENTIAL_SEALED_BID_ALLOW_IN_MEMORY_STATE", False
                     ),
@@ -7261,7 +7334,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                                 bool(zusd_enabled or zusd_tau_wallet_enabled or zusd_monetary_wallet_enabled),
                             ),
                             ("local_demo", bool(autotrader_live_enabled)),
-                            ("local_demo", bool(confidential_attestation_enabled)),
+                            ("local_demo", bool(confidential_attestation_enabled or confidential_sealed_bid_enabled)),
                             ("local_demo", bool(dex_enabled)),
                         )
                         if enabled
@@ -7343,12 +7416,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         try:
             _surface_violations = api_surface_profile_violations(
                 profile_id=_api_surface_profile_id,
-                demo_api_token=_env_str("DEMO_API_TOKEN", ""),
+                demo_api_token=_api_bearer_token_from_env(),
                 perps_enabled=bool(perps_enabled or perps_wallet_enabled or autotrader_live_enabled),
                 zusd_enabled=bool(
                     zusd_enabled or zusd_tau_wallet_enabled or zusd_monetary_wallet_enabled
                 ),
                 dex_enabled=bool(dex_enabled),
+                confidential_enabled=bool(confidential_attestation_enabled or confidential_sealed_bid_enabled),
             )
         except ValueError as exc:
             print(
@@ -7376,10 +7450,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     httpd.autotrader_supervisor_runs = {}  # type: ignore[attr-defined]
     httpd.autotrader_execution_lock = threading.Lock()  # type: ignore[attr-defined]
     httpd.confidential_attestation_api_enabled = confidential_attestation_enabled  # type: ignore[attr-defined]
+    httpd.confidential_sealed_bid_api_enabled = confidential_sealed_bid_enabled  # type: ignore[attr-defined]
     httpd.dex_api_enabled = dex_enabled  # type: ignore[attr-defined]
     httpd.confidential_feature_status = confidential_feature_status  # type: ignore[attr-defined]
     httpd.confidential_request_table = ConfidentialRequestTable()  # type: ignore[attr-defined]
     httpd.confidential_request_lock = threading.Lock()  # type: ignore[attr-defined]
+    httpd.confidential_sealed_bid_state = {}  # type: ignore[attr-defined]
+    httpd.confidential_sealed_bid_state_file = _env_str("CONFIDENTIAL_SEALED_BID_STATE_FILE", "")  # type: ignore[attr-defined]
+    httpd.confidential_sealed_bid_lock = threading.Lock()  # type: ignore[attr-defined]
 
     startup_line = (
         f"zenodex-api listening on http://{host}:{port} "
@@ -7389,13 +7467,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         f"zusd_monetary_wallet_api={zusd_monetary_wallet_enabled}, "
         f"autotrader_live_api={autotrader_live_enabled}, "
         f"autogov_live_apply_api={autogov_live_apply_enabled}, "
-        f"confidential_attestation_api={confidential_attestation_enabled}, dex_api={dex_enabled}, "
+        f"confidential_attestation_api={confidential_attestation_enabled}, "
+        f"confidential_sealed_bid_api={confidential_sealed_bid_enabled}, dex_api={dex_enabled}, "
         f"confidential_stage={confidential_feature_status.get('stage')}, "
         f"external_auth_enforced={external_auth_enforced}, "
         f"demo_auth_allowed={allow_demo_token_auth})"
     )
     os.write(1, (startup_line + "\n").encode("utf-8"))
-    httpd.demo_api_token = _env_str("DEMO_API_TOKEN", "")  # type: ignore[attr-defined]
+    httpd.demo_api_token = _api_bearer_token_from_env()  # type: ignore[attr-defined]
     httpd.serve_forever(poll_interval=0.25)
     return 0
 

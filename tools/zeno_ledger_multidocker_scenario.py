@@ -562,7 +562,7 @@ def _swap_tx(asset_a: str, asset_b: str, *, sender_pubkey: str, chain_id: str) -
         "tx_id": "multidocker-live-swap-v0",
         "block_timestamp": (DEFAULT_TIME_MS + 1_001_000) // 1000,
         "tx_sender_pubkey": sender_pubkey,
-        "operations": {"5": [_with_controller_signature_v0(operation, chain_id=chain_id)]},
+        "operations": {"19": [_with_controller_signature_v0(operation, chain_id=chain_id)]},
     }
 
 
@@ -588,7 +588,7 @@ def _create_pool_tx(asset_a: str, new_asset: str, *, sender_pubkey: str, chain_i
         "tx_id": "multidocker-create-fake-token-pool-v0",
         "block_timestamp": (DEFAULT_TIME_MS + 1_003_000) // 1000,
         "tx_sender_pubkey": sender_pubkey,
-        "operations": {"5": [_with_controller_signature_v0(operation, chain_id=chain_id)]},
+        "operations": {"19": [_with_controller_signature_v0(operation, chain_id=chain_id)]},
     }
 
 
@@ -624,7 +624,7 @@ def _liquidity_tx(
         "tx_id": tx_id,
         "block_timestamp": (timestamp_base_ms + nonce) // 1000,
         "tx_sender_pubkey": sender_pubkey,
-        "operations": {"5": [_with_controller_signature_v0(operation, chain_id=chain_id)]},
+        "operations": {"19": [_with_controller_signature_v0(operation, chain_id=chain_id)]},
     }
 
 

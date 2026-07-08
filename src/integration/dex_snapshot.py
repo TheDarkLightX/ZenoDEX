@@ -320,6 +320,10 @@ def snapshot_with_legacy_lp_metadata_defaults(snapshot: Mapping[str, Any]) -> Di
             normalized["lp_mint_timestamps"] = []
         if version >= 4 and "lp_duration_risk" not in normalized:
             normalized["lp_duration_risk"] = []
+    # Backfill fee_accumulator for empty/legacy snapshots that predate the
+    # fee accumulator rail but are used to seed initial pool creation.
+    if "fee_accumulator" not in normalized:
+        normalized["fee_accumulator"] = {"dust": 0}
     return normalized
 
 

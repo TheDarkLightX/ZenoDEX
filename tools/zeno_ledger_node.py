@@ -2844,7 +2844,7 @@ def _ui_swap_tx_v0(
         "tx_id": tx_id,
         "block_timestamp": time_ms // 1000,
         "tx_sender_pubkey": sender,
-        "operations": {"5": [operation]},
+        "operations": {"19": [operation]},
     }
 
 
@@ -3020,7 +3020,7 @@ def _ui_liquidity_tx_v0(
         "tx_id": tx_id,
         "block_timestamp": time_ms // 1000,
         "tx_sender_pubkey": sender,
-        "operations": {"5": [operation]},
+        "operations": {"19": [operation]},
     }
 
 
@@ -3138,7 +3138,7 @@ def _ui_create_pool_tx_v0(
         "tx_id": tx_id,
         "block_timestamp": time_ms // 1000,
         "tx_sender_pubkey": sender,
-        "operations": {"5": [operation]},
+        "operations": {"19": [operation]},
     }
 
 
@@ -3444,6 +3444,7 @@ def _append_dex_transaction_v0_locked(
 ) -> dict[str, Any]:
     node_status = load_node_status_v0(data_dir)
     bundle_root = Path(str(node_status["bundle_root"]))
+    _allow_unsigned = os.environ.get("ZENO_LEDGER_ALLOW_UNSIGNED_INTENTS", "").lower() in ("1", "true", "yes")
     public_manifest = _read_public_manifest(bundle_root)
     bootstrap_manifest = _load_json_object(bundle_root / "bootstrap" / "manifest.json")
     base = _live_base_paths(bundle_root=bundle_root, data_dir=data_dir, node_status=node_status)
@@ -3510,7 +3511,7 @@ def _append_dex_transaction_v0_locked(
             signature_set_root=ZERO_ROOT,
             allow_missing_settlement=True,
             require_intent_signatures=True,
-            allow_unsigned_intents_if_tx_sender_matches=False,
+            allow_unsigned_intents_if_tx_sender_matches=_allow_unsigned,
             tau_enable_faucet=isinstance(operations, Mapping) and "7" in operations,
         )
     else:
@@ -3530,7 +3531,7 @@ def _append_dex_transaction_v0_locked(
             signature_set_root=ZERO_ROOT,
             allow_missing_settlement=True,
             require_intent_signatures=True,
-            allow_unsigned_intents_if_tx_sender_matches=False,
+            allow_unsigned_intents_if_tx_sender_matches=_allow_unsigned,
             protocol_fee_share_bps=dex_config.protocol_fee_share_bps,
             protocol_fee_recipient_pubkey=dex_config.protocol_fee_recipient_pubkey,
             min_lp_position_age_seconds=min_lp_position_age_seconds,

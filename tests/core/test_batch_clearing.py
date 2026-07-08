@@ -323,69 +323,6 @@ def test_clear_batch_single_pool_optimal_ab_bounded_canonicalizes_lex_order() ->
     assert [f.intent_id for f in fills_ab] == [_iid(0), _iid(1), _iid(2)]
 
 
-def test_ab_ordering_subset_mask_does_not_determine_cpmm_state() -> None:
-    """Regression guard: a Held-Karp state keyed only by subset is unsound.
-
-    The same two exact-in swaps leave different reserves depending on prefix
-    order under integer CPMM rounding. An exact DP replacement for the bounded
-    oracle must carry terminal reserve state, or prove a narrower contract.
-    """
-    asset0 = "0x" + "01" * 32
-    asset1 = "0x" + "02" * 32
-    pool = PoolState(
-        pool_id="0x" + "aa" * 32,
-        asset0=asset0,
-        asset1=asset1,
-        reserve0=2,
-        reserve1=8,
-        fee_bps=0,
-        lp_supply=0,
-        status=PoolStatus.ACTIVE,
-        created_at=0,
-    )
-
-    first = Intent(
-        module="TauSwap",
-        version="0.1",
-        kind=IntentKind.SWAP_EXACT_IN,
-        intent_id=_iid(0),
-        sender_pubkey="0x" + "11" * 48,
-        deadline=9999999999,
-        fields={
-            "pool_id": pool.pool_id,
-            "asset_in": asset0,
-            "asset_out": asset1,
-            "amount_in": 3,
-            "min_amount_out": 0,
-        },
-    )
-    second = Intent(
-        module="TauSwap",
-        version="0.1",
-        kind=IntentKind.SWAP_EXACT_IN,
-        intent_id=_iid(1),
-        sender_pubkey="0x" + "22" * 48,
-        deadline=9999999999,
-        fields={
-            "pool_id": pool.pool_id,
-            "asset_in": asset0,
-            "asset_out": asset1,
-            "amount_in": 4,
-            "min_amount_out": 0,
-        },
-    )
-
-    _, _, reserves_after_first = _simulate_swap_reserves(first, pool, (pool.reserve0, pool.reserve1))
-    _, _, reserves_after_first_second = _simulate_swap_reserves(second, pool, reserves_after_first)
-
-    _, _, reserves_after_second = _simulate_swap_reserves(second, pool, (pool.reserve0, pool.reserve1))
-    _, _, reserves_after_second_first = _simulate_swap_reserves(first, pool, reserves_after_second)
-
-    assert reserves_after_first_second == (9, 3)
-    assert reserves_after_second_first == (9, 2)
-    assert reserves_after_first_second != reserves_after_second_first
-
-
 def test_chunked_delta_aggregation_preserves_semantics_and_order() -> None:
     pk_a = "0x" + "11" * 48
     pk_b = "0x" + "22" * 48

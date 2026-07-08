@@ -19,7 +19,7 @@ function AuthorityProfilePanel({ authorityStatus }) {
     ['Device approval', walletUx.device_approval_required],
     ['Proof required', proofProfile.zk_or_proof_required],
     ['Receipt replay', proofProfile.oracle_receipt_replay_required],
-    ['Signed quorum', signedThreshold > 0 && signedWeight >= signedThreshold],
+    ['Current approvals', signedThreshold > 0 && signedWeight >= signedThreshold],
   ];
   const ready = status.production_authority === true;
 
@@ -28,10 +28,10 @@ function AuthorityProfilePanel({ authorityStatus }) {
       <div className="zor-section-header">
         <div>
           <h2>Authority Profile</h2>
-          <p>Public key-manager, signer quorum, wallet approval, and proof posture.</p>
+          <p>Key management, approval rules, and security settings.</p>
         </div>
         <span className={`zor-authority-chip ${ready ? 'zor-authority-ready' : 'zor-authority-blocked'}`}>
-          {ready ? 'Production authority ready' : 'Authority blocked'}
+          {ready ? 'Security ready' : 'Security blocked'}
         </span>
       </div>
       <div className="zor-authority-summary">
@@ -44,23 +44,23 @@ function AuthorityProfilePanel({ authorityStatus }) {
           <strong>{status.chain_id || 'unbound'}</strong>
         </div>
         <div>
-          <small>Signer quorum</small>
+          <small>Approval requirement</small>
           <strong>{status.active_signer_count || 0}/{status.threshold || 0}</strong>
         </div>
         <div>
-          <small>Signed quorum</small>
+          <small>Current approvals</small>
           <strong>{signedWeight}/{signedThreshold}</strong>
         </div>
         <div>
-          <small>Key refs</small>
+          <small>Registered keys</small>
           <strong>{status.key_ref_count || keyRefs.length}</strong>
         </div>
         <div>
-          <small>Runtime proof</small>
+          <small>Active proof</small>
           <strong>{proofProfile.runtime_proof_profile || 'missing'}</strong>
         </div>
         <div>
-          <small>Authority hash</small>
+          <small>Security ID</small>
           <strong>{compactId(status.authority_hash)}</strong>
         </div>
       </div>
@@ -73,10 +73,10 @@ function AuthorityProfilePanel({ authorityStatus }) {
       </div>
       <div className="zor-key-manager-table">
         <div className="zor-key-manager-head">
-          <span>Key Manager</span>
+          <span>Key Service</span>
           <span>Status</span>
-          <span>Signer</span>
-          <span>Public key</span>
+          <span>Approver</span>
+          <span>Key</span>
         </div>
         {keyRefs.length ? (
           keyRefs.map((keyRef) => {
@@ -126,8 +126,8 @@ function AuthorityExercisePanel({
     <section className="panel zor-panel zor-authority-panel">
       <div className="zor-section-header">
         <div>
-          <h2>Authority Exercise</h2>
-          <p>Run a bounded signed authority exercise over a real local operator flow and bind the receipt IDs.</p>
+          <h2>Security Check</h2>
+          <p>Run a security check and verify the setup.</p>
         </div>
         <span className={`zor-authority-chip ${exerciseStatus?.ok ? 'zor-authority-ready' : 'zor-authority-blocked'}`}>
           {exerciseStatus?.ok ? 'Exercise ready' : 'Exercise pending'}
@@ -147,19 +147,19 @@ function AuthorityExercisePanel({
           <strong>{publicEvidence ? 'present' : 'pending'}</strong>
         </div>
         <div>
-          <small>Exercise hash</small>
+          <small>Check ID</small>
           <strong>{compactId(exerciseStatus?.exercise_hash)}</strong>
         </div>
         <div>
-          <small>Status hash</small>
+          <small>Status ID</small>
           <strong>{compactId(exerciseStatus?.status_hash)}</strong>
         </div>
         <div>
-          <small>Receipt binding</small>
+          <small>Record link</small>
           <strong>{compactId(exerciseStatus?.receipt_binding_hash)}</strong>
         </div>
         <div>
-          <small>Public evidence binding</small>
+          <small>Evidence link</small>
           <strong>{compactId(exerciseStatus?.public_testnet_evidence_binding_hash)}</strong>
         </div>
         <div>
@@ -171,11 +171,11 @@ function AuthorityExercisePanel({
           <strong>{compactId(exerciseStatus?.public_settlement_reference)}</strong>
         </div>
         <div>
-          <small>Broadcast height</small>
+          <small>Block number</small>
           <strong>{exerciseStatus?.public_broadcast_height ?? 'none'}</strong>
         </div>
         <div>
-          <small>Settlement height</small>
+          <small>Block number</small>
           <strong>{exerciseStatus?.public_settlement_height ?? 'none'}</strong>
         </div>
         <div>
@@ -185,7 +185,7 @@ function AuthorityExercisePanel({
       </div>
       <div className="zor-authority-controls">
         <span className={exerciseStatus?.authority_exercised ? 'zor-control-ok' : 'zor-control-missing'}>
-          Authority exercised
+          Check completed
         </span>
         <span className={publicEvidence ? 'zor-control-ok' : 'zor-control-missing'}>
           Public testnet evidence
@@ -193,7 +193,7 @@ function AuthorityExercisePanel({
       </div>
       <div className="zor-toolbar">
         <button className="btn btn-secondary" type="button" onClick={onRunAuthorityExercise} disabled={authorityExerciseBusy}>
-          {authorityExerciseBusy ? 'Running...' : 'Run Authority Exercise'}
+          {authorityExerciseBusy ? 'Running...' : 'Run Security Check'}
         </button>
         {authorityExerciseState ? <span className="zor-subtle-chip">{authorityExerciseState}</span> : null}
       </div>

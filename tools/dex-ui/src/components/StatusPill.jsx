@@ -11,7 +11,12 @@ import './StatusPill.css';
 function StatusPill({ tone = 'idle', label, children }) {
   const text = label ?? children;
   return (
-    <span className={`status-pill status-pill-${tone}`} role="status">
+    <span
+      className={`status-pill status-pill-${tone}`}
+      role="status"
+      aria-live="polite"
+      aria-label={typeof text === 'string' ? text : undefined}
+    >
       <span className="status-pill-dot" aria-hidden="true" />
       {text}
     </span>

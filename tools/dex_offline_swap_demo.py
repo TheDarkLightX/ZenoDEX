@@ -46,7 +46,7 @@ def main() -> int:
     ok, state_json, _app_hash, _patch, err = apply_app_tx(
         app_state_json="",
         chain_balances={sender_pubkey: 0},
-        operations={"7": {"mint": [[sender_pubkey, asset0, 10_000], [sender_pubkey, asset1, 10_000]]}, "5": [create_pool]},
+        operations={"21": {"mint": [[sender_pubkey, asset0, 10_000], [sender_pubkey, asset1, 10_000]]}, "19": [create_pool]},
         tx_sender_pubkey=sender_pubkey,
         block_timestamp=_now(),
     )
@@ -83,7 +83,7 @@ def main() -> int:
     ok2, state_json2, _app_hash2, _patch2, err2 = apply_app_tx(
         app_state_json=state_json,
         chain_balances={sender_pubkey: 0},
-        operations={"5": [swap]},
+        operations={"19": [swap]},
         tx_sender_pubkey=sender_pubkey,
         block_timestamp=_now() + 1,
     )

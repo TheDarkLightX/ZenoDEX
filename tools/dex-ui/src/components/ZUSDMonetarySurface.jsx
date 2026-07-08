@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiGetZusdMonetaryStatus, apiPrepareZusdMonetary, apiSubmitZusdMonetary } from '../lib/api.js';
-import InfoTip from './InfoTip.jsx';
+import WalletConnect from './WalletConnect.jsx';
 import './ZUSDTauWalletSurface.css';
 
 const E8 = 100_000_000;
@@ -26,18 +26,18 @@ const ACTIONS = [
   ['deposit_sp', 'Deposit Stability Pool'],
   ['withdraw_sp', 'Withdraw Stability Pool'],
   ['redeem_zusd', 'Redeem zUSD'],
-  ['claim_shutdown_collateral', 'Claim Shutdown Collateral'],
-  ['claim_sp_shutdown_collateral', 'Claim SP Shutdown Collateral'],
-  ['claim_sp_collateral', 'Claim SP Collateral'],
-  ['stake_fee_shares', 'Stake Fee Shares'],
-  ['activate_fee_stake', 'Activate Fee Stake'],
+  ['claim_shutdown_collateral', 'Claim Emergency Collateral'],
+  ['claim_sp_shutdown_collateral', 'Claim Pool Emergency Collateral'],
+  ['claim_sp_collateral', 'Claim Pool Collateral'],
+  ['stake_fee_shares', 'Stake Rewards'],
+  ['activate_fee_stake', 'Activate Rewards'],
   ['claim_fee_rewards', 'Claim Fee Rewards'],
-  ['unstake_fee_shares', 'Unstake Fee Shares'],
+  ['unstake_fee_shares', 'Unstake Rewards'],
   ['liquidate', 'Liquidate Vault'],
-  ['bootstrap_oracle', 'Bootstrap Oracle'],
-  ['oracle_report', 'Oracle Report'],
-  ['oracle_commit', 'Oracle Commit'],
-  ['advance_epoch', 'Advance Epoch'],
+  ['bootstrap_oracle', 'Initialize Price Feed'],
+  ['oracle_report', 'Submit Price'],
+  ['oracle_commit', 'Confirm Price'],
+  ['advance_epoch', 'Advance Time Period'],
 ];
 
 function readSmokeConfig() {
@@ -82,13 +82,6 @@ function parseJsonObject(raw, label) {
     throw new Error(`${label} must decode to an object`);
   }
   return value;
-}
-
-function compactId(value) {
-  if (!value) return 'none';
-  const text = String(value);
-  if (text.length <= 18) return text;
-  return `${text.slice(0, 10)}...${text.slice(-6)}`;
 }
 
 function formatE8(val) {
@@ -204,67 +197,25 @@ function buildPayload(form) {
   return payload;
 }
 
-// Machine-checked Lean 4 theorems backing the zUSD monetary surface. Every
-// entry is a REAL, fully-proven file in lean-mathlib/Proofs/ (0 sorry/admit),
-// verified by read-only inventory — the filename + headline theorem are exact.
-// Rendered as honest evidence, not marketing: we cite the file and what it
-// derives, and never claim more than the node enforces (see proof_profile).
-const ZUSD_LEAN_PROOFS = [
-  {
-    title: 'Ceiling-Division Fee Safety',
-    theorem: 'ceil_div_mul_ge',
-    file: 'ZUSDCeilDivAlgebra.lean',
-    desc: 'Borrow and redemption fees use ⌈n/d⌉ so collection always covers the exact amount — no rounding bypass.',
-  },
-  {
-    title: 'Debt Conservation Homomorphism',
-    theorem: 'conservation_homomorphism',
-    file: 'ZUSDDebtHomomorphism.lean',
-    desc: 'Net debt flow is additive (Δfree + Δsp = Δtotal) and forms an AddMonoidHom kernel — conservation composes.',
-  },
-  {
-    title: 'Dual Conservation Independence',
-    theorem: 'laws_independent',
-    file: 'ZUSDDualConservation.lean',
-    desc: 'Debt and collateral conservation are logically independent; both must be checked, neither implies the other.',
-  },
-  {
-    title: 'MCR Headroom / TCR Safety',
-    theorem: 'liq_improves_tcr_ratio',
-    file: 'ZUSDMCRHeadroom.lean',
-    desc: 'Given fixed collateral value and a strict debt reduction, the total collateral ratio strictly increases (cross-multiplication).',
-  },
-  {
-    title: 'Stability-Pool Convexity',
-    theorem: 'sp_ratio_convex_lower',
-    file: 'ZUSDSPConvexity.lean',
-    desc: 'Post-liquidation SP ratio is a convex combination of the old and vault ratios — bounded, predictable returns.',
-  },
-  {
-    title: 'Collateral Flow Algebra',
-    theorem: 'conservation_iff_balanced',
-    file: 'ZUSDCollateralFlowAlgebra.lean',
-    desc: 'Collateral obeys a 4-bucket Kirchhoff law: Δvault + Δsp + Δprotocol + Δexternal = 0. A closed system.',
-  },
-  {
-    title: 'Fee Pipeline Correctness',
-    theorem: 'higher_base_means_higher_redeem_fee',
-    file: 'ZUSDFeePipeline.lean',
-    desc: 'Fees flow through borrow, redeem and liquidation without leakage; base-rate coupling is monotone (H-RG-004).',
-  },
-];
-
-function ZUSDMonetarySurface({ wallet = null }) {
+function ZUSDMonetarySurface({ wallet = null, onStatusChange = null, onConnect = null }) {
   const connectedAccount = (wallet?.address || '').trim();
   const [status, setStatus] = useState(null);
   const [statusError, setStatusError] = useState('');
   const [form, setForm] = useState(
     () => readSmokeConfig() || { ...EMPTY_FORM, actor_pubkey: connectedAccount },
   );
-  const [result, setResult] = useState(null);
+  const [, setResult] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const smokeRan = useRef(false);
+
+  // Expose status to parent for the sticky health bar
+  const loadStatusRef = useRef(null);
+  useEffect(() => {
+    if (onStatusChange) {
+      onStatusChange({ status, statusError, loadStatus: loadStatusRef.current });
+    }
+  }, [status, statusError, onStatusChange]);
 
   // Progressive Disclosure: Form tab navigation
   const [activeFormTab, setActiveFormTab] = useState('vault'); // 'vault', 'stability', 'system'
@@ -304,6 +255,7 @@ function ZUSDMonetarySurface({ wallet = null }) {
   const needsDelta = form.action === 'advance_epoch';
 
   async function loadStatus() {
+    loadStatusRef.current = loadStatus;
     try {
       const payload = await apiGetZusdMonetaryStatus({
         account: form.actor_pubkey.trim() || '',
@@ -586,7 +538,7 @@ function ZUSDMonetarySurface({ wallet = null }) {
       const nextSmoke = { ...smoke };
       setForm((current) => ({ ...current, ...nextSmoke }));
       if (!nextSmoke.signer_privkey.trim() && !nextSmoke.signed_tau_tx_payload.trim()) {
-        throw new Error('smoke signer credential or signed payload required');
+        throw new Error('Signing key or signed transaction required');
       }
       const payloadIn = buildPayload({ ...EMPTY_FORM, ...nextSmoke });
       return apiSubmitZusdMonetary(payloadIn, { timeoutMs: 20000 });
@@ -602,20 +554,6 @@ function ZUSDMonetarySurface({ wallet = null }) {
       });
   }, [busy, status]);
 
-  const liveSummary = result?.transport || null;
-  const proofProfile = result?.proof?.profile || null;
-  const zkWrapper = result?.proof?.zk_wrapper || null;
-  const artifactBinding = zkWrapper?.artifact_binding || null;
-  const reportPromotionReady = result?.ok !== false && proofProfile?.promotion_ready === true;
-  const latestReportBadge = result?.ok === false
-    ? (result?.status || result?.error || 'rejected')
-    : result?.report?.preflight?.ok
-      ? 'preflight accepted'
-      : 'deterministic';
-  const liquidationFeeCompFixedE8 =
-    status?.liquidation_fee_comp_fixed_collateral_e8 ?? status?.liquidation_gas_comp_fixed_collateral_e8 ?? 0;
-  const liquidationFeeCompBps =
-    status?.liquidation_fee_comp_bps ?? status?.liquidation_gas_comp_bps ?? 0;
   const branchTcrPct = status?.branch_tcr_bps == null ? null : Number(status.branch_tcr_bps) / 100;
 
   // NOTE: collateralAmt/debtAmt must be declared before `branchMode`, which
@@ -627,10 +565,8 @@ function ZUSDMonetarySurface({ wallet = null }) {
   const debtAmt = Number(status?.core?.debt_e8 ?? 0) / E8;
 
   const branchMode = status?.branch_mode || (debtAmt > 0 ? 'loading' : 'no_debt');
-  const branchModeLabel = branchMode.replaceAll('_', ' ');
 
   const protocolRevenueZusd = Number(status?.core?.protocol_revenue_zusd_cum_e8 ?? 0) / E8;
-  const protocolCollateralFees = Number(status?.core?.protocol_collateral_e8 ?? 0) / E8;
   const oraclePrice = status?.core?.price_e8 ? Number(status.core.price_e8) / E8 : 100;
   const collateralValue = collateralAmt * oraclePrice;
   const currentCR = debtAmt > 0 ? (collateralValue / debtAmt) * 100 : Infinity;
@@ -657,7 +593,6 @@ function ZUSDMonetarySurface({ wallet = null }) {
     : 0;
   const maxMintAtMcr = Math.max(0, Math.floor((projectedValue / (mcrPct / 100)) - debtAmt));
   const maxMintAtTarget = Math.max(0, Math.floor((projectedValue / (ccrPct / 100)) - debtAmt));
-  const networkLabel = status?.chain_id ? 'Zeno Network' : 'unknown';
   const vaultSubmitLabel = collAdjustMode === 'deposit' && borrowAdjustMode === 'mint'
     ? 'Deposit AGRS and mint zUSD'
     : collAdjustMode === 'withdraw' && borrowAdjustMode === 'repay'
@@ -684,29 +619,23 @@ function ZUSDMonetarySurface({ wallet = null }) {
   // holds 0.00001 AGRS, which must reconcile with its $ value).
   const collateralUnits = collateralAmt > 0 && collateralAmt < 1 ? num(collateralAmt, 8) : num(collateralAmt, 2);
   const statTiles = [
-    { label: 'Total debt', value: status ? num(debtAmt, 2) : '—', sub: 'zUSD' },
-    { label: 'Collateral value', value: status ? usdCompact(collateralValue) : '—', title: status ? formatCurrency(collateralValue) : '', sub: `${collateralUnits} AGRS`, accent: 'cyan' },
-    { label: 'Stability pool', value: status ? num(spDebtZusd, 2) : '—', sub: 'zUSD', accent: 'purple' },
-    { label: 'AGRS price', value: status ? usdCompact(oraclePrice) : '—', title: status ? formatCurrency(oraclePrice) : '', sub: c.oracle_seen ? 'oracle live' : 'no oracle', accent: 'green' },
-    { label: 'Protocol revenue', value: status ? num(protocolRevenueZusd, 2) : '—', sub: 'zUSD cumulative' },
+    { label: 'Total debt', value: status ? num(debtAmt, 2) : '0', sub: 'zUSD' },
+    { label: 'Collateral value', value: status ? usdCompact(collateralValue) : '$0', title: status ? formatCurrency(collateralValue) : '', sub: `${collateralUnits} AGRS`, accent: 'cyan' },
+    { label: 'Stability pool', value: status ? num(spDebtZusd, 2) : '0', sub: 'zUSD', accent: 'purple' },
+    { label: 'AGRS price', value: status ? usdCompact(oraclePrice) : '$0', title: status ? formatCurrency(oraclePrice) : '', sub: c.oracle_seen ? 'price feed active' : 'awaiting price feed', accent: 'green' },
+    { label: 'Protocol revenue', value: status ? num(protocolRevenueZusd, 2) : '0', sub: 'zUSD cumulative' },
   ];
 
   // ── Risk parameters (live, REAL — from status.core) ────────────────────
   const riskParams = [
-    ['Minimum collateral ratio', mcrPct != null ? `${num(mcrPct, 1)}%` : '—', 'Below this, the vault is liquidatable'],
-    ['Critical collateral ratio', ccrPct != null ? `${num(ccrPct, 1)}%` : '—', 'Below this, the branch enters recovery mode'],
-    ['Borrow fee range', (c.borrow_fee_floor_bps != null) ? `${num(bps(c.borrow_fee_floor_bps), 2)}% – ${num(bps(c.borrow_fee_max_bps), 2)}%` : '—', 'Dynamic on the decaying base rate'],
-    ['Redemption fee range', (c.redemption_fee_floor_bps != null) ? `${num(bps(c.redemption_fee_floor_bps), 2)}% – ${num(bps(c.redemption_fee_max_bps), 2)}%` : '—', 'Dynamic on the decaying base rate'],
-    ['Min debt to open', (c.min_debt_open_e8 != null) ? `${num(Number(c.min_debt_open_e8) / E8, 0)} zUSD` : '—', 'Floor on new vault debt'],
-    ['Max epoch redemption', (c.max_epoch_redemption_fraction_bps != null) ? `${num(bps(c.max_epoch_redemption_fraction_bps), 1)}%` : '—', 'Per-epoch redemption throttle'],
-    ['Oracle staleness limit', (c.max_oracle_staleness_epochs != null) ? `${c.max_oracle_staleness_epochs} epochs` : '—', 'Fail-closed on a stale price'],
+    ['Minimum collateral ratio', mcrPct != null ? `${num(mcrPct, 1)}%` : '—', 'Below this, the vault can be liquidated'],
+    ['Critical collateral ratio', ccrPct != null ? `${num(ccrPct, 1)}%` : '—', 'Below this, the system enters recovery mode'],
+    ['Borrow fee range', (c.borrow_fee_floor_bps != null) ? `${num(bps(c.borrow_fee_floor_bps), 2)}% – ${num(bps(c.borrow_fee_max_bps), 2)}%` : '—', 'Dynamic based on current activity'],
+    ['Redemption fee range', (c.redemption_fee_floor_bps != null) ? `${num(bps(c.redemption_fee_floor_bps), 2)}% – ${num(bps(c.redemption_fee_max_bps), 2)}%` : '—', 'Dynamic based on current activity'],
+    ['Min debt to open', (c.min_debt_open_e8 != null) ? `${num(Number(c.min_debt_open_e8) / E8, 0)} zUSD` : '—', 'Minimum amount to open a vault'],
+    ['Max redemption per period', (c.max_epoch_redemption_fraction_bps != null) ? `${num(bps(c.max_epoch_redemption_fraction_bps), 1)}%` : '—', 'Limits redemptions per time period'],
+    ['Price feed staleness limit', (c.max_oracle_staleness_epochs != null) ? `${c.max_oracle_staleness_epochs} periods` : '—', 'Rejects transactions if price is too old'],
   ];
-
-  // ── Runtime proof profile (live, node-reported claim scope) ────────────
-  // Distinct from `proofProfile` above (which is the per-submit result's
-  // profile); this is the node's STANDING claim scope from /status.
-  const statusProofProfile = status?.proof_profile || null;
-  const statusPromotionReady = statusProofProfile?.promotion_ready === true;
 
   return (
     <section className="zusd-wallet-surface">
@@ -737,6 +666,26 @@ function ZUSDMonetarySurface({ wallet = null }) {
         ))}
       </div>
 
+      {!connectedAccount ? (
+        <div className="panel zusd-wallet-card zusd-empty-cta">
+          <div className="zusd-empty-cta-body">
+            <span className="zusd-empty-icon" aria-hidden="true">🔌</span>
+            <h2>Connect your wallet</h2>
+            <p>Connect to deposit collateral and start minting zUSD.</p>
+            <ul className="zusd-empty-list">
+              <li>Deposit AGRS as collateral</li>
+              <li>Mint zUSD against your collateral</li>
+              <li>Track your collateral ratio</li>
+              <li>Transfer zUSD to other addresses</li>
+            </ul>
+            {onConnect ? (
+              <WalletConnect wallet={wallet} onConnect={onConnect} />
+            ) : (
+              <p className="zusd-empty-hint">Use the Connect button in the header to get started.</p>
+            )}
+          </div>
+        </div>
+      ) : (
       <div className="zusd-wallet-grid">
         <div className="panel zusd-wallet-card zusd-vault-overview">
           <div className="zusd-section-header">
@@ -776,69 +725,13 @@ function ZUSDMonetarySurface({ wallet = null }) {
               <small>Per {collateralSymbol}</small>
             </div>
             <div className="zusd-vault-metric">
-              <span>Settlement mode</span>
-              <strong>{branchModeLabel}</strong>
-              <small>{branchTcrPct == null ? 'No active debt' : `${branchTcrPct.toFixed(2)}% branch CR`}</small>
-            </div>
-            <div className="zusd-vault-metric">
               <span>Stability pool</span>
               <strong>{formatE8(status?.core?.sp_debt_e8)}</strong>
               <small>{formatAmount(Number(status?.stability_pool_balance ?? 0), 4)} zUSD in escrow</small>
             </div>
           </div>
 
-          <div className="zusd-wallet-meta zusd-vault-details">
-            <div className="zusd-wallet-kv"><span>Vault Owner</span><span className="zusd-mono">{status?.vault_owner_pubkey || 'none'}</span></div>
-            {status?.account_view ? (
-              <>
-                <div className="zusd-wallet-kv">
-                  <span>Connected Account</span>
-                  <span className="zusd-mono">{compactId(status.account_view.account)}</span>
-                </div>
-                <div className="zusd-wallet-kv">
-                  <span>Account zUSD Balance</span>
-                  <span>{formatAmount(Number(status.account_view.zusd_balance ?? 0), 4)} zUSD</span>
-                </div>
-                <div className="zusd-wallet-kv">
-                  <span>Account SP Deposit</span>
-                  <span>{formatE8(status.account_view.sp_deposit_e8)} zUSD</span>
-                </div>
-                {status.account_view.is_vault_owner ? (
-                  <div className="zusd-wallet-kv"><span>Vault Ownership</span><span>this account</span></div>
-                ) : null}
-              </>
-            ) : null}
-            <div className="zusd-wallet-kv"><span>Network</span><span>{networkLabel}</span></div>
-            <div className="zusd-wallet-kv"><span>zUSD Asset</span><span className="zusd-mono">{compactId(status?.asset_id || 'unavailable')}</span></div>
-            <div className="zusd-wallet-kv"><span>Fee stake asset</span><span className="zusd-mono">{compactId(status?.fee_stake_asset_id || 'unavailable')}</span></div>
-            <div className="zusd-wallet-kv">
-              <span>Keeper compensation<InfoTip label="Keeper compensation">Liquidation trigger compensation from fixed collateral plus bps.</InfoTip></span>
-              <span>{formatE8(liquidationFeeCompFixedE8)} {collateralSymbol} + {liquidationFeeCompBps} bps</span>
-            </div>
-            <div className="zusd-wallet-kv">
-              <span>Borrowing fees<InfoTip label="Borrowing fees">Mint fees accrue to the protocol revenue reserve.</InfoTip></span>
-              <span>{formatAmount(protocolRevenueZusd)} zUSD</span>
-            </div>
-            <div className="zusd-wallet-kv">
-              <span>Redemption fees<InfoTip label="Redemption fees">Redemption fees accrue to the protocol collateral reserve.</InfoTip></span>
-              <span>{formatAmount(protocolCollateralFees)} {collateralSymbol}</span>
-            </div>
-            <div className="zusd-wallet-kv">
-              <span>Signing mode</span>
-              <span>{status?.allow_local_signing ? 'Local signer' : 'External signer'}</span>
-            </div>
-            <div className="zusd-wallet-kv">
-              <span>Shutdown settlement</span>
-              <span>
-                {status?.shutdown_claim_available || status?.sp_shutdown_claim_available ? 'available' : 'closed'}
-              </span>
-            </div>
-          </div>
-
           {statusError ? <p className="zusd-wallet-error">Status error: {statusError}</p> : null}
-          <button className="btn btn-secondary zusd-wallet-refresh" type="button" onClick={loadStatus}>
-            Refresh status
-          </button>
         </div>
 
         <div className="panel zusd-wallet-card zusd-vault-manager">
@@ -978,7 +871,7 @@ function ZUSDMonetarySurface({ wallet = null }) {
                     <span>{maxMintAtTarget.toLocaleString()} zUSD at {ccrPct}% target</span>
                   </div>
                   <div className="zusd-preview-row">
-                    <span>Protocol maximum at MCR</span>
+                    <span>System limit at minimum ratio</span>
                     <span>{maxMintAtMcr.toLocaleString()} zUSD</span>
                   </div>
                 </div>
@@ -1057,7 +950,7 @@ function ZUSDMonetarySurface({ wallet = null }) {
 
                 {needsPrice ? (
                   <>
-                    <label className="label" htmlFor="zusd-monetary-price">Price E8</label>
+                    <label className="label" htmlFor="zusd-monetary-price">Price (8 decimals)</label>
                     <input
                       id="zusd-monetary-price"
                       className="input"
@@ -1072,7 +965,7 @@ function ZUSDMonetarySurface({ wallet = null }) {
 
                 {needsDelta ? (
                   <>
-                    <label className="label" htmlFor="zusd-monetary-delta">Epoch Delta</label>
+                    <label className="label" htmlFor="zusd-monetary-delta">Time Period Change</label>
                     <input
                       id="zusd-monetary-delta"
                       className="input"
@@ -1091,7 +984,7 @@ function ZUSDMonetarySurface({ wallet = null }) {
             <details className="zusd-advanced-options">
               <summary>Transaction signing</summary>
               <div className="zusd-wallet-form" style={{ marginTop: 'var(--space-md)' }}>
-                <label className="label" htmlFor="zusd-monetary-actor">Actor Pubkey</label>
+                <label className="label" htmlFor="zusd-monetary-actor">Account Address</label>
                 <input
                   id="zusd-monetary-actor"
                   className="input"
@@ -1112,7 +1005,7 @@ function ZUSDMonetarySurface({ wallet = null }) {
                   placeholder="optional"
                 />
 
-                <label className="label" htmlFor="zusd-monetary-fee-limit">Tau Fee Limit (native units)</label>
+                <label className="label" htmlFor="zusd-monetary-fee-limit">Maximum Fee (tokens)</label>
                 <input
                   id="zusd-monetary-fee-limit"
                   className="input"
@@ -1124,7 +1017,7 @@ function ZUSDMonetarySurface({ wallet = null }) {
                 />
 
 
-                <label className="label" htmlFor="zusd-monetary-signed-payload">Signed Tau Tx Payload</label>
+                <label className="label" htmlFor="zusd-monetary-signed-payload">Signed Transaction Data</label>
                 <textarea
                   id="zusd-monetary-signed-payload"
                   className="input zusd-wallet-textarea"
@@ -1155,7 +1048,7 @@ function ZUSDMonetarySurface({ wallet = null }) {
                       onClick={() => handleShutdownClaim('free')}
                       disabled={busy || debtAdjustValue <= 0}
                     >
-                      Claim shutdown collateral
+                      Claim emergency collateral
                     </button>
                   ) : null}
                 </>
@@ -1201,71 +1094,7 @@ function ZUSDMonetarySurface({ wallet = null }) {
           </div>
         </div>
       </div>
-
-      <div className="zusd-wallet-grid">
-        <div className="panel zusd-wallet-card">
-          <div className="zusd-section-header">
-            <h2>Live Context</h2>
-            <span className="zusd-section-badge">Auto-derived</span>
-          </div>
-          {liveSummary ? (
-            <div className="zusd-wallet-meta">
-              <div className="zusd-wallet-kv"><span>App Hash</span><span className="zusd-mono">{liveSummary.app_hash || 'none'}</span></div>
-              <div className="zusd-wallet-kv"><span>Actor</span><span className="zusd-mono">{liveSummary.actor_pubkey}</span></div>
-              <div className="zusd-wallet-kv"><span>AGRS Balance</span><span>{formatE8(liveSummary.native_balance_e8)} AGRS</span></div>
-              <div className="zusd-wallet-kv"><span>Tau Fee Limit</span><span>{liveSummary.tx_fee_limit ?? '0'}</span></div>
-              <div className="zusd-wallet-kv"><span>Fee Limit Covered</span><span>{liveSummary.fee_limit_native_balance_ok === null ? 'unknown' : liveSummary.fee_limit_native_balance_ok ? 'yes' : 'no'}</span></div>
-              <div className="zusd-wallet-kv"><span>zUSD Balance</span><span>{formatAmount(Number(liveSummary.zusd_balance ?? 0), 4)} zUSD</span></div>
-              <div className="zusd-wallet-kv"><span>Monetary Nonce</span><span>{liveSummary.last_used_nonce}</span></div>
-              <div className="zusd-wallet-kv"><span>Tx Sequence</span><span>{liveSummary.tx_sequence_number}</span></div>
-              <div className="zusd-wallet-kv"><span>Signing Mode</span><span>{liveSummary.signing_mode || 'prepare_only'}</span></div>
-              {liveSummary.fee_limit_warning ? (
-                <div className="zusd-wallet-kv"><span>Fee Warning</span><span>{liveSummary.fee_limit_warning}</span></div>
-              ) : null}
-            </div>
-          ) : (
-            <p className="zusd-wallet-placeholder">Submit a request to load the current network context.</p>
-          )}
-        </div>
-
-        <div className="panel zusd-wallet-card">
-          <div className="zusd-section-header">
-            <h2>Proof Posture</h2>
-            <span className="zusd-section-badge">{reportPromotionReady ? 'promotion ready' : 'bounded wrapper'}</span>
-          </div>
-          {proofProfile ? (
-            <div className="zusd-wallet-meta">
-              <div className="zusd-wallet-kv"><span>Proof profile</span><span className="zusd-mono">{proofProfile.profile_id || 'none'}</span></div>
-              <div className="zusd-wallet-kv"><span>ZK proof verified</span><span>{zkWrapper?.zk_proof_verified ? 'yes' : 'no'}</span></div>
-              <div className="zusd-wallet-kv"><span>ZK artifacts</span><span>{proofProfile?.artifact_binding_complete ? 'ready' : 'pending'}</span></div>
-              <div className="zusd-wallet-kv"><span>Promotion ready</span><span>{reportPromotionReady ? 'yes' : 'no'}</span></div>
-              <div className="zusd-wallet-kv"><span>Artifact binding</span><span className="zusd-mono">{compactId(artifactBinding?.binding_hash)}</span></div>
-              <div className="zusd-wallet-kv"><span>Verifier command</span><span className="zusd-mono">{compactId(artifactBinding?.verifier_cmd_hash)}</span></div>
-            </div>
-          ) : (
-            <p className="zusd-wallet-placeholder">No proof-wrapper receipt yet.</p>
-          )}
-        </div>
-
-        <div className="panel zusd-wallet-card">
-          <div className="zusd-section-header">
-            <h2>Latest Report</h2>
-            <span className="zusd-section-badge">{latestReportBadge}</span>
-          </div>
-          {result ? (
-            <>
-              {result.ok === false ? (
-                <p className="zusd-wallet-error">
-                  Submit rejected: {result.error || result.status || 'rejected'}
-                </p>
-              ) : null}
-              <pre className="zusd-wallet-json">{JSON.stringify(result, null, 2)}</pre>
-            </>
-          ) : (
-            <p className="zusd-wallet-placeholder">No monetary report yet.</p>
-          )}
-        </div>
-      </div>
+      )}
 
       <div className="zusd-assurance-grid">
         <div className="panel zusd-wallet-card zusd-risk-card">
@@ -1284,58 +1113,6 @@ function ZUSDMonetarySurface({ wallet = null }) {
               ))}
             </tbody>
           </table>
-        </div>
-
-        <div className="panel zusd-wallet-card zusd-proofs-card">
-          <div className="zusd-section-header">
-            <h2>Formal proofs</h2>
-            <span className="zusd-section-badge">Lean 4 · {ZUSD_LEAN_PROOFS.length} theorems</span>
-          </div>
-
-          {statusProofProfile && (
-            <div className={`zusd-proof-profile ${statusPromotionReady ? 'is-ready' : 'is-advisory'}`}>
-              <div className="zusd-proof-profile-head">
-                <span className="zusd-proof-profile-dot" aria-hidden="true" />
-                <span className="zusd-proof-profile-label">
-                  {statusPromotionReady ? 'Promotion-ready proof profile' : 'Runtime claim scope (not production-final)'}
-                </span>
-              </div>
-              <p className="zusd-proof-profile-detail">
-                The node binds and replays the receipt, but does <strong>not</strong> claim ZK execution or production finality.
-                {' '}ZK proof verified: <code>{String(statusProofProfile.zk_proof_verified)}</code>.
-              </p>
-              {Array.isArray(statusProofProfile.covered) && statusProofProfile.covered.length > 0 && (
-                <ul className="zusd-proof-coverage">
-                  {statusProofProfile.covered.map((item) => (
-                    <li key={item} className="cov-on"><span className="zusd-cov-dot" aria-hidden="true" />{item.replaceAll('_', ' ')}</li>
-                  ))}
-                  {Array.isArray(statusProofProfile.not_covered) && statusProofProfile.not_covered.map((item) => (
-                    <li key={item} className="cov-off"><span className="zusd-cov-dot" aria-hidden="true" />{item.replaceAll('_', ' ')}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-
-          <p className="zusd-fp-caption">
-            Machine-checked Lean 4 lemmas (model-level, proven offline) — distinct from the node&apos;s
-            runtime claim scope above. The proofs hold for their models; they are not a claim that this
-            live node enforces them.
-          </p>
-          <div className="zusd-fp-list">
-            {ZUSD_LEAN_PROOFS.map((pf) => (
-              <div className="zusd-fp-row" key={pf.file}>
-                <div className="zusd-fp-row-top">
-                  <span className="zusd-fp-name">{pf.title}</span>
-                  <span className="zusd-fp-badge">Proved</span>
-                </div>
-                <p className="zusd-fp-desc">{pf.desc}</p>
-                <code className="zusd-fp-file mono" title={`Theorem ${pf.theorem} in lean-mathlib/Proofs/${pf.file} (0 sorry)`}>
-                  {pf.file} · {pf.theorem}
-                </code>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     </section>

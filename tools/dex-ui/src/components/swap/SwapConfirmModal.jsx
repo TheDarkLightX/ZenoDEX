@@ -111,7 +111,7 @@ function SwapConfirmModal({
                             if (reasons.includes('slippage_above_mev_safe') && Number.isFinite(recMev) && recMev >= 0 && recMev <= 10_000 && userSlippageBps > recMev) {
                                 actions.push({
                                     key: 'use_mev_safe_slippage',
-                                    label: `Apply MEV ceiling (${(recMev / 100).toFixed(2)}%)`,
+                                    label: `Use safer price protection (${(recMev / 100).toFixed(2)}%)`,
                                     onClick: () => onApplySlippage(recMev / 10_000),
                                 });
                             }
@@ -146,7 +146,7 @@ function SwapConfirmModal({
                                     onClick={onFindSaferAmountDeep}
                                     disabled={pokayokeHeavySuggesting}
                                 >
-                                    {pokayokeHeavySuggesting ? 'Calculating...' : 'Deep Calculation (MEV/Unknown)'}
+                                    {pokayokeHeavySuggesting ? 'Calculating...' : 'Advanced Safety Analysis'}
                                 </button>
                             );
                         })()}

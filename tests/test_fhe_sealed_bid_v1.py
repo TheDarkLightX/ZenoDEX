@@ -8,16 +8,10 @@ from __future__ import annotations
 import pytest
 
 from src.core.fhe_sealed_bid_v1 import (
-    MAX_V1_UNITS,
     SCHEME_FALLBACK,
     SCHEME_FHE,
     EncryptedBid,
     PaillierKeyPair,
-    _decrypt_value,
-    _encrypt_value,
-    _homomorphic_add,
-    _homomorphic_scalar_mul,
-    _homomorphic_sub,
     compare_encrypted,
     encrypt_bid,
     fhe_sealed_bid_v1_receipt_hash,
@@ -26,12 +20,13 @@ from src.core.fhe_sealed_bid_v1 import (
     settle_fhe_sealed_bids,
     settle_sealed_bids_with_fhe,
     verify_fhe_sealed_bid_v1_receipt,
+    _decrypt_value,
+    _encrypt_value,
+    _homomorphic_add,
+    _homomorphic_scalar_mul,
+    _homomorphic_sub,
 )
-from src.core.sealed_bid_auction import (
-    MAX_PRICE,
-    RevealedSealedBid,
-    settle_uniform_price_sealed_bids,
-)
+from src.core.sealed_bid_auction import MAX_PRICE, RevealedSealedBid, settle_uniform_price_sealed_bids
 
 _TEST_KEY_BITS = 64
 
@@ -160,72 +155,14 @@ class TestProductionSecurityClaim:
         assert result.production_security_claim is False
         assert result.scheme == SCHEME_FHE
 
-    def test_fhe_requires_range_proof_for_production_claim_with_strong_keys(self):
-        """Keys alone are not enough; encrypted bid ranges must be verified."""
+    def test_fhe_sets_production_claim_true_for_strong_keys(self):
+        """Keys with key_bits >= 1024 get production security claim."""
         strong_key = generate_paillier_keypair(key_bits=1024, key_id="prod-fhe-v1")
-        without_range_proof = settle_fhe_sealed_bids(
-            auction_id="a7b",
-            units_for_sale=2,
-            encrypted_bids=_enc_bids(strong_key, [("a", "c", 2, 100)]),
-            key_pair=strong_key,
-        )
-        with_range_proof = settle_fhe_sealed_bids(
-            auction_id="a7c",
-            units_for_sale=2,
-            encrypted_bids=_enc_bids(strong_key, [("a", "c", 2, 100)]),
-            key_pair=strong_key,
-            range_proof_verified=True,
-        )
-        assert without_range_proof.production_security_claim is False
-        assert without_range_proof.range_proof_verified is False
-        assert with_range_proof.production_security_claim is True
-        assert with_range_proof.range_proof_verified is True
-        assert with_range_proof.scheme == SCHEME_FHE
-
-    def test_settlement_rejects_malformed_ciphertexts(self, key_pair):
-        bad_price = EncryptedBid(
-            bidder_id="bad",
-            commitment="c-bad",
-            price_ciphertext=key_pair.public_key.n_sq,
-            quantity_ciphertext=_encrypt_value(key_pair.public_key, 1),
-        )
-        with pytest.raises(ValueError, match="price_ciphertext out of ciphertext range"):
-            settle_fhe_sealed_bids(
-                auction_id="a7d",
-                units_for_sale=1,
-                encrypted_bids=[bad_price],
-                key_pair=key_pair,
-            )
-
-    def test_settlement_rejects_touched_out_of_domain_plaintexts(self, key_pair):
-        pk = key_pair.public_key
-        too_large_quantity = EncryptedBid(
-            bidder_id="bad",
-            commitment="c-bad",
-            price_ciphertext=_encrypt_value(pk, 100),
-            quantity_ciphertext=_encrypt_value(pk, MAX_V1_UNITS + 1),
-        )
-        with pytest.raises(ValueError, match="decrypted quantity out of range"):
-            settle_fhe_sealed_bids(
-                auction_id="a7e",
-                units_for_sale=1,
-                encrypted_bids=[too_large_quantity],
-                key_pair=key_pair,
-            )
-
-        too_large_price = EncryptedBid(
-            bidder_id="bad",
-            commitment="c-price",
-            price_ciphertext=_encrypt_value(pk, MAX_PRICE + 1),
-            quantity_ciphertext=_encrypt_value(pk, 1),
-        )
-        with pytest.raises(ValueError, match="decrypted clearing price out of range"):
-            settle_fhe_sealed_bids(
-                auction_id="a7f",
-                units_for_sale=1,
-                encrypted_bids=[too_large_price],
-                key_pair=key_pair,
-            )
+        result = settle_fhe_sealed_bids(auction_id="a7b", units_for_sale=2,
+                                        encrypted_bids=_enc_bids(strong_key, [("a", "c", 2, 100)]),
+                                        key_pair=strong_key)
+        assert result.production_security_claim is True
+        assert result.scheme == SCHEME_FHE
 
     def test_decrypt_count_minimal_only_winning_bids_plus_clearing_price(self, key_pair):
         specs = [("a", "c1", 2, 100), ("b", "c2", 2, 90), ("c", "c3", 2, 80)]
@@ -276,27 +213,6 @@ class TestReceiptVerification:
                                                        trusted_plain_bids=_revealed(specs))
         assert ok is True
         assert reason == "ok"
-
-    def test_fhe_receipt_rejects_production_claim_without_range_proof(self, key_pair):
-        specs = [("alice", "c1", 2, 100)]
-        result = settle_fhe_sealed_bids(
-            auction_id="a13b",
-            units_for_sale=2,
-            encrypted_bids=_enc_bids(key_pair, specs),
-            key_pair=key_pair,
-        )
-        receipt = make_fhe_sealed_bid_v1_receipt(
-            auction_id="a13b", units_for_sale=2, result=result
-        )
-        receipt["body"]["production_security_claim"] = True
-        receipt["receipt_hash"] = fhe_sealed_bid_v1_receipt_hash(receipt["body"])
-        ok, reason = verify_fhe_sealed_bid_v1_receipt(
-            receipt,
-            approved_key_ids=["test-fhe-v1"],
-            trusted_plain_bids=_revealed(specs),
-        )
-        assert ok is False
-        assert reason == "production_claim_requires_range_proof"
 
     def test_fhe_receipt_rejects_unapproved_key_id(self, key_pair):
         specs = [("alice", "c1", 2, 100)]

@@ -598,7 +598,7 @@ def _perps_wallet_authority_profile(
             "runtime_proof_profile": "perps-stream8-risc0-or-equivalent-v1",
         },
         transaction_scope={
-            "stream_key": "8",
+            "stream_key": "22",
             "allowed_actions": [
                 "init_market_2p",
                 "deposit_collateral",

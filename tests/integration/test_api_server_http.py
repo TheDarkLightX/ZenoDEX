@@ -172,7 +172,7 @@ def _funded_perps_app_state_json() -> tuple[str, str, str, str]:
     res = apply_perp_ops(
         config=PerpEngineConfig(chain_id=chain_id),
         state=DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()),
-        operations={"5": [op]},
+        operations={"19": [op]},
         tx_sender_pubkey=account_a,
         block_timestamp=1,
     )

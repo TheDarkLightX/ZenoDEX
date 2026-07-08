@@ -55,8 +55,8 @@ def _tau_app_spot_body_v0(*, chain_id: str, time_ms: int, sequencer_id: str) -> 
         "block_timestamp": max(0, int(time_ms) // 1000),
         "tx_sender_pubkey": sender,
         "operations": {
-            "7": {"mint": [[sender, DEFAULT_ASSET0, 10_000], [sender, DEFAULT_ASSET1, 10_000]]},
-            "5": [
+            "21": {"mint": [[sender, DEFAULT_ASSET0, 10_000], [sender, DEFAULT_ASSET1, 10_000]]},
+            "19": [
                 {
                     "module": "TauSwap",
                     "version": "0.1",

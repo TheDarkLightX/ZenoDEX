@@ -107,6 +107,8 @@ export const TAU_POLICY_GUARDS = [
   },
 ];
 
+// Demo strategy fixtures — only shown when demoMode is active.
+// Not shown by default in the UI to avoid confusing users with fake data.
 export const DEMO_STRATEGIES = [
   {
     strategyId: 'strat_dca_eth_tau_01',

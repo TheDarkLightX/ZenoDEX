@@ -80,7 +80,7 @@ def test_dex_intent_signature_required_for_third_party_submitter(monkeypatch):
     ok, _json0, _hash0, _patch0, err0 = plugin.apply_app_tx(
         app_state_json="",
         chain_balances={user_pub: 123, agg_pub: 0},
-        operations={"7": {"mint": [[user_pub, asset0, 10_000], [user_pub, asset1, 10_000]]}, "5": [create_pool_intent]},
+        operations={"21": {"mint": [[user_pub, asset0, 10_000], [user_pub, asset1, 10_000]]}, "19": [create_pool_intent]},
         tx_sender_pubkey=agg_pub,
         block_timestamp=123,
     )
@@ -92,7 +92,7 @@ def test_dex_intent_signature_required_for_third_party_submitter(monkeypatch):
     ok1, app_state_json, _hash1, _patch1, err1 = plugin.apply_app_tx(
         app_state_json="",
         chain_balances={user_pub: 123, agg_pub: 0},
-        operations={"7": {"mint": [[user_pub, asset0, 10_000], [user_pub, asset1, 10_000]]}, "5": [[create_pool_intent, sig0]]},
+        operations={"21": {"mint": [[user_pub, asset0, 10_000], [user_pub, asset1, 10_000]]}, "19": [[create_pool_intent, sig0]]},
         tx_sender_pubkey=agg_pub,
         block_timestamp=123,
     )
@@ -132,7 +132,7 @@ def test_dex_intent_signature_required_for_third_party_submitter(monkeypatch):
     ok2, app_state_json2, _hash2, _patch2, err2 = plugin.apply_app_tx(
         app_state_json=app_state_json,
         chain_balances={user_pub: 123, agg_pub: 0},
-        operations={"5": [[swap_intent, sig1]]},
+        operations={"19": [[swap_intent, sig1]]},
         tx_sender_pubkey=agg_pub,
         block_timestamp=124,
     )

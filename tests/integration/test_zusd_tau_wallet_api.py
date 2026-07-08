@@ -269,7 +269,7 @@ def test_submit_requires_explicit_local_signing_and_returns_sendtx(monkeypatch) 
         nonce_before = 4
         nonce_after = 5
         operation = {"action": "transfer"}
-        operations = {"9": [{"action": "transfer"}]}
+        operations = {"23": [{"action": "transfer"}]}
         sender_balance_after = 300
         recipient_balance_after = 150
         supply_after = 450
@@ -310,7 +310,7 @@ def test_submit_rejects_malformed_signed_payload_echo_flag(monkeypatch) -> None:
         nonce_before = 4
         nonce_after = 5
         operation = {"action": "transfer"}
-        operations = {"9": [{"action": "transfer"}]}
+        operations = {"23": [{"action": "transfer"}]}
         sender_balance_after = 300
         recipient_balance_after = 150
         supply_after = 450

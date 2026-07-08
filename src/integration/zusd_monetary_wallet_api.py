@@ -57,7 +57,7 @@ from .zeno_oracle_authorization import (
 
 MAX_POST_BODY = 65_536
 ResponseT = Tuple[int, Dict[str, Any]]
-_STREAM_KEY = "11"
+_STREAM_KEY = "25"
 _U32_MAX = 0xFFFFFFFF
 _ZUSD_PROOF_PROFILE_ID = "zusd_stream11_live_monetary_v0"
 _ZUSD_PROOF_PROFILE_SCHEMA = "zenodex/zusd_monetary_wallet/proof_profile/v1"

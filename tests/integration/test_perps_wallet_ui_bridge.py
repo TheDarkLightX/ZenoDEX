@@ -719,7 +719,7 @@ def _advanced_market_state(
     res1 = apply_perp_ops(
         config=cfg,
         state=state,
-        operations={"5": [init_op]},
+        operations={"19": [init_op]},
         tx_sender_pubkey=account_a_pubkey,
         block_timestamp=1,
     )
@@ -728,7 +728,7 @@ def _advanced_market_state(
     res2 = apply_perp_ops(
         config=cfg,
         state=res1.state,
-        operations={"5": [{"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "advance_epoch", "delta": 1}]},
+        operations={"19": [{"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "advance_epoch", "delta": 1}]},
         tx_sender_pubkey=account_a_pubkey,
         block_timestamp=2,
     )
@@ -775,7 +775,7 @@ def _settle_ready_market_state(
     res = apply_perp_ops(
         config=cfg,
         state=state,
-        operations={"5": [op]},
+        operations={"19": [op]},
         tx_sender_pubkey=oracle_pubkey,
         block_timestamp=3,
     )
@@ -879,7 +879,7 @@ def _liquidation_ready_market_state(
     res = apply_perp_ops(
         config=cfg,
         state=state,
-        operations={"5": [{"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "settle_epoch"}]},
+        operations={"19": [{"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "settle_epoch"}]},
         tx_sender_pubkey=account_a_pubkey,
         block_timestamp=4,
     )
@@ -912,7 +912,7 @@ def _liquidation_ready_market_state(
             },
         ),
     ):
-        res = apply_perp_ops(config=cfg, state=state, operations={"5": [op]}, tx_sender_pubkey=sender, block_timestamp=5)
+        res = apply_perp_ops(config=cfg, state=state, operations={"19": [op]}, tx_sender_pubkey=sender, block_timestamp=5)
         assert res.ok, res.error
         assert res.state is not None
         state = res.state
@@ -920,7 +920,7 @@ def _liquidation_ready_market_state(
         config=cfg,
         state=state,
         operations={
-            "5": [
+            "19": [
                 _signed_set_position_pair(
                     chain_id=chain_id,
                     market_id=market_id,
@@ -942,7 +942,7 @@ def _liquidation_ready_market_state(
     res = apply_perp_ops(
         config=cfg,
         state=state,
-        operations={"5": [{"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "advance_epoch", "delta": 1}]},
+        operations={"19": [{"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "advance_epoch", "delta": 1}]},
         tx_sender_pubkey=account_a_pubkey,
         block_timestamp=7,
     )
@@ -952,7 +952,7 @@ def _liquidation_ready_market_state(
         config=cfg,
         state=res.state,
         operations={
-            "5": [
+            "19": [
                 _signed_publish_price(
                     chain_id=chain_id,
                     market_id=market_id,
@@ -1410,7 +1410,7 @@ def test_perps_wallet_ui_accepts_external_signed_payload_without_local_signing(t
         sequence_number=sequence_number,
         expiration_time=deadline,
         operations={
-            "8": [
+            "22": [
                 {
                     "module": "TauPerp",
                     "version": "1.0",
@@ -1567,7 +1567,7 @@ def test_perps_wallet_ui_succeeds_under_bounded_tau_send_jitter(tmp_path: Path) 
         sequence_number=sequence_number,
         expiration_time=deadline,
         operations={
-            "8": [
+            "22": [
                 {
                     "module": "TauPerp",
                     "version": "1.0",
@@ -1720,7 +1720,7 @@ def test_perps_wallet_ui_fails_closed_on_tau_send_drop_before_response(tmp_path:
     dex_state.balances.set(account_a_pubkey, quote_asset, 1000)
     app_state_json = _initial_app_state_json(dex_state)
     operations = {
-        "8": [
+        "22": [
             {
                 "module": "TauPerp",
                 "version": "1.0",
@@ -1902,7 +1902,7 @@ def test_perps_wallet_ui_fails_closed_on_truncated_proxy_sendtx_response(tmp_pat
         sequence_number=sequence_number,
         expiration_time=deadline,
         operations={
-            "8": [
+            "22": [
                 {
                     "module": "TauPerp",
                     "version": "1.0",
@@ -2089,7 +2089,7 @@ def test_perps_wallet_ui_fails_closed_through_toxiproxy_limit_data(tmp_path: Pat
         sequence_number=sequence_number,
         expiration_time=deadline,
         operations={
-            "8": [
+            "22": [
                 {
                     "module": "TauPerp",
                     "version": "1.0",
@@ -2256,7 +2256,7 @@ def test_perps_wallet_ui_fails_closed_on_partial_tau_send_timeout(tmp_path: Path
     dex_state.balances.set(account_a_pubkey, quote_asset, 1000)
     app_state_json = _initial_app_state_json(dex_state)
     operations = {
-        "8": [
+        "22": [
             {
                 "module": "TauPerp",
                 "version": "1.0",

@@ -1,0 +1,571 @@
+/* Copyright DarkLightX/Dana Edwards */
+/* Oracle section — v3 layout (after 3 rounds of UX review) */
+/* 3 tabs: Monitor / Resolve / Admin (Submit merged into Monitor detail rail) */
+
+/* ===== Section shell ===== */
+.oracle-section {
+  max-width: 1024px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* ===== Status bar (persistent across all tabs) ===== */
+.oracle-status-bar {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  background: var(--card-bg, rgba(255,255,255,0.03));
+  font-size: 0.78em;
+  line-height: 1.6;
+  margin-bottom: 6px;
+}
+
+.oracle-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.oracle-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.oracle-status-dot.live { background: #34d399; box-shadow: 0 0 4px rgba(52,211,153,0.5); }
+.oracle-status-dot.stale { background: #facc15; box-shadow: 0 0 4px rgba(250,204,21,0.4); }
+.oracle-status-dot.down { background: #f87171; box-shadow: 0 0 4px rgba(248,113,113,0.5); }
+.oracle-status-dot.warn { background: #fb923c; }
+
+.oracle-status-label {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.85em;
+}
+
+.oracle-status-label.live { color: #34d399; }
+.oracle-status-label.stale { color: #facc15; }
+.oracle-status-label.down { color: #f87171; }
+.oracle-status-label.warn { color: #fb923c; }
+
+.oracle-status-meta { opacity: 0.7; }
+
+.oracle-status-chip {
+  display: inline-block;
+  font-size: 0.72em;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 4px;
+  margin-left: 4px;
+}
+
+.oracle-status-chip.ok { background: rgba(52,211,153,0.12); color: #34d399; }
+.oracle-status-chip.warn { background: rgba(250,204,21,0.12); color: #facc15; }
+.oracle-status-chip.err { background: rgba(248,113,113,0.12); color: #f87171; }
+.oracle-status-chip.unknown { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4); }
+
+.oracle-status-action {
+  margin-left: auto;
+  font-size: 0.82em;
+  padding: 2px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(99,102,241,0.3);
+  background: rgba(99,102,241,0.08);
+  color: #818cf8;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.oracle-status-action:hover { background: rgba(99,102,241,0.15); }
+
+/* ===== Safety context line ===== */
+.oracle-context-line {
+  font-size: 0.75em;
+  color: #facc15;
+  line-height: 1.5;
+  padding: 6px 14px;
+  margin-bottom: 12px;
+  opacity: 0.8;
+}
+
+/* ===== Task tabs ===== */
+.oracle-task-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
+}
+
+.oracle-task-tab {
+  padding: 8px 16px;
+  font-size: 0.85em;
+  font-weight: 500;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+
+.oracle-task-tab:hover { opacity: 0.8; }
+
+.oracle-task-tab.active {
+  opacity: 1;
+  border-bottom-color: #6366f1;
+  font-weight: 600;
+}
+
+/* ===== Tab panel ===== */
+.oracle-tab-panel {
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  background: var(--card-bg, rgba(255,255,255,0.03));
+}
+
+/* ===== Monitor: master-detail layout ===== */
+.oracle-monitor-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 16px;
+}
+
+.oracle-monitor-layout.rail-collapsed {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 900px) {
+  .oracle-monitor-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== Feed table ===== */
+.oracle-feed-table {
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  overflow: hidden;
+}
+
+.oracle-feed-table-head {
+  display: grid;
+  grid-template-columns: 2fr 1fr 0.8fr 0.8fr 0.6fr;
+  padding: 8px 12px;
+  font-size: 0.72em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.5;
+  border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
+}
+
+.oracle-feed-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 0.8fr 0.8fr 0.6fr;
+  padding: 8px 12px;
+  font-size: 0.82em;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.oracle-feed-row:hover { background: rgba(255,255,255,0.03); }
+.oracle-feed-row.selected { background: rgba(99,102,241,0.08); }
+
+.oracle-feed-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78em;
+  font-weight: 600;
+}
+
+.oracle-feed-status .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.oracle-feed-status.live .dot { background: #34d399; }
+.oracle-feed-status.stale .dot { background: #facc15; }
+.oracle-feed-status.down .dot { background: #f87171; }
+.oracle-feed-status.disputed .dot { background: #fb923c; }
+
+.oracle-feed-status.live { color: #34d399; }
+.oracle-feed-status.stale { color: #facc15; }
+.oracle-feed-status.down { color: #f87171; }
+.oracle-feed-status.disputed { color: #fb923c; }
+
+/* ===== Feed table empty state ===== */
+.oracle-feed-empty {
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.oracle-feed-empty-title {
+  font-size: 0.9em;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.oracle-feed-empty-hint {
+  font-size: 0.78em;
+  opacity: 0.5;
+  margin-bottom: 12px;
+}
+
+.oracle-feed-empty-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ===== Status legend ===== */
+.oracle-status-legend {
+  display: flex;
+  gap: 12px;
+  padding: 8px 12px;
+  font-size: 0.7em;
+  opacity: 0.5;
+  border-top: 1px solid rgba(255,255,255,0.04);
+  flex-wrap: wrap;
+}
+
+.oracle-status-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ===== Feed detail rail ===== */
+.oracle-feed-detail {
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  background: rgba(255,255,255,0.02);
+  font-size: 0.82em;
+}
+
+.oracle-feed-detail-title {
+  font-size: 1em;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.oracle-feed-detail-grid {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.oracle-feed-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.oracle-feed-detail-label {
+  font-size: 0.78em;
+  opacity: 0.5;
+}
+
+.oracle-feed-detail-value {
+  font-weight: 600;
+}
+
+.oracle-feed-detail-value.muted { opacity: 0.3; }
+
+.oracle-feed-detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.oracle-feed-detail-btn {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  background: rgba(255,255,255,0.03);
+  color: inherit;
+  font-size: 0.82em;
+  cursor: pointer;
+  transition: background 0.15s;
+  text-align: left;
+}
+
+.oracle-feed-detail-btn:hover { background: rgba(255,255,255,0.06); }
+
+.oracle-feed-detail-btn.primary {
+  border-color: rgba(99,102,241,0.3);
+  background: rgba(99,102,241,0.08);
+  color: #818cf8;
+}
+
+.oracle-feed-detail-btn.primary:hover { background: rgba(99,102,241,0.15); }
+
+.oracle-feed-detail-btn.danger {
+  border-color: rgba(248,113,113,0.3);
+  color: #f87171;
+}
+
+.oracle-feed-detail-btn.danger:hover { background: rgba(248,113,113,0.08); }
+
+/* ===== Inline submit panel ===== */
+.oracle-submit-panel {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(99,102,241,0.2);
+  background: rgba(99,102,241,0.04);
+}
+
+.oracle-submit-panel-title {
+  font-size: 0.85em;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.oracle-submit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.oracle-submit-label {
+  font-size: 0.75em;
+  opacity: 0.6;
+}
+
+.oracle-submit-input {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  background: rgba(0,0,0,0.2);
+  color: inherit;
+  font-size: 0.82em;
+}
+
+.oracle-submit-input:focus {
+  outline: none;
+  border-color: rgba(99,102,241,0.4);
+}
+
+.oracle-submit-deviation {
+  font-size: 0.75em;
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.oracle-submit-deviation.pass {
+  background: rgba(52,211,153,0.08);
+  color: #34d399;
+}
+
+.oracle-submit-deviation.blocked {
+  background: rgba(248,113,113,0.08);
+  color: #f87171;
+  font-weight: 600;
+}
+
+.oracle-submit-bond {
+  font-size: 0.72em;
+  opacity: 0.6;
+  margin-bottom: 10px;
+}
+
+.oracle-submit-bond .slash-warn {
+  color: #facc15;
+  opacity: 0.8;
+}
+
+.oracle-submit-btn {
+  width: 100%;
+  padding: 10px;
+  border-radius: 6px;
+  border: none;
+  background: #6366f1;
+  color: white;
+  font-size: 0.88em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.oracle-submit-btn:hover { opacity: 0.9; }
+.oracle-submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.oracle-submit-register {
+  margin-top: 10px;
+  font-size: 0.75em;
+  opacity: 0.6;
+}
+
+.oracle-submit-register a {
+  color: #818cf8;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.oracle-submit-register a:hover { text-decoration: underline; }
+
+/* ===== System health ===== */
+.oracle-health {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  background: rgba(255,255,255,0.02);
+}
+
+.oracle-health-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82em;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.oracle-health-toggle:hover { opacity: 1; }
+
+.oracle-health-body {
+  margin-top: 10px;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 0.78em;
+}
+
+.oracle-health-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.oracle-health-item .status { font-weight: 600; }
+.oracle-health-item .status.ok { color: #34d399; }
+.oracle-health-item .status.warn { color: #facc15; }
+.oracle-health-item .status.err { color: #f87171; }
+.oracle-health-item .status.unknown { color: rgba(255,255,255,0.4); }
+
+/* ===== Resolve tab ===== */
+.oracle-resolve-section {
+  margin-bottom: 16px;
+}
+
+.oracle-resolve-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.oracle-resolve-title {
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.oracle-resolve-count {
+  font-size: 0.72em;
+  opacity: 0.5;
+  padding: 1px 8px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.06);
+}
+
+/* ===== Admin sub-tabs ===== */
+.oracle-admin-subtabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.oracle-admin-subtab {
+  padding: 6px 14px;
+  font-size: 0.82em;
+  font-weight: 500;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+
+.oracle-admin-subtab:hover { opacity: 0.8; }
+
+.oracle-admin-subtab.active {
+  opacity: 1;
+  border-color: rgba(99,102,241,0.3);
+  background: rgba(99,102,241,0.08);
+  color: #818cf8;
+  font-weight: 600;
+}
+
+/* ===== Search + filters bar ===== */
+.oracle-filter-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.oracle-search-input {
+  flex: 1;
+  min-width: 180px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  background: rgba(0,0,0,0.2);
+  color: inherit;
+  font-size: 0.82em;
+}
+
+.oracle-search-input:focus {
+  outline: none;
+  border-color: rgba(99,102,241,0.4);
+}
+
+/* ===== Empty state (shared) ===== */
+.oracle-empty {
+  padding: 20px 16px;
+  text-align: center;
+  font-size: 0.8em;
+  opacity: 0.5;
+}
+
+/* ===== Collapsible sections ===== */
+.oracle-collapsible {
+  margin-top: 12px;
+}
+
+.oracle-collapsible-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82em;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 0;
+  opacity: 0.7;
+}
+
+.oracle-collapsible-toggle:hover { opacity: 1; }
+
+.oracle-collapsible-body {
+  margin-top: 8px;
+}

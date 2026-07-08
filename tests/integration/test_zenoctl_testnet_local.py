@@ -1735,6 +1735,7 @@ def test_compose_overlay_api_seeds_confidential_local_smoke_profile() -> None:
     doc = _load_compose_overlay()
     env = doc["services"]["zenodex-api"]["environment"]
     assert env["CONFIDENTIAL_ATTESTATION_API_ENABLED"] == "true"
+    assert env["CONFIDENTIAL_SEALED_BID_API_ENABLED"] == "true"
     assert env["CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED"] == "true"
     assert "CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON" in env
     assert "must be set by the orchestrator" in env["CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON"]

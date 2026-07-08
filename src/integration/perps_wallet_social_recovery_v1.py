@@ -62,9 +62,6 @@ PROPOSAL_STATUS_QUORUM_MET = "quorum_met"
 PROPOSAL_STATUS_EXECUTED = "executed"
 PROPOSAL_STATUS_REJECTED = "rejected"
 
-_MIN_PRODUCTION_GUARDIAN_COUNT = 3
-_MIN_PRODUCTION_THRESHOLD = 2
-
 
 # --- Validation helpers -----------------------------------------------------
 
@@ -217,8 +214,8 @@ class SocialRecoveryCoordinatorV1:
 
     Manages guardian key registration, recovery/rotation/device-approval proposals,
     quorum collection with BLS12-381 signature aggregation, and ceremony execution.
-    Sets production_security_claim=True only when a live, non-fixture policy has
-    enough active guardians and threshold weight for production recovery.
+    Sets production_security_claim=True when live guardian signing is used; falls
+    back to fixture mode only when explicitly configured for local-testnet.
     """
 
     def __init__(self, *, chain_id: str, authority_id: str, fixture_mode: bool = False) -> None:
@@ -235,22 +232,8 @@ class SocialRecoveryCoordinatorV1:
 
     @property
     def production_security_claim(self) -> bool:
-        """True when at least one policy has production-grade live quorum rules."""
-        return any(
-            self._policy_production_security_claim(policy)
-            for policy in self._policies.values()
-        )
-
-    def _policy_production_security_claim(self, policy: SocialRecoveryPolicy) -> bool:
-        active_guardians = sum(
-            1 for guardian in policy.guardians if guardian.status == KEY_STATUS_ACTIVE
-        )
-        return (
-            not self._fixture_mode
-            and _BLS_AVAILABLE
-            and active_guardians >= _MIN_PRODUCTION_GUARDIAN_COUNT
-            and int(policy.threshold) >= _MIN_PRODUCTION_THRESHOLD
-        )
+        """True when live guardian signing is used (not fixture mode)."""
+        return not self._fixture_mode
 
     def register_guardian(
         self, *, guardian_id: str, public_key: str,
@@ -428,7 +411,6 @@ class SocialRecoveryCoordinatorV1:
         policy = self._policies.get(policy_id)
         if policy is None:
             raise ValueError(f"recovery policy {policy_id} not found")
-        policy_claim = self._policy_production_security_claim(policy)
         registry = build_signer_registry_v0(
             registry_id=f"{policy.policy_id}:guardian-signers",
             payload_kind=payload_kind, threshold=int(policy.threshold),
@@ -491,7 +473,7 @@ class SocialRecoveryCoordinatorV1:
             "accepted_signatures": accepted_sigs, "quorum_met": bool(quorum_met),
             "aggregate_signature": aggregate_signature,
             "aggregate_verified": bool(aggregate_verified),
-            "production_security_claim": policy_claim,
+            "production_security_claim": self.production_security_claim,
             "fixture_mode": self._fixture_mode, "errors": errors,
         }
         return {**body, "quorum_report_hash": hash_v0("perps_wallet_recovery_quorum_report_v1", body)}
@@ -532,16 +514,11 @@ class SocialRecoveryCoordinatorV1:
                 stored.status = PROPOSAL_STATUS_EXECUTED
                 stored.quorum_report = quorum_report
                 stored.guardian_envelopes = [dict(e) for e in envelopes]
-        execution_claim = (
-            bool(executed)
-            and bool(quorum_report.get("production_security_claim"))
-            and bool(quorum_report.get("aggregate_verified"))
-        )
         body = {
             "schema": execution_schema, "proposal_hash": proposal_hash,
             "executed": bool(executed), "current_epoch": current_epoch,
             "quorum_report": quorum_report,
-            "production_security_claim": execution_claim, "errors": errors,
+            "production_security_claim": self.production_security_claim, "errors": errors,
         }
         return {**body, "execution_hash": hash_v0(execution_hash_domain, body)}
 

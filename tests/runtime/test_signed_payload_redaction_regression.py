@@ -22,7 +22,7 @@ _PAYLOAD = {
     "sequence_number": 5,
     "expiration_time": 1000,
     "fee_limit": 7,
-    "operations": {"8": {"market_id": "m", "secret_op_body": "DO_NOT_LEAK"}},
+    "operations": {"22": {"market_id": "m", "secret_op_body": "DO_NOT_LEAK"}},
     "signature": _SIG,
 }
 

@@ -139,7 +139,7 @@ def test_apply_app_tx_rejects_malformed_proof_verifier_env(monkeypatch):
     ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
         app_state_json="",
         chain_balances={},
-        operations={"5": []},
+        operations={"19": []},
         tx_sender_pubkey="",
         block_timestamp=123,
     )
@@ -160,7 +160,7 @@ def test_apply_app_tx_rejects_nonfinite_proof_verifier_timeout(monkeypatch):
     ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
         app_state_json="",
         chain_balances={},
-        operations={"5": []},
+        operations={"19": []},
         tx_sender_pubkey="",
         block_timestamp=123,
     )
@@ -181,7 +181,7 @@ def test_apply_app_tx_rejects_malformed_perps_boolean_env(monkeypatch):
     ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
         app_state_json="",
         chain_balances={},
-        operations={"8": []},
+        operations={"22": []},
         tx_sender_pubkey="",
         block_timestamp=123,
     )
@@ -214,7 +214,7 @@ def test_apply_app_tx_rejects_malformed_isolated_settle_authorization_env(monkey
     ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
         app_state_json="",
         chain_balances={},
-        operations={"8": []},
+        operations={"22": []},
         tx_sender_pubkey="",
         block_timestamp=123,
     )
@@ -257,8 +257,8 @@ def test_apply_app_tx_create_pool_unsigned_intent(monkeypatch):
         app_state_json="",
         chain_balances={sender_pubkey: 123},
         operations={
-            "7": {"mint": [[sender_pubkey, asset0, 10_000], [sender_pubkey, asset1, 10_000]]},
-            "5": [intent],
+            "21": {"mint": [[sender_pubkey, asset0, 10_000], [sender_pubkey, asset1, 10_000]]},
+            "19": [intent],
         },
         tx_sender_pubkey=sender_pubkey,
         block_timestamp=123,
@@ -307,8 +307,8 @@ def test_apply_app_tx_swap_exact_in(monkeypatch):
         app_state_json="",
         chain_balances={sender_pubkey: 123},
         operations={
-            "7": {"mint": [[sender_pubkey, asset0, 10_000], [sender_pubkey, asset1, 10_000]]},
-            "5": [create_pool_intent],
+            "21": {"mint": [[sender_pubkey, asset0, 10_000], [sender_pubkey, asset1, 10_000]]},
+            "19": [create_pool_intent],
         },
         tx_sender_pubkey=sender_pubkey,
         block_timestamp=123,
@@ -348,7 +348,7 @@ def test_apply_app_tx_swap_exact_in(monkeypatch):
     ok, app_state_json2, _app_hash_hex2, _balances_patch2, err = plugin.apply_app_tx(
         app_state_json=app_state_json,
         chain_balances={sender_pubkey: 123},
-        operations={"5": [swap_intent]},
+        operations={"19": [swap_intent]},
         tx_sender_pubkey=sender_pubkey,
         block_timestamp=124,
     )
@@ -399,7 +399,7 @@ def test_apply_app_tx_create_pool_with_native_asset_updates_chain_balance(monkey
     ok, app_state_json, _app_hash_hex, balances_patch, err = plugin.apply_app_tx(
         app_state_json="",
         chain_balances={sender_pubkey: 10_000},
-        operations={"7": {"mint": [[sender_pubkey, token, 10_000]]}, "5": [intent]},
+        operations={"21": {"mint": [[sender_pubkey, token, 10_000]]}, "19": [intent]},
         tx_sender_pubkey=sender_pubkey,
         block_timestamp=123,
     )
@@ -453,9 +453,9 @@ def test_apply_app_tx_routes_upstream_streams_to_internal_engines(monkeypatch):
         app_state_json="",
         chain_balances={},
         operations={
-            "5": [{"module": "TauSwap", "kind": "CREATE_POOL"}],
-            "6": {"swaps": []},
-            "8": [{"module": "TauPerp", "action": "apply_funding_auto"}],
+            "19": [{"module": "TauSwap", "kind": "CREATE_POOL"}],
+            "20": {"swaps": []},
+            "22": [{"module": "TauPerp", "action": "apply_funding_auto"}],
         },
         tx_sender_pubkey="",
         block_timestamp=123,
@@ -468,7 +468,7 @@ def test_apply_app_tx_routes_upstream_streams_to_internal_engines(monkeypatch):
         "3": {"swaps": []},
     }
     assert captured["perp_ops"] == {
-        "5": [{"module": "TauPerp", "action": "apply_funding_auto"}],
+        "19": [{"module": "TauPerp", "action": "apply_funding_auto"}],
     }
 
 
@@ -499,7 +499,7 @@ def test_apply_app_tx_decodes_list_wrapped_custom_stream_json(monkeypatch):
         app_state_json="",
         chain_balances={},
         operations={
-            "5": [json.dumps(intent, separators=(",", ":"))],
+            "19": [json.dumps(intent, separators=(",", ":"))],
             "6": json.dumps(settlement, separators=(",", ":")),
         },
         tx_sender_pubkey="",
@@ -519,7 +519,7 @@ def test_apply_app_tx_rejects_unselected_reserved_stream_5(monkeypatch):
     ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
         app_state_json="",
         chain_balances={},
-        operations={"5": [{"module": "TauToken", "action": "transfer"}]},
+        operations={"19": [{"module": "TauToken", "action": "transfer"}]},
         tx_sender_pubkey="",
         block_timestamp=123,
     )
@@ -541,7 +541,7 @@ def test_apply_app_tx_rejects_ambiguous_dex_intent_aliases(monkeypatch):
         chain_balances={},
         operations={
             "2": [{"module": "TauSwap", "kind": "CREATE_POOL"}],
-            "5": [{"module": "TauSwap", "kind": "SWAP_EXACT_IN"}],
+            "19": [{"module": "TauSwap", "kind": "SWAP_EXACT_IN"}],
         },
         tx_sender_pubkey="",
         block_timestamp=123,
@@ -580,14 +580,14 @@ def test_apply_app_tx_legacy_stream_5_perps_fallback(monkeypatch):
     ok, _app_state_json, _app_hash_hex, _balances_patch, err = plugin.apply_app_tx(
         app_state_json="",
         chain_balances={},
-        operations={"5": [{"action": "apply_funding_auto"}]},
+        operations={"19": [{"action": "apply_funding_auto"}]},
         tx_sender_pubkey="",
         block_timestamp=123,
     )
 
     assert ok is True
     assert err is None
-    assert captured["perp_ops"] == {"5": [{"action": "apply_funding_auto"}]}
+    assert captured["perp_ops"] == {"19": [{"action": "apply_funding_auto"}]}
 
 
 def test_apply_app_tx_rejects_non_object_operations(monkeypatch):
@@ -622,8 +622,8 @@ def test_apply_app_tx_token_transfer_updates_balances_and_nonce(monkeypatch):
         app_state_json="",
         chain_balances={},
         operations={
-            "7": {"mint": [[sender, token, 1000]]},
-            "9": [
+            "21": {"mint": [[sender, token, 1000]]},
+            "23": [
                 {
                     "module": "TauToken",
                     "version": "0.1",
@@ -650,7 +650,7 @@ def test_apply_app_tx_token_transfer_updates_balances_and_nonce(monkeypatch):
         app_state_json=app_state_json,
         chain_balances={},
         operations={
-            "9": [
+            "23": [
                 {
                     "module": "TauToken",
                     "action": "transfer",
@@ -683,7 +683,7 @@ def test_apply_app_tx_token_mint_requires_operator(monkeypatch):
         app_state_json="",
         chain_balances={},
         operations={
-            "9": [
+            "23": [
                 {
                     "module": "TauToken",
                     "action": "mint",
@@ -715,7 +715,7 @@ def test_apply_app_tx_token_mint_and_burn(monkeypatch):
         app_state_json="",
         chain_balances={},
         operations={
-            "9": [
+            "23": [
                 {
                     "module": "TauToken",
                     "action": "mint",
@@ -744,7 +744,7 @@ def test_apply_app_tx_token_mint_and_burn(monkeypatch):
         app_state_json=app_state_json,
         chain_balances={},
         operations={
-            "9": [
+            "23": [
                 {
                     "module": "TauToken",
                     "action": "burn",
@@ -820,7 +820,7 @@ def test_select_perp_ops_rejects_legacy_candidate_that_looks_like_dex_intents() 
 def test_select_perp_ops_rejects_legacy_candidate_that_is_not_perp_like() -> None:
     from src.integration import tau_testnet_dex_plugin as plugin
 
-    selected = plugin._select_perp_ops({"5": [{"module": "TauToken"}]})  # type: ignore[attr-defined]
+    selected = plugin._select_perp_ops({"19": [{"module": "TauToken"}]})  # type: ignore[attr-defined]
 
     assert selected == {}
 
@@ -838,7 +838,7 @@ def test_apply_app_tx_token_ops_reject_native_and_expired(monkeypatch):
         app_state_json="",
         chain_balances={sender: 1000},
         operations={
-            "9": [
+            "23": [
                 {
                     "module": "TauToken",
                     "action": "transfer",
@@ -860,7 +860,7 @@ def test_apply_app_tx_token_ops_reject_native_and_expired(monkeypatch):
         app_state_json="",
         chain_balances={},
         operations={
-            "9": [
+            "23": [
                 {
                     "module": "TauToken",
                     "action": "transfer",
@@ -902,7 +902,7 @@ def test_apply_app_tx_perps_accepts_zusd_token_as_quote_collateral(monkeypatch):
         app_state_json="",
         chain_balances={},
         operations={
-            "9": [
+            "23": [
                 {
                     "module": "TauToken",
                     "action": "mint",
@@ -959,7 +959,7 @@ def test_apply_app_tx_perps_accepts_zusd_token_as_quote_collateral(monkeypatch):
     ok1, app_state_json1, _hash1, _patch1, err1 = plugin.apply_app_tx(
         app_state_json=app_state_json0,
         chain_balances={},
-        operations={"8": [init_market]},
+        operations={"22": [init_market]},
         tx_sender_pubkey=operator,
         block_timestamp=2,
     )
@@ -969,7 +969,7 @@ def test_apply_app_tx_perps_accepts_zusd_token_as_quote_collateral(monkeypatch):
         app_state_json=app_state_json1,
         chain_balances={},
         operations={
-            "8": [
+            "22": [
                 {
                     "module": "TauPerp",
                     "version": "1.0",
@@ -989,7 +989,7 @@ def test_apply_app_tx_perps_accepts_zusd_token_as_quote_collateral(monkeypatch):
         app_state_json=app_state_json2,
         chain_balances={},
         operations={
-            "8": [
+            "22": [
                 {
                     "module": "TauPerp",
                     "version": "1.0",
@@ -1042,7 +1042,7 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
         app_state_json="",
         chain_balances=chain_balances,
         operations={
-            "11": [
+            "25": [
                 {
                     "module": "ZUSDFinance",
                     "action": "bootstrap_oracle",
@@ -1061,7 +1061,7 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
         app_state_json=app_state_json0,
         chain_balances=chain_balances,
         operations={
-            "11": [
+            "25": [
                 {
                     "module": "ZUSDFinance",
                     "action": "deposit_collateral",
@@ -1083,7 +1083,7 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
         app_state_json=app_state_json1,
         chain_balances=chain_balances,
         operations={
-            "11": [
+            "25": [
                 {
                     "module": "ZUSDFinance",
                     "action": "mint_zusd",
@@ -1103,7 +1103,7 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
         app_state_json=app_state_json2,
         chain_balances=chain_balances,
         operations={
-            "9": [
+            "23": [
                 {
                     "module": "TauToken",
                     "action": "transfer",
@@ -1151,7 +1151,7 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
     ok4, app_state_json4, _hash4, _patch4, err4 = plugin.apply_app_tx(
         app_state_json=app_state_json3,
         chain_balances=chain_balances,
-        operations={"8": [init_market]},
+        operations={"22": [init_market]},
         tx_sender_pubkey=alice,
         block_timestamp=5,
     )
@@ -1161,7 +1161,7 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
         app_state_json=app_state_json4,
         chain_balances=chain_balances,
         operations={
-            "8": [
+            "22": [
                 {
                     "module": "TauPerp",
                     "version": "1.0",
@@ -1181,7 +1181,7 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
         app_state_json=app_state_json5,
         chain_balances=chain_balances,
         operations={
-            "8": [
+            "22": [
                 {
                     "module": "TauPerp",
                     "version": "1.0",
@@ -1226,7 +1226,7 @@ def test_apply_app_tx_zusd_monetary_accepts_tau_raw_sender_native_balance(monkey
         app_state_json="",
         chain_balances={alice_raw: 1000},
         operations={
-            "11": [
+            "25": [
                 {
                     "module": "ZUSDFinance",
                     "action": "bootstrap_oracle",
@@ -1281,7 +1281,7 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
         app_state_json="",
         chain_balances=chain_balances,
         operations={
-            "11": [
+            "25": [
                 {
                     "module": "ZUSDFinance",
                     "action": "bootstrap_oracle",
@@ -1315,7 +1315,7 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
         ok, next_json, _hash, patch, err = plugin.apply_app_tx(
             app_state_json=app_state_json,
             chain_balances=chain_balances,
-            operations={"11": [body]},
+            operations={"25": [body]},
             tx_sender_pubkey=alice,
             block_timestamp=block_timestamp,
         )
@@ -1336,7 +1336,7 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
         app_state_json=app_state_json,
         chain_balances=chain_balances,
         operations={
-            "11": [
+            "25": [
                 {
                     "module": "ZUSDFinance",
                     "action": "oracle_report",
@@ -1355,7 +1355,7 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
         app_state_json=app_state_json4,
         chain_balances=chain_balances,
         operations={
-            "11": [
+            "25": [
                 {
                     "module": "ZUSDFinance",
                     "action": "liquidate",
@@ -1383,7 +1383,7 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
         app_state_json=app_state_json5,
         chain_balances=chain_balances,
         operations={
-            "11": [
+            "25": [
                 {
                     "module": "ZUSDFinance",
                     "action": "claim_sp_collateral",
@@ -1514,7 +1514,7 @@ def test_apply_app_tx_zusd_monetary_liquidation_compensation_pays_keeper(monkeyp
         ok, next_json, _hash, patch, err = plugin.apply_app_tx(
             app_state_json=app_state_json,
             chain_balances=chain_balances,
-            operations={"11": [body]},
+            operations={"25": [body]},
             tx_sender_pubkey=sender,
             block_timestamp=block_timestamp,
         )
@@ -1527,7 +1527,7 @@ def test_apply_app_tx_zusd_monetary_liquidation_compensation_pays_keeper(monkeyp
         app_state_json=app_state_json,
         chain_balances=chain_balances,
         operations={
-            "11": [
+            "25": [
                 {
                     "module": "ZUSDFinance",
                     "action": "liquidate",
@@ -1579,7 +1579,7 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
     ok0, app_state_json0, _hash0, _patch0, err0 = plugin.apply_app_tx(
         app_state_json="",
         chain_balances={sender: 123, reward_pool: 20},
-        operations={"7": {"mint": [[sender, asset0, 10_000], [sender, asset1, 10_000]]}},
+        operations={"21": {"mint": [[sender, asset0, 10_000], [sender, asset1, 10_000]]}},
         tx_sender_pubkey=sender,
         block_timestamp=1,
     )
@@ -1671,9 +1671,9 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
         app_state_json=app_state_json0,
         chain_balances={sender: 123, reward_pool: 20},
         operations={
-            "5": [intent],
+            "19": [intent],
             "6": settlement_op,
-            "10": {"module": "ZenoProofMining", "action": "submit_proof", "claim": claim},
+            "24": {"module": "ZenoProofMining", "action": "submit_proof", "claim": claim},
         },
         tx_sender_pubkey=sender,
         block_timestamp=2,
@@ -1774,7 +1774,7 @@ def test_apply_app_tx_proof_mining_rejects_claim_context_mismatch(monkeypatch):
     ok0, app_state_json0, _hash0, _patch0, err0 = plugin.apply_app_tx(
         app_state_json="",
         chain_balances={sender: 50, reward_pool: 20},
-        operations={"7": {"mint": [[sender, asset0, 10_000], [sender, asset1, 10_000]]}},
+        operations={"21": {"mint": [[sender, asset0, 10_000], [sender, asset1, 10_000]]}},
         tx_sender_pubkey=sender,
         block_timestamp=1,
     )
@@ -1863,9 +1863,9 @@ def test_apply_app_tx_proof_mining_rejects_claim_context_mismatch(monkeypatch):
         app_state_json=app_state_json0,
         chain_balances={sender: 50, reward_pool: 20},
         operations={
-            "5": [intent],
+            "19": [intent],
             "6": settlement_op,
-            "10": {"module": "ZenoProofMining", "action": "submit_proof", "claim": claim},
+            "24": {"module": "ZenoProofMining", "action": "submit_proof", "claim": claim},
         },
         tx_sender_pubkey=sender,
         block_timestamp=2,

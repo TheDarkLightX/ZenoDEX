@@ -267,6 +267,26 @@
 .balance {
     font-size: var(--font-size-sm);
     color: var(--text-muted);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: default;
+}
+
+button.balance:not(:disabled) {
+    cursor: pointer;
+    transition: color var(--transition-fast);
+}
+
+button.balance:not(:disabled):hover {
+    color: var(--text-secondary);
+}
+
+button.balance:disabled {
+    background: none;
+    border: none;
+    opacity: 1;
+    color: var(--text-muted);
 }
 
 .balance:hover .max-label {
@@ -294,6 +314,35 @@
 
 .swap-amount-input:focus {
     box-shadow: none;
+    outline: none;
+}
+
+/* Stronger focus ring for the swap input container (keyboard a11y) */
+.swap-input-container:focus-within {
+    border-color: var(--accent-signal);
+    box-shadow: 0 0 0 2px var(--accent-signal-soft);
+}
+
+/* Submit button spinner */
+.btn-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: btn-spin 600ms linear infinite;
+    margin-right: 6px;
+    vertical-align: -2px;
+}
+
+@keyframes btn-spin {
+    to { transform: rotate(360deg); }
+}
+
+.swap-btn[aria-busy="true"] {
+    opacity: 0.85;
+    cursor: wait;
 }
 
 .input-error-hint {
@@ -361,6 +410,43 @@
     padding: var(--space-md);
     margin-top: var(--space-md);
     font-size: var(--font-size-sm);
+}
+
+/* Collapsible details toggle */
+.swap-details-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    padding: var(--space-xs) var(--space-sm);
+    margin: 0 calc(var(--space-sm) * -1);
+    border: none;
+    border-top: 1px solid var(--border-subtle);
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+    transition: color var(--transition-fast);
+}
+
+.swap-details-toggle:hover {
+    color: var(--text-secondary);
+}
+
+.swap-details-toggle:focus-visible {
+    outline: 2px solid var(--accent-signal);
+    outline-offset: 2px;
+}
+
+.swap-details-chevron {
+    display: inline-block;
+    transition: transform 200ms ease;
+    font-size: 10px;
+}
+
+.swap-details-chevron.open {
+    transform: rotate(180deg);
 }
 
 .swap-detail-row {
@@ -1016,4 +1102,186 @@
     .swap-instrument > .swap-panel { grid-column: 1; order: 0; }
     .swap-market { grid-column: 1; order: 1; }
     .swap-proof { grid-column: 1; order: 2; }
+}
+
+/* ─── Swap mode toggle (Exact In / Exact Out / Batch) ─────────────── */
+/* Segmented control with a recessed track and a lifted active pill.    */
+
+.swap-mode-toggle {
+    display: flex;
+    gap: 2px;
+    margin-top: var(--space-sm);
+    margin-bottom: var(--space-sm);
+    background: var(--bg-tertiary);
+    padding: 3px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.swap-mode-btn {
+    flex: 1;
+    padding: 7px 10px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    border-radius: calc(var(--radius-md) - 2px);
+    cursor: pointer;
+    transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    min-height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.swap-mode-btn:hover:not(:disabled):not(.active) {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.swap-mode-btn.active {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)), var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.swap-mode-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Mode-specific accent on the active pill (subtle tint per mode) */
+.swap-mode-btn.active[data-mode="exact_in"] {
+    border-color: rgba(var(--accent-signal-rgb), 0.4);
+}
+.swap-mode-btn.active[data-mode="exact_out"] {
+    border-color: rgba(var(--accent-cyan-rgb, 76, 201, 240), 0.4);
+}
+.swap-mode-btn.active[data-mode="batch"] {
+    border-color: rgba(167, 139, 250, 0.4);
+}
+
+/* ─── Batch leg count selector ────────────────────────────────────── */
+
+.batch-legs-selector {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    margin-bottom: var(--space-sm);
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+}
+
+.batch-legs-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-right: 2px;
+    font-weight: 600;
+}
+
+.batch-legs-selector .swap-preset-btn {
+    min-width: 34px;
+    padding: 3px 8px;
+    font-size: var(--font-size-xs);
+    min-height: 26px;
+    flex: 0 0 auto;
+}
+
+/* ─── Batch leg breakdown ─────────────────────────────────────────── */
+
+.batch-leg-breakdown {
+    margin: var(--space-sm) 0;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.batch-leg-breakdown-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-xs);
+    padding-bottom: var(--space-xs);
+    border-bottom: 1px solid var(--border-subtle);
+    font-weight: 600;
+}
+
+.batch-leg-breakdown-head .batch-legs-badge {
+    font-size: 10px;
+    padding: 1px 7px;
+    border-radius: var(--radius-full);
+    background: rgba(167, 139, 250, 0.14);
+    color: rgb(186, 166, 255);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 600;
+}
+
+.batch-leg-row {
+    font-size: var(--font-size-xs);
+    padding: 3px 0;
+}
+
+.batch-leg-row .mono {
+    font-variant-numeric: tabular-nums;
+}
+
+/* ─── Exact-out input hint ────────────────────────────────────────── */
+
+.input-hint {
+    margin-top: var(--space-xs);
+    padding: var(--space-xs) var(--space-sm);
+    background: rgba(var(--accent-cyan-rgb, 76, 201, 240), 0.06);
+    border: 1px solid rgba(var(--accent-cyan-rgb, 76, 201, 240), 0.18);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.exact-out-impact-row {
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.input-error-hint {
+    margin-top: var(--space-xs);
+    padding: var(--space-xs) var(--space-sm);
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--accent-red);
+}
+
+/* Light theme: the dark-theme gradients need inverting for readability. */
+[data-theme="light"] .swap-mode-toggle {
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .swap-mode-btn.active {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.7)), var(--bg-elev-1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+[data-theme="light"] .input-hint {
+    background: rgba(76, 201, 240, 0.08);
 }

@@ -59,8 +59,8 @@ export function SwapSettings({
 
             <div className="settings-row">
                 <span className="label">
-                    <Tooltip text="Enable experimental mistake-proofing interlocks (confirm/typed confirm) driven by deterministic MEV + revert-safety signals">
-                        <span className="label-with-icon">Safety Interlocks (Experimental) <InfoIcon /></span>
+                    <Tooltip text="Enable extra confirmation steps for risky swaps (protects against unfavorable execution)">
+                        <span className="label-with-icon">Extra Safety Checks (Experimental) <InfoIcon /></span>
                     </Tooltip>
                 </span>
                 <button
@@ -74,7 +74,7 @@ export function SwapSettings({
 
             <div className="settings-row">
                 <span className="label">
-                    <Tooltip text="Enable experimental route optimization and quote certificates">
+                    <Tooltip text="Enable advanced swap path optimization and quote verification">
                         <span className="label-with-icon">Advanced Mode <InfoIcon /></span>
                     </Tooltip>
                 </span>
@@ -92,8 +92,8 @@ export function SwapSettings({
                     <div className="settings-divider" />
                     <div className="settings-row">
                         <span className="label">
-                            <Tooltip text="Deterministic route policy frontier: Latency ↔ Quality">
-                                <span className="label-with-icon">Route Profile <InfoIcon /></span>
+                            <Tooltip text="Balance between speed and price quality">
+                                <span className="label-with-icon">Swap Path Preference <InfoIcon /></span>
                             </Tooltip>
                         </span>
                         <button

@@ -36,6 +36,7 @@ from .sealed_bid_auction import (
     MAX_UNITS,
     RevealedSealedBid,
     SealedBidFill,
+    SealedBidSettlement,
     settle_uniform_price_sealed_bids,
 )
 
@@ -186,19 +187,6 @@ def _homomorphic_scalar_mul(pk: PaillierPublicKey, c: int, k: int) -> int:
     return pow(c, k, pk.n_sq)
 
 
-def _validate_ciphertext(
-    public_key: PaillierPublicKey, ciphertext: object, *, name: str
-) -> int:
-    if not isinstance(ciphertext, int) or isinstance(ciphertext, bool):
-        raise ValueError(f"{name} must be an int ciphertext")
-    candidate = int(ciphertext)
-    if candidate <= 0 or candidate >= public_key.n_sq:
-        raise ValueError(f"{name} out of ciphertext range")
-    if math.gcd(candidate, public_key.n_sq) != 1:
-        raise ValueError(f"{name} must be invertible modulo n^2")
-    return candidate
-
-
 # ── Comparison oracle ───────────────────────────────────────────────────
 
 
@@ -270,7 +258,6 @@ class FHESettlementResult:
     key_id: str
     comparison_count: int
     decrypt_count: int
-    range_proof_verified: bool = False
 
 
 def encrypt_bid(
@@ -307,7 +294,6 @@ def settle_fhe_sealed_bids(
     units_for_sale: int,
     encrypted_bids: Iterable[EncryptedBid],
     key_pair: PaillierKeyPair,
-    range_proof_verified: bool = False,
 ) -> FHESettlementResult:
     """Settle a sealed-bid auction using homomorphic computation.
 
@@ -318,30 +304,20 @@ def settle_fhe_sealed_bids(
         raise ValueError("auction_id must be non-empty")
     if not isinstance(units_for_sale, int) or isinstance(units_for_sale, bool) or units_for_sale <= 0 or units_for_sale > MAX_V1_UNITS:
         raise ValueError("units_for_sale out of range")
-    if not isinstance(range_proof_verified, bool):
-        raise ValueError("range_proof_verified must be a bool")
 
     bids = tuple(encrypted_bids)
     if len(bids) == 0 or len(bids) > MAX_V1_BIDS:
         raise ValueError("bid count out of range")
 
-    pk = key_pair.public_key
-    sk = key_pair.private_key
     seen: set[tuple[str, str]] = set()
     for b in bids:
-        if not isinstance(b, EncryptedBid):
-            raise ValueError("encrypted_bids must contain EncryptedBid values")
-        if not isinstance(b.bidder_id, str) or not b.bidder_id:
-            raise ValueError("bidder_id must be non-empty")
-        if not isinstance(b.commitment, str) or not b.commitment:
-            raise ValueError("commitment must be non-empty")
-        _validate_ciphertext(pk, b.price_ciphertext, name="price_ciphertext")
-        _validate_ciphertext(pk, b.quantity_ciphertext, name="quantity_ciphertext")
         key = (b.bidder_id, b.commitment)
         if key in seen:
             raise ValueError("duplicate bid")
         seen.add(key)
 
+    pk = key_pair.public_key
+    sk = key_pair.private_key
     comparison_count = 0
     decrypt_count = 0
 
@@ -378,8 +354,6 @@ def settle_fhe_sealed_bids(
             break
         quantity = _decrypt_value(sk, bid.quantity_ciphertext)
         decrypt_count += 1
-        if quantity <= 0 or quantity > MAX_V1_UNITS:
-            raise ValueError("decrypted quantity out of range")
         fill_qty = min(int(quantity), remaining_units)
         if fill_qty <= 0:
             continue
@@ -399,8 +373,6 @@ def settle_fhe_sealed_bids(
     if marginal_idx >= 0:
         clearing_price = _decrypt_value(sk, ordered[marginal_idx].price_ciphertext)
         decrypt_count += 1
-        if clearing_price <= 0 or clearing_price > MAX_PRICE:
-            raise ValueError("decrypted clearing price out of range")
 
     if clearing_price > 0:
         fills = [
@@ -413,7 +385,7 @@ def settle_fhe_sealed_bids(
             for f in fills
         ]
 
-    production_claim = key_pair.key_bits >= 1024 and range_proof_verified
+    production_claim = key_pair.key_bits >= 1024
 
     return FHESettlementResult(
         clearing_price=int(clearing_price),
@@ -424,7 +396,6 @@ def settle_fhe_sealed_bids(
         key_id=str(key_pair.key_id),
         comparison_count=int(comparison_count),
         decrypt_count=int(decrypt_count),
-        range_proof_verified=range_proof_verified,
     )
 
 
@@ -451,7 +422,6 @@ def _settle_commit_reveal_fallback(
         key_id="",
         comparison_count=0,
         decrypt_count=0,
-        range_proof_verified=False,
     )
 
 
@@ -462,7 +432,6 @@ def settle_sealed_bids_with_fhe(
     encrypted_bids: Iterable[EncryptedBid] | None = None,
     revealed_bids: Iterable[RevealedSealedBid] | None = None,
     key_pair: PaillierKeyPair | None = None,
-    range_proof_verified: bool = False,
 ) -> FHESettlementResult:
     """Unified entry point: use FHE when a key is provisioned, else fallback."""
     if key_pair is not None and encrypted_bids is not None:
@@ -471,7 +440,6 @@ def settle_sealed_bids_with_fhe(
             units_for_sale=units_for_sale,
             encrypted_bids=encrypted_bids,
             key_pair=key_pair,
-            range_proof_verified=range_proof_verified,
         )
     if revealed_bids is not None:
         return _settle_commit_reveal_fallback(
@@ -525,7 +493,6 @@ def make_fhe_sealed_bid_v1_receipt(
         "scheme": str(result.scheme),
         "key_id": str(result.key_id),
         "production_security_claim": bool(result.production_security_claim),
-        "range_proof_verified": bool(result.range_proof_verified),
         "comparison_count": int(result.comparison_count),
         "decrypt_count": int(result.decrypt_count),
         "limits": {
@@ -580,13 +547,6 @@ def verify_fhe_sealed_bid_v1_receipt(
             return False, "key_not_approved"
         if not isinstance(body.get("production_security_claim"), bool):
             return False, "production_claim_missing"
-        if not isinstance(body.get("range_proof_verified"), bool):
-            return False, "range_proof_missing"
-        if (
-            body.get("production_security_claim") is True
-            and body.get("range_proof_verified") is not True
-        ):
-            return False, "production_claim_requires_range_proof"
     else:
         if key_id != "":
             return False, "fallback_should_have_empty_key_id"

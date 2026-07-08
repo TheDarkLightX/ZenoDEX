@@ -287,7 +287,7 @@ def settle_adapter_bridge_executes_after_snapshot_case() -> dict[str, Any]:
     result = apply_perp_ops(
         config=config,
         state=restored,
-        operations={"5": [_op(SETTLE_MARKET, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        operations={"19": [_op(SETTLE_MARKET, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
         tx_sender_pubkey=OPERATOR,
         block_timestamp=0,
     )
@@ -341,7 +341,7 @@ def stale_settle_adapter_bridge_rejected_after_snapshot_drift_case() -> dict[str
             require_oracle_adapter_for_isolated_settle_epoch=True,
         ),
         state=restored,
-        operations={"5": [_op(SETTLE_MARKET, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        operations={"19": [_op(SETTLE_MARKET, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
         tx_sender_pubkey=OPERATOR,
         block_timestamp=0,
     )
@@ -473,7 +473,7 @@ def clearinghouse_2p_adapter_bridge_executes_after_snapshot_case() -> dict[str, 
             require_oracle_adapter_for_clearinghouse_settle_epoch=True,
         ),
         state=restored,
-        operations={"5": [_op(CH2P_MARKET, "settle_epoch", version="1.0", oracle_adapter_bridge={"schema": "test"})]},
+        operations={"19": [_op(CH2P_MARKET, "settle_epoch", version="1.0", oracle_adapter_bridge={"schema": "test"})]},
         tx_sender_pubkey=OPERATOR,
         block_timestamp=0,
     )
@@ -557,7 +557,7 @@ def clearinghouse_3p_adapter_bridge_executes_after_snapshot_case() -> dict[str, 
             require_oracle_adapter_for_clearinghouse_settle_epoch=True,
         ),
         state=restored,
-        operations={"5": [_op(CH3P_MARKET, "settle_epoch", version="1.1", oracle_adapter_bridge={"schema": "test"})]},
+        operations={"19": [_op(CH3P_MARKET, "settle_epoch", version="1.1", oracle_adapter_bridge={"schema": "test"})]},
         tx_sender_pubkey=OPERATOR,
         block_timestamp=0,
     )

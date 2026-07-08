@@ -337,7 +337,7 @@ def test_tokenomics_reward_classifier_covers_active_participant_runtime_actions(
         (
             {
                 "tx_sender_pubkey": alice,
-                "operations": {"5": [{"module": "TauSwap", "kind": "ADD_LIQUIDITY", "sender_pubkey": alice}]},
+                "operations": {"19": [{"module": "TauSwap", "kind": "ADD_LIQUIDITY", "sender_pubkey": alice}]},
             },
             alice,
             {"add_liquidity", "lp_position_snapshot"},
@@ -346,7 +346,7 @@ def test_tokenomics_reward_classifier_covers_active_participant_runtime_actions(
             {
                 "tx_sender_pubkey": alice,
                 "operations": {
-                    "11": [{"module": "ZUSDFinance", "action": "deposit_sp", "account_pubkey": alice}]
+                    "25": [{"module": "ZUSDFinance", "action": "deposit_sp", "account_pubkey": alice}]
                 },
             },
             alice,
@@ -355,7 +355,7 @@ def test_tokenomics_reward_classifier_covers_active_participant_runtime_actions(
         (
             {
                 "tx_sender_pubkey": oracle,
-                "operations": {"11": [{"module": "ZUSDFinance", "action": "oracle_report"}]},
+                "operations": {"25": [{"module": "ZUSDFinance", "action": "oracle_report"}]},
             },
             oracle,
             {"oracle_report"},
@@ -363,7 +363,7 @@ def test_tokenomics_reward_classifier_covers_active_participant_runtime_actions(
         (
             {
                 "tx_sender_pubkey": alice,
-                "operations": {"8": [{"module": "TauPerp", "action": "deposit_collateral", "account_pubkey": alice}]},
+                "operations": {"22": [{"module": "TauPerp", "action": "deposit_collateral", "account_pubkey": alice}]},
             },
             alice,
             {"perps_position_activity"},
@@ -371,7 +371,7 @@ def test_tokenomics_reward_classifier_covers_active_participant_runtime_actions(
         (
             {
                 "tx_sender_pubkey": alice,
-                "operations": {"11": [{"module": "ZUSDFinance", "action": "mint_zusd", "owner_pubkey": alice}]},
+                "operations": {"25": [{"module": "ZUSDFinance", "action": "mint_zusd", "owner_pubkey": alice}]},
             },
             alice,
             {"zusd_vault_activity"},
@@ -380,7 +380,7 @@ def test_tokenomics_reward_classifier_covers_active_participant_runtime_actions(
             {
                 "tx_sender_pubkey": miner,
                 "operations": {
-                    "10": [{"module": "ZenoProofMining", "action": "submit_proof", "recipient_pubkey": miner}]
+                    "24": [{"module": "ZenoProofMining", "action": "submit_proof", "recipient_pubkey": miner}]
                 },
             },
             miner,
@@ -512,7 +512,7 @@ def test_append_dex_transaction_tx_id_is_idempotency_key(tmp_path: Path) -> None
         "block_timestamp": 1_778_731_121,
         "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
         "operations": {
-            "5": [
+            "19": [
                 {
                     "module": "TauSwap",
                     "version": "0.1",
@@ -529,7 +529,7 @@ def test_append_dex_transaction_tx_id_is_idempotency_key(tmp_path: Path) -> None
                     "recipient": DEFAULT_BOOTSTRAP_SENDER,
                 }
             ],
-            "12": [
+            "19": [
                 {
                     "module": "ZenoTokenomics",
                     "kind": "ZENODEX_TOKENOMICS_BUYBACK_BURN",
@@ -736,7 +736,7 @@ def test_tokenomics_buyback_burn_wires_to_signed_swap_and_follower_replay(tmp_pa
             "tx_id": "tokenomics-buyback-swap-v0",
             "block_timestamp": 1_778_731_121,
             "tx_sender_pubkey": trader,
-            "operations": {"5": [intent]},
+            "operations": {"19": [intent]},
         },
         time_ms=1_778_731_121_000,
     )
@@ -808,7 +808,7 @@ def test_tokenomics_buyback_burn_wires_to_signed_swap_and_follower_replay(tmp_pa
             "tx_id": "tokenomics-buyback-swap-exact-out-v0",
             "block_timestamp": 1_778_731_122,
             "tx_sender_pubkey": trader,
-            "operations": {"5": [exact_out_intent]},
+            "operations": {"19": [exact_out_intent]},
         },
         time_ms=1_778_731_122_000,
     )

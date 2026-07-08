@@ -924,7 +924,7 @@ def _state_with_market_and_balance(*, quote_asset: str) -> DexState:
     res = apply_perp_ops(
         config=PerpEngineConfig(chain_id=CHAIN_ID),
         state=state,
-        operations={"5": [_signed_init_op(quote_asset=quote_asset)]},
+        operations={"19": [_signed_init_op(quote_asset=quote_asset)]},
         tx_sender_pubkey=ALICE,
         block_timestamp=1,
     )
@@ -1089,7 +1089,7 @@ def _state_with_np_market_and_collateral(*, quote_asset: str) -> DexState:
         config=config,
         state=state,
         operations={
-            "5": [
+            "19": [
                 {
                     "module": "TauPerp",
                     "version": "1.2",
@@ -1111,7 +1111,7 @@ def _state_with_np_market_and_collateral(*, quote_asset: str) -> DexState:
         config=config,
         state=state,
         operations={
-            "5": [
+            "19": [
                 {
                     "module": "TauPerp",
                     "version": "1.2",
@@ -2184,7 +2184,7 @@ def test_submit_np_deposit_uses_v12_and_binds_state_delta(monkeypatch) -> None:
         config=PerpEngineConfig(chain_id=CHAIN_ID, operator_pubkey=OPERATOR),
         state=state,
         operations={
-            "5": [
+            "19": [
                 {
                     "module": "TauPerp",
                     "version": "1.2",

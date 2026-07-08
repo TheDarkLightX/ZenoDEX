@@ -73,9 +73,15 @@
 }
 
 .infotip-top:hover .infotip-bubble,
-.infotip-top:focus-within .infotip-bubble {
+.infotip-top:focus-within .infotip-bubble,
+.infotip-open .infotip-bubble {
   opacity: 1;
   transform: translate(-50%, 0);
+}
+
+/* When toggled open via click, allow pointer events so links inside work */
+.infotip-open .infotip-bubble {
+  pointer-events: auto;
 }
 
 .infotip-right .infotip-bubble {
@@ -88,6 +94,12 @@
 .infotip-right:focus-within .infotip-bubble {
   opacity: 1;
   transform: translate(0, -50%);
+}
+
+.infotip-right.infotip-open .infotip-bubble {
+  opacity: 1;
+  transform: translate(0, -50%);
+  pointer-events: auto;
 }
 
 .infotip-label {

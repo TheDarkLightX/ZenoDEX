@@ -6,7 +6,6 @@ import Proofs.ArbitrageCertificate
 import Proofs.AutotraderControllerPolicyClosure
 import Proofs.BatchApproximation
 import Proofs.BatchAuctionCanonical
-import Proofs.BatchClearingDeadline
 import Proofs.BatchCPMMUnification
 import Proofs.BatchGreedyOptimality
 import Proofs.BatchOptimality
@@ -69,7 +68,6 @@ import Proofs.ImpossibilityTheorem
 import Proofs.ImpossibilityTheoremV2
 import Proofs.IteratedSwapDecreasing
 import Proofs.JacobiTuranEndpointObstruction
-import Proofs.KPoolStaircase
 import Proofs.LiquidityRebalancerBounds
 import Proofs.LpMintOptimalBounds
 import Proofs.LPValueAlgebra

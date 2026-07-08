@@ -1277,8 +1277,8 @@ def test_run_local_with_tau_app_state_executes_app_bridge_streams(tmp_path: Path
         "block_timestamp": 123,
         "tx_sender_pubkey": sender,
         "operations": {
-            "7": {"mint": [[sender, asset0, 10_000], [sender, asset1, 10_000]]},
-            "5": [
+            "21": {"mint": [[sender, asset0, 10_000], [sender, asset1, 10_000]]},
+            "19": [
                 {
                     "module": "TauSwap",
                     "version": "0.1",
@@ -1355,7 +1355,7 @@ def test_run_local_with_tau_app_state_commits_app_rejection_receipts(tmp_path: P
         "block_timestamp": 123,
         "tx_sender_pubkey": sender,
         "operations": {
-            "9": [
+            "23": [
                 {
                     "module": "TauToken",
                     "action": "transfer",
@@ -1909,8 +1909,8 @@ def test_make_feature_lane_manifest_supports_tau_app_bridge_mode(tmp_path: Path)
         "block_timestamp": 123,
         "tx_sender_pubkey": sender,
         "operations": {
-            "7": {"mint": [[sender, asset0, 10_000], [sender, asset1, 10_000]]},
-            "5": [
+            "21": {"mint": [[sender, asset0, 10_000], [sender, asset1, 10_000]]},
+            "19": [
                 {
                     "module": "TauSwap",
                     "version": "0.1",

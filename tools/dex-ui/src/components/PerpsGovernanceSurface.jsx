@@ -1,4 +1,10 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
+import SafetyVerdict from './keys/SafetyVerdict.jsx';
+import ProtectionSummary from './keys/ProtectionSummary.jsx';
+import NextSteps from './keys/NextSteps.jsx';
+import TrustedDevices from './keys/TrustedDevices.jsx';
+import RecoveryBackup from './keys/RecoveryBackup.jsx';
+import './keys/KeysSection.css';
 import {
   apiGetPerpsWalletStatus,
   apiEvaluatePerpsRecovery,
@@ -322,7 +328,7 @@ export default function PerpsGovernanceSurface() {
   const sssHasLiveMode = (mode) => sssDeliveryModes.includes(mode);
   const sssCanSubmitDelivery = Boolean(fixtures.encryptedSssBackup);
   const sssDeliveryActionLabel = 'Deliver';
-  const sssDeliveryActionTitle = 'Deliver this encrypted share through the configured live provider and capture the receipt';
+  const sssDeliveryActionTitle = 'Send this backup to your storage provider and confirm delivery';
   const sssDeliveryConnectors = [
     {
       key: 'recovery-email',
@@ -330,8 +336,8 @@ export default function PerpsGovernanceSurface() {
       liveMode: 'smtp',
       configured: sssProviderKinds.includes('recovery_email'),
       ready: sssHasLiveMode('smtp'),
-      blockedLabel: 'Provider adapter required',
-      readyLabel: 'SMTP external receipt ready',
+      blockedLabel: 'Connection needed',
+      readyLabel: 'Email delivery ready',
       actionAvailable: sssCanSubmitDelivery,
       actionLabel: sssDeliveryActionLabel,
       actionTitle: sssDeliveryActionTitle,
@@ -343,7 +349,7 @@ export default function PerpsGovernanceSurface() {
       liveMode: 'dropbox',
       configured: sssProviderIds.some((providerId) => String(providerId).startsWith('dropbox:')),
       ready: sssHasLiveMode('dropbox'),
-      blockedLabel: 'Provider adapter required',
+      blockedLabel: 'Connection needed',
       readyLabel: 'Dropbox external receipt ready',
       actionAvailable: sssCanSubmitDelivery,
       actionLabel: sssDeliveryActionLabel,
@@ -356,7 +362,7 @@ export default function PerpsGovernanceSurface() {
       liveMode: 'box',
       configured: sssProviderIds.some((providerId) => String(providerId).startsWith('box:')),
       ready: sssHasLiveMode('box'),
-      blockedLabel: 'Provider adapter required',
+      blockedLabel: 'Connection needed',
       readyLabel: 'Box external receipt ready',
       actionAvailable: sssCanSubmitDelivery,
       actionLabel: sssDeliveryActionLabel,
@@ -369,7 +375,7 @@ export default function PerpsGovernanceSurface() {
       liveMode: 'offline_export',
       configured: sssProviderKinds.includes('offline_export'),
       ready: sssHasLiveMode('offline_export'),
-      blockedLabel: 'Provider adapter required',
+      blockedLabel: 'Connection needed',
       readyLabel: 'Offline export external receipt ready',
       actionAvailable: sssCanSubmitDelivery,
       actionLabel: sssDeliveryActionLabel,
@@ -415,17 +421,13 @@ export default function PerpsGovernanceSurface() {
     <section className="perps-governance-surface animate-fade-in" id="perps-governance-surface">
       <div className="gov-hero panel panel-glass">
         <div>
-          <p className="gov-kicker">Local-testnet key management</p>
-          <h1>Keys &amp; Governance</h1>
+          <h1>Keys &amp; Recovery</h1>
           <p className="gov-subtitle">
-            Manage multi-device wallet authorities, recovery policies, rotation exercises, and cryptographic signatures.
+            Protect account access, replace lost devices, and test recovery.
           </p>
         </div>
         <div className="gov-hero-meta">
-          <span className="gov-chip">Governance Portal</span>
-          <span className="gov-chip gov-chip-accent">
-            {authLoading ? 'Loading authority…' : isAuthReady ? 'Wallet Authority Ready' : 'Authority Configuration Required'}
-          </span>
+          <span className="gov-chip gov-chip-accent">Testnet only</span>
         </div>
       </div>
 
@@ -447,9 +449,58 @@ export default function PerpsGovernanceSurface() {
         </div>
       )}
 
+      {/* Safety verdict — answers "Are my keys safe? Do I need to do anything?" */}
+      <SafetyVerdict
+        isTestnet={true}
+        recoveryConfigured={encryptedSssReady}
+        recoveryTested={encryptedSssBackup?.recovery_drill_ready === true}
+        thresholdKnown={thresholdKnown}
+        activeKeysCount={activeKeysCount}
+        signatureThreshold={signatureThreshold}
+        lastChecked={loading ? undefined : 'recently'}
+        authLoading={authLoading}
+        onSetUpRecovery={() => setActiveForm('recovery')}
+      />
+
+      {/* Protection summary + recommended next steps */}
+      <div className="keys-two-col">
+        <ProtectionSummary
+          trustedDevicesCount={activeKeysCount}
+          requiredToSign={signatureThreshold}
+          recoveryBackupStatus={encryptedSssReady ? 'configured' : 'not-set-up'}
+          lastRecoveryTest={encryptedSssBackup?.recovery_drill_ready ? 'tested' : 'Never'}
+          authLoading={authLoading}
+        />
+        <NextSteps
+          recoveryConfigured={encryptedSssReady}
+          recoveryTested={encryptedSssBackup?.recovery_drill_ready === true}
+          onSetUpRecovery={() => setActiveForm('recovery')}
+          onTestRecovery={() => handleEvaluate('encryptedSssBackup', apiEvaluatePerpsEncryptedSssBackup, fixtures.encryptedSssBackup)}
+          onReplaceDevice={() => setActiveForm('rotation')}
+        />
+      </div>
+
+      {/* Trusted devices — simplified table, details on click */}
+      <TrustedDevices
+        activeSigners={activeSigners}
+        keyRefs={keyRefs}
+        onAddDevice={() => setActiveForm('deviceApproval')}
+      />
+
+      {/* Recovery backup — simplified status */}
+      <RecoveryBackup
+        configured={encryptedSssReady}
+        threshold={encryptedSssBackup?.threshold}
+        shareCount={encryptedSssBackup?.share_count}
+        providerKinds={sssProviderKinds}
+        onSetUp={() => setActiveForm('recovery')}
+        onLearnMore={() => setExpandedFixture('encryptedSssBackup')}
+      />
+
+      {/* Configuration forms — shown when a step is activated */}
+      {activeForm && (
       <div className="gov-grid">
-        {/* Wallet Authority Status */}
-        <div className="panel gov-card" id="card-wallet-authority">
+          <div className="panel gov-card gov-collapsible-body">
           <div className="gov-section-header">
             <h2>Wallet Authority</h2>
             <span className="gov-section-badge">Core Profile</span>
@@ -466,14 +517,14 @@ export default function PerpsGovernanceSurface() {
               </span>
             </div>
             <div className="gov-kv">
-              <span>Authority Hash</span>
+              <span>Security ID</span>
               <span className="gov-mono">{authLoading ? <span className="gov-loading">Loading…</span> : compactId(walletAuth?.wallet_authority_hash)}</span>
             </div>
 
             {/* Threshold progress visualizer */}
             <div className="gov-threshold-visualizer">
               <div className="gov-threshold-labels">
-                <span>Signing Threshold Progress</span>
+                <span>Approval progress</span>
                 <span className="gov-mono">{thresholdKnown ? `${activeKeysCount} / ${signatureThreshold} Keys` : authLoading ? 'Loading…' : '— / — Keys'}</span>
               </div>
               <div className="gov-progress-bar-bg">
@@ -493,14 +544,14 @@ export default function PerpsGovernanceSurface() {
               <span>{authField(walletAuth?.recoverable_active_key_count)}</span>
             </div>
             <div className="gov-kv">
-              <span>Oracle Authority Status</span>
+              <span>Price feed status</span>
               <span className={`gov-status-value ${authLoading ? '' : oracleAuth?.status === 'ready' ? 'status-ready' : ''}`}>
                 {authLoading ? <span className="gov-loading">Loading…</span> : oracleAuthStatus}
               </span>
             </div>
             {oracleAuth?.authority_hash && (
               <div className="gov-kv">
-                <span>Oracle Authority Hash</span>
+                <span>Price feed ID</span>
                 <span className="gov-mono">{compactId(oracleAuth.authority_hash)}</span>
               </div>
             )}
@@ -510,14 +561,14 @@ export default function PerpsGovernanceSurface() {
           {(activeSigners.length > 0 || recoveryPolicies.length > 0) && (
             <details className="gov-roster" open>
               <summary className="gov-roster-summary">
-                Signers &amp; recovery policies
+                Trusted devices &amp; recovery rules
                 <span className="gov-roster-hint">{activeSigners.length} signer{activeSigners.length === 1 ? '' : 's'} · {recoveryPolicies.length} polic{recoveryPolicies.length === 1 ? 'y' : 'ies'}</span>
               </summary>
               {activeSigners.length > 0 && (
                 <div className="gov-roster-block">
-                  <div className="gov-roster-title">Active signers <span className="gov-mono">({activeKeysCount ?? activeSigners.length}-of-{signatureThreshold ?? '?'})</span></div>
+                  <div className="gov-roster-title">Authorized devices <span className="gov-mono">({activeKeysCount ?? activeSigners.length}-of-{signatureThreshold ?? '?'})</span></div>
                   <table className="gov-roster-table">
-                    <thead><tr><th>Signer</th><th>Key</th><th>Algorithm</th><th className="num">Weight</th><th>Status</th></tr></thead>
+                    <thead><tr><th>Signer</th><th>Key</th><th>Key type</th><th className="num">Power</th><th>Status</th></tr></thead>
                     <tbody>
                       {activeSigners.map((s) => {
                         const ref = keyRefById.get(s.key_id);
@@ -539,7 +590,7 @@ export default function PerpsGovernanceSurface() {
                 <div className="gov-roster-block">
                   <div className="gov-roster-title">Recovery policies</div>
                   <table className="gov-roster-table">
-                    <thead><tr><th>Policy</th><th>Subject</th><th className="num">Threshold</th><th className="num">Guardians</th><th className="num">Delay</th></tr></thead>
+                    <thead><tr><th>Policy</th><th>Protected key</th><th className="num">Required approvals</th><th className="num">Trusted contacts</th><th className="num">Waiting period</th></tr></thead>
                     <tbody>
                       {recoveryPolicies.map((pol) => (
                         <tr key={pol.policy_id}>
@@ -547,7 +598,7 @@ export default function PerpsGovernanceSurface() {
                           <td className="gov-mono">{pol.subject_key_id}</td>
                           <td className="num">{pol.threshold ?? '—'}</td>
                           <td className="num">{pol.guardian_count ?? '—'}</td>
-                          <td className="num">{pol.delay_epochs != null ? `${pol.delay_epochs} ep` : '—'}</td>
+                          <td className="num">{pol.delay_epochs != null ? `${pol.delay_epochs} periods` : '—'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -560,13 +611,13 @@ export default function PerpsGovernanceSurface() {
           <button className="btn btn-secondary gov-refresh-btn" type="button" onClick={loadStatus} disabled={loading}>
             {loading ? 'Refreshing...' : 'Refresh Status'}
           </button>
-        </div>
+          </div>
 
         {/* Exercises & Evaluations (Sequenced Layout) */}
         <div className="panel gov-card" id="card-exercises">
           <div className="gov-section-header">
-            <h2>Governance Setup Path</h2>
-            <span className="gov-section-badge">Recommended Order</span>
+            <h2>Configuration Forms</h2>
+            <span className="gov-section-badge">Step {activeForm}</span>
           </div>
 
           <div className="gov-exercise-list sequenced-list">
@@ -582,7 +633,7 @@ export default function PerpsGovernanceSurface() {
                   ) : (
                     <span className="gov-badge-blocked">Device approval blocked</span>
                   )}
-                  <span className="env-badge">Attestation Required</span>
+                  <span className="env-badge">Security verification required</span>
                 </div>
               </div>
               <div className="gov-exercise-action-group">
@@ -607,14 +658,14 @@ export default function PerpsGovernanceSurface() {
             {/* Device Approval Inline Form */}
             {activeForm === 'deviceApproval' && (
               <div className="gov-form-panel animate-fade-in">
-                <h4>Device Approval &amp; Attestation</h4>
+                <h4>Device approval &amp; verification</h4>
                 <div className="gov-form-grid">
                   <label className="label">
-                    <span>Key ID</span>
+                    <span>Device ID</span>
                     <input className="input" value={deviceKeyId} onChange={(e) => setDeviceKeyId(e.target.value)} />
                   </label>
                   <label className="label">
-                    <span>Device Label</span>
+                    <span>Device name</span>
                     <input className="input" value={deviceLabel} onChange={(e) => setDeviceLabel(e.target.value)} />
                   </label>
                 </div>
@@ -628,13 +679,13 @@ export default function PerpsGovernanceSurface() {
                     </select>
                   </label>
                   <label className="label">
-                    <span>Payload Nonce</span>
+                    <span>Request ID</span>
                     <input className="input" type="number" value={deviceNonce} onChange={(e) => setDeviceNonce(parseInt(e.target.value, 10) || 0)} />
                   </label>
                 </div>
                 {deviceMode === 'tee_enclave' && (
                   <label className="label gov-form-label">
-                    <span>PCR0 Enclave Measurement</span>
+                    <span>Hardware fingerprint</span>
                     <input className="input" value={devicePcr0} onChange={(e) => setDevicePcr0(e.target.value)} placeholder="0x..." />
                   </label>
                 )}
@@ -645,7 +696,7 @@ export default function PerpsGovernanceSurface() {
                   </label>
                   <label className="gov-checkbox-label">
                     <input type="checkbox" checked={rollbackProtection} onChange={(e) => setRollbackProtection(e.target.checked)} />
-                    <span>Rollback Protection</span>
+                    <span>Anti-rollback protection</span>
                   </label>
                 </div>
                 <button
@@ -673,15 +724,15 @@ export default function PerpsGovernanceSurface() {
             <div className={`gov-exercise-row step-card ${signerDeviceReady ? 'step-done' : 'step-next'}`} id="signer-device-row">
               <div className="step-number">2</div>
               <div className="gov-exercise-info">
-                <h3>Signer Device Integration</h3>
-                <p>Verify host integration, TEE attestation, and local presence confirmation.</p>
+                <h3>Device setup</h3>
+                <p>Verify device connection, security verification, and physical presence.</p>
                 <div className="gov-status-badges">
                   {signerDeviceReady ? (
                     <span className="gov-badge-ready" id="signer-device-ready-badge">Signer device ready</span>
                   ) : (
                     <span className="gov-badge-blocked">Signer device blocked</span>
                   )}
-                  <span className="env-badge env-attested">TEE Environment</span>
+                  <span className="env-badge env-attested">Secure environment</span>
                 </div>
               </div>
               <div className="gov-exercise-action-group">
@@ -706,14 +757,14 @@ export default function PerpsGovernanceSurface() {
             {/* Signer Device Inline Form */}
             {activeForm === 'signerDevice' && (
               <div className="gov-form-panel animate-fade-in">
-                <h4>Signer Device Integration</h4>
+                <h4>Device setup</h4>
                 <div className="gov-form-grid">
                   <label className="label">
-                    <span>Key ID</span>
+                    <span>Device ID</span>
                     <input className="input" value={deviceKeyId} onChange={(e) => setDeviceKeyId(e.target.value)} />
                   </label>
                   <label className="label">
-                    <span>Device Label</span>
+                    <span>Device name</span>
                     <input className="input" value={deviceLabel} onChange={(e) => setDeviceLabel(e.target.value)} />
                   </label>
                 </div>
@@ -727,13 +778,13 @@ export default function PerpsGovernanceSurface() {
                     </select>
                   </label>
                   <label className="label">
-                    <span>Payload Nonce</span>
+                    <span>Request ID</span>
                     <input className="input" type="number" value={deviceNonce} onChange={(e) => setDeviceNonce(parseInt(e.target.value, 10) || 0)} />
                   </label>
                 </div>
                 {deviceMode === 'tee_enclave' && (
                   <label className="label gov-form-label">
-                    <span>PCR0 Enclave Measurement</span>
+                    <span>Hardware fingerprint</span>
                     <input className="input" value={devicePcr0} onChange={(e) => setDevicePcr0(e.target.value)} placeholder="0x..." />
                   </label>
                 )}
@@ -744,7 +795,7 @@ export default function PerpsGovernanceSurface() {
                   </label>
                   <label className="gov-checkbox-label">
                     <input type="checkbox" checked={rollbackProtection} onChange={(e) => setRollbackProtection(e.target.checked)} />
-                    <span>Rollback Protection</span>
+                    <span>Anti-rollback protection</span>
                   </label>
                 </div>
                 <div className="gov-form-row">
@@ -791,7 +842,7 @@ export default function PerpsGovernanceSurface() {
             <div className={`gov-exercise-row step-card ${recoveryReady ? 'step-done' : 'step-next'}`} id="recovery-row">
               <div className="step-number">3</div>
               <div className="gov-exercise-info">
-                <h3>Social Recovery</h3>
+                <h3>Trusted contact recovery</h3>
                 <p>Verify backup restoration using social recovery guardian signatures.</p>
                 <div className="gov-status-badges">
                   {recoveryReady ? (
@@ -836,20 +887,20 @@ export default function PerpsGovernanceSurface() {
                 </div>
                 <div className="gov-form-grid">
                   <label className="label">
-                    <span>Requested Epoch</span>
+                    <span>Request time</span>
                     <input className="input" type="number" value={requestedEpoch} onChange={(e) => setRequestedEpoch(parseInt(e.target.value, 10) || 0)} />
                   </label>
                   <label className="label">
-                    <span>Current Epoch</span>
+                    <span>Current period</span>
                     <input className="input" type="number" value={currentEpoch} onChange={(e) => setCurrentEpoch(parseInt(e.target.value, 10) || 0)} />
                   </label>
                 </div>
                 <label className="label gov-form-label">
-                  <span>Approvals / Guardians (comma separated)</span>
+                  <span>Trusted contacts (comma separated)</span>
                   <input className="input" value={guardianList} onChange={(e) => setGuardianList(e.target.value)} />
                 </label>
                 <label className="label gov-form-label">
-                  <span>Signature Envelopes (JSON Array)</span>
+                  <span>Approvals (JSON format)</span>
                   <textarea className="input mono" rows={3} value={sigEnvelopesJson} onChange={(e) => setSigEnvelopesJson(e.target.value)} />
                 </label>
                 <button
@@ -880,8 +931,8 @@ export default function PerpsGovernanceSurface() {
             <div className={`gov-exercise-row step-card ${rotationReady ? 'step-done' : 'step-next'}`} id="rotation-row">
               <div className="step-number">4</div>
               <div className="gov-exercise-info">
-                <h3>Key Rotation</h3>
-                <p>Exercise key replacements under pre-registered public policies.</p>
+                <h3>Replace key</h3>
+                <p>Replace keys using pre-configured recovery rules.</p>
                 <div className="gov-status-badges">
                   {rotationReady ? (
                     <span className="gov-badge-ready" id="rotation-ready-badge">Rotation evaluation ready</span>
@@ -915,11 +966,11 @@ export default function PerpsGovernanceSurface() {
                 <h4>Key Rotation Parameters</h4>
                 <div className="gov-form-grid">
                   <label className="label">
-                    <span>Rotated Key ID</span>
+                    <span>Key to replace</span>
                     <input className="input" value={rotatedKeyId} onChange={(e) => setRotatedKeyId(e.target.value)} />
                   </label>
                   <label className="label">
-                    <span>Replacement Key ID</span>
+                    <span>New key ID</span>
                     <input className="input" value={replacementKeyId} onChange={(e) => setReplacementKeyId(e.target.value)} />
                   </label>
                 </div>
@@ -929,20 +980,20 @@ export default function PerpsGovernanceSurface() {
                     <input className="input" value={rotationPolicyId} onChange={(e) => setRotationPolicyId(e.target.value)} />
                   </label>
                   <label className="label">
-                    <span>Broadcast Epoch</span>
+                    <span>Announcement time</span>
                     <input className="input" type="number" value={broadcastEpoch} onChange={(e) => setBroadcastEpoch(parseInt(e.target.value, 10) || 0)} />
                   </label>
                 </div>
                 <label className="label gov-form-label">
-                  <span>Approvals / Guardians (comma separated)</span>
+                  <span>Trusted contacts (comma separated)</span>
                   <input className="input" value={rotationGuardianList} onChange={(e) => setRotationGuardianList(e.target.value)} />
                 </label>
                 <label className="label gov-form-label">
-                  <span>Signature Envelopes (JSON Array)</span>
+                  <span>Approvals (JSON format)</span>
                   <textarea className="input mono" rows={2} value={rotationSigEnvelopesJson} onChange={(e) => setRotationSigEnvelopesJson(e.target.value)} />
                 </label>
                 <label className="label gov-form-label">
-                  <span>Next Wallet Authority Profile (JSON)</span>
+                  <span>New wallet configuration (JSON)</span>
                   <textarea className="input mono" rows={3} value={nextProfileJson} onChange={(e) => setNextProfileJson(e.target.value)} />
                 </label>
                 <button
@@ -977,11 +1028,19 @@ export default function PerpsGovernanceSurface() {
           </div>
         </div>
       </div>
+      )}
 
-      <div className="gov-wide-grid">
-        <div className="panel gov-card" id="card-encrypted-sss-backup">
+      {/* Advanced — collapsed panels for power users */}
+      <details className="gov-collapsible-panel" id="advanced-security-policy">
+        <summary className="gov-collapsible-summary">
+          <span className="gov-collapsible-title">Advanced — Security policy</span>
+          <span className="gov-collapsible-hint">Threshold, governance details, cryptographic IDs</span>
+        </summary>
+        <div className="gov-collapsible-body">
+          <div className="gov-wide-grid">
+            <div className="panel gov-card" id="card-encrypted-sss-backup">
           <div className="gov-section-header">
-            <h2>Encrypted SSS Backup</h2>
+            <h2>Encrypted backup</h2>
             <span className="gov-section-badge">Key Backup</span>
           </div>
           <div className="gov-status-list">
@@ -992,17 +1051,17 @@ export default function PerpsGovernanceSurface() {
               </span>
             </div>
             <div className="gov-kv">
-              <span>Threshold</span>
-              <span>{encryptedSssBackup?.threshold ?? 'N/A'} / {encryptedSssBackup?.share_count ?? 'N/A'} Shares</span>
+              <span>Required</span>
+              <span>{encryptedSssBackup?.threshold ?? 'N/A'} / {encryptedSssBackup?.share_count ?? 'N/A'} backup parts</span>
             </div>
             <div className="gov-kv">
-              <span>Recovery Drill</span>
+              <span>Recovery test</span>
               <span className={`gov-status-value ${encryptedSssBackup?.recovery_drill_ready ? 'status-ready' : 'status-blocked'}`}>
                 {encryptedSssBackup?.recovery_drill_ready ? 'ready' : 'blocked'}
               </span>
             </div>
             <div className="gov-kv">
-              <span>Hostile-Share Tests</span>
+              <span>Security tests</span>
               <span className={`gov-status-value ${encryptedSssBackup?.hostile_share_tests_ready ? 'status-ready' : 'status-blocked'}`}>
                 {encryptedSssBackup?.hostile_share_tests_ready ? 'ready' : 'blocked'}
               </span>
@@ -1034,17 +1093,17 @@ export default function PerpsGovernanceSurface() {
               <span className="gov-mono">{compactId(encryptedSssBackup?.backup_hash)}</span>
             </div>
           </div>
-          <div className="gov-provider-chip-list" aria-label="SSS provider kinds">
+          <div className="gov-provider-chip-list" aria-label="Backup storage types">
             {sssProviderKinds.length ? sssProviderKinds.map((kind) => (
               <span className="gov-provider-chip" key={kind}>{kind}</span>
             )) : <span className="gov-no-fixture">Provider N/A</span>}
           </div>
-          <div className="gov-provider-list" aria-label="SSS provider ids">
+          <div className="gov-provider-list" aria-label="Backup providers">
             {sssProviderIds.slice(0, 6).map((providerId) => (
               <span className="gov-provider-id" key={providerId}>{providerId}</span>
             ))}
           </div>
-          <div className="gov-provider-chip-list" aria-label="SSS delivery modes">
+          <div className="gov-provider-chip-list" aria-label="Delivery methods">
             {sssDeliveryModes.map((mode) => (
               <span className="gov-provider-chip gov-provider-chip-muted" key={mode}>{mode}</span>
             ))}
@@ -1054,7 +1113,7 @@ export default function PerpsGovernanceSurface() {
               SSS provider delivery is wired to the backend. Configure SMTP, Dropbox, Box, or offline-export provider env vars, then use Deliver to capture external delivery receipts.
             </div>
           )}
-          <div className="gov-connector-grid" aria-label="Encrypted SSS live delivery connectors">
+          <div className="gov-connector-grid" aria-label="Backup delivery options">
             {sssDeliveryConnectors.map((connector) => (
               <div className="gov-connector-row" key={connector.key}>
                 <div>
@@ -1108,7 +1167,7 @@ export default function PerpsGovernanceSurface() {
           </div>
           <div className="gov-status-list">
             <div className="gov-kv">
-              <span>ZK Mode</span>
+              <span>Privacy mode</span>
               <span className={`gov-status-value ${zkStrictReady ? 'status-ready' : 'status-blocked'}`} id="zk-posture-status">
                 {zkEffectiveMode} requested {zkRequestedMode}
               </span>
@@ -1146,13 +1205,23 @@ export default function PerpsGovernanceSurface() {
             </div>
           )}
         </div>
-      </div>
+          </div>
+          </div>
+        </details>
+
+      {/* Advanced — Developer diagnostics */}
+      <details className="gov-collapsible-panel" id="advanced-developer-diagnostics">
+        <summary className="gov-collapsible-summary">
+          <span className="gov-collapsible-title">Advanced — Developer diagnostics</span>
+          <span className="gov-collapsible-hint">Testnet evidence, logs, raw JSON, pipeline status</span>
+        </summary>
+        <div className="gov-collapsible-body">
 
       {/* Fixture inspection panel if active */}
       {expandedFixture && fixturePreview ? (
         <div className="panel gov-card gov-fixture-drawer animate-fade-in">
           <div className="gov-section-header">
-            <h3>Fixture Payload Preview: {expandedFixture}</h3>
+            <h3>Test data preview: {expandedFixture}</h3>
             <button className="btn btn-ghost btn-xs" type="button" onClick={() => setExpandedFixture(null)}>Close Preview</button>
           </div>
           <pre className="gov-redacted-json">
@@ -1171,21 +1240,21 @@ export default function PerpsGovernanceSurface() {
               type="button"
               onClick={() => setShowRaw(!showRaw)}
             >
-              {showRaw ? 'Mask Sensitive Keys' : 'Reveal Raw Data'}
+              {showRaw ? 'Hide sensitive data' : 'Show raw data'}
             </button>
             <span className="gov-section-badge">Developer View</span>
           </div>
         </div>
         <p className="gov-disclaimer">
           {showRaw ? (
-            <strong className="gov-warning-text">WARNING: Sensitive raw key attributes are visible. Do not share this screen.</strong>
+            <strong className="gov-warning-text">WARNING: Sensitive data is visible. Do not share this screen.</strong>
           ) : (
-            'Notice: Local Testnet Governance Fixtures. All sensitive keys and hashes have been redacted.'
+            'Notice: Test environment. Sensitive data has been hidden.'
           )}
         </p>
         <details className="gov-status-logs-details">
           <summary className="btn btn-secondary btn-xs gov-status-logs-summary">
-            Toggle Status JSON Dump
+            Show/hide status details
           </summary>
           <pre className="gov-redacted-json">
             {status
@@ -1194,6 +1263,8 @@ export default function PerpsGovernanceSurface() {
           </pre>
         </details>
       </div>
+        </div>
+      </details>
     </section>
   );
 }

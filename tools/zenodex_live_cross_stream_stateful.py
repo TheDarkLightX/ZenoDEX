@@ -259,7 +259,7 @@ def _seed_minted_state() -> tuple[str, dict[str, int]]:
     app = ""
     app = _expect_ok(
         app,
-        operations={"11": [{"module": "ZUSDFinance", "action": "bootstrap_oracle", "price_e8": 100 * E8, "nonce": 1, "deadline": DEADLINE}]},
+        operations={"25": [{"module": "ZUSDFinance", "action": "bootstrap_oracle", "price_e8": 100 * E8, "nonce": 1, "deadline": DEADLINE}]},
         sender=ORACLE,
         block_timestamp=1,
         chain_balances=chain_balances,
@@ -267,7 +267,7 @@ def _seed_minted_state() -> tuple[str, dict[str, int]]:
     app = _expect_ok(
         app,
         operations={
-            "11": [
+            "25": [
                 {
                     "module": "ZUSDFinance",
                     "action": "deposit_collateral",
@@ -286,7 +286,7 @@ def _seed_minted_state() -> tuple[str, dict[str, int]]:
     app = _expect_ok(
         app,
         operations={
-            "11": [
+            "25": [
                 {
                     "module": "ZUSDFinance",
                     "action": "mint_zusd",
@@ -309,7 +309,7 @@ def _seed_market_state(*, market_id: str) -> str:
     app = _expect_ok(
         app,
         operations={
-            "9": [
+            "23": [
                 {
                     "module": "TauToken",
                     "action": "transfer",
@@ -328,7 +328,7 @@ def _seed_market_state(*, market_id: str) -> str:
     )
     app = _expect_ok(
         app,
-        operations={"8": [_signed_init_market(market_id=market_id)]},
+        operations={"22": [_signed_init_market(market_id=market_id)]},
         sender=OPERATOR,
         block_timestamp=5,
         chain_balances=chain_balances,
@@ -402,7 +402,7 @@ def _scenario_happy_path() -> dict[str, Any]:
         app = _expect_ok(
             app,
             operations={
-                "8": [
+                "22": [
                     {
                         "module": "TauPerp",
                         "version": "1.0",
@@ -443,7 +443,7 @@ def _scenario_duplicate_zusd_replay() -> dict[str, Any]:
     err = _expect_reject_unchanged(
         app,
         operations={
-            "11": [
+            "25": [
                 {
                     "module": "ZUSDFinance",
                     "action": "mint_zusd",
@@ -466,7 +466,7 @@ def _scenario_cross_stream_atomicity() -> dict[str, Any]:
     err = _expect_reject_unchanged(
         "",
         operations={
-            "11": [
+            "25": [
                 {
                     "module": "ZUSDFinance",
                     "action": "bootstrap_oracle",
@@ -475,7 +475,7 @@ def _scenario_cross_stream_atomicity() -> dict[str, Any]:
                     "deadline": DEADLINE,
                 }
             ],
-            "8": [
+            "22": [
                 {
                     "module": "TauPerp",
                     "version": "1.0",
@@ -497,7 +497,7 @@ def _scenario_expired_zusd_deadline() -> dict[str, Any]:
     err = _expect_reject_unchanged(
         "",
         operations={
-            "11": [
+            "25": [
                 {
                     "module": "ZUSDFinance",
                     "action": "bootstrap_oracle",
@@ -521,7 +521,7 @@ def _scenario_perps_overdeposit_rejected() -> dict[str, Any]:
     err = _expect_reject_unchanged(
         app,
         operations={
-            "8": [
+            "22": [
                 {
                     "module": "TauPerp",
                     "version": "1.0",
@@ -545,21 +545,21 @@ def _scenario_settle_requires_oracle_bridge() -> dict[str, Any]:
     app = _seed_market_state(market_id=market_id)
     app = _expect_ok(
         app,
-        operations={"8": [{"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "advance_epoch", "delta": 1}]},
+        operations={"22": [{"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "advance_epoch", "delta": 1}]},
         sender=OPERATOR,
         block_timestamp=6,
         chain_balances={ALICE: 0},
     )
     app = _expect_ok(
         app,
-        operations={"8": [_signed_publish_price(market_id=market_id, price_e8=E8, oracle_nonce=1)]},
+        operations={"22": [_signed_publish_price(market_id=market_id, price_e8=E8, oracle_nonce=1)]},
         sender=ORACLE,
         block_timestamp=7,
         chain_balances={ALICE: 0},
     )
     err = _expect_reject_unchanged(
         app,
-        operations={"8": [{"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "settle_epoch"}]},
+        operations={"22": [{"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "settle_epoch"}]},
         sender=OPERATOR,
         block_timestamp=8,
         expected_error_fragment="settle_epoch requires oracle_adapter_bridge",
@@ -916,7 +916,7 @@ def _run_fuzz_seed(*, seed: int, steps: int) -> dict[str, Any]:
             nonce = int(model["token_nonce"][sender]) + 1
             app = _expect_ok(
                 app,
-                operations={"9": [_token_transfer(sender=sender, receiver=receiver, amount=amount, nonce=nonce)]},
+                operations={"23": [_token_transfer(sender=sender, receiver=receiver, amount=amount, nonce=nonce)]},
                 sender=sender,
                 block_timestamp=timestamp,
                 chain_balances={ALICE: 0},
@@ -935,7 +935,7 @@ def _run_fuzz_seed(*, seed: int, steps: int) -> dict[str, Any]:
             app = _expect_ok(
                 app,
                 operations={
-                    "8": [_perp_collateral_op(market_id=market_id, action="deposit_collateral", account=actor, amount=amount)]
+                    "22": [_perp_collateral_op(market_id=market_id, action="deposit_collateral", account=actor, amount=amount)]
                 },
                 sender=actor,
                 block_timestamp=timestamp,
@@ -954,7 +954,7 @@ def _run_fuzz_seed(*, seed: int, steps: int) -> dict[str, Any]:
             app = _expect_ok(
                 app,
                 operations={
-                    "8": [_perp_collateral_op(market_id=market_id, action="withdraw_collateral", account=actor, amount=amount)]
+                    "22": [_perp_collateral_op(market_id=market_id, action="withdraw_collateral", account=actor, amount=amount)]
                 },
                 sender=actor,
                 block_timestamp=timestamp,
@@ -973,7 +973,7 @@ def _run_fuzz_seed(*, seed: int, steps: int) -> dict[str, Any]:
             nonce = int(model["zusd_nonce"][actor]) + 1
             app = _expect_ok(
                 app,
-                operations={"11": [_zusd_sp_op(action="deposit_sp", account=actor, amount=amount, nonce=nonce)]},
+                operations={"25": [_zusd_sp_op(action="deposit_sp", account=actor, amount=amount, nonce=nonce)]},
                 sender=actor,
                 block_timestamp=timestamp,
                 chain_balances={ALICE: 0},
@@ -992,7 +992,7 @@ def _run_fuzz_seed(*, seed: int, steps: int) -> dict[str, Any]:
             nonce = int(model["zusd_nonce"][actor]) + 1
             app = _expect_ok(
                 app,
-                operations={"11": [_zusd_sp_op(action="withdraw_sp", account=actor, amount=amount, nonce=nonce)]},
+                operations={"25": [_zusd_sp_op(action="withdraw_sp", account=actor, amount=amount, nonce=nonce)]},
                 sender=actor,
                 block_timestamp=timestamp,
                 chain_balances={ALICE: 0},
@@ -1010,8 +1010,8 @@ def _run_fuzz_seed(*, seed: int, steps: int) -> dict[str, Any]:
             err = _expect_reject_unchanged(
                 app,
                 operations={
-                    "9": [_token_transfer(sender=actor, receiver=receiver, amount=1, nonce=nonce)],
-                    "8": [
+                    "23": [_token_transfer(sender=actor, receiver=receiver, amount=1, nonce=nonce)],
+                    "22": [
                         _perp_collateral_op(
                             market_id=market_id,
                             action="deposit_collateral",
@@ -1036,7 +1036,7 @@ def _run_fuzz_seed(*, seed: int, steps: int) -> dict[str, Any]:
             replay_nonce = int(model["zusd_nonce"][actor])
             err = _expect_reject_unchanged(
                 app,
-                operations={"11": [_zusd_sp_op(action="deposit_sp", account=actor, amount=1, nonce=replay_nonce)]},
+                operations={"25": [_zusd_sp_op(action="deposit_sp", account=actor, amount=1, nonce=replay_nonce)]},
                 sender=actor,
                 block_timestamp=timestamp,
                 expected_error_fragment="nonce invalid",

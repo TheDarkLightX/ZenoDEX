@@ -10,13 +10,14 @@ export function SkeletonLine({ width = '100%', height = '1rem' }) {
         <div
             className="skeleton-line"
             style={{ width, height }}
+            aria-hidden="true"
         />
     );
 }
 
 export function SkeletonCard({ lines = 3 }) {
     return (
-        <div className="skeleton-card panel">
+        <div className="skeleton-card panel" role="status" aria-label="Loading" aria-busy="true">
             <SkeletonLine width="60%" height="1.25rem" />
             <div className="skeleton-spacer" />
             {Array.from({ length: lines }).map((_, i) => (
@@ -28,7 +29,7 @@ export function SkeletonCard({ lines = 3 }) {
 
 export function SkeletonTable({ rows = 3, cols = 4 }) {
     return (
-        <div className="skeleton-table panel">
+        <div className="skeleton-table panel" role="status" aria-label="Loading table" aria-busy="true">
             <div className="skeleton-header">
                 {Array.from({ length: cols }).map((_, i) => (
                     <SkeletonLine key={i} width="80%" height="0.75rem" />
@@ -47,7 +48,7 @@ export function SkeletonTable({ rows = 3, cols = 4 }) {
 
 export function SkeletonSwap() {
     return (
-        <div className="skeleton-swap panel">
+        <div className="skeleton-swap panel" role="status" aria-label="Loading swap interface" aria-busy="true">
             <SkeletonLine width="40%" height="1.5rem" />
             <div className="skeleton-spacer-lg" />
             <div className="skeleton-input-box">
@@ -69,7 +70,7 @@ export function SkeletonSwap() {
 
 export function SkeletonStats() {
     return (
-        <div className="skeleton-stats">
+        <div className="skeleton-stats" role="status" aria-label="Loading statistics" aria-busy="true">
             <SkeletonLine width="50%" height="1.75rem" />
             <div className="skeleton-spacer-lg" />
             <div className="skeleton-grid">

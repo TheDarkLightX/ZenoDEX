@@ -2645,8 +2645,8 @@ def _active_signer_summaries(active_signers: list[Mapping[str, Any]]) -> list[di
 
 def _transaction_scope_summary(scope: Mapping[str, Any], gaps: list[str]) -> dict[str, Any]:
     stream_key = scope.get("stream_key")
-    if stream_key != "8":
-        gaps.append("transaction_scope.stream_key must be 8")
+    if stream_key != "22":
+        gaps.append("transaction_scope.stream_key must be 22")
     allowed_actions = scope.get("allowed_actions")
     if (
         not isinstance(allowed_actions, list)

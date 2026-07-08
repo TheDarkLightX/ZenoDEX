@@ -912,8 +912,8 @@ def test_autotrader_live_prepared_default_payload_applies_to_tau_app_bridge(
         app_state_json="",
         chain_balances={signer_raw: 1},
         operations={
-            "7": {"mint": [[signer_pubkey, "A", 10_000], [signer_pubkey, "B", 10_000]]},
-            "5": [create_pool_intent],
+            "21": {"mint": [[signer_pubkey, "A", 10_000], [signer_pubkey, "B", 10_000]]},
+            "19": [create_pool_intent],
         },
         tx_sender_pubkey=signer_raw,
         block_timestamp=1,

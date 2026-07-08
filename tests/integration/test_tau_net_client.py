@@ -50,7 +50,7 @@ def test_tau_net_client_signing_and_encoding_edges() -> None:
         privkey=1,
         sequence_number=2,
         expiration_time=3,
-        operations={"0": {"mint": [1]}, "1": "reserved", "9": {"x": 1}, "8": 7},
+        operations={"0": {"mint": [1]}, "1": "reserved", "23": {"x": 1}, "8": 7},
         fee_limit=0,
     )
     assert payload["operations"]["0"] == {"mint": [1]}
@@ -66,7 +66,7 @@ def test_tau_net_client_signing_and_encoding_edges() -> None:
         privkey=1,
         sequence_number="4",
         expiration_time=5.0,
-        operations={"9": {"x": 1}},
+        operations={"23": {"x": 1}},
         fee_limit=0,
     )
     assert payload_from_numeric_text["sequence_number"] == 4
@@ -77,7 +77,7 @@ def test_tau_net_client_signing_and_encoding_edges() -> None:
             privkey=1,
             sequence_number=True,
             expiration_time=3,
-            operations={"9": {"x": 1}},
+            operations={"23": {"x": 1}},
             fee_limit=0,
         )
 
@@ -86,7 +86,7 @@ def test_tau_net_client_signing_and_encoding_edges() -> None:
             privkey=1,
             sequence_number=2,
             expiration_time=-1,
-            operations={"9": {"x": 1}},
+            operations={"23": {"x": 1}},
             fee_limit=0,
         )
 
@@ -105,7 +105,7 @@ def test_tau_net_transaction_signing_rejects_noncanonical_json_values() -> None:
             privkey=1,
             sequence_number=2,
             expiration_time=3,
-            operations={"9": {"x": 1.5}},
+            operations={"23": {"x": 1.5}},
             fee_limit=0,
         )
 
@@ -290,7 +290,7 @@ def test_tau_net_tcp_client_methods_and_send_signed_tx(monkeypatch: pytest.Monke
     monkeypatch.setattr(client, "sendtx", lambda payload: sent_payloads.append(dict(payload)) or "submitted")
     monkeypatch.setattr(client, "get_sequence", lambda sender: 14)
     monkeypatch.setattr(tau_net_client.time, "time", lambda: 1000)
-    assert client.send_signed_tx(privkey=1, operations={"9": {"ok": 1}}, fee_limit="2") == "submitted"
+    assert client.send_signed_tx(privkey=1, operations={"23": {"ok": 1}}, fee_limit="2") == "submitted"
     assert sent_payloads[-1]["sequence_number"] == 14
     assert sent_payloads[-1]["expiration_time"] == 4600
     assert sent_payloads[-1]["fee_limit"] == "2"
@@ -298,7 +298,7 @@ def test_tau_net_tcp_client_methods_and_send_signed_tx(monkeypatch: pytest.Monke
     monkeypatch.setattr(client, "get_sequence", lambda sender: (_ for _ in ()).throw(AssertionError("should not be called")))
     assert client.send_signed_tx(
         privkey=1,
-        operations={"9": {"ok": 1}},
+        operations={"23": {"ok": 1}},
         sequence_number=3,
         expiration_seconds=10,
     ) == "submitted"
