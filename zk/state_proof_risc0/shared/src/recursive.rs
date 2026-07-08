@@ -906,30 +906,26 @@ pub fn perps_np_recursive_leaf_asset_delta_rows_v1(
                     return Err(TransitionError::InvalidInput("insurance seed negative"));
                 }
                 if *insurance_seed_e8 > 0 {
+                    let amount =
+                        i128_to_u128_v1(*insurance_seed_e8, "insurance seed amount invalid")?;
                     rows.push(ordinary_asset_delta_row_v1(
                         collateral_asset,
-                        0,
-                        i128_to_u128_v1(*insurance_seed_e8, "insurance seed amount invalid")?,
+                        amount,
+                        amount,
                     ));
                 }
             }
             PerpsNpActionV1::DepositCollateral {
                 asset, amount_e8, ..
             } => {
-                rows.push(ordinary_asset_delta_row_v1(
-                    asset,
-                    0,
-                    positive_i128_to_u128_v1(*amount_e8, "deposit must be positive")?,
-                ));
+                let amount = positive_i128_to_u128_v1(*amount_e8, "deposit must be positive")?;
+                rows.push(ordinary_asset_delta_row_v1(asset, amount, amount));
             }
             PerpsNpActionV1::WithdrawCollateral {
                 asset, amount_e8, ..
             } => {
-                rows.push(ordinary_asset_delta_row_v1(
-                    asset,
-                    positive_i128_to_u128_v1(*amount_e8, "withdraw must be positive")?,
-                    0,
-                ));
+                let amount = positive_i128_to_u128_v1(*amount_e8, "withdraw must be positive")?;
+                rows.push(ordinary_asset_delta_row_v1(asset, amount, amount));
             }
             PerpsNpActionV1::SubmitIntent { .. } | PerpsNpActionV1::RunEpoch { .. } => {}
         }
@@ -2900,7 +2896,10 @@ mod tests {
         let summary = compose_perps_np_recursive_leaf_summary_v1(input).unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].asset_id, "USDC");
+        assert_eq!(rows[0].debit_atoms, 19);
         assert_eq!(rows[0].credit_atoms, 19);
+        let aggregate = single_child_input_with_rows(rows.clone());
+        compose_recursive_epoch_journal_v1(&aggregate).unwrap();
         assert_eq!(
             summary.asset_delta_root,
             recursive_asset_delta_root_v1(&rows).unwrap()
@@ -2948,7 +2947,10 @@ mod tests {
         let summary = compose_perps_np_recursive_leaf_summary_v1(input).unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].asset_id, "USDC");
+        assert_eq!(rows[0].debit_atoms, (3 * e8) as u128);
         assert_eq!(rows[0].credit_atoms, (3 * e8) as u128);
+        let aggregate = single_child_input_with_rows(rows.clone());
+        compose_recursive_epoch_journal_v1(&aggregate).unwrap();
         assert_eq!(
             summary.asset_delta_root,
             recursive_asset_delta_root_v1(&rows).unwrap()
@@ -2996,6 +2998,9 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].asset_id, "USDC");
         assert_eq!(rows[0].debit_atoms, (2 * e8) as u128);
+        assert_eq!(rows[0].credit_atoms, (2 * e8) as u128);
+        let aggregate = single_child_input_with_rows(rows.clone());
+        compose_recursive_epoch_journal_v1(&aggregate).unwrap();
         assert_eq!(
             summary.asset_delta_root,
             recursive_asset_delta_root_v1(&rows).unwrap()
