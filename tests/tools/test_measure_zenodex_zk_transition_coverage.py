@@ -5,7 +5,6 @@ from pathlib import Path
 
 from tools.measure_zenodex_zk_transition_coverage import build_zk_transition_coverage_report, main
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -16,8 +15,13 @@ def test_zk_transition_coverage_reports_current_scope() -> None:
     assert report["proof_operation_coverage"]["covered_count"] == 7
     assert report["proof_operation_coverage"]["total_count"] == 11
     assert report["proof_operation_coverage"]["coverage_pct"] == 63.64
+    assert report["value_moving_surface_coverage"]["covered_count"] == 0
+    assert report["value_moving_surface_coverage"]["total_count"] == 8
+    assert report["value_moving_surface_coverage"]["coverage_pct"] == 0.0
     assert report["succinct_everything_status"] == "open"
     assert "swap_exact_out" in report["proof_operation_coverage"]["not_covered_operations"]
+    assert "spot_complete_block_real_proof" in report["value_moving_surface_coverage"]["open_gap_surface_ids"]
+    assert "uniform_batch_upba_execution" in report["value_moving_surface_coverage"]["open_surface_ids"]
 
 
 def test_zk_transition_coverage_consumes_timed_smoke_report(tmp_path: Path) -> None:

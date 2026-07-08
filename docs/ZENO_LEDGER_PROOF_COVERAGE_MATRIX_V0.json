@@ -58,6 +58,11 @@
   ],
   "gap_surfaces": [
     {
+      "id": "spot_complete_block_real_proof",
+      "required_for": "Complete spot proof coverage",
+      "gap": "The current real RISC0 proof smoke covers the listed spot v1 operation subset only. Complete spot block proof coverage still lacks swap-exact-out, multi-hop, native asset sync, rejected-receipt execution, and exhaustive block-operation semantics."
+    },
+    {
       "id": "uniform_batch_upba_v2_v3_real_proof",
       "required_for": "UPBA proof coverage",
       "gap": "No real zkVM proof currently covers UPBA v2/v3 batch clearing, exact-out, or candidate-grid optimality."
@@ -106,6 +111,183 @@
       "id": "zusd_non_deposit_mint_lifecycle_rows",
       "required_for": "Complete zUSD lifecycle proof coverage",
       "gap": "The recursive zUSD leaf exposes the current DepositMint row, but repay, redeem, burn, liquidation, stability-pool movement, and native collateral movement still need exhaustive row extractors before sharing a full recursive asset-conservation claim."
+    }
+  ],
+  "full_zk_value_moving_surfaces": [
+    {
+      "id": "spot_v1_complete_block_execution",
+      "description": "All spot v1 block operations that can move balances, including exact-out, multi-hop, native sync, rejected-receipt execution, and the currently supported proof-smoke operations.",
+      "coverage_status": "covered_scoped",
+      "proof_surface_ids": [
+        "risc0_spot_transition_metadata_adapter",
+        "risc0_spot_fixture_equivalence",
+        "risc0_supported_transition_real_proof_smoke"
+      ],
+      "gap_surface_ids": [
+        "spot_complete_block_real_proof"
+      ],
+      "required_non_claims": [
+        "does_not_claim_complete_spot_block_zk_proof"
+      ],
+      "external_check_commands": [
+        "python3 tools/check_zeno_ledger_proof_coverage_matrix.py",
+        "python3 tools/measure_zenodex_zk_transition_coverage.py"
+      ],
+      "limits": [
+        "real proof smoke covers a scoped spot v1 operation subset",
+        "complete spot-block proof coverage remains open"
+      ]
+    },
+    {
+      "id": "uniform_batch_upba_execution",
+      "description": "UPBA v2/v3 batch clearing, exact-out, and candidate-grid optimality as zkVM proof-of-execution.",
+      "coverage_status": "open",
+      "gap_surface_ids": [
+        "uniform_batch_upba_v2_v3_real_proof"
+      ],
+      "required_non_claims": [
+        "does_not_claim_upba_zk_execution"
+      ],
+      "external_check_commands": [
+        "python3 tools/check_zeno_ledger_proof_coverage_matrix.py"
+      ],
+      "limits": [
+        "deterministic replay and proof certificates exist outside this full-zk claim",
+        "no real zkVM UPBA proof surface is currently supported"
+      ]
+    },
+    {
+      "id": "oracle_critical_action_execution",
+      "description": "Oracle critical-action packets and oracle-backed settlement authorization as zkVM proof-of-execution.",
+      "coverage_status": "open",
+      "gap_surface_ids": [
+        "oracle_critical_action_real_proof",
+        "recursive_oracle_leaf_real_proof"
+      ],
+      "required_non_claims": [
+        "does_not_claim_oracle_truth_or_governance",
+        "does_not_claim_recursive_oracle_leaf_coverage"
+      ],
+      "external_check_commands": [
+        "python3 tools/check_zeno_ledger_proof_coverage_matrix.py"
+      ],
+      "limits": [
+        "deterministic critical-action mapping exists outside this full-zk claim",
+        "oracle truth, reporter honesty, feed governance, and recursive oracle leaves remain open"
+      ]
+    },
+    {
+      "id": "zusd_lifecycle_execution",
+      "description": "zUSD mint, repay, redeem, burn, liquidation, stability-pool, and collateral lifecycle movements as zkVM proof-of-execution.",
+      "coverage_status": "covered_scoped",
+      "proof_surface_ids": [
+        "recursive_lifecycle_asset_delta_rows",
+        "recursive_lifecycle_admission_packet_checker"
+      ],
+      "gap_surface_ids": [
+        "zusd_lifecycle_real_proof",
+        "zusd_non_deposit_mint_lifecycle_rows"
+      ],
+      "required_non_claims": [
+        "does_not_claim_zusd_or_perps_zk_execution",
+        "does_not_claim_full_zusd_lifecycle_rows"
+      ],
+      "external_check_commands": [
+        "python3 tools/check_zeno_ledger_proof_coverage_matrix.py",
+        "python3 tools/check_recursive_lifecycle_admission.py"
+      ],
+      "limits": [
+        "recursive zUSD lifecycle rows currently cover DepositMint only",
+        "complete lifecycle row extraction and real proof execution remain open"
+      ]
+    },
+    {
+      "id": "perps_settlement_execution",
+      "description": "Perps settlement, liquidation, ADL, funding, insurance, and collateral movement as zkVM proof-of-execution.",
+      "coverage_status": "covered_scoped",
+      "proof_surface_ids": [
+        "recursive_lifecycle_asset_delta_rows",
+        "recursive_lifecycle_admission_packet_checker"
+      ],
+      "gap_surface_ids": [
+        "perps_settlement_real_proof"
+      ],
+      "required_non_claims": [
+        "does_not_claim_zusd_or_perps_zk_execution"
+      ],
+      "external_check_commands": [
+        "python3 tools/check_zeno_ledger_proof_coverage_matrix.py",
+        "python3 tools/check_recursive_lifecycle_admission.py"
+      ],
+      "limits": [
+        "recursive perps NP rows cover the current local NP leaf scope",
+        "complete perps settlement, liquidation, ADL, funding, insurance, and source-finality proof coverage remain open"
+      ]
+    },
+    {
+      "id": "proof_market_reward_execution",
+      "description": "Proof-market mining rewards, claimability, slot assignment, and payout bridge execution as zkVM proof-of-execution.",
+      "coverage_status": "open",
+      "gap_surface_ids": [
+        "proof_market_reward_real_proof"
+      ],
+      "required_non_claims": [
+        "does_not_claim_proof_market_zk_execution"
+      ],
+      "external_check_commands": [
+        "python3 tools/check_zeno_ledger_proof_coverage_matrix.py"
+      ],
+      "limits": [
+        "assurance manifests and deterministic gates exist outside this full-zk claim",
+        "reward payout bridge execution has no real zkVM proof coverage"
+      ]
+    },
+    {
+      "id": "recursive_epoch_and_production_admission",
+      "description": "Recursive epoch aggregation and production ZenoLedger/Tau admission over verified child receipts, header roots, transcript binding, DA policy, and source-finality certificates.",
+      "coverage_status": "covered_scoped",
+      "proof_surface_ids": [
+        "recursive_lifecycle_asset_delta_rows",
+        "recursive_lifecycle_admission_packet_checker"
+      ],
+      "gap_surface_ids": [
+        "recursive_epoch_real_proof",
+        "recursive_production_admission"
+      ],
+      "required_non_claims": [
+        "does_not_claim_recursive_epoch_proof_soundness",
+        "does_not_claim_recursive_production_admission"
+      ],
+      "external_check_commands": [
+        "python3 tools/check_zeno_ledger_proof_coverage_matrix.py",
+        "python3 tools/check_recursive_lifecycle_admission.py"
+      ],
+      "limits": [
+        "local recursive lifecycle row roots and admission-packet checks are supported",
+        "release-manifest real root receipts and production runtime admission remain open"
+      ]
+    },
+    {
+      "id": "production_light_client_finality_for_value_moving_admission",
+      "description": "Production light-client finality needed before externally admitted value-moving roots can rely on open-network checkpoints.",
+      "coverage_status": "covered_scoped",
+      "proof_surface_ids": [
+        "light_client_checkpoint_quorum"
+      ],
+      "gap_surface_ids": [
+        "light_client_production_finality"
+      ],
+      "required_non_claims": [
+        "does_not_claim_light_client_finality"
+      ],
+      "external_check_commands": [
+        "python3 tools/check_zeno_ledger_proof_coverage_matrix.py",
+        "python3 tools/check_zeno_ledger_light_client_checkpoint.py"
+      ],
+      "limits": [
+        "local checkpoint quorum replay is supported",
+        "production validator rotation, fork-choice, slashing, peer discovery, and adversarial network finality remain open"
+      ]
     }
   ],
   "non_claims": [

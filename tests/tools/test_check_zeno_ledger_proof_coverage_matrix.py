@@ -19,8 +19,13 @@ def test_proof_coverage_matrix_accepts_default_matrix() -> None:
 
     assert report["ok"] is True
     assert report["supported_surface_count"] == 9
-    assert report["gap_surface_count"] == 10
+    assert report["gap_surface_count"] == 11
     assert report["non_claim_count"] == 10
+    assert report["value_moving_surface_count"] == 8
+    assert report["value_moving_full_zk_ready_count"] == 0
+    assert report["full_zk_execution_ready"] is False
+    assert "spot_v1_complete_block_execution" in report["succinct_open_value_moving_surfaces"]
+    assert "spot_complete_block_real_proof" in report["succinct_open_gap_ids"]
     supported_by_id = {item["id"]: item for item in report["supported_surfaces"]}
     assert supported_by_id["recursive_lifecycle_asset_delta_rows"]["claim_status"] == "supported"
     assert supported_by_id["recursive_lifecycle_admission_packet_checker"]["claim_status"] == "supported"
@@ -127,6 +132,43 @@ def test_proof_coverage_matrix_rejects_missing_recursive_scaling_nonclaim() -> N
     )
 
 
+def test_proof_coverage_matrix_rejects_missing_value_moving_surface() -> None:
+    matrix = _matrix()
+    surfaces = list(matrix["full_zk_value_moving_surfaces"])  # type: ignore[arg-type]
+    matrix["full_zk_value_moving_surfaces"] = [
+        item for item in surfaces if item["id"] != "proof_market_reward_execution"  # type: ignore[index]
+    ]
+
+    report = validate_proof_coverage_matrix_v0(matrix)
+
+    assert report["ok"] is False
+    assert any("missing required value-moving surfaces: proof_market_reward_execution" == err for err in report["errors"])
+
+
+def test_proof_coverage_matrix_rejects_hidden_value_moving_gap_ref() -> None:
+    matrix = _matrix()
+    surface = copy.deepcopy(matrix["full_zk_value_moving_surfaces"][0])  # type: ignore[index]
+    surface["gap_surface_ids"] = []
+    matrix["full_zk_value_moving_surfaces"][0] = surface  # type: ignore[index]
+
+    report = validate_proof_coverage_matrix_v0(matrix)
+
+    assert report["ok"] is False
+    assert any("value-moving coverage missing required gap refs: spot_complete_block_real_proof" == err for err in report["errors"])
+
+
+def test_proof_coverage_matrix_rejects_full_zk_overclaim_with_gap_ref() -> None:
+    matrix = _matrix()
+    surface = copy.deepcopy(matrix["full_zk_value_moving_surfaces"][0])  # type: ignore[index]
+    surface["coverage_status"] = "covered"
+    matrix["full_zk_value_moving_surfaces"][0] = surface  # type: ignore[index]
+
+    report = validate_proof_coverage_matrix_v0(matrix)
+
+    assert report["ok"] is False
+    assert any("covered value-moving surface must not carry gap_surface_ids" in err for err in report["errors"])
+
+
 def test_proof_coverage_matrix_rejects_gap_with_claim_id() -> None:
     matrix = _matrix()
     gap = copy.deepcopy(matrix["gap_surfaces"][0])  # type: ignore[index]
@@ -149,6 +191,41 @@ def test_proof_coverage_matrix_rejects_missing_claim_from_registry() -> None:
 
     assert report["ok"] is False
     assert any("claim_id missing from claims registry" in err for err in report["errors"])
+
+
+def test_proof_coverage_matrix_require_full_zk_mode_fails_until_open_surfaces_close(capsys) -> None:
+    code = main(["--require-full-zk"])
+    out = capsys.readouterr().out
+    report = json.loads(out)
+
+    assert code == 1
+    assert report["ok"] is False
+    assert report["full_zk_execution_ready"] is False
+    assert "uniform_batch_upba_execution" in report["succinct_open_value_moving_surfaces"]
+    assert any("full zk execution is not ready" in err for err in report["errors"])
+
+
+def test_proof_coverage_matrix_require_full_zk_mode_can_pass_after_gaps_close() -> None:
+    matrix = _matrix()
+    matrix["gap_surfaces"] = []
+    matrix["non_claims"] = []
+    closed_surfaces = []
+    for raw_surface in matrix["full_zk_value_moving_surfaces"]:  # type: ignore[index]
+        surface = copy.deepcopy(raw_surface)
+        surface["coverage_status"] = "covered"
+        surface["proof_surface_ids"] = ["risc0_supported_transition_real_proof_smoke"]
+        surface["gap_surface_ids"] = []
+        surface["required_non_claims"] = []
+        closed_surfaces.append(surface)
+    matrix["full_zk_value_moving_surfaces"] = closed_surfaces
+
+    report = validate_proof_coverage_matrix_v0(matrix, require_full_zk=True)
+
+    assert report["ok"] is True
+    assert report["full_zk_execution_ready"] is True
+    assert report["value_moving_full_zk_ready_count"] == 8
+    assert report["succinct_open_value_moving_surfaces"] == []
+    assert report["succinct_open_gap_ids"] == []
 
 
 def test_proof_coverage_matrix_cli_outputs_report(tmp_path, capsys) -> None:

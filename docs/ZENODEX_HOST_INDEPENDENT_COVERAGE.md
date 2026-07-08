@@ -38,7 +38,11 @@ Run:
 ```bash
 python3 tools/check_zenodex_host_independent_coverage.py --pretty
 python3 tools/measure_zenodex_zk_transition_coverage.py --pretty
+python3 tools/check_zeno_ledger_proof_coverage_matrix.py --require-full-zk --pretty
 ```
+
+The `--require-full-zk` command is the strict readiness check. It is expected to
+return nonzero while the matrix still lists open value-moving proof gaps.
 
 The checker rejects:
 

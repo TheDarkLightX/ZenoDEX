@@ -331,12 +331,16 @@
       "public_data_availability": "blocked_until_public_inputs_and_proofs",
       "counts_as_transition_coverage": false,
       "proof_gap_ids": [
+        "spot_complete_block_real_proof",
         "uniform_batch_upba_v2_v3_real_proof",
         "oracle_critical_action_real_proof",
         "zusd_lifecycle_real_proof",
+        "zusd_non_deposit_mint_lifecycle_rows",
         "perps_settlement_real_proof",
         "proof_market_reward_real_proof",
+        "recursive_oracle_leaf_real_proof",
         "recursive_epoch_real_proof",
+        "recursive_production_admission",
         "light_client_production_finality"
       ],
       "evidence_paths": [
