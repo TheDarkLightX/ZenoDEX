@@ -9,7 +9,6 @@ import statistics
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "docs" / "ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json"
 DEFAULT_PROOF_MATRIX = ROOT / "docs" / "ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json"
@@ -40,6 +39,7 @@ def build_zk_transition_coverage_report(
     proof_surface_coverage_pct = (
         100.0 if proof_surface_total == 0 else round(100.0 * len(supported_proof_surfaces) / proof_surface_total, 2)
     )
+    value_moving_surface_coverage = _value_moving_surface_coverage(proof_matrix)
 
     timing_paths: list[Path] = []
     if smoke_report_path is not None:
@@ -64,10 +64,12 @@ def build_zk_transition_coverage_report(
             "supported_surface_ids": supported_proof_surfaces,
             "gap_surface_ids": proof_gap_surfaces,
         },
+        "value_moving_surface_coverage": value_moving_surface_coverage,
         "succinct_everything_status": full_zk_surface.get("coverage_status"),
         "timing": timing,
         "interpretation": [
             "Current real zkVM coverage is scoped to the spot v1 Risc0 operation family listed in covered_operations.",
+            "Full-zk value-moving readiness requires value_moving_surface_coverage.open_surface_ids to be empty.",
             "Deterministic replay remains the performance baseline for ordinary full-node validation.",
             "A smoke timing report measures local prover performance only; production latency needs repeated warm runs on target hardware.",
         ],
@@ -94,6 +96,50 @@ def _ids(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
     return sorted(item["id"] for item in value if isinstance(item, Mapping) and isinstance(item.get("id"), str))
+
+
+def _value_moving_surface_coverage(proof_matrix: Mapping[str, Any]) -> dict[str, Any]:
+    surfaces = proof_matrix.get("full_zk_value_moving_surfaces")
+    if not isinstance(surfaces, list):
+        return {
+            "covered_count": 0,
+            "total_count": 0,
+            "coverage_pct": 0.0,
+            "covered_surface_ids": [],
+            "open_surface_ids": [],
+            "open_gap_surface_ids": [],
+        }
+    covered_surface_ids: list[str] = []
+    open_surface_ids: list[str] = []
+    open_gap_surface_ids: set[str] = set()
+    for surface in surfaces:
+        if not isinstance(surface, Mapping):
+            continue
+        surface_id = surface.get("id")
+        if not isinstance(surface_id, str):
+            continue
+        gap_ids = _str_items(surface.get("gap_surface_ids"))
+        if surface.get("coverage_status") == "covered" and not gap_ids:
+            covered_surface_ids.append(surface_id)
+        else:
+            open_surface_ids.append(surface_id)
+            open_gap_surface_ids.update(gap_ids)
+    total_count = len(covered_surface_ids) + len(open_surface_ids)
+    coverage_pct = 100.0 if total_count == 0 else round(100.0 * len(covered_surface_ids) / total_count, 2)
+    return {
+        "covered_count": len(covered_surface_ids),
+        "total_count": total_count,
+        "coverage_pct": coverage_pct,
+        "covered_surface_ids": sorted(covered_surface_ids),
+        "open_surface_ids": sorted(open_surface_ids),
+        "open_gap_surface_ids": sorted(open_gap_surface_ids),
+    }
+
+
+def _str_items(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return sorted(item for item in value if isinstance(item, str) and item)
 
 
 def _timing_report(paths: Sequence[Path]) -> dict[str, Any]:

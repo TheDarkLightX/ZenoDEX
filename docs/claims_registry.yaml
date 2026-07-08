@@ -1269,10 +1269,15 @@ claims:
       machine-readable. The checker accepts the matrix only when all required
       supported surfaces are present with existing `proved` or `supported`
       claim ids, all required gap surfaces remain listed, required non-claims
-      remain listed, and gap rows do not carry claim ids. This is a
-      scope-control claim; it does not add zkVM execution support for UPBA,
-      Oracle critical actions, zUSD, perps, proof-market rewards, production
-      light-client finality, or recursive epoch aggregation.
+      remain listed, gap rows do not carry claim ids, and every full-zk
+      value-moving surface explicitly references either supported proof
+      surfaces or blocking gap surfaces. The optional `--require-full-zk`
+      mode returns nonzero while any value-moving surface remains open or
+      scoped by required non-claims. This is a scope-control and readiness
+      measurement claim; it does not add zkVM execution support for complete
+      spot blocks, UPBA, Oracle critical actions, zUSD, perps, proof-market
+      rewards, production light-client finality, or recursive epoch
+      aggregation.
     evidence:
       kind: pytest
       check:
