@@ -210,7 +210,7 @@ def _prepare_zusd_monetary_state(
     send_resp = client.send_signed_tx(
         privkey=owner_privkey,
         operations={
-            "11": [
+            "25": [
                 {
                     "module": "ZUSDFinance",
                     "version": "0.1",

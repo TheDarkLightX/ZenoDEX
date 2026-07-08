@@ -1,102 +1,57 @@
 // Copyright DarkLightX/Dana Edwards
-// ZenoOracle dashboard — main orchestrator component.
+// ZenoOracle dashboard — v3 layout (3 tabs: Monitor / Resolve / Admin).
+// Redesigned after 3 rounds of UX review. Replaces the 8-tab layout with
+// a persistent status bar, context-aware detail rail, and progressive disclosure.
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ORACLE_DISPUTES,
   ORACLE_FEEDS,
-  ORACLE_NETWORK_SUMMARY,
   ORACLE_REPORTERS,
   ORACLE_REWARDS,
 } from './ZenoOracleDashboardData';
 import { useDemoMode } from '../lib/DemoModeContext.jsx';
 import Modal from './Modal.jsx';
-import SharedStatusPill from './StatusPill.jsx';
-import './ZenoOracleDashboard.css';
+import './oracle/OracleSection.css';
 import {
   zenoOracleApiUrl,
   snapshotToDashboardData,
-  getInitialOracleSection,
   parsePositiveIntParam,
-  compactId,
   runOracleWriteSmokeFlow,
-  ORACLE_SECTIONS,
 } from '../lib/oracleUtils.js';
-import {
-  FeedTable,
-  FeedStatusPanel,
-  FeedCreationPanel,
-  FeedDetailInspector,
-} from './oracle/FeedPanels.jsx';
-import {
-  ReporterOnboardingPanel,
-  ReporterPanel,
-} from './oracle/ReporterPanels.jsx';
-import {
-  AuthorityProfilePanel,
-  AuthorityExercisePanel,
-} from './oracle/AuthorityPanels.jsx';
-import {
-  EvidencePanel,
-  VerifyPanel,
-  LatestRead,
-  ReceiptBuilderPanel,
-} from './oracle/EvidencePanels.jsx';
-import {
-  MetricCard,
-  HealthPanel,
-  FeatureStrip,
-  ServicesPanel,
-  EventsPanel,
-} from './oracle/StatusPanels.jsx';
-import { DisputesPanel } from './oracle/DisputePanels.jsx';
-import {
-  RewardsPanel,
-  SourceDiversityPanel,
-  AuthorizationTrailPanel,
-  ConsumerProfilePanel,
-} from './oracle/RewardPanels.jsx';
+import { useOracleTab } from './oracle/useOracleTab.js';
+import OracleTabs from './oracle/OracleTabs.jsx';
+import OracleStatusBar from './oracle/OracleStatusBar.jsx';
+import MonitorTab from './oracle/MonitorTab.jsx';
+import ResolveTab from './oracle/ResolveTab.jsx';
+import AdminTab from './oracle/AdminTab.jsx';
+import { FeedCreationPanel } from './oracle/FeedPanels.jsx';
+import { ReporterOnboardingPanel } from './oracle/ReporterPanels.jsx';
+import { ReceiptBuilderPanel } from './oracle/EvidencePanels.jsx';
 
-const ZENO_ORACLE_ICON = `${import.meta.env.BASE_URL}branding/zeno-oracle/zeno_oracle_icon_256.png`;
-
-const ORACLE_SECTION_COPY = {
-  Overview: 'Real-time local status for feeds, reporters, evidence, and receipts.',
-  Feeds: 'Create and inspect feed policies, freshness state, and source requirements.',
-  Reports: 'Submit reports, inspect admitted reads, and monitor source provenance.',
-  Reporters: 'Review reporter liveness, bonds, rewards, and slash state.',
-  Disputes: 'Open, resolve, and audit disputes that can quarantine oracle inputs.',
-  Receipts: 'Build and inspect aggregate, read, and action-authorization receipts.',
-  Verify: 'Replay receipt artifacts and local verifier state before critical use.',
-  Governance: 'Inspect consumer profiles, service posture, and policy readiness.',
-};
-
-function ZenoOracleDashboard({ wallet = null } = {}) {
+function ZenoOracleDashboard() {
   const { demoMode } = useDemoMode();
+  const [tab, setTab] = useOracleTab();
   const [selectedFeedId, setSelectedFeedId] = useState('');
-  const [feedFilter, setFeedFilter] = useState('all');
-  const [timeRange, setTimeRange] = useState('24h');
-  const [activeSection, setActiveSection] = useState(getInitialOracleSection);
   const [verifyReceiptId, setVerifyReceiptId] = useState('');
   const [remoteData, setRemoteData] = useState(null);
   const [apiState, setApiState] = useState('Static preview');
-  const [oracleSmokeStatus, setOracleSmokeStatus] = useState('');
+  const [, setOracleSmokeStatus] = useState('');
   const [authorityExerciseResult, setAuthorityExerciseResult] = useState(null);
   const [localDisputes, setLocalDisputes] = useState([]);
-  const [isRailCollapsed, setIsRailCollapsed] = useState(false);
-
-  const handleAddDispute = (newDispute) => {
-    setLocalDisputes((prev) => [...prev, newDispute]);
-  };
   const [authorityExerciseState, setAuthorityExerciseState] = useState('');
   const [authorityExerciseBusy, setAuthorityExerciseBusy] = useState(false);
-  // Modal visibility flags for the demoted write-flow forms. Each modal
-  // is a thin wrapper around the existing inline panel component, so
-  // the form logic stays identical — we only changed how the user
-  // reaches it (inline panel → "+ Create" CTA → modal).
   const [showFeedCreationModal, setShowFeedCreationModal] = useState(false);
   const [showReporterOnboardingModal, setShowReporterOnboardingModal] = useState(false);
   const [showReceiptBuilderModal, setShowReceiptBuilderModal] = useState(false);
   const oracleSmokeRan = useRef(false);
   const oracleAuthorityExerciseSmokeRan = useRef(false);
+
+  // Disputes can be added locally (e.g. from smoke tests or demo mode)
+  const handleAddDispute = (newDispute) => {
+    setLocalDisputes((prev) => [...prev, newDispute]);
+  };
+  void handleAddDispute;
 
   async function postOracle(path, payload) {
     const response = await fetch(zenoOracleApiUrl(path), {
@@ -122,7 +77,7 @@ function ZenoOracleDashboard({ wallet = null } = {}) {
       ? options.publicSettlementHeight
       : undefined;
     setAuthorityExerciseBusy(true);
-    setAuthorityExerciseState('oracle authority exercise running');
+    setAuthorityExerciseState('Running security check');
     try {
       const flow = await runOracleWriteSmokeFlow(postOracle);
       const requestBody = {
@@ -150,9 +105,9 @@ function ZenoOracleDashboard({ wallet = null } = {}) {
       }
       const payload = await postOracle('/api/oracle/authority/exercise/evaluate', requestBody);
       setAuthorityExerciseResult(payload);
-      setAuthorityExerciseState(`oracle authority exercise accepted ${payload.authority_exercise_status?.exercise_hash || ''}`.trim());
+      setAuthorityExerciseState(`Security check accepted ${payload.authority_exercise_status?.exercise_hash || ''}`.trim());
     } catch (error) {
-      setAuthorityExerciseState(`oracle authority exercise failed ${error?.message || 'unknown'}`);
+      setAuthorityExerciseState(`Security check failed ${error?.message || 'unknown'}`);
       throw error;
     } finally {
       setAuthorityExerciseBusy(false);
@@ -171,10 +126,10 @@ function ZenoOracleDashboard({ wallet = null } = {}) {
         }
         const snapshot = await response.json();
         setRemoteData(snapshotToDashboardData(snapshot));
-        setApiState(snapshot?.summary?.replay_ok ? 'Local API connected' : 'Local API replay warning');
+        setApiState(snapshot?.summary?.replay_ok ? 'Connected' : 'Sync warning');
       } catch (error) {
         if (error.name !== 'AbortError') {
-          setApiState('Local API offline');
+          setApiState('Offline');
         }
       }
     }
@@ -202,15 +157,15 @@ function ZenoOracleDashboard({ wallet = null } = {}) {
     window.sessionStorage.setItem(storageKey, '1');
 
     async function runSmoke() {
-      setOracleSmokeStatus('oracle write smoke running');
+      setOracleSmokeStatus('Test run running');
       const flow = await runOracleWriteSmokeFlow(postOracle);
       setOracleSmokeStatus(
-        `oracle write smoke accepted ${flow.identity.reporter_id} ${flow.submitted.report_id} ${flow.authorization.authorization_id}`,
+        `Test run accepted ${flow.identity.reporter_id} ${flow.submitted.report_id} ${flow.authorization.authorization_id}`,
       );
     }
 
     void runSmoke().catch((error) => {
-      setOracleSmokeStatus(`oracle write smoke failed ${error?.message || 'unknown'}`);
+      setOracleSmokeStatus(`Test run failed ${error?.message || 'unknown'}`);
     });
   }, []);
 
@@ -246,7 +201,7 @@ function ZenoOracleDashboard({ wallet = null } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const emptyMetrics = ORACLE_NETWORK_SUMMARY.map(m => ({ ...m, value: 'N/A', delta: '—', tone: 'neutral' }));
+  // ─── Derived data (same logic as v1, preserved for compatibility) ───
   const feeds = useMemo(
     () => (remoteData?.feeds?.length ? remoteData.feeds : (demoMode ? ORACLE_FEEDS : [])),
     [remoteData?.feeds, demoMode],
@@ -254,9 +209,8 @@ function ZenoOracleDashboard({ wallet = null } = {}) {
   const reporters = remoteData?.reporters?.length ? remoteData.reporters : (demoMode ? ORACLE_REPORTERS : []);
   const disputes = [
     ...(remoteData?.disputes?.length ? remoteData.disputes : (demoMode ? ORACLE_DISPUTES : [])),
-    ...localDisputes
+    ...localDisputes,
   ];
-  const metrics = remoteData?.metrics?.length ? remoteData.metrics : (demoMode ? ORACLE_NETWORK_SUMMARY : emptyMetrics);
   const sources = remoteData?.sources?.length ? remoteData.sources : [];
   const rewards = remoteData?.rewards?.length ? remoteData.rewards : (demoMode ? ORACLE_REWARDS : []);
   const authorizationTrail = remoteData?.authorizationTrail || [];
@@ -265,19 +219,14 @@ function ZenoOracleDashboard({ wallet = null } = {}) {
   const authorityGaps = Array.isArray(authorityStatus?.readiness_gaps)
     ? authorityStatus.readiness_gaps
     : [];
-  const authorityLabel = authorityStatus
-    ? authorityReady
-      ? 'Production authority ready'
-      : 'Authority blocked'
-    : 'Authority unverified';
-  const authorityTitle = authorityGaps.length ? authorityGaps.join('; ') : authorityLabel;
+  void authorityGaps;
 
-  const visibleFeeds = useMemo(() => {
-    if (feedFilter === 'all') {
-      return feeds;
-    }
-    return feeds.filter((feed) => feed.status === feedFilter);
-  }, [feeds, feedFilter]);
+  const summary = remoteData?.summary || {};
+  const aggregationStatus = summary.aggregation_ok === true
+    ? 'ok'
+    : summary.aggregation_ok === false
+      ? 'down'
+      : 'unknown';
 
   const emptyFeed = {
     id: 'placeholder',
@@ -291,484 +240,88 @@ function ZenoOracleDashboard({ wallet = null } = {}) {
     status: 'stale',
   };
   const selectedFeed = feeds.find((feed) => feed.id === selectedFeedId) || feeds[0] || (demoMode ? ORACLE_FEEDS[0] : emptyFeed);
-  // True only when a real feed exists; the placeholder fallback must NOT drive
-  // the Feed Detail Inspector / Latest Read / Feed Status panels (they would show
-  // fabricated "Waiting…/N/A/—" fields for a feed that does not exist).
   const hasRealFeed = Boolean(selectedFeed) && selectedFeed.id !== 'placeholder';
-  const sectionCopy = ORACLE_SECTION_COPY[activeSection] || ORACLE_SECTION_COPY.Overview;
+
   const handleVerifyReceipt = (receiptId) => {
     const id = String(receiptId || '').trim();
-    if (!id) {
-      return;
-    }
+    if (!id) return;
     setVerifyReceiptId(id);
-    setActiveSection('Verify');
+    setTab('resolve');
   };
 
-  const coreContent = (() => {
-    if (activeSection === 'Feeds') {
-      return (
-        <>
-          <section className="panel zor-panel zor-feeds-panel">
-            <div className="zor-section-header">
-              <div>
-                <h2>Feed Catalogue</h2>
-                <p>{timeRange} feed state with evidence, freshness, and critical-use posture.</p>
-              </div>
-              <span className="zor-subtle-chip">{visibleFeeds.length} feeds</span>
-            </div>
-            <FeedTable
-              feeds={visibleFeeds}
-              selectedFeedId={selectedFeed.id}
-              onSelectFeed={setSelectedFeedId}
-              onCreate={() => setShowFeedCreationModal(true)}
-            />
-          </section>
-          {hasRealFeed && (
-            <FeedDetailInspector
-              key={selectedFeed?.receiptId || selectedFeed?.feed || 'feed-detail'}
-              feed={selectedFeed}
-              reporters={reporters}
-              disputes={disputes}
-              onAddDispute={handleAddDispute}
-              demoMode={demoMode}
-            />
-          )}
-          <div className="zor-two-up">
-            <FeedCreationPanel />
-            <FeedStatusPanel feed={selectedFeed} />
-          </div>
-          <SourceDiversityPanel sources={sources} />
-          <ConsumerProfilePanel />
-        </>
-      );
-    }
-    if (activeSection === 'Reports') {
-      return (
-        <>
-          <div className="zor-two-up">
-            <ReporterOnboardingPanel selectedFeed={selectedFeed} />
-            <LatestRead feed={selectedFeed} onVerifyReceipt={handleVerifyReceipt} onViewAll={() => setActiveSection("Receipts")} />
-          </div>
-          <AuthorizationTrailPanel items={authorizationTrail} />
-          <SourceDiversityPanel sources={sources} />
-          <EventsPanel events={authorizationTrail} demoMode={demoMode} />
-        </>
-      );
-    }
-    if (activeSection === 'Reporters') {
-      return (
-        <>
-          <ReporterPanel reporters={reporters} />
-          <RewardsPanel rewards={rewards} />
-          <ReporterOnboardingPanel selectedFeed={selectedFeed} />
-        </>
-      );
-    }
-    if (activeSection === 'Disputes') {
-      return (
-        <>
-          <DisputesPanel disputes={disputes} />
-          <SourceDiversityPanel sources={sources} />
-          <EventsPanel events={authorizationTrail} demoMode={demoMode} />
-        </>
-      );
-    }
-    if (activeSection === 'Receipts') {
-      return (
-        <>
-          <div className="zor-two-up">
-            <ReceiptBuilderPanel feed={selectedFeed} />
-            <LatestRead feed={selectedFeed} onVerifyReceipt={handleVerifyReceipt} onViewAll={() => setActiveSection("Receipts")} />
-          </div>
-          <AuthorizationTrailPanel items={authorizationTrail} />
-          <EvidencePanel summary={remoteData?.summary} reads={remoteData?.acceptedReads} demoMode={demoMode} />
-        </>
-      );
-    }
-    if (activeSection === 'Verify') {
-      return (
-        <>
-          <div className="zor-two-up">
-            <VerifyPanel key={verifyReceiptId || 'verify'} initialReceiptId={verifyReceiptId} />
-            <ServicesPanel summary={remoteData?.summary} authorityStatus={remoteData?.authorityStatus} demoMode={demoMode} />
-          </div>
-          <AuthorizationTrailPanel items={authorizationTrail} />
-          <ConsumerProfilePanel />
-        </>
-      );
-    }
-    if (activeSection === 'Governance') {
-      return (
-        <>
-          <AuthorityProfilePanel authorityStatus={authorityStatus} />
-          <AuthorityExercisePanel
-            authorityStatus={authorityStatus}
-            authorityExerciseResult={authorityExerciseResult}
-            authorityExerciseState={authorityExerciseState}
-            authorityExerciseBusy={authorityExerciseBusy}
-            onRunAuthorityExercise={() => {
-              void runAuthorityExercise().catch(() => {});
-            }}
-          />
-          <ConsumerProfilePanel />
-          <div className="zor-two-up">
-            <FeedCreationPanel />
-            <ServicesPanel summary={remoteData?.summary} authorityStatus={remoteData?.authorityStatus} demoMode={demoMode} />
-          </div>
-          <RewardsPanel rewards={rewards} />
-        </>
-      );
-    }
-    // Overview: status hero → compact metric ribbon → top 5 feeds →
-    // network health → action CTAs → Diagnostics (collapsed by default).
-    // Heavy write-flow forms now live behind modals to keep the page calm.
-    const visibleFeedCount = visibleFeeds.length;
-    const TOP_FEED_LIMIT = 5;
-    const topFeeds = visibleFeeds.slice(0, TOP_FEED_LIMIT);
-
-    // Derive a single dominant status from the metrics. Replay-OK +
-    // zero open disputes = healthy; replay-fail OR open disputes = warn;
-    // explicit replay-fail with disputes = err.
-    const summaryForHero = remoteData?.summary || {};
-    const openDisputeCount = Number(summaryForHero.open_dispute_count
-      || (remoteData?.disputes ? remoteData.disputes.filter((d) => d.status === 'open').length : 0)) || 0;
-    const replayOk = summaryForHero.replay_ok !== false;
-    const acceptedReadCount = Number(summaryForHero.accepted_read_count || 0);
-    const dataPlaneIdle = visibleFeedCount === 0 && acceptedReadCount === 0;
-    let heroTone = 'ok';
-    let heroHeadline = 'All systems operational';
-    let heroLede = `${visibleFeedCount} active feed${visibleFeedCount === 1 ? '' : 's'} · replay verified · 0 open disputes.`;
-    if (dataPlaneIdle && replayOk && openDisputeCount === 0) {
-      // Authority + replay are up, but no feeds/reads have been reported yet.
-      // Don't claim "all systems operational" over an empty data plane.
-      heroTone = 'neutral';
-      heroHeadline = 'Authority ready · awaiting feeds';
-      heroLede = 'Replay verifier OK and authority ready, but no feeds or accepted reads have been reported yet. Register a feed to begin.';
-    } else if (!replayOk && openDisputeCount > 0) {
-      heroTone = 'err';
-      heroHeadline = 'Attention required';
-      heroLede = `Replay verification failed and ${openDisputeCount} dispute${openDisputeCount === 1 ? '' : 's'} open.`;
-    } else if (!replayOk) {
-      heroTone = 'warn';
-      heroHeadline = 'Replay verification failing';
-      heroLede = 'Acceptance gates remain bounded but replay needs operator attention.';
-    } else if (openDisputeCount > 0) {
-      heroTone = 'warn';
-      heroHeadline = `${openDisputeCount} open dispute${openDisputeCount === 1 ? '' : 's'}`;
-      heroLede = `Network is replay-verified; ${openDisputeCount} report${openDisputeCount === 1 ? '' : 's'} awaiting resolution.`;
-    }
-    const heroPillLabel = heroTone === 'ok' ? 'Healthy'
-      : heroTone === 'neutral' ? 'Standby'
-      : heroTone === 'warn' ? 'Action needed'
-      : 'Critical';
-
-    // Idle data plane: authority ready, replay OK, nothing reported yet. In this
-    // state the Overview condenses the wall of empty panels into one guiding
-    // readiness card + promoted get-started actions, instead of ~8 "nothing yet"
-    // boxes. Populated state (!idleOverview) keeps the full dashboard.
-    const idleOverview = dataPlaneIdle && replayOk && openDisputeCount === 0;
-    const authForCard = remoteData?.authorityStatus || {};
-    const authoritySignerCount = Number(authForCard.active_signer_count ?? authForCard.signer_count ?? 2);
-    const authorityReady = authForCard.production_authority === true || authForCard.status === 'ready';
-    const readinessAwaiting = [
-      ['Active feeds', Number(summaryForHero.active_feed_count || 0)],
-      ['Accepted reads', Number(summaryForHero.accepted_read_count || 0)],
-      ['Reporters', Number(summaryForHero.reporter_count || 0)],
-      ['Sources', Number(summaryForHero.source_count || 0)],
-      ['Open disputes', Number(summaryForHero.open_dispute_count || 0)],
-    ];
-
-    return (
-      <>
-        {/* ─── Status hero: the ONE thing the operator should see first. */}
-        <section className="zor-hero panel">
-          <div className="zor-hero-main">
-            <SharedStatusPill tone={heroTone} label={heroPillLabel} />
-            <div className="zor-hero-title-row" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', margin: 'var(--space-xs) 0' }}>
-              <img src={ZENO_ORACLE_ICON} alt="Zeno Oracle Logo" className="zor-hero-logo" style={{ width: '48px', height: '48px', borderRadius: '50%' }} />
-              <h2 className="zor-hero-headline" style={{ margin: 0 }}>{heroHeadline}</h2>
-            </div>
-            <p className="zor-hero-lede">{heroLede}</p>
-            {idleOverview && (
-              <div className="zor-hero-cta-row">
-                <button type="button" className="btn btn-primary zor-action-cta" onClick={() => setShowFeedCreationModal(true)}>
-                  + Create feed
-                </button>
-                <button type="button" className="btn btn-secondary zor-action-cta" onClick={() => setShowReporterOnboardingModal(true)}>
-                  + Register reporter
-                </button>
-                <button type="button" className="btn btn-secondary zor-action-cta" onClick={() => setShowReceiptBuilderModal(true)}>
-                  + Build receipt
-                </button>
-              </div>
-            )}
-          </div>
-          <div className="zor-hero-aside">
-            {idleOverview ? (
-              <div className="zor-hero-stat">
-                <span className="zor-hero-stat-label">Replay verifier</span>
-                <span className="zor-hero-stat-value" style={{ color: 'var(--accent-green)' }}>OK</span>
-              </div>
-            ) : (
-              <>
-                <div className="zor-hero-stat">
-                  <span className="zor-hero-stat-label">Active feeds</span>
-                  <span className="zor-hero-stat-value">{visibleFeedCount.toLocaleString()}</span>
-                </div>
-                <div className="zor-hero-stat">
-                  <span className="zor-hero-stat-label">Open disputes</span>
-                  <span className="zor-hero-stat-value">{openDisputeCount.toLocaleString()}</span>
-                </div>
-              </>
-            )}
-          </div>
-        </section>
-
-        {idleOverview ? (
-          /* ─── Idle: one guiding readiness card replaces the empty-panel wall. */
-          <section className="panel zor-panel zor-readiness-card">
-            <div className="zor-section-header">
-              <div>
-                <h2>Oracle readiness</h2>
-                <p>The authority is live; the data plane is awaiting its first feed.</p>
-              </div>
-              <span className="zor-subtle-chip zor-chip-ok">Authority ready</span>
-            </div>
-            <div className="zor-readiness-grid">
-              <div>
-                <h3 className="zor-readiness-subhead">Ready</h3>
-                <div className="zor-health-list">
-                  <div className="zor-health-row"><span>Replay verifier</span><strong style={{ color: 'var(--accent-green)' }}>OK</strong></div>
-                  <div className="zor-health-row"><span>Authority</span><strong>{authorityReady ? 'Production ready' : 'Pending'}</strong></div>
-                  <div className="zor-health-row"><span>Active signers</span><strong>{authoritySignerCount}</strong></div>
-                </div>
-              </div>
-              <div>
-                <h3 className="zor-readiness-subhead">Awaiting first feed</h3>
-                <div className="zor-health-list">
-                  {readinessAwaiting.map(([label, value]) => (
-                    <div className="zor-health-row" key={label}>
-                      <span>{label}</span>
-                      <strong className={value > 0 ? '' : 'zor-muted'}>{value}</strong>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </section>
-        ) : (
-          <>
-            {/* ─── Compact metric ribbon (kept; reduced visual weight by
-                  following the hero, not preceding it). */}
-            <div className="zor-metrics">
-              {metrics.map((metric) => (
-                <MetricCard key={metric.id} metric={metric} />
-              ))}
-            </div>
-
-            {/* ─── Top feeds — paginated to 5 with "View all" link. */}
-            <section className="panel zor-panel zor-feeds-panel">
-              <div className="zor-section-header">
-                <div>
-                  <h2>Top Feeds</h2>
-                  <p>{timeRange} operational view with evidence and freshness state.</p>
-                </div>
-                <div className="zor-section-actions">
-                  <span className="zor-subtle-chip">{visibleFeedCount} feeds</span>
-                  {visibleFeedCount > TOP_FEED_LIMIT && (
-                    <button
-                      type="button"
-                      className="zor-link-button"
-                      onClick={() => setActiveSection('Feeds')}
-                    >
-                      View all →
-                    </button>
-                  )}
-                </div>
-              </div>
-              <FeedTable
-                feeds={topFeeds}
-                selectedFeedId={selectedFeed.id}
-                onSelectFeed={setSelectedFeedId}
-                onCreate={() => setShowFeedCreationModal(true)}
-              />
-            </section>
-
-            <div className="zor-two-up">
-              <HealthPanel summary={remoteData?.summary} demoMode={demoMode} />
-              <EvidencePanel summary={remoteData?.summary} reads={remoteData?.acceptedReads} demoMode={demoMode} />
-            </div>
-            <AuthorizationTrailPanel items={authorizationTrail} />
-            <SourceDiversityPanel sources={sources} />
-
-            {/* ─── Write-flow CTAs: each opens a focus-trapped modal so the
-                  landing page stays calm. */}
-            <section className="zor-action-row">
-              <button
-                type="button"
-                className="btn btn-secondary zor-action-cta"
-                onClick={() => setShowFeedCreationModal(true)}
-              >
-                + Create feed
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary zor-action-cta"
-                onClick={() => setShowReporterOnboardingModal(true)}
-              >
-                + Register reporter
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary zor-action-cta"
-                onClick={() => setShowReceiptBuilderModal(true)}
-              >
-                + Build receipt
-              </button>
-            </section>
-          </>
-        )}
-
-        {/* ─── Diagnostics — all of the deep panels behind one disclosure
-              so the operator sees them only on demand. */}
-        <details className="zor-diagnostics panel">
-          <summary className="zor-diagnostics-summary">
-            <span className="zor-diagnostics-title">Diagnostics</span>
-            <span className="zor-diagnostics-hint">
-              Reporters · rewards · consumer profiles · events
-            </span>
-          </summary>
-          <div className="zor-diagnostics-body">
-            <ReporterPanel reporters={reporters} />
-            <RewardsPanel rewards={rewards} />
-            <ConsumerProfilePanel />
-            <EventsPanel events={authorizationTrail} demoMode={demoMode} />
-          </div>
-        </details>
-      </>
-    );
-  })();
-
   return (
-    <div className="zor-shell">
-      <section className="zor-dashboard">
-        {/* Section tab strip + live posture chips. No duplicate brand
-            lockup, no placeholder "Connect Wallet" or "D" theme button —
-            the main app header handles wallet + theme. */}
-        <div className="zor-section-bar">
-          <nav className="zor-product-nav" aria-label="ZenoOracle sections">
-            {ORACLE_SECTIONS.map((item) => (
-              <button
-                key={item}
-                className={item === activeSection ? 'zor-product-nav-active' : ''}
-                onClick={() => setActiveSection(item)}
-                type="button"
-              >
-                {item}
-              </button>
-            ))}
-          </nav>
-          <div className="zor-section-bar-meta">
-            <span className="zor-env">
-              <span />
-              {apiState}
-            </span>
-            <span
-              className={`zor-authority-chip ${authorityReady ? 'zor-authority-ready' : 'zor-authority-blocked'}`}
-              title={authorityTitle}
-            >
-              {authorityLabel}
-            </span>
-            {oracleSmokeStatus ? <span className="zor-subtle-chip">{oracleSmokeStatus}</span> : null}
-            <button
-              className="btn btn-secondary btn-xs"
-              type="button"
-              onClick={() => setIsRailCollapsed(!isRailCollapsed)}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
-            >
-              {isRailCollapsed ? 'Show Action Rail →' : '← Hide Action Rail'}
-            </button>
-            <span className="zor-subtle-chip" title="Wallet controls live in the main header">
-              {wallet?.address ? `Wallet ${compactId(wallet.address)}` : 'Wallet in header'}
-            </span>
-          </div>
-        </div>
+    <div className="oracle-section">
+      {/* ─── Persistent status bar (all tabs) ─── */}
+      <OracleStatusBar
+        feeds={feeds}
+        disputes={disputes}
+        reporters={reporters}
+        authorityReady={authorityReady}
+        aggregationStatus={aggregationStatus}
+        apiState={apiState}
+        lastUpdateLabel={summary.last_update_label || ''}
+        onViewDisputes={() => setTab('resolve')}
+      />
 
-        <div className="zor-workspace" style={isRailCollapsed ? { gridTemplateColumns: 'minmax(0, 1fr)' } : {}}>
-          <div className="zor-core-column">
-            <div className="zor-overview-heading">
-              <div>
-                <h2>{activeSection === 'Overview' ? 'Oracle Overview' : activeSection}</h2>
-                <p>{sectionCopy}</p>
-              </div>
-              <div className="zor-overview-controls">
-                <select
-                  className="input"
-                  value={feedFilter}
-                  onChange={(event) => setFeedFilter(event.target.value)}
-                  aria-label="Feed status filter"
-                >
-                  <option value="all">All feeds</option>
-                  <option value="fresh">Fresh</option>
-                  <option value="devnet-only">Devnet only</option>
-                  <option value="high-uncertainty">High uncertainty</option>
-                </select>
-                <select
-                  className="input"
-                  value={timeRange}
-                  onChange={(event) => setTimeRange(event.target.value)}
-                  aria-label="Time range"
-                >
-                  <option>1h</option>
-                  <option>6h</option>
-                  <option>24h</option>
-                  <option>7d</option>
-                  <option>30d</option>
-                </select>
-              </div>
-            </div>
-            {coreContent}
-            {activeSection === 'Overview' && hasRealFeed && (
-              <FeedDetailInspector
-                key={selectedFeed?.receiptId || selectedFeed?.feed || 'feed-detail'}
-                feed={selectedFeed}
-                reporters={reporters}
-                disputes={disputes}
-                onAddDispute={handleAddDispute}
-                demoMode={demoMode}
-              />
-            )}
-          </div>
+      {/* ─── Safety context line (1 line, not a hero) ─── */}
+      <div className="oracle-context-line" role="note">
+        Oracle feeds price Perps &amp; zUSD. Stale or wrong data can trigger liquidations.
+      </div>
 
-          {!isRailCollapsed && (
-            <aside className="zor-side-rail" aria-label="Oracle action rail">
-              {hasRealFeed ? (
-                <>
-                  {activeSection === 'Receipts' || activeSection === 'Reports' ? null : (
-                    <LatestRead feed={selectedFeed} onVerifyReceipt={handleVerifyReceipt} onViewAll={() => setActiveSection("Receipts")} />
-                  )}
-                  <FeedStatusPanel feed={selectedFeed} />
-                </>
-              ) : (
-                <section className="panel zor-panel">
-                  <div className="zor-empty-state zor-empty-compact" role="status">
-                    <strong>No feed selected</strong>
-                    <p>Create a feed to inspect its accepted reads, fund its budget, and verify receipts.</p>
-                  </div>
-                </section>
-              )}
-              <VerifyPanel key={verifyReceiptId || 'verify'} initialReceiptId={verifyReceiptId} />
-              <ServicesPanel summary={remoteData?.summary} authorityStatus={remoteData?.authorityStatus} demoMode={demoMode} />
-            </aside>
-          )}
-        </div>
-        <FeatureStrip />
-      </section>
+      {/* ─── Task tabs ─── */}
+      <OracleTabs activeTab={tab} onTabChange={setTab} />
 
-      {/* ─── Modals — opened from the action CTAs on the Overview tab.
-            Each wraps an existing inline panel component verbatim, so
-            the form logic stays identical. */}
+      {/* ─── Tab content ─── */}
+      {tab === 'monitor' && (
+        <MonitorTab
+          feeds={feeds}
+          selectedFeedId={selectedFeed.id}
+          onSelectFeed={setSelectedFeedId}
+          onCreateFeed={() => setShowFeedCreationModal(true)}
+          onBuildReceipt={() => setShowReceiptBuilderModal(true)}
+          onOpenDispute={() => setTab('resolve')}
+          onVerifyReceipt={handleVerifyReceipt}
+          onViewAllReceipts={() => setTab('resolve')}
+          onRegisterReporter={() => setShowReporterOnboardingModal(true)}
+          reporters={reporters}
+          disputes={disputes}
+          remoteData={remoteData}
+          demoMode={demoMode}
+          postOracle={postOracle}
+        />
+      )}
+
+      {tab === 'resolve' && (
+        <ResolveTab
+          disputes={disputes}
+          selectedFeed={hasRealFeed ? selectedFeed : null}
+          onVerifyReceipt={handleVerifyReceipt}
+          verifyReceiptId={verifyReceiptId}
+          authorizationTrail={authorizationTrail}
+          remoteData={remoteData}
+          demoMode={demoMode}
+          postOracle={postOracle}
+        />
+      )}
+
+      {tab === 'admin' && (
+        <AdminTab
+          feeds={feeds}
+          selectedFeed={hasRealFeed ? selectedFeed : null}
+          reporters={reporters}
+          rewards={rewards}
+          sources={sources}
+          authorityStatus={authorityStatus}
+          authorityExerciseResult={authorityExerciseResult}
+          authorityExerciseState={authorityExerciseState}
+          authorityExerciseBusy={authorityExerciseBusy}
+          onRunAuthorityExercise={() => { void runAuthorityExercise().catch(() => {}); }}
+          onCreateFeed={() => setShowFeedCreationModal(true)}
+          demoMode={demoMode}
+        />
+      )}
+
+      {/* ─── Modals (write flows kept behind modals for calm UI) ─── */}
       <Modal
         open={showFeedCreationModal}
         onClose={() => setShowFeedCreationModal(false)}
@@ -791,7 +344,7 @@ function ZenoOracleDashboard({ wallet = null } = {}) {
         open={showReceiptBuilderModal}
         onClose={() => setShowReceiptBuilderModal(false)}
         title="Build receipt"
-        description="Aggregate, read, or authorize. The build flow is identical to the side-rail form; it just lives here so the dashboard stays calm."
+        description="Aggregate, read, or authorize. Downloads a JSON receipt."
         size="lg"
       >
         <ReceiptBuilderPanel feed={selectedFeed} />

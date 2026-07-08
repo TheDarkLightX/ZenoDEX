@@ -133,13 +133,16 @@ def bls_pubkey_hex_from_privkey(privkey: str | int | bytes | bytearray) -> str:
 
 
 def _tx_signing_message_bytes(payload: Mapping[str, Any]) -> bytes:
+    tx_type = payload.get("tx_type", "user_tx")
     signing_dict = {
         "sender_pubkey": payload["sender_pubkey"],
         "sequence_number": payload["sequence_number"],
         "expiration_time": payload["expiration_time"],
-        "operations": payload["operations"],
         "fee_limit": payload["fee_limit"],
+        "tx_type": tx_type,
     }
+    if tx_type == "user_tx":
+        signing_dict["operations"] = payload.get("operations", {})
     return canonical_json_bytes(signing_dict)
 
 
@@ -204,10 +207,15 @@ def tau_rpc_response_is_success(response: object) -> bool:
     normalized = text.upper()
     if normalized == "SUCCESS":
         return True
-    if not normalized.startswith("SUCCESS"):
-        return False
-    suffix = normalized[len("SUCCESS") :]
-    return bool(suffix) and suffix[0] in {":", " ", "\t"}
+    if normalized.startswith("SUCCESS"):
+        suffix = normalized[len("SUCCESS") :]
+        return bool(suffix) and suffix[0] in {":", " ", "\t"}
+    try:
+        data = json.loads(text)
+        return data.get("status") == "ok"
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return False
 
 
 def tau_rpc_invalid_sequence_numbers(response: object) -> tuple[int, int] | None:
@@ -231,7 +239,7 @@ def build_signed_tau_transaction(
     sequence_number: int,
     expiration_time: int,
     operations: Dict[str, Any],
-    fee_limit: str | int = "0",
+    fee_limit: str | int = "100",
 ) -> Dict[str, Any]:
     _require_bls()
     sender_pubkey = bls_pubkey_hex_from_privkey(privkey)
@@ -243,6 +251,7 @@ def build_signed_tau_transaction(
         "expiration_time": _coerce_nonnegative_int(expiration_time, label="expiration_time"),
         "operations": encoded_ops,
         "fee_limit": str(fee_limit),
+        "tx_type": "user_tx",
     }
     payload["signature"] = sign_tau_transaction_payload(payload, privkey=privkey)
     return payload
@@ -365,6 +374,12 @@ class TauNetTcpClient:
         if resp.startswith("SEQUENCE:"):
             _, v = resp.split(":", 1)
             return int(v.strip())
+        try:
+            data = json.loads(resp)
+            if data.get("status") == "ok" and "data" in data:
+                return int(data["data"]["sequence_number"])
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            pass
         raise TauNetRpcError(f"unexpected getsequence response: {resp!r}")
 
     def get_balance(self, address_hex: str) -> int:
@@ -372,6 +387,12 @@ class TauNetTcpClient:
         if resp.startswith("BALANCE:"):
             _, v = resp.split(":", 1)
             return int(v.strip())
+        try:
+            data = json.loads(resp)
+            if data.get("status") == "ok" and "data" in data:
+                return int(data["data"]["balance"])
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            pass
         raise TauNetRpcError(f"unexpected getbalance response: {resp!r}")
 
     def sendtx(self, payload: Mapping[str, Any]) -> str:
@@ -383,7 +404,15 @@ class TauNetTcpClient:
         return self.rpc("createblock").strip()
 
     def getappstate(self, *, full: bool = False) -> str:
-        return self.rpc("getappstate full" if full else "getappstate").strip()
+        resp = self.rpc("getappstate full" if full else "getappstate").strip()
+        # Normalise JSON envelope: unwrap {"status":"ok","data":{...}} -> {...}
+        try:
+            data = json.loads(resp)
+            if isinstance(data, dict) and data.get("status") == "ok" and "data" in data:
+                return json.dumps(data["data"], separators=(",", ":"))
+        except (json.JSONDecodeError, TypeError):
+            pass
+        return resp
 
     def getdexstate(self, *, full: bool = False) -> str:
         # Back-compat alias; Tau Testnet now exposes `getappstate`.
@@ -397,7 +426,7 @@ class TauNetTcpClient:
         *,
         privkey: str | int | bytes | bytearray,
         operations: Dict[str, Any],
-        fee_limit: str | int = "0",
+        fee_limit: str | int = "100",
         expiration_seconds: int = 3600,
         sequence_number: Optional[int] = None,
     ) -> str:

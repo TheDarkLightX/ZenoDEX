@@ -1,7 +1,7 @@
 """
 Perpetuals execution adapter for Tau Net-style transactions.
 
-This module applies operation group "8" (perps) to `DexState` in a deterministic,
+This module applies operation group "22" (perps) to `DexState` in a deterministic,
 fail-closed way. It is intentionally conservative:
 - Account-scoped actions require tx_sender_pubkey == account_pubkey.
 - Isolated-market admin actions require an explicit operator pubkey configured (optional).

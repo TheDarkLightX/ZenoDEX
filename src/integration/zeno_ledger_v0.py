@@ -464,8 +464,13 @@ def _looks_like_tauswap_intent_stream_v0(value: object) -> bool:
 
 def _normalize_dex_operations_for_apply_v0(operations: Mapping[str, Any]) -> dict[str, Any]:
     normalized = dict(operations)
-    if "2" not in normalized and _looks_like_tauswap_intent_stream_v0(normalized.get("5")):
-        normalized["2"] = normalized["5"]
+    if "2" not in normalized:
+        # Stream "5" is the legacy TauSwap intent stream; stream "19" is the
+        # upstream DEX intent stream used by the testnet seed and UI swap path.
+        for alt_key in ("5", "19"):
+            if _looks_like_tauswap_intent_stream_v0(normalized.get(alt_key)):
+                normalized["2"] = normalized[alt_key]
+                break
     if "3" not in normalized and "6" in normalized:
         normalized["3"] = normalized["6"]
     return normalized

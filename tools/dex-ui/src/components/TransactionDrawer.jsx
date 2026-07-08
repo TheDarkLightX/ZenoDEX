@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { useTransactionCenter } from '../lib/TransactionCenterContext.jsx';
+import { useKeyboardShortcuts } from '../lib/useKeyboardShortcuts.js';
 import './TransactionDrawer.css';
 
 function formatAge(timestamp) {
@@ -24,6 +25,7 @@ function statusLabel(status) {
 
 function TransactionDrawer() {
     const [open, setOpen] = useState(false);
+    const drawerRef = useRef(null);
     const {
         transactions,
         pendingCount,
@@ -33,6 +35,11 @@ function TransactionDrawer() {
 
     const visible = useMemo(() => transactions.slice(0, 14), [transactions]);
 
+    // Close on Escape when open
+    useKeyboardShortcuts({
+        escape: () => setOpen(false),
+    }, { enabled: open });
+
     return (
         <div className={`tx-drawer-shell ${open ? 'open' : ''}`}>
             <button
@@ -40,16 +47,30 @@ function TransactionDrawer() {
                 className="tx-drawer-toggle"
                 onClick={() => setOpen((prev) => !prev)}
                 title="Open transaction center"
+                aria-label={`Transaction activity ${pendingCount > 0 ? `(${pendingCount} pending)` : ''}`}
+                aria-expanded={open}
+                aria-controls="tx-drawer-panel"
             >
                 <span>Activity</span>
-                {pendingCount > 0 && <span className="tx-pending-pill">{pendingCount}</span>}
+                {pendingCount > 0 && <span className="tx-pending-pill" aria-label={`${pendingCount} pending`}>{pendingCount}</span>}
             </button>
 
             {open && (
-                <aside className="tx-drawer panel animate-slide-up" aria-label="Transaction activity">
+                <aside
+                    ref={drawerRef}
+                    id="tx-drawer-panel"
+                    className="tx-drawer panel animate-slide-up"
+                    aria-label="Transaction activity"
+                    role="complementary"
+                >
                     <div className="tx-drawer-header">
                         <h3>Transaction Activity</h3>
-                        <button type="button" className="tx-clear-btn" onClick={clearSettled}>
+                        <button
+                            type="button"
+                            className="tx-clear-btn"
+                            onClick={clearSettled}
+                            aria-label="Clear settled transactions"
+                        >
                             Clear Settled
                         </button>
                     </div>
@@ -97,6 +118,7 @@ function TransactionDrawer() {
                                             type="button"
                                             className="tx-dismiss-btn"
                                             onClick={() => removeTransaction(tx.id)}
+                                            aria-label={`Dismiss transaction ${tx.title || tx.id}`}
                                         >
                                             Dismiss
                                         </button>

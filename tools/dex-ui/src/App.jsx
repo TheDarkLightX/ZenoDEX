@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, lazy, Suspense, useMemo, useCallback } from 'react';
 import './index.css';
 // Per-surface code-splitting: each tab is a separate chunk loaded on demand, so
 // the initial bundle only carries the default (Swap) surface + shell. The other
@@ -42,6 +42,8 @@ import WalletConnect from './components/WalletConnect';
 import TransactionDrawer from './components/TransactionDrawer.jsx';
 import { useTransactionCenter } from './lib/TransactionCenterContext.jsx';
 import { getRuntimeConfig } from './lib/api.js';
+import { useKeyboardShortcuts } from './lib/useKeyboardShortcuts.js';
+import CommandPalette from './components/CommandPalette.jsx';
 
 const NAV_TABS = [
   { id: 'swap', label: 'Swap' },
@@ -52,6 +54,7 @@ const NAV_TABS = [
   { id: 'zusd', label: 'zUSD' },
   { id: 'oracle', label: 'Oracle' },
   { id: 'confidential', label: 'Confidential' },
+  { id: 'proofs', label: 'Proofs' },
   { id: 'governance', label: 'Keys' },
 ];
 
@@ -103,8 +106,63 @@ function getInitialWallet() {
 function App() {
   const [activeTab, setActiveTab] = useState(getInitialTab);
   const [wallet, setWallet] = useState(getInitialWallet);
+  const [cmdkOpen, setCmdkOpen] = useState(false);
   const { upsertTransaction } = useTransactionCenter();
   const uiSurfaceVersion = getRuntimeConfig().uiSurfaceContractVersion || 'ui-unpinned';
+
+  // ── Global keyboard shortcuts ────────────────────────────────────
+  // Power-user path: quick tab switching, command palette, theme toggle.
+  const switchTab = useCallback((tabId) => {
+    setActiveTab(tabId);
+    // Update URL for shareable links
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tabId);
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    if (typeof document === 'undefined') return;
+    const html = document.documentElement;
+    const current = html.getAttribute('data-theme') || 'dark';
+    html.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+  }, []);
+
+  useKeyboardShortcuts({
+    'ctrl+k': (e) => { e.preventDefault(); setCmdkOpen((v) => !v); },
+    'alt+1': () => switchTab('swap'),
+    'alt+2': () => switchTab('pools'),
+    'alt+3': () => switchTab('stats'),
+    'alt+4': () => switchTab('perps'),
+    'alt+5': () => switchTab('strategy'),
+    'alt+6': () => switchTab('zusd'),
+    'alt+7': () => switchTab('oracle'),
+    'alt+8': () => switchTab('confidential'),
+    'alt+9': () => switchTab('proofs'),
+    'alt+0': () => switchTab('governance'),
+    'alt+t': toggleTheme,
+  });
+
+  // Build command palette commands
+  const cmdkCommands = useMemo(() => [
+    ...NAV_TABS.map((tab, i) => ({
+      id: `nav-${tab.id}`,
+      label: tab.label,
+      hint: i < 9 ? `Alt+${i + 1}` : 'Alt+0',
+      icon: '↹',
+      group: 'Navigate',
+      action: () => switchTab(tab.id),
+    })),
+    {
+      id: 'theme-toggle',
+      label: 'Toggle light/dark theme',
+      hint: 'Alt+T',
+      icon: '◐',
+      group: 'Actions',
+      action: toggleTheme,
+    },
+  ], [switchTab, toggleTheme]);
 
   return (
     <ThemeProvider>
@@ -124,14 +182,17 @@ function App() {
             </div>
 
             <nav className="nav" aria-label="Product windows">
-              {NAV_TABS.map((tab) => (
+              {NAV_TABS.map((tab, i) => (
                 <button
                   key={tab.id}
                   className={`nav-link ${activeTab === tab.id ? 'active' : ''}`}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => switchTab(tab.id)}
                   onMouseEnter={() => prefetchSurface(tab.id)}
                   onFocus={() => prefetchSurface(tab.id)}
                   type="button"
+                  aria-current={activeTab === tab.id ? 'page' : undefined}
+                  accessKey={i < 9 ? String(i + 1) : '0'}
+                  title={i < 9 ? `${tab.label} (Alt+${i + 1})` : `${tab.label} (Alt+0)`}
                 >
                   {tab.label}
                 </button>
@@ -139,6 +200,19 @@ function App() {
             </nav>
 
             <div className="header-actions">
+              <button
+                className="cmdk-trigger"
+                onClick={() => setCmdkOpen(true)}
+                aria-label="Open command palette (Ctrl+K)"
+                title="Command palette — Ctrl+K"
+                type="button"
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M11 11l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                <kbd>⌘K</kbd>
+              </button>
               <ThemeSwitcher />
               <WalletConnect wallet={wallet} onConnect={setWallet} />
             </div>
@@ -150,7 +224,12 @@ function App() {
               header/nav/footer alive and lets the user switch tabs. Keying by
               activeTab resets the boundary when the surface changes. */}
           <ErrorBoundary key={activeTab}>
-          <Suspense fallback={<div className="surface-loading" role="status">Loading…</div>}>
+          <Suspense fallback={
+            <div className="surface-loading" role="status" aria-busy="true" aria-label="Loading surface">
+              <span className="surface-loading-spinner" aria-hidden="true" />
+              Loading…
+            </div>
+          }>
           {activeTab === 'swap' && (
             <div className="swap-container animate-fade-in">
               <SwapInterface wallet={wallet} />
@@ -185,7 +264,7 @@ function App() {
 
           {activeTab === 'zusd' && (
             <div className="animate-fade-in">
-              <ZUSDWorkbench wallet={wallet} />
+              <ZUSDWorkbench wallet={wallet} onConnect={setWallet} />
             </div>
           )}
 
@@ -230,6 +309,12 @@ function App() {
 
           <TransactionDrawer />
         </div>
+
+        <CommandPalette
+          open={cmdkOpen}
+          onOpenChange={setCmdkOpen}
+          commands={cmdkCommands}
+        />
       </DemoModeProvider>
     </ThemeProvider>
   );

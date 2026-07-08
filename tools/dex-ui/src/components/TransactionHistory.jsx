@@ -63,28 +63,40 @@ function TransactionHistory({ wallet }) {
         <div className="history-container">
             <div className="history-header">
                 <h2>Transaction History</h2>
-                <div className="history-filters">
+                <div className="history-filters" role="tablist" aria-label="Filter transactions">
                     <button
                         className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
                         onClick={() => setFilter('all')}
+                        role="tab"
+                        aria-selected={filter === 'all'}
+                        type="button"
                     >
                         All
                     </button>
                     <button
                         className={`filter-btn ${filter === 'swap' ? 'active' : ''}`}
                         onClick={() => setFilter('swap')}
+                        role="tab"
+                        aria-selected={filter === 'swap'}
+                        type="button"
                     >
                         Swaps
                     </button>
                     <button
                         className={`filter-btn ${filter === 'add_liquidity' ? 'active' : ''}`}
                         onClick={() => setFilter('add_liquidity')}
+                        role="tab"
+                        aria-selected={filter === 'add_liquidity'}
+                        type="button"
                     >
                         Adds
                     </button>
                     <button
                         className={`filter-btn ${filter === 'remove_liquidity' ? 'active' : ''}`}
                         onClick={() => setFilter('remove_liquidity')}
+                        role="tab"
+                        aria-selected={filter === 'remove_liquidity'}
+                        type="button"
                     >
                         Removes
                     </button>

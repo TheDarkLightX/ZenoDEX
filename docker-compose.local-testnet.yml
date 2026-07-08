@@ -102,6 +102,7 @@ services:
     environment: &node_env
       PYTHONDONTWRITEBYTECODE: "1"
       ZENO_LEDGER_WRITER_TOKEN: ${ZENO_LEDGER_WRITER_TOKEN:?ZENO_LEDGER_WRITER_TOKEN must be set by the orchestrator}
+      ZENO_LEDGER_ALLOW_UNSIGNED_INTENTS: "1"
       TAU_DEX_CHAIN_ID: ${CHAIN_ID:-zeno-ledger-localtest-v0}
       TAU_DEX_TOKEN_SYMBOL: ${ZENO_LEDGER_TOKEN_SYMBOL:-tZDEX}
       TAU_DEX_PROOF_MINING_POOL_PUBKEY: ${TAU_DEX_PROOF_MINING_POOL_PUBKEY:-}
@@ -241,15 +242,18 @@ services:
       TAU_DEX_ALLOW_MISSING_SETTLEMENT: "1"
       TAU_DEX_CONFIDENTIAL_SEALED_BID_TAU_GUARD: "1"
       TAU_APP_BRIDGE_ALLOW_BALANCE_PATCH: "1"
+      TAU_APP_BRIDGE_SYS_PATH: /work
+      TAU_APP_BRIDGE_MODULE: src.integration.tau_testnet_dex_plugin
       TAU_BIN_PROFILE: runtime
       TAU_RUNTIME_BIN: /work/external/tau-lang-bitblasting-prev-eea8fb1f/build-Release/tau
       TAU_RUNTIME_LIBRARY_PATH: /tau-cvc5-lib
+      LD_LIBRARY_PATH: /tau-cvc5-lib
       TAU_NODE_VENV_DIR: /opt/zenodex-tau-venv
       TAU_DB_PATH: /data/tau-local.sqlite
       TAU_FORCE_TEST: "1"
     volumes:
       - .:/work
-      - ${TAU_TESTNET_DIR:?TAU_TESTNET_DIR must be set by the orchestrator}:/work/external/tau-testnet:ro
+      - ${TAU_TESTNET_DIR:?TAU_TESTNET_DIR must be set by the orchestrator}:/work/external/tau-testnet:rw
       - ${TAU_CVC5_LIB_DIR:?TAU_CVC5_LIB_DIR must be set by the orchestrator (host path to cvc5 shared libraries)}:/tau-cvc5-lib:ro
       - tau-local-testnet-venv:/opt/zenodex-tau-venv
       - tau-local-testnet-db:/data
@@ -257,9 +261,10 @@ services:
     security_opt: *security_opts
     cap_drop: *cap_drop
     pids_limit: 256
-    mem_limit: 768m
+    mem_limit: 2g
     init: true
-    tmpfs: *tmpfs
+    tmpfs:
+      - /tmp:mode=1777,nosuid,nodev,size=512m
     healthcheck:
       test:
         - CMD
@@ -400,6 +405,7 @@ services:
       AUTOTRADER_LIVE_EXECUTION_JOURNAL_PATH: /tmp/autotrader_execution_journal.jsonl
       AUTOTRADER_LIVE_SUPERVISOR_PROFILE_FILE: /app/fixtures/autotrader_supervisor_profile.json
       CONFIDENTIAL_ATTESTATION_API_ENABLED: "true"
+      CONFIDENTIAL_SEALED_BID_API_ENABLED: "true"
       CONFIDENTIAL_SEALED_BID_STATE_FILE: /tmp/confidential_sealed_bid_state.json
       CONFIDENTIAL_SEALED_BID_LOCAL_LEDGER_SETTLEMENT_ENABLED: "true"
       CONFIDENTIAL_SEALED_BID_AUTO_MINE: "true"

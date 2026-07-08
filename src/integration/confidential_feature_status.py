@@ -134,7 +134,7 @@ def _runtime_enforcement_readiness_gaps() -> tuple[str, ...]:
     return (
         "cryptographic attestation verification remains external-only",
         "confidential runtime privacy remains external to the live API path",
-        "sealed-bid beta runtime/API integration is not wired beyond core/tests/tools",
+        "sealed-bid asset settlement remains external to the local/testnet API path",
     )
 
 

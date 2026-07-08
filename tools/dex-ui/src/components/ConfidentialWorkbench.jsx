@@ -143,7 +143,7 @@ function truncHash(value, head = 8, tail = 6) {
 
 function CopyHash({ value, label }) {
   const [copied, setCopied] = useState(false);
-  if (!value) return <span className="cwb-empty">not yet produced</span>;
+  if (!value) return <span className="cwb-empty">not available yet</span>;
   return (
     <button
       type="button"
@@ -464,32 +464,6 @@ function ConfidentialWorkbench() {
   const receiptHash = String(attestationResult?.receipt_hash || '');
   const measurement = String(attestationResult?.measurement || attestationResult?.measurement_provider || '');
   const executionAdmitted = attestationResult?.execution_admitted === true;
-  // Attestation mode: real vs smoke. The v2 verifier exposes
-  // production_security_claim, attestation_source, certificate_hash, and is_smoke
-  // in the result. When these fields are absent (legacy verifier), we infer
-  // smoke mode from the known smoke PCR pattern.
-  const attestationSource = String(
-    attestationResult?.attestation_source
-    || attestationResult?.result?.attestation_source
-    || ''
-  );
-  const productionSecurityClaim = attestationResult?.production_security_claim === true
-    || attestationResult?.result?.production_security_claim === true;
-  const attestationCertHash = String(
-    attestationResult?.certificate_hash
-    || attestationResult?.result?.certificate_hash
-    || ''
-  );
-  const isSmokeAttestation = attestationSource === 'smoke'
-    || attestationResult?.is_smoke === true
-    || (!attestationSource && measurement.includes('0123456789abcdef'));
-  const attestationModeLabel = productionSecurityClaim
-    ? 'Production-verified (real TEE attestation)'
-    : isSmokeAttestation
-      ? 'Smoke fixture (local-testnet only)'
-      : attestationSource
-        ? `Verified via ${attestationSource}`
-        : 'Verification mode unknown';
   const runtimeReceiptHash = String(runtimeResult?.receipt_hash || '');
   const runtimeBody = runtimeResult?.body || {};
   const runtimeEffectDigest = String(runtimeBody?.public_effect_digest || '');
@@ -552,7 +526,7 @@ function ConfidentialWorkbench() {
       <header className="cwb-hero panel animate-fade-in">
         <div className="cwb-hero-main">
           <p className="cwb-kicker">CONFIDENTIAL TRADING</p>
-          <h1 className="cwb-title">Hide large orders inside a trusted enclave</h1>
+          <h1 className="cwb-title">Hide large orders in a secure environment</h1>
           <p className="cwb-lede">
             {subtitle}
           </p>
@@ -575,7 +549,7 @@ function ConfidentialWorkbench() {
             <span className="cwb-readiness-count" aria-hidden="true">{readinessGaps.length}</span>
             <div>
               <h2 className="cwb-readiness-card-title">
-                Not yet configured for confidential trading
+                Not ready for private trading
               </h2>
               <p className="cwb-readiness-card-sub">
                 {readinessGaps.length} item{readinessGaps.length === 1 ? '' : 's'} must be set on
@@ -598,9 +572,9 @@ function ConfidentialWorkbench() {
       <div className="cwb-actions">
         <article className="cwb-action panel">
           <div className="cwb-action-head">
-            <h2 className="cwb-action-title">1 · Verify a TEE attestation</h2>
+            <h2 className="cwb-action-title">1 · Verify security certificate</h2>
             <p className="cwb-action-lede">
-              Confirm an enclave is genuine and matches an approved measurement.
+              Confirm the secure environment is authentic and approved.
               Returns a signed attestation receipt.
             </p>
           </div>
@@ -615,7 +589,7 @@ function ConfidentialWorkbench() {
             {attestationActionLabel()}
           </button>
           {attestDisabledReason && (
-            <p className="cwb-action-note">{attestDisabledReason}. The spec path is verified, but execution is gated off in this environment.</p>
+            <p className="cwb-action-note">{attestDisabledReason}. The feature is tested but not available in this environment.</p>
           )}
 
           {(attestationState.result || attestationState.error) && (
@@ -633,25 +607,14 @@ function ConfidentialWorkbench() {
               )}
               {attestationState.result && (
                 <dl className="cwb-result-list">
-                  <div><dt>Receipt</dt><dd><CopyHash value={receiptHash} label="receipt hash" /></dd></div>
+                  <div><dt>Proof</dt><dd><CopyHash value={receiptHash} label="proof ID" /></dd></div>
                   <div>
-                    <dt>Measurement</dt>
-                    <dd>{measurement.startsWith('nitro:') ? 'AWS Nitro' : (measurement.startsWith('sgx:') ? 'Intel SGX' : (measurement || <span className="cwb-empty">unknown</span>))}</dd>
+                    <dt>Security measurement</dt>
+                    <dd>{measurement.startsWith('nitro:') ? 'AWS Nitro' : (measurement || <span className="cwb-empty">unknown</span>)}</dd>
                   </div>
-                  <div>
-                    <dt>Attestation mode</dt>
-                    <dd>
-                      <span className={`cwb-attestation-mode ${productionSecurityClaim ? 'cwb-attestation-real' : isSmokeAttestation ? 'cwb-attestation-smoke' : ''}`}>
-                        {attestationModeLabel}
-                      </span>
-                    </dd>
-                  </div>
-                  {attestationCertHash && (
-                    <div><dt>Cert hash</dt><dd><CopyHash value={attestationCertHash} label="certificate hash" /></dd></div>
-                  )}
                   <div>
                     <dt>Request</dt>
-                    <dd>{attestationState.result?.request_consumed ? 'consumed' : 'unconsumed'}</dd>
+                    <dd>{attestationState.result?.request_consumed ? 'processed' : 'pending'}</dd>
                   </div>
                 </dl>
               )}
@@ -661,11 +624,9 @@ function ConfidentialWorkbench() {
 
         <article className="cwb-action panel">
           <div className="cwb-action-head">
-            <h2 className="cwb-action-title">2 · Run a confidential execution</h2>
+            <h2 className="cwb-action-title">2 · Run a private trade</h2>
             <p className="cwb-action-lede">
-              Run an admitted confidential order request. The runtime produces a
-              public proof digest and a redacted receipt without exposing order size
-              or direction.
+              Execute a private order and get proof without revealing trade details.
             </p>
           </div>
 
@@ -679,7 +640,7 @@ function ConfidentialWorkbench() {
             {runtimeActionLabel()}
           </button>
           {attestDisabledReason && (
-            <p className="cwb-action-note">Confidential execution requires the TEE runtime, which is disabled on this node.</p>
+            <p className="cwb-action-note">Private trading requires the secure environment, which is disabled here.</p>
           )}
 
           {(runtimeState.result || runtimeState.error) && (
@@ -688,7 +649,7 @@ function ConfidentialWorkbench() {
                 <StatusDot
                   tone={runtimeState.status === 'ready' ? 'ok' : 'err'}
                   label={runtimeState.status === 'ready'
-                    ? (runtimeRedacted ? 'Ready — result redacted' : 'Ready — result exposed')
+                    ? (runtimeRedacted ? 'Ready — details hidden' : 'Ready — details visible')
                     : 'Rejected'}
                 />
               </header>
@@ -697,11 +658,11 @@ function ConfidentialWorkbench() {
               )}
               {runtimeState.result && (
                 <dl className="cwb-result-list">
-                  <div><dt>Runtime receipt</dt><dd><CopyHash value={runtimeReceiptHash} label="runtime receipt" /></dd></div>
-                  <div><dt>Public effect digest</dt><dd><CopyHash value={runtimeEffectDigest} label="effect digest" /></dd></div>
-                  <div><dt>Operator status hash</dt><dd><CopyHash value={statusHash || runtimeBody?.operator_status_hash} label="status hash" /></dd></div>
-                  <div><dt>Allowlist hash</dt><dd><CopyHash value={allowlistHash || runtimeBody?.approved_measurements_hash} label="allowlist hash" /></dd></div>
-                  <div><dt>Verifier binding</dt><dd><CopyHash value={verifierBindingHash} label="verifier binding" /></dd></div>
+                  <div><dt>Execution proof</dt><dd><CopyHash value={runtimeReceiptHash} label="execution proof" /></dd></div>
+                  <div><dt>Public change summary</dt><dd><CopyHash value={runtimeEffectDigest} label="change ID" /></dd></div>
+                  <div><dt>System status ID</dt><dd><CopyHash value={statusHash || runtimeBody?.operator_status_hash} label="status ID" /></dd></div>
+                  <div><dt>Approved list ID</dt><dd><CopyHash value={allowlistHash || runtimeBody?.approved_measurements_hash} label="approved list ID" /></dd></div>
+                  <div><dt>Verifier ID</dt><dd><CopyHash value={verifierBindingHash} label="verifier ID" /></dd></div>
                 </dl>
               )}
             </div>
@@ -712,10 +673,7 @@ function ConfidentialWorkbench() {
           <div className="cwb-action-head">
             <h2 className="cwb-action-title">3 · Run sealed-bid auction</h2>
             <p className="cwb-action-lede">
-              Commitments are computed in the browser. The commit request sends only
-              bidder identity, commitment, and bond; quantity, price, and nonce are
-              sent only during reveal. When FHE is provisioned, bids are compared
-              homomorphically without individual decryption.
+              Bids are hidden initially. Only your identity and a commitment are sent first; your bid details are revealed later.
             </p>
           </div>
 
@@ -782,7 +740,7 @@ function ConfidentialWorkbench() {
             {sealedBidActionLabel()}
           </button>
           {sealedDisabledReason && (
-            <p className="cwb-action-note">{sealedDisabledReason}. The commit/reveal spec is verified, but the auction path is gated off here.</p>
+            <p className="cwb-action-note">{sealedDisabledReason}. The auction feature is tested but not available here.</p>
           )}
 
           {(sealedBidState.result || sealedBidState.error) && (
@@ -802,26 +760,13 @@ function ConfidentialWorkbench() {
                 <dl className="cwb-result-list">
                   <div><dt>Batch</dt><dd>{sealedBidResult.batchId}</dd></div>
                   <div><dt>Phase</dt><dd>{sealedBatch.phase || 'unknown'}</dd></div>
-                  <div><dt>Alice commit</dt><dd><CopyHash value={sealedAliceCommitment} label="Alice commitment" /></dd></div>
-                  <div><dt>Bob commit</dt><dd><CopyHash value={sealedBobCommitment} label="Bob commitment" /></dd></div>
-                  <div><dt>Alice receipt</dt><dd><CopyHash value={sealedAliceReceiptHash} label="Alice commit receipt" /></dd></div>
+                  <div><dt>Alice's bid commitment</dt><dd><CopyHash value={sealedAliceCommitment} label="Alice's commitment" /></dd></div>
+                  <div><dt>Bob's bid commitment</dt><dd><CopyHash value={sealedBobCommitment} label="Bob's commitment" /></dd></div>
+                  <div><dt>Alice's confirmation</dt><dd><CopyHash value={sealedAliceReceiptHash} label="Alice's confirmation" /></dd></div>
                   <div><dt>Clearing price</dt><dd>{Number(sealedSettlement.clearing_price || 0).toLocaleString()}</dd></div>
                   <div><dt>Filled units</dt><dd>{Number(sealedSettlement.total_filled || 0).toLocaleString()}</dd></div>
                   <div><dt>Slashed bond</dt><dd>{Number(sealedBondOutcome.total_slashed || 0).toLocaleString()}</dd></div>
-                  <div><dt>Asset settlement</dt><dd>{sealedBidResult.settled?.asset_settlement_executed ? 'executed' : 'external adapter required'}</dd></div>
-                  <div>
-                    <dt>Settlement mode</dt>
-                    <dd>
-                      {sealedSettlement.scheme === 'paillier-homomorphic-v1'
-                        ? <span className="cwb-fhe-active">FHE (homomorphic) — bids compared under encryption</span>
-                        : sealedSettlement.scheme === 'commit_reveal_v1'
-                          ? <span className="cwb-fhe-fallback">Commit/reveal fallback — bids decrypted at reveal</span>
-                          : 'commit/reveal (default)'}
-                    </dd>
-                  </div>
-                  {sealedSettlement.production_security_claim === true && (
-                    <div><dt>Security claim</dt><dd className="cwb-fhe-active">Production FHE — individual bids never decrypted</dd></div>
-                  )}
+                  <div><dt>Payment settlement</dt><dd>{sealedBidResult.settled?.asset_settlement_executed ? 'completed' : 'external system required'}</dd></div>
                 </dl>
               )}
             </div>
@@ -832,9 +777,9 @@ function ConfidentialWorkbench() {
       {/* ─── Operator details: collapsed by default ─────────────────── */}
       <details className="cwb-disclosure panel">
         <summary className="cwb-disclosure-summary">
-          <span>Operator details</span>
+          <span>Technical details</span>
           <span className="cwb-disclosure-hint">
-            Approved measurements · operator contact · status &amp; allowlist hashes
+            Approved security measurements · operator contact · system IDs
           </span>
         </summary>
         <div className="cwb-disclosure-body">
@@ -848,12 +793,12 @@ function ConfidentialWorkbench() {
               <dd>{demoMode ? 'hidden in demo mode' : operatorContact}</dd>
             </div>
             <div>
-              <dt>Status hash</dt>
-              <dd><CopyHash value={statusHash} label="status hash" /></dd>
+              <dt>System status ID</dt>
+              <dd><CopyHash value={statusHash} label="status ID" /></dd>
             </div>
             <div>
-              <dt>Allowlist hash</dt>
-              <dd><CopyHash value={allowlistHash} label="allowlist hash" /></dd>
+              <dt>Approved list ID</dt>
+              <dd><CopyHash value={allowlistHash} label="approved list ID" /></dd>
             </div>
           </dl>
         </div>
@@ -862,8 +807,8 @@ function ConfidentialWorkbench() {
       {/* ─── How it works: 4-phase sealed-bid flow ──────────────────── */}
       <details className="cwb-disclosure panel">
         <summary className="cwb-disclosure-summary">
-          <span>How sealed-bid auctions work</span>
-          <span className="cwb-disclosure-hint">4 phases · commit → reveal → clearing → complete</span>
+          <span>How private auctions work</span>
+          <span className="cwb-disclosure-hint">4 steps · commit → reveal → settle → complete</span>
         </summary>
         <div className="cwb-disclosure-body">
           <ol className="cwb-phase-list">
@@ -883,18 +828,18 @@ function ConfidentialWorkbench() {
       {/* ─── Assurance scope: bounded evidence checks ───────────────── */}
       <details className="cwb-disclosure panel">
         <summary className="cwb-disclosure-summary">
-          <span>Assurance scope &amp; bounded evidence</span>
+          <span>Security guarantees &amp; evidence</span>
           <span className="cwb-disclosure-hint">
-            What we claim · what we explicitly do not claim · evidence checks
+            What we guarantee · what we don't guarantee · verification checks
           </span>
         </summary>
         <div className="cwb-disclosure-body">
           <p className="cwb-claim-scope">{claimScope}</p>
-          <h3 className="cwb-disclosure-subhead">Explicit non-claims</h3>
+          <h3 className="cwb-disclosure-subhead">What we don't guarantee</h3>
           <ul className="cwb-bullet-list">
             {nonClaims.map((item) => <li key={item}>{item}</li>)}
           </ul>
-          <h3 className="cwb-disclosure-subhead">Evidence checks</h3>
+          <h3 className="cwb-disclosure-subhead">Security checks</h3>
           <div className="cwb-check-list">
             {CONFIDENTIAL_SURFACE.checks.map((check) => (
               <article key={check.id} className="cwb-check">

@@ -17,9 +17,9 @@ export function SwapProofPanel({
     submittedSwap,
 }) {
     return (
-        <aside className="swap-proof panel" aria-label="Execution proof">
+        <aside className="swap-proof panel" aria-label="Swap verification">
             <div className="swap-rail-head">
-                <span className="swap-rail-eyebrow">Execution proof</span>
+                <span className="swap-rail-eyebrow">Swap verification</span>
                 <h3 className="swap-rail-title">Verification</h3>
             </div>
 
@@ -28,15 +28,15 @@ export function SwapProofPanel({
                     <span className="swap-proof-posture-dot" aria-hidden="true" />
                     <span className="swap-proof-posture-label">
                         {proofEnforced
-                            ? 'Proof-wrapper active'
-                            : (postureKnown ? 'Spec-checked · proofs off' : 'Posture unavailable')}
+                            ? 'Proof verification active'
+                            : (postureKnown ? 'Math verified · proofs off' : 'Verification unavailable')}
                     </span>
                 </div>
                 <p className="swap-proof-posture-detail">
                     {proofEnforced ? (
-                        <>This stack has the <code>{zkPosture.proof_verifier_kind}</code> proof verifier active for mounted live write gates (zk {zkPosture.zk_mode_effective}). Spot swap math is validated by Tau spec <code>cpmm_v1</code>; this is runtime posture, not a production spot ZK proof.</>
+                        <>The <code>{zkPosture.proof_verifier_kind}</code> proof verifier is active. Swap math is verified by the mathematical proof system; this is runtime verification, not a production ZK proof.</>
                     ) : (
-                        <>Tau spec <code>cpmm_v1</code> defines the math, but this environment runs zk <code>{zkPosture.zk_mode_effective || 'unknown'}</code> with proof verification <strong>disabled</strong>. Treat green checks as spec conformance, not a production proof.</>
+                        <>Swap math follows the specification, but proof verification is <strong>disabled</strong> in this environment. Green checks indicate spec conformance, not a production proof.</>
                     )}
                 </p>
             </div>
@@ -48,18 +48,18 @@ export function SwapProofPanel({
                 </span>
                 <span className="swap-proof-ev" role="listitem">
                     <span className="swap-proof-ev-dot ev-on" aria-hidden="true" />
-                    Tau spec cpmm_v1
+                    Verified math
                 </span>
                 <span className="swap-proof-ev" role="listitem">
                     <span className={`swap-proof-ev-dot ${(!advancedMode || certificateCheck.ok) ? 'ev-on' : 'ev-off'}`} aria-hidden="true" />
-                    {advancedMode ? (certificateCheck.ok ? 'Quote cert verified' : 'Quote cert stale') : 'Deterministic quote'}
+                    {advancedMode ? (certificateCheck.ok ? 'Quote verified' : 'Quote stale') : 'Consistent quote'}
                 </span>
             </div>
 
             {activePreview ? (
                 <div className="swap-proof-envelope">
                     <div className="swap-proof-envelope-head">
-                        <span>Execution envelope</span>
+                        <span>Output range</span>
                         <span className={`impact-${impactSeverity}`}>{formatPercent(activePreview.priceImpact)} impact</span>
                     </div>
                     {envHasBounds ? (
@@ -82,7 +82,7 @@ export function SwapProofPanel({
                 </div>
             ) : (
                 <div className="swap-rail-empty">
-                    <p className="swap-rail-empty-hint">Enter an amount to compute the deterministic execution envelope and minimum received.</p>
+                    <p className="swap-rail-empty-hint">Enter an amount to see your expected output range and minimum received.</p>
                 </div>
             )}
 
@@ -90,11 +90,11 @@ export function SwapProofPanel({
                 <div className="swap-proof-receipt">
                     <div className="swap-proof-receipt-head">
                         <span className="swap-proof-receipt-dot" aria-hidden="true" />
-                        Settlement receipt
+                        Settlement record
                     </div>
                     <div className="swap-proof-receipt-row">
                         <span>Hash</span>
-                        <CopyHash value={submittedSwap.receipt.receipt_hash} label="receipt hash" />
+                        <CopyHash value={submittedSwap.receipt.receipt_hash} label="record hash" />
                     </div>
                     {submittedSwap.receipt.body?.schema && (
                         <div className="swap-proof-receipt-row">
@@ -103,9 +103,9 @@ export function SwapProofPanel({
                         </div>
                     )}
                     <div className="swap-proof-receipt-row">
-                        <span>Canonical route</span>
+                        <span>Swap path</span>
                         <span className={submittedSwap.receipt.body?.canonical_route_certificate ? 'impact-low' : 'impact-medium'}>
-                            {submittedSwap.receipt.body?.canonical_route_certificate ? 'certified winner' : 'not attached'}
+                            {submittedSwap.receipt.body?.canonical_route_certificate ? 'verified' : 'not attached'}
                         </span>
                     </div>
                 </div>

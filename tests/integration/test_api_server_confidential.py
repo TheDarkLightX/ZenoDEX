@@ -29,11 +29,15 @@ def _start_test_server():
     httpd.zusd_monetary_wallet_api_enabled = False  # type: ignore[attr-defined]
     httpd.autotrader_live_api_enabled = False  # type: ignore[attr-defined]
     httpd.confidential_attestation_api_enabled = True  # type: ignore[attr-defined]
+    httpd.confidential_sealed_bid_api_enabled = True  # type: ignore[attr-defined]
     httpd.dex_api_enabled = False  # type: ignore[attr-defined]
     httpd.demo_api_token = ""  # type: ignore[attr-defined]
     httpd.confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()  # type: ignore[attr-defined]
     httpd.confidential_request_table = ConfidentialRequestTable()  # type: ignore[attr-defined]
     httpd.confidential_request_lock = threading.Lock()  # type: ignore[attr-defined]
+    httpd.confidential_sealed_bid_state = {}  # type: ignore[attr-defined]
+    httpd.confidential_sealed_bid_state_file = ""  # type: ignore[attr-defined]
+    httpd.confidential_sealed_bid_lock = threading.Lock()  # type: ignore[attr-defined]
 
     t = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
     t.start()
@@ -103,6 +107,14 @@ def _post_json(host: str, port: int, path: str, body: dict[str, object]) -> tupl
     return int(resp.status), payload
 
 
+def _get_json(host: str, port: int, path: str) -> tuple[int, dict[str, object]]:
+    conn = HTTPConnection(host, port, timeout=3.0)
+    conn.request("GET", path)
+    resp = conn.getresponse()
+    payload = json.loads(resp.read().decode("utf-8"))
+    return int(resp.status), payload
+
+
 def test_api_server_confidential_attestation_api_is_sensitive(monkeypatch, capfd) -> None:
     from src.integration import api_server
 
@@ -115,6 +127,7 @@ def test_api_server_confidential_attestation_api_is_sensitive(monkeypatch, capfd
         "AUTOTRADER_LIVE_API_ENABLED",
         "DEX_API_ENABLED",
         "DEMO_API_TOKEN",
+        "ZENODEX_API_BEARER_TOKEN",
         "ZENODEX_EXTERNAL_AUTH_ENFORCED",
         "ALLOW_DEMO_TOKEN_AUTH",
     ):
@@ -415,5 +428,140 @@ def test_api_server_confidential_attestation_verify_fails_closed_when_verifier_d
         assert body["ok"] is False
         assert body["error"] == "attestation_verifier_rejected"
         assert "receipt" not in body
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_confidential_sealed_bid_flow() -> None:
+    from src.core.sealed_bid_auction import sealed_bid_reveal_hash
+
+    batch_id = "ui-sealed-bid-test"
+    alice_nonce = "alice-private-nonce"
+    bob_nonce = "bob-private-nonce"
+    alice_commitment = sealed_bid_reveal_hash(quantity=4, limit_price=105, nonce=alice_nonce)
+    bob_commitment = sealed_bid_reveal_hash(quantity=3, limit_price=100, nonce=bob_nonce)
+
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, reset = _post_json(
+            host,
+            port,
+            "/api/confidential/sealed-bid/reset",
+            {"batch_id": batch_id, "units_for_sale": 5, "bond_amount": 7},
+        )
+        assert status == 200
+        assert reset["ok"] is True
+        assert reset["batch"]["phase"] == "commit"
+
+        status, alice_commit = _post_json(
+            host,
+            port,
+            "/api/confidential/sealed-bid/commit",
+            {"batch_id": batch_id, "bidder_id": "alice", "commitment": alice_commitment, "bond_amount": 7},
+        )
+        assert status == 200
+        assert alice_commit["ok"] is True
+        assert str(alice_commit["receipt_hash"]).startswith("0x")
+        commit_response_text = json.dumps(alice_commit, sort_keys=True)
+        assert "limit_price" not in commit_response_text
+        assert "quantity" not in commit_response_text
+        assert "nonce" not in commit_response_text
+
+        status, bob_commit = _post_json(
+            host,
+            port,
+            "/api/confidential/sealed-bid/commit",
+            {"batch_id": batch_id, "bidder_id": "bob", "commitment": bob_commitment, "bond_amount": 7},
+        )
+        assert status == 200
+        assert bob_commit["ok"] is True
+
+        status, opened = _post_json(host, port, "/api/confidential/sealed-bid/open-reveal", {"batch_id": batch_id})
+        assert status == 200
+        assert opened["batch"]["phase"] == "reveal"
+
+        status, reveal = _post_json(
+            host,
+            port,
+            "/api/confidential/sealed-bid/reveal",
+            {
+                "batch_id": batch_id,
+                "bidder_id": "alice",
+                "quantity": 4,
+                "limit_price": 105,
+                "nonce": alice_nonce,
+            },
+        )
+        assert status == 200
+        assert reveal["ok"] is True
+        assert reveal["reveal_admitted"] is True
+
+        status, status_body = _get_json(host, port, "/api/confidential/sealed-bid/status")
+        assert status == 200
+        sealed_status = status_body["status"]
+        assert sealed_status["asset_settlement_available"] is False
+        assert sealed_status["active_batch"]["reveal_count"] == 1
+        assert sealed_status["active_batch"]["commit_count"] == 2
+
+        status, settled = _post_json(host, port, "/api/confidential/sealed-bid/settle", {"batch_id": batch_id})
+        assert status == 200
+        assert settled["ok"] is True
+        assert settled["asset_settlement_executed"] is False
+        assert settled["settlement"]["clearing_price"] == 105
+        assert settled["settlement"]["total_filled"] == 4
+        assert settled["settlement"]["fills"][0]["bidder_id"] == "alice"
+        assert settled["settlement"]["fills"][0]["paid_price"] == 105
+        assert settled["bond_outcome"]["total_bonded"] == 14
+        assert settled["bond_outcome"]["total_refunded"] == 7
+        assert settled["bond_outcome"]["total_slashed"] == 7
+        assert settled["bond_outcome"]["refunded_bid_count"] == 1
+        assert settled["bond_outcome"]["slashed_bid_count"] == 1
+        assert settled["batch"]["phase"] == "settled"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_confidential_sealed_bid_rejects_bad_reveal() -> None:
+    from src.core.sealed_bid_auction import sealed_bid_reveal_hash
+
+    batch_id = "ui-sealed-bid-bad-reveal"
+    commitment = sealed_bid_reveal_hash(quantity=2, limit_price=90, nonce="real-nonce")
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, reset = _post_json(
+            host,
+            port,
+            "/api/confidential/sealed-bid/reset",
+            {"batch_id": batch_id, "units_for_sale": 2, "bond_amount": 3},
+        )
+        assert status == 200
+        assert reset["ok"] is True
+        status, commit = _post_json(
+            host,
+            port,
+            "/api/confidential/sealed-bid/commit",
+            {"batch_id": batch_id, "bidder_id": "alice", "commitment": commitment, "bond_amount": 3},
+        )
+        assert status == 200
+        assert commit["ok"] is True
+        status, opened = _post_json(host, port, "/api/confidential/sealed-bid/open-reveal", {"batch_id": batch_id})
+        assert status == 200
+        assert opened["ok"] is True
+
+        status, rejected = _post_json(
+            host,
+            port,
+            "/api/confidential/sealed-bid/reveal",
+            {
+                "batch_id": batch_id,
+                "bidder_id": "alice",
+                "quantity": 2,
+                "limit_price": 90,
+                "nonce": "wrong-nonce",
+            },
+        )
+        assert status == 400
+        assert rejected["ok"] is False
+        assert rejected["error"] == "reveal_commitment_mismatch"
     finally:
         _stop_test_server(httpd, t)

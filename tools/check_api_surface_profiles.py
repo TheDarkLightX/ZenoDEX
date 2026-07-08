@@ -57,6 +57,17 @@ def run_check() -> dict[str, object]:
             "perps_enabled": True,
             "zusd_enabled": False,
             "dex_enabled": False,
+            "confidential_enabled": False,
+            "expect_ok": False,
+        },
+        {
+            "name": "production_strict_forbids_confidential_routes",
+            "profile_id": API_SURFACE_PROFILE_PRODUCTION_STRICT,
+            "demo_api_token": "configured",
+            "perps_enabled": False,
+            "zusd_enabled": False,
+            "dex_enabled": False,
+            "confidential_enabled": True,
             "expect_ok": False,
         },
         {
@@ -78,6 +89,7 @@ def run_check() -> dict[str, object]:
             perps_enabled=bool(case["perps_enabled"]),
             zusd_enabled=bool(case["zusd_enabled"]),
             dex_enabled=bool(case["dex_enabled"]),
+            confidential_enabled=bool(case.get("confidential_enabled", False)),
         )
         case_ok = accepted is bool(case["expect_ok"])
         ok = ok and case_ok

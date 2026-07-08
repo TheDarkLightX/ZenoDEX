@@ -84,8 +84,8 @@ function RewardsPanel({ rewards }) {
     <section className="panel zor-panel">
       <div className="zor-section-header">
         <div>
-          <h2>Rewards Ledger</h2>
-          <p>Reporter payouts, pending work rewards, and slashed balances.</p>
+          <h2>Payments</h2>
+          <p>Payments, pending rewards, and penalties.</p>
         </div>
         <span className="zor-subtle-chip">{rewards.length} reporters</span>
       </div>
@@ -127,7 +127,7 @@ function RewardsPanel({ rewards }) {
           inputMode="numeric"
           value={payAmount}
           onChange={(event) => setPayAmount(event.target.value)}
-          placeholder="Amount e8, blank pays all"
+          placeholder="Amount (leave blank to pay all)"
           aria-label="Reward payout amount e8"
         />
         <button className="btn btn-secondary" type="button" onClick={payLocalRewards}>
@@ -144,8 +144,8 @@ function SourceDiversityPanel({ sources }) {
     <section className="panel zor-panel">
       <div className="zor-section-header">
         <div>
-          <h2>Source Diversity</h2>
-          <p>Registered source dimensions used by O3 aggregate policies.</p>
+          <h2>Data Sources</h2>
+          <p>Registered data sources.</p>
         </div>
         <span className="zor-subtle-chip">{sources.length} sources</span>
       </div>
@@ -184,7 +184,7 @@ function AuthorizationTrailPanel({ items }) {
     <section className="panel zor-panel">
       <div className="zor-section-header">
         <div>
-          <h2>Receipt Trail</h2>
+          <h2>Record History</h2>
           <p>Recent reads, authorizations, reward receipts, and slash receipts.</p>
         </div>
         <span className="zor-subtle-chip">{items.length} entries</span>
@@ -225,7 +225,7 @@ function ConsumerProfilePanel() {
     <section className="panel zor-panel">
       <div className="zor-section-header">
         <div>
-          <h2>Consumer Profiles</h2>
+          <h2>Usage Policies</h2>
           <p>Critical actions must bind to profile, value, state, and receipt root.</p>
         </div>
         <span className="zor-subtle-chip">binding map</span>

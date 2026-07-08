@@ -20,7 +20,11 @@ def _clear_api_env(monkeypatch) -> None:
         "PERPS_API_ENABLED",
         "ZUSD_API_ENABLED",
         "DEX_API_ENABLED",
+        "CONFIDENTIAL_ATTESTATION_API_ENABLED",
+        "CONFIDENTIAL_SEALED_BID_API_ENABLED",
+        "CONFIDENTIAL_SEALED_BID_ENABLED",
         "DEMO_API_TOKEN",
+        "ZENODEX_API_BEARER_TOKEN",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -56,7 +60,7 @@ def test_public_testnet_requires_token_for_demo_routes() -> None:
     )
     assert ok is False
     assert err is not None
-    assert "requires DEMO_API_TOKEN" in err
+    assert "requires an API bearer token" in err
 
     assert (
         validate_api_surface_profile(
@@ -127,6 +131,15 @@ def test_api_surface_profile_rejects_malformed_boundary_inputs() -> None:
             zusd_enabled=False,
             dex_enabled="false",
         )
+    with pytest.raises(TypeError, match="confidential_enabled must be a bool"):
+        api_surface_profile_violations(
+            profile_id=API_SURFACE_PROFILE_PRODUCTION_STRICT,
+            demo_api_token="",
+            perps_enabled=False,
+            zusd_enabled=False,
+            dex_enabled=False,
+            confidential_enabled="false",
+        )
     with pytest.raises(TypeError, match="demo_api_token must be a string"):
         api_surface_profile_violations(
             profile_id=API_SURFACE_PROFILE_PUBLIC_TESTNET,
@@ -148,6 +161,27 @@ def test_api_server_main_refuses_public_testnet_demo_without_token(monkeypatch) 
     assert api_server.main([]) == 2
 
 
+def test_api_server_main_accepts_public_testnet_with_api_bearer_token(monkeypatch) -> None:
+    from src.integration import api_server
+
+    class FakeServer:
+        def __init__(self, address, handler_cls):
+            self.address = address
+            self.handler_cls = handler_cls
+
+        def serve_forever(self, poll_interval=0.25):  # noqa: ANN001
+            return None
+
+    _clear_api_env(monkeypatch)
+    monkeypatch.setattr(api_server, "ThreadingHTTPServer", FakeServer)
+    monkeypatch.setenv("API_SURFACE_PROFILE", API_SURFACE_PROFILE_PUBLIC_TESTNET)
+    monkeypatch.setenv("API_HOST", "127.0.0.1")
+    monkeypatch.setenv("DEX_API_ENABLED", "true")
+    monkeypatch.setenv("ZENODEX_API_BEARER_TOKEN", "secret")
+
+    assert api_server.main([]) == 0
+
+
 def test_api_server_main_refuses_production_strict_demo_routes(monkeypatch) -> None:
     from src.integration import api_server
 
@@ -156,5 +190,17 @@ def test_api_server_main_refuses_production_strict_demo_routes(monkeypatch) -> N
     monkeypatch.setenv("API_HOST", "127.0.0.1")
     monkeypatch.setenv("DEX_API_ENABLED", "true")
     monkeypatch.setenv("DEMO_API_TOKEN", "secret")
+
+    assert api_server.main([]) == 2
+
+
+def test_api_server_main_refuses_production_strict_confidential_routes(monkeypatch) -> None:
+    from src.integration import api_server
+
+    _clear_api_env(monkeypatch)
+    monkeypatch.setenv("API_SURFACE_PROFILE", API_SURFACE_PROFILE_PRODUCTION_STRICT)
+    monkeypatch.setenv("API_HOST", "127.0.0.1")
+    monkeypatch.setenv("CONFIDENTIAL_SEALED_BID_API_ENABLED", "true")
+    monkeypatch.setenv("ZENODEX_API_BEARER_TOKEN", "secret")
 
     assert api_server.main([]) == 2

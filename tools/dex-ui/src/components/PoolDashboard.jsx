@@ -979,9 +979,24 @@ function PoolDashboard({ wallet }) {
                 </button>
             </div>
 
-            {poolError && (
+            {poolError && poolError !== 'not_found' && (
                 <div className="pool-honesty-banner" role="status">
                     Pool feed unavailable: {poolError}
+                </div>
+            )}
+
+            {poolError === 'not_found' && (
+                <div className="pool-empty-cta" role="status">
+                    <div className="pool-empty-cta-body">
+                        <span className="pool-empty-icon" aria-hidden="true">💧</span>
+                        <h3>No pools yet</h3>
+                        <p>No liquidity pools have been created on this network. Be the first to provide liquidity and earn trading fees.</p>
+                        <ul className="pool-empty-list">
+                            <li>Deposit two tokens in equal value</li>
+                            <li>Earn fees from every swap through your pool</li>
+                            <li>Withdraw your share anytime</li>
+                        </ul>
+                    </div>
                 </div>
             )}
 
@@ -999,9 +1014,9 @@ function PoolDashboard({ wallet }) {
 
             {!demoMode && !poolError && (
                 <div className="pool-honesty-banner pool-honesty-info" role="status">
-                    <strong>Live mode.</strong> Add/remove liquidity posts to the writer through nginx token injection.
-                    Reserves, LP supply, wallet balances, account LP, recent swap counts, input units, and fee units
-                    are live ledger-derived fields. Price-indexed TVL and APY show <em>N/A</em> until price and reward
+                    <strong>Live mode.</strong> Add/remove liquidity is sent directly to the network.
+                    Reserves, pool tokens, wallet balances, your position, recent swaps, and fees
+                    are live from the blockchain. Total value and rewards show <em>N/A</em> until price and reward
                     indexers exist.
                 </div>
             )}
@@ -1011,7 +1026,7 @@ function PoolDashboard({ wallet }) {
                     <div className="pool-create-heading">
                         <div>
                             <h3>Create Pool</h3>
-                            <p>Use a listed symbol or a canonical 32-byte asset ID.</p>
+                            <p>Use a listed token symbol or its unique identifier.</p>
                         </div>
                         {canUseLocalFixtureFunding && (
                             <label className="pool-create-check">
@@ -1067,7 +1082,7 @@ function PoolDashboard({ wallet }) {
                             />
                         </label>
                         <label>
-                            <span>Fee bps</span>
+                            <span>Fee (%)</span>
                             <input
                                 value={createForm.feeBps}
                                 onChange={(event) => setCreateForm((prev) => ({ ...prev, feeBps: event.target.value }))}
@@ -1078,7 +1093,7 @@ function PoolDashboard({ wallet }) {
                             className="btn btn-primary"
                             type="submit"
                             disabled={!wallet?.address || !walletCanSignDexIntent || Boolean(actionBusy)}
-                            title={wallet?.address ? 'Create a signed live pool' : 'Connect a wallet with signing capability'}
+                            title={wallet?.address ? 'Create a new pool on the network' : 'Connect a wallet with signing capability'}
                         >
                             Create Pool
                         </button>
@@ -1102,7 +1117,7 @@ function PoolDashboard({ wallet }) {
                 <div className="stat panel animate-slide-up pool-stat-verified" style={{ animationDelay: '150ms' }}>
                     <span className="stat-label">Verified pools</span>
                     <span className="stat-value">{loadingPools ? NA : `${totals.verifiedPools}/${totals.poolCount}`}</span>
-                    <span className="pool-stat-sub">recognized curve · active</span>
+                    <span className="pool-stat-sub">verified math · active</span>
                 </div>
             </div>
 
@@ -1170,8 +1185,8 @@ function PoolDashboard({ wallet }) {
                                                     <span
                                                         className={`pool-verify ${verified ? 'is-verified' : 'is-unverified'}`}
                                                         title={verified
-                                                            ? `Prepared against the ${curve} curve on the Tau node. Active and well-formed.`
-                                                            : 'Not spec-verified: missing reserves/fee, an unknown curve, or a non-active status.'}
+                                                            ? 'Verified pool with valid reserves and active status'
+                                                            : 'Unverified: missing data or inactive pool'}
                                                     >
                                                         <span className="pool-verify-dot" aria-hidden="true" />
                                                         {verified ? curve : 'unverified'}
@@ -1191,7 +1206,7 @@ function PoolDashboard({ wallet }) {
                                             return (
                                                 <div
                                                     className="pool-comp-bar"
-                                                    title={`Reserve balance: ${(share * 100).toFixed(1)}% ${pool.token0.symbol} / ${(100 - share * 100).toFixed(1)}% ${pool.token1.symbol}`}
+                                                    title={`Pool composition: ${(share * 100).toFixed(1)}% ${pool.token0.symbol} / ${(100 - share * 100).toFixed(1)}% ${pool.token1.symbol}`}
                                                 >
                                                     <span className="pool-comp-in" style={{ width: `${pctIn}%` }} />
                                                     <span className="pool-comp-out" style={{ width: `${100 - pctIn}%` }} />
@@ -1209,7 +1224,7 @@ function PoolDashboard({ wallet }) {
                                 <td>
                                     {pool.myLp != null && pool.myLp > 0 ? (
                                         <span className="pool-position">
-                                            <span>{formatNumber(pool.myLp)} LP</span>
+                                            <span>{formatNumber(pool.myLp)} Pool Tokens</span>
                                             <span>{formatSharePercent(pool.accountShare)}</span>
                                         </span>
                                     ) : (
@@ -1242,7 +1257,7 @@ function PoolDashboard({ wallet }) {
                                                         className="btn btn-secondary"
                                                         onClick={() => handleFundPool(pool)}
                                                         disabled={!wallet?.address || Boolean(actionBusy)}
-                                                        title={wallet?.address ? 'Mint local-testnet pool assets' : 'Connect a wallet first'}
+                                                        title={wallet?.address ? 'Get test tokens for this pool' : 'Connect a wallet first'}
                                                     >
                                                         Fund
                                                     </button>

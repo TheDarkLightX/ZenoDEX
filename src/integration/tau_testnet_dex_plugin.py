@@ -5,13 +5,13 @@ This module implements the generic `external/tau-testnet/app_bridge.py` plugin A
   apply_app_tx(...)
 
 It applies DEX operations from a Tau transaction's `operations` dict:
-  - "5": intents (list)
-  - "6": settlement (object) [optional if allow_missing_settlement]
-  - "7": faucet (object) [optional, test-only; requires TAU_DEX_FAUCET=1]
-  - "8": perps (list) [optional; isolated markets require an operator key for admin actions]
-  - "9": token ops (list) [optional; transfer/mint/burn for non-native assets]
-  - "10": proof mining claim (object) [optional; bound to verified DEX proof context]
-  - "11": zUSD monetary ops (list) [optional; collateral, mint/repay, stability pool]
+  - "19": intents (list)
+  - "20": settlement (object) [optional if allow_missing_settlement]
+  - "21": faucet (object) [optional, test-only; requires TAU_DEX_FAUCET=1]
+  - "22": perps (list) [optional; isolated markets require an operator key for admin actions]
+  - "23": token ops (list) [optional; transfer/mint/burn for non-native assets]
+  - "24": proof mining claim (object) [optional; bound to verified DEX proof context]
+  - "25": zUSD monetary ops (list) [optional; collateral, mint/repay, stability pool]
 
 Legacy key aliases are also accepted when invoking the plugin directly:
   - "2" -> intents, "3" -> settlement, "4" -> faucet, "5" -> perps
@@ -53,18 +53,22 @@ from .zusd_monetary_bridge import (
 )
 
 
-_DEX_INTENTS_KEY = "5"
-_DEX_SETTLEMENT_KEY = "6"
-_DEX_FAUCET_KEY = "7"
-_PERP_OPS_KEY = "8"
-_TOKEN_OPS_KEY = "9"
-_PROOF_MINING_OPS_KEY = "10"
-_ZUSD_MONETARY_OPS_KEY = "11"
+_DEX_INTENTS_KEY = "19"
+_DEX_SETTLEMENT_KEY = "20"
+_DEX_FAUCET_KEY = "21"
+_PERP_OPS_KEY = "22"
+_TOKEN_OPS_KEY = "23"
+_PROOF_MINING_OPS_KEY = "24"
+_ZUSD_MONETARY_OPS_KEY = "25"
 
 _LEGACY_DEX_INTENTS_KEY = "2"
 _LEGACY_DEX_SETTLEMENT_KEY = "3"
 _LEGACY_DEX_FAUCET_KEY = "4"
 _LEGACY_PERP_OPS_KEY = "5"
+_LEGACY_TOKEN_OPS_KEY = "14"
+_LEGACY_PERP_OPS_KEY_2 = "15"
+_LEGACY_PROOF_MINING_OPS_KEY = "16"
+_LEGACY_ZUSD_MONETARY_OPS_KEY = "18"
 
 _APP_STATE_SCHEMA = "zenodex/tau_app_state/v1"
 _APP_STATE_VERSION = 1
@@ -647,13 +651,13 @@ def _select_dex_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
     if _LEGACY_DEX_INTENTS_KEY in operations:
         out[_LEGACY_DEX_INTENTS_KEY] = operations.get(_LEGACY_DEX_INTENTS_KEY)
     elif _DEX_INTENTS_KEY in operations and _looks_like_dex_intents(operations.get(_DEX_INTENTS_KEY)):
-        # Remap upstream-safe stream "5" to the internal DEX adapter schema.
+        # Remap upstream-safe stream "19" to the internal DEX adapter schema.
         out[_LEGACY_DEX_INTENTS_KEY] = operations.get(_DEX_INTENTS_KEY)
 
     if _LEGACY_DEX_SETTLEMENT_KEY in operations:
         out[_LEGACY_DEX_SETTLEMENT_KEY] = operations.get(_LEGACY_DEX_SETTLEMENT_KEY)
     elif _DEX_SETTLEMENT_KEY in operations:
-        # Remap upstream-safe stream "6" to the internal DEX adapter schema.
+        # Remap upstream-safe stream "20" to the internal DEX adapter schema.
         out[_LEGACY_DEX_SETTLEMENT_KEY] = operations.get(_DEX_SETTLEMENT_KEY)
     return out
 
@@ -661,6 +665,7 @@ def _select_dex_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
 def _select_perp_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     legacy_candidate = operations.get(_LEGACY_PERP_OPS_KEY)
+    legacy_candidate_2 = operations.get(_LEGACY_PERP_OPS_KEY_2)
     selection = evaluate_perp_tau_ingress_stream(
         upstream_stream_present=_PERP_OPS_KEY in operations,
         legacy_stream_present=_LEGACY_PERP_OPS_KEY in operations,
@@ -674,6 +679,10 @@ def _select_perp_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
     if selection.legacy_fallback_used:
         # Legacy fallback for direct plugin tests/tooling that still use stream "5" for perps.
         out[_LEGACY_PERP_OPS_KEY] = legacy_candidate
+        return out
+    # Secondary legacy fallback for seed scripts that use stream "15" for perp ops.
+    if _LEGACY_PERP_OPS_KEY_2 in operations and _looks_like_perp_ops(legacy_candidate_2):
+        out[_LEGACY_PERP_OPS_KEY] = legacy_candidate_2
     return out
 
 
@@ -681,6 +690,9 @@ def _select_token_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     if _TOKEN_OPS_KEY in operations:
         out[_TOKEN_OPS_KEY] = operations.get(_TOKEN_OPS_KEY)
+    elif _LEGACY_TOKEN_OPS_KEY in operations:
+        # Legacy fallback for tooling/seed scripts that still use stream "14".
+        out[_TOKEN_OPS_KEY] = operations.get(_LEGACY_TOKEN_OPS_KEY)
     return out
 
 
@@ -688,6 +700,9 @@ def _select_proof_mining_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     if _PROOF_MINING_OPS_KEY in operations:
         out[_PROOF_MINING_OPS_KEY] = operations.get(_PROOF_MINING_OPS_KEY)
+    elif _LEGACY_PROOF_MINING_OPS_KEY in operations:
+        # Legacy fallback for tooling/seed scripts that still use stream "16".
+        out[_PROOF_MINING_OPS_KEY] = operations.get(_LEGACY_PROOF_MINING_OPS_KEY)
     return out
 
 
@@ -695,28 +710,31 @@ def _select_zusd_monetary_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     if _ZUSD_MONETARY_OPS_KEY in operations:
         out[_ZUSD_MONETARY_OPS_KEY] = operations.get(_ZUSD_MONETARY_OPS_KEY)
+    elif _LEGACY_ZUSD_MONETARY_OPS_KEY in operations:
+        # Legacy fallback for tooling/seed scripts that still use stream "18".
+        out[_ZUSD_MONETARY_OPS_KEY] = operations.get(_LEGACY_ZUSD_MONETARY_OPS_KEY)
     return out
 
 
 def _reserved_stream_selection_error(operations: Mapping[str, Any]) -> Optional[str]:
     if _LEGACY_DEX_INTENTS_KEY in operations and _DEX_INTENTS_KEY in operations:
         if _looks_like_dex_intents(operations.get(_DEX_INTENTS_KEY)):
-            return "ambiguous DEX intent streams: both 2 and 5 are present"
+            return "ambiguous DEX intent streams: both 2 and 19 are present"
     if _LEGACY_DEX_SETTLEMENT_KEY in operations and _DEX_SETTLEMENT_KEY in operations:
-        return "ambiguous DEX settlement streams: both 3 and 6 are present"
+        return "ambiguous DEX settlement streams: both 3 and 20 are present"
     if _LEGACY_DEX_FAUCET_KEY in operations and _DEX_FAUCET_KEY in operations:
-        return "ambiguous faucet streams: both 4 and 7 are present"
+        return "ambiguous faucet streams: both 4 and 21 are present"
 
     if _DEX_INTENTS_KEY not in operations:
         return None
-    stream5 = operations.get(_DEX_INTENTS_KEY)
-    if _looks_like_dex_intents(stream5):
+    stream19 = operations.get(_DEX_INTENTS_KEY)
+    if _looks_like_dex_intents(stream19):
         return None
-    if _looks_like_perp_ops(stream5):
+    if _looks_like_perp_ops(stream19):
         if _LEGACY_DEX_INTENTS_KEY in operations and _PERP_OPS_KEY not in operations:
-            return "legacy stream 5 perps conflict with legacy DEX stream 2"
+            return "legacy stream 2 perps conflict with DEX stream 19"
         return None
-    return "stream 5 must contain TauSwap intents or legacy TauPerp ops"
+    return "stream 19 must contain TauSwap intents or legacy TauPerp ops"
 
 
 def _apply_proof_mining_op(

@@ -96,12 +96,6 @@ _COW_PAIR_NETTING_MATCH_CHOICES = frozenset({
 
 # Bounded brute-force safety cap for AB-optimal ordering.
 # For N > this limit, greedy_ab should be used instead.
-#
-# Guardrail: a one-state-per-subset Held-Karp replacement is not exact for the
-# current integer CPMM semantics. Prefixes with the same executed subset can
-# leave different reserves because fees and floor/ceil rounding are order
-# sensitive. Any polynomial replacement must carry enough terminal state, or
-# prove a narrower curve/order contract before replacing the bounded oracle.
 _MAX_SWAP_ORDERING_BRUTE_FORCE_N = 12
 # Global pair-swap refinement can be expensive; cap intent count for this mode.
 _MAX_SWAP_ORDERING_GLOBAL_REFINE_N = 24

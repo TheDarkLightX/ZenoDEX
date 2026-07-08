@@ -88,7 +88,7 @@ DEFAULT_ZUSD_BOOTSTRAP_COLLATERAL_E8 = 1_000
 DEFAULT_ZUSD_BOOTSTRAP_MINT_E8 = 100 * E8
 DEFAULT_RELEASE_SMOKE_ZUSD_MINT_E8 = 10 * E8
 DEFAULT_RELEASE_SMOKE_PERPS_COLLATERAL_UNITS = DEFAULT_RELEASE_SMOKE_ZUSD_MINT_E8 // E8
-DEFAULT_FIXTURE_NATIVE_MATERIALIZE_E8 = DEFAULT_ZUSD_BOOTSTRAP_COLLATERAL_E8
+DEFAULT_FIXTURE_NATIVE_MATERIALIZE_E8 = DEFAULT_ZUSD_BOOTSTRAP_COLLATERAL_E8 - 10
 DEFAULT_FIXTURE_TEST_ASSET_PREFUND = 1_000_000
 DEFAULT_FIXTURE_ZUSD_COUNTERPARTY_PREFUND = 25
 SMOKE_CONFIDENTIAL_POLICY_DIGEST = "0x" + ("d" * 64)
@@ -301,6 +301,7 @@ def cmd_up(opts: UpOptions) -> int:
             "ZUSD_MONETARY_WALLET_API_ENABLED",
             "AUTOTRADER_LIVE_API_ENABLED",
             "CONFIDENTIAL_ATTESTATION_API_ENABLED",
+            "CONFIDENTIAL_SEALED_BID_API_ENABLED",
         ],
         fixture_paths=bundle.as_manifest_paths(),
         ledger_bundle_manifest=str(paths.out_dir / "ledger" / "public_testnet_manifest.json"),
@@ -1821,7 +1822,7 @@ def _seed_api_state(
             "prefund_fixture_test_assets",
             privkey=owner["privkey_int"],
             operations={{
-                "7": {{
+                "14": {{
                     "mint": [
                         {{
                             "pubkey": str(role["public_key"]),
@@ -1839,7 +1840,7 @@ def _seed_api_state(
             "bootstrap_oracle_and_deposit",
             privkey=owner["privkey_int"],
             operations={{
-                "11": [
+                "18": [
                     {{
                         "module": "ZUSDFinance",
                         "version": "0.1",
@@ -1865,7 +1866,7 @@ def _seed_api_state(
             "mint_zusd",
             privkey=owner["privkey_int"],
             operations={{
-                "11": [{{
+                "18": [{{
                     "module": "ZUSDFinance",
                     "version": "0.1",
                     "action": "mint_zusd",
@@ -1901,7 +1902,7 @@ def _seed_api_state(
             "prefund_counterparty_zusd",
             privkey=owner["privkey_int"],
             operations={{
-                "9": [{{
+                "16": [{{
                     "module": "TauToken",
                     "version": "0.1",
                     "action": "transfer",
@@ -1945,7 +1946,7 @@ def _seed_api_state(
         report["steps"]["init_market_2p"] = send_and_mine(
             "init_market_2p",
             privkey=owner["privkey_int"],
-            operations={{"8": [init_market]}},
+            operations={{"15": [init_market]}},
             resend_on_empty=True,
             accept_block_failure_if=perps_market_exists,
         )
@@ -1953,7 +1954,7 @@ def _seed_api_state(
             "perps_deposit_collateral",
             privkey=owner["privkey_int"],
             operations={{
-                "8": [{{
+                "15": [{{
                     "module": "TauPerp",
                     "version": "1.0",
                     "market_id": PAYLOAD["market_id"],
@@ -1969,7 +1970,7 @@ def _seed_api_state(
             "perps_advance_epoch",
             privkey=owner["privkey_int"],
             operations={{
-                "8": [{{
+                "15": [{{
                     "module": "TauPerp",
                     "version": "1.0",
                     "market_id": PAYLOAD["market_id"],
@@ -2026,13 +2027,13 @@ def _seed_api_state(
                 "autotrader_spot_pool",
                 privkey=owner["privkey_int"],
                 operations={{
-                    "7": {{
+                    "14": {{
                         "mint": [
                             {{"pubkey": owner["public_key"], "asset": spot_asset0, "amount": 100_000}},
                             {{"pubkey": owner["public_key"], "asset": spot_asset1, "amount": 200_000}},
                         ]
                     }},
-                    "5": [create_pool_intent],
+                    "19": [create_pool_intent],
                 }},
             )
 
@@ -2058,7 +2059,7 @@ def _seed_api_state(
                 "autotrader_owner_spot_faucet",
                 privkey=owner["privkey_int"],
                 operations={{
-                    "7": {{
+                    "14": {{
                         "mint": [
                             {{
                                 "pubkey": owner["public_key"],
@@ -3803,7 +3804,7 @@ def _run_complex_grouped_transaction_smoke(
         "tx_id": f"local-smoke-grouped-swap-batch-{run_id}",
         "block_timestamp": int(time.time()),
         "tx_sender_pubkey": sender,
-        "operations": {"5": [operation, operation_b]},
+        "operations": {"19": [operation, operation_b]},
     }
     good = _post_json(f"{ui_base}/tx", {"tx": good_group, "time_ms": int(time.time() * 1000)}, timeout_s=20.0)
     if good.get("tx_accepted") is not True:
@@ -3814,7 +3815,7 @@ def _run_complex_grouped_transaction_smoke(
         "tx_id": f"local-smoke-grouped-replay-reject-{run_id}",
         "block_timestamp": int(time.time()),
         "tx_sender_pubkey": sender,
-        "operations": {"5": [operation, operation_b]},
+        "operations": {"19": [operation, operation_b]},
     }
     bad = _post_json(f"{ui_base}/tx", {"tx": bad_group, "time_ms": int(time.time() * 1000)}, timeout_s=20.0)
     if bad.get("tx_accepted") is True:

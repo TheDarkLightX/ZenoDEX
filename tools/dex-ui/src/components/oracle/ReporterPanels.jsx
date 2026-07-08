@@ -19,9 +19,9 @@ function ReporterOnboardingPanel({ selectedFeed }) {
   const priceE8 = Math.floor(parseFloat(displayPrice || 0) * 100000000);
 
   const steps = [
-    { id: 'identity', label: 'Create identity', status: currentStepIndex > 0 ? 'completed' : 'available' },
-    { id: 'register_bond', label: 'Register & Post Bond', status: currentStepIndex > 1 ? 'completed' : (currentStepIndex === 1 ? 'available' : 'locked') },
-    { id: 'submit', label: 'Submit signed reports', status: currentStepIndex === 2 ? 'available' : 'locked' },
+    { id: 'identity', label: 'Create account', status: currentStepIndex > 0 ? 'completed' : 'available' },
+    { id: 'register_bond', label: 'Register & deposit', status: currentStepIndex > 1 ? 'completed' : (currentStepIndex === 1 ? 'available' : 'locked') },
+    { id: 'submit', label: 'Submit price reports', status: currentStepIndex === 2 ? 'available' : 'locked' },
   ];
 
   async function post(path, payload) {
@@ -152,10 +152,10 @@ function ReporterOnboardingPanel({ selectedFeed }) {
     <section className="panel zor-panel animate-fade-in">
       <div className="zor-section-header">
         <div>
-          <h2>Reporter Onboarding Workflow</h2>
+          <h2>Add Reporter</h2>
           <p>Complete the steps in order to start submitting oracle reports.</p>
         </div>
-        <span className="zor-subtle-chip">CLI-backed</span>
+        <span className="zor-subtle-chip">Service</span>
       </div>
 
       <div className="zor-step-list" style={{ marginBottom: 'var(--space-lg)' }}>
@@ -191,7 +191,7 @@ function ReporterOnboardingPanel({ selectedFeed }) {
 
       <div className="zor-report-submit-grid" style={{ opacity: currentStepIndex === 2 ? 1 : 0.4, pointerEvents: currentStepIndex === 2 ? 'auto' : 'none' }}>
         <label>
-          <span className="label">Source ID</span>
+          <span className="label">Data source name</span>
           <input
             className="input"
             value={sourceId}
@@ -200,7 +200,7 @@ function ReporterOnboardingPanel({ selectedFeed }) {
           />
         </label>
         <label>
-          <span className="label">Observed Price ($)</span>
+          <span className="label">Current price</span>
           <input
             className="input"
             inputMode="decimal"
@@ -210,7 +210,7 @@ function ReporterOnboardingPanel({ selectedFeed }) {
             placeholder="1.50"
           />
           <small style={{ display: 'block', marginTop: '4px', color: 'var(--text-muted)' }}>
-            Auto-converted: <span className="strat-mono">{priceE8} e8</span>
+            Converted to smallest unit: <span className="strat-mono">{priceE8}</span>
           </small>
         </label>
         <button

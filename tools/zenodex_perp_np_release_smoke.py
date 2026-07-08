@@ -73,7 +73,7 @@ def _op(action: str, **fields: object) -> dict[str, object]:
 
 def _apply(state: DexState, op: dict, sender: str, ts: int = 1):
     res = apply_perp_ops(
-        config=CFG, state=state, operations={"5": [op]},
+        config=CFG, state=state, operations={"19": [op]},
         tx_sender_pubkey=sender, block_timestamp=ts,
     )
     if not res.ok:

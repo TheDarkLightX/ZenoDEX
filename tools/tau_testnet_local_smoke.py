@@ -487,8 +487,8 @@ def _step_create_pool(ctx: _SmokeCtx) -> _SmokeCtx:
     ops: Dict[str, Any] = {
         # Upstream-safe app streams: 5=intents, 7=faucet-mint.
         # (2/3/4 are reserved in tau-testnet commit 2deccad)
-        "7": {"mint": [[ctx.sender_pubkey, ctx.asset0, 10_000], [ctx.sender_pubkey, ctx.asset1, 10_000]]},
-        "5": [[intent, sig]],
+        "21": {"mint": [[ctx.sender_pubkey, ctx.asset0, 10_000], [ctx.sender_pubkey, ctx.asset1, 10_000]]},
+        "19": [[intent, sig]],
     }
     _send_and_mine(
         ctx.client,
@@ -547,7 +547,7 @@ def _step_swap(ctx: _SmokeCtx) -> _SmokeCtx:
     _send_and_mine(
         ctx.client,
         privkey_hex=ctx.params.privkey_hex,
-        operations={"5": [[intent, sig]]},
+        operations={"19": [[intent, sig]]},
         print_suffix=" (swap)",
         proof_label="after swap",
         prev_app_hash=str(app_hash_before),
@@ -579,7 +579,7 @@ def _step_upstream_custom_input_probe(ctx: _SmokeCtx) -> None:
     - verify inclusion via getblocks
     """
     sequence_before = ctx.client.get_sequence(ctx.sender_pubkey)
-    ops: Dict[str, Any] = {"5": ["dex_probe", "v1", 42]}
+    ops: Dict[str, Any] = {"19": ["dex_probe", "v1", 42]}
     send_resp = ctx.client.send_signed_tx(
         privkey=ctx.params.privkey_hex,
         operations=ops,

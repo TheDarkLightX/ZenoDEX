@@ -279,14 +279,14 @@ function TokenStats() {
                     </span>
                 </div>
                 <div className="stat-card panel animate-slide-up" style={{ animationDelay: '100ms' }}>
-                    <span className="stat-label">{demoMode ? 'Buyback Pool' : 'Buyback Fee Pool'}</span>
+                    <span className="stat-label">{demoMode ? 'Buyback Pool' : 'Fee Pool for Buyback'}</span>
                     <span className="stat-value stat-pool">{demoMode ? formatDollarOrNA(buybackPool) : formatValueOrNA(buybackTotalSwapFee)}</span>
-                    <span className="stat-sub">{demoMode ? 'pending for burn' : 'cumulative swap fee feeding buyback'}</span>
+                    <span className="stat-sub">{demoMode ? 'pending for burn' : 'total fees collected for buyback'}</span>
                 </div>
                 <div className="stat-card panel animate-slide-up" style={{ animationDelay: '150ms' }}>
-                    <span className="stat-label">{demoMode ? 'Est. Days to Floor' : 'Buyback Events'}</span>
+                    <span className="stat-label">{demoMode ? 'Est. Days to Floor' : 'Buyback Transactions'}</span>
                     <span className="stat-value">{demoMode ? (stats.daysToFloor == null ? NA : stats.daysToFloor) : formatValueOrNA(buybackEventCount)}</span>
-                    <span className="stat-sub">{demoMode ? 'at current volume' : 'accepted burn sidecars'}</span>
+                    <span className="stat-sub">{demoMode ? 'at current volume' : 'completed buyback transactions'}</span>
                 </div>
             </div>
 
@@ -299,7 +299,7 @@ function TokenStats() {
                     </span>
                 </div>
                 {currentSupply == null || burnedTotal == null ? (
-                    <p className="model-note">Live {tokenSymbol} supply metrics are waiting for the local-testnet endpoint.</p>
+                    <p className="model-note">Live {tokenSymbol} supply metrics are waiting for network data.</p>
                 ) : (
                     <>
                         <div className="progress-bar-container">
@@ -328,15 +328,15 @@ function TokenStats() {
             {allocationRows.length > 0 && (
                 <div className="tokenomics-ledger panel animate-slide-up" style={{ animationDelay: '240ms' }}>
                     <div className="tokenomics-ledger-header">
-                        <h3>Local-Testnet Distribution</h3>
+                        <h3>Token Distribution</h3>
                         <span className={checks.tau_policy_flags_all_pass ? 'check-ok' : 'check-warn'}>
-                            Tau guard {checks.tau_policy_flags_all_pass ? 'passed' : 'pending'}
+                            Policy check {checks.tau_policy_flags_all_pass ? 'passed' : 'pending'}
                         </span>
                     </div>
                     <div className="allocation-table" role="table" aria-label="Token allocation balances">
                         <div className="allocation-row allocation-head" role="row">
-                            <span>Bucket</span>
-                            <span>Controller</span>
+                            <span>Category</span>
+                            <span>Manager</span>
                             <span>Initial</span>
                             <span>Current</span>
                         </div>
@@ -358,9 +358,9 @@ function TokenStats() {
             {programRows.length > 0 && (
                 <div className="tokenomics-ledger panel animate-slide-up" style={{ animationDelay: '260ms' }}>
                     <div className="tokenomics-ledger-header">
-                        <h3>Active-Participant Reward Budgets</h3>
+                        <h3>Reward Programs</h3>
                         <span className={checks.active_participant_programs_sum_to_pool ? 'check-ok' : 'check-warn'}>
-                            Budget sum {checks.active_participant_programs_sum_to_pool ? 'valid' : 'pending'}
+                            Total budget {checks.active_participant_programs_sum_to_pool ? 'valid' : 'pending'}
                         </span>
                     </div>
                     <div className="program-grid">
@@ -373,7 +373,7 @@ function TokenStats() {
                                 </span>
                                 {row.claim_amount != null && (
                                     <span className="program-claim-line">
-                                        {formatNumber(row.claim_amount)} per eligible receipt
+                                        {formatNumber(row.claim_amount)} per eligible action
                                     </span>
                                 )}
                                 <small>{(row.eligibility_receipts || []).map(humanizeId).join(', ')}</small>
@@ -384,7 +384,7 @@ function TokenStats() {
                                     disabled={claimState.loading || Number(row.remaining_amount ?? row.budget_amount) <= 0}
                                     onClick={() => submitRewardClaim(row)}
                                 >
-                                    {claimState.loading ? 'Claiming' : 'Claim next eligible receipt'}
+                                    {claimState.loading ? 'Claiming' : 'Claim next reward'}
                                 </button>
                             )}
                         </div>
@@ -392,7 +392,7 @@ function TokenStats() {
                     </div>
                     {!demoMode && (claimState.data || claimState.error) && (
                         <div className={claimState.error ? 'claim-status claim-error' : 'claim-status claim-ok'} role="status">
-                            {claimState.error ? claimState.error : `Claim accepted at height ${claimState.data?.height}`}
+                            {claimState.error ? claimState.error : `Claim accepted at block ${claimState.data?.height}`}
                         </div>
                     )}
                 </div>
@@ -403,23 +403,23 @@ function TokenStats() {
                     <h3>{demoMode ? 'Burn Mechanics' : 'Live Buyback/Burn Ledger'}</h3>
                     <div className="mechanic-list">
                         <div className="mechanic-item">
-                            <span className="mechanic-label">{demoMode ? 'Transfer Burn Rate' : 'Protocol Fee Capture'}</span>
+                            <span className="mechanic-label">{demoMode ? 'Transfer Burn Rate' : 'Protocol Fee Rate'}</span>
                             <span className="mechanic-value">{demoMode ? formatPercent(BURN_RATE) : formatBpsOrNA(protocolFeeShareBps)}</span>
                         </div>
                         <div className="mechanic-item">
-                            <span className="mechanic-label">{demoMode ? 'Swap Buyback Rate' : 'Buyback Burn Share'}</span>
+                            <span className="mechanic-label">{demoMode ? 'Swap Buyback Rate' : 'Buyback Portion'}</span>
                             <span className="mechanic-value">{demoMode ? '0.3%' : formatBpsOrNA(buybackShareBps)}</span>
                         </div>
                         <div className="mechanic-item">
-                            <span className="mechanic-label">{demoMode ? 'Buyback to Burn' : 'Burned From Buyback'}</span>
+                            <span className="mechanic-label">{demoMode ? 'Buyback to Burn' : 'Tokens Burned'}</span>
                             <span className="mechanic-value">{demoMode ? '50%' : formatValueOrNA(buybackBurnedTotal)}</span>
                         </div>
                         <div className="mechanic-item">
-                            <span className="mechanic-label">{demoMode ? 'Supply Floor' : 'Carry After'}</span>
+                            <span className="mechanic-label">{demoMode ? 'Supply Floor' : 'Remaining Supply'}</span>
                             <span className="mechanic-value">{demoMode ? `${formatNumber(minSupply)} ${tokenSymbol}` : formatValueOrNA(buybackCarryAfter)}</span>
                         </div>
                         <div className="mechanic-item">
-                            <span className="mechanic-label">Market Purchase</span>
+                            <span className="mechanic-label">Buyback Status</span>
                             <span className="mechanic-value">
                                 {demoMode ? 'Modeled' : (buybackRuntimeEnabled ? 'Enabled' : buybackRouteAvailable ? 'Route only' : 'Treasury burn only')}
                             </span>

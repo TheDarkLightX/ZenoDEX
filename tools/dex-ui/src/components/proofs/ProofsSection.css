@@ -1,0 +1,691 @@
+/* Copyright DarkLightX/Dana Edwards */
+/* Proofs section — v3 layout (after 3 rounds of codex UX review) */
+
+/* ===== Section shell ===== */
+.proofs-section {
+  max-width: 768px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* ===== Header + system status ===== */
+.proofs-header {
+  margin-bottom: 12px;
+}
+
+.proofs-header h1 {
+  font-size: 1.4em;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+}
+
+.proofs-header-subtitle {
+  font-size: 0.82em;
+  opacity: 0.6;
+  margin: 0 0 12px 0;
+}
+
+.proofs-system-bar {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  background: var(--card-bg, rgba(255,255,255,0.03));
+  font-size: 0.78em;
+  line-height: 1.6;
+  margin-bottom: 6px;
+}
+
+.proofs-system-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.proofs-system-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.proofs-system-dot.online {
+  background: #34d399;
+  box-shadow: 0 0 4px rgba(52, 211, 153, 0.5);
+}
+
+.proofs-system-dot.stale {
+  background: #facc15;
+  box-shadow: 0 0 4px rgba(250, 204, 21, 0.5);
+}
+
+.proofs-system-dot.offline {
+  background: #f87171;
+}
+
+.proofs-system-meta {
+  opacity: 0.7;
+}
+
+.proofs-system-refresh {
+  margin-left: auto;
+  font-size: 0.85em;
+  opacity: 0.6;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.proofs-system-refresh:hover {
+  opacity: 1;
+  background: rgba(255,255,255,0.06);
+}
+
+.proofs-system-stale-warning {
+  color: #facc15;
+  font-size: 0.9em;
+  margin-top: 4px;
+}
+
+.proofs-system-offline-warning {
+  color: #f87171;
+  font-size: 0.9em;
+  margin-top: 4px;
+}
+
+.proofs-data-notice {
+  font-size: 0.72em;
+  opacity: 0.45;
+  line-height: 1.5;
+  margin-top: 6px;
+}
+
+.proofs-data-notice strong {
+  opacity: 0.7;
+}
+
+.proofs-specs-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 0.72em;
+}
+
+.proofs-spec-link {
+  color: #a5b4fc;
+  text-decoration: none;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.proofs-spec-link:hover {
+  opacity: 1;
+}
+
+/* ===== Task tabs ===== */
+.proofs-task-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
+}
+
+.proofs-task-tab {
+  padding: 8px 16px;
+  font-size: 0.85em;
+  font-weight: 500;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+
+.proofs-task-tab:hover {
+  opacity: 0.8;
+}
+
+.proofs-task-tab.active {
+  opacity: 1;
+  border-bottom-color: #6366f1;
+  font-weight: 600;
+}
+
+/* ===== Tab panels ===== */
+.proofs-tab-panel {
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  background: var(--card-bg, rgba(255,255,255,0.03));
+}
+
+.proofs-tab-goal {
+  font-size: 0.85em;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+}
+
+.proofs-tab-hint {
+  font-size: 0.72em;
+  opacity: 0.45;
+  margin: 0 0 16px 0;
+}
+
+/* ===== Step labels ===== */
+.proofs-step-label {
+  font-size: 0.7em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.5;
+  margin: 0 0 6px 0;
+}
+
+.proofs-step-section {
+  margin-bottom: 16px;
+}
+
+.proofs-source-guidance {
+  font-size: 0.78em;
+  opacity: 0.6;
+  margin: 0 0 10px 0;
+  line-height: 1.4;
+}
+
+/* ===== JSON input area ===== */
+.proofs-json-input {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.proofs-json-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 10px 32px 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  background: rgba(0,0,0,0.2);
+  color: inherit;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.78em;
+  line-height: 1.5;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.proofs-json-textarea:focus {
+  outline: none;
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.proofs-json-clear {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.3;
+  cursor: pointer;
+  font-size: 1em;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.proofs-json-clear:hover {
+  opacity: 0.7;
+  background: rgba(255,255,255,0.06);
+}
+
+/* ===== Detected fields ===== */
+.proofs-detected {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.05);
+  border: 1px solid rgba(99, 102, 241, 0.1);
+  font-size: 0.75em;
+  margin-bottom: 12px;
+}
+
+.proofs-detected-row {
+  display: flex;
+  gap: 6px;
+}
+
+.proofs-detected-label {
+  opacity: 0.5;
+}
+
+.proofs-detected-value {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.9em;
+}
+
+/* ===== Action buttons ===== */
+.proofs-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.proofs-primary-btn {
+  margin-left: auto;
+}
+
+/* ===== Banners (warning/error) ===== */
+.proofs-banner {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.75em;
+  margin-bottom: 12px;
+}
+
+.proofs-banner-warning {
+  background: rgba(250, 204, 21, 0.08);
+  border: 1px solid rgba(250, 204, 21, 0.2);
+  color: #facc15;
+}
+
+.proofs-banner-error {
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.2);
+  color: #f87171;
+}
+
+/* ===== Readiness checklist ===== */
+.proofs-readiness {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  background: rgba(255,255,255,0.02);
+  margin-bottom: 16px;
+}
+
+.proofs-readiness-title {
+  font-size: 0.7em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.5;
+  margin: 0 0 8px 0;
+}
+
+.proofs-check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 0.8em;
+}
+
+.proofs-check-icon {
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+}
+
+.proofs-check-pass {
+  color: #34d399;
+}
+
+.proofs-check-fail {
+  color: #f87171;
+}
+
+.proofs-check-pending {
+  color: rgba(255,255,255,0.2);
+}
+
+.proofs-check-label {
+  flex: 1;
+}
+
+.proofs-check-action {
+  font-size: 0.85em;
+  opacity: 0.6;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+/* ===== Submit section ===== */
+.proofs-submit-section {
+  margin-top: 16px;
+}
+
+.proofs-destination {
+  font-size: 0.72em;
+  opacity: 0.5;
+  margin: 0 0 8px 0;
+}
+
+.proofs-submit-btn {
+  font-size: 0.9em;
+  font-weight: 600;
+  padding: 10px 24px;
+}
+
+.proofs-submit-disabled-reason {
+  font-size: 0.72em;
+  opacity: 0.4;
+  margin-top: 4px;
+}
+
+/* ===== Submit result ===== */
+.proofs-submit-result {
+  padding: 12px 14px;
+  border-radius: 8px;
+  margin-top: 12px;
+  font-size: 0.8em;
+}
+
+.proofs-submit-result.accepted {
+  background: rgba(52, 211, 153, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.2);
+}
+
+.proofs-submit-result.rejected {
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.2);
+}
+
+.proofs-submit-result.unknown {
+  background: rgba(250, 204, 21, 0.08);
+  border: 1px solid rgba(250, 204, 21, 0.2);
+}
+
+.proofs-submit-result-status {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.proofs-submit-result-meta {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.9em;
+  opacity: 0.7;
+}
+
+.proofs-submit-result-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* ===== Verification mode ===== */
+.proofs-verify-mode {
+  margin-bottom: 12px;
+}
+
+.proofs-radio-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  cursor: pointer;
+}
+
+.proofs-radio-row input {
+  margin-top: 2px;
+}
+
+.proofs-radio-label {
+  font-size: 0.82em;
+  font-weight: 500;
+}
+
+.proofs-radio-desc {
+  font-size: 0.72em;
+  opacity: 0.5;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+/* ===== Verification result ===== */
+.proofs-verify-result {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  background: rgba(255,255,255,0.02);
+  margin-bottom: 12px;
+  font-size: 0.8em;
+}
+
+.proofs-verify-result.verified {
+  border-color: rgba(52, 211, 153, 0.3);
+  background: rgba(52, 211, 153, 0.05);
+}
+
+.proofs-verify-result.partial {
+  border-color: rgba(250, 204, 21, 0.3);
+  background: rgba(250, 204, 21, 0.05);
+}
+
+.proofs-verify-result.rejected {
+  border-color: rgba(248, 113, 113, 0.3);
+  background: rgba(248, 113, 113, 0.05);
+}
+
+.proofs-verify-result-status {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.proofs-verify-result.verified .profs-verify-result-status { color: #34d399; }
+.proofs-verify-result.partial .proofs-verify-result-status { color: #facc15; }
+.proofs-verify-result.rejected .proofs-verify-result-status { color: #f87171; }
+
+.proofs-gap-card {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(248, 113, 113, 0.05);
+  border: 1px solid rgba(248, 113, 113, 0.1);
+  margin-top: 8px;
+  font-size: 0.9em;
+}
+
+.proofs-gap-title {
+  font-weight: 600;
+  color: #f87171;
+}
+
+.proofs-gap-cause {
+  opacity: 0.6;
+  margin-top: 2px;
+}
+
+.proofs-gap-action {
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+/* ===== API reference ===== */
+.proofs-api-endpoint-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.proofs-api-endpoint-tab {
+  padding: 6px 12px;
+  font-size: 0.78em;
+  border-radius: 6px;
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.proofs-api-endpoint-tab:hover {
+  opacity: 0.8;
+}
+
+.proofs-api-endpoint-tab.active {
+  opacity: 1;
+  background: rgba(99, 102, 241, 0.1);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.proofs-api-route {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.85em;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.proofs-api-sends-to {
+  font-size: 0.72em;
+  opacity: 0.5;
+  margin-bottom: 8px;
+}
+
+.proofs-api-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.proofs-api-subtabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.proofs-api-subtab {
+  padding: 6px 12px;
+  font-size: 0.75em;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.5;
+  margin-bottom: -1px;
+}
+
+.proofs-api-subtab.active {
+  opacity: 1;
+  border-bottom-color: #6366f1;
+}
+
+.proofs-api-code-block {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(255,255,255,0.06);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.75em;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.proofs-error-table {
+  width: 100%;
+  font-size: 0.78em;
+}
+
+.proofs-error-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 2fr;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.proofs-error-row:last-child {
+  border-bottom: none;
+}
+
+.proofs-error-code {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-weight: 600;
+  color: #f87171;
+}
+
+.proofs-error-name {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  opacity: 0.7;
+}
+
+.proofs-error-desc {
+  opacity: 0.5;
+}
+
+/* ===== Advanced disclosure ===== */
+.proofs-advanced {
+  margin-top: 16px;
+}
+
+.proofs-advanced summary {
+  cursor: pointer;
+  font-size: 0.8em;
+  opacity: 0.5;
+  padding: 8px 0;
+  list-style: none;
+}
+
+.proofs-advanced summary::-webkit-details-marker {
+  display: none;
+}
+
+.proofs-advanced summary::before {
+  content: '▸ ';
+}
+
+.proofs-advanced[open] summary::before {
+  content: '▾ ';
+}
+
+.proofs-advanced summary:hover {
+  opacity: 0.8;
+}
+
+.proofs-advanced-body {
+  padding: 12px 0;
+}
+
+.proofs-artifact-field {
+  margin-bottom: 12px;
+}
+
+.proofs-artifact-label {
+  font-size: 0.8em;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.proofs-artifact-detected {
+  font-size: 0.72em;
+  opacity: 0.5;
+  margin-top: 4px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 600px) {
+  .proofs-detected {
+    grid-template-columns: 1fr;
+  }
+
+  .proofs-error-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}

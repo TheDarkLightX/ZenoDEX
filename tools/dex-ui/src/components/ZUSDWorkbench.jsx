@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import './ZUSDWorkbench.css';
+import './zusd/ZUSDSection.css';
 import {
   ZUSD_SUMMARY,
   ZUSD_OPERATIONS,
@@ -10,6 +11,8 @@ import {
 import { useDemoMode } from '../lib/DemoModeContext.jsx';
 import ZUSDTauWalletSurface from './ZUSDTauWalletSurface.jsx';
 import ZUSDMonetarySurface from './ZUSDMonetarySurface.jsx';
+import ZUSDHealthBar from './zusd/ZUSDHealthBar.jsx';
+import ZUSDSafetyBanners from './zusd/ZUSDSafetyBanners.jsx';
 import { apiGetZusdMonetaryStatus, apiSubmitZusdMonetary } from '../lib/api.js';
 
 const E8 = 100_000_000;
@@ -129,7 +132,7 @@ function MintPanel({ onClose, demoMode = false, showClose = true, wallet = null 
     setCollateral(smoke.collateral);
     setMintAmt(smoke.mint);
     if (!smoke.signerPrivkey.trim()) {
-      setError('smoke signer credential required');
+      setError('Signing key required');
       return;
     }
     async function runSmoke() {
@@ -178,12 +181,12 @@ function MintPanel({ onClose, demoMode = false, showClose = true, wallet = null 
           ok: true,
           mode: 'demo_preview',
           status: 'mint request completed',
-          message: 'Demo mode does not submit Tau transactions.',
+          message: 'Demo mode does not submit real transactions.',
         });
         return;
       }
       if (!nextOwner || !nextSigner) {
-        throw new Error('owner public key and signer credential are required');
+        throw new Error('Owner address and signing key are required');
       }
       const collateralE8 = decimalToE8(nextCollateral, 'collateral');
       const mintE8 = decimalToE8(nextMint, 'mint amount');
@@ -215,16 +218,17 @@ function MintPanel({ onClose, demoMode = false, showClose = true, wallet = null 
       if (overrides.acceptProtocolResponse) {
         const message = String(err?.message || 'mint_not_accepted')
           .replace(/^preflight_failed:\s*/i, '')
+          .replace(/^mint_failed:\s*/i, 'Minting failed: ')
           .replace(/\bfailed\b/gi, 'not accepted')
           .replace(/\brejected\b/gi, 'not accepted');
         setResult({
           ok: false,
           status: 'mint request completed',
-          message: `Protocol response: ${message}`,
+          message: `System response: ${message}`,
         });
         return;
       }
-      setError(err?.message || 'mint_failed');
+      setError(err?.message || 'Minting failed');
     } finally {
       setBusy(false);
     }
@@ -262,7 +266,7 @@ function MintPanel({ onClose, demoMode = false, showClose = true, wallet = null 
           max={maxMint}
           step="any"
         />
-        <div className="zusd-hint">Max mintable from added collateral: {maxMint.toLocaleString()} zUSD at {mcrPct}% CR</div>
+        <div className="zusd-hint">Max mintable from added collateral: {maxMint.toLocaleString()} zUSD at {mcrPct}% ratio</div>
 
         {!demoMode && (
           <>
@@ -337,7 +341,7 @@ function MintPanel({ onClose, demoMode = false, showClose = true, wallet = null 
           {busy
             ? 'Submitting...'
             : collAmt > 0 && crNum < mcrPct
-              ? `CR below ${mcrPct}%`
+              ? `Ratio below ${mcrPct}%`
               : demoMode
                 ? 'Preview mint'
                 : collAmt > 0
@@ -408,16 +412,41 @@ function StabilityPoolPanel({ onClose }) {
   );
 }
 
-function ZUSDWorkbench({ wallet = null }) {
+function ZUSDWorkbench({ wallet = null, onConnect = null }) {
   const { demoMode } = useDemoMode();
   const [activePanel, setActivePanel] = useState(null);
+  const [monetaryStatus, setMonetaryStatus] = useState({ status: null, statusError: '', loadStatus: () => {} });
+  const [lastFetchTs, setLastFetchTs] = useState(0);
+  const walletConnected = Boolean(wallet?.address);
+
+  const handleStatusChange = useCallback((info) => {
+    setMonetaryStatus(info);
+    if (info.status) setLastFetchTs(Date.now());
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    if (monetaryStatus.loadStatus) monetaryStatus.loadStatus();
+  }, [monetaryStatus]);
 
   if (!demoMode) {
     const isQuickMintSmoke = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('zenodexUiSmokeZusdQuickMint') === '1';
     return (
       <section className="zusd-workbench">
+        {/* Sticky vault health bar */}
+        <ZUSDHealthBar
+          status={monetaryStatus.status}
+          statusError={monetaryStatus.statusError}
+          walletConnected={walletConnected}
+          lastFetchTs={lastFetchTs}
+          onRefresh={handleRefresh}
+          onRetry={handleRefresh}
+        />
+
+        {/* Conditional safety banners */}
+        <ZUSDSafetyBanners status={monetaryStatus.status} />
+
         {isQuickMintSmoke && <MintPanel demoMode={false} showClose={false} wallet={wallet} />}
-        <ZUSDMonetarySurface wallet={wallet} />
+        <ZUSDMonetarySurface wallet={wallet} onStatusChange={handleStatusChange} onConnect={onConnect} />
         <ZUSDTauWalletSurface wallet={wallet} />
       </section>
     );
@@ -431,12 +460,12 @@ function ZUSDWorkbench({ wallet = null }) {
           <p className="zusd-kicker">Collateralized stablecoin</p>
           <h1>zUSD</h1>
           <p className="zusd-subtitle">
-            Borrow zUSD against AGRS collateral. Formally verified debt conservation,
-            liquidation safety, and fee correctness via 7 Lean proofs.
+            Borrow zUSD against AGRS collateral. Mathematically verified debt conservation,
+            liquidation safety, and fee correctness.
           </p>
         </div>
         <div className="zusd-hero-meta">
-          <span className="zusd-chip">CR {ZUSD_SUMMARY.globalCR.toFixed(1)}%</span>
+          <span className="zusd-chip">Ratio {ZUSD_SUMMARY.globalCR.toFixed(1)}%</span>
           <span className="zusd-chip zusd-chip-accent">${(ZUSD_SUMMARY.totalDebt / 1e6).toFixed(2)}M minted</span>
         </div>
       </div>
@@ -497,7 +526,7 @@ function ZUSDWorkbench({ wallet = null }) {
               <input className="input" type="number" placeholder="0.0" min="0" step="any" />
               <div className="zusd-hint">
                 {activePanel === 'repay'
-                  ? 'Burns zUSD to reduce your vault debt and free collateral.'
+                  ? 'Repay zUSD to reduce your vault debt and free collateral.'
                   : `Redeems 1 zUSD for $1 of AGRS at $${ZUSD_SUMMARY.oraclePrice}/AGRS.`}
               </div>
               <button className="btn btn-primary btn-large zusd-submit">
@@ -537,8 +566,8 @@ function ZUSDWorkbench({ wallet = null }) {
 
         <div className="panel zusd-section-card">
           <div className="zusd-section-header">
-            <h2>Formal Proofs</h2>
-            <span className="zusd-section-badge">Lean 4</span>
+            <h2>Security Proofs</h2>
+            <span className="zusd-section-badge">Verified</span>
           </div>
           <div className="zusd-proof-list">
             {ZUSD_GUARDS.map((guard) => (
@@ -559,7 +588,7 @@ function ZUSDWorkbench({ wallet = null }) {
       <div className="panel zusd-section-card animate-fade-in">
         <div className="zusd-section-header">
           <h2>Risk Parameters</h2>
-          <span className="zusd-section-badge">Protocol config</span>
+          <span className="zusd-section-badge">System settings</span>
         </div>
         <div className="zusd-risk-table">
           <div className="zusd-risk-head">

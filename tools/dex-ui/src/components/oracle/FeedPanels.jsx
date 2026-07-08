@@ -37,7 +37,7 @@ function FeedTable({ feeds, selectedFeedId, onSelectFeed, onCreate }) {
           <span role="columnheader">Feed</span>
           <span role="columnheader">Value</span>
           <span role="columnheader" title="24-hour change (not yet surfaced in dashboard snapshot)">24h</span>
-          <span role="columnheader">Evidence</span>
+          <span role="columnheader">Data quality</span>
           <span role="columnheader">Freshness</span>
           <span role="columnheader">Status</span>
         </div>
@@ -133,7 +133,7 @@ function FeedStatusPanel({ feed }) {
           <strong>{compactId(feed.queryId)}</strong>
         </div>
         <div>
-          <span className="zor-label">Evidence</span>
+          <span className="zor-label">Data quality</span>
           <EvidenceBadge value={feed.evidenceClass} />
         </div>
         <div>
@@ -141,17 +141,17 @@ function FeedStatusPanel({ feed }) {
           <strong>{feed.freshness ?? <span className="zor-muted">no accepted read</span>}</strong>
         </div>
         <div>
-          <span className="zor-label">Deviation</span>
+          <span className="zor-label">Price difference</span>
           <strong title={feed.deviationBps !== null && feed.deviationBps !== undefined ? `${feed.deviationBps} bps` : undefined}>
             {formatBpsAsPercent(feed.deviationBps) ?? <span className="zor-muted">—</span>}
           </strong>
         </div>
         <div>
-          <span className="zor-label">Confidence</span>
+          <span className="zor-label">Reliability</span>
           <strong>{feed.confidence ?? <span className="zor-muted">—</span>}</strong>
         </div>
         <div>
-          <span className="zor-label">Consumer use</span>
+          <span className="zor-label">Usage</span>
           <strong>{feed.actionUse ?? <span className="zor-muted">source policy pending</span>}</strong>
         </div>
       </div>
@@ -179,7 +179,7 @@ function FeedCreationPanel() {
   const [reportReward, setReportReward] = useState('1000000');
   const [rewardBudget, setRewardBudget] = useState('100000000');
   const [saveState, setSaveState] = useState('Draft only');
-  const policyStatus = evidenceFloor === 'O2' ? 'Devnet only' : 'Critical-use eligible after review';
+  const policyStatus = evidenceFloor === 'O2' ? 'Test network only' : 'Ready for review';
 
   async function saveDraftFeed() {
     const [baseAsset, quoteAsset] = assetPair.split('/').map((part) => part.trim().toUpperCase());
@@ -236,7 +236,7 @@ function FeedCreationPanel() {
           />
         </label>
         <label>
-          <span className="label">Evidence floor</span>
+          <span className="label">Minimum quality level</span>
           <select
             className="input"
             value={evidenceFloor}
@@ -249,7 +249,7 @@ function FeedCreationPanel() {
           </select>
         </label>
         <label>
-          <span className="label">Freshness window</span>
+          <span className="label">Update frequency</span>
           <input
             className="input"
             type="number"

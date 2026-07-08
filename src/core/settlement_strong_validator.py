@@ -867,27 +867,45 @@ def _validate_settlement_strong_impl(
             if int(f.protocol_fee_paid or 0) != int(protocol_fee):
                 return fail(f"swap protocol_fee_paid mismatch for intent_id={intent_id}")
 
-            exact_out_apply_error = _apply_exact_out_swap_replay(
-                intent_id=intent_id,
-                sender=sender,
-                recipient=recipient,
-                pool_id=pool_id,
-                pool=pool,
-                dir_is_0_to_1=dir_is_0_to_1,
-                asset_in=asset_in,
-                asset_out=asset_out,
-                balances=balances,
-                amount_in=amount_in_req,
-                amount_out=amount_out_req,
-                new_in=new_in,
-                new_out=new_out,
-                protocol_fee=protocol_fee,
-                protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
-                bal_deltas=bal_deltas,
-                res_deltas=res_deltas,
+            try:
+                balances.subtract(sender, asset_in, int(amount_in_req))
+                balances.add(recipient, asset_out, int(amount_out_req))
+                if protocol_fee:
+                    if protocol_fee_recipient_pubkey is None:
+                        return fail(f"protocol_fee present without recipient for intent_id={intent_id}")
+                    balances.add(protocol_fee_recipient_pubkey, asset_in, int(protocol_fee))
+            except Exception as exc:
+                return fail(f"swap apply error for intent_id={intent_id}: {exc}")
+
+            if dir_is_0_to_1:
+                pool.reserve0 = int(new_in)
+                pool.reserve1 = int(new_out)
+            else:
+                pool.reserve1 = int(new_in)
+                pool.reserve0 = int(new_out)
+
+            bal_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in_req)))
+            bal_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=int(amount_out_req), delta_sub=0))
+            if protocol_fee:
+                if protocol_fee_recipient_pubkey is None:
+                    return fail(f"protocol_fee present without recipient for intent_id={intent_id}")
+                bal_deltas.append(
+                    BalanceDelta(
+                        pubkey=protocol_fee_recipient_pubkey,
+                        asset=asset_in,
+                        delta_add=int(protocol_fee),
+                        delta_sub=0,
+                    )
+                )
+            res_deltas.append(
+                ReserveDelta(
+                    pool_id=pool_id,
+                    asset=asset_in,
+                    delta_add=int(amount_in_req) - int(protocol_fee),
+                    delta_sub=0,
+                )
             )
-            if exact_out_apply_error is not None:
-                return fail(exact_out_apply_error)
+            res_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_out, delta_add=0, delta_sub=int(amount_out_req)))
             continue
 
         if it.kind == IntentKind.ADD_LIQUIDITY:
@@ -1047,109 +1065,6 @@ def _copy_lp_table(lp_balances: LPTable) -> LPTable:
         if copied.get(pubkey, pool_id) > 0:
             copied.set_last_mint_timestamp(pubkey, pool_id, timestamp)
     return copied
-
-
-def _set_pool_reserves_after_swap(
-    *,
-    pool: PoolState,
-    dir_is_0_to_1: bool,
-    new_in: int,
-    new_out: int,
-) -> None:
-    if dir_is_0_to_1:
-        pool.reserve0 = int(new_in)
-        pool.reserve1 = int(new_out)
-        return
-    pool.reserve1 = int(new_in)
-    pool.reserve0 = int(new_out)
-
-
-def _append_pool_swap_deltas(
-    *,
-    pool_id: str,
-    sender: PubKey,
-    recipient: PubKey,
-    asset_in: AssetId,
-    asset_out: AssetId,
-    amount_in: int,
-    amount_out: int,
-    protocol_fee: int,
-    protocol_fee_recipient_pubkey: Optional[PubKey],
-    bal_deltas: List[BalanceDelta],
-    res_deltas: List[ReserveDelta],
-) -> Optional[str]:
-    bal_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in)))
-    bal_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=int(amount_out), delta_sub=0))
-    if protocol_fee:
-        if protocol_fee_recipient_pubkey is None:
-            return "protocol_fee present without recipient"
-        bal_deltas.append(
-            BalanceDelta(
-                pubkey=protocol_fee_recipient_pubkey,
-                asset=asset_in,
-                delta_add=int(protocol_fee),
-                delta_sub=0,
-            )
-        )
-    res_deltas.append(
-        ReserveDelta(
-            pool_id=pool_id,
-            asset=asset_in,
-            delta_add=int(amount_in) - int(protocol_fee),
-            delta_sub=0,
-        )
-    )
-    res_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_out, delta_add=0, delta_sub=int(amount_out)))
-    return None
-
-
-def _apply_exact_out_swap_replay(
-    *,
-    intent_id: str,
-    sender: PubKey,
-    recipient: PubKey,
-    pool_id: str,
-    pool: PoolState,
-    dir_is_0_to_1: bool,
-    asset_in: AssetId,
-    asset_out: AssetId,
-    balances: BalanceTable,
-    amount_in: int,
-    amount_out: int,
-    new_in: int,
-    new_out: int,
-    protocol_fee: int,
-    protocol_fee_recipient_pubkey: Optional[PubKey],
-    bal_deltas: List[BalanceDelta],
-    res_deltas: List[ReserveDelta],
-) -> Optional[str]:
-    try:
-        balances.subtract(sender, asset_in, int(amount_in))
-        balances.add(recipient, asset_out, int(amount_out))
-        if protocol_fee:
-            if protocol_fee_recipient_pubkey is None:
-                return f"protocol_fee present without recipient for intent_id={intent_id}"
-            balances.add(protocol_fee_recipient_pubkey, asset_in, int(protocol_fee))
-    except Exception as exc:
-        return f"swap apply error for intent_id={intent_id}: {exc}"
-
-    _set_pool_reserves_after_swap(pool=pool, dir_is_0_to_1=dir_is_0_to_1, new_in=new_in, new_out=new_out)
-    delta_error = _append_pool_swap_deltas(
-        pool_id=pool_id,
-        sender=sender,
-        recipient=recipient,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_in=amount_in,
-        amount_out=amount_out,
-        protocol_fee=protocol_fee,
-        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
-        bal_deltas=bal_deltas,
-        res_deltas=res_deltas,
-    )
-    if delta_error is not None:
-        return f"{delta_error} for intent_id={intent_id}"
-    return None
 
 
 def _aggregate_balance_deltas(deltas: List[BalanceDelta]) -> List[BalanceDelta]:

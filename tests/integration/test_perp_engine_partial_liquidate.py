@@ -97,7 +97,7 @@ def test_apply_perp_ops_supports_partial_liquidate_on_default_adapter(monkeypatc
         config=PerpEngineConfig(operator_pubkey="aa" * 48, allow_isolated_markets=True),
         state=state,
         operations={
-            "5": [
+            "19": [
                 {
                     "module": "TauPerp",
                     "version": "0.1",
@@ -153,7 +153,7 @@ def test_apply_perp_ops_partial_liquidate_requires_oracle_adapter_when_configure
         ),
         state=state,
         operations={
-            "5": [
+            "19": [
                 {
                     "module": "TauPerp",
                     "version": "0.1",
@@ -232,7 +232,7 @@ def test_apply_perp_ops_partial_liquidate_accepts_matching_oracle_adapter(monkey
         ),
         state=state,
         operations={
-            "5": [
+            "19": [
                 {
                     "module": "TauPerp",
                     "version": "0.1",
@@ -285,7 +285,7 @@ def test_apply_perp_ops_partial_liquidate_rejects_wrong_oracle_adapter_action_id
         ),
         state=state,
         operations={
-            "5": [
+            "19": [
                 {
                     "module": "TauPerp",
                     "version": "0.1",
@@ -329,7 +329,7 @@ def test_apply_perp_ops_partial_liquidate_requires_sender_binding(monkeypatch) -
         config=PerpEngineConfig(operator_pubkey="aa" * 48, allow_isolated_markets=True),
         state=state,
         operations={
-            "5": [
+            "19": [
                 {
                     "module": "TauPerp",
                     "version": "0.1",
@@ -391,7 +391,7 @@ def test_rust_shadow_unauthorized_partial_liquidate_does_not_run_oracle_bridge_v
             ),
             state=state,
             operations={
-                "5": [
+                "19": [
                     {
                         "module": "TauPerp",
                         "version": "0.1",

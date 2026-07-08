@@ -1,0 +1,577 @@
+/* Copyright DarkLightX/Dana Edwards */
+/* zUSD section — v3 layout (after 3 rounds of UX review) */
+/* 4 tabs: Vault / Stability Pool / Transfer / Keeper */
+
+/* ===== Section shell ===== */
+.zusd-section {
+  max-width: 1024px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* ===== Orientation strip (1 line, replaces hero) ===== */
+.zusd-orientation {
+  font-size: 0.82em;
+  opacity: 0.6;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.zusd-orientation a {
+  color: #818cf8;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.zusd-orientation a:hover { text-decoration: underline; }
+
+/* ===== Safety context line ===== */
+.zusd-context-line {
+  font-size: 0.75em;
+  color: #facc15;
+  line-height: 1.5;
+  padding: 6px 14px;
+  margin-bottom: 8px;
+  opacity: 0.8;
+}
+
+/* ===== Sticky vault health bar ===== */
+.zusd-health-bar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  background: var(--card-bg, rgba(20,20,30,0.95));
+  backdrop-filter: blur(8px);
+  font-size: 0.78em;
+  line-height: 1.6;
+  margin-bottom: 6px;
+}
+
+.zusd-health-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.zusd-health-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.zusd-health-dot.safe { background: #34d399; box-shadow: 0 0 4px rgba(52,211,153,0.5); }
+.zusd-health-dot.warning { background: #facc15; box-shadow: 0 0 4px rgba(250,204,21,0.4); }
+.zusd-health-dot.danger { background: #f87171; box-shadow: 0 0 6px rgba(248,113,113,0.6); animation: zusd-pulse 1.5s infinite; }
+.zusd-health-dot.stale { background: #fb923c; }
+.zusd-health-dot.disconnected { background: rgba(255,255,255,0.2); }
+.zusd-health-dot.error { background: #f87171; }
+
+@keyframes zusd-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.zusd-health-label {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.85em;
+}
+
+.zusd-health-label.safe { color: #34d399; }
+.zusd-health-label.warning { color: #facc15; }
+.zusd-health-label.danger { color: #f87171; }
+.zusd-health-label.stale { color: #fb923c; }
+.zusd-health-label.disconnected { color: rgba(255,255,255,0.4); }
+.zusd-health-label.error { color: #f87171; }
+
+.zusd-health-meta { opacity: 0.7; }
+
+.zusd-health-stale {
+  font-size: 0.72em;
+  color: #fb923c;
+  margin-left: 4px;
+}
+
+.zusd-health-age {
+  font-size: 0.72em;
+  opacity: 0.4;
+  margin-left: auto;
+}
+
+.zusd-health-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.zusd-health-action {
+  font-size: 0.78em;
+  padding: 2px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.03);
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.zusd-health-action:hover { background: rgba(255,255,255,0.08); }
+
+/* ===== Task tabs ===== */
+.zusd-task-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
+}
+
+.zusd-task-tab {
+  padding: 8px 16px;
+  font-size: 0.85em;
+  font-weight: 500;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+
+.zusd-task-tab:hover { opacity: 0.8; }
+
+.zusd-task-tab.active {
+  opacity: 1;
+  border-bottom-color: #6366f1;
+  font-weight: 600;
+}
+
+/* ===== Safety banners ===== */
+.zusd-banner {
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 0.78em;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.zusd-banner-amber {
+  background: rgba(250,204,21,0.08);
+  border: 1px solid rgba(250,204,21,0.2);
+  color: #facc15;
+}
+
+.zusd-banner-red {
+  background: rgba(248,113,113,0.08);
+  border: 1px solid rgba(248,113,113,0.2);
+  color: #f87171;
+}
+
+.zusd-banner a {
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ===== Tab panel ===== */
+.zusd-tab-panel {
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  background: var(--card-bg, rgba(255,255,255,0.03));
+}
+
+/* ===== Empty states ===== */
+.zusd-empty {
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.zusd-empty-title {
+  font-size: 1em;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.zusd-empty-hint {
+  font-size: 0.82em;
+  opacity: 0.5;
+  margin-bottom: 16px;
+  line-height: 1.6;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.zusd-empty-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ===== Vault card ===== */
+.zusd-vault-card {
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  background: rgba(255,255,255,0.02);
+  margin-bottom: 12px;
+}
+
+.zusd-vault-cr-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.zusd-vault-cr-value {
+  font-size: 1.4em;
+  font-weight: 700;
+}
+
+.zusd-vault-cr-value.healthy { color: #34d399; }
+.zusd-vault-cr-value.warning { color: #facc15; }
+.zusd-vault-cr-value.danger { color: #f87171; }
+
+.zusd-vault-cr-badge {
+  font-size: 0.72em;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.zusd-vault-cr-badge.healthy { background: rgba(52,211,153,0.15); color: #34d399; }
+.zusd-vault-cr-badge.warning { background: rgba(250,204,21,0.15); color: #facc15; }
+.zusd-vault-cr-badge.danger { background: rgba(248,113,113,0.15); color: #f87171; }
+
+.zusd-vault-gauge {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.06);
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.zusd-vault-gauge-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s;
+}
+
+.zusd-vault-gauge-fill.healthy { background: #34d399; }
+.zusd-vault-gauge-fill.warning { background: #facc15; }
+.zusd-vault-gauge-fill.danger { background: #f87171; }
+
+.zusd-vault-thresholds {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72em;
+  opacity: 0.4;
+  margin-bottom: 16px;
+}
+
+.zusd-vault-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 600px) {
+  .zusd-vault-metrics { grid-template-columns: 1fr; }
+}
+
+.zusd-vault-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.zusd-vault-metric-label {
+  font-size: 0.72em;
+  opacity: 0.5;
+}
+
+.zusd-vault-metric-value {
+  font-size: 0.95em;
+  font-weight: 600;
+}
+
+.zusd-vault-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.zusd-vault-action-btn {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  background: rgba(255,255,255,0.03);
+  color: inherit;
+  font-size: 0.82em;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.zusd-vault-action-btn:hover { background: rgba(255,255,255,0.06); }
+.zusd-vault-action-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.zusd-vault-action-btn.primary {
+  border-color: rgba(99,102,241,0.3);
+  background: rgba(99,102,241,0.08);
+  color: #818cf8;
+}
+
+.zusd-vault-action-btn.primary:hover { background: rgba(99,102,241,0.15); }
+
+.zusd-vault-action-btn.urgent {
+  border-color: rgba(248,113,113,0.4);
+  background: rgba(248,113,113,0.08);
+  color: #f87171;
+  font-weight: 600;
+}
+
+.zusd-vault-action-btn.urgent:hover { background: rgba(248,113,113,0.15); }
+
+/* ===== Action panel ===== */
+.zusd-action-panel {
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(99,102,241,0.2);
+  background: rgba(99,102,241,0.04);
+  margin-bottom: 12px;
+}
+
+.zusd-action-panel-title {
+  font-size: 0.9em;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.zusd-action-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.zusd-action-label {
+  font-size: 0.75em;
+  opacity: 0.6;
+}
+
+.zusd-action-input {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  background: rgba(0,0,0,0.2);
+  color: inherit;
+  font-size: 0.82em;
+}
+
+.zusd-action-input:focus {
+  outline: none;
+  border-color: rgba(99,102,241,0.4);
+}
+
+/* ===== Projected position ===== */
+.zusd-projected {
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+  margin-bottom: 12px;
+  font-size: 0.8em;
+}
+
+.zusd-projected-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+}
+
+.zusd-projected-verdict {
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.zusd-projected-verdict.safe { color: #34d399; }
+.zusd-projected-verdict.warning { color: #facc15; }
+.zusd-projected-verdict.danger { color: #f87171; }
+
+/* ===== Signing section (3-state adaptive) ===== */
+.zusd-signing {
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+  margin-bottom: 12px;
+  font-size: 0.8em;
+}
+
+.zusd-signing-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.zusd-signing-status.ok { color: #34d399; }
+.zusd-signing-status.warn { color: #facc15; }
+
+.zusd-signing-details-toggle {
+  font-size: 0.78em;
+  color: #818cf8;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.zusd-signing-fields {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ===== Orchestration progress ===== */
+.zusd-orchestration {
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: rgba(99,102,241,0.06);
+  margin-bottom: 12px;
+  font-size: 0.78em;
+}
+
+.zusd-orch-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.zusd-orch-step.done { color: #34d399; }
+.zusd-orch-step.active { color: #818cf8; }
+.zusd-orch-step.pending { opacity: 0.3; }
+
+/* ===== Last transaction ===== */
+.zusd-last-tx {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  background: rgba(255,255,255,0.02);
+  font-size: 0.8em;
+}
+
+.zusd-last-tx-header {
+  font-size: 0.72em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.5;
+  margin-bottom: 6px;
+}
+
+.zusd-last-tx-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.zusd-last-tx-accepted { color: #34d399; }
+.zusd-last-tx-rejected { color: #f87171; }
+
+.zusd-last-tx-hint {
+  font-size: 0.72em;
+  opacity: 0.3;
+  margin-top: 4px;
+}
+
+/* ===== Keeper tab ===== */
+.zusd-keeper-context {
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(250,204,21,0.15);
+  background: rgba(250,204,21,0.04);
+  margin-bottom: 12px;
+  font-size: 0.8em;
+}
+
+.zusd-keeper-warning {
+  font-size: 0.78em;
+  opacity: 0.6;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.zusd-keeper-ops {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.zusd-keeper-group-label {
+  font-size: 0.72em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.4;
+  margin-bottom: 6px;
+}
+
+/* ===== Reference drawer (collapsible) ===== */
+.zusd-reference-drawer {
+  margin-top: 16px;
+}
+
+.zusd-reference-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82em;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 0;
+  opacity: 0.7;
+}
+
+.zusd-reference-toggle:hover { opacity: 1; }
+
+.zusd-reference-body {
+  margin-top: 8px;
+}
+
+/* ===== Pool overview ===== */
+.zusd-pool-overview {
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  background: rgba(255,255,255,0.02);
+  margin-bottom: 12px;
+}
+
+.zusd-pool-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 600px) {
+  .zusd-pool-stats { grid-template-columns: 1fr; }
+}

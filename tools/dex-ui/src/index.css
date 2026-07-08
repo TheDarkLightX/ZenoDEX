@@ -124,6 +124,38 @@
   gap: var(--space-md);
 }
 
+/* Command palette trigger button */
+.cmdk-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.cmdk-trigger:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  background: var(--bg-tertiary);
+}
+
+.cmdk-trigger:focus-visible {
+  outline: 2px solid var(--accent-signal);
+  outline-offset: 2px;
+}
+
+.cmdk-trigger kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
 /* ─── Main Content ─────────────────────────────────────────────── */
 .main {
   flex: 1;
@@ -279,8 +311,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: var(--space-sm);
   min-height: 40vh;
   color: var(--text-muted);
   font-size: var(--font-size-sm);
   letter-spacing: 0.04em;
+}
+
+.surface-loading-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent-signal);
+  border-radius: 50%;
+  animation: surface-spin 700ms linear infinite;
+}
+
+@keyframes surface-spin {
+  to { transform: rotate(360deg); }
 }

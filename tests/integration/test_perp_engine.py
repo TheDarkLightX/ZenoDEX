@@ -104,7 +104,7 @@ def test_init_market_np_rejects_unfunded_liquidation_params() -> None:
         config=PerpEngineConfig(operator_pubkey=operator),
         state=DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()),
         operations={
-            "8": [
+            "22": [
                 _op(
                     "perp:chnp:unfunded",
                     "init_market_np",
@@ -228,7 +228,7 @@ def test_publish_clearing_price_rejects_unsafe_oracle_reward_posture() -> None:
     res = apply_perp_ops(
         config=cfg,
         state=state,
-        operations={"5": [_op(market_id, "publish_clearing_price", price_e8=100_000_000)]},
+        operations={"19": [_op(market_id, "publish_clearing_price", price_e8=100_000_000)]},
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )
@@ -263,7 +263,7 @@ def test_publish_clearing_price_accepts_safe_oracle_reward_posture() -> None:
     res = apply_perp_ops(
         config=cfg,
         state=state,
-        operations={"5": [_op(market_id, "publish_clearing_price", price_e8=100_000_000)]},
+        operations={"19": [_op(market_id, "publish_clearing_price", price_e8=100_000_000)]},
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )
@@ -282,7 +282,7 @@ def test_operator_pubkey_accepts_0X_prefix() -> None:
     res = apply_perp_ops(
         config=cfg,
         state=state,
-        operations={"5": [_op(market_id, "init_market", quote_asset=quote_asset)]},
+        operations={"19": [_op(market_id, "init_market", quote_asset=quote_asset)]},
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )
@@ -315,7 +315,7 @@ def test_publish_clearing_price_rejects_zero_oracle_fee_friction() -> None:
     res = apply_perp_ops(
         config=cfg,
         state=state,
-        operations={"5": [_op(market_id, "publish_clearing_price", price_e8=100_000_000)]},
+        operations={"19": [_op(market_id, "publish_clearing_price", price_e8=100_000_000)]},
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )
@@ -349,7 +349,7 @@ def test_publish_clearing_price_rejects_zero_oracle_reward_safety_margin() -> No
     res = apply_perp_ops(
         config=cfg,
         state=state,
-        operations={"5": [_op(market_id, "publish_clearing_price", price_e8=100_000_000)]},
+        operations={"19": [_op(market_id, "publish_clearing_price", price_e8=100_000_000)]},
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )
@@ -383,7 +383,7 @@ def test_publish_clearing_price_rejects_reward_subsidy_without_oracle_signer() -
     res = apply_perp_ops(
         config=cfg,
         state=state,
-        operations={"5": [_op(market_id, "publish_clearing_price", price_e8=100_000_000)]},
+        operations={"19": [_op(market_id, "publish_clearing_price", price_e8=100_000_000)]},
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )
@@ -427,7 +427,7 @@ def test_set_market_params_enforces_collectible_penalty_floor() -> None:
         config=cfg,
         state=state,
         operations={
-            "5": [
+            "19": [
                 _op(
                     market_id,
                     "set_market_params",
@@ -445,7 +445,7 @@ def test_set_market_params_enforces_collectible_penalty_floor() -> None:
         config=cfg,
         state=state,
         operations={
-            "5": [
+            "19": [
                 _op(
                     market_id,
                     "set_market_params",
@@ -779,7 +779,7 @@ def test_apply_perp_ops_fail_closed_on_invalid_field_type() -> None:
     res = apply_perp_ops(
         config=cfg,
         state=state,
-        operations={"5": [_op(market_id, "advance_epoch", delta="1")]},  # type: ignore[arg-type]
+        operations={"19": [_op(market_id, "advance_epoch", delta="1")]},  # type: ignore[arg-type]
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )
@@ -799,7 +799,7 @@ def test_apply_perp_ops_rejects_pathological_int_widths() -> None:
     res = apply_perp_ops(
         config=cfg,
         state=state,
-        operations={"5": [_op(market_id, "advance_epoch", delta=(1 << 200))]},
+        operations={"19": [_op(market_id, "advance_epoch", delta=(1 << 200))]},
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )
@@ -993,7 +993,7 @@ def test_settle_epoch_rejects_missing_oracle_snapshot() -> None:
         config=cfg,
         state=state,
         operations={
-            "5": [
+            "19": [
                 _op(
                     market_id,
                     "settle_epoch",
@@ -1025,7 +1025,7 @@ def test_settle_epoch_requires_oracle_adapter_bridge_when_configured() -> None:
     res = apply_perp_ops(
         config=cfg,
         state=state,
-        operations={"5": [_op(market_id, "settle_epoch")]},
+        operations={"19": [_op(market_id, "settle_epoch")]},
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )
@@ -1045,7 +1045,7 @@ def test_settle_epoch_rejects_unverified_oracle_adapter_bridge() -> None:
     res = apply_perp_ops(
         config=cfg,
         state=state,
-        operations={"5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        operations={"19": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )
@@ -1065,7 +1065,7 @@ def test_settle_epoch_rejects_unverified_oracle_adapter_bridge() -> None:
     res_rejected = apply_perp_ops(
         config=cfg_rejecting,
         state=state,
-        operations={"5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        operations={"19": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )
@@ -1100,7 +1100,7 @@ def test_settle_epoch_binds_oracle_adapter_bridge_to_perps_settlement() -> None:
     res_wrong_action = apply_perp_ops(
         config=cfg_wrong_action,
         state=state,
-        operations={"5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        operations={"19": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )
@@ -1123,7 +1123,7 @@ def test_settle_epoch_binds_oracle_adapter_bridge_to_perps_settlement() -> None:
     res_wrong_action_id = apply_perp_ops(
         config=cfg_wrong_action_id,
         state=state,
-        operations={"5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        operations={"19": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )
@@ -1155,7 +1155,7 @@ def test_settle_epoch_binds_oracle_adapter_bridge_to_perps_settlement() -> None:
     res_wrong_profile = apply_perp_ops(
         config=cfg_wrong_profile,
         state=state,
-        operations={"5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        operations={"19": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )
@@ -1184,7 +1184,7 @@ def test_settle_epoch_binds_oracle_adapter_bridge_to_perps_settlement() -> None:
     res = apply_perp_ops(
         config=cfg_accepting,
         state=state,
-        operations={"5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        operations={"19": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )
@@ -1208,7 +1208,7 @@ def test_settle_epoch_requires_oracle_authorization_when_configured() -> None:
     res = apply_perp_ops(
         config=cfg,
         state=state,
-        operations={"5": [_op(market_id, "settle_epoch")]},
+        operations={"19": [_op(market_id, "settle_epoch")]},
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )
@@ -1233,7 +1233,7 @@ def test_settle_epoch_rejects_self_attested_oracle_authorization_without_bridge(
         config=cfg,
         state=state,
         operations={
-            "5": [
+            "19": [
                 _op(
                     market_id,
                     "settle_epoch",
@@ -1272,7 +1272,7 @@ def test_settle_epoch_accepts_bound_oracle_authorization() -> None:
         config=cfg,
         state=state,
         operations={
-            "5": [
+            "19": [
                 _op(
                     market_id,
                     "settle_epoch",
@@ -1312,7 +1312,7 @@ def test_settle_epoch_rejects_wrong_oracle_authorization_value() -> None:
         config=cfg,
         state=state,
         operations={
-            "5": [
+            "19": [
                 _op(
                     market_id,
                     "settle_epoch",
@@ -1961,7 +1961,7 @@ def test_rust_shadow_unauthorized_settle_epoch_does_not_run_oracle_bridge_verifi
             ),
             state=state,
             operations={
-                "5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]
+                "19": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]
             },
             tx_sender_pubkey=unauthorized_sender,
             block_timestamp=0,

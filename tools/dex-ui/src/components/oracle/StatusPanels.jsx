@@ -13,28 +13,28 @@ const STATUS_COPY = {
 const ORACLE_FEATURES = [
   {
     id: 'proof_bound',
-    title: 'Proof-Bound',
-    detail: 'Values stay tied to provenance, policy, and receipts.',
+    title: 'Verified',
+    detail: 'Values are verified and traceable.',
   },
   {
     id: 'action_specific',
-    title: 'Action-Specific',
-    detail: 'One authorization is valid for one exact action.',
+    title: 'Single-use',
+    detail: 'Each approval is for one specific action.',
   },
   {
     id: 'verifiable',
-    title: 'Verifiable',
-    detail: 'Consumers can replay reads and terminal receipts.',
+    title: 'Checkable',
+    detail: 'Records can be independently verified.',
   },
   {
     id: 'economic',
-    title: 'Economically Secure',
-    detail: 'Critical profiles bind value to attack-cost envelopes.',
+    title: 'Financially protected',
+    detail: 'High-value actions require strong security.',
   },
   {
     id: 'permissionless',
-    title: 'Permissionless',
-    detail: 'Report, dispute, and earn through bounded work.',
+    title: 'Open to all',
+    detail: 'Anyone can report, flag errors, and earn rewards.',
   },
 ];
 
@@ -67,7 +67,7 @@ function HealthPanel({ summary = {}, demoMode = false }) {
         <div className="zor-section-header">
           <div>
             <h2>Network Health</h2>
-            <p>Critical services must stay replayable before reads become usable.</p>
+            <p>Services must be verifiable before data is used.</p>
           </div>
           <span className="zor-subtle-chip">98.7%</span>
         </div>
@@ -97,26 +97,26 @@ function HealthPanel({ summary = {}, demoMode = false }) {
       <div className="zor-section-header">
         <div>
           <h2>Network Health</h2>
-          <p>Critical services must stay replayable before reads become usable.</p>
+          <p>Services must be verifiable before data is used.</p>
         </div>
         <span className={`zor-subtle-chip ${replayOk ? 'zor-chip-ok' : 'zor-chip-warn'}`}>
-          {replayOk ? 'Replay OK' : 'Replay unverified'}
+          {replayOk ? 'Verified' : 'Not verified'}
         </span>
       </div>
       {hasData ? (
         <div className="zor-health-list">
-          <div className="zor-health-row"><span>Replay verifier</span><strong>{replayOk ? 'OK' : 'Fail'}</strong></div>
-          <div className="zor-health-row"><span>Accepted reads</span><strong>{reads}</strong></div>
-          <div className="zor-health-row"><span>O3+ critical reads</span><strong>{Number(summary.o3_plus_read_count || 0)}</strong></div>
+          <div className="zor-health-row"><span>Verification system</span><strong>{replayOk ? 'OK' : 'Fail'}</strong></div>
+          <div className="zor-health-row"><span>Accepted updates</span><strong>{reads}</strong></div>
+          <div className="zor-health-row"><span>High-quality updates</span><strong>{Number(summary.o3_plus_read_count || 0)}</strong></div>
           <div className="zor-health-row"><span>Active feeds</span><strong>{feeds}</strong></div>
-          <div className="zor-health-row"><span>Open disputes</span><strong>{Number(summary.open_dispute_count || 0)}</strong></div>
+          <div className="zor-health-row"><span>Flagged reports</span><strong>{Number(summary.open_dispute_count || 0)}</strong></div>
         </div>
       ) : (
         <div className="zor-empty-state" role="status">
           <strong>No health data yet</strong>
           <p>
             Awaiting feeds and accepted reads. Composite health metrics activate once the node
-            reports replay-bound reads.{replayOk ? ' Replay verifier is currently OK.' : ''}
+            reports replay-bound reads.{replayOk ? ' Verification system is currently OK.' : ''}
           </p>
         </div>
       )}
@@ -135,7 +135,7 @@ function EventsPanel({ events = [], demoMode = false }) {
       <div className="zor-section-header">
         <div>
           <h2>Recent Oracle Events</h2>
-          <p>Ledger events should remain replayable after restart.</p>
+          <p>Records should remain verifiable after restart.</p>
         </div>
         {rows.length > 0 && (
           <span className="zor-subtle-chip">{demoMode ? 'live tail' : `${rows.length} recent`}</span>
@@ -170,7 +170,7 @@ function ServicesPanel({ summary = {}, authorityStatus = {}, demoMode = false })
         <div className="zor-section-header">
           <div>
             <h2>System Status</h2>
-            <p>Service posture for the pre-MVP oracle console.</p>
+            <p>System status.</p>
           </div>
           <span className="zor-system-ok">All systems operational</span>
         </div>
@@ -191,11 +191,11 @@ function ServicesPanel({ summary = {}, authorityStatus = {}, demoMode = false })
   const authReady = authorityStatus?.status === 'ready'
     && (Array.isArray(authorityStatus?.readiness_gaps) ? authorityStatus.readiness_gaps.length === 0 : true);
   const services = [
-    { id: 'replay', label: 'Receipt Verifier (replay)', status: replayOk ? 'Operational' : 'Degraded', tone: replayOk ? 'green' : 'warn' },
-    { id: 'admission', label: 'Report Admission', status: authReady ? 'Operational' : 'Unverified', tone: authReady ? 'green' : 'muted' },
-    { id: 'aggregation', label: 'Aggregation Engine', status: 'Unverified', tone: 'muted' },
-    { id: 'dispute', label: 'Dispute System', status: summary.open_dispute_count != null ? 'Operational' : 'Unverified', tone: summary.open_dispute_count != null ? 'green' : 'muted' },
-    { id: 'proof', label: 'Proof Generation', status: 'Roadmap', tone: 'muted' },
+    { id: 'replay', label: 'Record verifier', status: replayOk ? 'Operational' : 'Degraded', tone: replayOk ? 'green' : 'warn' },
+    { id: 'admission', label: 'Data acceptance', status: authReady ? 'Operational' : 'Unverified', tone: authReady ? 'green' : 'muted' },
+    { id: 'aggregation', label: 'Data processing', status: 'Unverified', tone: 'muted' },
+    { id: 'dispute', label: 'Flagging system', status: summary.open_dispute_count != null ? 'Operational' : 'Unverified', tone: summary.open_dispute_count != null ? 'green' : 'muted' },
+    { id: 'proof', label: 'Verification system', status: 'Roadmap', tone: 'muted' },
   ];
   const headline = replayOk && authReady ? 'Replay + authority ready' : replayOk ? 'Replay OK · authority pending' : 'Degraded';
   return (

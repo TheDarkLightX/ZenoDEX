@@ -31,7 +31,7 @@ function DisputesPanel({ disputes }) {
         report_id: reportId,
         reporter_id: reporterId,
         bond_e8: 10000000,
-        reason: 'operator-review',
+        reason: 'Admin review',
       });
       setDisputeId(payload.dispute_id || '');
       setStatus(`Opened ${compactId(payload.dispute_id)}`);
@@ -148,7 +148,7 @@ function DisputesPanel({ disputes }) {
           inputMode="numeric"
           value={slashAmount}
           onChange={(event) => setSlashAmount(event.target.value)}
-          aria-label="Slash amount e8"
+          aria-label="Penalty amount"
         />
         <div className="zor-button-row zor-button-row-tight">
           <button

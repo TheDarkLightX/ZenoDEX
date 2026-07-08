@@ -81,7 +81,7 @@ def test_set_market_params_clearinghouse_2p_operator_only_and_mid_epoch_guard() 
     res_nonop = apply_perp_ops(
         config=cfg,
         state=state,
-        operations={"5": [_op(market_id, version="1.0", params={"maintenance_margin_bps": 700})]},
+        operations={"19": [_op(market_id, version="1.0", params={"maintenance_margin_bps": 700})]},
         tx_sender_pubkey="cc" * 48,
         block_timestamp=0,
     )
@@ -107,7 +107,7 @@ def test_set_market_params_clearinghouse_2p_operator_only_and_mid_epoch_guard() 
     res_mid = apply_perp_ops(
         config=cfg,
         state=mid,
-        operations={"5": [_op(market_id, version="1.0", params={"maintenance_margin_bps": 700})]},
+        operations={"19": [_op(market_id, version="1.0", params={"maintenance_margin_bps": 700})]},
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )
@@ -139,7 +139,7 @@ def test_set_market_params_clearinghouse_3p_updates_state_when_settled() -> None
     res = apply_perp_ops(
         config=cfg,
         state=state,
-        operations={"5": [_op(market_id, version="1.1", params={"maintenance_margin_bps": 700})]},
+        operations={"19": [_op(market_id, version="1.1", params={"maintenance_margin_bps": 700})]},
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )

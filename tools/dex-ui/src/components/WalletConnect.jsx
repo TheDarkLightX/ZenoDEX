@@ -83,14 +83,18 @@ function WalletConnect({ wallet, onConnect }) {
                 <button
                     className="wallet-button connected"
                     onClick={() => setShowDropdown(!showDropdown)}
+                    aria-label={`Wallet connected: ${truncateAddress(wallet.address)}. Click for details.`}
+                    aria-expanded={showDropdown}
+                    aria-haspopup="menu"
+                    type="button"
                 >
-                    <span className="wallet-status-dot"></span>
+                    <span className="wallet-status-dot" aria-hidden="true"></span>
                     <span className="wallet-address">{truncateAddress(wallet.address)}</span>
-                    <span className="wallet-chevron">▾</span>
+                    <span className="wallet-chevron" aria-hidden="true">▾</span>
                 </button>
 
                 {showDropdown && (
-                    <div className="wallet-dropdown animate-fade-in">
+                    <div className="wallet-dropdown animate-fade-in" role="menu" aria-label="Wallet menu">
                         <div className="dropdown-header">
                             <span className="connected-badge">
                                 <span className="connected-dot"></span>

@@ -96,7 +96,7 @@ def test_stream8_app_bridge_rejects_nonce_replay_without_side_effect(monkeypatch
 
     ok1, app_state_json1, _hash1, _patch1, err1 = _apply(
         "",
-        operations={"8": [_signed_init_market(market_id="perp:ch2p:replay-a", quote_asset=quote_asset, nonce_a=1, nonce_b=1)]},
+        operations={"22": [_signed_init_market(market_id="perp:ch2p:replay-a", quote_asset=quote_asset, nonce_a=1, nonce_b=1)]},
         sender=OPERATOR,
         block_timestamp=1,
     )
@@ -104,7 +104,7 @@ def test_stream8_app_bridge_rejects_nonce_replay_without_side_effect(monkeypatch
 
     ok2, app_state_json2, _hash2, _patch2, err2 = _apply(
         app_state_json1,
-        operations={"8": [_signed_init_market(market_id="perp:ch2p:replay-b", quote_asset=quote_asset, nonce_a=1, nonce_b=1)]},
+        operations={"22": [_signed_init_market(market_id="perp:ch2p:replay-b", quote_asset=quote_asset, nonce_a=1, nonce_b=1)]},
         sender=OPERATOR,
         block_timestamp=2,
     )
@@ -120,7 +120,7 @@ def test_stream8_rejects_batch_local_nonce_replay_without_first_market_side_effe
     ok, app_state_json, _hash, _patch, err = _apply(
         "",
         operations={
-            "8": [
+            "22": [
                 _signed_init_market(
                     market_id="perp:ch2p:batch-replay-a",
                     quote_asset=quote_asset,
@@ -150,7 +150,7 @@ def test_stream8_app_bridge_rejects_expired_signature_without_materializing_mark
 
     ok, app_state_json, _hash, _patch, err = _apply(
         "",
-        operations={"8": [_signed_init_market(market_id="perp:ch2p:expired", quote_asset=quote_asset, nonce_a=1, nonce_b=1, deadline=1)]},
+        operations={"22": [_signed_init_market(market_id="perp:ch2p:expired", quote_asset=quote_asset, nonce_a=1, nonce_b=1, deadline=1)]},
         sender=OPERATOR,
         block_timestamp=2,
     )
@@ -166,7 +166,7 @@ def test_cross_stream_zusd_then_bad_perps_is_atomic(monkeypatch) -> None:
     ok, app_state_json, _hash, _patch, err = _apply(
         "",
         operations={
-            "11": [
+            "25": [
                 {
                     "module": "ZUSDFinance",
                     "action": "bootstrap_oracle",
@@ -175,7 +175,7 @@ def test_cross_stream_zusd_then_bad_perps_is_atomic(monkeypatch) -> None:
                     "deadline": DEADLINE,
                 }
             ],
-            "8": [
+            "22": [
                 {
                     "module": "TauPerp",
                     "version": "1.0",
@@ -203,7 +203,7 @@ def test_stream8_settle_epoch_requires_oracle_adapter_when_configured(monkeypatc
 
     ok1, app_state_json1, _hash1, _patch1, err1 = _apply(
         "",
-        operations={"8": [_signed_init_market(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1)]},
+        operations={"22": [_signed_init_market(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1)]},
         sender=OPERATOR,
         block_timestamp=1,
     )
@@ -211,7 +211,7 @@ def test_stream8_settle_epoch_requires_oracle_adapter_when_configured(monkeypatc
 
     ok2, app_state_json2, _hash2, _patch2, err2 = _apply(
         app_state_json1,
-        operations={"8": [{"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "settle_epoch"}]},
+        operations={"22": [{"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "settle_epoch"}]},
         sender=OPERATOR,
         block_timestamp=2,
     )
@@ -230,7 +230,7 @@ def test_stream8_app_bridge_accepts_signed_position_pair_after_zusd_collateral_d
     ok0, app_state_json0, _hash0, _patch0, err0 = _apply(
         "",
         operations={
-            "9": [
+            "23": [
                 {
                     "module": "TauToken",
                     "action": "mint",
@@ -260,7 +260,7 @@ def test_stream8_app_bridge_accepts_signed_position_pair_after_zusd_collateral_d
 
     ok1, app_state_json1, _hash1, _patch1, err1 = _apply(
         app_state_json0,
-        operations={"8": [_signed_init_market(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1)]},
+        operations={"22": [_signed_init_market(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1)]},
         sender=OPERATOR,
         block_timestamp=2,
     )
@@ -273,7 +273,7 @@ def test_stream8_app_bridge_accepts_signed_position_pair_after_zusd_collateral_d
     ):
         ok_epoch, app_state_json1, _hash_epoch, _patch_epoch, err_epoch = _apply(
             app_state_json1,
-            operations={"8": [op]},
+            operations={"22": [op]},
             sender=OPERATOR,
             block_timestamp=timestamp,
         )
@@ -283,7 +283,7 @@ def test_stream8_app_bridge_accepts_signed_position_pair_after_zusd_collateral_d
         ok_deposit, app_state_json1, _hash, _patch, err_deposit = _apply(
             app_state_json1,
             operations={
-                "8": [
+                "22": [
                     {
                         "module": "TauPerp",
                         "version": "1.0",
@@ -301,7 +301,7 @@ def test_stream8_app_bridge_accepts_signed_position_pair_after_zusd_collateral_d
 
     ok2, app_state_json2, _hash2, _patch2, err2 = _apply(
         app_state_json1,
-        operations={"8": [_signed_set_position(market_id=market_id, new_a=1, new_b=-1, nonce_a=2, nonce_b=2)]},
+        operations={"22": [_signed_set_position(market_id=market_id, new_a=1, new_b=-1, nonce_a=2, nonce_b=2)]},
         sender=OPERATOR,
         block_timestamp=8,
     )
@@ -323,7 +323,7 @@ def test_stream8_rejects_out_of_order_signed_position_nonce_without_side_effect(
     ok0, app_state_json, _hash0, _patch0, err0 = _apply(
         "",
         operations={
-            "9": [
+            "23": [
                 {
                     "module": "TauToken",
                     "action": "mint",
@@ -383,7 +383,7 @@ def test_stream8_rejects_out_of_order_signed_position_nonce_without_side_effect(
     ):
         ok_step, app_state_json, _hash_step, _patch_step, err_step = _apply(
             app_state_json,
-            operations={"8": [op]},
+            operations={"22": [op]},
             sender=sender,
             block_timestamp=timestamp,
         )
@@ -391,7 +391,7 @@ def test_stream8_rejects_out_of_order_signed_position_nonce_without_side_effect(
 
     ok_bad, app_state_after_bad, _hash_bad, _patch_bad, err_bad = _apply(
         app_state_json,
-        operations={"8": [_signed_set_position(market_id=market_id, new_a=1, new_b=-1, nonce_a=3, nonce_b=3)]},
+        operations={"22": [_signed_set_position(market_id=market_id, new_a=1, new_b=-1, nonce_a=3, nonce_b=3)]},
         sender=OPERATOR,
         block_timestamp=8,
     )
@@ -417,7 +417,7 @@ def test_stream8_rejects_stale_oracle_adapter_bridge_without_settlement_side_eff
     ):
         ok_step, app_state_json, _hash_step, _patch_step, err_step = _apply(
             app_state_json,
-            operations={"8": [op]},
+            operations={"22": [op]},
             sender=sender,
             block_timestamp=timestamp,
         )
@@ -439,7 +439,7 @@ def test_stream8_rejects_stale_oracle_adapter_bridge_without_settlement_side_eff
     ok_bad, app_state_after_bad, _hash_bad, _patch_bad, err_bad = _apply(
         app_state_json,
         operations={
-            "8": [
+            "22": [
                 {
                     "module": "TauPerp",
                     "version": "1.0",

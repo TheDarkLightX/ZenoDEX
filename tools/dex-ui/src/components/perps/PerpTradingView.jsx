@@ -96,21 +96,21 @@ function PerpTradingView({ wallet }) {
     // headline in both modes. The operator console only appears in live mode,
     // tucked behind a disclosure so it isn't mistaken for the trader UI.
     const liveSurfaceLabel = selectedMarket?.kind === 'clearinghouse_np_v1'
-        ? 'multi-party stream-8'
-        : 'stream-8 wallet';
+        ? 'Multi-party market'
+        : 'Trading wallet';
     const riskKernelLabel = selectedMarket?.kind === 'clearinghouse_np_v1'
-        ? 'clearinghouse_np_v1'
-        : 'perp_epoch_isolated_v3';
+        ? 'Clearinghouse market'
+        : 'Perpetuals market';
     const previewLabel = demoMode
         ? 'Demo market replay'
         : writeEnabled
-            ? `${liveSurfaceLabel} · writes enabled`
-            : `${liveSurfaceLabel} · signer required`;
+            ? `${liveSurfaceLabel} · Trading enabled`
+            : `${liveSurfaceLabel} · Wallet signature required`;
     const previewDetail = demoMode
-        ? 'Uses bundled market, position, and history data. Orders stay inside the UI state model.'
+        ? 'Uses sample data. Orders are simulated and not sent to the blockchain.'
         : writeEnabled
-            ? 'Reads stream-8 state from the Tau node. Local-testnet wallet submits are enabled.'
-            : 'Reads stream-8 state from the Tau node. Submits require an external signer or local-testnet write mode.';
+            ? 'Connects to the local blockchain. Trading is enabled.'
+            : 'Connects to the local blockchain. Submissions require wallet approval.';
 
     // While the wallet status round-trip is in flight we used to early-return
     // a full-page spinner, which left the user staring at a blank screen for
@@ -129,11 +129,11 @@ function PerpTradingView({ wallet }) {
                     <div className="perp-title-block">
                         <h2 className="perp-title">{demoMode ? 'Perpetuals (demo)' : 'Perpetuals'}</h2>
                         <div className="perp-surface-badges" aria-label="Perpetuals surface scope">
-                            <span className="perp-surface-badge">Surface: {liveSurfaceLabel}</span>
-                            <span className="perp-surface-badge">Risk kernel: {riskKernelLabel}</span>
+                            <span className="perp-surface-badge">Market type: {liveSurfaceLabel}</span>
+                            <span className="perp-surface-badge">Risk system: {riskKernelLabel}</span>
                             {!demoMode && (
                                 <span className="perp-surface-badge perp-surface-badge-np">
-                                    NP proof evidence: separate release smoke
+                                    Privacy proof: requires separate testing
                                 </span>
                             )}
                         </div>
@@ -150,16 +150,16 @@ function PerpTradingView({ wallet }) {
 
             {!demoMode && !writeEnabled && (
                 <div className="perp-preview-lock" role="status">
-                    <div className="perp-preview-lock-title">External signer required</div>
+                    <div className="perp-preview-lock-title">Wallet signature required</div>
                     <p className="perp-preview-lock-text">{writeLockReason}</p>
                 </div>
             )}
 
             {!demoMode && writeEnabled && perpsPreviewWritesRequested && (
                 <div className="perp-preview-lock perp-preview-lock-open" role="status">
-                    <div className="perp-preview-lock-title">Local-testnet writes enabled</div>
+                    <div className="perp-preview-lock-title">Local trading enabled</div>
                     <p className="perp-preview-lock-text">
-                        Local-testnet wallet actions submit through the legacy two-party stream-8 API and are mined on the local Tau node.
+                        Transactions are submitted to the local blockchain for processing.
                     </p>
                 </div>
             )}

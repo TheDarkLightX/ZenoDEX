@@ -96,7 +96,7 @@ def _perps_app_state() -> dict[str, object]:
     init_result = apply_perp_ops(
         config=PerpEngineConfig(chain_id=CHAIN_ID),
         state=state,
-        operations={"5": [_signed_init_perps_op(quote_asset=quote_asset)]},
+        operations={"19": [_signed_init_perps_op(quote_asset=quote_asset)]},
         tx_sender_pubkey=OPERATOR,
         block_timestamp=1,
     )

@@ -67,6 +67,7 @@ def api_surface_profile_violations(
     perps_enabled: bool,
     zusd_enabled: bool,
     dex_enabled: bool,
+    confidential_enabled: bool = False,
 ) -> tuple[str, ...]:
     """Return reasons an API server posture must not start."""
 
@@ -76,12 +77,13 @@ def api_surface_profile_violations(
     perps_flag = _require_bool(perps_enabled, field="perps_enabled")
     zusd_flag = _require_bool(zusd_enabled, field="zusd_enabled")
     dex_flag = _require_bool(dex_enabled, field="dex_enabled")
-    demo_enabled = perps_flag or zusd_flag or dex_flag
+    confidential_flag = _require_bool(confidential_enabled, field="confidential_enabled")
+    demo_enabled = perps_flag or zusd_flag or dex_flag or confidential_flag
     reasons: list[str] = []
     if demo_enabled and not profile.allow_demo_routes:
         reasons.append(f"{profile.profile_id} forbids demo/value-moving API routes")
     if demo_enabled and profile.require_token_for_demo_routes and not demo_api_token:
-        reasons.append(f"{profile.profile_id} requires DEMO_API_TOKEN for demo/value-moving API routes")
+        reasons.append(f"{profile.profile_id} requires an API bearer token for demo/value-moving API routes")
     return tuple(reasons)
 
 
@@ -92,6 +94,7 @@ def validate_api_surface_profile(
     perps_enabled: bool,
     zusd_enabled: bool,
     dex_enabled: bool,
+    confidential_enabled: bool = False,
 ) -> tuple[bool, str | None]:
     reasons = api_surface_profile_violations(
         profile_id=profile_id,
@@ -99,6 +102,7 @@ def validate_api_surface_profile(
         perps_enabled=perps_enabled,
         zusd_enabled=zusd_enabled,
         dex_enabled=dex_enabled,
+        confidential_enabled=confidential_enabled,
     )
     if reasons:
         return False, "; ".join(reasons)

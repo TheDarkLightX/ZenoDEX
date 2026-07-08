@@ -7,7 +7,7 @@ import { ORACLE_EVIDENCE_DISTRIBUTION } from '../ZenoOracleDashboardData.js';
 function EvidenceBadge({ value }) {
   // Unknown/unreported evidence renders as a neutral "—" rather than being
   // silently upgraded to a graded class (which would overstate the floor).
-  if (!value) return <span className="zor-evidence zor-evidence-unknown" title="Evidence class not reported">—</span>;
+  if (!value) return <span className="zor-evidence zor-evidence-unknown" title="Quality level not reported">—</span>;
   return <span className={`zor-evidence zor-evidence-${value}`}>{value}</span>;
 }
 
@@ -16,8 +16,8 @@ function LatestRead({ feed, onVerifyReceipt, onViewAll }) {
     <section className="panel zor-panel">
       <div className="zor-section-header">
         <div>
-          <h2>Latest Accepted Read</h2>
-          <p>Bound to query, value hash, policy roots, and receipt graph.</p>
+          <h2>Latest Price Update</h2>
+          <p>Verified and recorded.</p>
         </div>
         <button
           className="zor-text-button"
@@ -50,7 +50,7 @@ function LatestRead({ feed, onVerifyReceipt, onViewAll }) {
         </div>
       </div>
       <div className="zor-receipt-box">
-        <span>Receipt</span>
+        <span>Record</span>
         <code>{feed.receiptId ?? <span className="zor-muted">no receipt</span>}</code>
       </div>
       <div className="zor-read-foot">
@@ -59,7 +59,7 @@ function LatestRead({ feed, onVerifyReceipt, onViewAll }) {
           <EvidenceBadge value={feed.evidenceClass} />
         </span>
         <span>
-          <small>Action use</small>
+          <small>Used for</small>
           <strong>{feed.actionUse ?? <span className="zor-muted">source policy pending</span>}</strong>
         </span>
       </div>
@@ -107,15 +107,15 @@ function VerifyPanel({ initialReceiptId = '' }) {
     <section className="panel zor-panel">
       <div className="zor-section-header">
         <div>
-          <h2>Quick Verify</h2>
-          <p>Replay a receipt or action-specific authorization locally.</p>
+          <h2>Verify</h2>
+          <p>Verify a record locally.</p>
         </div>
-        <span className="zor-subtle-chip">deterministic</span>
+        <span className="zor-subtle-chip">Consistent</span>
       </div>
       <div className="zor-drop-zone">
         <span className="zor-drop-mark">RX</span>
-        <strong>Drop receipt JSON</strong>
-        <small>Accepted read, aggregate, dispute, reward, or authorization bundle</small>
+        <strong>Paste record data</strong>
+        <small>Record data</small>
       </div>
       <div className="zor-inline-form">
         <input
@@ -214,8 +214,8 @@ function ReceiptBuilderPanel({ feed }) {
     <section className="panel zor-panel">
       <div className="zor-section-header">
         <div>
-          <h2>Receipt Builder</h2>
-          <p>Build aggregate, accepted read, and typed authorization receipts.</p>
+          <h2>Record Builder</h2>
+          <p>Create price records and authorizations.</p>
         </div>
         <span className="zor-subtle-chip">local</span>
       </div>
@@ -227,20 +227,20 @@ function ReceiptBuilderPanel({ feed }) {
           className="input"
           value={aggregateId}
           onChange={(event) => setAggregateId(event.target.value)}
-          placeholder="Aggregate ID"
-          aria-label="Aggregate ID"
+          placeholder="Group ID"
+          aria-label="Group ID"
         />
         <input
           className="input"
           value={consumerModule}
           onChange={(event) => setConsumerModule(event.target.value)}
-          aria-label="Consumer module"
+          aria-label="Application"
         />
         <input
           className="input"
           value={profileId}
           onChange={(event) => setProfileId(event.target.value)}
-          aria-label="Consumer profile ID"
+          aria-label="Consumer policy ID"
         />
         <button
           className="btn btn-secondary"
@@ -254,14 +254,14 @@ function ReceiptBuilderPanel({ feed }) {
           className="input"
           value={readId}
           onChange={(event) => setReadId(event.target.value)}
-          placeholder="Read ID"
-          aria-label="Read ID"
+          placeholder="Record ID"
+          aria-label="Record ID"
         />
         <input
           className="input"
           value={actionKind}
           onChange={(event) => setActionKind(event.target.value)}
-          aria-label="Action kind"
+          aria-label="Action type"
         />
         <button
           className="btn btn-primary"
@@ -286,7 +286,7 @@ function EvidencePanel({ summary = {}, reads = [], demoMode = false }) {
       <section className="panel zor-panel">
         <div className="zor-section-header">
           <div>
-            <h2>Evidence Distribution</h2>
+            <h2>Quality Breakdown</h2>
             <p>Critical-use floor is O3 until proof-backed lanes are live.</p>
           </div>
           <span className="zor-subtle-chip">0 total</span>
@@ -327,7 +327,7 @@ function EvidencePanel({ summary = {}, reads = [], demoMode = false }) {
     <section className="panel zor-panel">
       <div className="zor-section-header">
         <div>
-          <h2>Evidence Distribution</h2>
+          <h2>Quality Breakdown</h2>
           <p>Critical-use floor is O3 until proof-backed lanes are live.</p>
         </div>
         <span className="zor-subtle-chip">{totalLabel}</span>

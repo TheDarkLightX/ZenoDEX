@@ -188,5 +188,5 @@ def test_confidential_feature_status_reports_runtime_gaps_even_when_env_requirem
     assert "confidential runtime privacy remains external to the live API path" in public["readiness_gaps"]
     assert "confidential execution runtime admission is not wired on the live API path" not in public["readiness_gaps"]
     assert "replay-safe request nonce reservation is not enforced by a local verifier boundary" not in public["readiness_gaps"]
-    assert "sealed-bid beta runtime/API integration is not wired beyond core/tests/tools" in public["readiness_gaps"]
+    assert "sealed-bid asset settlement remains external to the local/testnet API path" in public["readiness_gaps"]
     assert "bounded runtime receipts" in public["claim_scope"]
