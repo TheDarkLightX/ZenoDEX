@@ -1178,6 +1178,7 @@ def apply_ops(
             settlement_env = parse_settlement_envelope(operations)
         except ValueError as exc:
             return DexTxResult(ok=False, error=f"invalid settlement: {_clean_error(exc)}")
+        settlement_supplied = settlement_env is not None
         settlement = settlement_env.settlement if settlement_env else None
         proof = settlement_env.proof if settlement_env else None
         uniform_batch_certificate = (
@@ -1440,10 +1441,11 @@ def apply_ops(
                 settlement = computed_settlement
         _fault_stage(config, "after_settlement_compute")
 
-        if settlement is not None:
+        if settlement is not None and settlement_supplied:
             reject_error = reject_settlement_public_boundary_error(config.dex_config, settlement)
             if reject_error is not None:
                 return DexTxResult(ok=False, error=reject_error)
+        if settlement is not None:
             err = validate_lp_settlement_age_gate(
                 settlement=settlement,
                 intents=intents,

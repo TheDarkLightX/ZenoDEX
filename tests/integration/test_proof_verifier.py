@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 
 from src.core.batch_clearing import compute_settlement
-from src.core.dex import DexState
+from src.core.dex import DexConfig, DexState
 from src.core.liquidity import create_pool
 from src.core.proof_mining_claims import explicit_proposal_hash
 from src.integration.dex_engine import DexEngineConfig, apply_ops
@@ -482,6 +482,7 @@ def test_engine_proof_commitment_ignores_optional_nulls_and_reject_reasons() -> 
                 require_intent_signatures=False,
                 allow_external_tools=True,
                 consensus_mode=False,
+                dex_config=DexConfig(reject_settlements_with_rejected_intents=False),
                 proof_config=ProofVerifierConfig(enabled=True, verifier_cmd=cmd),
             ),
             state=state,
