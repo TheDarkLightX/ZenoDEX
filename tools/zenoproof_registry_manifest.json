@@ -34,7 +34,7 @@
       "evidence_class": "O4",
       "non_claims": [
         "does_not_claim_private_popperpad_publication",
-        "does_not_claim_exhaustive_morph_search",
+        "does_not_claim_external_morph_execution",
         "does_not_claim_production_oracle_truth"
       ],
       "replay_command": "python3 tools/zeno_oracle_workflow_evidence_status.py --format json",
@@ -109,20 +109,6 @@
       ],
       "replay_command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_esso_zusd_oracle_recovery_lifecycle_v1.py",
       "statement_hash": "sha256:9a3a688d98376a4c955148326de1d5b5c33bf73594ea65b5383aae8bae49b643"
-    },
-    {
-      "assumptions_hash": "sha256:b4bd9e2bccb694bb9e5973f406baafe268ff89ec5815812acf9d446e50fe55ab",
-      "claim_id": "sha256:40ea363076d9f285a985173b86e8160c7b989822a6ed21b155d1aebc2cf4ab45",
-      "dependency_claim_ids": [
-        "sha256:33d0e19ca78b8e80698e67444a4f93d73b921ad26c463ecb7d0be761c7d53b00"
-      ],
-      "evidence_class": "O4",
-      "non_claims": [
-        "does_not_claim_exhaustive_morph_search",
-        "does_not_claim_production_oracle_truth"
-      ],
-      "replay_command": "python3 -c 'from tools.zeno_oracle_workflow_evidence_status import build_morph_oracle_clamp_envelope_status; import json; print(json.dumps(build_morph_oracle_clamp_envelope_status(), sort_keys=True))'",
-      "statement_hash": "sha256:9a73d87a497ae49b32a85fd371a0b1731318f52054e9119ea62f360d1a9854fa"
     },
     {
       "assumptions_hash": "sha256:ef1d20cc94812953ff4810adc6b517aa8dfbeeaac290344705823bb47bca0987",
@@ -316,28 +302,6 @@
         "zeno_zusd_oracle_recovery_esso_v1"
       ],
       "verifier_id": "sha256:fbde9afdf58711ba1d54c114e5e46dc6214619c2710be18159302376c5684877"
-    },
-    {
-      "allow_path_lookup": true,
-      "current_policy_root": "sha256:5a42d12d55dc88706fdfcab2e88f13479d24c97d59126363f2b4ba890fa958d8",
-      "execution_mode": "subprocess_json",
-      "max_input_bytes": 1000000,
-      "name": "zeno-oracle-morph-clamp-envelope-public-replay-v0",
-      "proof_kinds": [
-        "morph_bundle"
-      ],
-      "revoked": false,
-      "timeout_ms": 20000,
-      "toolchain_ids": [
-        "sha256:617db8fc341adf3fb4774f0d7d2b5098cc05f67d711a3680c5313d5fb02a77d7"
-      ],
-      "verifier_command": [
-        "python3",
-        "tools/zenoproof_public_replay_verifier.py",
-        "--profile",
-        "zeno_oracle_morph_clamp_envelope_v1"
-      ],
-      "verifier_id": "sha256:9475fb4834b1e7f35c661e8eac5903cbff7c30ab842ef620f85615e4946551d3"
     },
     {
       "allow_path_lookup": true,

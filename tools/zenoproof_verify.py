@@ -178,13 +178,6 @@ ESSO_REPLAY_TOOLCHAIN_ID = "sha256:8f29c64a59e994c7390609282a5c73f82aed5fb1ac3f9
 ESSO_REPLAY_CLAIM_ID = "sha256:25a547bc5441655c5d6acde9ba9a5af75565e742fb83ac4cfc3761fa23b353d4"
 ESSO_REPLAY_STATEMENT_HASH = "sha256:9a3a688d98376a4c955148326de1d5b5c33bf73594ea65b5383aae8bae49b643"
 ESSO_REPLAY_ASSUMPTIONS_HASH = "sha256:156ae7a36230bd20a286f456d50918947d88bc5db2e8c04fef147a51a2c0b0e1"
-MORPH_REPLAY_PROFILE = "zeno_oracle_morph_clamp_envelope_v1"
-MORPH_REPLAY_VERIFIER_ID = "sha256:9475fb4834b1e7f35c661e8eac5903cbff7c30ab842ef620f85615e4946551d3"
-MORPH_REPLAY_POLICY_ROOT = "sha256:5a42d12d55dc88706fdfcab2e88f13479d24c97d59126363f2b4ba890fa958d8"
-MORPH_REPLAY_TOOLCHAIN_ID = "sha256:617db8fc341adf3fb4774f0d7d2b5098cc05f67d711a3680c5313d5fb02a77d7"
-MORPH_REPLAY_CLAIM_ID = "sha256:40ea363076d9f285a985173b86e8160c7b989822a6ed21b155d1aebc2cf4ab45"
-MORPH_REPLAY_STATEMENT_HASH = "sha256:9a73d87a497ae49b32a85fd371a0b1731318f52054e9119ea62f360d1a9854fa"
-MORPH_REPLAY_ASSUMPTIONS_HASH = "sha256:b4bd9e2bccb694bb9e5973f406baafe268ff89ec5815812acf9d446e50fe55ab"
 SMT_REPLAY_PROFILE = "zeno_oracle_smt_freshness_v1"
 SMT_REPLAY_VERIFIER_ID = "sha256:ecd5d2ebafe76eeb145898c42d50b7fbc68d97738bc6625113c33921c5b128f8"
 SMT_REPLAY_POLICY_ROOT = "sha256:05117af3de75fea6846efdf3a7300ea0bbc588e1bfe66eaf77e6233e58130a37"
@@ -207,7 +200,7 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "expected_schema": "zenodex.oracle.workflow_evidence_status.v1",
         "non_claims": [
             "does_not_claim_private_popperpad_publication",
-            "does_not_claim_exhaustive_morph_search",
+            "does_not_claim_external_morph_execution",
             "does_not_claim_production_oracle_truth",
         ],
     },
@@ -296,23 +289,6 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "test_path": "tests/formal/test_esso_zusd_oracle_recovery_lifecycle_v1.py",
         "non_claims": [
             "does_not_claim_live_governance_recovery",
-            "does_not_claim_production_oracle_truth",
-        ],
-    },
-    MORPH_REPLAY_PROFILE: {
-        "name": "zeno-oracle-morph-clamp-envelope-public-replay-v0",
-        "proof_kind": "morph_bundle",
-        "verifier_id": MORPH_REPLAY_VERIFIER_ID,
-        "policy_root": MORPH_REPLAY_POLICY_ROOT,
-        "toolchain_id": MORPH_REPLAY_TOOLCHAIN_ID,
-        "claim_id": MORPH_REPLAY_CLAIM_ID,
-        "statement_hash": MORPH_REPLAY_STATEMENT_HASH,
-        "assumptions_hash": MORPH_REPLAY_ASSUMPTIONS_HASH,
-        "timeout_ms": 20_000,
-        "replay_command": "python3 -c 'from tools.zeno_oracle_workflow_evidence_status import build_morph_oracle_clamp_envelope_status; import json; print(json.dumps(build_morph_oracle_clamp_envelope_status(), sort_keys=True))'",
-        "expected_schema": "zenodex.oracle.morph_oracle_clamp_envelope_replay.v1",
-        "non_claims": [
-            "does_not_claim_exhaustive_morph_search",
             "does_not_claim_production_oracle_truth",
         ],
     },
@@ -576,7 +552,6 @@ def sample_registry() -> dict[str, Any]:
             _public_replay_verifier_manifest(TLA_REPLAY_PROFILE),
             _public_replay_verifier_manifest(LTLF_REPLAY_PROFILE),
             _public_replay_verifier_manifest(ESSO_REPLAY_PROFILE),
-            _public_replay_verifier_manifest(MORPH_REPLAY_PROFILE),
             _public_replay_verifier_manifest(SMT_REPLAY_PROFILE),
         ],
         "claims": [
@@ -607,7 +582,6 @@ def sample_registry() -> dict[str, Any]:
             _public_replay_claim_manifest(TLA_REPLAY_PROFILE),
             _public_replay_claim_manifest(LTLF_REPLAY_PROFILE),
             _public_replay_claim_manifest(ESSO_REPLAY_PROFILE),
-            _public_replay_claim_manifest(MORPH_REPLAY_PROFILE),
             _public_replay_claim_manifest(SMT_REPLAY_PROFILE),
         ],
     }
@@ -840,20 +814,6 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
             raise ValueError(f"pytest_replay_failed:{profile}:{proc.returncode}")
         if "passed" not in combined:
             raise ValueError(f"pytest_replay_no_pass_marker:{profile}")
-        return receipt
-
-    if profile == MORPH_REPLAY_PROFILE:
-        from tools.zeno_oracle_workflow_evidence_status import (
-            build_morph_oracle_clamp_envelope_status,
-        )
-
-        receipt = build_morph_oracle_clamp_envelope_status()
-        _require_replay_receipt(receipt, expected_schema=str(cfg["expected_schema"]))
-        lane = receipt.get("lane")
-        if not isinstance(lane, Mapping):
-            raise ValueError("morph_replay_lane_missing")
-        if lane.get("check") != "CheckResult.PASS" or lane.get("check2") != "CheckResult.PASS":
-            raise ValueError("morph_replay_checks_not_pass")
         return receipt
 
     if profile == SMT_REPLAY_PROFILE:

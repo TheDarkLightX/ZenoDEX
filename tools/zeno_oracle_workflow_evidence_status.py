@@ -11,7 +11,6 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -215,7 +214,6 @@ def build_status() -> dict[str, Any]:
             replay_command="PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_esso_zusd_oracle_recovery_lifecycle_v1.py",
             evidence_class="esso_public_replay",
         ),
-        _morph_case(),
         _popperpad_case(),
     ]
     failed = [lane for lane in lanes if not lane["ok"]]
@@ -227,9 +225,18 @@ def build_status() -> dict[str, Any]:
         "accepted_lane_count": len(lanes) - len(failed),
         "failed_lane_count": len(failed),
         "lanes": lanes,
+        "external_research_lanes": [
+            {
+                "lane_id": "morph_oracle_clamp_envelope_smoke",
+                "evidence_class": "morph_domain_smoke",
+                "status": "external_not_required",
+                "reason": "Morph is an external research tool and is not a ZenoDEX runtime or release dependency",
+                "replay_command": "run from a separate Morph checkout when doing research review",
+            }
+        ],
         "non_claims": [
             "does_not_claim_internal_popperpad_publication",
-            "does_not_claim_exhaustive_morph_search",
+            "does_not_claim_external_morph_execution",
             "does_not_claim_production_oracle_truth",
         ],
     }
