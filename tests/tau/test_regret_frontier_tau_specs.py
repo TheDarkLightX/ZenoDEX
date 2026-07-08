@@ -83,12 +83,13 @@ def test_swap_execution_regret_guard_v1_trace() -> None:
 
     steps = [
         dict(base),
+        dict(base, i1=0),             # ProofUX regret check failed -> reject
         dict(base, i3=0),             # quote age check failed -> reject
         dict(base, i5=0),             # missing route cert while required -> reject
         dict(base, i5=0, i8=0),       # route cert not required -> accept
     ]
 
     outputs = run_tau_spec_steps(tau_bin=tau_bin, spec_path=spec_path, steps=steps, timeout_s=60.0)
-    expected_o4 = [1, 0, 0, 1]
+    expected_o4 = [1, 0, 0, 0, 1]
     for idx, exp in enumerate(expected_o4):
         assert outputs.get(idx, {}).get("o4") == exp, f"step {idx}: o4 expected {exp}, got {outputs.get(idx, {}).get('o4')}"

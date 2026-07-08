@@ -1,0 +1,2135 @@
+{
+  "artifact_hashes": {
+    "src/tau_specs/recommended/ab_ordering_held_karp_dp_certificate_v1.tau": "a94d0cd7d1a65bcf7956fdf39057481633c9c2ae08829a30a36fdf4f26b77f0c",
+    "src/tau_specs/recommended/cow_hungarian_matching_certificate_v1.tau": "46d904458888852e39f3b5e43e4017ece40f11b31ac0644ba068a519ea415607",
+    "src/tau_specs/recommended/tau_semantic_coverage_selector_certificate_v1.tau": "17b074f7a181ae876415026145c2f1459374231fc12663f4d60782720bddf87e"
+  },
+  "breakthrough": {
+    "authority_boundary": "The selector is advisory. Runtime kernels, host verifiers, and settlement code remain authoritative.",
+    "design_pattern": "priority_plus_bucket_coverage",
+    "name": "Tau semantic coverage selector",
+    "summary": "A replayable Tau certificate and report generator that converts runtime-active Tau semantic gaps into a deterministic promotion frontier."
+  },
+  "date": "2026-06-28",
+  "focus_candidates": [
+    {
+      "blockers": [
+        "missing_semantic_contract",
+        "missing_formal_contract"
+      ],
+      "next_actions": [
+        "write semantic contract",
+        "add formal contract or bounded proof note",
+        "add host projection contract if host facts are required",
+        "add required-fact mutation atlas surface"
+      ],
+      "priority_score": 203,
+      "reasons": [
+        "semantic_source=missing",
+        "missing_semantic_contract",
+        "missing_formal_contract",
+        "missing_host_projection_contract",
+        "missing_mutation_atlas_surface"
+      ],
+      "recommended": true,
+      "risk_bucket": "consensus_core",
+      "runtime_ref_count": 1,
+      "semantic_confidence": "none",
+      "semantic_source": "missing",
+      "spec_id": "balance_safety_v1",
+      "spec_path": "src/tau_specs/recommended/balance_safety_v1.tau"
+    },
+    {
+      "blockers": [
+        "missing_semantic_contract",
+        "missing_formal_contract"
+      ],
+      "next_actions": [
+        "write semantic contract",
+        "add formal contract or bounded proof note",
+        "add host projection contract if host facts are required",
+        "add required-fact mutation atlas surface"
+      ],
+      "priority_score": 195,
+      "reasons": [
+        "semantic_source=missing",
+        "missing_semantic_contract",
+        "missing_formal_contract",
+        "missing_host_projection_contract",
+        "missing_mutation_atlas_surface"
+      ],
+      "recommended": true,
+      "risk_bucket": "spot_math_core",
+      "runtime_ref_count": 1,
+      "semantic_confidence": "none",
+      "semantic_source": "missing",
+      "spec_id": "ab_cow_exact_solver_envelope_v1",
+      "spec_path": "src/tau_specs/recommended/ab_cow_exact_solver_envelope_v1.tau"
+    },
+    {
+      "blockers": [
+        "missing_semantic_contract",
+        "missing_formal_contract"
+      ],
+      "next_actions": [
+        "write semantic contract",
+        "add formal contract or bounded proof note",
+        "add host projection contract if host facts are required",
+        "add required-fact mutation atlas surface"
+      ],
+      "priority_score": 203,
+      "reasons": [
+        "semantic_source=missing",
+        "missing_semantic_contract",
+        "missing_formal_contract",
+        "missing_host_projection_contract",
+        "missing_mutation_atlas_surface"
+      ],
+      "recommended": true,
+      "risk_bucket": "consensus_core",
+      "runtime_ref_count": 1,
+      "semantic_confidence": "none",
+      "semantic_source": "missing",
+      "spec_id": "balance_transition_v1",
+      "spec_path": "src/tau_specs/recommended/balance_transition_v1.tau"
+    },
+    {
+      "blockers": [
+        "missing_semantic_contract",
+        "missing_formal_contract"
+      ],
+      "next_actions": [
+        "write semantic contract",
+        "add formal contract or bounded proof note",
+        "add host projection contract if host facts are required",
+        "add required-fact mutation atlas surface"
+      ],
+      "priority_score": 203,
+      "reasons": [
+        "semantic_source=missing",
+        "missing_semantic_contract",
+        "missing_formal_contract",
+        "missing_host_projection_contract",
+        "missing_mutation_atlas_surface"
+      ],
+      "recommended": true,
+      "risk_bucket": "consensus_core",
+      "runtime_ref_count": 1,
+      "semantic_confidence": "none",
+      "semantic_source": "missing",
+      "spec_id": "batch_auction_v1",
+      "spec_path": "src/tau_specs/recommended/batch_auction_v1.tau"
+    },
+    {
+      "blockers": [
+        "missing_semantic_contract",
+        "missing_formal_contract"
+      ],
+      "next_actions": [
+        "write semantic contract",
+        "add formal contract or bounded proof note",
+        "add host projection contract if host facts are required",
+        "add required-fact mutation atlas surface"
+      ],
+      "priority_score": 203,
+      "reasons": [
+        "semantic_source=missing",
+        "missing_semantic_contract",
+        "missing_formal_contract",
+        "missing_host_projection_contract",
+        "missing_mutation_atlas_surface"
+      ],
+      "recommended": true,
+      "risk_bucket": "consensus_core",
+      "runtime_ref_count": 1,
+      "semantic_confidence": "none",
+      "semantic_source": "missing",
+      "spec_id": "batch_canonical_v1_4",
+      "spec_path": "src/tau_specs/recommended/batch_canonical_v1_4.tau"
+    },
+    {
+      "blockers": [
+        "missing_semantic_contract",
+        "missing_formal_contract"
+      ],
+      "next_actions": [
+        "write semantic contract",
+        "add formal contract or bounded proof note",
+        "add host projection contract if host facts are required",
+        "add required-fact mutation atlas surface"
+      ],
+      "priority_score": 203,
+      "reasons": [
+        "semantic_source=missing",
+        "missing_semantic_contract",
+        "missing_formal_contract",
+        "missing_host_projection_contract",
+        "missing_mutation_atlas_surface"
+      ],
+      "recommended": true,
+      "risk_bucket": "consensus_core",
+      "runtime_ref_count": 1,
+      "semantic_confidence": "none",
+      "semantic_source": "missing",
+      "spec_id": "batching_all_distinct_4_v1",
+      "spec_path": "src/tau_specs/recommended/batching_all_distinct_4_v1.tau"
+    },
+    {
+      "blockers": [
+        "missing_semantic_contract",
+        "missing_formal_contract"
+      ],
+      "next_actions": [
+        "write semantic contract",
+        "add formal contract or bounded proof note",
+        "add host projection contract if host facts are required",
+        "add required-fact mutation atlas surface"
+      ],
+      "priority_score": 203,
+      "reasons": [
+        "semantic_source=missing",
+        "missing_semantic_contract",
+        "missing_formal_contract",
+        "missing_host_projection_contract",
+        "missing_mutation_atlas_surface"
+      ],
+      "recommended": true,
+      "risk_bucket": "consensus_core",
+      "runtime_ref_count": 1,
+      "semantic_confidence": "none",
+      "semantic_source": "missing",
+      "spec_id": "batching_executed_sorted_4_v1",
+      "spec_path": "src/tau_specs/recommended/batching_executed_sorted_4_v1.tau"
+    },
+    {
+      "blockers": [
+        "missing_semantic_contract",
+        "missing_formal_contract"
+      ],
+      "next_actions": [
+        "write semantic contract",
+        "add formal contract or bounded proof note",
+        "add host projection contract if host facts are required",
+        "add required-fact mutation atlas surface"
+      ],
+      "priority_score": 203,
+      "reasons": [
+        "semantic_source=missing",
+        "missing_semantic_contract",
+        "missing_formal_contract",
+        "missing_host_projection_contract",
+        "missing_mutation_atlas_surface"
+      ],
+      "recommended": true,
+      "risk_bucket": "consensus_core",
+      "runtime_ref_count": 1,
+      "semantic_confidence": "none",
+      "semantic_source": "missing",
+      "spec_id": "batching_left_in_right_4_v1",
+      "spec_path": "src/tau_specs/recommended/batching_left_in_right_4_v1.tau"
+    },
+    {
+      "blockers": [
+        "missing_semantic_contract",
+        "missing_formal_contract"
+      ],
+      "next_actions": [
+        "write semantic contract",
+        "add formal contract or bounded proof note",
+        "add host projection contract if host facts are required",
+        "add required-fact mutation atlas surface"
+      ],
+      "priority_score": 203,
+      "reasons": [
+        "semantic_source=missing",
+        "missing_semantic_contract",
+        "missing_formal_contract",
+        "missing_host_projection_contract",
+        "missing_mutation_atlas_surface"
+      ],
+      "recommended": true,
+      "risk_bucket": "consensus_core",
+      "runtime_ref_count": 1,
+      "semantic_confidence": "none",
+      "semantic_source": "missing",
+      "spec_id": "batching_v1_4",
+      "spec_path": "src/tau_specs/recommended/batching_v1_4.tau"
+    },
+    {
+      "blockers": [
+        "missing_semantic_contract",
+        "missing_formal_contract"
+      ],
+      "next_actions": [
+        "write semantic contract",
+        "add formal contract or bounded proof note",
+        "add host projection contract if host facts are required",
+        "add required-fact mutation atlas surface"
+      ],
+      "priority_score": 203,
+      "reasons": [
+        "semantic_source=missing",
+        "missing_semantic_contract",
+        "missing_formal_contract",
+        "missing_host_projection_contract",
+        "missing_mutation_atlas_surface"
+      ],
+      "recommended": true,
+      "risk_bucket": "consensus_core",
+      "runtime_ref_count": 1,
+      "semantic_confidence": "none",
+      "semantic_source": "missing",
+      "spec_id": "batching_v1_5_compact_single_gate",
+      "spec_path": "src/tau_specs/recommended/batching_v1_5_compact_single_gate.tau"
+    },
+    {
+      "blockers": [
+        "missing_semantic_contract",
+        "missing_formal_contract"
+      ],
+      "next_actions": [
+        "write semantic contract",
+        "add formal contract or bounded proof note",
+        "add host projection contract if host facts are required",
+        "add required-fact mutation atlas surface"
+      ],
+      "priority_score": 203,
+      "reasons": [
+        "semantic_source=missing",
+        "missing_semantic_contract",
+        "missing_formal_contract",
+        "missing_host_projection_contract",
+        "missing_mutation_atlas_surface"
+      ],
+      "recommended": true,
+      "risk_bucket": "consensus_core",
+      "runtime_ref_count": 1,
+      "semantic_confidence": "none",
+      "semantic_source": "missing",
+      "spec_id": "cpmm_v1",
+      "spec_path": "src/tau_specs/recommended/cpmm_v1.tau"
+    },
+    {
+      "blockers": [
+        "missing_semantic_contract",
+        "missing_formal_contract"
+      ],
+      "next_actions": [
+        "write semantic contract",
+        "add formal contract or bounded proof note",
+        "add host projection contract if host facts are required",
+        "add required-fact mutation atlas surface"
+      ],
+      "priority_score": 203,
+      "reasons": [
+        "semantic_source=missing",
+        "missing_semantic_contract",
+        "missing_formal_contract",
+        "missing_host_projection_contract",
+        "missing_mutation_atlas_surface"
+      ],
+      "recommended": true,
+      "risk_bucket": "consensus_core",
+      "runtime_ref_count": 1,
+      "semantic_confidence": "none",
+      "semantic_source": "missing",
+      "spec_id": "nonce_manager_v1",
+      "spec_path": "src/tau_specs/recommended/nonce_manager_v1.tau"
+    },
+    {
+      "blockers": [
+        "missing_semantic_contract",
+        "missing_formal_contract"
+      ],
+      "next_actions": [
+        "write semantic contract",
+        "add formal contract or bounded proof note",
+        "add host projection contract if host facts are required",
+        "add required-fact mutation atlas surface"
+      ],
+      "priority_score": 203,
+      "reasons": [
+        "semantic_source=missing",
+        "missing_semantic_contract",
+        "missing_formal_contract",
+        "missing_host_projection_contract",
+        "missing_mutation_atlas_surface"
+      ],
+      "recommended": true,
+      "risk_bucket": "consensus_core",
+      "runtime_ref_count": 1,
+      "semantic_confidence": "none",
+      "semantic_source": "missing",
+      "spec_id": "nonce_replay_guard_v1",
+      "spec_path": "src/tau_specs/recommended/nonce_replay_guard_v1.tau"
+    },
+    {
+      "blockers": [
+        "missing_semantic_contract",
+        "missing_formal_contract"
+      ],
+      "next_actions": [
+        "write semantic contract",
+        "add formal contract or bounded proof note",
+        "add host projection contract if host facts are required",
+        "add required-fact mutation atlas surface"
+      ],
+      "priority_score": 203,
+      "reasons": [
+        "semantic_source=missing",
+        "missing_semantic_contract",
+        "missing_formal_contract",
+        "missing_host_projection_contract",
+        "missing_mutation_atlas_surface"
+      ],
+      "recommended": true,
+      "risk_bucket": "consensus_core",
+      "runtime_ref_count": 1,
+      "semantic_confidence": "none",
+      "semantic_source": "missing",
+      "spec_id": "nonce_window_replay_guard_v1",
+      "spec_path": "src/tau_specs/recommended/nonce_window_replay_guard_v1.tau"
+    },
+    {
+      "blockers": [
+        "missing_semantic_contract",
+        "missing_formal_contract"
+      ],
+      "next_actions": [
+        "write semantic contract",
+        "add formal contract or bounded proof note",
+        "add host projection contract if host facts are required",
+        "add required-fact mutation atlas surface"
+      ],
+      "priority_score": 203,
+      "reasons": [
+        "semantic_source=missing",
+        "missing_semantic_contract",
+        "missing_formal_contract",
+        "missing_host_projection_contract",
+        "missing_mutation_atlas_surface"
+      ],
+      "recommended": true,
+      "risk_bucket": "consensus_core",
+      "runtime_ref_count": 1,
+      "semantic_confidence": "none",
+      "semantic_source": "missing",
+      "spec_id": "settlement_canonical_order_v1",
+      "spec_path": "src/tau_specs/recommended/settlement_canonical_order_v1.tau"
+    },
+    {
+      "blockers": [
+        "missing_semantic_contract",
+        "missing_formal_contract"
+      ],
+      "next_actions": [
+        "write semantic contract",
+        "add formal contract or bounded proof note",
+        "add host projection contract if host facts are required",
+        "add required-fact mutation atlas surface"
+      ],
+      "priority_score": 203,
+      "reasons": [
+        "semantic_source=missing",
+        "missing_semantic_contract",
+        "missing_formal_contract",
+        "missing_host_projection_contract",
+        "missing_mutation_atlas_surface"
+      ],
+      "recommended": true,
+      "risk_bucket": "consensus_core",
+      "runtime_ref_count": 1,
+      "semantic_confidence": "none",
+      "semantic_source": "missing",
+      "spec_id": "settlement_conservation_netting_gate_v1",
+      "spec_path": "src/tau_specs/recommended/settlement_conservation_netting_gate_v1.tau"
+    },
+    {
+      "blockers": [
+        "missing_semantic_contract",
+        "missing_formal_contract"
+      ],
+      "next_actions": [
+        "write semantic contract",
+        "add formal contract or bounded proof note",
+        "add host projection contract if host facts are required",
+        "add required-fact mutation atlas surface"
+      ],
+      "priority_score": 203,
+      "reasons": [
+        "semantic_source=missing",
+        "missing_semantic_contract",
+        "missing_formal_contract",
+        "missing_host_projection_contract",
+        "missing_mutation_atlas_surface"
+      ],
+      "recommended": true,
+      "risk_bucket": "consensus_core",
+      "runtime_ref_count": 1,
+      "semantic_confidence": "none",
+      "semantic_source": "missing",
+      "spec_id": "settlement_conservation_sandwich_sound_v1",
+      "spec_path": "src/tau_specs/recommended/settlement_conservation_sandwich_sound_v1.tau"
+    },
+    {
+      "blockers": [
+        "missing_semantic_contract",
+        "missing_formal_contract"
+      ],
+      "next_actions": [
+        "write semantic contract",
+        "add formal contract or bounded proof note",
+        "add host projection contract if host facts are required",
+        "add required-fact mutation atlas surface"
+      ],
+      "priority_score": 203,
+      "reasons": [
+        "semantic_source=missing",
+        "missing_semantic_contract",
+        "missing_formal_contract",
+        "missing_host_projection_contract",
+        "missing_mutation_atlas_surface"
+      ],
+      "recommended": true,
+      "risk_bucket": "consensus_core",
+      "runtime_ref_count": 1,
+      "semantic_confidence": "none",
+      "semantic_source": "missing",
+      "spec_id": "settlement_core_module_bundle_v1",
+      "spec_path": "src/tau_specs/recommended/settlement_core_module_bundle_v1.tau"
+    },
+    {
+      "blockers": [
+        "missing_semantic_contract",
+        "missing_formal_contract"
+      ],
+      "next_actions": [
+        "write semantic contract",
+        "add formal contract or bounded proof note",
+        "add host projection contract if host facts are required",
+        "add required-fact mutation atlas surface"
+      ],
+      "priority_score": 203,
+      "reasons": [
+        "semantic_source=missing",
+        "missing_semantic_contract",
+        "missing_formal_contract",
+        "missing_host_projection_contract",
+        "missing_mutation_atlas_surface"
+      ],
+      "recommended": true,
+      "risk_bucket": "consensus_core",
+      "runtime_ref_count": 1,
+      "semantic_confidence": "none",
+      "semantic_source": "missing",
+      "spec_id": "settlement_disaster_envelope_v1",
+      "spec_path": "src/tau_specs/recommended/settlement_disaster_envelope_v1.tau"
+    }
+  ],
+  "inventory_summary": {
+    "active_nonrecommended_count": 107,
+    "active_recommended_count": 259,
+    "active_spec_count": 366,
+    "blocker_counts": {
+      "bounded_scope_only": 3,
+      "missing_formal_contract": 366,
+      "missing_semantic_contract": 366
+    },
+    "formal_contract_count": 1,
+    "missing_formal_contract_count": 366,
+    "missing_semantic_contract_count": 366,
+    "semantic_contract_count": 1,
+    "source_counts": {
+      "formal_contract": 1,
+      "missing": 366,
+      "semantic_contract": 0
+    }
+  },
+  "non_claims": [
+    "This artifact does not prove the proposed host algorithms correct.",
+    "This artifact does not authorize settlement, oracle updates, governance actions, or state roots.",
+    "The selector ranks the current bounded repo inventory and proposed work-item specs; it does not rank an unbounded Tau language space.",
+    "The AB certificate does not validate compressed one-record Held-Karp state.",
+    "The CoW certificate does not claim arbitrary grouped-capacity matching is polynomial."
+  ],
+  "ok": true,
+  "proposed_specifications": [
+    {
+      "benefit": "Certifies that an AB-ordering upgrade used full CPMM state, bounded brute-force parity, deterministic ties, state-cap fallback, and no settlement authority.",
+      "host_algorithm": "Held-Karp style subset DP over full CPMM state, scoped to a configured state cap.",
+      "non_claim": "Does not prove a compressed one-record DP is sound and does not authorize settlement.",
+      "spec_id": "ab_ordering_held_karp_dp_certificate_v1",
+      "spec_path": "src/tau_specs/recommended/ab_ordering_held_karp_dp_certificate_v1.tau",
+      "tau_role": "Compose host evidence into a fail-closed research certificate.",
+      "work_item": "1_ab_ordering"
+    },
+    {
+      "benefit": "Certifies that an uncoupled CoW matching upgrade supplied primal/dual assignment evidence, bounded parity, grouped-capacity fallback, deterministic ties, and no settlement authority.",
+      "host_algorithm": "Maximum-weight bipartite assignment with primal/dual certificate checks under uncoupled capacity.",
+      "non_claim": "Does not claim arbitrary grouped-capacity CoW matching is polynomial and does not authorize settlement.",
+      "spec_id": "cow_hungarian_matching_certificate_v1",
+      "spec_path": "src/tau_specs/recommended/cow_hungarian_matching_certificate_v1.tau",
+      "tau_role": "Compose host evidence into a fail-closed research certificate.",
+      "work_item": "2_cow_matching"
+    },
+    {
+      "benefit": "Certifies that the active Tau inventory and refinement queue were replayed and that AB/CoW promotion targets remain selected.",
+      "host_algorithm": "Deterministic priority-plus-coverage ranking over active Tau specs and semantic-contract gaps.",
+      "non_claim": "Does not rank an unbounded spec pool and does not change runtime policy.",
+      "spec_id": "tau_semantic_coverage_selector_certificate_v1",
+      "spec_path": "src/tau_specs/recommended/tau_semantic_coverage_selector_certificate_v1.tau",
+      "tau_role": "Compose selector evidence into a fail-closed advisory certificate.",
+      "work_item": "semantic_coverage_frontier"
+    }
+  ],
+  "queue_summary": {
+    "queued_spec_count": 366,
+    "risk_bucket_counts": {
+      "consensus_core": 18,
+      "spot_math_core": 1
+    }
+  },
+  "ranked_candidate_count": 366,
+  "replay_command": "python3 tools/zenodex_tau_semantic_coverage_selector_20260628.py",
+  "schema": "zenodex.tau_semantic_coverage_selector_report.v1",
+  "selector_facts": {
+    "active_inventory_built": true,
+    "advisory_selection_only": true,
+    "budget_profile_ok": true,
+    "coverage_gaps_present": true,
+    "critical_bucket_coverage_ok": true,
+    "deterministic_priority_order_ok": true,
+    "mutation_atlas_dependency_bound": true,
+    "no_runtime_authority_effect": true,
+    "proposed_spec_artifacts_present": true,
+    "selector_active": true,
+    "semantic_contract_next_actions_bound": true,
+    "semantic_refinement_queue_built": true,
+    "tau_replay_invalid_accepts_zero": true,
+    "work_item_1_ab_selected": true,
+    "work_item_2_cow_selected": true
+  },
+  "tau_replay": {
+    "case_count": 44,
+    "false_rejects": 0,
+    "invalid_accepts": 0,
+    "ok": true,
+    "required_fact_mutations": 38,
+    "surface_count": 3,
+    "surfaces": [
+      {
+        "case_count": 17,
+        "cases": [
+          {
+            "case_id": "selector_pass",
+            "expected_inactive": 0,
+            "expected_primary": 1,
+            "got": {
+              "o1": 1,
+              "o2": 1,
+              "o3": 1,
+              "o4": 1,
+              "o5": 1,
+              "o6": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 1,
+            "inactive_output": "o6",
+            "ok": true,
+            "primary_output": "o5",
+            "rationale": "All required certificate facts are present.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i13": 1,
+              "i14": 1,
+              "i15": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i1_selector_active_reject",
+            "expected_inactive": 1,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 1,
+              "o3": 1,
+              "o4": 1,
+              "o5": 0,
+              "o6": 1
+            },
+            "got_inactive": 1,
+            "got_primary": 0,
+            "inactive_output": "o6",
+            "ok": true,
+            "primary_output": "o5",
+            "rationale": "Required fact selector_active is missing, so the certificate must reject.",
+            "step": {
+              "i1": 0,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i13": 1,
+              "i14": 1,
+              "i15": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i2_active_inventory_built_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 0,
+              "o2": 1,
+              "o3": 1,
+              "o4": 1,
+              "o5": 0,
+              "o6": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o6",
+            "ok": true,
+            "primary_output": "o5",
+            "rationale": "Required fact active_inventory_built is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i13": 1,
+              "i14": 1,
+              "i15": 1,
+              "i2": 0,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i3_semantic_refinement_queue_built_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 0,
+              "o2": 1,
+              "o3": 1,
+              "o4": 1,
+              "o5": 0,
+              "o6": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o6",
+            "ok": true,
+            "primary_output": "o5",
+            "rationale": "Required fact semantic_refinement_queue_built is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i13": 1,
+              "i14": 1,
+              "i15": 1,
+              "i2": 1,
+              "i3": 0,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i4_critical_bucket_coverage_ok_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 0,
+              "o3": 1,
+              "o4": 1,
+              "o5": 0,
+              "o6": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o6",
+            "ok": true,
+            "primary_output": "o5",
+            "rationale": "Required fact critical_bucket_coverage_ok is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i13": 1,
+              "i14": 1,
+              "i15": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 0,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i5_work_item_1_ab_selected_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 0,
+              "o3": 1,
+              "o4": 1,
+              "o5": 0,
+              "o6": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o6",
+            "ok": true,
+            "primary_output": "o5",
+            "rationale": "Required fact work_item_1_ab_selected is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i13": 1,
+              "i14": 1,
+              "i15": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 0,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i6_work_item_2_cow_selected_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 0,
+              "o3": 1,
+              "o4": 1,
+              "o5": 0,
+              "o6": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o6",
+            "ok": true,
+            "primary_output": "o5",
+            "rationale": "Required fact work_item_2_cow_selected is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i13": 1,
+              "i14": 1,
+              "i15": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 0,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i7_proposed_spec_artifacts_present_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 0,
+              "o3": 1,
+              "o4": 1,
+              "o5": 0,
+              "o6": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o6",
+            "ok": true,
+            "primary_output": "o5",
+            "rationale": "Required fact proposed_spec_artifacts_present is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i13": 1,
+              "i14": 1,
+              "i15": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 0,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i8_mutation_atlas_dependency_bound_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 1,
+              "o3": 0,
+              "o4": 1,
+              "o5": 0,
+              "o6": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o6",
+            "ok": true,
+            "primary_output": "o5",
+            "rationale": "Required fact mutation_atlas_dependency_bound is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i13": 1,
+              "i14": 1,
+              "i15": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 0,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i9_deterministic_priority_order_ok_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 1,
+              "o3": 0,
+              "o4": 1,
+              "o5": 0,
+              "o6": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o6",
+            "ok": true,
+            "primary_output": "o5",
+            "rationale": "Required fact deterministic_priority_order_ok is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i13": 1,
+              "i14": 1,
+              "i15": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 0
+            }
+          },
+          {
+            "case_id": "flip_i10_tau_replay_invalid_accepts_zero_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 1,
+              "o3": 0,
+              "o4": 1,
+              "o5": 0,
+              "o6": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o6",
+            "ok": true,
+            "primary_output": "o5",
+            "rationale": "Required fact tau_replay_invalid_accepts_zero is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 0,
+              "i11": 1,
+              "i12": 1,
+              "i13": 1,
+              "i14": 1,
+              "i15": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i11_advisory_selection_only_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 1,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0,
+              "o6": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o6",
+            "ok": true,
+            "primary_output": "o5",
+            "rationale": "Required fact advisory_selection_only is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 0,
+              "i12": 1,
+              "i13": 1,
+              "i14": 1,
+              "i15": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i12_no_runtime_authority_effect_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 1,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0,
+              "o6": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o6",
+            "ok": true,
+            "primary_output": "o5",
+            "rationale": "Required fact no_runtime_authority_effect is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 0,
+              "i13": 1,
+              "i14": 1,
+              "i15": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i13_budget_profile_ok_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 1,
+              "o3": 0,
+              "o4": 1,
+              "o5": 0,
+              "o6": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o6",
+            "ok": true,
+            "primary_output": "o5",
+            "rationale": "Required fact budget_profile_ok is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i13": 0,
+              "i14": 1,
+              "i15": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i14_coverage_gaps_present_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 0,
+              "o2": 1,
+              "o3": 1,
+              "o4": 1,
+              "o5": 0,
+              "o6": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o6",
+            "ok": true,
+            "primary_output": "o5",
+            "rationale": "Required fact coverage_gaps_present is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i13": 1,
+              "i14": 0,
+              "i15": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i15_semantic_contract_next_actions_bound_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 0,
+              "o2": 1,
+              "o3": 1,
+              "o4": 1,
+              "o5": 0,
+              "o6": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o6",
+            "ok": true,
+            "primary_output": "o5",
+            "rationale": "Required fact semantic_contract_next_actions_bound is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i13": 1,
+              "i14": 1,
+              "i15": 0,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "inactive_safe",
+            "expected_inactive": 1,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 1,
+              "o3": 1,
+              "o4": 1,
+              "o5": 0,
+              "o6": 1
+            },
+            "got_inactive": 1,
+            "got_primary": 0,
+            "inactive_output": "o6",
+            "ok": true,
+            "primary_output": "o5",
+            "rationale": "Inactive requests do not admit while the no-authority rail remains true.",
+            "step": {
+              "i1": 0,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i13": 1,
+              "i14": 1,
+              "i15": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          }
+        ],
+        "false_rejects": 0,
+        "invalid_accepts": 0,
+        "ok": true,
+        "required_fact_mutations": 15,
+        "spec_path": "src/tau_specs/recommended/tau_semantic_coverage_selector_certificate_v1.tau",
+        "surface_id": "semantic_selector",
+        "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+      },
+      {
+        "case_count": 13,
+        "cases": [
+          {
+            "case_id": "ab_ordering_pass",
+            "expected_inactive": 0,
+            "expected_primary": 1,
+            "got": {
+              "o1": 1,
+              "o2": 1,
+              "o3": 1,
+              "o4": 1,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 1,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "All required certificate facts are present.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i1_certificate_active_reject",
+            "expected_inactive": 1,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 1,
+              "o3": 1,
+              "o4": 0,
+              "o5": 1
+            },
+            "got_inactive": 1,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact certificate_active is missing, so the certificate must reject.",
+            "step": {
+              "i1": 0,
+              "i10": 1,
+              "i11": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i2_full_state_scope_ok_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 0,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact full_state_scope_ok is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i2": 0,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i3_held_karp_dp_complete_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 0,
+              "o2": 1,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact held_karp_dp_complete is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i2": 1,
+              "i3": 0,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i4_brute_force_parity_ok_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 0,
+              "o2": 1,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact brute_force_parity_ok is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 0,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i5_balance_slippage_ok_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 0,
+              "o2": 1,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact balance_slippage_ok is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 0,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i6_deterministic_ties_ok_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 0,
+              "o2": 1,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact deterministic_ties_ok is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 0,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i7_state_cap_fallback_ok_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 0,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact state_cap_fallback_ok is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 0,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i8_resource_budget_ok_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 0,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact resource_budget_ok is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 0,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i9_no_compressed_one_record_claim_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 0,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact no_compressed_one_record_claim is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 0
+            }
+          },
+          {
+            "case_id": "flip_i10_no_settlement_authority_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 1,
+              "o3": 0,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact no_settlement_authority is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 0,
+              "i11": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i11_replay_evidence_ok_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 0,
+              "o2": 1,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact replay_evidence_ok is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 0,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "inactive_safe",
+            "expected_inactive": 1,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 1,
+              "o3": 1,
+              "o4": 0,
+              "o5": 1
+            },
+            "got_inactive": 1,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Inactive requests do not admit while the no-authority rail remains true.",
+            "step": {
+              "i1": 0,
+              "i10": 1,
+              "i11": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          }
+        ],
+        "false_rejects": 0,
+        "invalid_accepts": 0,
+        "ok": true,
+        "required_fact_mutations": 11,
+        "spec_path": "src/tau_specs/recommended/ab_ordering_held_karp_dp_certificate_v1.tau",
+        "surface_id": "ab_ordering",
+        "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+      },
+      {
+        "case_count": 14,
+        "cases": [
+          {
+            "case_id": "cow_matching_pass",
+            "expected_inactive": 0,
+            "expected_primary": 1,
+            "got": {
+              "o1": 1,
+              "o2": 1,
+              "o3": 1,
+              "o4": 1,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 1,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "All required certificate facts are present.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i1_certificate_active_reject",
+            "expected_inactive": 1,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 1,
+              "o3": 1,
+              "o4": 0,
+              "o5": 1
+            },
+            "got_inactive": 1,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact certificate_active is missing, so the certificate must reject.",
+            "step": {
+              "i1": 0,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i2_uncoupled_capacity_scope_ok_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 0,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact uncoupled_capacity_scope_ok is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i2": 0,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i3_primal_assignment_ok_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 0,
+              "o2": 1,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact primal_assignment_ok is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i2": 1,
+              "i3": 0,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i4_dual_certificate_ok_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 0,
+              "o2": 1,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact dual_certificate_ok is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 0,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i5_brute_force_parity_ok_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 0,
+              "o2": 1,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact brute_force_parity_ok is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 0,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i6_grouped_capacity_fallback_ok_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 0,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact grouped_capacity_fallback_ok is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 0,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i7_deterministic_ties_ok_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 0,
+              "o2": 1,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact deterministic_ties_ok is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 0,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i8_balance_scope_ok_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 0,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact balance_scope_ok is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 0,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i9_resource_budget_ok_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 0,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact resource_budget_ok is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 0
+            }
+          },
+          {
+            "case_id": "flip_i10_no_arbitrary_grouped_capacity_claim_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 0,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact no_arbitrary_grouped_capacity_claim is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 0,
+              "i11": 1,
+              "i12": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i11_no_settlement_authority_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 1,
+              "o3": 0,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact no_settlement_authority is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 0,
+              "i12": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "flip_i12_replay_evidence_ok_reject",
+            "expected_inactive": 0,
+            "expected_primary": 0,
+            "got": {
+              "o1": 0,
+              "o2": 1,
+              "o3": 1,
+              "o4": 0,
+              "o5": 0
+            },
+            "got_inactive": 0,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Required fact replay_evidence_ok is missing, so the certificate must reject.",
+            "step": {
+              "i1": 1,
+              "i10": 1,
+              "i11": 1,
+              "i12": 0,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          },
+          {
+            "case_id": "inactive_safe",
+            "expected_inactive": 1,
+            "expected_primary": 0,
+            "got": {
+              "o1": 1,
+              "o2": 1,
+              "o3": 1,
+              "o4": 0,
+              "o5": 1
+            },
+            "got_inactive": 1,
+            "got_primary": 0,
+            "inactive_output": "o5",
+            "ok": true,
+            "primary_output": "o4",
+            "rationale": "Inactive requests do not admit while the no-authority rail remains true.",
+            "step": {
+              "i1": 0,
+              "i10": 1,
+              "i11": 1,
+              "i12": 1,
+              "i2": 1,
+              "i3": 1,
+              "i4": 1,
+              "i5": 1,
+              "i6": 1,
+              "i7": 1,
+              "i8": 1,
+              "i9": 1
+            }
+          }
+        ],
+        "false_rejects": 0,
+        "invalid_accepts": 0,
+        "ok": true,
+        "required_fact_mutations": 12,
+        "spec_path": "src/tau_specs/recommended/cow_hungarian_matching_certificate_v1.tau",
+        "surface_id": "cow_matching",
+        "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+      }
+    ]
+  },
+  "work_items": {
+    "1_ab_ordering": {
+      "algorithmic_target": "Replace bounded brute-force AB ordering with a full-state Held-Karp subset-DP evidence path where the state cap permits it.",
+      "benefit": "Moves the exact-solving frontier from factorial enumeration toward O(n^2 * 2^n) host search under explicit state-cap and parity gates.",
+      "spec_id": "ab_ordering_held_karp_dp_certificate_v1",
+      "status": "specified_for_certificate_replay"
+    },
+    "2_cow_matching": {
+      "algorithmic_target": "Use assignment-style primal/dual evidence for uncoupled CoW matching and fail closed for grouped capacity.",
+      "benefit": "Gives CoW matching a polynomial exact certificate surface under the uncoupled-capacity scope.",
+      "spec_id": "cow_hungarian_matching_certificate_v1",
+      "status": "specified_for_certificate_replay"
+    }
+  }
+}

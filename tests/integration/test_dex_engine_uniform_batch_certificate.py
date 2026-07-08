@@ -4,19 +4,21 @@ from hashlib import sha256
 from math import gcd
 
 from src.core.cpmm import compute_fee_total
+from src.core.dex import DexConfig, DexState
+from src.core.settlement import FillAction
 from src.core.uniform_batch_clearing import (
-    UniformBatchCertificateV1,
-    UniformBatchFillV1,
     UNIFORM_BATCH_CERTIFICATE_SCHEMA_V2,
     UNIFORM_BATCH_CERTIFICATE_SCHEMA_V3,
     UNIFORM_BATCH_MAX_FILLS,
     UNIFORM_BATCH_OUTPUT_AMOUNT_MAX,
-    UNIFORM_BATCH_PRICE_OBJECTIVE_ID,
     UNIFORM_BATCH_POLICY_ID,
     UNIFORM_BATCH_POLICY_V2_ID,
     UNIFORM_BATCH_POLICY_V3_ID,
+    UNIFORM_BATCH_PRICE_OBJECTIVE_ID,
     UNIFORM_BATCH_PRICE_RATIO_MAX,
     UNIFORM_BATCH_UNFILLED_REASON,
+    UniformBatchCertificateV1,
+    UniformBatchFillV1,
     build_uniform_batch_settlement_v1,
     uniform_batch_intent_set_hash,
     uniform_batch_pool_state_hash,
@@ -32,15 +34,12 @@ from src.core.uniform_batch_optimality import (
     uniform_batch_optimality_candidate_set_hash,
     uniform_batch_v2_bounded_grid_optimality_table_root,
 )
-from src.core.settlement import FillAction
 from src.integration.dex_engine import DexEngineConfig, apply_ops, make_strict_upba_engine_config
 from src.integration.operations import create_settlement_operation, parse_intents
 from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
 from src.state.lp import LPTable
 from src.state.pools import PoolState, PoolStatus
-from src.core.dex import DexState
-
 
 SENDER = "0x" + "aa" * 48
 
@@ -1368,11 +1367,29 @@ def test_engine_rejects_uniform_batch_v2_bounded_grid_table_root_mismatch() -> N
     )
 
 
-def test_engine_accepts_uniform_batch_v2_zero_fill_rejected_member() -> None:
+def test_engine_rejects_uniform_batch_v2_zero_fill_rejected_member_by_default() -> None:
     result = apply_ops(
         config=DexEngineConfig(
             allow_uniform_batch_certificate=True,
             require_intent_signatures=False,
+        ),
+        state=_high_fee_state(),
+        operations=_ops_with_v2_zero_fill_certificate(),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error is not None
+    assert "settlement contains rejected intent at public DEX boundary" in result.error
+
+
+def test_engine_accepts_uniform_batch_v2_zero_fill_rejected_member_when_boundary_opted_out() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+            dex_config=DexConfig(reject_settlements_with_rejected_intents=False),
         ),
         state=_high_fee_state(),
         operations=_ops_with_v2_zero_fill_certificate(),
@@ -1400,6 +1417,26 @@ def test_engine_rejects_uniform_batch_certificate_unless_enabled() -> None:
 
     assert result.ok is False
     assert result.error == "uniform batch certificate not enabled"
+
+
+def test_engine_rejects_uniform_batch_certificate_when_protocol_fees_enabled() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+            dex_config=DexConfig(
+                protocol_fee_share_bps=5_000,
+                protocol_fee_recipient_pubkey="protocol_treasury",
+            ),
+        ),
+        state=_state(),
+        operations=_ops_with_uniform_certificate(),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch certificate cannot be used when protocol fees are enabled"
 
 
 def test_engine_rejects_tampered_uniform_batch_settlement() -> None:

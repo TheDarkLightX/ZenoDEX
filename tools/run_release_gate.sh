@@ -163,6 +163,9 @@ echo "== release: TEE proof metadata adapter =="
 cargo test --manifest-path "$ROOT_DIR/tools/confidential_attestation_verifier_rust/Cargo.toml"
 "$PY" -m pytest -q "$ROOT_DIR/tests/integration/test_zeno_ledger_tee_proof_metadata.py"
 
+echo "== release: Rust runtime parity =="
+bash "$ROOT_DIR/tools/run_rust_runtime_parity_gate.sh"
+
 echo "== release: confidential route quote binding =="
 "$PY" -m pytest -q "$ROOT_DIR/tests/tools/test_check_confidential_route_quote_bundle.py"
 

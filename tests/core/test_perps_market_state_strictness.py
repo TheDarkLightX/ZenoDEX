@@ -65,3 +65,151 @@ def test_market_state_legacy_phase_inference_accepts_zero_one_bool_flags() -> No
     assert market.global_state["epoch_phase"] == 1
     assert market.global_state["clearing_price_seen"] is True
     assert market.global_state["oracle_seen"] is False
+
+
+def test_market_state_sink_claimant_balances_are_canonical() -> None:
+    global_state = _legacy_global_state()
+    global_state["fee_pool_quote"] = 30_000
+    global_state["fee_income"] = 30_000
+    global_state["insurance_balance"] = 30_000
+
+    market = PerpMarketState(
+        quote_asset="zUSD",
+        global_state=global_state,
+        accounts={},
+        funding_closeout_sink_claimant_balances_quote=(
+            ("z_sink", 10_000),
+            ("a_sink", 20_000),
+        ),
+    )
+
+    assert market.funding_closeout_sink_claimant_balances_quote == (
+        ("a_sink", 20_000),
+        ("z_sink", 10_000),
+    )
+
+
+def test_market_state_rejects_duplicate_sink_claimant_balance() -> None:
+    global_state = _legacy_global_state()
+    global_state["fee_pool_quote"] = 30_000
+    global_state["fee_income"] = 30_000
+    global_state["insurance_balance"] = 30_000
+
+    with pytest.raises(ValueError, match="duplicate funding closeout sink claimant"):
+        PerpMarketState(
+            quote_asset="zUSD",
+            global_state=global_state,
+            accounts={},
+            funding_closeout_sink_claimant_balances_quote=(
+                ("protocol_sink", 10_000),
+                ("protocol_sink", 5_000),
+            ),
+        )
+
+
+def test_market_state_rejects_unfunded_sink_claimant_balance() -> None:
+    global_state = _legacy_global_state()
+    global_state["fee_pool_quote"] = 9_999
+    global_state["fee_income"] = 9_999
+    global_state["insurance_balance"] = 9_999
+
+    with pytest.raises(
+        ValueError,
+        match="funding closeout sink claimant balances exceed aggregate sink balance",
+    ):
+        PerpMarketState(
+            quote_asset="zUSD",
+            global_state=global_state,
+            accounts={},
+            funding_closeout_sink_claimant_balances_quote=(
+                ("protocol_sink", 10_000),
+            ),
+        )
+
+
+def test_market_state_receiver_claim_balances_are_canonical() -> None:
+    market = PerpMarketState(
+        quote_asset="zUSD",
+        global_state=_legacy_global_state(),
+        accounts={},
+        funding_closeout_receiver_claim_balances_quote=(
+            ("zz_receiver", 12_000),
+            ("aa_receiver", 18_000),
+        ),
+    )
+
+    assert market.funding_closeout_receiver_claim_balances_quote == (
+        ("aa_receiver", 18_000),
+        ("zz_receiver", 12_000),
+    )
+
+
+def test_market_state_receiver_claim_lots_project_balances() -> None:
+    market = PerpMarketState(
+        quote_asset="zUSD",
+        global_state=_legacy_global_state(),
+        accounts={},
+        funding_closeout_receiver_claim_balances_quote=(("receiver", 30_000),),
+        funding_closeout_receiver_claim_lots_quote=(
+            ("receiver", "future", 20_000, 10),
+            ("receiver", "old", 10_000, 5),
+        ),
+    )
+
+    assert market.funding_closeout_receiver_claim_lots_quote == (
+        ("receiver", "old", 10_000, 5),
+        ("receiver", "future", 20_000, 10),
+    )
+    assert market.funding_closeout_receiver_claim_balances_quote == (
+        ("receiver", 30_000),
+    )
+
+
+def test_market_state_rejects_receiver_claim_lot_projection_mismatch() -> None:
+    with pytest.raises(ValueError, match="receiver claim balance projection mismatch"):
+        PerpMarketState(
+            quote_asset="zUSD",
+            global_state=_legacy_global_state(),
+            accounts={},
+            funding_closeout_receiver_claim_balances_quote=(("receiver", 29_999),),
+            funding_closeout_receiver_claim_lots_quote=(
+                ("receiver", "old", 10_000, 5),
+                ("receiver", "future", 20_000, 10),
+            ),
+        )
+
+
+def test_market_state_rejects_duplicate_receiver_claim_lot() -> None:
+    with pytest.raises(ValueError, match="duplicate funding closeout receiver claim lot"):
+        PerpMarketState(
+            quote_asset="zUSD",
+            global_state=_legacy_global_state(),
+            accounts={},
+            funding_closeout_receiver_claim_lots_quote=(
+                ("receiver", "lot", 10_000, 5),
+                ("receiver", "lot", 5_000, 10),
+            ),
+        )
+
+
+def test_market_state_rejects_duplicate_receiver_claim_balance() -> None:
+    with pytest.raises(ValueError, match="duplicate funding closeout receiver claim"):
+        PerpMarketState(
+            quote_asset="zUSD",
+            global_state=_legacy_global_state(),
+            accounts={},
+            funding_closeout_receiver_claim_balances_quote=(
+                ("receiver", 10_000),
+                ("receiver", 5_000),
+            ),
+        )
+
+
+def test_market_state_rejects_non_positive_receiver_claim_balance() -> None:
+    with pytest.raises(ValueError, match="receiver claim balance must be positive"):
+        PerpMarketState(
+            quote_asset="zUSD",
+            global_state=_legacy_global_state(),
+            accounts={},
+            funding_closeout_receiver_claim_balances_quote=(("receiver", 0),),
+        )

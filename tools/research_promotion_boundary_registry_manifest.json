@@ -1,0 +1,101 @@
+{
+  "contracts": [
+    {
+      "allowed_targets": [
+        "claims_registry",
+        "research_kernel"
+      ],
+      "no_authority_flags": {
+        "consensus_authority": false,
+        "production_security_claim": false,
+        "routing_authority": false,
+        "settlement_authority": false
+      },
+      "obligation_manifest_path": "tools/research_promotion_obligations/tight_argmax_claim_promotion_bundle_v1.json",
+      "obligation_manifest_sha256": "da66f7eef306aad61a87098d0eca4d02bdb619e2965efa880630e99558a5f388",
+      "required_hash_fields": [
+        "bundle_sha256",
+        "manifest_sha256"
+      ],
+      "required_negative_reasons": [
+        {
+          "expected_reason": "promotion manifest required",
+          "mutation_id": "missing_manifest"
+        },
+        {
+          "expected_reason": "promotion manifest hash mismatch",
+          "mutation_id": "receipt_hash_without_manifest"
+        },
+        {
+          "expected_reason": "promotion manifest hash mismatch",
+          "mutation_id": "stale_manifest_hash"
+        },
+        {
+          "expected_reason": "promotion source refs mismatch",
+          "mutation_id": "detached_source_refs"
+        },
+        {
+          "expected_reason": "TheoremSearch prior art must be retrieval-only",
+          "mutation_id": "theoremsearch_prior_art_as_proof"
+        },
+        {
+          "expected_reason": "promotion bundle cannot claim production security",
+          "mutation_id": "production_security_overclaim"
+        },
+        {
+          "expected_reason": "promotion missing no-authority boundary",
+          "mutation_id": "promotion_missing_authority_boundary"
+        }
+      ],
+      "schema": "zenodex.tight_argmax.claim_promotion_bundle.v1",
+      "target_field": "promotion_target"
+    },
+    {
+      "allowed_targets": [
+        "research_kernel"
+      ],
+      "no_authority_flags": {
+        "consensus_authority": false,
+        "production_security_claim": false,
+        "routing_authority": false,
+        "settlement_authority": false
+      },
+      "obligation_manifest_path": "tools/research_promotion_obligations/theoremsearch_retrieval_promotion_bundle_v1.json",
+      "obligation_manifest_sha256": "f0b7c9f9c2310403ab8bd8904541350e85f1489a19dd70cde123c843b54fd5fa",
+      "required_hash_fields": [
+        "retrieval_sha256",
+        "query_sha256"
+      ],
+      "required_negative_reasons": [
+        {
+          "expected_reason": "theoremsearch retrieval artifact required",
+          "mutation_id": "missing_retrieval_artifact"
+        },
+        {
+          "expected_reason": "theoremsearch retrieval hash mismatch",
+          "mutation_id": "stale_retrieval_hash"
+        },
+        {
+          "expected_reason": "theoremsearch retrieval must return at least one candidate",
+          "mutation_id": "retrieval_count_zero"
+        },
+        {
+          "expected_reason": "TheoremSearch retrieval must remain retrieval-only",
+          "mutation_id": "retrieval_as_proof"
+        },
+        {
+          "expected_reason": "TheoremSearch retrieval cannot target production",
+          "mutation_id": "unsupported_retrieval_target"
+        },
+        {
+          "expected_reason": "TheoremSearch retrieval cannot claim production security",
+          "mutation_id": "production_security_overclaim"
+        }
+      ],
+      "schema": "zenodex.theoremsearch.retrieval_promotion_bundle.v1",
+      "target_field": "promotion_target"
+    }
+  ],
+  "registry_id": "zenodex.research_promotion.boundary_registry",
+  "schema": "zenodex.research_promotion.boundary_registry_manifest.v1"
+}

@@ -42,6 +42,15 @@ class _SwapIntentProcessRequest:
 
 
 @dataclass(frozen=True)
+class _SwapIntentRuntimeRequest:
+    intent: Intent
+    reserves: Tuple[Amount, Amount]
+    pool_state: PoolState
+    balances: BalanceTable
+    protocol_fee_share_bps: int = 0
+
+
+@dataclass(frozen=True)
 class _SwapIntentContext:
     pool_state: PoolState
     balances: BalanceTable

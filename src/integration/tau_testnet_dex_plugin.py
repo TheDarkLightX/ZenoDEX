@@ -34,6 +34,9 @@ from ..state.nonces import NonceTable
 from .dex_engine import DexEngineConfig, apply_ops
 from .dex_snapshot import snapshot_from_state, state_from_snapshot
 from .perp_engine import PerpEngineConfig, apply_perp_ops
+from .perp_source_admission_cli_verifier import (
+    build_tau_source_authority_policy_receipt_cli_verifier,
+)
 from .proof_mining_runtime import (
     ProofMiningRuntimeState,
     apply_proof_mining_claim,
@@ -103,6 +106,14 @@ def _bool_env(name: str, *, default: bool) -> bool:
     if v in {"0", "false", "no", "off"}:
         return False
     return bool(default)
+
+
+def _str_env(name: str, *, default: str = "") -> str:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    value = raw.strip()
+    return value if value else default
 
 
 def _int_env(name: str, *, default: int, minimum: int = 0, maximum: Optional[int] = None) -> int:
@@ -755,6 +766,22 @@ def _build_perp_engine_config(*, chain_id: str) -> PerpEngineConfig:
 
         return verify_aggregate_adapter_bridge(bridge)
 
+    def _tau_source_authority_policy_receipt_verifier():
+        verifier_path = _str_env("TAU_DEX_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_VERIFIER")
+        if not verifier_path:
+            return None
+        return build_tau_source_authority_policy_receipt_cli_verifier(
+            verifier_path=verifier_path,
+            timeout_s=float(
+                _int_env(
+                    "TAU_DEX_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_VERIFIER_TIMEOUT_S",
+                    default=5,
+                    minimum=1,
+                    maximum=60,
+                )
+            ),
+        )
+
     return PerpEngineConfig(
         operator_pubkey=(operator_pubkey or "").strip() or None,
         chain_id=chain_id,
@@ -769,12 +796,40 @@ def _build_perp_engine_config(*, chain_id: str) -> PerpEngineConfig:
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
             default=False,
         ),
+        require_tau_source_binding_for_isolated_partial_liquidate=_bool_env(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_BINDING_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            default=False,
+        ),
+        require_tau_source_state_root_binding_for_isolated_partial_liquidate=_bool_env(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_STATE_ROOT_BINDING_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            default=False,
+        ),
+        require_tau_source_membership_proof_for_isolated_partial_liquidate=_bool_env(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_MEMBERSHIP_PROOF_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            default=False,
+        ),
+        require_tau_source_root_authority_for_isolated_partial_liquidate=_bool_env(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_ROOT_AUTHORITY_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            default=False,
+        ),
+        require_tau_source_admission_envelope_for_isolated_partial_liquidate=_bool_env(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_ADMISSION_ENVELOPE_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            default=False,
+        ),
+        require_tau_source_authority_policy_receipt_for_isolated_partial_liquidate=_bool_env(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            default=False,
+        ),
+        tau_source_authority_policy_receipt_verifier=(
+            _tau_source_authority_policy_receipt_verifier()
+        ),
     )
 
 
 def _build_zusd_monetary_config(*, chain_id: str) -> ZUSDMonetaryConfig:
     oracle_pubkey = os.environ.get("TAU_DEX_ZUSD_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY")
     asset_id = os.environ.get("TAU_DEX_ZUSD_ASSET_ID", "").strip() or None
+    fee_stake_asset_id = os.environ.get("TAU_DEX_ZUSD_FEE_STAKE_ASSET_ID", "").strip() or None
     return ZUSDMonetaryConfig(
         chain_id=chain_id,
         oracle_pubkey=(oracle_pubkey or "").strip() or None,
@@ -789,6 +844,20 @@ def _build_zusd_monetary_config(*, chain_id: str) -> ZUSDMonetaryConfig:
             "TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_BPS",
             default=0,
             maximum=10_000,
+        ),
+        borrow_fee_floor_bps=_int_env_alias("TAU_DEX_ZUSD_BORROW_FEE_FLOOR_BPS", "", default=0, maximum=10_000),
+        borrow_fee_max_bps=_int_env_alias("TAU_DEX_ZUSD_BORROW_FEE_MAX_BPS", "", default=1_000, maximum=10_000),
+        host_protocol_fee_share_bps=_int_env_alias(
+            "TAU_DEX_ZUSD_HOST_PROTOCOL_FEE_SHARE_BPS",
+            "",
+            default=0,
+            maximum=10_000,
+        ),
+        fee_stake_asset_id=fee_stake_asset_id,
+        staking_activation_delay_epochs=_int_env_alias(
+            "TAU_DEX_ZUSD_STAKING_ACTIVATION_DELAY_EPOCHS",
+            "",
+            default=1,
         ),
     )
 

@@ -10,20 +10,20 @@ from typing import Mapping, Sequence
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.integration.zeno_oracle_authorization import (
+from src.integration.zeno_oracle_authorization import (  # noqa: E402
     CRITICAL_CONSUMER_PROFILES,
     SCHEMA,
     OracleAuthorization,
     RuntimeActionFacts,
-    check_critical_consumer_authorization,
     check_authorization_for_runtime,
     check_authorization_payload,
+    check_critical_consumer_authorization,
+    economic_envelope_hash,
     oracle_value_hash,
     semantic_hash,
     verify_opaque_authorization,
     verify_typed_authorization,
 )
-
 
 __all__ = [
     "SCHEMA",
@@ -33,6 +33,7 @@ __all__ = [
     "check_critical_consumer_authorization",
     "check_authorization_for_runtime",
     "check_authorization_payload",
+    "economic_envelope_hash",
     "oracle_value_hash",
     "semantic_hash",
     "verify_opaque_authorization",

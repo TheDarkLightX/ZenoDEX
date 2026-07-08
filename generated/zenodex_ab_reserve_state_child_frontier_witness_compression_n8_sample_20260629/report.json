@@ -1,0 +1,356 @@
+{
+  "authority_boundary": "Research-only certificate-compression evidence; no settlement, state-root, production, routing, matching, pool-mutation, or governance authority.",
+  "date": "2026-06-29",
+  "deterministic_replay": {
+    "first_hash": "f2946c81017d4b9102d20fd417c49fc821471606a4361a6550e4deddb4eb641d",
+    "ok": true,
+    "second_hash": "f2946c81017d4b9102d20fd417c49fc821471606a4361a6550e4deddb4eb641d"
+  },
+  "lean_contract": {
+    "host_generation_shape": "sampled child quotient state set equals union of predecessor afterStep images",
+    "host_witness_shape": "one predecessor ReserveState.afterStep witness per sampled child quotient state",
+    "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+    "transition_def": "ReserveState.afterStep",
+    "transition_executability_endpoint": "reserveStateQuotientInvariant_familySuffixExecutable",
+    "transition_invariant_endpoint": "reserveStateQuotientInvariant_afterStep"
+  },
+  "non_claims": [
+    "This witness checker is bounded to the deterministic n=8 sample, not exhaustive n=8 coverage.",
+    "This checker covers only sampled zero-min exact-in cases and sampled child masks.",
+    "This checker does not prove Python-to-Lean refinement.",
+    "This checker does not prove child-frontier generation in Lean.",
+    "The no-extra generated-state fact is linked to the existing n=8 child-frontier sample report, not reproved by the one-witness object alone.",
+    "This checker does not define canonical tie order or preserve order-id history.",
+    "This checker does not cover nonzero min_amount_out behavior.",
+    "No settlement, state-root, production, routing, matching, pool-mutation, or governance authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_reserve_state_child_frontier_witness_compression_n8_sample_20260629.py",
+  "schema": "zenodex.ab_reserve_state_child_frontier_witness_compression_n8_sample_report.v1",
+  "search": {
+    "case_count": 3,
+    "cases": [
+      {
+        "bit_count": 8,
+        "case_id": "n8_sample_000_thin_fee9000_stair",
+        "covered_sampled_child_state_count": 17,
+        "duplicate_witness_count": 0,
+        "expected_sampled_child_state_count": 17,
+        "extra_sampled_child_state_witness_count": 0,
+        "fee_bps": 9000,
+        "first_failure": null,
+        "frontier_witness_compression_ratio": 2.823529,
+        "invalid_witness_count": 0,
+        "missing_sampled_child_state_witness_count": 0,
+        "ok": true,
+        "packet_hash": "c0c5b5d10dbfa0cb144493bc909688cf55a58f61ce53a7ddb7ae2b7aa716bcd8",
+        "pattern": "n8_thin_high_fee/stair",
+        "predecessor_transition_count": 48,
+        "reasons": [],
+        "sampled_child_mask_count": 17,
+        "unique_child_witness_count": 17,
+        "witness_count": 17,
+        "witness_rows_digest": "01b7aa20267ddaa7ee1d95f5d43665fac7b425bb55d42897114235af183dba8c"
+      },
+      {
+        "bit_count": 8,
+        "case_id": "n8_sample_001_deep_fee30_tie",
+        "covered_sampled_child_state_count": 34,
+        "duplicate_witness_count": 0,
+        "expected_sampled_child_state_count": 34,
+        "extra_sampled_child_state_witness_count": 0,
+        "fee_bps": 30,
+        "first_failure": null,
+        "frontier_witness_compression_ratio": 3.058824,
+        "invalid_witness_count": 0,
+        "missing_sampled_child_state_witness_count": 0,
+        "ok": true,
+        "packet_hash": "fd99c3c0905d9d32d265e5c965076e388e3e8cef222e8cfaf6749ed5f78ec800",
+        "pattern": "n8_deep_low_fee/tie",
+        "predecessor_transition_count": 104,
+        "reasons": [],
+        "sampled_child_mask_count": 17,
+        "unique_child_witness_count": 34,
+        "witness_count": 34,
+        "witness_rows_digest": "86e46ec5497b34f1be427434f64d4ad48966cbc4e7fff8c6ab7d3f03fd3174c1"
+      },
+      {
+        "bit_count": 8,
+        "case_id": "n8_sample_002_burst_fee2500",
+        "covered_sampled_child_state_count": 37,
+        "duplicate_witness_count": 0,
+        "expected_sampled_child_state_count": 37,
+        "extra_sampled_child_state_witness_count": 0,
+        "fee_bps": 2500,
+        "first_failure": null,
+        "frontier_witness_compression_ratio": 3.135135,
+        "invalid_witness_count": 0,
+        "missing_sampled_child_state_witness_count": 0,
+        "ok": true,
+        "packet_hash": "b144b818da0dab97d2b435d39e4509ef8695d0a8cc98403d6d6ae5b57b3372fa",
+        "pattern": "n8_deep_mid_fee/front_burst",
+        "predecessor_transition_count": 116,
+        "reasons": [],
+        "sampled_child_mask_count": 17,
+        "unique_child_witness_count": 37,
+        "witness_count": 37,
+        "witness_rows_digest": "7f7dcc7e2ca3ec335620b1a50eb57b2778b9dc3d25a6c7544820bc399a2f5e80"
+      }
+    ],
+    "coverage": {
+      "fee_bps_counts": {
+        "2500": 1,
+        "30": 1,
+        "9000": 1
+      },
+      "n_counts": {
+        "8": 3
+      },
+      "pattern_counts": {
+        "n8_deep_low_fee/tie": 1,
+        "n8_deep_mid_fee/front_burst": 1,
+        "n8_thin_high_fee/stair": 1
+      },
+      "reason_classes": [
+        "authority_effect_present",
+        "duplicate_witness_row",
+        "extra_sampled_child_state_witness",
+        "linked_frontier_extra_generated_state",
+        "linked_frontier_summary_mismatch",
+        "missing_sampled_child_state_witness",
+        "packet_hash_mismatch",
+        "packet_witness_summary_mismatch",
+        "sampled_n8_bound_missing",
+        "witness_afterstep_mismatch",
+        "witness_child_state_not_in_sampled_child_frontier",
+        "witness_parent_state_not_in_parent_frontier",
+        "witness_step_bit_out_of_range"
+      ]
+    },
+    "covered_sampled_child_state_count": 88,
+    "duplicate_witness_count": 0,
+    "elapsed_ms": 9683.112,
+    "expected_sampled_child_state_count": 88,
+    "extra_sampled_child_state_witness_count": 0,
+    "first_case": {
+      "bit_count": 8,
+      "case_id": "n8_sample_000_thin_fee9000_stair",
+      "covered_sampled_child_state_count": 17,
+      "duplicate_witness_count": 0,
+      "expected_sampled_child_state_count": 17,
+      "extra_sampled_child_state_witness_count": 0,
+      "fee_bps": 9000,
+      "first_failure": null,
+      "frontier_witness_compression_ratio": 2.823529,
+      "invalid_witness_count": 0,
+      "missing_sampled_child_state_witness_count": 0,
+      "ok": true,
+      "packet_hash": "c0c5b5d10dbfa0cb144493bc909688cf55a58f61ce53a7ddb7ae2b7aa716bcd8",
+      "pattern": "n8_thin_high_fee/stair",
+      "predecessor_transition_count": 48,
+      "reasons": [],
+      "sampled_child_mask_count": 17,
+      "unique_child_witness_count": 17,
+      "witness_count": 17,
+      "witness_rows_digest": "01b7aa20267ddaa7ee1d95f5d43665fac7b425bb55d42897114235af183dba8c"
+    },
+    "first_invalid_case": null,
+    "invalid_witness_count": 0,
+    "linked_frontier_summary": {
+      "available": true,
+      "extra_generated_state_count": 0,
+      "frontier_rows_digest": "37764c62caa78be76d654ec1f2540babe2aae2f546663f6548f2d9a1da85b919",
+      "generated_state_count": 88,
+      "missing_child_state_count": 0,
+      "ok": true,
+      "path": "generated/zenodex_ab_reserve_state_child_frontier_n8_sample_20260629/report.json",
+      "sampled_child_mask_count": 51,
+      "sampled_child_state_count": 88,
+      "schema": "zenodex.ab_reserve_state_child_frontier_n8_sample_report.v1"
+    },
+    "missing_sampled_child_state_witness_count": 0,
+    "negative_control_accept_count": 0,
+    "negative_control_count": 9,
+    "negative_controls": [
+      {
+        "accepted": false,
+        "expected_reason": "packet_hash_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_hash_mismatch",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "missing_sampled_child_state_witness",
+        "first_failure": {
+          "case_id": "n8_sample_000_thin_fee9000_stair",
+          "mask_id": 1,
+          "reason": "missing_sampled_child_state_witness"
+        },
+        "mutation_id": "missing_sampled_child_state_witness",
+        "reasons": [
+          "missing_sampled_child_state_witness",
+          "packet_witness_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "witness_parent_state_not_in_parent_frontier",
+        "first_failure": {
+          "case_id": "n8_sample_000_thin_fee9000_stair",
+          "detail": {
+            "row_index": 0
+          },
+          "mask_id": 1,
+          "reason": "witness_parent_state_not_in_parent_frontier"
+        },
+        "mutation_id": "witness_parent_state_not_in_parent_frontier",
+        "reasons": [
+          "witness_parent_state_not_in_parent_frontier",
+          "witness_afterstep_mismatch",
+          "packet_witness_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "witness_child_state_not_in_sampled_child_frontier",
+        "first_failure": {
+          "case_id": "n8_sample_000_thin_fee9000_stair",
+          "detail": {
+            "row_index": 0
+          },
+          "mask_id": 1,
+          "reason": "witness_child_state_not_in_sampled_child_frontier"
+        },
+        "mutation_id": "witness_child_state_not_in_sampled_child_frontier",
+        "reasons": [
+          "witness_child_state_not_in_sampled_child_frontier",
+          "witness_afterstep_mismatch",
+          "missing_sampled_child_state_witness",
+          "extra_sampled_child_state_witness",
+          "packet_witness_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "witness_step_bit_out_of_range",
+        "first_failure": {
+          "case_id": "n8_sample_000_thin_fee9000_stair",
+          "detail": {
+            "row_index": 0
+          },
+          "mask_id": 1,
+          "reason": "witness_step_bit_out_of_range"
+        },
+        "mutation_id": "witness_step_bit_out_of_range",
+        "reasons": [
+          "witness_step_bit_out_of_range",
+          "packet_witness_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "duplicate_witness_row",
+        "first_failure": {
+          "case_id": "n8_sample_000_thin_fee9000_stair",
+          "detail": {
+            "row_index": 17
+          },
+          "mask_id": 1,
+          "reason": "duplicate_witness_row"
+        },
+        "mutation_id": "duplicate_witness_row",
+        "reasons": [
+          "duplicate_witness_row",
+          "packet_witness_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "sampled_n8_bound_missing",
+        "first_failure": null,
+        "mutation_id": "sampled_n8_bound_missing",
+        "reasons": [
+          "sampled_n8_bound_missing"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "linked_frontier_extra_generated_state",
+        "first_failure": null,
+        "mutation_id": "linked_frontier_extra_generated_state",
+        "reasons": [
+          "linked_frontier_summary_mismatch",
+          "linked_frontier_extra_generated_state"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "authority_effect_present",
+        "first_failure": null,
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      }
+    ],
+    "predecessor_transition_count": 268,
+    "sample_plan": {
+      "bit_count": 8,
+      "full_dp_generated_all_masks": true,
+      "mask_ids": [
+        0,
+        1,
+        2,
+        4,
+        8,
+        15,
+        16,
+        32,
+        51,
+        60,
+        64,
+        85,
+        128,
+        170,
+        195,
+        204,
+        240,
+        255
+      ],
+      "seed": 2026062908,
+      "suffix_sample_limit": 24,
+      "suffix_sampling": "all suffixes up to limit; otherwise first, last, and deterministic random indexes"
+    },
+    "sampled_child_mask_count": 51,
+    "sampled_child_mask_ids": [
+      1,
+      2,
+      4,
+      8,
+      15,
+      16,
+      32,
+      51,
+      60,
+      64,
+      85,
+      128,
+      170,
+      195,
+      204,
+      240,
+      255
+    ],
+    "schema": "zenodex/ab_reserve_state_child_frontier_witness_compression_n8_sample_search/v1",
+    "source_seed": 2026062908,
+    "valid_case_count": 3,
+    "witness_compression_ratio": 3.045455,
+    "witness_count": 88,
+    "witness_rows_digest": "4851b651740dcfaaa5b175cccbc0907fb7449ff3c4e14db61c3cdafed72e52dd",
+    "witness_transition_checks_saved": 180
+  },
+  "summary": "A bounded deterministic n=8 sample supports a compressed child-frontier proof-object shape: one predecessor witness covers each sampled child quotient state."
+}

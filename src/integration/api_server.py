@@ -1,5 +1,4 @@
-"""
-Minimal HTTP API server for ZenoDEX container deployments.
+"""Minimal HTTP API server for ZenoDEX container deployments.
 
 This server is intentionally small and dependency-free (stdlib only).
 It exists to support:
@@ -15,9 +14,9 @@ Security posture:
 
 from __future__ import annotations
 
-import json
-import hmac
 import hashlib
+import hmac
+import json
 import os
 import threading
 import time
@@ -27,7 +26,22 @@ from math import comb
 from typing import Any, Callable, Mapping, Optional, Sequence, Set
 from urllib.parse import urlsplit
 
+from src.integration.api_server_settlement_parsers import (
+    _parse_balance_table_payload,
+    _parse_lp_balances_payload,
+    _parse_price_history_payload,
+    _parse_settlement_feature_extension_inputs_payload,
+    _parse_settlement_proof_flags_payload,
+)
 from src.state.canonical import canonical_json_bytes
+
+__all__ = (
+    "_parse_balance_table_payload",
+    "_parse_lp_balances_payload",
+    "_parse_price_history_payload",
+    "_parse_settlement_feature_extension_inputs_payload",
+    "_parse_settlement_proof_flags_payload",
+)
 
 # Prewarm the expensive attestation / LP-aware settlement modules at server
 # startup so their first request does not pay import latency inside the 2s API
@@ -65,6 +79,21 @@ def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
     return int(v)
 
 
+def _env_float(name: str, default: float, *, lo: float, hi: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return float(default)
+    try:
+        v = float(raw.strip())
+    except ValueError:
+        return float(default)
+    if v < lo:
+        return float(lo)
+    if v > hi:
+        return float(hi)
+    return float(v)
+
+
 def _env_str(name: str, default: str) -> str:
     raw = os.environ.get(name)
     if raw is None:
@@ -78,6 +107,28 @@ def _env_bool(name: str, default: bool = False) -> bool:
     if raw is None or not raw.strip():
         return bool(default)
     return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
+def _normalize_sha256_hex(raw: str) -> str:
+    value = raw.strip().lower()
+    if value.startswith("sha256:"):
+        value = value.removeprefix("sha256:")
+    if len(value) != 64:
+        return ""
+    if not all(ch in "0123456789abcdef" for ch in value):
+        return ""
+    return value
+
+
+def _sha256_file_hex(path: str) -> str:
+    digest = hashlib.sha256()
+    try:
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError:
+        return ""
+    return digest.hexdigest()
 
 
 def _confidential_sealed_bid_enabled_from_env() -> bool:
@@ -894,6 +945,8 @@ class ApiServerConfig:
     cors_origins: Set[str]
     rpm: int
     max_buckets: int
+    perps_enabled: bool
+    perps_demo_api_unsafe_enabled: bool
     perps_wallet_enabled: bool
     zusd_tau_wallet_enabled: bool
     zusd_monetary_wallet_enabled: bool
@@ -930,6 +983,8 @@ def _load_api_server_config() -> ApiServerConfig:
     from src.integration.confidential_feature_status import load_confidential_feature_status_from_env  # pylint: disable=import-outside-toplevel
 
     confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()
+    perps_enabled = _env_enabled("PERPS_API_ENABLED")
+    perps_demo_api_unsafe_enabled = _env_enabled("PERPS_DEMO_API_UNSAFE_ENABLED")
     perps_wallet_enabled = _env_enabled("PERPS_WALLET_API_ENABLED")
     zusd_tau_wallet_enabled = _env_enabled("ZUSD_TAU_WALLET_API_ENABLED")
     zusd_monetary_wallet_enabled = _env_enabled("ZUSD_MONETARY_WALLET_API_ENABLED")
@@ -939,7 +994,8 @@ def _load_api_server_config() -> ApiServerConfig:
     dex_enabled = _env_enabled("DEX_API_ENABLED")
     autogov_live_apply_enabled = _env_enabled("AUTOGOV_LIVE_APPLY_API_ENABLED")
     sensitive_api_enabled = bool(
-        perps_wallet_enabled
+        perps_enabled
+        or perps_wallet_enabled
         or zusd_tau_wallet_enabled
         or zusd_monetary_wallet_enabled
         or autotrader_live_enabled
@@ -955,6 +1011,8 @@ def _load_api_server_config() -> ApiServerConfig:
         cors_origins=_parse_cors_origins(_env_str("CORS_ORIGINS", "")),
         rpm=_env_int("RATE_LIMIT_RPM", 600, lo=0, hi=1_000_000),
         max_buckets=_env_int("RATE_LIMIT_MAX_BUCKETS", 10_000, lo=1, hi=1_000_000),
+        perps_enabled=perps_enabled,
+        perps_demo_api_unsafe_enabled=perps_demo_api_unsafe_enabled,
         perps_wallet_enabled=perps_wallet_enabled,
         zusd_tau_wallet_enabled=zusd_tau_wallet_enabled,
         zusd_monetary_wallet_enabled=zusd_monetary_wallet_enabled,
@@ -981,10 +1039,18 @@ def _load_api_server_config() -> ApiServerConfig:
 
 
 def _api_startup_refusal_lines(config: ApiServerConfig) -> Optional[list[str]]:
+    if config.perps_demo_api_unsafe_enabled and (
+        config.production_mode or not _is_loopback_host(config.host)
+    ):
+        return [
+            "Refusing to start: PERPS_DEMO_API_UNSAFE_ENABLED is local demo only. "
+            "Set ZENODEX_ENV=local/dev/test and bind API_HOST to loopback."
+        ]
     if config.sensitive_api_enabled and not config.external_auth_enforced and not config.auth_bearer_token:
         return [
             "Refusing to start: sensitive APIs enabled without external auth or ZENODEX_API_BEARER_TOKEN "
-            f"(host={config.host!r}, perps_wallet_api={config.perps_wallet_enabled}, "
+            f"(host={config.host!r}, perps_api={config.perps_enabled}, "
+            f"perps_wallet_api={config.perps_wallet_enabled}, "
             f"zusd_tau_wallet_api={config.zusd_tau_wallet_enabled}, "
             f"zusd_monetary_wallet_api={config.zusd_monetary_wallet_enabled}, "
             f"autotrader_live_api={config.autotrader_live_enabled}, "
@@ -1036,18 +1102,271 @@ def _deploy_profile_refusal_lines(config: ApiServerConfig) -> Optional[list[str]
     from src.integration.deploy_profile import (  # pylint: disable=import-outside-toplevel
         evaluate_deploy_profile_consistency,
         load_deploy_profile,
+        resolve_deploy_profile_path,
     )
 
     try:
         profile = load_deploy_profile(deploy_profile_id)
     except (FileNotFoundError, ValueError) as exc:
         return [f"Refusing to start: invalid ZENODEX_DEPLOY_PROFILE={deploy_profile_id!r}: {exc}"]
+    profile_path = resolve_deploy_profile_path(deploy_profile_id)
+    perps_policy = profile.get("perps_policy") if isinstance(profile, Mapping) else None
+    spot_policy = profile.get("spot_policy") if isinstance(profile, Mapping) else None
+    policy_receipt_verifier = _env_str("TAU_DEX_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_VERIFIER", "")
+    policy_receipt_verifier_configured = bool(
+        policy_receipt_verifier
+        and os.path.isabs(policy_receipt_verifier)
+        and os.path.isfile(policy_receipt_verifier)
+        and os.access(policy_receipt_verifier, os.X_OK)
+    )
+    expected_verifier_sha256_raw = _env_str(
+        "TAU_DEX_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_VERIFIER_SHA256",
+        "",
+    )
+    expected_verifier_sha256 = _normalize_sha256_hex(expected_verifier_sha256_raw)
+    observed_verifier_sha256 = (
+        _sha256_file_hex(policy_receipt_verifier) if policy_receipt_verifier_configured else ""
+    )
+    verifier_sha256_matches = bool(
+        expected_verifier_sha256
+        and observed_verifier_sha256
+        and expected_verifier_sha256 == observed_verifier_sha256
+    )
+    build_receipt_signature_required = bool(
+        isinstance(perps_policy, Mapping)
+        and perps_policy.get(
+            "isolated_partial_liquidate_tau_source_authority_policy_receipt_verifier_build_receipt_signature_required"
+        )
+        is True
+    )
+    release_bundle_required = bool(
+        isinstance(perps_policy, Mapping)
+        and perps_policy.get(
+            "isolated_partial_liquidate_tau_source_authority_policy_receipt_verifier_release_bundle_required"
+        )
+        is True
+    )
+    release_registry_required = bool(
+        isinstance(perps_policy, Mapping)
+        and perps_policy.get(
+            "isolated_partial_liquidate_tau_source_authority_policy_receipt_verifier_release_registry_required"
+        )
+        is True
+    )
+    build_receipt_path = _env_str(
+        "TAU_DEX_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_VERIFIER_BUILD_RECEIPT",
+        "",
+    )
+    build_receipt_builder_pubkey = _env_str(
+        "TAU_DEX_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_VERIFIER_BUILD_RECEIPT_SIGNER_PUBKEY",
+        "",
+    )
+    build_receipt_builder_signer_id = _env_str(
+        "TAU_DEX_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_VERIFIER_BUILD_RECEIPT_SIGNER_ID",
+        "",
+    )
+    build_receipt_builder_key_id = _env_str(
+        "TAU_DEX_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_VERIFIER_BUILD_RECEIPT_KEY_ID",
+        "",
+    )
+    release_bundle_path = _env_str(
+        "TAU_DEX_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_VERIFIER_RELEASE_BUNDLE",
+        "",
+    )
+    release_registry_path = _env_str(
+        "TAU_DEX_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_VERIFIER_RELEASE_REGISTRY",
+        "",
+    )
+    release_registry_root_hash = _env_str(
+        "TAU_DEX_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_VERIFIER_RELEASE_REGISTRY_ROOT",
+        "",
+    )
+    route_price_interval_policy_root_raw = _env_str(
+        "TAU_DEX_ROUTE_PRICE_INTERVAL_AUTHORITY_POLICY_ROOT",
+        "",
+    )
+    route_price_interval_policy_root = _normalize_sha256_hex(
+        route_price_interval_policy_root_raw,
+    )
+    route_price_interval_policy_root_bundle_path = _env_str(
+        "TAU_DEX_ROUTE_PRICE_INTERVAL_AUTHORITY_POLICY_ROOT_BUNDLE",
+        "",
+    )
+    route_price_interval_policy_root_bundle_signer_pubkey = _env_str(
+        "TAU_DEX_ROUTE_PRICE_INTERVAL_AUTHORITY_POLICY_ROOT_BUNDLE_SIGNER_PUBKEY",
+        "",
+    )
+    route_price_interval_policy_root_bundle_signer_id = _env_str(
+        "TAU_DEX_ROUTE_PRICE_INTERVAL_AUTHORITY_POLICY_ROOT_BUNDLE_SIGNER_ID",
+        "",
+    )
+    route_price_interval_policy_root_bundle_key_id = _env_str(
+        "TAU_DEX_ROUTE_PRICE_INTERVAL_AUTHORITY_POLICY_ROOT_BUNDLE_KEY_ID",
+        "",
+    )
+    route_price_interval_policy_root_bundle_acceptance_epoch = _env_str(
+        "TAU_DEX_ROUTE_PRICE_INTERVAL_AUTHORITY_POLICY_ROOT_BUNDLE_ACCEPTANCE_EPOCH",
+        "",
+    )
+    route_price_interval_policy_root_bundle_signer_registry_path = _env_str(
+        "TAU_DEX_ROUTE_PRICE_INTERVAL_AUTHORITY_POLICY_ROOT_BUNDLE_SIGNER_REGISTRY",
+        "",
+    )
+    route_price_interval_policy_root_bundle_signer_registry_hash = _env_str(
+        "TAU_DEX_ROUTE_PRICE_INTERVAL_AUTHORITY_POLICY_ROOT_BUNDLE_SIGNER_REGISTRY_HASH",
+        "",
+    )
+    route_price_interval_max_width_bps_raw = _env_str(
+        "TAU_DEX_ROUTE_PRICE_INTERVAL_MAX_WIDTH_BPS",
+        "",
+    )
+    route_price_interval_max_width_bps_configured = False
+    route_price_interval_max_width_bps_malformed = False
+    if route_price_interval_max_width_bps_raw:
+        try:
+            route_price_interval_max_width_bps_value = int(
+                route_price_interval_max_width_bps_raw.strip()
+            )
+        except ValueError:
+            route_price_interval_max_width_bps_malformed = True
+        else:
+            route_price_interval_max_width_bps_configured = (
+                0 <= route_price_interval_max_width_bps_value <= (2**64 - 1)
+            )
+            route_price_interval_max_width_bps_malformed = (
+                not route_price_interval_max_width_bps_configured
+            )
+    self_test_contract = _env_str(
+        "TAU_DEX_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_VERIFIER_SELF_TEST_CONTRACT",
+        "",
+    )
+    build_receipt_errors: list[str] = []
+    if build_receipt_path and policy_receipt_verifier_configured:
+        from src.integration.perp_source_admission_verifier_build_receipt import (  # pylint: disable=import-outside-toplevel
+            verify_tau_source_authority_policy_receipt_verifier_build_receipt,
+        )
+
+        build_receipt_errors = verify_tau_source_authority_policy_receipt_verifier_build_receipt(
+            receipt_path=build_receipt_path,
+            verifier_path=policy_receipt_verifier,
+            require_builder_signature=build_receipt_signature_required,
+            expected_builder_public_key=build_receipt_builder_pubkey,
+            expected_builder_signer_id=build_receipt_builder_signer_id,
+            expected_builder_key_id=build_receipt_builder_key_id,
+        )
+    elif build_receipt_path:
+        build_receipt_errors = ["build_receipt_verifier_not_configured"]
+    build_receipt_base_errors = [
+        error
+        for error in build_receipt_errors
+        if not error.startswith("build_receipt_builder_")
+    ]
+    build_receipt_signature_errors = [
+        error
+        for error in build_receipt_errors
+        if error.startswith("build_receipt_builder_")
+    ]
+    release_bundle_errors: list[str] = []
+    if release_bundle_path and build_receipt_path and policy_receipt_verifier_configured:
+        from src.integration.perp_source_admission_cli_verifier import (  # pylint: disable=import-outside-toplevel
+            DEFAULT_AUTHORITY_POLICY_RECEIPT_VERIFIER_SELF_TEST_CONTRACT,
+        )
+        from src.integration.perp_source_admission_verifier_build_receipt import (  # pylint: disable=import-outside-toplevel
+            verify_tau_source_authority_policy_receipt_verifier_release_bundle,
+        )
+
+        release_bundle_errors = verify_tau_source_authority_policy_receipt_verifier_release_bundle(
+            bundle_path=release_bundle_path,
+            build_receipt_path=build_receipt_path,
+            verifier_path=policy_receipt_verifier,
+            deploy_profile_id=str(profile.get("profile_id", "")),
+            deploy_profile_path=profile_path,
+            startup_contract_path=(
+                self_test_contract or DEFAULT_AUTHORITY_POLICY_RECEIPT_VERIFIER_SELF_TEST_CONTRACT
+            ),
+            expected_builder_public_key=build_receipt_builder_pubkey,
+            expected_builder_signer_id=build_receipt_builder_signer_id,
+            expected_builder_key_id=build_receipt_builder_key_id,
+        )
+    elif release_bundle_path:
+        release_bundle_errors = ["release_bundle_verifier_or_build_receipt_not_configured"]
+    release_registry_errors: list[str] = []
+    if release_registry_path and release_bundle_path and not release_bundle_errors:
+        from src.integration.perp_source_admission_verifier_build_receipt import (  # pylint: disable=import-outside-toplevel
+            verify_tau_source_authority_policy_receipt_verifier_release_registry,
+        )
+
+        release_registry_errors = verify_tau_source_authority_policy_receipt_verifier_release_registry(
+            registry_path=release_registry_path,
+            bundle_path=release_bundle_path,
+            expected_registry_root_hash=release_registry_root_hash,
+            expected_builder_public_key=build_receipt_builder_pubkey,
+            expected_builder_signer_id=build_receipt_builder_signer_id,
+            expected_builder_key_id=build_receipt_builder_key_id,
+        )
+    elif release_registry_path:
+        release_registry_errors = ["release_registry_release_bundle_not_valid"]
+    build_receipt_valid = bool(build_receipt_path and not build_receipt_base_errors)
+    build_receipt_signature_valid = bool(
+        build_receipt_path
+        and build_receipt_signature_required
+        and build_receipt_builder_pubkey
+        and not build_receipt_signature_errors
+    )
+    release_bundle_valid = bool(release_bundle_path and not release_bundle_errors)
+    release_registry_valid = bool(
+        release_registry_path
+        and release_bundle_valid
+        and release_registry_root_hash
+        and not release_registry_errors
+    )
+    route_price_interval_policy_root_bundle_errors: list[str] = []
+    if route_price_interval_policy_root_bundle_path:
+        from src.integration.route_interval_policy_root_bundle import (  # pylint: disable=import-outside-toplevel
+            verify_route_interval_policy_root_bundle,
+        )
+
+        route_price_interval_policy_root_bundle_errors = verify_route_interval_policy_root_bundle(
+            bundle_path=route_price_interval_policy_root_bundle_path,
+            expected_route_price_interval_authority_policy_root=(
+                route_price_interval_policy_root_raw
+            ),
+            deploy_profile_id=str(profile.get("profile_id", "")),
+            deploy_profile_path=profile_path,
+            current_epoch=route_price_interval_policy_root_bundle_acceptance_epoch,
+            expected_signer_public_key=route_price_interval_policy_root_bundle_signer_pubkey,
+            expected_signer_id=route_price_interval_policy_root_bundle_signer_id,
+            expected_key_id=route_price_interval_policy_root_bundle_key_id,
+            signer_registry_path=route_price_interval_policy_root_bundle_signer_registry_path,
+            expected_signer_registry_hash=(
+                route_price_interval_policy_root_bundle_signer_registry_hash
+            ),
+            quorum_required=bool(
+                isinstance(spot_policy, Mapping)
+                and spot_policy.get(
+                    "route_price_interval_trusted_policy_root_bundle_quorum_required"
+                )
+                is True
+            ),
+        )
+    route_price_interval_policy_root_bundle_valid = bool(
+        route_price_interval_policy_root_bundle_path
+        and route_price_interval_policy_root
+        and not route_price_interval_policy_root_bundle_errors
+    )
+    route_price_interval_policy_root_bundle_quorum_valid = bool(
+        route_price_interval_policy_root_bundle_path
+        and route_price_interval_policy_root_bundle_signer_registry_path
+        and route_price_interval_policy_root_bundle_signer_registry_hash
+        and not route_price_interval_policy_root_bundle_errors
+    )
     runtime_facts = {
         "sensitive_api_enabled": config.sensitive_api_enabled,
         "external_auth_enforced": config.external_auth_enforced,
         "auth_bearer_token_set": bool(config.auth_bearer_token),
         "allow_demo_token_auth": config.allow_demo_token_auth,
         "legacy_demo_token_active": config.legacy_demo_token_active,
+        "perps_demo_api_unsafe_enabled": config.perps_demo_api_unsafe_enabled,
         "confidential_sealed_bid_allow_in_memory_state": config.allow_in_memory_sealed_bid,
         "confidential_sealed_bid_allow_fixture_settlement": _env_bool(
             "CONFIDENTIAL_SEALED_BID_ALLOW_FIXTURE_SETTLEMENT", False
@@ -1059,8 +1378,211 @@ def _deploy_profile_refusal_lines(config: ApiServerConfig) -> Optional[list[str]
         "perps_wallet_return_signed_tau_tx_payload": _env_bool(
             "PERPS_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD", False
         ),
+        "perps_tau_source_binding_required": _env_bool(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_BINDING_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        "perps_tau_source_state_root_binding_required": _env_bool(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_STATE_ROOT_BINDING_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        "perps_tau_source_membership_proof_required": _env_bool(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_MEMBERSHIP_PROOF_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        "perps_tau_source_root_authority_required": _env_bool(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_ROOT_AUTHORITY_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        "perps_tau_source_admission_envelope_required": _env_bool(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_ADMISSION_ENVELOPE_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        "perps_tau_source_authority_policy_receipt_required": _env_bool(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        "perps_tau_source_authority_policy_receipt_verifier_configured": (
+            policy_receipt_verifier_configured
+        ),
+        "perps_tau_source_authority_policy_receipt_verifier_sha256_matches": (
+            verifier_sha256_matches
+        ),
+        "perps_tau_source_authority_policy_receipt_verifier_build_receipt_valid": (
+            build_receipt_valid
+        ),
+        "perps_tau_source_authority_policy_receipt_verifier_build_receipt_signature_valid": (
+            build_receipt_signature_valid
+        ),
+        "perps_tau_source_authority_policy_receipt_verifier_release_bundle_valid": (
+            release_bundle_valid
+        ),
+        "perps_tau_source_authority_policy_receipt_verifier_release_registry_valid": (
+            release_registry_valid
+        ),
+        "route_price_interval_trusted_policy_root_configured": bool(
+            route_price_interval_policy_root
+        ),
+        "route_price_interval_trusted_policy_root_bundle_valid": (
+            route_price_interval_policy_root_bundle_valid
+        ),
+        "route_price_interval_trusted_policy_root_bundle_quorum_valid": (
+            route_price_interval_policy_root_bundle_quorum_valid
+        ),
+        "route_price_interval_max_width_bps_configured": (
+            route_price_interval_max_width_bps_configured
+        ),
     }
     conflicts = evaluate_deploy_profile_consistency(profile, runtime_facts)
+    if (
+        isinstance(spot_policy, Mapping)
+        and spot_policy.get("route_price_interval_trusted_policy_root_required") is True
+        and route_price_interval_policy_root_raw
+        and not route_price_interval_policy_root
+    ):
+        conflicts.append(
+            f"[{deploy_profile_id}] spot_policy.route_price_interval_trusted_policy_root "
+            "is malformed"
+        )
+    if (
+        isinstance(spot_policy, Mapping)
+        and spot_policy.get("route_price_interval_trusted_policy_root_bundle_required") is True
+    ):
+        if not route_price_interval_policy_root_bundle_path:
+            conflicts.append(
+                f"[{deploy_profile_id}] spot_policy.route_price_interval_trusted_policy_root "
+                "bundle path missing"
+            )
+        conflicts.extend(
+            f"[{deploy_profile_id}] spot_policy.route_price_interval_trusted_policy_root "
+            f"bundle invalid: {error}"
+            for error in route_price_interval_policy_root_bundle_errors
+        )
+    if (
+        isinstance(spot_policy, Mapping)
+        and spot_policy.get("route_price_interval_max_width_bps_required") is True
+        and route_price_interval_max_width_bps_raw
+        and route_price_interval_max_width_bps_malformed
+    ):
+        conflicts.append(
+            f"[{deploy_profile_id}] spot_policy.route_price_interval_max_width_bps "
+            "is malformed"
+        )
+    if (
+        isinstance(perps_policy, Mapping)
+        and perps_policy.get(
+            "isolated_partial_liquidate_tau_source_authority_policy_receipt_verifier_sha256_required"
+        )
+        is True
+    ):
+        if expected_verifier_sha256_raw and not expected_verifier_sha256:
+            conflicts.append(
+                f"[{deploy_profile_id}] perps_policy.authority_policy_receipt_verifier "
+                "sha256 pin is malformed"
+            )
+        elif expected_verifier_sha256 and observed_verifier_sha256 and not verifier_sha256_matches:
+            conflicts.append(
+                f"[{deploy_profile_id}] perps_policy.authority_policy_receipt_verifier "
+                "sha256 mismatch: "
+                f"expected {expected_verifier_sha256}, got {observed_verifier_sha256}"
+            )
+        elif expected_verifier_sha256 and not observed_verifier_sha256:
+            conflicts.append(
+                f"[{deploy_profile_id}] perps_policy.authority_policy_receipt_verifier "
+                "sha256 could not be computed"
+            )
+    if (
+        isinstance(perps_policy, Mapping)
+        and perps_policy.get(
+            "isolated_partial_liquidate_tau_source_authority_policy_receipt_verifier_build_receipt_required"
+        )
+        is True
+    ):
+        if not build_receipt_path:
+            conflicts.append(
+                f"[{deploy_profile_id}] perps_policy.authority_policy_receipt_verifier "
+                "build receipt path missing"
+            )
+        conflicts.extend(
+            f"[{deploy_profile_id}] perps_policy.authority_policy_receipt_verifier "
+            f"build receipt invalid: {error}"
+            for error in build_receipt_base_errors
+        )
+    if build_receipt_signature_required:
+        if not build_receipt_builder_pubkey:
+            conflicts.append(
+                f"[{deploy_profile_id}] perps_policy.authority_policy_receipt_verifier "
+                "build receipt builder public key missing"
+            )
+        if not build_receipt_builder_signer_id:
+            conflicts.append(
+                f"[{deploy_profile_id}] perps_policy.authority_policy_receipt_verifier "
+                "build receipt builder signer id missing"
+            )
+        if not build_receipt_builder_key_id:
+            conflicts.append(
+                f"[{deploy_profile_id}] perps_policy.authority_policy_receipt_verifier "
+                "build receipt builder key id missing"
+            )
+        conflicts.extend(
+            f"[{deploy_profile_id}] perps_policy.authority_policy_receipt_verifier "
+            f"build receipt builder signature invalid: {error}"
+            for error in build_receipt_signature_errors
+        )
+    if release_bundle_required:
+        if not release_bundle_path:
+            conflicts.append(
+                f"[{deploy_profile_id}] perps_policy.authority_policy_receipt_verifier "
+                "release bundle path missing"
+            )
+        conflicts.extend(
+            f"[{deploy_profile_id}] perps_policy.authority_policy_receipt_verifier "
+            f"release bundle invalid: {error}"
+            for error in release_bundle_errors
+        )
+    if release_registry_required:
+        if not release_registry_path:
+            conflicts.append(
+                f"[{deploy_profile_id}] perps_policy.authority_policy_receipt_verifier "
+                "release registry path missing"
+            )
+        if not release_registry_root_hash:
+            conflicts.append(
+                f"[{deploy_profile_id}] perps_policy.authority_policy_receipt_verifier "
+                "release registry root hash missing"
+            )
+        conflicts.extend(
+            f"[{deploy_profile_id}] perps_policy.authority_policy_receipt_verifier "
+            f"release registry invalid: {error}"
+            for error in release_registry_errors
+        )
+    if (
+        not conflicts
+        and isinstance(perps_policy, Mapping)
+        and perps_policy.get(
+            "isolated_partial_liquidate_tau_source_authority_policy_receipt_verifier_required"
+        )
+        is True
+    ):
+        from src.integration.perp_source_admission_cli_verifier import (  # pylint: disable=import-outside-toplevel
+            self_test_tau_source_authority_policy_receipt_cli_verifier,
+        )
+
+        self_test_errors = self_test_tau_source_authority_policy_receipt_cli_verifier(
+            verifier_path=policy_receipt_verifier,
+            contract_path=self_test_contract or None,
+            timeout_s=_env_float(
+                "TAU_DEX_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_VERIFIER_TIMEOUT_S",
+                5.0,
+                lo=0.1,
+                hi=60.0,
+            ),
+        )
+        conflicts.extend(
+            f"[{deploy_profile_id}] perps_policy.authority_policy_receipt_verifier "
+            f"self-test failed: {error}"
+            for error in self_test_errors
+        )
     if not conflicts:
         return None
     lines = [f"Refusing to start: runtime env conflicts with deploy profile {deploy_profile_id!r}:"]
@@ -1082,6 +1604,13 @@ def _attach_api_server_state(httpd: ThreadingHTTPServer, config: ApiServerConfig
 
     httpd.cors_origins = config.cors_origins  # type: ignore[attr-defined]
     httpd.rate_limiter = TokenBucketRateLimiter(rpm=config.rpm, max_buckets=config.max_buckets)  # type: ignore[attr-defined]
+    httpd.perps_api_enabled = config.perps_enabled  # type: ignore[attr-defined]
+    httpd.perps_demo_api_unsafe_enabled = (  # type: ignore[attr-defined]
+        config.perps_demo_api_unsafe_enabled
+        and not config.production_mode
+        and _is_loopback_host(config.host)
+    )
+    httpd.api_host = config.host  # type: ignore[attr-defined]
     httpd.perps_wallet_api_enabled = config.perps_wallet_enabled  # type: ignore[attr-defined]
     httpd.zusd_tau_wallet_api_enabled = config.zusd_tau_wallet_enabled  # type: ignore[attr-defined]
     httpd.zusd_monetary_wallet_api_enabled = config.zusd_monetary_wallet_enabled  # type: ignore[attr-defined]
@@ -1113,6 +1642,7 @@ def _print_api_startup_banner(config: ApiServerConfig) -> None:
     print(
         f"zenodex-api listening on http://{config.host}:{config.port} "
         f"(cors_origins={sorted(config.cors_origins)}, rpm={config.rpm}, max_buckets={config.max_buckets}, "
+        f"perps_api={config.perps_enabled}, "
         f"perps_wallet_api={config.perps_wallet_enabled}, "
         f"zusd_tau_wallet_api={config.zusd_tau_wallet_enabled}, "
         f"zusd_monetary_wallet_api={config.zusd_monetary_wallet_enabled}, "
@@ -1274,11 +1804,32 @@ class _Handler(BaseHTTPRequestHandler):
                 cors_origin=cors_origin,
                 raw_body=raw_body,
             )
-        # No HTTP exposure for non-wallet /api/perps/* routes. The signed
-        # production write path is /api/perps/wallet/submit. The in-memory
-        # audit-replay scaffold lives at src/integration/_perps_audit_replay_state.py
-        # and is imported only by tools/check_* audit harnesses, never served.
-        return False
+        if not getattr(self.server, "perps_api_enabled", False):
+            return False
+        if not self._perps_demo_api_allowed():
+            return False
+        if (
+            (hasattr(self.server, "demo_api_token") or hasattr(self.server, "external_auth_enforced"))
+            and not self._demo_auth_ok()
+        ):
+            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
+            return True
+        from src.integration.perps_api import handle_perps_request
+
+        status, resp = handle_perps_request(method, path, raw_body)
+        self._write_json(status, resp, cors_origin=cors_origin)
+        return True
+
+    def _perps_demo_api_allowed(self) -> bool:
+        if not getattr(self.server, "perps_demo_api_unsafe_enabled", False):
+            return False
+        client_host = str(self.client_address[0]) if self.client_address else ""
+        server_host = str(getattr(self.server, "api_host", ""))
+        if not server_host:
+            server_address = getattr(self.server, "server_address", None)
+            if isinstance(server_address, tuple) and server_address:
+                server_host = str(server_address[0])
+        return _is_loopback_host(client_host) and _is_loopback_host(server_host)
 
     def _maybe_handle_perps_wallet_api(
         self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]

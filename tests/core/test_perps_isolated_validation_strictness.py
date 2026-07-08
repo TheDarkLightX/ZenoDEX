@@ -73,6 +73,27 @@ def test_validate_isolated_state_consistency_accepts_zero_one_bool_field() -> No
     _validate(state)
 
 
+def test_validate_isolated_state_consistency_rejects_unfunded_liquidation_cone() -> None:
+    state = _global_state()
+    state["maintenance_margin_bps"] = 500
+    state["depeg_buffer_bps"] = 100
+    state["max_oracle_move_bps"] = 500
+    state["liquidation_penalty_bps"] = 100
+
+    with pytest.raises(ValueError, match="invalid funded liquidation params"):
+        _validate(state)
+
+
+def test_validate_isolated_state_consistency_accepts_funded_liquidation_boundary() -> None:
+    state = _global_state()
+    state["maintenance_margin_bps"] = 500
+    state["depeg_buffer_bps"] = 100
+    state["max_oracle_move_bps"] = 500
+    state["liquidation_penalty_bps"] = 95
+
+    _validate(state)
+
+
 def test_validate_isolated_state_consistency_rejects_coerced_account_int() -> None:
     account = SimpleNamespace(
         position_base="0",

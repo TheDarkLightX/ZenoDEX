@@ -1,0 +1,200 @@
+{
+  "authority_boundary": "This is research evidence only. It does not select production AB orders or authorize settlement.",
+  "date": "2026-06-28",
+  "deterministic_replay": {
+    "first_hash": "c962e1abf5bd8df85ae9559dd263c44ba5c1b575d130c5ef11afa1268c64ca3d",
+    "ok": true,
+    "second_hash": "c962e1abf5bd8df85ae9559dd263c44ba5c1b575d130c5ef11afa1268c64ca3d"
+  },
+  "non_claims": [
+    "This is not a proof of the strict executable zero-min compression theorem.",
+    "Canonical tie order remains outside the economic-key claim.",
+    "Zero-min cases without a compressed executable full-mask order are outside this strict surface.",
+    "Nonzero min_amount_out batches remain outside this compression surface.",
+    "Amount-sorted greedy orders are refuted as replacements for the one-record DP.",
+    "No settlement authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_strict_zero_min_economic_refuter.py",
+  "schema": "zenodex.ab_strict_zero_min_economic_refuter_report.v1",
+  "search": {
+    "ascending_amount_greedy_failure_count": 214,
+    "brute_checked_count": 80,
+    "brute_mismatch_count": 0,
+    "case_count": 600,
+    "descending_amount_greedy_failure_count": 161,
+    "elapsed_ms": 11010.983,
+    "first_ascending_amount_greedy_failure": {
+      "amounts": [
+        21,
+        21,
+        89,
+        21,
+        8,
+        89,
+        55,
+        55
+      ],
+      "ascending_amount_greedy_ok": false,
+      "ascending_amount_key": [
+        359,
+        456
+      ],
+      "ascending_amount_order": [
+        "93f8",
+        "93f4",
+        "93f5",
+        "93f7",
+        "93fa",
+        "93fb",
+        "93f6",
+        "93f9"
+      ],
+      "brute_checked": false,
+      "brute_economic_key": null,
+      "brute_order": null,
+      "case_no": 1,
+      "compressed_economic_key": [
+        359,
+        460
+      ],
+      "compressed_order": [
+        "93f4",
+        "93f6",
+        "93fa",
+        "93f5",
+        "93f9",
+        "93f7",
+        "93fb",
+        "93f8"
+      ],
+      "descending_amount_greedy_ok": false,
+      "descending_amount_key": [
+        359,
+        457
+      ],
+      "descending_amount_order": [
+        "93f6",
+        "93f9",
+        "93fa",
+        "93fb",
+        "93f4",
+        "93f5",
+        "93f7",
+        "93f8"
+      ],
+      "economic_parity_ok": true,
+      "full_economic_key": [
+        359,
+        460
+      ],
+      "full_order": [
+        "93f4",
+        "93f6",
+        "93fa",
+        "93f5",
+        "93f9",
+        "93f7",
+        "93fb",
+        "93f8"
+      ],
+      "n": 8,
+      "pool": {
+        "fee_bps": 75,
+        "reserve0": 681,
+        "reserve1": 1360
+      },
+      "strict_scope": true
+    },
+    "first_brute_mismatch": null,
+    "first_descending_amount_greedy_failure": {
+      "amounts": [
+        21,
+        21,
+        89,
+        21,
+        8,
+        89,
+        55,
+        55
+      ],
+      "ascending_amount_greedy_ok": false,
+      "ascending_amount_key": [
+        359,
+        456
+      ],
+      "ascending_amount_order": [
+        "93f8",
+        "93f4",
+        "93f5",
+        "93f7",
+        "93fa",
+        "93fb",
+        "93f6",
+        "93f9"
+      ],
+      "brute_checked": false,
+      "brute_economic_key": null,
+      "brute_order": null,
+      "case_no": 1,
+      "compressed_economic_key": [
+        359,
+        460
+      ],
+      "compressed_order": [
+        "93f4",
+        "93f6",
+        "93fa",
+        "93f5",
+        "93f9",
+        "93f7",
+        "93fb",
+        "93f8"
+      ],
+      "descending_amount_greedy_ok": false,
+      "descending_amount_key": [
+        359,
+        457
+      ],
+      "descending_amount_order": [
+        "93f6",
+        "93f9",
+        "93fa",
+        "93fb",
+        "93f4",
+        "93f5",
+        "93f7",
+        "93f8"
+      ],
+      "economic_parity_ok": true,
+      "full_economic_key": [
+        359,
+        460
+      ],
+      "full_order": [
+        "93f4",
+        "93f6",
+        "93fa",
+        "93f5",
+        "93f9",
+        "93f7",
+        "93fb",
+        "93f8"
+      ],
+      "n": 8,
+      "pool": {
+        "fee_bps": 75,
+        "reserve0": 681,
+        "reserve1": 1360
+      },
+      "strict_scope": true
+    },
+    "first_mismatch": null,
+    "mismatch_count": 0,
+    "schema": "zenodex/ab_strict_zero_min_economic_refuter/v1",
+    "seed": 2026062802,
+    "skipped_non_strict_count": 270,
+    "strict_scope_count": 330
+  },
+  "summary": "A deterministic stress refuter found no economic-key mismatch inside the strict executable zero-min AB compression surface, while refuting simple amount-sorted greedy replacements."
+}

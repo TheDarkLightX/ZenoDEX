@@ -1,0 +1,4683 @@
+{
+  "authority_boundary": "Research-only induction witness evidence; no settlement, state-root, production, or governance authority.",
+  "date": "2026-06-29",
+  "deterministic_replay": {
+    "first_hash": "9a8743b5c936f6fe5b60824128aa341403e2f0bb6814670c4d953c3f4fed97f1",
+    "ok": true,
+    "second_hash": "9a8743b5c936f6fe5b60824128aa341403e2f0bb6814670c4d953c3f4fed97f1"
+  },
+  "non_claims": [
+    "This bounded oracle is not a Lean proof of the full subset-mask induction theorem.",
+    "This checker does not prove Lean-to-Python refinement.",
+    "This checker does not define canonical tie order.",
+    "Nonzero min_amount_out batches are outside this artifact.",
+    "The stress corpus is deterministic and finite, not exhaustive over all pool states.",
+    "No settlement authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_strict_zero_min_subset_induction_witness.py",
+  "schema": "zenodex.ab_strict_zero_min_subset_induction_witness_report.v1",
+  "search": {
+    "case_count": 180,
+    "cases": [
+      {
+        "bit_count": 2,
+        "case_id": "stress_000_flat_n2_fee0",
+        "executable_completion_count": 6,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "93e0",
+            "93e1"
+          ],
+          "processed_reserve_in": 528,
+          "reserve_out": 32020
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_001_ascending_n3_fee1",
+        "executable_completion_count": 24,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "93f0",
+            "93f1",
+            "93f2"
+          ],
+          "processed_reserve_in": 3170,
+          "reserve_out": 158866
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_002_descending_n4_fee2",
+        "executable_completion_count": 120,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9400",
+            "9401",
+            "9402",
+            "9403"
+          ],
+          "processed_reserve_in": 1937,
+          "reserve_out": 146740
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_003_fibonacci_n5_fee5",
+        "executable_completion_count": 720,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9414",
+            "9413",
+            "9412",
+            "9411",
+            "9410"
+          ],
+          "processed_reserve_in": 676,
+          "reserve_out": 95054
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_004_alternating_n6_fee30",
+        "executable_completion_count": 5040,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9420",
+            "9421",
+            "9422",
+            "9423",
+            "9425",
+            "9424"
+          ],
+          "processed_reserve_in": 4008,
+          "reserve_out": 51257
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_005_one_large_prefix_n2_fee75",
+        "executable_completion_count": 6,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9430",
+            "9431"
+          ],
+          "processed_reserve_in": 1743,
+          "reserve_out": 125170
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_006_one_large_suffix_n3_fee100",
+        "executable_completion_count": 24,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9442",
+            "9440",
+            "9441"
+          ],
+          "processed_reserve_in": 4025,
+          "reserve_out": 110949
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_007_near_tie_pairs_n4_fee0",
+        "executable_completion_count": 120,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9450",
+            "9451",
+            "9452",
+            "9453"
+          ],
+          "processed_reserve_in": 849,
+          "reserve_out": 25976
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_008_seeded_random_n5_fee1",
+        "executable_completion_count": 720,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9461",
+            "9463",
+            "9462",
+            "9460",
+            "9464"
+          ],
+          "processed_reserve_in": 3953,
+          "reserve_out": 115998
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_009_flat_n6_fee2",
+        "executable_completion_count": 5040,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9470",
+            "9471",
+            "9472",
+            "9473",
+            "9474",
+            "9475"
+          ],
+          "processed_reserve_in": 3860,
+          "reserve_out": 37935
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_010_ascending_n2_fee5",
+        "executable_completion_count": 6,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9480",
+            "9481"
+          ],
+          "processed_reserve_in": 3483,
+          "reserve_out": 35609
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_011_descending_n3_fee30",
+        "executable_completion_count": 24,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9490",
+            "9491",
+            "9492"
+          ],
+          "processed_reserve_in": 3613,
+          "reserve_out": 108235
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_012_fibonacci_n4_fee75",
+        "executable_completion_count": 120,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "94a2",
+            "94a3",
+            "94a0",
+            "94a1"
+          ],
+          "processed_reserve_in": 3978,
+          "reserve_out": 193333
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_013_alternating_n5_fee100",
+        "executable_completion_count": 720,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "94b1",
+            "94b3",
+            "94b0",
+            "94b2",
+            "94b4"
+          ],
+          "processed_reserve_in": 4087,
+          "reserve_out": 155654
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_014_one_large_prefix_n6_fee0",
+        "executable_completion_count": 5040,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "94c0",
+            "94c1",
+            "94c2",
+            "94c3",
+            "94c4",
+            "94c5"
+          ],
+          "processed_reserve_in": 3381,
+          "reserve_out": 165004
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_015_one_large_suffix_n2_fee1",
+        "executable_completion_count": 6,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "94d1",
+            "94d0"
+          ],
+          "processed_reserve_in": 2030,
+          "reserve_out": 103728
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_016_near_tie_pairs_n3_fee2",
+        "executable_completion_count": 24,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "94e0",
+            "94e1",
+            "94e2"
+          ],
+          "processed_reserve_in": 3819,
+          "reserve_out": 173720
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_017_seeded_random_n4_fee5",
+        "executable_completion_count": 120,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "94f0",
+            "94f1",
+            "94f2",
+            "94f3"
+          ],
+          "processed_reserve_in": 1479,
+          "reserve_out": 29626
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_018_flat_n5_fee30",
+        "executable_completion_count": 720,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9500",
+            "9501",
+            "9502",
+            "9503",
+            "9504"
+          ],
+          "processed_reserve_in": 1957,
+          "reserve_out": 84329
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_019_ascending_n6_fee75",
+        "executable_completion_count": 5040,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9511",
+            "9513",
+            "9512",
+            "9515",
+            "9510",
+            "9514"
+          ],
+          "processed_reserve_in": 2891,
+          "reserve_out": 46903
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_020_descending_n2_fee100",
+        "executable_completion_count": 6,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9520",
+            "9521"
+          ],
+          "processed_reserve_in": 3598,
+          "reserve_out": 186574
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_021_fibonacci_n3_fee0",
+        "executable_completion_count": 24,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9530",
+            "9531",
+            "9532"
+          ],
+          "processed_reserve_in": 2211,
+          "reserve_out": 124481
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_022_alternating_n4_fee1",
+        "executable_completion_count": 120,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9540",
+            "9541",
+            "9542",
+            "9543"
+          ],
+          "processed_reserve_in": 4169,
+          "reserve_out": 113951
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_023_one_large_prefix_n5_fee2",
+        "executable_completion_count": 720,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9550",
+            "9551",
+            "9552",
+            "9553",
+            "9554"
+          ],
+          "processed_reserve_in": 3354,
+          "reserve_out": 145378
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_024_one_large_suffix_n6_fee5",
+        "executable_completion_count": 5040,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9565",
+            "9560",
+            "9561",
+            "9562",
+            "9563",
+            "9564"
+          ],
+          "processed_reserve_in": 3237,
+          "reserve_out": 168026
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_025_near_tie_pairs_n2_fee30",
+        "executable_completion_count": 6,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9570",
+            "9571"
+          ],
+          "processed_reserve_in": 3158,
+          "reserve_out": 45855
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_026_seeded_random_n3_fee75",
+        "executable_completion_count": 24,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9580",
+            "9581",
+            "9582"
+          ],
+          "processed_reserve_in": 3559,
+          "reserve_out": 44615
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_027_flat_n4_fee100",
+        "executable_completion_count": 120,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9590",
+            "9591",
+            "9592",
+            "9593"
+          ],
+          "processed_reserve_in": 2519,
+          "reserve_out": 152483
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_028_ascending_n5_fee0",
+        "executable_completion_count": 720,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "95a0",
+            "95a3",
+            "95a2",
+            "95a1",
+            "95a4"
+          ],
+          "processed_reserve_in": 1987,
+          "reserve_out": 45341
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_029_descending_n6_fee1",
+        "executable_completion_count": 5040,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "95b0",
+            "95b1",
+            "95b2",
+            "95b3",
+            "95b4",
+            "95b5"
+          ],
+          "processed_reserve_in": 3056,
+          "reserve_out": 167599
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_030_fibonacci_n2_fee2",
+        "executable_completion_count": 6,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "95c0",
+            "95c1"
+          ],
+          "processed_reserve_in": 2118,
+          "reserve_out": 130876
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_031_alternating_n3_fee5",
+        "executable_completion_count": 24,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "95d1",
+            "95d0",
+            "95d2"
+          ],
+          "processed_reserve_in": 4075,
+          "reserve_out": 192537
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_032_one_large_prefix_n4_fee30",
+        "executable_completion_count": 120,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "95e0",
+            "95e1",
+            "95e2",
+            "95e3"
+          ],
+          "processed_reserve_in": 2527,
+          "reserve_out": 80376
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_033_one_large_suffix_n5_fee75",
+        "executable_completion_count": 720,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "95f4",
+            "95f0",
+            "95f1",
+            "95f2",
+            "95f3"
+          ],
+          "processed_reserve_in": 3455,
+          "reserve_out": 165474
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_034_near_tie_pairs_n6_fee100",
+        "executable_completion_count": 5040,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9602",
+            "9603",
+            "9604",
+            "9605",
+            "9600",
+            "9601"
+          ],
+          "processed_reserve_in": 836,
+          "reserve_out": 54579
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_035_seeded_random_n2_fee0",
+        "executable_completion_count": 6,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9610",
+            "9611"
+          ],
+          "processed_reserve_in": 658,
+          "reserve_out": 111413
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_036_flat_n3_fee1",
+        "executable_completion_count": 24,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9620",
+            "9621",
+            "9622"
+          ],
+          "processed_reserve_in": 1879,
+          "reserve_out": 84781
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_037_ascending_n4_fee2",
+        "executable_completion_count": 120,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9631",
+            "9630",
+            "9633",
+            "9632"
+          ],
+          "processed_reserve_in": 3278,
+          "reserve_out": 147852
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_038_descending_n5_fee5",
+        "executable_completion_count": 720,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9640",
+            "9641",
+            "9642",
+            "9643",
+            "9644"
+          ],
+          "processed_reserve_in": 909,
+          "reserve_out": 171771
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_039_fibonacci_n6_fee30",
+        "executable_completion_count": 5040,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9655",
+            "9653",
+            "9651",
+            "9652",
+            "9650",
+            "9654"
+          ],
+          "processed_reserve_in": 3007,
+          "reserve_out": 64019
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_040_alternating_n2_fee75",
+        "executable_completion_count": 6,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9661",
+            "9660"
+          ],
+          "processed_reserve_in": 2404,
+          "reserve_out": 176507
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_041_one_large_prefix_n3_fee100",
+        "executable_completion_count": 24,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9670",
+            "9671",
+            "9672"
+          ],
+          "processed_reserve_in": 2027,
+          "reserve_out": 55180
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_042_one_large_suffix_n4_fee0",
+        "executable_completion_count": 120,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9683",
+            "9680",
+            "9681",
+            "9682"
+          ],
+          "processed_reserve_in": 4139,
+          "reserve_out": 99729
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_043_near_tie_pairs_n5_fee1",
+        "executable_completion_count": 720,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9694",
+            "9690",
+            "9691",
+            "9692",
+            "9693"
+          ],
+          "processed_reserve_in": 3048,
+          "reserve_out": 29484
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_044_seeded_random_n6_fee2",
+        "executable_completion_count": 5040,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "96a5",
+            "96a2",
+            "96a0",
+            "96a1",
+            "96a3",
+            "96a4"
+          ],
+          "processed_reserve_in": 2422,
+          "reserve_out": 54489
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_045_flat_n2_fee5",
+        "executable_completion_count": 6,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "96b0",
+            "96b1"
+          ],
+          "processed_reserve_in": 1001,
+          "reserve_out": 138929
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_046_ascending_n3_fee30",
+        "executable_completion_count": 24,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "96c0",
+            "96c2",
+            "96c1"
+          ],
+          "processed_reserve_in": 1818,
+          "reserve_out": 31752
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_047_descending_n4_fee75",
+        "executable_completion_count": 120,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "96d1",
+            "96d0",
+            "96d2",
+            "96d3"
+          ],
+          "processed_reserve_in": 2921,
+          "reserve_out": 121634
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_048_fibonacci_n5_fee100",
+        "executable_completion_count": 720,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "96e3",
+            "96e4",
+            "96e2",
+            "96e1",
+            "96e0"
+          ],
+          "processed_reserve_in": 2967,
+          "reserve_out": 168320
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_049_alternating_n6_fee0",
+        "executable_completion_count": 5040,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "96f0",
+            "96f1",
+            "96f2",
+            "96f4",
+            "96f3",
+            "96f5"
+          ],
+          "processed_reserve_in": 2137,
+          "reserve_out": 148565
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_050_one_large_prefix_n2_fee1",
+        "executable_completion_count": 6,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9700",
+            "9701"
+          ],
+          "processed_reserve_in": 3776,
+          "reserve_out": 140743
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_051_one_large_suffix_n3_fee2",
+        "executable_completion_count": 24,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9712",
+            "9710",
+            "9711"
+          ],
+          "processed_reserve_in": 3254,
+          "reserve_out": 99503
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_052_near_tie_pairs_n4_fee5",
+        "executable_completion_count": 120,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9720",
+            "9722",
+            "9721",
+            "9723"
+          ],
+          "processed_reserve_in": 3169,
+          "reserve_out": 164955
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_053_seeded_random_n5_fee30",
+        "executable_completion_count": 720,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9734",
+            "9732",
+            "9731",
+            "9730",
+            "9733"
+          ],
+          "processed_reserve_in": 1120,
+          "reserve_out": 44975
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_054_flat_n6_fee75",
+        "executable_completion_count": 5040,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9740",
+            "9741",
+            "9742",
+            "9743",
+            "9744",
+            "9745"
+          ],
+          "processed_reserve_in": 2790,
+          "reserve_out": 82604
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_055_ascending_n2_fee100",
+        "executable_completion_count": 6,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9751",
+            "9750"
+          ],
+          "processed_reserve_in": 3154,
+          "reserve_out": 25813
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_056_descending_n3_fee0",
+        "executable_completion_count": 24,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9760",
+            "9761",
+            "9762"
+          ],
+          "processed_reserve_in": 910,
+          "reserve_out": 98497
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_057_fibonacci_n4_fee1",
+        "executable_completion_count": 120,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9770",
+            "9771",
+            "9772",
+            "9773"
+          ],
+          "processed_reserve_in": 2913,
+          "reserve_out": 57497
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_058_alternating_n5_fee2",
+        "executable_completion_count": 720,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9781",
+            "9783",
+            "9780",
+            "9782",
+            "9784"
+          ],
+          "processed_reserve_in": 1592,
+          "reserve_out": 148386
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_059_one_large_prefix_n6_fee5",
+        "executable_completion_count": 5040,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9790",
+            "9791",
+            "9792",
+            "9793",
+            "9794",
+            "9795"
+          ],
+          "processed_reserve_in": 1392,
+          "reserve_out": 133269
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_060_one_large_suffix_n2_fee30",
+        "executable_completion_count": 6,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "97a1",
+            "97a0"
+          ],
+          "processed_reserve_in": 3153,
+          "reserve_out": 47332
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_061_near_tie_pairs_n3_fee75",
+        "executable_completion_count": 24,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "97b0",
+            "97b1",
+            "97b2"
+          ],
+          "processed_reserve_in": 1015,
+          "reserve_out": 54828
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_062_seeded_random_n4_fee100",
+        "executable_completion_count": 120,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "97c0",
+            "97c2",
+            "97c1",
+            "97c3"
+          ],
+          "processed_reserve_in": 1506,
+          "reserve_out": 152840
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_063_flat_n5_fee0",
+        "executable_completion_count": 720,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "97d0",
+            "97d1",
+            "97d2",
+            "97d3",
+            "97d4"
+          ],
+          "processed_reserve_in": 3310,
+          "reserve_out": 57271
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_064_ascending_n6_fee1",
+        "executable_completion_count": 5040,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "97e1",
+            "97e2",
+            "97e5",
+            "97e3",
+            "97e4",
+            "97e0"
+          ],
+          "processed_reserve_in": 2263,
+          "reserve_out": 55459
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_065_descending_n2_fee2",
+        "executable_completion_count": 6,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "97f0",
+            "97f1"
+          ],
+          "processed_reserve_in": 1455,
+          "reserve_out": 32150
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_066_fibonacci_n3_fee5",
+        "executable_completion_count": 24,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9801",
+            "9800",
+            "9802"
+          ],
+          "processed_reserve_in": 2823,
+          "reserve_out": 69114
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_067_alternating_n4_fee30",
+        "executable_completion_count": 120,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9811",
+            "9810",
+            "9813",
+            "9812"
+          ],
+          "processed_reserve_in": 2883,
+          "reserve_out": 108939
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_068_one_large_prefix_n5_fee75",
+        "executable_completion_count": 720,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9820",
+            "9821",
+            "9822",
+            "9823",
+            "9824"
+          ],
+          "processed_reserve_in": 3021,
+          "reserve_out": 190915
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_069_one_large_suffix_n6_fee100",
+        "executable_completion_count": 5040,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9835",
+            "9830",
+            "9831",
+            "9832",
+            "9833",
+            "9834"
+          ],
+          "processed_reserve_in": 2747,
+          "reserve_out": 142140
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_070_near_tie_pairs_n2_fee0",
+        "executable_completion_count": 6,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9840",
+            "9841"
+          ],
+          "processed_reserve_in": 3591,
+          "reserve_out": 86815
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_071_seeded_random_n3_fee1",
+        "executable_completion_count": 24,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9852",
+            "9850",
+            "9851"
+          ],
+          "processed_reserve_in": 1058,
+          "reserve_out": 25917
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_072_flat_n4_fee2",
+        "executable_completion_count": 120,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9860",
+            "9861",
+            "9862",
+            "9863"
+          ],
+          "processed_reserve_in": 2501,
+          "reserve_out": 178494
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_073_ascending_n5_fee5",
+        "executable_completion_count": 720,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9873",
+            "9871",
+            "9872",
+            "9874",
+            "9870"
+          ],
+          "processed_reserve_in": 2370,
+          "reserve_out": 134300
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_074_descending_n6_fee30",
+        "executable_completion_count": 5040,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9880",
+            "9881",
+            "9882",
+            "9883",
+            "9884",
+            "9885"
+          ],
+          "processed_reserve_in": 2351,
+          "reserve_out": 127733
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_075_fibonacci_n2_fee75",
+        "executable_completion_count": 6,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9890",
+            "9891"
+          ],
+          "processed_reserve_in": 2276,
+          "reserve_out": 42476
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_076_alternating_n3_fee100",
+        "executable_completion_count": 24,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "98a0",
+            "98a1",
+            "98a2"
+          ],
+          "processed_reserve_in": 3313,
+          "reserve_out": 156729
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_077_one_large_prefix_n4_fee0",
+        "executable_completion_count": 120,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "98b0",
+            "98b1",
+            "98b2",
+            "98b3"
+          ],
+          "processed_reserve_in": 3302,
+          "reserve_out": 96333
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_078_one_large_suffix_n5_fee1",
+        "executable_completion_count": 720,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "98c4",
+            "98c0",
+            "98c1",
+            "98c2",
+            "98c3"
+          ],
+          "processed_reserve_in": 2425,
+          "reserve_out": 37851
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_079_near_tie_pairs_n6_fee2",
+        "executable_completion_count": 5040,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "98d0",
+            "98d2",
+            "98d4",
+            "98d3",
+            "98d5",
+            "98d1"
+          ],
+          "processed_reserve_in": 2004,
+          "reserve_out": 112660
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_080_seeded_random_n2_fee5",
+        "executable_completion_count": 6,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "98e0",
+            "98e1"
+          ],
+          "processed_reserve_in": 2889,
+          "reserve_out": 189930
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_081_flat_n3_fee30",
+        "executable_completion_count": 24,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "98f0",
+            "98f1",
+            "98f2"
+          ],
+          "processed_reserve_in": 2548,
+          "reserve_out": 23595
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_082_ascending_n4_fee75",
+        "executable_completion_count": 120,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9900",
+            "9903",
+            "9902",
+            "9901"
+          ],
+          "processed_reserve_in": 2213,
+          "reserve_out": 175301
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_083_descending_n5_fee100",
+        "executable_completion_count": 720,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9910",
+            "9911",
+            "9913",
+            "9912",
+            "9914"
+          ],
+          "processed_reserve_in": 2043,
+          "reserve_out": 127471
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_084_fibonacci_n6_fee0",
+        "executable_completion_count": 5040,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9920",
+            "9921",
+            "9923",
+            "9922",
+            "9924",
+            "9925"
+          ],
+          "processed_reserve_in": 4452,
+          "reserve_out": 194776
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_085_alternating_n2_fee1",
+        "executable_completion_count": 6,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9931",
+            "9930"
+          ],
+          "processed_reserve_in": 1911,
+          "reserve_out": 74787
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_086_one_large_prefix_n3_fee2",
+        "executable_completion_count": 24,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9940",
+            "9941",
+            "9942"
+          ],
+          "processed_reserve_in": 3734,
+          "reserve_out": 170485
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_087_one_large_suffix_n4_fee5",
+        "executable_completion_count": 120,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9953",
+            "9950",
+            "9951",
+            "9952"
+          ],
+          "processed_reserve_in": 2622,
+          "reserve_out": 146700
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_088_near_tie_pairs_n5_fee30",
+        "executable_completion_count": 720,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9960",
+            "9962",
+            "9964",
+            "9961",
+            "9963"
+          ],
+          "processed_reserve_in": 3466,
+          "reserve_out": 170742
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_089_seeded_random_n6_fee75",
+        "executable_completion_count": 5040,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9974",
+            "9970",
+            "9971",
+            "9973",
+            "9972",
+            "9975"
+          ],
+          "processed_reserve_in": 1903,
+          "reserve_out": 150470
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_090_flat_n2_fee100",
+        "executable_completion_count": 6,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9980",
+            "9981"
+          ],
+          "processed_reserve_in": 2992,
+          "reserve_out": 129836
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_091_ascending_n3_fee0",
+        "executable_completion_count": 24,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9990",
+            "9991",
+            "9992"
+          ],
+          "processed_reserve_in": 3107,
+          "reserve_out": 185804
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_092_descending_n4_fee1",
+        "executable_completion_count": 120,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "99a0",
+            "99a1",
+            "99a2",
+            "99a3"
+          ],
+          "processed_reserve_in": 741,
+          "reserve_out": 118337
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_093_fibonacci_n5_fee2",
+        "executable_completion_count": 720,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "99b4",
+            "99b1",
+            "99b2",
+            "99b3",
+            "99b0"
+          ],
+          "processed_reserve_in": 2201,
+          "reserve_out": 188297
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_094_alternating_n6_fee5",
+        "executable_completion_count": 5040,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "99c1",
+            "99c3",
+            "99c0",
+            "99c5",
+            "99c2",
+            "99c4"
+          ],
+          "processed_reserve_in": 3404,
+          "reserve_out": 125190
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_095_one_large_prefix_n2_fee30",
+        "executable_completion_count": 6,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "99d0",
+            "99d1"
+          ],
+          "processed_reserve_in": 1961,
+          "reserve_out": 169901
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_096_one_large_suffix_n3_fee75",
+        "executable_completion_count": 24,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "99e2",
+            "99e0",
+            "99e1"
+          ],
+          "processed_reserve_in": 3402,
+          "reserve_out": 101948
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_097_near_tie_pairs_n4_fee100",
+        "executable_completion_count": 120,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "99f0",
+            "99f1",
+            "99f2",
+            "99f3"
+          ],
+          "processed_reserve_in": 1250,
+          "reserve_out": 98383
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_098_seeded_random_n5_fee0",
+        "executable_completion_count": 720,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9a00",
+            "9a01",
+            "9a02",
+            "9a03",
+            "9a04"
+          ],
+          "processed_reserve_in": 3891,
+          "reserve_out": 46541
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_099_flat_n6_fee1",
+        "executable_completion_count": 5040,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9a10",
+            "9a11",
+            "9a12",
+            "9a13",
+            "9a14",
+            "9a15"
+          ],
+          "processed_reserve_in": 2009,
+          "reserve_out": 70501
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_100_ascending_n2_fee2",
+        "executable_completion_count": 6,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9a20",
+            "9a21"
+          ],
+          "processed_reserve_in": 3747,
+          "reserve_out": 23742
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_101_descending_n3_fee5",
+        "executable_completion_count": 24,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9a30",
+            "9a31",
+            "9a32"
+          ],
+          "processed_reserve_in": 3200,
+          "reserve_out": 114666
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_102_fibonacci_n4_fee30",
+        "executable_completion_count": 120,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9a43",
+            "9a40",
+            "9a42",
+            "9a41"
+          ],
+          "processed_reserve_in": 1878,
+          "reserve_out": 73046
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_103_alternating_n5_fee75",
+        "executable_completion_count": 720,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9a51",
+            "9a50",
+            "9a53",
+            "9a52",
+            "9a54"
+          ],
+          "processed_reserve_in": 3305,
+          "reserve_out": 185946
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_104_one_large_prefix_n6_fee100",
+        "executable_completion_count": 5040,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9a60",
+            "9a61",
+            "9a62",
+            "9a63",
+            "9a64",
+            "9a65"
+          ],
+          "processed_reserve_in": 822,
+          "reserve_out": 48728
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_105_one_large_suffix_n2_fee0",
+        "executable_completion_count": 6,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9a70",
+            "9a71"
+          ],
+          "processed_reserve_in": 1198,
+          "reserve_out": 90057
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_106_near_tie_pairs_n3_fee1",
+        "executable_completion_count": 24,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9a82",
+            "9a80",
+            "9a81"
+          ],
+          "processed_reserve_in": 900,
+          "reserve_out": 92803
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_107_seeded_random_n4_fee2",
+        "executable_completion_count": 120,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9a91",
+            "9a90",
+            "9a93",
+            "9a92"
+          ],
+          "processed_reserve_in": 961,
+          "reserve_out": 116388
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_108_flat_n5_fee5",
+        "executable_completion_count": 720,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9aa0",
+            "9aa1",
+            "9aa2",
+            "9aa3",
+            "9aa4"
+          ],
+          "processed_reserve_in": 2354,
+          "reserve_out": 97466
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_109_ascending_n6_fee30",
+        "executable_completion_count": 5040,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9ab5",
+            "9ab3",
+            "9ab2",
+            "9ab1",
+            "9ab4",
+            "9ab0"
+          ],
+          "processed_reserve_in": 2610,
+          "reserve_out": 40707
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_110_descending_n2_fee75",
+        "executable_completion_count": 6,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9ac0",
+            "9ac1"
+          ],
+          "processed_reserve_in": 734,
+          "reserve_out": 57975
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_111_fibonacci_n3_fee100",
+        "executable_completion_count": 24,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9ad0",
+            "9ad2",
+            "9ad1"
+          ],
+          "processed_reserve_in": 2536,
+          "reserve_out": 132990
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_112_alternating_n4_fee0",
+        "executable_completion_count": 120,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9ae1",
+            "9ae3",
+            "9ae0",
+            "9ae2"
+          ],
+          "processed_reserve_in": 2678,
+          "reserve_out": 125151
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_113_one_large_prefix_n5_fee1",
+        "executable_completion_count": 720,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9af0",
+            "9af1",
+            "9af2",
+            "9af3",
+            "9af4"
+          ],
+          "processed_reserve_in": 3740,
+          "reserve_out": 131757
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_114_one_large_suffix_n6_fee2",
+        "executable_completion_count": 5040,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9b05",
+            "9b00",
+            "9b01",
+            "9b02",
+            "9b03",
+            "9b04"
+          ],
+          "processed_reserve_in": 920,
+          "reserve_out": 47582
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_115_near_tie_pairs_n2_fee5",
+        "executable_completion_count": 6,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9b10",
+            "9b11"
+          ],
+          "processed_reserve_in": 2821,
+          "reserve_out": 98755
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_116_seeded_random_n3_fee30",
+        "executable_completion_count": 24,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9b20",
+            "9b21",
+            "9b22"
+          ],
+          "processed_reserve_in": 1246,
+          "reserve_out": 44727
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_117_flat_n4_fee75",
+        "executable_completion_count": 120,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9b30",
+            "9b31",
+            "9b32",
+            "9b33"
+          ],
+          "processed_reserve_in": 3645,
+          "reserve_out": 146544
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_118_ascending_n5_fee100",
+        "executable_completion_count": 720,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9b42",
+            "9b44",
+            "9b41",
+            "9b43",
+            "9b40"
+          ],
+          "processed_reserve_in": 2812,
+          "reserve_out": 101140
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_119_descending_n6_fee0",
+        "executable_completion_count": 5040,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9b50",
+            "9b51",
+            "9b53",
+            "9b52",
+            "9b54",
+            "9b55"
+          ],
+          "processed_reserve_in": 2768,
+          "reserve_out": 162131
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_120_fibonacci_n2_fee1",
+        "executable_completion_count": 6,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9b60",
+            "9b61"
+          ],
+          "processed_reserve_in": 3734,
+          "reserve_out": 183079
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_121_alternating_n3_fee2",
+        "executable_completion_count": 24,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9b70",
+            "9b71",
+            "9b72"
+          ],
+          "processed_reserve_in": 3827,
+          "reserve_out": 141742
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_122_one_large_prefix_n4_fee5",
+        "executable_completion_count": 120,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9b80",
+            "9b81",
+            "9b82",
+            "9b83"
+          ],
+          "processed_reserve_in": 3247,
+          "reserve_out": 80141
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_123_one_large_suffix_n5_fee30",
+        "executable_completion_count": 720,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9b94",
+            "9b90",
+            "9b91",
+            "9b92",
+            "9b93"
+          ],
+          "processed_reserve_in": 2214,
+          "reserve_out": 134967
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_124_near_tie_pairs_n6_fee75",
+        "executable_completion_count": 5040,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9ba2",
+            "9ba3",
+            "9ba4",
+            "9ba5",
+            "9ba0",
+            "9ba1"
+          ],
+          "processed_reserve_in": 1160,
+          "reserve_out": 166579
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_125_seeded_random_n2_fee100",
+        "executable_completion_count": 6,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9bb0",
+            "9bb1"
+          ],
+          "processed_reserve_in": 2158,
+          "reserve_out": 100206
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_126_flat_n3_fee0",
+        "executable_completion_count": 24,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9bc0",
+            "9bc1",
+            "9bc2"
+          ],
+          "processed_reserve_in": 2896,
+          "reserve_out": 186654
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_127_ascending_n4_fee1",
+        "executable_completion_count": 120,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9bd2",
+            "9bd3",
+            "9bd1",
+            "9bd0"
+          ],
+          "processed_reserve_in": 3808,
+          "reserve_out": 181146
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_128_descending_n5_fee2",
+        "executable_completion_count": 720,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9be0",
+            "9be1",
+            "9be2",
+            "9be3",
+            "9be4"
+          ],
+          "processed_reserve_in": 1943,
+          "reserve_out": 126643
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_129_fibonacci_n6_fee5",
+        "executable_completion_count": 5040,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9bf3",
+            "9bf5",
+            "9bf2",
+            "9bf4",
+            "9bf0",
+            "9bf1"
+          ],
+          "processed_reserve_in": 3498,
+          "reserve_out": 129404
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_130_alternating_n2_fee30",
+        "executable_completion_count": 6,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9c01",
+            "9c00"
+          ],
+          "processed_reserve_in": 2834,
+          "reserve_out": 89048
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_131_one_large_prefix_n3_fee75",
+        "executable_completion_count": 24,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9c10",
+            "9c11",
+            "9c12"
+          ],
+          "processed_reserve_in": 3592,
+          "reserve_out": 29193
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_132_one_large_suffix_n4_fee100",
+        "executable_completion_count": 120,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9c23",
+            "9c20",
+            "9c21",
+            "9c22"
+          ],
+          "processed_reserve_in": 2597,
+          "reserve_out": 191848
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_133_near_tie_pairs_n5_fee0",
+        "executable_completion_count": 720,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9c30",
+            "9c31",
+            "9c34",
+            "9c32",
+            "9c33"
+          ],
+          "processed_reserve_in": 3745,
+          "reserve_out": 183664
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_134_seeded_random_n6_fee1",
+        "executable_completion_count": 5040,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9c42",
+            "9c40",
+            "9c41",
+            "9c45",
+            "9c43",
+            "9c44"
+          ],
+          "processed_reserve_in": 1729,
+          "reserve_out": 63293
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_135_flat_n2_fee2",
+        "executable_completion_count": 6,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9c50",
+            "9c51"
+          ],
+          "processed_reserve_in": 3432,
+          "reserve_out": 106352
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_136_ascending_n3_fee5",
+        "executable_completion_count": 24,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9c62",
+            "9c60",
+            "9c61"
+          ],
+          "processed_reserve_in": 690,
+          "reserve_out": 99747
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_137_descending_n4_fee30",
+        "executable_completion_count": 120,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9c71",
+            "9c70",
+            "9c72",
+            "9c73"
+          ],
+          "processed_reserve_in": 2966,
+          "reserve_out": 32541
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_138_fibonacci_n5_fee75",
+        "executable_completion_count": 720,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9c84",
+            "9c83",
+            "9c80",
+            "9c81",
+            "9c82"
+          ],
+          "processed_reserve_in": 1706,
+          "reserve_out": 93943
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_139_alternating_n6_fee100",
+        "executable_completion_count": 5040,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9c91",
+            "9c93",
+            "9c95",
+            "9c90",
+            "9c92",
+            "9c94"
+          ],
+          "processed_reserve_in": 1354,
+          "reserve_out": 74190
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_140_one_large_prefix_n2_fee0",
+        "executable_completion_count": 6,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9ca1",
+            "9ca0"
+          ],
+          "processed_reserve_in": 3740,
+          "reserve_out": 73709
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_141_one_large_suffix_n3_fee1",
+        "executable_completion_count": 24,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9cb2",
+            "9cb0",
+            "9cb1"
+          ],
+          "processed_reserve_in": 897,
+          "reserve_out": 39971
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_142_near_tie_pairs_n4_fee2",
+        "executable_completion_count": 120,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9cc0",
+            "9cc2",
+            "9cc3",
+            "9cc1"
+          ],
+          "processed_reserve_in": 930,
+          "reserve_out": 80129
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_143_seeded_random_n5_fee5",
+        "executable_completion_count": 720,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9cd2",
+            "9cd4",
+            "9cd3",
+            "9cd1",
+            "9cd0"
+          ],
+          "processed_reserve_in": 2556,
+          "reserve_out": 78237
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_144_flat_n6_fee30",
+        "executable_completion_count": 5040,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9ce0",
+            "9ce1",
+            "9ce2",
+            "9ce3",
+            "9ce4",
+            "9ce5"
+          ],
+          "processed_reserve_in": 809,
+          "reserve_out": 178262
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_145_ascending_n2_fee75",
+        "executable_completion_count": 6,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9cf0",
+            "9cf1"
+          ],
+          "processed_reserve_in": 2463,
+          "reserve_out": 70192
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_146_descending_n3_fee100",
+        "executable_completion_count": 24,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9d00",
+            "9d01",
+            "9d02"
+          ],
+          "processed_reserve_in": 2854,
+          "reserve_out": 132455
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_147_fibonacci_n4_fee0",
+        "executable_completion_count": 120,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9d11",
+            "9d13",
+            "9d10",
+            "9d12"
+          ],
+          "processed_reserve_in": 3257,
+          "reserve_out": 195713
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_148_alternating_n5_fee1",
+        "executable_completion_count": 720,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9d21",
+            "9d20",
+            "9d23",
+            "9d22",
+            "9d24"
+          ],
+          "processed_reserve_in": 3000,
+          "reserve_out": 34007
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_149_one_large_prefix_n6_fee2",
+        "executable_completion_count": 5040,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9d30",
+            "9d31",
+            "9d32",
+            "9d33",
+            "9d34",
+            "9d35"
+          ],
+          "processed_reserve_in": 4265,
+          "reserve_out": 155798
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_150_one_large_suffix_n2_fee5",
+        "executable_completion_count": 6,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9d41",
+            "9d40"
+          ],
+          "processed_reserve_in": 2469,
+          "reserve_out": 147176
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_151_near_tie_pairs_n3_fee30",
+        "executable_completion_count": 24,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9d50",
+            "9d51",
+            "9d52"
+          ],
+          "processed_reserve_in": 3512,
+          "reserve_out": 157825
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_152_seeded_random_n4_fee75",
+        "executable_completion_count": 120,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9d62",
+            "9d60",
+            "9d61",
+            "9d63"
+          ],
+          "processed_reserve_in": 3729,
+          "reserve_out": 173992
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_153_flat_n5_fee100",
+        "executable_completion_count": 720,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9d70",
+            "9d71",
+            "9d72",
+            "9d73",
+            "9d74"
+          ],
+          "processed_reserve_in": 3779,
+          "reserve_out": 168545
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_154_ascending_n6_fee0",
+        "executable_completion_count": 5040,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9d81",
+            "9d83",
+            "9d82",
+            "9d85",
+            "9d84",
+            "9d80"
+          ],
+          "processed_reserve_in": 3237,
+          "reserve_out": 78813
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_155_descending_n2_fee1",
+        "executable_completion_count": 6,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9d91",
+            "9d90"
+          ],
+          "processed_reserve_in": 2193,
+          "reserve_out": 32639
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_156_fibonacci_n3_fee2",
+        "executable_completion_count": 24,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9da2",
+            "9da0",
+            "9da1"
+          ],
+          "processed_reserve_in": 1743,
+          "reserve_out": 118032
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_157_alternating_n4_fee5",
+        "executable_completion_count": 120,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9db1",
+            "9db3",
+            "9db0",
+            "9db2"
+          ],
+          "processed_reserve_in": 4004,
+          "reserve_out": 58462
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_158_one_large_prefix_n5_fee30",
+        "executable_completion_count": 720,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9dc0",
+            "9dc1",
+            "9dc2",
+            "9dc3",
+            "9dc4"
+          ],
+          "processed_reserve_in": 1571,
+          "reserve_out": 122120
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_159_one_large_suffix_n6_fee75",
+        "executable_completion_count": 5040,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9dd5",
+            "9dd0",
+            "9dd1",
+            "9dd2",
+            "9dd3",
+            "9dd4"
+          ],
+          "processed_reserve_in": 1487,
+          "reserve_out": 141628
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_160_near_tie_pairs_n2_fee100",
+        "executable_completion_count": 6,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9de0",
+            "9de1"
+          ],
+          "processed_reserve_in": 1072,
+          "reserve_out": 62818
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_161_seeded_random_n3_fee0",
+        "executable_completion_count": 24,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9df0",
+            "9df1",
+            "9df2"
+          ],
+          "processed_reserve_in": 1232,
+          "reserve_out": 164006
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_162_flat_n4_fee1",
+        "executable_completion_count": 120,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9e00",
+            "9e01",
+            "9e02",
+            "9e03"
+          ],
+          "processed_reserve_in": 1989,
+          "reserve_out": 193496
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_163_ascending_n5_fee2",
+        "executable_completion_count": 720,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9e14",
+            "9e12",
+            "9e13",
+            "9e11",
+            "9e10"
+          ],
+          "processed_reserve_in": 1387,
+          "reserve_out": 111796
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_164_descending_n6_fee5",
+        "executable_completion_count": 5040,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9e20",
+            "9e22",
+            "9e23",
+            "9e21",
+            "9e24",
+            "9e25"
+          ],
+          "processed_reserve_in": 3194,
+          "reserve_out": 84927
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_165_fibonacci_n2_fee30",
+        "executable_completion_count": 6,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9e30",
+            "9e31"
+          ],
+          "processed_reserve_in": 2387,
+          "reserve_out": 184497
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_166_alternating_n3_fee75",
+        "executable_completion_count": 24,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9e41",
+            "9e40",
+            "9e42"
+          ],
+          "processed_reserve_in": 3976,
+          "reserve_out": 130672
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_167_one_large_prefix_n4_fee100",
+        "executable_completion_count": 120,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9e50",
+            "9e51",
+            "9e52",
+            "9e53"
+          ],
+          "processed_reserve_in": 3007,
+          "reserve_out": 61279
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_168_one_large_suffix_n5_fee0",
+        "executable_completion_count": 720,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9e60",
+            "9e61",
+            "9e62",
+            "9e63",
+            "9e64"
+          ],
+          "processed_reserve_in": 2502,
+          "reserve_out": 169233
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_169_near_tie_pairs_n6_fee1",
+        "executable_completion_count": 5040,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9e70",
+            "9e71",
+            "9e72",
+            "9e73",
+            "9e74",
+            "9e75"
+          ],
+          "processed_reserve_in": 3303,
+          "reserve_out": 102900
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_170_seeded_random_n2_fee2",
+        "executable_completion_count": 6,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9e81",
+            "9e80"
+          ],
+          "processed_reserve_in": 1592,
+          "reserve_out": 154526
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_171_flat_n3_fee5",
+        "executable_completion_count": 24,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9e90",
+            "9e91",
+            "9e92"
+          ],
+          "processed_reserve_in": 842,
+          "reserve_out": 148615
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "flat",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_172_ascending_n4_fee30",
+        "executable_completion_count": 120,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9ea1",
+            "9ea0",
+            "9ea3",
+            "9ea2"
+          ],
+          "processed_reserve_in": 3579,
+          "reserve_out": 188129
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "ascending",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_173_descending_n5_fee75",
+        "executable_completion_count": 720,
+        "fee_bps": 75,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9eb0",
+            "9eb1",
+            "9eb2",
+            "9eb3",
+            "9eb4"
+          ],
+          "processed_reserve_in": 3179,
+          "reserve_out": 116146
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "descending",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_174_fibonacci_n6_fee100",
+        "executable_completion_count": 5040,
+        "fee_bps": 100,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9ec5",
+            "9ec4",
+            "9ec1",
+            "9ec3",
+            "9ec2",
+            "9ec0"
+          ],
+          "processed_reserve_in": 1789,
+          "reserve_out": 74808
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "fibonacci",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      },
+      {
+        "bit_count": 2,
+        "case_id": "stress_175_alternating_n2_fee0",
+        "executable_completion_count": 6,
+        "fee_bps": 0,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9ed0",
+            "9ed1"
+          ],
+          "processed_reserve_in": 1122,
+          "reserve_out": 168763
+        },
+        "mask_count": 4,
+        "max_records_per_mask": 2,
+        "max_suffix_per_record": 2,
+        "ok": true,
+        "pattern": "alternating",
+        "reasons": [],
+        "record_count": 5,
+        "suffix_check_count": 6
+      },
+      {
+        "bit_count": 3,
+        "case_id": "stress_176_one_large_prefix_n3_fee1",
+        "executable_completion_count": 24,
+        "fee_bps": 1,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9ee0",
+            "9ee1",
+            "9ee2"
+          ],
+          "processed_reserve_in": 1537,
+          "reserve_out": 133427
+        },
+        "mask_count": 8,
+        "max_records_per_mask": 6,
+        "max_suffix_per_record": 6,
+        "ok": true,
+        "pattern": "one_large_prefix",
+        "reasons": [],
+        "record_count": 16,
+        "suffix_check_count": 24
+      },
+      {
+        "bit_count": 4,
+        "case_id": "stress_177_one_large_suffix_n4_fee2",
+        "executable_completion_count": 120,
+        "fee_bps": 2,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9ef3",
+            "9ef0",
+            "9ef1",
+            "9ef2"
+          ],
+          "processed_reserve_in": 1300,
+          "reserve_out": 103080
+        },
+        "mask_count": 16,
+        "max_records_per_mask": 24,
+        "max_suffix_per_record": 24,
+        "ok": true,
+        "pattern": "one_large_suffix",
+        "reasons": [],
+        "record_count": 65,
+        "suffix_check_count": 120
+      },
+      {
+        "bit_count": 5,
+        "case_id": "stress_178_near_tie_pairs_n5_fee5",
+        "executable_completion_count": 720,
+        "fee_bps": 5,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9f04",
+            "9f02",
+            "9f03",
+            "9f00",
+            "9f01"
+          ],
+          "processed_reserve_in": 898,
+          "reserve_out": 151204
+        },
+        "mask_count": 32,
+        "max_records_per_mask": 120,
+        "max_suffix_per_record": 120,
+        "ok": true,
+        "pattern": "near_tie_pairs",
+        "reasons": [],
+        "record_count": 326,
+        "suffix_check_count": 720
+      },
+      {
+        "bit_count": 6,
+        "case_id": "stress_179_seeded_random_n6_fee30",
+        "executable_completion_count": 5040,
+        "fee_bps": 30,
+        "first_failure": null,
+        "full_mask_selected": {
+          "order_short": [
+            "9f14",
+            "9f15",
+            "9f10",
+            "9f11",
+            "9f13",
+            "9f12"
+          ],
+          "processed_reserve_in": 1911,
+          "reserve_out": 70314
+        },
+        "mask_count": 64,
+        "max_records_per_mask": 720,
+        "max_suffix_per_record": 720,
+        "ok": true,
+        "pattern": "seeded_random",
+        "reasons": [],
+        "record_count": 1957,
+        "suffix_check_count": 5040
+      }
+    ],
+    "coverage": {
+      "fee_bps_counts": {
+        "0": 26,
+        "1": 26,
+        "100": 25,
+        "2": 26,
+        "30": 26,
+        "5": 26,
+        "75": 25
+      },
+      "n_counts": {
+        "2": 36,
+        "3": 36,
+        "4": 36,
+        "5": 36,
+        "6": 36
+      },
+      "pattern_counts": {
+        "alternating": 20,
+        "ascending": 20,
+        "descending": 20,
+        "fibonacci": 20,
+        "flat": 20,
+        "near_tie_pairs": 20,
+        "one_large_prefix": 20,
+        "one_large_suffix": 20,
+        "seeded_random": 20
+      }
+    },
+    "elapsed_ms": 14270.165,
+    "executable_completion_count": 212760,
+    "first_invalid_case": null,
+    "mask_count": 4464,
+    "max_records_per_mask": 720,
+    "max_suffix_per_record": 720,
+    "negative_control_accept_count": 0,
+    "negative_control_count": 6,
+    "negative_controls": [
+      {
+        "accepted": false,
+        "expected_reason": "compressed_record_missing",
+        "first_failure": {
+          "case_id": "stress_000_flat_n2_fee0",
+          "mask_id": 0,
+          "reason": "compressed_record_missing"
+        },
+        "mutation_id": "compressed_record_missing",
+        "reasons": [
+          "compressed_record_missing"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "full_record_processed_reserve_in_mismatch",
+        "first_failure": {
+          "case_id": "stress_000_flat_n2_fee0",
+          "mask_id": 0,
+          "reason": "selected_record_not_in_full_state_records",
+          "selected": {
+            "order_short": [],
+            "processed_reserve_in": 512,
+            "reserve_out": 33020
+          }
+        },
+        "mutation_id": "full_record_processed_reserve_in_mismatch",
+        "reasons": [
+          "selected_record_not_in_full_state_records",
+          "full_record_processed_reserve_in_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "selected_reserve_out_not_min",
+        "first_failure": {
+          "case_id": "stress_000_flat_n2_fee0",
+          "mask_id": 0,
+          "reason": "selected_record_not_in_full_state_records",
+          "selected": {
+            "order_short": [],
+            "processed_reserve_in": 512,
+            "reserve_out": 33021
+          }
+        },
+        "mutation_id": "selected_reserve_out_not_min",
+        "reasons": [
+          "selected_record_not_in_full_state_records",
+          "selected_reserve_out_not_min",
+          "selected_final_reserve_dominance_failure"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "selected_record_not_in_full_state_records",
+        "first_failure": {
+          "case_id": "stress_000_flat_n2_fee0",
+          "mask_id": 0,
+          "reason": "selected_record_not_in_full_state_records",
+          "selected": {
+            "order_short": [
+              "rder"
+            ],
+            "processed_reserve_in": 512,
+            "reserve_out": 33020
+          }
+        },
+        "mutation_id": "selected_record_not_in_full_state_records",
+        "reasons": [
+          "selected_record_not_in_full_state_records"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "selected_suffix_executability_gap",
+        "first_failure": {
+          "case_id": "stress_000_flat_n2_fee0",
+          "mask_id": 0,
+          "reason": "selected_record_not_in_full_state_records",
+          "selected": {
+            "order_short": [],
+            "processed_reserve_in": 512,
+            "reserve_out": 1
+          }
+        },
+        "mutation_id": "selected_suffix_executability_gap",
+        "reasons": [
+          "selected_record_not_in_full_state_records",
+          "selected_reserve_out_not_min",
+          "selected_suffix_executability_gap"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "selected_final_reserve_dominance_failure",
+        "first_failure": {
+          "case_id": "stress_000_flat_n2_fee0",
+          "mask_id": 0,
+          "reason": "selected_record_not_in_full_state_records",
+          "selected": {
+            "order_short": [],
+            "processed_reserve_in": 512,
+            "reserve_out": 34020
+          }
+        },
+        "mutation_id": "selected_final_reserve_dominance_failure",
+        "reasons": [
+          "selected_record_not_in_full_state_records",
+          "selected_reserve_out_not_min",
+          "selected_final_reserve_dominance_failure"
+        ]
+      }
+    ],
+    "record_count": 85284,
+    "schema": "zenodex/ab_strict_zero_min_subset_induction_witness_search/v1",
+    "seed": 2026062901,
+    "strict_case_count": 180,
+    "suffix_check_count": 212760,
+    "valid_case_count": 180
+  },
+  "summary": "A bounded host oracle checks the subset-mask induction obligations for strict zero-min one-record min-reserve-out compression across the deterministic stress corpus."
+}

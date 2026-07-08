@@ -10,6 +10,8 @@ from src.core.perp_runtime_risk_gate import (
     ACTION_PUBLISH_CLEARING_PRICE,
     ACTION_SET_MARKET_PARAMS,
     ACTION_SET_POSITION,
+    ACTION_SETTLE_FUNDING_CLOSEOUT_CARRIED_LIABILITY,
+    ACTION_SETTLE_FUNDING_CLOSEOUT_RECOVERY,
     evaluate_perp_runtime_risk_gate,
     perp_runtime_risk_gate_error,
 )
@@ -148,6 +150,50 @@ def test_runtime_risk_gate_partial_liquidate_rejects_sender_binding() -> None:
 
     assert outcome.reject_code == "SenderBindingInvalid"
     assert perp_runtime_risk_gate_error(outcome, action="partial_liquidate") == "account_pubkey must match tx sender"
+
+
+def test_runtime_risk_gate_settle_carried_liability_is_operator_only() -> None:
+    outcome = evaluate_perp_runtime_risk_gate(
+        action_kind=ACTION_SETTLE_FUNDING_CLOSEOUT_CARRIED_LIABILITY,
+        operator_ok=False,
+        unknown_fields_ok=True,
+        sender_binding_ok=True,
+        epoch_settled_ok=True,
+        positive_price_ok=True,
+        positions_flat_ok=True,
+        params_object_ok=True,
+    )
+
+    assert outcome.reject_code == "OperatorOnly"
+    assert (
+        perp_runtime_risk_gate_error(
+            outcome,
+            action="settle_funding_closeout_carried_liability",
+        )
+        == "operator only"
+    )
+
+
+def test_runtime_risk_gate_settle_closeout_recovery_is_operator_only() -> None:
+    outcome = evaluate_perp_runtime_risk_gate(
+        action_kind=ACTION_SETTLE_FUNDING_CLOSEOUT_RECOVERY,
+        operator_ok=False,
+        unknown_fields_ok=True,
+        sender_binding_ok=True,
+        epoch_settled_ok=True,
+        positive_price_ok=True,
+        positions_flat_ok=True,
+        params_object_ok=True,
+    )
+
+    assert outcome.reject_code == "OperatorOnly"
+    assert (
+        perp_runtime_risk_gate_error(
+            outcome,
+            action="settle_funding_closeout_recovery",
+        )
+        == "operator only"
+    )
 
 
 

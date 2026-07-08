@@ -24,6 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Mapping, Sequence
 
+from src.core.perp_liquidation_envelope import require_perp_liquidation_envelope_bps
 from src.core.perp_np_matching import (
     BPS_SCALE,
     I128_MAX,
@@ -151,6 +152,13 @@ class MarketParams:
             raise ValueError("min_notional_for_bounty_e8 must be an int")
         if self.min_notional_for_bounty_e8 < 0:
             raise ValueError("min_notional_for_bounty_e8 must be non-negative")
+        require_perp_liquidation_envelope_bps(
+            initial_margin_bps=self.initial_margin_bps,
+            maintenance_margin_bps=self.maintenance_margin_bps,
+            depeg_buffer_bps=self.depeg_buffer_bps,
+            max_oracle_move_bps=self.max_oracle_move_bps,
+            liquidation_penalty_bps=self.liquidation_penalty_bps,
+        )
 
     def match_params(self) -> MatchParams:
         return MatchParams(self.initial_margin_bps, self.max_position_abs)

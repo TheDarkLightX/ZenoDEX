@@ -1,0 +1,219 @@
+{
+  "authority_boundary": "Research-only certificate-boundary evidence; no settlement, state-root, production, routing, matching, pool-mutation, or governance authority.",
+  "date": "2026-06-29",
+  "design_recommendation": [
+    "Use canonical sorted leaf-index binding with count-aware Merkle membership proofs.",
+    "Reject permuted roots even when they contain the same child-state set.",
+    "Treat count-aware membership alone as a no-extra check, not as a canonical-root check."
+  ],
+  "deterministic_replay": {
+    "first_hash": "ccf6bd41b5d3892fed3b45778a058e5c1ef8f41ef2fa0297eae9b406a953250b",
+    "ok": true,
+    "second_hash": "ccf6bd41b5d3892fed3b45778a058e5c1ef8f41ef2fa0297eae9b406a953250b"
+  },
+  "hypothesis_card": {
+    "expected_metric_delta": {
+      "cap_efficiency": "0",
+      "determinism_simplicity": "+single root per sorted child-state set",
+      "execution_quality": "0",
+      "perf_cost": "+canonical index equality checks",
+      "safety": "+rejects permuted-root certificate malleability"
+    },
+    "falsification_recipe": "Build two packets for the same child states: one sorted, one permuted. Count-aware membership accepts both roots; canonical index verification rejects the permuted root.",
+    "formal_obligations": "A formal version should prove canonical sorted leaf-index binding gives a unique Merkle root for a scoped unique child-state set.",
+    "hypothesis_id": "H-AB-CANONICAL-INDEX-MERKLE-CERTIFICATE-20260629",
+    "mechanism_change": "Bind each child-state membership proof to the canonical sorted leaf index before accepting a generated-image Merkle root.",
+    "null_hypothesis": "Count-aware membership proofs are enough to make a generated-image root canonical for a bounded child-state set.",
+    "representation_shift_used": "certificate_boundary",
+    "risk_modes": [
+      "permuted root malleability",
+      "leaf index replay",
+      "duplicate leaf index",
+      "missing canonical-index rail",
+      "authority leakage"
+    ],
+    "status": "supported_bounded",
+    "support_recipe": "Accept the canonical packet, reject the permuted packet with canonical_leaf_index_mismatch, reject missing canonical-index binding, and reject all negative controls."
+  },
+  "non_claims": [
+    "Scope is limited to a bounded certificate-boundary countermodel and checker design.",
+    "This artifact does not prove child-frontier generation in Lean.",
+    "This artifact does not prove Python-to-Lean refinement.",
+    "This artifact does not replace a deterministic generated-image producer.",
+    "This artifact does not cover nonzero min_amount_out behavior.",
+    "No settlement, state-root, production, routing, matching, pool-mutation, or governance authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_child_frontier_canonical_index_merkle_certificate_20260629.py",
+  "schema": "zenodex.ab_child_frontier_canonical_index_merkle_report.v1",
+  "search": {
+    "canonical_generated_state_root": "aa7ec0b30917784becf3806b06fc63fe831e14ed94eb227d958f83a08b3e0e7a",
+    "canonical_index_canonical": {
+      "child_state_count": 2,
+      "covered_child_state_count": 2,
+      "generated_state_count": 2,
+      "membership_count": 2,
+      "ok": true,
+      "reasons": [],
+      "valid_membership_count": 2,
+      "witness_count": 2
+    },
+    "canonical_index_missing_bound": {
+      "child_state_count": 2,
+      "covered_child_state_count": 2,
+      "generated_state_count": 2,
+      "membership_count": 2,
+      "ok": false,
+      "reasons": [
+        "canonical_leaf_index_bound_missing"
+      ],
+      "valid_membership_count": 2,
+      "witness_count": 2
+    },
+    "canonical_index_permuted": {
+      "child_state_count": 2,
+      "covered_child_state_count": 2,
+      "generated_state_count": 2,
+      "membership_count": 2,
+      "ok": false,
+      "reasons": [
+        "canonical_leaf_index_mismatch"
+      ],
+      "valid_membership_count": 2,
+      "witness_count": 2
+    },
+    "canonical_index_rejects_missing_bound": true,
+    "canonical_index_rejects_permuted_root": true,
+    "canonical_membership_rows_digest": "442d6554f9fe8da910824cfe43d1a3197b1fbfddd4b57795bc51815bc2a1f0f8",
+    "canonical_packet_hash": "0cd0adf520ed995c0ff58421028f75144e8293de2381f3c3453414b18a949e0c",
+    "child_state_count": 2,
+    "child_state_digest": "20debc2b386b88b55708cbd5c6d18febab91b3ea22beea0f030064f40d3d7dfd",
+    "count_aware_accepts_permuted_root": true,
+    "count_aware_canonical": {
+      "child_state_count": 2,
+      "covered_child_state_count": 2,
+      "generated_state_count": 2,
+      "membership_count": 2,
+      "ok": true,
+      "reasons": [],
+      "valid_membership_count": 2,
+      "witness_count": 2
+    },
+    "count_aware_permuted": {
+      "child_state_count": 2,
+      "covered_child_state_count": 2,
+      "generated_state_count": 2,
+      "membership_count": 2,
+      "ok": true,
+      "reasons": [],
+      "valid_membership_count": 2,
+      "witness_count": 2
+    },
+    "elapsed_ms": 3.505,
+    "negative_control_accept_count": 0,
+    "negative_control_count": 10,
+    "negative_controls": [
+      {
+        "accepted": false,
+        "expected_reason": "packet_hash_mismatch",
+        "mutation_id": "packet_hash_mismatch",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "membership_proof_hash_mismatch",
+        "mutation_id": "generated_state_root_stale",
+        "reasons": [
+          "membership_proof_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "canonical_leaf_index_mismatch",
+        "mutation_id": "canonical_leaf_index_mismatch",
+        "reasons": [
+          "canonical_leaf_index_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "duplicate_leaf_index",
+        "mutation_id": "duplicate_leaf_index",
+        "reasons": [
+          "membership_proof_shape_mismatch",
+          "duplicate_leaf_index",
+          "canonical_leaf_index_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "missing_membership_proof",
+        "mutation_id": "missing_membership_proof",
+        "reasons": [
+          "missing_membership_proof"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "membership_proof_hash_mismatch",
+        "mutation_id": "membership_proof_hash_mismatch",
+        "reasons": [
+          "membership_proof_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "missing_child_state_witness",
+        "mutation_id": "missing_child_state_witness",
+        "reasons": [
+          "missing_child_state_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "canonical_leaf_index_bound_missing",
+        "mutation_id": "canonical_leaf_index_bound_missing",
+        "reasons": [
+          "canonical_leaf_index_bound_missing"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "count_aware_membership_bound_missing",
+        "mutation_id": "count_aware_membership_bound_missing",
+        "reasons": [
+          "count_aware_membership_bound_missing"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "authority_effect_present",
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      }
+    ],
+    "permuted_generated_state_root": "adf4287256b1851a33f0dc425cd194bdf429fdc39f5599ab665cf88d7d11a32c",
+    "permuted_membership_rows_digest": "b0b57f8437fcb0fb3ca1a35af14ab8364378d06ea69a9b811d9fb9bf649a6dfe",
+    "permuted_packet_hash": "7a8f53baaa6e9ef48aa0d5f7b33e4dd575efb6baa97a8054ee33de8f098728dd",
+    "reason_classes": [
+      "authority_effect_present",
+      "canonical_leaf_index_bound_missing",
+      "canonical_leaf_index_mismatch",
+      "count_aware_membership_bound_missing",
+      "duplicate_leaf_index",
+      "membership_proof_hash_mismatch",
+      "membership_proof_shape_mismatch",
+      "missing_child_state_witness",
+      "missing_membership_proof",
+      "packet_hash_mismatch"
+    ],
+    "root_malleability_countermodel_valid": true,
+    "schema": "zenodex/ab_child_frontier_canonical_index_merkle_search/v1",
+    "witness_rows_digest": "8216f62477012095592dcc45ed7551b3cadf83d84aa1a3f61f5b612f7ce60290"
+  },
+  "summary": "A bounded canonical-index Merkle verifier rejects root malleability that count-aware membership verification accepts for the same child-state set."
+}

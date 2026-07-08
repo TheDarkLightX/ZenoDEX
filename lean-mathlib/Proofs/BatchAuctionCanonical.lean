@@ -59,6 +59,17 @@ theorem key_le_iff (v₁ v₂ s₁ s₂ : Nat) (o₁ o₂ : Order) :
   simp [key, Prod.Lex.toLex_le_toLex, Prod.Lex.toLex_lt_toLex]
   tauto
 
+/-- Decompose `k₁ ≤ k₂` into the canonical (volume, surplus, order) cases
+    using the `vol`/`sur`/`ord` accessors. This is the accessor-level
+    version of `key_le_iff`, used by certificate theorems that reason
+    about keys via their decoded components. -/
+theorem key_le_components {k₁ k₂ : Key} (h : k₁ ≤ k₂) :
+    vol k₂ < vol k₁ ∨
+    (vol k₁ = vol k₂ ∧
+      (sur k₂ < sur k₁ ∨ (sur k₁ = sur k₂ ∧ ord k₁ ≤ ord k₂))) := by
+  rw [← key_le_iff (vol k₁) (vol k₂) (sur k₁) (sur k₂) (ord k₁) (ord k₂)]
+  exact h
+
 theorem exists_unique_min_of_finset_nonempty {α : Type} [LinearOrder α] (S : Finset α) (hS : S.Nonempty) :
     ∃! m, m ∈ S ∧ ∀ x ∈ S, m ≤ x := by
   classical

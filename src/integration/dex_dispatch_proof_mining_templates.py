@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass, replace
 from typing import Any, Mapping, Sequence, cast
 
@@ -12,6 +11,11 @@ from src.core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
 from src.core.proof_mining_claims import build_proof_mining_claim
 from src.core.settlement_normal_form import normalize_settlement_op_for_commitment
 from src.integration import dex_dispatch_proof_mining_snapshots as _snapshot_helpers
+from src.integration.dex_dispatch_proof_mining_reward import (
+    ProofMiningRewardConfig,
+    canonical_asset_id,
+    canonical_pubkey_48,
+)
 from src.integration.dex_dispatch_proof_mining_snapshots import (
     _load_latest_writer_snapshot_for_template,
 )
@@ -22,8 +26,7 @@ from src.integration.proof_mining_context import (
     build_proof_mining_context,
     proof_mining_context_to_obj,
 )
-from src.integration.zeno_ledger_v0 import hash_v0
-from src.state.balances import BalanceTable
+from src.state.balances import NATIVE_ASSET, BalanceTable
 from src.state.nonces import validate_and_apply_intent_nonce_batch
 from src.state.support_root import compute_support_state_root_for_batch
 
@@ -69,18 +72,6 @@ class _TemplateProofParts:
 
 
 @dataclass(frozen=True)
-class _RewardConfig:
-    pool_pubkey: str
-    asset_id: str
-    pool_before: int
-    base_reward: int
-    epoch: int
-    proposal_slot: int
-    prover_id: int
-    improvement_u64: int
-
-
-@dataclass(frozen=True)
 class _TemplateAssembly:
     obj: Mapping[str, Any]
     sender: str
@@ -89,25 +80,7 @@ class _TemplateAssembly:
     template_intent: _TemplateIntent
     faucet_mint: list[Any]
     bundle: _TemplateProofBundle
-    reward: _RewardConfig
-
-
-def _canonical_asset_id(value: Any, *, name: str) -> str:
-    text = str(value or "").strip().lower()
-    if text.startswith("0x"):
-        text = text[2:]
-    if len(text) != 64 or any(ch not in "0123456789abcdef" for ch in text):
-        raise ValueError(f"{name} must be a canonical 32-byte hex asset")
-    return "0x" + text
-
-
-def _canonical_pubkey_48(value: Any, *, name: str) -> str:
-    text = str(value or "").strip().lower()
-    if text.startswith("0x"):
-        text = text[2:]
-    if len(text) != 96 or any(ch not in "0123456789abcdef" for ch in text):
-        raise ValueError(f"{name} must be a canonical 48-byte hex pubkey")
-    return "0x" + text
+    reward: ProofMiningRewardConfig
 
 
 def _copy_balances_for_template(source: BalanceTable) -> BalanceTable:
@@ -149,12 +122,6 @@ def _template_stable_digest(payload: Mapping[str, Any]) -> str:
 def _template_non_negative_int(value: Any, *, name: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
         raise ValueError(f"{name} must be a non-negative int")
-    return int(value)
-
-
-def _template_coerced_int(value: Any, *, name: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{name} must be an int")
     return int(value)
 
 
@@ -213,8 +180,8 @@ def _template_state_with_faucet(state: Any, faucet_mint: list[Any], *, sender: s
     for index, entry in enumerate(faucet_mint):
         if not isinstance(entry, Mapping):
             raise _TemplateReject(400, {"ok": False, "error": "bad_faucet_mint_entry", "index": index})
-        pubkey = _canonical_pubkey_48(entry.get("pubkey", sender), name=f"faucet_mint[{index}].pubkey")
-        asset = _canonical_asset_id(entry.get("asset"), name=f"faucet_mint[{index}].asset")
+        pubkey = canonical_pubkey_48(entry.get("pubkey", sender), name=f"faucet_mint[{index}].pubkey")
+        asset = canonical_asset_id(entry.get("asset"), name=f"faucet_mint[{index}].asset")
         amount = entry.get("amount")
         if not isinstance(amount, int) or isinstance(amount, bool) or amount <= 0:
             raise _TemplateReject(400, {"ok": False, "error": "bad_faucet_mint_amount", "index": index})
@@ -222,8 +189,34 @@ def _template_state_with_faucet(state: Any, faucet_mint: list[Any], *, sender: s
     return replace(state, balances=balances)
 
 
+def _template_state_with_native_reward_pool(state: Any, reward: ProofMiningRewardConfig) -> Any:
+    balances = _copy_balances_for_template(state.balances)
+    current = int(balances.get(reward.pool_pubkey, NATIVE_ASSET))
+    if current not in (0, int(reward.pool_before)):
+        raise _TemplateReject(
+            400,
+            {
+                "ok": False,
+                "error": "reward_pool_native_balance_mismatch",
+                "reward_pool_pubkey": reward.pool_pubkey,
+            },
+        )
+    balances.set(reward.pool_pubkey, NATIVE_ASSET, int(reward.pool_before))
+    return replace(state, balances=balances)
+
+
+def _settlement_operation_payload_for_template(settlement: Any) -> dict[str, Any]:
+    operation = create_settlement_operation(settlement)
+    if len(operation) != 1:
+        raise ValueError("settlement operation must contain exactly one entry")
+    payload = next(iter(operation.values()))
+    if not isinstance(payload, Mapping):
+        raise TypeError("settlement operation payload must be a mapping")
+    return dict(payload)
+
+
 def _template_proof_parts(proof_state: Any, template_intent: _TemplateIntent) -> _TemplateProofParts:
-    operations_without_proof = {"5": [template_intent.intent_for_proof]}
+    operations_without_proof = {"2": [template_intent.intent_for_proof]}
     intents = parse_intents(operations_without_proof)
     settlement = compute_settlement(
         intents=intents,
@@ -231,7 +224,7 @@ def _template_proof_parts(proof_state: Any, template_intent: _TemplateIntent) ->
         balances=proof_state.balances,
         lp_balances=proof_state.lp_balances,
     )
-    settlement_op = create_settlement_operation(settlement)["6"]
+    settlement_op = _settlement_operation_payload_for_template(settlement)
     settlement_op_for_proof = json.loads(json.dumps(settlement_op))
     signing_dicts = [build_dex_intent_signing_dict_v1(intent_obj) for intent_obj in intents]
     settlement_commit = normalize_settlement_op_for_commitment(settlement_op)
@@ -248,7 +241,11 @@ def _template_proof_parts(proof_state: Any, template_intent: _TemplateIntent) ->
         "pre_state_commitment": pre_state_commitment,
         "batch_commitment": batch_commitment,
         "pre_state_snapshot": snapshot_from_state(proof_state).data,
-        "operations": {"5": [template_intent.intent_for_proof], "6": settlement_op_for_proof},
+        "operations": {
+            "2": [template_intent.intent_for_proof],
+            "3": settlement_op_for_proof,
+            "5": [template_intent.intent_for_proof],
+        },
     }
     settlement_op["proof"] = proof
     return _TemplateProofParts(
@@ -324,32 +321,6 @@ def _template_proof_bundle(
         settlement=parts.settlement,
         settlement_op=parts.settlement_op,
         context=context,
-    )
-
-
-def _reward_config(obj: Mapping[str, Any], *, chain_id: str, state: Any) -> _RewardConfig:
-    reward_pool = os.environ.get("TAU_DEX_PROOF_MINING_POOL_PUBKEY", "").strip()
-    if not reward_pool:
-        reward_pool = str(obj.get("reward_pool_pubkey", "")).strip()
-    reward_pool = _canonical_pubkey_48(reward_pool, name="reward_pool_pubkey")
-
-    reward_asset = obj.get("reward_asset_id")
-    if reward_asset is None:
-        reward_asset = os.environ.get("TAU_DEX_PROOF_MINING_REWARD_ASSET_ID", "").strip()
-    if not reward_asset:
-        token_symbol = os.environ.get("TAU_DEX_TOKEN_SYMBOL", "ZDEX").strip() or "ZDEX"
-        reward_asset = hash_v0("testnet_bundle_token_asset", {"chain_id": chain_id, "symbol": token_symbol})
-    reward_asset = _canonical_asset_id(reward_asset, name="reward_asset_id")
-
-    return _RewardConfig(
-        pool_pubkey=reward_pool,
-        asset_id=reward_asset,
-        pool_before=int(state.balances.get(reward_pool, reward_asset)),
-        base_reward=_template_coerced_int(obj.get("base_reward", 8), name="base_reward"),
-        epoch=_template_coerced_int(obj.get("epoch", 1), name="epoch"),
-        proposal_slot=_template_coerced_int(obj.get("proposal_slot", 0), name="proposal_slot"),
-        prover_id=_template_coerced_int(obj.get("prover_id", 1), name="prover_id"),
-        improvement_u64=_template_coerced_int(obj.get("improvement_u64", 1), name="improvement_u64"),
     )
 
 
@@ -447,6 +418,7 @@ def _template_response(assembly: _TemplateAssembly, claim: Mapping[str, Any]) ->
         "tx_sender_pubkey": assembly.sender,
         "expected_proposal_hash": claim["body"]["proposal_hash"],
         "reward_pool_pubkey": assembly.reward.pool_pubkey,
+        "reward_asset_id": assembly.reward.asset_id,
     }
     return {
         "ok": True,

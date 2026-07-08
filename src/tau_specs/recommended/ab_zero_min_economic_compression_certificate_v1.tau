@@ -1,0 +1,46 @@
+# AB Zero-Min Economic Compression Certificate v1
+#
+# PURPOSE:
+#   Guard a host-computed research certificate for the restricted AB salvage
+#   surface where same-pool, same-direction, exact-in swaps have
+#   min_amount_out = 0 and ample independent balances. The host tests that a
+#   one-record min-reserve-out subset DP preserves the economic AB key while
+#   explicit witnesses keep canonical tie and nonzero-min claims out of scope.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = zero_min_scope_ok
+# i3  = same_direction_exact_in_scope_ok
+# i4  = economic_parity_ok
+# i5  = brute_or_full_parity_ok
+# i6  = canonical_tie_nonclaim_witness_ok
+# i7  = nonzero_min_boundary_witness_ok
+# i8  = rounding_path_dependence_witness_ok
+# i9  = deterministic_replay_ok
+# i10 = resource_budget_ok
+# i11 = no_authority_effect
+# i12 = executable_zero_min_scope_ok
+# i13 = zero_min_unexecutable_boundary_witness_ok
+# o1  = scope_ok
+# o2  = economic_evidence_ok
+# o3  = boundary_witnesses_ok
+# o4  = safety_ok
+# o5  = compression_certificate_ok
+# o6  = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+scope_ok(zero_min : sbf, same_direction : sbf, executable_zero_min : sbf) := is1(zero_min) && is1(same_direction) && is1(executable_zero_min).
+economic_evidence_ok(economic_parity : sbf, oracle_parity : sbf) := is1(economic_parity) && is1(oracle_parity).
+boundary_witnesses_ok(tie_nonclaim : sbf, nonzero_min_boundary : sbf, rounding_boundary : sbf, zero_min_unexecutable_boundary : sbf) := is1(tie_nonclaim) && is1(nonzero_min_boundary) && is1(rounding_boundary) && is1(zero_min_unexecutable_boundary).
+safety_ok(deterministic : sbf, budget : sbf, no_authority : sbf) := is1(deterministic) && is1(budget) && is1(no_authority).
+compression_certificate_ok(active : sbf, zero_min : sbf, same_direction : sbf, economic_parity : sbf, oracle_parity : sbf, tie_nonclaim : sbf, nonzero_min_boundary : sbf, rounding_boundary : sbf, deterministic : sbf, budget : sbf, no_authority : sbf, executable_zero_min : sbf, zero_min_unexecutable_boundary : sbf) := is1(active) && scope_ok(zero_min, same_direction, executable_zero_min) && economic_evidence_ok(economic_parity, oracle_parity) && boundary_witnesses_ok(tie_nonclaim, nonzero_min_boundary, rounding_boundary, zero_min_unexecutable_boundary) && safety_ok(deterministic, budget, no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> scope_ok(i2[t]:sbf, i3[t]:sbf, i12[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> economic_evidence_ok(i4[t]:sbf, i5[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> boundary_witnesses_ok(i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i13[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> safety_ok(i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> compression_certificate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i11[t]:sbf))).

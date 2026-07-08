@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import subprocess
 import sys
 import time
@@ -24,7 +23,18 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.core.risc0_tx_execution_order import TxExecutionOrderInputV1  # noqa: E402
 from src.integration.proof_toolchain_lock import proof_toolchain_lock_hash_v0  # noqa: E402
+from src.integration.risc0_route_body_projection import (  # noqa: E402
+    project_route_body_transactions_to_proof_v1,
+    route_body_projection_contract_hash_v1,
+    route_body_projection_contract_v1,
+)
+from src.integration.risc0_tx_order_body_summary import (  # noqa: E402
+    apply_route_order_receipt_policy_to_body_v1,
+    route_order_receipt_requirement_for_case_v1,
+    tx_order_inputs_for_case_v1,
+)
 from src.integration.zeno_ledger_v0 import (  # noqa: E402
     BATCH_CUTOFF_SCHEMA_V0,
     BODY_SCHEMA_V0,
@@ -43,8 +53,8 @@ from src.integration.zeno_ledger_v0 import (  # noqa: E402
     validate_header_body_roots_v0,
     validate_proof_metadata_header_binding_v0,
 )
+from tools.risc0_runtime_env import proof_runner_env  # noqa: E402
 from tools.zeno_ledger_risc0_proof_metadata import build_risc0_proof_metadata_v0  # noqa: E402
-
 
 EMPTY_SNAPSHOT_V1: dict[str, Any] = {
     "version": 1,
@@ -59,6 +69,7 @@ EMPTY_SNAPSHOT_V1: dict[str, Any] = {
 ASSET0 = "0x" + "11" * 32
 ASSET1 = "0x" + "22" * 32
 SENDER = "0x" + "aa" * 48
+OTHER_SENDER = "0x" + "dd" * 48
 RECIPIENT = "0x" + "bb" * 48
 POOL_ID = "0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686"
 
@@ -101,12 +112,188 @@ def _pool_entry(*, reserve0: int, reserve1: int, lp_supply: int = 10_000) -> dic
     }
 
 
+def _route_quote_receipt_hash_v1(
+    *,
+    kind: str,
+    asset_in: str,
+    asset_out: str,
+    total_amount_in: int,
+    total_min_amount_out: int,
+    total_amount_out: int,
+    total_max_amount_in: int,
+    leg_indices: list[int],
+    legs: list[dict[str, Any]],
+    pools_by_id: dict[str, dict[str, Any]],
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: str | None = None,
+) -> str:
+    hasher = hashlib.sha256()
+    hasher.update(b"zenodex.risc0.route_quote_receipt_binding.v1:")
+    _hash_write_str(hasher, kind)
+    _hash_write_str(hasher, asset_in)
+    _hash_write_str(hasher, asset_out)
+    _hash_write_u128(hasher, total_amount_in)
+    _hash_write_u128(hasher, total_min_amount_out)
+    _hash_write_u128(hasher, total_amount_out)
+    _hash_write_u128(hasher, total_max_amount_in)
+    _hash_write_u32(hasher, protocol_fee_share_bps)
+    _hash_write_opt_str(hasher, protocol_fee_recipient_pubkey)
+    _hash_write_u32(hasher, len(leg_indices))
+    for index in leg_indices:
+        _hash_write_u32(hasher, index)
+    _hash_write_u32(hasher, len(legs))
+    for leg in legs:
+        hops = leg.get("hops")
+        if not isinstance(hops, list) or len(hops) != 1:
+            raise ValueError("route smoke supports one-hop route legs only")
+        _hash_write_u32(hasher, 1)
+        hop = hops[0]
+        if not isinstance(hop, dict):
+            raise TypeError("route hop must be an object")
+        pool_id = hop.get("pool_id")
+        if not isinstance(pool_id, str):
+            raise TypeError("route hop pool_id must be a string")
+        pool = pools_by_id[pool_id]
+        _hash_write_str(hasher, str(pool["pool_id"]))
+        _hash_write_str(hasher, str(pool["asset0"]))
+        _hash_write_str(hasher, str(pool["asset1"]))
+        _hash_write_u128(hasher, int(pool["reserve0"]))
+        _hash_write_u128(hasher, int(pool["reserve1"]))
+        _hash_write_u32(hasher, int(pool["fee_bps"]))
+        _hash_write_u128(hasher, int(pool["lp_supply"]))
+        _hash_write_str(hasher, str(pool["status"]))
+        _hash_write_u64(hasher, int(pool["created_at"]))
+    return "0x" + hasher.hexdigest()
+
+
+def _hash_write_u32(hasher: "hashlib._Hash", value: int) -> None:
+    hasher.update(int(value).to_bytes(4, byteorder="big", signed=False))
+
+
+def _hash_write_u64(hasher: "hashlib._Hash", value: int) -> None:
+    hasher.update(int(value).to_bytes(8, byteorder="big", signed=False))
+
+
+def _hash_write_u128(hasher: "hashlib._Hash", value: int) -> None:
+    hasher.update(int(value).to_bytes(16, byteorder="big", signed=False))
+
+
+def _hash_write_str(hasher: "hashlib._Hash", value: str) -> None:
+    raw = value.encode("utf-8")
+    _hash_write_u32(hasher, len(raw))
+    hasher.update(raw)
+
+
+def _hash_write_opt_str(hasher: "hashlib._Hash", value: str | None) -> None:
+    if value is None:
+        hasher.update(b"\x00")
+        return
+    hasher.update(b"\x01")
+    _hash_write_str(hasher, value)
+
+
 def _empty_snapshot_copy() -> dict[str, Any]:
     return _json_clone(EMPTY_SNAPSHOT_V1)
 
 
 def _ledger_evidence() -> dict[str, list[Any]]:
     return {key: [] for key in EVIDENCE_KEYS_V0}
+
+
+def _tx_order_inputs_for_case(case: dict[str, Any]) -> tuple[TxExecutionOrderInputV1, ...]:
+    return tx_order_inputs_for_case_v1(case)
+
+
+def _route_order_receipt_requirement_for_case(case: dict[str, Any]) -> Any | None:
+    return route_order_receipt_requirement_for_case_v1(case)
+
+
+def _proof_transactions_for_case(case: dict[str, Any]) -> list[Any]:
+    proof_transactions = case.get("proof_transactions")
+    if proof_transactions is None:
+        proof_transactions = case["transactions"]
+    if not isinstance(proof_transactions, list):
+        raise TypeError("case.proof_transactions must be a list")
+    return proof_transactions
+
+
+def _transactions_hash_v0(*, view: str, transactions: list[Any]) -> str:
+    return hash_v0(f"risc0_smoke_{view}_transactions_v0", transactions)
+
+
+def _transaction_projection_binding_for_case(
+    *,
+    body_transactions: list[Any],
+    proof_transactions: list[Any],
+) -> dict[str, Any]:
+    projected_transactions = list(project_route_body_transactions_to_proof_v1(body_transactions))
+    projection_checked = projected_transactions == proof_transactions
+    if not projection_checked:
+        raise ValueError("proof_transactions must match deterministic body projection")
+    return {
+        "body_transactions_hash": _transactions_hash_v0(
+            view="body",
+            transactions=body_transactions,
+        ),
+        "proof_transactions_hash": _transactions_hash_v0(
+            view="proof",
+            transactions=proof_transactions,
+        ),
+        "proof_tx_count": len(proof_transactions),
+        "proof_transactions_match_body": proof_transactions == body_transactions,
+        "body_to_proof_projection_checked": True,
+        "projection_contract": route_body_projection_contract_v1(),
+        "projection_contract_hash": route_body_projection_contract_hash_v1(),
+    }
+
+
+def _apply_route_order_receipt_policy_to_body(body: dict[str, Any], case: dict[str, Any]) -> bool:
+    expected = tx_order_inputs_for_case_v1(case)
+    actual = tx_order_inputs_for_case_v1({"transactions": body.get("transactions", [])})
+    if expected != actual:
+        raise ValueError("body transactions must match case-derived tx_execution_order summary")
+    return apply_route_order_receipt_policy_to_body_v1(body)
+
+
+def _validate_body_order_receipt_matches_proof(body: dict[str, Any], proof: dict[str, Any]) -> bool:
+    evidence = body.get("evidence")
+    if not isinstance(evidence, dict):
+        raise TypeError("body.evidence must be an object")
+    proof_receipts = evidence.get("proof_receipts")
+    if not isinstance(proof_receipts, list):
+        raise TypeError("body.evidence.proof_receipts must be a list")
+    meta = proof.get("meta")
+    if not isinstance(meta, dict):
+        raise TypeError("proof.meta must be an object")
+    proof_type = proof.get("proof_type")
+    proof_commitment = meta.get("tx_execution_order_commitment")
+    matching: list[str] = []
+    for receipt in proof_receipts:
+        if not isinstance(receipt, dict):
+            continue
+        if receipt.get("schema") != "zenodex/zeno_ledger/risc0_tx_execution_order_commitment/v0":
+            continue
+        if receipt.get("proof_type") != proof_type:
+            raise ValueError("body tx_execution_order receipt proof_type mismatch")
+        commitment = receipt.get("tx_execution_order_commitment")
+        if not isinstance(commitment, str):
+            raise TypeError("body tx_execution_order receipt commitment must be a string")
+        matching.append(commitment)
+    if not matching:
+        return False
+    if len(matching) != 1:
+        raise ValueError("body tx_execution_order receipt ambiguous")
+    if matching[0].lower() != str(proof_commitment).lower():
+        raise ValueError("body tx_execution_order receipt/proof meta mismatch")
+    return True
+
+
+def _apply_route_order_policy_to_context(context: dict[str, Any], case: dict[str, Any]) -> bool:
+    requirement = _route_order_receipt_requirement_for_case(case)
+    if requirement is None or not requirement.required:
+        return False
+    context.update(requirement.plan.context_patch())
+    return True
 
 
 def _ingress_receipt(*, chain_id: str, height: int, index: int, tx_hash: str) -> dict[str, Any]:
@@ -162,6 +349,7 @@ def _ledger_body_for_case(*, name: str, case: dict[str, Any], height: int) -> di
         "settlement_envelopes": [],
         "evidence": _ledger_evidence(),
     }
+    _apply_route_order_receipt_policy_to_body(body, case)
     return body
 
 
@@ -226,6 +414,13 @@ def _ledger_binding_for_case(
     height: int,
 ) -> dict[str, Any]:
     body = _ledger_body_for_case(name=name, case=case, height=height)
+    body_transactions = body["transactions"]
+    proof_transactions = _proof_transactions_for_case(case)
+    projection_binding = _transaction_projection_binding_for_case(
+        body_transactions=body_transactions,
+        proof_transactions=proof_transactions,
+    )
+    body_tx_execution_order_commitment_checked = _validate_body_order_receipt_matches_proof(body, proof)
     header_unbound = _ledger_header_for_case(
         name=name,
         body=body,
@@ -265,22 +460,36 @@ def _ledger_binding_for_case(
     body_path = out_dir / f"{name}_zeno_ledger_body.json"
     header_path = out_dir / f"{name}_zeno_ledger_header.json"
     metadata_path = out_dir / f"{name}_risc0_proof_metadata.json"
+    proof_transactions_path = out_dir / f"{name}_risc0_proof_transactions.json"
     body_path.write_text(json.dumps(body, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     header_path.write_text(json.dumps(header, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     metadata_path.write_text(json.dumps(metadata, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    proof_transactions_path.write_text(
+        json.dumps(proof_transactions, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
     return {
         "schema": "zenodex.risc0_real_proof_smoke.ledger_binding.v0",
         "ok": True,
         "header_bound": True,
         "body_checked": True,
+        "body_tx_execution_order_commitment_checked": body_tx_execution_order_commitment_checked,
         "post_state_root_checked": post_state_root_checked,
         "pre_state_root_checked": pre_state_root_checked,
         "body_tx_count": len(body["transactions"]),
+        "proof_tx_count": projection_binding["proof_tx_count"],
         "body_path": str(body_path),
         "header_path": str(header_path),
         "metadata_path": str(metadata_path),
+        "proof_transactions_path": str(proof_transactions_path),
         "proof_journal_hash": proof_journal_hash,
+        "body_transactions_hash": projection_binding["body_transactions_hash"],
+        "proof_transactions_hash": projection_binding["proof_transactions_hash"],
+        "proof_transactions_match_body": projection_binding["proof_transactions_match_body"],
+        "body_to_proof_projection_checked": projection_binding["body_to_proof_projection_checked"],
+        "projection_contract": projection_binding["projection_contract"],
+        "projection_contract_hash": projection_binding["projection_contract_hash"],
         "pre_state_root": str(header["pre_state_root"]),
         "post_state_root": str(header["post_state_root"]),
         "tx_root": str(header["tx_root"]),
@@ -478,6 +687,80 @@ def _smoke_cases() -> dict[str, dict[str, Any]]:
         {"pubkey": SENDER, "pool_id": POOL_ID, "amount": 9_500},
     ]
 
+    route_pre = _empty_snapshot_copy()
+    route_pre["balances"] = [
+        {"pubkey": SENDER, "asset": ASSET0, "amount": 10_000_000},
+        {"pubkey": OTHER_SENDER, "asset": ASSET0, "amount": 10_000_000},
+    ]
+    route_pre["pools"] = [_pool_entry(reserve0=1_000_000, reserve1=1_000_000)]
+    route_legs = [{"hops": [{"pool_id": POOL_ID}]}]
+    route_quote_hash = _route_quote_receipt_hash_v1(
+        kind="ROUTE_EXACT_IN",
+        asset_in=ASSET0,
+        asset_out=ASSET1,
+        total_amount_in=100_000,
+        total_min_amount_out=0,
+        total_amount_out=0,
+        total_max_amount_in=0,
+        leg_indices=[0],
+        legs=route_legs,
+        pools_by_id={POOL_ID: route_pre["pools"][0]},
+    )
+    route_proof_tx = {
+        "sender_pubkey": SENDER,
+        "nonce": 0,
+        "operations": {
+            "2": [
+                {
+                    "module": "TauSwap",
+                    "version": "v1",
+                    "kind": "ROUTE_EXACT_IN",
+                    "intent_id": "route-order-exec",
+                    "sender_pubkey": SENDER,
+                    "deadline": 100,
+                    "quote_receipt_hash": route_quote_hash,
+                    "quote_receipt": {
+                        "body": {
+                            "schema": "zenodex/route_quote_receipt/v1",
+                            "kind": "exact_in",
+                            "asset_in": ASSET0,
+                            "asset_out": ASSET1,
+                            "amount_in": 100_000,
+                            "amount_out": 90_661,
+                            "legs": route_legs,
+                            "pools": {POOL_ID: "route-order-prestate-pool"},
+                        },
+                        "receipt_hash": route_quote_hash,
+                    },
+                    "asset_in": ASSET0,
+                    "asset_out": ASSET1,
+                    "leg_indices": [0],
+                    "legs": route_legs,
+                    "total_amount_in": 100_000,
+                    "total_min_amount_out": 0,
+                    "total_amount_out": 0,
+                    "total_max_amount_in": 0,
+                    "recipient": RECIPIENT,
+                }
+            ]
+        },
+    }
+    route_body_tx = json.loads(json.dumps(route_proof_tx))
+    route_body_tx["operations"] = {"5": [route_body_tx["operations"]["2"][0]]}
+    route_writer_tx = json.loads(json.dumps(swap_tx))
+    route_writer_tx["sender_pubkey"] = OTHER_SENDER
+    route_writer_tx["operations"]["2"][0]["intent_id"] = "swap-order-exec"
+    route_writer_tx["operations"]["2"][0]["sender_pubkey"] = OTHER_SENDER
+    route_writer_tx["operations"]["2"][0]["amount_in"] = 100_000
+    route_writer_tx["operations"]["2"][0]["min_amount_out"] = 0
+    route_post = _empty_snapshot_copy()
+    route_post["balances"] = [
+        {"pubkey": SENDER, "asset": ASSET0, "amount": 9_900_000},
+        {"pubkey": RECIPIENT, "asset": ASSET1, "amount": 166_230},
+        {"pubkey": OTHER_SENDER, "asset": ASSET0, "amount": 9_900_000},
+    ]
+    route_post["pools"] = [_pool_entry(reserve0=1_200_000, reserve1=833_770)]
+
     return {
         "empty": {
             "pre_snapshot": None,
@@ -521,6 +804,15 @@ def _smoke_cases() -> dict[str, dict[str, Any]]:
             "transactions": [combo_create_tx, combo_add_tx, combo_swap_tx, combo_remove_tx],
             "post_hash": _snapshot_hash(combo_post),
         },
+        "route_order": {
+            "pre_snapshot": route_pre,
+            "pre_hash": _snapshot_hash(route_pre),
+            "transactions": [route_writer_tx, route_body_tx],
+            "proof_transactions": list(
+                project_route_body_transactions_to_proof_v1([route_writer_tx, route_body_tx])
+            ),
+            "post_hash": _snapshot_hash(route_post),
+        },
     }
 
 
@@ -533,7 +825,7 @@ def _run_cli(
     cli_bin: Path | None,
     release: bool,
 ) -> dict[str, Any]:
-    env = os.environ.copy()
+    env = proof_runner_env(repo)
     env["RISC0_FORCE_BUILD"] = "1"
     env["CARGO_TARGET_DIR"] = str(target_dir)
     if cli_bin is not None:
@@ -592,17 +884,20 @@ def _run_case(
     if case["pre_snapshot"] is not None:
         app_state_pre = _canonical_json_bytes(case["pre_snapshot"]).decode("utf-8")
 
+    generate_context: dict[str, Any] = {
+        "app_state_pre": app_state_pre,
+        "app_hash_pre": case["pre_hash"],
+        "chain_balances_post": {},
+    }
+    _apply_route_order_policy_to_context(generate_context, case)
+    proof_transactions = _proof_transactions_for_case(case)
     generate_request = {
         "schema": "tau_state_proof_request",
         "schema_version": 1,
         "state_hash": state_hash,
-        "block": {"header": {"timestamp": 1}, "transactions": case["transactions"]},
+        "block": {"header": {"timestamp": 1}, "transactions": proof_transactions},
         "tau_state": {"app_hash": case["post_hash"]},
-        "context": {
-            "app_state_pre": app_state_pre,
-            "app_hash_pre": case["pre_hash"],
-            "chain_balances_post": {},
-        },
+        "context": generate_context,
     }
     started_generate = time.monotonic()
     proof = _run_cli(
@@ -617,17 +912,19 @@ def _run_case(
     proof_path = out_dir / f"{name}_tau_state_proof.json"
     proof_path.write_text(json.dumps(proof, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 
+    verify_context: dict[str, Any] = {
+        "app_hash_pre": case["pre_hash"],
+        "block_timestamp": 1,
+    }
+    _apply_route_order_policy_to_context(verify_context, case)
     verify_request = {
         "schema": "tau_state_proof_verify",
         "schema_version": 1,
         "state_hash": state_hash,
         "proof": proof,
-        "block": {"header": {"timestamp": 1}, "transactions": case["transactions"]},
+        "block": {"header": {"timestamp": 1}, "transactions": proof_transactions},
         "tau_state": {"app_hash": case["post_hash"]},
-        "context": {
-            "app_hash_pre": case["pre_hash"],
-            "block_timestamp": 1,
-        },
+        "context": verify_context,
     }
     started_verify = time.monotonic()
     verify = _run_cli(
@@ -642,7 +939,10 @@ def _run_case(
     if verify.get("ok") is not True:
         raise RuntimeError(f"receipt verification rejected: {verify}")
 
-    meta = proof.get("meta") if isinstance(proof.get("meta"), dict) else {}
+    meta_obj = proof.get("meta")
+    if not isinstance(meta_obj, dict):
+        raise RuntimeError("proof meta must be an object")
+    meta: dict[str, Any] = meta_obj
     ledger_binding = _ledger_binding_for_case(
         name=name,
         case=case,
@@ -682,7 +982,8 @@ def run_smoke(
 ) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     cases = _smoke_cases()
-    selected = list(cases) if case_name == "all" else [case_name]
+    default_cases = [name for name in cases if name != "route_order"]
+    selected = default_cases if case_name == "all" else [case_name]
     unknown = [c for c in selected if c not in cases]
     if unknown:
         raise ValueError(f"unknown smoke case(s): {', '.join(unknown)}")
@@ -740,6 +1041,7 @@ def main(argv: list[str] | None = None) -> int:
             "add_liquidity",
             "remove_liquidity",
             "spot_block_liquidity_cycle",
+            "route_order",
             "all",
         ),
         default="empty",

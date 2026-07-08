@@ -11,8 +11,38 @@ required_auth:
 key_policy:
   raw_private_key_flags_allowed: true
   production_key_receipts_required: false
+  browser_key_generation_allowed: true
+  external_signer_required: false
+  signer_user_approval_required: false
 proof_policy:
   proof_metadata_required: false
+spot_policy:
+  route_price_interval_trusted_policy_root_required: false
+  route_price_interval_trusted_policy_root_bundle_required: false
+  route_price_interval_trusted_policy_root_bundle_quorum_required: false
+  route_price_interval_max_width_bps_required: false
+runtime_policy:
+  allow_path_lookup: true
+  plaintext_fixture_keys_allowed: true
+  local_only_routes_allowed: true
+  proof_mining_payout_template_enabled: true
+  env_config_file_allowlist_required: false
+  dependency_sbom_required: false
+  secret_scan_required: false
+  external_static_analysis_required_in_ci: false
+perps_policy:
+  isolated_partial_liquidate_tau_source_binding_required: false
+  isolated_partial_liquidate_tau_source_state_root_binding_required: false
+  isolated_partial_liquidate_tau_source_membership_proof_required: false
+  isolated_partial_liquidate_tau_source_root_authority_required: false
+  isolated_partial_liquidate_tau_source_admission_envelope_required: false
+  isolated_partial_liquidate_tau_source_authority_policy_receipt_required: false
+  isolated_partial_liquidate_tau_source_authority_policy_receipt_verifier_required: false
+  isolated_partial_liquidate_tau_source_authority_policy_receipt_verifier_sha256_required: false
+  isolated_partial_liquidate_tau_source_authority_policy_receipt_verifier_build_receipt_required: false
+  isolated_partial_liquidate_tau_source_authority_policy_receipt_verifier_build_receipt_signature_required: false
+  isolated_partial_liquidate_tau_source_authority_policy_receipt_verifier_release_bundle_required: false
+  isolated_partial_liquidate_tau_source_authority_policy_receipt_verifier_release_registry_required: false
 upba_policy: fast
 peer_policy:
   public_peer_admission_allowed: false

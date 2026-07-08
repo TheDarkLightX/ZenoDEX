@@ -15,6 +15,20 @@ def test_api_server_refuses_demo_routes_without_token_on_public_host(monkeypatch
     assert rc == 2
 
 
+def test_api_server_refuses_unsafe_perps_demo_api_in_production(monkeypatch) -> None:
+    from src.integration import api_server
+
+    monkeypatch.setenv("API_HOST", "127.0.0.1")
+    monkeypatch.setenv("API_PORT", "8000")
+    monkeypatch.setenv("PERPS_API_ENABLED", "true")
+    monkeypatch.setenv("PERPS_DEMO_API_UNSAFE_ENABLED", "true")
+    monkeypatch.setenv("ZENODEX_EXTERNAL_AUTH_ENFORCED", "1")
+    monkeypatch.setenv("ZENODEX_ENV", "production")
+
+    rc = api_server.main([])
+    assert rc == 2
+
+
 def test_api_server_refuses_sensitive_routes_without_auth_on_loopback(monkeypatch) -> None:
     from src.integration import api_server
 

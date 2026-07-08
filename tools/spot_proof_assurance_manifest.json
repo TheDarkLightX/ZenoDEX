@@ -28,7 +28,7 @@
     },
     {
       "path": "lean-mathlib/Proofs/BatchAuctionCanonical.lean",
-      "sha256": "c9dee8240ae79f0286d0f3f75fee1f7b488a6f7a4dcf6da667deb3e064f5b19e"
+      "sha256": "63b3e53a34b774009a973d95ba4dcb5b040c4d7f4c359e26b438cbb2a4dc4e42"
     },
     {
       "path": "lean-mathlib/Proofs/CPMMInvariants.lean",
@@ -36,7 +36,7 @@
     },
     {
       "path": "lean-mathlib/Proofs/SettlementAlgebra.lean",
-      "sha256": "994e2ce3096917dcc9dbabd89a06691f97965a10d0ce6e2f907dd89ba5793ea8"
+      "sha256": "1e2bcaa81819c28d9771c476a7f6f09c34f943895b468c4d2261566e1d4c7847"
     },
     {
       "path": "src/kernels/dex/settlement_create_pool_apply_witness_v1.yaml",

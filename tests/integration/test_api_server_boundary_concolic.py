@@ -65,7 +65,7 @@ def test_api_server_boundary_concolic_feature_extension_discovers_reject_paths()
     assert "ValueError:weighted_stake out of u16 range: 65536" in labels
     assert "ValueError:supply_before out of u32 range: 4294967296" in labels
     assert "ValueError:supply_floor out of u32 range: 4294967296" in labels
-    assert "ValueError:invalid literal for int() with base 10: 'not-int'" in labels
+    assert "ValueError:supply_after must be an int" in labels
     assert report.unique_path_count >= 10
 
 

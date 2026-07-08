@@ -139,6 +139,8 @@ def test_perps_ui_enables_trader_writes_for_local_testnet_config(tmp_path: Path)
             "API_HOST": "127.0.0.1",
             "API_PORT": str(api_port),
             "PERPS_API_ENABLED": "true",
+            "PERPS_DEMO_API_UNSAFE_ENABLED": "true",
+            "ZENODEX_ENV": "local",
             "PERPS_WALLET_API_ENABLED": "true",
             "ZENODEX_EXTERNAL_AUTH_ENFORCED": "1",
         },

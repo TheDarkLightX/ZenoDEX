@@ -1,0 +1,46 @@
+{
+  "artifact": "zenodex_ab_strict_zero_min_record_set_pruning_lean_20260628",
+  "authority_boundary": "research proof component only; no production ordering, settlement, governance, state-root, or promotion authority",
+  "commit": "git commit containing this report",
+  "date": "2026-06-28",
+  "lean_file": "lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+  "non_claims": [
+    "does not prove strict executability",
+    "does not prove sender balances",
+    "does not prove canonical tie order",
+    "does not cover nonzero min_amount_out",
+    "does not prove kernel domain failures",
+    "does not prove full Python subset-DP refinement",
+    "does not authorize production ordering or settlement"
+  ],
+  "status": "pass",
+  "summary": "Lean proof component showing that a minimum-output-reserve representative bounds the best suffix output of a finite same-processed-input record set.",
+  "theorems": [
+    "ABStrictZeroMinMonotone.foldlMax_le_bound",
+    "ABStrictZeroMinMonotone.bestSuffixOutputFromRecords_le_selected",
+    "ABStrictZeroMinMonotone.witness_bestSuffixOutputFromRecords_le_selected",
+    "ABStrictZeroMinMonotone.minReserveRecord_dominates_suffixTotalOutput"
+  ],
+  "verification": {
+    "lake_env_lean": {
+      "command": "cd lean-mathlib && lake env lean Proofs/ABStrictZeroMinMonotone.lean",
+      "status": "pass",
+      "summary": "typechecked"
+    },
+    "lake_build_module": {
+      "command": "cd lean-mathlib && lake build Proofs.ABStrictZeroMinMonotone",
+      "status": "pass",
+      "summary": "Build completed successfully"
+    },
+    "placeholder_scan": {
+      "command": "rg -n \"\\\\b(sorry|admit|axiom|unsafe|sorryAx)\\\\b\" lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+      "status": "pass",
+      "summary": "No proof placeholders found"
+    },
+    "pytest": {
+      "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+      "status": "pass",
+      "summary": "1 passed in 6.70s"
+    }
+  }
+}

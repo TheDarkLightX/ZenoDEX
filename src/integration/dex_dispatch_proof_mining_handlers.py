@@ -11,16 +11,19 @@ from src.integration.api_server_dex_dispatch import (
     DexResponse,
     _register,
 )
+from src.integration.dex_dispatch_proof_mining_reward import (
+    canonical_pubkey_48,
+    proof_mining_reward_config,
+)
 from src.integration.dex_dispatch_proof_mining_templates import (
     BOUNDARY_DOMAIN_ERRORS,
-    _canonical_pubkey_48,
-    _reward_config,
     _template_block_timestamp,
     _template_faucet_mint,
     _template_intent,
     _template_proof_bundle,
     _template_state,
     _template_state_with_faucet,
+    _template_state_with_native_reward_pool,
     _template_success_body,
     _TemplateAssembly,
     _TemplateReject,
@@ -41,7 +44,7 @@ def _handle_proof_mining_payout_template(obj: Mapping[str, Any], ctx: DexRequest
     if os.environ.get("ZENODEX_ENV", "").strip().lower() not in {"local", "test", "local-testnet", ""}:
         return 403, {"ok": False, "error": "local_testnet_only"}
     try:
-        sender = _canonical_pubkey_48(obj.get("tx_sender_pubkey"), name="tx_sender_pubkey")
+        sender = canonical_pubkey_48(obj.get("tx_sender_pubkey"), name="tx_sender_pubkey")
         template_intent = _template_intent(obj, sender=sender)
         chain_id = str(obj.get("chain_id") or os.environ.get("TAU_DEX_CHAIN_ID") or "zeno-ledger-localtest-v0")
         try:
@@ -51,14 +54,7 @@ def _handle_proof_mining_payout_template(obj: Mapping[str, Any], ctx: DexRequest
 
         state = _template_state(obj, ctx)
         faucet_mint = _template_faucet_mint(obj)
-        proof_state = _template_state_with_faucet(state, faucet_mint, sender=sender)
-        bundle = _template_proof_bundle(
-            proof_state=proof_state,
-            template_intent=template_intent,
-            tx_block_timestamp=tx_block_timestamp,
-            chain_id=chain_id,
-        )
-        reward = _reward_config(obj, chain_id=chain_id, state=state)
+        reward = proof_mining_reward_config(obj, chain_id=chain_id, state=state)
         if reward.pool_before <= 0:
             return 409, {
                 "ok": False,
@@ -66,6 +62,14 @@ def _handle_proof_mining_payout_template(obj: Mapping[str, Any], ctx: DexRequest
                 "reward_pool_pubkey": reward.pool_pubkey,
                 "reward_asset_id": reward.asset_id,
             }
+        proof_state = _template_state_with_faucet(state, faucet_mint, sender=sender)
+        proof_state = _template_state_with_native_reward_pool(proof_state, reward)
+        bundle = _template_proof_bundle(
+            proof_state=proof_state,
+            template_intent=template_intent,
+            tx_block_timestamp=tx_block_timestamp,
+            chain_id=chain_id,
+        )
 
         assembly = _TemplateAssembly(
             obj=obj,
@@ -109,8 +113,11 @@ def _handle_proof_mining_status(obj: Mapping[str, Any], ctx: DexRequestContext) 
             or str(obj.get("reward_pool_pubkey", "")).strip()
             or None
         )
+        reward_asset_raw = obj.get("reward_asset_id")
+        reward_asset_id = reward_asset_raw.strip() if isinstance(reward_asset_raw, str) else None
         status = evaluate_proof_mining_claimability(
             reward_pool_pubkey=reward_pool_pubkey,
+            reward_asset_id=reward_asset_id or None,
             app_state_json=app_state_json,
             chain_balances=chain_balances,
             claim_artifact=claim_artifact,

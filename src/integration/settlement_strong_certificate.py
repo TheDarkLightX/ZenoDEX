@@ -399,9 +399,15 @@ def build_settlement_strong_certificate(
         binding_ok=proof_flags.binding_ok,
     )
     module_bundle_step = build_settlement_module_flag_bundle_v1_step(
-        core_module_ok=core_module_ok,
-        feature_extension_ok=feature_extension_ok,
-        proof_binding_ok=proof_binding_ok,
+        cpmm_ok=proof_flags.cpmm_ok,
+        balance_ok=proof_flags.balance_ok,
+        token_ok=proof_flags.token_ok,
+        buyback_floor_ok=proof_flags.buyback_floor_ok,
+        buyback_floor_fixedpoint_ok=proof_flags.buyback_floor_fixedpoint_ok,
+        rebate_ok=proof_flags.rebate_ok,
+        lock_weight_ok=proof_flags.lock_weight_ok,
+        proof_ok=proof_flags.proof_ok,
+        binding_ok=proof_flags.binding_ok,
     )
 
     compact_bundle_step: Optional[dict[str, int]] = None
@@ -637,6 +643,8 @@ def validate_settlement_strong_with_certificate(
     mode: str = "strong_replay",
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Optional[str] = None,
 ) -> tuple[bool, Optional[str]]:
     ok, err = verify_settlement_strong_certificate(settlement=settlement, certificate=certificate)
     if not ok:
@@ -654,6 +662,8 @@ def validate_settlement_strong_with_certificate(
         mode=mode,
         allow_cow_netting=allow_cow_netting,
         allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
     )
 
 
@@ -669,6 +679,8 @@ def enforce_replay_bound_settlement_certificate(
     mode: str = "strong_replay",
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Optional[str] = None,
 ) -> tuple[bool, Optional[str], Optional[SettlementStrongCertificate]]:
     ok, err = validate_settlement_strong(
         settlement=settlement,
@@ -679,6 +691,8 @@ def enforce_replay_bound_settlement_certificate(
         mode=mode,
         allow_cow_netting=allow_cow_netting,
         allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
     )
     if not ok:
         return False, err, None
@@ -700,7 +714,7 @@ def enforce_replay_bound_settlement_certificate(
 
 
 def _normalized_settlement_dict(settlement: Settlement) -> dict[str, Any]:
-    op = create_settlement_operation(settlement).get("6")
+    op = create_settlement_operation(settlement).get("3")
     if not isinstance(op, dict):
         raise TypeError("internal error: settlement operation must be a dict")
     return normalize_settlement_op_for_commitment(op)

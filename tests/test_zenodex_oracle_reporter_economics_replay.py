@@ -9,7 +9,7 @@ from typing import Any
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "tools"))
 
-from zenodex_oracle_reporter_economics_replay import sample_replay  # noqa: E402
+from zenodex_oracle_reporter_economics_replay import REPLAY_SCHEMA, sample_hash, sample_replay  # noqa: E402
 
 
 def _run_verify(tmp_path: Path, replay: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -24,6 +24,78 @@ def _run_verify(tmp_path: Path, replay: dict[str, Any]) -> tuple[int, dict[str, 
     )
     assert proc.stderr == ""
     return proc.returncode, json.loads(proc.stdout)
+
+
+def _single_report_clawback_replay(
+    *,
+    reward_e8: int,
+    clawback_e8: int,
+    outcome: str = "upheld",
+    withdrawal_e8: int = 1,
+) -> dict[str, Any]:
+    query_id = sample_hash("oracle.reward-clawback.query")
+    report_id = sample_hash("oracle.reward-clawback.report")
+    dispute_id = sample_hash("oracle.reward-clawback.dispute")
+    value_hash = sample_hash("oracle.reward-clawback.value")
+    events: list[dict[str, Any]] = [
+        {"type": "register_reporter", "epoch": 1, "reporter_id": "reporter.alpha"},
+        {"type": "deposit_bond", "epoch": 2, "reporter_id": "reporter.alpha", "amount_e8": 1},
+        {
+            "type": "fee_split",
+            "epoch": 3,
+            "fee_paid_e8": reward_e8,
+            "reporter_reward_pool_delta_e8": reward_e8,
+            "treasury_delta_e8": 0,
+            "burn_delta_e8": 0,
+        },
+        {
+            "type": "submit_report",
+            "epoch": 4,
+            "reporter_id": "reporter.alpha",
+            "report_id": report_id,
+            "query_id": query_id,
+            "value_hash": value_hash,
+            "reward_e8": reward_e8,
+        },
+        {
+            "type": "open_dispute",
+            "epoch": 5,
+            "dispute_id": dispute_id,
+            "report_id": report_id,
+            "challenger_id": "challenger.alpha",
+            "dispute_bond_e8": 1,
+        },
+        {
+            "type": "clawback_report_reward",
+            "epoch": 6,
+            "dispute_id": dispute_id,
+            "reporter_id": "reporter.alpha",
+            "amount_e8": clawback_e8,
+        },
+        {"type": "resolve_dispute", "epoch": 7, "dispute_id": dispute_id, "outcome": outcome},
+        {"type": "unregister_reporter", "epoch": 8, "reporter_id": "reporter.alpha"},
+    ]
+    if withdrawal_e8:
+        events.append(
+            {
+                "type": "withdraw_bond",
+                "epoch": 9,
+                "reporter_id": "reporter.alpha",
+                "amount_e8": withdrawal_e8,
+            }
+        )
+    return {
+        "schema": REPLAY_SCHEMA,
+        "query_id": query_id,
+        "consumer_module": "zenodex.perps",
+        "action_kind": "settle_epoch",
+        "required_reporter_bond_e8": 1,
+        "initial_reward_pool_e8": 0,
+        "initial_dispute_reward_pool_e8": 0,
+        "initial_treasury_balance_e8": 0,
+        "initial_burn_balance_e8": 0,
+        "events": events,
+    }
 
 
 def test_reporter_economics_replay_accepts_sample(tmp_path: Path) -> None:
@@ -42,6 +114,7 @@ def test_reporter_economics_replay_accepts_sample(tmp_path: Path) -> None:
     assert result["bond_locked_e8"] == 0
     assert result["bond_conservation_ok"] is True
     assert result["total_rewards_paid_e8"] == 90_000_000
+    assert result["total_rewards_clawed_back_e8"] == 0
     assert result["total_slashed_e8"] == 125_000_000_000
     assert result["total_withdrawn_e8"] == 625_000_000_000
     assert result["total_fees_paid_e8"] == 100_000_000
@@ -76,6 +149,48 @@ def test_reporter_economics_replay_rejects_slash_over_bond(tmp_path: Path) -> No
 
     assert code == 2
     assert "slash_exceeds_reporter_bond" in result["errors"]
+
+
+def test_reporter_economics_replay_accepts_report_reward_clawback(tmp_path: Path) -> None:
+    code, result = _run_verify(
+        tmp_path,
+        _single_report_clawback_replay(reward_e8=2, clawback_e8=2, withdrawal_e8=1),
+    )
+
+    assert code == 0
+    assert result["status"] == "accepted"
+    assert result["reward_pool_e8"] == 2
+    assert result["total_rewards_paid_e8"] == 2
+    assert result["total_rewards_clawed_back_e8"] == 2
+    assert result["total_slashed_e8"] == 0
+    assert result["total_withdrawn_e8"] == 1
+    assert result["bond_conservation_ok"] is True
+    assert result["errors"] == []
+
+
+def test_reporter_economics_replay_rejects_clawback_over_reward(tmp_path: Path) -> None:
+    code, result = _run_verify(
+        tmp_path,
+        _single_report_clawback_replay(reward_e8=2, clawback_e8=3, withdrawal_e8=1),
+    )
+
+    assert code == 2
+    assert "clawback_exceeds_report_reward" in result["errors"]
+
+
+def test_reporter_economics_replay_rejects_clawback_on_rejected_dispute(tmp_path: Path) -> None:
+    code, result = _run_verify(
+        tmp_path,
+        _single_report_clawback_replay(
+            reward_e8=2,
+            clawback_e8=1,
+            outcome="rejected",
+            withdrawal_e8=1,
+        ),
+    )
+
+    assert code == 2
+    assert "rejected_dispute_cannot_have_slash_or_reward" in result["errors"]
 
 
 def test_reporter_economics_replay_rejects_dispute_reward_budget_overspend(tmp_path: Path) -> None:

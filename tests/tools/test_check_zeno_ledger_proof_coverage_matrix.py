@@ -18,8 +18,12 @@ def test_proof_coverage_matrix_accepts_default_matrix() -> None:
     report = validate_proof_coverage_matrix_v0(_matrix())
 
     assert report["ok"] is True
-    assert report["supported_surface_count"] == 7
-    assert report["gap_surface_count"] == 7
+    assert report["supported_surface_count"] == 9
+    assert report["gap_surface_count"] == 10
+    assert report["non_claim_count"] == 10
+    supported_by_id = {item["id"]: item for item in report["supported_surfaces"]}
+    assert supported_by_id["recursive_lifecycle_asset_delta_rows"]["claim_status"] == "supported"
+    assert supported_by_id["recursive_lifecycle_admission_packet_checker"]["claim_status"] == "supported"
     assert {item["claim_status"] for item in report["supported_surfaces"]} <= {"proved", "supported"}
 
 
@@ -34,6 +38,93 @@ def test_proof_coverage_matrix_rejects_missing_required_gap() -> None:
 
     assert report["ok"] is False
     assert any("missing required gap surfaces: light_client_production_finality" == err for err in report["errors"])
+
+
+def test_proof_coverage_matrix_rejects_missing_recursive_oracle_gap() -> None:
+    matrix = _matrix()
+    gaps = list(matrix["gap_surfaces"])  # type: ignore[arg-type]
+    matrix["gap_surfaces"] = [
+        gap for gap in gaps if gap["id"] != "recursive_oracle_leaf_real_proof"  # type: ignore[index]
+    ]
+
+    report = validate_proof_coverage_matrix_v0(matrix)
+
+    assert report["ok"] is False
+    assert any("missing required gap surfaces: recursive_oracle_leaf_real_proof" == err for err in report["errors"])
+
+
+def test_proof_coverage_matrix_rejects_missing_zusd_lifecycle_gap() -> None:
+    matrix = _matrix()
+    gaps = list(matrix["gap_surfaces"])  # type: ignore[arg-type]
+    matrix["gap_surfaces"] = [
+        gap for gap in gaps if gap["id"] != "zusd_non_deposit_mint_lifecycle_rows"  # type: ignore[index]
+    ]
+
+    report = validate_proof_coverage_matrix_v0(matrix)
+
+    assert report["ok"] is False
+    assert any("missing required gap surfaces: zusd_non_deposit_mint_lifecycle_rows" == err for err in report["errors"])
+
+
+def test_proof_coverage_matrix_rejects_missing_recursive_production_admission_gap() -> None:
+    matrix = _matrix()
+    gaps = list(matrix["gap_surfaces"])  # type: ignore[arg-type]
+    matrix["gap_surfaces"] = [
+        gap for gap in gaps if gap["id"] != "recursive_production_admission"  # type: ignore[index]
+    ]
+
+    report = validate_proof_coverage_matrix_v0(matrix)
+
+    assert report["ok"] is False
+    assert any("missing required gap surfaces: recursive_production_admission" == err for err in report["errors"])
+
+
+def test_proof_coverage_matrix_rejects_missing_recursive_lifecycle_supported_surface() -> None:
+    matrix = _matrix()
+    supported = list(matrix["supported_surfaces"])  # type: ignore[arg-type]
+    matrix["supported_surfaces"] = [
+        item for item in supported if item["id"] != "recursive_lifecycle_asset_delta_rows"  # type: ignore[index]
+    ]
+
+    report = validate_proof_coverage_matrix_v0(matrix)
+
+    assert report["ok"] is False
+    assert any(
+        "missing required supported surfaces: recursive_lifecycle_asset_delta_rows" == err
+        for err in report["errors"]
+    )
+
+
+def test_proof_coverage_matrix_rejects_missing_recursive_lifecycle_checker_surface() -> None:
+    matrix = _matrix()
+    supported = list(matrix["supported_surfaces"])  # type: ignore[arg-type]
+    matrix["supported_surfaces"] = [
+        item for item in supported if item["id"] != "recursive_lifecycle_admission_packet_checker"  # type: ignore[index]
+    ]
+
+    report = validate_proof_coverage_matrix_v0(matrix)
+
+    assert report["ok"] is False
+    assert any(
+        "missing required supported surfaces: recursive_lifecycle_admission_packet_checker" == err
+        for err in report["errors"]
+    )
+
+
+def test_proof_coverage_matrix_rejects_missing_recursive_scaling_nonclaim() -> None:
+    matrix = _matrix()
+    non_claims = list(matrix["non_claims"])  # type: ignore[arg-type]
+    matrix["non_claims"] = [
+        item for item in non_claims if item != "does_not_claim_recursive_production_admission"
+    ]
+
+    report = validate_proof_coverage_matrix_v0(matrix)
+
+    assert report["ok"] is False
+    assert any(
+        "missing required non-claims: does_not_claim_recursive_production_admission" == err
+        for err in report["errors"]
+    )
 
 
 def test_proof_coverage_matrix_rejects_gap_with_claim_id() -> None:

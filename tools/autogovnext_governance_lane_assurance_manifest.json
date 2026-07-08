@@ -16,15 +16,51 @@
   "source_files": [
     {
       "path": "src/state/app_root.py",
-      "sha256": "80d2ce410fbe5c0cc72cab5bf8d2eb6a3b81b37605b343a65be9a54ff5e239f1"
+      "sha256": "66788dc35109670f0040a189be7d23c3aeb8a2aa30ed7b4905120b1534044032"
+    },
+    {
+      "path": "src/core/cross_shard_decision_certificate.py",
+      "sha256": "a0e1cb2e50b6604aaa1ca1206c8180166d29f057946aad542f259f4488ffad49"
+    },
+    {
+      "path": "src/core/cross_shard_ledger_effects.py",
+      "sha256": "14a68543400c6e63ec7e95ebba5da736f0ba99fff1b02af0eec678e89cbccd84"
+    },
+    {
+      "path": "src/core/cross_shard_ledger_posting.py",
+      "sha256": "eadbefed04a9ddd8fabc02f75348a11c42d0f6527a5e7197cc34ba1b089badee"
+    },
+    {
+      "path": "src/core/cross_shard_settlement_admission.py",
+      "sha256": "23967381cf770668a2c1a7ce183260880c04c56086084a3947072790f43cdec7"
+    },
+    {
+      "path": "src/core/sharded_settlement_certificate.py",
+      "sha256": "328f77146ee2a1e9ed6e88d5ada356f792c1d61fe43bc8d9641f522a52bd221a"
     },
     {
       "path": "src/integration/zeno_ledger_v0.py",
-      "sha256": "4415d2c438400d444e6fd58a721a30200abf036cf12c17ab06dd927f87136391"
+      "sha256": "fc6676d66eb2928a7d6f3b096223da7df349d088c409566b8197ad77a5276937"
+    },
+    {
+      "path": "src/integration/zeno_ledger_rejections_v0.py",
+      "sha256": "440e79c62adfecaa3051e3640d9061048006d3d678386b87183913b60ce4ad2a"
+    },
+    {
+      "path": "src/integration/zeno_ledger_cross_shard_effect_application.py",
+      "sha256": "8590dfbe7afbd6d7273fc633b256f198b3dcafd1bd32d71844640bf547cc4616"
+    },
+    {
+      "path": "src/integration/zeno_ledger_cross_shard_global_conservation.py",
+      "sha256": "eafb743052d081e49ca3ccc48fd198ba78c69c20fb8e63c8bb41295a84427c96"
     },
     {
       "path": "src/integration/autonomous_governance_q_policy.py",
       "sha256": "eea1f7d2f80de87556931521aa462f1fda489ea31ba80c6a111f328adcc73f6d"
+    },
+    {
+      "path": "src/tau_specs/governance/gov_gate.py",
+      "sha256": "a2f689421339898a2390dbf50c265a50cd6d6ad0f93840fdbe7d9786a3997b8a"
     },
     {
       "path": "tools/autonomous_governance_q_policy.py",
@@ -32,15 +68,43 @@
     },
     {
       "path": "tools/zeno_ledger_node.py",
-      "sha256": "342d1a852584d896fe98ba8ce1b6636380987b77e97163efc01610348d1b0a4e"
+      "sha256": "baf9c9d00136f06a5ca560132d57e72eeb897b23ae50954265b6eef39013656d"
     },
     {
       "path": "tests/state/test_app_root.py",
-      "sha256": "738b71f16e9cca90a8e876ee8810e6592a271d113e77571a6db93a83cc1ee1c8"
+      "sha256": "210285f45422a61fb66f48a0f6ebc587527c51e3acc49147a4dbd6d9174df109"
+    },
+    {
+      "path": "tests/core/test_cross_shard_decision_certificate.py",
+      "sha256": "cea39860da8cd29dfb0fe38ab464bc25f6e5cfe5975125be630c956cbc02464c"
+    },
+    {
+      "path": "tests/core/test_cross_shard_ledger_effects.py",
+      "sha256": "e9dc4d07a251aac2c7d318f2d4765b41df31202502dec26418a57e5048b38147"
+    },
+    {
+      "path": "tests/core/test_cross_shard_ledger_posting.py",
+      "sha256": "4e398d323ca34a4bc8c4d7ff2dad38fbfbc8d5e79b31963ee35e45a3c8a994d9"
+    },
+    {
+      "path": "tests/core/test_sharded_settlement_certificate.py",
+      "sha256": "2d6c84b35422aa579bd7f0a12d6e54cd0c9f04960806078e98d26da2947a43da"
     },
     {
       "path": "tests/integration/test_zeno_ledger_v0.py",
-      "sha256": "d8581d549fd40540c1f27dd6b352beaa1b2eb5a5292f671fb21c25d7da0c1615"
+      "sha256": "1509b9a0e6f5ec22a20ae508e3f5beebcd9b96abe47d0cf6ae8b164406331556"
+    },
+    {
+      "path": "tests/integration/test_zeno_ledger_rejections_v0.py",
+      "sha256": "5af4ea8e1c1f030a5b29003ab19e214e0918cd1f5b112d1577cf0c7dfa2937cd"
+    },
+    {
+      "path": "tests/integration/test_zeno_ledger_cross_shard_effect_application.py",
+      "sha256": "05b0da1152bac1f5d2fefcbeb9871ed5e2161d6becd9640e344aa3e8d344361f"
+    },
+    {
+      "path": "tests/integration/test_zeno_ledger_cross_shard_global_conservation.py",
+      "sha256": "fbc4ea79965caadd39e724ba9c98bb92c5963364875d893bc14db8770a86f30f"
     },
     {
       "path": "tests/integration/test_autonomous_governance_q_policy.py",
@@ -52,7 +116,7 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "1846eb4050a618a1bc1e842b61a94e0c1a5ac1b48213ec2b6897b55d071fb218"
+      "sha256": "93c96e4741714a11d8b489fea620c42457033b8e226d070f71eb2a2f8db4d699"
     },
     {
       "path": ".github/workflows/release-integrity.yml",
@@ -68,11 +132,11 @@
     },
     {
       "path": "lean-mathlib/Proofs/AutogovNextTrajectoryBudget.lean",
-      "sha256": "638aad704be1a3c83aadf5a35d5c6682a9013968fe58e6ac011b54cdcda0391a"
+      "sha256": "120003b811ff4e6508285c6e01113ffc82437151fd3475f31153045c38726b3d"
     },
     {
       "path": "lean-mathlib/Proofs.lean",
-      "sha256": "84034e25780955c1863274c7a905a18e7c314f4688177eed7bfa07695efa5d2d"
+      "sha256": "2b29bba0214ef8889afb48183085a8cee83e096ad7311dae3cc51cd52d92be26"
     },
     {
       "path": "tools/dex-ui/src/sdk/zenoProofClient.js",
@@ -132,13 +196,29 @@
         "-m",
         "py_compile",
         "tools/zeno_ledger_node.py",
+        "src/core/cross_shard_decision_certificate.py",
+        "src/core/cross_shard_ledger_effects.py",
+        "src/core/cross_shard_ledger_posting.py",
+        "src/core/cross_shard_settlement_admission.py",
+        "src/core/sharded_settlement_certificate.py",
         "src/integration/zeno_ledger_v0.py",
+        "src/integration/zeno_ledger_rejections_v0.py",
+        "src/integration/zeno_ledger_cross_shard_effect_application.py",
+        "src/integration/zeno_ledger_cross_shard_global_conservation.py",
         "src/state/app_root.py",
         "src/integration/autonomous_governance_q_policy.py",
+        "src/tau_specs/governance/gov_gate.py",
         "tools/autonomous_governance_q_policy.py",
+        "tests/core/test_cross_shard_decision_certificate.py",
+        "tests/core/test_cross_shard_ledger_effects.py",
+        "tests/core/test_cross_shard_ledger_posting.py",
+        "tests/core/test_sharded_settlement_certificate.py",
         "tests/integration/test_zeno_ledger_node_autogovnext.py",
         "tests/integration/test_autonomous_governance_q_policy.py",
         "tests/integration/test_zeno_ledger_v0.py",
+        "tests/integration/test_zeno_ledger_rejections_v0.py",
+        "tests/integration/test_zeno_ledger_cross_shard_effect_application.py",
+        "tests/integration/test_zeno_ledger_cross_shard_global_conservation.py",
         "tests/state/test_app_root.py"
       ]
     },
@@ -148,7 +228,7 @@
       "argv": [
         "bash",
         "-lc",
-        "cd lean-mathlib && lake env lean Proofs/AutogovNextTrajectoryBudget.lean"
+        "cd lean-mathlib && lean Proofs/AutogovNextTrajectoryBudget.lean"
       ]
     },
     {
@@ -160,7 +240,14 @@
         "pytest",
         "-q",
         "tests/state/test_app_root.py",
+        "tests/core/test_cross_shard_decision_certificate.py",
+        "tests/core/test_cross_shard_ledger_effects.py",
+        "tests/core/test_cross_shard_ledger_posting.py",
+        "tests/core/test_sharded_settlement_certificate.py",
         "tests/integration/test_zeno_ledger_v0.py",
+        "tests/integration/test_zeno_ledger_rejections_v0.py",
+        "tests/integration/test_zeno_ledger_cross_shard_effect_application.py",
+        "tests/integration/test_zeno_ledger_cross_shard_global_conservation.py",
         "tests/integration/test_autonomous_governance_q_policy.py",
         "tests/integration/test_zeno_ledger_node_autogovnext.py"
       ]
@@ -169,11 +256,9 @@
       "id": "ui_sdk_tests",
       "expected_exit": 0,
       "argv": [
-        "npm",
-        "--prefix",
-        "tools/dex-ui",
-        "run",
-        "test:sdk"
+        "bash",
+        "-lc",
+        "cd tools/dex-ui && npm ci --no-audit --no-fund && npm run test:sdk"
       ]
     },
     {
@@ -182,7 +267,7 @@
       "argv": [
         "bash",
         "-lc",
-        "cd packages/zeno-proof-client && npm test"
+        "cd packages/zeno-proof-client && npm ci --no-audit --no-fund && npm test"
       ]
     },
     {

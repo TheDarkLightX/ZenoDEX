@@ -1,0 +1,296 @@
+{
+  "authority_boundary": "research-only producer-manifest evidence; no settlement, state-root, production, routing, matching, pool-mutation, or governance authority",
+  "date": "2026-06-29",
+  "hypothesis_card": {
+    "expected_metric_delta": {
+      "cap_efficiency": "0",
+      "determinism_simplicity": "+single sampled n8 producer manifest over four reports",
+      "execution_quality": "0",
+      "perf_cost": "+stage replay when enabled",
+      "safety": "+detects stale, reordered, or cross-stage-inconsistent sampled n8 artifacts"
+    },
+    "falsification_recipe": "Mutate stage order, source seed, script hash, report hash, output digest, transition digest, or authority rail and require rejection.",
+    "formal_obligations": "Production use still needs exhaustive coverage or a Lean refinement of the child-frontier generation relation.",
+    "hypothesis_id": "H-AB-N8-GENERATED-IMAGE-PRODUCER-20260629",
+    "mechanism_change": "Bind the sampled n=8 child-frontier generated-image pipeline to an ordered producer manifest with script and output digests.",
+    "null_hypothesis": "A sampled n8 producer manifest gives no additional falsifiable boundary beyond individual stage reports.",
+    "representation_shift_used": "certificate_boundary",
+    "risk_modes": [
+      "stale generator script",
+      "stale checked report",
+      "stage reordering",
+      "source seed drift",
+      "digest drift",
+      "cross-stage link drift",
+      "authority leakage"
+    ],
+    "status": "supported_bounded",
+    "support_recipe": "Verify all checked reports, replay stages when enabled, confirm cross-stage links, and reject every mutation control."
+  },
+  "manifest": {
+    "authority_boundary": "research_only_no_settlement_state_root_production_or_governance_authority",
+    "cross_stage_links": {
+      "canonical_frontier_digest_matches_generation": true,
+      "transition_child_count_matches_generation": true,
+      "transition_child_coverage_matches_witness": true,
+      "transition_child_membership_matches_canonical": true,
+      "transition_merkle_digest_matches_canonical": true,
+      "transition_witness_digest_matches_witness_compression": true,
+      "witness_frontier_digest_matches_generation": true
+    },
+    "manifest_hash": "db94660eb8c859821de08b629371e3c056b2469d707b94df56854a5f41f17394",
+    "no_authority_effect": true,
+    "non_claims": [
+      "bounded sampled n=8 zero-min corpus only",
+      "does not prove exhaustive n=8 coverage",
+      "does not prove Python-to-Lean refinement",
+      "does not prove child-frontier generation in Lean",
+      "does not cover nonzero min_amount_out behavior",
+      "does not authorize settlement or state roots"
+    ],
+    "producer_stage_order": [
+      "generation",
+      "canonical_merkle",
+      "witness_compression",
+      "bidirectional_transition"
+    ],
+    "producer_stage_order_bound": true,
+    "schema": "zenodex.ab_child_frontier_generated_image_producer_n8_sample_manifest.v1",
+    "scope": "sampled_n8_same_pool_same_direction_exact_in_zero_min_child_frontier_generated_image_producer",
+    "source_seed": "2026062908",
+    "stage_manifests": [
+      {
+        "deterministic_hash": "4a601edd060a6cfe8444d7db91f1806bf8bf42b07943642de7dd299e76aa877f",
+        "normalized_report_sha256": "9d486b78b9d6121f28728a7124f336f209ea9bb1517c3362897c62db1680021a",
+        "outputs": {
+          "case_count": 3,
+          "extra_generated_state_count": 0,
+          "frontier_rows_digest": "37764c62caa78be76d654ec1f2540babe2aae2f546663f6548f2d9a1da85b919",
+          "generated_state_count": 88,
+          "missing_child_state_count": 0,
+          "negative_control_accept_count": 0,
+          "negative_control_count": 7,
+          "predecessor_transition_count": 268,
+          "sampled_child_mask_count": 51,
+          "sampled_child_state_count": 88,
+          "valid_case_count": 3
+        },
+        "report_hash_normalization": "strip all elapsed_ms fields",
+        "report_ok": true,
+        "report_path": "generated/zenodex_ab_reserve_state_child_frontier_n8_sample_20260629/report.json",
+        "report_schema": "zenodex.ab_reserve_state_child_frontier_n8_sample_report.v1",
+        "script_path": "tools/check_ab_reserve_state_child_frontier_n8_sample_20260629.py",
+        "script_sha256": "5ab65a27bed2258422b4e2930eefb928b2466da4e2ea814413a3709e2b989a34",
+        "source_seed": "2026062908",
+        "stage_id": "generation"
+      },
+      {
+        "deterministic_hash": "31df88fd8d43c07cd20742854e8553e5b3ab5fef4259726f9968c8ff67293f43",
+        "normalized_report_sha256": "b4318b47670c43b4fce96e3cb5ed0b55cf2ad7a8dd4314ea04db95b7502b1f2a",
+        "outputs": {
+          "case_count": 3,
+          "covered_sampled_child_state_count": 88,
+          "frontier_root_count": 51,
+          "frontier_roots_digest": "53872b495fd6af55f5192e5577f6fb75fca8bd54c26110ff88f4b11a17edf6d4",
+          "invalid_membership_proof_count": 0,
+          "membership_count": 88,
+          "membership_rows_digest": "bf859719c54893c3975b5f28a9eda8dc58b50b1bcab8ed46cd96fd5f4d63a5d2",
+          "missing_frontier_row_count": 0,
+          "missing_membership_proof_count": 0,
+          "negative_control_accept_count": 0,
+          "negative_control_count": 9,
+          "root_mismatch_count": 0,
+          "sampled_child_mask_count": 51,
+          "sampled_child_state_count": 88,
+          "valid_case_count": 3
+        },
+        "report_hash_normalization": "strip all elapsed_ms fields",
+        "report_ok": true,
+        "report_path": "generated/zenodex_ab_reserve_state_child_frontier_canonical_merkle_n8_sample_20260629/report.json",
+        "report_schema": "zenodex.ab_reserve_state_child_frontier_canonical_merkle_n8_sample_report.v1",
+        "script_path": "tools/check_ab_reserve_state_child_frontier_canonical_merkle_n8_sample_20260629.py",
+        "script_sha256": "49f61084552ab1bc74c10a5a257f37984718665e4cd6521949f6e964e62a4e0f",
+        "source_seed": "2026062908",
+        "stage_id": "canonical_merkle"
+      },
+      {
+        "deterministic_hash": "f2946c81017d4b9102d20fd417c49fc821471606a4361a6550e4deddb4eb641d",
+        "normalized_report_sha256": "65895d94ecd7c8c0807264e5db95a30a990ebbc1b9189777fb4192335ca790f6",
+        "outputs": {
+          "case_count": 3,
+          "covered_sampled_child_state_count": 88,
+          "duplicate_witness_count": 0,
+          "extra_sampled_child_state_witness_count": 0,
+          "invalid_witness_count": 0,
+          "missing_sampled_child_state_witness_count": 0,
+          "negative_control_accept_count": 0,
+          "negative_control_count": 9,
+          "predecessor_transition_count": 268,
+          "sampled_child_mask_count": 51,
+          "valid_case_count": 3,
+          "witness_compression_ratio": 3.045455,
+          "witness_count": 88,
+          "witness_rows_digest": "4851b651740dcfaaa5b175cccbc0907fb7449ff3c4e14db61c3cdafed72e52dd",
+          "witness_transition_checks_saved": 180
+        },
+        "report_hash_normalization": "strip all elapsed_ms fields",
+        "report_ok": true,
+        "report_path": "generated/zenodex_ab_reserve_state_child_frontier_witness_compression_n8_sample_20260629/report.json",
+        "report_schema": "zenodex.ab_reserve_state_child_frontier_witness_compression_n8_sample_report.v1",
+        "script_path": "tools/check_ab_reserve_state_child_frontier_witness_compression_n8_sample_20260629.py",
+        "script_sha256": "13e335e0a99916d01fdc9788f6bc97f30b63c0a80d66f11910985b71204c514e",
+        "source_seed": "2026062908",
+        "stage_id": "witness_compression"
+      },
+      {
+        "deterministic_hash": "5757702bcda71094a7b861318efdb7d1ea1e39d119677f3324e7e05ec12d939b",
+        "normalized_report_sha256": "91ee85516b795e953b36bb77d2b0c0bac216c42f74a4b3e01abd05a8527fd59a",
+        "outputs": {
+          "case_count": 3,
+          "covered_transition_count": 268,
+          "duplicate_transition_row_count": 0,
+          "expected_transition_count": 268,
+          "extra_transition_count": 0,
+          "invalid_transition_row_count": 0,
+          "linked_canonical_membership_count": 88,
+          "linked_child_coverage_witness_count": 88,
+          "missing_transition_count": 0,
+          "negative_control_accept_count": 0,
+          "negative_control_count": 11,
+          "sampled_child_mask_count": 51,
+          "transition_row_count": 268,
+          "transition_rows_digest": "0ed918d2b332430f57bf3561a5912fa50c0293c23661ff02f582a21e88f3ed09",
+          "unique_generated_child_count": 88,
+          "unique_transition_count": 268,
+          "valid_case_count": 3
+        },
+        "report_hash_normalization": "strip all elapsed_ms fields",
+        "report_ok": true,
+        "report_path": "generated/zenodex_ab_reserve_state_child_frontier_bidirectional_transition_n8_sample_20260629/report.json",
+        "report_schema": "zenodex.ab_reserve_state_child_frontier_bidirectional_transition_n8_sample_report.v1",
+        "script_path": "tools/check_ab_reserve_state_child_frontier_bidirectional_transition_n8_sample_20260629.py",
+        "script_sha256": "fd4378f8d3697a8b75e68c9f8ee8f1c25c875984472700a7ff30d7495add125d",
+        "source_seed": "2026062908",
+        "stage_id": "bidirectional_transition"
+      }
+    ]
+  },
+  "negative_control_accept_count": 0,
+  "negative_control_count": 11,
+  "negative_controls": [
+    {
+      "accepted": false,
+      "expected_reason": "manifest_hash_mismatch",
+      "mutation_id": "manifest_hash_mismatch",
+      "reasons": [
+        "manifest_hash_mismatch"
+      ]
+    },
+    {
+      "accepted": false,
+      "expected_reason": "producer_stage_order_mismatch",
+      "mutation_id": "producer_stage_order_mismatch",
+      "reasons": [
+        "producer_stage_order_mismatch"
+      ]
+    },
+    {
+      "accepted": false,
+      "expected_reason": "stage_manifest_missing",
+      "mutation_id": "stage_manifest_missing",
+      "reasons": [
+        "stage_manifest_order_mismatch",
+        "stage_manifest_missing"
+      ]
+    },
+    {
+      "accepted": false,
+      "expected_reason": "generation_source_seed_mismatch",
+      "mutation_id": "source_seed_mismatch",
+      "reasons": [
+        "generation_source_seed_mismatch",
+        "canonical_merkle_source_seed_mismatch",
+        "witness_compression_source_seed_mismatch",
+        "bidirectional_transition_source_seed_mismatch",
+        "source_seed_mismatch"
+      ]
+    },
+    {
+      "accepted": false,
+      "expected_reason": "generation_script_hash_mismatch",
+      "mutation_id": "generation_script_hash_mismatch",
+      "reasons": [
+        "generation_script_hash_mismatch"
+      ]
+    },
+    {
+      "accepted": false,
+      "expected_reason": "generation_report_hash_mismatch",
+      "mutation_id": "generation_report_hash_mismatch",
+      "reasons": [
+        "generation_report_hash_mismatch"
+      ]
+    },
+    {
+      "accepted": false,
+      "expected_reason": "generation_output_digest_mismatch",
+      "mutation_id": "generation_output_digest_mismatch",
+      "reasons": [
+        "generation_output_digest_mismatch"
+      ]
+    },
+    {
+      "accepted": false,
+      "expected_reason": "canonical_merkle_output_digest_mismatch",
+      "mutation_id": "canonical_merkle_output_digest_mismatch",
+      "reasons": [
+        "canonical_merkle_output_digest_mismatch"
+      ]
+    },
+    {
+      "accepted": false,
+      "expected_reason": "witness_compression_output_digest_mismatch",
+      "mutation_id": "witness_output_digest_mismatch",
+      "reasons": [
+        "witness_compression_output_digest_mismatch"
+      ]
+    },
+    {
+      "accepted": false,
+      "expected_reason": "bidirectional_transition_output_digest_mismatch",
+      "mutation_id": "bidirectional_transition_output_digest_mismatch",
+      "reasons": [
+        "bidirectional_transition_output_digest_mismatch"
+      ]
+    },
+    {
+      "accepted": false,
+      "expected_reason": "authority_effect_present",
+      "mutation_id": "authority_effect_present",
+      "reasons": [
+        "authority_effect_present"
+      ]
+    }
+  ],
+  "non_claims": [
+    "This producer manifest is bounded to the deterministic sampled n=8 zero-min child-frontier corpus.",
+    "This producer manifest does not prove exhaustive n=8 coverage.",
+    "This producer manifest does not prove Python-to-Lean refinement.",
+    "This producer manifest does not prove child-frontier generation in Lean.",
+    "This producer manifest does not cover nonzero min_amount_out behavior.",
+    "This producer manifest does not authorize settlement, routing, matching, governance, pool mutation, production deployment, or state roots."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_child_frontier_generated_image_producer_n8_sample_20260629.py",
+  "schema": "zenodex.ab_child_frontier_generated_image_producer_n8_sample_report.v1",
+  "stage_replay": {
+    "enabled": true,
+    "ok": true,
+    "stage_count": 4
+  },
+  "verification": {
+    "missing_stage_count": 0,
+    "ok": true,
+    "reasons": []
+  }
+}

@@ -14,7 +14,6 @@ from __future__ import annotations
 from dataclasses import replace
 
 from .math import (
-    BPS_SCALE,
     compute_partial_close_fraction,
     funding_payment,
     is_liquidatable,

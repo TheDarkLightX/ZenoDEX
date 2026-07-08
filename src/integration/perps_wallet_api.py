@@ -24,7 +24,12 @@ from urllib.parse import urlsplit
 
 from ..core.dex import DexState
 from ..core.perps import PerpClearinghouse2pMarketState, PerpMarketState
-from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
+from ..state.canonical import (
+    canonical_hex_fixed_allow_0x,
+    canonical_json_bytes,
+    domain_sep_bytes,
+    sha256_hex,
+)
 from .dex_snapshot import snapshot_with_legacy_lp_metadata_defaults, state_from_snapshot
 from .live_proof_wrapper import (
     live_zk_proof_required,
@@ -33,6 +38,9 @@ from .live_proof_wrapper import (
     verify_live_proof_wrapper,
 )
 from .perp_engine import PerpEngineConfig, apply_perp_ops
+from .perp_source_admission_cli_verifier import (
+    build_tau_source_authority_policy_receipt_cli_verifier,
+)
 from .perps_wallet_authority import (
     evaluate_perps_wallet_authority_profile_v1,
     evaluate_perps_wallet_device_approval_exercise_v1,
@@ -58,8 +66,8 @@ from .tau_net_client import (
     bls_pubkey_hex_from_privkey,
     build_signed_tau_transaction,
     encode_tau_operations_for_wire,
-    tau_rpc_invalid_sequence_numbers,
     sign_perp_op_for_engine,
+    tau_rpc_invalid_sequence_numbers,
     tau_rpc_response_is_success,
     verify_tau_transaction_payload_signature,
 )
@@ -1848,6 +1856,21 @@ def _default_oracle_adapter_bridge_verifier(bridge: Mapping[str, Any]) -> Any:
     return verify_aggregate_adapter_bridge(bridge)
 
 
+def _tau_source_authority_policy_receipt_verifier_from_env() -> Any | None:
+    verifier_path = _env_str("TAU_DEX_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_VERIFIER", "")
+    if not verifier_path:
+        return None
+    return build_tau_source_authority_policy_receipt_cli_verifier(
+        verifier_path=verifier_path,
+        timeout_s=_env_float(
+            "TAU_DEX_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_VERIFIER_TIMEOUT_S",
+            5.0,
+            lo=0.1,
+            hi=60.0,
+        ),
+    )
+
+
 def _build_perp_config(*, chain_id: str) -> PerpEngineConfig:
     operator_pubkey = os.environ.get("TAU_DEX_OPERATOR_PUBKEY") or os.environ.get("TAU_DEX_PERP_OPERATOR_PUBKEY")
     oracle_pubkey = os.environ.get("TAU_DEX_PERP_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY")
@@ -1864,6 +1887,33 @@ def _build_perp_config(*, chain_id: str) -> PerpEngineConfig:
         require_oracle_adapter_for_isolated_partial_liquidate=_env_bool(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
             True,
+        ),
+        require_tau_source_binding_for_isolated_partial_liquidate=_env_bool(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_BINDING_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        require_tau_source_state_root_binding_for_isolated_partial_liquidate=_env_bool(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_STATE_ROOT_BINDING_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        require_tau_source_membership_proof_for_isolated_partial_liquidate=_env_bool(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_MEMBERSHIP_PROOF_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        require_tau_source_root_authority_for_isolated_partial_liquidate=_env_bool(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_ROOT_AUTHORITY_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        require_tau_source_admission_envelope_for_isolated_partial_liquidate=_env_bool(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_ADMISSION_ENVELOPE_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        require_tau_source_authority_policy_receipt_for_isolated_partial_liquidate=_env_bool(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        tau_source_authority_policy_receipt_verifier=(
+            _tau_source_authority_policy_receipt_verifier_from_env()
         ),
     )
 
@@ -1968,7 +2018,10 @@ def _local_perps_oracle_bridge_fixture(
     fraction_bps: int = 0,
 ) -> dict[str, Any]:
     wallet_action = action
-    from tools.zenodex_oracle import ACTION_TYPE, receipt_content_hash  # pylint: disable=import-outside-toplevel
+    from tools.zenodex_oracle import (  # pylint: disable=import-outside-toplevel
+        ACTION_TYPE,
+        receipt_content_hash,
+    )
     from tools.zenodex_oracle_adapter import (  # pylint: disable=import-outside-toplevel
         ACTION_SCHEMA,
         PROFILE_SCHEMA,
@@ -1987,14 +2040,16 @@ def _local_perps_oracle_bridge_fixture(
         AGGREGATE_READ_SCHEMA,
         _bundle_for_aggregate,
         aggregate_read_value_hash,
+    )
+    from tools.zenodex_oracle_aggregate_read import (
         bridge_content_hash as aggregate_read_content_hash,
     )
+
     from .perp_engine import (  # pylint: disable=import-outside-toplevel
-        _ClearinghouseOracleRuntimeRequest,
-        _LiquidateAccountOracleRuntimeRequest,
         _ORACLE_PERPS_INDEX_QUERY_ID,
         _ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
         _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+        _LiquidateAccountOracleRuntimeRequest,
         _perps_clearinghouse_runtime_oracle_action_id,
         _perps_liquidate_account_runtime_oracle_action_id,
     )
@@ -2010,15 +2065,13 @@ def _local_perps_oracle_bridge_fixture(
         profile_id = _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID
         freshness_window_epochs = 2
         action_id = _perps_clearinghouse_runtime_oracle_action_id(
-            _ClearinghouseOracleRuntimeRequest(
-                config=config,
-                market_id=market_id,
-                action_kind=action_kind,
-                market_kind="clearinghouse_2p_v1",
-                quote_asset=market.quote_asset,
-                state=market.state,
-                participant_pubkeys=(market.account_a_pubkey, market.account_b_pubkey),
-            )
+            config,
+            market_id=market_id,
+            action_kind=action_kind,
+            market_kind="clearinghouse_2p_v1",
+            quote_asset=market.quote_asset,
+            state=market.state,
+            participant_pubkeys=(market.account_a_pubkey, market.account_b_pubkey),
         )
     elif wallet_action == "partial_liquidate":
         if not isinstance(market, PerpMarketState):
@@ -3048,6 +3101,33 @@ def _status_payload() -> Dict[str, Any]:
         "require_oracle_adapter_for_isolated_partial_liquidate": _env_bool(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
             True,
+        ),
+        "require_tau_source_binding_for_isolated_partial_liquidate": _env_bool(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_BINDING_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        "require_tau_source_state_root_binding_for_isolated_partial_liquidate": _env_bool(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_STATE_ROOT_BINDING_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        "require_tau_source_membership_proof_for_isolated_partial_liquidate": _env_bool(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_MEMBERSHIP_PROOF_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        "require_tau_source_root_authority_for_isolated_partial_liquidate": _env_bool(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_ROOT_AUTHORITY_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        "require_tau_source_admission_envelope_for_isolated_partial_liquidate": _env_bool(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_ADMISSION_ENVELOPE_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        "require_tau_source_authority_policy_receipt_for_isolated_partial_liquidate": _env_bool(
+            "TAU_DEX_REQUIRE_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        "tau_source_authority_policy_receipt_verifier_configured": bool(
+            _env_str("TAU_DEX_TAU_SOURCE_AUTHORITY_POLICY_RECEIPT_VERIFIER", "")
         ),
         "proof_profile": _perps_proof_profile(),
         "wallet_authority": wallet_authority,

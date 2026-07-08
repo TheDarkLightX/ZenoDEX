@@ -66,6 +66,8 @@ def build_dex_intent_signing_dict_v1(intent: Intent | Mapping[str, Any]) -> Dict
     if shape.use_transport_flattened_fields:
         fields = {k: v for k, v in dict(intent).items() if k not in _DEX_INTENT_COMMON_KEYS and k != "signature"}
     else:
+        if not isinstance(explicit_fields, Mapping):
+            raise TypeError("intent.fields must be a mapping when present")
         fields = dict(explicit_fields)
 
     signing_dict = {

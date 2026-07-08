@@ -1,0 +1,61 @@
+# AB Reserve-State Child-Frontier Witness Compression N8 Sample Scope Certificate v1
+#
+# PURPOSE:
+#   Admit a research-only certificate for the sampled n=8 AB strict zero-min
+#   reserve-state child-frontier witness-compression proof-object shape. The
+#   host checks the source report, sampled scope, witness coverage counts,
+#   compression metrics, linked frontier summary, pinned digests, deterministic
+#   replay, negative controls, normalized source hash, and no-authority rail.
+#   Tau only composes those host facts into a fail-closed envelope.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = source_report_ok
+# i3  = sampled_n8_zero_min_scope_ok
+# i4  = witness_counts_complete
+# i5  = compression_metrics_ok
+# i6  = linked_frontier_ok
+# i7  = witness_digest_pinned
+# i8  = linked_frontier_digest_pinned
+# i9  = deterministic_replay_ok
+# i10 = negative_controls_reject
+# i11 = authority_boundary_ok
+# i12 = no_authority_effect
+# i13 = corpus_nonvacuous
+# i14 = normalized_source_hash_pinned
+# i15 = volatile_elapsed_ignored
+#
+# o1  = scope_ok
+# o2  = witness_coverage_ok
+# o3  = compression_ok
+# o4  = linked_frontier_ok
+# o5  = replay_and_refutation_ok
+# o6  = digest_pins_ok
+# o7  = authority_boundary_ok
+# o8  = witness_compression_n8_sample_certificate_ok
+# o9  = inactive_safe
+# o10 = source_pin_ok
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+scope_ok(source_report : sbf, sampled_n8_zero_min : sbf, nonvacuous : sbf, normalized_source_hash : sbf, volatile_elapsed_ignored : sbf) := is1(source_report) && is1(sampled_n8_zero_min) && is1(nonvacuous) && is1(normalized_source_hash) && is1(volatile_elapsed_ignored).
+witness_coverage_ok(witness_counts : sbf) := is1(witness_counts).
+compression_ok(compression_metrics : sbf) := is1(compression_metrics).
+linked_frontier_ok(linked_frontier : sbf) := is1(linked_frontier).
+replay_and_refutation_ok(deterministic_replay : sbf, negative_controls : sbf) := is1(deterministic_replay) && is1(negative_controls).
+digest_pins_ok(witness_digest : sbf, linked_frontier_digest : sbf) := is1(witness_digest) && is1(linked_frontier_digest).
+authority_ok(boundary : sbf, no_authority : sbf) := is1(boundary) && is1(no_authority).
+certificate_ok(active : sbf, source_report : sbf, sampled_n8_zero_min : sbf, witness_counts : sbf, compression_metrics : sbf, linked_frontier : sbf, witness_digest : sbf, linked_frontier_digest : sbf, deterministic_replay : sbf, negative_controls : sbf, boundary : sbf, no_authority : sbf, nonvacuous : sbf, normalized_source_hash : sbf, volatile_elapsed_ignored : sbf) := is1(active) && scope_ok(source_report, sampled_n8_zero_min, nonvacuous, normalized_source_hash, volatile_elapsed_ignored) && witness_coverage_ok(witness_counts) && compression_ok(compression_metrics) && linked_frontier_ok(linked_frontier) && replay_and_refutation_ok(deterministic_replay, negative_controls) && digest_pins_ok(witness_digest, linked_frontier_digest) && authority_ok(boundary, no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> scope_ok(i2[t]:sbf, i3[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> witness_coverage_ok(i4[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> compression_ok(i5[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> linked_frontier_ok(i6[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> replay_and_refutation_ok(i9[t]:sbf, i10[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> digest_pins_ok(i7[t]:sbf, i8[t]:sbf)) &&
+  (o7[t]:sbf = 1:sbf <-> authority_ok(i11[t]:sbf, i12[t]:sbf)) &&
+  (o8[t]:sbf = 1:sbf <-> certificate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf)) &&
+  (o9[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i12[t]:sbf))) &&
+  (o10[t]:sbf = 1:sbf <-> is1(i14[t]:sbf)).

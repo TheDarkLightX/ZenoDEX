@@ -1,0 +1,384 @@
+{
+  "artifact_hashes": {
+    "tau_spec": "f7ec42cc64b52c7014ecd85b51fe035c8a498a0a8ebf9d32e3a0537e7f7dc3f2",
+    "tool": "845ecae5de20dcbb4bdda10136d2399ccce1c75ac2f2e3913262c526f6104c05"
+  },
+  "authority_boundary": "TauSpecEBRM ranks and proposes research certificates; deterministic Tau traces and host/kernel verifiers decide acceptance.",
+  "date": "2026-06-28",
+  "dependencies": {
+    "all_ok": true,
+    "all_present": true,
+    "reports": [
+      {
+        "ok": true,
+        "path": "generated/zenodex_tau_solver_portfolio_breakthrough_20260628/report.json",
+        "present": true,
+        "sha256": "76881415af98a1da7fb22ff4d396d6e8350782351fdcffbaeb6d09299d5e85d5"
+      },
+      {
+        "ok": true,
+        "path": "generated/zenodex_tau_semantic_coverage_selector_20260628/report.json",
+        "present": true,
+        "sha256": "418e5f7b2c3496563cee620a28aed3c15953936fcb66b4c6b91ba6cf1cfe98df"
+      },
+      {
+        "ok": true,
+        "path": "generated/zenodex_tau_route_split_window_breakthrough_20260628/report.json",
+        "present": true,
+        "sha256": "b146b6ce70788fa30220c5f6f468e4c6af00b2c8b3687268693d47fa3198841b"
+      }
+    ]
+  },
+  "non_claims": [
+    "TauSpecEBRM is advisory and cannot authorize settlement, oracle updates, governance, production promotion, or state mutation.",
+    "The report compares a bounded candidate pool, not every possible Tau specification.",
+    "Host-projected facts remain external obligations until their owning host or kernel verifier replays them."
+  ],
+  "ok": true,
+  "ranking": {
+    "baseline_max_top3_frontier_score": 341,
+    "candidate_count": 13,
+    "coverage_top10": {
+      "AB": true,
+      "CoW": true,
+      "evidence_dag": true,
+      "exact_in_staircase": true,
+      "exact_out_split_routing": true,
+      "negative_frontier": true,
+      "tokenomics_pol": true
+    },
+    "ranker": "tau_spec_ebrm_v2",
+    "ranking_metrics": {
+      "existing_profile_choice": {
+        "invalid_accepts_topk": 0,
+        "top_ids": [
+          "frontier_certificate_menu_v1",
+          "optimizer_quotient_certificate_v1",
+          "solver_portfolio_upgrade_certificate_v1"
+        ],
+        "top_k": 3,
+        "topk_frontier_score": 331
+      },
+      "grammar_minimal": {
+        "invalid_accepts_topk": 0,
+        "top_ids": [
+          "frontier_certificate_menu_v1",
+          "ab_cow_exact_solver_envelope_v1",
+          "negative_frontier_entropy_campaign_certificate_v1"
+        ],
+        "top_k": 3,
+        "topk_frontier_score": 304
+      },
+      "highest_value": {
+        "invalid_accepts_topk": 0,
+        "top_ids": [
+          "optimizer_quotient_certificate_v1",
+          "solver_portfolio_upgrade_certificate_v1",
+          "negative_frontier_entropy_campaign_certificate_v1"
+        ],
+        "top_k": 3,
+        "topk_frontier_score": 341
+      },
+      "host_projection_heuristic": {
+        "invalid_accepts_topk": 0,
+        "top_ids": [
+          "solver_portfolio_upgrade_certificate_v1",
+          "negative_frontier_entropy_campaign_certificate_v1",
+          "optimizer_quotient_certificate_v1"
+        ],
+        "top_k": 3,
+        "topk_frontier_score": 341
+      },
+      "most_projected_facts": {
+        "invalid_accepts_topk": 0,
+        "top_ids": [
+          "solver_portfolio_upgrade_certificate_v1",
+          "optimizer_quotient_certificate_v1",
+          "ab_subset_dp_dominance_certificate_v1"
+        ],
+        "top_k": 3,
+        "topk_frontier_score": 313
+      },
+      "tau_spec_ebrm_v2": {
+        "invalid_accepts_topk": 0,
+        "top_ids": [
+          "solver_portfolio_upgrade_certificate_v1",
+          "optimizer_quotient_certificate_v1",
+          "negative_frontier_entropy_campaign_certificate_v1"
+        ],
+        "top_k": 3,
+        "topk_frontier_score": 341
+      }
+    },
+    "top10": [
+      "solver_portfolio_upgrade_certificate_v1",
+      "optimizer_quotient_certificate_v1",
+      "negative_frontier_entropy_campaign_certificate_v1",
+      "route_split_window_certificate_v1",
+      "exact_in_staircase_hostile_certificate_v1",
+      "frontier_certificate_menu_v1",
+      "evidence_dag_hitting_set_certificate_v1",
+      "route_dominance_frontier_envelope_v1",
+      "tokenomics_pol_sybil_threshold_certificate_v1",
+      "ab_cow_exact_solver_envelope_v1"
+    ],
+    "top10_axes": [
+      "AB",
+      "CoW",
+      "adversarial_replay",
+      "certificate_design",
+      "counterexample_synthesis",
+      "evidence_dag",
+      "exact_in_staircase",
+      "exact_out_split_routing",
+      "host_projection",
+      "integer_rounding",
+      "mechanism_design",
+      "negative_frontier",
+      "performance_frontier",
+      "proof_object_compression",
+      "state_space_reformulation",
+      "tokenomics_pol"
+    ],
+    "top3": [
+      "solver_portfolio_upgrade_certificate_v1",
+      "optimizer_quotient_certificate_v1",
+      "negative_frontier_entropy_campaign_certificate_v1"
+    ],
+    "top3_frontier_score": 341
+  },
+  "schema": "zenodex.tauspec_ebrm_compounding_frontier_report.v1",
+  "selector_facts": {
+    "advisory_model_only": 1,
+    "candidate_pool_bound_ok": 1,
+    "deterministic_replay_ok": 1,
+    "invalid_accepts_zero": 1,
+    "no_authority_effect": 1,
+    "performance_profile_bound_ok": 1,
+    "selector_active": 1,
+    "tau_traces_passed": 1,
+    "topk_not_worse_than_baselines": 1,
+    "work_item_1_ab_covered": 1,
+    "work_item_2_cow_covered": 1
+  },
+  "spec_id": "tauspec_ebrm_compounding_frontier_certificate_v1",
+  "tau": {
+    "case_count": 12,
+    "case_results": [
+      {
+        "case_id": "compounding_frontier_pass",
+        "expected": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All host-computed selector facts hold."
+      },
+      {
+        "case_id": "missing_i2_reject",
+        "expected": {
+          "o5": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Reject when candidate pool is bounded is missing."
+      },
+      {
+        "case_id": "missing_i3_reject",
+        "expected": {
+          "o5": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Reject when Tau traces pass is missing."
+      },
+      {
+        "case_id": "missing_i4_reject",
+        "expected": {
+          "o5": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Reject when invalid accepts are zero is missing."
+      },
+      {
+        "case_id": "missing_i5_reject",
+        "expected": {
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Reject when top-k is not worse than deterministic baselines is missing."
+      },
+      {
+        "case_id": "missing_i6_reject",
+        "expected": {
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Reject when AB work item remains covered is missing."
+      },
+      {
+        "case_id": "missing_i7_reject",
+        "expected": {
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Reject when CoW work item remains covered is missing."
+      },
+      {
+        "case_id": "missing_i8_reject",
+        "expected": {
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Reject when deterministic replay is stable is missing."
+      },
+      {
+        "case_id": "missing_i9_reject",
+        "expected": {
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Reject when selector remains advisory-only is missing."
+      },
+      {
+        "case_id": "missing_i10_reject",
+        "expected": {
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Reject when performance/dependency profile is bounded is missing."
+      },
+      {
+        "case_id": "missing_i11_reject",
+        "expected": {
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Reject when certificate has no authority effect is missing."
+      },
+      {
+        "case_id": "inactive_safe",
+        "expected": {
+          "o5": 0,
+          "o6": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Inactive certificates do not admit while the no-authority rail remains true."
+      }
+    ],
+    "false_rejects": 0,
+    "invalid_accepts": 0,
+    "ok": true,
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  }
+}

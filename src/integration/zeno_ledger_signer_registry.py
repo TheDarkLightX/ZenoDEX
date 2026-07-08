@@ -22,6 +22,12 @@ def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
     return value
 
 
+def _require_sequence(value: object, *, name: str) -> Sequence[Any]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
+        raise TypeError(f"{name} must be a sequence")
+    return value
+
+
 def _require_str(value: object, *, name: str) -> str:
     if not isinstance(value, str) or value == "":
         raise ValueError(f"{name} must be a non-empty string")
@@ -70,22 +76,21 @@ def build_signer_registry_v0(
     registry_id: str,
     payload_kind: str,
     threshold: int,
-    signers: Sequence[Mapping[str, Any]],
+    signers: object,
 ) -> dict[str, Any]:
     kind = _require_str(payload_kind, name="payload_kind")
     if kind not in SUPPORTED_PAYLOAD_KINDS_V0:
         raise ValueError("payload_kind is not supported")
     threshold_value = _require_positive_int(threshold, name="threshold")
-    if not isinstance(signers, Sequence) or isinstance(signers, (str, bytes, bytearray)):
-        raise TypeError("signers must be a sequence")
-    if not signers:
+    signer_values = _require_sequence(signers, name="signers")
+    if not signer_values:
         raise ValueError("signer registry requires at least one signer")
 
     entries: list[dict[str, Any]] = []
     seen_keys: set[tuple[str, str]] = set()
     seen_active_public_keys: set[str] = set()
     active_weight = 0
-    for index, raw in enumerate(signers):
+    for index, raw in enumerate(signer_values):
         obj = _require_mapping(raw, name=f"signers[{index}]")
         entry = _signer_body(
             signer_id=_require_str(obj.get("signer_id"), name=f"signers[{index}].signer_id"),
@@ -141,15 +146,14 @@ def verify_signature_quorum_v0(
     registry: Mapping[str, Any],
     payload_kind: str,
     payload_hash: str,
-    envelopes: Sequence[Mapping[str, Any]],
+    envelopes: object,
 ) -> dict[str, Any]:
     validate_signer_registry_v0(registry)
     kind = _require_str(payload_kind, name="payload_kind")
     if kind != registry["payload_kind"]:
         raise ValueError("payload_kind does not match registry")
-    if not isinstance(envelopes, Sequence) or isinstance(envelopes, (str, bytes, bytearray)):
-        raise TypeError("envelopes must be a sequence")
-    if not envelopes:
+    envelope_values = _require_sequence(envelopes, name="envelopes")
+    if not envelope_values:
         raise ValueError("at least one envelope is required")
 
     active_by_identity: dict[tuple[str, str], Mapping[str, Any]] = {}
@@ -161,7 +165,7 @@ def verify_signature_quorum_v0(
     accepted: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
     weight = 0
-    for index, raw_envelope in enumerate(envelopes):
+    for index, raw_envelope in enumerate(envelope_values):
         envelope = _require_mapping(raw_envelope, name=f"envelopes[{index}]")
         identity = (
             _require_str(envelope.get("signer_id"), name=f"envelopes[{index}].signer_id"),

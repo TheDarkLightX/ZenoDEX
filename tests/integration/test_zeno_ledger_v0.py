@@ -836,6 +836,7 @@ def test_app_root_lanes_bind_dex_snapshot_modules_missing_from_spot_root() -> No
         ("proof_mining", "global"),
         ("zusd", "system"),
         ("clob", "global"),
+        ("cross_shard", "global"),
         ("governance", "global"),
     }
     assert {leaf.lane_kind for leaf in leaves} == zv.APP_ROOT_LANE_KINDS
@@ -863,10 +864,24 @@ def test_app_root_lanes_bind_dex_snapshot_modules_missing_from_spot_root() -> No
         "version": 1,
         "surface_state": {"fee_bps": 300},
     }
+    cross_shard_mutation = deepcopy(snapshot)
+    cross_shard_mutation["cross_shard"] = {
+        "schema": "zenodex/zeno_ledger/cross_shard_applied_effects_state/v0",
+        "source_artifact_hashes": ["0x" + "11" * 32],
+        "applied_effect_row_ids": ["row-0"],
+        "global_effect_index": 1,
+    }
 
     # Review note, grade A: these are the D-CANON-002 fields the old spot root
     # could omit. Each mutation now changes the typed app root.
-    for mutated in (spot_mutation, oracle_mutation, vault_mutation, perps_mutation, governance_mutation):
+    for mutated in (
+        spot_mutation,
+        oracle_mutation,
+        vault_mutation,
+        perps_mutation,
+        governance_mutation,
+        cross_shard_mutation,
+    ):
         assert zv.compute_dex_snapshot_app_root_v0(mutated) != root
 
     partial_root = zv.compute_required_app_root(
@@ -920,7 +935,7 @@ def test_run_local_pre_snapshot_header_binds_dex_app_root(tmp_path: Path) -> Non
     # vault, and perps fields are part of the block root.
     assert header["pre_state_root"] == expected
     assert header["post_state_root"] == expected
-    assert expected != zv.dex_state_root_v0(state_from_snapshot(snapshot))
+    assert zv.dex_state_root_v0(state_from_snapshot(snapshot)) == expected
 
 
 def test_tau_app_state_app_root_binds_wrapper_only_lanes() -> None:

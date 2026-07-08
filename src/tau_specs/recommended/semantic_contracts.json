@@ -1,5 +1,15 @@
 {
   "schema": "zenodex/tau-semantic-contracts/v1",
+  "runtime_defaults": {
+    "repl": {
+      "execution_lane": "repl_with_spec_fallback",
+      "trace_timeout_s": 60.0
+    },
+    "spec": {
+      "execution_lane": "spec_mode_stable",
+      "trace_timeout_s": 90.0
+    }
+  },
   "specs": [
     {
       "contract_id": "perp_tau_ingress_schema_guard_v1",
@@ -344,6 +354,274 @@
           ]
         }
       ]
+    },
+    {
+      "contract_id": "cross_shard_deadline_admission_v1",
+      "spec_path": "src/tau_specs/recommended/cross_shard_deadline_admission_v1.tau",
+      "run_mode": "repl",
+      "style": "host_projected_boolean_gate",
+      "summary": "Tau admission guard for cross-shard decision certificates after host projection of decision and deadline facts.",
+      "control_inputs": [
+        {"slot": "i1", "name": "decision_known", "meaning": "host decoded a supported cross-shard decision kind"},
+        {"slot": "i2", "name": "decision_one_hot", "meaning": "host projected exactly one cross-shard decision mode"},
+        {"slot": "i3", "name": "commit_selected", "meaning": "commit decision mode is selected"},
+        {"slot": "i4", "name": "reject_selected", "meaning": "reject decision mode is selected"},
+        {"slot": "i5", "name": "pending_selected", "meaning": "pending decision mode is selected"},
+        {"slot": "i6", "name": "current_step_supplied", "meaning": "runtime supplied current-step context for cross-shard decision admission"},
+        {"slot": "i7", "name": "decision_step_le_current", "meaning": "host projected decision_step <= current_step"},
+        {"slot": "i8", "name": "decision_step_le_deadline", "meaning": "host projected decision_step <= deadline_step"},
+        {"slot": "i9", "name": "pending_created_before_deadline", "meaning": "host projected decision_step < deadline_step for a pending decision"},
+        {"slot": "i10", "name": "pending_current_before_deadline", "meaning": "host projected current_step < deadline_step for a pending decision"},
+        {"slot": "i11", "name": "certificate_shape_and_binding_ok", "meaning": "certificate schema, hashes, participant bindings, receipt-decision pair, and visibility constraints passed runtime checks"}
+      ],
+      "data_inputs": [],
+      "outputs": [
+        {"slot": "o1", "name": "decision_selection_ok", "meaning": "decision kind is known, one-hot, and exactly one variant flag is selected"},
+        {"slot": "o2", "name": "deadline_context_ok", "meaning": "current-step context exists and decision time is inside current/deadline bounds"},
+        {"slot": "o3", "name": "pending_deadline_ok", "meaning": "non-pending decisions pass; pending decisions are created before and still before deadline"},
+        {"slot": "o4", "name": "decision_payload_ok", "meaning": "host-projected certificate shape and binding checks passed"},
+        {"slot": "o5", "name": "cross_shard_deadline_admission_ok", "meaning": "the full cross-shard deadline admission guard is satisfied"}
+      ],
+      "assumptions": [
+        "The deterministic runtime parses certificates, verifies hashes and participants, and computes integer deadline comparison flags before Tau evaluation.",
+        "Tau checks only the host-projected boolean admission contract and fails closed on missing or false flags."
+      ],
+      "non_goals": [
+        "Parsing cross-shard decision certificate payloads inside Tau.",
+        "Proving global sharded-settlement conservation.",
+        "Replacing the deterministic Python certificate verifier."
+      ],
+      "guarantees": [
+        {
+          "id": "G_commit_and_pending_decisions_accept_when_deadline_facts_hold",
+          "description": "The guard accepts final and pending decisions only when selection, timing, and payload-binding facts all pass.",
+          "cases": [
+            {
+              "id": "valid_commit_accepts_at_deadline",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 0, "i5": 0, "i6": 1, "i7": 1, "i8": 1, "i9": 0, "i10": 0, "i11": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 1, "o4": 1, "o5": 1}
+              ]
+            },
+            {
+              "id": "valid_pending_before_deadline_accepts",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 0, "i4": 0, "i5": 1, "i6": 1, "i7": 1, "i8": 1, "i9": 1, "i10": 1, "i11": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 1, "o4": 1, "o5": 1}
+              ]
+            }
+          ]
+        }
+      ],
+      "forbidden_behaviors": [
+        {
+          "id": "F_expired_or_at_deadline_pending_rejected",
+          "description": "Pending decisions cannot be admitted when created at deadline or evaluated at/after deadline.",
+          "cases": [
+            {
+              "id": "pending_created_at_deadline_rejects",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 0, "i4": 0, "i5": 1, "i6": 1, "i7": 1, "i8": 1, "i9": 0, "i10": 1, "i11": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 0, "o4": 1, "o5": 0}
+              ]
+            },
+            {
+              "id": "expired_pending_rejects",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 0, "i4": 0, "i5": 1, "i6": 1, "i7": 1, "i8": 1, "i9": 1, "i10": 0, "i11": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 0, "o4": 1, "o5": 0}
+              ]
+            }
+          ]
+        },
+        {
+          "id": "F_missing_or_future_step_context_rejected",
+          "description": "Decision admission fails closed without current-step context or when the decision is future-dated.",
+          "cases": [
+            {
+              "id": "missing_current_step_rejects",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 0, "i5": 0, "i6": 0, "i7": 1, "i8": 1, "i9": 0, "i10": 0, "i11": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 0, "o3": 1, "o4": 1, "o5": 0}
+              ]
+            },
+            {
+              "id": "future_dated_decision_rejects",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 0, "i5": 0, "i6": 1, "i7": 0, "i8": 1, "i9": 0, "i10": 0, "i11": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 0, "o3": 1, "o4": 1, "o5": 0}
+              ]
+            }
+          ]
+        },
+        {
+          "id": "F_bad_selection_or_payload_binding_rejected",
+          "description": "Malformed decision selection or failed certificate binding prevents admission.",
+          "cases": [
+            {
+              "id": "non_one_hot_variant_rejects",
+              "steps": [
+                {"i1": 1, "i2": 0, "i3": 1, "i4": 1, "i5": 0, "i6": 1, "i7": 1, "i8": 1, "i9": 0, "i10": 0, "i11": 1}
+              ],
+              "expected": [
+                {"o1": 0, "o2": 1, "o3": 1, "o4": 1, "o5": 0}
+              ]
+            },
+            {
+              "id": "failed_payload_binding_rejects",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 0, "i5": 0, "i6": 1, "i7": 1, "i8": 1, "i9": 0, "i10": 0, "i11": 0}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 1, "o4": 0, "o5": 0}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "contract_id": "recursive_lifecycle_asset_delta_admission_v1",
+      "spec_path": "src/tau_specs/recommended/recursive_lifecycle_asset_delta_admission_v1.tau",
+      "run_mode": "repl",
+      "style": "host_projected_boolean_gate",
+      "summary": "Tau admission gate for recursive RISC0 lifecycle asset-delta row certificates.",
+      "control_inputs": [
+        {"slot": "i1", "name": "proof_requested", "meaning": "host requested recursive lifecycle proof admission"},
+        {"slot": "i2", "name": "proof_verified", "meaning": "RISC0 receipt verification succeeded against the expected image ID"},
+        {"slot": "i3", "name": "proof_profile_supported", "meaning": "proof profile is a supported recursive leaf or aggregate profile"},
+        {"slot": "i4", "name": "leaf_rows_derived", "meaning": "host/RISC0 path derived lifecycle rows from checked transition inputs rather than accepting unchecked rows"},
+        {"slot": "i5", "name": "asset_delta_root_bound", "meaning": "metadata rows recompute to the journal asset_delta_root and header-bound root"},
+        {"slot": "i6", "name": "aggregate_rows_balanced", "meaning": "recursive aggregate rows satisfy debit plus authorized mint equals credit plus authorized burn"},
+        {"slot": "i7", "name": "authority_roots_allowed", "meaning": "authorized mint, burn, slash, or reward rows use committed allowed authority roots"},
+        {"slot": "i8", "name": "unsupported_lifecycle_absent", "meaning": "all lifecycle effects in the proof family are covered by the row extractor or rejected"},
+        {"slot": "i9", "name": "tau_header_binding_ok", "meaning": "proof metadata roots match the Tau header or admission packet roots"},
+        {"slot": "i10", "name": "transcript_binding_ok", "meaning": "statement, journal, receipt, and transcript hashes are mutually bound"}
+      ],
+      "data_inputs": [],
+      "outputs": [
+        {"slot": "o1", "name": "row_certificate_ok", "meaning": "row derivation, row-root binding, and lifecycle coverage checks passed"},
+        {"slot": "o2", "name": "aggregate_conservation_ok", "meaning": "aggregate row balance and authority-root checks passed"},
+        {"slot": "o3", "name": "proof_binding_ok", "meaning": "proof verification, profile, header, and transcript bindings passed"},
+        {"slot": "o4", "name": "recursive_lifecycle_admissible", "meaning": "the recursive lifecycle proof summary is admissible to Tau"}
+      ],
+      "assumptions": [
+        "The deterministic host verifies RISC0 receipts, recomputes lifecycle row roots, checks aggregate row balance, and projects those booleans before Tau evaluation.",
+        "Tau combines the projected booleans fail-closed and does not parse RISC0 journals or row payloads itself."
+      ],
+      "non_goals": [
+        "Executing the RISC0 transition inside Tau.",
+        "Generating recursive proofs.",
+        "Replacing the Rust row extractor or aggregate row conservation checker."
+      ],
+      "guarantees": [
+        {
+          "id": "G_valid_recursive_lifecycle_certificate_accepts",
+          "description": "The gate admits a recursive lifecycle proof only when proof, row, aggregate, authority, and transcript bindings all pass.",
+          "cases": [
+            {
+              "id": "all_projected_facts_accept",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 1, "i5": 1, "i6": 1, "i7": 1, "i8": 1, "i9": 1, "i10": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 1, "o4": 1}
+              ]
+            }
+          ]
+        }
+      ],
+      "forbidden_behaviors": [
+        {
+          "id": "F_row_certificate_failures_rejected",
+          "description": "Missing derived rows, row-root drift, or unsupported lifecycle effects prevent admission.",
+          "cases": [
+            {
+              "id": "row_root_mismatch_rejects",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 1, "i5": 0, "i6": 1, "i7": 1, "i8": 1, "i9": 1, "i10": 1}
+              ],
+              "expected": [
+                {"o1": 0, "o2": 1, "o3": 1, "o4": 0}
+              ]
+            },
+            {
+              "id": "unsupported_lifecycle_rejects",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 1, "i5": 1, "i6": 1, "i7": 1, "i8": 0, "i9": 1, "i10": 1}
+              ],
+              "expected": [
+                {"o1": 0, "o2": 1, "o3": 1, "o4": 0}
+              ]
+            }
+          ]
+        },
+        {
+          "id": "F_aggregate_or_authority_failures_rejected",
+          "description": "Unbalanced aggregate rows or unauthorized authority roots prevent admission.",
+          "cases": [
+            {
+              "id": "unbalanced_aggregate_rejects",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 1, "i5": 1, "i6": 0, "i7": 1, "i8": 1, "i9": 1, "i10": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 0, "o3": 1, "o4": 0}
+              ]
+            },
+            {
+              "id": "unauthorized_authority_root_rejects",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 1, "i5": 1, "i6": 1, "i7": 0, "i8": 1, "i9": 1, "i10": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 0, "o3": 1, "o4": 0}
+              ]
+            }
+          ]
+        },
+        {
+          "id": "F_proof_binding_failures_rejected",
+          "description": "Receipt, profile, header, or transcript binding failures prevent admission.",
+          "cases": [
+            {
+              "id": "proof_verification_failure_rejects",
+              "steps": [
+                {"i1": 1, "i2": 0, "i3": 1, "i4": 1, "i5": 1, "i6": 1, "i7": 1, "i8": 1, "i9": 1, "i10": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 0, "o4": 0}
+              ]
+            },
+            {
+              "id": "tau_header_binding_failure_rejects",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 1, "i5": 1, "i6": 1, "i7": 1, "i8": 1, "i9": 0, "i10": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 0, "o4": 0}
+              ]
+            }
+          ]
+        }
+      ]
     }
+  ],
+  "runtime_smoke_contract_ids": [
+    "cross_shard_deadline_admission_v1",
+    "perp_tau_ingress_schema_guard_v1",
+    "autotrader_tx_envelope_guard_v1"
   ]
 }

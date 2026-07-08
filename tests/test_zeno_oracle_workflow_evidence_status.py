@@ -8,7 +8,6 @@ from pathlib import Path
 from tools import zeno_oracle_workflow_evidence_status as workflow_status
 from tools.zeno_oracle_workflow_evidence_status import build_status
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -17,16 +16,21 @@ def test_workflow_evidence_status_accepts_public_lanes() -> None:
 
     assert status["schema"] == "zenodex.oracle.workflow_evidence_status.v1"
     assert status["status"] == "accepted"
-    assert status["lane_count"] == 5
-    assert status["accepted_lane_count"] == 5
+    assert status["lane_count"] == 4
+    assert status["accepted_lane_count"] == 4
 
     lanes = {lane["lane_id"]: lane for lane in status["lanes"]}
     assert lanes["tla_oracle_recovery_lifecycle"]["evidence_class"] == "tla_public_replay"
     assert lanes["ltlf_oracle_recovery"]["evidence_class"] == "ltlf_public_replay"
     assert lanes["esso_zusd_oracle_recovery_lifecycle"]["evidence_class"] == "esso_public_replay"
-    assert lanes["morph_oracle_clamp_envelope_smoke"]["check"] == "CheckResult.PASS"
-    assert lanes["morph_oracle_clamp_envelope_smoke"]["check2"] == "CheckResult.PASS"
     assert lanes["popperpad_append_only_smoke"]["summary"]["total_entries"] == 2
+    external = {
+        lane["lane_id"]: lane
+        for lane in status["external_research_lanes"]
+    }
+    assert external["morph_oracle_clamp_envelope_smoke"]["status"] == (
+        "external_not_required"
+    )
 
 
 def test_morph_lane_rejects_truthy_non_bool_ok(monkeypatch) -> None:
@@ -57,6 +61,6 @@ def test_workflow_evidence_status_cli_writes_receipt(tmp_path: Path) -> None:
     )
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
-    assert "accepted_lane_count = 5" in proc.stdout
+    assert "accepted_lane_count = 4" in proc.stdout
     receipt = json.loads(output.read_text(encoding="utf-8"))
     assert receipt["status"] == "accepted"

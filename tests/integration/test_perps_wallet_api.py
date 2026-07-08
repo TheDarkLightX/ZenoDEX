@@ -7,26 +7,34 @@ import time
 from typing import Mapping
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
+import src.integration.perps_wallet_api as perps_wallet_api
 from src.core.dex import DexState
+from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketState, PerpsState
 from src.integration.dex_snapshot import snapshot_from_state
+from src.integration.perp_engine import (
+    PerpEngineConfig,
+    _kernel_initial_global_state,
+    apply_perp_ops,
+)
 from src.integration.perps_wallet_authority import (
     PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
     PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_SCHEMA_V1,
-    PERPS_WALLET_SIGNER_DEVICE_INTEGRATION_SCHEMA_V1,
     PERPS_WALLET_RECOVERY_EXERCISE_PAYLOAD_KIND,
     PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1,
     PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND,
     PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1,
-    PERPS_WALLET_SIGNER_PROMPT_CAPTURE_SCHEMA_V1,
     PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_SCHEMA_V1,
+    PERPS_WALLET_SIGNER_PROMPT_CAPTURE_SCHEMA_V1,
+    build_perps_wallet_authority_profile_v1,
     build_perps_wallet_device_approval_environment_policy_v1,
     build_perps_wallet_device_approval_exercise_v1,
     build_perps_wallet_device_approval_use_policy_v1,
-    build_perps_wallet_authority_profile_v1,
     build_perps_wallet_signer_device_integration_v1,
-    build_perps_wallet_signer_prompt_capture_v1,
     build_perps_wallet_signer_execution_exercise_v1,
+    build_perps_wallet_signer_prompt_capture_v1,
     evaluate_perps_wallet_authority_profile_v1,
     evaluate_perps_wallet_device_approval_exercise_v1,
     evaluate_perps_wallet_hardware_custody_v1,
@@ -34,20 +42,23 @@ from src.integration.perps_wallet_authority import (
     evaluate_perps_wallet_rotation_exercise_v1,
     evaluate_perps_wallet_signer_ceremony_v1,
     evaluate_perps_wallet_signer_device_integration_v1,
-    evaluate_perps_wallet_signer_prompt_capture_v1,
     evaluate_perps_wallet_signer_execution_exercise_v1,
+    evaluate_perps_wallet_signer_prompt_capture_v1,
     perps_wallet_device_approval_exercise_hash_v1,
     perps_wallet_recovery_exercise_hash_v1,
     perps_wallet_rotation_exercise_hash_v1,
     perps_wallet_signer_device_integration_hash_v1,
-    perps_wallet_signer_prompt_capture_hash_v1,
     perps_wallet_signer_execution_exercise_hash_v1,
+    perps_wallet_signer_prompt_capture_hash_v1,
 )
-from src.integration.zeno_oracle_authority import (
-    ORACLE_AUTHORITY_PAYLOAD_KIND,
-    build_oracle_authority_profile_v1,
+from src.integration.production_promotion_evidence import (
+    HARDWARE_WALLET_EVIDENCE_SCHEMA_V1,
+    attach_production_hardware_wallet_hash_v1,
+    evaluate_production_hardware_wallet_evidence_v1,
+    production_hardware_wallet_approval_message_v1,
+    production_hardware_wallet_attestation_challenge_v1,
+    production_hardware_wallet_attestation_message_v1,
 )
-from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global_state, apply_perp_ops
 from src.integration.tau_net_client import (
     TauNetRpcError,
     bls_pubkey_hex_from_privkey,
@@ -55,33 +66,32 @@ from src.integration.tau_net_client import (
     sign_perp_op_for_engine,
 )
 from src.integration.zeno_key_manager import (
-    KEY_ENVIRONMENT_PHONE_SECURE_HARDWARE,
     KEY_ENVIRONMENT_LOCAL_PROCESS,
+    KEY_ENVIRONMENT_PHONE_SECURE_HARDWARE,
     KeyExecutionEnvironment,
     KeyRef,
     RecoveryGuardian,
     SocialRecoveryPolicy,
     ZenoKeyManager,
 )
-from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0, infer_artifact_hash_v0
-from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
-from src.integration.zeno_ledger_v0 import hash_v0
 from src.integration.zeno_key_manager_v0 import (
     BACKEND_HARDWARE_WALLET,
     BACKEND_HARDWARE_WALLET_PLACEHOLDER,
     BACKEND_OS_KEYCHAIN,
     KeyBackendDescriptor,
 )
-from src.integration.production_promotion_evidence import (
-    HARDWARE_WALLET_EVIDENCE_SCHEMA_V1,
-    attach_production_hardware_wallet_hash_v1,
-    evaluate_production_hardware_wallet_evidence_v1,
+from src.integration.zeno_ledger_signature import (
+    build_bls_signed_artifact_envelope_v0,
+    infer_artifact_hash_v0,
+)
+from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
+from src.integration.zeno_ledger_v0 import hash_v0
+from src.integration.zeno_oracle_authority import (
+    ORACLE_AUTHORITY_PAYLOAD_KIND,
+    build_oracle_authority_profile_v1,
 )
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
-from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketState, PerpsState
-import src.integration.perps_wallet_api as perps_wallet_api
-
 
 CHAIN_ID = "tau-test-perps-wallet"
 ALICE_PRIVKEY = 83
@@ -99,6 +109,14 @@ ISOLATED_MARKET_ID = "perp:isolated:test"
 ROOT_A = "0x" + "aa" * 32
 ROOT_B = "0x" + "bb" * 32
 FUTURE_DEADLINE = 4_102_444_800
+PRODUCTION_HW_DEVICE_PRIVKEY_BYTES = bytes.fromhex("42" * 32)
+
+
+def _proof_wrapper_request_hash(obj: dict[str, object]) -> str:
+    from src.integration.live_proof_wrapper import LIVE_PROOF_WRAPPER_HASH_DOMAIN
+    from src.state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
+
+    return sha256_hex(domain_sep_bytes(LIVE_PROOF_WRAPPER_HASH_DOMAIN) + canonical_json_bytes(obj))
 
 
 def _live_proof_ok_cmd(surface: str) -> list[str]:
@@ -107,9 +125,12 @@ def _live_proof_ok_cmd(surface: str) -> list[str]:
         "-c",
         (
             "import json,sys; "
+            "from src.integration.live_proof_wrapper import LIVE_PROOF_WRAPPER_HASH_DOMAIN; "
+            "from src.state.canonical import canonical_json_bytes,domain_sep_bytes,sha256_hex; "
             "obj=json.load(sys.stdin); "
             f"assert obj['surface']=={surface!r}; "
-            "out={'ok': True, 'verifier_request_hash': obj['verifier_request_hash']}; "
+            "request_hash=sha256_hex(domain_sep_bytes(LIVE_PROOF_WRAPPER_HASH_DOMAIN)+canonical_json_bytes(obj)); "
+            "out={'ok': True, 'verifier_request_hash': request_hash}; "
             "expected=obj.get('expected_artifact_binding_hash'); "
             "out.update({'artifact_binding_hash': expected} if expected else {}); "
             "print(json.dumps(out))"
@@ -777,16 +798,30 @@ def _perps_wallet_signer_execution_exercise_live_hardware(**overrides: object) -
     )
 
 
+def _perps_wallet_production_device_private_key() -> Ed25519PrivateKey:
+    return Ed25519PrivateKey.from_private_bytes(PRODUCTION_HW_DEVICE_PRIVKEY_BYTES)
+
+
+def _perps_wallet_production_device_pubkey() -> str:
+    return (
+        _perps_wallet_production_device_private_key()
+        .public_key()
+        .public_bytes(Encoding.Raw, PublicFormat.Raw)
+        .hex()
+    )
+
+
 def _perps_wallet_production_hardware_evidence(profile_hash: str, **overrides: object) -> dict[str, object]:
+    private_key = _perps_wallet_production_device_private_key()
     body: dict[str, object] = {
         "schema": HARDWARE_WALLET_EVIDENCE_SCHEMA_V1,
         "device_id": "ledger-x-prod-01",
         "device_model": "ledger-nano-x",
         "device_firmware_version": "2.4.0",
         "device_attestation": {
-            "pubkey": "cc" * 32,
-            "challenge": "dd" * 32,
-            "signature": "ee" * 64,
+            "pubkey": _perps_wallet_production_device_pubkey(),
+            "challenge": "00" * 32,
+            "signature": "00" * 64,
         },
         "os_prompt_capture": {
             "kind": "screenshot_hash",
@@ -802,6 +837,19 @@ def _perps_wallet_production_hardware_evidence(profile_hash: str, **overrides: o
         "issued_at": 1_700_000_040,
     }
     body.update(overrides)
+    attestation = body["device_attestation"]
+    approval = body["device_approval_tx"]
+    if not isinstance(attestation, dict) or not isinstance(approval, dict):
+        raise AssertionError("production hardware evidence fixture must keep nested dicts")
+    challenge = production_hardware_wallet_attestation_challenge_v1(body)
+    tx_payload_hash = str(approval["tx_payload_hash"])
+    attestation["challenge"] = challenge
+    attestation["signature"] = private_key.sign(
+        production_hardware_wallet_attestation_message_v1(challenge)
+    ).hex()
+    approval["approval_signature"] = private_key.sign(
+        production_hardware_wallet_approval_message_v1(tx_payload_hash)
+    ).hex()
     return attach_production_hardware_wallet_hash_v1(body)
 
 
@@ -1864,6 +1912,7 @@ def test_perps_wallet_hardware_custody_requires_bound_production_evidence_for_pr
     production_status = evaluate_production_hardware_wallet_evidence_v1(
         _perps_wallet_production_hardware_evidence(str(profile["wallet_authority_hash"])),
         wallet_authority_profile_hash=str(profile["wallet_authority_hash"]),
+        expected_device_pubkey=_perps_wallet_production_device_pubkey(),
         now=1_700_000_050,
     )
 
@@ -1915,6 +1964,7 @@ def test_perps_wallet_fixture_hardware_custody_cannot_become_production_ready() 
     production_status = evaluate_production_hardware_wallet_evidence_v1(
         _perps_wallet_production_hardware_evidence(str(profile["wallet_authority_hash"])),
         wallet_authority_profile_hash=str(profile["wallet_authority_hash"]),
+        expected_device_pubkey=_perps_wallet_production_device_pubkey(),
         now=1_700_000_050,
     )
 
@@ -3267,10 +3317,14 @@ def test_submit_deposit_collateral_records_required_post_submit_zk_binding_gap(m
                 "-c",
                 (
                     "import json,sys; "
+                    "from src.integration.live_proof_wrapper import LIVE_PROOF_WRAPPER_HASH_DOMAIN; "
+                    "from src.state.canonical import canonical_json_bytes,domain_sep_bytes,sha256_hex; "
                     "obj=json.load(sys.stdin); "
                     "after=obj['proof_intent_receipt']['body']['app_hash_after']; "
                     "out={'ok': after is None, 'error': None if after is None else 'post_submit_binding_failed'}; "
-                    "out['verifier_request_hash']=obj['verifier_request_hash']; "
+                    "out['verifier_request_hash']=sha256_hex("
+                    "domain_sep_bytes(LIVE_PROOF_WRAPPER_HASH_DOMAIN)+canonical_json_bytes(obj)"
+                    "); "
                     "print(json.dumps(out))"
                 ),
             ]

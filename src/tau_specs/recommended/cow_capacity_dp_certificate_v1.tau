@@ -1,0 +1,44 @@
+# CoW Capacity-DP Certificate v1
+#
+# PURPOSE:
+#   Guard a host-computed grouped-capacity CoW exact-DP research certificate.
+#   The host runs the DP, brute-force oracle, core-selector parity, adversarial
+#   corpus, fallback-boundary checks, deterministic replay, and no-authority
+#   evidence rails. Tau only combines proof-surface facts.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = grouped_capacity_scope_ok
+# i3  = dp_bruteforce_parity_ok
+# i4  = core_selector_dp_parity_ok
+# i5  = adversarial_corpus_ok
+# i6  = greedy_lift_nonvacuous
+# i7  = resource_budget_ok
+# i8  = deterministic_replay_ok
+# i9  = fallback_boundary_ok
+# i10 = no_settlement_authority
+# i11 = settlement_materialization_boundary_ok
+# i12 = exact_assignment_boundary_ok
+# o1  = capacity_scope_ok
+# o2  = parity_evidence_ok
+# o3  = lift_resource_ok
+# o4  = authority_boundary_ok
+# o5  = cow_capacity_certificate_ok
+# o6  = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+capacity_scope_ok(grouped : sbf, fallback : sbf, assignment_boundary : sbf) := is1(grouped) && is1(fallback) && is1(assignment_boundary).
+parity_evidence_ok(dp_brute : sbf, core_dp : sbf, adversarial : sbf) := is1(dp_brute) && is1(core_dp) && is1(adversarial).
+lift_resource_ok(lift : sbf, budget : sbf, deterministic : sbf) := is1(lift) && is1(budget) && is1(deterministic).
+authority_boundary_ok(no_authority : sbf, materialization : sbf) := is1(no_authority) && is1(materialization).
+cow_capacity_certificate_ok(active : sbf, grouped : sbf, dp_brute : sbf, core_dp : sbf, adversarial : sbf, lift : sbf, budget : sbf, deterministic : sbf, fallback : sbf, no_authority : sbf, materialization : sbf, assignment_boundary : sbf) := is1(active) && capacity_scope_ok(grouped, fallback, assignment_boundary) && parity_evidence_ok(dp_brute, core_dp, adversarial) && lift_resource_ok(lift, budget, deterministic) && authority_boundary_ok(no_authority, materialization).
+
+always
+  (o1[t]:sbf = 1:sbf <-> capacity_scope_ok(i2[t]:sbf, i9[t]:sbf, i12[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> parity_evidence_ok(i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> lift_resource_ok(i6[t]:sbf, i7[t]:sbf, i8[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> authority_boundary_ok(i10[t]:sbf, i11[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> cow_capacity_certificate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i10[t]:sbf))).

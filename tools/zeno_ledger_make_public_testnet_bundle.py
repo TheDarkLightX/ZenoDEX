@@ -18,21 +18,60 @@ from src.integration.zeno_ledger_testnet_status import (
     build_testnet_status_v0,
     validate_testnet_status_v0,
 )
+from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from tools.zeno_ledger_make_core_feature_suite import build_core_feature_suite_v0
 from tools.zeno_ledger_make_testnet_bundle import (
-    DEFAULT_ASSET0,
-    DEFAULT_ASSET1,
     DEFAULT_CHAIN_ID,
+    DEFAULT_RELEASE_TESTNET_TOKEN_SYMBOL,
+    DEFAULT_TAGRS_ASSET_ID,
+    DEFAULT_TZDEX_ASSET_ID,
     DEFAULT_SEQUENCER_ID,
     DEFAULT_TIME_MS,
     build_testnet_bundle_v0,
 )
+from src.integration.zeno_ledger_tokenomics import load_role_pubkeys_from_key_bundle_v0
 
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_public_testnet_bundle_report.v0"
 LAUNCH_MANIFEST_SCHEMA = "zenodex.zeno_ledger.public_testnet_bundle.v0"
 RUN_MANIFEST_SCRIPT = ROOT / "tools" / "zeno_ledger_run_manifest.py"
 RUN_FEATURE_SUITE_SCRIPT = ROOT / "tools" / "zeno_ledger_run_feature_suite.py"
+
+
+def release_test_token_catalog_v0(*, chain_id: str) -> list[dict[str, Any]]:
+    """Release-facing fake-value asset catalog for public v0.1.16 flows."""
+
+    return [
+        {
+            "symbol": "tAGRS",
+            "display_symbol": "AGRS",
+            "asset_id": DEFAULT_TAGRS_ASSET_ID,
+            "purpose": "fake-value AGRS test collateral for zUSD minting and spot swaps",
+            "faucet_mint_allowed": True,
+            "default_faucet_token": True,
+            "default_zusd_collateral": True,
+            "production_value": False,
+        },
+        {
+            "symbol": "tZDEX",
+            "display_symbol": "zDEX",
+            "asset_id": DEFAULT_TZDEX_ASSET_ID,
+            "purpose": "fake-value ZenoDEX test token for public spot pools",
+            "faucet_mint_allowed": True,
+            "default_spot_quote": True,
+            "production_value": False,
+        },
+        {
+            "symbol": "zUSD",
+            "display_symbol": "zUSD",
+            "asset_id": derive_zusd_tau_asset_id(chain_id=chain_id),
+            "purpose": "collateralized test zUSD minted through the zUSD vault flow",
+            "created_through_collateralized_zusd_flow": True,
+            "faucet_mint_allowed": False,
+            "perps_collateral": True,
+            "production_value": False,
+        },
+    ]
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -100,6 +139,7 @@ def build_public_testnet_bundle_v0(
     sequencer_id: str,
     time_ms: int,
     token_symbol: str,
+    fixture_key_bundle_path: Path | None = None,
 ) -> dict[str, Any]:
     bootstrap_dir = out_dir / "bootstrap"
     core_suite_dir = out_dir / "core_features"
@@ -108,6 +148,7 @@ def build_public_testnet_bundle_v0(
     core_suite_build_report_path = out_dir / "core_suite_build_report.json"
     core_suite_run_report_path = out_dir / "core_suite_run_report.json"
     testnet_status_path = out_dir / "testnet_status.json"
+    token_distribution_role_pubkeys = load_role_pubkeys_from_key_bundle_v0(fixture_key_bundle_path)
 
     bootstrap_build_report = build_testnet_bundle_v0(
         out_dir=bootstrap_dir,
@@ -116,6 +157,7 @@ def build_public_testnet_bundle_v0(
         time_ms=time_ms,
         token_symbol=token_symbol,
         proof_required=False,
+        token_distribution_role_pubkeys=token_distribution_role_pubkeys,
     )
     bootstrap_manifest_path = Path(str(bootstrap_build_report["manifest_path"]))
     bootstrap_run_command = [
@@ -152,7 +194,12 @@ def build_public_testnet_bundle_v0(
     _write_json(core_suite_run_report_path, core_suite_run_stdout)
 
     bootstrap_manifest = _load_json_object(bootstrap_manifest_path)
-    token_asset_id = str(bootstrap_manifest["token_asset_id"])
+    token_distribution_path = _resolve_relative_to(
+        bootstrap_manifest.get("token_distribution_path"),
+        root=bootstrap_manifest_path.parent,
+        name="bootstrap_manifest.token_distribution_path",
+    )
+    token_distribution = _load_json_object(token_distribution_path)
     mirror_index_path = _resolve_relative_to(
         bootstrap_manifest.get("mirror_index_path"),
         root=bootstrap_manifest_path.parent,
@@ -190,6 +237,9 @@ def build_public_testnet_bundle_v0(
         "chain_id": chain_id,
         "sequencer_id": sequencer_id,
         "token_symbol": token_symbol,
+        "token_distribution": token_distribution,
+        "token_distribution_path": _rel(out_dir, token_distribution_path),
+        "token_distribution_hash": token_distribution.get("distribution_hash"),
         "bootstrap_manifest_path": _rel(out_dir, bootstrap_manifest_path),
         "bootstrap_run_command": [
             "python3",
@@ -223,29 +273,38 @@ def build_public_testnet_bundle_v0(
             "testnet_scope": "zeno_ledger_testnet",
             "release_scope": "tau_net_exclusive",
             "external_minting_allowed": False,
+            "protocol_token_faucet_mint_allowed": False,
+            "fake_value_public_testnet": True,
+            "release_aligned_test_assets": ["tAGRS", "tZDEX", "zUSD"],
+            "default_faucet_token": "tAGRS",
+            "default_zusd_collateral": "tAGRS",
+            "default_spot_pool_symbols": ["tAGRS", "tZDEX"],
+            "zusd_created_through_collateral_flow": True,
+            "production_value": False,
         },
-        "test_token_catalog": [
-            {
-                "symbol": token_symbol,
-                "asset_id": token_asset_id,
-                "purpose": "testnet ZenoDEX accounting token",
-            },
-            {
-                "symbol": "tASSET0",
-                "asset_id": DEFAULT_ASSET0,
-                "purpose": "deterministic spot and feature-suite asset",
-            },
-            {
-                "symbol": "tASSET1",
-                "asset_id": DEFAULT_ASSET1,
-                "purpose": "deterministic spot and feature-suite asset",
-            },
-        ],
+        "test_token_catalog": release_test_token_catalog_v0(chain_id=chain_id),
         "testnet_faucet_posture": {
             "scope": "testnet_only",
             "operation_key": "7",
             "supports_fixture_mint": True,
-            "supports_token_ops": True,
+            "supports_token_ops": False,
+            "protocol_token_mint_allowed": False,
+            "default_symbol": "tAGRS",
+            "default_asset_id": DEFAULT_TAGRS_ASSET_ID,
+            "max_amount": 1_000_000_000_000,
+            "production_value": False,
+        },
+        "tokenomics_posture": {
+            "enabled": True,
+            "distribution_source": "bootstrap token_distribution.json",
+            "distribution_hash": token_distribution.get("distribution_hash"),
+            "post_genesis_mutation_allowed": False,
+            "runtime_mutation_allowed": False,
+            "change_control": "edit tokenomics specs before bundle build; after genesis use a new chain or explicit governance migration",
+            "tau_policy": dict(token_distribution.get("tau_policy", {})),
+            "active_participant_reward_pool_id": token_distribution.get("active_participant_reward_pool_id"),
+            "local_fixture_distribution": True,
+            "production_security_claim": False,
         },
     }
     _write_json(launch_manifest_path, launch_manifest)
@@ -274,7 +333,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--chain-id", default=DEFAULT_CHAIN_ID)
     parser.add_argument("--sequencer-id", default=DEFAULT_SEQUENCER_ID)
     parser.add_argument("--time-ms", type=int, default=DEFAULT_TIME_MS)
-    parser.add_argument("--token-symbol", default="tZENO")
+    parser.add_argument("--token-symbol", default=DEFAULT_RELEASE_TESTNET_TOKEN_SYMBOL)
+    parser.add_argument("--fixture-key-bundle", type=Path)
     args = parser.parse_args(argv)
 
     try:
@@ -285,6 +345,7 @@ def main(argv: list[str] | None = None) -> int:
             sequencer_id=args.sequencer_id,
             time_ms=args.time_ms,
             token_symbol=args.token_symbol,
+            fixture_key_bundle_path=args.fixture_key_bundle,
         )
     except Exception as exc:
         report = {

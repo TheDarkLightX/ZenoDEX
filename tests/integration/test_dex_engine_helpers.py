@@ -1141,7 +1141,11 @@ def test_apply_ops_covers_missing_settlement_skip_match_and_comparison_errors(mo
         lambda settlement: (_ for _ in ()).throw(AssertionError("should not compare")),
     )
     res = apply_ops(
-        config=DexEngineConfig(allow_missing_settlement=False, require_settlement_match=False),
+        config=DexEngineConfig(
+            allow_missing_settlement=False,
+            require_settlement_match=False,
+            dex_config=DexConfig(reject_settlements_with_rejected_intents=False),
+        ),
         state=state,
         operations={"2": "ignored"},
         block_timestamp=0,

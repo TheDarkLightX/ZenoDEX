@@ -1,0 +1,251 @@
+{
+  "breakthrough": {
+    "authority_boundary": "Tau admits the portfolio certificate only. Host/kernel verifiers remain authoritative for settlement and state transitions.",
+    "name": "Tau solver-portfolio upgrade certificate",
+    "spec_id": "solver_portfolio_upgrade_certificate_v1",
+    "summary": "Tau gates a combined AB/CoW solver-upgrade decision with host-computed parity, capacity-scope, performance, fallback, rollback, negative replay, and no-authority facts."
+  },
+  "date": "2026-06-28",
+  "new_tau_spec_patterns": [
+    {
+      "benefit": "Promotes AB and CoW algorithm upgrades only when independent solver evidence and rollout rails agree.",
+      "pattern": "solver_portfolio_upgrade_certificate"
+    },
+    {
+      "benefit": "Turns known failed simplifications into reject bits before they become public or production claims.",
+      "pattern": "negative_knowledge_gate"
+    },
+    {
+      "benefit": "Lets host-computed complexity evidence participate in Tau admission without putting timing arithmetic inside Tau.",
+      "pattern": "performance_floor_gate"
+    },
+    {
+      "benefit": "Keeps EBRM or research selectors in proposal/ranking mode while deterministic verifiers decide acceptance.",
+      "pattern": "advisory_model_boundary_gate"
+    }
+  ],
+  "non_claims": [
+    "The certificate is a research and rollout evidence gate, not a settlement verifier.",
+    "All numeric complexity, matching, CPMM, and DP computations stay host-side.",
+    "The performance floor is host-computed evidence over bounded reports, not a Tau timing measurement.",
+    "Rollback availability is an external rollout fact supplied to Tau and must be backed by deployment evidence before production use."
+  ],
+  "ok": true,
+  "portfolio_facts": {
+    "ab_bruteforce_oracle_parity_ok": 1,
+    "ab_full_state_scope_ok": 1,
+    "ab_solver_candidate_present": 1,
+    "advisory_model_only": 1,
+    "certificate_active": 1,
+    "cow_bruteforce_oracle_parity_ok": 1,
+    "cow_solver_candidate_present": 1,
+    "cow_uncoupled_or_bounded_capacity_scope_ok": 1,
+    "deterministic_tie_ok": 1,
+    "fallback_paths_ok": 1,
+    "negative_replay_ok": 1,
+    "no_authority_effect": 1,
+    "performance_floor_ok": 1,
+    "resource_budget_ok": 1,
+    "rollback_available": 1
+  },
+  "replay_command": "python3 tools/zenodex_tau_solver_portfolio_breakthrough_20260628.py",
+  "schema": "zenodex.tau_solver_portfolio_breakthrough_report.v1",
+  "supporting_report_hashes": {
+    "generated/zenodex_ab_cow_algorithm_breakthrough_20260627/report.json": "ef3ab848e9f81962a3488373237522c0920a72ab38a8111f7cbf7bf379a21443",
+    "generated/zenodex_cow_capacity_dp_certificate_20260628/report.json": "5d6994ffa092157dd302462aa61565dbdfd31d490afa74be2956ee625616dc7e",
+    "src/tau_specs/recommended/solver_portfolio_upgrade_certificate_v1.tau": "5efd876435042df6e60531bb5ec9d28854e5d454fb5ed5c0bc62634c4313acb5"
+  },
+  "supporting_reports": {
+    "ab_cow_ok": true,
+    "ab_n12_proxy_ratio": 812.109375,
+    "cow_capacity_core_mismatch_count": 0,
+    "cow_capacity_exact_mismatch_count": 0,
+    "cow_capacity_greedy_lift_cases": 5,
+    "cow_capacity_ok": true,
+    "cow_n20_proxy_ratio": 304112751022080.0
+  },
+  "tau": {
+    "case_results": [
+      {
+        "case_id": "portfolio_pass",
+        "expected": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "AB and CoW solver evidence, performance floor, fallback, rollback, and no-authority facts all hold."
+      },
+      {
+        "case_id": "ab_parity_reject",
+        "expected": {
+          "o1": 0,
+          "o3": 0,
+          "o6": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "AB subset-DP promotion fails when brute-force parity is missing."
+      },
+      {
+        "case_id": "cow_scope_reject",
+        "expected": {
+          "o2": 0,
+          "o3": 0,
+          "o6": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "CoW promotion fails when uncoupled or bounded-capacity scope is not proven."
+      },
+      {
+        "case_id": "negative_replay_reject",
+        "expected": {
+          "o3": 0,
+          "o6": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "A portfolio without negative replay cannot be promoted."
+      },
+      {
+        "case_id": "performance_reject",
+        "expected": {
+          "o4": 0,
+          "o6": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "A portfolio that does not clear the host-computed performance floor is rejected."
+      },
+      {
+        "case_id": "rollback_reject",
+        "expected": {
+          "o5": 0,
+          "o6": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0,
+          "o7": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Solver rollout requires an explicit fallback or rollback path."
+      },
+      {
+        "case_id": "authority_reject",
+        "expected": {
+          "o5": 0,
+          "o6": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0,
+          "o7": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The certificate cannot carry settlement, oracle, governance, or state-root authority."
+      },
+      {
+        "case_id": "inactive_safe",
+        "expected": {
+          "o1": 0,
+          "o2": 0,
+          "o6": 0,
+          "o7": 1
+        },
+        "got": {
+          "o1": 0,
+          "o2": 0,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Inactive portfolio certificates do not admit while the no-authority rail remains true."
+      }
+    ],
+    "invalid_accepts": 0,
+    "ok": true,
+    "sha256": "5efd876435042df6e60531bb5ec9d28854e5d454fb5ed5c0bc62634c4313acb5",
+    "spec_path": "src/tau_specs/recommended/solver_portfolio_upgrade_certificate_v1.tau",
+    "tau_bin": "/home/trevormoc/Downloads/Autonomous Tau DEX/external/tau-lang/build-Release/tau",
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  },
+  "work_items": {
+    "1_ab_ordering": {
+      "evidence": "bounded full-state subset DP with brute-force parity and explicit fallback after 12",
+      "non_claim": "The certificate does not claim a compressed Held-Karp state is sound for integer CPMM ordering.",
+      "status": "covered"
+    },
+    "2_cow_matching": {
+      "evidence": "uncoupled Hungarian assignment plus bounded coupled-capacity DP evidence",
+      "non_claim": "The certificate does not claim arbitrary grouped-capacity CoW matching is polynomial.",
+      "status": "covered"
+    }
+  }
+}

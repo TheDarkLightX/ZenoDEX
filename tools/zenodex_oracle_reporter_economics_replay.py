@@ -60,6 +60,7 @@ EVENT_KEYS_BY_TYPE = {
         "dispute_bond_e8",
     },
     "slash_reporter": {"type", "epoch", "dispute_id", "reporter_id", "amount_e8"},
+    "clawback_report_reward": {"type", "epoch", "dispute_id", "reporter_id", "amount_e8"},
     "pay_dispute_reward": {"type", "epoch", "dispute_id", "recipient_id", "amount_e8"},
     "resolve_dispute": {"type", "epoch", "dispute_id", "outcome"},
     "unregister_reporter": {"type", "epoch", "reporter_id"},
@@ -89,6 +90,7 @@ class ReporterEconomicsReplayResult:
     bond_locked_e8: int | None = None
     bond_conservation_ok: bool | None = None
     total_rewards_paid_e8: int | None = None
+    total_rewards_clawed_back_e8: int | None = None
     total_slashed_e8: int | None = None
     total_withdrawn_e8: int | None = None
     total_fees_paid_e8: int | None = None
@@ -110,6 +112,7 @@ class ReporterEconomicsReplayResult:
             "bond_locked_e8": self.bond_locked_e8,
             "bond_conservation_ok": self.bond_conservation_ok,
             "total_rewards_paid_e8": self.total_rewards_paid_e8,
+            "total_rewards_clawed_back_e8": self.total_rewards_clawed_back_e8,
             "total_slashed_e8": self.total_slashed_e8,
             "total_withdrawn_e8": self.total_withdrawn_e8,
             "total_fees_paid_e8": self.total_fees_paid_e8,
@@ -302,6 +305,7 @@ def verify_reporter_economics_replay(obj: Mapping[str, Any]) -> ReporterEconomic
     disputes: dict[str, dict[str, Any]] = {}
     total_bond_deposited = 0
     total_rewards_paid = 0
+    total_rewards_clawed_back = 0
     total_slashed = 0
     total_withdrawn = 0
     total_fees_paid = 0
@@ -378,7 +382,11 @@ def verify_reporter_economics_replay(obj: Mapping[str, Any]) -> ReporterEconomic
                 if report_id in reports:
                     errors.append(f"duplicate_report_id:{report_id}")
                 elif reporter_id is not None:
-                    reports[report_id] = {"reporter_id": reporter_id}
+                    reports[report_id] = {
+                        "reporter_id": reporter_id,
+                        "reward_e8": int(reward or 0),
+                        "clawed_back_e8": 0,
+                    }
             if reward is not None:
                 if reward > reward_pool:
                     errors.append("reward_exceeds_query_budget")
@@ -403,6 +411,7 @@ def verify_reporter_economics_replay(obj: Mapping[str, Any]) -> ReporterEconomic
                         "resolved": False,
                         "report_id": report_id,
                         "slashed": False,
+                        "reward_clawed_back_e8": 0,
                         "reward_paid": False,
                     }
         elif event_type == "slash_reporter":
@@ -430,6 +439,33 @@ def verify_reporter_economics_replay(obj: Mapping[str, Any]) -> ReporterEconomic
                     reporter["bond"] -= amount
                     dispute["slashed"] = True
                     total_slashed += amount
+        elif event_type == "clawback_report_reward":
+            dispute_id = _hash(event, "dispute_id", errors)
+            reporter_id = _token(event, "reporter_id", errors)
+            amount = _amount(event, "amount_e8", errors)
+            dispute = disputes.get(dispute_id or "")
+            reporter = reporters.get(reporter_id or "")
+            report = reports.get(str(dispute.get("report_id"))) if dispute is not None else None
+            if dispute is None or not dispute["open"] or dispute["resolved"]:
+                errors.append("clawback_without_open_dispute")
+            elif reporter_id is not None and (report is None or report.get("reporter_id") != reporter_id):
+                errors.append("clawback_reporter_mismatch")
+            if reporter is None:
+                errors.append("clawback_unknown_reporter")
+            elif amount is not None:
+                if amount == 0:
+                    errors.append("clawback_amount_required")
+                elif report is None:
+                    errors.append("clawback_without_report")
+                else:
+                    remaining_reward = int(report.get("reward_e8", 0)) - int(report.get("clawed_back_e8", 0))
+                    if amount > remaining_reward:
+                        errors.append("clawback_exceeds_report_reward")
+                    elif dispute is not None and dispute["open"] and not dispute["resolved"]:
+                        report["clawed_back_e8"] = int(report.get("clawed_back_e8", 0)) + amount
+                        dispute["reward_clawed_back_e8"] = int(dispute.get("reward_clawed_back_e8", 0)) + amount
+                        reward_pool += amount
+                        total_rewards_clawed_back += amount
         elif event_type == "pay_dispute_reward":
             dispute_id = _hash(event, "dispute_id", errors)
             _token(event, "recipient_id", errors)
@@ -456,7 +492,11 @@ def verify_reporter_economics_replay(obj: Mapping[str, Any]) -> ReporterEconomic
             if dispute is None or not dispute["open"] or dispute["resolved"]:
                 errors.append("resolve_unknown_or_closed_dispute")
             else:
-                if outcome == "rejected" and (dispute["slashed"] or dispute["reward_paid"]):
+                if outcome == "rejected" and (
+                    dispute["slashed"]
+                    or dispute["reward_paid"]
+                    or int(dispute.get("reward_clawed_back_e8", 0)) > 0
+                ):
                     errors.append("rejected_dispute_cannot_have_slash_or_reward")
                 dispute["open"] = False
                 dispute["resolved"] = True
@@ -507,6 +547,7 @@ def verify_reporter_economics_replay(obj: Mapping[str, Any]) -> ReporterEconomic
         bond_locked_e8=bond_locked,
         bond_conservation_ok=bond_conservation_ok,
         total_rewards_paid_e8=total_rewards_paid,
+        total_rewards_clawed_back_e8=total_rewards_clawed_back,
         total_slashed_e8=total_slashed,
         total_withdrawn_e8=total_withdrawn,
         total_fees_paid_e8=total_fees_paid,

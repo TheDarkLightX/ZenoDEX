@@ -1,0 +1,56 @@
+# AB Transition-Group Compression Lean-Bridge Scope Certificate v1
+#
+# PURPOSE:
+#   Admit a research-only certificate for the AB transition-group compression
+#   Lean bridge. The host checks the Lean bridge report, pinned Lean/test/report
+#   hashes, theorem-surface markers, placeholder scan, Lean compile receipt,
+#   focused formal test receipt, upstream transition-group compression Tau
+#   certificate binding, replay-command coverage, explicit non-claims, and
+#   no-authority rail. Tau only composes those host facts into a fail-closed
+#   envelope.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = lean_bridge_report_ok
+# i3  = lean_file_pinned
+# i4  = aggregator_import_bound
+# i5  = theorem_surface_bound
+# i6  = placeholder_scan_clean
+# i7  = lean_compile_receipt_ok
+# i8  = formal_test_receipt_ok
+# i9  = upstream_compression_tau_binding_ok
+# i10 = nonclaims_bound
+# i11 = authority_boundary_ok
+# i12 = no_authority_effect
+# i13 = corpus_nonvacuous
+# i14 = replay_commands_bound
+#
+# o1 = bridge_artifacts_ok
+# o2 = formal_surface_ok
+# o3 = upstream_binding_ok
+# o4 = scope_ok
+# o5 = authority_boundary_ok
+# o6 = replay_ok
+# o7 = lean_bridge_scope_certificate_ok
+# o8 = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+bridge_artifacts_ok(report_ok : sbf, lean_file : sbf, aggregator : sbf, nonvacuous : sbf) := is1(report_ok) && is1(lean_file) && is1(aggregator) && is1(nonvacuous).
+formal_surface_ok(theorem_surface : sbf, placeholder_scan : sbf, lean_compile : sbf, formal_test : sbf) := is1(theorem_surface) && is1(placeholder_scan) && is1(lean_compile) && is1(formal_test).
+upstream_binding_ok(upstream_binding : sbf, replay_commands : sbf) := is1(upstream_binding) && is1(replay_commands).
+scope_ok(nonclaims : sbf, boundary : sbf, no_authority : sbf) := is1(nonclaims) && is1(boundary) && is1(no_authority).
+authority_ok(boundary : sbf, no_authority : sbf) := is1(boundary) && is1(no_authority).
+replay_ok(lean_compile : sbf, formal_test : sbf, replay_commands : sbf) := is1(lean_compile) && is1(formal_test) && is1(replay_commands).
+certificate_ok(active : sbf, report_ok : sbf, lean_file : sbf, aggregator : sbf, theorem_surface : sbf, placeholder_scan : sbf, lean_compile : sbf, formal_test : sbf, upstream_binding : sbf, nonclaims : sbf, boundary : sbf, no_authority : sbf, nonvacuous : sbf, replay_commands : sbf) := is1(active) && bridge_artifacts_ok(report_ok, lean_file, aggregator, nonvacuous) && formal_surface_ok(theorem_surface, placeholder_scan, lean_compile, formal_test) && upstream_binding_ok(upstream_binding, replay_commands) && scope_ok(nonclaims, boundary, no_authority) && replay_ok(lean_compile, formal_test, replay_commands).
+
+always
+  (o1[t]:sbf = 1:sbf <-> bridge_artifacts_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i13[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> formal_surface_ok(i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> upstream_binding_ok(i9[t]:sbf, i14[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> scope_ok(i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> authority_ok(i11[t]:sbf, i12[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> replay_ok(i7[t]:sbf, i8[t]:sbf, i14[t]:sbf)) &&
+  (o7[t]:sbf = 1:sbf <-> certificate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf)) &&
+  (o8[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i12[t]:sbf))).

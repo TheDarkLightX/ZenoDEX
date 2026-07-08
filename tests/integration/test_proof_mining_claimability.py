@@ -97,6 +97,29 @@ def test_claimability_accepts_initial_claim_without_existing_runtime_state() -> 
     assert status.checks["runtime_apply_ok"] is True
 
 
+def test_claimability_accepts_asset_scoped_reward_pool_balance() -> None:
+    sender = "0x" + "11" * 48
+    reward_pool = "0x" + "99" * 48
+    reward_asset = "0x" + "aa" * 32
+    claim = _claim(miner_id=sender, reward_pool_before=20)
+    context = _context_from_claim(claim)
+
+    status = evaluate_proof_mining_claimability(
+        reward_pool_pubkey=reward_pool,
+        reward_asset_id=reward_asset,
+        app_state_json="",
+        chain_balances={reward_pool: {reward_asset: 20}},
+        claim_artifact=claim,
+        tx_sender_pubkey=sender,
+        expected_proposal_hash=str(claim["body"]["proposal_hash"]),
+        proof_mining_context_obj=proof_mining_context_to_obj(context),
+    )
+
+    assert status.claimable is True
+    assert status.reward_pool_before == 20
+    assert status.reward_pool_after == 16
+
+
 def test_claimability_requires_verified_context() -> None:
     sender = "0x" + "10" * 48
     reward_pool = "0x" + "98" * 48
@@ -142,8 +165,8 @@ def test_claimability_rejects_inadmissible_claim_artifact() -> None:
         prev_state_hash="sha256:prev-inadmissible",
         batch_hash="sha256:batch-inadmissible",
         dex_hash_after="sha256:after-inadmissible",
-        policy_ok=False,
-        unclaimed_ok=False,
+        policy_ok=0,
+        unclaimed_ok=0,
         allow_rejected=True,
     )
 

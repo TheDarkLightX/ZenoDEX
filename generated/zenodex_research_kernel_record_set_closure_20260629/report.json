@@ -1,0 +1,118 @@
+{
+  "closure": {
+    "audit_deterministic_replay_hash": "3bb033dcad8d1bd40aa772e9663ba35320a3edfc3c8d51a99f582c3959c5fef6",
+    "audit_report_path": "generated/zenodex_ab_record_set_pruning_refutation_audit_20260629/report.json",
+    "audit_report_sha256": "13e81312ee2651f0f198df4ceb86c5bf65dfbd0012c0085332285b6dff7cd1cf",
+    "checks": {
+      "audit_ok": true,
+      "audit_schema_ok": true,
+      "authority_nonclaim_ok": true,
+      "certificate_decl_hash_ok": true,
+      "claims_registry_ok": true,
+      "deterministic_replay_ok": true,
+      "first_replay_hash_ok": true,
+      "focused_pytest_ok": true,
+      "lake_build_module_ok": true,
+      "lake_env_lean_ok": true,
+      "lean_placeholder_free": true,
+      "lean_theorem_count_ok": true,
+      "negative_control_accepts_zero": true,
+      "negative_control_count_ok": true,
+      "no_search_reasons": true,
+      "nonzero_min_nonclaim_ok": true,
+      "public_claim_scope_ok": true,
+      "python_refinement_nonclaim_ok": true,
+      "record_key_report_ok": true,
+      "record_key_theorem_count_ok": true,
+      "record_set_report_ok": true,
+      "record_set_theorem_count_ok": true,
+      "search_ok": true,
+      "second_replay_hash_ok": true,
+      "subset_dp_nonclaim_ok": true,
+      "tie_order_nonclaim_ok": true,
+      "validates_decl_hash_ok": true,
+      "verification_commands_present": true
+    },
+    "closure_id": "record_set_pruning_refutation_audit_resolves_risk",
+    "closure_kind": "resolves",
+    "edge_type": "SUPERSEDES",
+    "resolver_artifacts": [
+      {
+        "path": "tools/check_ab_record_set_pruning_refutation_audit_20260629.py",
+        "sha256": "ad72d96f20c450f3d68b7886a4a04caa995ede79126e67c39d6df92f1c8b7575"
+      },
+      {
+        "path": "tests/formal/test_ab_record_set_pruning_refutation_audit_20260629.py",
+        "sha256": "dac1a3ee8f7c11ec68dc51f6872b8a13bb6cfbaa64fb5a813b5654b6b10c7b6d"
+      },
+      {
+        "path": "docs/research/ZENODEX_AB_RECORD_SET_PRUNING_REFUTATION_AUDIT_20260629.md",
+        "sha256": "4746a31c251b8357e8da317e04b24f5785df46990a19546f06657c8b473c821d"
+      },
+      {
+        "path": "generated/zenodex_ab_record_set_pruning_refutation_audit_20260629/report.json",
+        "sha256": "13e81312ee2651f0f198df4ceb86c5bf65dfbd0012c0085332285b6dff7cd1cf"
+      },
+      {
+        "path": "lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+        "sha256": "0d9787f60b655a59c5ab3f6395eebf013d7827b3e5f51c974c180cfe3a1ae1e6"
+      }
+    ],
+    "source_atom_id": "atom_zenodex_research_kernel_record_set_closure_20260629",
+    "summary": "The current AB record-set pruning refutation audit resolves the RK risk for the scoped Lean/record-set claim surface: theorem premises, generated report bindings, negative controls, deterministic replay, and non-claims all pass.",
+    "target_atom_id": "atom_c0f2558fe81046cf"
+  },
+  "date": "2026-06-29",
+  "hypothesis_card": {
+    "expected_metric_delta": {
+      "cap_efficiency": "0",
+      "determinism_simplicity": "+explicit edge and residual-open set",
+      "execution_quality": "0",
+      "perf_cost": "-closure check overhead",
+      "safety": "+frontier hygiene"
+    },
+    "falsification_recipe": "Validate stable audit invariants, negative controls, theorem/report bindings, and public non-claims.",
+    "formal_obligations": "Lean remains the proof authority; this receipt closes only the RK tracking risk for the scoped audit surface.",
+    "hypothesis_id": "H-RK-RECORD-SET-CLOSURE-20260629",
+    "mechanism_change": "Close the open RK record-set risk only after replaying the dedicated falsify-first audit.",
+    "null_hypothesis": "The existing record-set audit is stale, fails a gate, misses a load-bearing premise, or overclaims authority.",
+    "representation_shift_used": "counterexample_boundary",
+    "risk_modes": [
+      "outer audit JSON timing drift",
+      "stale generated report",
+      "missing Lean premise",
+      "broad RK edge overclaim",
+      "authority leakage"
+    ],
+    "status": "supported",
+    "support_recipe": "Pass the audit checker, focused pytest, claim-scope gates, and this RK closure checker."
+  },
+  "live_audit_command": "python3 tools/check_research_kernel_record_set_closure_20260629.py --live-audit",
+  "non_claims": [
+    "This receipt closes only the RK tracking risk for the scoped AB record-set pruning audit.",
+    "This receipt does not prove Python-to-Lean refinement.",
+    "This receipt does not construct a subset DP table or define canonical tie order.",
+    "This receipt does not cover nonzero min_amount_out behavior.",
+    "This receipt does not close n7, observed-summary, reserve-state observed-summary, or full subset-mask frontier risks.",
+    "This receipt grants no settlement, governance, state-root, routing, matching, pool-mutation, or production authority."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_research_kernel_record_set_closure_20260629.py",
+  "research_kernel_edges_to_add": [
+    {
+      "closure_kind": "resolves",
+      "edge_type": "SUPERSEDES",
+      "rationale": "The dedicated falsify-first audit passes and covers the exact record-set risk predicates.",
+      "source_atom_id": "atom_zenodex_research_kernel_record_set_closure_20260629",
+      "target_atom_id": "atom_c0f2558fe81046cf"
+    }
+  ],
+  "residual_open_frontier": [
+    "n7 Tau scope certificate risk",
+    "n7 bidirectional transition mutation risk",
+    "observed-summary bridge risks",
+    "reserve-state observed-summary bridge risks",
+    "full subset-mask DP construction and Python-to-Lean refinement"
+  ],
+  "schema": "zenodex.research_kernel_record_set_closure_20260629.v1"
+}

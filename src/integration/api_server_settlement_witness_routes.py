@@ -31,6 +31,8 @@ class _SettlementWitnessRequest:
     swap_ordering: str
     quote_bindings_validated: object
     packet_obj: object
+    protocol_fee_share_bps: object
+    protocol_fee_recipient_pubkey: object
 
 
 @dataclass(frozen=True)
@@ -68,6 +70,8 @@ def _extract_request(obj: dict[str, object]) -> _SettlementWitnessRequest:
         swap_ordering=str(obj.get("swap_ordering", "greedy_ab_refined")),
         quote_bindings_validated=obj.get("quote_bindings_validated", False),
         packet_obj=obj.get("packet"),
+        protocol_fee_share_bps=obj.get("protocol_fee_share_bps", 0),
+        protocol_fee_recipient_pubkey=obj.get("protocol_fee_recipient_pubkey"),
     )
 
 
@@ -154,6 +158,31 @@ def _validate_attestation_inputs(
         _bad_request(write_json, "bad_allowed_signers")
         return False
     return True
+
+
+def _parse_protocol_fee_request_fields(
+    request: _SettlementWitnessRequest,
+    write_json: Callable[[int, object], None],
+) -> tuple[bool, int, str | None]:
+    share = request.protocol_fee_share_bps
+    if not isinstance(share, int) or isinstance(share, bool) or not (0 <= share <= 10000):
+        _bad_request(write_json, "bad_protocol_fee_share_bps")
+        return False, 0, None
+
+    recipient_raw = request.protocol_fee_recipient_pubkey
+    if recipient_raw is None:
+        recipient = None
+    elif isinstance(recipient_raw, str):
+        recipient = recipient_raw.strip() or None
+    else:
+        _bad_request(write_json, "bad_protocol_fee_recipient_pubkey")
+        return False, 0, None
+
+    if share > 0 and recipient is None:
+        _bad_request(write_json, "protocol_fee_recipient_pubkey_required")
+        return False, 0, None
+
+    return True, share, recipient
 
 
 def _build_attested_certificate_inputs(
@@ -274,6 +303,8 @@ def _handle_build_request(
     *,
     request: _SettlementWitnessRequest,
     context: _SettlementWitnessContext,
+    protocol_fee_share_bps: int,
+    protocol_fee_recipient_pubkey: str | None,
     write_json: Callable[[int, object], None],
 ) -> None:
     from src.integration.settlement_witness_lifecycle import (  # pylint: disable=import-outside-toplevel
@@ -291,6 +322,8 @@ def _handle_build_request(
         settlement_validation=request.settlement_validation,
         swap_ordering=request.swap_ordering,
         quote_bindings_validated=bool(request.quote_bindings_validated),
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
     )
     write_json(200, {"ok": True, "packet": packet.to_dict()})
 
@@ -299,6 +332,8 @@ def _handle_verify_request(
     *,
     request: _SettlementWitnessRequest,
     context: _SettlementWitnessContext,
+    protocol_fee_share_bps: int,
+    protocol_fee_recipient_pubkey: str | None,
     write_json: Callable[[int, object], None],
 ) -> None:
     from src.integration.settlement_witness_lifecycle import (  # pylint: disable=import-outside-toplevel
@@ -317,6 +352,8 @@ def _handle_verify_request(
         settlement_validation=request.settlement_validation,
         swap_ordering=request.swap_ordering,
         quote_bindings_validated=bool(request.quote_bindings_validated),
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
     )
     write_json(200, {"ok": bool(ok), "error": err})
 
@@ -345,6 +382,13 @@ def maybe_handle_settlement_witness_lifecycle_route(
         return True
     if not _validate_attestation_inputs(request, write_json, require_packet=require_packet):
         return True
+    (
+        protocol_fee_ok,
+        protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey,
+    ) = _parse_protocol_fee_request_fields(request, write_json)
+    if not protocol_fee_ok:
+        return True
 
     try:
         context = _load_request_context(
@@ -355,7 +399,13 @@ def maybe_handle_settlement_witness_lifecycle_route(
             parse_settlement_feature_extension_inputs_payload=parse_settlement_feature_extension_inputs_payload,
         )
         handler = _handle_verify_request if require_packet else _handle_build_request
-        handler(request=request, context=context, write_json=write_json)
+        handler(
+            request=request,
+            context=context,
+            protocol_fee_share_bps=protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+            write_json=write_json,
+        )
         return True
     except Exception as exc:
         error = (

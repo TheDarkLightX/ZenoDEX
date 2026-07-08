@@ -156,12 +156,12 @@ def test_snapshot_roundtrip_with_perps_is_deterministic() -> None:
         "depeg_buffer_bps": 100,
         "liquidation_penalty_bps": 50,
         "max_position_abs": 1000000,
-        "fee_pool_quote": 0,
+        "fee_pool_quote": 30_000,
         "funding_rate_bps": 0,
         "funding_cap_bps": 100,
-        "insurance_balance": 0,
+        "insurance_balance": 30_000,
         "initial_insurance": 0,
-        "fee_income": 0,
+        "fee_income": 30_000,
         "claims_paid": 0,
         "min_notional_for_bounty": 100000000,
     }
@@ -181,6 +181,29 @@ def test_snapshot_roundtrip_with_perps_is_deterministic() -> None:
                         liquidated_this_step=False,
                     ),
                 },
+                pending_funding_closeout_root_hashes=("sha256:" + "12" * 32,),
+                pending_funding_closeout_source_availability_hashes=(
+                    "sha256:" + "34" * 32,
+                ),
+                pending_funding_closeout_carried_liability_hashes=(
+                    "sha256:" + "56" * 32,
+                ),
+                funding_closeout_policy_ledger_hashes=(
+                    "sha256:" + "78" * 32,
+                ),
+                funding_closeout_sink_claimant_balances_quote=(
+                    ("protocol_sink", 20_000),
+                    ("insurance_sink", 10_000),
+                ),
+                funding_closeout_receiver_claim_balances_quote=(
+                    ("bb" * 48, 18_000),
+                    ("cc" * 48, 12_000),
+                ),
+                funding_closeout_receiver_claim_lots_quote=(
+                    ("bb" * 48, "bb-old", 6_000, 5),
+                    ("bb" * 48, "bb-new", 12_000, 10),
+                    ("cc" * 48, "cc-only", 12_000, 10),
+                ),
             ),
             "perp:ch2p:demo": PerpClearinghouse2pMarketState(
                 quote_asset="0x" + "44" * 32,
@@ -228,6 +251,66 @@ def test_snapshot_roundtrip_with_perps_is_deterministic() -> None:
     snap2 = snapshot_from_state(state2)
 
     assert snap1.canonical_bytes() == snap2.canonical_bytes()
+    assert state2.perps is not None
+    restored_market = state2.perps.markets["perp:demo"]
+    assert isinstance(restored_market, PerpMarketState)
+    assert restored_market.pending_funding_closeout_root_hashes == ("sha256:" + "12" * 32,)
+    assert restored_market.pending_funding_closeout_source_availability_hashes == (
+        "sha256:" + "34" * 32,
+    )
+    assert restored_market.pending_funding_closeout_carried_liability_hashes == (
+        "sha256:" + "56" * 32,
+    )
+    assert restored_market.funding_closeout_policy_ledger_hashes == (
+        "sha256:" + "78" * 32,
+    )
+    assert restored_market.funding_closeout_sink_claimant_balances_quote == (
+        ("insurance_sink", 10_000),
+        ("protocol_sink", 20_000),
+    )
+    assert restored_market.funding_closeout_receiver_claim_balances_quote == (
+        ("bb" * 48, 18_000),
+        ("cc" * 48, 12_000),
+    )
+    assert restored_market.funding_closeout_receiver_claim_lots_quote == (
+        ("bb" * 48, "bb-old", 6_000, 5),
+        ("bb" * 48, "bb-new", 12_000, 10),
+        ("cc" * 48, "cc-only", 12_000, 10),
+    )
+    perps_snapshot = snap2.data["perps"]
+    isolated_snapshot = next(
+        entry
+        for entry in perps_snapshot["markets"]
+        if entry["market_id"] == "perp:demo"
+    )
+    assert isolated_snapshot["funding_closeout_sink_claimant_balances_quote"] == [
+        {"claimant": "insurance_sink", "balance_quote": 10_000},
+        {"claimant": "protocol_sink", "balance_quote": 20_000},
+    ]
+    assert isolated_snapshot["funding_closeout_receiver_claim_balances_quote"] == [
+        {"account_pubkey": "bb" * 48, "balance_quote": 18_000},
+        {"account_pubkey": "cc" * 48, "balance_quote": 12_000},
+    ]
+    assert isolated_snapshot["funding_closeout_receiver_claim_lots_quote"] == [
+        {
+            "account_pubkey": "bb" * 48,
+            "lot_id": "bb-old",
+            "balance_quote": 6_000,
+            "expires_at_epoch": 5,
+        },
+        {
+            "account_pubkey": "bb" * 48,
+            "lot_id": "bb-new",
+            "balance_quote": 12_000,
+            "expires_at_epoch": 10,
+        },
+        {
+            "account_pubkey": "cc" * 48,
+            "lot_id": "cc-only",
+            "balance_quote": 12_000,
+            "expires_at_epoch": 10,
+        },
+    ]
 
 
 def test_state_from_snapshot_rejects_invalid_clearinghouse_conservation() -> None:

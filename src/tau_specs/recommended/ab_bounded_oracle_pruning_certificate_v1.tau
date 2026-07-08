@@ -1,0 +1,40 @@
+# AB Bounded-Oracle Pruning Certificate v1
+#
+# PURPOSE:
+#   Guard a host-computed AB subset-DP bounded-oracle pruning research
+#   certificate. The host runs the exact DP, brute-force parity checks, and
+#   suffix-oracle certification for every pruned state. Tau only combines
+#   projected evidence facts and preserves the no-authority rail.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = same_direction_exact_in_scope_ok
+# i3  = suffix_bound_ok
+# i4  = all_prunes_suffix_certified
+# i5  = unpruned_parity_ok
+# i6  = brute_force_parity_ok
+# i7  = state_reduction_ok
+# i8  = deterministic_replay_ok
+# i9  = resource_budget_ok
+# i10 = no_authority_effect
+# i11 = nonvacuous_pruning
+# o1  = oracle_surface_ok
+# o2  = parity_surface_ok
+# o3  = operational_surface_ok
+# o4  = bounded_oracle_certificate_ok
+# o5  = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+oracle_surface_ok(scope : sbf, suffix_bound : sbf, certified : sbf) := is1(scope) && is1(suffix_bound) && is1(certified).
+parity_surface_ok(unpruned : sbf, brute : sbf) := is1(unpruned) && is1(brute).
+operational_surface_ok(state_reduction : sbf, deterministic : sbf, budget : sbf, no_authority : sbf, nonvacuous : sbf) := is1(state_reduction) && is1(deterministic) && is1(budget) && is1(no_authority) && is1(nonvacuous).
+bounded_oracle_certificate_ok(active : sbf, scope : sbf, suffix_bound : sbf, certified : sbf, unpruned : sbf, brute : sbf, state_reduction : sbf, deterministic : sbf, budget : sbf, no_authority : sbf, nonvacuous : sbf) := is1(active) && oracle_surface_ok(scope, suffix_bound, certified) && parity_surface_ok(unpruned, brute) && operational_surface_ok(state_reduction, deterministic, budget, no_authority, nonvacuous).
+
+always
+  (o1[t]:sbf = 1:sbf <-> oracle_surface_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> parity_surface_ok(i5[t]:sbf, i6[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> operational_surface_ok(i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> bounded_oracle_certificate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i10[t]:sbf))).

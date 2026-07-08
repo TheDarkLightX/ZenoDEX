@@ -11,7 +11,7 @@ from src.core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
 from src.core.liquidity import create_pool
 from src.core.quote_receipts import make_route_quote_receipt
 from src.core.routing import best_route_exact_in_2hop
-from src.core.settlement import Settlement
+from src.core.settlement import FillAction, Settlement
 from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
 from src.state.lp import LPTable
@@ -238,7 +238,14 @@ def test_intent_auth_shape_covers_material_swap_fields_before_candidate_settleme
 def test_step_advances_nonce_state_for_valid_out_of_order_batch() -> None:
     state, intents, pk = _make_two_create_pool_setup(nonce_a=2, nonce_b=1)
 
-    result = step(DexConfig(settlement_validation="strong_replay"), state, intents)
+    result = step(
+        DexConfig(
+            settlement_validation="strong_replay",
+            reject_settlements_with_rejected_intents=False,
+        ),
+        state,
+        intents,
+    )
 
     assert result.ok, result.error
     assert result.state is not None
@@ -263,6 +270,90 @@ def test_step_with_candidate_settlement_rejects_mixed_nonce_presence() -> None:
     assert not result.ok
     assert result.error is not None
     assert "nonce" in result.error
+
+
+def test_step_with_candidate_settlement_rejects_rejected_intent_by_default() -> None:
+    state, intents, _pool_id, _pk, _asset0, _asset1 = _make_single_swap_setup()
+    cfg = DexConfig(settlement_validation="strong_replay")
+    candidate = compute_settlement(
+        intents=intents,
+        pools=state.pools,
+        balances=state.balances,
+        lp_balances=state.lp_balances,
+        swap_ordering=str(cfg.swap_ordering),
+    )
+    rejected = replace(
+        candidate,
+        included_intents=[(intents[0].intent_id, FillAction.REJECT)],
+        fills=[
+            replace(
+                candidate.fills[0],
+                action=FillAction.REJECT,
+                reason="bdd_invalid_state",
+                amount_in_filled=None,
+                amount_out_filled=None,
+                fee_paid=None,
+                protocol_fee_paid=None,
+                reserve_in_before=None,
+                reserve_out_before=None,
+            )
+        ],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+    )
+
+    result = step_with_candidate_settlement(cfg, state, intents, candidate_settlement=rejected)
+
+    assert result.ok is False
+    assert result.error == (
+        "settlement contains rejected intent at public DEX boundary: "
+        f"{intents[0].intent_id}"
+    )
+    assert result.state is None
+
+
+def test_step_with_candidate_settlement_allows_rejected_intent_when_boundary_opted_out() -> None:
+    state, intents, _pool_id, _pk, _asset0, _asset1 = _make_single_swap_setup()
+    cfg = DexConfig(
+        settlement_validation="strong_replay",
+        reject_settlements_with_rejected_intents=False,
+    )
+    candidate = compute_settlement(
+        intents=intents,
+        pools=state.pools,
+        balances=state.balances,
+        lp_balances=state.lp_balances,
+        swap_ordering=str(cfg.swap_ordering),
+    )
+    rejected = replace(
+        candidate,
+        included_intents=[(intents[0].intent_id, FillAction.REJECT)],
+        fills=[
+            replace(
+                candidate.fills[0],
+                action=FillAction.REJECT,
+                reason="internal_noop",
+                amount_in_filled=None,
+                amount_out_filled=None,
+                fee_paid=None,
+                protocol_fee_paid=None,
+                reserve_in_before=None,
+                reserve_out_before=None,
+            )
+        ],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+    )
+
+    result = step_with_candidate_settlement(cfg, state, intents, candidate_settlement=rejected)
+
+    assert result.ok, result.error
+    assert result.state is not None
+    assert result.state.balances.get(intents[0].sender_pubkey, intents[0].fields["asset_in"]) == (
+        state.balances.get(intents[0].sender_pubkey, intents[0].fields["asset_in"])
+    )
 
 
 def test_step_rejects_snapshot_bound_quote_binding_without_explicit_opt_in() -> None:

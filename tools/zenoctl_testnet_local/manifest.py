@@ -3,7 +3,8 @@
 Records the running local-testnet stack: compose project, allocated host
 ports, in-network service URLs, image SHAs, enabled API lanes, fixture file
 paths, the ledger bundle manifest, and the SHA-256 of the writer bearer
-token (not the token itself, so the manifest is safe to inspect or share).
+and stdlib bearer tokens (not the tokens themselves, so the manifest is safe
+to inspect or share).
 """
 
 from __future__ import annotations
@@ -16,19 +17,25 @@ from pathlib import Path
 from typing import Any, Mapping
 
 
+SCHEMA_V2 = "zeno_ledger.local_testnet_manifest.v2"
 SCHEMA_V1 = "zeno_ledger.local_testnet_manifest.v1"
 SCHEMA_V0 = "zeno_ledger.local_testnet_manifest.v0"
-SUPPORTED_SCHEMAS = frozenset({SCHEMA_V0, SCHEMA_V1})
+SUPPORTED_SCHEMAS = frozenset({SCHEMA_V0, SCHEMA_V1, SCHEMA_V2})
 MANIFEST_FILENAME = "local_testnet_manifest.json"
 
 _SHA256_HEX_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+_ARTIFACT_HASH_RE = re.compile(r"^(?:0x|sha256:)[0-9a-f]{64}$")
 _COMPOSE_PROJECT_RE = re.compile(r"^zenodex-local-testnet-[0-9a-f]{8}$")
+ZK_MODES = frozenset({"auto-strict", "strict", "open"})
+ZK_EFFECTIVE_MODES = frozenset({"strict", "open"})
+PROOF_VERIFIER_KINDS = frozenset({"disabled", "subprocess", "misconfigured"})
 
 
 @dataclass(frozen=True)
 class ManifestPaths:
     out_dir: Path
     fixtures_dir: Path
+    secrets_dir: Path
     reports_dir: Path
     oracle_home_dir: Path
     rendered_nginx: Path
@@ -42,6 +49,7 @@ class ManifestPaths:
         return cls(
             out_dir=out,
             fixtures_dir=out / "fixtures",
+            secrets_dir=out / "secrets",
             reports_dir=out / "reports",
             oracle_home_dir=out / "oracle-home",
             rendered_nginx=out / "rendered" / "nginx.local-testnet.conf",
@@ -81,13 +89,16 @@ def build_manifest(
     fixture_paths: Mapping[str, str],
     ledger_bundle_manifest: str,
     writer_token: str,
+    stdlib_token: str,
     created_at_ms: int,
+    zk_posture: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Construct a manifest dict from already-validated inputs. Caller is
     responsible for ensuring inputs are sane; `validate_manifest` should
     be called on the result before persisting."""
+    posture = _default_zk_posture() if zk_posture is None else dict(zk_posture)
     return {
-        "schema": SCHEMA_V1,
+        "schema": SCHEMA_V2,
         "compose_project": compose_project_name(out_dir),
         "out_dir": str(Path(out_dir).resolve()),
         "chain_id": chain_id,
@@ -99,15 +110,24 @@ def build_manifest(
         "fixture_paths": dict(fixture_paths),
         "ledger_bundle_manifest": ledger_bundle_manifest,
         "writer_token_sha256": writer_token_sha256(writer_token),
+        "stdlib_token_sha256": writer_token_sha256(stdlib_token),
         "rendered_paths": {
             "nginx_conf": str(ManifestPaths.from_out_dir(out_dir).rendered_nginx),
             "runtime_config": str(ManifestPaths.from_out_dir(out_dir).rendered_runtime_config),
         },
         "host_paths": {
             "fixtures_dir": str(ManifestPaths.from_out_dir(out_dir).fixtures_dir),
+            "secrets_dir": str(ManifestPaths.from_out_dir(out_dir).secrets_dir),
             "oracle_home_dir": str(ManifestPaths.from_out_dir(out_dir).oracle_home_dir),
             "reports_dir": str(ManifestPaths.from_out_dir(out_dir).reports_dir),
         },
+        "zk_mode_requested": posture.get("zk_mode_requested"),
+        "zk_mode_effective": posture.get("zk_mode_effective"),
+        "zk_required": posture.get("zk_required"),
+        "zk_fallback_reason": posture.get("zk_fallback_reason"),
+        "proof_verifier_kind": posture.get("proof_verifier_kind"),
+        "proof_artifact_hashes": dict(posture.get("proof_artifact_hashes") or {}),
+        "production_security_claim": posture.get("production_security_claim"),
         "created_at_ms": int(created_at_ms),
     }
 
@@ -149,6 +169,16 @@ REQUIRED_KEYS = (
     "created_at_ms",
 )
 V1_REQUIRED_KEYS = ("rendered_paths", "host_paths")
+V2_REQUIRED_KEYS = (
+    "stdlib_token_sha256",
+    "zk_mode_requested",
+    "zk_mode_effective",
+    "zk_required",
+    "zk_fallback_reason",
+    "proof_verifier_kind",
+    "proof_artifact_hashes",
+    "production_security_claim",
+)
 
 REQUIRED_PORT_KEYS = ("ui",)
 REQUIRED_SERVICE_KEYS = (
@@ -166,8 +196,19 @@ REQUIRED_FIXTURE_KEYS = (
     "autotrader_supervisor_profile",
     "guardian_quorum",
 )
+V2_REQUIRED_FIXTURE_KEYS = (
+    "perps_wallet_recovery_exercise",
+    "perps_wallet_rotation_exercise",
+    "perps_wallet_device_approval_exercise",
+    "perps_wallet_signer_device_integration",
+    "perps_wallet_signer_prompt_capture",
+    "perps_wallet_signer_execution_exercise",
+    "perps_wallet_encrypted_sss_backup",
+    "perps_wallet_encrypted_sss_recipient_keys",
+)
 V1_REQUIRED_RENDERED_KEYS = ("nginx_conf", "runtime_config")
 V1_REQUIRED_HOST_KEYS = ("fixtures_dir", "oracle_home_dir", "reports_dir")
+V2_REQUIRED_HOST_KEYS = ("secrets_dir",)
 
 
 def validate_manifest(manifest: Mapping[str, Any]) -> list[str]:
@@ -186,7 +227,8 @@ def validate_manifest(manifest: Mapping[str, Any]) -> list[str]:
         errors.append(
             f"schema must be one of {sorted(SUPPORTED_SCHEMAS)!r}, got {schema!r}"
         )
-    is_v1 = schema == SCHEMA_V1
+    is_v1_or_later = schema in {SCHEMA_V1, SCHEMA_V2}
+    is_v2 = schema == SCHEMA_V2
 
     project = manifest.get("compose_project", "")
     if not isinstance(project, str) or not _COMPOSE_PROJECT_RE.match(project):
@@ -254,6 +296,10 @@ def validate_manifest(manifest: Mapping[str, Any]) -> list[str]:
         for key in REQUIRED_FIXTURE_KEYS:
             if key not in fixture_paths:
                 errors.append(f"fixture_paths missing required key: {key}")
+        if is_v2:
+            for key in V2_REQUIRED_FIXTURE_KEYS:
+                if key not in fixture_paths:
+                    errors.append(f"fixture_paths missing required key: {key}")
         for key, value in fixture_paths.items():
             if not isinstance(value, str) or not value:
                 errors.append(f"fixture_paths[{key}] must be non-empty string, got {value!r}")
@@ -268,11 +314,18 @@ def validate_manifest(manifest: Mapping[str, Any]) -> list[str]:
             f"writer_token_sha256 must match {_SHA256_HEX_RE.pattern!r}, got {token_hash!r}"
         )
 
+    if is_v2:
+        stdlib_token_hash = manifest.get("stdlib_token_sha256")
+        if not isinstance(stdlib_token_hash, str) or not _SHA256_HEX_RE.match(stdlib_token_hash):
+            errors.append(
+                f"stdlib_token_sha256 must match {_SHA256_HEX_RE.pattern!r}, got {stdlib_token_hash!r}"
+            )
+
     created_at = manifest.get("created_at_ms")
     if not isinstance(created_at, int) or created_at < 0:
         errors.append(f"created_at_ms must be a non-negative int, got {created_at!r}")
 
-    if is_v1:
+    if is_v1_or_later:
         for key in V1_REQUIRED_KEYS:
             if key not in manifest:
                 errors.append(f"missing required key: {key}")
@@ -292,8 +345,71 @@ def validate_manifest(manifest: Mapping[str, Any]) -> list[str]:
                 value = host_paths.get(key)
                 if not isinstance(value, str) or not value.startswith("/"):
                     errors.append(f"host_paths[{key}] must be an absolute path string, got {value!r}")
+            if is_v2:
+                for key in V2_REQUIRED_HOST_KEYS:
+                    value = host_paths.get(key)
+                    if not isinstance(value, str) or not value.startswith("/"):
+                        errors.append(f"host_paths[{key}] must be an absolute path string, got {value!r}")
+
+    if is_v2:
+        for key in V2_REQUIRED_KEYS:
+            if key not in manifest:
+                errors.append(f"missing required key: {key}")
+        requested = manifest.get("zk_mode_requested")
+        if requested not in ZK_MODES:
+            errors.append(f"zk_mode_requested must be one of {sorted(ZK_MODES)!r}, got {requested!r}")
+        effective = manifest.get("zk_mode_effective")
+        if effective not in ZK_EFFECTIVE_MODES:
+            errors.append(f"zk_mode_effective must be one of {sorted(ZK_EFFECTIVE_MODES)!r}, got {effective!r}")
+        if not isinstance(manifest.get("zk_required"), bool):
+            errors.append("zk_required must be bool")
+        fallback_reason = manifest.get("zk_fallback_reason")
+        if fallback_reason is not None and not isinstance(fallback_reason, str):
+            errors.append("zk_fallback_reason must be null or string")
+        verifier_kind = manifest.get("proof_verifier_kind")
+        if verifier_kind not in PROOF_VERIFIER_KINDS:
+            errors.append(
+                f"proof_verifier_kind must be one of {sorted(PROOF_VERIFIER_KINDS)!r}, got {verifier_kind!r}"
+            )
+        artifact_hashes = manifest.get("proof_artifact_hashes")
+        if not isinstance(artifact_hashes, Mapping):
+            errors.append("proof_artifact_hashes must be a mapping")
+        else:
+            for key, value in artifact_hashes.items():
+                if not isinstance(key, str) or not key:
+                    errors.append(f"proof_artifact_hashes key must be non-empty string, got {key!r}")
+                if not isinstance(value, str) or _ARTIFACT_HASH_RE.fullmatch(value) is None:
+                    errors.append(
+                        f"proof_artifact_hashes[{key}] must be 0x/sha256 32-byte hash, got {value!r}"
+                    )
+        if not isinstance(manifest.get("production_security_claim"), bool):
+            errors.append("production_security_claim must be bool")
+        elif manifest.get("production_security_claim") is not False:
+            errors.append("production_security_claim must be false for local-testnet manifests")
+        strict_artifacts_ready = isinstance(artifact_hashes, Mapping) and all(
+            key in artifact_hashes for key in ("verifier", "circuit")
+        )
+        if effective == "strict":
+            if manifest.get("zk_required") is not True:
+                errors.append("strict zk mode requires zk_required=true")
+            if verifier_kind != "subprocess":
+                errors.append("strict zk mode requires proof_verifier_kind=subprocess")
+            if not strict_artifacts_ready:
+                errors.append("strict zk mode requires verifier and circuit artifact hashes")
 
     return errors
+
+
+def _default_zk_posture() -> dict[str, Any]:
+    return {
+        "zk_mode_requested": "auto-strict",
+        "zk_mode_effective": "open",
+        "zk_required": False,
+        "zk_fallback_reason": "strict ZK verifier/artifacts were not supplied to build_manifest",
+        "proof_verifier_kind": "disabled",
+        "proof_artifact_hashes": {},
+        "production_security_claim": False,
+    }
 
 
 def manifest_contains_literal(manifest: Mapping[str, Any], needle: str) -> bool:

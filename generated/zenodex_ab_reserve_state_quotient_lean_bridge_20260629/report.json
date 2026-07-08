@@ -1,0 +1,78 @@
+{
+  "artifacts": {
+    "formal_test": "tests/formal/test_lean_ab_reserve_state_quotient.py",
+    "formal_test_line_count": 66,
+    "formal_test_sha256": "sha256:edba0bced0ee4d5837e0582c1a3854f7ea5278f05ffcdb564732e9f328fbddeb",
+    "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+    "lean_line_count": 776,
+    "lean_sha256": "sha256:490b0005cb1b1c7efcf768176c038d0e4d52ba25529a90e4babe0edb3a024013"
+  },
+  "authority_boundary": "Research proof component only; no settlement, state-root, production, governance, routing, matching, or transaction authority.",
+  "checks": {
+    "lean_file_exists": true,
+    "lean_placeholder_scan_clean": true,
+    "required_lean_markers_present": true,
+    "required_test_markers_present": true,
+    "test_file_exists": true
+  },
+  "claim_scope": "A Lean proof component formalizes the reserve-state quotient bridge for the AB strict zero-min research surface: same reserve-state quotient rows have identical fixed-suffix behavior, and a selected minimum reserve-out state dominates a finite quotient family at fixed executed input. It also proves the selected representative remains valid after one common exact-in step is applied to every family member, and that selected suffix executability lifts to all higher-reserve family members. The observed-summary layer binds host-visible count and selected-state metadata to the validated Lean table.",
+  "missing": {
+    "forbidden_lean_terms": [],
+    "lean_markers": [],
+    "test_markers": []
+  },
+  "non_claims": [
+    "No Python-to-Lean refinement proof is claimed.",
+    "No JSON canonicalization or packet-hash computation is proved in Lean.",
+    "No canonical tie order or order-history preservation is claimed.",
+    "No nonzero min_amount_out coverage is claimed.",
+    "No settlement, state-root, production, governance, routing, matching, or transaction authority is derived."
+  ],
+  "ok": true,
+  "replay_commands": [
+    "cd lean-mathlib && lake env lean Proofs/ABReserveStateQuotient.lean",
+    "cd lean-mathlib && lake build Proofs.ABReserveStateQuotient",
+    "python3 ~/.codex/skills/proof-engineering/scripts/scan_proof_placeholders.py lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+    "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests/formal/test_lean_ab_reserve_state_quotient.py",
+    "python3 tools/check_ab_reserve_state_quotient_lean_bridge.py",
+    "python3 tools/check_public_claim_scope.py --root . --json",
+    "python3 tools/check_claims_registry.py"
+  ],
+  "required_lean_markers": [
+    "structure ReserveState",
+    "def ReserveState.toRecord",
+    "def ReserveState.afterStep",
+    "def reserveStateEquivalent",
+    "theorem reserveStateEquivalent_same_finalReserveOut",
+    "theorem reserveStateEquivalent_same_suffixOutput",
+    "theorem reserveState_minReserve_dominates_suffixOutput",
+    "def quotientFullBestSuffixOutput",
+    "def reserveStateQuotientInvariant",
+    "theorem reserveState_afterStep_same_processed",
+    "theorem reserveState_afterStep_minReserve",
+    "theorem reserveStateQuotientInvariant_afterStep",
+    "theorem strictStepExecutable_mono_reserveOut",
+    "theorem suffixExecutable_mono_reserveOut",
+    "theorem reserveStateQuotientInvariant_candidateSuffixExecutable",
+    "theorem reserveStateQuotientInvariant_familySuffixExecutable",
+    "theorem quotientFullBestSuffixOutput_le_selected",
+    "def quotientFullFrontierZeroMinEconomicKey",
+    "def quotientSelectedZeroMinEconomicKey",
+    "theorem reserveStateQuotientInvariant_bounds_zeroMinEconomicKey",
+    "structure ReserveStateQuotientHostTable",
+    "def reserveStateQuotientHostTableValid",
+    "theorem reserveStateQuotientHostTable_validates",
+    "structure ReserveStateQuotientObservedSummary",
+    "def reserveStateQuotientObservedSummaryValid",
+    "def reserveStateQuotientObservedSummaryFullKey",
+    "def reserveStateQuotientObservedSummarySelectedKey",
+    "theorem reserveStateQuotientObservedSummary_to_hostTableValid",
+    "theorem reserveStateQuotientObservedSummary_validates",
+    "theorem witness_reserveStateEquivalent_same_suffixOutput",
+    "theorem witness_reserveStateQuotientHostTable_validates",
+    "theorem witness_reserveStateQuotientInvariant_afterStep",
+    "theorem witness_reserveStateQuotientInvariant_familySuffixExecutable",
+    "theorem witness_reserveStateQuotientObservedSummary_validates"
+  ],
+  "schema": "zenodex/ab_reserve_state_quotient_lean_bridge/v1"
+}

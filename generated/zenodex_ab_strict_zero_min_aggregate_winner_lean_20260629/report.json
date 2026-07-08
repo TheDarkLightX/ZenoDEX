@@ -1,0 +1,62 @@
+{
+  "schema": "zenodex.ab_strict_zero_min_aggregate_winner_lean_report.v1",
+  "date": "2026-06-29",
+  "ok": true,
+  "branch": "cpss-bc-research-codex-grade-a",
+  "base_commit": "7263365a",
+  "authority_boundary": "Research-only formal proof component; no settlement, state-root, production, routing, matching, or governance authority.",
+  "new_lean_theorems": [
+    "selectedFamilyAggregateWinner",
+    "selectedFamilyAggregateWinner_to_selectedFamilyOutputWinner",
+    "selectedFamilyOutputWinner_to_selectedFamilyAggregateWinner",
+    "selectedFamilyOutputWinner_iff_aggregateWinner",
+    "aggregateRangeStepPathWinnerCertificate",
+    "aggregateRangeStepPathWinnerCertificate_to_rangeStepPathWinnerCertificate"
+  ],
+  "proof_role": "Convert scalar selected-family aggregate winner evidence into the existing universal selected-family winner predicate and recursive range-step winner certificate surface.",
+  "verification": {
+    "lake_env_lean": {
+      "command": "cd lean-mathlib && lake env lean Proofs/ABStrictZeroMinMonotone.lean",
+      "status": "pass"
+    },
+    "focused_pytest": {
+      "command": "pytest -q tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+      "status": "pass",
+      "summary": "1 passed in 9.18s"
+    },
+    "placeholder_scan": {
+      "command": "python3 ~/.codex/skills/proof-engineering/scripts/scan_proof_placeholders.py lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+      "status": "pass",
+      "summary": "No proof placeholders found."
+    },
+    "lake_build_module": {
+      "command": "cd lean-mathlib && lake build Proofs.ABStrictZeroMinMonotone",
+      "status": "pass"
+    },
+    "public_claim_scope": {
+      "command": "python3 tools/check_public_claim_scope.py --root . --json",
+      "status": "ok"
+    },
+    "claims_registry": {
+      "command": "python3 tools/check_claims_registry.py",
+      "status": "ok"
+    },
+    "diff_check": {
+      "command": "git diff --check -- lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean tests/formal/test_lean_ab_strict_zero_min_monotone.py docs/research/ZENODEX_AB_STRICT_ZERO_MIN_AGGREGATE_WINNER_LEAN_20260629.md generated/zenodex_ab_strict_zero_min_aggregate_winner_lean_20260629/report.json",
+      "status": "pass"
+    }
+  },
+  "artifact_hashes": {
+    "lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean": "6619b88752c36c079f954bdf9236865dcd9b5dd3c98a1bb4861bf0ae65448fff",
+    "tests/formal/test_lean_ab_strict_zero_min_monotone.py": "12ac54a370f58bf147a1ab0dd9ae8451ad7e87531e2b42e4e669cb82bb49f9c3"
+  },
+  "non_claims": [
+    "This proof does not construct a subset DP table.",
+    "This proof does not prove Python-to-Lean refinement.",
+    "This proof does not prove JSON canonicalization or packet-hash computation in Lean.",
+    "This proof does not define canonical tie order or choose among tied winners.",
+    "This proof is restricted to the abstract strict executable same-pool, same-direction, exact-in, zero-min proof surface already modeled in ABStrictZeroMinMonotone.lean.",
+    "This proof does not cover nonzero min_amount_out behavior.",
+    "This proof has no settlement, state-root, production, routing, matching, or governance authority."
+  ]
+}

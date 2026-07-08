@@ -95,6 +95,8 @@ def _economic_envelope_for(
     notional_value_e8: int = 1_000,
     max_extractable_value_e8: int = 100,
     action_kind: str | None = None,
+    reporter_count: int = 3,
+    reporter_bond_required_e8: int = 1_000,
 ) -> dict:
     return {
         "schema": "zenodex.oracle.economic_security_envelope.v1",
@@ -103,6 +105,10 @@ def _economic_envelope_for(
         "action_kind": action_kind or authorization.action_kind,
         "notional_value_e8": notional_value_e8,
         "max_extractable_value_e8": max_extractable_value_e8,
+        "reporter_count": reporter_count,
+        "reporter_bond_required_e8": reporter_bond_required_e8,
+        "slash_fraction_bps": 10_000,
+        "deterrence_margin_bps": 0,
     }
 
 
@@ -142,7 +148,7 @@ def test_typed_authorization_accepts_bound_economic_envelope() -> None:
     authorization, runtime = _valid_pair()
     envelope = _economic_envelope_for(authorization, notional_value_e8=1_000)
     authorization = replace(authorization, economic_envelope_id=economic_envelope_hash(envelope))
-    bundle = authorization_bundle(asdict(authorization))
+    bundle = authorization_bundle(asdict(authorization), include_economic_envelope=False)
     bundle["economic_envelope"] = envelope
 
     result = _check_with_runtime(bundle, runtime, runtime_notional_value_e8=999)
@@ -156,7 +162,7 @@ def test_typed_authorization_rejects_runtime_notional_above_economic_envelope() 
     authorization, runtime = _valid_pair()
     envelope = _economic_envelope_for(authorization, notional_value_e8=1_000)
     authorization = replace(authorization, economic_envelope_id=economic_envelope_hash(envelope))
-    bundle = authorization_bundle(asdict(authorization))
+    bundle = authorization_bundle(asdict(authorization), include_economic_envelope=False)
     bundle["economic_envelope"] = envelope
 
     result = _check_with_runtime(bundle, runtime, runtime_notional_value_e8=1_001)
@@ -170,7 +176,7 @@ def test_typed_authorization_rejects_unbound_economic_envelope_id() -> None:
     authorization, runtime = _valid_pair()
     envelope = _economic_envelope_for(authorization, notional_value_e8=1_000)
     authorization = replace(authorization, economic_envelope_id="econ:small-notional-v1")
-    bundle = authorization_bundle(asdict(authorization))
+    bundle = authorization_bundle(asdict(authorization), include_economic_envelope=False)
     bundle["economic_envelope"] = envelope
 
     result = _check_with_runtime(bundle, runtime, runtime_notional_value_e8=999)
@@ -184,7 +190,7 @@ def test_typed_authorization_rejects_economic_envelope_action_mismatch() -> None
     authorization, runtime = _valid_pair()
     envelope = _economic_envelope_for(authorization, action_kind="liquidate")
     authorization = replace(authorization, economic_envelope_id=economic_envelope_hash(envelope))
-    bundle = authorization_bundle(asdict(authorization))
+    bundle = authorization_bundle(asdict(authorization), include_economic_envelope=False)
     bundle["economic_envelope"] = envelope
 
     result = _check_with_runtime(bundle, runtime, runtime_notional_value_e8=999)
@@ -192,6 +198,46 @@ def test_typed_authorization_rejects_economic_envelope_action_mismatch() -> None
     assert result["typed_ok"] is False
     assert result["economic_envelope_ok"] is False
     assert "economic_envelope action_kind does not match authorization" in result["economic_envelope_errors"]
+
+
+def test_critical_consumer_requires_economic_envelope() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization), include_economic_envelope=False)
+
+    result = _check_with_runtime(bundle, runtime)
+
+    assert result["typed_ok"] is False
+    assert result["economic_envelope_ok"] is False
+    assert "economic_envelope required" in result["economic_envelope_errors"]
+
+
+def test_critical_consumer_rejects_economic_envelope_reporter_count_mismatch() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    bundle["economic_envelope"]["reporter_count"] = 2
+    bundle["authorization"]["economic_envelope_id"] = economic_envelope_hash(bundle["economic_envelope"])
+
+    result = _check_with_runtime(bundle, runtime)
+
+    assert result["typed_ok"] is False
+    assert result["economic_envelope_ok"] is False
+    assert "economic_envelope reporter_count does not match receipt_graph" in result["economic_envelope_errors"]
+
+
+def test_critical_consumer_rejects_economic_envelope_bond_requirement_mismatch() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    bundle["economic_envelope"]["reporter_bond_required_e8"] = 2_000
+    bundle["authorization"]["economic_envelope_id"] = economic_envelope_hash(bundle["economic_envelope"])
+
+    result = _check_with_runtime(bundle, runtime)
+
+    assert result["typed_ok"] is False
+    assert result["economic_envelope_ok"] is False
+    assert (
+        "economic_envelope reporter_bond_required_e8 does not match receipt_graph required_bond_e8"
+        in result["economic_envelope_errors"]
+    )
 
 
 def test_opaque_action_id_does_not_prove_runtime_value_matches() -> None:

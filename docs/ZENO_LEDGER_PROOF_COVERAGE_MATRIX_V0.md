@@ -29,14 +29,24 @@ Current supported surfaces cover:
 - proof-verification report replay;
 - local light-client checkpoint quorum replay that binds verified
   header/body/checkpoint replay to a signer-registry signature-set root and BLS
-  checkpoint quorum.
+  checkpoint quorum;
+- recursive lifecycle asset-delta row coverage for the current spot, zUSD
+  DepositMint, and perps NP recursive leaf surfaces, with CLI row-root metadata
+  binding and a Tau-compatible lifecycle admission gate;
+- deterministic recursive lifecycle admission packet checking that recomputes
+  row roots, checks aggregate conservation, authority roots, header roots,
+  transcript binding, supported profile flags, and emits the same
+  Tau-compatible admission booleans.
 
 Current explicit gaps cover UPBA v2/v3 proof execution, Oracle critical-action
 proof execution, zUSD proof execution, perps proof execution, proof-market
 reward proof execution, production light-client finality, and real recursive
 epoch proof aggregation. The light-client gap is now specifically production
 validator rotation, fork-choice, slashing, peer discovery, and adversarial
-network finality.
+network finality. The recursive scaling gaps are specifically oracle recursive
+leaf coverage, complete non-deposit-mint zUSD lifecycle row extraction, and
+production runtime admission over real root proofs, header binding, data
+availability, and source-finality certificates.
 
 This matrix is a scope-control artifact. It does not add zkVM execution support
 for the listed gaps.

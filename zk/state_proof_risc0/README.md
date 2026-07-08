@@ -24,11 +24,28 @@ cd zk/state_proof_risc0
 cargo build --release --offline -p tau-state-proof-risc0-cli
 ```
 
-Real proofs require the Risc0 toolchain/guest target:
+Real proofs require the Risc0 toolchain/guest target. Prefer the upstream
+`rzup` installer:
 
 ```bash
-rustup toolchain install risc0
-rustup target add riscv32im-risc0-zkvm-elf --toolchain risc0
+export PATH="$HOME/.risc0/bin:$PATH"
+rzup install
+```
+
+The workspace currently uses `risc0-build` 1.2, whose method builder invokes the
+named rustup toolchain `risc0`. If that named toolchain is unavailable or lacks
+the guest target under its sysroot, normal local builds emit placeholder
+methods. Production and CI proof-generation lanes should use
+`RISC0_FORCE_BUILD=1` so a missing or misconfigured toolchain fails closed
+instead of producing placeholder image IDs.
+Clippy builds use placeholder methods because `risc0-build` 1.2 launches a
+nested guest build that is incompatible with the clippy wrapper. Lint success is
+not proof-generation evidence.
+
+The repo parity gate contains the audited local toolchain detection path:
+
+```bash
+bash tools/run_rust_runtime_parity_gate.sh
 ```
 
 ## Use with local Tau Testnet smoke

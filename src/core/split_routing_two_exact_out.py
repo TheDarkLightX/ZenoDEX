@@ -19,6 +19,8 @@ from .split_routing_types import (
     exact_out_route_canonical_key_for_legs,
 )
 
+_LOCAL_CERTIFICATION_MAX_HOPS = 16
+
 ExactOutReservesFor = Callable[[PoolState], tuple[int, int] | None]
 ExactOutQuoteFor = Callable[[PoolState, int], int]
 
@@ -244,6 +246,25 @@ def _best_windowed_split(
         if best_key is None or sweep_in < best_in or (sweep_in == best_in and sweep_key < best_key):
             best_in, best_q0 = int(sweep_in), int(sweep_q0)
             best_key = sweep_key
+
+    # Certificate hardening: the returned split gets an explicit local replay
+    # window, including plateau-edge winners found by the canonical left sweep.
+    for _ in range(_LOCAL_CERTIFICATION_MAX_HOPS):
+        local_lo = max(int(ctx.lo), int(best_q0) - int(window))
+        local_hi = min(int(ctx.hi), int(best_q0) + int(window))
+        local = ctx.scan_range(int(local_lo), int(local_hi))
+        if local is None:
+            break
+        local_in, local_q0 = local
+        local_key = ctx.route_key_for_split(int(local_q0), int(local_in))
+        if best_key is None or local_in < best_in or (local_in == best_in and local_key < best_key):
+            if int(local_q0) == int(best_q0) and int(local_in) == int(best_in):
+                best_key = local_key
+                break
+            best_in, best_q0 = int(local_in), int(local_q0)
+            best_key = local_key
+            continue
+        break
     return int(best_in), int(best_q0)
 
 

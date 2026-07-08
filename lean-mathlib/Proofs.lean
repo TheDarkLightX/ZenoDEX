@@ -22,6 +22,8 @@ import Proofs.AMMPowerFamilyOriginalHODLCurvatureNormalization
 import Proofs.AMMPowerFamilyOriginalHODLSurfaceMismatch
 import Proofs.AMMRawSemanticsBridge
 import Proofs.AntiFragmentation
+import Proofs.ABStrictZeroMinMonotone
+import Proofs.ABTransitionGroupCompression
 import Proofs.ArbitrageCertificate
 import Proofs.AsynchronousIntentSettlement
 import Proofs.AtomicCrossMarginHealth
@@ -41,6 +43,7 @@ import Proofs.BoundedSettlementVerifier
 import Proofs.BountyAuctionMechanisms
 import Proofs.CALCoreSoundness
 import Proofs.CBCDisasterStateRefactors
+import Proofs.CeilingFeeRounding
 import Proofs.CertifiedFinancialMathObjects
 import Proofs.CircuitBreakerWindowArithmetic
 import Proofs.CollateralAcyclicity
@@ -112,11 +115,24 @@ import Proofs.JacobiTuranEndpointObstruction
 import Proofs.JITLiquidityDefense
 import Proofs.JITRewardSandwich
 import Proofs.JmtKeystoneBinding
+import Proofs.KPoolMultisetQuotient
 import Proofs.LiquidityRebalancerBounds
 import Proofs.LpMintOptimalBounds
 import Proofs.LPValueAlgebra
 import Proofs.MEVResistanceBound
+import Proofs.MEVResistanceOptimality
+import Proofs.PriceManipulationCostBound
+import Proofs.SlippageLowerBound
+import Proofs.ShardedBatchClearing
+import Proofs.CoWNettingStreaming
+import Proofs.FundingCloseoutConservation
+import Proofs.CascadeBound
+import Proofs.OracleMedian
+import Proofs.SharedPoolEnvelopeRecurrence
+import Proofs.SharedPoolDustFuelBound
+import Proofs.SharedPoolFrontierAntichain
 import Proofs.MicroTradeFeeBypass
+import Proofs.MinOutCapGameTheory
 import Proofs.MinimumLiquidityInvariant
 import Proofs.MobiusCPMMRoutingBounds
 import Proofs.MonotonicTimeLock
@@ -132,6 +148,10 @@ import Proofs.MSTCertificateNoImprovingExchange
 import Proofs.MSTCertificateSingleSwap
 import Proofs.MSTCertificateSoundness
 import Proofs.MSTCertificateSwapFinset
+import Proofs.ExactIntervalCertificatePath
+import Proofs.IntervalCurvatureCover
+import Proofs.MaximizerBracket
+import Proofs.StationaryMCertificatePath
 import Proofs.NoRisklessYieldLaw
 import Proofs.OILiquidityFundingBound
 import Proofs.OppositeDirectionNoncommutativity
@@ -155,6 +175,7 @@ import Proofs.PerpMechanismDesign
 import Proofs.PerpProtocolSafety
 import Proofs.PessimisticOracleRouting
 import Proofs.PiecewiseEnvelopeNoOverdelivery
+import Proofs.PrecommitCollusionImpossibility
 import Proofs.PiecewiseEnvelopeNoOverdeliveryV2
 import Proofs.PiecewiseEnvelopeParametric
 import Proofs.PokayokeSafety
@@ -195,6 +216,7 @@ import Proofs.SettlementAlgebra
 import Proofs.SettlementCanonicalExecution
 import Proofs.SettlementMechanism
 import Proofs.SettlementNetting
+import Proofs.SettlementPipeline
 import Proofs.SlashingEscapePrevention
 import Proofs.SolverCheckerSeparation
 import Proofs.SolverNashEquilibrium
@@ -207,6 +229,13 @@ import Proofs.SwapRouterBounds
 import Proofs.TauFragmentCertificates
 import Proofs.TauNativeCoreHardening
 import Proofs.TauSafeMul32
+import Proofs.TernarySearchExactness
+import Proofs.TernarySearchAlgorithm
+import Proofs.CpmmSplitConcavity
+import Proofs.KPoolSplitConcavity
+import Proofs.DiscreteArgmaxProximity
+import Proofs.KPoolDiscreteArgmaxProximity
+import Proofs.ConcavityConservationLaw
 import Proofs.TokenomicsMechanismSafety
 import Proofs.TokenomicsTraceSafety
 import Proofs.TreasuryRebalancerGuard
@@ -335,6 +364,9 @@ import Proofs.ZUSDMultiRedeemSelector
 import Proofs.ZUSDFeeStakingAccounting
 import Proofs.ZUSDRedemptionDrainGuards
 import Proofs.ZUSDSPConvexity
+import Proofs.ZKClearingPriceCorrectness
+import Proofs.CrossShardAtomicSettlement
+import Proofs.UnifiedMEVModel
 
 /-!
 Proofs library root.

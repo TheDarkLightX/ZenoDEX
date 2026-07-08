@@ -2,8 +2,8 @@
 
 <!-- Generated from docs/claims_registry.yaml and formal/tla/*.cfg. -->
 
-- Supported TLA claims: `32`
-- Discovered TLC models: `32`
+- Supported TLA claims: `33`
+- Discovered TLC models: `33`
 - Batch checker: `python3 tools/run_tla_models.py --json`
 - Inventory guard: `pytest -q tests/formal/test_tla_claim_inventory.py tests/test_claims_registry.py`
 
@@ -71,6 +71,15 @@
 - Invariants: `TypeOK`, `AcceptedRequiresValidValidation`, `ExecutionVisibleOnlyIfAccepted`, `UnknownOrInvalidNeverVisible`, `RejectAndProposalFailClosed`
 - Properties: _none_
 - Statement: In the bounded TLA+ ZenoGraph host/local acceptance shadow model, accepted facts require valid local validation, execution-visible facts are visible only after local acceptance, and proposal/unknown/invalid/reject paths remain fail-closed.
+
+### `ZenoSdkWalletSyncCheckpoint`
+
+- Claim: `tla:zeno_sdk_wallet_sync_checkpoint:no_rollback_or_same_height_drift`
+- Module: `formal/tla/ZenoSdkWalletSyncCheckpoint.tla`
+- Config: `formal/tla/ZenoSdkWalletSyncCheckpoint.cfg`
+- Invariants: `TypeOK`, `RejectedDoesNotMutateState`, `AcceptedRequiresValidBundle`, `AcceptedRequiresValidPriorState`, `AcceptedNeverRollsBack`, `AcceptedKeepsChainStableAfterInitialSync`, `AcceptedSameHeightCannotDrift`, `AcceptedStateMatchesCandidate`
+- Properties: _none_
+- Statement: In the bounded TLA+ Zeno SDK wallet-sync checkpoint shadow model, accepted updates require a validated checkpoint bundle, accepted updates from an existing state require a valid current-state hash, checkpoint height never decreases, chain id cannot change after initial sync, same-height accepted updates cannot change app/checkpoint commitments, and rejected updates do not mutate wallet-sync state.
 
 ## Liveness
 

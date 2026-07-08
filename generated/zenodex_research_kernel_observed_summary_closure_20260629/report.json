@@ -1,0 +1,186 @@
+{
+  "closure": {
+    "checks": {
+      "StrictSubsetInductionObservedSummary_listed": true,
+      "StrictSubsetInductionObservedSummary_present": true,
+      "authority_boundary_ok": true,
+      "authority_nonclaim_ok": true,
+      "claims_registry_reported_ok": true,
+      "coverage_inherited": true,
+      "current_lean_hash_ok": true,
+      "current_test_hash_ok": true,
+      "diff_check_reported_ok": true,
+      "economic_dominance_inherited": true,
+      "focused_pytest_reported_ok": true,
+      "forbidden_authorizes_production": true,
+      "forbidden_authorizes_settlement": true,
+      "forbidden_grants_production_authority": true,
+      "forbidden_proves_full_subset_dp_exactness": true,
+      "forbidden_proves_host/python_emitter_construction": true,
+      "forbidden_proves_json_canonicalization": true,
+      "json_nonclaim_ok": true,
+      "json_validation_reported_ok": true,
+      "lake_build_module_reported_ok": true,
+      "lake_env_lean_reported_ok": true,
+      "live_claims_registry_ok": true,
+      "live_focused_pytest_ok": true,
+      "live_lake_env_lean_ok": true,
+      "live_placeholder_scan_ok": true,
+      "live_public_claim_scope_ok": true,
+      "no_authority_inherited": true,
+      "nonzero_min_nonclaim_ok": true,
+      "observed_executed_input_bound": true,
+      "observed_initial_reserve_bound": true,
+      "observed_mask_count_bound": true,
+      "observed_winner_bound": true,
+      "packet_hash_bound_inherited": true,
+      "placeholder_scan_reported_ok": true,
+      "proof_role_ok": true,
+      "public_claim_scope_reported_ok": true,
+      "python_refinement_nonclaim_ok": true,
+      "report_lean_hash_pinned": true,
+      "report_ok": true,
+      "report_schema_ok": true,
+      "report_test_hash_pinned": true,
+      "strictSubsetInductionObservedSummaryFullKey_listed": true,
+      "strictSubsetInductionObservedSummaryFullKey_present": true,
+      "strictSubsetInductionObservedSummarySelectedKey_listed": true,
+      "strictSubsetInductionObservedSummarySelectedKey_present": true,
+      "strictSubsetInductionObservedSummaryValid_listed": true,
+      "strictSubsetInductionObservedSummaryValid_present": true,
+      "strictSubsetInductionObservedSummary_to_aggregateRangePathTableValid_listed": true,
+      "strictSubsetInductionObservedSummary_to_aggregateRangePathTableValid_present": true,
+      "strictSubsetInductionObservedSummary_validates_listed": true,
+      "strictSubsetInductionObservedSummary_validates_present": true,
+      "subset_dp_nonclaim_ok": true,
+      "suffix_exec_inherited": true,
+      "theorem_count_ok": true,
+      "tie_order_nonclaim_ok": true,
+      "winner_membership_inherited": true,
+      "witness_nonvacuous": true,
+      "witness_strictSubsetInductionObservedSummary_validates_listed": true,
+      "witness_strictSubsetInductionObservedSummary_validates_present": true
+    },
+    "closure_id": "observed_summary_lean_bridge_resolves_risk",
+    "closure_kind": "resolves",
+    "edge_type": "SUPERSEDES",
+    "live_commands": {
+      "claims_registry": {
+        "command": "/usr/bin/python3 tools/check_claims_registry.py",
+        "cwd": ".",
+        "ok": true,
+        "returncode": 0,
+        "stderr_tail": "",
+        "stdout_tail": "ok\n"
+      },
+      "focused_pytest": {
+        "command": "/usr/bin/python3 -m pytest -q tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+        "cwd": ".",
+        "ok": true,
+        "returncode": 0,
+        "stderr_tail": "",
+        "stdout_tail": ".                                                                        [100%]\n1 passed in 7.86s\n"
+      },
+      "lake_env_lean": {
+        "command": "lake env lean Proofs/ABStrictZeroMinMonotone.lean",
+        "cwd": "lean-mathlib",
+        "ok": true,
+        "returncode": 0,
+        "stderr_tail": "",
+        "stdout_tail": ""
+      },
+      "placeholder_scan": {
+        "command": "/usr/bin/python3 ~/.codex/skills/proof-engineering/scripts/scan_proof_placeholders.py lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+        "cwd": ".",
+        "ok": true,
+        "returncode": 0,
+        "stderr_tail": "",
+        "stdout_tail": "No proof placeholders found.\n"
+      },
+      "public_claim_scope": {
+        "command": "/usr/bin/python3 tools/check_public_claim_scope.py --root . --json",
+        "cwd": ".",
+        "ok": true,
+        "returncode": 0,
+        "stderr_tail": "",
+        "stdout_tail": "SURANCE_REPLAY.md\",\n    \"docs/RC1_READINESS.md\",\n    \"docs/RC1_SCOPE.md\",\n    \"docs/RC1_VERIFIED_SURFACE_MATRIX.md\",\n    \"docs/zenodex_spot_state_proof_risc0_v1.md\",\n    \"docs/CONFIDENTIAL_EXTENSIONS_TEE_SMPC.md\",\n    \"docs/CONFIDENTIAL_FEATURES_BETA_RUNBOOK.md\",\n    \"docs/CONFIDENTIAL_FEATURES_USE_CASES.md\",\n    \"docs/SPECIFICATION.md\",\n    \"tools/dex-ui/README.md\",\n    \"tools/dex-ui/src/lib/confidentialData.js\",\n    \"src/integration/confidential_feature_status.py\",\n    \"docs/UPBA_OPTIMALITY_CERTIFICATE.md\",\n    \"docs/UPBA_V1_CERTIFICATE.md\",\n    \"docs/UPBA_V1_EVIDENCE_BOUNDARY.md\",\n    \"docs/UPBA_V2_CERTIFICATE.md\",\n    \"docs/UPBA_V2_EVIDENCE_BOUNDARY.md\",\n    \"docs/ZENOCOVER_LP_LOSS_COVER_V1.md\"\n  ],\n  \"ok\": true,\n  \"schema\": \"zenodex/public_claim_scope_report/v0\",\n  \"violations\": []\n}\n"
+      }
+    },
+    "observed_report_path": "generated/zenodex_ab_strict_zero_min_observed_summary_lean_20260629/report.json",
+    "observed_report_sha256": "6e93e751a9bba4ac5520a8852d78750dd628337876871ce8acaceb443b20297d",
+    "resolver_artifacts": [
+      {
+        "path": "lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+        "sha256": "0d9787f60b655a59c5ab3f6395eebf013d7827b3e5f51c974c180cfe3a1ae1e6"
+      },
+      {
+        "path": "tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+        "sha256": "eb9e1af42c1e854baf73fb2f892dd4466c5730d81529d7788ac1f4746c9ba081"
+      },
+      {
+        "path": "docs/research/ZENODEX_AB_STRICT_ZERO_MIN_OBSERVED_SUMMARY_LEAN_20260629.md",
+        "sha256": "a9b455990db068ed591d303ce5b91c85c9c86b277e7dd253583b4085c92084d6"
+      },
+      {
+        "path": "generated/zenodex_ab_strict_zero_min_observed_summary_lean_20260629/report.json",
+        "sha256": "6e93e751a9bba4ac5520a8852d78750dd628337876871ce8acaceb443b20297d"
+      }
+    ],
+    "source_atom_id": "atom_zenodex_research_kernel_observed_summary_closure_20260629",
+    "summary": "The observed-summary Lean bridge resolves the RK risk for the scoped checker-boundary surface: host-visible count/key fields are bound to the validated aggregate range-path table, and the endpoint inherits packet rails, full-mask coverage, zero-min economic-key dominance, and selected suffix executability.",
+    "target_atom_id": "atom_5e7aa160e5604f79"
+  },
+  "date": "2026-06-29",
+  "hypothesis_card": {
+    "expected_metric_delta": {
+      "cap_efficiency": "0",
+      "determinism_simplicity": "+explicit observed-summary checker boundary",
+      "execution_quality": "0",
+      "perf_cost": "-closure/live-proof check overhead",
+      "safety": "+frontier hygiene"
+    },
+    "falsification_recipe": "Mutate theorem listings, field-binding markers, inherited endpoint markers, report gates, and non-claims; require stable reject reasons.",
+    "formal_obligations": "Lean remains the proof authority; this receipt closes only the RK tracking risk for the scoped observed-summary checker boundary.",
+    "hypothesis_id": "H-RK-OBSERVED-SUMMARY-CLOSURE-20260629",
+    "mechanism_change": "Close the RK observed-summary risk after validating the Lean checker-boundary artifact and scope limits.",
+    "null_hypothesis": "The observed-summary bridge fails to bind host-visible fields, misses inherited endpoint guarantees, or overclaims emitter/production authority.",
+    "representation_shift_used": "reduce",
+    "risk_modes": [
+      "stale Lean/report hash",
+      "missing host-visible field binding",
+      "missing inherited endpoint predicate",
+      "overclaim to host/Python emitter construction",
+      "authority leakage"
+    ],
+    "status": "supported",
+    "support_recipe": "Validate the generated observed-summary report, current Lean/test hashes, focused formal tests, claim gates, and optional live Lean proof commands."
+  },
+  "live_proof_command": "python3 tools/check_research_kernel_observed_summary_closure_20260629.py --live-proof",
+  "non_claims": [
+    "This receipt closes only the RK tracking risk for the scoped AB observed-summary Lean checker boundary.",
+    "This receipt does not prove host/Python emitter construction.",
+    "This receipt does not prove Python-to-Lean refinement.",
+    "This receipt does not construct a subset DP table, define canonical tie order, or cover nonzero min_amount_out behavior.",
+    "This receipt does not close reserve-state observed-summary, n7, full subset-mask, emitter-construction, or JSON-canonicalization risks.",
+    "This receipt grants no settlement, governance, state-root, routing, matching, pool-mutation, or production authority."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_research_kernel_observed_summary_closure_20260629.py",
+  "research_kernel_edges_to_add": [
+    {
+      "closure_kind": "resolves",
+      "edge_type": "SUPERSEDES",
+      "rationale": "The observed-summary Lean bridge and current report pass the exact predicates in the RK risk.",
+      "source_atom_id": "atom_zenodex_research_kernel_observed_summary_closure_20260629",
+      "target_atom_id": "atom_5e7aa160e5604f79"
+    }
+  ],
+  "residual_open_frontier": [
+    "reserve-state observed-summary bridge risk",
+    "n7 Tau scope certificate risk",
+    "n7 bidirectional transition mutation risk",
+    "full subset-mask DP construction and Python-to-Lean refinement",
+    "host/Python emitter construction and JSON canonicalization"
+  ],
+  "schema": "zenodex.research_kernel_observed_summary_closure_20260629.v1"
+}

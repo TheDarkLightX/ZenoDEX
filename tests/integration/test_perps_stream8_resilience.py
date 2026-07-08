@@ -3,13 +3,15 @@ from __future__ import annotations
 import json
 
 from src.core.zusd import E8
+from src.integration import tau_testnet_dex_plugin as plugin
 from src.integration.perp_engine import PerpEngineConfig
 from src.integration.perps_wallet_api import _local_perps_oracle_bridge_fixture
-from src.integration import tau_testnet_dex_plugin as plugin
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_perp_op_for_engine
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
-from tools.zenodex_oracle_aggregate_adapter import aggregate_adapter_content_hash, verify_aggregate_adapter_bridge
-
+from tools.zenodex_oracle_aggregate_adapter import (
+    aggregate_adapter_content_hash,
+    verify_aggregate_adapter_bridge,
+)
 
 CHAIN_ID = "tau-test-perps-stream8-resilience"
 DEADLINE = 999_999_999

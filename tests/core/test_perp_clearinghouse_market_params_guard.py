@@ -7,6 +7,7 @@ from src.core.perp_clearinghouse_market_params_guard import (
     REJECT_OPERATOR_ONLY,
     REJECT_PENALTY_ABOVE_MAINTENANCE,
     REJECT_PENALTY_INCREASE_WHILE_OPEN,
+    REJECT_UNFUNDED_LIQUIDATION_PENALTY,
     evaluate_perp_clearinghouse_market_params_guard,
     perp_clearinghouse_market_params_guard_error,
 )
@@ -22,7 +23,9 @@ def _base_kwargs() -> dict[str, object]:
         "position_base_c": 0,
         "old_liquidation_penalty_bps": 50,
         "new_liquidation_penalty_bps": 50,
+        "new_initial_margin_bps": 1000,
         "new_maintenance_margin_bps": 700,
+        "new_max_oracle_move_bps": 500,
     }
 
 
@@ -83,3 +86,34 @@ def test_perp_clearinghouse_market_params_guard_rejects_penalty_above_maintenanc
     assert perp_clearinghouse_market_params_guard_error(outcome) == (
         "invalid params: require liquidation_penalty_bps < maintenance_margin_bps"
     )
+
+
+def test_perp_clearinghouse_market_params_guard_rejects_unfunded_liquidation_cone() -> None:
+    kwargs = _base_kwargs()
+    kwargs["new_initial_margin_bps"] = 1000
+    kwargs["new_maintenance_margin_bps"] = 600
+    kwargs["new_max_oracle_move_bps"] = 500
+    kwargs["new_liquidation_penalty_bps"] = 100
+    outcome = evaluate_perp_clearinghouse_market_params_guard(**kwargs)
+
+    assert outcome.penalty_below_maintenance_ok is True
+    assert outcome.funded_liquidation_ok is False
+    assert outcome.reject_code == REJECT_UNFUNDED_LIQUIDATION_PENALTY
+    assert perp_clearinghouse_market_params_guard_error(outcome) == (
+        "invalid params: require funded liquidation "
+        "liquidation_penalty_bps * (10000 + max_oracle_move_bps) <= "
+        "10000 * (maintenance_margin_bps - max_oracle_move_bps)"
+    )
+
+
+def test_perp_clearinghouse_market_params_guard_accepts_funded_liquidation_boundary() -> None:
+    kwargs = _base_kwargs()
+    kwargs["new_initial_margin_bps"] = 1000
+    kwargs["new_maintenance_margin_bps"] = 600
+    kwargs["new_max_oracle_move_bps"] = 500
+    kwargs["new_liquidation_penalty_bps"] = 95
+    outcome = evaluate_perp_clearinghouse_market_params_guard(**kwargs)
+
+    assert outcome.funded_liquidation_ok is True
+    assert outcome.reject_code == "Ok"
+    assert outcome.admission_ok is True

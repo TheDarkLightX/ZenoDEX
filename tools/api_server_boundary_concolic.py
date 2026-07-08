@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Deterministic boundary-path explorer for `src.integration.api_server`.
 
@@ -10,6 +8,9 @@ bounded frontier, records exception labels, and traces line-path signatures
 through the parser code. The output is a replayable atlas of distinct boundary
 paths.
 """
+# ruff: noqa: E402,I001
+
+from __future__ import annotations
 
 import argparse
 import copy
@@ -25,7 +26,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from src.integration import api_server
+from src.integration import api_server  # noqa: E402
 
 
 ParserFn = Callable[[object], object]
@@ -141,11 +142,15 @@ API_SERVER_FILE = Path(api_server.__file__).resolve()
 FEATURE_EXTENSION_FILE = Path(api_server.__file__).resolve().parent / "settlement_feature_extension_packet.py"
 
 
+def _parser_file(parser: ParserFn) -> Path:
+    return Path(parser.__code__.co_filename).resolve()
+
+
 TARGETS: tuple[ParserTarget, ...] = (
     ParserTarget(
         name="price_history",
         parser=api_server._parse_price_history_payload,
-        trace_files=(API_SERVER_FILE,),
+        trace_files=(_parser_file(api_server._parse_price_history_payload),),
         valid_seed=[100, 101, 102],
         mutations=(
             Mutation("negative_first", lambda seed: _set_index(seed, 0, -1)),
@@ -161,7 +166,7 @@ TARGETS: tuple[ParserTarget, ...] = (
     ParserTarget(
         name="settlement_proof_flags",
         parser=api_server._parse_settlement_proof_flags_payload,
-        trace_files=(API_SERVER_FILE,),
+        trace_files=(_parser_file(api_server._parse_settlement_proof_flags_payload),),
         valid_seed=_valid_proof_flags(),
         mutations=(
             Mutation("missing_first_flag", lambda seed: _drop_key(seed, "cpmm_ok")),
@@ -176,7 +181,7 @@ TARGETS: tuple[ParserTarget, ...] = (
     ParserTarget(
         name="balance_table",
         parser=api_server._parse_balance_table_payload,
-        trace_files=(API_SERVER_FILE,),
+        trace_files=(_parser_file(api_server._parse_balance_table_payload),),
         valid_seed=[{"pubkey": "pk1", "asset": "asset1", "amount": 7}],
         mutations=(
             Mutation(
@@ -216,7 +221,7 @@ TARGETS: tuple[ParserTarget, ...] = (
     ParserTarget(
         name="lp_balances",
         parser=api_server._parse_lp_balances_payload,
-        trace_files=(API_SERVER_FILE,),
+        trace_files=(_parser_file(api_server._parse_lp_balances_payload),),
         valid_seed=[{"pubkey": "pk1", "pool_id": "pool1", "amount": 7}],
         mutations=(
             Mutation(
@@ -254,7 +259,10 @@ TARGETS: tuple[ParserTarget, ...] = (
     ParserTarget(
         name="feature_extension_inputs",
         parser=api_server._parse_settlement_feature_extension_inputs_payload,
-        trace_files=(API_SERVER_FILE, FEATURE_EXTENSION_FILE),
+        trace_files=(
+            _parser_file(api_server._parse_settlement_feature_extension_inputs_payload),
+            FEATURE_EXTENSION_FILE,
+        ),
         valid_seed=_valid_feature_extension_inputs(),
         mutations=(
             Mutation("missing_first_field", lambda seed: _drop_key(seed, "trade_amount")),

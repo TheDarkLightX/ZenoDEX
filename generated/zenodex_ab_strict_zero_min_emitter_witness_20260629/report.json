@@ -1,0 +1,1143 @@
+{
+  "authority_boundary": "Research-only witness packets; no settlement, state-root, production, or governance authority.",
+  "date": "2026-06-29",
+  "deterministic_replay": {
+    "first_hash": "b90fe396da3160e8b0b85fa44859ba30e90c3c2d8f50e36631e75d9908d5ca13",
+    "ok": true,
+    "second_hash": "b90fe396da3160e8b0b85fa44859ba30e90c3c2d8f50e36631e75d9908d5ca13"
+  },
+  "non_claims": [
+    "This is a bounded host witness/refuter, not a proof of full compressed-DP induction.",
+    "The packet schema does not prove Lean-to-Python refinement.",
+    "The packet schema does not define canonical tie order.",
+    "Nonzero min_amount_out batches are outside this artifact.",
+    "Host bitset equivalence remains a separate proof obligation.",
+    "No settlement authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_strict_zero_min_emitter_witness.py",
+  "schema": "zenodex.ab_strict_zero_min_emitter_witness_report.v1",
+  "search": {
+    "case_count": 8,
+    "case_plan": [
+      {
+        "n": 2,
+        "variants": [
+          0,
+          7
+        ]
+      },
+      {
+        "n": 3,
+        "variants": [
+          0,
+          5
+        ]
+      },
+      {
+        "n": 4,
+        "variants": [
+          2,
+          6
+        ]
+      },
+      {
+        "n": 5,
+        "variants": [
+          1
+        ]
+      },
+      {
+        "n": 6,
+        "variants": [
+          0
+        ]
+      }
+    ],
+    "cases": [
+      {
+        "bit_count": 2,
+        "case_id": "n2_variant0",
+        "checks": {
+          "compressed_key_matches_witness": true,
+          "empty_suffix_executable": true,
+          "full_frontier_surplus": 28,
+          "host_economic_key_parity": true,
+          "no_authority_effect": true,
+          "packet_hash_ok": true,
+          "selected_key_dominates_full_frontier": true,
+          "selected_surplus": 28,
+          "winner_covers_full_mask": true,
+          "winner_member_of_children": true
+        },
+        "children_count": 2,
+        "compressed_table_count": 4,
+        "economic_keys": {
+          "brute_force": [
+            23,
+            28
+          ],
+          "compressed": [
+            23,
+            28
+          ],
+          "full_subset_dp": [
+            23,
+            28
+          ]
+        },
+        "ok": true,
+        "packet_hash": "5405aeb35fbc0276c8819383df83f9f82253c5535a557cd3f11bfeb91ee5bad0",
+        "reasons": [],
+        "winner_order": [
+          "2710",
+          "2711"
+        ]
+      },
+      {
+        "bit_count": 2,
+        "case_id": "n2_variant7",
+        "checks": {
+          "compressed_key_matches_witness": true,
+          "empty_suffix_executable": true,
+          "full_frontier_surplus": 80,
+          "host_economic_key_parity": true,
+          "no_authority_effect": true,
+          "packet_hash_ok": true,
+          "selected_key_dominates_full_frontier": true,
+          "selected_surplus": 80,
+          "winner_covers_full_mask": true,
+          "winner_member_of_children": true
+        },
+        "children_count": 2,
+        "compressed_table_count": 4,
+        "economic_keys": {
+          "brute_force": [
+            66,
+            80
+          ],
+          "compressed": [
+            66,
+            80
+          ],
+          "full_subset_dp": [
+            66,
+            80
+          ]
+        },
+        "ok": true,
+        "packet_hash": "bef938a7beb1c0c0108817b951fccd0e4a6077bef80f0c924707a2dbed7bc3cb",
+        "reasons": [],
+        "winner_order": [
+          "29cc",
+          "29cd"
+        ]
+      },
+      {
+        "bit_count": 3,
+        "case_id": "n3_variant0",
+        "checks": {
+          "compressed_key_matches_witness": true,
+          "empty_suffix_executable": true,
+          "full_frontier_surplus": 63,
+          "host_economic_key_parity": true,
+          "no_authority_effect": true,
+          "packet_hash_ok": true,
+          "selected_key_dominates_full_frontier": true,
+          "selected_surplus": 63,
+          "winner_covers_full_mask": true,
+          "winner_member_of_children": true
+        },
+        "children_count": 6,
+        "compressed_table_count": 8,
+        "economic_keys": {
+          "brute_force": [
+            54,
+            63
+          ],
+          "compressed": [
+            54,
+            63
+          ],
+          "full_subset_dp": [
+            54,
+            63
+          ]
+        },
+        "ok": true,
+        "packet_hash": "5779f42a003e756a186d5f68386e8182d95ac4472f8280e76d6a4572dc9c76a5",
+        "reasons": [],
+        "winner_order": [
+          "2710",
+          "2711",
+          "2712"
+        ]
+      },
+      {
+        "bit_count": 3,
+        "case_id": "n3_variant5",
+        "checks": {
+          "compressed_key_matches_witness": true,
+          "empty_suffix_executable": true,
+          "full_frontier_surplus": 119,
+          "host_economic_key_parity": true,
+          "no_authority_effect": true,
+          "packet_hash_ok": true,
+          "selected_key_dominates_full_frontier": true,
+          "selected_surplus": 119,
+          "winner_covers_full_mask": true,
+          "winner_member_of_children": true
+        },
+        "children_count": 6,
+        "compressed_table_count": 8,
+        "economic_keys": {
+          "brute_force": [
+            104,
+            119
+          ],
+          "compressed": [
+            104,
+            119
+          ],
+          "full_subset_dp": [
+            104,
+            119
+          ]
+        },
+        "ok": true,
+        "packet_hash": "44e04b9a3ebe6af4bfb2f9136e1457734a27644ad7f3d70dec269dda21d30efa",
+        "reasons": [],
+        "winner_order": [
+          "2904",
+          "2906",
+          "2905"
+        ]
+      },
+      {
+        "bit_count": 4,
+        "case_id": "n4_variant2",
+        "checks": {
+          "compressed_key_matches_witness": true,
+          "empty_suffix_executable": true,
+          "full_frontier_surplus": 162,
+          "host_economic_key_parity": true,
+          "no_authority_effect": true,
+          "packet_hash_ok": true,
+          "selected_key_dominates_full_frontier": true,
+          "selected_surplus": 162,
+          "winner_covers_full_mask": true,
+          "winner_member_of_children": true
+        },
+        "children_count": 24,
+        "compressed_table_count": 16,
+        "economic_keys": {
+          "brute_force": [
+            154,
+            162
+          ],
+          "compressed": [
+            154,
+            162
+          ],
+          "full_subset_dp": [
+            154,
+            162
+          ]
+        },
+        "ok": true,
+        "packet_hash": "a6f08e40ce5de96b7bf83fa4dda916e78e3e21579c48e88c0233318bc9c0e52d",
+        "reasons": [],
+        "winner_order": [
+          "27d8",
+          "27d9",
+          "27db",
+          "27da"
+        ]
+      },
+      {
+        "bit_count": 4,
+        "case_id": "n4_variant6",
+        "checks": {
+          "compressed_key_matches_witness": true,
+          "empty_suffix_executable": true,
+          "full_frontier_surplus": 116,
+          "host_economic_key_parity": true,
+          "no_authority_effect": true,
+          "packet_hash_ok": true,
+          "selected_key_dominates_full_frontier": true,
+          "selected_surplus": 116,
+          "winner_covers_full_mask": true,
+          "winner_member_of_children": true
+        },
+        "children_count": 24,
+        "compressed_table_count": 16,
+        "economic_keys": {
+          "brute_force": [
+            101,
+            116
+          ],
+          "compressed": [
+            101,
+            116
+          ],
+          "full_subset_dp": [
+            101,
+            116
+          ]
+        },
+        "ok": true,
+        "packet_hash": "3ca3e56c1dd27cd0bf3c4d306b650cbe75d3ad6e9957c90b88178b2f3c4c228f",
+        "reasons": [],
+        "winner_order": [
+          "2969",
+          "296a",
+          "296b",
+          "2968"
+        ]
+      },
+      {
+        "bit_count": 5,
+        "case_id": "n5_variant1",
+        "checks": {
+          "compressed_key_matches_witness": true,
+          "empty_suffix_executable": true,
+          "full_frontier_surplus": 141,
+          "host_economic_key_parity": true,
+          "no_authority_effect": true,
+          "packet_hash_ok": true,
+          "selected_key_dominates_full_frontier": true,
+          "selected_surplus": 141,
+          "winner_covers_full_mask": true,
+          "winner_member_of_children": true
+        },
+        "children_count": 120,
+        "compressed_table_count": 32,
+        "economic_keys": {
+          "brute_force": [
+            135,
+            141
+          ],
+          "compressed": [
+            135,
+            141
+          ],
+          "full_subset_dp": [
+            135,
+            141
+          ]
+        },
+        "ok": true,
+        "packet_hash": "d619308fe797e7272e30c601cca0b504376e70ecb1395caa533fa3c08f04a83f",
+        "reasons": [],
+        "winner_order": [
+          "2774",
+          "2775",
+          "2776",
+          "2777",
+          "2778"
+        ]
+      },
+      {
+        "bit_count": 6,
+        "case_id": "n6_variant0",
+        "checks": {
+          "compressed_key_matches_witness": true,
+          "empty_suffix_executable": true,
+          "full_frontier_surplus": 175,
+          "host_economic_key_parity": true,
+          "no_authority_effect": true,
+          "packet_hash_ok": true,
+          "selected_key_dominates_full_frontier": true,
+          "selected_surplus": 175,
+          "winner_covers_full_mask": true,
+          "winner_member_of_children": true
+        },
+        "children_count": 720,
+        "compressed_table_count": 64,
+        "economic_keys": {
+          "brute_force": [
+            170,
+            175
+          ],
+          "compressed": [
+            170,
+            175
+          ],
+          "full_subset_dp": [
+            170,
+            175
+          ]
+        },
+        "ok": true,
+        "packet_hash": "e7e5a95807dcce65d7a21b2ef674b634f9772be7df0b1e7f9276ee661620ef22",
+        "reasons": [],
+        "winner_order": [
+          "2712",
+          "2715",
+          "2713",
+          "2710",
+          "2714",
+          "2711"
+        ]
+      }
+    ],
+    "elapsed_ms": 431.969,
+    "first_invalid_packet": null,
+    "first_mutation_accept": null,
+    "first_packet": {
+      "amounts": [
+        5,
+        18
+      ],
+      "authority_boundary": "research_only_no_settlement_or_state_authority",
+      "bit_count": 2,
+      "case_id": "n2_variant0",
+      "children": [
+        {
+          "all_records": [
+            {
+              "order_ids": [
+                "0x0000000000000000000000000000000000000000000000000000000000002710",
+                "0x0000000000000000000000000000000000000000000000000000000000002711"
+              ],
+              "order_short": [
+                "2710",
+                "2711"
+              ],
+              "processed_reserve_in": 723,
+              "reserve_out": 872
+            }
+          ],
+          "all_records_count": 1,
+          "all_records_digest": "3ab4deb0f963cc40bdee7a0e2180f9bc49df92ef2aeadfe3a69a6cf5e530c922",
+          "mask_id": 3,
+          "selected": {
+            "order_ids": [
+              "0x0000000000000000000000000000000000000000000000000000000000002710",
+              "0x0000000000000000000000000000000000000000000000000000000000002711"
+            ],
+            "order_short": [
+              "2710",
+              "2711"
+            ],
+            "processed_reserve_in": 723,
+            "reserve_out": 872
+          }
+        },
+        {
+          "all_records": [
+            {
+              "order_ids": [
+                "0x0000000000000000000000000000000000000000000000000000000000002711",
+                "0x0000000000000000000000000000000000000000000000000000000000002710"
+              ],
+              "order_short": [
+                "2711",
+                "2710"
+              ],
+              "processed_reserve_in": 723,
+              "reserve_out": 872
+            }
+          ],
+          "all_records_count": 1,
+          "all_records_digest": "a03e974d44bf8e1b75f5d7c055af8483ed8217b6f4c4671f03a327077f02d23c",
+          "mask_id": 3,
+          "selected": {
+            "order_ids": [
+              "0x0000000000000000000000000000000000000000000000000000000000002711",
+              "0x0000000000000000000000000000000000000000000000000000000000002710"
+            ],
+            "order_short": [
+              "2711",
+              "2710"
+            ],
+            "processed_reserve_in": 723,
+            "reserve_out": 872
+          }
+        }
+      ],
+      "compressed_table": [
+        {
+          "mask_id": 0,
+          "selected": {
+            "order_ids": [],
+            "order_short": [],
+            "processed_reserve_in": 700,
+            "reserve_out": 900
+          }
+        },
+        {
+          "mask_id": 1,
+          "selected": {
+            "order_ids": [
+              "0x0000000000000000000000000000000000000000000000000000000000002710"
+            ],
+            "order_short": [
+              "2710"
+            ],
+            "processed_reserve_in": 705,
+            "reserve_out": 894
+          }
+        },
+        {
+          "mask_id": 2,
+          "selected": {
+            "order_ids": [
+              "0x0000000000000000000000000000000000000000000000000000000000002711"
+            ],
+            "order_short": [
+              "2711"
+            ],
+            "processed_reserve_in": 718,
+            "reserve_out": 878
+          }
+        },
+        {
+          "mask_id": 3,
+          "selected": {
+            "order_ids": [
+              "0x0000000000000000000000000000000000000000000000000000000000002710",
+              "0x0000000000000000000000000000000000000000000000000000000000002711"
+            ],
+            "order_short": [
+              "2710",
+              "2711"
+            ],
+            "processed_reserve_in": 723,
+            "reserve_out": 872
+          }
+        }
+      ],
+      "economic_keys": {
+        "brute_force": [
+          23,
+          28
+        ],
+        "compressed": [
+          23,
+          28
+        ],
+        "full_subset_dp": [
+          23,
+          28
+        ]
+      },
+      "executed_input": 23,
+      "full_mask": 3,
+      "initial_reserve_in": 700,
+      "initial_reserve_out": 900,
+      "lean_contract": {
+        "endpoint": "strictCompressedFullMaskEconomicWitness_validates",
+        "structure": "StrictCompressedFullMaskEconomicWitness",
+        "valid_predicate": "strictCompressedFullMaskEconomicWitnessValid"
+      },
+      "masks": [
+        {
+          "all_records": [
+            {
+              "order_ids": [
+                "0x0000000000000000000000000000000000000000000000000000000000002710",
+                "0x0000000000000000000000000000000000000000000000000000000000002711"
+              ],
+              "order_short": [
+                "2710",
+                "2711"
+              ],
+              "processed_reserve_in": 723,
+              "reserve_out": 872
+            }
+          ],
+          "all_records_count": 1,
+          "all_records_digest": "3ab4deb0f963cc40bdee7a0e2180f9bc49df92ef2aeadfe3a69a6cf5e530c922",
+          "mask_id": 3,
+          "selected": {
+            "order_ids": [
+              "0x0000000000000000000000000000000000000000000000000000000000002710",
+              "0x0000000000000000000000000000000000000000000000000000000000002711"
+            ],
+            "order_short": [
+              "2710",
+              "2711"
+            ],
+            "processed_reserve_in": 723,
+            "reserve_out": 872
+          }
+        }
+      ],
+      "min_amount_out": [
+        0,
+        0
+      ],
+      "no_authority_effect": true,
+      "packet_hash": "5405aeb35fbc0276c8819383df83f9f82253c5535a557cd3f11bfeb91ee5bad0",
+      "parent": {
+        "all_records": [
+          {
+            "order_ids": [],
+            "order_short": [],
+            "processed_reserve_in": 700,
+            "reserve_out": 900
+          }
+        ],
+        "all_records_count": 1,
+        "all_records_digest": "44f96a566c0f635384b260bd46e4a36c14fdd32afad019b8e15d7afba69b4661",
+        "mask_id": 0,
+        "selected": {
+          "order_ids": [],
+          "order_short": [],
+          "processed_reserve_in": 700,
+          "reserve_out": 900
+        }
+      },
+      "pool": {
+        "fee_bps": 0,
+        "reserve_in": 700,
+        "reserve_out": 900
+      },
+      "schema": "zenodex.ab_strict_zero_min_emitter_witness_packet.v1",
+      "scope": "same_pool_same_direction_exact_in_zero_min_strict_executable",
+      "winner": {
+        "all_records": [
+          {
+            "order_ids": [
+              "0x0000000000000000000000000000000000000000000000000000000000002710",
+              "0x0000000000000000000000000000000000000000000000000000000000002711"
+            ],
+            "order_short": [
+              "2710",
+              "2711"
+            ],
+            "processed_reserve_in": 723,
+            "reserve_out": 872
+          }
+        ],
+        "all_records_count": 1,
+        "all_records_digest": "3ab4deb0f963cc40bdee7a0e2180f9bc49df92ef2aeadfe3a69a6cf5e530c922",
+        "mask_id": 3,
+        "selected": {
+          "order_ids": [
+            "0x0000000000000000000000000000000000000000000000000000000000002710",
+            "0x0000000000000000000000000000000000000000000000000000000000002711"
+          ],
+          "order_short": [
+            "2710",
+            "2711"
+          ],
+          "processed_reserve_in": 723,
+          "reserve_out": 872
+        }
+      }
+    },
+    "mutation_accept_count": 0,
+    "mutation_count": 56,
+    "mutations": [
+      {
+        "accepted": false,
+        "case_id": "n2_variant0",
+        "mutation_id": "bad_packet_hash",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n2_variant0",
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n2_variant0",
+        "mutation_id": "winner_missing_full_mask_bit",
+        "reasons": [
+          "winner_mask_not_full",
+          "winner_missing_full_mask_bits",
+          "winner_not_in_child_frontier"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n2_variant0",
+        "mutation_id": "winner_removed_from_children",
+        "reasons": [
+          "winner_not_in_child_frontier"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n2_variant0",
+        "mutation_id": "selected_no_longer_dominates",
+        "reasons": [
+          "winner_not_in_child_frontier",
+          "selected_key_does_not_dominate_full_frontier",
+          "compressed_key_mismatch_with_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n2_variant0",
+        "mutation_id": "executed_input_mismatch",
+        "reasons": [
+          "winner_processed_reserve_in_mismatch",
+          "compressed_key_mismatch_with_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n2_variant0",
+        "mutation_id": "economic_key_mismatch",
+        "reasons": [
+          "compressed_key_mismatch_with_witness",
+          "host_subset_dp_key_mismatch",
+          "host_bruteforce_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n2_variant7",
+        "mutation_id": "bad_packet_hash",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n2_variant7",
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n2_variant7",
+        "mutation_id": "winner_missing_full_mask_bit",
+        "reasons": [
+          "winner_mask_not_full",
+          "winner_missing_full_mask_bits",
+          "winner_not_in_child_frontier"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n2_variant7",
+        "mutation_id": "winner_removed_from_children",
+        "reasons": [
+          "winner_not_in_child_frontier"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n2_variant7",
+        "mutation_id": "selected_no_longer_dominates",
+        "reasons": [
+          "winner_not_in_child_frontier",
+          "selected_key_does_not_dominate_full_frontier",
+          "compressed_key_mismatch_with_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n2_variant7",
+        "mutation_id": "executed_input_mismatch",
+        "reasons": [
+          "winner_processed_reserve_in_mismatch",
+          "compressed_key_mismatch_with_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n2_variant7",
+        "mutation_id": "economic_key_mismatch",
+        "reasons": [
+          "compressed_key_mismatch_with_witness",
+          "host_subset_dp_key_mismatch",
+          "host_bruteforce_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n3_variant0",
+        "mutation_id": "bad_packet_hash",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n3_variant0",
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n3_variant0",
+        "mutation_id": "winner_missing_full_mask_bit",
+        "reasons": [
+          "winner_mask_not_full",
+          "winner_missing_full_mask_bits",
+          "winner_not_in_child_frontier"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n3_variant0",
+        "mutation_id": "winner_removed_from_children",
+        "reasons": [
+          "winner_not_in_child_frontier"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n3_variant0",
+        "mutation_id": "selected_no_longer_dominates",
+        "reasons": [
+          "winner_not_in_child_frontier",
+          "selected_key_does_not_dominate_full_frontier",
+          "compressed_key_mismatch_with_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n3_variant0",
+        "mutation_id": "executed_input_mismatch",
+        "reasons": [
+          "winner_processed_reserve_in_mismatch",
+          "compressed_key_mismatch_with_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n3_variant0",
+        "mutation_id": "economic_key_mismatch",
+        "reasons": [
+          "compressed_key_mismatch_with_witness",
+          "host_subset_dp_key_mismatch",
+          "host_bruteforce_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n3_variant5",
+        "mutation_id": "bad_packet_hash",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n3_variant5",
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n3_variant5",
+        "mutation_id": "winner_missing_full_mask_bit",
+        "reasons": [
+          "winner_mask_not_full",
+          "winner_missing_full_mask_bits",
+          "winner_not_in_child_frontier"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n3_variant5",
+        "mutation_id": "winner_removed_from_children",
+        "reasons": [
+          "winner_not_in_child_frontier"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n3_variant5",
+        "mutation_id": "selected_no_longer_dominates",
+        "reasons": [
+          "winner_not_in_child_frontier",
+          "selected_key_does_not_dominate_full_frontier",
+          "compressed_key_mismatch_with_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n3_variant5",
+        "mutation_id": "executed_input_mismatch",
+        "reasons": [
+          "winner_processed_reserve_in_mismatch",
+          "compressed_key_mismatch_with_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n3_variant5",
+        "mutation_id": "economic_key_mismatch",
+        "reasons": [
+          "compressed_key_mismatch_with_witness",
+          "host_subset_dp_key_mismatch",
+          "host_bruteforce_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n4_variant2",
+        "mutation_id": "bad_packet_hash",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n4_variant2",
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n4_variant2",
+        "mutation_id": "winner_missing_full_mask_bit",
+        "reasons": [
+          "winner_mask_not_full",
+          "winner_missing_full_mask_bits",
+          "winner_not_in_child_frontier"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n4_variant2",
+        "mutation_id": "winner_removed_from_children",
+        "reasons": [
+          "winner_not_in_child_frontier"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n4_variant2",
+        "mutation_id": "selected_no_longer_dominates",
+        "reasons": [
+          "winner_not_in_child_frontier",
+          "selected_key_does_not_dominate_full_frontier",
+          "compressed_key_mismatch_with_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n4_variant2",
+        "mutation_id": "executed_input_mismatch",
+        "reasons": [
+          "winner_processed_reserve_in_mismatch",
+          "compressed_key_mismatch_with_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n4_variant2",
+        "mutation_id": "economic_key_mismatch",
+        "reasons": [
+          "compressed_key_mismatch_with_witness",
+          "host_subset_dp_key_mismatch",
+          "host_bruteforce_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n4_variant6",
+        "mutation_id": "bad_packet_hash",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n4_variant6",
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n4_variant6",
+        "mutation_id": "winner_missing_full_mask_bit",
+        "reasons": [
+          "winner_mask_not_full",
+          "winner_missing_full_mask_bits",
+          "winner_not_in_child_frontier"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n4_variant6",
+        "mutation_id": "winner_removed_from_children",
+        "reasons": [
+          "winner_not_in_child_frontier"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n4_variant6",
+        "mutation_id": "selected_no_longer_dominates",
+        "reasons": [
+          "winner_not_in_child_frontier",
+          "selected_key_does_not_dominate_full_frontier",
+          "compressed_key_mismatch_with_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n4_variant6",
+        "mutation_id": "executed_input_mismatch",
+        "reasons": [
+          "winner_processed_reserve_in_mismatch",
+          "compressed_key_mismatch_with_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n4_variant6",
+        "mutation_id": "economic_key_mismatch",
+        "reasons": [
+          "compressed_key_mismatch_with_witness",
+          "host_subset_dp_key_mismatch",
+          "host_bruteforce_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n5_variant1",
+        "mutation_id": "bad_packet_hash",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n5_variant1",
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n5_variant1",
+        "mutation_id": "winner_missing_full_mask_bit",
+        "reasons": [
+          "winner_mask_not_full",
+          "winner_missing_full_mask_bits",
+          "winner_not_in_child_frontier"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n5_variant1",
+        "mutation_id": "winner_removed_from_children",
+        "reasons": [
+          "winner_not_in_child_frontier"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n5_variant1",
+        "mutation_id": "selected_no_longer_dominates",
+        "reasons": [
+          "winner_not_in_child_frontier",
+          "selected_key_does_not_dominate_full_frontier",
+          "compressed_key_mismatch_with_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n5_variant1",
+        "mutation_id": "executed_input_mismatch",
+        "reasons": [
+          "winner_processed_reserve_in_mismatch",
+          "compressed_key_mismatch_with_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n5_variant1",
+        "mutation_id": "economic_key_mismatch",
+        "reasons": [
+          "compressed_key_mismatch_with_witness",
+          "host_subset_dp_key_mismatch",
+          "host_bruteforce_key_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n6_variant0",
+        "mutation_id": "bad_packet_hash",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n6_variant0",
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n6_variant0",
+        "mutation_id": "winner_missing_full_mask_bit",
+        "reasons": [
+          "winner_mask_not_full",
+          "winner_missing_full_mask_bits",
+          "winner_not_in_child_frontier"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n6_variant0",
+        "mutation_id": "winner_removed_from_children",
+        "reasons": [
+          "winner_not_in_child_frontier"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n6_variant0",
+        "mutation_id": "selected_no_longer_dominates",
+        "reasons": [
+          "winner_not_in_child_frontier",
+          "selected_key_does_not_dominate_full_frontier",
+          "compressed_key_mismatch_with_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n6_variant0",
+        "mutation_id": "executed_input_mismatch",
+        "reasons": [
+          "winner_processed_reserve_in_mismatch",
+          "compressed_key_mismatch_with_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "case_id": "n6_variant0",
+        "mutation_id": "economic_key_mismatch",
+        "reasons": [
+          "compressed_key_mismatch_with_witness",
+          "host_subset_dp_key_mismatch",
+          "host_bruteforce_key_mismatch"
+        ]
+      }
+    ],
+    "schema": "zenodex/ab_strict_zero_min_emitter_witness_search/v1",
+    "valid_packet_count": 8
+  },
+  "summary": "A bounded host-side emitter witness packet schema maps strict zero-min compressed-DP outputs to the Lean full-mask economic witness contract and rejects packet mutations."
+}

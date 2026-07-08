@@ -1,0 +1,392 @@
+{
+  "authority_boundary": "research evidence only; no settlement, state-root, production, governance, routing, matching, or pool-mutation authority",
+  "breakthrough": {
+    "invalid_accepts": 0,
+    "name": "AB child-frontier corpus-root Tau certificate",
+    "scoped_claims": [
+      "the n=7 corpus-root source report is present and successful",
+      "the corpus root, row digest, case digest, linked digest, and deterministic replay digest are pinned",
+      "864 row receipts are complete across four case roots",
+      "row, case, and corpus membership mismatches are zero",
+      "10 mutation controls reject with zero accepts",
+      "the Tau envelope carries no settlement or state authority"
+    ],
+    "spec_id": "ab_child_frontier_corpus_root_scope_certificate_v1",
+    "tau_cases": 15
+  },
+  "corpus": {
+    "case_count": 4,
+    "case_summaries_digest": "afd7706fd7ea10cee0df44d7578dabf44fc82a26d238f814d717c5fee3b5bc28",
+    "corpus_root": "8f4a1a08cf51215cdc9fd382dd2538cc199db35b87597aa9c468358925dfd3b0",
+    "covered_row_receipt_count": 864,
+    "deterministic_replay_hash": "b857b66aa96007bda748ae9489ee10f972248eaa30af25fd5ac7dffca73f4591",
+    "linked_cross_binding_digest": "0996b976f70eeea56e4c828a9ff25abefdb8930b39896b4427291284e1e73551",
+    "negative_control_accept_count": 0,
+    "negative_control_count": 10,
+    "row_receipt_count": 864,
+    "row_receipts_digest": "d52f8c24411e841ae777999d6bfd3ec3fef5bb0a26cd98887f4e0a5902c0f092"
+  },
+  "date": "2026-06-29",
+  "facts": {
+    "authority_boundary_ok": 1,
+    "case_roots_covered": 1,
+    "corpus_nonvacuous": 1,
+    "corpus_root_pinned": 1,
+    "deterministic_replay_ok": 1,
+    "digest_pins_ok": 1,
+    "linked_cross_binding_ok": 1,
+    "membership_proofs_clean": 1,
+    "n7_zero_min_scope_ok": 1,
+    "negative_controls_reject": 1,
+    "no_authority_effect": 1,
+    "row_receipts_complete": 1,
+    "source_report_ok": 1
+  },
+  "hypothesis_card": {
+    "falsification_recipe": "Clear each required fact bit, mutate digest pins, or remove the no-authority rail and require Tau rejection.",
+    "formal_obligations": "Production use still needs a deterministic generated-image producer or a deeper Lean refinement of the corpus-root membership relation.",
+    "hypothesis_id": "H-AB-N7-CORPUS-ROOT-TAU-20260629",
+    "mechanism_change": "Add a versioned Tau scope certificate over the corpus-root membership evidence.",
+    "null_hypothesis": "A Tau envelope gives no additional falsifiable boundary beyond the Python corpus-root checker.",
+    "status": "supported_bounded",
+    "support_recipe": "Host checks the source report and pinned digests, Tau rejects every missing-fact negative case."
+  },
+  "non_claims": [
+    "This certificate is bounded to the committed n=7 zero-min corpus-root report.",
+    "This certificate does not prove Python-to-Lean refinement.",
+    "This certificate does not prove child-frontier generation in Lean.",
+    "This certificate does not replace the host Merkle verifier.",
+    "This certificate does not cover nonzero min_amount_out behavior.",
+    "This certificate does not authorize settlement, routing, matching, governance, pool mutation, production deployment, or state roots."
+  ],
+  "replay_command": "python3 tools/check_ab_child_frontier_corpus_root_tau_certificate_20260629.py",
+  "schema": "zenodex.ab_child_frontier_corpus_root_tau_certificate_report.v1",
+  "source_report": {
+    "ok": true,
+    "path": "generated/zenodex_ab_reserve_state_child_frontier_corpus_root_20260629/report.json",
+    "replay_command": "python3 tools/check_ab_reserve_state_child_frontier_corpus_root_20260629.py",
+    "schema": "zenodex.ab_reserve_state_child_frontier_corpus_root_report.v1",
+    "sha256": "7a52744de74439132845deac7f9e618fb8108113ba0cae15a2f858698c8319fb"
+  },
+  "spec": {
+    "id": "ab_child_frontier_corpus_root_scope_certificate_v1",
+    "path": "src/tau_specs/recommended/ab_child_frontier_corpus_root_scope_certificate_v1.tau",
+    "sha256": "7fc7a840a4abc08a68e3f55996c952a608ac281df7faaf26593e6d0ccd69cd7c"
+  },
+  "tau": {
+    "case_results": [
+      {
+        "case_id": "corpus_root_certificate_pass",
+        "expected": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All scoped host facts admit the corpus-root research certificate."
+      },
+      {
+        "case_id": "missing_source_report_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The source corpus-root report must be present, valid, and successful."
+      },
+      {
+        "case_id": "wrong_scope_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The source report must remain scoped to the bounded n=7 zero-min corpus."
+      },
+      {
+        "case_id": "wrong_corpus_root_reject",
+        "expected": {
+          "o2": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The pinned corpus root must match the expected digest."
+      },
+      {
+        "case_id": "missing_case_roots_reject",
+        "expected": {
+          "o2": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All four case roots must remain covered."
+      },
+      {
+        "case_id": "missing_row_receipts_reject",
+        "expected": {
+          "o3": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All 864 row receipts must remain complete."
+      },
+      {
+        "case_id": "membership_mismatch_reject",
+        "expected": {
+          "o3": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Row, case, and corpus membership proofs must remain clean."
+      },
+      {
+        "case_id": "negative_controls_missing_reject",
+        "expected": {
+          "o4": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The mutation suite must keep rejecting malformed packets."
+      },
+      {
+        "case_id": "nondeterministic_replay_reject",
+        "expected": {
+          "o4": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The parent corpus-root replay must remain deterministic."
+      },
+      {
+        "case_id": "linked_cross_binding_reject",
+        "expected": {
+          "o5": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The corpus root must remain linked to the witness+Merkle cross-binding report."
+      },
+      {
+        "case_id": "digest_pin_reject",
+        "expected": {
+          "o2": 0,
+          "o5": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The row, case, linked, and deterministic replay digests must remain pinned."
+      },
+      {
+        "case_id": "authority_boundary_reject",
+        "expected": {
+          "o6": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The research-only authority boundary must remain explicit."
+      },
+      {
+        "case_id": "authority_effect_reject",
+        "expected": {
+          "o6": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The certificate cannot carry settlement, state-root, governance, or pool-mutation authority."
+      },
+      {
+        "case_id": "empty_corpus_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The certificate must bind a nonempty row and case corpus."
+      },
+      {
+        "case_id": "inactive_safe",
+        "expected": {
+          "o7": 0,
+          "o8": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Inactive certificates do not admit while the no-authority rail remains true."
+      }
+    ],
+    "invalid_accepts": 0,
+    "ok": true,
+    "skipped": false,
+    "tau_bin": "external/tau-lang/build-Release/tau",
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  }
+}

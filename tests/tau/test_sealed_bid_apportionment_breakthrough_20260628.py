@@ -56,7 +56,13 @@ def test_split_bid_witness_and_owner_consolidation_mitigation() -> None:
 
 def test_report_replays_tau_and_records_non_authority_boundary() -> None:
     report = build_report()
+    mutation_errors = {row["mutation_id"]: row["error"] for row in report["mutation_checks"]}
 
     assert report["ok"] is True
     assert report["tau"]["ok"] is True
     assert "Runtime sealed-bid settlement is unchanged" in report["breakthrough"]["authority_boundary"]
+    assert mutation_errors["bad_domain_hash"] == "domain hash mismatch"
+    assert mutation_errors["bad_quota_bound"] == "quota bound mismatch"
+    assert mutation_errors["bad_same_remainder_tie_order"] == "largest remainder tie order mismatch"
+    assert mutation_errors["private_quantity_leak"] == "public receipt rejected: private_field_leaked_quantity"
+    assert mutation_errors["unclassified_split_risk"] == "split-bid risk not classified"

@@ -1,0 +1,53 @@
+# Solver Portfolio Upgrade Certificate v1
+#
+# PURPOSE:
+#   Guard a host-computed AB/CoW solver-portfolio rollout certificate. The host
+#   derives parity, scope, negative replay, performance, fallback, rollback,
+#   advisory, and no-authority facts from bounded reports. Tau only combines
+#   projected facts.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = ab_solver_candidate_present
+# i3  = ab_full_state_scope_ok
+# i4  = ab_bruteforce_oracle_parity_ok
+# i5  = cow_solver_candidate_present
+# i6  = cow_uncoupled_or_bounded_capacity_scope_ok
+# i7  = cow_bruteforce_oracle_parity_ok
+# i8  = negative_replay_ok
+# i9  = deterministic_tie_ok
+# i10 = performance_floor_ok
+# i11 = fallback_paths_ok
+# i12 = resource_budget_ok
+# i13 = rollback_available
+# i14 = advisory_model_only
+# i15 = no_authority_effect
+# o1  = ab_solver_evidence_ok
+# o2  = cow_solver_evidence_ok
+# o3  = negative_replay_gate_ok
+# o4  = performance_budget_ok
+# o5  = rollout_boundary_ok
+# o6  = solver_portfolio_ok
+# o7  = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+ab_solver_evidence_ok(active : sbf, present : sbf, full_state : sbf, parity : sbf) := is1(active) && is1(present) && is1(full_state) && is1(parity).
+cow_solver_evidence_ok(active : sbf, present : sbf, capacity_scope : sbf, parity : sbf) := is1(active) && is1(present) && is1(capacity_scope) && is1(parity).
+negative_replay_gate_ok(ab_ok : sbf, cow_ok : sbf, negative : sbf) := is1(ab_ok) && is1(cow_ok) && is1(negative).
+performance_budget_ok(deterministic : sbf, performance : sbf, budget : sbf) := is1(deterministic) && is1(performance) && is1(budget).
+rollout_boundary_ok(fallback : sbf, rollback : sbf, advisory : sbf, no_authority : sbf) := is1(fallback) && is1(rollback) && is1(advisory) && is1(no_authority).
+# Keep this formula-level. `ab_solver_evidence_ok(...)` and
+# `cow_solver_evidence_ok(...)` return formulas, so they must not be passed to a
+# helper that expects sbf streams.
+portfolio_ok(active : sbf, ab_present : sbf, ab_full_state : sbf, ab_parity : sbf, cow_present : sbf, cow_capacity : sbf, cow_parity : sbf, negative : sbf, deterministic : sbf, performance : sbf, fallback : sbf, budget : sbf, rollback : sbf, advisory : sbf, no_authority : sbf) := is1(active) && ab_solver_evidence_ok(active, ab_present, ab_full_state, ab_parity) && cow_solver_evidence_ok(active, cow_present, cow_capacity, cow_parity) && is1(negative) && performance_budget_ok(deterministic, performance, budget) && rollout_boundary_ok(fallback, rollback, advisory, no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> ab_solver_evidence_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> cow_solver_evidence_ok(i1[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> negative_replay_gate_ok(o1[t]:sbf, o2[t]:sbf, i8[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> performance_budget_ok(i9[t]:sbf, i10[t]:sbf, i12[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> rollout_boundary_ok(i11[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> portfolio_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf)) &&
+  (o7[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i15[t]:sbf))).

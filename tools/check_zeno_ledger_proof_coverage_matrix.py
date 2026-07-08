@@ -29,6 +29,8 @@ REQUIRED_SUPPORTED_IDS = frozenset(
         "proof_required_range_replay",
         "proof_verification_report_replay",
         "light_client_checkpoint_quorum",
+        "recursive_lifecycle_asset_delta_rows",
+        "recursive_lifecycle_admission_packet_checker",
     }
 )
 
@@ -41,6 +43,9 @@ REQUIRED_GAP_IDS = frozenset(
         "proof_market_reward_real_proof",
         "light_client_production_finality",
         "recursive_epoch_real_proof",
+        "recursive_oracle_leaf_real_proof",
+        "recursive_production_admission",
+        "zusd_non_deposit_mint_lifecycle_rows",
     }
 )
 
@@ -53,6 +58,9 @@ REQUIRED_NON_CLAIMS = frozenset(
         "does_not_claim_proof_market_zk_execution",
         "does_not_claim_light_client_finality",
         "does_not_claim_recursive_epoch_proof_soundness",
+        "does_not_claim_recursive_oracle_leaf_coverage",
+        "does_not_claim_recursive_production_admission",
+        "does_not_claim_full_zusd_lifecycle_rows",
     }
 )
 

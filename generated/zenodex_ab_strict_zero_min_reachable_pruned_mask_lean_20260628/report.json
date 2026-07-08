@@ -1,0 +1,64 @@
+{
+  "artifact_id": "zenodex_ab_strict_zero_min_reachable_pruned_mask_lean_20260628",
+  "date": "2026-06-28",
+  "status": "research_supported_after_replay",
+  "scope": "AB strict executable zero-min subset-mask proof component",
+  "lean_file": "lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+  "test_file": "tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+  "research_note": "docs/research/ZENODEX_AB_STRICT_ZERO_MIN_REACHABLE_PRUNED_MASK_LEAN_20260628.md",
+  "new_theorems": [
+    "ABStrictZeroMinMonotone.reachablePrunedRangeMask_covers_bits",
+    "ABStrictZeroMinMonotone.reachablePrunedRangeMask_bounds_suffix_output",
+    "ABStrictZeroMinMonotone.reachablePrunedRangeMask_covers_and_bounds",
+    "ABStrictZeroMinMonotone.witness_reachablePrunedRangeMask_covers_and_bounds"
+  ],
+  "new_definitions": [
+    "ABStrictZeroMinMonotone.reachablePrunedRangeMask"
+  ],
+  "claim": {
+    "summary": "A range-reachable locally pruned child mask covers every bit below the bounded range and bounds full record-set suffix output by the selected representative.",
+    "formal_statement": "reachablePrunedRangeMask parent child bitCount -> allBitsBelowSet child.maskId bitCount and maskFullBestSuffixOutput initialReserveOut child suffix <= maskSelectedSuffixOutput initialReserveOut child suffix",
+    "value": "Packages range-full mask coverage and local pruning dominance as one endpoint bridge for the full subset-mask induction frontier."
+  },
+  "non_claims": [
+    "No full strict compressed-full-mask theorem",
+    "No full DP subset-mask induction",
+    "No Lean-to-Python refinement",
+    "No canonical tie order",
+    "No nonzero min_amount_out coverage",
+    "No host bitset equivalence proof",
+    "No settlement authority",
+    "No state-root authority",
+    "No production-promotion authority",
+    "No governance authority"
+  ],
+  "expected_replay": [
+    "cd lean-mathlib && lake env lean Proofs/ABStrictZeroMinMonotone.lean",
+    "cd lean-mathlib && lake build Proofs.ABStrictZeroMinMonotone",
+    "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+    "rg -n \"\\b(sorry|admit|axiom|unsafe|sorryAx)\\b\" lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean"
+  ],
+  "research_kernel": {
+    "run_id": "zenodex-rk-frontier-20260628",
+    "atom_id": "atom_ab_strict_zero_min_reachable_pruned_mask_lean_20260628",
+    "suggested_status": "SUPPORTED",
+    "suggested_parents": [
+      "atom_ab_strict_zero_min_subset_mask_induction_frontier_20260628",
+      "atom_ab_strict_zero_min_range_full_mask_lean_20260628",
+      "atom_ab_strict_zero_min_mask_family_pruning_lean_20260628"
+    ],
+    "tags": [
+      "zenodex",
+      "AB-ordering",
+      "zero-min",
+      "subset-DP",
+      "subset-mask-induction",
+      "reachable-pruned-mask",
+      "range-full-mask",
+      "mask-family-pruning",
+      "Lean",
+      "formal-proof",
+      "strict-scope"
+    ]
+  }
+}

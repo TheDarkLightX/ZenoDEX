@@ -1,0 +1,63 @@
+{
+  "artifact_id": "zenodex_ab_strict_zero_min_full_mask_family_bridge_lean_20260628",
+  "date": "2026-06-28",
+  "status": "research_supported_after_replay",
+  "scope": "AB strict executable zero-min subset-mask proof component",
+  "lean_file": "lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+  "test_file": "tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+  "research_note": "docs/research/ZENODEX_AB_STRICT_ZERO_MIN_FULL_MASK_FAMILY_BRIDGE_LEAN_20260628.md",
+  "new_theorems": [
+    "ABStrictZeroMinMonotone.reachablePrunedFullMaskInFamily_bounds_family_selected",
+    "ABStrictZeroMinMonotone.reachablePrunedFullMaskInFamily_covers_and_bounds_family",
+    "ABStrictZeroMinMonotone.witness_reachablePrunedFullMaskInFamily_covers_and_bounds_family"
+  ],
+  "new_definitions": [
+    "ABStrictZeroMinMonotone.reachablePrunedFullMaskInFamily"
+  ],
+  "claim": {
+    "summary": "A reachable pruned range child retained in a finite mask family covers every bit below the bounded range and has full-record suffix output bounded by the family selected-representative aggregate.",
+    "formal_statement": "reachablePrunedFullMaskInFamily parent child bitCount masks -> allBitsBelowSet child.maskId bitCount and maskFullBestSuffixOutput initialReserveOut child suffix <= bestSelectedSuffixOutputAcrossMasks initialReserveOut masks suffix",
+    "value": "Connects the reachable-pruned endpoint to the family-level selected-representative aggregate needed by the AB strict zero-min subset-mask induction frontier."
+  },
+  "non_claims": [
+    "No full strict compressed-DP theorem",
+    "No construction of the mask family",
+    "No Lean-to-Python refinement",
+    "No canonical tie order",
+    "No nonzero min_amount_out coverage",
+    "No host bitset equivalence proof",
+    "No settlement authority",
+    "No state-root authority",
+    "No production-promotion authority",
+    "No governance authority"
+  ],
+  "expected_replay": [
+    "cd lean-mathlib && lake env lean Proofs/ABStrictZeroMinMonotone.lean",
+    "cd lean-mathlib && lake build Proofs.ABStrictZeroMinMonotone",
+    "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+    "rg -n \"\\b(sorry|admit|axiom|unsafe|sorryAx)\\b\" lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean"
+  ],
+  "research_kernel": {
+    "run_id": "zenodex-rk-frontier-20260628",
+    "atom_id": "atom_ab_strict_zero_min_full_mask_family_bridge_lean_20260628",
+    "suggested_status": "SUPPORTED",
+    "suggested_parents": [
+      "atom_ab_strict_zero_min_subset_mask_induction_frontier_20260628",
+      "atom_ab_strict_zero_min_reachable_pruned_mask_lean_20260628",
+      "atom_ab_strict_zero_min_mask_family_pruning_lean_20260628"
+    ],
+    "tags": [
+      "zenodex",
+      "AB-ordering",
+      "zero-min",
+      "subset-DP",
+      "subset-mask-induction",
+      "full-mask-family-bridge",
+      "reachable-pruned-mask",
+      "mask-family-pruning",
+      "Lean",
+      "formal-proof",
+      "strict-scope"
+    ]
+  }
+}

@@ -39,10 +39,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--profile", required=True, type=Path)
     parser.add_argument("--tau-network-id", required=True)
     parser.add_argument("--tau-adapter-ref", required=True)
+    parser.add_argument("--cross-shard-posting-summary", type=Path, action="append")
+    parser.add_argument(
+        "--cross-shard-posting-summary-requirement",
+        choices=("optional", "required", "forbidden", "body_evidence"),
+        default="optional",
+    )
     parser.add_argument("--out", type=Path)
     args = parser.parse_args(argv)
 
     try:
+        posting_summaries = tuple(
+            _load_json_object(path)
+            for path in (args.cross_shard_posting_summary or ())
+        )
         packet = build_tau_export_packet_v0(
             checkpoint=_load_json_object(args.checkpoint),
             header=_load_json_object(args.header),
@@ -50,6 +60,10 @@ def main(argv: list[str] | None = None) -> int:
             profile=_load_json_object(args.profile),
             tau_network_id=args.tau_network_id,
             tau_adapter_ref=args.tau_adapter_ref,
+            cross_shard_posting_summaries=posting_summaries,
+            cross_shard_posting_summary_requirement=(
+                args.cross_shard_posting_summary_requirement
+            ),
         )
         if args.out is not None:
             _write_json(args.out, packet)

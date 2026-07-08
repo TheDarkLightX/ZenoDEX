@@ -1,0 +1,77 @@
+{
+  "artifact_id": "zenodex_ab_strict_zero_min_range_step_path_bridge_lean_20260629",
+  "date": "2026-06-29",
+  "status": "research_supported_after_replay",
+  "scope": "AB strict executable zero-min subset-mask recursive range-step proof component",
+  "lean_file": "lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+  "test_file": "tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+  "research_note": "docs/research/ZENODEX_AB_STRICT_ZERO_MIN_RANGE_STEP_PATH_BRIDGE_LEAN_20260629.md",
+  "new_theorems": [
+    "ABStrictZeroMinMonotone.reachablePrunedStepPath_to_maskRecordPath",
+    "ABStrictZeroMinMonotone.reachablePrunedStepPath_pruningInvariant",
+    "ABStrictZeroMinMonotone.reachablePrunedStepPath_covers_range_bits",
+    "ABStrictZeroMinMonotone.reachablePrunedStepPath_bounds_suffix_output",
+    "ABStrictZeroMinMonotone.reachablePrunedRangeStepPathInFamily_bounds_family_selected",
+    "ABStrictZeroMinMonotone.reachablePrunedRangeStepPathInFamily_covers_and_bounds_family",
+    "ABStrictZeroMinMonotone.reachablePrunedRangeStepPathListInFamily_covers_members",
+    "ABStrictZeroMinMonotone.reachablePrunedRangeStepPathListInFamily_bounds_family_selected",
+    "ABStrictZeroMinMonotone.reachablePrunedRangeStepPathListInFamily_covers_and_bounds_family",
+    "ABStrictZeroMinMonotone.rangeStepPathWinnerCertificate_covers_and_bounds",
+    "ABStrictZeroMinMonotone.witness_rangeStepPathWinnerCertificate_covers_and_bounds"
+  ],
+  "new_definitions": [
+    "ABStrictZeroMinMonotone.reachablePrunedStepPath",
+    "ABStrictZeroMinMonotone.reachablePrunedRangeStepPathInFamily",
+    "ABStrictZeroMinMonotone.reachablePrunedRangeStepPathListInFamily",
+    "ABStrictZeroMinMonotone.rangeStepPathWinnerCertificate"
+  ],
+  "claim": {
+    "summary": "A recursive chain of pruned one-bit transitions over List.range bitCount induces full bounded mask coverage, and a range-step winner certificate bounds the full child frontier by one selected winner.",
+    "formal_statement": "rangeStepPathWinnerCertificate parent winner children bitCount masks initialReserveOut suffix -> (forall child in children, allBitsBelowSet child.maskId bitCount) and bestFullSuffixOutputAcrossMasks initialReserveOut children suffix <= maskSelectedSuffixOutput initialReserveOut winner suffix",
+    "value": "Connects one-step induction certificates into a bounded range certificate, reducing the remaining AB strict zero-min compressed DP proof gap."
+  },
+  "non_claims": [
+    "No full strict compressed-DP theorem",
+    "No recursive path construction",
+    "No child frontier construction",
+    "No selected mask family construction",
+    "No winner construction",
+    "No tie-order definition",
+    "No Lean-to-Python refinement",
+    "No nonzero min_amount_out coverage",
+    "No host bitset equivalence proof",
+    "No settlement authority",
+    "No state-root authority",
+    "No production-promotion authority",
+    "No governance authority"
+  ],
+  "expected_replay": [
+    "cd lean-mathlib && lake env lean Proofs/ABStrictZeroMinMonotone.lean",
+    "cd lean-mathlib && lake build Proofs.ABStrictZeroMinMonotone",
+    "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+    "python3 -m json.tool generated/zenodex_ab_strict_zero_min_range_step_path_bridge_lean_20260629/report.json >/dev/null",
+    "rg -n \"\\b(sorry|admit|axiom|unsafe|sorryAx)\\b\" lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean"
+  ],
+  "research_kernel": {
+    "run_id": "zenodex-rk-frontier-20260628",
+    "atom_id": "atom_ab_strict_zero_min_range_step_path_bridge_lean_20260629",
+    "suggested_status": "SUPPORTED",
+    "suggested_parents": [
+      "atom_ab_strict_zero_min_subset_mask_induction_frontier_20260628",
+      "atom_ab_strict_zero_min_step_induction_bridge_lean_20260628",
+      "atom_ab_strict_zero_min_compressed_certificate_lean_20260628"
+    ],
+    "tags": [
+      "zenodex",
+      "AB-ordering",
+      "zero-min",
+      "subset-DP",
+      "subset-mask-induction",
+      "range-step-path",
+      "compressed-certificate",
+      "Lean",
+      "formal-proof",
+      "strict-scope"
+    ]
+  }
+}

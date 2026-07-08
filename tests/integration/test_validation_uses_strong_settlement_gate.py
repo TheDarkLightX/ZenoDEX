@@ -5,6 +5,7 @@ from types import ModuleType
 
 import pytest
 
+import src.integration.validation as validation
 from src.agents.intent_signer import create_swap_intent_from_quote_receipt
 from src.core.batch_clearing import compute_settlement
 from src.core.quote_receipts import make_route_quote_receipt
@@ -19,6 +20,133 @@ from src.state.pools import PoolState, PoolStatus, compute_pool_id
 
 def _iid(n: int) -> str:
     return "0x" + f"{n:064x}"
+
+
+class _FakeUniformBatchCertificate:
+    pool_id = "p_ab"
+
+
+def _minimal_uniform_batch_validation_inputs() -> tuple[Intent, Settlement, BalanceTable, dict[str, PoolState]]:
+    pk = "0x" + "11" * 48
+    pool = PoolState(
+        pool_id="p_ab",
+        asset0="A",
+        asset1="B",
+        reserve0=1_000,
+        reserve1=2_000,
+        fee_bps=10,
+        curve_tag="CPMM",
+        curve_params="",
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(900),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool.pool_id,
+            "asset_in": "A",
+            "asset_out": "B",
+            "amount_in": 1,
+            "min_amount_out": 0,
+        },
+    )
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intent.intent_id, FillAction.REJECT)],
+        fills=[Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="test")],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+    return intent, settlement, BalanceTable(), {pool.pool_id: pool}
+
+
+def test_validate_operations_rejects_uniform_batch_certificate_when_protocol_fees_enabled_before_cert_parse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    intent, settlement, balances, pools = _minimal_uniform_batch_validation_inputs()
+    monkeypatch.setattr(
+        validation.UniformBatchCertificateV1,
+        "from_obj",
+        lambda obj: (_ for _ in ()).throw(AssertionError("certificate parser should not run")),
+    )
+
+    ok, err = validate_operations(
+        intents=[intent],
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        uniform_batch_certificate={"bad": "ignored"},
+        protocol_fee_share_bps=1,
+        protocol_fee_recipient_pubkey="treasury",
+    )
+
+    assert ok is False
+    assert err == "uniform batch certificate cannot be used when protocol fees are enabled"
+
+
+def test_validate_operations_rejects_uniform_batch_certificate_missing_pool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    intent, settlement, balances, _pools = _minimal_uniform_batch_validation_inputs()
+    monkeypatch.setattr(
+        validation.UniformBatchCertificateV1,
+        "from_obj",
+        lambda obj: _FakeUniformBatchCertificate(),
+    )
+
+    ok, err = validate_operations(
+        intents=[intent],
+        settlement=settlement,
+        balances=balances,
+        pools={},
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        uniform_batch_certificate={"fake": "cert"},
+    )
+
+    assert ok is False
+    assert err == "uniform batch certificate pool not found: p_ab"
+
+
+def test_validate_operations_routes_uniform_batch_certificate_to_uniform_validator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    intent, settlement, balances, pools = _minimal_uniform_batch_validation_inputs()
+    monkeypatch.setattr(
+        validation.UniformBatchCertificateV1,
+        "from_obj",
+        lambda obj: _FakeUniformBatchCertificate(),
+    )
+    monkeypatch.setattr(
+        validation,
+        "validate_uniform_batch_settlement_v1",
+        lambda **kwargs: (False, "uniform validator rejected"),
+    )
+
+    ok, err = validate_operations(
+        intents=[intent],
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        uniform_batch_certificate={"fake": "cert"},
+    )
+
+    assert ok is False
+    assert err == "uniform validator rejected"
 
 
 def test_validate_operations_rejects_k_decrease_settlement() -> None:

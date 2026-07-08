@@ -46,6 +46,7 @@ def main(argv: list[str] | None = None) -> int:
             "tau_export_packet",
             "checkpoint",
             "oracle_authority_profile",
+            "proof_verification_report",
         ],
     )
     parser.add_argument("--out", type=Path)

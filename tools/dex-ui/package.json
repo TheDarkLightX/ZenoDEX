@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test:contract": "node scripts/check-ui-contract.mjs",
+    "test:contract": "node scripts/check-ui-contract.mjs && node scripts/check-authority-labels.mjs",
     "test:sdk": "node --test --test-reporter=dot src/sdk/*.test.mjs",
     "test:config": "node --test --test-reporter=dot vite.config.test.mjs",
     "lint": "eslint .",

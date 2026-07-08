@@ -1,6 +1,3 @@
-import Mathlib.Data.Nat.Basic
-import Mathlib.Tactic
-
 /-!
 # ZenoOracle Math Witnesses
 
@@ -48,53 +45,55 @@ def O5OracleUseOK
 
 theorem median_deviation_boundary_accepts :
     MaxDeviationBpsSorted 98000000 100000000 102000000 10000 = 200 := by
-  norm_num [MaxDeviationBpsSorted]
+  native_decide
 
 theorem median_deviation_boundary_rejects :
     MaxDeviationBpsSorted 98000000 100000000 103000000 10000 = 300 := by
-  norm_num [MaxDeviationBpsSorted]
+  native_decide
 
 theorem reward_pool_conservation
     {before reward after : Nat}
     (hAfter : after <= before)
     (hReward : reward = before - after) :
     after + reward = before := by
-  omega
+  rw [hReward]
+  exact Nat.add_sub_of_le hAfter
 
 theorem positive_reward_requires_pool_decrease
     {before reward after : Nat}
     (hConservation : after + reward = before)
     (hPositive : 0 < reward) :
     after < before := by
-  omega
+  rw [← hConservation]
+  exact Nat.lt_add_of_pos_right hPositive
 
 theorem reward_pool_conservation_witness :
     75000000 + 25000000 = 100000000 := by
-  norm_num
+  native_decide
 
 theorem reward_pool_overpay_rejected_witness :
     101000000 ≠ 100000000 - 0 := by
-  norm_num
+  native_decide
 
 theorem source_cartel_operator_concentration_witness :
     1 < 3 := by
-  norm_num
+  native_decide
 
 theorem split_brain_divergence_witness :
     DivergenceBps 100000000 110000000 10000 = 909 := by
-  norm_num [DivergenceBps]
+  native_decide
 
 theorem split_brain_divergence_rejects_policy :
     100 < DivergenceBps 100000000 110000000 10000 := by
-  norm_num [DivergenceBps]
+  native_decide
 
 theorem split_brain_epoch_lag_witness :
     EpochLag 10 13 = 3 := by
-  norm_num [EpochLag]
+  native_decide
 
 theorem split_brain_epoch_lag_rejects_policy :
     1 < EpochLag 10 13 := by
-  norm_num [EpochLag]
+  native_decide
 
 theorem o4_or_o5_use_requires_o3_receipt
     {o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction : Prop}

@@ -1,0 +1,163 @@
+{
+  "authority_boundary": "Research-only certificate-boundary evidence; no settlement, state-root, production, routing, matching, pool-mutation, or governance authority.",
+  "date": "2026-06-29",
+  "design_recommendation": [
+    "Keep one-witness packets as coverage certificates only.",
+    "For no-extra, add a generated-image digest, all-transition image check, or a stronger Lean theorem.",
+    "Preserve the no-authority boundary until a production verifier independently checks the complete equality obligation."
+  ],
+  "deterministic_replay": {
+    "first_hash": "9aa8114a7411f71b9642ec924e4273f90bfa0fe7101b99f09573a8fef39d4af9",
+    "ok": true,
+    "second_hash": "9aa8114a7411f71b9642ec924e4273f90bfa0fe7101b99f09573a8fef39d4af9"
+  },
+  "hypothesis_card": {
+    "expected_metric_delta": {
+      "cap_efficiency": "0",
+      "determinism_simplicity": "+clear certificate boundary",
+      "execution_quality": "0",
+      "perf_cost": "+constant refuter only",
+      "safety": "+prevents overclaim"
+    },
+    "falsification_recipe": "Construct two worlds with identical one-witness packet hashes where coverage-only verification accepts both, but full generated-state verification rejects one for an extra generated state.",
+    "formal_obligations": "Lean or Tau claims must distinguish coverage from no-extra generation.",
+    "hypothesis_id": "H-AB-ONE-WITNESS-NO-EXTRA-REFUTER-20260629",
+    "mechanism_change": "Treat one-witness child-frontier packets as coverage certificates, not standalone no-extra certificates.",
+    "null_hypothesis": "One predecessor witness per child state is sufficient to prove no extra generated child states.",
+    "representation_shift_used": "counterexample_boundary",
+    "risk_modes": [
+      "coverage certificate overclaimed as equality certificate",
+      "hidden generated state",
+      "authority leakage",
+      "stale packet hash"
+    ],
+    "status": "falsified",
+    "support_recipe": "Require future no-extra certificates to bind all generated-state images, a generated-state digest, or a theorem strong enough to derive no-extra."
+  },
+  "non_claims": [
+    "This refuter is a bounded certificate-boundary countermodel, not a proof about all possible ZenoDEX frontier certificates.",
+    "This refuter does not invalidate n=7 or n=8 witness-coverage evidence.",
+    "This refuter does not prove child-frontier generation in Lean.",
+    "This refuter does not prove Python-to-Lean refinement.",
+    "This refuter does not cover nonzero min_amount_out behavior.",
+    "No settlement, state-root, production, routing, matching, pool-mutation, or governance authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_child_frontier_one_witness_no_extra_refuter_20260629.py",
+  "schema": "zenodex.ab_child_frontier_one_witness_no_extra_refuter_report.v1",
+  "search": {
+    "baseline_generated_state_count": 2,
+    "child_state_count": 2,
+    "countermodel_valid": true,
+    "coverage_only_baseline": {
+      "child_state_count": 2,
+      "covered_child_state_count": 2,
+      "ok": true,
+      "reasons": [],
+      "witness_count": 2
+    },
+    "coverage_only_extra_world": {
+      "child_state_count": 2,
+      "covered_child_state_count": 2,
+      "ok": true,
+      "reasons": [],
+      "witness_count": 2
+    },
+    "coverage_reason_classes": [
+      "authority_effect_present",
+      "duplicate_witness_row",
+      "forbidden_standalone_no_extra_claim",
+      "missing_child_state_witness",
+      "packet_hash_mismatch",
+      "witness_child_not_in_frontier"
+    ],
+    "elapsed_ms": 1.15,
+    "extra_generated_state_count": 3,
+    "full_baseline": {
+      "extra_generated_state_count": 0,
+      "extra_generated_states": [],
+      "generated_state_count": 2,
+      "missing_generated_state_count": 0,
+      "ok": true,
+      "reasons": []
+    },
+    "full_extra_world": {
+      "extra_generated_state_count": 1,
+      "extra_generated_states": [
+        {
+          "processed_reserve_in": 170,
+          "reserve_out": 9830
+        }
+      ],
+      "generated_state_count": 3,
+      "missing_generated_state_count": 0,
+      "ok": false,
+      "reasons": [
+        "generated_frontier_extra_child_state"
+      ]
+    },
+    "hidden_extra_state": {
+      "processed_reserve_in": 170,
+      "reserve_out": 9830
+    },
+    "negative_control_accept_count": 0,
+    "negative_control_count": 6,
+    "negative_controls": [
+      {
+        "accepted": false,
+        "expected_reason": "packet_hash_mismatch",
+        "mutation_id": "packet_hash_mismatch",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "missing_child_state_witness",
+        "mutation_id": "missing_child_state_witness",
+        "reasons": [
+          "missing_child_state_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "duplicate_witness_row",
+        "mutation_id": "duplicate_witness_row",
+        "reasons": [
+          "duplicate_witness_row"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "witness_child_not_in_frontier",
+        "mutation_id": "witness_child_not_in_frontier",
+        "reasons": [
+          "witness_child_not_in_frontier",
+          "missing_child_state_witness"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "forbidden_standalone_no_extra_claim",
+        "mutation_id": "forbidden_standalone_no_extra_claim",
+        "reasons": [
+          "forbidden_standalone_no_extra_claim"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "authority_effect_present",
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      }
+    ],
+    "packet_hash": "a742ca893b6f1df484d3bc24fdb5302bba6d661dffd328fa62fc5ffcf26446c0",
+    "same_packet_hash_for_both_worlds": true,
+    "schema": "zenodex/ab_child_frontier_one_witness_no_extra_refuter_search/v1",
+    "witness_count": 2,
+    "witness_rows_digest": "8216f62477012095592dcc45ed7551b3cadf83d84aa1a3f61f5b612f7ce60290"
+  },
+  "summary": "A bounded countermodel refutes standalone no-extra claims for one-witness child-frontier packets: the same packet covers all advertised child states while a hidden extra generated state remains invisible to coverage-only verification."
+}

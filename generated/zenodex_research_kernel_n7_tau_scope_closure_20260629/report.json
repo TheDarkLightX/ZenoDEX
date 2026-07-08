@@ -1,0 +1,219 @@
+{
+  "closure": {
+    "checks": {
+      "authority_boundary_ok_present": true,
+      "authority_boundary_reject_case_ok": true,
+      "authority_boundary_reject_case_present": true,
+      "authority_boundary_reject_rejects": true,
+      "authority_effect_reject_case_ok": true,
+      "authority_effect_reject_case_present": true,
+      "authority_effect_reject_rejects": true,
+      "authority_nonclaim_ok": true,
+      "bidirectional_transition_certificate_pass_case_ok": true,
+      "bidirectional_transition_certificate_pass_case_present": true,
+      "case_count_ok": true,
+      "child_mask_count_ok": true,
+      "corpus_nonvacuous_present": true,
+      "covered_transition_count_ok": true,
+      "deterministic_replay_ok_present": true,
+      "empty_corpus_reject_case_ok": true,
+      "empty_corpus_reject_case_present": true,
+      "empty_corpus_reject_rejects": true,
+      "expected_transition_count_ok": true,
+      "fact_set_exact": true,
+      "forbidden_authorizes_production": true,
+      "forbidden_authorizes_settlement": true,
+      "forbidden_covers_nonzero_min_amount_out": true,
+      "forbidden_grants_production_authority": true,
+      "forbidden_proves_lean_refinement": true,
+      "forbidden_proves_python-to-lean_refinement": true,
+      "forbidden_tau_replaces_the_host_verifier": true,
+      "generated_child_count_ok": true,
+      "generated_child_count_ok_present": true,
+      "generated_child_count_reject_case_ok": true,
+      "generated_child_count_reject_case_present": true,
+      "generated_child_count_reject_rejects": true,
+      "host_verifier_nonclaim_ok": true,
+      "inactive_safe_case_ok": true,
+      "inactive_safe_case_present": true,
+      "inactive_safe_no_authority": true,
+      "inactive_safe_rejects": true,
+      "invalid_accepts_zero": true,
+      "lean_generation_nonclaim_ok": true,
+      "linked_child_coverage_ok_present": true,
+      "linked_child_coverage_reject_case_ok": true,
+      "linked_child_coverage_reject_case_present": true,
+      "linked_child_coverage_reject_rejects": true,
+      "linked_child_coverage_witness_count_ok": true,
+      "linked_digest_ok": true,
+      "linked_digest_pinned_present": true,
+      "linked_digest_reject_case_ok": true,
+      "linked_digest_reject_case_present": true,
+      "linked_digest_reject_rejects": true,
+      "live_claims_registry_ok": true,
+      "live_focused_pytest_ok": true,
+      "live_public_claim_scope_ok": true,
+      "live_source_replay_ok": true,
+      "missing_source_report_reject_case_ok": true,
+      "missing_source_report_reject_case_present": true,
+      "missing_source_report_reject_rejects": true,
+      "n7_scope_nonclaim_ok": true,
+      "n7_zero_min_scope_ok_present": true,
+      "negative_control_accepts_zero": true,
+      "negative_control_count_ok": true,
+      "negative_controls_missing_reject_case_ok": true,
+      "negative_controls_missing_reject_case_present": true,
+      "negative_controls_missing_reject_rejects": true,
+      "negative_controls_reject_present": true,
+      "no_authority_effect_present": true,
+      "nondeterministic_replay_reject_case_ok": true,
+      "nondeterministic_replay_reject_case_present": true,
+      "nondeterministic_replay_reject_rejects": true,
+      "nonzero_min_nonclaim_ok": true,
+      "positive_case_admits": true,
+      "python_refinement_nonclaim_ok": true,
+      "replay_hash_ok": true,
+      "source_doc_hash_ok": true,
+      "source_report_hash_ok": true,
+      "source_report_ok_present": true,
+      "source_schema_ok": true,
+      "source_spec_hash_ok": true,
+      "source_test_hash_ok": true,
+      "source_tool_hash_ok": true,
+      "spec_id_ok": true,
+      "tau_case_count_ok": true,
+      "tau_ok": true,
+      "transition_counts_complete_present": true,
+      "transition_counts_reject_case_ok": true,
+      "transition_counts_reject_case_present": true,
+      "transition_counts_reject_rejects": true,
+      "transition_digest_ok": true,
+      "transition_digest_pinned_present": true,
+      "transition_digest_reject_case_ok": true,
+      "transition_digest_reject_case_present": true,
+      "transition_digest_reject_rejects": true,
+      "transition_row_count_ok": true,
+      "unique_transition_count_ok": true,
+      "wrong_scope_reject_case_ok": true,
+      "wrong_scope_reject_case_present": true,
+      "wrong_scope_reject_rejects": true
+    },
+    "closure_id": "n7_tau_scope_certificate_resolves_risk",
+    "closure_kind": "resolves",
+    "edge_type": "SUPERSEDES",
+    "live_commands": {
+      "claims_registry": {
+        "command": "/usr/bin/python3 tools/check_claims_registry.py",
+        "cwd": ".",
+        "ok": true,
+        "returncode": 0,
+        "stderr_tail": "",
+        "stdout_tail": "ok\n"
+      },
+      "focused_pytest": {
+        "command": "/usr/bin/python3 -m pytest -q tests/tau/test_ab_child_frontier_bidirectional_transition_tau_certificate_20260629.py",
+        "cwd": ".",
+        "ok": true,
+        "returncode": 0,
+        "stderr_tail": "",
+        "stdout_tail": "....                                                                     [100%]\n4 passed in 3.36s\n"
+      },
+      "public_claim_scope": {
+        "command": "/usr/bin/python3 tools/check_public_claim_scope.py --root . --json",
+        "cwd": ".",
+        "ok": true,
+        "returncode": 0,
+        "stderr_tail": "",
+        "stdout_tail": "SURANCE_REPLAY.md\",\n    \"docs/RC1_READINESS.md\",\n    \"docs/RC1_SCOPE.md\",\n    \"docs/RC1_VERIFIED_SURFACE_MATRIX.md\",\n    \"docs/zenodex_spot_state_proof_risc0_v1.md\",\n    \"docs/CONFIDENTIAL_EXTENSIONS_TEE_SMPC.md\",\n    \"docs/CONFIDENTIAL_FEATURES_BETA_RUNBOOK.md\",\n    \"docs/CONFIDENTIAL_FEATURES_USE_CASES.md\",\n    \"docs/SPECIFICATION.md\",\n    \"tools/dex-ui/README.md\",\n    \"tools/dex-ui/src/lib/confidentialData.js\",\n    \"src/integration/confidential_feature_status.py\",\n    \"docs/UPBA_OPTIMALITY_CERTIFICATE.md\",\n    \"docs/UPBA_V1_CERTIFICATE.md\",\n    \"docs/UPBA_V1_EVIDENCE_BOUNDARY.md\",\n    \"docs/UPBA_V2_CERTIFICATE.md\",\n    \"docs/UPBA_V2_EVIDENCE_BOUNDARY.md\",\n    \"docs/ZENOCOVER_LP_LOSS_COVER_V1.md\"\n  ],\n  \"ok\": true,\n  \"schema\": \"zenodex/public_claim_scope_report/v0\",\n  \"violations\": []\n}\n"
+      },
+      "source_replay": {
+        "command": "/usr/bin/python3 tools/check_ab_child_frontier_bidirectional_transition_tau_certificate_20260629.py",
+        "cwd": ".",
+        "ok": true,
+        "returncode": 0,
+        "stderr_tail": "",
+        "stdout_tail": " [\n      \"the n=7 bidirectional transition source report is present and successful\",\n      \"2,777 transition rows exactly cover all expected predecessor transitions\",\n      \"864 generated child states are linked to the existing witness+Merkle child-coverage report\",\n      \"transition and linked witness+Merkle digests are pinned\",\n      \"9 mutation controls reject with zero accepts\",\n      \"the Tau envelope carries no settlement or state authority\"\n    ],\n    \"spec_id\": \"ab_child_frontier_bidirectional_transition_scope_certificate_v1\",\n    \"tau_cases\": 14\n  },\n  \"json\": \"generated/zenodex_ab_child_frontier_bidirectional_transition_tau_certificate_20260629/report.json\",\n  \"ok\": true,\n  \"report\": \"docs/research/ZENODEX_AB_CHILD_FRONTIER_BIDIRECTIONAL_TRANSITION_TAU_CERTIFICATE_20260629.md\"\n}\n"
+      }
+    },
+    "resolver_artifacts": [
+      {
+        "path": "generated/zenodex_ab_child_frontier_bidirectional_transition_tau_certificate_20260629/report.json",
+        "sha256": "5a75754c4a631c4e8f5dd5b3a24eda1497e42ce24e69d5705494d69e2f8c6981"
+      },
+      {
+        "path": "docs/research/ZENODEX_AB_CHILD_FRONTIER_BIDIRECTIONAL_TRANSITION_TAU_CERTIFICATE_20260629.md",
+        "sha256": "bca15222bb311571b5a7dfb09ab45b53e0a8d17e700cdd53dd6973aa97058b40"
+      },
+      {
+        "path": "tools/check_ab_child_frontier_bidirectional_transition_tau_certificate_20260629.py",
+        "sha256": "80c39784829519d3acd3aeb2f1092bbca698fbbbfd77480309e4c71d485ca95c"
+      },
+      {
+        "path": "tests/tau/test_ab_child_frontier_bidirectional_transition_tau_certificate_20260629.py",
+        "sha256": "1e6aabace368861b7190b8064a63669f3d7ba4923279b713429abdcf83075d38"
+      },
+      {
+        "path": "src/tau_specs/recommended/ab_child_frontier_bidirectional_transition_scope_certificate_v1.tau",
+        "sha256": "7a8085d766f205399d5aadf7aa920c7c9a4c1c03dcab03361baa89a0965ea92f"
+      }
+    ],
+    "source_atom_id": "atom_zenodex_research_kernel_n7_tau_scope_closure_20260629",
+    "source_report_path": "generated/zenodex_ab_child_frontier_bidirectional_transition_tau_certificate_20260629/report.json",
+    "source_report_sha256": "5a75754c4a631c4e8f5dd5b3a24eda1497e42ce24e69d5705494d69e2f8c6981",
+    "summary": "The n7 Tau scope certificate resolves the RK risk for the bounded AB child-frontier bidirectional-transition scope surface: all required host facts are present, every missing-fact Tau case rejects, digest pins and deterministic replay match, and the no-authority rail remains explicit.",
+    "target_atom_id": "atom_f16f64e92cd14d74"
+  },
+  "date": "2026-06-29",
+  "hypothesis_card": {
+    "expected_metric_delta": {
+      "cap_efficiency": "0",
+      "determinism_simplicity": "+explicit Tau fact envelope boundary",
+      "execution_quality": "0",
+      "perf_cost": "-closure/live-replay check overhead",
+      "safety": "+frontier hygiene"
+    },
+    "falsification_recipe": "Clear required facts, mutate Tau cases, digest pins, counts, replay hash, and non-claims; require stable reject reasons.",
+    "formal_obligations": "Tau composes host facts only; this receipt closes the RK tracking risk, not host-verifier or Lean-refinement obligations.",
+    "hypothesis_id": "H-RK-N7-TAU-SCOPE-CLOSURE-20260629",
+    "mechanism_change": "Close the RK n7 Tau scope risk after validating the bounded Tau certificate and scope limits.",
+    "null_hypothesis": "The Tau certificate admits a missing host fact, stale digest, nondeterministic replay, or authority overclaim.",
+    "representation_shift_used": "reduce",
+    "risk_modes": [
+      "stale source certificate hash",
+      "missing Tau negative case",
+      "missing required host fact",
+      "stale digest or deterministic replay hash",
+      "authority leakage"
+    ],
+    "status": "supported",
+    "support_recipe": "Validate the source Tau certificate report, current artifact hashes, focused Tau tests, claim gates, and optional live replay."
+  },
+  "live_replay_command": "python3 tools/check_research_kernel_n7_tau_scope_closure_20260629.py --live-replay",
+  "non_claims": [
+    "This receipt closes only the RK tracking risk for the bounded n7 Tau scope certificate.",
+    "This receipt does not replace the host Merkle verifier or transition checker.",
+    "This receipt does not prove Python-to-Lean refinement.",
+    "This receipt does not prove child-frontier generation in Lean.",
+    "This receipt does not cover nonzero min_amount_out behavior.",
+    "This receipt grants no settlement, governance, state-root, routing, matching, pool-mutation, production, or deployment authority."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_research_kernel_n7_tau_scope_closure_20260629.py",
+  "research_kernel_edges_to_add": [
+    {
+      "closure_kind": "resolves",
+      "edge_type": "SUPERSEDES",
+      "rationale": "The n7 Tau scope certificate passes the exact missing-fact and scope-boundary checks in the RK risk.",
+      "source_atom_id": "atom_zenodex_research_kernel_n7_tau_scope_closure_20260629",
+      "target_atom_id": "atom_f16f64e92cd14d74"
+    }
+  ],
+  "residual_open_frontier": [
+    "n7 bidirectional transition mutation risk",
+    "reserve-state observed-summary bridge risk",
+    "sampled n8 canonical-index Merkle certificate risk",
+    "sampled n8 bidirectional transition certificate risk",
+    "full subset-mask DP construction and Python-to-Lean refinement"
+  ],
+  "schema": "zenodex.research_kernel_n7_tau_scope_closure_20260629.v1"
+}

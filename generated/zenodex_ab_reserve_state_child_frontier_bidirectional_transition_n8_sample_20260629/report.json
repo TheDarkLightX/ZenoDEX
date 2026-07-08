@@ -1,0 +1,409 @@
+{
+  "authority_boundary": "Research-only certificate-boundary evidence; no settlement, state-root, production, routing, matching, pool-mutation, or governance authority.",
+  "date": "2026-06-29",
+  "deterministic_replay": {
+    "first_hash": "5757702bcda71094a7b861318efdb7d1ea1e39d119677f3324e7e05ec12d939b",
+    "ok": true,
+    "second_hash": "5757702bcda71094a7b861318efdb7d1ea1e39d119677f3324e7e05ec12d939b"
+  },
+  "lean_contract": {
+    "host_bidirectional_shape": "sampled child coverage is linked from predecessor witnesses; every sampled predecessor afterStep image carries canonical child-frontier Merkle membership here",
+    "host_generation_shape": "sampled child quotient state set equals union of predecessor afterStep images",
+    "host_merkle_shape": "canonical sorted leaf-index Merkle root per sampled child quotient frontier",
+    "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+    "transition_def": "ReserveState.afterStep",
+    "transition_executability_endpoint": "reserveStateQuotientInvariant_familySuffixExecutable",
+    "transition_invariant_endpoint": "reserveStateQuotientInvariant_afterStep"
+  },
+  "non_claims": [
+    "This checker is bounded to the deterministic sampled n=8 corpus, not exhaustive n=8 coverage.",
+    "This checker covers only sampled zero-min exact-in cases and sampled child masks.",
+    "This checker links child coverage to the existing sampled n=8 predecessor-witness report.",
+    "This checker links canonical membership to the existing sampled n=8 canonical-Merkle report.",
+    "This checker does not prove Python-to-Lean refinement.",
+    "This checker does not prove child-frontier generation in Lean.",
+    "This checker does not define canonical tie order or preserve order-id history.",
+    "This checker does not cover nonzero min_amount_out behavior.",
+    "No settlement, state-root, production, routing, matching, pool-mutation, or governance authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_reserve_state_child_frontier_bidirectional_transition_n8_sample_20260629.py",
+  "schema": "zenodex.ab_reserve_state_child_frontier_bidirectional_transition_n8_sample_report.v1",
+  "search": {
+    "case_count": 3,
+    "cases": [
+      {
+        "bit_count": 8,
+        "case_id": "n8_sample_000_thin_fee9000_stair",
+        "covered_transition_count": 48,
+        "duplicate_transition_row_count": 0,
+        "expected_transition_count": 48,
+        "extra_transition_count": 0,
+        "fee_bps": 9000,
+        "first_failure": null,
+        "invalid_transition_row_count": 0,
+        "missing_transition_count": 0,
+        "ok": true,
+        "packet_hash": "9c2f826415d129b9147773c47603894d0f7d758e2e526909531de95430766d2a",
+        "pattern": "n8_thin_high_fee/stair",
+        "reasons": [],
+        "sampled_child_mask_count": 17,
+        "transition_row_count": 48,
+        "transition_rows_digest": "2a63f35abcbc298e94cafc56ce6cdfdf3b5ae0ab19bb6160ee9aee79ab9608eb",
+        "unique_generated_child_count": 17,
+        "unique_transition_count": 48
+      },
+      {
+        "bit_count": 8,
+        "case_id": "n8_sample_001_deep_fee30_tie",
+        "covered_transition_count": 104,
+        "duplicate_transition_row_count": 0,
+        "expected_transition_count": 104,
+        "extra_transition_count": 0,
+        "fee_bps": 30,
+        "first_failure": null,
+        "invalid_transition_row_count": 0,
+        "missing_transition_count": 0,
+        "ok": true,
+        "packet_hash": "2a45c3b701412c3c58eca2e9b8e464996c033856999dcd833c27ab70bf29f6d7",
+        "pattern": "n8_deep_low_fee/tie",
+        "reasons": [],
+        "sampled_child_mask_count": 17,
+        "transition_row_count": 104,
+        "transition_rows_digest": "94c699f544cd4b6b998483d449b7d9aa660e95f61df18d8b791585a51d778514",
+        "unique_generated_child_count": 34,
+        "unique_transition_count": 104
+      },
+      {
+        "bit_count": 8,
+        "case_id": "n8_sample_002_burst_fee2500",
+        "covered_transition_count": 116,
+        "duplicate_transition_row_count": 0,
+        "expected_transition_count": 116,
+        "extra_transition_count": 0,
+        "fee_bps": 2500,
+        "first_failure": null,
+        "invalid_transition_row_count": 0,
+        "missing_transition_count": 0,
+        "ok": true,
+        "packet_hash": "31cd0f1ec1cadfc0c46ae562a133217cfdc6c1c490e436d4fb2df703cd0cf123",
+        "pattern": "n8_deep_mid_fee/front_burst",
+        "reasons": [],
+        "sampled_child_mask_count": 17,
+        "transition_row_count": 116,
+        "transition_rows_digest": "1255b42eb0ac23db74412c95d136c934e1654417799c0bcde48123ca0148fdde",
+        "unique_generated_child_count": 37,
+        "unique_transition_count": 116
+      }
+    ],
+    "coverage": {
+      "fee_bps_counts": {
+        "2500": 1,
+        "30": 1,
+        "9000": 1
+      },
+      "n_counts": {
+        "8": 3
+      },
+      "pattern_counts": {
+        "n8_deep_low_fee/tie": 1,
+        "n8_deep_mid_fee/front_burst": 1,
+        "n8_thin_high_fee/stair": 1
+      },
+      "reason_classes": [
+        "afterstep_generated_child_mismatch",
+        "authority_effect_present",
+        "extra_predecessor_transition_row",
+        "generated_child_not_in_sampled_child_frontier",
+        "generated_state_root_mismatch",
+        "linked_canonical_merkle_membership_count_mismatch",
+        "linked_canonical_merkle_summary_mismatch",
+        "linked_witness_count_mismatch",
+        "linked_witness_summary_mismatch",
+        "membership_proof_hash_mismatch",
+        "missing_predecessor_transition_row",
+        "packet_hash_mismatch",
+        "packet_transition_summary_mismatch",
+        "sampled_n8_bound_missing",
+        "transition_parent_state_not_in_parent_frontier",
+        "transition_step_bit_out_of_range"
+      ]
+    },
+    "covered_transition_count": 268,
+    "duplicate_transition_row_count": 0,
+    "expected_transition_count": 268,
+    "extra_transition_count": 0,
+    "first_case": {
+      "bit_count": 8,
+      "case_id": "n8_sample_000_thin_fee9000_stair",
+      "covered_transition_count": 48,
+      "duplicate_transition_row_count": 0,
+      "expected_transition_count": 48,
+      "extra_transition_count": 0,
+      "fee_bps": 9000,
+      "first_failure": null,
+      "invalid_transition_row_count": 0,
+      "missing_transition_count": 0,
+      "ok": true,
+      "packet_hash": "9c2f826415d129b9147773c47603894d0f7d758e2e526909531de95430766d2a",
+      "pattern": "n8_thin_high_fee/stair",
+      "reasons": [],
+      "sampled_child_mask_count": 17,
+      "transition_row_count": 48,
+      "transition_rows_digest": "2a63f35abcbc298e94cafc56ce6cdfdf3b5ae0ab19bb6160ee9aee79ab9608eb",
+      "unique_generated_child_count": 17,
+      "unique_transition_count": 48
+    },
+    "first_invalid_case": null,
+    "invalid_transition_row_count": 0,
+    "linked_canonical_membership_count": 88,
+    "linked_canonical_merkle_summary": {
+      "available": true,
+      "case_count": 3,
+      "frontier_root_count": 51,
+      "frontier_roots_digest": "53872b495fd6af55f5192e5577f6fb75fca8bd54c26110ff88f4b11a17edf6d4",
+      "kind": "sampled_n8_canonical_merkle",
+      "membership_count": 88,
+      "membership_rows_digest": "bf859719c54893c3975b5f28a9eda8dc58b50b1bcab8ed46cd96fd5f4d63a5d2",
+      "negative_control_accept_count": 0,
+      "ok": true,
+      "path": "generated/zenodex_ab_reserve_state_child_frontier_canonical_merkle_n8_sample_20260629/report.json",
+      "sampled_child_mask_count": 51,
+      "sampled_child_state_count": 88,
+      "schema": "zenodex.ab_reserve_state_child_frontier_canonical_merkle_n8_sample_report.v1",
+      "valid_case_count": 3
+    },
+    "linked_child_coverage_witness_count": 88,
+    "linked_witness_summary": {
+      "available": true,
+      "case_count": 3,
+      "kind": "sampled_n8_predecessor_witnesses",
+      "negative_control_accept_count": 0,
+      "ok": true,
+      "path": "generated/zenodex_ab_reserve_state_child_frontier_witness_compression_n8_sample_20260629/report.json",
+      "predecessor_transition_count": 268,
+      "sampled_child_mask_count": 51,
+      "schema": "zenodex.ab_reserve_state_child_frontier_witness_compression_n8_sample_report.v1",
+      "valid_case_count": 3,
+      "witness_count": 88,
+      "witness_rows_digest": "4851b651740dcfaaa5b175cccbc0907fb7449ff3c4e14db61c3cdafed72e52dd"
+    },
+    "missing_transition_count": 0,
+    "negative_control_accept_count": 0,
+    "negative_control_count": 11,
+    "negative_controls": [
+      {
+        "accepted": false,
+        "expected_reason": "packet_hash_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_hash_mismatch",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "sampled_n8_bound_missing",
+        "first_failure": null,
+        "mutation_id": "sampled_n8_bound_missing",
+        "reasons": [
+          "sampled_n8_bound_missing"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "missing_predecessor_transition_row",
+        "first_failure": {
+          "case_id": "n8_sample_001_deep_fee30_tie",
+          "mask_id": 1,
+          "reason": "missing_predecessor_transition_row"
+        },
+        "mutation_id": "missing_predecessor_transition_row",
+        "reasons": [
+          "missing_predecessor_transition_row",
+          "packet_transition_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "transition_parent_state_not_in_parent_frontier",
+        "first_failure": {
+          "case_id": "n8_sample_001_deep_fee30_tie",
+          "detail": {
+            "row_index": 0
+          },
+          "mask_id": 1,
+          "reason": "transition_parent_state_not_in_parent_frontier"
+        },
+        "mutation_id": "transition_parent_state_not_in_parent_frontier",
+        "reasons": [
+          "transition_parent_state_not_in_parent_frontier",
+          "afterstep_generated_child_mismatch",
+          "missing_predecessor_transition_row",
+          "extra_predecessor_transition_row",
+          "packet_transition_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "afterstep_generated_child_mismatch",
+        "first_failure": {
+          "case_id": "n8_sample_001_deep_fee30_tie",
+          "detail": {
+            "row_index": 0
+          },
+          "mask_id": 1,
+          "reason": "generated_child_not_in_sampled_child_frontier"
+        },
+        "mutation_id": "afterstep_generated_child_mismatch",
+        "reasons": [
+          "generated_child_not_in_sampled_child_frontier",
+          "membership_proof_hash_mismatch",
+          "afterstep_generated_child_mismatch",
+          "missing_predecessor_transition_row",
+          "extra_predecessor_transition_row",
+          "packet_transition_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "transition_step_bit_out_of_range",
+        "first_failure": {
+          "case_id": "n8_sample_001_deep_fee30_tie",
+          "detail": {
+            "row_index": 0
+          },
+          "mask_id": 1,
+          "reason": "transition_step_bit_out_of_range"
+        },
+        "mutation_id": "transition_step_bit_out_of_range",
+        "reasons": [
+          "transition_step_bit_out_of_range",
+          "missing_predecessor_transition_row",
+          "extra_predecessor_transition_row",
+          "packet_transition_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "generated_state_root_mismatch",
+        "first_failure": {
+          "case_id": "n8_sample_001_deep_fee30_tie",
+          "detail": {
+            "row_index": 0
+          },
+          "mask_id": 1,
+          "reason": "generated_state_root_mismatch"
+        },
+        "mutation_id": "generated_state_root_mismatch",
+        "reasons": [
+          "generated_state_root_mismatch",
+          "membership_proof_hash_mismatch",
+          "packet_transition_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "membership_proof_hash_mismatch",
+        "first_failure": {
+          "case_id": "n8_sample_001_deep_fee30_tie",
+          "detail": {
+            "row_index": 4
+          },
+          "mask_id": 15,
+          "reason": "membership_proof_hash_mismatch"
+        },
+        "mutation_id": "membership_proof_hash_mismatch",
+        "reasons": [
+          "membership_proof_hash_mismatch",
+          "packet_transition_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "linked_witness_count_mismatch",
+        "first_failure": null,
+        "mutation_id": "linked_witness_count_mismatch",
+        "reasons": [
+          "linked_witness_summary_mismatch",
+          "linked_witness_count_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "linked_canonical_merkle_membership_count_mismatch",
+        "first_failure": null,
+        "mutation_id": "linked_canonical_merkle_membership_count_mismatch",
+        "reasons": [
+          "linked_canonical_merkle_summary_mismatch",
+          "linked_canonical_merkle_membership_count_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "authority_effect_present",
+        "first_failure": null,
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      }
+    ],
+    "sample_plan": {
+      "bit_count": 8,
+      "full_dp_generated_all_masks": true,
+      "mask_ids": [
+        0,
+        1,
+        2,
+        4,
+        8,
+        15,
+        16,
+        32,
+        51,
+        60,
+        64,
+        85,
+        128,
+        170,
+        195,
+        204,
+        240,
+        255
+      ],
+      "seed": 2026062908,
+      "suffix_sample_limit": 24,
+      "suffix_sampling": "all suffixes up to limit; otherwise first, last, and deterministic random indexes"
+    },
+    "sampled_child_mask_count": 51,
+    "sampled_child_mask_ids": [
+      1,
+      2,
+      4,
+      8,
+      15,
+      16,
+      32,
+      51,
+      60,
+      64,
+      85,
+      128,
+      170,
+      195,
+      204,
+      240,
+      255
+    ],
+    "schema": "zenodex/ab_reserve_state_child_frontier_bidirectional_transition_n8_sample_search/v1",
+    "source_seed": 2026062908,
+    "transition_row_count": 268,
+    "transition_rows_digest": "0ed918d2b332430f57bf3561a5912fa50c0293c23661ff02f582a21e88f3ed09",
+    "transition_to_child_witness_ratio": 3.045455,
+    "unique_generated_child_count": 88,
+    "unique_transition_count": 268,
+    "valid_case_count": 3
+  },
+  "summary": "A bounded sampled n=8 bidirectional transition certificate supports the AB reserve-state child-frontier equality on sampled zero-min masks: linked predecessor witnesses cover sampled child states, and every sampled predecessor afterStep image is a canonical Merkle member of the sampled child frontier."
+}

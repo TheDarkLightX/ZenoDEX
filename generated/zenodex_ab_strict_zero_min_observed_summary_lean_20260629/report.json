@@ -1,0 +1,68 @@
+{
+  "schema": "zenodex.ab_strict_zero_min_observed_summary_lean_report.v1",
+  "date": "2026-06-29",
+  "ok": true,
+  "branch": "cpss-bc-research-codex-grade-a",
+  "base_commit": "5a97bd1d",
+  "authority_boundary": "Research-only formal proof component; no settlement, state-root, production, routing, matching, or governance authority.",
+  "new_lean_theorems": [
+    "StrictSubsetInductionObservedSummary",
+    "strictSubsetInductionObservedSummaryValid",
+    "strictSubsetInductionObservedSummaryFullKey",
+    "strictSubsetInductionObservedSummarySelectedKey",
+    "strictSubsetInductionObservedSummary_to_aggregateRangePathTableValid",
+    "strictSubsetInductionObservedSummary_validates",
+    "witness_strictSubsetInductionObservedSummary_validates"
+  ],
+  "proof_role": "Bind host-visible observed summary fields to the Lean aggregate recursive range-path table and inherit packet rails, full-mask coverage, strict zero-min economic-key dominance, and selected suffix executability.",
+  "artifact_hashes": {
+    "lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean": "0d9787f60b655a59c5ab3f6395eebf013d7827b3e5f51c974c180cfe3a1ae1e6",
+    "tests/formal/test_lean_ab_strict_zero_min_monotone.py": "eb9e1af42c1e854baf73fb2f892dd4466c5730d81529d7788ac1f4746c9ba081"
+  },
+  "verification": {
+    "lake_env_lean": {
+      "command": "cd lean-mathlib && lake env lean Proofs/ABStrictZeroMinMonotone.lean",
+      "status": "pass"
+    },
+    "focused_pytest": {
+      "command": "pytest -q tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+      "status": "pass",
+      "summary": "1 passed in 8.90s"
+    },
+    "placeholder_scan": {
+      "command": "python3 ~/.codex/skills/proof-engineering/scripts/scan_proof_placeholders.py lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+      "status": "pass",
+      "summary": "No proof placeholders found."
+    },
+    "lake_build_module": {
+      "command": "cd lean-mathlib && lake build Proofs.ABStrictZeroMinMonotone",
+      "status": "pass",
+      "summary": "Build completed successfully (3076 jobs)."
+    },
+    "json_validation": {
+      "command": "python3 -m json.tool generated/zenodex_ab_strict_zero_min_observed_summary_lean_20260629/report.json >/dev/null",
+      "status": "pass"
+    },
+    "public_claim_scope": {
+      "command": "python3 tools/check_public_claim_scope.py --root . --json",
+      "status": "ok"
+    },
+    "claims_registry": {
+      "command": "python3 tools/check_claims_registry.py",
+      "status": "ok"
+    },
+    "diff_check": {
+      "command": "git diff --check -- lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean tests/formal/test_lean_ab_strict_zero_min_monotone.py docs/research/ZENODEX_AB_STRICT_ZERO_MIN_OBSERVED_SUMMARY_LEAN_20260629.md generated/zenodex_ab_strict_zero_min_observed_summary_lean_20260629/report.json",
+      "status": "pass"
+    }
+  },
+  "non_claims": [
+    "This proof does not construct a subset DP table.",
+    "This proof does not prove Python-to-Lean refinement.",
+    "This proof does not prove JSON canonicalization or packet-hash computation in Lean.",
+    "This proof does not define canonical tie order or choose among tied winners.",
+    "This proof is restricted to the abstract strict executable same-pool, same-direction, exact-in, zero-min proof surface already modeled in ABStrictZeroMinMonotone.lean.",
+    "This proof does not cover nonzero min_amount_out behavior.",
+    "This proof has no settlement, state-root, production, routing, matching, or governance authority."
+  ]
+}

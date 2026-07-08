@@ -35,6 +35,7 @@ APP_ROOT_LANE_KINDS: frozenset[str] = frozenset(
         "perps",
         "zusd",
         "clob",
+        "cross_shard",
         "proof_mining",
         "governance",
     }

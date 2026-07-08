@@ -1,0 +1,274 @@
+{
+  "authority_boundary": "research-only producer-manifest evidence; no settlement, state-root, production, routing, matching, pool-mutation, or governance authority",
+  "date": "2026-06-29",
+  "elapsed_ms": 30327.506,
+  "hypothesis_card": {
+    "expected_metric_delta": {
+      "cap_efficiency": "0",
+      "determinism_simplicity": "+single producer manifest over five reports",
+      "execution_quality": "0",
+      "perf_cost": "+stage replay when enabled",
+      "safety": "+detects stale or reordered producer artifacts"
+    },
+    "falsification_recipe": "Mutate stage order, source seed, script hash, report hash, output digest, corpus root, or authority rail and require rejection.",
+    "formal_obligations": "Production use still needs a Lean refinement or a production verifier grammar for this producer relation.",
+    "hypothesis_id": "H-AB-N7-GENERATED-IMAGE-PRODUCER-20260629",
+    "mechanism_change": "Bind the child-frontier generated-image pipeline to an ordered producer manifest with script and output digests.",
+    "null_hypothesis": "A producer manifest gives no additional falsifiable boundary beyond the individual stage reports.",
+    "representation_shift_used": "certificate_boundary",
+    "risk_modes": [
+      "stale generator script",
+      "stale checked report",
+      "stage reordering",
+      "source seed drift",
+      "digest drift",
+      "authority leakage"
+    ],
+    "status": "supported_bounded",
+    "support_recipe": "Verify all checked reports, replay stages when enabled, confirm cross-stage links, and reject every mutation control."
+  },
+  "manifest": {
+    "authority_boundary": "research_only_no_settlement_state_root_production_or_governance_authority",
+    "cross_stage_links": {
+      "canonical_frontier_digest_matches_generation": true,
+      "corpus_bound_rows_digest_matches_cross_binding": true,
+      "corpus_row_count_matches_cross_binding": true,
+      "witness_merkle_digest_matches_canonical": true,
+      "witness_rows_digest_matches_witness_compression": true
+    },
+    "manifest_hash": "9a79ac58b6566055e2f895fffd97df5cc5fc81f2b3f29fe61f14fa0f51c80ea6",
+    "no_authority_effect": true,
+    "non_claims": [
+      "bounded n=7 zero-min corpus only",
+      "does not prove Python-to-Lean refinement",
+      "does not prove child-frontier generation in Lean",
+      "does not cover nonzero min_amount_out behavior",
+      "does not authorize settlement or state roots"
+    ],
+    "producer_stage_order": [
+      "generation",
+      "canonical_merkle",
+      "witness_compression",
+      "witness_merkle_cross_binding",
+      "corpus_root"
+    ],
+    "producer_stage_order_bound": true,
+    "schema": "zenodex.ab_child_frontier_generated_image_producer_manifest.v1",
+    "scope": "n7_same_pool_same_direction_exact_in_zero_min_child_frontier_generated_image_producer",
+    "source_seed": "2026062907",
+    "stage_manifests": [
+      {
+        "deterministic_hash": "8d698629548edaa62cf8e7367cb0845d8cf4efd1d5583e9997b8ec878d4b0925",
+        "outputs": {
+          "child_mask_count": 508,
+          "child_state_count": 864,
+          "frontier_rows_digest": "b0536297bdec3e49204d98e4a52b4b43ea1467f7a32c2e184cf0bec07955fba4",
+          "generated_state_count": 864,
+          "negative_control_accept_count": 0,
+          "negative_control_count": 7,
+          "predecessor_transition_count": 2777
+        },
+        "report_ok": true,
+        "report_path": "generated/zenodex_ab_reserve_state_child_frontier_generation_20260629/report.json",
+        "report_schema": "zenodex.ab_reserve_state_child_frontier_generation_report.v1",
+        "report_sha256": "8314b3a97bcd95ac4dbcc95e7fbc284fffb070b821b702b7a1c89ba6dd3df500",
+        "script_path": "tools/check_ab_reserve_state_child_frontier_generation_20260629.py",
+        "script_sha256": "647cc897c552253268f868c7c43885f08c01fa266c4f4487410449318fd8033b",
+        "source_seed": "2026062907",
+        "stage_id": "generation"
+      },
+      {
+        "deterministic_hash": "f86d378183d5f81c1ebd5e9d04610dc35cb0343f95ae99ba2e2df127d76c5ab5",
+        "outputs": {
+          "child_mask_count": 508,
+          "child_state_count": 864,
+          "frontier_roots_digest": "42f3e7f10918fa3497183812cb316955c3382f4f3b4a4bb5309e47ec5855008b",
+          "membership_count": 864,
+          "membership_rows_digest": "84cdbf4ebc62d758655f2ad253e541d072a7158f4c75bd939be521d613c84559",
+          "negative_control_accept_count": 0,
+          "negative_control_count": 8
+        },
+        "report_ok": true,
+        "report_path": "generated/zenodex_ab_reserve_state_child_frontier_canonical_merkle_20260629/report.json",
+        "report_schema": "zenodex.ab_reserve_state_child_frontier_canonical_merkle_report.v1",
+        "report_sha256": "41b833a7bf618f09463a9d48d784d2b2629613baf49e5e192129411ee504d9e8",
+        "script_path": "tools/check_ab_reserve_state_child_frontier_canonical_merkle_20260629.py",
+        "script_sha256": "a6ae402e0dd8d6814c6e58005ee532cffcff92a893be80b22b02c42e89a606ad",
+        "source_seed": "2026062907",
+        "stage_id": "canonical_merkle"
+      },
+      {
+        "deterministic_hash": "b6ee02a7ebb46e71229b8e75f194d712d7874f77dfc6caa2096c9dcd8fde3a62",
+        "outputs": {
+          "child_mask_count": 508,
+          "covered_child_state_count": 864,
+          "negative_control_accept_count": 0,
+          "negative_control_count": 8,
+          "predecessor_transition_count": 2777,
+          "witness_count": 864,
+          "witness_rows_digest": "d689dd569b28abf3cb2636def322fa9d8185c2eb1fe4843bd83d07bce69138c3",
+          "witness_transition_checks_saved": 1913
+        },
+        "report_ok": true,
+        "report_path": "generated/zenodex_ab_reserve_state_child_frontier_witness_compression_20260629/report.json",
+        "report_schema": "zenodex.ab_reserve_state_child_frontier_witness_compression_report.v1",
+        "report_sha256": "07428c09a6418c8b2c3e808c16a25cba4afc1a7ee3e0b6ee3ebcaed0c62acca2",
+        "script_path": "tools/check_ab_reserve_state_child_frontier_witness_compression_20260629.py",
+        "script_sha256": "15d83d36de5369efc5d7882e43f8e5648742a08813534699363cb1421ec0c57a",
+        "source_seed": "2026062907",
+        "stage_id": "witness_compression"
+      },
+      {
+        "deterministic_hash": "9a94b98c560a2e191407a34e9fd1b3a7435cf2bb3cdd60c73227ece673031b31",
+        "outputs": {
+          "bound_row_count": 864,
+          "bound_rows_digest": "0996b976f70eeea56e4c828a9ff25abefdb8930b39896b4427291284e1e73551",
+          "child_mask_count": 508,
+          "membership_count": 864,
+          "negative_control_accept_count": 0,
+          "negative_control_count": 10,
+          "witness_count": 864
+        },
+        "report_ok": true,
+        "report_path": "generated/zenodex_ab_reserve_state_child_frontier_witness_merkle_20260629/report.json",
+        "report_schema": "zenodex.ab_reserve_state_child_frontier_witness_merkle_report.v1",
+        "report_sha256": "e983cd2a5ad794f20b4cd2dfea3665939504b87728d11e81e92e413be7222535",
+        "script_path": "tools/check_ab_reserve_state_child_frontier_witness_merkle_20260629.py",
+        "script_sha256": "c9e6695fb81b1b1c8056ddb6e4e223771da5218bfe2469df8ca17e8fa6410150",
+        "source_seed": "2026062907",
+        "stage_id": "witness_merkle_cross_binding"
+      },
+      {
+        "deterministic_hash": "b857b66aa96007bda748ae9489ee10f972248eaa30af25fd5ac7dffca73f4591",
+        "outputs": {
+          "case_count": 4,
+          "case_summaries_digest": "afd7706fd7ea10cee0df44d7578dabf44fc82a26d238f814d717c5fee3b5bc28",
+          "corpus_root": "8f4a1a08cf51215cdc9fd382dd2538cc199db35b87597aa9c468358925dfd3b0",
+          "covered_row_receipt_count": 864,
+          "negative_control_accept_count": 0,
+          "negative_control_count": 10,
+          "row_receipt_count": 864,
+          "row_receipts_digest": "d52f8c24411e841ae777999d6bfd3ec3fef5bb0a26cd98887f4e0a5902c0f092"
+        },
+        "report_ok": true,
+        "report_path": "generated/zenodex_ab_reserve_state_child_frontier_corpus_root_20260629/report.json",
+        "report_schema": "zenodex.ab_reserve_state_child_frontier_corpus_root_report.v1",
+        "report_sha256": "7a52744de74439132845deac7f9e618fb8108113ba0cae15a2f858698c8319fb",
+        "script_path": "tools/check_ab_reserve_state_child_frontier_corpus_root_20260629.py",
+        "script_sha256": "1a3d21c0e9def26ffbe7407da8f8b4825933fe550a1f235d0da3bf9436a32b80",
+        "source_seed": "2026062907",
+        "stage_id": "corpus_root"
+      }
+    ]
+  },
+  "negative_control_accept_count": 0,
+  "negative_control_count": 10,
+  "negative_controls": [
+    {
+      "accepted": false,
+      "expected_reason": "manifest_hash_mismatch",
+      "mutation_id": "manifest_hash_mismatch",
+      "reasons": [
+        "manifest_hash_mismatch"
+      ]
+    },
+    {
+      "accepted": false,
+      "expected_reason": "producer_stage_order_mismatch",
+      "mutation_id": "producer_stage_order_mismatch",
+      "reasons": [
+        "producer_stage_order_mismatch"
+      ]
+    },
+    {
+      "accepted": false,
+      "expected_reason": "stage_manifest_missing",
+      "mutation_id": "stage_manifest_missing",
+      "reasons": [
+        "stage_manifest_order_mismatch",
+        "stage_manifest_missing"
+      ]
+    },
+    {
+      "accepted": false,
+      "expected_reason": "generation_source_seed_mismatch",
+      "mutation_id": "source_seed_mismatch",
+      "reasons": [
+        "generation_source_seed_mismatch",
+        "canonical_merkle_source_seed_mismatch",
+        "witness_compression_source_seed_mismatch",
+        "witness_merkle_cross_binding_source_seed_mismatch",
+        "corpus_root_source_seed_mismatch",
+        "source_seed_mismatch"
+      ]
+    },
+    {
+      "accepted": false,
+      "expected_reason": "generation_script_hash_mismatch",
+      "mutation_id": "generation_script_hash_mismatch",
+      "reasons": [
+        "generation_script_hash_mismatch"
+      ]
+    },
+    {
+      "accepted": false,
+      "expected_reason": "generation_report_hash_mismatch",
+      "mutation_id": "generation_report_hash_mismatch",
+      "reasons": [
+        "generation_report_hash_mismatch"
+      ]
+    },
+    {
+      "accepted": false,
+      "expected_reason": "generation_output_digest_mismatch",
+      "mutation_id": "generation_output_digest_mismatch",
+      "reasons": [
+        "generation_output_digest_mismatch"
+      ]
+    },
+    {
+      "accepted": false,
+      "expected_reason": "canonical_merkle_output_digest_mismatch",
+      "mutation_id": "canonical_merkle_output_digest_mismatch",
+      "reasons": [
+        "canonical_merkle_output_digest_mismatch"
+      ]
+    },
+    {
+      "accepted": false,
+      "expected_reason": "corpus_root_output_digest_mismatch",
+      "mutation_id": "corpus_root_output_digest_mismatch",
+      "reasons": [
+        "corpus_root_output_digest_mismatch"
+      ]
+    },
+    {
+      "accepted": false,
+      "expected_reason": "authority_effect_present",
+      "mutation_id": "authority_effect_present",
+      "reasons": [
+        "authority_effect_present"
+      ]
+    }
+  ],
+  "non_claims": [
+    "This producer manifest is bounded to the committed n=7 zero-min child-frontier corpus.",
+    "This producer manifest does not prove Python-to-Lean refinement.",
+    "This producer manifest does not prove child-frontier generation in Lean.",
+    "This producer manifest does not cover nonzero min_amount_out behavior.",
+    "This producer manifest does not authorize settlement, routing, matching, governance, pool mutation, production deployment, or state roots."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_child_frontier_generated_image_producer_20260629.py",
+  "schema": "zenodex.ab_child_frontier_generated_image_producer_report.v1",
+  "stage_replay": {
+    "enabled": true,
+    "ok": true,
+    "stage_count": 5
+  },
+  "verification": {
+    "missing_stage_count": 0,
+    "ok": true,
+    "reasons": []
+  }
+}

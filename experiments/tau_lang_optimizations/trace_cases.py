@@ -21,6 +21,16 @@ class TauOptimizationTraceCase:
     rationale: str = ""
 
 
+def _sbf_step(width: int, *, zero_indices: set[int] | None = None) -> dict[str, int]:
+    zeros = zero_indices or set()
+    return {f"i{idx}": (0 if idx in zeros else 1) for idx in range(1, width + 1)}
+
+
+def _sbf_outputs(width: int, *, zero_indices: set[int] | None = None) -> dict[str, int]:
+    zeros = zero_indices or set()
+    return {f"o{idx}": (0 if idx in zeros else 1) for idx in range(1, width + 1)}
+
+
 def optimization_tau_trace_cases() -> list[TauOptimizationTraceCase]:
     return [
         TauOptimizationTraceCase(
@@ -254,6 +264,78 @@ def optimization_tau_trace_cases() -> list[TauOptimizationTraceCase]:
             expected=[{"o1": 0}],
             timeout_s=10.0,
             rationale="A price move of exactly 50 should fail because the guard is strict `< 0x32`.",
+        ),
+        TauOptimizationTraceCase(
+            case_id="settlement_admission_envelope_pass",
+            spec_path=EXPERIMENTS / "settlement_admission_envelope_v1.tau",
+            steps=[_sbf_step(24, zero_indices={2, 3, 4})],
+            expected=[_sbf_outputs(8)],
+            timeout_s=90.0,
+            rationale="One action is selected and every admission fiber passes.",
+        ),
+        TauOptimizationTraceCase(
+            case_id="settlement_admission_envelope_fail_two_actions",
+            spec_path=EXPERIMENTS / "settlement_admission_envelope_v1.tau",
+            steps=[_sbf_step(24, zero_indices={3, 4})],
+            expected=[_sbf_outputs(8, zero_indices={1, 8})],
+            timeout_s=90.0,
+            rationale="Two action flags are set, so the one-hot action fiber and final admission fail.",
+        ),
+        TauOptimizationTraceCase(
+            case_id="settlement_admission_envelope_fail_replay",
+            spec_path=EXPERIMENTS / "settlement_admission_envelope_v1.tau",
+            steps=[_sbf_step(24, zero_indices={2, 3, 4, 8})],
+            expected=[_sbf_outputs(8, zero_indices={2, 8})],
+            timeout_s=90.0,
+            rationale="Replay freshness fails, so identity/replay and final admission fail.",
+        ),
+        TauOptimizationTraceCase(
+            case_id="settlement_admission_envelope_fail_quote_and_risk",
+            spec_path=EXPERIMENTS / "settlement_admission_envelope_v1.tau",
+            steps=[_sbf_step(24, zero_indices={2, 3, 4, 13, 20})],
+            expected=[_sbf_outputs(8, zero_indices={4, 5, 8})],
+            timeout_s=90.0,
+            rationale="Quote receipt and risk-budget fibers fail independently before final admission fails.",
+        ),
+        TauOptimizationTraceCase(
+            case_id="settlement_admission_temporal_pass",
+            spec_path=EXPERIMENTS / "settlement_admission_envelope_temporal_v1.tau",
+            steps=[_sbf_step(32, zero_indices={2, 3, 4})],
+            expected=[_sbf_outputs(10)],
+            timeout_s=90.0,
+            rationale="Base admission, node progress, and governance/oracle fibers all pass.",
+        ),
+        TauOptimizationTraceCase(
+            case_id="settlement_admission_temporal_fail_chain_height",
+            spec_path=EXPERIMENTS / "settlement_admission_envelope_temporal_v1.tau",
+            steps=[_sbf_step(32, zero_indices={2, 3, 4, 26})],
+            expected=[_sbf_outputs(10, zero_indices={8, 10})],
+            timeout_s=90.0,
+            rationale="Chain-height monotonicity fails the node-progress fiber and final admission.",
+        ),
+        TauOptimizationTraceCase(
+            case_id="settlement_admission_temporal_fail_oracle_diversity",
+            spec_path=EXPERIMENTS / "settlement_admission_envelope_temporal_v1.tau",
+            steps=[_sbf_step(32, zero_indices={2, 3, 4, 30})],
+            expected=[_sbf_outputs(10, zero_indices={9, 10})],
+            timeout_s=90.0,
+            rationale="Oracle-source diversity fails the governance/oracle fiber and final admission.",
+        ),
+        TauOptimizationTraceCase(
+            case_id="settlement_admission_temporal_fail_pause",
+            spec_path=EXPERIMENTS / "settlement_admission_envelope_temporal_v1.tau",
+            steps=[_sbf_step(32, zero_indices={2, 3, 4, 9})],
+            expected=[_sbf_outputs(10, zero_indices={10})],
+            timeout_s=90.0,
+            rationale="A pause blocks final admission while preserving the diagnostic sub-fiber results.",
+        ),
+        TauOptimizationTraceCase(
+            case_id="settlement_admission_temporal_fail_two_actions",
+            spec_path=EXPERIMENTS / "settlement_admission_envelope_temporal_v1.tau",
+            steps=[_sbf_step(32, zero_indices={3, 4})],
+            expected=[_sbf_outputs(10, zero_indices={1, 10})],
+            timeout_s=90.0,
+            rationale="Two action flags fail the one-hot action fiber and final temporal admission.",
         ),
         TauOptimizationTraceCase(
             case_id="settlement_module_bundle_pass",

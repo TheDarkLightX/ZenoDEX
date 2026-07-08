@@ -16,6 +16,12 @@ if str(ROOT) not in sys.path:
 from src.core.dex import DexState
 from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.zeno_ledger_profile import sample_zeno_sovereign_testnet_profile_v0
+from src.integration.zeno_ledger_tokenomics import (
+    DEFAULT_PROTOCOL_TOKEN_SYMBOL,
+    build_protocol_token_distribution_v0,
+    load_role_pubkeys_from_key_bundle_v0,
+    validate_protocol_token_distribution_v0,
+)
 from src.integration.zeno_ledger_v0 import (
     BATCH_CUTOFF_SCHEMA_V0,
     BODY_SCHEMA_V0,
@@ -35,8 +41,11 @@ DEFAULT_CHAIN_ID = "zeno-ledger-testnet-0"
 DEFAULT_SEQUENCER_ID = "sequencer-testnet-0"
 DEFAULT_TIME_MS = 1_778_730_000_000
 DEFAULT_BOOTSTRAP_SENDER = "0x" + "aa" * 48
-DEFAULT_ASSET0 = "0x" + "11" * 32
-DEFAULT_ASSET1 = "0x" + "22" * 32
+DEFAULT_TAGRS_ASSET_ID = "0x" + "11" * 32
+DEFAULT_TZDEX_ASSET_ID = "0x" + "22" * 32
+DEFAULT_ASSET0 = DEFAULT_TAGRS_ASSET_ID
+DEFAULT_ASSET1 = DEFAULT_TZDEX_ASSET_ID
+DEFAULT_RELEASE_TESTNET_TOKEN_SYMBOL = "tZDEX"
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -331,10 +340,25 @@ def build_rejected_body_v0(
     )
 
 
-def build_genesis_snapshot_v0(*, sender_pubkey: str, asset0: str, asset1: str) -> dict[str, Any]:
+def build_genesis_snapshot_v0(
+    *,
+    sender_pubkey: str,
+    asset0: str,
+    asset1: str,
+    token_distribution: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     balances = BalanceTable()
     balances.set(sender_pubkey, min(asset0, asset1), 1_000_000_000)
     balances.set(sender_pubkey, max(asset0, asset1), 2_000_000_000)
+    if token_distribution is not None:
+        validate_protocol_token_distribution_v0(token_distribution)
+        token_asset_id = str(token_distribution["token_asset_id"])
+        for allocation in token_distribution["allocations"]:
+            balances.add(
+                str(allocation["recipient_pubkey"]),
+                token_asset_id,
+                int(allocation["amount"]),
+            )
     state = DexState(balances=balances, pools={}, lp_balances=LPTable())
     return snapshot_from_state(state).data
 
@@ -347,11 +371,22 @@ def build_testnet_bundle_v0(
     time_ms: int,
     token_symbol: str,
     proof_required: bool,
+    token_distribution_role_pubkeys: dict[str, str] | None = None,
 ) -> dict[str, Any]:
+    if proof_required:
+        raise ValueError("proof_required_bundle_requires_verifier_report_generation")
+
     config_digest = _root("config", {"chain_id": chain_id, "profile": "sovereign_testnet_v0"})
     sequencer_set_hash = _root("sequencer_set", {"sequencer_id": sequencer_id})
     module_versions_digest = _root("module_versions", {"schema": "zeno_ledger_v0"})
     token_asset_id = _root("token_asset", {"chain_id": chain_id, "symbol": token_symbol})
+    token_distribution = build_protocol_token_distribution_v0(
+        chain_id=chain_id,
+        token_symbol=token_symbol,
+        token_asset_id=token_asset_id,
+        role_pubkeys=token_distribution_role_pubkeys,
+        fallback_pubkey=DEFAULT_BOOTSTRAP_SENDER,
+    )
 
     profile = sample_zeno_sovereign_testnet_profile_v0(
         chain_id=chain_id,
@@ -365,6 +400,7 @@ def build_testnet_bundle_v0(
         sender_pubkey=DEFAULT_BOOTSTRAP_SENDER,
         asset0=DEFAULT_ASSET0,
         asset1=DEFAULT_ASSET1,
+        token_distribution=token_distribution,
     )
     body1 = build_create_pool_body_v0(
         chain_id=chain_id,
@@ -411,6 +447,7 @@ def build_testnet_bundle_v0(
 
     profile_path = out_dir / "profile.json"
     genesis_path = out_dir / "genesis_snapshot.json"
+    token_distribution_path = out_dir / "token_distribution.json"
     body1_path = out_dir / "bodies" / "1_create_pool.json"
     body2_path = out_dir / "bodies" / "2_swap.json"
     body3_path = out_dir / "bodies" / "3_add_liquidity.json"
@@ -527,6 +564,9 @@ def build_testnet_bundle_v0(
         "module_versions_digest": module_versions_digest,
         "sequencer_set_hash": sequencer_set_hash,
         "token_asset_id": token_asset_id,
+        "token_symbol": token_symbol,
+        "token_distribution_path": _rel(out_dir, token_distribution_path),
+        "token_distribution_hash": token_distribution["distribution_hash"],
         "profile_path": _rel(out_dir, profile_path),
         "genesis_snapshot_path": _rel(out_dir, genesis_path),
         "body_paths": [
@@ -549,6 +589,7 @@ def build_testnet_bundle_v0(
 
     _write_json(profile_path, profile)
     _write_json(genesis_path, genesis)
+    _write_json(token_distribution_path, token_distribution)
     _write_json(body1_path, body1)
     _write_json(body2_path, body2)
     _write_json(body3_path, body3)
@@ -570,8 +611,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--chain-id", default=DEFAULT_CHAIN_ID)
     parser.add_argument("--sequencer-id", default=DEFAULT_SEQUENCER_ID)
     parser.add_argument("--time-ms", type=int, default=DEFAULT_TIME_MS)
-    parser.add_argument("--token-symbol", default="tZENO")
+    parser.add_argument("--token-symbol", default=DEFAULT_PROTOCOL_TOKEN_SYMBOL)
     parser.add_argument("--proof-required", action="store_true")
+    parser.add_argument("--fixture-key-bundle", type=Path)
     args = parser.parse_args(argv)
 
     try:
@@ -582,6 +624,7 @@ def main(argv: list[str] | None = None) -> int:
             time_ms=args.time_ms,
             token_symbol=args.token_symbol,
             proof_required=bool(args.proof_required),
+            token_distribution_role_pubkeys=load_role_pubkeys_from_key_bundle_v0(args.fixture_key_bundle),
         )
     except Exception as exc:
         report = {

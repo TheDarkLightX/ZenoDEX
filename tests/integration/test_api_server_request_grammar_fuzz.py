@@ -7,7 +7,6 @@ from pathlib import Path
 
 from tools.api_server_request_grammar_fuzz import explore_all_targets, explore_target, minimize_case
 
-
 ROOT_DIR = Path(__file__).resolve().parents[2]
 
 
@@ -69,13 +68,14 @@ def test_api_server_request_grammar_fuzz_dex_request_envelope_discovers_stable_p
     labels = _labels(report)
     derivations = _derivations(report)
     assert report.total_cases == 16
-    assert report.unique_outcome_count == 9
+    assert report.unique_outcome_count == 10
     assert report.unique_path_count == 16
     assert "pass:false" in labels
     assert "handled:200:ok" in labels
     assert "handled:400:bad_json" in labels
     assert "handled:400:bad_body" in labels
     assert "handled:400:missing_body" in labels
+    assert "handled:400:bad_amount_in" in labels
     assert "handled:400:impact_preview_error" in labels
     assert "handled:401:unauthorized" in labels
     assert "handled:405:method_not_allowed" in labels
@@ -126,7 +126,7 @@ def test_api_server_request_grammar_fuzz_cli_emits_expected_schema() -> None:
 def test_api_server_request_minimizer_collapses_unauthorized_dead_fields() -> None:
     witness = minimize_case("dex_request_envelope", "DexReq->UnauthorizedWithDeadFields")
     assert witness.outcome_label == "handled:401:unauthorized"
-    assert witness.path_id == "8d3661cc0d8d784c"
+    assert witness.path_id == "5e8fc70d924d6b69"
     assert witness.original_size > witness.minimized_size
     assert witness.payload == {"token": "sekret"}
 
@@ -151,6 +151,6 @@ def test_api_server_request_minimizer_cli_emits_expected_schema() -> None:
     assert witness["target"] == "dex_request_envelope"
     assert witness["derivation"] == "DexReq->UnauthorizedWithDeadFields"
     assert witness["outcome_label"] == "handled:401:unauthorized"
-    assert witness["path_id"] == "8d3661cc0d8d784c"
+    assert witness["path_id"] == "5e8fc70d924d6b69"
     assert witness["payload"] == {"token": "sekret"}
     assert witness["original_size"] > witness["minimized_size"]

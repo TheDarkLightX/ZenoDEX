@@ -1,0 +1,44 @@
+{
+  "schema": "zenodex.ab_strict_zero_min_range_step_transfer_lean_report.v1",
+  "date": "2026-06-29",
+  "ok": true,
+  "branch": "cpss-bc-research-codex-grade-a",
+  "base_commit": "41e25a4a",
+  "authority_boundary": "Research-only formal proof component; no settlement, state-root, production, routing, matching, or governance authority.",
+  "new_lean_theorems": [
+    "reachablePrunedStepPath_to_reachablePrunedRangeMask",
+    "reachablePrunedRangeStepPathInFamily_to_reachablePrunedFullMaskInFamily",
+    "reachablePrunedRangeStepPathListInFamily_to_reachablePrunedFullMaskListInFamily",
+    "rangeStepPathWinnerCertificate_to_compressedWinnerCertificate"
+  ],
+  "proof_role": "Transfer recursive range-step path certificates into the earlier range-mask and compressed-winner certificate surfaces without changing winner, children, mask family, suffix, or economic parameters.",
+  "verification": {
+    "lake_env_lean": {
+      "command": "cd lean-mathlib && lake env lean Proofs/ABStrictZeroMinMonotone.lean",
+      "status": "pass"
+    },
+    "focused_pytest": {
+      "command": "pytest -q tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+      "status": "pass",
+      "summary": "1 passed in 11.94s"
+    },
+    "placeholder_scan": {
+      "command": "python3 ~/.codex/skills/proof-engineering/scripts/scan_proof_placeholders.py lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+      "status": "pass",
+      "summary": "No proof placeholders found."
+    }
+  },
+  "artifact_hashes": {
+    "lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean": "f885fab2d2e40abb67f82b804f8e33fd02e49cc740c69585c0a3086faeb5420f",
+    "tests/formal/test_lean_ab_strict_zero_min_monotone.py": "49f34abd1e33c94ce74d4268fee50a950a2b43cc14813fc0f08c176659f5ff40"
+  },
+  "non_claims": [
+    "This proof does not construct a subset DP table.",
+    "This proof does not prove Python-to-Lean refinement.",
+    "This proof does not prove JSON canonicalization or packet-hash computation in Lean.",
+    "This proof does not define canonical tie order or preserve order-id history.",
+    "This proof is restricted to the abstract strict executable same-pool, same-direction, exact-in, zero-min proof surface already modeled in ABStrictZeroMinMonotone.lean.",
+    "This proof does not cover nonzero min_amount_out behavior.",
+    "This proof has no settlement, state-root, production, routing, matching, or governance authority."
+  ]
+}

@@ -10,6 +10,7 @@ const COMMON_INTENT_KEYS = new Set([
   'deadline',
   'salt',
   'fields',
+  'quote_receipt',
 ]);
 
 function bytesToHex(bytes) {
@@ -85,6 +86,14 @@ function divFloor(a, b) {
     throw new Error('division_by_zero');
   }
   return a / b;
+}
+
+function bpsMulFloor(value, bps, name) {
+  return toSafeNumber((BigInt(value) * BigInt(bps)) / 10_000n, name);
+}
+
+function bpsMulCeil(value, bps, name) {
+  return toSafeNumber((BigInt(value) * BigInt(bps) + 9_999n) / 10_000n, name);
 }
 
 async function getBls() {
@@ -393,6 +402,57 @@ export async function buildAndSignLiquidityIntent({
   };
 }
 
+const NONCE_U32_MAX = 0xFFFFFFFF;
+
+function pyGetShadow(obj, key, fallback) {
+  if (Object.prototype.hasOwnProperty.call(obj, key)) {
+    return obj[key];
+  }
+  return fallback;
+}
+
+function swapModeMarker(payload) {
+  const modeRaw = pyGetShadow(payload, 'mode', payload.kind);
+  if (typeof modeRaw === 'string') {
+    const mode = modeRaw.trim().toLowerCase().replace(/-/g, '_');
+    if (mode === 'swap_exact_out' || mode === 'exact_out' || mode === 'out') {
+      return 'out';
+    }
+    if (mode === 'swap_exact_in' || mode === 'exact_in' || mode === 'in') {
+      return 'in';
+    }
+  }
+  return null;
+}
+
+export function isSwapExactOutPayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+  const marker = swapModeMarker(payload);
+  if (marker === 'out') {
+    return true;
+  }
+  if (marker === 'in') {
+    return false;
+  }
+  return payload.amountOut != null || payload.amount_out != null
+    || payload.maxAmountIn != null || payload.max_amount_in != null;
+}
+
+function requireUnambiguousSwapPayload(payload) {
+  const inPresent = payload.amountIn != null || payload.amount_in != null
+    || payload.minAmountOut != null || payload.min_amount_out != null;
+  const outPresent = payload.amountOut != null || payload.amount_out != null
+    || payload.maxAmountIn != null || payload.max_amount_in != null;
+  const marker = swapModeMarker(payload);
+  const markerOut = marker === 'out';
+  const markerIn = marker === 'in';
+  if ((inPresent && outPresent) || (markerOut && inPresent) || (markerIn && outPresent)) {
+    throw new Error('ambiguous_swap_intent_specify_exact_in_or_exact_out_not_both');
+  }
+}
+
 export async function buildAndSignSwapIntent({
   pool,
   payload,
@@ -403,13 +463,15 @@ export async function buildAndSignSwapIntent({
   if (!pool || typeof pool !== 'object' || Array.isArray(pool)) {
     throw new Error('pool_must_be_object');
   }
+  requireUnambiguousSwapPayload(payload);
   const sender = String(payload.senderPubkey || payload.sender_pubkey || '').trim();
   const recipient = String(payload.recipient || sender).trim();
   const poolId = String(payload.poolId || payload.pool_id || pool.poolId || pool.pool_id || '').trim();
   const deadline = asInt(payload.deadline ?? 1_999_999_999, 'deadline');
   const nonce = asInt(payload.nonce, 'nonce');
-  const amountIn = asInt(payload.amountIn ?? payload.amount_in, 'amount_in');
-  const minAmountOut = asInt(payload.minAmountOut ?? payload.min_amount_out ?? 1, 'min_amount_out');
+  if (nonce > NONCE_U32_MAX) {
+    throw new Error('nonce_must_fit_u32');
+  }
   const rawAssetIn = payload.assetIn ?? payload.asset_in;
   const rawAssetOut = payload.assetOut ?? payload.asset_out;
   const assetIn = canonicalAssetId(rawAssetIn, 'asset_in');
@@ -417,20 +479,33 @@ export async function buildAndSignSwapIntent({
   if (assetIn === assetOut) {
     throw new Error('swap_assets_must_differ');
   }
+  const exactOut = isSwapExactOutPayload(payload);
+  let amountFields;
+  let kind;
+  if (exactOut) {
+    const amountOut = asInt(payload.amountOut ?? payload.amount_out, 'amount_out');
+    const maxAmountIn = asInt(payload.maxAmountIn ?? payload.max_amount_in, 'max_amount_in');
+    amountFields = { amount_out: amountOut, max_amount_in: maxAmountIn };
+    kind = 'SWAP_EXACT_OUT';
+  } else {
+    const amountIn = asInt(payload.amountIn ?? payload.amount_in, 'amount_in');
+    const minAmountOut = asInt(payload.minAmountOut ?? payload.min_amount_out ?? 1, 'min_amount_out');
+    amountFields = { amount_in: amountIn, min_amount_out: minAmountOut };
+    kind = 'SWAP_EXACT_IN';
+  }
   const intentPayload = {
     sender_pubkey: sender,
     recipient,
     pool_id: poolId,
     asset_in: assetIn,
     asset_out: assetOut,
-    amount_in: amountIn,
-    min_amount_out: minAmountOut,
+    ...amountFields,
     nonce,
   };
   const operation = {
     module: 'TauSwap',
     version: '0.1',
-    kind: 'SWAP_EXACT_IN',
+    kind,
     intent_id: await hashV0('ui_swap_intent_v0', intentPayload),
     sender_pubkey: sender,
     deadline,
@@ -438,13 +513,205 @@ export async function buildAndSignSwapIntent({
     pool_id: poolId,
     asset_in: assetIn,
     asset_out: assetOut,
-    amount_in: amountIn,
-    min_amount_out: minAmountOut,
+    ...amountFields,
     recipient,
   };
   return {
     intent: operation,
     signature: await signDexIntentWithAvailableSigner(operation, { privkey, chainId, signDexIntent }),
+  };
+}
+
+export async function buildAndSignRouteIntent({
+  payload,
+  privkey,
+  signDexIntent,
+  chainId = 'zeno-ledger-localtest-v0',
+}) {
+  const sender = String(payload.senderPubkey || payload.sender_pubkey || '').trim();
+  const recipient = String(payload.recipient || sender).trim();
+  const deadline = asInt(payload.deadline ?? 1_999_999_999, 'deadline');
+  const nonceStart = asInt(payload.nonce ?? payload.nonceStart ?? payload.nonce_start, 'nonce');
+  if (nonceStart > NONCE_U32_MAX) {
+    throw new Error('nonce_must_fit_u32');
+  }
+  const quoteReceipt = payload.quoteReceipt || payload.quote_receipt;
+  if (!quoteReceipt || typeof quoteReceipt !== 'object') {
+    throw new Error('quote_receipt_required');
+  }
+  const receiptBody = quoteReceipt.body;
+  if (!receiptBody || typeof receiptBody !== 'object') {
+    throw new Error('quote_receipt_body_required');
+  }
+  const receiptKind = String(receiptBody.kind || '').trim().toLowerCase();
+  if (receiptKind !== 'exact_in' && receiptKind !== 'exact_out') {
+    throw new Error('quote_receipt_kind_must_be_exact_in_or_exact_out');
+  }
+  const kindMarker = String(payload.kind || payload.routeKind || payload.mode || '').trim().toLowerCase().replace(/-/g, '_');
+  if (kindMarker && kindMarker !== receiptKind
+    && !(kindMarker === 'route_exact_in' && receiptKind === 'exact_in')
+    && !(kindMarker === 'route_exact_out' && receiptKind === 'exact_out')) {
+    throw new Error('route_kind_mismatch');
+  }
+  const assetIn = canonicalAssetId(receiptBody.asset_in, 'asset_in');
+  const assetOut = canonicalAssetId(receiptBody.asset_out, 'asset_out');
+  if (assetIn === assetOut) {
+    throw new Error('swap_assets_must_differ');
+  }
+  const legs = receiptBody.legs;
+  if (!Array.isArray(legs) || legs.length === 0) {
+    throw new Error('quote_receipt_legs_required');
+  }
+  const hopRows = [];
+  for (const [legIndex, leg] of legs.entries()) {
+    if (!Array.isArray(leg.hops) || leg.hops.length !== 1) {
+      throw new Error('route_multihop_unsupported');
+    }
+    const hop = leg.hops[0];
+    if (!hop || typeof hop !== 'object') {
+      throw new Error('quote_receipt_hop_required');
+    }
+    hopRows.push([legIndex, hop]);
+  }
+  const expectedLegIndices = Array.from({ length: legs.length }, (_, i) => i);
+  const rawLegIndices = payload.legIndices ?? payload.leg_indices;
+  if (rawLegIndices != null) {
+    if (!Array.isArray(rawLegIndices) || rawLegIndices.length !== expectedLegIndices.length
+      || !rawLegIndices.every((v, i) => v === i)) {
+      throw new Error('leg_indices_must_cover_full_receipt');
+    }
+  }
+  const legIndices = expectedLegIndices;
+  const canonicalReceiptHash = String(quoteReceipt.receipt_hash || '').trim();
+  if (!canonicalReceiptHash) {
+    throw new Error('quote_receipt_hash_required');
+  }
+  const receiptPools = receiptBody.pools;
+  if (!receiptPools || typeof receiptPools !== 'object' || Array.isArray(receiptPools)) {
+    throw new Error('quote_receipt_pools_required');
+  }
+  const bodyAmountIn = asInt(receiptBody.amount_in, 'amount_in');
+  const bodyAmountOut = asInt(receiptBody.amount_out, 'amount_out');
+  const slippageBps = asInt(payload.slippageBps ?? payload.slippage_bps ?? 0, 'slippage_bps');
+  if (slippageBps > 10_000) {
+    throw new Error('slippage_bps_must_be_at_most_10000');
+  }
+  if (nonceStart + hopRows.length - 1 > NONCE_U32_MAX) {
+    throw new Error('nonce_range_overflow');
+  }
+  if (receiptKind === 'exact_in') {
+    const totalAmountIn = asInt(payload.totalAmountIn ?? payload.total_amount_in ?? bodyAmountIn, 'total_amount_in');
+    const totalMinAmountOut = asInt(payload.totalMinAmountOut ?? payload.total_min_amount_out ?? bodyAmountOut, 'total_min_amount_out');
+    if (totalAmountIn !== bodyAmountIn) {
+      throw new Error('total_amount_in_must_match_receipt');
+    }
+    if (totalMinAmountOut > bodyAmountOut) {
+      throw new Error('total_min_amount_out_exceeds_receipt');
+    }
+  } else {
+    const totalAmountOut = asInt(payload.totalAmountOut ?? payload.total_amount_out ?? bodyAmountOut, 'total_amount_out');
+    const totalMaxAmountIn = asInt(payload.totalMaxAmountIn ?? payload.total_max_amount_in ?? bodyAmountIn, 'total_max_amount_in');
+    if (totalAmountOut !== bodyAmountOut) {
+      throw new Error('total_amount_out_must_match_receipt');
+    }
+    if (totalMaxAmountIn < bodyAmountIn) {
+      throw new Error('total_max_amount_in_below_receipt');
+    }
+  }
+
+  hopRows.sort((a, b) => {
+    const poolA = String(a[1].pool_id || '');
+    const poolB = String(b[1].pool_id || '');
+    return poolA.localeCompare(poolB) || a[0] - b[0];
+  });
+
+  const signedIntents = [];
+  for (const [orderIndex, [legIndex, hop]] of hopRows.entries()) {
+    const poolId = String(hop.pool_id || '').trim();
+    const hopAssetIn = canonicalAssetId(hop.asset_in, `legs.${legIndex}.asset_in`);
+    const hopAssetOut = canonicalAssetId(hop.asset_out, `legs.${legIndex}.asset_out`);
+    if (!poolId || hopAssetIn !== assetIn || hopAssetOut !== assetOut) {
+      throw new Error('unsupported_mixed_route_leg');
+    }
+    const quotePoolFingerprint = String(receiptPools[poolId] || '').trim();
+    if (!quotePoolFingerprint) {
+      throw new Error('quote_pool_fingerprint_required');
+    }
+    const legNonce = nonceStart + orderIndex;
+    const commonFields = {
+      pool_id: poolId,
+      asset_in: hopAssetIn,
+      asset_out: hopAssetOut,
+      recipient,
+      quote_receipt_hash: canonicalReceiptHash,
+      quote_pool_fingerprint: quotePoolFingerprint,
+      quote_receipt_leg_index: legIndex,
+      nonce: legNonce,
+    };
+    let kind;
+    let amountFields;
+    if (receiptKind === 'exact_in') {
+      const amountIn = asInt(hop.amount_in, `legs.${legIndex}.amount_in`);
+      const quotedAmountOut = asInt(hop.amount_out, `legs.${legIndex}.amount_out`);
+      if (amountIn <= 0 || quotedAmountOut <= 0) {
+        throw new Error('invalid_quote_receipt_amounts');
+      }
+      const minAmountOut = bpsMulFloor(
+        quotedAmountOut,
+        10_000 - slippageBps,
+        `legs.${legIndex}.min_amount_out`,
+      );
+      kind = 'SWAP_EXACT_IN';
+      amountFields = {
+        amount_in: amountIn,
+        min_amount_out: minAmountOut,
+      };
+    } else {
+      const quotedAmountIn = asInt(hop.amount_in, `legs.${legIndex}.amount_in`);
+      const amountOut = asInt(hop.amount_out, `legs.${legIndex}.amount_out`);
+      if (quotedAmountIn <= 0 || amountOut <= 0) {
+        throw new Error('invalid_quote_receipt_amounts');
+      }
+      const maxAmountIn = bpsMulCeil(
+        quotedAmountIn,
+        10_000 + slippageBps,
+        `legs.${legIndex}.max_amount_in`,
+      );
+      kind = 'SWAP_EXACT_OUT';
+      amountFields = {
+        amount_out: amountOut,
+        max_amount_in: maxAmountIn,
+      };
+    }
+    const intentPayload = {
+      sender_pubkey: sender,
+      ...commonFields,
+      ...amountFields,
+    };
+    const operation = {
+      module: 'TauSwap',
+      version: '0.1',
+      kind,
+      intent_id: await hashV0('ui_route_leg_intent_v0', intentPayload),
+      sender_pubkey: sender,
+      deadline,
+      ...commonFields,
+      ...amountFields,
+      quote_receipt: quoteReceipt,
+    };
+    signedIntents.push({
+      intent: operation,
+      signature: await signDexIntentWithAvailableSigner(operation, { privkey, chainId, signDexIntent }),
+    });
+  }
+  const first = signedIntents[0];
+  return {
+    intent: first.intent,
+    signature: first.signature,
+    intents: signedIntents.map((entry) => entry.intent),
+    signatures: signedIntents.map((entry) => entry.signature),
+    signedIntents,
+    leg_indices: legIndices,
   };
 }
 

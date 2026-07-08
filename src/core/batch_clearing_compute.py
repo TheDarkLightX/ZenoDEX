@@ -50,6 +50,7 @@ class _SettlementPolicy:
     swap_ordering: str
     protocol_fee_share_bps: int
     protocol_fee_recipient_pubkey: Optional[PubKey]
+    swap_tiebreak_seed: bytes | None = None
 
 
 @dataclass(frozen=True)
@@ -225,6 +226,7 @@ def _process_pool_intent_phase(
             swap_ordering=policy.swap_ordering,
             protocol_fee_share_bps=policy.protocol_fee_share_bps,
             protocol_fee_recipient_pubkey=policy.protocol_fee_recipient_pubkey,
+            swap_tiebreak_seed=policy.swap_tiebreak_seed,
         )
 
         for fill in fills:

@@ -5,6 +5,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+from src.core.frontier_signature_root import FRONTIER_SIGNATURE_CERTIFICATES_EMPTY_ROOT_V1
+from src.core.risc0_tx_execution_order import (
+    build_tx_execution_order_certificate_v1,
+    tx_execution_order_commitment_hex_v1,
+)
 from src.integration.proof_toolchain_lock import proof_toolchain_lock_hash_v0
 from src.integration.zeno_ledger_v0 import (
     BATCH_CUTOFF_SCHEMA_V0,
@@ -20,11 +27,14 @@ from src.integration.zeno_ledger_v0 import (
     compute_ingress_root_v0,
     compute_tx_root_v0,
     hash_v0,
+    proof_metadata_hash_v0,
     validate_proof_metadata_header_binding_v0,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
 ADAPTER_SCRIPT = ROOT / "tools" / "zeno_ledger_risc0_proof_metadata.py"
+TX_ORDER_ABI_CORPUS_PATH = ROOT / "tests" / "fixtures" / "risc0_tx_execution_order_abi_v1.json"
+ORDER_COMMITMENT_RECEIPT_SCHEMA = "zenodex/zeno_ledger/risc0_tx_execution_order_commitment/v0"
 
 
 def _root(label: str) -> str:
@@ -33,6 +43,13 @@ def _root(label: str) -> str:
 
 def _hex(label: str) -> str:
     return _root(label)[2:]
+
+
+def _tx_order_abi_positive_cases() -> list[dict[str, object]]:
+    corpus = json.loads(TX_ORDER_ABI_CORPUS_PATH.read_text(encoding="utf-8"))
+    positive_cases = corpus["positive_cases"]
+    assert isinstance(positive_cases, list)
+    return positive_cases
 
 
 def _body(height: int) -> dict[str, object]:
@@ -106,6 +123,27 @@ def _body(height: int) -> dict[str, object]:
     }
 
 
+def _body_with_order_commitment(
+    height: int,
+    *,
+    tx_execution_order_commitment: str,
+    proof_type: str = "risc0.zenodex_spot_transition.v1",
+) -> dict[str, object]:
+    body = _body(height)
+    evidence = dict(body["evidence"])  # type: ignore[arg-type]
+    proof_receipts = list(evidence["proof_receipts"])  # type: ignore[index]
+    proof_receipts.append(
+        {
+            "schema": ORDER_COMMITMENT_RECEIPT_SCHEMA,
+            "proof_type": proof_type,
+            "tx_execution_order_commitment": tx_execution_order_commitment,
+        }
+    )
+    evidence["proof_receipts"] = proof_receipts
+    body["evidence"] = evidence
+    return body
+
+
 def _header(
     body: dict[str, object],
     *,
@@ -149,23 +187,39 @@ def _header(
     )
 
 
-def _proof(*, post_app_hash: str, proof_type: str = "risc0.zenodex_spot_transition.v1") -> dict[str, object]:
+def _proof(
+    *,
+    post_app_hash: str,
+    proof_type: str = "risc0.zenodex_spot_transition.v1",
+    tx_execution_order_commitment: str | None = None,
+    frontier_count: int | None = None,
+    frontier_root: str | None = None,
+) -> dict[str, object]:
+    meta: dict[str, object] = {
+        "risc0_image_id": _hex("risc0-image-id"),
+        "txs_commitment": _hex("txs-commitment"),
+        "tx_execution_order_commitment": tx_execution_order_commitment
+        or tx_execution_order_commitment_hex_v1([0]),
+        "ingress_commitment": _hex("ingress-commitment"),
+        "pre_nonce_root": _hex("pre-nonce-root"),
+        "post_nonce_root": _hex("post-nonce-root"),
+        "accepted_receipts_root": _hex("accepted-receipts-root"),
+        "pre_app_hash": "",
+        "post_app_hash": post_app_hash,
+        "protocol_fee_share_bps": 0,
+        "protocol_fee_recipient_pubkey": None,
+    }
+    if frontier_count is not None:
+        meta["shared_pool_frontier_signature_certificate_count"] = frontier_count
+    if frontier_root is not None:
+        meta["shared_pool_frontier_signature_certificates_root"] = frontier_root
     return {
         "schema": "tau_state_proof",
         "schema_version": 1,
         "state_hash": _hex("tau-state-hash"),
         "proof_type": proof_type,
         "proof": "cmlzYzAtcmVjZWlwdA==",
-        "meta": {
-            "risc0_image_id": _hex("risc0-image-id"),
-            "txs_commitment": _hex("txs-commitment"),
-            "ingress_commitment": _hex("ingress-commitment"),
-            "pre_nonce_root": _hex("pre-nonce-root"),
-            "post_nonce_root": _hex("post-nonce-root"),
-            "accepted_receipts_root": _hex("accepted-receipts-root"),
-            "pre_app_hash": "",
-            "post_app_hash": post_app_hash,
-        },
+        "meta": meta,
     }
 
 
@@ -429,6 +483,446 @@ def test_risc0_adapter_binds_pre_app_hash_presence_bit(tmp_path: Path) -> None:
     metadata_with_pre = json.loads(with_pre_metadata_path.read_text(encoding="utf-8"))
     assert metadata_no_pre["public_input_hash"] != metadata_with_pre["public_input_hash"]
     assert metadata_no_pre["journal_hash"] != metadata_with_pre["journal_hash"]
+
+
+def test_risc0_adapter_binds_order_and_protocol_fee_meta(tmp_path: Path) -> None:
+    body = _body(1)
+    header = _header(body)
+    base_proof = _proof(post_app_hash=str(header["app_hash"])[2:])
+    order_proof = json.loads(json.dumps(base_proof))
+    order_proof["meta"]["tx_execution_order_commitment"] = _hex("different-tx-order")
+    fee_proof = json.loads(json.dumps(base_proof))
+    fee_proof["meta"]["protocol_fee_share_bps"] = 2500
+    fee_proof["meta"]["protocol_fee_recipient_pubkey"] = "0xfee-recipient"
+
+    body_path = tmp_path / "body.json"
+    header_path = tmp_path / "header.json"
+    base_path = tmp_path / "proof_base.json"
+    order_path = tmp_path / "proof_order.json"
+    fee_path = tmp_path / "proof_fee.json"
+    base_metadata_path = tmp_path / "metadata_base.json"
+    order_metadata_path = tmp_path / "metadata_order.json"
+    fee_metadata_path = tmp_path / "metadata_fee.json"
+    _write_json(body_path, body)
+    _write_json(header_path, header)
+    _write_json(base_path, base_proof)
+    _write_json(order_path, order_proof)
+    _write_json(fee_path, fee_proof)
+
+    common_args = (
+        "--header",
+        str(header_path),
+        "--body",
+        str(body_path),
+        "--conflict-schedule-hash",
+        _root("schedule"),
+        "--feature-suite-hash",
+        _root("feature-suite"),
+        "--dependency-lock-hash",
+        _root("dependency-lock"),
+        "--toolchain-lock-hash",
+        _root("toolchain-lock"),
+        "--require-post-app-hash-header-app-hash",
+    )
+    base = _run_adapter("--proof", str(base_path), "--out", str(base_metadata_path), *common_args)
+    order = _run_adapter("--proof", str(order_path), "--out", str(order_metadata_path), *common_args)
+    fee = _run_adapter("--proof", str(fee_path), "--out", str(fee_metadata_path), *common_args)
+    assert base.returncode == 0, base.stderr or base.stdout
+    assert order.returncode == 0, order.stderr or order.stdout
+    assert fee.returncode == 0, fee.stderr or fee.stdout
+
+    base_metadata = json.loads(base_metadata_path.read_text(encoding="utf-8"))
+    order_metadata = json.loads(order_metadata_path.read_text(encoding="utf-8"))
+    fee_metadata = json.loads(fee_metadata_path.read_text(encoding="utf-8"))
+    assert base_metadata["public_input_hash"] != order_metadata["public_input_hash"]
+    assert base_metadata["journal_hash"] != order_metadata["journal_hash"]
+    assert base_metadata["public_input_hash"] != fee_metadata["public_input_hash"]
+    assert base_metadata["journal_hash"] != fee_metadata["journal_hash"]
+
+
+def test_risc0_adapter_binds_frontier_signature_meta(tmp_path: Path) -> None:
+    body = _body(1)
+    header = _header(body)
+    base_proof = _proof(post_app_hash=str(header["app_hash"])[2:])
+    frontier_a = _proof(
+        post_app_hash=str(header["app_hash"])[2:],
+        frontier_count=1,
+        frontier_root="0x" + "aa" * 32,
+    )
+    frontier_b = _proof(
+        post_app_hash=str(header["app_hash"])[2:],
+        frontier_count=1,
+        frontier_root="0x" + "bb" * 32,
+    )
+
+    body_path = tmp_path / "body.json"
+    header_path = tmp_path / "header.json"
+    base_path = tmp_path / "proof_base.json"
+    frontier_a_path = tmp_path / "proof_frontier_a.json"
+    frontier_b_path = tmp_path / "proof_frontier_b.json"
+    base_metadata_path = tmp_path / "metadata_base.json"
+    frontier_a_metadata_path = tmp_path / "metadata_frontier_a.json"
+    frontier_b_metadata_path = tmp_path / "metadata_frontier_b.json"
+    _write_json(body_path, body)
+    _write_json(header_path, header)
+    _write_json(base_path, base_proof)
+    _write_json(frontier_a_path, frontier_a)
+    _write_json(frontier_b_path, frontier_b)
+
+    common_args = (
+        "--header",
+        str(header_path),
+        "--body",
+        str(body_path),
+        "--conflict-schedule-hash",
+        _root("schedule"),
+        "--feature-suite-hash",
+        _root("feature-suite"),
+        "--dependency-lock-hash",
+        _root("dependency-lock"),
+        "--toolchain-lock-hash",
+        _root("toolchain-lock"),
+        "--require-post-app-hash-header-app-hash",
+    )
+    base = _run_adapter("--proof", str(base_path), "--out", str(base_metadata_path), *common_args)
+    a = _run_adapter("--proof", str(frontier_a_path), "--out", str(frontier_a_metadata_path), *common_args)
+    b = _run_adapter("--proof", str(frontier_b_path), "--out", str(frontier_b_metadata_path), *common_args)
+    assert base.returncode == 0, base.stderr or base.stdout
+    assert a.returncode == 0, a.stderr or a.stdout
+    assert b.returncode == 0, b.stderr or b.stdout
+
+    base_metadata = json.loads(base_metadata_path.read_text(encoding="utf-8"))
+    a_metadata = json.loads(frontier_a_metadata_path.read_text(encoding="utf-8"))
+    b_metadata = json.loads(frontier_b_metadata_path.read_text(encoding="utf-8"))
+
+    assert base_metadata["public_input_hash"] != a_metadata["public_input_hash"]
+    assert a_metadata["public_input_hash"] != b_metadata["public_input_hash"]
+    assert base_metadata["journal_hash"] != a_metadata["journal_hash"]
+    assert a_metadata["journal_hash"] != b_metadata["journal_hash"]
+    assert proof_metadata_hash_v0(a_metadata) != proof_metadata_hash_v0(b_metadata)
+    a_bound_header = _header(body, proof_journal_hash=proof_metadata_hash_v0(a_metadata))
+    with pytest.raises(ValueError, match="proof_journal_hash mismatch"):
+        validate_proof_metadata_header_binding_v0(b_metadata, a_bound_header)
+
+    proof_meta = frontier_a["meta"]
+    assert isinstance(proof_meta, dict)
+    expected_public_input = {
+        "proof_type": frontier_a["proof_type"],
+        "state_hash": frontier_a["state_hash"],
+        "txs_commitment": proof_meta["txs_commitment"],
+        "tx_execution_order_commitment": proof_meta["tx_execution_order_commitment"],
+        "ingress_commitment": proof_meta["ingress_commitment"],
+        "pre_nonce_root": proof_meta["pre_nonce_root"],
+        "post_nonce_root": proof_meta["post_nonce_root"],
+        "accepted_receipts_root": proof_meta["accepted_receipts_root"],
+        "pre_app_hash_present": False,
+        "pre_app_hash": "",
+        "post_app_hash": proof_meta["post_app_hash"],
+        "protocol_fee_share_bps": 0,
+        "protocol_fee_recipient_pubkey": None,
+        "shared_pool_frontier_signature_certificate_count": 1,
+        "shared_pool_frontier_signature_certificates_root": "aa" * 32,
+    }
+    assert a_metadata["public_input_hash"] == hash_v0(
+        "risc0_tau_state_proof_public_input_v0",
+        expected_public_input,
+    )
+
+
+def test_risc0_adapter_consumes_python_order_certificate(tmp_path: Path) -> None:
+    body = _body(1)
+    header = _header(body)
+    certificate = build_tx_execution_order_certificate_v1([1, 0], tx_count=2)
+    proof = _proof(
+        post_app_hash=str(header["app_hash"])[2:],
+        tx_execution_order_commitment=certificate.tx_execution_order_commitment,
+    )
+    body_path = tmp_path / "body.json"
+    header_path = tmp_path / "header.json"
+    proof_path = tmp_path / "proof.json"
+    metadata_path = tmp_path / "metadata.json"
+    _write_json(body_path, body)
+    _write_json(header_path, header)
+    _write_json(proof_path, proof)
+
+    proc = _run_adapter(
+        "--proof",
+        str(proof_path),
+        "--header",
+        str(header_path),
+        "--body",
+        str(body_path),
+        "--out",
+        str(metadata_path),
+        "--conflict-schedule-hash",
+        _root("schedule"),
+        "--feature-suite-hash",
+        _root("feature-suite"),
+        "--dependency-lock-hash",
+        _root("dependency-lock"),
+        "--toolchain-lock-hash",
+        _root("toolchain-lock"),
+        "--require-post-app-hash-header-app-hash",
+    )
+
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    proof_meta = proof["meta"]
+    assert isinstance(proof_meta, dict)
+    expected_public_input = {
+        "proof_type": proof["proof_type"],
+        "state_hash": proof["state_hash"],
+        "txs_commitment": proof_meta["txs_commitment"],
+        "tx_execution_order_commitment": certificate.tx_execution_order_commitment,
+        "ingress_commitment": proof_meta["ingress_commitment"],
+        "pre_nonce_root": proof_meta["pre_nonce_root"],
+        "post_nonce_root": proof_meta["post_nonce_root"],
+        "accepted_receipts_root": proof_meta["accepted_receipts_root"],
+        "pre_app_hash_present": False,
+        "pre_app_hash": "",
+        "post_app_hash": proof_meta["post_app_hash"],
+        "protocol_fee_share_bps": 0,
+        "protocol_fee_recipient_pubkey": None,
+        "shared_pool_frontier_signature_certificate_count": 0,
+        "shared_pool_frontier_signature_certificates_root": (
+            FRONTIER_SIGNATURE_CERTIFICATES_EMPTY_ROOT_V1[2:]
+        ),
+    }
+    assert metadata["public_input_hash"] == hash_v0(
+        "risc0_tau_state_proof_public_input_v0",
+        expected_public_input,
+    )
+
+
+def test_risc0_adapter_binds_body_order_commitment_receipt(tmp_path: Path) -> None:
+    certificate = build_tx_execution_order_certificate_v1([1, 0], tx_count=2)
+    body = _body_with_order_commitment(
+        1,
+        tx_execution_order_commitment=certificate.tx_execution_order_commitment,
+    )
+    header = _header(body)
+    proof = _proof(
+        post_app_hash=str(header["app_hash"])[2:],
+        tx_execution_order_commitment=certificate.tx_execution_order_commitment,
+    )
+    body_path = tmp_path / "body.json"
+    header_path = tmp_path / "header.json"
+    proof_path = tmp_path / "proof.json"
+    metadata_path = tmp_path / "metadata.json"
+    _write_json(body_path, body)
+    _write_json(header_path, header)
+    _write_json(proof_path, proof)
+
+    proc = _run_adapter(
+        "--proof",
+        str(proof_path),
+        "--header",
+        str(header_path),
+        "--body",
+        str(body_path),
+        "--out",
+        str(metadata_path),
+        "--conflict-schedule-hash",
+        _root("schedule"),
+        "--feature-suite-hash",
+        _root("feature-suite"),
+        "--dependency-lock-hash",
+        _root("dependency-lock"),
+        "--toolchain-lock-hash",
+        _root("toolchain-lock"),
+        "--require-body-tx-execution-order-commitment",
+        "--require-post-app-hash-header-app-hash",
+    )
+
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+    report = json.loads(proc.stdout)
+    assert report["body_checked"] is True
+    assert report["body_tx_execution_order_commitment_checked"] is True
+
+
+def test_risc0_adapter_accepts_body_order_commitment_abi_corpus(tmp_path: Path) -> None:
+    for index, case in enumerate(_tx_order_abi_positive_cases()):
+        commitment = case["commitment"]
+        assert isinstance(commitment, str)
+        body = _body_with_order_commitment(
+            20 + index,
+            tx_execution_order_commitment=commitment,
+        )
+        header = _header(body)
+        proof = _proof(
+            post_app_hash=str(header["app_hash"])[2:],
+            tx_execution_order_commitment=commitment,
+        )
+        body_path = tmp_path / f"body_{index}.json"
+        header_path = tmp_path / f"header_{index}.json"
+        proof_path = tmp_path / f"proof_{index}.json"
+        metadata_path = tmp_path / f"metadata_{index}.json"
+        _write_json(body_path, body)
+        _write_json(header_path, header)
+        _write_json(proof_path, proof)
+
+        proc = _run_adapter(
+            "--proof",
+            str(proof_path),
+            "--header",
+            str(header_path),
+            "--body",
+            str(body_path),
+            "--out",
+            str(metadata_path),
+            "--conflict-schedule-hash",
+            _root("schedule"),
+            "--feature-suite-hash",
+            _root("feature-suite"),
+            "--dependency-lock-hash",
+            _root("dependency-lock"),
+            "--toolchain-lock-hash",
+            _root("toolchain-lock"),
+            "--require-body-tx-execution-order-commitment",
+            "--require-post-app-hash-header-app-hash",
+        )
+
+        assert proc.returncode == 0, proc.stderr or proc.stdout
+        report = json.loads(proc.stdout)
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        proof_meta = proof["meta"]
+        assert isinstance(proof_meta, dict)
+        expected_public_input = {
+            "proof_type": proof["proof_type"],
+            "state_hash": proof["state_hash"],
+            "txs_commitment": proof_meta["txs_commitment"],
+            "tx_execution_order_commitment": commitment,
+            "ingress_commitment": proof_meta["ingress_commitment"],
+            "pre_nonce_root": proof_meta["pre_nonce_root"],
+            "post_nonce_root": proof_meta["post_nonce_root"],
+            "accepted_receipts_root": proof_meta["accepted_receipts_root"],
+            "pre_app_hash_present": False,
+            "pre_app_hash": "",
+            "post_app_hash": proof_meta["post_app_hash"],
+            "protocol_fee_share_bps": 0,
+            "protocol_fee_recipient_pubkey": None,
+            "shared_pool_frontier_signature_certificate_count": 0,
+            "shared_pool_frontier_signature_certificates_root": (
+                FRONTIER_SIGNATURE_CERTIFICATES_EMPTY_ROOT_V1[2:]
+            ),
+        }
+        assert report["body_tx_execution_order_commitment_checked"] is True
+        assert metadata["public_input_hash"] == hash_v0(
+            "risc0_tau_state_proof_public_input_v0",
+            expected_public_input,
+        )
+
+
+def test_risc0_adapter_rejects_body_order_commitment_mismatch(tmp_path: Path) -> None:
+    body_certificate = build_tx_execution_order_certificate_v1([1, 0], tx_count=2)
+    proof_certificate = build_tx_execution_order_certificate_v1([0, 1], tx_count=2)
+    body = _body_with_order_commitment(
+        1,
+        tx_execution_order_commitment=body_certificate.tx_execution_order_commitment,
+    )
+    header = _header(body)
+    proof = _proof(
+        post_app_hash=str(header["app_hash"])[2:],
+        tx_execution_order_commitment=proof_certificate.tx_execution_order_commitment,
+    )
+    body_path = tmp_path / "body.json"
+    header_path = tmp_path / "header.json"
+    proof_path = tmp_path / "proof.json"
+    _write_json(body_path, body)
+    _write_json(header_path, header)
+    _write_json(proof_path, proof)
+
+    proc = _run_adapter("--proof", str(proof_path), "--header", str(header_path), "--body", str(body_path))
+
+    assert proc.returncode == 1
+    assert "body tx_execution_order_commitment/proof meta mismatch" in proc.stdout
+
+
+def test_risc0_adapter_rejects_required_body_order_commitment_when_missing(tmp_path: Path) -> None:
+    body = _body(1)
+    header = _header(body)
+    proof = _proof(post_app_hash=str(header["app_hash"])[2:])
+    body_path = tmp_path / "body.json"
+    header_path = tmp_path / "header.json"
+    proof_path = tmp_path / "proof.json"
+    _write_json(body_path, body)
+    _write_json(header_path, header)
+    _write_json(proof_path, proof)
+
+    proc = _run_adapter(
+        "--proof",
+        str(proof_path),
+        "--header",
+        str(header_path),
+        "--body",
+        str(body_path),
+        "--require-body-tx-execution-order-commitment",
+    )
+
+    assert proc.returncode == 1
+    assert "body tx_execution_order_commitment receipt missing" in proc.stdout
+
+
+def test_risc0_adapter_rejects_malformed_current_meta_fields(tmp_path: Path) -> None:
+    body = _body(1)
+    header = _header(body)
+    body_path = tmp_path / "body.json"
+    header_path = tmp_path / "header.json"
+    _write_json(body_path, body)
+    _write_json(header_path, header)
+
+    missing_order = _proof(post_app_hash=str(header["app_hash"])[2:])
+    del missing_order["meta"]["tx_execution_order_commitment"]
+    missing_order_path = tmp_path / "missing_order.json"
+    _write_json(missing_order_path, missing_order)
+
+    oversized_fee = _proof(post_app_hash=str(header["app_hash"])[2:])
+    oversized_fee["meta"]["protocol_fee_share_bps"] = 10001
+    oversized_fee_path = tmp_path / "oversized_fee.json"
+    _write_json(oversized_fee_path, oversized_fee)
+
+    missing_recipient = _proof(post_app_hash=str(header["app_hash"])[2:])
+    missing_recipient["meta"]["protocol_fee_share_bps"] = 1
+    missing_recipient_path = tmp_path / "missing_recipient.json"
+    _write_json(missing_recipient_path, missing_recipient)
+    partial_frontier = _proof(
+        post_app_hash=str(header["app_hash"])[2:],
+        frontier_count=1,
+    )
+    partial_frontier_path = tmp_path / "partial_frontier.json"
+    _write_json(partial_frontier_path, partial_frontier)
+    zero_count_nonempty_root = _proof(
+        post_app_hash=str(header["app_hash"])[2:],
+        frontier_count=0,
+        frontier_root="0x" + "aa" * 32,
+    )
+    zero_count_nonempty_root_path = tmp_path / "zero_count_nonempty_root.json"
+    _write_json(zero_count_nonempty_root_path, zero_count_nonempty_root)
+
+    common_args = ("--header", str(header_path), "--body", str(body_path))
+    missing_order_proc = _run_adapter("--proof", str(missing_order_path), *common_args)
+    oversized_fee_proc = _run_adapter("--proof", str(oversized_fee_path), *common_args)
+    missing_recipient_proc = _run_adapter("--proof", str(missing_recipient_path), *common_args)
+    partial_frontier_proc = _run_adapter("--proof", str(partial_frontier_path), *common_args)
+    zero_count_nonempty_root_proc = _run_adapter(
+        "--proof",
+        str(zero_count_nonempty_root_path),
+        *common_args,
+    )
+
+    assert missing_order_proc.returncode == 1
+    assert "risc0 meta keys mismatch" in missing_order_proc.stdout
+    assert oversized_fee_proc.returncode == 1
+    assert "meta.protocol_fee_share_bps must be <= 10000" in oversized_fee_proc.stdout
+    assert missing_recipient_proc.returncode == 1
+    assert "meta.protocol_fee_recipient_pubkey required when share_bps > 0" in missing_recipient_proc.stdout
+    assert partial_frontier_proc.returncode == 1
+    assert "risc0 frontier signature meta partial" in partial_frontier_proc.stdout
+    assert zero_count_nonempty_root_proc.returncode == 1
+    assert (
+        "meta.shared_pool_frontier_signature_certificates_root must be empty root when count is zero"
+        in zero_count_nonempty_root_proc.stdout
+    )
 
 
 def test_risc0_adapter_can_require_state_root_hash_binding(tmp_path: Path) -> None:

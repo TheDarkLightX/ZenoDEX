@@ -403,13 +403,24 @@ def split_bid_witness() -> dict[str, Any]:
 
 def mutation_checks(certificates: list[dict[str, Any]]) -> list[dict[str, Any]]:
     base = certificates[0]
+    by_case_id = {str(certificate["case_id"]): certificate for certificate in certificates}
     mutations: list[tuple[str, dict[str, Any], str]] = []
     bad_hash = json.loads(json.dumps(base))
     bad_hash["domain_hash"] = "0" * 64
     mutations.append(("bad_domain_hash", bad_hash, "domain hash mismatch"))
+    bad_total = json.loads(json.dumps(base))
+    bad_total["marginal_rows"][0]["fill_quantity"] = int(bad_total["marginal_rows"][0]["fill_quantity"]) + 1
+    mutations.append(("bad_marginal_fill_total", bad_total, "marginal fill total mismatch"))
     bad_quota = json.loads(json.dumps(base))
-    bad_quota["marginal_rows"][0]["fill_quantity"] = int(bad_quota["marginal_rows"][0]["upper_quota"]) + 1
-    mutations.append(("bad_quota_bound", bad_quota, "marginal fill total mismatch"))
+    bad_quota["marginal_rows"][0]["lower_quota"] = int(bad_quota["marginal_rows"][0]["fill_quantity"]) + 1
+    mutations.append(("bad_quota_bound", bad_quota, "quota bound mismatch"))
+    bad_tie = json.loads(json.dumps(by_case_id["same_remainder_tie_order"]))
+    first_row, last_row = bad_tie["marginal_rows"][0], bad_tie["marginal_rows"][-1]
+    first_row["bonus"] = 0
+    first_row["fill_quantity"] = int(first_row["base"])
+    last_row["bonus"] = 1
+    last_row["fill_quantity"] = int(last_row["base"]) + 1
+    mutations.append(("bad_same_remainder_tie_order", bad_tie, "largest remainder tie order mismatch"))
     leaked_receipt = json.loads(json.dumps(base))
     leaked_receipt["public_receipts"][0]["body"]["quantity"] = 3
     mutations.append(("private_quantity_leak", leaked_receipt, "public receipt rejected: private_field_leaked_quantity"))

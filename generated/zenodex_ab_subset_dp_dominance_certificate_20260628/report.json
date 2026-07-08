@@ -1,0 +1,389 @@
+{
+  "authority_boundary": "Tau admits a research certificate only. It does not compute swaps, run DP, prune states, select AB orders, or authorize settlement.",
+  "date": "2026-06-28",
+  "deterministic_replay": {
+    "ok": true,
+    "rows": [
+      {
+        "first_hash": "e93ecbc3b2defdc981bc895e52fb56b75a0001b553af2e048f11bc869de6aa72",
+        "same": true,
+        "second_hash": "e93ecbc3b2defdc981bc895e52fb56b75a0001b553af2e048f11bc869de6aa72",
+        "tool": "adversarial_corpus"
+      },
+      {
+        "first_hash": "33c0bac01e098bcbe4016f1935db8642374e6ad47add08384cb5b664697ca45d",
+        "same": true,
+        "second_hash": "33c0bac01e098bcbe4016f1935db8642374e6ad47add08384cb5b664697ca45d",
+        "tool": "boundary_refuter"
+      },
+      {
+        "first_hash": "4902fb46ac1eb913d19b67c848ebe387c888dc8b57ce4ddc5d12731f7aa202c6",
+        "same": true,
+        "second_hash": "4902fb46ac1eb913d19b67c848ebe387c888dc8b57ce4ddc5d12731f7aa202c6",
+        "tool": "dominance_refuter"
+      },
+      {
+        "first_hash": "41fff1fe4cefe84d186431794da45c8f9b5ce2edd8f8bb7a15e15f3a2136d054",
+        "same": true,
+        "second_hash": "41fff1fe4cefe84d186431794da45c8f9b5ce2edd8f8bb7a15e15f3a2136d054",
+        "tool": "parity_reduction"
+      }
+    ]
+  },
+  "evidence": {
+    "adversarial_corpus": {
+      "aggregate_reductions": {
+        "state_insertion": 42.512504,
+        "transitions": 16.143284
+      },
+      "ok": true,
+      "seed": 2026062804,
+      "summary": {
+        "brute_mismatch_count": 0,
+        "case_count": 33,
+        "max_bucket_reduction": 5040.0,
+        "max_retained_state_reduction": 107.03125,
+        "max_state_insertion_reduction": 107.03125,
+        "max_transition_reduction": 30.578125,
+        "mismatch_count": 0,
+        "total_dominated_insertions_skipped": 9175,
+        "total_full_states_inserted": 237985,
+        "total_full_transitions": 237952,
+        "total_pruned_states_inserted": 5598,
+        "total_pruned_transitions": 14740,
+        "total_retained_states_removed": 421
+      },
+      "unsupported_domain_controls": [
+        {
+          "domain": "exact-out AB states",
+          "reason": "dominance relation has no proof for max-input constraints or exact-out reserve movement",
+          "status": "excluded"
+        },
+        {
+          "domain": "mixed-direction AB states",
+          "reason": "single directional reserve order is not monotone across opposite swap directions",
+          "status": "excluded"
+        }
+      ]
+    },
+    "boundary_refuter": {
+      "boundary_decision": "Keep the current dominance rule scoped to same-pool, same-direction, exact-in states. Exact-out and mixed-direction states need rejection by construction or a separate dominance proof.",
+      "exact_out_counterexample_found": true,
+      "exact_out_reason": "Exact-out improves user price by lowering required input, while the AB objective treats larger executed input as better.",
+      "mixed_direction_counterexample_found": true,
+      "mixed_direction_reason": "The same reserve tuple that is favorable for asset0-to-asset1 is unfavorable after reversing the direction to asset1-to-asset0.",
+      "ok": true
+    },
+    "dominance_refuter": {
+      "bounds": {
+        "case_sizes": [
+          4,
+          5,
+          6
+        ],
+        "max_dominance_pairs_per_mask": 12,
+        "max_suffix_remaining": 4,
+        "suffix_check": "exhaustive over every remaining-order permutation within the suffix bound",
+        "variants_per_size": 6
+      },
+      "first_counterexample": null,
+      "ok": true,
+      "stats": {
+        "case_count": 18,
+        "dominance_pairs_budget_skipped": 756425,
+        "dominance_pairs_checked": 3959,
+        "dominance_pairs_seen": 760384,
+        "masks_budget_skipped": 48,
+        "max_states_for_mask": 720,
+        "reachable_state_count": 14088,
+        "suffix_permutations_checked": 12707
+      }
+    },
+    "parity_reduction": {
+      "aggregate_reductions": {
+        "factorial_reference_n7": 5040,
+        "state_insertion": 28.631579,
+        "transitions": 12.347871
+      },
+      "bounds": {
+        "brute_force": "all permutations for each case",
+        "case_sizes": [
+          4,
+          5,
+          6,
+          7
+        ],
+        "domain": "same-pool, same-direction, exact-in AB ordering research cases",
+        "variants_per_size": 6
+      },
+      "ok": true,
+      "summary": {
+        "brute_mismatch_count": 0,
+        "case_count": 24,
+        "max_bucket_reduction": 1680.0,
+        "max_retained_state_reduction": 77.840909,
+        "max_state_insertion_reduction": 69.191919,
+        "max_transition_reduction": 24.817029,
+        "mismatch_count": 0,
+        "total_dominated_insertions_skipped": 4457,
+        "total_full_states_inserted": 96288,
+        "total_full_transitions": 96264,
+        "total_pruned_states_inserted": 3363,
+        "total_pruned_transitions": 7796,
+        "total_retained_states_removed": 422
+      }
+    }
+  },
+  "flags": {
+    "adversarial_corpus_ok": 1,
+    "boundary_refuters_ok": 1,
+    "brute_force_parity_ok": 1,
+    "deterministic_replay_ok": 1,
+    "dominance_refutation_ok": 1,
+    "no_authority_effect": 1,
+    "nonvacuous_pruning": 1,
+    "resource_budget_ok": 1,
+    "same_direction_exact_in_scope_ok": 1,
+    "state_reduction_ok": 1,
+    "transition_reduction_ok": 1,
+    "unpruned_parity_ok": 1
+  },
+  "mutation_checks": [
+    {
+      "accepted": false,
+      "mutation_id": "parity_reject",
+      "rationale": "Missing unpruned DP parity fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "brute_force_reject",
+      "rationale": "Missing brute-force parity fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "dominance_refuter_reject",
+      "rationale": "A bounded dominance-refuter gap cannot admit the certificate."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "boundary_refuter_reject",
+      "rationale": "Missing unsupported-domain boundary witnesses fail closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "performance_reject",
+      "rationale": "Missing state-reduction evidence fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "determinism_reject",
+      "rationale": "Missing deterministic replay fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "authority_reject",
+      "rationale": "A certificate with authority effects is rejected."
+    }
+  ],
+  "new_specification_frontier": [
+    {
+      "benefit": "Turns AB dominance-pruned subset DP into a replay-gated research lane with explicit unsupported-domain witnesses.",
+      "spec": "src/tau_specs/recommended/ab_subset_dp_dominance_certificate_v1.tau"
+    },
+    {
+      "benefit": "Existing route-split rail for local-window exact-out split certificates.",
+      "spec": "src/tau_specs/recommended/route_split_window_certificate_v1.tau"
+    },
+    {
+      "benefit": "Existing frontier-selection rail for high-value falsifier campaigns.",
+      "spec": "src/tau_specs/recommended/negative_frontier_entropy_scheduler_v1.tau"
+    }
+  ],
+  "non_claims": [
+    "This artifact is a research certificate, not a production ordering change.",
+    "The dominance rule is scoped to same-pool, same-direction, exact-in AB subset-DP states.",
+    "Exact-out and mixed-direction counterexamples are unsupported-domain boundary witnesses.",
+    "Passing this bounded corpus is not a machine-checked proof of universal dominance.",
+    "Tau does not compute the DP, dominance relation, swaps, balances, hashes, or settlement effects."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_subset_dp_dominance_certificate.py",
+  "schema": "zenodex.ab_subset_dp_dominance_certificate_report.v1",
+  "spec_id": "ab_subset_dp_dominance_certificate_v1",
+  "summary": "A Tau host-projected certificate gates same-pool, same-direction, exact-in AB subset-DP dominance pruning by requiring bounded DP parity, brute-force parity, dominance refutation, unsupported-domain boundary witnesses, replay determinism, resource limits, nonvacuous pruning, and no authority effects.",
+  "tau": {
+    "cases": [
+      {
+        "case_id": "ab_dominance_certificate_pass",
+        "expected": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All host-computed evidence facts admit the scoped dominance-pruning certificate."
+      },
+      {
+        "case_id": "parity_reject",
+        "expected": {
+          "o1": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing unpruned DP parity fails closed."
+      },
+      {
+        "case_id": "brute_force_reject",
+        "expected": {
+          "o1": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing brute-force parity fails closed."
+      },
+      {
+        "case_id": "dominance_refuter_reject",
+        "expected": {
+          "o2": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "A bounded dominance-refuter gap cannot admit the certificate."
+      },
+      {
+        "case_id": "boundary_refuter_reject",
+        "expected": {
+          "o2": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing unsupported-domain boundary witnesses fail closed."
+      },
+      {
+        "case_id": "performance_reject",
+        "expected": {
+          "o3": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing state-reduction evidence fails closed."
+      },
+      {
+        "case_id": "determinism_reject",
+        "expected": {
+          "o4": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing deterministic replay fails closed."
+      },
+      {
+        "case_id": "authority_reject",
+        "expected": {
+          "o4": 0,
+          "o5": 0,
+          "o6": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "A certificate with authority effects is rejected."
+      },
+      {
+        "case_id": "inactive_safe",
+        "expected": {
+          "o5": 0,
+          "o6": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Inactive certificates do not admit while the no-authority rail remains true."
+      }
+    ],
+    "ok": true,
+    "spec_path": "src/tau_specs/recommended/ab_subset_dp_dominance_certificate_v1.tau",
+    "tau_bin": "/home/trevormoc/Downloads/Autonomous Tau DEX/external/tau-lang/build-Release/tau",
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  }
+}

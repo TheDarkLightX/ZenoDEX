@@ -21,9 +21,11 @@ from src.core.split_routing_two_exact_out import (  # noqa: E402
     _best_split,
     _build_context,
 )
-from src.core.split_routing_two_pool_dispatch import (  # noqa: E402
-    _quote_exact_out,
-    _reserves_for,
+from src.core.split_routing_pool_quotes import (  # noqa: E402
+    quote_exact_out_for_pool as _quote_exact_out,
+)
+from src.core.split_routing_pool_quotes import (  # noqa: E402
+    reserves_for_pool as _reserves_for,
 )
 from src.integration.tau_runner import find_tau_bin, run_tau_spec_steps  # noqa: E402
 from src.state.pools import PoolState, PoolStatus  # noqa: E402
@@ -241,6 +243,13 @@ def _search_ranges(ctx: Any, *, best_q0: int, window: int, brute_force_max: int)
             "kind": "canonical_left_sweep",
             "lo": max(int(ctx.lo), int(best_q0) - int(canon_left)),
             "hi": int(best_q0),
+        }
+    )
+    ranges.append(
+        {
+            "kind": "final_selected_window",
+            "lo": max(int(ctx.lo), int(best_q0) - int(window)),
+            "hi": min(int(ctx.hi), int(best_q0) + int(window)),
         }
     )
     return ranges

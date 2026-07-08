@@ -14,6 +14,7 @@ from typing import Any
 
 
 CANONICAL_ENCODING_VERSION = 1
+MAX_UVARINT_BITS = 256
 
 _HEX_CHARS_RE = re.compile(r"^[0-9a-fA-F]+$")
 
@@ -212,6 +213,8 @@ def encode_uvarint(value: int) -> bytes:
     """Unsigned LEB128."""
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
         raise ValueError(f"uvarint must be a non-negative int, got {value!r}")
+    if value.bit_length() > MAX_UVARINT_BITS:
+        raise ValueError(f"uvarint exceeds {MAX_UVARINT_BITS}-bit limit")
     out = bytearray()
     n = value
     while True:

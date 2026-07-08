@@ -1,0 +1,377 @@
+{
+  "authority_boundary": "Tau admits a research certificate only. It does not select CoW pairs, compute matching or DP, materialize settlement, mutate balances, or authorize state roots.",
+  "date": "2026-06-28",
+  "deterministic_replay": {
+    "ok": true,
+    "rows": [
+      {
+        "first_hash": "c8017edc013c3d5fa0eab7b44a44092792a6ef66acab1a8c897aae94a77533e6",
+        "same": true,
+        "second_hash": "c8017edc013c3d5fa0eab7b44a44092792a6ef66acab1a8c897aae94a77533e6",
+        "tool": "capacity_adversarial"
+      },
+      {
+        "first_hash": "495b45a0beccb99ef85e51f0c7902cde66ef6e71b27d2ffde8a9755d5ace60ba",
+        "same": true,
+        "second_hash": "495b45a0beccb99ef85e51f0c7902cde66ef6e71b27d2ffde8a9755d5ace60ba",
+        "tool": "capacity_breakthrough"
+      },
+      {
+        "first_hash": "1f8b824992f267159a36257d57c15d7c14ade056060e316f75a9bc97cda85f74",
+        "same": true,
+        "second_hash": "1f8b824992f267159a36257d57c15d7c14ade056060e316f75a9bc97cda85f74",
+        "tool": "shared_ab_cow_envelope"
+      }
+    ]
+  },
+  "evidence": {
+    "capacity_adversarial": {
+      "assignment_safe_case_count": 0,
+      "case_count": 20,
+      "core_mismatch_count": 0,
+      "exact_mismatch_count": 0,
+      "greedy_lift_case_count": 15,
+      "max_candidate_count": 14,
+      "max_surplus_lift": 192,
+      "max_volume_lift": 261,
+      "ok": true,
+      "pattern_count": 5,
+      "pattern_summary": {
+        "deterministic_fuzz": {
+          "cases": 4,
+          "core_mismatches": 0,
+          "exact_mismatches": 0,
+          "greedy_lifts": 4
+        },
+        "dual_coupled": {
+          "cases": 4,
+          "core_mismatches": 0,
+          "exact_mismatches": 0,
+          "greedy_lifts": 4
+        },
+        "shared_left": {
+          "cases": 4,
+          "core_mismatches": 0,
+          "exact_mismatches": 0,
+          "greedy_lifts": 3
+        },
+        "shared_right": {
+          "cases": 4,
+          "core_mismatches": 0,
+          "exact_mismatches": 0,
+          "greedy_lifts": 0
+        },
+        "sparse_cliff": {
+          "cases": 4,
+          "core_mismatches": 0,
+          "exact_mismatches": 0,
+          "greedy_lifts": 4
+        }
+      },
+      "seed": 2026062805,
+      "variants_per_pattern": 4
+    },
+    "capacity_breakthrough": {
+      "case_count": 5,
+      "core_mismatch_count": 0,
+      "exact_mismatch_count": 0,
+      "greedy_lift_case_count": 5,
+      "max_total_candidates": 9,
+      "ok": true
+    },
+    "shared_ab_cow_envelope": {
+      "cow_matching_ok": true,
+      "ok": true,
+      "tau_cases": [
+        "ab_item_1_pass",
+        "cow_item_2_pass",
+        "coupled_capacity_reject",
+        "two_modes_reject"
+      ],
+      "tau_ok": true
+    }
+  },
+  "flags": {
+    "adversarial_corpus_ok": 1,
+    "core_selector_dp_parity_ok": 1,
+    "deterministic_replay_ok": 1,
+    "dp_bruteforce_parity_ok": 1,
+    "exact_assignment_boundary_ok": 1,
+    "fallback_boundary_ok": 1,
+    "greedy_lift_nonvacuous": 1,
+    "grouped_capacity_scope_ok": 1,
+    "no_settlement_authority": 1,
+    "resource_budget_ok": 1,
+    "settlement_materialization_boundary_ok": 1
+  },
+  "mutation_checks": [
+    {
+      "accepted": false,
+      "mutation_id": "scope_reject",
+      "rationale": "Missing grouped-capacity scope fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "bruteforce_parity_reject",
+      "rationale": "Missing DP versus brute-force parity fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "core_selector_reject",
+      "rationale": "Missing core-selector parity fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "adversarial_reject",
+      "rationale": "Missing adversarial corpus evidence fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "lift_reject",
+      "rationale": "Missing nonvacuous lift evidence fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "determinism_reject",
+      "rationale": "Missing deterministic replay fails closed."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "fallback_boundary_reject",
+      "rationale": "Missing fallback boundary rejects the certificate."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "authority_reject",
+      "rationale": "Any settlement-authority effect rejects the certificate."
+    },
+    {
+      "accepted": false,
+      "mutation_id": "assignment_boundary_reject",
+      "rationale": "Missing separation from the uncoupled assignment surface fails closed."
+    }
+  ],
+  "non_claims": [
+    "This is a research certificate, not production activation.",
+    "The exact DP claim is bounded to small grouped-capacity CoW batches.",
+    "This does not claim a polynomial algorithm for arbitrary grouped-capacity matching.",
+    "Uncoupled large batches remain on the Hungarian assignment surface; large coupled batches retain fallback bounds.",
+    "Settlement authority remains with deterministic fail-closed materialization and balance checks."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_cow_capacity_dp_certificate.py",
+  "schema": "zenodex.cow_capacity_dp_certificate_report.v1",
+  "spec_id": "cow_capacity_dp_certificate_v1",
+  "summary": "A Tau host-projected certificate gates bounded grouped-capacity CoW exact-DP evidence by requiring DP/brute-force parity, core-selector parity, adversarial coupled-sender cases, nonvacuous greedy lift, resource limits, deterministic replay, fallback boundaries, separation from the uncoupled assignment surface, and no settlement authority.",
+  "tau": {
+    "cases": [
+      {
+        "case_id": "cow_capacity_certificate_pass",
+        "expected": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All host-computed proof-surface facts admit the grouped-capacity CoW certificate."
+      },
+      {
+        "case_id": "scope_reject",
+        "expected": {
+          "o1": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing grouped-capacity scope fails closed."
+      },
+      {
+        "case_id": "bruteforce_parity_reject",
+        "expected": {
+          "o2": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing DP versus brute-force parity fails closed."
+      },
+      {
+        "case_id": "core_selector_reject",
+        "expected": {
+          "o2": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing core-selector parity fails closed."
+      },
+      {
+        "case_id": "adversarial_reject",
+        "expected": {
+          "o2": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing adversarial corpus evidence fails closed."
+      },
+      {
+        "case_id": "lift_reject",
+        "expected": {
+          "o3": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing nonvacuous lift evidence fails closed."
+      },
+      {
+        "case_id": "determinism_reject",
+        "expected": {
+          "o3": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing deterministic replay fails closed."
+      },
+      {
+        "case_id": "fallback_boundary_reject",
+        "expected": {
+          "o1": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing fallback boundary rejects the certificate."
+      },
+      {
+        "case_id": "authority_reject",
+        "expected": {
+          "o4": 0,
+          "o5": 0,
+          "o6": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Any settlement-authority effect rejects the certificate."
+      },
+      {
+        "case_id": "assignment_boundary_reject",
+        "expected": {
+          "o1": 0,
+          "o5": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Missing separation from the uncoupled assignment surface fails closed."
+      },
+      {
+        "case_id": "inactive_safe",
+        "expected": {
+          "o5": 0,
+          "o6": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Inactive certificates do not admit while no-authority remains true."
+      }
+    ],
+    "ok": true,
+    "spec_path": "src/tau_specs/recommended/cow_capacity_dp_certificate_v1.tau",
+    "tau_bin": "/home/trevormoc/Downloads/Autonomous Tau DEX/external/tau-lang/build-Release/tau",
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  }
+}

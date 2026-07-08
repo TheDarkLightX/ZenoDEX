@@ -1,0 +1,630 @@
+{
+  "breakthrough": {
+    "authority_boundary": "Tau admits a split-routing certificate lane only. It does not quote pools, choose routes, or authorize settlement.",
+    "spec_id": "route_split_window_certificate_v1",
+    "summary": "A Tau host-projected certificate can guard exact-out two-pool split routing by requiring derivative-window replay, local-window coverage, bounded full-oracle parity, integer rounding scope, resource budget, fallback, and no-authority facts."
+  },
+  "date": "2026-06-28",
+  "mutation_checks": [
+    {
+      "accepted": false,
+      "failed_flags": [
+        "window_search_replayed"
+      ],
+      "mutation_id": "bad_domain_hash"
+    },
+    {
+      "accepted": false,
+      "failed_flags": [
+        "window_search_replayed",
+        "full_oracle_parity_ok"
+      ],
+      "mutation_id": "bad_selected_q0"
+    },
+    {
+      "accepted": false,
+      "failed_flags": [
+        "local_window_certificate_ok"
+      ],
+      "mutation_id": "bad_search_point_count"
+    }
+  ],
+  "new_specification_frontier": [
+    {
+      "benefit": "Gates exact-out two-pool split-window certificates and records when bounded full-oracle parity is required.",
+      "spec": "src/tau_specs/recommended/route_split_window_certificate_v1.tau"
+    },
+    {
+      "benefit": "Compresses route, AB, and CoW optimizer proof surfaces into domain-hash-bound certificates.",
+      "spec": "src/tau_specs/recommended/optimizer_quotient_certificate_v1.tau"
+    },
+    {
+      "benefit": "Covers work items 1 and 2: AB subset-DP/brute-force and CoW exact matching proof-surface facts.",
+      "spec": "src/tau_specs/recommended/ab_cow_exact_solver_envelope_v1.tau"
+    }
+  ],
+  "non_claims": [
+    "This artifact does not prove a universal continuous or discrete convexity theorem for integer CPMM exact-out split costs.",
+    "The bounded full-oracle parity check is evidence for these fixtures; production verifiers still own route correctness.",
+    "Tau does not compute quotes, hashes, derivatives, windows, or route winners.",
+    "The AB/CoW entries are existing supported rails included to keep work items 1 and 2 in scope."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/zenodex_tau_route_split_window_breakthrough_20260628.py",
+  "schema": "zenodex.tau_route_split_window_breakthrough_report.v1",
+  "split_cases": {
+    "case_count": 4,
+    "cases": [
+      {
+        "amount_out_total": 2000,
+        "brute_force_max": 512,
+        "case_id": "endpoint_best_amount2000",
+        "certificate": {
+          "amount_out_total": 2000,
+          "brute_force_max": 512,
+          "case_id": "endpoint_best_amount2000",
+          "domain_hash": "baf0ddd7d7d3e325fc2b55bf28e5af3daecc29393b6dee75683992c3211d945e",
+          "feasible_split_count": 2001,
+          "hi": 2000,
+          "lo": 0,
+          "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+          "schema": "zenodex.route_split_window_certificate.v1",
+          "search_point_count": 487,
+          "search_ranges": [
+            {
+              "center": 0,
+              "hi": 32,
+              "kind": "center_window",
+              "lo": 0
+            },
+            {
+              "center": 250,
+              "hi": 282,
+              "kind": "center_window",
+              "lo": 218
+            },
+            {
+              "center": 750,
+              "hi": 782,
+              "kind": "center_window",
+              "lo": 718
+            },
+            {
+              "center": 1000,
+              "hi": 1032,
+              "kind": "center_window",
+              "lo": 968
+            },
+            {
+              "center": 1250,
+              "hi": 1282,
+              "kind": "center_window",
+              "lo": 1218
+            },
+            {
+              "center": 1750,
+              "hi": 1782,
+              "kind": "center_window",
+              "lo": 1718
+            },
+            {
+              "center": 1998,
+              "hi": 2000,
+              "kind": "center_window",
+              "lo": 1966
+            },
+            {
+              "center": 2000,
+              "hi": 2000,
+              "kind": "center_window",
+              "lo": 1968
+            },
+            {
+              "hi": 2000,
+              "kind": "canonical_left_sweep",
+              "lo": 1872
+            },
+            {
+              "hi": 2000,
+              "kind": "final_selected_window",
+              "lo": 1968
+            }
+          ],
+          "selected_amount_in_total": 3010,
+          "selected_q0": 2000,
+          "selected_q1": 0,
+          "window": 32
+        },
+        "feasible_split_count": 2001,
+        "full_scan_quote_calls": 4000,
+        "integer_rounding_shape": {
+          "first_differences_nondecreasing": false,
+          "min_q0_range": [
+            2000,
+            2000
+          ],
+          "min_q0s_contiguous": true,
+          "negative_knowledge": "Naive discrete-convex first-difference monotonicity failed on this bounded case."
+        },
+        "note": "Endpoint optimum with asymmetric reserves and lower-fee second pool.",
+        "ok": true,
+        "quote_call_reduction_ratio": 3.4129692832764507,
+        "selected_amount_in_total": 3010,
+        "selected_q0": 2000,
+        "verification": {
+          "failed_flags": [],
+          "flags": {
+            "domain_nonempty": 1,
+            "exact_out_scope_ok": 1,
+            "fallback_available_or_explicit_failure": 1,
+            "full_oracle_parity_ok": 1,
+            "integer_rounding_scope_ok": 1,
+            "local_window_certificate_ok": 1,
+            "no_settlement_authority": 1,
+            "quote_replay_ok": 1,
+            "resource_budget_ok": 1,
+            "window_search_replayed": 1
+          },
+          "ok": true
+        },
+        "window": 32,
+        "windowed_quote_calls": 1172
+      },
+      {
+        "amount_out_total": 5000,
+        "brute_force_max": 512,
+        "case_id": "interior_plateau_amount5000",
+        "certificate": {
+          "amount_out_total": 5000,
+          "brute_force_max": 512,
+          "case_id": "interior_plateau_amount5000",
+          "domain_hash": "912ec26d5cee5b986111b65cfe3353c3950510a2d99b233683321ebc8914a0de",
+          "feasible_split_count": 4985,
+          "hi": 5000,
+          "lo": 0,
+          "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+          "schema": "zenodex.route_split_window_certificate.v1",
+          "search_point_count": 585,
+          "search_ranges": [
+            {
+              "center": 0,
+              "hi": 32,
+              "kind": "center_window",
+              "lo": 0
+            },
+            {
+              "center": 625,
+              "hi": 657,
+              "kind": "center_window",
+              "lo": 593
+            },
+            {
+              "center": 961,
+              "hi": 993,
+              "kind": "center_window",
+              "lo": 929
+            },
+            {
+              "center": 1875,
+              "hi": 1907,
+              "kind": "center_window",
+              "lo": 1843
+            },
+            {
+              "center": 2500,
+              "hi": 2532,
+              "kind": "center_window",
+              "lo": 2468
+            },
+            {
+              "center": 3125,
+              "hi": 3157,
+              "kind": "center_window",
+              "lo": 3093
+            },
+            {
+              "center": 4375,
+              "hi": 4407,
+              "kind": "center_window",
+              "lo": 4343
+            },
+            {
+              "center": 5000,
+              "hi": 5000,
+              "kind": "center_window",
+              "lo": 4968
+            },
+            {
+              "hi": 928,
+              "kind": "canonical_left_sweep",
+              "lo": 800
+            },
+            {
+              "hi": 960,
+              "kind": "final_selected_window",
+              "lo": 896
+            }
+          ],
+          "selected_amount_in_total": 5464,
+          "selected_q0": 928,
+          "selected_q1": 4072,
+          "window": 32
+        },
+        "feasible_split_count": 4985,
+        "full_scan_quote_calls": 10000,
+        "integer_rounding_shape": {
+          "first_differences_nondecreasing": false,
+          "min_q0_range": [
+            928,
+            959
+          ],
+          "min_q0s_contiguous": false,
+          "negative_knowledge": "Naive discrete-convex first-difference monotonicity failed on this bounded case."
+        },
+        "note": "Interior optimum with integer-rounding plateaus near the derivative seed.",
+        "ok": true,
+        "quote_call_reduction_ratio": 7.6923076923076925,
+        "selected_amount_in_total": 5464,
+        "selected_q0": 928,
+        "verification": {
+          "failed_flags": [],
+          "flags": {
+            "domain_nonempty": 1,
+            "exact_out_scope_ok": 1,
+            "fallback_available_or_explicit_failure": 1,
+            "full_oracle_parity_ok": 1,
+            "integer_rounding_scope_ok": 1,
+            "local_window_certificate_ok": 1,
+            "no_settlement_authority": 1,
+            "quote_replay_ok": 1,
+            "resource_budget_ok": 1,
+            "window_search_replayed": 1
+          },
+          "ok": true
+        },
+        "window": 32,
+        "windowed_quote_calls": 1300
+      },
+      {
+        "amount_out_total": 9000,
+        "brute_force_max": 512,
+        "case_id": "large_endpoint_amount9000",
+        "certificate": {
+          "amount_out_total": 9000,
+          "brute_force_max": 512,
+          "case_id": "large_endpoint_amount9000",
+          "domain_hash": "ddc752b1dc8a686515a407b97fca073036a872679d75cf2da2aedbdee083b1c4",
+          "feasible_split_count": 8960,
+          "hi": 9000,
+          "lo": 0,
+          "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+          "schema": "zenodex.route_split_window_certificate.v1",
+          "search_point_count": 487,
+          "search_ranges": [
+            {
+              "center": 0,
+              "hi": 32,
+              "kind": "center_window",
+              "lo": 0
+            },
+            {
+              "center": 1125,
+              "hi": 1157,
+              "kind": "center_window",
+              "lo": 1093
+            },
+            {
+              "center": 3375,
+              "hi": 3407,
+              "kind": "center_window",
+              "lo": 3343
+            },
+            {
+              "center": 4500,
+              "hi": 4532,
+              "kind": "center_window",
+              "lo": 4468
+            },
+            {
+              "center": 5625,
+              "hi": 5657,
+              "kind": "center_window",
+              "lo": 5593
+            },
+            {
+              "center": 7875,
+              "hi": 7907,
+              "kind": "center_window",
+              "lo": 7843
+            },
+            {
+              "center": 9000,
+              "hi": 9000,
+              "kind": "center_window",
+              "lo": 8968
+            },
+            {
+              "hi": 9000,
+              "kind": "canonical_left_sweep",
+              "lo": 8872
+            },
+            {
+              "hi": 9000,
+              "kind": "final_selected_window",
+              "lo": 8968
+            }
+          ],
+          "selected_amount_in_total": 5151,
+          "selected_q0": 9000,
+          "selected_q1": 0,
+          "window": 32
+        },
+        "feasible_split_count": 8960,
+        "full_scan_quote_calls": 17961,
+        "integer_rounding_shape": {
+          "first_differences_nondecreasing": false,
+          "min_q0_range": [
+            9000,
+            9000
+          ],
+          "min_q0s_contiguous": true,
+          "negative_knowledge": "Naive discrete-convex first-difference monotonicity failed on this bounded case."
+        },
+        "note": "Large endpoint optimum with a wide feasible split domain.",
+        "ok": true,
+        "quote_call_reduction_ratio": 16.569188191881917,
+        "selected_amount_in_total": 5151,
+        "selected_q0": 9000,
+        "verification": {
+          "failed_flags": [],
+          "flags": {
+            "domain_nonempty": 1,
+            "exact_out_scope_ok": 1,
+            "fallback_available_or_explicit_failure": 1,
+            "full_oracle_parity_ok": 1,
+            "integer_rounding_scope_ok": 1,
+            "local_window_certificate_ok": 1,
+            "no_settlement_authority": 1,
+            "quote_replay_ok": 1,
+            "resource_budget_ok": 1,
+            "window_search_replayed": 1
+          },
+          "ok": true
+        },
+        "window": 32,
+        "windowed_quote_calls": 1084
+      },
+      {
+        "amount_out_total": 4000,
+        "brute_force_max": 512,
+        "case_id": "interior_rounding_gap_amount4000",
+        "certificate": {
+          "amount_out_total": 4000,
+          "brute_force_max": 512,
+          "case_id": "interior_rounding_gap_amount4000",
+          "domain_hash": "cfaa372afc54ac9750d1d280897434700136bad31189b8c97efd63be358420dc",
+          "feasible_split_count": 3980,
+          "hi": 4000,
+          "lo": 0,
+          "quotient_rule": "derivative_seed_plus_window_search_with_bounded_full_oracle_parity",
+          "schema": "zenodex.route_split_window_certificate.v1",
+          "search_point_count": 571,
+          "search_ranges": [
+            {
+              "center": 0,
+              "hi": 32,
+              "kind": "center_window",
+              "lo": 0
+            },
+            {
+              "center": 500,
+              "hi": 532,
+              "kind": "center_window",
+              "lo": 468
+            },
+            {
+              "center": 1500,
+              "hi": 1532,
+              "kind": "center_window",
+              "lo": 1468
+            },
+            {
+              "center": 2000,
+              "hi": 2032,
+              "kind": "center_window",
+              "lo": 1968
+            },
+            {
+              "center": 2500,
+              "hi": 2532,
+              "kind": "center_window",
+              "lo": 2468
+            },
+            {
+              "center": 3500,
+              "hi": 3532,
+              "kind": "center_window",
+              "lo": 3468
+            },
+            {
+              "center": 3738,
+              "hi": 3770,
+              "kind": "center_window",
+              "lo": 3706
+            },
+            {
+              "center": 4000,
+              "hi": 4000,
+              "kind": "center_window",
+              "lo": 3968
+            },
+            {
+              "hi": 3719,
+              "kind": "canonical_left_sweep",
+              "lo": 3591
+            },
+            {
+              "hi": 3751,
+              "kind": "final_selected_window",
+              "lo": 3687
+            }
+          ],
+          "selected_amount_in_total": 5272,
+          "selected_q0": 3719,
+          "selected_q1": 281,
+          "window": 32
+        },
+        "feasible_split_count": 3980,
+        "full_scan_quote_calls": 7979,
+        "integer_rounding_shape": {
+          "first_differences_nondecreasing": false,
+          "min_q0_range": [
+            3719,
+            3763
+          ],
+          "min_q0s_contiguous": false,
+          "negative_knowledge": "Naive discrete-convex first-difference monotonicity failed on this bounded case."
+        },
+        "note": "Interior optimum where naive discrete-convex first differences fail under rounding.",
+        "ok": true,
+        "quote_call_reduction_ratio": 6.204510108864697,
+        "selected_amount_in_total": 5272,
+        "selected_q0": 3719,
+        "verification": {
+          "failed_flags": [],
+          "flags": {
+            "domain_nonempty": 1,
+            "exact_out_scope_ok": 1,
+            "fallback_available_or_explicit_failure": 1,
+            "full_oracle_parity_ok": 1,
+            "integer_rounding_scope_ok": 1,
+            "local_window_certificate_ok": 1,
+            "no_settlement_authority": 1,
+            "quote_replay_ok": 1,
+            "resource_budget_ok": 1,
+            "window_search_replayed": 1
+          },
+          "ok": true
+        },
+        "window": 32,
+        "windowed_quote_calls": 1286
+      }
+    ],
+    "max_quote_call_reduction_ratio": 16.569188191881917,
+    "min_quote_call_reduction_ratio": 3.4129692832764507,
+    "naive_discrete_convex_failures": [
+      "endpoint_best_amount2000",
+      "interior_plateau_amount5000",
+      "large_endpoint_amount9000",
+      "interior_rounding_gap_amount4000"
+    ]
+  },
+  "tau": {
+    "cases": [
+      {
+        "case_id": "route_split_window_pass",
+        "expected": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All host-computed proof-surface facts admit the split-window certificate lane."
+      },
+      {
+        "case_id": "parity_reject",
+        "expected": {
+          "o2": 0,
+          "o4": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "A missing bounded full-oracle parity fact fails closed."
+      },
+      {
+        "case_id": "local_window_reject",
+        "expected": {
+          "o1": 0,
+          "o4": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "A missing local window certificate cannot admit."
+      },
+      {
+        "case_id": "authority_reject",
+        "expected": {
+          "o3": 0,
+          "o4": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 0,
+          "o5": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "A certificate with settlement authority effects is rejected."
+      },
+      {
+        "case_id": "inactive_safe",
+        "expected": {
+          "o4": 0,
+          "o5": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Inactive requests do not admit while the no-authority rail remains true."
+      }
+    ],
+    "ok": true,
+    "spec_path": "src/tau_specs/recommended/route_split_window_certificate_v1.tau",
+    "tau_bin": "/home/trevormoc/Downloads/Autonomous Tau DEX/external/tau-lang/build-Release/tau",
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  },
+  "work_items_1_and_2": {
+    "ab_ordering": {
+      "report": "docs/research/ZENODEX_AB_COW_ALGORITHM_BREAKTHROUGH_20260627.md",
+      "spec": "src/tau_specs/recommended/ab_cow_exact_solver_envelope_v1.tau",
+      "status": "Existing Tau rail for bounded AB full-state subset DP; replay command remains python3 tools/zenodex_ab_cow_algorithm_breakthrough_20260627.py."
+    },
+    "cow_matching": {
+      "report": "docs/research/ZENODEX_AB_COW_ALGORITHM_BREAKTHROUGH_20260627.md",
+      "spec": "src/tau_specs/recommended/ab_cow_exact_solver_envelope_v1.tau",
+      "status": "Existing Tau rail for uncoupled Hungarian CoW assignment and bounded coupled-capacity DP; grouped-capacity polynomial matching is not claimed."
+    }
+  }
+}

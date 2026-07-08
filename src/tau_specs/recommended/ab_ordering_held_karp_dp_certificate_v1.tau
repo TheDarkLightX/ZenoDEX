@@ -1,0 +1,40 @@
+# AB Ordering Held-Karp DP Certificate v1
+#
+# PURPOSE:
+#   Guard a host-computed AB-ordering research certificate. The host runs the
+#   full-state subset DP, brute-force parity, balance/slippage checks,
+#   deterministic tie checks, state-cap fallback checks, and no-authority rails.
+#   Tau only combines projected facts.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = full_state_scope_ok
+# i3  = held_karp_dp_complete
+# i4  = brute_force_parity_ok
+# i5  = balance_slippage_ok
+# i6  = deterministic_ties_ok
+# i7  = state_cap_fallback_ok
+# i8  = resource_budget_ok
+# i9  = no_compressed_one_record_claim
+# i10 = no_settlement_authority
+# i11 = replay_evidence_ok
+# o1  = algorithm_evidence_ok
+# o2  = boundary_scope_ok
+# o3  = authority_boundary_ok
+# o4  = ab_ordering_certificate_ok
+# o5  = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+algorithm_evidence_ok(dp : sbf, brute : sbf, balance : sbf, ties : sbf, replay : sbf) := is1(dp) && is1(brute) && is1(balance) && is1(ties) && is1(replay).
+boundary_scope_ok(full_state : sbf, fallback : sbf, budget : sbf, no_compressed : sbf) := is1(full_state) && is1(fallback) && is1(budget) && is1(no_compressed).
+authority_boundary_ok(no_authority : sbf) := is1(no_authority).
+certificate_ok(active : sbf, full_state : sbf, dp : sbf, brute : sbf, balance : sbf, ties : sbf, fallback : sbf, budget : sbf, no_compressed : sbf, no_authority : sbf, replay : sbf) := is1(active) && algorithm_evidence_ok(dp, brute, balance, ties, replay) && boundary_scope_ok(full_state, fallback, budget, no_compressed) && authority_boundary_ok(no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> algorithm_evidence_ok(i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i11[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> boundary_scope_ok(i2[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> authority_boundary_ok(i10[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> certificate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i10[t]:sbf))).

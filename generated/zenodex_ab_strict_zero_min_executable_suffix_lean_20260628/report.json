@@ -1,0 +1,50 @@
+{
+  "artifact": "zenodex_ab_strict_zero_min_executable_suffix_lean_20260628",
+  "authority_boundary": "research proof component only; no production ordering, settlement, governance, state-root, or promotion authority",
+  "commit": "git commit containing this report",
+  "date": "2026-06-28",
+  "lean_file": "lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+  "non_claims": [
+    "does not prove sender balances",
+    "does not prove canonical tie order",
+    "does not cover nonzero min_amount_out",
+    "does not model every kernel domain failure",
+    "does not prove subset-mask induction",
+    "does not prove full Python subset-DP refinement",
+    "does not authorize production ordering or settlement"
+  ],
+  "status": "pass",
+  "summary": "Lean proof component defining strict executable step and suffix predicates and proving executable suffixes preserve positive final reserves.",
+  "theorems": [
+    "ABStrictZeroMinMonotone.strictStepExecutable",
+    "ABStrictZeroMinMonotone.suffixExecutable",
+    "ABStrictZeroMinMonotone.swapOut_lt_reserve_of_pos",
+    "ABStrictZeroMinMonotone.strictStepExecutable_postReserveOut_pos",
+    "ABStrictZeroMinMonotone.strictStepExecutable_postReserveOut_lt",
+    "ABStrictZeroMinMonotone.suffixExecutable_finalReserveOut_pos",
+    "ABStrictZeroMinMonotone.suffixExecutable_finalReserveIn_pos",
+    "ABStrictZeroMinMonotone.witness_suffixExecutable"
+  ],
+  "verification": {
+    "lake_env_lean": {
+      "command": "cd lean-mathlib && lake env lean Proofs/ABStrictZeroMinMonotone.lean",
+      "status": "pass",
+      "summary": "typechecked"
+    },
+    "lake_build_module": {
+      "command": "cd lean-mathlib && lake build Proofs.ABStrictZeroMinMonotone",
+      "status": "pass",
+      "summary": "Build completed successfully"
+    },
+    "placeholder_scan": {
+      "command": "rg -n \"\\\\b(sorry|admit|axiom|unsafe|sorryAx)\\\\b\" lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+      "status": "pass",
+      "summary": "No proof placeholders found"
+    },
+    "pytest": {
+      "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+      "status": "pass",
+      "summary": "1 passed"
+    }
+  }
+}

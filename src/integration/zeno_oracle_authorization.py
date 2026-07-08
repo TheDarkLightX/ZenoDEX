@@ -246,16 +246,67 @@ def _non_negative_int_obj(obj: Mapping[str, Any], key: str, errors: list[str]) -
     return out
 
 
+def _positive_int_obj(obj: Mapping[str, Any], key: str, errors: list[str]) -> int | None:
+    value = obj.get(key)
+    if isinstance(value, bool) or not isinstance(value, int):
+        errors.append(f"economic_envelope {key} must be a positive int")
+        return None
+    out = int(value)
+    if out <= 0:
+        errors.append(f"economic_envelope {key} must be a positive int")
+        return None
+    return out
+
+
+def _bps_int_obj(obj: Mapping[str, Any], key: str, errors: list[str]) -> int | None:
+    value = obj.get(key)
+    if isinstance(value, bool) or not isinstance(value, int):
+        errors.append(f"economic_envelope {key} must be in [0, 10000]")
+        return None
+    out = int(value)
+    if out < 0 or out > 10_000:
+        errors.append(f"economic_envelope {key} must be in [0, 10000]")
+        return None
+    return out
+
+
+def _receipt_required_bonds_e8(
+    receipt_graph: Mapping[str, Any],
+    errors: list[str],
+) -> tuple[int, ...]:
+    report_leaf_commitments = receipt_graph.get("report_leaf_commitments")
+    if not isinstance(report_leaf_commitments, list):
+        return ()
+    required_bonds: list[int] = []
+    for index, leaf in enumerate(report_leaf_commitments):
+        if not isinstance(leaf, Mapping):
+            continue
+        report_id = str(leaf.get("report_id", index))
+        required_bonds.append(
+            _non_negative_leaf_int(
+                leaf,
+                "required_bond_e8",
+                errors,
+                report_id=report_id,
+            )
+        )
+    return tuple(required_bonds)
+
+
 def verify_economic_envelope_binding(
     authorization: OracleAuthorization,
     economic_envelope: Mapping[str, Any] | None,
     *,
+    receipt_graph: Mapping[str, Any] | None = None,
     runtime_notional_value_e8: int | None = None,
+    require_economic_envelope: bool = False,
 ) -> tuple[bool, tuple[str, ...]]:
     """Check that a terminal authorization is bound to its economic envelope."""
 
     errors: list[str] = []
     if economic_envelope is None:
+        if require_economic_envelope:
+            return False, ("economic_envelope required",)
         return True, ()
     if economic_envelope.get("schema") != "zenodex.oracle.economic_security_envelope.v1":
         errors.append("economic_envelope schema must be zenodex.oracle.economic_security_envelope.v1")
@@ -264,6 +315,14 @@ def verify_economic_envelope_binding(
             errors.append(f"economic_envelope {key} does not match authorization")
     notional_value = _non_negative_int_obj(economic_envelope, "notional_value_e8", errors)
     max_extractable = _non_negative_int_obj(economic_envelope, "max_extractable_value_e8", errors)
+    reporter_count = _positive_int_obj(economic_envelope, "reporter_count", errors)
+    reporter_bond_required = _non_negative_int_obj(
+        economic_envelope,
+        "reporter_bond_required_e8",
+        errors,
+    )
+    _bps_int_obj(economic_envelope, "slash_fraction_bps", errors)
+    _bps_int_obj(economic_envelope, "deterrence_margin_bps", errors)
     if (
         notional_value is not None
         and max_extractable is not None
@@ -277,6 +336,16 @@ def verify_economic_envelope_binding(
             errors.append("runtime_notional_value_e8 must be a non-negative int")
         elif notional_value is not None and runtime_notional_value_e8 > notional_value:
             errors.append("runtime_notional_value_e8 exceeds economic envelope")
+    if receipt_graph is not None:
+        receipt_reporter_count = _non_negative_graph_int(receipt_graph, "reporter_count", errors)
+        if reporter_count is not None and reporter_count != receipt_reporter_count:
+            errors.append("economic_envelope reporter_count does not match receipt_graph")
+        required_bonds = _receipt_required_bonds_e8(receipt_graph, errors)
+        if reporter_bond_required is not None and required_bonds:
+            if any(required_bond != reporter_bond_required for required_bond in required_bonds):
+                errors.append(
+                    "economic_envelope reporter_bond_required_e8 does not match receipt_graph required_bond_e8"
+                )
     expected_envelope_id = economic_envelope_hash(economic_envelope)
     if authorization.economic_envelope_id != expected_envelope_id:
         errors.append("economic_envelope_id does not bind economic_envelope")
@@ -681,6 +750,7 @@ def check_authorization_for_runtime(
     runtime: RuntimeActionFacts,
     *,
     require_receipt_graph: bool = False,
+    require_economic_envelope: bool = False,
 ) -> dict[str, Any]:
     """Check one authorization against runtime facts supplied by the consumer.
 
@@ -703,7 +773,9 @@ def check_authorization_for_runtime(
     economic_ok, economic_errors = verify_economic_envelope_binding(
         authorization,
         economic_envelope,
+        receipt_graph=receipt_graph,
         runtime_notional_value_e8=runtime.runtime_notional_value_e8,
+        require_economic_envelope=require_economic_envelope,
     )
     if economic_errors:
         typed_errors = tuple(list(typed_errors) + list(economic_errors))
@@ -748,6 +820,7 @@ def check_critical_consumer_authorization(
     profile_id: str | None = None,
     max_freshness_window_epochs: int | None = None,
     require_receipt_graph: bool = True,
+    require_economic_envelope: bool = True,
 ) -> dict[str, Any]:
     runtime_field_errors: list[str] = []
     if isinstance(runtime_value_e8, bool) or not isinstance(runtime_value_e8, int):
@@ -823,6 +896,7 @@ def check_critical_consumer_authorization(
         authorization_payload,
         runtime,
         require_receipt_graph=require_receipt_graph,
+        require_economic_envelope=require_economic_envelope,
     )
     authorization = authorization_from_obj(_authorization_obj_from_payload(authorization_payload))
     typed_errors = list(result["typed_errors"])

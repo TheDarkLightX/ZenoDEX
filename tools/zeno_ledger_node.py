@@ -25,7 +25,7 @@ from contextlib import contextmanager
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Mapping, NoReturn
+from typing import Any, Mapping, NoReturn, Sequence
 from urllib.error import HTTPError
 from urllib.parse import parse_qs, unquote, urljoin, urlparse
 from urllib.request import Request, urlopen
@@ -36,6 +36,7 @@ if str(ROOT) not in sys.path:
 
 from src.core.amm_dispatch import swap_exact_in_for_pool
 from src.core.dex import DexConfig
+from src.core.risc0_tx_execution_order import MAX_EXACT_STALE_ROUTE_ORDER_TXS
 from src.integration.autonomous_governance_q_policy import (
     AUTONOMOUS_GOVERNANCE_SURFACE_ADMISSION_SCHEMA_V1,
     SURFACE_PARAMETER_NAMES_V1,
@@ -759,17 +760,20 @@ def _ingress_receipt_v0(
     height: int,
     time_ms: int,
     sequencer_id: str,
+    index: int = 0,
 ) -> dict[str, Any]:
+    if index < 0:
+        raise ValueError("ingress receipt index must be non-negative")
     body = {
         "schema": INGRESS_RECEIPT_SCHEMA_V0,
         "chain_id": chain_id,
         "tx_hash": tx_hash,
         "received_time_ms": time_ms,
-        "received_sequence": height * 1_000,
+        "received_sequence": height * 1_000 + index,
         "sequencer_id": sequencer_id,
         "status": "included",
         "height": height,
-        "index": 0,
+        "index": index,
         "reject_code": None,
     }
     return {**body, "receipt_hash": hash_v0("node_ingress_receipt_v0", body)}
@@ -783,8 +787,32 @@ def _body_for_tx_v0(
     sequencer_id: str,
     tx: Mapping[str, Any],
 ) -> dict[str, Any]:
-    tx_obj = dict(tx)
-    tx_hash = tx_hash_v0(tx_obj)
+    return _body_for_transactions_v0(
+        chain_id=chain_id,
+        height=height,
+        time_ms=time_ms,
+        sequencer_id=sequencer_id,
+        transactions=[tx],
+    )
+
+
+def _body_for_transactions_v0(
+    *,
+    chain_id: str,
+    height: int,
+    time_ms: int,
+    sequencer_id: str,
+    transactions: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    tx_objs: list[dict[str, Any]] = []
+    for index, tx in enumerate(transactions):
+        if not isinstance(tx, Mapping):
+            raise TypeError(f"transactions[{index}] must be an object")
+        tx_objs.append(dict(tx))
+    if not tx_objs:
+        raise ValueError("transactions must be non-empty")
+    if len(tx_objs) > MAX_EXACT_STALE_ROUTE_ORDER_TXS:
+        raise ValueError("live DEX batch tx_count exceeded")
     body = {
         "schema": BODY_SCHEMA_V0,
         "chain_id": chain_id,
@@ -795,7 +823,7 @@ def _body_for_tx_v0(
                 "chain_id": chain_id,
                 "height": height,
                 "cutoff_time_ms": time_ms,
-                "cutoff_sequence": height * 1_000,
+                "cutoff_sequence": height * 1_000 + len(tx_objs) - 1,
                 "sequencer_id": sequencer_id,
                 "policy_id": "zeno_ledger_node_live_append_v0",
                 "policy_digest": hash_v0(
@@ -806,16 +834,18 @@ def _body_for_tx_v0(
             "ingress_receipts": [
                 _ingress_receipt_v0(
                     chain_id=chain_id,
-                    tx_hash=tx_hash,
+                    tx_hash=tx_hash_v0(tx_obj),
                     height=height,
                     time_ms=time_ms,
                     sequencer_id=sequencer_id,
+                    index=index,
                 )
+                for index, tx_obj in enumerate(tx_objs)
             ],
             "forced_inclusion_requests": [],
             "forced_inclusion_decisions": [],
         },
-        "transactions": [tx_obj],
+        "transactions": tx_objs,
         "settlement_envelopes": [],
         "evidence": _empty_evidence_v0(),
     }
@@ -2259,7 +2289,7 @@ def _existing_append_report_for_tx_id_v0(
         txs = body.get("transactions")
         if not isinstance(txs, list):
             continue
-        for existing_tx_raw in txs:
+        for tx_index, existing_tx_raw in enumerate(txs):
             if not isinstance(existing_tx_raw, Mapping):
                 continue
             if str(existing_tx_raw.get("tx_id", "")).strip() != normalized_tx_id:
@@ -2272,7 +2302,6 @@ def _existing_append_report_for_tx_id_v0(
                 report_obj = dict(_load_json_object(append_report_path))
             else:
                 _body_path, receipts_path = _ledger_body_and_receipts_paths_v0(data_dir=data_dir, height=height)
-                receipts = json.loads(receipts_path.read_text(encoding="utf-8"))
                 report_obj = {
                     "schema": NODE_APPEND_REPORT_SCHEMA,
                     "ok": True,
@@ -2281,8 +2310,15 @@ def _existing_append_report_for_tx_id_v0(
                     "tx_hash": tx_hash_v0(dict(existing_tx_raw)),
                     "body_path": str(path),
                     "receipts_path": str(receipts_path),
-                    "receipt": receipts[0] if isinstance(receipts, list) and receipts else None,
                 }
+            report_obj["tx_hash"] = tx_hash_v0(dict(existing_tx_raw))
+            report_obj["tx_index"] = tx_index
+            report_obj["batch_tx_count"] = len(txs)
+            indexed_receipt = _receipt_for_tx_index_v0(
+                receipts_path=Path(str(report_obj.get("receipts_path", ""))),
+                tx_index=tx_index,
+            )
+            report_obj["receipt"] = indexed_receipt if indexed_receipt is not None else report_obj.get("receipt")
             report_obj["idempotent_replay"] = True
             return report_obj
     return None
@@ -2310,7 +2346,7 @@ def _existing_tx_and_append_report_for_tx_id_v0(
         txs = body.get("transactions")
         if not isinstance(txs, list):
             continue
-        for existing_tx_raw in txs:
+        for tx_index, existing_tx_raw in enumerate(txs):
             if not isinstance(existing_tx_raw, Mapping):
                 continue
             if str(existing_tx_raw.get("tx_id", "")).strip() != normalized_tx_id:
@@ -2320,7 +2356,6 @@ def _existing_tx_and_append_report_for_tx_id_v0(
                 report_obj = dict(_load_json_object(append_report_path))
             else:
                 _body_path, receipts_path = _ledger_body_and_receipts_paths_v0(data_dir=data_dir, height=height)
-                receipts = json.loads(receipts_path.read_text(encoding="utf-8"))
                 report_obj = {
                     "schema": NODE_APPEND_REPORT_SCHEMA,
                     "ok": True,
@@ -2329,11 +2364,30 @@ def _existing_tx_and_append_report_for_tx_id_v0(
                     "tx_hash": tx_hash_v0(dict(existing_tx_raw)),
                     "body_path": str(path),
                     "receipts_path": str(receipts_path),
-                    "receipt": receipts[0] if isinstance(receipts, list) and receipts else None,
                 }
+            report_obj["tx_hash"] = tx_hash_v0(dict(existing_tx_raw))
+            report_obj["tx_index"] = tx_index
+            report_obj["batch_tx_count"] = len(txs)
+            indexed_receipt = _receipt_for_tx_index_v0(
+                receipts_path=Path(str(report_obj.get("receipts_path", ""))),
+                tx_index=tx_index,
+            )
+            report_obj["receipt"] = indexed_receipt if indexed_receipt is not None else report_obj.get("receipt")
             report_obj["idempotent_replay"] = True
             return dict(existing_tx_raw), report_obj
     return None
+
+
+def _receipt_for_tx_index_v0(*, receipts_path: Path, tx_index: int) -> dict[str, Any] | None:
+    if tx_index < 0 or not receipts_path.is_file():
+        return None
+    receipts = json.loads(receipts_path.read_text(encoding="utf-8"))
+    if not isinstance(receipts, list) or tx_index >= len(receipts):
+        return None
+    receipt = receipts[tx_index]
+    if not isinstance(receipt, Mapping):
+        return None
+    return dict(receipt)
 
 
 def _iter_tx_operations_v0(tx: Mapping[str, Any]) -> list[Mapping[str, Any]]:
@@ -3225,6 +3279,22 @@ def _ui_route_leg_indices_v0(payload: Mapping[str, Any], receipt_body: Mapping[s
     return out
 
 
+def _ui_route_protocol_fee_context_v0(payload: Mapping[str, Any]) -> tuple[int, str | None]:
+    share_raw = payload.get("protocol_fee_share_bps", payload.get("protocolFeeShareBps", 0))
+    share_bps = _ui_amount_int_v0(
+        share_raw,
+        name="protocol_fee_share_bps",
+        maximum=10_000,
+        allow_zero=True,
+    )
+    recipient_raw = payload.get("protocol_fee_recipient_pubkey", payload.get("protocolFeeRecipientPubkey"))
+    if recipient_raw is None or recipient_raw == "":
+        if share_bps > 0:
+            raise ValueError("protocol_fee_recipient_pubkey required")
+        return share_bps, None
+    return share_bps, _require_pubkey_v0(recipient_raw, name="protocol_fee_recipient_pubkey")
+
+
 def _ui_route_tx_v0(
     *,
     data_dir: Path,
@@ -3249,6 +3319,7 @@ def _ui_route_tx_v0(
         raise ValueError("quote_receipt.body must be an object")
 
     from src.core.quote_receipts import (
+        make_risc0_route_quote_receipt_binding_hash_from_body,  # pylint: disable=import-outside-toplevel
         verify_route_quote_receipt,  # pylint: disable=import-outside-toplevel
     )
 
@@ -3272,6 +3343,7 @@ def _ui_route_tx_v0(
         maximum=MAX_TESTNET_FAUCET_AMOUNT,
     )
     leg_indices = _ui_route_leg_indices_v0(payload, receipt_body)
+    protocol_fee_share_bps, protocol_fee_recipient_pubkey = _ui_route_protocol_fee_context_v0(payload)
     nonce_raw = payload.get("nonce")
     if nonce_raw is None:
         nonce = _snapshot_last_nonce_v0(snapshot, sender) + 1
@@ -3298,6 +3370,18 @@ def _ui_route_tx_v0(
             "total_amount_in": total_amount_in,
             "total_min_amount_out": total_min_amount_out,
         }
+        binding_hash = make_risc0_route_quote_receipt_binding_hash_from_body(
+            kind="ROUTE_EXACT_IN",
+            receipt_body=dict(receipt_body),
+            pools_by_id=pre_state.pools,
+            total_amount_in=total_amount_in,
+            total_min_amount_out=total_min_amount_out,
+            total_amount_out=0,
+            total_max_amount_in=0,
+            protocol_fee_share_bps=protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+            leg_indices=tuple(leg_indices),
+        )
         kind = "ROUTE_EXACT_IN"
     else:
         total_amount_out = _ui_amount_int_v0(
@@ -3319,13 +3403,24 @@ def _ui_route_tx_v0(
             "total_amount_out": total_amount_out,
             "total_max_amount_in": total_max_amount_in,
         }
+        binding_hash = make_risc0_route_quote_receipt_binding_hash_from_body(
+            kind="ROUTE_EXACT_OUT",
+            receipt_body=dict(receipt_body),
+            pools_by_id=pre_state.pools,
+            total_amount_in=0,
+            total_min_amount_out=0,
+            total_amount_out=total_amount_out,
+            total_max_amount_in=total_max_amount_in,
+            protocol_fee_share_bps=protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+            leg_indices=tuple(leg_indices),
+        )
         kind = "ROUTE_EXACT_OUT"
 
-    receipt_hash = str(receipt["receipt_hash"])
     intent_payload = {
         "sender_pubkey": sender,
         "recipient": recipient,
-        "quote_receipt_hash": receipt_hash,
+        "quote_receipt_hash": binding_hash,
         "asset_in": asset_in,
         "asset_out": asset_out,
         "leg_indices": leg_indices,
@@ -3340,7 +3435,7 @@ def _ui_route_tx_v0(
         "sender_pubkey": sender,
         "deadline": deadline,
         "nonce": nonce,
-        "quote_receipt_hash": receipt_hash,
+        "quote_receipt_hash": binding_hash,
         "asset_in": asset_in,
         "asset_out": asset_out,
         "leg_indices": leg_indices,
@@ -4084,6 +4179,223 @@ def append_dex_transaction_v0(
             min_lp_position_age_seconds=min_lp_position_age_seconds,
             lp_duration_risk_policy=lp_duration_risk_policy,
         )
+
+
+def append_dex_transactions_v0(
+    *,
+    data_dir: Path,
+    txs: Sequence[Mapping[str, Any]],
+    time_ms: int,
+    min_lp_position_age_seconds: int = 0,
+    lp_duration_risk_policy: Any | None = None,
+) -> dict[str, Any]:
+    """Append a bounded live DEX transaction batch to a node-local live ledger.
+
+    This is an explicit batch surface for body-bound route-order receipts. It
+    rejects duplicate or already-committed tx IDs instead of replaying partial
+    batches, because idempotent batch replay needs a separate batch identity.
+    """
+
+    with _data_dir_writer_lock_v0(data_dir):
+        return _append_dex_transactions_v0_locked(
+            data_dir=data_dir,
+            txs=txs,
+            time_ms=time_ms,
+            min_lp_position_age_seconds=min_lp_position_age_seconds,
+            lp_duration_risk_policy=lp_duration_risk_policy,
+        )
+
+
+def _append_dex_transactions_v0_locked(
+    *,
+    data_dir: Path,
+    txs: Sequence[Mapping[str, Any]],
+    time_ms: int,
+    min_lp_position_age_seconds: int,
+    lp_duration_risk_policy: Any | None,
+) -> dict[str, Any]:
+    tx_objs = _validated_dex_batch_transactions_v0(txs)
+    node_status = load_node_status_v0(data_dir)
+    bundle_root = Path(str(node_status["bundle_root"]))
+    public_manifest = _read_public_manifest(bundle_root)
+    bootstrap_manifest = _load_json_object(bundle_root / "bootstrap" / "manifest.json")
+    base = _live_base_paths(bundle_root=bundle_root, data_dir=data_dir, node_status=node_status)
+    latest_height = int(base["latest_height"])
+    for tx_obj in tx_objs:
+        tx_id = str(tx_obj.get("tx_id", "")).strip()
+        if not tx_id:
+            continue
+        existing_report = _existing_append_report_for_tx_id_v0(
+            data_dir=data_dir,
+            tx_id=tx_id,
+            tx=tx_obj,
+            max_height=latest_height,
+        )
+        if existing_report is not None:
+            raise ValueError("batch_tx_id_already_committed")
+
+    height = latest_height + 1
+    sequencer_id = str(public_manifest["sequencer_id"])
+    chain_id = str(public_manifest["chain_id"])
+    pre_state_path = Path(str(base["pre_snapshot_path"]))
+    pre_state_obj = _load_json_object(pre_state_path)
+    if _is_tau_app_state_obj_v0(pre_state_obj):
+        raise ValueError("dex batch append requires DEX snapshot state")
+    pre_snapshot = _dex_snapshot_from_state_file_obj_v0(pre_state_obj)
+    dex_config = _local_testnet_tokenomics_dex_config_v0(node_status)
+    attached_txs = [
+        _attach_tokenomics_buyback_burn_event_v0(
+            tx=tx_obj,
+            pre_snapshot=pre_snapshot,
+            node_status=node_status,
+            chain_id=chain_id,
+            height=height,
+            tx_index=tx_index,
+            data_dir=data_dir,
+            min_lp_position_age_seconds=min_lp_position_age_seconds,
+            lp_duration_risk_policy=lp_duration_risk_policy,
+        )
+        for tx_index, tx_obj in enumerate(tx_objs)
+    ]
+    body = _body_for_transactions_v0(
+        chain_id=chain_id,
+        height=height,
+        time_ms=time_ms,
+        sequencer_id=sequencer_id,
+        transactions=attached_txs,
+    )
+    pending_body_path = data_dir / "live_bodies" / f".{height}.pending.json"
+    live_body_path = data_dir / "live_bodies" / f"{height}.json"
+    _write_json(pending_body_path, body)
+    live_ledger_dir = data_dir / "live_ledger"
+    block_report: dict[str, Any] | None = None
+    try:
+        block_report = _build_dex_block_with_tokenomics_buyback_v0(
+            data_dir=data_dir,
+            body_path=pending_body_path,
+            out_dir=live_ledger_dir,
+            time_ms=time_ms,
+            pre_snapshot_path=pre_state_path,
+            prev_header_path=Path(str(base["prev_header_path"])),
+            trusted_prev_header_hash=ZERO_ROOT,
+            sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
+            data_availability_root=ZERO_ROOT,
+            proof_journal_hash=ZERO_ROOT,
+            config_digest=str(bootstrap_manifest["config_digest"]),
+            module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
+            signature_set_root=ZERO_ROOT,
+            allow_missing_settlement=True,
+            require_intent_signatures=True,
+            allow_unsigned_intents_if_tx_sender_matches=False,
+            protocol_fee_share_bps=dex_config.protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=dex_config.protocol_fee_recipient_pubkey,
+            min_lp_position_age_seconds=min_lp_position_age_seconds,
+            lp_duration_risk_policy=lp_duration_risk_policy,
+        )
+        pending_body_path.replace(live_body_path)
+    except Exception:
+        pending_body_path.unlink(missing_ok=True)
+        if block_report is not None:
+            _discard_replayed_block_artifacts_v0(data_dir=data_dir, block_report=block_report)
+        raise
+
+    receipts_path = Path(str(block_report["receipts_path"]))
+    receipts = json.loads(receipts_path.read_text(encoding="utf-8"))
+    if not isinstance(receipts, list):
+        raise ValueError("block receipts must be a list")
+    post_state_path = block_report.get("post_snapshot_path", block_report.get("post_app_state_path"))
+    if post_state_path is None:
+        raise ValueError("block report missing post state path")
+    _write_live_state(
+        data_dir=data_dir,
+        height=height,
+        header_path=str(block_report["header_path"]),
+        snapshot_path=str(post_state_path),
+        header_hash=str(block_report["header_hash"]),
+        app_hash=str(block_report["app_hash"]),
+    )
+    report = {
+        "schema": NODE_APPEND_REPORT_SCHEMA,
+        "ok": True,
+        "status": "accepted",
+        "append_kind": "dex_transaction_batch",
+        "node_id": node_status["node_id"],
+        "height": height,
+        "tx_count": len(attached_txs),
+        "tx_hashes": [tx_hash_v0(tx_obj) for tx_obj in attached_txs],
+        "header_hash": block_report["header_hash"],
+        "app_hash": block_report["app_hash"],
+        "source_body_path": str(live_body_path),
+        "body_path": block_report["body_path"],
+        "header_path": block_report["header_path"],
+        "checkpoint_path": block_report["checkpoint_path"],
+        "receipts_path": block_report["receipts_path"],
+        "post_snapshot_path": str(post_state_path),
+        "receipts": receipts,
+        "production_security_claim": False,
+        "not_claimed": [
+            "no_http_batch_endpoint",
+            "no_partial_batch_idempotency_replay",
+            "not_default_live_mempool_policy",
+        ],
+    }
+    if "post_app_state_path" in block_report:
+        report["post_app_state_path"] = block_report["post_app_state_path"]
+    if block_report.get("body_tx_execution_order_commitment_receipt_attached") is True:
+        report["body_tx_execution_order_commitment_receipt_attached"] = True
+    append_report_path = data_dir / "append_reports" / f"{height}.json"
+    _write_json(append_report_path, report)
+    return {**report, "append_report_path": str(append_report_path)}
+
+
+def _validated_dex_batch_transactions_v0(txs: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    tx_objs: list[dict[str, Any]] = []
+    seen_tx_ids: set[str] = set()
+    for index, tx in enumerate(txs):
+        if not isinstance(tx, Mapping):
+            raise TypeError(f"txs[{index}] must be an object")
+        tx_obj = dict(tx)
+        operations = tx_obj.get("operations")
+        if isinstance(operations, Mapping) and ("7" in operations or "10" in operations):
+            raise ValueError("dex batch append does not support faucet or tau-app operations")
+        tx_id = str(tx_obj.get("tx_id", "")).strip()
+        if tx_id:
+            if tx_id in seen_tx_ids:
+                raise ValueError("duplicate_tx_id_in_batch")
+            seen_tx_ids.add(tx_id)
+        tx_objs.append(tx_obj)
+    if not tx_objs:
+        raise ValueError("txs must be non-empty")
+    if len(tx_objs) > MAX_EXACT_STALE_ROUTE_ORDER_TXS:
+        raise ValueError("live DEX batch tx_count exceeded")
+    return tx_objs
+
+
+def _tx_batch_from_payload_v0(payload: object) -> list[dict[str, Any]]:
+    if isinstance(payload, Mapping):
+        raw_txs = payload.get("txs", payload.get("transactions"))
+    else:
+        raw_txs = payload
+    if not isinstance(raw_txs, list):
+        raise ValueError("txs_must_be_list")
+    txs: list[dict[str, Any]] = []
+    for index, tx in enumerate(raw_txs):
+        if not isinstance(tx, Mapping):
+            raise ValueError(f"txs[{index}]_must_be_object")
+        txs.append(dict(tx))
+    return txs
+
+
+def _time_ms_from_payload_v0(payload: object) -> int:
+    if isinstance(payload, Mapping):
+        time_ms = payload.get("time_ms", payload.get("timeMs"))
+    else:
+        time_ms = None
+    if time_ms is None:
+        time_ms = int(time.time() * 1000)
+    if not isinstance(time_ms, int) or isinstance(time_ms, bool) or time_ms < 0:
+        raise ValueError("time_ms_must_be_nonnegative_int")
+    return int(time_ms)
 
 
 def _append_dex_transaction_v0_locked(
@@ -6048,6 +6360,37 @@ def make_node_http_server_v0(
                         )
                     self._send_json(report, status=HTTPStatus.OK if report["ok"] else HTTPStatus.BAD_REQUEST)
                     return
+                if request_path == "/tx/batch":
+                    if not self._require_write_auth():
+                        return
+                    if not enable_testnet_intake:
+                        self._send_json({"ok": False, "error": "testnet_intake_disabled"}, status=HTTPStatus.FORBIDDEN)
+                        return
+                    payload = _read_http_json_body(self)
+                    if submit_peer_url:
+                        report, peer_status = _post_json_url(
+                            urljoin(submit_peer_url.rstrip("/") + "/", "tx/batch"),
+                            payload,
+                            bearer_token=submit_peer_auth_token,
+                        )
+                        self._send_json({**report, "forwarded_to": submit_peer_url}, status=peer_status)
+                        return
+                    try:
+                        txs = _tx_batch_from_payload_v0(payload)
+                        time_ms = _time_ms_from_payload_v0(payload)
+                        with append_lock:
+                            report = append_dex_transactions_v0(
+                                data_dir=root,
+                                txs=txs,
+                                time_ms=time_ms,
+                                min_lp_position_age_seconds=min_lp_position_age_seconds,
+                                lp_duration_risk_policy=lp_duration_risk_policy,
+                            )
+                    except (TypeError, ValueError) as exc:
+                        self._send_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+                        return
+                    self._send_json(report, status=HTTPStatus.OK if report["ok"] else HTTPStatus.BAD_REQUEST)
+                    return
                 if request_path == "/faucet":
                     if not self._require_write_auth():
                         return
@@ -6842,6 +7185,21 @@ def _cmd_append(args: argparse.Namespace) -> int:
     return 0 if report.get("ok") is True else 1
 
 
+def _cmd_append_batch(args: argparse.Namespace) -> int:
+    try:
+        payload = json.loads(args.txs.read_text(encoding="utf-8"))
+        txs = _tx_batch_from_payload_v0(payload)
+        report = append_dex_transactions_v0(
+            data_dir=args.data_dir,
+            txs=txs,
+            time_ms=args.time_ms,
+        )
+    except Exception as exc:
+        report = {"schema": NODE_APPEND_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report.get("ok") is True else 1
+
+
 def _cmd_append_autogovnext(args: argparse.Namespace) -> int:
     try:
         request = _load_json_object(args.request)
@@ -7098,6 +7456,20 @@ def main(argv: list[str] | None = None) -> int:
     append.add_argument("--tx", required=True, type=Path)
     append.add_argument("--time-ms", type=int, default=DEFAULT_TIME_MS + 1_000_000)
     append.set_defaults(func=_cmd_append)
+
+    append_batch = sub.add_parser(
+        "append-batch",
+        help="append a bounded raw DEX transaction batch to a node-local live ledger",
+    )
+    append_batch.add_argument("--data-dir", required=True, type=Path)
+    append_batch.add_argument(
+        "--txs",
+        required=True,
+        type=Path,
+        help="JSON list of tx objects, or an object with txs/transactions",
+    )
+    append_batch.add_argument("--time-ms", type=int, default=DEFAULT_TIME_MS + 1_000_000)
+    append_batch.set_defaults(func=_cmd_append_batch)
 
     append_autogovnext = sub.add_parser(
         "append-autogov-next",

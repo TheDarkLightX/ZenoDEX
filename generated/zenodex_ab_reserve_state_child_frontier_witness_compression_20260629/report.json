@@ -1,0 +1,323 @@
+{
+  "authority_boundary": "Research-only certificate-compression evidence; no settlement, state-root, production, routing, matching, pool-mutation, or governance authority.",
+  "date": "2026-06-29",
+  "deterministic_replay": {
+    "first_hash": "b6ee02a7ebb46e71229b8e75f194d712d7874f77dfc6caa2096c9dcd8fde3a62",
+    "ok": true,
+    "second_hash": "b6ee02a7ebb46e71229b8e75f194d712d7874f77dfc6caa2096c9dcd8fde3a62"
+  },
+  "lean_contract": {
+    "host_generation_shape": "child quotient state set equals union of predecessor afterStep images",
+    "host_witness_shape": "one predecessor ReserveState.afterStep witness per child quotient state",
+    "lean_file": "lean-mathlib/Proofs/ABReserveStateQuotient.lean",
+    "transition_def": "ReserveState.afterStep",
+    "transition_executability_endpoint": "reserveStateQuotientInvariant_familySuffixExecutable",
+    "transition_invariant_endpoint": "reserveStateQuotientInvariant_afterStep"
+  },
+  "non_claims": [
+    "This witness checker is bounded to the committed n=7 randomized corpus.",
+    "This checker covers only zero-min exact-in cases in the scoped corpus.",
+    "This checker does not prove Python-to-Lean refinement.",
+    "This checker does not prove child-frontier generation in Lean.",
+    "The no-extra generated-state fact is linked to the existing child-frontier equality report, not reproved by the one-witness object alone.",
+    "This checker does not define canonical tie order or preserve order-id history.",
+    "This checker does not cover nonzero min_amount_out behavior.",
+    "No settlement, state-root, production, routing, matching, pool-mutation, or governance authority is derived from this artifact."
+  ],
+  "ok": true,
+  "replay_command": "python3 tools/check_ab_reserve_state_child_frontier_witness_compression_20260629.py",
+  "schema": "zenodex.ab_reserve_state_child_frontier_witness_compression_report.v1",
+  "search": {
+    "case_count": 4,
+    "cases": [
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+        "child_mask_count": 127,
+        "covered_child_state_count": 127,
+        "duplicate_witness_count": 0,
+        "expected_child_state_count": 127,
+        "extra_child_state_witness_count": 0,
+        "fee_bps": 9000,
+        "first_failure": null,
+        "frontier_witness_compression_ratio": 3.527559,
+        "invalid_witness_count": 0,
+        "missing_child_state_witness_count": 0,
+        "ok": true,
+        "packet_hash": "6dcc34309c3e4e998f2893beaf6389165c610d2f25d3667a776987646a143747",
+        "pattern": "thin_positive_boundary/high_fee9000",
+        "predecessor_transition_count": 448,
+        "reasons": [],
+        "unique_child_witness_count": 127,
+        "witness_count": 127,
+        "witness_rows_digest": "50e7a607c536bb6f412b123bb273540fe96902b00f28a0f51d721f2c5cd248ce"
+      },
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_000_near_zero_positive_rand_tie_fee1",
+        "child_mask_count": 127,
+        "covered_child_state_count": 320,
+        "duplicate_witness_count": 0,
+        "expected_child_state_count": 320,
+        "extra_child_state_witness_count": 0,
+        "fee_bps": 1,
+        "first_failure": null,
+        "frontier_witness_compression_ratio": 3.1375,
+        "invalid_witness_count": 0,
+        "missing_child_state_witness_count": 0,
+        "ok": true,
+        "packet_hash": "4ae7e6edecb0cd7e4a76f4275556e1a535df889eb48606de99188ccf2a325411",
+        "pattern": "near_zero_positive/rand_tie",
+        "predecessor_transition_count": 1004,
+        "reasons": [],
+        "unique_child_witness_count": 320,
+        "witness_count": 320,
+        "witness_rows_digest": "11e64226723ba7faaa9266eba37cbbbe93b13f2160650bdbffad32fe9758905a"
+      },
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_001_high_fee_deep_out_rand_stair_fee100",
+        "child_mask_count": 127,
+        "covered_child_state_count": 290,
+        "duplicate_witness_count": 0,
+        "expected_child_state_count": 290,
+        "extra_child_state_witness_count": 0,
+        "fee_bps": 100,
+        "first_failure": null,
+        "frontier_witness_compression_ratio": 3.024138,
+        "invalid_witness_count": 0,
+        "missing_child_state_witness_count": 0,
+        "ok": true,
+        "packet_hash": "d6f18a7e0330ccfc417a5e47b42a7d158d47a453ff283173bc797c4a18c786a9",
+        "pattern": "high_fee_deep_out/rand_stair",
+        "predecessor_transition_count": 877,
+        "reasons": [],
+        "unique_child_witness_count": 290,
+        "witness_count": 290,
+        "witness_rows_digest": "059a8d4c8307a3580c6c5231b702bfd03059cb1ba9c187ccee474f4b1d32409d"
+      },
+      {
+        "bit_count": 7,
+        "case_id": "n7_randomized_002_near_domain_in_rand_burst_fee100",
+        "child_mask_count": 127,
+        "covered_child_state_count": 127,
+        "duplicate_witness_count": 0,
+        "expected_child_state_count": 127,
+        "extra_child_state_witness_count": 0,
+        "fee_bps": 100,
+        "first_failure": null,
+        "frontier_witness_compression_ratio": 3.527559,
+        "invalid_witness_count": 0,
+        "missing_child_state_witness_count": 0,
+        "ok": true,
+        "packet_hash": "caec2b3c2f4bc079ea293680fb9e2c33dc20c5a534c59793fbfa23ba8f8e6998",
+        "pattern": "near_domain_in/rand_burst",
+        "predecessor_transition_count": 448,
+        "reasons": [],
+        "unique_child_witness_count": 127,
+        "witness_count": 127,
+        "witness_rows_digest": "3d8d97f2a7cf35d5d0eb251ee1634695f82ad9b96763ffe788f0511dfe682e24"
+      }
+    ],
+    "child_mask_count": 508,
+    "coverage": {
+      "fee_bps_counts": {
+        "1": 1,
+        "100": 2,
+        "9000": 1
+      },
+      "n_counts": {
+        "7": 4
+      },
+      "pattern_counts": {
+        "high_fee_deep_out/rand_stair": 1,
+        "near_domain_in/rand_burst": 1,
+        "near_zero_positive/rand_tie": 1,
+        "thin_positive_boundary/high_fee9000": 1
+      },
+      "reason_classes": [
+        "authority_effect_present",
+        "duplicate_witness_row",
+        "extra_child_state_witness",
+        "linked_frontier_extra_generated_state",
+        "linked_frontier_summary_mismatch",
+        "missing_child_state_witness",
+        "packet_hash_mismatch",
+        "packet_witness_summary_mismatch",
+        "witness_afterstep_mismatch",
+        "witness_child_state_not_in_child_frontier",
+        "witness_parent_state_not_in_parent_frontier",
+        "witness_step_bit_out_of_range"
+      ]
+    },
+    "covered_child_state_count": 864,
+    "duplicate_witness_count": 0,
+    "elapsed_ms": 2324.224,
+    "expected_child_state_count": 864,
+    "extra_child_state_witness_count": 0,
+    "first_case": {
+      "bit_count": 7,
+      "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+      "child_mask_count": 127,
+      "covered_child_state_count": 127,
+      "duplicate_witness_count": 0,
+      "expected_child_state_count": 127,
+      "extra_child_state_witness_count": 0,
+      "fee_bps": 9000,
+      "first_failure": null,
+      "frontier_witness_compression_ratio": 3.527559,
+      "invalid_witness_count": 0,
+      "missing_child_state_witness_count": 0,
+      "ok": true,
+      "packet_hash": "6dcc34309c3e4e998f2893beaf6389165c610d2f25d3667a776987646a143747",
+      "pattern": "thin_positive_boundary/high_fee9000",
+      "predecessor_transition_count": 448,
+      "reasons": [],
+      "unique_child_witness_count": 127,
+      "witness_count": 127,
+      "witness_rows_digest": "50e7a607c536bb6f412b123bb273540fe96902b00f28a0f51d721f2c5cd248ce"
+    },
+    "first_invalid_case": null,
+    "invalid_witness_count": 0,
+    "linked_frontier_summary": {
+      "available": true,
+      "child_mask_count": 508,
+      "child_state_count": 864,
+      "extra_generated_state_count": 0,
+      "frontier_rows_digest": "b0536297bdec3e49204d98e4a52b4b43ea1467f7a32c2e184cf0bec07955fba4",
+      "generated_state_count": 864,
+      "missing_child_state_count": 0,
+      "ok": true,
+      "path": "generated/zenodex_ab_reserve_state_child_frontier_generation_20260629/report.json",
+      "schema": "zenodex.ab_reserve_state_child_frontier_generation_report.v1"
+    },
+    "missing_child_state_witness_count": 0,
+    "negative_control_accept_count": 0,
+    "negative_control_count": 8,
+    "negative_controls": [
+      {
+        "accepted": false,
+        "expected_reason": "packet_hash_mismatch",
+        "first_failure": null,
+        "mutation_id": "packet_hash_mismatch",
+        "reasons": [
+          "packet_hash_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "missing_child_state_witness",
+        "first_failure": {
+          "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+          "mask_id": 1,
+          "reason": "missing_child_state_witness"
+        },
+        "mutation_id": "missing_child_state_witness",
+        "reasons": [
+          "missing_child_state_witness",
+          "packet_witness_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "witness_parent_state_not_in_parent_frontier",
+        "first_failure": {
+          "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+          "detail": {
+            "row_index": 0
+          },
+          "mask_id": 1,
+          "reason": "witness_parent_state_not_in_parent_frontier"
+        },
+        "mutation_id": "witness_parent_state_not_in_parent_frontier",
+        "reasons": [
+          "witness_parent_state_not_in_parent_frontier",
+          "witness_afterstep_mismatch",
+          "packet_witness_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "witness_child_state_not_in_child_frontier",
+        "first_failure": {
+          "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+          "detail": {
+            "row_index": 0
+          },
+          "mask_id": 1,
+          "reason": "witness_child_state_not_in_child_frontier"
+        },
+        "mutation_id": "witness_child_state_not_in_child_frontier",
+        "reasons": [
+          "witness_child_state_not_in_child_frontier",
+          "witness_afterstep_mismatch",
+          "missing_child_state_witness",
+          "extra_child_state_witness",
+          "packet_witness_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "witness_step_bit_out_of_range",
+        "first_failure": {
+          "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+          "detail": {
+            "row_index": 0
+          },
+          "mask_id": 1,
+          "reason": "witness_step_bit_out_of_range"
+        },
+        "mutation_id": "witness_step_bit_out_of_range",
+        "reasons": [
+          "witness_step_bit_out_of_range",
+          "packet_witness_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "duplicate_witness_row",
+        "first_failure": {
+          "case_id": "n7_randomized_boundary_000_thin_fee9000_rout1100",
+          "detail": {
+            "row_index": 127
+          },
+          "mask_id": 1,
+          "reason": "duplicate_witness_row"
+        },
+        "mutation_id": "duplicate_witness_row",
+        "reasons": [
+          "duplicate_witness_row",
+          "packet_witness_summary_mismatch"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "linked_frontier_extra_generated_state",
+        "first_failure": null,
+        "mutation_id": "linked_frontier_extra_generated_state",
+        "reasons": [
+          "linked_frontier_summary_mismatch",
+          "linked_frontier_extra_generated_state"
+        ]
+      },
+      {
+        "accepted": false,
+        "expected_reason": "authority_effect_present",
+        "first_failure": null,
+        "mutation_id": "authority_effect_present",
+        "reasons": [
+          "authority_effect_present"
+        ]
+      }
+    ],
+    "predecessor_transition_count": 2777,
+    "schema": "zenodex/ab_reserve_state_child_frontier_witness_compression_search/v1",
+    "source_seed": 2026062907,
+    "valid_case_count": 4,
+    "witness_compression_ratio": 3.21412,
+    "witness_count": 864,
+    "witness_rows_digest": "d689dd569b28abf3cb2636def322fa9d8185c2eb1fe4843bd83d07bce69138c3",
+    "witness_transition_checks_saved": 1913
+  },
+  "summary": "A bounded host checker supports a compressed child-frontier proof object for the n=7 strict zero-min reserve-state quotient: one predecessor witness covers each child quotient state."
+}

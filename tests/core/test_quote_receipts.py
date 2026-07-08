@@ -7,6 +7,10 @@ import pytest
 
 import src.core.quote_receipts as quote_receipts_module
 from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
+from src.core.frontier_signature_root import (
+    FRONTIER_SIGNATURE_CERTIFICATES_EMPTY_ROOT_V1,
+    FrontierSignatureCertificatesRootBinding,
+)
 from src.core.quote_receipt_limits import (
     ROUTE_QUOTE_RECEIPT_MAX_HOPS_PER_LEG,
     ROUTE_QUOTE_RECEIPT_MAX_LEGS,
@@ -24,6 +28,7 @@ from src.core.quote_receipts import (
     _ReceiptHopData,
     _replay_and_apply_hop,
     _require_receipt_gate_flag,
+    attach_frontier_signature_binding_to_route_quote_receipt,
     evaluate_route_quote_receipt_certificate_gate,
     evaluate_route_quote_receipt_hop_replay_gate,
     make_route_quote_receipt,
@@ -218,6 +223,99 @@ def test_quote_receipt_accepts_expected_quote_epoch() -> None:
     receipt = make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools, quote_epoch=7)
     ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools, expected_quote_epoch=7)
     assert ok, err
+
+
+def test_quote_receipt_binds_expected_frontier_signature_root() -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 10),
+    }
+    q = best_route_exact_in_2hop(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_in=120,
+    )
+    assert q is not None
+    frontier_root = "0x" + "aa" * 32
+
+    receipt = attach_frontier_signature_binding_to_route_quote_receipt(
+        make_route_quote_receipt(
+            kind="exact_in",
+            quote=q,
+            pools_by_id=pools,
+        ),
+        frontier_signature_binding=FrontierSignatureCertificatesRootBinding(
+            certificate_count=1,
+            certificates_root=frontier_root,
+        ),
+    )
+
+    assert receipt["body"]["shared_pool_frontier_signature_certificate_count"] == 1
+    assert (
+        receipt["body"]["shared_pool_frontier_signature_certificates_root"]
+        == frontier_root
+    )
+    ok, err = verify_route_quote_receipt(
+        receipt,
+        pools_by_id=pools,
+        expected_frontier_signature_binding=FrontierSignatureCertificatesRootBinding(
+            certificate_count=1,
+            certificates_root=frontier_root,
+        ),
+    )
+    assert ok, err
+
+    forged = copy.deepcopy(receipt)
+    forged["body"]["shared_pool_frontier_signature_certificates_root"] = "0x" + "bb" * 32
+    forged["receipt_hash"] = receipt_hash(forged["body"])
+    ok, err = verify_route_quote_receipt(
+        forged,
+        pools_by_id=pools,
+        expected_frontier_signature_binding=FrontierSignatureCertificatesRootBinding(
+            certificate_count=1,
+            certificates_root=frontier_root,
+        ),
+    )
+    assert not ok
+    assert err == "frontier_signature_root_mismatch"
+
+
+def test_quote_receipt_rejects_missing_expected_frontier_signature_root() -> None:
+    receipt, pools = _single_hop_exact_in_receipt()
+
+    ok, err = verify_route_quote_receipt(
+        receipt,
+        pools_by_id=pools,
+        expected_frontier_signature_binding=(
+            FrontierSignatureCertificatesRootBinding(
+                certificate_count=0,
+                certificates_root=FRONTIER_SIGNATURE_CERTIFICATES_EMPTY_ROOT_V1,
+            )
+        ),
+    )
+
+    assert not ok
+    assert err == "missing_frontier_signature_binding"
+
+
+def test_quote_receipt_rejects_partial_frontier_signature_binding() -> None:
+    receipt, pools = _single_hop_exact_in_receipt()
+    mutated = copy.deepcopy(receipt)
+    mutated["body"]["shared_pool_frontier_signature_certificate_count"] = 1
+    mutated["receipt_hash"] = receipt_hash(mutated["body"])
+
+    ok, err = verify_route_quote_receipt(mutated, pools_by_id=pools)
+
+    assert not ok
+    assert err == "frontier_signature_binding_partial"
+
+
+def test_make_route_quote_receipt_rejects_malformed_frontier_signature_binding() -> None:
+    with pytest.raises(ValueError, match="must be empty root when count is zero"):
+        FrontierSignatureCertificatesRootBinding(
+            certificate_count=0,
+            certificates_root="0x" + "aa" * 32,
+        )
 
 
 def test_quote_receipt_rejects_quote_epoch_session_mismatch() -> None:

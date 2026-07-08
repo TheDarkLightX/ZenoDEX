@@ -1,8 +1,8 @@
 import './VerifiedBySpec.css';
 
 /**
- * VerifiedBySpec — small pill linking a surface to the Tau spec or
- * ESSO model that authorizes its consensus-critical path.
+ * VerifiedBySpec - small pill linking a surface to the Tau spec or
+ * ESSO model that constrains its consensus-critical path.
  *
  * Props:
  *   spec      string  — short spec name to render, e.g. "cpmm_v1"
@@ -14,12 +14,12 @@ function VerifiedBySpec({ spec, kind = 'tau', href, title }) {
     if (!spec) return null;
     const kindLabel = kind === 'esso' ? 'ESSO' : kind === 'lean' ? 'Lean' : 'Tau spec';
     const tooltip = title
-        || `Consensus-critical path is verified by ${kindLabel} ${spec}. Click to open source.`;
+        || `Consensus-critical path is constrained by ${kindLabel} ${spec}. Runtime admission and ledger acceptance remain authoritative.`;
     const body = (
         <>
             <span className="verified-by-spec-check" aria-hidden="true">✓</span>
             <span className="verified-by-spec-label">
-                Verified by <span className="verified-by-spec-name">{spec}</span>
+                Spec-bound <span className="verified-by-spec-name">{spec}</span>
             </span>
         </>
     );

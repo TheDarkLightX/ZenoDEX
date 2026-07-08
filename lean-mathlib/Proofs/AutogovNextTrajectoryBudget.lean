@@ -1,5 +1,3 @@
-import Mathlib.Tactic
-
 /-!
 # AutoGovNEXT Trajectory Budget
 

@@ -1,0 +1,42 @@
+# CoW Hungarian Matching Certificate v1
+#
+# PURPOSE:
+#   Guard a host-computed uncoupled CoW matching research certificate. The host
+#   computes maximum-weight assignment evidence, primal/dual consistency,
+#   brute-force parity on bounded cases, grouped-capacity fallback boundaries,
+#   deterministic ties, balance scope, resource limits, and no-authority rails.
+#   Tau only combines projected facts.
+#
+# Stream mapping:
+# i1  = certificate_active
+# i2  = uncoupled_capacity_scope_ok
+# i3  = primal_assignment_ok
+# i4  = dual_certificate_ok
+# i5  = brute_force_parity_ok
+# i6  = grouped_capacity_fallback_ok
+# i7  = deterministic_ties_ok
+# i8  = balance_scope_ok
+# i9  = resource_budget_ok
+# i10 = no_arbitrary_grouped_capacity_claim
+# i11 = no_settlement_authority
+# i12 = replay_evidence_ok
+# o1  = matching_evidence_ok
+# o2  = capacity_boundary_ok
+# o3  = authority_boundary_ok
+# o4  = cow_matching_certificate_ok
+# o5  = inactive_safe
+
+set charvar off
+
+is1(x : sbf) := (x = 1:sbf).
+matching_evidence_ok(primal : sbf, dual : sbf, brute : sbf, ties : sbf, replay : sbf) := is1(primal) && is1(dual) && is1(brute) && is1(ties) && is1(replay).
+capacity_boundary_ok(uncoupled : sbf, grouped_fallback : sbf, balance_scope : sbf, budget : sbf, no_grouped_claim : sbf) := is1(uncoupled) && is1(grouped_fallback) && is1(balance_scope) && is1(budget) && is1(no_grouped_claim).
+authority_boundary_ok(no_authority : sbf) := is1(no_authority).
+certificate_ok(active : sbf, uncoupled : sbf, primal : sbf, dual : sbf, brute : sbf, grouped_fallback : sbf, ties : sbf, balance_scope : sbf, budget : sbf, no_grouped_claim : sbf, no_authority : sbf, replay : sbf) := is1(active) && matching_evidence_ok(primal, dual, brute, ties, replay) && capacity_boundary_ok(uncoupled, grouped_fallback, balance_scope, budget, no_grouped_claim) && authority_boundary_ok(no_authority).
+
+always
+  (o1[t]:sbf = 1:sbf <-> matching_evidence_ok(i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i7[t]:sbf, i12[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> capacity_boundary_ok(i2[t]:sbf, i6[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> authority_boundary_ok(i11[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> certificate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> (!is1(i1[t]:sbf) && is1(i11[t]:sbf))).

@@ -1,0 +1,439 @@
+{
+  "authority_boundary": "research evidence only; no settlement, state-root, production, governance, routing, matching, or pool-mutation authority",
+  "breakthrough": {
+    "invalid_accepts": 0,
+    "name": "AB transition-group compression Lean-bridge Tau certificate",
+    "scoped_claims": [
+      "the Lean bridge report is present, successful, and hash-pinned",
+      "the ABTransitionGroupCompression Lean source and Proofs.lean import are pinned",
+      "the transition-group image-preservation theorem surface is bound",
+      "Lean typechecking and the focused formal regression pass in the current checkout",
+      "the upstream n=7 transition-group compression Tau certificate is bound",
+      "the Tau envelope carries no settlement or state authority"
+    ],
+    "spec_id": "ab_transition_group_compression_lean_bridge_scope_certificate_v1",
+    "tau_cases": 15
+  },
+  "date": "2026-06-29",
+  "facts": {
+    "aggregator_import_bound": 1,
+    "authority_boundary_ok": 1,
+    "corpus_nonvacuous": 1,
+    "formal_test_receipt_ok": 1,
+    "lean_bridge_report_ok": 1,
+    "lean_compile_receipt_ok": 1,
+    "lean_file_pinned": 1,
+    "no_authority_effect": 1,
+    "nonclaims_bound": 1,
+    "placeholder_scan_clean": 1,
+    "replay_commands_bound": 1,
+    "theorem_surface_bound": 1,
+    "upstream_compression_tau_binding_ok": 1
+  },
+  "hypothesis_card": {
+    "expected_metric_delta": {
+      "cap_efficiency": "neutral",
+      "determinism": "positive via hash pins and missing-fact negative cases",
+      "execution_quality": "neutral",
+      "proof_cost": "positive by binding Lean and Tau evidence into one replayable envelope",
+      "safety": "positive for proof-artifact scoping"
+    },
+    "falsification_recipe": "Clear each required fact bit, remove the no-authority rail, alter theorem markers, or break upstream compression binding and require Tau rejection.",
+    "formal_obligations": "Production use still needs Python-to-Lean refinement, host generated-image construction proof, digest proof, and nonzero min_amount_out coverage.",
+    "hypothesis_id": "H-AB-TRANSITION-GROUP-COMPRESSION-LEAN-BRIDGE-TAU-20260629",
+    "mechanism_change": "Add a versioned Tau scope certificate over the transition-group compression Lean bridge.",
+    "null_hypothesis": "A Tau envelope gives no additional falsifiable boundary beyond the Lean bridge report.",
+    "representation_shift_used": "reduce",
+    "status": "supported_bounded",
+    "support_recipe": "Host checks the Lean bridge report, runs Lean and formal tests, binds upstream Tau evidence, then Tau rejects every missing-fact negative case."
+  },
+  "lean_bridge_artifacts": {
+    "aggregator": "lean-mathlib/Proofs.lean",
+    "aggregator_sha256": "sha256:57868a31fffe2ecb6e3f8028efdee91c5d2ced53863b9c838ef804cefb0dce04",
+    "formal_test": "tests/formal/test_lean_ab_transition_group_compression.py",
+    "formal_test_line_count": 59,
+    "formal_test_sha256": "sha256:32244a83355331c366a0f9b6d80800a7ba48499aff190f5f923067404c733dd0",
+    "lean_file": "lean-mathlib/Proofs/ABTransitionGroupCompression.lean",
+    "lean_line_count": 259,
+    "lean_sha256": "sha256:71b6325c1db9cde527a9c26e7b53f76d56d1b9f4cedb79079e8ade98f3c57d98",
+    "required_lean_marker_count": 14
+  },
+  "lean_bridge_report": {
+    "claim_scope": "A Lean proof component formalizes the generic transition-group compression invariant for the AB strict zero-min research surface. If host-provided compressed groups cover every source transition, contain no extra transitions, bind representatives and group counts, and every group member shares its generated-child key, then the compressed generated-child image is exactly the source transition generated-child image. The endpoint also preserves the no-authority host-table rails.",
+    "ok": true,
+    "path": "generated/zenodex_ab_transition_group_compression_lean_bridge_20260629/report.json",
+    "schema": "zenodex/ab_transition_group_compression_lean_bridge/v1",
+    "sha256": "ce267d142cbbf67ebcfd31580f9c12852d19f7700547db5418472a31ceaac5f1"
+  },
+  "non_claims": [
+    "This certificate composes host facts; it does not run Lean inside Tau.",
+    "This certificate does not prove Python-to-Lean refinement.",
+    "This certificate does not prove JSON canonicalization, packet hashing, Merkle membership, or digest computation in Lean.",
+    "This certificate does not prove host generated-image construction.",
+    "This certificate does not cover nonzero min_amount_out behavior.",
+    "This certificate does not authorize settlement, routing, matching, governance, pool mutation, production deployment, or state roots."
+  ],
+  "receipts": {
+    "formal_test": {
+      "command": "/usr/bin/python3 -m pytest -q tests/formal/test_lean_ab_transition_group_compression.py",
+      "cwd": ".",
+      "ok": true,
+      "returncode": 0,
+      "stderr_tail": "",
+      "stdout_tail": ""
+    },
+    "lean_bridge_report_refresh": {
+      "command": "/usr/bin/python3 tools/check_ab_transition_group_compression_lean_bridge_20260629.py",
+      "cwd": ".",
+      "ok": true,
+      "returncode": 0,
+      "stderr_tail": "",
+      "stdout_tail": ""
+    },
+    "lean_compile": {
+      "command": "lake env lean Proofs/ABTransitionGroupCompression.lean",
+      "cwd": "lean-mathlib",
+      "ok": true,
+      "returncode": 0,
+      "stderr_tail": "",
+      "stdout_tail": ""
+    }
+  },
+  "replay_command": "python3 tools/check_ab_transition_group_compression_lean_bridge_tau_certificate_20260629.py",
+  "schema": "zenodex.ab_transition_group_compression_lean_bridge_tau_certificate_report.v1",
+  "spec": {
+    "id": "ab_transition_group_compression_lean_bridge_scope_certificate_v1",
+    "path": "src/tau_specs/recommended/ab_transition_group_compression_lean_bridge_scope_certificate_v1.tau",
+    "sha256": "b9c45945a280ea957dfb81f68d62d3eb464a3eebce6043c5e19ac1d171f3163e"
+  },
+  "tau": {
+    "case_results": [
+      {
+        "case_id": "lean_bridge_scope_certificate_pass",
+        "expected": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All scoped host facts admit the Lean-bridge scope certificate."
+      },
+      {
+        "case_id": "missing_lean_bridge_report_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The Lean bridge report must be successful and hash-pinned."
+      },
+      {
+        "case_id": "lean_file_unpinned_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The Lean source hash and line count must remain pinned."
+      },
+      {
+        "case_id": "aggregator_import_missing_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The proof must remain imported by Proofs.lean."
+      },
+      {
+        "case_id": "theorem_surface_unbound_reject",
+        "expected": {
+          "o2": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The required theorem and definition surface must remain present."
+      },
+      {
+        "case_id": "placeholder_scan_failed_reject",
+        "expected": {
+          "o2": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The Lean proof must remain free of forbidden proof placeholders."
+      },
+      {
+        "case_id": "lean_compile_missing_reject",
+        "expected": {
+          "o2": 0,
+          "o6": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The Lean file must typecheck in the current checkout."
+      },
+      {
+        "case_id": "formal_test_missing_reject",
+        "expected": {
+          "o2": 0,
+          "o6": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The focused formal regression test must pass."
+      },
+      {
+        "case_id": "upstream_compression_tau_unbound_reject",
+        "expected": {
+          "o3": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The Lean bridge certificate must bind the upstream compression Tau certificate."
+      },
+      {
+        "case_id": "nonclaims_missing_reject",
+        "expected": {
+          "o4": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The Python-to-Lean and production-authority non-claims must remain explicit."
+      },
+      {
+        "case_id": "authority_boundary_missing_reject",
+        "expected": {
+          "o4": 0,
+          "o5": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The research-only authority boundary must remain explicit."
+      },
+      {
+        "case_id": "authority_effect_reject",
+        "expected": {
+          "o4": 0,
+          "o5": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 0,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The certificate cannot carry settlement, state-root, governance, or pool-mutation authority."
+      },
+      {
+        "case_id": "empty_corpus_reject",
+        "expected": {
+          "o1": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The certificate must bind a nonempty Lean theorem surface."
+      },
+      {
+        "case_id": "replay_commands_unbound_reject",
+        "expected": {
+          "o3": 0,
+          "o6": 0,
+          "o7": 0
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 0,
+          "o8": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The replay command surface must remain bound."
+      },
+      {
+        "case_id": "inactive_safe",
+        "expected": {
+          "o7": 0,
+          "o8": 1
+        },
+        "got": {
+          "o1": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Inactive certificates do not admit while the no-authority rail remains true."
+      }
+    ],
+    "invalid_accepts": 0,
+    "ok": true,
+    "skipped": false,
+    "tau_bin": "external/tau-lang/build-Release/tau",
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  },
+  "upstream_compression_tau_report": {
+    "compressed_row_count": 864,
+    "invalid_accepts": 0,
+    "path": "generated/zenodex_ab_child_frontier_transition_group_compression_tau_certificate_20260629/report.json",
+    "schema": "zenodex.ab_child_frontier_transition_group_compression_tau_certificate_report.v1",
+    "sha256": "9ca5e4b8ab6f368d1fdd00347e5ca734ee6841f769891488e5fb43dfa591a7d2",
+    "source_transition_row_count": 2777,
+    "tau_cases": 15,
+    "tau_ok": true
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "artifact_id": "zenodex_ab_strict_zero_min_step_induction_bridge_lean_20260628",
+  "date": "2026-06-28",
+  "status": "research_supported_after_replay",
+  "scope": "AB strict executable zero-min subset-mask one-step induction proof component",
+  "lean_file": "lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean",
+  "test_file": "tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+  "research_note": "docs/research/ZENODEX_AB_STRICT_ZERO_MIN_STEP_INDUCTION_BRIDGE_LEAN_20260628.md",
+  "new_theorems": [
+    "ABStrictZeroMinMonotone.reachablePrunedStepMask_sets_child_bit",
+    "ABStrictZeroMinMonotone.reachablePrunedStepMask_preserves_parent_bits",
+    "ABStrictZeroMinMonotone.reachablePrunedStepMask_extends_prefix",
+    "ABStrictZeroMinMonotone.reachablePrunedStepMask_bounds_suffix_output",
+    "ABStrictZeroMinMonotone.reachablePrunedStepMaskInFamily_bounds_family_selected",
+    "ABStrictZeroMinMonotone.reachablePrunedStepMaskInFamily_extends_prefix_and_bounds_family",
+    "ABStrictZeroMinMonotone.reachablePrunedStepMaskListInFamily_extends_prefix_members",
+    "ABStrictZeroMinMonotone.reachablePrunedStepMaskListInFamily_bounds_family_selected",
+    "ABStrictZeroMinMonotone.reachablePrunedStepMaskListInFamily_extends_prefix_and_bounds_family",
+    "ABStrictZeroMinMonotone.stepWinnerCertificate_extends_prefix_and_bounds",
+    "ABStrictZeroMinMonotone.witness_stepWinnerCertificate_extends_prefix_and_bounds"
+  ],
+  "new_definitions": [
+    "ABStrictZeroMinMonotone.reachablePrunedStepMask",
+    "ABStrictZeroMinMonotone.reachablePrunedStepMaskInFamily",
+    "ABStrictZeroMinMonotone.reachablePrunedStepMaskListInFamily",
+    "ABStrictZeroMinMonotone.stepWinnerCertificate"
+  ],
+  "claim": {
+    "summary": "A pruned one-bit transition extends parent prefix bit coverage from bitIndex to bitIndex + 1, and a one-step winner certificate bounds the full child frontier by one selected winner.",
+    "formal_statement": "allBitsBelowSet parent.maskId bitIndex and stepWinnerCertificate parent winner children bitIndex masks initialReserveOut suffix -> (forall child in children, allBitsBelowSet child.maskId (bitIndex + 1)) and bestFullSuffixOutputAcrossMasks initialReserveOut children suffix <= maskSelectedSuffixOutput initialReserveOut winner suffix",
+    "value": "Adds the one-step induction-layer certificate shape needed to turn the AB strict zero-min compressed frontier proof from endpoint bridges into an induction proof."
+  },
+  "non_claims": [
+    "No full strict compressed-DP theorem",
+    "No child frontier construction",
+    "No selected mask family construction",
+    "No winner construction",
+    "No fresh-bit growth requirement",
+    "No tie-order definition",
+    "No Lean-to-Python refinement",
+    "No nonzero min_amount_out coverage",
+    "No host bitset equivalence proof",
+    "No settlement authority",
+    "No state-root authority",
+    "No production-promotion authority",
+    "No governance authority"
+  ],
+  "expected_replay": [
+    "cd lean-mathlib && lake env lean Proofs/ABStrictZeroMinMonotone.lean",
+    "cd lean-mathlib && lake build Proofs.ABStrictZeroMinMonotone",
+    "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests/formal/test_lean_ab_strict_zero_min_monotone.py",
+    "python3 -m json.tool generated/zenodex_ab_strict_zero_min_step_induction_bridge_lean_20260628/report.json >/dev/null",
+    "rg -n \"\\b(sorry|admit|axiom|unsafe|sorryAx)\\b\" lean-mathlib/Proofs/ABStrictZeroMinMonotone.lean"
+  ],
+  "research_kernel": {
+    "run_id": "zenodex-rk-frontier-20260628",
+    "atom_id": "atom_ab_strict_zero_min_step_induction_bridge_lean_20260628",
+    "suggested_status": "SUPPORTED",
+    "suggested_parents": [
+      "atom_ab_strict_zero_min_subset_mask_induction_frontier_20260628",
+      "atom_ab_strict_zero_min_compressed_certificate_lean_20260628",
+      "atom_ab_strict_zero_min_selected_winner_bridge_lean_20260628"
+    ],
+    "tags": [
+      "zenodex",
+      "AB-ordering",
+      "zero-min",
+      "subset-DP",
+      "subset-mask-induction",
+      "step-induction",
+      "compressed-certificate",
+      "selected-winner-bridge",
+      "Lean",
+      "formal-proof",
+      "strict-scope"
+    ]
+  }
+}

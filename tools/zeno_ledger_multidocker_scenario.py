@@ -27,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_dex_intent_for_engine
 from src.integration.zeno_ledger_v0 import hash_v0
 from src.state.pools import compute_pool_id
 from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bundle_v0
@@ -35,6 +36,7 @@ from tools.zeno_ledger_make_testnet_bundle import (
     DEFAULT_ASSET1,
     DEFAULT_BOOTSTRAP_SENDER,
     DEFAULT_CHAIN_ID,
+    DEFAULT_RELEASE_TESTNET_TOKEN_SYMBOL,
     DEFAULT_SEQUENCER_ID,
     DEFAULT_TIME_MS,
 )
@@ -51,6 +53,21 @@ NODE_IDENTITY_SCHEMA_V0 = "zenodex/zenoctl_node_identity/v0"
 DEFAULT_TOKEN_ENV = "ZENO_LEDGER_WRITER_TOKEN"
 MAX_HTTP_JSON_BYTES = 2 * 1024 * 1024
 MAX_BUNDLE_ARCHIVE_BYTES = 32 * 1024 * 1024
+CONTROLLER_SENDER_PRIVKEY = 41
+
+
+def _controller_sender_pubkey_v0() -> str:
+    return "0x" + bls_pubkey_hex_from_privkey(CONTROLLER_SENDER_PRIVKEY)
+
+
+def _with_controller_signature_v0(operation: dict[str, Any], *, chain_id: str) -> dict[str, Any]:
+    signed = dict(operation)
+    signed["signature"] = sign_dex_intent_for_engine(
+        operation,
+        privkey=CONTROLLER_SENDER_PRIVKEY,
+        chain_id=chain_id,
+    )
+    return signed
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -379,7 +396,19 @@ def _auth_token_from_env(env_name: str) -> str:
     return token
 
 
-def _wait_for_bundle(bundle_root: Path, *, timeout_seconds: float = 120.0) -> None:
+def _lp_duration_risk_policy(policy_name: str):
+    if policy_name in {"", "none"}:
+        return None
+    if policy_name == "zeno-oracle":
+        from src.integration.zeno_oracle_fail_closed_config import (  # pylint: disable=import-outside-toplevel
+            ZENO_ORACLE_LP_DURATION_RISK_POLICY,
+        )
+
+        return ZENO_ORACLE_LP_DURATION_RISK_POLICY
+    raise ValueError(f"unsupported LP duration-risk policy: {policy_name}")
+
+
+def _wait_for_bundle(bundle_root: Path, *, timeout_seconds: float = 600.0) -> None:
     manifest = bundle_root / "public_testnet_manifest.json"
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
@@ -396,6 +425,8 @@ def bootstrap_bundle_v0(
     chain_id: str,
     report_out: Path,
     bundle_tar_out: Path | None = None,
+    token_symbol: str = DEFAULT_RELEASE_TESTNET_TOKEN_SYMBOL,
+    fixture_key_bundle_path: Path | None = None,
 ) -> dict[str, Any]:
     report = build_public_testnet_bundle_v0(
         out_dir=bundle_root,
@@ -403,7 +434,8 @@ def bootstrap_bundle_v0(
         chain_id=chain_id,
         sequencer_id=DEFAULT_SEQUENCER_ID,
         time_ms=DEFAULT_TIME_MS,
-        token_symbol="tZENO",
+        token_symbol=token_symbol,
+        fixture_key_bundle_path=fixture_key_bundle_path,
     )
     wrapped = {
         "schema": "zenodex.zeno_ledger.multidocker_bootstrap_report.v0",
@@ -436,6 +468,9 @@ def serve_role_v0(
     submit_peer_auth_token_env: str | None,
     enable_testnet_intake: bool,
     enable_testnet_faucet: bool,
+    expose_testnet_faucet_http: bool,
+    min_lp_position_age_seconds: int,
+    lp_duration_risk_policy_name: str,
 ) -> None:
     peer_urls = [_require_http_base_url(url, name="peer_url") for url in peer_urls]
     submit_peer_url = (
@@ -471,99 +506,107 @@ def serve_role_v0(
         poll_seconds=poll_seconds,
         enable_testnet_intake=enable_testnet_intake,
         enable_testnet_faucet=enable_testnet_faucet,
+        expose_testnet_faucet_http=expose_testnet_faucet_http,
+        min_lp_position_age_seconds=min_lp_position_age_seconds,
+        lp_duration_risk_policy=_lp_duration_risk_policy(lp_duration_risk_policy_name),
         submit_peer_url=submit_peer_url,
         write_auth_token=write_auth_token or None,
         submit_peer_auth_token=submit_peer_auth_token or None,
     )
 
 
-def _swap_tx(asset_a: str, asset_b: str) -> dict[str, Any]:
+def _swap_tx(asset_a: str, asset_b: str, *, sender_pubkey: str, chain_id: str) -> dict[str, Any]:
+    operation = {
+        "module": "TauSwap",
+        "version": "0.1",
+        "kind": "SWAP_EXACT_IN",
+        "intent_id": "0x" + "bb" * 32,
+        "sender_pubkey": sender_pubkey,
+        "deadline": 1_999_999_999,
+        "nonce": 1,
+        "pool_id": compute_pool_id(asset_a, asset_b, 30),
+        "asset_in": asset_a,
+        "asset_out": asset_b,
+        "amount_in": 100,
+        "min_amount_out": 1,
+        "recipient": sender_pubkey,
+    }
     return {
         "tx_id": "multidocker-live-swap-v0",
         "block_timestamp": (DEFAULT_TIME_MS + 1_001_000) // 1000,
-        "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
-        "operations": {
-            "2": [
-                {
-                    "module": "TauSwap",
-                    "version": "0.1",
-                    "kind": "SWAP_EXACT_IN",
-                    "intent_id": "0x" + "bb" * 32,
-                    "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
-                    "deadline": 1_999_999_999,
-                    "nonce": 5,
-                    "pool_id": compute_pool_id(asset_a, asset_b, 30),
-                    "asset_in": asset_a,
-                    "asset_out": asset_b,
-                    "amount_in": 100,
-                    "min_amount_out": 1,
-                    "recipient": DEFAULT_BOOTSTRAP_SENDER,
-                }
-            ]
-        },
+        "tx_sender_pubkey": sender_pubkey,
+        "operations": {"5": [_with_controller_signature_v0(operation, chain_id=chain_id)]},
     }
 
 
-def _create_pool_tx(asset_a: str, new_asset: str) -> dict[str, Any]:
+def _create_pool_tx(asset_a: str, new_asset: str, *, sender_pubkey: str, chain_id: str) -> dict[str, Any]:
     asset0 = min(asset_a, new_asset)
     asset1 = max(asset_a, new_asset)
+    operation = {
+        "module": "TauSwap",
+        "version": "0.1",
+        "kind": "CREATE_POOL",
+        "intent_id": "0x" + "cc" * 32,
+        "sender_pubkey": sender_pubkey,
+        "deadline": 1_999_999_999,
+        "nonce": 2,
+        "asset0": asset0,
+        "asset1": asset1,
+        "fee_bps": 30,
+        "amount0": 10_000,
+        "amount1": 10_000,
+        "created_at": (DEFAULT_TIME_MS + 1_003_000) // 1000,
+    }
     return {
         "tx_id": "multidocker-create-fake-token-pool-v0",
         "block_timestamp": (DEFAULT_TIME_MS + 1_003_000) // 1000,
-        "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
-        "operations": {
-            "2": [
-                {
-                    "module": "TauSwap",
-                    "version": "0.1",
-                    "kind": "CREATE_POOL",
-                    "intent_id": "0x" + "cc" * 32,
-                    "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
-                    "deadline": 1_999_999_999,
-                    "nonce": 6,
-                    "asset0": asset0,
-                    "asset1": asset1,
-                    "fee_bps": 30,
-                    "amount0": 100,
-                    "amount1": 100,
-                    "created_at": (DEFAULT_TIME_MS + 1_003_000) // 1000,
-                }
-            ]
-        },
+        "tx_sender_pubkey": sender_pubkey,
+        "operations": {"5": [_with_controller_signature_v0(operation, chain_id=chain_id)]},
     }
 
 
-def _liquidity_tx(*, kind: str, pool_id: str, tx_id: str, intent_byte: str, nonce: int) -> dict[str, Any]:
+def _liquidity_tx(
+    *,
+    kind: str,
+    pool_id: str,
+    tx_id: str,
+    intent_byte: str,
+    nonce: int,
+    sender_pubkey: str,
+    chain_id: str,
+) -> dict[str, Any]:
     operation: dict[str, Any] = {
         "module": "TauSwap",
         "version": "0.1",
         "kind": kind,
         "intent_id": "0x" + intent_byte * 32,
-        "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+        "sender_pubkey": sender_pubkey,
         "deadline": 1_999_999_999,
         "nonce": nonce,
         "pool_id": pool_id,
         "amount0_min": 0,
         "amount1_min": 0,
-        "recipient": DEFAULT_BOOTSTRAP_SENDER,
+        "recipient": sender_pubkey,
     }
     if kind == "ADD_LIQUIDITY":
-        operation.update({"amount0_desired": 10, "amount1_desired": 10})
+        operation.update({"amount0_desired": 100, "amount1_desired": 100})
     else:
         operation.update({"lp_amount": 1})
+    timestamp_base_ms = DEFAULT_TIME_MS + (4_004_000 if kind == "REMOVE_LIQUIDITY" else 1_004_000)
     return {
         "tx_id": tx_id,
-        "block_timestamp": (DEFAULT_TIME_MS + 1_004_000 + nonce) // 1000,
-        "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
-        "operations": {"2": [operation]},
+        "block_timestamp": (timestamp_base_ms + nonce) // 1000,
+        "tx_sender_pubkey": sender_pubkey,
+        "operations": {"5": [_with_controller_signature_v0(operation, chain_id=chain_id)]},
     }
 
 
-def _valid_trade_series(writer_url: str, forwarder_url: str | None, *, token: str) -> dict[str, Any]:
+def _valid_trade_series(writer_url: str, forwarder_url: str | None, *, token: str, chain_id: str) -> dict[str, Any]:
     asset_a = min(DEFAULT_ASSET0, DEFAULT_ASSET1)
     asset_b = max(DEFAULT_ASSET0, DEFAULT_ASSET1)
     new_asset = "0x" + "33" * 32
     pool_id = compute_pool_id(min(asset_a, new_asset), max(asset_a, new_asset), 30)
+    sender_pubkey = _controller_sender_pubkey_v0()
     steps: list[dict[str, Any]] = []
 
     def post(path: str, body: dict[str, Any], *, url: str = writer_url) -> dict[str, Any]:
@@ -581,25 +624,39 @@ def _valid_trade_series(writer_url: str, forwarder_url: str | None, *, token: st
     faucet_existing = post(
         "/faucet",
         {
-            "to_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+            "to_pubkey": sender_pubkey,
             "asset": asset_a,
-            "amount": 1234,
+            "amount": 100_000,
+            "local_fixture_mode": True,
             "time_ms": DEFAULT_TIME_MS + 1_000_000,
             "tx_id": "multidocker-faucet-existing-asset-v0",
         },
     )
-    swap = post("/tx", {"tx": _swap_tx(asset_a, asset_b), "time_ms": DEFAULT_TIME_MS + 1_001_000})
+    swap = post(
+        "/tx",
+        {
+            "tx": _swap_tx(asset_a, asset_b, sender_pubkey=sender_pubkey, chain_id=chain_id),
+            "time_ms": DEFAULT_TIME_MS + 1_001_000,
+        },
+    )
     faucet_new = post(
         "/faucet",
         {
-            "to_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+            "to_pubkey": sender_pubkey,
             "asset": new_asset,
-            "amount": 50_000,
+            "amount": 100_000,
+            "local_fixture_mode": True,
             "time_ms": DEFAULT_TIME_MS + 1_002_000,
             "tx_id": "multidocker-faucet-new-asset-v0",
         },
     )
-    create_pool = post("/tx", {"tx": _create_pool_tx(asset_a, new_asset), "time_ms": DEFAULT_TIME_MS + 1_003_000})
+    create_pool = post(
+        "/tx",
+        {
+            "tx": _create_pool_tx(asset_a, new_asset, sender_pubkey=sender_pubkey, chain_id=chain_id),
+            "time_ms": DEFAULT_TIME_MS + 1_003_000,
+        },
+    )
     add_liquidity = post(
         "/tx",
         {
@@ -608,7 +665,9 @@ def _valid_trade_series(writer_url: str, forwarder_url: str | None, *, token: st
                 pool_id=pool_id,
                 tx_id="multidocker-add-fake-token-liquidity-v0",
                 intent_byte="cd",
-                nonce=7,
+                nonce=3,
+                sender_pubkey=sender_pubkey,
+                chain_id=chain_id,
             ),
             "time_ms": DEFAULT_TIME_MS + 1_004_000,
         },
@@ -621,7 +680,9 @@ def _valid_trade_series(writer_url: str, forwarder_url: str | None, *, token: st
                 pool_id=pool_id,
                 tx_id="multidocker-remove-fake-token-liquidity-v0",
                 intent_byte="ce",
-                nonce=8,
+                nonce=4,
+                sender_pubkey=sender_pubkey,
+                chain_id=chain_id,
             ),
             "time_ms": DEFAULT_TIME_MS + 1_005_000,
         },
@@ -631,9 +692,10 @@ def _valid_trade_series(writer_url: str, forwarder_url: str | None, *, token: st
         forwarded_faucet = post(
             "/faucet",
             {
-                "to_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                "to_pubkey": sender_pubkey,
                 "asset": asset_a,
                 "amount": 55,
+                "local_fixture_mode": True,
                 "time_ms": DEFAULT_TIME_MS + 1_006_000,
                 "tx_id": "multidocker-forwarded-faucet-v0",
             },
@@ -725,7 +787,8 @@ def _adversarial_http_checks(
         },
         token=token,
     )
-    record("oversized_writer_faucet_rejected", status, response, {HTTPStatus.BAD_REQUEST})
+    # Fixture-ack hardening can reject before amount validation; both layers are fail-closed.
+    record("oversized_writer_faucet_rejected", status, response, {HTTPStatus.BAD_REQUEST, HTTPStatus.FORBIDDEN})
 
     if readonly_url is not None:
         status, response = _post_json(
@@ -792,7 +855,7 @@ def run_controller_v0(
         urls.append(readonly_url)
     statuses = [_wait_for_status(url, timeout_seconds=timeout_seconds) for url in urls]
     adversarial = _adversarial_http_checks(writer_url=writer_url, readonly_url=readonly_url, token=token)
-    trade_series = _valid_trade_series(writer_url, forwarder_url, token=token)
+    trade_series = _valid_trade_series(writer_url, forwarder_url, token=token, chain_id=chain_id)
     expected_height = int(trade_series["expected_final_height"])
     tip_reports = [_wait_for_tip(url, height=expected_height, timeout_seconds=timeout_seconds) for url in urls]
     peer_checks = [
@@ -853,6 +916,8 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
         chain_id=args.chain_id,
         report_out=args.report_out,
         bundle_tar_out=args.bundle_tar_out,
+        token_symbol=args.token_symbol,
+        fixture_key_bundle_path=args.fixture_key_bundle,
     )
     print(json.dumps(report, indent=2, sort_keys=True))
     sys.stdout.flush()
@@ -887,6 +952,9 @@ def _cmd_serve_node(args: argparse.Namespace) -> int:
         submit_peer_auth_token_env=args.submit_peer_auth_token_env,
         enable_testnet_intake=args.enable_testnet_intake,
         enable_testnet_faucet=args.enable_testnet_faucet,
+        expose_testnet_faucet_http=args.expose_testnet_faucet_http,
+        min_lp_position_age_seconds=args.min_lp_position_age_seconds,
+        lp_duration_risk_policy_name=args.lp_duration_risk_policy,
     )
     return 0
 
@@ -924,6 +992,8 @@ def main(argv: list[str] | None = None) -> int:
     bootstrap.add_argument("--chain-id", default=DEFAULT_CHAIN_ID)
     bootstrap.add_argument("--report-out", required=True, type=Path)
     bootstrap.add_argument("--bundle-tar-out", type=Path)
+    bootstrap.add_argument("--token-symbol", default=DEFAULT_RELEASE_TESTNET_TOKEN_SYMBOL)
+    bootstrap.add_argument("--fixture-key-bundle", type=Path)
     bootstrap.add_argument("--stay-alive", action="store_true", help="keep the bootstrap container alive after success")
     bootstrap.set_defaults(func=_cmd_bootstrap)
 
@@ -949,6 +1019,9 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--submit-peer-auth-token-env")
     serve.add_argument("--enable-testnet-intake", action="store_true")
     serve.add_argument("--enable-testnet-faucet", action="store_true")
+    serve.add_argument("--expose-testnet-faucet-http", action="store_true")
+    serve.add_argument("--min-lp-position-age-seconds", type=int, default=0)
+    serve.add_argument("--lp-duration-risk-policy", choices=["none", "zeno-oracle"], default="none")
     serve.set_defaults(func=_cmd_serve_node)
 
     controller = sub.add_parser("controller", help="drive writes, adversarial checks, convergence, and evidence")

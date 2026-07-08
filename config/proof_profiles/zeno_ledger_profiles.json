@@ -1,7 +1,7 @@
 {
   "schema": "zenodex/zeno_ledger/proof_profiles/v1",
   "coverage_matrix_path": "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json",
-  "coverage_matrix_sha256": "bafc5178eddec5c15c0c8c1a1374d9bf9c1ae5f0ec075761811650d485dd2bab",
+  "coverage_matrix_sha256": "2e18b3d18fa1ba23f579a1bd20ecdd6c4ab6c1a5fbd277c4a6ab362e25fb5d86",
   "profiles": [
     {
       "profile_id": "spot_v1_single_pool_success",
@@ -66,7 +66,7 @@
       ]
     },
     {
-      "profile_id": "recursive_block_v1",
+      "profile_id": "recursive_epoch_v1",
       "covered": [
         "transaction_proof_aggregation",
         "block_level_receipt",

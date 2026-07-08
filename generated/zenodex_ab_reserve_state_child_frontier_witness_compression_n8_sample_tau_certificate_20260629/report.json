@@ -1,0 +1,475 @@
+{
+  "authority_boundary": "research evidence only; no settlement, state-root, production, governance, routing, matching, or pool-mutation authority",
+  "breakthrough": {
+    "invalid_accepts": 0,
+    "name": "AB reserve-state child-frontier witness-compression n8 sample Tau certificate",
+    "scoped_claims": [
+      "the sampled n=8 witness-compression source report is present and normalized-hash-pinned",
+      "88 witness rows cover 88 sampled child states",
+      "268 predecessor transitions compress to 88 witness checks, saving 180 checks",
+      "the no-extra generated-state fact is linked to the sampled n=8 frontier report",
+      "witness, linked frontier, and normalized source-report digests are pinned",
+      "9 mutation controls reject with zero accepts",
+      "the Tau envelope carries no settlement or state authority"
+    ],
+    "spec_id": "ab_reserve_state_child_frontier_witness_compression_n8_sample_scope_certificate_v1",
+    "tau_cases": 16
+  },
+  "date": "2026-06-29",
+  "facts": {
+    "authority_boundary_ok": 1,
+    "compression_metrics_ok": 1,
+    "corpus_nonvacuous": 1,
+    "deterministic_replay_ok": 1,
+    "linked_frontier_digest_pinned": 1,
+    "linked_frontier_ok": 1,
+    "negative_controls_reject": 1,
+    "no_authority_effect": 1,
+    "normalized_source_hash_pinned": 1,
+    "sampled_n8_zero_min_scope_ok": 1,
+    "source_report_ok": 1,
+    "volatile_elapsed_ignored": 1,
+    "witness_counts_complete": 1,
+    "witness_digest_pinned": 1
+  },
+  "hypothesis_card": {
+    "falsification_recipe": "Clear each required fact bit, mutate witness or linked digest pins, alter source semantic fields, or remove the no-authority rail and require Tau rejection.",
+    "formal_obligations": "Production use still needs exhaustive coverage or a deeper Lean refinement of the child-frontier generation relation.",
+    "hypothesis_id": "H-AB-N8-WITNESS-COMPRESSION-TAU-20260629",
+    "mechanism_change": "Add a versioned Tau scope certificate over sampled n=8 witness-compression proof-object evidence.",
+    "null_hypothesis": "A Tau envelope gives no additional falsifiable boundary beyond the sampled n=8 Python witness checker.",
+    "status": "supported_bounded",
+    "support_recipe": "Host checks the source report, linked frontier report, counts, compression metrics, and pinned digests; Tau rejects every missing-fact negative case."
+  },
+  "linked_reports": {
+    "frontier": {
+      "available": true,
+      "extra_generated_state_count": 0,
+      "frontier_rows_digest": "37764c62caa78be76d654ec1f2540babe2aae2f546663f6548f2d9a1da85b919",
+      "generated_state_count": 88,
+      "missing_child_state_count": 0,
+      "ok": true,
+      "path": "generated/zenodex_ab_reserve_state_child_frontier_n8_sample_20260629/report.json",
+      "sampled_child_mask_count": 51,
+      "sampled_child_state_count": 88,
+      "schema": "zenodex.ab_reserve_state_child_frontier_n8_sample_report.v1"
+    }
+  },
+  "non_claims": [
+    "This certificate is bounded to the deterministic sampled n=8 zero-min witness-compression report.",
+    "This certificate does not prove exhaustive n=8 coverage.",
+    "This certificate does not prove Python-to-Lean refinement.",
+    "This certificate does not prove child-frontier generation in Lean.",
+    "The no-extra generated-state fact is linked to the sampled n=8 frontier report, not reproved by the one-witness object alone.",
+    "This certificate does not define canonical tie order or preserve order-id history.",
+    "This certificate does not cover nonzero min_amount_out behavior.",
+    "This certificate does not authorize settlement, routing, matching, governance, pool mutation, production deployment, or state roots."
+  ],
+  "replay_command": "python3 tools/check_ab_reserve_state_child_frontier_witness_compression_n8_sample_tau_certificate_20260629.py",
+  "schema": "zenodex.ab_reserve_state_child_frontier_witness_compression_n8_sample_tau_certificate_report.v1",
+  "source_report": {
+    "expected_normalized_sha256": "6196a6f82ac945218c77bdadbe5f7aade8022203756edc6779d98669cf10c91f",
+    "normalization": "del(search.elapsed_ms)",
+    "normalized_sha256": "6196a6f82ac945218c77bdadbe5f7aade8022203756edc6779d98669cf10c91f",
+    "ok": true,
+    "path": "generated/zenodex_ab_reserve_state_child_frontier_witness_compression_n8_sample_20260629/report.json",
+    "replay_command": "python3 tools/check_ab_reserve_state_child_frontier_witness_compression_n8_sample_20260629.py",
+    "schema": "zenodex.ab_reserve_state_child_frontier_witness_compression_n8_sample_report.v1",
+    "search_schema": "zenodex/ab_reserve_state_child_frontier_witness_compression_n8_sample_search/v1"
+  },
+  "spec": {
+    "id": "ab_reserve_state_child_frontier_witness_compression_n8_sample_scope_certificate_v1",
+    "path": "src/tau_specs/recommended/ab_reserve_state_child_frontier_witness_compression_n8_sample_scope_certificate_v1.tau",
+    "sha256": "bc341ebc72dac174faa41b3e8173f5967c6d4c612006d258da212f1cf2e6be89"
+  },
+  "tau": {
+    "case_results": [
+      {
+        "case_id": "witness_compression_n8_sample_certificate_pass",
+        "expected": {
+          "o1": 1,
+          "o10": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 1,
+          "o9": 0
+        },
+        "got": {
+          "o1": 1,
+          "o10": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 1,
+          "o9": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "All scoped host facts admit the sampled n=8 witness-compression certificate."
+      },
+      {
+        "case_id": "missing_source_report_reject",
+        "expected": {
+          "o1": 0,
+          "o8": 0
+        },
+        "got": {
+          "o1": 0,
+          "o10": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0,
+          "o9": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The source witness-compression report must be present, valid, and successful."
+      },
+      {
+        "case_id": "wrong_scope_reject",
+        "expected": {
+          "o1": 0,
+          "o8": 0
+        },
+        "got": {
+          "o1": 0,
+          "o10": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0,
+          "o9": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The source report must remain scoped to the sampled n=8 zero-min corpus."
+      },
+      {
+        "case_id": "witness_counts_reject",
+        "expected": {
+          "o2": 0,
+          "o8": 0
+        },
+        "got": {
+          "o1": 1,
+          "o10": 1,
+          "o2": 0,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0,
+          "o9": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The 88 witness rows must exactly cover the 88 sampled child states."
+      },
+      {
+        "case_id": "compression_metrics_reject",
+        "expected": {
+          "o3": 0,
+          "o8": 0
+        },
+        "got": {
+          "o1": 1,
+          "o10": 1,
+          "o2": 1,
+          "o3": 0,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0,
+          "o9": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The 268-to-88 witness-compression metric must remain pinned."
+      },
+      {
+        "case_id": "linked_frontier_reject",
+        "expected": {
+          "o4": 0,
+          "o8": 0
+        },
+        "got": {
+          "o1": 1,
+          "o10": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 0,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0,
+          "o9": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The no-extra generated-state fact must stay linked to the frontier report."
+      },
+      {
+        "case_id": "witness_digest_reject",
+        "expected": {
+          "o6": 0,
+          "o8": 0
+        },
+        "got": {
+          "o1": 1,
+          "o10": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 1,
+          "o8": 0,
+          "o9": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The witness-row digest must remain pinned."
+      },
+      {
+        "case_id": "linked_frontier_digest_reject",
+        "expected": {
+          "o6": 0,
+          "o8": 0
+        },
+        "got": {
+          "o1": 1,
+          "o10": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 0,
+          "o7": 1,
+          "o8": 0,
+          "o9": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The linked frontier-row digest must remain pinned."
+      },
+      {
+        "case_id": "nondeterministic_replay_reject",
+        "expected": {
+          "o5": 0,
+          "o8": 0
+        },
+        "got": {
+          "o1": 1,
+          "o10": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0,
+          "o9": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The witness-compression checker replay must remain deterministic."
+      },
+      {
+        "case_id": "negative_controls_missing_reject",
+        "expected": {
+          "o5": 0,
+          "o8": 0
+        },
+        "got": {
+          "o1": 1,
+          "o10": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 0,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0,
+          "o9": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The mutation suite must keep rejecting malformed witness packets."
+      },
+      {
+        "case_id": "authority_boundary_reject",
+        "expected": {
+          "o7": 0,
+          "o8": 0
+        },
+        "got": {
+          "o1": 1,
+          "o10": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The research-only authority boundary must remain explicit."
+      },
+      {
+        "case_id": "authority_effect_reject",
+        "expected": {
+          "o7": 0,
+          "o8": 0
+        },
+        "got": {
+          "o1": 1,
+          "o10": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 0,
+          "o8": 0,
+          "o9": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The certificate cannot carry settlement, state-root, governance, or pool-mutation authority."
+      },
+      {
+        "case_id": "empty_corpus_reject",
+        "expected": {
+          "o1": 0,
+          "o8": 0
+        },
+        "got": {
+          "o1": 0,
+          "o10": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0,
+          "o9": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The certificate must bind a nonempty sampled witness corpus."
+      },
+      {
+        "case_id": "normalized_source_hash_reject",
+        "expected": {
+          "o1": 0,
+          "o10": 0,
+          "o8": 0
+        },
+        "got": {
+          "o1": 0,
+          "o10": 0,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0,
+          "o9": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The normalized source report hash must match the pinned source packet."
+      },
+      {
+        "case_id": "volatile_elapsed_not_ignored_reject",
+        "expected": {
+          "o1": 0,
+          "o8": 0
+        },
+        "got": {
+          "o1": 0,
+          "o10": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0,
+          "o9": 0
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "The checker must explicitly use the elapsed-ms-normalized source hash."
+      },
+      {
+        "case_id": "inactive_safe",
+        "expected": {
+          "o8": 0,
+          "o9": 1
+        },
+        "got": {
+          "o1": 1,
+          "o10": 1,
+          "o2": 1,
+          "o3": 1,
+          "o4": 1,
+          "o5": 1,
+          "o6": 1,
+          "o7": 1,
+          "o8": 0,
+          "o9": 1
+        },
+        "mismatches": {},
+        "ok": true,
+        "rationale": "Inactive certificates do not admit while the no-authority rail remains true."
+      }
+    ],
+    "invalid_accepts": 0,
+    "ok": true,
+    "skipped": false,
+    "tau_bin": "external/tau-lang/build-Release/tau",
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  },
+  "witness_corpus": {
+    "case_count": 3,
+    "covered_sampled_child_state_count": 88,
+    "deterministic_replay_hash": "f2946c81017d4b9102d20fd417c49fc821471606a4361a6550e4deddb4eb641d",
+    "duplicate_witness_count": 0,
+    "expected_sampled_child_state_count": 88,
+    "extra_sampled_child_state_witness_count": 0,
+    "invalid_witness_count": 0,
+    "linked_frontier_rows_digest": "37764c62caa78be76d654ec1f2540babe2aae2f546663f6548f2d9a1da85b919",
+    "missing_sampled_child_state_witness_count": 0,
+    "negative_control_accept_count": 0,
+    "negative_control_count": 9,
+    "predecessor_transition_count": 268,
+    "sampled_child_mask_count": 51,
+    "valid_case_count": 3,
+    "witness_compression_ratio": 3.045455,
+    "witness_count": 88,
+    "witness_rows_digest": "4851b651740dcfaaa5b175cccbc0907fb7449ff3c4e14db61c3cdafed72e52dd",
+    "witness_transition_checks_saved": 180
+  }
+}

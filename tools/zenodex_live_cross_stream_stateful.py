@@ -16,6 +16,8 @@ for the named disaster states under these scenarios, not a broad safety proof.
 
 from __future__ import annotations
 
+# ruff: noqa: E402,I001
+
 import argparse
 import json
 import os
@@ -29,17 +31,28 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.core.confidential_extension_live_admission import (
+    validate_confidential_extension_live_admission,  # noqa: E402
+)
+from src.core.confidential_extension_receipts import (
+    make_confidential_extension_receipt,  # noqa: E402
+)
 from src.core.zusd import E8  # noqa: E402
-from src.core.confidential_extension_live_admission import validate_confidential_extension_live_admission  # noqa: E402
-from src.core.confidential_extension_receipts import make_confidential_extension_receipt  # noqa: E402
 from src.integration import autotrader_live_api  # noqa: E402
-from src.integration.confidential_runtime_receipts import build_confidential_runtime_execution_receipt_v1  # noqa: E402
 from src.integration import tau_testnet_dex_plugin as plugin  # noqa: E402
-from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_perp_op_for_engine  # noqa: E402
+from src.integration.confidential_runtime_receipts import (
+    build_confidential_runtime_execution_receipt_v1,  # noqa: E402
+)
+from src.integration.tau_net_client import (  # noqa: E402
+    bls_pubkey_hex_from_privkey,
+    sign_perp_op_for_engine,
+)
 from src.integration.zusd_monetary_bridge import stability_pool_pubkey  # noqa: E402
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id  # noqa: E402
-from src.state.confidential_requests import ConfidentialRequestKey, ConfidentialRequestTable  # noqa: E402
-
+from src.state.confidential_requests import (  # noqa: E402
+    ConfidentialRequestKey,
+    ConfidentialRequestTable,
+)
 
 SCHEMA = "zenodex.live_cross_stream_stateful_replay.v1"
 CHAIN_ID = "tau-local-zusd-perps-stateful"

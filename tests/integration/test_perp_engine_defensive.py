@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from src.core import perp_liquidation_tau_source_binding as tau_source_binding
 from src.core.dex import DexState
 from src.integration import perp_engine
 from src.state.balances import BalanceTable
@@ -58,8 +59,24 @@ def _apply_perp_ops(state: DexState, op: dict[str, object], *, tx_sender_pubkey:
     )
 
 
+def test_tau_source_binding_keeps_bls_optional_until_signing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(tau_source_binding, "G2Basic", None)
+
+    with pytest.raises(RuntimeError, match="py_ecc.bls is required"):
+        tau_source_binding.build_perp_liquidation_tau_source_root_authority_binding(
+            market_id="btc-usd",
+            action=tau_source_binding.PARTIAL_LIQUIDATE_ACTION,
+            valid_from_epoch=1,
+            valid_until_epoch=2,
+            authority_hash="sha256:" + "11" * 32,
+            authority_state_root_hash="sha256:" + "22" * 32,
+            policy_hash="sha256:" + "33" * 32,
+            signer_privkey=1,
+        )
+
+
 def _init_2p_state(monkeypatch: pytest.MonkeyPatch) -> DexState:
-    monkeypatch.setattr(perp_engine, "_verify_perp_op_signature", lambda **_: None)
+    monkeypatch.setattr(perp_engine, "_verify_perp_op_signature", lambda *_, **__: None)
     result = _apply_perp_ops(_empty_state(), _base_2p_init())
     assert result.ok is True, result.error
     assert result.state is not None
@@ -67,7 +84,7 @@ def _init_2p_state(monkeypatch: pytest.MonkeyPatch) -> DexState:
 
 
 def _init_3p_state(monkeypatch: pytest.MonkeyPatch) -> DexState:
-    monkeypatch.setattr(perp_engine, "_verify_perp_op_signature", lambda **_: None)
+    monkeypatch.setattr(perp_engine, "_verify_perp_op_signature", lambda *_, **__: None)
     result = _apply_perp_ops(_empty_state(), _base_3p_init())
     assert result.ok is True, result.error
     assert result.state is not None
@@ -191,7 +208,7 @@ def test_3p_pubkey_helper_bugs_reach_internal_error(monkeypatch: pytest.MonkeyPa
 
 
 def test_2p_init_state_helper_bugs_reach_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(perp_engine, "_verify_perp_op_signature", lambda **_: None)
+    monkeypatch.setattr(perp_engine, "_verify_perp_op_signature", lambda *_, **__: None)
 
     def broken_init_state() -> dict[str, object]:
         raise RuntimeError("2p init state helper bug")
@@ -211,7 +228,7 @@ def test_2p_init_state_helper_bugs_reach_internal_error(monkeypatch: pytest.Monk
 
 
 def test_3p_init_state_helper_bugs_reach_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(perp_engine, "_verify_perp_op_signature", lambda **_: None)
+    monkeypatch.setattr(perp_engine, "_verify_perp_op_signature", lambda *_, **__: None)
 
     def broken_init_state() -> dict[str, object]:
         raise RuntimeError("3p init state helper bug")

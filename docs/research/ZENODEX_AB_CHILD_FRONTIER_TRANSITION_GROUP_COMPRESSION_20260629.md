@@ -1,0 +1,59 @@
+# ZenoDEX AB Child-Frontier Transition-Group Compression - 2026-06-29
+
+## Executive Result
+
+A bounded transition-group compression certificate reduces the n=7 AB child-frontier bidirectional proof object from 2,777 per-transition rows to 864 per-generated-child rows while preserving host-recomputed transition-group counts, group digests, canonical child membership, and no-authority rails.
+
+Research-only evidence. No settlement, state-root, production, governance, routing, matching, or pool-mutation authority is derived from this artifact.
+
+## Compression
+
+- Source transition rows: `2777`
+- Compressed rows: `864`
+- Row reduction: `1913` (`0.688873`)
+- Source JSON bytes: `2296999`
+- Compressed JSON bytes: `841376`
+- Byte reduction: `1455623` (`0.633706`)
+- Transition-group digest: `280c2b23775977485dd12bd7a7b8c3db1c023577881fd1580b1210912261939b`
+- Compressed-row digest: `08588cdb923ad12571dc729b13ad99b2888bebe8e5d6983fabd723b32d2bb2a4`
+
+## Verification
+
+- Cases: `4` / `4`
+- Expected groups: `864`
+- Covered groups: `864`
+- Missing groups: `0`
+- Extra groups: `0`
+- Invalid compressed rows: `0`
+- Duplicate groups: `0`
+- Negative controls: `8`
+- Negative control accepts: `0`
+- Deterministic replay: `True`
+
+## Negative Controls
+
+| mutation | accepted | expected reason |
+| --- | ---: | --- |
+| `packet_hash_mismatch` | `False` | `packet_hash_mismatch` |
+| `missing_generated_image_witness` | `False` | `missing_generated_image_witness` |
+| `extra_generated_image_witness` | `False` | `extra_generated_image_witness` |
+| `transition_group_count_mismatch` | `False` | `transition_group_count_mismatch` |
+| `transition_group_digest_mismatch` | `False` | `transition_group_digest_mismatch` |
+| `transition_parent_state_not_in_parent_frontier` | `False` | `transition_parent_state_not_in_parent_frontier` |
+| `membership_proof_hash_mismatch` | `False` | `membership_proof_hash_mismatch` |
+| `authority_effect_present` | `False` | `authority_effect_present` |
+
+## Non-Claims
+
+- This certificate is bounded to the committed n=7 zero-min bidirectional transition report.
+- This certificate compresses the proof object; it does not remove host recomputation of the transition image.
+- This certificate does not prove Python-to-Lean refinement.
+- This certificate does not prove child-frontier generation in Lean.
+- This certificate does not cover nonzero min_amount_out behavior.
+- This certificate does not authorize settlement, routing, matching, governance, pool mutation, production deployment, or state roots.
+
+## Replay
+
+```bash
+python3 tools/check_ab_child_frontier_transition_group_compression_20260629.py
+```
