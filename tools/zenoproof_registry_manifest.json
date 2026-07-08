@@ -65,7 +65,7 @@
         "does_not_claim_generalized_median_theorems",
         "does_not_claim_full_sync_gate_composition"
       ],
-      "replay_command": "cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean",
+      "replay_command": "lean lean-mathlib/Proofs/ZenoOracleMathWitness.lean",
       "statement_hash": "sha256:4171758f2adef37bb4d40a5595e8981e234fa98cdb509138ae0ce1c392e00a28"
     },
     {

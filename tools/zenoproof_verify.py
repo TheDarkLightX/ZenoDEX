@@ -231,7 +231,7 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "statement_hash": LEAN_REPLAY_STATEMENT_HASH,
         "assumptions_hash": LEAN_REPLAY_ASSUMPTIONS_HASH,
         "timeout_ms": 30_000,
-        "replay_command": "cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean",
+        "replay_command": "lean lean-mathlib/Proofs/ZenoOracleMathWitness.lean",
         "expected_schema": "zenodex.oracle.lean_math_witness_anchor_replay.v1",
         "non_claims": [
             "does_not_claim_generalized_median_theorems",
@@ -757,8 +757,8 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
 
     if profile == LEAN_REPLAY_PROFILE:
         proc = subprocess.run(
-            ["lake", "env", "lean", "Proofs/ZenoOracleMathWitness.lean"],
-            cwd=ROOT / "lean-mathlib",
+            ["lean", "lean-mathlib/Proofs/ZenoOracleMathWitness.lean"],
+            cwd=ROOT,
             check=False,
             capture_output=True,
             text=True,
