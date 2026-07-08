@@ -418,6 +418,7 @@ function ZUSDWorkbench({ wallet = null, onConnect = null, onOpenKeys = null }) {
   const [monetaryStatus, setMonetaryStatus] = useState({ status: null, statusError: '', loadStatus: () => {} });
   const [lastFetchTs, setLastFetchTs] = useState(0);
   const walletConnected = Boolean(wallet?.address);
+  const transferReady = monetaryStatus.status?.node_reachable === true;
 
   const handleStatusChange = useCallback((info) => {
     setMonetaryStatus(info);
@@ -452,7 +453,7 @@ function ZUSDWorkbench({ wallet = null, onConnect = null, onOpenKeys = null }) {
           onConnect={onConnect}
           onOpenKeys={onOpenKeys}
         />
-        {walletConnected && (
+        {walletConnected && transferReady && (
           <details className="zusd-secondary-transfer">
             <summary>
               <span>Transfer zUSD</span>
@@ -460,6 +461,12 @@ function ZUSDWorkbench({ wallet = null, onConnect = null, onOpenKeys = null }) {
             </summary>
             <ZUSDTauWalletSurface wallet={wallet} />
           </details>
+        )}
+        {walletConnected && !transferReady && monetaryStatus.statusError && (
+          <div className="zusd-secondary-transfer-disabled" role="status">
+            <strong>Transfer zUSD</strong>
+            <span>Connect the local node before sending funds.</span>
+          </div>
         )}
       </section>
     );

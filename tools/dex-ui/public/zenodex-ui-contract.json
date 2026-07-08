@@ -12,7 +12,8 @@
     "swap_no_fake_custom_token_import_in_live_mode",
     "zusd_vault_deposit_agrs_mint_zusd",
     "zusd_production_facing_network_language",
-    "wallet_recovery_prompt_before_value_movement"
+    "wallet_recovery_prompt_before_value_movement",
+    "zusd_no_fake_zero_vault_when_status_missing"
   ],
   "source_markers": [
     {
@@ -192,8 +193,8 @@
     },
     {
       "path": "src/components/ZUSDMonetarySurface.jsx",
-      "contains": "Local testnet unavailable",
-      "reason": "zUSD uses user-facing unavailable status language instead of raw transport errors"
+      "contains": "No vault balance, collateral ratio, or liquidation state is shown until status loads.",
+      "reason": "zUSD does not present fake zero balances or no-debt safety when live vault status is missing"
     },
     {
       "path": "src/components/ZUSDWorkbench.jsx",
@@ -201,8 +202,13 @@
       "reason": "zUSD transfer is progressively disclosed behind the primary vault job"
     },
     {
+      "path": "src/components/ZUSDWorkbench.jsx",
+      "contains": "Connect the local node before sending funds.",
+      "reason": "zUSD transfer is not presented as value-movable when local status is missing"
+    },
+    {
       "path": "src/components/zusd/statusCopy.js",
-      "contains": "Local testnet is unavailable. Start or reconnect the local node, then retry.",
+      "contains": "Local testnet is not connected. Start or reconnect the local node, then retry.",
       "reason": "zUSD status copy maps raw transport failures to user-facing recovery guidance"
     },
     {
@@ -261,6 +267,16 @@
       "path": "src/components/ZUSDTauWalletSurface.jsx",
       "forbids": "Status error:",
       "reason": "zUSD transfer UI should not expose raw transport status copy"
+    },
+    {
+      "path": "src/components/ZUSDMonetarySurface.jsx",
+      "forbids": "Local testnet unavailable",
+      "reason": "zUSD primary UI should avoid unavailable wording in polished copy"
+    },
+    {
+      "path": "src/components/zusd/ZUSDHealthBar.jsx",
+      "forbids": "Local testnet unavailable",
+      "reason": "zUSD status strip should avoid unavailable wording in polished copy"
     },
     {
       "path": "src/components/WalletRecoveryPrompt.jsx",

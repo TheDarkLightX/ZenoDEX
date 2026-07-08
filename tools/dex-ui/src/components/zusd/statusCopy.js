@@ -12,10 +12,10 @@ export function formatZusdStatusIssue(statusError) {
     || lower.includes('err_connection_refused')
     || lower.includes('status_unavailable')
   ) {
-    return 'Local testnet is unavailable. Start or reconnect the local node, then retry.';
+    return 'Local testnet is not connected. Start or reconnect the local node, then retry.';
   }
   if (lower.includes('not_found') || lower.includes('wallet service unavailable')) {
-    return 'zUSD wallet service is unavailable on this local node.';
+    return 'zUSD wallet service is not running on this local node.';
   }
-  return 'Status is unavailable. Retry after the local node is reachable.';
+  return 'Status is waiting for the local node. Retry after the node is reachable.';
 }

@@ -54,7 +54,7 @@ export default function ZUSDHealthBar({
     stateLabel = 'Connect wallet';
   } else if (statusError) {
     stateKey = 'error';
-    stateLabel = 'Local testnet unavailable';
+    stateLabel = 'Local testnet not connected';
   } else if (isStale && debtAmt > 0) {
     stateKey = 'stale';
     stateLabel = 'Outdated';
