@@ -237,6 +237,7 @@ def build_status() -> dict[str, Any]:
         "non_claims": [
             "does_not_claim_internal_popperpad_publication",
             "does_not_claim_external_morph_execution",
+            "does_not_claim_external_tla_ltlf_esso_execution",
             "does_not_claim_production_oracle_truth",
         ],
     }

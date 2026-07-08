@@ -157,27 +157,6 @@ LEAN_REPLAY_TOOLCHAIN_ID = "sha256:d77c7a7c3eb2c3d4cd0f5d79004328ac21d220d50f28e
 LEAN_REPLAY_CLAIM_ID = "sha256:f30a0311aa74ae3847b8dd34c19881f46f8acfff3c32f93f6e1bac798113a05d"
 LEAN_REPLAY_STATEMENT_HASH = "sha256:4171758f2adef37bb4d40a5595e8981e234fa98cdb509138ae0ce1c392e00a28"
 LEAN_REPLAY_ASSUMPTIONS_HASH = "sha256:31d9d09769a722ea6314d583df67205c6526301827a9cbe0e7412baf4d9e4907"
-TLA_REPLAY_PROFILE = "zeno_oracle_recovery_lifecycle_tla_v1"
-TLA_REPLAY_VERIFIER_ID = "sha256:4b24cee9b09ddcc5e1ef2f25423b651701fe52c70b865a44fc26292ca71450bf"
-TLA_REPLAY_POLICY_ROOT = "sha256:7e391abf70467577c5c3816b2f03385650b34802739a3781594985e43de5e5eb"
-TLA_REPLAY_TOOLCHAIN_ID = "sha256:b85eda1679dcdda2757b11b61d6569da13218eaa5e76c6c4e3628ca2b602878d"
-TLA_REPLAY_CLAIM_ID = "sha256:cf0e386379a0d58ac8658bd8148badad9bc10aacbb82e4e155fbe29cb06c7dfc"
-TLA_REPLAY_STATEMENT_HASH = "sha256:3d1688ac5d1f73b7009b996e41a2f2eef5a591696dd6e9058284dc931e374c92"
-TLA_REPLAY_ASSUMPTIONS_HASH = "sha256:6af545052c07aed8dd756cb2e12f9fdc9814527ad7c09dc86820047219b2edf8"
-LTLF_REPLAY_PROFILE = "zeno_oracle_recovery_ltlf_v1"
-LTLF_REPLAY_VERIFIER_ID = "sha256:62074f1ca3a06af5008ed18b42c772ec737f5681eb6da859001c3405a28d44fa"
-LTLF_REPLAY_POLICY_ROOT = "sha256:c0399f50cbc006cc689982b78830416d18bd36159839debd3d03c3a260974243"
-LTLF_REPLAY_TOOLCHAIN_ID = "sha256:7d4d8ca34d7fca3ca289bf6358d2ff9b068a27c9d156b0cef2f54c7707231051"
-LTLF_REPLAY_CLAIM_ID = "sha256:a39a1f96c647d0d89f782828c88cb635b909ecc138f7428263925565045199fb"
-LTLF_REPLAY_STATEMENT_HASH = "sha256:5be41f7c4d4b794c16666caa8e39b365af1e0500a34232e049b4d2eb734ca956"
-LTLF_REPLAY_ASSUMPTIONS_HASH = "sha256:0984854f2a8e714738c89e7b812378807e26d8fd1698024c2b354c17387bbaa6"
-ESSO_REPLAY_PROFILE = "zeno_zusd_oracle_recovery_esso_v1"
-ESSO_REPLAY_VERIFIER_ID = "sha256:fbde9afdf58711ba1d54c114e5e46dc6214619c2710be18159302376c5684877"
-ESSO_REPLAY_POLICY_ROOT = "sha256:f89c133133a86276fa09bab1dcc54f0d4a88a59fb2a0bc429330ff225ed33605"
-ESSO_REPLAY_TOOLCHAIN_ID = "sha256:8f29c64a59e994c7390609282a5c73f82aed5fb1ac3f9c939020d02b17630877"
-ESSO_REPLAY_CLAIM_ID = "sha256:25a547bc5441655c5d6acde9ba9a5af75565e742fb83ac4cfc3761fa23b353d4"
-ESSO_REPLAY_STATEMENT_HASH = "sha256:9a3a688d98376a4c955148326de1d5b5c33bf73594ea65b5383aae8bae49b643"
-ESSO_REPLAY_ASSUMPTIONS_HASH = "sha256:156ae7a36230bd20a286f456d50918947d88bc5db2e8c04fef147a51a2c0b0e1"
 SMT_REPLAY_PROFILE = "zeno_oracle_smt_freshness_v1"
 SMT_REPLAY_VERIFIER_ID = "sha256:ecd5d2ebafe76eeb145898c42d50b7fbc68d97738bc6625113c33921c5b128f8"
 SMT_REPLAY_POLICY_ROOT = "sha256:05117af3de75fea6846efdf3a7300ea0bbc588e1bfe66eaf77e6233e58130a37"
@@ -201,6 +180,7 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "non_claims": [
             "does_not_claim_private_popperpad_publication",
             "does_not_claim_external_morph_execution",
+            "does_not_claim_external_tla_ltlf_esso_execution",
             "does_not_claim_production_oracle_truth",
         ],
     },
@@ -236,60 +216,6 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "non_claims": [
             "does_not_claim_generalized_median_theorems",
             "does_not_claim_full_sync_gate_composition",
-        ],
-    },
-    TLA_REPLAY_PROFILE: {
-        "name": "zeno-oracle-recovery-tla-public-replay-v0",
-        "proof_kind": "tla",
-        "verifier_id": TLA_REPLAY_VERIFIER_ID,
-        "policy_root": TLA_REPLAY_POLICY_ROOT,
-        "toolchain_id": TLA_REPLAY_TOOLCHAIN_ID,
-        "claim_id": TLA_REPLAY_CLAIM_ID,
-        "statement_hash": TLA_REPLAY_STATEMENT_HASH,
-        "assumptions_hash": TLA_REPLAY_ASSUMPTIONS_HASH,
-        "timeout_ms": 70_000,
-        "replay_command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_tla_oracle_recovery_lifecycle.py",
-        "expected_schema": "zenodex.oracle.tla_recovery_lifecycle_replay.v1",
-        "test_path": "tests/formal/test_tla_oracle_recovery_lifecycle.py",
-        "non_claims": [
-            "does_not_claim_unbounded_liveness",
-            "does_not_claim_production_oracle_truth",
-        ],
-    },
-    LTLF_REPLAY_PROFILE: {
-        "name": "zeno-oracle-recovery-ltlf-public-replay-v0",
-        "proof_kind": "ltlf",
-        "verifier_id": LTLF_REPLAY_VERIFIER_ID,
-        "policy_root": LTLF_REPLAY_POLICY_ROOT,
-        "toolchain_id": LTLF_REPLAY_TOOLCHAIN_ID,
-        "claim_id": LTLF_REPLAY_CLAIM_ID,
-        "statement_hash": LTLF_REPLAY_STATEMENT_HASH,
-        "assumptions_hash": LTLF_REPLAY_ASSUMPTIONS_HASH,
-        "timeout_ms": 20_000,
-        "replay_command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_oracle_recovery_ltlf.py",
-        "expected_schema": "zenodex.oracle.ltlf_recovery_replay.v1",
-        "test_path": "tests/formal/test_oracle_recovery_ltlf.py",
-        "non_claims": [
-            "does_not_claim_infinite_trace_fairness",
-            "does_not_claim_production_oracle_truth",
-        ],
-    },
-    ESSO_REPLAY_PROFILE: {
-        "name": "zeno-zusd-oracle-recovery-esso-public-replay-v0",
-        "proof_kind": "esso",
-        "verifier_id": ESSO_REPLAY_VERIFIER_ID,
-        "policy_root": ESSO_REPLAY_POLICY_ROOT,
-        "toolchain_id": ESSO_REPLAY_TOOLCHAIN_ID,
-        "claim_id": ESSO_REPLAY_CLAIM_ID,
-        "statement_hash": ESSO_REPLAY_STATEMENT_HASH,
-        "assumptions_hash": ESSO_REPLAY_ASSUMPTIONS_HASH,
-        "timeout_ms": 20_000,
-        "replay_command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_esso_zusd_oracle_recovery_lifecycle_v1.py",
-        "expected_schema": "zenodex.oracle.esso_zusd_recovery_replay.v1",
-        "test_path": "tests/formal/test_esso_zusd_oracle_recovery_lifecycle_v1.py",
-        "non_claims": [
-            "does_not_claim_live_governance_recovery",
-            "does_not_claim_production_oracle_truth",
         ],
     },
     SMT_REPLAY_PROFILE: {
@@ -549,9 +475,6 @@ def sample_registry() -> dict[str, Any]:
             _public_replay_verifier_manifest(PUBLIC_REPLAY_PROFILE),
             _public_replay_verifier_manifest(JULIA_REPLAY_PROFILE),
             _public_replay_verifier_manifest(LEAN_REPLAY_PROFILE),
-            _public_replay_verifier_manifest(TLA_REPLAY_PROFILE),
-            _public_replay_verifier_manifest(LTLF_REPLAY_PROFILE),
-            _public_replay_verifier_manifest(ESSO_REPLAY_PROFILE),
             _public_replay_verifier_manifest(SMT_REPLAY_PROFILE),
         ],
         "claims": [
@@ -579,9 +502,6 @@ def sample_registry() -> dict[str, Any]:
             _public_replay_claim_manifest(PUBLIC_REPLAY_PROFILE),
             _public_replay_claim_manifest(JULIA_REPLAY_PROFILE),
             _public_replay_claim_manifest(LEAN_REPLAY_PROFILE),
-            _public_replay_claim_manifest(TLA_REPLAY_PROFILE),
-            _public_replay_claim_manifest(LTLF_REPLAY_PROFILE),
-            _public_replay_claim_manifest(ESSO_REPLAY_PROFILE),
             _public_replay_claim_manifest(SMT_REPLAY_PROFILE),
         ],
     }
@@ -780,40 +700,6 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
             raise ValueError(f"lean_math_witness_failed:{proc.returncode}")
         if placeholder_hits:
             raise ValueError("lean_math_witness_placeholder_hits")
-        return receipt
-
-    if profile in {TLA_REPLAY_PROFILE, LTLF_REPLAY_PROFILE, ESSO_REPLAY_PROFILE}:
-        test_path = str(cfg["test_path"])
-        proc = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "pytest",
-                "-q",
-                "-p",
-                "no:cacheprovider",
-                test_path,
-            ],
-            cwd=ROOT,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-            env={**os.environ, "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"},
-        )
-        combined = (proc.stdout or "") + "\n" + (proc.stderr or "")
-        ok = proc.returncode == 0 and "passed" in combined
-        receipt = {
-            "schema": cfg["expected_schema"],
-            "ok": ok,
-            "status": "accepted" if ok else "rejected",
-            "test_path": test_path,
-            "pytest_returncode": proc.returncode,
-        }
-        if proc.returncode != 0:
-            raise ValueError(f"pytest_replay_failed:{profile}:{proc.returncode}")
-        if "passed" not in combined:
-            raise ValueError(f"pytest_replay_no_pass_marker:{profile}")
         return receipt
 
     if profile == SMT_REPLAY_PROFILE:

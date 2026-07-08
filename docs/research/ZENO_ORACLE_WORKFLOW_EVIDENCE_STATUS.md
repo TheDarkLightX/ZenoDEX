@@ -17,7 +17,7 @@ failed_lane_count = 0
 status = accepted
 ```
 
-The checker covers these public lanes:
+The checker covers these public artifact lanes:
 
 - TLA Oracle recovery lifecycle artifacts and replay command.
 - LTLf Oracle recovery artifacts and replay command.
@@ -26,6 +26,10 @@ The checker covers these public lanes:
 
 Morph oracle-clamp envelope checks are external research evidence and are not a
 ZenoDEX runtime or release dependency.
+TLA, LTLf, and ESSO replay commands remain documented external formal-tool
+checks; they are not generated as hermetic ZenoProof self-test profiles unless
+their toolchains are installed by the runner.
 
 This lane is a status and smoke boundary. It does not publish private
-PopperPad content, execute external Morph, or certify production oracle truth.
+PopperPad content, execute external Morph/TLA/LTLf/ESSO runners, or certify
+production oracle truth.
