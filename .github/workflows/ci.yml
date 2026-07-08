@@ -52,6 +52,25 @@ jobs:
         # the broader critical gate doesn't focus on.
         run: bash tools/run_dex_dispatch_quality_gate.sh
 
+      - name: Set up Lean for AutoGov proof check
+        run: |
+          set -euo pipefail
+          toolchain="$(cat lean-mathlib/lean-toolchain)"
+          case "${toolchain}" in
+            leanprover/lean4:v*) version="${toolchain#leanprover/lean4:v}" ;;
+            *)
+              echo "unsupported Lean toolchain: ${toolchain}" >&2
+              exit 1
+              ;;
+          esac
+          curl --fail --location --retry 3 \
+            --output /tmp/lean-linux.tar.zst \
+            "https://github.com/leanprover/lean4/releases/download/v${version}/lean-${version}-linux.tar.zst"
+          mkdir -p "${HOME}/.local/lean"
+          tar --zstd -xf /tmp/lean-linux.tar.zst -C "${HOME}/.local/lean" --strip-components=1
+          echo "${HOME}/.local/lean/bin" >> "${GITHUB_PATH}"
+          "${HOME}/.local/lean/bin/lean" --version
+
       - name: Run AutoGovNEXT governance lane gate
         run: |
           bash tools/run_autogovnext_governance_lane_assurance_gate.sh
