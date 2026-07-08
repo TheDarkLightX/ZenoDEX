@@ -14,8 +14,9 @@
 .wallet-button {
     display: flex;
     align-items: center;
-    gap: var(--space-sm);
-    padding: var(--space-sm) var(--space-md);
+    gap: 5px;
+    min-height: 32px;
+    padding: 5px 8px;
     background: var(--bg-tertiary);
     border: 1px solid var(--border-primary);
     border-radius: var(--radius-full);
@@ -35,7 +36,8 @@
 }
 
 .wallet-icon {
-    font-size: 16px;
+    font-size: 14px;
+    line-height: 1;
 }
 
 .wallet-address {
@@ -50,7 +52,14 @@
 .wallet-connect-btn {
     display: flex;
     align-items: center;
-    gap: var(--space-sm);
+    gap: 7px;
+}
+
+.wallet-connect-btn-compact {
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: var(--radius-md);
+    white-space: nowrap;
 }
 
 .wallet-connect-error {
@@ -75,10 +84,11 @@
     position: absolute;
     top: calc(100% + var(--space-sm));
     right: 0;
-    min-width: min(280px, 100%);
-    background: var(--bg-panel);
+    width: 280px;
+    max-width: calc(100vw - 24px);
+    background: var(--bg-elev-1);
     border: 1px solid var(--border-primary);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-md);
     box-shadow: var(--shadow-lg);
     overflow: hidden;
     z-index: 1000;
@@ -102,6 +112,72 @@
     height: 8px;
     background: var(--accent-green);
     border-radius: 50%;
+}
+
+.dropdown-section {
+    display: flex;
+    flex-direction: column;
+    padding-top: var(--space-sm);
+}
+
+.dropdown-recovery-nudge {
+    display: grid;
+    gap: var(--space-xs);
+    margin: 0 var(--space-sm) var(--space-sm);
+    padding: var(--space-sm);
+    border: 1px solid rgba(var(--accent-green-rgb), 0.28);
+    border-radius: var(--radius-sm);
+    background: rgba(var(--accent-green-rgb), 0.08);
+}
+
+.dropdown-recovery-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-sm);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+}
+
+.dropdown-recovery-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 20px;
+    padding: 0 7px;
+    border-radius: var(--radius-full);
+    background: rgba(var(--accent-signal-rgb), 0.14);
+    color: var(--accent-signal);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+.dropdown-recovery-nudge p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    line-height: 1.4;
+}
+
+.dropdown-recovery-action {
+    justify-self: flex-start;
+    min-height: 28px;
+    padding: 0 var(--space-sm);
+    border: 1px solid rgba(var(--accent-green-rgb), 0.42);
+    border-radius: var(--radius-sm);
+    background: rgba(var(--accent-green-rgb), 0.14);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.dropdown-recovery-action:hover {
+    border-color: var(--accent-green);
+    background: rgba(var(--accent-green-rgb), 0.22);
 }
 
 .dropdown-item {
@@ -146,7 +222,7 @@
 }
 
 .dropdown-action:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--bg-tertiary);
     color: var(--text-primary);
 }
 

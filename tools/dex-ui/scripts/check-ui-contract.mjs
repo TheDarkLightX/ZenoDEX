@@ -7,6 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const uiRoot = path.resolve(path.dirname(__filename), '..');
 const contractPath = path.join(uiRoot, 'public', 'zenodex-ui-contract.json');
 const packagePath = path.join(uiRoot, 'package.json');
+const srcRoot = path.join(uiRoot, 'src');
 
 function fail(message) {
   console.error(`ui-contract: ${message}`);
@@ -15,6 +16,25 @@ function fail(message) {
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function walkFiles(root) {
+  const out = [];
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const fullPath = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...walkFiles(fullPath));
+    } else if (entry.isFile()) {
+      out.push(fullPath);
+    }
+  }
+  return out;
+}
+
+function lineNumberForPattern(body, pattern) {
+  const match = pattern.exec(body);
+  if (!match) return 0;
+  return body.slice(0, match.index).split('\n').length;
 }
 
 const contract = readJson(contractPath);
@@ -58,6 +78,32 @@ for (const marker of contract.forbidden_source_markers || []) {
   const body = fs.readFileSync(fullPath, 'utf8');
   if (body.includes(forbidden)) {
     fail(`forbidden UI marker in ${relPath}: ${forbidden}`);
+  }
+}
+
+const falseAuthorityPatterns = [
+  {
+    pattern: /setTimeout\s*\([\s\S]{0,1600}status:\s*['"]confirmed['"]/m,
+    reason: 'submissions must not be promoted to accepted/confirmed by a timer',
+  },
+  {
+    pattern: /Swap Confirmed|Wallet submission confirmed|Broadcasting transaction to Tau Net Alpha/m,
+    reason: 'transaction-hash submission copy must not imply runtime acceptance',
+  },
+  {
+    pattern: /Verified math\s*·\s*proofs off|Math verified\s*\(proofs off\)/m,
+    reason: 'proof-off UI must say spec-checked, not verified',
+  },
+];
+
+for (const sourcePath of walkFiles(srcRoot)) {
+  const relPath = path.relative(uiRoot, sourcePath);
+  const body = fs.readFileSync(sourcePath, 'utf8');
+  for (const rule of falseAuthorityPatterns) {
+    const line = lineNumberForPattern(body, rule.pattern);
+    if (line > 0) {
+      fail(`${relPath}:${line}: ${rule.reason}`);
+    }
   }
 }
 

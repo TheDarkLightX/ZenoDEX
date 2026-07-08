@@ -3,6 +3,8 @@
   "chainId": "zeno-ledger-localtest-v0",
   "apiBase": "",
   "demoMode": false,
+  "devMode": false,
+  "runtimeDiagnostics": false,
   "allowDemoMode": false,
   "allowBrowserKeyGeneration": true,
   "allowDefaultExternalSigner": false,

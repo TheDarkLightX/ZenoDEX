@@ -29,7 +29,7 @@ export function SwapProofPanel({
                     <span className="swap-proof-posture-label">
                         {proofEnforced
                             ? 'Proof verification active'
-                            : (postureKnown ? 'Math verified · proofs off' : 'Verification unavailable')}
+                            : (postureKnown ? 'Spec cpmm_v1 · proofs off' : 'Verification unavailable')}
                     </span>
                 </div>
                 <p className="swap-proof-posture-detail">
@@ -48,7 +48,7 @@ export function SwapProofPanel({
                 </span>
                 <span className="swap-proof-ev" role="listitem">
                     <span className="swap-proof-ev-dot ev-on" aria-hidden="true" />
-                    Verified math
+                    Spec math
                 </span>
                 <span className="swap-proof-ev" role="listitem">
                     <span className={`swap-proof-ev-dot ${(!advancedMode || certificateCheck.ok) ? 'ev-on' : 'ev-off'}`} aria-hidden="true" />
@@ -86,7 +86,7 @@ export function SwapProofPanel({
                 </div>
             )}
 
-            {submittedSwap?.receipt?.receipt_hash && (
+            {submittedSwap?.receiptHash && (
                 <div className="swap-proof-receipt">
                     <div className="swap-proof-receipt-head">
                         <span className="swap-proof-receipt-dot" aria-hidden="true" />
@@ -94,7 +94,7 @@ export function SwapProofPanel({
                     </div>
                     <div className="swap-proof-receipt-row">
                         <span>Hash</span>
-                        <CopyHash value={submittedSwap.receipt.receipt_hash} label="record hash" />
+                        <CopyHash value={submittedSwap.receiptHash} label="record hash" />
                     </div>
                     {submittedSwap.receipt.body?.schema && (
                         <div className="swap-proof-receipt-row">

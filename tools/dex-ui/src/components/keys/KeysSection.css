@@ -383,6 +383,13 @@
   line-height: 1.4;
 }
 
+.recovery-backup-boundary {
+  margin: 8px 0 12px;
+  color: var(--text-muted, rgba(255, 255, 255, 0.58));
+  font-size: 0.78em;
+  line-height: 1.45;
+}
+
 .recovery-backup-actions {
   display: flex;
   align-items: center;
@@ -394,7 +401,7 @@
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
-  margin-top: 10px;
+  margin: 10px 0 0;
 }
 
 .recovery-provider-chip {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiGetZusdWalletStatus, apiPrepareZusdWallet, apiSubmitZusdWallet } from '../lib/api.js';
+import { formatZusdStatusIssue } from './zusd/statusCopy.js';
 import './ZUSDTauWalletSurface.css';
 
 const EMPTY_FORM = {
@@ -166,6 +167,10 @@ function ZUSDTauWalletSurface({ wallet = null }) {
       });
   }, [busy, status]);
 
+  const accountTokenBalance = status?.account_view ? Number(status.account_view.balance ?? 0) : null;
+  const statusIssue = formatZusdStatusIssue(statusError);
+  const transferReady = status?.node_reachable === true;
+
   return (
     <section className="zusd-wallet-surface">
       <div className="zusd-section-header">
@@ -177,18 +182,27 @@ function ZUSDTauWalletSurface({ wallet = null }) {
         <div className="panel zusd-wallet-card">
           <div className="zusd-wallet-meta">
             <div className="zusd-wallet-kv"><span>Network</span><span>{status?.chain_id || 'unknown'}</span></div>
+            <div className="zusd-wallet-kv"><span>Your zUSD balance</span><span>{accountTokenBalance == null ? 'unknown' : accountTokenBalance.toLocaleString()}</span></div>
             <div className="zusd-wallet-kv"><span>Signing</span><span>{status?.allow_local_signing ? 'Local signature' : 'Wallet signature'}</span></div>
           </div>
           <details className="zusd-advanced-options">
             <summary>Protocol details</summary>
             <div className="zusd-wallet-meta" style={{ marginTop: 'var(--space-md)' }}>
-              <div className="zusd-wallet-kv"><span>Asset ID</span><span className="zusd-mono">{status?.asset_id || 'unavailable'}</span></div>
+              <div className="zusd-wallet-kv"><span>Asset ID</span><span className="zusd-mono">{status?.asset_id || 'not loaded'}</span></div>
               <div className="zusd-wallet-kv"><span>Endpoint</span><span>{status?.tau_host || 'network'}:{status?.tau_port || '-'}</span></div>
               <div className="zusd-wallet-kv"><span>Bridge</span><span>{status?.app_bridge_available ? 'available' : 'not detected'}</span></div>
               <div className="zusd-wallet-kv"><span>Operator</span><span className="zusd-mono">{status?.token_operator_pubkey || 'not configured'}</span></div>
             </div>
           </details>
-          {statusError ? <p className="zusd-wallet-error">Status error: {statusError}</p> : null}
+          {statusIssue ? (
+            <div className="zusd-status-callout" role="status">
+              <strong>Transfer status needs local node</strong>
+              <span>{statusIssue}</span>
+              <button className="btn btn-secondary" type="button" onClick={loadStatus}>
+                Retry status
+              </button>
+            </div>
+          ) : null}
         </div>
 
         <div className="panel zusd-wallet-card">
@@ -263,11 +277,11 @@ function ZUSDTauWalletSurface({ wallet = null }) {
             </details>
 
             <div className="zusd-wallet-actions">
-              <button className="btn btn-secondary" type="button" onClick={handlePrepare} disabled={busy}>
-                {busy ? 'Preparing...' : 'Prepare'}
+              <button className="btn btn-secondary" type="button" onClick={handlePrepare} disabled={busy || !transferReady}>
+                {busy ? 'Preparing...' : transferReady ? 'Prepare' : 'Connect local node'}
               </button>
-              <button className="btn btn-primary" type="button" onClick={handleSubmit} disabled={busy}>
-                {busy ? 'Submitting...' : 'Submit transaction'}
+              <button className="btn btn-primary" type="button" onClick={handleSubmit} disabled={busy || !transferReady}>
+                {busy ? 'Submitting...' : transferReady ? 'Submit transaction' : 'Connect local node'}
               </button>
             </div>
             {error ? <p className="zusd-wallet-error">{error}</p> : null}

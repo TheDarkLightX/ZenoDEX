@@ -1,5 +1,14 @@
 // Copyright DarkLightX/Dana Edwards
-// Recovery Backup — simplified status card. Pipeline details in Advanced.
+// Recovery backup, simplified status card. Pipeline details stay in Advanced.
+
+const DEFAULT_STORAGE_OPTIONS = ['Recovery email', 'Dropbox or Box', 'Offline export'];
+
+function providerLabel(providerKind) {
+  if (providerKind === 'recovery_email') return 'Recovery email';
+  if (providerKind === 'cloud_drive') return 'Dropbox or Box';
+  if (providerKind === 'offline_export') return 'Offline export';
+  return String(providerKind || '').replaceAll('_', ' ');
+}
 
 export default function RecoveryBackup({
   configured,
@@ -9,13 +18,17 @@ export default function RecoveryBackup({
   onSetUp,
   onLearnMore,
 }) {
+  const storageOptions = providerKinds && providerKinds.length > 0
+    ? providerKinds.map(providerLabel)
+    : DEFAULT_STORAGE_OPTIONS;
+
   return (
     <div className="recovery-backup-panel" role="region" aria-label="Recovery backup">
       <h3>Recovery Backup</h3>
       <div className="recovery-backup-status">
         {configured ? (
           <p className="recovery-backup-configured">
-            Backup configured — {threshold} of {shareCount} backup pieces stored in separate places.
+            Backup configured, {threshold} of {shareCount} backup pieces stored in separate places.
           </p>
         ) : (
           <>
@@ -26,6 +39,14 @@ export default function RecoveryBackup({
           </>
         )}
       </div>
+      <div className="recovery-backup-providers" aria-label={configured ? 'Configured backup storage' : 'Available backup storage options'}>
+        {storageOptions.map((provider) => (
+          <span key={provider} className="recovery-provider-chip">{provider}</span>
+        ))}
+      </div>
+      <p className="recovery-backup-boundary">
+        Each location stores encrypted backup material only. Email or cloud access alone cannot move funds.
+      </p>
       <div className="recovery-backup-actions">
         <button className="btn btn-secondary recovery-backup-cta" type="button" onClick={onSetUp}>
           {configured ? 'Review Backup' : 'Set Up Recovery Backup'}
@@ -34,13 +55,6 @@ export default function RecoveryBackup({
           Learn what this means
         </button>
       </div>
-      {configured && providerKinds && providerKinds.length > 0 && (
-        <div className="recovery-backup-providers">
-          {providerKinds.map((p) => (
-            <span key={p} className="recovery-provider-chip">{p}</span>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

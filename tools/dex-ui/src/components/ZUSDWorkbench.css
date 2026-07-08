@@ -39,6 +39,7 @@
   flex-wrap: wrap;
   gap: var(--space-sm);
   justify-content: flex-end;
+  max-width: 360px;
 }
 
 .zusd-chip {
@@ -56,6 +57,63 @@
   color: var(--btn-primary-text);
   background: var(--accent-green);
   border-color: transparent;
+}
+
+.zusd-risk-details {
+  text-align: left;
+}
+
+.zusd-risk-details summary {
+  width: max-content;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.zusd-risk-details summary:hover {
+  color: var(--text-primary);
+}
+
+.zusd-risk-details[open] summary {
+  margin-bottom: var(--space-md);
+}
+
+.zusd-secondary-transfer {
+  text-align: left;
+}
+
+.zusd-secondary-transfer > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  cursor: pointer;
+  list-style: none;
+}
+
+.zusd-secondary-transfer > summary::-webkit-details-marker {
+  display: none;
+}
+
+.zusd-secondary-transfer > summary span {
+  font-weight: 800;
+}
+
+.zusd-secondary-transfer > summary small {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  text-align: right;
+}
+
+.zusd-secondary-transfer[open] > summary {
+  margin-bottom: var(--space-md);
+  border-color: rgba(var(--accent-green-rgb), 0.35);
 }
 
 /* Stats */
