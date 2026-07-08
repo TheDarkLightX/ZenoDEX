@@ -64,9 +64,12 @@ def tx_order_inputs_from_transactions_v1(
                 raise TypeError(f"transactions[{tx_index}].operations['5'] must be a list")
             for op_index, raw_op in enumerate(raw_route_ops):
                 op_path = f"transactions[{tx_index}].operations['5'][{op_index}]"
-                if not isinstance(raw_op, Mapping):
-                    raise TypeError(f"{op_path} must be an object")
-                route_pool_ids = _route_pool_ids_from_tau_route_operation(raw_op, op_path=op_path)
+                raw_op = _route_body_summary_op(raw_op, op_path=op_path)
+                route_pool_ids = _route_pool_ids_from_tau_route_operation(
+                    raw_op,
+                    op_path=op_path,
+                    require_quote_receipt=True,
+                )
                 route_read_pool_ids.update(route_pool_ids)
                 pool_write_ids.update(route_pool_ids)
                 _add_route_protected_value_from_operation(
@@ -84,6 +87,21 @@ def tx_order_inputs_from_transactions_v1(
             )
         )
     return tuple(out)
+
+
+def _route_body_summary_op(raw_op: object, *, op_path: str) -> Mapping[str, Any]:
+    if isinstance(raw_op, Mapping):
+        return raw_op
+    if isinstance(raw_op, list):
+        if len(raw_op) != 2:
+            raise ValueError(f"{op_path} signed route-body pair must be [route_body, signature]")
+        if not isinstance(raw_op[0], Mapping):
+            raise TypeError(f"{op_path}[0] must be an object")
+        signature = raw_op[1]
+        if not isinstance(signature, str) or not signature:
+            raise TypeError(f"{op_path}[1] must be a non-empty string")
+        return raw_op[0]
+    raise TypeError(f"{op_path} must be an object")
 
 
 def tx_order_inputs_from_explicit_summary_v1(
@@ -319,7 +337,12 @@ def _route_pool_ids_from_quote_receipt(receipt: object, *, op_path: str) -> tupl
     return tuple(sorted(pool_ids))
 
 
-def _route_pool_ids_from_tau_route_operation(op: Mapping[str, Any], *, op_path: str) -> tuple[str, ...]:
+def _route_pool_ids_from_tau_route_operation(
+    op: Mapping[str, Any],
+    *,
+    op_path: str,
+    require_quote_receipt: bool = False,
+) -> tuple[str, ...]:
     kind = op.get("kind")
     if kind not in {"ROUTE_EXACT_IN", "ROUTE_EXACT_OUT"}:
         return ()
@@ -329,6 +352,8 @@ def _route_pool_ids_from_tau_route_operation(op: Mapping[str, Any], *, op_path: 
         if quote_receipt is not None
         else None
     )
+    if require_quote_receipt and receipt_ids is None:
+        raise TypeError(f"{op_path}.quote_receipt must be an object")
     legs = op.get("legs")
     if legs is None:
         if receipt_ids is None:

@@ -356,7 +356,14 @@ def _route_order_case() -> dict[str, object]:
                             "deadline": 100,
                             "quote_receipt_hash": _hex("route-risc0-binding"),
                             "recipient": "route-recipient",
+                            "asset_in": "asset-a",
+                            "asset_out": "asset-b",
+                            "leg_indices": [0],
+                            "legs": [{"hops": [{"pool_id": "pool-a"}]}],
+                            "total_amount_in": 1,
                             "total_min_amount_out": 0,
+                            "total_amount_out": 0,
+                            "total_max_amount_in": 0,
                             "quote_receipt": {
                                 "body": {
                                     "schema": "zenodex/route_quote_receipt/v1",
