@@ -17,7 +17,6 @@ from tools.zenodex_tauspec_ebrm_compounding_frontier_20260628 import (
     tau_cases,
 )
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -58,6 +57,9 @@ def test_tauspec_ebrm_compounding_frontier_cli_replay() -> None:
 
 
 def test_tauspec_ebrm_required_fact_mutations_cover_all_selector_inputs() -> None:
+    if not find_tau_bin(ROOT, profile="latest"):
+        pytest.skip("latest Tau binary not found")
+
     report = build_report()
     case_ids = {case["case_id"] for case in report["tau"]["case_results"]}
 

@@ -85,4 +85,3 @@ def test_oi_liquidity_bound_rejects_invalid_types() -> None:
             spot_depth_quote=1_000_000,
             arbitrage_absorb_bps=10_001,
         )
-

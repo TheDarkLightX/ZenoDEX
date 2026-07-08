@@ -1,0 +1,31 @@
+{
+  "consumer_surfaces": [
+    "production_boundary_audit",
+    "research_kernel"
+  ],
+  "control_fixtures": {
+    "negative_cases_sha256": "b2c63e107e7f632b1601143a4b4c7c1c533890f5b91f7d558e5bb81a8340f50a",
+    "negative_count": 6,
+    "positive_cases_sha256": "d52f5b5716df05ae4c688450ce7262c1d44d5a3d8e158109e98943a320b9809e",
+    "positive_count": 3
+  },
+  "evidence_roles": [
+    "retrieval_only_prior_art",
+    "research_only"
+  ],
+  "no_authority_flags": {
+    "consensus_authority": false,
+    "production_security_claim": false,
+    "routing_authority": false,
+    "settlement_authority": false
+  },
+  "promotion_schema": "zenodex.theoremsearch.retrieval_promotion_bundle.v1",
+  "replay_command": "python3 tools/theoremsearch_query.py <query> --n-results 3 --format markdown --output-json <artifact>",
+  "report_id": "theoremsearch_retrieval_promotion",
+  "schema": "zenodex.research_promotion.obligation_manifest.v1",
+  "source_refs": [
+    "tools/theoremsearch_query.py",
+    "docs/research/THEOREMSEARCH_SETUP_20260630.md",
+    "generated/theoremsearch/manifest_digest_schema_registry_20260630.json"
+  ]
+}

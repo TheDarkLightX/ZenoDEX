@@ -487,4 +487,3 @@ theorem filled_user_surplus_best_response_zero_min_out
       simp
     rw [h_util_d, h_util_zero]
     exact le_of_lt h_output_pos
-

@@ -123,4 +123,3 @@ def twap_arbitrage_bleed_floor_quote(
         maximum=BPS_SCALE,
     )
     return (max_oi * deviation) // BPS_SCALE
-

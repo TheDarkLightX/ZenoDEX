@@ -1,0 +1,32 @@
+{
+  "consumer_surfaces": [
+    "claims_registry",
+    "production_boundary_audit",
+    "research_kernel"
+  ],
+  "control_fixtures": {
+    "negative_cases_sha256": "111c6741d218f5feea15aa62c49cea680666cf5066907f01732f1b4700b9b409",
+    "negative_count": 7,
+    "positive_cases_sha256": "e60c359a5a986af13f234b3d1f144d51fb1ef2e20bf193e7bbeffa022ec1a67b",
+    "positive_count": 12
+  },
+  "evidence_roles": [
+    "local_replay_certificate",
+    "research_only"
+  ],
+  "no_authority_flags": {
+    "consensus_authority": false,
+    "production_security_claim": false,
+    "routing_authority": false,
+    "settlement_authority": false
+  },
+  "promotion_schema": "zenodex.tight_argmax.claim_promotion_bundle.v1",
+  "replay_command": "python3 tools/check_tight_argmax_m_source_certificate_20260630.py",
+  "report_id": "tight_argmax_claim_promotion",
+  "schema": "zenodex.research_promotion.obligation_manifest.v1",
+  "source_refs": [
+    "tools/check_tight_argmax_m_source_certificate_20260630.py",
+    "docs/research/TIGHT_ARGMAX_CEILING_FEE_BOUND_20260630.md",
+    "src/tau_specs/recommended/host_projection_contracts.json"
+  ]
+}

@@ -18,7 +18,6 @@ from tools.zenodex_tau_semantic_coverage_selector_20260628 import (
     selector_facts,
 )
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -73,6 +72,9 @@ def test_selector_facts_require_ab_and_cow_work_items() -> None:
 
 
 def test_all_surface_mutations_are_exercised() -> None:
+    if not find_tau_bin(ROOT, profile="latest"):
+        pytest.skip("latest Tau binary not found")
+
     report = build_report()
     surface_by_id = {surface.surface_id: surface for surface in SURFACES}
 
