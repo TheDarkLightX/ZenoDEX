@@ -171,8 +171,10 @@ Supported runtime keys:
 - `allowBrowserKeyGeneration`
 - `allowDefaultExternalSigner`
 - `demoMode`
+- `devMode`
 - `defaultExternalSigner`
 - `perpsPreviewWrites`
+- `runtimeDiagnostics`
 - `zenoOracleApiBase`
 
 This is useful for IPFS/static hosting where one bundle may be reused against
@@ -182,6 +184,11 @@ The checked-in `public/zenodex-config.json` is currently a temporary
 `local-testnet` testing config with browser key generation enabled. It exists so
 the GUI can be exercised before the standalone `Keys` app is available. Do not
 copy that file into public-testnet or production deployments.
+
+`runtimeDiagnostics` and `devMode` are operator-facing controls for diagnostics
+such as chain, proof posture, signer, and receipt-boundary status. They default
+off so the polished UI does not expose developer/debug text. A local reviewer
+can also use `?zenodexDiagnostics=1` for one session.
 
 `allowBrowserKeyGeneration` is an explicit last-resort browser fallback and is
 honored only for an explicit local/dev deployment. The normal path is an

@@ -23,6 +23,7 @@ import {
 } from '../lib/swapData.js';
 import VerifiedBySpec from './VerifiedBySpec.jsx';
 import { buildAndSignSwapIntent } from '../sdk/dexIntentSigner.js';
+import { deriveSwapFinality } from '../sdk/swapFinality.js';
 import { createMockTxHash } from '../lib/swapUtils.js';
 import { useDirectSwapApiPreviewState, useRouteImpactPreview } from '../lib/swapPreviewHooks.js';
 import { SettingsIcon, RefreshIcon, SwapDirectionIcon, InfoIcon, AlertIcon } from './swap/SwapIcons.jsx';
@@ -227,24 +228,6 @@ function SwapInterface({ wallet }) {
         if (!uiSmokeTokenSelectSide || poolFeed.source !== 'api') return;
         setTokenModalSide(uiSmokeTokenSelectSide);
     }, [uiSmokeTokenSelectSide, poolFeed.source]);
-
-    useEffect(() => {
-        if (!submittedSwap || submittedSwap.status !== 'pending') return undefined;
-        const timeout = setTimeout(() => {
-            setSubmittedSwap((prev) => {
-                if (!prev || prev.txHash !== submittedSwap.txHash) return prev;
-                const confirmedAt = Date.now();
-                upsertTransaction({
-                    id: prev.txId,
-                    status: 'confirmed',
-                    confirmedAt,
-                    updatedAt: confirmedAt,
-                });
-                return { ...prev, status: 'confirmed', confirmedAt };
-            });
-        }, 2200);
-        return () => clearTimeout(timeout);
-    }, [submittedSwap, upsertTransaction]);
 
     // Get pool key
     const poolKey = useMemo(() => {
@@ -803,6 +786,7 @@ function SwapInterface({ wallet }) {
                 fromSymbol: fromToken.symbol,
                 amountOut: formatNumber(exactOutQuote.desiredOut),
                 toSymbol: toToken.symbol,
+                minOutput: formatNumber(exactOutQuote.desiredOut),
                 maxInput: formatNumber(exactOutQuote.maxAmountInUnits),
                 exactOut: true,
                 advanced: false,
@@ -818,6 +802,8 @@ function SwapInterface({ wallet }) {
                 let remoteAccepted = false;
                 let remoteHeight = null;
                 let remoteReceipt = null;
+                let receiptHash = '';
+                let acceptanceEvidence = '';
                 if (!demoMode && poolFeed.source !== 'api') {
                     setQuoteError('Live swap submission requires a live pool feed');
                     return;
@@ -873,12 +859,13 @@ function SwapInterface({ wallet }) {
                     if (maybeRemote?.ok === false) {
                         throw new Error(maybeRemote?.error || 'swap_rejected');
                     }
-                    if (maybeRemote?.txHash || maybeRemote?.tx_hash) {
-                        txHash = String(maybeRemote.txHash || maybeRemote.tx_hash);
-                    }
-                    remoteReceipt = maybeRemote?.receipt || null;
-                    remoteAccepted = maybeRemote?.tx_accepted === true || remoteReceipt?.accepted === true;
-                    remoteHeight = maybeRemote?.height ?? null;
+                    const finality = deriveSwapFinality(maybeRemote);
+                    txHash = finality.txHash || txHash;
+                    remoteReceipt = finality.receipt;
+                    remoteAccepted = finality.accepted;
+                    remoteHeight = finality.height;
+                    receiptHash = finality.receiptHash;
+                    acceptanceEvidence = finality.acceptanceEvidence;
                     submitPath = 'api';
                     loadSwapPools({ timeoutMs: 2200, account: wallet?.address || '' })
                         .then((next) => setPoolFeed(next))
@@ -910,11 +897,16 @@ function SwapInterface({ wallet }) {
                     submitPath,
                     height: remoteHeight,
                     receipt: remoteReceipt,
+                    receiptHash,
+                    acceptanceEvidence,
+                    confirmedAt: remoteAccepted ? submittedAt : null,
                 });
                 upsertTransaction({
-                    txId,
+                    id: txId,
                     txHash,
                     kind: 'swap_exact_out',
+                    product: 'swap',
+                    title: `Swap ${fromToken.symbol} -> ${toToken.symbol}`,
                     status: transactionStatus,
                     fromToken: fromToken.symbol,
                     toToken: toToken.symbol,
@@ -922,6 +914,10 @@ function SwapInterface({ wallet }) {
                     amountOut: submitted.amountOut,
                     submittedAt,
                     height: remoteHeight,
+                    receipt: remoteReceipt,
+                    receiptHash,
+                    acceptanceEvidence,
+                    confirmedAt: remoteAccepted ? submittedAt : null,
                 });
                 setAmountOut('');
             } finally {
@@ -956,6 +952,8 @@ function SwapInterface({ wallet }) {
                 let remoteAccepted = false;
                 let remoteHeight = null;
                 let remoteReceipt = null;
+                let receiptHash = '';
+                let acceptanceEvidence = '';
                 if (!demoMode && poolFeed.source !== 'api') {
                     setQuoteError('Live swap submission requires a live pool feed');
                     return;
@@ -1013,12 +1011,13 @@ function SwapInterface({ wallet }) {
                     if (maybeRemote?.ok === false) {
                         throw new Error(maybeRemote?.error || 'swap_rejected');
                     }
-                    if (maybeRemote?.txHash || maybeRemote?.tx_hash) {
-                        txHash = String(maybeRemote.txHash || maybeRemote.tx_hash);
-                    }
-                    remoteReceipt = maybeRemote?.receipt || null;
-                    remoteAccepted = maybeRemote?.tx_accepted === true || remoteReceipt?.accepted === true;
-                    remoteHeight = maybeRemote?.height ?? null;
+                    const finality = deriveSwapFinality(maybeRemote);
+                    txHash = finality.txHash || txHash;
+                    remoteReceipt = finality.receipt;
+                    remoteAccepted = finality.accepted;
+                    remoteHeight = finality.height;
+                    receiptHash = finality.receiptHash;
+                    acceptanceEvidence = finality.acceptanceEvidence;
                     submitPath = 'api';
                     loadSwapPools({ timeoutMs: 2200, account: wallet?.address || '' })
                         .then((next) => setPoolFeed(next))
@@ -1050,11 +1049,16 @@ function SwapInterface({ wallet }) {
                     submitPath,
                     height: remoteHeight,
                     receipt: remoteReceipt,
+                    receiptHash,
+                    acceptanceEvidence,
+                    confirmedAt: remoteAccepted ? submittedAt : null,
                 });
                 upsertTransaction({
-                    txId,
+                    id: txId,
                     txHash,
                     kind: 'swap_batch',
+                    product: 'swap',
+                    title: `Split swap ${fromToken.symbol} -> ${toToken.symbol}`,
                     status: transactionStatus,
                     fromToken: fromToken.symbol,
                     toToken: toToken.symbol,
@@ -1062,6 +1066,10 @@ function SwapInterface({ wallet }) {
                     amountOut: submitted.amountOut,
                     submittedAt,
                     height: remoteHeight,
+                    receipt: remoteReceipt,
+                    receiptHash,
+                    acceptanceEvidence,
+                    confirmedAt: remoteAccepted ? submittedAt : null,
                 });
             } finally {
                 setIsSubmitting(false);
@@ -1115,6 +1123,8 @@ function SwapInterface({ wallet }) {
             let remoteAccepted = false;
             let remoteHeight = null;
             let remoteReceipt = null;
+            let receiptHash = '';
+            let acceptanceEvidence = '';
             if (!demoMode && poolFeed.source !== 'api') {
                 setQuoteError('Live swap submission requires a live pool feed');
                 return;
@@ -1181,12 +1191,13 @@ function SwapInterface({ wallet }) {
                 if (maybeRemote?.ok === false) {
                     throw new Error(maybeRemote?.error || 'swap_rejected');
                 }
-                if (maybeRemote?.txHash || maybeRemote?.tx_hash) {
-                    txHash = String(maybeRemote.txHash || maybeRemote.tx_hash);
-                }
-                remoteReceipt = maybeRemote?.receipt || null;
-                remoteAccepted = maybeRemote?.tx_accepted === true || remoteReceipt?.accepted === true;
-                remoteHeight = maybeRemote?.height ?? null;
+                const finality = deriveSwapFinality(maybeRemote);
+                txHash = finality.txHash || txHash;
+                remoteReceipt = finality.receipt;
+                remoteAccepted = finality.accepted;
+                remoteHeight = finality.height;
+                receiptHash = finality.receiptHash;
+                acceptanceEvidence = finality.acceptanceEvidence;
                 submitPath = 'api';
                 loadSwapPools({ timeoutMs: 2200, account: wallet?.address || '' })
                     .then((next) => setPoolFeed(next))
@@ -1218,6 +1229,8 @@ function SwapInterface({ wallet }) {
                 submitPath,
                 height: remoteHeight,
                 receipt: remoteReceipt,
+                receiptHash,
+                acceptanceEvidence,
                 submittedAt,
                 confirmedAt: remoteAccepted ? submittedAt : null,
             });
@@ -1228,6 +1241,10 @@ function SwapInterface({ wallet }) {
                 title: `Swap ${fromToken.symbol} -> ${toToken.symbol}`,
                 routePath: submitted.routePath,
                 txHash,
+                receipt: remoteReceipt,
+                receiptHash,
+                acceptanceEvidence,
+                height: remoteHeight,
                 network: 'Tau Net Alpha',
                 createdAt: submittedAt,
                 confirmedAt: remoteAccepted ? submittedAt : null,
@@ -1514,11 +1531,11 @@ function SwapInterface({ wallet }) {
                         <VerifiedBySpec
                             spec="cpmm_v1"
                             kind="tau"
-                            title={`Swap math verified by the mathematical proof system using the ${zkPosture.proof_verifier_kind} verifier.`}
+                            title={`Swap math is checked by the mathematical proof system using the ${zkPosture.proof_verifier_kind} verifier.`}
                         />
                     ) : (
                         <Tooltip text={`Swap math follows specification, but proof verification is currently disabled for testing.`}>
-                            <span className="swap-spec-advisory">Verified math · proofs off</span>
+                            <span className="swap-spec-advisory">Spec cpmm_v1 · proofs off</span>
                         </Tooltip>
                     )}
                 </div>
@@ -1911,12 +1928,12 @@ function SwapInterface({ wallet }) {
                                 </span>
                             </div>
                             <div className="swap-detail-row">
-                                <Tooltip text="Price quote is verified before submitting your swap">
-                                    <span>Quote Verified</span>
+                                <Tooltip text="Quote certificate is checked locally before submitting your swap">
+                                    <span>Quote Check</span>
                                 </Tooltip>
                                 <span className={certificateCheck.ok ? 'impact-low' : 'impact-high'}>
                                     {certificateCheck.ok
-                                        ? `Verified (${Math.floor(certificateCheck.remainingMs / 1000)}s)`
+                                        ? `Valid (${Math.floor(certificateCheck.remainingMs / 1000)}s)`
                                         : `Invalid (${certificateCheck.reason})`}
                                 </span>
                             </div>
@@ -2031,7 +2048,7 @@ function SwapInterface({ wallet }) {
                     {proofEnforced ? (
                         <span className="verified-badge">✓ Proof-wrapper active</span>
                     ) : (
-                        <span className="verified-badge verified-badge-advisory">Math verified (proofs off)</span>
+                        <span className="verified-badge verified-badge-advisory">Spec-checked (proofs off)</span>
                     )}
                     <span className="network-badge">Tau local-testnet</span>
                 </div>

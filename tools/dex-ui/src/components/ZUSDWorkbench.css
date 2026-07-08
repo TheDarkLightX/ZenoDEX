@@ -39,6 +39,7 @@
   flex-wrap: wrap;
   gap: var(--space-sm);
   justify-content: flex-end;
+  max-width: 360px;
 }
 
 .zusd-chip {
@@ -56,6 +57,26 @@
   color: var(--btn-primary-text);
   background: var(--accent-green);
   border-color: transparent;
+}
+
+.zusd-risk-details {
+  text-align: left;
+}
+
+.zusd-risk-details summary {
+  width: max-content;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.zusd-risk-details summary:hover {
+  color: var(--text-primary);
+}
+
+.zusd-risk-details[open] summary {
+  margin-bottom: var(--space-md);
 }
 
 /* Stats */

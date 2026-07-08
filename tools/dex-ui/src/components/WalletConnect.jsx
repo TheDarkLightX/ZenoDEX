@@ -21,7 +21,7 @@ function walletErrorMessage(error) {
     return message || 'External signer unavailable';
 }
 
-function WalletConnect({ wallet, onConnect }) {
+function WalletConnect({ wallet, onConnect, onOpenKeys, compact = false }) {
     const [isConnecting, setIsConnecting] = useState(false);
     const [showDropdown, setShowDropdown] = useState(false);
     const [copyFeedback, setCopyFeedback] = useState(false);
@@ -66,10 +66,15 @@ function WalletConnect({ wallet, onConnect }) {
         }
     };
 
-    // Truncate BLS address for display (show first 8 and last 6 chars)
+    const handleOpenKeys = () => {
+        setShowDropdown(false);
+        onOpenKeys?.();
+    };
+
+    // Truncate BLS address for compact header display.
     const truncateAddress = (address) => {
         if (!address) return '';
-        return `${address.slice(0, 8)}...${address.slice(-6)}`;
+        return `${address.slice(0, 4)}...${address.slice(-3)}`;
     };
 
     const formatBalanceOrNA = (value) => {
@@ -103,6 +108,21 @@ function WalletConnect({ wallet, onConnect }) {
                         </div>
 
                         <div className="dropdown-section">
+                            {onOpenKeys && (
+                                <div className="dropdown-recovery-nudge" aria-label="Wallet recovery recommendation">
+                                    <div className="dropdown-recovery-head">
+                                        <span>Recovery check</span>
+                                        <span className="dropdown-recovery-badge">Recommended</span>
+                                    </div>
+                                    <p>
+                                        Add recovery contacts, a trusted device, and an encrypted backup before large deposits.
+                                    </p>
+                                    <button className="dropdown-recovery-action" onClick={handleOpenKeys} type="button">
+                                        Set up recovery
+                                    </button>
+                                </div>
+                            )}
+
                             <div className="dropdown-item">
                                 <span className="item-label">Address</span>
                                 <span className="item-value mono">{truncateAddress(wallet.address)}</span>
@@ -121,7 +141,13 @@ function WalletConnect({ wallet, onConnect }) {
 
                         <div className="dropdown-divider"></div>
 
-                        <button className="dropdown-action" onClick={handleCopyAddress}>
+                        {onOpenKeys && (
+                            <button className="dropdown-action" onClick={handleOpenKeys} type="button">
+                                Keys &amp; recovery
+                            </button>
+                        )}
+
+                        <button className="dropdown-action" onClick={handleCopyAddress} type="button">
                             {copyFeedback ? '✓ Copied!' : '📋 Copy Address'}
                         </button>
 
@@ -136,7 +162,7 @@ function WalletConnect({ wallet, onConnect }) {
 
                         <div className="dropdown-divider"></div>
 
-                        <button className="dropdown-action disconnect" onClick={handleDisconnect}>
+                        <button className="dropdown-action disconnect" onClick={handleDisconnect} type="button">
                             ⏏️ Disconnect
                         </button>
                     </div>
@@ -148,20 +174,22 @@ function WalletConnect({ wallet, onConnect }) {
     return (
         <div className="wallet-connect-shell">
             <button
-                className="btn btn-primary wallet-connect-btn"
+                className={`btn btn-primary wallet-connect-btn ${compact ? 'wallet-connect-btn-compact' : ''}`}
                 onClick={handleConnect}
                 disabled={isConnecting}
                 title={connectionError || 'Connect external signer'}
+                aria-label="Connect wallet"
+                type="button"
             >
                 {isConnecting ? (
                     <>
                         <span className="spinner"></span>
-                        Connecting...
+                        {compact ? 'Connecting' : 'Connecting...'}
                     </>
                 ) : (
                     <>
                         <span className="wallet-icon">🔗</span>
-                        Connect Wallet
+                        {compact ? 'Connect' : 'Connect Wallet'}
                     </>
                 )}
             </button>

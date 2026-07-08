@@ -5,16 +5,17 @@ import { shortHash } from '../../lib/swapUtils';
 
 export function SwapSubmittedModal({ submittedSwap, onClose }) {
     if (!submittedSwap) return null;
+    const accepted = submittedSwap.status === 'confirmed';
     return (
-        <Modal open onClose={onClose} title={submittedSwap.status === 'pending' ? 'Transaction Pending' : 'Swap Confirmed'} size="sm">
+        <Modal open onClose={onClose} title={accepted ? 'Accepted by runtime' : 'Submitted, awaiting receipt'} size="sm">
                 <p className="submitted-copy">
-                    {submittedSwap.status === 'pending'
-                        ? 'Broadcasting transaction to Tau Net Alpha...'
-                        : 'Wallet submission confirmed; on-chain status tracking is ready.'}
+                    {accepted
+                        ? 'The runtime reported acceptance for this submission.'
+                        : 'A transaction hash is a submission reference. Acceptance requires tx_accepted=true or receipt.accepted=true from the API.'}
                 </p>
                 <div className="submitted-status-row">
                     <span className={`tx-status-badge ${submittedSwap.status}`}>
-                        {submittedSwap.status === 'pending' ? 'Pending' : 'Confirmed'}
+                        {accepted ? 'Accepted' : 'Awaiting receipt'}
                     </span>
                     <span className="submitted-time">
                         {new Date(submittedSwap.submittedAt).toLocaleTimeString()}
@@ -33,6 +34,16 @@ export function SwapSubmittedModal({ submittedSwap, onClose }) {
                         <span>Submission:</span>
                         <span>{submittedSwap.submitPath === 'local-fallback' ? 'Local fallback' : 'Network relay'}</span>
                     </div>
+                    <div className="confirm-row">
+                        <span>Acceptance:</span>
+                        <span>{accepted ? submittedSwap.acceptanceEvidence || 'runtime accepted' : 'awaiting API evidence'}</span>
+                    </div>
+                    {submittedSwap.receiptHash && (
+                        <div className="confirm-row">
+                            <span>Receipt:</span>
+                            <span className="tx-hash mono">{shortHash(submittedSwap.receiptHash)}</span>
+                        </div>
+                    )}
                     {submittedSwap.height !== null && submittedSwap.height !== undefined && (
                         <div className="confirm-row">
                             <span>Block height:</span>
@@ -63,7 +74,7 @@ export function SwapSubmittedModal({ submittedSwap, onClose }) {
                             </div>
                             <div className="confirm-row">
                                 <span>Quote certificate:</span>
-                                <span>Verified ({submittedSwap.certSeconds}s)</span>
+                                <span>Valid ({submittedSwap.certSeconds}s)</span>
                             </div>
                         </>
                     )}

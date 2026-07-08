@@ -223,10 +223,10 @@ export default function PerpsGovernanceSurface() {
               setDeliveredSssStatus(res.encrypted_sss_backup);
               setDeliveredSssBackup(fixtures.encryptedSssBackup);
             } else {
-              setEvalError(res?.error || 'SSS provider delivery failed');
+              setEvalError(res?.error || 'Recovery backup delivery failed');
             }
           } catch (err) {
-            setEvalError(err?.message || 'SSS provider delivery failed');
+            setEvalError(err?.message || 'Recovery backup delivery failed');
           }
         }
 
@@ -263,7 +263,7 @@ export default function PerpsGovernanceSurface() {
   function handleDownloadEncryptedSssBackup() {
     const backup = deliveredSssBackup || fixtures.encryptedSssBackup;
     if (!backup) {
-      setEvalError('Encrypted SSS fixture backup is unavailable');
+      setEvalError('Encrypted recovery backup is unavailable');
       return;
     }
     const backupId = String(backup.backup_id || 'localtest').replace(/[^a-zA-Z0-9._-]/g, '-');
@@ -272,7 +272,7 @@ export default function PerpsGovernanceSurface() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `zenodex-encrypted-sss-backup-${backupId}.json`;
+    link.download = `zenodex-encrypted-recovery-backup-${backupId}.json`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -282,7 +282,7 @@ export default function PerpsGovernanceSurface() {
   async function handleDeliverEncryptedSssBackup() {
     const backup = deliveredSssBackup || fixtures.encryptedSssBackup;
     if (!backup) {
-      setEvalError('Encrypted SSS fixture backup is unavailable');
+      setEvalError('Encrypted recovery backup is unavailable');
       return;
     }
     setEvaluating((prev) => ({ ...prev, encryptedSssDelivery: true }));
@@ -293,10 +293,10 @@ export default function PerpsGovernanceSurface() {
         setDeliveredSssStatus(res.encrypted_sss_backup);
         setDeliveredSssBackup(backup);
       } else {
-        setEvalError(res?.error || 'SSS provider delivery failed');
+        setEvalError(res?.error || 'Recovery backup delivery failed');
       }
     } catch (err) {
-      setEvalError(err?.message || 'SSS provider delivery failed');
+      setEvalError(err?.message || 'Recovery backup delivery failed');
     } finally {
       setEvaluating((prev) => ({ ...prev, encryptedSssDelivery: false }));
     }
@@ -1047,7 +1047,7 @@ export default function PerpsGovernanceSurface() {
             <div className="gov-kv">
               <span>Backup Status</span>
               <span className={`gov-status-value ${encryptedSssReady ? 'status-ready' : 'status-blocked'}`} id="encrypted-sss-ready-status">
-                {encryptedSssReady ? 'Encrypted SSS ready' : encryptedSssBackup?.status || 'N/A'}
+                {encryptedSssReady ? 'Encrypted backup ready' : encryptedSssBackup?.status || 'N/A'}
               </span>
             </div>
             <div className="gov-kv">
@@ -1110,7 +1110,7 @@ export default function PerpsGovernanceSurface() {
           </div>
           {!sssLiveProviderDeliveryReady && (
             <div className="gov-inline-warning" id="encrypted-sss-live-delivery-warning">
-              SSS provider delivery is wired to the backend. Configure SMTP, Dropbox, Box, or offline-export provider env vars, then use Deliver to capture external delivery receipts.
+              Encrypted recovery delivery is wired to the backend. Configure recovery email, Dropbox, Box, or offline export, then use Deliver to capture external delivery receipts.
             </div>
           )}
           <div className="gov-connector-grid" aria-label="Backup delivery options">

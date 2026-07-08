@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiGetZusdMonetaryStatus, apiPrepareZusdMonetary, apiSubmitZusdMonetary } from '../lib/api.js';
 import WalletConnect from './WalletConnect.jsx';
+import WalletRecoveryPrompt from './WalletRecoveryPrompt.jsx';
 import './ZUSDTauWalletSurface.css';
 
 const E8 = 100_000_000;
@@ -197,7 +198,7 @@ function buildPayload(form) {
   return payload;
 }
 
-function ZUSDMonetarySurface({ wallet = null, onStatusChange = null, onConnect = null }) {
+function ZUSDMonetarySurface({ wallet = null, onStatusChange = null, onConnect = null, onOpenKeys = null }) {
   const connectedAccount = (wallet?.address || '').trim();
   const [status, setStatus] = useState(null);
   const [statusError, setStatusError] = useState('');
@@ -555,16 +556,12 @@ function ZUSDMonetarySurface({ wallet = null, onStatusChange = null, onConnect =
   }, [busy, status]);
 
   const branchTcrPct = status?.branch_tcr_bps == null ? null : Number(status.branch_tcr_bps) / 100;
+  const accountZusdBalance = status?.account_view ? Number(status.account_view.zusd_balance ?? 0) : null;
+  const accountSpDeposit = status?.account_view ? Number(status.account_view.sp_deposit_e8 ?? 0) / E8 : null;
 
-  // NOTE: collateralAmt/debtAmt must be declared before `branchMode`, which
-  // reads `debtAmt`. Declaring them after caused a render-time temporal-dead-zone
-  // crash ("Cannot access 'debtAmt' before initialization") that the ErrorBoundary
-  // caught — taking down the entire zUSD surface in live (non-demo) mode.
   const collateralSymbol = 'AGRS';
   const collateralAmt = Number(status?.core?.collateral_e8 ?? 0) / E8;
   const debtAmt = Number(status?.core?.debt_e8 ?? 0) / E8;
-
-  const branchMode = status?.branch_mode || (debtAmt > 0 ? 'loading' : 'no_debt');
 
   const protocolRevenueZusd = Number(status?.core?.protocol_revenue_zusd_cum_e8 ?? 0) / E8;
   const oraclePrice = status?.core?.price_e8 ? Number(status.core.price_e8) / E8 : 100;
@@ -636,6 +633,9 @@ function ZUSDMonetarySurface({ wallet = null, onStatusChange = null, onConnect =
     ['Max redemption per period', (c.max_epoch_redemption_fraction_bps != null) ? `${num(bps(c.max_epoch_redemption_fraction_bps), 1)}%` : '—', 'Limits redemptions per time period'],
     ['Price feed staleness limit', (c.max_oracle_staleness_epochs != null) ? `${c.max_oracle_staleness_epochs} periods` : '—', 'Rejects transactions if price is too old'],
   ];
+  const localTestnetLabel = status?.node_reachable
+    ? 'Local testnet connected'
+    : 'Connect local testnet to manage your vault';
 
   return (
     <section className="zusd-wallet-surface">
@@ -647,24 +647,31 @@ function ZUSDMonetarySurface({ wallet = null, onStatusChange = null, onConnect =
             Deposit AGRS collateral, mint zUSD debt, and manage your vault around collateral-ratio safety.
           </p>
         </div>
-        <div className="zusd-hero-meta">
-          <span className="zusd-chip">{collateralSymbol} collateral</span>
-          {branchTcrPct != null && (
-            <span className="zusd-chip mono">TCR {num(branchTcrPct, 1)}%</span>
-          )}
-          <span className="zusd-chip zusd-chip-accent">{status?.node_reachable ? 'Network connected' : 'Network required'}</span>
-        </div>
+        {connectedAccount && (
+          <div className="zusd-hero-meta">
+            {branchTcrPct != null && (
+              <span className="zusd-chip mono">System ratio {num(branchTcrPct, 1)}%</span>
+            )}
+            <span className={`zusd-chip ${status?.node_reachable ? 'zusd-chip-accent' : ''}`}>{localTestnetLabel}</span>
+          </div>
+        )}
       </div>
 
-      <div className="zusd-stat-tiles">
-        {statTiles.map((t) => (
-          <div className={`zusd-stat-tile${t.accent ? ` accent-${t.accent}` : ''}`} key={t.label}>
-            <span className="zusd-stat-label">{t.label}</span>
-            <span className="zusd-stat-value mono" title={t.title || undefined}>{t.value}</span>
-            <span className="zusd-stat-sub">{t.sub}</span>
-          </div>
-        ))}
-      </div>
+      {connectedAccount && (
+        <div className="zusd-stat-tiles">
+          {statTiles.map((t) => (
+            <div className={`zusd-stat-tile${t.accent ? ` accent-${t.accent}` : ''}`} key={t.label}>
+              <span className="zusd-stat-label">{t.label}</span>
+              <span className="zusd-stat-value mono" title={t.title || undefined}>{t.value}</span>
+              <span className="zusd-stat-sub">{t.sub}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {connectedAccount && (
+        <WalletRecoveryPrompt compact onOpenKeys={onOpenKeys} />
+      )}
 
       {!connectedAccount ? (
         <div className="panel zusd-wallet-card zusd-empty-cta">
@@ -718,6 +725,11 @@ function ZUSDMonetarySurface({ wallet = null, onStatusChange = null, onConnect =
               <span>zUSD debt</span>
               <strong>{formatE8(status?.core?.debt_e8)}</strong>
               <small>Borrowed balance</small>
+            </div>
+            <div className="zusd-vault-metric">
+              <span>Your zUSD balance</span>
+              <strong>{accountZusdBalance == null ? '-' : formatAmount(accountZusdBalance, 4)}</strong>
+              <small>{accountSpDeposit == null ? 'Connected wallet balance pending' : `${formatAmount(accountSpDeposit, 4)} zUSD in stability pool`}</small>
             </div>
             <div className="zusd-vault-metric">
               <span>Liquidation price</span>
@@ -1096,25 +1108,30 @@ function ZUSDMonetarySurface({ wallet = null, onStatusChange = null, onConnect =
       </div>
       )}
 
-      <div className="zusd-assurance-grid">
-        <div className="panel zusd-wallet-card zusd-risk-card">
-          <div className="zusd-section-header">
-            <h2>Risk parameters</h2>
-            <span className="zusd-section-badge">live</span>
+      {connectedAccount && (
+        <details className="zusd-risk-details">
+          <summary>System risk settings</summary>
+          <div className="zusd-assurance-grid">
+            <div className="panel zusd-wallet-card zusd-risk-card">
+              <div className="zusd-section-header">
+                <h2>Risk parameters</h2>
+                <span className="zusd-section-badge">live</span>
+              </div>
+              <table className="zusd-rp-table">
+                <tbody>
+                  {riskParams.map(([name, value, note]) => (
+                    <tr key={name}>
+                      <td className="zusd-rp-name">{name}</td>
+                      <td className="zusd-rp-value mono">{value}</td>
+                      <td className="zusd-rp-note">{note}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-          <table className="zusd-rp-table">
-            <tbody>
-              {riskParams.map(([name, value, note]) => (
-                <tr key={name}>
-                  <td className="zusd-rp-name">{name}</td>
-                  <td className="zusd-rp-value mono">{value}</td>
-                  <td className="zusd-rp-note">{note}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        </details>
+      )}
     </section>
   );
 }

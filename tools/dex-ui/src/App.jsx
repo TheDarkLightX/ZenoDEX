@@ -39,7 +39,7 @@ import { ThemeProvider } from './lib/ThemeContext.jsx';
 import ThemeSwitcher from './components/ThemeSwitcher.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import WalletConnect from './components/WalletConnect';
-import TransactionDrawer from './components/TransactionDrawer.jsx';
+import ClaimBoundaryStrip from './components/ClaimBoundaryStrip.jsx';
 import { useTransactionCenter } from './lib/TransactionCenterContext.jsx';
 import { getRuntimeConfig } from './lib/api.js';
 import { useKeyboardShortcuts } from './lib/useKeyboardShortcuts.js';
@@ -48,17 +48,16 @@ import CommandPalette from './components/CommandPalette.jsx';
 const NAV_TABS = [
   { id: 'swap', label: 'Swap' },
   { id: 'pools', label: 'Pools' },
-  { id: 'stats', label: 'ZDEX Stats' },
+  { id: 'stats', label: 'Stats' },
   { id: 'perps', label: 'Perpetuals' },
   { id: 'strategy', label: 'Strategy' },
   { id: 'zusd', label: 'zUSD' },
   { id: 'oracle', label: 'Oracle' },
-  { id: 'confidential', label: 'Confidential' },
+  { id: 'confidential', label: 'Privacy' },
   { id: 'proofs', label: 'Proofs' },
-  { id: 'governance', label: 'Keys' },
 ];
 
-const ROUTE_TAB_IDS = new Set([...NAV_TABS.map((tab) => tab.id), 'proofs']);
+const ROUTE_TAB_IDS = new Set([...NAV_TABS.map((tab) => tab.id), 'governance']);
 
 const ZENODEX_LOGO_ICON = `${import.meta.env.BASE_URL}branding/zenodex/zenodex_icon_256.png`;
 
@@ -103,12 +102,41 @@ function getInitialWallet() {
   };
 }
 
+function parseBooleanFlag(value) {
+  if (value === true || value === 'true' || value === '1' || value === 1) {
+    return true;
+  }
+  if (value === false || value === 'false' || value === '0' || value === 0) {
+    return false;
+  }
+  return undefined;
+}
+
+function getRuntimeDiagnosticsEnabled() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  const params = new URLSearchParams(window.location.search);
+  if (params.has('zenodexDiagnostics')) {
+    return parseBooleanFlag(params.get('zenodexDiagnostics')) ?? false;
+  }
+
+  const runtimeConfig = getRuntimeConfig();
+  const diagnosticsFlag = parseBooleanFlag(runtimeConfig.runtimeDiagnostics);
+  if (diagnosticsFlag !== undefined) {
+    return diagnosticsFlag;
+  }
+  const devModeFlag = parseBooleanFlag(runtimeConfig.devMode);
+  return devModeFlag === true;
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState(getInitialTab);
   const [wallet, setWallet] = useState(getInitialWallet);
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const { upsertTransaction } = useTransactionCenter();
   const uiSurfaceVersion = getRuntimeConfig().uiSurfaceContractVersion || 'ui-unpinned';
+  const showRuntimeDiagnostics = getRuntimeDiagnosticsEnabled();
 
   // ── Global keyboard shortcuts ────────────────────────────────────
   // Power-user path: quick tab switching, command palette, theme toggle.
@@ -154,6 +182,14 @@ function App() {
       group: 'Navigate',
       action: () => switchTab(tab.id),
     })),
+    {
+      id: 'nav-governance',
+      label: 'Keys',
+      hint: 'Alt+0',
+      icon: 'key',
+      group: 'Account',
+      action: () => switchTab('governance'),
+    },
     {
       id: 'theme-toggle',
       label: 'Toggle light/dark theme',
@@ -214,9 +250,17 @@ function App() {
                 <kbd>⌘K</kbd>
               </button>
               <ThemeSwitcher />
-              <WalletConnect wallet={wallet} onConnect={setWallet} />
+              <WalletConnect wallet={wallet} onConnect={setWallet} onOpenKeys={() => switchTab('governance')} compact />
             </div>
           </header>
+
+          {showRuntimeDiagnostics && (
+            <ClaimBoundaryStrip
+              activeTab={activeTab}
+              wallet={wallet}
+              uiSurfaceVersion={uiSurfaceVersion}
+            />
+          )}
 
         {/* Main Content */}
         <main className={`main ${activeTab === 'oracle' ? 'main-oracle' : ''}`}>
@@ -264,7 +308,7 @@ function App() {
 
           {activeTab === 'zusd' && (
             <div className="animate-fade-in">
-              <ZUSDWorkbench wallet={wallet} onConnect={setWallet} />
+              <ZUSDWorkbench wallet={wallet} onConnect={setWallet} onOpenKeys={() => switchTab('governance')} />
             </div>
           )}
 
@@ -298,16 +342,15 @@ function App() {
         {/* Footer */}
         <footer className="footer">
           <p>
-            ZenoDEX: Formally Verified Decentralized Exchange
+            ZenoDEX: Evidence-Backed Decentralized Exchange
             <span className="footer-sep">•</span>
             Powered by <a href="https://tau.net" target="_blank" rel="noopener noreferrer">Tau Network</a>
             <span className="footer-sep">•</span>
             <span className="footer-agrs">ZDEX</span> Utility Token
-            <span className="footer-version">{uiSurfaceVersion}</span>
+            {showRuntimeDiagnostics && <span className="footer-version">{uiSurfaceVersion}</span>}
           </p>
         </footer>
 
-          <TransactionDrawer />
         </div>
 
         <CommandPalette

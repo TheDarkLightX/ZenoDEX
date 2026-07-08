@@ -412,7 +412,7 @@ function StabilityPoolPanel({ onClose }) {
   );
 }
 
-function ZUSDWorkbench({ wallet = null, onConnect = null }) {
+function ZUSDWorkbench({ wallet = null, onConnect = null, onOpenKeys = null }) {
   const { demoMode } = useDemoMode();
   const [activePanel, setActivePanel] = useState(null);
   const [monetaryStatus, setMonetaryStatus] = useState({ status: null, statusError: '', loadStatus: () => {} });
@@ -446,8 +446,13 @@ function ZUSDWorkbench({ wallet = null, onConnect = null }) {
         <ZUSDSafetyBanners status={monetaryStatus.status} />
 
         {isQuickMintSmoke && <MintPanel demoMode={false} showClose={false} wallet={wallet} />}
-        <ZUSDMonetarySurface wallet={wallet} onStatusChange={handleStatusChange} onConnect={onConnect} />
-        <ZUSDTauWalletSurface wallet={wallet} />
+        <ZUSDMonetarySurface
+          wallet={wallet}
+          onStatusChange={handleStatusChange}
+          onConnect={onConnect}
+          onOpenKeys={onOpenKeys}
+        />
+        {walletConnected && <ZUSDTauWalletSurface wallet={wallet} />}
       </section>
     );
   }

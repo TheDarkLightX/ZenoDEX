@@ -33,7 +33,7 @@
   background: var(--header-bg);
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 300;
 }
 
 .logo {
@@ -90,7 +90,7 @@
   font-size: 13px;
   font-weight: 600;
   letter-spacing: var(--tracking-wide);
-  /* No text-transform — preserves brand casing like `zUSD`, `ZDEX Stats`. */
+  /* No text-transform: preserve brand casing like `zUSD`. */
   color: var(--text-muted);
   padding: 6px 16px;
   border: none;
@@ -121,7 +121,57 @@
 .header-actions {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-md);
+  gap: var(--space-sm);
+}
+
+.claim-boundary-strip {
+  border-bottom: 1px solid var(--border-primary);
+  background: color-mix(in srgb, var(--bg-secondary) 78%, transparent);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.claim-boundary-inner {
+  width: min(1400px, 100%);
+  margin: 0 auto;
+  padding: 7px var(--space-xl);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.claim-boundary-chip,
+.claim-boundary-version {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.10);
+  white-space: nowrap;
+}
+
+.claim-boundary-primary {
+  color: var(--text-primary);
+  border-color: rgba(var(--accent-signal-rgb), 0.35);
+  background: rgba(var(--accent-signal-rgb), 0.10);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.claim-boundary-version {
+  margin-left: auto;
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .claim-boundary-chip,
+[data-theme="light"] .claim-boundary-version {
+  background: rgba(255, 255, 255, 0.65);
 }
 
 /* Command palette trigger button */
@@ -256,7 +306,7 @@
   box-shadow: 0 0 0 3px var(--accent-confirm-soft);
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1180px) {
   .header {
     flex-wrap: wrap;
     padding: var(--space-md);
@@ -266,8 +316,7 @@
     order: 1;
   }
 
-  .header>.wallet-container,
-  .header>.wallet-connect-btn {
+  .header>.header-actions {
     order: 2;
     margin-left: auto;
   }
@@ -275,6 +324,7 @@
   .header>.nav {
     order: 3;
     width: 100%;
+    max-width: 100%;
     justify-content: flex-start;
     gap: var(--space-sm);
     overflow-x: auto;
@@ -290,19 +340,36 @@
   .main {
     padding: var(--space-md);
   }
+
+  .claim-boundary-inner {
+    padding: 7px var(--space-md);
+  }
 }
 
 @media (max-width: 520px) {
-  .header>.wallet-container,
-  .header>.wallet-connect-btn {
-    order: 3;
-    width: 100%;
-    margin-left: 0;
-    justify-content: center;
+  .header {
+    gap: var(--space-sm);
+  }
+
+  .header>.header-actions {
+    order: 1;
+    margin-left: auto;
+    gap: var(--space-sm);
   }
 
   .header>.nav {
     order: 2;
+  }
+
+  .cmdk-trigger {
+    width: 34px;
+    height: 32px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .cmdk-trigger kbd {
+    display: none;
   }
 }
 

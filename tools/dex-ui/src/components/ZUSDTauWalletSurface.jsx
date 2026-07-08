@@ -166,6 +166,8 @@ function ZUSDTauWalletSurface({ wallet = null }) {
       });
   }, [busy, status]);
 
+  const accountTokenBalance = status?.account_view ? Number(status.account_view.balance ?? 0) : null;
+
   return (
     <section className="zusd-wallet-surface">
       <div className="zusd-section-header">
@@ -177,6 +179,7 @@ function ZUSDTauWalletSurface({ wallet = null }) {
         <div className="panel zusd-wallet-card">
           <div className="zusd-wallet-meta">
             <div className="zusd-wallet-kv"><span>Network</span><span>{status?.chain_id || 'unknown'}</span></div>
+            <div className="zusd-wallet-kv"><span>Your zUSD balance</span><span>{accountTokenBalance == null ? 'unknown' : accountTokenBalance.toLocaleString()}</span></div>
             <div className="zusd-wallet-kv"><span>Signing</span><span>{status?.allow_local_signing ? 'Local signature' : 'Wallet signature'}</span></div>
           </div>
           <details className="zusd-advanced-options">
