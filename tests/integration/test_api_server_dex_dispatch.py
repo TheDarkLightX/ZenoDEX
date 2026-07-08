@@ -614,7 +614,7 @@ def test_proof_mining_payout_template_builds_combined_dex_proof_and_claim(monkey
         claim = json.loads(json.dumps(tx["operations"]["10"]["claim"]))
         ok, next_app_state, app_hash, _native, err = apply_app_tx(
             app_state_json=app_state_json,
-            chain_balances={},
+            chain_balances={reward_pool: 20, sender: 0},
             operations=json.loads(json.dumps(tx["operations"])),
             tx_sender_pubkey=sender,
             block_timestamp=int(tx["block_timestamp"]),
@@ -633,7 +633,7 @@ def test_proof_mining_payout_template_builds_combined_dex_proof_and_claim(monkey
 
         replay_ok, replay_next_app_state, _replay_hash, _replay_native, replay_err = apply_app_tx(
             app_state_json=next_app_state,
-            chain_balances={},
+            chain_balances={reward_pool: 20 - reward_amount, sender: reward_amount},
             operations=json.loads(json.dumps(tx["operations"])),
             tx_sender_pubkey=sender,
             block_timestamp=int(tx["block_timestamp"]),

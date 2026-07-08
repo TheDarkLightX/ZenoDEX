@@ -15,8 +15,8 @@ from typing import Any, Mapping
 from src.core.pokayoke_swap_guardrails import (
     SwapGuardrailContext,
     build_swap_proofux_regret_decision,
-    default_swap_proofux_minimax_policy,
     decide_swap_guardrails,
+    default_swap_proofux_minimax_policy,
 )
 from src.core.pokayoke_swap_suggest import (
     suggest_amount_in_exact_in_cpmm,
@@ -157,7 +157,7 @@ def _zero_swap_execution_regret_tau_projection(reason: str) -> SwapExecutionRegr
 
 
 def project_swap_execution_regret_tau_facts(
-    pokayoke_payload: Mapping[str, Any],
+    pokayoke_payload: object,
     *,
     impact_within_limit_ok: bool,
     quote_age_within_limit_ok: bool,
@@ -279,7 +279,7 @@ def build_swap_execution_regret_tau_binding(
 
 
 def verify_swap_execution_regret_tau_binding(
-    binding_payload: Mapping[str, Any],
+    binding_payload: object,
     *,
     request_snapshot: Mapping[str, Any],
     quote_snapshot: Mapping[str, Any],

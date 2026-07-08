@@ -6,7 +6,6 @@ from typing import Any, Mapping, Optional
 
 from ..core.proof_mining_claimability_gate import (
     REJECT_CODE_TO_ERROR,
-    REJECT_DISABLED,
     REJECT_MANAGER_REJECTED,
     ProofMiningClaimabilityGateOutcome,
     evaluate_proof_mining_claimability_gate,
@@ -63,6 +62,39 @@ def _canonical_pubkey(value: Any, *, name: str) -> str:
         return canonical_hex_fixed_allow_0x(value, nbytes=48, name=name)
     except Exception as exc:
         raise ValueError(f"{name} must be a canonical 48-byte hex pubkey") from exc
+
+
+def _canonical_asset(value: Any, *, name: str) -> str:
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be a string")
+    try:
+        return canonical_hex_fixed_allow_0x(value, nbytes=32, name=name)
+    except Exception as exc:
+        raise ValueError(f"{name} must be a canonical 32-byte hex asset") from exc
+
+
+def _require_balance_int(value: Any, *, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
+def _reward_pool_balance_from_chain(
+    chain_balances: Mapping[str, Any],
+    *,
+    reward_pool_pubkey: str,
+    reward_asset_id: str | None,
+) -> int:
+    raw_balance = chain_balances.get(reward_pool_pubkey, 0)
+    if isinstance(raw_balance, Mapping):
+        if reward_asset_id is None:
+            raise ValueError("reward_asset_id is required when reward pool balance is asset-scoped")
+        canonical_asset = _canonical_asset(reward_asset_id, name="reward_asset_id")
+        return _require_balance_int(
+            raw_balance.get(canonical_asset, 0),
+            name="chain_balances[reward_pool_pubkey][reward_asset_id]",
+        )
+    return _require_balance_int(raw_balance, name="chain_balances[reward_pool_pubkey]")
 
 
 def _load_proof_mining_state_from_app_state(app_state_json: str) -> Optional[ProofMiningRuntimeState]:
@@ -130,6 +162,7 @@ def evaluate_proof_mining_claimability(
     claim_artifact: Mapping[str, Any],
     tx_sender_pubkey: str,
     expected_proposal_hash: str,
+    reward_asset_id: str | None = None,
     proof_mining_context_obj: Mapping[str, Any] | None = None,
 ) -> ProofMiningClaimabilityStatus:
     checks: dict[str, bool] = {
@@ -201,7 +234,11 @@ def evaluate_proof_mining_claimability(
     winner_pubkey = _canonical_pubkey(claim["winner"].get("miner_id"), name="claim winner.miner_id")
     checks["winner_matches_sender"] = bool(winner_pubkey == sender)
     checks["proposal_hash_matches_context"] = bool(str(expected_proposal_hash) == proposal_hash)
-    actual_pool_balance = int(chain_balances.get(canonical_pool, 0))
+    actual_pool_balance = _reward_pool_balance_from_chain(
+        chain_balances,
+        reward_pool_pubkey=canonical_pool,
+        reward_asset_id=reward_asset_id,
+    )
     checks["reward_pool_balance_non_negative"] = bool(actual_pool_balance >= 0)
 
     runtime_state_present = False

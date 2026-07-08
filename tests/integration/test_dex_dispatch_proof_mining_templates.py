@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.integration.dex_dispatch_proof_mining_templates import _reward_config
+from src.integration.dex_dispatch_proof_mining_reward import proof_mining_reward_config
 from src.state.balances import BalanceTable
 
 POOL_PUBKEY = "0x" + "11" * 48
@@ -34,7 +34,7 @@ def test_reward_config_rejects_bool_numeric_fields(field: str) -> None:
     payload[field] = True
 
     with pytest.raises(ValueError, match=f"{field} must be an int"):
-        _reward_config(payload, chain_id="test-chain", state=_state())
+        proof_mining_reward_config(payload, chain_id="test-chain", state=_state())
 
 
 @pytest.mark.parametrize(
@@ -54,4 +54,4 @@ def test_reward_config_rejects_numeric_string_fields(field: str) -> None:
     payload[field] = "1"
 
     with pytest.raises(ValueError, match=f"{field} must be an int"):
-        _reward_config(payload, chain_id="test-chain", state=_state())
+        proof_mining_reward_config(payload, chain_id="test-chain", state=_state())

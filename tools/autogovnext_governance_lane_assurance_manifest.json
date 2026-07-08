@@ -16,11 +16,11 @@
   "source_files": [
     {
       "path": "src/state/app_root.py",
-      "sha256": "80d2ce410fbe5c0cc72cab5bf8d2eb6a3b81b37605b343a65be9a54ff5e239f1"
+      "sha256": "66788dc35109670f0040a189be7d23c3aeb8a2aa30ed7b4905120b1534044032"
     },
     {
       "path": "src/integration/zeno_ledger_v0.py",
-      "sha256": "4415d2c438400d444e6fd58a721a30200abf036cf12c17ab06dd927f87136391"
+      "sha256": "fc6676d66eb2928a7d6f3b096223da7df349d088c409566b8197ad77a5276937"
     },
     {
       "path": "src/integration/autonomous_governance_q_policy.py",
@@ -32,15 +32,15 @@
     },
     {
       "path": "tools/zeno_ledger_node.py",
-      "sha256": "342d1a852584d896fe98ba8ce1b6636380987b77e97163efc01610348d1b0a4e"
+      "sha256": "214e8bd304fc27a899af320b4b7027c6205750eaf06e5af8b7655c3d3be97ae5"
     },
     {
       "path": "tests/state/test_app_root.py",
-      "sha256": "738b71f16e9cca90a8e876ee8810e6592a271d113e77571a6db93a83cc1ee1c8"
+      "sha256": "210285f45422a61fb66f48a0f6ebc587527c51e3acc49147a4dbd6d9174df109"
     },
     {
       "path": "tests/integration/test_zeno_ledger_v0.py",
-      "sha256": "d8581d549fd40540c1f27dd6b352beaa1b2eb5a5292f671fb21c25d7da0c1615"
+      "sha256": "1509b9a0e6f5ec22a20ae508e3f5beebcd9b96abe47d0cf6ae8b164406331556"
     },
     {
       "path": "tests/integration/test_autonomous_governance_q_policy.py",
@@ -72,7 +72,7 @@
     },
     {
       "path": "lean-mathlib/Proofs.lean",
-      "sha256": "84034e25780955c1863274c7a905a18e7c314f4688177eed7bfa07695efa5d2d"
+      "sha256": "2b29bba0214ef8889afb48183085a8cee83e096ad7311dae3cc51cd52d92be26"
     },
     {
       "path": "tools/dex-ui/src/sdk/zenoProofClient.js",
