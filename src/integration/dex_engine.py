@@ -15,7 +15,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from ..core.batch_clearing import apply_settlement_pure, compute_settlement
-from ..core.dex import DexConfig, DexState
+from ..core.dex import DexConfig, DexState, reject_settlement_public_boundary_error
 from ..core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
 from ..core.fees import split_fee_with_dust_carry
 from ..core.intent_normal_form import IntentNormalFormError, require_normal_form
@@ -1297,6 +1297,11 @@ def apply_ops(
             if uniform_batch_certificate is not None:
                 if not config.allow_uniform_batch_certificate:
                     return DexTxResult(ok=False, error="uniform batch certificate not enabled")
+                if config.dex_config.protocol_fee_share_bps > 0:
+                    return DexTxResult(
+                        ok=False,
+                        error="uniform batch certificate cannot be used when protocol fees are enabled",
+                    )
                 try:
                     cert = UniformBatchCertificateV1.from_obj(uniform_batch_certificate)
                 except Exception as exc:
@@ -1436,6 +1441,9 @@ def apply_ops(
         _fault_stage(config, "after_settlement_compute")
 
         if settlement is not None:
+            reject_error = reject_settlement_public_boundary_error(config.dex_config, settlement)
+            if reject_error is not None:
+                return DexTxResult(ok=False, error=reject_error)
             err = validate_lp_settlement_age_gate(
                 settlement=settlement,
                 intents=intents,

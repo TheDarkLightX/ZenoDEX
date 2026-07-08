@@ -122,7 +122,7 @@ def _validate_and_apply_settlement(
         )
     if not ok:
         return DexStepResult(ok=False, error=err or "settlement invalid")
-    reject_error = _reject_settlement_public_boundary_error(config, settlement)
+    reject_error = reject_settlement_public_boundary_error(config, settlement)
     if reject_error is not None:
         return DexStepResult(ok=False, error=reject_error)
 
@@ -166,7 +166,7 @@ def _validate_and_apply_settlement(
     )
 
 
-def _reject_settlement_public_boundary_error(
+def reject_settlement_public_boundary_error(
     config: DexConfig,
     settlement: Settlement,
 ) -> Optional[str]:

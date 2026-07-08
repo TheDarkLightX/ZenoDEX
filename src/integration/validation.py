@@ -89,6 +89,8 @@ def validate_operations(
         if uniform_batch_certificate is not None and use_end_to_end_certificate:
             return False, "uniform batch certificate cannot be combined with settlement end-to-end certificate"
         if uniform_batch_certificate is not None:
+            if protocol_fee_share_bps > 0:
+                return False, "uniform batch certificate cannot be used when protocol fees are enabled"
             try:
                 cert = UniformBatchCertificateV1.from_obj(uniform_batch_certificate)
             except Exception as exc:
