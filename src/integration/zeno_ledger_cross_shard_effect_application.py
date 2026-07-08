@@ -534,6 +534,31 @@ def validate_cross_shard_terminal_decision_effect_admission_v0(
     return expected
 
 
+def verify_cross_shard_terminal_decision_effect_admission_source_v0(
+    terminal_admission: Mapping[str, Any],
+    *,
+    posting_summary: Mapping[str, Any],
+    effects_artifact: Mapping[str, Any],
+    sharded_settlement_payload: Mapping[str, Any],
+    decision_certificate_payloads: Sequence[Mapping[str, Any]],
+) -> CrossShardTerminalDecisionEffectAdmissionV0:
+    supplied = validate_cross_shard_terminal_decision_effect_admission_v0(
+        terminal_admission,
+        posting_summary=posting_summary,
+        effects_artifact=effects_artifact,
+    )
+    rebuilt = build_cross_shard_terminal_decision_effect_admission_v0(
+        sharded_settlement_payload=sharded_settlement_payload,
+        decision_certificate_payloads=decision_certificate_payloads,
+        posting_summary=posting_summary,
+        effects_artifact=effects_artifact,
+        current_step=supplied["current_step"],
+    )
+    if supplied != rebuilt:
+        raise ValueError("terminal decision admission source verification mismatch")
+    return supplied
+
+
 def apply_terminal_cross_shard_ledger_effects_to_state_v0(
     *,
     balances: BalanceTable,
@@ -542,12 +567,20 @@ def apply_terminal_cross_shard_ledger_effects_to_state_v0(
     replay_state: CrossShardAppliedEffectsStateV0,
     terminal_admission: Mapping[str, Any],
     posting_summary: Mapping[str, Any],
+    sharded_settlement_payload: Mapping[str, Any] | None = None,
+    decision_certificate_payloads: Sequence[Mapping[str, Any]] | None = None,
 ) -> CrossShardLedgerEffectStateApplicationResult:
     try:
-        admission = validate_cross_shard_terminal_decision_effect_admission_v0(
+        if sharded_settlement_payload is None or decision_certificate_payloads is None:
+            raise ValueError(
+                "terminal decision source payloads required before applying cross-shard ledger effects"
+            )
+        admission = verify_cross_shard_terminal_decision_effect_admission_source_v0(
             terminal_admission,
             posting_summary=posting_summary,
             effects_artifact=effects_artifact,
+            sharded_settlement_payload=sharded_settlement_payload,
+            decision_certificate_payloads=decision_certificate_payloads,
         )
         result = apply_cross_shard_ledger_effects_to_state_v0(
             balances=balances,
@@ -580,6 +613,8 @@ def apply_terminal_cross_shard_ledger_effects_to_balances_v0(
     applied_ledger_effect_hashes: frozenset[str],
     terminal_admission: Mapping[str, Any],
     posting_summary: Mapping[str, Any],
+    sharded_settlement_payload: Mapping[str, Any] | None = None,
+    decision_certificate_payloads: Sequence[Mapping[str, Any]] | None = None,
 ) -> CrossShardLedgerEffectApplicationResult:
     try:
         replay_state = CrossShardAppliedEffectsStateV0(
@@ -594,6 +629,8 @@ def apply_terminal_cross_shard_ledger_effects_to_balances_v0(
             replay_state=replay_state,
             terminal_admission=terminal_admission,
             posting_summary=posting_summary,
+            sharded_settlement_payload=sharded_settlement_payload,
+            decision_certificate_payloads=decision_certificate_payloads,
         )
         if not result.ok:
             raise ValueError(str(result.error))

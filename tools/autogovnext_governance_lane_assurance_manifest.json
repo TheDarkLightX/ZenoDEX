@@ -48,7 +48,7 @@
     },
     {
       "path": "src/integration/zeno_ledger_cross_shard_effect_application.py",
-      "sha256": "906ff31c96d6dbe05c82bd4ba78364c6679b5c12bb5fe5f70d03bff36cef9fb6"
+      "sha256": "8590dfbe7afbd6d7273fc633b256f198b3dcafd1bd32d71844640bf547cc4616"
     },
     {
       "path": "src/integration/zeno_ledger_cross_shard_global_conservation.py",
@@ -100,7 +100,7 @@
     },
     {
       "path": "tests/integration/test_zeno_ledger_cross_shard_effect_application.py",
-      "sha256": "57b8f63a8b6084ae3dc0789c6dd60e2d3ebceeba0ed9e179ffeaa4d3659152f7"
+      "sha256": "05b0da1152bac1f5d2fefcbeb9871ed5e2161d6becd9640e344aa3e8d344361f"
     },
     {
       "path": "tests/integration/test_zeno_ledger_cross_shard_global_conservation.py",

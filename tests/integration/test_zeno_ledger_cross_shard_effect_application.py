@@ -42,6 +42,7 @@ from src.integration.zeno_ledger_cross_shard_effect_application import (
     empty_cross_shard_applied_effects_state_v0,
     validate_cross_shard_ledger_effects_artifact_v0,
     validate_cross_shard_terminal_decision_effect_admission_v0,
+    verify_cross_shard_terminal_decision_effect_admission_source_v0,
 )
 from src.integration.zeno_ledger_tau_export import (
     build_cross_shard_posting_summary_export_v0,
@@ -179,7 +180,13 @@ def _terminal_decision_payload(
     return cert.to_payload()
 
 
-def _terminal_bundle() -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+def _terminal_source_bundle() -> tuple[
+    dict[str, object],
+    dict[str, object],
+    dict[str, object],
+    dict[str, object],
+    tuple[dict[str, object], ...],
+]:
     sharded_payload = _terminal_sharded_payload()
     decision_payload = _terminal_decision_payload(sharded_payload)
     admission = verify_cross_shard_settlement_admission_payload(
@@ -202,6 +209,19 @@ def _terminal_bundle() -> tuple[dict[str, object], dict[str, object], dict[str, 
         posting_summary=posting_summary,
         effects_artifact=effects_artifact,
         current_step=1,
+    )
+    return (
+        posting_summary,
+        effects_artifact,
+        terminal_admission,
+        sharded_payload,
+        (decision_payload,),
+    )
+
+
+def _terminal_bundle() -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    posting_summary, effects_artifact, terminal_admission, _sharded_payload, _decision_payloads = (
+        _terminal_source_bundle()
     )
     return posting_summary, effects_artifact, terminal_admission
 
@@ -324,13 +344,26 @@ def test_apply_cross_shard_effects_moves_escrow_balances_once() -> None:
 
 
 def test_terminal_decision_admission_roundtrip_and_apply() -> None:
-    posting_summary, effects_artifact, terminal_admission = _terminal_bundle()
+    (
+        posting_summary,
+        effects_artifact,
+        terminal_admission,
+        sharded_payload,
+        decision_payloads,
+    ) = _terminal_source_bundle()
     balances = _seeded_balances()
 
     assert validate_cross_shard_terminal_decision_effect_admission_v0(
         terminal_admission,
         posting_summary=posting_summary,
         effects_artifact=effects_artifact,
+    ) == terminal_admission
+    assert verify_cross_shard_terminal_decision_effect_admission_source_v0(
+        terminal_admission,
+        posting_summary=posting_summary,
+        effects_artifact=effects_artifact,
+        sharded_settlement_payload=sharded_payload,
+        decision_certificate_payloads=decision_payloads,
     ) == terminal_admission
 
     result = apply_terminal_cross_shard_ledger_effects_to_balances_v0(
@@ -340,6 +373,8 @@ def test_terminal_decision_admission_roundtrip_and_apply() -> None:
         applied_ledger_effect_hashes=frozenset(),
         terminal_admission=terminal_admission,
         posting_summary=posting_summary,
+        sharded_settlement_payload=sharded_payload,
+        decision_certificate_payloads=decision_payloads,
     )
 
     assert result.ok is True
@@ -350,7 +385,13 @@ def test_terminal_decision_admission_roundtrip_and_apply() -> None:
 
 
 def test_terminal_state_apply_exposes_admission_hash() -> None:
-    posting_summary, effects_artifact, terminal_admission = _terminal_bundle()
+    (
+        posting_summary,
+        effects_artifact,
+        terminal_admission,
+        sharded_payload,
+        decision_payloads,
+    ) = _terminal_source_bundle()
     balances = _seeded_balances()
 
     result = apply_terminal_cross_shard_ledger_effects_to_state_v0(
@@ -360,12 +401,69 @@ def test_terminal_state_apply_exposes_admission_hash() -> None:
         replay_state=empty_cross_shard_applied_effects_state_v0(),
         terminal_admission=terminal_admission,
         posting_summary=posting_summary,
+        sharded_settlement_payload=sharded_payload,
+        decision_certificate_payloads=decision_payloads,
     )
 
     assert result.ok is True
     assert result.terminal_admission_hash == terminal_admission["admission_hash"]
     assert result.post_replay_state is not None
     assert result.post_replay_state.contains(str(effects_artifact["ledger_effects_hash"]))
+
+
+def test_terminal_apply_requires_source_payloads_without_mutating() -> None:
+    posting_summary, effects_artifact, terminal_admission = _terminal_bundle()
+    balances = _seeded_balances()
+    before = balances.get_all_balances()
+
+    result = apply_terminal_cross_shard_ledger_effects_to_balances_v0(
+        balances=balances,
+        effects_artifact=effects_artifact,
+        body_pinned_posting_summary_hash=str(posting_summary["posting_summary_hash"]),
+        applied_ledger_effect_hashes=frozenset(),
+        terminal_admission=terminal_admission,
+        posting_summary=posting_summary,
+    )
+
+    assert result.ok is False
+    assert result.error == (
+        "terminal decision source payloads required before applying cross-shard ledger effects"
+    )
+    assert balances.get_all_balances() == before
+
+
+def test_terminal_apply_rejects_mismatched_decision_source_without_mutating() -> None:
+    (
+        posting_summary,
+        effects_artifact,
+        terminal_admission,
+        sharded_payload,
+        _decision_payloads,
+    ) = _terminal_source_bundle()
+    reject_payload = _terminal_decision_payload(
+        sharded_payload,
+        receipt_status=CrossShardReceiptStatus.REJECTED,
+        decision=CrossShardDecisionState.REJECT,
+        prepared=False,
+        visible=False,
+    )
+    balances = _seeded_balances()
+    before = balances.get_all_balances()
+
+    result = apply_terminal_cross_shard_ledger_effects_to_balances_v0(
+        balances=balances,
+        effects_artifact=effects_artifact,
+        body_pinned_posting_summary_hash=str(posting_summary["posting_summary_hash"]),
+        applied_ledger_effect_hashes=frozenset(),
+        terminal_admission=terminal_admission,
+        posting_summary=posting_summary,
+        sharded_settlement_payload=sharded_payload,
+        decision_certificate_payloads=(reject_payload,),
+    )
+
+    assert result.ok is False
+    assert result.error == "terminal decision admission posting summary mismatch"
+    assert balances.get_all_balances() == before
 
 
 def test_reject_decision_cannot_build_value_admission() -> None:
@@ -393,7 +491,13 @@ def test_reject_decision_cannot_build_value_admission() -> None:
 
 
 def test_terminal_admission_rejects_tampered_ledger_effect_hash_without_mutating() -> None:
-    posting_summary, effects_artifact, terminal_admission = _terminal_bundle()
+    (
+        posting_summary,
+        effects_artifact,
+        terminal_admission,
+        sharded_payload,
+        decision_payloads,
+    ) = _terminal_source_bundle()
     tampered = deepcopy(terminal_admission)
     tampered["ledger_effects_hash"] = hash_v0("test", {"wrong": "effects"})
     balances = _seeded_balances()
@@ -406,6 +510,8 @@ def test_terminal_admission_rejects_tampered_ledger_effect_hash_without_mutating
         applied_ledger_effect_hashes=frozenset(),
         terminal_admission=tampered,
         posting_summary=posting_summary,
+        sharded_settlement_payload=sharded_payload,
+        decision_certificate_payloads=decision_payloads,
     )
 
     assert result.ok is False
@@ -414,7 +520,13 @@ def test_terminal_admission_rejects_tampered_ledger_effect_hash_without_mutating
 
 
 def test_terminal_admission_replay_rejects_without_mutating() -> None:
-    posting_summary, effects_artifact, terminal_admission = _terminal_bundle()
+    (
+        posting_summary,
+        effects_artifact,
+        terminal_admission,
+        sharded_payload,
+        decision_payloads,
+    ) = _terminal_source_bundle()
     balances = _seeded_balances()
     first = apply_terminal_cross_shard_ledger_effects_to_balances_v0(
         balances=balances,
@@ -423,6 +535,8 @@ def test_terminal_admission_replay_rejects_without_mutating() -> None:
         applied_ledger_effect_hashes=frozenset(),
         terminal_admission=terminal_admission,
         posting_summary=posting_summary,
+        sharded_settlement_payload=sharded_payload,
+        decision_certificate_payloads=decision_payloads,
     )
     before = balances.get_all_balances()
 
@@ -433,6 +547,8 @@ def test_terminal_admission_replay_rejects_without_mutating() -> None:
         applied_ledger_effect_hashes=first.applied_ledger_effect_hashes,
         terminal_admission=terminal_admission,
         posting_summary=posting_summary,
+        sharded_settlement_payload=sharded_payload,
+        decision_certificate_payloads=decision_payloads,
     )
 
     assert replay.ok is False

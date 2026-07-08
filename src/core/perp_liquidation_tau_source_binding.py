@@ -7,8 +7,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from py_ecc.bls import G2Basic
-
 from src.core.perp_v2.math import (
     is_liquidatable,
     is_oracle_fresh,
@@ -19,6 +17,13 @@ from src.state.jmt import (
     decode_jmt_membership_proof,
     verify_jmt_membership,
 )
+
+try:
+    from py_ecc.bls import G2Basic as _PyEccG2Basic
+except ImportError:  # pragma: no cover - exercised in no-BLS environments
+    _PyEccG2Basic = None
+
+G2Basic: Any | None = _PyEccG2Basic
 
 PARTIAL_LIQUIDATE_ACTION = "partial_liquidate"
 JMT_SOURCE_STATE_ROOT_KIND = "typed_app_root_jmt_v1"
@@ -47,6 +52,12 @@ INPUT_BY_FLAG = {
     "proof_ok": "i7",
     "binding_ok": "i8",
 }
+
+
+def _require_bls() -> Any:
+    if G2Basic is None:
+        raise RuntimeError("py_ecc.bls is required for perp liquidation Tau source signatures")
+    return G2Basic
 
 
 @dataclass(frozen=True)
@@ -658,6 +669,8 @@ def source_root_authority_reject_reason(
     if authority_binding.signer_pubkey not in allowed_signers:
         return "source_root_authority_binding_signer_not_allowed"
 
+    if G2Basic is None:
+        return "source_root_authority_binding_bls_unavailable"
     try:
         signature_ok = G2Basic.Verify(
             bytes.fromhex(authority_binding.signer_pubkey.removeprefix("0x")),
@@ -1091,7 +1104,8 @@ def build_perp_liquidation_tau_source_root_authority_binding(
         or signer_privkey <= 0
     ):
         raise ValueError("signer_privkey must be a positive int")
-    signer_pubkey = "0x" + G2Basic.SkToPk(signer_privkey).hex()
+    bls = _require_bls()
+    signer_pubkey = "0x" + bls.SkToPk(signer_privkey).hex()
     unsigned = {
         "action": _require_non_empty_str(action, name="action"),
         "authority_hash": _require_sha256_ref(
@@ -1117,7 +1131,7 @@ def build_perp_liquidation_tau_source_root_authority_binding(
     }
     if int(unsigned["valid_from_epoch"]) > int(unsigned["valid_until_epoch"]):
         raise ValueError("valid_from_epoch must be <= valid_until_epoch")
-    signature = "0x" + G2Basic.Sign(
+    signature = "0x" + bls.Sign(
         signer_privkey,
         _signature_message(unsigned),
     ).hex()
