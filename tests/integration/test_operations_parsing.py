@@ -2,18 +2,17 @@ from __future__ import annotations
 
 import pytest
 
+from src.core.settlement import Fill, FillAction, Settlement
 from src.integration.operations import (
-    SignedIntentEnvelope,
     _parse_intent,
     create_intent_operation,
-    create_signed_intent_operation,
     create_settlement_operation,
+    create_signed_intent_operation,
     parse_intents,
     parse_settlement,
     parse_settlement_envelope,
     parse_signed_intents,
 )
-from src.core.settlement import Settlement
 from src.state.intents import Intent, IntentKind
 from src.state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 
@@ -523,6 +522,38 @@ def test_parse_settlement_accepts_none_batch_ref_and_create_omits_empty_events()
         )
     )
     assert "events" not in created["3"]
+
+
+def test_settlement_operation_roundtrips_protocol_fee_paid() -> None:
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="batch-1",
+        included_intents=[("intent-1", FillAction.FILL)],
+        fills=[
+            Fill(
+                intent_id="intent-1",
+                action=FillAction.FILL,
+                amount_in_filled=1_000,
+                amount_out_filled=900,
+                fee_paid=10,
+                protocol_fee_paid=4,
+                reserve_in_before=10_000,
+                reserve_out_before=20_000,
+            )
+        ],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+    )
+
+    ops = create_settlement_operation(settlement)
+
+    assert ops["3"]["fills"][0]["protocol_fee_paid"] == 4
+    parsed = parse_settlement(ops)
+    assert parsed is not None
+    assert parsed.fills[0].protocol_fee_paid == 4
+    assert parsed == settlement
 
 
 def test_create_intent_operation_includes_salt_and_accepts_empty_fields() -> None:

@@ -6,17 +6,17 @@ Handles operation groups "2" (DEX intents) and "3" (DEX settlement).
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
-from ..state.intents import Intent, IntentKind
 from ..core.settlement import (
-    Settlement,
-    FillAction,
-    Fill,
     BalanceDelta,
-    ReserveDelta,
+    Fill,
+    FillAction,
     LPDelta,
+    ReserveDelta,
+    Settlement,
 )
+from ..state.intents import Intent, IntentKind
 
 
 def _require_str(value: Any, *, name: str, non_empty: bool = True, max_len: int = 4096) -> str:
@@ -143,6 +143,11 @@ def _parse_fill(fill_data: Any) -> Fill:
             fill_data.get("amount_out_filled"), name="fill.amount_out_filled", non_negative=True
         ),
         fee_paid=_optional_int(fill_data.get("fee_paid"), name="fill.fee_paid", non_negative=True),
+        protocol_fee_paid=_optional_int(
+            fill_data.get("protocol_fee_paid"),
+            name="fill.protocol_fee_paid",
+            non_negative=True,
+        ),
         amount0_used=_optional_int(fill_data.get("amount0_used"), name="fill.amount0_used", non_negative=True),
         amount1_used=_optional_int(fill_data.get("amount1_used"), name="fill.amount1_used", non_negative=True),
         lp_minted=_optional_int(fill_data.get("lp_minted"), name="fill.lp_minted", non_negative=True),
@@ -617,7 +622,7 @@ def create_signed_intent_operation(signed_intents: List[SignedIntentEnvelope]) -
     """
     base = create_intent_operation([env.intent for env in signed_intents])
     intents_data = base["2"]
-    for entry, env in zip(intents_data, signed_intents):
+    for entry, env in zip(intents_data, signed_intents, strict=True):
         if env.signature is not None:
             _require_str(env.signature, name="signature", non_empty=True, max_len=4096)
             entry["signature"] = env.signature
@@ -652,6 +657,7 @@ def create_settlement_operation(settlement: Settlement) -> Dict[str, Any]:
                 "amount_in_filled": fill.amount_in_filled,
                 "amount_out_filled": fill.amount_out_filled,
                 "fee_paid": fill.fee_paid,
+                "protocol_fee_paid": fill.protocol_fee_paid,
                 "amount0_used": fill.amount0_used,
                 "amount1_used": fill.amount1_used,
                 "lp_minted": fill.lp_minted,
