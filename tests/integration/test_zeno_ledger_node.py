@@ -46,6 +46,8 @@ from tools.zeno_ledger_node import (
     _node_status_hash,
     _public_network_config_to_join_config_v0,
     _tokenomics_buyback_source_pubkey_v0,
+    _time_ms_from_payload_v0,
+    _tx_batch_from_payload_v0,
     _ui_swap_tx_v0,
     _ui_tokenomics_response_v0,
     _validate_tokenomics_claim_idempotent_payload_v0,
@@ -227,7 +229,7 @@ def test_ui_swap_builder_default_tx_id_does_not_collide_across_users(
     assert str(bob_tx["tx_id"]).startswith("ui-swap-1-")
 
 
-def _post_url_json_status(url: str, value: dict[str, object], *, bearer_token: str | None = None) -> tuple[int, dict[str, object]]:
+def _post_url_json_status(url: str, value: object, *, bearer_token: str | None = None) -> tuple[int, dict[str, object]]:
     payload = json.dumps(value, sort_keys=True).encode("utf-8")
     headers = {"Content-Type": "application/json"}
     if bearer_token is not None:
@@ -760,6 +762,17 @@ def test_tx_batch_endpoint_exposes_route_order_batch_with_fail_closed_reject(tmp
     assert good_report["body_tx_execution_order_commitment_receipt_attached"] is True
     assert [receipt["index"] for receipt in good_report["receipts"]] == [0, 1]
 
+
+def test_tx_batch_parser_accepts_documented_bare_list_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools import zeno_ledger_node as node_module
+
+    monkeypatch.setattr(node_module.time, "time", lambda: 1_778_731_123.0)
+    payload = _node_route_order_transactions()
+
+    assert _tx_batch_from_payload_v0(payload) == payload
+    assert _time_ms_from_payload_v0(payload) == 1_778_731_123_000
 
 def test_tokenomics_claim_tx_id_replay_validates_supplied_payload_fields(tmp_path: Path) -> None:
     data_dir = tmp_path / "node"

@@ -1523,6 +1523,13 @@ fn validate_child_effect_v1(
     }
 
     let summary = &child.summary;
+    if child.descriptor.child_profile == RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1
+        || summary.proof_profile == RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1
+    {
+        return Err(TransitionError::InvalidInput(
+            "recursive summary leaf profile not admissible",
+        ));
+    }
     if summary.summary_version != RECURSIVE_EFFECT_SUMMARY_VERSION_V1 {
         return Err(TransitionError::InvalidInput(
             "child summary_version mismatch",
@@ -3091,6 +3098,36 @@ mod tests {
             compose_recursive_epoch_journal_v1(&input),
             Err(TransitionError::InvalidInput(
                 "child verifier id not allowed"
+            ))
+        ));
+    }
+
+    #[test]
+    fn recursive_composition_rejects_synthetic_summary_leaf_child() {
+        let mut input = valid_input();
+        input.children[0].summary.proof_profile =
+            RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1.to_string();
+        input.children[0].descriptor.child_profile =
+            input.children[0].summary.proof_profile.clone();
+        input.children[0].descriptor.child_effect_summary_hash =
+            recursive_effect_summary_hash_v1(&input.children[0].summary);
+        input.children[0].descriptor.child_verifier_id = recursive_child_verifier_id_v1(
+            &input.children[0].descriptor.child_image_id,
+            &input.children[0].descriptor.child_profile,
+        )
+        .unwrap();
+        input.allowed_verifier_ids = input
+            .children
+            .iter()
+            .map(|child| child.descriptor.child_verifier_id)
+            .collect();
+        input.statement.verifier_set_root =
+            recursive_verifier_set_root_v1(&input.allowed_verifier_ids).unwrap();
+
+        assert!(matches!(
+            compose_recursive_epoch_journal_v1(&input),
+            Err(TransitionError::InvalidInput(
+                "recursive summary leaf profile not admissible"
             ))
         ));
     }

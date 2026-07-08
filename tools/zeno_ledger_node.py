@@ -4386,8 +4386,11 @@ def _tx_batch_from_payload_v0(payload: object) -> list[dict[str, Any]]:
     return txs
 
 
-def _time_ms_from_payload_v0(payload: Mapping[str, Any]) -> int:
-    time_ms = payload.get("time_ms", payload.get("timeMs"))
+def _time_ms_from_payload_v0(payload: object) -> int:
+    if isinstance(payload, Mapping):
+        time_ms = payload.get("time_ms", payload.get("timeMs"))
+    else:
+        time_ms = None
     if time_ms is None:
         time_ms = int(time.time() * 1000)
     if not isinstance(time_ms, int) or isinstance(time_ms, bool) or time_ms < 0:

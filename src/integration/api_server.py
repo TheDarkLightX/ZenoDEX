@@ -946,6 +946,7 @@ class ApiServerConfig:
     rpm: int
     max_buckets: int
     perps_enabled: bool
+    perps_demo_api_unsafe_enabled: bool
     perps_wallet_enabled: bool
     zusd_tau_wallet_enabled: bool
     zusd_monetary_wallet_enabled: bool
@@ -983,6 +984,7 @@ def _load_api_server_config() -> ApiServerConfig:
 
     confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()
     perps_enabled = _env_enabled("PERPS_API_ENABLED")
+    perps_demo_api_unsafe_enabled = _env_enabled("PERPS_DEMO_API_UNSAFE_ENABLED")
     perps_wallet_enabled = _env_enabled("PERPS_WALLET_API_ENABLED")
     zusd_tau_wallet_enabled = _env_enabled("ZUSD_TAU_WALLET_API_ENABLED")
     zusd_monetary_wallet_enabled = _env_enabled("ZUSD_MONETARY_WALLET_API_ENABLED")
@@ -1010,6 +1012,7 @@ def _load_api_server_config() -> ApiServerConfig:
         rpm=_env_int("RATE_LIMIT_RPM", 600, lo=0, hi=1_000_000),
         max_buckets=_env_int("RATE_LIMIT_MAX_BUCKETS", 10_000, lo=1, hi=1_000_000),
         perps_enabled=perps_enabled,
+        perps_demo_api_unsafe_enabled=perps_demo_api_unsafe_enabled,
         perps_wallet_enabled=perps_wallet_enabled,
         zusd_tau_wallet_enabled=zusd_tau_wallet_enabled,
         zusd_monetary_wallet_enabled=zusd_monetary_wallet_enabled,
@@ -1036,6 +1039,13 @@ def _load_api_server_config() -> ApiServerConfig:
 
 
 def _api_startup_refusal_lines(config: ApiServerConfig) -> Optional[list[str]]:
+    if config.perps_demo_api_unsafe_enabled and (
+        config.production_mode or not _is_loopback_host(config.host)
+    ):
+        return [
+            "Refusing to start: PERPS_DEMO_API_UNSAFE_ENABLED is local demo only. "
+            "Set ZENODEX_ENV=local/dev/test and bind API_HOST to loopback."
+        ]
     if config.sensitive_api_enabled and not config.external_auth_enforced and not config.auth_bearer_token:
         return [
             "Refusing to start: sensitive APIs enabled without external auth or ZENODEX_API_BEARER_TOKEN "
@@ -1356,6 +1366,7 @@ def _deploy_profile_refusal_lines(config: ApiServerConfig) -> Optional[list[str]
         "auth_bearer_token_set": bool(config.auth_bearer_token),
         "allow_demo_token_auth": config.allow_demo_token_auth,
         "legacy_demo_token_active": config.legacy_demo_token_active,
+        "perps_demo_api_unsafe_enabled": config.perps_demo_api_unsafe_enabled,
         "confidential_sealed_bid_allow_in_memory_state": config.allow_in_memory_sealed_bid,
         "confidential_sealed_bid_allow_fixture_settlement": _env_bool(
             "CONFIDENTIAL_SEALED_BID_ALLOW_FIXTURE_SETTLEMENT", False
@@ -1594,6 +1605,12 @@ def _attach_api_server_state(httpd: ThreadingHTTPServer, config: ApiServerConfig
     httpd.cors_origins = config.cors_origins  # type: ignore[attr-defined]
     httpd.rate_limiter = TokenBucketRateLimiter(rpm=config.rpm, max_buckets=config.max_buckets)  # type: ignore[attr-defined]
     httpd.perps_api_enabled = config.perps_enabled  # type: ignore[attr-defined]
+    httpd.perps_demo_api_unsafe_enabled = (  # type: ignore[attr-defined]
+        config.perps_demo_api_unsafe_enabled
+        and not config.production_mode
+        and _is_loopback_host(config.host)
+    )
+    httpd.api_host = config.host  # type: ignore[attr-defined]
     httpd.perps_wallet_api_enabled = config.perps_wallet_enabled  # type: ignore[attr-defined]
     httpd.zusd_tau_wallet_api_enabled = config.zusd_tau_wallet_enabled  # type: ignore[attr-defined]
     httpd.zusd_monetary_wallet_api_enabled = config.zusd_monetary_wallet_enabled  # type: ignore[attr-defined]
@@ -1789,6 +1806,8 @@ class _Handler(BaseHTTPRequestHandler):
             )
         if not getattr(self.server, "perps_api_enabled", False):
             return False
+        if not self._perps_demo_api_allowed():
+            return False
         if (
             (hasattr(self.server, "demo_api_token") or hasattr(self.server, "external_auth_enforced"))
             and not self._demo_auth_ok()
@@ -1800,6 +1819,17 @@ class _Handler(BaseHTTPRequestHandler):
         status, resp = handle_perps_request(method, path, raw_body)
         self._write_json(status, resp, cors_origin=cors_origin)
         return True
+
+    def _perps_demo_api_allowed(self) -> bool:
+        if not getattr(self.server, "perps_demo_api_unsafe_enabled", False):
+            return False
+        client_host = str(self.client_address[0]) if self.client_address else ""
+        server_host = str(getattr(self.server, "api_host", ""))
+        if not server_host:
+            server_address = getattr(self.server, "server_address", None)
+            if isinstance(server_address, tuple) and server_address:
+                server_host = str(server_address[0])
+        return _is_loopback_host(client_host) and _is_loopback_host(server_host)
 
     def _maybe_handle_perps_wallet_api(
         self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]

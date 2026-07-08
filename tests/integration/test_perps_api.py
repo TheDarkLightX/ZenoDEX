@@ -476,6 +476,8 @@ class TestApiServerPerpsGate:
             cors_origins = set()
             rate_limiter = _FakeLimiter()
             perps_api_enabled = True
+            perps_demo_api_unsafe_enabled = True
+            api_host = "127.0.0.1"
 
         h = object.__new__(_Handler)
         h.server = _FakeServer()
@@ -493,6 +495,70 @@ class TestApiServerPerpsGate:
         assert captured["status"] == 200, f"Expected 200 when gate on, got {captured['status']}"
         assert captured["obj"]["ok"] is True
         assert "markets" in captured["obj"]
+
+    def test_perps_api_gated_on_without_unsafe_demo_flag_returns_404(self):
+        """When only PERPS_API_ENABLED is true, demo perps routes stay unserved."""
+        import types
+        from src.integration.api_server import _Handler
+
+        class _FakeLimiter:
+            def allow(self, key):
+                return True
+
+        class _FakeServer:
+            cors_origins = set()
+            rate_limiter = _FakeLimiter()
+            perps_api_enabled = True
+            perps_demo_api_unsafe_enabled = False
+            api_host = "127.0.0.1"
+
+        h = object.__new__(_Handler)
+        h.server = _FakeServer()
+        h.client_address = ("127.0.0.1", 12345)
+        h.path = "/api/perps/markets"
+        h.headers = {}
+
+        captured = {}
+        def fake_write_json(self, status, obj, *, cors_origin):
+            captured["status"] = status
+            captured["obj"] = obj
+        h._write_json = types.MethodType(fake_write_json, h)
+
+        h.do_GET()
+        assert captured["status"] == 404, f"Expected 404 without unsafe demo gate, got {captured['status']}"
+        assert captured["obj"]["error"] == "not_found"
+
+    def test_perps_api_unsafe_demo_flag_rejects_non_loopback_client(self):
+        """Unsafe demo perps routes still require loopback client and bind host."""
+        import types
+        from src.integration.api_server import _Handler
+
+        class _FakeLimiter:
+            def allow(self, key):
+                return True
+
+        class _FakeServer:
+            cors_origins = set()
+            rate_limiter = _FakeLimiter()
+            perps_api_enabled = True
+            perps_demo_api_unsafe_enabled = True
+            api_host = "127.0.0.1"
+
+        h = object.__new__(_Handler)
+        h.server = _FakeServer()
+        h.client_address = ("203.0.113.10", 12345)
+        h.path = "/api/perps/markets"
+        h.headers = {}
+
+        captured = {}
+        def fake_write_json(self, status, obj, *, cors_origin):
+            captured["status"] = status
+            captured["obj"] = obj
+        h._write_json = types.MethodType(fake_write_json, h)
+
+        h.do_GET()
+        assert captured["status"] == 404, f"Expected 404 for non-loopback demo caller, got {captured['status']}"
+        assert captured["obj"]["error"] == "not_found"
 
     def test_perps_post_gated_off_returns_404(self):
         """When perps_api_enabled is False, POST /api/perps/collateral returns 404."""
@@ -543,6 +609,8 @@ class TestApiServerPerpsGate:
             cors_origins = set()
             rate_limiter = _FakeLimiter()
             perps_api_enabled = True
+            perps_demo_api_unsafe_enabled = True
+            api_host = "127.0.0.1"
 
         h = object.__new__(_Handler)
         h.server = _FakeServer()
@@ -578,6 +646,8 @@ class TestApiServerPerpsGate:
             cors_origins = set()
             rate_limiter = _FakeLimiter()
             perps_api_enabled = True
+            perps_demo_api_unsafe_enabled = True
+            api_host = "127.0.0.1"
             demo_api_token = "sekret"
 
         h = object.__new__(_Handler)
@@ -609,6 +679,8 @@ class TestApiServerPerpsGate:
             cors_origins = set()
             rate_limiter = _FakeLimiter()
             perps_api_enabled = True
+            perps_demo_api_unsafe_enabled = True
+            api_host = "127.0.0.1"
             demo_api_token = "sekret"
 
         h = object.__new__(_Handler)
@@ -641,6 +713,8 @@ class TestApiServerPerpsGate:
             cors_origins = set()
             rate_limiter = _FakeLimiter()
             perps_api_enabled = True
+            perps_demo_api_unsafe_enabled = True
+            api_host = "127.0.0.1"
             demo_api_token = "sekret"
 
         h = object.__new__(_Handler)
@@ -680,6 +754,8 @@ class TestApiServerPerpsGate:
             cors_origins = set()
             rate_limiter = _FakeLimiter()
             perps_api_enabled = True
+            perps_demo_api_unsafe_enabled = True
+            api_host = "127.0.0.1"
             demo_api_token = "sekret"
 
         h = object.__new__(_Handler)
