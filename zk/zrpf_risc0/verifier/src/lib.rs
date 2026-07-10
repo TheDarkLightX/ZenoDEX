@@ -21,6 +21,23 @@ pub enum VerifiedNodeReceiptErrorV3 {
     ChildProjectionFailed,
 }
 
+impl VerifiedNodeReceiptErrorV3 {
+    /// Stable machine-readable reject code for evidence transcripts and
+    /// admission adapters. Human-readable error text remains diagnostic.
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::NonSuccinctReceipt => "non_succinct_receipt",
+            Self::ReceiptVerificationFailed => "receipt_verification_failed",
+            Self::ExpectedJournalEncodingFailed => "expected_journal_encoding_failed",
+            Self::JournalBytesMismatch => "journal_bytes_mismatch",
+            Self::JournalDecodeFailed => "journal_decode_failed",
+            Self::ProgramIdMismatch => "program_id_mismatch",
+            Self::ClaimBindingFailed => "claim_binding_failed",
+            Self::ChildProjectionFailed => "child_projection_failed",
+        }
+    }
+}
+
 impl fmt::Display for VerifiedNodeReceiptErrorV3 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
@@ -119,9 +136,29 @@ impl VerifiedNodeReceiptV3 {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
+    use super::VerifiedNodeReceiptErrorV3;
     use zenodex_zrpf_risc0_shared::{
         derive_risc0_verified_claim_binding_v1, risc0_image_words_to_bytes,
     };
+
+    #[test]
+    fn verifier_reject_codes_are_stable_and_unique() {
+        let errors = [
+            VerifiedNodeReceiptErrorV3::NonSuccinctReceipt,
+            VerifiedNodeReceiptErrorV3::ReceiptVerificationFailed,
+            VerifiedNodeReceiptErrorV3::ExpectedJournalEncodingFailed,
+            VerifiedNodeReceiptErrorV3::JournalBytesMismatch,
+            VerifiedNodeReceiptErrorV3::JournalDecodeFailed,
+            VerifiedNodeReceiptErrorV3::ProgramIdMismatch,
+            VerifiedNodeReceiptErrorV3::ClaimBindingFailed,
+            VerifiedNodeReceiptErrorV3::ChildProjectionFailed,
+        ];
+        let codes: BTreeSet<&str> = errors.iter().map(|error| error.code()).collect();
+        assert_eq!(codes.len(), errors.len());
+        assert!(codes.contains("receipt_verification_failed"));
+    }
 
     #[test]
     fn image_words_use_risc0_digest_byte_order() {
