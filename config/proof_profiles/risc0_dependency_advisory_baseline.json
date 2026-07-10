@@ -1,0 +1,181 @@
+{
+  "advisory": {
+    "affected": [
+      {
+        "crate": "risc0-zkvm",
+        "ranges": [
+          "<2.3.2",
+          ">=3.0.0,<3.0.3"
+        ]
+      },
+      {
+        "crate": "risc0-zkvm-platform",
+        "ranges": [
+          "<2.1.0"
+        ]
+      }
+    ],
+    "impact": "A malicious sys_read host response can overwrite arbitrary guest memory and compromise guest soundness.",
+    "patched": [
+      {
+        "crate": "risc0-zkvm",
+        "versions": [
+          "2.3.2",
+          "3.0.3"
+        ]
+      },
+      {
+        "crate": "risc0-zkvm-platform",
+        "versions": [
+          "2.1.0"
+        ]
+      }
+    ]
+  },
+  "claims": {
+    "current_baseline": "The recursive STARK workspace dependency graph is pinned to the patched RISC0 3.0.5 line and checked offline against this advisory snapshot.",
+    "non_claims": [
+      "does_not_replace_a_complete_current_advisory_database",
+      "does_not_prove_guest_images_were_rebuilt",
+      "does_not_prove_release_reproducibility",
+      "does_not_authorize_recursive_proofs_for_settlement"
+    ],
+    "old_evidence_status": "All ZenoDEX RISC0 1.2.6 receipts, image IDs, and proof reports are invalid as assurance or release evidence and must be regenerated with the patched dependency baseline."
+  },
+  "schema": "zenodex/risc0_dependency_advisory_baseline/v1",
+  "snapshot_id": "risc0-ghsa-jqq4-c7wq-36h7-20260709",
+  "source": {
+    "advisory_id": "GHSA-jqq4-c7wq-36h7",
+    "cve_id": "CVE-2025-61588",
+    "published": "2025-10-01",
+    "severity": "critical",
+    "updated": "2025-10-02",
+    "url": "https://github.com/advisories/GHSA-jqq4-c7wq-36h7"
+  },
+  "workspace_policy": {
+    "cargo_lock": "Cargo.lock",
+    "expected_direct_dependencies": [
+      {
+        "crate": "risc0-zkvm",
+        "default_features": true,
+        "features": [
+          "disable-dev-mode"
+        ],
+        "manifest": "cli/Cargo.toml",
+        "role": "host",
+        "section": "dependencies",
+        "version": "=3.0.5"
+      },
+      {
+        "crate": "risc0-build",
+        "default_features": true,
+        "features": [],
+        "manifest": "methods/Cargo.toml",
+        "role": "build",
+        "section": "build-dependencies",
+        "version": "=3.0.5"
+      },
+      {
+        "crate": "risc0-zkvm",
+        "default_features": false,
+        "features": [],
+        "manifest": "methods/aggregate/Cargo.toml",
+        "role": "guest",
+        "section": "dependencies",
+        "version": "=3.0.5"
+      },
+      {
+        "crate": "risc0-zkvm",
+        "default_features": false,
+        "features": [],
+        "manifest": "methods/guest/Cargo.toml",
+        "role": "guest",
+        "section": "dependencies",
+        "version": "=3.0.5"
+      },
+      {
+        "crate": "risc0-zkvm",
+        "default_features": false,
+        "features": [],
+        "manifest": "methods/perps_np_leaf/Cargo.toml",
+        "role": "guest",
+        "section": "dependencies",
+        "version": "=3.0.5"
+      },
+      {
+        "crate": "risc0-zkvm",
+        "default_features": false,
+        "features": [],
+        "manifest": "methods/spot_leaf/Cargo.toml",
+        "role": "guest",
+        "section": "dependencies",
+        "version": "=3.0.5"
+      },
+      {
+        "crate": "risc0-zkvm",
+        "default_features": false,
+        "features": [],
+        "manifest": "methods/summary_leaf/Cargo.toml",
+        "role": "guest",
+        "section": "dependencies",
+        "version": "=3.0.5"
+      },
+      {
+        "crate": "risc0-zkvm",
+        "default_features": false,
+        "features": [],
+        "manifest": "methods/zusd_leaf/Cargo.toml",
+        "role": "guest",
+        "section": "dependencies",
+        "version": "=3.0.5"
+      }
+    ],
+    "expected_manifest_paths": [
+      "Cargo.toml",
+      "cli/Cargo.toml",
+      "methods/Cargo.toml",
+      "methods/aggregate/Cargo.toml",
+      "methods/guest/Cargo.toml",
+      "methods/perps_np_leaf/Cargo.toml",
+      "methods/spot_leaf/Cargo.toml",
+      "methods/summary_leaf/Cargo.toml",
+      "methods/zusd_leaf/Cargo.toml",
+      "shared/Cargo.toml"
+    ],
+    "expected_lock_resolutions": {
+      "risc0-build": {
+        "checksum": "f89937fa1c424b188cc4cabf65335736eca9c1e3df79c127f48636f55682f3a4",
+        "version": "3.0.5"
+      },
+      "risc0-zkvm": {
+        "checksum": "22b7eafb5d85be59cbd9da83f662cf47d834f1b836e14f675d1530b12c666867",
+        "version": "3.0.5"
+      }
+    },
+    "expected_platform_version": "2.2.2",
+    "invalidated_evidence_versions": [
+      "1.2.6"
+    ],
+    "required_risc0_build_version": "3.0.5",
+    "required_risc0_zkvm_version": "3.0.5",
+    "safe_platform_range": {
+      "maximum_exclusive": "3.0.0",
+      "minimum_inclusive": "2.1.0"
+    },
+    "safe_platform_resolutions": [
+      {
+        "checksum": "1e2dcebfc7103d98511f0fcb42f910c390ec5637d4bb3b463441fbcd30feeb1d",
+        "version": "2.1.0"
+      },
+      {
+        "checksum": "cfaa10feba15828c788837ddde84b994393936d8f5715228627cfe8625122a40",
+        "version": "2.2.1"
+      },
+      {
+        "checksum": "4db893788c416287e2e1a87e6b8f5302511a04a45329e699d6a32a16874fd24f",
+        "version": "2.2.2"
+      }
+    ],
+    "workspace_relpath": "zk/state_proof_risc0"
+  }
+}

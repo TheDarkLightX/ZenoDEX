@@ -1,0 +1,149 @@
+{
+  "aggregate_v2": {
+    "image_id": "fe131b0ec697a9bd703218f3733e44b84c8e347eb8ebfc8776be2200958fbe53",
+    "sdk_version": "3.0.5"
+  },
+  "claims": {
+    "arbitrary_depth_recursion": false,
+    "cross_environment_reproducibility": false,
+    "data_availability_verified": false,
+    "durable_atomic_admission": false,
+    "exact_leaf_artifact_sha256_recorded": true,
+    "experimental_current_image_two_leaf_fixed_height_receipt_integrity": true,
+    "general_multi_leaf_profile_promoted": false,
+    "governed_statement_authority": false,
+    "host_verifier_recomputes_exact_leaf_claim_and_journal_roots": true,
+    "independent_proof_implementation": false,
+    "nonempty_receipt_partition_merge_cryptographically_exercised": false,
+    "privacy": false,
+    "production_ready": false,
+    "public_claim_allowed": false,
+    "release_authority": false,
+    "same_profile_verifier_set_cryptographically_exercised": false,
+    "settlement_authorization": false,
+    "v1_outer_envelope_canonicality_verified": false
+  },
+  "date": "2026-07-10",
+  "independent_host_verifier": {
+    "binary": {
+      "sha256": "1ec4ba4b4ce4b4aeb6fdf36006c8b404a565e950f2986c4ec700e9af649b808f",
+      "size_bytes": 2715936
+    },
+    "control": {
+      "expected_error": "authenticated journal surface mismatch",
+      "exit_code": 1,
+      "input_pair": "pinned one-leaf v2 pair",
+      "stderr_sha256": "c51c6a83b4e6c87e00785de0f0fc73fb3f4cfe64571f396b1f9e707e44c7f17b",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "implementation_independent_from_guest": false,
+    "source": {
+      "sha256": "c9d5ee1e5ff39c056b4b8117489a1cf1df37ccec72952401510e834198e0bc8a",
+      "size_bytes": 18633
+    },
+    "transcript": {
+      "sha256": "fad37938aecfff5818ecc8c89431d6d96d3fd79d9279e48716536bab7b21beff",
+      "size_bytes": 488,
+      "status": "recursive_v2_two_leaf_pair_verified",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "leaf_claims": [
+    {
+      "artifact_file_sha256": "4ce7db31e6ae5e5af53b4ef67fb0cd6ebb1dcae9cf05ee9f73b4511c10db20b9",
+      "artifact_size_bytes": 784225,
+      "image_id": "1275ef413f6513e7671bce019d22fbdcf10bffe1b71dcf68731a056e710a7403",
+      "lane_id": "spot-root-child-0001",
+      "profile": "recursive_spot_leaf_v1",
+      "proof_type": "risc0.zenodex_recursive_spot_leaf.v1",
+      "receipt_sha256": "c6f365df966c98ef28f05e59c3e36533d0c16ca06475348a7bbb2863e41d58f6",
+      "role": "spot"
+    },
+    {
+      "artifact_file_sha256": "f56b6679f0a7798f35ed6a1f21f04fd64fedc8264a580306eba57b77151e07ca",
+      "artifact_size_bytes": 785059,
+      "image_id": "3f3f2f0109eb090f1e648b574ef4e157d6a305d98f9514acea51ff819c97e64c",
+      "lane_id": "zusd-root-child-0001",
+      "profile": "recursive_zusd_leaf_v1",
+      "proof_type": "risc0.zenodex_recursive_zusd_leaf.v1",
+      "receipt_sha256": "c1c58995b3536b4e9d516c3c906b1660bf57625f826571a6384ab267d21394aa",
+      "role": "zusd"
+    }
+  ],
+  "nonclaims": [
+    "The temporary harness and verifier have no release, registry, settlement, or ledger-admission authority.",
+    "The result is one same-host fanout-two fixed-height experiment, not a promoted general multi-leaf profile.",
+    "The spot and zUSD leaves use different verifier IDs, so this proof does not exercise the repaired same-profile verifier-set case.",
+    "Both leaves have empty receipt-ID partitions, so this proof does not exercise the repaired nonempty receipt merge case.",
+    "The host verifier binds the exact receipt claims and records artifact file hashes; it does not authenticate every outer V1 JSON field.",
+    "The host verifier uses the RISC0 3.0.5 default verifier context and does not independently pin an exact control-ID, hash-suite, and verifier-parameter policy tuple.",
+    "The generated proof artifacts retain the fixed-height harness's one-leaf throughput nonclaim string; this manifest records the actual fanout-two shape without granting stronger authority.",
+    "Schedule and data-availability fields remain commitment-only, and no privacy claim is made.",
+    "The host verifier shares the RISC0 and recursive-v2 libraries with the prover and is not an independent proof implementation."
+  ],
+  "proof_pair": {
+    "inner": {
+      "artifact_file_sha256": "213c342ca60073695445404d0682a3dff65f30e30a8fbb9954b6a6029bc5bba1",
+      "artifact_size_bytes": 795608,
+      "flat_leaf_count": 2,
+      "immediate_child_count": 2,
+      "journal_sha256": "07b01120d12cfab7dfa99d7085ff06ab1a7d652f8afb7163894b8ad6070723c2",
+      "profile": "recursive_closed_subtree_v2",
+      "protocol_journal_hash": "fba3aebf9799bb60691b41fd71bf9fdf5e965b4da8b4999f5906795e2938cbc9",
+      "receipt_sha256": "e24113efcccf8ee36035a370ad3c69257a19e4e7aa5f1ce8ede3e0064d4ec624",
+      "subtree_node_count": 3,
+      "tree_height": 1
+    },
+    "root": {
+      "artifact_file_sha256": "75c078fbdda5a13a3b36ce0038755867d8ad417ecfa47ac998fdcf8d753f3066",
+      "artifact_size_bytes": 795284,
+      "flat_leaf_count": 2,
+      "immediate_child_count": 1,
+      "journal_sha256": "0e0f4f650f7eccbf04a3baa9aa4a3f861bf95da142dbb1e16148555aa538bb6f",
+      "profile": "recursive_epoch_root_v2",
+      "protocol_journal_hash": "5978c88b82265e64a72c876e1c17b452b2c0353f45c0f1f2340d75f13d77841b",
+      "receipt_sha256": "c6fa386b519ba271d353a983f0c0cb642111be2d70b2ee6858b2998cca67f7b9",
+      "subtree_node_count": 4,
+      "tree_height": 2
+    },
+    "shared_authenticated_roots": {
+      "aggregation_scope_hash": "092c7d46a1823faf9dac2deccf37e7108e17cfc1ee0a08c1ec504326be980258",
+      "assigned_leaf_ids_root": "7e167c61e5c6717dd02538975c09fcea0a532f9256ee46e3ba309d3ec0ab553a",
+      "descendant_claims_root": "5a9543ac8d47d76f2524479e4ab636b2f124994a128aac4a985511d80ba9abbb",
+      "flat_v1_post_state_root": "386645cfce45bca79458edfa60c714323053cbf180cdbf564117329674ae4d29",
+      "flat_v1_statement_hash": "40bb0072001722ddc2c9c2fae080ce7f5de90027329cafdd7f955994362036f0",
+      "leaf_disclosures_root": "b627120f781ca1521ef1a125d4fcef19e2c7265b43e630cd5aea591624dbe0eb"
+    }
+  },
+  "prover": {
+    "cargo_lock": {
+      "sha256": "9c8b5a03273469d518285bbcdf217e2272df277d65c5e208380958f0d9447169",
+      "size_bytes": 93338
+    },
+    "cargo_manifest": {
+      "sha256": "1c585c6186822885fac1fdcb5cd0620c0857b967f49593293ca9b3fab2a09b13",
+      "size_bytes": 715
+    },
+    "evidence_policy_source": {
+      "sha256": "c5bcdb5bfaec0964650088c15277a8e1fe887042310af0aaaa8d08b48cee6ad2",
+      "size_bytes": 1798
+    },
+    "executable": {
+      "sha256": "302aed2effdd821c472056ced7064e4aa9f039f03e98b9d41776473320727a25",
+      "size_bytes": 146825560
+    },
+    "main_source": {
+      "sha256": "745ba9381e41d8a811721ef3ba7e48b64633b5a2fde9c2eb84448dfca954260e",
+      "size_bytes": 43512
+    },
+    "prove_report": {
+      "sha256": "ac9f0c94f859a6e4f7b936cfbdd6ee0b924cbadb33134c2ceacf941f933a0e78",
+      "size_bytes": 3677,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "source_to_binary_build_authenticated": false
+  },
+  "schema": "zenodex/recursive_stark_v2_two_leaf_experiment/v1",
+  "status": "experimental_current_image_two_leaf_pair_verified",
+  "version": 1
+}

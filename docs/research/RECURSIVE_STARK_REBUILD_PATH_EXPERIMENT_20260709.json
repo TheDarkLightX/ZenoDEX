@@ -1,0 +1,117 @@
+{
+  "base_source_archive_sha256": "b5e71d0d27a9f6d7dbc6f702f18335d956d5d052dfd4aa73e84bf82162dd93f0",
+  "base_source_compile_root_sha256": "c834aedc0b3252b58e101f203e6a3b3a41c4625688c097b22a691c85cb6ed629",
+  "claims": {
+    "cross_host_reproducibility": false,
+    "dependency_path_independent_reproducibility": false,
+    "independent_rebuild": false,
+    "production_ready": false,
+    "public_claim_allowed": false,
+    "public_replay": false,
+    "reproducible_release": false,
+    "settlement_authorization": false,
+    "source_or_builder_authenticity": false,
+    "witness_privacy": false,
+    "zero_knowledge": false
+  },
+  "date": "2026-07-09",
+  "experiments": [
+    {
+      "artifact_report_sha256": "49a436c7abfe854750404b9b6a51cfcb99753bc5fe79fa5f72cb88f19556d669",
+      "cargo_config_sha256": "cf2f909df3589fb51c1e63338d5b12a38e3591694cc416d5b30d48fc5fc90854",
+      "compiler_visible_dependency_path_changed": false,
+      "id": "fixed_dependency_path_nested_cargo_offline",
+      "nested_cargo_offline": true,
+      "outcome": "exact_reference_match",
+      "programs": [
+        {
+          "image_id": "8e99bfa7eb8e576c1758be41a796294238b9535d070d6a7fc2dab7379b3268f5",
+          "name": "aggregate",
+          "sha256": "d7cb3a9d9b54ac971c61023b0700a99d98cc0ac2365b0978c77f9e6847ff23c9"
+        },
+        {
+          "image_id": "1b79400a0a0f0f581927de5ae6eab9d5bf7d3c7c6b9d391de2ddc29d354e43a8",
+          "name": "guest",
+          "sha256": "587894367421533597a84d81b908e207933b8e80ecbffae2c85405ec238b2e34"
+        },
+        {
+          "image_id": "31a1dfcecbab7e3ff3b251f847d1330d999d302e3aa06184e16d14f1d4b06353",
+          "name": "perps_np_leaf",
+          "sha256": "148a08ac93ce958df67434dba94841fdf0083df753331cc169ff683a938548fc"
+        },
+        {
+          "image_id": "06c9b076474666d1ef594600ba6c5e648427f66a2db0983ef8f1b118fb34ae3e",
+          "name": "spot_leaf",
+          "sha256": "f781f07ac88876a45f8633a2c8872c4095606be62f545343e57b27761e0c654a"
+        },
+        {
+          "image_id": "712d290acca70b35881228f51229b2c2be52fa24f2c524cb619080f337f6c3d8",
+          "name": "summary_leaf",
+          "sha256": "ea44c990e32c6de41536521148c04954cf8705740d75faa8008ca9427c32dd88"
+        },
+        {
+          "image_id": "3ff14dff721bf22bf03921332697019c45399789c06c7125c867bcbc051acb45",
+          "name": "zusd_leaf",
+          "sha256": "cdbad911aca03413ad7e4ebd60c7566310062b26930f143bc071ad6240f83a13"
+        }
+      ],
+      "proof_verification": {
+        "ok": true,
+        "transcript_sha256": "c4ad88fcb3009ef721399f68b36927f136c199232bb0316d98248f69be6eec4d"
+      },
+      "static_verifier_sha256": "54e80622715976049c2c02232d5e361b140626592875939a6c98eccb06627141"
+    },
+    {
+      "artifact_report_sha256": "85b810a790ad3dc4ca9b383bc510f526c1375b410b5d76ea623776387451a7cd",
+      "cargo_config_sha256": "cf2f909df3589fb51c1e63338d5b12a38e3591694cc416d5b30d48fc5fc90854",
+      "compiler_visible_dependency_path_changed": true,
+      "id": "relocated_cargo_home_nested_cargo_offline",
+      "nested_cargo_offline": true,
+      "outcome": "guest_image_identity_drift",
+      "programs": [
+        {
+          "image_id": "a91015a4fd208bcec0ded10a6bd39cd6ed57102b678d02ccc0710a3215f8a35f",
+          "name": "aggregate",
+          "sha256": "3353c59e2a85c48b03e159c9705a58973b00266dfafe4c44374bb2bcd40bcebe"
+        },
+        {
+          "image_id": "a7e32aa41f0aa72e742ef7ee433e13b9d4b00b32291dc72b1b20c7ea5deff17c",
+          "name": "guest",
+          "sha256": "f73edb856bab2107cc6441ee41d0eab7f776ac0848fd0faa32048e02407932ba"
+        },
+        {
+          "image_id": "0cc926a72a878ffd3640d38c48743d5bbea463642fb762974de4a067b08fb554",
+          "name": "perps_np_leaf",
+          "sha256": "fe89b3e6d19c523401503c3873ffe6222bbebaa13bcc39d1cbdc67af7108b6a7"
+        },
+        {
+          "image_id": "39f1b451d547baa5f5cb6d497835d9e2c378f081346efc594d16fe552a0ba03d",
+          "name": "spot_leaf",
+          "sha256": "3649c3ac4cb232e5f67e19297c716991a2764571b1ac41cbca889b544175bf44"
+        },
+        {
+          "image_id": "7f24435d313308c8c118858327c2e5b84229d8d10e64b5a06e4f7c2f3dd0238e",
+          "name": "summary_leaf",
+          "sha256": "8d0f96428e6905c0d2af79a80dee4894509393b441e97021e05702d68d4fd7ad"
+        },
+        {
+          "image_id": "b341d68bf75b08a7db272184fe38fa2db5e2a46e0fa46f768ae493821e16ad5e",
+          "name": "zusd_leaf",
+          "sha256": "97e1679a60562ed2204be91d9dd15ef1c3cea7e5e5336a846181759e5bb311e0"
+        }
+      ],
+      "proof_verification": {
+        "error": "risc0_image_id mismatch",
+        "ok": false,
+        "transcript_sha256": "a407b7ea58badabb159710b0a7702bd13cd3d6a84433e1d1ff980827bd8c1af1"
+      },
+      "static_verifier_sha256": "ce4a9bbe5b2122ce4c3b4c468f28c19fe3f41055481b347e6113752d6b3fcc77"
+    }
+  ],
+  "guest_rust_toolchain": "r0.1.94.1",
+  "next_control": "canonicalize compiler-visible dependency paths or add guest path remapping before cross-environment comparison",
+  "risc0_sdk_version": "3.0.5",
+  "schema": "zenodex/risc0_recursive_rebuild_path_experiment/v1",
+  "scope": "local_same_host_research_evidence",
+  "version": 1
+}

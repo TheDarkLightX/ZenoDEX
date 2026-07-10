@@ -1,0 +1,913 @@
+{
+  "schema": "zenodex/recursive_stark_cbc_matrix/v1",
+  "status": "critical_code_cbc_obligation_matrix",
+  "updated_at": "2026-07-10",
+  "promotion_boundary": {
+    "public_claim_allowed": false,
+    "production_ready": false,
+    "claim_status": "post_repair_current_image_local_recursive_proofs_verified",
+    "non_claims": [
+      "no_production_ready_recursive_starks",
+      "no_full_zk_execution_for_all_value_moving_surfaces",
+      "no_complete_zusd_lifecycle_coverage",
+      "no_recursive_data_availability_solution",
+      "no_arbitrary_depth_or_general_fanout_recursive_tree",
+      "no_promoted_general_multi_leaf_fanout_profile",
+      "no_nonempty_receipt_set_recursive_proof_evidence",
+      "no_durable_atomic_recursive_admission",
+      "no_source_pinned_recursive_release_toolchain",
+      "no_cross_host_or_reproducible_recursive_release",
+      "no_perps_global_cross_lane_conservation_claim",
+      "no_local_smoke_as_production_evidence",
+      "no_affected_risc0_1_2_6_evidence",
+      "no_risc0_zero_knowledge_privacy_claim",
+      "no_whole_build_network_isolation",
+      "no_public_recursive_replay",
+      "no_separately_governed_recursive_authority_manifest"
+    ]
+  },
+  "typed_statements": [
+    {
+      "id": "recursive_epoch_v1",
+      "status": "implemented",
+      "statement": "RecursiveCompositionStatementV1",
+      "journal": "RecursiveEpochJournalV1",
+      "owner_surface": "zk/state_proof_risc0/shared/src/recursive.rs",
+      "authority_boundary": "root guest plus host verifier plus ledger admission",
+      "required_fields": [
+        "domain_separator",
+        "chain_id",
+        "epoch_id",
+        "proof_profile",
+        "verifier_set_root",
+        "allowed_authority_roots_root",
+        "public_policy_hash",
+        "feature_suite_hash",
+        "dependency_lock_hash",
+        "toolchain_lock_hash",
+        "pre_state_root",
+        "post_state_root",
+        "child_verification_claims_root",
+        "child_journals_root",
+        "child_effect_summaries_root",
+        "child_count",
+        "max_child_journal_bytes",
+        "max_total_child_journal_bytes",
+        "cross_shard_message_ids_root",
+        "conflict_schedule_hash",
+        "carry_queue_pre_root",
+        "carry_queue_post_root",
+        "data_availability_root"
+      ]
+    },
+    {
+      "id": "recursive_effect_summary_v1",
+      "status": "implemented_partial",
+      "statement": "RecursiveEffectSummaryV1",
+      "journal": "RecursiveEffectSummaryV1",
+      "owner_surface": "zk/state_proof_risc0/shared/src/recursive.rs",
+      "authority_boundary": "child guest emits summary; root guest verifies receipt and summary",
+      "required_fields": [
+        "chain_id",
+        "epoch_id",
+        "lane_id",
+        "proof_profile",
+        "risc0_image_id",
+        "pre_state_root",
+        "post_state_root",
+        "statement_hash",
+        "asset_delta_root",
+        "accepted_receipts_root",
+        "rejected_receipts_root",
+        "outbox_root",
+        "inbox_root"
+      ]
+    },
+    {
+      "id": "recursive_spot_leaf_v1",
+      "status": "implemented_partial",
+      "statement": "spot_recursive_leaf_statement_hash_v1",
+      "journal": "RecursiveEffectSummaryV1",
+      "owner_surface": "zk/state_proof_risc0/shared/src/recursive.rs",
+      "authority_boundary": "spot leaf guest re-executes spot transition",
+      "required_fields": [
+        "proof_profile",
+        "risc0_image_id",
+        "pre_state_root",
+        "post_state_root",
+        "statement_hash",
+        "asset_delta_root"
+      ]
+    },
+    {
+      "id": "recursive_zusd_leaf_v1",
+      "status": "implemented_partial",
+      "statement": "zusd_recursive_leaf_statement_hash_v1",
+      "journal": "RecursiveEffectSummaryV1",
+      "owner_surface": "zk/state_proof_risc0/shared/src/recursive.rs",
+      "authority_boundary": "zUSD leaf guest re-executes zUSD deposit-mint transition",
+      "required_fields": [
+        "chain_id",
+        "proof_profile",
+        "risc0_image_id",
+        "pre_state_root",
+        "post_state_root",
+        "statement_hash",
+        "asset_delta_root"
+      ]
+    },
+    {
+      "id": "recursive_perps_np_leaf_v1",
+      "status": "implemented_partial",
+      "statement": "perps_np_recursive_leaf_statement_hash_v1",
+      "journal": "RecursiveEffectSummaryV1",
+      "owner_surface": "zk/state_proof_risc0/shared/src/recursive.rs",
+      "authority_boundary": "perps NP leaf guest re-executes perps transition",
+      "required_fields": [
+        "chain_id",
+        "proof_profile",
+        "risc0_image_id",
+        "pre_state_root",
+        "post_state_root",
+        "statement_hash",
+        "asset_delta_root"
+      ]
+    },
+    {
+      "id": "recursive_node_v2",
+      "status": "implemented_partial",
+      "statement": "RecursiveNodeStatementV2",
+      "journal": "RecursiveNodeJournalV2",
+      "owner_surface": "zk/recursive_stark_v2_risc0/shared/src/lib.rs",
+      "authority_boundary": "aggregate-v2 guest plus external image and receipt-profile verifier",
+      "required_fields": [
+        "domain_separator",
+        "level",
+        "profile",
+        "self_image_id",
+        "statement_hash",
+        "immediate_verifier_set_root",
+        "immediate_child_count",
+        "flat_leaf_count",
+        "tree_height",
+        "subtree_node_count",
+        "descendant_claims_root",
+        "descendant_sources_root",
+        "partition_plan_root",
+        "flat_v1_projection"
+      ]
+    }
+  ],
+  "obligations": [
+    {
+      "id": "RS-CBC-001",
+      "title": "Aggregate guest verifies child receipt before child journal decode",
+      "severity": "critical",
+      "status": "implemented_partial",
+      "defense_layer": "guarded_transition",
+      "disaster_state": "attacker-shaped child journal bytes are parsed before proof authority exists",
+      "construction_rule": "call env::verify(child_image_id, child_journal_bytes) before postcard decoding child journal bytes",
+      "code_refs": [
+        {
+          "path": "zk/state_proof_risc0/methods/aggregate/src/main.rs",
+          "symbol": "env::verify"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "zk/state_proof_risc0/cli/examples/recursive_missing_assumption_reject.rs",
+          "symbol": "missing_child_assumption_rejected"
+        }
+      ],
+      "external_commands": [
+        "cd zk/state_proof_risc0 && RISC0_EXECUTOR=ipc cargo run -p tau-state-proof-risc0-cli --example recursive_missing_assumption_reject < /tmp/recursive-stark-root.request.json"
+      ],
+      "non_claim": "RISC0 internal assumption-error text is not a stable application reject ABI"
+    },
+    {
+      "id": "RS-CBC-002",
+      "title": "Child summary image ID matches verified child image ID",
+      "severity": "critical",
+      "status": "implemented_partial",
+      "defense_layer": "guarded_transition",
+      "disaster_state": "child proof from one image is paired with a summary claiming another image",
+      "construction_rule": "decoded_summary.risc0_image_id must equal child.descriptor.child_image_id",
+      "code_refs": [
+        {
+          "path": "zk/state_proof_risc0/methods/aggregate/src/main.rs",
+          "symbol": "recursive child journal image id mismatch"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+          "symbol": "recursive_composition_rejects_child_verification_claim_hash_mismatch"
+        }
+      ],
+      "external_commands": [
+        "cd zk/state_proof_risc0 && cargo test -q -p tau-state-proof-risc0-shared recursive --offline"
+      ],
+      "non_claim": "child receipt packaging is host policy; the root proves the child execution claim"
+    },
+    {
+      "id": "RS-CBC-003",
+      "title": "Recursive root verification pins trusted expectations",
+      "severity": "critical",
+      "status": "implemented_partial",
+      "defense_layer": "guarded_transition",
+      "disaster_state": "self-consistent root proof with prover-chosen verifier set is accepted",
+      "construction_rule": "verify request must include recursive_expectations matching root journal authority and release fields; executable hash, format, and expectations must be derived from canonical authority-manifest bytes matching a separately supplied digest",
+      "code_refs": [
+        {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "verify_recursive_trusted_expectations"
+        },
+        {
+          "path": "src/integration/recursive_stark_verifier_adapter.py",
+          "symbol": "PinnedRecursiveStarkVerifier"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "recursive_trusted_expectations_reject_missing_object"
+        },
+        {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "recursive_trusted_expectations_reject_verifier_set_mismatch"
+        },
+        {
+          "path": "tests/integration/test_recursive_stark_verifier_adapter.py",
+          "symbol": "test_parser_rejects_attacker_matching_facts_against_ledger_policy"
+        },
+        {
+          "path": "tests/integration/test_recursive_stark_verifier_adapter.py",
+          "symbol": "test_pinned_adapter_rejects_authority_manifest_digest_mismatch"
+        },
+        {
+          "path": "tests/integration/test_recursive_stark_verifier_adapter.py",
+          "symbol": "test_pinned_adapter_rejects_noncanonical_authority_manifest"
+        }
+      ],
+      "external_commands": [
+        "cd zk/state_proof_risc0 && cargo test -q -p tau-state-proof-risc0-cli recursive --offline"
+      ],
+      "non_claim": "the live ledger does not yet own or persist the trusted epoch expectation manifest"
+    },
+    {
+      "id": "RS-CBC-004",
+      "title": "Verifier rejects dev-mode and fake receipts",
+      "severity": "critical",
+      "status": "implemented",
+      "defense_layer": "guarded_transition",
+      "disaster_state": "production-like verification accepts fake or dev-mode RISC0 receipts",
+      "construction_rule": "reject enabled RISC0_DEV_MODE and InnerReceipt::Fake before receipt acceptance",
+      "code_refs": [
+        {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "reject_dev_mode_receipt"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "fake_receipt_is_rejected_before_verification"
+        }
+      ],
+      "external_commands": [
+        "cd zk/state_proof_risc0 && cargo test -q -p tau-state-proof-risc0-cli recursive --offline"
+      ],
+      "non_claim": "legacy bincode receipts are rejected; adversarial receipt-corpus fuzzing remains pending"
+    },
+    {
+      "id": "RS-CBC-005",
+      "title": "Aggregate guest input is bounded before allocation",
+      "severity": "critical",
+      "status": "implemented_partial",
+      "defense_layer": "bounded_blast_radius",
+      "disaster_state": "attacker chooses aggregate input length that exhausts guest memory",
+      "construction_rule": "reject zero or length greater than RECURSIVE_AGGREGATE_MAX_INPUT_BYTES before allocating input buffer",
+      "code_refs": [
+        {
+          "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+          "symbol": "RECURSIVE_AGGREGATE_MAX_INPUT_BYTES"
+        },
+        {
+          "path": "zk/state_proof_risc0/methods/aggregate/src/main.rs",
+          "symbol": "recursive aggregate input length unsupported"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "resource_caps_are_absolute_and_inclusive"
+        }
+      ],
+      "external_commands": [
+        "cd zk/state_proof_risc0 && cargo test -q -p tau-state-proof-risc0-methods --offline"
+      ],
+      "non_claim": "postcard nested allocation and bincode nesting still require process isolation budgets"
+    },
+    {
+      "id": "RS-CBC-006",
+      "title": "zUSD recursive leaf rejects chain relabel",
+      "severity": "critical",
+      "status": "implemented",
+      "defense_layer": "guarded_transition",
+      "disaster_state": "zUSD leaf transition journal is relabeled onto another chain",
+      "construction_rule": "input.chain_id must equal inner zUSD transition journal chain_id",
+      "code_refs": [
+        {
+          "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+          "symbol": "zUSD recursive leaf chain_id mismatch"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+          "symbol": "zusd_recursive_leaf_rejects_chain_id_relabel"
+        }
+      ],
+      "external_commands": [
+        "cd zk/state_proof_risc0 && cargo test -q -p tau-state-proof-risc0-shared recursive --offline"
+      ],
+      "non_claim": "zUSD lifecycle coverage remains deposit-mint only"
+    },
+    {
+      "id": "RS-CBC-007",
+      "title": "Perps NP recursive leaf rejects chain relabel",
+      "severity": "critical",
+      "status": "implemented",
+      "defense_layer": "guarded_transition",
+      "disaster_state": "perps transition journal is relabeled onto another chain",
+      "construction_rule": "input.chain_id must equal inner perps transition journal chain_id",
+      "code_refs": [
+        {
+          "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+          "symbol": "perps NP recursive leaf chain_id mismatch"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+          "symbol": "perps_np_recursive_leaf_rejects_chain_id_relabel"
+        }
+      ],
+      "external_commands": [
+        "cd zk/state_proof_risc0 && cargo test -q -p tau-state-proof-risc0-shared recursive --offline"
+      ],
+      "non_claim": "perps global source-finality rows remain pending"
+    },
+    {
+      "id": "RS-CBC-008",
+      "title": "zUSD mint-only lane has explicit non-claim",
+      "severity": "critical",
+      "status": "implemented_partial",
+      "defense_layer": "detected_at_commit",
+      "disaster_state": "repay, redeem, burn, or liquidation is implied as recursively covered",
+      "construction_rule": "zero-mint recursive row extraction rejects with explicit unsupported-operation message",
+      "code_refs": [
+        {
+          "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+          "symbol": "zUSD recursive leaf operation unsupported: mint amount zero"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+          "symbol": "zusd_recursive_leaf_asset_delta_row_rejects_zero_minted_amount"
+        }
+      ],
+      "external_commands": [
+        "cd zk/state_proof_risc0 && cargo test -q -p tau-state-proof-risc0-shared recursive --offline"
+      ],
+      "next_action": "implement zUSD repay, redeem, burn, and liquidation row extractors",
+      "non_claim": "complete zUSD lifecycle coverage is not implemented"
+    },
+    {
+      "id": "RS-CBC-009",
+      "title": "Receipt kind/profile policy is enforced",
+      "severity": "critical",
+      "status": "implemented",
+      "defense_layer": "guarded_transition",
+      "disaster_state": "proof profile string claims stronger evidence than receipt kind provides",
+      "construction_rule": "map each recursive profile to allowed receipt kind set and reject mismatches",
+      "code_refs": [
+        {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "expected_receipt_kind_for_profile"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "recursive_receipt_profile_policy_is_exact"
+        }
+      ],
+      "external_commands": [
+        "cd zk/state_proof_risc0 && cargo test -q -p tau-state-proof-risc0-cli recursive --offline"
+      ],
+      "non_claim": "child receipt packaging remains host generator policy rather than a root journal fact"
+    },
+    {
+      "id": "RS-CBC-010",
+      "title": "Perps recursive rows prove global source finality or stay scoped",
+      "severity": "critical",
+      "status": "pending",
+      "defense_layer": "unrepresentable",
+      "disaster_state": "self-balancing perps rows are interpreted as global collateral conservation",
+      "construction_rule": "introduce external inflow/outflow rows or a chain-balance lane with missing-counterparty negative tests",
+      "code_refs": [
+        {
+          "path": "src/integration/recursive_stark_release_binding.py",
+          "symbol": "load_recursive_stark_release_binding_v1"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "tests/integration/test_recursive_stark_release_binding.py",
+          "symbol": "test_loader_rejects_digest_bound_artifact_substitution"
+        }
+      ],
+      "external_commands": [
+        "cd zk/state_proof_risc0 && cargo test -q -p tau-state-proof-risc0-shared recursive --offline"
+      ],
+      "next_action": "design perps source-finality rows and conservation failure tests",
+      "non_claim": "perps recursive rows do not prove global cross-lane collateral source finality"
+    },
+    {
+      "id": "RS-CBC-011",
+      "title": "Data availability, schedule, and carry roots have policy verification",
+      "severity": "critical",
+      "status": "pending",
+      "defense_layer": "guarded_transition",
+      "disaster_state": "committed DA, conflict schedule, or carry roots are treated as verified policy",
+      "construction_rule": "add DA and schedule policy verifier or keep roots as committed non-authoritative metadata",
+      "code_refs": [],
+      "test_refs": [],
+      "external_commands": [
+        "cd zk/state_proof_risc0 && cargo test -q -p tau-state-proof-risc0-shared recursive --offline"
+      ],
+      "next_action": "define DA policy certificate and conflict schedule verifier",
+      "non_claim": "recursive proof does not solve data availability"
+    },
+    {
+      "id": "RS-CBC-012",
+      "title": "Authenticated exact-once reference admission exists",
+      "severity": "critical",
+      "status": "implemented_partial",
+      "defense_layer": "detected_at_commit",
+      "disaster_state": "same root, leaf, or message is admitted in multiple epochs or roots",
+      "construction_rule": "root-bound verified facts feed a single-chain immutable transition that rejects cross-chain state reuse and duplicate root, slot, child, receipt, and message identifiers with reject-is-no-op",
+      "code_refs": [
+        {
+          "path": "src/core/recursive_stark_admission.py",
+          "symbol": "admit_verified_recursive_stark_root"
+        },
+        {
+          "path": "src/integration/recursive_stark_verifier_adapter.py",
+          "symbol": "PinnedRecursiveStarkVerifier"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "tests/core/test_recursive_stark_exact_once_admission.py",
+          "symbol": "test_given_accepted_child_when_new_root_reuses_child_then_child_reject_is_no_op"
+        },
+        {
+          "path": "tests/integration/test_recursive_stark_verifier_adapter.py",
+          "symbol": "test_pinned_adapter_admits_once_and_rejects_replay"
+        },
+        {
+          "path": "tests/core/test_recursive_stark_exact_once_admission.py",
+          "symbol": "test_given_chain_scoped_state_when_other_chain_arrives_then_reject_is_no_op"
+        }
+      ],
+      "external_commands": [
+        "python3 -m pytest -q tests/core/test_recursive_stark_exact_once_admission.py tests/integration/test_recursive_stark_verifier_adapter.py"
+      ],
+      "non_claim": "live ledger persistence and atomic value-effect commit are not integrated"
+    },
+    {
+      "id": "RS-CBC-013",
+      "title": "Outer root owns spot replay domain",
+      "severity": "high",
+      "status": "implemented_partial",
+      "defense_layer": "unrepresentable",
+      "disaster_state": "spot leaf statement hash is replayed across chain, epoch, or lane context",
+      "construction_rule": "verified child summary and claim bind chain, epoch, and lane; authenticated exact-once admission owns replay prevention",
+      "code_refs": [
+        {
+          "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+          "symbol": "RecursiveEffectSummaryV1"
+        },
+        {
+          "path": "src/core/recursive_stark_admission.py",
+          "symbol": "DUPLICATE_CHILD_VERIFICATION_CLAIM"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+          "symbol": "recursive_composition_rejects_child_substitution_by_epoch"
+        }
+      ],
+      "external_commands": [
+        "cd zk/state_proof_risc0 && cargo test -q -p tau-state-proof-risc0-shared recursive --offline"
+      ],
+      "non_claim": "spot v1 statement hash is not a full replay-domain boundary by itself"
+    },
+    {
+      "id": "RS-CBC-014",
+      "title": "Fresh current-image recursive proof smoke exists before proof-backed claim",
+      "severity": "critical",
+      "status": "implemented",
+      "defense_layer": "detected_at_commit",
+      "disaster_state": "local unit tests are promoted as real recursive proof evidence",
+      "construction_rule": "produce and verify at least one real recursive root proof and malformed-proof reject before implementation claim",
+      "code_refs": [
+        {
+          "path": "zk/state_proof_risc0/cli/examples/recursive_summary_leaf_smoke.rs",
+          "symbol": "print_root_request"
+        },
+        {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "authenticated_recursive_facts"
+        },
+        {
+          "path": "src/integration/recursive_stark_replay_manifest.py",
+          "symbol": "check_recursive_stark_replay_bundle_v1"
+        },
+        {
+          "path": "config/proof_profiles/risc0_recursive_v2_rebuild_reference.json",
+          "symbol": "fe131b0ec697a9bd703218f3733e44b84c8e347eb8ebfc8776be2200958fbe53"
+        },
+        {
+          "path": "config/proof_profiles/risc0_recursive_rebuild_reference.json",
+          "symbol": "succinct_seal_word_xor_lsb_v1"
+        },
+        {
+          "path": "tools/check_risc0_recursive_rebuild_evidence.py",
+          "symbol": "_validate_malformed_proof_evidence"
+        },
+        {
+          "path": "docs/research/RECURSIVE_STARK_V2_CURRENT_EVIDENCE_20260710.json",
+          "symbol": "f2f8e27e1dc2237f4c583b7b973f5d9a11005bd140ea5d8b3ce0cb88fb96f471"
+        },
+        {
+          "path": "docs/research/RECURSIVE_STARK_V2_TWO_LEAF_EXPERIMENT_20260710.json",
+          "symbol": "experimental_current_image_two_leaf_pair_verified"
+        },
+        {
+          "path": "docs/research/RECURSIVE_STARK_V2_TWO_LEAF_SOURCE_PINNED_EVIDENCE_20260710.json",
+          "symbol": "same_host_source_frozen_two_leaf_receipts_regenerated_and_verified"
+        },
+        {
+          "path": "docs/research/RECURSIVE_STARK_V2_SAME_PROFILE_TWO_SPOT_EVIDENCE_20260710.json",
+          "symbol": "same_host_source_frozen_same_profile_two_spot_receipts_generated_and_verified"
+        },
+        {
+          "path": "zk/recursive_stark_v2_risc0/harness/src/bin/verify_recursive_v2_pair.rs",
+          "symbol": "recursive_v2_pair_verified"
+        },
+        {
+          "path": "zk/recursive_stark_v2_risc0/harness/src/bin/verify_recursive_v2_two_leaf_pair.rs",
+          "symbol": "recursive_v2_two_leaf_pair_verified"
+        },
+        {
+          "path": "tools/check_risc0_recursive_v2_rebuild_evidence.py",
+          "symbol": "check_candidate"
+        },
+        {
+          "path": "tools/check_risc0_recursive_v2_two_leaf_source_pinned_evidence.py",
+          "symbol": "check_live"
+        },
+        {
+          "path": "tools/check_risc0_recursive_v2_same_profile_two_spot_evidence.py",
+          "symbol": "check_live"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "recursive_verified_facts_require_root_matching_disclosure"
+        },
+        {
+          "path": "tests/integration/test_recursive_stark_replay_manifest.py",
+          "symbol": "test_build_and_check_local_artifact_pinned_bundle"
+        },
+        {
+          "path": "zk/recursive_stark_v2_risc0/harness/src/main.rs",
+          "symbol": "execute_missing_assumption_reject"
+        },
+        {
+          "path": "tests/test_check_risc0_recursive_v2_rebuild_evidence.py",
+          "symbol": "test_committed_reference_is_authenticated_and_claim_limited"
+        },
+        {
+          "path": "tests/test_check_risc0_recursive_rebuild_evidence.py",
+          "symbol": "test_rebound_malformed_proof_cannot_change_second_seal_word"
+        },
+        {
+          "path": "tests/test_check_recursive_stark_cbc_spec.py",
+          "symbol": "test_current_v2_public_evidence_matches_reference_and_preserves_nonclaims"
+        },
+        {
+          "path": "tests/test_check_recursive_stark_cbc_spec.py",
+          "symbol": "test_two_leaf_experiment_manifest_is_exact_and_claim_limited"
+        },
+        {
+          "path": "tests/test_check_recursive_stark_cbc_spec.py",
+          "symbol": "test_two_leaf_source_pinned_evidence_is_exact_and_claim_limited"
+        },
+        {
+          "path": "tests/test_check_risc0_recursive_v2_two_leaf_source_pinned_evidence.py",
+          "symbol": "test_structure_preserving_boundary_mutations_reject"
+        },
+        {
+          "path": "tests/test_check_risc0_recursive_v2_same_profile_two_spot_evidence.py",
+          "symbol": "test_committed_manifest_accepts_against_pinned_recursive_trust_roots"
+        }
+      ],
+      "external_commands": [
+        "cd zk/state_proof_risc0 && RISC0_FORCE_BUILD=1 <PINNED_CARGO> run --frozen --release --target x86_64-unknown-linux-gnu -p tau-state-proof-risc0-cli --example recursive_summary_leaf_smoke -- spot <SPOT_IMAGE_ID_HEX>",
+        "cd zk/state_proof_risc0 && RISC0_PROVER=ipc <PINNED_CARGO> run --frozen --release --target x86_64-unknown-linux-gnu -p tau-state-proof-risc0-cli < <ROOT_REQUEST>",
+        "python3 tools/check_risc0_recursive_rebuild_evidence.py --workspace-root <workspace> --workspace-archive <archive> --artifact-report <report> --program-directory <programs> --static-verifier <verifier> --root-proof <proof> --positive-verify-request <positive-request> --verified-transcript <transcript> --malformed-root-proof <mutated-proof> --malformed-verify-request <mutated-request> --malformed-reject-transcript <reject-transcript> --json",
+        "python3 tools/check_risc0_recursive_v2_rebuild_evidence.py --build-target-root <TARGET> --inner-artifact <INNER> --root-artifact <ROOT> --missing-assumption-transcript <NEGATIVE> --risc0-home <RISC0_HOME> --cargo-home <CARGO_HOME> --json",
+        "python3 tools/check_risc0_recursive_v2_two_leaf_source_pinned_evidence.py --spot-leaf <SPOT> --zusd-leaf <ZUSD> --inner-artifact <TWO_LEAF_INNER> --root-artifact <TWO_LEAF_ROOT> --release-harness <HARNESS> --one-leaf-verifier <ONE_LEAF_VERIFIER> --two-leaf-verifier <TWO_LEAF_VERIFIER> --r0vm <PINNED_R0VM> --json",
+        "python3 tools/check_risc0_recursive_v2_same_profile_two_spot_evidence.py --baseline-spot-leaf <SPOT_A> --distinct-spot-leaf <SPOT_B> --duplicate-source-alias-leaf <SPOT_ALIAS> --inner-artifact <SAME_PROFILE_INNER> --root-artifact <SAME_PROFILE_ROOT> --release-harness <HARNESS> --two-leaf-verifier <TWO_LEAF_VERIFIER> --json",
+        "python3 tools/check_recursive_stark_replay_bundle.py <bundle> --expected-manifest-sha256 <sha256>"
+      ],
+      "next_action": "preserve and replay the fe131b one-leaf, heterogeneous fanout-two, and same-profile fanout-two pairs, their cryptographic mutations, and the missing-assumption rejection; add nonempty receipt partitions and an eight-leaf proof before broader fanout promotion; reopen this obligation after any guest-linked change",
+      "non_claim": "a current-source RISC0 3.0.5 one-leaf fixed-height pair, one source-frozen spot-plus-zUSD fanout-two pair, and one same-profile distinct-statement spot fanout-two pair are locally verified; this evidence does not establish a promoted general multi-leaf profile, nonempty receipt-set witness coverage, public replay, cross-host or reproducible-release evidence, settlement or ledger-admission authority, privacy, or production readiness"
+    },
+    {
+      "id": "RS-CBC-015",
+      "title": "Release manifest and claims registry gate production language",
+      "severity": "critical",
+      "status": "pending",
+      "defense_layer": "detected_at_commit",
+      "disaster_state": "production recursive STARK language ships without release evidence",
+      "construction_rule": "release manifest, claims registry, public replay evidence, and independent review must all pass before production claim",
+      "code_refs": [],
+      "test_refs": [],
+      "external_commands": [
+        "python3 tools/check_claims_registry.py",
+        "bash tools/run_critical_quality_gate.sh"
+      ],
+      "next_action": "source the expected release-binding config digest from governed ledger or release state, verify both referenced manifests, and add a claims-registry entry only after remaining critical obligations close",
+      "non_claim": "the canonical release-binding loader is not connected to a governed expected digest or runtime admission; production-ready recursive STARKs are not claimed"
+    },
+    {
+      "id": "RS-CBC-016",
+      "title": "Fixed-height root-as-child composition; general tree pending",
+      "severity": "critical",
+      "status": "implemented_partial",
+      "defense_layer": "unrepresentable",
+      "disaster_state": "one-level composition is described as an arbitrary recursive proof tree",
+      "construction_rule": "define and verify a versioned common node journal that permits an aggregate root receipt to be an authenticated child",
+      "code_refs": [
+        {
+          "path": "zk/recursive_stark_v2_risc0/shared/src/lib.rs",
+          "symbol": "RecursiveNodeJournalV2"
+        },
+        {
+          "path": "zk/recursive_stark_v2_risc0/shared/src/lib.rs",
+          "symbol": "compose_recursive_node_journal_v2"
+        },
+        {
+          "path": "zk/recursive_stark_v2_risc0/methods/aggregate_v2/src/main.rs",
+          "symbol": "env::verify"
+        },
+        {
+          "path": "zk/recursive_stark_v2_risc0/harness/src/main.rs",
+          "symbol": "flat_statement_for_leaves"
+        },
+        {
+          "path": "docs/research/RECURSIVE_STARK_V2_TWO_LEAF_SOURCE_PINNED_EVIDENCE_20260710.json",
+          "symbol": "current_image_two_leaf_receipts_regenerated"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "zk/recursive_stark_v2_risc0/shared/tests/node_v2.rs",
+          "symbol": "valid_epoch_root_composes_authenticated_node_child"
+        },
+        {
+          "path": "zk/recursive_stark_v2_risc0/harness/src/main.rs",
+          "symbol": "execute_missing_assumption_reject"
+        }
+      ],
+      "external_commands": [
+        "cd zk/recursive_stark_v2_risc0 && RISC0_SKIP_BUILD=1 cargo test --locked --all"
+      ],
+      "non_claim": "fixed-height leaf-to-subtree-to-epoch-root source and one source-frozen fanout-two proof pair exist; arbitrary depth, multiple root subtrees, and a governed general fanout profile remain absent"
+    },
+    {
+      "id": "RS-CBC-017",
+      "title": "Source-pinned recursive release toolchain",
+      "severity": "critical",
+      "status": "implemented_partial",
+      "defense_layer": "detected_at_commit",
+      "disaster_state": "a local image built by a mutable guest compiler is promoted as reproducible release evidence",
+      "construction_rule": "pin and hash RISC0 3.0.5, cargo-risczero, r0vm, guest Rust r0.1.94.1, combined program binaries, kernel, and image IDs; reject affected dependency graphs offline; require target-absent source scopes and freeze and hash every bounded regular source file before and after every evidence build using an external target root; promote source roots, program bytes, image IDs, receipts, and verifier bytes atomically; compare clean builds across distinct source, target, home, and dependency paths; require canonical compiler-visible dependency paths or guest path remapping before treating byte equality as path independent",
+      "code_refs": [
+        {
+          "path": "tools/check_risc0_dependency_advisory_baseline.py",
+          "symbol": "check_risc0_dependency_advisory_baseline"
+        },
+        {
+          "path": "config/proof_profiles/risc0_dependency_advisory_baseline.json",
+          "symbol": "GHSA-jqq4-c7wq-36h7"
+        },
+        {
+          "path": "tools/check_risc0_recursive_toolchain_lock.py",
+          "symbol": "check_risc0_recursive_toolchain_lock"
+        },
+        {
+          "path": "config/proof_profiles/risc0_recursive_toolchain_lock.json",
+          "symbol": "risc0_recursive_toolchain_lock"
+        },
+        {
+          "path": "config/proof_profiles/risc0_recursive_rebuild_reference.json",
+          "symbol": "pinned_rebuild_artifact_match"
+        },
+        {
+          "path": "tools/check_risc0_recursive_rebuild_evidence.py",
+          "symbol": "check_risc0_recursive_rebuild_evidence"
+        },
+        {
+          "path": "config/proof_profiles/risc0_recursive_v2_rebuild_reference.json",
+          "symbol": "pinned_recursive_v2_artifact_match"
+        },
+        {
+          "path": "docs/research/RECURSIVE_STARK_V2_CURRENT_EVIDENCE_20260710.json",
+          "symbol": "same_host_clean_recursive_v2_rebuild_match"
+        },
+        {
+          "path": "tools/check_risc0_recursive_v2_rebuild_evidence.py",
+          "symbol": "run_clean_rebuild"
+        },
+        {
+          "path": "docs/research/RECURSIVE_STARK_REBUILD_PATH_EXPERIMENT_20260709.json",
+          "symbol": "fixed_dependency_path_nested_cargo_offline"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "tests/test_check_risc0_dependency_advisory_baseline.py",
+          "symbol": "test_rejects_affected_1_2_6_direct_dependency"
+        },
+        {
+          "path": "tests/test_check_risc0_recursive_toolchain_lock.py",
+          "symbol": "test_hermetic_installed_toolchain_fixture_passes"
+        },
+        {
+          "path": "tests/test_check_risc0_recursive_rebuild_evidence.py",
+          "symbol": "test_matching_candidate_reports_pinned_artifact_scope_only"
+        },
+        {
+          "path": "tests/test_check_risc0_recursive_rebuild_evidence.py",
+          "symbol": "test_include_bytes_payload_mutation_rejects"
+        },
+        {
+          "path": "tests/test_check_risc0_recursive_rebuild_evidence.py",
+          "symbol": "test_source_scope_target_directory_rejects"
+        },
+        {
+          "path": "tests/test_check_risc0_recursive_v2_rebuild_evidence.py",
+          "symbol": "test_committed_reference_is_authenticated_and_claim_limited"
+        },
+        {
+          "path": "tests/test_check_risc0_recursive_v2_rebuild_evidence.py",
+          "symbol": "test_declared_include_bytes_payload_mutation_rejects"
+        },
+        {
+          "path": "tests/test_check_risc0_recursive_v2_rebuild_evidence.py",
+          "symbol": "test_source_scope_target_directory_rejects"
+        },
+        {
+          "path": "tests/test_check_recursive_stark_cbc_spec.py",
+          "symbol": "test_current_v2_public_evidence_matches_reference_and_preserves_nonclaims"
+        }
+      ],
+      "external_commands": [
+        "python3 tools/check_risc0_dependency_advisory_baseline.py --json",
+        "python3 tools/check_risc0_recursive_toolchain_lock.py --json --verify-installed --risc0-home ~/.risc0",
+        "python3 tools/check_risc0_recursive_rebuild_evidence.py --workspace-root <workspace> --workspace-archive <archive> --artifact-report <report> --program-directory <programs> --static-verifier <verifier> --root-proof <proof> --positive-verify-request <positive-request> --verified-transcript <transcript> --malformed-root-proof <mutated-proof> --malformed-verify-request <mutated-request> --malformed-reject-transcript <reject-transcript> --json",
+        "python3 tools/check_risc0_recursive_v2_rebuild_evidence.py --repository-root . --clean-rebuild-root <ABSENT_TARGET> --inner-artifact <INNER> --root-artifact <ROOT> --missing-assumption-transcript <NEGATIVE> --risc0-home <RISC0_HOME> --cargo-home <CARGO_HOME> --rustup-path <RUSTUP> --json",
+        "cd zk/state_proof_risc0 && RISC0_BUILD_LOCKED=1 RISC0_FORCE_BUILD=1 cargo +risc0 build --locked -p tau-state-proof-risc0-cli --bin tau-state-proof-risc0-cli --example recursive_artifact_export"
+      ],
+      "next_action": "add an authenticated build-execution receipt, canonicalize compiler-visible dependency paths or add guest path remapping, then repeat the relocated-home build before any cross-host or reproducible-release claim",
+      "non_claim": "the v1 artifact-mode checker proves only a pinned artifact match and keeps clean-build execution false; the recursive-v2 checker separately completed a source-frozen target-absent same-host rebuild, observed the pinned nested Cargo executable, matched the pinned program, raw ELF, image ID, and both host pair verifiers, and verified the pinned proof pair without regenerating its receipts; proof-regeneration determinism, whole-build network isolation, dependency-path independence, cross-host equality, source or builder authenticity, public replay, production readiness, settlement authorization, and reproducible-release status remain false or open; the relocated-home historical v1 experiment changed all six combined-program hashes, all six r0vm image IDs, and the static verifier"
+    },
+    {
+      "id": "RS-CBC-018",
+      "title": "Untrusted receipt decoding is depth bounded and versioned",
+      "severity": "critical",
+      "status": "implemented",
+      "defense_layer": "bounded_blast_radius",
+      "disaster_state": "recursive receipt bytes trigger unbounded recursive descent or legacy codec ambiguity before verification",
+      "construction_rule": "accept only the exact risc0_receipt_canonical_serde_json_depth128_v1 codec, enforce byte bounds and canonical re-encoding, and compare proof metadata with the verified receipt profile",
+      "code_refs": [
+        {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "decode_receipt_b64"
+        },
+        {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "require_proof_meta_receipt_security"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "receipt_codec_round_trip_is_depth_limited_json"
+        },
+        {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "receipt_codec_marker_is_exact"
+        }
+      ],
+      "external_commands": [
+        "cd zk/state_proof_risc0 && RISC0_SKIP_BUILD=1 cargo +risc0 test --locked --offline -p tau-state-proof-risc0-cli --bin tau-state-proof-risc0-cli receipt_codec"
+      ],
+      "non_claim": "bounded receipt decoding does not establish receipt soundness before cryptographic verification"
+    },
+    {
+      "id": "RS-CBC-019",
+      "title": "Image IDs use canonical RISC0 digest bytes and match embedded programs",
+      "severity": "critical",
+      "status": "implemented_partial",
+      "defense_layer": "guarded_transition",
+      "disaster_state": "word-endian ambiguity or stale generated constants bind a proof to the wrong guest program",
+      "construction_rule": "render image IDs through RISC0 Digest and recompute each image ID from the exact embedded combined program before proving or verifying",
+      "code_refs": [
+        {
+          "path": "zk/state_proof_risc0/cli/examples/recursive_artifact_export.rs",
+          "symbol": "method_report"
+        },
+        {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "validate_embedded_method"
+        },
+        {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "hex_u32_words"
+        },
+        {
+          "path": "docs/research/RECURSIVE_STARK_REBUILD_PATH_EXPERIMENT_20260709.json",
+          "symbol": "relocated_cargo_home_nested_cargo_offline"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "zk/state_proof_risc0/cli/examples/recursive_artifact_export.rs",
+          "symbol": "empty_embedded_program_rejects_before_artifact_write"
+        },
+        {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "risc0_digest_text_uses_canonical_little_endian_bytes"
+        }
+      ],
+      "external_commands": [
+        "cd zk/state_proof_risc0 && RISC0_FORCE_BUILD=1 cargo +risc0 run --locked -p tau-state-proof-risc0-cli --example recursive_artifact_export"
+      ],
+      "next_action": "persist the relocated-home image-ID counterexample and add canonical dependency paths or guest path remapping before repeating the comparison inside the release evidence lane",
+      "non_claim": "all six combined-program bytes and image IDs matched the local 3.0.5 reference only when compiler-visible dependency and home paths were unchanged; the relocated-home nested-offline build changed every combined-program hash and every r0vm image ID, so the current proof does not verify against those relocated images and cross-host and reproducible-release claims remain false"
+    },
+    {
+      "id": "RS-CBC-020",
+      "title": "Strict cross-shard cancellation is lane-order independent",
+      "severity": "critical",
+      "status": "implemented",
+      "defense_layer": "unrepresentable",
+      "disaster_state": "valid opposite-direction traffic rejects or cancellation depends on child lane concatenation order",
+      "construction_rule": "validate each child root and lane ownership, canonicalize aggregate outbox and inbox independently by message_id, reject duplicates, then compare canonical vectors",
+      "code_refs": [
+        {
+          "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+          "symbol": "canonical_cross_shard_messages_v1"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+          "symbol": "recursive_composition_accepts_opposite_direction_cross_shard_messages"
+        },
+        {
+          "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+          "symbol": "recursive_cross_shard_canonicalization_rejects_duplicate_message_ids"
+        },
+        {
+          "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+          "symbol": "recursive_composition_rejects_canonical_cross_shard_substitution"
+        }
+      ],
+      "external_commands": [
+        "cd zk/state_proof_risc0 && RISC0_SKIP_BUILD=1 cargo +risc0 test --locked --offline -p tau-state-proof-risc0-shared --lib recursive_cross_shard"
+      ],
+      "non_claim": "strict cancellation does not provide cross-shard finality or durable atomic settlement"
+    }
+  ]
+}

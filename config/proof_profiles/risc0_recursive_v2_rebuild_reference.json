@@ -1,0 +1,287 @@
+{
+  "build_policy": {
+    "cargo_arguments": [
+      "build",
+      "--frozen",
+      "--release",
+      "--target",
+      "x86_64-unknown-linux-gnu",
+      "-p",
+      "tau-state-proof-risc0-recursive-v2-harness",
+      "--bins"
+    ],
+    "cargo_home_policy": "home_relative_dot_cargo",
+    "clean_target_required": true,
+    "effective_cargo_configs": [
+      {
+        "location": "workspace",
+        "path": "zk/recursive_stark_v2_risc0/.cargo/config.toml",
+        "sha256": "cf2f909df3589fb51c1e63338d5b12a38e3591694cc416d5b30d48fc5fc90854",
+        "size_bytes": 39
+      },
+      {
+        "location": "cargo_home",
+        "path": "config.toml",
+        "sha256": "1ec5023af7393c916e83729f6afa7a5a7806a01e64375ae402cb425f23a43a46",
+        "size_bytes": 298
+      }
+    ],
+    "environment": {
+      "CARGO_INCREMENTAL": "0",
+      "LANG": "C",
+      "LC_ALL": "C",
+      "RISC0_BUILD_LOCKED": "1",
+      "RISC0_FORCE_BUILD": "1",
+      "SOURCE_DATE_EPOCH": "0",
+      "TZ": "UTC",
+      "ZERO_AR_DATE": "1"
+    },
+    "guest_target": "riscv32im-risc0-zkvm-elf",
+    "host_target": "x86_64-unknown-linux-gnu",
+    "nested_cargo_policy": "path_first_observer_execs_exact_pinned_cargo",
+    "offline_config_path": "zk/recursive_stark_v2_risc0/.cargo/config.toml",
+    "offline_config_sha256": "cf2f909df3589fb51c1e63338d5b12a38e3591694cc416d5b30d48fc5fc90854",
+    "outer_cargo_relative_path": "toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin/cargo",
+    "r0vm_relative_path": "extensions/v3.0.5-cargo-risczero-x86_64-unknown-linux-gnu/r0vm",
+    "risc0_home_policy": "home_relative_dot_risc0",
+    "rustc_relative_path": "toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin/rustc",
+    "toolchain_lock_canonical_sha256": "a43db82911a5c3ba75112cd0c0b2d311e8d0bda6ef0c1d988ac1fa268c41e13a",
+    "toolchain_lock_path": "config/proof_profiles/risc0_recursive_toolchain_lock.json"
+  },
+  "claims": {
+    "accepted_candidate_status": "pinned_recursive_v2_artifact_match",
+    "accepted_clean_rebuild_status": "same_host_clean_recursive_v2_rebuild_match",
+    "arbitrary_depth_recursion": false,
+    "cross_environment_reproducibility": false,
+    "data_availability_verified": false,
+    "multi_leaf_fanout": false,
+    "privacy": false,
+    "production_ready": false,
+    "public_claim_allowed": false,
+    "reproducible_release": false,
+    "settlement_authorization": false
+  },
+  "program": {
+    "artifact_name": "tau-state-proof-risc0-aggregate-v2.bin",
+    "generated_image_id_words": [
+      236655614,
+      3182008262,
+      4078449264,
+      3091480179,
+      2117373516,
+      2281499576,
+      2276982,
+      1404997525
+    ],
+    "image_id": "fe131b0ec697a9bd703218f3733e44b84c8e347eb8ebfc8776be2200958fbe53",
+    "name": "aggregate_v2",
+    "program_bytes": 448324,
+    "program_sha256": "3fc45f1cfc7ffd401119ad8eb3779db19d4a060942de70e25c7c9b706e1c8376",
+    "raw_elf": {
+      "artifact_name": "tau-state-proof-risc0-aggregate-v2",
+      "sha256": "ccbfcf47f862bbfbc5f7647c8d13fb5d28d67b0a0542a06ca346d8feeec8f2ff",
+      "size_bytes": 415900
+    }
+  },
+  "proof_pair": {
+    "inner": {
+      "file_sha256": "9aa0bd06a2c0e31f6f9b17375a85bced5a65b9b774350eb80a919b2a5b87ff9b",
+      "flat_leaf_count": 1,
+      "immediate_child_count": 1,
+      "journal_sha256": "0f48196d86fe5c5551449d56f783cae81d6a1349933045c3ae53350424abc95b",
+      "level": "closed_subtree_over_leaves",
+      "profile": "recursive_closed_subtree_v2",
+      "protocol_journal_hash": "c60287cb4f772d1f3b55ff2ae71d71b1b7a6959dbedd8d20c4e022f239c3c53d",
+      "receipt_bytes": 591726,
+      "receipt_sha256": "7f513a978b9d34e219cf96672cec92b46245d2627c8b4d1cd16d1a2dfabd72b1",
+      "size_bytes": 795424,
+      "subtree_node_count": 2,
+      "tree_height": 1
+    },
+    "missing_assumption_output": {
+      "sha256": "dc7fa4bbe2d0bca183d6bd38cc4a4973a6ebe3e82350b7e563dcc7d0e40a36e0",
+      "size_bytes": 148,
+      "value": {
+        "aggregate_v2_image_id": "fe131b0ec697a9bd703218f3733e44b84c8e347eb8ebfc8776be2200958fbe53",
+        "ok": true,
+        "status": "missing_child_assumption_rejected"
+      }
+    },
+    "nonclaims": [
+      "migration profile: the transition leaf still uses the authenticated v1 leaf journal",
+      "the harness-local v1 image allowlist has no release or registry authority",
+      "one-leaf smoke does not establish production throughput or proving-cost bounds",
+      "this harness does not grant release, settlement, or ledger-admission authority",
+      "schedule and data-availability fields remain commitment-only in this profile",
+      "strict closed subtrees do not support cross-subtree value or message flows",
+      "this local run does not establish cross-host reproducibility or privacy"
+    ],
+    "pair_verifier_output": {
+      "sha256": "469573a876ff43695b440b63fb589cbfdf071c6f36c266c507be9af24c13219b",
+      "size_bytes": 320,
+      "value": {
+        "aggregate_v2_image_id": "fe131b0ec697a9bd703218f3733e44b84c8e347eb8ebfc8776be2200958fbe53",
+        "inner_receipt_sha256": "7f513a978b9d34e219cf96672cec92b46245d2627c8b4d1cd16d1a2dfabd72b1",
+        "ok": true,
+        "root_receipt_sha256": "d315b3c463a13127f896a5ebc34c39dac30fd58894e87cd742536fa3c5197a69",
+        "status": "recursive_v2_pair_verified"
+      }
+    },
+    "receipt_artifact_contract": {
+      "proof_type": "risc0.zenodex_recursive_node.v2",
+      "receipt_codec": "risc0_receipt_canonical_serde_json_depth128_v1",
+      "receipt_kind": "succinct",
+      "schema": "tau_recursive_node_v2_receipt_artifact",
+      "schema_version": 2
+    },
+    "receipt_security": {
+      "control_id": "53a7b23d07f99e5d5685e85874f5181e8486aa267a0ae607ffe9ba47c8bdda4a",
+      "hashfn": "poseidon2",
+      "verifier_parameters": "ece5e9b8ae2cd6ea6b1827b464ff0348f9a7f4decd269c0087fdfd75098da013"
+    },
+    "root": {
+      "file_sha256": "8fb245914b38726b67ebed74c6210c06660156fc17772f679d225381401e26e7",
+      "flat_leaf_count": 1,
+      "immediate_child_count": 1,
+      "journal_sha256": "af9485a9ef9e12020f11b20ac385a91a8d13910428ca8f6851e4882e291a7139",
+      "level": "epoch_root_over_subtrees",
+      "profile": "recursive_epoch_root_v2",
+      "protocol_journal_hash": "e760b67105041f0b0fda326996982b9c433c307dba9575f5594aca0a9c79367a",
+      "receipt_bytes": 591601,
+      "receipt_sha256": "d315b3c463a13127f896a5ebc34c39dac30fd58894e87cd742536fa3c5197a69",
+      "size_bytes": 795229,
+      "subtree_node_count": 3,
+      "tree_height": 2
+    },
+    "static_verifier": {
+      "artifact_name": "verify_recursive_v2_pair",
+      "sha256": "79f16282cd5146a6407b995d32dbbfa9e9eea7fb7b5f6e7e6146c66b88d5360e",
+      "size_bytes": 2677168
+    },
+    "two_leaf_static_verifier": {
+      "artifact_name": "verify_recursive_v2_two_leaf_pair",
+      "sha256": "ba2697c6d6f7e33e243f801e7713eedf548c9222596df1efbfaf51af0a82f350",
+      "size_bytes": 2730280
+    }
+  },
+  "schema": "zenodex/risc0_recursive_v2_rebuild_reference/v1",
+  "sdk_version": "3.0.5",
+  "source_compile": {
+    "file_count": 20,
+    "files": [
+      {
+        "path": "zk/recursive_stark_v2_risc0/.cargo/config.toml",
+        "sha256": "cf2f909df3589fb51c1e63338d5b12a38e3591694cc416d5b30d48fc5fc90854",
+        "size_bytes": 39
+      },
+      {
+        "path": "zk/recursive_stark_v2_risc0/Cargo.lock",
+        "sha256": "a684c9d9ef8f9839f5ffa869cad5584caec0b69b33460f364b49d86778be06f5",
+        "size_bytes": 93678
+      },
+      {
+        "path": "zk/recursive_stark_v2_risc0/Cargo.toml",
+        "sha256": "4dc5f6dd4d158f16666b4a96290a24f793af917b016b0b4a40dc5795dde05002",
+        "size_bytes": 149
+      },
+      {
+        "path": "zk/recursive_stark_v2_risc0/harness/Cargo.toml",
+        "sha256": "b92fe0d9e9e398f487d2d04c10e0db9418fd7d8db47a370e016c6fd9c2505ab2",
+        "size_bytes": 700
+      },
+      {
+        "path": "zk/recursive_stark_v2_risc0/harness/src/bin/verify_recursive_v2_pair.rs",
+        "sha256": "e0f00fdceddeae552dff0cbe9022a581d69a0b3ded10a451b23c48fa34e75081",
+        "size_bytes": 10960
+      },
+      {
+        "path": "zk/recursive_stark_v2_risc0/harness/src/bin/verify_recursive_v2_two_leaf_pair.rs",
+        "sha256": "f5c5fa63ea15cae952bd1f07b9157f82c98210c23840c81da96de9297760c587",
+        "size_bytes": 24005
+      },
+      {
+        "path": "zk/recursive_stark_v2_risc0/harness/src/evidence_policy.rs",
+        "sha256": "c5bcdb5bfaec0964650088c15277a8e1fe887042310af0aaaa8d08b48cee6ad2",
+        "size_bytes": 1798
+      },
+      {
+        "path": "zk/recursive_stark_v2_risc0/harness/src/main.rs",
+        "sha256": "1aa69a4b7a3b0e6bf6100e956f7d6a68b74818ab51b6e241108eb8d068b7fb11",
+        "size_bytes": 43105
+      },
+      {
+        "path": "zk/recursive_stark_v2_risc0/methods/Cargo.toml",
+        "sha256": "ab1d811df152a24053e554ff6b5cee7f02192a21867d09d819c4f4723185765c",
+        "size_bytes": 311
+      },
+      {
+        "path": "zk/recursive_stark_v2_risc0/methods/aggregate_v2/Cargo.toml",
+        "sha256": "fbb258c730bf5cc29cef71ae717dfff03d3e6fad6e2c50721984b506c7e41109",
+        "size_bytes": 451
+      },
+      {
+        "path": "zk/recursive_stark_v2_risc0/methods/aggregate_v2/src/main.rs",
+        "sha256": "153d8b8d82c14b0abc6c2a97cb7cb5e53f1d2d4067cf1c149260dba9842bd777",
+        "size_bytes": 2093
+      },
+      {
+        "path": "zk/recursive_stark_v2_risc0/methods/build.rs",
+        "sha256": "bb9a5773702c86a58821964dfbffc5500162212de835b508de038650dd5fcf23",
+        "size_bytes": 1190
+      },
+      {
+        "path": "zk/recursive_stark_v2_risc0/methods/src/lib.rs",
+        "sha256": "f2b3ca3a79b3dd62f744809c6f189bd45bed73b4ae7cb6131d3324552ec41e2d",
+        "size_bytes": 107
+      },
+      {
+        "path": "zk/recursive_stark_v2_risc0/shared/Cargo.toml",
+        "sha256": "b13478ca27cc0ef45fe56495969082b4adc266be1cbec23360da356f8488c004",
+        "size_bytes": 560
+      },
+      {
+        "path": "zk/recursive_stark_v2_risc0/shared/src/lib.rs",
+        "sha256": "7a13007d3c7e244e8c596be49930cfd953f2e95eb7d30ac4ab62cb5c94f526f9",
+        "size_bytes": 52624
+      },
+      {
+        "path": "zk/recursive_stark_v2_risc0/shared/tests/node_v2.rs",
+        "sha256": "6232d2a6dcf4a65536d9d58a8803c8a43d2e37a4880353edb04b5ed5ab0b8707",
+        "size_bytes": 24622
+      },
+      {
+        "path": "zk/state_proof_risc0/shared/Cargo.toml",
+        "sha256": "6a21ba0c312f684df8ce8703facb4badec2f0f85721d30c83bdce30c192c299c",
+        "size_bytes": 372
+      },
+      {
+        "path": "zk/state_proof_risc0/shared/src/lib.rs",
+        "sha256": "2225db4754f6a868c307699b19a880bcd6471cfe6d91e885086fa0b58af2bc21",
+        "size_bytes": 404214
+      },
+      {
+        "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+        "sha256": "5d78c536c97cbf1767f6ddbb282a11da0d36ce262c8c42c0263b6cce33f1474a",
+        "size_bytes": 153967
+      },
+      {
+        "path": "zk/state_proof_risc0/shared/src/surfaces.rs",
+        "sha256": "4ecf23abd29475fc0e024ce82123b96d7082cb74e0e2eaf5005f28e93737f215",
+        "size_bytes": 107940
+      }
+    ],
+    "registry_source_closure": {
+      "package_count": 266,
+      "root_algorithm": "sha256(sorted(package_dir_utf8 || nul || lock_checksum_ascii || nul))",
+      "root_sha256": "5228316a53923c33e00ed1cf0974e5779aafd26bc50ea05c1773ad496df05830",
+      "verification": "lock_checksum_plus_cached_crate_and_extracted_tree_equality"
+    },
+    "root_algorithm": "sha256(sorted(path_utf8 || nul || file_sha256_ascii || nul))",
+    "root_sha256": "38676d8eb843ba20a0511746552d4d57107be4b7956dd306552095f92cf763dd",
+    "scopes": [
+      "zk/recursive_stark_v2_risc0",
+      "zk/state_proof_risc0/shared"
+    ]
+  },
+  "version": 1
+}

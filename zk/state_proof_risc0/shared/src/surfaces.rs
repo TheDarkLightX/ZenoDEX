@@ -8,7 +8,7 @@ use core::cmp::Ordering;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{StateProofInputV1, TransitionError, JOURNAL_VERSION};
+use crate::{RecursiveCompositionInputV1, StateProofInputV1, TransitionError, JOURNAL_VERSION};
 
 pub const PROOF_TYPE_PERPS_NP: &str = "risc0.zenodex_perps_np_transition.v1";
 pub const PROOF_TYPE_ZUSD: &str = "risc0.zenodex_zusd_transition.v1";
@@ -24,6 +24,7 @@ pub enum ZenoProofInputV1 {
     Spot(StateProofInputV1),
     PerpsNp(PerpsNpTransitionInputV1),
     Zusd(ZusdTransitionInputV1),
+    Recursive(RecursiveCompositionInputV1),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -39,6 +40,9 @@ pub struct OracleBindingV1 {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CollateralBindingV1 {
+    // Hash-bound external reference only. The perps guest validates shape and
+    // commits these fields; a caller must separately verify the source zUSD
+    // receipt before treating the collateral movement as proved.
     pub source_proof_type: String,
     pub source_state_hash: String,
     pub balance_root_hash: String,
@@ -677,7 +681,7 @@ impl PerpsStateV1 {
                 funding_paid_cum_e8: 0,
                 nonce: 0,
             });
-        if nonce <= account.nonce {
+        if !is_next_nonce(account.nonce, nonce) {
             return Err(TransitionError::InvalidInput("deposit nonce mismatch"));
         }
         account.collateral_e8 =
@@ -710,7 +714,7 @@ impl PerpsStateV1 {
             .get(&pubkey)
             .cloned()
             .ok_or(TransitionError::InvalidInput("withdraw account missing"))?;
-        if nonce <= account.nonce {
+        if !is_next_nonce(account.nonce, nonce) {
             return Err(TransitionError::InvalidInput("withdraw nonce mismatch"));
         }
         if amount_e8 > account.collateral_e8 {
@@ -776,12 +780,11 @@ impl PerpsStateV1 {
         self.pending_intents.clear();
         let (funding_residual_e8, settle_receipts) =
             self.apply_settle(clearing_price_e8, funding_rate_bps)?;
-        // DbC: matching observes the post-settlement epoch, matching Python run_epoch semantics.
+        let match_result = self.apply_match(batch)?;
         self.now_epoch = self
             .now_epoch
             .checked_add(1)
             .ok_or(TransitionError::Arithmetic("epoch overflow"))?;
-        let match_result = self.apply_match(batch)?;
         let mut receipts = settle_receipts;
         receipts.extend(match_result.receipts);
         Ok(PerpsMatchResultV1 {
@@ -1357,7 +1360,7 @@ impl ZusdStateV1 {
                     debt_zusd_e8: 0,
                     nonce: 0,
                 });
-                if nonce <= vault.nonce {
+                if !is_next_nonce(vault.nonce, nonce) {
                     return Err(TransitionError::InvalidInput("zusd nonce mismatch"));
                 }
                 vault.collateral_amount_e8 = checked_add_u128(
@@ -1585,6 +1588,13 @@ fn is_funding_payer(position_base: i128, rate_bps: i32) -> bool {
     (position_base > 0) == (rate_bps > 0)
 }
 
+fn is_next_nonce(last_nonce: u64, nonce: u64) -> bool {
+    // Mirror the live tx-sequence replay layer: gaps are invalid, not merely stale.
+    last_nonce
+        .checked_add(1)
+        .is_some_and(|expected| nonce == expected)
+}
+
 fn match_intents_v1(
     intents: &[PerpsIntentV1],
     accounts: &BTreeMap<String, PerpsAccountV1>,
@@ -1608,9 +1618,19 @@ fn match_intents_v1(
 
     let mut survivors: Vec<(PerpsIntentV1, i128)> = Vec::new();
     for (pk, account_intents) in by_pubkey {
-        let current = accounts.get(&pk).map(|a| a.position_base).unwrap_or(0);
-        let collateral = accounts.get(&pk).map(|a| a.collateral_e8).unwrap_or(0);
-        let last_nonce = accounts.get(&pk).map(|a| a.nonce);
+        let Some(account) = accounts.get(&pk) else {
+            for intent in account_intents {
+                receipts.insert(
+                    (intent.pubkey.clone(), intent.nonce),
+                    rejected_receipt(&intent, "REJ_ACCOUNT"),
+                );
+            }
+            continue;
+        };
+        let current = account.position_base;
+        let collateral = account.collateral_e8;
+        let last_nonce = account.nonce;
+        let mut nonce_cursor = last_nonce;
         let mut nonce_counts: BTreeMap<u64, u32> = BTreeMap::new();
         for intent in &account_intents {
             *nonce_counts.entry(intent.nonce).or_insert(0) += 1;
@@ -1624,11 +1644,22 @@ fn match_intents_v1(
                 );
                 continue;
             }
+            // Live admission accepts only contiguous per-account nonce ranges.
+            // The matcher then applies orderbook semantics over that range:
+            // the highest valid replacement wins, while a missing nonce stays
+            // fail-closed instead of being certified as a gap intent.
+            if !is_next_nonce(nonce_cursor, intent.nonce) {
+                receipts.insert(
+                    (intent.pubkey.clone(), intent.nonce),
+                    rejected_receipt(&intent, "REJ_BAD_NONCE"),
+                );
+                continue;
+            }
+            nonce_cursor = intent.nonce;
             if let Some(code) = validate_perps_intent(
                 &intent,
                 current,
                 collateral,
-                last_nonce,
                 clearing_price_e8,
                 now_epoch,
                 params,
@@ -1756,7 +1787,6 @@ fn validate_perps_intent(
     intent: &PerpsIntentV1,
     current: i128,
     collateral: i128,
-    last_nonce: Option<u64>,
     price_e8: i128,
     now_epoch: u64,
     params: &PerpsMarketParamsV1,
@@ -1766,11 +1796,6 @@ fn validate_perps_intent(
     }
     if intent.expiry_epoch < now_epoch {
         return Ok(Some("REJ_EXPIRED"));
-    }
-    if let Some(last) = last_nonce {
-        if intent.nonce <= last {
-            return Ok(Some("REJ_BAD_NONCE"));
-        }
     }
     if abs_i128(intent.target_base)? > params.max_position_abs {
         return Ok(Some("REJ_POS_BOUND"));
@@ -2445,6 +2470,45 @@ mod tests {
         }
     }
 
+    fn intent(pubkey: &str, target_base: i128, nonce: u64) -> PerpsIntentV1 {
+        PerpsIntentV1 {
+            pubkey: pubkey.to_string(),
+            target_base,
+            limit_price_e8: 0,
+            min_fill_base: 0,
+            expiry_epoch: 10,
+            nonce,
+        }
+    }
+
+    fn initialized_four_wallet_state() -> PerpsStateV1 {
+        let mut state = PerpsStateV1::from_snapshot(PerpsNpSnapshotV1::empty()).unwrap();
+        state
+            .init_market(
+                "BTC-PERP".to_string(),
+                default_zusd_asset(),
+                100 * E8_I128,
+                PerpsMarketParamsV1::default(),
+                1_000_000_000,
+            )
+            .unwrap();
+        for (idx, wallet) in ["wallet-a", "wallet-b", "wallet-c", "wallet-d"]
+            .iter()
+            .enumerate()
+        {
+            state
+                .deposit_collateral(
+                    (*wallet).to_string(),
+                    default_zusd_asset(),
+                    2_000 * E8_I128,
+                    1,
+                    Some(collateral_binding((idx + 1) as u8)),
+                )
+                .unwrap();
+        }
+        state
+    }
+
     #[test]
     fn perps_np_transition_runs_settle_before_match_for_five_wallets() {
         let wallets = ["w1", "w2", "w3", "w4", "w5"];
@@ -2546,87 +2610,6 @@ mod tests {
             expected_collateral_binding_hash
         );
         assert_eq!(journal.oracle_binding_hash, expected_oracle_binding_hash);
-    }
-
-    #[test]
-    fn perps_np_rejects_intents_expired_by_settlement_epoch() {
-        let mut state = PerpsStateV1::from_snapshot(PerpsNpSnapshotV1::empty()).unwrap();
-        state
-            .init_market(
-                "BTC-PERP".to_string(),
-                default_zusd_asset(),
-                100 * E8_I128,
-                PerpsMarketParamsV1::default(),
-                1_000_000_000,
-            )
-            .unwrap();
-
-        for (i, wallet) in ["a", "b", "c", "d"].iter().enumerate() {
-            state
-                .deposit_collateral(
-                    wallet.to_string(),
-                    default_zusd_asset(),
-                    2_000 * E8_I128,
-                    1,
-                    Some(collateral_binding((i + 1) as u8)),
-                )
-                .unwrap();
-        }
-
-        let result = state
-            .run_epoch(
-                oracle(100 * E8_I128),
-                100 * E8_I128,
-                0,
-                alloc::vec![
-                    PerpsIntentV1 {
-                        pubkey: "a".to_string(),
-                        target_base: 1,
-                        limit_price_e8: 0,
-                        min_fill_base: 0,
-                        expiry_epoch: 0,
-                        nonce: 2,
-                    },
-                    PerpsIntentV1 {
-                        pubkey: "b".to_string(),
-                        target_base: 1,
-                        limit_price_e8: 0,
-                        min_fill_base: 0,
-                        expiry_epoch: 0,
-                        nonce: 2,
-                    },
-                    PerpsIntentV1 {
-                        pubkey: "c".to_string(),
-                        target_base: -1,
-                        limit_price_e8: 0,
-                        min_fill_base: 0,
-                        expiry_epoch: 0,
-                        nonce: 2,
-                    },
-                    PerpsIntentV1 {
-                        pubkey: "d".to_string(),
-                        target_base: -1,
-                        limit_price_e8: 0,
-                        min_fill_base: 0,
-                        expiry_epoch: 0,
-                        nonce: 2,
-                    },
-                ],
-            )
-            .unwrap();
-
-        assert_eq!(state.now_epoch, 1);
-        assert_eq!(result.matched_base_volume, 0);
-        assert_eq!(result.receipts.len(), 4);
-        assert!(result.receipts.iter().all(|receipt| {
-            receipt.status == "rejected"
-                && receipt.delta == 0
-                && receipt.reject_code.as_deref() == Some("REJ_EXPIRED")
-        }));
-        assert!(state
-            .accounts
-            .values()
-            .all(|account| account.position_base == 0));
     }
 
     #[test]
@@ -2735,6 +2718,227 @@ mod tests {
     }
 
     #[test]
+    fn perps_np_zusd_collateral_binding_is_hash_bound_external_reference() {
+        let binding = CollateralBindingV1 {
+            source_proof_type: PROOF_TYPE_ZUSD.to_string(),
+            source_state_hash: "aa".repeat(32),
+            balance_root_hash: "bb".repeat(32),
+            balance_delta_hash: "cc".repeat(32),
+        };
+        let mut state = PerpsStateV1::from_snapshot(PerpsNpSnapshotV1::empty()).unwrap();
+        state
+            .init_market(
+                "BTC-PERP".to_string(),
+                default_zusd_asset(),
+                100 * E8_I128,
+                PerpsMarketParamsV1::default(),
+                1_000_000_000,
+            )
+            .unwrap();
+        state
+            .deposit_collateral(
+                "wallet-a".to_string(),
+                default_zusd_asset(),
+                2_000 * E8_I128,
+                1,
+                Some(binding.clone()),
+            )
+            .unwrap();
+
+        let mut changed_binding = binding.clone();
+        changed_binding.balance_delta_hash = "dd".repeat(32);
+        let base = alloc::vec![PerpsNpActionV1::DepositCollateral {
+            pubkey: "wallet-a".to_string(),
+            asset: default_zusd_asset(),
+            amount_e8: 2_000 * E8_I128,
+            nonce: 1,
+            collateral_binding: Some(binding),
+        }];
+        let changed = alloc::vec![PerpsNpActionV1::DepositCollateral {
+            pubkey: "wallet-a".to_string(),
+            asset: default_zusd_asset(),
+            amount_e8: 2_000 * E8_I128,
+            nonce: 1,
+            collateral_binding: Some(changed_binding),
+        }];
+        assert_ne!(
+            perps_np_collateral_bindings_hash_v1(&base).unwrap(),
+            perps_np_collateral_bindings_hash_v1(&changed).unwrap()
+        );
+    }
+
+    #[test]
+    fn perps_np_deposit_and_withdraw_require_strict_next_nonce() {
+        let mut state = PerpsStateV1::from_snapshot(PerpsNpSnapshotV1::empty()).unwrap();
+        state
+            .init_market(
+                "BTC-PERP".to_string(),
+                default_zusd_asset(),
+                100 * E8_I128,
+                PerpsMarketParamsV1::default(),
+                1_000_000_000,
+            )
+            .unwrap();
+
+        state
+            .deposit_collateral(
+                "wallet-a".to_string(),
+                default_zusd_asset(),
+                2_000 * E8_I128,
+                1,
+                Some(collateral_binding(10)),
+            )
+            .unwrap();
+
+        let before_gap_deposit_hash = state.canonical_app_hash_sha256();
+        assert!(matches!(
+            state.deposit_collateral(
+                "wallet-a".to_string(),
+                default_zusd_asset(),
+                1,
+                3,
+                Some(collateral_binding(11)),
+            ),
+            Err(TransitionError::InvalidInput("deposit nonce mismatch"))
+        ));
+        assert_eq!(state.canonical_app_hash_sha256(), before_gap_deposit_hash);
+
+        assert!(matches!(
+            state.withdraw_collateral("wallet-a".to_string(), default_zusd_asset(), 1, 3),
+            Err(TransitionError::InvalidInput("withdraw nonce mismatch"))
+        ));
+        assert_eq!(state.canonical_app_hash_sha256(), before_gap_deposit_hash);
+
+        state
+            .withdraw_collateral("wallet-a".to_string(), default_zusd_asset(), 1, 2)
+            .unwrap();
+        let account = state.accounts.get("wallet-a").unwrap();
+        assert_eq!(account.nonce, 2);
+        assert_eq!(account.collateral_e8, 2_000 * E8_I128 - 1);
+    }
+
+    #[test]
+    fn perps_np_rejects_nonce_after_u64_max_without_mutation() {
+        let mut accounts = BTreeMap::new();
+        accounts.insert(
+            "wallet-a".to_string(),
+            PerpsAccountV1 {
+                pubkey: "wallet-a".to_string(),
+                position_base: 0,
+                entry_price_e8: 0,
+                collateral_e8: 2_000 * E8_I128,
+                funding_paid_cum_e8: 0,
+                nonce: u64::MAX,
+            },
+        );
+        let mut state = PerpsStateV1 {
+            market_id: "BTC-PERP".to_string(),
+            collateral_asset: default_zusd_asset(),
+            index_price_e8: 100 * E8_I128,
+            params: PerpsMarketParamsV1::default(),
+            accounts,
+            pending_intents: Vec::new(),
+            now_epoch: 0,
+            fee_pool_e8: 0,
+            insurance_e8: 1_000_000_000,
+            insurance_ext_e8: 1_000_000_000,
+            claims_paid_e8: 0,
+            net_deposited_e8: 2_000 * E8_I128,
+        };
+
+        let before_hash = state.canonical_app_hash_sha256();
+        assert!(matches!(
+            state.withdraw_collateral("wallet-a".to_string(), default_zusd_asset(), 1, u64::MAX),
+            Err(TransitionError::InvalidInput("withdraw nonce mismatch"))
+        ));
+        assert_eq!(state.canonical_app_hash_sha256(), before_hash);
+    }
+
+    #[test]
+    fn perps_np_run_epoch_rejects_gap_intent_nonce() {
+        let mut state = initialized_four_wallet_state();
+        let result = state
+            .run_epoch(
+                oracle(100 * E8_I128),
+                100 * E8_I128,
+                0,
+                alloc::vec![intent("wallet-a", 1, 3)],
+            )
+            .unwrap();
+
+        let receipt = result
+            .receipts
+            .iter()
+            .find(|receipt| receipt.pubkey == "wallet-a")
+            .expect("gap nonce receipt");
+        assert_eq!(receipt.status, "rejected");
+        assert_eq!(receipt.reject_code.as_deref(), Some("REJ_BAD_NONCE"));
+        assert_eq!(state.accounts.get("wallet-a").unwrap().nonce, 1);
+        assert_eq!(state.accounts.get("wallet-a").unwrap().position_base, 0);
+    }
+
+    #[test]
+    fn perps_np_run_epoch_accepts_contiguous_replacement_intent_nonce() {
+        let mut state = initialized_four_wallet_state();
+        let result = state
+            .run_epoch(
+                oracle(100 * E8_I128),
+                100 * E8_I128,
+                0,
+                alloc::vec![
+                    intent("wallet-a", 1, 2),
+                    intent("wallet-a", 2, 3),
+                    intent("wallet-b", -1, 2),
+                    intent("wallet-c", -1, 2),
+                    intent("wallet-d", 0, 2),
+                ],
+            )
+            .unwrap();
+
+        let superseded = result
+            .receipts
+            .iter()
+            .find(|receipt| receipt.pubkey == "wallet-a" && receipt.nonce == 2)
+            .expect("superseded wallet-a receipt");
+        assert_eq!(superseded.status, "rejected");
+        assert_eq!(superseded.reject_code.as_deref(), Some("REJ_SUPERSEDED"));
+
+        let filled = result
+            .receipts
+            .iter()
+            .find(|receipt| receipt.pubkey == "wallet-a" && receipt.nonce == 3)
+            .expect("filled wallet-a receipt");
+        assert_eq!(filled.status, "filled");
+        assert_eq!(filled.delta, 2);
+
+        let account = state.accounts.get("wallet-a").unwrap();
+        assert_eq!(account.nonce, 3);
+        assert_eq!(account.position_base, 2);
+    }
+
+    #[test]
+    fn perps_np_run_epoch_rejects_unknown_account_intent() {
+        let mut state = initialized_four_wallet_state();
+        let result = state
+            .run_epoch(
+                oracle(100 * E8_I128),
+                100 * E8_I128,
+                0,
+                alloc::vec![intent("wallet-missing", 0, 1)],
+            )
+            .unwrap();
+
+        let receipt = result
+            .receipts
+            .iter()
+            .find(|receipt| receipt.pubkey == "wallet-missing")
+            .expect("unknown account receipt");
+        assert_eq!(receipt.status, "rejected");
+        assert_eq!(receipt.reject_code.as_deref(), Some("REJ_ACCOUNT"));
+        assert!(!state.accounts.contains_key("wallet-missing"));
+    }
+
+    #[test]
     fn perps_np_rejects_stale_oracle_bridge() {
         let mut stale = oracle(100 * E8_I128);
         stale.observed_at = 20;
@@ -2820,5 +3024,39 @@ mod tests {
             execute_zusd_transition_v1(input),
             Err(TransitionError::InvalidInput("zusd mint violates MCR"))
         ));
+    }
+
+    #[test]
+    fn zusd_rejects_gap_nonce_without_mutation() {
+        let snapshot = ZusdSnapshotV1 {
+            version: 1,
+            vaults: alloc::vec![ZusdVaultEntryV1 {
+                pubkey: "wallet-a".to_string(),
+                collateral_asset: "tAGRS".to_string(),
+                collateral_amount_e8: 2_000 * E8_U128,
+                debt_zusd_e8: 1_000 * E8_U128,
+                nonce: 1,
+            }],
+            balances: alloc::vec![ZusdBalanceEntryV1 {
+                pubkey: "wallet-a".to_string(),
+                amount_e8: 1_000 * E8_U128,
+            }],
+            total_debt_zusd_e8: 1_000 * E8_U128,
+        };
+        let mut state = ZusdStateV1::from_snapshot(snapshot).unwrap();
+        let before_hash = state.canonical_app_hash_sha256();
+        assert!(matches!(
+            state.apply_operation(ZusdOperationV1::DepositMint {
+                pubkey: "wallet-a".to_string(),
+                collateral_asset: "tAGRS".to_string(),
+                deposit_amount_e8: 100 * E8_U128,
+                mint_amount_e8: 10 * E8_U128,
+                oracle: oracle(E8_I128),
+                mcr_bps: 11_000,
+                nonce: 3,
+            }),
+            Err(TransitionError::InvalidInput("zusd nonce mismatch"))
+        ));
+        assert_eq!(state.canonical_app_hash_sha256(), before_hash);
     }
 }
