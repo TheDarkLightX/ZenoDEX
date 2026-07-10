@@ -117,6 +117,9 @@ dev-mode-disabled context containing only that hash suite. It then
 strict-decodes the exact journal, enforces journal program-image equality, and
 derives the claim binding locally before exposing a descriptor. Receipt
 security profile identity remains separate from the node computation profile.
+Persisted receipt callers use a 16 MiB pre-decode cap and exact typed JSON
+round-trip equality, which rejects duplicate, unknown, and noncanonical fields
+before proof verification.
 
 The RISC0 workspace additionally defines:
 
@@ -508,6 +511,8 @@ Current reference evidence includes:
   verifier;
 - unit rejection of verifier-parameter, hash-suite, control-ID, and metadata
   mutations before invalid-seal verification;
+- bounded canonical persisted-receipt tests covering empty, oversized,
+  duplicate-field, unknown-field, and noncanonical JSON;
 - missing source assumption and exact source-journal substitution rejection;
 - a proof-bearing false adapter self-label that verifies cryptographically and
   is rejected by the outer program-image equality check;

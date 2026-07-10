@@ -54,7 +54,9 @@ The adapter path:
 `VerifiedNodeReceiptV3` has private fields and enforces this order:
 
 ```text
-require the compiled RISC0 3.0.5 Succinct receipt-security profile
+reject an all-zero expected image ID
+  -> bound persisted receipt bytes and require exact typed JSON round-trip
+  -> require the compiled RISC0 3.0.5 Succinct receipt-security profile
   -> require metadata and inner verifier-parameter equality
   -> verify under an explicit Poseidon2-only, dev-mode-disabled context
   -> verify the receipt under the expected image
@@ -65,10 +67,13 @@ require the compiled RISC0 3.0.5 Succinct receipt-security profile
 ```
 
 The compiled receipt-security profile is
-`risc0_succinct_poseidon2_3_0_5_v1`. It pins the verifier-parameter digest,
-`poseidon2` hash suite, and control ID independently of the node computation
-profile. Unknown or mutated receipt-security fields reject before a verified
-node is returned. The explicit verifier context does not consult
+`risc0_succinct_poseidon2_resolve_3_0_5_v1`. It pins the verifier-parameter
+digest, `poseidon2` hash suite, and `resolve.zkr` control ID independently of
+the node computation profile. Other valid RISC0 control programs are outside
+this bounded profile. Unknown or mutated receipt-security fields reject before
+a verified node is returned. Persisted receipt JSON is capped at 16 MiB before decoding;
+duplicate, unknown, or noncanonical fields cannot survive the exact typed
+round-trip check. The explicit verifier context does not consult
 `RISC0_DEV_MODE`.
 
 This prevents a caller-selected claim hash or self-reported program label from

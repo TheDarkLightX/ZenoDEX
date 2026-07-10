@@ -12,7 +12,9 @@ use zenodex_zrpf_risc0_shared::{
     derive_risc0_verified_claim_binding_v1, risc0_image_words_to_bytes,
 };
 
-pub const ZRPF_RISC0_SUCCINCT_RECEIPT_PROFILE_ID_V1: &str = "risc0_succinct_poseidon2_3_0_5_v1";
+pub const ZRPF_RISC0_SUCCINCT_RECEIPT_PROFILE_ID_V1: &str =
+    "risc0_succinct_poseidon2_resolve_3_0_5_v1";
+pub const MAX_CANONICAL_RECEIPT_BYTES_V3: usize = 16 * 1_024 * 1_024;
 
 const RECEIPT_KIND_SUCCINCT_V1: &str = "succinct";
 const RECEIPT_VERIFIER_PARAMETERS_V1: &str =
@@ -63,6 +65,12 @@ impl VerifiedReceiptProfileV3 {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VerifiedNodeReceiptErrorV3 {
+    EmptyReceiptBytes,
+    ReceiptBytesTooLarge { actual: usize, maximum: usize },
+    ReceiptJsonDecode,
+    ReceiptJsonEncode,
+    NonCanonicalReceiptJson,
+    ZeroExpectedImageId,
     NonSuccinctReceipt,
     InvalidCompiledReceiptProfile(&'static str),
     ReceiptProfileMismatch(&'static str),
@@ -81,6 +89,12 @@ impl VerifiedNodeReceiptErrorV3 {
     /// admission adapters. Human-readable error text remains diagnostic.
     pub const fn code(self) -> &'static str {
         match self {
+            Self::EmptyReceiptBytes => "empty_receipt_bytes",
+            Self::ReceiptBytesTooLarge { .. } => "receipt_bytes_too_large",
+            Self::ReceiptJsonDecode => "receipt_json_decode",
+            Self::ReceiptJsonEncode => "receipt_json_encode",
+            Self::NonCanonicalReceiptJson => "noncanonical_receipt_json",
+            Self::ZeroExpectedImageId => "zero_expected_image_id",
             Self::NonSuccinctReceipt => "non_succinct_receipt",
             Self::InvalidCompiledReceiptProfile(_) => "invalid_compiled_receipt_profile",
             Self::ReceiptProfileMismatch(_) => "receipt_profile_mismatch",
@@ -99,6 +113,17 @@ impl VerifiedNodeReceiptErrorV3 {
 impl fmt::Display for VerifiedNodeReceiptErrorV3 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
+            Self::EmptyReceiptBytes => "node receipt bytes are empty",
+            Self::ReceiptBytesTooLarge { actual, maximum } => {
+                return write!(
+                    formatter,
+                    "node receipt has {actual} bytes, maximum is {maximum}"
+                );
+            }
+            Self::ReceiptJsonDecode => "node receipt JSON decode failed",
+            Self::ReceiptJsonEncode => "node receipt canonical JSON encode failed",
+            Self::NonCanonicalReceiptJson => "node receipt JSON is not canonical",
+            Self::ZeroExpectedImageId => "expected node image ID is zero",
             Self::NonSuccinctReceipt => "node receipt is not Succinct",
             Self::InvalidCompiledReceiptProfile(field) => {
                 return write!(
@@ -135,10 +160,32 @@ pub struct VerifiedNodeReceiptV3 {
 }
 
 impl VerifiedNodeReceiptV3 {
+    pub fn verify_canonical_succinct_bytes(
+        receipt_bytes: &[u8],
+        expected_image_id: [u32; 8],
+    ) -> Result<Self, VerifiedNodeReceiptErrorV3> {
+        validate_expected_image_id(expected_image_id)?;
+        let receipt = decode_canonical_receipt_bytes(receipt_bytes)?;
+        Self::verify_canonical_succinct(receipt, expected_image_id)
+    }
+
+    pub fn verify_exact_succinct_bytes(
+        receipt_bytes: &[u8],
+        expected_image_id: [u32; 8],
+        expected_journal: &NodeJournalV3,
+    ) -> Result<Self, VerifiedNodeReceiptErrorV3> {
+        validate_expected_image_id(expected_image_id)?;
+        let receipt = decode_canonical_receipt_bytes(receipt_bytes)?;
+        Self::verify_exact_succinct(receipt, expected_image_id, expected_journal)
+    }
+
+    /// Verifies an in-memory receipt produced by a prover. Persisted receipt
+    /// artifacts must use `verify_canonical_succinct_bytes`.
     pub fn verify_canonical_succinct(
         receipt: Receipt,
         expected_image_id: [u32; 8],
     ) -> Result<Self, VerifiedNodeReceiptErrorV3> {
+        validate_expected_image_id(expected_image_id)?;
         let receipt_profile = verify_pinned_succinct_profile(&receipt)?;
         let verifier_context = explicit_succinct_verifier_context()?;
         receipt
@@ -205,6 +252,37 @@ impl VerifiedNodeReceiptV3 {
     pub fn into_receipt(self) -> Receipt {
         self.receipt
     }
+}
+
+fn validate_expected_image_id(
+    expected_image_id: [u32; 8],
+) -> Result<(), VerifiedNodeReceiptErrorV3> {
+    if expected_image_id.iter().all(|word| *word == 0) {
+        return Err(VerifiedNodeReceiptErrorV3::ZeroExpectedImageId);
+    }
+    Ok(())
+}
+
+fn decode_canonical_receipt_bytes(
+    receipt_bytes: &[u8],
+) -> Result<Receipt, VerifiedNodeReceiptErrorV3> {
+    if receipt_bytes.is_empty() {
+        return Err(VerifiedNodeReceiptErrorV3::EmptyReceiptBytes);
+    }
+    if receipt_bytes.len() > MAX_CANONICAL_RECEIPT_BYTES_V3 {
+        return Err(VerifiedNodeReceiptErrorV3::ReceiptBytesTooLarge {
+            actual: receipt_bytes.len(),
+            maximum: MAX_CANONICAL_RECEIPT_BYTES_V3,
+        });
+    }
+    let receipt: Receipt = serde_json::from_slice(receipt_bytes)
+        .map_err(|_| VerifiedNodeReceiptErrorV3::ReceiptJsonDecode)?;
+    let canonical =
+        serde_json::to_vec(&receipt).map_err(|_| VerifiedNodeReceiptErrorV3::ReceiptJsonEncode)?;
+    if canonical.as_slice() != receipt_bytes {
+        return Err(VerifiedNodeReceiptErrorV3::NonCanonicalReceiptJson);
+    }
+    Ok(receipt)
 }
 
 const fn expected_receipt_profile() -> ExpectedReceiptProfileV3 {
@@ -332,7 +410,7 @@ mod tests {
         expected_receipt_profile, explicit_succinct_verifier_context, is_lower_hex32,
         require_receipt_profile_match, validate_compiled_receipt_profile,
         VerifiedNodeReceiptErrorV3, VerifiedNodeReceiptV3, VerifiedReceiptProfileV3,
-        ZRPF_RISC0_SUCCINCT_RECEIPT_PROFILE_ID_V1,
+        MAX_CANONICAL_RECEIPT_BYTES_V3, ZRPF_RISC0_SUCCINCT_RECEIPT_PROFILE_ID_V1,
     };
     use zenodex_zrpf_risc0_shared::{
         derive_risc0_verified_claim_binding_v1, risc0_image_words_to_bytes,
@@ -388,6 +466,15 @@ mod tests {
     #[test]
     fn verifier_reject_codes_are_stable_and_unique() {
         let errors = [
+            VerifiedNodeReceiptErrorV3::EmptyReceiptBytes,
+            VerifiedNodeReceiptErrorV3::ReceiptBytesTooLarge {
+                actual: 2,
+                maximum: 1,
+            },
+            VerifiedNodeReceiptErrorV3::ReceiptJsonDecode,
+            VerifiedNodeReceiptErrorV3::ReceiptJsonEncode,
+            VerifiedNodeReceiptErrorV3::NonCanonicalReceiptJson,
+            VerifiedNodeReceiptErrorV3::ZeroExpectedImageId,
             VerifiedNodeReceiptErrorV3::NonSuccinctReceipt,
             VerifiedNodeReceiptErrorV3::InvalidCompiledReceiptProfile("test"),
             VerifiedNodeReceiptErrorV3::ReceiptProfileMismatch("test"),
@@ -404,6 +491,8 @@ mod tests {
         assert_eq!(codes.len(), errors.len());
         assert!(codes.contains("receipt_verification_failed"));
         assert!(codes.contains("receipt_profile_mismatch"));
+        assert!(codes.contains("zero_expected_image_id"));
+        assert!(codes.contains("noncanonical_receipt_json"));
     }
 
     #[test]
@@ -482,6 +571,12 @@ mod tests {
     fn typed_receipt_profile_mutations_reject_before_invalid_seal() {
         let baseline = invalid_exact_profile_succinct_receipt();
         assert_eq!(
+            VerifiedNodeReceiptV3::verify_canonical_succinct(baseline.clone(), [0; 8])
+                .err()
+                .expect("zero image must reject"),
+            VerifiedNodeReceiptErrorV3::ZeroExpectedImageId
+        );
+        assert_eq!(
             VerifiedNodeReceiptV3::verify_canonical_succinct(baseline.clone(), IMAGE_ID)
                 .err()
                 .expect("invalid seal must reject"),
@@ -540,6 +635,65 @@ mod tests {
             .err()
             .expect("metadata mutation must reject"),
             VerifiedNodeReceiptErrorV3::ReceiptMetadataMismatch
+        );
+    }
+
+    #[test]
+    fn persisted_receipt_bytes_are_bounded_exact_and_typed() {
+        assert_eq!(
+            VerifiedNodeReceiptV3::verify_canonical_succinct_bytes(&[], IMAGE_ID)
+                .err()
+                .expect("empty bytes must reject"),
+            VerifiedNodeReceiptErrorV3::EmptyReceiptBytes
+        );
+        let oversized = vec![0u8; MAX_CANONICAL_RECEIPT_BYTES_V3 + 1];
+        assert_eq!(
+            VerifiedNodeReceiptV3::verify_canonical_succinct_bytes(&oversized, IMAGE_ID)
+                .err()
+                .expect("oversized bytes must reject"),
+            VerifiedNodeReceiptErrorV3::ReceiptBytesTooLarge {
+                actual: MAX_CANONICAL_RECEIPT_BYTES_V3 + 1,
+                maximum: MAX_CANONICAL_RECEIPT_BYTES_V3,
+            }
+        );
+
+        let baseline = invalid_exact_profile_succinct_receipt();
+        let canonical = serde_json::to_vec(&baseline).expect("canonical receipt JSON");
+        assert_eq!(
+            VerifiedNodeReceiptV3::verify_canonical_succinct_bytes(&canonical, IMAGE_ID)
+                .err()
+                .expect("invalid seal must reject"),
+            VerifiedNodeReceiptErrorV3::ReceiptVerificationFailed
+        );
+
+        let mut whitespace = vec![b' '];
+        whitespace.extend_from_slice(&canonical);
+        assert_eq!(
+            VerifiedNodeReceiptV3::verify_canonical_succinct_bytes(&whitespace, IMAGE_ID)
+                .err()
+                .expect("noncanonical whitespace must reject"),
+            VerifiedNodeReceiptErrorV3::NonCanonicalReceiptJson
+        );
+
+        let mut unknown = serde_json::to_value(&baseline).expect("receipt JSON");
+        unknown["unknown_authority"] = json!(true);
+        let unknown_bytes = serde_json::to_vec(&unknown).expect("unknown-field JSON");
+        assert_eq!(
+            VerifiedNodeReceiptV3::verify_canonical_succinct_bytes(&unknown_bytes, IMAGE_ID)
+                .err()
+                .expect("unknown field must reject"),
+            VerifiedNodeReceiptErrorV3::NonCanonicalReceiptJson
+        );
+
+        let duplicate = format!(
+            "{{\"inner\":null,{}",
+            core::str::from_utf8(&canonical[1..]).expect("canonical JSON UTF-8")
+        );
+        assert_eq!(
+            VerifiedNodeReceiptV3::verify_canonical_succinct_bytes(duplicate.as_bytes(), IMAGE_ID,)
+                .err()
+                .expect("duplicate field must reject"),
+            VerifiedNodeReceiptErrorV3::ReceiptJsonDecode
         );
     }
 

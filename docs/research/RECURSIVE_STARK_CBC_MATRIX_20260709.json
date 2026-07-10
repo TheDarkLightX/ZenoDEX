@@ -1049,7 +1049,7 @@
       "status": "implemented_partial",
       "defense_layer": "guarded_transition",
       "disaster_state": "a structurally valid V3 journal or caller-selected claim hash is treated as proof-authorized child state",
-      "construction_rule": "the V3 adapter verifies the exact governed source receipt before projection; the sealed outer verifier pins the exact RISC0 3.0.5 Succinct receipt-security profile, uses an explicit dev-mode-disabled verifier context, checks the actual adapter image, and derives the claim binding locally; each bounded structural aggregate guest verifies every exact child receipt under its compile-time child image before decoding or composing the common-node journal",
+      "construction_rule": "the V3 adapter verifies the exact governed source receipt before projection; persisted receipts cross a bounded exact typed JSON boundary; the sealed outer verifier pins the exact RISC0 3.0.5 Succinct receipt-security profile, uses an explicit dev-mode-disabled verifier context, checks the actual adapter image, and derives the claim binding locally; each bounded structural aggregate guest verifies every exact child receipt under its compile-time child image before decoding or composing the common-node journal",
       "code_refs": [
         {
           "path": "zk/zrpf_risc0/methods/v1_leaf_adapter/src/main.rs",
@@ -1108,6 +1108,10 @@
         {
           "path": "zk/zrpf_risc0/verifier/src/lib.rs",
           "symbol": "compiled_succinct_profile_is_exact_and_context_is_explicit"
+        },
+        {
+          "path": "zk/zrpf_risc0/verifier/src/lib.rs",
+          "symbol": "persisted_receipt_bytes_are_bounded_exact_and_typed"
         },
         {
           "path": "zk/zrpf_risc0/aggregate_shared/tests/structural_v1.rs",

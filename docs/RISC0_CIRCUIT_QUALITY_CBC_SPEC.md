@@ -101,10 +101,13 @@ The additive `zk/zrpf_risc0` workspace contains the pure Spot V1-to-V3 mapping,
 a receipt-authenticated adapter guest, a private-construction host verifier,
 and an evidence harness. The guest verifies the exact governed Spot receipt
 assumption before decoding and projecting its journal. The host verifier then
-verifies the adapter receipt, enforces exact journal equality, compares the
-journal program ID with the image actually verified, derives the child claim
-binding locally, and only then exposes a child descriptor. The current
-temporary-path adapter image is
+requires the compiled RISC0 3.0.5 Succinct verifier-parameter digest,
+Poseidon2 hash suite, control ID, and metadata equality. It verifies through an
+explicit dev-mode-disabled context. Persisted receipts first cross a 16 MiB
+pre-decode cap and exact typed JSON round-trip check. The verifier then enforces
+exact journal equality, compares the journal program ID with the image actually
+verified, derives the child claim binding locally, and only then exposes a
+child descriptor. The retained temporary-path adapter image is
 `71f282b5517fc6108988c1cc9b4601807a40ae331c0e0f0f5505d12b241e5574`.
 Positive proving, persisted-receipt replay, missing assumption, exact-journal
 substitution, and proof-bearing false self-label controls pass locally.
@@ -125,7 +128,11 @@ The path-redacted structural-tree evidence record is
 `docs/research/ZRPF_V3_STRUCTURAL_TREE_TEMPORARY_LOCAL_EVIDENCE_20260710.json`.
 Its Python checker verifies reviewed facts, source closures, and optional
 artifact bytes; the Rust verifier-only harness remains the receipt-seal and
-exact-journal authority.
+exact-journal authority. The exact receipt-profile hardening changes the host
+verifier source and binary without changing guest or `NodeJournalV3` bytes.
+The retained evidence record predates that host change, so its source-closure
+checker must reject until a fresh verifier build and replay transcript replace
+the stale verifier evidence.
 
 The compatibility journal labels its count as one source-transition receipt
 and uses explicit unsupported sentinels for DA-certificate and carry facts. Its

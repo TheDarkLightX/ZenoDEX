@@ -238,10 +238,10 @@ fn verify_tree(options: &Options) -> Result<VerifiedStructuralTree, String> {
         .iter()
         .enumerate()
         .map(|(index, path)| {
-            let receipt =
-                load_canonical_receipt(path).map_err(|error| format!("leaf {index}: {error}"))?;
-            VerifiedNodeReceiptV3::verify_canonical_succinct(
-                receipt,
+            let receipt_bytes = read_bounded_regular_file(path)
+                .map_err(|error| format!("leaf {index}: {error}"))?;
+            VerifiedNodeReceiptV3::verify_canonical_succinct_bytes(
+                &receipt_bytes,
                 ZENODEX_ZRPF_RISC0_V1_LEAF_ADAPTER_ID,
             )
             .map_err(|error| format!("leaf {index} sealed verification: {error}"))
@@ -356,9 +356,14 @@ fn verify_exact_node(
     let expected_image_id = input.expected_self_image_id;
     let expected = compose_structural_aggregate_after_receipt_verification_v1(&input, policy)
         .map_err(|error| format!("{label} host structural composition rejected: {error}"))?;
-    let receipt = load_canonical_receipt(path).map_err(|error| format!("{label}: {error}"))?;
-    VerifiedNodeReceiptV3::verify_exact_succinct(receipt, expected_image_id, &expected.journal)
-        .map_err(|error| format!("{label} exact sealed verification: {error}"))
+    let receipt_bytes =
+        read_bounded_regular_file(path).map_err(|error| format!("{label}: {error}"))?;
+    VerifiedNodeReceiptV3::verify_exact_succinct_bytes(
+        &receipt_bytes,
+        expected_image_id,
+        &expected.journal,
+    )
+    .map_err(|error| format!("{label} exact sealed verification: {error}"))
 }
 
 fn node_input(

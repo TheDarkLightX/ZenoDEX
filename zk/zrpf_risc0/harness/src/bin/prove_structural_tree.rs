@@ -182,13 +182,7 @@ fn load_verified_receipt(
     expected_image_id: [u32; 8],
 ) -> Result<VerifiedNodeReceiptV3, String> {
     let bytes = read_bounded_file(path)?;
-    let receipt: Receipt =
-        serde_json::from_slice(&bytes).map_err(|error| format!("receipt JSON: {error}"))?;
-    let canonical = canonical_receipt_bytes(&receipt)?;
-    if canonical != bytes {
-        return Err("receipt JSON is not canonical".to_owned());
-    }
-    VerifiedNodeReceiptV3::verify_canonical_succinct(receipt, expected_image_id)
+    VerifiedNodeReceiptV3::verify_canonical_succinct_bytes(&bytes, expected_image_id)
         .map_err(|error| format!("verified node boundary: {error}"))
 }
 
