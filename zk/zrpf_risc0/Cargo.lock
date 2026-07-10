@@ -3566,6 +3566,7 @@ name = "zenodex-zrpf-risc0-verifier"
 version = "0.1.0"
 dependencies = [
  "risc0-zkvm",
+ "serde_json",
  "zenodex-zrpf-protocol-v3",
  "zenodex-zrpf-risc0-shared",
 ]

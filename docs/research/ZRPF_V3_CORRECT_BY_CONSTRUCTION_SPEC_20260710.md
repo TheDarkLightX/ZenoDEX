@@ -111,8 +111,12 @@ Decoded structural validity carries no proof authority. Public deserialization
 and `ProjectedChildDescriptorV3::project_canonical_journal` do not verify a
 receipt. The sealed `VerifiedNodeReceiptV3` boundary owns that seam for the
 current RISC0 profile. It verifies a Succinct receipt under the expected image,
+requires the exact compiled RISC0 3.0.5 verifier-parameter digest, Poseidon2
+hash suite, control ID, and metadata equality, and verifies through an explicit
+dev-mode-disabled context containing only that hash suite. It then
 strict-decodes the exact journal, enforces journal program-image equality, and
-derives the claim binding locally before exposing a descriptor.
+derives the claim binding locally before exposing a descriptor. Receipt
+security profile identity remains separate from the node computation profile.
 
 The RISC0 workspace additionally defines:
 
@@ -502,6 +506,8 @@ Current reference evidence includes:
   public journals match their independent host projections;
 - persisted adapter-receipt replay through a private-construction sealed
   verifier;
+- unit rejection of verifier-parameter, hash-suite, control-ID, and metadata
+  mutations before invalid-seal verification;
 - missing source assumption and exact source-journal substitution rejection;
 - a proof-bearing false adapter self-label that verifies cryptographically and
   is rejected by the outer program-image equality check;
@@ -529,6 +535,12 @@ The exact persisted root receipt SHA-256 is
 `021af13025e7dc7c40e06d689ad30e3194e58793435cd11ae07d684c80ddfd33`.
 Proof serialization can differ across proving runs. This is one local evidence
 instance tied to temporary compiler-visible build paths.
+
+The receipt-profile change does not alter guest programs or `NodeJournalV3`
+bytes. It does change host verifier source and binary identity. The prior
+source-frozen verifier manifest therefore does not attest the new boundary;
+fresh replay and source-frozen verifier evidence are required before any
+release or public-replay promotion.
 
 ## Promotion Boundary
 
@@ -570,11 +582,11 @@ construction.
 
 ## Next Safest Build
 
-1. Pin source closure, program IDs, receipts, verifier binaries, replay and
-   rejection transcripts, and an evidence manifest for the structural proof
-   instance.
-2. Add any remaining proof-bearing wrong-image, seal-mutation, and non-Succinct
-   controls.
+1. Regenerate the source closure, verifier binary identity, replay transcript,
+   receipt-profile mutation transcript, and evidence manifest for the hardened
+   host verifier.
+2. Preserve the existing proof-bearing wrong-image, seal-mutation,
+   non-Succinct, and exact-journal controls in that regenerated evidence.
 3. Define a separate closed-epoch semantic disclosure profile and native V3
    leaves that can recompute every parent commitment without compatibility
    sentinels.

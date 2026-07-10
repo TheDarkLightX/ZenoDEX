@@ -9,3 +9,6 @@ publish = false
 risc0-zkvm = { version = "=3.0.5", features = ["disable-dev-mode"] }
 zenodex-zrpf-protocol-v3 = { path = "../../zrpf_protocol/protocol" }
 zenodex-zrpf-risc0-shared = { path = "../shared" }
+
+[dev-dependencies]
+serde_json = "1.0"

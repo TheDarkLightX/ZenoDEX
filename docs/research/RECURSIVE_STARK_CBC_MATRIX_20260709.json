@@ -1049,7 +1049,7 @@
       "status": "implemented_partial",
       "defense_layer": "guarded_transition",
       "disaster_state": "a structurally valid V3 journal or caller-selected claim hash is treated as proof-authorized child state",
-      "construction_rule": "the V3 adapter verifies the exact governed source receipt before projection; the sealed outer verifier checks the actual adapter image and derives the claim binding locally; each bounded structural aggregate guest verifies every exact child receipt under its compile-time child image before decoding or composing the common-node journal",
+      "construction_rule": "the V3 adapter verifies the exact governed source receipt before projection; the sealed outer verifier pins the exact RISC0 3.0.5 Succinct receipt-security profile, uses an explicit dev-mode-disabled verifier context, checks the actual adapter image, and derives the claim binding locally; each bounded structural aggregate guest verifies every exact child receipt under its compile-time child image before decoding or composing the common-node journal",
       "code_refs": [
         {
           "path": "zk/zrpf_risc0/methods/v1_leaf_adapter/src/main.rs",
@@ -1103,7 +1103,11 @@
         },
         {
           "path": "zk/zrpf_risc0/verifier/src/lib.rs",
-          "symbol": "verified_claim_binding_binds_program_and_exact_journal"
+          "symbol": "typed_receipt_profile_mutations_reject_before_invalid_seal"
+        },
+        {
+          "path": "zk/zrpf_risc0/verifier/src/lib.rs",
+          "symbol": "compiled_succinct_profile_is_exact_and_context_is_explicit"
         },
         {
           "path": "zk/zrpf_risc0/aggregate_shared/tests/structural_v1.rs",
@@ -1131,8 +1135,8 @@
         "python3 tools/check_zrpf_v1_spot_adapter_temporary_evidence.py",
         "python3 tools/check_zrpf_v3_structural_tree_temporary_evidence.py"
       ],
-      "next_action": "add a proof-bearing seal-mutation control, preserve the governed outer image equality at every consumer, and keep semantic aggregation in RS-CBC-023",
-      "non_claim": "the temporary adapter image 71f282b5517fc6108988c1cc9b4601807a40ae331c0e0f0f5505d12b241e5574, level-one image 4272be5165f65e29cb134f815d6c6fc40d7f492979f596082cac10c3f0d43c2b, and level-two image 3b858d113cb155b2946e1c733fdf5fe5592b6bf46c903d0a3cfb322099845736 locally verify the bounded structural path; these temporary compiler-visible identities provide no release authority, governed admission, semantic composition, data-availability assurance, carry continuity, settlement authority, or production claim"
+      "next_action": "regenerate the source-frozen host-verifier identity and replay transcripts for the exact receipt-security profile, preserve governed outer image equality at every consumer, and keep semantic aggregation in RS-CBC-023",
+      "non_claim": "the retained temporary adapter image 71f282b5517fc6108988c1cc9b4601807a40ae331c0e0f0f5505d12b241e5574, level-one image 4272be5165f65e29cb134f815d6c6fc40d7f492979f596082cac10c3f0d43c2b, and level-two image 3b858d113cb155b2946e1c733fdf5fe5592b6bf46c903d0a3cfb322099845736 structural proof instance and the implemented exact receipt-security verifier remain separate evidence lanes until a fresh source-frozen replay is recorded; the prior host-verifier manifest predates this verifier change and these temporary identities provide no release authority, governed admission, semantic composition, data-availability assurance, carry continuity, settlement authority, or production claim"
     },
     {
       "id": "RS-CBC-023",

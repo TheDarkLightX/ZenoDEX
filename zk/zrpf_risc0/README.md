@@ -54,12 +54,22 @@ The adapter path:
 `VerifiedNodeReceiptV3` has private fields and enforces this order:
 
 ```text
-verify Succinct receipt under expected image
+require the compiled RISC0 3.0.5 Succinct receipt-security profile
+  -> require metadata and inner verifier-parameter equality
+  -> verify under an explicit Poseidon2-only, dev-mode-disabled context
+  -> verify the receipt under the expected image
   -> strict-decode exact canonical NodeJournalV3 bytes
   -> require journal actual_program_id == verified image
   -> derive the claim binding locally
   -> expose a projected child descriptor
 ```
+
+The compiled receipt-security profile is
+`risc0_succinct_poseidon2_3_0_5_v1`. It pins the verifier-parameter digest,
+`poseidon2` hash suite, and control ID independently of the node computation
+profile. Unknown or mutated receipt-security fields reject before a verified
+node is returned. The explicit verifier context does not consult
+`RISC0_DEV_MODE`.
 
 This prevents a caller-selected claim hash or self-reported program label from
 becoming proof authority.
