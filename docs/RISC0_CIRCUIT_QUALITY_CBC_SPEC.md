@@ -126,13 +126,13 @@ Receipt bytes may vary across proving runs. These temporary compiler-visible
 images have no release authority.
 The path-redacted structural-tree evidence record is
 `docs/research/ZRPF_V3_STRUCTURAL_TREE_TEMPORARY_LOCAL_EVIDENCE_20260710.json`.
-Its Python checker verifies reviewed facts, source closures, and optional
+Their Python checkers verify reviewed facts, source closures, and optional
 artifact bytes; the Rust verifier-only harness remains the receipt-seal and
 exact-journal authority. The exact receipt-profile hardening changes the host
 verifier source and binary without changing guest or `NodeJournalV3` bytes.
-The retained evidence record predates that host change, so its source-closure
-checker must reject until a fresh verifier build and replay transcript replace
-the stale verifier evidence.
+Both retained adapter and structural-tree evidence records predate that host
+change, so both source-closure checkers must reject until a fresh verifier build
+and replay transcript replace the stale verifier evidence.
 
 The compatibility journal labels its count as one source-transition receipt
 and uses explicit unsupported sentinels for DA-certificate and carry facts. Its

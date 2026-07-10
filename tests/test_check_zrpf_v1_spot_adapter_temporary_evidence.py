@@ -14,14 +14,18 @@ def _manifest() -> dict:
     return document
 
 
-def test_final_temporary_evidence_matches_sources_and_reviewed_digest() -> None:
+def test_retained_adapter_evidence_rejects_hardened_verifier_source_drift() -> None:
     report = checker.validate_manifest(_manifest())
 
-    assert report["ok"] is True
-    assert report["errors"] == []
-    assert report["facts"]["evidence_ready"] is True
+    assert report["ok"] is False
+    assert set(report["errors"]) == {
+        "source SHA-256 mismatch: zk/zrpf_risc0/Cargo.lock",
+        "source SHA-256 mismatch: zk/zrpf_risc0/harness/src/main.rs",
+        "source SHA-256 mismatch: zk/zrpf_risc0/verifier/Cargo.toml",
+        "source SHA-256 mismatch: zk/zrpf_risc0/verifier/src/lib.rs",
+    }
+    assert report["facts"]["evidence_ready"] is False
     assert report["facts"]["python_verifies_risc0_seal"] is False
-    assert report["facts"]["source_files_checked"] == 29
 
 
 def test_loader_rejects_duplicate_nested_fields(tmp_path: Path) -> None:

@@ -808,14 +808,14 @@
         },
         {
           "path": "tests/test_check_zrpf_v3_structural_tree_temporary_evidence.py",
-          "symbol": "test_reviewed_manifest_passes_with_source_closures_and_no_seal_overclaim"
+          "symbol": "test_retained_structural_evidence_rejects_hardened_verifier_source_drift"
         }
       ],
       "external_commands": [
         "cd zk/recursive_stark_v2_risc0 && RISC0_SKIP_BUILD=1 cargo test --locked --all",
         "cd zk/zrpf_protocol && cargo test --locked --all-targets",
         "cd zk/zrpf_risc0 && RISC0_SKIP_BUILD=1 cargo test --locked -p zenodex-zrpf-risc0-aggregate-shared -p zenodex-zrpf-risc0-verifier -p zenodex-zrpf-risc0-harness",
-        "python3 tools/check_zrpf_v3_structural_tree_temporary_evidence.py",
+        "python3 -m pytest -q tests/test_check_zrpf_v3_structural_tree_temporary_evidence.py::test_retained_structural_evidence_rejects_hardened_verifier_source_drift",
         "prove_structural_tree <LEAF0_RECEIPT> <LEAF1_RECEIPT> <LEAF2_RECEIPT> <LEAF3_RECEIPT> <OUTPUT_DIR>",
         "verify_structural_tree <LEAF0_RECEIPT> <LEAF1_RECEIPT> <LEAF2_RECEIPT> <LEAF3_RECEIPT> <L1_LEFT_RECEIPT> <L1_RIGHT_RECEIPT> <L2_ROOT_RECEIPT>"
       ],
@@ -1103,7 +1103,7 @@
         },
         {
           "path": "zk/zrpf_risc0/verifier/src/lib.rs",
-          "symbol": "typed_receipt_profile_mutations_reject_before_invalid_seal"
+          "symbol": "receipt_profile_mutations_reject_through_canonical_bytes"
         },
         {
           "path": "zk/zrpf_risc0/verifier/src/lib.rs",
@@ -1123,11 +1123,11 @@
         },
         {
           "path": "tests/test_check_zrpf_v1_spot_adapter_temporary_evidence.py",
-          "symbol": "test_final_temporary_evidence_matches_sources_and_reviewed_digest"
+          "symbol": "test_retained_adapter_evidence_rejects_hardened_verifier_source_drift"
         },
         {
           "path": "tests/test_check_zrpf_v3_structural_tree_temporary_evidence.py",
-          "symbol": "test_manifest_rejects_missing_negative_control"
+          "symbol": "test_retained_structural_evidence_rejects_hardened_verifier_source_drift"
         }
       ],
       "external_commands": [
@@ -1136,8 +1136,8 @@
         "zenodex-zrpf-risc0-harness <SPOT_PROOF> --substituted-source-journal",
         "zenodex-zrpf-risc0-harness <SPOT_PROOF> --mislabeled-adapter",
         "prove_structural_tree <LEAF0_RECEIPT> <LEAF1_RECEIPT> <LEAF2_RECEIPT> <LEAF3_RECEIPT> <OUTPUT_DIR> --missing-assumption",
-        "python3 tools/check_zrpf_v1_spot_adapter_temporary_evidence.py",
-        "python3 tools/check_zrpf_v3_structural_tree_temporary_evidence.py"
+        "python3 -m pytest -q tests/test_check_zrpf_v1_spot_adapter_temporary_evidence.py::test_retained_adapter_evidence_rejects_hardened_verifier_source_drift",
+        "python3 -m pytest -q tests/test_check_zrpf_v3_structural_tree_temporary_evidence.py::test_retained_structural_evidence_rejects_hardened_verifier_source_drift"
       ],
       "next_action": "regenerate the source-frozen host-verifier identity and replay transcripts for the exact receipt-security profile, preserve governed outer image equality at every consumer, and keep semantic aggregation in RS-CBC-023",
       "non_claim": "the retained temporary adapter image 71f282b5517fc6108988c1cc9b4601807a40ae331c0e0f0f5505d12b241e5574, level-one image 4272be5165f65e29cb134f815d6c6fc40d7f492979f596082cac10c3f0d43c2b, and level-two image 3b858d113cb155b2946e1c733fdf5fe5592b6bf46c903d0a3cfb322099845736 structural proof instance and the implemented exact receipt-security verifier remain separate evidence lanes until a fresh source-frozen replay is recorded; the prior host-verifier manifest predates this verifier change and these temporary identities provide no release authority, governed admission, semantic composition, data-availability assurance, carry continuity, settlement authority, or production claim"

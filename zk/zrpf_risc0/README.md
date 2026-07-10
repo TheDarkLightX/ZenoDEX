@@ -71,10 +71,12 @@ The compiled receipt-security profile is
 digest, `poseidon2` hash suite, and `resolve.zkr` control ID independently of
 the node computation profile. Other valid RISC0 control programs are outside
 this bounded profile. Unknown or mutated receipt-security fields reject before
-a verified node is returned. Persisted receipt JSON is capped at 16 MiB before decoding;
-duplicate, unknown, or noncanonical fields cannot survive the exact typed
-round-trip check. The explicit verifier context does not consult
-`RISC0_DEV_MODE`.
+a verified node is returned. Every public verified-node constructor accepts
+canonical receipt bytes. Fresh prover receipts cross the same boundary after
+serialization with the exactly pinned JSON codec. Receipt JSON is capped at
+16 MiB before decoding; duplicate, unknown, or noncanonical fields cannot
+survive the exact typed round-trip check. The explicit verifier context does
+not consult `RISC0_DEV_MODE`.
 
 This prevents a caller-selected claim hash or self-reported program label from
 becoming proof authority.
@@ -322,8 +324,13 @@ reject ABI.
 
 ## Check The Evidence Records
 
-From the repository root, validate the reviewed manifests and their current
-relative source closures:
+The retained adapter and structural evidence records predate the hardened host
+verifier. All three commands are currently negative freshness gates: the two
+manifest checkers must reject the stale source closure, and the boundary atlas
+must reject because its seed no longer validates. These commands become
+positive gates only after a fresh verifier build, replay, and manifest replace
+both records. An unexpected pass before that replacement is an evidence
+failure.
 
 ```bash
 python3 tools/check_zrpf_v1_spot_adapter_temporary_evidence.py
@@ -331,15 +338,17 @@ python3 tools/check_zrpf_v3_structural_tree_temporary_evidence.py
 python3 tools/zrpf_evidence_boundary_concolic.py --format text
 ```
 
-The adapter checker can additionally hash one saved adapter receipt, its source
-proof artifact, and the adapter ELF through `--adapter-receipt`,
-`--source-proof`, and `--elf`. The tree checker accepts `--artifact-root` for
-the seven saved receipts and four path-redacted replay/control transcripts.
-These Python tools validate schema, reviewed facts, paths, hashes, and sizes.
-They do not verify RISC0 seals; the Rust harnesses own that boundary.
+After regeneration, the adapter checker can additionally hash one saved adapter
+receipt, its source proof artifact, and the adapter ELF through
+`--adapter-receipt`, `--source-proof`, and `--elf`. The tree checker accepts
+`--artifact-root` for the seven saved receipts and four path-redacted
+replay/control transcripts. These Python tools validate schema, reviewed facts,
+paths, hashes, and sizes. They do not verify RISC0 seals; the Rust harnesses own
+that boundary.
 The boundary-atlas command performs deterministic, depth-two malformed-manifest
-exploration and deduplicates reject paths. It is an offline bug-discovery
-sidecar, with no correctness-proof or receipt authority.
+exploration and deduplicates reject paths. Path and mutant counts do not
+override a stale baseline failure. It is an offline bug-discovery sidecar, with
+no correctness-proof or receipt authority.
 
 ## Authority And Non-Claims
 

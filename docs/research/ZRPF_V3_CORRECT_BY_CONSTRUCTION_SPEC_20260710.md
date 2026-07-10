@@ -117,8 +117,10 @@ dev-mode-disabled context containing only that hash suite. It then
 strict-decodes the exact journal, enforces journal program-image equality, and
 derives the claim binding locally before exposing a descriptor. Receipt
 security profile identity remains separate from the node computation profile.
-Persisted receipt callers use a 16 MiB pre-decode cap and exact typed JSON
-round-trip equality, which rejects duplicate, unknown, and noncanonical fields
+Every public constructor for `VerifiedNodeReceiptV3` accepts bounded canonical
+receipt bytes. Fresh prover outputs serialize through the exactly pinned JSON
+codec and cross that same boundary. The 16 MiB pre-decode cap and exact typed
+JSON round-trip equality reject duplicate, unknown, and noncanonical fields
 before proof verification.
 
 The RISC0 workspace additionally defines:
@@ -507,7 +509,7 @@ Current reference evidence includes:
 - independently replayed manual hash and canonical Postcard-byte fixtures;
 - four temporary-path Succinct Spot V1-to-V3 adapter receipts whose exact
   public journals match their independent host projections;
-- persisted adapter-receipt replay through a private-construction sealed
+- persisted adapter-receipt replay through the retained pre-hardening sealed
   verifier;
 - unit rejection of verifier-parameter, hash-suite, control-ID, and metadata
   mutations before invalid-seal verification;
@@ -579,7 +581,7 @@ The new crate reuses versions already present in the recursive proof workspaces:
 | `serde` declared 1.0.219, resolved 1.0.228 | typed transport | locked; replaceable with a manual decoder |
 | `postcard` 1.1.3 | compact `no_std` transport | locked; manual canonical hash remains independent |
 | `sha2` 0.10.9 | domain-separated SHA-256 | locked; required for parity with existing commitments |
-| `serde_json` declared 1.0.140, resolved 1.0.150 | test-only strict diagnostic cases | absent from runtime and guest dependency path |
+| `serde_json` exactly 1.0.150 | bounded canonical receipt artifacts at the host verifier boundary | exact pin and lock required; absent from guests and replaceable by a reviewed canonical codec |
 
 The workspace lockfile pins the resolved transitive graph. No network,
 filesystem, clock, randomness, locale, or unordered iteration enters protocol
