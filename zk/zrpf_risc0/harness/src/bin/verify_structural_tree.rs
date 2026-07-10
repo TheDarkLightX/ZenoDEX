@@ -131,8 +131,8 @@ fn root_seal_mutation_report(
         .map_err(|error| format!("mutated root candidate: {error}"))?;
     let mutated_receipt_bytes = canonical_receipt_bytes(&mutated_receipt)?;
     let mutation = require_exact_root_seal_mutation(tree.root.receipt(), &mutated_receipt)?;
-    let reject = match VerifiedNodeReceiptV3::verify_exact_succinct(
-        mutated_receipt,
+    let reject = match VerifiedNodeReceiptV3::verify_exact_succinct_bytes(
+        &mutated_receipt_bytes,
         ZENODEX_ZRPF_RISC0_STRUCTURAL_AGGREGATE_L2_ID,
         tree.root.journal(),
     ) {
@@ -168,7 +168,7 @@ fn root_seal_mutation_report(
             xor_mask: 1,
         },
         reject: TypedRejectReport {
-            boundary: "VerifiedNodeReceiptV3::verify_exact_succinct",
+            boundary: "VerifiedNodeReceiptV3::verify_exact_succinct_bytes",
             code: reject.code(),
         },
         schema: "zenodex/zrpf_v3_structural_root_seal_mutation_reject/v1",

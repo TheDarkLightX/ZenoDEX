@@ -229,7 +229,8 @@ fn prove_node(
     if !matches!(&receipt.inner, InnerReceipt::Succinct(_)) {
         return Err("structural prover returned a non-Succinct receipt".to_owned());
     }
-    VerifiedNodeReceiptV3::verify_exact_succinct(receipt, image_id, &expected.journal)
+    let receipt_bytes = canonical_receipt_bytes(&receipt)?;
+    VerifiedNodeReceiptV3::verify_exact_succinct_bytes(&receipt_bytes, image_id, &expected.journal)
         .map_err(|error| format!("structural receipt verification failed: {error}"))
 }
 

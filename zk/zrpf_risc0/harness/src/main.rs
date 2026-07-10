@@ -572,8 +572,9 @@ fn verify_adapter_receipt(
     receipt: &Receipt,
     expected: &NodeJournalV3,
 ) -> Result<NodeJournalV3, String> {
-    match VerifiedNodeReceiptV3::verify_exact_succinct(
-        receipt.clone(),
+    let receipt_bytes = canonical_receipt_bytes(receipt)?;
+    match VerifiedNodeReceiptV3::verify_exact_succinct_bytes(
+        &receipt_bytes,
         ZENODEX_ZRPF_RISC0_V1_LEAF_ADAPTER_ID,
         expected,
     ) {

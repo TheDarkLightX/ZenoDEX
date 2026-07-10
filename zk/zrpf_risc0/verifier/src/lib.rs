@@ -151,6 +151,24 @@ impl fmt::Display for VerifiedNodeReceiptErrorV3 {
 /// A receipt and V3 journal that have crossed the complete host verification
 /// boundary. Fields are private so callers cannot construct this type from an
 /// unverified receipt or from journal bytes alone.
+///
+/// Typed receipts cannot enter the authority boundary directly:
+///
+/// ```compile_fail
+/// use risc0_zkvm::Receipt;
+/// use zenodex_zrpf_risc0_verifier::VerifiedNodeReceiptV3;
+/// let receipt: Receipt = unimplemented!();
+/// let _ = VerifiedNodeReceiptV3::verify_canonical_succinct(receipt, [1; 8]);
+/// ```
+///
+/// ```compile_fail
+/// use risc0_zkvm::Receipt;
+/// use zenodex_zrpf_protocol_v3::NodeJournalV3;
+/// use zenodex_zrpf_risc0_verifier::VerifiedNodeReceiptV3;
+/// let receipt: Receipt = unimplemented!();
+/// let journal: NodeJournalV3 = unimplemented!();
+/// let _ = VerifiedNodeReceiptV3::verify_exact_succinct(receipt, [1; 8], &journal);
+/// ```
 pub struct VerifiedNodeReceiptV3 {
     receipt: Receipt,
     receipt_profile: VerifiedReceiptProfileV3,
@@ -160,28 +178,37 @@ pub struct VerifiedNodeReceiptV3 {
 }
 
 impl VerifiedNodeReceiptV3 {
+    /// Verifies a bounded, byte-exact persisted receipt artifact.
+    ///
+    /// Every public construction path for an authority-bearing verified node
+    /// accepts bounded canonical bytes. Callers with a fresh prover receipt
+    /// must serialize it with the pinned canonical JSON encoder and cross this
+    /// same byte boundary.
     pub fn verify_canonical_succinct_bytes(
         receipt_bytes: &[u8],
         expected_image_id: [u32; 8],
     ) -> Result<Self, VerifiedNodeReceiptErrorV3> {
         validate_expected_image_id(expected_image_id)?;
         let receipt = decode_canonical_receipt_bytes(receipt_bytes)?;
-        Self::verify_canonical_succinct(receipt, expected_image_id)
+        Self::verify_canonical_succinct_receipt(receipt, expected_image_id)
     }
 
+    /// Verifies a bounded, byte-exact receipt artifact and its exact journal.
     pub fn verify_exact_succinct_bytes(
         receipt_bytes: &[u8],
         expected_image_id: [u32; 8],
         expected_journal: &NodeJournalV3,
     ) -> Result<Self, VerifiedNodeReceiptErrorV3> {
-        validate_expected_image_id(expected_image_id)?;
-        let receipt = decode_canonical_receipt_bytes(receipt_bytes)?;
-        Self::verify_exact_succinct(receipt, expected_image_id, expected_journal)
+        let verified = Self::verify_canonical_succinct_bytes(receipt_bytes, expected_image_id)?;
+        let expected_bytes = encode_node_journal_v3(expected_journal)
+            .map_err(|_| VerifiedNodeReceiptErrorV3::ExpectedJournalEncodingFailed)?;
+        if verified.receipt.journal.bytes != expected_bytes {
+            return Err(VerifiedNodeReceiptErrorV3::JournalBytesMismatch);
+        }
+        Ok(verified)
     }
 
-    /// Verifies an in-memory receipt produced by a prover. Persisted receipt
-    /// artifacts must use `verify_canonical_succinct_bytes`.
-    pub fn verify_canonical_succinct(
+    fn verify_canonical_succinct_receipt(
         receipt: Receipt,
         expected_image_id: [u32; 8],
     ) -> Result<Self, VerifiedNodeReceiptErrorV3> {
@@ -213,20 +240,6 @@ impl VerifiedNodeReceiptV3 {
             claim_binding,
             child_descriptor,
         })
-    }
-
-    pub fn verify_exact_succinct(
-        receipt: Receipt,
-        expected_image_id: [u32; 8],
-        expected_journal: &NodeJournalV3,
-    ) -> Result<Self, VerifiedNodeReceiptErrorV3> {
-        let verified = Self::verify_canonical_succinct(receipt, expected_image_id)?;
-        let expected_bytes = encode_node_journal_v3(expected_journal)
-            .map_err(|_| VerifiedNodeReceiptErrorV3::ExpectedJournalEncodingFailed)?;
-        if verified.receipt.journal.bytes != expected_bytes {
-            return Err(VerifiedNodeReceiptErrorV3::JournalBytesMismatch);
-        }
-        Ok(verified)
     }
 
     pub const fn receipt(&self) -> &Receipt {
@@ -463,6 +476,14 @@ mod tests {
         serde_json::from_value(value).expect("invalid succinct receipt")
     }
 
+    fn verify_canonical_receipt(
+        receipt: Receipt,
+        expected_image_id: [u32; 8],
+    ) -> Result<VerifiedNodeReceiptV3, VerifiedNodeReceiptErrorV3> {
+        let receipt_bytes = serde_json::to_vec(&receipt).expect("canonical receipt JSON");
+        VerifiedNodeReceiptV3::verify_canonical_succinct_bytes(&receipt_bytes, expected_image_id)
+    }
+
     #[test]
     fn verifier_reject_codes_are_stable_and_unique() {
         let errors = [
@@ -568,16 +589,16 @@ mod tests {
     }
 
     #[test]
-    fn typed_receipt_profile_mutations_reject_before_invalid_seal() {
+    fn receipt_profile_mutations_reject_through_canonical_bytes() {
         let baseline = invalid_exact_profile_succinct_receipt();
         assert_eq!(
-            VerifiedNodeReceiptV3::verify_canonical_succinct(baseline.clone(), [0; 8])
+            verify_canonical_receipt(baseline.clone(), [0; 8])
                 .err()
                 .expect("zero image must reject"),
             VerifiedNodeReceiptErrorV3::ZeroExpectedImageId
         );
         assert_eq!(
-            VerifiedNodeReceiptV3::verify_canonical_succinct(baseline.clone(), IMAGE_ID)
+            verify_canonical_receipt(baseline.clone(), IMAGE_ID)
                 .err()
                 .expect("invalid seal must reject"),
             VerifiedNodeReceiptErrorV3::ReceiptVerificationFailed
@@ -586,7 +607,7 @@ mod tests {
         let mut hashfn = serde_json::to_value(&baseline).expect("receipt JSON");
         hashfn["inner"]["Succinct"]["hashfn"] = json!("sha-256");
         assert_eq!(
-            VerifiedNodeReceiptV3::verify_canonical_succinct(
+            verify_canonical_receipt(
                 serde_json::from_value(hashfn).expect("hashfn mutation"),
                 IMAGE_ID,
             )
@@ -598,7 +619,7 @@ mod tests {
         let mut control = serde_json::to_value(&baseline).expect("receipt JSON");
         control["inner"]["Succinct"]["control_id"][0] = json!(CONTROL_WORDS[0] ^ 1);
         assert_eq!(
-            VerifiedNodeReceiptV3::verify_canonical_succinct(
+            verify_canonical_receipt(
                 serde_json::from_value(control).expect("control mutation"),
                 IMAGE_ID,
             )
@@ -616,7 +637,7 @@ mod tests {
         parameters["inner"]["Succinct"]["verifier_parameters"] = json!(changed_parameters);
         parameters["metadata"]["verifier_parameters"] = json!(changed_parameters);
         assert_eq!(
-            VerifiedNodeReceiptV3::verify_canonical_succinct(
+            verify_canonical_receipt(
                 serde_json::from_value(parameters).expect("parameters mutation"),
                 IMAGE_ID,
             )
@@ -628,7 +649,7 @@ mod tests {
         let mut metadata = serde_json::to_value(baseline).expect("receipt JSON");
         metadata["metadata"]["verifier_parameters"][0] = json!(VERIFIER_WORDS[0] ^ 1);
         assert_eq!(
-            VerifiedNodeReceiptV3::verify_canonical_succinct(
+            verify_canonical_receipt(
                 serde_json::from_value(metadata).expect("metadata mutation"),
                 IMAGE_ID,
             )
@@ -640,13 +661,21 @@ mod tests {
 
     #[test]
     fn persisted_receipt_bytes_are_bounded_exact_and_typed() {
+        let oversized = vec![0u8; MAX_CANONICAL_RECEIPT_BYTES_V3 + 1];
+        for receipt_bytes in [&b""[..], &b"{"[..], oversized.as_slice()] {
+            assert_eq!(
+                VerifiedNodeReceiptV3::verify_canonical_succinct_bytes(receipt_bytes, [0; 8])
+                    .err()
+                    .expect("zero image must reject before receipt bytes"),
+                VerifiedNodeReceiptErrorV3::ZeroExpectedImageId
+            );
+        }
         assert_eq!(
             VerifiedNodeReceiptV3::verify_canonical_succinct_bytes(&[], IMAGE_ID)
                 .err()
                 .expect("empty bytes must reject"),
             VerifiedNodeReceiptErrorV3::EmptyReceiptBytes
         );
-        let oversized = vec![0u8; MAX_CANONICAL_RECEIPT_BYTES_V3 + 1];
         assert_eq!(
             VerifiedNodeReceiptV3::verify_canonical_succinct_bytes(&oversized, IMAGE_ID)
                 .err()
@@ -720,12 +749,9 @@ mod tests {
     #[ignore = "subprocess-only environment isolation check"]
     fn risc0_dev_mode_environment_child() {
         assert_eq!(
-            VerifiedNodeReceiptV3::verify_canonical_succinct(
-                invalid_exact_profile_succinct_receipt(),
-                IMAGE_ID,
-            )
-            .err()
-            .expect("invalid seal must reject"),
+            verify_canonical_receipt(invalid_exact_profile_succinct_receipt(), IMAGE_ID)
+                .err()
+                .expect("invalid seal must reject"),
             VerifiedNodeReceiptErrorV3::ReceiptVerificationFailed
         );
     }
