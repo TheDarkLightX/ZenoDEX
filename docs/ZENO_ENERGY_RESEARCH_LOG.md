@@ -597,7 +597,7 @@ Observed result:
 | top-k sweep | learned mean objective winner position | 1.0166414523449319 |
 | top-k sweep | objective tie batch count | 1 |
 
-PopperPad refs:
+Content-addressed research refs:
 
 ```text
 fallback_blob_ref:          sha256:4939163c0ebbde6360fab8637244e25bd590f3e1477195347543185c42a809be
@@ -775,7 +775,7 @@ The gate checks that the committed set-aware, neighborhood, repair-selector,
 listwise set-ranker, listwise cross-seed, gap-weighted default, cross-seed,
 AutoTraderEnergy hard cross-seed, AutoTraderEnergy shadow bridge,
 formal-boundary, fallback/top-k, SOTA decision-map, production promotion gate,
-replay source manifest checker, real replay report builder, and PopperPad doctor
+replay source manifest checker and real replay report builder
 evidence still support the current research story. It also preserves negative
 knowledge: set-aware linear features have no measured win over the aggregate
 ranker, the listwise set-context ranker has no measured mean-call win, the
@@ -787,12 +787,10 @@ scorer.
 
 Research consequence: future ZenoEnergy changes should update this replay gate
 when they promote or retire a research claim. A failing gate means either the
-underlying receipt changed, PopperPad status drifted, or the current summary is
+underlying receipt changed or the current summary is
 overstating the recorded evidence.
 
-## PopperPad Refs
-
-Pad: `internal/popperpad/zenoenergy`
+## Content-Addressed Research Refs
 
 ```text
 domain_ref:                 sha256:491ffd61981b5fa5b0ca2e54afc3fea3b80bb75ac5d923176dae8063ddd9d82b
@@ -1068,7 +1066,7 @@ support_edge_ref:           sha256:d0da6b541adedb89d2092126c0ba58f83dbffebfb628e
 checkpoint_ref:             sha256:0ada626d19497a34a5a5b0cfef7c841e7edd32d8838b51d37d7f47ae9e500437
 ```
 
-Derived PopperPad status:
+Recorded hypothesis status:
 
 ```text
 H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517: supported
@@ -1099,14 +1097,13 @@ H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V4: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V5: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V6: supported
-doctor_ok: true
+replay_ok: true
 ```
 
-Use:
+Replay:
 
 ```bash
-PYTHONPATH=external/PopperPad/src python3 -m popperpad \
-  --pad internal/popperpad/zenoenergy doctor
+python3 tools/check_zenoenergy_research_evidence.py
 ```
 
 ## Production Evidence Bundle
@@ -1491,7 +1488,7 @@ candidate-family coverage, production distribution fit, or real replay
 readiness.
 ```
 
-PopperPad refs:
+Recorded hypothesis outcomes:
 
 ```text
 H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_STRESS_20260519: supported
@@ -1549,7 +1546,7 @@ case. This stress remains bounded synthetic evidence and does not prove
 production distribution coverage.
 ```
 
-PopperPad refs:
+Recorded hypothesis outcomes:
 
 ```text
 H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS_20260519: supported
@@ -1622,7 +1619,7 @@ supplied finite candidate list; it does not prove v2 bounded-grid completeness
 or production distribution coverage.
 ```
 
-PopperPad refs:
+Recorded hypothesis outcomes:
 
 ```text
 H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_20260519: supported

@@ -195,7 +195,7 @@ optimality) is not yet formalized. The proven theorems are:
 No `sorry` or `admit` placeholders. The Lean build requires mathlib4 olean
 files (not included in this worktree due to disk space constraints).
 
-## Negative Knowledge (PopperPad)
+## Negative Knowledge
 
 ### NK-001: Constant-k deadline with min_amount_out=0 is NOT infinite
 

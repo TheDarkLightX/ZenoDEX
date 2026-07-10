@@ -233,7 +233,7 @@ function write_markdown(path, report)
     open(path, "w") do io
         println(io, "# ZenoEnergy Negative Curriculum")
         println(io)
-        println(io, "This Julia-generated receipt turns the current PopperPad negative knowledge into sampling guidance for the next advisory ranker.")
+        println(io, "This Julia-generated receipt turns recorded negative knowledge into sampling guidance for the next advisory ranker.")
         println(io)
         println(io, "```text")
         println(io, "source_report: $(report[:source_report])")

@@ -643,7 +643,7 @@ blocked: operator must explicitly enable advisory ranking-only promotion
 ```
 
 The positive result is that the research replay obligation passes: current
-fallback, invalid-accept, and PopperPad evidence is clean. The negative result
+fallback and invalid-accept evidence is clean. The negative result
 is now explicit and replayed: synthetic and fixture evidence cannot promote the
 scorer to production ranking. Promotion requires broad real replay/shadow
 reports with zero invalid accepts, deterministic replay, no live secrets, top-25
@@ -1050,11 +1050,11 @@ curriculum epiplexity receipt, the curriculum-ranker negative result, the
 data-scaling saturation receipt, the quality-selection probe, the tiny ensemble
 probe, the best-model registry, the epiplexity literature boundary receipt, the
 energy-order-alone formal boundary, and
-PopperPad status ledger. It also checks
+recorded hypothesis outcomes. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 246 passing checks and 0 failed checks, including
-the PopperPad doctor check.
+The current receipt reports 213 passing checks and 0 failed checks, including
+the source-pinned research replay checks.
 
 ## Accuracy
 

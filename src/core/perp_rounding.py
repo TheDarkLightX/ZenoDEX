@@ -9,7 +9,7 @@ conservation under integer division:
   "largest remainder" dust allocator with a fixed tie-break rule.
 
 This repo keeps small counterexamples and checks under:
-`internal/popperpad_mcp/bootstrap_zenodex_pad.py`.
+the bounded research receipt that introduced these hazard cases.
 """
 
 from __future__ import annotations

@@ -136,13 +136,13 @@ SAMPLE_ASSUMPTIONS_HASH = "sha256:a5764ec3b0423bebd136337f6f6e2b3319339f8a75487a
 SAMPLE_O5_CLAIM_ID = "sha256:" + hashlib.sha256(b"zenoproof.sample.o5.claim").hexdigest()
 SAMPLE_O5_STATEMENT_HASH = "sha256:" + hashlib.sha256(b"zenoproof.sample.o5.statement").hexdigest()
 SAMPLE_O5_ASSUMPTIONS_HASH = "sha256:" + hashlib.sha256(b"zenoproof.sample.o5.assumptions").hexdigest()
-PUBLIC_REPLAY_PROFILE = "zeno_oracle_workflow_evidence_status_v1"
-PUBLIC_REPLAY_VERIFIER_ID = "sha256:055f67e1cc7f1a93f9b49274b7b5346e83ee7a811b8ec8b51f8b5afd553043ba"
-PUBLIC_REPLAY_POLICY_ROOT = "sha256:bb07b1b0a598375eb12df303c389d997ef0bc1f015e22a474bc2ec329b72fa6c"
-PUBLIC_REPLAY_TOOLCHAIN_ID = "sha256:b1fdc2948c8ba3e58bd705ee8085d28996ea3e9ba26a3b4957c88cbc65b60a29"
-PUBLIC_REPLAY_CLAIM_ID = "sha256:0091a231f6fe6bbdf852cdf23b67d3e139c55afd3cad5bbed9f1e4be54095682"
-PUBLIC_REPLAY_STATEMENT_HASH = "sha256:773a777d8c4c19d541a204f87322d711713e050a74025f2451b50acb95307b0f"
-PUBLIC_REPLAY_ASSUMPTIONS_HASH = "sha256:42297de8bfbb206e41841e4137f83f6bc87eb0ad8f2a7b894d5ea8b18964e249"
+PUBLIC_REPLAY_PROFILE = "zeno_oracle_workflow_evidence_status_v2"
+PUBLIC_REPLAY_VERIFIER_ID = "sha256:049138b6223185abf347caf98508be525f5693a5eb9305b27a9d045563d94da0"
+PUBLIC_REPLAY_POLICY_ROOT = "sha256:48a89ed62055043aec45e02e5307423f1dd424dfd937504bf2d3cc554fa4b89b"
+PUBLIC_REPLAY_TOOLCHAIN_ID = "sha256:acf2099eca48fd6de0719c1f879dd90f5db3b1b4aa2b45885b755077b8d6e8c5"
+PUBLIC_REPLAY_CLAIM_ID = "sha256:e8e78a52dbdef4311d4a5364be24738cffbe9564062e70b362d1ad5ea59bfc60"
+PUBLIC_REPLAY_STATEMENT_HASH = "sha256:399c3d1f0fe9776aa5f7415eef0d0d5558f078fb46d982de1b4f5a65e49ea2ae"
+PUBLIC_REPLAY_ASSUMPTIONS_HASH = "sha256:044259aef2002dc84d87792bd847d3463120156130cdcdd7982efa16008bb588"
 JULIA_REPLAY_PROFILE = "zeno_oracle_math_witness_sweep_julia_v1"
 JULIA_REPLAY_VERIFIER_ID = "sha256:74f91670c6d852c843add1a76b007277d8a729a07050c06baa19baea437a2b9b"
 JULIA_REPLAY_POLICY_ROOT = "sha256:94a277186469997af46e1027c272a7f8c7740db0f3eba272e744e41056b7a768"
@@ -194,7 +194,7 @@ SMT_REPLAY_STATEMENT_HASH = "sha256:49b641b6cfca0821ab414780680e9a48dea0111abb99
 SMT_REPLAY_ASSUMPTIONS_HASH = "sha256:ef1d20cc94812953ff4810adc6b517aa8dfbeeaac290344705823bb47bca0987"
 PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
     PUBLIC_REPLAY_PROFILE: {
-        "name": "zeno-oracle-workflow-evidence-public-replay-v0",
+        "name": "zeno-oracle-workflow-evidence-public-replay-v1",
         "proof_kind": "public_replay",
         "verifier_id": PUBLIC_REPLAY_VERIFIER_ID,
         "policy_root": PUBLIC_REPLAY_POLICY_ROOT,
@@ -206,7 +206,6 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "replay_command": "python3 tools/zeno_oracle_workflow_evidence_status.py --format json --skip-morph",
         "expected_schema": "zenodex.oracle.workflow_evidence_status.v1",
         "non_claims": [
-            "does_not_claim_private_popperpad_publication",
             "does_not_claim_exhaustive_morph_search",
             "does_not_claim_production_oracle_truth",
         ],
@@ -517,12 +516,12 @@ def _public_replay_verifier_manifest(profile: str) -> dict[str, Any]:
         "timeout_ms": cfg["timeout_ms"],
         "execution_mode": "subprocess_json",
         "verifier_command": [
-            "python3",
+            "/usr/bin/python3",
             "tools/zenoproof_public_replay_verifier.py",
             "--profile",
             profile,
         ],
-        "allow_path_lookup": True,
+        "allow_path_lookup": False,
     }
 
 

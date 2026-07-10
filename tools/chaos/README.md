@@ -279,33 +279,11 @@ with ToxiproxyHarness(upstream_port=65432) as harness:
 | `bandwidth` | Limit bandwidth | `rate` (KB/s) |
 | `slicer` | Slice data into chunks | `average_size`, `delay` |
 
-## Integration with PopperPad
+## Evidence Export
 
-The JSON evidence artifacts are designed to be consumed by external hypothesis ledgers. To integrate with PopperPad (private):
-
-```python
-from popper_pad import PopperPad
-import json
-
-pad = PopperPad("knowledge/chaos_pad.jsonl")
-
-# After running experiment
-with open("runs/chaos/tau_net_truncated_tcp/run_*/journal.json") as f:
-    journal = json.load(f)
-
-if journal["outcome"] == "corroborated":
-    pad.corroborate(
-        hypothesis_id=journal["hypothesis_id"],
-        test_description="chaos experiment passed",
-        evidence_path=journal_path,
-    )
-elif journal["outcome"] == "falsified":
-    pad.falsify(
-        hypothesis_id=journal["hypothesis_id"],
-        counterexample=journal["falsification_reason"],
-        evidence_path=journal_path,
-    )
-```
+The JSON evidence artifacts can be consumed by an external hypothesis or
+evidence ledger. Keep external adapters outside this repository, and bind each
+imported record to the emitted journal hash.
 
 ## Adding New Experiments
 

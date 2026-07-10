@@ -1037,7 +1037,6 @@ contribution:
 
   measured_results:
     upgraded_loop_run:
-      artifact: runs/mech_sci_iter/popperpad_loop/r47_summary.json
       domain: perp_settlement_bounty_farming
       status: promotion_grade
       search:
@@ -1057,7 +1056,6 @@ contribution:
           solved_rate_delta: 0.0
           avg_seconds_reduction: 0.0004700181922583581
       long_improve:
-        artifact: runs/mech_sci_iter/popperpad_loop/r47_popperpad_bounty_multisearch66_long12/improve/improvement_log.jsonl
         campaigns_completed: 12
         total_archived_added: 48
         min_archived_per_campaign: 4
@@ -1070,8 +1068,7 @@ contribution:
     - "Once reproducibility gates are met, bounty-lane campaigns sustain non-zero archive growth (4 per campaign) over long horizons."
 
   workflow_hardening_applied:
-    files:
-      - tools/perps_scientist_popperpad_loop.py
+    files: []
     changes:
       - "Added `--search-runs`, `--search-seed-step`, and `--min-search-pass-rate`."
       - "Converted search from single-run gate to pass-rate gate with per-run artifacts and `metrics_mean`."
@@ -1104,7 +1101,6 @@ contribution:
       test_result: "pytest -q tests/integration/test_perp_engine.py -> 20 passed"
 
     long_campaign_replay:
-      artifact: runs/mech_sci_iter/popperpad_loop/r48_long_improve/improve/improvement_log.jsonl
       requested_max_campaigns: 16
       campaigns_completed: 12
       stopped_reason: all_domains_saturated
@@ -1274,7 +1270,6 @@ contribution:
           solved_rate_delta: 0.0
           avg_seconds_reduction: -6.279943130564085e-05
       long_improve:
-        artifact: runs/mech_sci_iter/popperpad_loop/r52_bounty_reconfirm_long12/improve/improvement_log.jsonl
         campaigns_completed: 12
         total_archived_added: 48
         min_archived_per_campaign: 4

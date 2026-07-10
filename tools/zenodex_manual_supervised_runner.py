@@ -99,7 +99,7 @@ def _dominates(a: list[float], b: list[float]) -> bool:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Manual/supervised deterministic hypothesis runner (no PopperPad orchestration).")
+    ap = argparse.ArgumentParser(description="Manual/supervised deterministic hypothesis runner.")
     ap.add_argument("--hypotheses-json", type=Path, required=True)
     ap.add_argument("--out-dir", type=Path, required=True)
     args = ap.parse_args()

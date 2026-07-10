@@ -8,14 +8,14 @@ from tools.check_zenoenergy_research_evidence import replay_zenoenergy_evidence
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
-    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+def test_research_evidence_replay_receipt_passes() -> None:
+    report = replay_zenoenergy_evidence(root=ROOT)
     check_ids = {str(check["check_id"]) for check in report["checks"]}
 
     assert report["schema"] == "zenodex/energy/research_evidence_replay_receipt/v1"
     assert report["ok"] is True
     assert report["failed_count"] == 0
-    assert report["passed_count"] == report["check_count"] == 280
+    assert report["passed_count"] == report["check_count"] == 213
     assert {
         "set_aware.negative_knowledge_recorded",
         "listwise_set.safety",
@@ -201,60 +201,4 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "autotrader_jepa_ux.ux_explanations",
         "autotrader_jepa_ux.research_inputs",
         "autotrader_jepa_ux.source_hooks",
-        "popperpad.status.H_ZENOENERGY_REPAIR_SELECTOR_FORMAL_BOUNDARY_RECEIPT_20260517",
-        "popperpad.status.H_ZENOENERGY_FALLBACK_CHECKED_STOP_FORMAL_RECEIPT_20260517",
-        "popperpad.status.H_ZENOENERGY_SOTA_DECISION_MAP_RECEIPT_20260518",
-        "popperpad.status.H_ZENOENERGY_LISTWISE_SET_RANKER_SAFETY_20260518",
-        "popperpad.status.H_ZENOENERGY_LISTWISE_SET_RANKER_STRICTLY_IMPROVES_PAIRWISE_20260518",
-        "popperpad.status.H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_SAFETY_20260518",
-        "popperpad.status.H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_STRICTLY_IMPROVES_PAIRWISE_20260518",
-        "popperpad.status.H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518",
-        "popperpad.status.H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518",
-        "popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518",
-        "popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518",
-        "popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518",
-        "popperpad.status.H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518",
-        "popperpad.status.H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518",
-        "popperpad.status.H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_BUILDER_20260518",
-        "popperpad.status.H_ZENOENERGY_REPLAY_SECRET_SCAN_20260518",
-        "popperpad.status.H_ZENOENERGY_REPLAY_COVERAGE_PROFILE_20260518",
-        "popperpad.status.H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518",
-        "popperpad.status.H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518",
-        "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518",
-        "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518",
-        "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518",
-        "popperpad.status.H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_SAFETY_20260518",
-        "popperpad.status.H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_NONVACUOUS_20260518",
-        "popperpad.status.H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_LEARNED_BEATS_HAND_20260518",
-        "popperpad.status.H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_OBJECTIVE_EQUIV_TOP1_20260518",
-        "popperpad.status.H_ZENOENERGY_DOMINANCE_COVER_RUNTIME_20260518",
-        "popperpad.status.H_ZENOENERGY_WEAK_PRUNED_DOMINANCE_ALWAYS_PASSES_20260518",
-        "popperpad.status.H_ZENOENERGY_WES_DOMINANCE_SEARCH_BRIDGE_20260518",
-        "popperpad.status.H_ZENOENERGY_WES_REMOVES_FULL_LIST_COMPLETENESS_20260518",
-        "popperpad.status.H_ZENOENERGY_DOMINANCE_PREFIX_AUDIT_20260519",
-        "popperpad.status.H_ZENOENERGY_DOMINANCE_PREFIX_AUTHORIZES_LIVE_EARLY_STOP_20260519",
-        "popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_EARLY_STOP_20260519",
-        "popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_REMOVES_COVERAGE_OBLIGATION_20260519",
-        "popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_STRESS_20260519",
-        "popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_REMOVES_REAL_REPLAY_NEED_20260519",
-        "popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS_20260519",
-        "popperpad.status.H_ZENOENERGY_DECLARED_OUTPUT_SUFFIX_BOUND_SUFFICIENT_20260519",
-        "popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_20260519",
-        "popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_PROVES_GRID_COMPLETENESS_20260519",
-        "popperpad.status.H_ZENOENERGY_NEGATIVE_CURRICULUM_EPIPLEXITY_20260519_V2",
-        "popperpad.status.H_ZENOENERGY_EPIPLEXITY_PROXY_IS_CORRECTNESS_CERTIFICATE_20260519_V2",
-        "popperpad.status.H_ZENOENERGY_EPIPLEXITY_LITERATURE_TASK_GATE_20260519",
-        "popperpad.status.H_ZENOENERGY_EPIPLEXITY_PROXY_PREDICTS_DOWNSTREAM_IMPROVEMENT_20260519",
-        "popperpad.status.H_ZENOENERGY_CURRICULUM_RANKER_SAFETY_20260519",
-        "popperpad.status.H_ZENOENERGY_CURRICULUM_RANKER_BEATS_GAP_WEIGHTED_20260519",
-        "popperpad.status.H_ZENOENERGY_ENERGY_ORDER_ALONE_FORMAL_BOUNDARY_20260519",
-        "popperpad.status.H_ZENOENERGY_ENERGY_ORDER_ALONE_AUTHORIZES_OPTIMALITY_20260519",
-        "popperpad.status.H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_HELPS_20260519",
-        "popperpad.status.H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_BEATS_DEFAULT_20260519",
-        "popperpad.status.H_ZENOENERGY_QUALITY_SELECTION_MEDIUM_BUDGET_HELPS_20260519",
-        "popperpad.status.H_ZENOENERGY_QUALITY_SELECTION_ALWAYS_BEATS_RAW_20260519",
-        "popperpad.status.H_ZENOENERGY_ENSEMBLE_SAFETY_20260519",
-        "popperpad.status.H_ZENOENERGY_ENSEMBLE_DISAGREEMENT_SIGNAL_20260519",
-        "popperpad.status.H_ZENOENERGY_ENSEMBLE_BEATS_GAP_WEIGHTED_20260519",
-        "popperpad.status.H_AUTOTRADER_JEPA_UX_FUTURE_RISK_20260519",
     }.issubset(check_ids)

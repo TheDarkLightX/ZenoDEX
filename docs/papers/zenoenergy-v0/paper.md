@@ -994,7 +994,7 @@ python3 tools/build_zenoenergy_production_evidence_bundle.py \
 Committed research evidence replay:
 
 ```bash
-PYTHONPATH=external/PopperPad/src python3 tools/check_zenoenergy_research_evidence.py
+python3 tools/check_zenoenergy_research_evidence.py
 ```
 
 ## 13. Recommendation

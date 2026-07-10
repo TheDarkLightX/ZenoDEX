@@ -214,16 +214,6 @@
         "byte_length": 663,
         "path": "experiments/ideas.md",
         "sha256": "ddf2ee7165746f722cbb183ef4184b26a08b5bef78e1a9e1d4cb9f58d0f777a7"
-      },
-      "popperpad_zenoenergy_log": {
-        "byte_length": 288885,
-        "path": "internal/popperpad/zenoenergy/log.jsonl",
-        "sha256": "57b3e609b56cab1a7f3d04087f324eaf1c213d754e07970f22d5f45334b766a0"
-      },
-      "popperpad_zenoenergy_readme": {
-        "byte_length": 63736,
-        "path": "internal/popperpad/zenoenergy/README.md",
-        "sha256": "1f0ad82f66e3f53f9b01237cbeff28bc4b0e29d1c242f0915756e90f8a7f9950"
       }
     },
     "incorporated_lessons": [

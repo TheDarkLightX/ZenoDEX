@@ -2,7 +2,7 @@
 """
 Hybrid Curve Economic Comparison Simulation
 
-Tests PopperPad Hypothesis Hf45b4a13:
+Tests bounded hypothesis Hf45b4a13:
 "Dual-constraint hybrid curve achieves CPMM IL guarantee while getting cubic slippage benefit near balance"
 
 This simulation compares three curve types:
@@ -416,7 +416,7 @@ def run_il_comparison(
 
 def evaluate_hypothesis(slippage_results: Dict, il_results: Dict) -> Dict:
     """
-    Evaluate PopperPad hypothesis Hf45b4a13 based on simulation results.
+    Evaluate bounded hypothesis Hf45b4a13 based on simulation results.
 
     Criteria:
     - CORROBORATE if: dual IL <= CPMM IL AND dual slippage < CPMM slippage (near balance)
@@ -553,7 +553,7 @@ def main():
     """Run the full economic simulation and evaluate the hypothesis."""
     print("=" * 70)
     print("HYBRID CURVE ECONOMIC COMPARISON")
-    print("Testing PopperPad Hypothesis Hf45b4a13")
+    print("Testing bounded Hypothesis Hf45b4a13")
     print("=" * 70)
 
     # Test parameters
