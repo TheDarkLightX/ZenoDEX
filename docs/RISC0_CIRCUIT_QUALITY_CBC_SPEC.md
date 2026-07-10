@@ -15,7 +15,7 @@ arbitrary-depth recursion or production-ready recursive aggregation.
 
 Status update, 2026-07-10: fanout-oriented composition repairs changed
 guest-linked v1 and v2 source. Current-source RISC0 3.0.5 v1 leaf/root receipts
-and a fixed-height v2 inner/root pair have now been generated and independently
+and a fixed-height v2 inner/root pair have now been generated and separately
 verified locally. The current aggregate-v2 image ID is
 `fe131b0ec697a9bd703218f3733e44b84c8e347eb8ebfc8776be2200958fbe53`.
 This closes `RS-CBC-014` for the pinned one-leaf smoke and one source-frozen,
@@ -77,7 +77,66 @@ structs ignore unknown nested fields. Current receipts authenticate the parsed
 typed value, not a canonical outer JSON envelope. Duplicate-key rejection and
 unknown-field rejection therefore remain required before a V1-derived envelope
 can carry production authority. The next recursive ABI should make this
-boundary unrepresentable with strict decoding.
+boundary unrepresentable with strict decoding. `RS-CBC-021` records this as a
+pending critical promotion obligation.
+
+The additive ZRPF V3 candidate under `zk/zrpf_protocol` now implements a
+proof-system-neutral, bounded 8-by-8 structural journal nucleus. It provides a
+shared leaf and aggregate journal shape, nonzero typed commitments, application
+and domain scope binding, derived verifier IDs, canonical dense partitions,
+checked counts, strict 4,096-byte Postcard decoding, and independently replayed
+hash fixtures. This is structural reference evidence. A temporary-path RISC0
+profile now authenticates four Spot V1-to-V3 adapter receipts, two level-one
+structural aggregate receipts, and one level-two structural root receipt.
+Each aggregate guest verifies every exact child receipt under its compile-time
+child image before strict decoding and deterministic structural composition.
+Decoded journals and raw projected child descriptors carry no authority by
+themselves. `RS-CBC-022` is implemented for this bounded adapter and structural
+aggregate path. `RS-CBC-023` pins semantic composition of state, effects,
+receipt sets, messages, schedules, carry, and data availability. The
+normative candidate scope and non-claims are recorded in
+`docs/research/ZRPF_V3_CORRECT_BY_CONSTRUCTION_SPEC_20260710.md`.
+
+The additive `zk/zrpf_risc0` workspace contains the pure Spot V1-to-V3 mapping,
+a receipt-authenticated adapter guest, a private-construction host verifier,
+and an evidence harness. The guest verifies the exact governed Spot receipt
+assumption before decoding and projecting its journal. The host verifier then
+verifies the adapter receipt, enforces exact journal equality, compares the
+journal program ID with the image actually verified, derives the child claim
+binding locally, and only then exposes a child descriptor. The current
+temporary-path adapter image is
+`71f282b5517fc6108988c1cc9b4601807a40ae331c0e0f0f5505d12b241e5574`.
+Positive proving, persisted-receipt replay, missing assumption, exact-journal
+substitution, and proof-bearing false self-label controls pass locally.
+The path-redacted adapter evidence record is
+`docs/research/ZRPF_V1_SPOT_ADAPTER_TEMPORARY_LOCAL_EVIDENCE_20260710.json`.
+
+The bounded structural aggregate profile uses level-one image
+`4272be5165f65e29cb134f815d6c6fc40d7f492979f596082cac10c3f0d43c2b`
+for adapter children and level-two image
+`3b858d113cb155b2946e1c733fdf5fe5592b6bf46c903d0a3cfb322099845736`
+for level-one children. One local four-leaf proof produced a root journal hash
+of `2089ecc187077d4b719c8539076651753c1ead1415724c9bc788758bddfa3768`.
+The exact persisted root receipt has SHA-256
+`021af13025e7dc7c40e06d689ad30e3194e58793435cd11ae07d684c80ddfd33`.
+Receipt bytes may vary across proving runs. These temporary compiler-visible
+images have no release authority.
+The path-redacted structural-tree evidence record is
+`docs/research/ZRPF_V3_STRUCTURAL_TREE_TEMPORARY_LOCAL_EVIDENCE_20260710.json`.
+Its Python checker verifies reviewed facts, source closures, and optional
+artifact bytes; the Rust verifier-only harness remains the receipt-seal and
+exact-journal authority.
+
+The compatibility journal labels its count as one source-transition receipt
+and uses explicit unsupported sentinels for DA-certificate and carry facts. Its
+adapter manifest is a source-independent unreleased compatibility identity;
+source lock hashes remain in source provenance and cannot select the adapter
+manifest. This evidence partially closes `RS-CBC-016` and `RS-CBC-022` for the
+bounded structural profile. It does not close native semantic aggregation,
+data-availability assurance, carry policy, ledger admission, reproducible
+release identity, or `RS-CBC-023`. The field disposition and non-claims are
+specified in
+`docs/research/ZRPF_V1_LEAF_ADAPTER_COMPATIBILITY_SPEC_20260710.md`.
 
 A subsequent target-absent recursive-v2 rebuild froze and rechecked the current
 source closure, used the pinned outer and observed nested Cargo executable,
@@ -97,7 +156,8 @@ false because the clean build did not regenerate the receipts.
 
 The spec applies to:
 
-- `zk/state_proof_risc0/**` and `zk/recursive_stark_v2_risc0/**`;
+- `zk/state_proof_risc0/**`, `zk/recursive_stark_v2_risc0/**`,
+  `zk/zrpf_protocol/**`, and `zk/zrpf_risc0/**`;
 - proof metadata and proof-profile code under `tools/**` and `src/integration/**`;
 - ZenoLedger/Tau admission paths that consume RISC0 receipts or journals;
 - future recursive proof aggregation work.
@@ -127,8 +187,8 @@ The prover may propose data. The guest and verifier decide what is trusted.
 
 This spec does not claim:
 
-- the implemented one-level composition is production-ready or an arbitrary
-  multi-level recursive tree;
+- the implemented bounded one-level and two-level profiles provide
+  arbitrary-depth or production-ready recursion;
 - current proof profiles are production-ready;
 - every ZenoDEX transition has a RISC0 leaf proof;
 - data availability is solved by proof recursion;
@@ -945,8 +1005,9 @@ Use this checklist before merging or promoting a circuit change:
 ## Next Frontier
 
 The highest-value implementation target is nonempty receipt-partition proof
-evidence under the current image, followed by same-profile distinct-leaf and
-larger bounded-fanout evidence. The next
+evidence under the current image, followed by larger bounded-fanout evidence.
+Same-profile distinct-leaf fanout-two evidence is complete at the bounded local
+claim level described above. The next
 authority target is integration of pinned recursive-verifier facts into durable
 atomic ZenoLedger admission. Release-manifest evidence, governed production
 header binding, and dedicated source-finality certificates remain required for

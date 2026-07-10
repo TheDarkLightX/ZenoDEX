@@ -1,0 +1,581 @@
+{
+  "schema": "zenodex/zrpf_v3_structural_tree_temporary_local_evidence/v1",
+  "version": 1,
+  "evidence_date": "2026-07-10",
+  "scope": "four_leaf_two_level_zrpf_v3_structural_tree",
+  "status": "temporary_local_structural_tree_receipt_evidence",
+  "sanitization": {
+    "absolute_paths_included": false,
+    "private_project_names_included": false,
+    "public_safe_record": true
+  },
+  "build_scope": {
+    "compiler_visible_path_stable": false,
+    "cross_host_reproduced": false,
+    "release_authority": false
+  },
+  "toolchain": {
+    "risc0_zkvm_version": "3.0.5",
+    "rustc_version": "1.94.1-dev",
+    "rustc_commit": "06e01cb0d",
+    "cargo_version": "1.94.1-dev",
+    "cargo_commit": "29ea6fb6a"
+  },
+  "tree_profile": {
+    "journal_schema": "zenodex.zrpf.node_journal.v3",
+    "aggregate_profile": "zrpf_v3_structural_aggregate_v1",
+    "count_unit": "source_transition_receipt",
+    "receipt_kind": "succinct",
+    "fanout_limit": 8,
+    "depth_limit": 2,
+    "observed_leaf_count": 4,
+    "observed_node_count": 7
+  },
+  "programs": [
+    {
+      "role": "v1_leaf_adapter",
+      "image_id": "71f282b5517fc6108988c1cc9b4601807a40ae331c0e0f0f5505d12b241e5574",
+      "image_id_words": [
+        3045257841,
+        281444177,
+        3435235465,
+        2147567259,
+        867057786,
+        252644892,
+        735118677,
+        1951735332
+      ],
+      "elf": {
+        "sha256": "545c832d0dbe54ed2379f7fa423e490177cf4e3475c208ce5edf2d6bd4cb9797",
+        "size_bytes": 255660
+      }
+    },
+    {
+      "role": "structural_l1",
+      "image_id": "4272be5165f65e29cb134f815d6c6fc40d7f492979f596082cac10c3f0d43c2b",
+      "image_id_words": [
+        1371435586,
+        694089317,
+        2169443275,
+        3295636573,
+        692682509,
+        144110969,
+        3272649772,
+        725406960
+      ],
+      "elf": {
+        "sha256": "cfd04b048cbe51536161dde09a02fb7b56a1de2b43fcc2b4e00ee4dc9ac7980f",
+        "size_bytes": 343544
+      }
+    },
+    {
+      "role": "structural_l2",
+      "image_id": "3b858d113cb155b2946e1c733fdf5fe5592b6bf46c903d0a3cfb322099845736",
+      "image_id_words": [
+        294487355,
+        2991960380,
+        1931243156,
+        3848265535,
+        4100664153,
+        171806828,
+        540212028,
+        911705241
+      ],
+      "elf": {
+        "sha256": "5912e984b89fc244ec450d3d7ff49f555b090de6502ae328c272fe6e02460a1f",
+        "size_bytes": 342576
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "leaf-0",
+      "role": "leaf",
+      "parent_id": "l1-left",
+      "child_ids": [],
+      "artifact_path": "adapter-leaf-0.receipt.json",
+      "program_role": "v1_leaf_adapter",
+      "receipt": {
+        "kind": "succinct",
+        "sha256": "cc65e529bd881b331531aa615298e46471e31a36d3b8d57af2290031969dda61",
+        "size_bytes": 593505
+      },
+      "journal": {
+        "protocol_hash": "d81782dbf7c324b7c7f08d7c3e7da3a4116be9a809f6e8da17c7c789da273e22",
+        "sha256": "4333dc78ca7db8d78a503f619a752d6c0b50d5a362ece524d9b6939af1c720d1",
+        "size_bytes": 1547
+      },
+      "topology": {
+        "level": 0,
+        "child_count": 0,
+        "leaf_count": 1,
+        "operation_count": 1,
+        "subtree_node_count": 1,
+        "partition_start": 0,
+        "partition_end": 1
+      }
+    },
+    {
+      "id": "leaf-1",
+      "role": "leaf",
+      "parent_id": "l1-left",
+      "child_ids": [],
+      "artifact_path": "adapter-leaf-1.receipt.json",
+      "program_role": "v1_leaf_adapter",
+      "receipt": {
+        "kind": "succinct",
+        "sha256": "a610ed093ae4da1a60e5fd4b955a3b3013d8b9410e3d801e70dada81d903fdd3",
+        "size_bytes": 593322
+      },
+      "journal": {
+        "protocol_hash": "b00e05948cb68a689f4b2ab21f0782036e9659059c92d300b962d3e128bca626",
+        "sha256": "df382cb13d0130e9087eed660918c48a56d5ed67ba80aeb276940d49e743244d",
+        "size_bytes": 1547
+      },
+      "topology": {
+        "level": 0,
+        "child_count": 0,
+        "leaf_count": 1,
+        "operation_count": 1,
+        "subtree_node_count": 1,
+        "partition_start": 1,
+        "partition_end": 2
+      }
+    },
+    {
+      "id": "leaf-2",
+      "role": "leaf",
+      "parent_id": "l1-right",
+      "child_ids": [],
+      "artifact_path": "adapter-leaf-2.receipt.json",
+      "program_role": "v1_leaf_adapter",
+      "receipt": {
+        "kind": "succinct",
+        "sha256": "056ff6fd6557dd42547487c7610697b045402e45bb57726d98c7c99759ecd5bc",
+        "size_bytes": 593263
+      },
+      "journal": {
+        "protocol_hash": "0629323d94feb82120b564aebf1a2f4020a463ac1826666b860eecfe203b188a",
+        "sha256": "f9b2f88c56a05405ca469e1fefc1e853acad33c32eaecad5ce317fcfc8666a9e",
+        "size_bytes": 1547
+      },
+      "topology": {
+        "level": 0,
+        "child_count": 0,
+        "leaf_count": 1,
+        "operation_count": 1,
+        "subtree_node_count": 1,
+        "partition_start": 2,
+        "partition_end": 3
+      }
+    },
+    {
+      "id": "leaf-3",
+      "role": "leaf",
+      "parent_id": "l1-right",
+      "child_ids": [],
+      "artifact_path": "adapter-leaf-3.receipt.json",
+      "program_role": "v1_leaf_adapter",
+      "receipt": {
+        "kind": "succinct",
+        "sha256": "a99509e5664a9cd089b5c95c0c93adf35a85df2dd7c934cf6df012d0e3397db7",
+        "size_bytes": 593126
+      },
+      "journal": {
+        "protocol_hash": "f4e8c1824dc6cd763b9b61dc40d99a2e0015b3a4dbdec220a95aaccbd8fa7410",
+        "sha256": "dbd3dfc0cae288de3f24cf83e3b533e97a495f3d16eb7131e338b1df77640e4e",
+        "size_bytes": 1547
+      },
+      "topology": {
+        "level": 0,
+        "child_count": 0,
+        "leaf_count": 1,
+        "operation_count": 1,
+        "subtree_node_count": 1,
+        "partition_start": 3,
+        "partition_end": 4
+      }
+    },
+    {
+      "id": "l1-left",
+      "role": "aggregate",
+      "parent_id": "l2-root",
+      "child_ids": [
+        "leaf-0",
+        "leaf-1"
+      ],
+      "artifact_path": "structural-tree/structural-l1-left.receipt.json",
+      "program_role": "structural_l1",
+      "receipt": {
+        "kind": "succinct",
+        "sha256": "78977e2e2d75e63811b7d7e2f30987bbe76fde4764e1aef423bbd8ffa30f32ba",
+        "size_bytes": 593131
+      },
+      "journal": {
+        "protocol_hash": "6546b9e8fcc884d865f1a3892ef04ec77c6689e2e9c7310c5fdd83355df44a4e",
+        "sha256": "e876b967a4ba61a7c49ebc2bc1fa0af900b6b7eaee0b0ce048a20789ad5121fb",
+        "size_bytes": 1547
+      },
+      "topology": {
+        "level": 1,
+        "child_count": 2,
+        "leaf_count": 2,
+        "operation_count": 2,
+        "subtree_node_count": 3,
+        "partition_start": 0,
+        "partition_end": 2
+      }
+    },
+    {
+      "id": "l1-right",
+      "role": "aggregate",
+      "parent_id": "l2-root",
+      "child_ids": [
+        "leaf-2",
+        "leaf-3"
+      ],
+      "artifact_path": "structural-tree/structural-l1-right.receipt.json",
+      "program_role": "structural_l1",
+      "receipt": {
+        "kind": "succinct",
+        "sha256": "085b3095271061f4baa57c7a5ca79c6ffefb87206840df1e7158730b7520eedb",
+        "size_bytes": 593429
+      },
+      "journal": {
+        "protocol_hash": "fdfdac79c3278eb3ba7143bd5c31ff15739640fdebbfc2f3e505f52947c531bf",
+        "sha256": "538330fd18d5c5313f8279ca46bb92c62972acfdd6eaa3100e5d9c4ee66613cb",
+        "size_bytes": 1547
+      },
+      "topology": {
+        "level": 1,
+        "child_count": 2,
+        "leaf_count": 2,
+        "operation_count": 2,
+        "subtree_node_count": 3,
+        "partition_start": 2,
+        "partition_end": 4
+      }
+    },
+    {
+      "id": "l2-root",
+      "role": "aggregate",
+      "parent_id": null,
+      "child_ids": [
+        "l1-left",
+        "l1-right"
+      ],
+      "artifact_path": "structural-tree/structural-l2-root.receipt.json",
+      "program_role": "structural_l2",
+      "receipt": {
+        "kind": "succinct",
+        "sha256": "021af13025e7dc7c40e06d689ad30e3194e58793435cd11ae07d684c80ddfd33",
+        "size_bytes": 593096
+      },
+      "journal": {
+        "protocol_hash": "2089ecc187077d4b719c8539076651753c1ead1415724c9bc788758bddfa3768",
+        "sha256": "da94385eb3d1f6cfd9ca8b440371e34ebf59882f0b13dc2d748c01bb76f81290",
+        "size_bytes": 1547
+      },
+      "topology": {
+        "level": 2,
+        "child_count": 2,
+        "leaf_count": 4,
+        "operation_count": 4,
+        "subtree_node_count": 7,
+        "partition_start": 0,
+        "partition_end": 4
+      }
+    }
+  ],
+  "receipt_verification": {
+    "performed_by": "Rust RISC0 verifier-only harness",
+    "verifier_source_path": "zk/zrpf_risc0/harness/src/bin/verify_structural_tree.rs",
+    "risc0_zkvm_version": "3.0.5",
+    "all_receipts_seal_verified": true,
+    "all_expected_image_ids_verified": true,
+    "exact_aggregate_journals_recomposed": true,
+    "python_checker_verifies_seal": false,
+    "python_checker_scope": [
+      "strict_manifest_schema",
+      "reviewed_manifest_digest",
+      "relative_source_sha256",
+      "optional_receipt_and_journal_byte_hashes",
+      "optional_transcript_byte_hashes",
+      "bounded_tree_topology"
+    ]
+  },
+  "negative_controls": [
+    {
+      "id": "missing_child_assumption_rejected",
+      "passed": true,
+      "expected_program_role": "structural_l1",
+      "status": "structural_l1_missing_child_assumption_rejected",
+      "transcript": {
+        "artifact_path": "structural-tree/missing-child-assumption-transcript.json",
+        "sha256": "3fbbf303f3cc6f0e7c996731b2b68ba4f8f059064595647faf6f83b09b6ca521",
+        "size_bytes": 159
+      }
+    },
+    {
+      "id": "swapped_level_one_receipts_rejected",
+      "passed": true,
+      "expected_program_role": "structural_l1",
+      "status": "swapped_level_one_receipts_rejected",
+      "transcript": {
+        "artifact_path": "structural-tree/swapped-level-one-transcript.json",
+        "sha256": "901ad867adee829d6da910b2ddc5915b4c116c0a22a30b5111d24e9be29d80fa",
+        "size_bytes": 274
+      }
+    },
+    {
+      "id": "wrong_image_receipt_rejected",
+      "passed": true,
+      "expected_program_role": "structural_l1",
+      "status": "wrong_image_receipt_rejected",
+      "transcript": {
+        "artifact_path": "structural-tree/wrong-image-transcript.json",
+        "sha256": "8233da84919f833ae678706f89f35a8aef4a05aacca91fdbb7f4335d0b953a31",
+        "size_bytes": 267
+      }
+    }
+  ],
+  "prover_execution": {
+    "performed_by": "Rust RISC0 proving harness",
+    "receipt_generation_completed": true,
+    "executed_harness_source_closure_attested": false,
+    "current_source_matches_executed": false,
+    "source_drift_reason": "post_run_checkpoint_patch_changed_proving_harness_source",
+    "executed_binary_sha256": "5a8d767d7ea4b335116b51480880072dd7518de63245507f2eb9a9b454d80615",
+    "executed_binary_size_bytes": 9976088
+  },
+  "verifier_replay": {
+    "status": "persisted_four_leaf_two_level_structural_tree_verified",
+    "current_source_closure_attested": true,
+    "executed_binary_sha256": "b55f992f5d71d1f72eaf9e108126866b00a6374ca2af5bcb83ff2a3457a138c6",
+    "executed_binary_size_bytes": 2584232,
+    "transcript": {
+      "artifact_path": "structural-tree/verifier-replay-transcript.json",
+      "sha256": "d9f05bb36f9e6c8666561b9f805f433048657805a75d9c34217479172ef42d0e",
+      "size_bytes": 295
+    }
+  },
+  "guest_build_sources": {
+    "scope": "repository_local_inputs_and_lockfile_for_recorded_guest_elf_build",
+    "finalized": true,
+    "definition": "sha256 of sorted role, path, and sha256 records with NUL field separators and LF record separators",
+    "file_count": 31,
+    "sha256": "6a9f613e369116f32feffc1029629c6cd12991527dbf967a36eabfd408878d92",
+    "files": [
+      {
+        "role": "source_journal_dependency",
+        "path": "zk/state_proof_risc0/shared/Cargo.toml",
+        "sha256": "6a21ba0c312f684df8ce8703facb4badec2f0f85721d30c83bdce30c192c299c"
+      },
+      {
+        "role": "source_journal_dependency",
+        "path": "zk/state_proof_risc0/shared/src/lib.rs",
+        "sha256": "2225db4754f6a868c307699b19a880bcd6471cfe6d91e885086fa0b58af2bc21"
+      },
+      {
+        "role": "source_journal_dependency",
+        "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+        "sha256": "5d78c536c97cbf1767f6ddbb282a11da0d36ce262c8c42c0263b6cce33f1474a"
+      },
+      {
+        "role": "source_journal_dependency",
+        "path": "zk/state_proof_risc0/shared/src/surfaces.rs",
+        "sha256": "4ecf23abd29475fc0e024ce82123b96d7082cb74e0e2eaf5005f28e93737f215"
+      },
+      {
+        "role": "protocol_dependency",
+        "path": "zk/zrpf_protocol/Cargo.toml",
+        "sha256": "293028a74273ea21917e7ec7900f0f564947f7a771ec3ae1e82c29c3fea7a4d0"
+      },
+      {
+        "role": "protocol_dependency",
+        "path": "zk/zrpf_protocol/protocol/Cargo.toml",
+        "sha256": "391cd224acfe470bbf5f6192adcb6f9d5df2c2c80f16001c4da944c0927f8dfb"
+      },
+      {
+        "role": "protocol_dependency",
+        "path": "zk/zrpf_protocol/protocol/src/lib.rs",
+        "sha256": "04a787676c54b66795178fa22048430229bcac9ef4b0ea05cfe126059499cbe6"
+      },
+      {
+        "role": "guest_build",
+        "path": "zk/zrpf_risc0/.cargo/config.toml",
+        "sha256": "cf2f909df3589fb51c1e63338d5b12a38e3591694cc416d5b30d48fc5fc90854"
+      },
+      {
+        "role": "guest_build",
+        "path": "zk/zrpf_risc0/Cargo.lock",
+        "sha256": "b2c4d9981a120cd0e815f96d94037822ee741d2e15eb87fa4bcdb1f918747f93"
+      },
+      {
+        "role": "guest_build",
+        "path": "zk/zrpf_risc0/Cargo.toml",
+        "sha256": "383b477ebd889870ac1cbb21fc91ec79d2e1c0677916b0c05b9018cb778ea820"
+      },
+      {
+        "role": "aggregate_composer",
+        "path": "zk/zrpf_risc0/aggregate_shared/Cargo.toml",
+        "sha256": "a4669e264447a4ccaaca3c21358f360d9c542be9857565f697a7d731cddad5b9"
+      },
+      {
+        "role": "aggregate_composer",
+        "path": "zk/zrpf_risc0/aggregate_shared/src/input_v1.rs",
+        "sha256": "3ebaa460e0395e1ebfd4f995294deb1964feaf1044e017356d81ee8b60362d24"
+      },
+      {
+        "role": "aggregate_composer",
+        "path": "zk/zrpf_risc0/aggregate_shared/src/lib.rs",
+        "sha256": "b7cbe386a62313a42bd43b682be8c76abf2d832b245bf6fa905b9b12fac8fc1d"
+      },
+      {
+        "role": "aggregate_composer",
+        "path": "zk/zrpf_risc0/aggregate_shared/src/structural_v1.rs",
+        "sha256": "c6d8509cb990c02d34afd0755894ddcb1b2c2fbe3554605c94efc03074c14e84"
+      },
+      {
+        "role": "method_registry",
+        "path": "zk/zrpf_risc0/methods/Cargo.toml",
+        "sha256": "cffece1e78d0e4d10d4b2bc79d28ec44b4c3a0c654468f8d074e168aa68af9ab"
+      },
+      {
+        "role": "method_registry",
+        "path": "zk/zrpf_risc0/methods/build.rs",
+        "sha256": "a76e8508d7575e21a6da8d4e4da1099921651f0d5ca6441b9aa2cb859af0fb14"
+      },
+      {
+        "role": "method_registry",
+        "path": "zk/zrpf_risc0/methods/src/lib.rs",
+        "sha256": "902d56d952004dd42e65c148a4b537710f869054556528b25ed3e67d050bb255"
+      },
+      {
+        "role": "aggregate_guest",
+        "path": "zk/zrpf_risc0/methods/structural_aggregate_l1/Cargo.toml",
+        "sha256": "5c874844867c9455b351c5a681229f040ec86d483937737cbb1be920cfedad27"
+      },
+      {
+        "role": "aggregate_guest",
+        "path": "zk/zrpf_risc0/methods/structural_aggregate_l1/src/main.rs",
+        "sha256": "dd970ec33b08de345583218df32efe192ee479121e2ada7dcea3ef8c0ae75f0b"
+      },
+      {
+        "role": "aggregate_guest",
+        "path": "zk/zrpf_risc0/methods/structural_aggregate_l2/Cargo.toml",
+        "sha256": "397cb56d9a6179bea59e0e2886ec50581aa2adaee11c504251209b4f003417f7"
+      },
+      {
+        "role": "aggregate_guest",
+        "path": "zk/zrpf_risc0/methods/structural_aggregate_l2/src/main.rs",
+        "sha256": "221b2305cc9b1b6bf877b406768d106b5d9997423c340fa0aa678f57aaba3353"
+      },
+      {
+        "role": "adapter_guest",
+        "path": "zk/zrpf_risc0/methods/v1_leaf_adapter/Cargo.toml",
+        "sha256": "5a66a5458eb9e2951c10c3927550e6cfb75dc69dbbe86ece467fc86f7cce57f6"
+      },
+      {
+        "role": "adapter_guest",
+        "path": "zk/zrpf_risc0/methods/v1_leaf_adapter/src/main.rs",
+        "sha256": "6e38a20e28b283a513c9fe541b8dd9a5442fea89a01b33d2c95baf461ed1f547"
+      },
+      {
+        "role": "adapter_mapping",
+        "path": "zk/zrpf_risc0/shared/Cargo.toml",
+        "sha256": "582e45f552a0da0790b40f7e251000655673b40b30e64788afd970e2b252c566"
+      },
+      {
+        "role": "adapter_mapping",
+        "path": "zk/zrpf_risc0/shared/src/adapter_input_v1.rs",
+        "sha256": "f5953aa9a77c221b55db7dc56f2aab2e2ac352137bddb170f0a6e5acf8d7066a"
+      },
+      {
+        "role": "adapter_mapping",
+        "path": "zk/zrpf_risc0/shared/src/hashing_v1.rs",
+        "sha256": "60296d7d22f2e8b3c4eed2ad688aa8d1fc3f308f02dba668348a08fcbded6a02"
+      },
+      {
+        "role": "adapter_mapping",
+        "path": "zk/zrpf_risc0/shared/src/lib.rs",
+        "sha256": "3b7ce1886ffa91dba5aa7b781a59c584f593c2e2a8d02b27865795f13d82ad5d"
+      },
+      {
+        "role": "adapter_mapping",
+        "path": "zk/zrpf_risc0/shared/src/risc0_binding_v1.rs",
+        "sha256": "fdb4c7aba37970c45d373eab25a5b76f1a9f4c6c8e7b0a0c9561a5999bbc063a"
+      },
+      {
+        "role": "adapter_mapping",
+        "path": "zk/zrpf_risc0/shared/src/source_binding_v3.rs",
+        "sha256": "ab5105749be7e39d01ec45cde2d9d8a76b9a096fbb5f49fd64a88d8c6677ab5d"
+      },
+      {
+        "role": "adapter_mapping",
+        "path": "zk/zrpf_risc0/shared/src/source_policy_v1.rs",
+        "sha256": "1292cdb2071443b67109d20ec96d565d0c8756a605510ff3cc1478db403bb433"
+      },
+      {
+        "role": "adapter_mapping",
+        "path": "zk/zrpf_risc0/shared/src/v1_leaf_adapter.rs",
+        "sha256": "0e1274b4268f381f08b0fcf7e30ad07fa015520344c81f8ae7254100f88e080b"
+      }
+    ]
+  },
+  "verification_sources": {
+    "scope": "additional_repository_local_sources_for_current_verifier_only_replay",
+    "finalized": true,
+    "definition": "sha256 of sorted role, path, and sha256 records with NUL field separators and LF record separators",
+    "file_count": 4,
+    "sha256": "fee3effec7ce0d03d1e60bbc08c569f9d7ac49b553f088989cafee014d56dd18",
+    "files": [
+      {
+        "role": "verification_harness",
+        "path": "zk/zrpf_risc0/harness/Cargo.toml",
+        "sha256": "bfad9f1de49a407b978058d9a27013427f664bd5637adecb6918440e120be96a"
+      },
+      {
+        "role": "verification_harness",
+        "path": "zk/zrpf_risc0/harness/src/bin/verify_structural_tree.rs",
+        "sha256": "1c0c87789678042eee9c29ef1de529b9d68c0da98d720ac490d778d017886fe6"
+      },
+      {
+        "role": "sealed_verifier",
+        "path": "zk/zrpf_risc0/verifier/Cargo.toml",
+        "sha256": "f72889cdae4960c289c2f021618a09dcb63323a45da621c82f50a902406f0d4f"
+      },
+      {
+        "role": "sealed_verifier",
+        "path": "zk/zrpf_risc0/verifier/src/lib.rs",
+        "sha256": "baac655ec93d547ed12e7446d600c8c04f72ad4caadc53b14ef05502dad82a48"
+      }
+    ]
+  },
+  "claims": {
+    "rust_risc0_verifier_replay_verified_every_receipt": true,
+    "temporary_local_structural_tree_computational_integrity": true,
+    "structural_child_commitments_aggregated": true,
+    "proof_generation_source_closure_attested": false,
+    "release_backed": false,
+    "public_replay": false,
+    "full_zenodex_semantic_composition": false,
+    "data_availability_or_carry_semantics": false,
+    "asset_conservation_or_value_flow": false,
+    "ledger_or_settlement_admission_authority": false,
+    "production_authority": false,
+    "zero_knowledge_or_witness_privacy": false
+  },
+  "non_claims": [
+    "no_proof_generation_source_closure_attestation",
+    "no_release_or_cross_host_reproducibility_claim",
+    "no_public_replay_claim",
+    "no_full_zenodex_semantic_composition_claim",
+    "no_data_availability_or_carry_semantics_claim",
+    "no_asset_conservation_or_value_flow_claim",
+    "no_zenoledger_or_settlement_admission_claim",
+    "no_production_authority_claim",
+    "no_zero_knowledge_or_witness_privacy_claim",
+    "no_receipt_byte_determinism_claim"
+  ]
+}

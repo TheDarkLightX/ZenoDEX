@@ -1,0 +1,11 @@
+[package]
+name = "zenodex-zrpf-risc0-verifier"
+version = "0.1.0"
+edition = "2021"
+description = "Sealed host verifier for receipt-authenticated ZRPF V3 nodes"
+publish = false
+
+[dependencies]
+risc0-zkvm = { version = "=3.0.5", features = ["disable-dev-mode"] }
+zenodex-zrpf-protocol-v3 = { path = "../../zrpf_protocol/protocol" }
+zenodex-zrpf-risc0-shared = { path = "../shared" }

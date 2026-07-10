@@ -168,7 +168,7 @@ Current status:
   `8cd39919e79085bb357f1aa316175809c461c648c5b86481879a12e5c3c826ae`.
   The combined program is 445,696 bytes with SHA-256
   `71ee72cd87ed164e22941630c40fa221ad769f9fea88c9d6eda9985cd409cfd9`.
-  An independent pair verifier accepted the two receipts and rejected wrong
+  A separate pair verifier accepted the two receipts and rejected wrong
   image metadata, journal substitution, swapped levels, and non-canonical JSON.
 - The v2 build exposed a compiler-provenance requirement: `risc0-build` 3.0.5
   removes `RUSTUP_TOOLCHAIN` and every `CARGO*` variable before invoking bare
@@ -223,7 +223,8 @@ resulting typed value, so this does not invalidate the pinned proofs. It does
 preclude any claim that the complete outer JSON envelope is canonical or that
 unknown fields fail closed. The next ABI must reject duplicate keys and unknown
 critical fields before typed construction; production and public claims remain
-false until that boundary is closed.
+false until that boundary is closed. `RS-CBC-021` records this as a pending
+critical promotion obligation.
 
 ## Vericoding Goal
 
@@ -617,7 +618,7 @@ Historical pre-composition-repair fixed-height recursive-v2 local evidence:
 - epoch-root authenticated journal SHA-256:
   `55660a3a1d8a70f37463718804b608f3cb2e91512e3e8e53091606e2d79c4ecb`;
 - missing-child execution rejected with the exact RISC0 assumption claim;
-- independent pair status: `recursive_v2_pair_verified`.
+- pair-verifier status: `recursive_v2_pair_verified`.
 
 This is historical one-leaf, fixed-height local evidence. It does not evidence
 the repaired current source. The harness derives scheduling and data-availability
@@ -647,7 +648,7 @@ Current post-composition-repair fixed-height recursive-v2 local evidence:
   `469573a876ff43695b440b63fb589cbfdf071c6f36c266c507be9af24c13219b`;
 - missing-assumption transcript SHA-256:
   `dc7fa4bbe2d0bca183d6bd38cc4a4973a6ebe3e82350b7e563dcc7d0e40a36e0`;
-- independent pair status: `recursive_v2_pair_verified`.
+- pair-verifier status: `recursive_v2_pair_verified`.
 
 The pinned reference is
 `config/proof_profiles/risc0_recursive_v2_rebuild_reference.json`. Its candidate

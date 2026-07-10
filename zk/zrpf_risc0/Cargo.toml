@@ -1,0 +1,16 @@
+[workspace]
+members = [
+  "shared",
+  "aggregate_shared",
+  "verifier",
+  "methods",
+  "methods/v1_leaf_adapter",
+  "methods/structural_aggregate_l1",
+  "methods/structural_aggregate_l2",
+  "harness",
+]
+resolver = "2"
+
+[profile.release]
+lto = true
+opt-level = 3

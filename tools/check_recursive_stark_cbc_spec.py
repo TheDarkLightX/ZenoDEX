@@ -34,6 +34,48 @@ MAX_MATRIX_BYTES = 1024 * 1024
 MAX_REFERENCED_FILE_BYTES = 4 * 1024 * 1024
 MAX_REFERENCE_PATH_BYTES = 512
 
+MATRIX_ALLOWED_FIELDS = frozenset(
+    {
+        "schema",
+        "status",
+        "updated_at",
+        "promotion_boundary",
+        "typed_statements",
+        "obligations",
+    }
+)
+PROMOTION_BOUNDARY_ALLOWED_FIELDS = frozenset(
+    {"public_claim_allowed", "production_ready", "claim_status", "non_claims"}
+)
+TYPED_STATEMENT_ALLOWED_FIELDS = frozenset(
+    {
+        "id",
+        "status",
+        "statement",
+        "journal",
+        "owner_surface",
+        "authority_boundary",
+        "required_fields",
+    }
+)
+OBLIGATION_ALLOWED_FIELDS = frozenset(
+    {
+        "id",
+        "title",
+        "severity",
+        "status",
+        "defense_layer",
+        "disaster_state",
+        "construction_rule",
+        "non_claim",
+        "code_refs",
+        "test_refs",
+        "external_commands",
+        "next_action",
+    }
+)
+REFERENCE_ALLOWED_FIELDS = frozenset({"path", "symbol"})
+
 REQUIRED_NON_CLAIMS = {
     "no_production_ready_recursive_starks",
     "no_full_zk_execution_for_all_value_moving_surfaces",
@@ -52,6 +94,11 @@ REQUIRED_NON_CLAIMS = {
     "no_whole_build_network_isolation",
     "no_public_recursive_replay",
     "no_separately_governed_recursive_authority_manifest",
+    "no_canonical_recursive_outer_envelope",
+    "no_v3_semantic_receipt_authenticated_tree",
+    "no_release_backed_v3_receipt_authenticated_tree",
+    "no_complete_v3_semantic_composition",
+    "no_zrpf_16x4_profile",
 }
 REQUIRED_STATEMENTS = {
     "recursive_epoch_v1",
@@ -60,6 +107,56 @@ REQUIRED_STATEMENTS = {
     "recursive_zusd_leaf_v1",
     "recursive_perps_np_leaf_v1",
     "recursive_node_v2",
+    "zrpf_node_v3_structural",
+    "zrpf_v1_spot_adapter_receipt_v1",
+}
+REQUIRED_STATEMENT_FIELDS = {
+    "zrpf_node_v3_structural": frozenset(
+        {
+            "journal_version",
+            "task_id",
+            "node_kind",
+            "node_level",
+            "partition",
+            "immediate_child_count",
+            "leaf_count",
+            "operation_count",
+            "count_unit_id",
+            "subtree_node_count",
+            "scope",
+            "proof_profile_id",
+            "actual_program_id",
+            "verifier_id",
+            "node_statement_hash",
+            "program_manifest_root",
+            "commitments",
+            "commitments.provenance_root",
+            "child_tasks_root",
+            "child_claims_root",
+            "child_journals_root",
+            "child_programs_root",
+            "child_profiles_root",
+            "child_verifiers_root",
+            "immediate_verifier_set_root",
+            "child_statements_root",
+            "child_manifests_root",
+            "child_effects_root",
+            "child_provenance_roots",
+            "child_data_availability_roots",
+        }
+    ),
+    "zrpf_v1_spot_adapter_receipt_v1": frozenset(
+        {
+            "schema_version",
+            "source_kind",
+            "source_journal_bytes",
+            "assigned_leaf_ordinal",
+            "expected_adapter_image_id",
+            "governed_source_image_id",
+            "canonical_node_journal_v3",
+            "outer_verified_adapter_image_equality",
+        }
+    ),
 }
 REQUIRED_OBLIGATION_POLICY = {
     "RS-CBC-001": ("critical", "guarded_transition"),
@@ -82,8 +179,12 @@ REQUIRED_OBLIGATION_POLICY = {
     "RS-CBC-018": ("critical", "bounded_blast_radius"),
     "RS-CBC-019": ("critical", "guarded_transition"),
     "RS-CBC-020": ("critical", "unrepresentable"),
+    "RS-CBC-021": ("critical", "unrepresentable"),
+    "RS-CBC-022": ("critical", "guarded_transition"),
+    "RS-CBC-023": ("critical", "unrepresentable"),
 }
 REQUIRED_OBLIGATIONS = frozenset(REQUIRED_OBLIGATION_POLICY)
+PINNED_PENDING_OBLIGATIONS = frozenset({"RS-CBC-021", "RS-CBC-023"})
 ALLOWED_STATUSES = {"implemented", "implemented_partial", "pending", "deferred_nonclaim"}
 ALLOWED_SEVERITIES = {"critical", "high", "medium", "low"}
 ALLOWED_DEFENSE_LAYERS = {
@@ -94,8 +195,13 @@ ALLOWED_DEFENSE_LAYERS = {
 }
 IMPLEMENTED_STATUSES = {"implemented", "implemented_partial"}
 PENDING_STATUSES = {"pending", "deferred_nonclaim"}
-ACCEPTED_CLAIM_STATUSES = frozenset({"post_repair_current_image_local_recursive_proofs_verified"})
+ACCEPTED_CLAIM_STATUSES = frozenset(
+    {
+        "v1_v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified"
+    }
+)
 STALE_CURRENT_IMAGE_NON_CLAIM = "no_current_image_recursive_proof_after_composition_repair"
+STALE_V3_TREE_ABSENCE_NON_CLAIM = "no_v3_receipt_authenticated_tree"
 SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 
 
@@ -107,6 +213,7 @@ def validate_matrix(matrix: Any, *, repo_root: Path = REPO_ROOT) -> dict[str, An
     errors: list[str] = []
     matrix_sha256 = _canonical_matrix_sha256(matrix, errors)
     root = _mapping(matrix, "matrix", errors)
+    _reject_unknown_fields(root, MATRIX_ALLOWED_FIELDS, "matrix", errors)
     if root.get("schema") != MATRIX_SCHEMA:
         errors.append("schema mismatch")
     if root.get("status") != "critical_code_cbc_obligation_matrix":
@@ -122,13 +229,16 @@ def validate_matrix(matrix: Any, *, repo_root: Path = REPO_ROOT) -> dict[str, An
     statements = _validate_typed_statements(root.get("typed_statements"), repo_root=inspected_root)
     obligations = _validate_obligations(root.get("obligations"), repo_root=inspected_root)
 
-    if (
-        promotion["facts"]["claim_status"]
-        == "post_repair_current_image_local_recursive_proofs_verified"
-    ):
+    if promotion["facts"]["claim_status"] in ACCEPTED_CLAIM_STATUSES:
         obligation_statuses = {item["id"]: item["status"] for item in obligations["items"]}
         if obligation_statuses.get("RS-CBC-014") != "implemented":
             errors.append("post-repair local-proof-verified status requires RS-CBC-014 implemented")
+        for obligation_id in ("RS-CBC-016", "RS-CBC-022"):
+            if obligation_statuses.get(obligation_id) not in IMPLEMENTED_STATUSES:
+                errors.append(
+                    "temporary V3 structural-tree-verified status requires "
+                    f"{obligation_id} implemented or implemented_partial"
+                )
         _validate_promoted_source_closures(inspected_root, errors)
 
     for section_name, section in (
@@ -214,6 +324,12 @@ def _validate_promoted_source_closures(
 def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
     errors: list[str] = []
     obj = _mapping(value, "promotion_boundary", errors)
+    _reject_unknown_fields(
+        obj,
+        PROMOTION_BOUNDARY_ALLOWED_FIELDS,
+        "promotion_boundary",
+        errors,
+    )
     public_claim_allowed = _bool(
         obj.get("public_claim_allowed"),
         "promotion_boundary.public_claim_allowed",
@@ -241,10 +357,15 @@ def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
     if missing_non_claims:
         errors.append("promotion_boundary.non_claims missing required values")
     if (
-        claim_status == "post_repair_current_image_local_recursive_proofs_verified"
+        claim_status in ACCEPTED_CLAIM_STATUSES
         and STALE_CURRENT_IMAGE_NON_CLAIM in non_claims
     ):
         errors.append("promotion_boundary.non_claims retains stale current-image proof absence")
+    if (
+        claim_status in ACCEPTED_CLAIM_STATUSES
+        and STALE_V3_TREE_ABSENCE_NON_CLAIM in non_claims
+    ):
+        errors.append("promotion_boundary.non_claims retains stale V3 structural-tree absence")
 
     return {
         "ok": not errors,
@@ -265,7 +386,14 @@ def _validate_typed_statements(value: Any, *, repo_root: Path | None) -> dict[st
     reports: list[dict[str, Any]] = []
     for index, raw in enumerate(items):
         item_errors: list[str] = []
-        item = _mapping(raw, f"typed_statements[{index}]", item_errors)
+        item_name = f"typed_statements[{index}]"
+        item = _mapping(raw, item_name, item_errors)
+        _reject_unknown_fields(
+            item,
+            TYPED_STATEMENT_ALLOWED_FIELDS,
+            item_name,
+            item_errors,
+        )
         statement_id = _str(item.get("id"), f"typed_statements[{index}].id", item_errors)
         status = _str(item.get("status"), f"typed_statements[{index}].status", item_errors)
         _str(item.get("statement"), f"typed_statements[{index}].statement", item_errors)
@@ -302,6 +430,17 @@ def _validate_typed_statements(value: Any, *, repo_root: Path | None) -> dict[st
             )
         if len(required_fields) < 4:
             item_errors.append("typed statement must list at least four required fields")
+        pinned_fields = REQUIRED_STATEMENT_FIELDS.get(statement_id or "", frozenset())
+        missing_fields = sorted(pinned_fields - required_fields)
+        if missing_fields:
+            item_errors.append(
+                "typed statement missing pinned required fields: " + ",".join(missing_fields)
+            )
+        unexpected_fields = sorted(required_fields - pinned_fields) if pinned_fields else []
+        if unexpected_fields:
+            item_errors.append(
+                "typed statement has unpinned fields: " + ",".join(unexpected_fields)
+            )
 
         reports.append(
             {
@@ -339,7 +478,14 @@ def _validate_obligations(value: Any, *, repo_root: Path | None) -> dict[str, An
 
     for index, raw in enumerate(items):
         item_errors: list[str] = []
-        item = _mapping(raw, f"obligations[{index}]", item_errors)
+        item_name = f"obligations[{index}]"
+        item = _mapping(raw, item_name, item_errors)
+        _reject_unknown_fields(
+            item,
+            OBLIGATION_ALLOWED_FIELDS,
+            item_name,
+            item_errors,
+        )
         obligation_id = _str(item.get("id"), f"obligations[{index}].id", item_errors)
         _str(item.get("title"), f"obligations[{index}].title", item_errors)
         severity = _str(item.get("severity"), f"obligations[{index}].severity", item_errors)
@@ -375,6 +521,15 @@ def _validate_obligations(value: Any, *, repo_root: Path | None) -> dict[str, An
             if defense_layer != required_defense_layer:
                 item_errors.append(
                     "required obligation defense_layer differs from its pinned layer"
+                )
+        if obligation_id in PINNED_PENDING_OBLIGATIONS:
+            if status != "pending":
+                item_errors.append(
+                    "required obligation remains pinned pending until checker policy is updated"
+                )
+            if code_refs or test_refs or external_commands:
+                item_errors.append(
+                    "pinned pending obligation must not cite implementation evidence"
                 )
         if status in IMPLEMENTED_STATUSES:
             implemented_count += 1
@@ -606,6 +761,23 @@ def _mapping(value: Any, name: str, errors: list[str]) -> Mapping[str, Any]:
     return value
 
 
+def _reject_unknown_fields(
+    value: Mapping[Any, Any],
+    allowed_fields: frozenset[str],
+    name: str,
+    errors: list[str],
+) -> None:
+    if any(not isinstance(field, str) for field in value):
+        errors.append(f"{name} field names must be strings")
+    unknown_fields = sorted(
+        field
+        for field in value
+        if isinstance(field, str) and field not in allowed_fields
+    )
+    if unknown_fields:
+        errors.append(f"{name} has unknown fields: {','.join(unknown_fields)}")
+
+
 def _list(value: Any, name: str, errors: list[str]) -> list[Any]:
     if not isinstance(value, list):
         errors.append(f"{name} must be a list")
@@ -646,7 +818,9 @@ def _refs(value: Any, name: str, errors: list[str]) -> list[Mapping[str, str]]:
     out: list[Mapping[str, str]] = []
     for index, raw in enumerate(items):
         ref_errors: list[str] = []
-        ref = _mapping(raw, f"{name}[{index}]", ref_errors)
+        ref_name = f"{name}[{index}]"
+        ref = _mapping(raw, ref_name, ref_errors)
+        _reject_unknown_fields(ref, REFERENCE_ALLOWED_FIELDS, ref_name, ref_errors)
         path = _str(ref.get("path"), f"{name}[{index}].path", ref_errors)
         symbol = _str(ref.get("symbol"), f"{name}[{index}].symbol", ref_errors)
         if not ref_errors and path is not None and symbol is not None:

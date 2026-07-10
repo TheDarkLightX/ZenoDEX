@@ -1,0 +1,45 @@
+{
+  "schema": "zenodex/zrpf_v1_leaf_adapter_source_policy/v1",
+  "status": "compatibility_mapping_only",
+  "adapter_profile": "zrpf_v1_leaf_adapter_compatibility_v1",
+  "count_unit": "source_transition_receipt",
+  "receipt_authority": false,
+  "source_reference": {
+    "path": "config/proof_profiles/risc0_recursive_rebuild_reference.json",
+    "sha256": "ae562f0ecca00d3eb106526199efb0712660d11c77350027b39f29d2281af8a9",
+    "schema": "zenodex/risc0_recursive_rebuild_reference/v2",
+    "source_tree_root": "7a3bed2a1d8fff3ad2e93f2d406df435a9990d1a9c0462ff3323fb028327564e"
+  },
+  "sources": [
+    {
+      "source_kind": "spot",
+      "proof_type": "risc0.zenodex_recursive_spot_leaf.v1",
+      "proof_profile": "recursive_spot_leaf_v1",
+      "lane_kind": "spot",
+      "image_id": "1275ef413f6513e7671bce019d22fbdcf10bffe1b71dcf68731a056e710a7403",
+      "image_id_words": [
+        1106212114,
+        3876807999,
+        30284647,
+        3707445917,
+        3791588337,
+        1758404023,
+        1845828211,
+        57936497
+      ],
+      "program_sha256": "d1fd8915a3c1650b42527e6b878f203679cd447b506916c6a9a56008ed0951a8"
+    }
+  ],
+  "unsupported_compatibility_fields": [
+    "data_availability_certificate_root",
+    "carry_queue_pre_root",
+    "carry_queue_post_root"
+  ],
+  "non_claims": [
+    "no_receipt_authentication_in_pure_mapping",
+    "no_durable_data_availability",
+    "no_carry_queue_evidence",
+    "no_settlement_or_ledger_admission_authority",
+    "no_release_provenance_from_local_source_tree_root"
+  ]
+}

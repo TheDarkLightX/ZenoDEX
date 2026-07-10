@@ -68,20 +68,92 @@ def _obligation_report(report: dict[str, Any], obligation_id: str) -> dict[str, 
     raise AssertionError(f"missing obligation report for {obligation_id}")
 
 
+def _statement_report(report: dict[str, Any], statement_id: str) -> dict[str, Any]:
+    for item in report["typed_statements"]["items"]:
+        if item["id"] == statement_id:
+            return item
+    raise AssertionError(f"missing typed statement report for {statement_id}")
+
+
 def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -> None:
-    report = checker.validate_matrix(_matrix())
+    matrix = _matrix()
+    report = checker.validate_matrix(matrix)
 
     assert report["ok"] is True
     assert report["facts"]["missing_required_statements"] == []
     assert report["facts"]["missing_required_obligations"] == []
+    assert report["facts"]["typed_statement_count"] == 8
+    assert report["facts"]["obligation_count"] == 23
+    assert report["facts"]["implemented_obligation_count"] == 18
+    assert report["facts"]["pending_obligation_count"] == 5
     assert report["matrix_sha256"] == (
-        "sha256:ba93ecadd21d2efd7d947615b1d40a5c8f4023c86d5c8baa6e81c95d112fad0d"
+        "sha256:0faa674e44edad3b387b1a11de7fb09741baa52cb6cbbcb7041f124c8e19e77b"
     )
     assert report["promotion_boundary"]["facts"]["public_claim_allowed"] is False
     assert report["promotion_boundary"]["facts"]["production_ready"] is False
     assert (
         report["promotion_boundary"]["facts"]["claim_status"]
-        == "post_repair_current_image_local_recursive_proofs_verified"
+        == "v1_v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified"
+    )
+    assert (
+        "no_canonical_recursive_outer_envelope"
+        in matrix["promotion_boundary"]["non_claims"]
+    )
+    assert (
+        "no_v3_semantic_receipt_authenticated_tree"
+        in matrix["promotion_boundary"]["non_claims"]
+    )
+    assert (
+        "no_release_backed_v3_receipt_authenticated_tree"
+        in matrix["promotion_boundary"]["non_claims"]
+    )
+    assert "no_complete_v3_semantic_composition" in matrix["promotion_boundary"]["non_claims"]
+    assert "no_zrpf_16x4_profile" in matrix["promotion_boundary"]["non_claims"]
+    perps_source_finality = next(
+        item for item in matrix["obligations"] if item["id"] == "RS-CBC-010"
+    )
+    assert perps_source_finality["code_refs"] == []
+    assert perps_source_finality["test_refs"] == []
+    outer_envelope = next(
+        item for item in matrix["obligations"] if item["id"] == "RS-CBC-021"
+    )
+    assert outer_envelope["status"] == "pending"
+    assert outer_envelope["code_refs"] == []
+    assert outer_envelope["test_refs"] == []
+    assert outer_envelope["external_commands"] == []
+    adapter_receipt = next(
+        item for item in matrix["obligations"] if item["id"] == "RS-CBC-022"
+    )
+    assert adapter_receipt["status"] == "implemented_partial"
+    assert adapter_receipt["code_refs"]
+    assert adapter_receipt["test_refs"]
+    assert adapter_receipt["external_commands"]
+    for obligation_id in ("RS-CBC-023",):
+        obligation = next(
+            item for item in matrix["obligations"] if item["id"] == obligation_id
+        )
+        assert obligation["status"] == "pending"
+        assert obligation["code_refs"] == []
+        assert obligation["test_refs"] == []
+        assert obligation["external_commands"] == []
+
+
+def test_recursive_stark_cbc_matrix_requires_canonical_outer_envelope_nonclaim() -> None:
+    matrix = _matrix()
+    matrix["promotion_boundary"]["non_claims"].remove(
+        "no_canonical_recursive_outer_envelope"
+    )
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        report["promotion_boundary"]["facts"]["missing_required_non_claims"]
+        == ["no_canonical_recursive_outer_envelope"]
+    )
+    assert (
+        "promotion_boundary.non_claims missing required values"
+        in report["promotion_boundary"]["errors"]
     )
 
 
@@ -499,6 +571,43 @@ def test_post_repair_verified_status_rejects_stale_proof_absence_nonclaim() -> N
     )
 
 
+def test_structural_tree_verified_status_rejects_stale_tree_absence_nonclaim() -> None:
+    matrix = _matrix()
+    matrix["promotion_boundary"]["non_claims"].append(
+        "no_v3_receipt_authenticated_tree"
+    )
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        "promotion_boundary.non_claims retains stale V3 structural-tree absence"
+        in report["promotion_boundary"]["errors"]
+    )
+
+
+@pytest.mark.parametrize("obligation_id", ["RS-CBC-016", "RS-CBC-022"])
+def test_structural_tree_verified_status_requires_implemented_tree_obligations(
+    obligation_id: str,
+) -> None:
+    matrix = _matrix()
+    obligation = next(
+        item for item in matrix["obligations"] if item["id"] == obligation_id
+    )
+    obligation["status"] = "pending"
+    obligation["code_refs"] = []
+    obligation["test_refs"] = []
+    obligation["external_commands"] = []
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        "temporary V3 structural-tree-verified status requires "
+        f"{obligation_id} implemented or implemented_partial"
+    ) in report["errors"]
+
+
 @pytest.mark.parametrize(
     "relative",
     [
@@ -544,6 +653,21 @@ def test_recursive_stark_cbc_matrix_rejects_stale_pre_repair_claim_status() -> N
     matrix = _matrix()
     matrix["promotion_boundary"]["claim_status"] = (
         "patched_toolchain_local_artifact_pinned_recursive_proof_verified"
+    )
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        "promotion_boundary.claim_status is not an accepted reviewed status"
+        in report["promotion_boundary"]["errors"]
+    )
+
+
+def test_recursive_stark_cbc_matrix_rejects_stale_adapter_only_claim_status() -> None:
+    matrix = _matrix()
+    matrix["promotion_boundary"]["claim_status"] = (
+        "v1_v2_current_image_local_recursive_proofs_and_temporary_v3_adapter_receipt_verified"
     )
 
     report = checker.validate_matrix(matrix)
@@ -611,6 +735,68 @@ def test_recursive_stark_cbc_matrix_rejects_production_claim_boundary() -> None:
     )
 
 
+def test_recursive_stark_cbc_matrix_rejects_unknown_root_field() -> None:
+    matrix = _matrix()
+    matrix["unreviewed_extension"] = {}
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert "matrix has unknown fields: unreviewed_extension" in report["errors"]
+
+
+def test_recursive_stark_cbc_matrix_rejects_unknown_promotion_field() -> None:
+    matrix = _matrix()
+    matrix["promotion_boundary"]["unreviewed_extension"] = False
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        "promotion_boundary has unknown fields: unreviewed_extension"
+        in report["promotion_boundary"]["errors"]
+    )
+
+
+def test_recursive_stark_cbc_matrix_rejects_unknown_statement_field() -> None:
+    matrix = _matrix()
+    statement = matrix["typed_statements"][0]
+    statement["unreviewed_extension"] = "ignored-under-old-schema"
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    errors = _statement_report(report, statement["id"])["errors"]
+    assert "typed_statements[0] has unknown fields: unreviewed_extension" in errors
+
+
+def test_recursive_stark_cbc_matrix_rejects_unknown_obligation_field() -> None:
+    matrix = _matrix()
+    obligation = matrix["obligations"][0]
+    obligation["unreviewed_extension"] = "ignored-under-old-schema"
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    errors = _obligation_report(report, obligation["id"])["errors"]
+    assert "obligations[0] has unknown fields: unreviewed_extension" in errors
+
+
+def test_recursive_stark_cbc_matrix_rejects_unknown_reference_field() -> None:
+    matrix = _matrix()
+    obligation = matrix["obligations"][0]
+    obligation["code_refs"][0]["unreviewed_extension"] = "ignored-under-old-schema"
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    errors = _obligation_report(report, obligation["id"])["errors"]
+    assert (
+        "obligations[0].code_refs[0] has unknown fields: unreviewed_extension"
+        in errors
+    )
+
+
 def test_recursive_stark_cbc_matrix_rejects_implemented_obligation_without_tests() -> None:
     matrix = _matrix()
     obligation = copy.deepcopy(matrix["obligations"][0])
@@ -634,6 +820,152 @@ def test_recursive_stark_cbc_matrix_rejects_missing_required_obligation() -> Non
 
     assert report["ok"] is False
     assert "missing required obligations: RS-CBC-015" in report["obligations"]["errors"]
+
+
+def test_recursive_stark_cbc_matrix_requires_v3_structural_statement() -> None:
+    matrix = _matrix()
+    matrix["typed_statements"] = [
+        statement
+        for statement in matrix["typed_statements"]
+        if statement["id"] != "zrpf_node_v3_structural"
+    ]
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        "missing required typed statements: zrpf_node_v3_structural"
+        in report["typed_statements"]["errors"]
+    )
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "count_unit_id",
+        "node_statement_hash",
+        "commitments.provenance_root",
+        "child_provenance_roots",
+    ],
+)
+def test_v3_structural_statement_pins_new_abi_fields(field: str) -> None:
+    matrix = _matrix()
+    statement = next(
+        item for item in matrix["typed_statements"] if item["id"] == "zrpf_node_v3_structural"
+    )
+    statement["required_fields"].remove(field)
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    errors = _statement_report(report, "zrpf_node_v3_structural")["errors"]
+    assert f"typed statement missing pinned required fields: {field}" in errors
+
+
+def test_v3_structural_statement_rejects_obsolete_unpinned_fields() -> None:
+    matrix = _matrix()
+    statement = next(
+        item for item in matrix["typed_statements"] if item["id"] == "zrpf_node_v3_structural"
+    )
+    statement["required_fields"].append("statement_hash")
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    errors = _statement_report(report, "zrpf_node_v3_structural")["errors"]
+    assert "typed statement has unpinned fields: statement_hash" in errors
+
+
+def test_recursive_stark_cbc_matrix_requires_outer_envelope_obligation() -> None:
+    matrix = _matrix()
+    matrix["obligations"] = [
+        obligation for obligation in matrix["obligations"] if obligation["id"] != "RS-CBC-021"
+    ]
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert "missing required obligations: RS-CBC-021" in report["obligations"]["errors"]
+
+
+@pytest.mark.parametrize("obligation_id", ["RS-CBC-022", "RS-CBC-023"])
+def test_recursive_stark_cbc_matrix_requires_v3_authority_obligations(
+    obligation_id: str,
+) -> None:
+    matrix = _matrix()
+    matrix["obligations"] = [
+        obligation for obligation in matrix["obligations"] if obligation["id"] != obligation_id
+    ]
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert f"missing required obligations: {obligation_id}" in report["obligations"]["errors"]
+
+
+def test_outer_envelope_obligation_cannot_self_promote_with_unrelated_evidence() -> None:
+    matrix = _matrix()
+    obligation = next(item for item in matrix["obligations"] if item["id"] == "RS-CBC-021")
+    obligation["status"] = "implemented_partial"
+    obligation["code_refs"] = copy.deepcopy(matrix["obligations"][0]["code_refs"])
+    obligation["test_refs"] = copy.deepcopy(matrix["obligations"][0]["test_refs"])
+    obligation["external_commands"] = ["python3 -m pytest -q tests/test_placeholder.py"]
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    errors = _obligation_report(report, "RS-CBC-021")["errors"]
+    assert (
+        "required obligation remains pinned pending until checker policy is updated"
+        in errors
+    )
+    assert "pinned pending obligation must not cite implementation evidence" in errors
+
+
+@pytest.mark.parametrize("obligation_id", ["RS-CBC-023"])
+def test_v3_pending_obligation_cannot_self_promote_with_structural_evidence(
+    obligation_id: str,
+) -> None:
+    matrix = _matrix()
+    obligation = next(item for item in matrix["obligations"] if item["id"] == obligation_id)
+    obligation["status"] = "implemented_partial"
+    obligation["code_refs"] = [
+        {
+            "path": "zk/zrpf_protocol/protocol/src/lib.rs",
+            "symbol": "NodeJournalV3",
+        }
+    ]
+    obligation["test_refs"] = [
+        {
+            "path": "zk/zrpf_protocol/protocol/tests/node_v3.rs",
+            "symbol": "fully_saturated_eight_by_eight_tree_hits_the_declared_bounds",
+        }
+    ]
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    errors = _obligation_report(report, obligation_id)["errors"]
+    assert "required obligation remains pinned pending until checker policy is updated" in errors
+    assert "pinned pending obligation must not cite implementation evidence" in errors
+
+
+@pytest.mark.parametrize("field", ["code_refs", "test_refs", "external_commands"])
+def test_outer_envelope_pending_row_rejects_premature_evidence(field: str) -> None:
+    matrix = _matrix()
+    obligation = next(item for item in matrix["obligations"] if item["id"] == "RS-CBC-021")
+    if field == "external_commands":
+        obligation[field] = ["cargo test recursive_outer_envelope"]
+    else:
+        obligation[field] = copy.deepcopy(matrix["obligations"][0][field])
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        "pinned pending obligation must not cite implementation evidence"
+        in _obligation_report(report, "RS-CBC-021")["errors"]
+    )
 
 
 def test_recursive_stark_cbc_matrix_rejects_missing_ref_symbol() -> None:
@@ -682,6 +1014,24 @@ def test_recursive_stark_cbc_matrix_rejects_unreviewed_claim_status() -> None:
         ),
         (
             "RS-CBC-020",
+            "defense_layer",
+            "guarded_transition",
+            "required obligation defense_layer differs from its pinned layer",
+        ),
+        (
+            "RS-CBC-021",
+            "defense_layer",
+            "guarded_transition",
+            "required obligation defense_layer differs from its pinned layer",
+        ),
+        (
+            "RS-CBC-022",
+            "defense_layer",
+            "unrepresentable",
+            "required obligation defense_layer differs from its pinned layer",
+        ),
+        (
+            "RS-CBC-023",
             "defense_layer",
             "guarded_transition",
             "required obligation defense_layer differs from its pinned layer",
