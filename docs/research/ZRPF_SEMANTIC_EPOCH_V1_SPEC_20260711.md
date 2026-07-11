@@ -1,6 +1,6 @@
 # ZRPF Semantic Epoch V1 Specification
 
-Status: experimental proof-neutral proposal kernel
+Status: experimental implemented semantic guest, fresh proof evidence pending
 Date: 2026-07-11
 
 ## Purpose
@@ -32,10 +32,12 @@ identities are included in `leaf_records_root`.
 
 ## Current scoped claim
 
-The Rust kernel constructs and exactly encodes a bounded
-`ProposedSemanticEpochV1`. Its input leaves can be constructed only through the
-profile-specific `ProposedSemanticLeafV1::bind_v1_adapter_journal` path. That
-path enforces:
+The Rust protocol constructs and exactly encodes a bounded
+`ProposedSemanticEpochV1`. The `semantic_shared` crate adds an exact raw guest
+ABI, post-verification disclosure binding, complete L1 recomposition,
+structural L2 recomposition, and semantic proposal construction. Input leaves
+can be constructed only through the profile-specific
+`ProposedSemanticLeafV1::bind_v1_adapter_journal` path. That path enforces:
 
 - a caller-governed expected V1 adapter program ID;
 - the exact V1 adapter profile, derived manifest, count unit, and one-operation
@@ -60,6 +62,10 @@ The epoch constructor enforces:
 
 `ProposedSemanticEpochV1` is self-consistent data. It has no constructor or
 conversion into a verified receipt, ledger-admissible root, or settlement fact.
+The separate sealed `VerifiedSemanticEpochReceiptV1` host type begins with
+bounded canonical receipt bytes and verifies the pinned Succinct profile,
+semantic guest image, exact proposal, governed A/B/C dependency manifest, and
+claim binding before exposing an authenticated proposal.
 
 ## V1 adapter opening
 
@@ -77,7 +83,7 @@ task_id
 ```
 
 The semantic-source member cannot be recovered from its singleton roots. A
-future guest must receive the exact 32-byte member opening, then require:
+semantic guest receives the exact 32-byte member opening, then requires:
 
 ```text
 singleton(provenance_domain, semantic_source_id)
@@ -93,11 +99,12 @@ relabel an existing leaf with a different semantic-source value.
 The source-claim value is profile-specific. Treating `input_root` as a source
 claim is valid only after the exact V1 adapter program/profile boundary is
 established. These proposed identities gain cryptographic authentication only
-through the future L1 receipt-verification and exact-recomposition chain.
+when the L1 receipt-verification and exact-recomposition chain executes inside
+the semantic guest and the outer verifier accepts its receipt.
 
 ## Authority progression
 
-The future authority-bearing guest must preserve this order:
+The implemented authority-bearing guest preserves this order:
 
 ```text
 bounded framing-only envelope
@@ -114,7 +121,7 @@ bounded framing-only envelope
 
 An outer verifier must then authenticate the semantic guest receipt, image ID,
 receipt-security profile, exact proposal bytes, expected program/manifest, and
-claim binding before it may expose a future `VerifiedSemanticEpochReceiptV1`.
+claim binding before it may expose `VerifiedSemanticEpochReceiptV1`.
 
 No opening may be interpreted as authenticated before its structural L1 receipt
 and exact recomposition pass.
@@ -123,8 +130,11 @@ and exact recomposition pass.
 
 ```text
 maximum leaves                    64
+maximum L1 groups                  8
+maximum leaves per L1 group        8
 operations per compatibility leaf 1
 maximum operations in V1 proposal 64
+maximum raw guest input bytes 297,147
 maximum encoded proposal bytes 4,096
 ```
 
@@ -221,7 +231,7 @@ not proof receipts.
 
 ## Evidence in this tranche
 
-The pure protocol tests cover:
+The protocol and guest-safe kernel tests cover:
 
 - an independent adapter-hash mirror and fixed legacy empty-root vectors;
 - exact proposal encode/decode and fixed root vectors;
@@ -237,7 +247,19 @@ The pure protocol tests cover:
 - compile-fail generic-deserialization checks for leaves and proposals;
 - semantic-root substitution rejection through the exact bounded decoder;
 - real adapter projection parity through the semantic leaf binder;
-- bounded depth-two byte-mutation exploration.
+- bounded depth-two byte-mutation exploration;
+- exact 297,147-byte guest framing, every truncated prefix, maximum fanout,
+  zero/oversized journals, stale schema, trailing bytes, and opaque openings;
+- post-verification raw-opening binding and zero-opening rejection;
+- exact L1 recomposition with missing, substituted, reordered, malformed,
+  wrong-program, wrong-profile, gapped, and cross-subtree duplicate controls;
+- structural L2 recomposition and cross-subtree scope rejection;
+- equal semantic roots and distinct proof-tree roots under two valid groupings;
+- semantic manifest binding to the semantic, adapter, L1, and L2 programs;
+- sealed semantic receipt construction from bounded canonical Succinct bytes;
+- fake-receipt rejection and compile-fail proposal-to-receipt conversion;
+- source-contract checks for verify-before-interpret ordering and fail-closed
+  placeholder methods.
 
 Boundary mutation evidence is an offline bug-discovery layer. It is not a
 correctness proof.
@@ -246,9 +268,10 @@ correctness proof.
 
 This tranche does not establish:
 
-- authentication of a structural L1 receipt;
-- exact recomposition of an authenticated L1 journal from leaf openings;
-- a RISC0 semantic guest or semantic receipt;
+- fresh current-source adapter, L1, L2, or semantic guest image IDs;
+- execution of the semantic guest with authenticated L1 assumptions;
+- a retained valid semantic receipt or cryptographic negative control;
+- reproducible semantic proof generation or an independent rebuild;
 - nonempty receipt, message, or nullifier proof evidence;
 - semantic identity across distinct leaf proof implementations or encodings;
 - asset conservation or authorized mint and burn semantics;
@@ -262,8 +285,9 @@ All corresponding claim flags remain false.
 
 ## Next implementation tranche
 
-Build `semantic_shared` and a RISC0 semantic epoch-root guest over existing
-structural L1 receipts. The first required proof negative reuses one exact
-authenticated source transition under two leaf ordinals in separate valid L1
-subtrees. The semantic guest must reject it after verifying both L1 receipts,
-recomposing each complete L1 journal, and validating every member opening.
+Run the staged canonical A to B to C to D rebuild, independently recompute every
+image ID, generate fresh adapter and L1 receipts, and prove one valid semantic
+epoch. The first required proof negative reuses one exact authenticated source
+transition under two leaf ordinals in separate valid L1 subtrees. The semantic
+guest must reject it after verifying both L1 receipts, recomposing each complete
+L1 journal, and validating every member opening.
