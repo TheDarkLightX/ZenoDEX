@@ -37,7 +37,7 @@ def test_semantic_guest_preserves_verify_before_interpret_order() -> None:
     assert "PINNED_LEVEL_ONE_IMAGE_ID_B" in source
     assert re.search(
         r"env::verify\(\s*PINNED_LEVEL_ONE_IMAGE_ID_B,\s*"
-        r"disclosure\.journal_bytes\(\),\s*\)",
+        r"disclosure\.journal_bytes\(\),?\s*\)",
         source,
     )
 
