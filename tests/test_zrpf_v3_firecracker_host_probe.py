@@ -122,16 +122,20 @@ def test_nested_virtualization_observation_rejects_candidate_host() -> None:
     assert report["failed_checks"] == ["hypervisor_cpuid_flag_absent"]
 
 
-def test_cpuinfo_parser_binds_first_processor_identity_and_hypervisor() -> None:
+def test_cpuinfo_parser_binds_every_processor_identity_and_hypervisor() -> None:
     raw = (
         "processor : 0\n"
         "vendor_id : GenuineIntel\n"
         "cpu family : 6\n"
         "model : 143\n"
         "microcode : 0x2b000643\n"
-        "flags : fpu hypervisor svm\n\n"
+        "flags : fpu svm\n\n"
         "processor : 1\n"
-        "vendor_id : attacker\n"
+        "vendor_id : GenuineIntel\n"
+        "cpu family : 6\n"
+        "model : 143\n"
+        "microcode : 0x2b000643\n"
+        "flags : fpu hypervisor svm\n"
     )
 
     assert probe._parse_cpuinfo(raw) == (
@@ -141,6 +145,25 @@ def test_cpuinfo_parser_binds_first_processor_identity_and_hypervisor() -> None:
         "0x2b000643",
         True,
     )
+
+
+def test_cpuinfo_parser_rejects_cross_processor_identity_disagreement() -> None:
+    raw = (
+        "processor : 0\n"
+        "vendor_id : GenuineIntel\n"
+        "cpu family : 6\n"
+        "model : 143\n"
+        "microcode : 0x2b000643\n"
+        "flags : fpu svm\n\n"
+        "processor : 1\n"
+        "vendor_id : attacker\n"
+        "cpu family : 6\n"
+        "model : 143\n"
+        "microcode : 0x2b000643\n"
+        "flags : fpu svm\n"
+    )
+
+    assert probe._parse_cpuinfo(raw) == (None, None, None, None, None)
     assert probe._parse_cpuinfo("processor : 0\nflags : fpu\nflags : svm\n") == (
         None,
         None,

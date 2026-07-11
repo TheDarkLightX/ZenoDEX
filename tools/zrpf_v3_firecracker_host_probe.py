@@ -332,7 +332,31 @@ def _parse_cpuinfo(
     empty = (None, None, None, None, None)
     if raw is None:
         return empty
-    first_processor = raw.split("\n\n", 1)[0]
+    processor_blocks = [
+        block for block in re.split(r"\n\s*\n", raw.strip()) if block.strip()
+    ]
+    if not processor_blocks:
+        return empty
+    parsed_blocks = [_parse_cpuinfo_block(block) for block in processor_blocks]
+    if any(block is None for block in parsed_blocks):
+        return empty
+    complete_blocks = [block for block in parsed_blocks if block is not None]
+    identities = {
+        (
+            block["vendor_id"],
+            block["cpu family"],
+            block["model"],
+            block["microcode"],
+        )
+        for block in complete_blocks
+    }
+    if len(identities) != 1:
+        return empty
+    identity = next(iter(identities))
+    return (*identity, any("hypervisor" in block["flags"].split() for block in complete_blocks))
+
+
+def _parse_cpuinfo_block(raw: str) -> dict[str, str] | None:
     selected: dict[str, str] = {}
     field_limits = {
         "cpu family": 128,
@@ -341,23 +365,16 @@ def _parse_cpuinfo(
         "model": 128,
         "vendor_id": 128,
     }
-    for line in first_processor.splitlines():
+    for line in raw.splitlines():
         if ":" not in line:
             continue
         name, value = (part.strip() for part in line.split(":", 1))
         if name not in field_limits:
             continue
         if name in selected or not _bounded_printable_ascii(value, field_limits[name]):
-            return empty
+            return None
         selected[name] = value
-    flags = selected.get("flags")
-    return (
-        selected.get("vendor_id"),
-        selected.get("cpu family"),
-        selected.get("model"),
-        selected.get("microcode"),
-        ("hypervisor" in flags.split()) if flags is not None else None,
-    )
+    return selected if selected.keys() == field_limits.keys() else None
 
 
 def _bounded_printable_ascii(value: str, maximum: int) -> bool:
