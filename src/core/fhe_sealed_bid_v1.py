@@ -155,11 +155,16 @@ def paillier_public_key_fingerprint(public_key: PaillierPublicKey) -> str:
     return sha256_hex(domain_sep_bytes(f"{_RECEIPT_DOMAIN}/public_key") + canonical_json_bytes(body))
 
 
+def is_production_paillier_public_key(public_key: PaillierPublicKey) -> bool:
+    """Return whether the concrete public modulus meets the production floor."""
+    return int(public_key.n).bit_length() >= MIN_PRODUCTION_MODULUS_BITS
+
+
 def is_production_paillier_key(key_pair: PaillierKeyPair) -> bool:
     """Contract: production claims require strong prime and modulus sizes."""
     return (
         int(key_pair.key_bits) >= MIN_PRODUCTION_KEY_BITS
-        and int(key_pair.public_key.n).bit_length() >= MIN_PRODUCTION_MODULUS_BITS
+        and is_production_paillier_public_key(key_pair.public_key)
     )
 
 def _random_coprime(n: int) -> int:
@@ -625,9 +630,15 @@ def verify_fhe_sealed_bid_v1_receipt(
                 return False, "missing_public_key_fingerprint"
             if approved_public_keys is None:
                 return False, "missing_approved_public_key"
-            fingerprints = {paillier_public_key_fingerprint(x) for x in approved_public_keys}
-            if fingerprint not in fingerprints:
+            approved_keys_by_fingerprint = {
+                paillier_public_key_fingerprint(public_key): public_key
+                for public_key in approved_public_keys
+            }
+            approved_public_key = approved_keys_by_fingerprint.get(fingerprint)
+            if approved_public_key is None:
                 return False, "public_key_not_approved"
+            if not is_production_paillier_public_key(approved_public_key):
+                return False, "production_key_too_small"
     else:
         if key_id != "":
             return False, "fallback_should_have_empty_key_id"

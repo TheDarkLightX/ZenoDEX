@@ -297,6 +297,7 @@ class TestReceiptVerification:
             auction_id="a13b", units_for_sale=2, result=result
         )
         receipt["body"]["production_security_claim"] = True
+        receipt["body"]["key_bits"] = MIN_PRODUCTION_KEY_BITS
         receipt["receipt_hash"] = fhe_sealed_bid_v1_receipt_hash(receipt["body"])
         ok, reason = verify_fhe_sealed_bid_v1_receipt(
             receipt,
