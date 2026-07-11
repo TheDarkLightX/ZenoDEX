@@ -184,7 +184,7 @@ def test_committed_reference_is_authenticated_and_claim_limited() -> None:
     )
     assert reference["claims"] == checker.EXPECTED_CLAIMS
     assert reference["source_compile"]["root_sha256"] == (
-        "38676d8eb843ba20a0511746552d4d57107be4b7956dd306552095f92cf763dd"
+        "20e5587e3ed7b8f6c561295a04f2cc2de92b90fd38c070de08a33d55b5f7572a"
     )
     assert reference["claims"]["production_ready"] is False
     assert reference["claims"]["settlement_authorization"] is False

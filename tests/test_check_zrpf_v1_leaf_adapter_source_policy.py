@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 from pathlib import Path
 
 from tools import check_zrpf_v1_leaf_adapter_source_policy as checker
@@ -53,6 +54,26 @@ def test_source_policy_rejects_receipt_authority_promotion() -> None:
 
     assert report["ok"] is False
     assert "pure mapping must deny receipt authority" in report["errors"]
+
+
+def test_source_policy_rejects_historical_anchor_substitution(tmp_path: Path) -> None:
+    policy = copy.deepcopy(_policy())
+    anchor_path = tmp_path / "config/proof_profiles/zrpf_v1_retained_source_anchor_v1.json"
+    anchor_path.parent.mkdir(parents=True)
+    source_anchor = checker.REPO_ROOT / policy["source_reference"]["path"]
+    anchor = source_anchor.read_text(encoding="utf-8").replace(
+        checker.HISTORICAL_REFERENCE_COMMIT,
+        "0" * 40,
+    )
+    anchor_path.write_text(anchor, encoding="utf-8")
+    policy["source_reference"]["sha256"] = hashlib.sha256(
+        anchor.encode("utf-8")
+    ).hexdigest()
+
+    report = checker.validate_policy(policy, repo_root=tmp_path)
+
+    assert report["ok"] is False
+    assert "historical source reference identity mismatch" in report["errors"]
 
 
 def test_loader_rejects_duplicate_keys(tmp_path: Path) -> None:

@@ -6,13 +6,13 @@
   "trust_roots": {
     "recursive_v2_rebuild_reference": {
       "path": "config/proof_profiles/risc0_recursive_v2_rebuild_reference.json",
-      "file_sha256": "65d1940692d11730329c3c3a6dc77de1fc5af910cb669c7ce47e98f33b07ba36",
-      "canonical_json_sha256": "90a185a6f8d8cee2ba9fd70299c7508c42d4a470a773530e92e87b79c3ea715b"
+      "file_sha256": "fe044c8fdef2f8e32e788c8d8d07bf2b82a77666bfb186f86e43f827db0dffec",
+      "canonical_json_sha256": "de542c96cca4f516bb481843d81bc0bc4dce94870f22ae8163908e1e16534823"
     },
     "source_pinned_two_leaf_baseline": {
       "path": "docs/research/RECURSIVE_STARK_V2_TWO_LEAF_SOURCE_PINNED_EVIDENCE_20260710.json",
-      "file_sha256": "d862940c666603865eeddf55107b77b12f57198540b3857943210170e9f32e94",
-      "canonical_json_sha256": "a7a052a2d24099a589468dec3f19ec06161d1fe9a6daa610d1d29d6c420ec112"
+      "file_sha256": "9a98b947f76a599109f5238861d010fd3dbb8a8299ef6e3f03685b3cac51ad74",
+      "canonical_json_sha256": "56a821441a4d89228347a2ad6e4659c3d0a8c7b32130cbba8bec6749141b97f5"
     }
   },
   "aggregate_v2": {

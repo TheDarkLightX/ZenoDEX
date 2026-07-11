@@ -15,19 +15,26 @@ from __future__ import annotations
 import argparse
 import base64
 import binascii
-import copy
 import hashlib
+import importlib
 import json
 import os
+import sys
 import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-try:
-    from . import check_risc0_recursive_v2_two_leaf_source_pinned_evidence as baseline
-except ImportError:  # Direct script execution.
-    import check_risc0_recursive_v2_two_leaf_source_pinned_evidence as baseline
+if TYPE_CHECKING:
+    from tools.check_risc0_recursive_v2_rebuild_evidence import (
+        EvidenceError,
+        FileDigest,
+    )
+
+_MODULE_PREFIX = "tools." if __package__ else ""
+baseline = importlib.import_module(
+    f"{_MODULE_PREFIX}check_risc0_recursive_v2_two_leaf_source_pinned_evidence"
+)
 
 
 v2 = baseline.v2
@@ -42,9 +49,9 @@ REPORT_SCHEMA = "zenodex/recursive_stark_v2_same_profile_two_spot_evidence_check
 EXPECTED_STATUS = "same_host_source_frozen_same_profile_two_spot_receipts_generated_and_verified"
 ACCEPTED_STATUS = "same_profile_two_spot_evidence_replayed"
 
-EXPECTED_EVIDENCE_FILE_SHA256 = "db8d9010485af3f2abebde0cd418581a66e06f0de6de181f484d4defd2b5cfe7"
+EXPECTED_EVIDENCE_FILE_SHA256 = "18141ffae7279b1a717edb41674b4fae101a489e2d7870b920c45c8d6810512a"
 EXPECTED_EVIDENCE_CANONICAL_SHA256 = (
-    "bc070d4cfeb0aca7439efedecf9a2655643612f48f3217ca1e572d084c474c9b"
+    "6536149d32040a3ebb7a525434ddf1ec7c36890a4219ce2d3295f6f5934754fb"
 )
 
 MAX_MANIFEST_BYTES = 1024 * 1024
@@ -203,7 +210,7 @@ EXPECTED_NONCLAIMS = (
 )
 
 
-def _reject(code: str, detail: str) -> v2.EvidenceError:
+def _reject(code: str, detail: str) -> EvidenceError:
     return v2.EvidenceError(code, detail)
 
 
@@ -969,7 +976,7 @@ def _mutate_succinct_seal_word(raw: bytes, mutation: Mapping[str, Any]) -> bytes
     mutated_receipt = json.dumps(
         receipt, separators=(",", ":"), ensure_ascii=True
     ).encode("ascii")
-    mutated_outer = copy.deepcopy(outer)
+    mutated_outer = dict(outer)
     mutated_outer["proof"] = base64.b64encode(mutated_receipt).decode("ascii")
     return json.dumps(mutated_outer, separators=(",", ":"), ensure_ascii=True).encode("ascii")
 
@@ -1014,7 +1021,7 @@ def _stage_verified_file(
     directory: Path,
     *,
     filename: str,
-    digest: v2.FileDigest,
+    digest: FileDigest,
     executable: bool,
     max_bytes: int,
 ) -> Path:
@@ -1072,7 +1079,7 @@ def _check_staged(
     *,
     evidence: Mapping[str, Any],
     source_pinned_baseline: Mapping[str, Any],
-    digests: Mapping[str, v2.FileDigest],
+    digests: Mapping[str, FileDigest],
     staged: Mapping[str, Path],
     staging_directory: Path,
 ) -> dict[str, Any]:
@@ -1278,7 +1285,7 @@ def check_live(
             True,
         ),
     )
-    digests: dict[str, v2.FileDigest] = {}
+    digests: dict[str, FileDigest] = {}
     for path, expected_sha256, expected_size, label, limit, executable in live_files:
         digest = baseline._verify_file(
             path,
@@ -1359,7 +1366,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.json:
             print(json.dumps(report, sort_keys=True, separators=(",", ":")))
         else:
-            print(f"same-profile evidence rejected: {exc}", file=os.sys.stderr)
+            print(f"same-profile evidence rejected: {exc}", file=sys.stderr)
         return 1
     if args.json:
         print(json.dumps(report, sort_keys=True, separators=(",", ":")))

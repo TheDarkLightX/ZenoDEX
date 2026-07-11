@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib
 import json
 import os
 import stat
@@ -17,12 +18,18 @@ import subprocess
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-try:
-    from . import check_risc0_recursive_v2_rebuild_evidence as v2
-except ImportError:  # Direct script execution.
-    import check_risc0_recursive_v2_rebuild_evidence as v2
+if TYPE_CHECKING:
+    from tools.check_risc0_recursive_v2_rebuild_evidence import (
+        EvidenceError,
+        FileDigest,
+    )
+
+_MODULE_PREFIX = "tools." if __package__ else ""
+v2 = importlib.import_module(
+    f"{_MODULE_PREFIX}check_risc0_recursive_v2_rebuild_evidence"
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,12 +43,12 @@ EVIDENCE_SCHEMA = "zenodex/recursive_stark_v2_two_leaf_source_pinned_evidence/v1
 REPORT_SCHEMA = "zenodex/recursive_stark_v2_two_leaf_source_pinned_evidence_check/v1"
 EXPECTED_STATUS = "same_host_source_frozen_two_leaf_receipts_regenerated_and_verified"
 ACCEPTED_STATUS = "source_pinned_two_leaf_evidence_replayed"
-EXPECTED_EVIDENCE_FILE_SHA256 = "d862940c666603865eeddf55107b77b12f57198540b3857943210170e9f32e94"
+EXPECTED_EVIDENCE_FILE_SHA256 = "9a98b947f76a599109f5238861d010fd3dbb8a8299ef6e3f03685b3cac51ad74"
 EXPECTED_EVIDENCE_CANONICAL_SHA256 = (
-    "a7a052a2d24099a589468dec3f19ec06161d1fe9a6daa610d1d29d6c420ec112"
+    "56a821441a4d89228347a2ad6e4659c3d0a8c7b32130cbba8bec6749141b97f5"
 )
 EXPECTED_HISTORICAL_FILE_SHA256 = "c225841cff999b30d0b076845a76b6c0a1ee95127a62504dc2d7c0f49280b73d"
-EXPECTED_REFERENCE_FILE_SHA256 = "65d1940692d11730329c3c3a6dc77de1fc5af910cb669c7ce47e98f33b07ba36"
+EXPECTED_REFERENCE_FILE_SHA256 = "fe044c8fdef2f8e32e788c8d8d07bf2b82a77666bfb186f86e43f827db0dffec"
 
 MAX_MANIFEST_BYTES = 1024 * 1024
 MAX_LEAF_BYTES = 16 * 1024 * 1024
@@ -107,7 +114,7 @@ EXPECTED_NONCLAIMS = (
 )
 
 
-def _reject(code: str, detail: str) -> v2.EvidenceError:
+def _reject(code: str, detail: str) -> EvidenceError:
     return v2.EvidenceError(code, detail)
 
 
@@ -366,7 +373,7 @@ def _verify_file(
     expected_size: int | None,
     max_bytes: int,
     executable: bool = False,
-) -> v2.FileDigest:
+) -> FileDigest:
     digest = v2._read_regular(path, label=label, max_bytes=max_bytes)
     if digest.sha256 != expected_sha256:
         raise _reject("LIVE_FILE_SHA256", label)

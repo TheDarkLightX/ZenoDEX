@@ -461,10 +461,10 @@ def test_production_loader_accepts_only_the_pinned_manifest() -> None:
     evidence = checker.load_evidence()
 
     assert checker.EXPECTED_EVIDENCE_FILE_SHA256 == (
-        "db8d9010485af3f2abebde0cd418581a66e06f0de6de181f484d4defd2b5cfe7"
+        "18141ffae7279b1a717edb41674b4fae101a489e2d7870b920c45c8d6810512a"
     )
     assert checker.EXPECTED_EVIDENCE_CANONICAL_SHA256 == (
-        "bc070d4cfeb0aca7439efedecf9a2655643612f48f3217ca1e572d084c474c9b"
+        "6536149d32040a3ebb7a525434ddf1ec7c36890a4219ce2d3295f6f5934754fb"
     )
     assert checker._canonical_sha256(evidence) == checker.EXPECTED_EVIDENCE_CANONICAL_SHA256
 

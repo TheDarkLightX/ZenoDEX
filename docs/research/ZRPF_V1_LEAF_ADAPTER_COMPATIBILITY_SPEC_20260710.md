@@ -45,10 +45,15 @@ The local source-tree root is compatibility provenance. It does not establish
 release provenance, whole-build isolation, or cross-host reproducibility.
 
 `config/proof_profiles/zrpf_v1_leaf_adapter_source_policy_v1.json` is checked
-against the source-pinned recursive rebuild reference and the Rust constants by
-`tools/check_zrpf_v1_leaf_adapter_source_policy.py`. The checker rejects
-duplicate JSON keys, unknown policy fields, image-word substitution, reference
-hash drift, and receipt-authority promotion.
+against `zrpf_v1_retained_source_anchor_v1.json` and the Rust constants by
+`tools/check_zrpf_v1_leaf_adapter_source_policy.py`. The retained anchor binds
+the exact historical reference bytes and Git commit used when the source
+receipt was produced. The current recursive rebuild reference is a separate
+object and may acquire hardening-only source changes that preserve the exact
+guest program and image ID. This separation prevents current source maintenance
+from rewriting historical adapter provenance. The checker rejects duplicate
+JSON keys, unknown policy fields, image-word substitution, anchor drift, and
+receipt-authority promotion.
 
 ## Exact Source Boundary
 

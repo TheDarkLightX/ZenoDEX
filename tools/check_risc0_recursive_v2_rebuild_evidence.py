@@ -33,7 +33,7 @@ REFERENCE_SCHEMA = "zenodex/risc0_recursive_v2_rebuild_reference/v1"
 REPORT_SCHEMA = "zenodex/risc0_recursive_v2_rebuild_evidence_check/v1"
 SDK_VERSION = "3.0.5"
 EXPECTED_REFERENCE_CANONICAL_SHA256 = (
-    "90a185a6f8d8cee2ba9fd70299c7508c42d4a470a773530e92e87b79c3ea715b"
+    "de542c96cca4f516bb481843d81bc0bc4dce94870f22ae8163908e1e16534823"
 )
 SOURCE_ROOT_ALGORITHM = "sha256(sorted(path_utf8 || nul || file_sha256_ascii || nul))"
 REGISTRY_ROOT_ALGORITHM = "sha256(sorted(package_dir_utf8 || nul || lock_checksum_ascii || nul))"

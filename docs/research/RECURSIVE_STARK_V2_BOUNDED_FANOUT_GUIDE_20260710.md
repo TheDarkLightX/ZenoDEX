@@ -131,8 +131,25 @@ both the one-leaf policy verifier and specialized two-leaf verifier.
 The clean source root is:
 
 ```text
-38676d8eb843ba20a0511746552d4d57107be4b7956dd306552095f92cf763dd
+20e5587e3ed7b8f6c561295a04f2cc2de92b90fd38c070de08a33d55b5f7572a
 ```
+
+The current source closure retains `anyhow` 1.0.102 for recursive-v2 image
+identity and updates `quinn-proto` to 0.11.15. A canonical-path clean rebuild
+with those exact inputs reproduced the program, raw ELF, image ID, and both
+host verifiers byte-for-byte. `anyhow` 1.0.103 changes the guest identity and
+therefore requires a separately governed proof-regeneration migration. The
+1.0.102 pin is limited to this experimental evidence lane; release,
+settlement, and production authority remain false.
+
+`cargo audit` classifies 1.0.102 under the informational-unsound advisory
+`RUSTSEC-2026-0190`, whose affected function is
+`anyhow::Error::downcast_mut`. A scan of the exact Rust sources listed by the
+clean target's dependency metadata found the method definition and no call to
+that affected API. The final guest and verifier symbol tables also contain no
+matching affected symbol. This reachability evidence narrows the temporary
+exception; it does not prove the dependency safe or authorize a production
+exception.
 
 The source-pinned release harness then regenerated the two-leaf inner and root
 receipts.

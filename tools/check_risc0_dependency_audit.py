@@ -11,7 +11,7 @@ import re
 import stat
 import subprocess
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +22,8 @@ REPORT_SCHEMA = "zenodex/risc0-dependency-audit-check/v2"
 EXPECTED_CLAIM_SCOPE = "experimental_risc0_dependency_audit_only"
 MAX_POLICY_BYTES = 1024 * 1024
 MAX_LOCK_BYTES = 32 * 1024 * 1024
+MAX_REFERENCE_BYTES = 2 * 1024 * 1024
+MAX_SCANNED_SOURCE_BYTES = 16 * 1024 * 1024
 MAX_AUDIT_OUTPUT_BYTES = 16 * 1024 * 1024
 AUDIT_TIMEOUT_SECONDS = 180
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -33,6 +35,14 @@ class WorkspaceSpec:
     workspace_id: str
     relative_path: str
     lockfile: str
+
+
+@dataclass(frozen=True)
+class UnsoundBoundary:
+    lockfile_sha256: str
+    reference_path: str
+    reference_file_sha256: str
+    source_roots: tuple[str, ...]
 
 
 REVIEWED_WORKSPACES: tuple[WorkspaceSpec, ...] = (
@@ -58,16 +68,61 @@ REVIEWED_WORKSPACES: tuple[WorkspaceSpec, ...] = (
     ),
 )
 RISC0_WORKSPACE_IDS = frozenset(spec.workspace_id for spec in REVIEWED_WORKSPACES[:3])
-PERMITTED_DISPOSITION_KEYS = frozenset(
-    (workspace_id, advisory_id, package, version)
+DispositionKey = tuple[str, str, str, str, str]
+PERMITTED_DISPOSITION_KEYS: frozenset[DispositionKey] = frozenset(
+    (workspace_id, "vulnerability", advisory_id, package, version)
     for workspace_id in RISC0_WORKSPACE_IDS
     for advisory_id, package, version in (
         ("RUSTSEC-2023-0071", "rsa", "0.9.10"),
         ("RUSTSEC-2025-0055", "tracing-subscriber", "0.2.25"),
     )
+) | frozenset(
+    {
+        (
+            "state_proof_risc0",
+            "unsound",
+            "RUSTSEC-2026-0190",
+            "anyhow",
+            "1.0.100",
+        ),
+        (
+            "recursive_stark_v2_risc0",
+            "unsound",
+            "RUSTSEC-2026-0190",
+            "anyhow",
+            "1.0.102",
+        ),
+    }
 )
 KNOWN_WARNING_CATEGORIES = frozenset({"unmaintained", "unsound", "yanked"})
 DENIED_WARNING_CATEGORIES = frozenset({"unsound", "yanked"})
+UNSOUND_BOUNDARIES: Mapping[str, UnsoundBoundary] = {
+    "state_proof_risc0": UnsoundBoundary(
+        lockfile_sha256=(
+            "f7d854a75aea4d9626719587bb8870d67a7891c9dfb93a28842df09bf934c4b1"
+        ),
+        reference_path="config/proof_profiles/risc0_recursive_rebuild_reference.json",
+        reference_file_sha256=(
+            "ab6d7e6752d120571c14a76ef981f789179b25a4a989687edd04574cd1740283"
+        ),
+        source_roots=("zk/state_proof_risc0",),
+    ),
+    "recursive_stark_v2_risc0": UnsoundBoundary(
+        lockfile_sha256=(
+            "8fb6d7f66790920e44278d56e33cff1c344dd15ca6c3f96f4abf2a727a7e9f23"
+        ),
+        reference_path=(
+            "config/proof_profiles/risc0_recursive_v2_rebuild_reference.json"
+        ),
+        reference_file_sha256=(
+            "fe044c8fdef2f8e32e788c8d8d07bf2b82a77666bfb186f86e43f827db0dffec"
+        ),
+        source_roots=(
+            "zk/recursive_stark_v2_risc0",
+            "zk/state_proof_risc0/shared",
+        ),
+    ),
+}
 POLICY_FIELDS = frozenset(
     {
         "cargo_audit_version",
@@ -94,6 +149,17 @@ DISPOSITION_FIELDS = frozenset(
         "scope",
         "version",
         "workspace_id",
+    }
+)
+UNSOUND_DISPOSITION_FIELDS = frozenset(
+    {
+        "affected_function",
+        "affected_function_callers_found",
+        "lockfile_sha256",
+        "new_proof_generation_authority",
+        "reference_file_sha256",
+        "reference_path",
+        "retained_identity_only",
     }
 )
 
@@ -239,8 +305,18 @@ def _validate_disposition(
     raw: object,
     *,
     index: int,
-) -> tuple[str, str, str, str]:
-    row = _exact_fields(raw, DISPOSITION_FIELDS, label=f"disposition[{index}]")
+) -> DispositionKey:
+    if not isinstance(raw, Mapping):
+        raise AuditInputError(f"disposition[{index}] fields mismatch")
+    category = _nonempty_ascii(
+        raw.get("category"), label=f"disposition[{index}] category", max_chars=32
+    )
+    expected_fields = (
+        DISPOSITION_FIELDS | UNSOUND_DISPOSITION_FIELDS
+        if category == "unsound"
+        else DISPOSITION_FIELDS
+    )
+    row = _exact_fields(raw, expected_fields, label=f"disposition[{index}]")
     workspace_id = _nonempty_ascii(
         row.get("workspace_id"), label=f"disposition[{index}] workspace", max_chars=64
     )
@@ -253,8 +329,8 @@ def _validate_disposition(
     package_version = _nonempty_ascii(
         row.get("version"), label=f"disposition[{index}] version", max_chars=64
     )
-    if row.get("category") != "vulnerability":
-        raise AuditInputError("only exact vulnerability dispositions are permitted")
+    if category not in {"vulnerability", "unsound"}:
+        raise AuditInputError("disposition category is not permitted")
     if row.get("scope") != EXPECTED_CLAIM_SCOPE:
         raise AuditInputError("disposition scope mismatch")
     if row.get("no_secret_input") is not True:
@@ -265,7 +341,28 @@ def _validate_disposition(
         raise AuditInputError("disposition production authority must remain false")
     _nonempty_ascii(row.get("dependency_path"), label=f"disposition[{index}] dependency path")
     _nonempty_ascii(row.get("reachability"), label=f"disposition[{index}] reachability")
-    return workspace_id, advisory_id, package, package_version
+    key = (workspace_id, category, advisory_id, package, package_version)
+    if key not in PERMITTED_DISPOSITION_KEYS:
+        raise AuditInputError("dependency-audit disposition identity is not permitted")
+    if category == "unsound":
+        boundary = UNSOUND_BOUNDARIES.get(workspace_id)
+        if boundary is None:
+            raise AuditInputError("unsound disposition workspace is not governed")
+        if row.get("affected_function") != "anyhow::Error::downcast_mut":
+            raise AuditInputError("unsound disposition affected function mismatch")
+        if row.get("affected_function_callers_found") is not False:
+            raise AuditInputError("unsound disposition must record zero affected callers")
+        if row.get("new_proof_generation_authority") is not False:
+            raise AuditInputError("unsound disposition cannot authorize new proof generation")
+        if row.get("retained_identity_only") is not True:
+            raise AuditInputError("unsound disposition must remain retained-identity-only")
+        if row.get("lockfile_sha256") != boundary.lockfile_sha256:
+            raise AuditInputError("unsound disposition lockfile identity mismatch")
+        if row.get("reference_path") != boundary.reference_path:
+            raise AuditInputError("unsound disposition reference path mismatch")
+        if row.get("reference_file_sha256") != boundary.reference_file_sha256:
+            raise AuditInputError("unsound disposition reference identity mismatch")
+    return key
 
 
 def _validate_policy(policy: Mapping[str, Any]) -> None:
@@ -273,7 +370,7 @@ def _validate_policy(policy: Mapping[str, Any]) -> None:
     rows = policy.get("dispositions")
     if not isinstance(rows, list):
         raise AuditInputError("policy dispositions must be an array")
-    observed: set[tuple[str, str, str, str]] = set()
+    observed: set[DispositionKey] = set()
     for index, raw in enumerate(rows):
         key = _validate_disposition(raw, index=index)
         if key in observed:
@@ -290,11 +387,12 @@ def load_policy(path: Path = DEFAULT_POLICY) -> tuple[Mapping[str, Any], str]:
     return policy, hashlib.sha256(raw).hexdigest()
 
 
-def _disposition_keys(policy: Mapping[str, Any]) -> frozenset[tuple[str, str, str, str]]:
+def _disposition_keys(policy: Mapping[str, Any]) -> frozenset[DispositionKey]:
     rows = policy["dispositions"]
     return frozenset(
         (
             str(row["workspace_id"]),
+            str(row["category"]),
             str(row["advisory_id"]),
             str(row["package"]),
             str(row["version"]),
@@ -349,10 +447,10 @@ def _evaluate_vulnerabilities(
     vulnerabilities: object,
     *,
     workspace_id: str,
-    dispositions: frozenset[tuple[str, str, str, str]],
-) -> tuple[list[dict[str, Any]], set[tuple[str, str, str, str]], list[str]]:
+    dispositions: frozenset[DispositionKey],
+) -> tuple[list[dict[str, Any]], set[DispositionKey], list[str]]:
     findings: list[dict[str, Any]] = []
-    applied: set[tuple[str, str, str, str]] = set()
+    applied: set[DispositionKey] = set()
     errors: list[str] = []
     if not isinstance(vulnerabilities, Mapping):
         return findings, applied, ["cargo-audit vulnerabilities must be an object"]
@@ -381,7 +479,13 @@ def _evaluate_vulnerabilities(
         except AuditInputError as exc:
             errors.append(str(exc))
             continue
-        key = (workspace_id, finding["advisory_id"], finding["package"], finding["version"])
+        key = (
+            workspace_id,
+            "vulnerability",
+            finding["advisory_id"],
+            finding["package"],
+            finding["version"],
+        )
         finding["disposition_applied"] = key in dispositions
         findings.append(finding)
         if key in dispositions:
@@ -394,11 +498,17 @@ def _evaluate_vulnerabilities(
     return findings, applied, errors
 
 
-def _evaluate_warnings(warnings: object) -> tuple[list[dict[str, Any]], list[str]]:
+def _evaluate_warnings(
+    warnings: object,
+    *,
+    workspace_id: str,
+    dispositions: frozenset[DispositionKey],
+) -> tuple[list[dict[str, Any]], set[DispositionKey], list[str]]:
     findings: list[dict[str, Any]] = []
+    applied: set[DispositionKey] = set()
     errors: list[str] = []
     if not isinstance(warnings, Mapping):
-        return findings, ["cargo-audit warnings must be an object"]
+        return findings, applied, ["cargo-audit warnings must be an object"]
     for category, entries in sorted(warnings.items(), key=lambda item: str(item[0])):
         if not isinstance(category, str) or category not in KNOWN_WARNING_CATEGORIES:
             errors.append(f"unknown cargo-audit warning category: {category!r}")
@@ -417,22 +527,31 @@ def _evaluate_warnings(warnings: object) -> tuple[list[dict[str, Any]], list[str
             except AuditInputError as exc:
                 errors.append(str(exc))
                 continue
-            finding["disposition_applied"] = False
+            key = (
+                workspace_id,
+                category,
+                finding["advisory_id"],
+                finding["package"],
+                finding["version"],
+            )
+            finding["disposition_applied"] = key in dispositions
             findings.append(finding)
-            if category in DENIED_WARNING_CATEGORIES:
+            if key in dispositions:
+                applied.add(key)
+            elif category in DENIED_WARNING_CATEGORIES:
                 identity = finding["advisory_id"] or "no-advisory-id"
                 errors.append(
                     f"denied {category} warning: "
                     f"{identity} {finding['package']} {finding['version']}"
                 )
-    return findings, errors
+    return findings, applied, errors
 
 
 def evaluate_audit_payload(
     payload: object,
     *,
     workspace_id: str,
-    dispositions: frozenset[tuple[str, str, str, str]],
+    dispositions: frozenset[DispositionKey],
 ) -> dict[str, Any]:
     if not isinstance(payload, Mapping):
         return {
@@ -449,7 +568,12 @@ def evaluate_audit_payload(
         workspace_id=workspace_id,
         dispositions=dispositions,
     )
-    warnings, warning_errors = _evaluate_warnings(payload.get("warnings"))
+    warnings, warning_applied, warning_errors = _evaluate_warnings(
+        payload.get("warnings"),
+        workspace_id=workspace_id,
+        dispositions=dispositions,
+    )
+    applied.update(warning_applied)
     errors.extend(vulnerability_errors)
     errors.extend(warning_errors)
     vulnerabilities.sort(
@@ -491,13 +615,160 @@ def _discover_workspace_locks(root: Path) -> list[str]:
     return paths
 
 
+def _unsound_boundary_errors(
+    spec: WorkspaceSpec,
+    *,
+    root: Path,
+    lockfile_sha256: str,
+    dispositions: frozenset[DispositionKey],
+) -> tuple[list[str], bool]:
+    boundary = UNSOUND_BOUNDARIES.get(spec.workspace_id)
+    if boundary is None:
+        return [], False
+    unsound_keys = [
+        key
+        for key in dispositions
+        if key[0] == spec.workspace_id and key[1] == "unsound"
+    ]
+    if len(unsound_keys) != 1:
+        return ["workspace unsound disposition cardinality mismatch"], False
+    errors: list[str] = []
+    if lockfile_sha256 != boundary.lockfile_sha256:
+        errors.append("unsound disposition lockfile bytes drifted")
+    try:
+        reference = _read_regular(
+            root / boundary.reference_path,
+            max_bytes=MAX_REFERENCE_BYTES,
+            label=boundary.reference_path,
+        )
+    except AuditInputError as exc:
+        errors.append(str(exc))
+    else:
+        if hashlib.sha256(reference).hexdigest() != boundary.reference_file_sha256:
+            errors.append("unsound disposition rebuild reference drifted")
+        else:
+            try:
+                reference_document = _parse_json(
+                    reference,
+                    label=boundary.reference_path,
+                )
+                errors.extend(_reference_source_closure_errors(reference_document, root))
+            except AuditInputError as exc:
+                errors.append(str(exc))
+    source_count = 0
+    for relative_root in boundary.source_roots:
+        source_root = root / relative_root
+        try:
+            metadata = source_root.lstat()
+        except OSError:
+            errors.append("unsound disposition source root is unavailable")
+            continue
+        if source_root.is_symlink() or not stat.S_ISDIR(metadata.st_mode):
+            errors.append("unsound disposition source root is not a real directory")
+            continue
+        for source in sorted(source_root.rglob("*.rs")):
+            relative = source.relative_to(root)
+            if "target" in relative.parts:
+                continue
+            source_count += 1
+            try:
+                raw = _read_regular(
+                    source,
+                    max_bytes=MAX_SCANNED_SOURCE_BYTES,
+                    label=relative.as_posix(),
+                )
+            except AuditInputError as exc:
+                errors.append(str(exc))
+                continue
+            if b"downcast_mut" in raw:
+                errors.append(
+                    "affected anyhow::Error::downcast_mut token entered governed source"
+                )
+    if source_count == 0:
+        errors.append("unsound disposition source scan was empty")
+    return list(dict.fromkeys(errors)), not errors
+
+
+def _reference_source_closure_errors(
+    reference: Mapping[str, Any],
+    root: Path,
+) -> list[str]:
+    source_compile = reference.get("source_compile")
+    if not isinstance(source_compile, Mapping):
+        return ["unsound disposition reference source closure is absent"]
+    files = source_compile.get("files")
+    expected_root = source_compile.get("root_sha256")
+    if not isinstance(files, list) or not files or not isinstance(expected_root, str):
+        return ["unsound disposition reference source closure is malformed"]
+    rows: list[tuple[str, str, int]] = []
+    errors: list[str] = []
+    for index, raw in enumerate(files):
+        try:
+            row = _exact_fields(
+                raw,
+                frozenset({"path", "sha256", "size_bytes"}),
+                label=f"reference source file[{index}]",
+            )
+            relative = _nonempty_ascii(
+                row.get("path"),
+                label=f"reference source file[{index}] path",
+            )
+            pure = PurePosixPath(relative)
+            if (
+                pure.is_absolute()
+                or ".." in pure.parts
+                or not pure.parts
+                or str(pure) != relative
+            ):
+                raise AuditInputError("reference source path is unsafe")
+            digest = _nonempty_ascii(
+                row.get("sha256"),
+                label=f"reference source file[{index}] SHA-256",
+                max_chars=64,
+            )
+            if SHA256_RE.fullmatch(digest) is None:
+                raise AuditInputError("reference source SHA-256 is malformed")
+            size = row.get("size_bytes")
+            if type(size) is not int or size <= 0 or size > MAX_SCANNED_SOURCE_BYTES:
+                raise AuditInputError("reference source size is out of bounds")
+            rows.append((relative, digest, size))
+        except AuditInputError as exc:
+            errors.append(str(exc))
+    if errors:
+        return errors
+    if [row[0] for row in rows] != sorted({row[0] for row in rows}):
+        return ["reference source paths are not sorted and unique"]
+    closure = hashlib.sha256()
+    for relative, expected_digest, expected_size in rows:
+        try:
+            raw = _read_regular(
+                root / relative,
+                max_bytes=MAX_SCANNED_SOURCE_BYTES,
+                label=relative,
+            )
+        except AuditInputError as exc:
+            errors.append(str(exc))
+            continue
+        actual_digest = hashlib.sha256(raw).hexdigest()
+        if len(raw) != expected_size or actual_digest != expected_digest:
+            errors.append(f"unsound disposition source closure drifted: {relative}")
+            continue
+        closure.update(relative.encode("utf-8"))
+        closure.update(b"\0")
+        closure.update(actual_digest.encode("ascii"))
+        closure.update(b"\0")
+    if not errors and closure.hexdigest() != expected_root:
+        errors.append("unsound disposition source closure root mismatch")
+    return errors
+
+
 def _workspace_report(
     spec: WorkspaceSpec,
     *,
     payload: object,
     root: Path,
-    dispositions: frozenset[tuple[str, str, str, str]],
-) -> tuple[dict[str, Any], set[tuple[str, str, str, str]]]:
+    dispositions: frozenset[DispositionKey],
+) -> tuple[dict[str, Any], set[DispositionKey]]:
     errors: list[str] = []
     lock_sha256 = ""
     lock_size_bytes = 0
@@ -511,6 +782,13 @@ def _workspace_report(
         lock_size_bytes = len(lock_raw)
     except AuditInputError as exc:
         errors.append(str(exc))
+    boundary_errors, boundary_verified = _unsound_boundary_errors(
+        spec,
+        root=root,
+        lockfile_sha256=lock_sha256,
+        dispositions=dispositions,
+    )
+    errors.extend(boundary_errors)
     evaluation = evaluate_audit_payload(
         payload,
         workspace_id=spec.workspace_id,
@@ -526,6 +804,7 @@ def _workspace_report(
             "lockfile_sha256": lock_sha256,
             "lockfile_size_bytes": lock_size_bytes,
             "ok": not errors,
+            "retained_unsound_boundary_verified": boundary_verified,
             "vulnerabilities": evaluation["vulnerabilities"],
             "warnings": evaluation["warnings"],
             "workspace": spec.relative_path,
@@ -559,7 +838,7 @@ def check_audit_payloads(
         errors.append("cargo-audit executable version mismatch")
 
     dispositions = _disposition_keys(policy)
-    applied_dispositions: set[tuple[str, str, str, str]] = set()
+    applied_dispositions: set[DispositionKey] = set()
     workspace_reports: list[dict[str, Any]] = []
     for spec in REVIEWED_WORKSPACES:
         report, applied = _workspace_report(

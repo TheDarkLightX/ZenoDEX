@@ -29,6 +29,26 @@
       "workspace_id": "state_proof_risc0"
     },
     {
+      "advisory_id": "RUSTSEC-2026-0190",
+      "affected_function": "anyhow::Error::downcast_mut",
+      "affected_function_callers_found": false,
+      "category": "unsound",
+      "dependency_path": "RISC0 3.0.5 guest and build stack -> anyhow 1.0.100",
+      "lockfile_sha256": "f7d854a75aea4d9626719587bb8870d67a7891c9dfb93a28842df09bf934c4b1",
+      "new_proof_generation_authority": false,
+      "no_raw_untrusted_terminal_logging": true,
+      "no_secret_input": true,
+      "package": "anyhow",
+      "production_authority": false,
+      "reference_file_sha256": "ab6d7e6752d120571c14a76ef981f789179b25a4a989687edd04574cd1740283",
+      "reference_path": "config/proof_profiles/risc0_recursive_rebuild_reference.json",
+      "reachability": "The affected anyhow::Error::downcast_mut function has no caller in the exact compiler-input scan and no linked symbol or string in the retained V1 guest programs or rebuilt verifier. This exception preserves byte-pinned historical guest identities for experimental retained-receipt verification only and cannot authorize new proofs, settlement, release, or production.",
+      "retained_identity_only": true,
+      "scope": "experimental_risc0_dependency_audit_only",
+      "version": "1.0.100",
+      "workspace_id": "state_proof_risc0"
+    },
+    {
       "advisory_id": "RUSTSEC-2023-0071",
       "category": "vulnerability",
       "dependency_path": "risc0-zkvm 3.0.5 -> rzup 0.5.1 -> rsa 0.9.10",
@@ -52,6 +72,26 @@
       "reachability": "The crate is transitively present in the proof stack. The audited recursive verifier-only evidence lane emits bounded structured output and does not route raw untrusted input through this subscriber.",
       "scope": "experimental_risc0_dependency_audit_only",
       "version": "0.2.25",
+      "workspace_id": "recursive_stark_v2_risc0"
+    },
+    {
+      "advisory_id": "RUSTSEC-2026-0190",
+      "affected_function": "anyhow::Error::downcast_mut",
+      "affected_function_callers_found": false,
+      "category": "unsound",
+      "dependency_path": "RISC0 3.0.5 guest and build stack -> anyhow 1.0.102",
+      "lockfile_sha256": "8fb6d7f66790920e44278d56e33cff1c344dd15ca6c3f96f4abf2a727a7e9f23",
+      "new_proof_generation_authority": false,
+      "no_raw_untrusted_terminal_logging": true,
+      "no_secret_input": true,
+      "package": "anyhow",
+      "production_authority": false,
+      "reference_file_sha256": "fe044c8fdef2f8e32e788c8d8d07bf2b82a77666bfb186f86e43f827db0dffec",
+      "reference_path": "config/proof_profiles/risc0_recursive_v2_rebuild_reference.json",
+      "reachability": "A 3843-file exact compiler-input scan found the affected anyhow::Error::downcast_mut only at its definition and found no caller. Symbol scans found no affected symbol in the aggregate-v2 guest ELF or either retained-receipt verifier. The combined program contains no affected function string. This exception preserves byte-pinned historical guest identity for experimental retained-receipt verification only and cannot authorize new proofs, settlement, release, or production.",
+      "retained_identity_only": true,
+      "scope": "experimental_risc0_dependency_audit_only",
+      "version": "1.0.102",
       "workspace_id": "recursive_stark_v2_risc0"
     },
     {
@@ -84,6 +124,7 @@
   "nonclaims": [
     "does_not_prove_the_dependency_graph_safe",
     "does_not_authorize_production_or_settlement",
+    "does_not_authorize_unsound_dependency_for_new_proof_generation",
     "does_not_replace_source_to_binary_provenance",
     "does_not_establish_dependency_non_reachability"
   ],

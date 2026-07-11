@@ -5,9 +5,9 @@
   "count_unit": "source_transition_receipt",
   "receipt_authority": false,
   "source_reference": {
-    "path": "config/proof_profiles/risc0_recursive_rebuild_reference.json",
-    "sha256": "ae562f0ecca00d3eb106526199efb0712660d11c77350027b39f29d2281af8a9",
-    "schema": "zenodex/risc0_recursive_rebuild_reference/v2",
+    "path": "config/proof_profiles/zrpf_v1_retained_source_anchor_v1.json",
+    "sha256": "7e2bc7f5cf0dc4ac20fe60d935024d346257086418ea8703a4404ab3bce5b1de",
+    "schema": "zenodex/zrpf_v1_retained_source_anchor/v1",
     "source_tree_root": "7a3bed2a1d8fff3ad2e93f2d406df435a9990d1a9c0462ff3323fb028327564e"
   },
   "sources": [

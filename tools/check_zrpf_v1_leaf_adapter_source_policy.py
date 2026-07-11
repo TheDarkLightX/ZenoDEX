@@ -10,7 +10,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_POLICY = (
     REPO_ROOT / "config/proof_profiles/zrpf_v1_leaf_adapter_source_policy_v1.json"
@@ -31,6 +30,33 @@ EXPECTED_TOP_LEVEL_FIELDS = {
     "non_claims",
 }
 EXPECTED_REFERENCE_FIELDS = {"path", "sha256", "schema", "source_tree_root"}
+EXPECTED_ANCHOR_FIELDS = {
+    "historical_reference",
+    "non_claims",
+    "production_authority",
+    "schema",
+    "source_tree_root",
+    "spot_program",
+    "status",
+}
+EXPECTED_HISTORICAL_REFERENCE_FIELDS = {
+    "git_commit",
+    "git_tag",
+    "path",
+    "schema",
+    "sha256",
+}
+EXPECTED_ANCHOR_NON_CLAIMS = {
+    "does_not_embed_complete_historical_reference_bytes",
+    "does_not_assert_current_source_closure_identity",
+    "does_not_authorize_release_or_production",
+    "does_not_replace_retained_receipt_verification",
+}
+HISTORICAL_REFERENCE_COMMIT = "1d1559fd402cdb906d52e6d572d39aec99a5ebda"
+HISTORICAL_REFERENCE_PATH = "config/proof_profiles/risc0_recursive_rebuild_reference.json"
+HISTORICAL_REFERENCE_SHA256 = (
+    "ae562f0ecca00d3eb106526199efb0712660d11c77350027b39f29d2281af8a9"
+)
 EXPECTED_SOURCE_FIELDS = {
     "source_kind",
     "proof_type",
@@ -145,7 +171,7 @@ def _validate_reference(
     errors: list[str],
 ) -> None:
     relative = reference.get("path")
-    if relative != "config/proof_profiles/risc0_recursive_rebuild_reference.json":
+    if relative != "config/proof_profiles/zrpf_v1_retained_source_anchor_v1.json":
         errors.append("source reference path mismatch")
         return
     path = repo_root / relative
@@ -159,22 +185,53 @@ def _validate_reference(
         errors.append("source reference SHA-256 mismatch")
     if document.get("schema") != reference.get("schema"):
         errors.append("source reference schema mismatch")
-    source_root = document.get("source_compile", {}).get("root_sha256")
+    _require_exact_fields(document, EXPECTED_ANCHOR_FIELDS, "source anchor", errors)
+    if document.get("status") != "historical_generation_record":
+        errors.append("source anchor status mismatch")
+    if document.get("production_authority") is not False:
+        errors.append("source anchor production authority must remain false")
+    if set(document.get("non_claims", [])) != EXPECTED_ANCHOR_NON_CLAIMS:
+        errors.append("source anchor non-claims mismatch")
+    source_root = document.get("source_tree_root")
     if source_root != reference.get("source_tree_root"):
         errors.append("source tree root mismatch")
+    _validate_historical_reference(document.get("historical_reference"), errors)
     if isinstance(sources, list) and len(sources) == 1 and isinstance(sources[0], dict):
-        programs = [row for row in document.get("programs", []) if row.get("name") == "spot_leaf"]
-        if len(programs) != 1:
-            errors.append("source reference must contain one spot_leaf program")
+        program = document.get("spot_program")
+        if not isinstance(program, dict):
+            errors.append("source anchor must contain one spot program")
         else:
-            program = programs[0]
             for policy_key, reference_key in (
                 ("image_id", "image_id"),
-                ("image_id_words", "generated_image_id_words"),
+                ("image_id_words", "image_id_words"),
                 ("program_sha256", "program_sha256"),
             ):
                 if sources[0].get(policy_key) != program.get(reference_key):
                     errors.append(f"spot {policy_key} differs from source reference")
+
+
+def _validate_historical_reference(
+    value: Any,
+    errors: list[str],
+) -> None:
+    if not isinstance(value, dict):
+        errors.append("historical source reference must be an object")
+        return
+    _require_exact_fields(
+        value,
+        EXPECTED_HISTORICAL_REFERENCE_FIELDS,
+        "historical source reference",
+        errors,
+    )
+    expected = {
+        "git_commit": HISTORICAL_REFERENCE_COMMIT,
+        "git_tag": "zrpf-v1-retained-source-anchor-20260710",
+        "path": HISTORICAL_REFERENCE_PATH,
+        "schema": "zenodex/risc0_recursive_rebuild_reference/v2",
+        "sha256": HISTORICAL_REFERENCE_SHA256,
+    }
+    if value != expected:
+        errors.append("historical source reference identity mismatch")
 
 
 def _validate_spot_source(source: dict[str, Any], errors: list[str]) -> None:

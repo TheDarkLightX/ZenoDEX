@@ -68,12 +68,12 @@ Current status:
 - The bounded fanout constructor was then ported into the repository harness
   without the prototype's absolute paths. A target-absent clean build froze the
   20-file source closure at
-  `38676d8eb843ba20a0511746552d4d57107be4b7956dd306552095f92cf763dd`
+  `20e5587e3ed7b8f6c561295a04f2cc2de92b90fd38c070de08a33d55b5f7572a`
   and reproduced the aggregate program, raw ELF, image ID, and both host pair
   verifiers. Its release harness regenerated the fanout-two inner and root
   receipts and verified their exact authenticated journals. The source-pinned
   evidence record is SHA-256
-  `d862940c666603865eeddf55107b77b12f57198540b3857943210170e9f32e94`.
+  `9a98b947f76a599109f5238861d010fd3dbb8a8299ef6e3f03685b3cac51ad74`.
   The historical and regenerated receipts have different byte hashes and equal
   authenticated journal hashes. General fanout promotion, nonempty receipt
   partitions, proof-byte determinism, and production authority remain open.
@@ -89,7 +89,7 @@ Current status:
   rejects an exact duplicate lane and a same-statement lane alias, and verifies
   a one-word Succinct seal mutation fails cryptographically. The evidence record
   is SHA-256
-  `db8d9010485af3f2abebde0cd418581a66e06f0de6de181f484d4defd2b5cfe7`.
+  `18141ffae7279b1a717edb41674b4fae101a489e2d7870b920c45c8d6810512a`.
   This is bounded fanout-two same-profile evidence. It does not establish
   general fanout, value-moving batch throughput, independent implementation,
   release authority, or production readiness.
@@ -99,11 +99,11 @@ Current status:
   independently recomputed the image ID, matched the pinned program, raw ELF,
   and both host pair verifiers, verified the pinned proof pair, and returned
   `same_host_clean_recursive_v2_rebuild_match`. The evidence report SHA-256 is
-  `f2f8e27e1dc2237f4c583b7b973f5d9a11005bd140ea5d8b3ce0cb88fb96f471`;
+  `a366d6e0d00f963c061cd7c9be9bbc531d6502f49950834f4297b773db05aeb1`;
   its build-log SHA-256 is
-  `85df53518af68178694fd124a8b877fe38469b03d6f3453e2818a12c7504a7f4`.
+  `ad482414d0e20970da320f0254b76a19d673b7eeb8458d18afe84552beb76ce9`.
   The path-redacted evidence record is pinned by file SHA-256
-  `3cf90baf002d1e4db688d20d8969667e20fef8401c455ffe37648a23e964286b`.
+  `6063b2def168c59d0f187a46e8384979441f4bad8ef1a795f2163c86a7849ea1`.
   This is constrained same-host rebuild evidence. The report keeps
   cross-environment reproducibility, production readiness, public-claim
   permission, settlement authorization, source and builder authentication,
@@ -135,7 +135,7 @@ Current status:
   non-claims stated there.
 
 - The ZRPF V3 structural lane now has a separate current-source, same-host
-  retained-byte replay verifier at commit `d46f3e56`. Its selected dependency
+  retained-byte replay verifier anchored at commit `44bc0435`. Its selected dependency
   graph excludes methods, guests, the harness, Bonsai, client, and
   `risc0-build`. It binds eight exact receipt artifacts, cryptographically
   verifies seven Succinct receipts under the expected images, recomposes both
@@ -144,13 +144,17 @@ Current status:
   and rejects the exact one-word root-seal mutation. Normal execution and
   `RISC0_DEV_MODE=1` execution produced byte-identical output. The evidence
   record SHA-256 is
-  `7c9fdae9b4bc6576f9743545baa54fa7a88fb154f9b0805af621320353250bca`.
+  `03b38b53a17d45348880caccb03f0ce71cf86f267ba6f92c8381684ccaebec87`.
   Its live build uses a private detached worktree at the pinned commit, checks
-  the exact source closure before and after compilation, disables checkout
-  hooks, rejects unpinned ancestor Cargo config, and allowlists subprocess
-  environment variables.
+  the exact 40-file source closure before and after compilation, disables
+  automatic Cargo target discovery and checkout hooks, rejects unpinned
+  ancestor Cargo config, remaps compiler-visible paths, and allowlists the
+  `execve` environment. It executes exact freshly built verifier bytes from a
+  fully sealed Linux memfd and scans the governed public artifacts for bounded
+  leakage patterns.
   This is retained proof verification evidence. Proof generation, guest
-  source-to-image binding, compiler-closure and dependency-cache identity,
+  source-to-image binding, complete build inputs, compiler, linker,
+  dependency-cache and runtime-rootfs identity,
   cross-host reproducibility, release authority, semantic aggregation, ledger
   or settlement admission, privacy, transaction counts, throughput, and
   production readiness remain unestablished.
@@ -593,12 +597,12 @@ Current post-composition-repair v1 local evidence:
 - aggregate combined-program SHA-256:
   `bbc64916ff42389fce5f4e76fe4b52e4f3eaad70d27813aef7156f372d5ded5e`;
 - bounded all-regular-file v1 source-closure SHA-256:
-  `7a3bed2a1d8fff3ad2e93f2d406df435a9990d1a9c0462ff3323fb028327564e`;
+  `76a267fd6cbd51c8397073af5553d8a5877945dbf3d18cde2ac262c149366d50`;
 - spot and aggregate artifact-file SHA-256 values:
   `4ce7db31e6ae5e5af53b4ef67fb0cd6ebb1dcae9cf05ee9f73b4511c10db20b9`
   and `061f99b459e54a0bef821880f43049bb2120d5ff427439067950141286d533dd`;
 - static PIE verifier SHA-256:
-  `0db7088c99dc3d5d0098b868592430374b3e4effb713bc99bf77c6ca0f16e72e`;
+  `49d83f7c08256677e9b9aed993a7db59c46875aa96ab08791e0b1d60ad06acd9`;
 - accepted strict-verification transcript SHA-256:
   `af2a660f10f3b4eb01811cb4215f01546679618296dcd369e3f6d542bfae5c8a`;
 - positive strict-verification request SHA-256:
@@ -609,7 +613,12 @@ Current post-composition-repair v1 local evidence:
 - canonical cryptographic-invalid transcript SHA-256:
   `206918c41a0f9f05cb34dbdbf15aa972d726ec50a38a217f8640f59e47912dba`;
 - v1 reference-v2 canonical SHA-256:
-  `7975c540fa8eea7fc5e4f795b3a981751c3482b1321fdd6b83f0112bcbf46ff4`.
+  `0603e3cf3fc76b5226f319dc82724a8d8fc8c972a0e8f63a99645a7cb79c14c8`.
+
+The V1 adapter separately retains the historical proof-generation source root
+`7a3bed2a1d8fff3ad2e93f2d406df435a9990d1a9c0462ff3323fb028327564e`.
+That immutable compatibility provenance is distinct from the current rebuild
+closure above; both resolve to the same pinned Spot guest program and image ID.
 
 The malformed proof flips only bit zero of Succinct seal word 27,833
 (`662339219` to `662339218`). The decoded receipt bytes differ at exactly one

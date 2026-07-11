@@ -41,12 +41,12 @@ host-verified a current spot-plus-zUSD fanout-two subtree and its epoch root.
 Its evidence record is
 `docs/research/RECURSIVE_STARK_V2_TWO_LEAF_SOURCE_PINNED_EVIDENCE_20260710.json`,
 SHA-256
-`d862940c666603865eeddf55107b77b12f57198540b3857943210170e9f32e94`.
+`9a98b947f76a599109f5238861d010fd3dbb8a8299ef6e3f03685b3cac51ad74`.
 A second source-pinned fanout-two run proves two distinct authenticated spot
 statements under one current image and profile. Its derived child verifier set
 has one member, while its semantic-source and assigned-leaf sets each have two
 members. The evidence record SHA-256 is
-`db8d9010485af3f2abebde0cd418581a66e06f0de6de181f484d4defd2b5cfe7`.
+`18141ffae7279b1a717edb41674b4fae101a489e2d7870b920c45c8d6810512a`.
 Only fanout two has real proof evidence, and all accepted leaves have empty
 receipt partitions. Governed general fanout, durable admission, and the general
 proof tree described below remain pending.
@@ -59,7 +59,7 @@ the pinned program, raw ELF, image ID, and both host pair verifiers, verified th
 pinned authenticated proof pair, and returned
 `same_host_clean_recursive_v2_rebuild_match`. Its evidence
 report SHA-256 is
-`f2f8e27e1dc2237f4c583b7b973f5d9a11005bd140ea5d8b3ce0cb88fb96f471`.
+`a366d6e0d00f963c061cd7c9be9bbc531d6502f49950834f4297b773db05aeb1`.
 The path-redacted evidence record is
 `docs/research/RECURSIVE_STARK_V2_CURRENT_EVIDENCE_20260710.json`.
 Cross-environment reproducibility, release authority, production readiness,

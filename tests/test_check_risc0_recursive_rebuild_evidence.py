@@ -344,7 +344,25 @@ def test_committed_reference_is_authenticated_and_claim_limited() -> None:
         checker.EXPECTED_REFERENCE_CANONICAL_SHA256
     )
     assert validated["source_compile"]["root_sha256"] == (
-        "7a3bed2a1d8fff3ad2e93f2d406df435a9990d1a9c0462ff3323fb028327564e"
+        "76a267fd6cbd51c8397073af5553d8a5877945dbf3d18cde2ac262c149366d50"
+    )
+    assert [program["program_sha256"] for program in validated["programs"]] == [
+        "bbc64916ff42389fce5f4e76fe4b52e4f3eaad70d27813aef7156f372d5ded5e",
+        "c3d64f382d9510f5837c562295991629154091feaa2f258a2e1a25f76f1c28d6",
+        "bcf7516b1564a7071f0a6c0ded20580bfcc30bde8a47929d648538715b7ccf4b",
+        "d1fd8915a3c1650b42527e6b878f203679cd447b506916c6a9a56008ed0951a8",
+        "ea44c990e32c6de41536521148c04954cf8705740d75faa8008ca9427c32dd88",
+        "62ce1d97b3a2671e985b2a6633f6e01520b71f6d7a4a0408924725b74555c5a7",
+    ]
+    assert validated["root_proof"]["sha256"] == (
+        "061f99b459e54a0bef821880f43049bb2120d5ff427439067950141286d533dd"
+    )
+    assert validated["static_verifier"] == {
+        "sha256": "49d83f7c08256677e9b9aed993a7db59c46875aa96ab08791e0b1d60ad06acd9",
+        "size_bytes": 15_299_456,
+    }
+    assert validated["verified_transcript"]["sha256"] == (
+        "af2a660f10f3b4eb01811cb4215f01546679618296dcd369e3f6d542bfae5c8a"
     )
     assert validated["claims"] == checker.EXPECTED_CLAIMS
 

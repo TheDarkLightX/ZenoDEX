@@ -176,7 +176,7 @@
       },
       {
         "path": "zk/recursive_stark_v2_risc0/Cargo.lock",
-        "sha256": "a684c9d9ef8f9839f5ffa869cad5584caec0b69b33460f364b49d86778be06f5",
+        "sha256": "8fb6d7f66790920e44278d56e33cff1c344dd15ca6c3f96f4abf2a727a7e9f23",
         "size_bytes": 93678
       },
       {
@@ -251,8 +251,8 @@
       },
       {
         "path": "zk/state_proof_risc0/shared/Cargo.toml",
-        "sha256": "6a21ba0c312f684df8ce8703facb4badec2f0f85721d30c83bdce30c192c299c",
-        "size_bytes": 372
+        "sha256": "b22ea02555ae20a868d8f6a240efb429d74110cd7ba8ac98571a9e55a91b4c75",
+        "size_bytes": 489
       },
       {
         "path": "zk/state_proof_risc0/shared/src/lib.rs",
@@ -277,7 +277,7 @@
       "verification": "lock_checksum_plus_cached_crate_and_extracted_tree_equality"
     },
     "root_algorithm": "sha256(sorted(path_utf8 || nul || file_sha256_ascii || nul))",
-    "root_sha256": "38676d8eb843ba20a0511746552d4d57107be4b7956dd306552095f92cf763dd",
+    "root_sha256": "20e5587e3ed7b8f6c561295a04f2cc2de92b90fd38c070de08a33d55b5f7572a",
     "scopes": [
       "zk/recursive_stark_v2_risc0",
       "zk/state_proof_risc0/shared"

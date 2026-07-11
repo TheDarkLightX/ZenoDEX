@@ -166,7 +166,7 @@
       },
       {
         "path": "zk/state_proof_risc0/Cargo.lock",
-        "sha256": "c7775db6977cec67d04e5ed3ecc60996c9c45aecc9434c5d00d4861235df0d61",
+        "sha256": "f7d854a75aea4d9626719587bb8870d67a7891c9dfb93a28842df09bf934c4b1",
         "size_bytes": 90369
       },
       {
@@ -281,8 +281,8 @@
       },
       {
         "path": "zk/state_proof_risc0/shared/Cargo.toml",
-        "sha256": "6a21ba0c312f684df8ce8703facb4badec2f0f85721d30c83bdce30c192c299c",
-        "size_bytes": 372
+        "sha256": "b22ea02555ae20a868d8f6a240efb429d74110cd7ba8ac98571a9e55a91b4c75",
+        "size_bytes": 489
       },
       {
         "path": "zk/state_proof_risc0/shared/src/lib.rs",
@@ -301,11 +301,11 @@
       }
     ],
     "root_algorithm": "sha256(sorted(path_utf8 || nul || file_sha256_ascii || nul))",
-    "root_sha256": "7a3bed2a1d8fff3ad2e93f2d406df435a9990d1a9c0462ff3323fb028327564e",
+    "root_sha256": "76a267fd6cbd51c8397073af5553d8a5877945dbf3d18cde2ac262c149366d50",
     "workspace_identity_prefix": "zk/state_proof_risc0"
   },
   "static_verifier": {
-    "sha256": "0db7088c99dc3d5d0098b868592430374b3e4effb713bc99bf77c6ca0f16e72e",
+    "sha256": "49d83f7c08256677e9b9aed993a7db59c46875aa96ab08791e0b1d60ad06acd9",
     "size_bytes": 15299456
   },
   "verified_transcript": {
@@ -315,7 +315,7 @@
   "version": 2,
   "workspace_archive": {
     "format": "normalized_gnu_tar_v1",
-    "sha256": "03071e525468cd87b83f719ab0e332c6a6624fcdf956a145b5d0a9e2c6d28e5d",
+    "sha256": "dbda5dc7c4301244872fca661f4042d78d8d9453d7d29b32ccb37da30433f22a",
     "size_bytes": 1126400
   }
 }

@@ -14,13 +14,13 @@
   "source_frozen_build": {
     "reference": {
       "path": "config/proof_profiles/risc0_recursive_v2_rebuild_reference.json",
-      "file_sha256": "65d1940692d11730329c3c3a6dc77de1fc5af910cb669c7ce47e98f33b07ba36",
-      "canonical_json_sha256": "90a185a6f8d8cee2ba9fd70299c7508c42d4a470a773530e92e87b79c3ea715b"
+      "file_sha256": "fe044c8fdef2f8e32e788c8d8d07bf2b82a77666bfb186f86e43f827db0dffec",
+      "canonical_json_sha256": "de542c96cca4f516bb481843d81bc0bc4dce94870f22ae8163908e1e16534823"
     },
     "source_closure": {
       "file_count": 20,
-      "root_sha256": "38676d8eb843ba20a0511746552d4d57107be4b7956dd306552095f92cf763dd",
-      "total_bytes": 922885,
+      "root_sha256": "20e5587e3ed7b8f6c561295a04f2cc2de92b90fd38c070de08a33d55b5f7572a",
+      "total_bytes": 923002,
       "harness_main_sha256": "1aa69a4b7a3b0e6bf6100e956f7d6a68b74818ab51b6e241108eb8d068b7fb11",
       "harness_main_size_bytes": 43105
     },
@@ -30,9 +30,9 @@
       "verified_source_bytes": 175405359
     },
     "clean_rebuild_report": {
-      "sha256": "f2f8e27e1dc2237f4c583b7b973f5d9a11005bd140ea5d8b3ce0cb88fb96f471",
-      "size_bytes": 2313,
-      "build_log_sha256": "85df53518af68178694fd124a8b877fe38469b03d6f3453e2818a12c7504a7f4",
+      "sha256": "a366d6e0d00f963c061cd7c9be9bbc531d6502f49950834f4297b773db05aeb1",
+      "size_bytes": 2217,
+      "build_log_sha256": "ad482414d0e20970da320f0254b76a19d673b7eeb8458d18afe84552beb76ce9",
       "status": "same_host_clean_recursive_v2_rebuild_match"
     },
     "release_harness_binary": {
