@@ -132,8 +132,8 @@ guest_sha256_before=$(sha256sum "$guest_binary" | cut -d' ' -f1)
   echo "error: guest identity mismatch" >&2
   exit 2
 }
-env -i LC_ALL=C TZ=UTC \
-  -- "$guest_elf_checker_binary" --guest-elf "$guest_binary" >/dev/null
+env -i -- LC_ALL=C TZ=UTC \
+  "$guest_elf_checker_binary" --guest-elf "$guest_binary" >/dev/null
 
 receipt_set_sha256() {
   local directory=$1
@@ -238,8 +238,8 @@ after_receipt_set=$(receipt_set_sha256 "$receipt_directory")
   echo "error: mksquashfs identity changed during build" >&2
   exit 2
 }
-env -i LC_ALL=C TZ=UTC \
-  -- "$guest_elf_checker_binary" --guest-elf "$guest_binary" >/dev/null
+env -i -- LC_ALL=C TZ=UTC \
+  "$guest_elf_checker_binary" --guest-elf "$guest_binary" >/dev/null
 
 rootfs_sha256=$(sha256sum "$output_directory/zrpf-replay-rootfs.squashfs" | cut -d' ' -f1)
 input_sha256=$(sha256sum "$output_directory/zrpf-replay-input.squashfs" | cut -d' ' -f1)

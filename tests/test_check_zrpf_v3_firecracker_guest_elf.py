@@ -80,6 +80,7 @@ def test_image_builder_uses_hash_bound_native_checker_without_readelf() -> None:
     assert "check_zrpf_v3_firecracker_guest_elf.py" in raw
     assert _checker_source_sha256() in raw
     assert raw.count('"$guest_elf_checker_binary" --guest-elf') == 2
+    assert raw.count("env -i -- LC_ALL=C TZ=UTC") == 2
     assert "--expected-guest-elf-checker-sha256" in raw
     assert "python3 -I" not in raw
     assert "command -v mksquashfs" not in raw
