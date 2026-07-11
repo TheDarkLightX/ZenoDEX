@@ -200,10 +200,11 @@ fn try_verify(req: &Value) -> Result<(), String> {
         return Err("unexpected schema_version (expected tau_state_proof_verify v1)".into());
     }
 
-    validate_embedded_methods();
-
     let state_hash_hex = require_str(req.get("state_hash"), "state_hash");
     let expected_state_hash = parse_hex32(&state_hash_hex).map_err(|e| e.to_string())?;
+    let bindings = require_verify_bindings(req)?;
+
+    validate_embedded_methods();
 
     let proof = req
         .get("proof")
@@ -244,73 +245,98 @@ fn try_verify(req: &Value) -> Result<(), String> {
         return Err("journal.state_hash mismatch".into());
     }
 
-    // Optional stronger checks (fail-closed when provided).
-    if let Some(block) = req.get("block") {
-        if !block.is_object() {
-            return Err("block must be an object".into());
-        }
-        let block_ts = block
-            .get("header")
-            .and_then(|h| h.get("timestamp"))
-            .and_then(Value::as_u64)
-            .ok_or_else(|| "block.header.timestamp missing/invalid".to_string())?;
-        let journal_ts = req
-            .get("context")
-            .and_then(|c| c.get("block_timestamp"))
-            .and_then(Value::as_u64);
-        if let Some(ts) = journal_ts {
-            if ts != block_ts {
-                return Err("context.block_timestamp mismatch".into());
-            }
-        }
+    if bindings.txs_commitment != journal.txs_commitment {
+        return Err("txs_commitment mismatch".into());
+    }
+    if bindings.post_app_hash != journal.post_app_hash {
+        return Err("post_app_hash mismatch".into());
+    }
+    verify_pre_app_hash_binding(bindings.context, &journal)?;
 
-        let txs = parse_block_txs(block.get("transactions")).map_err(|e| e.to_string())?;
-        let expected_commitment = txs_commitment_v1(&txs);
-        if expected_commitment != journal.txs_commitment {
-            return Err("txs_commitment mismatch".into());
-        }
+    Ok(())
+}
+
+#[derive(Debug)]
+struct VerifyBindings<'a> {
+    txs_commitment: [u8; 32],
+    post_app_hash: [u8; 32],
+    context: &'a Value,
+}
+
+fn require_verify_bindings(req: &Value) -> Result<VerifyBindings<'_>, String> {
+    let block = require_object(req, "block")?;
+    let tau_state = require_object(req, "tau_state")?;
+    let context = require_object(req, "context")?;
+
+    let block_timestamp = block
+        .get("header")
+        .and_then(|h| h.get("timestamp"))
+        .and_then(Value::as_u64)
+        .ok_or_else(|| "block.header.timestamp missing/invalid".to_string())?;
+    let context_timestamp = context
+        .get("block_timestamp")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| "context.block_timestamp missing/invalid".to_string())?;
+    if context_timestamp != block_timestamp {
+        return Err("context.block_timestamp mismatch".into());
     }
 
-    if let Some(tau_state) = req.get("tau_state") {
-        if !tau_state.is_object() {
-            return Err("tau_state must be an object".into());
+    let txs = parse_block_txs(block.get("transactions"))?;
+    let post_app_hash = require_app_hash(tau_state)?;
+    Ok(VerifyBindings {
+        txs_commitment: txs_commitment_v1(&txs),
+        post_app_hash,
+        context,
+    })
+}
+
+fn require_object<'a>(req: &'a Value, name: &str) -> Result<&'a Value, String> {
+    let value = req
+        .get(name)
+        .ok_or_else(|| format!("{name} missing (required for fail-closed risc0 verification)"))?;
+    if !value.is_object() {
+        return Err(format!("{name} must be an object"));
+    }
+    Ok(value)
+}
+
+fn require_app_hash(tau_state: &Value) -> Result<[u8; 32], String> {
+    let post_hex = tau_state
+        .get("app_hash")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if post_hex.is_empty() {
+        return Err("tau_state.app_hash missing/empty".into());
+    }
+    parse_hex32(&post_hex).map_err(|e| e.to_string())
+}
+
+fn verify_pre_app_hash_binding(
+    context: &Value,
+    journal: &StateProofJournalV1,
+) -> Result<(), String> {
+    let prev_hex = context
+        .get("app_hash_pre")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if prev_hex.is_empty() {
+        if journal.pre_app_hash_present {
+            return Err("pre_app_hash present but expected empty".into());
         }
-        let post_hex = tau_state
-            .get("app_hash")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        if !post_hex.is_empty() {
-            let expected_post = parse_hex32(&post_hex).map_err(|e| e.to_string())?;
-            if expected_post != journal.post_app_hash {
-                return Err("post_app_hash mismatch".into());
-            }
-        }
+        return Ok(());
     }
 
-    if let Some(context) = req.get("context") {
-        if !context.is_object() {
-            return Err("context must be an object".into());
-        }
-        if let Some(prev) = context.get("app_hash_pre").and_then(Value::as_str) {
-            let prev_hex = prev.trim().to_string();
-            if prev_hex.is_empty() {
-                if journal.pre_app_hash_present {
-                    return Err("pre_app_hash present but expected empty".into());
-                }
-            } else {
-                let expected_pre = parse_hex32(&prev_hex).map_err(|e| e.to_string())?;
-                if !journal.pre_app_hash_present {
-                    return Err("pre_app_hash missing but expected present".into());
-                }
-                if expected_pre != journal.pre_app_hash {
-                    return Err("pre_app_hash mismatch".into());
-                }
-            }
-        }
+    let expected_pre = parse_hex32(&prev_hex).map_err(|e| e.to_string())?;
+    if !journal.pre_app_hash_present {
+        return Err("pre_app_hash missing but expected present".into());
     }
-
+    if expected_pre != journal.pre_app_hash {
+        return Err("pre_app_hash mismatch".into());
+    }
     Ok(())
 }
 
@@ -652,4 +678,82 @@ fn write_json_stdout(v: &Value) {
 fn die(msg: &str) -> ! {
     eprintln!("{msg}");
     std::process::exit(2);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ZERO_HASH: &str = "0000000000000000000000000000000000000000000000000000000000000000";
+
+    fn bound_verify_request() -> Value {
+        json!({
+            "schema_version": 1,
+            "state_hash": ZERO_HASH,
+            "block": {
+                "header": { "timestamp": 42 },
+                "transactions": []
+            },
+            "tau_state": { "app_hash": ZERO_HASH },
+            "context": { "block_timestamp": 42 }
+        })
+    }
+
+    fn journal_with_pre_hash(pre_app_hash_present: bool) -> StateProofJournalV1 {
+        StateProofJournalV1 {
+            journal_version: 1,
+            state_hash: [0u8; 32],
+            txs_commitment: txs_commitment_v1(&[]),
+            pre_app_hash_present,
+            pre_app_hash: [7u8; 32],
+            post_app_hash: [0u8; 32],
+        }
+    }
+
+    #[test]
+    fn verify_bindings_require_block_tau_state_and_context() {
+        for field in ["block", "tau_state", "context"] {
+            let mut req = bound_verify_request();
+            req.as_object_mut().unwrap().remove(field);
+
+            let err = require_verify_bindings(&req).unwrap_err();
+
+            assert!(err.contains("required for fail-closed risc0 verification"));
+        }
+    }
+
+    #[test]
+    fn verify_bindings_bind_transactions_post_hash_and_timestamp() {
+        let req = bound_verify_request();
+        let bindings = require_verify_bindings(&req).unwrap();
+
+        assert_eq!(bindings.txs_commitment, txs_commitment_v1(&[]));
+        assert_eq!(bindings.post_app_hash, [0u8; 32]);
+    }
+
+    #[test]
+    fn verify_bindings_reject_timestamp_mismatch() {
+        let mut req = bound_verify_request();
+        req["context"]["block_timestamp"] = json!(43);
+
+        let err = require_verify_bindings(&req).unwrap_err();
+
+        assert_eq!(err, "context.block_timestamp mismatch");
+    }
+
+    #[test]
+    fn pre_app_hash_binding_is_fail_closed_when_journal_has_pre_hash() {
+        let context = json!({ "block_timestamp": 42 });
+
+        let err = verify_pre_app_hash_binding(&context, &journal_with_pre_hash(true)).unwrap_err();
+
+        assert_eq!(err, "pre_app_hash present but expected empty");
+    }
+
+    #[test]
+    fn pre_app_hash_binding_accepts_empty_pre_hash_when_journal_has_none() {
+        let context = json!({ "block_timestamp": 42 });
+
+        verify_pre_app_hash_binding(&context, &journal_with_pre_hash(false)).unwrap();
+    }
 }
