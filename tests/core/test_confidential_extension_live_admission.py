@@ -16,7 +16,7 @@ OTHER_POLICY_DIGEST = "0x" + ("e" * 64)
 APPROVED = {f"nitro:pcr0:{NITRO_PCR0}:pcr8:{NITRO_PCR8}"}
 
 
-def _receipt(*, do_execute: int = 1) -> dict:
+def _raw_receipt(*, do_execute: int = 1) -> dict:
     policy_ok = 1 if do_execute == 1 else 0
     nonce_unused = 1 if do_execute == 1 else 0
     output_bound_ok = 1 if do_execute == 1 else 0
@@ -44,6 +44,46 @@ def _receipt(*, do_execute: int = 1) -> dict:
         provider_balance_before=9,
         provider_balance_after=provider_after,
     )
+
+
+def _receipt(*, do_execute: int = 1) -> dict:
+    raw = _raw_receipt(do_execute=do_execute)
+    body = raw["body"]
+    return make_confidential_extension_receipt_from_verified_attestation(
+        verified_attestation=VerifiedConfidentialAttestation(
+            measurement=body["measurement"],
+            policy_digest=body["policy_digest"],
+            attestation_epoch=body["attestation"]["attestation_epoch"],
+        ),
+        extension_id=body["extension_id"],
+        provider_id=body["provider_id"],
+        request_id=body["request_id"],
+        policy_version=body["policy_version"],
+        do_execute=body["host"]["do_execute"],
+        policy_ok=body["host"]["policy_ok"],
+        nonce_unused=body["host"]["nonce_unused"],
+        output_bound_ok=body["host"]["output_bound_ok"],
+        current_epoch=body["attestation"]["current_epoch"],
+        max_attestation_age=body["attestation"]["max_attestation_age"],
+        fee_charged=body["accounting"]["fee_charged"],
+        receipt_fee=body["accounting"]["receipt_fee"],
+        credit_before=body["accounting"]["credit_before"],
+        credit_after=body["accounting"]["credit_after"],
+        provider_balance_before=body["accounting"]["provider_balance_before"],
+        provider_balance_after=body["accounting"]["provider_balance_after"],
+    )
+
+
+def test_confidential_extension_live_admission_rejects_self_hashed_receipt_without_verified_attestation() -> None:
+    ok, err, updated = validate_confidential_extension_live_admission(
+        receipt=_raw_receipt(),
+        approved_measurements=APPROVED,
+        expected_policy_digest=POLICY_DIGEST,
+        request_table=ConfidentialRequestTable(),
+    )
+    assert ok is False
+    assert err == "receipt_not_authenticated"
+    assert updated is None
 
 
 def test_confidential_extension_live_admission_accepts_verified_fresh_unused_request() -> None:

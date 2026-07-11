@@ -138,7 +138,7 @@ def make_confidential_extension_receipt_from_verified_attestation(
 ) -> dict[str, Any]:
     if not isinstance(verified_attestation, VerifiedConfidentialAttestation):
         raise TypeError("verified_attestation must be a VerifiedConfidentialAttestation")
-    return make_confidential_extension_receipt(
+    receipt = make_confidential_extension_receipt(
         extension_id=extension_id,
         provider_id=provider_id,
         request_id=request_id,
@@ -159,6 +159,8 @@ def make_confidential_extension_receipt_from_verified_attestation(
         provider_balance_before=provider_balance_before,
         provider_balance_after=provider_balance_after,
     )
+    receipt["_verified_attestation"] = verified_attestation
+    return receipt
 
 
 def make_confidential_extension_receipt_from_nitro(

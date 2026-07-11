@@ -68,6 +68,19 @@ def evaluate_confidential_extension_live_admission_gate(
     )
 
 
+def _receipt_has_verified_attestation(receipt: Mapping[str, Any], body: Mapping[str, Any]) -> bool:
+    """DbC: live admission requires verifier-produced, body-bound attestation capability."""
+    verified = receipt.get("_verified_attestation")
+    attestation = body.get("attestation")
+    if not isinstance(attestation, Mapping):
+        return False
+    return (
+        getattr(verified, "measurement", None) == body.get("measurement")
+        and getattr(verified, "policy_digest", None) == body.get("policy_digest")
+        and getattr(verified, "attestation_epoch", None) == attestation.get("attestation_epoch")
+    )
+
+
 def validate_confidential_extension_live_admission(
     *,
     receipt: Mapping[str, Any],
@@ -95,6 +108,8 @@ def validate_confidential_extension_live_admission(
     body = receipt.get("body")
     if not isinstance(body, Mapping):
         return False, "missing_body", None
+    if not _receipt_has_verified_attestation(receipt, body):
+        return False, "receipt_not_authenticated", None
     host = body.get("host")
     if not isinstance(host, Mapping):
         return False, "bad_host", None

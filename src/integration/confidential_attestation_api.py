@@ -254,6 +254,10 @@ def _receipt_body(receipt: Mapping[str, Any]) -> Mapping[str, Any] | None:
     return body if isinstance(body, Mapping) else None
 
 
+def _public_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in receipt.items() if key != "_verified_attestation"}
+
+
 def _receipt_summary(receipt: Mapping[str, Any]) -> dict[str, Any]:
     receipt_body = _receipt_body(receipt)
     if receipt_body is None:
@@ -316,7 +320,7 @@ def _handle_verify(body: Mapping[str, Any]) -> ResponseT:
     return 200, {
         "ok": True,
         "receipt_admissible": True,
-        "receipt": receipt,
+        "receipt": _public_receipt(receipt),
         **summary,
         "claim_scope": "local_testnet_external_verifier_receipt",
     }
@@ -368,7 +372,7 @@ def _handle_admit(
             "provider_id": key.provider_id,
             "request_id": key.request_id,
         },
-        "receipt": receipt,
+        "receipt": _public_receipt(receipt),
         **_receipt_summary(receipt),
         "claim_scope": "local_testnet_external_verifier_live_admission",
     }
