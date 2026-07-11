@@ -3,6 +3,7 @@ members = [
   "shared",
   "aggregate_shared",
   "verifier",
+  "replay_verifier",
   "methods",
   "methods/v1_leaf_adapter",
   "methods/structural_aggregate_l1",

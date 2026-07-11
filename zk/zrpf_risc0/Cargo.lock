@@ -3523,6 +3523,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "zenodex-zrpf-risc0-replay-verifier"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "risc0-zkvm",
+ "rustix",
+ "serde_json",
+ "sha2",
+ "zenodex-zrpf-risc0-aggregate-shared",
+ "zenodex-zrpf-risc0-verifier",
+]
+
+[[package]]
 name = "zenodex-zrpf-risc0-shared"
 version = "0.1.0"
 dependencies = [
