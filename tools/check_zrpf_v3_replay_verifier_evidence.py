@@ -24,6 +24,9 @@ record_writer = importlib.import_module(
     f"{_MODULE_PREFIX}zrpf_v3_replay_record_writer"
 )
 process_runner = importlib.import_module(f"{_MODULE_PREFIX}zrpf_v3_replay_process")
+sealed_executable = importlib.import_module(
+    f"{_MODULE_PREFIX}zrpf_v3_replay_sealed_executable"
+)
 
 PACKAGE = "zenodex-zrpf-risc0-replay-verifier"
 BINARY = "zenodex-zrpf-risc0-replay-verifier"
@@ -51,7 +54,9 @@ class LiveContext:
 
 @dataclass(frozen=True)
 class LiveReplay:
-    binary_bytes: bytes
+    binary_sha256: str
+    binary_size_bytes: int
+    binary_transport: str
     dependency_graph: tuple[str, ...]
     negative_controls: list[dict[str, Any]]
     stdout: bytes
@@ -160,6 +165,7 @@ def verify_source_anchor(repo_root: Path) -> list[str]:
             cwd=repo_root,
             env=environment.clean_environment(),
             timeout=30,
+            profile=process_runner.ProcessProfile.TOOL,
         )
     except RuntimeError:
         return ["source anchor commit is unavailable"]
@@ -172,6 +178,7 @@ def verify_source_anchor(repo_root: Path) -> list[str]:
                 cwd=repo_root,
                 env=environment.clean_environment(),
                 timeout=30,
+                profile=process_runner.ProcessProfile.TOOL,
             ).stdout
             current = (repo_root / relative).read_bytes()
         except (OSError, RuntimeError):
@@ -266,6 +273,7 @@ def _selected_dependency_graph(context: LiveContext) -> tuple[str, ...]:
         cwd=context.workspace,
         env=context.env,
         timeout=120,
+        profile=process_runner.ProcessProfile.BUILD,
     ).stdout
     graph_text = graph.decode("utf-8")
     if any(token in graph_text for token in FORBIDDEN_GRAPH_TOKENS):
@@ -279,37 +287,49 @@ def _build_and_replay(context: LiveContext, graph: tuple[str, ...]) -> LiveRepla
         cwd=context.workspace,
         env=context.env,
         timeout=600,
+        profile=process_runner.ProcessProfile.BUILD,
     )
     _require_snapshot_closure(context.source_root)
     binary = context.target_directory / "release" / BINARY
-    if binary.is_symlink() or not binary.is_file():
-        raise RuntimeError("built verifier is not a regular file")
-    binary_raw = binary.read_bytes()
-    normal = _run(
-        [str(binary), str(support.RECEIPT_DIRECTORY)],
-        cwd=context.repo_root,
-        env=context.env,
-        timeout=120,
+    with sealed_executable.SealedExecutable(binary) as executable:
+        normal = _run(
+            [executable.command_path, str(support.RECEIPT_DIRECTORY)],
+            cwd=context.repo_root,
+            env=context.env,
+            timeout=120,
+            profile=process_runner.ProcessProfile.REPLAY,
+            pass_fds=executable.pass_fds,
+        )
+        dev_env = context.env.copy()
+        dev_env["RISC0_DEV_MODE"] = "1"
+        dev = _run(
+            [executable.command_path, str(support.RECEIPT_DIRECTORY)],
+            cwd=context.repo_root,
+            env=dev_env,
+            timeout=120,
+            profile=process_runner.ProcessProfile.REPLAY,
+            pass_fds=executable.pass_fds,
+        )
+        if normal.stderr or dev.stderr or normal.stdout != dev.stdout:
+            raise RuntimeError("normal and dev-environment replay outputs differ")
+        _, report_errors = support.validate_replay_report(normal.stdout)
+        if report_errors:
+            raise RuntimeError("live replay report failed exact validation")
+        negatives = live_controls.run_negative_controls(
+            executable.command_path,
+            executable.pass_fds,
+            context.env,
+            context.target_directory,
+        )
+        identity = executable.identity
+    return LiveReplay(
+        identity.sha256,
+        identity.size_bytes,
+        identity.transport,
+        graph,
+        negatives,
+        normal.stdout,
     )
-    dev_env = context.env.copy()
-    dev_env["RISC0_DEV_MODE"] = "1"
-    dev = _run(
-        [str(binary), str(support.RECEIPT_DIRECTORY)],
-        cwd=context.repo_root,
-        env=dev_env,
-        timeout=120,
-    )
-    if normal.stderr or dev.stderr or normal.stdout != dev.stdout:
-        raise RuntimeError("normal and dev-environment replay outputs differ")
-    _, report_errors = support.validate_replay_report(normal.stdout)
-    if report_errors:
-        raise RuntimeError("live replay report failed exact validation")
-    negatives = live_controls.run_negative_controls(
-        binary,
-        context.env,
-        context.target_directory,
-    )
-    return LiveReplay(binary_raw, graph, negatives, normal.stdout)
 
 
 def _require_snapshot_closure(source_root: Path) -> None:
@@ -327,8 +347,9 @@ def _require_snapshot_closure(source_root: Path) -> None:
 def _live_facts(context: LiveContext, replay: LiveReplay) -> dict[str, Any]:
     graph_bytes = ("\n".join(replay.dependency_graph) + "\n").encode("utf-8")
     return {
-        "binary_sha256": support.sha256_bytes(replay.binary_bytes),
-        "binary_size_bytes": len(replay.binary_bytes),
+        "binary_sha256": replay.binary_sha256,
+        "binary_size_bytes": replay.binary_size_bytes,
+        "binary_transport": replay.binary_transport,
         "dependency_graph_package_count": len(replay.dependency_graph),
         "dependency_graph_sha256": support.sha256_bytes(graph_bytes),
         "executed": True,
@@ -347,6 +368,8 @@ def _run(
     cwd: Path,
     env: dict[str, str],
     timeout: int,
+    profile: Any,
+    pass_fds: tuple[int, ...] = (),
 ) -> subprocess.CompletedProcess[bytes]:
     process = process_runner.run_bounded(
         process_runner.ProcessRequest(
@@ -355,6 +378,8 @@ def _run(
             env=env,
             timeout_seconds=timeout,
             output_limit_bytes=MAX_PROCESS_OUTPUT,
+            profile=profile,
+            pass_fds=pass_fds,
         )
     )
     if process.returncode != 0:

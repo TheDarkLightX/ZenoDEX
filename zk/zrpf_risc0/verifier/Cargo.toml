@@ -4,6 +4,14 @@ version = "0.1.0"
 edition = "2021"
 description = "Sealed host verifier for receipt-authenticated ZRPF V3 nodes"
 publish = false
+build = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+path = "src/lib.rs"
 
 [dependencies]
 risc0-zkvm = { version = "=3.0.5", default-features = false, features = ["disable-dev-mode", "std"] }

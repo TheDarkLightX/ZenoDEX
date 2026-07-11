@@ -2,14 +2,26 @@
 
 from __future__ import annotations
 
+import ctypes
 import os
+import resource
 import selectors
 import signal
 import subprocess
 import time
 from dataclasses import dataclass
+from enum import Enum
+from functools import partial
 from pathlib import Path
 from typing import IO
+
+_LIBC = ctypes.CDLL(None, use_errno=True)
+
+
+class ProcessProfile(str, Enum):
+    BUILD = "build"
+    REPLAY = "replay"
+    TOOL = "tool"
 
 
 @dataclass(frozen=True)
@@ -19,6 +31,8 @@ class ProcessRequest:
     env: dict[str, str]
     timeout_seconds: int
     output_limit_bytes: int
+    profile: ProcessProfile
+    pass_fds: tuple[int, ...] = ()
 
 
 def run_bounded(request: ProcessRequest) -> subprocess.CompletedProcess[bytes]:
@@ -31,6 +45,13 @@ def run_bounded(request: ProcessRequest) -> subprocess.CompletedProcess[bytes]:
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        pass_fds=request.pass_fds,
+        preexec_fn=partial(
+            _apply_process_profile,
+            request.profile,
+            request.timeout_seconds,
+            request.output_limit_bytes,
+        ),
         start_new_session=True,
     )
     if process.stdout is None or process.stderr is None:
@@ -47,6 +68,47 @@ def run_bounded(request: ProcessRequest) -> subprocess.CompletedProcess[bytes]:
         _kill_process_group(process)
         raise
     return subprocess.CompletedProcess(request.command, return_code, stdout, stderr)
+
+
+def _apply_process_profile(
+    profile: ProcessProfile,
+    timeout_seconds: int,
+    output_limit_bytes: int,
+) -> None:
+    os.umask(0o077)
+    _set_limit(resource.RLIMIT_CORE, 0)
+    _set_limit(resource.RLIMIT_CPU, timeout_seconds + 5)
+    if profile is ProcessProfile.BUILD:
+        _set_limit(resource.RLIMIT_FSIZE, 8 * 1024 * 1024 * 1024)
+        _set_limit(resource.RLIMIT_NOFILE, 4_096)
+        _set_limit(resource.RLIMIT_NPROC, 32_768)
+    elif profile is ProcessProfile.REPLAY:
+        _set_limit(resource.RLIMIT_AS, 8 * 1024 * 1024 * 1024)
+        _set_limit(resource.RLIMIT_FSIZE, output_limit_bytes)
+        _set_limit(resource.RLIMIT_NOFILE, 64)
+        _set_limit(resource.RLIMIT_NPROC, 1)
+        _set_limit(resource.RLIMIT_STACK, 64 * 1024 * 1024)
+    elif profile is ProcessProfile.TOOL:
+        _set_limit(resource.RLIMIT_AS, 4 * 1024 * 1024 * 1024)
+        _set_limit(resource.RLIMIT_FSIZE, max(output_limit_bytes, 1024 * 1024))
+        _set_limit(resource.RLIMIT_NOFILE, 256)
+        _set_limit(resource.RLIMIT_NPROC, 32_768)
+    else:  # pragma: no cover - Enum exhaustiveness guard
+        raise RuntimeError("unknown process security profile")
+    _set_no_new_privileges()
+
+
+def _set_limit(kind: int, requested: int) -> None:
+    _, inherited_hard = resource.getrlimit(kind)
+    bounded = requested if inherited_hard == resource.RLIM_INFINITY else min(
+        requested, inherited_hard
+    )
+    resource.setrlimit(kind, (bounded, bounded))
+
+
+def _set_no_new_privileges() -> None:
+    if _LIBC.prctl(38, 1, 0, 0, 0) != 0:
+        raise OSError(ctypes.get_errno(), "prctl(PR_SET_NO_NEW_PRIVS) failed")
 
 
 def _capture_bounded(

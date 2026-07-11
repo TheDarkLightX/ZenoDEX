@@ -4,6 +4,18 @@ version = "0.1.0"
 edition = "2021"
 description = "Guest-safe structural aggregate profile for ZRPF V3"
 publish = false
+build = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+path = "src/lib.rs"
+
+[[test]]
+name = "structural_v1"
+path = "tests/structural_v1.rs"
 
 [dependencies]
 sha2 = { version = "0.10.9", default-features = false }

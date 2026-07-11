@@ -4,6 +4,18 @@ version = "0.1.0"
 edition = "2021"
 description = "Bounded proof-system-neutral ZRPF V3 structural journal protocol for ZenoDEX"
 publish = false
+build = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+path = "src/lib.rs"
+
+[[test]]
+name = "node_v3"
+path = "tests/node_v3.rs"
 
 [dependencies]
 postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }

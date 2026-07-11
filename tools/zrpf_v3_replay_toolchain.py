@@ -17,6 +17,16 @@ EXPECTED_VERSIONS = {
     "rustc": "rustc 1.94.1-dev (06e01cb0d 2026-04-09)",
     "rustdoc": "rustdoc 1.94.1-dev (06e01cb0d 2026-04-09)",
 }
+SELECTED_PACKAGE_MANIFESTS = tuple(
+    f"{root}/Cargo.toml" for root in support.SOURCE_INVENTORY_PACKAGE_ROOTS
+)
+AUTOMATIC_TARGET_KEYS = (
+    "autobenches",
+    "autobins",
+    "autoexamples",
+    "autotests",
+    "build",
+)
 
 
 def verify_toolchain(
@@ -60,6 +70,13 @@ def validate_manifest_features(source_root: Path = support.REPO_ROOT) -> None:
             raise RuntimeError("RISC0 default features are enabled")
         if sorted(dependency.get("features", [])) != ["disable-dev-mode", "std"]:
             raise RuntimeError("RISC0 verifier features drifted")
+    for relative in SELECTED_PACKAGE_MANIFESTS:
+        manifest = tomllib.loads((source_root / relative).read_text("utf-8"))
+        package = manifest.get("package")
+        if not isinstance(package, dict) or any(
+            package.get(key) is not False for key in AUTOMATIC_TARGET_KEYS
+        ):
+            raise RuntimeError("selected package enables automatic compiler inputs")
 
 
 def _bound_artifact(risc0_home: Path, row: dict) -> Path:
@@ -88,6 +105,7 @@ def _version(path: Path) -> str:
             env=environment.clean_environment(),
             timeout_seconds=30,
             output_limit_bytes=MAX_VERSION_OUTPUT,
+            profile=process_runner.ProcessProfile.TOOL,
         )
     )
     if process.returncode != 0 or process.stderr:

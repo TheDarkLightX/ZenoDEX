@@ -4,6 +4,15 @@ version = "0.1.0"
 edition = "2021"
 description = "Source-built verifier for the retained ZRPF V3 structural receipt tree"
 publish = false
+build = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[[bin]]
+name = "zenodex-zrpf-risc0-replay-verifier"
+path = "src/main.rs"
 
 [dependencies]
 hex = "=0.4.3"

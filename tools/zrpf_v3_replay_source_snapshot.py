@@ -103,6 +103,7 @@ def _run_git(
             env=environment.clean_environment(),
             timeout_seconds=120,
             output_limit_bytes=MAX_GIT_OUTPUT,
+            profile=process_runner.ProcessProfile.TOOL,
         )
     )
     if process.returncode != 0:

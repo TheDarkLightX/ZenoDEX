@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import os
 import shutil
 import tempfile
@@ -14,7 +15,15 @@ _MODULE_PREFIX = "tools." if __package__ else ""
 support = importlib.import_module(f"{_MODULE_PREFIX}zrpf_v3_replay_evidence_support")
 process_runner = importlib.import_module(f"{_MODULE_PREFIX}zrpf_v3_replay_process")
 
-MAX_PROCESS_OUTPUT = 16 * 1024 * 1024
+MAX_REJECT_OUTPUT = 64 * 1024
+REJECTION_FIELDS = {
+    "context",
+    "error_code",
+    "ok",
+    "schema",
+    "status",
+    "verifier_code",
+}
 
 
 @dataclass(frozen=True)
@@ -25,7 +34,8 @@ class ExpectedReject:
 
 
 def run_negative_controls(
-    binary: Path,
+    command_path: str,
+    pass_fds: tuple[int, ...],
     env: dict[str, str],
     target_directory: Path,
 ) -> list[dict[str, Any]]:
@@ -35,15 +45,16 @@ def run_negative_controls(
     ) as raw:
         root = Path(raw)
         return [
-            _altered_leaf(binary, env, root),
-            _swapped_l1(binary, env, root),
-            _extra_inventory(binary, env, root),
-            _missing_inventory(binary, env, root),
-            _receipt_symlink(binary, env, root),
-            _receipt_fifo(binary, env, root),
-            _directory_symlink(binary, env, root),
+            _altered_leaf(command_path, pass_fds, env, root),
+            _swapped_l1(command_path, pass_fds, env, root),
+            _extra_inventory(command_path, pass_fds, env, root),
+            _missing_inventory(command_path, pass_fds, env, root),
+            _receipt_symlink(command_path, pass_fds, env, root),
+            _receipt_fifo(command_path, pass_fds, env, root),
+            _directory_symlink(command_path, pass_fds, env, root),
             _reject(
-                binary,
+                command_path,
+                pass_fds,
                 [],
                 env,
                 ExpectedReject("no_arguments", "usage", "replay"),
@@ -52,7 +63,8 @@ def run_negative_controls(
 
 
 def _altered_leaf(
-    binary: Path,
+    command_path: str,
+    pass_fds: tuple[int, ...],
     env: dict[str, str],
     root: Path,
 ) -> dict[str, Any]:
@@ -66,11 +78,12 @@ def _altered_leaf(
         "receipt_artifact_binding",
         support.RECEIPTS[0][0],
     )
-    return _reject(binary, [str(case)], env, expected)
+    return _reject(command_path, pass_fds, [str(case)], env, expected)
 
 
 def _swapped_l1(
-    binary: Path,
+    command_path: str,
+    pass_fds: tuple[int, ...],
     env: dict[str, str],
     root: Path,
 ) -> dict[str, Any]:
@@ -86,33 +99,36 @@ def _swapped_l1(
         "receipt_artifact_binding",
         support.RECEIPTS[4][0],
     )
-    return _reject(binary, [str(case)], env, expected)
+    return _reject(command_path, pass_fds, [str(case)], env, expected)
 
 
 def _extra_inventory(
-    binary: Path,
+    command_path: str,
+    pass_fds: tuple[int, ...],
     env: dict[str, str],
     root: Path,
 ) -> dict[str, Any]:
     case = _copy_receipts(root, "extra")
     (case / "extra").write_bytes(b"x")
     expected = ExpectedReject("extra_inventory", "bundle_inventory", "replay")
-    return _reject(binary, [str(case)], env, expected)
+    return _reject(command_path, pass_fds, [str(case)], env, expected)
 
 
 def _missing_inventory(
-    binary: Path,
+    command_path: str,
+    pass_fds: tuple[int, ...],
     env: dict[str, str],
     root: Path,
 ) -> dict[str, Any]:
     case = _copy_receipts(root, "missing")
     (case / support.RECEIPTS[-1][0]).unlink()
     expected = ExpectedReject("missing_inventory", "bundle_inventory", "replay")
-    return _reject(binary, [str(case)], env, expected)
+    return _reject(command_path, pass_fds, [str(case)], env, expected)
 
 
 def _receipt_symlink(
-    binary: Path,
+    command_path: str,
+    pass_fds: tuple[int, ...],
     env: dict[str, str],
     root: Path,
 ) -> dict[str, Any]:
@@ -125,11 +141,12 @@ def _receipt_symlink(
         "receipt_artifact",
         support.RECEIPTS[0][0],
     )
-    return _reject(binary, [str(case)], env, expected)
+    return _reject(command_path, pass_fds, [str(case)], env, expected)
 
 
 def _receipt_fifo(
-    binary: Path,
+    command_path: str,
+    pass_fds: tuple[int, ...],
     env: dict[str, str],
     root: Path,
 ) -> dict[str, Any]:
@@ -142,11 +159,12 @@ def _receipt_fifo(
         "receipt_artifact",
         support.RECEIPTS[0][0],
     )
-    return _reject(binary, [str(case)], env, expected)
+    return _reject(command_path, pass_fds, [str(case)], env, expected)
 
 
 def _directory_symlink(
-    binary: Path,
+    command_path: str,
+    pass_fds: tuple[int, ...],
     env: dict[str, str],
     root: Path,
 ) -> dict[str, Any]:
@@ -154,7 +172,7 @@ def _directory_symlink(
     link = root / "directory-link"
     link.symlink_to(case, target_is_directory=True)
     expected = ExpectedReject("directory_symlink", "bundle_directory", "replay")
-    return _reject(binary, [str(link)], env, expected)
+    return _reject(command_path, pass_fds, [str(link)], env, expected)
 
 
 def _copy_receipts(root: Path, label: str) -> Path:
@@ -164,18 +182,21 @@ def _copy_receipts(root: Path, label: str) -> Path:
 
 
 def _reject(
-    binary: Path,
+    command_path: str,
+    pass_fds: tuple[int, ...],
     arguments: list[str],
     env: dict[str, str],
     expected: ExpectedReject,
 ) -> dict[str, Any]:
     process = process_runner.run_bounded(
         process_runner.ProcessRequest(
-            command=(str(binary), *arguments),
+            command=(command_path, *arguments),
             cwd=support.REPO_ROOT,
             env=env,
             timeout_seconds=30,
-            output_limit_bytes=MAX_PROCESS_OUTPUT,
+            output_limit_bytes=MAX_REJECT_OUTPUT,
+            profile=process_runner.ProcessProfile.REPLAY,
+            pass_fds=pass_fds,
         )
     )
     if process.returncode != 1:
@@ -183,7 +204,7 @@ def _reject(
     if process.stdout:
         raise RuntimeError("negative control emitted stdout")
     record = support.strict_json_loads(process.stderr)
-    if not isinstance(record, dict) or any(
+    if not isinstance(record, dict) or set(record) != REJECTION_FIELDS or any(
         (
             record.get("ok") is not False,
             record.get("status") != "rejected",
@@ -192,6 +213,12 @@ def _reject(
         )
     ):
         raise RuntimeError("negative control rejection mismatch")
+    canonical = (
+        json.dumps(record, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        + "\n"
+    ).encode("ascii")
+    if process.stderr != canonical:
+        raise RuntimeError("negative control rejection was not canonical")
     return {
         "case_id": expected.case_id,
         "context": expected.context,

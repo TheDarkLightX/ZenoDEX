@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import os
 import stat
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
@@ -63,6 +64,21 @@ SOURCE_FILES: tuple[tuple[str, str], ...] = (
     ("aggregate_source", "zk/zrpf_risc0/aggregate_shared/src/input_v1.rs"),
     ("aggregate_source", "zk/zrpf_risc0/aggregate_shared/src/lib.rs"),
     ("aggregate_source", "zk/zrpf_risc0/aggregate_shared/src/structural_v1.rs"),
+    ("aggregate_test_source", "zk/zrpf_risc0/aggregate_shared/tests/structural_v1.rs"),
+    ("excluded_member_manifest", "zk/zrpf_risc0/harness/Cargo.toml"),
+    ("excluded_member_manifest", "zk/zrpf_risc0/methods/Cargo.toml"),
+    (
+        "excluded_member_manifest",
+        "zk/zrpf_risc0/methods/structural_aggregate_l1/Cargo.toml",
+    ),
+    (
+        "excluded_member_manifest",
+        "zk/zrpf_risc0/methods/structural_aggregate_l2/Cargo.toml",
+    ),
+    (
+        "excluded_member_manifest",
+        "zk/zrpf_risc0/methods/v1_leaf_adapter/Cargo.toml",
+    ),
     ("replay_manifest", "zk/zrpf_risc0/replay_verifier/Cargo.toml"),
     ("replay_source", "zk/zrpf_risc0/replay_verifier/src/bundle.rs"),
     ("replay_source", "zk/zrpf_risc0/replay_verifier/src/error.rs"),
@@ -77,8 +93,27 @@ SOURCE_FILES: tuple[tuple[str, str], ...] = (
     ("shared_source", "zk/zrpf_risc0/shared/src/source_binding_v3.rs"),
     ("shared_source", "zk/zrpf_risc0/shared/src/source_policy_v1.rs"),
     ("shared_source", "zk/zrpf_risc0/shared/src/v1_leaf_adapter.rs"),
+    ("shared_test_source", "zk/zrpf_risc0/shared/tests/v1_leaf_adapter.rs"),
     ("verifier_manifest", "zk/zrpf_risc0/verifier/Cargo.toml"),
     ("verifier_source", "zk/zrpf_risc0/verifier/src/lib.rs"),
+    ("protocol_test_source", "zk/zrpf_protocol/protocol/tests/node_v3.rs"),
+)
+
+SOURCE_INVENTORY_PACKAGE_ROOTS: tuple[str, ...] = (
+    "zk/state_proof_risc0/shared",
+    "zk/zrpf_protocol/protocol",
+    "zk/zrpf_risc0/aggregate_shared",
+    "zk/zrpf_risc0/replay_verifier",
+    "zk/zrpf_risc0/shared",
+    "zk/zrpf_risc0/verifier",
+)
+SOURCE_INVENTORY_EXACT_FILES: tuple[str, ...] = (
+    TOOLCHAIN_LOCK_PATH,
+    "zk/state_proof_risc0/Cargo.toml",
+    "zk/zrpf_protocol/Cargo.toml",
+    "zk/zrpf_risc0/.cargo/config.toml",
+    "zk/zrpf_risc0/Cargo.lock",
+    "zk/zrpf_risc0/Cargo.toml",
 )
 
 RECEIPTS: tuple[tuple[str, int, str], ...] = (
@@ -244,30 +279,58 @@ def _safe_relative_path(value: str) -> bool:
 def _regular_file_bytes(root: Path, relative: str, maximum: int) -> bytes:
     if not _safe_relative_path(relative):
         raise ValueError(f"unsafe relative path: {relative}")
-    root = root.resolve(strict=True)
-    candidate = root / relative
-    cursor = root
-    for part in PurePosixPath(relative).parts:
-        cursor /= part
-        if cursor.is_symlink():
-            raise ValueError(f"symlinked path component: {relative}")
-    metadata = candidate.lstat()
-    resolved = candidate.resolve(strict=True)
-    if (
-        stat.S_ISLNK(metadata.st_mode)
-        or not stat.S_ISREG(metadata.st_mode)
-        or not resolved.is_relative_to(root)
-        or metadata.st_size <= 0
-        or metadata.st_size > maximum
-    ):
-        raise ValueError(f"unsafe or unbounded file: {relative}")
-    raw = candidate.read_bytes()
-    if len(raw) != metadata.st_size:
-        raise ValueError(f"file changed while reading: {relative}")
-    return raw
+    parts = PurePosixPath(relative).parts
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+    directory_flags = flags | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    file_flags = flags | getattr(os, "O_NOFOLLOW", 0)
+    descriptors: list[int] = []
+    try:
+        descriptor = os.open(root, directory_flags)
+        descriptors.append(descriptor)
+        for part in parts[:-1]:
+            descriptor = os.open(part, directory_flags, dir_fd=descriptor)
+            descriptors.append(descriptor)
+        file_descriptor = os.open(parts[-1], file_flags, dir_fd=descriptor)
+        descriptors.append(file_descriptor)
+        before = os.fstat(file_descriptor)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_size <= 0
+            or before.st_size > maximum
+        ):
+            raise ValueError(f"unsafe or unbounded file: {relative}")
+        chunks: list[bytes] = []
+        remaining = before.st_size
+        while remaining:
+            chunk = os.read(file_descriptor, min(remaining, 1024 * 1024))
+            if not chunk:
+                raise ValueError(f"file changed while reading: {relative}")
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        if os.read(file_descriptor, 1):
+            raise ValueError(f"file changed while reading: {relative}")
+        after = os.fstat(file_descriptor)
+        if any(
+            (
+                after.st_dev != before.st_dev,
+                after.st_ino != before.st_ino,
+                after.st_mode != before.st_mode,
+                after.st_size != before.st_size,
+                after.st_mtime_ns != before.st_mtime_ns,
+                after.st_ctime_ns != before.st_ctime_ns,
+            )
+        ):
+            raise ValueError(f"file changed while reading: {relative}")
+        return b"".join(chunks)
+    except OSError as exc:
+        raise ValueError(f"source path is unavailable or symlinked: {relative}") from exc
+    finally:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
 
 
 def source_closure(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
+    _require_exact_source_inventory(repo_root)
     rows: list[dict[str, Any]] = []
     hasher = hashlib.sha256()
     total_bytes = 0
@@ -288,6 +351,47 @@ def source_closure(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         "sha256": hasher.hexdigest(),
         "total_bytes": total_bytes,
     }
+
+
+def _require_exact_source_inventory(repo_root: Path) -> None:
+    expected = {relative for _, relative in SOURCE_FILES}
+    discovered = set(SOURCE_INVENTORY_EXACT_FILES)
+    zrpf_workspace = repo_root / "zk/zrpf_risc0"
+    for manifest in zrpf_workspace.rglob("Cargo.toml"):
+        _require_inventory_regular(repo_root, manifest)
+        discovered.add(manifest.relative_to(repo_root).as_posix())
+    for relative_root in SOURCE_INVENTORY_PACKAGE_ROOTS:
+        package_root = repo_root / relative_root
+        _require_inventory_directory(package_root, relative_root)
+        for candidate in package_root.rglob("*"):
+            if candidate.is_dir() and not candidate.is_symlink():
+                continue
+            _require_inventory_regular(repo_root, candidate)
+            discovered.add(candidate.relative_to(repo_root).as_posix())
+    if discovered != expected:
+        raise ValueError("replay source inventory mismatch")
+
+
+def _require_inventory_directory(path: Path, label: str) -> None:
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        raise ValueError(f"source inventory root unavailable: {label}") from exc
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError(f"source inventory root is not a real directory: {label}")
+
+
+def _require_inventory_regular(repo_root: Path, path: Path) -> None:
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        raise ValueError("source inventory entry unavailable") from exc
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        raise ValueError("source inventory contains a symlink or special file")
+    try:
+        path.relative_to(repo_root)
+    except ValueError as exc:
+        raise ValueError("source inventory escaped repository root") from exc
 
 
 def retained_receipt_set(receipt_directory: Path = RECEIPT_DIRECTORY) -> dict[str, Any]:

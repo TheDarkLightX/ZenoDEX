@@ -14,6 +14,7 @@ from tools import zrpf_v3_replay_environment as replay_environment
 from tools import zrpf_v3_replay_evidence_support as support
 from tools import zrpf_v3_replay_process as replay_process
 from tools import zrpf_v3_replay_record_writer as record_writer
+from tools import zrpf_v3_replay_sealed_executable as sealed_executable
 from tools import zrpf_v3_replay_source_snapshot as replay_snapshot
 from tools import zrpf_v3_replay_toolchain as replay_toolchain
 
@@ -205,6 +206,7 @@ def test_bounded_process_rejects_output_before_unbounded_buffering(
         env={"PATH": replay_environment.SYSTEM_PATH},
         timeout_seconds=5,
         output_limit_bytes=32,
+        profile=replay_process.ProcessProfile.TOOL,
     )
 
     with pytest.raises(RuntimeError, match="output exceeded cap"):
@@ -244,14 +246,89 @@ def test_source_closure_rejects_symlinked_component(
     real.mkdir()
     (real / "source.rs").write_text("fn main() {}\n", encoding="utf-8")
     (tmp_path / "linked").symlink_to(real, target_is_directory=True)
+    with pytest.raises(ValueError, match="unavailable or symlinked"):
+        support._regular_file_bytes(tmp_path, "linked/source.rs", 1_024)
+
+
+def test_source_closure_rejects_undeclared_build_script(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    package = tmp_path / "package"
+    (package / "src").mkdir(parents=True)
+    (package / "Cargo.toml").write_text("[package]\nname='x'\nversion='0.1.0'\n")
+    (package / "src/lib.rs").write_text("pub fn x() {}\n")
     monkeypatch.setattr(
         support,
         "SOURCE_FILES",
-        (("test_source", "linked/source.rs"),),
+        (
+            ("manifest", "package/Cargo.toml"),
+            ("source", "package/src/lib.rs"),
+        ),
+    )
+    monkeypatch.setattr(support, "SOURCE_INVENTORY_PACKAGE_ROOTS", ("package",))
+    monkeypatch.setattr(support, "SOURCE_INVENTORY_EXACT_FILES", ())
+    support.source_closure(tmp_path)
+
+    (package / "build.rs").write_text("fn main() {}\n")
+
+    with pytest.raises(ValueError, match="source inventory mismatch"):
+        support.source_closure(tmp_path)
+
+
+def test_sealed_executable_runs_original_bytes_after_path_replacement(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "verifier"
+    shutil.copyfile("/usr/bin/true", source)
+
+    with sealed_executable.SealedExecutable(source) as executable:
+        shutil.copyfile("/usr/bin/false", source)
+        process = replay_process.run_bounded(
+            replay_process.ProcessRequest(
+                command=(executable.command_path,),
+                cwd=tmp_path,
+                env=replay_environment.clean_environment(),
+                timeout_seconds=5,
+                output_limit_bytes=1_024,
+                profile=replay_process.ProcessProfile.REPLAY,
+                pass_fds=executable.pass_fds,
+            )
+        )
+
+        assert process.returncode == 0
+        assert executable.identity.transport == "linux_memfd_full_seals_v1"
+        assert executable.identity.size_bytes > 0
+
+
+def test_replay_profile_installs_no_new_privileges_and_blocks_fork(
+    tmp_path: Path,
+) -> None:
+    script = (
+        "import os,sys\n"
+        "status=open('/proc/self/status', encoding='ascii').read()\n"
+        "assert 'NoNewPrivs:\\t1' in status\n"
+        "try:\n"
+        " os.fork()\n"
+        "except OSError:\n"
+        " sys.stdout.buffer.write(b'bounded')\n"
+        "else:\n"
+        " os._exit(17)\n"
+    )
+    process = replay_process.run_bounded(
+        replay_process.ProcessRequest(
+            command=(sys.executable, "-c", script),
+            cwd=tmp_path,
+            env=replay_environment.clean_environment(),
+            timeout_seconds=5,
+            output_limit_bytes=1_024,
+            profile=replay_process.ProcessProfile.REPLAY,
+        )
     )
 
-    with pytest.raises(ValueError, match="symlinked path component"):
-        support.source_closure(tmp_path)
+    assert process.returncode == 0
+    assert process.stdout == b"bounded"
+    assert process.stderr == b""
 
 
 def test_receipt_set_rejects_byte_mutation_and_symlink(tmp_path: Path) -> None:
@@ -266,7 +343,7 @@ def test_receipt_set_rejects_byte_mutation_and_symlink(tmp_path: Path) -> None:
 
     first.unlink()
     first.symlink_to(support.RECEIPT_DIRECTORY / support.RECEIPTS[0][0])
-    with pytest.raises(ValueError, match="symlinked path component"):
+    with pytest.raises(ValueError, match="unavailable or symlinked"):
         support.retained_receipt_set(receipt_dir)
 
 
