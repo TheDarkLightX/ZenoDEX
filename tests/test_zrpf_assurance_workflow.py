@@ -28,7 +28,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "persist-credentials": False,
     }
     tag_check = steps["Verify durable source-anchor tags"]["run"]
-    assert "zrpf-v3-source-anchor-20260710" in tag_check
+    assert "zrpf-v3-source-anchor-20260711" in tag_check
     assert "zrpf-v1-retained-source-anchor-20260710" in tag_check
     assert "--network none" in replay_command
     assert "--read-only" in replay_command
@@ -59,8 +59,15 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tests/test_check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
     assert "tools/check_recursive_stark_cbc_spec.py" in python_assurance
     assert "tests/test_check_recursive_stark_cbc_spec.py" in python_assurance
+    assert "tools/check_zrpf_v3_firecracker_direct_replay_evidence.py" in (
+        python_assurance
+    )
+    assert "tests/test_check_zrpf_v3_firecracker_direct_replay_evidence.py" in (
+        python_assurance
+    )
     assert "tools/check_zrpf_v3_firecracker_replay_profile.py" in python_assurance
     assert "tools/check_zrpf_v3_firecracker_protocol_binding.py" in python_assurance
+    assert "tools/check_zrpf_v3_firecracker_runtime_artifacts.py" in python_assurance
     assert "tools/check_zrpf_v3_firecracker_launch_preflight.py" in python_assurance
     assert "tools/zrpf_v3_firecracker_host_probe.py" in python_assurance
     assert "tests/test_check_zrpf_v3_firecracker_replay_profile.py" in python_assurance
@@ -69,12 +76,20 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     )
     assert "tests/test_zrpf_v3_firecracker_host_probe.py" in python_assurance
     assert "tests/test_check_zrpf_v3_firecracker_protocol_binding.py" in python_assurance
+    assert "tests/test_check_zrpf_v3_firecracker_runtime_artifacts.py" in python_assurance
     assert "tests/test_check_zrpf_v3_firecracker_launch_preflight.py" in python_assurance
     assert "tests/test_zrpf_v3_firecracker_launch_boundary_atlas.py" in python_assurance
     assert "python3 -I tools/check_zrpf_v3_firecracker_replay_profile.py" in (
         python_assurance
     )
     assert "python3 -I tools/check_zrpf_v3_firecracker_protocol_binding.py" in (
+        python_assurance
+    )
+    assert "python3 -I tools/check_zrpf_v3_firecracker_direct_replay_evidence.py" in (
+        python_assurance
+    )
+    assert "--evidence-date 2026-07-11" in python_assurance
+    assert "bash -n tools/build_zrpf_v3_firecracker_guest_images.sh" in (
         python_assurance
     )
     assert "check_zrpf_v3_firecracker_replay_profile.py --probe-host" not in raw

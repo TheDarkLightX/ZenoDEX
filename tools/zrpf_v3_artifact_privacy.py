@@ -19,9 +19,7 @@ MAX_ARTIFACT_COUNT = 64
 MAX_ARTIFACT_BYTES = 16 * 1024 * 1024
 MAX_TOTAL_BYTES = 64 * 1024 * 1024
 MAX_FINDINGS = 256
-EVIDENCE_RELATIVE_PATH = (
-    "docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260710.json"
-)
+EVIDENCE_RELATIVE_PATH = "docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260711.json"
 
 
 @dataclass(frozen=True, order=True)
@@ -34,6 +32,42 @@ class ArtifactSpec:
 class PrivacyRule:
     rule_id: str
     pattern: re.Pattern[bytes]
+
+
+FIRECRACKER_RUNTIME_PUBLIC_ARTIFACTS: tuple[ArtifactSpec, ...] = (
+    ArtifactSpec(
+        "config/proof_profiles/zrpf_firecracker_guest_kernel_build_record_v1.json",
+        "guest_kernel_build_record",
+    ),
+    ArtifactSpec(
+        "config/proof_profiles/zrpf_firecracker_runtime_image_build_record_v1.json",
+        "runtime_image_build_record",
+    ),
+    ArtifactSpec(
+        "config/proof_profiles/zrpf_v3_firecracker_replay_intent_v1.json",
+        "firecracker_replay_intent",
+    ),
+    ArtifactSpec(
+        "config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v1.json",
+        "runtime_artifact_manifest",
+    ),
+    ArtifactSpec(
+        "docs/research/ZRPF_V3_FIRECRACKER_GOVERNED_DIRECT_REPLAY_EVIDENCE_20260711.json",
+        "governed_direct_replay_evidence",
+    ),
+    ArtifactSpec(
+        "docs/research/ZRPF_V3_FIRECRACKER_RUNTIME_CONTRACT_20260711.md",
+        "firecracker_runtime_contract",
+    ),
+    ArtifactSpec(
+        "evidence/zrpf-v3-retained-structural-replay-v1/firecracker-governed-output-payload.json",
+        "governed_firecracker_output_payload",
+    ),
+    ArtifactSpec(
+        "tools/build_zrpf_v3_firecracker_guest_images.sh",
+        "guest_image_build_recipe",
+    ),
+)
 
 
 DEFAULT_ARTIFACTS: tuple[ArtifactSpec, ...] = (
@@ -59,6 +93,10 @@ DEFAULT_ARTIFACTS: tuple[ArtifactSpec, ...] = (
     ),
     ArtifactSpec(
         "docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260710.json",
+        "historical_source_closure_evidence",
+    ),
+    ArtifactSpec(
+        "docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260711.json",
         "source_closure_evidence",
     ),
     ArtifactSpec(
@@ -83,38 +121,31 @@ DEFAULT_ARTIFACTS: tuple[ArtifactSpec, ...] = (
     ),
     ArtifactSpec("zk/zrpf_risc0/README.md", "workspace_documentation"),
     ArtifactSpec(
-        "evidence/zrpf-v3-retained-structural-replay-v1/receipts/"
-        "adapter-leaf-0.receipt.json",
+        "evidence/zrpf-v3-retained-structural-replay-v1/receipts/adapter-leaf-0.receipt.json",
         "retained_receipt",
     ),
     ArtifactSpec(
-        "evidence/zrpf-v3-retained-structural-replay-v1/receipts/"
-        "adapter-leaf-1.receipt.json",
+        "evidence/zrpf-v3-retained-structural-replay-v1/receipts/adapter-leaf-1.receipt.json",
         "retained_receipt",
     ),
     ArtifactSpec(
-        "evidence/zrpf-v3-retained-structural-replay-v1/receipts/"
-        "adapter-leaf-2.receipt.json",
+        "evidence/zrpf-v3-retained-structural-replay-v1/receipts/adapter-leaf-2.receipt.json",
         "retained_receipt",
     ),
     ArtifactSpec(
-        "evidence/zrpf-v3-retained-structural-replay-v1/receipts/"
-        "adapter-leaf-3.receipt.json",
+        "evidence/zrpf-v3-retained-structural-replay-v1/receipts/adapter-leaf-3.receipt.json",
         "retained_receipt",
     ),
     ArtifactSpec(
-        "evidence/zrpf-v3-retained-structural-replay-v1/receipts/"
-        "structural-l1-left.receipt.json",
+        "evidence/zrpf-v3-retained-structural-replay-v1/receipts/structural-l1-left.receipt.json",
         "retained_receipt",
     ),
     ArtifactSpec(
-        "evidence/zrpf-v3-retained-structural-replay-v1/receipts/"
-        "structural-l1-right.receipt.json",
+        "evidence/zrpf-v3-retained-structural-replay-v1/receipts/structural-l1-right.receipt.json",
         "retained_receipt",
     ),
     ArtifactSpec(
-        "evidence/zrpf-v3-retained-structural-replay-v1/receipts/"
-        "structural-l2-root.receipt.json",
+        "evidence/zrpf-v3-retained-structural-replay-v1/receipts/structural-l2-root.receipt.json",
         "retained_receipt",
     ),
     ArtifactSpec(
@@ -122,16 +153,13 @@ DEFAULT_ARTIFACTS: tuple[ArtifactSpec, ...] = (
         "structural-l2-root.seal-word-1-xor-lsb.receipt.json",
         "retained_receipt",
     ),
+    *FIRECRACKER_RUNTIME_PUBLIC_ARTIFACTS,
 )
 PRE_RECORD_ARTIFACTS = tuple(
-    artifact
-    for artifact in DEFAULT_ARTIFACTS
-    if artifact.relative_path != EVIDENCE_RELATIVE_PATH
+    artifact for artifact in DEFAULT_ARTIFACTS if artifact.relative_path != EVIDENCE_RELATIVE_PATH
 )
 EVIDENCE_ARTIFACT = next(
-    artifact
-    for artifact in DEFAULT_ARTIFACTS
-    if artifact.relative_path == EVIDENCE_RELATIVE_PATH
+    artifact for artifact in DEFAULT_ARTIFACTS if artifact.relative_path == EVIDENCE_RELATIVE_PATH
 )
 
 PRIVACY_RULES: tuple[PrivacyRule, ...] = (
@@ -172,9 +200,7 @@ PRIVACY_RULES: tuple[PrivacyRule, ...] = (
     ),
     PrivacyRule(
         "url_basic_credentials",
-        re.compile(
-            rb"(?i)\b(?:https?|git|ssh|ftp)://[^\s/@:]+:[^\s/@]+@[^\s/]+"
-        ),
+        re.compile(rb"(?i)\b(?:https?|git|ssh|ftp)://[^\s/@:]+:[^\s/@]+@[^\s/]+"),
     ),
     PrivacyRule(
         "url_long_userinfo_credential",
@@ -193,9 +219,7 @@ PRIVACY_RULES: tuple[PrivacyRule, ...] = (
     ),
     PrivacyRule(
         "aws_secret_access_key_assignment",
-        re.compile(
-            rb"(?i)\baws_secret_access_key\s*[:=]\s*[A-Za-z0-9/+]{40}(?:==?)?"
-        ),
+        re.compile(rb"(?i)\baws_secret_access_key\s*[:=]\s*[A-Za-z0-9/+]{40}(?:==?)?"),
     ),
     PrivacyRule(
         "google_api_key",
@@ -242,12 +266,11 @@ def scan_candidate_bytes(artifact: ArtifactSpec, raw: bytes) -> dict[str, Any]:
     if not errors and specifications:
         findings, exceeded = _scan_bytes(specifications[0], raw, MAX_FINDINGS)
         if exceeded:
-            errors.append(
-                _error(artifact.relative_path, artifact.role, "finding_limit_exceeded")
-            )
+            errors.append(_error(artifact.relative_path, artifact.role, "finding_limit_exceeded"))
     findings.sort(key=lambda row: (row["byte_offset"], row["rule_id"]))
     errors.sort(key=lambda row: (row["path"], row["role"], row["code"]))
     return {
+        "complete_artifact_privacy_verified": False,
         "error_count": len(errors),
         "errors": errors,
         "finding_count": len(findings),
@@ -328,12 +351,15 @@ def scan_artifacts(root: Path, artifacts: Sequence[ArtifactSpec]) -> dict[str, A
         "artifact_count_expected": len(artifacts),
         "artifact_count_scanned": len(scanned),
         "artifacts": scanned,
+        "complete_artifact_privacy_verified": False,
         "error_count": len(errors),
         "errors": errors,
         "finding_count": len(findings),
         "findings": findings,
         "negative_knowledge": (
             "This bounded denylist detects specified public leakage patterns. "
+            "Complete artifact privacy remains unverified, including generic "
+            "toolchain paths documented by the Firecracker evidence. "
             "A clean result does not prove the absence of all confidential information, "
             "covert channels, or side channels."
         ),

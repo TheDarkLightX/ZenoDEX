@@ -1,0 +1,160 @@
+{
+  "authority": {
+    "artifact_privacy_scan_passed": false,
+    "complete_build_input_closure_verified": false,
+    "cross_host_reproducible_build": false,
+    "guest_source_to_binary_verified": false,
+    "production_authority": false,
+    "release_authority": false
+  },
+  "build_recipe": {
+    "path": "tools/build_zrpf_v3_firecracker_guest_images.sh",
+    "sha256": "b3363c124fe40cd22e36e7943cb3cfe92e78c8739d935155d8e55b0eb59c0bbd"
+  },
+  "guest_binary": {
+    "artifact_privacy": {
+      "generic_toolchain_builder_paths_present": true,
+      "private_project_names_present": false,
+      "user_or_workspace_paths_present": false
+    },
+    "direct_non_pid1_exit_code": 125,
+    "dt_needed_present": false,
+    "guest_source_commit": "b37b741520e95f50236f6a9f0825c23ae3487374",
+    "image_format": "static_pie_glibc_no_pt_interp_no_dt_needed",
+    "pt_interp_present": false,
+    "sha256": "08f99e4d6262f0028ec87a1b4fb7ee86be466244f33fce4713948dd695cec7dc",
+    "size_bytes": 3366800
+  },
+  "image_builder": {
+    "mksquashfs_binary_sha256": "47d5c1af3da11864e64c9dc6bb4e568719dcc315e6a744e79381ce3374fb7393",
+    "mksquashfs_version": "4.6.1",
+    "squashfs_block_size_bytes": 131072,
+    "squashfs_compression": "zstd",
+    "squashfs_epoch": 1780396050
+  },
+  "input_image": {
+    "byte_identical_two_builds": true,
+    "filesystem_inventory": {
+      "domain": "zenodex/zrpf_squashfs_inventory/v1",
+      "entries": [
+        {
+          "kind": "directory",
+          "mode": "0755",
+          "path": "/"
+        },
+        {
+          "kind": "directory",
+          "mode": "0555",
+          "path": "/receipts"
+        },
+        {
+          "kind": "file",
+          "mode": "0444",
+          "path": "/receipts/adapter-leaf-0.receipt.json",
+          "sha256": "219e389be6ff9d035f86b6d73de8c4f95fae230956382d2fd63823167047b63a",
+          "size_bytes": 593416
+        },
+        {
+          "kind": "file",
+          "mode": "0444",
+          "path": "/receipts/adapter-leaf-1.receipt.json",
+          "sha256": "af45ec023d8939648c741389d9e766d5d1dd2945811652bae42e998d84bb3a82",
+          "size_bytes": 593399
+        },
+        {
+          "kind": "file",
+          "mode": "0444",
+          "path": "/receipts/adapter-leaf-2.receipt.json",
+          "sha256": "4e09c872617143e9ac360ea8059b6f2a20ab6e5ce05eb7cf51eead70f974965a",
+          "size_bytes": 593136
+        },
+        {
+          "kind": "file",
+          "mode": "0444",
+          "path": "/receipts/adapter-leaf-3.receipt.json",
+          "sha256": "7030c4a4818b31623fb137ebdac0eb8bb2af8cbeb9fdc1e8d3dcb75fc26ef8f4",
+          "size_bytes": 593032
+        },
+        {
+          "kind": "file",
+          "mode": "0444",
+          "path": "/receipts/structural-l1-left.receipt.json",
+          "sha256": "47b850237585faeee953b04dae72d21c5d87adfb710d4e914314d4a72e6c1cd5",
+          "size_bytes": 593161
+        },
+        {
+          "kind": "file",
+          "mode": "0444",
+          "path": "/receipts/structural-l1-right.receipt.json",
+          "sha256": "a6b8ceaa559bfe85fa9263fefcec9438e78ec721632fbd7a1cf651867d30348d",
+          "size_bytes": 593280
+        },
+        {
+          "kind": "file",
+          "mode": "0444",
+          "path": "/receipts/structural-l2-root.receipt.json",
+          "sha256": "edd25fca20b0205c2f778b866605b343922615623256abcc1a098957664c2d16",
+          "size_bytes": 593320
+        },
+        {
+          "kind": "file",
+          "mode": "0444",
+          "path": "/receipts/structural-l2-root.seal-word-1-xor-lsb.receipt.json",
+          "sha256": "27c71152044124762efd5398fa6206a9627a5eae2ed9db851b1bb33783c6e985",
+          "size_bytes": 593320
+        }
+      ]
+    },
+    "filesystem_inventory_root": "fde6d2cfa764450632fc8b838f5ab4b318fa96239a22c11a5dd9855e4579ca68",
+    "receipt_set_root": "d5ecd5494318e21fa3da227409fdb5285c85ff8ae10815df5bcf0eb22fa1027f",
+    "sha256": "504c3a4c38e5109567d9d21f07bbc054324f3955fb4d5b07216f3c90e89e3af8",
+    "size_bytes": 2068480
+  },
+  "non_claims": [
+    "no complete Rust compiler or standard-library source closure",
+    "no independent cross-host build",
+    "no clean artifact-privacy claim because generic toolchain builder paths remain",
+    "no source-to-binary release attestation",
+    "no release, settlement, or production authority"
+  ],
+  "rootfs": {
+    "byte_identical_two_builds": true,
+    "filesystem_inventory": {
+      "domain": "zenodex/zrpf_squashfs_inventory/v1",
+      "entries": [
+        {
+          "kind": "directory",
+          "mode": "0755",
+          "path": "/"
+        },
+        {
+          "kind": "directory",
+          "mode": "0755",
+          "path": "/dev"
+        },
+        {
+          "kind": "directory",
+          "mode": "0755",
+          "path": "/input"
+        },
+        {
+          "kind": "directory",
+          "mode": "0755",
+          "path": "/sbin"
+        },
+        {
+          "kind": "file",
+          "mode": "0555",
+          "path": "/sbin/zrpf-replay-init",
+          "sha256": "08f99e4d6262f0028ec87a1b4fb7ee86be466244f33fce4713948dd695cec7dc",
+          "size_bytes": 3366800
+        }
+      ]
+    },
+    "filesystem_inventory_root": "3c67d052f4a61ef3a4ac1559ed91dce7b0aa408505319f4ce6d215e5f0fc7678",
+    "sha256": "a96822b5273e01e555b99db22c014b981d51a0c8940d9823cea4f54e9d84f59b",
+    "size_bytes": 1024000
+  },
+  "schema": "zenodex/zrpf_firecracker_runtime_image_build_record/v1",
+  "status": "same_host_byte_identical_candidate_images_non_authoritative"
+}

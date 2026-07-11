@@ -69,14 +69,23 @@ _ROOT_FIELDS = {
 }
 _KERNEL_FIELDS = {
     "artifact_name",
+    "base_config_sha256",
+    "build_container_image_id",
     "build_recipe_sha256",
+    "byte_identical_local_rebuild",
+    "ci_config_sha256",
+    "hardening_fragment_sha256",
     "image_format",
     "kernel_config_sha256",
     "kernel_release",
     "sha256",
     "size_bytes",
-    "source_archive_sha256",
     "source_commit",
+    "source_repository",
+    "source_tag",
+    "source_tag_object",
+    "source_tree",
+    "support_minimum_end_date",
 }
 _ROOTFS_FIELDS = {
     "artifact_name",
@@ -122,7 +131,10 @@ _BOOT_FIELDS = {
 }
 _PROVENANCE_FIELDS = {
     "guest_payload_source_commit",
+    "input_build_recipe_sha256",
     "kernel_source_repository",
+    "mksquashfs_binary_sha256",
+    "mksquashfs_version",
     "rootfs_build_recipe_sha256",
     "status",
 }
@@ -146,12 +158,21 @@ class ArtifactIdentityV1:
 @dataclass(frozen=True, slots=True)
 class GuestKernelIdentityV1:
     artifact: ArtifactIdentityV1
+    base_config_sha256: str
+    build_container_image_id: str
     build_recipe_sha256: str
+    byte_identical_local_rebuild: bool
+    ci_config_sha256: str
+    hardening_fragment_sha256: str
     image_format: str
     kernel_config_sha256: str
     kernel_release: str
-    source_archive_sha256: str
     source_commit: str
+    source_repository: str
+    source_tag: str
+    source_tag_object: str
+    source_tree: str
+    support_minimum_end_date: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,13 +253,19 @@ class BootContractV1:
 @dataclass(frozen=True, slots=True)
 class ProvenanceRecordV1:
     guest_payload_source_commit: str
+    input_build_recipe_sha256: str
     kernel_source_repository: str
+    mksquashfs_binary_sha256: str
+    mksquashfs_version: str
     rootfs_build_recipe_sha256: str
 
     def to_document(self) -> dict[str, Any]:
         return {
             "guest_payload_source_commit": self.guest_payload_source_commit,
+            "input_build_recipe_sha256": self.input_build_recipe_sha256,
             "kernel_source_repository": self.kernel_source_repository,
+            "mksquashfs_binary_sha256": self.mksquashfs_binary_sha256,
+            "mksquashfs_version": self.mksquashfs_version,
             "rootfs_build_recipe_sha256": self.rootfs_build_recipe_sha256,
             "status": "identity_pinned_source_build_not_reproduced",
         }
@@ -287,14 +314,23 @@ class PinnedRuntimeManifestV1:
     def to_document(self) -> dict[str, Any]:
         kernel = {
             "artifact_name": self.guest_kernel.artifact.artifact_name,
+            "base_config_sha256": self.guest_kernel.base_config_sha256,
+            "build_container_image_id": self.guest_kernel.build_container_image_id,
             "build_recipe_sha256": self.guest_kernel.build_recipe_sha256,
+            "byte_identical_local_rebuild": self.guest_kernel.byte_identical_local_rebuild,
+            "ci_config_sha256": self.guest_kernel.ci_config_sha256,
+            "hardening_fragment_sha256": self.guest_kernel.hardening_fragment_sha256,
             "image_format": self.guest_kernel.image_format,
             "kernel_config_sha256": self.guest_kernel.kernel_config_sha256,
             "kernel_release": self.guest_kernel.kernel_release,
             "sha256": self.guest_kernel.artifact.sha256,
             "size_bytes": self.guest_kernel.artifact.size_bytes,
-            "source_archive_sha256": self.guest_kernel.source_archive_sha256,
             "source_commit": self.guest_kernel.source_commit,
+            "source_repository": self.guest_kernel.source_repository,
+            "source_tag": self.guest_kernel.source_tag,
+            "source_tag_object": self.guest_kernel.source_tag_object,
+            "source_tree": self.guest_kernel.source_tree,
+            "support_minimum_end_date": self.guest_kernel.support_minimum_end_date,
         }
         rootfs = {
             "artifact_name": self.rootfs.artifact.artifact_name,
@@ -494,14 +530,28 @@ def _parse_kernel(value: Any) -> GuestKernelIdentityV1:
         raise RuntimeManifestError("runtime_manifest_kernel_format_mismatch")
     kernel_release = _require_ascii(value["kernel_release"], maximum=128)
     source_commit = _require_hex(value["source_commit"], length=40)
+    source_repository = _require_https_repository(value["source_repository"])
+    if value["byte_identical_local_rebuild"] is not True:
+        raise RuntimeManifestError("runtime_manifest_kernel_rebuild_status_mismatch")
+    if value["support_minimum_end_date"] != "2026-09-02":
+        raise RuntimeManifestError("runtime_manifest_kernel_support_date_mismatch")
     return GuestKernelIdentityV1(
         artifact=artifact,
+        base_config_sha256=_require_sha256(value["base_config_sha256"]),
+        build_container_image_id=_require_sha256_identifier(value["build_container_image_id"]),
         build_recipe_sha256=_require_sha256(value["build_recipe_sha256"]),
+        byte_identical_local_rebuild=True,
+        ci_config_sha256=_require_sha256(value["ci_config_sha256"]),
+        hardening_fragment_sha256=_require_sha256(value["hardening_fragment_sha256"]),
         image_format=value["image_format"],
         kernel_config_sha256=_require_sha256(value["kernel_config_sha256"]),
         kernel_release=kernel_release,
-        source_archive_sha256=_require_sha256(value["source_archive_sha256"]),
         source_commit=source_commit,
+        source_repository=source_repository,
+        source_tag=_require_ascii(value["source_tag"], maximum=128),
+        source_tag_object=_require_hex(value["source_tag_object"], length=40),
+        source_tree=_require_hex(value["source_tree"], length=40),
+        support_minimum_end_date="2026-09-02",
     )
 
 
@@ -639,22 +689,13 @@ def _parse_provenance(value: Any) -> ProvenanceRecordV1:
     )
     if value["status"] != "identity_pinned_source_build_not_reproduced":
         raise RuntimeManifestError("runtime_manifest_provenance_status_mismatch")
-    repository = _require_ascii(value["kernel_source_repository"], maximum=512)
-    parsed_repository = urlsplit(repository)
-    if any(
-        (
-            parsed_repository.scheme != "https",
-            not parsed_repository.hostname,
-            parsed_repository.username is not None,
-            parsed_repository.password is not None,
-            bool(parsed_repository.query),
-            bool(parsed_repository.fragment),
-        )
-    ):
-        raise RuntimeManifestError("runtime_manifest_provenance_source_invalid")
+    repository = _require_https_repository(value["kernel_source_repository"])
     return ProvenanceRecordV1(
         guest_payload_source_commit=_require_hex(value["guest_payload_source_commit"], length=40),
+        input_build_recipe_sha256=_require_sha256(value["input_build_recipe_sha256"]),
         kernel_source_repository=repository,
+        mksquashfs_binary_sha256=_require_sha256(value["mksquashfs_binary_sha256"]),
+        mksquashfs_version=_require_ascii(value["mksquashfs_version"], maximum=64),
         rootfs_build_recipe_sha256=_require_sha256(value["rootfs_build_recipe_sha256"]),
     )
 
@@ -710,6 +751,30 @@ def _require_payload_mode(value: Any) -> str:
 
 def _require_sha256(value: Any) -> str:
     return _require_hex(value, length=64)
+
+
+def _require_sha256_identifier(value: Any) -> str:
+    if not isinstance(value, str) or not value.startswith("sha256:"):
+        raise RuntimeManifestError("runtime_manifest_digest_invalid")
+    _require_sha256(value.removeprefix("sha256:"))
+    return value
+
+
+def _require_https_repository(value: Any) -> str:
+    repository = _require_ascii(value, maximum=512)
+    parsed_repository = urlsplit(repository)
+    if any(
+        (
+            parsed_repository.scheme != "https",
+            not parsed_repository.hostname,
+            parsed_repository.username is not None,
+            parsed_repository.password is not None,
+            bool(parsed_repository.query),
+            bool(parsed_repository.fragment),
+        )
+    ):
+        raise RuntimeManifestError("runtime_manifest_provenance_source_invalid")
+    return repository
 
 
 def _require_hex(value: Any, *, length: int) -> str:

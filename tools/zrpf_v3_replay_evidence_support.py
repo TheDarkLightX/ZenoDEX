@@ -13,7 +13,7 @@ from typing import Any, cast
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE_PATH = (
     REPO_ROOT
-    / "docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260710.json"
+    / "docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260711.json"
 )
 RECEIPT_DIRECTORY = (
     REPO_ROOT / "evidence/zrpf-v3-retained-structural-replay-v1/receipts"
@@ -22,15 +22,15 @@ WORKSPACE = REPO_ROOT / "zk/zrpf_risc0"
 
 SCHEMA = "zenodex/zrpf_v3_retained_source_built_replay_evidence/v3"
 REPORT_SCHEMA = "zenodex/zrpf_v3_retained_structural_replay/v1"
-SOURCE_COMMIT = "44bc0435621588659e44a2819e4e8ef03ce6fd51"
-SOURCE_TREE = "0410e820afcbb1715ecccd6d691059a67424376e"
-SOURCE_TAG = "zrpf-v3-source-anchor-20260710"
+SOURCE_COMMIT = "b37b741520e95f50236f6a9f0825c23ae3487374"
+SOURCE_TREE = "fb7ca974330022793fa0fc89efe4caba5fef714f"
+SOURCE_TAG = "zrpf-v3-source-anchor-20260711"
 EXPECTED_STDOUT_SHA256 = (
     "7751395663a33c1ae58fa403346dc90618e842dd1df2f2fdc37f18599e50c288"
 )
 EXPECTED_STDOUT_SIZE = 5_920
 EXPECTED_EVIDENCE_SHA256 = (
-    "d4412fff5e194c3222cdb06a402c0064fe13e01794ee3f12a92b24a04f65dd47"
+    "9c6d80bdebb9bd7eb8ddfe49bd9797e4ad30de0022d59cd8b7e42f60d2d906dd"
 )
 EXPECTED_BINARY_TRANSPORT = "linux_memfd_full_seals_v1"
 DEPENDENCY_GRAPH_CANONICAL_SOURCE_ROOT = "/zrpf/source"
@@ -44,10 +44,10 @@ EXECUTION_IDENTITY_FIELDS = frozenset(
         "dependency_graph_sha256",
     }
 )
-EXPECTED_SOURCE_CLOSURE_FILES = 40
-EXPECTED_SOURCE_CLOSURE_BYTES = 1_000_415
+EXPECTED_SOURCE_CLOSURE_FILES = 43
+EXPECTED_SOURCE_CLOSURE_BYTES = 1_025_439
 EXPECTED_SOURCE_CLOSURE_SHA256 = (
-    "391d791c07f0d7480477763359656db309894566697cbae26fca7d4d0837397e"
+    "019b0d2b60ad4f873009585e987720afca8a856a015ee2e8a9fd846115984059"
 )
 EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
 ROOT_JOURNAL_HASH = (
@@ -97,7 +97,13 @@ SOURCE_FILES: tuple[tuple[str, str], ...] = (
     ),
     ("replay_manifest", "zk/zrpf_risc0/replay_verifier/Cargo.toml"),
     ("replay_source", "zk/zrpf_risc0/replay_verifier/src/bundle.rs"),
+    (
+        "replay_source",
+        "zk/zrpf_risc0/replay_verifier/src/bin/zrpf_firecracker_guest_init.rs",
+    ),
     ("replay_source", "zk/zrpf_risc0/replay_verifier/src/error.rs"),
+    ("replay_source", "zk/zrpf_risc0/replay_verifier/src/firecracker_protocol.rs"),
+    ("replay_source", "zk/zrpf_risc0/replay_verifier/src/lib.rs"),
     ("replay_source", "zk/zrpf_risc0/replay_verifier/src/main.rs"),
     ("replay_source", "zk/zrpf_risc0/replay_verifier/src/profile.rs"),
     ("replay_test_source", "zk/zrpf_risc0/replay_verifier/src/tests.rs"),

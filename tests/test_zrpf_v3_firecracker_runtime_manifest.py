@@ -35,14 +35,23 @@ def build_manifest_document(
     }
     kernel = {
         "artifact_name": "zrpf-vmlinux",
+        "base_config_sha256": _hash(b"base-config"),
+        "build_container_image_id": f"sha256:{_hash(b'kernel-builder')}",
         "build_recipe_sha256": _hash(b"kernel-recipe"),
+        "byte_identical_local_rebuild": True,
+        "ci_config_sha256": _hash(b"ci-config"),
+        "hardening_fragment_sha256": _hash(b"hardening-fragment"),
         "image_format": "linux_uncompressed_vmlinux_x86_64",
         "kernel_config_sha256": _hash(b"kernel-config"),
         "kernel_release": "6.18.2-zrpf",
         "sha256": _hash(kernel_bytes),
         "size_bytes": len(kernel_bytes),
-        "source_archive_sha256": _hash(b"kernel-source"),
         "source_commit": "12" * 20,
+        "source_repository": "https://example.invalid/linux",
+        "source_tag": "microvm-kernel-test",
+        "source_tag_object": "56" * 20,
+        "source_tree": "78" * 20,
+        "support_minimum_end_date": "2026-09-02",
     }
     rootfs = {
         "artifact_name": "zrpf-replay-rootfs.squashfs",
@@ -101,7 +110,10 @@ def build_manifest_document(
         "non_claims": list(runtime.NON_CLAIMS),
         "provenance": {
             "guest_payload_source_commit": "34" * 20,
+            "input_build_recipe_sha256": _hash(b"input-recipe"),
             "kernel_source_repository": "https://example.invalid/linux",
+            "mksquashfs_binary_sha256": _hash(b"mksquashfs"),
+            "mksquashfs_version": "mksquashfs_4.6.1",
             "rootfs_build_recipe_sha256": _hash(b"rootfs-recipe"),
             "status": "identity_pinned_source_build_not_reproduced",
         },

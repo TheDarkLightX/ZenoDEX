@@ -8,6 +8,8 @@ import pytest
 
 from tools.zrpf_v3_artifact_privacy import (
     DEFAULT_ARTIFACTS,
+    FIRECRACKER_RUNTIME_PUBLIC_ARTIFACTS,
+    REPO_ROOT,
     ArtifactSpec,
     main,
     scan_artifacts,
@@ -20,10 +22,62 @@ def test_committed_zrpf_artifact_inventory_is_clean() -> None:
     report = scan_default_artifacts()
 
     assert report["ok"] is True
-    assert report["artifact_count_expected"] == len(DEFAULT_ARTIFACTS) == 20
-    assert report["artifact_count_scanned"] == 20
+    assert report["artifact_count_expected"] == len(DEFAULT_ARTIFACTS) == 29
+    assert report["artifact_count_scanned"] == 29
+    assert report["complete_artifact_privacy_verified"] is False
     assert report["finding_count"] == 0
     assert report["error_count"] == 0
+
+
+def test_firecracker_runtime_public_artifacts_are_governed() -> None:
+    expected_paths = {
+        "config/proof_profiles/zrpf_firecracker_guest_kernel_build_record_v1.json",
+        "config/proof_profiles/zrpf_firecracker_runtime_image_build_record_v1.json",
+        "config/proof_profiles/zrpf_v3_firecracker_replay_intent_v1.json",
+        "config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v1.json",
+        "docs/research/ZRPF_V3_FIRECRACKER_GOVERNED_DIRECT_REPLAY_EVIDENCE_20260711.json",
+        "docs/research/ZRPF_V3_FIRECRACKER_RUNTIME_CONTRACT_20260711.md",
+        "evidence/zrpf-v3-retained-structural-replay-v1/firecracker-governed-output-payload.json",
+        "tools/build_zrpf_v3_firecracker_guest_images.sh",
+    }
+
+    assert {
+        artifact.relative_path for artifact in FIRECRACKER_RUNTIME_PUBLIC_ARTIFACTS
+    } == expected_paths
+    report = scan_default_artifacts()
+    scanned_paths = {artifact["path"] for artifact in report["artifacts"]}
+    assert expected_paths <= scanned_paths
+
+
+def test_firecracker_runtime_records_preserve_complete_privacy_nonclaim() -> None:
+    image_record = json.loads(
+        (
+            REPO_ROOT / "config/proof_profiles/zrpf_firecracker_runtime_image_build_record_v1.json"
+        ).read_text(encoding="utf-8")
+    )
+    runtime_manifest = json.loads(
+        (
+            REPO_ROOT
+            / "config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v1.json"
+        ).read_text(encoding="utf-8")
+    )
+    replay_evidence = json.loads(
+        (
+            REPO_ROOT / "docs/research/"
+            "ZRPF_V3_FIRECRACKER_GOVERNED_DIRECT_REPLAY_EVIDENCE_20260711.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert image_record["authority"]["artifact_privacy_scan_passed"] is False
+    assert (
+        image_record["guest_binary"]["artifact_privacy"]["generic_toolchain_builder_paths_present"]
+        is True
+    )
+    assert runtime_manifest["authority"]["witness_privacy"] is False
+    assert runtime_manifest["authority"]["zero_knowledge_privacy"] is False
+    assert (
+        replay_evidence["privacy_scan"]["guest_binary_complete_path_privacy_scan_passed"] is False
+    )
 
 
 def test_in_memory_candidate_scan_rejects_before_publication() -> None:
@@ -36,7 +90,9 @@ def test_in_memory_candidate_scan_rejects_before_publication() -> None:
     )
 
     assert clean["ok"] is True
+    assert clean["complete_artifact_privacy_verified"] is False
     assert rejected["ok"] is False
+    assert rejected["complete_artifact_privacy_verified"] is False
     assert rejected["finding_count"] == 1
     assert rejected["findings"][0]["rule_id"] == "github_legacy_token"
 
@@ -68,10 +124,7 @@ def test_in_memory_candidate_scan_rejects_before_publication() -> None:
         ("aws_access_key_id", b"AK" + b"IA" + b"ABCDEFGHIJKLMNOP"),
         (
             "aws_secret_access_key_assignment",
-            b"aws_secret_"
-            + b"access_key="
-            + b"abcdefghijklmnopqrst"
-            + b"uvwxyzABCDEFGHIJKLMN",
+            b"aws_secret_" + b"access_key=" + b"abcdefghijklmnopqrst" + b"uvwxyzABCDEFGHIJKLMN",
         ),
         ("google_api_key", b"AIza" + b"A" * 35),
         ("azure_storage_account_key", b"AccountKey=" + b"A" * 44),
@@ -176,9 +229,7 @@ def test_cli_prints_canonical_report_and_returns_one_on_finding(
 ) -> None:
     (tmp_path / "artifact.bin").write_bytes(b"ghp_" + b"A" * 36)
 
-    exit_code = main(
-        ["--root", str(tmp_path), "--artifact", "artifact.bin"]
-    )
+    exit_code = main(["--root", str(tmp_path), "--artifact", "artifact.bin"])
     stdout = capsys.readouterr().out
     report = json.loads(stdout)
 

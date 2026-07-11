@@ -51,11 +51,13 @@ The source-built component is the native host replay verifier. The current
 lane does not rebuild the guest programs, recompute image IDs from fresh guest
 ELFs, regenerate proofs, or establish source-to-guest-image provenance.
 
-The annotated tag `zrpf-v3-source-anchor-20260710` preserves the exact source
+The annotated tag `zrpf-v3-source-anchor-20260711` preserves the exact source
 commit used by the source-built replay. Required CI verifies the tag target
 before static validation or compilation. The separate
 `zrpf-v1-retained-source-anchor-20260710` tag preserves the historical adapter
-reference commit. These tags must be pushed and retained with the branch.
+reference commit. The superseded `zrpf-v3-source-anchor-20260710` tag and its
+2026-07-10 evidence record remain historical regression artifacts. These tags
+must be pushed and retained with the branch.
 
 ## Authority Progression
 
@@ -254,7 +256,7 @@ Current positive replay output has a strong direct-output bound:
 stdout size   = 5,920 bytes
 stdout SHA-256 = 7751395663a33c1ae58fa403346dc90618e842dd1df2f2fdc37f18599e50c288
 stderr size   = 0 bytes
-verifier SHA-256 = 4511b54089d811ce1d59889d09b322d4924eeb4b34e25d6c4827744ce85e8800
+verifier SHA-256 = 57725f52473e027c55f71f17abddc2ee043a006232da762bfc10a066d120d5b9
 ```
 
 That bound authenticates one public transcript. It does not constrain timing,
@@ -288,13 +290,16 @@ published.
 
 ## Current Evidence And Tests
 
-Durable evidence includes:
+Durable current evidence includes:
 
-- `docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260710.json`;
+- `docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260711.json`;
 - `evidence/zrpf-v3-retained-structural-replay-v1/receipts/`;
 - `tools/check_zrpf_v3_replay_verifier_evidence.py`;
 - `tools/zrpf_v3_artifact_privacy.py`;
 - `tests/test_check_zrpf_v3_replay_verifier_evidence.py`.
+
+The 2026-07-10 source-built replay record remains a historical source-anchor
+artifact and is still included in the bounded public privacy scan.
 
 Current tests cover environment-map filtering, private target creation, checkout
 hook suppression, selected source and receipt symlink rejection, output-cap
@@ -362,10 +367,10 @@ must start from a stable descriptor whose exact size and SHA-256 already match
 the governed archive. The launcher must then enforce an exact member inventory,
 reject traversal, duplicate members, links and special files, extract only the
 selected regular files without archive ownership or timestamps, and rehash the
-opened outputs. The exact VM configuration remains pending. Its required
-closure includes machine topology, CPU template, memory, dirty-page and huge-
-page settings, boot arguments, three ordered drives, every drive permission and
-rate limiter, and an explicit forbidden-device set.
+opened outputs. The exact candidate VM configuration is now frozen: one vCPU,
+256 MiB, SMT and dirty tracking disabled, no huge pages, three ordered
+synchronous VirtIO block drives, and fixed per-drive rate limiters. The root
+configuration admits only `boot-source`, `drives`, and `machine-config`.
 
 Network-namespace requirements are phase-specific. The fresh namespace has
 zero processes before join, exactly the expected Firecracker process set while
@@ -376,12 +381,16 @@ payload hash, a final commit marker flushed last, stable-descriptor reading
 after VM exit, and canonical zero trailing bytes. Process exit status carries
 no verifier authority.
 
-The candidate remains deliberately incomplete. The guest kernel, rootfs, and
-measured numeric resource envelope have not been governed. Its static checker
-therefore keeps `replay_runner_ready=false` and every authority, sandbox,
-privacy, covert-channel, and hardware-side-channel claim false. The separate
-host probe records only bounded posture facts and cannot execute Firecracker or
-promote retained replay evidence.
+The candidate kernel, rootfs, input image, PID 1 verifier, runtime manifest, and
+replay intent now have governed identities. Two same-host kernel builds and two
+same-host SquashFS builds were byte-identical. A direct unjailed Firecracker
+run booted the candidate, verified the retained receipts, committed the exact
+5,920-byte transcript, and exited cleanly. The measured numeric resource
+envelope, root-owned jailer launcher, cgroup installation, namespace lifecycle,
+sandbox escape controls, and independent reproduction remain pending. The
+static checker therefore keeps `replay_runner_ready=false` and every release,
+settlement, production, privacy, covert-channel, and hardware-side-channel
+claim false.
 
 The checker's top-level `ok` means candidate-profile integrity only. Its
 `candidate_profile_integrity_ok`, `decision`, and `replay_runner_ready` fields

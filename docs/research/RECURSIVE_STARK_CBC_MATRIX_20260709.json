@@ -1077,11 +1077,11 @@
           "symbol": "read_bounded_regular_file"
         },
         {
-          "path": "zk/zrpf_risc0/replay_verifier/src/main.rs",
+          "path": "zk/zrpf_risc0/replay_verifier/src/lib.rs",
           "symbol": "verify_tree"
         },
         {
-          "path": "zk/zrpf_risc0/replay_verifier/src/main.rs",
+          "path": "zk/zrpf_risc0/replay_verifier/src/lib.rs",
           "symbol": "verify_root_seal_mutation"
         },
         {
@@ -1121,7 +1121,7 @@
           "symbol": "temporary_local_structural_tree_receipt_evidence"
         },
         {
-          "path": "docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260710.json",
+          "path": "docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260711.json",
           "symbol": "source_built_retained_receipt_structural_replay_accepted"
         }
       ],
@@ -1188,7 +1188,7 @@
         "python3 tools/check_zrpf_v3_replay_verifier_evidence.py --live --risc0-home <RISC0_HOME> --target-dir <NEW_EXTERNAL_TARGET_DIRECTORY> --json"
       ],
       "next_action": "generate fresh current-source leaf and aggregate proofs, bind guest source to the resulting image IDs, record proof-generation and verifier build provenance, preserve governed outer image equality at every consumer, and keep semantic aggregation in RS-CBC-023",
-      "non_claim": "source anchor 44bc0435 supports a same-host source-built host-verifier replay of seven exact retained Succinct receipts and one exact seal mutation; exact freshly built verifier bytes are sealed before execution and the governed public artifacts pass a bounded privacy scan; retained root receipt edd25fca20b0205c2f778b866605b343922615623256abcc1a098957664c2d16 authenticates root journal 2089ecc187077d4b719c8539076651753c1ead1415724c9bc788758bddfa3768; this does not attest proof generation, bind guest source to image IDs, establish complete build-input provenance, cross-host or release reproducibility, semantic composition, data-availability assurance, carry continuity, governed admission, settlement authority, privacy, transaction counts, throughput, or production authority"
+      "non_claim": "source anchor b37b7415 supports a same-host source-built host-verifier replay of seven exact retained Succinct receipts and one exact seal mutation; exact freshly built verifier bytes are sealed before execution and the governed public artifacts pass a bounded privacy scan; retained root receipt edd25fca20b0205c2f778b866605b343922615623256abcc1a098957664c2d16 authenticates root journal 2089ecc187077d4b719c8539076651753c1ead1415724c9bc788758bddfa3768; this does not attest proof generation, bind guest source to image IDs, establish complete build-input provenance, cross-host or release reproducibility, semantic composition, data-availability assurance, carry continuity, governed admission, settlement authority, privacy, transaction counts, throughput, or production authority"
     },
     {
       "id": "RS-CBC-023",

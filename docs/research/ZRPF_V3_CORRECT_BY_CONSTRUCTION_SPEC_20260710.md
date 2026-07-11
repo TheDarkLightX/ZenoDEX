@@ -566,13 +566,13 @@ checks its exact source closure before and after compilation, disables checkout
 hooks, rejects unpinned ancestor Cargo config, isolates Cargo home config,
 disables automatic Cargo target discovery, remaps compiler-visible paths, and
 uses an allowlisted `execve` environment. The exact selected source closure now
-contains 40 files.
+contains 43 files.
 Normal and `RISC0_DEV_MODE=1` outputs are byte-identical. The record is
-`docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260710.json`,
+`docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260711.json`,
 SHA-256
-`d4412fff5e194c3222cdb06a402c0064fe13e01794ee3f12a92b24a04f65dd47`.
+`9c6d80bdebb9bd7eb8ddfe49bd9797e4ad30de0022d59cd8b7e42f60d2d906dd`.
 The recorded verifier bytes have SHA-256
-`4511b54089d811ce1d59889d09b322d4924eeb4b34e25d6c4827744ce85e8800`
+`57725f52473e027c55f71f17abddc2ee043a006232da762bfc10a066d120d5b9`
 and were executed from a fully sealed Linux memfd.
 
 This record establishes a same-host current-source host-verifier replay of the

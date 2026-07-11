@@ -20,6 +20,13 @@ The earlier historical local receipt `021af130...fd33` authenticates the same
 journal and remains in its original evidence record. The two receipt byte
 instances do not establish receipt-byte determinism.
 
+`firecracker-governed-output-payload.json` is the exact 5,920-byte payload
+committed by the governed direct Firecracker replay. Its SHA-256 is
+`7751395663a33c1ae58fa403346dc90618e842dd1df2f2fdc37f18599e50c288`.
+The scoped Firecracker evidence checker combines these bytes with the governed
+request to reconstruct and validate the complete 16 MiB output protocol,
+including its header, zero padding, final marker, and output SHA-256.
+
 Run the static evidence gate from the repository root:
 
 ```bash
@@ -51,10 +58,11 @@ copied into a fully sealed Linux memfd before execution, so later pathname
 replacement cannot substitute different bytes for that run.
 
 No native verifier binary, guest ELF, proof-generation input, toolchain copy,
-or recorded transcript is stored here. This retained-byte regression lane does
-not attest proof generation, guest source-to-image correspondence, complete
-build-input, compiler, linker, dependency-cache, or runtime-rootfs identity,
-cross-host reproducibility, a release build, semantic
+raw 16 MiB Firecracker output, or full local execution report is stored here.
+The exact output payload is public replay data. This retained-byte regression
+lane does not attest proof generation, guest source-to-image correspondence,
+complete build-input, compiler, linker, dependency-cache, or runtime-rootfs
+identity, cross-host reproducibility, a release build, semantic
 aggregation, conservation, data availability, carry or scheduling, ledger or
 settlement admission, privacy, transaction counts, throughput, or production
 authority. Its `operation_count` unit is `source_transition_receipt_v3`.

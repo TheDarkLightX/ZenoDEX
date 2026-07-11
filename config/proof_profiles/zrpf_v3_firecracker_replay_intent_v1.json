@@ -1,0 +1,8 @@
+{
+  "expected_output_payload_sha256": "7751395663a33c1ae58fa403346dc90618e842dd1df2f2fdc37f18599e50c288",
+  "expected_output_payload_size_bytes": 5920,
+  "input_bundle_root": "d5ecd5494318e21fa3da227409fdb5285c85ff8ae10815df5bcf0eb22fa1027f",
+  "input_drive_sha256": "504c3a4c38e5109567d9d21f07bbc054324f3955fb4d5b07216f3c90e89e3af8",
+  "input_size_bytes": 2068480,
+  "schema": "zenodex/zrpf_firecracker_replay_intent/v1"
+}

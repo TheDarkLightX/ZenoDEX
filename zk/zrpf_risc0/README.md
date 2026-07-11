@@ -176,7 +176,7 @@ leaves, recomposes and exact-verifies both level-one journals and the level-two
 journal, and requires the seal mutation to reject as
 `receipt_verification_failed`.
 The live gate builds from a mode-0700 detached worktree at the pinned commit,
-checks the exact 40-file source closure before and after compilation, disables
+checks the exact 43-file source closure before and after compilation, disables
 automatic Cargo target discovery, disables checkout hooks, rejects unpinned
 ancestor Cargo config, isolates Cargo home config, remaps compiler-visible
 paths, and uses an allowlisted `execve` environment.
@@ -186,10 +186,13 @@ The retained replay output is 5,920 bytes with SHA-256
 Normal execution and execution with `RISC0_DEV_MODE=1` produced byte-identical
 output because the verifier uses an explicit dev-mode-disabled context. The
 source-built replay evidence record has SHA-256
-`d4412fff5e194c3222cdb06a402c0064fe13e01794ee3f12a92b24a04f65dd47`.
+`9c6d80bdebb9bd7eb8ddfe49bd9797e4ad30de0022d59cd8b7e42f60d2d906dd`.
+The current record is
+`docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260711.json`;
+the 2026-07-10 record remains a historical source-anchor artifact.
 The recorded verifier bytes were sealed in a Linux memfd before execution and
 have SHA-256
-`4511b54089d811ce1d59889d09b322d4924eeb4b34e25d6c4827744ce85e8800`.
+`57725f52473e027c55f71f17abddc2ee043a006232da762bfc10a066d120d5b9`.
 This same-host retained-byte replay does not attest proof generation, guest
 source-to-image correspondence, complete build inputs, compiler, linker,
 dependency-cache or runtime-rootfs identity, release reproducibility, semantic
@@ -412,6 +415,56 @@ The boundary-atlas command performs deterministic, depth-two malformed-manifest
 exploration and deduplicates reject paths. Path and mutant counts do not
 override a stale baseline failure. It is an offline bug-discovery sidecar, with
 no correctness-proof or receipt authority.
+
+## Firecracker Candidate Runtime
+
+The Firecracker v1.16.1 candidate now has a frozen one-vCPU configuration, a
+pinned Amazon Linux 6.1.174 kernel, a minimal read-only SquashFS root, an exact
+read-only receipt image, and a static PIE PID 1 verifier. The fixed request
+binds a fresh nonce, the candidate profile, the governed runtime manifest, the
+input image, and the exact replay intent. A private `VerifiedReplayReport`
+constructor prevents unverified bytes from entering the accepted-output
+writer.
+
+Build the two SquashFS images twice and require byte equality with:
+
+```bash
+tools/build_zrpf_v3_firecracker_guest_images.sh \
+  --guest-binary /trusted/input/zrpf-replay-init \
+  --receipt-dir evidence/zrpf-v3-retained-structural-replay-v1/receipts \
+  --output-dir /private/output/zrpf-images \
+  --expected-guest-sha256 08f99e4d6262f0028ec87a1b4fb7ee86be466244f33fce4713948dd695cec7dc \
+  --expected-receipt-set-sha256 d5ecd5494318e21fa3da227409fdb5285c85ff8ae10815df5bcf0eb22fa1027f \
+  --expected-mksquashfs-sha256 47d5c1af3da11864e64c9dc6bb4e568719dcc315e6a744e79381ce3374fb7393
+```
+
+The image helper assumes trusted private input paths. It has no artifact or
+release authority. Compare both produced image sizes and SHA-256 identities to
+the governed runtime manifest before using them as local replay candidates.
+
+Check the governed candidate identities:
+
+```bash
+python3 -I tools/check_zrpf_v3_firecracker_runtime_artifacts.py \
+  --evidence-date 2026-07-11
+python3 -I tools/check_zrpf_v3_firecracker_protocol_binding.py
+python3 -I tools/check_zrpf_v3_firecracker_direct_replay_evidence.py
+```
+
+Compile the non-executable launch plan:
+
+```bash
+python3 -I tools/check_zrpf_v3_firecracker_launch_preflight.py \
+  --manifest config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v1.json \
+  --expected-manifest-sha256 cb19138eb6bb7dd404c860382e0c0f2b765d12ea8e734e9afb99caae381ff312 \
+  --intent config/proof_profiles/zrpf_v3_firecracker_replay_intent_v1.json
+```
+
+A direct local Firecracker run exited cleanly and reproduced the exact
+5,920-byte transcript. The root-owned jailer launcher, cgroups, namespace
+teardown, sandbox escape controls, independent reproduction, and production
+authority remain pending. The full contract and usage guide is
+`docs/research/ZRPF_V3_FIRECRACKER_RUNTIME_CONTRACT_20260711.md`.
 
 ## Authority And Non-Claims
 

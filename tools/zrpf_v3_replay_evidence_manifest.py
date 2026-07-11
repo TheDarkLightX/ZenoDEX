@@ -16,7 +16,7 @@ def expected_evidence(
 ) -> dict[str, Any]:
     return {
         "claims": _claims(),
-        "evidence_date": "2026-07-10",
+        "evidence_date": "2026-07-11",
         "non_claims": list(support.NON_CLAIMS),
         "recorded_build": _recorded_build(execution_identity),
         "recorded_execution": _recorded_execution(execution_identity),
