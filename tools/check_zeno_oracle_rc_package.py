@@ -64,6 +64,7 @@ REQUIRED_NOT_CLAIMS = {
     "does_not_claim_generalized_math_proof_completion",
 }
 REPORT_SCHEMA = "zenodex.oracle.rc_package_check.v1"
+AUTHENTICATED_MODE_ERROR = "receipt_and_sig_required_unless_local_only"
 
 
 def _load_json(path: Path) -> Mapping[str, Any]:
@@ -279,14 +280,41 @@ def check_package(*, package_dir: Path, receipt_path: Path | None = None, sig_pa
     }
 
 
+def _cli_authentication_errors(*, receipt_path: Path | None, sig_path: Path | None, local_only: bool) -> list[str]:
+    """DbC: authenticated CLI mode must receive both external authenticity artifacts."""
+    if local_only:
+        return []
+    if receipt_path is not None and sig_path is not None:
+        return []
+    return [AUTHENTICATED_MODE_ERROR]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check a Zeno Oracle devnet RC package directory")
     parser.add_argument("--package-dir", required=True, type=Path)
     parser.add_argument("--receipt", type=Path)
     parser.add_argument("--sig", type=Path)
+    parser.add_argument(
+        "--local-only-manifest-check",
+        action="store_true",
+        help=(
+            "allow an unauthenticated package-local manifest check; "
+            "do not use this mode as an integrity or authenticity boundary"
+        ),
+    )
     args = parser.parse_args(argv)
 
     result = check_package(package_dir=args.package_dir, receipt_path=args.receipt, sig_path=args.sig)
+    result["errors"].extend(
+        _cli_authentication_errors(
+            receipt_path=args.receipt,
+            sig_path=args.sig,
+            local_only=args.local_only_manifest_check,
+        )
+    )
+    result["status"] = "accepted" if not result["errors"] else "rejected"
+    result["ok"] = result["status"] == "accepted"
+    result["authenticated_mode"] = not args.local_only_manifest_check
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["ok"] else 1
 

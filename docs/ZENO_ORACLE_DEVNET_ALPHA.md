@@ -205,7 +205,7 @@ dist/zeno-oracle-devnet-alpha-rc1/docs/papers/zeno-oracle-whitepaper/ZenoOracleW
 The `.sig` file is a devnet integrity signature derived from the package hash.
 It is not production code signing.
 
-Validate a built package:
+Validate a built package from a trusted source checkout before running any package-local replay code:
 
 ```bash
 python3 tools/check_zeno_oracle_rc_package.py \
@@ -213,6 +213,19 @@ python3 tools/check_zeno_oracle_rc_package.py \
   --receipt dist/zeno-oracle-devnet-alpha-rc1.receipt.json \
   --sig dist/zeno-oracle-devnet-alpha-rc1.sig
 ```
+
+After the external receipt and signature validation succeeds, the extracted
+bundle can run its local smoke replay:
+
+```bash
+cd dist/zeno-oracle-devnet-alpha-rc1
+bash scripts/check_zeno_oracle_rc_bundle.sh
+```
+
+The package-local replay is not an authenticity boundary: it executes shipped
+tools from the extracted bundle and uses an explicit local-only manifest check.
+Do not use it in place of the trusted-checkout command above with the external
+`.receipt.json` and `.sig` artifacts.
 
 ## Not Claimed
 
