@@ -481,8 +481,8 @@ mod tests {
     use std::{fs, path::PathBuf};
 
     use super::{
-        parse_opening_hex, parse_options, read_bounded_regular_file, same_file_version,
-        MAX_LEAVES_PER_GROUP, MAX_LEVEL_ONE_GROUPS, MAX_RECEIPT_BYTES_U64,
+        parse_opening_hex, parse_options, persist_receipt, read_bounded_regular_file,
+        same_file_version, MAX_LEAVES_PER_GROUP, MAX_LEVEL_ONE_GROUPS, MAX_RECEIPT_BYTES_U64,
     };
 
     fn opening_hex(byte: u8) -> String {
@@ -539,6 +539,10 @@ mod tests {
             opening_hex(1),
         ])
         .is_err());
+
+        let mut trailing = args(1, 1);
+        trailing.push("trailing-token".to_owned());
+        assert!(parse_options(trailing).is_err());
         assert!(parse_options([
             "--receipt-out".to_owned(),
             "semantic.json".to_owned(),
@@ -614,6 +618,17 @@ mod tests {
         fs::write(&path, b"{\"changed\":true}").expect("mutate input");
         let after = fs::metadata(&path).expect("mutated metadata");
         assert!(!same_file_version(&before, &after));
+        fs::remove_dir_all(directory).expect("remove isolated scratch directory");
+    }
+
+    #[test]
+    fn receipt_persistence_never_overwrites_an_existing_artifact() {
+        let directory = scratch("exclusive-output");
+        let path = directory.join("semantic.receipt.json");
+        fs::write(&path, b"existing").expect("write existing output");
+
+        assert!(persist_receipt(&path, b"replacement").is_err());
+        assert_eq!(fs::read(&path).expect("read existing output"), b"existing");
         fs::remove_dir_all(directory).expect("remove isolated scratch directory");
     }
 }
