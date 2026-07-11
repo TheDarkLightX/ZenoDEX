@@ -81,6 +81,7 @@ jobs:
             tests/test_check_zrpf_v3_firecracker_replay_profile.py \
             tests/test_check_zrpf_v3_replay_verifier_evidence.py \
             tests/test_zrpf_v3_artifact_privacy.py \
+            tests/test_zrpf_v3_firecracker_profile_boundary_atlas.py \
             tests/test_zrpf_v3_firecracker_host_probe.py \
             tests/test_zrpf_assurance_workflow.py
           mypy --follow-imports=skip \
@@ -96,6 +97,7 @@ jobs:
             tests/test_check_zrpf_v3_firecracker_replay_profile.py \
             tests/test_check_zrpf_v3_replay_verifier_evidence.py \
             tests/test_zrpf_v3_artifact_privacy.py \
+            tests/test_zrpf_v3_firecracker_profile_boundary_atlas.py \
             tests/test_zrpf_v3_firecracker_host_probe.py \
             tests/test_zrpf_assurance_workflow.py \
             tests/test_zrpf_v3_source_closure.py \

@@ -357,12 +357,40 @@ therefore inventories `/dev/kvm`, `/dev/net/tun`, `/dev/urandom`, and conditiona
 `/dev/userfaultfd` exposure even though no guest NIC, randomness device, or
 snapshot path is allowed.
 
+The candidate also defines the future launcher contract. Release extraction
+must start from a stable descriptor whose exact size and SHA-256 already match
+the governed archive. The launcher must then enforce an exact member inventory,
+reject traversal, duplicate members, links and special files, extract only the
+selected regular files without archive ownership or timestamps, and rehash the
+opened outputs. The exact VM configuration remains pending. Its required
+closure includes machine topology, CPU template, memory, dirty-page and huge-
+page settings, boot arguments, three ordered drives, every drive permission and
+rate limiter, and an explicit forbidden-device set.
+
+Network-namespace requirements are phase-specific. The fresh namespace has
+zero processes before join, exactly the expected Firecracker process set while
+active, and zero processes after teardown. Every phase must retain the same
+namespace inode. The raw output protocol similarly requires a fresh fixed-size
+object, request and input-root binding, a 256-bit run nonce, bounded length and
+payload hash, a final commit marker flushed last, stable-descriptor reading
+after VM exit, and canonical zero trailing bytes. Process exit status carries
+no verifier authority.
+
 The candidate remains deliberately incomplete. The guest kernel, rootfs, and
 measured numeric resource envelope have not been governed. Its static checker
 therefore keeps `replay_runner_ready=false` and every authority, sandbox,
 privacy, covert-channel, and hardware-side-channel claim false. The separate
 host probe records only bounded posture facts and cannot execute Firecracker or
 promote retained replay evidence.
+
+The checker's top-level `ok` means candidate-profile integrity only. Its
+`candidate_profile_integrity_ok`, `decision`, and `replay_runner_ready` fields
+make that scope explicit. An operational consumer must invoke the stricter
+readiness gate, which intentionally rejects this incomplete profile:
+
+```bash
+python3 tools/check_zrpf_v3_firecracker_replay_profile.py --require-ready
+```
 
 Run the static profile check on any host:
 
@@ -381,8 +409,11 @@ host-kernel family. This narrower choice ensures the required KSM cleanliness
 counters are available. The gate also fails closed when KVM or required cgroup
 v2 controllers are unavailable, KSM is running, residual merged or zero pages
 remain, KSM zero-page merging remains enabled, swap is active, or SMT remains
-enabled. Passing this gate still does not attest artifact staging, microVM
-execution, network denial, or replay correctness.
+enabled. The probe also records CPU vendor, family, model, microcode, and the
+CPUID hypervisor flag. A present or unavailable hypervisor observation rejects
+the candidate prerequisites. CPU-platform allowlisting and stronger bare-metal
+attestation remain pending. Passing this gate still does not attest artifact
+staging, microVM execution, network denial, or replay correctness.
 
 ### Release and settlement
 

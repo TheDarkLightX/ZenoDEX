@@ -19,7 +19,7 @@ else:
     trusted_tools = Path(__file__).resolve().parent.as_posix()
     sys.path.insert(0, trusted_tools)
     import zrpf_v3_firecracker_host_probe as host_probe  # type: ignore[no-redef]
-    import zrpf_v3_replay_evidence_support as support  # type: ignore[no-redef]
+    import zrpf_v3_replay_evidence_support as support
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROFILE_PATH = (
@@ -27,7 +27,7 @@ PROFILE_PATH = (
 )
 MAX_PROFILE_BYTES = 64 * 1024
 EXPECTED_PROFILE_CANONICAL_SHA256 = (
-    "433d251ea949f9a4bdb8b9bbd521a83c4fd7ffcd583ee6256f2ce148d1455a38"
+    "a9a015109dceb39ab2676cac3ab6210201d3a6d2464f0947700ae7e21adce79f"
 )
 
 EXPECTED_CLAIMS = {
@@ -48,7 +48,6 @@ EXPECTED_CLAIMS = {
     "ledger_admission_authority": False,
     "microvm_replay_verified": False,
     "network_egress_denied_by_runtime": False,
-    "privacy_or_zero_knowledge": False,
     "process_namespace_isolated": False,
     "production_authority": False,
     "proofs_regenerated": False,
@@ -129,6 +128,7 @@ EXPECTED_HOST_POLICY = {
     ],
     "ksm_run_required": 0,
     "ksm_use_zero_pages_required": 0,
+    "nested_virtualization_allowed": False,
     "page_size_bytes": 4_096,
     "require_cgroup_v2": True,
     "require_kvm_read_write": True,
@@ -476,25 +476,32 @@ def build_report(*, include_host_probe: bool) -> dict[str, Any]:
         probe = host_probe.evaluate_host_facts(
             profile["host_policy"], host_probe.collect_host_facts()
         )
+    candidate_integrity_ok = bool(validation["profile_valid"])
+    host_prerequisites_ok = bool(
+        probe is None or probe["candidate_host_prerequisites_passed"]
+    )
+    decision = (
+        "candidate_profile_integrity_valid_runner_unavailable"
+        if candidate_integrity_ok and host_prerequisites_ok
+        else "candidate_profile_or_host_prerequisites_rejected"
+    )
     return {
         "authority": {
             "covert_channel_freedom": False,
             "hardware_side_channel_resistance": False,
             "host_secret_absence_verified": False,
-            "privacy_or_zero_knowledge": False,
+            "host_secret_isolation": False,
             "production_authority": False,
             "release_authority": False,
+            "sandbox_escape_resistance": False,
             "settlement_authority": False,
+            "witness_privacy": False,
             "zero_knowledge_privacy": False,
         },
+        "candidate_profile_integrity_ok": candidate_integrity_ok,
+        "decision": decision,
         "host_probe": probe,
-        "ok": bool(
-            validation["profile_valid"]
-            and (
-                probe is None
-                or probe["candidate_host_policy_checks_passed"]
-            )
-        ),
+        "ok": candidate_integrity_ok and host_prerequisites_ok,
         "profile": validation,
         "replay_runner_ready": False,
         "schema": "zenodex/zrpf_v3_firecracker_replay_profile_report/v1",
@@ -504,6 +511,7 @@ def build_report(*, include_host_probe: bool) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--probe-host", action="store_true")
+    parser.add_argument("--require-ready", action="store_true")
     arguments = parser.parse_args(argv)
     try:
         report = build_report(include_host_probe=arguments.probe_host)
@@ -511,7 +519,8 @@ def main(argv: list[str] | None = None) -> int:
         print("error: Firecracker profile check failed closed", file=sys.stderr)
         return 2
     print(json.dumps(report, indent=2, sort_keys=True))
-    return 0 if report["ok"] else 1
+    ready_requirement_met = not arguments.require_ready or report["replay_runner_ready"]
+    return 0 if report["ok"] and ready_requirement_met else 1
 
 
 def _validate_policy(profile: dict[str, Any]) -> list[str]:

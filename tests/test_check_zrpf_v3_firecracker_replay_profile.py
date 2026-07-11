@@ -27,6 +27,10 @@ def test_static_report_cannot_claim_runner_or_authority() -> None:
     report = checker.build_report(include_host_probe=False)
 
     assert report["ok"] is True
+    assert report["candidate_profile_integrity_ok"] is True
+    assert report["decision"] == (
+        "candidate_profile_integrity_valid_runner_unavailable"
+    )
     assert report["host_probe"] is None
     assert report["replay_runner_ready"] is False
     assert all(value is False for value in report["authority"].values())
@@ -146,6 +150,16 @@ def test_cli_rejects_unknown_arguments() -> None:
         raise AssertionError("argparse must reject profile overrides")
 
 
+def test_require_ready_rejects_integrity_valid_candidate(capsys) -> None:
+    exit_code = checker.main(["--require-ready"])
+    report = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 1
+    assert report["ok"] is True
+    assert report["candidate_profile_integrity_ok"] is True
+    assert report["replay_runner_ready"] is False
+
+
 def test_isolated_cli_loads_only_trusted_sibling_modules(tmp_path: Path) -> None:
     completed = subprocess.run(
         [sys.executable, "-I", checker.__file__],
@@ -179,7 +193,7 @@ def test_host_probe_uses_the_single_validated_profile_snapshot(monkeypatch) -> N
     monkeypatch.setattr(
         host_probe,
         "evaluate_host_facts",
-        lambda _policy, _facts: {"candidate_host_policy_checks_passed": True},
+        lambda _policy, _facts: {"candidate_host_prerequisites_passed": True},
     )
 
     report = checker.build_report(include_host_probe=True)
