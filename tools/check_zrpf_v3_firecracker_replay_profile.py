@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib
 import json
 import os
 import stat
@@ -13,13 +14,12 @@ from pathlib import Path
 from typing import Any
 
 if __package__:
-    from tools import zrpf_v3_firecracker_host_probe as host_probe
-    from tools import zrpf_v3_replay_evidence_support as support
+    _MODULE_PREFIX = "tools."
 else:
-    trusted_tools = Path(__file__).resolve().parent.as_posix()
-    sys.path.insert(0, trusted_tools)
-    import zrpf_v3_firecracker_host_probe as host_probe  # type: ignore[no-redef]
-    import zrpf_v3_replay_evidence_support as support
+    sys.path.insert(0, Path(__file__).resolve().parent.as_posix())
+    _MODULE_PREFIX = ""
+host_probe = importlib.import_module(f"{_MODULE_PREFIX}zrpf_v3_firecracker_host_probe")
+support = importlib.import_module(f"{_MODULE_PREFIX}zrpf_v3_replay_evidence_support")
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROFILE_PATH = (
