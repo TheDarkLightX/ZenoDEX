@@ -809,6 +809,14 @@
         {
           "path": "tests/test_check_zrpf_v3_structural_tree_temporary_evidence.py",
           "symbol": "test_retained_structural_evidence_rejects_hardened_verifier_source_drift"
+        },
+        {
+          "path": "tests/test_check_zrpf_v3_replay_verifier_evidence.py",
+          "symbol": "test_expected_evidence_pins_source_receipts_and_authority_boundary"
+        },
+        {
+          "path": "tests/test_check_zrpf_v3_replay_verifier_evidence.py",
+          "symbol": "test_verified_live_record_creation_passes_static_check_and_refuses_overwrite"
         }
       ],
       "external_commands": [
@@ -816,11 +824,12 @@
         "cd zk/zrpf_protocol && cargo test --locked --all-targets",
         "cd zk/zrpf_risc0 && RISC0_SKIP_BUILD=1 cargo test --locked -p zenodex-zrpf-risc0-aggregate-shared -p zenodex-zrpf-risc0-verifier -p zenodex-zrpf-risc0-harness",
         "python3 -m pytest -q tests/test_check_zrpf_v3_structural_tree_temporary_evidence.py::test_retained_structural_evidence_rejects_hardened_verifier_source_drift",
+        "python3 tools/check_zrpf_v3_replay_verifier_evidence.py --json",
         "prove_structural_tree <LEAF0_RECEIPT> <LEAF1_RECEIPT> <LEAF2_RECEIPT> <LEAF3_RECEIPT> <OUTPUT_DIR>",
         "verify_structural_tree <LEAF0_RECEIPT> <LEAF1_RECEIPT> <LEAF2_RECEIPT> <LEAF3_RECEIPT> <L1_LEFT_RECEIPT> <L1_RIGHT_RECEIPT> <L2_ROOT_RECEIPT>"
       ],
-      "next_action": "define native V3 semantic leaves and a closed-epoch semantic aggregate profile before any admission work; retain the temporary structural-tree manifest as local evidence only",
-      "non_claim": "one temporary-path local Succinct proof run authenticates four Spot compatibility leaves through two level-one structural aggregates into one level-two structural root; the root journal hash is 2089ecc187077d4b719c8539076651753c1ead1415724c9bc788758bddfa3768 and the exact root receipt SHA-256 is 021af13025e7dc7c40e06d689ad30e3194e58793435cd11ae07d684c80ddfd33; this evidence establishes neither native ZenoDEX semantic composition, DA assurance, carry policy, durable ledger admission, release reproducibility, arbitrary recursion, the 16-by-4 profile, settlement authority, nor production readiness"
+      "next_action": "generate fresh current-source proofs with guest source-to-image provenance, then define native V3 semantic leaves and a closed-epoch semantic aggregate profile before any admission work; retain both historical records and the exact retained-byte replay as non-release evidence",
+      "non_claim": "one historical temporary-path local Succinct proof run produced root receipt 021af13025e7dc7c40e06d689ad30e3194e58793435cd11ae07d684c80ddfd33; a separate current-source host verifier replays exact retained root receipt edd25fca20b0205c2f778b866605b343922615623256abcc1a098957664c2d16; both authenticate root journal 2089ecc187077d4b719c8539076651753c1ead1415724c9bc788758bddfa3768; this evidence establishes neither proof-generation provenance, guest source-to-image binding, native ZenoDEX semantic composition, DA assurance, carry policy, durable ledger admission, release reproducibility, arbitrary recursion, the 16-by-4 profile, settlement authority, privacy, throughput, nor production readiness"
     },
     {
       "id": "RS-CBC-017",
@@ -1049,7 +1058,7 @@
       "status": "implemented_partial",
       "defense_layer": "guarded_transition",
       "disaster_state": "a structurally valid V3 journal or caller-selected claim hash is treated as proof-authorized child state",
-      "construction_rule": "the V3 adapter verifies the exact governed source receipt before projection; persisted receipts cross a bounded exact typed JSON boundary; the sealed outer verifier pins the exact RISC0 3.0.5 Succinct receipt-security profile, uses an explicit dev-mode-disabled verifier context, checks the actual adapter image, and derives the claim binding locally; each bounded structural aggregate guest verifies every exact child receipt under its compile-time child image before decoding or composing the common-node journal",
+      "construction_rule": "the V3 adapter verifies the exact governed source receipt before projection; persisted receipts cross a bounded exact typed JSON boundary; the sealed outer verifier pins the exact RISC0 3.0.5 Succinct receipt-security profile, uses an explicit dev-mode-disabled verifier context, checks the actual adapter image, and derives the claim binding locally; each bounded structural aggregate guest verifies every exact child receipt under its compile-time child image before decoding or composing the common-node journal; the retained replay verifier binds eight exact artifacts through descriptor-relative bounded non-following reads, verifies four leaves, recomposes and exact-verifies both level-one journals and the level-two journal, binds the reviewed root topology, and requires the exact root-seal mutation to reject as receipt_verification_failed",
       "code_refs": [
         {
           "path": "zk/zrpf_risc0/methods/v1_leaf_adapter/src/main.rs",
@@ -1058,6 +1067,22 @@
         {
           "path": "zk/zrpf_risc0/verifier/src/lib.rs",
           "symbol": "VerifiedNodeReceiptV3"
+        },
+        {
+          "path": "zk/zrpf_risc0/replay_verifier/src/profile.rs",
+          "symbol": "RETAINED_ARTIFACTS"
+        },
+        {
+          "path": "zk/zrpf_risc0/replay_verifier/src/bundle.rs",
+          "symbol": "read_bounded_regular_file"
+        },
+        {
+          "path": "zk/zrpf_risc0/replay_verifier/src/main.rs",
+          "symbol": "verify_tree"
+        },
+        {
+          "path": "zk/zrpf_risc0/replay_verifier/src/main.rs",
+          "symbol": "verify_root_seal_mutation"
         },
         {
           "path": "zk/zrpf_risc0/shared/src/risc0_binding_v1.rs",
@@ -1094,6 +1119,10 @@
         {
           "path": "docs/research/ZRPF_V3_STRUCTURAL_TREE_TEMPORARY_LOCAL_EVIDENCE_20260710.json",
           "symbol": "temporary_local_structural_tree_receipt_evidence"
+        },
+        {
+          "path": "docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260710.json",
+          "symbol": "same_host_source_built_host_verifier_exact_retained_receipts_replayed"
         }
       ],
       "test_refs": [
@@ -1128,19 +1157,29 @@
         {
           "path": "tests/test_check_zrpf_v3_structural_tree_temporary_evidence.py",
           "symbol": "test_retained_structural_evidence_rejects_hardened_verifier_source_drift"
+        },
+        {
+          "path": "tests/test_check_zrpf_v3_replay_verifier_evidence.py",
+          "symbol": "test_expected_evidence_pins_source_receipts_and_authority_boundary"
+        },
+        {
+          "path": "tests/test_check_zrpf_v3_replay_verifier_evidence.py",
+          "symbol": "test_verified_live_record_creation_passes_static_check_and_refuses_overwrite"
         }
       ],
       "external_commands": [
-        "cd zk/zrpf_risc0 && RISC0_SKIP_BUILD=1 cargo test --locked -p zenodex-zrpf-risc0-shared -p zenodex-zrpf-risc0-aggregate-shared -p zenodex-zrpf-risc0-verifier -p zenodex-zrpf-risc0-harness",
+        "cd zk/zrpf_risc0 && RISC0_SKIP_BUILD=1 cargo test --locked -p zenodex-zrpf-risc0-shared -p zenodex-zrpf-risc0-aggregate-shared -p zenodex-zrpf-risc0-verifier -p zenodex-zrpf-risc0-replay-verifier -p zenodex-zrpf-risc0-harness",
         "zenodex-zrpf-risc0-harness <SPOT_PROOF> --missing-assumption",
         "zenodex-zrpf-risc0-harness <SPOT_PROOF> --substituted-source-journal",
         "zenodex-zrpf-risc0-harness <SPOT_PROOF> --mislabeled-adapter",
         "prove_structural_tree <LEAF0_RECEIPT> <LEAF1_RECEIPT> <LEAF2_RECEIPT> <LEAF3_RECEIPT> <OUTPUT_DIR> --missing-assumption",
         "python3 -m pytest -q tests/test_check_zrpf_v1_spot_adapter_temporary_evidence.py::test_retained_adapter_evidence_rejects_hardened_verifier_source_drift",
-        "python3 -m pytest -q tests/test_check_zrpf_v3_structural_tree_temporary_evidence.py::test_retained_structural_evidence_rejects_hardened_verifier_source_drift"
+        "python3 -m pytest -q tests/test_check_zrpf_v3_structural_tree_temporary_evidence.py::test_retained_structural_evidence_rejects_hardened_verifier_source_drift",
+        "python3 tools/check_zrpf_v3_replay_verifier_evidence.py --json",
+        "python3 tools/check_zrpf_v3_replay_verifier_evidence.py --live --risc0-home <RISC0_HOME> --target-dir <NEW_EXTERNAL_TARGET_DIRECTORY> --json"
       ],
-      "next_action": "regenerate the source-frozen host-verifier identity and replay transcripts for the exact receipt-security profile, preserve governed outer image equality at every consumer, and keep semantic aggregation in RS-CBC-023",
-      "non_claim": "the retained temporary adapter image 71f282b5517fc6108988c1cc9b4601807a40ae331c0e0f0f5505d12b241e5574, level-one image 4272be5165f65e29cb134f815d6c6fc40d7f492979f596082cac10c3f0d43c2b, and level-two image 3b858d113cb155b2946e1c733fdf5fe5592b6bf46c903d0a3cfb322099845736 structural proof instance and the implemented exact receipt-security verifier remain separate evidence lanes until a fresh source-frozen replay is recorded; the prior host-verifier manifest predates this verifier change and these temporary identities provide no release authority, governed admission, semantic composition, data-availability assurance, carry continuity, settlement authority, or production claim"
+      "next_action": "generate fresh current-source leaf and aggregate proofs, bind guest source to the resulting image IDs, record proof-generation and verifier build provenance, preserve governed outer image equality at every consumer, and keep semantic aggregation in RS-CBC-023",
+      "non_claim": "commit d46f3e56 supports a same-host source-built host-verifier replay of seven exact retained Succinct receipts and one exact seal mutation; retained root receipt edd25fca20b0205c2f778b866605b343922615623256abcc1a098957664c2d16 authenticates root journal 2089ecc187077d4b719c8539076651753c1ead1415724c9bc788758bddfa3768; this does not attest proof generation, bind guest source to image IDs, establish cross-host or release reproducibility, semantic composition, data-availability assurance, carry continuity, governed admission, settlement authority, privacy, transaction counts, throughput, or production authority"
     },
     {
       "id": "RS-CBC-023",

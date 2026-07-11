@@ -2,8 +2,9 @@
 
 Date: 2026-07-10
 
-Status: bounded structural ABI and temporary-path two-level RISC0 structural
-proof tree implemented; semantic and release authority pending
+Status: bounded structural ABI, temporary-path two-level RISC0 structural proof
+tree, and current hardened same-host retained-receipt replay implemented;
+semantic and release authority pending
 
 ## Claim Scope
 
@@ -42,13 +43,16 @@ Passing the current gates supports this claim:
 
 ```text
 bounded V3 common-node journal plus one temporary-path four-leaf, two-level
-receipt-authenticated structural Succinct proof tree implemented and locally
+receipt-authenticated structural Succinct proof tree and one current-source
+same-host exact retained-receipt verifier replay implemented and locally
 verified
 ```
 
 This evidence supports computational-integrity claims for the exact structural
-profile and recorded temporary images. It supports no semantic, settlement,
-ledger-admission, reproducible-release, or production claim.
+profile, recorded temporary images, and exact retained receipt bytes. It
+supports no proof-generation provenance, guest source-to-image, semantic,
+settlement, ledger-admission, reproducible-release, public-replay promotion, or
+production claim.
 
 ## Design Method
 
@@ -545,9 +549,32 @@ instance tied to temporary compiler-visible build paths.
 
 The receipt-profile change does not alter guest programs or `NodeJournalV3`
 bytes. It does change host verifier source and binary identity. The prior
-source-frozen verifier manifest therefore does not attest the new boundary;
-fresh replay and source-frozen verifier evidence are required before any
-release or public-replay promotion.
+source-frozen verifier manifest therefore remains a historical stale gate and
+does not attest the new boundary.
+
+The separate current hardened replay record retains seven exact Succinct
+receipts and one exact seal mutation. Its root receipt SHA-256 is
+`edd25fca20b0205c2f778b866605b343922615623256abcc1a098957664c2d16`
+and authenticates the same
+`2089ecc187077d4b719c8539076651753c1ead1415724c9bc788758bddfa3768`
+journal. The source-built
+verifier binds all eight files by name, size, and SHA-256 before receipt
+verification, recomposes both level-one journals and the level-two journal,
+and requires the exact seal mutation to reject at receipt verification.
+The live gate builds from a private detached worktree at the pinned commit,
+checks its exact source closure before and after compilation, disables checkout
+hooks, rejects unpinned ancestor Cargo config, isolates Cargo home config, and
+uses an allowlisted subprocess environment.
+Normal and `RISC0_DEV_MODE=1` outputs are byte-identical. The record is
+`docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260710.json`,
+SHA-256
+`7c9fdae9b4bc6576f9743545baa54fa7a88fb154f9b0805af621320353250bca`.
+
+This record establishes a same-host current-source host-verifier replay of the
+exact retained bytes. It does not establish how those proofs were generated,
+bind guest source to the temporary image IDs, authenticate the executing binary,
+compiler closure, dependency cache, or runtime rootfs, demonstrate
+receipt-byte determinism, or authorize release or public-replay promotion.
 
 ## Promotion Boundary
 
@@ -582,6 +609,8 @@ The new crate reuses versions already present in the recursive proof workspaces:
 | `postcard` 1.1.3 | compact `no_std` transport | locked; manual canonical hash remains independent |
 | `sha2` 0.10.9 | domain-separated SHA-256 | locked; required for parity with existing commitments |
 | `serde_json` exactly 1.0.150 | bounded canonical receipt artifacts at the host verifier boundary | exact pin and lock required; absent from guests and replaceable by a reviewed canonical codec |
+| `risc0-zkvm` exactly 3.0.5 | Succinct receipt decoding and cryptographic verification | host verifier and retained replay disable default features and enable only `std` plus `disable-dev-mode`; replacement requires a new proof-system adapter |
+| `rustix` exactly 1.1.4 | safe descriptor-relative `openat`, `fstat`, non-following, and nonblocking receipt reads | host replay only, already present in the locked graph; removable when equivalent reviewed standard-library APIs exist |
 
 The workspace lockfile pins the resolved transitive graph. No network,
 filesystem, clock, randomness, locale, or unordered iteration enters protocol
@@ -589,11 +618,12 @@ construction.
 
 ## Next Safest Build
 
-1. Regenerate the source closure, verifier binary identity, replay transcript,
-   receipt-profile mutation transcript, and evidence manifest for the hardened
-   host verifier.
-2. Preserve the existing proof-bearing wrong-image, seal-mutation,
-   non-Succinct, and exact-journal controls in that regenerated evidence.
+1. Generate fresh current-source leaf and aggregate proofs, bind guest source to
+   the resulting image IDs, and record the proof-generation and verifier build
+   closures without replacing the historical evidence records.
+2. Keep the exact retained-byte replay as a regression lane and preserve the
+   proof-bearing wrong-image, seal-mutation, non-Succinct, exact-journal, and
+   descriptor-boundary controls in the new proof-generation evidence.
 3. Define a separate closed-epoch semantic disclosure profile and native V3
    leaves that can recompute every parent commitment without compatibility
    sentinels.

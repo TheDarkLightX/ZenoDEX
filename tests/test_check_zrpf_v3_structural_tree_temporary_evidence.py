@@ -24,6 +24,7 @@ def test_retained_structural_evidence_rejects_hardened_verifier_source_drift() -
     assert report["ok"] is False
     assert set(report["errors"]) == {
         "source SHA-256 mismatch: zk/zrpf_risc0/Cargo.lock",
+        "source SHA-256 mismatch: zk/zrpf_risc0/Cargo.toml",
         "source SHA-256 mismatch: zk/zrpf_risc0/harness/src/bin/verify_structural_tree.rs",
         "source SHA-256 mismatch: zk/zrpf_risc0/verifier/Cargo.toml",
         "source SHA-256 mismatch: zk/zrpf_risc0/verifier/src/lib.rs",

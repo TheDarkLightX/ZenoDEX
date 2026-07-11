@@ -1,7 +1,9 @@
 # Recursive STARK Vericoding Spec
 
 Date: 2026-07-09
-Status: post-composition-repair current-image local recursive proofs verified; release and production pending
+Status: post-composition-repair current-image local recursive proofs and one
+current-source exact retained V3 host-verifier replay verified; release and
+production pending
 
 Related artifacts:
 
@@ -12,11 +14,14 @@ Related artifacts:
 - `docs/research/RECURSIVE_STARK_V2_TWO_LEAF_SOURCE_PINNED_EVIDENCE_20260710.json`
 - `docs/research/RECURSIVE_STARK_V2_BOUNDED_FANOUT_GUIDE_20260710.md`
 - `docs/research/RECURSIVE_STARK_REBUILD_PATH_EXPERIMENT_20260709.json`
+- `docs/research/ZRPF_V3_CORRECT_BY_CONSTRUCTION_SPEC_20260710.md`
+- `docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260710.json`
 - `config/proof_profiles/risc0_recursive_rebuild_reference.json`
 - `src/integration/recursive_stark_release_binding.py`
 - `tools/check_risc0_recursive_rebuild_evidence.py`
 - `tools/check_risc0_recursive_v2_two_leaf_source_pinned_evidence.py`
 - `tools/check_recursive_stark_cbc_spec.py`
+- `tools/check_zrpf_v3_replay_verifier_evidence.py`
 
 ## Claim Scope
 
@@ -128,6 +133,27 @@ Current status:
   That mode matched the pinned local toolchain artifact hashes and observed
   nested Cargo for the successful run above, while retaining the narrower
   non-claims stated there.
+
+- The ZRPF V3 structural lane now has a separate current-source, same-host
+  retained-byte replay verifier at commit `d46f3e56`. Its selected dependency
+  graph excludes methods, guests, the harness, Bonsai, client, and
+  `risc0-build`. It binds eight exact receipt artifacts, cryptographically
+  verifies seven Succinct receipts under the expected images, recomposes both
+  level-one journals and the level-two journal, pins root journal
+  `2089ecc187077d4b719c8539076651753c1ead1415724c9bc788758bddfa3768`,
+  and rejects the exact one-word root-seal mutation. Normal execution and
+  `RISC0_DEV_MODE=1` execution produced byte-identical output. The evidence
+  record SHA-256 is
+  `7c9fdae9b4bc6576f9743545baa54fa7a88fb154f9b0805af621320353250bca`.
+  Its live build uses a private detached worktree at the pinned commit, checks
+  the exact source closure before and after compilation, disables checkout
+  hooks, rejects unpinned ancestor Cargo config, and allowlists subprocess
+  environment variables.
+  This is retained proof verification evidence. Proof generation, guest
+  source-to-image binding, compiler-closure and dependency-cache identity,
+  cross-host reproducibility, release authority, semantic aggregation, ledger
+  or settlement admission, privacy, transaction counts, throughput, and
+  production readiness remain unestablished.
 
 - The v1 reference schema now pins its positive verifier request and a
   one-bit Succinct seal mutation. The checker validates that only the selected
@@ -856,6 +882,7 @@ Acceptance evidence:
 | 11 | Run external Fable/Codex review on final packet | disposition matrix |
 | 12 | Update release manifest and claims registry | production gate output |
 | 13 | Complete local reference: committed recursive-v2 source/artifact reference and rebuild checker | fail-closed v2 provenance report; cross-host release evidence remains pending |
+| 14 | Complete regression lane: source-built ZRPF V3 exact retained-receipt replay | seven verified Succinct receipts, exact root-seal mutation rejection, normal/dev parity, and eight host-boundary negative controls; proof-generation provenance remains pending |
 
 ## Promotion Rule
 

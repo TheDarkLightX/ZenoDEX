@@ -156,7 +156,7 @@ The currently evidenced temporary-path method identities are:
 | structural aggregate L1 | `4272be5165f65e29cb134f815d6c6fc40d7f492979f596082cac10c3f0d43c2b` |
 | structural aggregate L2 | `3b858d113cb155b2946e1c733fdf5fe5592b6bf46c903d0a3cfb322099845736` |
 
-One local proof instance produced:
+An earlier local proof instance produced:
 
 | Fact | Value |
 | --- | --- |
@@ -166,6 +166,30 @@ One local proof instance produced:
 Receipt serialization can differ across proving runs even when the
 authenticated journal is identical. These compiler-visible image identities
 have temporary local-evidence scope and no release authority.
+
+A separate current-host-verifier regression lane retains seven exact Succinct
+receipts plus one exact seal mutation. Its root receipt is
+`edd25fca20b0205c2f778b866605b343922615623256abcc1a098957664c2d16`
+and authenticates the same root journal. The source-built verifier hard-pins
+all eight artifact names, sizes, and SHA-256 values, then verifies the four
+leaves, recomposes and exact-verifies both level-one journals and the level-two
+journal, and requires the seal mutation to reject as
+`receipt_verification_failed`.
+The live gate builds from a mode-0700 detached worktree at the pinned commit,
+checks the exact source closure before and after compilation, disables checkout
+hooks, rejects unpinned ancestor Cargo config, isolates Cargo home config, and
+uses an allowlisted subprocess environment.
+
+The retained replay output is 5,920 bytes with SHA-256
+`7751395663a33c1ae58fa403346dc90618e842dd1df2f2fdc37f18599e50c288`.
+Normal execution and execution with `RISC0_DEV_MODE=1` produced byte-identical
+output because the verifier uses an explicit dev-mode-disabled context. The
+source-built replay evidence record has SHA-256
+`7c9fdae9b4bc6576f9743545baa54fa7a88fb154f9b0805af621320353250bca`.
+This same-host retained-byte replay does not attest proof generation, guest
+source-to-image correspondence, compiler-closure or dependency-cache identity,
+release reproducibility, semantic aggregation, ledger or settlement admission,
+privacy, transaction counts, throughput, or production authority.
 
 ## Workspace Layout
 
@@ -178,6 +202,8 @@ have temporary local-evidence scope and no release authority.
 - `methods/structural_aggregate_l2`: level-one-to-level-two guest;
 - `methods`: generated ELF and image-ID constants;
 - `verifier`: sealed host receipt-verification boundary;
+- `replay_verifier`: source-only exact retained-receipt replay boundary with no
+  methods, guest, harness, Bonsai, client, or `risc0-build` dependency path;
 - `harness`: adapter proof, controls, structural-tree proving, and verifier-only
   persisted-tree replay binaries.
 
@@ -200,6 +226,7 @@ RISC0_SKIP_BUILD=1 cargo test --locked \
   -p zenodex-zrpf-risc0-shared \
   -p zenodex-zrpf-risc0-aggregate-shared \
   -p zenodex-zrpf-risc0-verifier \
+  -p zenodex-zrpf-risc0-replay-verifier \
   -p zenodex-zrpf-risc0-harness
 RISC0_SKIP_BUILD=1 cargo clippy --locked --workspace --all-targets -- -D warnings
 ```
@@ -215,6 +242,32 @@ python3 tools/check_zrpf_v1_leaf_adapter_vector.py
 python3 tools/check_zrpf_v3_hash_vector.py
 python3 tools/check_recursive_stark_cbc_spec.py --pretty
 ```
+
+## Replay The Exact Retained Receipt Set
+
+The repository stores only the eight receipt JSON files needed by the current
+source-built regression lane. Check their source closure, exact byte inventory,
+and recorded evidence from the repository root:
+
+```bash
+python3 tools/check_zrpf_v3_replay_verifier_evidence.py --json
+```
+
+Run a new same-host verifier build and replay in a fresh external target:
+
+```bash
+python3 tools/check_zrpf_v3_replay_verifier_evidence.py \
+  --live \
+  --risc0-home "$HOME/.risc0" \
+  --target-dir "<NEW_EXTERNAL_TARGET_DIRECTORY>" \
+  --json
+```
+
+The live gate builds with `--frozen`, verifies the installed Cargo, Rustc, and
+Rustdoc artifacts against the pinned toolchain lock, checks that the selected
+dependency graph excludes methods, guests, the harness, Bonsai, and
+`risc0-build`, compares normal and `RISC0_DEV_MODE=1` output, and runs eight
+host-boundary negative controls. It does not regenerate any proof.
 
 ## Build And Prove A Four-Leaf Tree
 

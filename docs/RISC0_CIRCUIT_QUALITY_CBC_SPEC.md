@@ -131,8 +131,42 @@ artifact bytes; the Rust verifier-only harness remains the receipt-seal and
 exact-journal authority. The exact receipt-profile hardening changes the host
 verifier source and binary without changing guest or `NodeJournalV3` bytes.
 Both retained adapter and structural-tree evidence records predate that host
-change, so both source-closure checkers must reject until a fresh verifier build
-and replay transcript replace the stale verifier evidence.
+change, so both historical source-closure checkers continue to reject current
+source. Those records remain unchanged as stale regression gates.
+
+A separate hardened replay lane at commit `d46f3e56` builds a dedicated
+source-only verifier whose selected dependency graph excludes the methods,
+guests, harness, Bonsai, client, and `risc0-build` paths. It binds eight exact
+retained artifacts by fixed name, size, and SHA-256 through descriptor-relative
+bounded non-following reads. It verifies four adapter leaves, independently
+recomposes and exact-verifies both level-one journals and the level-two journal,
+binds the reviewed root topology and journal hash, and requires the exact
+single-word root-seal mutation to reject as `receipt_verification_failed`.
+The live gate builds from a mode-0700 detached worktree at the pinned commit,
+checks the 32-file closure before and after compilation, disables checkout
+hooks, rejects unpinned ancestor Cargo config, isolates Cargo home config, and
+passes an allowlisted environment to the build and verifier processes.
+Normal execution and `RISC0_DEV_MODE=1` execution produced byte-identical
+5,920-byte output with SHA-256
+`7751395663a33c1ae58fa403346dc90618e842dd1df2f2fdc37f18599e50c288`.
+The path-clean evidence record is
+`docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260710.json`,
+SHA-256
+`7c9fdae9b4bc6576f9743545baa54fa7a88fb154f9b0805af621320353250bca`.
+Its live checker also rejects altered receipt bytes, swapped level-one nodes,
+extra and missing inventory, receipt symlinks, FIFO input, a directory symlink,
+and missing arguments with stable reject classes and empty stdout.
+
+This closes the current hardened host-verifier replay gap for the exact retained
+bytes. It does not attest the historical proof-generation source, rebuild guest
+images, bind guest source to image IDs, or authenticate the executing binary,
+compiler closure, dependency cache, or runtime rootfs. Cross-host
+reproducibility and public-replay, release, semantic, ledger, settlement,
+privacy, throughput, and production authority remain unestablished. The
+retained root receipt
+`edd25fca20b0205c2f778b866605b343922615623256abcc1a098957664c2d16`
+and the earlier `021af130...fd33` receipt authenticate the same root journal;
+that fact establishes no receipt-byte determinism.
 
 The compatibility journal labels its count as one source-transition receipt
 and uses explicit unsupported sentinels for DA-certificate and carry facts. Its
