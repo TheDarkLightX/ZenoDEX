@@ -134,6 +134,72 @@ def test_release_publication_workflow_rejects_npm_token_during_prepare(
     )
 
 
+def test_release_publication_workflow_rejects_npm_token_at_job_scope(
+    tmp_path: Path,
+) -> None:
+    workflow = tmp_path / "release-publish.yml"
+    text = DEFAULT_WORKFLOW.read_text(encoding="utf-8").replace(
+        "  publish-npm:\n    name: Publish npm SDK",
+        "  publish-npm:\n"
+        "    env:\n"
+        "      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}\n"
+        "    name: Publish npm SDK",
+    )
+    workflow.write_text(text, encoding="utf-8")
+
+    report = check_release_publication_workflow(workflow)
+
+    assert report["ok"] is False
+    assert (
+        "NPM_TOKEN must only be exposed to the minimal npm publish step"
+        in report["errors"]
+    )
+
+
+def test_release_publication_workflow_rejects_npm_token_in_extra_step(
+    tmp_path: Path,
+) -> None:
+    workflow = tmp_path / "release-publish.yml"
+    text = DEFAULT_WORKFLOW.read_text(encoding="utf-8").replace(
+        "      - name: Prepare package",
+        "      - name: Leaky preflight\n"
+        "        env:\n"
+        "          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}\n"
+        "        run: npm whoami\n\n"
+        "      - name: Prepare package",
+    )
+    workflow.write_text(text, encoding="utf-8")
+
+    report = check_release_publication_workflow(workflow)
+
+    assert report["ok"] is False
+    assert (
+        "NPM_TOKEN must only be exposed to the minimal npm publish step"
+        in report["errors"]
+    )
+
+
+def test_release_publication_workflow_does_not_borrow_sibling_job_permissions(
+    tmp_path: Path,
+) -> None:
+    workflow = tmp_path / "release-publish.yml"
+    text = DEFAULT_WORKFLOW.read_text(encoding="utf-8").replace(
+        "      packages: write\n      id-token: write",
+        "      packages: write",
+        1,
+    )
+    workflow.write_text(text, encoding="utf-8")
+
+    report = check_release_publication_workflow(workflow)
+
+    assert report["ok"] is False
+    assert (
+        "release publication workflow job permission check failed: "
+        "publish_containers_packages_write"
+        in report["errors"]
+    )
+
+
 def test_release_publication_workflow_rejects_publish_lifecycle_scripts(
     tmp_path: Path,
 ) -> None:

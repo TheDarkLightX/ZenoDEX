@@ -71,7 +71,7 @@ def _job_block(text: str, job_name: str) -> str:
             continue
         block: list[str] = []
         for child in lines[index + 1 :]:
-            if child.strip() and not child.startswith((" ", "\t")):
+            if re.match(r"^  [A-Za-z0-9_-]+:\s*(?:#.*)?$", child):
                 break
             block.append(child)
         return "".join(block)
@@ -102,7 +102,11 @@ def _npm_token_is_publish_scoped(npm_job: str) -> bool:
     publish_step = _step_block(npm_job, "Publish package to npm")
     if not prepare_step or not publish_step:
         return False
-    if "NODE_AUTH_TOKEN" in prepare_step:
+    job_without_publish_step = npm_job.replace(publish_step, "", 1)
+    if any(
+        token in job_without_publish_step
+        for token in ("NODE_AUTH_TOKEN", "secrets.NPM_TOKEN")
+    ):
         return False
     required_prepare_commands = ("npm ci", "npm test", "npm pack --ignore-scripts")
     required_publish_tokens = (
