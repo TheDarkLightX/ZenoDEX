@@ -12,6 +12,10 @@ use zenodex_zrpf_risc0_shared::{
     derive_risc0_verified_claim_binding_v1, risc0_image_words_to_bytes,
 };
 
+mod semantic_epoch_v1;
+
+pub use semantic_epoch_v1::{VerifiedSemanticEpochReceiptErrorV1, VerifiedSemanticEpochReceiptV1};
+
 pub const ZRPF_RISC0_SUCCINCT_RECEIPT_PROFILE_ID_V1: &str =
     "risc0_succinct_poseidon2_resolve_3_0_5_v1";
 pub const MAX_CANONICAL_RECEIPT_BYTES_V3: usize = 16 * 1_024 * 1_024;
@@ -188,9 +192,9 @@ impl VerifiedNodeReceiptV3 {
         receipt_bytes: &[u8],
         expected_image_id: [u32; 8],
     ) -> Result<Self, VerifiedNodeReceiptErrorV3> {
-        validate_expected_image_id(expected_image_id)?;
-        let receipt = decode_canonical_receipt_bytes(receipt_bytes)?;
-        Self::verify_canonical_succinct_receipt(receipt, expected_image_id)
+        let (receipt, receipt_profile) =
+            verify_canonical_succinct_receipt_artifact(receipt_bytes, expected_image_id)?;
+        Self::from_verified_succinct_receipt(receipt, receipt_profile, expected_image_id)
     }
 
     /// Verifies a bounded, byte-exact receipt artifact and its exact journal.
@@ -208,16 +212,11 @@ impl VerifiedNodeReceiptV3 {
         Ok(verified)
     }
 
-    fn verify_canonical_succinct_receipt(
+    fn from_verified_succinct_receipt(
         receipt: Receipt,
+        receipt_profile: VerifiedReceiptProfileV3,
         expected_image_id: [u32; 8],
     ) -> Result<Self, VerifiedNodeReceiptErrorV3> {
-        validate_expected_image_id(expected_image_id)?;
-        let receipt_profile = verify_pinned_succinct_profile(&receipt)?;
-        let verifier_context = explicit_succinct_verifier_context()?;
-        receipt
-            .verify_with_context(&verifier_context, expected_image_id)
-            .map_err(|_| VerifiedNodeReceiptErrorV3::ReceiptVerificationFailed)?;
         let journal = decode_exact_node_journal_v3(&receipt.journal.bytes)
             .map_err(|_| VerifiedNodeReceiptErrorV3::JournalDecodeFailed)?;
         let verified_program_id = ProgramIdV3::new(risc0_image_words_to_bytes(expected_image_id))
@@ -265,6 +264,20 @@ impl VerifiedNodeReceiptV3 {
     pub fn into_receipt(self) -> Receipt {
         self.receipt
     }
+}
+
+pub(crate) fn verify_canonical_succinct_receipt_artifact(
+    receipt_bytes: &[u8],
+    expected_image_id: [u32; 8],
+) -> Result<(Receipt, VerifiedReceiptProfileV3), VerifiedNodeReceiptErrorV3> {
+    validate_expected_image_id(expected_image_id)?;
+    let receipt = decode_canonical_receipt_bytes(receipt_bytes)?;
+    let receipt_profile = verify_pinned_succinct_profile(&receipt)?;
+    let verifier_context = explicit_succinct_verifier_context()?;
+    receipt
+        .verify_with_context(&verifier_context, expected_image_id)
+        .map_err(|_| VerifiedNodeReceiptErrorV3::ReceiptVerificationFailed)?;
+    Ok((receipt, receipt_profile))
 }
 
 fn validate_expected_image_id(
