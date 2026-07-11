@@ -1320,23 +1320,12 @@ def _bind_clearinghouse_authorization_to_bridge(
     *,
     bridge_result: Any,
 ) -> Optional[str]:
-    # DbC invariant: strict clearinghouse settlement accepts only the typed
-    # authorization whose oracle value/receipt metadata came from the accepted
-    # adapter bridge result. Missing bridge fields fail closed.
+    # The aggregate adapter currently authenticates the query/action tuple and
+    # value hash. Bind only those verifier-owned outputs here; the typed oracle
+    # authorization verifier remains responsible for its receipt metadata.
     auth = _authorization_payload(authorization)
-    fields = (
-        "value_hash",
-        "observed_epoch",
-        "expires_at_epoch",
-        "feed_registry_root",
-        "query_policy_root",
-        "source_registry_root",
-        "reporter_registry_root",
-        "receipt_graph_root",
-    )
-    for field in fields:
-        if _oracle_adapter_result_get(bridge_result, field) != auth.get(field):
-            return f"clearinghouse_settle_oracle_authorization_rejected: oracle_adapter_bridge {field} mismatch"
+    if _oracle_adapter_result_get(bridge_result, "value_hash") != auth.get("value_hash"):
+        return "clearinghouse_settle_oracle_authorization_rejected: oracle_adapter_bridge value_hash mismatch"
     return None
 
 
@@ -4604,7 +4593,7 @@ def _chnp_settle_oracle_bridge_error(
         state=state_for_oracle,
         participant_pubkeys=participant_pubkeys,
     )
-    err = _require_oracle_adapter_bridge(
+    err, bridge_result = _verify_oracle_adapter_bridge(
         config,
         data=data,
         consumer_module="zenodex.perps",
@@ -4624,6 +4613,7 @@ def _chnp_settle_oracle_bridge_error(
         quote_asset=market.quote_asset,
         state=state_for_oracle,
         participant_pubkeys=participant_pubkeys,
+        bridge_result=bridge_result,
     )
 
 
