@@ -323,7 +323,15 @@ pub fn encode_semantic_epoch_proposal_v1(
     proposal: &ProposedSemanticEpochV1,
 ) -> Result<Vec<u8>, SemanticEpochErrorV1> {
     proposal.validate_self_consistency()?;
-    postcard::to_allocvec(proposal).map_err(|_| SemanticEpochErrorV1::PostcardDecode)
+    let bytes =
+        postcard::to_allocvec(proposal).map_err(|_| SemanticEpochErrorV1::PostcardDecode)?;
+    if bytes.len() > MAX_SEMANTIC_EPOCH_PROPOSAL_BYTES_V1 {
+        return Err(SemanticEpochErrorV1::InputTooLarge {
+            actual: bytes.len(),
+            maximum: MAX_SEMANTIC_EPOCH_PROPOSAL_BYTES_V1,
+        });
+    }
+    Ok(bytes)
 }
 
 pub fn decode_exact_semantic_epoch_proposal_v1(

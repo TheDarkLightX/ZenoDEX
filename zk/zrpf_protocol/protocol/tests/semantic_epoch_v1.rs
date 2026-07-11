@@ -6,8 +6,9 @@ use zenodex_zrpf_protocol_v3::{
     v1_adapter_task_set_root_v1, ApplicationIdV3, CommitmentV3, DomainIdV3,
     ExpectedV1AdapterLeafIdentityV1, LeafNodeInputV3, NodeCommitmentsInputV3, NodeCommitmentsV3,
     NodeJournalV3, NodeScopeInputV3, NodeScopeV3, PartitionV3, ProfileIdV3, ProgramIdV3,
-    ProposedSemanticEpochV1, ProposedSemanticLeafV1, SemanticEpochErrorV1,
-    SemanticEpochProposalInputV1, TaskIdV3, V1AdapterSemanticLeafOpeningV1, MAX_LEAF_COUNT_V3,
+    ProposedSemanticEpochV1, ProposedSemanticLeafV1, SemanticEpochDependencyProgramsInputV1,
+    SemanticEpochDependencyProgramsV1, SemanticEpochErrorV1, SemanticEpochProposalInputV1,
+    TaskIdV3, V1AdapterSemanticLeafOpeningV1, MAX_LEAF_COUNT_V3,
     MAX_SEMANTIC_EPOCH_PROPOSAL_BYTES_V1,
 };
 
@@ -157,12 +158,26 @@ fn manual_manifest(program_id: ProgramIdV3) -> CommitmentV3 {
     .unwrap()
 }
 
-fn manual_semantic_manifest(program_id: ProgramIdV3) -> CommitmentV3 {
+fn semantic_dependencies() -> SemanticEpochDependencyProgramsV1 {
+    SemanticEpochDependencyProgramsV1::new(SemanticEpochDependencyProgramsInputV1 {
+        adapter_program_id: program(231),
+        level_one_program_id: program(232),
+        level_two_program_id: program(233),
+    })
+}
+
+fn manual_semantic_manifest(
+    program_id: ProgramIdV3,
+    dependencies: SemanticEpochDependencyProgramsV1,
+) -> CommitmentV3 {
     CommitmentV3::new(framed_hash(
         SEMANTIC_MANIFEST_DOMAIN,
         &[
             program_id.as_bytes(),
             manual_semantic_profile().as_bytes(),
+            dependencies.adapter_program_id().as_bytes(),
+            dependencies.level_one_program_id().as_bytes(),
+            dependencies.level_two_program_id().as_bytes(),
             b"unreleased_semantic_epoch_manifest",
         ],
     ))
@@ -403,8 +418,17 @@ fn adapter_hash_mirror_matches_public_profile_helpers_and_legacy_empty_vectors()
         manual_semantic_profile()
     );
     assert_eq!(
-        semantic_epoch_manifest_root_v1(program(241)).unwrap(),
-        manual_semantic_manifest(program(241))
+        semantic_epoch_manifest_root_v1(program(241), &semantic_dependencies()).unwrap(),
+        manual_semantic_manifest(program(241), semantic_dependencies())
+    );
+    let swapped = SemanticEpochDependencyProgramsV1::new(SemanticEpochDependencyProgramsInputV1 {
+        adapter_program_id: program(231),
+        level_one_program_id: program(233),
+        level_two_program_id: program(232),
+    });
+    assert_ne!(
+        semantic_epoch_manifest_root_v1(program(241), &semantic_dependencies()).unwrap(),
+        semantic_epoch_manifest_root_v1(program(241), &swapped).unwrap()
     );
     assert_eq!(
         v1_adapter_manifest_root_v1(program(231)).unwrap(),

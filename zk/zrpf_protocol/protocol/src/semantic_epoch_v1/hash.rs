@@ -59,8 +59,45 @@ pub fn semantic_epoch_profile_id_v1() -> Result<ProfileIdV3, SemanticEpochErrorV
     )?)?)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SemanticEpochDependencyProgramsV1 {
+    adapter_program_id: ProgramIdV3,
+    level_one_program_id: ProgramIdV3,
+    level_two_program_id: ProgramIdV3,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SemanticEpochDependencyProgramsInputV1 {
+    pub adapter_program_id: ProgramIdV3,
+    pub level_one_program_id: ProgramIdV3,
+    pub level_two_program_id: ProgramIdV3,
+}
+
+impl SemanticEpochDependencyProgramsV1 {
+    pub const fn new(input: SemanticEpochDependencyProgramsInputV1) -> Self {
+        Self {
+            adapter_program_id: input.adapter_program_id,
+            level_one_program_id: input.level_one_program_id,
+            level_two_program_id: input.level_two_program_id,
+        }
+    }
+
+    pub const fn adapter_program_id(self) -> ProgramIdV3 {
+        self.adapter_program_id
+    }
+
+    pub const fn level_one_program_id(self) -> ProgramIdV3 {
+        self.level_one_program_id
+    }
+
+    pub const fn level_two_program_id(self) -> ProgramIdV3 {
+        self.level_two_program_id
+    }
+}
+
 pub fn semantic_epoch_manifest_root_v1(
     semantic_program_id: ProgramIdV3,
+    dependencies: &SemanticEpochDependencyProgramsV1,
 ) -> Result<CommitmentV3, SemanticEpochErrorV1> {
     let profile_id = semantic_epoch_profile_id_v1()?;
     Ok(CommitmentV3::new(hash_framed(
@@ -68,6 +105,9 @@ pub fn semantic_epoch_manifest_root_v1(
         &[
             semantic_program_id.as_bytes(),
             profile_id.as_bytes(),
+            dependencies.adapter_program_id.as_bytes(),
+            dependencies.level_one_program_id.as_bytes(),
+            dependencies.level_two_program_id.as_bytes(),
             SEMANTIC_EPOCH_MANIFEST_CLASS,
         ],
     )?)?)
