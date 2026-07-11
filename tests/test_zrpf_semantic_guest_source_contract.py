@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GUEST = REPO_ROOT / "zk/zrpf_risc0/methods/semantic_epoch/src/main.rs"
 METHODS_MANIFEST = REPO_ROOT / "zk/zrpf_risc0/methods/Cargo.toml"
@@ -35,9 +34,9 @@ def test_semantic_guest_preserves_verify_before_interpret_order() -> None:
     positions = [main.index(marker) for marker in ordered_markers]
     assert positions == sorted(positions)
     assert main.count("env::verify(") == 1
-    assert "CALIBRATION_HISTORICAL_LEVEL_ONE_IMAGE_ID_B" in source
+    assert "PINNED_LEVEL_ONE_IMAGE_ID_B" in source
     assert re.search(
-        r"env::verify\(\s*CALIBRATION_HISTORICAL_LEVEL_ONE_IMAGE_ID_B,\s*"
+        r"env::verify\(\s*PINNED_LEVEL_ONE_IMAGE_ID_B,\s*"
         r"disclosure\.journal_bytes\(\),\s*\)",
         source,
     )

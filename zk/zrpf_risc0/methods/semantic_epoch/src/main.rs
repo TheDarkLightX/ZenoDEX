@@ -19,38 +19,38 @@ risc0_zkvm::guest::entry!(main);
 const _: () = assert!(MAX_SEMANTIC_GUEST_INPUT_BYTES_V1 == 297_147);
 const _: () = assert!(MAX_SEMANTIC_EPOCH_PROPOSAL_BYTES_V1 == 4_096);
 
-// These historical temporary-path image IDs calibrate the first semantic guest
-// build only. Any source change invalidates them. The staged A -> B -> C -> D
-// rebuild must replace A, B, and C before fresh semantic proof evidence exists.
-const CALIBRATION_HISTORICAL_ADAPTER_IMAGE_ID_A: [u32; 8] = [
-    3_045_257_841,
-    281_444_177,
-    3_435_235_465,
-    2_147_567_259,
-    867_057_786,
-    252_644_892,
-    735_118_677,
-    1_951_735_332,
+// These dependency identities were derived by the staged A -> B -> C build.
+// The outer verifier binds this guest's runtime self-image D after it verifies
+// the semantic receipt, avoiding a circular compile-time self dependency.
+const PINNED_ADAPTER_IMAGE_ID_A: [u32; 8] = [
+    2_750_530_258,
+    37_668_129,
+    744_178_984,
+    4_248_971_762,
+    810_572_263,
+    4_257_446_307,
+    1_152_353_364,
+    1_683_867_498,
 ];
-const CALIBRATION_HISTORICAL_LEVEL_ONE_IMAGE_ID_B: [u32; 8] = [
-    1_371_435_586,
-    694_089_317,
-    2_169_443_275,
-    3_295_636_573,
-    692_682_509,
-    144_110_969,
-    3_272_649_772,
-    725_406_960,
+const PINNED_LEVEL_ONE_IMAGE_ID_B: [u32; 8] = [
+    145_746_289,
+    1_948_307_068,
+    2_821_597_170,
+    1_671_545_822,
+    336_618_883,
+    1_593_244_911,
+    2_328_107_180,
+    2_850_628_135,
 ];
-const CALIBRATION_HISTORICAL_LEVEL_TWO_IMAGE_ID_C: [u32; 8] = [
-    294_487_355,
-    2_991_960_380,
-    1_931_243_156,
-    3_848_265_535,
-    4_100_664_153,
-    171_806_828,
-    540_212_028,
-    911_705_241,
+const PINNED_LEVEL_TWO_IMAGE_ID_C: [u32; 8] = [
+    3_297_652_393,
+    2_852_053_573,
+    3_760_724_470,
+    622_457_309,
+    406_848_594,
+    614_446_304,
+    1_509_575_479,
+    3_011_858_596,
 ];
 
 pub fn main() {
@@ -63,10 +63,7 @@ pub fn main() {
     // Only bounded framing is interpreted before this loop. Every exact L1
     // journal is authenticated before leaf journals or openings gain meaning.
     for disclosure in raw_input.level_one_disclosures() {
-        match env::verify(
-            CALIBRATION_HISTORICAL_LEVEL_ONE_IMAGE_ID_B,
-            disclosure.journal_bytes(),
-        ) {
+        match env::verify(PINNED_LEVEL_ONE_IMAGE_ID_B, disclosure.journal_bytes()) {
             Ok(()) => {}
             Err(never) => match never {},
         }
@@ -81,12 +78,12 @@ pub fn main() {
     // authority only when the sealed outer verifier compares it with the image
     // whose semantic receipt it cryptographically verified.
     let policy = match SemanticEpochCompositionPolicyV1::new(
-        CALIBRATION_HISTORICAL_ADAPTER_IMAGE_ID_A,
-        CALIBRATION_HISTORICAL_LEVEL_ONE_IMAGE_ID_B,
-        CALIBRATION_HISTORICAL_LEVEL_TWO_IMAGE_ID_C,
+        PINNED_ADAPTER_IMAGE_ID_A,
+        PINNED_LEVEL_ONE_IMAGE_ID_B,
+        PINNED_LEVEL_TWO_IMAGE_ID_C,
     ) {
         Ok(value) => value,
-        Err(_) => abort("ZRPF semantic epoch calibration policy rejected"),
+        Err(_) => abort("ZRPF semantic epoch dependency policy rejected"),
     };
     let projection =
         match compose_semantic_epoch_after_level_one_verification_v1(&semantic_input, policy) {
