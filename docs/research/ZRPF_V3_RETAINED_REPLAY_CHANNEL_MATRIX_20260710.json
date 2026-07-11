@@ -1,0 +1,639 @@
+{
+  "channels": [
+    {
+      "capacity_bound": "exactly 5920 bytes for the governed accepted transcript",
+      "channel_id": "ZRPF-CH-001",
+      "claim_status": "closed_for_exact_positive_transcript",
+      "class": "direct_output",
+      "mitigations": [
+        "stdout and stderr are captured separately",
+        "accepted stdout must match an exact byte length and SHA-256",
+        "accepted stderr must be empty",
+        "strict JSON parsing rejects duplicate keys"
+      ],
+      "observable_signal": "accepted verifier stdout bytes",
+      "protected_information": "no secret is permitted; output contains public receipt and journal facts",
+      "receiver": "evidence checker and operator",
+      "residual_risk": "the transcript bound does not constrain timing, filesystem, network, process, or microarchitectural signals",
+      "sender": "source-built host replay verifier",
+      "test_evidence": [
+        {
+          "path": "tests/test_check_zrpf_v3_replay_verifier_evidence.py",
+          "symbol": "test_replay_report_exact_shape_accepts_and_root_mutation_rejects"
+        }
+      ]
+    },
+    {
+      "capacity_bound": "at most 65536 captured bytes per stream; accepted rejection output has one exact field set and canonical JSON encoding",
+      "channel_id": "ZRPF-CH-002",
+      "claim_status": "implemented_bounded_canonical",
+      "class": "direct_output",
+      "mitigations": [
+        "negative controls require exit code 1",
+        "negative controls require empty stdout",
+        "stderr must be strict JSON with the expected status, error code, and context",
+        "unknown fields reject",
+        "canonical byte equality is required",
+        "stderr capture is bounded at 65536 bytes"
+      ],
+      "observable_signal": "negative-control stderr bytes and typed rejection fields",
+      "protected_information": "no secret is permitted; rejection records should expose only public typed errors",
+      "receiver": "live negative-control harness",
+      "residual_risk": "reject-class choice, exit timing, and operating-system failures remain observable outside the canonical verifier rejection record",
+      "sender": "source-built host replay verifier",
+      "test_evidence": [
+        {
+          "path": "tests/test_check_zrpf_v3_replay_verifier_evidence.py",
+          "symbol": "test_negative_control_rejects_unknown_output_fields"
+        }
+      ]
+    },
+    {
+      "capacity_bound": "finite process exit status and signal choice; timing is separately unbounded by this row",
+      "channel_id": "ZRPF-CH-003",
+      "claim_status": "implemented_partial",
+      "class": "direct_output",
+      "mitigations": [
+        "positive subprocesses require exit code 0",
+        "negative controls require exit code 1",
+        "unexpected exits reject the evidence run"
+      ],
+      "observable_signal": "exit code or terminating signal",
+      "protected_information": "no secret is permitted",
+      "receiver": "process runner and operator",
+      "residual_risk": "the lane does not define a constant-time or single-reject-shape policy for all build and replay failures",
+      "sender": "build tools and replay verifier",
+      "test_evidence": []
+    },
+    {
+      "capacity_bound": "16777216 captured bytes for each stdout and stderr stream per subprocess",
+      "channel_id": "ZRPF-CH-004",
+      "claim_status": "implemented_partial",
+      "class": "build_output",
+      "mitigations": [
+        "build subprocess output is captured with per-stream bounds",
+        "build failure rejects",
+        "the canonical evidence record does not include raw build logs"
+      ],
+      "observable_signal": "Cargo, compiler, linker, and dependency build output",
+      "protected_information": "host paths, dependency paths, and diagnostics",
+      "receiver": "build orchestrator",
+      "residual_risk": "raw diagnostics may contain host paths; failures converted from raw operating-system exceptions may reach CLI output",
+      "sender": "Cargo, compiler, linker, build scripts, and dependencies",
+      "test_evidence": [
+        {
+          "path": "tests/test_check_zrpf_v3_replay_verifier_evidence.py",
+          "symbol": "test_bounded_process_rejects_output_before_unbounded_buffering"
+        }
+      ]
+    },
+    {
+      "capacity_bound": "unbounded by the replay lane",
+      "channel_id": "ZRPF-CH-005",
+      "claim_status": "open",
+      "class": "filesystem",
+      "mitigations": [
+        "the execve environment uses an isolated HOME value",
+        "receipt inputs use bounded descriptor-relative non-following reads",
+        "the target directory is private to the invoking user"
+      ],
+      "observable_signal": "host file content read by build or replay processes",
+      "protected_information": "host configuration, credentials, source, and unrelated private data",
+      "receiver": "build scripts, dependencies, compiler, or native verifier",
+      "residual_risk": "no mount namespace, read-only root, path allowlist, or host-filesystem sandbox is installed",
+      "sender": "host filesystem",
+      "test_evidence": []
+    },
+    {
+      "capacity_bound": "unbounded by the replay lane and host free space",
+      "channel_id": "ZRPF-CH-006",
+      "claim_status": "open",
+      "class": "filesystem",
+      "mitigations": [
+        "the intended build target and temporary directories are explicit",
+        "the intended receipt inputs are read-only at the application layer"
+      ],
+      "observable_signal": "files, metadata, caches, or repository content written by a process",
+      "protected_information": "host integrity, repository integrity, and availability",
+      "receiver": "host filesystem and later processes",
+      "residual_risk": "the process can write outside the intended target; no mount policy or filesystem quota is installed",
+      "sender": "build scripts, dependencies, compiler, or native verifier",
+      "test_evidence": []
+    },
+    {
+      "capacity_bound": "unbounded by the replay lane",
+      "channel_id": "ZRPF-CH-007",
+      "claim_status": "open",
+      "class": "process_visibility",
+      "mitigations": [
+        "the child execve environment map is allowlisted",
+        "standard subprocess file descriptors use close-on-exec behavior where configured"
+      ],
+      "observable_signal": "parent environment, process metadata, and same-user resources visible through procfs or equivalent interfaces",
+      "protected_information": "parent credentials, process state, file descriptors, and host metadata",
+      "receiver": "native child process",
+      "residual_risk": "no PID namespace, procfs isolation, different user identity, or seccomp policy blocks parent inspection",
+      "sender": "parent process and host process table",
+      "test_evidence": []
+    },
+    {
+      "capacity_bound": "unbounded by the replay lane and host network policy",
+      "channel_id": "ZRPF-CH-008",
+      "claim_status": "open",
+      "class": "network",
+      "mitigations": [
+        "Cargo offline mode narrows Cargo dependency resolution",
+        "proxy and credential environment variables are absent from the child execve map"
+      ],
+      "observable_signal": "TCP, UDP, DNS, Unix-socket, netlink, or metadata-service communication",
+      "protected_information": "host secrets, build inputs, execution state, and availability",
+      "receiver": "local or remote endpoint",
+      "residual_risk": "the runtime does not deny socket creation or network egress; Cargo offline mode is not a network sandbox",
+      "sender": "build scripts, dependencies, compiler, or native verifier",
+      "test_evidence": []
+    },
+    {
+      "capacity_bound": "determined by the host runtime",
+      "channel_id": "ZRPF-CH-009",
+      "claim_status": "open",
+      "class": "runtime_dependency",
+      "mitigations": [
+        "the verifier is built from pinned repository source",
+        "the built verifier is copied into a fully sealed Linux memfd and executed through that descriptor",
+        "the evidence keeps runtime-rootfs and linker authentication false"
+      ],
+      "observable_signal": "dynamic-loader and shared-library selection and behavior",
+      "protected_information": "verifier execution identity and host integrity",
+      "receiver": "native verifier process",
+      "residual_risk": "sealed transport binds one execution to stable verifier bytes; the dynamic loader, libc, libgcc, kernel, and runtime root filesystem remain host supplied and unauthenticated",
+      "sender": "host runtime root filesystem",
+      "test_evidence": [
+        {
+          "path": "tests/test_check_zrpf_v3_replay_verifier_evidence.py",
+          "symbol": "test_sealed_executable_runs_original_bytes_after_path_replacement"
+        }
+      ]
+    },
+    {
+      "capacity_bound": "bounded for selected repository files; dependency-cache content and metadata are not bound",
+      "channel_id": "ZRPF-CH-010",
+      "claim_status": "implemented_partial",
+      "class": "build_input",
+      "mitigations": [
+        "a detached private worktree is checked against a pinned commit and tree",
+        "the exact selected compiler-visible repository inventory is hashed before and after build",
+        "selected Cargo packages disable automatic build, binary, example, test, and benchmark target discovery",
+        "Cargo is invoked with --frozen",
+        "ancestor Cargo configuration is checked",
+        "checkout hooks are disabled"
+      ],
+      "observable_signal": "source, Cargo cache, Git cache, file modes, timestamps, and compiler-visible path identity",
+      "protected_information": "source-to-binary provenance and deterministic build identity",
+      "receiver": "Cargo, compiler, linker, and build scripts",
+      "residual_risk": "the repository inventory is not a complete build-input closure; host Cargo caches are linked and unauthenticated; transient same-user mutation is not isolated by a read-only mount",
+      "sender": "repository snapshot, Cargo cache, Git cache, and host filesystem",
+      "test_evidence": [
+        {
+          "path": "tests/test_check_zrpf_v3_replay_verifier_evidence.py",
+          "symbol": "test_source_snapshot_disables_post_checkout_hook"
+        },
+        {
+          "path": "tests/test_check_zrpf_v3_replay_verifier_evidence.py",
+          "symbol": "test_source_closure_rejects_symlinked_component"
+        },
+        {
+          "path": "tests/test_check_zrpf_v3_replay_verifier_evidence.py",
+          "symbol": "test_source_closure_rejects_undeclared_build_script"
+        }
+      ]
+    },
+    {
+      "capacity_bound": "unbounded and unmeasured",
+      "channel_id": "ZRPF-CH-011",
+      "claim_status": "open",
+      "class": "timing",
+      "mitigations": [
+        "wall-clock timeouts bound the orchestrator wait",
+        "timing does not enter canonical authority fields"
+      ],
+      "observable_signal": "wall-clock duration, scheduling, output timing, timeout selection, and CPU time",
+      "protected_information": "no secret is permitted; host and workload behavior remain observable",
+      "receiver": "host operator, co-tenant, or external observer when combined with another channel",
+      "residual_risk": "constant-time behavior is not designed, measured, or claimed",
+      "sender": "build and replay workload",
+      "test_evidence": []
+    },
+    {
+      "capacity_bound": "profile-specific pre-exec CPU, address-space, file-size, descriptor, stack, and process-count limits; no writable-filesystem quota",
+      "channel_id": "ZRPF-CH-012",
+      "claim_status": "implemented_partial",
+      "class": "resource_usage",
+      "mitigations": [
+        "wall-clock timeout",
+        "per-stream output capture cap",
+        "pre-exec resource limits selected by an explicit build, replay, or tool profile",
+        "replay address-space, file-size, descriptor, stack, and process-count limits",
+        "core dumps disabled and CPU time bounded for every profile",
+        "best-effort process-group kill after detected failure"
+      ],
+      "observable_signal": "CPU, memory, process count, file descriptors, disk usage, and cgroup or process-accounting counters",
+      "protected_information": "host availability and workload behavior",
+      "receiver": "host and co-tenants",
+      "residual_risk": "build and tool profiles permit bounded process creation; no cgroup, writable-filesystem quota, or complete descendant-lifetime boundary is installed",
+      "sender": "build and replay workload",
+      "test_evidence": [
+        {
+          "path": "tests/test_check_zrpf_v3_replay_verifier_evidence.py",
+          "symbol": "test_bounded_process_rejects_output_before_unbounded_buffering"
+        },
+        {
+          "path": "tests/test_check_zrpf_v3_replay_verifier_evidence.py",
+          "symbol": "test_replay_profile_installs_no_new_privileges_and_blocks_fork"
+        }
+      ]
+    },
+    {
+      "capacity_bound": "replay process creation is bounded by RLIMIT_NPROC=1; build and tool descendants lack cgroup lifetime ownership",
+      "channel_id": "ZRPF-CH-013",
+      "claim_status": "implemented_partial",
+      "class": "process_containment",
+      "mitigations": [
+        "the immediate process starts a new session",
+        "the replay profile installs RLIMIT_NPROC=1 before execve",
+        "a replay fork attempt is tested to reject",
+        "detected timeout or capture failure triggers process-group SIGKILL"
+      ],
+      "observable_signal": "surviving descendants, delayed writes, and continued resource use",
+      "protected_information": "host integrity and availability",
+      "receiver": "host after the orchestrator returns",
+      "residual_risk": "build and tool profiles permit descendants, and no cgroup owns all subprocess descendants across every profile",
+      "sender": "native build or replay process",
+      "test_evidence": [
+        {
+          "path": "tests/test_check_zrpf_v3_replay_verifier_evidence.py",
+          "symbol": "test_replay_profile_installs_no_new_privileges_and_blocks_fork"
+        }
+      ]
+    },
+    {
+      "capacity_bound": "unbounded and unmeasured",
+      "channel_id": "ZRPF-CH-014",
+      "claim_status": "open",
+      "class": "microarchitectural",
+      "mitigations": [
+        "no secret is permitted in the workload",
+        "no hardware side-channel claim is made"
+      ],
+      "observable_signal": "shared caches, branch predictor, speculative state, SMT siblings, memory pressure, deduplication, and hardware contention",
+      "protected_information": "host and co-tenant information",
+      "receiver": "malicious co-tenant or host observer",
+      "residual_risk": "the lane does not isolate CPU affinity, SMT, cache state, memory deduplication, firmware, or microcode",
+      "sender": "build or replay workload and co-tenants",
+      "test_evidence": []
+    },
+    {
+      "capacity_bound": "64 artifacts, 16 MiB per artifact, 64 MiB total, and 256 findings under the governed public denylist",
+      "channel_id": "ZRPF-CH-015",
+      "claim_status": "implemented_bounded_denylist",
+      "class": "published_artifact",
+      "mitigations": [
+        "the committed bundle excludes native verifier and guest binaries",
+        "receipt names, sizes, and SHA-256 values are exact",
+        "evidence paths are repository relative",
+        "descriptor-relative stable reads reject symlinks and special files",
+        "the evidence writer scans existing public inputs and candidate evidence bytes before publication",
+        "the static checker repeats the governed scan"
+      ],
+      "observable_signal": "paths, usernames, hostnames, emails, tokens, credentials, and diagnostic strings in published files",
+      "protected_information": "private host and operator information",
+      "receiver": "any repository reader",
+      "residual_risk": "the bounded denylist cannot prove absence of deliberately encoded, compressed, encrypted, or previously unknown confidential patterns",
+      "sender": "artifact producer and evidence writer",
+      "test_evidence": [
+        {
+          "path": "tests/test_zrpf_v3_artifact_privacy.py",
+          "symbol": "test_committed_zrpf_artifact_inventory_is_clean"
+        },
+        {
+          "path": "tests/test_zrpf_v3_artifact_privacy.py",
+          "symbol": "test_in_memory_candidate_scan_rejects_before_publication"
+        }
+      ]
+    },
+    {
+      "capacity_bound": "up to the governed receipt artifact bytes; covert capacity is not measured",
+      "channel_id": "ZRPF-CH-016",
+      "claim_status": "open",
+      "class": "proof_artifact",
+      "mitigations": [
+        "receipt bytes are treated as public",
+        "exact receipt hashes bind the reviewed artifacts",
+        "the bounded public denylist scans raw receipt bytes for specified accidental disclosures",
+        "proof generation is required to occur without secrets before public publication"
+      ],
+      "observable_signal": "high-entropy seal, metadata, journal, or serialization bytes selected during proof generation",
+      "protected_information": "any data present in the proof-generation environment",
+      "receiver": "any recipient of the public receipt",
+      "residual_risk": "string scanning cannot prove absence of deliberately encoded information; proof-generation provenance and receipt determinism are not established",
+      "sender": "proof generator or receipt publisher",
+      "test_evidence": []
+    },
+    {
+      "capacity_bound": "determined by host logging, crash, swap, and accounting policy",
+      "channel_id": "ZRPF-CH-017",
+      "claim_status": "open",
+      "class": "host_observability",
+      "mitigations": [
+        "normal positive stderr is required to be empty",
+        "canonical evidence excludes wall-clock-derived authority fields"
+      ],
+      "observable_signal": "kernel logs, audit records, core dumps, swap, process accounting, and procfs counters",
+      "protected_information": "host and workload state",
+      "receiver": "host administrator or process with host access",
+      "residual_risk": "the lane does not configure kernel logging, swap, core policy, or host accounting isolation",
+      "sender": "kernel, loader, and native process",
+      "test_evidence": []
+    }
+  ],
+  "evidence_date": "2026-07-10",
+  "global_policy": {
+    "authority_progression": [
+      "untrusted_retained_bytes",
+      "bounded_exact_artifact_binding",
+      "cryptographic_receipt_verification",
+      "authenticated_journal",
+      "independent_expected_journal_recomposition",
+      "scoped_structural_replay_evidence",
+      "no_ledger_or_production_authority"
+    ],
+    "no_secrets_permitted": true,
+    "public_inputs": [
+      "retained_receipts",
+      "authenticated_journals",
+      "expected_image_ids",
+      "receipt_security_profile",
+      "replay_transcript",
+      "evidence_record"
+    ],
+    "release_signing_separate_process_required": true,
+    "unknown_claim_fields_reject_required": true
+  },
+  "isolation_profile": {
+    "claims": {
+      "artifact_privacy_scan_passed": true,
+      "bounded_stdout_stderr_capture": true,
+      "build_network_disabled": false,
+      "compiler_closure_identity_authenticated": false,
+      "cgroup_descendant_containment": false,
+      "complete_build_input_closure_verified": false,
+      "covert_channel_freedom": false,
+      "cross_host_reproducible_build": false,
+      "data_availability_verified": false,
+      "dependency_cache_identity_authenticated": false,
+      "durable_atomic_admission_verified": false,
+      "dynamic_runtime_rootfs_authenticated": false,
+      "execve_environment_map_allowlisted": true,
+      "executing_binary_identity_authenticated": true,
+      "exact_seal_mutation_rejected": true,
+      "guest_image_ids_recomputed_from_current_source": false,
+      "guest_programs_rebuilt": false,
+      "hardware_side_channel_resistance": false,
+      "host_filesystem_isolated": false,
+      "ledger_admission_authority": false,
+      "linker_identity_authenticated": false,
+      "network_namespace_installed": false,
+      "no_new_privs_installed": true,
+      "normal_and_dev_environment_outputs_identical": true,
+      "parent_process_environment_inaccessible": false,
+      "preexec_resource_limits_installed": true,
+      "private_source_worktree_created": true,
+      "production_authority": false,
+      "proof_generation_source_attested": false,
+      "proofs_regenerated": false,
+      "public_replay_promoted": false,
+      "receipt_byte_determinism": false,
+      "recorded_source_built_host_verifier_replay": true,
+      "release_authority": false,
+      "replay_network_disabled": false,
+      "replay_process_creation_bounded": true,
+      "sandbox_escape_controls_passed": false,
+      "seccomp_policy_installed": false,
+      "semantic_composition_verified": false,
+      "sealed_executable_transport_implemented": true,
+      "settlement_authority": false,
+      "seven_retained_receipts_cryptographically_verified": true,
+      "static_checker_reperformed_live_execution": false,
+      "throughput_or_transaction_count_claim": false,
+      "user_namespace_installed": false,
+      "zero_knowledge_privacy": false
+    },
+    "id": "unsandboxed_preexec_limited_subprocess_v1",
+    "interpretation": "shared-host native execution with explicit pre-exec resource profiles, no_new_privs, sealed executable transport, bounded output capture, and timeouts; no native-binary sandbox"
+  },
+  "promotion_rules": [
+    {
+      "required_before": "public_artifact_sanitization_claim",
+      "requirements": [
+        "fail_closed_raw_byte_scan",
+        "fail_closed_printable_string_scan",
+        "typed_receipt_string_allowlist",
+        "no_private_denylist_terms_committed_to_public_repository"
+      ]
+    },
+    {
+      "required_before": "required_ci_native_replay",
+      "requirements": [
+        "secretless_job",
+        "checkout_credentials_not_persisted",
+        "runtime_enforced_network_denial",
+        "read_only_source_and_receipt_mounts",
+        "bounded_writable_storage",
+        "complete_descendant_lifetime_control",
+        "recorded_isolation_profile"
+      ]
+    },
+    {
+      "required_before": "source_to_binary_or_release_claim",
+      "requirements": [
+        "exact_compiler_visible_source_inventory",
+        "complete_build_input_closure",
+        "built_verifier_identity_bound",
+        "dynamic_runtime_or_static_link_identity_bound",
+        "independent_rebuild",
+        "external_governed_anchor"
+      ]
+    },
+    {
+      "required_before": "confidential_or_hostile_multitenant_profile",
+      "requirements": [
+        "strong_sandbox_or_microvm",
+        "no_cotenant_secrets",
+        "network_denial",
+        "microarchitectural_threat_model",
+        "hardware_policy_attestation"
+      ]
+    }
+  ],
+  "protected_assets": [
+    {
+      "asset_id": "ZRPF-ASSET-001",
+      "description": "receipt and journal verification authority"
+    },
+    {
+      "asset_id": "ZRPF-ASSET-002",
+      "description": "exact root and structural topology identity"
+    },
+    {
+      "asset_id": "ZRPF-ASSET-003",
+      "description": "claim and non-claim integrity"
+    },
+    {
+      "asset_id": "ZRPF-ASSET-004",
+      "description": "source-to-build and toolchain provenance records"
+    },
+    {
+      "asset_id": "ZRPF-ASSET-005",
+      "description": "host integrity and availability"
+    },
+    {
+      "asset_id": "ZRPF-ASSET-006",
+      "description": "private host information outside public replay inputs"
+    },
+    {
+      "asset_id": "ZRPF-ASSET-007",
+      "description": "repository and package credentials"
+    },
+    {
+      "asset_id": "ZRPF-ASSET-008",
+      "description": "release-signing, ledger, settlement, and production authority"
+    }
+  ],
+  "schema": "zenodex/zrpf_v3_retained_replay_channel_matrix/v1",
+  "scope": "source_built_retained_receipt_structural_replay_without_ledger_authority",
+  "status": "normative_threat_model_companion",
+  "test_obligations": [
+    {
+      "channel_ids": [
+        "ZRPF-CH-010"
+      ],
+      "expected_result": "an injected compiler-visible build script or unknown source file rejects before build authority",
+      "obligation_id": "ZRPF-TEST-001",
+      "status": "passed"
+    },
+    {
+      "channel_ids": [
+        "ZRPF-CH-007"
+      ],
+      "expected_result": "a child cannot recover a parent-only secret sentinel from procfs or inherited resources",
+      "obligation_id": "ZRPF-TEST-002",
+      "status": "pending"
+    },
+    {
+      "channel_ids": [
+        "ZRPF-CH-008"
+      ],
+      "expected_result": "TCP, UDP, DNS, metadata-service, netlink, and unintended Unix-socket attempts fail under the recorded runtime profile",
+      "obligation_id": "ZRPF-TEST-003",
+      "status": "pending"
+    },
+    {
+      "channel_ids": [
+        "ZRPF-CH-005",
+        "ZRPF-CH-006"
+      ],
+      "expected_result": "the process cannot read a host-secret sentinel or write outside the bounded output location",
+      "obligation_id": "ZRPF-TEST-004",
+      "status": "pending"
+    },
+    {
+      "channel_ids": [
+        "ZRPF-CH-012",
+        "ZRPF-CH-013"
+      ],
+      "expected_result": "build and tool descendant escape plus replay output-flood, memory, descriptor, and timeout attempts are bounded with no surviving descendant",
+      "obligation_id": "ZRPF-TEST-005",
+      "status": "pending"
+    },
+    {
+      "channel_ids": [
+        "ZRPF-CH-015",
+        "ZRPF-CH-016"
+      ],
+      "expected_result": "the public artifact gate rejects host paths, credential patterns, unexpected strings, and private denylist matches without publishing the private denylist",
+      "obligation_id": "ZRPF-TEST-006",
+      "status": "passed"
+    },
+    {
+      "channel_ids": [
+        "ZRPF-CH-002",
+        "ZRPF-CH-003",
+        "ZRPF-CH-004"
+      ],
+      "expected_result": "unknown rejection fields, noncanonical output, raw host paths, oversized output, and unexpected status choices reject",
+      "obligation_id": "ZRPF-TEST-007",
+      "status": "partial"
+    },
+    {
+      "channel_ids": [
+        "ZRPF-CH-009",
+        "ZRPF-CH-014",
+        "ZRPF-CH-017"
+      ],
+      "expected_result": "runtime, hardware, and host-observability claims remain false until separately attested under the exact deployment profile",
+      "obligation_id": "ZRPF-TEST-008",
+      "status": "pending"
+    }
+  ],
+  "threat_actors": [
+    {
+      "actor_id": "ZRPF-ACTOR-001",
+      "capabilities": "supplies malformed, substituted, noncanonical, oversized, or cryptographically invalid receipt bytes",
+      "name": "malicious_receipt_publisher",
+      "residual_risk": "proof-generation provenance and deliberately encoded receipt data are not established",
+      "trusted": false
+    },
+    {
+      "actor_id": "ZRPF-ACTOR-002",
+      "capabilities": "coherently changes artifacts, metadata, claims, expected hashes, and checker source",
+      "name": "malicious_bundle_or_evidence_author",
+      "residual_risk": "independent review and an external governed anchor are required",
+      "trusted": false
+    },
+    {
+      "actor_id": "ZRPF-ACTOR-003",
+      "capabilities": "races source, toolchain, target, and executable paths under the invoking user identity",
+      "name": "same_user_local_racer",
+      "residual_risk": "private directory modes do not isolate same-user processes",
+      "trusted": false
+    },
+    {
+      "actor_id": "ZRPF-ACTOR-004",
+      "capabilities": "executes during dependency resolution, build, compilation, linking, or cache access",
+      "name": "compromised_dependency_build_script_compiler_or_cache",
+      "residual_risk": "complete build inputs, compiler closure, linker, proc macros, and cache identity are unauthenticated",
+      "trusted": false
+    },
+    {
+      "actor_id": "ZRPF-ACTOR-005",
+      "capabilities": "reads host resources, creates processes, emits output, consumes resources, and opens sockets as the native verifier process",
+      "name": "malicious_native_verifier_process",
+      "residual_risk": "the current isolation profile is not a native-binary sandbox",
+      "trusted": false
+    },
+    {
+      "actor_id": "ZRPF-ACTOR-006",
+      "capabilities": "controls dynamic loader, shared libraries, kernel services, runtime root filesystem, or host policy",
+      "name": "compromised_host_runtime",
+      "residual_risk": "the experimental lane trusts the host runtime and keeps runtime authentication false",
+      "trusted": false
+    },
+    {
+      "actor_id": "ZRPF-ACTOR-007",
+      "capabilities": "observes or influences shared scheduling, caches, branch predictors, memory pressure, and hardware contention",
+      "name": "malicious_cotenant",
+      "residual_risk": "no microarchitectural or hardware side-channel defense is established",
+      "trusted": false
+    }
+  ],
+  "version": 2
+}

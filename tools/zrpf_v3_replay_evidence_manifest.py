@@ -10,25 +10,29 @@ _MODULE_PREFIX = "tools." if __package__ else ""
 support = importlib.import_module(f"{_MODULE_PREFIX}zrpf_v3_replay_evidence_support")
 
 
-def expected_evidence(repo_root: Path) -> dict[str, Any]:
+def expected_evidence(
+    repo_root: Path,
+    execution_identity: dict[str, Any],
+) -> dict[str, Any]:
     return {
         "claims": _claims(),
         "evidence_date": "2026-07-10",
         "non_claims": list(support.NON_CLAIMS),
-        "recorded_build": _recorded_build(),
-        "recorded_execution": _recorded_execution(),
+        "recorded_build": _recorded_build(execution_identity),
+        "recorded_execution": _recorded_execution(execution_identity),
         "replay_source_closure": support.source_closure(repo_root),
         "retained_receipt_set": support.retained_receipt_set(
             repo_root / support.RECEIPT_DIRECTORY.relative_to(support.REPO_ROOT)
         ),
         "sanitization": {
             "absolute_paths_in_record": False,
+            "bounded_public_artifact_privacy_scan_passed": True,
             "guest_binaries_in_evidence_directory": False,
             "native_verifier_binary_in_evidence_directory": False,
             "receipt_directory_contains_only_exact_receipts": True,
         },
         "schema": support.SCHEMA,
-        "scope": "same_host_current_source_host_verifier_replay_of_exact_retained_v3_receipt_bytes",
+        "scope": "source_built_retained_receipt_structural_replay_without_ledger_authority",
         "source_anchor": {
             "commit": support.SOURCE_COMMIT,
             "tree": support.SOURCE_TREE,
@@ -39,9 +43,9 @@ def expected_evidence(repo_root: Path) -> dict[str, Any]:
             "new_retained_root_receipt": support.ROOT_RECEIPT_SHA256,
             "same_authenticated_root_journal": support.ROOT_JOURNAL_HASH,
         },
-        "status": "same_host_source_built_host_verifier_exact_retained_receipts_replayed",
+        "status": "source_built_retained_receipt_structural_replay_accepted",
         "verified_tree": _verified_tree(),
-        "version": 1,
+        "version": 2,
     }
 
 
@@ -51,15 +55,22 @@ def _claims() -> dict[str, bool]:
     return claims
 
 
-def _recorded_build() -> dict[str, Any]:
+def _recorded_build(execution_identity: dict[str, Any]) -> dict[str, Any]:
     return {
         "cargo_home_config_isolated": True,
         "cargo_offline_mode_enforced": True,
+        "build_network_disabled": False,
+        "complete_build_input_closure_verified": False,
         "cargo_version": "cargo 1.94.1-dev (29ea6fb6a 2026-03-24)",
         "command": "cargo build --frozen --release -p zenodex-zrpf-risc0-replay-verifier",
+        "compiler_path_remap": "dynamic_private_target=/zrpf/build",
         "dependency_graph_edges": "normal,build,no-proc-macro",
+        "dependency_graph_package_count": execution_identity[
+            "dependency_graph_package_count"
+        ],
+        "dependency_graph_sha256": execution_identity["dependency_graph_sha256"],
         "external_target_directory": True,
-        "parent_environment_allowlisted": True,
+        "execve_environment_map_allowlisted": True,
         "private_source_snapshot": True,
         "risc0_default_features": False,
         "risc0_features": ["disable-dev-mode", "std"],
@@ -67,16 +78,26 @@ def _recorded_build() -> dict[str, Any]:
         "rustdoc_version": "rustdoc 1.94.1-dev (06e01cb0d 2026-04-09)",
         "selected_graph_forbidden_packages_absent": True,
         "source_closure_checked_before_and_after_build": True,
+        "source_inventory_exact_and_automatic_targets_disabled": True,
         "source_snapshot_commit": support.SOURCE_COMMIT,
         "source_snapshot_tree": support.SOURCE_TREE,
+        "source_date_epoch": "1783641600",
         "toolchain_lock_path": support.TOOLCHAIN_LOCK_PATH,
+        "verifier_binary_sha256": execution_identity["binary_sha256"],
+        "verifier_binary_size_bytes": execution_identity["binary_size_bytes"],
     }
 
 
-def _recorded_execution() -> dict[str, Any]:
+def _recorded_execution(execution_identity: dict[str, Any]) -> dict[str, Any]:
     return {
+        "binary_transport": execution_identity["binary_transport"],
+        "executing_binary_sha256": execution_identity["binary_sha256"],
+        "executing_binary_size_bytes": execution_identity["binary_size_bytes"],
         "negative_controls": _negative_controls(),
+        "no_new_privileges_installed": True,
         "normal_and_risc0_dev_mode_one_stdout_identical": True,
+        "process_profile": "unsandboxed_preexec_limited_subprocess_v1",
+        "replay_process_creation_bound": "RLIMIT_NPROC=1",
         "stderr_sha256": support.EMPTY_SHA256,
         "stderr_size_bytes": 0,
         "stdout_sha256": support.EXPECTED_STDOUT_SHA256,

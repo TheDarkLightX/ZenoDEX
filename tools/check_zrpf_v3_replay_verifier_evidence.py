@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import os
+import stat
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -24,6 +26,7 @@ record_writer = importlib.import_module(
     f"{_MODULE_PREFIX}zrpf_v3_replay_record_writer"
 )
 process_runner = importlib.import_module(f"{_MODULE_PREFIX}zrpf_v3_replay_process")
+privacy = importlib.import_module(f"{_MODULE_PREFIX}zrpf_v3_artifact_privacy")
 sealed_executable = importlib.import_module(
     f"{_MODULE_PREFIX}zrpf_v3_replay_sealed_executable"
 )
@@ -31,6 +34,7 @@ sealed_executable = importlib.import_module(
 PACKAGE = "zenodex-zrpf-risc0-replay-verifier"
 BINARY = "zenodex-zrpf-risc0-replay-verifier"
 MAX_PROCESS_OUTPUT = 16 * 1024 * 1024
+MAX_EVIDENCE_BYTES = 4 * 1024 * 1024
 FORBIDDEN_GRAPH_TOKENS = (
     "bonsai-sdk",
     "risc0-build",
@@ -70,18 +74,56 @@ class LoadedEvidence:
 
 def load_evidence(path: Path) -> tuple[LoadedEvidence | None, list[str]]:
     try:
-        metadata = path.lstat()
-        if path.is_symlink() or not path.is_file() or metadata.st_size > 4 * 1024 * 1024:
-            return None, ["evidence file is not a bounded regular file"]
-        raw = path.read_bytes()
-        value = support.strict_json_loads(raw)
-    except OSError:
+        raw = _read_bounded_regular_file(path, MAX_EVIDENCE_BYTES)
+    except (OSError, ValueError):
         return None, ["evidence file read failed"]
+    try:
+        value = support.strict_json_loads(raw)
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         return None, [f"evidence JSON rejected: {exc}"]
     if not isinstance(value, dict):
         return None, ["evidence root must be an object"]
     return LoadedEvidence(value, raw), []
+
+
+def _read_bounded_regular_file(path: Path, maximum: int) -> bytes:
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NONBLOCK
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    descriptor = os.open(path, flags)
+    try:
+        before = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_size <= 0
+            or before.st_size > maximum
+        ):
+            raise ValueError("evidence file is not a bounded regular file")
+        output = bytearray()
+        while True:
+            chunk = os.read(descriptor, min(64 * 1024, maximum + 1 - len(output)))
+            if not chunk:
+                break
+            output.extend(chunk)
+            if len(output) > maximum:
+                raise ValueError("evidence file is not a bounded regular file")
+        after = os.fstat(descriptor)
+        if _stat_identity(before) != _stat_identity(after) or len(output) != after.st_size:
+            raise ValueError("evidence file changed while read")
+        return bytes(output)
+    finally:
+        os.close(descriptor)
+
+
+def _stat_identity(metadata: os.stat_result) -> tuple[int, ...]:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_mode,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
 
 
 def validate_static(
@@ -91,11 +133,26 @@ def validate_static(
     loaded, errors = load_evidence(path)
     material = validate_materials(repo_root)
     errors.extend(material["errors"])
-    try:
-        expected = support.expected_evidence(repo_root)
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
-        expected = None
-        errors.append(f"static source or receipt validation failed: {exc}")
+    privacy_ok = False
+    recorded_identity: dict[str, Any] | None = None
+    if loaded is not None:
+        if support.sha256_bytes(loaded.raw) != support.EXPECTED_EVIDENCE_SHA256:
+            errors.append("evidence SHA-256 differs from governed anchor")
+        existing_scan = privacy.scan_artifacts(repo_root, privacy.PRE_RECORD_ARTIFACTS)
+        candidate_scan = privacy.scan_candidate_bytes(
+            privacy.EVIDENCE_ARTIFACT,
+            loaded.raw,
+        )
+        privacy_ok = bool(existing_scan.get("ok") and candidate_scan.get("ok"))
+        if not privacy_ok:
+            errors.append("public artifact privacy scan failed")
+    expected = None
+    if loaded is not None:
+        try:
+            recorded_identity = _recorded_execution_identity(loaded.document)
+            expected = support.expected_evidence(recorded_identity, repo_root)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+            errors.append(f"static source or receipt validation failed: {exc}")
     if loaded is not None and expected is not None:
         evidence = loaded.document
         actual_keys = set(evidence)
@@ -113,16 +170,12 @@ def validate_static(
             "evidence_sha256": (
                 support.sha256_bytes(loaded.raw) if loaded is not None else None
             ),
-            "receipt_artifacts_checked": (
-                expected["retained_receipt_set"]["artifact_count"]
-                if expected is not None
-                else 0
-            ),
-            "source_files_checked": (
-                expected["replay_source_closure"]["file_count"]
-                if expected is not None
-                else 0
-            ),
+            "receipt_artifacts_checked": material["facts"][
+                "receipt_artifacts_checked"
+            ],
+            "artifact_privacy_scan_passed": privacy_ok,
+            "recorded_execution_identity": recorded_identity,
+            "source_files_checked": material["facts"]["source_files_checked"],
             "static_evidence_valid": not errors,
         },
         "ok": not errors,
@@ -132,34 +185,72 @@ def validate_static(
 
 def validate_materials(repo_root: Path = support.REPO_ROOT) -> dict[str, Any]:
     errors: list[str] = []
+    source_files_checked = 0
+    receipt_artifacts_checked = 0
     try:
-        expected = support.expected_evidence(repo_root)
+        closure = support.source_closure(repo_root)
+        receipts = support.retained_receipt_set(
+            repo_root / support.RECEIPT_DIRECTORY.relative_to(support.REPO_ROOT)
+        )
+        source_files_checked = closure["file_count"]
+        receipt_artifacts_checked = receipts["artifact_count"]
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
-        expected = None
         errors.append(f"static source or receipt validation failed: {exc}")
+    if privacy.scan_artifacts(repo_root, privacy.PRE_RECORD_ARTIFACTS).get("ok") is not True:
+        errors.append("public artifact privacy input scan failed")
     errors.extend(verify_source_anchor(repo_root))
     return {
         "errors": errors,
         "facts": {
-            "receipt_artifacts_checked": (
-                expected["retained_receipt_set"]["artifact_count"]
-                if expected is not None
-                else 0
-            ),
-            "source_files_checked": (
-                expected["replay_source_closure"]["file_count"]
-                if expected is not None
-                else 0
-            ),
+            "receipt_artifacts_checked": receipt_artifacts_checked,
+            "source_files_checked": source_files_checked,
         },
         "ok": not errors,
         "schema": "zenodex/zrpf_v3_replay_material_check/v1",
     }
 
 
+def _recorded_execution_identity(document: dict[str, Any]) -> dict[str, Any]:
+    build = document.get("recorded_build")
+    execution = document.get("recorded_execution")
+    if not isinstance(build, dict) or not isinstance(execution, dict):
+        raise ValueError("recorded execution identity is absent")
+    identity = support.exact_execution_identity(
+        {
+            "binary_sha256": execution.get("executing_binary_sha256"),
+            "binary_size_bytes": execution.get("executing_binary_size_bytes"),
+            "binary_transport": execution.get("binary_transport"),
+            "dependency_graph_package_count": build.get(
+                "dependency_graph_package_count"
+            ),
+            "dependency_graph_sha256": build.get("dependency_graph_sha256"),
+        }
+    )
+    if any(
+        (
+            build.get("verifier_binary_sha256") != identity["binary_sha256"],
+            build.get("verifier_binary_size_bytes") != identity["binary_size_bytes"],
+        )
+    ):
+        raise ValueError("recorded build and execution identities differ")
+    return identity
+
+
 def verify_source_anchor(repo_root: Path) -> list[str]:
     errors: list[str] = []
     try:
+        tagged_commit = _run(
+            [
+                "git",
+                "rev-parse",
+                "--verify",
+                f"refs/tags/{support.SOURCE_TAG}^{{commit}}",
+            ],
+            cwd=repo_root,
+            env=environment.clean_environment(),
+            timeout=30,
+            profile=process_runner.ProcessProfile.TOOL,
+        )
         tree = _run(
             ["git", "show", "-s", "--format=%T", support.SOURCE_COMMIT],
             cwd=repo_root,
@@ -169,6 +260,8 @@ def verify_source_anchor(repo_root: Path) -> list[str]:
         )
     except RuntimeError:
         return ["source anchor commit is unavailable"]
+    if tagged_commit.stdout.decode("ascii", errors="replace").strip() != support.SOURCE_COMMIT:
+        errors.append("source anchor tag target mismatch")
     if tree.stdout.decode("ascii", errors="replace").strip() != support.SOURCE_TREE:
         errors.append("source anchor tree mismatch")
     for _, relative in support.SOURCE_FILES:
@@ -180,7 +273,11 @@ def verify_source_anchor(repo_root: Path) -> list[str]:
                 timeout=30,
                 profile=process_runner.ProcessProfile.TOOL,
             ).stdout
-            current = (repo_root / relative).read_bytes()
+            current = support._regular_file_bytes(
+                repo_root,
+                relative,
+                support.MAX_SOURCE_BYTES,
+            )
         except (OSError, RuntimeError):
             errors.append(f"source anchor file unavailable: {relative}")
             continue
@@ -194,20 +291,24 @@ def live_check(
     target_directory: Path,
     evidence_path: Path = support.EVIDENCE_PATH,
 ) -> dict[str, Any]:
-    return _live_check(risc0_home, target_directory, validate_static(evidence_path))
+    static = validate_static(evidence_path)
+    recorded_identity = static.get("facts", {}).get("recorded_execution_identity")
+    return _live_check(risc0_home, target_directory, static, recorded_identity)
 
 
 def live_create_check(risc0_home: Path, target_directory: Path) -> dict[str, Any]:
-    return _live_check(risc0_home, target_directory, validate_materials())
+    return _live_check(risc0_home, target_directory, validate_materials(), None)
 
 
 def _live_check(
     risc0_home: Path,
     target_directory: Path,
     static: dict[str, Any],
+    recorded_identity: Any,
 ) -> dict[str, Any]:
     if not static["ok"]:
         return static | {"live": {"executed": False, "verified": False}}
+    _require_unprivileged_execution_context()
     repo_root = support.REPO_ROOT.resolve()
     target_directory = _prepare_target_directory(target_directory, repo_root)
     with source_snapshot.SourceSnapshot(
@@ -219,7 +320,45 @@ def _live_check(
         context = _prepare_live_context(risc0_home, target_directory, source_root)
         graph = _selected_dependency_graph(context)
         replay = _build_and_replay(context, graph)
-    return static | {"live": _live_facts(context, replay)}
+    return static | {"live": _live_facts(context, replay, recorded_identity)}
+
+
+def _require_unprivileged_execution_context() -> None:
+    if sys.platform != "linux" or os.geteuid() == 0:
+        raise RuntimeError("live replay requires an unprivileged Linux execution context")
+    try:
+        status = Path("/proc/self/status").read_text(encoding="ascii")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise RuntimeError("process privilege state is unavailable") from exc
+    fields: dict[str, str] = {}
+    for line in status.splitlines():
+        if ":" not in line:
+            continue
+        name, value = line.split(":", 1)
+        if name in {"Uid", "Gid", "CapInh", "CapPrm", "CapEff", "CapAmb"}:
+            fields[name] = value.strip()
+    if set(fields) != {"Uid", "Gid", "CapInh", "CapPrm", "CapEff", "CapAmb"}:
+        raise RuntimeError("process privilege state is incomplete")
+    try:
+        uids = tuple(int(value) for value in fields["Uid"].split())
+        gids = tuple(int(value) for value in fields["Gid"].split())
+        capabilities = tuple(
+            int(fields[name], 16)
+            for name in ("CapInh", "CapPrm", "CapEff", "CapAmb")
+        )
+    except ValueError as exc:
+        raise RuntimeError("process privilege state is malformed") from exc
+    if (
+        len(uids) != 4
+        or len(gids) != 4
+        or len(set(uids)) != 1
+        or len(set(gids)) != 1
+        or uids[0] == 0
+        or gids[0] == 0
+    ):
+        raise RuntimeError("live replay requires one unprivileged UID and GID identity")
+    if any(capabilities):
+        raise RuntimeError("live replay requires zero inherited, permitted, effective, and ambient capabilities")
 
 
 def _prepare_target_directory(target_directory: Path, repo_root: Path) -> Path:
@@ -344,17 +483,56 @@ def _require_snapshot_closure(source_root: Path) -> None:
         raise RuntimeError("private source snapshot closure mismatch")
 
 
-def _live_facts(context: LiveContext, replay: LiveReplay) -> dict[str, Any]:
+def _live_facts(
+    context: LiveContext,
+    replay: LiveReplay,
+    recorded_identity: Any,
+) -> dict[str, Any]:
     graph_bytes = ("\n".join(replay.dependency_graph) + "\n").encode("utf-8")
+    graph_sha256 = support.sha256_bytes(graph_bytes)
+    recorded = (
+        support.exact_execution_identity(recorded_identity)
+        if recorded_identity is not None
+        else None
+    )
+    graph_match = recorded is None or all(
+        (
+            len(replay.dependency_graph)
+            == recorded["dependency_graph_package_count"],
+            graph_sha256 == recorded["dependency_graph_sha256"],
+        )
+    )
+    if not graph_match:
+        raise RuntimeError("selected dependency graph identity mismatch")
+    binary_match = recorded is not None and all(
+        (
+            replay.binary_sha256 == recorded["binary_sha256"],
+            replay.binary_size_bytes == recorded["binary_size_bytes"],
+            replay.binary_transport == recorded["binary_transport"],
+        )
+    )
     return {
         "binary_sha256": replay.binary_sha256,
         "binary_size_bytes": replay.binary_size_bytes,
         "binary_transport": replay.binary_transport,
         "dependency_graph_package_count": len(replay.dependency_graph),
-        "dependency_graph_sha256": support.sha256_bytes(graph_bytes),
+        "dependency_graph_sha256": graph_sha256,
         "executed": True,
         "negative_controls": replay.negative_controls,
         "normal_and_dev_stdout_identical": True,
+        "recorded_execution_identity_match": binary_match,
+        "recorded_dependency_graph_identity_match": (
+            graph_match if recorded is not None else None
+        ),
+        "recorded_evidence_parity": (
+            binary_match and graph_match if recorded is not None else None
+        ),
+        "source_built_structural_replay_verified": True,
+        "status": (
+            "source_built_structural_replay_with_recorded_identity_match"
+            if binary_match
+            else "source_built_structural_replay_with_fresh_measured_identity"
+        ),
         "stdout_sha256": support.sha256_bytes(replay.stdout),
         "stdout_size_bytes": len(replay.stdout),
         "toolchain_versions": context.toolchain_versions,
@@ -420,7 +598,7 @@ def main(argv: list[str] | None = None) -> int:
             report = live_check(args.risc0_home, args.target_dir, args.evidence)
         else:
             report = validate_static(args.evidence)
-    except (OSError, RuntimeError, ValueError) as exc:
+    except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
         report = {
             "errors": [str(exc)],
             "ok": False,

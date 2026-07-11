@@ -176,20 +176,25 @@ leaves, recomposes and exact-verifies both level-one journals and the level-two
 journal, and requires the seal mutation to reject as
 `receipt_verification_failed`.
 The live gate builds from a mode-0700 detached worktree at the pinned commit,
-checks the exact source closure before and after compilation, disables checkout
-hooks, rejects unpinned ancestor Cargo config, isolates Cargo home config, and
-uses an allowlisted subprocess environment.
+checks the exact 40-file source closure before and after compilation, disables
+automatic Cargo target discovery, disables checkout hooks, rejects unpinned
+ancestor Cargo config, isolates Cargo home config, remaps compiler-visible
+paths, and uses an allowlisted `execve` environment.
 
 The retained replay output is 5,920 bytes with SHA-256
 `7751395663a33c1ae58fa403346dc90618e842dd1df2f2fdc37f18599e50c288`.
 Normal execution and execution with `RISC0_DEV_MODE=1` produced byte-identical
 output because the verifier uses an explicit dev-mode-disabled context. The
 source-built replay evidence record has SHA-256
-`7c9fdae9b4bc6576f9743545baa54fa7a88fb154f9b0805af621320353250bca`.
+`03b38b53a17d45348880caccb03f0ce71cf86f267ba6f92c8381684ccaebec87`.
+The recorded verifier bytes were sealed in a Linux memfd before execution and
+have SHA-256
+`4511b54089d811ce1d59889d09b322d4924eeb4b34e25d6c4827744ce85e8800`.
 This same-host retained-byte replay does not attest proof generation, guest
-source-to-image correspondence, compiler-closure or dependency-cache identity,
-release reproducibility, semantic aggregation, ledger or settlement admission,
-privacy, transaction counts, throughput, or production authority.
+source-to-image correspondence, complete build inputs, compiler, linker,
+dependency-cache or runtime-rootfs identity, release reproducibility, semantic
+aggregation, ledger or settlement admission, privacy, transaction counts,
+throughput, or production authority.
 
 ## Workspace Layout
 
@@ -268,6 +273,11 @@ Rustdoc artifacts against the pinned toolchain lock, checks that the selected
 dependency graph excludes methods, guests, the harness, Bonsai, and
 `risc0-build`, compares normal and `RISC0_DEV_MODE=1` output, and runs eight
 host-boundary negative controls. It does not regenerate any proof.
+
+The required `.github/workflows/zrpf-assurance.yml` lane repeats these checks
+and runs the real source-built replay in a non-root, read-only, networkless
+container. Local `--live` runs accurately retain the weaker
+`unsandboxed_preexec_limited_subprocess_v1` profile.
 
 ## Build And Prove A Four-Leaf Tree
 

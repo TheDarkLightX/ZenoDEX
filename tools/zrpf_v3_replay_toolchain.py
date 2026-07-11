@@ -12,6 +12,9 @@ support = importlib.import_module(f"{_MODULE_PREFIX}zrpf_v3_replay_evidence_supp
 process_runner = importlib.import_module(f"{_MODULE_PREFIX}zrpf_v3_replay_process")
 
 MAX_VERSION_OUTPUT = 4 * 1024 * 1024
+MAX_TOOLCHAIN_LOCK_BYTES = 1024 * 1024
+MAX_MANIFEST_BYTES = 1024 * 1024
+MAX_TOOLCHAIN_ARTIFACT_BYTES = 512 * 1024 * 1024
 EXPECTED_VERSIONS = {
     "cargo": "cargo 1.94.1-dev (29ea6fb6a 2026-03-24)",
     "rustc": "rustc 1.94.1-dev (06e01cb0d 2026-04-09)",
@@ -34,7 +37,11 @@ def verify_toolchain(
     source_root: Path = support.REPO_ROOT,
 ) -> tuple[dict[str, Path], dict[str, str]]:
     lock = support.strict_json_loads(
-        (source_root / support.TOOLCHAIN_LOCK_PATH).read_bytes()
+        support._regular_file_bytes(
+            source_root,
+            support.TOOLCHAIN_LOCK_PATH,
+            MAX_TOOLCHAIN_LOCK_BYTES,
+        )
     )
     if not isinstance(lock, dict):
         raise RuntimeError("toolchain lock is malformed")
@@ -62,7 +69,11 @@ def validate_manifest_features(source_root: Path = support.REPO_ROOT) -> None:
         "zk/zrpf_risc0/replay_verifier/Cargo.toml",
         "zk/zrpf_risc0/verifier/Cargo.toml",
     ):
-        manifest = tomllib.loads((source_root / relative).read_text("utf-8"))
+        manifest = tomllib.loads(
+            support._regular_file_bytes(source_root, relative, MAX_MANIFEST_BYTES).decode(
+                "utf-8"
+            )
+        )
         dependency = manifest.get("dependencies", {}).get("risc0-zkvm")
         if not isinstance(dependency, dict):
             raise RuntimeError("RISC0 dependency declaration is malformed")
@@ -71,7 +82,11 @@ def validate_manifest_features(source_root: Path = support.REPO_ROOT) -> None:
         if sorted(dependency.get("features", [])) != ["disable-dev-mode", "std"]:
             raise RuntimeError("RISC0 verifier features drifted")
     for relative in SELECTED_PACKAGE_MANIFESTS:
-        manifest = tomllib.loads((source_root / relative).read_text("utf-8"))
+        manifest = tomllib.loads(
+            support._regular_file_bytes(source_root, relative, MAX_MANIFEST_BYTES).decode(
+                "utf-8"
+            )
+        )
         package = manifest.get("package")
         if not isinstance(package, dict) or any(
             package.get(key) is not False for key in AUTOMATIC_TARGET_KEYS
@@ -84,13 +99,16 @@ def _bound_artifact(risc0_home: Path, row: dict) -> Path:
     if not isinstance(relative, str):
         raise RuntimeError("toolchain artifact path is malformed")
     path = risc0_home / relative
-    metadata = path.lstat()
-    raw = path.read_bytes()
+    try:
+        raw = support._regular_file_bytes(
+            risc0_home,
+            relative,
+            MAX_TOOLCHAIN_ARTIFACT_BYTES,
+        )
+    except (OSError, ValueError) as exc:
+        raise RuntimeError("toolchain artifact binding mismatch") from exc
     if (
-        path.is_symlink()
-        or not path.is_file()
-        or len(raw) != metadata.st_size
-        or len(raw) != row.get("size_bytes")
+        len(raw) != row.get("size_bytes")
         or support.sha256_bytes(raw) != row.get("sha256")
     ):
         raise RuntimeError("toolchain artifact binding mismatch")

@@ -1,42 +1,68 @@
 {
   "claims": {
     "all_expected_image_ids_verified": true,
+    "artifact_privacy_scan_passed": true,
+    "automatic_cargo_targets_disabled": true,
+    "build_network_disabled": false,
+    "cgroup_limits_installed": false,
     "compiler_closure_identity_authenticated": false,
+    "compiler_visible_paths_remapped_to_canonical_prefix": true,
+    "complete_build_input_closure_verified": false,
+    "covert_channel_freedom": false,
     "cross_host_reproducibility": false,
+    "data_availability_verified": false,
     "dependency_cache_identity_authenticated": false,
+    "durable_atomic_admission_verified": false,
     "exact_l1_l2_journals_recomposed": true,
     "exact_retained_artifact_bytes_bound": true,
     "exact_seal_mutation_rejected": true,
-    "executing_binary_identity_authenticated": false,
+    "exact_source_inventory_enforced": true,
+    "executing_binary_identity_authenticated": true,
+    "execve_environment_map_allowlisted": true,
+    "fresh_verifier_bytes_sealed_before_exec": true,
     "guest_binaries_required_by_replay_false": true,
+    "guest_image_ids_recomputed": false,
     "guest_source_to_image_attested": false,
+    "hardware_side_channel_resistance": false,
+    "host_filesystem_isolated": false,
     "ledger_admission_authority": false,
     "linker_identity_authenticated": false,
     "local_cargo_rustc_rustdoc_match_pinned_artifacts": true,
+    "network_disabled": false,
+    "no_new_privileges_installed": true,
     "normal_and_risc0_dev_mode_one_stdout_identical": true,
-    "parent_environment_inputs_allowlisted": true,
+    "parent_process_environment_inaccessible": false,
+    "preexec_resource_limits_installed": true,
     "privacy_or_zero_knowledge": false,
     "private_source_snapshot_bound_to_anchor": true,
+    "process_namespace_isolated": false,
     "production_authority": false,
     "proof_generation_source_attested": false,
+    "proofs_regenerated": false,
     "public_replay_promoted": false,
     "receipt_byte_determinism": false,
     "release_authority": false,
+    "replay_process_creation_bounded": true,
     "reproducible_build": false,
     "root_journal_and_topology_bound": true,
     "runtime_rootfs_identity_authenticated": false,
     "same_host_source_built_host_verifier_replay": true,
+    "sandbox_escape_controls_passed": false,
+    "seccomp_policy_installed": false,
     "selected_dependency_graph_excludes_guest_build_paths": true,
     "semantic_aggregation_or_value_conservation": false,
+    "semantic_composition_verified": false,
     "settlement_authority": false,
     "seven_succinct_receipts_cryptographically_verified": true,
+    "source_snapshot_immutable": false,
     "static_validation_reperforms_live_replay": false,
     "throughput_or_transaction_count": false
   },
   "evidence_date": "2026-07-10",
   "non_claims": [
     "no proof-generation source or guest source-to-image provenance claim",
-    "no authenticated compiler closure, linker, dependency cache, executing-binary identity, or runtime-rootfs claim",
+    "no complete build-input, compiler, linker, dependency-cache, or runtime-rootfs authentication claim",
+    "the exact sealed verifier bytes are authenticated for the recorded execution",
     "no cross-host, reproducible-build, release, or public-replay promotion claim",
     "no semantic aggregation, conservation, data-availability, carry, or schedule claim",
     "no ledger-admission, settlement, production, privacy, or zero-knowledge claim",
@@ -46,13 +72,18 @@
     "static validation does not reperform live replay; --live is required for current execution evidence"
   ],
   "recorded_build": {
+    "build_network_disabled": false,
     "cargo_home_config_isolated": true,
     "cargo_offline_mode_enforced": true,
     "cargo_version": "cargo 1.94.1-dev (29ea6fb6a 2026-03-24)",
     "command": "cargo build --frozen --release -p zenodex-zrpf-risc0-replay-verifier",
+    "compiler_path_remap": "dynamic_private_target=/zrpf/build",
+    "complete_build_input_closure_verified": false,
     "dependency_graph_edges": "normal,build,no-proc-macro",
+    "dependency_graph_package_count": 127,
+    "dependency_graph_sha256": "36670188513f1f3ae68155aa163fe6755e52bc41dfc1baa10314c75ca7954d3a",
+    "execve_environment_map_allowlisted": true,
     "external_target_directory": true,
-    "parent_environment_allowlisted": true,
     "private_source_snapshot": true,
     "risc0_default_features": false,
     "risc0_features": [
@@ -63,11 +94,18 @@
     "rustdoc_version": "rustdoc 1.94.1-dev (06e01cb0d 2026-04-09)",
     "selected_graph_forbidden_packages_absent": true,
     "source_closure_checked_before_and_after_build": true,
-    "source_snapshot_commit": "d46f3e5614e39c41ebebd80b819bb2f1f6a5e522",
-    "source_snapshot_tree": "3f1eb445d53e5c643e0ac70cf6648111a840cc86",
-    "toolchain_lock_path": "config/proof_profiles/risc0_recursive_toolchain_lock.json"
+    "source_date_epoch": "1783641600",
+    "source_inventory_exact_and_automatic_targets_disabled": true,
+    "source_snapshot_commit": "44bc0435621588659e44a2819e4e8ef03ce6fd51",
+    "source_snapshot_tree": "0410e820afcbb1715ecccd6d691059a67424376e",
+    "toolchain_lock_path": "config/proof_profiles/risc0_recursive_toolchain_lock.json",
+    "verifier_binary_sha256": "4511b54089d811ce1d59889d09b322d4924eeb4b34e25d6c4827744ce85e8800",
+    "verifier_binary_size_bytes": 2819848
   },
   "recorded_execution": {
+    "binary_transport": "linux_memfd_full_seals_v1",
+    "executing_binary_sha256": "4511b54089d811ce1d59889d09b322d4924eeb4b34e25d6c4827744ce85e8800",
+    "executing_binary_size_bytes": 2819848,
     "negative_controls": [
       {
         "case_id": "altered_leaf",
@@ -110,7 +148,10 @@
         "error_code": "usage"
       }
     ],
+    "no_new_privileges_installed": true,
     "normal_and_risc0_dev_mode_one_stdout_identical": true,
+    "process_profile": "unsandboxed_preexec_limited_subprocess_v1",
+    "replay_process_creation_bound": "RLIMIT_NPROC=1",
     "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "stderr_size_bytes": 0,
     "stdout_sha256": "7751395663a33c1ae58fa403346dc90618e842dd1df2f2fdc37f18599e50c288",
@@ -118,7 +159,7 @@
   },
   "replay_source_closure": {
     "definition": "sha256(rows ordered by path: role\\0path\\0sha256\\0size_bytes\\n)",
-    "file_count": 32,
+    "file_count": 40,
     "files": [
       {
         "path": "config/proof_profiles/risc0_recursive_toolchain_lock.json",
@@ -135,8 +176,8 @@
       {
         "path": "zk/state_proof_risc0/shared/Cargo.toml",
         "role": "state_shared_manifest",
-        "sha256": "6a21ba0c312f684df8ce8703facb4badec2f0f85721d30c83bdce30c192c299c",
-        "size_bytes": 372
+        "sha256": "b22ea02555ae20a868d8f6a240efb429d74110cd7ba8ac98571a9e55a91b4c75",
+        "size_bytes": 489
       },
       {
         "path": "zk/state_proof_risc0/shared/src/lib.rs",
@@ -165,14 +206,20 @@
       {
         "path": "zk/zrpf_protocol/protocol/Cargo.toml",
         "role": "protocol_manifest",
-        "sha256": "391cd224acfe470bbf5f6192adcb6f9d5df2c2c80f16001c4da944c0927f8dfb",
-        "size_bytes": 474
+        "sha256": "33886cbbb600403bb2398d72a997e4e825c505fc2a6a29168ba6678c9ad9b7d4",
+        "size_bytes": 644
       },
       {
         "path": "zk/zrpf_protocol/protocol/src/lib.rs",
         "role": "protocol_source",
         "sha256": "04a787676c54b66795178fa22048430229bcac9ef4b0ea05cfe126059499cbe6",
         "size_bytes": 59787
+      },
+      {
+        "path": "zk/zrpf_protocol/protocol/tests/node_v3.rs",
+        "role": "protocol_test_source",
+        "sha256": "3825049b97c36ff725600a45f8042d4dff58ff9c4d1c7b0fc0346c3e2415a9bc",
+        "size_bytes": 20532
       },
       {
         "path": "zk/zrpf_risc0/.cargo/config.toml",
@@ -195,8 +242,8 @@
       {
         "path": "zk/zrpf_risc0/aggregate_shared/Cargo.toml",
         "role": "aggregate_manifest",
-        "sha256": "a4669e264447a4ccaaca3c21358f360d9c542be9857565f697a7d731cddad5b9",
-        "size_bytes": 591
+        "sha256": "4289b75184cd4fcd4623ab68d4736f50f35fdc7ee210654cabb6468becc78ffa",
+        "size_bytes": 773
       },
       {
         "path": "zk/zrpf_risc0/aggregate_shared/src/input_v1.rs",
@@ -217,10 +264,46 @@
         "size_bytes": 18661
       },
       {
+        "path": "zk/zrpf_risc0/aggregate_shared/tests/structural_v1.rs",
+        "role": "aggregate_test_source",
+        "sha256": "928cf34433ff73a020dcdfed353921b7c7e1989ab3351961ee00dd80e3a2988b",
+        "size_bytes": 11687
+      },
+      {
+        "path": "zk/zrpf_risc0/harness/Cargo.toml",
+        "role": "excluded_member_manifest",
+        "sha256": "bfad9f1de49a407b978058d9a27013427f664bd5637adecb6918440e120be96a",
+        "size_bytes": 860
+      },
+      {
+        "path": "zk/zrpf_risc0/methods/Cargo.toml",
+        "role": "excluded_member_manifest",
+        "sha256": "cffece1e78d0e4d10d4b2bc79d28ec44b4c3a0c654468f8d074e168aa68af9ab",
+        "size_bytes": 363
+      },
+      {
+        "path": "zk/zrpf_risc0/methods/structural_aggregate_l1/Cargo.toml",
+        "role": "excluded_member_manifest",
+        "sha256": "5c874844867c9455b351c5a681229f040ec86d483937737cbb1be920cfedad27",
+        "size_bytes": 498
+      },
+      {
+        "path": "zk/zrpf_risc0/methods/structural_aggregate_l2/Cargo.toml",
+        "role": "excluded_member_manifest",
+        "sha256": "397cb56d9a6179bea59e0e2886ec50581aa2adaee11c504251209b4f003417f7",
+        "size_bytes": 498
+      },
+      {
+        "path": "zk/zrpf_risc0/methods/v1_leaf_adapter/Cargo.toml",
+        "role": "excluded_member_manifest",
+        "sha256": "5a66a5458eb9e2951c10c3927550e6cfb75dc69dbbe86ece467fc86f7cce57f6",
+        "size_bytes": 462
+      },
+      {
         "path": "zk/zrpf_risc0/replay_verifier/Cargo.toml",
         "role": "replay_manifest",
-        "sha256": "1fa75705645d213d14dcc15fe0410361267aad70b3da63ee52b3a16c5e5abf60",
-        "size_bytes": 611
+        "sha256": "e253abc6fb0b507f55a95e0357787f2be504b449a2ffe0be6f693a5df71b7aa0",
+        "size_bytes": 775
       },
       {
         "path": "zk/zrpf_risc0/replay_verifier/src/bundle.rs",
@@ -255,8 +338,8 @@
       {
         "path": "zk/zrpf_risc0/shared/Cargo.toml",
         "role": "shared_manifest",
-        "sha256": "582e45f552a0da0790b40f7e251000655673b40b30e64788afd970e2b252c566",
-        "size_bytes": 687
+        "sha256": "405cdca52807361669417d88fa1988ca19a1bdf1c3b5e52e6264942e3312e3af",
+        "size_bytes": 866
       },
       {
         "path": "zk/zrpf_risc0/shared/src/adapter_input_v1.rs",
@@ -301,10 +384,16 @@
         "size_bytes": 14510
       },
       {
+        "path": "zk/zrpf_risc0/shared/tests/v1_leaf_adapter.rs",
+        "role": "shared_test_source",
+        "sha256": "7a8fec0f76df8763b51f2052ed8d0022c423048bac95639c09f045bb3d69df01",
+        "size_bytes": 19385
+      },
+      {
         "path": "zk/zrpf_risc0/verifier/Cargo.toml",
         "role": "verifier_manifest",
-        "sha256": "9718a2211e69748463c282727c3b2db3cdeb775a1783d89a297f30fd9a1d0800",
-        "size_bytes": 437
+        "sha256": "5753edf7118d82356a0705567f89b1996d3bd120cf38046f0443e4f3833e8a9c",
+        "size_bytes": 554
       },
       {
         "path": "zk/zrpf_risc0/verifier/src/lib.rs",
@@ -313,8 +402,8 @@
         "size_bytes": 30267
       }
     ],
-    "sha256": "3a877c3f19b9141a44fa44d65ee1ef70795a0623c4bbfd103e5fafdcc41d7f73",
-    "total_bytes": 945201
+    "sha256": "391d791c07f0d7480477763359656db309894566697cbae26fca7d4d0837397e",
+    "total_bytes": 1000415
   },
   "retained_receipt_set": {
     "artifact_count": 8,
@@ -366,15 +455,16 @@
   },
   "sanitization": {
     "absolute_paths_in_record": false,
+    "bounded_public_artifact_privacy_scan_passed": true,
     "guest_binaries_in_evidence_directory": false,
     "native_verifier_binary_in_evidence_directory": false,
     "receipt_directory_contains_only_exact_receipts": true
   },
-  "schema": "zenodex/zrpf_v3_retained_source_built_replay_evidence/v1",
-  "scope": "same_host_current_source_host_verifier_replay_of_exact_retained_v3_receipt_bytes",
+  "schema": "zenodex/zrpf_v3_retained_source_built_replay_evidence/v2",
+  "scope": "source_built_retained_receipt_structural_replay_without_ledger_authority",
   "source_anchor": {
-    "commit": "d46f3e5614e39c41ebebd80b819bb2f1f6a5e522",
-    "tree": "3f1eb445d53e5c643e0ac70cf6648111a840cc86"
+    "commit": "44bc0435621588659e44a2819e4e8ef03ce6fd51",
+    "tree": "0410e820afcbb1715ecccd6d691059a67424376e"
   },
   "stale_evidence_disposition": {
     "historical_root_receipt_sha256_record_preserved": "021af13025e7dc7c40e06d689ad30e3194e58793435cd11ae07d684c80ddfd33",
@@ -382,7 +472,7 @@
     "new_retained_root_receipt": "edd25fca20b0205c2f778b866605b343922615623256abcc1a098957664c2d16",
     "same_authenticated_root_journal": "2089ecc187077d4b719c8539076651753c1ead1415724c9bc788758bddfa3768"
   },
-  "status": "same_host_source_built_host_verifier_exact_retained_receipts_replayed",
+  "status": "source_built_retained_receipt_structural_replay_accepted",
   "verified_tree": {
     "adapter_image_id": "71f282b5517fc6108988c1cc9b4601807a40ae331c0e0f0f5505d12b241e5574",
     "level_one_image_id": "4272be5165f65e29cb134f815d6c6fc40d7f492979f596082cac10c3f0d43c2b",
@@ -393,5 +483,5 @@
     "root_journal_hash": "2089ecc187077d4b719c8539076651753c1ead1415724c9bc788758bddfa3768",
     "root_receipt_sha256": "edd25fca20b0205c2f778b866605b343922615623256abcc1a098957664c2d16"
   },
-  "version": 1
+  "version": 2
 }

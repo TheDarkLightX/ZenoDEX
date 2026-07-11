@@ -90,7 +90,7 @@ def _apply_process_profile(
         _set_limit(resource.RLIMIT_STACK, 64 * 1024 * 1024)
     elif profile is ProcessProfile.TOOL:
         _set_limit(resource.RLIMIT_AS, 4 * 1024 * 1024 * 1024)
-        _set_limit(resource.RLIMIT_FSIZE, max(output_limit_bytes, 1024 * 1024))
+        _set_limit(resource.RLIMIT_FSIZE, 1024 * 1024 * 1024)
         _set_limit(resource.RLIMIT_NOFILE, 256)
         _set_limit(resource.RLIMIT_NPROC, 32_768)
     else:  # pragma: no cover - Enum exhaustiveness guard

@@ -10,7 +10,6 @@ import subprocess
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-
 SCHEMA = "zenodex/zrpf_v3_frozen_source_closure/v1"
 MAX_SOURCE_BYTES = 16 * 1024 * 1024
 
@@ -173,24 +172,61 @@ def _read_source(root: Path, relative: str) -> bytes:
     pure = PurePosixPath(relative)
     if pure.is_absolute() or ".." in pure.parts or str(pure) != relative:
         raise SourceClosureError(f"unsafe source path: {relative}")
-    candidate = root / relative
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW
+    directory_flags = flags | os.O_DIRECTORY
+    descriptors: list[int] = []
     try:
-        metadata = candidate.lstat()
-        resolved = candidate.resolve(strict=True)
+        descriptor = os.open(root, directory_flags)
+        descriptors.append(descriptor)
+        for component in pure.parts[:-1]:
+            descriptor = os.open(component, directory_flags, dir_fd=descriptor)
+            descriptors.append(descriptor)
+        file_descriptor = os.open(
+            pure.parts[-1],
+            flags | os.O_NONBLOCK,
+            dir_fd=descriptor,
+        )
+        descriptors.append(file_descriptor)
+        before = os.fstat(file_descriptor)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_size <= 0
+            or before.st_size > MAX_SOURCE_BYTES
+        ):
+            raise SourceClosureError(
+                f"source file is not a bounded regular file: {relative}"
+            )
+        output = bytearray()
+        while len(output) < before.st_size:
+            chunk = os.read(
+                file_descriptor,
+                min(1024 * 1024, before.st_size - len(output)),
+            )
+            if not chunk:
+                raise SourceClosureError(f"source file changed while read: {relative}")
+            output.extend(chunk)
+        if os.read(file_descriptor, 1):
+            raise SourceClosureError(f"source file changed while read: {relative}")
+        after = os.fstat(file_descriptor)
     except OSError as exc:
         raise SourceClosureError(f"source file unavailable: {relative}") from exc
-    if (
-        candidate.is_symlink()
-        or not stat.S_ISREG(metadata.st_mode)
-        or not resolved.is_relative_to(root)
-        or metadata.st_size <= 0
-        or metadata.st_size > MAX_SOURCE_BYTES
-    ):
-        raise SourceClosureError(f"source file is not a bounded regular file: {relative}")
-    raw = resolved.read_bytes()
-    if len(raw) != metadata.st_size:
+    finally:
+        for opened in reversed(descriptors):
+            os.close(opened)
+    if _source_identity(before) != _source_identity(after):
         raise SourceClosureError(f"source file changed while read: {relative}")
-    return raw
+    return bytes(output)
+
+
+def _source_identity(metadata: os.stat_result) -> tuple[int, ...]:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_mode,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
 
 
 def _validate_compiler_source_inventory(root: Path) -> None:

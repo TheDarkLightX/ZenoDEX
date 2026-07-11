@@ -26,9 +26,10 @@ Run the static evidence gate from the repository root:
 python3 tools/check_zrpf_v3_replay_verifier_evidence.py --json
 ```
 
-The static gate checks canonical record bytes and pinned source and receipt
-material. It does not reperform receipt verification. Use `--live` for current
-source-built replay and negative-control evidence.
+The static gate checks canonical record bytes, pinned source and receipt
+material, and the bounded raw-byte privacy policy over the governed public
+artifact inventory. It does not reperform receipt verification. Use `--live`
+for current source-built replay and negative-control evidence.
 
 Run a fresh same-host build and replay with a new external target directory:
 
@@ -45,13 +46,15 @@ Succinct receipts, independently recomposes both level-one journals and the
 level-two journal, verifies the reviewed root and topology, and requires the
 exact seal mutation to reject as `receipt_verification_failed`. It also runs
 altered-byte, swapped-node, extra/missing-inventory, receipt-symlink, FIFO,
-directory-symlink, and missing-argument controls.
+directory-symlink, and missing-argument controls. The freshly built verifier is
+copied into a fully sealed Linux memfd before execution, so later pathname
+replacement cannot substitute different bytes for that run.
 
 No native verifier binary, guest ELF, proof-generation input, toolchain copy,
 or recorded transcript is stored here. This retained-byte regression lane does
-not attest proof generation, guest source-to-image correspondence, executing
-binary identity, compiler-closure or dependency-cache identity, cross-host
-reproducibility, a release build, semantic
+not attest proof generation, guest source-to-image correspondence, complete
+build-input, compiler, linker, dependency-cache, or runtime-rootfs identity,
+cross-host reproducibility, a release build, semantic
 aggregation, conservation, data availability, carry or scheduling, ledger or
 settlement admission, privacy, transaction counts, throughput, or production
 authority. Its `operation_count` unit is `source_transition_receipt_v3`.

@@ -8,6 +8,7 @@ from typing import Any
 
 _MODULE_PREFIX = "tools." if __package__ else ""
 support = importlib.import_module(f"{_MODULE_PREFIX}zrpf_v3_replay_evidence_support")
+privacy = importlib.import_module(f"{_MODULE_PREFIX}zrpf_v3_artifact_privacy")
 
 
 def write_after_verified_live(
@@ -15,13 +16,43 @@ def write_after_verified_live(
     report: dict[str, Any],
     repo_root: Path = support.REPO_ROOT,
 ) -> None:
-    document = support.expected_evidence(repo_root)
-    _require_recordable_live_facts(report.get("live"), document)
+    live = report.get("live")
+    identity = _execution_identity(live)
+    document = support.expected_evidence(identity, repo_root)
+    _require_recordable_live_facts(live, document)
     if report.get("ok") is not True:
         raise RuntimeError("verified live replay report is required")
+    raw = support.canonical_evidence_bytes(document)
+    _require_clean_public_artifacts(repo_root, raw)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("xb") as handle:
-        handle.write(support.canonical_evidence_bytes(document))
+        handle.write(raw)
+
+
+def _require_clean_public_artifacts(repo_root: Path, candidate: bytes) -> None:
+    existing = privacy.scan_artifacts(repo_root, privacy.PRE_RECORD_ARTIFACTS)
+    proposed = privacy.scan_candidate_bytes(privacy.EVIDENCE_ARTIFACT, candidate)
+    if existing.get("ok") is not True or proposed.get("ok") is not True:
+        raise RuntimeError("public artifact privacy scan rejected evidence creation")
+
+
+def _execution_identity(live: Any) -> dict[str, Any]:
+    if not isinstance(live, dict):
+        raise RuntimeError("verified live replay facts are required")
+    try:
+        return support.exact_execution_identity(
+            {
+                "binary_sha256": live.get("binary_sha256"),
+                "binary_size_bytes": live.get("binary_size_bytes"),
+                "binary_transport": live.get("binary_transport"),
+                "dependency_graph_package_count": live.get(
+                    "dependency_graph_package_count"
+                ),
+                "dependency_graph_sha256": live.get("dependency_graph_sha256"),
+            }
+        )
+    except ValueError as exc:
+        raise RuntimeError("live execution identity is malformed") from exc
 
 
 def _require_recordable_live_facts(live: Any, document: dict[str, Any]) -> None:
@@ -43,22 +74,12 @@ def _require_recordable_live_facts(live: Any, document: dict[str, Any]) -> None:
         live.get("stdout_size_bytes") == recorded["stdout_size_bytes"],
         live.get("negative_controls") == expected_negatives,
         live.get("toolchain_versions") == expected_versions,
-        _is_positive_int(live.get("binary_size_bytes")),
-        _is_positive_int(live.get("dependency_graph_package_count")),
-        _is_sha256(live.get("binary_sha256")),
-        _is_sha256(live.get("dependency_graph_sha256")),
+        live.get("binary_sha256") == recorded["executing_binary_sha256"],
+        live.get("binary_size_bytes") == recorded["executing_binary_size_bytes"],
+        live.get("binary_transport") == recorded["binary_transport"],
+        live.get("dependency_graph_package_count")
+        == build["dependency_graph_package_count"],
+        live.get("dependency_graph_sha256") == build["dependency_graph_sha256"],
     )
     if not all(required):
         raise RuntimeError("live replay facts do not authorize evidence creation")
-
-
-def _is_positive_int(value: Any) -> bool:
-    return type(value) is int and value > 0
-
-
-def _is_sha256(value: Any) -> bool:
-    return (
-        isinstance(value, str)
-        and len(value) == 64
-        and all(character in "0123456789abcdef" for character in value)
-    )

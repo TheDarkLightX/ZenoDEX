@@ -20,18 +20,32 @@ RECEIPT_DIRECTORY = (
 )
 WORKSPACE = REPO_ROOT / "zk/zrpf_risc0"
 
-SCHEMA = "zenodex/zrpf_v3_retained_source_built_replay_evidence/v1"
+SCHEMA = "zenodex/zrpf_v3_retained_source_built_replay_evidence/v2"
 REPORT_SCHEMA = "zenodex/zrpf_v3_retained_structural_replay/v1"
-SOURCE_COMMIT = "d46f3e5614e39c41ebebd80b819bb2f1f6a5e522"
-SOURCE_TREE = "3f1eb445d53e5c643e0ac70cf6648111a840cc86"
+SOURCE_COMMIT = "44bc0435621588659e44a2819e4e8ef03ce6fd51"
+SOURCE_TREE = "0410e820afcbb1715ecccd6d691059a67424376e"
+SOURCE_TAG = "zrpf-v3-source-anchor-20260710"
 EXPECTED_STDOUT_SHA256 = (
     "7751395663a33c1ae58fa403346dc90618e842dd1df2f2fdc37f18599e50c288"
 )
 EXPECTED_STDOUT_SIZE = 5_920
-EXPECTED_SOURCE_CLOSURE_FILES = 32
-EXPECTED_SOURCE_CLOSURE_BYTES = 945_201
+EXPECTED_EVIDENCE_SHA256 = (
+    "03b38b53a17d45348880caccb03f0ce71cf86f267ba6f92c8381684ccaebec87"
+)
+EXPECTED_BINARY_TRANSPORT = "linux_memfd_full_seals_v1"
+EXECUTION_IDENTITY_FIELDS = frozenset(
+    {
+        "binary_sha256",
+        "binary_size_bytes",
+        "binary_transport",
+        "dependency_graph_package_count",
+        "dependency_graph_sha256",
+    }
+)
+EXPECTED_SOURCE_CLOSURE_FILES = 40
+EXPECTED_SOURCE_CLOSURE_BYTES = 1_000_415
 EXPECTED_SOURCE_CLOSURE_SHA256 = (
-    "3a877c3f19b9141a44fa44d65ee1ef70795a0623c4bbfd103e5fafdcc41d7f73"
+    "391d791c07f0d7480477763359656db309894566697cbae26fca7d4d0837397e"
 )
 EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
 ROOT_JOURNAL_HASH = (
@@ -162,14 +176,23 @@ RECEIPTS: tuple[tuple[str, int, str], ...] = (
 TRUE_CLAIMS = frozenset(
     {
         "all_expected_image_ids_verified",
+        "artifact_privacy_scan_passed",
+        "automatic_cargo_targets_disabled",
+        "compiler_visible_paths_remapped_to_canonical_prefix",
+        "exact_source_inventory_enforced",
         "exact_retained_artifact_bytes_bound",
         "exact_seal_mutation_rejected",
         "exact_l1_l2_journals_recomposed",
+        "execve_environment_map_allowlisted",
+        "executing_binary_identity_authenticated",
+        "fresh_verifier_bytes_sealed_before_exec",
         "guest_binaries_required_by_replay_false",
         "local_cargo_rustc_rustdoc_match_pinned_artifacts",
+        "no_new_privileges_installed",
         "normal_and_risc0_dev_mode_one_stdout_identical",
-        "parent_environment_inputs_allowlisted",
+        "preexec_resource_limits_installed",
         "private_source_snapshot_bound_to_anchor",
+        "replay_process_creation_bounded",
         "root_journal_and_topology_bound",
         "same_host_source_built_host_verifier_replay",
         "selected_dependency_graph_excludes_guest_build_paths",
@@ -178,30 +201,47 @@ TRUE_CLAIMS = frozenset(
 )
 FALSE_CLAIMS = frozenset(
     {
+        "build_network_disabled",
+        "cgroup_limits_installed",
         "compiler_closure_identity_authenticated",
+        "complete_build_input_closure_verified",
+        "covert_channel_freedom",
         "cross_host_reproducibility",
+        "data_availability_verified",
         "dependency_cache_identity_authenticated",
-        "executing_binary_identity_authenticated",
+        "durable_atomic_admission_verified",
         "guest_source_to_image_attested",
+        "guest_image_ids_recomputed",
+        "hardware_side_channel_resistance",
+        "host_filesystem_isolated",
         "ledger_admission_authority",
         "linker_identity_authenticated",
+        "network_disabled",
+        "parent_process_environment_inaccessible",
         "privacy_or_zero_knowledge",
         "production_authority",
         "proof_generation_source_attested",
+        "proofs_regenerated",
+        "process_namespace_isolated",
         "public_replay_promoted",
         "receipt_byte_determinism",
         "release_authority",
         "reproducible_build",
         "static_validation_reperforms_live_replay",
         "runtime_rootfs_identity_authenticated",
+        "sandbox_escape_controls_passed",
+        "seccomp_policy_installed",
+        "semantic_composition_verified",
         "semantic_aggregation_or_value_conservation",
+        "source_snapshot_immutable",
         "settlement_authority",
         "throughput_or_transaction_count",
     }
 )
 NON_CLAIMS = (
     "no proof-generation source or guest source-to-image provenance claim",
-    "no authenticated compiler closure, linker, dependency cache, executing-binary identity, or runtime-rootfs claim",
+    "no complete build-input, compiler, linker, dependency-cache, or runtime-rootfs authentication claim",
+    "the exact sealed verifier bytes are authenticated for the recorded execution",
     "no cross-host, reproducible-build, release, or public-replay promotion claim",
     "no semantic aggregation, conservation, data-availability, carry, or schedule claim",
     "no ledger-admission, settlement, production, privacy, or zero-knowledge claim",
@@ -273,7 +313,18 @@ def strict_json_loads(raw: bytes) -> Any:
 
 def _safe_relative_path(value: str) -> bool:
     path = PurePosixPath(value)
-    return bool(value) and not path.is_absolute() and ".." not in path.parts
+    return all(
+        (
+            bool(value),
+            value != ".",
+            "\0" not in value,
+            "\\" not in value,
+            not path.is_absolute(),
+            bool(path.parts),
+            str(path) == value,
+            all(part not in {"", ".", ".."} for part in path.parts),
+        )
+    )
 
 
 def _regular_file_bytes(root: Path, relative: str, maximum: int) -> bytes:
@@ -422,12 +473,36 @@ def retained_receipt_set(receipt_directory: Path = RECEIPT_DIRECTORY) -> dict[st
     }
 
 
-def expected_evidence(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
+def exact_execution_identity(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != EXECUTION_IDENTITY_FIELDS:
+        raise ValueError("execution identity field set mismatch")
+    if value.get("binary_transport") != EXPECTED_BINARY_TRANSPORT:
+        raise ValueError("execution identity transport mismatch")
+    for field in ("binary_sha256", "dependency_graph_sha256"):
+        digest = value.get(field)
+        if not isinstance(digest, str) or len(digest) != 64 or any(
+            character not in "0123456789abcdef" for character in digest
+        ):
+            raise ValueError(f"execution identity digest malformed: {field}")
+    for field in ("binary_size_bytes", "dependency_graph_package_count"):
+        count = value.get(field)
+        if type(count) is not int or count <= 0:
+            raise ValueError(f"execution identity count malformed: {field}")
+    return dict(value)
+
+
+def expected_evidence(
+    execution_identity: dict[str, Any],
+    repo_root: Path = REPO_ROOT,
+) -> dict[str, Any]:
     module_prefix = "tools." if __package__ else ""
     manifest = importlib.import_module(
         f"{module_prefix}zrpf_v3_replay_evidence_manifest"
     )
-    return cast(dict[str, Any], manifest.expected_evidence(repo_root))
+    return cast(
+        dict[str, Any],
+        manifest.expected_evidence(repo_root, exact_execution_identity(execution_identity)),
+    )
 
 
 def validate_replay_report(raw: bytes) -> tuple[dict[str, Any] | None, list[str]]:

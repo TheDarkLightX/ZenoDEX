@@ -25,7 +25,7 @@ covers one heterogeneous pair and one same-profile distinct-statement spot
 pair. The heterogeneous source-pinned evidence record is
 `docs/research/RECURSIVE_STARK_V2_TWO_LEAF_SOURCE_PINNED_EVIDENCE_20260710.json`,
 SHA-256
-`d862940c666603865eeddf55107b77b12f57198540b3857943210170e9f32e94`.
+`9a98b947f76a599109f5238861d010fd3dbb8a8299ef6e3f03685b3cac51ad74`.
 The earlier unpromoted prototype remains recorded separately for cross-run
 comparison. The fresh receipt bytes differ across runs, and both authenticated
 journals match. Proof-byte determinism remains unestablished. A governed
@@ -49,7 +49,7 @@ lanes and lane aliases of one semantic source, and independently recomputes the
 descendant-source and scoped assigned-leaf roots. The evidence record is
 `docs/research/RECURSIVE_STARK_V2_SAME_PROFILE_TWO_SPOT_EVIDENCE_20260710.json`,
 SHA-256
-`db8d9010485af3f2abebde0cd418581a66e06f0de6de181f484d4defd2b5cfe7`.
+`18141ffae7279b1a717edb41674b4fae101a489e2d7870b920c45c8d6810512a`.
 Its checker replays both leaf orders from digest-verified private staging and
 requires duplicate-lane, duplicate-source, swapped-node, and one-word Succinct
 seal mutation rejections. This closes the bounded same-profile verifier-set
@@ -134,7 +134,7 @@ Both retained adapter and structural-tree evidence records predate that host
 change, so both historical source-closure checkers continue to reject current
 source. Those records remain unchanged as stale regression gates.
 
-A separate hardened replay lane at commit `d46f3e56` builds a dedicated
+A separate hardened replay lane anchored at commit `44bc0435` builds a dedicated
 source-only verifier whose selected dependency graph excludes the methods,
 guests, harness, Bonsai, client, and `risc0-build` paths. It binds eight exact
 retained artifacts by fixed name, size, and SHA-256 through descriptor-relative
@@ -143,24 +143,28 @@ recomposes and exact-verifies both level-one journals and the level-two journal,
 binds the reviewed root topology and journal hash, and requires the exact
 single-word root-seal mutation to reject as `receipt_verification_failed`.
 The live gate builds from a mode-0700 detached worktree at the pinned commit,
-checks the 32-file closure before and after compilation, disables checkout
-hooks, rejects unpinned ancestor Cargo config, isolates Cargo home config, and
-passes an allowlisted environment to the build and verifier processes.
+checks the 40-file closure before and after compilation, disables automatic
+Cargo target discovery and checkout hooks, rejects unpinned ancestor Cargo
+config, isolates Cargo home config, remaps compiler-visible paths, and passes an
+allowlisted `execve` environment to the build and verifier processes.
 Normal execution and `RISC0_DEV_MODE=1` execution produced byte-identical
 5,920-byte output with SHA-256
 `7751395663a33c1ae58fa403346dc90618e842dd1df2f2fdc37f18599e50c288`.
 The path-clean evidence record is
 `docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260710.json`,
 SHA-256
-`7c9fdae9b4bc6576f9743545baa54fa7a88fb154f9b0805af621320353250bca`.
+`03b38b53a17d45348880caccb03f0ce71cf86f267ba6f92c8381684ccaebec87`.
+The recorded verifier bytes have SHA-256
+`4511b54089d811ce1d59889d09b322d4924eeb4b34e25d6c4827744ce85e8800`
+and were executed from a fully sealed Linux memfd.
 Its live checker also rejects altered receipt bytes, swapped level-one nodes,
 extra and missing inventory, receipt symlinks, FIFO input, a directory symlink,
 and missing arguments with stable reject classes and empty stdout.
 
 This closes the current hardened host-verifier replay gap for the exact retained
 bytes. It does not attest the historical proof-generation source, rebuild guest
-images, bind guest source to image IDs, or authenticate the executing binary,
-compiler closure, dependency cache, or runtime rootfs. Cross-host
+images, bind guest source to image IDs, or authenticate complete build inputs,
+the compiler, linker, dependency cache, or runtime rootfs. Cross-host
 reproducibility and public-replay, release, semantic, ledger, settlement,
 privacy, throughput, and production authority remain unestablished. The
 retained root receipt
@@ -185,11 +189,11 @@ independently recomputed the image ID, and matched the pinned program, raw ELF,
 and both host pair verifiers, then verified the pinned authenticated proof pair. It
 returned
 `same_host_clean_recursive_v2_rebuild_match`. The evidence report SHA-256 is
-`f2f8e27e1dc2237f4c583b7b973f5d9a11005bd140ea5d8b3ce0cb88fb96f471`.
+`a366d6e0d00f963c061cd7c9be9bbc531d6502f49950834f4297b773db05aeb1`.
 The path-redacted record is
 `docs/research/RECURSIVE_STARK_V2_CURRENT_EVIDENCE_20260710.json`, pinned by
 file SHA-256
-`3cf90baf002d1e4db688d20d8969667e20fef8401c455ffe37648a23e964286b`.
+`6063b2def168c59d0f187a46e8384979441f4bad8ef1a795f2163c86a7849ea1`.
 This remains same-host evidence. Cross-environment reproducibility, release
 authority, public replay, privacy, settlement authority, and production
 readiness remain false or unestablished. Proof-regeneration determinism remains

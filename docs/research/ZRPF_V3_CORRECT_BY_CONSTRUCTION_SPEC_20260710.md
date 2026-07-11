@@ -563,17 +563,22 @@ verification, recomposes both level-one journals and the level-two journal,
 and requires the exact seal mutation to reject at receipt verification.
 The live gate builds from a private detached worktree at the pinned commit,
 checks its exact source closure before and after compilation, disables checkout
-hooks, rejects unpinned ancestor Cargo config, isolates Cargo home config, and
-uses an allowlisted subprocess environment.
+hooks, rejects unpinned ancestor Cargo config, isolates Cargo home config,
+disables automatic Cargo target discovery, remaps compiler-visible paths, and
+uses an allowlisted `execve` environment. The exact selected source closure now
+contains 40 files.
 Normal and `RISC0_DEV_MODE=1` outputs are byte-identical. The record is
 `docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260710.json`,
 SHA-256
-`7c9fdae9b4bc6576f9743545baa54fa7a88fb154f9b0805af621320353250bca`.
+`03b38b53a17d45348880caccb03f0ce71cf86f267ba6f92c8381684ccaebec87`.
+The recorded verifier bytes have SHA-256
+`4511b54089d811ce1d59889d09b322d4924eeb4b34e25d6c4827744ce85e8800`
+and were executed from a fully sealed Linux memfd.
 
 This record establishes a same-host current-source host-verifier replay of the
 exact retained bytes. It does not establish how those proofs were generated,
-bind guest source to the temporary image IDs, authenticate the executing binary,
-compiler closure, dependency cache, or runtime rootfs, demonstrate
+bind guest source to the temporary image IDs, authenticate complete build
+inputs, the compiler, linker, dependency cache, or runtime rootfs, demonstrate
 receipt-byte determinism, or authorize release or public-replay promotion.
 
 ## Promotion Boundary

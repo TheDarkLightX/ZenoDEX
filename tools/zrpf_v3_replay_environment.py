@@ -58,6 +58,12 @@ def build_environment(
     env.update(
         {
             "CARGO_HOME": str(cargo_home),
+            "CARGO_ENCODED_RUSTFLAGS": "\x1f".join(
+                (
+                    "--remap-path-prefix",
+                    f"{target_directory}=/zrpf/build",
+                )
+            ),
             "CARGO_NET_OFFLINE": "true",
             "CARGO_TARGET_DIR": str(target_directory),
             "HOME": str(isolated_home),
@@ -65,6 +71,7 @@ def build_environment(
             "RISC0_SKIP_BUILD": "1",
             "RUSTC": str(tool_paths["rustc"]),
             "RUSTDOC": str(tool_paths["rustdoc"]),
+            "SOURCE_DATE_EPOCH": "1783641600",
             "TMPDIR": str(temporary),
         }
     )

@@ -87,7 +87,7 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     assert report["facts"]["implemented_obligation_count"] == 18
     assert report["facts"]["pending_obligation_count"] == 5
     assert report["matrix_sha256"] == (
-        "sha256:626e2889e705ee3bb1ce4a9056b2ff21533bb3ff299a2b843f3580c97ba9c459"
+        "sha256:7277ca64281b672aecd331334d1fcd3c98059697cefd1defc9c4165c2cb06cb5"
     )
     assert report["promotion_boundary"]["facts"]["public_claim_allowed"] is False
     assert report["promotion_boundary"]["facts"]["production_ready"] is False
@@ -170,7 +170,7 @@ def test_current_v2_public_evidence_matches_reference_and_preserves_nonclaims() 
 
     assert evidence["schema"] == "zenodex/recursive_stark_v2_current_evidence/v1"
     assert hashlib.sha256(evidence_bytes).hexdigest() == (
-        "3cf90baf002d1e4db688d20d8969667e20fef8401c455ffe37648a23e964286b"
+        "6063b2def168c59d0f187a46e8384979441f4bad8ef1a795f2163c86a7849ea1"
     )
     assert evidence["committed_v2_rebuild_reference"] == {
         "path": "config/proof_profiles/risc0_recursive_v2_rebuild_reference.json",
@@ -377,7 +377,7 @@ def test_two_leaf_source_pinned_evidence_is_exact_and_claim_limited() -> None:
     ).encode("utf-8")
 
     assert hashlib.sha256(evidence_bytes).hexdigest() == (
-        "d862940c666603865eeddf55107b77b12f57198540b3857943210170e9f32e94"
+        "9a98b947f76a599109f5238861d010fd3dbb8a8299ef6e3f03685b3cac51ad74"
     )
     assert evidence["schema"] == ("zenodex/recursive_stark_v2_two_leaf_source_pinned_evidence/v1")
     assert evidence["status"] == (
@@ -500,7 +500,7 @@ def test_same_profile_two_spot_evidence_is_exact_and_claim_limited() -> None:
     reference_bytes = CURRENT_V2_REFERENCE.read_bytes()
 
     assert hashlib.sha256(evidence_bytes).hexdigest() == (
-        "db8d9010485af3f2abebde0cd418581a66e06f0de6de181f484d4defd2b5cfe7"
+        "18141ffae7279b1a717edb41674b4fae101a489e2d7870b920c45c8d6810512a"
     )
     assert evidence["schema"] == (
         "zenodex/recursive_stark_v2_same_profile_two_spot_evidence/v1"

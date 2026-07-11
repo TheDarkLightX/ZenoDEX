@@ -605,7 +605,7 @@
         },
         {
           "path": "docs/research/RECURSIVE_STARK_V2_CURRENT_EVIDENCE_20260710.json",
-          "symbol": "f2f8e27e1dc2237f4c583b7b973f5d9a11005bd140ea5d8b3ce0cb88fb96f471"
+          "symbol": "a366d6e0d00f963c061cd7c9be9bbc531d6502f49950834f4297b773db05aeb1"
         },
         {
           "path": "docs/research/RECURSIVE_STARK_V2_TWO_LEAF_EXPERIMENT_20260710.json",
@@ -1122,7 +1122,7 @@
         },
         {
           "path": "docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260710.json",
-          "symbol": "same_host_source_built_host_verifier_exact_retained_receipts_replayed"
+          "symbol": "source_built_retained_receipt_structural_replay_accepted"
         }
       ],
       "test_refs": [
@@ -1165,6 +1165,14 @@
         {
           "path": "tests/test_check_zrpf_v3_replay_verifier_evidence.py",
           "symbol": "test_verified_live_record_creation_passes_static_check_and_refuses_overwrite"
+        },
+        {
+          "path": "tests/test_zrpf_v3_artifact_privacy.py",
+          "symbol": "test_committed_zrpf_artifact_inventory_is_clean"
+        },
+        {
+          "path": "tests/test_zrpf_assurance_workflow.py",
+          "symbol": "test_zrpf_assurance_workflow_is_required_lane_ready"
         }
       ],
       "external_commands": [
@@ -1176,10 +1184,11 @@
         "python3 -m pytest -q tests/test_check_zrpf_v1_spot_adapter_temporary_evidence.py::test_retained_adapter_evidence_rejects_hardened_verifier_source_drift",
         "python3 -m pytest -q tests/test_check_zrpf_v3_structural_tree_temporary_evidence.py::test_retained_structural_evidence_rejects_hardened_verifier_source_drift",
         "python3 tools/check_zrpf_v3_replay_verifier_evidence.py --json",
+        "python3 tools/zrpf_v3_artifact_privacy.py",
         "python3 tools/check_zrpf_v3_replay_verifier_evidence.py --live --risc0-home <RISC0_HOME> --target-dir <NEW_EXTERNAL_TARGET_DIRECTORY> --json"
       ],
       "next_action": "generate fresh current-source leaf and aggregate proofs, bind guest source to the resulting image IDs, record proof-generation and verifier build provenance, preserve governed outer image equality at every consumer, and keep semantic aggregation in RS-CBC-023",
-      "non_claim": "commit d46f3e56 supports a same-host source-built host-verifier replay of seven exact retained Succinct receipts and one exact seal mutation; retained root receipt edd25fca20b0205c2f778b866605b343922615623256abcc1a098957664c2d16 authenticates root journal 2089ecc187077d4b719c8539076651753c1ead1415724c9bc788758bddfa3768; this does not attest proof generation, bind guest source to image IDs, establish cross-host or release reproducibility, semantic composition, data-availability assurance, carry continuity, governed admission, settlement authority, privacy, transaction counts, throughput, or production authority"
+      "non_claim": "source anchor 44bc0435 supports a same-host source-built host-verifier replay of seven exact retained Succinct receipts and one exact seal mutation; exact freshly built verifier bytes are sealed before execution and the governed public artifacts pass a bounded privacy scan; retained root receipt edd25fca20b0205c2f778b866605b343922615623256abcc1a098957664c2d16 authenticates root journal 2089ecc187077d4b719c8539076651753c1ead1415724c9bc788758bddfa3768; this does not attest proof generation, bind guest source to image IDs, establish complete build-input provenance, cross-host or release reproducibility, semantic composition, data-availability assurance, carry continuity, governed admission, settlement authority, privacy, transaction counts, throughput, or production authority"
     },
     {
       "id": "RS-CBC-023",
