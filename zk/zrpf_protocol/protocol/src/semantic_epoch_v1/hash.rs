@@ -10,6 +10,8 @@ const PROFILE_ID_DOMAIN_V3: &[u8] = b"zenodex.zrpf.profile_id.v3";
 const COUNT_UNIT_ID_DOMAIN_V3: &[u8] = b"zenodex.zrpf.count_unit_id.v3";
 const V1_ADAPTER_MANIFEST_DOMAIN: &[u8] = b"zenodex.zrpf.v1_adapter_manifest.v1";
 const V1_ADAPTER_MANIFEST_CLASS: &[u8] = b"unreleased_compatibility_manifest";
+const SEMANTIC_EPOCH_MANIFEST_DOMAIN: &[u8] = b"zenodex.zrpf.semantic_epoch_manifest.v1";
+const SEMANTIC_EPOCH_MANIFEST_CLASS: &[u8] = b"unreleased_semantic_epoch_manifest";
 const V1_ADAPTER_NODE_STATEMENT_DOMAIN: &[u8] = b"zenodex.zrpf.v1_adapter_node_statement.v1";
 const V1_ADAPTER_TASK_SET_ROOT_DOMAIN: &[u8] = b"zenodex.zrpf.v1_adapter_task_set_root.v1";
 const V1_ADAPTER_PROVENANCE_ROOT_DOMAIN: &[u8] = b"zenodex.zrpf.v1_adapter_provenance_root.v1";
@@ -50,10 +52,24 @@ pub fn v1_adapter_profile_id_v1() -> Result<ProfileIdV3, SemanticEpochErrorV1> {
     )?)?)
 }
 
-pub(super) fn semantic_profile_id_v1() -> Result<ProfileIdV3, SemanticEpochErrorV1> {
+pub fn semantic_epoch_profile_id_v1() -> Result<ProfileIdV3, SemanticEpochErrorV1> {
     Ok(ProfileIdV3::new(hash_framed(
         PROFILE_ID_DOMAIN_V3,
         &[V1_SEMANTIC_PROFILE],
+    )?)?)
+}
+
+pub fn semantic_epoch_manifest_root_v1(
+    semantic_program_id: ProgramIdV3,
+) -> Result<CommitmentV3, SemanticEpochErrorV1> {
+    let profile_id = semantic_epoch_profile_id_v1()?;
+    Ok(CommitmentV3::new(hash_framed(
+        SEMANTIC_EPOCH_MANIFEST_DOMAIN,
+        &[
+            semantic_program_id.as_bytes(),
+            profile_id.as_bytes(),
+            SEMANTIC_EPOCH_MANIFEST_CLASS,
+        ],
     )?)?)
 }
 

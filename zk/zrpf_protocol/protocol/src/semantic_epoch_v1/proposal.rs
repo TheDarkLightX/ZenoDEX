@@ -8,7 +8,7 @@ use super::super::{
     ProfileIdV3, ProgramIdV3, MAX_LEAF_COUNT_V3, MAX_OPERATIONS_PER_ROOT_V3,
 };
 use super::hash::{
-    semantic_profile_id_v1, v1_adapter_count_unit_id_v1, COMMITMENTS_HASH_DOMAIN_V1,
+    semantic_epoch_profile_id_v1, v1_adapter_count_unit_id_v1, COMMITMENTS_HASH_DOMAIN_V1,
     EPOCH_ROOT_DOMAIN_V1, PROPOSAL_HASH_DOMAIN_V1,
 };
 use super::sets::{derive_epoch_commitments, validate_leaf_set};
@@ -165,7 +165,7 @@ impl ProposedSemanticEpochV1 {
             .ok_or(SemanticEpochErrorV1::EmptyLeaves)?
             .count_unit_id();
         let commitments = derive_epoch_commitments(&input.leaves)?;
-        let semantic_profile_id = semantic_profile_id_v1()?;
+        let semantic_profile_id = semantic_epoch_profile_id_v1()?;
         let semantic_epoch_root = derive_semantic_epoch_root(SemanticRootInputV1 {
             scope: &input.scope,
             semantic_profile_id,
@@ -197,7 +197,7 @@ impl ProposedSemanticEpochV1 {
         if self.semantic_version != SEMANTIC_EPOCH_VERSION_V1 {
             return Err(SemanticEpochErrorV1::InvalidVersion(self.semantic_version));
         }
-        if self.semantic_profile_id != semantic_profile_id_v1()? {
+        if self.semantic_profile_id != semantic_epoch_profile_id_v1()? {
             return Err(SemanticEpochErrorV1::InvalidSemanticProfile);
         }
         self.scope.canonical_hash()?;

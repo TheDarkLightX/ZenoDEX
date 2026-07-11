@@ -7,8 +7,9 @@ mod sets;
 use core::fmt;
 
 pub use hash::{
-    v1_adapter_count_unit_id_v1, v1_adapter_manifest_root_v1, v1_adapter_profile_id_v1,
-    v1_adapter_semantic_source_root_v1, v1_adapter_task_set_root_v1,
+    semantic_epoch_manifest_root_v1, semantic_epoch_profile_id_v1, v1_adapter_count_unit_id_v1,
+    v1_adapter_manifest_root_v1, v1_adapter_profile_id_v1, v1_adapter_semantic_source_root_v1,
+    v1_adapter_task_set_root_v1,
 };
 pub use ids::{SemanticSourceIdV1, SourceClaimIdV1};
 pub use leaf::{

@@ -197,6 +197,10 @@ semantic_epoch_root = H(
 
 `proof_tree_root`, the future semantic guest program ID, and its manifest root
 are excluded from `semantic_epoch_root`. They are included in `proposal_hash`.
+The guest manifest root is derived inside the protocol from the semantic guest
+program ID, the fixed semantic profile ID, and the
+`unreleased_semantic_epoch_manifest` class. It is never a free host-selected
+semantic field.
 
 Current fixed vectors:
 

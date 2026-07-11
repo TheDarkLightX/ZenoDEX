@@ -1,11 +1,12 @@
 use sha2::{Digest, Sha256};
 use zenodex_zrpf_protocol_v3::{
     decode_exact_semantic_epoch_proposal_v1, encode_semantic_epoch_proposal_v1,
-    v1_adapter_count_unit_id_v1, v1_adapter_manifest_root_v1, v1_adapter_profile_id_v1,
-    v1_adapter_semantic_source_root_v1, v1_adapter_task_set_root_v1, ApplicationIdV3, CommitmentV3,
-    DomainIdV3, ExpectedV1AdapterLeafIdentityV1, LeafNodeInputV3, NodeCommitmentsInputV3,
-    NodeCommitmentsV3, NodeJournalV3, NodeScopeInputV3, NodeScopeV3, PartitionV3, ProfileIdV3,
-    ProgramIdV3, ProposedSemanticEpochV1, ProposedSemanticLeafV1, SemanticEpochErrorV1,
+    semantic_epoch_manifest_root_v1, semantic_epoch_profile_id_v1, v1_adapter_count_unit_id_v1,
+    v1_adapter_manifest_root_v1, v1_adapter_profile_id_v1, v1_adapter_semantic_source_root_v1,
+    v1_adapter_task_set_root_v1, ApplicationIdV3, CommitmentV3, DomainIdV3,
+    ExpectedV1AdapterLeafIdentityV1, LeafNodeInputV3, NodeCommitmentsInputV3, NodeCommitmentsV3,
+    NodeJournalV3, NodeScopeInputV3, NodeScopeV3, PartitionV3, ProfileIdV3, ProgramIdV3,
+    ProposedSemanticEpochV1, ProposedSemanticLeafV1, SemanticEpochErrorV1,
     SemanticEpochProposalInputV1, TaskIdV3, V1AdapterSemanticLeafOpeningV1, MAX_LEAF_COUNT_V3,
     MAX_SEMANTIC_EPOCH_PROPOSAL_BYTES_V1,
 };
@@ -13,6 +14,7 @@ use zenodex_zrpf_protocol_v3::{
 const PROFILE_ID_DOMAIN: &[u8] = b"zenodex.zrpf.profile_id.v3";
 const COUNT_UNIT_ID_DOMAIN: &[u8] = b"zenodex.zrpf.count_unit_id.v3";
 const ADAPTER_MANIFEST_DOMAIN: &[u8] = b"zenodex.zrpf.v1_adapter_manifest.v1";
+const SEMANTIC_MANIFEST_DOMAIN: &[u8] = b"zenodex.zrpf.semantic_epoch_manifest.v1";
 const ADAPTER_NODE_STATEMENT_DOMAIN: &[u8] = b"zenodex.zrpf.v1_adapter_node_statement.v1";
 const PROVENANCE_ROOT_DOMAIN: &[u8] = b"zenodex.zrpf.v1_adapter_provenance_root.v1";
 const TASK_SET_ROOT_DOMAIN: &[u8] = b"zenodex.zrpf.v1_adapter_task_set_root.v1";
@@ -127,6 +129,14 @@ fn manual_adapter_profile() -> ProfileIdV3 {
     .unwrap()
 }
 
+fn manual_semantic_profile() -> ProfileIdV3 {
+    ProfileIdV3::new(framed_hash(
+        PROFILE_ID_DOMAIN,
+        &[b"zrpf_semantic_v1_adapter_compatibility_v1"],
+    ))
+    .unwrap()
+}
+
 fn manual_count_unit() -> CommitmentV3 {
     CommitmentV3::new(framed_hash(
         COUNT_UNIT_ID_DOMAIN,
@@ -142,6 +152,18 @@ fn manual_manifest(program_id: ProgramIdV3) -> CommitmentV3 {
             program_id.as_bytes(),
             manual_adapter_profile().as_bytes(),
             b"unreleased_compatibility_manifest",
+        ],
+    ))
+    .unwrap()
+}
+
+fn manual_semantic_manifest(program_id: ProgramIdV3) -> CommitmentV3 {
+    CommitmentV3::new(framed_hash(
+        SEMANTIC_MANIFEST_DOMAIN,
+        &[
+            program_id.as_bytes(),
+            manual_semantic_profile().as_bytes(),
+            b"unreleased_semantic_epoch_manifest",
         ],
     ))
     .unwrap()
@@ -376,6 +398,14 @@ fn adapter_hash_mirror_matches_public_profile_helpers_and_legacy_empty_vectors()
         manual_adapter_profile()
     );
     assert_eq!(v1_adapter_count_unit_id_v1().unwrap(), manual_count_unit());
+    assert_eq!(
+        semantic_epoch_profile_id_v1().unwrap(),
+        manual_semantic_profile()
+    );
+    assert_eq!(
+        semantic_epoch_manifest_root_v1(program(241)).unwrap(),
+        manual_semantic_manifest(program(241))
+    );
     assert_eq!(
         v1_adapter_manifest_root_v1(program(231)).unwrap(),
         manual_manifest(program(231))
