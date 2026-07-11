@@ -899,6 +899,9 @@ def _public_network_config_hash_v0(config: Mapping[str, Any]) -> str:
         "config_signature_envelopes",
         "network_config_quorum_admission",
         "production_key_admission_receipt",
+        "production_key_packet",
+        "production_key_descriptors",
+        "production_key_signature_envelopes",
     }
     body = {key: value for key, value in config.items() if key not in appended_fields}
     return hash_v0("public_network_config_v0", body)
@@ -5827,6 +5830,7 @@ def _public_network_config_to_join_config_v0(
     require_network_config_quorum: bool = False,
     expected_config_signer_registry_hash: str | None = None,
     require_production_key_admission: bool = False,
+    production_key_signature_verifier: Any | None = None,
 ) -> dict[str, Any]:
     if network_config.get("schema") != NODE_PUBLIC_NETWORK_CONFIG_SCHEMA:
         raise ValueError("public network config schema mismatch")
@@ -5839,7 +5843,16 @@ def _public_network_config_to_join_config_v0(
         expected_config_signer_registry_hash=expected_config_signer_registry_hash,
     )
     if require_production_key_admission:
-        validate_public_network_config_update_gate_v0(network_config.get("production_key_admission_receipt"))
+        validate_public_network_config_update_gate_v0(
+            network_config.get("production_key_admission_receipt"),
+            packet=network_config.get("production_key_packet"),
+            key_descriptors=network_config.get("production_key_descriptors"),
+            signature_envelopes=network_config.get("production_key_signature_envelopes"),
+            signature_verifier=production_key_signature_verifier,
+            expected_target_kind="zeno_ledger_public_network_config",
+            expected_target_hash=str(network_config["network_config_hash"]),
+            expected_payload_hash=str(network_config["network_config_hash"]),
+        )
     writer_urls = _as_string_list(network_config.get("writer_urls"), name="writer_urls")
     peer_urls = _as_string_list(network_config.get("peer_urls"), name="peer_urls")
     if not writer_urls:

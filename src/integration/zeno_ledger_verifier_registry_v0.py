@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from src.integration.zeno_ledger_v0 import (
     PROOF_KINDS_V0,
@@ -12,6 +12,7 @@ from src.integration.zeno_ledger_v0 import (
     hash_v0,
     validate_proof_metadata_v0,
 )
+from src.integration.production_key_management_v0 import SignatureVerifierV0
 from src.integration.zeno_ledger_production_key_gates_v0 import validate_verifier_registry_update_gate_v0
 from src.state.canonical import canonical_hex_fixed_allow_0x
 
@@ -159,6 +160,10 @@ def validate_verifier_registry_v0(
     registry: Mapping[str, Any],
     *,
     production_key_admission_receipt: Mapping[str, Any] | None = None,
+    production_key_packet: Mapping[str, Any] | None = None,
+    production_key_descriptors: Sequence[Mapping[str, Any]] | None = None,
+    production_key_signature_envelopes: Sequence[Mapping[str, Any]] | None = None,
+    production_key_signature_verifier: SignatureVerifierV0 | None = None,
     require_production_key_admission: bool = False,
 ) -> None:
     obj = _require_mapping(registry, name="verifier_registry")
@@ -173,7 +178,16 @@ def validate_verifier_registry_v0(
     if require_production_key_admission:
         if production_key_admission_receipt is None:
             raise ValueError("verifier_registry production key-management admission receipt is required")
-        validate_verifier_registry_update_gate_v0(production_key_admission_receipt)
+        validate_verifier_registry_update_gate_v0(
+            production_key_admission_receipt,
+            packet=production_key_packet,
+            key_descriptors=production_key_descriptors,
+            signature_envelopes=production_key_signature_envelopes,
+            signature_verifier=production_key_signature_verifier,
+            expected_target_kind="zeno_ledger_verifier_registry",
+            expected_target_hash=registry_id,
+            expected_payload_hash=registry_id,
+        )
     entries = _require_list(obj.get("entries"), name="verifier_registry.entries")
     if not entries:
         raise ValueError("verifier_registry entries must be non-empty")

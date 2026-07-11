@@ -4,6 +4,7 @@ import pytest
 
 from src.integration.production_key_management_v0 import (
     DEFAULT_ACTION_POLICIES_V0,
+    admission_receipt_content_hash_v0,
     build_admission_receipt_v0,
     build_key_descriptor_v0,
     build_privileged_action_packet_v0,
@@ -23,7 +24,7 @@ from src.integration.zeno_ledger_production_key_gates_v0 import (
 from src.integration.zeno_ledger_v0 import hash_v0
 
 
-def _receipt(action: str) -> dict[str, object]:
+def _admission(action: str) -> dict[str, object]:
     policy = DEFAULT_ACTION_POLICIES_V0[action]
     packet = build_privileged_action_packet_v0(
         environment="production",
@@ -62,7 +63,7 @@ def _receipt(action: str) -> dict[str, object]:
         )
         for key in keys
     ]
-    return build_admission_receipt_v0(
+    receipt = build_admission_receipt_v0(
         packet,
         policy,
         keys,
@@ -70,21 +71,30 @@ def _receipt(action: str) -> dict[str, object]:
         transparency_log_hash=hash_v0("zeno_ledger_pkm_gate_transparency", {"action": action}),
         signature_verifier=lambda p, d, e: e["signature"] == f"fixture:{d['key_id']}:{p['packet_hash']}",
     )
+    return {"receipt": receipt, "packet": packet, "key_descriptors": keys, "signature_envelopes": envelopes}
+
+
+def _gate_context(action: str) -> dict[str, object]:
+    admission = _admission(action)
+    return {
+        **admission,
+        "signature_verifier": lambda p, d, e: e["signature"] == f"fixture:{d['key_id']}:{p['packet_hash']}",
+    }
 
 
 @pytest.mark.parametrize("operation,action", sorted(ZENO_LEDGER_PRODUCTION_KEY_GATES_V0.items()))
 def test_every_zeno_ledger_privileged_operation_has_gate(operation: str, action: str) -> None:
-    validate_zeno_ledger_production_key_gate_v0(operation=operation, receipt=_receipt(action))
+    validate_zeno_ledger_production_key_gate_v0(operation=operation, **_gate_context(action))
 
 
 def test_named_gate_helpers_accept_matching_receipts() -> None:
-    validate_public_network_config_update_gate_v0(_receipt("public_network_config_update"))
-    validate_validator_set_update_gate_v0(_receipt("validator_set_update"))
-    validate_oracle_reporter_registry_update_gate_v0(_receipt("oracle_reporter_registry_update"))
-    validate_verifier_registry_update_gate_v0(_receipt("verifier_registry_update"))
-    validate_release_artifact_publish_gate_v0(_receipt("release_artifact_publish"))
-    validate_emergency_pause_gate_v0(_receipt("emergency_pause"))
-    validate_emergency_unpause_gate_v0(_receipt("emergency_unpause"))
+    validate_public_network_config_update_gate_v0(**_gate_context("public_network_config_update"))
+    validate_validator_set_update_gate_v0(**_gate_context("validator_set_update"))
+    validate_oracle_reporter_registry_update_gate_v0(**_gate_context("oracle_reporter_registry_update"))
+    validate_verifier_registry_update_gate_v0(**_gate_context("verifier_registry_update"))
+    validate_release_artifact_publish_gate_v0(**_gate_context("release_artifact_publish"))
+    validate_emergency_pause_gate_v0(**_gate_context("emergency_pause"))
+    validate_emergency_unpause_gate_v0(**_gate_context("emergency_unpause"))
 
 
 def test_gate_rejects_missing_and_wrong_receipt() -> None:
@@ -94,11 +104,28 @@ def test_gate_rejects_missing_and_wrong_receipt() -> None:
     with pytest.raises(ValueError, match="action mismatch"):
         validate_zeno_ledger_production_key_gate_v0(
             operation="validator_set_update",
-            receipt=_receipt("public_network_config_update"),
+            **_gate_context("public_network_config_update"),
         )
 
     with pytest.raises(ValueError, match="operation is not allowed"):
         validate_zeno_ledger_production_key_gate_v0(
             operation="unknown_operation",
-            receipt=_receipt("public_network_config_update"),
+            **_gate_context("public_network_config_update"),
         )
+
+
+def test_gate_rejects_self_hashed_receipt_without_signed_packet_context() -> None:
+    forged = dict(_gate_context("verifier_registry_update")["receipt"])
+
+    with pytest.raises(TypeError, match="privileged_action_packet must be a JSON object"):
+        validate_verifier_registry_update_gate_v0(forged)
+
+
+def test_gate_rejects_receipt_not_bound_to_verified_signatures() -> None:
+    context = _gate_context("verifier_registry_update")
+    forged = dict(context["receipt"])
+    forged["accepted_key_ids"] = ["attacker-key-0", "attacker-key-1"]
+    forged["receipt_hash"] = admission_receipt_content_hash_v0(forged)
+
+    with pytest.raises(ValueError, match="not bound to verified signatures"):
+        validate_verifier_registry_update_gate_v0(forged, **{k: v for k, v in context.items() if k != "receipt"})

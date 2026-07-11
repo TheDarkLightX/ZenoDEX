@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
 from src.integration.zeno_ledger_v0 import ZERO_ROOT_V0, hash_v0
 
@@ -678,6 +678,59 @@ def validate_production_key_admission_receipt_v0(
         raise ValueError("production key-management admission receipt timelock mismatch")
     if policy["transparency_required"] is True and not receipt.get("transparency_log_hash"):
         raise ValueError("production key-management admission receipt transparency mismatch")
+
+
+def _require_mapping_sequence(value: Sequence[Mapping[str, Any]] | None, *, name: str) -> list[Mapping[str, Any]]:
+    if value is None:
+        raise ValueError(f"{name} is required")
+    return [_require_mapping(item, name=f"{name}[{index}]") for index, item in enumerate(value)]
+
+
+def _assert_receipt_matches_recomputed(receipt: Mapping[str, Any], recomputed: Mapping[str, Any]) -> None:
+    # DbC invariant: a production gate may only accept a receipt derived from verified quorum inputs.
+    if receipt.get("receipt_hash") != recomputed.get("receipt_hash"):
+        raise ValueError("production key-management admission receipt is not bound to verified signatures")
+
+
+def validate_production_key_admission_v0(
+    *,
+    receipt: Mapping[str, Any],
+    required_action: str,
+    packet: Mapping[str, Any] | None,
+    key_descriptors: Sequence[Mapping[str, Any]] | None,
+    signature_envelopes: Sequence[Mapping[str, Any]] | None,
+    signature_verifier: SignatureVerifierV0 | None,
+    expected_target_kind: str | None = None,
+    expected_target_hash: str | None = None,
+    expected_payload_hash: str | None = None,
+) -> None:
+    # Preconditions: callers must provide the original signed authorization packet, signer descriptors,
+    # signature envelopes, and verifier; a self-hashed receipt alone is never an authority.
+    action = _require_str(required_action, name="required_action")
+    if action not in ACTIONS_V0:
+        raise ValueError("required_action is not allowed")
+    packet_obj = _require_mapping(packet, name="privileged_action_packet")
+    descriptors = _require_mapping_sequence(key_descriptors, name="key_descriptors")
+    envelopes = _require_mapping_sequence(signature_envelopes, name="signature_envelopes")
+    if signature_verifier is None:
+        raise ValueError("production key-management signature verifier is required")
+    if expected_target_kind is not None and packet_obj.get("target_kind") != expected_target_kind:
+        raise ValueError("production key-management packet target kind mismatch")
+    if expected_target_hash is not None and packet_obj.get("target_hash") != expected_target_hash:
+        raise ValueError("production key-management packet target hash mismatch")
+    if expected_payload_hash is not None and packet_obj.get("payload_hash") != expected_payload_hash:
+        raise ValueError("production key-management packet payload hash mismatch")
+    validate_production_key_admission_receipt_v0(receipt=receipt, required_action=action)
+    policy = DEFAULT_ACTION_POLICIES_V0[action]
+    recomputed = build_admission_receipt_v0(
+        packet_obj,
+        policy,
+        descriptors,
+        envelopes,
+        transparency_log_hash=receipt.get("transparency_log_hash"),
+        signature_verifier=signature_verifier,
+    )
+    _assert_receipt_matches_recomputed(receipt, recomputed)
 
 
 DEFAULT_ACTION_POLICIES_V0 = _load_default_action_policies()

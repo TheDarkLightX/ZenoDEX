@@ -46,19 +46,19 @@ def _metadata(*, proof_kind: str = "risc0_zkvm_v0", height: int = 7) -> dict[str
     )
 
 
-def _pkm_receipt(action: str = "verifier_registry_update") -> dict[str, object]:
+def _pkm_admission(action: str = "verifier_registry_update", *, target_hash: str | None = None) -> dict[str, object]:
     policy = DEFAULT_ACTION_POLICIES_V0[action]
     packet = build_privileged_action_packet_v0(
         environment="production",
         action=action,
         target_kind="zeno_ledger_verifier_registry",
-        target_hash=_root(f"{action}-target"),
+        target_hash=target_hash or _root(f"{action}-target"),
         policy_hash=str(policy["policy_hash"]),
         nonce=1,
         epoch=10,
         not_before_epoch=5,
         expires_at_epoch=20,
-        payload_hash=_root(f"{action}-payload"),
+        payload_hash=target_hash or _root(f"{action}-payload"),
     )
     keys = [
         build_key_descriptor_v0(
@@ -84,7 +84,7 @@ def _pkm_receipt(action: str = "verifier_registry_update") -> dict[str, object]:
         )
         for key in keys
     ]
-    return build_admission_receipt_v0(
+    receipt = build_admission_receipt_v0(
         packet,
         policy,
         keys,
@@ -92,6 +92,18 @@ def _pkm_receipt(action: str = "verifier_registry_update") -> dict[str, object]:
         transparency_log_hash=_root(f"{action}-transparency"),
         signature_verifier=lambda p, d, e: e["signature"] == f"fixture:{d['key_id']}:{p['packet_hash']}",
     )
+    return {"receipt": receipt, "packet": packet, "key_descriptors": keys, "signature_envelopes": envelopes}
+
+
+def _pkm_context(action: str = "verifier_registry_update", *, target_hash: str) -> dict[str, object]:
+    admission = _pkm_admission(action, target_hash=target_hash)
+    return {
+        "production_key_admission_receipt": admission["receipt"],
+        "production_key_packet": admission["packet"],
+        "production_key_descriptors": admission["key_descriptors"],
+        "production_key_signature_envelopes": admission["signature_envelopes"],
+        "production_key_signature_verifier": lambda p, d, e: e["signature"] == f"fixture:{d['key_id']}:{p['packet_hash']}",
+    }
 
 
 def test_verifier_registry_admits_matching_metadata() -> None:
@@ -197,7 +209,7 @@ def test_production_strict_verifier_registry_requires_key_admission() -> None:
     validate_verifier_registry_v0(
         registry,
         require_production_key_admission=True,
-        production_key_admission_receipt=_pkm_receipt(),
+        **_pkm_context(target_hash=str(registry["registry_id"])),
     )
 
 
@@ -214,5 +226,5 @@ def test_production_strict_verifier_registry_rejects_wrong_key_admission() -> No
         validate_verifier_registry_v0(
             registry,
             require_production_key_admission=True,
-            production_key_admission_receipt=_pkm_receipt("public_network_config_update"),
+            **_pkm_context("public_network_config_update", target_hash=str(registry["registry_id"])),
         )

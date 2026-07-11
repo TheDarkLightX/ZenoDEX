@@ -72,19 +72,19 @@ def _registry() -> dict[str, object]:
     )
 
 
-def _pkm_receipt(action: str = "public_network_config_update") -> dict[str, object]:
+def _pkm_admission(action: str = "public_network_config_update", *, target_hash: str | None = None) -> dict[str, object]:
     policy = DEFAULT_ACTION_POLICIES_V0[action]
     packet = build_privileged_action_packet_v0(
         environment="production",
         action=action,
         target_kind="zeno_ledger_public_network_config",
-        target_hash=hash_v0("pkm_test_target", {"action": action}),
+        target_hash=target_hash or hash_v0("pkm_test_target", {"action": action}),
         policy_hash=str(policy["policy_hash"]),
         nonce=1,
         epoch=10,
         not_before_epoch=5,
         expires_at_epoch=20,
-        payload_hash=hash_v0("pkm_test_payload", {"action": action}),
+        payload_hash=target_hash or hash_v0("pkm_test_payload", {"action": action}),
     )
     keys = [
         build_key_descriptor_v0(
@@ -110,7 +110,7 @@ def _pkm_receipt(action: str = "public_network_config_update") -> dict[str, obje
         )
         for key in keys
     ]
-    return build_admission_receipt_v0(
+    receipt = build_admission_receipt_v0(
         packet,
         policy,
         keys,
@@ -118,6 +118,19 @@ def _pkm_receipt(action: str = "public_network_config_update") -> dict[str, obje
         transparency_log_hash=hash_v0("pkm_test_transparency", {"action": action}),
         signature_verifier=lambda p, d, e: e["signature"] == f"fixture:{d['key_id']}:{p['packet_hash']}",
     )
+    return {"receipt": receipt, "packet": packet, "key_descriptors": keys, "signature_envelopes": envelopes}
+
+
+def _attach_pkm_context(config: dict[str, object], action: str = "public_network_config_update") -> None:
+    admission = _pkm_admission(action, target_hash=str(config["network_config_hash"]))
+    config["production_key_admission_receipt"] = admission["receipt"]
+    config["production_key_packet"] = admission["packet"]
+    config["production_key_descriptors"] = admission["key_descriptors"]
+    config["production_key_signature_envelopes"] = admission["signature_envelopes"]
+
+
+def _pkm_verifier(p: object, d: object, e: object) -> bool:
+    return e["signature"] == f"fixture:{d['key_id']}:{p['packet_hash']}"
 
 
 def _envelopes(network_config_hash: str) -> list[dict[str, object]]:
@@ -426,9 +439,10 @@ def test_production_strict_join_requires_public_network_config_key_admission(tmp
             require_network_config_quorum=True,
             expected_config_signer_registry_hash=str(registry["registry_hash"]),
             require_production_key_admission=True,
+            production_key_signature_verifier=_pkm_verifier,
         )
 
-    signed_config["production_key_admission_receipt"] = _pkm_receipt()
+    _attach_pkm_context(signed_config)
     join_config = _public_network_config_to_join_config_v0(
         network_config=signed_config,
         node_id="node-b",
@@ -441,6 +455,7 @@ def test_production_strict_join_requires_public_network_config_key_admission(tmp
         require_network_config_quorum=True,
         expected_config_signer_registry_hash=str(registry["registry_hash"]),
         require_production_key_admission=True,
+        production_key_signature_verifier=_pkm_verifier,
     )
 
     assert join_config["production_key_admission_required"] is True
@@ -463,11 +478,9 @@ def test_production_strict_join_rejects_tampered_key_admission(tmp_path: Path) -
         registry=registry,
         envelopes=_envelopes(str(config["network_config_hash"])),
     )
-    receipt = dict(_pkm_receipt())
-    receipt["action"] = "verifier_registry_update"
-    signed_config["production_key_admission_receipt"] = receipt
+    _attach_pkm_context(signed_config, "verifier_registry_update")
 
-    with pytest.raises(ValueError, match="receipt hash mismatch"):
+    with pytest.raises(ValueError, match="action mismatch"):
         _public_network_config_to_join_config_v0(
             network_config=signed_config,
             node_id="node-b",
@@ -480,4 +493,5 @@ def test_production_strict_join_rejects_tampered_key_admission(tmp_path: Path) -
             require_network_config_quorum=True,
             expected_config_signer_registry_hash=str(registry["registry_hash"]),
             require_production_key_admission=True,
+            production_key_signature_verifier=_pkm_verifier,
         )
