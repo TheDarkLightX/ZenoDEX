@@ -22,12 +22,10 @@ host_probe = importlib.import_module(f"{_MODULE_PREFIX}zrpf_v3_firecracker_host_
 support = importlib.import_module(f"{_MODULE_PREFIX}zrpf_v3_replay_evidence_support")
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROFILE_PATH = (
-    REPO_ROOT / "config/proof_profiles/zrpf_v3_firecracker_replay_profile_v1.json"
-)
+PROFILE_PATH = REPO_ROOT / "config/proof_profiles/zrpf_v3_firecracker_replay_profile_v1.json"
 MAX_PROFILE_BYTES = 64 * 1024
 EXPECTED_PROFILE_CANONICAL_SHA256 = (
-    "a9a015109dceb39ab2676cac3ab6210201d3a6d2464f0947700ae7e21adce79f"
+    "3be22c7d06bc3c4a7f0d83065fe2cadbb7b284830a70797165e32e229a1bdd0f"
 )
 
 EXPECTED_CLAIMS = {
@@ -110,9 +108,7 @@ EXPECTED_ARTIFACTS = {
         "selection_status": "pending_governed_selection",
     },
     "seccomp_source_policy": {
-        "archive_path": (
-            "release-v1.16.1-x86_64/seccomp-filter-v1.16.1-x86_64.json"
-        ),
+        "archive_path": ("release-v1.16.1-x86_64/seccomp-filter-v1.16.1-x86_64.json"),
         "sha256": "1b683d5c9fc51174ab1926b84aaf10dc2164678f6c2fe7c38a910556d7b5dc39",
         "size_bytes": 50_351,
     },
@@ -211,7 +207,7 @@ EXPECTED_RUNNER_POLICY = {
         "drive_ids_and_order",
         "drive_io_engines",
         "drive_is_root_device",
-        "drive_partuuid",
+        "drive_partuuid_omitted",
         "drive_rate_limiters",
         "drive_read_only_flags",
         "huge_pages",
@@ -220,7 +216,53 @@ EXPECTED_RUNNER_POLICY = {
         "track_dirty_pages",
         "vcpu_count",
     ],
-    "exact_vm_configuration_status": "pending_governed_selection",
+    "exact_vm_configuration_status": "candidate_frozen_non_authoritative",
+    "exact_vm_configuration_template": {
+        "boot-source": {
+            "boot_args": (
+                "reboot=k panic=0 nomodule 8250.nr_uarts=0 i8042.noaux "
+                "i8042.nomux i8042.dumbkbd swiotlb=noforce "
+                "init=/sbin/zrpf-replay-init rootfstype=squashfs quiet "
+                "loglevel=0 oops=panic panic_on_oops=1"
+            ),
+            "kernel_image_path": "/kernel",
+        },
+        "drives": [
+            {
+                "cache_type": "Writeback",
+                "drive_id": drive_id,
+                "io_engine": "Sync",
+                "is_read_only": read_only,
+                "is_root_device": root_device,
+                "path_on_host": path,
+                "rate_limiter": {
+                    "bandwidth": {
+                        "one_time_burst": 0,
+                        "refill_time": 1_000,
+                        "size": 67_108_864,
+                    },
+                    "ops": {
+                        "one_time_burst": 0,
+                        "refill_time": 1_000,
+                        "size": 4_096,
+                    },
+                },
+            }
+            for drive_id, path, root_device, read_only in (
+                ("rootfs", "/rootfs", True, True),
+                ("input", "/input", False, True),
+                ("output", "/output", False, False),
+            )
+        ],
+        "machine-config": {
+            "cpu_template": "None",
+            "huge_pages": "None",
+            "mem_size_mib": 256,
+            "smt": False,
+            "track_dirty_pages": False,
+            "vcpu_count": 1,
+        },
+    },
     "firecracker_cli_allowed_options": [
         "--config-file",
         "--id",
@@ -284,9 +326,7 @@ EXPECTED_RUNNER_POLICY = {
     "metadata_service_allowed": False,
     "metrics_sink_mode": "disabled",
     "netns_identity_verification": "stable_type_and_inode_before_and_after_join",
-    "network_namespace_policy": (
-        "fresh_per_replay_exclusive_root_owned_fd_held_until_teardown"
-    ),
+    "network_namespace_policy": ("fresh_per_replay_exclusive_root_owned_fd_held_until_teardown"),
     "network_namespace_lifecycle": {
         "active": [
             "exact_expected_firecracker_process_set",
@@ -323,9 +363,7 @@ EXPECTED_RUNNER_POLICY = {
     "output_transport": "fixed_size_raw_block_device",
     "output_validation": "zrpf_firecracker_raw_output_v1_strict_commit_protocol",
     "pci_enabled": False,
-    "post_privilege_drop_dumpability_status": (
-        "pending_enforced_launcher_or_runtime_mechanism"
-    ),
+    "post_privilege_drop_dumpability_status": ("pending_enforced_launcher_or_runtime_mechanism"),
     "preexisting_jail_root_allowed": False,
     "read_only_input_drive_required": True,
     "read_only_rootfs_required": True,
@@ -357,13 +395,14 @@ EXPECTED_RUNNER_POLICY = {
     "userfaultfd_registration_allowed": False,
     "vm_forbidden_configuration_sections": [
         "balloon",
+        "cpu-config",
         "entropy",
         "logger",
-        "memory_hotplug",
+        "memory-hotplug",
         "metrics",
-        "network_interfaces",
+        "mmds-config",
+        "network-interfaces",
         "pmem",
-        "serial_override",
         "vsock",
     ],
     "vhost_user_block_allowed": False,
@@ -437,10 +476,7 @@ def _validate_profile_document(
                 errors.append("profile_root_fields_mismatch")
             if raw != _canonical_bytes(profile):
                 errors.append("profile_noncanonical")
-            if (
-                profile.get("schema")
-                != "zenodex/zrpf_v3_firecracker_replay_profile/v1"
-            ):
+            if profile.get("schema") != "zenodex/zrpf_v3_firecracker_replay_profile/v1":
                 errors.append("profile_schema_mismatch")
             if profile.get("status") != "candidate_incomplete_non_authoritative":
                 errors.append("profile_status_mismatch")
@@ -477,9 +513,7 @@ def build_report(*, include_host_probe: bool) -> dict[str, Any]:
             profile["host_policy"], host_probe.collect_host_facts()
         )
     candidate_integrity_ok = bool(validation["profile_valid"])
-    host_prerequisites_ok = bool(
-        probe is None or probe["candidate_host_prerequisites_passed"]
-    )
+    host_prerequisites_ok = bool(probe is None or probe["candidate_host_prerequisites_passed"])
     decision = (
         "candidate_profile_integrity_valid_runner_unavailable"
         if candidate_integrity_ok and host_prerequisites_ok
@@ -579,15 +613,13 @@ def _identity(metadata: os.stat_result) -> tuple[int, ...]:
 
 
 def _canonical_bytes(value: Any) -> bytes:
-    return (json.dumps(value, indent=2, sort_keys=True, ensure_ascii=True) + "\n").encode(
-        "ascii"
-    )
+    return (json.dumps(value, indent=2, sort_keys=True, ensure_ascii=True) + "\n").encode("ascii")
 
 
 def _canonical_sha256(value: Any) -> str:
-    raw = json.dumps(
-        value, sort_keys=True, separators=(",", ":"), ensure_ascii=True
-    ).encode("ascii")
+    raw = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode(
+        "ascii"
+    )
     return hashlib.sha256(raw).hexdigest()
 
 
@@ -600,8 +632,7 @@ def _exact_equal(actual: Any, expected: Any) -> bool:
         )
     if isinstance(expected, list):
         return len(actual) == len(expected) and all(
-            _exact_equal(left, right)
-            for left, right in zip(actual, expected, strict=True)
+            _exact_equal(left, right) for left, right in zip(actual, expected, strict=True)
         )
     return bool(actual == expected)
 

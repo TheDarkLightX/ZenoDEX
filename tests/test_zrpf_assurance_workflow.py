@@ -60,13 +60,21 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tools/check_recursive_stark_cbc_spec.py" in python_assurance
     assert "tests/test_check_recursive_stark_cbc_spec.py" in python_assurance
     assert "tools/check_zrpf_v3_firecracker_replay_profile.py" in python_assurance
+    assert "tools/check_zrpf_v3_firecracker_protocol_binding.py" in python_assurance
+    assert "tools/check_zrpf_v3_firecracker_launch_preflight.py" in python_assurance
     assert "tools/zrpf_v3_firecracker_host_probe.py" in python_assurance
     assert "tests/test_check_zrpf_v3_firecracker_replay_profile.py" in python_assurance
     assert "tests/test_zrpf_v3_firecracker_profile_boundary_atlas.py" in (
         python_assurance
     )
     assert "tests/test_zrpf_v3_firecracker_host_probe.py" in python_assurance
+    assert "tests/test_check_zrpf_v3_firecracker_protocol_binding.py" in python_assurance
+    assert "tests/test_check_zrpf_v3_firecracker_launch_preflight.py" in python_assurance
+    assert "tests/test_zrpf_v3_firecracker_launch_boundary_atlas.py" in python_assurance
     assert "python3 -I tools/check_zrpf_v3_firecracker_replay_profile.py" in (
+        python_assurance
+    )
+    assert "python3 -I tools/check_zrpf_v3_firecracker_protocol_binding.py" in (
         python_assurance
     )
     assert "check_zrpf_v3_firecracker_replay_profile.py --probe-host" not in raw

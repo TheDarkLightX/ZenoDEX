@@ -1,5 +1,5 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ReplayError {
+pub enum ReplayError {
     Usage,
     BundleDirectory,
     BundleInventory,
@@ -19,7 +19,7 @@ pub(crate) enum ReplayError {
 }
 
 impl ReplayError {
-    pub(crate) const fn code(self) -> &'static str {
+    pub const fn code(self) -> &'static str {
         match self {
             Self::Usage => "usage",
             Self::BundleDirectory => "bundle_directory",
@@ -40,7 +40,7 @@ impl ReplayError {
         }
     }
 
-    pub(crate) const fn context(self) -> &'static str {
+    pub const fn context(self) -> &'static str {
         match self {
             Self::ReceiptArtifact(context)
             | Self::ReceiptArtifactBinding(context)
@@ -53,7 +53,7 @@ impl ReplayError {
         }
     }
 
-    pub(crate) const fn verifier_code(self) -> Option<&'static str> {
+    pub const fn verifier_code(self) -> Option<&'static str> {
         match self {
             Self::ReceiptVerification(_, code) | Self::MutationRejectClass(_, code) => Some(code),
             _ => None,

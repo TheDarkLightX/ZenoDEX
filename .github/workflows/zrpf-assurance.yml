@@ -73,32 +73,58 @@ jobs:
       - name: Run Python and evidence assurance
         run: |
           ruff check \
+            tools/check_zrpf_v3_firecracker_launch_preflight.py \
+            tools/check_zrpf_v3_firecracker_protocol_binding.py \
             tools/check_zrpf_v3_firecracker_replay_profile.py \
             tools/check_zrpf_v3_replay_verifier_evidence.py \
             tools/zrpf_v3_artifact_privacy.py \
             tools/zrpf_v3_firecracker_host_probe.py \
+            tools/zrpf_v3_firecracker_artifact_set.py \
+            tools/zrpf_v3_firecracker_candidate_plan.py \
+            tools/zrpf_v3_firecracker_output_protocol.py \
+            tools/zrpf_v3_firecracker_runtime_manifest.py \
             tools/zrpf_v3_replay_*.py \
+            tests/test_check_zrpf_v3_firecracker_launch_preflight.py \
+            tests/test_check_zrpf_v3_firecracker_protocol_binding.py \
             tests/test_check_zrpf_v3_firecracker_replay_profile.py \
             tests/test_check_zrpf_v3_replay_verifier_evidence.py \
             tests/test_zrpf_v3_artifact_privacy.py \
             tests/test_zrpf_v3_firecracker_profile_boundary_atlas.py \
             tests/test_zrpf_v3_firecracker_host_probe.py \
+            tests/test_zrpf_v3_firecracker_artifact_set.py \
+            tests/test_zrpf_v3_firecracker_candidate_plan.py \
+            tests/test_zrpf_v3_firecracker_launch_boundary_atlas.py \
+            tests/test_zrpf_v3_firecracker_output_protocol.py \
+            tests/test_zrpf_v3_firecracker_runtime_manifest.py \
             tests/test_zrpf_assurance_workflow.py
           mypy --follow-imports=skip \
+            tools/check_zrpf_v3_firecracker_launch_preflight.py \
+            tools/check_zrpf_v3_firecracker_protocol_binding.py \
             tools/check_zrpf_v3_firecracker_replay_profile.py \
             tools/check_zrpf_v3_replay_verifier_evidence.py \
             tools/zrpf_v3_artifact_privacy.py \
             tools/zrpf_v3_firecracker_host_probe.py \
+            tools/zrpf_v3_firecracker_artifact_set.py \
+            tools/zrpf_v3_firecracker_candidate_plan.py \
+            tools/zrpf_v3_firecracker_output_protocol.py \
+            tools/zrpf_v3_firecracker_runtime_manifest.py \
             tools/zrpf_v3_replay_*.py
           pytest -q \
             tests/test_check_zrpf_v1_leaf_adapter_source_policy.py \
             tests/test_check_zrpf_v1_leaf_adapter_vector.py \
             tests/test_check_zrpf_v1_spot_adapter_temporary_evidence.py \
+            tests/test_check_zrpf_v3_firecracker_launch_preflight.py \
+            tests/test_check_zrpf_v3_firecracker_protocol_binding.py \
             tests/test_check_zrpf_v3_firecracker_replay_profile.py \
             tests/test_check_zrpf_v3_replay_verifier_evidence.py \
             tests/test_zrpf_v3_artifact_privacy.py \
             tests/test_zrpf_v3_firecracker_profile_boundary_atlas.py \
             tests/test_zrpf_v3_firecracker_host_probe.py \
+            tests/test_zrpf_v3_firecracker_artifact_set.py \
+            tests/test_zrpf_v3_firecracker_candidate_plan.py \
+            tests/test_zrpf_v3_firecracker_launch_boundary_atlas.py \
+            tests/test_zrpf_v3_firecracker_output_protocol.py \
+            tests/test_zrpf_v3_firecracker_runtime_manifest.py \
             tests/test_zrpf_assurance_workflow.py \
             tests/test_zrpf_v3_source_closure.py \
             tests/test_check_zrpf_v3_hash_vector.py \
@@ -107,6 +133,7 @@ jobs:
           python3 tools/check_zrpf_v1_leaf_adapter_source_policy.py
           python3 tools/check_recursive_stark_cbc_spec.py
           python3 -I tools/check_zrpf_v3_firecracker_replay_profile.py
+          python3 -I tools/check_zrpf_v3_firecracker_protocol_binding.py
           python3 tools/zrpf_v3_artifact_privacy.py
           python3 tools/check_zrpf_v3_replay_verifier_evidence.py --json
 
