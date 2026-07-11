@@ -17,8 +17,8 @@ use tau_state_proof_risc0_shared::{
     PerpsAccountV1, PerpsIntentV1, PerpsMarketParamsV1, PerpsNpActionV1, PerpsNpSnapshotV1,
     PerpsNpTransitionInputV1, PerpsNpTransitionJournalV1, StateProofInputV1, StateProofJournalV1,
     TauTxAppOpsV1, TauTxV1, TxIngressFactV1, ZenoProofInputV1, ZusdBalanceEntryV1, ZusdOperationV1,
-    ZusdSnapshotV1, ZusdTransitionInputV1, ZusdTransitionJournalV1, ZusdVaultEntryV1, PROOF_TYPE,
-    PROOF_TYPE_PERPS_NP, PROOF_TYPE_ZUSD,
+    ZusdSnapshotV1, ZusdTransitionInputV1, ZusdTransitionJournalV1, ZusdVaultEntryV1,
+    JOURNAL_VERSION, PROOF_TYPE, PROOF_TYPE_PERPS_NP, PROOF_TYPE_ZUSD,
 };
 
 fn main() {
@@ -397,6 +397,7 @@ fn try_verify(req: &Value) -> Result<(), String> {
     if journal.state_hash != expected_state_hash {
         return Err("journal.state_hash mismatch".into());
     }
+    verify_spot_meta_bindings(proof, &journal)?;
 
     let mut verified_ingress: Option<Vec<TxIngressFactV1>> = None;
 
@@ -1292,6 +1293,23 @@ fn strict_context_obj(req: &Value) -> Result<&serde_json::Map<String, Value>, St
         .ok_or_else(|| "context must be an object for strict surface verification".to_string())
 }
 
+/// DbC invariant: proposer-controlled spot proof metadata must match the
+/// verified receipt journal before the adapter can bind it into header metadata.
+fn verify_spot_meta_bindings(proof: &Value, journal: &StateProofJournalV1) -> Result<(), String> {
+    expect_meta_hash(proof, "txs_commitment", journal.txs_commitment)?;
+    expect_meta_hash(proof, "ingress_commitment", journal.ingress_commitment)?;
+    expect_meta_hash(proof, "pre_nonce_root", journal.pre_nonce_root)?;
+    expect_meta_hash(proof, "post_nonce_root", journal.post_nonce_root)?;
+    expect_meta_hash(
+        proof,
+        "accepted_receipts_root",
+        journal.accepted_receipts_root,
+    )?;
+    expect_meta_pre_hash(proof, journal.pre_app_hash_present, journal.pre_app_hash)?;
+    expect_meta_hash(proof, "post_app_hash", journal.post_app_hash)?;
+    Ok(())
+}
+
 fn expect_meta_hash(proof: &Value, key: &str, expected: [u8; 32]) -> Result<(), String> {
     let meta = proof_meta_obj(proof)?;
     let actual = meta
@@ -1885,6 +1903,60 @@ mod tests {
                 "participant_set_hash": hx(6)
             }
         })
+    }
+
+    fn spot_proof_meta() -> Value {
+        json!({
+            "proof_type": PROOF_TYPE,
+            "proof": "unused",
+            "meta": {
+                "risc0_image_id": hex_u32_words(TAU_STATE_PROOF_GUEST_ID),
+                "txs_commitment": hx(3),
+                "ingress_commitment": hx(4),
+                "pre_nonce_root": hx(5),
+                "post_nonce_root": hx(6),
+                "accepted_receipts_root": hx(7),
+                "pre_app_hash": "",
+                "post_app_hash": hx(2)
+            }
+        })
+    }
+
+    fn spot_journal() -> StateProofJournalV1 {
+        StateProofJournalV1 {
+            journal_version: JOURNAL_VERSION,
+            state_hash: h(1),
+            txs_commitment: h(3),
+            ingress_commitment: h(4),
+            pre_nonce_root: h(5),
+            post_nonce_root: h(6),
+            accepted_receipts_root: h(7),
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            post_app_hash: h(2),
+        }
+    }
+
+    #[test]
+    fn spot_meta_bindings_accept_matching_journal() {
+        let proof = spot_proof_meta();
+        let journal = spot_journal();
+        verify_spot_meta_bindings(&proof, &journal).unwrap();
+    }
+
+    #[test]
+    fn spot_meta_bindings_reject_forged_nonce_and_receipt_roots() {
+        let journal = spot_journal();
+
+        let mut bad_receipts_root = spot_proof_meta();
+        bad_receipts_root["meta"]["accepted_receipts_root"] = Value::String(hx(9));
+        let err = verify_spot_meta_bindings(&bad_receipts_root, &journal).unwrap_err();
+        assert_eq!(err, "proof.meta.accepted_receipts_root mismatch");
+
+        let mut bad_pre_nonce = spot_proof_meta();
+        bad_pre_nonce["meta"]["pre_nonce_root"] = Value::String(hx(8));
+        let err = verify_spot_meta_bindings(&bad_pre_nonce, &journal).unwrap_err();
+        assert_eq!(err, "proof.meta.pre_nonce_root mismatch");
     }
 
     #[test]
