@@ -366,7 +366,16 @@ jobs:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Publish package
+      - name: Prepare package
+        run: |
+          set -euo pipefail
+          cd packages/zeno-proof-client
+          npm ci
+          npm version --no-git-tag-version --allow-same-version "${{ needs.build-artifacts.outputs.version }}"
+          npm test
+          npm pack --ignore-scripts
+
+      - name: Publish package to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
@@ -376,7 +385,4 @@ jobs:
             exit 2
           fi
           cd packages/zeno-proof-client
-          npm ci
-          npm version --no-git-tag-version --allow-same-version "${{ needs.build-artifacts.outputs.version }}"
-          npm test
-          npm publish --access public --provenance
+          npm publish --access public --provenance --ignore-scripts *.tgz
