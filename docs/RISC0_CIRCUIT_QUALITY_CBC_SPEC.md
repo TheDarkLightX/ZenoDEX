@@ -29,9 +29,9 @@ SHA-256
 The earlier unpromoted prototype remains recorded separately for cross-run
 comparison. The fresh receipt bytes differ across runs, and both authenticated
 journals match. Proof-byte determinism remains unestablished. A governed
-general fanout profile, nonempty receipt partitions, public replay, cross-host
-reproducibility, release authority, durable atomic admission, privacy, and
-production readiness remain open.
+general fanout profile, nonempty receipt partitions, public proof-generation
+replay, cross-host reproducibility, release authority, durable atomic
+admission, privacy, and production readiness remain open.
 
 The dedicated two-leaf replay checker uses the committed manifest and v2
 reference as fixed trust roots. It rejects path, hash, size, ordering, topology,
@@ -77,8 +77,10 @@ structs ignore unknown nested fields. Current receipts authenticate the parsed
 typed value, not a canonical outer JSON envelope. Duplicate-key rejection and
 unknown-field rejection therefore remain required before a V1-derived envelope
 can carry production authority. The next recursive ABI should make this
-boundary unrepresentable with strict decoding. `RS-CBC-021` records this as a
-pending critical promotion obligation.
+boundary unrepresentable with strict decoding. `RS-CBC-021` is
+`implemented_partial` for the byte-only, capped, canonical ZRPF V3 persisted
+receipt boundary. Strict versioned V1 request, proof, metadata, and disclosure
+envelopes remain open.
 
 The additive ZRPF V3 candidate under `zk/zrpf_protocol` now implements a
 proof-system-neutral, bounded 8-by-8 structural journal nucleus. It provides a
@@ -91,15 +93,15 @@ structural aggregate receipts, and one level-two structural root receipt.
 Each aggregate guest verifies every exact child receipt under its compile-time
 child image before strict decoding and deterministic structural composition.
 Decoded journals and raw projected child descriptors carry no authority by
-themselves. `RS-CBC-022` is implemented for this bounded adapter and structural
-aggregate path. `RS-CBC-023` pins semantic composition of state, effects,
+themselves. `RS-CBC-022` is `implemented_partial` for this bounded adapter and
+structural aggregate path. `RS-CBC-023` pins semantic composition of state, effects,
 receipt sets, messages, schedules, carry, and data availability. The
 normative candidate scope and non-claims are recorded in
 `docs/research/ZRPF_V3_CORRECT_BY_CONSTRUCTION_SPEC_20260710.md`.
 
 The additive `zk/zrpf_risc0` workspace contains the pure Spot V1-to-V3 mapping,
-a receipt-authenticated adapter guest, a private-construction host verifier,
-and an evidence harness. The guest verifies the exact governed Spot receipt
+a receipt-authenticated adapter guest, a byte-only sealed host verifier, and an
+evidence harness. The guest verifies the exact governed Spot receipt
 assumption before decoding and projecting its journal. The host verifier then
 requires the compiled RISC0 3.0.5 Succinct verifier-parameter digest,
 Poseidon2 hash suite, control ID, and metadata equality. It verifies through an
@@ -118,7 +120,7 @@ The bounded structural aggregate profile uses level-one image
 `4272be5165f65e29cb134f815d6c6fc40d7f492979f596082cac10c3f0d43c2b`
 for adapter children and level-two image
 `3b858d113cb155b2946e1c733fdf5fe5592b6bf46c903d0a3cfb322099845736`
-for level-one children. One local four-leaf proof produced a root journal hash
+for level-one children. An earlier local four-leaf proof produced a root journal hash
 of `2089ecc187077d4b719c8539076651753c1ead1415724c9bc788758bddfa3768`.
 The exact persisted root receipt has SHA-256
 `021af13025e7dc7c40e06d689ad30e3194e58793435cd11ae07d684c80ddfd33`.
@@ -126,13 +128,33 @@ Receipt bytes may vary across proving runs. These temporary compiler-visible
 images have no release authority.
 The path-redacted structural-tree evidence record is
 `docs/research/ZRPF_V3_STRUCTURAL_TREE_TEMPORARY_LOCAL_EVIDENCE_20260710.json`.
-Its Python checker verifies reviewed facts, source closures, and optional
+Their Python checkers verify reviewed facts, source closures, and optional
 artifact bytes; the Rust verifier-only harness remains the receipt-seal and
 exact-journal authority. The exact receipt-profile hardening changes the host
 verifier source and binary without changing guest or `NodeJournalV3` bytes.
-The retained evidence record predates that host change, so its source-closure
-checker must reject until a fresh verifier build and replay transcript replace
-the stale verifier evidence.
+Both retained adapter and structural-tree evidence records predate that host
+change, so their source-closure checkers remain negative freshness gates.
+
+A separate source-frozen public artifact replay bundle now pins the hardened
+byte-only verifier and the regenerated replay transcripts. The explicit native
+`--execute` lane verifies the same seven-receipt tree and rejects one exact
+low-bit mutation of Succinct seal word 1. Its exact root receipt SHA-256 is
+`edd25fca20b0205c2f778b866605b343922615623256abcc1a098957664c2d16`.
+The governed reference file SHA-256 is
+`521fb021c75c5ad7d4826cbfc35ff1301040abe46c1926624f7f57e5cc88af21`,
+the bundle manifest SHA-256 is
+`c4d9c0652cdf0b03ede5437f136583a808704c187800e4cd7dec52b625379bae`,
+and the verifier SHA-256 is
+`c196c56e8e61cc757142e8199aeb6f27a31c071f7fe20c0e54825b527d63c1bc`.
+Static success reports `execution_checked=false`,
+`scoped_public_replay_claim_allowed=false`, and
+`status=static_bundle_accepted`. Explicit native success reports
+`execution_checked=true`, `scoped_public_replay_claim_allowed=true`, and
+`status=executed_replay_accepted` for this one pinned structural instance. The
+source-closure documents are publisher records; the public checker does not
+rebuild programs or the verifier, regenerate proofs, or prove source-to-binary
+provenance. Release authority, semantic composition, durable admission, and
+production authority remain false.
 
 The compatibility journal labels its count as one source-transition receipt
 and uses explicit unsupported sentinels for DA-certificate and carry facts. Its
@@ -156,10 +178,11 @@ The path-redacted record is
 `docs/research/RECURSIVE_STARK_V2_CURRENT_EVIDENCE_20260710.json`, pinned by
 file SHA-256
 `3cf90baf002d1e4db688d20d8969667e20fef8401c455ffe37648a23e964286b`.
-This remains same-host evidence. Cross-environment reproducibility, release
-authority, public replay, privacy, settlement authority, and production
-readiness remain false or unestablished. Proof-regeneration determinism remains
-false because the clean build did not regenerate the receipts.
+This remains same-host recursive-v2 evidence. Cross-environment
+reproducibility, release authority, public proof-generation replay, privacy,
+settlement authority, and production readiness remain false or unestablished.
+Proof-regeneration determinism remains false because the clean build did not
+regenerate the receipts.
 
 The spec applies to:
 
@@ -690,11 +713,12 @@ source root must be promoted atomically. A post-edit source root paired with a
 pre-edit cached program is an internally inconsistent evidence record even
 when each hash is well formed.
 
-Dependency-path-independent equality, public replay, independently provisioned
-cross-host rebuild equality, reproducible-release evidence, source or builder
-authenticity, separately governed authority binding, settlement authorization,
-and production admission remain false. The corresponding build controls,
-authority evidence, and admission evidence remain open.
+Dependency-path-independent equality, public proof-generation replay,
+independently provisioned cross-host rebuild equality, reproducible-release
+evidence, source or builder authenticity, separately governed authority
+binding, settlement authorization, and production admission remain false. The
+corresponding build controls, authority evidence, and admission evidence remain
+open.
 
 The verifier adapter accepts canonical authority-manifest bytes plus an
 externally supplied manifest digest. It derives the executable digest, static
@@ -1011,15 +1035,14 @@ Use this checklist before merging or promoting a circuit change:
 
 ## Next Frontier
 
-The highest-value implementation target is nonempty receipt-partition proof
-evidence under the current image, followed by larger bounded-fanout evidence.
-Same-profile distinct-leaf fanout-two evidence is complete at the bounded local
-claim level described above. The next
-authority target is integration of pinned recursive-verifier facts into durable
-atomic ZenoLedger admission. Release-manifest evidence, governed production
-header binding, and dedicated source-finality certificates remain required for
-native-chain or cross-lane collateral movements. zUSD still only exposes the
-current Rust
-`DepositMint` lifecycle verb; later zUSD repay, redeem, or liquidation verbs must
-add exhaustive row extractors before they can share the same recursive
+The highest-value ZRPF implementation target is a bounded semantic composer
+that derives state, effects, receipt sets, messages, schedules, carry, and data
+availability from receipt-authenticated child evidence. Durable atomic
+ZenoLedger admission follows that composer. Larger fanout and nonempty
+receipt-partition evidence remain valuable after the semantic boundary is
+closed. Release-manifest evidence, governed production header binding, and
+dedicated source-finality certificates remain required for native-chain or
+cross-lane collateral movements. zUSD still only exposes the current Rust
+`DepositMint` lifecycle verb; later zUSD repay, redeem, or liquidation verbs
+must add exhaustive row extractors before they can share the same recursive
 asset-conservation claim.

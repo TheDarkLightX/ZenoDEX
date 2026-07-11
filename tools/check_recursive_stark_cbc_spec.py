@@ -14,18 +14,30 @@ import importlib
 import json
 import os
 import stat
+import sys
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
-_MODULE_PREFIX = f"{__package__}." if __package__ else ""
-recursive_v1_evidence: Any = importlib.import_module(
-    f"{_MODULE_PREFIX}check_risc0_recursive_rebuild_evidence"
-)
-recursive_v2_evidence: Any = importlib.import_module(
-    f"{_MODULE_PREFIX}check_risc0_recursive_v2_rebuild_evidence"
-)
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if __name__ == "__main__" and not sys.flags.isolated:
+    os.execv(
+        sys.executable,
+        [sys.executable, "-I", str(Path(__file__).resolve()), *sys.argv[1:]],
+    )
+sys.path.insert(0, str(REPO_ROOT))
+
+recursive_v1_evidence: Any = importlib.import_module("tools.check_risc0_recursive_rebuild_evidence")
+recursive_v2_evidence: Any = importlib.import_module(
+    "tools.check_risc0_recursive_v2_rebuild_evidence"
+)
+public_replay: Any = importlib.import_module("src.integration.zrpf_public_replay_bundle")
+for module, relative in (
+    (recursive_v1_evidence, "tools/check_risc0_recursive_rebuild_evidence.py"),
+    (recursive_v2_evidence, "tools/check_risc0_recursive_v2_rebuild_evidence.py"),
+    (public_replay, "src/integration/zrpf_public_replay_bundle.py"),
+):
+    if Path(module.__file__).resolve() != REPO_ROOT / relative:
+        raise RuntimeError("CBC checker import escaped the repository root")
 DEFAULT_MATRIX = REPO_ROOT / "docs" / "research" / "RECURSIVE_STARK_CBC_MATRIX_20260709.json"
 
 MATRIX_SCHEMA = "zenodex/recursive_stark_cbc_matrix/v1"
@@ -92,9 +104,10 @@ REQUIRED_NON_CLAIMS = {
     "no_affected_risc0_1_2_6_evidence",
     "no_risc0_zero_knowledge_privacy_claim",
     "no_whole_build_network_isolation",
-    "no_public_recursive_replay",
+    "no_public_recursive_proof_generation_replay",
+    "no_machine_verified_v3_build_or_proof_generation_provenance",
     "no_separately_governed_recursive_authority_manifest",
-    "no_canonical_recursive_outer_envelope",
+    "no_complete_canonical_recursive_outer_envelope_set",
     "no_v3_semantic_receipt_authenticated_tree",
     "no_release_backed_v3_receipt_authenticated_tree",
     "no_complete_v3_semantic_composition",
@@ -184,7 +197,48 @@ REQUIRED_OBLIGATION_POLICY = {
     "RS-CBC-023": ("critical", "unrepresentable"),
 }
 REQUIRED_OBLIGATIONS = frozenset(REQUIRED_OBLIGATION_POLICY)
-PINNED_PENDING_OBLIGATIONS = frozenset({"RS-CBC-021", "RS-CBC-023"})
+PINNED_PENDING_OBLIGATIONS = frozenset({"RS-CBC-023"})
+PINNED_PARTIAL_OBLIGATION_EVIDENCE = {
+    "RS-CBC-021": {
+        "code_refs": frozenset(
+            {
+                (
+                    "zk/zrpf_risc0/verifier/src/lib.rs",
+                    "verify_canonical_succinct_bytes",
+                ),
+                (
+                    "zk/zrpf_risc0/verifier/src/lib.rs",
+                    "verify_exact_succinct_bytes",
+                ),
+                (
+                    "zk/zrpf_risc0/verifier/src/lib.rs",
+                    "decode_canonical_receipt_bytes",
+                ),
+            }
+        ),
+        "test_refs": frozenset(
+            {
+                (
+                    "zk/zrpf_risc0/verifier/src/lib.rs",
+                    "persisted_receipt_bytes_are_bounded_exact_and_typed",
+                ),
+                (
+                    "zk/zrpf_risc0/verifier/src/lib.rs",
+                    "VerifiedNodeReceiptV3::verify_canonical_succinct(receipt",
+                ),
+                (
+                    "zk/zrpf_risc0/verifier/src/lib.rs",
+                    "VerifiedNodeReceiptV3::verify_exact_succinct(receipt",
+                ),
+            }
+        ),
+        "external_commands": frozenset(
+            {
+                "cd zk/zrpf_risc0 && RISC0_SKIP_BUILD=1 cargo test --locked -p zenodex-zrpf-risc0-verifier"
+            }
+        ),
+    }
+}
 ALLOWED_STATUSES = {"implemented", "implemented_partial", "pending", "deferred_nonclaim"}
 ALLOWED_SEVERITIES = {"critical", "high", "medium", "low"}
 ALLOWED_DEFENSE_LAYERS = {
@@ -196,12 +250,11 @@ ALLOWED_DEFENSE_LAYERS = {
 IMPLEMENTED_STATUSES = {"implemented", "implemented_partial"}
 PENDING_STATUSES = {"pending", "deferred_nonclaim"}
 ACCEPTED_CLAIM_STATUSES = frozenset(
-    {
-        "v1_v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified"
-    }
+    {"v1_v2_current_image_local_proofs_and_v3_pinned_public_replay_bundle_available"}
 )
 STALE_CURRENT_IMAGE_NON_CLAIM = "no_current_image_recursive_proof_after_composition_repair"
 STALE_V3_TREE_ABSENCE_NON_CLAIM = "no_v3_receipt_authenticated_tree"
+STALE_PUBLIC_REPLAY_ABSENCE_NON_CLAIM = "no_public_recursive_replay"
 SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 
 
@@ -236,10 +289,11 @@ def validate_matrix(matrix: Any, *, repo_root: Path = REPO_ROOT) -> dict[str, An
         for obligation_id in ("RS-CBC-016", "RS-CBC-022"):
             if obligation_statuses.get(obligation_id) not in IMPLEMENTED_STATUSES:
                 errors.append(
-                    "temporary V3 structural-tree-verified status requires "
+                    "V3 pinned-public-replay status requires "
                     f"{obligation_id} implemented or implemented_partial"
                 )
         _validate_promoted_source_closures(inspected_root, errors)
+        _validate_promoted_public_replay(inspected_root, errors)
 
     for section_name, section in (
         ("promotion_boundary", promotion),
@@ -321,6 +375,31 @@ def _validate_promoted_source_closures(
         errors.append(f"promoted V2 source closure rejected: {exc}")
 
 
+def _validate_promoted_public_replay(
+    repo_root: Path | None,
+    errors: list[str],
+) -> None:
+    if repo_root is None:
+        errors.append("promoted ZRPF public replay cannot be checked")
+        return
+    report = public_replay.check_bundle(
+        bundle_directory=repo_root / public_replay.DEFAULT_BUNDLE_RELATIVE,
+        reference_path=repo_root / public_replay.DEFAULT_REFERENCE_RELATIVE,
+        execute=False,
+    )
+    if (
+        report.get("ok") is not True
+        or report.get("scoped_public_replay_claim_allowed") is not False
+        or report.get("production_claim_allowed") is not False
+        or report.get("execution_checked") is not False
+        or report.get("status") != "static_bundle_accepted"
+    ):
+        errors.append(
+            "promoted ZRPF public replay bundle rejected: "
+            + "; ".join(str(error) for error in report.get("errors", []))
+        )
+
+
 def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
     errors: list[str] = []
     obj = _mapping(value, "promotion_boundary", errors)
@@ -356,16 +435,15 @@ def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
     missing_non_claims = sorted(REQUIRED_NON_CLAIMS - non_claims)
     if missing_non_claims:
         errors.append("promotion_boundary.non_claims missing required values")
-    if (
-        claim_status in ACCEPTED_CLAIM_STATUSES
-        and STALE_CURRENT_IMAGE_NON_CLAIM in non_claims
-    ):
+    if claim_status in ACCEPTED_CLAIM_STATUSES and STALE_CURRENT_IMAGE_NON_CLAIM in non_claims:
         errors.append("promotion_boundary.non_claims retains stale current-image proof absence")
+    if claim_status in ACCEPTED_CLAIM_STATUSES and STALE_V3_TREE_ABSENCE_NON_CLAIM in non_claims:
+        errors.append("promotion_boundary.non_claims retains stale V3 structural-tree absence")
     if (
         claim_status in ACCEPTED_CLAIM_STATUSES
-        and STALE_V3_TREE_ABSENCE_NON_CLAIM in non_claims
+        and STALE_PUBLIC_REPLAY_ABSENCE_NON_CLAIM in non_claims
     ):
-        errors.append("promotion_boundary.non_claims retains stale V3 structural-tree absence")
+        errors.append("promotion_boundary.non_claims retains stale public-replay absence")
 
     return {
         "ok": not errors,
@@ -531,6 +609,22 @@ def _validate_obligations(value: Any, *, repo_root: Path | None) -> dict[str, An
                 item_errors.append(
                     "pinned pending obligation must not cite implementation evidence"
                 )
+        pinned_partial = PINNED_PARTIAL_OBLIGATION_EVIDENCE.get(obligation_id or "")
+        if pinned_partial is not None:
+            if status != "implemented_partial":
+                item_errors.append("required obligation must retain implemented_partial status")
+            observed_code_refs = frozenset(
+                (ref.get("path", ""), ref.get("symbol", "")) for ref in code_refs
+            )
+            observed_test_refs = frozenset(
+                (ref.get("path", ""), ref.get("symbol", "")) for ref in test_refs
+            )
+            if observed_code_refs != pinned_partial["code_refs"]:
+                item_errors.append("pinned partial obligation code_refs differ from policy")
+            if observed_test_refs != pinned_partial["test_refs"]:
+                item_errors.append("pinned partial obligation test_refs differ from policy")
+            if frozenset(external_commands) != pinned_partial["external_commands"]:
+                item_errors.append("pinned partial obligation external_commands differ from policy")
         if status in IMPLEMENTED_STATUSES:
             implemented_count += 1
             if not code_refs:
@@ -770,9 +864,7 @@ def _reject_unknown_fields(
     if any(not isinstance(field, str) for field in value):
         errors.append(f"{name} field names must be strings")
     unknown_fields = sorted(
-        field
-        for field in value
-        if isinstance(field, str) and field not in allowed_fields
+        field for field in value if isinstance(field, str) and field not in allowed_fields
     )
     if unknown_fields:
         errors.append(f"{name} has unknown fields: {','.join(unknown_fields)}")

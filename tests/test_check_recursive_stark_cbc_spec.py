@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -30,6 +31,8 @@ RECURSIVE_REBUILD_REFERENCES = (
     "config/proof_profiles/risc0_recursive_rebuild_reference.json",
     "config/proof_profiles/risc0_recursive_v2_rebuild_reference.json",
 )
+PUBLIC_REPLAY_REFERENCE = "config/proof_profiles/zrpf_v3_public_replay_reference_v1.json"
+PUBLIC_REPLAY_BUNDLE = "evidence/zrpf-v3-structural-public-replay-v1"
 
 
 def _matrix() -> dict[str, Any]:
@@ -58,6 +61,11 @@ def _repo_copy_for_matrix(tmp_path: Path, matrix: dict[str, Any]) -> Path:
             destination.parent.mkdir(parents=True, exist_ok=True)
             if not destination.exists():
                 shutil.copyfile(REPO / relative, destination)
+    public_reference = root / PUBLIC_REPLAY_REFERENCE
+    public_reference.parent.mkdir(parents=True, exist_ok=True)
+    if not public_reference.exists():
+        shutil.copyfile(REPO / PUBLIC_REPLAY_REFERENCE, public_reference)
+    shutil.copytree(REPO / PUBLIC_REPLAY_BUNDLE, root / PUBLIC_REPLAY_BUNDLE)
     return root
 
 
@@ -84,19 +92,19 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     assert report["facts"]["missing_required_obligations"] == []
     assert report["facts"]["typed_statement_count"] == 8
     assert report["facts"]["obligation_count"] == 23
-    assert report["facts"]["implemented_obligation_count"] == 18
-    assert report["facts"]["pending_obligation_count"] == 5
+    assert report["facts"]["implemented_obligation_count"] == 19
+    assert report["facts"]["pending_obligation_count"] == 4
     assert report["matrix_sha256"] == (
-        "sha256:1e0c668ab63f15e91c37d7556441f96ad181cc63b04580b3f518bb46e888af4f"
+        "sha256:9fc24a02e622088819c40066761009804492e1a5d217eca4b2f29dcec86b37c7"
     )
     assert report["promotion_boundary"]["facts"]["public_claim_allowed"] is False
     assert report["promotion_boundary"]["facts"]["production_ready"] is False
     assert (
         report["promotion_boundary"]["facts"]["claim_status"]
-        == "v1_v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified"
+        == "v1_v2_current_image_local_proofs_and_v3_pinned_public_replay_bundle_available"
     )
     assert (
-        "no_canonical_recursive_outer_envelope"
+        "no_complete_canonical_recursive_outer_envelope_set"
         in matrix["promotion_boundary"]["non_claims"]
     )
     assert (
@@ -117,10 +125,10 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     outer_envelope = next(
         item for item in matrix["obligations"] if item["id"] == "RS-CBC-021"
     )
-    assert outer_envelope["status"] == "pending"
-    assert outer_envelope["code_refs"] == []
-    assert outer_envelope["test_refs"] == []
-    assert outer_envelope["external_commands"] == []
+    assert outer_envelope["status"] == "implemented_partial"
+    assert outer_envelope["code_refs"]
+    assert outer_envelope["test_refs"]
+    assert outer_envelope["external_commands"]
     adapter_receipt = next(
         item for item in matrix["obligations"] if item["id"] == "RS-CBC-022"
     )
@@ -138,10 +146,10 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
         assert obligation["external_commands"] == []
 
 
-def test_recursive_stark_cbc_matrix_requires_canonical_outer_envelope_nonclaim() -> None:
+def test_recursive_stark_cbc_matrix_requires_complete_outer_envelope_nonclaim() -> None:
     matrix = _matrix()
     matrix["promotion_boundary"]["non_claims"].remove(
-        "no_canonical_recursive_outer_envelope"
+        "no_complete_canonical_recursive_outer_envelope_set"
     )
 
     report = checker.validate_matrix(matrix)
@@ -149,7 +157,7 @@ def test_recursive_stark_cbc_matrix_requires_canonical_outer_envelope_nonclaim()
     assert report["ok"] is False
     assert (
         report["promotion_boundary"]["facts"]["missing_required_non_claims"]
-        == ["no_canonical_recursive_outer_envelope"]
+        == ["no_complete_canonical_recursive_outer_envelope_set"]
     )
     assert (
         "promotion_boundary.non_claims missing required values"
@@ -586,6 +594,19 @@ def test_structural_tree_verified_status_rejects_stale_tree_absence_nonclaim() -
     )
 
 
+def test_public_replay_bundle_status_rejects_stale_replay_absence_nonclaim() -> None:
+    matrix = _matrix()
+    matrix["promotion_boundary"]["non_claims"].append("no_public_recursive_replay")
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        "promotion_boundary.non_claims retains stale public-replay absence"
+        in report["promotion_boundary"]["errors"]
+    )
+
+
 @pytest.mark.parametrize("obligation_id", ["RS-CBC-016", "RS-CBC-022"])
 def test_structural_tree_verified_status_requires_implemented_tree_obligations(
     obligation_id: str,
@@ -603,7 +624,7 @@ def test_structural_tree_verified_status_requires_implemented_tree_obligations(
 
     assert report["ok"] is False
     assert (
-        "temporary V3 structural-tree-verified status requires "
+        "V3 pinned-public-replay status requires "
         f"{obligation_id} implemented or implemented_partial"
     ) in report["errors"]
 
@@ -645,6 +666,31 @@ def test_post_repair_verified_status_rejects_extra_compile_source(tmp_path: Path
     assert report["ok"] is False
     assert any(
         error.startswith("promoted V2 source closure rejected: SOURCE_FILE_EXTRA:")
+        for error in report["errors"]
+    )
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        PUBLIC_REPLAY_REFERENCE,
+        f"{PUBLIC_REPLAY_BUNDLE}/manifest.json",
+    ],
+)
+def test_public_replay_bundle_status_rejects_tampered_trust_artifact(
+    tmp_path: Path,
+    relative: str,
+) -> None:
+    matrix = _matrix()
+    root = _repo_copy_for_matrix(tmp_path, matrix)
+    artifact = root / relative
+    artifact.write_bytes(artifact.read_bytes() + b"\n")
+
+    report = checker.validate_matrix(matrix, repo_root=root)
+
+    assert report["ok"] is False
+    assert any(
+        error.startswith("promoted ZRPF public replay bundle rejected:")
         for error in report["errors"]
     )
 
@@ -915,11 +961,9 @@ def test_outer_envelope_obligation_cannot_self_promote_with_unrelated_evidence()
 
     assert report["ok"] is False
     errors = _obligation_report(report, "RS-CBC-021")["errors"]
-    assert (
-        "required obligation remains pinned pending until checker policy is updated"
-        in errors
-    )
-    assert "pinned pending obligation must not cite implementation evidence" in errors
+    assert "pinned partial obligation code_refs differ from policy" in errors
+    assert "pinned partial obligation test_refs differ from policy" in errors
+    assert "pinned partial obligation external_commands differ from policy" in errors
 
 
 @pytest.mark.parametrize("obligation_id", ["RS-CBC-023"])
@@ -950,11 +994,27 @@ def test_v3_pending_obligation_cannot_self_promote_with_structural_evidence(
     assert "pinned pending obligation must not cite implementation evidence" in errors
 
 
-@pytest.mark.parametrize("field", ["code_refs", "test_refs", "external_commands"])
-def test_outer_envelope_pending_row_rejects_premature_evidence(field: str) -> None:
+@pytest.mark.parametrize(
+    ("field", "expected_error"),
+    [
+        ("status", "required obligation must retain implemented_partial status"),
+        ("code_refs", "pinned partial obligation code_refs differ from policy"),
+        ("test_refs", "pinned partial obligation test_refs differ from policy"),
+        (
+            "external_commands",
+            "pinned partial obligation external_commands differ from policy",
+        ),
+    ],
+)
+def test_outer_envelope_partial_row_rejects_policy_drift(
+    field: str,
+    expected_error: str,
+) -> None:
     matrix = _matrix()
     obligation = next(item for item in matrix["obligations"] if item["id"] == "RS-CBC-021")
-    if field == "external_commands":
+    if field == "status":
+        obligation[field] = "pending"
+    elif field == "external_commands":
         obligation[field] = ["cargo test recursive_outer_envelope"]
     else:
         obligation[field] = copy.deepcopy(matrix["obligations"][0][field])
@@ -962,10 +1022,7 @@ def test_outer_envelope_pending_row_rejects_premature_evidence(field: str) -> No
     report = checker.validate_matrix(matrix)
 
     assert report["ok"] is False
-    assert (
-        "pinned pending obligation must not cite implementation evidence"
-        in _obligation_report(report, "RS-CBC-021")["errors"]
-    )
+    assert expected_error in _obligation_report(report, "RS-CBC-021")["errors"]
 
 
 def test_recursive_stark_cbc_matrix_rejects_missing_ref_symbol() -> None:
@@ -1193,3 +1250,36 @@ def test_cli_checks_default_recursive_stark_cbc_matrix() -> None:
     report = json.loads(proc.stdout)
     assert report["ok"] is True
     assert report["schema"] == "zenodex/recursive_stark_cbc_matrix_report/v1"
+
+
+def test_cbc_cli_ignores_hostile_pythonpath(tmp_path: Path) -> None:
+    fake_src = tmp_path / "evil/src/integration"
+    fake_src.mkdir(parents=True)
+    (fake_src.parent / "__init__.py").write_text("", encoding="utf-8")
+    (fake_src / "__init__.py").write_text("", encoding="utf-8")
+    (fake_src / "zrpf_public_replay_bundle.py").write_text(
+        "raise SystemExit('hostile replay import executed')\n",
+        encoding="utf-8",
+    )
+    fake_tools = tmp_path / "evil/tools"
+    fake_tools.mkdir(parents=True)
+    (fake_tools / "__init__.py").write_text("", encoding="utf-8")
+    (fake_tools / "check_risc0_recursive_rebuild_evidence.py").write_text(
+        "raise SystemExit('hostile evidence import executed')\n",
+        encoding="utf-8",
+    )
+    env = os.environ.copy()
+    env["PYTHONPATH"] = f"{tmp_path / 'evil'}:{REPO}"
+
+    completed = subprocess.run(
+        [sys.executable, "tools/check_recursive_stark_cbc_spec.py", "--pretty"],
+        cwd=REPO,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0
+    assert "hostile" not in completed.stderr
+    assert json.loads(completed.stdout)["ok"] is True

@@ -18,12 +18,16 @@ def _manifest() -> dict:
     return document
 
 
-def test_reviewed_manifest_passes_with_source_closures_and_no_seal_overclaim() -> None:
+def test_retained_structural_evidence_rejects_hardened_verifier_source_drift() -> None:
     report = checker.validate_manifest(_manifest())
 
-    assert report["ok"] is True
-    assert report["errors"] == []
-    assert report["facts"]["source_files_checked"] == 35
+    assert report["ok"] is False
+    assert set(report["errors"]) == {
+        "source SHA-256 mismatch: zk/zrpf_risc0/Cargo.lock",
+        "source SHA-256 mismatch: zk/zrpf_risc0/harness/src/bin/verify_structural_tree.rs",
+        "source SHA-256 mismatch: zk/zrpf_risc0/verifier/Cargo.toml",
+        "source SHA-256 mismatch: zk/zrpf_risc0/verifier/src/lib.rs",
+    }
     assert report["facts"]["receipt_nodes_declared"] == 7
     assert report["facts"]["python_verifies_risc0_seal"] is False
 

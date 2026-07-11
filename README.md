@@ -849,6 +849,7 @@ The rehearsal succeeds when the second machine emits `ok=true`, an
 - `src/kernels/`: generated/reference kernels and verified state machines
 - `src/tau_specs/`: Tau Language policy specs
 - `lean-mathlib/Proofs/`: Lean proof artifacts
+- `zk/zrpf_risc0/`: bounded ZRPF structural proof profile and replay guide
 - `tools/`: operational scripts, replay helpers, feature-suite builders, and UI
 - `docs/`: public specs, architecture notes, and release evidence
 - `tests/`: unit, integration, replay, and assurance tests
@@ -865,6 +866,8 @@ The rehearsal succeeds when the second machine emits `ok=true`, an
 - `docs/TAU_LANGUAGE_CONSTRAINTS.md`
 - `docs/ASSURANCE_RELEASE_SNAPSHOT.md`
 - `docs/DISASTER_HARDNESS_ASSURANCE_METRIC.md`
+- `docs/research/ZRPF_V3_PUBLIC_REPLAY_BUNDLE_20260710.md`
+- `zk/zrpf_risc0/README.md`
 
 ## License
 

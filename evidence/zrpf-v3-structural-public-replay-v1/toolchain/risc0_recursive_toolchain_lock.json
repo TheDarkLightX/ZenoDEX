@@ -1,0 +1,215 @@
+{
+  "claims": {
+    "accepted_claim": "local_installed_toolchain_matches_pinned_artifacts",
+    "production_ready": false,
+    "reproducible_build": false,
+    "requires_verify_installed": true,
+    "settlement_authorization": false
+  },
+  "crate_archives": [
+    {
+      "crate": "risc0-build",
+      "filename": "risc0-build-3.0.5.crate",
+      "sha256": "f89937fa1c424b188cc4cabf65335736eca9c1e3df79c127f48636f55682f3a4",
+      "size_bytes": 27175,
+      "url": "https://static.crates.io/crates/risc0-build/risc0-build-3.0.5.crate",
+      "version": "3.0.5"
+    },
+    {
+      "crate": "risc0-zkvm",
+      "filename": "risc0-zkvm-3.0.5.crate",
+      "sha256": "22b7eafb5d85be59cbd9da83f662cf47d834f1b836e14f675d1530b12c666867",
+      "size_bytes": 4701871,
+      "url": "https://static.crates.io/crates/risc0-zkvm/risc0-zkvm-3.0.5.crate",
+      "version": "3.0.5"
+    },
+    {
+      "crate": "risc0-zkvm-platform",
+      "filename": "risc0-zkvm-platform-2.2.2.crate",
+      "sha256": "4db893788c416287e2e1a87e6b8f5302511a04a45329e699d6a32a16874fd24f",
+      "size_bytes": 17368,
+      "url": "https://static.crates.io/crates/risc0-zkvm-platform/risc0-zkvm-platform-2.2.2.crate",
+      "version": "2.2.2"
+    },
+    {
+      "crate": "risc0-zkos-v1compat",
+      "filename": "risc0-zkos-v1compat-2.2.2.crate",
+      "sha256": "8bd70cb45b5d37d025f25663b87c6b9dc9df7f413ee2068531a57f50b0eb95db",
+      "size_bytes": 23144,
+      "url": "https://static.crates.io/crates/risc0-zkos-v1compat/risc0-zkos-v1compat-2.2.2.crate",
+      "version": "2.2.2"
+    }
+  ],
+  "installed_artifacts": [
+    {
+      "executable": true,
+      "id": "cargo-risczero",
+      "max_size_bytes": 33554432,
+      "relative_path": "extensions/v3.0.5-cargo-risczero-x86_64-unknown-linux-gnu/cargo-risczero",
+      "sha256": "45aba69689cef25d81237f3ff62456fc96ff1e23f75adfcd16f7c8b8c1606619",
+      "size_bytes": 15355120,
+      "version_check": {
+        "arguments": [
+          "risczero",
+          "--version"
+        ],
+        "expected_stdout": "cargo-risczero 3.0.5\n",
+        "format": "exact_stdout"
+      }
+    },
+    {
+      "executable": true,
+      "id": "r0vm",
+      "max_size_bytes": 134217728,
+      "relative_path": "extensions/v3.0.5-cargo-risczero-x86_64-unknown-linux-gnu/r0vm",
+      "sha256": "36c016a5bb2ded5bd1f8f92cc487e6ffaeb1e95ec05850c983081a0f716b515b",
+      "size_bytes": 108998816,
+      "version_check": {
+        "arguments": [
+          "--version"
+        ],
+        "expected_stdout": "risc0-r0vm 3.0.5\n",
+        "format": "exact_stdout"
+      }
+    },
+    {
+      "executable": true,
+      "id": "rustc",
+      "max_size_bytes": 1048576,
+      "relative_path": "toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin/rustc",
+      "sha256": "e7fd8dcc397b4e4756cdb8ceb1851347daf326234b78abea3d42d4e61ad5e8e5",
+      "size_bytes": 6984,
+      "version_check": {
+        "allowed_extra_fields": [],
+        "arguments": [
+          "--version",
+          "--verbose"
+        ],
+        "expected_fields": {
+          "LLVM version": "21.1.8",
+          "binary": "rustc",
+          "commit-date": "2026-04-09",
+          "commit-hash": "06e01cb0d0077cdbda6b930b2f23c2f05c8a2421",
+          "host": "x86_64-unknown-linux-gnu",
+          "release": "1.94.1-dev"
+        },
+        "expected_summary": "rustc 1.94.1-dev (06e01cb0d 2026-04-09)",
+        "format": "key_value_stdout"
+      }
+    },
+    {
+      "executable": true,
+      "id": "rustdoc",
+      "max_size_bytes": 33554432,
+      "relative_path": "toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin/rustdoc_tool_binary",
+      "sha256": "5e04b4833f32a4d9d07269a05f254a66591cb5ea1623221bfadac260671036cf",
+      "size_bytes": 15645864,
+      "version_check": {
+        "arguments": [
+          "--version"
+        ],
+        "expected_stdout": "rustdoc 1.94.1-dev (06e01cb0d 2026-04-09)\n",
+        "format": "exact_stdout"
+      }
+    },
+    {
+      "executable": true,
+      "id": "cargo",
+      "max_size_bytes": 67108864,
+      "relative_path": "toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin/cargo",
+      "sha256": "b1d3a17e834a1cd593634d8f6e7866bbc498e56f5205560c7418bae6ee4447da",
+      "size_bytes": 47489616,
+      "version_check": {
+        "allowed_extra_fields": [
+          "libgit2",
+          "libcurl",
+          "ssl",
+          "os"
+        ],
+        "arguments": [
+          "--version",
+          "--verbose"
+        ],
+        "expected_fields": {
+          "commit-date": "2026-03-24",
+          "commit-hash": "29ea6fb6a5db279426f4cc4e17aa385f05a0cfbc",
+          "host": "x86_64-unknown-linux-gnu",
+          "release": "1.94.1-dev"
+        },
+        "expected_summary": "cargo 1.94.1-dev (29ea6fb6a 2026-03-24)",
+        "format": "key_value_stdout"
+      }
+    },
+    {
+      "executable": false,
+      "id": "guest-libcore",
+      "max_size_bytes": 4194304,
+      "relative_path": "toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/lib/rustlib/riscv32im-risc0-zkvm-elf/lib/libcore-9d7d67b514528171.rlib",
+      "sha256": "7eb8ea6a703191ab4f2b2a32ee85f96dde96a91df3d0bf14d559e846716eac86",
+      "size_bytes": 1285776
+    }
+  ],
+  "platform": {
+    "guest_target": "riscv32im-risc0-zkvm-elf",
+    "host": "x86_64-unknown-linux-gnu"
+  },
+  "recursion_kernel": {
+    "crate": "risc0-zkos-v1compat",
+    "crate_member_path": "risc0-zkos-v1compat-2.2.2/elfs/v1compat.elf",
+    "sha256": "7ffd942e4e8babd771094f549ad080cfea8ecb2c05c986e275c011f41979d921",
+    "size_bytes": 32392,
+    "version": "2.2.2"
+  },
+  "release_archives": [
+    {
+      "filename": "cargo-risczero-x86_64-unknown-linux-gnu.tgz",
+      "id": "risc0-toolchain-linux-x86_64",
+      "sha256": "936ef988b78f20e3bd9f80e375f3adc934b13addc6ae2680f2e5fc0bcc966158",
+      "size_bytes": 73001634,
+      "url": "https://github.com/risc0/risc0/releases/download/v3.0.5/cargo-risczero-x86_64-unknown-linux-gnu.tgz"
+    },
+    {
+      "filename": "rust-toolchain-x86_64-unknown-linux-gnu.tar.gz",
+      "id": "risc0-guest-rust-linux-x86_64",
+      "sha256": "e88d823762fc06e8911fb6b310ffe2fca8fcd7af2438572f7aa90aaf3e84ea02",
+      "size_bytes": 512619537,
+      "url": "https://github.com/risc0/rust/releases/download/r0.1.94.1/rust-toolchain-x86_64-unknown-linux-gnu.tar.gz"
+    }
+  ],
+  "rzup_settings": {
+    "default_versions": {
+      "cargo-risczero": "3.0.5",
+      "cpp": "2024.1.5",
+      "r0vm": "3.0.5",
+      "rust": "1.94.1"
+    },
+    "max_size_bytes": 4096,
+    "relative_path": "settings.toml"
+  },
+  "schema": "zenodex/risc0_recursive_toolchain_lock/v1",
+  "scope": "local_recursive_stark_toolchain_pin",
+  "security_policy": {
+    "advisory_id": "GHSA-jqq4-c7wq-36h7",
+    "advisory_url": "https://github.com/risc0/risc0/security/advisories/GHSA-jqq4-c7wq-36h7",
+    "invalidated_sdk_versions": [
+      "1.2.6"
+    ],
+    "minimum_patched_3_x": "3.0.3",
+    "required_sdk_version": "3.0.5"
+  },
+  "source_pins": {
+    "guest_rust": {
+      "git_commit_sha1": "06e01cb0d0077cdbda6b930b2f23c2f05c8a2421",
+      "git_tree_sha1": "5b7b1b5148f94e6637c24e3052256b5eee27ae43",
+      "release_tag": "r0.1.94.1",
+      "repository": "https://github.com/risc0/rust"
+    },
+    "risc0": {
+      "git_commit_sha1": "8eb06ab020a92dc5b63ba6dd0836d432aba6d890",
+      "git_tree_sha1": "1c0c7d1b1d1f50f6a05ca5f69d02e2f7916da6f6",
+      "release_tag": "v3.0.5",
+      "repository": "https://github.com/risc0/risc0"
+    }
+  },
+  "version": 1
+}

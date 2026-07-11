@@ -117,8 +117,10 @@ dev-mode-disabled context containing only that hash suite. It then
 strict-decodes the exact journal, enforces journal program-image equality, and
 derives the claim binding locally before exposing a descriptor. Receipt
 security profile identity remains separate from the node computation profile.
-Persisted receipt callers use a 16 MiB pre-decode cap and exact typed JSON
-round-trip equality, which rejects duplicate, unknown, and noncanonical fields
+Every public constructor for `VerifiedNodeReceiptV3` accepts bounded canonical
+receipt bytes. Fresh prover outputs serialize through the exactly pinned JSON
+codec and cross that same boundary. The 16 MiB pre-decode cap and exact typed
+JSON round-trip equality reject duplicate, unknown, and noncanonical fields
 before proof verification.
 
 The RISC0 workspace additionally defines:
@@ -447,9 +449,11 @@ journal hash, and its canonical commitments hash.
 `tools/check_zrpf_v3_hash_vector.py` reconstructs all four values in Python
 using `hashlib` and an independent Postcard unsigned-varint encoder.
 
-Outer request, proof, metadata, and disclosure envelopes remain outside V3
-authority until `RS-CBC-021` closes duplicate-key, unknown-field, nesting,
-size, and canonical-byte ambiguity.
+The persisted ZRPF V3 RISC0 receipt boundary is byte-only, 16 MiB capped,
+strict typed, and canonical. `RS-CBC-021` is therefore
+`implemented_partial`. Versioned recursive requests, metadata, disclosures,
+legacy V1 proof envelopes, and the complete outer-envelope set remain outside
+V3 authority.
 
 ## Security Games And Current Status
 
@@ -507,8 +511,8 @@ Current reference evidence includes:
 - independently replayed manual hash and canonical Postcard-byte fixtures;
 - four temporary-path Succinct Spot V1-to-V3 adapter receipts whose exact
   public journals match their independent host projections;
-- persisted adapter-receipt replay through a private-construction sealed
-  verifier;
+- persisted adapter and structural-receipt replay through the source-frozen
+  byte-only sealed verifier;
 - unit rejection of verifier-parameter, hash-suite, control-ID, and metadata
   mutations before invalid-seal verification;
 - bounded canonical persisted-receipt tests covering empty, oversized,
@@ -523,6 +527,8 @@ Current reference evidence includes:
 - verifier-only replay that reconstructs both expected level-one journals and
   the expected level-two journal from seven persisted receipts;
 - swapped level-one receipt rejection at exact-journal equality;
+- an exact one-word Succinct root-seal mutation with typed
+  `receipt_verification_failed` rejection;
 - a missing level-one child-assumption rejection at the RISC0 assumption
   boundary.
 
@@ -537,15 +543,27 @@ The evidenced method identities are:
 The level-two root journal hash is
 `2089ecc187077d4b719c8539076651753c1ead1415724c9bc788758bddfa3768`.
 The exact persisted root receipt SHA-256 is
-`021af13025e7dc7c40e06d689ad30e3194e58793435cd11ae07d684c80ddfd33`.
-Proof serialization can differ across proving runs. This is one local evidence
-instance tied to temporary compiler-visible build paths.
+`edd25fca20b0205c2f778b866605b343922615623256abcc1a098957664c2d16`.
+Proof serialization can differ across proving runs. This is one fixed
+four-leaf, two-level structural instance tied to temporary compiler-visible
+image identities.
 
-The receipt-profile change does not alter guest programs or `NodeJournalV3`
-bytes. It does change host verifier source and binary identity. The prior
-source-frozen verifier manifest therefore does not attest the new boundary;
-fresh replay and source-frozen verifier evidence are required before any
-release or public-replay promotion.
+The 21-artifact public replay bundle is rooted by reference file SHA-256
+`521fb021c75c5ad7d4826cbfc35ff1301040abe46c1926624f7f57e5cc88af21`
+and manifest SHA-256
+`c4d9c0652cdf0b03ede5437f136583a808704c187800e4cd7dec52b625379bae`.
+Its byte-only native verifier has SHA-256
+`c196c56e8e61cc757142e8199aeb6f27a31c071f7fe20c0e54825b527d63c1bc`.
+The verifier-build source closure root is
+`35a8095eb9f2388864c48f463545ebd801747b52c7b4f53df250bef9349df985`.
+Static validation passes with `execution_checked=false`,
+`scoped_public_replay_claim_allowed=false`, and
+`status=static_bundle_accepted`. Explicit native replay passes with
+`execution_checked=true`, `scoped_public_replay_claim_allowed=true`, and
+`status=executed_replay_accepted`. The bundle does not machine-verify the
+recorded proof-generation or verifier-build provenance, rebuild guests or the
+verifier, regenerate proofs, establish release authority, or establish
+semantic composition.
 
 ## Promotion Boundary
 
@@ -565,10 +583,12 @@ The current implementation does not support:
 - cross-host reproducibility;
 - throughput or proving-cost claims.
 
-`RS-CBC-016` remains `implemented_partial`. `RS-CBC-021` remains pending for
-general recursive envelopes. `RS-CBC-022` is `implemented_partial` for the Spot
-adapter and bounded structural aggregate boundaries. The semantic composer,
-governed release profile, and `RS-CBC-023` remain open.
+`RS-CBC-016` remains `implemented_partial`. `RS-CBC-021` is
+`implemented_partial` for canonical persisted ZRPF receipt bytes, with the
+complete recursive envelope set still open. `RS-CBC-022` is
+`implemented_partial` for the Spot adapter and bounded structural aggregate
+boundaries. The semantic composer, governed release profile, and `RS-CBC-023`
+remain open.
 
 ## Dependency Decision
 
@@ -579,7 +599,7 @@ The new crate reuses versions already present in the recursive proof workspaces:
 | `serde` declared 1.0.219, resolved 1.0.228 | typed transport | locked; replaceable with a manual decoder |
 | `postcard` 1.1.3 | compact `no_std` transport | locked; manual canonical hash remains independent |
 | `sha2` 0.10.9 | domain-separated SHA-256 | locked; required for parity with existing commitments |
-| `serde_json` declared 1.0.140, resolved 1.0.150 | test-only strict diagnostic cases | absent from runtime and guest dependency path |
+| `serde_json` exactly 1.0.150 | bounded canonical receipt artifacts at the host verifier boundary | exact pin and lock required; absent from guests and replaceable by a reviewed canonical codec |
 
 The workspace lockfile pins the resolved transitive graph. No network,
 filesystem, clock, randomness, locale, or unordered iteration enters protocol
@@ -587,17 +607,14 @@ construction.
 
 ## Next Safest Build
 
-1. Regenerate the source closure, verifier binary identity, replay transcript,
-   receipt-profile mutation transcript, and evidence manifest for the hardened
-   host verifier.
-2. Preserve the existing proof-bearing wrong-image, seal-mutation,
-   non-Succinct, and exact-journal controls in that regenerated evidence.
-3. Define a separate closed-epoch semantic disclosure profile and native V3
+1. Define a separate closed-epoch semantic disclosure profile and native V3
    leaves that can recompute every parent commitment without compatibility
    sentinels.
-4. Add duplicate-descendant, unbalanced-asset, unmatched-message, invalid-
+2. Add duplicate-descendant, unbalanced-asset, unmatched-message, invalid-
    schedule, missing-DA-certificate, and carry-replay negative evidence.
-5. Add governed verifier policy before any admission integration.
+3. Add governed verifier policy before any admission integration.
+4. Integrate the semantic proof and exact-once replay sets into one
+   crash-consistent ZenoLedger state commit.
 
 A level-three super-root and the 16-by-4 architecture ceiling remain future
 profiles because the compiled V3 candidate intentionally caps level at two.

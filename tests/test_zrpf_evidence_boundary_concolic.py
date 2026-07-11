@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 from tools.zrpf_evidence_boundary_concolic import (
     MAX_DEPTH,
     TARGETS,
     explore_all_targets,
 )
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
 
 
 # These are offline discovery guardrails. They constrain malformed-manifest
@@ -32,7 +38,48 @@ EXPECTED_ONE_HOP_MUTATIONS = {
 }
 
 
-def test_zrpf_evidence_boundary_atlas_rejects_bounded_depth_two_frontier() -> None:
+def _install_retained_source_hash_oracles(monkeypatch: pytest.MonkeyPatch) -> None:
+    for target in TARGETS:
+        document, errors = target.checker.load_manifest()
+        assert errors == []
+        assert isinstance(document, dict)
+        expected_hashes: dict[str, str] = {}
+        for value in document.values():
+            if not isinstance(value, dict) or not isinstance(value.get("files"), list):
+                continue
+            for row in value["files"]:
+                if isinstance(row, dict) and isinstance(row.get("path"), str):
+                    expected_hashes[row["path"]] = row["sha256"]
+
+        live_sha256_file = target.checker.support.sha256_file
+
+        def retained_sha256_file(
+            path: Path,
+            *,
+            expected_hashes: dict[str, str] = expected_hashes,
+            live_sha256_file=live_sha256_file,
+        ) -> str:
+            try:
+                relative = Path(path).resolve().relative_to(ROOT_DIR).as_posix()
+            except ValueError:
+                return live_sha256_file(path)
+            if relative in expected_hashes:
+                return expected_hashes[relative]
+            return live_sha256_file(path)
+
+        monkeypatch.setattr(
+            target.checker.support,
+            "sha256_file",
+            retained_sha256_file,
+        )
+
+
+def test_zrpf_evidence_boundary_atlas_rejects_bounded_depth_two_frontier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The live manifests are intentionally stale. Retained hashes are a test-only
+    # branch-coverage oracle and do not make either evidence record current.
+    _install_retained_source_hash_oracles(monkeypatch)
     reports = explore_all_targets()
     by_name = {report.target: report for report in reports}
 
