@@ -5,11 +5,14 @@ import sys
 
 from src.core.dex import DexState
 from src.core.zusd import E8, ZUSDCommand, init_state, step
-from src.integration.dex_snapshot import snapshot_from_state
+from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction
 from src.integration.zeno_oracle_authorization import oracle_value_hash, semantic_hash
 from src.integration.zusd_monetary_bridge import (
+    ZUSDMonetaryConfig,
     ZUSDMonetaryState,
+    _oracle_runtime_facts,
+    apply_zusd_monetary_ops,
     zusd_monetary_sender_nonce_key,
     zusd_monetary_state_from_obj,
     zusd_monetary_state_to_obj,
@@ -123,6 +126,80 @@ def _authorization_for_runtime(
         "receipt_graph_root": semantic_hash("test.receipt-graph-root", {"surface": "zusd-monetary"}),
     }
     return authorization_bundle(auth)
+
+
+def _direct_bridge_fixture() -> tuple[DexState, ZUSDMonetaryState, dict[str, object]]:
+    app_state = _wrapped_app_state()
+    dex_state = state_from_snapshot(app_state["dex_state"])
+    zusd_state = zusd_monetary_state_from_obj(app_state["zusd_monetary"])
+    operation: dict[str, object] = {
+        "module": "ZUSDFinance",
+        "version": "0.1",
+        "action": "mint_zusd",
+        "nonce": 1,
+        "deadline": 123456789,
+        "owner_pubkey": ALICE,
+        "amount_e8": 200 * E8,
+    }
+    return dex_state, zusd_state, operation
+
+
+def test_direct_bridge_requires_oracle_authorization_when_configured() -> None:
+    dex_state, zusd_state, operation = _direct_bridge_fixture()
+
+    res = apply_zusd_monetary_ops(
+        config=ZUSDMonetaryConfig(require_oracle_authorization=True),
+        state=dex_state,
+        zusd_state=zusd_state,
+        operations=[operation],
+        tx_sender_pubkey=ALICE,
+        block_timestamp=10,
+    )
+
+    assert res.ok is False
+    assert res.error == "zusd op[0] oracle_authorization_required"
+
+
+def test_direct_bridge_rejects_self_attested_oracle_authorization() -> None:
+    dex_state, zusd_state, operation = _direct_bridge_fixture()
+    operation["oracle_authorization"] = {
+        "oracle_authorization_ok": True,
+        "query_id": "self-attested",
+        "action_kind": "mint",
+        "runtime_value_e8": 100 * E8,
+    }
+
+    res = apply_zusd_monetary_ops(
+        config=ZUSDMonetaryConfig(require_oracle_authorization=True),
+        state=dex_state,
+        zusd_state=zusd_state,
+        operations=[operation],
+        tx_sender_pubkey=ALICE,
+        block_timestamp=10,
+    )
+
+    assert res.ok is False
+    assert str(res.error).startswith("zusd op[0] oracle_authorization_rejected:")
+
+
+def test_direct_bridge_accepts_bound_oracle_authorization_when_configured() -> None:
+    dex_state, zusd_state, operation = _direct_bridge_fixture()
+    runtime = _oracle_runtime_facts(zusd_state=zusd_state, action="mint_zusd", operation=operation)
+    assert runtime is not None
+    operation["oracle_authorization"] = _authorization_for_runtime(runtime.__dict__)
+
+    res = apply_zusd_monetary_ops(
+        config=ZUSDMonetaryConfig(require_oracle_authorization=True),
+        state=dex_state,
+        zusd_state=zusd_state,
+        operations=[operation],
+        tx_sender_pubkey=ALICE,
+        block_timestamp=10,
+    )
+
+    assert res.ok is True, res.error
+    assert res.zusd_state is not None
+    assert res.zusd_state.core.debt_e8 == 200 * E8
 
 
 def test_status_reports_zusd_monetary_state_from_wrapped_app_state(monkeypatch) -> None:

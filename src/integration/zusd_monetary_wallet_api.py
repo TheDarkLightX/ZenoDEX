@@ -956,6 +956,7 @@ def _build_prepare_response(
             lo=0,
             hi=10_000,
         ),
+        require_oracle_authorization=_oracle_authorization_required(),
     )
 
     client = _tau_client()
@@ -983,6 +984,9 @@ def _build_prepare_response(
     )
     if oracle_error is not None:
         raise ValueError(oracle_error)
+    auth_obj = body.get("oracle_authorization")
+    if oracle_runtime is not None and isinstance(auth_obj, Mapping):
+        operation["oracle_authorization"] = dict(auth_obj)
     block_timestamp = int(body.get("block_timestamp") if isinstance(body.get("block_timestamp"), int) else int(time.time()))
     preflight = _preflight(
         app_state=app_state,

@@ -1147,18 +1147,6 @@ const ZUSD_OP_TOP_LEVEL_FIELDS: [&str; 5] = [
     "facts",
     "require_oracle_authorization",
 ];
-const ZUSD_ORACLE_FACT_FIELDS: [&str; 10] = [
-    "oracle_authorization_ok",
-    "query_id",
-    "action_kind",
-    "runtime_value_e8",
-    "profile_id",
-    "action_id",
-    "action_facts_hash",
-    "pre_state_hash",
-    "now_epoch",
-    "max_freshness_window_epochs",
-];
 const ZUSD_ORACLE_COLLATERAL_QUERY_ID: &str =
     "sha256:aab2e1b26ac1a1a5069664959c129fa29a63107b949b777480bf0e3928eeaec1";
 
@@ -1354,26 +1342,6 @@ fn zusd_critical_oracle_action_kind(kind: &str) -> Option<&'static str> {
     }
 }
 
-fn u128_field(obj: &serde_json::Map<String, Value>, key: &str) -> Option<u128> {
-    obj.get(key)
-        .and_then(classify_integer)
-        .and_then(|s| s.parse::<u128>().ok())
-}
-
-fn zusd_expected_oracle_value(
-    state: &ZusdState,
-    tx: &serde_json::Map<String, Value>,
-    kind: &str,
-) -> Option<u128> {
-    match kind {
-        "bootstrap_oracle" | "oracle_report" => u128_field(tx, "price_e8").filter(|v| *v > 0),
-        "oracle_commit" => (state.price_pending_e8 > 0).then_some(state.price_pending_e8),
-        "mint_zusd" => (state.price_e8 > 0).then_some(state.price_e8),
-        "liquidate" => (state.price_pending_e8 > 0).then_some(state.price_pending_e8),
-        _ => None,
-    }
-}
-
 fn zusd_oracle_gate(
     state: &ZusdState,
     tx: &Value,
@@ -1389,41 +1357,12 @@ fn zusd_oracle_gate(
     };
     let kind = tx_obj.get("kind").and_then(Value::as_str).unwrap_or("");
     let expected_action_kind = zusd_critical_oracle_action_kind(kind)?;
-    let facts_obj = match facts.and_then(Value::as_object) {
-        Some(obj) => obj,
-        None => return Some("oracle_facts_required".to_string()),
-    };
-    if let Some(reason) = first_unknown_field(
-        facts_obj.keys().map(String::as_str),
-        &ZUSD_ORACLE_FACT_FIELDS,
-    ) {
-        return Some(reason);
+    if facts.and_then(Value::as_object).is_none() {
+        return Some("oracle_facts_required".to_string());
     }
-    if facts_obj
-        .get("oracle_authorization_ok")
-        .and_then(Value::as_bool)
-        != Some(true)
-    {
-        return Some("oracle_authorization_not_accepted".to_string());
-    }
-    if facts_obj.get("query_id").and_then(Value::as_str) != Some(ZUSD_ORACLE_COLLATERAL_QUERY_ID) {
-        return Some("oracle_query_mismatch".to_string());
-    }
-    if facts_obj.get("action_kind").and_then(Value::as_str) != Some(expected_action_kind) {
-        return Some("oracle_action_kind_mismatch".to_string());
-    }
-    let expected_value = match zusd_expected_oracle_value(state, tx_obj, kind) {
-        Some(value) => value,
-        None => return Some("oracle_runtime_unavailable".to_string()),
-    };
-    let actual_value = match u128_field(facts_obj, "runtime_value_e8") {
-        Some(value) => value,
-        None => return Some("oracle_runtime_value_missing".to_string()),
-    };
-    if actual_value != expected_value {
-        return Some("oracle_runtime_value_mismatch".to_string());
-    }
-    None
+    let _ = state;
+    let _ = expected_action_kind;
+    Some("oracle_authorization_external_required".to_string())
 }
 
 fn eval_zusd_tx(state: &ZusdState, tx: &Value) -> Eval<ZusdState> {
@@ -3895,15 +3834,18 @@ mod tests {
     }
 
     #[test]
-    fn zusd_prod_gate_accepts_mint_with_matching_oracle_facts() {
+    fn zusd_prod_gate_rejects_self_attested_oracle_facts() {
         let out = run_zusd_op(&zusd_mint_request(
             true,
             Some(zusd_mint_oracle_facts(100_000_000)),
         ))
         .unwrap();
-        assert!(out.accept, "{:?}", out.reject_reason);
-        assert_ne!(out.pre_state_root, out.post_state_root);
-        assert_eq!(out.post_state.debt_e8, "20000000000");
+        assert!(!out.accept);
+        assert_eq!(
+            out.reject_reason.as_deref(),
+            Some("oracle_authorization_external_required")
+        );
+        assert_eq!(out.pre_state_root, out.post_state_root);
     }
 
     #[test]
@@ -3916,7 +3858,7 @@ mod tests {
         assert!(!out.accept);
         assert_eq!(
             out.reject_reason.as_deref(),
-            Some("oracle_runtime_value_mismatch")
+            Some("oracle_authorization_external_required")
         );
         assert_eq!(out.pre_state_root, out.post_state_root);
     }

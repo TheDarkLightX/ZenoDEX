@@ -21,8 +21,9 @@ from typing import Any, Mapping, Optional, Tuple
 from ..core.dex import DexState
 from ..core.zusd import BPS_SCALE, E8, ZUSDCommand, ZUSDState, check_invariants, init_state, step
 from ..state.balances import BalanceTable, NATIVE_ASSET
-from ..state.canonical import bounded_json_utf8_size, canonical_hex_fixed_allow_0x
+from ..state.canonical import bounded_json_utf8_size, canonical_hex_fixed_allow_0x, canonical_json_bytes
 from ..state.nonces import NonceTable
+from .zeno_oracle_authorization import RuntimeActionFacts, check_critical_consumer_authorization, semantic_hash
 from .zusd_tau_token import derive_zusd_tau_asset_id
 
 
@@ -34,6 +35,13 @@ _U32_MAX = 0xFFFFFFFF
 _MAX_OPS = 128
 _MAX_OP_BYTES = 64_000
 _MAX_TOTAL_OPS_BYTES = 512_000
+_ORACLE_CONSUMER_PROFILE_SCHEMA = "zenodex.oracle.consumer_profile.v1"
+_ORACLE_ZUSD_COLLATERAL_QUERY_ID = (
+    "sha256:" + hashlib.sha256(b"zenodex.oracle.query.zusd.collateral_price_e8").hexdigest()
+)
+_ZUSD_ORACLE_ADAPTER_ACTIONS = {"mint_zusd": "mint", "liquidate": "liquidate_vault"}
+_ZUSD_ORACLE_AUTH_ACTIONS = frozenset({"mint_zusd", "liquidate"})
+_ORACLE_AUTHORIZATION_FIELD = "oracle_authorization"
 
 
 @dataclass(frozen=True)
@@ -43,6 +51,7 @@ class ZUSDMonetaryConfig:
     asset_id: Optional[str] = None
     liquidation_gas_comp_fixed_collateral_e8: int = 0
     liquidation_gas_comp_bps: int = 0
+    require_oracle_authorization: bool = False
 
     @property
     def zusd_asset(self) -> str:
@@ -218,6 +227,10 @@ def apply_zusd_monetary_ops(
             extra = set(op.keys()) - allowed
             if extra:
                 return ZUSDMonetaryTxResult(ok=False, error=f"zusd op[{i}] unknown fields: {sorted(extra)}")
+
+            oracle_error = _oracle_authorization_error(config=config, zusd_state=working, action=action, op=op)
+            if oracle_error is not None:
+                return ZUSDMonetaryTxResult(ok=False, error=f"zusd op[{i}] {oracle_error}")
 
             try:
                 working, balance_effect = _apply_one(
@@ -505,12 +518,192 @@ def _allowed_fields_for_action(action: str) -> set[str]:
     if action == "oracle_commit":
         return base
     if action in {"deposit_collateral", "withdraw_collateral", "mint_zusd", "repay_zusd"}:
-        return base | {"owner_pubkey", "amount_e8"}
+        fields = base | {"owner_pubkey", "amount_e8"}
+        if action == "mint_zusd":
+            return fields | {_ORACLE_AUTHORIZATION_FIELD}
+        return fields
     if action in {"deposit_sp", "withdraw_sp", "redeem_zusd", "claim_sp_collateral"}:
         return base | {"account_pubkey", "amount_e8"}
     if action == "liquidate":
-        return base
+        return base | {_ORACLE_AUTHORIZATION_FIELD}
     return base
+
+
+def _oracle_consumer_profile_id(*, action_kind: str, max_freshness_window_epochs: int) -> str:
+    payload = {
+        "schema": _ORACLE_CONSUMER_PROFILE_SCHEMA,
+        "consumer_module": "zenodex.zusd",
+        "action_kind": action_kind,
+        "query_id": _ORACLE_ZUSD_COLLATERAL_QUERY_ID,
+        "required_evidence_floor": "O3",
+        "max_freshness_window_epochs": int(max_freshness_window_epochs),
+        "critical": True,
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+_ZUSD_ORACLE_CONSUMER_PROFILE_IDS = {
+    "mint": _oracle_consumer_profile_id(action_kind="mint", max_freshness_window_epochs=2),
+    "liquidate_vault": _oracle_consumer_profile_id(
+        action_kind="liquidate_vault",
+        max_freshness_window_epochs=1,
+    ),
+}
+
+
+def _operation_bound_args(operation: Mapping[str, Any]) -> dict[str, Any]:
+    # DbC: authorization payloads are transport proofs, not business action facts.
+    return {str(key): value for key, value in operation.items() if key != _ORACLE_AUTHORIZATION_FIELD}
+
+
+def _oracle_action_kind(action: str) -> str:
+    return _ZUSD_ORACLE_ADAPTER_ACTIONS.get(action, action)
+
+
+def _oracle_runtime_value_e8(zusd_state: ZUSDMonetaryState, *, action: str, operation: Mapping[str, Any]) -> int | None:
+    core = zusd_state.core
+    if action == "mint_zusd":
+        return int(core.price_e8) if int(core.price_e8) > 0 else None
+    if action == "liquidate":
+        return int(core.price_pending_e8) if int(core.price_pending_e8) > 0 else None
+    return None
+
+
+def _oracle_pre_state_hash(zusd_state: ZUSDMonetaryState) -> str:
+    return semantic_hash("zenodex.zusd_monetary.pre_state.v1", {"state": zusd_monetary_state_to_obj(zusd_state)})
+
+
+def _oracle_action_facts_hash(
+    *,
+    zusd_state: ZUSDMonetaryState,
+    action: str,
+    action_kind: str,
+    operation: Mapping[str, Any],
+    query_id: str,
+    runtime_value_e8: int,
+) -> str:
+    core = zusd_state.core
+    return semantic_hash(
+        "zenodex.zusd_monetary.critical_action_facts.v1",
+        {
+            "action": action,
+            "action_kind": action_kind,
+            "operation": _operation_bound_args(operation),
+            "now_epoch": int(core.now_epoch),
+            "oracle_last_update_epoch": int(core.oracle_last_update_epoch),
+            "price_e8": int(core.price_e8),
+            "price_pending_e8": int(core.price_pending_e8),
+            "query_id": query_id,
+            "runtime_value_e8": int(runtime_value_e8),
+            "vault_owner_pubkey": zusd_state.vault_owner_pubkey,
+        },
+    )
+
+
+def _oracle_action_id(*, action_facts_hash: str, pre_state_hash: str, query_id: str, runtime_value_e8: int) -> str:
+    return semantic_hash(
+        "zenodex.zusd_monetary.action_id.v1",
+        {
+            "action_facts_hash": action_facts_hash,
+            "pre_state_hash": pre_state_hash,
+            "query_id": query_id,
+            "runtime_value_e8": int(runtime_value_e8),
+        },
+    )
+
+
+def _max_freshness_window_epochs_for_action(action_kind: str) -> int:
+    if action_kind == "liquidate_vault":
+        return 1
+    return 2
+
+
+def _oracle_profile_id_for_action(action_kind: str) -> str:
+    return _ZUSD_ORACLE_CONSUMER_PROFILE_IDS.get(action_kind, "critical-zusd-v1")
+
+
+def _oracle_runtime_facts(
+    *,
+    zusd_state: ZUSDMonetaryState,
+    action: str,
+    operation: Mapping[str, Any],
+) -> RuntimeActionFacts | None:
+    if action not in _ZUSD_ORACLE_AUTH_ACTIONS:
+        return None
+    runtime_value_e8 = _oracle_runtime_value_e8(zusd_state, action=action, operation=operation)
+    if runtime_value_e8 is None:
+        return None
+    action_kind = _oracle_action_kind(action)
+    query_id = _ORACLE_ZUSD_COLLATERAL_QUERY_ID
+    pre_state_hash = _oracle_pre_state_hash(zusd_state)
+    action_facts_hash = _oracle_action_facts_hash(
+        zusd_state=zusd_state,
+        action=action,
+        action_kind=action_kind,
+        operation=operation,
+        query_id=query_id,
+        runtime_value_e8=runtime_value_e8,
+    )
+    return RuntimeActionFacts(
+        consumer_module="zenodex.zusd",
+        action_kind=action_kind,
+        action_id=_oracle_action_id(
+            action_facts_hash=action_facts_hash,
+            pre_state_hash=pre_state_hash,
+            query_id=query_id,
+            runtime_value_e8=runtime_value_e8,
+        ),
+        action_facts_hash=action_facts_hash,
+        pre_state_hash=pre_state_hash,
+        profile_id=_oracle_profile_id_for_action(action_kind),
+        query_id=query_id,
+        runtime_value_e8=int(runtime_value_e8),
+        now_epoch=int(zusd_state.core.now_epoch),
+        max_freshness_window_epochs=_max_freshness_window_epochs_for_action(action_kind),
+    )
+
+
+def _oracle_authorization_error(
+    *,
+    config: ZUSDMonetaryConfig,
+    zusd_state: ZUSDMonetaryState,
+    action: str,
+    op: Mapping[str, Any],
+) -> str | None:
+    runtime = _oracle_runtime_facts(zusd_state=zusd_state, action=action, operation=op)
+    if runtime is None:
+        return None
+    auth_obj = op.get(_ORACLE_AUTHORIZATION_FIELD)
+    if auth_obj is None:
+        return "oracle_authorization_required" if config.require_oracle_authorization else None
+    if not isinstance(auth_obj, Mapping):
+        return "oracle_authorization must be an object"
+    try:
+        result = check_critical_consumer_authorization(
+            auth_obj,
+            consumer_module=runtime.consumer_module,
+            action_kind=runtime.action_kind,
+            action_id=runtime.action_id,
+            action_facts_hash=runtime.action_facts_hash,
+            pre_state_hash=runtime.pre_state_hash,
+            profile_id=runtime.profile_id,
+            query_id=runtime.query_id,
+            runtime_value_e8=runtime.runtime_value_e8,
+            now_epoch=runtime.now_epoch,
+            runtime_notional_value_e8=runtime.runtime_notional_value_e8,
+            max_freshness_window_epochs=runtime.max_freshness_window_epochs,
+            require_receipt_graph=True,
+        )
+    except Exception as exc:
+        return f"oracle_authorization_rejected: {type(exc).__name__}: {exc}"
+    if result.get("typed_ok") is True:
+        return None
+    errors = result.get("typed_errors")
+    if isinstance(errors, list) and errors:
+        detail = ",".join(str(error) for error in errors)
+    else:
+        detail = "typed authorization rejected"
+    return f"oracle_authorization_rejected:{detail}"
 
 
 def _require_str(value: Any, *, name: str, non_empty: bool = True, max_len: int = 4096) -> str:

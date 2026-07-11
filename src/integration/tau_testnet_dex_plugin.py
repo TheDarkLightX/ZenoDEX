@@ -108,6 +108,12 @@ def _bool_env(name: str, *, default: bool) -> bool:
     )
 
 
+def _bool_env_alias(primary: str, fallback: str, *, default: bool) -> bool:
+    if os.environ.get(primary, "").strip():
+        return _bool_env(primary, default=default)
+    return _bool_env(fallback, default=default)
+
+
 def _float_env(name: str, *, default: float, minimum: float, maximum: float) -> float:
     raw = os.environ.get(name, "").strip()
     if not raw:
@@ -868,6 +874,11 @@ def _build_zusd_monetary_config(*, chain_id: str) -> ZUSDMonetaryConfig:
             "TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_BPS",
             default=0,
             maximum=10_000,
+        ),
+        require_oracle_authorization=_bool_env_alias(
+            "ZUSD_MONETARY_WALLET_ORACLE_AUTHORIZATION_REQUIRED",
+            "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
+            default=False,
         ),
     )
 
