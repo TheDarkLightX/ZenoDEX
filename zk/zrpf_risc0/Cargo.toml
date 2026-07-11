@@ -9,6 +9,7 @@ members = [
   "methods/v1_leaf_adapter",
   "methods/structural_aggregate_l1",
   "methods/structural_aggregate_l2",
+  "methods/semantic_epoch",
   "harness",
 ]
 resolver = "2"

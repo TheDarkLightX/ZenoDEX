@@ -3511,6 +3511,7 @@ dependencies = [
  "zenodex-zrpf-protocol-v3",
  "zenodex-zrpf-risc0-aggregate-shared",
  "zenodex-zrpf-risc0-methods",
+ "zenodex-zrpf-risc0-semantic-shared",
  "zenodex-zrpf-risc0-shared",
  "zenodex-zrpf-risc0-verifier",
 ]
@@ -3533,6 +3534,15 @@ dependencies = [
  "sha2",
  "zenodex-zrpf-risc0-aggregate-shared",
  "zenodex-zrpf-risc0-verifier",
+]
+
+[[package]]
+name = "zenodex-zrpf-risc0-semantic-epoch"
+version = "0.1.0"
+dependencies = [
+ "risc0-zkvm",
+ "zenodex-zrpf-protocol-v3",
+ "zenodex-zrpf-risc0-semantic-shared",
 ]
 
 [[package]]
