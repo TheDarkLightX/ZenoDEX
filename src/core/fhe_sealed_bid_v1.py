@@ -47,6 +47,9 @@ SCHEME_FHE = "paillier-homomorphic-v1"
 SCHEME_FALLBACK = "commit_reveal_v1"
 _RECEIPT_DOMAIN = "zenodex.fhe_sealed_bid_v1/v1"
 _MILLER_RABIN_ROUNDS = 20
+MIN_PRODUCTION_KEY_BITS = 1024
+MIN_PRODUCTION_MODULUS_BITS = (2 * MIN_PRODUCTION_KEY_BITS) - 1
+
 
 # ── Paillier key types ──────────────────────────────────────────────────
 
@@ -114,11 +117,12 @@ def _generate_prime(bits: int) -> int:
 
 
 def generate_paillier_keypair(
-    *, key_bits: int = 256, key_id: str = "fhe-v1-default"
+    *, key_bits: int = MIN_PRODUCTION_KEY_BITS, key_id: str = "fhe-v1-default"
 ) -> PaillierKeyPair:
     """Generate a Paillier key pair with primes of *key_bits* bits each.
 
-    The modulus n has 2 * key_bits bits.  For production, key_bits >= 1024.
+    The modulus n has 2 * key_bits bits.  Production keys require
+    key_bits >= MIN_PRODUCTION_KEY_BITS and a production-sized modulus.
     """
     if key_bits < 64:
         raise ValueError("key_bits must be >= 64")
@@ -143,6 +147,20 @@ def generate_paillier_keypair(
             key_bits=int(key_bits),
         )
 
+
+
+def paillier_public_key_fingerprint(public_key: PaillierPublicKey) -> str:
+    """Return a stable fingerprint that binds receipts to Paillier public keys."""
+    body = {"g": int(public_key.g), "n": int(public_key.n), "n_sq": int(public_key.n_sq)}
+    return sha256_hex(domain_sep_bytes(f"{_RECEIPT_DOMAIN}/public_key") + canonical_json_bytes(body))
+
+
+def is_production_paillier_key(key_pair: PaillierKeyPair) -> bool:
+    """Contract: production claims require strong prime and modulus sizes."""
+    return (
+        int(key_pair.key_bits) >= MIN_PRODUCTION_KEY_BITS
+        and int(key_pair.public_key.n).bit_length() >= MIN_PRODUCTION_MODULUS_BITS
+    )
 
 def _random_coprime(n: int) -> int:
     """Generate a random r in [1, n) with gcd(r, n) = 1."""
@@ -271,6 +289,8 @@ class FHESettlementResult:
     comparison_count: int
     decrypt_count: int
     range_proof_verified: bool = False
+    key_bits: int = 0
+    public_key_fingerprint: str = ""
 
 
 def encrypt_bid(
@@ -413,7 +433,7 @@ def settle_fhe_sealed_bids(
             for f in fills
         ]
 
-    production_claim = key_pair.key_bits >= 1024 and range_proof_verified
+    production_claim = is_production_paillier_key(key_pair) and range_proof_verified
 
     return FHESettlementResult(
         clearing_price=int(clearing_price),
@@ -425,6 +445,8 @@ def settle_fhe_sealed_bids(
         comparison_count=int(comparison_count),
         decrypt_count=int(decrypt_count),
         range_proof_verified=range_proof_verified,
+        key_bits=int(key_pair.key_bits),
+        public_key_fingerprint=paillier_public_key_fingerprint(key_pair.public_key),
     )
 
 
@@ -452,6 +474,8 @@ def _settle_commit_reveal_fallback(
         comparison_count=0,
         decrypt_count=0,
         range_proof_verified=False,
+        key_bits=0,
+        public_key_fingerprint="",
     )
 
 
@@ -526,6 +550,8 @@ def make_fhe_sealed_bid_v1_receipt(
         "key_id": str(result.key_id),
         "production_security_claim": bool(result.production_security_claim),
         "range_proof_verified": bool(result.range_proof_verified),
+        "key_bits": int(result.key_bits),
+        "public_key_fingerprint": str(result.public_key_fingerprint),
         "comparison_count": int(result.comparison_count),
         "decrypt_count": int(result.decrypt_count),
         "limits": {
@@ -548,6 +574,7 @@ def verify_fhe_sealed_bid_v1_receipt(
     *,
     approved_key_ids: Iterable[str],
     trusted_plain_bids: Iterable[RevealedSealedBid] | None = None,
+    approved_public_keys: Iterable[PaillierPublicKey] | None = None,
 ) -> Tuple[bool, str]:
     """Verify an FHE sealed-bid v1 receipt.
 
@@ -587,6 +614,20 @@ def verify_fhe_sealed_bid_v1_receipt(
             and body.get("range_proof_verified") is not True
         ):
             return False, "production_claim_requires_range_proof"
+        if body.get("production_security_claim") is True:
+            key_bits = body.get("key_bits")
+            fingerprint = body.get("public_key_fingerprint")
+            if not isinstance(key_bits, int) or isinstance(key_bits, bool):
+                return False, "bad_key_bits"
+            if key_bits < MIN_PRODUCTION_KEY_BITS:
+                return False, "production_key_too_small"
+            if not isinstance(fingerprint, str) or not fingerprint:
+                return False, "missing_public_key_fingerprint"
+            if approved_public_keys is None:
+                return False, "missing_approved_public_key"
+            fingerprints = {paillier_public_key_fingerprint(x) for x in approved_public_keys}
+            if fingerprint not in fingerprints:
+                return False, "public_key_not_approved"
     else:
         if key_id != "":
             return False, "fallback_should_have_empty_key_id"
