@@ -2,6 +2,7 @@
 members = [
   "shared",
   "aggregate_shared",
+  "semantic_shared",
   "verifier",
   "replay_verifier",
   "methods",
