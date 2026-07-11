@@ -109,15 +109,16 @@ def build_manifest_document(
         "input_image": input_image,
         "non_claims": list(runtime.NON_CLAIMS),
         "provenance": {
-            "guest_elf_checker_schema": "zenodex/zrpf_firecracker_guest_elf_check/v1",
+            "guest_elf_checker_schema": runtime.GUEST_ELF_CHECKER_SCHEMA,
             "guest_elf_checker_sha256": _hash(b"guest-elf-checker"),
+            "guest_elf_checker_source_commit": "34" * 20,
+            "guest_elf_reference_schema": runtime.GUEST_ELF_REFERENCE_SCHEMA,
+            "guest_elf_reference_sha256": _hash(b"guest-elf-reference"),
             "guest_payload_source_commit": "34" * 20,
             "input_build_recipe_sha256": _hash(b"input-recipe"),
             "kernel_source_repository": "https://example.invalid/linux",
             "mksquashfs_binary_sha256": _hash(b"mksquashfs"),
             "mksquashfs_version": "mksquashfs_4.6.1",
-            "python_binary_sha256": _hash(b"python"),
-            "python_version": "Python_3.12.3",
             "rootfs_build_recipe_sha256": _hash(b"rootfs-recipe"),
             "status": "identity_pinned_source_build_not_reproduced",
         },
@@ -202,6 +203,20 @@ def test_manifest_rejects_profile_payload_and_artifact_set_drift() -> None:
     with pytest.raises(runtime.RuntimeManifestError) as set_error:
         runtime.parse_runtime_manifest_bytes(manifest_bytes(artifact_set))
     assert set_error.value.code == "runtime_manifest_artifact_set_id_mismatch"
+
+
+def test_manifest_rejects_ungoverned_elf_checker_provenance() -> None:
+    schema = build_manifest_document()
+    schema["provenance"]["guest_elf_checker_schema"] = "evil/unreviewed/v999"
+    with pytest.raises(runtime.RuntimeManifestError) as schema_error:
+        runtime.parse_runtime_manifest_bytes(manifest_bytes(schema))
+    assert schema_error.value.code == "runtime_manifest_guest_elf_checker_schema_mismatch"
+
+    source = build_manifest_document()
+    source["provenance"]["guest_elf_checker_source_commit"] = "99" * 20
+    with pytest.raises(runtime.RuntimeManifestError) as source_error:
+        runtime.parse_runtime_manifest_bytes(manifest_bytes(source))
+    assert source_error.value.code == "runtime_manifest_guest_elf_source_commit_mismatch"
 
 
 def test_manifest_rejects_unsafe_and_ambiguous_payload_inventory() -> None:

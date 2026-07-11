@@ -73,24 +73,27 @@ def test_valid_static_pie_profile_is_derived_without_authority(tmp_path: Path) -
         checker.ValidatedGuestElfV1()
 
 
-def test_image_builder_uses_hash_bound_local_parser_without_readelf() -> None:
+def test_image_builder_uses_hash_bound_native_checker_without_readelf() -> None:
     raw = IMAGE_BUILDER.read_text(encoding="ascii")
 
     assert "readelf" not in raw
     assert "check_zrpf_v3_firecracker_guest_elf.py" in raw
     assert _checker_source_sha256() in raw
-    assert raw.count('"$python_binary" -I -S "$GUEST_ELF_CHECKER"') == 2
-    assert "--expected-python-sha256" in raw
+    assert raw.count('"$guest_elf_checker_binary" --guest-elf') == 2
+    assert "--expected-guest-elf-checker-sha256" in raw
     assert "python3 -I" not in raw
 
 
-def test_image_builder_rejects_wrong_python_identity_before_execution(
+def test_image_builder_rejects_wrong_native_checker_identity_before_execution(
     tmp_path: Path,
 ) -> None:
     guest = tmp_path / "guest"
     guest.write_bytes(b"guest")
     receipts = tmp_path / "receipts"
     receipts.mkdir()
+    native_checker = tmp_path / "native-checker"
+    native_checker.write_bytes(b"#!/bin/sh\nexit 0\n")
+    native_checker.chmod(0o755)
 
     completed = subprocess.run(
         [
@@ -107,9 +110,9 @@ def test_image_builder_rejects_wrong_python_identity_before_execution(
             "11" * 32,
             "--expected-mksquashfs-sha256",
             "22" * 32,
-            "--python-binary",
-            Path(os.path.realpath(os.sys.executable)).as_posix(),
-            "--expected-python-sha256",
+            "--guest-elf-checker-binary",
+            native_checker.as_posix(),
+            "--expected-guest-elf-checker-sha256",
             "00" * 32,
         ],
         check=False,
@@ -120,7 +123,7 @@ def test_image_builder_rejects_wrong_python_identity_before_execution(
 
     assert completed.returncode == 2
     assert completed.stdout == b""
-    assert completed.stderr == b"error: Python interpreter identity mismatch\n"
+    assert completed.stderr == b"error: guest ELF checker binary identity mismatch\n"
 
 
 @pytest.mark.parametrize(
@@ -297,6 +300,20 @@ def test_dynamic_segment_alignment_rejects(
 def test_dynamic_segment_must_be_mapped_by_readable_load() -> None:
     raw = _valid_elf()
     _write_program_header(raw, 3, _PT_DYNAMIC, _PF_R, 0x480, 0x403480, 32, 32, 8)
+
+    _assert_rejects(bytes(raw), "guest_elf_dynamic_segment_mapping_invalid")
+
+
+def test_dynamic_segment_file_and_virtual_translation_must_match() -> None:
+    raw = _valid_elf()
+    _write_program_header(raw, 3, _PT_DYNAMIC, _PF_R | _PF_W, 0x480, 0x4024A0, 32, 32, 8)
+
+    _assert_rejects(bytes(raw), "guest_elf_dynamic_segment_mapping_invalid")
+
+
+def test_dynamic_segment_mapping_must_be_unambiguous() -> None:
+    raw = _valid_elf()
+    _write_program_header(raw, 0, _PT_LOAD, _PF_R, 0, 0x402000, 0x500, 0x500, 0x1000)
 
     _assert_rejects(bytes(raw), "guest_elf_dynamic_segment_mapping_invalid")
 

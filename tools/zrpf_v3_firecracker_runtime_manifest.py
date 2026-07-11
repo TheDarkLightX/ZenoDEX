@@ -18,6 +18,8 @@ from urllib.parse import urlsplit
 SCHEMA = "zenodex/zrpf_firecracker_runtime_artifact_manifest/v1"
 STATUS = "candidate_frozen_identity_non_authoritative"
 ARCHITECTURE = "x86_64"
+GUEST_ELF_CHECKER_SCHEMA = "zenodex/zrpf_firecracker_guest_elf_native_check/v1"
+GUEST_ELF_REFERENCE_SCHEMA = "zenodex/zrpf_firecracker_guest_elf_check/v1"
 PROFILE_CANONICAL_SHA256 = "e7ab29b1327cd89dd7180cd45aed9663fdb9234d738f7acb51412bb576c8c88e"
 INPUT_PROTOCOL_ID = "zenodex/zrpf_firecracker_input_squashfs/v1"
 REQUEST_PROTOCOL_ID = "zenodex/zrpf_firecracker_request/v1"
@@ -133,12 +135,13 @@ _PROVENANCE_FIELDS = {
     "guest_payload_source_commit",
     "guest_elf_checker_schema",
     "guest_elf_checker_sha256",
+    "guest_elf_checker_source_commit",
+    "guest_elf_reference_schema",
+    "guest_elf_reference_sha256",
     "input_build_recipe_sha256",
     "kernel_source_repository",
     "mksquashfs_binary_sha256",
     "mksquashfs_version",
-    "python_binary_sha256",
-    "python_version",
     "rootfs_build_recipe_sha256",
     "status",
 }
@@ -258,26 +261,28 @@ class BootContractV1:
 class ProvenanceRecordV1:
     guest_elf_checker_schema: str
     guest_elf_checker_sha256: str
+    guest_elf_checker_source_commit: str
+    guest_elf_reference_schema: str
+    guest_elf_reference_sha256: str
     guest_payload_source_commit: str
     input_build_recipe_sha256: str
     kernel_source_repository: str
     mksquashfs_binary_sha256: str
     mksquashfs_version: str
-    python_binary_sha256: str
-    python_version: str
     rootfs_build_recipe_sha256: str
 
     def to_document(self) -> dict[str, Any]:
         return {
             "guest_elf_checker_schema": self.guest_elf_checker_schema,
             "guest_elf_checker_sha256": self.guest_elf_checker_sha256,
+            "guest_elf_checker_source_commit": self.guest_elf_checker_source_commit,
+            "guest_elf_reference_schema": self.guest_elf_reference_schema,
+            "guest_elf_reference_sha256": self.guest_elf_reference_sha256,
             "guest_payload_source_commit": self.guest_payload_source_commit,
             "input_build_recipe_sha256": self.input_build_recipe_sha256,
             "kernel_source_repository": self.kernel_source_repository,
             "mksquashfs_binary_sha256": self.mksquashfs_binary_sha256,
             "mksquashfs_version": self.mksquashfs_version,
-            "python_binary_sha256": self.python_binary_sha256,
-            "python_version": self.python_version,
             "rootfs_build_recipe_sha256": self.rootfs_build_recipe_sha256,
             "status": "identity_pinned_source_build_not_reproduced",
         }
@@ -702,18 +707,27 @@ def _parse_provenance(value: Any) -> ProvenanceRecordV1:
     if value["status"] != "identity_pinned_source_build_not_reproduced":
         raise RuntimeManifestError("runtime_manifest_provenance_status_mismatch")
     repository = _require_https_repository(value["kernel_source_repository"])
+    checker_schema = _require_ascii(value["guest_elf_checker_schema"], maximum=128)
+    reference_schema = _require_ascii(value["guest_elf_reference_schema"], maximum=128)
+    if checker_schema != GUEST_ELF_CHECKER_SCHEMA:
+        raise RuntimeManifestError("runtime_manifest_guest_elf_checker_schema_mismatch")
+    if reference_schema != GUEST_ELF_REFERENCE_SCHEMA:
+        raise RuntimeManifestError("runtime_manifest_guest_elf_reference_schema_mismatch")
+    guest_source_commit = _require_hex(value["guest_payload_source_commit"], length=40)
+    checker_source_commit = _require_hex(value["guest_elf_checker_source_commit"], length=40)
+    if checker_source_commit != guest_source_commit:
+        raise RuntimeManifestError("runtime_manifest_guest_elf_source_commit_mismatch")
     return ProvenanceRecordV1(
-        guest_elf_checker_schema=_require_ascii(
-            value["guest_elf_checker_schema"], maximum=128
-        ),
+        guest_elf_checker_schema=checker_schema,
         guest_elf_checker_sha256=_require_sha256(value["guest_elf_checker_sha256"]),
-        guest_payload_source_commit=_require_hex(value["guest_payload_source_commit"], length=40),
+        guest_elf_checker_source_commit=checker_source_commit,
+        guest_elf_reference_schema=reference_schema,
+        guest_elf_reference_sha256=_require_sha256(value["guest_elf_reference_sha256"]),
+        guest_payload_source_commit=guest_source_commit,
         input_build_recipe_sha256=_require_sha256(value["input_build_recipe_sha256"]),
         kernel_source_repository=repository,
         mksquashfs_binary_sha256=_require_sha256(value["mksquashfs_binary_sha256"]),
         mksquashfs_version=_require_ascii(value["mksquashfs_version"], maximum=64),
-        python_binary_sha256=_require_sha256(value["python_binary_sha256"]),
-        python_version=_require_ascii(value["python_version"], maximum=64),
         rootfs_build_recipe_sha256=_require_sha256(value["rootfs_build_recipe_sha256"]),
     )
 

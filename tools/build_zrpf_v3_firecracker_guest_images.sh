@@ -5,7 +5,7 @@ set -euo pipefail
 # This build helper creates artifacts only. It grants no launch or proof authority.
 
 readonly EXPECTED_RECEIPT_COUNT=8
-readonly GUEST_ELF_REFERENCE_SHA256=214701b87714777b07aabd6cc24dae00a4356887416891cf8edacd3d34cf1995
+readonly GUEST_ELF_REFERENCE_SHA256=2789d6d0773a714cddd3e38a04e89a15f54a8769fee2fd884298be76fb339262
 readonly IMAGE_EPOCH=1780396050
 readonly SQUASHFS_BLOCK_BYTES=131072
 SCRIPT_DIRECTORY=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)

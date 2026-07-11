@@ -386,12 +386,17 @@ def _validate_dynamic_mapping(
         or dynamic.file_size > dynamic.memory_size
     ):
         raise GuestElfError("guest_elf_dynamic_segment_geometry_invalid")
-    for load in load_segments:
-        if not load.flags & _PF_R:
-            continue
-        if _contained_file_range(dynamic, load) and _contained_memory_range(dynamic, load):
-            return
-    raise GuestElfError("guest_elf_dynamic_segment_mapping_invalid")
+    matching_loads = tuple(
+        load
+        for load in load_segments
+        if load.flags & _PF_R
+        and _contained_file_range(dynamic, load)
+        and _contained_memory_range(dynamic, load)
+        and dynamic.file_offset - load.file_offset
+        == dynamic.virtual_address - load.virtual_address
+    )
+    if len(matching_loads) != 1:
+        raise GuestElfError("guest_elf_dynamic_segment_mapping_invalid")
 
 
 def _validate_dynamic_entries(raw: bytes, dynamic: _ProgramHeaderV1) -> int:

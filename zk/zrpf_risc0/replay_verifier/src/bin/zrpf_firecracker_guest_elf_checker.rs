@@ -327,21 +327,27 @@ fn validate_dynamic_mapping(
     {
         return Err(GuestElfError("guest_elf_dynamic_segment_geometry_invalid"));
     }
-    if load_segments.iter().any(|load| {
-        load.flags & PF_R != 0
-            && contained_range(
-                dynamic.file_offset,
-                dynamic.file_size,
-                load.file_offset,
-                load.file_size,
-            )
-            && contained_range(
-                dynamic.virtual_address,
-                dynamic.memory_size,
-                load.virtual_address,
-                load.memory_size,
-            )
-    }) {
+    let matching_loads = load_segments
+        .iter()
+        .filter(|load| {
+            load.flags & PF_R != 0
+                && contained_range(
+                    dynamic.file_offset,
+                    dynamic.file_size,
+                    load.file_offset,
+                    load.file_size,
+                )
+                && contained_range(
+                    dynamic.virtual_address,
+                    dynamic.memory_size,
+                    load.virtual_address,
+                    load.memory_size,
+                )
+                && dynamic.file_offset - load.file_offset
+                    == dynamic.virtual_address - load.virtual_address
+        })
+        .count();
+    if matching_loads == 1 {
         Ok(())
     } else {
         Err(GuestElfError("guest_elf_dynamic_segment_mapping_invalid"))
@@ -508,6 +514,25 @@ mod tests {
         assert_eq!(
             validate_guest_elf_bytes(&overlap),
             Err(GuestElfError("guest_elf_executable_writable_page_overlap"))
+        );
+    }
+
+    #[test]
+    fn dynamic_file_and_virtual_translation_must_be_unique_and_equal() {
+        let mut mismatched = valid_elf();
+        write_u64(&mut mismatched, 64 + 3 * 56 + 16, 0x4022a0);
+        assert_eq!(
+            validate_guest_elf_bytes(&mismatched),
+            Err(GuestElfError("guest_elf_dynamic_segment_mapping_invalid"))
+        );
+
+        let mut ambiguous = valid_elf();
+        write_u64(&mut ambiguous, 64 + 16, 0x402000);
+        write_u64(&mut ambiguous, 64 + 32, 0x400);
+        write_u64(&mut ambiguous, 64 + 40, 0x400);
+        assert_eq!(
+            validate_guest_elf_bytes(&ambiguous),
+            Err(GuestElfError("guest_elf_dynamic_segment_mapping_invalid"))
         );
     }
 

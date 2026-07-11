@@ -101,6 +101,10 @@ SOURCE_FILES: tuple[tuple[str, str], ...] = (
         "replay_source",
         "zk/zrpf_risc0/replay_verifier/src/bin/zrpf_firecracker_guest_init.rs",
     ),
+    (
+        "replay_source",
+        "zk/zrpf_risc0/replay_verifier/src/bin/zrpf_firecracker_guest_elf_checker.rs",
+    ),
     ("replay_source", "zk/zrpf_risc0/replay_verifier/src/error.rs"),
     ("replay_source", "zk/zrpf_risc0/replay_verifier/src/firecracker_protocol.rs"),
     ("replay_source", "zk/zrpf_risc0/replay_verifier/src/lib.rs"),
