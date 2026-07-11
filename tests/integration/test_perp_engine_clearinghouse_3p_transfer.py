@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Mapping
 
 from src.core.dex import DexState
 from src.core.perps import PerpClearinghouse3pTransferMarketState
@@ -171,8 +172,8 @@ def _signed_publish_price(*, market_id: str, price_e8: int, oracle_nonce: int, d
 
 
 def _accepted_bridge_verifier(expected_action_id: str):
-    def _verifier(_bridge: object) -> dict[str, object]:
-        return {
+    def _verifier(bridge: object) -> dict[str, object]:
+        result = {
             "status": "accepted",
             "errors": [],
             "consumer_module": "zenodex.perps",
@@ -181,8 +182,29 @@ def _accepted_bridge_verifier(expected_action_id: str):
             "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
             "action_id": expected_action_id,
         }
+        if isinstance(bridge, Mapping):
+            result.update(dict(bridge.get("verified_result", {})))
+        return result
 
     return _verifier
+
+
+def _bridge_for_authorization(authorization: Mapping[str, object]) -> dict[str, object]:
+    auth = authorization["authorization"]
+    assert isinstance(auth, Mapping)
+    return {
+        "schema": "test",
+        "verified_result": {
+            "value_hash": auth["value_hash"],
+            "observed_epoch": auth["observed_epoch"],
+            "expires_at_epoch": auth["expires_at_epoch"],
+            "feed_registry_root": auth["feed_registry_root"],
+            "query_policy_root": auth["query_policy_root"],
+            "source_registry_root": auth["source_registry_root"],
+            "reporter_registry_root": auth["reporter_registry_root"],
+            "receipt_graph_root": auth["receipt_graph_root"],
+        },
+    }
 
 
 def _clearinghouse_authorization_for(runtime: dict[str, object], *, observed_epoch: int) -> dict[str, object]:
@@ -584,7 +606,7 @@ def test_settle_epoch_3p_accepts_matching_typed_oracle_authorization() -> None:
                 market_id,
                 "settle_epoch",
                 version="1.1",
-                oracle_adapter_bridge={"schema": "test"},
+                oracle_adapter_bridge=_bridge_for_authorization(auth),
                 oracle_authorization=auth,
             )
         ],
@@ -641,3 +663,36 @@ def test_set_market_params_3p_rejects_penalty_increase_with_open_positions() -> 
     )
     assert not res.ok
     assert res.error is not None and "cannot increase liquidation_penalty_bps while positions are open" in res.error
+
+
+def test_settle_epoch_3p_rejects_oracle_authorization_unbound_from_bridge() -> None:
+    state, market_id, relayer = _ready_ch3p_price_published_market()
+    cfg, runtime = _clearinghouse_authorized_config(state, market_id)
+    auth = _clearinghouse_authorization_for(runtime, observed_epoch=int(runtime["now_epoch"]))
+    bridge = _bridge_for_authorization(auth)
+    verified_result = bridge["verified_result"]
+    assert isinstance(verified_result, dict)
+    verified_result["value_hash"] = oracle_value_hash(
+        query_id=str(runtime["query_id"]),
+        value_e8=int(runtime["runtime_value_e8"]) + 1,
+        observed_epoch=int(runtime["now_epoch"]),
+    )
+
+    res = _apply_result_with_config(
+        state=state,
+        tx_sender_pubkey=relayer,
+        config=cfg,
+        ops=[
+            _op(
+                market_id,
+                "settle_epoch",
+                version="1.1",
+                oracle_adapter_bridge=bridge,
+                oracle_authorization=auth,
+            )
+        ],
+    )
+
+    assert res.ok is False
+    assert res.error is not None
+    assert "oracle_adapter_bridge value_hash mismatch" in res.error
