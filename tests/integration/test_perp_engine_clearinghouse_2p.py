@@ -151,8 +151,11 @@ def _signed_publish_price(*, market_id: str, price_e8: int, oracle_nonce: int, d
     return base
 
 
-def _accepted_bridge_verifier(expected_action_id: str):
+def _accepted_bridge_verifier(runtime: dict[str, object], *, value_e8: int | None = None):
     def _verifier(_bridge: object) -> dict[str, object]:
+        value = int(runtime["runtime_value_e8"] if value_e8 is None else value_e8)
+        observed_epoch = int(runtime["now_epoch"])
+        query_id = str(runtime["query_id"])
         return {
             "status": "accepted",
             "errors": [],
@@ -160,7 +163,18 @@ def _accepted_bridge_verifier(expected_action_id: str):
             "action_kind": "settle_epoch",
             "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
             "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-            "action_id": expected_action_id,
+            "action_id": str(runtime["action_id"]),
+            "oracle_authorization_value_hash": oracle_value_hash(
+                query_id=query_id,
+                value_e8=value,
+                observed_epoch=observed_epoch,
+            ),
+            "value_e8": value,
+            "observed_epoch": observed_epoch,
+            "expires_at_epoch": observed_epoch,
+            "confidence_e8": 10_000,
+            "deviation_bps": 5,
+            "evidence_class": "O3",
         }
 
     return _verifier
@@ -237,7 +251,7 @@ def _clearinghouse_authorized_config(state: DexState, market_id: str) -> tuple[P
         state=market.state,
         participant_pubkeys=(market.account_a_pubkey, market.account_b_pubkey),
     )
-    cfg = replace(cfg, oracle_adapter_bridge_verifier=_accepted_bridge_verifier(str(runtime["action_id"])))
+    cfg = replace(cfg, oracle_adapter_bridge_verifier=_accepted_bridge_verifier(runtime))
     return cfg, runtime
 
 
@@ -604,6 +618,37 @@ def test_settle_epoch_2p_accepts_matching_typed_oracle_authorization() -> None:
     )
 
     assert res.ok is True, res.error
+
+
+def test_settle_epoch_2p_rejects_oracle_authorization_unbound_from_bridge_value() -> None:
+    state, market_id, relayer = _ready_ch2p_price_published_market()
+    cfg, runtime = _clearinghouse_authorized_config(state, market_id)
+    cfg = replace(
+        cfg,
+        oracle_adapter_bridge_verifier=_accepted_bridge_verifier(
+            runtime,
+            value_e8=int(runtime["runtime_value_e8"]) + 1,
+        ),
+    )
+    auth = _clearinghouse_authorization_for(runtime, observed_epoch=int(runtime["now_epoch"]))
+
+    res = _apply_result_with_config(
+        state=state,
+        tx_sender_pubkey=relayer,
+        config=cfg,
+        ops=[
+            _op(
+                market_id,
+                "settle_epoch",
+                version="1.0",
+                oracle_adapter_bridge={"schema": "test"},
+                oracle_authorization=auth,
+            )
+        ],
+    )
+
+    assert res.ok is False
+    assert res.error == "clearinghouse_settle_oracle_authorization_rejected: oracle_adapter_bridge value_hash mismatch"
 
 
 def test_settle_epoch_2p_rejects_typed_oracle_authorization_value_mismatch() -> None:

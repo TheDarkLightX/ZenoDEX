@@ -58,6 +58,13 @@ class AggregateAdapterResult:
     aggregate_id: str | None = None
     query_id: str | None = None
     value_hash: str | None = None
+    oracle_authorization_value_hash: str | None = None
+    value_e8: int | None = None
+    confidence_e8: int | None = None
+    deviation_bps: int | None = None
+    observed_epoch: int | None = None
+    expires_at_epoch: int | None = None
+    evidence_class: str | None = None
     consumer_module: str | None = None
     action_kind: str | None = None
     action_id: str | None = None
@@ -75,6 +82,13 @@ class AggregateAdapterResult:
             "aggregate_id": self.aggregate_id,
             "query_id": self.query_id,
             "value_hash": self.value_hash,
+            "oracle_authorization_value_hash": self.oracle_authorization_value_hash,
+            "value_e8": self.value_e8,
+            "confidence_e8": self.confidence_e8,
+            "deviation_bps": self.deviation_bps,
+            "observed_epoch": self.observed_epoch,
+            "expires_at_epoch": self.expires_at_epoch,
+            "evidence_class": self.evidence_class,
             "consumer_module": self.consumer_module,
             "action_kind": self.action_kind,
             "action_id": self.action_id,
@@ -93,6 +107,18 @@ def _content_hash(obj: Mapping[str, Any], *, omit_key: str) -> str:
 
 def aggregate_adapter_content_hash(obj: Mapping[str, Any]) -> str:
     return _content_hash(obj, omit_key="bridge_id")
+
+
+def oracle_authorization_value_hash(*, query_id: str, value_e8: int, observed_epoch: int) -> str:
+    payload = {
+        "observed_epoch": int(observed_epoch),
+        "query_id": str(query_id),
+        "value_e8": int(value_e8),
+    }
+    digest = hashlib.sha256(
+        b"zenodex.oracle.value.v1\x00" + canonical_json_bytes(payload),
+    ).hexdigest()
+    return "sha256:" + digest
 
 
 def sample_hash(tag: str) -> str:
@@ -210,6 +236,14 @@ def verify_aggregate_adapter_bridge(obj: Mapping[str, Any]) -> AggregateAdapterR
                 errors.append("adapter_not_accepted")
                 errors.extend(f"adapter:{error}" for error in adapter_result.errors)
 
+    auth_value_hash = None
+    if aggregate_read_result is not None and aggregate_read_result.status == "accepted":
+        auth_value_hash = oracle_authorization_value_hash(
+            query_id=str(aggregate_read_result.query_id),
+            value_e8=int(aggregate_read_result.value_e8),
+            observed_epoch=int(aggregate_read_result.observed_epoch),
+        )
+
     return AggregateAdapterResult(
         status="rejected" if errors else "accepted",
         errors=errors,
@@ -218,6 +252,13 @@ def verify_aggregate_adapter_bridge(obj: Mapping[str, Any]) -> AggregateAdapterR
         aggregate_id=None if aggregate_read_result is None else aggregate_read_result.aggregate_id,
         query_id=None if aggregate_read_result is None else aggregate_read_result.query_id,
         value_hash=None if aggregate_read_result is None else aggregate_read_result.value_hash,
+        oracle_authorization_value_hash=auth_value_hash,
+        value_e8=None if aggregate_read_result is None else aggregate_read_result.value_e8,
+        confidence_e8=None if aggregate_read_result is None else aggregate_read_result.confidence_e8,
+        deviation_bps=None if aggregate_read_result is None else aggregate_read_result.deviation_bps,
+        observed_epoch=None if aggregate_read_result is None else aggregate_read_result.observed_epoch,
+        expires_at_epoch=None if aggregate_read_result is None else aggregate_read_result.expires_at_epoch,
+        evidence_class=None if aggregate_read_result is None else aggregate_read_result.evidence_class,
         consumer_module=None if adapter_result is None else adapter_result.consumer_module,
         action_kind=None if adapter_result is None else adapter_result.action_kind,
         action_id=None if adapter_result is None else adapter_result.action_id,
