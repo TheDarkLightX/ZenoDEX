@@ -149,7 +149,12 @@ def _header(
     )
 
 
-def _proof(*, post_app_hash: str, proof_type: str = "risc0.zenodex_spot_transition.v1") -> dict[str, object]:
+def _proof(
+    *,
+    post_app_hash: str,
+    txs_commitment: str | None = None,
+    proof_type: str = "risc0.zenodex_spot_transition.v1",
+) -> dict[str, object]:
     return {
         "schema": "tau_state_proof",
         "schema_version": 1,
@@ -158,7 +163,7 @@ def _proof(*, post_app_hash: str, proof_type: str = "risc0.zenodex_spot_transiti
         "proof": "cmlzYzAtcmVjZWlwdA==",
         "meta": {
             "risc0_image_id": _hex("risc0-image-id"),
-            "txs_commitment": _hex("txs-commitment"),
+            "txs_commitment": _hex("txs-commitment") if txs_commitment is None else txs_commitment,
             "ingress_commitment": _hex("ingress-commitment"),
             "pre_nonce_root": _hex("pre-nonce-root"),
             "post_nonce_root": _hex("post-nonce-root"),
@@ -173,8 +178,9 @@ def _proof_with_pre_app_hash(
     *,
     post_app_hash: str,
     pre_app_hash: str,
+    txs_commitment: str | None = None,
 ) -> dict[str, object]:
-    proof = _proof(post_app_hash=post_app_hash)
+    proof = _proof(post_app_hash=post_app_hash, txs_commitment=txs_commitment)
     meta = dict(proof["meta"])  # type: ignore[arg-type]
     meta["pre_app_hash"] = pre_app_hash
     proof["meta"] = meta
@@ -222,7 +228,7 @@ print(json.dumps({{"ok": {str(ok)}}}))
 def test_risc0_adapter_builds_metadata_and_validates_bound_header(tmp_path: Path) -> None:
     body = _body(1)
     header_unbound = _header(body)
-    proof = _proof(post_app_hash=str(header_unbound["app_hash"])[2:])
+    proof = _proof(post_app_hash=str(header_unbound["app_hash"])[2:], txs_commitment=str(header_unbound["tx_root"])[2:])
     body_path = tmp_path / "body.json"
     header_unbound_path = tmp_path / "header_unbound.json"
     proof_path = tmp_path / "proof.json"
@@ -303,7 +309,7 @@ def test_risc0_adapter_rejects_wrong_proof_type_and_app_hash_mismatch(tmp_path: 
     _write_json(header_path, header)
     _write_json(
         wrong_type_path,
-        _proof(post_app_hash=str(header["app_hash"])[2:], proof_type="risc0.other_transition.v1"),
+        _proof(post_app_hash=str(header["app_hash"])[2:], txs_commitment=str(header["tx_root"])[2:], proof_type="risc0.other_transition.v1"),
     )
     _write_json(wrong_app_hash_path, _proof(post_app_hash=_hex("wrong-post-app-hash")))
 
@@ -324,10 +330,42 @@ def test_risc0_adapter_rejects_wrong_proof_type_and_app_hash_mismatch(tmp_path: 
     assert "post_app_hash/header app_hash mismatch" in wrong_app_hash.stdout
 
 
+def test_risc0_adapter_rejects_unrelated_tx_commitment_by_default(tmp_path: Path) -> None:
+    body = _body(1)
+    header = _header(body)
+    proof = _proof(post_app_hash=str(header["app_hash"])[2:], txs_commitment=_hex("unrelated-txs"))
+    body_path = tmp_path / "body.json"
+    header_path = tmp_path / "header.json"
+    proof_path = tmp_path / "proof.json"
+    _write_json(body_path, body)
+    _write_json(header_path, header)
+    _write_json(proof_path, proof)
+
+    proc = _run_adapter(
+        "--proof",
+        str(proof_path),
+        "--header",
+        str(header_path),
+        "--body",
+        str(body_path),
+        "--conflict-schedule-hash",
+        _root("schedule"),
+        "--feature-suite-hash",
+        _root("feature-suite"),
+        "--dependency-lock-hash",
+        _root("dependency-lock"),
+        "--toolchain-lock-hash",
+        _root("toolchain-lock"),
+    )
+
+    assert proc.returncode == 1
+    assert "txs_commitment/header tx_root mismatch" in proc.stdout
+
+
 def test_risc0_adapter_rejects_default_placeholder_metadata_roots(tmp_path: Path) -> None:
     body = _body(1)
     header = _header(body)
-    proof = _proof(post_app_hash=str(header["app_hash"])[2:])
+    proof = _proof(post_app_hash=str(header["app_hash"])[2:], txs_commitment=str(header["tx_root"])[2:])
     body_path = tmp_path / "body.json"
     header_path = tmp_path / "header.json"
     proof_path = tmp_path / "proof.json"
@@ -350,7 +388,7 @@ def test_risc0_adapter_rejects_default_placeholder_metadata_roots(tmp_path: Path
 def test_risc0_adapter_defaults_to_repo_toolchain_lock_hash(tmp_path: Path) -> None:
     body = _body(1)
     header = _header(body)
-    proof = _proof(post_app_hash=str(header["app_hash"])[2:])
+    proof = _proof(post_app_hash=str(header["app_hash"])[2:], txs_commitment=str(header["tx_root"])[2:])
     body_path = tmp_path / "body.json"
     header_path = tmp_path / "header.json"
     proof_path = tmp_path / "proof.json"
@@ -396,12 +434,13 @@ def test_risc0_adapter_binds_pre_app_hash_presence_bit(tmp_path: Path) -> None:
     with_pre_metadata_path = tmp_path / "metadata_with_pre.json"
     _write_json(body_path, body)
     _write_json(header_path, header)
-    _write_json(no_pre_path, _proof(post_app_hash=str(header["app_hash"])[2:]))
+    _write_json(no_pre_path, _proof(post_app_hash=str(header["app_hash"])[2:], txs_commitment=str(header["tx_root"])[2:]))
     _write_json(
         with_pre_path,
         _proof_with_pre_app_hash(
             post_app_hash=str(header["app_hash"])[2:],
-            pre_app_hash=_hex("pre-app-hash"),
+            pre_app_hash=str(header["pre_state_root"])[2:],
+            txs_commitment=str(header["tx_root"])[2:],
         ),
     )
 
@@ -437,8 +476,9 @@ def test_risc0_adapter_can_require_state_root_hash_binding(tmp_path: Path) -> No
     post_state_root = _root("risc0-post-state")
     header = _header(body, pre_state_root=pre_state_root, post_state_root=post_state_root)
     proof = _proof_with_pre_app_hash(
-        post_app_hash=post_state_root[2:],
+        post_app_hash=str(header["app_hash"])[2:],
         pre_app_hash=pre_state_root[2:],
+        txs_commitment=str(header["tx_root"])[2:],
     )
     body_path = tmp_path / "body.json"
     header_path = tmp_path / "header.json"
@@ -465,13 +505,12 @@ def test_risc0_adapter_can_require_state_root_hash_binding(tmp_path: Path) -> No
         _root("dependency-lock"),
         "--toolchain-lock-hash",
         _root("toolchain-lock"),
-        "--require-post-app-hash-header-post-state-root",
         "--require-pre-app-hash-header-pre-state-root",
     )
 
     assert proc.returncode == 0, proc.stderr or proc.stdout
     report = json.loads(proc.stdout)
-    assert report["post_state_root_checked"] is True
+    assert report["post_app_hash_checked"] is False
     assert report["pre_state_root_checked"] is True
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     assert metadata["post_state_root"] == post_state_root
@@ -482,7 +521,7 @@ def test_risc0_adapter_accepts_empty_pre_app_hash_without_pre_state_equality(tmp
     body = _body(1)
     post_state_root = _root("risc0-post-state")
     header = _header(body, pre_state_root=_root("ledger-pre-state"), post_state_root=post_state_root)
-    proof = _proof(post_app_hash=post_state_root[2:])
+    proof = _proof(post_app_hash=str(header["app_hash"])[2:], txs_commitment=str(header["tx_root"])[2:])
     body_path = tmp_path / "body.json"
     header_path = tmp_path / "header.json"
     proof_path = tmp_path / "proof.json"
@@ -505,7 +544,6 @@ def test_risc0_adapter_accepts_empty_pre_app_hash_without_pre_state_equality(tmp
         _root("dependency-lock"),
         "--toolchain-lock-hash",
         _root("toolchain-lock"),
-        "--require-post-app-hash-header-post-state-root",
         "--require-pre-app-hash-header-pre-state-root",
     )
 
@@ -520,7 +558,7 @@ def test_risc0_adapter_rejects_state_root_hash_mismatch(tmp_path: Path) -> None:
         pre_state_root=_root("risc0-pre-state"),
         post_state_root=_root("risc0-post-state"),
     )
-    proof = _proof(post_app_hash=_hex("wrong-risc0-post-state"))
+    proof = _proof(post_app_hash=_hex("wrong-risc0-post-state"), txs_commitment=str(header["tx_root"])[2:])
     body_path = tmp_path / "body.json"
     header_path = tmp_path / "header.json"
     proof_path = tmp_path / "proof.json"
@@ -546,14 +584,15 @@ def test_risc0_adapter_rejects_state_root_hash_mismatch(tmp_path: Path) -> None:
         "--require-post-app-hash-header-post-state-root",
     )
     assert post_mismatch.returncode == 1
-    assert "post_app_hash/header post_state_root mismatch" in post_mismatch.stdout
+    assert "post_app_hash/header app_hash mismatch" in post_mismatch.stdout
 
     wrong_pre_path = tmp_path / "wrong_pre_proof.json"
     _write_json(
         wrong_pre_path,
         _proof_with_pre_app_hash(
-            post_app_hash=str(header["post_state_root"])[2:],
+            post_app_hash=str(header["app_hash"])[2:],
             pre_app_hash=_hex("wrong-risc0-pre-state"),
+            txs_commitment=str(header["tx_root"])[2:],
         ),
     )
     pre_mismatch = _run_adapter(
@@ -580,7 +619,7 @@ def test_risc0_adapter_rejects_state_root_hash_mismatch(tmp_path: Path) -> None:
 def test_risc0_adapter_can_require_external_verifier(tmp_path: Path) -> None:
     body = _body(1)
     header = _header(body)
-    proof = _proof(post_app_hash=str(header["app_hash"])[2:])
+    proof = _proof(post_app_hash=str(header["app_hash"])[2:], txs_commitment=str(header["tx_root"])[2:])
     body_path = tmp_path / "body.json"
     header_path = tmp_path / "header.json"
     proof_path = tmp_path / "proof.json"
@@ -621,7 +660,7 @@ def test_risc0_adapter_can_require_external_verifier(tmp_path: Path) -> None:
 def test_risc0_adapter_rejects_when_required_verifier_rejects(tmp_path: Path) -> None:
     body = _body(1)
     header = _header(body)
-    proof = _proof(post_app_hash=str(header["app_hash"])[2:])
+    proof = _proof(post_app_hash=str(header["app_hash"])[2:], txs_commitment=str(header["tx_root"])[2:])
     body_path = tmp_path / "body.json"
     header_path = tmp_path / "header.json"
     proof_path = tmp_path / "proof.json"
@@ -654,7 +693,7 @@ def test_risc0_adapter_rejects_when_required_verifier_rejects(tmp_path: Path) ->
 def test_risc0_adapter_rejects_required_verifier_without_command(tmp_path: Path) -> None:
     body = _body(1)
     header = _header(body)
-    proof = _proof(post_app_hash=str(header["app_hash"])[2:])
+    proof = _proof(post_app_hash=str(header["app_hash"])[2:], txs_commitment=str(header["tx_root"])[2:])
     body_path = tmp_path / "body.json"
     header_path = tmp_path / "header.json"
     proof_path = tmp_path / "proof.json"
