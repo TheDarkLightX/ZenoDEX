@@ -148,6 +148,7 @@
       "cgroup_subtree_control_empty",
       "cgroup_procs_empty",
       "cgroup_events_populated_zero",
+      "cgroup_stat_nr_descendants_zero",
       "required_controller_files_present",
       "numeric_limits_exactly_match_governed_policy"
     ],

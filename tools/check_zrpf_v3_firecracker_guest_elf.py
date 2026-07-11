@@ -4,21 +4,13 @@
 from __future__ import annotations
 
 import argparse
-import importlib
 import json
+import os
+import stat
 import struct
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
-if __package__:
-    _MODULE_PREFIX = "tools."
-else:
-    sys.path.insert(0, Path(__file__).resolve().parent.as_posix())
-    _MODULE_PREFIX = ""
-
-runtime = importlib.import_module(f"{_MODULE_PREFIX}zrpf_v3_firecracker_runtime_manifest")
 
 MAX_GUEST_ELF_BYTES = 16 * 1024 * 1024
 MAX_PROGRAM_HEADERS = 128
@@ -44,8 +36,13 @@ _PF_R = 4
 
 _DT_NULL = 0
 _DT_NEEDED = 1
+_DT_TEXTREL = 22
+_DT_FLAGS = 30
 _DT_FLAGS_1 = 0x6FFFFFFB
+_DF_TEXTREL = 0x4
 _DF_1_PIE = 0x08000000
+_MEMORY_PAGE_BYTES = 4_096
+_U64_MAX = (1 << 64) - 1
 
 
 class GuestElfError(ValueError):
@@ -157,10 +154,56 @@ def load_guest_elf(path: Path) -> ValidatedGuestElfV1:
     """Read one stable regular file and validate its ELF metadata."""
 
     try:
-        raw = runtime.read_bounded_regular(path, maximum=MAX_GUEST_ELF_BYTES)
+        raw = _read_bounded_regular(path)
     except (OSError, ValueError) as exc:
         raise GuestElfError("guest_elf_input_rejected") from exc
     return validate_guest_elf_bytes(raw)
+
+
+def _read_bounded_regular(path: Path) -> bytes:
+    """Read one immutable identity snapshot without following a final symlink."""
+
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
+    descriptor = os.open(path, flags)
+    try:
+        before = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or not 0 < before.st_size <= MAX_GUEST_ELF_BYTES
+            or before.st_nlink != 1
+        ):
+            raise ValueError("guest ELF is not a bounded single-link regular file")
+        output = bytearray()
+        while len(output) < before.st_size:
+            chunk = os.read(descriptor, min(65_536, before.st_size - len(output)))
+            if not chunk:
+                raise ValueError("guest ELF changed while reading")
+            output.extend(chunk)
+        if os.read(descriptor, 1):
+            raise ValueError("guest ELF changed while reading")
+        after = os.fstat(descriptor)
+    finally:
+        os.close(descriptor)
+    if _file_identity(before) != _file_identity(after):
+        raise ValueError("guest ELF changed while reading")
+    return bytes(output)
+
+
+def _file_identity(metadata: os.stat_result) -> tuple[int, ...]:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_mode,
+        metadata.st_nlink,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
 
 
 def build_report(path: Path) -> dict[str, Any]:
@@ -293,7 +336,19 @@ def _validate_segments(
         load_segments.append(segment)
     if not load_segments:
         raise GuestElfError("guest_elf_load_segment_missing")
+    _validate_executable_writable_page_separation(load_segments)
     return tuple(load_segments)
+
+
+def _validate_executable_writable_page_separation(
+    load_segments: list[_ProgramHeaderV1],
+) -> None:
+    executable = (segment for segment in load_segments if segment.flags & _PF_X)
+    writable = tuple(segment for segment in load_segments if segment.flags & _PF_W)
+    for executable_segment in executable:
+        for writable_segment in writable:
+            if _page_ranges_overlap(executable_segment, writable_segment):
+                raise GuestElfError("guest_elf_executable_writable_page_overlap")
 
 
 def _validate_entry_point(
@@ -350,6 +405,8 @@ def _validate_dynamic_entries(raw: bytes, dynamic: _ProgramHeaderV1) -> int:
         )
         if tag == _DT_NEEDED:
             raise GuestElfError("guest_elf_needed_dependency_present")
+        if tag == _DT_TEXTREL or (tag == _DT_FLAGS and value & _DF_TEXTREL):
+            raise GuestElfError("guest_elf_text_relocation_present")
         if saw_null:
             if tag != _DT_NULL or value != 0:
                 raise GuestElfError("guest_elf_dynamic_terminator_invalid")
@@ -395,6 +452,21 @@ def _contained_memory_range(inner: _ProgramHeaderV1, outer: _ProgramHeaderV1) ->
         and inner.virtual_address - outer.virtual_address <= outer.memory_size
         and inner.memory_size <= outer.memory_size - (inner.virtual_address - outer.virtual_address)
     )
+
+
+def _page_ranges_overlap(left: _ProgramHeaderV1, right: _ProgramHeaderV1) -> bool:
+    left_start = left.virtual_address // _MEMORY_PAGE_BYTES
+    right_start = right.virtual_address // _MEMORY_PAGE_BYTES
+    left_end = _page_end(left.virtual_address, left.memory_size)
+    right_end = _page_end(right.virtual_address, right.memory_size)
+    return left_start < right_end and right_start < left_end
+
+
+def _page_end(start: int, size: int) -> int:
+    end = start + size
+    if end > _U64_MAX:
+        raise GuestElfError("guest_elf_load_geometry_invalid")
+    return (end + _MEMORY_PAGE_BYTES - 1) // _MEMORY_PAGE_BYTES
 
 
 def _is_power_of_two(value: int) -> bool:

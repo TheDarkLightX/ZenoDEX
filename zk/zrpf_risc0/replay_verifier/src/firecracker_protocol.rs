@@ -21,8 +21,8 @@ const ACCEPTED_STATUS_V1: u32 = 1;
 const COMMIT_OFFSET_V1: u64 = (OUTPUT_BYTES_V1 - OUTPUT_COMMIT_BYTES_V1) as u64;
 
 pub const CANDIDATE_PROFILE_CANONICAL_SHA256_V1: [u8; 32] = [
-    0xe7, 0x4b, 0x28, 0x59, 0x54, 0x98, 0x4c, 0x1d, 0xfe, 0xa3, 0x6b, 0xd5, 0x4d, 0xd5, 0xb6, 0xa4,
-    0x79, 0x90, 0x6d, 0x2a, 0x62, 0xeb, 0xdb, 0xff, 0xaf, 0x7a, 0x7c, 0xc8, 0x89, 0x85, 0x60, 0xf4,
+    0xe7, 0xab, 0x29, 0xb1, 0x32, 0x7c, 0xd8, 0x9d, 0xd7, 0x18, 0x0c, 0xd4, 0x5a, 0xed, 0x96, 0x63,
+    0xfd, 0xb9, 0x23, 0x4d, 0x73, 0x8f, 0x7a, 0xcb, 0x51, 0x41, 0x2b, 0xb5, 0x76, 0xc8, 0xc8, 0x8e,
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -404,7 +404,7 @@ mod tests {
         assert_eq!(FirecrackerRequestV1::decode(&encoded), Ok(request()));
         assert_eq!(
             hex::encode(sha256(&encoded)),
-            "5027982193b842f45dd9fbf938f33173034daf5f60b5e7266d6f89473de70c06"
+            "2caa4a31adf44fef35e63a06574a5626eadd02aa2c25a869adce4ef04479d196"
         );
 
         let mut changed = encoded;
@@ -467,7 +467,7 @@ mod tests {
         let bytes = read_output(&mut file);
         assert_eq!(
             hex::encode(sha256(&bytes)),
-            "e6ae9e2402d4d4ad5c2dc12dc91de1720a95dde24e1463845ce085b6342f4917"
+            "d8eebca6acbf13687118569667aff7a61e6c4c55d3a3d4e8799e762690b0e494"
         );
         assert_eq!(
             validate_committed_output(&bytes, &request()),

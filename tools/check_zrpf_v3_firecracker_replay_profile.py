@@ -25,7 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 PROFILE_PATH = REPO_ROOT / "config/proof_profiles/zrpf_v3_firecracker_replay_profile_v1.json"
 MAX_PROFILE_BYTES = 64 * 1024
 EXPECTED_PROFILE_CANONICAL_SHA256 = (
-    "e74b285954984c1dfea36bd54dd5b6a479906d2a62ebdbffaf7a7cc8898560f4"
+    "e7ab29b1327cd89dd7180cd45aed9663fdb9234d738f7acb51412bb576c8c88e"
 )
 
 EXPECTED_CLAIMS = {
@@ -165,6 +165,7 @@ EXPECTED_RUNNER_POLICY = {
         "cgroup_subtree_control_empty",
         "cgroup_procs_empty",
         "cgroup_events_populated_zero",
+        "cgroup_stat_nr_descendants_zero",
         "required_controller_files_present",
         "numeric_limits_exactly_match_governed_policy",
     ],
@@ -596,6 +597,8 @@ def _validate_policy(profile: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     if not _exact_equal(profile.get("host_policy"), EXPECTED_HOST_POLICY):
         errors.append("host_policy_mismatch")
+    if not _v1_host_cgroup_security_boundary_holds(profile.get("host_policy")):
+        errors.append("host_v1_cgroup_security_boundary_mismatch")
     if not _exact_equal(profile.get("runner_policy"), EXPECTED_RUNNER_POLICY):
         errors.append("runner_policy_mismatch")
     if not _v1_cgroup_security_boundary_holds(profile.get("runner_policy")):
@@ -613,19 +616,71 @@ def _v1_cgroup_security_boundary_holds(value: Any) -> bool:
     contract = value.get("cgroup_termination_contract")
     if not isinstance(required, list) or not isinstance(forbidden, list):
         return False
+    prelaunch = value.get("cgroup_leaf_prelaunch_requirements")
+    active = value.get("cgroup_leaf_active_requirements")
+    resource_limits = value.get("resource_limits_required")
     return bool(
-        value.get("jailer_cgroup_property_arguments_allowed") is False
+        value.get("cgroup_and_netns_path_symlinks_allowed") is False
+        and value.get("cgroup_io_max_required") is True
+        and value.get("jailer_required") is True
+        and value.get("unknown_jailer_cli_options_allowed") is False
+        and value.get("preexisting_jail_root_allowed") is False
+        and value.get("jailer_cgroup_membership_postcheck_required") is True
+        and value.get("jailer_cgroup_property_arguments_allowed") is False
         and not _contains_cgroup_property_option(required)
+        and _has_exact_cgroup_attachment_options(required)
         and "--cgroup" in forbidden
+        and "--daemonize" in forbidden
         and value.get("jailer_parent_cgroup_value_policy")
         == "verified_relative_path_to_exact_precreated_leaf_under_cgroup2_mount"
-        and isinstance(contract, dict)
-        and contract.get("cgroup_type_readback_required") == "domain"
-        and contract.get("teardown_write_file") == "cgroup.kill"
-        and contract.get("teardown_write_bytes_hex") == "310a"
-        and contract.get("teardown_completion_file") == "cgroup.events"
-        and contract.get("teardown_completion_predicate")
-        == "parsed_populated_equals_zero"
+        and prelaunch
+        == [
+            "cgroup_path_exists",
+            "cgroup_path_is_cgroup_v2_directory",
+            "cgroup_path_stable_device_and_inode",
+            "cgroup_type_exact_domain",
+            "cgroup_subtree_control_empty",
+            "cgroup_procs_empty",
+            "cgroup_events_populated_zero",
+            "cgroup_stat_nr_descendants_zero",
+            "required_controller_files_present",
+            "numeric_limits_exactly_match_governed_policy",
+        ]
+        and active
+        == [
+            "exact_expected_firecracker_process_set",
+            "proc_pid_cgroup_resolves_to_expected_relative_path",
+            "cgroup_path_stable_device_and_inode",
+            "numeric_limits_unchanged",
+        ]
+        and contract
+        == {
+            "cgroup_kill_unavailable_or_populated_nonzero": "reject",
+            "cgroup_type_readback_required": "domain",
+            "process_group_kill": "supplemental_only_never_authoritative",
+            "teardown_completion_file": "cgroup.events",
+            "teardown_completion_predicate": "parsed_populated_equals_zero",
+            "teardown_method": "cgroup_v2_cgroup_kill",
+            "teardown_owner": "privileged_host_supervisor",
+            "teardown_write_bytes_hex": "310a",
+            "teardown_write_file": "cgroup.kill",
+        }
+        and value.get("teardown_policy")
+        == "cgroup_kill_literal_one_then_cgroup_events_populated_zero_then_unique_jail_removed"
+        and value.get("watchdog_policy")
+        == "prelaunched_host_monotonic_deadline_cgroup_kill_literal_one_and_populated_zero"
+        and isinstance(resource_limits, list)
+        and {"cpu", "memory", "pids", "io", "wall_clock"}.issubset(resource_limits)
+    )
+
+
+def _v1_host_cgroup_security_boundary_holds(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    return bool(
+        value.get("require_cgroup_v2") is True
+        and value.get("required_cgroup_controllers")
+        == ["cpu", "cpuset", "io", "memory", "pids"]
     )
 
 
@@ -636,10 +691,7 @@ def jailer_argv_contains_cgroup_property(arguments: list[str]) -> bool:
     be confused with the forbidden ``--cgroup`` property option.
     """
 
-    return any(
-        argument == "--cgroup" or argument.startswith("--cgroup=")
-        for argument in arguments
-    )
+    return any(argument == "--cgroup" or argument.startswith("--cgroup=") for argument in arguments)
 
 
 def _contains_cgroup_property_option(arguments: list[Any]) -> bool:
@@ -652,6 +704,16 @@ def _contains_cgroup_property_option(arguments: list[Any]) -> bool:
         )
         for argument in arguments
     )
+
+
+def _has_exact_cgroup_attachment_options(arguments: list[Any]) -> bool:
+    if not all(isinstance(argument, str) for argument in arguments):
+        return False
+    versions = [
+        argument for argument in arguments if argument.startswith("--cgroup-version")
+    ]
+    parents = [argument for argument in arguments if argument.startswith("--parent-cgroup")]
+    return versions == ["--cgroup-version=2"] and parents == ["--parent-cgroup"]
 
 
 def _read_bounded_regular(path: Path) -> bytes:

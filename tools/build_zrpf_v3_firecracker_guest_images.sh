@@ -5,13 +5,13 @@ set -euo pipefail
 # This build helper creates artifacts only. It grants no launch or proof authority.
 
 readonly EXPECTED_RECEIPT_COUNT=8
-readonly GUEST_ELF_CHECKER_SHA256=16dec66ec8bc567571a398031f0718a2c38726fe4dc01a1c203f6296b74db470
+readonly GUEST_ELF_REFERENCE_SHA256=214701b87714777b07aabd6cc24dae00a4356887416891cf8edacd3d34cf1995
 readonly IMAGE_EPOCH=1780396050
 readonly SQUASHFS_BLOCK_BYTES=131072
 SCRIPT_DIRECTORY=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 readonly SCRIPT_DIRECTORY
-GUEST_ELF_CHECKER="$SCRIPT_DIRECTORY/check_zrpf_v3_firecracker_guest_elf.py"
-readonly GUEST_ELF_CHECKER
+GUEST_ELF_REFERENCE="$SCRIPT_DIRECTORY/check_zrpf_v3_firecracker_guest_elf.py"
+readonly GUEST_ELF_REFERENCE
 
 guest_binary=""
 receipt_directory=""
@@ -19,6 +19,8 @@ output_directory=""
 expected_guest_sha256=""
 expected_receipt_set_sha256=""
 expected_mksquashfs_sha256=""
+guest_elf_checker_binary=""
+expected_guest_elf_checker_sha256=""
 
 while (($#)); do
   case "$1" in
@@ -46,6 +48,14 @@ while (($#)); do
       expected_mksquashfs_sha256=${2-}
       shift 2
       ;;
+    --guest-elf-checker-binary)
+      guest_elf_checker_binary=${2-}
+      shift 2
+      ;;
+    --expected-guest-elf-checker-sha256)
+      expected_guest_elf_checker_sha256=${2-}
+      shift 2
+      ;;
     *)
       echo "error: unknown or incomplete argument" >&2
       exit 2
@@ -59,7 +69,9 @@ for value in \
   "$output_directory" \
   "$expected_guest_sha256" \
   "$expected_receipt_set_sha256" \
-  "$expected_mksquashfs_sha256"; do
+  "$expected_mksquashfs_sha256" \
+  "$guest_elf_checker_binary" \
+  "$expected_guest_elf_checker_sha256"; do
   [[ -n "$value" ]] || { echo "error: required argument missing" >&2; exit 2; }
 done
 
@@ -76,19 +88,29 @@ export TZ=UTC
   echo "error: receipt directory rejected" >&2
   exit 2
 }
+[[ -f "$guest_elf_checker_binary" && ! -L "$guest_elf_checker_binary" \
+  && $(stat -c %h "$guest_elf_checker_binary") -eq 1 ]] || {
+  echo "error: guest ELF checker binary rejected" >&2
+  exit 2
+}
+guest_elf_checker_binary_sha256_before=$(sha256sum "$guest_elf_checker_binary" | cut -d' ' -f1)
+[[ "$guest_elf_checker_binary_sha256_before" == "$expected_guest_elf_checker_sha256" ]] || {
+  echo "error: guest ELF checker binary identity mismatch" >&2
+  exit 2
+}
 
 mksquashfs_path=$(command -v mksquashfs)
 [[ $(sha256sum "$mksquashfs_path" | cut -d' ' -f1) == "$expected_mksquashfs_sha256" ]] || {
   echo "error: mksquashfs identity mismatch" >&2
   exit 2
 }
-[[ -f "$GUEST_ELF_CHECKER" && ! -L "$GUEST_ELF_CHECKER" ]] || {
-  echo "error: guest ELF checker rejected" >&2
+[[ -f "$GUEST_ELF_REFERENCE" && ! -L "$GUEST_ELF_REFERENCE" ]] || {
+  echo "error: guest ELF reference rejected" >&2
   exit 2
 }
-guest_elf_checker_sha256_before=$(sha256sum "$GUEST_ELF_CHECKER" | cut -d' ' -f1)
-[[ "$guest_elf_checker_sha256_before" == "$GUEST_ELF_CHECKER_SHA256" ]] || {
-  echo "error: guest ELF checker identity mismatch" >&2
+guest_elf_reference_sha256_before=$(sha256sum "$GUEST_ELF_REFERENCE" | cut -d' ' -f1)
+[[ "$guest_elf_reference_sha256_before" == "$GUEST_ELF_REFERENCE_SHA256" ]] || {
+  echo "error: guest ELF reference identity mismatch" >&2
   exit 2
 }
 guest_sha256_before=$(sha256sum "$guest_binary" | cut -d' ' -f1)
@@ -96,7 +118,8 @@ guest_sha256_before=$(sha256sum "$guest_binary" | cut -d' ' -f1)
   echo "error: guest identity mismatch" >&2
   exit 2
 }
-python3 -I "$GUEST_ELF_CHECKER" --guest-elf "$guest_binary" >/dev/null
+env -i LC_ALL=C TZ=UTC \
+  "$guest_elf_checker_binary" --guest-elf "$guest_binary" >/dev/null
 
 receipt_set_sha256() {
   local directory=$1
@@ -189,11 +212,16 @@ after_receipt_set=$(receipt_set_sha256 "$receipt_directory")
   echo "error: guest identity changed during build" >&2
   exit 2
 }
-[[ $(sha256sum "$GUEST_ELF_CHECKER" | cut -d' ' -f1) == "$guest_elf_checker_sha256_before" ]] || {
-  echo "error: guest ELF checker identity changed during build" >&2
+[[ $(sha256sum "$GUEST_ELF_REFERENCE" | cut -d' ' -f1) == "$guest_elf_reference_sha256_before" ]] || {
+  echo "error: guest ELF reference identity changed during build" >&2
   exit 2
 }
-python3 -I "$GUEST_ELF_CHECKER" --guest-elf "$guest_binary" >/dev/null
+[[ $(sha256sum "$guest_elf_checker_binary" | cut -d' ' -f1) == "$guest_elf_checker_binary_sha256_before" ]] || {
+  echo "error: guest ELF checker binary identity changed during build" >&2
+  exit 2
+}
+env -i LC_ALL=C TZ=UTC \
+  "$guest_elf_checker_binary" --guest-elf "$guest_binary" >/dev/null
 
 rootfs_sha256=$(sha256sum "$output_directory/zrpf-replay-rootfs.squashfs" | cut -d' ' -f1)
 input_sha256=$(sha256sum "$output_directory/zrpf-replay-input.squashfs" | cut -d' ' -f1)

@@ -17,7 +17,7 @@ OUTPUT_COMMIT_DOMAIN_V1 = b"zenodex/zrpf_firecracker_output_commit/v1\x00"
 VERSION_V1 = 1
 ACCEPTED_STATUS_V1 = 1
 CANDIDATE_PROFILE_CANONICAL_SHA256_V1 = bytes.fromhex(
-    "e74b285954984c1dfea36bd54dd5b6a479906d2a62ebdbffaf7a7cc8898560f4"
+    "e7ab29b1327cd89dd7180cd45aed9663fdb9234d738f7acb51412bb576c8c88e"
 )
 
 

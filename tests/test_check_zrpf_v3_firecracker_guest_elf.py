@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 import struct
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -22,6 +23,7 @@ _PF_W = 2
 _PF_R = 4
 _DT_NULL = 0
 _DT_NEEDED = 1
+_DT_TEXTREL = 22
 _DT_FLAGS_1 = 0x6FFFFFFB
 _DF_1_PIE = 0x08000000
 
@@ -77,7 +79,48 @@ def test_image_builder_uses_hash_bound_local_parser_without_readelf() -> None:
     assert "readelf" not in raw
     assert "check_zrpf_v3_firecracker_guest_elf.py" in raw
     assert _checker_source_sha256() in raw
-    assert raw.count('python3 -I "$GUEST_ELF_CHECKER"') == 2
+    assert raw.count('"$python_binary" -I -S "$GUEST_ELF_CHECKER"') == 2
+    assert "--expected-python-sha256" in raw
+    assert "python3 -I" not in raw
+
+
+def test_image_builder_rejects_wrong_python_identity_before_execution(
+    tmp_path: Path,
+) -> None:
+    guest = tmp_path / "guest"
+    guest.write_bytes(b"guest")
+    receipts = tmp_path / "receipts"
+    receipts.mkdir()
+
+    completed = subprocess.run(
+        [
+            IMAGE_BUILDER.as_posix(),
+            "--guest-binary",
+            guest.as_posix(),
+            "--receipt-dir",
+            receipts.as_posix(),
+            "--output-dir",
+            (tmp_path / "output").as_posix(),
+            "--expected-guest-sha256",
+            hashlib.sha256(b"guest").hexdigest(),
+            "--expected-receipt-set-sha256",
+            "11" * 32,
+            "--expected-mksquashfs-sha256",
+            "22" * 32,
+            "--python-binary",
+            Path(os.path.realpath(os.sys.executable)).as_posix(),
+            "--expected-python-sha256",
+            "00" * 32,
+        ],
+        check=False,
+        capture_output=True,
+        env={"PATH": "/usr/bin:/bin"},
+        timeout=10,
+    )
+
+    assert completed.returncode == 2
+    assert completed.stdout == b""
+    assert completed.stderr == b"error: Python interpreter identity mismatch\n"
 
 
 @pytest.mark.parametrize(
@@ -263,6 +306,30 @@ def test_dt_needed_rejects() -> None:
     _write_dynamic_entry(raw, 0, _DT_NEEDED, 1)
 
     _assert_rejects(bytes(raw), "guest_elf_needed_dependency_present")
+
+
+def test_text_relocation_rejects() -> None:
+    raw = _valid_elf()
+    _write_dynamic_entry(raw, 0, _DT_TEXTREL, 0)
+
+    _assert_rejects(bytes(raw), "guest_elf_text_relocation_present")
+
+
+def test_page_level_writable_executable_alias_rejects() -> None:
+    raw = _valid_elf()
+    _write_program_header(
+        raw,
+        2,
+        _PT_LOAD,
+        _PF_R | _PF_W,
+        0x400,
+        0x401400,
+        0x100,
+        0x100,
+        0x100,
+    )
+
+    _assert_rejects(bytes(raw), "guest_elf_executable_writable_page_overlap")
 
 
 def test_missing_dt_null_rejects() -> None:
