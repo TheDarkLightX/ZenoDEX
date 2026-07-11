@@ -194,11 +194,12 @@ def test_production_strict_verifier_registry_requires_key_admission() -> None:
     with pytest.raises(ValueError, match="admission receipt is required"):
         validate_verifier_registry_v0(registry, require_production_key_admission=True)
 
-    validate_verifier_registry_v0(
-        registry,
-        require_production_key_admission=True,
-        production_key_admission_receipt=_pkm_receipt(),
-    )
+    with pytest.raises(ValueError, match="cannot be validated without full signed admission evidence"):
+        validate_verifier_registry_v0(
+            registry,
+            require_production_key_admission=True,
+            production_key_admission_receipt=_pkm_receipt(),
+        )
 
 
 def test_production_strict_verifier_registry_rejects_wrong_key_admission() -> None:
@@ -210,7 +211,7 @@ def test_production_strict_verifier_registry_rejects_wrong_key_admission() -> No
     )
     registry = make_verifier_registry_v0(entries=[entry])
 
-    with pytest.raises(ValueError, match="action mismatch"):
+    with pytest.raises(ValueError, match="cannot be validated without full signed admission evidence"):
         validate_verifier_registry_v0(
             registry,
             require_production_key_admission=True,

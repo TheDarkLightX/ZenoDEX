@@ -368,20 +368,19 @@ def test_production_strict_join_requires_public_network_config_key_admission(tmp
         )
 
     signed_config["production_key_admission_receipt"] = _pkm_receipt()
-    join_config = _public_network_config_to_join_config_v0(
-        network_config=signed_config,
-        node_id="node-b",
-        bundle_root=tmp_path / "synced",
-        data_dir=tmp_path / "node-b",
-        host="127.0.0.1",
-        port=None,
-        poll_seconds=None,
-        serve=False,
-        require_network_config_quorum=True,
-        require_production_key_admission=True,
-    )
-
-    assert join_config["production_key_admission_required"] is True
+    with pytest.raises(ValueError, match="cannot be validated without full signed admission evidence"):
+        _public_network_config_to_join_config_v0(
+            network_config=signed_config,
+            node_id="node-b",
+            bundle_root=tmp_path / "synced",
+            data_dir=tmp_path / "node-b",
+            host="127.0.0.1",
+            port=None,
+            poll_seconds=None,
+            serve=False,
+            require_network_config_quorum=True,
+            require_production_key_admission=True,
+        )
 
 
 def test_production_strict_join_rejects_tampered_key_admission(tmp_path: Path) -> None:

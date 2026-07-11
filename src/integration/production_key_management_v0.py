@@ -649,29 +649,20 @@ def validate_production_key_admission_receipt_v0(
     receipt: Mapping[str, Any],
     required_action: str,
 ) -> None:
+    """Fail closed for externally supplied receipt summaries.
+
+    A standalone receipt object is forgeable because its hash is self-computed and
+    this validator has no cryptographic proof inputs (packet, descriptors,
+    envelopes, signature verifier) to recompute a trusted admission decision.
+    """
+
     validate_admission_receipt_v0(receipt)
     action = _require_str(required_action, name="required_action")
     if action not in ACTIONS_V0:
         raise ValueError("required_action is not allowed")
-    policy = DEFAULT_ACTION_POLICIES_V0[action]
-    if receipt.get("ok") is not True or receipt.get("status") != "accepted":
-        raise ValueError("production key-management admission receipt is not accepted")
-    if receipt.get("environment") != "production":
-        raise ValueError("production key-management admission receipt environment mismatch")
-    if receipt.get("action") != action:
-        raise ValueError("production key-management admission receipt action mismatch")
-    if receipt.get("policy_hash") != policy["policy_hash"]:
-        raise ValueError("production key-management admission receipt policy hash mismatch")
-    if int(receipt.get("accepted_signature_count", -1)) < int(policy["threshold"]):
-        raise ValueError("production key-management admission receipt threshold mismatch")
-    if int(receipt.get("distinct_custodian_count", -1)) < int(policy["min_distinct_custodians"]):
-        raise ValueError("production key-management admission receipt custodian quorum mismatch")
-    if policy["hardware_required"] is True and receipt.get("hardware_requirement_met") is not True:
-        raise ValueError("production key-management admission receipt custody mismatch")
-    if policy["timelock_required"] is True and receipt.get("timelock_satisfied") is not True:
-        raise ValueError("production key-management admission receipt timelock mismatch")
-    if policy["transparency_required"] is True and not receipt.get("transparency_log_hash"):
-        raise ValueError("production key-management admission receipt transparency mismatch")
+    raise ValueError(
+        "production key-management admission receipt cannot be validated without full signed admission evidence"
+    )
 
 
 DEFAULT_ACTION_POLICIES_V0 = _load_default_action_policies()
