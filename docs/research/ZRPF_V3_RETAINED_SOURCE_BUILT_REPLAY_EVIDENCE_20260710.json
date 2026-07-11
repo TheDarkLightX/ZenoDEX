@@ -79,9 +79,11 @@
     "command": "cargo build --frozen --release -p zenodex-zrpf-risc0-replay-verifier",
     "compiler_path_remap": "dynamic_private_target=/zrpf/build",
     "complete_build_input_closure_verified": false,
+    "dependency_graph_canonical_source_root": "/zrpf/source",
     "dependency_graph_edges": "normal,build,no-proc-macro",
+    "dependency_graph_normalization": "cargo_tree_unique_sorted_source_root_v1",
     "dependency_graph_package_count": 127,
-    "dependency_graph_sha256": "36670188513f1f3ae68155aa163fe6755e52bc41dfc1baa10314c75ca7954d3a",
+    "dependency_graph_sha256": "419b73b822f65d326f3221b57f47e7ae1936c71323fe85b45d5181affc7d4b59",
     "execve_environment_map_allowlisted": true,
     "external_target_directory": true,
     "private_source_snapshot": true,
@@ -460,7 +462,7 @@
     "native_verifier_binary_in_evidence_directory": false,
     "receipt_directory_contains_only_exact_receipts": true
   },
-  "schema": "zenodex/zrpf_v3_retained_source_built_replay_evidence/v2",
+  "schema": "zenodex/zrpf_v3_retained_source_built_replay_evidence/v3",
   "scope": "source_built_retained_receipt_structural_replay_without_ledger_authority",
   "source_anchor": {
     "commit": "44bc0435621588659e44a2819e4e8ef03ce6fd51",
@@ -483,5 +485,5 @@
     "root_journal_hash": "2089ecc187077d4b719c8539076651753c1ead1415724c9bc788758bddfa3768",
     "root_receipt_sha256": "edd25fca20b0205c2f778b866605b343922615623256abcc1a098957664c2d16"
   },
-  "version": 2
+  "version": 3
 }

@@ -122,6 +122,7 @@ jobs:
             --locked \
             -p zenodex-zrpf-risc0-shared \
             -p zenodex-zrpf-risc0-aggregate-shared \
+            -p zenodex-zrpf-risc0-harness \
             -p zenodex-zrpf-risc0-verifier \
             -p zenodex-zrpf-risc0-replay-verifier
           "${pinned_bin}/cargo-clippy" clippy \
@@ -129,6 +130,7 @@ jobs:
             --locked --all-targets \
             -p zenodex-zrpf-risc0-shared \
             -p zenodex-zrpf-risc0-aggregate-shared \
+            -p zenodex-zrpf-risc0-harness \
             -p zenodex-zrpf-risc0-verifier \
             -p zenodex-zrpf-risc0-replay-verifier \
             -- -D warnings

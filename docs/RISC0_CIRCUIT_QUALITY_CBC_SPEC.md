@@ -153,7 +153,7 @@ Normal execution and `RISC0_DEV_MODE=1` execution produced byte-identical
 The path-clean evidence record is
 `docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260710.json`,
 SHA-256
-`03b38b53a17d45348880caccb03f0ce71cf86f267ba6f92c8381684ccaebec87`.
+`d4412fff5e194c3222cdb06a402c0064fe13e01794ee3f12a92b24a04f65dd47`.
 The recorded verifier bytes have SHA-256
 `4511b54089d811ce1d59889d09b322d4924eeb4b34e25d6c4827744ce85e8800`
 and were executed from a fully sealed Linux memfd.

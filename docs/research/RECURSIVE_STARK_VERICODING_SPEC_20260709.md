@@ -144,7 +144,7 @@ Current status:
   and rejects the exact one-word root-seal mutation. Normal execution and
   `RISC0_DEV_MODE=1` execution produced byte-identical output. The evidence
   record SHA-256 is
-  `03b38b53a17d45348880caccb03f0ce71cf86f267ba6f92c8381684ccaebec87`.
+  `d4412fff5e194c3222cdb06a402c0064fe13e01794ee3f12a92b24a04f65dd47`.
   Its live build uses a private detached worktree at the pinned commit, checks
   the exact 40-file source closure before and after compilation, disables
   automatic Cargo target discovery and checkout hooks, rejects unpinned

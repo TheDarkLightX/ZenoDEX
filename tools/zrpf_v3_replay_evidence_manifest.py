@@ -45,7 +45,7 @@ def expected_evidence(
         },
         "status": "source_built_retained_receipt_structural_replay_accepted",
         "verified_tree": _verified_tree(),
-        "version": 2,
+        "version": 3,
     }
 
 
@@ -64,7 +64,11 @@ def _recorded_build(execution_identity: dict[str, Any]) -> dict[str, Any]:
         "cargo_version": "cargo 1.94.1-dev (29ea6fb6a 2026-03-24)",
         "command": "cargo build --frozen --release -p zenodex-zrpf-risc0-replay-verifier",
         "compiler_path_remap": "dynamic_private_target=/zrpf/build",
+        "dependency_graph_canonical_source_root": (
+            support.DEPENDENCY_GRAPH_CANONICAL_SOURCE_ROOT
+        ),
         "dependency_graph_edges": "normal,build,no-proc-macro",
+        "dependency_graph_normalization": support.DEPENDENCY_GRAPH_NORMALIZATION,
         "dependency_graph_package_count": execution_identity[
             "dependency_graph_package_count"
         ],

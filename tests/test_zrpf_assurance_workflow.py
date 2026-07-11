@@ -48,6 +48,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tools/check_recursive_stark_cbc_spec.py" in python_assurance
     assert "tests/test_check_recursive_stark_cbc_spec.py" in python_assurance
     assert "--manifest-path zk/recursive_stark_v2_risc0/Cargo.toml" in rust_assurance
+    assert rust_assurance.count("-p zenodex-zrpf-risc0-harness") == 2
     assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 3
     assert '"${pinned_bin}/cargo" clippy' not in rust_assurance
     assert "ZENODEX_RUN_NATIVE_ZRPF_REPLAY" not in raw

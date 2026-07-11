@@ -414,10 +414,32 @@ def _selected_dependency_graph(context: LiveContext) -> tuple[str, ...]:
         timeout=120,
         profile=process_runner.ProcessProfile.BUILD,
     ).stdout
-    graph_text = graph.decode("utf-8")
+    dependency_graph = _canonical_dependency_graph(graph, context.source_root)
+    graph_text = "\n".join(dependency_graph)
     if any(token in graph_text for token in FORBIDDEN_GRAPH_TOKENS):
         raise RuntimeError("forbidden package is reachable in selected graph")
-    return tuple(sorted({line for line in graph_text.splitlines() if line}))
+    return dependency_graph
+
+
+def _canonical_dependency_graph(raw: bytes, source_root: Path) -> tuple[str, ...]:
+    try:
+        graph_text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise RuntimeError("selected dependency graph is not UTF-8") from exc
+    source = str(source_root.resolve(strict=True))
+    source_prefix = f" ({source}/"
+    canonical_prefix = f" ({support.DEPENDENCY_GRAPH_CANONICAL_SOURCE_ROOT}/"
+    lines: set[str] = set()
+    for raw_line in graph_text.splitlines():
+        if not raw_line:
+            continue
+        line = raw_line.replace(source_prefix, canonical_prefix)
+        if source in line or (" (/" in line and canonical_prefix not in line):
+            raise RuntimeError("selected dependency graph contains an unbound path")
+        lines.add(line)
+    if not lines:
+        raise RuntimeError("selected dependency graph is empty")
+    return tuple(sorted(lines))
 
 
 def _build_and_replay(context: LiveContext, graph: tuple[str, ...]) -> LiveReplay:

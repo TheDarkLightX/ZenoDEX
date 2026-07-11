@@ -24,7 +24,7 @@ TEST_EXECUTION_IDENTITY = {
     "binary_size_bytes": 2_819_848,
     "binary_transport": support.EXPECTED_BINARY_TRANSPORT,
     "dependency_graph_package_count": 127,
-    "dependency_graph_sha256": "36670188513f1f3ae68155aa163fe6755e52bc41dfc1baa10314c75ca7954d3a",
+    "dependency_graph_sha256": "419b73b822f65d326f3221b57f47e7ae1936c71323fe85b45d5181affc7d4b59",
 }
 
 
@@ -48,6 +48,12 @@ def test_expected_evidence_pins_source_receipts_and_authority_boundary() -> None
     assert evidence["claims"]["covert_channel_freedom"] is False
     assert evidence["claims"]["public_replay_promoted"] is False
     assert evidence["claims"]["production_authority"] is False
+    assert evidence["recorded_build"]["dependency_graph_canonical_source_root"] == (
+        support.DEPENDENCY_GRAPH_CANONICAL_SOURCE_ROOT
+    )
+    assert evidence["recorded_build"]["dependency_graph_normalization"] == (
+        support.DEPENDENCY_GRAPH_NORMALIZATION
+    )
     assert support.sha256_bytes(support.canonical_evidence_bytes(evidence)) == (
         support.EXPECTED_EVIDENCE_SHA256
     )
@@ -467,6 +473,43 @@ def test_live_facts_distinguish_fresh_binary_from_recorded_parity(
     assert facts["status"] == (
         "source_built_structural_replay_with_fresh_measured_identity"
     )
+
+
+def test_dependency_graph_identity_is_private_snapshot_path_independent(
+    tmp_path: Path,
+) -> None:
+    source_a = tmp_path / "first" / "source-snapshot"
+    source_b = tmp_path / "second" / "source-snapshot"
+    source_a.mkdir(parents=True)
+    source_b.mkdir(parents=True)
+    rows_a = (
+        "serde v1.0.228\n"
+        f"zenodex-zrpf-protocol-v3 v0.1.0 ({source_a}/zk/zrpf_protocol/protocol)\n"
+    ).encode()
+    rows_b = (
+        f"zenodex-zrpf-protocol-v3 v0.1.0 ({source_b}/zk/zrpf_protocol/protocol)\n"
+        "serde v1.0.228\n"
+    ).encode()
+
+    first = checker._canonical_dependency_graph(rows_a, source_a)
+    second = checker._canonical_dependency_graph(rows_b, source_b)
+
+    assert first == second
+    assert str(tmp_path) not in "\n".join(first)
+    assert support.DEPENDENCY_GRAPH_CANONICAL_SOURCE_ROOT in first[1]
+
+
+def test_dependency_graph_identity_rejects_unbound_absolute_path(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source-snapshot"
+    source.mkdir()
+
+    with pytest.raises(RuntimeError, match="contains an unbound path"):
+        checker._canonical_dependency_graph(
+            b"foreign v0.1.0 (/untrusted/workspace/foreign)\n",
+            source,
+        )
 
 
 def test_negative_control_rejects_unknown_output_fields() -> None:

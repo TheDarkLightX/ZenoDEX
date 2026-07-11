@@ -20,7 +20,7 @@ RECEIPT_DIRECTORY = (
 )
 WORKSPACE = REPO_ROOT / "zk/zrpf_risc0"
 
-SCHEMA = "zenodex/zrpf_v3_retained_source_built_replay_evidence/v2"
+SCHEMA = "zenodex/zrpf_v3_retained_source_built_replay_evidence/v3"
 REPORT_SCHEMA = "zenodex/zrpf_v3_retained_structural_replay/v1"
 SOURCE_COMMIT = "44bc0435621588659e44a2819e4e8ef03ce6fd51"
 SOURCE_TREE = "0410e820afcbb1715ecccd6d691059a67424376e"
@@ -30,9 +30,11 @@ EXPECTED_STDOUT_SHA256 = (
 )
 EXPECTED_STDOUT_SIZE = 5_920
 EXPECTED_EVIDENCE_SHA256 = (
-    "03b38b53a17d45348880caccb03f0ce71cf86f267ba6f92c8381684ccaebec87"
+    "d4412fff5e194c3222cdb06a402c0064fe13e01794ee3f12a92b24a04f65dd47"
 )
 EXPECTED_BINARY_TRANSPORT = "linux_memfd_full_seals_v1"
+DEPENDENCY_GRAPH_CANONICAL_SOURCE_ROOT = "/zrpf/source"
+DEPENDENCY_GRAPH_NORMALIZATION = "cargo_tree_unique_sorted_source_root_v1"
 EXECUTION_IDENTITY_FIELDS = frozenset(
     {
         "binary_sha256",

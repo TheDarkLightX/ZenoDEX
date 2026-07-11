@@ -186,7 +186,7 @@ The retained replay output is 5,920 bytes with SHA-256
 Normal execution and execution with `RISC0_DEV_MODE=1` produced byte-identical
 output because the verifier uses an explicit dev-mode-disabled context. The
 source-built replay evidence record has SHA-256
-`03b38b53a17d45348880caccb03f0ce71cf86f267ba6f92c8381684ccaebec87`.
+`d4412fff5e194c3222cdb06a402c0064fe13e01794ee3f12a92b24a04f65dd47`.
 The recorded verifier bytes were sealed in a Linux memfd before execution and
 have SHA-256
 `4511b54089d811ce1d59889d09b322d4924eeb4b34e25d6c4827744ce85e8800`.
