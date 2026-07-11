@@ -125,7 +125,7 @@ def test_critical_settlement_requires_oracle_authorization_when_configured() -> 
     assert res.error == "critical_settlement_oracle_authorization_required"
 
 
-def test_critical_settlement_accepts_matching_typed_oracle_authorization() -> None:
+def test_critical_settlement_rejects_transaction_supplied_receipt_graph_authorization() -> None:
     state, intent_dicts, settlement_op, runtime = _state_intent_and_settlement()
     settlement_op["oracle_authorization"] = _authorization_for(runtime)
 
@@ -141,7 +141,9 @@ def test_critical_settlement_accepts_matching_typed_oracle_authorization() -> No
         tx_sender_pubkey=intent_dicts[0]["sender_pubkey"],
     )
 
-    assert res.ok is True, res.error
+    assert res.ok is False
+    assert res.error is not None
+    assert "authenticated oracle replay" in res.error
 
 
 def test_critical_settlement_rejects_authorization_for_wrong_price_curr() -> None:

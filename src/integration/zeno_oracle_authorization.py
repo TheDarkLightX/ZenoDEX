@@ -9,6 +9,10 @@ from typing import Any, Mapping
 
 SCHEMA = "zenodex/oracle-authorization-semantic-binding-check/v1"
 EVIDENCE_RANK = {"O0": 0, "O1": 1, "O2": 2, "O3": 3, "O4": 4, "O5": 5}
+AUTHENTICATED_RECEIPT_GRAPH_REQUIRED = (
+    "critical receipt_graph requires authenticated oracle replay; "
+    "transaction-supplied structural receipt graphs are not authoritative"
+)
 
 
 def _consumer_profile_id(
@@ -704,6 +708,23 @@ def check_authorization_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     return check_authorization_for_runtime(auth_obj, runtime_from_obj(runtime_obj))
 
 
+def _transaction_receipt_graph_provenance_errors(*, require_receipt_graph: bool) -> tuple[str, ...]:
+    """DbC: production consumers must not trust self-contained receipt graphs.
+
+    Preconditions:
+    - The caller is checking a critical runtime consumer.
+    - ``require_receipt_graph`` means authorization depends on oracle evidence.
+
+    Postcondition:
+    - Missing authenticated replay/provenance always fail-closes instead of
+      promoting attacker-supplied structural evidence to oracle authority.
+    """
+
+    if not require_receipt_graph:
+        return ()
+    return (AUTHENTICATED_RECEIPT_GRAPH_REQUIRED,)
+
+
 def check_critical_consumer_authorization(
     authorization_payload: Mapping[str, Any],
     *,
@@ -719,6 +740,7 @@ def check_critical_consumer_authorization(
     profile_id: str | None = None,
     max_freshness_window_epochs: int | None = None,
     require_receipt_graph: bool = True,
+    require_authenticated_receipt_graph: bool = False,
 ) -> dict[str, Any]:
     expected_profile = profile_id or CRITICAL_CONSUMER_PROFILES.get((consumer_module, action_kind))
     expected_max_freshness_window_epochs = max_freshness_window_epochs
@@ -774,6 +796,11 @@ def check_critical_consumer_authorization(
     )
     authorization = authorization_from_obj(_authorization_obj_from_payload(authorization_payload))
     typed_errors = list(result["typed_errors"])
+    typed_errors.extend(
+        _transaction_receipt_graph_provenance_errors(
+            require_receipt_graph=bool(require_receipt_graph and require_authenticated_receipt_graph),
+        )
+    )
     if authorization.profile_id != expected_profile:
         typed_errors.append("critical profile mismatch")
     result["typed_errors"] = typed_errors

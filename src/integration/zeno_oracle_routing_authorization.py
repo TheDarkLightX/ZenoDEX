@@ -173,4 +173,5 @@ def check_protected_swap_oracle_authorization(
         query_id=str(runtime["query_id"]),
         runtime_value_e8=int(runtime["runtime_value_e8"]),
         now_epoch=int(runtime["now_epoch"]),
+        require_authenticated_receipt_graph=True,
     )

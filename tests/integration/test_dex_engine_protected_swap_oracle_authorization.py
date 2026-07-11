@@ -106,7 +106,7 @@ def test_protected_swap_requires_oracle_authorization_when_configured() -> None:
     assert "oracle_authorization_required" in res.error
 
 
-def test_protected_swap_accepts_matching_typed_oracle_authorization() -> None:
+def test_protected_swap_rejects_transaction_supplied_receipt_graph_authorization() -> None:
     sender = "0x" + "aa" * 48
     state, intent, receipt, runtime = _state_and_intent(sender=sender)
     intent.set_field("oracle_authorization", _authorization_for(runtime))
@@ -124,7 +124,9 @@ def test_protected_swap_accepts_matching_typed_oracle_authorization() -> None:
         tx_sender_pubkey=sender,
     )
 
-    assert res.ok is True, res.error
+    assert res.ok is False
+    assert res.error is not None
+    assert "authenticated oracle replay" in res.error
 
 
 def test_protected_swap_rejects_authorization_for_wrong_quote_value() -> None:
