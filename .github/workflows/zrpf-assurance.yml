@@ -1,0 +1,191 @@
+name: zrpf-assurance
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zrpf-assurance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  zrpf-assurance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout full source history
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Verify durable source-anchor tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse 'refs/tags/zrpf-v3-source-anchor-20260710^{commit}')" = \
+            '44bc0435621588659e44a2819e4e8ef03ce6fd51'
+          test "$(git rev-parse 'refs/tags/zrpf-v1-retained-source-anchor-20260710^{commit}')" = \
+            '1d1559fd402cdb906d52e6d572d39aec99a5ebda'
+
+      - name: Install hash-pinned Python assurance tools
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Install hash-pinned RISC0 host Rust toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/rust-toolchain-x86_64-unknown-linux-gnu.tar.gz"
+          destination="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            --output "${archive}" \
+            'https://github.com/risc0/rust/releases/download/r0.1.94.1/rust-toolchain-x86_64-unknown-linux-gnu.tar.gz'
+          test "$(stat --format='%s' "${archive}")" = '512619537'
+          echo 'e88d823762fc06e8911fb6b310ffe2fca8fcd7af2438572f7aa90aaf3e84ea02  '"${archive}" \
+            | sha256sum --check --strict
+          mkdir -p "${destination}"
+          tar --extract --gzip --file "${archive}" \
+            --directory "${destination}" --no-same-owner
+          rm --force "${archive}"
+
+      - name: Acquire lockfile-bound Cargo sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          pinned_bin="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin"
+          env \
+            PATH="${pinned_bin}:/usr/bin:/bin" \
+            RUSTC="${pinned_bin}/rustc" \
+            RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
+            "${pinned_bin}/cargo" fetch --locked \
+              --manifest-path zk/zrpf_risc0/Cargo.toml
+
+      - name: Run Python and evidence assurance
+        run: |
+          ruff check \
+            tools/check_zrpf_v3_replay_verifier_evidence.py \
+            tools/zrpf_v3_artifact_privacy.py \
+            tools/zrpf_v3_replay_*.py \
+            tests/test_check_zrpf_v3_replay_verifier_evidence.py \
+            tests/test_zrpf_v3_artifact_privacy.py \
+            tests/test_zrpf_assurance_workflow.py
+          mypy --follow-imports=skip \
+            tools/check_zrpf_v3_replay_verifier_evidence.py \
+            tools/zrpf_v3_artifact_privacy.py \
+            tools/zrpf_v3_replay_*.py
+          pytest -q \
+            tests/test_check_zrpf_v1_leaf_adapter_source_policy.py \
+            tests/test_check_zrpf_v1_leaf_adapter_vector.py \
+            tests/test_check_zrpf_v1_spot_adapter_temporary_evidence.py \
+            tests/test_check_zrpf_v3_replay_verifier_evidence.py \
+            tests/test_zrpf_v3_artifact_privacy.py \
+            tests/test_zrpf_assurance_workflow.py \
+            tests/test_zrpf_v3_source_closure.py \
+            tests/test_check_zrpf_v3_hash_vector.py \
+            tests/test_check_recursive_stark_cbc_spec.py \
+            tests/test_check_zrpf_v3_structural_tree_temporary_evidence.py
+          python3 tools/check_zrpf_v1_leaf_adapter_source_policy.py
+          python3 tools/check_recursive_stark_cbc_spec.py
+          python3 tools/zrpf_v3_artifact_privacy.py
+          python3 tools/check_zrpf_v3_replay_verifier_evidence.py --json
+
+      - name: Run Rust protocol and verifier assurance
+        shell: bash
+        run: |
+          set -euo pipefail
+          pinned_bin="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin"
+          export CARGO="${pinned_bin}/cargo"
+          export PATH="${pinned_bin}:/usr/bin:/bin"
+          export RISC0_SKIP_BUILD=1
+          export RUSTC="${pinned_bin}/rustc"
+          export RUSTDOC="${pinned_bin}/rustdoc_tool_binary"
+          "${pinned_bin}/cargo" fmt --manifest-path zk/zrpf_protocol/Cargo.toml \
+            --all -- --check
+          "${pinned_bin}/cargo" test --manifest-path zk/zrpf_protocol/Cargo.toml \
+            --locked --all-targets
+          "${pinned_bin}/cargo-clippy" \
+            --manifest-path zk/zrpf_protocol/Cargo.toml \
+            --locked --all-targets -- -D warnings
+          "${pinned_bin}/cargo" fmt --manifest-path zk/zrpf_risc0/Cargo.toml \
+            --all -- --check
+          "${pinned_bin}/cargo" test --manifest-path zk/zrpf_risc0/Cargo.toml \
+            --locked \
+            -p zenodex-zrpf-risc0-shared \
+            -p zenodex-zrpf-risc0-aggregate-shared \
+            -p zenodex-zrpf-risc0-verifier \
+            -p zenodex-zrpf-risc0-replay-verifier
+          "${pinned_bin}/cargo-clippy" \
+            --manifest-path zk/zrpf_risc0/Cargo.toml \
+            --locked --all-targets \
+            -p zenodex-zrpf-risc0-shared \
+            -p zenodex-zrpf-risc0-aggregate-shared \
+            -p zenodex-zrpf-risc0-verifier \
+            -p zenodex-zrpf-risc0-replay-verifier \
+            -- -D warnings
+          "${pinned_bin}/cargo" fmt \
+            --manifest-path zk/recursive_stark_v2_risc0/Cargo.toml \
+            --all -- --check
+          "${pinned_bin}/cargo" test \
+            --manifest-path zk/recursive_stark_v2_risc0/Cargo.toml \
+            --locked --all
+          "${pinned_bin}/cargo-clippy" \
+            --manifest-path zk/recursive_stark_v2_risc0/Cargo.toml \
+            --locked --workspace --all-targets -- -D warnings
+
+      - name: Build pinned replay container
+        run: |
+          docker build \
+            --file .docker/zrpf-assurance.Dockerfile \
+            --tag zenodex-zrpf-assurance:ci \
+            .
+
+      - name: Run required source-built replay without network
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p internal
+          docker run --rm \
+            --network none \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --pids-limit 512 \
+            --cpus 4 \
+            --memory 6g \
+            --memory-swap 6g \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=512m,mode=1777 \
+            --tmpfs /out:rw,nosuid,nodev,size=6g,mode=1777 \
+            --volume "${GITHUB_WORKSPACE}:/input:ro" \
+            --volume "${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu:/risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu:ro" \
+            --volume "${HOME}/.cargo/registry:/home/zrpf/.cargo/registry:ro" \
+            zenodex-zrpf-assurance:ci \
+            /bin/sh -ceu '
+              install -d -m 700 /out/private
+              cp -R --preserve=mode,timestamps,links --no-preserve=ownership \
+                /input/. /out/private/repo
+              cd /out/private/repo
+              python3 tools/check_zrpf_v3_replay_verifier_evidence.py \
+                --live \
+                --risc0-home /risc0 \
+                --target-dir /out/private/live \
+                --json
+            ' | tee internal/zrpf-ci-live-replay.json
+
+      - name: Upload ZRPF assurance report
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: zrpf-assurance-report
+          path: internal/zrpf-ci-live-replay.json
+          if-no-files-found: error
+          retention-days: 14
