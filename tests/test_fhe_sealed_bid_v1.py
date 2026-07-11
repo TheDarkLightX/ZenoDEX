@@ -9,6 +9,7 @@ import pytest
 
 from src.core.fhe_sealed_bid_v1 import (
     MAX_V1_UNITS,
+    MIN_PRODUCTION_KEY_BITS,
     SCHEME_FALLBACK,
     SCHEME_FHE,
     EncryptedBid,
@@ -22,6 +23,7 @@ from src.core.fhe_sealed_bid_v1 import (
     encrypt_bid,
     fhe_sealed_bid_v1_receipt_hash,
     generate_paillier_keypair,
+    is_production_paillier_key,
     make_fhe_sealed_bid_v1_receipt,
     settle_fhe_sealed_bids,
     settle_sealed_bids_with_fhe,
@@ -153,6 +155,12 @@ class TestHomomorphicSettlement:
 
 
 class TestProductionSecurityClaim:
+    def test_default_key_generation_uses_production_sized_primes(self):
+        key = generate_paillier_keypair(key_id="default-prod")
+
+        assert key.key_bits == MIN_PRODUCTION_KEY_BITS
+        assert is_production_paillier_key(key) is True
+
     def test_fhe_sets_production_claim_false_for_weak_keys(self, key_pair):
         """Test keys (64-bit) must not get production security claim."""
         result = settle_fhe_sealed_bids(auction_id="a7", units_for_sale=2,
@@ -289,6 +297,7 @@ class TestReceiptVerification:
             auction_id="a13b", units_for_sale=2, result=result
         )
         receipt["body"]["production_security_claim"] = True
+        receipt["body"]["key_bits"] = MIN_PRODUCTION_KEY_BITS
         receipt["receipt_hash"] = fhe_sealed_bid_v1_receipt_hash(receipt["body"])
         ok, reason = verify_fhe_sealed_bid_v1_receipt(
             receipt,
@@ -297,6 +306,32 @@ class TestReceiptVerification:
         )
         assert ok is False
         assert reason == "production_claim_requires_range_proof"
+
+
+    def test_fhe_receipt_rejects_forged_production_claim_with_weak_key(self, key_pair):
+        specs = [("alice", "c1", 2, 100)]
+        result = settle_fhe_sealed_bids(
+            auction_id="a13c",
+            units_for_sale=2,
+            encrypted_bids=_enc_bids(key_pair, specs),
+            key_pair=key_pair,
+            range_proof_verified=True,
+        )
+        receipt = make_fhe_sealed_bid_v1_receipt(
+            auction_id="a13c", units_for_sale=2, result=result
+        )
+        receipt["body"]["production_security_claim"] = True
+        receipt["receipt_hash"] = fhe_sealed_bid_v1_receipt_hash(receipt["body"])
+
+        ok, reason = verify_fhe_sealed_bid_v1_receipt(
+            receipt,
+            approved_key_ids=["test-fhe-v1"],
+            trusted_plain_bids=_revealed(specs),
+            approved_public_keys=[key_pair.public_key],
+        )
+
+        assert ok is False
+        assert reason == "production_key_too_small"
 
     def test_fhe_receipt_rejects_unapproved_key_id(self, key_pair):
         specs = [("alice", "c1", 2, 100)]
