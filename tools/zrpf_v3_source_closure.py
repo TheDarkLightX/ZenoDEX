@@ -41,6 +41,7 @@ SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
             ("proof_harness", "zk/zrpf_risc0/harness/src/bin/prove_semantic_epoch.rs"),
             ("proof_harness", "zk/zrpf_risc0/harness/src/bin/prove_structural_l1.rs"),
             ("proof_harness", "zk/zrpf_risc0/harness/src/bin/prove_structural_tree.rs"),
+            ("verification_harness", "zk/zrpf_risc0/harness/src/bin/verify_semantic_epoch.rs"),
             ("verification_harness", "zk/zrpf_risc0/harness/src/bin/verify_structural_tree.rs"),
             ("proof_harness", "zk/zrpf_risc0/harness/src/main.rs"),
             ("guest_build", "zk/zrpf_risc0/methods/Cargo.toml"),

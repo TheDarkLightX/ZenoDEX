@@ -14,7 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def test_current_clean_checkout_matches_exact_source_inventory() -> None:
     document = closure.build_source_closure(REPO_ROOT)
     assert document["schema"] == closure.SCHEMA
-    assert document["file_count"] == 56
+    assert document["file_count"] == 57
     assert document["worktree_clean"] is True
     assert [row["path"] for row in document["files"]] == sorted(
         row["path"] for row in document["files"]
