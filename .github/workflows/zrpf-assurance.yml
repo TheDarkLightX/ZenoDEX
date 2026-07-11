@@ -172,9 +172,14 @@ jobs:
             --volume "${HOME}/.cargo/registry:/home/zrpf/.cargo/registry:ro" \
             zenodex-zrpf-assurance:ci \
             /bin/sh -ceu '
-              install -d -m 700 /out/private
-              cp -R --preserve=mode,timestamps,links --no-preserve=ownership \
-                /input/. /out/private/repo
+              install -d -m 700 /out/private /out/private/git-home
+              export GIT_CONFIG_NOSYSTEM=1
+              export HOME=/out/private/git-home
+              git config --global --add safe.directory /input
+              git config --global --add safe.directory /input/.git
+              source_head="$(git -C /input rev-parse HEAD)"
+              git clone --no-checkout --no-hardlinks /input /out/private/repo
+              git -C /out/private/repo checkout --detach "${source_head}"
               cd /out/private/repo
               python3 tools/check_zrpf_v3_replay_verifier_evidence.py \
                 --live \

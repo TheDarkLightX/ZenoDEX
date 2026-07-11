@@ -36,6 +36,14 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "--security-opt no-new-privileges" in replay_command
     assert "--pids-limit 512" in replay_command
     assert "--tmpfs /out:rw,exec,nosuid,nodev,size=6g,mode=1777" in replay_command
+    assert "cp -R" not in replay_command
+    assert "export GIT_CONFIG_NOSYSTEM=1" in replay_command
+    assert "export HOME=/out/private/git-home" in replay_command
+    assert "git config --global --add safe.directory /input\n" in replay_command
+    assert "git config --global --add safe.directory /input/.git" in replay_command
+    assert "git clone --no-checkout --no-hardlinks /input" in replay_command
+    assert "--no-checkout --no-hardlinks /input /out/private/repo" in replay_command
+    assert 'checkout --detach "${source_head}"' in replay_command
     assert "--live" in replay_command
     broad_cargo_mount = '"${HOME}/.cargo:/home/' + 'zrpf/.cargo:ro"'
     exact_registry_mount = (
