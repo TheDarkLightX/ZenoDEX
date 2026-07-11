@@ -20,8 +20,8 @@ def test_committed_zrpf_artifact_inventory_is_clean() -> None:
     report = scan_default_artifacts()
 
     assert report["ok"] is True
-    assert report["artifact_count_expected"] == len(DEFAULT_ARTIFACTS) == 19
-    assert report["artifact_count_scanned"] == 19
+    assert report["artifact_count_expected"] == len(DEFAULT_ARTIFACTS) == 20
+    assert report["artifact_count_scanned"] == 20
     assert report["finding_count"] == 0
     assert report["error_count"] == 0
 

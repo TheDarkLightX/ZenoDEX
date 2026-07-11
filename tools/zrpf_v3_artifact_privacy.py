@@ -38,6 +38,10 @@ class PrivacyRule:
 
 DEFAULT_ARTIFACTS: tuple[ArtifactSpec, ...] = (
     ArtifactSpec(
+        "config/proof_profiles/zrpf_v3_firecracker_replay_profile_v1.json",
+        "sandbox_candidate_profile",
+    ),
+    ArtifactSpec(
         "config/proof_profiles/zrpf_v1_retained_source_anchor_v1.json",
         "retained_source_anchor",
     ),

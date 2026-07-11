@@ -59,6 +59,14 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tests/test_check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
     assert "tools/check_recursive_stark_cbc_spec.py" in python_assurance
     assert "tests/test_check_recursive_stark_cbc_spec.py" in python_assurance
+    assert "tools/check_zrpf_v3_firecracker_replay_profile.py" in python_assurance
+    assert "tools/zrpf_v3_firecracker_host_probe.py" in python_assurance
+    assert "tests/test_check_zrpf_v3_firecracker_replay_profile.py" in python_assurance
+    assert "tests/test_zrpf_v3_firecracker_host_probe.py" in python_assurance
+    assert "python3 -I tools/check_zrpf_v3_firecracker_replay_profile.py" in (
+        python_assurance
+    )
+    assert "check_zrpf_v3_firecracker_replay_profile.py --probe-host" not in raw
     assert "--manifest-path zk/recursive_stark_v2_risc0/Cargo.toml" in rust_assurance
     assert rust_assurance.count("-p zenodex-zrpf-risc0-harness") == 2
     assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 3

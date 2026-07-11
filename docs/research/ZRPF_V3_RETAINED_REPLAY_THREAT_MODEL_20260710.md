@@ -334,6 +334,56 @@ an application-kernel sandbox or disposable microVM. The evidence must record
 the runtime image digest, policy digest, and isolation tier. Hardware side-
 channel resistance remains false unless a separate profile establishes it.
 
+The candidate Firecracker profile is
+`config/proof_profiles/zrpf_v3_firecracker_replay_profile_v1.json`. It pins the
+Firecracker v1.16.1 x86_64 release archive, release binary, matching jailer,
+annotated tag object, and tag commit. It also fixes the configurable device
+policy: the jailer, built-in default seccomp, a new PID namespace, a fresh and
+exclusive empty network namespace, no API, no NIC, no MMDS, no vsock, a
+read-only guest rootfs drive and input drive, and a bounded raw output drive are
+required. The profile separately inventories Firecracker's always-present or
+non-configurable x86 serial, keyboard-controller, interrupt-controller, timer,
+clock, VMGenID, and VMClock device types. VMGenID state changes per boot and
+VMClock exposes time state, so neither supports a determinism or timing-channel
+claim. The serial sink remains bounded because a guest can reactivate the 8250
+device.
+
+Firecracker v1.16.1 reverted `O_NOFOLLOW` for jailer cgroup and network-
+namespace operations. The future launcher must independently reject symlinks,
+verify a root-owned and non-writable full parent chain, bind the namespace type
+and inode before use, and verify the joined namespace after launch. The jailer
+also materializes host device nodes inside its jail. The candidate profile
+therefore inventories `/dev/kvm`, `/dev/net/tun`, `/dev/urandom`, and conditional
+`/dev/userfaultfd` exposure even though no guest NIC, randomness device, or
+snapshot path is allowed.
+
+The candidate remains deliberately incomplete. The guest kernel, rootfs, and
+measured numeric resource envelope have not been governed. Its static checker
+therefore keeps `replay_runner_ready=false` and every authority, sandbox,
+privacy, covert-channel, and hardware-side-channel claim false. The separate
+host probe records only bounded posture facts and cannot execute Firecracker or
+promote retained replay evidence.
+
+Run the static profile check on any host:
+
+```bash
+python3 tools/check_zrpf_v3_firecracker_replay_profile.py
+```
+
+Run the non-authoritative host gate where KVM is expected:
+
+```bash
+python3 tools/check_zrpf_v3_firecracker_replay_profile.py --probe-host
+```
+
+The candidate host gate currently permits only the Firecracker-validated 6.18
+host-kernel family. This narrower choice ensures the required KSM cleanliness
+counters are available. The gate also fails closed when KVM or required cgroup
+v2 controllers are unavailable, KSM is running, residual merged or zero pages
+remain, KSM zero-page merging remains enabled, swap is active, or SMT remains
+enabled. Passing this gate still does not attest artifact staging, microVM
+execution, network denial, or replay correctness.
+
 ### Release and settlement
 
 Release signing, ledger admission, and settlement remain separate governed
@@ -364,11 +414,13 @@ This threat model does not claim:
 
 ## Next Safest Steps
 
-1. Retain the tested pre-exec profiles and add complete descendant cleanup
-   through a cgroup or stronger runtime boundary.
-2. Move required replay into a secretless, network-denied, read-only sandbox and
-   add escape probes under the exact production CI profile.
-3. Bind dependency sources, compiler, linker, runtime image, and all build
+1. Select and hash a supported minimal guest kernel and rootfs, then measure the
+   numeric CPU, memory, process, I/O, file, output, and wall-clock envelope.
+2. Implement the one-shot jailer runner with stable input reads, unique jails,
+   verified cgroup membership, no network, and whole-cgroup termination.
+3. Run the named network, filesystem, process, timeout, and output escape probes
+   under that exact runner before changing the current isolation profile.
+4. Bind dependency sources, compiler, linker, runtime image, and all build
    inputs before any complete provenance or release claim.
-4. Rebuild guest ELFs and recompute image IDs before a guest source-to-image
+5. Rebuild guest ELFs and recompute image IDs before a guest source-to-image
    claim.
