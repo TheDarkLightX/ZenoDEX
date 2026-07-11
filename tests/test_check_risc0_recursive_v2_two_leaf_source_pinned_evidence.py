@@ -108,7 +108,7 @@ def test_structure_preserving_boundary_mutations_reject(mutation: str, expected_
     elif mutation == "build_pipeline_weakening":
         candidate["source_frozen_build"]["build_pipeline_constrained"] = False
     elif mutation == "absolute_path_leak":
-        candidate["source_frozen_build"]["clean_rebuild_report"]["status"] = "/home/example/build"
+        candidate["source_frozen_build"]["clean_rebuild_report"]["status"] = "/srv/relocated/build"
     else:  # pragma: no cover - guarded by the parameter table.
         raise AssertionError(mutation)
 
@@ -136,7 +136,7 @@ def test_bounded_depth_two_reject_order_is_stable(
             candidate["claims"]["production_ready"] = True
         elif mutation == "absolute_path":
             candidate["source_frozen_build"]["clean_rebuild_report"]["status"] = (
-                "/home/example/build"
+                "/srv/relocated/build"
             )
         elif mutation == "source_root":
             candidate["source_frozen_build"]["source_closure"]["root_sha256"] = "0" * 64

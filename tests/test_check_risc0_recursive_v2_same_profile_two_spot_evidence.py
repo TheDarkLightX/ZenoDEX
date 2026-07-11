@@ -363,7 +363,7 @@ def test_structure_preserving_boundary_mutations_reject(
         )
     elif mutation == "absolute_path_leak":
         control = candidate["negative_controls"]["duplicate_lane_same_artifact"]
-        control["stderr"] = "/home/example/evidence\n"
+        control["stderr"] = "/srv/relocated/evidence\n"
         control["stderr_sha256"] = _digest_text(control["stderr"])
     else:  # pragma: no cover
         raise AssertionError(mutation)
