@@ -58,6 +58,19 @@ def test_semantic_guest_derives_authority_fields_instead_of_accepting_them() -> 
     assert "expected_self_image_id" not in source
 
 
+def test_semantic_guest_has_a_dedicated_duplicate_source_reject_code() -> None:
+    source = _guest_source()
+    exact_error = (
+        "SemanticEpochCompositionErrorV1::SemanticRecomposition(\n"
+        "                SemanticRecompositionErrorV1::DuplicateSemanticSource,"
+    )
+    exact_abort = 'abort("ZRPF semantic epoch duplicate semantic source rejected")'
+    generic_abort = 'abort("ZRPF semantic epoch composition rejected")'
+    assert exact_error in source
+    assert source.index(exact_error) < source.index(exact_abort)
+    assert source.index(exact_abort) < source.index(generic_abort)
+
+
 def test_semantic_method_is_registered_with_fail_closed_host_placeholders() -> None:
     manifest = METHODS_MANIFEST.read_text(encoding="utf-8")
     build = METHODS_BUILD.read_text(encoding="utf-8")

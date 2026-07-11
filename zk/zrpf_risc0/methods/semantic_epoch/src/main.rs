@@ -11,7 +11,8 @@ use zenodex_zrpf_protocol_v3::{
 use zenodex_zrpf_risc0_semantic_shared::{
     bind_semantic_guest_input_after_level_one_verification_v1,
     compose_semantic_epoch_after_level_one_verification_v1, decode_exact_semantic_guest_input_v1,
-    SemanticEpochCompositionPolicyV1, MAX_SEMANTIC_GUEST_INPUT_BYTES_V1,
+    SemanticEpochCompositionErrorV1, SemanticEpochCompositionPolicyV1,
+    SemanticRecompositionErrorV1, MAX_SEMANTIC_GUEST_INPUT_BYTES_V1,
 };
 
 risc0_zkvm::guest::entry!(main);
@@ -88,6 +89,9 @@ pub fn main() {
     let projection =
         match compose_semantic_epoch_after_level_one_verification_v1(&semantic_input, policy) {
             Ok(value) => value,
+            Err(SemanticEpochCompositionErrorV1::SemanticRecomposition(
+                SemanticRecompositionErrorV1::DuplicateSemanticSource,
+            )) => abort("ZRPF semantic epoch duplicate semantic source rejected"),
             Err(_) => abort("ZRPF semantic epoch composition rejected"),
         };
     let proposal_bytes = match encode_semantic_epoch_proposal_v1(projection.proposal()) {
