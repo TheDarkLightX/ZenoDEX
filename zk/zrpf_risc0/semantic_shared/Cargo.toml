@@ -22,6 +22,10 @@ name = "codec_v1"
 path = "tests/codec_v1.rs"
 
 [[test]]
+name = "bind_v1"
+path = "tests/bind_v1.rs"
+
+[[test]]
 name = "epoch_v1"
 path = "tests/epoch_v1.rs"
 
