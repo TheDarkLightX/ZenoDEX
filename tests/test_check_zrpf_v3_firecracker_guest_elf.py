@@ -82,6 +82,9 @@ def test_image_builder_uses_hash_bound_native_checker_without_readelf() -> None:
     assert raw.count('"$guest_elf_checker_binary" --guest-elf') == 2
     assert "--expected-guest-elf-checker-sha256" in raw
     assert "python3 -I" not in raw
+    assert "command -v mksquashfs" not in raw
+    assert "readonly MKSQUASHFS_BINARY=/usr/bin/mksquashfs" in raw
+    assert raw.splitlines().count('  "$MKSQUASHFS_BINARY" \\') == 2
 
 
 def test_image_builder_rejects_wrong_native_checker_identity_before_execution(
@@ -124,6 +127,47 @@ def test_image_builder_rejects_wrong_native_checker_identity_before_execution(
     assert completed.returncode == 2
     assert completed.stdout == b""
     assert completed.stderr == b"error: guest ELF checker binary identity mismatch\n"
+
+
+def test_image_builder_rejects_path_searched_native_checker(tmp_path: Path) -> None:
+    guest = tmp_path / "guest"
+    guest.write_bytes(b"guest")
+    receipts = tmp_path / "receipts"
+    receipts.mkdir()
+    native_checker = tmp_path / "true"
+    native_checker.write_bytes(b"#!/bin/sh\nexit 77\n")
+    native_checker.chmod(0o755)
+
+    completed = subprocess.run(
+        [
+            IMAGE_BUILDER.as_posix(),
+            "--guest-binary",
+            guest.as_posix(),
+            "--receipt-dir",
+            receipts.as_posix(),
+            "--output-dir",
+            (tmp_path / "output").as_posix(),
+            "--expected-guest-sha256",
+            hashlib.sha256(b"guest").hexdigest(),
+            "--expected-receipt-set-sha256",
+            "11" * 32,
+            "--expected-mksquashfs-sha256",
+            "22" * 32,
+            "--guest-elf-checker-binary",
+            "true",
+            "--expected-guest-elf-checker-sha256",
+            hashlib.sha256(native_checker.read_bytes()).hexdigest(),
+        ],
+        cwd=tmp_path,
+        check=False,
+        capture_output=True,
+        env={"PATH": "/usr/bin:/bin"},
+        timeout=10,
+    )
+
+    assert completed.returncode == 2
+    assert completed.stdout == b""
+    assert completed.stderr == b"error: guest ELF checker binary rejected\n"
 
 
 @pytest.mark.parametrize(
@@ -318,6 +362,28 @@ def test_dynamic_segment_mapping_must_be_unambiguous() -> None:
     _assert_rejects(bytes(raw), "guest_elf_dynamic_segment_mapping_invalid")
 
 
+def test_later_load_cannot_alias_dynamic_virtual_pages() -> None:
+    raw = _valid_elf()
+    raw.extend(bytes(0x100))
+    raw[_HEADER_OFFSET_PROGRAM_HEADER_COUNT : _HEADER_OFFSET_PROGRAM_HEADER_COUNT + 2] = (
+        6
+    ).to_bytes(2, "little")
+    _write_program_header(
+        raw,
+        5,
+        _PT_LOAD,
+        _PF_R,
+        0x500,
+        0x402400,
+        0x100,
+        0x100,
+        0x100,
+    )
+    _DYNAMIC_ENTRY.pack_into(raw, 0x500, _DT_NEEDED, 1)
+
+    _assert_rejects(bytes(raw), "guest_elf_dynamic_segment_mapping_invalid")
+
+
 def test_dt_needed_rejects() -> None:
     raw = _valid_elf()
     _write_dynamic_entry(raw, 0, _DT_NEEDED, 1)
@@ -347,6 +413,26 @@ def test_page_level_writable_executable_alias_rejects() -> None:
     )
 
     _assert_rejects(bytes(raw), "guest_elf_executable_writable_page_overlap")
+
+
+def test_page_rounding_overflow_rejects() -> None:
+    raw = _valid_elf()
+    raw[_HEADER_OFFSET_PROGRAM_HEADER_COUNT : _HEADER_OFFSET_PROGRAM_HEADER_COUNT + 2] = (
+        6
+    ).to_bytes(2, "little")
+    _write_program_header(
+        raw,
+        5,
+        _PT_LOAD,
+        _PF_R | _PF_W,
+        0,
+        0xFFFFFFFFFFFFF000,
+        0,
+        0xFFF,
+        0x1000,
+    )
+
+    _assert_rejects(bytes(raw), "guest_elf_load_geometry_invalid")
 
 
 def test_missing_dt_null_rejects() -> None:

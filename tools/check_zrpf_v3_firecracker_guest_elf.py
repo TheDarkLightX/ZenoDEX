@@ -386,16 +386,21 @@ def _validate_dynamic_mapping(
         or dynamic.file_size > dynamic.memory_size
     ):
         raise GuestElfError("guest_elf_dynamic_segment_geometry_invalid")
-    matching_loads = tuple(
+    overlapping_loads = tuple(
         load
         for load in load_segments
-        if load.flags & _PF_R
+        if _page_ranges_overlap(dynamic, load)
+    )
+    if len(overlapping_loads) != 1:
+        raise GuestElfError("guest_elf_dynamic_segment_mapping_invalid")
+    load = overlapping_loads[0]
+    if not (
+        load.flags & _PF_R
         and _contained_file_range(dynamic, load)
         and _contained_memory_range(dynamic, load)
         and dynamic.file_offset - load.file_offset
         == dynamic.virtual_address - load.virtual_address
-    )
-    if len(matching_loads) != 1:
+    ):
         raise GuestElfError("guest_elf_dynamic_segment_mapping_invalid")
 
 
@@ -469,7 +474,7 @@ def _page_ranges_overlap(left: _ProgramHeaderV1, right: _ProgramHeaderV1) -> boo
 
 def _page_end(start: int, size: int) -> int:
     end = start + size
-    if end > _U64_MAX:
+    if end > _U64_MAX - (_MEMORY_PAGE_BYTES - 1):
         raise GuestElfError("guest_elf_load_geometry_invalid")
     return (end + _MEMORY_PAGE_BYTES - 1) // _MEMORY_PAGE_BYTES
 

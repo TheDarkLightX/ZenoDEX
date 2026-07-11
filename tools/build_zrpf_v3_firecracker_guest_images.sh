@@ -1,13 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+builtin unset -f \
+  chmod cmp cut find install mkdir mksquashfs mktemp mv realpath rm sha256sum sort stat wc \
+  2>/dev/null || :
+readonly PATH=/usr/bin:/bin
+export PATH
+
 # Deterministically assemble the bounded ZRPF Firecracker root and input images.
 # This build helper creates artifacts only. It grants no launch or proof authority.
 
 readonly EXPECTED_RECEIPT_COUNT=8
-readonly GUEST_ELF_REFERENCE_SHA256=2789d6d0773a714cddd3e38a04e89a15f54a8769fee2fd884298be76fb339262
+readonly GUEST_ELF_REFERENCE_SHA256=3b0ba0fcb017281bc604595e5b7e6ac46cbe0e4523661c7658111b3d7a71e4ce
 readonly IMAGE_EPOCH=1780396050
 readonly SQUASHFS_BLOCK_BYTES=131072
+readonly MKSQUASHFS_BINARY=/usr/bin/mksquashfs
 SCRIPT_DIRECTORY=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 readonly SCRIPT_DIRECTORY
 GUEST_ELF_REFERENCE="$SCRIPT_DIRECTORY/check_zrpf_v3_firecracker_guest_elf.py"
@@ -88,7 +95,9 @@ export TZ=UTC
   echo "error: receipt directory rejected" >&2
   exit 2
 }
-[[ -f "$guest_elf_checker_binary" && ! -L "$guest_elf_checker_binary" \
+[[ "$guest_elf_checker_binary" == /* \
+  && $(realpath -e -- "$guest_elf_checker_binary") == "$guest_elf_checker_binary" \
+  && -f "$guest_elf_checker_binary" && ! -L "$guest_elf_checker_binary" \
   && $(stat -c %h "$guest_elf_checker_binary") -eq 1 ]] || {
   echo "error: guest ELF checker binary rejected" >&2
   exit 2
@@ -99,8 +108,13 @@ guest_elf_checker_binary_sha256_before=$(sha256sum "$guest_elf_checker_binary" |
   exit 2
 }
 
-mksquashfs_path=$(command -v mksquashfs)
-[[ $(sha256sum "$mksquashfs_path" | cut -d' ' -f1) == "$expected_mksquashfs_sha256" ]] || {
+[[ -f "$MKSQUASHFS_BINARY" && ! -L "$MKSQUASHFS_BINARY" \
+  && $(realpath -e -- "$MKSQUASHFS_BINARY") == "$MKSQUASHFS_BINARY" ]] || {
+  echo "error: mksquashfs binary rejected" >&2
+  exit 2
+}
+mksquashfs_sha256_before=$(sha256sum "$MKSQUASHFS_BINARY" | cut -d' ' -f1)
+[[ "$mksquashfs_sha256_before" == "$expected_mksquashfs_sha256" ]] || {
   echo "error: mksquashfs identity mismatch" >&2
   exit 2
 }
@@ -119,7 +133,7 @@ guest_sha256_before=$(sha256sum "$guest_binary" | cut -d' ' -f1)
   exit 2
 }
 env -i LC_ALL=C TZ=UTC \
-  "$guest_elf_checker_binary" --guest-elf "$guest_binary" >/dev/null
+  -- "$guest_elf_checker_binary" --guest-elf "$guest_binary" >/dev/null
 
 receipt_set_sha256() {
   local directory=$1
@@ -176,13 +190,13 @@ stage_inputs() {
 build_images() {
   local stage=$1
   local label=$2
-  "$mksquashfs_path" \
+  "$MKSQUASHFS_BINARY" \
     "$stage/rootfs" \
     "$output_directory/rootfs-$label.squashfs" \
     -noappend -comp zstd -b "$SQUASHFS_BLOCK_BYTES" -all-root \
     -all-time "$IMAGE_EPOCH" -mkfs-time "$IMAGE_EPOCH" \
     -no-exports -no-xattrs -no-progress >/dev/null
-  "$mksquashfs_path" \
+  "$MKSQUASHFS_BINARY" \
     "$stage/input" \
     "$output_directory/input-$label.squashfs" \
     -noappend -comp zstd -b "$SQUASHFS_BLOCK_BYTES" -all-root \
@@ -220,8 +234,12 @@ after_receipt_set=$(receipt_set_sha256 "$receipt_directory")
   echo "error: guest ELF checker binary identity changed during build" >&2
   exit 2
 }
+[[ $(sha256sum "$MKSQUASHFS_BINARY" | cut -d' ' -f1) == "$mksquashfs_sha256_before" ]] || {
+  echo "error: mksquashfs identity changed during build" >&2
+  exit 2
+}
 env -i LC_ALL=C TZ=UTC \
-  "$guest_elf_checker_binary" --guest-elf "$guest_binary" >/dev/null
+  -- "$guest_elf_checker_binary" --guest-elf "$guest_binary" >/dev/null
 
 rootfs_sha256=$(sha256sum "$output_directory/zrpf-replay-rootfs.squashfs" | cut -d' ' -f1)
 input_sha256=$(sha256sum "$output_directory/zrpf-replay-input.squashfs" | cut -d' ' -f1)

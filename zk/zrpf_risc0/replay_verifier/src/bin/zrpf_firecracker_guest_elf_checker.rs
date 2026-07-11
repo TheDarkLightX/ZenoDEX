@@ -194,7 +194,7 @@ fn validate_program_header_geometry(
         .checked_mul(u64::from(entry_count))
         .ok_or(GuestElfError("guest_elf_program_header_table_invalid"))?;
     if table_offset < u64::from(ELF_HEADER_BYTES)
-        || table_offset % 8 != 0
+        || !table_offset.is_multiple_of(8)
         || !range_within(table_offset, table_size, raw.len() as u64)
     {
         return Err(GuestElfError("guest_elf_program_header_table_invalid"));
@@ -320,38 +320,46 @@ fn validate_dynamic_mapping(
 ) -> Result<(), GuestElfError> {
     if dynamic.file_size == 0
         || dynamic.file_size > MAX_DYNAMIC_ENTRIES * DYNAMIC_ENTRY_BYTES
-        || dynamic.file_size % DYNAMIC_ENTRY_BYTES != 0
-        || dynamic.file_offset % 8 != 0
-        || dynamic.virtual_address % 8 != 0
+        || !dynamic.file_size.is_multiple_of(DYNAMIC_ENTRY_BYTES)
+        || !dynamic.file_offset.is_multiple_of(8)
+        || !dynamic.virtual_address.is_multiple_of(8)
         || dynamic.file_size > dynamic.memory_size
     {
         return Err(GuestElfError("guest_elf_dynamic_segment_geometry_invalid"));
     }
-    let matching_loads = load_segments
+    let overlapping_loads = load_segments
         .iter()
-        .filter(|load| {
-            load.flags & PF_R != 0
-                && contained_range(
-                    dynamic.file_offset,
-                    dynamic.file_size,
-                    load.file_offset,
-                    load.file_size,
-                )
-                && contained_range(
-                    dynamic.virtual_address,
-                    dynamic.memory_size,
-                    load.virtual_address,
-                    load.memory_size,
-                )
-                && dynamic.file_offset - load.file_offset
-                    == dynamic.virtual_address - load.virtual_address
+        .filter_map(|load| {
+            page_ranges_overlap(&dynamic, load)
+                .ok()
+                .filter(|overlap| *overlap)
         })
         .count();
-    if matching_loads == 1 {
-        Ok(())
-    } else {
-        Err(GuestElfError("guest_elf_dynamic_segment_mapping_invalid"))
+    if overlapping_loads != 1 {
+        return Err(GuestElfError("guest_elf_dynamic_segment_mapping_invalid"));
     }
+    let load = load_segments
+        .iter()
+        .find(|load| page_ranges_overlap(&dynamic, load) == Ok(true))
+        .ok_or(GuestElfError("guest_elf_dynamic_segment_mapping_invalid"))?;
+    if load.flags & PF_R == 0
+        || !contained_range(
+            dynamic.file_offset,
+            dynamic.file_size,
+            load.file_offset,
+            load.file_size,
+        )
+        || !contained_range(
+            dynamic.virtual_address,
+            dynamic.memory_size,
+            load.virtual_address,
+            load.memory_size,
+        )
+        || dynamic.file_offset - load.file_offset != dynamic.virtual_address - load.virtual_address
+    {
+        return Err(GuestElfError("guest_elf_dynamic_segment_mapping_invalid"));
+    }
+    Ok(())
 }
 
 fn validate_dynamic_entries(raw: &[u8], dynamic: ProgramHeader) -> Result<(), GuestElfError> {
@@ -533,6 +541,50 @@ mod tests {
         assert_eq!(
             validate_guest_elf_bytes(&ambiguous),
             Err(GuestElfError("guest_elf_dynamic_segment_mapping_invalid"))
+        );
+    }
+
+    #[test]
+    fn later_load_cannot_alias_dynamic_virtual_pages() {
+        let mut aliased = valid_elf();
+        aliased.resize(0x500, 0);
+        write_u16(&mut aliased, 56, 6);
+        write_program_header(
+            &mut aliased,
+            5,
+            PT_LOAD,
+            PF_R,
+            0x400,
+            0x402200,
+            0x100,
+            0x100,
+            0x100,
+        );
+        write_i64(&mut aliased, 0x400, DT_NEEDED);
+        assert_eq!(
+            validate_guest_elf_bytes(&aliased),
+            Err(GuestElfError("guest_elf_dynamic_segment_mapping_invalid"))
+        );
+    }
+
+    #[test]
+    fn page_rounding_overflow_rejects() {
+        let mut overflow = valid_elf();
+        write_u16(&mut overflow, 56, 6);
+        write_program_header(
+            &mut overflow,
+            5,
+            PT_LOAD,
+            PF_R | PF_W,
+            0,
+            0xffff_ffff_ffff_f000,
+            0,
+            0xfff,
+            0x1000,
+        );
+        assert_eq!(
+            validate_guest_elf_bytes(&overflow),
+            Err(GuestElfError("guest_elf_load_geometry_invalid"))
         );
     }
 
