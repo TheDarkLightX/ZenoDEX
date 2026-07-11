@@ -17,7 +17,7 @@
 # i8 = new_reserve_out (bv[32])
 # i9 = proof_ok (sbf)
 # i10 = binding_ok (sbf)
-# i11 = reserve_transition_ok (sbf) # host verified i7 = i1 + i3 and i8 = i2 - i6
+# i11 = reserve_transition_ok (sbf) # host projection must agree with Tau-enforced reserve transition
 # o1 = swap_exact_in_valid
 
 set charvar off
@@ -33,4 +33,6 @@ always (o1[t]:sbf = 1:sbf <->
    (i4[t]:bv[32] <= { #x00002710 }:bv[32]) &&
    (i6[t]:bv[32] < i2[t]:bv[32]) &&
    (i6[t]:bv[32] >= i5[t]:bv[32]) &&
+   (i7[t]:bv[32] = i1[t]:bv[32] + i3[t]:bv[32]) &&
+   (i8[t]:bv[32] = i2[t]:bv[32] - i6[t]:bv[32]) &&
    (i7[t]:bv[32] >= i1[t]:bv[32]))).
