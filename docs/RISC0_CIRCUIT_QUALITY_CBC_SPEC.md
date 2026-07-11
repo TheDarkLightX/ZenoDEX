@@ -97,6 +97,27 @@ receipt sets, messages, schedules, carry, and data availability. The
 normative candidate scope and non-claims are recorded in
 `docs/research/ZRPF_V3_CORRECT_BY_CONSTRUCTION_SPEC_20260710.md`.
 
+Semantic Epoch V1 now supplies the first receipt-backed sub-obligation for
+`RS-CBC-023`. Under fresh RISC0 3.0.5 image IDs, the D guest verifies exact B
+receipts before interpreting their disclosed A journals, recomposes each B
+journal, recomposes the governed structural C journal locally, binds semantic
+source openings, and enforces global source-claim, semantic-source, and task
+uniqueness. One retained three-leaf, two-L1-group D receipt passed exact outer
+verification. A separate cross-subtree repeated-semantic-source execution
+reached the dedicated guest reject after both L1 assumptions were supplied. An
+exact one-word Succinct seal mutation of the positive D receipt rejected as
+`ReceiptArtifact(ReceiptVerificationFailed)`.
+
+This evidence leaves `RS-CBC-023` pending. The V1 adapter profile authenticates
+empty receipt and message sets and has no nullifier surface. It does not prove
+global asset conservation, authorized mint or burn, pre-state to post-state
+continuity, nonempty receipt or message composition, schedules, carry, or data
+availability. The scoped specification and fail-closed artifact checker are:
+
+- `docs/research/ZRPF_SEMANTIC_EPOCH_V1_SPEC_20260711.md`;
+- `docs/research/ZRPF_SEMANTIC_EPOCH_V1_LOCAL_PROOF_EVIDENCE_20260711.json`;
+- `tools/check_zrpf_semantic_epoch_v1_local_evidence.py`.
+
 The additive `zk/zrpf_risc0` workspace contains the pure Spot V1-to-V3 mapping,
 a receipt-authenticated adapter guest, a private-construction host verifier,
 and an evidence harness. The guest verifies the exact governed Spot receipt

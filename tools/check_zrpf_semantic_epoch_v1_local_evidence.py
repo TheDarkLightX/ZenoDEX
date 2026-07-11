@@ -57,6 +57,9 @@ EXPECTED_BUILD_PROVENANCE = {
     "source_closure_sha256": "50e7ab1790de7d9505abc241e3780c15144c9266ba5c6ac348a587d06c867eaa",
     "final_build_record_artifact_id": "final-independent-build-record",
     "toolchain_lock_sha256": "1be127ec1174a52ec246f04fd887d0ab3b89c246401a9cf4489d0e07c10cb2ab",
+    "verifier_source_closure_artifact_id": "verifier-source-closure-record",
+    "verifier_source_closure_file_count": 57,
+    "verifier_source_closure_sha256": "8273e6df9f535ca0fe0cf5531de8e267482cd3e5c0160dec8f21793dc5f6a21d",
 }
 
 EXPECTED_PROGRAMS = [
@@ -427,6 +430,8 @@ FINAL_BUILD_RECORD_FIELDS = {
     "status",
     "source_closure_sha256",
     "source_closure_file_count",
+    "verifier_source_closure_sha256",
+    "verifier_source_closure_file_count",
     "cargo_lock_sha256",
     "toolchain_lock_sha256",
     "container_image_id",
@@ -603,7 +608,13 @@ def _validate_build_provenance(value: Any, errors: list[str]) -> None:
     fixed = {
         key: expected
         for key, expected in EXPECTED_BUILD_PROVENANCE.items()
-        if key not in {"source_closure_file_count", "source_closure_sha256"}
+        if key
+        not in {
+            "source_closure_file_count",
+            "source_closure_sha256",
+            "verifier_source_closure_file_count",
+            "verifier_source_closure_sha256",
+        }
     }
     for key, expected in fixed.items():
         if not _exact_type_and_value(value.get(key), expected):
@@ -614,6 +625,12 @@ def _validate_build_provenance(value: Any, errors: list[str]) -> None:
         errors.append("build_provenance source closure file count is invalid")
     if not support.is_digest(value.get("source_closure_sha256")):
         errors.append("build_provenance source closure SHA-256 is invalid")
+    if type(value.get("verifier_source_closure_file_count")) is not int or not (
+        0 < value["verifier_source_closure_file_count"] <= 1_024
+    ):
+        errors.append("build_provenance verifier source closure file count is invalid")
+    if not support.is_digest(value.get("verifier_source_closure_sha256")):
+        errors.append("build_provenance verifier source closure SHA-256 is invalid")
 
 
 def _exact_type_and_value(actual: Any, expected: Any) -> bool:
@@ -982,6 +999,7 @@ def _validate_artifact_references(
 ) -> None:
     referenced: set[str] = {
         str(EXPECTED_BUILD_PROVENANCE["source_closure_artifact_id"]),
+        str(EXPECTED_BUILD_PROVENANCE["verifier_source_closure_artifact_id"]),
         str(EXPECTED_BUILD_PROVENANCE["final_build_record_artifact_id"]),
     }
     for row in leaves.values():
@@ -1038,6 +1056,7 @@ def _validate_provenance_artifacts(
     if not isinstance(build, dict):
         return
     closure_id = build.get("source_closure_artifact_id")
+    verifier_closure_id = build.get("verifier_source_closure_artifact_id")
     build_record_id = build.get("final_build_record_artifact_id")
     _require_artifact_kind(
         artifacts,
@@ -1048,24 +1067,60 @@ def _validate_provenance_artifacts(
     )
     _require_artifact_kind(
         artifacts,
+        verifier_closure_id,
+        "source_closure_record",
+        "build provenance verifier source closure",
+        errors,
+    )
+    _require_artifact_kind(
+        artifacts,
         build_record_id,
         "final_build_record",
         "build provenance final build record",
         errors,
     )
-    closure = _material_document(materials, closure_id)
-    if closure is not None:
+    proof_closure = _material_document(materials, closure_id)
+    verifier_closure = _material_document(materials, verifier_closure_id)
+    _validate_closure_binding(
+        proof_closure,
+        build.get("source_closure_file_count"),
+        build.get("source_closure_sha256"),
+        "proof/guest source closure",
+        errors,
+    )
+    _validate_closure_binding(
+        verifier_closure,
+        build.get("verifier_source_closure_file_count"),
+        build.get("verifier_source_closure_sha256"),
+        "verifier source closure",
+        errors,
+    )
+    if proof_closure is not None and verifier_closure is not None:
         try:
-            file_count, closure_sha256 = support.source_closure_facts(closure)
-        except support.EvidenceInputError:
-            pass
-        else:
-            if file_count != build.get("source_closure_file_count"):
-                errors.append("source closure file count differs from build provenance")
-            if closure_sha256 != build.get("source_closure_sha256"):
-                errors.append("source closure root differs from build provenance")
+            support.require_verifier_closure_extension(proof_closure, verifier_closure)
+        except support.EvidenceInputError as exc:
+            errors.append(str(exc))
     final_build = _material_document(materials, build_record_id)
     _validate_final_build_record(final_build, build, errors)
+
+
+def _validate_closure_binding(
+    closure: Any,
+    expected_file_count: Any,
+    expected_sha256: Any,
+    label: str,
+    errors: list[str],
+) -> None:
+    if closure is None:
+        return
+    try:
+        file_count, closure_sha256 = support.source_closure_facts(closure)
+    except support.EvidenceInputError:
+        return
+    if file_count != expected_file_count:
+        errors.append(f"{label} file count differs from build provenance")
+    if closure_sha256 != expected_sha256:
+        errors.append(f"{label} root differs from build provenance")
 
 
 def _validate_final_build_record(
@@ -1082,6 +1137,8 @@ def _validate_final_build_record(
         "status": "same_host_final_clean_guest_rebuild_matched",
         "source_closure_sha256": build.get("source_closure_sha256"),
         "source_closure_file_count": build.get("source_closure_file_count"),
+        "verifier_source_closure_sha256": build.get("verifier_source_closure_sha256"),
+        "verifier_source_closure_file_count": build.get("verifier_source_closure_file_count"),
         "cargo_lock_sha256": build.get("cargo_lock_sha256"),
         "toolchain_lock_sha256": build.get("toolchain_lock_sha256"),
         "container_image_id": build.get("container_image_id"),

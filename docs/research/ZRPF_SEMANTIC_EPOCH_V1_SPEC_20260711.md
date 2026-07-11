@@ -1,6 +1,6 @@
 # ZRPF Semantic Epoch V1 Specification
 
-Status: experimental implemented semantic guest, fresh proof evidence pending
+Status: experimental bounded local semantic proof evidence
 Date: 2026-07-11
 
 ## Purpose
@@ -66,6 +66,13 @@ The separate sealed `VerifiedSemanticEpochReceiptV1` host type begins with
 bounded canonical receipt bytes and verifies the pinned Succinct profile,
 semantic guest image, exact proposal, governed A/B/C dependency manifest, and
 claim binding before exposing an authenticated proposal.
+
+The current local evidence authenticates one three-leaf, two-L1-group instance
+under the fresh A/B/C/D image ladder. It also executes one cross-subtree
+duplicate-semantic-source control after both L1 assumptions are verified. The
+guest rejects that control at the typed semantic-composition boundary. This is
+a bounded compatibility-profile result and does not establish complete
+ZenoDEX economic semantics.
 
 ## V1 adapter opening
 
@@ -231,6 +238,127 @@ not proof receipts.
 
 ## Evidence in this tranche
 
+### Fresh program identities
+
+The staged canonical build and a separate final clean same-host rebuild agree
+byte-for-byte on all four guest programs:
+
+```text
+A  V1 adapter
+   d2c2f1a321c53e0228455b2cf22942fde7595030a379c3fd5484af446ac75d64
+
+B  structural L1
+   71e9af087cce2074f2272ea8dec3a16383651014effcf65eac18c48a2722e9a9
+
+C  structural L2 recomposition policy
+   a92e8ec445e2fea9f61928e0ddf1192552044018e0b49f24374bfa59a45085b3
+
+D  semantic epoch
+   dea9abab5cc382af0929779bf84bfcb5430f33b337b86f57e7712b303f3c3c51
+```
+
+The final 56-file repository source closure is:
+
+```text
+50e7ab1790de7d9505abc241e3780c15144c9266ba5c6ac348a587d06c867eaa
+```
+
+That closure binds the guest and proof-generation source at commit
+`70bc574c`. The separately built persisted verifier is bound by a 57-file
+source closure at commit `04e292d9`:
+
+```text
+8273e6df9f535ca0fe0cf5531de8e267482cd3e5c0160dec8f21793dc5f6a21d
+```
+
+This establishes a same-host canonical-path rebuild match. Complete build-input
+closure, cross-host reproducibility, and path-independent reproducibility
+remain false.
+
+### Positive semantic receipt
+
+The retained positive instance contains:
+
+```text
+group 0: adapter ordinals 0 and 1 under one B receipt
+group 1: adapter ordinal 2 under one B receipt
+leaf count:      3
+operation count: 3
+```
+
+The D guest verifies both exact B assumptions before interpreting their
+disclosed A journals. It recomposes both B journals, recomposes the structural
+C journal locally, binds all three semantic openings, enforces global
+source-claim, semantic-source, and task uniqueness, and commits:
+
+```text
+semantic receipt SHA-256
+d2d726e1647bc7693908f7bf28e81970a34a50d4bc7ef1d7a4364ff486aa2caa
+
+semantic epoch root
+663ac6c9b21d060f98da255987942b9aff864085efa3f7457f1559e081f2150e
+
+proof tree root
+a1b15dae40499eb2d6b6dc9f2be973a29b4f95a7329cc896548118d2321b21dc
+
+proposal hash
+84b8ad570c614c3f29a3a1a2331ec3d54b8d13ca4930d7a07a008116a7dd7751
+
+program manifest root
+47f58f695381daea1cb279185ff8398674bbb1a485db92727792d08b92050a44
+```
+
+The persisted-receipt verifier separately reloads every retained A and B
+receipt, reconstructs the exact expected proposal from governed program IDs and
+typed openings, and verifies the D receipt against that proposal. Ambient
+`RISC0_DEV_MODE` values `0`, `1`, and `true` produce the same canonical
+verification report.
+
+### Cryptographic mutation control
+
+The persisted verifier clones the already verified D receipt, XORs Succinct
+seal word 1 by exactly 1, writes the candidate with create-new semantics,
+reopens the same file version, and proves that restoring the word yields the
+exact original canonical receipt. The candidate SHA-256 is:
+
+```text
+47e6f2bb250dfaeeb06344f692b4a0f712c9e3fb5ed62d9237f4158da5a4db99
+```
+
+The exact verifier rejects it as:
+
+```text
+ReceiptArtifact(ReceiptVerificationFailed)
+```
+
+### Duplicate-source execution control
+
+The negative instance reuses the semantic opening from ordinal 1 at ordinal 2
+under a separate authenticated B subtree. The adapter and B receipts are
+distinct. The exact host mirror returns `DuplicateSemanticSource`, and D guest
+execution reaches the stable `duplicate_semantic_source` reject after both B
+assumptions are supplied.
+
+Failed guest execution produces no receipt. The dynamic-loader closure of the
+local R0VM execution is also unverified. The negative report therefore keeps
+`authoritative_negative_evidence=false` and
+`cryptographic_reject_receipt_exists=false`.
+
+### Verification boundary
+
+The retained evidence uses RISC0 `3.0.5`, Succinct receipts, Poseidon2, the
+governed resolver control ID, and exact verifier parameters. A Rust verifier
+authenticates seals and proposals. The Python evidence checker authenticates
+canonical bytes, complete inventory, hashes, topology, reports, source
+closure, and claim policy; it explicitly records
+`python_verifies_risc0_seals=false`.
+
+The complete 27-file retained bundle passed the bounded public-artifact privacy
+denylist with zero findings. This scan does not establish complete artifact
+confidentiality or side-channel freedom.
+
+### Protocol and source tests
+
 The protocol and guest-safe kernel tests cover:
 
 - an independent adapter-hash mirror and fixed legacy empty-root vectors;
@@ -268,10 +396,11 @@ correctness proof.
 
 This tranche does not establish:
 
-- fresh current-source adapter, L1, L2, or semantic guest image IDs;
-- execution of the semantic guest with authenticated L1 assumptions;
-- a retained valid semantic receipt or cryptographic negative control;
-- reproducible semantic proof generation or an independent rebuild;
+- complete build-input closure, cross-host reproducibility, or
+  path-independent builds;
+- reproducible semantic proof generation or receipt-byte determinism;
+- an independent verifier implementation or public source-built replay;
+- cryptographic proof of the failed duplicate-source execution;
 - nonempty receipt, message, or nullifier proof evidence;
 - semantic identity across distinct leaf proof implementations or encodings;
 - asset conservation or authorized mint and burn semantics;
@@ -285,9 +414,10 @@ All corresponding claim flags remain false.
 
 ## Next implementation tranche
 
-Run the staged canonical A to B to C to D rebuild, independently recompute every
-image ID, generate fresh adapter and L1 receipts, and prove one valid semantic
-epoch. The first required proof negative reuses one exact authenticated source
-transition under two leaf ordinals in separate valid L1 subtrees. The semantic
-guest must reject it after verifying both L1 receipts, recomposing each complete
-L1 journal, and validating every member opening.
+Add the first value-bearing semantic profile. Its leaf disclosure must open
+authenticated asset rows and state transitions, and its composer must prove
+global asset conservation, authorized mint and burn transformations, and exact
+pre-state to post-state continuity across the canonical leaf order. Preserve
+the current structural and semantic roots as separate identities. Add nonempty
+receipt, message, schedule, carry, and data-availability profiles only after
+their authenticated opening languages and global composition laws are defined.

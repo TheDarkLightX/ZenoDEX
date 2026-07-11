@@ -58,6 +58,27 @@ def _artifact_row(
     }
 
 
+def _closure_document(rows: list[dict[str, Any]], commit: str) -> dict[str, Any]:
+    ordered = sorted(rows, key=lambda row: row["path"])
+    hasher = hashlib.sha256()
+    for row in ordered:
+        for value in (row["role"], row["path"], row["sha256"]):
+            hasher.update(str(value).encode("ascii"))
+            hasher.update(b"\0")
+        hasher.update(str(row["size_bytes"]).encode("ascii"))
+        hasher.update(b"\n")
+    return {
+        "definition": support.SOURCE_CLOSURE_DEFINITION,
+        "file_count": len(ordered),
+        "files": ordered,
+        "git_commit": commit,
+        "schema": "zenodex/zrpf_v3_frozen_source_closure/v1",
+        "sha256": hasher.hexdigest(),
+        "status": "frozen_source_closure",
+        "worktree_clean": True,
+    }
+
+
 def _synthetic_evidence(tmp_path: Path) -> tuple[dict[str, Any], Path]:
     artifact_root = tmp_path / "evidence/bundle"
     artifacts: dict[str, dict[str, Any]] = {}
@@ -394,26 +415,7 @@ def _synthetic_evidence(tmp_path: Path) -> tuple[dict[str, Any], Path]:
         "sha256": _digest("synthetic-source-file"),
         "size_bytes": 123,
     }
-    closure_hasher = hashlib.sha256()
-    for value in (
-        closure_row["role"],
-        closure_row["path"],
-        closure_row["sha256"],
-    ):
-        closure_hasher.update(str(value).encode("ascii"))
-        closure_hasher.update(b"\0")
-    closure_hasher.update(str(closure_row["size_bytes"]).encode("ascii"))
-    closure_hasher.update(b"\n")
-    source_closure = {
-        "definition": support.SOURCE_CLOSURE_DEFINITION,
-        "file_count": 1,
-        "files": [closure_row],
-        "git_commit": "11" * 20,
-        "schema": "zenodex/zrpf_v3_frozen_source_closure/v1",
-        "sha256": closure_hasher.hexdigest(),
-        "status": "frozen_source_closure",
-        "worktree_clean": True,
-    }
+    source_closure = _closure_document([closure_row], "11" * 20)
     closure_artifact_id = "stage-d2-source-closure-record"
     artifacts[closure_artifact_id] = _artifact_row(
         artifact_root,
@@ -422,14 +424,29 @@ def _synthetic_evidence(tmp_path: Path) -> tuple[dict[str, Any], Path]:
         relative="provenance/stage-d2-source-closure.json",
         document=source_closure,
     )
+    verifier_source_closure = _closure_document(
+        [closure_row, copy.deepcopy(support.VERIFIER_SOURCE_ROW)], "22" * 20
+    )
+    verifier_closure_artifact_id = "verifier-source-closure-record"
+    artifacts[verifier_closure_artifact_id] = _artifact_row(
+        artifact_root,
+        artifact_id=verifier_closure_artifact_id,
+        kind="source_closure_record",
+        relative="provenance/verifier-source-closure.json",
+        document=verifier_source_closure,
+    )
     build_provenance = copy.deepcopy(checker.EXPECTED_BUILD_PROVENANCE)
     build_provenance["source_closure_file_count"] = 1
     build_provenance["source_closure_sha256"] = source_closure["sha256"]
+    build_provenance["verifier_source_closure_file_count"] = 2
+    build_provenance["verifier_source_closure_sha256"] = verifier_source_closure["sha256"]
     final_build_record = {
         "schema": "zenodex/zrpf_semantic_epoch_v1_final_build_record/v1",
         "status": "same_host_final_clean_guest_rebuild_matched",
         "source_closure_sha256": source_closure["sha256"],
         "source_closure_file_count": 1,
+        "verifier_source_closure_sha256": verifier_source_closure["sha256"],
+        "verifier_source_closure_file_count": 2,
         "cargo_lock_sha256": build_provenance["cargo_lock_sha256"],
         "toolchain_lock_sha256": build_provenance["toolchain_lock_sha256"],
         "container_image_id": build_provenance["container_image_id"],
@@ -532,11 +549,11 @@ def test_synthetic_manifest_and_complete_artifact_inventory_pass(tmp_path: Path)
 
     assert report["ok"] is True
     assert report["errors"] == []
-    assert report["facts"]["artifact_files_checked"] == 26
+    assert report["facts"]["artifact_files_checked"] == 27
     assert report["facts"]["python_verifies_risc0_seals"] is False
 
 
-def test_default_checker_fails_closed_until_manifest_anchor_is_finalized(
+def test_default_checker_enforces_finalized_manifest_anchor(
     tmp_path: Path,
 ) -> None:
     document, _ = _synthetic_evidence(tmp_path)
@@ -546,7 +563,16 @@ def test_default_checker_fails_closed_until_manifest_anchor_is_finalized(
     report = checker.check_manifest(manifest_path, repo_root=tmp_path)
 
     assert report["ok"] is False
-    assert "governed manifest SHA-256 anchor is not finalized" in report["errors"]
+    assert "manifest SHA-256 differs from governed anchor" in report["errors"]
+
+
+def test_default_checker_accepts_exact_governed_bundle() -> None:
+    report = checker.check_manifest()
+
+    assert report["ok"] is True
+    assert report["errors"] == []
+    assert report["facts"]["artifact_files_checked"] == 27
+    assert report["facts"]["python_verifies_risc0_seals"] is False
 
 
 @pytest.mark.parametrize(
@@ -658,6 +684,28 @@ def test_source_closure_internal_hash_mutation_rejects(tmp_path: Path) -> None:
 
     assert report["ok"] is False
     assert "source closure SHA-256 mismatch" in report["errors"]
+
+
+def test_verifier_closure_cannot_rewrite_shared_guest_source_row(tmp_path: Path) -> None:
+    document, _ = _synthetic_evidence(tmp_path)
+    verifier_id = "verifier-source-closure-record"
+    verifier_path = _artifact_path(document, tmp_path, verifier_id)
+    verifier_closure = support.strict_json_loads(verifier_path.read_bytes())
+    verifier_closure["files"][0]["sha256"] = _digest("rewritten-shared-source")
+    verifier_closure = _closure_document(verifier_closure["files"], verifier_closure["git_commit"])
+    _rewrite_artifact(document, tmp_path, verifier_id, verifier_closure)
+    document["build_provenance"]["verifier_source_closure_sha256"] = verifier_closure["sha256"]
+
+    build_id = "final-independent-build-record"
+    build_path = _artifact_path(document, tmp_path, build_id)
+    build_record = support.strict_json_loads(build_path.read_bytes())
+    build_record["verifier_source_closure_sha256"] = verifier_closure["sha256"]
+    _rewrite_artifact(document, tmp_path, build_id, build_record)
+
+    report = _validate(document, tmp_path)
+
+    assert report["ok"] is False
+    assert "verifier source closure changes proof/guest source rows" in report["errors"]
 
 
 def test_final_build_record_cannot_promote_cross_host_claim(tmp_path: Path) -> None:

@@ -1201,8 +1201,8 @@
       "code_refs": [],
       "test_refs": [],
       "external_commands": [],
-      "next_action": "freeze a field-disposition matrix, implement the bounded semantic composer, and add duplicate descendant, unbalanced asset, unmatched message, invalid schedule, missing DA certificate, and carry replay negatives",
-      "non_claim": "NodeCommitmentsV3 is a mandatory nonzero structural commitment surface; the reference library does not establish the committed ZenoDEX semantics"
+      "next_action": "retain the verified duplicate-descendant semantic sub-obligation, then add authenticated asset-row openings, global asset conservation, authorized mint and burn, pre-state to post-state continuity, nonempty receipt and message composition, schedule and carry verification, and data-availability certificate policy",
+      "non_claim": "fresh local RISC0 3.0.5 evidence verifies one three-leaf, two-L1-group V1 adapter semantic epoch and rejects one repeated semantic source across distinct authenticated subtrees; the profile has empty receipt and message sets and does not establish complete ZenoDEX economic semantics, asset conservation, state continuity, schedules, carry, data availability, durable admission, public replay, release, settlement, privacy, throughput, or production authority"
     }
   ]
 }

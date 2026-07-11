@@ -21,9 +21,9 @@ DEFAULT_MANIFEST = (
 SCHEMA = "zenodex/zrpf_semantic_epoch_v1_local_proof_evidence/v1"
 REPORT_SCHEMA = "zenodex/zrpf_semantic_epoch_v1_local_proof_evidence_check/v1"
 
-# This remains empty until the final evidence object and artifact inventory are
-# reviewed together. An unanchored default invocation fails closed.
-EXPECTED_MANIFEST_SHA256 = ""
+# Reviewed together with the exact 27-file retained artifact inventory. Any
+# manifest, topology, report, claim, or artifact drift must fail closed.
+EXPECTED_MANIFEST_SHA256 = "4934328cbcbca0b4880c7eec961064ecca1eb99b72ce753dfa7aad76318f3df2"
 
 MAX_MANIFEST_BYTES = 512 * 1024
 MAX_ARTIFACT_BYTES = 16 * 1024 * 1024
@@ -63,6 +63,12 @@ SOURCE_CLOSURE_DEFINITION = (
     "sha256 of sorted role, path, sha256, and size records with NUL field "
     "separators and LF record separators"
 )
+VERIFIER_SOURCE_ROW = {
+    "path": "zk/zrpf_risc0/harness/src/bin/verify_semantic_epoch.rs",
+    "role": "verification_harness",
+    "sha256": "366035beeb3b9bb34f9cb10ef3db168292c53cf8676869ecf275786bd058f747",
+    "size_bytes": 43_762,
+}
 
 
 class EvidenceInputError(ValueError):
@@ -549,3 +555,23 @@ def source_closure_facts(document: Any) -> tuple[int, str]:
     if computed != document.get("sha256"):
         raise EvidenceInputError("source closure SHA-256 mismatch")
     return len(files), computed
+
+
+def require_verifier_closure_extension(proof_closure: Any, verifier_closure: Any) -> None:
+    """Require the verifier closure to add exactly its governed source file."""
+
+    source_closure_facts(proof_closure)
+    source_closure_facts(verifier_closure)
+    proof_rows = {row["path"]: row for row in proof_closure["files"]}
+    verifier_rows = {row["path"]: row for row in verifier_closure["files"]}
+    expected_path = VERIFIER_SOURCE_ROW["path"]
+    if set(verifier_rows) - set(proof_rows) != {expected_path}:
+        raise EvidenceInputError(
+            "verifier source closure does not add exactly the governed verifier source"
+        )
+    if set(proof_rows) - set(verifier_rows):
+        raise EvidenceInputError("verifier source closure drops proof/guest source rows")
+    if any(verifier_rows[path] != row for path, row in proof_rows.items()):
+        raise EvidenceInputError("verifier source closure changes proof/guest source rows")
+    if verifier_rows.get(expected_path) != VERIFIER_SOURCE_ROW:
+        raise EvidenceInputError("verifier source closure governed source row mismatch")
