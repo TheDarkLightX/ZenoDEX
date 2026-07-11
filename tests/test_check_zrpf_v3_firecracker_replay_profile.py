@@ -36,6 +36,115 @@ def test_static_report_cannot_claim_runner_or_authority() -> None:
     assert all(value is False for value in report["authority"].values())
 
 
+def test_runner_joins_one_precreated_domain_leaf_without_cgroup_properties() -> None:
+    runner = _profile()["runner_policy"]
+
+    assert runner["jailer_cgroup_property_arguments_allowed"] is False
+    assert "--cgroup" not in runner["jailer_cli_required_options"]
+    assert "--cgroup" in runner["jailer_cli_forbidden_options"]
+    assert runner["jailer_parent_cgroup_value_policy"] == (
+        "verified_relative_path_to_exact_precreated_leaf_under_cgroup2_mount"
+    )
+    assert runner["cgroup_leaf_prelaunch_requirements"] == [
+        "cgroup_path_exists",
+        "cgroup_path_is_cgroup_v2_directory",
+        "cgroup_path_stable_device_and_inode",
+        "cgroup_type_exact_domain",
+        "cgroup_subtree_control_empty",
+        "cgroup_procs_empty",
+        "cgroup_events_populated_zero",
+        "required_controller_files_present",
+        "numeric_limits_exactly_match_governed_policy",
+    ]
+    assert runner["cgroup_leaf_active_requirements"] == [
+        "exact_expected_firecracker_process_set",
+        "proc_pid_cgroup_resolves_to_expected_relative_path",
+        "cgroup_path_stable_device_and_inode",
+        "numeric_limits_unchanged",
+    ]
+
+
+def test_runner_requires_whole_cgroup_teardown_completion() -> None:
+    runner = _profile()["runner_policy"]
+    contract = runner["cgroup_termination_contract"]
+
+    assert contract == {
+        "cgroup_kill_unavailable_or_populated_nonzero": "reject",
+        "cgroup_type_readback_required": "domain",
+        "process_group_kill": "supplemental_only_never_authoritative",
+        "teardown_completion_file": "cgroup.events",
+        "teardown_completion_predicate": "parsed_populated_equals_zero",
+        "teardown_method": "cgroup_v2_cgroup_kill",
+        "teardown_owner": "privileged_host_supervisor",
+        "teardown_write_bytes_hex": "310a",
+        "teardown_write_file": "cgroup.kill",
+    }
+    assert runner["teardown_policy"] == (
+        "cgroup_kill_literal_one_then_cgroup_events_populated_zero_then_unique_"
+        "jail_removed"
+    )
+    assert runner["watchdog_policy"] == (
+        "prelaunched_host_monotonic_deadline_cgroup_kill_literal_one_and_"
+        "populated_zero"
+    )
+
+
+def test_profile_rejects_cgroup_property_even_after_expected_data_refresh(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    weakened = _profile()
+    runner = weakened["runner_policy"]
+    runner["jailer_cgroup_property_arguments_allowed"] = True
+    runner["jailer_cli_forbidden_options"].remove("--cgroup")
+    runner["jailer_cli_required_options"].append("--cgroup")
+    monkeypatch.setattr(checker, "EXPECTED_RUNNER_POLICY", runner)
+    monkeypatch.setattr(
+        checker,
+        "EXPECTED_PROFILE_CANONICAL_SHA256",
+        checker._canonical_sha256(weakened),
+    )
+
+    report = checker.validate_profile(_write(tmp_path / "cgroup-property.json", weakened))
+
+    assert "runner_policy_mismatch" not in report["errors"]
+    assert "runner_v1_cgroup_security_boundary_mismatch" in report["errors"]
+
+
+def test_jailer_argument_guard_rejects_every_cgroup_property_spelling() -> None:
+    assert checker.jailer_argv_contains_cgroup_property(
+        ["--cgroup", "memory.max=268435456"]
+    )
+    assert checker.jailer_argv_contains_cgroup_property(
+        ["--cgroup=memory.max=268435456"]
+    )
+    assert not checker.jailer_argv_contains_cgroup_property(
+        ["--cgroup-version=2", "--parent-cgroup", "zenodex/zrpf/run-1"]
+    )
+
+
+def test_profile_rejects_equals_form_cgroup_property_after_expected_data_refresh(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    weakened = _profile()
+    runner = weakened["runner_policy"]
+    runner["jailer_cli_required_options"].append(
+        "--cgroup=io.max=8:0 rbps=1048576"
+    )
+    monkeypatch.setattr(checker, "EXPECTED_RUNNER_POLICY", runner)
+    monkeypatch.setattr(
+        checker,
+        "EXPECTED_PROFILE_CANONICAL_SHA256",
+        checker._canonical_sha256(weakened),
+    )
+
+    report = checker.validate_profile(_write(tmp_path / "cgroup-equals.json", weakened))
+
+    assert "runner_policy_mismatch" not in report["errors"]
+    assert "runner_v1_cgroup_security_boundary_mismatch" in report["errors"]
+
+
 def test_profile_rejects_claim_promotion_and_integer_boolean(tmp_path: Path) -> None:
     promoted = _profile()
     promoted["claims"]["release_authority"] = True

@@ -18,7 +18,7 @@ from urllib.parse import urlsplit
 SCHEMA = "zenodex/zrpf_firecracker_runtime_artifact_manifest/v1"
 STATUS = "candidate_frozen_identity_non_authoritative"
 ARCHITECTURE = "x86_64"
-PROFILE_CANONICAL_SHA256 = "3be22c7d06bc3c4a7f0d83065fe2cadbb7b284830a70797165e32e229a1bdd0f"
+PROFILE_CANONICAL_SHA256 = "e74b285954984c1dfea36bd54dd5b6a479906d2a62ebdbffaf7a7cc8898560f4"
 INPUT_PROTOCOL_ID = "zenodex/zrpf_firecracker_input_squashfs/v1"
 REQUEST_PROTOCOL_ID = "zenodex/zrpf_firecracker_request/v1"
 OUTPUT_PROTOCOL_ID = "zenodex/zrpf_firecracker_output/v1"
@@ -135,6 +135,8 @@ _PROVENANCE_FIELDS = {
     "kernel_source_repository",
     "mksquashfs_binary_sha256",
     "mksquashfs_version",
+    "readelf_binary_sha256",
+    "readelf_version",
     "rootfs_build_recipe_sha256",
     "status",
 }
@@ -257,6 +259,8 @@ class ProvenanceRecordV1:
     kernel_source_repository: str
     mksquashfs_binary_sha256: str
     mksquashfs_version: str
+    readelf_binary_sha256: str
+    readelf_version: str
     rootfs_build_recipe_sha256: str
 
     def to_document(self) -> dict[str, Any]:
@@ -266,6 +270,8 @@ class ProvenanceRecordV1:
             "kernel_source_repository": self.kernel_source_repository,
             "mksquashfs_binary_sha256": self.mksquashfs_binary_sha256,
             "mksquashfs_version": self.mksquashfs_version,
+            "readelf_binary_sha256": self.readelf_binary_sha256,
+            "readelf_version": self.readelf_version,
             "rootfs_build_recipe_sha256": self.rootfs_build_recipe_sha256,
             "status": "identity_pinned_source_build_not_reproduced",
         }
@@ -696,6 +702,8 @@ def _parse_provenance(value: Any) -> ProvenanceRecordV1:
         kernel_source_repository=repository,
         mksquashfs_binary_sha256=_require_sha256(value["mksquashfs_binary_sha256"]),
         mksquashfs_version=_require_ascii(value["mksquashfs_version"], maximum=64),
+        readelf_binary_sha256=_require_sha256(value["readelf_binary_sha256"]),
+        readelf_version=_require_ascii(value["readelf_version"], maximum=64),
         rootfs_build_recipe_sha256=_require_sha256(value["rootfs_build_recipe_sha256"]),
     )
 

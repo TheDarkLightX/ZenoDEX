@@ -74,6 +74,8 @@ jobs:
         run: |
           ruff check \
             tools/check_zrpf_v3_firecracker_direct_replay_evidence.py \
+            tools/check_zrpf_v3_firecracker_guest_elf.py \
+            tools/check_zrpf_v3_firecracker_guest_elf.py \
             tools/check_zrpf_v3_firecracker_launch_preflight.py \
             tools/check_zrpf_v3_firecracker_protocol_binding.py \
             tools/check_zrpf_v3_firecracker_replay_profile.py \
@@ -87,6 +89,8 @@ jobs:
             tools/zrpf_v3_firecracker_runtime_manifest.py \
             tools/zrpf_v3_replay_*.py \
             tests/test_check_zrpf_v3_firecracker_direct_replay_evidence.py \
+            tests/test_check_zrpf_v3_firecracker_guest_elf.py \
+            tests/test_check_zrpf_v3_firecracker_guest_elf.py \
             tests/test_check_zrpf_v3_firecracker_launch_preflight.py \
             tests/test_check_zrpf_v3_firecracker_protocol_binding.py \
             tests/test_check_zrpf_v3_firecracker_replay_profile.py \
@@ -103,6 +107,7 @@ jobs:
             tests/test_zrpf_assurance_workflow.py
           mypy --follow-imports=skip \
             tools/check_zrpf_v3_firecracker_direct_replay_evidence.py \
+            tools/check_zrpf_v3_firecracker_guest_elf.py \
             tools/check_zrpf_v3_firecracker_launch_preflight.py \
             tools/check_zrpf_v3_firecracker_protocol_binding.py \
             tools/check_zrpf_v3_firecracker_replay_profile.py \
@@ -120,6 +125,7 @@ jobs:
             tests/test_check_zrpf_v1_leaf_adapter_vector.py \
             tests/test_check_zrpf_v1_spot_adapter_temporary_evidence.py \
             tests/test_check_zrpf_v3_firecracker_direct_replay_evidence.py \
+            tests/test_check_zrpf_v3_firecracker_guest_elf.py \
             tests/test_check_zrpf_v3_firecracker_launch_preflight.py \
             tests/test_check_zrpf_v3_firecracker_protocol_binding.py \
             tests/test_check_zrpf_v3_firecracker_replay_profile.py \
@@ -143,8 +149,11 @@ jobs:
           python3 -I tools/check_zrpf_v3_firecracker_direct_replay_evidence.py
           python3 -I tools/check_zrpf_v3_firecracker_replay_profile.py
           python3 -I tools/check_zrpf_v3_firecracker_protocol_binding.py
+          python3 -I tools/check_zrpf_v3_firecracker_runtime_artifacts.py
+          current_release_date="$(date -u +%F)"
           python3 -I tools/check_zrpf_v3_firecracker_runtime_artifacts.py \
-            --evidence-date 2026-07-11
+            --current-release-date "${current_release_date}" \
+            --require-current-runtime-eligible
           bash -n tools/build_zrpf_v3_firecracker_guest_images.sh
           python3 tools/zrpf_v3_artifact_privacy.py
           python3 tools/check_zrpf_v3_replay_verifier_evidence.py --json

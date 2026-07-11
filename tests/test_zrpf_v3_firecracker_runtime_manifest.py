@@ -114,6 +114,8 @@ def build_manifest_document(
             "kernel_source_repository": "https://example.invalid/linux",
             "mksquashfs_binary_sha256": _hash(b"mksquashfs"),
             "mksquashfs_version": "mksquashfs_4.6.1",
+            "readelf_binary_sha256": _hash(b"readelf"),
+            "readelf_version": "GNU_readelf_2.42",
             "rootfs_build_recipe_sha256": _hash(b"rootfs-recipe"),
             "status": "identity_pinned_source_build_not_reproduced",
         },

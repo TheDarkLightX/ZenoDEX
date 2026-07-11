@@ -41,10 +41,11 @@ EXPECTED_MANIFEST_CANONICAL_SHA256 = (
 EXPECTED_KERNEL_RECORD_SHA256 = "c2d007adbde38855a24fbd80d574097d8892086ec5924051d977b0c08bc5c373"
 EXPECTED_IMAGE_RECORD_SHA256 = "85168dd8db9bacc921377d1fc0d39736199058c323fd92612a333429f8a73961"
 EXPECTED_IMAGE_RECIPE_SHA256 = "b3363c124fe40cd22e36e7943cb3cfe92e78c8739d935155d8e55b0eb59c0bbd"
-REPORT_SCHEMA = "zenodex/zrpf_firecracker_runtime_artifact_check/v1"
+RECORDED_EVIDENCE_DATE = date(2026, 7, 11)
+REPORT_SCHEMA = "zenodex/zrpf_firecracker_runtime_artifact_check/v2"
 
 
-def build_report(*, evidence_date: date) -> dict[str, Any]:
+def build_report(*, current_release_date: date | None = None) -> dict[str, Any]:
     errors: list[str] = []
     try:
         manifest = runtime.load_runtime_manifest(
@@ -92,9 +93,20 @@ def build_report(*, evidence_date: date) -> dict[str, Any]:
         if manifest is not None
         else None
     )
-    supported_on_evidence_date = bool(support_end is not None and evidence_date <= support_end)
-    if not supported_on_evidence_date:
-        errors.append("guest_kernel_support_expired_for_evidence_date")
+    historical_supported = bool(
+        support_end is not None and RECORDED_EVIDENCE_DATE <= support_end
+    )
+    if not historical_supported:
+        errors.append("guest_kernel_support_expired_for_recorded_evidence_date")
+    current_checked = current_release_date is not None
+    current_eligible = bool(
+        current_checked
+        and support_end is not None
+        and current_release_date is not None
+        and current_release_date <= support_end
+    )
+    if current_checked and not current_eligible:
+        errors.append("guest_kernel_support_expired_for_current_release_date")
     return {
         "authority": {
             "cross_host_reproducible_build": False,
@@ -104,29 +116,43 @@ def build_report(*, evidence_date: date) -> dict[str, Any]:
             "root_launcher_ready": False,
             "settlement_authority": False,
         },
+        "current_release_date": (
+            current_release_date.isoformat() if current_release_date is not None else None
+        ),
+        "current_runtime_eligibility_checked": current_checked,
+        "current_runtime_eligible": current_eligible,
         "errors": errors,
-        "evidence_date": evidence_date.isoformat(),
         "guest_kernel_support_minimum_end_date": (
             support_end.isoformat() if support_end is not None else None
         ),
+        "historical_evidence_supported_on_recorded_date": historical_supported,
         "manifest_canonical_sha256": (manifest.canonical_sha256 if manifest is not None else None),
         "ok": not errors,
+        "recorded_evidence_date": RECORDED_EVIDENCE_DATE.isoformat(),
         "schema": REPORT_SCHEMA,
-        "supported_on_evidence_date": supported_on_evidence_date,
     }
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--evidence-date", required=True)
+    parser.add_argument("--current-release-date")
+    parser.add_argument("--require-current-runtime-eligible", action="store_true")
     arguments = parser.parse_args(argv)
     try:
-        evidence_date = date.fromisoformat(arguments.evidence_date)
+        current_release_date = (
+            date.fromisoformat(arguments.current_release_date)
+            if arguments.current_release_date is not None
+            else None
+        )
     except ValueError:
         return 2
-    report = build_report(evidence_date=evidence_date)
+    report = build_report(current_release_date=current_release_date)
     print(json.dumps(report, indent=2, sort_keys=True))
-    return 0 if report["ok"] else 1
+    current_requirement_met = (
+        not arguments.require_current_runtime_eligible
+        or report["current_runtime_eligible"] is True
+    )
+    return 0 if report["ok"] and current_requirement_met else 1
 
 
 def _load_record(path: Path, *, expected_sha256: str) -> tuple[bytes, dict[str, Any]]:
@@ -297,12 +323,16 @@ def _check_image_record(
     if not isinstance(builder, dict) or builder != {
         "mksquashfs_binary_sha256": manifest.provenance.mksquashfs_binary_sha256,
         "mksquashfs_version": "4.6.1",
+        "readelf_binary_sha256": manifest.provenance.readelf_binary_sha256,
+        "readelf_version": "GNU_readelf_2.42",
         "squashfs_block_size_bytes": manifest.rootfs.filesystem_block_size_bytes,
         "squashfs_compression": manifest.rootfs.compression,
         "squashfs_epoch": manifest.rootfs.mkfs_epoch,
     }:
         errors.append("image_builder_binding_mismatch")
     if manifest.provenance.mksquashfs_version != "mksquashfs_4.6.1":
+        errors.append("image_builder_version_binding_mismatch")
+    if manifest.provenance.readelf_version != "GNU_readelf_2.42":
         errors.append("image_builder_version_binding_mismatch")
 
     rootfs_record = image_record.get("rootfs")

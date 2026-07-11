@@ -134,6 +134,34 @@
     "built_in_default_seccomp_required": true,
     "cgroup_and_netns_path_symlinks_allowed": false,
     "cgroup_io_max_required": true,
+    "cgroup_leaf_active_requirements": [
+      "exact_expected_firecracker_process_set",
+      "proc_pid_cgroup_resolves_to_expected_relative_path",
+      "cgroup_path_stable_device_and_inode",
+      "numeric_limits_unchanged"
+    ],
+    "cgroup_leaf_prelaunch_requirements": [
+      "cgroup_path_exists",
+      "cgroup_path_is_cgroup_v2_directory",
+      "cgroup_path_stable_device_and_inode",
+      "cgroup_type_exact_domain",
+      "cgroup_subtree_control_empty",
+      "cgroup_procs_empty",
+      "cgroup_events_populated_zero",
+      "required_controller_files_present",
+      "numeric_limits_exactly_match_governed_policy"
+    ],
+    "cgroup_termination_contract": {
+      "cgroup_kill_unavailable_or_populated_nonzero": "reject",
+      "cgroup_type_readback_required": "domain",
+      "process_group_kill": "supplemental_only_never_authoritative",
+      "teardown_completion_file": "cgroup.events",
+      "teardown_completion_predicate": "parsed_populated_equals_zero",
+      "teardown_method": "cgroup_v2_cgroup_kill",
+      "teardown_owner": "privileged_host_supervisor",
+      "teardown_write_bytes_hex": "310a",
+      "teardown_write_file": "cgroup.kill"
+    },
     "cgroup_v2_numeric_limits_status": "pending_measured_replay_envelope",
     "config_file_validation_requirements": [
       "bounded_canonical_json_bytes",
@@ -320,11 +348,12 @@
     "jail_storage_numeric_limit_status": "pending_measured_replay_envelope",
     "jail_storage_selected_backend": "pending_governed_selection",
     "jailer_cgroup_membership_postcheck_required": true,
+    "jailer_cgroup_property_arguments_allowed": false,
     "jailer_cli_forbidden_options": [
+      "--cgroup",
       "--daemonize"
     ],
     "jailer_cli_required_options": [
-      "--cgroup",
       "--cgroup-version=2",
       "--chroot-base-dir",
       "--exec-file",
@@ -337,6 +366,7 @@
       "--uid"
     ],
     "jailer_injected_timing_values_authority_relevant": false,
+    "jailer_parent_cgroup_value_policy": "verified_relative_path_to_exact_precreated_leaf_under_cgroup2_mount",
     "jailer_required": true,
     "log_sink_mode": "disabled",
     "metadata_service_allowed": false,
@@ -411,7 +441,7 @@
       "fixed_size"
     ],
     "stdout_stderr_sink_selected_mode": "pending_governed_selection",
-    "teardown_policy": "whole_cgroup_reaped_then_unique_jail_removed",
+    "teardown_policy": "cgroup_kill_literal_one_then_cgroup_events_populated_zero_then_unique_jail_removed",
     "trusted_path_policy": "root_owned_non_writable_full_parent_chain_with_stable_descriptor_identity",
     "unexpected_inherited_file_descriptors_allowed": false,
     "unknown_firecracker_cli_options_allowed": false,
@@ -431,7 +461,7 @@
       "vsock"
     ],
     "vsock_allowed": false,
-    "watchdog_policy": "prelaunched_monotonic_deadline_sigkill_whole_cgroup",
+    "watchdog_policy": "prelaunched_host_monotonic_deadline_cgroup_kill_literal_one_and_populated_zero",
     "watchdog_timeout_numeric_status": "pending_measured_replay_envelope",
     "writable_output_max_bytes": 16777216,
     "x86_platform_device_inventory": [

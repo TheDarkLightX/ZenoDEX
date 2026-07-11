@@ -67,6 +67,10 @@ FIRECRACKER_RUNTIME_PUBLIC_ARTIFACTS: tuple[ArtifactSpec, ...] = (
         "tools/build_zrpf_v3_firecracker_guest_images.sh",
         "guest_image_build_recipe",
     ),
+    ArtifactSpec(
+        "tools/check_zrpf_v3_firecracker_guest_elf.py",
+        "bounded_guest_elf_checker",
+    ),
 )
 
 

@@ -21,7 +21,8 @@ journal and remains in its original evidence record. The two receipt byte
 instances do not establish receipt-byte determinism.
 
 `firecracker-governed-output-payload.json` is the exact 5,920-byte payload
-committed by the governed direct Firecracker replay. Its SHA-256 is
+associated with the publisher-reported governed direct Firecracker replay.
+Its SHA-256 is
 `7751395663a33c1ae58fa403346dc90618e842dd1df2f2fdc37f18599e50c288`.
 The scoped Firecracker evidence checker combines these bytes with the governed
 request to reconstruct and validate the complete 16 MiB output protocol,

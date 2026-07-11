@@ -381,16 +381,37 @@ payload hash, a final commit marker flushed last, stable-descriptor reading
 after VM exit, and canonical zero trailing bytes. Process exit status carries
 no verifier authority.
 
+The governed cgroup v2 attachment uses one launcher-created domain leaf. The
+launcher must establish the exact leaf path, stable device and inode, an exact
+`domain` type, empty `cgroup.subtree_control`, empty `cgroup.procs`,
+`populated 0`, the required controller files, and exact numeric limits before
+starting the jailer. It supplies `--cgroup-version=2` and `--parent-cgroup`
+for that exact existing leaf, with zero jailer `--cgroup` property arguments.
+An absent leaf is a launcher rejection because the jailer can otherwise
+continue without moving the process. After launch, the supervisor must verify
+the expected process set, `/proc/<pid>/cgroup` membership, unchanged leaf
+identity, and unchanged limits. Teardown writes literal `1\n` to
+`cgroup.kill`, then waits for parsed `cgroup.events` `populated 0` before
+accepting output or removing the jail. Threaded cgroups reject because this
+profile requires domain-cgroup termination semantics.
+
 The candidate kernel, rootfs, input image, PID 1 verifier, runtime manifest, and
 replay intent now have governed identities. Two same-host kernel builds and two
-same-host SquashFS builds were byte-identical. A direct unjailed Firecracker
-run booted the candidate, verified the retained receipts, committed the exact
-5,920-byte transcript, and exited cleanly. The measured numeric resource
+same-host SquashFS builds were byte-identical. The publisher reports that a
+direct unjailed Firecracker run booted the candidate, verified the retained
+receipts, committed the exact 5,920-byte transcript, and exited cleanly. The
+static record checker reconstructs the expected output protocol without
+establishing historical execution provenance. The measured numeric resource
 envelope, root-owned jailer launcher, cgroup installation, namespace lifecycle,
 sandbox escape controls, and independent reproduction remain pending. The
 static checker therefore keeps `replay_runner_ready=false` and every release,
 settlement, production, privacy, covert-channel, and hardware-side-channel
 claim false.
+
+The pinned checker rejects evidence-only claim promotion under its reviewed
+policy. A coherent repository rewrite can also change the checker, expected
+digests, tests, and CI, so independent review and a separately governed
+external anchor remain required for that threat.
 
 The checker's top-level `ok` means candidate-profile integrity only. Its
 `candidate_profile_integrity_ok`, `decision`, and `replay_runner_ready` fields

@@ -22,8 +22,8 @@ def test_committed_zrpf_artifact_inventory_is_clean() -> None:
     report = scan_default_artifacts()
 
     assert report["ok"] is True
-    assert report["artifact_count_expected"] == len(DEFAULT_ARTIFACTS) == 29
-    assert report["artifact_count_scanned"] == 29
+    assert report["artifact_count_expected"] == len(DEFAULT_ARTIFACTS) == 30
+    assert report["artifact_count_scanned"] == 30
     assert report["complete_artifact_privacy_verified"] is False
     assert report["finding_count"] == 0
     assert report["error_count"] == 0
@@ -39,6 +39,7 @@ def test_firecracker_runtime_public_artifacts_are_governed() -> None:
         "docs/research/ZRPF_V3_FIRECRACKER_RUNTIME_CONTRACT_20260711.md",
         "evidence/zrpf-v3-retained-structural-replay-v1/firecracker-governed-output-payload.json",
         "tools/build_zrpf_v3_firecracker_guest_images.sh",
+        "tools/check_zrpf_v3_firecracker_guest_elf.py",
     }
 
     assert {

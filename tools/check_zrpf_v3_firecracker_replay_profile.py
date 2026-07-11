@@ -25,7 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 PROFILE_PATH = REPO_ROOT / "config/proof_profiles/zrpf_v3_firecracker_replay_profile_v1.json"
 MAX_PROFILE_BYTES = 64 * 1024
 EXPECTED_PROFILE_CANONICAL_SHA256 = (
-    "3be22c7d06bc3c4a7f0d83065fe2cadbb7b284830a70797165e32e229a1bdd0f"
+    "e74b285954984c1dfea36bd54dd5b6a479906d2a62ebdbffaf7a7cc8898560f4"
 )
 
 EXPECTED_CLAIMS = {
@@ -151,6 +151,34 @@ EXPECTED_RUNNER_POLICY = {
     "built_in_default_seccomp_required": True,
     "cgroup_and_netns_path_symlinks_allowed": False,
     "cgroup_io_max_required": True,
+    "cgroup_leaf_active_requirements": [
+        "exact_expected_firecracker_process_set",
+        "proc_pid_cgroup_resolves_to_expected_relative_path",
+        "cgroup_path_stable_device_and_inode",
+        "numeric_limits_unchanged",
+    ],
+    "cgroup_leaf_prelaunch_requirements": [
+        "cgroup_path_exists",
+        "cgroup_path_is_cgroup_v2_directory",
+        "cgroup_path_stable_device_and_inode",
+        "cgroup_type_exact_domain",
+        "cgroup_subtree_control_empty",
+        "cgroup_procs_empty",
+        "cgroup_events_populated_zero",
+        "required_controller_files_present",
+        "numeric_limits_exactly_match_governed_policy",
+    ],
+    "cgroup_termination_contract": {
+        "cgroup_kill_unavailable_or_populated_nonzero": "reject",
+        "cgroup_type_readback_required": "domain",
+        "process_group_kill": "supplemental_only_never_authoritative",
+        "teardown_completion_file": "cgroup.events",
+        "teardown_completion_predicate": "parsed_populated_equals_zero",
+        "teardown_method": "cgroup_v2_cgroup_kill",
+        "teardown_owner": "privileged_host_supervisor",
+        "teardown_write_bytes_hex": "310a",
+        "teardown_write_file": "cgroup.kill",
+    },
     "cgroup_v2_numeric_limits_status": "pending_measured_replay_envelope",
     "configurable_virtio_device_allowlist": ["virtio-block"],
     "config_file_validation_requirements": [
@@ -305,9 +333,9 @@ EXPECTED_RUNNER_POLICY = {
     "jail_storage_numeric_limit_status": "pending_measured_replay_envelope",
     "jail_storage_selected_backend": "pending_governed_selection",
     "jailer_cgroup_membership_postcheck_required": True,
-    "jailer_cli_forbidden_options": ["--daemonize"],
+    "jailer_cgroup_property_arguments_allowed": False,
+    "jailer_cli_forbidden_options": ["--cgroup", "--daemonize"],
     "jailer_cli_required_options": [
-        "--cgroup",
         "--cgroup-version=2",
         "--chroot-base-dir",
         "--exec-file",
@@ -322,6 +350,9 @@ EXPECTED_RUNNER_POLICY = {
     "jail_id_policy": "fresh_unique_never_reused",
     "jailer_required": True,
     "jailer_injected_timing_values_authority_relevant": False,
+    "jailer_parent_cgroup_value_policy": (
+        "verified_relative_path_to_exact_precreated_leaf_under_cgroup2_mount"
+    ),
     "log_sink_mode": "disabled",
     "metadata_service_allowed": False,
     "metrics_sink_mode": "disabled",
@@ -386,7 +417,9 @@ EXPECTED_RUNNER_POLICY = {
     "stdin_source": "dev_null",
     "stdout_stderr_sink_allowed_modes": ["dev_null", "fixed_size"],
     "stdout_stderr_sink_selected_mode": "pending_governed_selection",
-    "teardown_policy": "whole_cgroup_reaped_then_unique_jail_removed",
+    "teardown_policy": (
+        "cgroup_kill_literal_one_then_cgroup_events_populated_zero_then_unique_jail_removed"
+    ),
     "trusted_path_policy": (
         "root_owned_non_writable_full_parent_chain_with_stable_descriptor_identity"
     ),
@@ -407,7 +440,9 @@ EXPECTED_RUNNER_POLICY = {
     ],
     "vhost_user_block_allowed": False,
     "vsock_allowed": False,
-    "watchdog_policy": "prelaunched_monotonic_deadline_sigkill_whole_cgroup",
+    "watchdog_policy": (
+        "prelaunched_host_monotonic_deadline_cgroup_kill_literal_one_and_populated_zero"
+    ),
     "watchdog_timeout_numeric_status": "pending_measured_replay_envelope",
     "writable_output_max_bytes": 16_777_216,
     "x86_platform_device_inventory": [
@@ -563,9 +598,60 @@ def _validate_policy(profile: dict[str, Any]) -> list[str]:
         errors.append("host_policy_mismatch")
     if not _exact_equal(profile.get("runner_policy"), EXPECTED_RUNNER_POLICY):
         errors.append("runner_policy_mismatch")
+    if not _v1_cgroup_security_boundary_holds(profile.get("runner_policy")):
+        errors.append("runner_v1_cgroup_security_boundary_mismatch")
     if not _exact_equal(profile.get("sources"), EXPECTED_SOURCES):
         errors.append("profile_sources_mismatch")
     return errors
+
+
+def _v1_cgroup_security_boundary_holds(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    required = value.get("jailer_cli_required_options")
+    forbidden = value.get("jailer_cli_forbidden_options")
+    contract = value.get("cgroup_termination_contract")
+    if not isinstance(required, list) or not isinstance(forbidden, list):
+        return False
+    return bool(
+        value.get("jailer_cgroup_property_arguments_allowed") is False
+        and not _contains_cgroup_property_option(required)
+        and "--cgroup" in forbidden
+        and value.get("jailer_parent_cgroup_value_policy")
+        == "verified_relative_path_to_exact_precreated_leaf_under_cgroup2_mount"
+        and isinstance(contract, dict)
+        and contract.get("cgroup_type_readback_required") == "domain"
+        and contract.get("teardown_write_file") == "cgroup.kill"
+        and contract.get("teardown_write_bytes_hex") == "310a"
+        and contract.get("teardown_completion_file") == "cgroup.events"
+        and contract.get("teardown_completion_predicate")
+        == "parsed_populated_equals_zero"
+    )
+
+
+def jailer_argv_contains_cgroup_property(arguments: list[str]) -> bool:
+    """Return true only for jailer cgroup-property arguments.
+
+    ``--cgroup-version=2`` is part of the selected attachment mode and must not
+    be confused with the forbidden ``--cgroup`` property option.
+    """
+
+    return any(
+        argument == "--cgroup" or argument.startswith("--cgroup=")
+        for argument in arguments
+    )
+
+
+def _contains_cgroup_property_option(arguments: list[Any]) -> bool:
+    return any(
+        isinstance(argument, str)
+        and (
+            argument == "--cgroup"
+            or argument.startswith("--cgroup=")
+            or argument.startswith("--cgroup ")
+        )
+        for argument in arguments
+    )
 
 
 def _read_bounded_regular(path: Path) -> bytes:

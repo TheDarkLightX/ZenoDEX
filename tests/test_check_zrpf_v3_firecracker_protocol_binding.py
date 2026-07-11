@@ -16,7 +16,14 @@ def test_committed_profile_hash_is_bound_across_all_abi_mirrors() -> None:
 
 def test_rust_constant_mutation_rejects(tmp_path: Path) -> None:
     raw = checker.RUST_PROTOCOL_PATH.read_bytes()
-    changed = raw.replace(b"0x3b", b"0x3c", 1)
+    first_byte = checker.protocol.CANDIDATE_PROFILE_CANONICAL_SHA256_V1[0]
+    replacement = first_byte ^ 1
+    changed = raw.replace(
+        f"0x{first_byte:02x}".encode("ascii"),
+        f"0x{replacement:02x}".encode("ascii"),
+        1,
+    )
+    assert changed != raw
     rust_path = tmp_path / "firecracker_protocol.rs"
     rust_path.write_bytes(changed)
 

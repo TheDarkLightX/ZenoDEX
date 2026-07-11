@@ -65,6 +65,8 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tests/test_check_zrpf_v3_firecracker_direct_replay_evidence.py" in (
         python_assurance
     )
+    assert "tests/test_check_zrpf_v3_firecracker_guest_elf.py" in python_assurance
+    assert "tools/check_zrpf_v3_firecracker_guest_elf.py" in python_assurance
     assert "tools/check_zrpf_v3_firecracker_replay_profile.py" in python_assurance
     assert "tools/check_zrpf_v3_firecracker_protocol_binding.py" in python_assurance
     assert "tools/check_zrpf_v3_firecracker_runtime_artifacts.py" in python_assurance
@@ -88,7 +90,11 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "python3 -I tools/check_zrpf_v3_firecracker_direct_replay_evidence.py" in (
         python_assurance
     )
-    assert "--evidence-date 2026-07-11" in python_assurance
+    assert "check_zrpf_v3_firecracker_runtime_artifacts.py" in python_assurance
+    assert "--evidence-date" not in python_assurance
+    assert 'current_release_date="$(date -u +%F)"' in python_assurance
+    assert '--current-release-date "${current_release_date}"' in python_assurance
+    assert "--require-current-runtime-eligible" in python_assurance
     assert "bash -n tools/build_zrpf_v3_firecracker_guest_images.sh" in (
         python_assurance
     )

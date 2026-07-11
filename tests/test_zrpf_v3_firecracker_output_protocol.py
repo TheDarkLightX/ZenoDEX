@@ -14,7 +14,7 @@ def test_request_vector_is_canonical_and_round_trips() -> None:
     assert len(encoded) == protocol.REQUEST_BYTES_V1
     assert protocol.decode_request(encoded) == request
     assert hashlib.sha256(encoded).hexdigest() == (
-        "2235d4e91730fbb30044a676f671120a2abe68cec0c9d0f10984f7c31455f1d2"
+        "5027982193b842f45dd9fbf938f33173034daf5f60b5e7266d6f89473de70c06"
     )
 
 
@@ -46,7 +46,7 @@ def test_committed_output_vector_round_trips_and_binds_request() -> None:
 
     assert protocol.validate_committed_output(output, _request()) == payload
     assert hashlib.sha256(output).hexdigest() == (
-        "6065d36f3846fcd149068355f8c787ff9b73e0d87759291194f21ae2980c6e71"
+        "e6ae9e2402d4d4ad5c2dc12dc91de1720a95dde24e1463845ce085b6342f4917"
     )
 
 
