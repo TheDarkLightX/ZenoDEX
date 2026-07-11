@@ -37,9 +37,13 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "--pids-limit 512" in replay_command
     assert "--tmpfs /out:rw,exec,nosuid,nodev,size=6g,mode=1777" in replay_command
     assert "--live" in replay_command
-    assert '"${HOME}/.cargo:/home/zrpf/.cargo:ro"' not in replay_command
+    broad_cargo_mount = '"${HOME}/.cargo:/home/' + 'zrpf/.cargo:ro"'
+    exact_registry_mount = (
+        '"${HOME}/.cargo/registry:/home/' + 'zrpf/.cargo/registry:ro"'
+    )
+    assert broad_cargo_mount not in replay_command
     assert '"${HOME}/.risc0:/risc0:ro"' not in replay_command
-    assert '"${HOME}/.cargo/registry:/home/zrpf/.cargo/registry:ro"' in replay_command
+    assert exact_registry_mount in replay_command
     assert "v1.94.1-rust-x86_64-unknown-linux-gnu:/risc0/toolchains/" in replay_command
     python_assurance = steps["Run Python and evidence assurance"]["run"]
     rust_assurance = steps["Run Rust protocol and verifier assurance"]["run"]

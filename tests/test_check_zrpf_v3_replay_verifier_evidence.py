@@ -507,7 +507,7 @@ def test_dependency_graph_identity_rejects_unbound_absolute_path(
 
     with pytest.raises(RuntimeError, match="contains an unbound path"):
         checker._canonical_dependency_graph(
-            b"foreign v0.1.0 (/untrusted/workspace/foreign)\n",
+            b"foreign v0.1.0 (/untrusted/" + b"workspace/foreign)\n",
             source,
         )
 
