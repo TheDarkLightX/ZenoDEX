@@ -17,12 +17,53 @@ pub const JOURNAL_VERSION: u32 = 1;
 
 pub const MIN_LP_LOCK: u128 = 1000;
 
+// DbC invariant: Risc0 proof execution must use the same finite liquidity
+// domain as the authoritative Python/TauSwap consensus implementation.
+pub const DEX_POOL_RESERVE_MAX: u128 = 3_000_000_000;
+pub const DEX_LP_AMOUNT_MAX: u128 = 1_000_000_000;
+pub const DEX_LP_SUPPLY_MAX: u128 = 3_000_000_000;
+
 pub const CURVE_TAG: &str = "CPMM";
 pub const CURVE_PARAMS: &str = "";
 
 pub const NATIVE_ASSET: &str = "0x0000000000000000000000000000000000000000000000000000000000000000";
 pub const LP_LOCK_PUBKEY: &str =
     "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+
+// DbC precondition helper: reject any scalar outside its consensus domain
+// before arithmetic or state mutation can observe it.
+fn require_domain_max(
+    name: &'static str,
+    value: u128,
+    maximum: u128,
+) -> Result<(), TransitionError> {
+    if value > maximum {
+        return Err(TransitionError::InvalidInput(name));
+    }
+
+    Ok(())
+}
+
+fn require_pool_reserves_within_domain(pool: &DexPoolEntryV1) -> Result<(), TransitionError> {
+    require_domain_max(
+        "pool.reserve0 exceeds domain max",
+        pool.reserve0,
+        DEX_POOL_RESERVE_MAX,
+    )?;
+    require_domain_max(
+        "pool.reserve1 exceeds domain max",
+        pool.reserve1,
+        DEX_POOL_RESERVE_MAX,
+    )
+}
+
+fn require_pool_lp_supply_within_domain(pool: &DexPoolEntryV1) -> Result<(), TransitionError> {
+    require_domain_max(
+        "pool.lp_supply exceeds domain max",
+        pool.lp_supply,
+        DEX_LP_SUPPLY_MAX,
+    )
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FaucetMintV1 {
@@ -892,6 +933,26 @@ impl DexStateV1 {
                 "desired amounts must be positive",
             ));
         }
+        require_domain_max(
+            "amount0_desired exceeds domain max",
+            intent.amount0_desired,
+            DEX_LP_AMOUNT_MAX,
+        )?;
+        require_domain_max(
+            "amount1_desired exceeds domain max",
+            intent.amount1_desired,
+            DEX_LP_AMOUNT_MAX,
+        )?;
+        require_domain_max(
+            "amount0_min exceeds domain max",
+            intent.amount0_min,
+            DEX_LP_AMOUNT_MAX,
+        )?;
+        require_domain_max(
+            "amount1_min exceeds domain max",
+            intent.amount1_min,
+            DEX_LP_AMOUNT_MAX,
+        )?;
 
         let pool = self
             .pools
@@ -901,6 +962,8 @@ impl DexStateV1 {
         if pool.status != "ACTIVE" {
             return Err(TransitionError::InvalidInput("pool not active"));
         }
+        require_pool_reserves_within_domain(&pool)?;
+        require_pool_lp_supply_within_domain(&pool)?;
         if pool.asset0 == NATIVE_ASSET || pool.asset1 == NATIVE_ASSET {
             return Err(TransitionError::Unsupported(
                 "native asset unsupported in proof v1",
@@ -967,10 +1030,6 @@ impl DexStateV1 {
             return Err(TransitionError::InvalidInput("insufficient balance"));
         }
 
-        self.sub_balance(&intent.sender_pubkey, &pool.asset0, amount0_used)?;
-        self.sub_balance(&intent.sender_pubkey, &pool.asset1, amount1_used)?;
-        self.add_lp(&intent.recipient, &intent.pool_id, lp_minted)?;
-
         let mut next_pool = pool.clone();
         next_pool.reserve0 = next_pool
             .reserve0
@@ -984,6 +1043,13 @@ impl DexStateV1 {
             .lp_supply
             .checked_add(lp_minted)
             .ok_or(TransitionError::Arithmetic("lp_supply overflow"))?;
+        // DbC postcondition: the committed pool state remains in the consensus domain.
+        require_pool_reserves_within_domain(&next_pool)?;
+        require_pool_lp_supply_within_domain(&next_pool)?;
+
+        self.sub_balance(&intent.sender_pubkey, &pool.asset0, amount0_used)?;
+        self.sub_balance(&intent.sender_pubkey, &pool.asset1, amount1_used)?;
+        self.add_lp(&intent.recipient, &intent.pool_id, lp_minted)?;
         self.pools.insert(intent.pool_id.clone(), next_pool);
         Ok(())
     }
@@ -1016,6 +1082,21 @@ impl DexStateV1 {
         if intent.lp_amount == 0 {
             return Err(TransitionError::InvalidInput("lp_amount must be positive"));
         }
+        require_domain_max(
+            "lp_amount exceeds domain max",
+            intent.lp_amount,
+            DEX_LP_SUPPLY_MAX,
+        )?;
+        require_domain_max(
+            "amount0_min exceeds domain max",
+            intent.amount0_min,
+            DEX_POOL_RESERVE_MAX,
+        )?;
+        require_domain_max(
+            "amount1_min exceeds domain max",
+            intent.amount1_min,
+            DEX_POOL_RESERVE_MAX,
+        )?;
 
         let pool = self
             .pools
@@ -1025,6 +1106,8 @@ impl DexStateV1 {
         if pool.status != "ACTIVE" {
             return Err(TransitionError::InvalidInput("pool not active"));
         }
+        require_pool_reserves_within_domain(&pool)?;
+        require_pool_lp_supply_within_domain(&pool)?;
         if pool.asset0 == NATIVE_ASSET || pool.asset1 == NATIVE_ASSET {
             return Err(TransitionError::Unsupported(
                 "native asset unsupported in proof v1",
@@ -1556,6 +1639,10 @@ mod tests {
     }
 
     fn pool_entry(reserve0: u128, reserve1: u128) -> DexPoolEntryV1 {
+        pool_entry_with_supply(reserve0, reserve1, 10_000)
+    }
+
+    fn pool_entry_with_supply(reserve0: u128, reserve1: u128, lp_supply: u128) -> DexPoolEntryV1 {
         DexPoolEntryV1 {
             pool_id: POOL_ID.to_string(),
             asset0: ASSET0.to_string(),
@@ -1563,7 +1650,7 @@ mod tests {
             reserve0,
             reserve1,
             fee_bps: 30,
-            lp_supply: 10_000,
+            lp_supply,
             status: "ACTIVE".to_string(),
             created_at: 0,
         }
@@ -2015,6 +2102,207 @@ mod tests {
         assert_eq!(post.pools[0].reserve0, 10_000);
         assert_eq!(post.pools[0].reserve1, 10_000);
         assert_eq!(post.pools[0].lp_supply, 10_000);
+    }
+
+    #[test]
+    fn add_liquidity_rejects_consensus_domain_violations() {
+        let mut snapshot = empty_snapshot();
+        snapshot.balances = alloc::vec![
+            DexBalanceEntryV1 {
+                pubkey: SENDER.to_string(),
+                asset: ASSET0.to_string(),
+                amount: DEX_LP_AMOUNT_MAX + 1,
+            },
+            DexBalanceEntryV1 {
+                pubkey: SENDER.to_string(),
+                asset: ASSET1.to_string(),
+                amount: DEX_LP_AMOUNT_MAX + 1,
+            },
+        ];
+        snapshot.pools = alloc::vec![pool_entry(10_000, 10_000)];
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let oversized_add_tx = TauTxV1 {
+            sender_pubkey: SENDER.to_string(),
+            app_ops: TauTxAppOpsV1 {
+                has_faucet: false,
+                faucet_mint: Vec::new(),
+                has_intents: true,
+                intents: alloc::vec![SignedIntentV1 {
+                    signature: None,
+                    intent: DexIntentV1::AddLiquidity(AddLiquidityIntentV1 {
+                        module: "TauSwap".to_string(),
+                        version: "v1".to_string(),
+                        intent_id: "add-amount-domain".to_string(),
+                        sender_pubkey: SENDER.to_string(),
+                        deadline: 100,
+                        pool_id: POOL_ID.to_string(),
+                        amount0_desired: DEX_LP_AMOUNT_MAX + 1,
+                        amount1_desired: 1,
+                        amount0_min: 0,
+                        amount1_min: 0,
+                        recipient: SENDER.to_string(),
+                        salt: None,
+                    }),
+                }],
+            },
+        };
+
+        assert!(matches!(
+            state.apply_tx(&oversized_add_tx, 1),
+            Err(TransitionError::InvalidInput(
+                "amount0_desired exceeds domain max"
+            ))
+        ));
+        let post = state.to_snapshot();
+        assert_eq!(post.pools[0].reserve0, 10_000);
+        assert_eq!(post.pools[0].lp_supply, 10_000);
+
+        let mut capped_snapshot = empty_snapshot();
+        capped_snapshot.balances = alloc::vec![
+            DexBalanceEntryV1 {
+                pubkey: SENDER.to_string(),
+                asset: ASSET0.to_string(),
+                amount: 2_000,
+            },
+            DexBalanceEntryV1 {
+                pubkey: SENDER.to_string(),
+                asset: ASSET1.to_string(),
+                amount: 2_000,
+            },
+        ];
+        capped_snapshot.pools = alloc::vec![pool_entry_with_supply(
+            DEX_POOL_RESERVE_MAX - 1_000,
+            DEX_POOL_RESERVE_MAX - 1_000,
+            DEX_LP_SUPPLY_MAX - 1_000,
+        )];
+        let mut capped_state = DexStateV1::from_snapshot(capped_snapshot).unwrap();
+        let cap_crossing_add_tx = TauTxV1 {
+            sender_pubkey: SENDER.to_string(),
+            app_ops: TauTxAppOpsV1 {
+                has_faucet: false,
+                faucet_mint: Vec::new(),
+                has_intents: true,
+                intents: alloc::vec![SignedIntentV1 {
+                    signature: None,
+                    intent: DexIntentV1::AddLiquidity(AddLiquidityIntentV1 {
+                        module: "TauSwap".to_string(),
+                        version: "v1".to_string(),
+                        intent_id: "add-post-domain".to_string(),
+                        sender_pubkey: SENDER.to_string(),
+                        deadline: 100,
+                        pool_id: POOL_ID.to_string(),
+                        amount0_desired: 1_001,
+                        amount1_desired: 1_001,
+                        amount0_min: 0,
+                        amount1_min: 0,
+                        recipient: SENDER.to_string(),
+                        salt: None,
+                    }),
+                }],
+            },
+        };
+
+        assert!(matches!(
+            capped_state.apply_tx(&cap_crossing_add_tx, 1),
+            Err(TransitionError::InvalidInput(
+                "pool.reserve0 exceeds domain max"
+            ))
+        ));
+        let capped_post = capped_state.to_snapshot();
+        assert_eq!(capped_post.pools[0].reserve0, DEX_POOL_RESERVE_MAX - 1_000);
+        assert_eq!(capped_post.pools[0].lp_supply, DEX_LP_SUPPLY_MAX - 1_000);
+        assert_eq!(capped_state.get_balance(SENDER, ASSET0), 2_000);
+    }
+
+    #[test]
+    fn remove_liquidity_rejects_consensus_domain_violations() {
+        let mut snapshot = empty_snapshot();
+        snapshot.pools = alloc::vec![pool_entry_with_supply(10_000, 10_000, 10_000)];
+        snapshot.lp_balances = alloc::vec![DexLpBalanceEntryV1 {
+            pubkey: SENDER.to_string(),
+            pool_id: POOL_ID.to_string(),
+            amount: DEX_LP_SUPPLY_MAX + 1,
+        }];
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let oversized_remove_tx = TauTxV1 {
+            sender_pubkey: SENDER.to_string(),
+            app_ops: TauTxAppOpsV1 {
+                has_faucet: false,
+                faucet_mint: Vec::new(),
+                has_intents: true,
+                intents: alloc::vec![SignedIntentV1 {
+                    signature: None,
+                    intent: DexIntentV1::RemoveLiquidity(RemoveLiquidityIntentV1 {
+                        module: "TauSwap".to_string(),
+                        version: "v1".to_string(),
+                        intent_id: "remove-amount-domain".to_string(),
+                        sender_pubkey: SENDER.to_string(),
+                        deadline: 100,
+                        pool_id: POOL_ID.to_string(),
+                        lp_amount: DEX_LP_SUPPLY_MAX + 1,
+                        amount0_min: 0,
+                        amount1_min: 0,
+                        recipient: SENDER.to_string(),
+                        salt: None,
+                    }),
+                }],
+            },
+        };
+
+        assert!(matches!(
+            state.apply_tx(&oversized_remove_tx, 1),
+            Err(TransitionError::InvalidInput(
+                "lp_amount exceeds domain max"
+            ))
+        ));
+        let post = state.to_snapshot();
+        assert_eq!(post.pools[0].reserve0, 10_000);
+        assert_eq!(post.pools[0].lp_supply, 10_000);
+
+        let mut out_of_domain_snapshot = empty_snapshot();
+        out_of_domain_snapshot.pools = alloc::vec![pool_entry_with_supply(
+            DEX_POOL_RESERVE_MAX + 1,
+            10_000,
+            10_000,
+        )];
+        out_of_domain_snapshot.lp_balances = alloc::vec![DexLpBalanceEntryV1 {
+            pubkey: SENDER.to_string(),
+            pool_id: POOL_ID.to_string(),
+            amount: 1,
+        }];
+        let mut out_of_domain_state = DexStateV1::from_snapshot(out_of_domain_snapshot).unwrap();
+        let remove_tx = TauTxV1 {
+            sender_pubkey: SENDER.to_string(),
+            app_ops: TauTxAppOpsV1 {
+                has_faucet: false,
+                faucet_mint: Vec::new(),
+                has_intents: true,
+                intents: alloc::vec![SignedIntentV1 {
+                    signature: None,
+                    intent: DexIntentV1::RemoveLiquidity(RemoveLiquidityIntentV1 {
+                        module: "TauSwap".to_string(),
+                        version: "v1".to_string(),
+                        intent_id: "remove-pool-domain".to_string(),
+                        sender_pubkey: SENDER.to_string(),
+                        deadline: 100,
+                        pool_id: POOL_ID.to_string(),
+                        lp_amount: 1,
+                        amount0_min: 0,
+                        amount1_min: 0,
+                        recipient: SENDER.to_string(),
+                        salt: None,
+                    }),
+                }],
+            },
+        };
+
+        assert!(matches!(
+            out_of_domain_state.apply_tx(&remove_tx, 1),
+            Err(TransitionError::InvalidInput(
+                "pool.reserve0 exceeds domain max"
+            ))
+        ));
+        assert_eq!(out_of_domain_state.get_lp(SENDER, POOL_ID), 1);
     }
 
     #[test]

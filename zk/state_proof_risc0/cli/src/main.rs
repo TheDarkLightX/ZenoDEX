@@ -11,7 +11,8 @@ use tau_state_proof_risc0_methods::{
 use tau_state_proof_risc0_shared::{
     accepted_receipts_root_v1, ingress_commitment_v1, txs_commitment_v1, ChainBalanceV1,
     DexSnapshotV1, DexStateV1, NonceEntryV1, NonceStateV1, StateProofInputV1, StateProofJournalV1,
-    TauTxAppOpsV1, TauTxV1, TxIngressFactV1, PROOF_TYPE,
+    TauTxAppOpsV1, TauTxV1, TxIngressFactV1, DEX_LP_AMOUNT_MAX, DEX_LP_SUPPLY_MAX,
+    DEX_POOL_RESERVE_MAX, PROOF_TYPE,
 };
 
 fn main() {
@@ -742,22 +743,10 @@ fn parse_intent_obj(
                 .get("pool_id")
                 .and_then(Value::as_str)
                 .ok_or_else(|| "intent.pool_id missing".to_string())?;
-            let amount0_desired = obj
-                .get("amount0_desired")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.amount0_desired missing".to_string())?;
-            let amount1_desired = obj
-                .get("amount1_desired")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.amount1_desired missing".to_string())?;
-            let amount0_min = obj
-                .get("amount0_min")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.amount0_min missing".to_string())?;
-            let amount1_min = obj
-                .get("amount1_min")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.amount1_min missing".to_string())?;
+            let amount0_desired = parse_domain_u64(obj, "amount0_desired", DEX_LP_AMOUNT_MAX)?;
+            let amount1_desired = parse_domain_u64(obj, "amount1_desired", DEX_LP_AMOUNT_MAX)?;
+            let amount0_min = parse_domain_u64(obj, "amount0_min", DEX_LP_AMOUNT_MAX)?;
+            let amount1_min = parse_domain_u64(obj, "amount1_min", DEX_LP_AMOUNT_MAX)?;
             let recipient = obj
                 .get("recipient")
                 .and_then(Value::as_str)
@@ -784,18 +773,9 @@ fn parse_intent_obj(
                 .get("pool_id")
                 .and_then(Value::as_str)
                 .ok_or_else(|| "intent.pool_id missing".to_string())?;
-            let lp_amount = obj
-                .get("lp_amount")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.lp_amount missing".to_string())?;
-            let amount0_min = obj
-                .get("amount0_min")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.amount0_min missing".to_string())?;
-            let amount1_min = obj
-                .get("amount1_min")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.amount1_min missing".to_string())?;
+            let lp_amount = parse_domain_u64(obj, "lp_amount", DEX_LP_SUPPLY_MAX)?;
+            let amount0_min = parse_domain_u64(obj, "amount0_min", DEX_POOL_RESERVE_MAX)?;
+            let amount1_min = parse_domain_u64(obj, "amount1_min", DEX_POOL_RESERVE_MAX)?;
             let recipient = obj
                 .get("recipient")
                 .and_then(Value::as_str)
@@ -818,6 +798,24 @@ fn parse_intent_obj(
         }
         _ => Err("unsupported intent.kind".into()),
     }
+}
+
+// DbC boundary check: CLI-originated liquidity fields must enter the proof
+// input only after matching the shared consensus-domain maximum.
+fn parse_domain_u64(
+    obj: &serde_json::Map<String, Value>,
+    name: &str,
+    maximum: u128,
+) -> Result<u64, String> {
+    let value = obj
+        .get(name)
+        .and_then(Value::as_u64)
+        .ok_or_else(|| format!("intent.{name} missing"))?;
+    if (value as u128) > maximum {
+        return Err(format!("intent.{name} exceeds domain max {maximum}"));
+    }
+
+    Ok(value)
 }
 
 fn require_str(v: Option<&Value>, name: &str) -> String {
