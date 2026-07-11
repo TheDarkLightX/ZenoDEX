@@ -148,10 +148,13 @@ struct ChildMaterialV1 {
     commitments_hash: CommitmentV3,
 }
 
-/// Composes journals only after the caller has verified each exact child claim
-/// under `policy.expected_child_image_id()`. The RISC0 guest enforces that
-/// precondition by calling `env::verify` before this function.
-pub fn compose_structural_aggregate_after_receipt_verification_v1(
+/// Deterministically recomposes the structural journal expected from exact
+/// child journal bytes and a fixed policy.
+///
+/// This pure function conveys no receipt or proof authority. Authority-bearing
+/// callers must first verify every exact child claim, then use
+/// `compose_structural_aggregate_after_receipt_verification_v1`.
+pub fn recompose_expected_structural_aggregate_v1(
     input: &StructuralAggregateInputV1,
     policy: StructuralAggregatePolicyV1,
 ) -> Result<StructuralAggregateProjectionV1, StructuralAggregateErrorV1> {
@@ -260,6 +263,18 @@ pub fn compose_structural_aggregate_after_receipt_verification_v1(
         journal,
         child_claim_bindings: children.iter().map(|child| child.claim_binding).collect(),
     })
+}
+
+/// Composes journals after the caller has verified each exact child claim under
+/// `policy.expected_child_image_id()`.
+///
+/// The structural RISC0 guests enforce this precondition by calling
+/// `env::verify` before entering this wrapper.
+pub fn compose_structural_aggregate_after_receipt_verification_v1(
+    input: &StructuralAggregateInputV1,
+    policy: StructuralAggregatePolicyV1,
+) -> Result<StructuralAggregateProjectionV1, StructuralAggregateErrorV1> {
+    recompose_expected_structural_aggregate_v1(input, policy)
 }
 
 fn validate_policy(policy: StructuralAggregatePolicyV1) -> Result<(), StructuralAggregateErrorV1> {

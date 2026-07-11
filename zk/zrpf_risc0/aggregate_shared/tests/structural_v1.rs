@@ -11,9 +11,9 @@ use zenodex_zrpf_protocol_v3::{
 use zenodex_zrpf_risc0_aggregate_shared::{
     compose_structural_aggregate_after_receipt_verification_v1,
     decode_exact_structural_aggregate_input_v1, encode_structural_aggregate_input_v1,
-    StructuralAggregateErrorV1, StructuralAggregateInputErrorV1, StructuralAggregateInputV1,
-    StructuralAggregatePolicyV1, MAX_STRUCTURAL_AGGREGATE_INPUT_BYTES_V1,
-    STRUCTURAL_AGGREGATE_INPUT_SCHEMA_VERSION_V1,
+    recompose_expected_structural_aggregate_v1, StructuralAggregateErrorV1,
+    StructuralAggregateInputErrorV1, StructuralAggregateInputV1, StructuralAggregatePolicyV1,
+    MAX_STRUCTURAL_AGGREGATE_INPUT_BYTES_V1, STRUCTURAL_AGGREGATE_INPUT_SCHEMA_VERSION_V1,
 };
 use zenodex_zrpf_risc0_shared::{
     project_policy_bound_v1_journal, SourceKindV1, PINNED_SPOT_LEAF_IMAGE_ID_V1,
@@ -168,6 +168,16 @@ fn two_verified_adapter_journals_compose_a_structural_level_one_node() {
     for value in fields.values() {
         assert_ne!(value, &serde_json::to_value([0u8; 32]).unwrap());
     }
+}
+
+#[test]
+fn pure_expected_recomposition_matches_the_verified_caller_wrapper() {
+    let input = input(&[leaf(1, 0), leaf(2, 1)]);
+    let expected = recompose_expected_structural_aggregate_v1(&input, policy()).unwrap();
+    let verified_caller =
+        compose_structural_aggregate_after_receipt_verification_v1(&input, policy()).unwrap();
+
+    assert_eq!(expected, verified_caller);
 }
 
 #[test]
