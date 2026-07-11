@@ -16,6 +16,7 @@ MAX_SOURCE_BYTES = 16 * 1024 * 1024
 SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
     sorted(
         (
+            ("workspace_build", "zk/state_proof_risc0/Cargo.toml"),
             ("source_journal_dependency", "zk/state_proof_risc0/shared/Cargo.toml"),
             ("source_journal_dependency", "zk/state_proof_risc0/shared/src/lib.rs"),
             ("source_journal_dependency", "zk/state_proof_risc0/shared/src/recursive.rs"),
