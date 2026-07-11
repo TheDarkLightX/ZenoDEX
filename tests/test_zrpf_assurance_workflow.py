@@ -35,6 +35,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "--cap-drop ALL" in replay_command
     assert "--security-opt no-new-privileges" in replay_command
     assert "--pids-limit 512" in replay_command
+    assert "--tmpfs /out:rw,exec,nosuid,nodev,size=6g,mode=1777" in replay_command
     assert "--live" in replay_command
     assert '"${HOME}/.cargo:/home/zrpf/.cargo:ro"' not in replay_command
     assert '"${HOME}/.risc0:/risc0:ro"' not in replay_command
@@ -47,6 +48,8 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tools/check_recursive_stark_cbc_spec.py" in python_assurance
     assert "tests/test_check_recursive_stark_cbc_spec.py" in python_assurance
     assert "--manifest-path zk/recursive_stark_v2_risc0/Cargo.toml" in rust_assurance
+    assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 3
+    assert '"${pinned_bin}/cargo" clippy' not in rust_assurance
     assert "ZENODEX_RUN_NATIVE_ZRPF_REPLAY" not in raw
     assert steps["Checkout full source history"]["uses"] == (
         "actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10"

@@ -113,7 +113,7 @@ jobs:
             --all -- --check
           "${pinned_bin}/cargo" test --manifest-path zk/zrpf_protocol/Cargo.toml \
             --locked --all-targets
-          "${pinned_bin}/cargo-clippy" \
+          "${pinned_bin}/cargo-clippy" clippy \
             --manifest-path zk/zrpf_protocol/Cargo.toml \
             --locked --all-targets -- -D warnings
           "${pinned_bin}/cargo" fmt --manifest-path zk/zrpf_risc0/Cargo.toml \
@@ -124,7 +124,7 @@ jobs:
             -p zenodex-zrpf-risc0-aggregate-shared \
             -p zenodex-zrpf-risc0-verifier \
             -p zenodex-zrpf-risc0-replay-verifier
-          "${pinned_bin}/cargo-clippy" \
+          "${pinned_bin}/cargo-clippy" clippy \
             --manifest-path zk/zrpf_risc0/Cargo.toml \
             --locked --all-targets \
             -p zenodex-zrpf-risc0-shared \
@@ -138,7 +138,7 @@ jobs:
           "${pinned_bin}/cargo" test \
             --manifest-path zk/recursive_stark_v2_risc0/Cargo.toml \
             --locked --all
-          "${pinned_bin}/cargo-clippy" \
+          "${pinned_bin}/cargo-clippy" clippy \
             --manifest-path zk/recursive_stark_v2_risc0/Cargo.toml \
             --locked --workspace --all-targets -- -D warnings
 
@@ -164,7 +164,7 @@ jobs:
             --memory 6g \
             --memory-swap 6g \
             --tmpfs /tmp:rw,nosuid,nodev,noexec,size=512m,mode=1777 \
-            --tmpfs /out:rw,nosuid,nodev,size=6g,mode=1777 \
+            --tmpfs /out:rw,exec,nosuid,nodev,size=6g,mode=1777 \
             --volume "${GITHUB_WORKSPACE}:/input:ro" \
             --volume "${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu:/risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu:ro" \
             --volume "${HOME}/.cargo/registry:/home/zrpf/.cargo/registry:ro" \
