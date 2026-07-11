@@ -107,7 +107,7 @@ def test_apply_verified_fire_settlement_packet_rejects_missing_witness_hash() ->
         expected_bundle_hash=receipt.bundle_hash,
     )
     assert ok is False
-    assert err == "receipt_witness_hash_missing"
+    assert err == "expected_witness_hash_missing"
     assert result is None
 
 
@@ -117,9 +117,43 @@ def test_apply_verified_fire_settlement_effects_rejects_missing_packet() -> None
         balances=FireLedgerBalances(holder_balance=100, writer_balance=250),
     )
     assert ok is False
-    assert err == "settlement_packet_missing"
+    assert err == "expected_witness_hash_missing"
     assert result is None
 
+
+def test_apply_verified_fire_settlement_effects_rejects_self_bound_forgery_without_expected_witness() -> None:
+    forged_witness_hash = fire_witness_binding_hash({"witness_final": 777000})
+    forged_receipt = FireVerifierReceipt.build(
+        object_hash="sha256:" + "1" * 64,
+        instance_hash="sha256:" + "2" * 64,
+        cert_sha256="sha256:" + "3" * 64,
+        holder_delta=777000,
+        writer_delta=-777000,
+        command_tag="firev_accept_and_settle",
+        object_name="BurnBoostCall",
+        object_version="1.0.0",
+        bundle_hash="sha256:" + "4" * 64,
+        witness_hash=forged_witness_hash,
+    )
+    forged_packet = FireSettlementPacket.build(
+        receipt=forged_receipt,
+        holder_delta=777000,
+        writer_delta=-777000,
+        payoff_out=777000,
+        firev_accept=True,
+    )
+
+    ok, err, result = apply_verified_fire_settlement_effects(
+        {
+            "settlement_packet": forged_packet.to_dict(),
+            "verifier_receipt": forged_receipt.to_dict(),
+        },
+        balances=FireLedgerBalances(holder_balance=1000, writer_balance=1000000),
+    )
+
+    assert ok is False
+    assert err == "expected_witness_hash_missing"
+    assert result is None
 
 def test_apply_verified_fire_settlement_effects_end_to_end_from_adapter(monkeypatch, tmp_path: Path) -> None:
     _install_fake_interpreter(monkeypatch)

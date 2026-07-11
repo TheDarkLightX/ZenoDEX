@@ -54,6 +54,15 @@ def _sha256_bytes(payload: bytes) -> str:
     return "sha256:" + hashlib.sha256(payload).hexdigest()
 
 
+def _authority_expected_witness_hash_error(expected_witness_hash: str | None) -> str | None:
+    # DbC precondition: funds-moving authority checks must be bound to a
+    # caller-derived witness hash; a self-declared receipt witness is not authority.
+    if expected_witness_hash is None:
+        return "expected_witness_hash_missing"
+    _require_sha256_prefixed("expected_witness_hash", expected_witness_hash)
+    return None
+
+
 def fire_settlement_delta_hash(*, holder_delta: int, writer_delta: int) -> str:
     payload = {
         "schema": FIRE_SETTLEMENT_DELTA_SCHEMA,
@@ -274,6 +283,9 @@ def verify_fire_settlement_authority_receipt(
     expected_bundle_hash: str | None = None,
     expected_witness_hash: str | None = None,
 ) -> tuple[bool, str | None]:
+    witness_error = _authority_expected_witness_hash_error(expected_witness_hash)
+    if witness_error is not None:
+        return False, witness_error
     return verify_fire_verifier_receipt(
         receipt,
         expected_object_hash=expected_object_hash,
@@ -422,6 +434,9 @@ def verify_fire_settlement_authority_packet(
     expected_witness_hash: str | None = None,
     expected_command_tag: str = FIRE_SETTLEMENT_AUTHORITY_COMMAND_TAG,
 ) -> tuple[bool, str | None]:
+    witness_error = _authority_expected_witness_hash_error(expected_witness_hash)
+    if witness_error is not None:
+        return False, witness_error
     return verify_fire_settlement_packet(
         packet,
         expected_object_hash=expected_object_hash,
@@ -485,6 +500,9 @@ def extract_verified_fire_settlement_authority_packet(
     expected_witness_hash: str | None = None,
     expected_command_tag: str = FIRE_SETTLEMENT_AUTHORITY_COMMAND_TAG,
 ) -> tuple[bool, str | None, FireSettlementPacket | None]:
+    witness_error = _authority_expected_witness_hash_error(expected_witness_hash)
+    if witness_error is not None:
+        return False, witness_error, None
     return extract_verified_fire_settlement_packet(
         effects,
         expected_object_hash=expected_object_hash,

@@ -137,8 +137,8 @@ def test_fire_settlement_authority_packet_requires_witness_hash_and_command_tag(
     )
 
     assert verify_fire_settlement_packet(packet) == (True, None)
-    assert verify_fire_settlement_authority_receipt(receipt) == (False, "witness_hash_missing")
-    assert verify_fire_settlement_authority_packet(packet) == (False, "receipt_witness_hash_missing")
+    assert verify_fire_settlement_authority_receipt(receipt) == (False, "expected_witness_hash_missing")
+    assert verify_fire_settlement_authority_packet(packet) == (False, "expected_witness_hash_missing")
 
     witness_hash = fire_witness_binding_hash({"witness_final": 30})
     bound_receipt = FireVerifierReceipt.build(
@@ -160,8 +160,40 @@ def test_fire_settlement_authority_packet_requires_witness_hash_and_command_tag(
         firev_accept=True,
     )
     assert verify_fire_settlement_packet(bound_packet, require_witness_hash=True) == (True, None)
-    assert verify_fire_settlement_authority_packet(bound_packet) == (False, "receipt_command_tag_mismatch")
+    assert verify_fire_settlement_authority_packet(bound_packet) == (False, "expected_witness_hash_missing")
+    assert verify_fire_settlement_authority_packet(
+        bound_packet, expected_witness_hash=witness_hash
+    ) == (False, "receipt_command_tag_mismatch")
 
+
+def test_fire_settlement_authority_packet_rejects_self_bound_forgery_without_expected_witness() -> None:
+    forged_witness_hash = fire_witness_binding_hash({"witness_final": 777000})
+    forged_receipt = FireVerifierReceipt.build(
+        object_hash="sha256:" + "1" * 64,
+        instance_hash="sha256:" + "2" * 64,
+        cert_sha256="sha256:" + "3" * 64,
+        holder_delta=777000,
+        writer_delta=-777000,
+        command_tag="firev_accept_and_settle",
+        object_name="BurnBoostCall",
+        object_version="1.0.0",
+        bundle_hash="sha256:" + "4" * 64,
+        witness_hash=forged_witness_hash,
+    )
+    forged_packet = FireSettlementPacket.build(
+        receipt=forged_receipt,
+        holder_delta=777000,
+        writer_delta=-777000,
+        payoff_out=777000,
+        firev_accept=True,
+    )
+
+    assert verify_fire_settlement_packet(forged_packet, require_witness_hash=True) == (True, None)
+    assert verify_fire_settlement_authority_packet(forged_packet) == (False, "expected_witness_hash_missing")
+    assert verify_fire_settlement_authority_packet(
+        forged_packet,
+        expected_witness_hash=fire_witness_binding_hash({"witness_final": 30}),
+    ) == (False, "receipt_witness_hash_mismatch")
 
 def test_extract_verified_fire_settlement_authority_packet_uses_authority_gate() -> None:
     receipt = FireVerifierReceipt.build(
@@ -190,5 +222,5 @@ def test_extract_verified_fire_settlement_authority_packet_uses_authority_gate()
     )
 
     assert ok is False
-    assert err == "receipt_witness_hash_missing"
+    assert err == "expected_witness_hash_missing"
     assert parsed is None
