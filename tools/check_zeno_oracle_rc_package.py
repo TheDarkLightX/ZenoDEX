@@ -7,12 +7,11 @@ import argparse
 import hashlib
 import json
 import stat
-import sys
-from pathlib import Path
+import tarfile
+from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
 import yaml
-
 
 REQUIRED_PACKAGE_FILES = {
     ".github/workflows/zeno-oracle-mvp.yml",
@@ -80,6 +79,66 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: f.read(1024 * 1024), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def _authenticated_package_binding_errors(*, tar_path: Path, package_dir: Path) -> list[str]:
+    """Compare every packaged file with the externally authenticated tarball."""
+    errors: list[str] = []
+    tar_files: dict[str, tuple[int, str]] = {}
+    roots: set[str] = set()
+    try:
+        with tarfile.open(tar_path, mode="r:gz") as archive:
+            for member in archive.getmembers():
+                member_path = PurePosixPath(member.name)
+                if member_path.is_absolute() or ".." in member_path.parts or not member_path.parts:
+                    errors.append("authenticated_tarball_path_invalid")
+                    continue
+                roots.add(member_path.parts[0])
+                if member.isdir():
+                    continue
+                if not member.isfile() or len(member_path.parts) < 2:
+                    errors.append(f"authenticated_tarball_unsupported_member:{member.name}")
+                    continue
+                file_obj = archive.extractfile(member)
+                if file_obj is None:
+                    errors.append(f"authenticated_tarball_file_unreadable:{member.name}")
+                    continue
+                digest = hashlib.sha256()
+                while chunk := file_obj.read(1024 * 1024):
+                    digest.update(chunk)
+                rel_path = PurePosixPath(*member_path.parts[1:]).as_posix()
+                if rel_path in tar_files:
+                    errors.append(f"authenticated_tarball_duplicate_file:{rel_path}")
+                tar_files[rel_path] = (member.size, digest.hexdigest())
+    except (OSError, tarfile.TarError) as exc:
+        return [f"authenticated_tarball_invalid:{exc}"]
+
+    if len(roots) != 1:
+        errors.append("authenticated_tarball_must_have_one_package_root")
+
+    disk_files: dict[str, Path] = {}
+    if package_dir.is_dir():
+        for path in package_dir.rglob("*"):
+            rel_path = path.relative_to(package_dir).as_posix()
+            if path.is_symlink():
+                errors.append(f"authenticated_package_symlink_forbidden:{rel_path}")
+            elif path.is_file():
+                disk_files[rel_path] = path
+
+    tar_file_set = set(tar_files)
+    disk_file_set = set(disk_files)
+    for rel_path in sorted(tar_file_set - disk_file_set):
+        errors.append(f"authenticated_package_file_missing:{rel_path}")
+    for rel_path in sorted(disk_file_set - tar_file_set):
+        errors.append(f"authenticated_package_file_unexpected:{rel_path}")
+    for rel_path in sorted(tar_file_set & disk_file_set):
+        expected_size, expected_sha256 = tar_files[rel_path]
+        disk_path = disk_files[rel_path]
+        if disk_path.stat().st_size != expected_size:
+            errors.append(f"authenticated_package_file_size_mismatch:{rel_path}")
+        elif _sha256_file(disk_path) != expected_sha256:
+            errors.append(f"authenticated_package_file_sha256_mismatch:{rel_path}")
+    return errors
 
 
 def _file_index(manifest: Mapping[str, Any], errors: list[str]) -> dict[str, Mapping[str, Any]]:
@@ -216,6 +275,7 @@ def check_package(*, package_dir: Path, receipt_path: Path | None = None, sig_pa
             errors.append("package_replay_gate_not_executable")
 
     receipt: Mapping[str, Any] | None = None
+    authenticated_tar_path: Path | None = None
     if receipt_path is not None:
         if not receipt_path.is_file():
             errors.append("receipt_missing")
@@ -235,6 +295,7 @@ def check_package(*, package_dir: Path, receipt_path: Path | None = None, sig_pa
                 if not tar_path.is_absolute():
                     tar_path = receipt_path.parent / tar_path.name
                 if tar_path.is_file():
+                    authenticated_tar_path = tar_path
                     if receipt.get("sha256") != _sha256_file(tar_path):
                         errors.append("receipt_tarball_sha256_mismatch")
                     if receipt.get("size_bytes") != tar_path.stat().st_size:
@@ -258,6 +319,14 @@ def check_package(*, package_dir: Path, receipt_path: Path | None = None, sig_pa
         elif receipt is not None and isinstance(receipt.get("signature"), str):
             if sig_path.read_text(encoding="utf-8").strip() != receipt["signature"]:
                 errors.append("sig_file_mismatch")
+
+    if authenticated_tar_path is not None:
+        errors.extend(
+            _authenticated_package_binding_errors(
+                tar_path=authenticated_tar_path,
+                package_dir=package_dir,
+            )
+        )
 
     status = "accepted" if not errors else "rejected"
     return {
