@@ -90,6 +90,59 @@ def test_settlement_spot_price_attestation_rejects_source_allowlist_violation() 
     assert err == "source_id not allowlisted for signer: oracle:b"
 
 
+@pytest.mark.parametrize("allowed_signers", [None, {}])
+def test_settlement_spot_price_attestation_requires_explicit_allowlist(
+    allowed_signers: dict[str, list[str]] | None,
+) -> None:
+    packet = _packet()
+    attestation = build_settlement_spot_price_attestation(
+        packet=packet,
+        signer_privkey=7,
+    )
+
+    ok, err = verify_settlement_spot_price_attestation(
+        attestation=attestation,
+        consumer_now_epoch=102,
+        max_attestation_age_epochs=5,
+        allowed_signers=allowed_signers,
+    )
+    assert ok is False
+    assert err in {"allowed_signers must be provided", "allowed_signers must be non-empty"}
+
+
+def test_settlement_spot_price_attestation_payload_requires_explicit_allowlist() -> None:
+    packet = _packet()
+    attestation = build_settlement_spot_price_attestation(
+        packet=packet,
+        signer_privkey=7,
+    )
+
+    ok, err = verify_settlement_spot_price_attestation_payload(
+        payload=attestation.to_dict(),
+        consumer_now_epoch=102,
+        max_attestation_age_epochs=5,
+    )
+    assert ok is False
+    assert err == "allowed_signers must be provided"
+
+
+def test_settlement_spot_price_attestation_rejects_empty_source_allowlist() -> None:
+    packet = _packet()
+    attestation = build_settlement_spot_price_attestation(
+        packet=packet,
+        signer_privkey=7,
+    )
+
+    ok, err = verify_settlement_spot_price_attestation(
+        attestation=attestation,
+        consumer_now_epoch=102,
+        max_attestation_age_epochs=5,
+        allowed_signers={attestation.signer_pubkey: []},
+    )
+    assert ok is False
+    assert err == "allowed_signer source ids must be non-empty"
+
+
 def test_settlement_spot_price_attestation_rejects_tampering() -> None:
     packet = _packet()
     built = build_settlement_spot_price_attestation(
