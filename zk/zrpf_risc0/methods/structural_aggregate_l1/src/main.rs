@@ -15,14 +15,14 @@ use zenodex_zrpf_risc0_aggregate_shared::{
 risc0_zkvm::guest::entry!(main);
 
 const PINNED_ADAPTER_IMAGE_ID: [u32; 8] = [
-    3_045_257_841,
-    281_444_177,
-    3_435_235_465,
-    2_147_567_259,
-    867_057_786,
-    252_644_892,
-    735_118_677,
-    1_951_735_332,
+    2_750_530_258,
+    37_668_129,
+    744_178_984,
+    4_248_971_762,
+    810_572_263,
+    4_257_446_307,
+    1_152_353_364,
+    1_683_867_498,
 ];
 const POLICY: StructuralAggregatePolicyV1 =
     StructuralAggregatePolicyV1::level_one_adapter_children(PINNED_ADAPTER_IMAGE_ID);
