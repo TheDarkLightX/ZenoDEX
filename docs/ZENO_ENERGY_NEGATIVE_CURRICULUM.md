@@ -1,6 +1,6 @@
 # ZenoEnergy Negative Curriculum
 
-This Julia-generated receipt turns the current PopperPad negative knowledge into sampling guidance for the next advisory ranker.
+This Julia-generated receipt turns recorded negative knowledge into sampling guidance for the next advisory ranker.
 
 ```text
 source_report: data/upba_energy/upba_v2_suffix_bound_adversarial_family_stress_seed20260545.json

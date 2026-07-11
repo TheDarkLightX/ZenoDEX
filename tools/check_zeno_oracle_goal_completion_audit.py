@@ -270,7 +270,7 @@ def build_audit() -> dict[str, Any]:
         _evidence_item(
             7,
             "Math And Formal Lanes",
-            requirement="Use Julia, Lean, ESSO, TLA, LTLf, Morph, and PopperPad for replayable evidence.",
+            requirement="Use Julia, Lean, ESSO, TLA, LTLf, and Morph for replayable evidence.",
             evidence_files=[
                 "tools/zeno_oracle_math_witness_sweep.jl",
                 "tests/test_zeno_oracle_math_witness_sweep.py",
@@ -285,7 +285,6 @@ def build_audit() -> dict[str, Any]:
                 "tools/zeno_oracle_tla_recovery_replay.py",
                 "tools/zeno_oracle_ltlf_recovery_replay.py",
                 "tools/zeno_oracle_smt_freshness_replay.py",
-                "tools/popper_pad.py",
             ],
             replay_commands=[
                 "python3 tools/zeno_oracle_workflow_evidence_status.py --format text --skip-morph",

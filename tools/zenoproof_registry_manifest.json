@@ -26,19 +26,18 @@
       "statement_hash": "sha256:c401ab389ba1afbafaa27e3dc580be5b520b451c08ac899e4ca6e63425a1258c"
     },
     {
-      "assumptions_hash": "sha256:42297de8bfbb206e41841e4137f83f6bc87eb0ad8f2a7b894d5ea8b18964e249",
-      "claim_id": "sha256:0091a231f6fe6bbdf852cdf23b67d3e139c55afd3cad5bbed9f1e4be54095682",
+      "assumptions_hash": "sha256:044259aef2002dc84d87792bd847d3463120156130cdcdd7982efa16008bb588",
+      "claim_id": "sha256:e8e78a52dbdef4311d4a5364be24738cffbe9564062e70b362d1ad5ea59bfc60",
       "dependency_claim_ids": [
         "sha256:33d0e19ca78b8e80698e67444a4f93d73b921ad26c463ecb7d0be761c7d53b00"
       ],
       "evidence_class": "O4",
       "non_claims": [
-        "does_not_claim_private_popperpad_publication",
         "does_not_claim_exhaustive_morph_search",
         "does_not_claim_production_oracle_truth"
       ],
       "replay_command": "python3 tools/zeno_oracle_workflow_evidence_status.py --format json --skip-morph",
-      "statement_hash": "sha256:773a777d8c4c19d541a204f87322d711713e050a74025f2451b50acb95307b0f"
+      "statement_hash": "sha256:399c3d1f0fe9776aa5f7415eef0d0d5558f078fb46d982de1b4f5a65e49ea2ae"
     },
     {
       "assumptions_hash": "sha256:5215763c57ec0176053bc1e2e3e8209818c29736f31c708783dec77e949005dc",
@@ -187,25 +186,25 @@
     },
     {
       "allow_path_lookup": false,
-      "current_policy_root": "sha256:bb07b1b0a598375eb12df303c389d997ef0bc1f015e22a474bc2ec329b72fa6c",
+      "current_policy_root": "sha256:48a89ed62055043aec45e02e5307423f1dd424dfd937504bf2d3cc554fa4b89b",
       "execution_mode": "subprocess_json",
       "max_input_bytes": 1000000,
-      "name": "zeno-oracle-workflow-evidence-public-replay-v0",
+      "name": "zeno-oracle-workflow-evidence-public-replay-v1",
       "proof_kinds": [
         "public_replay"
       ],
       "revoked": false,
       "timeout_ms": 15000,
       "toolchain_ids": [
-        "sha256:b1fdc2948c8ba3e58bd705ee8085d28996ea3e9ba26a3b4957c88cbc65b60a29"
+        "sha256:acf2099eca48fd6de0719c1f879dd90f5db3b1b4aa2b45885b755077b8d6e8c5"
       ],
       "verifier_command": [
         "/usr/bin/python3",
         "tools/zenoproof_public_replay_verifier.py",
         "--profile",
-        "zeno_oracle_workflow_evidence_status_v1"
+        "zeno_oracle_workflow_evidence_status_v2"
       ],
-      "verifier_id": "sha256:055f67e1cc7f1a93f9b49274b7b5346e83ee7a811b8ec8b51f8b5afd553043ba"
+      "verifier_id": "sha256:049138b6223185abf347caf98508be525f5693a5eb9305b27a9d045563d94da0"
     },
     {
       "allow_path_lookup": false,

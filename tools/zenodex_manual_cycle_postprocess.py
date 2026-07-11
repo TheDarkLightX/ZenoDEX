@@ -605,7 +605,7 @@ def _update_memory_pads(
 ) -> None:
     ideapad = RUNS_ROOT / "ideapad.jsonl"
     insightpad = RUNS_ROOT / "insightpad.jsonl"
-    popperpad = RUNS_ROOT / "popperpad_manual.jsonl"
+    evidence_ledger = RUNS_ROOT / "research_evidence_manual.jsonl"
 
     cat_counts: dict[str, int] = {}
     for h in selected_hypotheses:
@@ -647,7 +647,7 @@ def _update_memory_pads(
         },
     )
 
-    # Append-only local PopperPad-like ledger with required schema fields + final status.
+    # Append-only local evidence ledger with required schema fields and final status.
     supported_set = {str(x.get("hypothesis_id", "")) for x in epoch_report.get("newly_supported", [])}
     falsified_set = {str(x.get("hypothesis_id", "")) for x in epoch_report.get("newly_falsified", [])}
     inconclusive_set = {str(x.get("hypothesis_id", "")) for x in epoch_report.get("inconclusive_items", [])}
@@ -661,9 +661,9 @@ def _update_memory_pads(
         elif hid in inconclusive_set:
             st = "inconclusive"
         _append_jsonl(
-            popperpad,
+            evidence_ledger,
             {
-                "schema": "zenodex/popperpad-manual/v1",
+                "schema": "zenodex/research-evidence-manual/v1",
                 "created_at": int(time.time()),
                 "cycle": cycle,
                 "run": run_name,

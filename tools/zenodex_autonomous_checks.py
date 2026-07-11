@@ -6762,7 +6762,7 @@ def _check_local_mathlib_mismatch_detected(mode: str, timeout_s: int) -> dict[st
 
 
 def _check_local_mathlib_parametric_repeat3(mode: str, timeout_s: int) -> dict[str, Any]:
-    # Keep the check ID stable for PopperPad recipes.
+    # Keep the check ID stable for replay recipes.
     return _check_lean_repeat(mode, timeout_s, "lean-mathlib/Proofs/PiecewiseEnvelopeParametric.lean", 3)
 
 

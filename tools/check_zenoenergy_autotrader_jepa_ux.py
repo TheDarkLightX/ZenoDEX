@@ -429,8 +429,6 @@ def _research_inputs() -> dict[str, Any]:
     inputs = {
         "experiments_ideas": ROOT / "experiments/ideas.md",
         "experiments_breakthroughs": ROOT / "experiments/breakthroughs.md",
-        "popperpad_zenoenergy_readme": ROOT / "internal/popperpad/zenoenergy/README.md",
-        "popperpad_zenoenergy_log": ROOT / "internal/popperpad/zenoenergy/log.jsonl",
     }
     artifacts: dict[str, dict[str, Any]] = {}
     for name, path in inputs.items():
@@ -442,14 +440,12 @@ def _research_inputs() -> dict[str, Any]:
         }
     ideas_text = inputs["experiments_ideas"].read_text(encoding="utf-8").lower()
     breakthroughs_text = inputs["experiments_breakthroughs"].read_text(encoding="utf-8").lower()
-    popperpad_text = inputs["popperpad_zenoenergy_readme"].read_text(encoding="utf-8").lower()
     return {
         "schema": "zenodex/energy/autotrader_jepa_research_inputs/v1",
         "ok": (
             "canonical" in breakthroughs_text
             and "hypergraph" in ideas_text
             and "negative" in breakthroughs_text
-            and "negative knowledge" in popperpad_text
         ),
         "artifacts": artifacts,
         "incorporated_lessons": [

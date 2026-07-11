@@ -7,7 +7,6 @@ import argparse
 import importlib.util
 import json
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -140,49 +139,6 @@ def build_morph_oracle_clamp_envelope_status() -> dict[str, Any]:
     }
 
 
-def _popperpad_case() -> dict[str, Any]:
-    files = ["tools/popper_pad.py"]
-    missing = [path for path in files if not (ROOT / path).exists()]
-    errors: list[str] = []
-    summary: dict[str, Any] | None = None
-    if not missing:
-        try:
-            from tools.popper_pad import PopperPad
-
-            with tempfile.TemporaryDirectory(prefix="zeno-oracle-popperpad-") as tmp:
-                pad = PopperPad(Path(tmp) / "pad.jsonl")
-                hyp = pad.add_hypothesis(
-                    claim="ZenoOracle workflow status checker rejects missing replay evidence",
-                    test="Run zeno_oracle_workflow_evidence_status and require ok true",
-                    domain="zeno-oracle",
-                    agent="workflow-status",
-                )
-                pad.falsify(
-                    hyp,
-                    counterexample="temporary negative-evidence smoke entry",
-                    agent="workflow-status",
-                    evidence_path="tools/zeno_oracle_workflow_evidence_status.py",
-                )
-                summary = pad.summary()
-                if int(summary.get("total_entries", 0)) != 2:
-                    errors.append("popperpad_append_count_mismatch")
-        except Exception as exc:  # pragma: no cover
-            errors.append(f"popperpad_smoke_failed:{type(exc).__name__}:{exc}")
-    ok = not missing and not errors
-    return {
-        "lane_id": "popperpad_append_only_smoke",
-        "status": "accepted" if ok else "rejected",
-        "ok": ok,
-        "evidence_class": "temporary_pad_smoke",
-        "replay_command": "python3 tools/zeno_oracle_workflow_evidence_status.py --format text",
-        "files": files,
-        "missing_files": missing,
-        "summary": summary,
-        "errors": errors,
-        "non_claims": ["does_not_publish_internal_popperpad_entries"],
-    }
-
-
 def build_status(*, include_morph: bool = True) -> dict[str, Any]:
     lanes = [
         _artifact_case(
@@ -214,7 +170,6 @@ def build_status(*, include_morph: bool = True) -> dict[str, Any]:
             replay_command="PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_esso_zusd_oracle_recovery_lifecycle_v1.py",
             evidence_class="esso_public_replay",
         ),
-        _popperpad_case(),
     ]
     if include_morph:
         lanes.insert(3, _morph_case())
@@ -228,7 +183,6 @@ def build_status(*, include_morph: bool = True) -> dict[str, Any]:
         "failed_lane_count": len(failed),
         "lanes": lanes,
         "non_claims": [
-            "does_not_claim_internal_popperpad_publication",
             "does_not_claim_exhaustive_morph_search",
             "does_not_claim_production_oracle_truth",
         ],

@@ -105,7 +105,7 @@ The active workspace now has:
   receipt-borrowing rejection, and stale-oracle rejection.
 - a public workflow evidence status checker at
   `tools/zeno_oracle_workflow_evidence_status.py` for the first TLA, LTLf,
-  ESSO, Morph smoke, and PopperPad smoke lanes.
+  ESSO, and Morph smoke lanes.
 
 Current public gate evidence:
 
@@ -331,7 +331,6 @@ Workflow lane:
 
 - Morph and fuzzers search for witnesses;
 - ESSO/TLA/LTLf check finite-state safety and liveness;
-- PopperPad records internal evidence;
 - `docs/claims_registry.yaml` receives only stable, public replay commands.
 
 The first public status checker is:
@@ -342,11 +341,10 @@ pytest -q tests/test_zeno_oracle_workflow_evidence_status.py
 ```
 
 It checks the presence and replay boundaries for the Oracle recovery TLA/LTLf
-lanes, the ESSO zUSD oracle recovery lane, and a temporary PopperPad
-append-only smoke. The strict Morph oracle-clamp smoke remains available in the
-default command and fails closed when Morph is unavailable. Broader Morph
-campaigns and private PopperPad ledgers remain internal until promoted through
-public replay commands.
+lanes and the ESSO zUSD oracle recovery lane. The strict Morph oracle-clamp
+smoke remains available in the default command and fails closed when Morph is
+unavailable. Broader Morph campaigns remain outside the public claim until
+promoted through public replay commands.
 
 ### 7. Public Claim Promotion
 

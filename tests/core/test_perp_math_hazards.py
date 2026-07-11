@@ -5,7 +5,7 @@ from src.core.perp_rounding import largest_remainder_adjust_net_zero
 
 def test_rounding_leak_witness_under_euclidean_division() -> None:
     # Mirrors the minimal witness recorded in:
-    # internal/popperpad_mcp/bootstrap_zenodex_pad.py
+    # Mirrors the bounded research receipt for this hazard case.
     #
     # With net-zero exposures, per-account Euclidean division can leak value:
     # xs = [1, -1], d = 1e8  =>  [0, -1], sum = -1
@@ -31,7 +31,7 @@ def test_largest_remainder_dust_allocator_restores_net_zero_conservation() -> No
 
 def test_breaker_quantization_can_stall_witness() -> None:
     # Mirrors the minimal clamp-quantization witness recorded in:
-    # internal/popperpad_mcp/bootstrap_zenodex_pad.py
+    # Mirrors the bounded research receipt for this hazard case.
     #
     # Quantization-safe clamp (ceil-div) avoids the zero-width-band stall:
     # when `P*m_bps/10000` is smaller than one price tick, we still allow a

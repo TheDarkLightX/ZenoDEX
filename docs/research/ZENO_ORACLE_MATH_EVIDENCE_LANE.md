@@ -41,5 +41,5 @@ closure, typed binding, and sync-gate composition. The current public workflow s
 `docs/research/ZENO_ORACLE_WORKFLOW_EVIDENCE_STATUS.md`. ZenoProof now has
 public replay profiles for this Julia sweep and Lean anchor through
 `tools/zenoproof_public_replay_verifier.py`; deeper Morph, ESSO, TLA/LTLf,
-and PopperPad evidence should remain internal until each lane has a public
+and private campaign evidence should remain internal until each lane has a public
 replay command and a stable claim boundary.

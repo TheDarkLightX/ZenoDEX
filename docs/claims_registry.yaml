@@ -2509,12 +2509,11 @@ claims:
     status: supported
     layer: assurance
     statement: >
-      The public ZenoOracle workflow evidence status checker accepts four
+      The public ZenoOracle workflow evidence status checker accepts three
       first-shell lanes: TLA Oracle recovery lifecycle, LTLf Oracle recovery,
-      ESSO zUSD Oracle recovery lifecycle, and a temporary PopperPad
-      append-only smoke when the strict Morph lane is explicitly skipped. The
-      default checker still fails closed when Morph is unavailable. This is
-      bounded workflow status evidence; private PopperPad content, Morph replay
+      and ESSO zUSD Oracle recovery lifecycle when the strict Morph lane is
+      explicitly skipped. The default checker still fails closed when Morph is
+      unavailable. This is bounded workflow status evidence; Morph replay
       verification, exhaustive Morph campaigns, and production oracle truth
       remain outside the claim.
     evidence:
@@ -2527,7 +2526,6 @@ claims:
         - tests/test_zeno_oracle_workflow_evidence_status.py
         - tests/morph_domains/oracle_clamp_envelope_domain.py
         - tools/perp_oracle_manipulation_lp_sweep.py
-        - tools/popper_pad.py
         - formal/tla/OracleRecoveryLifecycle.tla
         - formal/tla/OracleRecoveryLifecycle.cfg
         - formal/ltlf/oracle_recovery_ltlf_v1.yaml

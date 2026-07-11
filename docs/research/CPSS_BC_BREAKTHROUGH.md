@@ -10,8 +10,8 @@ found 10 violations with worst delta = -6. The per-step lemma is correct; the
 inductive composition across the intent sequence fails because greedy per-step
 optimization is not globally optimal when reserve states diverge.
 **Method:** Problem-solver toolkit discovery loop + Morph reformulation search +
-Atom of Thoughts (AoT) structured reasoning + PopperPad falsification gate.
-**PopperPad:** Hypothesis `Haa6b2fe7` recorded and falsified (`F3edb7f58`).
+Atom of Thoughts (AoT) structured reasoning plus an adversarial falsification gate.
+**Result:** the original dominance hypothesis was falsified by a replayable witness.
 
 ---
 
@@ -403,11 +403,11 @@ randomized search then confirmed it is not an edge case but the common case
 
 ---
 
-## 11. Falsification Result (PopperPad Gate)
+## 11. Falsification Result
 
 The original dominance hypothesis was falsified by an adversarial search after
 the moderate-parameter suite passed. This section records the falsification
-honestly, per the PopperPad protocol.
+with its counterexamples and bounded evidence limits.
 
 ### 11.1 The Flaw in the Inductive Argument
 
@@ -463,17 +463,15 @@ CPSS-BC output        = 9297
 delta                 = -6
 ```
 
-### 11.3 PopperPad Record
+### 11.3 Public Falsification Record
 
 ```text
-Hypothesis ID: Haa6b2fe7
-Falsification ID: F3edb7f58
 Domain: batch clearing routing
-Agent: devin-glm-5.2
+Seed: 99999
 ```
 
 ```bash
-python3 tools/popper_pad.py check-falsified "CPSS-BC dominance"
+python3 docs/research/cpss_bc_witness.py
 ```
 
 ### 11.4 Why the Moderate Suite Missed It
@@ -502,31 +500,31 @@ each intent, and the objective is the sum of per-intent outputs. The k-pool
 staircase DP solves the per-intent subproblem; the open problem is composing
 per-intent solutions into a globally optimal batch.
 
-### 11.6 AoT + PopperPad Integration Assessment
+### 11.6 AoT and Falsification-Gate Assessment
 
 The Atom of Thoughts MCP provided structured reasoning (premise -> reasoning ->
 hypothesis -> verification -> conclusion) with explicit dependency tracking.
 The `hypothesis` atom carried confidence 0.85, which is just a number until
-verified. PopperPad's falsification gate supplied the discipline that AoT
+verified. The falsification gate supplied the discipline that AoT
 lacks: the requirement to try to BREAK the hypothesis before promoting it.
 
 The combination worked as follows:
 
 1. AoT structured the reasoning into atoms with typed dependencies, making the
    inductive leap explicit (R1 -> H1).
-2. PopperPad demanded a falsification attempt before promotion.
+2. The workflow required a falsification attempt before promotion.
 3. The falsification search found 10 violations in 50,000 adversarial trials.
 4. AoT recorded the verification atom (V1) with `isVerified: true` and the
    conclusion atom (C1) marking H1 as conflicting.
 
 The key insight: AoT's `confidence` field is a prior, not a posterior. Without
 a falsification gate, a high-confidence hypothesis can be promoted as a
-conclusion even when it is false. PopperPad's contribution is the gate that
+conclusion even when it is false. The gate
 forces the prior to survive an adversarial test before it becomes a posterior.
 
 The limitation: the falsification search is only as good as the adversarial
 distribution. The moderate suite (15,000 trials) passed; the adversarial suite
-(50,000 trials with extreme parameters) failed. A PopperPad gate that accepts
+(50,000 trials with extreme parameters) failed. A gate that accepts
 the moderate suite as sufficient would have promoted a false hypothesis. The
 gate must require adversarial distributions that target the theorem's
 structural weak points, not just broad sampling.

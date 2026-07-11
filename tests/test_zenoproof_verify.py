@@ -88,6 +88,20 @@ def test_manifest_accepts_sample_artifact_and_oracle_bridge() -> None:
         assert public_replay_result.binding_ok is True
 
 
+def test_sample_registry_public_replay_verifiers_disable_path_lookup() -> None:
+    registry = zv.sample_registry()
+    verifier_index = {
+        str(verifier["verifier_id"]): verifier for verifier in registry["verifiers"]
+    }
+
+    for config in zv.PUBLIC_REPLAY_PROFILE_CONFIGS.values():
+        verifier = verifier_index[str(config["verifier_id"])]
+        command = verifier["verifier_command"]
+        assert verifier["allow_path_lookup"] is False
+        assert command[0] == "/usr/bin/python3"
+        assert Path(command[0]).is_absolute()
+
+
 def test_unknown_artifact_field_rejects_fail_closed() -> None:
     artifact = zv.sample_artifact()
     artifact["unexpected"] = "extra"

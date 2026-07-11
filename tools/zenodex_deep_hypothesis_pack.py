@@ -82,7 +82,7 @@ def _base_specs() -> list[dict[str, Any]]:
 
     if str(ROOT) not in sys.path:
         sys.path.insert(0, str(ROOT))
-    from tools.zenodex_autonomous_scientist import _candidate_specs  # pylint: disable=import-outside-toplevel
+    from tools.zenodex_candidate_specs import _candidate_specs  # pylint: disable=import-outside-toplevel
 
     return _candidate_specs()
 

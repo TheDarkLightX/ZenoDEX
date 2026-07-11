@@ -31,7 +31,7 @@ A 15,000-trial moderate-parameter suite confirmed it: 0 violations, 73% strict d
 
 ## Act II: Falsification
 
-The PopperPad falsification gate demanded an adversarial test before promotion. The moderate suite used reserves in [10, 500] and fees in {0, 10, 30, 50, 100} bps. The adversarial suite expanded to reserves in {1, 2, 3, 5, 10, 50, 100, 500, 1000, 10000}, fees in {0, 1, 10, 30, 50, 100, 500, 1000, 5000, 9999} bps, and 50,000 trials.
+The falsification gate demanded an adversarial test before promotion. The moderate suite used reserves in [10, 500] and fees in {0, 10, 30, 50, 100} bps. The adversarial suite expanded to reserves in {1, 2, 3, 5, 10, 50, 100, 500, 1000, 10000}, fees in {0, 1, 10, 30, 50, 100, 500, 1000, 5000, 9999} bps, and 50,000 trials.
 
 **10 violations. Worst delta: -6.**
 
@@ -243,4 +243,4 @@ The highest-value move was the falsification gate. Without it, a false theorem w
 
 ---
 
-*Research conducted using the Problem-Solver Toolkit discovery loop, Morph reformulation search, Atom of Thoughts structured reasoning, and PopperPad falsification gating. All code and evidence are in the ZenoDEX repository under `docs/research/` and `src/core/`.*
+*Research conducted using the Problem-Solver Toolkit discovery loop, Morph reformulation search, Atom of Thoughts structured reasoning, and adversarial falsification gating. All public code and evidence are in the ZenoDEX repository under `docs/research/` and `src/core/`.*
