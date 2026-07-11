@@ -9,7 +9,8 @@ use tau_state_proof_risc0_shared::{
     RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1,
 };
 use zenodex_zrpf_protocol_v3::{
-    encode_node_journal_v3, CommitmentV3, NodeKindV3, NodeLevelV3, ProgramIdV3,
+    encode_node_journal_v3, CommitmentV3, ExpectedV1AdapterLeafIdentityV1, NodeKindV3, NodeLevelV3,
+    ProgramIdV3, ProposedSemanticLeafV1, SemanticEpochErrorV1, V1AdapterSemanticLeafOpeningV1,
 };
 use zenodex_zrpf_risc0_shared::{
     decode_exact_adapter_input_v1, project_policy_bound_v1_journal, risc0_image_words_to_bytes,
@@ -104,6 +105,58 @@ fn current_spot_summary_projects_to_a_closed_compatibility_leaf() {
         recursive_effect_summary_hash_v1(&source)
     );
     projection.journal.validate().unwrap();
+}
+
+#[test]
+fn real_adapter_projection_opens_in_the_semantic_compatibility_kernel() {
+    let source_bytes = encode(&summary());
+    let projection =
+        project_policy_bound_v1_journal(SourceKindV1::Spot, &source_bytes, 4, ADAPTER_IMAGE_ID)
+            .unwrap();
+    let semantic_source_id = projection.source_binding.canonical_hash().unwrap();
+    let expected =
+        ExpectedV1AdapterLeafIdentityV1::new(projection.journal.actual_program_id()).unwrap();
+    let leaf = ProposedSemanticLeafV1::bind_v1_adapter_journal(
+        &projection.journal,
+        V1AdapterSemanticLeafOpeningV1::new(semantic_source_id),
+        &expected,
+    )
+    .unwrap();
+
+    assert_eq!(
+        leaf.source_claim_id().into_commitment(),
+        projection.source_binding.source_claim_hash()
+    );
+    assert_eq!(
+        leaf.semantic_source_id().into_commitment(),
+        semantic_source_id
+    );
+    assert_eq!(leaf.task_id(), projection.journal.task_id());
+    assert_eq!(
+        leaf.leaf_program_id(),
+        projection.journal.actual_program_id()
+    );
+    assert_eq!(
+        leaf.leaf_profile_id(),
+        projection.journal.proof_profile_id()
+    );
+    assert_eq!(
+        leaf.leaf_program_manifest_root(),
+        projection.journal.program_manifest_root()
+    );
+    assert_eq!(
+        leaf.leaf_statement_hash(),
+        projection.journal.node_statement_hash()
+    );
+
+    assert_eq!(
+        ProposedSemanticLeafV1::bind_v1_adapter_journal(
+            &projection.journal,
+            V1AdapterSemanticLeafOpeningV1::new(CommitmentV3::new(root(99)).unwrap()),
+            &expected,
+        ),
+        Err(SemanticEpochErrorV1::V1AdapterProvenanceMismatch)
+    );
 }
 
 #[test]
