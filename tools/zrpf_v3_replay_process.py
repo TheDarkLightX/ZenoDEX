@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ctypes
+import fcntl
 import os
 import resource
 import selectors
@@ -16,6 +17,8 @@ from pathlib import Path
 from typing import IO
 
 _LIBC = ctypes.CDLL(None, use_errno=True)
+STDIN_SEALS = fcntl.F_SEAL_SEAL | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_GROW | fcntl.F_SEAL_WRITE
+STDIN_TRANSPORT = "linux_memfd_full_seals_v1"
 
 
 class ProcessProfile(str, Enum):
@@ -33,27 +36,68 @@ class ProcessRequest:
     output_limit_bytes: int
     profile: ProcessProfile
     pass_fds: tuple[int, ...] = ()
+    stdin_bytes: bytes | None = None
+    input_limit_bytes: int = 64 * 1024 * 1024
 
 
 def run_bounded(request: ProcessRequest) -> subprocess.CompletedProcess[bytes]:
-    if request.timeout_seconds <= 0 or request.output_limit_bytes <= 0:
+    if (
+        request.timeout_seconds <= 0
+        or request.output_limit_bytes <= 0
+        or request.input_limit_bytes <= 0
+    ):
         raise ValueError("subprocess bounds must be positive")
-    process = subprocess.Popen(
-        request.command,
-        cwd=request.cwd,
-        env=request.env,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        pass_fds=request.pass_fds,
-        preexec_fn=partial(
-            _apply_process_profile,
-            request.profile,
-            request.timeout_seconds,
-            request.output_limit_bytes,
-        ),
-        start_new_session=True,
-    )
+    if request.stdin_bytes is not None and not isinstance(request.stdin_bytes, bytes):
+        raise TypeError("stdin_bytes must be bytes or None")
+    if request.stdin_bytes is not None and len(request.stdin_bytes) > request.input_limit_bytes:
+        raise ValueError("subprocess stdin exceeded cap")
+    stdin_descriptor: int | None = None
+    process: subprocess.Popen[bytes] | None = None
+    spawn_error: BaseException | None = None
+    try:
+        if request.stdin_bytes is not None:
+            stdin_descriptor = _sealed_stdin(request.stdin_bytes)
+            stdin: int | IO[bytes] = stdin_descriptor
+        else:
+            stdin = subprocess.DEVNULL
+        process = subprocess.Popen(
+            request.command,
+            cwd=request.cwd,
+            env=request.env,
+            stdin=stdin,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            pass_fds=request.pass_fds,
+            preexec_fn=partial(
+                _apply_process_profile,
+                request.profile,
+                request.timeout_seconds,
+                request.output_limit_bytes,
+            ),
+            start_new_session=True,
+        )
+    except BaseException as exc:
+        spawn_error = exc
+        raise
+    finally:
+        if stdin_descriptor is not None:
+            try:
+                os.close(stdin_descriptor)
+            except OSError as exc:
+                close_error = RuntimeError("sealed stdin close failed")
+                if spawn_error is not None:
+                    spawn_error.add_note(str(close_error))
+                else:
+                    if process is not None:
+                        try:
+                            _kill_process_group(process)
+                        except BaseException as cleanup_error:
+                            close_error.add_note(
+                                f"process_cleanup_failure={type(cleanup_error).__name__}"
+                            )
+                    raise close_error from exc
+    if process is None:
+        raise RuntimeError("subprocess was not created")
     if process.stdout is None or process.stderr is None:
         _kill_process_group(process)
         raise RuntimeError("subprocess pipes were not created")
@@ -68,6 +112,34 @@ def run_bounded(request: ProcessRequest) -> subprocess.CompletedProcess[bytes]:
         _kill_process_group(process)
         raise
     return subprocess.CompletedProcess(request.command, return_code, stdout, stderr)
+
+
+def _sealed_stdin(raw: bytes) -> int:
+    if not hasattr(os, "memfd_create"):
+        raise RuntimeError("sealed stdin transport is unavailable")
+    descriptor = os.memfd_create(
+        "zrpf-replay-stdin",
+        os.MFD_ALLOW_SEALING | getattr(os, "MFD_CLOEXEC", 0),
+    )
+    try:
+        view = memoryview(raw)
+        offset = 0
+        while offset < len(view):
+            written = os.write(descriptor, view[offset:])
+            if written <= 0:
+                raise RuntimeError("sealed stdin write failed")
+            offset += written
+        fcntl.fcntl(descriptor, fcntl.F_ADD_SEALS, STDIN_SEALS)
+        if fcntl.fcntl(descriptor, fcntl.F_GET_SEALS) != STDIN_SEALS:
+            raise RuntimeError("sealed stdin seal mismatch")
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        return descriptor
+    except BaseException as primary_error:
+        try:
+            os.close(descriptor)
+        except OSError:
+            primary_error.add_note("cleanup_failure=SEALED_STDIN_CLOSE_FAILED")
+        raise
 
 
 def _apply_process_profile(
@@ -100,8 +172,8 @@ def _apply_process_profile(
 
 def _set_limit(kind: int, requested: int) -> None:
     _, inherited_hard = resource.getrlimit(kind)
-    bounded = requested if inherited_hard == resource.RLIM_INFINITY else min(
-        requested, inherited_hard
+    bounded = (
+        requested if inherited_hard == resource.RLIM_INFINITY else min(requested, inherited_hard)
     )
     resource.setrlimit(kind, (bounded, bounded))
 

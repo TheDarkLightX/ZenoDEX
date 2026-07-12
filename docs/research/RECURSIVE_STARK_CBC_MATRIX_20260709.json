@@ -33,6 +33,7 @@
       "no_fresh_zrpf_semantic_v2_receipt_evidence",
       "no_generic_v4_runtime_identity_authority",
       "no_current_v1_or_v2_image_receipt_evidence_after_anyhow_1_0_103_migration",
+      "no_authenticated_historical_execution_provenance_for_v1_live_replay_record",
       "no_zrpf_16x4_profile"
     ]
   },
@@ -613,7 +614,7 @@
       "id": "RS-CBC-014",
       "title": "Fresh current-image recursive proof smoke exists before proof-backed claim",
       "severity": "critical",
-      "status": "implemented",
+      "status": "pending",
       "defense_layer": "detected_at_commit",
       "disaster_state": "local unit tests are promoted as real recursive proof evidence",
       "construction_rule": "produce and verify at least one real recursive root proof and malformed-proof reject before implementation claim",
@@ -641,6 +642,22 @@
         {
           "path": "tools/check_risc0_recursive_rebuild_evidence.py",
           "symbol": "_validate_malformed_proof_evidence"
+        },
+        {
+          "path": "tools/check_risc0_recursive_live_replay.py",
+          "symbol": "check_risc0_recursive_live_replay"
+        },
+        {
+          "path": "tools/risc0_recursive_live_replay_support.py",
+          "symbol": "execute_controls"
+        },
+        {
+          "path": "tools/check_risc0_recursive_live_replay_evidence.py",
+          "symbol": "check_retained_evidence"
+        },
+        {
+          "path": "docs/research/RISC0_RECURSIVE_V1_LIVE_REPLAY_EVIDENCE_20260712.json",
+          "symbol": "same_host_pinned_v1_verifier_live_replay_accepted"
         },
         {
           "path": "docs/research/RECURSIVE_STARK_V2_CURRENT_EVIDENCE_20260710.json",
@@ -709,6 +726,14 @@
           "symbol": "test_rebound_malformed_proof_cannot_change_second_seal_word"
         },
         {
+          "path": "tests/test_check_risc0_recursive_live_replay.py",
+          "symbol": "test_live_replay_accepts_only_after_all_exact_controls"
+        },
+        {
+          "path": "tests/test_check_risc0_recursive_live_replay_evidence.py",
+          "symbol": "test_required_non_claim_rejects_coherent_promotion"
+        },
+        {
           "path": "tests/test_check_recursive_stark_cbc_spec.py",
           "symbol": "test_current_v2_public_evidence_matches_reference_and_preserves_nonclaims"
         },
@@ -733,13 +758,15 @@
         "cd zk/state_proof_risc0 && RISC0_FORCE_BUILD=1 <PINNED_CARGO> run --frozen --release --target x86_64-unknown-linux-gnu -p tau-state-proof-risc0-cli --example recursive_summary_leaf_smoke -- spot <SPOT_IMAGE_ID_HEX>",
         "cd zk/state_proof_risc0 && RISC0_PROVER=ipc <PINNED_CARGO> run --frozen --release --target x86_64-unknown-linux-gnu -p tau-state-proof-risc0-cli < <ROOT_REQUEST>",
         "python3 tools/check_risc0_recursive_rebuild_evidence.py --workspace-root <workspace> --workspace-archive <archive> --artifact-report <report> --program-directory <programs> --static-verifier <verifier> --root-proof <proof> --positive-verify-request <positive-request> --verified-transcript <transcript> --malformed-root-proof <mutated-proof> --malformed-verify-request <mutated-request> --malformed-reject-transcript <reject-transcript> --json",
+        "python3 tools/check_risc0_recursive_live_replay.py --workspace-root <workspace> --workspace-archive <archive> --artifact-report <report> --program-directory <programs> --static-verifier <verifier> --root-proof <proof> --positive-verify-request <positive-request> --verified-transcript <transcript> --malformed-root-proof <mutated-proof> --malformed-verify-request <mutated-request> --malformed-reject-transcript <reject-transcript> --runtime-directory <private-new-runtime-directory> --json",
+        "python3 tools/check_risc0_recursive_live_replay_evidence.py --json",
         "python3 tools/check_risc0_recursive_v2_rebuild_evidence.py --build-target-root <TARGET> --inner-artifact <INNER> --root-artifact <ROOT> --missing-assumption-transcript <NEGATIVE> --risc0-home <RISC0_HOME> --cargo-home <CARGO_HOME> --json",
         "python3 tools/check_risc0_recursive_v2_two_leaf_source_pinned_evidence.py --spot-leaf <SPOT> --zusd-leaf <ZUSD> --inner-artifact <TWO_LEAF_INNER> --root-artifact <TWO_LEAF_ROOT> --release-harness <HARNESS> --one-leaf-verifier <ONE_LEAF_VERIFIER> --two-leaf-verifier <TWO_LEAF_VERIFIER> --r0vm <PINNED_R0VM> --json",
         "python3 tools/check_risc0_recursive_v2_same_profile_two_spot_evidence.py --baseline-spot-leaf <SPOT_A> --distinct-spot-leaf <SPOT_B> --duplicate-source-alias-leaf <SPOT_ALIAS> --inner-artifact <SAME_PROFILE_INNER> --root-artifact <SAME_PROFILE_ROOT> --release-harness <HARNESS> --two-leaf-verifier <TWO_LEAF_VERIFIER> --json",
         "python3 tools/check_recursive_stark_replay_bundle.py <bundle> --expected-manifest-sha256 <sha256>"
       ],
-      "next_action": "rebuild the strict-ingress, single-verification V1 host from its governed source closure and replay both the retained positive receipt and malformed-proof rejection before restoring the combined V1-plus-V2 status; preserve and replay the fe131b V2 one-leaf, heterogeneous fanout-two, and same-profile fanout-two pairs before broader fanout promotion",
-      "non_claim": "current V2 RISC0 3.0.5 one-leaf, source-frozen spot-plus-zUSD fanout-two, and same-profile distinct-statement spot fanout-two evidence remains source-closure checked; the hardened V1 host has Rust tests for strict ingress and exactly-once receipt authentication but no fresh current-host V1 receipt or malformed-proof replay, so the prior combined V1-plus-V2 current-host status is withheld; this evidence does not establish a promoted general multi-leaf profile, nonempty receipt-set witness coverage, public replay, cross-host or reproducible-release evidence, settlement or ledger-admission authority, privacy, or production readiness"
+      "next_action": "build fresh V1 and V2 guest ELFs from the active anyhow 1.0.103 closures, recompute image IDs, generate positive receipts and exact cryptographic negative controls, and bind the results through a new active reference without modifying the immutable historical V1 replay reference",
+      "non_claim": "the cited V1 and V2 receipts and image identities are historical regression evidence from pre-migration source closures; the retained V1 record verifies static record integrity without authenticating historical execution provenance; no current V1 or V2 image, receipt, public replay, network isolation, sandbox, settlement, ledger-admission, privacy, release, or production claim follows"
     },
     {
       "id": "RS-CBC-015",

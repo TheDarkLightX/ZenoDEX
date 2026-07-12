@@ -125,6 +125,41 @@ Restoring a current V1-and-V2 status requires rebuilding both profiles from
 their patched source closures and generating fresh positive and negative proof
 evidence. Historical receipts remain bounded regression evidence only.
 
+Before the active dependency migration, a local pinned-toolchain V1 rebuild
+produced the exact 30-file source
+root `81f5dc170de45306b7427f8379ea23add429f5c6325a06c0bb4fa6c4315f78bf`
+and static PIE verifier
+`8836f22431e2ce241eec9e6503f741b92673e2fec054208b0c36dea4f1bcf146`.
+That binary reproduced the retained positive transcript and the exact
+cryptographic-invalid response for the one-bit seal mutation with empty
+stderr and process exit code zero.
+
+The executable live checker first requires the complete pinned artifact check,
+seals the exact verifier into a fully sealed Linux memfd, and applies bounded
+stdin, stdout, stderr, CPU, address-space, file, descriptor, process, and stack
+limits before execution. It reproduced the accepted transcript with
+`RISC0_DEV_MODE` absent and set to `0`; it rejected enabled aliases `1`,
+`true`, `yes`, and `on`; and it reproduced the exact cryptographic-invalid
+response for the one-bit seal mutation. The retained report has canonical
+SHA-256
+`7b33cea014263fe0841fc291d9ce8097fcfa3a85cc7d1f18b832a52380df43c6`
+and binds the exact checker-source closure and numeric runtime limits.
+
+The required workflow validates this retained record, its source closure, and
+its bounded privacy scan without re-executing the V1 verifier. The CBC matrix
+records its integrity as historical evidence and requires the exact non-claim
+`no_authenticated_historical_execution_provenance_for_v1_live_replay_record`.
+The record does not restore current V1 image or receipt evidence after the
+`anyhow 1.0.103` migration.
+`config/proof_profiles/risc0_recursive_rebuild_reference.json` is frozen as
+the immutable historical V1 replay reference. Fresh active V1/V2 reproof work
+must use
+`config/proof_profiles/risc0_recursive_active_reproof_reference_v3.json` or a
+later separately reviewed path; it must not overwrite the historical trust
+root.
+Historical execution provenance, public replay, network isolation, sandbox,
+settlement, release, privacy, and production authority remain false.
+
 The additive ZRPF V3 candidate under `zk/zrpf_protocol` now implements a
 proof-system-neutral, bounded 8-by-8 structural journal nucleus. It provides a
 shared leaf and aggregate journal shape, nonzero typed commitments, application

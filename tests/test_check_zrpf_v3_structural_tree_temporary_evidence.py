@@ -29,6 +29,8 @@ def test_retained_structural_evidence_rejects_hardened_verifier_source_drift() -
         "source SHA-256 mismatch: zk/zrpf_risc0/verifier/Cargo.toml",
         "source SHA-256 mismatch: zk/zrpf_risc0/verifier/src/lib.rs",
         "source SHA-256 mismatch: zk/state_proof_risc0/shared/Cargo.toml",
+        "source SHA-256 mismatch: zk/state_proof_risc0/shared/src/recursive.rs",
+        "source SHA-256 mismatch: zk/zrpf_protocol/Cargo.toml",
         "source SHA-256 mismatch: zk/zrpf_protocol/protocol/Cargo.toml",
         "source SHA-256 mismatch: zk/zrpf_protocol/protocol/src/lib.rs",
         "source SHA-256 mismatch: zk/zrpf_risc0/aggregate_shared/Cargo.toml",
@@ -240,7 +242,10 @@ def test_optional_receipt_check_binds_outer_and_journal_bytes(tmp_path: Path) ->
 
     path.write_bytes(path.read_bytes() + b" ")
     errors = support.verify_receipt_artifact(tmp_path, node)
-    assert errors == ["receipt artifact size mismatch: receipt.json", "receipt artifact SHA-256 mismatch: receipt.json"]
+    assert errors == [
+        "receipt artifact size mismatch: receipt.json",
+        "receipt artifact SHA-256 mismatch: receipt.json",
+    ]
 
 
 def test_optional_receipt_check_rejects_symlink(tmp_path: Path) -> None:
