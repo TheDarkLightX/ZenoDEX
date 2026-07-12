@@ -309,6 +309,68 @@ def test_bounded_process_rejects_output_before_unbounded_buffering(
         replay_process.run_bounded(request)
 
 
+def test_bounded_process_supplies_exact_bounded_stdin(tmp_path: Path) -> None:
+    request = replay_process.ProcessRequest(
+        command=(sys.executable, "-c", "import sys; sys.stdout.buffer.write(sys.stdin.buffer.read())"),
+        cwd=tmp_path,
+        env={"PATH": replay_environment.SYSTEM_PATH},
+        timeout_seconds=5,
+        output_limit_bytes=1_024,
+        profile=replay_process.ProcessProfile.TOOL,
+        stdin_bytes=b"governed replay request",
+        input_limit_bytes=1_024,
+    )
+
+    process = replay_process.run_bounded(request)
+
+    assert process.returncode == 0
+    assert process.stdout == b"governed replay request"
+    assert process.stderr == b""
+
+
+def test_bounded_process_child_observes_fully_sealed_stdin(tmp_path: Path) -> None:
+    script = (
+        "import fcntl,sys\n"
+        f"assert fcntl.fcntl(0, fcntl.F_GET_SEALS) == {replay_process.STDIN_SEALS}\n"
+        "sys.stdout.buffer.write(sys.stdin.buffer.read())\n"
+    )
+    request = replay_process.ProcessRequest(
+        command=(sys.executable, "-c", script),
+        cwd=tmp_path,
+        env={"PATH": replay_environment.SYSTEM_PATH},
+        timeout_seconds=5,
+        output_limit_bytes=1_024,
+        profile=replay_process.ProcessProfile.TOOL,
+        stdin_bytes=b"sealed request",
+        input_limit_bytes=1_024,
+    )
+
+    process = replay_process.run_bounded(request)
+
+    assert process.returncode == 0
+    assert process.stdout == b"sealed request"
+    assert process.stderr == b""
+
+
+def test_bounded_process_rejects_oversized_stdin_before_spawn(tmp_path: Path) -> None:
+    marker = tmp_path / "spawned"
+    request = replay_process.ProcessRequest(
+        command=(sys.executable, "-c", f"open({str(marker)!r}, 'wb').close()"),
+        cwd=tmp_path,
+        env={"PATH": replay_environment.SYSTEM_PATH},
+        timeout_seconds=5,
+        output_limit_bytes=1_024,
+        profile=replay_process.ProcessProfile.TOOL,
+        stdin_bytes=b"12345",
+        input_limit_bytes=4,
+    )
+
+    with pytest.raises(ValueError, match="stdin exceeded cap"):
+        replay_process.run_bounded(request)
+
+    assert not marker.exists()
+
+
 def _git(repo: Path, *arguments: str) -> str:
     process = subprocess.run(
         ["/usr/bin/git", *arguments],
