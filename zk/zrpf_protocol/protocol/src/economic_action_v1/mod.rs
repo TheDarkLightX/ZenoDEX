@@ -1,3 +1,7 @@
+mod batch;
+mod batch_codec;
+mod batch_error;
+mod batch_hash;
 mod codec;
 mod record;
 
@@ -5,6 +9,12 @@ use core::fmt;
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
+pub use batch::{
+    AuthorizedEconomicActionV1, EconomicActionBatchV1, ECONOMIC_ACTION_BATCH_VERSION_V1,
+    MAX_ECONOMIC_ACTIONS_PER_BATCH_V1, MAX_ECONOMIC_ACTION_BATCH_BYTES_V1,
+};
+pub use batch_codec::{decode_exact_economic_action_batch_v1, encode_economic_action_batch_v1};
+pub use batch_error::EconomicActionBatchErrorV1;
 pub use codec::{
     decode_exact_authorization_consumption_nullifier_v1,
     decode_exact_authorization_grant_spend_nullifier_v1, decode_exact_economic_action_record_v1,

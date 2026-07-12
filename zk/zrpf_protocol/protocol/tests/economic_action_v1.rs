@@ -2,13 +2,16 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use zenodex_zrpf_protocol_v3::{
     decode_exact_authorization_consumption_nullifier_v1,
-    decode_exact_authorization_grant_spend_nullifier_v1, decode_exact_economic_action_record_v1,
-    encode_authorization_consumption_nullifier_v1, encode_authorization_grant_spend_nullifier_v1,
+    decode_exact_authorization_grant_spend_nullifier_v1, decode_exact_economic_action_batch_v1,
+    decode_exact_economic_action_record_v1, encode_authorization_consumption_nullifier_v1,
+    encode_authorization_grant_spend_nullifier_v1, encode_economic_action_batch_v1,
     encode_economic_action_record_v1, ApplicationIdV3, AuthorizationConsumptionNullifierV1,
     AuthorizationGrantIdV1, AuthorizationGrantSpendNullifierV1, AuthorizationScopeIdV1,
-    AuthorizationSubjectIdV1, CommitmentV3, DomainIdV3, EconomicActionErrorV1,
+    AuthorizationSubjectIdV1, AuthorizedEconomicActionV1, CommitmentV3, DomainIdV3,
+    EconomicActionBatchErrorV1, EconomicActionBatchV1, EconomicActionErrorV1,
     EconomicActionRecordInputV1, EconomicActionRecordV1, EconomicActionTypeIdV1,
     MAX_AUTHORIZATION_GRANT_SPEND_NULLIFIER_BYTES_V1, MAX_CONSUMED_OBJECTS_PER_ACTION_V1,
+    MAX_ECONOMIC_ACTIONS_PER_BATCH_V1, MAX_ECONOMIC_ACTION_BATCH_BYTES_V1,
     MAX_ECONOMIC_ACTION_RECORD_BYTES_V1,
 };
 
@@ -16,6 +19,16 @@ const ACTION_ID_DOMAIN_V1: &[u8] = b"zenodex.zrpf.economic_action_id.v1";
 const NULLIFIER_DOMAIN_V1: &[u8] = b"zenodex.zrpf.authorization_consumption_nullifier.v1";
 const GRANT_SPEND_NULLIFIER_DOMAIN_V1: &[u8] =
     b"zenodex.zrpf.authorization_grant_spend_nullifier.v1";
+const AUTHORIZED_ACTION_DOMAIN_V1: &[u8] = b"zenodex.zrpf.authorized_economic_action.v1";
+const ACTION_IDS_ROOT_DOMAIN_V1: &[u8] = b"zenodex.zrpf.economic_action_ids_root.v1";
+const AUTHORIZED_ACTIONS_ROOT_DOMAIN_V1: &[u8] =
+    b"zenodex.zrpf.authorized_economic_actions_root.v1";
+const ACTION_BINDINGS_ROOT_DOMAIN_V1: &[u8] = b"zenodex.zrpf.action_authorization_bindings_root.v1";
+const GRANT_SPENDS_ROOT_DOMAIN_V1: &[u8] = b"zenodex.zrpf.authorization_grant_spends_root.v1";
+const EFFECT_COMMITMENTS_ROOT_DOMAIN_V1: &[u8] =
+    b"zenodex.zrpf.economic_effect_commitments_root.v1";
+const CONSUMED_OBJECTS_ROOT_DOMAIN_V1: &[u8] = b"zenodex.zrpf.economic_consumed_objects_root.v1";
+const BATCH_COMMITMENT_DOMAIN_V1: &[u8] = b"zenodex.zrpf.economic_action_batch.v1";
 
 fn commitment(seed: u8) -> CommitmentV3 {
     CommitmentV3::new([seed.max(1); 32]).unwrap()
@@ -46,6 +59,39 @@ fn base_input(consumed_object_ids: Vec<CommitmentV3>) -> EconomicActionRecordInp
 
 fn record(consumed_object_ids: Vec<CommitmentV3>) -> EconomicActionRecordV1 {
     EconomicActionRecordV1::new(base_input(consumed_object_ids)).unwrap()
+}
+
+fn varied_record(
+    nonce: u64,
+    semantics_seed: u8,
+    effect_seed: u8,
+    consumed_object_ids: Vec<CommitmentV3>,
+) -> EconomicActionRecordV1 {
+    let mut input = base_input(consumed_object_ids);
+    input.authorization_nonce = nonce;
+    input.action_semantics_hash = commitment(semantics_seed);
+    input.effect_commitment = commitment(effect_seed);
+    EconomicActionRecordV1::new(input).unwrap()
+}
+
+fn authorized_action(record: EconomicActionRecordV1, grant_seed: u8) -> AuthorizedEconomicActionV1 {
+    AuthorizedEconomicActionV1::new(
+        record,
+        AuthorizationGrantIdV1::new([grant_seed; 32]).unwrap(),
+    )
+    .unwrap()
+}
+
+fn two_action_batch() -> EconomicActionBatchV1 {
+    EconomicActionBatchV1::new(
+        25,
+        commitment(6),
+        vec![
+            authorized_action(varied_record(18, 10, 11, vec![indexed_commitment(1)]), 9),
+            authorized_action(varied_record(17, 7, 8, vec![indexed_commitment(0)]), 9),
+        ],
+    )
+    .unwrap()
 }
 
 fn prefixed_domain_hasher(domain: &[u8]) -> Sha256 {
@@ -114,6 +160,45 @@ fn manual_grant_spend_nullifier(
     hasher.update(record.chain_or_domain_id().as_bytes());
     hasher.update(grant_id.as_bytes());
     hasher.update(record.authorization_nonce().to_be_bytes());
+    hasher.finalize().into()
+}
+
+fn manual_authorized_action_hash(action: &AuthorizedEconomicActionV1) -> [u8; 32] {
+    let mut hasher = prefixed_domain_hasher(AUTHORIZED_ACTION_DOMAIN_V1);
+    hasher.update(action.action_id().unwrap().as_bytes());
+    hasher.update(action.authorization_grant_id().as_bytes());
+    hasher.update(action.action_authorization_binding().unwrap().as_bytes());
+    hasher.update(action.authorization_grant_spend().unwrap().as_bytes());
+    hasher.finalize().into()
+}
+
+fn manual_list_root(domain: &[u8], values: &[[u8; 32]]) -> [u8; 32] {
+    let mut hasher = prefixed_domain_hasher(domain);
+    hasher.update(u32::try_from(values.len()).unwrap().to_be_bytes());
+    for value in values {
+        hasher.update(value);
+    }
+    hasher.finalize().into()
+}
+
+fn manual_batch_commitment(batch: &EconomicActionBatchV1) -> [u8; 32] {
+    let mut hasher = prefixed_domain_hasher(BATCH_COMMITMENT_DOMAIN_V1);
+    hasher.update(batch.batch_version().to_be_bytes());
+    hasher.update(batch.application_id().as_bytes());
+    hasher.update(batch.chain_or_domain_id().as_bytes());
+    hasher.update(batch.epoch_id().to_be_bytes());
+    hasher.update(batch.pre_state_root().as_bytes());
+    hasher.update(u32::try_from(batch.actions().len()).unwrap().to_be_bytes());
+    for root in [
+        batch.action_ids_root(),
+        batch.authorized_actions_root(),
+        batch.action_authorization_bindings_root(),
+        batch.authorization_grant_spends_root(),
+        batch.effect_commitments_root(),
+        batch.consumed_object_ids_root(),
+    ] {
+        hasher.update(root.as_bytes());
+    }
     hasher.finalize().into()
 }
 
@@ -618,4 +703,265 @@ fn json_wire_rejects_unknown_fields_and_duplicate_consumed_objects() {
     assert!(error
         .to_string()
         .contains("invalid economic action record version: 2"));
+}
+
+#[test]
+fn action_batch_is_order_independent_and_commits_every_replay_identity() {
+    let first = authorized_action(varied_record(17, 7, 8, vec![indexed_commitment(0)]), 9);
+    let second = authorized_action(varied_record(18, 10, 11, vec![indexed_commitment(1)]), 9);
+    let forward =
+        EconomicActionBatchV1::new(25, commitment(6), vec![first.clone(), second.clone()]).unwrap();
+    let reverse = EconomicActionBatchV1::new(25, commitment(6), vec![second, first]).unwrap();
+
+    assert_eq!(forward, reverse);
+    assert_eq!(forward.actions().len(), 2);
+    assert_eq!(
+        forward.actions()[0].action_id().unwrap(),
+        forward.actions()[0].record().canonical_id().unwrap()
+    );
+    assert_ne!(
+        forward.action_ids_root(),
+        forward.authorization_grant_spends_root()
+    );
+    assert_ne!(
+        forward.authorized_actions_root(),
+        forward.action_authorization_bindings_root()
+    );
+    assert_eq!(
+        forward.canonical_commitment().unwrap(),
+        reverse.canonical_commitment().unwrap()
+    );
+}
+
+#[test]
+fn action_batch_roots_match_independent_preimage_reconstruction() {
+    let batch = two_action_batch();
+    let action_ids = batch
+        .actions()
+        .iter()
+        .map(|action| action.action_id().unwrap().into_bytes())
+        .collect::<Vec<_>>();
+    let authorized_actions = batch
+        .actions()
+        .iter()
+        .map(manual_authorized_action_hash)
+        .collect::<Vec<_>>();
+    let mut action_bindings = batch
+        .actions()
+        .iter()
+        .map(|action| action.action_authorization_binding().unwrap().into_bytes())
+        .collect::<Vec<_>>();
+    action_bindings.sort_unstable();
+    let mut grant_spends = batch
+        .actions()
+        .iter()
+        .map(|action| action.authorization_grant_spend().unwrap().into_bytes())
+        .collect::<Vec<_>>();
+    grant_spends.sort_unstable();
+    let effect_commitments = batch
+        .actions()
+        .iter()
+        .map(|action| action.record().effect_commitment().into_bytes())
+        .collect::<Vec<_>>();
+    let mut consumed_objects = batch
+        .actions()
+        .iter()
+        .flat_map(|action| {
+            action
+                .record()
+                .consumed_object_ids()
+                .iter()
+                .map(|object| object.into_bytes())
+        })
+        .collect::<Vec<_>>();
+    consumed_objects.sort_unstable();
+
+    assert_eq!(
+        batch.action_ids_root().into_bytes(),
+        manual_list_root(ACTION_IDS_ROOT_DOMAIN_V1, &action_ids)
+    );
+    assert_eq!(
+        batch.authorized_actions_root().into_bytes(),
+        manual_list_root(AUTHORIZED_ACTIONS_ROOT_DOMAIN_V1, &authorized_actions)
+    );
+    assert_eq!(
+        batch.action_authorization_bindings_root().into_bytes(),
+        manual_list_root(ACTION_BINDINGS_ROOT_DOMAIN_V1, &action_bindings)
+    );
+    assert_eq!(
+        batch.authorization_grant_spends_root().into_bytes(),
+        manual_list_root(GRANT_SPENDS_ROOT_DOMAIN_V1, &grant_spends)
+    );
+    assert_eq!(
+        batch.effect_commitments_root().into_bytes(),
+        manual_list_root(EFFECT_COMMITMENTS_ROOT_DOMAIN_V1, &effect_commitments)
+    );
+    assert_eq!(
+        batch.consumed_object_ids_root().into_bytes(),
+        manual_list_root(CONSUMED_OBJECTS_ROOT_DOMAIN_V1, &consumed_objects)
+    );
+    assert_eq!(
+        batch.canonical_commitment().unwrap().into_bytes(),
+        manual_batch_commitment(&batch)
+    );
+}
+
+#[test]
+fn action_batch_rejects_grant_nonce_alias_across_distinct_actions() {
+    let first = authorized_action(varied_record(17, 7, 8, Vec::new()), 9);
+    let second = authorized_action(varied_record(17, 10, 11, Vec::new()), 9);
+    assert_ne!(first.action_id().unwrap(), second.action_id().unwrap());
+    assert_eq!(
+        first.authorization_grant_spend().unwrap(),
+        second.authorization_grant_spend().unwrap()
+    );
+
+    assert_eq!(
+        EconomicActionBatchV1::new(25, commitment(6), vec![first, second]).unwrap_err(),
+        EconomicActionBatchErrorV1::DuplicateAuthorizationGrantSpend
+    );
+}
+
+#[test]
+fn action_batch_rejects_cross_action_consumed_object_alias() {
+    let object = indexed_commitment(0);
+    let first = authorized_action(varied_record(17, 7, 8, vec![object]), 9);
+    let second = authorized_action(varied_record(18, 10, 11, vec![object]), 9);
+
+    assert_eq!(
+        EconomicActionBatchV1::new(25, commitment(6), vec![first, second]).unwrap_err(),
+        EconomicActionBatchErrorV1::DuplicateConsumedObject
+    );
+}
+
+#[test]
+fn action_batch_rejects_scope_epoch_and_pre_state_aliases() {
+    let baseline = varied_record(17, 7, 8, Vec::new());
+    let mut wrong_application_input = base_input(Vec::new());
+    wrong_application_input.authorization_nonce = 18;
+    wrong_application_input.application_id = ApplicationIdV3::new([51; 32]).unwrap();
+    let wrong_application = EconomicActionRecordV1::new(wrong_application_input).unwrap();
+    assert_eq!(
+        EconomicActionBatchV1::new(
+            25,
+            commitment(6),
+            vec![
+                authorized_action(baseline.clone(), 9),
+                authorized_action(wrong_application, 10),
+            ],
+        )
+        .unwrap_err(),
+        EconomicActionBatchErrorV1::ApplicationMismatch
+    );
+
+    let mut wrong_domain_input = base_input(Vec::new());
+    wrong_domain_input.authorization_nonce = 18;
+    wrong_domain_input.chain_or_domain_id = DomainIdV3::new([52; 32]).unwrap();
+    let wrong_domain = EconomicActionRecordV1::new(wrong_domain_input).unwrap();
+    assert_eq!(
+        EconomicActionBatchV1::new(
+            25,
+            commitment(6),
+            vec![
+                authorized_action(baseline.clone(), 9),
+                authorized_action(wrong_domain, 10),
+            ],
+        )
+        .unwrap_err(),
+        EconomicActionBatchErrorV1::DomainMismatch
+    );
+
+    assert_eq!(
+        EconomicActionBatchV1::new(
+            20,
+            commitment(6),
+            vec![authorized_action(baseline.clone(), 9)],
+        )
+        .unwrap_err(),
+        EconomicActionBatchErrorV1::EpochOutsideActionValidity
+    );
+    assert_eq!(
+        EconomicActionBatchV1::new(25, commitment(53), vec![authorized_action(baseline, 9)],)
+            .unwrap_err(),
+        EconomicActionBatchErrorV1::PreStateMismatch
+    );
+}
+
+#[test]
+fn action_batch_exact_codec_is_bounded_and_canonical() {
+    let batch = two_action_batch();
+    let bytes = encode_economic_action_batch_v1(&batch).unwrap();
+    assert_eq!(
+        decode_exact_economic_action_batch_v1(&bytes).unwrap(),
+        batch
+    );
+
+    let mut trailing = bytes.clone();
+    trailing.push(0);
+    assert_eq!(
+        decode_exact_economic_action_batch_v1(&trailing).unwrap_err(),
+        EconomicActionBatchErrorV1::TrailingBytes
+    );
+    assert_eq!(
+        decode_exact_economic_action_batch_v1(&[]).unwrap_err(),
+        EconomicActionBatchErrorV1::EmptyInput
+    );
+    assert!(matches!(
+        decode_exact_economic_action_batch_v1(&vec![0; MAX_ECONOMIC_ACTION_BATCH_BYTES_V1 + 1]),
+        Err(EconomicActionBatchErrorV1::InputTooLarge { .. })
+    ));
+    for end in 1..bytes.len() {
+        assert!(decode_exact_economic_action_batch_v1(&bytes[..end]).is_err());
+    }
+}
+
+#[test]
+fn action_batch_wire_rejects_unknown_fields_and_commitment_substitution() {
+    let batch = two_action_batch();
+    let mut unknown = serde_json::to_value(&batch).unwrap();
+    unknown["receipt_id"] = serde_json::json!(vec![77; 32]);
+    assert!(serde_json::from_value::<EconomicActionBatchV1>(unknown).is_err());
+
+    let mut substituted = serde_json::to_value(&batch).unwrap();
+    substituted["action_ids_root"] = serde_json::json!(vec![90; 32]);
+    let error = serde_json::from_value::<EconomicActionBatchV1>(substituted).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("economic action batch commitment mismatch: action_ids_root"));
+}
+
+#[test]
+fn action_batch_enforces_its_governed_count_bound() {
+    let actions = (0..MAX_ECONOMIC_ACTIONS_PER_BATCH_V1)
+        .map(|index| {
+            authorized_action(
+                varied_record(
+                    u64::try_from(index).unwrap() + 100,
+                    u8::try_from(index % 200).unwrap() + 20,
+                    u8::try_from(index % 180).unwrap() + 40,
+                    Vec::new(),
+                ),
+                9,
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        EconomicActionBatchV1::new(25, commitment(6), actions.clone())
+            .unwrap()
+            .actions()
+            .len(),
+        MAX_ECONOMIC_ACTIONS_PER_BATCH_V1
+    );
+    let mut oversized = actions;
+    oversized.push(authorized_action(
+        varied_record(10_000, 230, 231, Vec::new()),
+        9,
+    ));
+    assert_eq!(
+        EconomicActionBatchV1::new(25, commitment(6), oversized).unwrap_err(),
+        EconomicActionBatchErrorV1::TooManyActions {
+            actual: MAX_ECONOMIC_ACTIONS_PER_BATCH_V1 + 1,
+            maximum: MAX_ECONOMIC_ACTIONS_PER_BATCH_V1,
+        }
+    );
 }

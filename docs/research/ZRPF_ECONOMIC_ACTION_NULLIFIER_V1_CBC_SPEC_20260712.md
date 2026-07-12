@@ -6,14 +6,19 @@ Status: implemented protocol nucleus; deterministic local tests only
 
 ## Scoped claim
 
-`zk/zrpf_protocol` now defines three proof-system-neutral data objects:
+`zk/zrpf_protocol` now defines five proof-system-neutral data objects:
 
 - `EconomicActionRecordV1`, a bounded semantic action record with private
   fields and a validated constructor;
 - `AuthorizationConsumptionNullifierV1`, an action-bound compatibility
   identity also exposed as `ActionAuthorizationBindingIdV1`;
 - `AuthorizationGrantSpendNullifierV1`, a single-use identity for one canonical
-  grant nonce in one application domain.
+  grant nonce in one application domain;
+- `AuthorizedEconomicActionV1`, an exact pairing of one canonical action and
+  one canonical authorization grant;
+- `EconomicActionBatchV1`, a bounded canonical batch that derives the action,
+  authorization, effect, and consumed-object roots required by a later
+  semantic proof.
 
 All three identities exclude proof program or image identity, receipt bytes or
 codec, intent salt, and signature bytes or encoding. Changing only those
@@ -25,6 +30,42 @@ only V1 value designed for durable single-use enforcement of a grant nonce.
 
 This result supplies a deterministic identity nucleus. It does not authenticate
 an action, authorize settlement, or persist uniqueness state.
+
+## Canonical authorized-action batch
+
+`EconomicActionBatchV1` accepts between one and 64
+`AuthorizedEconomicActionV1` records. Its constructor derives each action ID,
+sorts the actions by that ID, and rejects:
+
+- duplicate action IDs;
+- different application or chain/domain IDs inside one batch;
+- an action whose inclusive validity interval excludes the batch epoch;
+- an action whose pre-state root differs from the batch pre-state root;
+- duplicate action-bound authorization bindings;
+- duplicate grant-and-nonce spend nullifiers;
+- a consumed object appearing in more than one action.
+
+The batch derives these domain-separated roots:
+
+```text
+action_ids_root
+authorized_actions_root
+action_authorization_bindings_root
+authorization_grant_spends_root
+effect_commitments_root
+consumed_object_ids_root
+```
+
+`authorized_actions_root` binds each canonical action ID, grant ID,
+action-bound authorization identity, and grant-spend nullifier. The action and
+effect lists follow canonical action-ID order. Authorization-binding and
+grant-spend roots sort their values independently, so they represent canonical
+sets. Consumed object IDs are also globally sorted before hashing.
+
+The batch commitment binds its version, derived application and domain, epoch,
+pre-state root, action count, and all six roots. The exact Postcard codec is
+bounded to 524,288 bytes, rejects trailing and noncanonical bytes, and caps its
+sequence visitor before accepting a 65th action.
 
 ## Economic action record
 
@@ -158,6 +199,11 @@ variation.
 | application, domain, grant, or nonce is relabeled without changing the spend key | all four governed key fields enter its preimage | spend-nullifier separation test |
 | malformed or noncanonical bytes enter a trusted record | validated private fields plus exact bounded codec | codec negative tests |
 | claimed consumed-object count forces unbounded allocation | sequence length rejects before allocation above 128 | claimed-count negative test |
+| two distinct actions reuse one grant nonce in one batch | grant-spend values are recomputed and globally unique | cross-action alias negative test |
+| two actions consume the same object | one batch-level consumed-object set rejects overlap | cross-action object negative test |
+| actions relabel application, domain, epoch, or pre-state | batch constructor checks one derived scope and exact state binding | scope and validity negatives |
+| action order changes a root | constructor sorts by canonical action ID | batch permutation test |
+| a serialized batch substitutes a claimed root | exact decoder recomputes all six roots | commitment-substitution negative test |
 
 ## Evidence
 
@@ -184,7 +230,9 @@ This nucleus does not establish:
 - uniqueness of an authorization grant identifier across a governed registry;
 - authorization or monotonic-counter enforcement of `authorization_nonce`;
 - receipt authentication or binding to a Semantic V2 verified receipt;
-- Python, Tau, ZenoLedger, or another-language hash parity;
+- Python parity for the complete batch and root preimages beyond the shared
+  action-binding and grant-spend vectors;
+- Tau, ZenoLedger, or another-language batch parity;
 - a durable unique grant-spend index or consumption policy for rejected
   actions, retries, and aborted transactions;
 - atomic commitment with balances, collateral, fees, rewards, carry, messages,
