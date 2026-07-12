@@ -1,11 +1,11 @@
-use std::{fs, path::PathBuf};
+use std::{ffi::OsStr, fs, path::PathBuf};
 
 use super::artifact_io::persist_receipt;
 use super::report::guest_artifact_report;
 use super::source::load_verified_source;
 use super::{
-    load_exact_adapter, parse_options, receipt_reject_json, Mode, RETAINED_ADAPTER_RECEIPT_SHA256,
-    RETAINED_SEMANTIC_OPENING,
+    ambient_dev_mode_is_forbidden, ambient_dev_mode_reject_json, load_exact_adapter, parse_options,
+    receipt_reject_json, Mode, RETAINED_ADAPTER_RECEIPT_SHA256, RETAINED_SEMANTIC_OPENING,
 };
 use zenodex_zrpf_risc0_verifier::{
     VerifiedNodeReceiptErrorV3, VerifiedSpotValueLeafReceiptErrorV4,
@@ -165,4 +165,29 @@ fn receipt_reject_report_preserves_exact_typed_verifier_boundary() -> Result<(),
         "ReceiptArtifact(ReceiptVerificationFailed)"
     );
     Ok(())
+}
+
+#[test]
+fn ambient_dev_mode_reject_is_canonical_and_typed() -> Result<(), String> {
+    let raw = ambient_dev_mode_reject_json();
+    let report: serde_json::Value =
+        serde_json::from_str(&raw).map_err(|error| format!("decode dev-mode reject: {error}"))?;
+    assert_eq!(report["candidate_accepted"], false);
+    assert_eq!(report["ok"], false);
+    assert_eq!(
+        report["reject"]["boundary"],
+        "prove_spot_value_leaf_v4_process_start"
+    );
+    assert_eq!(report["reject"]["code"], "ambient_risc0_dev_mode_forbidden");
+    assert_eq!(report["reject"]["variable"], "RISC0_DEV_MODE");
+    assert_eq!(report["status"], "ambient_dev_mode_environment_rejected");
+    Ok(())
+}
+
+#[test]
+fn every_ambient_dev_mode_value_is_forbidden_by_presence() {
+    assert!(!ambient_dev_mode_is_forbidden(None));
+    for value in ["", "0", "false", "1", "true"] {
+        assert!(ambient_dev_mode_is_forbidden(Some(OsStr::new(value))));
+    }
 }

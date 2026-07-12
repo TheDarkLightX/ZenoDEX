@@ -1,4 +1,4 @@
-use std::{env, path::Path, path::PathBuf};
+use std::{env, ffi::OsStr, path::Path, path::PathBuf};
 
 use risc0_zkvm::{compute_image_id, default_prover, Digest, ExecutorEnv, ProverOpts};
 use zenodex_zrpf_protocol_v3::NodeJournalV4;
@@ -90,6 +90,7 @@ fn main() {
 }
 
 fn run() -> Result<(), String> {
+    reject_ambient_dev_mode()?;
     let options = parse_options(env::args().skip(1))?;
     let guest_artifact_loaded_and_matched = match options.mode {
         Mode::Prove => {
@@ -142,6 +143,33 @@ fn run() -> Result<(), String> {
         guest_artifact_loaded_and_matched,
         status,
     })
+}
+
+fn reject_ambient_dev_mode() -> Result<(), String> {
+    let value = env::var_os("RISC0_DEV_MODE");
+    if !ambient_dev_mode_is_forbidden(value.as_deref()) {
+        return Ok(());
+    }
+    Err(ambient_dev_mode_reject_json())
+}
+
+fn ambient_dev_mode_is_forbidden(value: Option<&OsStr>) -> bool {
+    value.is_some()
+}
+
+fn ambient_dev_mode_reject_json() -> String {
+    serde_json::json!({
+        "candidate_accepted": false,
+        "ok": false,
+        "reject": {
+            "boundary": "prove_spot_value_leaf_v4_process_start",
+            "code": "ambient_risc0_dev_mode_forbidden",
+            "variable": "RISC0_DEV_MODE",
+        },
+        "schema": "zenodex/zrpf_spot_value_leaf_v4_environment_reject/v1",
+        "status": "ambient_dev_mode_environment_rejected",
+    })
+    .to_string()
 }
 
 fn receipt_reject_json(receipt_sha256: &str, error: VerifiedSpotValueLeafReceiptErrorV4) -> String {
