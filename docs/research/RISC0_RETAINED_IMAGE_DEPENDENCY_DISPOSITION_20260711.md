@@ -2,9 +2,32 @@
 
 Date: 2026-07-11
 
-Status: normative for experimental retained-receipt verification only
+Status: superseded on 2026-07-12; retained as historical evidence
 
-## Decision
+## Superseding Decision
+
+The active V1 state-proof and recursive-v2 workspaces now pin `anyhow 1.0.103`.
+The active dependency policy no longer permits an unsound-warning disposition.
+The previous lockfiles, image IDs, and receipts remain historical evidence and
+cannot authorize current proof generation, release, settlement, or production.
+
+The active lock identities are:
+
+```text
+state_proof_risc0 Cargo.lock
+d30f07417921c475d99826eb10a45c17ec059c88b53c3f835702f27b509442ba
+
+recursive_stark_v2_risc0 Cargo.lock
+45cd06efebd2a989b7a1061e4958a45520cec388fe0ac9f8987c16fe9a5fef64
+```
+
+The governing active policy is
+`config/proof_profiles/risc0_dependency_audit_policy_v2.json`, SHA-256
+`0a55219b1f250ffdd3469869b0152b7a928c987bc2cd67d0dedb79e2d2542356`.
+Fresh image IDs and fresh receipt evidence are required before either workspace
+can regain current proof-evidence status.
+
+## Historical Decision
 
 The V1 state-proof workspace retains `anyhow 1.0.100`. The recursive-v2
 workspace retains `anyhow 1.0.102`. Both workspaces update `quinn-proto` from
@@ -14,8 +37,8 @@ This is an exact, bounded exception for two historical guest identities. It
 does not authorize either affected `anyhow` version for new proof-generation,
 release, settlement, or production profiles.
 
-The governing machine-readable policy is
-`config/proof_profiles/risc0_dependency_audit_policy_v2.json`, SHA-256
+The governing machine-readable policy at that time was
+`config/proof_profiles/risc0_dependency_audit_policy_v2.json`, then SHA-256
 `f4d1aa8bcd7fb19fe983ba797eb9cca5e273831d1418ef26c2f53640ac3d03ae`.
 The checker rejects other workspace, category, advisory, package, or version
 combinations and rejects unused dispositions. It also binds the exact lockfile

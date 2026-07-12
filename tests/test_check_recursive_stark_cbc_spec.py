@@ -30,9 +30,8 @@ RECURSIVE_REBUILD_REFERENCES = (
     "config/proof_profiles/risc0_recursive_rebuild_reference.json",
     "config/proof_profiles/risc0_recursive_v2_rebuild_reference.json",
 )
-DEGRADED_REQUIRED_STATEMENTS = frozenset(
+REPROOF_PENDING_REQUIRED_STATEMENTS = frozenset(
     {
-        "recursive_node_v2",
         "zrpf_node_v3_structural",
         "zrpf_v1_spot_adapter_receipt_v1",
     }
@@ -94,20 +93,20 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     assert report["facts"]["implemented_obligation_count"] == 20
     assert report["facts"]["pending_obligation_count"] == 5
     assert report["matrix_sha256"] == (
-        "sha256:cbafaf9128670d9c60f37b340e6c549243d1b81ba786eda97ac841ad36f14864"
+        "sha256:586204542092191041205486f315fd1b84fb170775f1706661acd533029a80dd"
     )
     assert report["promotion_boundary"]["facts"]["public_claim_allowed"] is False
     assert report["promotion_boundary"]["facts"]["production_ready"] is False
     assert (
         report["promotion_boundary"]["facts"]["claim_status"]
-        == checker.V1_HOST_REPLAY_PENDING_CLAIM_STATUS
+        == checker.PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS
     )
-    assert report["promotion_boundary"]["facts"]["required_source_closures"] == ["v2"]
+    assert report["promotion_boundary"]["facts"]["required_source_closures"] == []
     assert report["promotion_boundary"]["facts"]["required_implemented_statements"] == sorted(
-        DEGRADED_REQUIRED_STATEMENTS
+        REPROOF_PENDING_REQUIRED_STATEMENTS
     )
     assert (
-        checker.V1_HOST_REPLAY_PENDING_NON_CLAIM
+        checker.PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM
         in matrix["promotion_boundary"]["non_claims"]
     )
     assert (
@@ -600,22 +599,22 @@ def test_current_recursive_proof_status_requires_fresh_proof_obligation_implemen
 
     assert report["ok"] is False
     assert (
-        "current local-recursive-proof status requires RS-CBC-014 implemented"
+        "reviewed recursive claim status requires RS-CBC-014 implemented"
         in report["errors"]
     )
 
 
-def test_v1_host_replay_pending_status_requires_exact_nonclaim() -> None:
+def test_patched_anyhow_reproof_pending_status_requires_exact_nonclaim() -> None:
     matrix = _matrix()
     matrix["promotion_boundary"]["non_claims"].remove(
-        checker.V1_HOST_REPLAY_PENDING_NON_CLAIM
+        checker.PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM
     )
 
     report = checker.validate_matrix(matrix)
 
     assert report["ok"] is False
     assert (
-        "V1-host-replay-pending status requires its exact current-host replay non-claim"
+        "patched-anyhow reproof-pending status requires its exact current-proof non-claim"
         in report["promotion_boundary"]["errors"]
     )
 
@@ -626,7 +625,7 @@ def test_full_current_proof_status_is_unavailable_without_current_host_evidence(
     matrix = _matrix()
     matrix["promotion_boundary"]["claim_status"] = checker.FULL_CURRENT_PROOF_CLAIM_STATUS
     matrix["promotion_boundary"]["non_claims"].remove(
-        checker.V1_HOST_REPLAY_PENDING_NON_CLAIM
+        checker.PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM
     )
     obligation = next(
         item for item in matrix["obligations"] if item["id"] == "RS-CBC-014"
@@ -701,35 +700,23 @@ def test_structural_tree_verified_status_requires_implemented_tree_obligations(
     ) in report["errors"]
 
 
-def test_v1_host_replay_pending_status_rejects_v2_source_closure_mutation(
-    tmp_path: Path,
-) -> None:
-    matrix = _matrix()
-    root = _repo_copy_for_matrix(tmp_path, matrix)
-    path = root / "zk/recursive_stark_v2_risc0/shared/src/lib.rs"
-    path.write_bytes(path.read_bytes() + b"\n// guest-linked mutation\n")
-
-    report = checker.validate_matrix(matrix, repo_root=root)
-
-    assert report["ok"] is False
-    assert any(
-        error.startswith("promoted V2 source closure rejected:")
-        for error in report["errors"]
-    )
-
-
-def test_v1_host_replay_pending_status_does_not_consult_stale_v1_closure(
+def test_reproof_pending_status_does_not_consult_stale_v1_or_v2_closures(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     matrix = _matrix()
 
-    def reject_unexpected_v1_validation(*_args: Any, **_kwargs: Any) -> Any:
-        raise AssertionError("pending status must not consult the stale V1 source closure")
+    def reject_unexpected_validation(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("reproof-pending status must not consult stale source closures")
 
     monkeypatch.setattr(
         checker.recursive_v1_evidence,
         "validate_reference",
-        reject_unexpected_v1_validation,
+        reject_unexpected_validation,
+    )
+    monkeypatch.setattr(
+        checker.recursive_v2_evidence,
+        "validate_reference",
+        reject_unexpected_validation,
     )
 
     report = checker.validate_matrix(matrix)
@@ -756,16 +743,16 @@ def test_claim_status_routes_exact_source_closure_policy(
     report = checker.validate_matrix(matrix)
 
     assert report["ok"] is True
-    assert captured == [frozenset({"v2"})]
-    assert report["promotion_boundary"]["facts"]["required_source_closures"] == ["v2"]
+    assert captured == [frozenset()]
+    assert report["promotion_boundary"]["facts"]["required_source_closures"] == []
     assert report["promotion_boundary"]["facts"]["required_implemented_statements"] == sorted(
-        DEGRADED_REQUIRED_STATEMENTS
+        REPROOF_PENDING_REQUIRED_STATEMENTS
     )
 
 
 @pytest.mark.parametrize(
     "statement_id",
-    sorted(DEGRADED_REQUIRED_STATEMENTS),
+    sorted(REPROOF_PENDING_REQUIRED_STATEMENTS),
 )
 def test_claim_status_rejects_pending_required_typed_statement(
     monkeypatch: pytest.MonkeyPatch,
@@ -786,24 +773,10 @@ def test_claim_status_rejects_pending_required_typed_statement(
 
     assert report["ok"] is False
     assert (
-        f"{checker.V1_HOST_REPLAY_PENDING_CLAIM_STATUS} requires typed statement {statement_id} "
+        f"{checker.PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS} requires typed statement "
+        f"{statement_id} "
         "implemented or implemented_partial"
     ) in report["errors"]
-
-
-def test_post_repair_verified_status_rejects_extra_compile_source(tmp_path: Path) -> None:
-    matrix = _matrix()
-    root = _repo_copy_for_matrix(tmp_path, matrix)
-    extra = root / "zk/recursive_stark_v2_risc0/shared/src/unpinned.rs"
-    extra.write_text("pub const UNPINNED: bool = true;\n", encoding="ascii")
-
-    report = checker.validate_matrix(matrix, repo_root=root)
-
-    assert report["ok"] is False
-    assert any(
-        error.startswith("promoted V2 source closure rejected: SOURCE_FILE_EXTRA:")
-        for error in report["errors"]
-    )
 
 
 def test_recursive_stark_cbc_matrix_rejects_stale_pre_repair_claim_status() -> None:

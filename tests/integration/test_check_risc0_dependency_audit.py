@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -49,14 +50,12 @@ def _policy_payloads() -> dict[str, object]:
         vulnerabilities=vulnerabilities,
         warnings={
             "unmaintained": (("RUSTSEC-2025-0141", "bincode", "1.3.3"),),
-            "unsound": (("RUSTSEC-2026-0190", "anyhow", "1.0.100"),),
         },
     )
     recursive_v2_payload = _payload(
         vulnerabilities=vulnerabilities,
         warnings={
             "unmaintained": (("RUSTSEC-2025-0141", "bincode", "1.3.3"),),
-            "unsound": (("RUSTSEC-2026-0190", "anyhow", "1.0.102"),),
         },
     )
     current_risc0_payload = _payload(
@@ -181,40 +180,6 @@ def test_denied_warning_categories_fail_closed(category: str) -> None:
     assert any(f"denied {category} warning" in error for error in report["errors"])
 
 
-def test_unsound_disposition_is_exact_and_experimental_only() -> None:
-    accepted = checker.evaluate_audit_payload(
-        _payload(
-            warnings={
-                "unsound": (("RUSTSEC-2026-0190", "anyhow", "1.0.102"),)
-            }
-        ),
-        workspace_id="recursive_stark_v2_risc0",
-        dispositions=_dispositions(),
-    )
-    wrong_workspace = checker.evaluate_audit_payload(
-        _payload(
-            warnings={
-                "unsound": (("RUSTSEC-2026-0190", "anyhow", "1.0.102"),)
-            }
-        ),
-        workspace_id="zrpf_risc0",
-        dispositions=_dispositions(),
-    )
-
-    assert accepted["ok"] is True
-    assert accepted["applied_dispositions"] == [
-        [
-            "recursive_stark_v2_risc0",
-            "unsound",
-            "RUSTSEC-2026-0190",
-            "anyhow",
-            "1.0.102",
-        ]
-    ]
-    assert accepted["warnings"][0]["disposition_applied"] is True
-    assert wrong_workspace["ok"] is False
-
-
 def test_unmaintained_warning_is_recorded_without_authority() -> None:
     report = checker.evaluate_audit_payload(
         _payload(
@@ -254,7 +219,10 @@ def test_policy_pins_exact_workspaces_and_scoped_advisories() -> None:
 
     assert policy["workspaces"] == checker._workspace_rows()
     assert checker._disposition_keys(policy) == checker.PERMITTED_DISPOSITION_KEYS
-    assert len(policy["dispositions"]) == 8
+    assert len(policy["dispositions"]) == 6
+    assert {row["category"] for row in policy["dispositions"]} == {
+        "vulnerability"
+    }
     assert policy["production_authority"] is False
     assert len(policy_sha256) == 64
 
@@ -282,110 +250,21 @@ def test_policy_rejects_control_or_boolean_drift(
 
 
 @pytest.mark.parametrize(
-    ("field", "replacement"),
+    "lockfile",
     [
-        ("affected_function", "anyhow::Error::downcast_ref"),
-        ("affected_function_callers_found", True),
-        ("lockfile_sha256", "0" * 64),
-        ("new_proof_generation_authority", True),
-        ("reference_file_sha256", "0" * 64),
-        ("reference_path", "config/proof_profiles/other.json"),
-        ("retained_identity_only", False),
+        "zk/state_proof_risc0/Cargo.lock",
+        "zk/recursive_stark_v2_risc0/Cargo.lock",
     ],
 )
-def test_policy_rejects_unsound_boundary_field_drift(
-    tmp_path: Path,
-    field: str,
-    replacement: object,
-) -> None:
-    policy = json.loads(checker.DEFAULT_POLICY.read_bytes())
-    disposition = next(
-        row for row in policy["dispositions"] if row["category"] == "unsound"
-    )
-    disposition[field] = replacement
-    path = tmp_path / "policy.json"
-    path.write_text(json.dumps(policy), encoding="utf-8")
+def test_active_risc0_workspaces_pin_patched_anyhow(lockfile: str) -> None:
+    document = tomllib.loads((ROOT / lockfile).read_text(encoding="utf-8"))
+    versions = {
+        package["version"]
+        for package in document["package"]
+        if package["name"] == "anyhow"
+    }
 
-    with pytest.raises(checker.AuditInputError):
-        checker.load_policy(path)
-
-
-@pytest.mark.parametrize(
-    ("workspace_id", "mutation", "expected_error"),
-    [
-        (
-            "state_proof_risc0",
-            "lock",
-            "unsound disposition lockfile bytes drifted",
-        ),
-        (
-            "recursive_stark_v2_risc0",
-            "reference",
-            "unsound disposition rebuild reference drifted",
-        ),
-        (
-            "state_proof_risc0",
-            "source",
-            "unsound disposition source closure drifted",
-        ),
-        (
-            "recursive_stark_v2_risc0",
-            "affected_function",
-            "affected anyhow::Error::downcast_mut token entered governed source",
-        ),
-    ],
-)
-def test_unsound_boundary_rejects_identity_or_reachability_drift(
-    tmp_path: Path,
-    workspace_id: str,
-    mutation: str,
-    expected_error: str,
-) -> None:
-    spec = next(
-        row for row in checker.REVIEWED_WORKSPACES if row.workspace_id == workspace_id
-    )
-    boundary = checker.UNSOUND_BOUNDARIES[workspace_id]
-    _copy_unsound_boundary_inputs(tmp_path, spec, boundary)
-    lock_sha256 = boundary.lockfile_sha256
-    if mutation == "lock":
-        lock_sha256 = "0" * 64
-    elif mutation == "reference":
-        reference = tmp_path / boundary.reference_path
-        reference.write_bytes(reference.read_bytes() + b"\n")
-    else:
-        reference_document = json.loads((tmp_path / boundary.reference_path).read_bytes())
-        source_row = next(
-            row
-            for row in reference_document["source_compile"]["files"]
-            if row["path"].endswith(".rs")
-        )
-        source = tmp_path / source_row["path"]
-        suffix = b"\n// downcast_mut\n" if mutation == "affected_function" else b"\n"
-        source.write_bytes(source.read_bytes() + suffix)
-
-    errors, verified = checker._unsound_boundary_errors(
-        spec,
-        root=tmp_path,
-        lockfile_sha256=lock_sha256,
-        dispositions=_dispositions(),
-    )
-
-    assert verified is False
-    assert any(expected_error in error for error in errors)
-
-
-def _copy_unsound_boundary_inputs(
-    destination: Path,
-    spec: checker.WorkspaceSpec,
-    boundary: checker.UnsoundBoundary,
-) -> None:
-    paths = {spec.lockfile, boundary.reference_path}
-    reference = json.loads((ROOT / boundary.reference_path).read_bytes())
-    paths.update(row["path"] for row in reference["source_compile"]["files"])
-    for relative in sorted(paths):
-        target = destination / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(ROOT / relative, target)
+    assert versions == {"1.0.103"}
 
 
 def test_four_workspace_report_records_lock_hashes_and_database_revision() -> None:
@@ -410,10 +289,13 @@ def test_four_workspace_report_records_lock_hashes_and_database_revision() -> No
         for row in report["workspaces"]
     }
     assert boundary_status == {
-        "state_proof_risc0": True,
-        "recursive_stark_v2_risc0": True,
-        "zrpf_risc0": False,
-        "zrpf_protocol": False,
+        workspace_id: False
+        for workspace_id in (
+            "state_proof_risc0",
+            "recursive_stark_v2_risc0",
+            "zrpf_risc0",
+            "zrpf_protocol",
+        )
     }
 
 

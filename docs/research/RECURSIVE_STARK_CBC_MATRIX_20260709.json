@@ -5,7 +5,7 @@
   "promotion_boundary": {
     "public_claim_allowed": false,
     "production_ready": false,
-    "claim_status": "v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified_v1_current_host_replay_pending",
+    "claim_status": "active_workspaces_patched_anyhow_temporary_v3_retained_structural_tree_verified_v1_v2_reproof_pending",
     "non_claims": [
       "no_production_ready_recursive_starks",
       "no_full_zk_execution_for_all_value_moving_surfaces",
@@ -32,7 +32,7 @@
       "no_complete_v3_semantic_composition",
       "no_fresh_zrpf_semantic_v2_receipt_evidence",
       "no_generic_v4_runtime_identity_authority",
-      "no_current_v1_host_verifier_replay_after_host_cli_changes",
+      "no_current_v1_or_v2_image_receipt_evidence_after_anyhow_1_0_103_migration",
       "no_zrpf_16x4_profile"
     ]
   },

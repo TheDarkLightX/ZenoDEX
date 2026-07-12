@@ -240,6 +240,13 @@ V1_HOST_REPLAY_PENDING_CLAIM_STATUS = (
 V1_HOST_REPLAY_PENDING_NON_CLAIM = (
     "no_current_v1_host_verifier_replay_after_host_cli_changes"
 )
+PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS = (
+    "active_workspaces_patched_anyhow_temporary_v3_retained_structural_tree_verified_"
+    "v1_v2_reproof_pending"
+)
+PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM = (
+    "no_current_v1_or_v2_image_receipt_evidence_after_anyhow_1_0_103_migration"
+)
 
 
 @dataclass(frozen=True)
@@ -249,11 +256,10 @@ class ClaimStatusPolicy:
 
 
 CLAIM_STATUS_POLICIES = {
-    V1_HOST_REPLAY_PENDING_CLAIM_STATUS: ClaimStatusPolicy(
-        required_source_closures=frozenset({"v2"}),
+    PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS: ClaimStatusPolicy(
+        required_source_closures=frozenset(),
         required_implemented_statements=frozenset(
             {
-                "recursive_node_v2",
                 "zrpf_node_v3_structural",
                 "zrpf_v1_spot_adapter_receipt_v1",
             }
@@ -302,7 +308,7 @@ def validate_matrix(matrix: Any, *, repo_root: Path = REPO_ROOT) -> dict[str, An
                 )
         obligation_statuses = {item["id"]: item["status"] for item in obligations["items"]}
         if obligation_statuses.get("RS-CBC-014") != "implemented":
-            errors.append("current local-recursive-proof status requires RS-CBC-014 implemented")
+            errors.append("reviewed recursive claim status requires RS-CBC-014 implemented")
         for obligation_id in ("RS-CBC-016", "RS-CBC-022"):
             if obligation_statuses.get(obligation_id) not in IMPLEMENTED_STATUSES:
                 errors.append(
@@ -453,6 +459,14 @@ def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
     ):
         errors.append(
             "V1-host-replay-pending status requires its exact current-host replay non-claim"
+        )
+    if (
+        claim_status == PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS
+        and PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM not in non_claims
+    ):
+        errors.append(
+            "patched-anyhow reproof-pending status requires its exact current-proof "
+            "non-claim"
         )
     return {
         "ok": not errors,

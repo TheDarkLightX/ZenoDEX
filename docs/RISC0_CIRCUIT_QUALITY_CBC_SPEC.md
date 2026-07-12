@@ -13,8 +13,15 @@ recursive-v2 workspace implements an experimental fixed-height
 leaf-to-subtree-to-epoch-root composition. This policy does not claim
 arbitrary-depth recursion or production-ready recursive aggregation.
 
+Status update, 2026-07-12: the active V1 and recursive-v2 lockfiles now pin
+`anyhow 1.0.103`. This changes their build closures and image identities. All
+V1 and V2 receipts described in the 2026-07-10 sections below are historical
+regression evidence. Fresh image IDs and receipts are required before restoring
+a current-proof claim. The active audit policy permits no unsound-warning
+disposition.
+
 Status update, 2026-07-10: fanout-oriented composition repairs changed
-guest-linked v1 and v2 source. Current-source RISC0 3.0.5 v1 leaf/root receipts
+guest-linked v1 and v2 source. At that revision, RISC0 3.0.5 v1 leaf/root receipts
 and a fixed-height v2 inner/root pair have now been generated and separately
 verified locally. The current aggregate-v2 image ID is
 `fe131b0ec697a9bd703218f3733e44b84c8e347eb8ebfc8776be2200958fbe53`.
@@ -41,7 +48,7 @@ swapped-node policy rejections, the one-leaf policy rejection, and the
 missing-child-assumption control. This supplies bounded replay evidence.
 Correctness proof and release authorization remain absent.
 
-A separate same-profile run proves two spot leaves under the same current image
+A separate same-profile run proved two spot leaves under the same then-current image
 and profile with distinct authenticated statement and semantic-source IDs. Its
 inner journal contains one unique derived verifier ID for two child receipts.
 The repository-owned verifier binds authenticated lane kinds, rejects duplicate
@@ -66,7 +73,7 @@ handled reject exits zero, so consumers must parse the canonical response and
 must not treat process exit status as proof acceptance. The artifact checker
 does not attest execution provenance.
 
-The current-image promotion gate enumerates every bounded regular file in the
+The historical current-image promotion gate enumerated every bounded regular file in the
 declared v1 and v2 source scopes. The scopes must contain no `target` directory;
 evidence builds use an external target root. Binary `include_bytes!` payloads
 and other non-Rust compiler inputs therefore participate in the source root,
@@ -92,13 +99,14 @@ required before a V1-derived envelope can carry production authority. The next
 recursive ABI should make this boundary unrepresentable with strict decoding.
 `RS-CBC-021` therefore remains a pending critical promotion obligation.
 
-These host CLI changes invalidate the prior V1 current-source verifier replay
-claim because the retained V1 verifier source closure includes the CLI. The CBC
-matrix now requires the exact non-claim
-`no_current_v1_host_verifier_replay_after_host_cli_changes` and validates only
-the unaffected V2 source closure for its scoped current-proof status. Restoring
-the combined V1-and-V2 status requires rebuilding the V1 verifier from the new
-source closure and replaying the retained positive and malformed-proof cases.
+The host CLI changes invalidated the prior V1 current-source verifier replay
+claim because the retained V1 verifier source closure includes the CLI. The
+subsequent `anyhow 1.0.103` migration changed both active V1 and V2 build
+closures and image identities. The CBC matrix now requires the exact non-claim
+`no_current_v1_or_v2_image_receipt_evidence_after_anyhow_1_0_103_migration`.
+Restoring a current V1-and-V2 status requires rebuilding both profiles from
+their patched source closures and generating fresh positive and negative proof
+evidence. Historical receipts remain bounded regression evidence only.
 
 The additive ZRPF V3 candidate under `zk/zrpf_protocol` now implements a
 proof-system-neutral, bounded 8-by-8 structural journal nucleus. It provides a
