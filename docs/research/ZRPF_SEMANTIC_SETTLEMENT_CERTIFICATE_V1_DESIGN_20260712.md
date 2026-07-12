@@ -3,7 +3,8 @@
 Date: 2026-07-12
 
 Status: proof-neutral action batch and SettlementEffectPlanV2 implemented and
-host-tested; guest, receipt, and ledger authority pending
+host-tested; proof-neutral ordinary Spot effect projection implemented; guest,
+receipt, and ledger authority pending
 
 ## Goal and bounded domain
 
@@ -147,6 +148,12 @@ effect projection or normal form, prove that it matches the authenticated
 action semantics, and reject alternative row partitions. Until that profile
 exists, effect-commitment correspondence and semantic row normalization remain
 settlement blockers.
+
+The ordinary Spot V1 projection is the first closed application profile. It
+derives one aggregate action, one lane-state write, and one balanced ordinary
+effect per asset from an exact Value Aggregate V5 proposal. It rejects
+issuance, destruction, messages, carries, and rewards. Supply-changing and
+cross-domain profiles remain separate obligations.
 
 Construction remains proof-neutral. V2 does not establish that applying the
 cell writes to an authenticated state tree produces `post_state_root`, that a

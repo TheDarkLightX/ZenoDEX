@@ -16,6 +16,7 @@ mod epoch_v1;
 mod epoch_v2;
 mod input_v1;
 mod recompose_v1;
+mod spot_settlement_v1;
 mod value_v1;
 
 #[cfg(feature = "historical-v1")]
@@ -30,4 +31,5 @@ pub use epoch_v1::*;
 pub use epoch_v2::*;
 pub use input_v1::*;
 pub use recompose_v1::*;
+pub use spot_settlement_v1::*;
 pub use value_v1::*;

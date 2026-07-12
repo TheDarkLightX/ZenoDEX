@@ -45,6 +45,10 @@ historical-v1 = []
 name = "value_v1"
 path = "tests/value_v1.rs"
 
+[[test]]
+name = "spot_settlement_v1"
+path = "tests/spot_settlement_v1.rs"
+
 [dependencies]
 sha2 = { version = "0.10.9", default-features = false }
 tau-state-proof-risc0-shared = { path = "../../state_proof_risc0/shared", default-features = false }
