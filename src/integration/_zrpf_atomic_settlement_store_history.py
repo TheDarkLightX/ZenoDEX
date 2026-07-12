@@ -2,15 +2,26 @@
 
 from __future__ import annotations
 
+import hashlib
 import sqlite3
 from typing import Any
 
+from src.core._zrpf_settlement_certificate_authority import (
+    SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1,
+)
 from src.core._zrpf_settlement_commit_authority import (
     SETTLEMENT_AUTHORITY_BLOCKED_REASON_V1,
 )
 from src.core.zrpf_settlement_effect_plan import SettlementEffectPlanV1
 from src.integration._zrpf_atomic_settlement_plan_codec import (
     _decode_canonical_settlement_plan_v1,
+)
+from src.integration._zrpf_authenticated_certificate_store_engine import (
+    _ACTION_LIST_DOMAIN,
+    _CONSUMED_LIST_DOMAIN,
+    _GRANT_LIST_DOMAIN,
+    _identifier_list_digest,
+    _read_identifier_sequence,
 )
 from src.integration.recursive_stark_admission_store_types import _hash_bytes, _hex_hash
 from src.state.canonical import canonical_json_bytes
@@ -88,6 +99,191 @@ def _validate_coupled_admission_settlement_history(connection: sqlite3.Connectio
     ).fetchone()
     if mismatched is not None:
         raise ValueError("admission and settlement plan linkage mismatch")
+
+
+def _validate_authenticated_certificate_history(connection: sqlite3.Connection) -> None:
+    """Replay certificate bindings and corruption checks during every restart."""
+
+    if not connection.in_transaction:
+        raise ValueError("certificate history validation requires an existing transaction")
+    rows = connection.execute(
+        """
+        SELECT certificate.*, plan.epoch_id_be AS plan_epoch_id_be,
+               plan.root_journal_hash AS plan_root_journal_hash,
+               plan.application_id AS plan_application_id,
+               plan.chain_or_domain_id AS plan_chain_or_domain_id,
+               plan.public_policy_hash AS plan_public_policy_hash,
+               plan.previous_state_root AS plan_previous_state_root,
+               plan.result_state_root AS plan_result_state_root,
+               plan.economic_action_ids_root AS plan_economic_action_ids_root,
+               plan.ledger_cell_writes_root AS plan_ledger_cell_writes_root,
+               plan.asset_effects_root AS plan_asset_effects_root,
+               plan.message_effects_root AS plan_message_effects_root,
+               plan.carry_effects_root AS plan_carry_effects_root,
+               plan.reward_effects_root AS plan_reward_effects_root,
+               admission.authority_manifest_sha256 AS admission_authority_manifest_sha256,
+               admission.verifier_executable_sha256 AS admission_verifier_executable_sha256,
+               admission.verification_request_sha256 AS admission_verification_request_sha256,
+               admission.release_binding_config_digest AS admission_release_binding_digest,
+               admission.replay_manifest_sha256 AS admission_replay_manifest_sha256
+        FROM zrpf_settlement_certificates AS certificate
+        JOIN zrpf_settlement_plans AS plan
+          ON plan.plan_commitment = certificate.plan_commitment
+         AND plan.settlement_revision = certificate.settlement_revision
+        JOIN zrpf_admissions AS admission
+          ON admission.root_journal_hash = certificate.semantic_root_journal_hash
+        ORDER BY certificate.settlement_revision
+        """
+    ).fetchall()
+    for row in rows:
+        _validate_certificate_history_row(connection, row)
+
+
+def _validate_certificate_history_row(
+    connection: sqlite3.Connection,
+    row: sqlite3.Row,
+) -> None:
+    _validate_certificate_epoch_link(connection, row)
+    _validate_certificate_scalar_links(row)
+    _validate_certificate_bytes_and_authority(row)
+    _validate_certificate_identifier_lists(connection, row)
+    _validate_certificate_root_identities(connection, row)
+
+
+def _validate_certificate_epoch_link(
+    connection: sqlite3.Connection,
+    row: sqlite3.Row,
+) -> None:
+    revision = int(row["settlement_revision"])
+    epoch = int.from_bytes(bytes(row["epoch_id_be"]), "big")
+    if bytes(row["epoch_id_be"]) != bytes(row["plan_epoch_id_be"]):
+        raise ValueError("certificate epoch does not match normalized plan")
+    prior = connection.execute(
+        "SELECT epoch_id_be FROM zrpf_settlement_plans WHERE settlement_revision = ?",
+        (revision - 1,),
+    ).fetchone()
+    if prior is not None and epoch <= int.from_bytes(bytes(prior["epoch_id_be"]), "big"):
+        raise ValueError("certificate epoch history is not strictly monotonic")
+
+
+def _validate_certificate_scalar_links(row: sqlite3.Row) -> None:
+    linked_columns = (
+        ("semantic_root_journal_hash", "plan_root_journal_hash"),
+        ("application_id", "plan_application_id"),
+        ("chain_or_domain_id", "plan_chain_or_domain_id"),
+        ("public_policy_hash", "plan_public_policy_hash"),
+        ("pre_state_root", "plan_previous_state_root"),
+        ("post_state_root", "plan_result_state_root"),
+        ("economic_action_ids_root", "plan_economic_action_ids_root"),
+        ("ledger_cell_writes_root", "plan_ledger_cell_writes_root"),
+        ("asset_effects_root", "plan_asset_effects_root"),
+        ("message_effects_root", "plan_message_effects_root"),
+        ("carry_effects_root", "plan_carry_effects_root"),
+        ("reward_effects_root", "plan_reward_effects_root"),
+        ("authority_manifest_sha256", "admission_authority_manifest_sha256"),
+        ("verifier_executable_sha256", "admission_verifier_executable_sha256"),
+        ("verification_request_sha256", "admission_verification_request_sha256"),
+        ("admission_policy_binding_sha256", "admission_release_binding_digest"),
+        ("settlement_manifest_sha256", "admission_replay_manifest_sha256"),
+    )
+    for certificate_column, linked_column in linked_columns:
+        if bytes(row[certificate_column]) != bytes(row[linked_column]):
+            raise ValueError(f"certificate {certificate_column} linkage mismatch")
+
+
+def _validate_certificate_bytes_and_authority(row: sqlite3.Row) -> None:
+    if hashlib.sha256(bytes(row["canonical_certificate"])).digest() != bytes(
+        row["canonical_certificate_sha256"]
+    ):
+        raise ValueError("canonical settlement certificate sha256 mismatch")
+    if hashlib.sha256(bytes(row["exact_effect_plan"])).digest() != bytes(
+        row["exact_effect_plan_sha256"]
+    ):
+        raise ValueError("exact settlement effect plan sha256 mismatch")
+    if int(row["settlement_authority"]) != 0:
+        raise ValueError("authenticated certificate authority must remain false")
+    if (
+        str(row["authority_blocked_reason"])
+        != SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1
+    ):
+        raise ValueError("authenticated certificate blocked reason mismatch")
+
+
+def _validate_certificate_identifier_lists(
+    connection: sqlite3.Connection,
+    row: sqlite3.Row,
+) -> None:
+    certificate_journal_hash = _hex_hash(bytes(row["certificate_journal_hash"]))
+    action_nullifiers = _read_identifier_sequence(
+        connection,
+        table="zrpf_settlement_action_nullifiers",
+        column="action_nullifier",
+        certificate_journal_hash=certificate_journal_hash,
+    )
+    consumed_objects = _read_identifier_sequence(
+        connection,
+        table="zrpf_settlement_consumed_objects",
+        column="consumed_object_id",
+        certificate_journal_hash=certificate_journal_hash,
+    )
+    if _identifier_list_digest(_ACTION_LIST_DOMAIN, action_nullifiers) != bytes(
+        row["action_nullifier_list_sha256"]
+    ):
+        raise ValueError("stored action nullifier list digest mismatch")
+    if _identifier_list_digest(_CONSUMED_LIST_DOMAIN, consumed_objects) != bytes(
+        row["consumed_object_id_list_sha256"]
+    ):
+        raise ValueError("stored consumed object list digest mismatch")
+
+    grant_rows = connection.execute(
+        """
+        SELECT authorization_grant_spend_nullifier
+        FROM zrpf_settlement_authorization_consumptions
+        WHERE plan_commitment = ? ORDER BY ordinal
+        """,
+        (bytes(row["plan_commitment"]),),
+    ).fetchall()
+    grant_spends = tuple(
+        _hex_hash(bytes(grant["authorization_grant_spend_nullifier"]))
+        for grant in grant_rows
+    )
+    if _identifier_list_digest(_GRANT_LIST_DOMAIN, grant_spends) != bytes(
+        row["authorization_grant_spend_list_sha256"]
+    ):
+        raise ValueError("stored authorization grant spend list digest mismatch")
+
+
+def _validate_certificate_root_identities(
+    connection: sqlite3.Connection,
+    row: sqlite3.Row,
+) -> None:
+    root = bytes(row["semantic_root_journal_hash"])
+    for column, table in (
+        ("semantic_claim_hash", "zrpf_child_claims"),
+        ("settlement_claim_hash", "zrpf_child_claims"),
+        ("settlement_receipt_id", "zrpf_accepted_receipts"),
+    ):
+        found = connection.execute(
+            f"SELECT 1 FROM {table} WHERE identifier = ? AND root_journal_hash = ?",
+            (bytes(row[column]), root),
+        ).fetchone()
+        if found is None:
+            raise ValueError(f"certificate {column} identity linkage missing")
+
+    admission_messages = connection.execute(
+        "SELECT identifier FROM zrpf_cross_shard_messages "
+        "WHERE root_journal_hash = ? ORDER BY ordinal",
+        (root,),
+    ).fetchall()
+    plan_messages = connection.execute(
+        "SELECT message_id FROM zrpf_settlement_message_effects "
+        "WHERE plan_commitment = ? ORDER BY ordinal",
+        (bytes(row["plan_commitment"]),),
+    ).fetchall()
+    if [bytes(value[0]) for value in admission_messages] != [
+        bytes(value[0]) for value in plan_messages
+    ]:
+        raise ValueError("certificate message identity linkage mismatch")
 
 
 def _validate_header_against_plan(row: sqlite3.Row, plan: SettlementEffectPlanV1) -> None:
