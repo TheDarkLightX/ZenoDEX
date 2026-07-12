@@ -30,8 +30,15 @@ def test_retained_structural_evidence_rejects_hardened_verifier_source_drift() -
         "source SHA-256 mismatch: zk/zrpf_risc0/verifier/src/lib.rs",
         "source SHA-256 mismatch: zk/state_proof_risc0/shared/Cargo.toml",
         "source SHA-256 mismatch: zk/zrpf_protocol/protocol/Cargo.toml",
+        "source SHA-256 mismatch: zk/zrpf_protocol/protocol/src/lib.rs",
         "source SHA-256 mismatch: zk/zrpf_risc0/aggregate_shared/Cargo.toml",
+        "source SHA-256 mismatch: zk/zrpf_risc0/aggregate_shared/src/structural_v1.rs",
         "source SHA-256 mismatch: zk/zrpf_risc0/shared/Cargo.toml",
+        "source SHA-256 mismatch: zk/zrpf_risc0/harness/Cargo.toml",
+        "source SHA-256 mismatch: zk/zrpf_risc0/methods/Cargo.toml",
+        "source SHA-256 mismatch: zk/zrpf_risc0/methods/build.rs",
+        "source SHA-256 mismatch: zk/zrpf_risc0/methods/structural_aggregate_l1/src/main.rs",
+        "source SHA-256 mismatch: zk/zrpf_risc0/methods/structural_aggregate_l2/src/main.rs",
     }
     assert report["facts"]["receipt_nodes_declared"] == 7
     assert report["facts"]["python_verifies_risc0_seal"] is False

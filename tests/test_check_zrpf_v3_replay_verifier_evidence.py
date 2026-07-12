@@ -59,6 +59,44 @@ def test_expected_evidence_pins_source_receipts_and_authority_boundary() -> None
     )
 
 
+def test_expected_evidence_reads_the_governed_anchor_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def reject_current_checkout(_root: Path) -> dict:
+        raise AssertionError("current checkout source must not define anchored evidence")
+
+    monkeypatch.setattr(support, "source_closure", reject_current_checkout)
+
+    assert _expected_evidence()["replay_source_closure"]["sha256"] == (
+        support.EXPECTED_SOURCE_CLOSURE_SHA256
+    )
+
+
+def test_anchor_inventory_rejects_an_unexpected_compiler_visible_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = support._run_git_read
+
+    def add_build_script(
+        repo_root: Path,
+        arguments: tuple[str, ...],
+        output_limit: int,
+    ) -> bytes:
+        raw = original(repo_root, arguments, output_limit)
+        if arguments[0] != "ls-tree":
+            return raw
+        return raw + (
+            b"100644 blob "
+            + b"0" * 40
+            + b"\tzk/zrpf_risc0/replay_verifier/build.rs\0"
+        )
+
+    monkeypatch.setattr(support, "_run_git_read", add_build_script)
+
+    with pytest.raises(ValueError, match="anchor replay source inventory mismatch"):
+        support.anchored_source_closure(support.REPO_ROOT)
+
+
 def test_verified_live_record_creation_passes_static_check_and_refuses_overwrite(
     tmp_path: Path,
 ) -> None:
@@ -577,9 +615,13 @@ def test_replay_report_exact_shape_accepts_and_root_mutation_rejects(
     assert "level-one receipt report mismatch" in errors
 
 
-def test_manifest_features_and_source_anchor_match_current_boundary() -> None:
+def test_manifest_features_and_governed_source_anchor_snapshot_match() -> None:
     replay_toolchain.validate_manifest_features()
     assert checker.verify_source_anchor(support.REPO_ROOT) == []
+    closure = support.anchored_source_closure(support.REPO_ROOT)
+    assert closure["file_count"] == support.EXPECTED_SOURCE_CLOSURE_FILES
+    assert closure["total_bytes"] == support.EXPECTED_SOURCE_CLOSURE_BYTES
+    assert closure["sha256"] == support.EXPECTED_SOURCE_CLOSURE_SHA256
 
 
 def test_toolchain_binding_rejects_symlinked_artifact(tmp_path: Path) -> None:

@@ -180,6 +180,10 @@ checks the exact 44-file source closure before and after compilation, disables
 automatic Cargo target discovery, disables checkout hooks, rejects unpinned
 ancestor Cargo config, isolates Cargo home config, remaps compiler-visible
 paths, and uses an allowlisted `execve` environment.
+The static checker independently reads the same exact inventory from the pinned
+Git commit and verifies the durable tag, commit tree, file count, byte count,
+and closure digest. Later integration source is outside this historical build
+identity and cannot rebind the retained replay evidence.
 
 The retained replay output is 5,920 bytes with SHA-256
 `7751395663a33c1ae58fa403346dc90618e842dd1df2f2fdc37f18599e50c288`.

@@ -7,6 +7,7 @@ import importlib
 import json
 import os
 import stat
+from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
@@ -62,6 +63,7 @@ MUTATION_RECEIPT_SHA256 = (
 TOOLCHAIN_LOCK_PATH = "config/proof_profiles/risc0_recursive_toolchain_lock.json"
 MAX_SOURCE_BYTES = 16 * 1024 * 1024
 MAX_RECEIPT_BYTES = 16 * 1024 * 1024
+MAX_GIT_TREE_BYTES = 4 * 1024 * 1024
 
 SOURCE_FILES: tuple[tuple[str, str], ...] = (
     ("toolchain_policy", TOOLCHAIN_LOCK_PATH),
@@ -394,11 +396,28 @@ def _regular_file_bytes(root: Path, relative: str, maximum: int) -> bytes:
 
 def source_closure(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     _require_exact_source_inventory(repo_root)
+    return _build_source_closure(
+        lambda relative: _regular_file_bytes(repo_root, relative, MAX_SOURCE_BYTES)
+    )
+
+
+def anchored_source_closure(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
+    """Recompute the governed closure from the immutable anchor commit."""
+
+    _require_exact_anchor_inventory(repo_root)
+    return _build_source_closure(
+        lambda relative: _anchor_blob_bytes(repo_root, relative)
+    )
+
+
+def _build_source_closure(
+    read_source: Callable[[str], bytes],
+) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     hasher = hashlib.sha256()
     total_bytes = 0
     for role, relative in sorted(SOURCE_FILES, key=lambda item: item[1]):
-        raw = _regular_file_bytes(repo_root, relative, MAX_SOURCE_BYTES)
+        raw = read_source(relative)
         digest = sha256_bytes(raw)
         size = len(raw)
         rows.append({"path": relative, "role": role, "sha256": digest, "size_bytes": size})
@@ -414,6 +433,93 @@ def source_closure(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         "sha256": hasher.hexdigest(),
         "total_bytes": total_bytes,
     }
+
+
+def _require_exact_anchor_inventory(repo_root: Path) -> None:
+    raw = _run_git_read(
+        repo_root,
+        (
+            "ls-tree",
+            "-r",
+            "-z",
+            "--full-tree",
+            SOURCE_COMMIT,
+            "--",
+            "config/proof_profiles/risc0_recursive_toolchain_lock.json",
+            "zk/state_proof_risc0/Cargo.toml",
+            "zk/state_proof_risc0/shared",
+            "zk/zrpf_protocol",
+            "zk/zrpf_risc0",
+        ),
+        MAX_GIT_TREE_BYTES,
+    )
+    discovered: set[str] = set()
+    for record in raw.split(b"\0"):
+        if not record:
+            continue
+        try:
+            metadata, path_bytes = record.split(b"\t", 1)
+            mode, object_type, _object_id = metadata.split(b" ", 2)
+            relative = path_bytes.decode("utf-8")
+        except (UnicodeDecodeError, ValueError) as exc:
+            raise ValueError("anchor source inventory is malformed") from exc
+        if not _anchor_inventory_path_is_relevant(relative):
+            continue
+        if relative in discovered:
+            raise ValueError("anchor source inventory contains a duplicate")
+        if object_type != b"blob" or mode not in {b"100644", b"100755"}:
+            raise ValueError("anchor source inventory contains a non-regular entry")
+        discovered.add(relative)
+    expected = {relative for _, relative in SOURCE_FILES}
+    if discovered != expected:
+        raise ValueError("anchor replay source inventory mismatch")
+
+
+def _anchor_inventory_path_is_relevant(relative: str) -> bool:
+    if relative in SOURCE_INVENTORY_EXACT_FILES:
+        return True
+    if relative.startswith("zk/zrpf_risc0/") and relative.endswith("/Cargo.toml"):
+        return True
+    return any(
+        relative.startswith(f"{package_root}/")
+        for package_root in SOURCE_INVENTORY_PACKAGE_ROOTS
+    )
+
+
+def _anchor_blob_bytes(repo_root: Path, relative: str) -> bytes:
+    if not _safe_relative_path(relative):
+        raise ValueError(f"unsafe relative path: {relative}")
+    raw = _run_git_read(
+        repo_root,
+        ("cat-file", "blob", f"{SOURCE_COMMIT}:{relative}"),
+        MAX_SOURCE_BYTES,
+    )
+    if not raw:
+        raise ValueError(f"empty anchor source file: {relative}")
+    return raw
+
+
+def _run_git_read(
+    repo_root: Path,
+    arguments: tuple[str, ...],
+    output_limit: int,
+) -> bytes:
+    module_prefix = "tools." if __package__ else ""
+    environment = importlib.import_module(f"{module_prefix}zrpf_v3_replay_environment")
+    process_runner = importlib.import_module(f"{module_prefix}zrpf_v3_replay_process")
+    process = process_runner.run_bounded(
+        process_runner.ProcessRequest(
+            command=("/usr/bin/git", *arguments),
+            cwd=repo_root,
+            env=environment.clean_environment(),
+            timeout_seconds=30,
+            output_limit_bytes=output_limit,
+            profile=process_runner.ProcessProfile.TOOL,
+        )
+    )
+    if process.returncode != 0 or process.stderr:
+        raise ValueError("anchor Git object read failed")
+    return cast(bytes, process.stdout)
 
 
 def _require_exact_source_inventory(repo_root: Path) -> None:

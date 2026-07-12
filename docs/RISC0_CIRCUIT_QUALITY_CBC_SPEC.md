@@ -168,6 +168,10 @@ checks the 44-file closure before and after compilation, disables automatic
 Cargo target discovery and checkout hooks, rejects unpinned ancestor Cargo
 config, isolates Cargo home config, remaps compiler-visible paths, and passes an
 allowlisted `execve` environment to the build and verifier processes.
+Static validation reconstructs that closure from the pinned Git commit and
+checks the durable tag, commit tree, file count, byte count, and closure digest.
+Forward integration source therefore remains separate from the historical
+replay build identity.
 Normal execution and `RISC0_DEV_MODE=1` execution produced byte-identical
 5,920-byte output with SHA-256
 `7751395663a33c1ae58fa403346dc90618e842dd1df2f2fdc37f18599e50c288`.

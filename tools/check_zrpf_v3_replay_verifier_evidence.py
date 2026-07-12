@@ -188,7 +188,7 @@ def validate_materials(repo_root: Path = support.REPO_ROOT) -> dict[str, Any]:
     source_files_checked = 0
     receipt_artifacts_checked = 0
     try:
-        closure = support.source_closure(repo_root)
+        closure = support.anchored_source_closure(repo_root)
         receipts = support.retained_receipt_set(
             repo_root / support.RECEIPT_DIRECTORY.relative_to(support.REPO_ROOT)
         )
@@ -264,25 +264,19 @@ def verify_source_anchor(repo_root: Path) -> list[str]:
         errors.append("source anchor tag target mismatch")
     if tree.stdout.decode("ascii", errors="replace").strip() != support.SOURCE_TREE:
         errors.append("source anchor tree mismatch")
-    for _, relative in support.SOURCE_FILES:
-        try:
-            anchored = _run(
-                ["git", "show", f"{support.SOURCE_COMMIT}:{relative}"],
-                cwd=repo_root,
-                env=environment.clean_environment(),
-                timeout=30,
-                profile=process_runner.ProcessProfile.TOOL,
-            ).stdout
-            current = support._regular_file_bytes(
-                repo_root,
-                relative,
-                support.MAX_SOURCE_BYTES,
-            )
-        except (OSError, RuntimeError):
-            errors.append(f"source anchor file unavailable: {relative}")
-            continue
-        if anchored != current:
-            errors.append(f"source differs from anchor commit: {relative}")
+    try:
+        closure = support.anchored_source_closure(repo_root)
+    except (OSError, RuntimeError, ValueError):
+        errors.append("source anchor closure is unavailable")
+        return errors
+    if any(
+        (
+            closure["file_count"] != support.EXPECTED_SOURCE_CLOSURE_FILES,
+            closure["total_bytes"] != support.EXPECTED_SOURCE_CLOSURE_BYTES,
+            closure["sha256"] != support.EXPECTED_SOURCE_CLOSURE_SHA256,
+        )
+    ):
+        errors.append("source anchor closure mismatch")
     return errors
 
 

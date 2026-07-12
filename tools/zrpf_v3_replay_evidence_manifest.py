@@ -20,7 +20,7 @@ def expected_evidence(
         "non_claims": list(support.NON_CLAIMS),
         "recorded_build": _recorded_build(execution_identity),
         "recorded_execution": _recorded_execution(execution_identity),
-        "replay_source_closure": support.source_closure(repo_root),
+        "replay_source_closure": support.anchored_source_closure(repo_root),
         "retained_receipt_set": support.retained_receipt_set(
             repo_root / support.RECEIPT_DIRECTORY.relative_to(support.REPO_ROOT)
         ),
