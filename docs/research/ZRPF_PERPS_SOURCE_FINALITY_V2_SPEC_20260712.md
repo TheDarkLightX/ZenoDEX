@@ -2,8 +2,9 @@
 
 Date: 2026-07-12
 
-Status: V1 aggregate scope guard and proof-neutral V2 transfer ABI implemented;
-authenticated source/perps proof path pending
+Status: V1 aggregate scope guard, proof-neutral V2 transfer ABI, and pure perps
+collateral row derivation reference implemented; authenticated source/perps proof
+path pending
 
 ## Disaster state
 
@@ -79,6 +80,31 @@ This layer is proof-neutral. A host can propose every input field. Receipt
 authentication and source-transition derivation remain obligations of the
 future source and destination guests and their sealed verifier.
 
+## Implemented pure perps derivation reference
+
+`zk/zrpf_protocol/perps_source_finality` now provides an independent `no_std`
+reference adapter for insurance seed, collateral deposit, and collateral
+withdrawal actions. It:
+
+- decodes one exact bounded canonical `ValueTransferSetV2`;
+- derives the action hash, asset identity, lane scopes, amount, direction,
+  counterparty route, and deadline expected from each value-moving perps action;
+- derives deposit and withdrawal actor scopes from their action pubkeys, while
+  requiring an explicit proposed funder scope for an insurance seed because the
+  historical `InitMarket` action does not identify that funder;
+- requires exactly one transfer for every value-moving action and rejects extra
+  transfers;
+- derives one source debit row and one destination credit row for each transfer;
+- rejects missing, duplicate, reordered-substitution, wrong-counterparty,
+  amount, asset, scope, deadline, row-set, and conservation mutations;
+- caps row decoding before authority-bearing typed output is returned;
+- uses an exact canonical Postcard proposal codec.
+
+The source-transition, receipt-claim, and insurance-seed funder commitments
+remain explicitly host-proposed. This reference derives and checks structure
+only. It does not authenticate those commitments and does not establish source
+or external-chain finality.
+
 ## One-sided accounting
 
 ```text
@@ -120,6 +146,6 @@ receipt, authenticated source derivation, source finality, transfer finality,
 durable admission, complete perps fee/funding/insurance/liquidation coverage,
 release authority, privacy, throughput, or production authority.
 
-The next executable step is a pure derivation reference for seed, deposit, and
-withdrawal, followed by separate source and perps guests and fresh cross-receipt
-evidence.
+The next executable step is separate source and perps guests that independently
+derive the identical `ValueTransferV2`, authenticate governed receipts and
+image IDs, and produce fresh cross-receipt equality and mutation evidence.
