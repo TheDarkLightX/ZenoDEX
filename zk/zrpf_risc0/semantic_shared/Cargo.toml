@@ -61,6 +61,14 @@ path = "tests/spot_certificate_v1.rs"
 name = "spot_certificate_mutation_v1"
 path = "tests/spot_certificate_mutation_v1.rs"
 
+[[test]]
+name = "spot_replay_data_v1"
+path = "tests/spot_replay_data_v1.rs"
+
+[[test]]
+name = "spot_full_blob_da_v1"
+path = "tests/spot_full_blob_da_v1.rs"
+
 [dependencies]
 sha2 = { version = "0.10.9", default-features = false }
 tau-state-proof-risc0-shared = { path = "../../state_proof_risc0/shared", default-features = false }

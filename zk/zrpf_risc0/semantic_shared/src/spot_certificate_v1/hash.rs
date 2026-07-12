@@ -30,6 +30,7 @@ pub(super) fn derive_proof_tree_root_v1(
 }
 
 pub(super) fn derive_schedule_root_v1(
+    conflict_schedule_root: CommitmentV3,
     batch: &EconomicActionBatchV1,
     plan: &SettlementEffectPlanV2,
 ) -> Result<CommitmentV3, OrdinarySpotSettlementCertificateErrorV1> {
@@ -38,6 +39,7 @@ pub(super) fn derive_schedule_root_v1(
     })?;
     let mut hasher = domain_hasher(SCHEDULE_DOMAIN_V1)?;
     hasher.update(1_u16.to_be_bytes());
+    hasher.update(conflict_schedule_root.as_bytes());
     hasher.update(action_count.to_be_bytes());
     for action in batch.actions() {
         hasher.update(action.action_id()?.as_bytes());
