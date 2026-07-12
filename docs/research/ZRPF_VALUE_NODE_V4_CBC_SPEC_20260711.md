@@ -1,6 +1,7 @@
 # ZRPF Value Node V4 Correct-by-Construction Specification
 
-Status: implemented proof-system-neutral protocol codec, no proof authority
+Status: implemented bounded leaf guest and temporary local Succinct receipt;
+no ledger, release, or production authority
 Date: 2026-07-11
 
 ## Purpose
@@ -11,22 +12,27 @@ continuity, represented external-effect rows, issuance grants, residual flows,
 and root closure. Value Node V4 defines the bounded public bytes that can carry
 that semantic summary through a self-similar recursive tree.
 
-This tranche establishes deterministic construction and strict decoding. A
-decoded V4 journal remains an untrusted protocol value until a proof adapter
-authenticates the exact bytes under a governed program and receipt-security
-profile.
+This tranche establishes deterministic construction, strict decoding, one
+verify-before-decode Spot value-leaf guest, and a sealed host receipt boundary.
+A decoded V4 journal remains an untrusted protocol value. The fixed leaf lane
+authenticates one exact retained adapter receipt under its pinned image, proves
+the derived V4 journal, and binds the resulting receipt to the independently
+derived expected bytes.
 
 ```text
 untrusted bytes
   -> bounded sequence decoding
-  -> exact canonical Postcard decoding
-  -> V3 structural self-consistency
-  -> V2 semantic subtree self-consistency
-  -> V4 structural/semantic binding
-  -> protocol proposal only
+  -> exact adapter receipt verification inside the V4 guest
+  -> semantic-witness interpretation and V3/V2/V4 self-consistency
+  -> exact canonical NodeJournalV4
+  -> Succinct V4 receipt
+  -> host receipt, image, profile, manifest, record, and residual checks
+  -> exact expected-journal typestate
+  -> temporary local evidence only
 ```
 
-Receipt verification and ledger admission are later authority transitions.
+Ledger-owned expectation, atomic admission, settlement, and release governance
+remain later authority transitions.
 
 ## Compatibility
 
@@ -363,10 +369,10 @@ node_journal_hash
 
 This tranche does not establish:
 
-- a V4 RISC0 guest, ELF, image ID, receipt, or proof replay;
-- receipt-authenticated origin for the embedded V3 or semantic values;
-- an allowed V4 program, proof system, receipt profile, or parameter root;
-- a ledger-owned expected statement;
+- a release-governed or reproducibly built V4 image;
+- proof regeneration for the retained Spot source or V1 adapter receipts;
+- receipt-authenticated V4 aggregation beyond the one fixed residual leaf;
+- a ledger-governed V4 program, policy, grant set, or expected statement;
 - complete-root asset conservation or governed mint-cap enforcement;
 - receipt, message, schedule, carry, or data-availability composition;
 - durable atomic ledger admission;
@@ -375,25 +381,29 @@ This tranche does not establish:
 
 All corresponding authority claims remain false.
 
-The codec accepts any structurally valid nonzero application statement hash.
-A future outer verifier and atomic admission boundary must compare that exact
-hash with the ledger-owned expected statement before it gains authority.
+The fixed receipt proves a zero-row residual leaf with unchanged raw state. Its
+application statement is deterministically rederived from the authenticated
+subtree. A future complete-root verifier and atomic admission boundary must
+compare the closed statement with a ledger-owned expectation before it gains
+economic authority.
 
 ## Next executable step
 
-The expected-statement lane is merged without rewriting either history. The
-receipt-neutral bridge now derives `SemanticSubtreeV2` from the sealed Spot V1
-summary, requires exact equality for every independently derived component
-root, and consumes the sealed expected-projection match before exposing the
-application statement hash.
+The fixed ordinal-zero lane now derives `SemanticSubtreeV2` from an exact
+retained Spot source and adapter receipt, recomputes the empty row root, proves
+the V4 guest, crosses `ExactSpotValueLeafReceiptV4`, and rejects an exact
+single-word Succinct seal mutation. The temporary receipt is 601,394 bytes with
+SHA-256
+`794a69746b3f833f56e15c968c16ab7d4ee9089f555eb210d38a1c0ea37d18c7`.
 
 The next executable sequence is:
 
-1. define the V4 leaf and aggregate witness codecs with the same bounded
-   sequence discipline;
-2. implement a leaf guest that verifies the governed adapter receipt before
-   constructing a V4 leaf;
+1. retain the fixed leaf receipt, replay, mutation, source closure, and exact
+   claim boundary in a checker-governed evidence bundle;
+2. define the V4 aggregate witness codec with the same bounded sequence
+   discipline;
 3. implement an aggregate guest that verifies every exact V4 child receipt
    before semantic merge;
 4. close the complete root against the ledger-owned expected statement;
-5. generate fresh Succinct receipts and exact negative controls.
+5. generate a nonempty ordinary-flow leaf, a governed-mint leaf, a multi-leaf
+   aggregate receipt, and exact negative controls.
