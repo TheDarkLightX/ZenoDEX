@@ -1091,12 +1091,12 @@
       "status": "pending",
       "defense_layer": "unrepresentable",
       "disaster_state": "ambiguous or extended recursive request and proof JSON is accepted under last-key semantics or silently loses attacker-controlled fields before typed construction",
-      "construction_rule": "version the recursive outer request, proof, metadata, and disclosure envelopes; reject duplicate keys and unknown critical fields at every nested object; require bounded canonical bytes before typed construction",
+      "construction_rule": "version the recursive outer request, proof, metadata, and disclosure envelopes; require exact complete field sets and types; reject duplicate, missing, and unknown critical fields at every nested object; require bounded canonical bytes before typed construction",
       "code_refs": [],
       "test_refs": [],
       "external_commands": [],
-      "next_action": "define versioned exact-field schemas for the outer request, recursive proof, proof.meta, mixed Tau projections, and nested Spot, perps, and zUSD payloads; then add canonical-byte and complete nested unknown-field negative tests before any production admission integration",
-      "non_claim": "V1 outer bytes, recursive proof and proof.meta envelopes, and all nested application payloads are not canonical exact-field authority objects and may not authorize production admission; partial host guards do not close this obligation"
+      "next_action": "require bounded canonical bytes for the recursive verification request, proof envelope, and proof.meta; define versioned exact-field schemas for mixed Tau projections and nested Spot, perps, and zUSD application payloads; then add complete nested unknown-field negative tests before any production admission integration",
+      "non_claim": "the recursive V1 verification request, proof envelope, and proof.meta now have exact required-field and pre-authentication host guards, but their source bytes are not canonical authority objects; mixed Tau projections and nested application payloads remain incomplete and may not authorize production admission"
     },
     {
       "id": "RS-CBC-022",

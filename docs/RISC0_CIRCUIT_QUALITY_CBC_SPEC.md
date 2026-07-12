@@ -86,18 +86,28 @@ descriptor, effect-summary, asset-row, message, and recursive leaf-wrapper
 objects through a CLI-local exact wire validator. This hardening does not
 change guest-visible types, image IDs, journals, or retained receipts.
 
+The recursive verification entry point additionally requires the exact six
+fields of the V1 verification request, the exact six fields of its recursive
+proof envelope, and every field emitted by the V1 recursive `proof.meta`
+profile. Missing and unknown fields, wrong schema names or versions, wrong
+field types, mismatched request/proof state hashes, and wrong public proof type,
+domain, profile, receipt codec, receipt kind, or image ID reject before receipt
+authentication. Structure-preserving mutation tests assert this pre-crypto
+ordering, including request-over-proof-over-metadata reject precedence.
+
 The matrix-cited missing-assumption harness uses the same strict parser and a
 16 MiB request bound. The recursive smoke proof loader uses the same strict
 parser and a 16 MiB per-artifact bound. These host evidence utilities reject
 duplicate decoded keys, escaped aliases, and trailing JSON documents.
 
 Current receipts authenticate the parsed typed value rather than canonical
-outer JSON bytes. The mixed Tau request projections and nested Spot, perps, and
-zUSD leaf payloads do not yet have complete versioned exact-field schemas.
+outer JSON bytes. The mixed Tau projections and nested Spot, perps, and zUSD
+application payloads do not yet have complete versioned exact-field schemas.
 Canonical-byte enforcement and complete nested unknown-field rejection remain
 required before a V1-derived envelope can carry production authority. The next
 recursive ABI should make this boundary unrepresentable with strict decoding.
-`RS-CBC-021` therefore remains a pending critical promotion obligation.
+The new request, proof, and metadata guards are a bounded host-side closure;
+`RS-CBC-021` remains a pending critical promotion obligation.
 
 The host CLI changes invalidated the prior V1 current-source verifier replay
 claim because the retained V1 verifier source closure includes the CLI. The

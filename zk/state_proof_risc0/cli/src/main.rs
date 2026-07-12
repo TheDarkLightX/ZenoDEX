@@ -1301,7 +1301,7 @@ fn try_verify_recursive(
     proof: &Value,
     expected_state_hash: [u8; 32],
 ) -> Result<VerifiedRecursiveFacts, String> {
-    check_proof_meta_image_id_for(proof, TAU_STATE_PROOF_AGGREGATE_ID)?;
+    preflight_recursive_verification_wire(req, proof, expected_state_hash)?;
     let authenticated = recursive_receipt_authentication::authenticate(proof)?;
     finish_recursive_verification(req, proof, expected_state_hash, authenticated)
 }
@@ -1316,9 +1316,33 @@ fn try_verify_recursive_with_test_authenticator<F>(
 where
     F: FnOnce(&Value) -> Result<recursive_receipt_authentication::AuthenticatedReceipt, String>,
 {
-    check_proof_meta_image_id_for(proof, TAU_STATE_PROOF_AGGREGATE_ID)?;
+    preflight_recursive_verification_wire(req, proof, expected_state_hash)?;
     let authenticated = authenticate_receipt(proof)?;
     finish_recursive_verification(req, proof, expected_state_hash, authenticated)
+}
+
+fn preflight_recursive_verification_wire(
+    req: &Value,
+    proof: &Value,
+    expected_state_hash: [u8; 32],
+) -> Result<(), String> {
+    recursive_wire::validate_recursive_verify_v1(req, proof)?;
+    let proof_state_hash = proof
+        .get("state_hash")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "recursive_verify_request.proof.state_hash must be a string".to_string())?;
+    let proof_state_hash = parse_hex32(proof_state_hash)
+        .map_err(|error| format!("recursive_verify_request.proof.state_hash invalid: {error}"))?;
+    if proof_state_hash != expected_state_hash {
+        return Err("recursive_verify_request.proof.state_hash mismatch".to_string());
+    }
+    check_proof_meta_image_id_for(proof, TAU_STATE_PROOF_AGGREGATE_ID)?;
+    expect_meta_str(proof, "proof_type", PROOF_TYPE_RECURSIVE)?;
+    expect_meta_str(proof, "domain_separator", RECURSIVE_DOMAIN_SEPARATOR_V1)?;
+    expect_meta_str(proof, "proof_profile", RECURSIVE_EPOCH_PROFILE_V1)?;
+    expect_meta_str(proof, "receipt_codec", RECEIPT_CODEC_V1)?;
+    expect_meta_str(proof, "receipt_kind", ProofReceiptKind::Succinct.as_str())?;
+    Ok(())
 }
 
 fn finish_recursive_verification(
@@ -4975,6 +4999,77 @@ mod tests {
         }
     }
 
+    fn recursive_verification_proof(journal: &RecursiveEpochJournalV1) -> Value {
+        let profile = recursive_receipt_profile();
+        let mut meta = recursive_meta(journal, ProofReceiptKind::Succinct);
+        let object = meta.as_object_mut().unwrap();
+        object.insert(
+            "receipt_codec".to_string(),
+            Value::String(RECEIPT_CODEC_V1.to_string()),
+        );
+        object.insert(
+            "receipt_verifier_parameters".to_string(),
+            Value::String(profile.verifier_parameters),
+        );
+        object.insert(
+            "receipt_hashfn".to_string(),
+            Value::String(profile.hashfn.unwrap()),
+        );
+        object.insert(
+            "receipt_control_id".to_string(),
+            Value::String(profile.control_id.unwrap()),
+        );
+        json!({
+            "schema": "tau_state_proof",
+            "schema_version": 1,
+            "state_hash": hex_lower(&journal.post_state_root),
+            "proof_type": PROOF_TYPE_RECURSIVE,
+            "proof": "injected-by-test-authenticator",
+            "meta": meta,
+        })
+    }
+
+    fn recursive_verification_request(
+        input: &RecursiveCompositionInputV1,
+        journal: &RecursiveEpochJournalV1,
+        proof: &Value,
+    ) -> Value {
+        json!({
+            "schema": "tau_state_proof_verify",
+            "schema_version": 1,
+            "state_hash": hex_lower(&journal.post_state_root),
+            "proof": proof,
+            "recursive_input": input,
+            "recursive_expectations": recursive_expectations(journal),
+        })
+    }
+
+    fn assert_recursive_wire_rejects_before_authentication(
+        req: &Value,
+        proof: &Value,
+        expected_state_hash: [u8; 32],
+        expected_error: &str,
+    ) {
+        use std::cell::Cell;
+
+        let authentication_calls = Cell::new(0usize);
+        let result = try_verify_recursive_with_test_authenticator(
+            req,
+            proof,
+            expected_state_hash,
+            |_| -> Result<recursive_receipt_authentication::AuthenticatedReceipt, String> {
+                authentication_calls.set(authentication_calls.get() + 1);
+                Err("test authenticator must not run".to_string())
+            },
+        );
+        let error = match result {
+            Ok(_) => panic!("malformed recursive wire unexpectedly authenticated"),
+            Err(error) => error,
+        };
+        assert_eq!(error, expected_error);
+        assert_eq!(authentication_calls.get(), 0);
+    }
+
     #[test]
     fn recursive_meta_binds_verification_claim_and_journal_roots() {
         let input = recursive_input();
@@ -5106,15 +5201,8 @@ mod tests {
         let input = recursive_input();
         let journal = compose_recursive_epoch_journal_v1(&input).unwrap();
         let journal_bytes = postcard::to_allocvec(&journal).unwrap();
-        let proof = json!({
-            "proof_type": PROOF_TYPE_RECURSIVE,
-            "proof": "injected-by-test-authenticator",
-            "meta": recursive_meta(&journal, ProofReceiptKind::Succinct),
-        });
-        let req = json!({
-            "recursive_input": input,
-            "recursive_expectations": recursive_expectations(&journal),
-        });
+        let proof = recursive_verification_proof(&journal);
+        let req = recursive_verification_request(&input, &journal, &proof);
         let authentication_calls = Cell::new(0usize);
         let authenticated_journal = journal_bytes.clone();
         let authenticator = |_proof: &Value| {
@@ -5150,6 +5238,237 @@ mod tests {
         );
         assert_eq!(response.as_object().unwrap().len(), 2);
         assert_eq!(authentication_calls.get(), 1);
+    }
+
+    #[test]
+    fn recursive_request_shape_mutations_reject_before_receipt_authentication() {
+        let input = recursive_input();
+        let journal = compose_recursive_epoch_journal_v1(&input).unwrap();
+        let baseline_proof = recursive_verification_proof(&journal);
+        let baseline_request = recursive_verification_request(&input, &journal, &baseline_proof);
+
+        let mut request = baseline_request.clone();
+        request["prover_note"] = Value::String("unreviewed".to_string());
+        assert_recursive_wire_rejects_before_authentication(
+            &request,
+            &baseline_proof,
+            journal.post_state_root,
+            "recursive_verify_request contains unknown field `prover_note`",
+        );
+
+        let mut request = baseline_request.clone();
+        request.as_object_mut().unwrap().remove("schema");
+        assert_recursive_wire_rejects_before_authentication(
+            &request,
+            &baseline_proof,
+            journal.post_state_root,
+            "recursive_verify_request missing required field `schema`",
+        );
+
+        let mut request = baseline_request.clone();
+        request["schema"] = Value::String("tau_state_proof_request".to_string());
+        assert_recursive_wire_rejects_before_authentication(
+            &request,
+            &baseline_proof,
+            journal.post_state_root,
+            "recursive_verify_request.schema must equal `tau_state_proof_verify`",
+        );
+
+        let mut request = baseline_request.clone();
+        request["schema_version"] = json!(2);
+        assert_recursive_wire_rejects_before_authentication(
+            &request,
+            &baseline_proof,
+            journal.post_state_root,
+            "recursive_verify_request.schema_version must equal 1",
+        );
+    }
+
+    #[test]
+    fn recursive_proof_shape_mutations_reject_before_receipt_authentication() {
+        let input = recursive_input();
+        let journal = compose_recursive_epoch_journal_v1(&input).unwrap();
+        let baseline_proof = recursive_verification_proof(&journal);
+        let baseline_request = recursive_verification_request(&input, &journal, &baseline_proof);
+
+        let mut proof = baseline_proof.clone();
+        proof["prover_note"] = Value::String("unreviewed".to_string());
+        let mut request = baseline_request.clone();
+        request["proof"] = proof.clone();
+        assert_recursive_wire_rejects_before_authentication(
+            &request,
+            &proof,
+            journal.post_state_root,
+            "recursive_verify_request.proof contains unknown field `prover_note`",
+        );
+
+        let mut proof = baseline_proof.clone();
+        proof.as_object_mut().unwrap().remove("schema");
+        let mut request = baseline_request.clone();
+        request["proof"] = proof.clone();
+        assert_recursive_wire_rejects_before_authentication(
+            &request,
+            &proof,
+            journal.post_state_root,
+            "recursive_verify_request.proof missing required field `schema`",
+        );
+
+        let mut proof = baseline_proof.clone();
+        proof["schema_version"] = json!(2);
+        let mut request = baseline_request.clone();
+        request["proof"] = proof.clone();
+        assert_recursive_wire_rejects_before_authentication(
+            &request,
+            &proof,
+            journal.post_state_root,
+            "recursive_verify_request.proof.schema_version must equal 1",
+        );
+
+        let mut proof = baseline_proof.clone();
+        proof["state_hash"] = Value::String(hx(241));
+        let mut request = baseline_request.clone();
+        request["proof"] = proof.clone();
+        assert_recursive_wire_rejects_before_authentication(
+            &request,
+            &proof,
+            journal.post_state_root,
+            "recursive_verify_request.proof.state_hash mismatch",
+        );
+    }
+
+    #[test]
+    fn recursive_meta_mutations_reject_before_receipt_authentication() {
+        let input = recursive_input();
+        let journal = compose_recursive_epoch_journal_v1(&input).unwrap();
+        let baseline_proof = recursive_verification_proof(&journal);
+        let baseline_request = recursive_verification_request(&input, &journal, &baseline_proof);
+
+        let mut proof = baseline_proof.clone();
+        proof["meta"]["prover_note"] = Value::String("unreviewed".to_string());
+        let mut request = baseline_request.clone();
+        request["proof"] = proof.clone();
+        assert_recursive_wire_rejects_before_authentication(
+            &request,
+            &proof,
+            journal.post_state_root,
+            "recursive_verify_request.proof.meta contains unknown field `prover_note`",
+        );
+
+        let mut proof = baseline_proof.clone();
+        proof["meta"]
+            .as_object_mut()
+            .unwrap()
+            .remove("toolchain_lock_hash");
+        let mut request = baseline_request.clone();
+        request["proof"] = proof.clone();
+        assert_recursive_wire_rejects_before_authentication(
+            &request,
+            &proof,
+            journal.post_state_root,
+            "recursive_verify_request.proof.meta missing required field `toolchain_lock_hash`",
+        );
+
+        let mut proof = baseline_proof.clone();
+        proof["meta"]["epoch_id"] = Value::String("1".to_string());
+        let mut request = baseline_request.clone();
+        request["proof"] = proof.clone();
+        assert_recursive_wire_rejects_before_authentication(
+            &request,
+            &proof,
+            journal.post_state_root,
+            "recursive_verify_request.proof.meta.epoch_id must be an unsigned 64-bit integer",
+        );
+
+        let mut proof = baseline_proof.clone();
+        proof["meta"]["proof_profile"] = Value::String("unreviewed-profile".to_string());
+        let mut request = baseline_request.clone();
+        request["proof"] = proof.clone();
+        assert_recursive_wire_rejects_before_authentication(
+            &request,
+            &proof,
+            journal.post_state_root,
+            "proof.meta.proof_profile mismatch",
+        );
+    }
+
+    #[test]
+    fn recursive_wire_reject_precedence_is_outer_then_proof_then_meta() {
+        let input = recursive_input();
+        let journal = compose_recursive_epoch_journal_v1(&input).unwrap();
+        let baseline_proof = recursive_verification_proof(&journal);
+        let baseline_request = recursive_verification_request(&input, &journal, &baseline_proof);
+
+        let mut proof = baseline_proof.clone();
+        proof["meta"]["prover_note"] = Value::String("nested".to_string());
+        proof["prover_note"] = Value::String("envelope".to_string());
+        let mut request = baseline_request.clone();
+        request["proof"] = proof.clone();
+        request["prover_note"] = Value::String("outer".to_string());
+        assert_recursive_wire_rejects_before_authentication(
+            &request,
+            &proof,
+            journal.post_state_root,
+            "recursive_verify_request contains unknown field `prover_note`",
+        );
+
+        request.as_object_mut().unwrap().remove("prover_note");
+        assert_recursive_wire_rejects_before_authentication(
+            &request,
+            &proof,
+            journal.post_state_root,
+            "recursive_verify_request.proof contains unknown field `prover_note`",
+        );
+    }
+
+    #[test]
+    fn every_recursive_verification_wire_field_is_required_before_authentication() {
+        let input = recursive_input();
+        let journal = compose_recursive_epoch_journal_v1(&input).unwrap();
+        let proof = recursive_verification_proof(&journal);
+        let request = recursive_verification_request(&input, &journal, &proof);
+
+        for field in recursive_wire::RECURSIVE_VERIFY_REQUEST_FIELDS_V1 {
+            let mut mutated_request = request.clone();
+            mutated_request.as_object_mut().unwrap().remove(*field);
+            let expected = format!("recursive_verify_request missing required field `{field}`");
+            assert_recursive_wire_rejects_before_authentication(
+                &mutated_request,
+                &proof,
+                journal.post_state_root,
+                &expected,
+            );
+        }
+        for field in recursive_wire::RECURSIVE_PROOF_FIELDS_V1 {
+            let mut mutated_proof = proof.clone();
+            mutated_proof.as_object_mut().unwrap().remove(*field);
+            let mut mutated_request = request.clone();
+            mutated_request["proof"] = mutated_proof.clone();
+            let expected =
+                format!("recursive_verify_request.proof missing required field `{field}`");
+            assert_recursive_wire_rejects_before_authentication(
+                &mutated_request,
+                &mutated_proof,
+                journal.post_state_root,
+                &expected,
+            );
+        }
+        for field in recursive_wire::RECURSIVE_PROOF_META_FIELDS_V1 {
+            let mut mutated_proof = proof.clone();
+            mutated_proof["meta"]
+                .as_object_mut()
+                .unwrap()
+                .remove(*field);
+            let mut mutated_request = request.clone();
+            mutated_request["proof"] = mutated_proof.clone();
+            let expected =
+                format!("recursive_verify_request.proof.meta missing required field `{field}`");
+            assert_recursive_wire_rejects_before_authentication(
+                &mutated_request,
+                &mutated_proof,
+                journal.post_state_root,
+                &expected,
+            );
+        }
     }
 
     #[test]
