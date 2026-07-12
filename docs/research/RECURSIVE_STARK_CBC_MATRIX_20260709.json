@@ -5,7 +5,7 @@
   "promotion_boundary": {
     "public_claim_allowed": false,
     "production_ready": false,
-    "claim_status": "v1_v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified",
+    "claim_status": "v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified_v1_current_host_replay_pending",
     "non_claims": [
       "no_production_ready_recursive_starks",
       "no_full_zk_execution_for_all_value_moving_surfaces",
@@ -32,6 +32,7 @@
       "no_complete_v3_semantic_composition",
       "no_fresh_zrpf_semantic_v2_receipt_evidence",
       "no_generic_v4_runtime_identity_authority",
+      "no_current_v1_host_verifier_replay_after_host_cli_changes",
       "no_zrpf_16x4_profile"
     ]
   },
@@ -623,7 +624,7 @@
         },
         {
           "path": "zk/state_proof_risc0/cli/src/main.rs",
-          "symbol": "authenticated_recursive_facts"
+          "symbol": "recursive_receipt_authentication"
         },
         {
           "path": "src/integration/recursive_stark_replay_manifest.py",
@@ -684,6 +685,14 @@
           "symbol": "recursive_verified_facts_require_root_matching_disclosure"
         },
         {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "recursive_request_authenticates_receipt_once_and_preserves_response_schema"
+        },
+        {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "recursive_production_path_has_one_cryptographic_verify_call_site"
+        },
+        {
           "path": "tests/integration/test_recursive_stark_replay_manifest.py",
           "symbol": "test_build_and_check_local_artifact_pinned_bundle"
         },
@@ -729,8 +738,8 @@
         "python3 tools/check_risc0_recursive_v2_same_profile_two_spot_evidence.py --baseline-spot-leaf <SPOT_A> --distinct-spot-leaf <SPOT_B> --duplicate-source-alias-leaf <SPOT_ALIAS> --inner-artifact <SAME_PROFILE_INNER> --root-artifact <SAME_PROFILE_ROOT> --release-harness <HARNESS> --two-leaf-verifier <TWO_LEAF_VERIFIER> --json",
         "python3 tools/check_recursive_stark_replay_bundle.py <bundle> --expected-manifest-sha256 <sha256>"
       ],
-      "next_action": "preserve and replay the fe131b one-leaf, heterogeneous fanout-two, and same-profile fanout-two pairs, their cryptographic mutations, and the missing-assumption rejection; add nonempty receipt partitions and an eight-leaf proof before broader fanout promotion; reopen this obligation after any guest-linked change",
-      "non_claim": "a current-source RISC0 3.0.5 one-leaf fixed-height pair, one source-frozen spot-plus-zUSD fanout-two pair, and one same-profile distinct-statement spot fanout-two pair are locally verified; this evidence does not establish a promoted general multi-leaf profile, nonempty receipt-set witness coverage, public replay, cross-host or reproducible-release evidence, settlement or ledger-admission authority, privacy, or production readiness"
+      "next_action": "rebuild the strict-ingress, single-verification V1 host from its governed source closure and replay both the retained positive receipt and malformed-proof rejection before restoring the combined V1-plus-V2 status; preserve and replay the fe131b V2 one-leaf, heterogeneous fanout-two, and same-profile fanout-two pairs before broader fanout promotion",
+      "non_claim": "current V2 RISC0 3.0.5 one-leaf, source-frozen spot-plus-zUSD fanout-two, and same-profile distinct-statement spot fanout-two evidence remains source-closure checked; the hardened V1 host has Rust tests for strict ingress and exactly-once receipt authentication but no fresh current-host V1 receipt or malformed-proof replay, so the prior combined V1-plus-V2 current-host status is withheld; this evidence does not establish a promoted general multi-leaf profile, nonempty receipt-set witness coverage, public replay, cross-host or reproducible-release evidence, settlement or ledger-admission authority, privacy, or production readiness"
     },
     {
       "id": "RS-CBC-015",
@@ -1086,8 +1095,8 @@
       "code_refs": [],
       "test_refs": [],
       "external_commands": [],
-      "next_action": "define the strict versioned recursive outer-envelope field sets and add duplicate-key, unknown-field, noncanonical-byte, and nested-object negative tests before any production admission integration",
-      "non_claim": "V1 recursive outer request and proof envelopes are not canonical authority objects and may not authorize production admission"
+      "next_action": "retain the CLI-wide recursive duplicate-key rejection and the closed recursive composition field-set guards; define versioned exact-field schemas for mixed Tau projections and nested Spot, perps, and zUSD payloads, then add canonical-byte and complete nested unknown-field negative tests before any production admission integration",
+      "non_claim": "the state-proof CLI rejects recursive duplicate keys and unknown fields in the closed recursive composition surface, but V1 outer bytes and all nested application payloads are not yet canonical authority objects and may not authorize production admission"
     },
     {
       "id": "RS-CBC-022",

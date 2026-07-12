@@ -1,4 +1,7 @@
-use std::{env, fs, path::PathBuf};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 use risc0_zkvm::{compute_image_id, Digest as Risc0Digest};
 use serde_json::{json, Value};
@@ -21,7 +24,7 @@ struct Method<'a> {
     generated_id: [u32; 8],
 }
 
-fn method_report(method: &Method<'_>, output_dir: &PathBuf) -> Result<Value, String> {
+fn method_report(method: &Method<'_>, output_dir: &Path) -> Result<Value, String> {
     if method.program.is_empty() {
         return Err(format!("{} embedded program is empty", method.name));
     }

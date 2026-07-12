@@ -73,6 +73,12 @@ jobs:
             RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
             "${pinned_bin}/cargo" fetch --locked \
               --manifest-path zk/zrpf_risc0/Cargo.toml
+          env \
+            PATH="${pinned_bin}:/usr/bin:/bin" \
+            RUSTC="${pinned_bin}/rustc" \
+            RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
+            "${pinned_bin}/cargo" fetch --locked \
+              --manifest-path zk/state_proof_risc0/Cargo.toml
 
       - name: Run Python and evidence assurance
         run: |
@@ -269,6 +275,15 @@ jobs:
           "${pinned_bin}/cargo-clippy" clippy \
             --manifest-path zk/recursive_stark_v2_risc0/Cargo.toml \
             --locked --workspace --all-targets -- -D warnings
+          "${pinned_bin}/cargo" fmt \
+            --manifest-path zk/state_proof_risc0/Cargo.toml \
+            --all -- --check
+          "${pinned_bin}/cargo" test \
+            --manifest-path zk/state_proof_risc0/Cargo.toml \
+            --locked -p tau-state-proof-risc0-cli --all-targets
+          "${pinned_bin}/cargo-clippy" clippy \
+            --manifest-path zk/state_proof_risc0/Cargo.toml \
+            --locked -p tau-state-proof-risc0-cli --all-targets -- -D warnings
 
       - name: Build pinned replay container
         run: |
