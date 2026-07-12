@@ -5,11 +5,13 @@ extern crate alloc;
 mod economic_action_v1;
 mod semantic_epoch_v1;
 mod semantic_epoch_v2;
+mod task_manifest_v1;
 mod value_node_v4;
 
 pub use economic_action_v1::*;
 pub use semantic_epoch_v1::*;
 pub use semantic_epoch_v2::*;
+pub use task_manifest_v1::*;
 pub use value_node_v4::*;
 
 use alloc::vec::Vec;

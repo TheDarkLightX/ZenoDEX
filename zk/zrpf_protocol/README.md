@@ -21,7 +21,15 @@ The crate currently provides:
 - an action-bound `AuthorizationConsumptionNullifierV1` compatibility identity
   for binding a canonical action to a grant;
 - an `AuthorizationGrantSpendNullifierV1` derived only from application,
-  domain, grant, and nonce for durable single-use enforcement.
+  domain, grant, and nonce for durable single-use enforcement;
+- a bounded `EconomicActionBatchV1` that rejects duplicate actions,
+  grant-and-nonce spends, and cross-action consumed objects;
+- a bounded `ProgramManifestV1` that commits proof backend, program, declared
+  build identity inputs, verifier policy, receipt codec, security level, and
+  privacy claim;
+- a bounded `ProofTaskV1` whose derived task ID commits scope, statement,
+  manifest, inputs, DA root, resource ceilings, reward ceiling, redundancy,
+  privacy, and deterministic sequence deadlines.
 
 ## Authority Boundary
 
@@ -48,6 +56,17 @@ action-bound compatibility identity is not a single-use grant key. The
 grant-spend nullifier supplies that key, while this crate does not verify a
 signature or grant, derive ZenoDEX effect semantics, persist uniqueness state,
 or authorize value movement.
+
+The manifest and task objects are canonical proposals. A manifest becomes
+eligible only after a separately governed release policy authorizes its exact
+root. A task becomes payable only after an assigned proof verifies and the
+ledger admits the governed result. Sequence deadlines are explicit protocol
+inputs; these objects never read a wall clock.
+
+The protocol crate does not establish that a task's accepted proof systems,
+proof profile, or privacy policy are compatible with the referenced manifest.
+Governed assignment and admission must decode both objects and enforce those
+cross-object policies.
 
 The full claim boundary and next steps are documented in
 `docs/research/ZRPF_V3_CORRECT_BY_CONSTRUCTION_SPEC_20260710.md` from the
