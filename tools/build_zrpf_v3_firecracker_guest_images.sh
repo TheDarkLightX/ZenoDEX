@@ -1,17 +1,33 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
+
+if [[ $- != *p* ]]; then
+  builtin printf '%s\n' "error: privileged bash mode required" >&2
+  builtin exit 2
+fi
+
 set -euo pipefail
 
+for variable in \
+  BASH_ENV CDPATH ENV GLOBIGNORE LD_AUDIT LD_LIBRARY_PATH LD_PRELOAD \
+  POSIXLY_CORRECT SOURCE_DATE_EPOCH; do
+  [[ ! -v "$variable" ]] || {
+    builtin printf '%s\n' "error: hostile build environment rejected" >&2
+    builtin exit 2
+  }
+done
+
 builtin unset -f \
-  chmod cmp cut find install mkdir mksquashfs mktemp mv realpath rm sha256sum sort stat wc \
+  chmod cmp cut dirname find install mkdir mksquashfs mktemp mv realpath rm sha256sum sort stat wc \
   2>/dev/null || :
 readonly PATH=/usr/bin:/bin
 export PATH
 
 # Deterministically assemble the bounded ZRPF Firecracker root and input images.
+# Captured hashes do not establish same-UID resistance or packed-file identity.
 # This build helper creates artifacts only. It grants no launch or proof authority.
 
 readonly EXPECTED_RECEIPT_COUNT=8
-readonly GUEST_ELF_REFERENCE_SHA256=3b0ba0fcb017281bc604595e5b7e6ac46cbe0e4523661c7658111b3d7a71e4ce
+readonly GUEST_ELF_REFERENCE_SHA256=7abd685b3cb5d88a9678c1cdd303ec95d8844607b8c39b1ba12e06a4c350cfeb
 readonly IMAGE_EPOCH=1780396050
 readonly SQUASHFS_BLOCK_BYTES=131072
 readonly MKSQUASHFS_BINARY=/usr/bin/mksquashfs
@@ -28,8 +44,15 @@ expected_receipt_set_sha256=""
 expected_mksquashfs_sha256=""
 guest_elf_checker_binary=""
 expected_guest_elf_checker_sha256=""
+declare -A seen_options=()
 
 while (($#)); do
+  [[ -n $1 && $# -ge 2 && -n ${2-} && ${2-} != --* \
+    && -z ${seen_options[$1]+present} ]] || {
+    echo "error: unknown, duplicate, or incomplete argument" >&2
+    exit 2
+  }
+  seen_options["$1"]=1
   case "$1" in
     --guest-binary)
       guest_binary=${2-}
@@ -64,7 +87,7 @@ while (($#)); do
       shift 2
       ;;
     *)
-      echo "error: unknown or incomplete argument" >&2
+      echo "error: unknown, duplicate, or incomplete argument" >&2
       exit 2
       ;;
   esac
@@ -86,12 +109,25 @@ umask 077
 export LC_ALL=C
 export TZ=UTC
 
-[[ ! -e "$output_directory" ]] || { echo "error: output exists" >&2; exit 2; }
-[[ -f "$guest_binary" && ! -L "$guest_binary" && $(stat -c %h "$guest_binary") -eq 1 ]] || {
+[[ "$output_directory" == /* && ! -e "$output_directory" ]] || {
+  echo "error: output path rejected" >&2
+  exit 2
+}
+output_parent=$(dirname -- "$output_directory")
+[[ $(realpath -e -- "$output_parent") == "$output_parent" ]] || {
+  echo "error: output parent rejected" >&2
+  exit 2
+}
+[[ "$guest_binary" == /* \
+  && $(realpath -e -- "$guest_binary") == "$guest_binary" \
+  && -f "$guest_binary" && ! -L "$guest_binary" \
+  && $(stat -c %h -- "$guest_binary") -eq 1 ]] || {
   echo "error: guest binary rejected" >&2
   exit 2
 }
-[[ -d "$receipt_directory" && ! -L "$receipt_directory" ]] || {
+[[ "$receipt_directory" == /* \
+  && $(realpath -e -- "$receipt_directory") == "$receipt_directory" \
+  && -d "$receipt_directory" && ! -L "$receipt_directory" ]] || {
   echo "error: receipt directory rejected" >&2
   exit 2
 }
@@ -102,12 +138,6 @@ export TZ=UTC
   echo "error: guest ELF checker binary rejected" >&2
   exit 2
 }
-guest_elf_checker_binary_sha256_before=$(sha256sum "$guest_elf_checker_binary" | cut -d' ' -f1)
-[[ "$guest_elf_checker_binary_sha256_before" == "$expected_guest_elf_checker_sha256" ]] || {
-  echo "error: guest ELF checker binary identity mismatch" >&2
-  exit 2
-}
-
 [[ -f "$MKSQUASHFS_BINARY" && ! -L "$MKSQUASHFS_BINARY" \
   && $(realpath -e -- "$MKSQUASHFS_BINARY") == "$MKSQUASHFS_BINARY" ]] || {
   echo "error: mksquashfs binary rejected" >&2
@@ -127,43 +157,79 @@ guest_elf_reference_sha256_before=$(sha256sum "$GUEST_ELF_REFERENCE" | cut -d' '
   echo "error: guest ELF reference identity mismatch" >&2
   exit 2
 }
-guest_sha256_before=$(sha256sum "$guest_binary" | cut -d' ' -f1)
-[[ "$guest_sha256_before" == "$expected_guest_sha256" ]] || {
-  echo "error: guest identity mismatch" >&2
-  exit 2
-}
-env -i -- LC_ALL=C TZ=UTC \
-  "$guest_elf_checker_binary" --guest-elf "$guest_binary" >/dev/null
-
 receipt_set_sha256() {
   local directory=$1
-  find "$directory" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' \
-    | sort \
-    | while IFS= read -r name; do
-        [[ "$name" != *$'\n'* && "$name" != *$'\r'* ]] || exit 3
-        local_path="$directory/$name"
-        [[ -f "$local_path" && ! -L "$local_path" ]] || exit 3
-        size=$(stat -c %s "$local_path")
-        digest=$(sha256sum "$local_path" | cut -d' ' -f1)
+  find -- "$directory" -mindepth 1 -maxdepth 1 -type f -print0 \
+    | sort -z \
+    | while IFS= read -r -d '' local_path; do
+        name=${local_path##*/}
+        [[ "$name" =~ ^[A-Za-z0-9._-]+$ ]] || exit 3
+        size=$(stat -c %s -- "$local_path")
+        digest=$(sha256sum -- "$local_path" | cut -d' ' -f1)
         printf '%s\0%s\0%s\n' "$name" "$size" "$digest"
       done \
     | sha256sum \
     | cut -d' ' -f1
 }
 
-receipt_count=$(find "$receipt_directory" -mindepth 1 -maxdepth 1 -type f | wc -l)
-inventory_count=$(find "$receipt_directory" -mindepth 1 -maxdepth 1 | wc -l)
-[[ "$receipt_count" -eq "$EXPECTED_RECEIPT_COUNT" && "$inventory_count" -eq "$receipt_count" ]] || {
-  echo "error: receipt inventory mismatch" >&2
-  exit 2
-}
-before_receipt_set=$(receipt_set_sha256 "$receipt_directory")
-[[ "$before_receipt_set" == "$expected_receipt_set_sha256" ]] || {
-  echo "error: receipt-set identity mismatch" >&2
-  exit 2
+capture_regular() {
+  local source=$1
+  local destination=$2
+  local mode=$3
+  local expected_sha256=$4
+  local label=$5
+  local descriptor
+  exec {descriptor}<"$source" || { echo "error: $label capture failed" >&2; exit 2; }
+  install -m "$mode" "/proc/$$/fd/$descriptor" "$destination"
+  exec {descriptor}<&-
+  [[ $(sha256sum -- "$destination" | cut -d' ' -f1) == "$expected_sha256" ]] || {
+    echo "error: $label identity mismatch" >&2
+    exit 2
+  }
 }
 
 mkdir -m 0700 "$output_directory"
+capture_directory=$(mktemp -d "$output_directory/.captured.XXXXXX")
+captured_guest="$capture_directory/guest-init"
+captured_checker="$capture_directory/guest-elf-checker"
+captured_receipts="$capture_directory/receipts"
+mkdir -m 0700 "$captured_receipts"
+capture_regular "$guest_binary" "$captured_guest" 0555 "$expected_guest_sha256" "guest"
+capture_regular \
+  "$guest_elf_checker_binary" \
+  "$captured_checker" \
+  0555 \
+  "$expected_guest_elf_checker_sha256" \
+  "guest ELF checker"
+
+mapfile -d '' -t receipt_paths < <(
+  find -- "$receipt_directory" -mindepth 1 -maxdepth 1 -type f -print0 | sort -z
+)
+inventory_count=$(find -- "$receipt_directory" -mindepth 1 -maxdepth 1 -printf '.' | wc -c)
+[[ "${#receipt_paths[@]}" -eq "$EXPECTED_RECEIPT_COUNT" \
+  && "$inventory_count" -eq "${#receipt_paths[@]}" ]] || {
+  echo "error: receipt inventory mismatch" >&2
+  exit 2
+}
+for local_path in "${receipt_paths[@]}"; do
+  name=${local_path##*/}
+  [[ "$name" =~ ^[A-Za-z0-9._-]+$ && -f "$local_path" && ! -L "$local_path" ]] || {
+    echo "error: receipt artifact rejected" >&2
+    exit 2
+  }
+  descriptor=""
+  exec {descriptor}<"$local_path" || { echo "error: receipt capture failed" >&2; exit 2; }
+  install -m 0444 "/proc/$$/fd/$descriptor" "$captured_receipts/$name"
+  exec {descriptor}<&-
+done
+captured_receipt_set=$(receipt_set_sha256 "$captured_receipts")
+[[ "$captured_receipt_set" == "$expected_receipt_set_sha256" ]] || {
+  echo "error: receipt-set identity mismatch" >&2
+  exit 2
+}
+env -i -- LC_ALL=C TZ=UTC \
+  "$captured_checker" --guest-elf "$captured_guest" >/dev/null
+
 stage_a=$(mktemp -d "$output_directory/.stage-a.XXXXXX")
 stage_b=$(mktemp -d "$output_directory/.stage-b.XXXXXX")
 
@@ -176,12 +242,13 @@ stage_inputs() {
     "$stage/rootfs/sbin" \
     "$stage/input"
   install -d -m 0755 "$stage/input/receipts"
-  install -m 0555 "$guest_binary" "$stage/rootfs/sbin/zrpf-replay-init"
-  find "$receipt_directory" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' \
-    | sort \
-    | while IFS= read -r name; do
+  install -m 0555 "$captured_guest" "$stage/rootfs/sbin/zrpf-replay-init"
+  find -- "$captured_receipts" -mindepth 1 -maxdepth 1 -type f -print0 \
+    | sort -z \
+    | while IFS= read -r -d '' local_path; do
+        name=${local_path##*/}
         install -m 0444 \
-          "$receipt_directory/$name" \
+          "$local_path" \
           "$stage/input/receipts/$name"
       done
   chmod 0555 "$stage/input/receipts"
@@ -217,21 +284,21 @@ rm "$output_directory/rootfs-b.squashfs" "$output_directory/input-b.squashfs"
 chmod 0755 "$stage_a/input/receipts" "$stage_b/input/receipts"
 rm -rf "$stage_a" "$stage_b"
 
-after_receipt_set=$(receipt_set_sha256 "$receipt_directory")
-[[ "$after_receipt_set" == "$before_receipt_set" ]] || {
-  echo "error: receipt set changed during build" >&2
+after_receipt_set=$(receipt_set_sha256 "$captured_receipts")
+[[ "$after_receipt_set" == "$captured_receipt_set" ]] || {
+  echo "error: captured receipt set changed during build" >&2
   exit 2
 }
-[[ $(sha256sum "$guest_binary" | cut -d' ' -f1) == "$guest_sha256_before" ]] || {
-  echo "error: guest identity changed during build" >&2
+[[ $(sha256sum -- "$captured_guest" | cut -d' ' -f1) == "$expected_guest_sha256" ]] || {
+  echo "error: captured guest identity changed during build" >&2
   exit 2
 }
 [[ $(sha256sum "$GUEST_ELF_REFERENCE" | cut -d' ' -f1) == "$guest_elf_reference_sha256_before" ]] || {
   echo "error: guest ELF reference identity changed during build" >&2
   exit 2
 }
-[[ $(sha256sum "$guest_elf_checker_binary" | cut -d' ' -f1) == "$guest_elf_checker_binary_sha256_before" ]] || {
-  echo "error: guest ELF checker binary identity changed during build" >&2
+[[ $(sha256sum -- "$captured_checker" | cut -d' ' -f1) == "$expected_guest_elf_checker_sha256" ]] || {
+  echo "error: captured guest ELF checker identity changed during build" >&2
   exit 2
 }
 [[ $(sha256sum "$MKSQUASHFS_BINARY" | cut -d' ' -f1) == "$mksquashfs_sha256_before" ]] || {
@@ -239,7 +306,8 @@ after_receipt_set=$(receipt_set_sha256 "$receipt_directory")
   exit 2
 }
 env -i -- LC_ALL=C TZ=UTC \
-  "$guest_elf_checker_binary" --guest-elf "$guest_binary" >/dev/null
+  "$captured_checker" --guest-elf "$captured_guest" >/dev/null
+rm -rf "$capture_directory"
 
 rootfs_sha256=$(sha256sum "$output_directory/zrpf-replay-rootfs.squashfs" | cut -d' ' -f1)
 input_sha256=$(sha256sum "$output_directory/zrpf-replay-input.squashfs" | cut -d' ' -f1)
@@ -247,9 +315,9 @@ rootfs_size=$(stat -c %s "$output_directory/zrpf-replay-rootfs.squashfs")
 input_size=$(stat -c %s "$output_directory/zrpf-replay-input.squashfs")
 
 printf '%s\n' \
-  "guest_sha256=$expected_guest_sha256" \
+  "captured_guest_sha256=$expected_guest_sha256" \
   "input_sha256=$input_sha256" \
   "input_size_bytes=$input_size" \
-  "receipt_set_sha256=$after_receipt_set" \
+  "captured_receipt_set_sha256=$after_receipt_set" \
   "rootfs_sha256=$rootfs_sha256" \
   "rootfs_size_bytes=$rootfs_size"
