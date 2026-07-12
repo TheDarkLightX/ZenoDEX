@@ -92,6 +92,10 @@ jobs:
             src/integration/recursive_stark_admission_store_types.py \
             src/integration/recursive_stark_replay_manifest.py \
             src/integration/recursive_stark_verifier_adapter.py \
+            tools/check_risc0_recursive_rebuild_evidence.py \
+            tools/check_risc0_recursive_live_replay.py \
+            tools/check_risc0_recursive_live_replay_evidence.py \
+            tools/risc0_recursive_live_replay_support.py \
             tools/check_zrpf_v3_firecracker_direct_replay_evidence.py \
             tools/check_zrpf_v3_firecracker_guest_elf.py \
             tools/check_zrpf_v3_firecracker_launch_preflight.py \
@@ -112,6 +116,7 @@ jobs:
             tools/zrpf_v3_firecracker_output_protocol.py \
             tools/zrpf_v3_firecracker_runtime_manifest.py \
             tools/zrpf_v3_replay_*.py \
+            tools/zrpf_v3_source_closure.py \
             tests/test_check_zrpf_v3_firecracker_direct_replay_evidence.py \
             tests/test_check_zrpf_v3_firecracker_guest_elf.py \
             tests/test_check_zrpf_v3_firecracker_launch_preflight.py \
@@ -119,6 +124,9 @@ jobs:
             tests/test_check_zrpf_v3_firecracker_replay_profile.py \
             tests/test_check_zrpf_v3_firecracker_runtime_artifacts.py \
             tests/test_check_zrpf_v3_replay_verifier_evidence.py \
+            tests/test_check_risc0_recursive_rebuild_evidence.py \
+            tests/test_check_risc0_recursive_live_replay.py \
+            tests/test_check_risc0_recursive_live_replay_evidence.py \
             tests/test_build_zrpf_semantic_epoch_v1_local_evidence.py \
             tests/test_check_zrpf_semantic_epoch_v1_local_evidence.py \
             tests/test_check_zrpf_v4_spot_value_leaf_local_evidence.py \
@@ -132,6 +140,7 @@ jobs:
             tests/test_zrpf_v3_firecracker_launch_boundary_atlas.py \
             tests/test_zrpf_v3_firecracker_output_protocol.py \
             tests/test_zrpf_v3_firecracker_runtime_manifest.py \
+            tests/test_zrpf_v3_source_closure.py \
             tests/test_zrpf_assurance_workflow.py \
             tests/core/test_recursive_stark_exact_once_admission.py \
             tests/integration/test_recursive_stark_admission_authority_boundary.py \
@@ -148,6 +157,10 @@ jobs:
             src/integration/recursive_stark_admission_store_types.py \
             src/integration/recursive_stark_replay_manifest.py \
             src/integration/recursive_stark_verifier_adapter.py \
+            tools/check_risc0_recursive_rebuild_evidence.py \
+            tools/check_risc0_recursive_live_replay.py \
+            tools/check_risc0_recursive_live_replay_evidence.py \
+            tools/risc0_recursive_live_replay_support.py \
             tools/check_zrpf_v3_firecracker_direct_replay_evidence.py \
             tools/check_zrpf_v3_firecracker_guest_elf.py \
             tools/check_zrpf_v3_firecracker_launch_preflight.py \
@@ -168,6 +181,8 @@ jobs:
             tools/zrpf_v3_firecracker_output_protocol.py \
             tools/zrpf_v3_firecracker_runtime_manifest.py \
             tools/zrpf_v3_replay_*.py \
+            tools/zrpf_v3_source_closure.py \
+            tests/test_zrpf_v3_source_closure.py \
             tests/core/test_recursive_stark_exact_once_admission.py \
             tests/integration/test_recursive_stark_admission_authority_boundary.py \
             tests/integration/test_recursive_stark_durable_admission_store.py \
@@ -177,6 +192,9 @@ jobs:
             tests/test_check_zrpf_v1_leaf_adapter_source_policy.py \
             tests/test_check_zrpf_v1_leaf_adapter_vector.py \
             tests/test_check_zrpf_v1_spot_adapter_temporary_evidence.py \
+            tests/test_check_risc0_recursive_rebuild_evidence.py \
+            tests/test_check_risc0_recursive_live_replay.py \
+            tests/test_check_risc0_recursive_live_replay_evidence.py \
             tests/test_check_zrpf_v3_firecracker_direct_replay_evidence.py \
             tests/test_check_zrpf_v3_firecracker_guest_elf.py \
             tests/test_check_zrpf_v3_firecracker_launch_preflight.py \
@@ -208,6 +226,7 @@ jobs:
             tests/integration/test_recursive_stark_replay_manifest.py \
             tests/integration/test_recursive_stark_verifier_adapter.py
           python3 tools/check_zrpf_v1_leaf_adapter_source_policy.py
+          python3 tools/check_risc0_recursive_live_replay_evidence.py --json
           python3 tools/check_recursive_stark_cbc_spec.py
           python3 tools/check_zrpf_semantic_epoch_v1_local_evidence.py
           python3 tools/check_zrpf_v4_spot_value_leaf_local_evidence.py
@@ -217,6 +236,8 @@ jobs:
           python3 -I tools/check_zrpf_v3_firecracker_runtime_artifacts.py
           bash -n tools/build_zrpf_v3_firecracker_guest_images.sh
           python3 tools/zrpf_v3_artifact_privacy.py
+          python3 tools/zrpf_v3_artifact_privacy.py \
+            --artifact docs/research/RISC0_RECURSIVE_V1_LIVE_REPLAY_EVIDENCE_20260712.json
           python3 tools/check_zrpf_v3_replay_verifier_evidence.py --json
 
       - name: Run Rust protocol and verifier assurance
@@ -280,10 +301,10 @@ jobs:
             --all -- --check
           "${pinned_bin}/cargo" test \
             --manifest-path zk/state_proof_risc0/Cargo.toml \
-            --locked -p tau-state-proof-risc0-cli --all-targets
+            --locked --offline -p tau-state-proof-risc0-cli --all-targets
           "${pinned_bin}/cargo-clippy" clippy \
             --manifest-path zk/state_proof_risc0/Cargo.toml \
-            --locked -p tau-state-proof-risc0-cli --all-targets -- -D warnings
+            --locked --offline -p tau-state-proof-risc0-cli --all-targets -- -D warnings
 
       - name: Build pinned replay container
         run: |

@@ -79,6 +79,11 @@ descriptor, effect-summary, asset-row, message, and recursive leaf-wrapper
 objects through a CLI-local exact wire validator. This hardening does not
 change guest-visible types, image IDs, journals, or retained receipts.
 
+The matrix-cited missing-assumption harness uses the same strict parser and a
+16 MiB request bound. The recursive smoke proof loader uses the same strict
+parser and a 16 MiB per-artifact bound. These host evidence utilities reject
+duplicate decoded keys, escaped aliases, and trailing JSON documents.
+
 Current receipts authenticate the parsed typed value rather than canonical
 outer JSON bytes. The mixed Tau request projections and nested Spot, perps, and
 zUSD leaf payloads do not yet have complete versioned exact-field schemas.
@@ -87,13 +92,34 @@ required before a V1-derived envelope can carry production authority. The next
 recursive ABI should make this boundary unrepresentable with strict decoding.
 `RS-CBC-021` therefore remains a pending critical promotion obligation.
 
-These host CLI changes invalidate the prior V1 current-source verifier replay
-claim because the retained V1 verifier source closure includes the CLI. The CBC
-matrix now requires the exact non-claim
-`no_current_v1_host_verifier_replay_after_host_cli_changes` and validates only
-the unaffected V2 source closure for its scoped current-proof status. Restoring
-the combined V1-and-V2 status requires rebuilding the V1 verifier from the new
-source closure and replaying the retained positive and malformed-proof cases.
+These host CLI changes invalidated the prior V1 current-source verifier replay
+claim because the retained V1 verifier source closure includes the CLI. A
+subsequent local pinned-toolchain rebuild produced the exact 30-file source
+root `81f5dc170de45306b7427f8379ea23add429f5c6325a06c0bb4fa6c4315f78bf`
+and static PIE verifier
+`8836f22431e2ce241eec9e6503f741b92673e2fec054208b0c36dea4f1bcf146`.
+That binary reproduced the retained positive transcript and the exact
+cryptographic-invalid response for the one-bit seal mutation with empty
+stderr and process exit code zero.
+
+The executable live checker first requires the complete pinned artifact check,
+seals the exact verifier into a fully sealed Linux memfd, and applies bounded
+stdin, stdout, stderr, CPU, address-space, file, descriptor, process, and stack
+limits before execution. It reproduced the accepted transcript with
+`RISC0_DEV_MODE` absent and set to `0`; it rejected enabled aliases `1`,
+`true`, `yes`, and `on`; and it reproduced the exact cryptographic-invalid
+response for the one-bit seal mutation. The retained report has canonical
+SHA-256
+`7b33cea014263fe0841fc291d9ce8097fcfa3a85cc7d1f18b832a52380df43c6`
+and binds the exact checker-source closure and numeric runtime limits.
+
+The required workflow validates this retained record, its source closure, and
+its bounded privacy scan without re-executing the V1 verifier. The CBC matrix
+therefore permits only the scoped recorded same-host replay status and requires
+the exact non-claim
+`no_authenticated_historical_execution_provenance_for_v1_live_replay_record`.
+Historical execution provenance, public replay, network isolation, sandbox,
+settlement, release, privacy, and production authority remain false.
 
 The additive ZRPF V3 candidate under `zk/zrpf_protocol` now implements a
 proof-system-neutral, bounded 8-by-8 structural journal nucleus. It provides a

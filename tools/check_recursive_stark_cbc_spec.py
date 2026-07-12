@@ -25,6 +25,9 @@ recursive_v1_evidence: Any = importlib.import_module(
 recursive_v2_evidence: Any = importlib.import_module(
     f"{_MODULE_PREFIX}check_risc0_recursive_v2_rebuild_evidence"
 )
+recursive_v1_live_record: Any = importlib.import_module(
+    f"{_MODULE_PREFIX}check_risc0_recursive_live_replay_evidence"
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MATRIX = REPO_ROOT / "docs" / "research" / "RECURSIVE_STARK_CBC_MATRIX_20260709.json"
@@ -235,10 +238,17 @@ FULL_CURRENT_PROOF_CLAIM_STATUS = (
 )
 V1_HOST_REPLAY_PENDING_CLAIM_STATUS = (
     "v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified_"
-    "v1_current_host_replay_pending"
+    "v1_governed_host_replay_evidence_pending"
 )
 V1_HOST_REPLAY_PENDING_NON_CLAIM = (
-    "no_current_v1_host_verifier_replay_after_host_cli_changes"
+    "no_governed_current_v1_host_replay_evidence_after_host_cli_changes"
+)
+V1_RECORDED_LIVE_REPLAY_CLAIM_STATUS = (
+    "v1_recorded_same_host_retained_receipt_live_replay_v2_current_image_local_recursive_"
+    "proofs_and_temporary_v3_structural_tree_verified"
+)
+V1_RECORDED_LIVE_REPLAY_NON_CLAIM = (
+    "no_authenticated_historical_execution_provenance_for_v1_live_replay_record"
 )
 
 
@@ -249,13 +259,19 @@ class ClaimStatusPolicy:
 
 
 CLAIM_STATUS_POLICIES = {
-    FULL_CURRENT_PROOF_CLAIM_STATUS: ClaimStatusPolicy(
+    V1_RECORDED_LIVE_REPLAY_CLAIM_STATUS: ClaimStatusPolicy(
         required_source_closures=frozenset({"v1", "v2"}),
         required_implemented_statements=frozenset(REQUIRED_STATEMENTS),
     ),
     V1_HOST_REPLAY_PENDING_CLAIM_STATUS: ClaimStatusPolicy(
         required_source_closures=frozenset({"v2"}),
-        required_implemented_statements=frozenset(REQUIRED_STATEMENTS),
+        required_implemented_statements=frozenset(
+            {
+                "recursive_node_v2",
+                "zrpf_node_v3_structural",
+                "zrpf_v1_spot_adapter_receipt_v1",
+            }
+        ),
     ),
 }
 ACCEPTED_CLAIM_STATUSES = frozenset(CLAIM_STATUS_POLICIES)
@@ -289,6 +305,7 @@ def validate_matrix(matrix: Any, *, repo_root: Path = REPO_ROOT) -> dict[str, An
     obligations = _validate_obligations(root.get("obligations"), repo_root=inspected_root)
 
     claim_status = promotion["facts"]["claim_status"]
+    live_record_integrity_verified = False
     if claim_status in ACCEPTED_CLAIM_STATUSES:
         policy = CLAIM_STATUS_POLICIES[claim_status]
         statement_statuses = {item["id"]: item["status"] for item in statements["items"]}
@@ -312,6 +329,20 @@ def validate_matrix(matrix: Any, *, repo_root: Path = REPO_ROOT) -> dict[str, An
             errors,
             required_closures=policy.required_source_closures,
         )
+        if claim_status == V1_RECORDED_LIVE_REPLAY_CLAIM_STATUS:
+            if inspected_root is None:
+                errors.append("V1 live-replay record cannot be checked")
+            else:
+                live_record = recursive_v1_live_record.check_retained_evidence(
+                    repository_root=inspected_root
+                )
+                live_record_integrity_verified = live_record.get("ok") is True
+                if not live_record_integrity_verified:
+                    errors.append("V1 live-replay record rejected")
+
+    promotion["facts"]["v1_live_replay_record_integrity_verified"] = (
+        live_record_integrity_verified
+    )
 
     for section_name, section in (
         ("promotion_boundary", promotion),
@@ -453,11 +484,12 @@ def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
             "V1-host-replay-pending status requires its exact current-host replay non-claim"
         )
     if (
-        claim_status == FULL_CURRENT_PROOF_CLAIM_STATUS
-        and V1_HOST_REPLAY_PENDING_NON_CLAIM in non_claims
+        claim_status == V1_RECORDED_LIVE_REPLAY_CLAIM_STATUS
+        and V1_RECORDED_LIVE_REPLAY_NON_CLAIM not in non_claims
     ):
-        errors.append("full current-proof status retains stale V1 host replay non-claim")
-
+        errors.append(
+            "recorded V1 live-replay status requires its exact historical-provenance non-claim"
+        )
     return {
         "ok": not errors,
         "errors": errors,

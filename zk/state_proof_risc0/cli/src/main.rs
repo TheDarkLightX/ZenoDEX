@@ -5457,6 +5457,27 @@ mod tests {
     }
 
     #[test]
+    fn receipt_codec_rejects_duplicate_json_keys() {
+        let journal = vec![1u8, 2, 3];
+        let claim = ReceiptClaim::ok([1u32; 8], journal.clone());
+        let receipt = Receipt::new(InnerReceipt::Fake(FakeReceipt::new(claim)), journal);
+        let value = serde_json::to_value(&receipt).unwrap();
+        let (key, duplicate_value) = value.as_object().unwrap().iter().next().unwrap();
+        let mut bytes = serde_json::to_vec(&receipt).unwrap();
+        assert_eq!(bytes.pop(), Some(b'}'));
+        bytes.extend_from_slice(b",");
+        bytes.extend_from_slice(serde_json::to_string(key).unwrap().as_bytes());
+        bytes.push(b':');
+        bytes.extend_from_slice(serde_json::to_string(duplicate_value).unwrap().as_bytes());
+        bytes.push(b'}');
+        let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+
+        assert!(decode_receipt_b64(&encoded)
+            .unwrap_err()
+            .contains("duplicate field"));
+    }
+
+    #[test]
     fn receipt_codec_rejects_excessive_recursive_receipt_depth() {
         let claim = ReceiptClaim::ok([1u32; 8], Vec::new());
         let receipt = Receipt::new(InnerReceipt::Fake(FakeReceipt::new(claim)), Vec::new());
@@ -5547,6 +5568,10 @@ mod tests {
             r#"{"outer":{"key":1,"key":2}}"#,
             r#"{"outer":[{"key":1,"key":2}]}"#,
             r#"{"schema":"first","\u0073chema":"second"}"#,
+            r#"{"/":1,"\/":2}"#,
+            r#"{"\\":1,"\u005c":2}"#,
+            r#"{"\u0022":1,"\"":2}"#,
+            r#"{"\uD83D\uDE00":1,"\ud83d\ude00":2}"#,
         ] {
             assert!(
                 parse_request_json(raw)
@@ -5587,20 +5612,236 @@ mod tests {
 
     #[test]
     fn recursive_json_inputs_reject_unknown_fields() {
-        let mut recursive_value = serde_json::to_value(recursive_input()).unwrap();
-        recursive_value["uncommitted_note"] = Value::String("ignored before hardening".into());
-        let recursive_req = json!({"recursive_input": recursive_value});
-        assert!(parse_recursive_input(&recursive_req)
-            .unwrap_err()
-            .contains("unknown field `uncommitted_note`"));
+        let mut baseline = serde_json::to_value(recursive_input()).unwrap();
+        baseline["children"][0]["outbox_messages"] =
+            json!([recursive_message("lane-a", "lane-b", 91)]);
+        baseline["children"][0]["inbox_messages"] =
+            json!([recursive_message("lane-b", "lane-a", 94)]);
 
-        let mut nested_value = serde_json::to_value(recursive_input()).unwrap();
-        nested_value["children"][0]["descriptor"]["uncommitted_note"] =
-            Value::String("ignored before hardening".into());
-        let nested_req = json!({"recursive_input": nested_value});
-        assert!(parse_recursive_input(&nested_req)
-            .unwrap_err()
-            .contains("unknown field `uncommitted_note`"));
+        for pointer in [
+            "",
+            "/statement",
+            "/children/0",
+            "/children/0/descriptor",
+            "/children/0/summary",
+            "/children/0/asset_delta_rows/0",
+            "/children/0/outbox_messages/0",
+            "/children/0/inbox_messages/0",
+        ] {
+            let mut value = baseline.clone();
+            value
+                .pointer_mut(pointer)
+                .and_then(Value::as_object_mut)
+                .unwrap()
+                .insert(
+                    "uncommitted_note".to_string(),
+                    Value::String("ignored before hardening".into()),
+                );
+            let request = json!({"recursive_input": value});
+            assert!(
+                parse_recursive_input(&request)
+                    .unwrap_err()
+                    .contains("unknown field `uncommitted_note`"),
+                "pointer={pointer}"
+            );
+        }
+
+        let mut summary = serde_json::to_value(recursive_summary_leaf_summary()).unwrap();
+        summary["uncommitted_note"] = Value::Bool(true);
+        assert!(
+            parse_recursive_summary(&json!({"recursive_summary": summary}))
+                .unwrap_err()
+                .contains("unknown field `uncommitted_note`")
+        );
+
+        for result in [
+            parse_spot_recursive_leaf_input(
+                &json!({"spot_recursive_leaf_input": {"uncommitted_note": true}}),
+            )
+            .map(|_| ()),
+            parse_perps_np_recursive_leaf_input(
+                &json!({"perps_np_recursive_leaf_input": {"uncommitted_note": true}}),
+            )
+            .map(|_| ()),
+            parse_zusd_recursive_leaf_input(
+                &json!({"zusd_recursive_leaf_input": {"uncommitted_note": true}}),
+            )
+            .map(|_| ()),
+        ] {
+            assert!(result
+                .unwrap_err()
+                .contains("unknown field `uncommitted_note`"));
+        }
+    }
+
+    #[test]
+    fn recursive_wire_allowlists_match_serialized_typed_fields() {
+        fn assert_fields(value: &Value, expected: &[&str]) {
+            let actual = value
+                .as_object()
+                .unwrap()
+                .keys()
+                .map(String::as_str)
+                .collect::<std::collections::BTreeSet<_>>();
+            let expected = expected
+                .iter()
+                .copied()
+                .collect::<std::collections::BTreeSet<_>>();
+            assert_eq!(actual, expected);
+        }
+
+        let input = serde_json::to_value(recursive_input()).unwrap();
+        assert_fields(&input, recursive_wire::COMPOSITION_FIELDS);
+        assert_fields(&input["statement"], recursive_wire::STATEMENT_FIELDS);
+        assert_fields(&input["children"][0], recursive_wire::CHILD_FIELDS);
+        assert_fields(
+            &input["children"][0]["descriptor"],
+            recursive_wire::DESCRIPTOR_FIELDS,
+        );
+        assert_fields(
+            &input["children"][0]["summary"],
+            recursive_wire::SUMMARY_FIELDS,
+        );
+        assert_fields(
+            &input["children"][0]["asset_delta_rows"][0],
+            recursive_wire::ASSET_DELTA_FIELDS,
+        );
+        assert_fields(
+            &serde_json::to_value(recursive_message("lane-a", "lane-b", 91)).unwrap(),
+            recursive_wire::MESSAGE_FIELDS,
+        );
+
+        let spot_snapshot = DexStateV1::empty().to_snapshot();
+        let spot = SpotRecursiveLeafInputV1 {
+            chain_id: "tau-test".to_string(),
+            epoch_id: 7,
+            lane_id: "spot-lane".to_string(),
+            risc0_image_id: recursive_image(41),
+            public_policy_hash: h(10),
+            feature_suite_hash: h(11),
+            dependency_lock_hash: h(12),
+            toolchain_lock_hash: h(13),
+            spot_input: StateProofInputV1 {
+                state_hash: h(1),
+                block_timestamp: 1,
+                pre_app_hash_present: true,
+                pre_app_hash: h(2),
+                pre_state: spot_snapshot,
+                txs: Vec::new(),
+                pre_nonces: Vec::new(),
+                tx_ingress: Vec::new(),
+                chain_balances_post: Vec::new(),
+                expected_post_app_hash: h(3),
+                protocol_fee_share_bps: 0,
+                protocol_fee_recipient_pubkey: None,
+                tx_execution_order: Vec::new(),
+                route_price_intervals: Vec::new(),
+                route_price_interval_authority: None,
+                route_price_interval_authority_policy: None,
+                route_price_interval_max_width_bps: None,
+                shared_pool_frontier_signature_certificates: Vec::new(),
+            },
+        };
+        let perps = PerpsNpRecursiveLeafInputV1 {
+            chain_id: "tau-test".to_string(),
+            epoch_id: 7,
+            lane_id: "perps-lane".to_string(),
+            risc0_image_id: recursive_image(42),
+            public_policy_hash: h(10),
+            feature_suite_hash: h(11),
+            dependency_lock_hash: h(12),
+            toolchain_lock_hash: h(13),
+            perps_input: PerpsNpTransitionInputV1 {
+                state_hash: h(1),
+                chain_id: "tau-test".to_string(),
+                pre_app_hash_present: true,
+                pre_app_hash: h(2),
+                pre_state: PerpsNpSnapshotV1::empty(),
+                actions: Vec::new(),
+                expected_post_app_hash: h(3),
+                risc0_image_id: recursive_image(42),
+            },
+        };
+        let zusd = ZusdRecursiveLeafInputV1 {
+            chain_id: "tau-test".to_string(),
+            epoch_id: 7,
+            lane_id: "zusd-lane".to_string(),
+            risc0_image_id: recursive_image(43),
+            public_policy_hash: h(10),
+            feature_suite_hash: h(11),
+            dependency_lock_hash: h(12),
+            toolchain_lock_hash: h(13),
+            zusd_input: ZusdTransitionInputV1 {
+                state_hash: h(1),
+                chain_id: "tau-test".to_string(),
+                pre_app_hash_present: true,
+                pre_app_hash: h(2),
+                pre_state: ZusdSnapshotV1::empty(),
+                operation: ZusdOperationV1::DepositMint {
+                    pubkey: "wallet-a".to_string(),
+                    collateral_asset: "tAGRS".to_string(),
+                    deposit_amount_e8: 1,
+                    mint_amount_e8: 1,
+                    oracle: OracleBindingV1 {
+                        oracle_bridge_id: "oracle".to_string(),
+                        oracle_bridge_hash: hx(4),
+                        price_e8: 1,
+                        price_timestamp: 1,
+                        max_staleness_seconds: 1,
+                        observed_at: 1,
+                        pre_price_batch_commitment: hx(5),
+                    },
+                    mcr_bps: 1,
+                    nonce: 1,
+                },
+                expected_post_app_hash: h(3),
+                risc0_image_id: recursive_image(43),
+            },
+        };
+        for (value, payload_field) in [
+            (serde_json::to_value(spot).unwrap(), "spot_input"),
+            (serde_json::to_value(perps).unwrap(), "perps_input"),
+            (serde_json::to_value(zusd).unwrap(), "zusd_input"),
+        ] {
+            let mut expected = recursive_wire::LEAF_WRAPPER_FIELDS.to_vec();
+            expected.push(payload_field);
+            assert_fields(&value, &expected);
+        }
+    }
+
+    #[test]
+    fn recursive_wire_missing_fields_and_wrong_containers_fail_closed() {
+        let mut missing_statement = serde_json::to_value(recursive_input()).unwrap();
+        missing_statement
+            .as_object_mut()
+            .unwrap()
+            .remove("statement");
+        assert!(
+            parse_recursive_input(&json!({"recursive_input": missing_statement}))
+                .unwrap_err()
+                .contains("missing field `statement`")
+        );
+
+        let mut wrong_children = serde_json::to_value(recursive_input()).unwrap();
+        wrong_children["children"] = json!({});
+        assert_eq!(
+            parse_recursive_input(&json!({"recursive_input": wrong_children})).unwrap_err(),
+            "recursive_input.children must be a list"
+        );
+
+        let mut wrong_descriptor = serde_json::to_value(recursive_input()).unwrap();
+        wrong_descriptor["children"][0]["descriptor"] = json!([]);
+        assert_eq!(
+            parse_recursive_input(&json!({"recursive_input": wrong_descriptor})).unwrap_err(),
+            "recursive_input.children[0].descriptor must be an object"
+        );
+
+        let mut wrong_rows = serde_json::to_value(recursive_input()).unwrap();
+        wrong_rows["children"][0]["asset_delta_rows"] = json!({});
+        assert_eq!(
+            parse_recursive_input(&json!({"recursive_input": wrong_rows})).unwrap_err(),
+            "recursive_input.children[0].asset_delta_rows must be a list"
+        );
     }
 
     #[test]

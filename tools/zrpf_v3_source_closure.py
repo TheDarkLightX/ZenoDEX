@@ -33,6 +33,28 @@ SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
             ("semantic_protocol_v2", "zk/zrpf_protocol/protocol/src/semantic_epoch_v2/hash.rs"),
             ("semantic_protocol_v2", "zk/zrpf_protocol/protocol/src/semantic_epoch_v2/mod.rs"),
             ("semantic_protocol_v2", "zk/zrpf_protocol/protocol/src/semantic_epoch_v2/proposal.rs"),
+            ("value_protocol_v4", "zk/zrpf_protocol/protocol/src/value_node_v4/bounded.rs"),
+            ("value_protocol_v4", "zk/zrpf_protocol/protocol/src/value_node_v4/error.rs"),
+            ("value_protocol_v4", "zk/zrpf_protocol/protocol/src/value_node_v4/journal.rs"),
+            ("value_protocol_v4", "zk/zrpf_protocol/protocol/src/value_node_v4/mod.rs"),
+            ("value_protocol_v4", "zk/zrpf_protocol/protocol/src/value_node_v4/records.rs"),
+            ("value_protocol_v4", "zk/zrpf_protocol/protocol/src/value_node_v4/subtree.rs"),
+            (
+                "value_protocol_v4",
+                "zk/zrpf_protocol/protocol/src/value_node_v4/subtree/codec.rs",
+            ),
+            (
+                "value_protocol_v4",
+                "zk/zrpf_protocol/protocol/src/value_node_v4/subtree/hash.rs",
+            ),
+            (
+                "value_protocol_v4",
+                "zk/zrpf_protocol/protocol/src/value_node_v4/subtree/merge.rs",
+            ),
+            (
+                "value_protocol_v4",
+                "zk/zrpf_protocol/protocol/src/value_node_v4/subtree/validate.rs",
+            ),
             ("workspace_build", "zk/zrpf_risc0/.cargo/config.toml"),
             ("workspace_build", "zk/zrpf_risc0/Cargo.lock"),
             ("workspace_build", "zk/zrpf_risc0/Cargo.toml"),
@@ -42,6 +64,26 @@ SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
             ("aggregate_mapping", "zk/zrpf_risc0/aggregate_shared/src/structural_v1.rs"),
             ("proof_harness", "zk/zrpf_risc0/harness/Cargo.toml"),
             ("proof_harness", "zk/zrpf_risc0/harness/src/bin/prove_semantic_epoch.rs"),
+            (
+                "proof_harness_v4",
+                "zk/zrpf_risc0/harness/src/bin/prove_spot_value_leaf_v4.rs",
+            ),
+            (
+                "proof_harness_v4",
+                "zk/zrpf_risc0/harness/src/bin/prove_spot_value_leaf_v4/artifact_io.rs",
+            ),
+            (
+                "proof_harness_v4",
+                "zk/zrpf_risc0/harness/src/bin/prove_spot_value_leaf_v4/report.rs",
+            ),
+            (
+                "proof_harness_v4",
+                "zk/zrpf_risc0/harness/src/bin/prove_spot_value_leaf_v4/source.rs",
+            ),
+            (
+                "proof_harness_v4",
+                "zk/zrpf_risc0/harness/src/bin/prove_spot_value_leaf_v4/tests.rs",
+            ),
             ("proof_harness", "zk/zrpf_risc0/harness/src/bin/prove_structural_l1.rs"),
             ("proof_harness", "zk/zrpf_risc0/harness/src/bin/prove_structural_tree.rs"),
             ("verification_harness", "zk/zrpf_risc0/harness/src/bin/verify_semantic_epoch.rs"),
@@ -52,6 +94,8 @@ SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
             ("guest_build", "zk/zrpf_risc0/methods/src/lib.rs"),
             ("semantic_guest", "zk/zrpf_risc0/methods/semantic_epoch/Cargo.toml"),
             ("semantic_guest", "zk/zrpf_risc0/methods/semantic_epoch/src/main.rs"),
+            ("value_guest_v4", "zk/zrpf_risc0/methods/spot_value_leaf_v4/Cargo.toml"),
+            ("value_guest_v4", "zk/zrpf_risc0/methods/spot_value_leaf_v4/src/main.rs"),
             ("adapter_guest", "zk/zrpf_risc0/methods/v1_leaf_adapter/Cargo.toml"),
             ("adapter_guest", "zk/zrpf_risc0/methods/v1_leaf_adapter/src/main.rs"),
             ("structural_l1_guest", "zk/zrpf_risc0/methods/structural_aggregate_l1/Cargo.toml"),
@@ -77,10 +121,51 @@ SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
             ("semantic_mapping", "zk/zrpf_risc0/semantic_shared/src/input_v1.rs"),
             ("semantic_mapping", "zk/zrpf_risc0/semantic_shared/src/lib.rs"),
             ("semantic_mapping", "zk/zrpf_risc0/semantic_shared/src/recompose_v1.rs"),
+            ("semantic_value_mapping_v4", "zk/zrpf_risc0/semantic_shared/src/value_v1.rs"),
+            (
+                "semantic_value_mapping_v4",
+                "zk/zrpf_risc0/semantic_shared/src/value_v1/compose.rs",
+            ),
+            (
+                "semantic_value_mapping_v4",
+                "zk/zrpf_risc0/semantic_shared/src/value_v1/error.rs",
+            ),
+            (
+                "semantic_value_mapping_v4",
+                "zk/zrpf_risc0/semantic_shared/src/value_v1/expected.rs",
+            ),
+            (
+                "semantic_value_mapping_v4",
+                "zk/zrpf_risc0/semantic_shared/src/value_v1/hash.rs",
+            ),
+            (
+                "semantic_value_mapping_v4",
+                "zk/zrpf_risc0/semantic_shared/src/value_v1/validate.rs",
+            ),
+            (
+                "semantic_value_mapping_v4",
+                "zk/zrpf_risc0/semantic_shared/src/value_v1/wire_v4.rs",
+            ),
+            (
+                "semantic_value_mapping_v4",
+                "zk/zrpf_risc0/semantic_shared/src/value_v1/wire_v4/error.rs",
+            ),
+            ("value_node_mapping_v4", "zk/zrpf_risc0/value_node_shared/Cargo.toml"),
+            ("value_node_mapping_v4", "zk/zrpf_risc0/value_node_shared/src/cursor.rs"),
+            ("value_node_mapping_v4", "zk/zrpf_risc0/value_node_shared/src/error.rs"),
+            ("value_node_mapping_v4", "zk/zrpf_risc0/value_node_shared/src/leaf.rs"),
+            ("value_node_mapping_v4", "zk/zrpf_risc0/value_node_shared/src/leaf_codec.rs"),
+            ("value_node_mapping_v4", "zk/zrpf_risc0/value_node_shared/src/lib.rs"),
+            ("value_node_mapping_v4", "zk/zrpf_risc0/value_node_shared/src/profile.rs"),
             ("verification_harness", "zk/zrpf_risc0/verifier/Cargo.toml"),
             ("verification_harness", "zk/zrpf_risc0/verifier/src/lib.rs"),
             ("verification_harness", "zk/zrpf_risc0/verifier/src/semantic_epoch_v1.rs"),
             ("verification_harness_v2", "zk/zrpf_risc0/verifier/src/semantic_epoch_v2.rs"),
+            ("verification_harness_v4", "zk/zrpf_risc0/verifier/src/spot_value_leaf_v4.rs"),
+            (
+                "verification_harness_v4",
+                "zk/zrpf_risc0/verifier/src/spot_value_leaf_v4/tests.rs",
+            ),
         ),
         key=lambda row: row[1],
     )
@@ -94,6 +179,7 @@ SCAN_DIRECTORIES = (
     "zk/zrpf_risc0/methods",
     "zk/zrpf_risc0/semantic_shared/src",
     "zk/zrpf_risc0/shared/src",
+    "zk/zrpf_risc0/value_node_shared/src",
     "zk/zrpf_risc0/verifier/src",
 )
 

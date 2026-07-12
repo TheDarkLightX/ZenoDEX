@@ -1,4 +1,4 @@
-use std::{env, fs};
+use std::{env, fs::File, io::Read, path::Path};
 
 use risc0_zkvm::Digest;
 use serde_json::{json, Value};
@@ -23,6 +23,11 @@ use tau_state_proof_risc0_shared::{
     RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES, RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1,
     RECURSIVE_ZUSD_LEAF_MAX_INPUT_BYTES,
 };
+
+#[path = "../src/strict_json.rs"]
+mod strict_json;
+
+const MAX_PROOF_JSON_BYTES: usize = 16 * 1024 * 1024;
 
 fn root(byte: u8) -> [u8; 32] {
     [byte; 32]
@@ -55,6 +60,24 @@ fn parse_image_id(value: &str) -> Result<[u32; 8], String> {
         *slot = u32::from_le_bytes(chunk.try_into().expect("chunk length is fixed"));
     }
     Ok(out)
+}
+
+fn parse_proof_json_bytes(bytes: &[u8]) -> Result<Value, String> {
+    if bytes.len() > MAX_PROOF_JSON_BYTES {
+        return Err("proof JSON exceeds byte limit".to_string());
+    }
+    let text =
+        std::str::from_utf8(bytes).map_err(|error| format!("proof JSON is not UTF-8: {error}"))?;
+    strict_json::parse_value(text).map_err(|error| format!("proof json: {error}"))
+}
+
+fn load_proof_json(path: &Path) -> Result<Value, String> {
+    let file = File::open(path).map_err(|error| format!("open proof json: {error}"))?;
+    let mut bytes = Vec::new();
+    file.take((MAX_PROOF_JSON_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|error| format!("read proof json: {error}"))?;
+    parse_proof_json_bytes(&bytes)
 }
 
 fn summary(image_id_hex: &str) -> Result<RecursiveEffectSummaryV1, String> {
@@ -541,10 +564,7 @@ fn print_root_request(proof_paths: &[String]) -> Result<(), String> {
     let mut children = Vec::new();
     let mut receipt_profile: Option<(String, String, String)> = None;
     for proof_path in proof_paths {
-        let proof_json: Value = serde_json::from_str(
-            &fs::read_to_string(proof_path).map_err(|e| format!("read proof json: {e}"))?,
-        )
-        .map_err(|e| format!("proof json: {e}"))?;
+        let proof_json = load_proof_json(Path::new(proof_path))?;
         let current_profile = (
             proof_json["meta"]["receipt_hashfn"]
                 .as_str()
@@ -743,6 +763,7 @@ fn local_fixture_recursive_expectations(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static NEXT_PROOF_FIXTURE_ID: AtomicU64 = AtomicU64::new(0);
@@ -893,6 +914,27 @@ mod tests {
         assert_eq!(
             print_root_request(&[fixture.path.clone(), fixture.path.clone()]),
             Err("InvalidInput(\"recursive lane state ids not sorted unique\")".to_string())
+        );
+    }
+
+    #[test]
+    fn proof_json_boundary_rejects_ambiguous_or_trailing_json() {
+        for raw in [
+            r#"{"meta":{},"meta":null}"#,
+            r#"{"meta":{},"m\u0065ta":null}"#,
+            r#"{"outer":{"key":1,"key":2}}"#,
+            r#"{"proof":"value"} {}"#,
+        ] {
+            assert!(parse_proof_json_bytes(raw.as_bytes()).is_err(), "raw={raw}");
+        }
+    }
+
+    #[test]
+    fn proof_json_boundary_is_byte_bounded() {
+        let oversized = vec![b' '; MAX_PROOF_JSON_BYTES + 1];
+        assert_eq!(
+            parse_proof_json_bytes(&oversized).unwrap_err(),
+            "proof JSON exceeds byte limit"
         );
     }
 }

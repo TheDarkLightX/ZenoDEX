@@ -624,7 +624,7 @@ release, public replay, source or builder
 authenticity, separately governed authority, settlement authorization, or
 production readiness.
 
-Current post-composition-repair v1 local evidence:
+Current post-host-hardening v1 local artifact and replay evidence:
 
 - spot and aggregate image IDs:
   `1275ef413f6513e7671bce019d22fbdcf10bffe1b71dcf68731a056e710a7403`
@@ -632,12 +632,14 @@ Current post-composition-repair v1 local evidence:
 - aggregate combined-program SHA-256:
   `bbc64916ff42389fce5f4e76fe4b52e4f3eaad70d27813aef7156f372d5ded5e`;
 - bounded all-regular-file v1 source-closure SHA-256:
-  `76a267fd6cbd51c8397073af5553d8a5877945dbf3d18cde2ac262c149366d50`;
+  `81f5dc170de45306b7427f8379ea23add429f5c6325a06c0bb4fa6c4315f78bf`;
 - spot and aggregate artifact-file SHA-256 values:
   `4ce7db31e6ae5e5af53b4ef67fb0cd6ebb1dcae9cf05ee9f73b4511c10db20b9`
   and `061f99b459e54a0bef821880f43049bb2120d5ff427439067950141286d533dd`;
 - static PIE verifier SHA-256:
-  `49d83f7c08256677e9b9aed993a7db59c46875aa96ab08791e0b1d60ad06acd9`;
+  `8836f22431e2ce241eec9e6503f741b92673e2fec054208b0c36dea4f1bcf146`;
+- normalized source archive SHA-256:
+  `d468808f7bb538c455b8dd074e50a1857ac75de424dffb43f28016d86f968106`;
 - accepted strict-verification transcript SHA-256:
   `af2a660f10f3b4eb01811cb4215f01546679618296dcd369e3f6d542bfae5c8a`;
 - positive strict-verification request SHA-256:
@@ -648,7 +650,23 @@ Current post-composition-repair v1 local evidence:
 - canonical cryptographic-invalid transcript SHA-256:
   `206918c41a0f9f05cb34dbdbf15aa972d726ec50a38a217f8640f59e47912dba`;
 - v1 reference-v2 canonical SHA-256:
-  `0603e3cf3fc76b5226f319dc82724a8d8fc8c972a0e8f63a99645a7cb79c14c8`.
+  `7c6016e43f80b1b1f4af15a34ed990085e8676edf9f95a2e5b48e65f0173839f`;
+- retained live-replay report raw and canonical SHA-256 values:
+  `3bd705cc321148d6ff06ebb809f30e682b01a24c053909a451454f189cf33670`
+  and `7b33cea014263fe0841fc291d9ce8097fcfa3a85cc7d1f18b832a52380df43c6`.
+
+The current static verifier was built with the pinned RISC0 3.0.5 and Rust
+1.94.1 toolchains in frozen, offline, real-method mode. Its six exported guest
+programs matched the retained reference byte-for-byte. Direct execution under
+an allowlisted environment reproduced the accepted transcript exactly, with
+empty stderr and process exit code zero. The malformed run emitted the exact
+91-byte cryptographic-invalid response, with empty stderr and process exit
+code zero. The final executable checker sealed the verifier into a fully sealed
+Linux memfd and imposed pre-exec resource limits. The accepted transcript was
+also exact with `RISC0_DEV_MODE=0`. Enabled aliases `1`, `true`, `yes`, and
+`on` each produced the exact 77-byte fail-closed response. The retained record
+binds the artifact checker, environment builder, live checker, bounded process
+runner, sealed-executable transport, and numeric runtime limits by SHA-256.
 
 The V1 adapter separately retains the historical proof-generation source root
 `7a3bed2a1d8fff3ad2e93f2d406df435a9990d1a9c0462ff3323fb028327564e`.
@@ -669,10 +687,14 @@ ID, then accepted when supplied the pinned aggregate receipt profile. This is
 fail-closed behavior and exposes a fixture-bootstrap boundary: request metadata
 derived from a child receipt cannot authorize the aggregate receipt profile.
 Production admission must obtain that expectation from separately governed
-ledger or release configuration. The v1 checker status remains local and
-pinned; it does not execute the verifier or establish transcript provenance,
-public replay, cross-host equality, release or settlement authority, privacy,
-or production readiness.
+ledger or release configuration. The V1 evidence status is a recorded
+same-host retained-receipt live replay. The live checker validates artifact
+identity, source closure, transcript identity, mutation semantics, ambient
+dev-mode policy, exact process results, and sealed executable identity. The
+required workflow checks the retained report and its source closure without
+performing the V1 execution again. Historical execution provenance, public
+replay, cross-host equality, network isolation, sandbox resistance, release or
+settlement authority, privacy, and production readiness remain false.
 
 Historical pre-composition-repair fixed-height recursive-v2 local evidence:
 
