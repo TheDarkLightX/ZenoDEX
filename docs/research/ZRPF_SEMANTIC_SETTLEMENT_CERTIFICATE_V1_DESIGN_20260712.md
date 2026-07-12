@@ -3,8 +3,8 @@
 Date: 2026-07-12
 
 Status: proof-neutral action batch, SettlementEffectPlanV2, ordinary Spot
-effect projection, and settlement certificate ABI implemented and host-tested;
-guest, receipt, and ledger authority pending
+effect projection and certificate recomposition, and settlement certificate ABI
+implemented and host-tested; guest, receipt, and ledger authority pending
 
 ## Goal and bounded domain
 
@@ -261,6 +261,13 @@ exact byte checker. The settlement guest does not yet derive that root, and
 the ledger does not yet persist the validated blob atomically, so
 data-availability authority remains false.
 
+The proof-neutral ordinary Spot composer now rederives the action batch and
+plan from one exact V5 proposal and authorization, checks their association,
+and constructs this ABI from checked fields. It derives the proof-tree,
+schedule, and canonical empty carry roots under explicit domains. The proposed
+semantic-claim binding and DA root remain opaque, and host recomposition grants
+no receipt or ledger authority.
+
 Runtime program identity remains outside this proof-neutral journal. The sealed
 host verifier attaches the actual verified image ID, receipt-security profile,
 verifier parameters, and full governed program manifest after cryptographic
@@ -356,6 +363,10 @@ restricted no-supply profile. Certificate coverage adds closed semantic-root
 variants, every-fixed-field journal-hash separation, typed nonzero wire
 rejection, unchanged-state rejection, exact codec negatives, and a fixed
 independent hash vector.
+Ordinary Spot recomposition coverage adds exact checked-field mapping,
+independent fixed preimages for the proof-tree, schedule, empty carry, and
+certificate journal roots, source-field mutation coverage, and fail-closed
+message/carry/reward row guards.
 
 Run from `zk/zrpf_protocol`:
 

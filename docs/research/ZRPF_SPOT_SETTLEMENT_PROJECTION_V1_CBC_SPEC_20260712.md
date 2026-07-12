@@ -2,8 +2,9 @@
 
 Date: 2026-07-12
 
-Status: proof-neutral reference projection implemented and host-tested; receipt
-guest, ledger authority, mint, burn, messages, carries, and rewards pending
+Status: proof-neutral reference projection and ordinary certificate
+recomposition implemented and host-tested; receipt guest, ledger authority,
+mint, burn, messages, carries, and rewards pending
 
 ## Purpose
 
@@ -69,8 +70,10 @@ authenticated V5 receipt
   -> atomic ledger commit capability
 ```
 
-The implemented host/shared constructor begins at the second line and grants no
-receipt or ledger authority.
+The implemented host/shared projection begins at the second line. The
+proof-neutral composer rederives that projection and closes the exact
+certificate field mapping. Neither function grants receipt or ledger
+authority.
 
 ## Explicit non-claims
 
