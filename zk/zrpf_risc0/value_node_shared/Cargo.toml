@@ -1,0 +1,28 @@
+[package]
+name = "zenodex-zrpf-risc0-value-node-shared"
+version = "0.1.0"
+edition = "2021"
+description = "Guest-safe bounded value-node inputs and proposal kernels for ZRPF V4"
+publish = false
+build = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+path = "src/lib.rs"
+
+[[test]]
+name = "leaf_v4"
+path = "tests/leaf_v4.rs"
+
+[dependencies]
+sha2 = { version = "0.10.9", default-features = false }
+tau-state-proof-risc0-shared = { path = "../../state_proof_risc0/shared", default-features = false }
+zenodex-zrpf-protocol-v3 = { path = "../../zrpf_protocol/protocol", default-features = false }
+zenodex-zrpf-risc0-semantic-shared = { path = "../semantic_shared", default-features = false }
+zenodex-zrpf-risc0-shared = { path = "../shared", default-features = false }
+
+[dev-dependencies]
+postcard = { version = "1.1.3", features = ["alloc"] }
