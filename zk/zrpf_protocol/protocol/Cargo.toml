@@ -38,6 +38,10 @@ name = "economic_action_v1"
 path = "tests/economic_action_v1.rs"
 
 [[test]]
+name = "full_blob_da_v1"
+path = "tests/full_blob_da_v1.rs"
+
+[[test]]
 name = "settlement_effect_v2"
 path = "tests/settlement_effect_v2.rs"
 

@@ -1,0 +1,107 @@
+# ZRPF Full-Blob Data Content Certificate V1 CBC Specification
+
+Date: 2026-07-12
+
+Status: proof-neutral full-blob content binding implemented; atomic persistence,
+replication, and public retrievability pending
+
+## Scoped claim
+
+The V1 object binds one complete, nonempty byte string of at most 8 MiB to one
+application, chain/domain, epoch, data-schema identifier, storage-policy hash,
+and retention epoch.
+
+```text
+exact blob bytes
+  -> length-bounded data root
+  -> ordered 64 KiB chunk hashes
+  -> chunk root
+  -> fixed-field certificate root
+```
+
+The blob content checker recomputes the full data root and every chunk hash.
+It returns a private `ValidatedFullBlobContentV1` only when the supplied bytes
+match the certificate exactly.
+
+## Canonical hash contracts
+
+All hash domains use a big-endian `u16` length prefix. Integer fields use
+fixed-width big-endian encoding.
+
+```text
+data_root = H(domain, blob_length_u64, exact_blob_bytes)
+
+chunk_i = H(
+    domain,
+    chunk_index_u32,
+    chunk_length_u32,
+    exact_chunk_bytes,
+)
+
+chunk_root = H(domain, chunk_count_u32, chunk_0, ..., chunk_n)
+```
+
+The certificate root commits, in order:
+
+```text
+certificate_version
+application_id
+chain_or_domain_id
+epoch_id
+data_schema_id
+data_root
+blob_length
+chunk_size
+chunk_count
+chunk_root
+retention_through_epoch
+storage_policy_hash
+```
+
+The chunk size is exactly 65,536 bytes. The maximum blob has 128 chunks. The
+last chunk may be shorter. Empty blobs, excess bytes, inconsistent chunk
+counts, stale versions, reversed retention, substituted derived roots,
+trailing bytes, and noncanonical Postcard encodings reject.
+
+## Authority boundary
+
+`FullBlobDataAvailabilityCertificateV1` is a content commitment. It does not
+prove that any storage provider retained the bytes. The content-validated type
+also supplies no persistence or ledger authority.
+
+The initial settlement path may use this certificate only after one atomic
+ledger transaction:
+
+```text
+validate exact blob content
+persist exact blob bytes
+persist certificate root
+persist settlement certificate and replay indexes
+commit all or roll back all
+```
+
+A public availability claim additionally requires a governed replication or
+chain-native DA policy, provider/validator evidence, retrieval tests, and a
+retention enforcement mechanism. Those layers must bind this exact certificate
+root.
+
+## Evidence
+
+The protocol tests provide:
+
+- independent data, chunk, and certificate hash mirrors;
+- every-byte mutation rejection over a bounded corpus;
+- exact one-chunk/two-chunk boundary coverage;
+- empty, oversized, and reversed-retention rejection;
+- exact codec round trip and every-prefix truncation rejection;
+- unknown-field, stale-version, count, and root substitution rejection;
+- a coherent certificate for different bytes that fails exact content
+  validation;
+- a compile-fail check preventing direct construction of the validated type.
+
+## Explicit non-claims
+
+V1 supplies no provider signature, replica quorum, erasure coding, sampling,
+network retrieval, consensus replication, durable atomic persistence, guest
+receipt, settlement authority, release authority, privacy, throughput, or
+production authority.

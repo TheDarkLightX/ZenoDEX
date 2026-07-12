@@ -254,8 +254,12 @@ parameters, or a governed runtime manifest.
 
 The certificate constructor does not receive the source journal, economic
 action batch, or settlement plan. Cross-object equality remains a future guest
-obligation. The DA, schedule, and carry-continuity roots are mandatory nonzero
-commitments whose certificate semantics remain unvalidated.
+obligation. The schedule and carry-continuity roots remain mandatory nonzero
+commitments whose certificate semantics are unvalidated. The proof-neutral
+full-blob DA V1 object now supplies a bounded content certificate root and
+exact byte checker. The settlement guest does not yet derive that root, and
+the ledger does not yet persist the validated blob atomically, so
+data-availability authority remains false.
 
 Runtime program identity remains outside this proof-neutral journal. The sealed
 host verifier attaches the actual verified image ID, receipt-security profile,
