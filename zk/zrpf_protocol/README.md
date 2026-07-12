@@ -27,6 +27,10 @@ The crate currently provides:
 - a bounded canonical `SettlementEpochCertificateV1` proof-neutral journal
   that binds semantic, action, effect-plan, state, policy, certificate, and
   dependency roots without runtime verifier identity;
+- a proof-neutral `SparseMerkleCellTransitionWitnessV1` for the initial
+  ordinary Spot profile, with one fixed 256-level MSB-first path, nonzero
+  siblings, independently derived pre/post roots, and exact equality to one
+  `LedgerCellWriteV2`;
 - a bounded `ProgramManifestV1` that commits proof backend, program, declared
   build identity inputs, verifier policy, receipt codec, security level, and
   privacy claim;
@@ -69,6 +73,16 @@ unauthenticated data until a guest verifies their source obligations and a
 sealed host verifier authenticates the exact receipt, runtime image, receipt
 profile, and governed manifest. Decoding or hashing the certificate grants no
 ledger authority.
+
+The sparse-Merkle witness closes only one cell transition. Its leaf hash binds
+the cell key and value hash, each internal hash binds its root-indexed depth and
+ordered children, and the action ID is checked when the witness is bound to the
+complete `LedgerCellWriteV2`. The validated projection has private fields and
+exposes the two derived roots. It does not authenticate a receipt, admit a
+ledger write, or prove a batch with multiple writes. A future multi-write
+profile must define one canonical multiproof ABI, prove all writes against one
+shared pre-root and post-root, reject duplicate keys, and bind the canonical
+write set without accepting independent single-cell roots as a batch proof.
 
 The manifest and task objects are canonical proposals. A manifest becomes
 eligible only after a separately governed release policy authorizes its exact
