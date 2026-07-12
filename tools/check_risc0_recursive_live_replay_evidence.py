@@ -312,8 +312,12 @@ def check_retained_evidence(
         )
         document = rebuild._parse_json(raw.raw, label="LIVE_REPLAY_EVIDENCE")
         validate_evidence(document, repository_root=repository_root)
-    except (rebuild.EvidenceError, RecordError) as exc:
-        code = exc.code if isinstance(exc, RecordError) else "EVIDENCE_READ"
+    except (rebuild.EvidenceError, live.support.LiveReplayError, RecordError) as exc:
+        code = (
+            exc.code
+            if isinstance(exc, (live.support.LiveReplayError, RecordError))
+            else "EVIDENCE_READ"
+        )
         return {
             **report,
             "error_codes": [code],

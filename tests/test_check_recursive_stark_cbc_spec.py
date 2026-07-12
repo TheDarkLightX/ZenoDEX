@@ -677,6 +677,24 @@ def test_recorded_v1_live_replay_status_rejects_repository_record_mutation(
     assert "V1 live-replay record rejected" in report["errors"]
 
 
+def test_recorded_v1_live_replay_status_rejects_missing_bound_checker_source(
+    tmp_path: Path,
+) -> None:
+    matrix = _matrix()
+    root = _repo_copy_for_matrix(tmp_path, matrix)
+    bound_source = root / next(
+        iter(
+            checker.recursive_v1_live_record.live.support.CHECKER_SOURCE_PATHS.values()
+        )
+    )
+    bound_source.unlink()
+
+    report = checker.validate_matrix(matrix, repo_root=root)
+
+    assert report["ok"] is False
+    assert "V1 live-replay record rejected" in report["errors"]
+
+
 def test_full_current_proof_status_is_unavailable_without_current_host_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

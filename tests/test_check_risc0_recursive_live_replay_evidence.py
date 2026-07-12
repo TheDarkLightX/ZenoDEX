@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -167,3 +168,45 @@ def test_duplicate_json_key_rejects_before_record_validation(tmp_path: Path) -> 
 
     assert report["ok"] is False
     assert report["error_codes"] == ["EVIDENCE_READ"]
+
+
+@pytest.mark.parametrize("source_state", ["missing", "symlink"])
+def test_bound_source_read_failure_returns_rejected_report(
+    tmp_path: Path,
+    source_state: str,
+) -> None:
+    root = tmp_path / "repo"
+    evidence = root / checker.EVIDENCE_PATH.relative_to(checker.ROOT)
+    evidence.parent.mkdir(parents=True)
+    shutil.copyfile(checker.EVIDENCE_PATH, evidence)
+    bound_source = root / next(
+        iter(checker.live.support.CHECKER_SOURCE_PATHS.values())
+    )
+    if source_state == "symlink":
+        bound_source.parent.mkdir(parents=True)
+        bound_source.symlink_to(
+            checker.ROOT / bound_source.relative_to(root),
+        )
+
+    report = checker.check_retained_evidence(repository_root=root)
+
+    assert report["ok"] is False
+    assert report["status"] == "rejected"
+    assert report["error_codes"] == ["CHECKER_SOURCE"]
+
+
+def test_bound_reference_read_failure_returns_rejected_report(tmp_path: Path) -> None:
+    root = tmp_path / "repo"
+    evidence = root / checker.EVIDENCE_PATH.relative_to(checker.ROOT)
+    evidence.parent.mkdir(parents=True)
+    shutil.copyfile(checker.EVIDENCE_PATH, evidence)
+    for relative_path in checker.live.support.CHECKER_SOURCE_PATHS.values():
+        destination = root / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(checker.ROOT / relative_path, destination)
+
+    report = checker.check_retained_evidence(repository_root=root)
+
+    assert report["ok"] is False
+    assert report["status"] == "rejected"
+    assert report["error_codes"] == ["REFERENCE"]
