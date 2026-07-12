@@ -354,6 +354,7 @@ pub fn compose_recursive_epoch_journal_v1(
                 "child asset_delta_root mismatch",
             ));
         }
+        validate_child_asset_source_scope_v1(child)?;
         if child.summary.cross_shard_outbox_root
             != recursive_cross_shard_messages_root_v1(&child.outbox_messages)?
         {
@@ -1774,6 +1775,24 @@ fn validate_child_asset_authority_scopes_v1(
     Ok(())
 }
 
+/// V1 perps rows are local audit metadata. Their debit and credit sides both
+/// live inside the perps child, so they cannot establish an authenticated
+/// external collateral source or destination. Keep them out of aggregate
+/// conservation until the V2 transfer profile supplies an exact counterparty
+/// receipt and one-sided value rows.
+fn validate_child_asset_source_scope_v1(
+    child: &RecursiveChildEffectV1,
+) -> Result<(), TransitionError> {
+    let identifies_perps_v1 = child.summary.lane_kind == "perps_np"
+        || child.summary.proof_profile == RECURSIVE_PERPS_NP_LEAF_PROFILE_V1;
+    if identifies_perps_v1 && !child.asset_delta_rows.is_empty() {
+        return Err(TransitionError::Unsupported(
+            "perps NP v1 asset rows lack cross-lane source finality",
+        ));
+    }
+    Ok(())
+}
+
 fn canonical_asset_delta_rows_v1(
     rows: &[RecursiveAssetDeltaRowV1],
     allowed_authorities: &BTreeSet<[u8; 32]>,
@@ -2664,6 +2683,33 @@ mod tests {
             input.statement.expected_post_state_root
         );
         assert_eq!(journal.verifier_set_root, input.statement.verifier_set_root);
+    }
+
+    #[test]
+    fn perps_v1_asset_rows_reject_by_lane_or_profile_identity() {
+        let rows = alloc::vec![asset_row("USDC", 5, 5)];
+        let base = child("lane-a", 21, 31, rows, Vec::new(), Vec::new(), Vec::new());
+
+        let mut lane_labeled = base.clone();
+        lane_labeled.summary.lane_kind = "perps_np".to_string();
+        assert!(matches!(
+            validate_child_asset_source_scope_v1(&lane_labeled),
+            Err(TransitionError::Unsupported(
+                "perps NP v1 asset rows lack cross-lane source finality"
+            ))
+        ));
+
+        let mut profile_labeled = base;
+        profile_labeled.summary.proof_profile = RECURSIVE_PERPS_NP_LEAF_PROFILE_V1.to_string();
+        assert!(matches!(
+            validate_child_asset_source_scope_v1(&profile_labeled),
+            Err(TransitionError::Unsupported(
+                "perps NP v1 asset rows lack cross-lane source finality"
+            ))
+        ));
+
+        profile_labeled.asset_delta_rows.clear();
+        validate_child_asset_source_scope_v1(&profile_labeled).unwrap();
     }
 
     #[test]
