@@ -5,8 +5,8 @@ use std::process::Command;
 
 const POLICY_PACKAGE: &str = "zenodex-zrpf-risc0-value-aggregate-l2-policy";
 const PINNED_IMAGE_SYMBOL: &str = "PINNED_VALUE_AGGREGATE_L1_IMAGE_ID_V5";
-const PINNED_IMAGE_HEX: &str = "0e54e3390694406b1ae0b8fd082e387c335bf508ffa5d5a8e88078ccd36d788f";
-const PINNED_FIRST_WORD: &str = "971_199_502";
+const PINNED_IMAGE_HEX: &str = "99027bd4ff71de02c86b10309a923d37c38d273c01049f08bccfa11412bdf97d";
+const PINNED_FIRST_WORD: &str = "3_564_831_385";
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

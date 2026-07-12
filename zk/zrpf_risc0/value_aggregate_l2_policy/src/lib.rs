@@ -14,14 +14,14 @@ use zenodex_zrpf_risc0_value_aggregate_shared::{
 /// The L1 normal, build, and dev dependency closure excludes this crate, so
 /// updating this L2 policy cannot alter the L1 image that it identifies.
 pub const PINNED_VALUE_AGGREGATE_L1_IMAGE_ID_V5: [u32; 8] = [
-    971_199_502,
-    1_799_394_310,
-    4_256_751_642,
-    2_084_056_584,
-    150_297_395,
-    2_832_573_951,
-    3_430_449_384,
-    2_407_034_323,
+    3_564_831_385,
+    48_132_607,
+    806_382_536,
+    926_782_106,
+    1_009_225_155,
+    144_638_977,
+    346_148_796,
+    2_113_518_866,
 ];
 
 const VALUE_AGGREGATE_L1_PROFILE_V5: &str = "zrpf_value_aggregate_level_one_v5";
