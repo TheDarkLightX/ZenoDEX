@@ -27,16 +27,24 @@ SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1 = (
     "final_settlement_image_release_and_ledger_authority_pending"
 )
 
-MAX_CANONICAL_SETTLEMENT_CERTIFICATE_BYTES_V1 = 1024 * 1024
-MAX_EXACT_SETTLEMENT_EFFECT_PLAN_BYTES_V1 = 128 * 1024 * 1024
+MAX_CANONICAL_SETTLEMENT_CERTIFICATE_BYTES_V1 = 1024
+MAX_EXACT_SETTLEMENT_EFFECT_PLAN_BYTES_V1 = 8 * 1024 * 1024
 MAX_SOURCE_OPENED_SETTLEMENT_REPLAY_BYTES_V1 = 8 * 1024 * 1024
 MAX_DATA_AVAILABILITY_CERTIFICATE_BYTES_V1 = 512
+MAX_SOURCE_OPENED_SETTLEMENT_ADMISSION_JOURNAL_BYTES_V1 = 8_390_603
+MAX_SOURCE_OPENED_SETTLEMENT_RECEIPT_BYTES_V1 = 16 * 1024 * 1024
+MAX_SOURCE_OPENED_SETTLEMENT_GUEST_INPUT_BYTES_V1 = 1_131_478
+MAX_SOURCE_OPENED_SETTLEMENT_PROJECTION_BYTES_V1 = 64 * 1024
 
 SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6 = (
-    "zrpf_source_opened_ordinary_spot_settlement_v6"
+    "zrpf_source_opened_spot_settlement_v6"
 )
 
 _AUTHENTICATED_SETTLEMENT_CERTIFICATE_SEAL_V1 = object()
+_AUTHENTICATED_SOURCE_OPENED_SPOT_V6_SEAL_V1 = object()
+_SOURCE_OPENED_SPOT_V6_PROJECTION_BINDING_DOMAIN_V1 = (
+    b"zenodex.zrpf.source_opened_spot_v6_projection_binding.v1"
+)
 _TOKEN_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-")
 
 
@@ -106,8 +114,8 @@ class _VerifiedSettlementEpochCertificateV1:
     authorization_grant_spend_nullifiers: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        if type(self.certificate_version) is not int or self.certificate_version not in (1, 2):
-            raise ValueError("certificate_version must be exactly 1 or 2")
+        if type(self.certificate_version) is not int or self.certificate_version != 1:
+            raise ValueError("certificate_version must be exactly 1")
         if type(self.epoch_id) is not int or isinstance(self.epoch_id, bool):
             raise TypeError("certificate epoch_id must be an int")
         if not 0 <= self.epoch_id <= (1 << 64) - 1:
@@ -180,6 +188,89 @@ class _VerifiedSettlementEpochCertificateV1:
             self.authorization_grant_spend_nullifiers,
             name="authorization_grant_spend_nullifiers",
         )
+
+
+@dataclass(frozen=True, slots=True)
+class _VerifiedSourceOpenedSpotV6AssociationV1:
+    """Exact verifier artifacts associated with one Python V1 projection."""
+
+    admission_journal: bytes
+    admission_journal_sha256: str
+    settlement_receipt: bytes
+    settlement_receipt_sha256: str
+    guest_input: bytes
+    guest_input_sha256: str
+    source_opened_replay_sha256: str
+    settlement_certificate_id: str
+    certificate_commitment: str
+    governed_program_id: str
+    governed_profile_id: str
+    governed_manifest_root: str
+    authorization_grant_spend_nullifier: str
+    canonical_projection: bytes
+    canonical_projection_sha256: str
+    normalized_plan_commitment: str
+    canonical_projection_binding_sha256: str
+
+    def __post_init__(self) -> None:
+        _require_exact_bytes(
+            self.admission_journal,
+            self.admission_journal_sha256,
+            name="source-opened admission journal",
+            maximum=MAX_SOURCE_OPENED_SETTLEMENT_ADMISSION_JOURNAL_BYTES_V1,
+        )
+        _require_exact_bytes(
+            self.settlement_receipt,
+            self.settlement_receipt_sha256,
+            name="source-opened settlement receipt",
+            maximum=MAX_SOURCE_OPENED_SETTLEMENT_RECEIPT_BYTES_V1,
+        )
+        _require_exact_bytes(
+            self.guest_input,
+            self.guest_input_sha256,
+            name="source-opened guest input",
+            maximum=MAX_SOURCE_OPENED_SETTLEMENT_GUEST_INPUT_BYTES_V1,
+        )
+        _require_exact_bytes(
+            self.canonical_projection,
+            self.canonical_projection_sha256,
+            name="source-opened canonical projection",
+            maximum=MAX_SOURCE_OPENED_SETTLEMENT_PROJECTION_BYTES_V1,
+        )
+        _require_bare_sha256(
+            self.source_opened_replay_sha256,
+            name="association.source_opened_replay_sha256",
+        )
+        for name in (
+            "settlement_certificate_id",
+            "certificate_commitment",
+            "governed_program_id",
+            "governed_profile_id",
+            "governed_manifest_root",
+            "authorization_grant_spend_nullifier",
+            "normalized_plan_commitment",
+        ):
+            _require_nonzero_hash(getattr(self, name), name=f"association.{name}")
+        _require_bare_sha256(
+            self.canonical_projection_binding_sha256,
+            name="association.canonical_projection_binding_sha256",
+        )
+        expected = _source_opened_spot_v6_projection_binding_v1(
+            admission_journal_sha256=self.admission_journal_sha256,
+            settlement_receipt_sha256=self.settlement_receipt_sha256,
+            guest_input_sha256=self.guest_input_sha256,
+            source_opened_replay_sha256=self.source_opened_replay_sha256,
+            settlement_certificate_id=self.settlement_certificate_id,
+            certificate_commitment=self.certificate_commitment,
+            governed_program_id=self.governed_program_id,
+            governed_profile_id=self.governed_profile_id,
+            governed_manifest_root=self.governed_manifest_root,
+            authorization_grant_spend_nullifier=self.authorization_grant_spend_nullifier,
+            canonical_projection_sha256=self.canonical_projection_sha256,
+            normalized_plan_commitment=self.normalized_plan_commitment,
+        )
+        if self.canonical_projection_binding_sha256 != expected:
+            raise ValueError("source-opened canonical projection binding mismatch")
 
 
 @final
@@ -265,6 +356,68 @@ class _AuthenticatedSettlementCertificateV1:
             return False
 
 
+@final
+class _AuthenticatedSourceOpenedSpotV6SettlementV1:
+    """Sealed production bridge value carrying the exact V6 association."""
+
+    __slots__ = ("_association", "_certificate", "_seal")
+    _certificate: _AuthenticatedSettlementCertificateV1
+    _association: _VerifiedSourceOpenedSpotV6AssociationV1
+    _seal: object
+
+    def __init__(
+        self,
+        certificate: _AuthenticatedSettlementCertificateV1,
+        association: _VerifiedSourceOpenedSpotV6AssociationV1,
+        *,
+        seal: object,
+    ) -> None:
+        if seal is not _AUTHENTICATED_SOURCE_OPENED_SPOT_V6_SEAL_V1:
+            raise TypeError("authenticated source-opened V6 settlement requires the private seal")
+        if type(certificate) is not _AuthenticatedSettlementCertificateV1:
+            raise TypeError("source-opened V6 certificate capability has the wrong type")
+        if not certificate._has_private_seal():
+            raise TypeError("source-opened V6 certificate capability lacks the private seal")
+        if type(association) is not _VerifiedSourceOpenedSpotV6AssociationV1:
+            raise TypeError("source-opened V6 association has the wrong type")
+        _validate_source_opened_spot_v6_association(certificate, association)
+        object.__setattr__(self, "_certificate", certificate)
+        object.__setattr__(self, "_association", association)
+        object.__setattr__(self, "_seal", seal)
+
+    def __init_subclass__(cls, **_kwargs: object) -> NoReturn:
+        raise TypeError("authenticated source-opened V6 settlement cannot be subclassed")
+
+    def __setattr__(self, _name: str, _value: object) -> NoReturn:
+        raise AttributeError("authenticated source-opened V6 settlement is immutable")
+
+    def __copy__(self) -> NoReturn:
+        raise TypeError("authenticated source-opened V6 settlement cannot be copied")
+
+    def __deepcopy__(self, _memo: object) -> NoReturn:
+        raise TypeError("authenticated source-opened V6 settlement cannot be copied")
+
+    def __reduce__(self) -> NoReturn:
+        raise TypeError("authenticated source-opened V6 settlement cannot be serialized")
+
+    @property
+    def certificate(self) -> _AuthenticatedSettlementCertificateV1:
+        return self._certificate
+
+    @property
+    def association(self) -> _VerifiedSourceOpenedSpotV6AssociationV1:
+        return self._association
+
+    def _has_private_seal(self) -> bool:
+        try:
+            return (
+                object.__getattribute__(self, "_seal")
+                is _AUTHENTICATED_SOURCE_OPENED_SPOT_V6_SEAL_V1
+            )
+        except AttributeError:
+            return False
+
+
 def _mint_authenticated_settlement_certificate_after_verification(
     authenticated_root: _AuthenticatedRecursiveStarkRootFacts,
     certificate: _VerifiedSettlementEpochCertificateV1,
@@ -280,6 +433,105 @@ def _mint_authenticated_settlement_certificate_after_verification(
         provenance,
         seal=_AUTHENTICATED_SETTLEMENT_CERTIFICATE_SEAL_V1,
     )
+
+
+def _mint_authenticated_source_opened_spot_v6_after_verification(
+    certificate: _AuthenticatedSettlementCertificateV1,
+    association: _VerifiedSourceOpenedSpotV6AssociationV1,
+) -> _AuthenticatedSourceOpenedSpotV6SettlementV1:
+    """Seal an exact V6 verifier association after all bridge checks pass."""
+
+    return _AuthenticatedSourceOpenedSpotV6SettlementV1(
+        certificate,
+        association,
+        seal=_AUTHENTICATED_SOURCE_OPENED_SPOT_V6_SEAL_V1,
+    )
+
+
+def _validate_source_opened_spot_v6_association(
+    authenticated: _AuthenticatedSettlementCertificateV1,
+    association: _VerifiedSourceOpenedSpotV6AssociationV1,
+) -> None:
+    certificate = authenticated.certificate
+    if certificate.settlement_profile_id != SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6:
+        raise ValueError("source-opened V6 association requires the exact V6 profile")
+    equalities = (
+        (association.certificate_commitment, certificate.certificate_journal_hash, "certificate"),
+        (association.governed_program_id, certificate.settlement_image_id, "program"),
+        (
+            association.governed_manifest_root[2:],
+            certificate.settlement_manifest_sha256,
+            "manifest",
+        ),
+        (
+            association.settlement_receipt_sha256,
+            certificate.settlement_receipt_id[2:],
+            "receipt",
+        ),
+        (
+            association.source_opened_replay_sha256,
+            certificate.source_opened_replay_sha256,
+            "source-opened replay hash",
+        ),
+        (association.normalized_plan_commitment, authenticated.plan.commitment, "projection plan"),
+    )
+    for observed, expected, name in equalities:
+        if observed != expected:
+            raise ValueError(f"source-opened V6 {name} association mismatch")
+    if certificate.authorization_grant_spend_nullifiers != (
+        association.authorization_grant_spend_nullifier,
+    ):
+        raise ValueError("source-opened V6 grant-spend association mismatch")
+
+
+def _source_opened_spot_v6_projection_binding_v1(
+    *,
+    admission_journal_sha256: str,
+    settlement_receipt_sha256: str,
+    guest_input_sha256: str,
+    source_opened_replay_sha256: str,
+    settlement_certificate_id: str,
+    certificate_commitment: str,
+    governed_program_id: str,
+    governed_profile_id: str,
+    governed_manifest_root: str,
+    authorization_grant_spend_nullifier: str,
+    canonical_projection_sha256: str,
+    normalized_plan_commitment: str,
+) -> str:
+    """Bind the Rust admission objects to one canonical Python projection."""
+
+    bare_digests = (
+        admission_journal_sha256,
+        settlement_receipt_sha256,
+        guest_input_sha256,
+        source_opened_replay_sha256,
+        canonical_projection_sha256,
+    )
+    for index, value in enumerate(bare_digests):
+        _require_bare_sha256(value, name=f"projection binding digest {index}")
+    prefixed = (
+        settlement_certificate_id,
+        certificate_commitment,
+        governed_program_id,
+        governed_profile_id,
+        governed_manifest_root,
+        authorization_grant_spend_nullifier,
+        normalized_plan_commitment,
+    )
+    checked_prefixed = tuple(
+        bytes.fromhex(_require_nonzero_hash(value, name="projection binding field")[2:])
+        for value in prefixed
+    )
+    digest = hashlib.sha256()
+    digest.update(len(_SOURCE_OPENED_SPOT_V6_PROJECTION_BINDING_DOMAIN_V1).to_bytes(2, "big"))
+    digest.update(_SOURCE_OPENED_SPOT_V6_PROJECTION_BINDING_DOMAIN_V1)
+    digest.update((1).to_bytes(2, "big"))
+    for value in bare_digests:
+        digest.update(bytes.fromhex(value))
+    for digest_value in checked_prefixed:
+        digest.update(digest_value)
+    return digest.hexdigest()
 
 
 def _validate_authenticated_certificate_binding(
@@ -321,11 +573,12 @@ def _validate_authenticated_certificate_binding(
             raise ValueError(
                 "source-opened V6 action nullifier must equal the sole consumed object"
             )
-    grant_spends = tuple(
-        row.authorization_grant_spend_nullifier for row in plan.authorization_consumptions
-    )
-    if certificate.authorization_grant_spend_nullifiers != grant_spends:
-        raise ValueError("certificate authorization grant spends do not match normalized plan")
+    if certificate.settlement_profile_id != SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6:
+        grant_spends = tuple(
+            row.authorization_grant_spend_nullifier for row in plan.authorization_consumptions
+        )
+        if certificate.authorization_grant_spend_nullifiers != grant_spends:
+            raise ValueError("certificate authorization grant spends do not match normalized plan")
 
 
 def _require_certificate_plan_equalities(
@@ -333,7 +586,7 @@ def _require_certificate_plan_equalities(
     facts: RecursiveStarkRootFacts,
     plan: SettlementEffectPlanV1,
 ) -> None:
-    equalities = (
+    equalities = [
         (certificate.semantic_root_journal_hash, facts.root_journal_hash, "semantic root"),
         (certificate.semantic_root_journal_hash, plan.source_root_journal_hash, "plan source root"),
         (certificate.epoch_id, facts.epoch_id, "recursive epoch"),
@@ -344,21 +597,26 @@ def _require_certificate_plan_equalities(
         (certificate.chain_or_domain_id, plan.chain_or_domain_id, "chain or domain"),
         (certificate.pre_state_root, plan.pre_state_root, "pre-state root"),
         (certificate.post_state_root, plan.post_state_root, "post-state root"),
-        (
-            certificate.economic_action_ids_root,
-            plan.economic_action_ids_root,
-            "economic action IDs root",
-        ),
-        (
-            certificate.ledger_cell_writes_root,
-            plan.ledger_cell_writes_root,
-            "ledger cell writes root",
-        ),
-        (certificate.asset_effects_root, plan.asset_effects_root, "asset effects root"),
-        (certificate.message_effects_root, plan.message_effects_root, "message effects root"),
-        (certificate.carry_effects_root, plan.carry_effects_root, "carry effects root"),
-        (certificate.reward_effects_root, plan.reward_effects_root, "reward effects root"),
-    )
+    ]
+    if certificate.settlement_profile_id != SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6:
+        equalities.extend(
+            (
+                (
+                    certificate.economic_action_ids_root,
+                    plan.economic_action_ids_root,
+                    "economic action IDs root",
+                ),
+                (
+                    certificate.ledger_cell_writes_root,
+                    plan.ledger_cell_writes_root,
+                    "ledger cell writes root",
+                ),
+                (certificate.asset_effects_root, plan.asset_effects_root, "asset effects root"),
+                (certificate.message_effects_root, plan.message_effects_root, "message effects root"),
+                (certificate.carry_effects_root, plan.carry_effects_root, "carry effects root"),
+                (certificate.reward_effects_root, plan.reward_effects_root, "reward effects root"),
+            )
+        )
     for observed, expected, name in equalities:
         if observed != expected:
             raise ValueError(f"verified settlement certificate {name} mismatch")

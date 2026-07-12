@@ -161,7 +161,11 @@ class SettlementCertificateVerificationError(ValueError):
 @final
 @dataclass(frozen=True)
 class PinnedSettlementCertificateVerifierV1:
-    """One executable and one replaceable canonical settlement-policy seam."""
+    """Legacy fixture adapter retained only for non-production tests.
+
+    Real source-opened V6 admission uses
+    ``PinnedSourceOpenedSpotSettlementVerifierV6`` and exact byte inputs.
+    """
 
     executable: Path
     authority_manifest_json: bytes
@@ -169,6 +173,7 @@ class PinnedSettlementCertificateVerifierV1:
     timeout_seconds: int = 60
     max_address_space_bytes: int = DEFAULT_VERIFIER_ADDRESS_SPACE_BYTES
     max_stack_bytes: int = DEFAULT_VERIFIER_STACK_BYTES
+    legacy_test_only: bool = False
     sha256: str = field(init=False)
     executable_format: RecursiveVerifierExecutableFormat = field(init=False)
     trusted_expectations: Mapping[str, Any] = field(init=False)
@@ -178,6 +183,8 @@ class PinnedSettlementCertificateVerifierV1:
         raise TypeError("PinnedSettlementCertificateVerifierV1 cannot be subclassed")
 
     def __post_init__(self) -> None:
+        if self.legacy_test_only is not True:
+            raise ValueError("legacy settlement verifier adapter requires legacy_test_only=True")
         if not isinstance(self.executable, Path) or not self.executable.is_absolute():
             raise ValueError("settlement verifier executable must be an absolute pathlib.Path")
         _require_bare_sha256(
@@ -208,7 +215,7 @@ class PinnedSettlementCertificateVerifierV1:
         receipt: Mapping[str, Any],
         settlement_input: Mapping[str, Any],
     ) -> DurableZrpfStateBoundSettlementResultV1:
-        """Verify exactly once, then atomically admit the sealed certificate."""
+        """Exercise the legacy fixture schema in tests only."""
 
         from src.integration.recursive_stark_admission_store_types import (
             DurableRecursiveStarkAdmissionCursor,

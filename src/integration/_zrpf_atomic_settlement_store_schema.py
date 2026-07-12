@@ -24,9 +24,10 @@ ATOMIC_SETTLEMENT_STORE_APPLICATION_ID_V1 = 0x5A525053
 ATOMIC_SETTLEMENT_STORE_LEGACY_SCHEMA_VERSION_V1 = 1
 ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V2 = 2
 ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V3 = 3
+ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V4 = 4
 # Compatibility export: the V1 store class now opens the minimally extended
 # physical schema so its existing atomic engine can host certificate rows.
-ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V1 = ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V3
+ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V1 = ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V4
 
 _BLOCKED_REASON_SQL = SETTLEMENT_AUTHORITY_BLOCKED_REASON_V1
 _CERTIFICATE_BLOCKED_REASON_SQL = SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1
@@ -76,7 +77,7 @@ _SETTLEMENT_SCHEMA_STATEMENTS = (
         carry_effects_root BLOB NOT NULL CHECK (length(carry_effects_root) = 32),
         reward_effects_root BLOB NOT NULL CHECK (length(reward_effects_root) = 32),
         canonical_plan BLOB NOT NULL
-            CHECK (typeof(canonical_plan) = 'blob' AND length(canonical_plan) BETWEEN 2 AND 134217728),
+            CHECK (typeof(canonical_plan) = 'blob' AND length(canonical_plan) BETWEEN 2 AND 8388608),
         settlement_authority INTEGER NOT NULL CHECK (settlement_authority = 0),
         authority_blocked_reason TEXT NOT NULL
             CHECK (authority_blocked_reason = '{_BLOCKED_REASON_SQL}'),
@@ -205,7 +206,7 @@ _CERTIFICATE_SCHEMA_STATEMENTS_V2 = (
             REFERENCES zrpf_settlement_plans(plan_commitment) ON DELETE RESTRICT,
         settlement_revision INTEGER NOT NULL UNIQUE
             REFERENCES zrpf_settlement_plans(settlement_revision) ON DELETE RESTRICT,
-        certificate_version INTEGER NOT NULL CHECK (certificate_version IN (1, 2)),
+        certificate_version INTEGER NOT NULL CHECK (certificate_version = 1),
         epoch_id_be BLOB NOT NULL CHECK (length(epoch_id_be) = 8),
         settlement_receipt_id BLOB NOT NULL UNIQUE CHECK (length(settlement_receipt_id) = 32),
         semantic_claim_hash BLOB NOT NULL CHECK (length(semantic_claim_hash) = 32),
@@ -241,11 +242,11 @@ _CERTIFICATE_SCHEMA_STATEMENTS_V2 = (
             CHECK (length(canonical_certificate_sha256) = 32),
         canonical_certificate BLOB NOT NULL
             CHECK (typeof(canonical_certificate) = 'blob'
-                AND length(canonical_certificate) BETWEEN 1 AND 1048576),
+                AND length(canonical_certificate) BETWEEN 1 AND 1024),
         exact_effect_plan_sha256 BLOB NOT NULL CHECK (length(exact_effect_plan_sha256) = 32),
         exact_effect_plan BLOB NOT NULL
             CHECK (typeof(exact_effect_plan) = 'blob'
-                AND length(exact_effect_plan) BETWEEN 1 AND 134217728),
+                AND length(exact_effect_plan) BETWEEN 1 AND 8388608),
         authority_manifest_sha256 BLOB NOT NULL CHECK (length(authority_manifest_sha256) = 32),
         admission_policy_binding_sha256 BLOB NOT NULL
             CHECK (length(admission_policy_binding_sha256) = 32),
@@ -288,7 +289,7 @@ _CERTIFICATE_SCHEMA_STATEMENTS = (
             REFERENCES zrpf_settlement_plans(plan_commitment) ON DELETE RESTRICT,
         settlement_revision INTEGER NOT NULL UNIQUE
             REFERENCES zrpf_settlement_plans(settlement_revision) ON DELETE RESTRICT,
-        certificate_version INTEGER NOT NULL CHECK (certificate_version IN (1, 2)),
+        certificate_version INTEGER NOT NULL CHECK (certificate_version = 1),
         epoch_id_be BLOB NOT NULL CHECK (length(epoch_id_be) = 8),
         settlement_receipt_id BLOB NOT NULL UNIQUE CHECK (length(settlement_receipt_id) = 32),
         semantic_claim_hash BLOB NOT NULL CHECK (length(semantic_claim_hash) = 32),
@@ -343,11 +344,11 @@ _CERTIFICATE_SCHEMA_STATEMENTS = (
             CHECK (length(canonical_certificate_sha256) = 32),
         canonical_certificate BLOB NOT NULL
             CHECK (typeof(canonical_certificate) = 'blob'
-                AND length(canonical_certificate) BETWEEN 1 AND 1048576),
+                AND length(canonical_certificate) BETWEEN 1 AND 1024),
         exact_effect_plan_sha256 BLOB NOT NULL CHECK (length(exact_effect_plan_sha256) = 32),
         exact_effect_plan BLOB NOT NULL
             CHECK (typeof(exact_effect_plan) = 'blob'
-                AND length(exact_effect_plan) BETWEEN 1 AND 134217728),
+                AND length(exact_effect_plan) BETWEEN 1 AND 8388608),
         authority_manifest_sha256 BLOB NOT NULL CHECK (length(authority_manifest_sha256) = 32),
         admission_policy_binding_sha256 BLOB NOT NULL
             CHECK (length(admission_policy_binding_sha256) = 32),
@@ -362,9 +363,64 @@ _CERTIFICATE_SCHEMA_STATEMENTS = (
     _CERTIFICATE_SCHEMA_STATEMENTS_V2[3],
 )
 
+_SOURCE_OPENED_SPOT_V6_ASSOCIATION_META_SCHEMA_STATEMENT = """
+    CREATE TABLE zrpf_source_opened_spot_v6_association_meta (
+        singleton INTEGER NOT NULL PRIMARY KEY CHECK (singleton = 1),
+        schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+        association_count INTEGER NOT NULL
+            CHECK (association_count BETWEEN 0 AND 1048576)
+    ) STRICT, WITHOUT ROWID
+"""
+
+_SOURCE_OPENED_SPOT_V6_ASSOCIATION_SCHEMA_STATEMENT = """
+    CREATE TABLE zrpf_source_opened_spot_v6_associations (
+        certificate_journal_hash BLOB NOT NULL PRIMARY KEY
+            REFERENCES zrpf_settlement_certificates(certificate_journal_hash)
+            ON DELETE RESTRICT CHECK (length(certificate_journal_hash) = 32),
+        admission_journal_sha256 BLOB NOT NULL CHECK (length(admission_journal_sha256) = 32),
+        admission_journal BLOB NOT NULL
+            CHECK (typeof(admission_journal) = 'blob'
+                AND length(admission_journal) BETWEEN 971 AND 8390603),
+        settlement_receipt_sha256 BLOB NOT NULL UNIQUE
+            CHECK (length(settlement_receipt_sha256) = 32),
+        settlement_receipt BLOB NOT NULL
+            CHECK (typeof(settlement_receipt) = 'blob'
+                AND length(settlement_receipt) BETWEEN 1 AND 16777216),
+        guest_input_sha256 BLOB NOT NULL CHECK (length(guest_input_sha256) = 32),
+        guest_input BLOB NOT NULL
+            CHECK (typeof(guest_input) = 'blob'
+                AND length(guest_input) BETWEEN 1 AND 1131478),
+        source_opened_replay_sha256 BLOB NOT NULL
+            CHECK (length(source_opened_replay_sha256) = 32),
+        settlement_certificate_id BLOB NOT NULL UNIQUE
+            CHECK (length(settlement_certificate_id) = 32),
+        certificate_commitment BLOB NOT NULL CHECK (length(certificate_commitment) = 32),
+        governed_program_id BLOB NOT NULL CHECK (length(governed_program_id) = 32),
+        governed_profile_id BLOB NOT NULL CHECK (length(governed_profile_id) = 32),
+        governed_manifest_root BLOB NOT NULL CHECK (length(governed_manifest_root) = 32),
+        authorization_grant_spend_nullifier BLOB NOT NULL UNIQUE
+            CHECK (length(authorization_grant_spend_nullifier) = 32),
+        canonical_projection_sha256 BLOB NOT NULL
+            CHECK (length(canonical_projection_sha256) = 32),
+        canonical_projection BLOB NOT NULL
+            CHECK (typeof(canonical_projection) = 'blob'
+                AND length(canonical_projection) BETWEEN 2 AND 65536),
+        normalized_plan_commitment BLOB NOT NULL
+            REFERENCES zrpf_settlement_plans(plan_commitment) ON DELETE RESTRICT
+            CHECK (length(normalized_plan_commitment) = 32),
+        canonical_projection_binding_sha256 BLOB NOT NULL UNIQUE
+            CHECK (length(canonical_projection_binding_sha256) = 32),
+        CHECK (certificate_commitment = certificate_journal_hash)
+    ) STRICT, WITHOUT ROWID
+"""
+
 _LEGACY_SCHEMA_STATEMENTS = _ADMISSION_SCHEMA_STATEMENTS + _SETTLEMENT_SCHEMA_STATEMENTS
 _V2_ALL_SCHEMA_STATEMENTS = _LEGACY_SCHEMA_STATEMENTS + _CERTIFICATE_SCHEMA_STATEMENTS_V2
-_ALL_SCHEMA_STATEMENTS = _LEGACY_SCHEMA_STATEMENTS + _CERTIFICATE_SCHEMA_STATEMENTS
+_V3_ALL_SCHEMA_STATEMENTS = _LEGACY_SCHEMA_STATEMENTS + _CERTIFICATE_SCHEMA_STATEMENTS
+_ALL_SCHEMA_STATEMENTS = _V3_ALL_SCHEMA_STATEMENTS + (
+    _SOURCE_OPENED_SPOT_V6_ASSOCIATION_META_SCHEMA_STATEMENT,
+    _SOURCE_OPENED_SPOT_V6_ASSOCIATION_SCHEMA_STATEMENT,
+)
 _ADMISSION_TABLE_NAMES = (
     "zrpf_store_meta",
     "zrpf_admissions",
@@ -383,11 +439,15 @@ _SETTLEMENT_TABLE_NAMES = (
     "zrpf_settlement_carry_effects",
     "zrpf_settlement_reward_effects",
 )
-_CERTIFICATE_TABLE_NAMES = (
+_CERTIFICATE_TABLE_NAMES_V3 = (
     "zrpf_settlement_certificate_meta",
     "zrpf_settlement_certificates",
     "zrpf_settlement_action_nullifiers",
     "zrpf_settlement_consumed_objects",
+)
+_CERTIFICATE_TABLE_NAMES = _CERTIFICATE_TABLE_NAMES_V3 + (
+    "zrpf_source_opened_spot_v6_association_meta",
+    "zrpf_source_opened_spot_v6_associations",
 )
 _LEGACY_EXPECTED_SCHEMA_SQL = dict(
     zip(
@@ -398,8 +458,15 @@ _LEGACY_EXPECTED_SCHEMA_SQL = dict(
 )
 _V2_EXPECTED_SCHEMA_SQL = dict(
     zip(
-        _ADMISSION_TABLE_NAMES + _SETTLEMENT_TABLE_NAMES + _CERTIFICATE_TABLE_NAMES,
+        _ADMISSION_TABLE_NAMES + _SETTLEMENT_TABLE_NAMES + _CERTIFICATE_TABLE_NAMES_V3,
         _V2_ALL_SCHEMA_STATEMENTS,
+        strict=True,
+    )
+)
+_V3_EXPECTED_SCHEMA_SQL = dict(
+    zip(
+        _ADMISSION_TABLE_NAMES + _SETTLEMENT_TABLE_NAMES + _CERTIFICATE_TABLE_NAMES_V3,
+        _V3_ALL_SCHEMA_STATEMENTS,
         strict=True,
     )
 )
@@ -428,7 +495,7 @@ def _initialize_or_validate_atomic_settlement_store(
         if connection.execute("PRAGMA user_version").fetchone()[0] != 0:
             raise ValueError("empty atomic settlement database has a user_version")
         connection.execute(f"PRAGMA application_id = {ATOMIC_SETTLEMENT_STORE_APPLICATION_ID_V1}")
-        connection.execute(f"PRAGMA user_version = {ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V3}")
+        connection.execute(f"PRAGMA user_version = {ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V4}")
         for statement in _ALL_SCHEMA_STATEMENTS:
             connection.execute(statement)
         connection.execute(
@@ -466,6 +533,7 @@ def _initialize_or_validate_atomic_settlement_store(
             """,
             (SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1,),
         )
+        _insert_empty_source_opened_spot_v6_association_meta(connection)
     elif (
         connection.execute("PRAGMA application_id").fetchone()[0]
         == ATOMIC_SETTLEMENT_STORE_APPLICATION_ID_V1
@@ -475,7 +543,11 @@ def _initialize_or_validate_atomic_settlement_store(
         _validate_schema_objects(connection, _LEGACY_EXPECTED_SCHEMA_SQL)
         _validate_admission_content(connection)
         _validate_settlement_meta(connection, genesis_settlement_state_root)
-        for statement in _CERTIFICATE_SCHEMA_STATEMENTS:
+        for statement in (
+            *_CERTIFICATE_SCHEMA_STATEMENTS,
+            _SOURCE_OPENED_SPOT_V6_ASSOCIATION_META_SCHEMA_STATEMENT,
+            _SOURCE_OPENED_SPOT_V6_ASSOCIATION_SCHEMA_STATEMENT,
+        ):
             connection.execute(statement)
         connection.execute(
             """
@@ -488,14 +560,22 @@ def _initialize_or_validate_atomic_settlement_store(
             """,
             (SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1,),
         )
-        connection.execute(f"PRAGMA user_version = {ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V3}")
+        _insert_empty_source_opened_spot_v6_association_meta(connection)
+        connection.execute(f"PRAGMA user_version = {ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V4}")
     elif (
         connection.execute("PRAGMA application_id").fetchone()[0]
         == ATOMIC_SETTLEMENT_STORE_APPLICATION_ID_V1
         and connection.execute("PRAGMA user_version").fetchone()[0]
         == ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V2
     ):
-        _migrate_empty_certificate_history_v2_to_v3(connection)
+        _migrate_empty_certificate_history_v2_to_v4(connection)
+    elif (
+        connection.execute("PRAGMA application_id").fetchone()[0]
+        == ATOMIC_SETTLEMENT_STORE_APPLICATION_ID_V1
+        and connection.execute("PRAGMA user_version").fetchone()[0]
+        == ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V3
+    ):
+        _migrate_empty_certificate_history_v3_to_v4(connection)
     _validate_atomic_settlement_schema(connection)
     _validate_admission_content(connection)
     _validate_settlement_meta(connection, genesis_settlement_state_root)
@@ -510,13 +590,13 @@ def _validate_atomic_settlement_schema(connection: sqlite3.Connection) -> None:
         raise ValueError("atomic settlement application_id mismatch")
     if (
         connection.execute("PRAGMA user_version").fetchone()[0]
-        != ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V3
+        != ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V4
     ):
         raise ValueError("atomic settlement user_version mismatch")
     _validate_schema_objects(connection, _EXPECTED_SCHEMA_SQL)
 
 
-def _migrate_empty_certificate_history_v2_to_v3(connection: sqlite3.Connection) -> None:
+def _migrate_empty_certificate_history_v2_to_v4(connection: sqlite3.Connection) -> None:
     """Replace V2 certificate tables only when no unverifiable history exists."""
 
     _validate_schema_objects(connection, _V2_EXPECTED_SCHEMA_SQL)
@@ -533,17 +613,56 @@ def _migrate_empty_certificate_history_v2_to_v3(connection: sqlite3.Connection) 
         raise ValueError("V2 authenticated certificate blocked reason mismatch")
     counts = {
         table: int(connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
-        for table in _CERTIFICATE_TABLE_NAMES[1:]
+        for table in _CERTIFICATE_TABLE_NAMES_V3[1:]
     }
     if int(meta["certificate_count"]) != 0 or any(counts.values()):
         raise ValueError(
             "V2 certificate history cannot migrate without exact replay and DA bytes"
         )
-    for table in reversed(_CERTIFICATE_TABLE_NAMES[1:]):
+    for table in reversed(_CERTIFICATE_TABLE_NAMES_V3[1:]):
         connection.execute(f"DROP TABLE {table}")
     for statement in _CERTIFICATE_SCHEMA_STATEMENTS[1:]:
         connection.execute(statement)
-    connection.execute(f"PRAGMA user_version = {ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V3}")
+    connection.execute(_SOURCE_OPENED_SPOT_V6_ASSOCIATION_SCHEMA_STATEMENT)
+    connection.execute(_SOURCE_OPENED_SPOT_V6_ASSOCIATION_META_SCHEMA_STATEMENT)
+    _insert_empty_source_opened_spot_v6_association_meta(connection)
+    connection.execute(f"PRAGMA user_version = {ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V4}")
+
+
+def _migrate_empty_certificate_history_v3_to_v4(connection: sqlite3.Connection) -> None:
+    """Add the exact V6 association only when certificate history is empty."""
+
+    _validate_schema_objects(connection, _V3_EXPECTED_SCHEMA_SQL)
+    _validate_admission_content(connection)
+    meta = connection.execute(
+        "SELECT certificate_count, settlement_authority, authority_blocked_reason "
+        "FROM zrpf_settlement_certificate_meta WHERE singleton = 1"
+    ).fetchone()
+    if meta is None:
+        raise ValueError("V3 authenticated certificate metadata row is missing")
+    if int(meta["settlement_authority"]) != 0:
+        raise ValueError("V3 authenticated certificate authority must remain false")
+    if str(meta["authority_blocked_reason"]) != SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1:
+        raise ValueError("V3 authenticated certificate blocked reason mismatch")
+    counts = {
+        table: int(connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
+        for table in _CERTIFICATE_TABLE_NAMES_V3[1:]
+    }
+    if int(meta["certificate_count"]) != 0 or any(counts.values()):
+        raise ValueError("V3 certificate history cannot migrate without exact V6 associations")
+    connection.execute(_SOURCE_OPENED_SPOT_V6_ASSOCIATION_META_SCHEMA_STATEMENT)
+    connection.execute(_SOURCE_OPENED_SPOT_V6_ASSOCIATION_SCHEMA_STATEMENT)
+    _insert_empty_source_opened_spot_v6_association_meta(connection)
+    connection.execute(f"PRAGMA user_version = {ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V4}")
+
+
+def _insert_empty_source_opened_spot_v6_association_meta(
+    connection: sqlite3.Connection,
+) -> None:
+    connection.execute(
+        "INSERT INTO zrpf_source_opened_spot_v6_association_meta "
+        "(singleton, schema_version, association_count) VALUES (1, 1, 0)"
+    )
 
 
 def _validate_schema_objects(

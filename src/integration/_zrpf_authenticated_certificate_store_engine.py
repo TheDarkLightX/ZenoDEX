@@ -8,6 +8,7 @@ import sqlite3
 from src.core._zrpf_settlement_certificate_authority import (
     SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1,
     _AuthenticatedSettlementCertificateV1,
+    _AuthenticatedSourceOpenedSpotV6SettlementV1,
     _VerifiedSettlementEpochCertificateV1,
 )
 from src.integration.recursive_stark_admission_store_types import _hash_bytes, _hex_hash
@@ -53,6 +54,19 @@ _CERTIFICATE_INSERT_SQL = """
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?, 0, ?
     )
+"""
+
+_SOURCE_OPENED_SPOT_V6_ASSOCIATION_INSERT_SQL = """
+    INSERT INTO zrpf_source_opened_spot_v6_associations (
+        certificate_journal_hash, admission_journal_sha256, admission_journal,
+        settlement_receipt_sha256, settlement_receipt,
+        guest_input_sha256, guest_input, source_opened_replay_sha256,
+        settlement_certificate_id, certificate_commitment,
+        governed_program_id, governed_profile_id, governed_manifest_root,
+        authorization_grant_spend_nullifier,
+        canonical_projection_sha256, canonical_projection,
+        normalized_plan_commitment, canonical_projection_binding_sha256
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 
@@ -167,6 +181,56 @@ def _authenticated_certificate_idempotent_match(
             certificate_journal_hash=certificate.certificate_journal_hash,
         )
         == certificate.consumed_object_ids
+    )
+
+
+def _source_opened_spot_v6_association_idempotent_match(
+    connection: sqlite3.Connection,
+    authenticated: _AuthenticatedSourceOpenedSpotV6SettlementV1,
+) -> bool:
+    association = authenticated.association
+    certificate = authenticated.certificate.certificate
+    row = connection.execute(
+        "SELECT * FROM zrpf_source_opened_spot_v6_associations "
+        "WHERE certificate_journal_hash = ?",
+        (_hash_bytes(certificate.certificate_journal_hash, name="certificate journal"),),
+    ).fetchone()
+    if row is None:
+        return False
+    byte_fields = {
+        "admission_journal": association.admission_journal,
+        "settlement_receipt": association.settlement_receipt,
+        "guest_input": association.guest_input,
+        "canonical_projection": association.canonical_projection,
+    }
+    if any(bytes(row[column]) != value for column, value in byte_fields.items()):
+        return False
+    digest_fields = {
+        "admission_journal_sha256": association.admission_journal_sha256,
+        "settlement_receipt_sha256": association.settlement_receipt_sha256,
+        "guest_input_sha256": association.guest_input_sha256,
+        "source_opened_replay_sha256": association.source_opened_replay_sha256,
+        "canonical_projection_sha256": association.canonical_projection_sha256,
+        "canonical_projection_binding_sha256": (
+            association.canonical_projection_binding_sha256
+        ),
+    }
+    if any(bytes(row[column]) != bytes.fromhex(value) for column, value in digest_fields.items()):
+        return False
+    hash_fields = {
+        "settlement_certificate_id": association.settlement_certificate_id,
+        "certificate_commitment": association.certificate_commitment,
+        "governed_program_id": association.governed_program_id,
+        "governed_profile_id": association.governed_profile_id,
+        "governed_manifest_root": association.governed_manifest_root,
+        "authorization_grant_spend_nullifier": (
+            association.authorization_grant_spend_nullifier
+        ),
+        "normalized_plan_commitment": association.normalized_plan_commitment,
+    }
+    return all(
+        bytes(row[column]) == _hash_bytes(value, name=f"association {column}")
+        for column, value in hash_fields.items()
     )
 
 
@@ -333,6 +397,54 @@ def _persist_authenticated_certificate(
             for ordinal, value in enumerate(certificate.consumed_object_ids)
         ),
     )
+
+
+def _persist_source_opened_spot_v6_association(
+    connection: sqlite3.Connection,
+    authenticated: _AuthenticatedSourceOpenedSpotV6SettlementV1,
+) -> None:
+    association = authenticated.association
+    certificate = authenticated.certificate.certificate
+    connection.execute(
+        _SOURCE_OPENED_SPOT_V6_ASSOCIATION_INSERT_SQL,
+        (
+            _hash_bytes(certificate.certificate_journal_hash, name="certificate journal"),
+            bytes.fromhex(association.admission_journal_sha256),
+            association.admission_journal,
+            bytes.fromhex(association.settlement_receipt_sha256),
+            association.settlement_receipt,
+            bytes.fromhex(association.guest_input_sha256),
+            association.guest_input,
+            bytes.fromhex(association.source_opened_replay_sha256),
+            _hash_bytes(association.settlement_certificate_id, name="settlement certificate ID"),
+            _hash_bytes(association.certificate_commitment, name="certificate commitment"),
+            _hash_bytes(association.governed_program_id, name="governed program ID"),
+            _hash_bytes(association.governed_profile_id, name="governed profile ID"),
+            _hash_bytes(association.governed_manifest_root, name="governed manifest root"),
+            _hash_bytes(
+                association.authorization_grant_spend_nullifier,
+                name="authorization grant-spend nullifier",
+            ),
+            bytes.fromhex(association.canonical_projection_sha256),
+            association.canonical_projection,
+            _hash_bytes(
+                association.normalized_plan_commitment,
+                name="normalized plan commitment",
+            ),
+            bytes.fromhex(association.canonical_projection_binding_sha256),
+        ),
+    )
+    cursor = connection.execute(
+        "UPDATE zrpf_source_opened_spot_v6_association_meta "
+        "SET association_count = association_count + 1 "
+        "WHERE singleton = 1 AND schema_version = 1 "
+        "AND association_count BETWEEN 0 AND 1048575"
+    )
+    if cursor.rowcount != 1:
+        raise ZrpfAtomicSettlementStoreErrorV1(
+            "SOURCE_OPENED_SPOT_V6_ASSOCIATION_META_CAS_FAILED",
+            "source-opened V6 association metadata update changed no row",
+        )
 
 
 def _cas_authenticated_certificate_meta(

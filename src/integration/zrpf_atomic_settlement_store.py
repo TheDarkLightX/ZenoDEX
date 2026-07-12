@@ -2,10 +2,10 @@
 
 One ``BEGIN IMMEDIATE`` transaction couples authenticated root identities,
 canonical normalized plans, replay indexes, and every effect row. The legacy
-V1 input remains test-only. The state-bound lane accepts only the sealed output
-of the pinned settlement verifier and also persists the exact certificate and
-effect-plan bytes, action nullifiers, consumed objects, and verifier policy
-provenance. Both lanes preserve ``settlement_authority=false``.
+V1 input remains test-only. The real V6 lane additionally persists its exact
+admission journal, receipt, guest input, reconstructed replay blob,
+content-integrity DA certificate, governed program identities, and canonical
+Python projection association. Both lanes preserve ``settlement_authority=false``.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from typing import NoReturn, final
 from src.core._zrpf_settlement_certificate_authority import (
     SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1,
     _AuthenticatedSettlementCertificateV1,
+    _AuthenticatedSourceOpenedSpotV6SettlementV1,
 )
 from src.core._zrpf_settlement_commit_authority import (
     SETTLEMENT_AUTHORITY_BLOCKED_REASON_V1,
@@ -77,7 +78,9 @@ from src.integration._zrpf_authenticated_certificate_store_engine import (
     _certificate_receipt_from_row,
     _certificate_reject_reason_locked,
     _persist_authenticated_certificate,
+    _persist_source_opened_spot_v6_association,
     _read_certificate_row_by_semantic_root,
+    _source_opened_spot_v6_association_idempotent_match,
 )
 from src.integration.recursive_stark_admission_store_types import (
     DurableRecursiveStarkAdmissionCursor,
@@ -291,6 +294,52 @@ class SQLiteZrpfAtomicSettlementStoreV1:
             if connection is not None:
                 connection.close()
 
+    def _commit_authenticated_source_opened_spot_v6(
+        self,
+        *,
+        expected_admission_cursor: DurableRecursiveStarkAdmissionCursor,
+        expected_settlement_cursor: DurableZrpfSettlementCursorV1,
+        authenticated_source_opened: _AuthenticatedSourceOpenedSpotV6SettlementV1,
+    ) -> DurableZrpfStateBoundSettlementResultV1:
+        """Private sink for the sealed real V6 verifier association."""
+
+        if type(authenticated_source_opened) is not _AuthenticatedSourceOpenedSpotV6SettlementV1:
+            raise TypeError(
+                "authenticated_source_opened must be _AuthenticatedSourceOpenedSpotV6SettlementV1"
+            )
+        if not authenticated_source_opened._has_private_seal():
+            raise TypeError("authenticated_source_opened lacks the private seal")
+        certificate = authenticated_source_opened.certificate
+        self._validate_certificate_commit_inputs(
+            expected_admission_cursor,
+            expected_settlement_cursor,
+            certificate,
+        )
+        connection: sqlite3.Connection | None = None
+        try:
+            connection = self._connect()
+            return self._execute_certificate_transaction(
+                connection,
+                expected_admission_cursor=expected_admission_cursor,
+                expected_settlement_cursor=expected_settlement_cursor,
+                authenticated_certificate=certificate,
+                authenticated_source_opened=authenticated_source_opened,
+            )
+        except ZrpfAtomicSettlementStoreErrorV1:
+            if connection is not None and connection.in_transaction:
+                connection.rollback()
+            raise
+        except (OSError, sqlite3.Error, ValueError) as exc:
+            if connection is not None and connection.in_transaction:
+                connection.rollback()
+            raise ZrpfAtomicSettlementStoreErrorV1(
+                "SOURCE_OPENED_SPOT_V6_COMMIT_FAILED",
+                str(exc),
+            ) from exc
+        finally:
+            if connection is not None:
+                connection.close()
+
     def _execute_certificate_transaction(
         self,
         connection: sqlite3.Connection,
@@ -298,6 +347,7 @@ class SQLiteZrpfAtomicSettlementStoreV1:
         expected_admission_cursor: DurableRecursiveStarkAdmissionCursor,
         expected_settlement_cursor: DurableZrpfSettlementCursorV1,
         authenticated_certificate: _AuthenticatedSettlementCertificateV1,
+        authenticated_source_opened: _AuthenticatedSourceOpenedSpotV6SettlementV1 | None = None,
     ) -> DurableZrpfStateBoundSettlementResultV1:
         connection.execute("BEGIN IMMEDIATE")
         _validate_atomic_settlement_schema(connection)
@@ -311,6 +361,7 @@ class SQLiteZrpfAtomicSettlementStoreV1:
             expected_admission_cursor=expected_admission_cursor,
             expected_settlement_cursor=expected_settlement_cursor,
             authenticated_certificate=authenticated_certificate,
+            authenticated_source_opened=authenticated_source_opened,
         )
         if resolved is not None:
             return resolved
@@ -318,6 +369,7 @@ class SQLiteZrpfAtomicSettlementStoreV1:
             connection,
             evaluation=evaluation,
             authenticated_certificate=authenticated_certificate,
+            authenticated_source_opened=authenticated_source_opened,
         )
         connection.commit()
         return self._committed_certificate_result(
@@ -334,6 +386,7 @@ class SQLiteZrpfAtomicSettlementStoreV1:
         expected_admission_cursor: DurableRecursiveStarkAdmissionCursor,
         expected_settlement_cursor: DurableZrpfSettlementCursorV1,
         authenticated_certificate: _AuthenticatedSettlementCertificateV1,
+        authenticated_source_opened: _AuthenticatedSourceOpenedSpotV6SettlementV1 | None,
     ) -> DurableZrpfStateBoundSettlementResultV1 | None:
         no_commit = _resolve_atomic_settlement_no_commit(
             connection,
@@ -349,6 +402,12 @@ class SQLiteZrpfAtomicSettlementStoreV1:
                 if not _authenticated_certificate_idempotent_match(
                     connection,
                     authenticated_certificate,
+                ) or (
+                    authenticated_source_opened is not None
+                    and not _source_opened_spot_v6_association_idempotent_match(
+                        connection,
+                        authenticated_source_opened,
+                    )
                 ):
                     no_commit = _settlement_rejected_result(
                         evaluation,
@@ -385,6 +444,7 @@ class SQLiteZrpfAtomicSettlementStoreV1:
         *,
         evaluation: _AtomicSettlementEvaluationV1,
         authenticated_certificate: _AuthenticatedSettlementCertificateV1,
+        authenticated_source_opened: _AuthenticatedSourceOpenedSpotV6SettlementV1 | None,
     ) -> tuple[DurableRecursiveStarkAdmissionCursor, DurableZrpfSettlementCursorV1]:
         root = authenticated_certificate.authenticated_root
         plan = authenticated_certificate.plan
@@ -417,6 +477,11 @@ class SQLiteZrpfAtomicSettlementStoreV1:
             authenticated_certificate,
             next_settlement,
         )
+        if authenticated_source_opened is not None:
+            _persist_source_opened_spot_v6_association(
+                connection,
+                authenticated_source_opened,
+            )
         _cas_authenticated_certificate_meta(
             connection,
             authenticated_certificate,

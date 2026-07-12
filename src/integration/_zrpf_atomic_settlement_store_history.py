@@ -9,6 +9,7 @@ from typing import Any
 from src.core._zrpf_settlement_certificate_authority import (
     SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1,
     SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6,
+    _source_opened_spot_v6_projection_binding_v1,
 )
 from src.core._zrpf_settlement_commit_authority import (
     SETTLEMENT_AUTHORITY_BLOCKED_REASON_V1,
@@ -24,6 +25,9 @@ from src.integration._zrpf_authenticated_certificate_store_engine import (
     _durable_certificate_binding_digest_v1,
     _identifier_list_digest,
     _read_identifier_sequence,
+)
+from src.integration._zrpf_settlement_admission_journal_codec import (
+    decode_exact_settlement_admission_journal_v1,
 )
 from src.integration.recursive_stark_admission_store_types import _hash_bytes, _hex_hash
 from src.state.canonical import canonical_json_bytes
@@ -137,6 +141,7 @@ def _validate_authenticated_certificate_history(connection: sqlite3.Connection) 
         ORDER BY certificate.settlement_revision
         """
     ).fetchall()
+    _validate_source_opened_v6_association_history(connection)
     for row in rows:
         _validate_certificate_history_row(connection, row)
 
@@ -169,28 +174,195 @@ def _validate_certificate_epoch_link(
 
 
 def _validate_certificate_scalar_links(row: sqlite3.Row) -> None:
-    linked_columns = (
+    linked_columns = [
         ("semantic_root_journal_hash", "plan_root_journal_hash"),
         ("application_id", "plan_application_id"),
         ("chain_or_domain_id", "plan_chain_or_domain_id"),
         ("public_policy_hash", "plan_public_policy_hash"),
         ("pre_state_root", "plan_previous_state_root"),
         ("post_state_root", "plan_result_state_root"),
-        ("economic_action_ids_root", "plan_economic_action_ids_root"),
-        ("ledger_cell_writes_root", "plan_ledger_cell_writes_root"),
-        ("asset_effects_root", "plan_asset_effects_root"),
-        ("message_effects_root", "plan_message_effects_root"),
-        ("carry_effects_root", "plan_carry_effects_root"),
-        ("reward_effects_root", "plan_reward_effects_root"),
         ("authority_manifest_sha256", "admission_authority_manifest_sha256"),
         ("verifier_executable_sha256", "admission_verifier_executable_sha256"),
         ("verification_request_sha256", "admission_verification_request_sha256"),
         ("admission_policy_binding_sha256", "admission_release_binding_digest"),
         ("settlement_manifest_sha256", "admission_replay_manifest_sha256"),
-    )
+    ]
+    if str(row["settlement_profile_id"]) != SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6:
+        linked_columns.extend(
+            (
+                ("economic_action_ids_root", "plan_economic_action_ids_root"),
+                ("ledger_cell_writes_root", "plan_ledger_cell_writes_root"),
+                ("asset_effects_root", "plan_asset_effects_root"),
+                ("message_effects_root", "plan_message_effects_root"),
+                ("carry_effects_root", "plan_carry_effects_root"),
+                ("reward_effects_root", "plan_reward_effects_root"),
+            )
+        )
     for certificate_column, linked_column in linked_columns:
         if bytes(row[certificate_column]) != bytes(row[linked_column]):
             raise ValueError(f"certificate {certificate_column} linkage mismatch")
+
+
+def _validate_source_opened_v6_association_history(connection: sqlite3.Connection) -> None:
+    meta = connection.execute(
+        "SELECT schema_version, association_count "
+        "FROM zrpf_source_opened_spot_v6_association_meta WHERE singleton = 1"
+    ).fetchone()
+    if meta is None or int(meta["schema_version"]) != 1:
+        raise ValueError("source-opened V6 association metadata is missing or invalid")
+    rows = connection.execute(
+        """
+        SELECT association.*, certificate.settlement_image_id,
+               certificate.settlement_manifest_sha256,
+               certificate.source_opened_replay,
+               certificate.source_opened_replay_sha256
+                   AS certificate_source_opened_replay_sha256,
+               certificate.data_availability_certificate,
+               certificate.exact_effect_plan,
+               certificate.canonical_certificate,
+               certificate.plan_commitment
+        FROM zrpf_source_opened_spot_v6_associations AS association
+        JOIN zrpf_settlement_certificates AS certificate
+          ON certificate.certificate_journal_hash = association.certificate_journal_hash
+        ORDER BY certificate.settlement_revision
+        """
+    ).fetchall()
+    if int(meta["association_count"]) != len(rows):
+        raise ValueError("source-opened V6 association metadata count mismatch")
+    for row in rows:
+        _validate_source_opened_v6_association_row(row)
+
+
+def _validate_source_opened_v6_association_row(row: sqlite3.Row) -> None:
+    exact_bytes = (
+        ("admission_journal", "admission_journal_sha256"),
+        ("settlement_receipt", "settlement_receipt_sha256"),
+        ("guest_input", "guest_input_sha256"),
+        ("canonical_projection", "canonical_projection_sha256"),
+    )
+    for value_column, digest_column in exact_bytes:
+        if hashlib.sha256(bytes(row[value_column])).digest() != bytes(row[digest_column]):
+            raise ValueError(f"source-opened V6 {value_column} sha256 mismatch")
+    journal = decode_exact_settlement_admission_journal_v1(bytes(row["admission_journal"]))
+    if journal.certificate_bytes != bytes(row["canonical_certificate"]):
+        raise ValueError("source-opened V6 admission certificate bytes mismatch")
+    if journal.effect_plan_bytes != bytes(row["exact_effect_plan"]):
+        raise ValueError("source-opened V6 admission effect-plan bytes mismatch")
+    if journal.settlement_certificate_id != bytes(row["settlement_certificate_id"]):
+        raise ValueError("source-opened V6 settlement certificate ID mismatch")
+    if journal.certificate_commitment != bytes(row["certificate_commitment"]):
+        raise ValueError("source-opened V6 certificate commitment mismatch")
+    if bytes(row["certificate_commitment"]) != bytes(row["certificate_journal_hash"]):
+        raise ValueError("source-opened V6 certificate primary identity mismatch")
+    if bytes(row["governed_program_id"]) != bytes(row["settlement_image_id"]):
+        raise ValueError("source-opened V6 governed program identity mismatch")
+    if bytes(row["governed_manifest_root"]) != bytes(row["settlement_manifest_sha256"]):
+        raise ValueError("source-opened V6 governed manifest identity mismatch")
+    if bytes(row["normalized_plan_commitment"]) != bytes(row["plan_commitment"]):
+        raise ValueError("source-opened V6 normalized projection plan mismatch")
+    if bytes(row["source_opened_replay_sha256"]) != bytes(
+        row["certificate_source_opened_replay_sha256"]
+    ):
+        raise ValueError("source-opened V6 replay digest linkage mismatch")
+    replay, da_certificate = _reconstruct_source_opened_v6_replay(
+        bytes(row["guest_input"]),
+        bytes(row["exact_effect_plan"]),
+    )
+    if replay != bytes(row["source_opened_replay"]):
+        raise ValueError("source-opened V6 reconstructed replay mismatch")
+    if da_certificate != bytes(row["data_availability_certificate"]):
+        raise ValueError("source-opened V6 full-blob DA certificate mismatch")
+    expected_binding = _source_opened_spot_v6_projection_binding_v1(
+        admission_journal_sha256=bytes(row["admission_journal_sha256"]).hex(),
+        settlement_receipt_sha256=bytes(row["settlement_receipt_sha256"]).hex(),
+        guest_input_sha256=bytes(row["guest_input_sha256"]).hex(),
+        source_opened_replay_sha256=bytes(row["source_opened_replay_sha256"]).hex(),
+        settlement_certificate_id=_hex_hash(bytes(row["settlement_certificate_id"])),
+        certificate_commitment=_hex_hash(bytes(row["certificate_commitment"])),
+        governed_program_id=_hex_hash(bytes(row["governed_program_id"])),
+        governed_profile_id=_hex_hash(bytes(row["governed_profile_id"])),
+        governed_manifest_root=_hex_hash(bytes(row["governed_manifest_root"])),
+        authorization_grant_spend_nullifier=_hex_hash(
+            bytes(row["authorization_grant_spend_nullifier"])
+        ),
+        canonical_projection_sha256=bytes(row["canonical_projection_sha256"]).hex(),
+        normalized_plan_commitment=_hex_hash(bytes(row["normalized_plan_commitment"])),
+    )
+    if bytes(row["canonical_projection_binding_sha256"]).hex() != expected_binding:
+        raise ValueError("source-opened V6 canonical projection binding mismatch")
+
+
+def _reconstruct_source_opened_v6_replay(
+    guest_input: bytes,
+    effect_plan: bytes,
+) -> tuple[bytes, bytes]:
+    reader = _HistoryByteReader(guest_input)
+    if reader.u16() != 3:
+        raise ValueError("source-opened V6 guest input version mismatch")
+    base = reader.component(1_131_478)
+    source = reader.component(1_131_478)
+    reader.finished()
+    base_reader = _HistoryByteReader(base)
+    if base_reader.u16() != 2:
+        raise ValueError("source-opened V6 base input version mismatch")
+    proposal = base_reader.component(65_536)
+    authorization = base_reader.read(104)
+    witness = base_reader.component(8_192)
+    da_certificate = base_reader.component(512)
+    base_reader.finished()
+    base_replay = b"".join(
+        (
+            (2).to_bytes(2, "big"),
+            len(proposal).to_bytes(4, "big"),
+            proposal,
+            authorization,
+            len(witness).to_bytes(4, "big"),
+            witness,
+            len(effect_plan).to_bytes(4, "big"),
+            effect_plan,
+        )
+    )
+    replay = b"".join(
+        (
+            (3).to_bytes(2, "big"),
+            len(base_replay).to_bytes(4, "big"),
+            base_replay,
+            len(source).to_bytes(4, "big"),
+            source,
+        )
+    )
+    if len(replay) > 8 * 1024 * 1024:
+        raise ValueError("source-opened V6 replay exceeds its durable bound")
+    return replay, da_certificate
+
+
+class _HistoryByteReader:
+    __slots__ = ("offset", "raw")
+
+    def __init__(self, raw: bytes) -> None:
+        self.raw = raw
+        self.offset = 0
+
+    def read(self, length: int) -> bytes:
+        end = self.offset + length
+        value = self.raw[self.offset : end]
+        if len(value) != length:
+            raise ValueError("source-opened V6 persisted guest input is truncated")
+        self.offset = end
+        return value
+
+    def u16(self) -> int:
+        return int.from_bytes(self.read(2), "big")
+
+    def component(self, maximum: int) -> bytes:
+        length = int.from_bytes(self.read(4), "big")
+        if not 1 <= length <= maximum:
+            raise ValueError("source-opened V6 persisted component length is invalid")
+        return self.read(length)
+
+    def finished(self) -> None:
+        if self.offset != len(self.raw):
+            raise ValueError("source-opened V6 persisted guest input has trailing bytes")
 
 
 def _validate_certificate_bytes_and_authority(row: sqlite3.Row) -> None:
@@ -279,6 +451,30 @@ def _validate_certificate_identifier_lists(
                 "source-opened V6 action nullifier must equal the sole consumed object"
             )
 
+    if str(row["settlement_profile_id"]) == SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6:
+        association = connection.execute(
+            "SELECT authorization_grant_spend_nullifier "
+            "FROM zrpf_source_opened_spot_v6_associations "
+            "WHERE certificate_journal_hash = ?",
+            (bytes(row["certificate_journal_hash"]),),
+        ).fetchone()
+        grant_spends = (
+            _legacy_plan_grant_spends(connection, row)
+            if association is None
+            else (_hex_hash(bytes(association["authorization_grant_spend_nullifier"])),)
+        )
+    else:
+        grant_spends = _legacy_plan_grant_spends(connection, row)
+    if _identifier_list_digest(_GRANT_LIST_DOMAIN, grant_spends) != bytes(
+        row["authorization_grant_spend_list_sha256"]
+    ):
+        raise ValueError("stored authorization grant spend list digest mismatch")
+
+
+def _legacy_plan_grant_spends(
+    connection: sqlite3.Connection,
+    row: sqlite3.Row,
+) -> tuple[str, ...]:
     grant_rows = connection.execute(
         """
         SELECT authorization_grant_spend_nullifier
@@ -287,14 +483,10 @@ def _validate_certificate_identifier_lists(
         """,
         (bytes(row["plan_commitment"]),),
     ).fetchall()
-    grant_spends = tuple(
+    return tuple(
         _hex_hash(bytes(grant["authorization_grant_spend_nullifier"]))
         for grant in grant_rows
     )
-    if _identifier_list_digest(_GRANT_LIST_DOMAIN, grant_spends) != bytes(
-        row["authorization_grant_spend_list_sha256"]
-    ):
-        raise ValueError("stored authorization grant spend list digest mismatch")
 
 
 def _validate_certificate_root_identities(

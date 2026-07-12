@@ -1002,7 +1002,7 @@ def _verified_certificate_response(
     consumed_ids = consumed_object_ids or (_hash(base + 3), _hash(base + 4))
     values: dict[str, object] = {
         "schema": "zenodex.verified_settlement_epoch_certificate.v1",
-        "certificate_version": 2,
+        "certificate_version": 1,
         "application_id": plan.application_id,
         "chain_id": "zenodex-devnet",
         "chain_or_domain_id": plan.chain_or_domain_id,
@@ -1127,6 +1127,7 @@ def _certificate_adapter(
         executable=executable,
         authority_manifest_json=manifest,
         authority_manifest_sha256=hashlib.sha256(manifest).hexdigest(),
+        legacy_test_only=True,
     )
 
 
@@ -1357,6 +1358,7 @@ def test_raw_plan_and_forged_certificate_cannot_reach_private_admission(
     assert mint_users == {
         "src/core/_zrpf_settlement_certificate_authority.py",
         "src/integration/zrpf_settlement_verifier_adapter.py",
+        "src/integration/zrpf_source_opened_spot_v6_verifier_adapter.py",
     }
     seal_name = "_AUTHENTICATED_SETTLEMENT_CERTIFICATE_SEAL_V1"
     seal_users = {
@@ -1400,6 +1402,7 @@ def test_pinned_settlement_policy_and_canonical_bytes_fail_closed(
         executable=executable,
         authority_manifest_json=manifest,
         authority_manifest_sha256=hashlib.sha256(manifest).hexdigest(),
+        legacy_test_only=True,
     )
     store = _store(tmp_path)
 
@@ -1666,6 +1669,8 @@ def test_legacy_atomic_schema_migrates_only_certificate_side_tables(tmp_path: Pa
     store = _store(tmp_path)
     assert _commit(store, _sealed(_plan())).committed
     with sqlite3.connect(store.path) as connection:
+        connection.execute("DROP TABLE zrpf_source_opened_spot_v6_associations")
+        connection.execute("DROP TABLE zrpf_source_opened_spot_v6_association_meta")
         connection.execute("DROP TABLE zrpf_settlement_action_nullifiers")
         connection.execute("DROP TABLE zrpf_settlement_consumed_objects")
         connection.execute("DROP TABLE zrpf_settlement_certificates")
@@ -1795,4 +1800,4 @@ def test_v2_to_v3_ddl_failure_rolls_back_migration(
             )
         }
     assert "source_opened_replay" not in columns
-    assert set(settlement_schema_module._CERTIFICATE_TABLE_NAMES) <= table_names
+    assert set(settlement_schema_module._CERTIFICATE_TABLE_NAMES_V3) <= table_names

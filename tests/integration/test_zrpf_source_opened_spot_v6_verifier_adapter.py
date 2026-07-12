@@ -1,0 +1,589 @@
+from __future__ import annotations
+
+import copy
+import hashlib
+import json
+import sqlite3
+import subprocess
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+import pytest
+
+from src.core.zrpf_settlement_effect_plan import (
+    AuthorizationConsumptionV1,
+    authorization_consumption_nullifier_v1,
+)
+from src.integration._zrpf_settlement_admission_journal_codec import (
+    SETTLEMENT_ADMISSION_FIXED_BYTES_V1,
+    derive_settlement_certificate_id_v1,
+)
+from src.integration.recursive_stark_verifier_adapter import (
+    RecursiveVerifierExecutableFormat,
+)
+from src.integration.zrpf_atomic_settlement_store import (
+    SQLiteZrpfAtomicSettlementStoreV1,
+)
+from src.integration.zrpf_atomic_settlement_store_types import ZrpfAtomicSettlementStoreErrorV1
+from src.integration.zrpf_source_opened_spot_v6_verifier_adapter import (
+    SOURCE_OPENED_SPOT_V6_AUTHORITY_MANIFEST_SCHEMA,
+    SOURCE_OPENED_SPOT_V6_REQUEST_SCHEMA,
+    SOURCE_OPENED_SPOT_V6_RESPONSE_SCHEMA,
+    PinnedSourceOpenedSpotSettlementVerifierV6,
+    SourceOpenedSpotV6VerificationError,
+    _parse_source_opened_spot_v6_response,
+    source_opened_spot_v6_authority_manifest_bytes,
+    source_opened_spot_v6_request_bytes,
+)
+
+_RECEIPT = b"exact-risc0-succinct-receipt"
+_CERTIFICATE = b"exact-postcard-settlement-certificate-v1"
+_EFFECT_PLAN = b"exact-postcard-settlement-effect-plan-v2"
+_DA_CERTIFICATE = b"exact-full-blob-content-certificate"
+
+
+def _bare(index: int) -> str:
+    return f"{index:064x}"
+
+
+def _prefixed(index: int) -> str:
+    return "0x" + _bare(index)
+
+
+def _root(index: int) -> bytes:
+    return bytes.fromhex(_bare(index))
+
+
+def _guest_input() -> bytes:
+    proposal = b"proposal-v5"
+    authorization = _root(31) + _root(32) + (7).to_bytes(8, "big") + _root(33)
+    witness = b"sparse-witness"
+    base = b"".join(
+        (
+            (2).to_bytes(2, "big"),
+            len(proposal).to_bytes(4, "big"),
+            proposal,
+            authorization,
+            len(witness).to_bytes(4, "big"),
+            witness,
+            len(_DA_CERTIFICATE).to_bytes(4, "big"),
+            _DA_CERTIFICATE,
+        )
+    )
+    source = b"source-opened-spot-leaf-input-v6"
+    return b"".join(
+        (
+            (3).to_bytes(2, "big"),
+            len(base).to_bytes(4, "big"),
+            base,
+            len(source).to_bytes(4, "big"),
+            source,
+        )
+    )
+
+
+def _admission_frame() -> tuple[bytes, dict[str, object]]:
+    total = SETTLEMENT_ADMISSION_FIXED_BYTES_V1 + len(_CERTIFICATE) + len(_EFFECT_PLAN)
+    frame = bytearray()
+    frame.extend(b"ZRPFSAV1")
+    frame.extend((1).to_bytes(2, "big"))
+    frame.extend(total.to_bytes(4, "big"))
+    frame.extend(len(_CERTIFICATE).to_bytes(4, "big"))
+    frame.extend(len(_EFFECT_PLAN).to_bytes(4, "big"))
+    frame.extend(_CERTIFICATE)
+    frame.extend(_EFFECT_PLAN)
+    frame.extend(hashlib.sha256(_CERTIFICATE).digest())
+    frame.extend(hashlib.sha256(_EFFECT_PLAN).digest())
+    frame.extend((1).to_bytes(2, "big"))
+    frame.extend((2).to_bytes(2, "big"))
+    frame.extend(_root(1))
+    frame.extend(_root(2))
+    frame.extend((9).to_bytes(8, "big"))
+    frame.extend(_root(3))
+    frame.extend(_root(4))
+    frame.extend(_root(5))
+    frame.extend(_root(6))
+    frame.append(1)
+    frame.extend(_root(7))
+    for index in range(8, 16):
+        frame.extend(_root(index))
+    frame.extend((1).to_bytes(4, "big"))
+    frame.extend((1).to_bytes(4, "big"))
+    for index in range(16, 26):
+        frame.extend(_root(index))
+    certificate_id = derive_settlement_certificate_id_v1(_CERTIFICATE)
+    frame.extend(certificate_id)
+    frame.extend(_root(26))
+    assert len(frame) == total
+    projection: dict[str, object] = {
+        "journal_version": 1,
+        "certificate_version": 1,
+        "effect_plan_version": 2,
+        "application_id": _bare(1),
+        "chain_or_domain_id": _bare(2),
+        "epoch_id": 9,
+        "semantic_profile_id": _bare(3),
+        "semantic_journal_hash": _bare(4),
+        "semantic_claim_binding": _bare(5),
+        "proof_tree_root": _bare(6),
+        "semantic_root_kind": "value_subtree",
+        "semantic_root": _bare(7),
+        "dependency_manifest_root": _bare(8),
+        "public_policy_hash": _bare(9),
+        "economic_action_batch_commitment": _bare(10),
+        "settlement_effect_plan_commitment": _bare(11),
+        "economic_action_ids_root": _bare(12),
+        "action_authorization_bindings_root": _bare(13),
+        "authorization_grant_spends_root": _bare(14),
+        "consumed_object_ids_root": _bare(15),
+        "action_count": 1,
+        "consumed_object_count": 1,
+        "pre_state_root": _bare(16),
+        "post_state_root": _bare(17),
+        "cell_writes_root": _bare(18),
+        "asset_effects_root": _bare(19),
+        "messages_root": _bare(20),
+        "carries_root": _bare(21),
+        "rewards_root": _bare(22),
+        "data_availability_certificate_root": _bare(23),
+        "schedule_certificate_root": _bare(24),
+        "carry_continuity_certificate_root": _bare(25),
+        "settlement_certificate_id": certificate_id.hex(),
+        "certificate_commitment": _bare(26),
+    }
+    return bytes(frame), projection
+
+
+def _execution_projection() -> dict[str, object]:
+    action_id = _prefixed(30)
+    subject = _prefixed(31)
+    scope = _prefixed(32)
+    grant = _prefixed(33)
+    pre_state = _prefixed(16)
+    nullifier = authorization_consumption_nullifier_v1(
+        application_id=_prefixed(1),
+        chain_or_domain_id=_prefixed(2),
+        economic_action_id=action_id,
+        authorization_subject_id=subject,
+        authorization_grant_id=grant,
+        authorization_scope_id=scope,
+        authorization_nonce=7,
+        action_pre_state_root=pre_state,
+    )
+    authorization = AuthorizationConsumptionV1(
+        application_id=_prefixed(1),
+        chain_or_domain_id=_prefixed(2),
+        economic_action_id=action_id,
+        authorization_subject_id=subject,
+        authorization_grant_id=grant,
+        authorization_scope_id=scope,
+        authorization_nonce=7,
+        action_pre_state_root=pre_state,
+        authorization_nullifier=nullifier,
+    )
+    return {
+        "application_id": _bare(1),
+        "chain_or_domain_id": _bare(2),
+        "epoch_id": 9,
+        "pre_state_root": _bare(16),
+        "post_state_root": _bare(17),
+        "action": {
+            "action_id": _bare(30),
+            "action_type_id": _bare(34),
+            "authorization_subject_id": _bare(31),
+            "authorization_scope_id": _bare(32),
+            "authorization_nonce": 7,
+            "authorization_grant_id": _bare(33),
+            "action_authorization_binding": _bare(35),
+            "authorization_grant_spend_nullifier": (
+                authorization.authorization_grant_spend_nullifier[2:]
+            ),
+            "valid_from_epoch": 8,
+            "valid_through_epoch": 10,
+            "pre_state_root": _bare(16),
+            "action_semantics_hash": _bare(36),
+            "effect_commitment": _bare(37),
+            "consumed_object_ids": [_bare(38)],
+        },
+        "cell_write": {
+            "economic_action_id": _bare(30),
+            "cell_key": _bare(39),
+            "pre_value_hash": _bare(40),
+            "post_value_hash": _bare(41),
+        },
+        "ordinary_asset_rows": [
+            {
+                "economic_action_id": _bare(30),
+                "asset_id": _bare(42),
+                "debit_atoms": "17",
+                "credit_atoms": "17",
+            },
+            {
+                "economic_action_id": _bare(30),
+                "asset_id": _bare(43),
+                "debit_atoms": "29",
+                "credit_atoms": "29",
+            },
+        ],
+    }
+
+
+def _receipt_profile() -> dict[str, object]:
+    return {
+        "profile_id": "risc0_succinct_poseidon2_resolve_3_0_5_v1",
+        "receipt_kind": "succinct",
+        "verifier_parameters": _bare(60),
+        "hashfn": "poseidon2",
+        "control_id": _bare(61),
+    }
+
+
+def _policy() -> dict[str, object]:
+    return {
+        "application_id": _bare(1),
+        "chain_id": "zenodex-devnet",
+        "chain_or_domain_id": _bare(2),
+        "epoch_id": 9,
+        "proof_profile": "zrpf_source_opened_spot_settlement_v6",
+        "public_policy_hash": _bare(9),
+        "verifier_set_root": _bare(62),
+        "governed_settlement_program_id": _bare(50),
+        "governed_settlement_profile_id": _bare(3),
+        "governed_settlement_manifest_root": _bare(51),
+        "receipt_security_profile": _receipt_profile(),
+    }
+
+
+def _response() -> dict[str, object]:
+    journal, projection = _admission_frame()
+    guest = _guest_input()
+    values = {
+        "receipt_bytes": len(_RECEIPT),
+        "receipt_sha256": hashlib.sha256(_RECEIPT).hexdigest(),
+        "guest_input_bytes": len(guest),
+        "guest_input_sha256": hashlib.sha256(guest).hexdigest(),
+        "admission_journal_bytes": len(journal),
+        "admission_journal_hex": journal.hex(),
+        "admission_journal_sha256": hashlib.sha256(journal).hexdigest(),
+        "certificate_bytes": len(_CERTIFICATE),
+        "certificate_hex": _CERTIFICATE.hex(),
+        "certificate_sha256": hashlib.sha256(_CERTIFICATE).hexdigest(),
+        "effect_plan_bytes": len(_EFFECT_PLAN),
+        "effect_plan_hex": _EFFECT_PLAN.hex(),
+        "effect_plan_sha256": hashlib.sha256(_EFFECT_PLAN).hexdigest(),
+        "governed_settlement_program_id": _bare(50),
+        "governed_settlement_profile_id": _bare(3),
+        "governed_settlement_manifest_root": _bare(51),
+        "settlement_claim_binding": _bare(52),
+        "receipt_security_profile": _receipt_profile(),
+        "admission_projection": projection,
+        "execution_projection": _execution_projection(),
+    }
+    return {
+        "ok": True,
+        "schema": SOURCE_OPENED_SPOT_V6_RESPONSE_SCHEMA,
+        "verified_settlement_admission": values,
+    }
+
+
+def _response_bytes(response: dict[str, object] | None = None) -> bytes:
+    return json.dumps(response or _response(), ensure_ascii=True, separators=(",", ":")).encode(
+        "ascii"
+    )
+
+
+def _write_static_verifier(path: Path, response: bytes) -> str:
+    source = path.with_suffix(".c")
+    source.write_text(
+        "#include <stdio.h>\n"
+        "int main(void) {\n"
+        "  char buffer[4096];\n"
+        "  while (fread(buffer, 1, sizeof(buffer), stdin) != 0) {}\n"
+        f"  fputs({json.dumps(response.decode('ascii'))}, stdout);\n"
+        "  return ferror(stdin) || ferror(stdout);\n"
+        "}\n",
+        encoding="ascii",
+    )
+    subprocess.run(
+        ["/usr/bin/gcc", "-static", "-O2", "-s", "-o", str(path), str(source)],
+        check=True,
+        capture_output=True,
+    )
+    path.chmod(0o700)
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _adapter(tmp_path: Path, response: dict[str, object] | None = None) -> PinnedSourceOpenedSpotSettlementVerifierV6:
+    executable = tmp_path / "source-opened-v6-verifier"
+    executable_sha256 = _write_static_verifier(executable, _response_bytes(response))
+    manifest = source_opened_spot_v6_authority_manifest_bytes(
+        executable_sha256=executable_sha256,
+        policy=_policy(),
+        executable_format=RecursiveVerifierExecutableFormat.STATIC_ELF_X86_64,
+    )
+    decoded = json.loads(manifest)
+    assert decoded["schema"] == SOURCE_OPENED_SPOT_V6_AUTHORITY_MANIFEST_SCHEMA
+    return PinnedSourceOpenedSpotSettlementVerifierV6(
+        executable=executable,
+        authority_manifest_json=manifest,
+        authority_manifest_sha256=hashlib.sha256(manifest).hexdigest(),
+    )
+
+
+def _store(tmp_path: Path) -> SQLiteZrpfAtomicSettlementStoreV1:
+    return SQLiteZrpfAtomicSettlementStoreV1(
+        tmp_path / "source-opened-v6.sqlite3",
+        genesis_settlement_state_root=_prefixed(16),
+    )
+
+
+def _commit(
+    adapter: PinnedSourceOpenedSpotSettlementVerifierV6,
+    store: SQLiteZrpfAtomicSettlementStoreV1,
+    *,
+    admission_cursor=None,
+    settlement_cursor=None,
+):
+    return adapter.verify_and_commit(
+        store=store,
+        expected_admission_cursor=admission_cursor or store.read_admission_cursor(),
+        expected_settlement_cursor=settlement_cursor or store.read_settlement_cursor(),
+        settlement_receipt=_RECEIPT,
+        guest_input=_guest_input(),
+    )
+
+
+def test_request_bytes_match_the_exact_rust_struct_field_order() -> None:
+    raw = source_opened_spot_v6_request_bytes(_RECEIPT, _guest_input())
+    expected = (
+        b'{"schema":"'
+        + SOURCE_OPENED_SPOT_V6_REQUEST_SCHEMA.encode("ascii")
+        + b'","receipt_hex":"'
+        + _RECEIPT.hex().encode("ascii")
+        + b'","guest_input_hex":"'
+        + _guest_input().hex().encode("ascii")
+        + b'"}'
+    )
+    assert raw == expected
+
+
+def test_response_requires_exact_canonical_rust_json_bytes() -> None:
+    with pytest.raises(SourceOpenedSpotV6VerificationError, match="canonical JSON"):
+        _parse_source_opened_spot_v6_response(
+            _response_bytes() + b"\n",
+            settlement_receipt=_RECEIPT,
+            guest_input=_guest_input(),
+            policy=_policy(),
+        )
+
+
+def test_real_cli_schema_projects_and_atomically_persists_every_exact_artifact(
+    tmp_path: Path,
+) -> None:
+    adapter = _adapter(tmp_path)
+    store = _store(tmp_path)
+
+    result = _commit(adapter, store)
+
+    assert result.committed is True
+    assert result.settlement_authority is False
+    assert result.certificate_receipt is not None
+    with sqlite3.connect(store.path) as connection:
+        connection.row_factory = sqlite3.Row
+        association = connection.execute(
+            "SELECT * FROM zrpf_source_opened_spot_v6_associations"
+        ).fetchone()
+        certificate = connection.execute(
+            "SELECT * FROM zrpf_settlement_certificates"
+        ).fetchone()
+    assert association is not None and certificate is not None
+    assert bytes(association["settlement_receipt"]) == _RECEIPT
+    assert bytes(association["guest_input"]) == _guest_input()
+    assert bytes(association["admission_journal"]).hex() == _response()[
+        "verified_settlement_admission"
+    ]["admission_journal_hex"]  # type: ignore[index]
+    assert bytes(certificate["canonical_certificate"]) == _CERTIFICATE
+    assert bytes(certificate["exact_effect_plan"]) == _EFFECT_PLAN
+    assert bytes(certificate["data_availability_certificate"]) == _DA_CERTIFICATE
+    assert hashlib.sha256(bytes(certificate["source_opened_replay"])).digest() == bytes(
+        association["source_opened_replay_sha256"]
+    )
+    assert bytes(association["governed_program_id"]) == _root(50)
+    assert bytes(association["governed_profile_id"]) == _root(3)
+    assert bytes(association["governed_manifest_root"]) == _root(51)
+    assert bytes(association["normalized_plan_commitment"]) == bytes(
+        certificate["plan_commitment"]
+    )
+    assert _store(tmp_path).read_settlement_cursor().revision == 1
+    replay = _commit(adapter, _store(tmp_path))
+    assert replay.idempotent_replay is True
+
+
+def test_two_v6_writers_have_one_commit_and_one_idempotent_replay(tmp_path: Path) -> None:
+    adapter = _adapter(tmp_path)
+    stores = (_store(tmp_path), _store(tmp_path))
+    admission = stores[0].read_admission_cursor()
+    settlement = stores[0].read_settlement_cursor()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [
+            pool.submit(
+                _commit,
+                adapter,
+                store,
+                admission_cursor=admission,
+                settlement_cursor=settlement,
+            )
+            for store in stores
+        ]
+    results = [future.result() for future in futures]
+    assert sum(result.committed for result in results) == 1
+    assert sum(result.idempotent_replay for result in results) == 1
+    with sqlite3.connect(stores[0].path) as connection:
+        assert connection.execute(
+            "SELECT count(*) FROM zrpf_source_opened_spot_v6_associations"
+        ).fetchone()[0] == 1
+
+
+@pytest.mark.parametrize(
+    ("mutation", "match"),
+    (
+        ("journal_hash", "admission journal SHA-256"),
+        ("certificate_echo", "certificate exact bytes"),
+        ("program", "governed_settlement_program_id policy"),
+        ("projection", "admission pre_state_root mismatch"),
+        ("asset_amount", "ordinary asset row is not conserved"),
+        ("grant_spend", "authorization grant spend mismatch"),
+    ),
+)
+def test_response_mutations_reject_before_capability_mint(mutation: str, match: str) -> None:
+    response = copy.deepcopy(_response())
+    values = response["verified_settlement_admission"]
+    assert isinstance(values, dict)
+    if mutation == "journal_hash":
+        values["admission_journal_sha256"] = _bare(99)
+    elif mutation == "certificate_echo":
+        values["certificate_hex"] = b"wrong-certificate".hex()
+    elif mutation == "program":
+        values["governed_settlement_program_id"] = _bare(99)
+    elif mutation == "projection":
+        projection = values["admission_projection"]
+        assert isinstance(projection, dict)
+        projection["pre_state_root"] = _bare(99)
+    elif mutation == "asset_amount":
+        execution = values["execution_projection"]
+        assert isinstance(execution, dict)
+        rows = execution["ordinary_asset_rows"]
+        assert isinstance(rows, list) and isinstance(rows[0], dict)
+        rows[0]["credit_atoms"] = "18"
+    else:
+        execution = values["execution_projection"]
+        assert isinstance(execution, dict)
+        action = execution["action"]
+        assert isinstance(action, dict)
+        action["authorization_grant_spend_nullifier"] = _bare(99)
+
+    with pytest.raises(SourceOpenedSpotV6VerificationError, match=match):
+        _parse_source_opened_spot_v6_response(
+            _response_bytes(response),
+            settlement_receipt=_RECEIPT,
+            guest_input=_guest_input(),
+            policy=_policy(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("column", "match"),
+    (
+        ("settlement_receipt", "settlement_receipt sha256 mismatch"),
+        ("guest_input", "guest_input sha256 mismatch"),
+        ("admission_journal", "admission_journal sha256 mismatch"),
+        ("canonical_projection", "canonical_projection sha256 mismatch"),
+    ),
+)
+def test_restart_rejects_v4_exact_artifact_mutation(
+    tmp_path: Path,
+    column: str,
+    match: str,
+) -> None:
+    adapter = _adapter(tmp_path)
+    store = _store(tmp_path)
+    assert _commit(adapter, store).committed
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            f"UPDATE zrpf_source_opened_spot_v6_associations "
+            f"SET {column} = CAST({column} || x'00' AS BLOB)"
+        )
+    with pytest.raises(ZrpfAtomicSettlementStoreErrorV1, match=match):
+        _store(tmp_path)
+
+
+def test_restart_rejects_v4_association_row_downgrade(tmp_path: Path) -> None:
+    adapter = _adapter(tmp_path)
+    store = _store(tmp_path)
+    assert _commit(adapter, store).committed
+    with sqlite3.connect(store.path) as connection:
+        connection.execute("DELETE FROM zrpf_source_opened_spot_v6_associations")
+
+    with pytest.raises(
+        ZrpfAtomicSettlementStoreErrorV1,
+        match="association metadata count mismatch",
+    ):
+        _store(tmp_path)
+
+
+def test_v3_to_v4_migration_is_empty_certificate_history_only(tmp_path: Path) -> None:
+    empty = _store(tmp_path)
+    with sqlite3.connect(empty.path) as connection:
+        connection.execute("DROP TABLE zrpf_source_opened_spot_v6_associations")
+        connection.execute("DROP TABLE zrpf_source_opened_spot_v6_association_meta")
+        connection.execute("PRAGMA user_version = 3")
+    reopened = _store(tmp_path)
+    with sqlite3.connect(reopened.path) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert connection.execute(
+            "SELECT count(*) FROM zrpf_source_opened_spot_v6_associations"
+        ).fetchone()[0] == 0
+
+    second_path = tmp_path / "nonempty.sqlite3"
+    nonempty = SQLiteZrpfAtomicSettlementStoreV1(
+        second_path,
+        genesis_settlement_state_root=_prefixed(16),
+    )
+    second_adapter_path = tmp_path / "second-adapter"
+    second_adapter_path.mkdir()
+    assert _commit(_adapter(second_adapter_path), nonempty).committed
+    with sqlite3.connect(nonempty.path) as connection:
+        connection.execute("DROP TABLE zrpf_source_opened_spot_v6_associations")
+        connection.execute("DROP TABLE zrpf_source_opened_spot_v6_association_meta")
+        connection.execute("PRAGMA user_version = 3")
+    with pytest.raises(
+        ZrpfAtomicSettlementStoreErrorV1,
+        match="cannot migrate without exact V6 associations",
+    ):
+        SQLiteZrpfAtomicSettlementStoreV1(
+            second_path,
+            genesis_settlement_state_root=_prefixed(16),
+        )
+    with sqlite3.connect(second_path) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 3
+
+
+def test_legacy_fake_adapter_requires_explicit_test_only_opt_in(tmp_path: Path) -> None:
+    executable = tmp_path / "placeholder"
+    executable.write_bytes(b"not-an-elf")
+    manifest = json.dumps(
+        {
+            "schema": "placeholder",
+        },
+        separators=(",", ":"),
+    ).encode("ascii")
+    from src.integration.zrpf_settlement_verifier_adapter import (
+        PinnedSettlementCertificateVerifierV1,
+    )
+
+    with pytest.raises(ValueError, match="legacy_test_only=True"):
+        PinnedSettlementCertificateVerifierV1(
+            executable=executable,
+            authority_manifest_json=manifest,
+            authority_manifest_sha256=hashlib.sha256(manifest).hexdigest(),
+        )
