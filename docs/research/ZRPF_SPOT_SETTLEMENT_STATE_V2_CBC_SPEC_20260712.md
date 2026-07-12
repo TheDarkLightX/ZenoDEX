@@ -27,8 +27,11 @@ exact V5 value proposal
 
 `propose_spot_settlement_state_projection_v2` is a witness-builder helper. It
 takes proposed ledger roots and derives the exact action ID, cell key, raw
-pre/post value hashes, batch, and plan needed to construct a witness. It
-validates no Merkle path and grants no authority.
+pre/post value hashes needed to construct a witness. It returns the distinct
+proof-neutral `ProposedSpotSettlementStateProjectionV2` type, validates no
+Merkle path, and grants no authority. The proposed type cannot substitute for
+the validated state projection and does not expose the underlying V1
+projection, action batch, or settlement plan.
 
 `derive_spot_settlement_state_projection_v2` accepts one fixed-depth
 `SparseMerkleCellTransitionWitnessV1`. It rederives the action and plan from the
@@ -43,8 +46,10 @@ post_value_hash
 ```
 
 The witness independently recomputes both tree roots from the same 256-sibling
-path. The resulting private `SpotSettlementStateProjectionV2` contains the
-recomputed plan and one `ValidatedSparseMerkleBatchTransitionV1` entry.
+path. The resulting opaque `SpotSettlementStateProjectionV2` contains the
+recomputed plan and one `ValidatedSparseMerkleBatchTransitionV1` entry. Its
+public API exposes narrow read-only plan and state-transition references. It
+does not expose or clone the weaker `SpotSettlementProjectionV1` object.
 
 ## Root roles
 
@@ -76,13 +81,21 @@ strict key order, and continuous intermediate roots.
 - exact accepted state projection binds sparse roots to batch and plan roots;
 - raw Spot roots remain the exact cell pre/post values;
 - valid sparse witnesses for a different cell key reject;
-- valid sparse witnesses for a different raw value reject;
+- valid sparse witnesses for different raw pre-state or post-state values
+  reject at their exact binding;
 - economic-action substitution rejects;
+- authorization subject, scope, and nonce substitutions reject at the action
+  binding;
+- authorization-grant substitution preserves the economic action identity but
+  changes the batch grant-spend root and complete plan commitment;
+- application, chain/domain, and lane substitutions reject at the cell-key
+  binding after rebinding the expected action ID;
 - the underlying single-cell suite mutates every key bit, sibling, and value
   bit;
 - the underlying batch suite checks ordering, duplicate identities, root-chain
   gaps, maximum size, and exact codec bounds;
-- private construction of the V2 state projection is compile-fail checked.
+- private construction of the V2 state projection, proposed-to-validated type
+  substitution, and detachment of a V1 projection are compile-fail checked.
 
 ## Promotion rule
 
