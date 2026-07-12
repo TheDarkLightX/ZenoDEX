@@ -73,6 +73,12 @@ jobs:
             RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
             "${pinned_bin}/cargo" fetch --locked \
               --manifest-path zk/zrpf_risc0/Cargo.toml
+          env \
+            PATH="${pinned_bin}:/usr/bin:/bin" \
+            RUSTC="${pinned_bin}/rustc" \
+            RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
+            "${pinned_bin}/cargo" fetch --locked \
+              --manifest-path zk/state_proof_risc0/Cargo.toml
 
       - name: Run Python and evidence assurance
         run: |
@@ -106,6 +112,7 @@ jobs:
             tools/zrpf_v3_firecracker_output_protocol.py \
             tools/zrpf_v3_firecracker_runtime_manifest.py \
             tools/zrpf_v3_replay_*.py \
+            tools/zrpf_v3_source_closure.py \
             tests/test_check_zrpf_v3_firecracker_direct_replay_evidence.py \
             tests/test_check_zrpf_v3_firecracker_guest_elf.py \
             tests/test_check_zrpf_v3_firecracker_launch_preflight.py \
@@ -126,6 +133,7 @@ jobs:
             tests/test_zrpf_v3_firecracker_launch_boundary_atlas.py \
             tests/test_zrpf_v3_firecracker_output_protocol.py \
             tests/test_zrpf_v3_firecracker_runtime_manifest.py \
+            tests/test_zrpf_v3_source_closure.py \
             tests/test_zrpf_assurance_workflow.py \
             tests/core/test_recursive_stark_exact_once_admission.py \
             tests/integration/test_recursive_stark_admission_authority_boundary.py \
@@ -162,6 +170,8 @@ jobs:
             tools/zrpf_v3_firecracker_output_protocol.py \
             tools/zrpf_v3_firecracker_runtime_manifest.py \
             tools/zrpf_v3_replay_*.py \
+            tools/zrpf_v3_source_closure.py \
+            tests/test_zrpf_v3_source_closure.py \
             tests/core/test_recursive_stark_exact_once_admission.py \
             tests/integration/test_recursive_stark_admission_authority_boundary.py \
             tests/integration/test_recursive_stark_durable_admission_store.py \
@@ -223,6 +233,15 @@ jobs:
           export RISC0_SKIP_BUILD=1
           export RUSTC="${pinned_bin}/rustc"
           export RUSTDOC="${pinned_bin}/rustdoc_tool_binary"
+          "${pinned_bin}/cargo" fmt --manifest-path zk/state_proof_risc0/Cargo.toml \
+            --all -- --check
+          "${pinned_bin}/cargo" test --manifest-path zk/state_proof_risc0/Cargo.toml \
+            --locked --offline -p tau-state-proof-risc0-cli \
+            --bin tau-state-proof-risc0-cli
+          "${pinned_bin}/cargo-clippy" clippy \
+            --manifest-path zk/state_proof_risc0/Cargo.toml \
+            --locked --offline -p tau-state-proof-risc0-cli \
+            --bin tau-state-proof-risc0-cli --tests -- -D warnings
           "${pinned_bin}/cargo" fmt --manifest-path zk/zrpf_protocol/Cargo.toml \
             --all -- --check
           "${pinned_bin}/cargo" test --manifest-path zk/zrpf_protocol/Cargo.toml \

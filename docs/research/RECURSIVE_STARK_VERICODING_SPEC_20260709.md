@@ -1,9 +1,9 @@
 # Recursive STARK Vericoding Spec
 
 Date: 2026-07-09
-Status: post-composition-repair current-image local recursive proofs and one
-current-source exact retained V3 host-verifier replay verified; release and
-production pending
+Status: post-composition-repair V2 current-image local recursive proofs and one
+current-source exact retained V3 host-verifier replay verified; current-host V1
+replay after the single-verification refactor, release, and production pending
 
 Related artifacts:
 
@@ -42,8 +42,11 @@ Current status:
 - On 2026-07-10, adversarial fanout tests found and repaired receipt-ID merge
   ordering, host verified-facts ordering, repeated-verifier-set construction,
   and v2 partition-bound parity. These changes touched guest-linked source.
-  Current-source v1 leaf/root receipts and a fixed-height v2 inner/root pair
-  were subsequently rebuilt, generated, verified, and pinned atomically. The
+  V1 leaf/root receipts and a fixed-height V2 inner/root pair were subsequently
+  rebuilt, generated, verified, and pinned atomically. The later
+  single-verification host refactor changed the V1 host verifier source. The
+  existing V1 receipt and malformed-proof transcripts have not been replayed
+  through that refactored host, so current-host V1 promotion is withheld. The
   explicitly labeled pre-repair values below remain historical evidence.
 
 - The current aggregate-v2 image ID is
@@ -172,8 +175,8 @@ Current status:
   canonical response object rather than process status. This artifact-mode
   checker validates pinned bytes and semantics; it does not attest verifier
   execution provenance.
-- The promoted v1 and v2 source closures enumerate every bounded regular file
-  under their declared source scopes. Those source scopes must be target-absent;
+- The recorded V1 and promoted V2 source closures enumerate every bounded
+  regular file under their declared source scopes. Those source scopes must be target-absent;
   any `target` directory rejects, and evidence builds place targets outside the
   source tree. This includes `include_bytes!` payloads and other non-Rust
   compiler inputs. Adding or mutating such a file reopens the current-image
@@ -544,6 +547,20 @@ Acceptance:
 - Production claim remains false until release profile, manifest, and public
   replay requirements are satisfied.
 
+The outer verifier must authenticate one submitted recursive root receipt
+exactly once per request. The production authenticator returns a module-private
+receipt/profile pair whose fields have no production constructor outside that
+boundary. The verifier checks metadata, ledger-owned expectations, and exact
+disclosure recomposition before constructing `VerifiedRecursiveFacts`.
+Response rendering consumes only those facts and cannot reopen, decode, or
+cryptographically verify the receipt. The Rust test
+`recursive_request_authenticates_receipt_once_and_preserves_response_schema`
+uses a test-only `FnOnce` authenticator port to enforce one boundary invocation
+while preserving the existing response schema. The separate
+`recursive_production_path_has_one_cryptographic_verify_call_site` ratchet
+requires one production root authenticator call, one profile-decoder call, and
+one `Receipt::verify(image_id)` call site.
+
 Local proof command shape:
 
 ```bash
@@ -610,7 +627,7 @@ release, public replay, source or builder
 authenticity, separately governed authority, settlement authorization, or
 production readiness.
 
-Current post-composition-repair v1 local evidence:
+Pre-single-verification-refactor post-composition-repair V1 local evidence:
 
 - spot and aggregate image IDs:
   `1275ef413f6513e7671bce019d22fbdcf10bffe1b71dcf68731a056e710a7403`
@@ -638,7 +655,7 @@ Current post-composition-repair v1 local evidence:
 
 The V1 adapter separately retains the historical proof-generation source root
 `7a3bed2a1d8fff3ad2e93f2d406df435a9990d1a9c0462ff3323fb028327564e`.
-That immutable compatibility provenance is distinct from the current rebuild
+That immutable compatibility provenance is distinct from the recorded rebuild
 closure above; both resolve to the same pinned Spot guest program and image ID.
 
 The malformed proof flips only bit zero of Succinct seal word 27,833
@@ -649,7 +666,7 @@ the exact cryptographic-invalid response with process exit code zero. The
 checker therefore treats the response object as the decision and binds the
 mutation shape, request parity, and response bytes independently.
 
-Independent `r0vm --id` checks matched all six current combined programs. The
+Independent `r0vm --id` checks matched all six recorded combined programs. The
 strict verifier first rejected the root helper's child-derived receipt control
 ID, then accepted when supplied the pinned aggregate receipt profile. This is
 fail-closed behavior and exposes a fixture-bootstrap boundary: request metadata
@@ -907,7 +924,7 @@ Acceptance evidence:
 | 6 | Add perps source-finality row design | missing-counterparty negative tests |
 | 7 | Add zUSD full lifecycle row extractors | lifecycle row tests |
 | 8 | Complete: receipt kind/profile policy | receipt-kind mismatch tests |
-| 9 | Complete: current-image one-level and fixed-height two-level local proof smokes on pinned RISC0 3.0.5 | pinned proof hashes, negative transcripts, and pair-verifier report |
+| 9 | Partial: V2 current-image fixed-height local proof smoke is retained; V1 current-host one-level replay is pending after the single-verification refactor | pinned V2 proof hashes and pair-verifier report; fresh V1 positive and malformed-proof transcripts required |
 | 10 | Partial: prove canonical receipt-set composition; extend Lean coverage to framing, exact-once, and conservation | current module and full `lake build` with no `sorry`; runtime refinement remains pending |
 | 11 | Run external Fable/Codex review on final packet | disposition matrix |
 | 12 | Update release manifest and claims registry | production gate output |

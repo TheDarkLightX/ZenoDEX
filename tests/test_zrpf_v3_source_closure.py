@@ -14,7 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def test_current_clean_checkout_matches_exact_source_inventory() -> None:
     document = closure.build_source_closure(REPO_ROOT)
     assert document["schema"] == closure.SCHEMA
-    assert document["file_count"] == 65
+    assert document["file_count"] == 99
     assert {
         (row["role"], row["path"])
         for row in document["files"]
@@ -52,6 +52,47 @@ def test_current_clean_checkout_matches_exact_source_inventory() -> None:
             "verification_harness_v2",
             "zk/zrpf_risc0/verifier/src/semantic_epoch_v2.rs",
         ),
+    }
+    v4_paths = {
+        row["path"]
+        for row in document["files"]
+        if row["role"].endswith("_v4")
+    }
+    assert v4_paths == {
+        "zk/zrpf_protocol/protocol/src/value_node_v4/bounded.rs",
+        "zk/zrpf_protocol/protocol/src/value_node_v4/error.rs",
+        "zk/zrpf_protocol/protocol/src/value_node_v4/journal.rs",
+        "zk/zrpf_protocol/protocol/src/value_node_v4/mod.rs",
+        "zk/zrpf_protocol/protocol/src/value_node_v4/records.rs",
+        "zk/zrpf_protocol/protocol/src/value_node_v4/subtree.rs",
+        "zk/zrpf_protocol/protocol/src/value_node_v4/subtree/codec.rs",
+        "zk/zrpf_protocol/protocol/src/value_node_v4/subtree/hash.rs",
+        "zk/zrpf_protocol/protocol/src/value_node_v4/subtree/merge.rs",
+        "zk/zrpf_protocol/protocol/src/value_node_v4/subtree/validate.rs",
+        "zk/zrpf_risc0/harness/src/bin/prove_spot_value_leaf_v4.rs",
+        "zk/zrpf_risc0/harness/src/bin/prove_spot_value_leaf_v4/artifact_io.rs",
+        "zk/zrpf_risc0/harness/src/bin/prove_spot_value_leaf_v4/report.rs",
+        "zk/zrpf_risc0/harness/src/bin/prove_spot_value_leaf_v4/source.rs",
+        "zk/zrpf_risc0/harness/src/bin/prove_spot_value_leaf_v4/tests.rs",
+        "zk/zrpf_risc0/methods/spot_value_leaf_v4/Cargo.toml",
+        "zk/zrpf_risc0/methods/spot_value_leaf_v4/src/main.rs",
+        "zk/zrpf_risc0/semantic_shared/src/value_v1.rs",
+        "zk/zrpf_risc0/semantic_shared/src/value_v1/compose.rs",
+        "zk/zrpf_risc0/semantic_shared/src/value_v1/error.rs",
+        "zk/zrpf_risc0/semantic_shared/src/value_v1/expected.rs",
+        "zk/zrpf_risc0/semantic_shared/src/value_v1/hash.rs",
+        "zk/zrpf_risc0/semantic_shared/src/value_v1/validate.rs",
+        "zk/zrpf_risc0/semantic_shared/src/value_v1/wire_v4.rs",
+        "zk/zrpf_risc0/semantic_shared/src/value_v1/wire_v4/error.rs",
+        "zk/zrpf_risc0/value_node_shared/Cargo.toml",
+        "zk/zrpf_risc0/value_node_shared/src/cursor.rs",
+        "zk/zrpf_risc0/value_node_shared/src/error.rs",
+        "zk/zrpf_risc0/value_node_shared/src/leaf.rs",
+        "zk/zrpf_risc0/value_node_shared/src/leaf_codec.rs",
+        "zk/zrpf_risc0/value_node_shared/src/lib.rs",
+        "zk/zrpf_risc0/value_node_shared/src/profile.rs",
+        "zk/zrpf_risc0/verifier/src/spot_value_leaf_v4.rs",
+        "zk/zrpf_risc0/verifier/src/spot_value_leaf_v4/tests.rs",
     }
     assert document["worktree_clean"] is True
     assert [row["path"] for row in document["files"]] == sorted(

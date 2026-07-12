@@ -14,6 +14,7 @@ import importlib
 import json
 import os
 import stat
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
@@ -229,13 +230,39 @@ ALLOWED_DEFENSE_LAYERS = {
 }
 IMPLEMENTED_STATUSES = {"implemented", "implemented_partial"}
 PENDING_STATUSES = {"pending", "deferred_nonclaim"}
-ACCEPTED_CLAIM_STATUSES = frozenset(
-    {
-        "v1_v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified"
-    }
+FULL_CURRENT_PROOF_CLAIM_STATUS = (
+    "v1_v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified"
 )
+V1_HOST_REPLAY_PENDING_CLAIM_STATUS = (
+    "v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified_"
+    "v1_current_host_replay_pending"
+)
+
+
+@dataclass(frozen=True)
+class ClaimStatusPolicy:
+    required_source_closures: frozenset[str]
+    required_implemented_statements: frozenset[str]
+
+
+CLAIM_STATUS_POLICIES = {
+    V1_HOST_REPLAY_PENDING_CLAIM_STATUS: ClaimStatusPolicy(
+        required_source_closures=frozenset({"v2"}),
+        required_implemented_statements=frozenset(
+            {
+                "recursive_node_v2",
+                "zrpf_node_v3_structural",
+                "zrpf_v1_spot_adapter_receipt_v1",
+            }
+        ),
+    ),
+}
+ACCEPTED_CLAIM_STATUSES = frozenset(CLAIM_STATUS_POLICIES)
 STALE_CURRENT_IMAGE_NON_CLAIM = "no_current_image_recursive_proof_after_composition_repair"
 STALE_V3_TREE_ABSENCE_NON_CLAIM = "no_v3_receipt_authenticated_tree"
+V1_HOST_REPLAY_PENDING_NON_CLAIM = (
+    "no_current_v1_host_verifier_replay_after_single_verification_refactor"
+)
 SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 
 
@@ -263,17 +290,32 @@ def validate_matrix(matrix: Any, *, repo_root: Path = REPO_ROOT) -> dict[str, An
     statements = _validate_typed_statements(root.get("typed_statements"), repo_root=inspected_root)
     obligations = _validate_obligations(root.get("obligations"), repo_root=inspected_root)
 
-    if promotion["facts"]["claim_status"] in ACCEPTED_CLAIM_STATUSES:
+    claim_status = promotion["facts"]["claim_status"]
+    if claim_status in ACCEPTED_CLAIM_STATUSES:
+        policy = CLAIM_STATUS_POLICIES[claim_status]
+        statement_statuses = {item["id"]: item["status"] for item in statements["items"]}
+        for statement_id in sorted(policy.required_implemented_statements):
+            if statement_statuses.get(statement_id) not in IMPLEMENTED_STATUSES:
+                errors.append(
+                    f"{claim_status} requires typed statement {statement_id} "
+                    "implemented or implemented_partial"
+                )
         obligation_statuses = {item["id"]: item["status"] for item in obligations["items"]}
         if obligation_statuses.get("RS-CBC-014") != "implemented":
-            errors.append("post-repair local-proof-verified status requires RS-CBC-014 implemented")
+            errors.append(
+                "current local-recursive-proof status requires RS-CBC-014 implemented"
+            )
         for obligation_id in ("RS-CBC-016", "RS-CBC-022"):
             if obligation_statuses.get(obligation_id) not in IMPLEMENTED_STATUSES:
                 errors.append(
                     "temporary V3 structural-tree-verified status requires "
                     f"{obligation_id} implemented or implemented_partial"
                 )
-        _validate_promoted_source_closures(inspected_root, errors)
+        _validate_promoted_source_closures(
+            inspected_root,
+            errors,
+            required_closures=policy.required_source_closures,
+        )
 
     for section_name, section in (
         ("promotion_boundary", promotion),
@@ -306,53 +348,59 @@ def validate_matrix(matrix: Any, *, repo_root: Path = REPO_ROOT) -> dict[str, An
 def _validate_promoted_source_closures(
     repo_root: Path | None,
     errors: list[str],
+    *,
+    required_closures: frozenset[str],
 ) -> None:
     if repo_root is None:
         errors.append("promoted recursive proof source closures cannot be checked")
         return
 
-    try:
-        v1_raw = _read_repo_file(
-            repo_root,
-            _normalized_repo_path("config/proof_profiles/risc0_recursive_rebuild_reference.json"),
-            max_bytes=recursive_v1_evidence.MAX_REFERENCE_BYTES,
-        )
-        v1_reference = recursive_v1_evidence.validate_reference(
-            recursive_v1_evidence._parse_json(v1_raw, label="REFERENCE")
-        )
-        v1_digest = recursive_v1_evidence.reference_canonical_sha256(v1_reference)
-        if v1_digest != recursive_v1_evidence.EXPECTED_REFERENCE_CANONICAL_SHA256:
-            raise recursive_v1_evidence.EvidenceError(
-                "REFERENCE_DIGEST_MISMATCH",
-                v1_digest,
+    if "v1" in required_closures:
+        try:
+            v1_raw = _read_repo_file(
+                repo_root,
+                _normalized_repo_path(
+                    "config/proof_profiles/risc0_recursive_rebuild_reference.json"
+                ),
+                max_bytes=recursive_v1_evidence.MAX_REFERENCE_BYTES,
             )
-        recursive_v1_evidence._check_source_workspace(
-            repo_root / "zk/state_proof_risc0",
-            v1_reference["source_compile"],
-        )
-    except (MatrixInputError, recursive_v1_evidence.EvidenceError) as exc:
-        errors.append(f"promoted V1 source closure rejected: {exc}")
+            v1_reference = recursive_v1_evidence.validate_reference(
+                recursive_v1_evidence._parse_json(v1_raw, label="REFERENCE")
+            )
+            v1_digest = recursive_v1_evidence.reference_canonical_sha256(v1_reference)
+            if v1_digest != recursive_v1_evidence.EXPECTED_REFERENCE_CANONICAL_SHA256:
+                raise recursive_v1_evidence.EvidenceError(
+                    "REFERENCE_DIGEST_MISMATCH",
+                    v1_digest,
+                )
+            recursive_v1_evidence._check_source_workspace(
+                repo_root / "zk/state_proof_risc0",
+                v1_reference["source_compile"],
+            )
+        except (MatrixInputError, recursive_v1_evidence.EvidenceError) as exc:
+            errors.append(f"promoted V1 source closure rejected: {exc}")
 
-    try:
-        v2_raw = _read_repo_file(
-            repo_root,
-            _normalized_repo_path(
-                "config/proof_profiles/risc0_recursive_v2_rebuild_reference.json"
-            ),
-            max_bytes=recursive_v2_evidence.MAX_REFERENCE_BYTES,
-        )
-        v2_reference = recursive_v2_evidence.validate_reference(
-            recursive_v2_evidence._parse_json(v2_raw, label="REFERENCE")
-        )
-        v2_digest = recursive_v2_evidence.reference_canonical_sha256(v2_reference)
-        if v2_digest != recursive_v2_evidence.EXPECTED_REFERENCE_CANONICAL_SHA256:
-            raise recursive_v2_evidence.EvidenceError(
-                "REFERENCE_DIGEST_MISMATCH",
-                v2_digest,
+    if "v2" in required_closures:
+        try:
+            v2_raw = _read_repo_file(
+                repo_root,
+                _normalized_repo_path(
+                    "config/proof_profiles/risc0_recursive_v2_rebuild_reference.json"
+                ),
+                max_bytes=recursive_v2_evidence.MAX_REFERENCE_BYTES,
             )
-        recursive_v2_evidence._check_source(v2_reference, repo_root)
-    except (MatrixInputError, recursive_v2_evidence.EvidenceError) as exc:
-        errors.append(f"promoted V2 source closure rejected: {exc}")
+            v2_reference = recursive_v2_evidence.validate_reference(
+                recursive_v2_evidence._parse_json(v2_raw, label="REFERENCE")
+            )
+            v2_digest = recursive_v2_evidence.reference_canonical_sha256(v2_reference)
+            if v2_digest != recursive_v2_evidence.EXPECTED_REFERENCE_CANONICAL_SHA256:
+                raise recursive_v2_evidence.EvidenceError(
+                    "REFERENCE_DIGEST_MISMATCH",
+                    v2_digest,
+                )
+            recursive_v2_evidence._check_source(v2_reference, repo_root)
+        except (MatrixInputError, recursive_v2_evidence.EvidenceError) as exc:
+            errors.append(f"promoted V2 source closure rejected: {exc}")
 
 
 def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
@@ -379,6 +427,7 @@ def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
         "promotion_boundary.claim_status",
         errors,
     )
+    claim_policy = CLAIM_STATUS_POLICIES.get(claim_status or "")
     non_claims = _str_set(obj.get("non_claims"), "promotion_boundary.non_claims", errors)
 
     if public_claim_allowed is not False:
@@ -400,7 +449,13 @@ def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
         and STALE_V3_TREE_ABSENCE_NON_CLAIM in non_claims
     ):
         errors.append("promotion_boundary.non_claims retains stale V3 structural-tree absence")
-
+    if (
+        claim_status == V1_HOST_REPLAY_PENDING_CLAIM_STATUS
+        and V1_HOST_REPLAY_PENDING_NON_CLAIM not in non_claims
+    ):
+        errors.append(
+            "V1-host-replay-pending status requires its exact current-host replay non-claim"
+        )
     return {
         "ok": not errors,
         "errors": errors,
@@ -408,6 +463,12 @@ def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
             "public_claim_allowed": public_claim_allowed,
             "production_ready": production_ready,
             "claim_status": claim_status,
+            "required_source_closures": sorted(
+                claim_policy.required_source_closures if claim_policy else frozenset()
+            ),
+            "required_implemented_statements": sorted(
+                claim_policy.required_implemented_statements if claim_policy else frozenset()
+            ),
             "missing_required_non_claims": missing_non_claims,
         },
     }
@@ -482,6 +543,7 @@ def _validate_typed_statements(value: Any, *, repo_root: Path | None) -> dict[st
         reports.append(
             {
                 "id": statement_id,
+                "status": status,
                 "ok": not item_errors,
                 "errors": item_errors,
             }
