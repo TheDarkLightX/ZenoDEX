@@ -1095,8 +1095,8 @@
       "code_refs": [],
       "test_refs": [],
       "external_commands": [],
-      "next_action": "require bounded canonical bytes for the recursive verification request, proof envelope, and proof.meta; define versioned exact-field schemas for mixed Tau projections and nested Spot, perps, and zUSD application payloads; then add complete nested unknown-field negative tests before any production admission integration",
-      "non_claim": "the recursive V1 verification request, proof envelope, and proof.meta now have exact required-field and pre-authentication host guards, but their source bytes are not canonical authority objects; mixed Tau projections and nested application payloads remain incomplete and may not authorize production admission"
+      "next_action": "require bounded canonical source bytes for the recursive verification request, proof envelope, proof.meta, and leaf-generation ingress; move the current host guards into a versioned strict-decoding ABI before any production admission integration",
+      "non_claim": "the recursive V1 verification request, proof envelope, proof.meta, and all three reachable Spot, perps, and zUSD leaf-generation payload families now have exact required-field, type, integer-range, duplicate-key, and nested unknown-field host guards; their source bytes are not canonical authority objects, leaf-generation payloads are rejected by recursive-root verification, and none may authorize production admission"
     },
     {
       "id": "RS-CBC-022",

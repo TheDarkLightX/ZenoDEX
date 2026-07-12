@@ -93,7 +93,7 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     assert report["facts"]["implemented_obligation_count"] == 20
     assert report["facts"]["pending_obligation_count"] == 5
     assert report["matrix_sha256"] == (
-        "sha256:51ee18944097d1b1286840dbdf8bdad657c14a8e46ca943a738dbaff6f3350bb"
+        "sha256:96f8fb8008d026f8061a2bb1d7f954eb3bafe98bb0e3985656b7045488bf30ad"
     )
     assert report["promotion_boundary"]["facts"]["public_claim_allowed"] is False
     assert report["promotion_boundary"]["facts"]["production_ready"] is False

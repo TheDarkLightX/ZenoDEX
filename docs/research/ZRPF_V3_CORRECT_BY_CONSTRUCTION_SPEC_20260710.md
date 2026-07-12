@@ -453,9 +453,11 @@ journal hash, and its canonical commitments hash.
 `tools/check_zrpf_v3_hash_vector.py` reconstructs all four values in Python
 using `hashlib` and an independent Postcard unsigned-varint encoder.
 
-Outer request, proof, metadata, and disclosure envelopes remain outside V3
-authority until `RS-CBC-021` closes duplicate-key, unknown-field, nesting,
-size, and canonical-byte ambiguity.
+V1 host request, proof, metadata, structural disclosure, and all three reachable
+leaf-generation payload families now have bounded duplicate-key and exact
+nested-field guards. They remain outside V3 authority because their source
+JSON bytes are not canonical authority objects. `RS-CBC-021` keeps that
+canonical-byte boundary pending.
 
 ## Security Games And Current Status
 
@@ -600,9 +602,10 @@ The current implementation does not support:
 - throughput or proving-cost claims.
 
 `RS-CBC-016` remains `implemented_partial`. `RS-CBC-021` remains pending for
-general recursive envelopes. `RS-CBC-022` is `implemented_partial` for the Spot
-adapter and bounded structural aggregate boundaries. The semantic composer,
-governed release profile, and `RS-CBC-023` remain open.
+canonical source-byte authority and a versioned strict-decoding ABI.
+`RS-CBC-022` is `implemented_partial` for the Spot adapter and bounded
+structural aggregate boundaries. The semantic composer, governed release
+profile, and `RS-CBC-023` remain open.
 
 ## Dependency Decision
 

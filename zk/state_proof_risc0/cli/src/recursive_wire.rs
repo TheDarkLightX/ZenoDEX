@@ -1,6 +1,8 @@
 use serde_json::{Map, Value};
 use tau_state_proof_risc0_shared::PROOF_TYPE_RECURSIVE;
 
+mod application;
+
 pub(super) const RECURSIVE_VERIFY_REQUEST_FIELDS_V1: &[&str] = &[
     "schema",
     "schema_version",
@@ -249,21 +251,55 @@ pub(super) fn validate_summary(value: &Value, context: &str) -> Result<(), Strin
 }
 
 pub(super) fn validate_spot_leaf(value: &Value) -> Result<(), String> {
-    validate_leaf_wrapper(value, "spot_recursive_leaf_input", "spot_input")
+    validate_leaf_wrapper(
+        value,
+        "spot_recursive_leaf_input",
+        "spot_input",
+        application::validate_spot,
+    )
 }
 
 pub(super) fn validate_perps_leaf(value: &Value) -> Result<(), String> {
-    validate_leaf_wrapper(value, "perps_np_recursive_leaf_input", "perps_input")
+    validate_leaf_wrapper(
+        value,
+        "perps_np_recursive_leaf_input",
+        "perps_input",
+        application::validate_perps,
+    )
 }
 
 pub(super) fn validate_zusd_leaf(value: &Value) -> Result<(), String> {
-    validate_leaf_wrapper(value, "zusd_recursive_leaf_input", "zusd_input")
+    validate_leaf_wrapper(
+        value,
+        "zusd_recursive_leaf_input",
+        "zusd_input",
+        application::validate_zusd,
+    )
 }
 
-fn validate_leaf_wrapper(value: &Value, context: &str, payload_field: &str) -> Result<(), String> {
+fn validate_leaf_wrapper(
+    value: &Value,
+    context: &str,
+    payload_field: &str,
+    validate_payload: fn(&Value, &str) -> Result<(), String>,
+) -> Result<(), String> {
     let mut allowed = LEAF_WRAPPER_FIELDS.to_vec();
     allowed.push(payload_field);
-    exact_object(value, context, &allowed).map(|_| ())
+    let object = exact_required_object(value, context, &allowed)?;
+    application::require_string_field(object, context, "chain_id")?;
+    application::require_u64_field(object, context, "epoch_id")?;
+    application::require_string_field(object, context, "lane_id")?;
+    application::require_u32_words_field(object, context, "risc0_image_id")?;
+    for field in [
+        "public_policy_hash",
+        "feature_suite_hash",
+        "dependency_lock_hash",
+        "toolchain_lock_hash",
+    ] {
+        application::require_bytes32_field(object, context, field)?;
+    }
+    let payload = application::required_field(object, context, payload_field)?;
+    validate_payload(payload, &format!("{context}.{payload_field}"))
 }
 
 fn validate_child(value: &Value, index: usize) -> Result<(), String> {

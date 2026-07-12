@@ -5044,6 +5044,40 @@ mod tests {
         })
     }
 
+    fn spot_leaf_wire_value() -> Value {
+        serde_json::to_value(SpotRecursiveLeafInputV1 {
+            chain_id: "tau-test".to_string(),
+            epoch_id: 7,
+            lane_id: "spot-lane".to_string(),
+            risc0_image_id: recursive_image(41),
+            public_policy_hash: h(10),
+            feature_suite_hash: h(11),
+            dependency_lock_hash: h(12),
+            toolchain_lock_hash: h(13),
+            spot_input: StateProofInputV1 {
+                state_hash: h(1),
+                block_timestamp: 1,
+                pre_app_hash_present: true,
+                pre_app_hash: h(2),
+                pre_state: DexStateV1::empty().to_snapshot(),
+                txs: Vec::new(),
+                pre_nonces: Vec::new(),
+                tx_ingress: Vec::new(),
+                chain_balances_post: Vec::new(),
+                expected_post_app_hash: h(3),
+                protocol_fee_share_bps: 0,
+                protocol_fee_recipient_pubkey: None,
+                tx_execution_order: Vec::new(),
+                route_price_intervals: Vec::new(),
+                route_price_interval_authority: None,
+                route_price_interval_authority_policy: None,
+                route_price_interval_max_width_bps: None,
+                shared_pool_frontier_signature_certificates: Vec::new(),
+            },
+        })
+        .unwrap()
+    }
+
     fn assert_recursive_wire_rejects_before_authentication(
         req: &Value,
         proof: &Value,
@@ -5418,6 +5452,40 @@ mod tests {
             journal.post_state_root,
             "recursive_verify_request.proof contains unknown field `prover_note`",
         );
+    }
+
+    #[test]
+    fn recursive_spot_leaf_rejects_unknown_application_payload_field() {
+        let mut value = spot_leaf_wire_value();
+        value["spot_input"]["unreviewed_extension"] = Value::Bool(true);
+
+        assert_eq!(
+            recursive_wire::validate_spot_leaf(&value).unwrap_err(),
+            "spot_recursive_leaf_input.spot_input contains unknown field `unreviewed_extension`"
+        );
+    }
+
+    #[test]
+    fn recursive_root_rejects_leaf_generation_payloads_before_authentication() {
+        let input = recursive_input();
+        let journal = compose_recursive_epoch_journal_v1(&input).unwrap();
+        let proof = recursive_verification_proof(&journal);
+        let baseline_request = recursive_verification_request(&input, &journal, &proof);
+
+        for field in [
+            "spot_recursive_leaf_input",
+            "perps_np_recursive_leaf_input",
+            "zusd_recursive_leaf_input",
+        ] {
+            let mut request = baseline_request.clone();
+            request[field] = json!({});
+            assert_recursive_wire_rejects_before_authentication(
+                &request,
+                &proof,
+                journal.post_state_root,
+                &format!("recursive_verify_request contains unknown field `{field}`"),
+            );
+        }
     }
 
     #[test]

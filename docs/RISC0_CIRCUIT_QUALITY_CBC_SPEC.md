@@ -101,13 +101,20 @@ parser and a 16 MiB per-artifact bound. These host evidence utilities reject
 duplicate decoded keys, escaped aliases, and trailing JSON documents.
 
 Current receipts authenticate the parsed typed value rather than canonical
-outer JSON bytes. The mixed Tau projections and nested Spot, perps, and zUSD
-application payloads do not yet have complete versioned exact-field schemas.
-Canonical-byte enforcement and complete nested unknown-field rejection remain
-required before a V1-derived envelope can carry production authority. The next
-recursive ABI should make this boundary unrepresentable with strict decoding.
-The new request, proof, and metadata guards are a bounded host-side closure;
-`RS-CBC-021` remains a pending critical promotion obligation.
+outer JSON bytes. The host leaf-generation ingress now requires every field and
+exact JSON type in the three reachable Spot, perps, and zUSD application
+schemas. This includes every current mixed Tau Spot intent variant, required
+explicit `null` for absent optional values, nested exact-field rejection, and
+integer range checks. The recursive-root verification request rejects all three
+leaf-generation payloads before receipt authentication; this host ingress
+hardening does not turn those payloads into authenticated recursive-root
+semantics.
+
+Canonical-byte enforcement remains required before a V1-derived envelope can
+carry production authority. The next recursive ABI should make this boundary
+unrepresentable with strict canonical decoding. The request, proof, metadata,
+and leaf-generation guards are bounded host-side closures; `RS-CBC-021`
+remains a pending critical promotion obligation.
 
 The host CLI changes invalidated the prior V1 current-source verifier replay
 claim because the retained V1 verifier source closure includes the CLI. The

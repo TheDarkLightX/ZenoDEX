@@ -251,14 +251,15 @@ Current status:
   witness-privacy property is claimed.
 
 V1 outer JSON remains a parser boundary rather than a canonical statement
-encoding. The current CLI accepts duplicate JSON keys with last-key semantics,
-and recursive V1 typed structs ignore unknown nested fields. Receipts bind the
-resulting typed value, so this does not invalidate the pinned proofs. It does
-preclude any claim that the complete outer JSON envelope is canonical or that
-unknown fields fail closed. The next ABI must reject duplicate keys and unknown
-critical fields before typed construction; production and public claims remain
-false until that boundary is closed. `RS-CBC-021` records this as a pending
-critical promotion obligation.
+encoding. The CLI now rejects duplicate decoded keys and trailing documents,
+requires exact complete request, proof, and metadata fields before receipt
+authentication, and applies exact nested schemas to every reachable Spot,
+perps, and zUSD host leaf-generation payload. The three leaf-generation
+payloads are explicitly inadmissible in recursive-root verification. Receipts
+still bind the resulting typed value rather than canonical source JSON bytes.
+The next ABI must make canonical source-byte decoding part of construction;
+production and public claims remain false until that boundary is closed.
+`RS-CBC-021` records this as a pending critical promotion obligation.
 
 ## Vericoding Goal
 
