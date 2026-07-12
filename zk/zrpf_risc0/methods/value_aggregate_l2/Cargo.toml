@@ -8,6 +8,7 @@ publish = false
 risc0-zkvm = { version = "=3.0.5", default-features = false }
 zenodex-zrpf-protocol-v3 = { path = "../../../zrpf_protocol/protocol", default-features = false }
 zenodex-zrpf-risc0-value-aggregate-shared = { path = "../../value_aggregate_shared", default-features = false }
+zenodex-zrpf-risc0-value-aggregate-l2-policy = { path = "../../value_aggregate_l2_policy", default-features = false }
 
 [[bin]]
 name = "zenodex-zrpf-risc0-value-aggregate-l2"

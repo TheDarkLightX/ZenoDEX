@@ -31,11 +31,14 @@ mod receipt_verified {
     use zenodex_zrpf_protocol_v3::{
         decode_exact_value_aggregate_proposal_v5, ProposedValueAggregateV5,
     };
+    use zenodex_zrpf_risc0_value_aggregate_l2_policy::{
+        provisional_value_aggregate_level_one_identity_v5,
+        PROVISIONAL_VALUE_AGGREGATE_L1_IMAGE_ID_V5,
+    };
     use zenodex_zrpf_risc0_value_aggregate_shared::{
         compose_value_aggregate_level_two_after_receipt_verification_v5,
-        provisional_value_aggregate_level_one_identity_v5, ValueAggregateLevelTwoInputV5,
-        ValueAggregateRecompositionErrorV5, ValueAggregateRecompositionPolicyV5,
-        PROVISIONAL_VALUE_AGGREGATE_L1_IMAGE_ID_V5,
+        ValueAggregateLevelTwoInputV5, ValueAggregateRecompositionErrorV5,
+        ValueAggregateRecompositionPolicyV5,
     };
 
     /// Guest-local capability created only after every exact L1 child proposal
