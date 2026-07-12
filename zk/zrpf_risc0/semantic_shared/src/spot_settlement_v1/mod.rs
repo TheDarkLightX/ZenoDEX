@@ -15,7 +15,7 @@ pub use error::SpotSettlementProjectionErrorV1;
 mod state_v2;
 pub use state_v2::{
     derive_spot_settlement_state_projection_v2, propose_spot_settlement_state_projection_v2,
-    SpotSettlementStateProjectionV2,
+    ProposedSpotSettlementStateProjectionV2, SpotSettlementStateProjectionV2,
 };
 
 use crate::{
