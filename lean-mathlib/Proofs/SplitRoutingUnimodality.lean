@@ -1,18 +1,23 @@
 /-!
-Split Routing Unimodality and DTSSR Correctness.
+Split Routing Conditional Bounds and DTSSR Arithmetic Lemmas.
 
-We prove that the continuous CPMM split objective is strictly concave,
-which implies unimodality. This is the mathematical foundation for the
-Discrete Ternary Search Split Router (DTSSR).
+This module contains boundedness results, a conditional perturbation lemma,
+and arithmetic witnesses used while studying the Discrete Ternary Search
+Split Router (DTSSR).
 
-Key theorems:
-1. `cpmm_output_concave`: Single-pool continuous output is strictly concave
-2. `split_objective_concave`: Two-pool split objective is strictly concave
-3. `ternary_search_converges`: Ternary search on unimodal function converges
-4. `dtssr_correctness`: DTSSR finds optimal within ±2 of true maximum
+The proved declarations establish:
+1. Integer CPMM output and two-pool objectives are reserve-bounded.
+2. A function within one unit of a supplied concave midpoint model satisfies
+   a two-unit near-unimodality inequality.
+3. A coarse logarithmic exponent witness exists.
+4. A candidate that dominates both endpoints dominates either single-pool
+   allocation.
 
-The integer floor perturbation is bounded, guaranteeing DTSSR correctness
-after a small local polish.
+This file does not prove continuous CPMM concavity, a ternary-search state
+invariant, a bound connecting the runtime evaluation counter to the displayed
+arithmetic expression, or global DTSSR optimality. Integer fee rounding can
+break discrete concavity, so runtime correctness requires a separate exact
+rescue certificate or an implementation-connected approximation theorem.
 -/
 
 namespace Proofs
@@ -77,9 +82,11 @@ theorem near_unimodal_from_concave
   -- Because gc a_i ≥ g a_i - 1 (but in Nat we need g a_i ≤ gc a_i + 1)
   omega
 
-/-- Ternary search convergence for unimodal functions.
-    After k steps on interval [0, D], the search interval has width ≤ D * (2/3)^k.
-    For width ≤ W (threshold), we need k ≥ log_{3/2}(D/W) steps. -/
+/-- Coarse exponent witness used when budgeting a ternary-style search.
+
+    The conclusion only proves that some bounded `k` satisfies `3^k > D`.
+    It does not model interval updates, use `W` in the conclusion, or prove
+    convergence of the runtime search implementation. -/
 theorem ternary_convergence_steps
     (D W : Nat) (_hD : D > 0) (_hW : W > 0) (_hWD : W ≤ D) :
     -- After ceil(log2(D)) steps, interval width ≤ D / 2^ceil(log2(D))
@@ -99,24 +106,24 @@ theorem ternary_convergence_steps
     · omega
   omega
 
-/-- DTSSR total evaluation bound:
-    Phase 1 (ternary): 2 * ceil(log_{3/2}(D/8)) ≤ 2 * (2 * (log2 D + 1))
-    Phase 2 (polish): 2 * (8 + 2*6) = 40
-    Phase 3 (canonicalize): ≤ 64
-    Total: ≤ 4 * (log2 D + 1) + 104 -/
+/-- Arithmetic sanity check for the proposed expression
+    `4 * (log2 D + 1) + 104`.
+
+    The theorem establishes only that this expression is at least `108`.
+    It is not an upper bound on an implementation evaluation counter. -/
 theorem dtssr_eval_bound (D : Nat) (_hD : D > 0) :
     4 * (Nat.log2 D + 1) + 104 ≥ 4 + 104 := by
   omega
 
-/-- Concrete witness: For D = 1000000, the eval bound is ≤ 184. -/
+/-- Numeric evaluation of the proposed expression at `D = 1000000`. -/
 theorem dtssr_eval_witness_1M :
     4 * (Nat.log2 1000000 + 1) + 104 ≤ 184 := by native_decide
 
-/-- Concrete witness: For D = 10000, eval bound ≤ 160. -/
+/-- Numeric evaluation of the proposed expression at `D = 10000`. -/
 theorem dtssr_eval_witness_10K :
     4 * (Nat.log2 10000 + 1) + 104 ≤ 160 := by native_decide
 
-/-- Concrete witness: For D = 1000000000, eval bound ≤ 224. -/
+/-- Numeric evaluation of the proposed expression at `D = 1000000000`. -/
 theorem dtssr_eval_witness_1B :
     4 * (Nat.log2 1000000000 + 1) + 104 ≤ 224 := by native_decide
 
@@ -131,10 +138,7 @@ theorem dtssr_beats_single_pool
     (h_dtssr : g a_star ≥ g 0 ∧ g a_star ≥ g D) :
     g a_star ≥ f1 D ∧ g a_star ≥ f0 D := by
   constructor
-  · -- g(a_star) ≥ g(0) = f0(0) + f1(D)
-    -- f0(0) = 0 in CPMM (zero input → zero output)
-    -- So g(0) = f1(D), hence g(a_star) ≥ f1(D)
-    -- We prove this from h_dtssr.1 and h_g
+  · -- `g(0) = f0(0) + f1(D) ≥ f1(D)` by nonnegativity in `Nat`.
     have hg0 := h_g 0 (Nat.zero_le D)
     simp at hg0
     omega

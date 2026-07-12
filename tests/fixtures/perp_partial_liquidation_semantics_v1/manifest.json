@@ -1,0 +1,143 @@
+{
+  "corpus": {
+    "case_count": 2160,
+    "columns": [
+      "case_id",
+      "position_base",
+      "collateral_after_pnl",
+      "settle_price_e8",
+      "maintenance_margin_bps",
+      "depeg_buffer_bps",
+      "liquidation_penalty_bps",
+      "min_notional_for_bounty",
+      "liquidatable",
+      "selected_fraction_bps"
+    ],
+    "grid": {
+      "collateral_after_pnl": [
+        0,
+        1,
+        10,
+        60,
+        100
+      ],
+      "depeg_buffer_bps": [
+        0,
+        100
+      ],
+      "liquidation_penalty_bps": [
+        0,
+        50,
+        500
+      ],
+      "maintenance_margin_bps": [
+        500,
+        1000
+      ],
+      "min_notional_for_bounty": [
+        0,
+        5,
+        500
+      ],
+      "position_base": [
+        1,
+        2,
+        3,
+        10,
+        100,
+        1000
+      ],
+      "settle_price_e8": [
+        100000000,
+        200000000
+      ]
+    },
+    "path": "tests/fixtures/perp_partial_liquidation_semantics_v1/corpus.tsv",
+    "sha256": "de78a1b08200264ad413da8b2d1e368a36c7076b61bc2587d31ab2f6fb8e719e"
+  },
+  "formal_claims": [
+    "selected fraction is in [1, 10000] on liquidatable natural-number inputs",
+    "selected fraction is sufficient",
+    "every earlier admissible fraction is insufficient",
+    "the contract does not assume monotonicity of the sufficiency predicate",
+    "single-step ceiling margin is the least integer requirement covering raw scaled risk"
+  ],
+  "generator_command": "python3 tools/build_perp_partial_liquidation_semantics_v1.py",
+  "known_nonmonotone_witness": {
+    "collateral_after_pnl": 60,
+    "depeg_buffer_bps": 0,
+    "liquidation_penalty_bps": 500,
+    "maintenance_margin_bps": 1000,
+    "min_notional_for_bounty": 500,
+    "position_base": 1000,
+    "selected_fraction_bps": 3910,
+    "settle_price_e8": 100000000,
+    "sufficient_4999": true,
+    "sufficient_5000": false
+  },
+  "lean_theorems": [
+    "Proofs.PerpPartialLiquidationExact.runtimeFraction_contract_of_liquidatable",
+    "Proofs.PerpPartialLiquidationExact.witness_nonmonotone",
+    "Proofs.PerpPartialLiquidationExact.witness_runtime_fraction",
+    "Proofs.PerpMarginRoundingSafety.safeCeilMargin_covers_raw",
+    "Proofs.PerpMarginRoundingSafety.safeCeilMargin_minimal",
+    "Proofs.PerpMarginRoundingSafety.nested_floor_dust_witness"
+  ],
+  "nonclaims": [
+    "The corpus is bounded differential evidence, not an exhaustive proof over Python integers.",
+    "The Lean arithmetic model covers unsigned position magnitude and nonnegative collateral.",
+    "The runtime and v3 YAML still use nested-floor margin; the safe ceiling formula is not deployed.",
+    "The gate does not grant settlement or production authority."
+  ],
+  "schema": "zenodex/perp-partial-liquidation-semantics/v1",
+  "source_files": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "84680fad18c63d44625b3e2cf315348998f34070b37c4ea15bffe030f518ebb6"
+    },
+    {
+      "path": "lean-mathlib/Proofs/PerpMarginRoundingSafety.lean",
+      "sha256": "2298d996785bd9f8c6dea32cba85b2eecf98407eb870ad00bee383923625d12d"
+    },
+    {
+      "path": "lean-mathlib/Proofs/PerpPartialLiquidationExact.lean",
+      "sha256": "7d76ce6987ec3d05913b71c35b121efc59d3f1e1a35f6899595a17b6d7023cd9"
+    },
+    {
+      "path": "src/core/perp_v2/math.py",
+      "sha256": "86f281fbaa12ebe01ad0c797d6300c52b872f0a80082b61422ad443344722877"
+    },
+    {
+      "path": "tests/core/test_perp_v2/test_partial_liquidate.py",
+      "sha256": "4898f00b8d084e10101339fb9b69bcbe2d4ffb59906e1c9bcb6a76e310dc4204"
+    },
+    {
+      "path": "tests/formal/test_lean_perp_partial_liquidation_exact.py",
+      "sha256": "b68205b68fac965ae9db1b0a1913b03f714d9202c3f117dc36364c6a19995f70"
+    },
+    {
+      "path": "tests/formal/test_lean_perp_margin_rounding_safety.py",
+      "sha256": "3db779147296ce34f3caa07892e1bc597b2f486f0f8aa38bf1647b217da2e17b"
+    },
+    {
+      "path": "tests/test_check_perp_partial_liquidation_semantics_v1.py",
+      "sha256": "0fcd5b7248bef995f302f9fe6b59bb9f80fa965113974ff3ff717a4005db7ac5"
+    },
+    {
+      "path": "tools/build_perp_partial_liquidation_semantics_v1.py",
+      "sha256": "5b25c35148112cb551d7413ae3b47222e10d6c4426a20c14bee08362a9fe6176"
+    },
+    {
+      "path": "tools/check_perp_partial_liquidation_semantics_v1.py",
+      "sha256": "abc872d90001f3cc5222e079c5026cf47e5ff7ca4fe29a51574740fd202502c7"
+    },
+    {
+      "path": "tools/perp_partial_liquidation_semantics_v1.jl",
+      "sha256": "f6f7d9312f94f07aba1f67766ca5364451561640deeb45991f7cfcc961f1e4c8"
+    },
+    {
+      "path": "tools/run_perp_partial_liquidation_semantics_v1_gate.sh",
+      "sha256": "731567bd7219acd791e27a2d78477d141a8bb5909a62fc679731fe5f1b485600"
+    }
+  ]
+}

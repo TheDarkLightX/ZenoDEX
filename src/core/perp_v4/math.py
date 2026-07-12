@@ -1,4 +1,4 @@
-"""Pure arithmetic for the `perp_v2` risk engine.
+"""Pure arithmetic for the versioned `perp_epoch_isolated_v4` risk engine.
 
 Every function is stateless and operates on plain Python `int`s.
 
@@ -128,18 +128,32 @@ def margin_requirement(notional: int, margin_bps: int) -> int:
     return (notional * margin_bps) // BPS_SCALE
 
 
+def risk_margin_requirement(
+    position_base: int, price_e8: int, margin_bps: int
+) -> int:
+    """Least quote unit covering the full scaled risk product.
+
+    v4 performs one ceiling division over
+    ``|position| * price_e8 * margin_bps / (1e8 * 10_000)``. Fee, funding,
+    bounty, and penalty helpers continue using their existing floor policies.
+    """
+    numerator = abs_val(position_base) * price_e8 * margin_bps
+    denominator = PRICE_SCALE * BPS_SCALE
+    return (numerator + denominator - 1) // denominator
+
+
 def maint_margin_req(
     position_base: int, price_e8: int, maint_bps: int, depeg_bps: int
 ) -> int:
-    """Maintenance margin in quote (includes depeg buffer)."""
-    return margin_requirement(
-        notional_quote(position_base, price_e8), maint_bps + depeg_bps
+    """Ceiling maintenance margin in quote, including the depeg buffer."""
+    return risk_margin_requirement(
+        position_base, price_e8, maint_bps + depeg_bps
     )
 
 
 def init_margin_req(position_base: int, price_e8: int, init_bps: int) -> int:
-    """Initial margin in quote."""
-    return margin_requirement(notional_quote(position_base, price_e8), init_bps)
+    """Ceiling initial margin in quote."""
+    return risk_margin_requirement(position_base, price_e8, init_bps)
 
 
 # -- PnL helpers (symmetric — magnitude from abs values) ---------------------
@@ -368,10 +382,11 @@ def compute_partial_close_fraction(
                 penalty_cap,
                 (closed_notional * liquidation_penalty_bps) // BPS_SCALE,
             )
-        remaining_notional = (remaining_abs * settle_price_e8) // PRICE_SCALE
-        maintenance_requirement = (
-            remaining_notional * effective_maintenance_bps
-        ) // BPS_SCALE
+        maintenance_requirement = risk_margin_requirement(
+            remaining_abs,
+            settle_price_e8,
+            effective_maintenance_bps,
+        )
         if collateral_after_pnl - penalty >= maintenance_requirement:
             return int(fraction_bps)
 

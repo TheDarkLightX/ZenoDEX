@@ -1,0 +1,127 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the isolated perps partial-liquidation eligibility micro-kernel. Update only alongside a successful run of tools/run_perp_liquidation_eligibility_assurance_gate.sh and tools/check_perp_liquidation_eligibility_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/core/perp_liquidation_eligibility_gate.py",
+      "sha256": "dea350a797d8d483f146f49ae422f868338c38116afde05e56cf0795fbc1212b"
+    },
+    {
+      "path": "src/core/perp_v2/__init__.py",
+      "sha256": "9dddd1359b648fda954e1ba846d6cc399f266faa69c3bcbe9b6ff02a973c0058"
+    },
+    {
+      "path": "src/core/perp_v2/guards.py",
+      "sha256": "09d5772bc6587fcb668cc8342c6450d36631b9498a406f8116e3ac29015b9003"
+    },
+    {
+      "path": "src/kernels/dex/perp_liquidation_eligibility_v1.yaml",
+      "sha256": "e5f0062f9b26323f73f102345749519e89c20f34b29c11e3a6816d96885c17f5"
+    },
+    {
+      "path": "src/kernels/python/perp_liquidation_eligibility_v1_native_adapter.py",
+      "sha256": "5de081ed469ad7bbb053e8315a28f96a74b65e55b1d88da5f34393ab9ef13644"
+    },
+    {
+      "path": "tests/core/test_perp_liquidation_eligibility_gate.py",
+      "sha256": "0f6ab8d51c02eb69dec21a3d63cb836852011ddf2824b95e6465d021cbc65241"
+    },
+    {
+      "path": "tests/core/test_perp_v2/test_partial_liquidate.py",
+      "sha256": "4898f00b8d084e10101339fb9b69bcbe2d4ffb59906e1c9bcb6a76e310dc4204"
+    },
+    {
+      "path": "tests/kernels/test_perp_liquidation_eligibility_v1_native_adapter.py",
+      "sha256": "70d77f4fb3e01ac4467bba46972f61543e55d4d6162adb16c06a6f98986f837f"
+    },
+    {
+      "path": "tools/check_perp_liquidation_eligibility_assurance_manifest.py",
+      "sha256": "69ce15a0f26f162d21286d0ea088f52c968afde2033bb34d96ecc4a64b77f18e"
+    },
+    {
+      "path": "tools/run_perp_liquidation_eligibility_assurance_gate.sh",
+      "sha256": "5d1bbbb0a42d1e1689fd74690668c23937a34c615040cbed70a0d15c7b05dd3b"
+    },
+    {
+      "path": "tools/run_perps_evidence.sh",
+      "sha256": "b30546ff0926428c076576a96df307efe412e029d6085d7e10097ff96f3871e9"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/perp_liquidation_eligibility_v1/validate.json",
+    "model_path": "src/kernels/dex/perp_liquidation_eligibility_v1.yaml",
+    "ir_hash": "sha256:ef5b52acaf7e8dcd4e69c4245cc6894fe7c9df0f56d642d297aab16a6e087ad9"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/perp_liquidation_eligibility_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.perp_liquidation_eligibility_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:ef5b52acaf7e8dcd4e69c4245cc6894fe7c9df0f56d642d297aab16a6e087ad9",
+    "actions": [
+      "evaluate_liquidation_eligibility"
+    ],
+    "effects": [
+      "auth_ok",
+      "effective_maint_bps",
+      "index_price_ok",
+      "liquidatable",
+      "maint_req_quote",
+      "oracle_fresh",
+      "oracle_seen_ok",
+      "partial_liquidation_allowed",
+      "phase_open_ok",
+      "position_open_ok",
+      "staleness_param_ok"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/perp_liquidation_eligibility_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/perp_liquidation_eligibility_v1.yaml",
+    "adapter_spec": "src.kernels.python.perp_liquidation_eligibility_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:ef5b52acaf7e8dcd4e69c4245cc6894fe7c9df0f56d642d297aab16a6e087ad9",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:96812b9c9f74d258fe981e499d1e803e4c97b71af2923f77dbd9e4944c7fd89f"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/perp_liquidation_eligibility_v1/verification_report.json",
+    "model_id": "perp_liquidation_eligibility_v1",
+    "ir_hash_short": "ef5b52acaf7e8dcd",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/core/test_perp_liquidation_eligibility_gate.py",
+    "tests/core/test_perp_v2/test_partial_liquidate.py",
+    "tests/kernels/test_perp_liquidation_eligibility_v1_native_adapter.py"
+  ]
+}

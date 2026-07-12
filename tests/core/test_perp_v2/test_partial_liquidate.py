@@ -9,8 +9,9 @@ Validates that partial liquidation:
 
 from __future__ import annotations
 
-import pytest
 from dataclasses import replace
+
+import pytest
 
 from src.core.perp_v2 import (
     Action,
@@ -18,16 +19,15 @@ from src.core.perp_v2 import (
     EpochPhase,
     Event,
     PerpGuardError,
-    PerpInvariantError,
     PerpOverflowError,
     PerpState,
-    initial_state,
     step,
     step_or_raise,
 )
 from src.core.perp_v2.invariants import check_all
 from src.core.perp_v2.math import (
     BPS_SCALE,
+    _is_partial_fraction_sufficient,
     compute_partial_close_fraction,
     is_liquidatable,
     maint_margin_req,
@@ -346,6 +346,31 @@ class TestPartialLiquidateMarginRestoration:
                 post.maintenance_margin_bps, post.depeg_buffer_bps,
             )
             assert post.collateral_quote >= mreq
+
+    def test_auto_fraction_is_minimal_across_nonmonotone_bounty_threshold(self):
+        """The selector must not binary-search a nonmonotone health predicate."""
+        args = {
+            "position_base": 1_000,
+            "collateral_after_pnl": 60,
+            "settle_price_e8": 100_000_000,
+            "maintenance_margin_bps": 1_000,
+            "depeg_buffer_bps": 0,
+            "liquidation_penalty_bps": 500,
+            "min_notional_for_bounty": 500,
+        }
+
+        fraction = compute_partial_close_fraction(**args)
+
+        assert fraction == 3_910
+        assert _is_partial_fraction_sufficient(fraction_bps=fraction, **args)
+        assert all(
+            not _is_partial_fraction_sufficient(fraction_bps=earlier, **args)
+            for earlier in range(1, fraction)
+        )
+        # Activating the bounty makes the predicate false again, which is the
+        # exact shape that invalidated the previous binary search.
+        assert _is_partial_fraction_sufficient(fraction_bps=4_999, **args)
+        assert not _is_partial_fraction_sufficient(fraction_bps=5_000, **args)
 
 
 class TestPartialLiquidateAccounting:

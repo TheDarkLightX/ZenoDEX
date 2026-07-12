@@ -14,11 +14,12 @@ Backends:
   toolchain is a deterministic verifier + interpreter + code generator for YAML
   kernels. It is not required at production runtime, but it is used by evidence
   gates.
-- Native (default): executes `src/core/perp_v2/`, which is kept equivalent to the
+- Native (default): executes `src/core/perp_v4/`, which is kept equivalent to the
   YAML kernel via parity tests against a generated, dependency-free Python
   reference model committed under `generated/perp_python/`.
 
-Default posture: v3 native.
+Default posture: v4 native. The v3 spec and native entry points remain available
+for explicit replay and migration comparison.
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 try:
-    import yaml
+    import yaml  # type: ignore[import-untyped]
 
     _YAML_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional dependency in some environments
@@ -69,6 +70,11 @@ def _model_path_v2() -> Path:
 def _model_path_v3() -> Path:
     # src/core/perp_epoch.py -> src/ -> kernels/dex/perp_epoch_isolated_v3.yaml
     return Path(__file__).resolve().parents[1].joinpath("kernels", "dex", "perp_epoch_isolated_v3.yaml")
+
+
+def _model_path_v4() -> Path:
+    # src/core/perp_epoch.py -> src/ -> kernels/dex/perp_epoch_isolated_v4.yaml
+    return Path(__file__).resolve().parents[1].joinpath("kernels", "dex", "perp_epoch_isolated_v4.yaml")
 
 
 def _load_yaml_model(path: Path):
@@ -287,6 +293,53 @@ def perp_epoch_isolated_v3_fee_pool_max_quote() -> int:
     return _state_var_int_max(ir, var_id="fee_pool_quote")
 
 
+@lru_cache(maxsize=1)
+def _kernel_ctx_v4():
+    from ESSO.evolve import ir_hash
+    from ESSO.kernel.interpreter import StepError, prepare_step_context
+
+    path = _model_path_v4()
+    ir = _load_yaml_model(path)
+    ctx = prepare_step_context(ir)
+    if isinstance(ctx, StepError):
+        raise RuntimeError(f"perp kernel invalid: {ctx.code}: {ctx.message}")
+
+    try:
+        from ..kernels.python.perp_epoch_isolated_v4_adapter import IR_HASH as expected_hash
+
+        if isinstance(expected_hash, str) and expected_hash and expected_hash != ir_hash(ir):
+            raise RuntimeError(f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}")
+    except ImportError:
+        pass
+
+    return ir, ctx
+
+
+def perp_epoch_isolated_v4_initial_state() -> dict[str, Value]:
+    from ESSO.kernel.simulate import initial_state
+
+    ir, _ctx = _kernel_ctx_v4()
+    return dict(initial_state(ir))
+
+
+def perp_epoch_isolated_v4_apply(
+    *, state: Mapping[str, Value], action: str, params: Mapping[str, Value] | None = None
+) -> PerpStepResult:
+    from ESSO.kernel.interpreter import Command, StepError, step_ctx
+
+    _ir, ctx = _kernel_ctx_v4()
+    cmd = Command(tag=str(action), args=dict(params or {}))
+    res = step_ctx(dict(state), cmd, ctx)
+    if isinstance(res, StepError):
+        return PerpStepResult(ok=False, error=res.message, code=res.code)
+    return PerpStepResult(ok=True, state=dict(res.state), effects=dict(res.effects))
+
+
+def perp_epoch_isolated_v4_fee_pool_max_quote() -> int:
+    ir, _ctx = _kernel_ctx_v4()
+    return _state_var_int_max(ir, var_id="fee_pool_quote")
+
+
 # ---------------------------------------------------------------------------
 # v2 native backend: uses hand-written src/core/perp_v2 (no external toolchain dependency)
 # ---------------------------------------------------------------------------
@@ -384,6 +437,31 @@ def perp_epoch_isolated_v3_native_initial_state() -> dict[str, Value]:
     from .perp_v2.state import state_to_dict
 
     return _normalize_native_state_for_kernel_abi_v3(state_to_dict(initial_state()))
+
+
+def perp_epoch_isolated_v4_native_initial_state() -> dict[str, Value]:
+    from .perp_v4 import initial_state, state_to_dict
+
+    return _normalize_native_state_for_kernel_abi_v3(state_to_dict(initial_state()))
+
+
+def perp_epoch_isolated_v3_to_v4_migrate(
+    state: Mapping[str, Value],
+) -> dict[str, Value]:
+    """Validate an unchanged-ABI v3 state against the stronger v4 invariants.
+
+    The migration is identity on accepted state bytes. Accounts that depended
+    on nested-floor undercollateralization must top up or close under v3 before
+    migration; v4 never fabricates collateral or silently liquidates them.
+    """
+    from .perp_v4 import state_from_dict, state_to_dict
+    from .perp_v4.invariants import check_all
+
+    candidate = state_from_dict(_state_with_epoch_phase_for_native_input(state))
+    violations = check_all(candidate)
+    if violations:
+        raise ValueError(f"v4_migration_invariant:{','.join(violations)}")
+    return _normalize_native_state_for_kernel_abi_v3(state_to_dict(candidate))
 
 
 def _action_params_from_dict(action: str, params: Mapping[str, Value] | None):
@@ -547,6 +625,46 @@ def perp_epoch_isolated_v3_native_apply(
     )
 
 
+def perp_epoch_isolated_v4_native_apply(
+    *, state: Mapping[str, Value], action: str, params: Mapping[str, Value] | None = None
+) -> PerpStepResult:
+    from .perp_v4 import state_from_dict, state_to_dict, step
+
+    def _code_from_rejection(reason: str) -> str | None:
+        if reason.startswith("unknown_action:"):
+            return "UnknownAction"
+        if reason.startswith("param_domain:"):
+            return "ParamType"
+        if reason == "guard":
+            return "GuardFalse"
+        if reason.startswith("invariant:"):
+            return "PostInvariantViolation"
+        return None
+
+    try:
+        perp_state = state_from_dict(_state_with_epoch_phase_for_native_input(state))
+        action_params = _action_params_from_dict(action, params)
+    except (KeyError, TypeError, ValueError) as exc:
+        if isinstance(exc, KeyError):
+            code: str | None = "ParamShape"
+        elif str(exc).startswith("unknown action:"):
+            code = "UnknownAction"
+        else:
+            code = "ParamType"
+        return PerpStepResult(ok=False, error=str(exc), code=code)
+
+    result = step(perp_state, action_params)
+    if not result.accepted:
+        reason = str(result.rejection or "")
+        return PerpStepResult(ok=False, error=reason, code=_code_from_rejection(reason))
+
+    return PerpStepResult(
+        ok=True,
+        state=_normalize_native_state_for_kernel_abi_v3(state_to_dict(result.state)),
+        effects=_effect_to_dict(result.effect),
+    )
+
+
 def perp_epoch_isolated_v2_native_fee_pool_max_quote() -> int:
     from .perp_v2.math import MAX_COLLATERAL
 
@@ -556,9 +674,10 @@ def perp_epoch_isolated_v2_native_fee_pool_max_quote() -> int:
 # v3 native backend is the same hand-written implementation (perp_v2 package) but
 # corresponds to the v3 kernel spec (`perp_epoch_isolated_v3.yaml`).
 perp_epoch_isolated_v3_native_fee_pool_max_quote = perp_epoch_isolated_v2_native_fee_pool_max_quote
+perp_epoch_isolated_v4_native_fee_pool_max_quote = perp_epoch_isolated_v2_native_fee_pool_max_quote
 
 
-# Default posture: v3 native (oracle-equivalence tested, no external toolchain dependency).
-perp_epoch_isolated_default_initial_state = perp_epoch_isolated_v3_native_initial_state
-perp_epoch_isolated_default_apply = perp_epoch_isolated_v3_native_apply
-perp_epoch_isolated_default_fee_pool_max_quote = perp_epoch_isolated_v3_native_fee_pool_max_quote
+# Default posture: v4 native. v3 remains explicit for replay and migration tests.
+perp_epoch_isolated_default_initial_state = perp_epoch_isolated_v4_native_initial_state
+perp_epoch_isolated_default_apply = perp_epoch_isolated_v4_native_apply
+perp_epoch_isolated_default_fee_pool_max_quote = perp_epoch_isolated_v4_native_fee_pool_max_quote
