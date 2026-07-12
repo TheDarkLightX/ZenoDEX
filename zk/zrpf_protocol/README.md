@@ -15,7 +15,11 @@ The crate currently provides:
 - a mandatory provenance commitment for source-proof adapters;
 - derived child task, claim, journal, program, profile, verifier, statement,
   manifest, effect, provenance, and data-availability roots;
-- a bounded fanout-8, depth-2 profile covering at most 64 leaves.
+- a bounded fanout-8, depth-2 profile covering at most 64 leaves;
+- a bounded canonical `EconomicActionRecordV1` whose action ID excludes proof,
+  receipt, salt, and signature representation fields;
+- an `AuthorizationConsumptionNullifierV1` derived from the canonical action,
+  authorization grant, subject, scope, nonce, domain, and pre-state root.
 
 ## Authority Boundary
 
@@ -36,6 +40,10 @@ authenticated child commitments. A separate native leaf and semantic aggregate
 profile must derive or verify their ZenoDEX meanings. The current structural
 profile does not establish conservation, descendant uniqueness, message
 cancellation, scheduling, carry continuity, or data availability.
+
+The economic-action and authorization-nullifier objects are deterministic data
+identities. They do not verify a signature or grant, derive ZenoDEX effect
+semantics, persist replay state, or authorize value movement.
 
 The full claim boundary and next steps are documented in
 `docs/research/ZRPF_V3_CORRECT_BY_CONSTRUCTION_SPEC_20260710.md` from the
