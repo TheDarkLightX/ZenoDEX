@@ -5,7 +5,7 @@
   "promotion_boundary": {
     "public_claim_allowed": false,
     "production_ready": false,
-    "claim_status": "v1_v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified",
+    "claim_status": "v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified_v1_current_host_replay_pending",
     "non_claims": [
       "no_production_ready_recursive_starks",
       "no_full_zk_execution_for_all_value_moving_surfaces",
@@ -32,6 +32,7 @@
       "no_complete_v3_semantic_composition",
       "no_fresh_zrpf_semantic_v2_receipt_evidence",
       "no_generic_v4_runtime_identity_authority",
+      "no_current_v1_host_verifier_replay_after_host_cli_changes",
       "no_zrpf_16x4_profile"
     ]
   },
@@ -1086,8 +1087,8 @@
       "code_refs": [],
       "test_refs": [],
       "external_commands": [],
-      "next_action": "define the strict versioned recursive outer-envelope field sets and add duplicate-key, unknown-field, noncanonical-byte, and nested-object negative tests before any production admission integration",
-      "non_claim": "V1 recursive outer request and proof envelopes are not canonical authority objects and may not authorize production admission"
+      "next_action": "retain the CLI-wide recursive duplicate-key rejection and the closed recursive composition field-set guards; define versioned exact-field schemas for mixed Tau projections and nested Spot, perps, and zUSD payloads, then add canonical-byte and complete nested unknown-field negative tests before any production admission integration",
+      "non_claim": "the state-proof CLI rejects recursive duplicate keys and unknown fields in the closed recursive composition surface, but V1 outer bytes and all nested application payloads are not yet canonical authority objects and may not authorize production admission"
     },
     {
       "id": "RS-CBC-022",

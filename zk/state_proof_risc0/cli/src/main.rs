@@ -7,6 +7,9 @@ use risc0_zkvm::{
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 
+mod recursive_wire;
+mod strict_json;
+
 use tau_state_proof_risc0_methods::{
     TAU_STATE_PROOF_RISC0_AGGREGATE_ELF as TAU_STATE_PROOF_AGGREGATE_ELF,
     TAU_STATE_PROOF_RISC0_AGGREGATE_ID as TAU_STATE_PROOF_AGGREGATE_ID,
@@ -167,7 +170,7 @@ fn require_request_bytes_len(request_len: usize) -> Result<(), String> {
 }
 
 fn parse_request_json(stdin: &str) -> Result<Value, String> {
-    serde_json::from_str(stdin).map_err(|e| format!("stdin must be valid JSON: {e}"))
+    strict_json::parse_value(stdin).map_err(|error| format!("stdin must be valid JSON: {error}"))
 }
 
 fn handle_txs_commitment(req: &Value) {
@@ -3020,7 +3023,7 @@ fn parse_perps_pre_state(req: &Value, context: &Value) -> PerpsNpSnapshotV1 {
         if s.trim().is_empty() {
             return PerpsNpSnapshotV1::empty();
         }
-        let parsed: Value = serde_json::from_str(s)
+        let parsed = strict_json::parse_value(s)
             .unwrap_or_else(|e| die(&format!("perps pre_state invalid JSON: {e}")));
         return parse_perps_snapshot_value(&parsed)
             .unwrap_or_else(|e| die(&format!("perps pre_state schema mismatch: {e}")));
@@ -3041,7 +3044,7 @@ fn parse_zusd_pre_state(req: &Value, context: &Value) -> ZusdSnapshotV1 {
         if s.trim().is_empty() {
             return ZusdSnapshotV1::empty();
         }
-        let parsed: Value = serde_json::from_str(s)
+        let parsed = strict_json::parse_value(s)
             .unwrap_or_else(|e| die(&format!("zUSD pre_state invalid JSON: {e}")));
         return parse_zusd_snapshot_value(&parsed)
             .unwrap_or_else(|e| die(&format!("zUSD pre_state schema mismatch: {e}")));
@@ -3074,6 +3077,7 @@ fn parse_recursive_input(req: &Value) -> Result<RecursiveCompositionInputV1, Str
         .get("recursive_input")
         .cloned()
         .ok_or_else(|| "recursive_input missing for recursive proof".to_string())?;
+    recursive_wire::validate_composition(&value)?;
     let input: RecursiveCompositionInputV1 = serde_json::from_value(value)
         .map_err(|e| format!("recursive_input schema mismatch: {e}"))?;
     compose_recursive_epoch_journal_v1(&input).map_err(transition_error_str)?;
@@ -3087,6 +3091,7 @@ fn parse_spot_recursive_leaf_input(req: &Value) -> Result<SpotRecursiveLeafInput
         .ok_or_else(|| {
             "spot_recursive_leaf_input missing for recursive spot leaf proof".to_string()
         })?;
+    recursive_wire::validate_spot_leaf(&value)?;
     let input: SpotRecursiveLeafInputV1 = serde_json::from_value(value)
         .map_err(|e| format!("spot_recursive_leaf_input schema mismatch: {e}"))?;
     compose_spot_recursive_leaf_summary_v1(input.clone()).map_err(transition_error_str)?;
@@ -3100,6 +3105,7 @@ fn parse_perps_np_recursive_leaf_input(req: &Value) -> Result<PerpsNpRecursiveLe
         .ok_or_else(|| {
             "perps_np_recursive_leaf_input missing for recursive perps NP leaf proof".to_string()
         })?;
+    recursive_wire::validate_perps_leaf(&value)?;
     let input: PerpsNpRecursiveLeafInputV1 = serde_json::from_value(value)
         .map_err(|e| format!("perps_np_recursive_leaf_input schema mismatch: {e}"))?;
     compose_perps_np_recursive_leaf_summary_v1(input.clone()).map_err(transition_error_str)?;
@@ -3113,6 +3119,7 @@ fn parse_zusd_recursive_leaf_input(req: &Value) -> Result<ZusdRecursiveLeafInput
         .ok_or_else(|| {
             "zusd_recursive_leaf_input missing for recursive zUSD leaf proof".to_string()
         })?;
+    recursive_wire::validate_zusd_leaf(&value)?;
     let input: ZusdRecursiveLeafInputV1 = serde_json::from_value(value)
         .map_err(|e| format!("zusd_recursive_leaf_input schema mismatch: {e}"))?;
     compose_zusd_recursive_leaf_summary_v1(input.clone()).map_err(transition_error_str)?;
@@ -3124,6 +3131,7 @@ fn parse_recursive_summary(req: &Value) -> Result<RecursiveEffectSummaryV1, Stri
         .get("recursive_summary")
         .cloned()
         .ok_or_else(|| "recursive_summary missing for recursive summary leaf proof".to_string())?;
+    recursive_wire::validate_summary(&value, "recursive_summary")?;
     let summary: RecursiveEffectSummaryV1 = serde_json::from_value(value)
         .map_err(|e| format!("recursive_summary schema mismatch: {e}"))?;
     validate_recursive_effect_summary_shape_v1(&summary).map_err(transition_error_str)?;
@@ -3814,7 +3822,7 @@ fn parse_hex32_err(s: &str) -> Result<[u8; 32], String> {
 }
 
 fn parse_dex_snapshot_json(app_state_json: &str) -> Result<DexSnapshotV1, String> {
-    let v: Value = serde_json::from_str(app_state_json)
+    let v = strict_json::parse_value(app_state_json)
         .map_err(|e| format!("app_state_pre invalid JSON: {e}"))?;
     if !v.is_object() {
         return Err("app_state_pre must be a JSON object".into());
@@ -4157,10 +4165,12 @@ fn parse_intent_obj(
                 .get("asset1")
                 .and_then(Value::as_str)
                 .ok_or_else(|| "intent.asset1 missing".to_string())?;
-            let fee_bps = obj
+            let fee_bps_raw = obj
                 .get("fee_bps")
                 .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.fee_bps missing".to_string())?;
+                .ok_or_else(|| "intent.fee_bps missing or invalid".to_string())?;
+            let fee_bps = u32::try_from(fee_bps_raw)
+                .map_err(|_| "intent.fee_bps must fit in a u32".to_string())?;
             let amount0 = obj
                 .get("amount0")
                 .and_then(Value::as_u64)
@@ -4178,7 +4188,7 @@ fn parse_intent_obj(
                     deadline,
                     asset0: asset0.to_string(),
                     asset1: asset1.to_string(),
-                    fee_bps: fee_bps as u32,
+                    fee_bps,
                     amount0: amount0 as u128,
                     amount1: amount1 as u128,
                     salt,
@@ -5381,6 +5391,69 @@ mod tests {
     }
 
     #[test]
+    fn request_parser_rejects_duplicate_keys_at_every_depth() {
+        for raw in [
+            r#"{"schema":"first","schema":"second"}"#,
+            r#"{"outer":{"key":1,"key":2}}"#,
+            r#"{"outer":[{"key":1,"key":2}]}"#,
+            r#"{"schema":"first","\u0073chema":"second"}"#,
+        ] {
+            assert!(
+                parse_request_json(raw)
+                    .unwrap_err()
+                    .contains("duplicate JSON object key"),
+                "raw={raw}"
+            );
+        }
+
+        assert!(parse_request_json(r#"{"left":{"key":1},"right":{"key":2}}"#).is_ok());
+    }
+
+    #[test]
+    fn strict_request_parser_preserves_arbitrary_precision_numbers() {
+        let raw = r#"{"amount":340282366920938463463374607431768211456,"ratio":1e400}"#;
+        let parsed = parse_request_json(raw).unwrap();
+        assert_eq!(
+            parsed["amount"].as_number().unwrap().to_string(),
+            "340282366920938463463374607431768211456"
+        );
+        assert_eq!(parsed["ratio"].as_number().unwrap().to_string(), "1e400");
+    }
+
+    #[test]
+    fn embedded_state_json_rejects_duplicate_keys() {
+        assert!(parse_dex_snapshot_json(r#"{"pools":[],"pools":[]}"#)
+            .unwrap_err()
+            .contains("duplicate JSON object key"));
+        for raw in [
+            r#"{"accounts":[],"accounts":[]}"#,
+            r#"{"balances":[],"balances":[]}"#,
+        ] {
+            assert!(strict_json::parse_value(raw)
+                .unwrap_err()
+                .contains("duplicate JSON object key"));
+        }
+    }
+
+    #[test]
+    fn recursive_json_inputs_reject_unknown_fields() {
+        let mut recursive_value = serde_json::to_value(recursive_input()).unwrap();
+        recursive_value["uncommitted_note"] = Value::String("ignored before hardening".into());
+        let recursive_req = json!({"recursive_input": recursive_value});
+        assert!(parse_recursive_input(&recursive_req)
+            .unwrap_err()
+            .contains("unknown field `uncommitted_note`"));
+
+        let mut nested_value = serde_json::to_value(recursive_input()).unwrap();
+        nested_value["children"][0]["descriptor"]["uncommitted_note"] =
+            Value::String("ignored before hardening".into());
+        let nested_req = json!({"recursive_input": nested_value});
+        assert!(parse_recursive_input(&nested_req)
+            .unwrap_err()
+            .contains("unknown field `uncommitted_note`"));
+    }
+
+    #[test]
     fn recursive_child_proofs_reject_omitted_child_receipt() {
         let input = recursive_input();
         let req = json!({
@@ -6459,6 +6532,42 @@ mod tests {
                 assert_eq!(route.total_max_amount_in, 20);
             }
             _ => panic!("expected route intent"),
+        }
+    }
+
+    #[test]
+    fn create_pool_fee_bps_is_checked_before_u32_conversion() {
+        let mut exact_max = create_pool_intent_json();
+        exact_max["fee_bps"] = Value::from(u32::MAX);
+        let parsed = parse_intent_obj(exact_max.as_object().unwrap()).unwrap();
+        match parsed {
+            tau_state_proof_risc0_shared::DexIntentV1::CreatePool(intent) => {
+                assert_eq!(intent.fee_bps, u32::MAX);
+            }
+            _ => panic!("expected create-pool intent"),
+        }
+
+        let mut overflow = create_pool_intent_json();
+        overflow["fee_bps"] = Value::from(u64::from(u32::MAX) + 1);
+        assert_eq!(
+            parse_intent_obj(overflow.as_object().unwrap()).unwrap_err(),
+            "intent.fee_bps must fit in a u32"
+        );
+
+        let mut alias = create_pool_intent_json();
+        alias["fee_bps"] = Value::from((1u64 << 32) + 30);
+        assert_eq!(
+            parse_intent_obj(alias.as_object().unwrap()).unwrap_err(),
+            "intent.fee_bps must fit in a u32"
+        );
+
+        for invalid in [json!(-1), json!(1.5)] {
+            let mut intent = create_pool_intent_json();
+            intent["fee_bps"] = invalid;
+            assert_eq!(
+                parse_intent_obj(intent.as_object().unwrap()).unwrap_err(),
+                "intent.fee_bps missing or invalid"
+            );
         }
     }
 

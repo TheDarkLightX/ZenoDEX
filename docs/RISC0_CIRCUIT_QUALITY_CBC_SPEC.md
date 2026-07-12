@@ -72,13 +72,28 @@ evidence builds use an external target root. Binary `include_bytes!` payloads
 and other non-Rust compiler inputs therefore participate in the source root,
 and attempts to hide inputs under an excluded target tree fail closed.
 
-The V1 outer JSON parser still accepts duplicate keys and its recursive typed
-structs ignore unknown nested fields. Current receipts authenticate the parsed
-typed value, not a canonical outer JSON envelope. Duplicate-key rejection and
-unknown-field rejection therefore remain required before a V1-derived envelope
-can carry production authority. The next recursive ABI should make this
-boundary unrepresentable with strict decoding. `RS-CBC-021` records this as a
-pending critical promotion obligation.
+The V1 state-proof CLI now rejects duplicate object keys recursively before
+typed construction, including escaped-key aliases and embedded application
+state JSON. It also rejects unknown fields in the closed recursive composition,
+descriptor, effect-summary, asset-row, message, and recursive leaf-wrapper
+objects through a CLI-local exact wire validator. This hardening does not
+change guest-visible types, image IDs, journals, or retained receipts.
+
+Current receipts authenticate the parsed typed value rather than canonical
+outer JSON bytes. The mixed Tau request projections and nested Spot, perps, and
+zUSD leaf payloads do not yet have complete versioned exact-field schemas.
+Canonical-byte enforcement and complete nested unknown-field rejection remain
+required before a V1-derived envelope can carry production authority. The next
+recursive ABI should make this boundary unrepresentable with strict decoding.
+`RS-CBC-021` therefore remains a pending critical promotion obligation.
+
+These host CLI changes invalidate the prior V1 current-source verifier replay
+claim because the retained V1 verifier source closure includes the CLI. The CBC
+matrix now requires the exact non-claim
+`no_current_v1_host_verifier_replay_after_host_cli_changes` and validates only
+the unaffected V2 source closure for its scoped current-proof status. Restoring
+the combined V1-and-V2 status requires rebuilding the V1 verifier from the new
+source closure and replaying the retained positive and malformed-proof cases.
 
 The additive ZRPF V3 candidate under `zk/zrpf_protocol` now implements a
 proof-system-neutral, bounded 8-by-8 structural journal nucleus. It provides a

@@ -130,12 +130,14 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "bash -n tools/build_zrpf_v3_firecracker_guest_images.sh" in (python_assurance)
     assert "check_zrpf_v3_firecracker_replay_profile.py --probe-host" not in raw
     assert "--manifest-path zk/recursive_stark_v2_risc0/Cargo.toml" in rust_assurance
+    assert "--manifest-path zk/state_proof_risc0/Cargo.toml" in rust_assurance
+    assert rust_assurance.count("-p tau-state-proof-risc0-cli --all-targets") == 2
     assert rust_assurance.count("-p zenodex-zrpf-risc0-harness") == 2
     assert rust_assurance.count("-p zenodex-zrpf-risc0-semantic-shared") == 4
     assert rust_assurance.count("-p zenodex-zrpf-risc0-value-node-shared") == 2
     assert "--locked --all-targets" in rust_assurance
     assert rust_assurance.count("--no-default-features --test semantic_v2") == 2
-    assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 4
+    assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 5
     assert '"${pinned_bin}/cargo" clippy' not in rust_assurance
     assert "ZENODEX_RUN_NATIVE_ZRPF_REPLAY" not in raw
     assert steps["Checkout full source history"]["uses"] == (
