@@ -31,6 +31,9 @@ The crate currently provides:
   ordinary Spot profile, with one fixed 256-level MSB-first path, nonzero
   siblings, independently derived pre/post roots, and exact equality to one
   `LedgerCellWriteV2`;
+- a `ValidatedSparseMerkleBatchTransitionV1` that chains 1..=64 exact cell
+  witnesses in strictly increasing key order, requires one unique economic
+  action ID per write, and binds the first and final roots;
 - a bounded `ProgramManifestV1` that commits proof backend, program, declared
   build identity inputs, verifier policy, receipt codec, security level, and
   privacy claim;
@@ -78,11 +81,14 @@ The sparse-Merkle witness closes only one cell transition. Its leaf hash binds
 the cell key and value hash, each internal hash binds its root-indexed depth and
 ordered children, and the action ID is checked when the witness is bound to the
 complete `LedgerCellWriteV2`. The validated projection has private fields and
-exposes the two derived roots. It does not authenticate a receipt, admit a
-ledger write, or prove a batch with multiple writes. A future multi-write
-profile must define one canonical multiproof ABI, prove all writes against one
-shared pre-root and post-root, reject duplicate keys, and bind the canonical
-write set without accepting independent single-cell roots as a batch proof.
+exposes the two derived roots. The bounded batch profile composes those
+projections sequentially: each pre-root must equal the preceding post-root, and
+the outer roots must match the first and final witnesses. V1 deliberately
+carries every 256-sibling path and permits one cell write per economic action.
+It does not authenticate a receipt, atomically persist writes, admit a ledger
+transition, or establish a compressed multiproof. A future compression profile
+must define one canonical multiproof ABI, preserve the same key order and root
+result, reject duplicate keys, and bind the complete canonical write set.
 
 The manifest and task objects are canonical proposals. A manifest becomes
 eligible only after a separately governed release policy authorizes its exact

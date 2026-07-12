@@ -58,6 +58,10 @@ name = "sparse_merkle_cell_transition_v1"
 path = "tests/sparse_merkle_cell_transition_v1.rs"
 
 [[test]]
+name = "sparse_merkle_batch_transition_v1"
+path = "tests/sparse_merkle_batch_transition_v1.rs"
+
+[[test]]
 name = "task_manifest_v1"
 path = "tests/task_manifest_v1.rs"
 
