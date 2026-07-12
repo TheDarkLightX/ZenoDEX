@@ -133,7 +133,7 @@ pub fn aggregate_v4_bytes(
         actual_program_id: ProgramIdV3::new([94; 32]).unwrap(),
         node_statement_hash: commitment(95),
         program_manifest_root: commitment(96),
-        commitments: commitments(97),
+        commitments: commitments(97, start),
     })
     .unwrap();
     let first = record(start, start, indexed(60, start), indexed(60, start + 1));
@@ -189,7 +189,7 @@ fn structural_leaf(ordinal: u64, scope: NodeScopeV3) -> NodeJournalV3 {
         actual_program_id: ProgramIdV3::new([11; 32]).unwrap(),
         node_statement_hash: indexed(12, ordinal),
         program_manifest_root: commitment(13),
-        commitments: commitments(14),
+        commitments: commitments(14, ordinal),
     })
     .unwrap()
 }
@@ -266,10 +266,11 @@ fn task(prefix: u8, index: u64) -> TaskIdV3 {
     TaskIdV3::new(indexed(prefix, index).into_bytes()).unwrap()
 }
 
-fn commitments(seed: u8) -> NodeCommitmentsV3 {
+fn commitments(seed: u8, ordinal: u64) -> NodeCommitmentsV3 {
     let root = |field: u8| {
         let mut bytes = [seed.max(1); 32];
         bytes[0] = field.max(1);
+        bytes[24..].copy_from_slice(&ordinal.to_be_bytes());
         CommitmentV3::new(bytes).unwrap()
     };
     NodeCommitmentsV3::new(NodeCommitmentsInputV3 {

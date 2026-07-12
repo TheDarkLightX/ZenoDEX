@@ -1,13 +1,19 @@
-use sha2::{Digest, Sha256};
+#[path = "support/value_aggregate_v5_mirror.rs"]
+mod mirror;
+
 use zenodex_zrpf_protocol_v3::{
     decode_exact_value_aggregate_proposal_v5, encode_value_aggregate_proposal_v5, ApplicationIdV3,
     CommitmentV3, DomainIdV3, NodeScopeInputV3, NodeScopeV3, PartitionV3, ProfileIdV3, ProgramIdV3,
     ProposedValueAggregateV5, SemanticAssetFlowInputV2, SemanticAssetFlowV2,
     SemanticSubtreeInputV2, SemanticSubtreeV2, SemanticValueLeafRecordInputV2,
     SemanticValueLeafRecordV2, TaskIdV3, ValueAggregateChildDescriptorInputV5,
-    ValueAggregateChildDescriptorV5, ValueAggregateErrorV5, ValueAggregateProposalInputV5,
-    MAX_VALUE_AGGREGATE_PROPOSAL_BYTES_V5, VALUE_AGGREGATE_PROPOSAL_VERSION_V5,
+    ValueAggregateChildDescriptorV5, ValueAggregateErrorV5,
+    ValueAggregateOperationalCommitmentsInputV5, ValueAggregateOperationalCommitmentsV5,
+    ValueAggregateProposalInputV5, MAX_VALUE_AGGREGATE_PROPOSAL_BYTES_V5,
+    VALUE_AGGREGATE_PROPOSAL_VERSION_V5,
 };
+
+use mirror::{mirror_descriptor_hash, mirror_proposal, mirror_root};
 
 fn commitment(seed: u8) -> CommitmentV3 {
     CommitmentV3::new([seed.max(1); 32]).unwrap()
@@ -95,6 +101,21 @@ fn child(index: u64, level: u8) -> ValueAggregateChildDescriptorV5 {
         journal_hash: indexed(43, index),
         claim_binding: indexed(44, index),
         semantic_subtree_root: indexed(45, index),
+        operational_commitments: operational(index),
+    })
+    .unwrap()
+}
+
+fn operational(index: u64) -> ValueAggregateOperationalCommitmentsV5 {
+    ValueAggregateOperationalCommitmentsV5::new(ValueAggregateOperationalCommitmentsInputV5 {
+        data_availability_root: indexed(46, index),
+        data_availability_certificate_root: indexed(47, index),
+        conflict_schedule_root: indexed(48, index),
+        cross_lane_outbox_root: indexed(49, index),
+        cross_lane_inbox_root: indexed(50, index),
+        cross_lane_message_ids_root: indexed(51, index),
+        carry_queue_pre_root: indexed(52, index),
+        carry_queue_post_root: indexed(53, index),
     })
     .unwrap()
 }
@@ -232,6 +253,7 @@ fn duplicate_claim_or_journal_rejects_before_proposal_exists() {
             journal_hash: second.journal_hash(),
             claim_binding: first.claim_binding(),
             semantic_subtree_root: second.semantic_subtree_root(),
+            operational_commitments: second.operational_commitments(),
         })
         .unwrap();
     assert_eq!(
@@ -255,6 +277,7 @@ fn duplicate_claim_or_journal_rejects_before_proposal_exists() {
             journal_hash: first.journal_hash(),
             claim_binding: second.claim_binding(),
             semantic_subtree_root: second.semantic_subtree_root(),
+            operational_commitments: second.operational_commitments(),
         })
         .unwrap();
     assert_eq!(
@@ -329,64 +352,4 @@ fn stored_root_substitution_unknown_fields_and_trailing_bytes_reject() {
         ]),
         Err(ValueAggregateErrorV5::InputTooLarge { .. })
     ));
-}
-
-fn mirror_descriptor_hash(child: &ValueAggregateChildDescriptorV5) -> CommitmentV3 {
-    let mut hasher = domain_hasher(b"zenodex.zrpf.value_child_descriptor.v5");
-    hasher.update([child.child_level()]);
-    hasher.update(child.partition().start().to_be_bytes());
-    hasher.update(child.partition().end_exclusive().to_be_bytes());
-    hasher.update(child.verified_program_id().as_bytes());
-    hasher.update(child.proof_profile_id().as_bytes());
-    for value in [
-        child.program_manifest_root(),
-        child.journal_hash(),
-        child.claim_binding(),
-        child.semantic_subtree_root(),
-    ] {
-        hasher.update(value.as_bytes());
-    }
-    CommitmentV3::new(hasher.finalize().into()).unwrap()
-}
-
-fn mirror_root(domain: &[u8], values: &[CommitmentV3]) -> CommitmentV3 {
-    let mut hasher = domain_hasher(domain);
-    hasher.update([u8::try_from(values.len()).unwrap()]);
-    for value in values {
-        hasher.update(value.as_bytes());
-    }
-    CommitmentV3::new(hasher.finalize().into()).unwrap()
-}
-
-fn mirror_proposal(proposal: &ProposedValueAggregateV5) -> CommitmentV3 {
-    let mut hasher = domain_hasher(b"zenodex.zrpf.value_aggregate_proposal.v5");
-    hasher.update(proposal.proposal_version().to_be_bytes());
-    hasher.update([proposal.aggregate_level()]);
-    hasher.update(proposal.scope().canonical_hash().unwrap().as_bytes());
-    hasher.update(
-        proposal
-            .semantic_subtree()
-            .canonical_hash()
-            .unwrap()
-            .as_bytes(),
-    );
-    hasher.update([u8::try_from(proposal.children().len()).unwrap()]);
-    for value in [
-        proposal.child_descriptors_root(),
-        proposal.child_claims_root(),
-        proposal.child_journals_root(),
-        proposal.child_programs_root(),
-        proposal.child_manifests_root(),
-        proposal.dependency_manifest_root(),
-    ] {
-        hasher.update(value.as_bytes());
-    }
-    CommitmentV3::new(hasher.finalize().into()).unwrap()
-}
-
-fn domain_hasher(domain: &[u8]) -> Sha256 {
-    let mut hasher = Sha256::new();
-    hasher.update(u16::try_from(domain.len()).unwrap().to_be_bytes());
-    hasher.update(domain);
-    hasher
 }

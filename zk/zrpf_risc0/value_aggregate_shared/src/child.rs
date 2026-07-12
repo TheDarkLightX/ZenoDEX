@@ -5,6 +5,7 @@ use zenodex_zrpf_protocol_v3::{
     decode_exact_node_journal_v4, decode_exact_value_aggregate_proposal_v5, CommitmentV3,
     NodeKindV3, NodeScopeV3, ProposedValueAggregateV5, SemanticSubtreeV2,
     ValueAggregateChildDescriptorInputV5, ValueAggregateChildDescriptorV5,
+    ValueAggregateOperationalCommitmentsV5,
 };
 use zenodex_zrpf_risc0_shared::derive_risc0_verified_claim_binding_v1;
 
@@ -94,6 +95,10 @@ fn level_one_child(
     let journal_hash = journal
         .canonical_hash()
         .map_err(|_| ValueAggregateRecompositionErrorV5::ChildCommitmentDerivation(index))?;
+    let operational_commitments = ValueAggregateOperationalCommitmentsV5::from_node_commitments_v3(
+        journal.structural().commitments(),
+    )
+    .map_err(|_| ValueAggregateRecompositionErrorV5::ChildCommitmentDerivation(index))?;
     descriptor_from_material(
         index,
         0,
@@ -101,6 +106,7 @@ fn level_one_child(
         bytes,
         journal_hash,
         journal.semantic_subtree().clone(),
+        operational_commitments,
     )
 }
 
@@ -122,6 +128,7 @@ fn level_two_child(
         // identity for this proof-neutral V5 wire.
         proposal.proposal_commitment(),
         proposal.semantic_subtree().clone(),
+        proposal.operational_commitments(),
     )
 }
 
@@ -180,6 +187,7 @@ fn descriptor_from_material(
     bytes: &[u8],
     journal_hash: CommitmentV3,
     subtree: SemanticSubtreeV2,
+    operational_commitments: ValueAggregateOperationalCommitmentsV5,
 ) -> Result<RecompositionChildV5, ValueAggregateRecompositionErrorV5> {
     let claim_binding = derive_risc0_verified_claim_binding_v1(identity.expected_image_id(), bytes)
         .map_err(|_| ValueAggregateRecompositionErrorV5::ClaimBindingDerivation(index))?;
@@ -195,6 +203,7 @@ fn descriptor_from_material(
         journal_hash,
         claim_binding,
         semantic_subtree_root: subtree_root,
+        operational_commitments,
     })?;
     Ok(RecompositionChildV5 {
         descriptor,

@@ -1,7 +1,7 @@
 use serde::{de, Deserialize, Deserializer, Serialize};
 
 use super::hash::child_descriptor_hash_v5;
-use super::ValueAggregateErrorV5;
+use super::{ValueAggregateErrorV5, ValueAggregateOperationalCommitmentsV5};
 use crate::{CommitmentV3, PartitionV3, ProfileIdV3, ProgramIdV3, MAX_NODE_LEVEL_V3};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -14,6 +14,7 @@ pub struct ValueAggregateChildDescriptorInputV5 {
     pub journal_hash: CommitmentV3,
     pub claim_binding: CommitmentV3,
     pub semantic_subtree_root: CommitmentV3,
+    pub operational_commitments: ValueAggregateOperationalCommitmentsV5,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -30,6 +31,7 @@ pub struct ValueAggregateChildDescriptorV5 {
     journal_hash: CommitmentV3,
     claim_binding: CommitmentV3,
     semantic_subtree_root: CommitmentV3,
+    operational_commitments: ValueAggregateOperationalCommitmentsV5,
 }
 
 #[derive(Deserialize)]
@@ -43,6 +45,7 @@ struct ValueAggregateChildDescriptorWireV5 {
     journal_hash: CommitmentV3,
     claim_binding: CommitmentV3,
     semantic_subtree_root: CommitmentV3,
+    operational_commitments: ValueAggregateOperationalCommitmentsV5,
 }
 
 impl ValueAggregateChildDescriptorV5 {
@@ -61,6 +64,7 @@ impl ValueAggregateChildDescriptorV5 {
             journal_hash: input.journal_hash,
             claim_binding: input.claim_binding,
             semantic_subtree_root: input.semantic_subtree_root,
+            operational_commitments: input.operational_commitments,
         };
         descriptor.validate()?;
         Ok(descriptor)
@@ -72,6 +76,7 @@ impl ValueAggregateChildDescriptorV5 {
                 self.child_level,
             ));
         }
+        self.operational_commitments.validate()?;
         Ok(())
     }
 
@@ -111,6 +116,10 @@ impl ValueAggregateChildDescriptorV5 {
     pub const fn semantic_subtree_root(&self) -> CommitmentV3 {
         self.semantic_subtree_root
     }
+
+    pub const fn operational_commitments(&self) -> ValueAggregateOperationalCommitmentsV5 {
+        self.operational_commitments
+    }
 }
 
 impl<'de> Deserialize<'de> for ValueAggregateChildDescriptorV5 {
@@ -128,6 +137,7 @@ impl<'de> Deserialize<'de> for ValueAggregateChildDescriptorV5 {
             journal_hash: wire.journal_hash,
             claim_binding: wire.claim_binding,
             semantic_subtree_root: wire.semantic_subtree_root,
+            operational_commitments: wire.operational_commitments,
         })
         .map_err(de::Error::custom)
     }

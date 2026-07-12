@@ -102,6 +102,10 @@ fn exact_level_two_recomposition_uses_policy_bound_child_identities() {
             descriptor.semantic_subtree_root(),
             child.semantic_subtree().canonical_hash().unwrap()
         );
+        assert_eq!(
+            descriptor.operational_commitments(),
+            child.operational_commitments()
+        );
     }
 }
 

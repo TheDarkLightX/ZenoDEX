@@ -74,6 +74,31 @@ fn exact_level_one_recomposition_derives_every_child_binding() {
             descriptor.semantic_subtree_root(),
             journal.semantic_subtree().canonical_hash().unwrap()
         );
+        let source = journal.structural().commitments().to_input();
+        let actual = descriptor.operational_commitments();
+        assert_eq!(
+            actual.data_availability_root(),
+            source.data_availability_root
+        );
+        assert_eq!(
+            actual.data_availability_certificate_root(),
+            source.data_availability_certificate_root
+        );
+        assert_eq!(
+            actual.conflict_schedule_root(),
+            source.conflict_schedule_hash
+        );
+        assert_eq!(
+            actual.cross_lane_outbox_root(),
+            source.cross_lane_outbox_root
+        );
+        assert_eq!(actual.cross_lane_inbox_root(), source.cross_lane_inbox_root);
+        assert_eq!(
+            actual.cross_lane_message_ids_root(),
+            source.cross_lane_message_ids_root
+        );
+        assert_eq!(actual.carry_queue_pre_root(), source.carry_queue_pre_root);
+        assert_eq!(actual.carry_queue_post_root(), source.carry_queue_post_root);
     }
 }
 
