@@ -1,7 +1,7 @@
 {
   "schema": "zenodex/recursive_stark_cbc_matrix/v1",
   "status": "critical_code_cbc_obligation_matrix",
-  "updated_at": "2026-07-10",
+  "updated_at": "2026-07-11",
   "promotion_boundary": {
     "public_claim_allowed": false,
     "production_ready": false,
@@ -476,17 +476,39 @@
       "id": "RS-CBC-010",
       "title": "Perps recursive rows prove global source finality or stay scoped",
       "severity": "critical",
-      "status": "pending",
-      "defense_layer": "unrepresentable",
+      "status": "implemented_partial",
+      "defense_layer": "guarded_transition",
       "disaster_state": "self-balancing perps rows are interpreted as global collateral conservation",
-      "construction_rule": "introduce external inflow/outflow rows or a chain-balance lane with missing-counterparty negative tests",
-      "code_refs": [],
-      "test_refs": [],
+      "construction_rule": "reject every nonempty V1 perps asset-row set before global conservation; require a V2 one-sided row and exact cross-lane transfer profile before value-moving perps children become admissible",
+      "code_refs": [
+        {
+          "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+          "symbol": "validate_child_asset_source_scope_v1"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+          "symbol": "perps_np_recursive_leaf_derives_init_market_seed_rows"
+        },
+        {
+          "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+          "symbol": "perps_np_recursive_leaf_derives_deposit_rows_without_epoch_floor"
+        },
+        {
+          "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+          "symbol": "perps_np_recursive_leaf_derives_withdraw_rows_without_epoch_floor"
+        },
+        {
+          "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+          "symbol": "perps_np_v1_source_scope_guard_checks_lane_and_profile_independently"
+        }
+      ],
       "external_commands": [
         "cd zk/state_proof_risc0 && cargo test -q -p tau-state-proof-risc0-shared recursive --offline"
       ],
-      "next_action": "design perps source-finality rows and conservation failure tests",
-      "non_claim": "perps recursive rows do not prove global cross-lane collateral source finality"
+      "next_action": "implement the bounded V2 transfer codec plus source and perps guests that derive identical action-bound transfers and one-sided rows, then produce fresh receipt evidence",
+      "non_claim": "V1 nonempty perps rows are now aggregation-inadmissible; no V2 guest or receipt proves global cross-lane collateral source finality"
     },
     {
       "id": "RS-CBC-011",

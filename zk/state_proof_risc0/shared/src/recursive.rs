@@ -354,6 +354,7 @@ pub fn compose_recursive_epoch_journal_v1(
                 "child asset_delta_root mismatch",
             ));
         }
+        validate_child_asset_source_scope_v1(child)?;
         if child.summary.cross_shard_outbox_root
             != recursive_cross_shard_messages_root_v1(&child.outbox_messages)?
         {
@@ -1774,6 +1775,19 @@ fn validate_child_asset_authority_scopes_v1(
     Ok(())
 }
 
+fn validate_child_asset_source_scope_v1(
+    child: &RecursiveChildEffectV1,
+) -> Result<(), TransitionError> {
+    let identifies_perps_v1 = child.summary.lane_kind == "perps_np"
+        || child.summary.proof_profile == RECURSIVE_PERPS_NP_LEAF_PROFILE_V1;
+    if identifies_perps_v1 && !child.asset_delta_rows.is_empty() {
+        return Err(TransitionError::Unsupported(
+            "perps NP v1 asset rows lack cross-lane source finality",
+        ));
+    }
+    Ok(())
+}
+
 fn canonical_asset_delta_rows_v1(
     rows: &[RecursiveAssetDeltaRowV1],
     allowed_authorities: &BTreeSet<[u8; 32]>,
@@ -2312,6 +2326,24 @@ mod tests {
         }
     }
 
+    fn empty_perps_snapshot() -> PerpsNpSnapshotV1 {
+        PerpsNpSnapshotV1 {
+            version: 1,
+            market_id: String::new(),
+            collateral_asset: String::new(),
+            index_price_e8: 0,
+            params: PerpsMarketParamsV1::default(),
+            accounts: Vec::new(),
+            pending_intents: Vec::new(),
+            now_epoch: 0,
+            fee_pool_e8: 0,
+            insurance_e8: 0,
+            insurance_ext_e8: 0,
+            claims_paid_e8: 0,
+            net_deposited_e8: 0,
+        }
+    }
+
     fn perps_snapshot(now_epoch: u64) -> PerpsNpSnapshotV1 {
         let e8 = 100_000_000i128;
         PerpsNpSnapshotV1 {
@@ -2643,6 +2675,71 @@ mod tests {
                 recursive_authority_set_root_v1(&input.allowed_authority_roots).unwrap();
         }
         input
+    }
+
+    // The aggregate guest separately proves that decoded child journal bytes
+    // equal this summary before it calls the shared composition kernel.
+    fn single_child_input_for_summary(
+        summary: RecursiveEffectSummaryV1,
+        rows: Vec<RecursiveAssetDeltaRowV1>,
+    ) -> RecursiveCompositionInputV1 {
+        let mut input = single_child_input_with_rows(rows);
+        let child = &mut input.children[0];
+        child.accepted_receipt_ids.clear();
+        child.rejected_receipt_ids.clear();
+        child.summary = summary;
+        child.descriptor.child_effect_summary_hash =
+            recursive_effect_summary_hash_v1(&child.summary);
+        child.descriptor.child_statement_hash = child.summary.statement_hash;
+        child.descriptor.child_image_id = child.summary.risc0_image_id;
+        child.descriptor.child_profile = child.summary.proof_profile.clone();
+        child.descriptor.child_verification_claim_hash =
+            recursive_child_verification_claim_hash_v1(
+                &child.summary.risc0_image_id,
+                &child.child_journal_bytes,
+            )
+            .unwrap();
+        child.descriptor.child_verifier_id = recursive_child_verifier_id_v1(
+            &child.summary.risc0_image_id,
+            &child.summary.proof_profile,
+        )
+        .unwrap();
+        input.allowed_verifier_ids = alloc::vec![child.descriptor.child_verifier_id];
+        input.statement.verifier_set_root =
+            recursive_verifier_set_root_v1(&input.allowed_verifier_ids).unwrap();
+        input.statement.expected_pre_state_root = recursive_lane_state_vector_root_v1(
+            b"zenodex.risc0.recursive.pre_state_vector_root.v1",
+            &[(child.summary.lane_id.clone(), child.summary.pre_state_root)],
+        )
+        .unwrap();
+        input.statement.expected_post_state_root = recursive_lane_state_vector_root_v1(
+            b"zenodex.risc0.recursive.post_state_vector_root.v1",
+            &[(child.summary.lane_id.clone(), child.summary.post_state_root)],
+        )
+        .unwrap();
+        input
+    }
+
+    fn assert_perps_v1_rows_are_local_only(
+        summary: RecursiveEffectSummaryV1,
+        rows: Vec<RecursiveAssetDeltaRowV1>,
+        expected: (&str, u128, u128),
+    ) {
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].asset_id, expected.0);
+        assert_eq!(rows[0].debit_atoms, expected.1);
+        assert_eq!(rows[0].credit_atoms, expected.2);
+        assert_eq!(
+            summary.asset_delta_root,
+            recursive_asset_delta_root_v1(&rows).unwrap()
+        );
+        let aggregate = single_child_input_for_summary(summary, rows);
+        assert!(matches!(
+            compose_recursive_epoch_journal_v1(&aggregate),
+            Err(TransitionError::Unsupported(
+                "perps NP v1 asset rows lack cross-lane source finality"
+            ))
+        ));
     }
 
     #[test]
@@ -3176,25 +3273,40 @@ mod tests {
             recursive_asset_delta_root_v1(&rows).unwrap()
         );
         assert!(rows.is_empty());
+        let aggregate = single_child_input_for_summary(summary, rows);
+        compose_recursive_epoch_journal_v1(&aggregate).unwrap();
+    }
+
+    #[test]
+    fn perps_np_v1_source_scope_guard_checks_lane_and_profile_independently() {
+        let rows = alloc::vec![asset_row("USDC", 1, 1)];
+        let base = child("lane-a", 21, 31, rows, Vec::new(), Vec::new(), Vec::new());
+
+        let mut lane_labeled = base.clone();
+        lane_labeled.summary.lane_kind = "perps_np".to_string();
+        assert!(matches!(
+            validate_child_asset_source_scope_v1(&lane_labeled),
+            Err(TransitionError::Unsupported(
+                "perps NP v1 asset rows lack cross-lane source finality"
+            ))
+        ));
+
+        let mut profile_labeled = base;
+        profile_labeled.summary.proof_profile = RECURSIVE_PERPS_NP_LEAF_PROFILE_V1.to_string();
+        assert!(matches!(
+            validate_child_asset_source_scope_v1(&profile_labeled),
+            Err(TransitionError::Unsupported(
+                "perps NP v1 asset rows lack cross-lane source finality"
+            ))
+        ));
+
+        profile_labeled.asset_delta_rows.clear();
+        validate_child_asset_source_scope_v1(&profile_labeled).unwrap();
     }
 
     #[test]
     fn perps_np_recursive_leaf_derives_init_market_seed_rows() {
-        let pre_state = PerpsNpSnapshotV1 {
-            version: 1,
-            market_id: String::new(),
-            collateral_asset: String::new(),
-            index_price_e8: 0,
-            params: PerpsMarketParamsV1::default(),
-            accounts: Vec::new(),
-            pending_intents: Vec::new(),
-            now_epoch: 0,
-            fee_pool_e8: 0,
-            insurance_e8: 0,
-            insurance_ext_e8: 0,
-            claims_paid_e8: 0,
-            net_deposited_e8: 0,
-        };
+        let pre_state = empty_perps_snapshot();
         let post_state = PerpsNpSnapshotV1 {
             version: 1,
             market_id: "ETH-PERP".to_string(),
@@ -3240,16 +3352,7 @@ mod tests {
         };
         let rows = perps_np_recursive_leaf_asset_delta_rows_v1(&input.perps_input).unwrap();
         let summary = compose_perps_np_recursive_leaf_summary_v1(input).unwrap();
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].asset_id, "USDC");
-        assert_eq!(rows[0].debit_atoms, 19);
-        assert_eq!(rows[0].credit_atoms, 19);
-        let aggregate = single_child_input_with_rows(rows.clone());
-        compose_recursive_epoch_journal_v1(&aggregate).unwrap();
-        assert_eq!(
-            summary.asset_delta_root,
-            recursive_asset_delta_root_v1(&rows).unwrap()
-        );
+        assert_perps_v1_rows_are_local_only(summary, rows, ("USDC", 19, 19));
     }
 
     #[test]
@@ -3291,16 +3394,7 @@ mod tests {
         };
         let rows = perps_np_recursive_leaf_asset_delta_rows_v1(&input.perps_input).unwrap();
         let summary = compose_perps_np_recursive_leaf_summary_v1(input).unwrap();
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].asset_id, "USDC");
-        assert_eq!(rows[0].debit_atoms, (3 * e8) as u128);
-        assert_eq!(rows[0].credit_atoms, (3 * e8) as u128);
-        let aggregate = single_child_input_with_rows(rows.clone());
-        compose_recursive_epoch_journal_v1(&aggregate).unwrap();
-        assert_eq!(
-            summary.asset_delta_root,
-            recursive_asset_delta_root_v1(&rows).unwrap()
-        );
+        assert_perps_v1_rows_are_local_only(summary, rows, ("USDC", 300_000_000, 300_000_000));
     }
 
     #[test]
@@ -3341,16 +3435,7 @@ mod tests {
         };
         let rows = perps_np_recursive_leaf_asset_delta_rows_v1(&input.perps_input).unwrap();
         let summary = compose_perps_np_recursive_leaf_summary_v1(input).unwrap();
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].asset_id, "USDC");
-        assert_eq!(rows[0].debit_atoms, (2 * e8) as u128);
-        assert_eq!(rows[0].credit_atoms, (2 * e8) as u128);
-        let aggregate = single_child_input_with_rows(rows.clone());
-        compose_recursive_epoch_journal_v1(&aggregate).unwrap();
-        assert_eq!(
-            summary.asset_delta_root,
-            recursive_asset_delta_root_v1(&rows).unwrap()
-        );
+        assert_perps_v1_rows_are_local_only(summary, rows, ("USDC", 200_000_000, 200_000_000));
     }
 
     #[test]

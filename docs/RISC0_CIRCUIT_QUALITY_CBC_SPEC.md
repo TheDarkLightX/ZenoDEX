@@ -601,14 +601,18 @@ checked perps receipt root. Recursive accepted/rejected receipt ID sets,
 cross-shard message sets are empty in v1. For lifecycle accounting, the leaf
 derives self-balancing local rows for `InitMarket`, `DepositCollateral`, and
 `WithdrawCollateral`. These rows bind local transition amounts and do not prove
-an external collateral source or destination. `SubmitIntent` and
-`RunEpoch` emit no external asset rows in the current Rust transition language;
-the four-participant floor is scoped to `RunEpoch`. The CLI metadata must expose
-the exact rows and their recomputed root must equal the journal
-`asset_delta_root`. This profile proves checked local perps NP lifecycle and
-epoch transitions under the existing perps surface. It does not claim cross-shard
-collateral movement, native ledger source finality, zUSD collateral source
-verification beyond hash-bound references, or oracle truth.
+an external collateral source or destination. The V1 aggregate source rejects
+every nonempty asset-row set identified by either the perps lane kind or the
+perps V1 proof profile before global conservation. An empty-row `RunEpoch`
+child remains admissible. `SubmitIntent` and `RunEpoch` emit no external asset
+rows in the current Rust transition language; the four-participant floor is
+scoped to `RunEpoch`. The CLI metadata must expose the exact rows and their
+recomputed root must equal the journal `asset_delta_root`. This profile proves
+checked local perps NP lifecycle and epoch transitions under the existing perps
+surface. It does not claim cross-shard collateral movement, native ledger
+source finality, zUSD collateral source verification beyond hash-bound
+references, or oracle truth. The aggregate source change requires a fresh
+aggregate image ID and receipt evidence before any proof-backed promotion.
 
 Repeatable local smoke path:
 

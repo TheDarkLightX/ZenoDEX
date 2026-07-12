@@ -76,53 +76,10 @@ PERMITTED_DISPOSITION_KEYS: frozenset[DispositionKey] = frozenset(
         ("RUSTSEC-2023-0071", "rsa", "0.9.10"),
         ("RUSTSEC-2025-0055", "tracing-subscriber", "0.2.25"),
     )
-) | frozenset(
-    {
-        (
-            "state_proof_risc0",
-            "unsound",
-            "RUSTSEC-2026-0190",
-            "anyhow",
-            "1.0.100",
-        ),
-        (
-            "recursive_stark_v2_risc0",
-            "unsound",
-            "RUSTSEC-2026-0190",
-            "anyhow",
-            "1.0.102",
-        ),
-    }
 )
 KNOWN_WARNING_CATEGORIES = frozenset({"unmaintained", "unsound", "yanked"})
 DENIED_WARNING_CATEGORIES = frozenset({"unsound", "yanked"})
-UNSOUND_BOUNDARIES: Mapping[str, UnsoundBoundary] = {
-    "state_proof_risc0": UnsoundBoundary(
-        lockfile_sha256=(
-            "f7d854a75aea4d9626719587bb8870d67a7891c9dfb93a28842df09bf934c4b1"
-        ),
-        reference_path="config/proof_profiles/risc0_recursive_rebuild_reference.json",
-        reference_file_sha256=(
-            "ab6d7e6752d120571c14a76ef981f789179b25a4a989687edd04574cd1740283"
-        ),
-        source_roots=("zk/state_proof_risc0",),
-    ),
-    "recursive_stark_v2_risc0": UnsoundBoundary(
-        lockfile_sha256=(
-            "8fb6d7f66790920e44278d56e33cff1c344dd15ca6c3f96f4abf2a727a7e9f23"
-        ),
-        reference_path=(
-            "config/proof_profiles/risc0_recursive_v2_rebuild_reference.json"
-        ),
-        reference_file_sha256=(
-            "fe044c8fdef2f8e32e788c8d8d07bf2b82a77666bfb186f86e43f827db0dffec"
-        ),
-        source_roots=(
-            "zk/recursive_stark_v2_risc0",
-            "zk/state_proof_risc0/shared",
-        ),
-    ),
-}
+UNSOUND_BOUNDARIES: Mapping[str, UnsoundBoundary] = {}
 POLICY_FIELDS = frozenset(
     {
         "cargo_audit_version",

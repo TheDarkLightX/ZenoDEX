@@ -2,26 +2,27 @@
 
 Date: 2026-07-11
 
-Status: normative for experimental retained-receipt verification only
+Status: historical for source-pinned retained-receipt verification; current
+source uses patched `anyhow 1.0.103`
 
 ## Decision
 
-The V1 state-proof workspace retains `anyhow 1.0.100`. The recursive-v2
-workspace retains `anyhow 1.0.102`. Both workspaces update `quinn-proto` from
-`0.11.14` to `0.11.15`.
+The historical V1 state-proof identity retained `anyhow 1.0.100`, and the
+historical recursive-v2 identity retained `anyhow 1.0.102`. Those exact
+exceptions remain relevant only when verifying their source-pinned retained
+artifacts.
 
-This is an exact, bounded exception for two historical guest identities. It
-does not authorize either affected `anyhow` version for new proof-generation,
-release, settlement, or production profiles.
+The current source changes perps aggregation behavior, updates both workspaces
+to `anyhow 1.0.103`, and removes both unsoundness dispositions. Historical
+program and receipt identities are therefore pre-change evidence. They cannot
+authorize a current-source proof claim.
 
 The governing machine-readable policy is
 `config/proof_profiles/risc0_dependency_audit_policy_v2.json`, SHA-256
-`f4d1aa8bcd7fb19fe983ba797eb9cca5e273831d1418ef26c2f53640ac3d03ae`.
+`8151b95fce9764e26da463d0a2a6ca2bb75b7495debf6686dfae159611cceb81`.
 The checker rejects other workspace, category, advisory, package, or version
-combinations and rejects unused dispositions. It also binds the exact lockfile
-and rebuild-reference bytes, recomputes every referenced current source-file
-identity and source-closure root, and rejects an affected `downcast_mut` token
-in the governed repository source.
+combinations and rejects unused dispositions. The historical policy SHA-256
+was `f4d1aa8bcd7fb19fe983ba797eb9cca5e273831d1418ef26c2f53640ac3d03ae`.
 
 ## Advisory
 
@@ -54,17 +55,17 @@ Two isolated counterfactual rebuilds separated the dependencies:
 | V1 state proof | `1.0.100` | `0.11.15` | all six program bytes and image IDs matched the retained reference |
 | recursive v2 | `1.0.102` | `0.11.15` | program, raw ELF, image ID, and both verifier outputs matched the retained reference |
 
-The current lock identities are:
+The current source lock identities are:
 
 ```text
 state_proof_risc0 Cargo.lock
-f7d854a75aea4d9626719587bb8870d67a7891c9dfb93a28842df09bf934c4b1
+d30f07417921c475d99826eb10a45c17ec059c88b53c3f835702f27b509442ba
 
 recursive_stark_v2_risc0 Cargo.lock
-8fb6d7f66790920e44278d56e33cff1c344dd15ca6c3f96f4abf2a727a7e9f23
+45cd06efebd2a989b7a1061e4958a45520cec388fe0ac9f8987c16fe9a5fef64
 ```
 
-The refreshed source closures are:
+The historical retained-identity source closures were:
 
 ```text
 V1
@@ -80,10 +81,14 @@ The canonical-path recursive-v2 clean-rebuild report is:
 a366d6e0d00f963c061cd7c9be9bbc531d6502f49950834f4297b773db05aeb1
 ```
 
+Current post-guard source closures and guest images remain pending. The CBC
+checker rejects the historical closure identities against current source.
+
 ## Reachability Review
 
-The affected package remains dependency-reachable through RISC0 3.0.5 guest
-and host crates. Package reachability therefore remains true.
+For the historical retained identities, the affected package was
+dependency-reachable through RISC0 3.0.5 guest and host crates. Historical
+package reachability therefore remains true.
 
 The scoped function review found:
 
@@ -100,12 +105,14 @@ For recursive v2, the compiler-input scan covered 3,843 Rust files. Its only
 `anyhow` occurrence was the affected method definition inside the pinned
 `anyhow` source. Other `downcast_mut` strings belonged to unrelated APIs.
 
-This is bounded non-reachability evidence for the affected function in the
-retained binaries. It is not a general proof that the dependency graph is safe.
+This is historical bounded non-reachability evidence for the affected function
+in the retained binaries. Current source no longer needs that exception. It is
+not a general proof that the dependency graph is safe.
 
 ## Promotion Boundary
 
-The disposition is acceptable only while every condition below remains true:
+The historical disposition is acceptable only when replaying the exact
+source-pinned retained artifacts and every condition below remains true:
 
 ```text
 workspace identity is exact
@@ -120,9 +127,9 @@ settlement_authority == false
 new_proof_generation_authority == false
 ```
 
-Any new guest, source behavior, image ID, receipt generation, production claim,
-or affected-function reachability requires `anyhow >= 1.0.103` and regenerated
-proof evidence.
+Current source satisfies the `anyhow >= 1.0.103` requirement. Any new guest,
+image ID, receipt, or proof claim still requires regenerated source and proof
+evidence.
 
 ## Commands Executed
 
@@ -130,6 +137,8 @@ proof evidence.
 cargo audit --version
 cargo audit --json --no-fetch --file <workspace>/Cargo.lock
 cargo update -p anyhow --precise <retained-version> --offline
+cargo update -p anyhow@1.0.100 --precise 1.0.103 --offline
+cargo update -p anyhow@1.0.102 --precise 1.0.103 --offline
 python3 tools/check_risc0_recursive_rebuild_evidence.py ...
 python3 tools/check_risc0_recursive_v2_rebuild_evidence.py ...
 nm -C <guest-or-verifier>

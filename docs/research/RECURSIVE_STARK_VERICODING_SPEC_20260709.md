@@ -1,9 +1,9 @@
 # Recursive STARK Vericoding Spec
 
-Date: 2026-07-09
-Status: post-composition-repair current-image local recursive proofs and one
-current-source exact retained V3 host-verifier replay verified; release and
-production pending
+Date: 2026-07-11
+Status: perps V1 source-finality scope guard implemented in source; replacement
+guest images and recursive proof evidence pending; release and production
+pending
 
 Related artifacts:
 
@@ -36,6 +36,17 @@ when the corresponding code, test, proof, replay, or checker exists and is
 referenced from the CBC matrix.
 
 Current status:
+
+- On 2026-07-11, the V1 aggregate source added a fail-closed scope guard that
+  rejects every nonempty asset-row set identified by either the perps lane kind
+  or the V1 perps proof profile. This changes guest-linked shared source. All
+  previously pinned V1 program identities, V2 registry closures, and recursive
+  receipts are pre-guard evidence on this branch and cannot establish a
+  current-source proof claim. The promoted source-closure checker must remain
+  rejected until the affected images are rebuilt and fresh receipts verify.
+  The retained-image dependency disposition also requires any new proof
+  generation profile to upgrade to `anyhow >= 1.0.103`; the historical
+  exception cannot authorize this rebuild.
 
 - On 2026-07-10, adversarial fanout tests found and repaired receipt-ID merge
   ordering, host verified-facts ordering, repeated-verifier-set construction,
@@ -808,17 +819,20 @@ Persona: perps engineer.
 
 ```gherkin
 Given perps recursive rows are currently self-balancing
-When an aggregate root includes perps collateral movement
-Then the aggregate may claim local perps transition row-root binding
-And it must not claim global cross-lane collateral source finality
-Until explicit external inflow/outflow rows or a chain-balance lane exist
+When a V1 aggregate root includes nonempty perps asset rows
+Then the aggregate rejects them before global asset conservation
+And an empty-row perps RunEpoch child remains admissible
+And global cross-lane collateral source finality remains unclaimed
+Until V2 one-sided rows and exact authenticated counterparty transfers exist
 ```
 
 Acceptance evidence:
 
-- SMT counterexample or bounded model showing self-balancing rows are
-  insufficient for global source finality.
-- New row design with missing-counterparty negative tests before promotion.
+- Seed, deposit, and withdrawal missing-counterparty rejection tests.
+- Independent lane-kind and proof-profile guard tests.
+- `docs/research/ZRPF_PERPS_SOURCE_FINALITY_V2_SPEC_20260711.md` defines the
+  one-sided row and action-bound transfer construction required for V2.
+- Fresh V2 source and perps receipts remain required before promotion.
 
 ### Story 7: DA Root Does Not Become False Authority
 
@@ -885,7 +899,7 @@ Acceptance evidence:
 | 3 | Add property tests for recursive composition | deterministic generated corpus |
 | 4 | Add malformed request fuzzing | minimized regression corpus |
 | 5 | Complete bounded lane: exact-once and conservation SMT models | SAT/UNSAT reports |
-| 6 | Add perps source-finality row design | missing-counterparty negative tests |
+| 6 | Partial: reject V1 perps value rows and define the V2 source-finality profile | missing-counterparty negative tests; V2 receipts pending |
 | 7 | Add zUSD full lifecycle row extractors | lifecycle row tests |
 | 8 | Complete: receipt kind/profile policy | receipt-kind mismatch tests |
 | 9 | Complete: current-image one-level and fixed-height two-level local proof smokes on pinned RISC0 3.0.5 | pinned proof hashes, negative transcripts, and pair-verifier report |
