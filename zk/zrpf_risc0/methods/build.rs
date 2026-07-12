@@ -33,6 +33,8 @@ pub const ZENODEX_ZRPF_RISC0_VALUE_AGGREGATE_L1_ELF: &[u8] = &[];
 pub const ZENODEX_ZRPF_RISC0_VALUE_AGGREGATE_L1_ID: [u32; 8] = [0; 8];
 pub const ZENODEX_ZRPF_RISC0_VALUE_AGGREGATE_L2_ELF: &[u8] = &[];
 pub const ZENODEX_ZRPF_RISC0_VALUE_AGGREGATE_L2_ID: [u32; 8] = [0; 8];
+pub const ZENODEX_ZRPF_RISC0_ORDINARY_SPOT_SETTLEMENT_ELF: &[u8] = &[];
+pub const ZENODEX_ZRPF_RISC0_ORDINARY_SPOT_SETTLEMENT_ID: [u32; 8] = [0; 8];
 "#;
     fs::write(methods_rs, stub).expect("write placeholder methods.rs");
 }

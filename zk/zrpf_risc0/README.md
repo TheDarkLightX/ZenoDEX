@@ -249,11 +249,23 @@ throughput, or production authority.
   and deterministic parent composition;
 - `value_node_shared`: bounded proof-neutral Spot value-leaf input codec,
   backend identity derivation, and deterministic V4 leaf proposal;
+- `value_aggregate_shared`: proof-neutral Value Aggregate V5 proposal codecs
+  and strict composition;
+- `value_aggregate_l2_policy`: guest-safe exact L2 child-image policy;
+- `value_aggregate_root_policy`: settlement-only governed Value Aggregate V5
+  L2 image identity, excluded from the L2 compiler dependency closure;
+- `semantic_shared`: proof-neutral state-bound ordinary Spot certificate
+  input, validation, and composition;
 - `methods/v1_leaf_adapter`: receipt-authenticated compatibility guest;
 - `methods/spot_value_leaf_v4`: verifies one exact pinned adapter receipt before
   interpreting its semantic witness and committing `NodeJournalV4`;
 - `methods/structural_aggregate_l1`: adapter-to-level-one guest;
 - `methods/structural_aggregate_l2`: level-one-to-level-two guest;
+- `methods/value_aggregate_l1`: value-leaf-to-level-one guest;
+- `methods/value_aggregate_l2`: level-one-to-Value-Aggregate-V5 guest;
+- `methods/ordinary_spot_settlement`: verifies the exact governed V5 L2
+  proposal assumption before interpretation, then commits only canonical
+  `SettlementEpochCertificateV1` bytes;
 - `methods`: generated ELF and image-ID constants;
 - `verifier`: sealed host receipt-verification boundary, including distinct
   authenticated and exact-expected V4 Spot leaf typestates;
