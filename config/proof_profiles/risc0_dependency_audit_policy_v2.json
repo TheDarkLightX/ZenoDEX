@@ -40,7 +40,7 @@
       "no_secret_input": true,
       "package": "anyhow",
       "production_authority": false,
-      "reference_file_sha256": "ab6d7e6752d120571c14a76ef981f789179b25a4a989687edd04574cd1740283",
+      "reference_file_sha256": "4ef21863bd50c2a94b0ebbdb97b7be0d27e059cd747307be7e5c6c58e8ca7966",
       "reference_path": "config/proof_profiles/risc0_recursive_rebuild_reference.json",
       "reachability": "The affected anyhow::Error::downcast_mut function has no caller in the exact compiler-input scan and no linked symbol or string in the retained V1 guest programs or rebuilt verifier. This exception preserves byte-pinned historical guest identities for experimental retained-receipt verification only and cannot authorize new proofs, settlement, release, or production.",
       "retained_identity_only": true,

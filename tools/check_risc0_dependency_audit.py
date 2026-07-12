@@ -103,7 +103,7 @@ UNSOUND_BOUNDARIES: Mapping[str, UnsoundBoundary] = {
         ),
         reference_path="config/proof_profiles/risc0_recursive_rebuild_reference.json",
         reference_file_sha256=(
-            "ab6d7e6752d120571c14a76ef981f789179b25a4a989687edd04574cd1740283"
+            "4ef21863bd50c2a94b0ebbdb97b7be0d27e059cd747307be7e5c6c58e8ca7966"
         ),
         source_roots=("zk/state_proof_risc0",),
     ),

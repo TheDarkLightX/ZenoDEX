@@ -5,7 +5,7 @@
   "promotion_boundary": {
     "public_claim_allowed": false,
     "production_ready": false,
-    "claim_status": "v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified_v1_current_host_replay_pending",
+    "claim_status": "v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified_v1_governed_host_replay_evidence_pending",
     "non_claims": [
       "no_production_ready_recursive_starks",
       "no_full_zk_execution_for_all_value_moving_surfaces",
@@ -32,7 +32,7 @@
       "no_complete_v3_semantic_composition",
       "no_fresh_zrpf_semantic_v2_receipt_evidence",
       "no_generic_v4_runtime_identity_authority",
-      "no_current_v1_host_verifier_replay_after_host_cli_changes",
+      "no_governed_current_v1_host_replay_evidence_after_host_cli_changes",
       "no_zrpf_16x4_profile"
     ]
   },
@@ -738,8 +738,8 @@
         "python3 tools/check_risc0_recursive_v2_same_profile_two_spot_evidence.py --baseline-spot-leaf <SPOT_A> --distinct-spot-leaf <SPOT_B> --duplicate-source-alias-leaf <SPOT_ALIAS> --inner-artifact <SAME_PROFILE_INNER> --root-artifact <SAME_PROFILE_ROOT> --release-harness <HARNESS> --two-leaf-verifier <TWO_LEAF_VERIFIER> --json",
         "python3 tools/check_recursive_stark_replay_bundle.py <bundle> --expected-manifest-sha256 <sha256>"
       ],
-      "next_action": "rebuild the strict-ingress, single-verification V1 host from its governed source closure and replay both the retained positive receipt and malformed-proof rejection before restoring the combined V1-plus-V2 status; preserve and replay the fe131b V2 one-leaf, heterogeneous fanout-two, and same-profile fanout-two pairs before broader fanout promotion",
-      "non_claim": "current V2 RISC0 3.0.5 one-leaf, source-frozen spot-plus-zUSD fanout-two, and same-profile distinct-statement spot fanout-two evidence remains source-closure checked; the hardened V1 host has Rust tests for strict ingress and exactly-once receipt authentication but no fresh current-host V1 receipt or malformed-proof replay, so the prior combined V1-plus-V2 current-host status is withheld; this evidence does not establish a promoted general multi-leaf profile, nonempty receipt-set witness coverage, public replay, cross-host or reproducible-release evidence, settlement or ledger-admission authority, privacy, or production readiness"
+      "next_action": "persist a bounded current-host execution record and require an executable checker to run the exact source-built static V1 verifier against the retained positive and one-bit malformed requests before restoring the combined V1-plus-V2 status; preserve and replay the fe131b V2 one-leaf, heterogeneous fanout-two, and same-profile fanout-two pairs before broader fanout promotion",
+      "non_claim": "current V2 RISC0 3.0.5 one-leaf, source-frozen spot-plus-zUSD fanout-two, and same-profile distinct-statement spot fanout-two evidence remains source-closure checked; the hardened V1 source closure and static verifier are byte-pinned and one local run reproduced the retained positive transcript and exact cryptographic-invalid response, while the committed checker does not execute the verifier or authenticate that run's provenance, so the prior combined V1-plus-V2 current-host status remains withheld; this evidence does not establish a promoted general multi-leaf profile, nonempty receipt-set witness coverage, public replay, cross-host or reproducible-release evidence, settlement or ledger-admission authority, privacy, or production readiness"
     },
     {
       "id": "RS-CBC-015",

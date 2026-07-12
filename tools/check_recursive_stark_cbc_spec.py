@@ -235,10 +235,10 @@ FULL_CURRENT_PROOF_CLAIM_STATUS = (
 )
 V1_HOST_REPLAY_PENDING_CLAIM_STATUS = (
     "v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified_"
-    "v1_current_host_replay_pending"
+    "v1_governed_host_replay_evidence_pending"
 )
 V1_HOST_REPLAY_PENDING_NON_CLAIM = (
-    "no_current_v1_host_verifier_replay_after_host_cli_changes"
+    "no_governed_current_v1_host_replay_evidence_after_host_cli_changes"
 )
 
 

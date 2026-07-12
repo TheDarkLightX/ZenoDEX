@@ -92,13 +92,24 @@ required before a V1-derived envelope can carry production authority. The next
 recursive ABI should make this boundary unrepresentable with strict decoding.
 `RS-CBC-021` therefore remains a pending critical promotion obligation.
 
-These host CLI changes invalidate the prior V1 current-source verifier replay
-claim because the retained V1 verifier source closure includes the CLI. The CBC
-matrix now requires the exact non-claim
-`no_current_v1_host_verifier_replay_after_host_cli_changes` and validates only
-the unaffected V2 source closure for its scoped current-proof status. Restoring
-the combined V1-and-V2 status requires rebuilding the V1 verifier from the new
-source closure and replaying the retained positive and malformed-proof cases.
+These host CLI changes invalidated the prior V1 current-source verifier replay
+claim because the retained V1 verifier source closure includes the CLI. A
+subsequent local pinned-toolchain rebuild produced the exact 30-file source
+root `81f5dc170de45306b7427f8379ea23add429f5c6325a06c0bb4fa6c4315f78bf`
+and static PIE verifier
+`8836f22431e2ce241eec9e6503f741b92673e2fec054208b0c36dea4f1bcf146`.
+That binary reproduced the retained positive transcript and the exact
+cryptographic-invalid response for the one-bit seal mutation with empty
+stderr and process exit code zero.
+
+The committed artifact checker validates the pinned bytes and mutation shape;
+it does not execute the verifier or authenticate the local run's provenance.
+The CBC matrix therefore requires the exact non-claim
+`no_governed_current_v1_host_replay_evidence_after_host_cli_changes` and
+validates only the unaffected V2 source closure for its scoped current-proof
+status. Restoring the combined V1-and-V2 status requires a bounded execution
+record plus an executable checker that runs the exact source-built verifier
+against both retained requests.
 
 The additive ZRPF V3 candidate under `zk/zrpf_protocol` now implements a
 proof-system-neutral, bounded 8-by-8 structural journal nucleus. It provides a
