@@ -253,6 +253,18 @@ impl NodeScopeV3 {
         CommitmentV3::new(hasher.finalize().into())
     }
 
+    pub const fn epoch_start(&self) -> u64 {
+        self.epoch_start
+    }
+
+    pub const fn epoch_end(&self) -> u64 {
+        self.epoch_end
+    }
+
+    pub const fn public_policy_hash(&self) -> CommitmentV3 {
+        self.public_policy_hash
+    }
+
     fn update_hasher(&self, hasher: &mut Sha256) {
         write_bytes32(hasher, self.application_id.as_bytes());
         write_bytes32(hasher, self.chain_or_domain_id.as_bytes());

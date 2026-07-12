@@ -3551,6 +3551,7 @@ name = "zenodex-zrpf-risc0-semantic-shared"
 version = "0.1.0"
 dependencies = [
  "postcard",
+ "sha2",
  "tau-state-proof-risc0-shared",
  "zenodex-zrpf-protocol-v3",
  "zenodex-zrpf-risc0-aggregate-shared",
