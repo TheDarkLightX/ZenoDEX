@@ -10,6 +10,7 @@ mod settlement_effect_v2;
 mod task_manifest_v1;
 mod value_aggregate_v5;
 mod value_node_v4;
+mod value_transfer_v2;
 
 pub use economic_action_v1::*;
 pub use semantic_epoch_v1::*;
@@ -19,6 +20,7 @@ pub use settlement_effect_v2::*;
 pub use task_manifest_v1::*;
 pub use value_aggregate_v5::*;
 pub use value_node_v4::*;
+pub use value_transfer_v2::*;
 
 use alloc::vec::Vec;
 use core::fmt;

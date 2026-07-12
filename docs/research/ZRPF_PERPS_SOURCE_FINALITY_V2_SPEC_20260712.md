@@ -2,8 +2,8 @@
 
 Date: 2026-07-12
 
-Status: V1 aggregate scope guard implemented; V2 transfer object and proof path
-pending
+Status: V1 aggregate scope guard and proof-neutral V2 transfer ABI implemented;
+authenticated source/perps proof path pending
 
 ## Disaster state
 
@@ -37,15 +37,17 @@ Both identifiers are checked independently so a one-field relabel cannot admit
 the rows. A perps RunEpoch child with no external asset rows remains eligible
 for its existing local transition claim.
 
-## Required V2 transfer object
+## Implemented proof-neutral V2 transfer object
 
 ```text
-RecursiveValueTransferV2 {
+ValueTransferV2 {
     version,
+    application_id,
+    chain_or_domain_id,
     epoch_id,
     action_index,
     action_hash,
-    direction,
+    kind,
     source_lane_id,
     destination_lane_id,
     asset_id,
@@ -59,9 +61,23 @@ RecursiveValueTransferV2 {
 ```
 
 The transfer ID is a fixed-width domain-separated hash of every field. Source
-and destination guests must derive the identical object from their own checked
-transitions. Hosts may supply bounded bytes; they cannot select the resulting
-identity.
+and destination guests must eventually derive the identical object from their
+own checked transitions.
+
+The implemented `ValueTransferV2` and `ValueTransferSetV2` layer currently
+establishes:
+
+- exact bounded Postcard decoding;
+- stable numeric transfer-kind tags;
+- nonzero amount, distinct lanes, bounded action index, and valid deadline;
+- one application, domain, and epoch per set;
+- canonical ordering by transfer ID;
+- unique transfer IDs and unique `(kind, action_index, action_hash)` bindings;
+- canonical transfer, source-claim, and source-transition roots.
+
+This layer is proof-neutral. A host can propose every input field. Receipt
+authentication and source-transition derivation remain obligations of the
+future source and destination guests and their sealed verifier.
 
 ## One-sided accounting
 
@@ -99,11 +115,11 @@ route, scope, source transition, receipt claim, amount, and deadline.
 
 ## Explicit non-claims
 
-The V1 guard supplies no V2 transfer codec, source guest, perps guest, image ID,
-receipt, source finality, transfer finality, durable admission, complete perps
-fee/funding/insurance/liquidation coverage, release authority, privacy,
-throughput, or production authority.
+The V1 guard and V2 protocol ABI supply no source guest, perps guest, image ID,
+receipt, authenticated source derivation, source finality, transfer finality,
+durable admission, complete perps fee/funding/insurance/liquidation coverage,
+release authority, privacy, throughput, or production authority.
 
-The next executable step is a bounded `RecursiveValueTransferV2` codec plus
-pure derivation references for seed, deposit, and withdrawal. Promotion then
-requires separate source and perps guests and fresh cross-receipt evidence.
+The next executable step is a pure derivation reference for seed, deposit, and
+withdrawal, followed by separate source and perps guests and fresh cross-receipt
+evidence.

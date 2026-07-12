@@ -30,6 +30,10 @@ name = "value_aggregate_v5"
 path = "tests/value_aggregate_v5.rs"
 
 [[test]]
+name = "value_transfer_v2"
+path = "tests/value_transfer_v2.rs"
+
+[[test]]
 name = "economic_action_v1"
 path = "tests/economic_action_v1.rs"
 
