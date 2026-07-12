@@ -1,10 +1,9 @@
-"""Deterministic exact-once admission for verified recursive STARK roots.
+"""Deterministic exact-once admission for authenticated recursive STARK roots.
 
-This module is downstream of cryptographic verification.  It deliberately has
-no proof or JSON parsing entrypoint: an integration verifier must construct
-``VerifiedRecursiveStarkRootFacts`` only after authenticating the receipt,
-image, and journal.  The transition below checks trusted policy bindings and
-cross-root replay state; it does not establish proof authority.
+``RecursiveStarkRootFacts`` validates public shape only. The private governed
+marker and admission transition are reserved for the pinned verifier
+adapter after receipt verification. The transition checks trusted policy
+bindings and cross-root replay state; it does not establish proof authority.
 """
 
 from __future__ import annotations
@@ -13,7 +12,7 @@ import hashlib
 from bisect import bisect_left
 from dataclasses import dataclass
 from enum import Enum
-from typing import TypeVar
+from typing import NoReturn, TypeVar, final
 
 from ..state.canonical import canonical_hex_fixed_allow_0x
 
@@ -104,11 +103,11 @@ class TrustedRecursiveStarkAdmissionPolicy:
 
 
 @dataclass(frozen=True)
-class VerifiedRecursiveStarkRootFacts:
-    """Typed journal facts supplied by an upstream cryptographic verifier.
+class RecursiveStarkRootFacts:
+    """Canonical journal-fact shape without cryptographic authority.
 
     Construction validates only shape and canonical form.  It does not verify a
-    RISC0 receipt and must never be treated as a proof-decoding API.
+    RISC0 receipt and cannot enter the private admission transition directly.
     """
 
     chain_id: str
@@ -178,9 +177,93 @@ class VerifiedRecursiveStarkRootFacts:
         )
 
 
+_AUTHENTICATED_FACTS_SEAL = object()
+
+
+@final
+class _AuthenticatedRecursiveStarkRootFacts:
+    """Governed-source post-verification marker for the pinned adapter.
+
+    Python module privacy is not a same-interpreter security boundary. The
+    required architecture gate limits construction and consumption to the
+    reviewed adapter path; hostile private-symbol access remains a non-claim.
+    """
+
+    __slots__ = ("_facts", "_trusted_policy", "_seal")
+    _facts: RecursiveStarkRootFacts
+    _trusted_policy: TrustedRecursiveStarkAdmissionPolicy
+
+    def __init__(
+        self,
+        facts: RecursiveStarkRootFacts,
+        trusted_policy: TrustedRecursiveStarkAdmissionPolicy,
+        *,
+        seal: object,
+    ) -> None:
+        if seal is not _AUTHENTICATED_FACTS_SEAL:
+            raise TypeError("authenticated recursive facts require the private seal")
+        if type(facts) is not RecursiveStarkRootFacts:
+            raise TypeError("facts must be exactly RecursiveStarkRootFacts")
+        if type(trusted_policy) is not TrustedRecursiveStarkAdmissionPolicy:
+            raise TypeError(
+                "trusted_policy must be exactly TrustedRecursiveStarkAdmissionPolicy"
+            )
+        object.__setattr__(self, "_facts", facts)
+        object.__setattr__(self, "_trusted_policy", trusted_policy)
+        object.__setattr__(self, "_seal", seal)
+
+    def __init_subclass__(cls, **_kwargs: object) -> None:
+        raise TypeError("authenticated recursive facts cannot be subclassed")
+
+    def __setattr__(self, _name: str, _value: object) -> None:
+        raise AttributeError("authenticated recursive facts are immutable")
+
+    def __copy__(self) -> None:
+        raise TypeError("authenticated recursive facts cannot be copied")
+
+    def __deepcopy__(self, _memo: object) -> None:
+        raise TypeError("authenticated recursive facts cannot be copied")
+
+    def __reduce__(self) -> NoReturn:
+        raise TypeError("authenticated recursive facts cannot be serialized")
+
+    @property
+    def facts(self) -> RecursiveStarkRootFacts:
+        return self._facts
+
+    @property
+    def trusted_policy(self) -> TrustedRecursiveStarkAdmissionPolicy:
+        return self._trusted_policy
+
+    def _has_private_seal(self) -> bool:
+        try:
+            return object.__getattribute__(self, "_seal") is _AUTHENTICATED_FACTS_SEAL
+        except AttributeError:
+            return False
+
+
+def _mint_recursive_stark_root_facts_after_verification(
+    facts: RecursiveStarkRootFacts,
+    trusted_policy: TrustedRecursiveStarkAdmissionPolicy,
+) -> _AuthenticatedRecursiveStarkRootFacts:
+    """Mint the private marker on the governed post-verification path."""
+
+    if type(facts) is not RecursiveStarkRootFacts:
+        raise TypeError("facts must be exactly RecursiveStarkRootFacts")
+    if type(trusted_policy) is not TrustedRecursiveStarkAdmissionPolicy:
+        raise TypeError(
+            "trusted_policy must be exactly TrustedRecursiveStarkAdmissionPolicy"
+        )
+    return _AuthenticatedRecursiveStarkRootFacts(
+        facts,
+        trusted_policy,
+        seal=_AUTHENTICATED_FACTS_SEAL,
+    )
+
+
 @dataclass(frozen=True)
 class RecursiveStarkAdmissionState:
-    """Canonical replay indexes committed by successful admissions."""
+    """Canonical in-memory replay indexes proposed by successful evaluation."""
 
     chain_id: str | None = None
     accepted_root_journal_hashes: tuple[str, ...] = ()
@@ -238,7 +321,7 @@ class RecursiveStarkAdmissionState:
 
 @dataclass(frozen=True)
 class RecursiveStarkAdmissionResult:
-    """Accepted post-state or a typed rejection carrying the unchanged state."""
+    """Data-only decision; never an authority token for durable persistence."""
 
     accepted: bool
     state: RecursiveStarkAdmissionState
@@ -258,27 +341,27 @@ class RecursiveStarkAdmissionResult:
             raise ValueError("rejected admission must include a typed reject reason")
 
 
-def admit_verified_recursive_stark_root(
+def _admit_authenticated_recursive_stark_root(
     state: RecursiveStarkAdmissionState,
-    verified_root: VerifiedRecursiveStarkRootFacts,
-    trusted_policy: TrustedRecursiveStarkAdmissionPolicy,
+    authenticated_root: _AuthenticatedRecursiveStarkRootFacts,
 ) -> RecursiveStarkAdmissionResult:
-    """Atomically admit one already-verified root into exact-once replay state.
+    """Evaluate one authenticated root against exact-once replay state.
 
     Reject precedence is trusted policy, root, slot, child claim, accepted
     receipt, cross-shard message, then state capacity.  Every reject returns the
     exact input state object.  Candidate indexes are built only after all checks
-    succeed, so callers can commit the returned state as one transaction.
+    succeed. Durable atomic commit remains an external obligation.
     """
 
-    _require_transition_types(state, verified_root, trusted_policy)
-    reject_reason = _policy_reject_reason(verified_root, trusted_policy)
-    if reject_reason is None and state.chain_id not in (None, verified_root.chain_id):
+    _require_transition_types(state, authenticated_root)
+    facts = authenticated_root.facts
+    reject_reason = _policy_reject_reason(facts, authenticated_root.trusted_policy)
+    if reject_reason is None and state.chain_id not in (None, facts.chain_id):
         reject_reason = RecursiveStarkAdmissionRejectReason.STATE_CHAIN_ID_MISMATCH
     if reject_reason is None:
-        reject_reason = _replay_reject_reason(state, verified_root)
+        reject_reason = _replay_reject_reason(state, facts)
     if reject_reason is None:
-        reject_reason = _capacity_reject_reason(state, verified_root)
+        reject_reason = _capacity_reject_reason(state, facts)
     if reject_reason is not None:
         return RecursiveStarkAdmissionResult(
             accepted=False,
@@ -286,7 +369,7 @@ def admit_verified_recursive_stark_root(
             reject_reason=reject_reason,
         )
 
-    staged_state = _stage_admission(state, verified_root)
+    staged_state = _stage_admission(state, facts)
     return RecursiveStarkAdmissionResult(
         accepted=True,
         state=staged_state,
@@ -296,19 +379,20 @@ def admit_verified_recursive_stark_root(
 
 def _require_transition_types(
     state: object,
-    verified_root: object,
-    trusted_policy: object,
+    authenticated_root: object,
 ) -> None:
     if not isinstance(state, RecursiveStarkAdmissionState):
         raise TypeError("state must be a RecursiveStarkAdmissionState")
-    if not isinstance(verified_root, VerifiedRecursiveStarkRootFacts):
-        raise TypeError("verified_root must be VerifiedRecursiveStarkRootFacts")
-    if not isinstance(trusted_policy, TrustedRecursiveStarkAdmissionPolicy):
-        raise TypeError("trusted_policy must be TrustedRecursiveStarkAdmissionPolicy")
+    if type(authenticated_root) is not _AuthenticatedRecursiveStarkRootFacts:
+        raise TypeError(
+            "authenticated_root must be _AuthenticatedRecursiveStarkRootFacts"
+        )
+    if not authenticated_root._has_private_seal():
+        raise TypeError("authenticated_root lacks the private seal")
 
 
 def _policy_reject_reason(
-    facts: VerifiedRecursiveStarkRootFacts,
+    facts: RecursiveStarkRootFacts,
     policy: TrustedRecursiveStarkAdmissionPolicy,
 ) -> RecursiveStarkAdmissionRejectReason | None:
     if facts.chain_id != policy.expected_chain_id:
@@ -326,7 +410,7 @@ def _policy_reject_reason(
 
 def _replay_reject_reason(
     state: RecursiveStarkAdmissionState,
-    facts: VerifiedRecursiveStarkRootFacts,
+    facts: RecursiveStarkRootFacts,
 ) -> RecursiveStarkAdmissionRejectReason | None:
     if _contains_sorted(state.accepted_root_journal_hashes, facts.root_journal_hash):
         return RecursiveStarkAdmissionRejectReason.DUPLICATE_ROOT_JOURNAL
@@ -349,7 +433,7 @@ def _replay_reject_reason(
 
 def _capacity_reject_reason(
     state: RecursiveStarkAdmissionState,
-    facts: VerifiedRecursiveStarkRootFacts,
+    facts: RecursiveStarkRootFacts,
 ) -> RecursiveStarkAdmissionRejectReason | None:
     proposed_lengths = (
         len(state.accepted_root_journal_hashes) + 1,
@@ -366,7 +450,7 @@ def _capacity_reject_reason(
 
 def _stage_admission(
     state: RecursiveStarkAdmissionState,
-    facts: VerifiedRecursiveStarkRootFacts,
+    facts: RecursiveStarkRootFacts,
 ) -> RecursiveStarkAdmissionState:
     return RecursiveStarkAdmissionState(
         chain_id=facts.chain_id,

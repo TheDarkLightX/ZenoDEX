@@ -21,7 +21,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, BinaryIO
 
 from src.integration.recursive_stark_verifier_adapter import (
-    parse_authenticated_recursive_facts,
+    parse_recursive_stark_root_facts,
 )
 from src.state.canonical import canonical_json_bytes
 
@@ -825,7 +825,7 @@ def _validate_replay_transcript_bindings(
         bound = False
         for expectations in verify_requests:
             try:
-                parse_authenticated_recursive_facts(
+                parse_recursive_stark_root_facts(
                     response,
                     trusted_expectations=expectations,
                 )

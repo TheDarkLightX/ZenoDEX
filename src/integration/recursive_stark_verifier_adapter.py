@@ -27,9 +27,10 @@ from typing import Any, BinaryIO, Mapping, cast
 from src.core.recursive_stark_admission import (
     RecursiveStarkAdmissionResult,
     RecursiveStarkAdmissionState,
+    RecursiveStarkRootFacts,
     TrustedRecursiveStarkAdmissionPolicy,
-    VerifiedRecursiveStarkRootFacts,
-    admit_verified_recursive_stark_root,
+    _admit_authenticated_recursive_stark_root,
+    _mint_recursive_stark_root_facts_after_verification,
 )
 
 VERIFIED_FACTS_SCHEMA_V1 = "zenodex.verified_recursive_stark_root_facts.v1"
@@ -135,7 +136,7 @@ class PinnedRecursiveStarkVerifier:
         proof: Mapping[str, Any],
         recursive_input: Mapping[str, Any],
     ) -> RecursiveStarkAdmissionResult:
-        """Verify one root and feed only authenticated facts to the pure kernel."""
+        """Verify one root and return a data-only exact-once decision."""
 
         trusted_expectations = json.loads(self._trusted_expectations_json)
         request = _verification_request(
@@ -197,12 +198,19 @@ class PinnedRecursiveStarkVerifier:
             raise RecursiveStarkVerificationError(
                 "recursive verifier stdout must be one JSON object"
             ) from exc
-        facts = parse_authenticated_recursive_facts(
+        facts = parse_recursive_stark_root_facts(
             payload,
             trusted_expectations=trusted_expectations,
         )
         policy = _trusted_policy(trusted_expectations)
-        return admit_verified_recursive_stark_root(state, facts, policy)
+        authenticated_facts = _mint_recursive_stark_root_facts_after_verification(
+            facts,
+            policy,
+        )
+        return _admit_authenticated_recursive_stark_root(
+            state,
+            authenticated_facts,
+        )
 
     def _apply_resource_limits(self, process_id: int) -> None:
         resource.prlimit(
@@ -323,12 +331,12 @@ def _reject_authority_float(value: str) -> object:
     raise ValueError(f"authority manifest float is forbidden: {value}")
 
 
-def parse_authenticated_recursive_facts(
+def parse_recursive_stark_root_facts(
     payload: object,
     *,
     trusted_expectations: Mapping[str, Any],
-) -> VerifiedRecursiveStarkRootFacts:
-    """Parse the strict facts emitted only after successful CLI verification."""
+) -> RecursiveStarkRootFacts:
+    """Parse strict shaped facts without authenticating verifier provenance."""
 
     response = _mapping(payload, "recursive verifier response")
     if set(response) != {"ok", "verified_recursive_facts"}:
@@ -360,7 +368,7 @@ def parse_authenticated_recursive_facts(
     ):
         _expect_same_hash(facts, trusted_expectations, key)
 
-    return VerifiedRecursiveStarkRootFacts(
+    return RecursiveStarkRootFacts(
         chain_id=_str(facts, "chain_id"),
         epoch_id=_int(facts, "epoch_id"),
         proof_profile=_str(facts, "proof_profile"),

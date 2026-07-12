@@ -10,6 +10,7 @@ import src.integration.recursive_stark_verifier_adapter as verifier_adapter
 from src.core.recursive_stark_admission import (
     RecursiveStarkAdmissionRejectReason,
     RecursiveStarkAdmissionState,
+    RecursiveStarkRootFacts,
     recursive_child_verification_claims_root_v1,
     recursive_message_ids_root_v1,
     recursive_receipt_ids_root_v1,
@@ -19,7 +20,7 @@ from src.integration.recursive_stark_verifier_adapter import (
     PinnedRecursiveStarkVerifier,
     RecursiveStarkVerificationError,
     RecursiveVerifierExecutableFormat,
-    parse_authenticated_recursive_facts,
+    parse_recursive_stark_root_facts,
     recursive_stark_authority_manifest_bytes_v1,
 )
 
@@ -122,12 +123,13 @@ def _write_pinned_verifier(
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def test_parser_accepts_only_root_bound_facts_matching_trusted_expectations() -> None:
-    facts = parse_authenticated_recursive_facts(
+def test_shape_parser_accepts_only_root_bound_facts_matching_trusted_expectations() -> None:
+    facts = parse_recursive_stark_root_facts(
         _response(),
         trusted_expectations=_expectations(),
     )
 
+    assert isinstance(facts, RecursiveStarkRootFacts)
     assert facts.chain_id == "zenodex-devnet"
     assert facts.child_verification_claims_root == (
         recursive_child_verification_claims_root_v1(facts.child_verification_claim_hashes)
@@ -136,18 +138,18 @@ def test_parser_accepts_only_root_bound_facts_matching_trusted_expectations() ->
 
 def test_parser_rejects_projected_boolean_report() -> None:
     with pytest.raises(RecursiveStarkVerificationError, match="response schema mismatch"):
-        parse_authenticated_recursive_facts(
+        parse_recursive_stark_root_facts(
             {"ok": True, "risc0_verified": True},
             trusted_expectations=_expectations(),
         )
 
 
-def test_parser_rejects_attacker_matching_facts_against_ledger_policy() -> None:
+def test_shape_parser_rejects_attacker_matching_facts_against_ledger_policy() -> None:
     attacker_response = _response()
     attacker_response["verified_recursive_facts"]["verifier_set_root"] = _hash(30)  # type: ignore[index]
 
     with pytest.raises(RecursiveStarkVerificationError, match="trusted expectation mismatch"):
-        parse_authenticated_recursive_facts(
+        parse_recursive_stark_root_facts(
             attacker_response,
             trusted_expectations=_expectations(),
         )

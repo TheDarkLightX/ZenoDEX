@@ -62,6 +62,31 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tests/test_build_zrpf_semantic_epoch_v1_local_evidence.py" in python_assurance
     assert "tests/test_check_zrpf_semantic_epoch_v1_local_evidence.py" in python_assurance
     assert "tests/test_zrpf_semantic_guest_source_contract.py" in python_assurance
+    ruff_assurance, after_ruff = python_assurance.split(
+        "\nmypy --follow-imports=skip \\\n",
+        maxsplit=1,
+    )
+    mypy_assurance, after_mypy = after_ruff.split("\npytest -q \\\n", maxsplit=1)
+    pytest_assurance, _ = after_mypy.split(
+        "\npython3 tools/check_zrpf_v1_leaf_adapter_source_policy.py",
+        maxsplit=1,
+    )
+    for required_path in (
+        "src/core/recursive_stark_admission.py",
+        "src/integration/recursive_stark_replay_manifest.py",
+        "src/integration/recursive_stark_verifier_adapter.py",
+    ):
+        assert required_path in ruff_assurance
+        assert required_path in mypy_assurance
+    for required_path in (
+        "tests/core/test_recursive_stark_exact_once_admission.py",
+        "tests/integration/test_recursive_stark_admission_authority_boundary.py",
+        "tests/integration/test_recursive_stark_replay_manifest.py",
+        "tests/integration/test_recursive_stark_verifier_adapter.py",
+    ):
+        assert required_path in ruff_assurance
+        assert required_path in mypy_assurance
+        assert required_path in pytest_assurance
     assert "zrpf-v3-firecracker-elf-source-v2-20260712" in raw
     assert "25032924eb4fca7f156a9ec4eedd39afeade9623" in raw
     assert "tools/check_zrpf_v3_firecracker_direct_replay_evidence.py" in (python_assurance)

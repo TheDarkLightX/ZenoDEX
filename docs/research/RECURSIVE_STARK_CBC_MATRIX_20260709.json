@@ -301,7 +301,7 @@
         },
         {
           "path": "tests/integration/test_recursive_stark_verifier_adapter.py",
-          "symbol": "test_parser_rejects_attacker_matching_facts_against_ledger_policy"
+          "symbol": "test_shape_parser_rejects_attacker_matching_facts_against_ledger_policy"
         },
         {
           "path": "tests/integration/test_recursive_stark_verifier_adapter.py",
@@ -511,11 +511,11 @@
       "status": "implemented_partial",
       "defense_layer": "detected_at_commit",
       "disaster_state": "same root, leaf, or message is admitted in multiple epochs or roots",
-      "construction_rule": "root-bound verified facts feed a single-chain immutable transition that rejects cross-chain state reuse and duplicate root, slot, child, receipt, and message identifiers with reject-is-no-op",
+      "construction_rule": "a required lexical architecture gate limits governed production references to the private marker mint and transition to the exact post-parse path in PinnedRecursiveStarkVerifier.verify_and_admit; the marker rejects caller seals, shaped-fact subclasses, copying, and serialization, owns the exact typed admission policy derived from the pinned manifest, and leaves the immutable transition no independent caller-supplied policy argument; the transition rejects cross-chain state reuse and duplicate root, slot, child, receipt, and message identifiers with reject-is-no-op",
       "code_refs": [
         {
           "path": "src/core/recursive_stark_admission.py",
-          "symbol": "admit_verified_recursive_stark_root"
+          "symbol": "_admit_authenticated_recursive_stark_root"
         },
         {
           "path": "src/integration/recursive_stark_verifier_adapter.py",
@@ -534,12 +534,16 @@
         {
           "path": "tests/core/test_recursive_stark_exact_once_admission.py",
           "symbol": "test_given_chain_scoped_state_when_other_chain_arrives_then_reject_is_no_op"
+        },
+        {
+          "path": "tests/integration/test_recursive_stark_admission_authority_boundary.py",
+          "symbol": "test_pinned_adapter_has_one_exact_post_parse_mint_and_admission_path"
         }
       ],
       "external_commands": [
-        "python3 -m pytest -q tests/core/test_recursive_stark_exact_once_admission.py tests/integration/test_recursive_stark_verifier_adapter.py"
+        "python3 -m pytest -q tests/core/test_recursive_stark_exact_once_admission.py tests/integration/test_recursive_stark_verifier_adapter.py tests/integration/test_recursive_stark_admission_authority_boundary.py"
       ],
-      "non_claim": "live ledger persistence and atomic value-effect commit are not integrated"
+      "non_claim": "Python private symbols and returned decision/state objects are not authority capabilities against direct private imports, arbitrary same-interpreter introspection, or out-of-tree code; no production consumer trusts these data objects, and live ledger persistence plus atomic value-effect commit are not integrated"
     },
     {
       "id": "RS-CBC-013",

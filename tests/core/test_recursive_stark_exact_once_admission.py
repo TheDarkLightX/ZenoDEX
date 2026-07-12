@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import copy
+import pickle
+from collections.abc import Callable
 from dataclasses import replace
 
 import pytest
@@ -8,11 +11,14 @@ import src.core.recursive_stark_admission as recursive_stark_admission
 from src.core.recursive_stark_admission import (
     MAX_CHILD_VERIFICATION_CLAIMS_PER_ROOT,
     RecursiveStarkAdmissionRejectReason,
+    RecursiveStarkAdmissionResult,
     RecursiveStarkAdmissionSlot,
     RecursiveStarkAdmissionState,
+    RecursiveStarkRootFacts,
     TrustedRecursiveStarkAdmissionPolicy,
-    VerifiedRecursiveStarkRootFacts,
-    admit_verified_recursive_stark_root,
+    _admit_authenticated_recursive_stark_root,
+    _AuthenticatedRecursiveStarkRootFacts,
+    _mint_recursive_stark_root_facts_after_verification,
     recursive_child_verification_claims_root_v1,
     recursive_message_ids_root_v1,
     recursive_receipt_ids_root_v1,
@@ -24,7 +30,7 @@ def _hash(index: int) -> str:
     return f"0x{index:064x}"
 
 
-def _facts(**overrides: object) -> VerifiedRecursiveStarkRootFacts:
+def _facts(**overrides: object) -> RecursiveStarkRootFacts:
     child_claims = (_hash(4), _hash(5))
     receipt_ids = (_hash(6), _hash(7))
     message_ids = (_hash(8), _hash(9))
@@ -58,7 +64,7 @@ def _facts(**overrides: object) -> VerifiedRecursiveStarkRootFacts:
         values["cross_shard_message_ids_root"] = recursive_message_ids_root_v1(
             values["cross_shard_message_ids"]  # type: ignore[arg-type]
         )
-    return VerifiedRecursiveStarkRootFacts(**values)  # type: ignore[arg-type]
+    return RecursiveStarkRootFacts(**values)  # type: ignore[arg-type]
 
 
 def _policy(**overrides: object) -> TrustedRecursiveStarkAdmissionPolicy:
@@ -75,10 +81,10 @@ def _policy(**overrides: object) -> TrustedRecursiveStarkAdmissionPolicy:
 
 def _accept(
     state: RecursiveStarkAdmissionState,
-    facts: VerifiedRecursiveStarkRootFacts,
+    facts: RecursiveStarkRootFacts,
     policy: TrustedRecursiveStarkAdmissionPolicy,
 ) -> RecursiveStarkAdmissionState:
-    result = admit_verified_recursive_stark_root(state, facts, policy)
+    result = _admit(state, facts, policy)
     assert result.accepted is True
     assert result.reject_reason is None
     return result.state
@@ -86,18 +92,27 @@ def _accept(
 
 def _assert_rejected_unchanged(
     state: RecursiveStarkAdmissionState,
-    facts: VerifiedRecursiveStarkRootFacts,
+    facts: RecursiveStarkRootFacts,
     policy: TrustedRecursiveStarkAdmissionPolicy,
     expected_reason: RecursiveStarkAdmissionRejectReason,
 ) -> None:
-    result = admit_verified_recursive_stark_root(state, facts, policy)
+    result = _admit(state, facts, policy)
 
     assert result.accepted is False
     assert result.reject_reason is expected_reason
     assert result.state is state
 
 
-def test_given_verified_root_when_first_admitted_then_all_exact_once_indexes_commit() -> None:
+def _admit(
+    state: RecursiveStarkAdmissionState,
+    facts: RecursiveStarkRootFacts,
+    policy: TrustedRecursiveStarkAdmissionPolicy,
+) -> RecursiveStarkAdmissionResult:
+    authenticated = _mint_recursive_stark_root_facts_after_verification(facts, policy)
+    return _admit_authenticated_recursive_stark_root(state, authenticated)
+
+
+def test_given_authenticated_root_when_first_admitted_then_all_exact_once_indexes_commit() -> None:
     facts = _facts()
     pre_state = RecursiveStarkAdmissionState()
 
@@ -235,7 +250,7 @@ def test_given_accepted_message_when_new_root_reuses_message_then_reject_is_no_o
     ),
 )
 def test_given_trusted_policy_when_verified_facts_mismatch_then_reject_is_no_op(
-    facts: VerifiedRecursiveStarkRootFacts,
+    facts: RecursiveStarkRootFacts,
     policy: TrustedRecursiveStarkAdmissionPolicy,
     reason: RecursiveStarkAdmissionRejectReason,
 ) -> None:
@@ -254,7 +269,7 @@ def test_given_partial_replay_overlap_when_rejected_then_no_new_indexes_are_stag
         cross_shard_message_ids=(_hash(23),),
     )
 
-    result = admit_verified_recursive_stark_root(
+    result = _admit(
         accepted_state,
         partially_new_root,
         _policy(expected_epoch_id=8),
@@ -434,10 +449,112 @@ def test_given_noncanonical_state_indexes_when_constructed_then_fail_closed() ->
         )
 
 
-def test_given_unverified_mapping_when_admitted_then_boundary_raises_type_error() -> None:
-    with pytest.raises(TypeError, match="verified_root must be VerifiedRecursiveStarkRootFacts"):
-        admit_verified_recursive_stark_root(
-            RecursiveStarkAdmissionState(),
+def test_given_untrusted_mapping_when_authenticated_then_boundary_raises_type_error() -> None:
+    with pytest.raises(TypeError, match="facts must be exactly RecursiveStarkRootFacts"):
+        _mint_recursive_stark_root_facts_after_verification(
             {"proof": "unverified"},  # type: ignore[arg-type]
             _policy(),
         )
+
+
+def test_subclassed_shaped_facts_cannot_cross_the_authentication_boundary() -> None:
+    class _SubclassedFacts(RecursiveStarkRootFacts):
+        pass
+
+    subclassed = _SubclassedFacts(**vars(_facts()))
+
+    with pytest.raises(TypeError, match="facts must be exactly RecursiveStarkRootFacts"):
+        _mint_recursive_stark_root_facts_after_verification(subclassed, _policy())
+
+
+def test_subclassed_policy_cannot_cross_the_authentication_boundary() -> None:
+    class _SubclassedPolicy(TrustedRecursiveStarkAdmissionPolicy):
+        pass
+
+    subclassed = _SubclassedPolicy(**vars(_policy()))
+
+    with pytest.raises(
+        TypeError,
+        match="trusted_policy must be exactly TrustedRecursiveStarkAdmissionPolicy",
+    ):
+        _mint_recursive_stark_root_facts_after_verification(_facts(), subclassed)
+
+
+def test_shaped_facts_cannot_enter_authenticated_admission_directly() -> None:
+    with pytest.raises(
+        TypeError,
+        match="authenticated_root must be _AuthenticatedRecursiveStarkRootFacts",
+    ):
+        _admit_authenticated_recursive_stark_root(
+            RecursiveStarkAdmissionState(),
+            _facts(),  # type: ignore[arg-type]
+        )
+
+
+def test_authenticated_facts_constructor_rejects_a_caller_supplied_seal() -> None:
+    with pytest.raises(TypeError, match="require the private seal"):
+        _AuthenticatedRecursiveStarkRootFacts(
+            _facts(),
+            _policy(),
+            seal=object(),
+        )
+
+
+def test_object_new_capability_without_private_seal_rejects_before_staging() -> None:
+    forged = object.__new__(_AuthenticatedRecursiveStarkRootFacts)
+    object.__setattr__(forged, "_facts", _facts())
+    object.__setattr__(forged, "_trusted_policy", _policy())
+    state = RecursiveStarkAdmissionState()
+
+    with pytest.raises(TypeError, match="authenticated_root lacks the private seal"):
+        _admit_authenticated_recursive_stark_root(state, forged)
+
+    assert state == RecursiveStarkAdmissionState()
+
+
+def test_authenticated_facts_reject_subclass_construction() -> None:
+    with pytest.raises(TypeError, match="cannot be subclassed"):
+
+        class _ForgedAuthenticatedFacts(  # type: ignore[misc]
+            _AuthenticatedRecursiveStarkRootFacts
+        ):
+            pass
+
+
+def _pickle_round_trip(value: object) -> object:
+    return pickle.loads(pickle.dumps(value))
+
+
+@pytest.mark.parametrize(
+    "operation",
+    (copy.copy, copy.deepcopy, _pickle_round_trip),
+)
+def test_authenticated_facts_reject_copy_and_serialization(
+    operation: Callable[[object], object],
+) -> None:
+    authenticated = _mint_recursive_stark_root_facts_after_verification(
+        _facts(),
+        _policy(),
+    )
+
+    with pytest.raises(TypeError, match="cannot be (copied|serialized)"):
+        operation(authenticated)
+
+
+def test_authenticated_facts_reject_dataclass_replace() -> None:
+    authenticated = _mint_recursive_stark_root_facts_after_verification(
+        _facts(),
+        _policy(),
+    )
+
+    with pytest.raises(TypeError, match="dataclass instance"):
+        replace(authenticated)  # type: ignore[type-var]
+
+
+def test_authenticated_facts_bind_policy_before_admission() -> None:
+    policy = _policy()
+    authenticated = _mint_recursive_stark_root_facts_after_verification(_facts(), policy)
+
+    assert authenticated.trusted_policy is policy
+    with pytest.raises(AttributeError, match="authenticated recursive facts are immutable"):
+        authenticated.trusted_policy = _policy(expected_epoch_id=8)  # type: ignore[misc]

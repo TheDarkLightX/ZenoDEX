@@ -53,7 +53,7 @@ def _write(path: Path, raw: bytes) -> Path:
 
 
 def _root_replay_transcript(aggregate_image_id: str) -> tuple[dict[str, Any], ...]:
-    meta = {
+    meta: dict[str, Any] = {
         key: f"{index + 1:064x}"
         for index, key in enumerate(sorted(ROOT_PROOF_META_KEYS_V1))
     }
@@ -397,10 +397,11 @@ def test_external_manifest_digest_is_optional_and_fail_closed(tmp_path: Path) ->
 
 def test_external_manifest_digest_rejects_non_string_without_crashing(tmp_path: Path) -> None:
     bundle, _ = _build(tmp_path)
+    invalid_digest: Any = 7
 
-    check = check_recursive_stark_replay_bundle_v1(  # type: ignore[arg-type]
+    check = check_recursive_stark_replay_bundle_v1(
         bundle,
-        expected_manifest_sha256=7,
+        expected_manifest_sha256=invalid_digest,
     )
 
     assert check["ok"] is False

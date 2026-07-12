@@ -376,6 +376,22 @@ Required scenarios:
 Acceptance:
 
 - Tests assert exact reject reason and reject-is-no-op.
+- Public shaped facts cannot enter the private transition. The governed marker
+  rejects caller seals, subclasses, copying, and serialization.
+- The capability owns the exact typed admission policy derived from the pinned
+  verifier manifest. The private transition accepts no independent
+  caller-supplied policy argument.
+- A required repository-level architectural test rejects governed production
+  references to the private capability mint and transition outside the exact
+  post-parse path in `PinnedRecursiveStarkVerifier.verify_and_admit`.
+- Python privacy is a governed-source construction rule. Direct private-symbol
+  access, arbitrary same-interpreter introspection, and out-of-tree code are not
+  runtime-capability claims. Returned state and result objects are data only;
+  a future durable ledger must invoke verification and commit internally.
+- The former public `VerifiedRecursiveStarkRootFacts`,
+  `admit_verified_recursive_stark_root`, and
+  `parse_authenticated_recursive_facts` symbols are intentionally retired
+  without compatibility aliases because those aliases would restore the bypass.
 - Tests use deterministic state fixtures, no wall clock, no network, no random
   seed without explicit commitment.
 - CBC matrix references the test files before any exact-once claim advances.
@@ -385,7 +401,8 @@ Implemented command:
 ```bash
 python3 -m pytest -q \
   tests/core/test_recursive_stark_exact_once_admission.py \
-  tests/integration/test_recursive_stark_verifier_adapter.py
+  tests/integration/test_recursive_stark_verifier_adapter.py \
+  tests/integration/test_recursive_stark_admission_authority_boundary.py
 ```
 
 ### Phase V3: Property And Fuzz Coverage
