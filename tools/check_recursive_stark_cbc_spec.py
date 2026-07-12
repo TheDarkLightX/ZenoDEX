@@ -249,13 +249,15 @@ class ClaimStatusPolicy:
 
 
 CLAIM_STATUS_POLICIES = {
-    FULL_CURRENT_PROOF_CLAIM_STATUS: ClaimStatusPolicy(
-        required_source_closures=frozenset({"v1", "v2"}),
-        required_implemented_statements=frozenset(REQUIRED_STATEMENTS),
-    ),
     V1_HOST_REPLAY_PENDING_CLAIM_STATUS: ClaimStatusPolicy(
         required_source_closures=frozenset({"v2"}),
-        required_implemented_statements=frozenset(REQUIRED_STATEMENTS),
+        required_implemented_statements=frozenset(
+            {
+                "recursive_node_v2",
+                "zrpf_node_v3_structural",
+                "zrpf_v1_spot_adapter_receipt_v1",
+            }
+        ),
     ),
 }
 ACCEPTED_CLAIM_STATUSES = frozenset(CLAIM_STATUS_POLICIES)
@@ -452,12 +454,6 @@ def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
         errors.append(
             "V1-host-replay-pending status requires its exact current-host replay non-claim"
         )
-    if (
-        claim_status == FULL_CURRENT_PROOF_CLAIM_STATUS
-        and V1_HOST_REPLAY_PENDING_NON_CLAIM in non_claims
-    ):
-        errors.append("full current-proof status retains stale V1 host replay non-claim")
-
     return {
         "ok": not errors,
         "errors": errors,

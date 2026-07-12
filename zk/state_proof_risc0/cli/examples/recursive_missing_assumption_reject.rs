@@ -12,6 +12,9 @@ use tau_state_proof_risc0_shared::{
     RECURSIVE_AGGREGATE_MAX_INPUT_BYTES,
 };
 
+#[path = "../src/strict_json.rs"]
+mod strict_json;
+
 const MAX_REQUEST_BYTES: usize = 16 * 1024 * 1024;
 
 fn expected_missing_assumption_reason(
@@ -37,6 +40,15 @@ fn is_exact_missing_assumption_reason(reason: &str, expected_reason: &str) -> bo
     reason == expected_reason
 }
 
+fn parse_request_bytes(bytes: &[u8]) -> Result<Value, String> {
+    if bytes.len() > MAX_REQUEST_BYTES {
+        return Err("request exceeds harness byte limit".to_string());
+    }
+    let text =
+        std::str::from_utf8(bytes).map_err(|error| format!("request is not UTF-8: {error}"))?;
+    strict_json::parse_value(text).map_err(|error| format!("invalid request JSON: {error}"))
+}
+
 fn main() {
     if let Err(error) = run() {
         eprintln!("{error}");
@@ -53,11 +65,7 @@ fn run() -> Result<(), String> {
         .take((MAX_REQUEST_BYTES + 1) as u64)
         .read_to_end(&mut bytes)
         .map_err(|error| format!("failed to read request: {error}"))?;
-    if bytes.len() > MAX_REQUEST_BYTES {
-        return Err("request exceeds harness byte limit".to_string());
-    }
-    let request: Value =
-        serde_json::from_slice(&bytes).map_err(|error| format!("invalid request JSON: {error}"))?;
+    let request = parse_request_bytes(&bytes)?;
     let input: RecursiveCompositionInputV1 = serde_json::from_value(
         request
             .get("recursive_input")
@@ -108,7 +116,7 @@ fn run() -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::is_exact_missing_assumption_reason;
+    use super::{is_exact_missing_assumption_reason, parse_request_bytes, MAX_REQUEST_BYTES};
 
     const EXPECTED: &str = "sys_verify_integrity: no receipt found to resolve assumption: claim digest 1234, control root 0000";
 
@@ -127,5 +135,26 @@ mod tests {
             &format!("unrelated executor failure: {EXPECTED}"),
             EXPECTED
         ));
+    }
+
+    #[test]
+    fn request_boundary_rejects_ambiguous_or_trailing_json() {
+        for raw in [
+            r#"{"recursive_input":{},"recursive_input":null}"#,
+            r#"{"recursive_input":{},"recurs\u0069ve_input":null}"#,
+            r#"{"outer":{"key":1,"key":2}}"#,
+            r#"{"recursive_input":{}} {}"#,
+        ] {
+            assert!(parse_request_bytes(raw.as_bytes()).is_err(), "raw={raw}");
+        }
+    }
+
+    #[test]
+    fn request_boundary_is_byte_bounded() {
+        let oversized = vec![b' '; MAX_REQUEST_BYTES + 1];
+        assert_eq!(
+            parse_request_bytes(&oversized).unwrap_err(),
+            "request exceeds harness byte limit"
+        );
     }
 }

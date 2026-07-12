@@ -79,6 +79,11 @@ descriptor, effect-summary, asset-row, message, and recursive leaf-wrapper
 objects through a CLI-local exact wire validator. This hardening does not
 change guest-visible types, image IDs, journals, or retained receipts.
 
+The matrix-cited missing-assumption harness uses the same strict parser and a
+16 MiB request bound. The recursive smoke proof loader uses the same strict
+parser and a 16 MiB per-artifact bound. These host evidence utilities reject
+duplicate decoded keys, escaped aliases, and trailing JSON documents.
+
 Current receipts authenticate the parsed typed value rather than canonical
 outer JSON bytes. The mixed Tau request projections and nested Spot, perps, and
 zUSD leaf payloads do not yet have complete versioned exact-field schemas.

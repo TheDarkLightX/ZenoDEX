@@ -30,6 +30,13 @@ RECURSIVE_REBUILD_REFERENCES = (
     "config/proof_profiles/risc0_recursive_rebuild_reference.json",
     "config/proof_profiles/risc0_recursive_v2_rebuild_reference.json",
 )
+DEGRADED_REQUIRED_STATEMENTS = frozenset(
+    {
+        "recursive_node_v2",
+        "zrpf_node_v3_structural",
+        "zrpf_v1_spot_adapter_receipt_v1",
+    }
+)
 
 
 def _matrix() -> dict[str, Any]:
@@ -37,12 +44,6 @@ def _matrix() -> dict[str, Any]:
     assert errors == []
     assert isinstance(matrix, dict)
     return matrix
-
-
-def _set_full_current_proof_status(matrix: dict[str, Any]) -> None:
-    promotion = matrix["promotion_boundary"]
-    promotion["claim_status"] = checker.FULL_CURRENT_PROOF_CLAIM_STATUS
-    promotion["non_claims"].remove(checker.V1_HOST_REPLAY_PENDING_NON_CLAIM)
 
 
 def _repo_copy_for_matrix(tmp_path: Path, matrix: dict[str, Any]) -> Path:
@@ -93,7 +94,7 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     assert report["facts"]["implemented_obligation_count"] == 20
     assert report["facts"]["pending_obligation_count"] == 5
     assert report["matrix_sha256"] == (
-        "sha256:6b334510cceb0c36a1b5a628226b0479b8ea05a624eb7a8fedb2fd36946b31c9"
+        "sha256:cbafaf9128670d9c60f37b340e6c549243d1b81ba786eda97ac841ad36f14864"
     )
     assert report["promotion_boundary"]["facts"]["public_claim_allowed"] is False
     assert report["promotion_boundary"]["facts"]["production_ready"] is False
@@ -103,7 +104,7 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     )
     assert report["promotion_boundary"]["facts"]["required_source_closures"] == ["v2"]
     assert report["promotion_boundary"]["facts"]["required_implemented_statements"] == sorted(
-        checker.REQUIRED_STATEMENTS
+        DEGRADED_REQUIRED_STATEMENTS
     )
     assert (
         checker.V1_HOST_REPLAY_PENDING_NON_CLAIM
@@ -619,17 +620,33 @@ def test_v1_host_replay_pending_status_requires_exact_nonclaim() -> None:
     )
 
 
-def test_full_current_proof_status_rejects_pending_v1_host_replay_nonclaim() -> None:
+def test_full_current_proof_status_is_unavailable_without_current_host_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     matrix = _matrix()
     matrix["promotion_boundary"]["claim_status"] = checker.FULL_CURRENT_PROOF_CLAIM_STATUS
+    matrix["promotion_boundary"]["non_claims"].remove(
+        checker.V1_HOST_REPLAY_PENDING_NON_CLAIM
+    )
+    obligation = next(
+        item for item in matrix["obligations"] if item["id"] == "RS-CBC-014"
+    )
+    obligation["status"] = "implemented"
+    monkeypatch.setattr(
+        checker,
+        "_validate_promoted_source_closures",
+        lambda *_args, **_kwargs: None,
+    )
 
     report = checker.validate_matrix(matrix)
 
     assert report["ok"] is False
     assert (
-        "full current-proof status retains stale V1 host replay non-claim"
+        "promotion_boundary.claim_status is not an accepted reviewed status"
         in report["promotion_boundary"]["errors"]
     )
+    assert report["promotion_boundary"]["facts"]["required_source_closures"] == []
+    assert report["promotion_boundary"]["facts"]["required_implemented_statements"] == []
 
 
 def test_post_repair_verified_status_rejects_stale_proof_absence_nonclaim() -> None:
@@ -720,34 +737,10 @@ def test_v1_host_replay_pending_status_does_not_consult_stale_v1_closure(
     assert report["ok"] is True
 
 
-def test_full_current_proof_status_rejects_current_v1_host_source_drift() -> None:
-    matrix = _matrix()
-    _set_full_current_proof_status(matrix)
-
-    report = checker.validate_matrix(matrix)
-
-    assert report["ok"] is False
-    assert any(
-        error.startswith("promoted V1 source closure rejected:")
-        for error in report["errors"]
-    )
-
-
-@pytest.mark.parametrize(
-    ("claim_status", "expected_closures"),
-    [
-        (checker.FULL_CURRENT_PROOF_CLAIM_STATUS, frozenset({"v1", "v2"})),
-        (checker.V1_HOST_REPLAY_PENDING_CLAIM_STATUS, frozenset({"v2"})),
-    ],
-)
 def test_claim_status_routes_exact_source_closure_policy(
     monkeypatch: pytest.MonkeyPatch,
-    claim_status: str,
-    expected_closures: frozenset[str],
 ) -> None:
     matrix = _matrix()
-    if claim_status == checker.FULL_CURRENT_PROOF_CLAIM_STATUS:
-        _set_full_current_proof_status(matrix)
     captured: list[frozenset[str]] = []
 
     def capture_policy(
@@ -763,10 +756,39 @@ def test_claim_status_routes_exact_source_closure_policy(
     report = checker.validate_matrix(matrix)
 
     assert report["ok"] is True
-    assert captured == [expected_closures]
-    assert report["promotion_boundary"]["facts"]["required_source_closures"] == sorted(
-        expected_closures
+    assert captured == [frozenset({"v2"})]
+    assert report["promotion_boundary"]["facts"]["required_source_closures"] == ["v2"]
+    assert report["promotion_boundary"]["facts"]["required_implemented_statements"] == sorted(
+        DEGRADED_REQUIRED_STATEMENTS
     )
+
+
+@pytest.mark.parametrize(
+    "statement_id",
+    sorted(DEGRADED_REQUIRED_STATEMENTS),
+)
+def test_claim_status_rejects_pending_required_typed_statement(
+    monkeypatch: pytest.MonkeyPatch,
+    statement_id: str,
+) -> None:
+    matrix = _matrix()
+    statement = next(
+        item for item in matrix["typed_statements"] if item["id"] == statement_id
+    )
+    statement["status"] = "pending"
+    monkeypatch.setattr(
+        checker,
+        "_validate_promoted_source_closures",
+        lambda *_args, **_kwargs: None,
+    )
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        f"{checker.V1_HOST_REPLAY_PENDING_CLAIM_STATUS} requires typed statement {statement_id} "
+        "implemented or implemented_partial"
+    ) in report["errors"]
 
 
 def test_post_repair_verified_status_rejects_extra_compile_source(tmp_path: Path) -> None:

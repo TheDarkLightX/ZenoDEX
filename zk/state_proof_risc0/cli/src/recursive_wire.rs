@@ -1,13 +1,13 @@
 use serde_json::{Map, Value};
 
-const COMPOSITION_FIELDS: &[&str] = &[
+pub(super) const COMPOSITION_FIELDS: &[&str] = &[
     "statement",
     "allowed_verifier_ids",
     "allowed_authority_roots",
     "children",
 ];
 
-const STATEMENT_FIELDS: &[&str] = &[
+pub(super) const STATEMENT_FIELDS: &[&str] = &[
     "domain_separator",
     "schema_version",
     "chain_id",
@@ -35,7 +35,7 @@ const STATEMENT_FIELDS: &[&str] = &[
     "cross_shard_mode",
 ];
 
-const CHILD_FIELDS: &[&str] = &[
+pub(super) const CHILD_FIELDS: &[&str] = &[
     "descriptor",
     "child_journal_bytes",
     "summary",
@@ -46,7 +46,7 @@ const CHILD_FIELDS: &[&str] = &[
     "rejected_receipt_ids",
 ];
 
-const DESCRIPTOR_FIELDS: &[&str] = &[
+pub(super) const DESCRIPTOR_FIELDS: &[&str] = &[
     "child_verification_claim_hash",
     "child_journal_hash",
     "child_effect_summary_hash",
@@ -56,7 +56,7 @@ const DESCRIPTOR_FIELDS: &[&str] = &[
     "child_profile",
 ];
 
-const SUMMARY_FIELDS: &[&str] = &[
+pub(super) const SUMMARY_FIELDS: &[&str] = &[
     "summary_version",
     "lane_id",
     "lane_kind",
@@ -82,7 +82,7 @@ const SUMMARY_FIELDS: &[&str] = &[
     "toolchain_lock_hash",
 ];
 
-const ASSET_DELTA_FIELDS: &[&str] = &[
+pub(super) const ASSET_DELTA_FIELDS: &[&str] = &[
     "asset_id",
     "debit_atoms",
     "credit_atoms",
@@ -91,7 +91,7 @@ const ASSET_DELTA_FIELDS: &[&str] = &[
     "authority_root",
 ];
 
-const MESSAGE_FIELDS: &[&str] = &[
+pub(super) const MESSAGE_FIELDS: &[&str] = &[
     "message_id",
     "epoch_id",
     "source_shard_id",
@@ -104,7 +104,7 @@ const MESSAGE_FIELDS: &[&str] = &[
     "deadline_epoch",
 ];
 
-const LEAF_WRAPPER_FIELDS: &[&str] = &[
+pub(super) const LEAF_WRAPPER_FIELDS: &[&str] = &[
     "chain_id",
     "epoch_id",
     "lane_id",

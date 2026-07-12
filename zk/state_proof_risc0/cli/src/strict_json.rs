@@ -118,3 +118,31 @@ impl<'de> Visitor<'de> for ExactJsonVisitor {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::parse_value;
+
+    #[test]
+    fn recursion_guard_rejects_before_unbounded_descent() {
+        let accepted = format!("{}0{}", "[".repeat(127), "]".repeat(127));
+        let rejected = format!("{}0{}", "[".repeat(128), "]".repeat(128));
+
+        assert!(parse_value(&accepted).is_ok());
+        assert!(parse_value(&rejected)
+            .unwrap_err()
+            .contains("recursion limit exceeded"));
+    }
+
+    #[test]
+    fn duplicate_near_recursion_boundary_rejects() {
+        let raw = format!(
+            "{}{{\"key\":1,\"k\\u0065y\":2}}{}",
+            "[".repeat(124),
+            "]".repeat(124)
+        );
+        assert!(parse_value(&raw)
+            .unwrap_err()
+            .contains("duplicate JSON object key"));
+    }
+}

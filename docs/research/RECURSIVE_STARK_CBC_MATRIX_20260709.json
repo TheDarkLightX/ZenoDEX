@@ -1095,8 +1095,8 @@
       "code_refs": [],
       "test_refs": [],
       "external_commands": [],
-      "next_action": "retain the CLI-wide recursive duplicate-key rejection and the closed recursive composition field-set guards; define versioned exact-field schemas for mixed Tau projections and nested Spot, perps, and zUSD payloads, then add canonical-byte and complete nested unknown-field negative tests before any production admission integration",
-      "non_claim": "the state-proof CLI rejects recursive duplicate keys and unknown fields in the closed recursive composition surface, but V1 outer bytes and all nested application payloads are not yet canonical authority objects and may not authorize production admission"
+      "next_action": "define versioned exact-field schemas for the outer request, recursive proof, proof.meta, mixed Tau projections, and nested Spot, perps, and zUSD payloads; then add canonical-byte and complete nested unknown-field negative tests before any production admission integration",
+      "non_claim": "V1 outer bytes, recursive proof and proof.meta envelopes, and all nested application payloads are not canonical exact-field authority objects and may not authorize production admission; partial host guards do not close this obligation"
     },
     {
       "id": "RS-CBC-022",
