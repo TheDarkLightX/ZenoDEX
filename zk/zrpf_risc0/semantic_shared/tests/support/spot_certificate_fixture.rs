@@ -5,6 +5,7 @@ use zenodex_zrpf_protocol_v3::{
     SemanticAuthorityUseInputV2, SemanticAuthorityUseV2, SemanticSubtreeInputV2, SemanticSubtreeV2,
     SemanticValueLeafRecordInputV2, SemanticValueLeafRecordV2, TaskIdV3,
     ValueAggregateChildDescriptorInputV5, ValueAggregateChildDescriptorV5,
+    ValueAggregateOperationalCommitmentsInputV5, ValueAggregateOperationalCommitmentsV5,
     ValueAggregateProposalInputV5,
 };
 use zenodex_zrpf_risc0_semantic_shared::{
@@ -34,6 +35,7 @@ pub struct FixtureConfig {
     pub child_journal_seed: u8,
     pub child_claim_seed: u8,
     pub child_subtree_seed: u8,
+    pub child_conflict_schedule_seed: u8,
 }
 
 impl Default for FixtureConfig {
@@ -59,6 +61,7 @@ impl Default for FixtureConfig {
             child_journal_seed: 43,
             child_claim_seed: 44,
             child_subtree_seed: 45,
+            child_conflict_schedule_seed: 48,
         }
     }
 }
@@ -198,6 +201,19 @@ fn child(config: FixtureConfig, index: u64) -> ValueAggregateChildDescriptorV5 {
         journal_hash: indexed(config.child_journal_seed, index),
         claim_binding: indexed(config.child_claim_seed, index),
         semantic_subtree_root: indexed(config.child_subtree_seed, index),
+        operational_commitments: ValueAggregateOperationalCommitmentsV5::new(
+            ValueAggregateOperationalCommitmentsInputV5 {
+                data_availability_root: indexed(46, index),
+                data_availability_certificate_root: indexed(47, index),
+                conflict_schedule_root: indexed(config.child_conflict_schedule_seed, index),
+                cross_lane_outbox_root: indexed(49, index),
+                cross_lane_inbox_root: indexed(50, index),
+                cross_lane_message_ids_root: indexed(51, index),
+                carry_queue_pre_root: indexed(52, index),
+                carry_queue_post_root: indexed(53, index),
+            },
+        )
+        .unwrap(),
     })
     .unwrap()
 }

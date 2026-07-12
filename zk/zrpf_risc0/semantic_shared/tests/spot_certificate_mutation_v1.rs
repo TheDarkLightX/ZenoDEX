@@ -52,6 +52,7 @@ fn proposal_source_mutations(baseline: FixtureConfig) -> Vec<(&'static str, Fixt
     mutate!("child_journal", child_journal_seed, 92);
     mutate!("child_claim", child_claim_seed, 93);
     mutate!("child_subtree", child_subtree_seed, 94);
+    mutate!("child_conflict_schedule", child_conflict_schedule_seed, 95);
     mutations
 }
 
@@ -116,6 +117,7 @@ fn is_proof_tree_source(name: &str) -> bool {
             | "child_journal"
             | "child_claim"
             | "child_subtree"
+            | "child_conflict_schedule"
     )
 }
 

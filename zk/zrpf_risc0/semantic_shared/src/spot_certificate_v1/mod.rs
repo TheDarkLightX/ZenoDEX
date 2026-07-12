@@ -1,13 +1,15 @@
 use zenodex_zrpf_protocol_v3::{
-    CommitmentV3, ProfileIdV3, ProposedValueAggregateV5, SettlementEffectPlanV2,
-    SettlementEpochCertificateInputV1, SettlementEpochCertificateV1, SettlementSemanticRootV1,
-    SETTLEMENT_EPOCH_CERTIFICATE_VERSION_V1,
+    CommitmentV3, FullBlobDataAvailabilityCertificateV1, ProfileIdV3, ProposedValueAggregateV5,
+    SettlementEffectPlanV2, SettlementEpochCertificateInputV1, SettlementEpochCertificateV1,
+    SettlementSemanticRootV1, SETTLEMENT_EPOCH_CERTIFICATE_VERSION_V1,
 };
 
 mod error;
 mod hash;
+mod replay_data;
 
 pub use error::OrdinarySpotSettlementCertificateErrorV1;
+pub use replay_data::*;
 
 use hash::{
     derive_empty_carry_continuity_root_v1, derive_proof_tree_root_v1, derive_schedule_root_v1,
@@ -29,6 +31,57 @@ pub fn compose_ordinary_spot_settlement_certificate_v1(
     semantic_claim_binding: CommitmentV3,
     data_availability_certificate_root: CommitmentV3,
 ) -> Result<SettlementEpochCertificateV1, OrdinarySpotSettlementCertificateErrorV1> {
+    let checked = recompose_checked_context(proposal, authorization)?;
+    compose_checked_certificate(
+        proposal,
+        &checked,
+        semantic_claim_binding,
+        data_availability_certificate_root,
+    )
+}
+
+/// Recomposes V1 compatibility data and validates its exact full-blob certificate.
+///
+/// This path binds canonical replay content. It retains V1 raw subtree state
+/// endpoints and therefore supplies no guest-ready settlement authority. An
+/// authoritative guest must use the forthcoming state-bound Spot projection V2.
+pub fn compose_ordinary_spot_settlement_certificate_with_full_blob_da_v1(
+    proposal: &ProposedValueAggregateV5,
+    authorization: SpotSettlementAuthorizationInputV1,
+    semantic_claim_binding: CommitmentV3,
+    data_availability_certificate: &FullBlobDataAvailabilityCertificateV1,
+) -> Result<SettlementEpochCertificateV1, OrdinarySpotSettlementCertificateErrorV1> {
+    let checked = recompose_checked_context(proposal, authorization)?;
+    let replay_data =
+        OrdinarySpotSettlementReplayDataV1::from_recomposed(proposal, checked.plan())?;
+    let replay_bytes = encode_ordinary_spot_settlement_replay_data_v1(&replay_data)?;
+    require_full_blob_data_availability(proposal, data_availability_certificate, &replay_bytes)?;
+    compose_checked_certificate(
+        proposal,
+        &checked,
+        semantic_claim_binding,
+        data_availability_certificate.certificate_root(),
+    )
+}
+
+struct CheckedSpotCertificateContextV1 {
+    projection: SpotSettlementProjectionV1,
+    semantic_profile_id: ProfileIdV3,
+    proof_tree_root: CommitmentV3,
+    schedule_certificate_root: CommitmentV3,
+    carry_continuity_certificate_root: CommitmentV3,
+}
+
+impl CheckedSpotCertificateContextV1 {
+    const fn plan(&self) -> &SettlementEffectPlanV2 {
+        self.projection.settlement_plan()
+    }
+}
+
+fn recompose_checked_context(
+    proposal: &ProposedValueAggregateV5,
+    authorization: SpotSettlementAuthorizationInputV1,
+) -> Result<CheckedSpotCertificateContextV1, OrdinarySpotSettlementCertificateErrorV1> {
     let projection = derive_spot_settlement_projection_v1(proposal, authorization)?;
     let plan = projection.settlement_plan();
     plan.validate_self_consistency()?;
@@ -38,39 +91,59 @@ pub fn compose_ordinary_spot_settlement_certificate_v1(
         plan.carry_effects().len(),
         plan.reward_effects().len(),
     )?;
-
     let proof_tree_root = derive_proof_tree_root_v1(proposal)?;
-    let schedule_certificate_root = derive_schedule_root_v1(plan.economic_action_batch(), plan)?;
+    let schedule_certificate_root = derive_schedule_root_v1(
+        proposal.operational_commitments().conflict_schedule_root(),
+        plan.economic_action_batch(),
+        plan,
+    )?;
     let carry_continuity_certificate_root = derive_empty_carry_continuity_root_v1(plan)?;
     let semantic_profile_id =
         ProfileIdV3::new(proposal.semantic_subtree().value_profile_id().into_bytes())?;
-    let fields = CertificateCompositionFieldsV1 {
+    Ok(CheckedSpotCertificateContextV1 {
+        projection,
         semantic_profile_id,
-        semantic_claim_binding,
-        data_availability_certificate_root,
         proof_tree_root,
         schedule_certificate_root,
         carry_continuity_certificate_root,
-    };
-
-    compose_checked_certificate(proposal, plan, fields)
+    })
 }
 
-#[derive(Clone, Copy)]
-struct CertificateCompositionFieldsV1 {
-    semantic_profile_id: ProfileIdV3,
-    semantic_claim_binding: CommitmentV3,
-    data_availability_certificate_root: CommitmentV3,
-    proof_tree_root: CommitmentV3,
-    schedule_certificate_root: CommitmentV3,
-    carry_continuity_certificate_root: CommitmentV3,
+fn require_full_blob_data_availability(
+    proposal: &ProposedValueAggregateV5,
+    certificate: &FullBlobDataAvailabilityCertificateV1,
+    replay_bytes: &[u8],
+) -> Result<(), OrdinarySpotSettlementCertificateErrorV1> {
+    certificate.validate_self_consistency()?;
+    let scope = proposal.scope();
+    if certificate.application_id() != scope.application_id() {
+        return Err(OrdinarySpotSettlementCertificateErrorV1::DataAvailabilityApplicationMismatch);
+    }
+    if certificate.chain_or_domain_id() != scope.chain_or_domain_id() {
+        return Err(OrdinarySpotSettlementCertificateErrorV1::DataAvailabilityDomainMismatch);
+    }
+    if certificate.epoch_id() != scope.epoch_start() {
+        return Err(OrdinarySpotSettlementCertificateErrorV1::DataAvailabilityEpochMismatch);
+    }
+    if certificate.storage_policy_hash() != scope.public_policy_hash() {
+        return Err(
+            OrdinarySpotSettlementCertificateErrorV1::DataAvailabilityStoragePolicyMismatch,
+        );
+    }
+    if certificate.data_schema_id() != ordinary_spot_settlement_replay_data_schema_id_v1()? {
+        return Err(OrdinarySpotSettlementCertificateErrorV1::DataAvailabilitySchemaMismatch);
+    }
+    certificate.validate_blob(replay_bytes)?;
+    Ok(())
 }
 
 fn compose_checked_certificate(
     proposal: &ProposedValueAggregateV5,
-    plan: &SettlementEffectPlanV2,
-    fields: CertificateCompositionFieldsV1,
+    checked: &CheckedSpotCertificateContextV1,
+    semantic_claim_binding: CommitmentV3,
+    data_availability_certificate_root: CommitmentV3,
 ) -> Result<SettlementEpochCertificateV1, OrdinarySpotSettlementCertificateErrorV1> {
+    let plan = checked.plan();
     let batch = plan.economic_action_batch();
     Ok(SettlementEpochCertificateV1::new(
         SettlementEpochCertificateInputV1 {
@@ -78,10 +151,10 @@ fn compose_checked_certificate(
             application_id: batch.application_id(),
             chain_or_domain_id: batch.chain_or_domain_id(),
             epoch_id: batch.epoch_id(),
-            semantic_profile_id: fields.semantic_profile_id,
+            semantic_profile_id: checked.semantic_profile_id,
             semantic_journal_hash: plan.source_semantic_journal_hash(),
-            semantic_claim_binding: fields.semantic_claim_binding,
-            proof_tree_root: fields.proof_tree_root,
+            semantic_claim_binding,
+            proof_tree_root: checked.proof_tree_root,
             semantic_root: SettlementSemanticRootV1::ValueSubtree(
                 proposal.semantic_subtree().value_subtree_root(),
             ),
@@ -99,9 +172,9 @@ fn compose_checked_certificate(
             carries_root: plan.carry_effects_root(),
             rewards_root: plan.reward_effects_root(),
             public_policy_hash: plan.public_policy_hash(),
-            data_availability_certificate_root: fields.data_availability_certificate_root,
-            schedule_certificate_root: fields.schedule_certificate_root,
-            carry_continuity_certificate_root: fields.carry_continuity_certificate_root,
+            data_availability_certificate_root,
+            schedule_certificate_root: checked.schedule_certificate_root,
+            carry_continuity_certificate_root: checked.carry_continuity_certificate_root,
             dependency_manifest_root: proposal.dependency_manifest_root(),
         },
     )?)

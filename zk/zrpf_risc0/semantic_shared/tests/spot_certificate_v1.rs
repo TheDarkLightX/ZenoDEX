@@ -119,7 +119,7 @@ fn assert_plan_and_external_fields(
     );
     assert_eq!(
         certificate.schedule_certificate_root(),
-        independent_schedule_root(batch, plan)
+        independent_schedule_root(proposal, batch, plan)
     );
     assert_eq!(
         certificate.carry_continuity_certificate_root(),
@@ -143,7 +143,11 @@ fn derived_roots_and_journal_match_independent_fixed_preimages() {
     let projection = derive_spot_settlement_projection_v1(&proposal, authorization()).unwrap();
     assert_eq!(
         certificate.schedule_certificate_root(),
-        independent_schedule_root(projection.action_batch(), projection.settlement_plan())
+        independent_schedule_root(
+            &proposal,
+            projection.action_batch(),
+            projection.settlement_plan(),
+        )
     );
     assert_eq!(
         certificate.carry_continuity_certificate_root(),
@@ -205,11 +209,18 @@ fn independent_proof_tree_root(proposal: &ProposedValueAggregateV5) -> Commitmen
 }
 
 fn independent_schedule_root(
+    proposal: &ProposedValueAggregateV5,
     batch: &zenodex_zrpf_protocol_v3::EconomicActionBatchV1,
     plan: &zenodex_zrpf_protocol_v3::SettlementEffectPlanV2,
 ) -> CommitmentV3 {
     let mut hasher = domain_hasher(b"zenodex.zrpf.ordinary_spot_schedule_certificate.v1");
     hasher.update(1_u16.to_be_bytes());
+    hasher.update(
+        proposal
+            .operational_commitments()
+            .conflict_schedule_root()
+            .as_bytes(),
+    );
     hasher.update(u16::try_from(batch.actions().len()).unwrap().to_be_bytes());
     for action in batch.actions() {
         hasher.update(action.action_id().unwrap().as_bytes());
