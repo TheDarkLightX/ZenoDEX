@@ -16,14 +16,14 @@ use zenodex_zrpf_risc0_value_node_shared::{
 use support::{indexed, leaf_bytes, policy, scope};
 
 const CURRENT_SPOT_VALUE_V4_IMAGE_ID: [u32; 8] = [
-    3_987_691_741,
-    2_587_475_641,
-    2_746_915_647,
-    3_706_005_826,
-    2_272_313_699,
-    2_481_545_785,
-    1_563_211_015,
-    1_140_320_037,
+    3_473_282_264,
+    1_999_634_215,
+    547_286_378,
+    2_333_271_038,
+    3_834_090_373,
+    2_085_707_079,
+    2_388_587_125,
+    1_886_015_318,
 ];
 const GUEST_SOURCE: &str = include_str!("../../methods/value_aggregate_l1/src/main.rs");
 const WORKSPACE_MANIFEST: &str = include_str!("../../Cargo.toml");

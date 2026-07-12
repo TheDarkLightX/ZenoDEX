@@ -131,10 +131,10 @@ fn verifier_only_report_cannot_emit_observed_guest_artifact_facts() {
 fn prove_report_emits_observed_guest_artifact_facts_after_exact_match() {
     let report = guest_artifact_report(true);
     assert_eq!(report["loaded_and_matched"], true);
-    assert_eq!(report["observed_elf_bytes"], 499_312);
+    assert_eq!(report["observed_elf_bytes"], 467_680);
     assert_eq!(
         report["observed_elf_sha256"],
-        "195f1cd4bd4b6b4ddc4765d9ab33664834e64d58ee6c468dd0b254ea0012fa6e"
+        "6b0452db9c8f2adf6d82dc37884830f289ff3811e083c276e2ad0bda45d6babd"
     );
     assert_eq!(report["source_to_elf_provenance_verified"], false);
 }

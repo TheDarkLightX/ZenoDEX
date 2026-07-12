@@ -45,18 +45,18 @@ const RETAINED_SEMANTIC_OPENING: [u8; 32] = [
     0x07, 0x7b, 0x98, 0xb1, 0x01, 0xcc, 0xaa, 0xa2, 0x6b, 0xc6, 0x0c, 0x55, 0xf4, 0x04, 0xeb, 0x45,
     0x52, 0x9c, 0xf8, 0xe3, 0x3f, 0x88, 0x1e, 0xe3, 0x40, 0xc8, 0x93, 0x1e, 0x9c, 0x66, 0xb0, 0xc0,
 ];
-const EXPECTED_V4_GUEST_ELF_BYTES: usize = 499_312;
+const EXPECTED_V4_GUEST_ELF_BYTES: usize = 467_680;
 const EXPECTED_V4_GUEST_ELF_SHA256: &str =
-    "195f1cd4bd4b6b4ddc4765d9ab33664834e64d58ee6c468dd0b254ea0012fa6e";
+    "6b0452db9c8f2adf6d82dc37884830f289ff3811e083c276e2ad0bda45d6babd";
 const EXPECTED_V4_IMAGE_ID: [u32; 8] = [
-    3_987_691_741,
-    2_587_475_641,
-    2_746_915_647,
-    3_706_005_826,
-    2_272_313_699,
-    2_481_545_785,
-    1_563_211_015,
-    1_140_320_037,
+    3_473_282_264,
+    1_999_634_215,
+    547_286_378,
+    2_333_271_038,
+    3_834_090_373,
+    2_085_707_079,
+    2_388_587_125,
+    1_886_015_318,
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
