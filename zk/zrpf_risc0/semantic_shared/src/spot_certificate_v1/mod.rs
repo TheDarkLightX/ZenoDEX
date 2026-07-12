@@ -5,11 +5,18 @@ use zenodex_zrpf_protocol_v3::{
 };
 
 mod error;
+mod guest_input_v2;
 mod hash;
 mod replay_data;
+mod replay_data_v2;
+mod state_v2;
+mod wire_v2;
 
 pub use error::OrdinarySpotSettlementCertificateErrorV1;
+pub use guest_input_v2::*;
 pub use replay_data::*;
+pub use replay_data_v2::*;
+pub use state_v2::*;
 
 use hash::{
     derive_empty_carry_continuity_root_v1, derive_proof_tree_root_v1, derive_schedule_root_v1,
@@ -34,7 +41,7 @@ pub fn compose_ordinary_spot_settlement_certificate_v1(
     let checked = recompose_checked_context(proposal, authorization)?;
     compose_checked_certificate(
         proposal,
-        &checked,
+        CheckedSpotCertificateInputsV1::new(checked.plan(), checked.fields()),
         semantic_claim_binding,
         data_availability_certificate_root,
     )
@@ -55,10 +62,15 @@ pub fn compose_ordinary_spot_settlement_certificate_with_full_blob_da_v1(
     let replay_data =
         OrdinarySpotSettlementReplayDataV1::from_recomposed(proposal, checked.plan())?;
     let replay_bytes = encode_ordinary_spot_settlement_replay_data_v1(&replay_data)?;
-    require_full_blob_data_availability(proposal, data_availability_certificate, &replay_bytes)?;
+    require_full_blob_data_availability(
+        proposal,
+        data_availability_certificate,
+        ordinary_spot_settlement_replay_data_schema_id_v1()?,
+        &replay_bytes,
+    )?;
     compose_checked_certificate(
         proposal,
-        &checked,
+        CheckedSpotCertificateInputsV1::new(checked.plan(), checked.fields()),
         semantic_claim_binding,
         data_availability_certificate.certificate_root(),
     )
@@ -66,15 +78,37 @@ pub fn compose_ordinary_spot_settlement_certificate_with_full_blob_da_v1(
 
 struct CheckedSpotCertificateContextV1 {
     projection: SpotSettlementProjectionV1,
+    fields: CheckedSpotCertificateFieldsV1,
+}
+
+struct CheckedSpotCertificateFieldsV1 {
     semantic_profile_id: ProfileIdV3,
     proof_tree_root: CommitmentV3,
     schedule_certificate_root: CommitmentV3,
     carry_continuity_certificate_root: CommitmentV3,
 }
 
+struct CheckedSpotCertificateInputsV1<'a> {
+    plan: &'a SettlementEffectPlanV2,
+    fields: &'a CheckedSpotCertificateFieldsV1,
+}
+
+impl<'a> CheckedSpotCertificateInputsV1<'a> {
+    const fn new(
+        plan: &'a SettlementEffectPlanV2,
+        fields: &'a CheckedSpotCertificateFieldsV1,
+    ) -> Self {
+        Self { plan, fields }
+    }
+}
+
 impl CheckedSpotCertificateContextV1 {
     const fn plan(&self) -> &SettlementEffectPlanV2 {
         self.projection.settlement_plan()
+    }
+
+    const fn fields(&self) -> &CheckedSpotCertificateFieldsV1 {
+        &self.fields
     }
 }
 
@@ -86,11 +120,26 @@ fn recompose_checked_context(
     let plan = projection.settlement_plan();
     plan.validate_self_consistency()?;
     require_projection_plan_association(&projection)?;
+    let fields = derive_checked_certificate_fields(proposal, plan)?;
+    Ok(CheckedSpotCertificateContextV1 { projection, fields })
+}
+
+fn derive_checked_certificate_fields(
+    proposal: &ProposedValueAggregateV5,
+    plan: &SettlementEffectPlanV2,
+) -> Result<CheckedSpotCertificateFieldsV1, OrdinarySpotSettlementCertificateErrorV1> {
     require_empty_ordinary_rows(
         plan.message_effects().len(),
         plan.carry_effects().len(),
         plan.reward_effects().len(),
     )?;
+    derive_certificate_fields_after_empty_policy(proposal, plan)
+}
+
+fn derive_certificate_fields_after_empty_policy(
+    proposal: &ProposedValueAggregateV5,
+    plan: &SettlementEffectPlanV2,
+) -> Result<CheckedSpotCertificateFieldsV1, OrdinarySpotSettlementCertificateErrorV1> {
     let proof_tree_root = derive_proof_tree_root_v1(proposal)?;
     let schedule_certificate_root = derive_schedule_root_v1(
         proposal.operational_commitments().conflict_schedule_root(),
@@ -100,8 +149,7 @@ fn recompose_checked_context(
     let carry_continuity_certificate_root = derive_empty_carry_continuity_root_v1(plan)?;
     let semantic_profile_id =
         ProfileIdV3::new(proposal.semantic_subtree().value_profile_id().into_bytes())?;
-    Ok(CheckedSpotCertificateContextV1 {
-        projection,
+    Ok(CheckedSpotCertificateFieldsV1 {
         semantic_profile_id,
         proof_tree_root,
         schedule_certificate_root,
@@ -112,6 +160,7 @@ fn recompose_checked_context(
 fn require_full_blob_data_availability(
     proposal: &ProposedValueAggregateV5,
     certificate: &FullBlobDataAvailabilityCertificateV1,
+    expected_schema_id: CommitmentV3,
     replay_bytes: &[u8],
 ) -> Result<(), OrdinarySpotSettlementCertificateErrorV1> {
     certificate.validate_self_consistency()?;
@@ -130,7 +179,7 @@ fn require_full_blob_data_availability(
             OrdinarySpotSettlementCertificateErrorV1::DataAvailabilityStoragePolicyMismatch,
         );
     }
-    if certificate.data_schema_id() != ordinary_spot_settlement_replay_data_schema_id_v1()? {
+    if certificate.data_schema_id() != expected_schema_id {
         return Err(OrdinarySpotSettlementCertificateErrorV1::DataAvailabilitySchemaMismatch);
     }
     certificate.validate_blob(replay_bytes)?;
@@ -139,11 +188,11 @@ fn require_full_blob_data_availability(
 
 fn compose_checked_certificate(
     proposal: &ProposedValueAggregateV5,
-    checked: &CheckedSpotCertificateContextV1,
+    checked: CheckedSpotCertificateInputsV1<'_>,
     semantic_claim_binding: CommitmentV3,
     data_availability_certificate_root: CommitmentV3,
 ) -> Result<SettlementEpochCertificateV1, OrdinarySpotSettlementCertificateErrorV1> {
-    let plan = checked.plan();
+    let CheckedSpotCertificateInputsV1 { plan, fields } = checked;
     let batch = plan.economic_action_batch();
     Ok(SettlementEpochCertificateV1::new(
         SettlementEpochCertificateInputV1 {
@@ -151,10 +200,10 @@ fn compose_checked_certificate(
             application_id: batch.application_id(),
             chain_or_domain_id: batch.chain_or_domain_id(),
             epoch_id: batch.epoch_id(),
-            semantic_profile_id: checked.semantic_profile_id,
+            semantic_profile_id: fields.semantic_profile_id,
             semantic_journal_hash: plan.source_semantic_journal_hash(),
             semantic_claim_binding,
-            proof_tree_root: checked.proof_tree_root,
+            proof_tree_root: fields.proof_tree_root,
             semantic_root: SettlementSemanticRootV1::ValueSubtree(
                 proposal.semantic_subtree().value_subtree_root(),
             ),
@@ -173,8 +222,8 @@ fn compose_checked_certificate(
             rewards_root: plan.reward_effects_root(),
             public_policy_hash: plan.public_policy_hash(),
             data_availability_certificate_root,
-            schedule_certificate_root: checked.schedule_certificate_root,
-            carry_continuity_certificate_root: checked.carry_continuity_certificate_root,
+            schedule_certificate_root: fields.schedule_certificate_root,
+            carry_continuity_certificate_root: fields.carry_continuity_certificate_root,
             dependency_manifest_root: proposal.dependency_manifest_root(),
         },
     )?)

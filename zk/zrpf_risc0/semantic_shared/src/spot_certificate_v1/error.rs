@@ -5,7 +5,7 @@ use zenodex_zrpf_protocol_v3::{
     SettlementEpochCertificateErrorV1, ZrpfErrorV3,
 };
 
-use super::OrdinarySpotSettlementReplayDataErrorV1;
+use super::{OrdinarySpotSettlementReplayDataErrorV1, OrdinarySpotSettlementReplayDataErrorV2};
 use crate::SpotSettlementProjectionErrorV1;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -21,6 +21,7 @@ pub enum OrdinarySpotSettlementCertificateErrorV1 {
     Structural(ZrpfErrorV3),
     Certificate(SettlementEpochCertificateErrorV1),
     ReplayData(OrdinarySpotSettlementReplayDataErrorV1),
+    ReplayDataV2(OrdinarySpotSettlementReplayDataErrorV2),
     DataAvailability(FullBlobDataAvailabilityErrorV1),
     DataAvailabilityApplicationMismatch,
     DataAvailabilityDomainMismatch,
@@ -65,6 +66,12 @@ impl fmt::Display for OrdinarySpotSettlementCertificateErrorV1 {
             }
             Self::ReplayData(error) => {
                 write!(formatter, "ordinary Spot replay data rejected: {error}")
+            }
+            Self::ReplayDataV2(error) => {
+                write!(
+                    formatter,
+                    "ordinary Spot state-bound replay data rejected: {error}"
+                )
             }
             Self::DataAvailability(error) => {
                 write!(formatter, "ordinary Spot full-blob data rejected: {error}")
@@ -119,6 +126,7 @@ impl OrdinarySpotSettlementCertificateErrorV1 {
             | Self::Structural(_)
             | Self::Certificate(_)
             | Self::ReplayData(_)
+            | Self::ReplayDataV2(_)
             | Self::DataAvailability(_)
             | Self::ArithmeticOverflow(_) => "ordinary Spot settlement certificate error",
         }
@@ -158,6 +166,12 @@ impl From<SettlementEpochCertificateErrorV1> for OrdinarySpotSettlementCertifica
 impl From<OrdinarySpotSettlementReplayDataErrorV1> for OrdinarySpotSettlementCertificateErrorV1 {
     fn from(error: OrdinarySpotSettlementReplayDataErrorV1) -> Self {
         Self::ReplayData(error)
+    }
+}
+
+impl From<OrdinarySpotSettlementReplayDataErrorV2> for OrdinarySpotSettlementCertificateErrorV1 {
+    fn from(error: OrdinarySpotSettlementReplayDataErrorV2) -> Self {
+        Self::ReplayDataV2(error)
     }
 }
 
