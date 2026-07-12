@@ -14,8 +14,8 @@ pub use records::{
     SemanticAuthorityUseV2, SemanticValueLeafRecordInputV2, SemanticValueLeafRecordV2,
 };
 pub use subtree::{
-    decode_exact_semantic_subtree_v2, encode_semantic_subtree_v2, SemanticSubtreeInputV2,
-    SemanticSubtreeV2,
+    decode_exact_semantic_subtree_v2, encode_semantic_subtree_v2, merge_semantic_subtrees_v2,
+    SemanticSubtreeInputV2, SemanticSubtreeV2,
 };
 
 pub const SEMANTIC_SUBTREE_VERSION_V2: u16 = 2;

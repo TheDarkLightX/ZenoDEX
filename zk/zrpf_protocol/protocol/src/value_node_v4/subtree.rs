@@ -13,6 +13,7 @@ use super::{
 
 mod codec;
 pub(super) mod hash;
+mod merge;
 mod validate;
 
 pub use codec::{decode_exact_semantic_subtree_v2, encode_semantic_subtree_v2};
@@ -21,6 +22,7 @@ use hash::{
     require_root, write_asset_flows, write_authority_uses, write_commitment, write_leaf_records,
     write_u16, write_u64,
 };
+pub use merge::merge_semantic_subtrees_v2;
 use validate::{validate_input, validate_subtree};
 
 const SEMANTIC_SUBTREE_HASH_DOMAIN_V2: &[u8] = b"zenodex.zrpf.semantic_subtree_hash.v2";

@@ -13,8 +13,8 @@ use zenodex_zrpf_protocol_v3::{
     AggregateNodeInputV3, ApplicationIdV3, CommitmentV3, DomainIdV3,
     ExpectedV1AdapterLeafIdentityV1, NodeJournalInputV4, NodeJournalV3, NodeJournalV4,
     NodeScopeInputV3, NodeScopeV3, ProfileIdV3, ProgramIdV3, ProjectedChildDescriptorV3,
-    ProposedSemanticEpochV1, ProposedSemanticLeafV1, SemanticEpochProposalInputV1, TaskIdV3,
-    V1AdapterSemanticLeafOpeningV1,
+    ProposedSemanticEpochV1, ProposedSemanticLeafV1, SemanticEpochProposalInputV1,
+    SemanticSubtreeInputV2, SemanticSubtreeV2, TaskIdV3, V1AdapterSemanticLeafOpeningV1,
 };
 use zenodex_zrpf_risc0_semantic_shared::{
     bind_expected_spot_semantic_subtree_v4, canonical_spot_asset_name_v1,
@@ -22,10 +22,11 @@ use zenodex_zrpf_risc0_semantic_shared::{
     match_expected_spot_semantic_value_v1, merge_spot_value_subtrees_v2,
     propose_spot_value_subtree_v2, semantic_subtree_v2_from_spot_summary,
     spot_accounting_domain_id_v1, spot_atoms_unit_id_v1, spot_represented_value_profile_id_v1,
-    spot_state_root_scheme_id_v1, ExpectedSpotSemanticValueFieldV1,
-    ExpectedSpotSemanticValueInputV1, ExpectedSpotSemanticValueV1, SpotMintAuthorityGrantV1,
-    SpotRepresentedValuePolicyV1, SpotSemanticValueErrorV1, SpotSemanticValueProjectionV1,
-    SpotValueLeafOpeningV1, SpotValueSubtreeSummaryV2, SpotValueWireErrorV4, SpotValueWireFieldV4,
+    spot_residual_application_statement_hash_v4, spot_state_root_scheme_id_v1,
+    ExpectedSpotSemanticValueFieldV1, ExpectedSpotSemanticValueInputV1,
+    ExpectedSpotSemanticValueV1, SpotMintAuthorityGrantV1, SpotRepresentedValuePolicyV1,
+    SpotSemanticValueErrorV1, SpotSemanticValueProjectionV1, SpotValueLeafOpeningV1,
+    SpotValueSubtreeSummaryV2, SpotValueWireErrorV4, SpotValueWireFieldV4,
     CANONICAL_SPOT_ASSET_NAME_BYTES_V1, MAX_SPOT_ASSET_ROWS_PER_LEAF_V1, MAX_SPOT_LANE_ID_BYTES_V1,
     MAX_SPOT_MINT_GRANTS_V1, MAX_SPOT_REPRESENTED_ROWS_PER_SUMMARY_V2, MAX_SPOT_VALUE_LEAVES_V1,
     MAX_SPOT_VALUE_SUBTREE_LEAVES_V2,
@@ -470,6 +471,32 @@ fn expected_input(
         base_semantic_epoch_root: commitments.base_semantic_epoch_root(),
         semantic_value_root: projection.semantic_value_root(),
     }
+}
+
+fn rebuild_subtree_with_profiles(
+    subtree: &SemanticSubtreeV2,
+    value_profile_id: CommitmentV3,
+    accounting_domain_id: CommitmentV3,
+    atoms_unit_id: CommitmentV3,
+    state_root_scheme_id: CommitmentV3,
+) -> SemanticSubtreeV2 {
+    SemanticSubtreeV2::derive(SemanticSubtreeInputV2 {
+        value_profile_id,
+        accounting_domain_id,
+        atoms_unit_id,
+        state_root_scheme_id,
+        scope_hash: subtree.scope_hash(),
+        lane_id_hash: subtree.lane_id_hash(),
+        partition: subtree.partition(),
+        raw_subtree_pre_state_root: subtree.raw_subtree_pre_state_root(),
+        raw_subtree_post_state_root: subtree.raw_subtree_post_state_root(),
+        represented_row_count: subtree.represented_row_count(),
+        leaf_records: subtree.leaf_records().to_vec(),
+        authority_grants_root: subtree.authority_grants_root(),
+        asset_flows: subtree.asset_flows().to_vec(),
+        authority_uses: subtree.authority_uses().to_vec(),
+    })
+    .unwrap()
 }
 
 fn unrelated_scope(epoch_start: u64, epoch_end: u64) -> NodeScopeV3 {
@@ -1488,6 +1515,13 @@ fn ordinary_spot_summary_has_exact_v1_v4_root_and_statement_parity() {
     let (summary, projection, scope) =
         closed_summary_and_projection(&fixtures, 92, &policy(vec![]));
     let subtree = semantic_subtree_v2_from_spot_summary(&summary).unwrap();
+    let residual_statement = spot_residual_application_statement_hash_v4(&subtree).unwrap();
+    let mut residual_mirror = Sha256::new();
+    write_mirror_domain(
+        &mut residual_mirror,
+        b"zenodex.zrpf.spot_residual_application_statement.v4",
+    );
+    residual_mirror.update(subtree.canonical_hash().unwrap().as_bytes());
 
     assert_eq!(subtree.value_subtree_root(), summary.subtree_root());
     assert_eq!(
@@ -1498,6 +1532,14 @@ fn ordinary_spot_summary_has_exact_v1_v4_root_and_statement_parity() {
         decode_exact_semantic_subtree_v2(&encode_semantic_subtree_v2(&subtree).unwrap()).unwrap(),
         subtree
     );
+    assert_eq!(
+        residual_statement.into_bytes(),
+        <[u8; 32]>::from(residual_mirror.finalize())
+    );
+    assert_eq!(
+        hex32(residual_statement.into_bytes()),
+        "a133121dac3163e6d107f9cd62d46ecf28f26382ff0f4e8ca0a3dd03aa016684"
+    );
 
     let expected = ExpectedSpotSemanticValueV1::new(expected_input(scope, &projection)).unwrap();
     let expected_hash = expected.statement_hash();
@@ -1505,7 +1547,71 @@ fn ordinary_spot_summary_has_exact_v1_v4_root_and_statement_parity() {
     let bound = bind_expected_spot_semantic_subtree_v4(&summary, matched).unwrap();
     assert_eq!(bound.semantic_subtree(), &subtree);
     assert_eq!(bound.application_statement_hash(), expected_hash);
+    assert_ne!(bound.application_statement_hash(), residual_statement);
     assert_eq!(bound.semantic_value_root(), expected.semantic_value_root());
+}
+
+#[test]
+fn spot_residual_statement_rejects_every_foreign_profile_identity() {
+    let native = [0; 32];
+    let fixtures = [
+        fixture(1, 0, 10, 11, vec![ordinary_row(native, 10, 0)]),
+        fixture(2, 1, 11, 12, vec![ordinary_row(native, 0, 10)]),
+    ];
+    let governed = policy(vec![]);
+    let leaves = fixtures
+        .iter()
+        .map(|fixture| fixture.leaf.clone())
+        .collect::<Vec<_>>();
+    let openings = fixtures
+        .iter()
+        .map(|fixture| fixture.opening.clone())
+        .collect::<Vec<_>>();
+    let summary = propose_spot_value_subtree_v2(&leaves, &openings, &governed).unwrap();
+    let subtree = semantic_subtree_v2_from_spot_summary(&summary).unwrap();
+    let value_profile = spot_represented_value_profile_id_v1().unwrap();
+    let accounting = spot_accounting_domain_id_v1().unwrap();
+    let atoms = spot_atoms_unit_id_v1().unwrap();
+    let state_scheme = spot_state_root_scheme_id_v1().unwrap();
+    let foreign = CommitmentV3::new(root(240)).unwrap();
+
+    for (field, value, accounting_id, atoms_id, state_id) in [
+        (
+            SpotValueWireFieldV4::ValueProfileId,
+            foreign,
+            accounting,
+            atoms,
+            state_scheme,
+        ),
+        (
+            SpotValueWireFieldV4::AccountingDomainId,
+            value_profile,
+            foreign,
+            atoms,
+            state_scheme,
+        ),
+        (
+            SpotValueWireFieldV4::AtomsUnitId,
+            value_profile,
+            accounting,
+            foreign,
+            state_scheme,
+        ),
+        (
+            SpotValueWireFieldV4::StateRootSchemeId,
+            value_profile,
+            accounting,
+            atoms,
+            foreign,
+        ),
+    ] {
+        let relabeled =
+            rebuild_subtree_with_profiles(&subtree, value, accounting_id, atoms_id, state_id);
+        assert_eq!(
+            spot_residual_application_statement_hash_v4(&relabeled),
+            Err(SpotValueWireErrorV4::SpotProfileMismatch(field))
+        );
+    }
 }
 
 #[test]

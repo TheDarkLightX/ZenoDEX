@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 
+use sha2::Digest;
 use zenodex_zrpf_protocol_v3::{
     CommitmentV3, PartitionV3, SemanticAssetFlowInputV2, SemanticAssetFlowV2,
     SemanticAuthorityUseInputV2, SemanticAuthorityUseV2, SemanticSubtreeInputV2, SemanticSubtreeV2,
@@ -12,6 +13,9 @@ use super::{
 
 mod error;
 pub use error::{SpotValueWireErrorV4, SpotValueWireFieldV4};
+
+const SPOT_RESIDUAL_APPLICATION_STATEMENT_DOMAIN_V4: &[u8] =
+    b"zenodex.zrpf.spot_residual_application_statement.v4";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// Exact pure V4 subtree plus a sealed expected Spot projection match.
@@ -51,6 +55,51 @@ impl ExpectedSpotSemanticSubtreeMatchV4 {
     pub const fn semantic_value_root(&self) -> CommitmentV3 {
         self.expected_match.projection().semantic_value_root()
     }
+}
+
+/// Derive the application statement for a non-final Spot residual subtree.
+///
+/// A final closed root uses the independently matched expected-statement hash
+/// instead. Neither value gains authority without its enclosing receipt and
+/// outer expected-policy checks.
+pub fn spot_residual_application_statement_hash_v4(
+    subtree: &SemanticSubtreeV2,
+) -> Result<CommitmentV3, SpotValueWireErrorV4> {
+    subtree.validate()?;
+    require_spot_profile(subtree)?;
+    let mut hasher = super::domain_hasher(SPOT_RESIDUAL_APPLICATION_STATEMENT_DOMAIN_V4)?;
+    super::write_bytes32(&mut hasher, subtree.canonical_hash()?.as_bytes());
+    super::commitment(hasher.finalize().into()).map_err(SpotValueWireErrorV4::ReferenceKernel)
+}
+
+fn require_spot_profile(subtree: &SemanticSubtreeV2) -> Result<(), SpotValueWireErrorV4> {
+    for (field, actual, expected) in [
+        (
+            SpotValueWireFieldV4::ValueProfileId,
+            subtree.value_profile_id(),
+            super::spot_represented_value_profile_id_v1()?,
+        ),
+        (
+            SpotValueWireFieldV4::AccountingDomainId,
+            subtree.accounting_domain_id(),
+            super::spot_accounting_domain_id_v1()?,
+        ),
+        (
+            SpotValueWireFieldV4::AtomsUnitId,
+            subtree.atoms_unit_id(),
+            super::spot_atoms_unit_id_v1()?,
+        ),
+        (
+            SpotValueWireFieldV4::StateRootSchemeId,
+            subtree.state_root_scheme_id(),
+            super::spot_state_root_scheme_id_v1()?,
+        ),
+    ] {
+        if actual != expected {
+            return Err(SpotValueWireErrorV4::SpotProfileMismatch(field));
+        }
+    }
+    Ok(())
 }
 
 /// Translate one sealed Spot V1 summary into the exact generic V4 subtree.

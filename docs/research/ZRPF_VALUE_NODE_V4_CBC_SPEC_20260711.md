@@ -167,6 +167,56 @@ H(
 Decoding recomputes every derived root. Caller-supplied matching roots cannot
 skip record validation.
 
+## Canonical semantic merge
+
+`merge_semantic_subtrees_v2` accepts one through eight already validated child
+subtrees in exact partition order. It requires equal profile, accounting,
+unit, root-scheme, scope, lane, and authority-policy identities. Adjacent
+partitions and raw state endpoints must be continuous.
+
+The merge concatenates the bounded leaf records, sums each nonnegative asset
+flow component with checked `u128` arithmetic, canonically orders authority
+uses, and invokes the ordinary `SemanticSubtreeV2` constructor again. The final
+constructor rechecks global source, semantic, task, and transaction uniqueness,
+issued-atom equality with authority-use totals, all bounds, and every root.
+
+For valid ordered children, the merge is associative wherever every invoked
+merge stays within the one-to-eight child limit and cumulative semantic caps.
+Its normalized state consists of:
+
+```text
+ordered leaf-record concatenation
+per-asset component-wise addition
+canonical authority-use ordering
+checked represented-row addition
+fixed shared metadata and outer endpoints
+```
+
+The tests compare direct, left-associated, and right-associated merges and
+exercise the saturated eight-child, 64-leaf, 128-row, 128-flow boundary.
+Receipt authentication remains outside this pure algebra.
+
+Intermediate nodes derive a residual application statement as:
+
+```text
+H("zenodex.zrpf.spot_residual_application_statement.v4",
+  semantic_subtree_canonical_hash)
+```
+
+The helper first requires the exact Spot value-profile, accounting-domain,
+atoms-unit, and state-root-scheme identities. A self-consistent foreign-profile
+subtree cannot receive the Spot residual domain label.
+
+The ordinary two-leaf fixture has residual statement vector:
+
+```text
+a133121dac3163e6d107f9cd62d46ecf28f26382ff0f4e8ca0a3dd03aa016684
+```
+
+A final closed root instead carries the separately matched expected Spot
+statement hash. The enclosing guest and outer verifier must enforce the node
+role and expected-statement policy.
+
 ## NodeJournalV4
 
 `NodeJournalV4` binds:
@@ -256,6 +306,9 @@ length with an excessive encoded count and require decode rejection.
 | child V4 omission or duplication | exact immediate count and duplicate rejection |
 | structural scope or partition relabeling | V3/V2 equality checks |
 | application statement hash relabeled after construction | semantic-statement and canonical-hash recomposition reject |
+| child semantic metadata, order, or state chain differs | canonical merge rejects before parent construction |
+| global identity duplicated across otherwise valid children | parent constructor rechecks flattened uniqueness |
+| child flow sum overflows | checked component addition rejects |
 | verifier backend or parameters relabeled | V4 verifier-ID derivation |
 | stored derived root differs from records | decode-time root recomposition |
 | hostile sequence length triggers large allocation | bounded sequence visitor |
@@ -277,6 +330,8 @@ The focused protocol suite covers:
 - flow and authority-use order, bounds, source binding, and issuance totals;
 - V3/V2 partition, leaf-count, and scope equality;
 - application-statement hash changes alter both derived V4 hashes;
+- associative canonical merge, metadata/order/state failures, global duplicate
+  rejection, checked overflow, and the saturated eight-child boundary;
 - child count, child duplication, child order, and child-root binding;
 - proof-system, receipt-security-profile, verifier-parameter, program,
   profile, and manifest relabeling;

@@ -1,15 +1,16 @@
 use sha2::{Digest, Sha256};
 use zenodex_zrpf_protocol_v3::{
     decode_exact_node_journal_v4, decode_exact_semantic_subtree_v2, encode_node_journal_v3,
-    encode_node_journal_v4, encode_semantic_subtree_v2, AggregateNodeInputV3, ApplicationIdV3,
-    CommitmentV3, DomainIdV3, LeafNodeInputV3, NodeCommitmentsInputV3, NodeCommitmentsV3,
-    NodeJournalInputV4, NodeJournalV3, NodeJournalV4, NodeScopeInputV3, NodeScopeV3, PartitionV3,
-    ProfileIdV3, ProgramIdV3, ProjectedChildDescriptorV3, SemanticAssetFlowInputV2,
-    SemanticAssetFlowV2, SemanticAuthorityUseInputV2, SemanticAuthorityUseV2,
-    SemanticSubtreeInputV2, SemanticSubtreeV2, SemanticValueLeafRecordInputV2,
-    SemanticValueLeafRecordV2, TaskIdV3, ValueNodeErrorV4, MAX_IMMEDIATE_CHILDREN_V3,
-    MAX_NODE_JOURNAL_BYTES_V4, MAX_SEMANTIC_ASSET_FLOWS_V2, MAX_SEMANTIC_AUTHORITY_USES_V2,
-    MAX_SEMANTIC_SUBTREE_BYTES_V2, MAX_SEMANTIC_VALUE_RECORDS_V2, NODE_JOURNAL_VERSION_V4,
+    encode_node_journal_v4, encode_semantic_subtree_v2, merge_semantic_subtrees_v2,
+    AggregateNodeInputV3, ApplicationIdV3, CommitmentV3, DomainIdV3, LeafNodeInputV3,
+    NodeCommitmentsInputV3, NodeCommitmentsV3, NodeJournalInputV4, NodeJournalV3, NodeJournalV4,
+    NodeScopeInputV3, NodeScopeV3, PartitionV3, ProfileIdV3, ProgramIdV3,
+    ProjectedChildDescriptorV3, SemanticAssetFlowInputV2, SemanticAssetFlowV2,
+    SemanticAuthorityUseInputV2, SemanticAuthorityUseV2, SemanticSubtreeInputV2, SemanticSubtreeV2,
+    SemanticValueLeafRecordInputV2, SemanticValueLeafRecordV2, TaskIdV3, ValueNodeErrorV4,
+    MAX_IMMEDIATE_CHILDREN_V3, MAX_NODE_JOURNAL_BYTES_V4, MAX_SEMANTIC_ASSET_FLOWS_V2,
+    MAX_SEMANTIC_AUTHORITY_USES_V2, MAX_SEMANTIC_SUBTREE_BYTES_V2, MAX_SEMANTIC_VALUE_RECORDS_V2,
+    NODE_JOURNAL_VERSION_V4,
 };
 
 fn commitment(seed: u8) -> CommitmentV3 {
@@ -164,6 +165,19 @@ fn leaf_record(
     .unwrap()
 }
 
+fn leaf_record_range(start: usize, count: usize) -> Vec<SemanticValueLeafRecordV2> {
+    (start..start + count)
+        .map(|index| {
+            leaf_record(
+                index as u64,
+                index,
+                indexed_commitment(100, index),
+                indexed_commitment(100, index + 1),
+            )
+        })
+        .collect()
+}
+
 fn flow(
     index: usize,
     outflow_atoms: u128,
@@ -221,6 +235,30 @@ fn subtree_with_records(
         asset_flows: flows,
         authority_uses: uses,
     })
+}
+
+fn one_leaf_subtree_with_profile(
+    record: SemanticValueLeafRecordV2,
+    value_profile_id: CommitmentV3,
+    flow: SemanticAssetFlowV2,
+) -> SemanticSubtreeV2 {
+    SemanticSubtreeV2::derive(SemanticSubtreeInputV2 {
+        value_profile_id,
+        accounting_domain_id: commitment(212),
+        atoms_unit_id: commitment(213),
+        state_root_scheme_id: commitment(214),
+        scope_hash: scope().canonical_hash().unwrap(),
+        lane_id_hash: commitment(215),
+        partition: record.partition(),
+        raw_subtree_pre_state_root: record.raw_pre_state_root(),
+        raw_subtree_post_state_root: record.raw_post_state_root(),
+        represented_row_count: 1,
+        leaf_records: vec![record],
+        authority_grants_root: commitment(216),
+        asset_flows: vec![flow],
+        authority_uses: vec![],
+    })
+    .unwrap()
 }
 
 fn one_leaf_subtree() -> SemanticSubtreeV2 {
@@ -367,6 +405,335 @@ fn semantic_subtree_exact_codec_roundtrips_checked_state_and_flows() {
     assert_eq!(subtree.leaf_count(), 2);
     assert_eq!(subtree.represented_row_count(), 2);
     assert_ne!(subtree.canonical_hash().unwrap().into_bytes(), [0; 32]);
+}
+
+#[test]
+fn semantic_subtree_merge_is_associative_and_rederives_global_flows() {
+    let first = subtree_with_records(
+        vec![leaf_record(0, 0, commitment(101), commitment(102))],
+        1,
+        vec![flow(0, 10, 0, 0, 0)],
+        vec![],
+    )
+    .unwrap();
+    let second = subtree_with_records(
+        vec![leaf_record(1, 1, commitment(102), commitment(103))],
+        1,
+        vec![flow(0, 0, 4, 0, 0)],
+        vec![],
+    )
+    .unwrap();
+    let third = subtree_with_records(
+        vec![leaf_record(2, 2, commitment(103), commitment(104))],
+        1,
+        vec![flow(0, 0, 6, 0, 0)],
+        vec![],
+    )
+    .unwrap();
+
+    assert_eq!(
+        merge_semantic_subtrees_v2(core::slice::from_ref(&first)).unwrap(),
+        first
+    );
+    let direct =
+        merge_semantic_subtrees_v2(&[first.clone(), second.clone(), third.clone()]).unwrap();
+    let left = merge_semantic_subtrees_v2(&[
+        merge_semantic_subtrees_v2(&[first.clone(), second.clone()]).unwrap(),
+        third.clone(),
+    ])
+    .unwrap();
+    let right =
+        merge_semantic_subtrees_v2(&[first, merge_semantic_subtrees_v2(&[second, third]).unwrap()])
+            .unwrap();
+
+    assert_eq!(direct, left);
+    assert_eq!(direct, right);
+    assert_eq!(direct.partition(), PartitionV3::new(0, 3).unwrap());
+    assert_eq!(direct.asset_flows().len(), 1);
+    assert_eq!(direct.asset_flows()[0].outflow_atoms(), 10);
+    assert_eq!(direct.asset_flows()[0].inflow_atoms(), 10);
+}
+
+#[test]
+fn semantic_subtree_merge_rejects_order_gap_and_state_discontinuity() {
+    let first = subtree_with_records(
+        vec![leaf_record(0, 0, commitment(101), commitment(102))],
+        1,
+        vec![flow(0, 1, 0, 0, 0)],
+        vec![],
+    )
+    .unwrap();
+    let second = subtree_with_records(
+        vec![leaf_record(1, 1, commitment(102), commitment(103))],
+        1,
+        vec![flow(0, 0, 1, 0, 0)],
+        vec![],
+    )
+    .unwrap();
+    let gap = subtree_with_records(
+        vec![leaf_record(2, 2, commitment(102), commitment(103))],
+        1,
+        vec![flow(0, 0, 1, 0, 0)],
+        vec![],
+    )
+    .unwrap();
+    let discontinuous = subtree_with_records(
+        vec![leaf_record(1, 3, commitment(105), commitment(106))],
+        1,
+        vec![flow(0, 0, 1, 0, 0)],
+        vec![],
+    )
+    .unwrap();
+
+    assert_eq!(
+        merge_semantic_subtrees_v2(&[second.clone(), first.clone()]),
+        Err(ValueNodeErrorV4::NonCanonicalSemanticChildOrder { child: 1 })
+    );
+    assert_eq!(
+        merge_semantic_subtrees_v2(&[first.clone(), gap]),
+        Err(ValueNodeErrorV4::NonCanonicalSemanticChildOrder { child: 1 })
+    );
+    assert_eq!(
+        merge_semantic_subtrees_v2(&[first, discontinuous]),
+        Err(ValueNodeErrorV4::SemanticChildStateDiscontinuity { child: 1 })
+    );
+}
+
+#[test]
+fn semantic_subtree_merge_rejects_metadata_and_global_identity_substitution() {
+    let first_record = leaf_record(0, 0, commitment(101), commitment(102));
+    let first = subtree_with_records(
+        vec![first_record.clone()],
+        1,
+        vec![flow(0, 1, 0, 0, 0)],
+        vec![],
+    )
+    .unwrap();
+    let second_record = leaf_record(1, 1, commitment(102), commitment(103));
+    let changed_profile =
+        one_leaf_subtree_with_profile(second_record.clone(), commitment(250), flow(0, 0, 1, 0, 0));
+    assert_eq!(
+        merge_semantic_subtrees_v2(&[first.clone(), changed_profile]),
+        Err(ValueNodeErrorV4::SemanticChildMetadataMismatch {
+            child: 1,
+            field: "value_profile_id",
+        })
+    );
+
+    let make_second = |source_claim_id, semantic_source_id, task_id, transaction_root| {
+        SemanticValueLeafRecordV2::new(SemanticValueLeafRecordInputV2 {
+            partition: PartitionV3::new(1, 2).unwrap(),
+            semantic_leaf_hash: indexed_commitment(10, 1),
+            source_claim_id,
+            semantic_source_id,
+            task_id,
+            pre_state_vector_root: indexed_commitment(40, 1),
+            post_state_vector_root: indexed_commitment(50, 1),
+            transaction_root,
+            effect_root: indexed_commitment(70, 1),
+            asset_delta_root: indexed_commitment(80, 1),
+            raw_pre_state_root: commitment(102),
+            raw_post_state_root: commitment(103),
+        })
+        .unwrap()
+    };
+    let unique_source = indexed_commitment(20, 1);
+    let unique_semantic = indexed_commitment(30, 1);
+    let unique_task = task_index(1);
+    let unique_transaction = indexed_commitment(60, 1);
+    for (record, expected) in [
+        (
+            make_second(
+                first_record.source_claim_id(),
+                unique_semantic,
+                unique_task,
+                unique_transaction,
+            ),
+            ValueNodeErrorV4::DuplicateSourceClaim,
+        ),
+        (
+            make_second(
+                unique_source,
+                first_record.semantic_source_id(),
+                unique_task,
+                unique_transaction,
+            ),
+            ValueNodeErrorV4::DuplicateSemanticSource,
+        ),
+        (
+            make_second(
+                unique_source,
+                unique_semantic,
+                first_record.task_id(),
+                unique_transaction,
+            ),
+            ValueNodeErrorV4::DuplicateTask,
+        ),
+        (
+            make_second(
+                unique_source,
+                unique_semantic,
+                unique_task,
+                first_record.transaction_root(),
+            ),
+            ValueNodeErrorV4::DuplicateTransactionRoot,
+        ),
+    ] {
+        let duplicate_child =
+            subtree_with_records(vec![record], 1, vec![flow(0, 0, 1, 0, 0)], vec![]).unwrap();
+        assert_eq!(
+            merge_semantic_subtrees_v2(&[first.clone(), duplicate_child]),
+            Err(expected)
+        );
+    }
+}
+
+#[test]
+fn semantic_subtree_merge_bounds_children_and_checked_flow_totals() {
+    let first = subtree_with_records(
+        vec![leaf_record(0, 0, commitment(101), commitment(102))],
+        1,
+        vec![flow(0, u128::MAX, 0, 0, 0)],
+        vec![],
+    )
+    .unwrap();
+    let second = subtree_with_records(
+        vec![leaf_record(1, 1, commitment(102), commitment(103))],
+        1,
+        vec![flow(0, 1, 0, 0, 0)],
+        vec![],
+    )
+    .unwrap();
+    assert_eq!(
+        merge_semantic_subtrees_v2(&[first.clone(), second]),
+        Err(ValueNodeErrorV4::ArithmeticOverflow("outflow_atoms"))
+    );
+    assert_eq!(
+        merge_semantic_subtrees_v2(&[]),
+        Err(ValueNodeErrorV4::EmptySemanticChildren)
+    );
+    assert_eq!(
+        merge_semantic_subtrees_v2(&vec![first; MAX_IMMEDIATE_CHILDREN_V3 + 1]),
+        Err(ValueNodeErrorV4::TooManySemanticChildren {
+            actual: MAX_IMMEDIATE_CHILDREN_V3 + 1,
+            maximum: MAX_IMMEDIATE_CHILDREN_V3,
+        })
+    );
+}
+
+#[test]
+fn semantic_subtree_merge_rejects_each_cumulative_bound_plus_one() {
+    let sixty_four_records = leaf_record_range(0, 64);
+    let first =
+        subtree_with_records(sixty_four_records, 64, vec![flow(0, 1, 1, 0, 0)], vec![]).unwrap();
+    let second = subtree_with_records(
+        leaf_record_range(64, 1),
+        1,
+        vec![flow(0, 1, 1, 0, 0)],
+        vec![],
+    )
+    .unwrap();
+    assert_eq!(
+        merge_semantic_subtrees_v2(&[first, second]),
+        Err(ValueNodeErrorV4::SemanticMergeLimitExceeded {
+            field: "semantic_leaf_records",
+            actual: 65,
+            maximum: 64,
+        })
+    );
+
+    let sixty_three_records = leaf_record_range(0, 63);
+    let authority_flows = (0..128)
+        .map(|index| flow(index, 1, 2, 1, 0))
+        .collect::<Vec<_>>();
+    let authority_uses = (0..128)
+        .map(|index| {
+            authority_use(
+                &sixty_three_records[index % sixty_three_records.len()],
+                index,
+                1,
+            )
+        })
+        .collect::<Vec<_>>();
+    let authority_full = subtree_with_records(
+        sixty_three_records.clone(),
+        128,
+        authority_flows,
+        authority_uses,
+    )
+    .unwrap();
+    let last_record = leaf_record_range(63, 1);
+    let authority_extra = subtree_with_records(
+        last_record.clone(),
+        1,
+        vec![flow(128, 1, 2, 1, 0)],
+        vec![authority_use(&last_record[0], 128, 1)],
+    )
+    .unwrap();
+    assert_eq!(
+        merge_semantic_subtrees_v2(&[authority_full, authority_extra]),
+        Err(ValueNodeErrorV4::SemanticMergeLimitExceeded {
+            field: "semantic_authority_uses",
+            actual: 129,
+            maximum: 128,
+        })
+    );
+
+    let rows_full =
+        subtree_with_records(sixty_three_records, 128, vec![flow(0, 1, 1, 0, 0)], vec![]).unwrap();
+    let rows_extra =
+        subtree_with_records(last_record, 1, vec![flow(0, 1, 1, 0, 0)], vec![]).unwrap();
+    assert_eq!(
+        merge_semantic_subtrees_v2(&[rows_full, rows_extra]),
+        Err(ValueNodeErrorV4::RepresentedRowLimitExceeded {
+            actual: 129,
+            maximum: 128,
+        })
+    );
+}
+
+#[test]
+fn maximum_eight_child_merge_hits_every_semantic_output_bound() {
+    let children = (0..MAX_IMMEDIATE_CHILDREN_V3)
+        .map(|group| {
+            let record_start = group * MAX_IMMEDIATE_CHILDREN_V3;
+            let records = (0..MAX_IMMEDIATE_CHILDREN_V3)
+                .map(|offset| {
+                    let index = record_start + offset;
+                    leaf_record(
+                        index as u64,
+                        index,
+                        indexed_commitment(100, index),
+                        indexed_commitment(100, index + 1),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let flow_start = (MAX_IMMEDIATE_CHILDREN_V3 - group - 1) * 16;
+            let flows = (0..16)
+                .map(|offset| flow(flow_start + offset, 1, 2, 1, 0))
+                .collect::<Vec<_>>();
+            let uses = (0..16)
+                .map(|offset| {
+                    authority_use(&records[offset % records.len()], flow_start + offset, 1)
+                })
+                .collect::<Vec<_>>();
+            subtree_with_records(records, 16, flows, uses).unwrap()
+        })
+        .collect::<Vec<_>>();
+
+    let merged = merge_semantic_subtrees_v2(&children).unwrap();
+    assert_eq!(merged.leaf_count(), MAX_SEMANTIC_VALUE_RECORDS_V2 as u64);
+    assert_eq!(merged.represented_row_count(), 128);
+    assert_eq!(merged.asset_flows().len(), MAX_SEMANTIC_ASSET_FLOWS_V2);
+    assert_eq!(
+        merged.authority_uses().len(),
+        MAX_SEMANTIC_AUTHORITY_USES_V2
+    );
+    assert!(merged
+        .authority_uses()
+        .windows(2)
+        .all(|pair| pair[0].asset_id() < pair[1].asset_id()));
+    assert!(encode_semantic_subtree_v2(&merged).unwrap().len() <= MAX_SEMANTIC_SUBTREE_BYTES_V2);
 }
 
 #[test]

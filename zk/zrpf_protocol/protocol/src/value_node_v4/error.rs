@@ -7,39 +7,83 @@ pub enum ValueNodeErrorV4 {
     InvalidSemanticSubtreeVersion(u16),
     InvalidNodeJournalVersion(u16),
     EmptyLeafRecords,
-    TooManyLeafRecords { actual: usize, maximum: usize },
+    TooManyLeafRecords {
+        actual: usize,
+        maximum: usize,
+    },
     LeafCountMismatch,
     SubtreePartitionMismatch,
-    NonSingletonLeafRecord { ordinal: usize },
-    NonCanonicalLeafOrder { ordinal: usize },
+    NonSingletonLeafRecord {
+        ordinal: usize,
+    },
+    NonCanonicalLeafOrder {
+        ordinal: usize,
+    },
     DuplicateSourceClaim,
     DuplicateSemanticSource,
     DuplicateTask,
     DuplicateTransactionRoot,
-    StateDiscontinuity { ordinal: usize },
+    StateDiscontinuity {
+        ordinal: usize,
+    },
     SubtreeEndpointMismatch,
-    RepresentedRowLimitExceeded { actual: u64, maximum: u64 },
+    RepresentedRowLimitExceeded {
+        actual: u64,
+        maximum: u64,
+    },
     InvalidRepresentedRowShape,
-    TooManyAssetFlows { actual: usize, maximum: usize },
+    TooManyAssetFlows {
+        actual: usize,
+        maximum: usize,
+    },
     InvalidAssetFlow,
     NonCanonicalAssetFlowOrder,
-    TooManyAuthorityUses { actual: usize, maximum: usize },
+    TooManyAuthorityUses {
+        actual: usize,
+        maximum: usize,
+    },
     InvalidAuthorityUse,
     NonCanonicalAuthorityUseOrder,
     AuthorityUseOutsidePartition,
     AuthorityUseSourceMismatch,
     IssuanceUseMismatch,
+    EmptySemanticChildren,
+    TooManySemanticChildren {
+        actual: usize,
+        maximum: usize,
+    },
+    SemanticChildMetadataMismatch {
+        child: usize,
+        field: &'static str,
+    },
+    NonCanonicalSemanticChildOrder {
+        child: usize,
+    },
+    SemanticChildStateDiscontinuity {
+        child: usize,
+    },
+    SemanticMergeLimitExceeded {
+        field: &'static str,
+        actual: usize,
+        maximum: usize,
+    },
     CommitmentMismatch(&'static str),
     StructuralPartitionMismatch,
     StructuralLeafCountMismatch,
     StructuralScopeMismatch,
-    InvalidChildSemanticJournalCount { actual: usize, expected: usize },
+    InvalidChildSemanticJournalCount {
+        actual: usize,
+        expected: usize,
+    },
     DuplicateChildSemanticJournal,
     VerifierIdMismatch,
     StatementHashMismatch,
     ArithmeticOverflow(&'static str),
     EmptyInput,
-    InputTooLarge { actual: usize, maximum: usize },
+    InputTooLarge {
+        actual: usize,
+        maximum: usize,
+    },
     PostcardDecode,
     TrailingBytes,
     NonCanonicalEncoding,
@@ -129,6 +173,32 @@ impl fmt::Display for ValueNodeErrorV4 {
             Self::IssuanceUseMismatch => {
                 formatter.write_str("semantic issuance differs from authority use totals")
             }
+            Self::EmptySemanticChildren => {
+                formatter.write_str("semantic merge has no child subtrees")
+            }
+            Self::TooManySemanticChildren { actual, maximum } => {
+                write!(formatter, "semantic child count {actual} exceeds {maximum}")
+            }
+            Self::SemanticChildMetadataMismatch { child, field } => {
+                write!(formatter, "semantic child {child} mismatches {field}")
+            }
+            Self::NonCanonicalSemanticChildOrder { child } => {
+                write!(formatter, "semantic child {child} is not dense and ordered")
+            }
+            Self::SemanticChildStateDiscontinuity { child } => {
+                write!(
+                    formatter,
+                    "semantic child {child} has a discontinuous state"
+                )
+            }
+            Self::SemanticMergeLimitExceeded {
+                field,
+                actual,
+                maximum,
+            } => write!(
+                formatter,
+                "semantic merge {field} count {actual} exceeds {maximum}"
+            ),
             Self::CommitmentMismatch(field) => {
                 write!(formatter, "semantic commitment mismatches: {field}")
             }

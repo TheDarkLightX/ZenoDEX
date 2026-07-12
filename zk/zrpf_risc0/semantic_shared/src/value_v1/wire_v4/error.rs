@@ -59,6 +59,7 @@ pub enum SpotValueWireErrorV4 {
     SemanticLeaf(SemanticEpochErrorV1),
     Structural(ZrpfErrorV3),
     ValueNode(ValueNodeErrorV4),
+    SpotProfileMismatch(SpotValueWireFieldV4),
     ReferenceMismatch(SpotValueWireFieldV4),
     ExpectedProjectionMismatch(SpotValueWireFieldV4),
 }
@@ -72,6 +73,9 @@ impl fmt::Display for SpotValueWireErrorV4 {
             Self::SemanticLeaf(error) => write!(formatter, "semantic leaf invalid: {error}"),
             Self::Structural(error) => write!(formatter, "structural value invalid: {error}"),
             Self::ValueNode(error) => write!(formatter, "V4 value node invalid: {error}"),
+            Self::SpotProfileMismatch(field) => {
+                write!(formatter, "V4 subtree is not the Spot profile: {field}")
+            }
             Self::ReferenceMismatch(field) => {
                 write!(formatter, "Spot V1 and V4 reference roots differ: {field}")
             }
