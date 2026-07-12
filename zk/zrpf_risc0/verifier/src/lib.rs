@@ -30,8 +30,13 @@ pub mod historical_semantic_epoch_v1;
 #[path = "spot_value_leaf_v4.rs"]
 pub mod historical_spot_value_leaf_v4;
 mod semantic_epoch_v2;
+mod value_aggregate_v5;
 
 pub use semantic_epoch_v2::{VerifiedSemanticEpochReceiptErrorV2, VerifiedSemanticEpochReceiptV2};
+pub use value_aggregate_v5::{
+    ExpectedValueAggregateReceiptIdentityV5, VerifiedValueAggregateReceiptErrorV5,
+    VerifiedValueAggregateReceiptV5,
+};
 
 /// Historical V4 verified types are deliberately unavailable at the crate
 /// root, so downstream code must acknowledge the legacy authority boundary.

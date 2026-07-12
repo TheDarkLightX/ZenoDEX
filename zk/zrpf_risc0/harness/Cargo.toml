@@ -20,5 +20,6 @@ zenodex-zrpf-risc0-aggregate-shared = { path = "../aggregate_shared" }
 zenodex-zrpf-risc0-methods = { path = "../methods" }
 zenodex-zrpf-risc0-semantic-shared = { path = "../semantic_shared" }
 zenodex-zrpf-risc0-shared = { path = "../shared" }
+zenodex-zrpf-risc0-value-aggregate-shared = { path = "../value_aggregate_shared" }
 zenodex-zrpf-risc0-value-node-shared = { path = "../value_node_shared" }
 zenodex-zrpf-risc0-verifier = { path = "../verifier" }
