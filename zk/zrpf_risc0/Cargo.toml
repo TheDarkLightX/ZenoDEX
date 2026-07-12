@@ -6,6 +6,7 @@ members = [
   "value_node_shared",
   "value_aggregate_shared",
   "value_aggregate_l2_policy",
+  "value_aggregate_root_policy",
   "verifier",
   "replay_verifier",
   "methods",
