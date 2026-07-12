@@ -219,3 +219,21 @@ def test_malformed_evidence_path_returns_rejected_report(raw_path: str) -> None:
     assert report["ok"] is False
     assert report["status"] == "rejected"
     assert report["error_codes"] == ["EVIDENCE_READ"]
+
+
+def test_descriptor_close_failure_returns_rejected_report(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_close = checker.rebuild.os.close
+
+    def close_then_fail(descriptor: int) -> None:
+        real_close(descriptor)
+        raise OSError("injected close failure")
+
+    monkeypatch.setattr(checker.rebuild.os, "close", close_then_fail)
+
+    report = checker.check_retained_evidence()
+
+    assert report["ok"] is False
+    assert report["status"] == "rejected"
+    assert report["error_codes"] == ["EVIDENCE_READ"]

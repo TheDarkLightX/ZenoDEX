@@ -222,6 +222,26 @@ def _absolute_path(path: Path, *, code: str, label: str) -> Path:
         raise _reject(code, label) from exc
 
 
+def _close_descriptors(
+    file_descriptor: int | None,
+    directory_descriptors: list[int],
+    *,
+    label: str,
+) -> None:
+    first_error: OSError | None = None
+    descriptors = ([] if file_descriptor is None else [file_descriptor]) + list(
+        reversed(directory_descriptors)
+    )
+    for descriptor in descriptors:
+        try:
+            os.close(descriptor)
+        except OSError as exc:
+            if first_error is None:
+                first_error = exc
+    if first_error is not None:
+        raise _reject("FILE_CLOSE_FAILED", label) from first_error
+
+
 def _canonical_directory(path: Path, *, label: str) -> Path:
     absolute = _absolute_path(path, code="DIRECTORY_INVALID", label=label)
     try:
@@ -344,10 +364,11 @@ def _read_regular_under_root(
     except OSError as exc:
         raise _reject("FILE_OPEN_FAILED", label) from exc
     finally:
-        if file_descriptor is not None:
-            os.close(file_descriptor)
-        for descriptor in reversed(directory_descriptors):
-            os.close(descriptor)
+        _close_descriptors(
+            file_descriptor,
+            directory_descriptors,
+            label=label,
+        )
 
 
 def _read_regular_path(path: Path, *, label: str, max_bytes: int) -> FileDigest:

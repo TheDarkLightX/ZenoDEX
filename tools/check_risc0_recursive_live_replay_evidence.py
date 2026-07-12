@@ -22,7 +22,7 @@ EVIDENCE_PATH = ROOT / "docs/research/RISC0_RECURSIVE_V1_LIVE_REPLAY_EVIDENCE_20
 REPORT_SCHEMA = "zenodex/risc0_recursive_v1_live_replay_evidence_check/v1"
 ACCEPTED_STATUS = "retained_same_host_v1_live_replay_record_accepted"
 EXPECTED_EVIDENCE_CANONICAL_SHA256 = (
-    "8038750bfd9a9c249e6a86703265458d9cf59dc4d94f530b9fcf22ec92245858"
+    "fb80128ed7f260b0cc0fe878a7d7275258db994e5ca7a12c1a2fa25ef4ffa7c7"
 )
 MAX_EVIDENCE_BYTES = 64 * 1024
 

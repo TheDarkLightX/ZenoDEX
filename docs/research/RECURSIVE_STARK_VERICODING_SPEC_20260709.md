@@ -652,8 +652,8 @@ Current post-host-hardening v1 local artifact and replay evidence:
 - v1 reference-v2 canonical SHA-256:
   `7c6016e43f80b1b1f4af15a34ed990085e8676edf9f95a2e5b48e65f0173839f`;
 - retained live-replay report raw and canonical SHA-256 values:
-  `d7f50573538b7bf21fb5a2c243696ceb8324aa2ff044ec397c2a204453175062`
-  and `8038750bfd9a9c249e6a86703265458d9cf59dc4d94f530b9fcf22ec92245858`.
+  `d14d06f0263c116537bec4c9f07fbfba4bd5cae895f6ceca40b87fe70a5d6f4a`
+  and `fb80128ed7f260b0cc0fe878a7d7275258db994e5ca7a12c1a2fa25ef4ffa7c7`.
 
 The current static verifier was built with the pinned RISC0 3.0.5 and Rust
 1.94.1 toolchains in frozen, offline, real-method mode. Its six exported guest

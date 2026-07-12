@@ -848,3 +848,26 @@ def test_regular_path_rejects_path_normalization_oserror(
         )
 
     assert rejected.value.code == "FILE_PATH_INVALID"
+
+
+def test_regular_path_converts_descriptor_close_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence = _write(tmp_path / "evidence.json", b"{}")
+    real_close = checker.os.close
+
+    def close_then_fail(descriptor: int) -> None:
+        real_close(descriptor)
+        raise OSError("injected close failure")
+
+    monkeypatch.setattr(checker.os, "close", close_then_fail)
+
+    with pytest.raises(checker.EvidenceError) as rejected:
+        checker._read_regular_path(
+            evidence,
+            label="evidence",
+            max_bytes=2,
+        )
+
+    assert rejected.value.code == "FILE_CLOSE_FAILED"

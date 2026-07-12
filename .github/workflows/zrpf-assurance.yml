@@ -92,6 +92,7 @@ jobs:
             src/integration/recursive_stark_admission_store_types.py \
             src/integration/recursive_stark_replay_manifest.py \
             src/integration/recursive_stark_verifier_adapter.py \
+            tools/check_risc0_recursive_rebuild_evidence.py \
             tools/check_risc0_recursive_live_replay.py \
             tools/check_risc0_recursive_live_replay_evidence.py \
             tools/risc0_recursive_live_replay_support.py \
@@ -123,6 +124,7 @@ jobs:
             tests/test_check_zrpf_v3_firecracker_replay_profile.py \
             tests/test_check_zrpf_v3_firecracker_runtime_artifacts.py \
             tests/test_check_zrpf_v3_replay_verifier_evidence.py \
+            tests/test_check_risc0_recursive_rebuild_evidence.py \
             tests/test_check_risc0_recursive_live_replay.py \
             tests/test_check_risc0_recursive_live_replay_evidence.py \
             tests/test_build_zrpf_semantic_epoch_v1_local_evidence.py \
@@ -155,6 +157,7 @@ jobs:
             src/integration/recursive_stark_admission_store_types.py \
             src/integration/recursive_stark_replay_manifest.py \
             src/integration/recursive_stark_verifier_adapter.py \
+            tools/check_risc0_recursive_rebuild_evidence.py \
             tools/check_risc0_recursive_live_replay.py \
             tools/check_risc0_recursive_live_replay_evidence.py \
             tools/risc0_recursive_live_replay_support.py \
@@ -189,6 +192,7 @@ jobs:
             tests/test_check_zrpf_v1_leaf_adapter_source_policy.py \
             tests/test_check_zrpf_v1_leaf_adapter_vector.py \
             tests/test_check_zrpf_v1_spot_adapter_temporary_evidence.py \
+            tests/test_check_risc0_recursive_rebuild_evidence.py \
             tests/test_check_risc0_recursive_live_replay.py \
             tests/test_check_risc0_recursive_live_replay_evidence.py \
             tests/test_check_zrpf_v3_firecracker_direct_replay_evidence.py \
