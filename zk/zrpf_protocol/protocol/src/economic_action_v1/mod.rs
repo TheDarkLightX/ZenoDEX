@@ -6,16 +6,20 @@ use core::fmt;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 pub use codec::{
-    decode_exact_authorization_consumption_nullifier_v1, decode_exact_economic_action_record_v1,
-    encode_authorization_consumption_nullifier_v1, encode_economic_action_record_v1,
+    decode_exact_authorization_consumption_nullifier_v1,
+    decode_exact_authorization_grant_spend_nullifier_v1, decode_exact_economic_action_record_v1,
+    encode_authorization_consumption_nullifier_v1, encode_authorization_grant_spend_nullifier_v1,
+    encode_economic_action_record_v1,
 };
 pub use record::{EconomicActionRecordInputV1, EconomicActionRecordV1};
 
 pub const ECONOMIC_ACTION_RECORD_VERSION_V1: u16 = 1;
 pub const AUTHORIZATION_CONSUMPTION_NULLIFIER_VERSION_V1: u16 = 1;
+pub const AUTHORIZATION_GRANT_SPEND_NULLIFIER_VERSION_V1: u16 = 1;
 pub const MAX_CONSUMED_OBJECTS_PER_ACTION_V1: usize = 128;
 pub const MAX_ECONOMIC_ACTION_RECORD_BYTES_V1: usize = 8_192;
 pub const MAX_AUTHORIZATION_CONSUMPTION_NULLIFIER_BYTES_V1: usize = 64;
+pub const MAX_AUTHORIZATION_GRANT_SPEND_NULLIFIER_BYTES_V1: usize = 64;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EconomicActionErrorV1 {
@@ -70,7 +74,8 @@ impl fmt::Display for EconomicActionErrorV1 {
 }
 
 macro_rules! nonzero_identifier_type {
-    ($name:ident, $label:literal) => {
+    ($(#[$meta:meta])* $name:ident, $label:literal) => {
+        $(#[$meta])*
         #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct $name([u8; 32]);
 
@@ -118,6 +123,21 @@ nonzero_identifier_type!(AuthorizationScopeIdV1, "authorization_scope_id");
 nonzero_identifier_type!(AuthorizationGrantIdV1, "authorization_grant_id");
 nonzero_identifier_type!(EconomicActionIdV1, "economic_action_id");
 nonzero_identifier_type!(
+    #[doc = "Action-bound authorization audit identity."]
+    #[doc = ""]
+    #[doc = "This compatibility name binds one canonical action and grant. It is not a"]
+    #[doc = "single-use grant-spend key because action changes produce another value."]
     AuthorizationConsumptionNullifierV1,
     "authorization_consumption_nullifier"
 );
+nonzero_identifier_type!(
+    #[doc = "Single-use identity for one canonical grant nonce in one application domain."]
+    #[doc = ""]
+    #[doc = "Admission must recompute this value and enforce durable uniqueness atomically"]
+    #[doc = "with the authorized effects."]
+    AuthorizationGrantSpendNullifierV1,
+    "authorization_grant_spend_nullifier"
+);
+
+/// Preferred semantic name for the compatibility action-bound identifier.
+pub type ActionAuthorizationBindingIdV1 = AuthorizationConsumptionNullifierV1;

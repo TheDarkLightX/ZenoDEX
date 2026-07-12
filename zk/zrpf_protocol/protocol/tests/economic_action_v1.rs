@@ -1,17 +1,21 @@
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use zenodex_zrpf_protocol_v3::{
-    decode_exact_authorization_consumption_nullifier_v1, decode_exact_economic_action_record_v1,
-    encode_authorization_consumption_nullifier_v1, encode_economic_action_record_v1,
-    ApplicationIdV3, AuthorizationConsumptionNullifierV1, AuthorizationGrantIdV1,
-    AuthorizationScopeIdV1, AuthorizationSubjectIdV1, CommitmentV3, DomainIdV3,
-    EconomicActionErrorV1, EconomicActionRecordInputV1, EconomicActionRecordV1,
-    EconomicActionTypeIdV1, MAX_CONSUMED_OBJECTS_PER_ACTION_V1,
+    decode_exact_authorization_consumption_nullifier_v1,
+    decode_exact_authorization_grant_spend_nullifier_v1, decode_exact_economic_action_record_v1,
+    encode_authorization_consumption_nullifier_v1, encode_authorization_grant_spend_nullifier_v1,
+    encode_economic_action_record_v1, ApplicationIdV3, AuthorizationConsumptionNullifierV1,
+    AuthorizationGrantIdV1, AuthorizationGrantSpendNullifierV1, AuthorizationScopeIdV1,
+    AuthorizationSubjectIdV1, CommitmentV3, DomainIdV3, EconomicActionErrorV1,
+    EconomicActionRecordInputV1, EconomicActionRecordV1, EconomicActionTypeIdV1,
+    MAX_AUTHORIZATION_GRANT_SPEND_NULLIFIER_BYTES_V1, MAX_CONSUMED_OBJECTS_PER_ACTION_V1,
     MAX_ECONOMIC_ACTION_RECORD_BYTES_V1,
 };
 
 const ACTION_ID_DOMAIN_V1: &[u8] = b"zenodex.zrpf.economic_action_id.v1";
 const NULLIFIER_DOMAIN_V1: &[u8] = b"zenodex.zrpf.authorization_consumption_nullifier.v1";
+const GRANT_SPEND_NULLIFIER_DOMAIN_V1: &[u8] =
+    b"zenodex.zrpf.authorization_grant_spend_nullifier.v1";
 
 fn commitment(seed: u8) -> CommitmentV3 {
     CommitmentV3::new([seed.max(1); 32]).unwrap()
@@ -100,6 +104,19 @@ fn manual_nullifier(record: &EconomicActionRecordV1, grant_id: AuthorizationGran
     hasher.finalize().into()
 }
 
+fn manual_grant_spend_nullifier(
+    record: &EconomicActionRecordV1,
+    grant_id: AuthorizationGrantIdV1,
+) -> [u8; 32] {
+    let mut hasher = prefixed_domain_hasher(GRANT_SPEND_NULLIFIER_DOMAIN_V1);
+    hasher.update(1_u16.to_be_bytes());
+    hasher.update(record.application_id().as_bytes());
+    hasher.update(record.chain_or_domain_id().as_bytes());
+    hasher.update(grant_id.as_bytes());
+    hasher.update(record.authorization_nonce().to_be_bytes());
+    hasher.finalize().into()
+}
+
 #[derive(Clone, Copy)]
 struct RepresentationNoise<'a> {
     proof_program: &'a str,
@@ -112,7 +129,7 @@ fn derive_ignoring_representation(
     record: &EconomicActionRecordV1,
     grant_id: AuthorizationGrantIdV1,
     noise: RepresentationNoise<'_>,
-) -> ([u8; 32], [u8; 32]) {
+) -> ([u8; 32], [u8; 32], [u8; 32]) {
     core::hint::black_box((
         noise.proof_program,
         noise.receipt_encoding,
@@ -122,6 +139,9 @@ fn derive_ignoring_representation(
     (
         record.canonical_id().unwrap().into_bytes(),
         AuthorizationConsumptionNullifierV1::derive(record, grant_id)
+            .unwrap()
+            .into_bytes(),
+        AuthorizationGrantSpendNullifierV1::derive(record, grant_id)
             .unwrap()
             .into_bytes(),
     )
@@ -178,6 +198,12 @@ fn canonical_hash_preimages_match_the_independent_field_order() {
             .into_bytes(),
         manual_nullifier(&record, grant_id)
     );
+    assert_eq!(
+        AuthorizationGrantSpendNullifierV1::derive(&record, grant_id)
+            .unwrap()
+            .into_bytes(),
+        manual_grant_spend_nullifier(&record, grant_id)
+    );
 }
 
 #[test]
@@ -194,6 +220,12 @@ fn canonical_hashes_match_the_shared_fixed_vector() {
             .unwrap()
             .into_bytes(),
         hex_32("03c908ee0fd74c394865c11453a51a0b059bfb35ceb62956beb00c00d49ff913")
+    );
+    assert_eq!(
+        AuthorizationGrantSpendNullifierV1::derive(&record, grant_id)
+            .unwrap()
+            .into_bytes(),
+        hex_32("1f5970f7f3ba7ec6dd111b488f0229256aa683c032111f950e08293c7ac63c38")
     );
 }
 
@@ -327,6 +359,91 @@ fn grant_and_action_separate_authorization_consumption_nullifiers() {
 }
 
 #[test]
+fn grant_spend_nullifier_separates_exactly_its_governed_key_fields() {
+    let baseline_input = base_input(Vec::new());
+    let baseline_record = EconomicActionRecordV1::new(baseline_input.clone()).unwrap();
+    let first_grant = AuthorizationGrantIdV1::new([9; 32]).unwrap();
+    let second_grant = AuthorizationGrantIdV1::new([10; 32]).unwrap();
+    let baseline =
+        AuthorizationGrantSpendNullifierV1::derive(&baseline_record, first_grant).unwrap();
+
+    let mut changed_application = baseline_input.clone();
+    changed_application.application_id = ApplicationIdV3::new([41; 32]).unwrap();
+    let mut changed_domain = baseline_input.clone();
+    changed_domain.chain_or_domain_id = DomainIdV3::new([42; 32]).unwrap();
+    let mut changed_nonce = baseline_input;
+    changed_nonce.authorization_nonce += 1;
+
+    for changed_record in [changed_application, changed_domain, changed_nonce]
+        .map(EconomicActionRecordV1::new)
+        .map(Result::unwrap)
+    {
+        assert_ne!(
+            baseline,
+            AuthorizationGrantSpendNullifierV1::derive(&changed_record, first_grant).unwrap()
+        );
+    }
+    assert_ne!(
+        baseline,
+        AuthorizationGrantSpendNullifierV1::derive(&baseline_record, second_grant).unwrap()
+    );
+}
+
+#[test]
+fn grant_spend_nullifier_blocks_action_field_aliases_for_one_grant_nonce() {
+    let baseline_input = base_input(Vec::new());
+    let baseline_record = EconomicActionRecordV1::new(baseline_input.clone()).unwrap();
+    let grant_id = AuthorizationGrantIdV1::new([9; 32]).unwrap();
+    let baseline_action_id = baseline_record.canonical_id().unwrap();
+    let baseline_binding =
+        AuthorizationConsumptionNullifierV1::derive(&baseline_record, grant_id).unwrap();
+    let baseline_spend =
+        AuthorizationGrantSpendNullifierV1::derive(&baseline_record, grant_id).unwrap();
+    let mut variants = Vec::new();
+
+    let mut changed = baseline_input.clone();
+    changed.action_type_id = EconomicActionTypeIdV1::new([43; 32]).unwrap();
+    variants.push(changed);
+    let mut changed = baseline_input.clone();
+    changed.authorization_subject_id = AuthorizationSubjectIdV1::new([44; 32]).unwrap();
+    variants.push(changed);
+    let mut changed = baseline_input.clone();
+    changed.authorization_scope_id = AuthorizationScopeIdV1::new([45; 32]).unwrap();
+    variants.push(changed);
+    let mut changed = baseline_input.clone();
+    changed.valid_from_epoch += 1;
+    variants.push(changed);
+    let mut changed = baseline_input.clone();
+    changed.valid_through_epoch += 1;
+    variants.push(changed);
+    let mut changed = baseline_input.clone();
+    changed.pre_state_root = commitment(46);
+    variants.push(changed);
+    let mut changed = baseline_input.clone();
+    changed.action_semantics_hash = commitment(47);
+    variants.push(changed);
+    let mut changed = baseline_input.clone();
+    changed.effect_commitment = commitment(48);
+    variants.push(changed);
+    let mut changed = baseline_input;
+    changed.consumed_object_ids = vec![indexed_commitment(1)];
+    variants.push(changed);
+
+    for input in variants {
+        let changed_record = EconomicActionRecordV1::new(input).unwrap();
+        assert_ne!(baseline_action_id, changed_record.canonical_id().unwrap());
+        assert_ne!(
+            baseline_binding,
+            AuthorizationConsumptionNullifierV1::derive(&changed_record, grant_id).unwrap()
+        );
+        assert_eq!(
+            baseline_spend,
+            AuthorizationGrantSpendNullifierV1::derive(&changed_record, grant_id).unwrap()
+        );
+    }
+}
+
+#[test]
 fn constructors_enforce_zero_range_and_collection_bounds() {
     assert!(matches!(
         EconomicActionTypeIdV1::new([0; 32]),
@@ -440,6 +557,45 @@ fn exact_nullifier_codec_rejects_zero_and_trailing_bytes() {
     for end in 1..canonical.len() {
         assert!(decode_exact_authorization_consumption_nullifier_v1(&canonical[..end]).is_err());
     }
+}
+
+#[test]
+fn exact_grant_spend_nullifier_codec_is_bounded_and_fail_closed() {
+    let record = record(Vec::new());
+    let grant_id = AuthorizationGrantIdV1::new([9; 32]).unwrap();
+    let nullifier = AuthorizationGrantSpendNullifierV1::derive(&record, grant_id).unwrap();
+    let bytes = encode_authorization_grant_spend_nullifier_v1(nullifier).unwrap();
+
+    assert_eq!(
+        decode_exact_authorization_grant_spend_nullifier_v1(&bytes).unwrap(),
+        nullifier
+    );
+    assert_eq!(
+        decode_exact_authorization_grant_spend_nullifier_v1(&[]).unwrap_err(),
+        EconomicActionErrorV1::EmptyInput
+    );
+    assert!(decode_exact_authorization_grant_spend_nullifier_v1(&[0; 32]).is_err());
+    for end in 1..bytes.len() {
+        assert!(decode_exact_authorization_grant_spend_nullifier_v1(&bytes[..end]).is_err());
+    }
+    let mut trailing = bytes;
+    trailing.push(0);
+    assert_eq!(
+        decode_exact_authorization_grant_spend_nullifier_v1(&trailing).unwrap_err(),
+        EconomicActionErrorV1::TrailingBytes
+    );
+    assert!(matches!(
+        decode_exact_authorization_grant_spend_nullifier_v1(
+            &[0; MAX_AUTHORIZATION_GRANT_SPEND_NULLIFIER_BYTES_V1 + 1]
+        ),
+        Err(EconomicActionErrorV1::InputTooLarge { .. })
+    ));
+    assert!(matches!(
+        AuthorizationGrantSpendNullifierV1::new([0; 32]),
+        Err(EconomicActionErrorV1::ZeroIdentifier(
+            "authorization_grant_spend_nullifier"
+        ))
+    ));
 }
 
 #[test]

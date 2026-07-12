@@ -8,16 +8,19 @@ use serde::{
 use sha2::{Digest, Sha256};
 
 use super::{
-    AuthorizationConsumptionNullifierV1, AuthorizationGrantIdV1, AuthorizationScopeIdV1,
-    AuthorizationSubjectIdV1, EconomicActionErrorV1, EconomicActionIdV1, EconomicActionTypeIdV1,
-    AUTHORIZATION_CONSUMPTION_NULLIFIER_VERSION_V1, ECONOMIC_ACTION_RECORD_VERSION_V1,
-    MAX_CONSUMED_OBJECTS_PER_ACTION_V1,
+    AuthorizationConsumptionNullifierV1, AuthorizationGrantIdV1,
+    AuthorizationGrantSpendNullifierV1, AuthorizationScopeIdV1, AuthorizationSubjectIdV1,
+    EconomicActionErrorV1, EconomicActionIdV1, EconomicActionTypeIdV1,
+    AUTHORIZATION_CONSUMPTION_NULLIFIER_VERSION_V1, AUTHORIZATION_GRANT_SPEND_NULLIFIER_VERSION_V1,
+    ECONOMIC_ACTION_RECORD_VERSION_V1, MAX_CONSUMED_OBJECTS_PER_ACTION_V1,
 };
 use crate::{ApplicationIdV3, CommitmentV3, DomainIdV3};
 
 const ECONOMIC_ACTION_ID_DOMAIN_V1: &[u8] = b"zenodex.zrpf.economic_action_id.v1";
 const AUTHORIZATION_CONSUMPTION_NULLIFIER_DOMAIN_V1: &[u8] =
     b"zenodex.zrpf.authorization_consumption_nullifier.v1";
+const AUTHORIZATION_GRANT_SPEND_NULLIFIER_DOMAIN_V1: &[u8] =
+    b"zenodex.zrpf.authorization_grant_spend_nullifier.v1";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EconomicActionRecordInputV1 {
@@ -297,6 +300,11 @@ impl<'de> Deserialize<'de> for EconomicActionRecordV1 {
 }
 
 impl AuthorizationConsumptionNullifierV1 {
+    /// Derives an action-bound authorization binding for audit and replay.
+    ///
+    /// This value changes when the canonical action changes. Use
+    /// `AuthorizationGrantSpendNullifierV1` for single-use grant-nonce
+    /// enforcement.
     pub fn derive(
         record: &EconomicActionRecordV1,
         authorization_grant_id: AuthorizationGrantIdV1,
@@ -313,6 +321,26 @@ impl AuthorizationConsumptionNullifierV1 {
         hasher.update(record.authorization_scope_id.as_bytes());
         hasher.update(record.authorization_nonce.to_be_bytes());
         hasher.update(record.pre_state_root.as_bytes());
+        Self::new(hasher.finalize().into())
+    }
+}
+
+impl AuthorizationGrantSpendNullifierV1 {
+    /// Derives the single-use key for one grant nonce in one application domain.
+    ///
+    /// The preimage deliberately excludes the action, effect, pre-state,
+    /// subject, scope, proof, receipt, signature, and salt representations.
+    pub fn derive(
+        record: &EconomicActionRecordV1,
+        authorization_grant_id: AuthorizationGrantIdV1,
+    ) -> Result<Self, EconomicActionErrorV1> {
+        record.validate_self_consistency()?;
+        let mut hasher = domain_hasher(AUTHORIZATION_GRANT_SPEND_NULLIFIER_DOMAIN_V1)?;
+        hasher.update(AUTHORIZATION_GRANT_SPEND_NULLIFIER_VERSION_V1.to_be_bytes());
+        hasher.update(record.application_id.as_bytes());
+        hasher.update(record.chain_or_domain_id.as_bytes());
+        hasher.update(authorization_grant_id.as_bytes());
+        hasher.update(record.authorization_nonce.to_be_bytes());
         Self::new(hasher.finalize().into())
     }
 }

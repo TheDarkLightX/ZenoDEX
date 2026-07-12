@@ -18,8 +18,10 @@ The crate currently provides:
 - a bounded fanout-8, depth-2 profile covering at most 64 leaves;
 - a bounded canonical `EconomicActionRecordV1` whose action ID excludes proof,
   receipt, salt, and signature representation fields;
-- an `AuthorizationConsumptionNullifierV1` derived from the canonical action,
-  authorization grant, subject, scope, nonce, domain, and pre-state root.
+- an action-bound `AuthorizationConsumptionNullifierV1` compatibility identity
+  for binding a canonical action to a grant;
+- an `AuthorizationGrantSpendNullifierV1` derived only from application,
+  domain, grant, and nonce for durable single-use enforcement.
 
 ## Authority Boundary
 
@@ -41,13 +43,16 @@ profile must derive or verify their ZenoDEX meanings. The current structural
 profile does not establish conservation, descendant uniqueness, message
 cancellation, scheduling, carry continuity, or data availability.
 
-The economic-action and authorization-nullifier objects are deterministic data
-identities. They do not verify a signature or grant, derive ZenoDEX effect
-semantics, persist replay state, or authorize value movement.
+The economic-action and authorization identities are deterministic data. The
+action-bound compatibility identity is not a single-use grant key. The
+grant-spend nullifier supplies that key, while this crate does not verify a
+signature or grant, derive ZenoDEX effect semantics, persist uniqueness state,
+or authorize value movement.
 
 The full claim boundary and next steps are documented in
 `docs/research/ZRPF_V3_CORRECT_BY_CONSTRUCTION_SPEC_20260710.md` from the
-repository root.
+repository root. The action and grant-spend formulas are specified in
+`docs/research/ZRPF_ECONOMIC_ACTION_NULLIFIER_V1_CBC_SPEC_20260712.md`.
 
 ## Verification
 
