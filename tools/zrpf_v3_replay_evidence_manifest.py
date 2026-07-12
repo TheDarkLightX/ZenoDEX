@@ -16,7 +16,7 @@ def expected_evidence(
 ) -> dict[str, Any]:
     return {
         "claims": _claims(),
-        "evidence_date": "2026-07-11",
+        "evidence_date": "2026-07-12",
         "non_claims": list(support.NON_CLAIMS),
         "recorded_build": _recorded_build(execution_identity),
         "recorded_execution": _recorded_execution(execution_identity),
@@ -45,7 +45,7 @@ def expected_evidence(
         },
         "status": "source_built_retained_receipt_structural_replay_accepted",
         "verified_tree": _verified_tree(),
-        "version": 3,
+        "version": 4,
     }
 
 

@@ -22,6 +22,31 @@ def test_committed_direct_replay_evidence_is_exactly_bound_and_non_authoritative
     assert all(value is False for value in report["authority"].values())
 
 
+def test_committed_evidence_reports_replay_without_claiming_execution_provenance() -> None:
+    document = _committed_document()
+
+    assert document["claims"]["direct_local_microvm_replay_reported"] is True
+    assert "direct_local_microvm_replay_verified" not in document["claims"]
+    assert document["claims"]["historical_vm_execution_provenance_verified"] is False
+    assert document["historical_observation_basis"] == (
+        "publisher_reported_retained_local_report_identity_only"
+    )
+    assert document["claims"]["coherent_repository_rewrite_resistance_verified"] is False
+    assert document["claims"]["retained_execution_record_integrity_verified"] is True
+
+
+def test_legacy_direct_replay_verified_claim_rejects(tmp_path: Path) -> None:
+    document = _committed_document()
+    document["claims"]["direct_local_microvm_replay_verified"] = document["claims"].pop(
+        "direct_local_microvm_replay_reported"
+    )
+
+    report = checker.build_report(evidence_path=_write(tmp_path, document))
+
+    assert report["ok"] is False
+    assert "claim_boundary_mismatch" in report["errors"]
+
+
 def test_evidence_hash_and_document_come_from_one_stable_read(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -94,6 +119,13 @@ def test_integer_substitution_cannot_impersonate_false_claim(tmp_path: Path) -> 
     assert "claim_boundary_mismatch" in report["errors"]
 
 
+def test_report_false_claim_inventory_matches_pinned_policy() -> None:
+    report = checker.build_report()
+
+    assert set(report["authority"]) == set(checker.REQUIRED_FALSE_CLAIMS)
+    assert report["claim_policy_scope"] == ("evidence_only_mutations_against_pinned_checker_policy")
+
+
 def test_committed_payload_mutation_rejects_output_reconstruction(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -143,10 +175,10 @@ def test_committed_payload_mutation_rejects_output_reconstruction(
             "governed_binding_mismatch",
         ),
         (
-            lambda document: document["unpublished_local_report_identity"].__setitem__(
-                "publicly_available", True
+            lambda document: document["retained_local_report_identity"].__setitem__(
+                "publicly_available", False
             ),
-            "unpublished_report_binding_mismatch",
+            "retained_report_binding_mismatch",
         ),
     ],
 )
@@ -175,6 +207,33 @@ def test_unknown_field_and_nonclaim_deletion_reject(tmp_path: Path) -> None:
     assert report["ok"] is False
     assert "claim_boundary_mismatch" in report["errors"]
     assert "non_claims_mismatch" in report["errors"]
+
+
+@pytest.mark.parametrize(
+    ("path_name", "error_code"),
+    [
+        ("EXECUTED_CONFIG_PATH", "retained_config_rejected"),
+        ("LOCAL_REPORT_PATH", "retained_local_report_rejected"),
+        ("FIRECRACKER_STDOUT_PATH", "retained_stdout_rejected"),
+    ],
+)
+def test_retained_execution_record_mutation_rejects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    path_name: str,
+    error_code: str,
+) -> None:
+    source = getattr(checker, path_name)
+    raw = bytearray(source.read_bytes())
+    raw[0] ^= 1
+    mutated = tmp_path / source.name
+    mutated.write_bytes(raw)
+    monkeypatch.setattr(checker, path_name, mutated)
+
+    report = checker.build_report()
+
+    assert report["ok"] is False
+    assert error_code in report["errors"]
 
 
 def _committed_document() -> dict[str, Any]:

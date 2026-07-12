@@ -1,0 +1,76 @@
+{
+  "boot-source": {
+    "boot_args": "reboot=k panic=0 nomodule 8250.nr_uarts=0 i8042.noaux i8042.nomux i8042.dumbkbd swiotlb=noforce init=/sbin/zrpf-replay-init rootfstype=squashfs quiet loglevel=0 oops=panic panic_on_oops=1",
+    "kernel_image_path": "kernel"
+  },
+  "drives": [
+    {
+      "cache_type": "Writeback",
+      "drive_id": "rootfs",
+      "io_engine": "Sync",
+      "is_read_only": true,
+      "is_root_device": true,
+      "path_on_host": "rootfs.squashfs",
+      "rate_limiter": {
+        "bandwidth": {
+          "one_time_burst": 0,
+          "refill_time": 1000,
+          "size": 67108864
+        },
+        "ops": {
+          "one_time_burst": 0,
+          "refill_time": 1000,
+          "size": 4096
+        }
+      }
+    },
+    {
+      "cache_type": "Writeback",
+      "drive_id": "input",
+      "io_engine": "Sync",
+      "is_read_only": true,
+      "is_root_device": false,
+      "path_on_host": "input.squashfs",
+      "rate_limiter": {
+        "bandwidth": {
+          "one_time_burst": 0,
+          "refill_time": 1000,
+          "size": 67108864
+        },
+        "ops": {
+          "one_time_burst": 0,
+          "refill_time": 1000,
+          "size": 4096
+        }
+      }
+    },
+    {
+      "cache_type": "Writeback",
+      "drive_id": "output",
+      "io_engine": "Sync",
+      "is_read_only": false,
+      "is_root_device": false,
+      "path_on_host": "output.raw",
+      "rate_limiter": {
+        "bandwidth": {
+          "one_time_burst": 0,
+          "refill_time": 1000,
+          "size": 67108864
+        },
+        "ops": {
+          "one_time_burst": 0,
+          "refill_time": 1000,
+          "size": 4096
+        }
+      }
+    }
+  ],
+  "machine-config": {
+    "cpu_template": "None",
+    "huge_pages": "None",
+    "mem_size_mib": 256,
+    "smt": false,
+    "track_dirty_pages": false,
+    "vcpu_count": 1
+  }
+}

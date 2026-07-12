@@ -176,7 +176,7 @@ leaves, recomposes and exact-verifies both level-one journals and the level-two
 journal, and requires the seal mutation to reject as
 `receipt_verification_failed`.
 The live gate builds from a mode-0700 detached worktree at the pinned commit,
-checks the exact 43-file source closure before and after compilation, disables
+checks the exact 44-file source closure before and after compilation, disables
 automatic Cargo target discovery, disables checkout hooks, rejects unpinned
 ancestor Cargo config, isolates Cargo home config, remaps compiler-visible
 paths, and uses an allowlisted `execve` environment.
@@ -186,13 +186,13 @@ The retained replay output is 5,920 bytes with SHA-256
 Normal execution and execution with `RISC0_DEV_MODE=1` produced byte-identical
 output because the verifier uses an explicit dev-mode-disabled context. The
 source-built replay evidence record has SHA-256
-`9c6d80bdebb9bd7eb8ddfe49bd9797e4ad30de0022d59cd8b7e42f60d2d906dd`.
+`8bc75ace0cc0f699979efc40d3c93cab1fa7be57b2e471be829eeb203faa9a4d`.
 The current record is
-`docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260711.json`;
-the 2026-07-10 record remains a historical source-anchor artifact.
+`docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260712.json`;
+the 2026-07-10 and 2026-07-11 records remain historical source-anchor artifacts.
 The recorded verifier bytes were sealed in a Linux memfd before execution and
 have SHA-256
-`57725f52473e027c55f71f17abddc2ee043a006232da762bfc10a066d120d5b9`.
+`0e71d8f4ebb6e15d531bc367244e0ede33d0a9e76ba1c38be855cda30788e78f`.
 This same-host retained-byte replay does not attest proof generation, guest
 source-to-image correspondence, complete build inputs, compiler, linker,
 dependency-cache or runtime-rootfs identity, release reproducibility, semantic
@@ -431,22 +431,30 @@ Build the two SquashFS images twice and require byte equality with:
 ```bash
 tools/build_zrpf_v3_firecracker_guest_images.sh \
   --guest-binary /trusted/input/zrpf-replay-init \
-  --receipt-dir evidence/zrpf-v3-retained-structural-replay-v1/receipts \
+  --receipt-dir /trusted/input/receipts \
   --output-dir /private/output/zrpf-images \
-  --expected-guest-sha256 08f99e4d6262f0028ec87a1b4fb7ee86be466244f33fce4713948dd695cec7dc \
-  --expected-receipt-set-sha256 d5ecd5494318e21fa3da227409fdb5285c85ff8ae10815df5bcf0eb22fa1027f \
-  --expected-mksquashfs-sha256 47d5c1af3da11864e64c9dc6bb4e568719dcc315e6a744e79381ce3374fb7393
+  --guest-elf-checker-binary /trusted/input/zrpf-guest-elf-checker
 ```
 
-The image helper assumes trusted private input paths. It has no artifact or
-release authority. Compare both produced image sizes and SHA-256 identities to
-the governed runtime manifest before using them as local replay candidates.
+The image helper captures and hashes the guest, native checker, and eight
+receipt files before assembly. Its v2 ELF profile verifies bounded load maps,
+the static-PIE load-bias source, RELA metadata and ordering, writable relocation
+targets, read-only symbol zero, and file-backed executable IRELATIVE resolvers.
+The exact guest, native checker, receipt set, Python reference, and
+`mksquashfs` identities are constants in this versioned recipe; callers cannot
+replace their expected hashes. Complete TLS, RELRO, note, hash-table, and
+init-array loader semantics remain outside the checker scope, so guest boot and
+complete loader semantics remain false.
+The helper assumes a trusted build UID. A same-UID process can still mutate the
+captured checker or staged image inputs, so same-UID resistance and complete
+build closure remain false. Compare independently extracted packed contents,
+both image identities, and sizes to the governed runtime manifest before using
+them as local replay candidates.
 
 Check the governed candidate identities:
 
 ```bash
-python3 -I tools/check_zrpf_v3_firecracker_runtime_artifacts.py \
-  --evidence-date 2026-07-11
+python3 -I tools/check_zrpf_v3_firecracker_runtime_artifacts.py
 python3 -I tools/check_zrpf_v3_firecracker_protocol_binding.py
 python3 -I tools/check_zrpf_v3_firecracker_direct_replay_evidence.py
 ```
@@ -455,13 +463,15 @@ Compile the non-executable launch plan:
 
 ```bash
 python3 -I tools/check_zrpf_v3_firecracker_launch_preflight.py \
-  --manifest config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v1.json \
-  --expected-manifest-sha256 cb19138eb6bb7dd404c860382e0c0f2b765d12ea8e734e9afb99caae381ff312 \
+  --manifest config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v2.json \
+  --expected-manifest-sha256 a4f1509fe13cdd3d6888bca12ffaddd368cd4b9dea7ab1c84783e466c245e405 \
   --intent config/proof_profiles/zrpf_v3_firecracker_replay_intent_v1.json
 ```
 
-A direct local Firecracker run exited cleanly and reproduced the exact
-5,920-byte transcript. The root-owned jailer launcher, cgroups, namespace
+The publisher record reports a direct local Firecracker run with a clean exit
+and the exact 5,920-byte transcript. The committed checker establishes record
+integrity and reconstructed protocol binding without establishing historical
+VM execution provenance. The root-owned jailer launcher, cgroups, namespace
 teardown, sandbox escape controls, independent reproduction, and production
 authority remain pending. The full contract and usage guide is
 `docs/research/ZRPF_V3_FIRECRACKER_RUNTIME_CONTRACT_20260711.md`.

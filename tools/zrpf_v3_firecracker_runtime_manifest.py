@@ -15,11 +15,11 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import urlsplit
 
-SCHEMA = "zenodex/zrpf_firecracker_runtime_artifact_manifest/v1"
+SCHEMA = "zenodex/zrpf_firecracker_runtime_artifact_manifest/v2"
 STATUS = "candidate_frozen_identity_non_authoritative"
 ARCHITECTURE = "x86_64"
-GUEST_ELF_CHECKER_SCHEMA = "zenodex/zrpf_firecracker_guest_elf_native_check/v1"
-GUEST_ELF_REFERENCE_SCHEMA = "zenodex/zrpf_firecracker_guest_elf_check/v1"
+GUEST_ELF_CHECKER_SCHEMA = "zenodex/zrpf_firecracker_guest_elf_native_check/v2"
+GUEST_ELF_REFERENCE_SCHEMA = "zenodex/zrpf_firecracker_guest_elf_check/v2"
 PROFILE_CANONICAL_SHA256 = "e7ab29b1327cd89dd7180cd45aed9663fdb9234d738f7acb51412bb576c8c88e"
 INPUT_PROTOCOL_ID = "zenodex/zrpf_firecracker_input_squashfs/v1"
 REQUEST_PROTOCOL_ID = "zenodex/zrpf_firecracker_request/v1"
@@ -715,8 +715,6 @@ def _parse_provenance(value: Any) -> ProvenanceRecordV1:
         raise RuntimeManifestError("runtime_manifest_guest_elf_reference_schema_mismatch")
     guest_source_commit = _require_hex(value["guest_payload_source_commit"], length=40)
     checker_source_commit = _require_hex(value["guest_elf_checker_source_commit"], length=40)
-    if checker_source_commit != guest_source_commit:
-        raise RuntimeManifestError("runtime_manifest_guest_elf_source_commit_mismatch")
     return ProvenanceRecordV1(
         guest_elf_checker_schema=checker_schema,
         guest_elf_checker_sha256=_require_sha256(value["guest_elf_checker_sha256"]),

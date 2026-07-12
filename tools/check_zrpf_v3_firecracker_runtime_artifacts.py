@@ -24,7 +24,7 @@ support = importlib.import_module(f"{_MODULE_PREFIX}zrpf_v3_replay_evidence_supp
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = (
-    REPO_ROOT / "config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v1.json"
+    REPO_ROOT / "config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v2.json"
 )
 KERNEL_RECORD_PATH = (
     REPO_ROOT / "config/proof_profiles/zrpf_firecracker_guest_kernel_build_record_v1.json"
@@ -33,19 +33,20 @@ IMAGE_RECORD_PATH = (
     REPO_ROOT / "config/proof_profiles/zrpf_firecracker_runtime_image_build_record_v1.json"
 )
 IMAGE_RECIPE_PATH = REPO_ROOT / "tools/build_zrpf_v3_firecracker_guest_images.sh"
+GUEST_ELF_REFERENCE_PATH = REPO_ROOT / "tools/check_zrpf_v3_firecracker_guest_elf.py"
 PROFILE_PATH = REPO_ROOT / "config/proof_profiles/zrpf_v3_firecracker_replay_profile_v1.json"
 
 EXPECTED_MANIFEST_CANONICAL_SHA256 = (
-    "cb19138eb6bb7dd404c860382e0c0f2b765d12ea8e734e9afb99caae381ff312"
+    "a4f1509fe13cdd3d6888bca12ffaddd368cd4b9dea7ab1c84783e466c245e405"
 )
 EXPECTED_KERNEL_RECORD_SHA256 = "c2d007adbde38855a24fbd80d574097d8892086ec5924051d977b0c08bc5c373"
-EXPECTED_IMAGE_RECORD_SHA256 = "85168dd8db9bacc921377d1fc0d39736199058c323fd92612a333429f8a73961"
-EXPECTED_IMAGE_RECIPE_SHA256 = "b3363c124fe40cd22e36e7943cb3cfe92e78c8739d935155d8e55b0eb59c0bbd"
-RECORDED_EVIDENCE_DATE = date(2026, 7, 11)
+EXPECTED_IMAGE_RECORD_SHA256 = "a0a4c641e8abe7762c4c48ae1da64983d90e2865707eb43cb273e0ddf3c94e72"
+EXPECTED_IMAGE_RECIPE_SHA256 = "4240d4a835fe1db188d1475644a39fc0c12c042ae514066d1424016d747afd2f"
+RECORDED_EVIDENCE_DATE = date(2026, 7, 12)
 REPORT_SCHEMA = "zenodex/zrpf_firecracker_runtime_artifact_check/v2"
 
 
-def build_report(*, current_release_date: date | None = None) -> dict[str, Any]:
+def build_report() -> dict[str, Any]:
     errors: list[str] = []
     try:
         manifest = runtime.load_runtime_manifest(
@@ -66,6 +67,18 @@ def build_report(*, current_release_date: date | None = None) -> dict[str, Any]:
         )
         if hashlib.sha256(recipe_raw).hexdigest() != EXPECTED_IMAGE_RECIPE_SHA256:
             errors.append("image_recipe_hash_mismatch")
+        guest_elf_reference_raw = runtime.read_bounded_regular(
+            GUEST_ELF_REFERENCE_PATH,
+            maximum=128 * 1024,
+        )
+        guest_elf_reference_sha256 = hashlib.sha256(guest_elf_reference_raw).hexdigest()
+        reference_anchor = (
+            f"readonly GUEST_ELF_REFERENCE_SHA256={guest_elf_reference_sha256}\n".encode(
+                "ascii"
+            )
+        )
+        if recipe_raw.count(reference_anchor) != 1:
+            errors.append("guest_elf_reference_recipe_binding_mismatch")
         profile_raw = runtime.read_bounded_regular(PROFILE_PATH, maximum=128 * 1024)
         profile = support.strict_json_loads(profile_raw)
         if not isinstance(profile, dict):
@@ -81,6 +94,7 @@ def build_report(*, current_release_date: date | None = None) -> dict[str, Any]:
                 kernel_record_sha256=hashlib.sha256(kernel_raw).hexdigest(),
                 image_record=image_record,
                 image_recipe_sha256=hashlib.sha256(recipe_raw).hexdigest(),
+                guest_elf_reference_sha256=guest_elf_reference_sha256,
                 profile=profile,
             )
         )
@@ -98,15 +112,6 @@ def build_report(*, current_release_date: date | None = None) -> dict[str, Any]:
     )
     if not historical_supported:
         errors.append("guest_kernel_support_expired_for_recorded_evidence_date")
-    current_checked = current_release_date is not None
-    current_eligible = bool(
-        current_checked
-        and support_end is not None
-        and current_release_date is not None
-        and current_release_date <= support_end
-    )
-    if current_checked and not current_eligible:
-        errors.append("guest_kernel_support_expired_for_current_release_date")
     return {
         "authority": {
             "cross_host_reproducible_build": False,
@@ -116,11 +121,9 @@ def build_report(*, current_release_date: date | None = None) -> dict[str, Any]:
             "root_launcher_ready": False,
             "settlement_authority": False,
         },
-        "current_release_date": (
-            current_release_date.isoformat() if current_release_date is not None else None
-        ),
-        "current_runtime_eligibility_checked": current_checked,
-        "current_runtime_eligible": current_eligible,
+        "current_release_date": None,
+        "current_runtime_eligibility_checked": False,
+        "current_runtime_eligible": False,
         "errors": errors,
         "guest_kernel_support_minimum_end_date": (
             support_end.isoformat() if support_end is not None else None
@@ -135,18 +138,9 @@ def build_report(*, current_release_date: date | None = None) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--current-release-date")
     parser.add_argument("--require-current-runtime-eligible", action="store_true")
     arguments = parser.parse_args(argv)
-    try:
-        current_release_date = (
-            date.fromisoformat(arguments.current_release_date)
-            if arguments.current_release_date is not None
-            else None
-        )
-    except ValueError:
-        return 2
-    report = build_report(current_release_date=current_release_date)
+    report = build_report()
     print(json.dumps(report, indent=2, sort_keys=True))
     current_requirement_met = (
         not arguments.require_current_runtime_eligible
@@ -172,6 +166,7 @@ def _cross_check(
     kernel_record_sha256: str,
     image_record: dict[str, Any],
     image_recipe_sha256: str,
+    guest_elf_reference_sha256: str,
     profile: dict[str, Any],
 ) -> list[str]:
     errors = _check_kernel_record(
@@ -184,6 +179,7 @@ def _cross_check(
             manifest,
             image_record=image_record,
             image_recipe_sha256=image_recipe_sha256,
+            guest_elf_reference_sha256=guest_elf_reference_sha256,
         )
     )
     runner_policy = profile.get("runner_policy")
@@ -275,6 +271,7 @@ def _check_image_record(
     *,
     image_record: Mapping[str, Any],
     image_recipe_sha256: str,
+    guest_elf_reference_sha256: str,
 ) -> list[str]:
     errors: list[str] = []
     if image_record.get("schema") != "zenodex/zrpf_firecracker_runtime_image_build_record/v1":
@@ -318,13 +315,22 @@ def _check_image_record(
         False,
     ):
         errors.append("guest_binary_binding_mismatch")
+    if isinstance(guest_binary, dict) and guest_binary.get("artifact_privacy") != {
+        "complete_guest_binary_path_privacy_verified": False,
+        "confidential_name_policy_evaluated": False,
+        "public_privacy_rule_scan_applied_to_guest_binary": False,
+    }:
+        errors.append("guest_binary_privacy_nonclaim_mismatch")
 
     builder = image_record.get("image_builder")
     if not isinstance(builder, dict) or builder != {
+        "guest_elf_checker_schema": manifest.provenance.guest_elf_checker_schema,
+        "guest_elf_checker_sha256": manifest.provenance.guest_elf_checker_sha256,
+        "guest_elf_checker_source_commit": manifest.provenance.guest_elf_checker_source_commit,
+        "guest_elf_reference_schema": manifest.provenance.guest_elf_reference_schema,
+        "guest_elf_reference_sha256": manifest.provenance.guest_elf_reference_sha256,
         "mksquashfs_binary_sha256": manifest.provenance.mksquashfs_binary_sha256,
         "mksquashfs_version": "4.6.1",
-        "readelf_binary_sha256": manifest.provenance.readelf_binary_sha256,
-        "readelf_version": "GNU_readelf_2.42",
         "squashfs_block_size_bytes": manifest.rootfs.filesystem_block_size_bytes,
         "squashfs_compression": manifest.rootfs.compression,
         "squashfs_epoch": manifest.rootfs.mkfs_epoch,
@@ -332,8 +338,12 @@ def _check_image_record(
         errors.append("image_builder_binding_mismatch")
     if manifest.provenance.mksquashfs_version != "mksquashfs_4.6.1":
         errors.append("image_builder_version_binding_mismatch")
-    if manifest.provenance.readelf_version != "GNU_readelf_2.42":
+    if manifest.provenance.guest_elf_checker_schema != runtime.GUEST_ELF_CHECKER_SCHEMA:
         errors.append("image_builder_version_binding_mismatch")
+    if manifest.provenance.guest_elf_reference_schema != runtime.GUEST_ELF_REFERENCE_SCHEMA:
+        errors.append("image_builder_version_binding_mismatch")
+    if manifest.provenance.guest_elf_reference_sha256 != guest_elf_reference_sha256:
+        errors.append("guest_elf_reference_source_binding_mismatch")
 
     rootfs_record = image_record.get("rootfs")
     input_record = image_record.get("input_image")

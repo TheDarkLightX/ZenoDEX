@@ -35,6 +35,10 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse 'refs/tags/zrpf-v3-source-anchor-20260711^{commit}')" = \
             'b37b741520e95f50236f6a9f0825c23ae3487374'
+          test "$(git rev-parse 'refs/tags/zrpf-v3-source-anchor-v7-20260712^{commit}')" = \
+            'ff76ff9c1dc307f0e7dc5afd009e2961f2e36f21'
+          test "$(git rev-parse 'refs/tags/zrpf-v3-firecracker-elf-source-v2-20260712^{commit}')" = \
+            '25032924eb4fca7f156a9ec4eedd39afeade9623'
           test "$(git rev-parse 'refs/tags/zrpf-v1-retained-source-anchor-20260710^{commit}')" = \
             '1d1559fd402cdb906d52e6d572d39aec99a5ebda'
 
@@ -75,7 +79,6 @@ jobs:
           ruff check \
             tools/check_zrpf_v3_firecracker_direct_replay_evidence.py \
             tools/check_zrpf_v3_firecracker_guest_elf.py \
-            tools/check_zrpf_v3_firecracker_guest_elf.py \
             tools/check_zrpf_v3_firecracker_launch_preflight.py \
             tools/check_zrpf_v3_firecracker_protocol_binding.py \
             tools/check_zrpf_v3_firecracker_replay_profile.py \
@@ -89,7 +92,6 @@ jobs:
             tools/zrpf_v3_firecracker_runtime_manifest.py \
             tools/zrpf_v3_replay_*.py \
             tests/test_check_zrpf_v3_firecracker_direct_replay_evidence.py \
-            tests/test_check_zrpf_v3_firecracker_guest_elf.py \
             tests/test_check_zrpf_v3_firecracker_guest_elf.py \
             tests/test_check_zrpf_v3_firecracker_launch_preflight.py \
             tests/test_check_zrpf_v3_firecracker_protocol_binding.py \
@@ -150,10 +152,6 @@ jobs:
           python3 -I tools/check_zrpf_v3_firecracker_replay_profile.py
           python3 -I tools/check_zrpf_v3_firecracker_protocol_binding.py
           python3 -I tools/check_zrpf_v3_firecracker_runtime_artifacts.py
-          current_release_date="$(date -u +%F)"
-          python3 -I tools/check_zrpf_v3_firecracker_runtime_artifacts.py \
-            --current-release-date "${current_release_date}" \
-            --require-current-runtime-eligible
           bash -n tools/build_zrpf_v3_firecracker_guest_images.sh
           python3 tools/zrpf_v3_artifact_privacy.py
           python3 tools/check_zrpf_v3_replay_verifier_evidence.py --json

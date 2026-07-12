@@ -19,7 +19,7 @@ MAX_ARTIFACT_COUNT = 64
 MAX_ARTIFACT_BYTES = 16 * 1024 * 1024
 MAX_TOTAL_BYTES = 64 * 1024 * 1024
 MAX_FINDINGS = 256
-EVIDENCE_RELATIVE_PATH = "docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260711.json"
+EVIDENCE_RELATIVE_PATH = "docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260712.json"
 
 
 @dataclass(frozen=True, order=True)
@@ -49,10 +49,18 @@ FIRECRACKER_RUNTIME_PUBLIC_ARTIFACTS: tuple[ArtifactSpec, ...] = (
     ),
     ArtifactSpec(
         "config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v1.json",
+        "historical_runtime_artifact_manifest",
+    ),
+    ArtifactSpec(
+        "config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v2.json",
         "runtime_artifact_manifest",
     ),
     ArtifactSpec(
         "docs/research/ZRPF_V3_FIRECRACKER_GOVERNED_DIRECT_REPLAY_EVIDENCE_20260711.json",
+        "historical_governed_direct_replay_evidence",
+    ),
+    ArtifactSpec(
+        "docs/research/ZRPF_V3_FIRECRACKER_GOVERNED_DIRECT_REPLAY_EVIDENCE_20260712.json",
         "governed_direct_replay_evidence",
     ),
     ArtifactSpec(
@@ -62,6 +70,18 @@ FIRECRACKER_RUNTIME_PUBLIC_ARTIFACTS: tuple[ArtifactSpec, ...] = (
     ArtifactSpec(
         "evidence/zrpf-v3-retained-structural-replay-v1/firecracker-governed-output-payload.json",
         "governed_firecracker_output_payload",
+    ),
+    ArtifactSpec(
+        "evidence/zrpf-v3-retained-structural-replay-v1/firecracker-direct-v2/config.json",
+        "retained_firecracker_configuration",
+    ),
+    ArtifactSpec(
+        "evidence/zrpf-v3-retained-structural-replay-v1/firecracker-direct-v2/firecracker.stdout",
+        "retained_firecracker_stdout",
+    ),
+    ArtifactSpec(
+        "evidence/zrpf-v3-retained-structural-replay-v1/firecracker-direct-v2/local-report.json",
+        "retained_firecracker_local_report",
     ),
     ArtifactSpec(
         "tools/build_zrpf_v3_firecracker_guest_images.sh",
@@ -101,6 +121,10 @@ DEFAULT_ARTIFACTS: tuple[ArtifactSpec, ...] = (
     ),
     ArtifactSpec(
         "docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260711.json",
+        "historical_source_closure_evidence",
+    ),
+    ArtifactSpec(
+        "docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260712.json",
         "source_closure_evidence",
     ),
     ArtifactSpec(

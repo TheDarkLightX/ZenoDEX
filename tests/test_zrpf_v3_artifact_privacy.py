@@ -22,8 +22,8 @@ def test_committed_zrpf_artifact_inventory_is_clean() -> None:
     report = scan_default_artifacts()
 
     assert report["ok"] is True
-    assert report["artifact_count_expected"] == len(DEFAULT_ARTIFACTS) == 30
-    assert report["artifact_count_scanned"] == 30
+    assert report["artifact_count_expected"] == len(DEFAULT_ARTIFACTS) == 36
+    assert report["artifact_count_scanned"] == 36
     assert report["complete_artifact_privacy_verified"] is False
     assert report["finding_count"] == 0
     assert report["error_count"] == 0
@@ -35,9 +35,14 @@ def test_firecracker_runtime_public_artifacts_are_governed() -> None:
         "config/proof_profiles/zrpf_firecracker_runtime_image_build_record_v1.json",
         "config/proof_profiles/zrpf_v3_firecracker_replay_intent_v1.json",
         "config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v1.json",
+        "config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v2.json",
         "docs/research/ZRPF_V3_FIRECRACKER_GOVERNED_DIRECT_REPLAY_EVIDENCE_20260711.json",
+        "docs/research/ZRPF_V3_FIRECRACKER_GOVERNED_DIRECT_REPLAY_EVIDENCE_20260712.json",
         "docs/research/ZRPF_V3_FIRECRACKER_RUNTIME_CONTRACT_20260711.md",
         "evidence/zrpf-v3-retained-structural-replay-v1/firecracker-governed-output-payload.json",
+        "evidence/zrpf-v3-retained-structural-replay-v1/firecracker-direct-v2/config.json",
+        "evidence/zrpf-v3-retained-structural-replay-v1/firecracker-direct-v2/firecracker.stdout",
+        "evidence/zrpf-v3-retained-structural-replay-v1/firecracker-direct-v2/local-report.json",
         "tools/build_zrpf_v3_firecracker_guest_images.sh",
         "tools/check_zrpf_v3_firecracker_guest_elf.py",
     }
@@ -59,21 +64,22 @@ def test_firecracker_runtime_records_preserve_complete_privacy_nonclaim() -> Non
     runtime_manifest = json.loads(
         (
             REPO_ROOT
-            / "config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v1.json"
+            / "config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v2.json"
         ).read_text(encoding="utf-8")
     )
     replay_evidence = json.loads(
         (
             REPO_ROOT / "docs/research/"
-            "ZRPF_V3_FIRECRACKER_GOVERNED_DIRECT_REPLAY_EVIDENCE_20260711.json"
+            "ZRPF_V3_FIRECRACKER_GOVERNED_DIRECT_REPLAY_EVIDENCE_20260712.json"
         ).read_text(encoding="utf-8")
     )
 
     assert image_record["authority"]["artifact_privacy_scan_passed"] is False
-    assert (
-        image_record["guest_binary"]["artifact_privacy"]["generic_toolchain_builder_paths_present"]
-        is True
-    )
+    assert image_record["guest_binary"]["artifact_privacy"] == {
+        "complete_guest_binary_path_privacy_verified": False,
+        "confidential_name_policy_evaluated": False,
+        "public_privacy_rule_scan_applied_to_guest_binary": False,
+    }
     assert runtime_manifest["authority"]["witness_privacy"] is False
     assert runtime_manifest["authority"]["zero_knowledge_privacy"] is False
     assert (
