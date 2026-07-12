@@ -47,6 +47,7 @@ child journals root
 child programs root
 child manifests root
 dependency manifest root
+derived operational-commitment bundle
 proposal commitment
 ```
 
@@ -61,7 +62,32 @@ child program manifest root
 exact child journal hash
 RISC0 verified-claim binding
 child semantic-subtree root
+child operational-commitment bundle
 ```
+
+The operational bundle contains exactly:
+
+```text
+data availability root
+data availability certificate root
+conflict schedule root
+cross-lane outbox root
+cross-lane inbox root
+cross-lane message-IDs root
+carry-queue pre-root
+carry-queue post-root
+```
+
+At level one, each child bundle is projected from the exact V4 structural
+journal after the receipt-verification precondition. The V4
+`conflict_schedule_hash` is carried as the V5 `conflict_schedule_root`. At
+level two, each child bundle is projected from the exact V5 child proposal.
+Every parent field is a distinct domain-separated ordered root over the same
+field in its immediate children. The canonical bundle hash enters every child
+descriptor hash and the parent proposal commitment.
+
+These operations authenticate and aggregate opaque commitments. They do not
+interpret the committed data or establish operational semantics.
 
 The proposal requires:
 
@@ -75,6 +101,7 @@ child claim bindings are unique
 scope.canonical_hash == semantic_subtree.scope_hash
 scope represents exactly one epoch
 dependency manifest is derived from the ordered child dependency descriptors
+all eight parent operational commitments are derived from ordered child values
 all stored roots and the proposal commitment recompute exactly
 ```
 
@@ -96,14 +123,18 @@ after cryptographically verifying the parent receipt.
 7. scope hash, epoch, application, or domain substitution;
 8. dependency-manifest substitution;
 9. merged semantic-subtree substitution;
-10. trailing, oversized, or noncanonical encoding.
+10. mutation of any child operational-commitment field;
+11. mutation of any derived parent operational-commitment field;
+12. trailing, oversized, or noncanonical encoding.
 
 ## Explicit non-claims
 
 This proposal supplies no receipt, recursive proof, image ID for the parent,
-source finality, data availability, schedule certificate, carry-continuity
-certificate, economic-action normalization, settlement plan binding, ledger
-admission, release authority, privacy, throughput, or production authority.
+source finality, data availability, data-availability certificate validity,
+conflict-schedule validity, cross-lane message uniqueness or cancellation,
+carry continuity, economic-action normalization, settlement plan binding,
+ledger admission, release authority, privacy, throughput, or production
+authority. Operational-root propagation alone advances none of these claims.
 
 Promotion requires the two governed aggregate guests, sealed receipt verifier,
 current-image multi-leaf proof evidence, maximum-topology resource evidence,

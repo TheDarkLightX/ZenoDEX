@@ -1,18 +1,18 @@
-use alloc::collections::BTreeSet;
 use alloc::vec::Vec;
-use core::fmt;
 
 use serde::{de, Deserialize, Deserializer, Serialize};
 
 use super::hash::{
     derive_value_aggregate_roots_v5, proposal_commitment_v5, ProposalCommitmentInputV5,
 };
+use super::proposal_validation::{
+    child_count, deserialize_children, serialize_children, validate_shape,
+};
 use super::{
-    ValueAggregateChildDescriptorV5, ValueAggregateErrorV5, VALUE_AGGREGATE_PROPOSAL_VERSION_V5,
+    ValueAggregateChildDescriptorV5, ValueAggregateErrorV5, ValueAggregateOperationalCommitmentsV5,
+    VALUE_AGGREGATE_PROPOSAL_VERSION_V5,
 };
-use crate::{
-    CommitmentV3, NodeScopeV3, SemanticSubtreeV2, MAX_IMMEDIATE_CHILDREN_V3, MAX_NODE_LEVEL_V3,
-};
+use crate::{CommitmentV3, NodeScopeV3, SemanticSubtreeV2};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValueAggregateProposalInputV5 {
@@ -33,6 +33,7 @@ pub struct ProposedValueAggregateV5 {
     aggregate_level: u8,
     scope: NodeScopeV3,
     semantic_subtree: SemanticSubtreeV2,
+    operational_commitments: ValueAggregateOperationalCommitmentsV5,
     #[serde(serialize_with = "serialize_children")]
     children: Vec<ValueAggregateChildDescriptorV5>,
     child_descriptors_root: CommitmentV3,
@@ -51,6 +52,7 @@ struct ProposedValueAggregateWireV5 {
     aggregate_level: u8,
     scope: NodeScopeV3,
     semantic_subtree: SemanticSubtreeV2,
+    operational_commitments: ValueAggregateOperationalCommitmentsV5,
     #[serde(deserialize_with = "deserialize_children")]
     children: Vec<ValueAggregateChildDescriptorV5>,
     child_descriptors_root: CommitmentV3,
@@ -85,6 +87,7 @@ impl ProposedValueAggregateV5 {
             aggregate_level: input.aggregate_level,
             scope: input.scope,
             semantic_subtree: input.semantic_subtree,
+            operational_commitments: roots.operational_commitments,
             children: input.children,
             child_descriptors_root: roots.child_descriptors_root,
             child_claims_root: roots.child_claims_root,
@@ -111,6 +114,11 @@ impl ProposedValueAggregateV5 {
             &self.children,
         )?;
         let roots = derive_value_aggregate_roots_v5(&self.children)?;
+        if self.operational_commitments != roots.operational_commitments {
+            return Err(ValueAggregateErrorV5::CommitmentMismatch(
+                "operational_commitments",
+            ));
+        }
         self.require_stored_roots(&roots)?;
         let expected_proposal = proposal_commitment_v5(ProposalCommitmentInputV5 {
             proposal_version: self.proposal_version,
@@ -187,6 +195,10 @@ impl ProposedValueAggregateV5 {
         &self.semantic_subtree
     }
 
+    pub const fn operational_commitments(&self) -> ValueAggregateOperationalCommitmentsV5 {
+        self.operational_commitments
+    }
+
     pub fn children(&self) -> &[ValueAggregateChildDescriptorV5] {
         &self.children
     }
@@ -225,6 +237,7 @@ impl ProposedValueAggregateV5 {
             aggregate_level: wire.aggregate_level,
             scope: wire.scope,
             semantic_subtree: wire.semantic_subtree,
+            operational_commitments: wire.operational_commitments,
             children: wire.children,
             child_descriptors_root: wire.child_descriptors_root,
             child_claims_root: wire.child_claims_root,
@@ -247,140 +260,4 @@ impl<'de> Deserialize<'de> for ProposedValueAggregateV5 {
         Self::from_wire(ProposedValueAggregateWireV5::deserialize(deserializer)?)
             .map_err(de::Error::custom)
     }
-}
-
-fn validate_shape(
-    aggregate_level: u8,
-    scope: &NodeScopeV3,
-    semantic_subtree: &SemanticSubtreeV2,
-    children: &[ValueAggregateChildDescriptorV5],
-) -> Result<(), ValueAggregateErrorV5> {
-    if aggregate_level == 0 || aggregate_level > MAX_NODE_LEVEL_V3 {
-        return Err(ValueAggregateErrorV5::InvalidAggregateLevel(
-            aggregate_level,
-        ));
-    }
-    require_child_count(children.len())?;
-    scope.validate()?;
-    if scope.epoch_start() != scope.epoch_end() {
-        return Err(ValueAggregateErrorV5::MultiEpochScope);
-    }
-    semantic_subtree.validate()?;
-    if scope.canonical_hash()? != semantic_subtree.scope_hash() {
-        return Err(ValueAggregateErrorV5::ScopeHashMismatch);
-    }
-    validate_children(aggregate_level, semantic_subtree, children)
-}
-
-fn validate_children(
-    aggregate_level: u8,
-    semantic_subtree: &SemanticSubtreeV2,
-    children: &[ValueAggregateChildDescriptorV5],
-) -> Result<(), ValueAggregateErrorV5> {
-    let expected_level = aggregate_level - 1;
-    let mut claims = BTreeSet::new();
-    let mut journals = BTreeSet::new();
-    let mut expected_start = semantic_subtree.partition().start();
-    for (index, child) in children.iter().enumerate() {
-        child.validate()?;
-        if child.child_level() != expected_level {
-            return Err(ValueAggregateErrorV5::InvalidChildLevel {
-                child: index,
-                actual: child.child_level(),
-            });
-        }
-        if child.partition().start() != expected_start {
-            return Err(ValueAggregateErrorV5::ChildPartitionGap { child: index });
-        }
-        if child.child_level() == 0
-            && child.partition().end_exclusive() - child.partition().start() != 1
-        {
-            return Err(ValueAggregateErrorV5::ChildPartitionCoverageMismatch);
-        }
-        expected_start = child.partition().end_exclusive();
-        if !claims.insert(child.claim_binding()) {
-            return Err(ValueAggregateErrorV5::DuplicateChildClaim);
-        }
-        if !journals.insert(child.journal_hash()) {
-            return Err(ValueAggregateErrorV5::DuplicateChildJournal);
-        }
-    }
-    if expected_start != semantic_subtree.partition().end_exclusive() {
-        return Err(ValueAggregateErrorV5::ChildPartitionCoverageMismatch);
-    }
-    Ok(())
-}
-
-fn require_child_count(count: usize) -> Result<(), ValueAggregateErrorV5> {
-    if count == 0 {
-        return Err(ValueAggregateErrorV5::EmptyChildren);
-    }
-    if count > MAX_IMMEDIATE_CHILDREN_V3 {
-        return Err(ValueAggregateErrorV5::TooManyChildren {
-            actual: count,
-            maximum: MAX_IMMEDIATE_CHILDREN_V3,
-        });
-    }
-    Ok(())
-}
-
-fn child_count(count: usize) -> Result<u8, ValueAggregateErrorV5> {
-    require_child_count(count)?;
-    u8::try_from(count).map_err(|_| ValueAggregateErrorV5::ArithmeticOverflow("child_count"))
-}
-
-fn serialize_children<S>(
-    children: &[ValueAggregateChildDescriptorV5],
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    children.serialize(serializer)
-}
-
-fn deserialize_children<'de, D>(
-    deserializer: D,
-) -> Result<Vec<ValueAggregateChildDescriptorV5>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    struct ChildrenVisitor;
-
-    impl<'de> de::Visitor<'de> for ChildrenVisitor {
-        type Value = Vec<ValueAggregateChildDescriptorV5>;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(
-                formatter,
-                "between one and {MAX_IMMEDIATE_CHILDREN_V3} V5 child descriptors"
-            )
-        }
-
-        fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
-        where
-            A: de::SeqAccess<'de>,
-        {
-            let declared = sequence.size_hint().unwrap_or(0);
-            if declared > MAX_IMMEDIATE_CHILDREN_V3 {
-                return Err(de::Error::custom(ValueAggregateErrorV5::TooManyChildren {
-                    actual: declared,
-                    maximum: MAX_IMMEDIATE_CHILDREN_V3,
-                }));
-            }
-            let mut children = Vec::with_capacity(declared);
-            while let Some(child) = sequence.next_element()? {
-                if children.len() == MAX_IMMEDIATE_CHILDREN_V3 {
-                    return Err(de::Error::custom(ValueAggregateErrorV5::TooManyChildren {
-                        actual: MAX_IMMEDIATE_CHILDREN_V3 + 1,
-                        maximum: MAX_IMMEDIATE_CHILDREN_V3,
-                    }));
-                }
-                children.push(child);
-            }
-            Ok(children)
-        }
-    }
-
-    deserializer.deserialize_seq(ChildrenVisitor)
 }

@@ -2,11 +2,16 @@ mod child;
 mod codec;
 mod error;
 mod hash;
+mod operational;
 mod proposal;
+mod proposal_validation;
 
 pub use child::{ValueAggregateChildDescriptorInputV5, ValueAggregateChildDescriptorV5};
 pub use codec::{decode_exact_value_aggregate_proposal_v5, encode_value_aggregate_proposal_v5};
 pub use error::ValueAggregateErrorV5;
+pub use operational::{
+    ValueAggregateOperationalCommitmentsInputV5, ValueAggregateOperationalCommitmentsV5,
+};
 pub use proposal::{ProposedValueAggregateV5, ValueAggregateProposalInputV5};
 
 pub const VALUE_AGGREGATE_PROPOSAL_VERSION_V5: u16 = 5;

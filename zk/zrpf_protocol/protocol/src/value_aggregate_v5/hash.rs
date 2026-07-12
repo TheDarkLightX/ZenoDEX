@@ -2,7 +2,10 @@ use alloc::vec::Vec;
 
 use sha2::{Digest, Sha256};
 
-use super::{ValueAggregateChildDescriptorV5, ValueAggregateErrorV5};
+use super::{
+    ValueAggregateChildDescriptorV5, ValueAggregateErrorV5,
+    ValueAggregateOperationalCommitmentsInputV5, ValueAggregateOperationalCommitmentsV5,
+};
 use crate::{CommitmentV3, ProfileIdV3, ProgramIdV3};
 
 const CHILD_DESCRIPTOR_DOMAIN_V5: &[u8] = b"zenodex.zrpf.value_child_descriptor.v5";
@@ -12,6 +15,23 @@ const CHILD_JOURNALS_ROOT_DOMAIN_V5: &[u8] = b"zenodex.zrpf.value_child_journals
 const CHILD_PROGRAMS_ROOT_DOMAIN_V5: &[u8] = b"zenodex.zrpf.value_child_programs_root.v5";
 const CHILD_MANIFESTS_ROOT_DOMAIN_V5: &[u8] = b"zenodex.zrpf.value_child_manifests_root.v5";
 const DEPENDENCY_MANIFEST_DOMAIN_V5: &[u8] = b"zenodex.zrpf.value_dependency_manifest.v5";
+const OPERATIONAL_COMMITMENTS_DOMAIN_V5: &[u8] = b"zenodex.zrpf.value_operational_commitments.v5";
+const DATA_AVAILABILITY_ROOT_DOMAIN_V5: &[u8] =
+    b"zenodex.zrpf.value_operational_data_availability_root.v5";
+const DATA_AVAILABILITY_CERTIFICATE_ROOT_DOMAIN_V5: &[u8] =
+    b"zenodex.zrpf.value_operational_data_availability_certificate_root.v5";
+const CONFLICT_SCHEDULE_ROOT_DOMAIN_V5: &[u8] =
+    b"zenodex.zrpf.value_operational_conflict_schedule_root.v5";
+const CROSS_LANE_OUTBOX_ROOT_DOMAIN_V5: &[u8] =
+    b"zenodex.zrpf.value_operational_cross_lane_outbox_root.v5";
+const CROSS_LANE_INBOX_ROOT_DOMAIN_V5: &[u8] =
+    b"zenodex.zrpf.value_operational_cross_lane_inbox_root.v5";
+const CROSS_LANE_MESSAGE_IDS_ROOT_DOMAIN_V5: &[u8] =
+    b"zenodex.zrpf.value_operational_cross_lane_message_ids_root.v5";
+const CARRY_QUEUE_PRE_ROOT_DOMAIN_V5: &[u8] =
+    b"zenodex.zrpf.value_operational_carry_queue_pre_root.v5";
+const CARRY_QUEUE_POST_ROOT_DOMAIN_V5: &[u8] =
+    b"zenodex.zrpf.value_operational_carry_queue_post_root.v5";
 const PROPOSAL_COMMITMENT_DOMAIN_V5: &[u8] = b"zenodex.zrpf.value_aggregate_proposal.v5";
 
 pub(super) struct DerivedValueAggregateRootsV5 {
@@ -21,6 +41,17 @@ pub(super) struct DerivedValueAggregateRootsV5 {
     pub child_programs_root: CommitmentV3,
     pub child_manifests_root: CommitmentV3,
     pub dependency_manifest_root: CommitmentV3,
+    pub operational_commitments: ValueAggregateOperationalCommitmentsV5,
+}
+
+pub(super) fn operational_commitments_hash_v5(
+    commitments: &ValueAggregateOperationalCommitmentsV5,
+) -> Result<CommitmentV3, ValueAggregateErrorV5> {
+    let mut hasher = domain_hasher(OPERATIONAL_COMMITMENTS_DOMAIN_V5)?;
+    for value in commitments.to_array() {
+        hasher.update(value.as_bytes());
+    }
+    commitment(hasher.finalize().into())
 }
 
 pub(super) fn child_descriptor_hash_v5(
@@ -40,6 +71,7 @@ pub(super) fn child_descriptor_hash_v5(
     ] {
         hasher.update(value.as_bytes());
     }
+    hasher.update(child.operational_commitments().canonical_hash()?.as_bytes());
     commitment(hasher.finalize().into())
 }
 
@@ -79,6 +111,7 @@ pub(super) fn derive_value_aggregate_roots_v5(
             .map(|child| child.program_manifest_root().into_bytes()),
     )?;
     let dependency_manifest_root = dependency_manifest_root(children)?;
+    let operational_commitments = derive_operational_commitments(children)?;
     Ok(DerivedValueAggregateRootsV5 {
         child_descriptors_root,
         child_claims_root,
@@ -86,6 +119,7 @@ pub(super) fn derive_value_aggregate_roots_v5(
         child_programs_root,
         child_manifests_root,
         dependency_manifest_root,
+        operational_commitments,
     })
 }
 
@@ -114,10 +148,57 @@ pub(super) fn proposal_commitment_v5(
         input.roots.child_programs_root,
         input.roots.child_manifests_root,
         input.roots.dependency_manifest_root,
+        input.roots.operational_commitments.canonical_hash()?,
     ] {
         hasher.update(value.as_bytes());
     }
     commitment(hasher.finalize().into())
+}
+
+fn derive_operational_commitments(
+    children: &[ValueAggregateChildDescriptorV5],
+) -> Result<ValueAggregateOperationalCommitmentsV5, ValueAggregateErrorV5> {
+    macro_rules! ordered_root {
+        ($domain:expr, $getter:ident) => {
+            commitment_root(
+                $domain,
+                children
+                    .iter()
+                    .map(|child| child.operational_commitments().$getter().into_bytes()),
+            )?
+        };
+    }
+    ValueAggregateOperationalCommitmentsV5::new(ValueAggregateOperationalCommitmentsInputV5 {
+        data_availability_root: ordered_root!(
+            DATA_AVAILABILITY_ROOT_DOMAIN_V5,
+            data_availability_root
+        ),
+        data_availability_certificate_root: ordered_root!(
+            DATA_AVAILABILITY_CERTIFICATE_ROOT_DOMAIN_V5,
+            data_availability_certificate_root
+        ),
+        conflict_schedule_root: ordered_root!(
+            CONFLICT_SCHEDULE_ROOT_DOMAIN_V5,
+            conflict_schedule_root
+        ),
+        cross_lane_outbox_root: ordered_root!(
+            CROSS_LANE_OUTBOX_ROOT_DOMAIN_V5,
+            cross_lane_outbox_root
+        ),
+        cross_lane_inbox_root: ordered_root!(
+            CROSS_LANE_INBOX_ROOT_DOMAIN_V5,
+            cross_lane_inbox_root
+        ),
+        cross_lane_message_ids_root: ordered_root!(
+            CROSS_LANE_MESSAGE_IDS_ROOT_DOMAIN_V5,
+            cross_lane_message_ids_root
+        ),
+        carry_queue_pre_root: ordered_root!(CARRY_QUEUE_PRE_ROOT_DOMAIN_V5, carry_queue_pre_root),
+        carry_queue_post_root: ordered_root!(
+            CARRY_QUEUE_POST_ROOT_DOMAIN_V5,
+            carry_queue_post_root
+        ),
+    })
 }
 
 fn dependency_manifest_root(
