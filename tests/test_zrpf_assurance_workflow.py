@@ -73,6 +73,12 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     )
     for required_path in (
         "src/core/recursive_stark_admission.py",
+        "src/integration/_recursive_stark_admission_store_engine.py",
+        "src/integration/_recursive_stark_admission_store_hashes.py",
+        "src/integration/_recursive_stark_admission_store_history.py",
+        "src/integration/_recursive_stark_admission_store_schema.py",
+        "src/integration/recursive_stark_admission_store.py",
+        "src/integration/recursive_stark_admission_store_types.py",
         "src/integration/recursive_stark_replay_manifest.py",
         "src/integration/recursive_stark_verifier_adapter.py",
     ):
@@ -81,6 +87,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     for required_path in (
         "tests/core/test_recursive_stark_exact_once_admission.py",
         "tests/integration/test_recursive_stark_admission_authority_boundary.py",
+        "tests/integration/test_recursive_stark_durable_admission_store.py",
         "tests/integration/test_recursive_stark_replay_manifest.py",
         "tests/integration/test_recursive_stark_verifier_adapter.py",
     ):

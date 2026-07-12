@@ -47,6 +47,7 @@ class RecursiveStarkAdmissionRejectReason(str, Enum):
     DUPLICATE_ACCEPTED_RECEIPT = "recursive_stark.duplicate_accepted_receipt"
     DUPLICATE_CROSS_SHARD_MESSAGE = "recursive_stark.duplicate_cross_shard_message"
     ADMISSION_INDEX_CAPACITY_EXCEEDED = "recursive_stark.admission_index_capacity_exceeded"
+    DURABLE_CURSOR_MISMATCH = "recursive_stark.durable_cursor_mismatch"
 
 
 @dataclass(frozen=True, order=True)
@@ -180,6 +181,43 @@ class RecursiveStarkRootFacts:
 _AUTHENTICATED_FACTS_SEAL = object()
 
 
+@dataclass(frozen=True, slots=True)
+class _RecursiveStarkVerificationProvenance:
+    """Exact governed inputs retained across verification and durable commit."""
+
+    authority_manifest_sha256: str
+    verifier_executable_sha256: str
+    verification_request_sha256: str
+    release_binding_config_digest: str | None = None
+    replay_manifest_sha256: str | None = None
+
+    def __post_init__(self) -> None:
+        _require_bare_sha256(
+            self.authority_manifest_sha256,
+            name="provenance.authority_manifest_sha256",
+        )
+        _require_bare_sha256(
+            self.verifier_executable_sha256,
+            name="provenance.verifier_executable_sha256",
+        )
+        _require_bare_sha256(
+            self.verification_request_sha256,
+            name="provenance.verification_request_sha256",
+        )
+        if self.release_binding_config_digest is not None:
+            _require_prefixed_sha256(
+                self.release_binding_config_digest,
+                prefix="0x",
+                name="provenance.release_binding_config_digest",
+            )
+        if self.replay_manifest_sha256 is not None:
+            _require_prefixed_sha256(
+                self.replay_manifest_sha256,
+                prefix="sha256:",
+                name="provenance.replay_manifest_sha256",
+            )
+
+
 @final
 class _AuthenticatedRecursiveStarkRootFacts:
     """Governed-source post-verification marker for the pinned adapter.
@@ -189,14 +227,16 @@ class _AuthenticatedRecursiveStarkRootFacts:
     reviewed adapter path; hostile private-symbol access remains a non-claim.
     """
 
-    __slots__ = ("_facts", "_trusted_policy", "_seal")
+    __slots__ = ("_facts", "_provenance", "_trusted_policy", "_seal")
     _facts: RecursiveStarkRootFacts
+    _provenance: _RecursiveStarkVerificationProvenance
     _trusted_policy: TrustedRecursiveStarkAdmissionPolicy
 
     def __init__(
         self,
         facts: RecursiveStarkRootFacts,
         trusted_policy: TrustedRecursiveStarkAdmissionPolicy,
+        provenance: _RecursiveStarkVerificationProvenance,
         *,
         seal: object,
     ) -> None:
@@ -205,11 +245,12 @@ class _AuthenticatedRecursiveStarkRootFacts:
         if type(facts) is not RecursiveStarkRootFacts:
             raise TypeError("facts must be exactly RecursiveStarkRootFacts")
         if type(trusted_policy) is not TrustedRecursiveStarkAdmissionPolicy:
-            raise TypeError(
-                "trusted_policy must be exactly TrustedRecursiveStarkAdmissionPolicy"
-            )
+            raise TypeError("trusted_policy must be exactly TrustedRecursiveStarkAdmissionPolicy")
+        if type(provenance) is not _RecursiveStarkVerificationProvenance:
+            raise TypeError("provenance must be exactly _RecursiveStarkVerificationProvenance")
         object.__setattr__(self, "_facts", facts)
         object.__setattr__(self, "_trusted_policy", trusted_policy)
+        object.__setattr__(self, "_provenance", provenance)
         object.__setattr__(self, "_seal", seal)
 
     def __init_subclass__(cls, **_kwargs: object) -> None:
@@ -235,6 +276,10 @@ class _AuthenticatedRecursiveStarkRootFacts:
     def trusted_policy(self) -> TrustedRecursiveStarkAdmissionPolicy:
         return self._trusted_policy
 
+    @property
+    def provenance(self) -> _RecursiveStarkVerificationProvenance:
+        return self._provenance
+
     def _has_private_seal(self) -> bool:
         try:
             return object.__getattribute__(self, "_seal") is _AUTHENTICATED_FACTS_SEAL
@@ -245,20 +290,90 @@ class _AuthenticatedRecursiveStarkRootFacts:
 def _mint_recursive_stark_root_facts_after_verification(
     facts: RecursiveStarkRootFacts,
     trusted_policy: TrustedRecursiveStarkAdmissionPolicy,
+    provenance: _RecursiveStarkVerificationProvenance,
 ) -> _AuthenticatedRecursiveStarkRootFacts:
     """Mint the private marker on the governed post-verification path."""
 
     if type(facts) is not RecursiveStarkRootFacts:
         raise TypeError("facts must be exactly RecursiveStarkRootFacts")
     if type(trusted_policy) is not TrustedRecursiveStarkAdmissionPolicy:
-        raise TypeError(
-            "trusted_policy must be exactly TrustedRecursiveStarkAdmissionPolicy"
-        )
+        raise TypeError("trusted_policy must be exactly TrustedRecursiveStarkAdmissionPolicy")
+    if type(provenance) is not _RecursiveStarkVerificationProvenance:
+        raise TypeError("provenance must be exactly _RecursiveStarkVerificationProvenance")
     return _AuthenticatedRecursiveStarkRootFacts(
         facts,
         trusted_policy,
+        provenance,
         seal=_AUTHENTICATED_FACTS_SEAL,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class _RecursiveStarkAdmissionIndexSnapshot:
+    """Minimal replay-index view consumed by the shared admission planner."""
+
+    chain_id: str | None
+    root_seen: bool
+    root_is_idempotent_outcome: bool
+    slot_seen: bool
+    child_claim_overlap: bool
+    receipt_overlap: bool
+    message_overlap: bool
+    root_count: int
+    slot_count: int
+    child_claim_count: int
+    receipt_count: int
+    message_count: int
+
+    def __post_init__(self) -> None:
+        if self.chain_id is not None:
+            _require_token(
+                self.chain_id,
+                name="snapshot.chain_id",
+                max_bytes=MAX_CHAIN_ID_BYTES,
+            )
+        for name in (
+            "root_seen",
+            "root_is_idempotent_outcome",
+            "slot_seen",
+            "child_claim_overlap",
+            "receipt_overlap",
+            "message_overlap",
+        ):
+            if type(getattr(self, name)) is not bool:
+                raise TypeError(f"snapshot.{name} must be a bool")
+        if self.root_is_idempotent_outcome and not self.root_seen:
+            raise ValueError("idempotent root outcome requires root_seen")
+        for name in (
+            "root_count",
+            "slot_count",
+            "child_claim_count",
+            "receipt_count",
+            "message_count",
+        ):
+            value = getattr(self, name)
+            if type(value) is not int:
+                raise TypeError(f"snapshot.{name} must be an int")
+            if value < 0 or value > MAX_ADMISSION_INDEX_ENTRIES:
+                raise ValueError(f"snapshot.{name} must be in 0..{MAX_ADMISSION_INDEX_ENTRIES}")
+        if self.root_count != self.slot_count:
+            raise ValueError("snapshot root and slot counts must match")
+
+
+@dataclass(frozen=True, slots=True)
+class _RecursiveStarkAdmissionPlan:
+    """Private deterministic decision shared by memory and durable stores."""
+
+    reject_reason: RecursiveStarkAdmissionRejectReason | None
+    idempotent_replay: bool = False
+
+    def __post_init__(self) -> None:
+        if self.idempotent_replay and self.reject_reason is not None:
+            raise ValueError("idempotent replay cannot include a reject reason")
+
+    @property
+    def accepted(self) -> bool:
+        return self.reject_reason is None
 
 
 @dataclass(frozen=True)
@@ -355,18 +470,15 @@ def _admit_authenticated_recursive_stark_root(
 
     _require_transition_types(state, authenticated_root)
     facts = authenticated_root.facts
-    reject_reason = _policy_reject_reason(facts, authenticated_root.trusted_policy)
-    if reject_reason is None and state.chain_id not in (None, facts.chain_id):
-        reject_reason = RecursiveStarkAdmissionRejectReason.STATE_CHAIN_ID_MISMATCH
-    if reject_reason is None:
-        reject_reason = _replay_reject_reason(state, facts)
-    if reject_reason is None:
-        reject_reason = _capacity_reject_reason(state, facts)
-    if reject_reason is not None:
+    plan = _plan_authenticated_recursive_stark_root(
+        authenticated_root,
+        _index_snapshot_from_memory(state, facts),
+    )
+    if not plan.accepted:
         return RecursiveStarkAdmissionResult(
             accepted=False,
             state=state,
-            reject_reason=reject_reason,
+            reject_reason=plan.reject_reason,
         )
 
     staged_state = _stage_admission(state, facts)
@@ -384,11 +496,70 @@ def _require_transition_types(
     if not isinstance(state, RecursiveStarkAdmissionState):
         raise TypeError("state must be a RecursiveStarkAdmissionState")
     if type(authenticated_root) is not _AuthenticatedRecursiveStarkRootFacts:
-        raise TypeError(
-            "authenticated_root must be _AuthenticatedRecursiveStarkRootFacts"
-        )
+        raise TypeError("authenticated_root must be _AuthenticatedRecursiveStarkRootFacts")
     if not authenticated_root._has_private_seal():
         raise TypeError("authenticated_root lacks the private seal")
+
+
+def _plan_authenticated_recursive_stark_root(
+    authenticated_root: _AuthenticatedRecursiveStarkRootFacts,
+    snapshot: _RecursiveStarkAdmissionIndexSnapshot,
+) -> _RecursiveStarkAdmissionPlan:
+    """Plan one admission without accepting caller-projected next state."""
+
+    if type(authenticated_root) is not _AuthenticatedRecursiveStarkRootFacts:
+        raise TypeError("authenticated_root must be _AuthenticatedRecursiveStarkRootFacts")
+    if not authenticated_root._has_private_seal():
+        raise TypeError("authenticated_root lacks the private seal")
+    if type(snapshot) is not _RecursiveStarkAdmissionIndexSnapshot:
+        raise TypeError("snapshot must be exactly _RecursiveStarkAdmissionIndexSnapshot")
+
+    facts = authenticated_root.facts
+    reject_reason = _policy_reject_reason(facts, authenticated_root.trusted_policy)
+    if reject_reason is None and snapshot.chain_id not in (None, facts.chain_id):
+        reject_reason = RecursiveStarkAdmissionRejectReason.STATE_CHAIN_ID_MISMATCH
+    if reject_reason is None and snapshot.root_is_idempotent_outcome:
+        return _RecursiveStarkAdmissionPlan(
+            reject_reason=None,
+            idempotent_replay=True,
+        )
+    if reject_reason is None:
+        reject_reason = _snapshot_replay_reject_reason(snapshot)
+    if reject_reason is None:
+        reject_reason = _snapshot_capacity_reject_reason(snapshot, facts)
+    return _RecursiveStarkAdmissionPlan(reject_reason=reject_reason)
+
+
+def _index_snapshot_from_memory(
+    state: RecursiveStarkAdmissionState,
+    facts: RecursiveStarkRootFacts,
+) -> _RecursiveStarkAdmissionIndexSnapshot:
+    return _RecursiveStarkAdmissionIndexSnapshot(
+        chain_id=state.chain_id,
+        root_seen=_contains_sorted(
+            state.accepted_root_journal_hashes,
+            facts.root_journal_hash,
+        ),
+        root_is_idempotent_outcome=False,
+        slot_seen=_contains_sorted(state.accepted_slots, facts.slot),
+        child_claim_overlap=_any_overlap_sorted(
+            state.accepted_child_verification_claim_hashes,
+            facts.child_verification_claim_hashes,
+        ),
+        receipt_overlap=_any_overlap_sorted(
+            state.accepted_receipt_ids,
+            facts.accepted_receipt_ids,
+        ),
+        message_overlap=_any_overlap_sorted(
+            state.accepted_cross_shard_message_ids,
+            facts.cross_shard_message_ids,
+        ),
+        root_count=len(state.accepted_root_journal_hashes),
+        slot_count=len(state.accepted_slots),
+        child_claim_count=len(state.accepted_child_verification_claim_hashes),
+        receipt_count=len(state.accepted_receipt_ids),
+        message_count=len(state.accepted_cross_shard_message_ids),
+    )
 
 
 def _policy_reject_reason(
@@ -408,40 +579,32 @@ def _policy_reject_reason(
     return None
 
 
-def _replay_reject_reason(
-    state: RecursiveStarkAdmissionState,
-    facts: RecursiveStarkRootFacts,
+def _snapshot_replay_reject_reason(
+    snapshot: _RecursiveStarkAdmissionIndexSnapshot,
 ) -> RecursiveStarkAdmissionRejectReason | None:
-    if _contains_sorted(state.accepted_root_journal_hashes, facts.root_journal_hash):
+    if snapshot.root_seen:
         return RecursiveStarkAdmissionRejectReason.DUPLICATE_ROOT_JOURNAL
-    if _contains_sorted(state.accepted_slots, facts.slot):
+    if snapshot.slot_seen:
         return RecursiveStarkAdmissionRejectReason.DUPLICATE_ADMISSION_SLOT
-    if _any_overlap_sorted(
-        state.accepted_child_verification_claim_hashes,
-        facts.child_verification_claim_hashes,
-    ):
+    if snapshot.child_claim_overlap:
         return RecursiveStarkAdmissionRejectReason.DUPLICATE_CHILD_VERIFICATION_CLAIM
-    if _any_overlap_sorted(state.accepted_receipt_ids, facts.accepted_receipt_ids):
+    if snapshot.receipt_overlap:
         return RecursiveStarkAdmissionRejectReason.DUPLICATE_ACCEPTED_RECEIPT
-    if _any_overlap_sorted(
-        state.accepted_cross_shard_message_ids,
-        facts.cross_shard_message_ids,
-    ):
+    if snapshot.message_overlap:
         return RecursiveStarkAdmissionRejectReason.DUPLICATE_CROSS_SHARD_MESSAGE
     return None
 
 
-def _capacity_reject_reason(
-    state: RecursiveStarkAdmissionState,
+def _snapshot_capacity_reject_reason(
+    snapshot: _RecursiveStarkAdmissionIndexSnapshot,
     facts: RecursiveStarkRootFacts,
 ) -> RecursiveStarkAdmissionRejectReason | None:
     proposed_lengths = (
-        len(state.accepted_root_journal_hashes) + 1,
-        len(state.accepted_slots) + 1,
-        len(state.accepted_child_verification_claim_hashes)
-        + len(facts.child_verification_claim_hashes),
-        len(state.accepted_receipt_ids) + len(facts.accepted_receipt_ids),
-        len(state.accepted_cross_shard_message_ids) + len(facts.cross_shard_message_ids),
+        snapshot.root_count + 1,
+        snapshot.slot_count + 1,
+        snapshot.child_claim_count + len(facts.child_verification_claim_hashes),
+        snapshot.receipt_count + len(facts.accepted_receipt_ids),
+        snapshot.message_count + len(facts.cross_shard_message_ids),
     )
     if any(length > MAX_ADMISSION_INDEX_ENTRIES for length in proposed_lengths):
         return RecursiveStarkAdmissionRejectReason.ADMISSION_INDEX_CAPACITY_EXCEEDED
@@ -503,6 +666,23 @@ def _require_nonzero_hash(value: object, *, name: str) -> str:
     if canonical == _ZERO_HASH:
         raise ValueError(f"{name} must be nonzero")
     return canonical
+
+
+def _require_bare_sha256(value: object, *, name: str) -> str:
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be a str")
+    if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
+        raise ValueError(f"{name} must be lowercase 64-character hex")
+    return value
+
+
+def _require_prefixed_sha256(value: object, *, prefix: str, name: str) -> str:
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be a str")
+    if not value.startswith(prefix):
+        raise ValueError(f"{name} must start with {prefix}")
+    _require_bare_sha256(value[len(prefix) :], name=name)
+    return value
 
 
 def _require_sorted_unique_hashes(

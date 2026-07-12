@@ -14,7 +14,9 @@
       "no_arbitrary_depth_or_general_fanout_recursive_tree",
       "no_promoted_general_multi_leaf_fanout_profile",
       "no_nonempty_receipt_set_recursive_proof_evidence",
-      "no_durable_atomic_recursive_admission",
+      "no_durable_atomic_recursive_admission_with_value_moving_effects",
+      "no_durable_recursive_settlement_authority",
+      "no_recursive_admission_state_root_as_economic_state_root",
       "no_source_pinned_recursive_release_toolchain",
       "no_cross_host_or_reproducible_recursive_release",
       "no_perps_global_cross_lane_conservation_claim",
@@ -538,7 +540,7 @@
       "status": "implemented_partial",
       "defense_layer": "detected_at_commit",
       "disaster_state": "same root, leaf, or message is admitted in multiple epochs or roots",
-      "construction_rule": "a required lexical architecture gate limits governed production references to the private marker mint and transition to the exact post-parse path in PinnedRecursiveStarkVerifier.verify_and_admit; the marker rejects caller seals, shaped-fact subclasses, copying, and serialization, owns the exact typed admission policy derived from the pinned manifest, and leaves the immutable transition no independent caller-supplied policy argument; the transition rejects cross-chain state reuse and duplicate root, slot, child, receipt, and message identifiers with reject-is-no-op",
+      "construction_rule": "a required lexical architecture gate limits governed production references to the private marker mint, shared planner, in-memory transition, and durable-store transition to exact post-verification paths in PinnedRecursiveStarkVerifier; the marker rejects caller seals, shaped-fact subclasses, copying, and serialization, owns the exact typed admission policy and verification provenance, and leaves both transitions no independent caller-supplied policy argument; the shared planner rejects cross-chain state reuse and duplicate root, slot, child, receipt, and message identifiers with reject-is-no-op",
       "code_refs": [
         {
           "path": "src/core/recursive_stark_admission.py",
@@ -547,6 +549,10 @@
         {
           "path": "src/integration/recursive_stark_verifier_adapter.py",
           "symbol": "PinnedRecursiveStarkVerifier"
+        },
+        {
+          "path": "src/core/recursive_stark_admission.py",
+          "symbol": "_plan_authenticated_recursive_stark_root"
         }
       ],
       "test_refs": [
@@ -564,13 +570,13 @@
         },
         {
           "path": "tests/integration/test_recursive_stark_admission_authority_boundary.py",
-          "symbol": "test_pinned_adapter_has_one_exact_post_parse_mint_and_admission_path"
+          "symbol": "test_pinned_adapter_has_one_exact_post_parse_mint_and_two_admission_paths"
         }
       ],
       "external_commands": [
         "python3 -m pytest -q tests/core/test_recursive_stark_exact_once_admission.py tests/integration/test_recursive_stark_verifier_adapter.py tests/integration/test_recursive_stark_admission_authority_boundary.py"
       ],
-      "non_claim": "Python private symbols and returned decision/state objects are not authority capabilities against direct private imports, arbitrary same-interpreter introspection, or out-of-tree code; no production consumer trusts these data objects, and live ledger persistence plus atomic value-effect commit are not integrated"
+      "non_claim": "Python private symbols and returned decision/state objects are not authority capabilities against direct private imports, arbitrary same-interpreter introspection, or out-of-tree code; the durable subprofile commits only replay indexes and an outcome, while atomic value, reward, carry, message-delivery, and application-state effects remain unimplemented"
     },
     {
       "id": "RS-CBC-013",
@@ -1291,6 +1297,73 @@
       ],
       "next_action": "build the V2 guest under the pinned RISC0 toolchain, recompute D, generate a fresh positive V2 receipt, and persist wrong-D, dependency-substitution, and exact-seal-mutation rejection evidence before any admission integration",
       "non_claim": "the V2 statement ABI and sealed host boundary are implemented and host-tested, while no fresh V2 guest ELF, image ID, RISC0 receipt, receipt-authenticated dependency substitution, wrong-D, exact proposal substitution, exact seal-mutation replay, proof-generation replay, source-built replay, durable admission, settlement, release, privacy, throughput, or production authority is claimed; V1 evidence remains immutable historical evidence and transfers no authority to V2"
+    },
+    {
+      "id": "RS-CBC-025",
+      "title": "Durable transactional replay-index admission commits one recoverable outcome",
+      "severity": "critical",
+      "status": "implemented_partial",
+      "defense_layer": "detected_at_commit",
+      "disaster_state": "concurrent writers, restart, or a lost response admit one authenticated root or replay identifier more than once, lose an accepted replay index, or expose a partial accepted outcome",
+      "construction_rule": "a release-bound static verifier verifies one canonical request and mints private authenticated facts with exact provenance; one local SQLite DELETE plus synchronous EXTRA store uses BEGIN IMMEDIATE, database primary and unique keys, the shared core reject planner, revision plus state-root compare-and-swap, and one transaction for root, slot, child, receipt, message, provenance, hash-chain, and outcome rows; an exact authenticated retry returns the stored outcome without inserting another row",
+      "code_refs": [
+        {
+          "path": "src/integration/recursive_stark_admission_store.py",
+          "symbol": "SQLiteRecursiveStarkAdmissionStore"
+        },
+        {
+          "path": "src/integration/recursive_stark_verifier_adapter.py",
+          "symbol": "verify_and_commit"
+        },
+        {
+          "path": "docs/research/ZRPF_DURABLE_REPLAY_ADMISSION_CBC_SPEC_20260712.md",
+          "symbol": "Scoped positive claim"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "tests/integration/test_recursive_stark_verifier_adapter.py",
+          "symbol": "test_governed_static_verifier_commits_through_the_only_durable_entry_path"
+        },
+        {
+          "path": "tests/integration/test_recursive_stark_durable_admission_store.py",
+          "symbol": "test_first_commit_survives_restart_and_exact_retry_returns_same_outcome"
+        },
+        {
+          "path": "tests/integration/test_recursive_stark_durable_admission_store.py",
+          "symbol": "test_two_processes_racing_same_root_commit_once_and_recover_one_outcome"
+        },
+        {
+          "path": "tests/integration/test_recursive_stark_durable_admission_store.py",
+          "symbol": "test_process_crash_after_rows_before_meta_cas_rolls_back_everything"
+        },
+        {
+          "path": "tests/integration/test_recursive_stark_durable_admission_store.py",
+          "symbol": "test_process_crash_after_meta_cas_before_commit_rolls_back_everything"
+        },
+        {
+          "path": "tests/integration/test_recursive_stark_durable_admission_store.py",
+          "symbol": "test_restart_history_validation_holds_one_snapshot_against_writer"
+        },
+        {
+          "path": "tests/integration/test_recursive_stark_durable_admission_store.py",
+          "symbol": "test_directory_sync_failure_must_succeed_on_restart_before_store_opens"
+        },
+        {
+          "path": "tests/integration/test_recursive_stark_durable_admission_store.py",
+          "symbol": "test_process_crash_after_commit_before_response_is_reconciled_by_retry"
+        },
+        {
+          "path": "tests/integration/test_recursive_stark_admission_authority_boundary.py",
+          "symbol": "test_private_durable_commit_has_one_production_caller"
+        }
+      ],
+      "external_commands": [
+        "python3 -m pytest -q tests/core/test_recursive_stark_exact_once_admission.py tests/integration/test_recursive_stark_verifier_adapter.py tests/integration/test_recursive_stark_durable_admission_store.py tests/integration/test_recursive_stark_admission_authority_boundary.py",
+        "python3 tools/check_recursive_stark_cbc_spec.py"
+      ],
+      "next_action": "integrate the fresh receipt-authenticated semantic V2 authority pair and independently derived economic effect plan into one ZenoLedger transaction sharing this replay commit point; add power-loss and storage-rollback fault injection, an external head-anchor policy, large-history resource benchmarks, and a governed live release config source",
+      "non_claim": "the implemented store commits local replay indexes and a canonical recovery outcome only; it does not commit balances, collateral, mint or burn, fees, rewards, carry, message delivery, application state, semantic V2 authority pairs, or settlement effects; hostile same-UID access, storage rollback, network filesystems, public release authority, and production readiness remain outside the claim"
     }
   ]
 }

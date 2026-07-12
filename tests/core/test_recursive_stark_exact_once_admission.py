@@ -19,6 +19,7 @@ from src.core.recursive_stark_admission import (
     _admit_authenticated_recursive_stark_root,
     _AuthenticatedRecursiveStarkRootFacts,
     _mint_recursive_stark_root_facts_after_verification,
+    _RecursiveStarkVerificationProvenance,
     recursive_child_verification_claims_root_v1,
     recursive_message_ids_root_v1,
     recursive_receipt_ids_root_v1,
@@ -79,6 +80,25 @@ def _policy(**overrides: object) -> TrustedRecursiveStarkAdmissionPolicy:
     return TrustedRecursiveStarkAdmissionPolicy(**values)  # type: ignore[arg-type]
 
 
+def _provenance() -> _RecursiveStarkVerificationProvenance:
+    return _RecursiveStarkVerificationProvenance(
+        authority_manifest_sha256="11" * 32,
+        verifier_executable_sha256="22" * 32,
+        verification_request_sha256="33" * 32,
+    )
+
+
+def _authenticated(
+    facts: RecursiveStarkRootFacts,
+    policy: TrustedRecursiveStarkAdmissionPolicy,
+) -> _AuthenticatedRecursiveStarkRootFacts:
+    return _mint_recursive_stark_root_facts_after_verification(
+        facts,
+        policy,
+        _provenance(),
+    )
+
+
 def _accept(
     state: RecursiveStarkAdmissionState,
     facts: RecursiveStarkRootFacts,
@@ -108,7 +128,7 @@ def _admit(
     facts: RecursiveStarkRootFacts,
     policy: TrustedRecursiveStarkAdmissionPolicy,
 ) -> RecursiveStarkAdmissionResult:
-    authenticated = _mint_recursive_stark_root_facts_after_verification(facts, policy)
+    authenticated = _authenticated(facts, policy)
     return _admit_authenticated_recursive_stark_root(state, authenticated)
 
 
@@ -454,6 +474,7 @@ def test_given_untrusted_mapping_when_authenticated_then_boundary_raises_type_er
         _mint_recursive_stark_root_facts_after_verification(
             {"proof": "unverified"},  # type: ignore[arg-type]
             _policy(),
+            _provenance(),
         )
 
 
@@ -464,7 +485,11 @@ def test_subclassed_shaped_facts_cannot_cross_the_authentication_boundary() -> N
     subclassed = _SubclassedFacts(**vars(_facts()))
 
     with pytest.raises(TypeError, match="facts must be exactly RecursiveStarkRootFacts"):
-        _mint_recursive_stark_root_facts_after_verification(subclassed, _policy())
+        _mint_recursive_stark_root_facts_after_verification(
+            subclassed,
+            _policy(),
+            _provenance(),
+        )
 
 
 def test_subclassed_policy_cannot_cross_the_authentication_boundary() -> None:
@@ -477,7 +502,11 @@ def test_subclassed_policy_cannot_cross_the_authentication_boundary() -> None:
         TypeError,
         match="trusted_policy must be exactly TrustedRecursiveStarkAdmissionPolicy",
     ):
-        _mint_recursive_stark_root_facts_after_verification(_facts(), subclassed)
+        _mint_recursive_stark_root_facts_after_verification(
+            _facts(),
+            subclassed,
+            _provenance(),
+        )
 
 
 def test_shaped_facts_cannot_enter_authenticated_admission_directly() -> None:
@@ -496,6 +525,7 @@ def test_authenticated_facts_constructor_rejects_a_caller_supplied_seal() -> Non
         _AuthenticatedRecursiveStarkRootFacts(
             _facts(),
             _policy(),
+            _provenance(),
             seal=object(),
         )
 
@@ -532,20 +562,14 @@ def _pickle_round_trip(value: object) -> object:
 def test_authenticated_facts_reject_copy_and_serialization(
     operation: Callable[[object], object],
 ) -> None:
-    authenticated = _mint_recursive_stark_root_facts_after_verification(
-        _facts(),
-        _policy(),
-    )
+    authenticated = _authenticated(_facts(), _policy())
 
     with pytest.raises(TypeError, match="cannot be (copied|serialized)"):
         operation(authenticated)
 
 
 def test_authenticated_facts_reject_dataclass_replace() -> None:
-    authenticated = _mint_recursive_stark_root_facts_after_verification(
-        _facts(),
-        _policy(),
-    )
+    authenticated = _authenticated(_facts(), _policy())
 
     with pytest.raises(TypeError, match="dataclass instance"):
         replace(authenticated)  # type: ignore[type-var]
@@ -553,7 +577,7 @@ def test_authenticated_facts_reject_dataclass_replace() -> None:
 
 def test_authenticated_facts_bind_policy_before_admission() -> None:
     policy = _policy()
-    authenticated = _mint_recursive_stark_root_facts_after_verification(_facts(), policy)
+    authenticated = _authenticated(_facts(), policy)
 
     assert authenticated.trusted_policy is policy
     with pytest.raises(AttributeError, match="authenticated recursive facts are immutable"):

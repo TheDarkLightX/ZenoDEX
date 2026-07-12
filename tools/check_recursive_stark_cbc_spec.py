@@ -84,7 +84,9 @@ REQUIRED_NON_CLAIMS = {
     "no_arbitrary_depth_or_general_fanout_recursive_tree",
     "no_promoted_general_multi_leaf_fanout_profile",
     "no_nonempty_receipt_set_recursive_proof_evidence",
-    "no_durable_atomic_recursive_admission",
+    "no_durable_atomic_recursive_admission_with_value_moving_effects",
+    "no_durable_recursive_settlement_authority",
+    "no_recursive_admission_state_root_as_economic_state_root",
     "no_source_pinned_recursive_release_toolchain",
     "no_cross_host_or_reproducible_recursive_release",
     "no_perps_global_cross_lane_conservation_claim",
@@ -205,6 +207,7 @@ REQUIRED_OBLIGATION_POLICY = {
     "RS-CBC-022": ("critical", "guarded_transition"),
     "RS-CBC-023": ("critical", "unrepresentable"),
     "RS-CBC-024": ("critical", "unrepresentable"),
+    "RS-CBC-025": ("critical", "detected_at_commit"),
 }
 REQUIRED_OBLIGATIONS = frozenset(REQUIRED_OBLIGATION_POLICY)
 PINNED_PENDING_OBLIGATIONS = frozenset({"RS-CBC-021", "RS-CBC-023"})
@@ -213,6 +216,7 @@ PINNED_STATEMENT_STATUSES = {
 }
 PINNED_OBLIGATION_STATUSES = {
     "RS-CBC-024": "implemented_partial",
+    "RS-CBC-025": "implemented_partial",
 }
 ALLOWED_STATUSES = {"implemented", "implemented_partial", "pending", "deferred_nonclaim"}
 ALLOWED_SEVERITIES = {"critical", "high", "medium", "low"}

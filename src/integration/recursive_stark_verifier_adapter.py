@@ -22,7 +22,7 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, BinaryIO, Mapping, cast
+from typing import TYPE_CHECKING, Any, BinaryIO, Mapping, NoReturn, Self, cast, final
 
 from src.core.recursive_stark_admission import (
     RecursiveStarkAdmissionResult,
@@ -30,8 +30,20 @@ from src.core.recursive_stark_admission import (
     RecursiveStarkRootFacts,
     TrustedRecursiveStarkAdmissionPolicy,
     _admit_authenticated_recursive_stark_root,
+    _AuthenticatedRecursiveStarkRootFacts,
     _mint_recursive_stark_root_facts_after_verification,
+    _RecursiveStarkVerificationProvenance,
 )
+from src.integration.recursive_stark_release_binding import (
+    load_recursive_stark_release_binding_v1,
+)
+
+if TYPE_CHECKING:
+    from src.integration.recursive_stark_admission_store import (
+        DurableRecursiveStarkAdmissionCursor,
+        DurableRecursiveStarkAdmissionResult,
+        SQLiteRecursiveStarkAdmissionStore,
+    )
 
 VERIFIED_FACTS_SCHEMA_V1 = "zenodex.verified_recursive_stark_root_facts.v1"
 AUTHORITY_MANIFEST_SCHEMA_V1 = "zenodex.recursive_stark_verifier_authority.v1"
@@ -80,6 +92,7 @@ class RecursiveVerifierExecutableFormat(str, Enum):
     TEST_SCRIPT = "test_script"
 
 
+@final
 @dataclass(frozen=True)
 class PinnedRecursiveStarkVerifier:
     """Verifier binary and policy derived from one authenticated manifest.
@@ -101,6 +114,11 @@ class PinnedRecursiveStarkVerifier:
     trusted_expectations: Mapping[str, Any] = field(init=False)
     executable_format: RecursiveVerifierExecutableFormat = field(init=False)
     _trusted_expectations_json: bytes = field(init=False, repr=False)
+    _release_binding_config_digest: str | None = field(init=False, default=None, repr=False)
+    _replay_manifest_sha256: str | None = field(init=False, default=None, repr=False)
+
+    def __init_subclass__(cls, **_kwargs: object) -> NoReturn:
+        raise TypeError("PinnedRecursiveStarkVerifier cannot be subclassed")
 
     def __post_init__(self) -> None:
         if not self.executable.is_absolute():
@@ -117,17 +135,60 @@ class PinnedRecursiveStarkVerifier:
             raise ValueError("recursive verifier address-space limit is too small")
         if self.max_stack_bytes < 1024 * 1024:
             raise ValueError("recursive verifier stack limit is too small")
-        executable_sha256, executable_format, canonical_expectations = (
-            _parse_authority_manifest_v1(
-                self.authority_manifest_json,
-                expected_sha256=self.authority_manifest_sha256,
-            )
+        executable_sha256, executable_format, canonical_expectations = _parse_authority_manifest_v1(
+            self.authority_manifest_json,
+            expected_sha256=self.authority_manifest_sha256,
         )
         decoded_expectations = json.loads(canonical_expectations)
         object.__setattr__(self, "sha256", executable_sha256)
         object.__setattr__(self, "executable_format", executable_format)
         object.__setattr__(self, "trusted_expectations", decoded_expectations)
         object.__setattr__(self, "_trusted_expectations_json", canonical_expectations)
+
+    @classmethod
+    def from_governed_release_binding(
+        cls,
+        *,
+        executable: Path,
+        authority_manifest_json: bytes,
+        authority_manifest_sha256: str,
+        release_binding_json: bytes,
+        expected_release_binding_config_digest: str,
+        timeout_seconds: int = 60,
+        max_address_space_bytes: int = DEFAULT_VERIFIER_ADDRESS_SPACE_BYTES,
+        max_stack_bytes: int = DEFAULT_VERIFIER_STACK_BYTES,
+    ) -> Self:
+        """Bind a verifier to release bytes matching an external config digest."""
+
+        verifier = cls(
+            executable=executable,
+            authority_manifest_json=authority_manifest_json,
+            authority_manifest_sha256=authority_manifest_sha256,
+            timeout_seconds=timeout_seconds,
+            max_address_space_bytes=max_address_space_bytes,
+            max_stack_bytes=max_stack_bytes,
+        )
+        policy = _trusted_policy(verifier.trusted_expectations)
+        binding = load_recursive_stark_release_binding_v1(
+            release_binding_json,
+            expected_config_digest=expected_release_binding_config_digest,
+            expected_chain_id=policy.expected_chain_id,
+            expected_epoch_id=policy.expected_epoch_id,
+            expected_proof_profile=policy.expected_proof_profile,
+        )
+        if binding.authority_manifest_sha256 != verifier.authority_manifest_sha256:
+            raise ValueError("recursive verifier release authority manifest mismatch")
+        object.__setattr__(
+            verifier,
+            "_release_binding_config_digest",
+            expected_release_binding_config_digest,
+        )
+        object.__setattr__(
+            verifier,
+            "_replay_manifest_sha256",
+            binding.replay_manifest_sha256,
+        )
+        return verifier
 
     def verify_and_admit(
         self,
@@ -138,6 +199,59 @@ class PinnedRecursiveStarkVerifier:
     ) -> RecursiveStarkAdmissionResult:
         """Verify one root and return a data-only exact-once decision."""
 
+        authenticated_facts = self._verify_authenticated_root(
+            proof=proof,
+            recursive_input=recursive_input,
+        )
+        return _admit_authenticated_recursive_stark_root(
+            state,
+            authenticated_facts,
+        )
+
+    def verify_and_commit(
+        self,
+        *,
+        store: SQLiteRecursiveStarkAdmissionStore,
+        expected_cursor: DurableRecursiveStarkAdmissionCursor,
+        proof: Mapping[str, Any],
+        recursive_input: Mapping[str, Any],
+    ) -> DurableRecursiveStarkAdmissionResult:
+        """Verify once and transactionally commit replay indexes and outcome."""
+
+        from src.integration.recursive_stark_admission_store import (
+            SQLiteRecursiveStarkAdmissionStore,
+        )
+
+        if type(store) is not SQLiteRecursiveStarkAdmissionStore:
+            raise TypeError("store must be exactly SQLiteRecursiveStarkAdmissionStore")
+        self._require_durable_release_authority()
+        authenticated_facts = self._verify_authenticated_root(
+            proof=proof,
+            recursive_input=recursive_input,
+        )
+        return store._commit_authenticated_recursive_stark_root(
+            expected_cursor=expected_cursor,
+            authenticated_root=authenticated_facts,
+        )
+
+    def _require_durable_release_authority(self) -> None:
+        if self.executable_format is not RecursiveVerifierExecutableFormat.STATIC_ELF_X86_64:
+            raise RecursiveStarkVerificationError(
+                "durable recursive admission requires a static ELF verifier"
+            )
+        if self._release_binding_config_digest is None or self._replay_manifest_sha256 is None:
+            raise RecursiveStarkVerificationError(
+                "durable recursive admission requires a governed release binding"
+            )
+
+    def _verify_authenticated_root(
+        self,
+        *,
+        proof: Mapping[str, Any],
+        recursive_input: Mapping[str, Any],
+    ) -> _AuthenticatedRecursiveStarkRootFacts:
+        """Execute the pinned verifier once and mint one private authenticated value."""
+
         trusted_expectations = json.loads(self._trusted_expectations_json)
         request = _verification_request(
             proof=proof,
@@ -145,6 +259,7 @@ class PinnedRecursiveStarkVerifier:
             trusted_expectations=trusted_expectations,
         )
         request_bytes = _bounded_canonical_json_bytes(request, "verification request")
+        request_sha256 = hashlib.sha256(request_bytes).hexdigest()
         executable_fd: int | None = None
         try:
             executable_fd, actual_hash = _sealed_executable_snapshot(
@@ -203,13 +318,17 @@ class PinnedRecursiveStarkVerifier:
             trusted_expectations=trusted_expectations,
         )
         policy = _trusted_policy(trusted_expectations)
-        authenticated_facts = _mint_recursive_stark_root_facts_after_verification(
+        provenance = _RecursiveStarkVerificationProvenance(
+            authority_manifest_sha256=self.authority_manifest_sha256,
+            verifier_executable_sha256=self.sha256,
+            verification_request_sha256=request_sha256,
+            release_binding_config_digest=self._release_binding_config_digest,
+            replay_manifest_sha256=self._replay_manifest_sha256,
+        )
+        return _mint_recursive_stark_root_facts_after_verification(
             facts,
             policy,
-        )
-        return _admit_authenticated_recursive_stark_root(
-            state,
-            authenticated_facts,
+            provenance,
         )
 
     def _apply_resource_limits(self, process_id: int) -> None:
@@ -307,14 +426,14 @@ def _parse_authority_manifest_v1(
     if _canonical_json_bytes(manifest) != raw:
         raise ValueError("recursive verifier authority manifest must be canonical JSON")
     executable_sha256 = manifest.get("executable_sha256")
-    if not isinstance(executable_sha256, str) or len(executable_sha256) != 64 or any(
-        char not in "0123456789abcdef" for char in executable_sha256
+    if (
+        not isinstance(executable_sha256, str)
+        or len(executable_sha256) != 64
+        or any(char not in "0123456789abcdef" for char in executable_sha256)
     ):
         raise ValueError("recursive verifier authority executable_sha256 invalid")
     try:
-        executable_format = RecursiveVerifierExecutableFormat(
-            manifest.get("executable_format")
-        )
+        executable_format = RecursiveVerifierExecutableFormat(manifest.get("executable_format"))
     except (TypeError, ValueError) as exc:
         raise ValueError("recursive verifier authority executable_format unsupported") from exc
     expectations = manifest.get("trusted_expectations")
@@ -588,12 +707,7 @@ def _sealed_executable_snapshot(
             raise RecursiveStarkVerificationError(
                 "recursive verifier executable format unsupported"
             )
-        seals = (
-            fcntl.F_SEAL_WRITE
-            | fcntl.F_SEAL_GROW
-            | fcntl.F_SEAL_SHRINK
-            | fcntl.F_SEAL_SEAL
-        )
+        seals = fcntl.F_SEAL_WRITE | fcntl.F_SEAL_GROW | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_SEAL
         fcntl.fcntl(memfd, fcntl.F_ADD_SEALS, seals)
         return memfd, digest.hexdigest()
     except Exception:
@@ -614,9 +728,7 @@ def _require_static_x86_64_elf(descriptor: int, file_size: int) -> None:
         )
     elf_type, machine = struct.unpack_from("<HH", header, 16)
     if elf_type not in (2, 3) or machine != 62:
-        raise RecursiveStarkVerificationError(
-            "recursive verifier must be an x86_64 executable ELF"
-        )
+        raise RecursiveStarkVerificationError("recursive verifier must be an x86_64 executable ELF")
     program_header_offset = struct.unpack_from("<Q", header, 32)[0]
     program_header_size, program_header_count = struct.unpack_from("<HH", header, 54)
     if program_header_size < 56 or program_header_count == 0:
@@ -716,9 +828,7 @@ def _communicate_bounded(
                 output = stdout if key.data == "stdout" else stderr
                 output.extend(chunk)
                 limit = (
-                    MAX_VERIFIER_STDOUT_BYTES
-                    if key.data == "stdout"
-                    else MAX_VERIFIER_STDERR_BYTES
+                    MAX_VERIFIER_STDOUT_BYTES if key.data == "stdout" else MAX_VERIFIER_STDERR_BYTES
                 )
                 if len(output) > limit:
                     raise RecursiveStarkVerificationError(

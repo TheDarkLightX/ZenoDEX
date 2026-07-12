@@ -30,8 +30,8 @@ The earlier unpromoted prototype remains recorded separately for cross-run
 comparison. The fresh receipt bytes differ across runs, and both authenticated
 journals match. Proof-byte determinism remains unestablished. A governed
 general fanout profile, nonempty receipt partitions, public replay, cross-host
-reproducibility, release authority, durable atomic admission, privacy, and
-production readiness remain open.
+reproducibility, release authority, durable atomic value-moving admission,
+privacy, and production readiness remain open.
 
 The dedicated two-leaf replay checker uses the committed manifest and v2
 reference as fixed trust roots. It rejects path, hash, size, ordering, topology,
@@ -125,6 +125,27 @@ verifier enforces the pinned Succinct receipt-security profile and attaches D
 only after receipt verification. V2 has source-level and host-test evidence;
 no fresh V2 guest ELF, image ID, receipt, seal-mutation replay, admission,
 release, settlement, or production authority is claimed.
+
+The local durable replay-index profile implements a separate partial
+sub-obligation under `RS-CBC-012` and `RS-CBC-025`. A release-bound static
+verifier can pass authenticated root facts and exact verification provenance
+to one private SQLite store method. The store uses rollback-journal `DELETE`,
+`synchronous=EXTRA`, `BEGIN IMMEDIATE`, unique indexes, a revision-and-root
+compare-and-swap, and a hash-chained cursor. It commits root, slot, child,
+receipt, message, provenance, and canonical outcome rows together. An exact
+retry returns the stored outcome, including after a process loses the first
+response. Concurrent same-root and same-slot tests, maximum unsigned-64 epoch
+storage, restart, schema drift, symlink, and pre-commit process-exit controls
+pass locally. The detailed contract is
+`docs/research/ZRPF_DURABLE_REPLAY_ADMISSION_CBC_SPEC_20260712.md`.
+
+This store contains no economic effect plan. Its hash-chained cursor commits to
+and internally binds replay-index history, conditional on an externally trusted
+head. Balance, collateral, mint, burn, fee, reward, carry, message-delivery,
+application-state, and settlement commits must share one future ZenoLedger
+transaction before durable atomic value-moving admission can be claimed. Fresh
+V2 receipt evidence and governed live release configuration also remain
+required.
 
 The additive `zk/zrpf_risc0` workspace contains the pure Spot V1-to-V3 mapping,
 a receipt-authenticated adapter guest, a private-construction host verifier,
@@ -1085,12 +1106,12 @@ Use this checklist before merging or promoting a circuit change:
 The highest-value implementation target is nonempty receipt-partition proof
 evidence under the current image, followed by larger bounded-fanout evidence.
 Same-profile distinct-leaf fanout-two evidence is complete at the bounded local
-claim level described above. The next
-authority target is integration of pinned recursive-verifier facts into durable
-atomic ZenoLedger admission. Release-manifest evidence, governed production
-header binding, and dedicated source-finality certificates remain required for
-native-chain or cross-lane collateral movements. zUSD still only exposes the
-current Rust
+claim level described above. The next authority target is integration of
+authenticated semantic V2 effects, the durable replay indexes, and independently
+derived ZenoLedger value changes into one atomic transaction. Release-manifest
+evidence, governed production header binding, and dedicated source-finality
+certificates remain required for native-chain or cross-lane collateral
+movements. zUSD still only exposes the current Rust
 `DepositMint` lifecycle verb; later zUSD repay, redeem, or liquidation verbs must
 add exhaustive row extractors before they can share the same recursive
 asset-conservation claim.

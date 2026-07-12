@@ -8,15 +8,40 @@ PRODUCTION_ROOTS = tuple(ROOT / name for name in ("src", "tools", "bin", "script
 PRODUCTION_FILES = (ROOT / "sitecustomize.py",)
 CORE = ROOT / "src/core/recursive_stark_admission.py"
 PINNED_ADAPTER = ROOT / "src/integration/recursive_stark_verifier_adapter.py"
+DURABLE_STORE = ROOT / "src/integration/recursive_stark_admission_store.py"
+DURABLE_ENGINE = ROOT / "src/integration/_recursive_stark_admission_store_engine.py"
+DURABLE_HASHES = ROOT / "src/integration/_recursive_stark_admission_store_hashes.py"
 
 PRIVATE_CAPABILITY_TYPE = "_AuthenticatedRecursiveStarkRootFacts"
 PRIVATE_SEAL = "_AUTHENTICATED_FACTS_SEAL"
 PRIVATE_MINT = "_mint_recursive_stark_root_facts_after_verification"
 PRIVATE_ADMISSION = "_admit_authenticated_recursive_stark_root"
+PRIVATE_PROVENANCE = "_RecursiveStarkVerificationProvenance"
+PRIVATE_SNAPSHOT = "_RecursiveStarkAdmissionIndexSnapshot"
+PRIVATE_PLANNER = "_plan_authenticated_recursive_stark_root"
+PRIVATE_DURABLE_COMMIT = "_commit_authenticated_recursive_stark_root"
 PRIVATE_AUTHORITY_NAMES = frozenset(
-    {PRIVATE_CAPABILITY_TYPE, PRIVATE_SEAL, PRIVATE_MINT, PRIVATE_ADMISSION}
+    {
+        PRIVATE_CAPABILITY_TYPE,
+        PRIVATE_SEAL,
+        PRIVATE_MINT,
+        PRIVATE_ADMISSION,
+        PRIVATE_PROVENANCE,
+        PRIVATE_SNAPSHOT,
+        PRIVATE_PLANNER,
+    }
 )
-PRIVATE_ADAPTER_CALLS = frozenset({PRIVATE_MINT, PRIVATE_ADMISSION})
+PRIVATE_ADAPTER_IMPORTS = frozenset(
+    {
+        PRIVATE_CAPABILITY_TYPE,
+        PRIVATE_MINT,
+        PRIVATE_ADMISSION,
+        PRIVATE_PROVENANCE,
+    }
+)
+PRIVATE_STORE_IMPORTS = frozenset({PRIVATE_CAPABILITY_TYPE, PRIVATE_PLANNER})
+PRIVATE_ENGINE_IMPORTS = frozenset({PRIVATE_CAPABILITY_TYPE, PRIVATE_SNAPSHOT})
+PRIVATE_HASH_IMPORTS = frozenset({PRIVATE_CAPABILITY_TYPE})
 RETIRED_PUBLIC_AUTHORITY_NAMES = frozenset(
     {
         "VerifiedRecursiveStarkRootFacts",
@@ -30,12 +55,18 @@ DATA_ONLY_ADMISSION_RESULT = "RecursiveStarkAdmissionResult"
 def test_private_admission_symbols_are_absent_from_other_production_modules() -> None:
     violations: list[str] = []
     for path in _production_python_paths():
-        if path in {CORE, PINNED_ADAPTER}:
+        if path == CORE:
             continue
+        allowed = {
+            PINNED_ADAPTER: PRIVATE_ADAPTER_IMPORTS,
+            DURABLE_STORE: PRIVATE_STORE_IMPORTS,
+            DURABLE_ENGINE: PRIVATE_ENGINE_IMPORTS,
+            DURABLE_HASHES: PRIVATE_HASH_IMPORTS,
+        }.get(path, frozenset())
         tree = _parse(path)
         for node in ast.walk(tree):
             name = _private_authority_reference(node)
-            if name is not None:
+            if name is not None and name not in allowed:
                 violations.append(f"{path.relative_to(ROOT)}:{_line(node)}:{name}")
 
     assert violations == []
@@ -45,39 +76,95 @@ def test_automatic_root_python_hook_is_in_governed_inventory() -> None:
     assert ROOT / "sitecustomize.py" in _production_python_paths()
 
 
-def test_pinned_adapter_has_one_exact_post_parse_mint_and_admission_path() -> None:
+def test_pinned_adapter_has_one_exact_post_parse_mint_and_two_admission_paths() -> None:
     tree = _parse(PINNED_ADAPTER)
     verifier = _class(tree, "PinnedRecursiveStarkVerifier")
-    method = _method(verifier, "verify_and_admit")
+    verifier_method = _method(verifier, "_verify_authenticated_root")
+    in_memory_method = _method(verifier, "verify_and_admit")
+    durable_method = _method(verifier, "verify_and_commit")
 
     private_imports = {
         (imported.name, imported.asname)
         for node in tree.body
-        if isinstance(node, ast.ImportFrom)
-        and node.module == "src.core.recursive_stark_admission"
+        if isinstance(node, ast.ImportFrom) and node.module == "src.core.recursive_stark_admission"
         for imported in node.names
         if imported.name in PRIVATE_AUTHORITY_NAMES
     }
-    assert private_imports == {(name, None) for name in PRIVATE_ADAPTER_CALLS}
+    assert private_imports == {(name, None) for name in PRIVATE_ADAPTER_IMPORTS}
     assert _reserved_adapter_binding_violations(tree) == []
 
     calls: dict[str, list[ast.Call]] = {}
-    for name in ("parse_recursive_stark_root_facts", PRIVATE_MINT, PRIVATE_ADMISSION):
+    for name in ("parse_recursive_stark_root_facts", PRIVATE_PROVENANCE, PRIVATE_MINT):
         calls[name] = [
             node
-            for node in ast.walk(method)
+            for node in ast.walk(verifier_method)
             if isinstance(node, ast.Call) and _call_name(node) == name
         ]
     assert {name: len(nodes) for name, nodes in calls.items()} == {
         "parse_recursive_stark_root_facts": 1,
+        PRIVATE_PROVENANCE: 1,
         PRIVATE_MINT: 1,
+    }
+    assert (
+        _line(calls["parse_recursive_stark_root_facts"][0])
+        < _line(calls[PRIVATE_PROVENANCE][0])
+        < _line(calls[PRIVATE_MINT][0])
+    )
+
+    assert _call_counts(in_memory_method) == {
+        "_verify_authenticated_root": 1,
         PRIVATE_ADMISSION: 1,
     }
-    assert _line(calls["parse_recursive_stark_root_facts"][0]) < _line(
-        calls[PRIVATE_MINT][0]
-    ) < _line(calls[PRIVATE_ADMISSION][0])
+    assert _call_counts(durable_method) == {
+        "_require_durable_release_authority": 1,
+        "_verify_authenticated_root": 1,
+        PRIVATE_DURABLE_COMMIT: 1,
+        "TypeError": 1,
+        "type": 1,
+    }
 
-    assert _private_adapter_reference_violations(tree, method) == []
+
+def test_durable_store_consumes_private_authority_only_in_one_private_method() -> None:
+    tree = _parse(DURABLE_STORE)
+    store = _class(tree, "SQLiteRecursiveStarkAdmissionStore")
+    commit_method = _method(store, PRIVATE_DURABLE_COMMIT)
+    execute_method = _method(store, "_execute_transaction")
+    validate_method = _method(store, "_validate_commit_inputs")
+    locked_reader = _function(tree, "_read_locked_evaluation")
+
+    assert _call_counts(commit_method).get("_execute_transaction") == 1
+    assert _direct_name_call_count(execute_method, "_read_locked_evaluation") == 1
+    assert _direct_name_call_count(locked_reader, PRIVATE_PLANNER) == 1
+    assert PRIVATE_CAPABILITY_TYPE in {
+        name for node in ast.walk(commit_method) if (name := _node_name(node)) is not None
+    }
+    for method in store.body:
+        if not isinstance(method, ast.FunctionDef) or method in {
+            commit_method,
+            execute_method,
+            validate_method,
+        }:
+            continue
+        references = {name for node in ast.walk(method) if (name := _node_name(node)) is not None}
+        assert references.isdisjoint({PRIVATE_CAPABILITY_TYPE, PRIVATE_PLANNER, PRIVATE_SNAPSHOT})
+
+
+def test_private_durable_commit_has_one_production_caller() -> None:
+    callers: list[str] = []
+    for path in _production_python_paths():
+        tree = _parse(path)
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == PRIVATE_DURABLE_COMMIT
+            ):
+                callers.append(f"{path.relative_to(ROOT)}:{_line(node)}")
+
+    assert len(callers) == 1
+    assert callers[0].split(":", maxsplit=1)[0] == (
+        "src/integration/recursive_stark_verifier_adapter.py"
+    )
 
 
 def test_architecture_ratchet_rejects_public_adapter_bypass_mutant() -> None:
@@ -89,27 +176,29 @@ def test_architecture_ratchet_rejects_public_adapter_bypass_mutant() -> None:
         + f"    return {PRIVATE_ADMISSION}(state, cap)\n",
         filename=str(PINNED_ADAPTER),
     )
-    verifier = _class(mutant, "PinnedRecursiveStarkVerifier")
-    method = _method(verifier, "verify_and_admit")
-
-    assert _private_adapter_reference_violations(mutant, method) != []
+    assert "public_unverified_admission" in _public_top_level_authority_reachability(mutant)
 
 
 def test_architecture_ratchet_rejects_adapter_shadow_and_qualified_call_mutants() -> None:
     source = PINNED_ADAPTER.read_text(encoding="utf-8")
-    for name in sorted(PRIVATE_ADAPTER_CALLS):
+    for name in sorted(PRIVATE_ADAPTER_IMPORTS):
         shadow = ast.parse(
             source + f"\n\ndef {name}(*_args, **_kwargs):\n    return None\n",
             filename=str(PINNED_ADAPTER),
         )
         assert _reserved_adapter_binding_violations(shadow) != []
 
+    for name, method_name in (
+        (PRIVATE_PROVENANCE, "_verify_authenticated_root"),
+        (PRIVATE_MINT, "_verify_authenticated_root"),
+        (PRIVATE_ADMISSION, "verify_and_admit"),
+    ):
         qualified_source = source.replace(f"{name}(", f"alternate.{name}(", 1)
         assert qualified_source != source
         qualified = ast.parse(qualified_source, filename=str(PINNED_ADAPTER))
         verifier = _class(qualified, "PinnedRecursiveStarkVerifier")
-        method = _method(verifier, "verify_and_admit")
-        assert _private_adapter_reference_violations(qualified, method) != []
+        method = _method(verifier, method_name)
+        assert _direct_name_call_count(method, name) == 0
 
 
 def test_core_exposes_no_public_capability_constructor_or_admission_wrapper() -> None:
@@ -158,9 +247,7 @@ def admit_without_verification():
 """
     )
 
-    assert _public_top_level_authority_reachability(tree) == [
-        "admit_without_verification"
-    ]
+    assert _public_top_level_authority_reachability(tree) == ["admit_without_verification"]
 
 
 def test_architecture_detector_rejects_public_method_through_private_bridge() -> None:
@@ -200,9 +287,7 @@ __all__ = ["_private_alias"]
         "public_admit_alias:_private_alias",
         "public_lambda:_admit_authenticated_recursive_stark_root",
     ]
-    assert _private_authority_all_exports(tree) == [
-        "__all__:_private_alias"
-    ]
+    assert _private_authority_all_exports(tree) == ["__all__:_private_alias"]
 
 
 def test_architecture_detector_rejects_public_async_wrapper_mutant() -> None:
@@ -216,19 +301,13 @@ async def admit_without_verification():
 """
     )
 
-    assert _public_top_level_authority_reachability(tree) == [
-        "admit_without_verification"
-    ]
+    assert _public_top_level_authority_reachability(tree) == ["admit_without_verification"]
 
 
 def test_public_shape_parser_cannot_mint_or_admit_authority() -> None:
     tree = _parse(PINNED_ADAPTER)
     parser = _function(tree, "parse_recursive_stark_root_facts")
-    references = {
-        name
-        for node in ast.walk(parser)
-        if (name := _node_name(node)) is not None
-    }
+    references = {name for node in ast.walk(parser) if (name := _node_name(node)) is not None}
 
     assert references.isdisjoint(PRIVATE_AUTHORITY_NAMES)
 
@@ -251,13 +330,8 @@ def test_data_only_admission_result_has_no_production_consumer() -> None:
             continue
         tree = _parse(path)
         for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.Attribute)
-                and node.attr == "verify_and_admit"
-            ):
-                violations.append(
-                    f"{path.relative_to(ROOT)}:{_line(node)}:verify_and_admit"
-                )
+            if isinstance(node, ast.Attribute) and node.attr == "verify_and_admit":
+                violations.append(f"{path.relative_to(ROOT)}:{_line(node)}:verify_and_admit")
             if _node_name(node) == DATA_ONLY_ADMISSION_RESULT:
                 violations.append(
                     f"{path.relative_to(ROOT)}:{_line(node)}:{DATA_ONLY_ADMISSION_RESULT}"
@@ -293,12 +367,7 @@ def _production_python_paths() -> tuple[Path, ...]:
     return tuple(
         sorted(
             set(PRODUCTION_FILES)
-            | {
-                path
-                for root in PRODUCTION_ROOTS
-                if root.is_dir()
-                for path in root.rglob("*.py")
-            }
+            | {path for root in PRODUCTION_ROOTS if root.is_dir() for path in root.rglob("*.py")}
         )
     )
 
@@ -333,17 +402,34 @@ def _call_name(node: ast.Call) -> str | None:
     return _node_name(node.func)
 
 
+def _call_counts(node: ast.AST) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for descendant in ast.walk(node):
+        if not isinstance(descendant, ast.Call):
+            continue
+        name = _call_name(descendant)
+        if name is not None:
+            counts[name] = counts.get(name, 0) + 1
+    return counts
+
+
+def _direct_name_call_count(node: ast.AST, name: str) -> int:
+    return sum(
+        1
+        for descendant in ast.walk(node)
+        if isinstance(descendant, ast.Call)
+        and isinstance(descendant.func, ast.Name)
+        and descendant.func.id == name
+    )
+
+
 def _public_top_level_authority_reachability(tree: ast.Module) -> list[str]:
     function_names = {
-        node.name
-        for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
     authority_reaching = _authority_reaching_top_level_function_names(tree)
     violations = {
-        name
-        for name in function_names
-        if not name.startswith("_") and name in authority_reaching
+        name for name in function_names if not name.startswith("_") and name in authority_reaching
     }
     for node in tree.body:
         if not isinstance(node, ast.ClassDef) or node.name.startswith("_"):
@@ -359,9 +445,7 @@ def _public_top_level_authority_reachability(tree: ast.Module) -> list[str]:
             if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef))
         }
         reaching_methods = {
-            name
-            for name, calls in method_graph.items()
-            if not calls.isdisjoint(authority_reaching)
+            name for name, calls in method_graph.items() if not calls.isdisjoint(authority_reaching)
         }
         while True:
             discovered = {
@@ -373,9 +457,7 @@ def _public_top_level_authority_reachability(tree: ast.Module) -> list[str]:
                 break
             reaching_methods.update(discovered)
         violations.update(
-            f"{node.name}.{name}"
-            for name in reaching_methods
-            if not name.startswith("_")
+            f"{node.name}.{name}" for name in reaching_methods if not name.startswith("_")
         )
     return sorted(violations)
 
@@ -387,9 +469,7 @@ def _public_authority_alias_violations(tree: ast.Module) -> list[str]:
         if not isinstance(node, (ast.Assign, ast.AnnAssign)):
             continue
         sources = (
-            _expression_names(node.value) & authority_names
-            if node.value is not None
-            else set()
+            _expression_names(node.value) & authority_names if node.value is not None else set()
         )
         if not sources:
             continue
@@ -426,11 +506,7 @@ def _private_authority_all_exports(tree: ast.Module) -> list[str]:
 def _authority_alias_names(tree: ast.Module) -> set[str]:
     authority_names = set(PRIVATE_AUTHORITY_NAMES)
     authority_names.update(_authority_reaching_top_level_function_names(tree))
-    assignments = tuple(
-        node
-        for node in tree.body
-        if isinstance(node, (ast.Assign, ast.AnnAssign))
-    )
+    assignments = tuple(node for node in tree.body if isinstance(node, (ast.Assign, ast.AnnAssign)))
     while True:
         discovered = {
             target
@@ -484,11 +560,7 @@ def _target_names(target: ast.expr) -> tuple[str, ...]:
 
 
 def _expression_names(value: ast.expr) -> set[str]:
-    return {
-        name
-        for node in ast.walk(value)
-        if (name := _node_name(node)) is not None
-    }
+    return {name for node in ast.walk(value) if (name := _node_name(node)) is not None}
 
 
 def _private_adapter_reference_violations(
@@ -534,7 +606,7 @@ def _reserved_adapter_binding_violations(tree: ast.Module) -> list[str]:
             is_exact_allowed_import = (
                 isinstance(parent, ast.ImportFrom)
                 and parent.module == "src.core.recursive_stark_admission"
-                and node.name in PRIVATE_ADAPTER_CALLS
+                and node.name in PRIVATE_ADAPTER_IMPORTS
                 and node.asname is None
             )
             if not is_exact_allowed_import:
@@ -568,8 +640,4 @@ def _function(tree: ast.Module, name: str) -> ast.FunctionDef:
 
 
 def _parent_map(tree: ast.AST) -> dict[ast.AST, ast.AST]:
-    return {
-        child: parent
-        for parent in ast.walk(tree)
-        for child in ast.iter_child_nodes(parent)
-    }
+    return {child: parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)}

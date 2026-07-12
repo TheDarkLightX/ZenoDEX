@@ -83,11 +83,11 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     assert report["facts"]["missing_required_statements"] == []
     assert report["facts"]["missing_required_obligations"] == []
     assert report["facts"]["typed_statement_count"] == 9
-    assert report["facts"]["obligation_count"] == 24
-    assert report["facts"]["implemented_obligation_count"] == 19
+    assert report["facts"]["obligation_count"] == 25
+    assert report["facts"]["implemented_obligation_count"] == 20
     assert report["facts"]["pending_obligation_count"] == 5
     assert report["matrix_sha256"] == (
-        "sha256:4867dd7213115fdd2935ca9aaf55fb3eb1af081d7893685078e21bb955761507"
+        "sha256:9a80c8015863af93c211310ab19b8c420fc8022619b4217a7110e8f13dac3b87"
     )
     assert report["promotion_boundary"]["facts"]["public_claim_allowed"] is False
     assert report["promotion_boundary"]["facts"]["production_ready"] is False
@@ -109,6 +109,14 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     )
     assert "no_complete_v3_semantic_composition" in matrix["promotion_boundary"]["non_claims"]
     assert "no_zrpf_16x4_profile" in matrix["promotion_boundary"]["non_claims"]
+    assert (
+        "no_durable_atomic_recursive_admission_with_value_moving_effects"
+        in matrix["promotion_boundary"]["non_claims"]
+    )
+    assert (
+        "no_recursive_admission_state_root_as_economic_state_root"
+        in matrix["promotion_boundary"]["non_claims"]
+    )
     perps_source_finality = next(
         item for item in matrix["obligations"] if item["id"] == "RS-CBC-010"
     )
@@ -135,6 +143,13 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     assert semantic_runtime_identity["code_refs"]
     assert semantic_runtime_identity["test_refs"]
     assert semantic_runtime_identity["external_commands"]
+    durable_admission = next(
+        item for item in matrix["obligations"] if item["id"] == "RS-CBC-025"
+    )
+    assert durable_admission["status"] == "implemented_partial"
+    assert durable_admission["code_refs"]
+    assert durable_admission["test_refs"]
+    assert durable_admission["external_commands"]
     assert "outer_verified_receipt_profile" in next(
         item
         for item in matrix["typed_statements"]
@@ -904,7 +919,10 @@ def test_recursive_stark_cbc_matrix_requires_outer_envelope_obligation() -> None
     assert "missing required obligations: RS-CBC-021" in report["obligations"]["errors"]
 
 
-@pytest.mark.parametrize("obligation_id", ["RS-CBC-022", "RS-CBC-023", "RS-CBC-024"])
+@pytest.mark.parametrize(
+    "obligation_id",
+    ["RS-CBC-022", "RS-CBC-023", "RS-CBC-024", "RS-CBC-025"],
+)
 def test_recursive_stark_cbc_matrix_requires_v3_authority_obligations(
     obligation_id: str,
 ) -> None:
@@ -942,6 +960,22 @@ def test_semantic_v2_statuses_cannot_self_promote_without_fresh_receipt_evidence
     assert (
         "required obligation status differs from pinned status"
         in _obligation_report(report, "RS-CBC-024")["errors"]
+    )
+
+
+def test_durable_replay_admission_cannot_self_promote_to_full_implementation() -> None:
+    matrix = _matrix()
+    obligation = next(
+        item for item in matrix["obligations"] if item["id"] == "RS-CBC-025"
+    )
+    obligation["status"] = "implemented"
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        "required obligation status differs from pinned status"
+        in _obligation_report(report, "RS-CBC-025")["errors"]
     )
 
 
@@ -1095,6 +1129,12 @@ def test_recursive_stark_cbc_matrix_rejects_unreviewed_claim_status() -> None:
         ),
         (
             "RS-CBC-024",
+            "defense_layer",
+            "guarded_transition",
+            "required obligation defense_layer differs from its pinned layer",
+        ),
+        (
+            "RS-CBC-025",
             "defense_layer",
             "guarded_transition",
             "required obligation defense_layer differs from its pinned layer",

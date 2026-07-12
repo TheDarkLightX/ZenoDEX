@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
+import types
 from pathlib import Path
 
 import pytest
@@ -15,6 +17,13 @@ from src.core.recursive_stark_admission import (
     recursive_message_ids_root_v1,
     recursive_receipt_ids_root_v1,
 )
+from src.integration.recursive_stark_admission_store import (
+    SQLiteRecursiveStarkAdmissionStore,
+)
+from src.integration.recursive_stark_release_binding import (
+    RECURSIVE_STARK_RELEASE_BINDING_SCHEMA_V1,
+    recursive_stark_release_binding_config_digest_v1,
+)
 from src.integration.recursive_stark_verifier_adapter import (
     RECEIPT_CODEC_V1,
     PinnedRecursiveStarkVerifier,
@@ -27,6 +36,11 @@ from src.integration.recursive_stark_verifier_adapter import (
 
 def _hash(index: int) -> str:
     return f"0x{index:064x}"
+
+
+def test_pinned_recursive_verifier_cannot_be_subclassed() -> None:
+    with pytest.raises(TypeError, match="cannot be subclassed"):
+        types.new_class("BypassVerifier", (PinnedRecursiveStarkVerifier,))
 
 
 def _facts_payload() -> dict[str, object]:
@@ -94,6 +108,25 @@ def _adapter(executable: Path, executable_hash: str) -> PinnedRecursiveStarkVeri
     )
 
 
+def _release_binding(
+    *,
+    authority_manifest_sha256: str,
+    chain_id: str = "zenodex-devnet",
+) -> bytes:
+    return json.dumps(
+        {
+            "schema": RECURSIVE_STARK_RELEASE_BINDING_SCHEMA_V1,
+            "chain_id": chain_id,
+            "epoch_id": 7,
+            "proof_profile": "recursive_epoch_v1",
+            "authority_manifest_sha256": authority_manifest_sha256,
+            "replay_manifest_sha256": "sha256:" + "44" * 32,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("ascii")
+
+
 def _write_pinned_verifier(
     path: Path,
     response: dict[str, object],
@@ -119,6 +152,28 @@ def _write_pinned_verifier(
         f"print({json.dumps(json.dumps(response, sort_keys=True))})\n"
     )
     path.write_text(script, encoding="ascii")
+    path.chmod(0o700)
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _write_static_pinned_verifier(path: Path, response: dict[str, object]) -> str:
+    response_text = json.dumps(response, sort_keys=True, separators=(",", ":")) + "\n"
+    source = path.with_suffix(".c")
+    source.write_text(
+        "#include <stdio.h>\n"
+        "int main(void) {\n"
+        "  char buffer[4096];\n"
+        "  while (fread(buffer, 1, sizeof(buffer), stdin) != 0) {}\n"
+        f"  fputs({json.dumps(response_text)}, stdout);\n"
+        "  return ferror(stdin) || ferror(stdout);\n"
+        "}\n",
+        encoding="ascii",
+    )
+    subprocess.run(
+        ["/usr/bin/gcc", "-static", "-O2", "-s", "-o", str(path), str(source)],
+        check=True,
+        capture_output=True,
+    )
     path.chmod(0o700)
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -265,6 +320,124 @@ def test_pinned_adapter_rejects_authority_manifest_digest_mismatch(tmp_path: Pat
             executable=executable,
             authority_manifest_json=authority_manifest,
             authority_manifest_sha256="00" * 32,
+        )
+
+
+def test_governed_release_constructor_binds_manifest_and_scope(tmp_path: Path) -> None:
+    executable = tmp_path / "recursive-verifier"
+    executable_hash = _write_pinned_verifier(executable, _response())
+    authority_manifest = recursive_stark_authority_manifest_bytes_v1(
+        executable_sha256=executable_hash,
+        trusted_expectations=_expectations(),
+        executable_format=RecursiveVerifierExecutableFormat.TEST_SCRIPT,
+    )
+    authority_sha256 = hashlib.sha256(authority_manifest).hexdigest()
+    release_binding = _release_binding(authority_manifest_sha256=authority_sha256)
+    config_digest = recursive_stark_release_binding_config_digest_v1(release_binding)
+
+    verifier = PinnedRecursiveStarkVerifier.from_governed_release_binding(
+        executable=executable,
+        authority_manifest_json=authority_manifest,
+        authority_manifest_sha256=authority_sha256,
+        release_binding_json=release_binding,
+        expected_release_binding_config_digest=config_digest,
+    )
+
+    assert verifier._release_binding_config_digest == config_digest
+    assert verifier._replay_manifest_sha256 == "sha256:" + "44" * 32
+
+
+def test_governed_release_constructor_rejects_authority_manifest_substitution(
+    tmp_path: Path,
+) -> None:
+    executable = tmp_path / "recursive-verifier"
+    executable_hash = _write_pinned_verifier(executable, _response())
+    authority_manifest = recursive_stark_authority_manifest_bytes_v1(
+        executable_sha256=executable_hash,
+        trusted_expectations=_expectations(),
+        executable_format=RecursiveVerifierExecutableFormat.TEST_SCRIPT,
+    )
+    authority_sha256 = hashlib.sha256(authority_manifest).hexdigest()
+    release_binding = _release_binding(authority_manifest_sha256="99" * 32)
+
+    with pytest.raises(ValueError, match="release authority manifest mismatch"):
+        PinnedRecursiveStarkVerifier.from_governed_release_binding(
+            executable=executable,
+            authority_manifest_json=authority_manifest,
+            authority_manifest_sha256=authority_sha256,
+            release_binding_json=release_binding,
+            expected_release_binding_config_digest=(
+                recursive_stark_release_binding_config_digest_v1(release_binding)
+            ),
+        )
+
+
+def test_governed_static_verifier_commits_through_the_only_durable_entry_path(
+    tmp_path: Path,
+) -> None:
+    executable = tmp_path / "recursive-verifier"
+    executable_hash = _write_static_pinned_verifier(executable, _response())
+    authority_manifest = recursive_stark_authority_manifest_bytes_v1(
+        executable_sha256=executable_hash,
+        trusted_expectations=_expectations(),
+    )
+    authority_sha256 = hashlib.sha256(authority_manifest).hexdigest()
+    release_binding = _release_binding(authority_manifest_sha256=authority_sha256)
+    verifier = PinnedRecursiveStarkVerifier.from_governed_release_binding(
+        executable=executable,
+        authority_manifest_json=authority_manifest,
+        authority_manifest_sha256=authority_sha256,
+        release_binding_json=release_binding,
+        expected_release_binding_config_digest=(
+            recursive_stark_release_binding_config_digest_v1(release_binding)
+        ),
+    )
+    private = tmp_path / "private"
+    private.mkdir(mode=0o700)
+    store = SQLiteRecursiveStarkAdmissionStore(private / "store.sqlite3")
+
+    result = verifier.verify_and_commit(
+        store=store,
+        expected_cursor=store.read_cursor(),
+        proof={"proof_type": "risc0.zenodex_recursive_epoch.v1"},
+        recursive_input={"disclosure": "fixture"},
+    )
+
+    assert result.committed is True
+    assert result.receipt is not None
+    assert result.receipt.authority_manifest_sha256 == authority_sha256
+    assert result.receipt.verifier_executable_sha256 == executable_hash
+
+
+def test_durable_commit_rejects_unbound_or_test_script_verifier_before_execution(
+    tmp_path: Path,
+) -> None:
+    executable = tmp_path / "recursive-verifier"
+    executable_hash = _write_pinned_verifier(executable, _response())
+    verifier = _adapter(executable, executable_hash)
+    private = tmp_path / "private"
+    private.mkdir(mode=0o700)
+    store = SQLiteRecursiveStarkAdmissionStore(private / "store.sqlite3")
+
+    with pytest.raises(RecursiveStarkVerificationError, match="requires a static ELF"):
+        verifier.verify_and_commit(
+            store=store,
+            expected_cursor=store.read_cursor(),
+            proof={},
+            recursive_input={},
+        )
+
+    object.__setattr__(
+        verifier,
+        "executable_format",
+        RecursiveVerifierExecutableFormat.STATIC_ELF_X86_64,
+    )
+    with pytest.raises(RecursiveStarkVerificationError, match="governed release binding"):
+        verifier.verify_and_commit(
+            store=store,
+            expected_cursor=store.read_cursor(),
+            proof={},
+            recursive_input={},
         )
 
 

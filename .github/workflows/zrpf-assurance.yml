@@ -78,6 +78,12 @@ jobs:
         run: |
           ruff check \
             src/core/recursive_stark_admission.py \
+            src/integration/_recursive_stark_admission_store_engine.py \
+            src/integration/_recursive_stark_admission_store_hashes.py \
+            src/integration/_recursive_stark_admission_store_history.py \
+            src/integration/_recursive_stark_admission_store_schema.py \
+            src/integration/recursive_stark_admission_store.py \
+            src/integration/recursive_stark_admission_store_types.py \
             src/integration/recursive_stark_replay_manifest.py \
             src/integration/recursive_stark_verifier_adapter.py \
             tools/check_zrpf_v3_firecracker_direct_replay_evidence.py \
@@ -118,10 +124,17 @@ jobs:
             tests/test_zrpf_assurance_workflow.py \
             tests/core/test_recursive_stark_exact_once_admission.py \
             tests/integration/test_recursive_stark_admission_authority_boundary.py \
+            tests/integration/test_recursive_stark_durable_admission_store.py \
             tests/integration/test_recursive_stark_replay_manifest.py \
             tests/integration/test_recursive_stark_verifier_adapter.py
           mypy --follow-imports=skip \
             src/core/recursive_stark_admission.py \
+            src/integration/_recursive_stark_admission_store_engine.py \
+            src/integration/_recursive_stark_admission_store_hashes.py \
+            src/integration/_recursive_stark_admission_store_history.py \
+            src/integration/_recursive_stark_admission_store_schema.py \
+            src/integration/recursive_stark_admission_store.py \
+            src/integration/recursive_stark_admission_store_types.py \
             src/integration/recursive_stark_replay_manifest.py \
             src/integration/recursive_stark_verifier_adapter.py \
             tools/check_zrpf_v3_firecracker_direct_replay_evidence.py \
@@ -143,6 +156,7 @@ jobs:
             tools/zrpf_v3_replay_*.py \
             tests/core/test_recursive_stark_exact_once_admission.py \
             tests/integration/test_recursive_stark_admission_authority_boundary.py \
+            tests/integration/test_recursive_stark_durable_admission_store.py \
             tests/integration/test_recursive_stark_replay_manifest.py \
             tests/integration/test_recursive_stark_verifier_adapter.py
           pytest -q \
@@ -174,6 +188,7 @@ jobs:
             tests/test_check_zrpf_v3_structural_tree_temporary_evidence.py \
             tests/core/test_recursive_stark_exact_once_admission.py \
             tests/integration/test_recursive_stark_admission_authority_boundary.py \
+            tests/integration/test_recursive_stark_durable_admission_store.py \
             tests/integration/test_recursive_stark_replay_manifest.py \
             tests/integration/test_recursive_stark_verifier_adapter.py
           python3 tools/check_zrpf_v1_leaf_adapter_source_policy.py
