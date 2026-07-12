@@ -1,0 +1,202 @@
+{
+  "artifacts": [
+    {
+      "encoding": "json_compact_insertion",
+      "id": "spot-value-leaf-v4-positive",
+      "journal_sha256": "4b177dccd6919caa03627d2440f38362700b9c3f4cc2267333d94e5fd597d7bc",
+      "journal_size_bytes": 2711,
+      "kind": "risc0_succinct_receipt",
+      "path": "receipts/spot-value-leaf-v4.receipt.json",
+      "sha256": "794a69746b3f833f56e15c968c16ab7d4ee9089f555eb210d38a1c0ea37d18c7",
+      "size_bytes": 601394
+    },
+    {
+      "encoding": "json_compact_insertion",
+      "id": "spot-value-leaf-v4-seal-mutation",
+      "journal_sha256": "4b177dccd6919caa03627d2440f38362700b9c3f4cc2267333d94e5fd597d7bc",
+      "journal_size_bytes": 2711,
+      "kind": "risc0_succinct_receipt_seal_mutation",
+      "path": "receipts/spot-value-leaf-v4.seal-word-1-xor-lsb.receipt.json",
+      "sha256": "2772e497dc94d937e5840bae87f2e606122269ffc8cb2a1d38667216747d2530",
+      "size_bytes": 601394
+    }
+  ],
+  "claims": {
+    "artifact_identity_and_exact_mutation_statically_checkable": true,
+    "manifest_authorizes_ledger_admission": false,
+    "manifest_authorizes_production": false,
+    "manifest_authorizes_release": false,
+    "manifest_authorizes_settlement": false,
+    "source_anchored_retained_receipt_v4_value_leaf_replay_available": true,
+    "static_checker_verifies_risc0_seals": false
+  },
+  "evidence_date": "2026-07-12",
+  "mutation_control": {
+    "candidate_artifact_id": "spot-value-leaf-v4-seal-mutation",
+    "journal_unchanged": true,
+    "kind": "succinct_seal_word_1_xor_1_v1",
+    "non_seal_receipt_bytes_unchanged": true,
+    "seal_word_count": 55667,
+    "seal_word_index": 1,
+    "source_artifact_id": "spot-value-leaf-v4-positive",
+    "xor_mask": 1
+  },
+  "native_replay": {
+    "ambient_variants": [
+      "RISC0_DEV_MODE_absent",
+      "RISC0_DEV_MODE_1"
+    ],
+    "build_timeout_seconds": 1200,
+    "dev_mode_environment_must_reject": true,
+    "expected_dev_mode_reject_report": {
+      "sha256": "c2c5473d739693bce97c22efc94f643211c5726dcbaf4014bbad0c652467247f",
+      "size_bytes": 287
+    },
+    "expected_mutation_reject_report": {
+      "sha256": "22e7aa5beffcd0d4e94aa15df8e458774048951ef7feee90e4feeba5cd866134",
+      "size_bytes": 472
+    },
+    "expected_positive_report": {
+      "sha256": "3715cf4d0741be698d9e7b4ab32c544ed2bacf4e6e2a23e43c5525fedbfe3b86",
+      "size_bytes": 2750
+    },
+    "max_process_output_bytes": 1048576,
+    "mutation_artifact_id": "spot-value-leaf-v4-seal-mutation",
+    "normal_positive_must_verify": true,
+    "positive_artifact_id": "spot-value-leaf-v4-positive",
+    "replay_timeout_seconds": 120,
+    "supporting_inputs": [
+      {
+        "embedded_receipt_sha256": "c6f365df966c98ef28f05e59c3e36533d0c16ca06475348a7bbb2863e41d58f6",
+        "encoding": "json_compact_insertion",
+        "id": "retained-spot-v1-source-wrapper",
+        "kind": "spot_v1_source_proof_wrapper",
+        "path": "evidence/zrpf-semantic-epoch-v1-local-proof-v1/source-inputs/source-ordinal-0.receipt.json",
+        "sha256": "4ce7db31e6ae5e5af53b4ef67fb0cd6ebb1dcae9cf05ee9f73b4511c10db20b9",
+        "size_bytes": 784225
+      },
+      {
+        "encoding": "json_compact_insertion",
+        "id": "retained-v1-adapter-ordinal-zero",
+        "journal_sha256": "0b145b1bee53123458a3eab3568a11ebf01910e76034e5001ec8b27a247c6d5a",
+        "journal_size_bytes": 1547,
+        "kind": "zrpf_v1_adapter_succinct_receipt",
+        "path": "evidence/zrpf-semantic-epoch-v1-local-proof-v1/receipts/adapter-ordinal-0.receipt.json",
+        "sha256": "67d792e018f94c354dc55184d562edb490e7c4262795ea69f9a747ce231b8ae9",
+        "size_bytes": 593192
+      }
+    ]
+  },
+  "native_replay_verifier": {
+    "binary": "prove_spot_value_leaf_v4",
+    "build_jobs": 4,
+    "build_profile": "release",
+    "cargo_frozen": true,
+    "cargo_offline": true,
+    "complete_build_input_closure_verified": false,
+    "cross_path_reproducible_executable": false,
+    "expected_executable_transport": "linux_memfd_full_seals_v1",
+    "network_isolation_verified": false,
+    "package": "zenodex-zrpf-risc0-harness",
+    "recorded_executable_identity_match_required": false,
+    "recorded_executable_sha256": "61c99170466c15de7a10c94dd2a54828aca9d63b1d989d0b47d2df62e9593796",
+    "recorded_executable_size_bytes": 3248296,
+    "risc0_skip_build": true,
+    "same_uid_race_resistance_verified": false,
+    "sandbox_verified": false,
+    "source_commit": "074e4a4327b4387606955a1ece868889ba50e502",
+    "source_to_binary_provenance_scope": "same_host_pinned_source_snapshot_build",
+    "source_tree": "34684c47769ec69681ba13590ce76ba61fe48f70",
+    "toolchain_lock_path": "config/proof_profiles/risc0_recursive_toolchain_lock.json",
+    "toolchain_lock_sha256": "1be127ec1174a52ec246f04fd887d0ab3b89c246401a9cf4489d0e07c10cb2ab",
+    "workspace": "zk/zrpf_risc0"
+  },
+  "non_claims": [
+    "retained_source_and_adapter_receipts_not_regenerated",
+    "v4_proof_receipt_not_regenerated_by_checker",
+    "proof_generation_source_anchor_is_not_historical_execution_provenance",
+    "complete_build_input_closure_not_verified",
+    "same_uid_race_resistance_not_verified",
+    "source_to_guest_elf_provenance_not_machine_verified",
+    "cross_host_and_path_independent_reproducibility_not_verified",
+    "proof_byte_determinism_not_verified",
+    "zero_asset_rows_and_unchanged_source_state_only",
+    "residual_leaf_without_closed_epoch_conservation_or_semantic_finality",
+    "empty_grant_policy_has_no_governance_authority",
+    "no_data_availability_schedule_or_carry_verification",
+    "no_durable_atomic_ledger_admission",
+    "no_public_release_settlement_or_production_authority",
+    "no_zero_knowledge_privacy_claim",
+    "no_sandbox_side_channel_or_covert_channel_claim",
+    "no_throughput_latency_or_cost_claim",
+    "static_checker_does_not_verify_risc0_seals",
+    "live_checker_verifies_retained_receipts_and_does_not_regenerate_proofs",
+    "checker_and_anchor_changes_require_external_review_governance"
+  ],
+  "program": {
+    "application_statement_hash": "35ebda5b6748cec7be31b04ad065231628ae642fdf1d23108bc04d2ceda9e9a0",
+    "asset_flow_count": 0,
+    "authority_use_count": 0,
+    "claim_binding": "2fa0a2cf480701b2a377a8b15a98f1efbb5cad0156628dac921f2b457a90566c",
+    "guest_elf_sha256": "195f1cd4bd4b6b4ddc4765d9ab33664834e64d58ee6c468dd0b254ea0012fa6e",
+    "guest_elf_size_bytes": 499312,
+    "host_reconstructed_input_sha256": "2fe8630f5fdfab34a1fb128e307b28f8941eb40ed665383b11d3dff9fa791250",
+    "host_reconstructed_input_size_bytes": 1739,
+    "image_id": "dd58afedb9be399a3f9bbaa34229e5dc63c170873962e99307b52c5d25e7f743",
+    "image_id_words": [
+      3987691741,
+      2587475641,
+      2746915647,
+      3706005826,
+      2272313699,
+      2481545785,
+      1563211015,
+      1140320037
+    ],
+    "journal_canonical_hash": "d3b3b1616f9f90f80b3b67a904ce9b5561f238a4891746587b186ae840bd50c4",
+    "journal_sha256": "4b177dccd6919caa03627d2440f38362700b9c3f4cc2267333d94e5fd597d7bc",
+    "journal_size_bytes": 2711,
+    "represented_row_count": 0,
+    "role": "spot_value_leaf_v4",
+    "source_state_unchanged": true,
+    "value_subtree_root": "839a52046406e3ee016bd339c07c9c1980a346f1f18b8035817a4dfebc8e06a4"
+  },
+  "proof_generation_source": {
+    "commit": "247f40da13563990d3f9f687f706228c9283562f",
+    "complete_build_input_closure_verified": false,
+    "historical_execution_provenance_verified": false,
+    "proof_generation_reported": true,
+    "tree": "68792f420a54d96290add01c2c94e1b25032ae9c"
+  },
+  "receipt_profile": {
+    "control_id": [
+      1035118419,
+      1570699527,
+      1491633494,
+      504952180,
+      648709764,
+      132516474,
+      1203431935,
+      1255849416
+    ],
+    "dev_mode_disabled_by_rust_verifier": true,
+    "hash_function": "poseidon2",
+    "profile_id": "risc0_succinct_poseidon2_resolve_3_0_5_v1",
+    "receipt_kind": "Succinct",
+    "risc0_zkvm_version": "3.0.5",
+    "verifier_parameters": [
+      3102336492,
+      3939904686,
+      3022461035,
+      1208221540,
+      3740575737,
+      10233549,
+      1979579783,
+      329288969
+    ]
+  },
+  "schema": "zenodex/zrpf_v4_spot_value_leaf_local_evidence/v1",
+  "scope": "source_anchored_retained_receipt_v4_value_leaf_replay",
+  "status": "temporary_local_retained_receipt_evidence",
+  "version": 1
+}

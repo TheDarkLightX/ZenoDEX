@@ -1,7 +1,7 @@
 # ZRPF Value Node V4 Correct-by-Construction Specification
 
-Status: implemented bounded leaf guest and temporary local Succinct receipt;
-no ledger, release, or production authority
+Status: implemented bounded leaf guest, retained local Succinct receipt, and
+source-built exact replay; no ledger, release, or production authority
 Date: 2026-07-11
 
 ## Purpose
@@ -371,6 +371,7 @@ This tranche does not establish:
 
 - a release-governed or reproducibly built V4 image;
 - proof regeneration for the retained Spot source or V1 adapter receipts;
+- same-UID race resistance for the local source-build replay lane;
 - receipt-authenticated V4 aggregation beyond the one fixed residual leaf;
 - a ledger-governed V4 program, policy, grant set, or expected statement;
 - complete-root asset conservation or governed mint-cap enforcement;
@@ -387,23 +388,28 @@ subtree. A future complete-root verifier and atomic admission boundary must
 compare the closed statement with a ledger-owned expectation before it gains
 economic authority.
 
-## Next executable step
+## Retained-receipt evidence
 
-The fixed ordinal-zero lane now derives `SemanticSubtreeV2` from an exact
+The fixed ordinal-zero lane derives `SemanticSubtreeV2` from an exact
 retained Spot source and adapter receipt, recomputes the empty row root, proves
 the V4 guest, crosses `ExactSpotValueLeafReceiptV4`, and rejects an exact
 single-word Succinct seal mutation. The temporary receipt is 601,394 bytes with
 SHA-256
 `794a69746b3f833f56e15c968c16ab7d4ee9089f555eb210d38a1c0ea37d18c7`.
 
-The next executable sequence is:
+The checker-governed manifest has SHA-256
+`284e6eafdf83c2f1c0d930c8b27780dc5c297060c8cae8bdf6aaa991535ae62b`.
+Its source-built live lane accepts the exact receipt, rejects ambient RISC0 dev
+mode at process start, and rejects the exact seal mutation. The complete usage,
+hash, behavior, and non-claim record is
+`docs/research/ZRPF_V4_SPOT_VALUE_LEAF_EVIDENCE_20260712.md`.
 
-1. retain the fixed leaf receipt, replay, mutation, source closure, and exact
-   claim boundary in a checker-governed evidence bundle;
-2. define the V4 aggregate witness codec with the same bounded sequence
+## Next executable step
+
+1. define the V4 aggregate witness codec with the same bounded sequence
    discipline;
-3. implement an aggregate guest that verifies every exact V4 child receipt
+2. implement an aggregate guest that verifies every exact V4 child receipt
    before semantic merge;
-4. close the complete root against the ledger-owned expected statement;
-5. generate a nonempty ordinary-flow leaf, a governed-mint leaf, a multi-leaf
+3. close the complete root against the ledger-owned expected statement;
+4. generate a nonempty ordinary-flow leaf, a governed-mint leaf, a multi-leaf
    aggregate receipt, and exact negative controls.

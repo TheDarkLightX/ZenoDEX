@@ -35,6 +35,21 @@ EXPECTED_ONE_HOP_MUTATIONS = {
         "topology_count_mismatch",
         "cross_field_parent_mismatch",
     },
+    "v4_spot_value_leaf_evidence": {
+        "unknown_nested_field",
+        "claim_overpromotion",
+        "boolean_integer_substitution",
+        "proof_source_tree_drift",
+        "verifier_source_commit_drift",
+        "verifier_binary_hash_drift",
+        "receipt_hash_drift",
+        "journal_hash_drift",
+        "mutation_index_drift",
+        "supporting_path_escape",
+        "positive_report_hash_drift",
+        "dev_mode_policy_disabled",
+        "dev_mode_report_hash_drift",
+    },
 }
 
 
@@ -85,6 +100,9 @@ def test_zrpf_evidence_boundary_atlas_rejects_bounded_depth_two_frontier(
 
     assert set(by_name) == set(EXPECTED_ONE_HOP_MUTATIONS)
     for target in TARGETS:
+        assert {mutation.name for mutation in target.mutations} == (
+            EXPECTED_ONE_HOP_MUTATIONS[target.name]
+        )
         report = by_name[target.name]
         assert report.valid_seed_accepted is True
         assert report.all_mutated_states_rejected is True

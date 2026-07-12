@@ -12,6 +12,7 @@ import copy
 import functools
 import hashlib
 import heapq
+import importlib
 import json
 import sys
 from dataclasses import asdict, dataclass
@@ -22,8 +23,15 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from tools import check_zrpf_v1_spot_adapter_temporary_evidence as adapter_checker
-from tools import check_zrpf_v3_structural_tree_temporary_evidence as tree_checker
+adapter_checker = importlib.import_module(
+    "tools.check_zrpf_v1_spot_adapter_temporary_evidence"
+)
+tree_checker = importlib.import_module(
+    "tools.check_zrpf_v3_structural_tree_temporary_evidence"
+)
+v4_checker = importlib.import_module(
+    "tools.check_zrpf_v4_spot_value_leaf_local_evidence"
+)
 
 
 MAX_DEPTH = 2
@@ -192,6 +200,111 @@ TREE_MUTATIONS = (
 )
 
 
+def _add_unknown_v4_program_field(document: dict[str, Any]) -> None:
+    document["program"]["unreviewed_authority"] = True
+
+
+V4_MUTATIONS = (
+    Mutation("unknown_nested_field", _add_unknown_v4_program_field),
+    Mutation(
+        "claim_overpromotion",
+        lambda document: _set_path(
+            document,
+            ("claims", "manifest_authorizes_production"),
+            True,
+        ),
+    ),
+    Mutation(
+        "boolean_integer_substitution",
+        lambda document: _set_path(
+            document,
+            ("claims", "manifest_authorizes_settlement"),
+            0,
+        ),
+    ),
+    Mutation(
+        "proof_source_tree_drift",
+        lambda document: _set_path(
+            document,
+            ("proof_generation_source", "tree"),
+            "00" * 20,
+        ),
+    ),
+    Mutation(
+        "verifier_source_commit_drift",
+        lambda document: _set_path(
+            document,
+            ("native_replay_verifier", "source_commit"),
+            "00" * 20,
+        ),
+    ),
+    Mutation(
+        "verifier_binary_hash_drift",
+        lambda document: _set_path(
+            document,
+            ("native_replay_verifier", "recorded_executable_sha256"),
+            "00" * 32,
+        ),
+    ),
+    Mutation(
+        "receipt_hash_drift",
+        lambda document: _set_path(
+            document,
+            ("artifacts", 0, "sha256"),
+            "00" * 32,
+        ),
+    ),
+    Mutation(
+        "journal_hash_drift",
+        lambda document: _set_path(
+            document,
+            ("artifacts", 1, "journal_sha256"),
+            "00" * 32,
+        ),
+    ),
+    Mutation(
+        "mutation_index_drift",
+        lambda document: _set_path(
+            document,
+            ("mutation_control", "seal_word_index"),
+            2,
+        ),
+    ),
+    Mutation(
+        "supporting_path_escape",
+        lambda document: _set_path(
+            document,
+            ("native_replay", "supporting_inputs", 0, "path"),
+            "../source.json",
+        ),
+    ),
+    Mutation(
+        "positive_report_hash_drift",
+        lambda document: _set_path(
+            document,
+            ("native_replay", "expected_positive_report", "sha256"),
+            "00" * 32,
+        ),
+    ),
+    Mutation(
+        "dev_mode_policy_disabled",
+        lambda document: _set_path(
+            document,
+            ("native_replay", "dev_mode_environment_must_reject"),
+            False,
+        ),
+    ),
+    Mutation(
+        "dev_mode_report_hash_drift",
+        lambda document: _set_path(
+            document,
+            ("native_replay", "expected_dev_mode_reject_report", "sha256"),
+            "00" * 32,
+        ),
+    ),
+)
+
+
 TARGETS = (
     Target(
         name="v1_spot_adapter_evidence",
@@ -204,6 +317,12 @@ TARGETS = (
         checker=tree_checker,
         mutations=TREE_MUTATIONS,
         minimum_unique_paths=9,
+    ),
+    Target(
+        name="v4_spot_value_leaf_evidence",
+        checker=v4_checker,
+        mutations=V4_MUTATIONS,
+        minimum_unique_paths=10,
     ),
 )
 TARGET_INDEX = {target.name: target for target in TARGETS}
@@ -328,7 +447,9 @@ def explore_target(
         schedule_sequence = 1
 
         while frontier and explored < max_frontier:
-            _priority, depth, _sequence, mutation_name, document = heapq.heappop(frontier)
+            depth, _priority, _sequence, mutation_name, document = heapq.heappop(
+                frontier
+            )
             explored += 1
             maximum_depth = max(maximum_depth, depth)
             outcome, path_id, path_length, clean_reject = _trace_validation(
@@ -371,8 +492,8 @@ def explore_target(
                 heapq.heappush(
                     frontier,
                     (
-                        -path_length,
                         depth + 1,
+                        -path_length,
                         schedule_sequence + order,
                         next_name,
                         candidate,
