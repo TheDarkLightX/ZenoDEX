@@ -11,6 +11,7 @@ PINNED_ADAPTER = ROOT / "src/integration/recursive_stark_verifier_adapter.py"
 DURABLE_STORE = ROOT / "src/integration/recursive_stark_admission_store.py"
 DURABLE_ENGINE = ROOT / "src/integration/_recursive_stark_admission_store_engine.py"
 DURABLE_HASHES = ROOT / "src/integration/_recursive_stark_admission_store_hashes.py"
+SETTLEMENT_AUTHORITY = ROOT / "src/core/_zrpf_settlement_commit_authority.py"
 
 PRIVATE_CAPABILITY_TYPE = "_AuthenticatedRecursiveStarkRootFacts"
 PRIVATE_SEAL = "_AUTHENTICATED_FACTS_SEAL"
@@ -42,6 +43,7 @@ PRIVATE_ADAPTER_IMPORTS = frozenset(
 PRIVATE_STORE_IMPORTS = frozenset({PRIVATE_CAPABILITY_TYPE, PRIVATE_PLANNER})
 PRIVATE_ENGINE_IMPORTS = frozenset({PRIVATE_CAPABILITY_TYPE, PRIVATE_SNAPSHOT})
 PRIVATE_HASH_IMPORTS = frozenset({PRIVATE_CAPABILITY_TYPE})
+PRIVATE_SETTLEMENT_AUTHORITY_IMPORTS = frozenset({PRIVATE_CAPABILITY_TYPE})
 RETIRED_PUBLIC_AUTHORITY_NAMES = frozenset(
     {
         "VerifiedRecursiveStarkRootFacts",
@@ -62,6 +64,7 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
             DURABLE_STORE: PRIVATE_STORE_IMPORTS,
             DURABLE_ENGINE: PRIVATE_ENGINE_IMPORTS,
             DURABLE_HASHES: PRIVATE_HASH_IMPORTS,
+            SETTLEMENT_AUTHORITY: PRIVATE_SETTLEMENT_AUTHORITY_IMPORTS,
         }.get(path, frozenset())
         tree = _parse(path)
         for node in ast.walk(tree):
