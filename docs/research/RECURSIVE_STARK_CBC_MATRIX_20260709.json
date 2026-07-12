@@ -624,7 +624,7 @@
         },
         {
           "path": "zk/state_proof_risc0/cli/src/main.rs",
-          "symbol": "authenticated_recursive_facts"
+          "symbol": "recursive_receipt_authentication"
         },
         {
           "path": "src/integration/recursive_stark_replay_manifest.py",
@@ -685,6 +685,14 @@
           "symbol": "recursive_verified_facts_require_root_matching_disclosure"
         },
         {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "recursive_request_authenticates_receipt_once_and_preserves_response_schema"
+        },
+        {
+          "path": "zk/state_proof_risc0/cli/src/main.rs",
+          "symbol": "recursive_production_path_has_one_cryptographic_verify_call_site"
+        },
+        {
           "path": "tests/integration/test_recursive_stark_replay_manifest.py",
           "symbol": "test_build_and_check_local_artifact_pinned_bundle"
         },
@@ -730,8 +738,8 @@
         "python3 tools/check_risc0_recursive_v2_same_profile_two_spot_evidence.py --baseline-spot-leaf <SPOT_A> --distinct-spot-leaf <SPOT_B> --duplicate-source-alias-leaf <SPOT_ALIAS> --inner-artifact <SAME_PROFILE_INNER> --root-artifact <SAME_PROFILE_ROOT> --release-harness <HARNESS> --two-leaf-verifier <TWO_LEAF_VERIFIER> --json",
         "python3 tools/check_recursive_stark_replay_bundle.py <bundle> --expected-manifest-sha256 <sha256>"
       ],
-      "next_action": "preserve and replay the fe131b one-leaf, heterogeneous fanout-two, and same-profile fanout-two pairs, their cryptographic mutations, and the missing-assumption rejection; add nonempty receipt partitions and an eight-leaf proof before broader fanout promotion; reopen this obligation after any guest-linked change",
-      "non_claim": "a current-source RISC0 3.0.5 one-leaf fixed-height pair, one source-frozen spot-plus-zUSD fanout-two pair, and one same-profile distinct-statement spot fanout-two pair are locally verified; this evidence does not establish a promoted general multi-leaf profile, nonempty receipt-set witness coverage, public replay, cross-host or reproducible-release evidence, settlement or ledger-admission authority, privacy, or production readiness"
+      "next_action": "rebuild the strict-ingress, single-verification V1 host from its governed source closure and replay both the retained positive receipt and malformed-proof rejection before restoring the combined V1-plus-V2 status; preserve and replay the fe131b V2 one-leaf, heterogeneous fanout-two, and same-profile fanout-two pairs before broader fanout promotion",
+      "non_claim": "current V2 RISC0 3.0.5 one-leaf, source-frozen spot-plus-zUSD fanout-two, and same-profile distinct-statement spot fanout-two evidence remains source-closure checked; the hardened V1 host has Rust tests for strict ingress and exactly-once receipt authentication but no fresh current-host V1 receipt or malformed-proof replay, so the prior combined V1-plus-V2 current-host status is withheld; this evidence does not establish a promoted general multi-leaf profile, nonempty receipt-set witness coverage, public replay, cross-host or reproducible-release evidence, settlement or ledger-admission authority, privacy, or production readiness"
     },
     {
       "id": "RS-CBC-015",

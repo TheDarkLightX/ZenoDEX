@@ -54,6 +54,8 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "v1.94.1-rust-x86_64-unknown-linux-gnu:/risc0/toolchains/" in replay_command
     python_assurance = steps["Run Python and evidence assurance"]["run"]
     rust_assurance = steps["Run Rust protocol and verifier assurance"]["run"]
+    cargo_acquisition = steps["Acquire lockfile-bound Cargo sources"]["run"]
+    assert "--manifest-path zk/state_proof_risc0/Cargo.toml" in cargo_acquisition
     assert "tools/check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
     assert "tests/test_check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
     assert "tools/check_recursive_stark_cbc_spec.py" in python_assurance

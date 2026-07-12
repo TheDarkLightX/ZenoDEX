@@ -103,6 +103,19 @@ struct ReceiptSecurityProfile {
     control_id: Option<String>,
 }
 
+struct VerifiedRecursiveFacts(Value);
+
+enum VerificationSuccess {
+    Basic,
+    Recursive(VerifiedRecursiveFacts),
+}
+
+impl VerifiedRecursiveFacts {
+    fn into_value(self) -> Value {
+        self.0
+    }
+}
+
 impl ProofReceiptKind {
     fn as_str(self) -> &'static str {
         match self {
@@ -892,50 +905,18 @@ fn handle_generate_recursive_summary_leaf(req: &Value) {
 }
 
 fn handle_verify(req: &Value) {
-    let out = match try_verify(req) {
-        Ok(()) => {
-            let proof_type = req
-                .get("proof")
-                .and_then(|proof| proof.get("proof_type"))
-                .and_then(Value::as_str);
-            if proof_type == Some(PROOF_TYPE_RECURSIVE) {
-                match authenticated_recursive_facts(req) {
-                    Ok(facts) => json!({
-                        "ok": true,
-                        "verified_recursive_facts": facts,
-                    }),
-                    Err(err) => json!({ "ok": false, "error": err }),
-                }
-            } else {
-                json!({ "ok": true })
-            }
-        }
-        Err(err) => json!({ "ok": false, "error": err }),
-    };
-    write_json_stdout(&out);
+    write_json_stdout(&verification_response(try_verify(req)));
 }
 
-fn authenticated_recursive_facts(req: &Value) -> Result<Value, String> {
-    let proof = req
-        .get("proof")
-        .and_then(Value::as_object)
-        .ok_or_else(|| "proof must be an object".to_string())?;
-    let proof = Value::Object(proof.clone());
-    let receipt = decode_verified_profile_receipt_from_proof(
-        &proof,
-        TAU_STATE_PROOF_AGGREGATE_ID,
-        RECURSIVE_EPOCH_PROFILE_V1,
-        "receipt",
-    )?;
-    let journal: RecursiveEpochJournalV1 = decode_postcard_journal(&receipt, "recursive journal")?;
-    let input = parse_recursive_input(req)?;
-    let receipt_profile = receipt_security_profile(&receipt)?;
-    recursive_verified_facts_from_disclosure(
-        &journal,
-        &receipt.journal.bytes,
-        &input,
-        &receipt_profile,
-    )
+fn verification_response(result: Result<VerificationSuccess, String>) -> Value {
+    match result {
+        Ok(VerificationSuccess::Basic) => json!({ "ok": true }),
+        Ok(VerificationSuccess::Recursive(verified)) => json!({
+            "ok": true,
+            "verified_recursive_facts": verified.into_value(),
+        }),
+        Err(err) => json!({ "ok": false, "error": err }),
+    }
 }
 
 fn recursive_verified_facts_from_disclosure(
@@ -1008,7 +989,7 @@ fn recursive_verified_facts_from_disclosure(
     }))
 }
 
-fn try_verify(req: &Value) -> Result<(), String> {
+fn try_verify(req: &Value) -> Result<VerificationSuccess, String> {
     if req.get("schema_version").and_then(Value::as_i64) != Some(1) {
         return Err("unexpected schema_version (expected tau_state_proof_verify v1)".into());
     }
@@ -1031,31 +1012,38 @@ fn try_verify(req: &Value) -> Result<(), String> {
         .unwrap_or("");
     if proof_type == PROOF_TYPE_PERPS_NP {
         validate_embedded_methods();
-        return try_verify_perps_np(req, proof, expected_state_hash);
+        try_verify_perps_np(req, proof, expected_state_hash)?;
+        return Ok(VerificationSuccess::Basic);
     }
     if proof_type == PROOF_TYPE_ZUSD {
         validate_embedded_methods();
-        return try_verify_zusd(req, proof, expected_state_hash);
+        try_verify_zusd(req, proof, expected_state_hash)?;
+        return Ok(VerificationSuccess::Basic);
     }
     if proof_type == PROOF_TYPE_RECURSIVE {
         validate_aggregate_method();
-        return try_verify_recursive(req, proof, expected_state_hash);
+        return try_verify_recursive(req, proof, expected_state_hash)
+            .map(VerificationSuccess::Recursive);
     }
     if proof_type == PROOF_TYPE_RECURSIVE_PERPS_NP_LEAF {
         validate_perps_np_leaf_method();
-        return try_verify_recursive_perps_np_leaf(proof, expected_state_hash);
+        try_verify_recursive_perps_np_leaf(proof, expected_state_hash)?;
+        return Ok(VerificationSuccess::Basic);
     }
     if proof_type == PROOF_TYPE_RECURSIVE_SPOT_LEAF {
         validate_spot_leaf_method();
-        return try_verify_recursive_spot_leaf(proof, expected_state_hash);
+        try_verify_recursive_spot_leaf(proof, expected_state_hash)?;
+        return Ok(VerificationSuccess::Basic);
     }
     if proof_type == PROOF_TYPE_RECURSIVE_ZUSD_LEAF {
         validate_zusd_leaf_method();
-        return try_verify_recursive_zusd_leaf(proof, expected_state_hash);
+        try_verify_recursive_zusd_leaf(proof, expected_state_hash)?;
+        return Ok(VerificationSuccess::Basic);
     }
     if proof_type == PROOF_TYPE_RECURSIVE_SUMMARY_LEAF {
         validate_summary_leaf_method();
-        return try_verify_recursive_summary_leaf(proof, expected_state_hash);
+        try_verify_recursive_summary_leaf(proof, expected_state_hash)?;
+        return Ok(VerificationSuccess::Basic);
     }
     if proof_type != PROOF_TYPE {
         return Err("unsupported proof_type".into());
@@ -1172,7 +1160,7 @@ fn try_verify(req: &Value) -> Result<(), String> {
         check_nonce_roots(&journal, context_pre_nonces, verified_ingress.as_deref())?;
     }
 
-    Ok(())
+    Ok(VerificationSuccess::Basic)
 }
 
 fn try_verify_perps_np(
@@ -1312,14 +1300,34 @@ fn try_verify_recursive(
     req: &Value,
     proof: &Value,
     expected_state_hash: [u8; 32],
-) -> Result<(), String> {
+) -> Result<VerifiedRecursiveFacts, String> {
     check_proof_meta_image_id_for(proof, TAU_STATE_PROOF_AGGREGATE_ID)?;
-    let receipt = decode_verified_profile_receipt_from_proof(
-        proof,
-        TAU_STATE_PROOF_AGGREGATE_ID,
-        RECURSIVE_EPOCH_PROFILE_V1,
-        "receipt",
-    )?;
+    let authenticated = recursive_receipt_authentication::authenticate(proof)?;
+    finish_recursive_verification(req, proof, expected_state_hash, authenticated)
+}
+
+#[cfg(test)]
+fn try_verify_recursive_with_test_authenticator<F>(
+    req: &Value,
+    proof: &Value,
+    expected_state_hash: [u8; 32],
+    authenticate_receipt: F,
+) -> Result<VerifiedRecursiveFacts, String>
+where
+    F: FnOnce(&Value) -> Result<recursive_receipt_authentication::AuthenticatedReceipt, String>,
+{
+    check_proof_meta_image_id_for(proof, TAU_STATE_PROOF_AGGREGATE_ID)?;
+    let authenticated = authenticate_receipt(proof)?;
+    finish_recursive_verification(req, proof, expected_state_hash, authenticated)
+}
+
+fn finish_recursive_verification(
+    req: &Value,
+    proof: &Value,
+    expected_state_hash: [u8; 32],
+    authenticated: recursive_receipt_authentication::AuthenticatedReceipt,
+) -> Result<VerifiedRecursiveFacts, String> {
+    let (receipt, receipt_profile) = authenticated.into_parts();
     let journal: RecursiveEpochJournalV1 = decode_postcard_journal(&receipt, "recursive journal")?;
     if journal.proof_type != PROOF_TYPE_RECURSIVE {
         return Err("journal proof_type mismatch".into());
@@ -1333,7 +1341,6 @@ fn try_verify_recursive(
     if journal.post_state_root != expected_state_hash {
         return Err("journal.post_state_root mismatch".into());
     }
-    let receipt_profile = receipt_security_profile(&receipt)?;
     verify_recursive_trusted_expectations(req, &journal, &receipt_profile)?;
     expect_meta_str(proof, "proof_type", PROOF_TYPE_RECURSIVE)?;
     expect_meta_str(proof, "domain_separator", RECURSIVE_DOMAIN_SEPARATOR_V1)?;
@@ -1414,7 +1421,14 @@ fn try_verify_recursive(
     expect_meta_hash(proof, "feature_suite_hash", journal.feature_suite_hash)?;
     expect_meta_hash(proof, "dependency_lock_hash", journal.dependency_lock_hash)?;
     expect_meta_hash(proof, "toolchain_lock_hash", journal.toolchain_lock_hash)?;
-    Ok(())
+    let input = parse_recursive_input(req)?;
+    let facts = recursive_verified_facts_from_disclosure(
+        &journal,
+        &receipt.journal.bytes,
+        &input,
+        &receipt_profile,
+    )?;
+    Ok(VerifiedRecursiveFacts(facts))
 }
 
 fn verify_recursive_trusted_expectations(
@@ -2289,6 +2303,46 @@ fn decode_verified_profile_receipt_from_proof(
         .map_err(|e| format!("{label} verification failed: {e}"))?;
     require_proof_meta_receipt_security(proof, &receipt)?;
     Ok(receipt)
+}
+
+mod recursive_receipt_authentication {
+    use super::*;
+
+    pub(super) struct AuthenticatedReceipt {
+        receipt: Receipt,
+        security_profile: ReceiptSecurityProfile,
+    }
+
+    impl AuthenticatedReceipt {
+        pub(super) fn into_parts(self) -> (Receipt, ReceiptSecurityProfile) {
+            (self.receipt, self.security_profile)
+        }
+
+        #[cfg(test)]
+        pub(super) fn from_test_parts(
+            receipt: Receipt,
+            security_profile: ReceiptSecurityProfile,
+        ) -> Self {
+            Self {
+                receipt,
+                security_profile,
+            }
+        }
+    }
+
+    pub(super) fn authenticate(proof: &Value) -> Result<AuthenticatedReceipt, String> {
+        let receipt = decode_verified_profile_receipt_from_proof(
+            proof,
+            TAU_STATE_PROOF_AGGREGATE_ID,
+            RECURSIVE_EPOCH_PROFILE_V1,
+            "receipt",
+        )?;
+        let security_profile = receipt_security_profile(&receipt)?;
+        Ok(AuthenticatedReceipt {
+            receipt,
+            security_profile,
+        })
+    }
 }
 
 fn decode_receipt_from_proof(proof: &Value) -> Result<Receipt, String> {
@@ -5043,6 +5097,102 @@ mod tests {
             .unwrap_err(),
             "recursive_input disclosure does not match verified journal"
         );
+    }
+
+    #[test]
+    fn recursive_request_authenticates_receipt_once_and_preserves_response_schema() {
+        use std::cell::Cell;
+
+        let input = recursive_input();
+        let journal = compose_recursive_epoch_journal_v1(&input).unwrap();
+        let journal_bytes = postcard::to_allocvec(&journal).unwrap();
+        let proof = json!({
+            "proof_type": PROOF_TYPE_RECURSIVE,
+            "proof": "injected-by-test-authenticator",
+            "meta": recursive_meta(&journal, ProofReceiptKind::Succinct),
+        });
+        let req = json!({
+            "recursive_input": input,
+            "recursive_expectations": recursive_expectations(&journal),
+        });
+        let authentication_calls = Cell::new(0usize);
+        let authenticated_journal = journal_bytes.clone();
+        let authenticator = |_proof: &Value| {
+            authentication_calls.set(authentication_calls.get() + 1);
+            let claim =
+                ReceiptClaim::ok(TAU_STATE_PROOF_AGGREGATE_ID, authenticated_journal.clone());
+            let receipt = Receipt::new(
+                InnerReceipt::Fake(FakeReceipt::new(claim)),
+                authenticated_journal.clone(),
+            );
+            Ok(
+                recursive_receipt_authentication::AuthenticatedReceipt::from_test_parts(
+                    receipt,
+                    recursive_receipt_profile(),
+                ),
+            )
+        };
+
+        let verified = try_verify_recursive_with_test_authenticator(
+            &req,
+            &proof,
+            journal.post_state_root,
+            authenticator,
+        )
+        .unwrap();
+        assert_eq!(authentication_calls.get(), 1);
+
+        let response = verification_response(Ok(VerificationSuccess::Recursive(verified)));
+        assert_eq!(response["ok"], Value::Bool(true));
+        assert_eq!(
+            response["verified_recursive_facts"]["schema"],
+            Value::String("zenodex.verified_recursive_stark_root_facts.v1".to_string())
+        );
+        assert_eq!(response.as_object().unwrap().len(), 2);
+        assert_eq!(authentication_calls.get(), 1);
+    }
+
+    #[test]
+    fn recursive_production_path_has_one_cryptographic_verify_call_site() {
+        let source = include_str!("main.rs");
+        let recursive_entry = source
+            .split_once("fn try_verify_recursive(\n")
+            .unwrap()
+            .1
+            .split_once("#[cfg(test)]\nfn try_verify_recursive_with_test_authenticator")
+            .unwrap()
+            .0;
+        assert_eq!(
+            recursive_entry
+                .matches("recursive_receipt_authentication::authenticate(proof)?")
+                .count(),
+            1
+        );
+        assert_eq!(recursive_entry.matches(".verify(").count(), 0);
+
+        let profile_decoder = source
+            .split_once("fn decode_verified_profile_receipt_from_proof(\n")
+            .unwrap()
+            .1
+            .split_once("mod recursive_receipt_authentication")
+            .unwrap()
+            .0;
+        assert_eq!(profile_decoder.matches(".verify(image_id)").count(), 1);
+
+        let root_authenticator = source
+            .split_once("pub(super) fn authenticate(proof: &Value)")
+            .unwrap()
+            .1
+            .split_once("fn decode_receipt_from_proof")
+            .unwrap()
+            .0;
+        assert_eq!(
+            root_authenticator
+                .matches("decode_verified_profile_receipt_from_proof")
+                .count(),
+            1
+        );
+        assert_eq!(root_authenticator.matches(".verify(").count(), 0);
     }
 
     #[test]
