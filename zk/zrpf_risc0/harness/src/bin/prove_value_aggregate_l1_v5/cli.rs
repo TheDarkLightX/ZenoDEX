@@ -1,8 +1,5 @@
 use std::{env, path::PathBuf};
 
-use zenodex_zrpf_protocol_v3::{CommitmentV3, NodeLevelV3, ProfileIdV3};
-use zenodex_zrpf_risc0_verifier::ExpectedValueAggregateReceiptIdentityV5;
-
 pub(super) const MAX_CHILDREN: usize = 8;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -24,7 +21,6 @@ impl Mode {
 pub(super) struct Options {
     pub(super) mode: Mode,
     pub(super) receipt_path: PathBuf,
-    pub(super) expected_identity: ExpectedValueAggregateReceiptIdentityV5,
     pub(super) child_paths: Vec<PathBuf>,
 }
 
@@ -42,28 +38,14 @@ pub(super) fn parse_options(args: Vec<String>) -> Result<Options, String> {
         Some("verify-existing") => (Mode::VerifyExisting, "--receipt"),
         _ => return Err(usage().to_owned()),
     };
-    if args.len() < 9
-        || args.get(1).map(String::as_str) != Some(receipt_flag)
-        || args.get(3).map(String::as_str) != Some("--expected-proof-profile-id")
-        || args.get(5).map(String::as_str) != Some("--expected-program-manifest-root")
-    {
+    if args.len() < 5 || args.get(1).map(String::as_str) != Some(receipt_flag) {
         return Err(usage().to_owned());
     }
     let receipt_path = required_path(args.get(2))?;
-    let proof_profile_id =
-        ProfileIdV3::new(parse_lower_hex32(args.get(4))?).map_err(|_| usage().to_owned())?;
-    let program_manifest_root =
-        CommitmentV3::new(parse_lower_hex32(args.get(6))?).map_err(|_| usage().to_owned())?;
-    let child_paths = parse_child_paths(&args[7..])?;
+    let child_paths = parse_child_paths(&args[3..])?;
     Ok(Options {
         mode,
         receipt_path,
-        expected_identity: ExpectedValueAggregateReceiptIdentityV5::new(
-            NodeLevelV3::new(1).map_err(|_| usage().to_owned())?,
-            proof_profile_id,
-            program_manifest_root,
-        )
-        .map_err(|_| usage().to_owned())?,
         child_paths,
     })
 }
@@ -92,18 +74,6 @@ fn required_path(value: Option<&String>) -> Result<PathBuf, String> {
         .ok_or_else(|| usage().to_owned())
 }
 
-fn parse_lower_hex32(value: Option<&String>) -> Result<[u8; 32], String> {
-    let value = value.filter(|candidate| {
-        candidate.len() == 64
-            && candidate
-                .bytes()
-                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-    });
-    let bytes =
-        hex::decode(value.ok_or_else(|| usage().to_owned())?).map_err(|_| usage().to_owned())?;
-    bytes.try_into().map_err(|_| usage().to_owned())
-}
-
 fn usage() -> &'static str {
-    "usage: prove_value_aggregate_l1_v5 <prove --receipt-out|verify-existing --receipt> <receipt.json> --expected-proof-profile-id <lower-hex32> --expected-program-manifest-root <lower-hex32> --child <v4-receipt.json> [--child <v4-receipt.json> ...]"
+    "usage: prove_value_aggregate_l1_v5 <prove --receipt-out|verify-existing --receipt> <receipt.json> --child <v4-receipt.json> [--child <v4-receipt.json> ...]"
 }

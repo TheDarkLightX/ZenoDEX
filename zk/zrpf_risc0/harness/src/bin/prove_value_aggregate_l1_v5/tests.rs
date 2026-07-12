@@ -10,17 +10,14 @@ use zenodex_zrpf_risc0_value_aggregate_shared::ValueAggregateRecompositionErrorV
 use super::{
     artifact_io::{persist_new_receipt, read_bounded_receipt_file},
     cli::{parse_options, Mode},
-    recompose_exact_level_one, validate_method, verify_existing, LevelOneMaterialError,
+    recompose_exact_level_one, validate_governed_method, validate_method, verify_existing,
+    LevelOneMaterialError,
 };
 
 #[path = "../../../../value_aggregate_shared/tests/support/mod.rs"]
 mod aggregate_support;
 
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
-
-fn lower_hex(seed: u8) -> String {
-    hex::encode([seed; 32])
-}
 
 fn args(mode: &str, child_count: usize) -> Vec<String> {
     let receipt_flag = if mode == "prove" {
@@ -32,10 +29,6 @@ fn args(mode: &str, child_count: usize) -> Vec<String> {
         mode.to_owned(),
         receipt_flag.to_owned(),
         "aggregate.receipt.json".to_owned(),
-        "--expected-proof-profile-id".to_owned(),
-        lower_hex(91),
-        "--expected-program-manifest-root".to_owned(),
-        lower_hex(92),
     ];
     for index in 0..child_count {
         args.push("--child".to_owned());
@@ -55,10 +48,9 @@ fn isolated_directory(label: &str) -> PathBuf {
 }
 
 #[test]
-fn strict_cli_binds_mode_identity_level_and_one_to_eight_children() {
+fn strict_cli_accepts_only_mode_output_and_one_to_eight_children() {
     let prove = parse_options(args("prove", 1)).expect("prove options");
     assert_eq!(prove.mode, Mode::Prove);
-    assert_eq!(prove.expected_identity.aggregate_level().get(), 1);
     assert_eq!(prove.child_paths.len(), 1);
 
     let verify = parse_options(args("verify-existing", 8)).expect("verify options");
@@ -67,12 +59,15 @@ fn strict_cli_binds_mode_identity_level_and_one_to_eight_children() {
 
     assert!(parse_options(args("prove", 0)).is_err());
     assert!(parse_options(args("prove", 9)).is_err());
-    let mut uppercase = args("prove", 1);
-    uppercase[4] = "AA".repeat(32);
-    assert!(parse_options(uppercase).is_err());
     let mut unknown = args("prove", 1);
     unknown[3] = "--profile".to_owned();
     assert!(parse_options(unknown).is_err());
+    let mut caller_identity = args("prove", 1);
+    caller_identity.splice(
+        3..3,
+        ["--expected-proof-profile-id".to_owned(), "00".repeat(32)],
+    );
+    assert!(parse_options(caller_identity).is_err());
 }
 
 #[test]
@@ -210,6 +205,10 @@ fn method_validation_and_receipt_file_shell_fail_closed() {
     assert_eq!(
         validate_method("placeholder", &[], [0; 8]),
         Err("placeholder method is a placeholder".to_owned())
+    );
+    assert_eq!(
+        validate_governed_method("governed", &[1], [1; 8], [2; 8]),
+        Err("governed generated image ID differs from governed policy".to_owned())
     );
 
     let directory = isolated_directory("files");

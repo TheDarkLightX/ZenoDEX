@@ -1,12 +1,15 @@
 use std::path::PathBuf;
 
 use risc0_zkvm::{compute_image_id, default_prover, Digest, ExecutorEnv, InnerReceipt, ProverOpts};
-use zenodex_zrpf_protocol_v3::ProposedValueAggregateV5;
+use zenodex_zrpf_protocol_v3::{NodeLevelV3, ProposedValueAggregateV5};
 use zenodex_zrpf_risc0_methods::{
     ZENODEX_ZRPF_RISC0_SPOT_VALUE_LEAF_V4_ELF, ZENODEX_ZRPF_RISC0_SPOT_VALUE_LEAF_V4_ID,
     ZENODEX_ZRPF_RISC0_VALUE_AGGREGATE_L1_ELF, ZENODEX_ZRPF_RISC0_VALUE_AGGREGATE_L1_ID,
 };
 use zenodex_zrpf_risc0_shared::program_id_from_risc0_words_v3;
+use zenodex_zrpf_risc0_value_aggregate_l2_policy::{
+    pinned_value_aggregate_level_one_identity_v5, PINNED_VALUE_AGGREGATE_L1_IMAGE_ID_V5,
+};
 use zenodex_zrpf_risc0_value_aggregate_shared::{
     encode_value_aggregate_guest_input_v5, recompose_expected_value_aggregate_level_one_v5,
     GovernedValueChildIdentityV5, ValueAggregateGuestInputErrorV5, ValueAggregateGuestInputV5,
@@ -18,7 +21,7 @@ use zenodex_zrpf_risc0_value_node_shared::{
 };
 use zenodex_zrpf_risc0_verifier::{
     historical_spot_value_leaf_v4::AuthenticatedSpotValueLeafReceiptV4,
-    VerifiedValueAggregateReceiptV5,
+    ExpectedValueAggregateReceiptIdentityV5, VerifiedValueAggregateReceiptV5,
 };
 
 #[path = "prove_value_aggregate_l1_v5/artifact_io.rs"]
@@ -92,7 +95,7 @@ fn prove_and_persist(
     children: Vec<AuthenticatedSpotValueLeafReceiptV4>,
     material: LevelOneMaterial,
 ) -> Result<(), String> {
-    let verified = prove_and_verify(&children, &material, options.expected_identity)?;
+    let verified = prove_and_verify(&children, &material)?;
     let receipt_bytes = canonical_receipt_bytes(verified.receipt())?;
     persist_new_receipt(&options.receipt_path, &receipt_bytes)?;
     report::write_report(
@@ -114,8 +117,8 @@ fn verify_existing(
     let receipt_bytes = read_bounded_receipt_file(&options.receipt_path)?;
     let verified = VerifiedValueAggregateReceiptV5::verify_exact_succinct_bytes(
         &receipt_bytes,
-        ZENODEX_ZRPF_RISC0_VALUE_AGGREGATE_L1_ID,
-        options.expected_identity,
+        PINNED_VALUE_AGGREGATE_L1_IMAGE_ID_V5,
+        expected_level_one_receipt_identity()?,
         &material.expected_proposal,
     )
     .map_err(|error| format!("sealed V5 aggregate verification failed: {error}"))?;
@@ -194,7 +197,6 @@ fn recompose_exact_level_one(
 fn prove_and_verify(
     children: &[AuthenticatedSpotValueLeafReceiptV4],
     material: &LevelOneMaterial,
-    expected_identity: zenodex_zrpf_risc0_verifier::ExpectedValueAggregateReceiptIdentityV5,
 ) -> Result<VerifiedValueAggregateReceiptV5, String> {
     let input_length = u32::try_from(material.guest_input_bytes.len())
         .map_err(|_| "V5 guest input length exceeds u32".to_owned())?;
@@ -222,8 +224,8 @@ fn prove_and_verify(
     let receipt_bytes = canonical_receipt_bytes(&receipt)?;
     VerifiedValueAggregateReceiptV5::verify_exact_succinct_bytes(
         &receipt_bytes,
-        ZENODEX_ZRPF_RISC0_VALUE_AGGREGATE_L1_ID,
-        expected_identity,
+        PINNED_VALUE_AGGREGATE_L1_IMAGE_ID_V5,
+        expected_level_one_receipt_identity()?,
         &material.expected_proposal,
     )
     .map_err(|error| format!("sealed V5 aggregate verification failed: {error}"))
@@ -235,15 +237,28 @@ fn validate_methods() -> Result<(), String> {
         ZENODEX_ZRPF_RISC0_SPOT_VALUE_LEAF_V4_ELF,
         ZENODEX_ZRPF_RISC0_SPOT_VALUE_LEAF_V4_ID,
     )?;
-    validate_method(
+    validate_governed_method(
         "value aggregate L1 V5",
         ZENODEX_ZRPF_RISC0_VALUE_AGGREGATE_L1_ELF,
         ZENODEX_ZRPF_RISC0_VALUE_AGGREGATE_L1_ID,
+        PINNED_VALUE_AGGREGATE_L1_IMAGE_ID_V5,
     )?;
     if ZENODEX_ZRPF_RISC0_SPOT_VALUE_LEAF_V4_ID == ZENODEX_ZRPF_RISC0_VALUE_AGGREGATE_L1_ID {
         return Err("child and parent image IDs must differ".to_owned());
     }
     Ok(())
+}
+
+fn expected_level_one_receipt_identity() -> Result<ExpectedValueAggregateReceiptIdentityV5, String>
+{
+    let identity = pinned_value_aggregate_level_one_identity_v5()
+        .map_err(|error| format!("derive governed L1 identity: {error}"))?;
+    ExpectedValueAggregateReceiptIdentityV5::new(
+        NodeLevelV3::new(1).map_err(|error| format!("derive L1 level: {error}"))?,
+        identity.expected_profile_id(),
+        identity.expected_manifest_root(),
+    )
+    .map_err(|error| format!("construct governed L1 receipt identity: {error}"))
 }
 
 fn validate_method(name: &str, elf: &[u8], image_id: [u32; 8]) -> Result<(), String> {
@@ -256,6 +271,20 @@ fn validate_method(name: &str, elf: &[u8], image_id: [u32; 8]) -> Result<(), Str
         return Err(format!("{name} image ID mismatch"));
     }
     Ok(())
+}
+
+fn validate_governed_method(
+    name: &str,
+    elf: &[u8],
+    generated_image_id: [u32; 8],
+    governed_image_id: [u32; 8],
+) -> Result<(), String> {
+    if generated_image_id != governed_image_id {
+        return Err(format!(
+            "{name} generated image ID differs from governed policy"
+        ));
+    }
+    validate_method(name, elf, generated_image_id)
 }
 
 #[cfg(test)]
