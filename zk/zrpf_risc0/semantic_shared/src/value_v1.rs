@@ -43,7 +43,7 @@ const ORDERED_TRANSACTION_ROOTS_DOMAIN_V1: &[u8] =
 const VALUE_SUBTREE_ROOT_DOMAIN_V2: &[u8] = b"zenodex.zrpf.spot_value_subtree_root.v2";
 
 mod error;
-pub use self::error::SpotSemanticValueErrorV1;
+pub use self::error::{ExpectedSpotSemanticValueFieldV1, SpotSemanticValueErrorV1};
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// One proposed, scope-bound Spot faucet-mint allowance for a closed value root.
 pub struct SpotMintAuthorityGrantV1 {
@@ -267,6 +267,30 @@ impl SpotSemanticValueCommitmentsV1 {
         self.base_semantic_epoch_root
     }
 
+    pub const fn value_profile_id(&self) -> CommitmentV3 {
+        self.value_profile_id
+    }
+
+    pub const fn accounting_domain_id(&self) -> CommitmentV3 {
+        self.accounting_domain_id
+    }
+
+    pub const fn atoms_unit_id(&self) -> CommitmentV3 {
+        self.atoms_unit_id
+    }
+
+    pub const fn state_root_scheme_id(&self) -> CommitmentV3 {
+        self.state_root_scheme_id
+    }
+
+    pub const fn ordered_transaction_roots_root(&self) -> CommitmentV3 {
+        self.ordered_transaction_roots_root
+    }
+
+    pub const fn state_chain_root(&self) -> CommitmentV3 {
+        self.state_chain_root
+    }
+
     pub const fn authority_grants_root(&self) -> CommitmentV3 {
         self.authority_grants_root
     }
@@ -304,6 +328,7 @@ impl SpotSemanticValueCommitmentsV1 {
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// Pure closed-root projection with no receipt, admission, or settlement authority.
 pub struct SpotSemanticValueProjectionV1 {
+    scope_hash: CommitmentV3,
     lane_id_hash: CommitmentV3,
     raw_epoch_pre_state_root: [u8; 32],
     raw_epoch_post_state_root: [u8; 32],
@@ -317,6 +342,10 @@ pub struct SpotSemanticValueProjectionV1 {
 }
 
 impl SpotSemanticValueProjectionV1 {
+    pub const fn scope_hash(&self) -> CommitmentV3 {
+        self.scope_hash
+    }
+
     pub const fn lane_id_hash(&self) -> CommitmentV3 {
         self.lane_id_hash
     }
@@ -477,6 +506,8 @@ pub use self::compose::{
     close_spot_represented_value_epoch_v1, compose_spot_represented_value_v1,
     merge_spot_value_subtrees_v2, propose_spot_value_subtree_v2,
 };
+mod expected;
+pub use self::expected::*;
 mod hash;
 mod validate;
 use self::hash::{

@@ -3,6 +3,48 @@ use core::fmt;
 use super::hash::canonical_asset_name;
 use super::{SemanticEpochErrorV1, ZrpfErrorV3};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Exhaustive field identity for expected-statement shape and match failures.
+pub enum ExpectedSpotSemanticValueFieldV1 {
+    ScopeHash,
+    LaneIdHash,
+    ValueProfileId,
+    AccountingDomainId,
+    AtomsUnitId,
+    StateRootSchemeId,
+    OrderedTransactionRootsRoot,
+    StateChainRoot,
+    RawPreStateRoot,
+    RawPostStateRoot,
+    LeafCount,
+    RepresentedRowCount,
+    AuthorityGrantsRoot,
+    BaseSemanticEpochRoot,
+    SemanticValueRoot,
+}
+
+impl fmt::Display for ExpectedSpotSemanticValueFieldV1 {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::ScopeHash => "scope_hash",
+            Self::LaneIdHash => "lane_id_hash",
+            Self::ValueProfileId => "value_profile_id",
+            Self::AccountingDomainId => "accounting_domain_id",
+            Self::AtomsUnitId => "atoms_unit_id",
+            Self::StateRootSchemeId => "state_root_scheme_id",
+            Self::OrderedTransactionRootsRoot => "ordered_transaction_roots_root",
+            Self::StateChainRoot => "state_chain_root",
+            Self::RawPreStateRoot => "raw_pre_state_root",
+            Self::RawPostStateRoot => "raw_post_state_root",
+            Self::LeafCount => "leaf_count",
+            Self::RepresentedRowCount => "represented_row_count",
+            Self::AuthorityGrantsRoot => "authority_grants_root",
+            Self::BaseSemanticEpochRoot => "base_semantic_epoch_root",
+            Self::SemanticValueRoot => "semantic_value_root",
+        })
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// Stable fail-closed errors for the pure Spot represented-value reference kernel.
 pub enum SpotSemanticValueErrorV1 {
@@ -17,6 +59,9 @@ pub enum SpotSemanticValueErrorV1 {
     PublicPolicyMismatch,
     AuthorityGrantPolicyMismatch,
     ClosedScopeMismatch,
+    ExpectedProfileMismatch(ExpectedSpotSemanticValueFieldV1),
+    ExpectedStatementShape(ExpectedSpotSemanticValueFieldV1),
+    ExpectedProjectionMismatch(ExpectedSpotSemanticValueFieldV1),
     InvalidPublicPolicyHash,
     InvalidLaneId,
     MixedLaneId {
@@ -140,6 +185,21 @@ impl fmt::Display for SpotSemanticValueErrorV1 {
             }
             Self::ClosedScopeMismatch => {
                 formatter.write_str("spot value closed-root scope differs from its subtree")
+            }
+            Self::ExpectedProfileMismatch(field) => {
+                write!(
+                    formatter,
+                    "spot expected statement profile mismatch: {field}"
+                )
+            }
+            Self::ExpectedStatementShape(field) => {
+                write!(formatter, "spot expected statement shape invalid: {field}")
+            }
+            Self::ExpectedProjectionMismatch(field) => {
+                write!(
+                    formatter,
+                    "spot projection differs from expected statement: {field}"
+                )
             }
             Self::InvalidPublicPolicyHash => {
                 formatter.write_str("spot value public policy hash is zero")

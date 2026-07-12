@@ -1,6 +1,7 @@
 # ZRPF Spot Represented Value V1 Specification
 
-Status: implemented pure reference kernel, no value receipt evidence
+Status: implemented pure reference kernel and expected-statement matching, no
+value receipt evidence
 Date: 2026-07-11
 
 ## Purpose
@@ -32,12 +33,20 @@ propose_spot_value_subtree_v2
 merge_spot_value_subtrees_v2
 close_spot_represented_value_epoch_v1
 compose_spot_represented_value_v1
+ExpectedSpotSemanticValueV1::new
+match_expected_spot_semantic_value_v1
 ```
 
 `SpotValueSubtreeSummaryV2` is a sealed in-memory reference type. It carries
 the bounded flattened witness needed to recompute a canonical summary during
 merge. It is not a serialized journal ABI, authenticated receipt, or
 ledger-admissible object.
+
+`ExpectedSpotSemanticValueV1` is a shape-checked pure expected statement.
+`match_expected_spot_semantic_value_v1` exact-compares a value projection and
+returns a distinct sealed `ExpectedSpotSemanticValueMatchV1`. The constructor
+does not authenticate who supplied the expected statement. Governance or
+ledger provenance remains a receipt/admission-layer obligation.
 
 ## Bounds
 
@@ -80,14 +89,21 @@ governed expected adapter identity
   -> validate proposed mint grants and accumulate checked totals
   -> compose partial residual summaries
   -> enforce closure only at the governed complete root
-  -> exact-compare the ledger-owned expected statement
+  -> exact-compare the authenticated governance or ledger expected statement
   -> commit exact canonical output bytes
 ```
 
 The current kernel begins after `ProposedSemanticLeafV1` values exist. Focused
 tests cross the real Spot transition derivation for faucet and native-sync rows,
 then use the existing V1 adapter projection. They do not authenticate RISC0
-receipts.
+receipts. The pure layer implements the exact comparison and sealed match type;
+it does not authenticate the expected statement's provenance.
+
+An expected statement supplied to a guest by an ordinary host input is
+prover-controlled unless the guest verifies separate authenticated provenance.
+Otherwise, the guest must commit the exact expected-statement hash and the
+outer verifier must independently derive and compare the governance or
+ledger-owned expectation after verifying the root receipt.
 
 ## State law
 
@@ -272,6 +288,8 @@ state_root_scheme_id
   b01a20d7e5d1024289330875c2c6521632a57b82295ae7aa2eb3792c8bb7314a
 value_profile_id
   20f73c0589af1ff8e8519c4cf522cb423a06589b19173b6deccfe7c386129c6d
+expected_statement_hash
+  2db123542625f35539a98a811091e4aa2140bdcc132f29f1fc48d8c185ea6bca
 ```
 
 The same test pins a two-leaf subtree root, semantic value root, and proposal
@@ -280,25 +298,43 @@ updating vectors.
 
 ## Outer expected statement
 
-A future sealed verifier receives a governance or ledger-owned expected type
-and exact-compares at least:
+The pure reference layer implements a shape-checked expected type that
+exact-compares:
 
 ```text
 expected_scope
 expected_lane_id_hash
+expected_value_profile_id
+expected_accounting_domain_id
+expected_atoms_unit_id
 expected_state_root_scheme_id
-expected_ordered_transaction_roots_root or schedule_root
+expected_ordered_transaction_roots_root
+expected_state_chain_root
 expected_raw_pre_state_root
 expected_raw_post_state_root
+expected_leaf_count
+expected_represented_row_count
 expected_authority_grants_root
 expected_base_semantic_epoch_root
 expected_semantic_value_root
 ```
 
-The expected adapter program identity and receipt security profile come from
-governed constants or a separately authenticated manifest. A journal cannot
-select its own expected verifier identity. Caller-selected matching values have
-no ledger authority.
+Exact agreement returns `ExpectedSpotSemanticValueMatchV1`. Its fields are
+private, it has no conversion from the raw projection, and a compile-fail
+doctest guards that boundary. Shape and comparison rejects identify fields
+through the exhaustive `ExpectedSpotSemanticValueFieldV1` enum. A
+caller-selected expected value can still match its own proposal, so the match
+carries no receipt, governance, or ledger authority by itself.
+
+The future receipt-bearing verifier must receive the expected statement from
+governed constants, authenticated ledger state, or a separately authenticated
+manifest. The expected adapter program identity and receipt security profile
+also come from that governed boundary. A journal cannot select its own expected
+verifier identity.
+
+The expected statement intentionally omits the topology-sensitive
+`proposal_hash`. The structural receipt and journal path must bind proof
+topology separately. This omission does not establish schedule validity.
 
 ## Self-similar recursion
 
@@ -363,7 +399,11 @@ Focused Rust tests cover:
   the durable-admission blocker;
 - real Spot faucet and native-sync transition derivation through the adapter;
 - malformed real Spot faucet rejection;
-- an independently mirrored profile hash and fixed root vectors.
+- an independently mirrored profile hash and fixed root vectors;
+- independent expected-statement hash recomposition;
+- hash change and match rejection for every dynamic expected field;
+- profile relabeling rejection before matching;
+- bounded counts, nonzero endpoints, and single-epoch expected scope.
 
 ## Explicit non-claims
 
@@ -373,8 +413,10 @@ This tranche does not establish:
 - receipt-authenticated origin for the pure proposal inputs;
 - a canonical serialized V4 value journal;
 - independently mergeable serialized child summaries;
-- a ledger-owned expected statement or canonical schedule;
-- individual transaction IDs, nonce-root continuity, or transaction exact-once replay protection;
+- authenticated governance or ledger provenance for the expected statement;
+- a canonical schedule;
+- individual transaction IDs, nonce-root continuity, or transaction exact-once
+  replay protection;
 - an epoch-global mint cap or one-root-per-epoch admission;
 - complete internal Spot balance, custody, or token-supply coverage;
 - arbitrary legacy Spot asset-name coverage;
@@ -389,10 +431,13 @@ All corresponding claim flags remain false.
 ## Next executable step
 
 Define the exact bounded `SemanticSubtreeV2` and `NodeJournalV4` codecs from the
-reference algebra. Add a sealed expected-statement type that pins lane, ordered
-transactions or schedule, endpoints, grants, scheme, base root, and value root.
-Then implement a guest that reaches this kernel only after governed child
-receipt verification and exact V4 journal recomposition.
+reference algebra. Then implement a guest that reaches this kernel only after
+governed child receipt verification and exact V4 journal recomposition, and
+that commits the expected-statement hash. Add a separate host boundary that
+independently derives the governed expectation, verifies the root receipt,
+exact-compares the authenticated journal, and returns a new sealed
+post-receipt match type. Current pure projections, caller-proposed
+expectations, and `ExpectedSpotSemanticValueMatchV1` remain inadmissible.
 
 Fresh Spot source, adapter, semantic-node, and value-root Succinct receipts are
 required after those boundaries pass adversarial review. Existing retained
