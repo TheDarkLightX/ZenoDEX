@@ -104,8 +104,24 @@ impl SemanticValueLeafRecordV2 {
         self.task_id
     }
 
+    pub const fn pre_state_vector_root(&self) -> CommitmentV3 {
+        self.pre_state_vector_root
+    }
+
+    pub const fn post_state_vector_root(&self) -> CommitmentV3 {
+        self.post_state_vector_root
+    }
+
     pub const fn transaction_root(&self) -> CommitmentV3 {
         self.transaction_root
+    }
+
+    pub const fn effect_root(&self) -> CommitmentV3 {
+        self.effect_root
+    }
+
+    pub const fn asset_delta_root(&self) -> CommitmentV3 {
+        self.asset_delta_root
     }
 
     pub const fn raw_pre_state_root(&self) -> CommitmentV3 {

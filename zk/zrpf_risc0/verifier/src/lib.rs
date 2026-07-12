@@ -13,8 +13,13 @@ use zenodex_zrpf_risc0_shared::{
 };
 
 mod semantic_epoch_v1;
+mod spot_value_leaf_v4;
 
 pub use semantic_epoch_v1::{VerifiedSemanticEpochReceiptErrorV1, VerifiedSemanticEpochReceiptV1};
+pub use spot_value_leaf_v4::{
+    AuthenticatedSpotValueLeafReceiptV4, ExactSpotValueLeafReceiptV4, SpotValueLeafIdentityFieldV4,
+    VerifiedSpotValueLeafReceiptErrorV4,
+};
 
 pub const ZRPF_RISC0_SUCCINCT_RECEIPT_PROFILE_ID_V1: &str =
     "risc0_succinct_poseidon2_resolve_3_0_5_v1";

@@ -17,6 +17,8 @@ pub const PINNED_V1_ADAPTER_IMAGE_ID_A: [u32; 8] = [
 ];
 
 pub const RISC0_SUCCINCT_RECEIPT_PROFILE_ID_V1: &str = "risc0_succinct_poseidon2_resolve_3_0_5_v1";
+pub const RISC0_SUCCINCT_RECEIPT_KIND_V1: &str = "succinct";
+pub const RISC0_RECEIPT_HASHFN_POSEIDON2_V1: &str = "poseidon2";
 pub const RISC0_VERIFIER_PARAMETERS_DIGEST_V1: [u8; 32] = [
     0xec, 0xe5, 0xe9, 0xb8, 0xae, 0x2c, 0xd6, 0xea, 0x6b, 0x18, 0x27, 0xb4, 0x64, 0xff, 0x03, 0x48,
     0xf9, 0xa7, 0xf4, 0xde, 0xcd, 0x26, 0x9c, 0x00, 0x87, 0xfd, 0xfd, 0x75, 0x09, 0x8d, 0xa0, 0x13,
@@ -50,9 +52,9 @@ pub fn risc0_succinct_receipt_security_profile_id_v4(
         RECEIPT_SECURITY_DOMAIN_V4,
         &[
             RISC0_SUCCINCT_RECEIPT_PROFILE_ID_V1.as_bytes(),
-            b"succinct",
+            RISC0_SUCCINCT_RECEIPT_KIND_V1.as_bytes(),
             &RISC0_VERIFIER_PARAMETERS_DIGEST_V1,
-            b"poseidon2",
+            RISC0_RECEIPT_HASHFN_POSEIDON2_V1.as_bytes(),
             &RISC0_RESOLVE_CONTROL_ID_V1,
         ],
     )
