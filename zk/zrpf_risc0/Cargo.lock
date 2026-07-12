@@ -3514,6 +3514,7 @@ dependencies = [
  "zenodex-zrpf-risc0-methods",
  "zenodex-zrpf-risc0-semantic-shared",
  "zenodex-zrpf-risc0-shared",
+ "zenodex-zrpf-risc0-value-aggregate-shared",
  "zenodex-zrpf-risc0-value-node-shared",
  "zenodex-zrpf-risc0-verifier",
 ]
@@ -3666,6 +3667,7 @@ dependencies = [
  "postcard",
  "risc0-zkvm",
  "serde_json",
+ "sha2",
  "tau-state-proof-risc0-shared",
  "zenodex-zrpf-protocol-v3",
  "zenodex-zrpf-risc0-semantic-shared",
