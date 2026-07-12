@@ -17,6 +17,7 @@ def test_committed_build_record_is_strictly_accepted() -> None:
         "ok": True,
         "schema": "zenodex/zrpf_value_aggregate_v5_program_build_check/v1",
         "record_sha256": checker.EXPECTED_RECORD_SHA256,
+        "spot_value_leaf_v4_image_id": checker.EXPECTED_SPOT_IMAGE,
         "level_one_image_id": checker.EXPECTED_L1_IMAGE,
         "level_two_image_id": checker.EXPECTED_L2_IMAGE,
         "artifact_bytes_rechecked": False,
@@ -62,6 +63,18 @@ def test_loader_rejects_equivalent_noncanonical_bytes(tmp_path: Path) -> None:
                 "pinned_level_one_image_id", "00" * 32
             ),
             "L2 pinned L1 image mismatch",
+        ),
+        (
+            lambda value: value["spot_value_leaf_v4"].__setitem__(
+                "image_id_hex", "00" * 32
+            ),
+            "Spot V4 image ID mismatch",
+        ),
+        (
+            lambda value: value["toolchain"].__setitem__(
+                "cargo_lock_sha256", "00" * 32
+            ),
+            "Cargo.lock digest mismatch",
         ),
         (
             lambda value: value["level_one"].__setitem__("unreviewed", True),
