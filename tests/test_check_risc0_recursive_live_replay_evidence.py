@@ -237,3 +237,51 @@ def test_descriptor_close_failure_returns_rejected_report(
     assert report["ok"] is False
     assert report["status"] == "rejected"
     assert report["error_codes"] == ["EVIDENCE_READ"]
+
+
+def test_read_failure_remains_primary_when_descriptor_cleanup_also_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_close = checker.rebuild.os.close
+
+    def fail_read(_descriptor: int, _size: int) -> bytes:
+        raise OSError("injected read failure")
+
+    def close_then_fail(descriptor: int) -> None:
+        real_close(descriptor)
+        raise OSError("injected close failure")
+
+    monkeypatch.setattr(checker.rebuild.os, "read", fail_read)
+    monkeypatch.setattr(checker.rebuild.os, "close", close_then_fail)
+
+    report = checker.check_retained_evidence()
+
+    assert report["ok"] is False
+    assert report["status"] == "rejected"
+    assert report["error_codes"] == ["EVIDENCE_READ"]
+    assert "FILE_OPEN_FAILED" in report["errors"][0]
+    assert "cleanup_failure=FILE_CLOSE_FAILED" in report["errors"][0]
+
+
+def test_close_failure_inside_outer_handler_still_rejects_retained_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_close = checker.rebuild.os.close
+
+    def close_then_fail(descriptor: int) -> None:
+        real_close(descriptor)
+        raise OSError("injected close failure")
+
+    monkeypatch.setattr(checker.rebuild.os, "close", close_then_fail)
+    outer_error = RuntimeError("unrelated outer failure")
+
+    try:
+        raise outer_error
+    except RuntimeError:
+        report = checker.check_retained_evidence()
+
+    assert report["ok"] is False
+    assert report["status"] == "rejected"
+    assert report["error_codes"] == ["EVIDENCE_READ"]
+    assert "FILE_CLOSE_FAILED" in report["errors"][0]
+    assert getattr(outer_error, "__notes__", []) == []

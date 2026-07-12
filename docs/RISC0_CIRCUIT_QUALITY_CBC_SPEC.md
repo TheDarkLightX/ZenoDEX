@@ -110,7 +110,7 @@ limits before execution. It reproduced the accepted transcript with
 `true`, `yes`, and `on`; and it reproduced the exact cryptographic-invalid
 response for the one-bit seal mutation. The retained report has canonical
 SHA-256
-`fb80128ed7f260b0cc0fe878a7d7275258db994e5ca7a12c1a2fa25ef4ffa7c7`
+`7b33cea014263fe0841fc291d9ce8097fcfa3a85cc7d1f18b832a52380df43c6`
 and binds the exact checker-source closure and numeric runtime limits.
 
 The required workflow validates this retained record, its source closure, and

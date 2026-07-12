@@ -871,3 +871,59 @@ def test_regular_path_converts_descriptor_close_failure(
         )
 
     assert rejected.value.code == "FILE_CLOSE_FAILED"
+
+
+def test_regular_path_preserves_read_failure_when_cleanup_also_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence = _write(tmp_path / "evidence.json", b"{}")
+    real_close = checker.os.close
+
+    def fail_read(_descriptor: int, _size: int) -> bytes:
+        raise OSError("injected read failure")
+
+    def close_then_fail(descriptor: int) -> None:
+        real_close(descriptor)
+        raise OSError("injected close failure")
+
+    monkeypatch.setattr(checker.os, "read", fail_read)
+    monkeypatch.setattr(checker.os, "close", close_then_fail)
+
+    with pytest.raises(checker.EvidenceError) as rejected:
+        checker._read_regular_path(
+            evidence,
+            label="evidence",
+            max_bytes=2,
+        )
+
+    assert rejected.value.code == "FILE_OPEN_FAILED"
+    assert "cleanup_failure=FILE_CLOSE_FAILED" in str(rejected.value)
+
+
+def test_regular_path_does_not_suppress_close_failure_inside_outer_handler(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence = _write(tmp_path / "evidence.json", b"{}")
+    real_close = checker.os.close
+
+    def close_then_fail(descriptor: int) -> None:
+        real_close(descriptor)
+        raise OSError("injected close failure")
+
+    monkeypatch.setattr(checker.os, "close", close_then_fail)
+    outer_error = RuntimeError("unrelated outer failure")
+
+    try:
+        raise outer_error
+    except RuntimeError:
+        with pytest.raises(checker.EvidenceError) as rejected:
+            checker._read_regular_path(
+                evidence,
+                label="evidence",
+                max_bytes=2,
+            )
+
+    assert rejected.value.code == "FILE_CLOSE_FAILED"
+    assert getattr(outer_error, "__notes__", []) == []

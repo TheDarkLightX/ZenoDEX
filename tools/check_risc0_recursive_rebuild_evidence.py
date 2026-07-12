@@ -242,6 +242,18 @@ def _close_descriptors(
         raise _reject("FILE_CLOSE_FAILED", label) from first_error
 
 
+def _record_cleanup_failure(
+    primary_error: BaseException,
+    cleanup_error: EvidenceError,
+) -> None:
+    detail = f"cleanup_failure={cleanup_error.code}: {cleanup_error.detail}"
+    if isinstance(primary_error, EvidenceError):
+        primary_error.detail = f"{primary_error.detail}; {detail}"
+        primary_error.args = (f"{primary_error.code}: {primary_error.detail}",)
+        return
+    primary_error.add_note(detail)
+
+
 def _canonical_directory(path: Path, *, label: str) -> Path:
     absolute = _absolute_path(path, code="DIRECTORY_INVALID", label=label)
     try:
@@ -304,6 +316,7 @@ def _read_regular_under_root(
     file_flags = os.O_RDONLY | _required_flag("O_NOFOLLOW") | getattr(os, "O_CLOEXEC", 0)
     directory_descriptors: list[int] = []
     file_descriptor: int | None = None
+    primary_error: BaseException | None = None
     try:
         directory_descriptors.append(os.open(root, directory_flags))
         current_descriptor = directory_descriptors[0]
@@ -357,18 +370,29 @@ def _read_regular_under_root(
             sha256=digest.hexdigest(),
             size_bytes=total,
         )
-    except EvidenceError:
+    except EvidenceError as exc:
+        primary_error = exc
         raise
     except FileNotFoundError as exc:
-        raise _reject("FILE_MISSING", label) from exc
+        primary_error = _reject("FILE_MISSING", label)
+        raise primary_error from exc
     except OSError as exc:
-        raise _reject("FILE_OPEN_FAILED", label) from exc
+        primary_error = _reject("FILE_OPEN_FAILED", label)
+        raise primary_error from exc
+    except BaseException as exc:
+        primary_error = exc
+        raise
     finally:
-        _close_descriptors(
-            file_descriptor,
-            directory_descriptors,
-            label=label,
-        )
+        try:
+            _close_descriptors(
+                file_descriptor,
+                directory_descriptors,
+                label=label,
+            )
+        except EvidenceError as cleanup_error:
+            if primary_error is None:
+                raise
+            _record_cleanup_failure(primary_error, cleanup_error)
 
 
 def _read_regular_path(path: Path, *, label: str, max_bytes: int) -> FileDigest:
