@@ -17,7 +17,6 @@ mod error;
 mod guest_input;
 mod input;
 mod level_one;
-mod level_one_identity;
 mod level_two;
 mod policy;
 
@@ -31,10 +30,6 @@ pub use input::{ValueAggregateLevelOneInputV5, ValueAggregateLevelTwoInputV5};
 pub use level_one::{
     compose_value_aggregate_level_one_after_receipt_verification_v5,
     recompose_expected_value_aggregate_level_one_v5,
-};
-pub use level_one_identity::{
-    provisional_value_aggregate_level_one_identity_v5, value_aggregate_level_one_manifest_root_v5,
-    value_aggregate_level_one_profile_id_v5, PROVISIONAL_VALUE_AGGREGATE_L1_IMAGE_ID_V5,
 };
 pub use level_two::{
     compose_value_aggregate_level_two_after_receipt_verification_v5,

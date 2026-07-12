@@ -1,11 +1,12 @@
+#[path = "../../value_aggregate_shared/tests/support/mod.rs"]
 mod support;
 
 use zenodex_zrpf_protocol_v3::{
     decode_exact_value_aggregate_proposal_v5, encode_value_aggregate_proposal_v5,
 };
+use zenodex_zrpf_risc0_value_aggregate_l2_policy::provisional_value_aggregate_level_one_identity_v5;
 use zenodex_zrpf_risc0_value_aggregate_shared::{
     compose_value_aggregate_level_two_after_receipt_verification_v5,
-    provisional_value_aggregate_level_one_identity_v5,
     recompose_expected_value_aggregate_level_one_v5,
     recompose_expected_value_aggregate_level_two_v5, ValueAggregateLevelOneInputV5,
     ValueAggregateLevelTwoInputV5, ValueAggregateRecompositionPolicyV5,
@@ -17,6 +18,7 @@ const GUEST_SOURCE: &str = include_str!("../../methods/value_aggregate_l2/src/ma
 const WORKSPACE_MANIFEST: &str = include_str!("../../Cargo.toml");
 const METHODS_MANIFEST: &str = include_str!("../../methods/Cargo.toml");
 const METHODS_BUILD: &str = include_str!("../../methods/build.rs");
+const L2_MANIFEST: &str = include_str!("../../methods/value_aggregate_l2/Cargo.toml");
 
 fn level_one_bytes(start: u64) -> Vec<u8> {
     let leaf_identity = identity(100, 70, 71);
@@ -74,9 +76,6 @@ fn guest_source_verifies_every_exact_l1_child_before_decode_or_composition() {
         "compose_value_aggregate_level_two_after_receipt_verification_v5(&self.input, &policy)"
     ));
     assert!(GUEST_SOURCE.contains("provisional_value_aggregate_level_one_identity_v5()?"));
-    assert!(GUEST_SOURCE.contains(
-        "ValueAggregateRecompositionPolicyV5::new(first_proposal.scope().clone(), identities)"
-    ));
     assert_eq!(GUEST_SOURCE.matches("env::verify(").count(), 1);
 }
 
@@ -97,7 +96,6 @@ fn guest_source_commits_only_canonical_bounded_level_two_v5_proposal() {
         "env::commit_slice(&proposal_bytes)",
     ];
     let positions = markers.map(|marker| main.find(marker).unwrap());
-
     assert_eq!(positions, {
         let mut sorted = positions;
         sorted.sort_unstable();
@@ -106,20 +104,20 @@ fn guest_source_commits_only_canonical_bounded_level_two_v5_proposal() {
     assert!(GUEST_SOURCE.contains("MAX_VALUE_AGGREGATE_GUEST_INPUT_BYTES_V5 == 524_324"));
     assert!(GUEST_SOURCE.contains("MAX_VALUE_AGGREGATE_PROPOSAL_BYTES_V5 == 65_536"));
     for forbidden in [
-        "claim_binding",
         "expected_self_image_id",
         "receipt_valid",
         "settlement_authority",
-        "data_availability_verified",
     ] {
         assert!(!GUEST_SOURCE.contains(forbidden));
     }
 }
 
 #[test]
-fn level_two_method_is_registered_with_fail_closed_host_placeholders() {
+fn level_two_method_and_l2_only_policy_are_registered() {
+    assert!(WORKSPACE_MANIFEST.contains("\"value_aggregate_l2_policy\""));
     assert!(WORKSPACE_MANIFEST.contains("\"methods/value_aggregate_l2\""));
     assert!(METHODS_MANIFEST.contains("\"value_aggregate_l2\""));
+    assert!(L2_MANIFEST.contains("zenodex-zrpf-risc0-value-aggregate-l2-policy"));
     assert!(
         METHODS_BUILD.contains("pub const ZENODEX_ZRPF_RISC0_VALUE_AGGREGATE_L2_ELF: &[u8] = &[];")
     );

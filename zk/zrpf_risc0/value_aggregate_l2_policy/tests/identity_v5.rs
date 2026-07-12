@@ -1,6 +1,6 @@
 use sha2::{Digest, Sha256};
 use zenodex_zrpf_protocol_v3::{CommitmentV3, ProfileIdV3};
-use zenodex_zrpf_risc0_value_aggregate_shared::{
+use zenodex_zrpf_risc0_value_aggregate_l2_policy::{
     provisional_value_aggregate_level_one_identity_v5, value_aggregate_level_one_manifest_root_v5,
     value_aggregate_level_one_profile_id_v5, PROVISIONAL_VALUE_AGGREGATE_L1_IMAGE_ID_V5,
 };
@@ -78,13 +78,12 @@ fn l1_manifest_is_program_specific_and_grants_no_authority_flag() {
     changed_words[0] ^= 1;
     let changed_program =
         zenodex_zrpf_risc0_shared::program_id_from_risc0_words_v3(changed_words).unwrap();
-
     assert_ne!(
         value_aggregate_level_one_manifest_root_v5(changed_program).unwrap(),
         identity.expected_manifest_root()
     );
 
-    let source = include_str!("../src/level_one_identity.rs");
+    let source = include_str!("../src/lib.rs");
     for forbidden in [
         "settlement_authority",
         "data_availability_verified",
