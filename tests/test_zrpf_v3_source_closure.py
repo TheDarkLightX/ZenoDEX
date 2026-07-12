@@ -14,11 +14,16 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def test_current_clean_checkout_matches_exact_source_inventory() -> None:
     document = closure.build_source_closure(REPO_ROOT)
     assert document["schema"] == closure.SCHEMA
-    assert document["file_count"] == 99
+    assert document["file_count"] == 197
+    semantic_v2_roles = {
+        "semantic_mapping_v2",
+        "semantic_protocol_v2",
+        "verification_harness_v2",
+    }
     assert {
         (row["role"], row["path"])
         for row in document["files"]
-        if row["role"].endswith("_v2")
+        if row["role"] in semantic_v2_roles
     } == {
         (
             "semantic_mapping_v2",
@@ -53,11 +58,7 @@ def test_current_clean_checkout_matches_exact_source_inventory() -> None:
             "zk/zrpf_risc0/verifier/src/semantic_epoch_v2.rs",
         ),
     }
-    v4_paths = {
-        row["path"]
-        for row in document["files"]
-        if row["role"].endswith("_v4")
-    }
+    v4_paths = {row["path"] for row in document["files"] if row["role"].endswith("_v4")}
     assert v4_paths == {
         "zk/zrpf_protocol/protocol/src/value_node_v4/bounded.rs",
         "zk/zrpf_protocol/protocol/src/value_node_v4/error.rs",

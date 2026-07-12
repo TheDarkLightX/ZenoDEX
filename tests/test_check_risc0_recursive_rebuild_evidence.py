@@ -344,7 +344,7 @@ def test_committed_reference_is_authenticated_and_claim_limited() -> None:
         checker.EXPECTED_REFERENCE_CANONICAL_SHA256
     )
     assert validated["source_compile"]["root_sha256"] == (
-        "76a267fd6cbd51c8397073af5553d8a5877945dbf3d18cde2ac262c149366d50"
+        "81f5dc170de45306b7427f8379ea23add429f5c6325a06c0bb4fa6c4315f78bf"
     )
     assert [program["program_sha256"] for program in validated["programs"]] == [
         "bbc64916ff42389fce5f4e76fe4b52e4f3eaad70d27813aef7156f372d5ded5e",
@@ -358,8 +358,8 @@ def test_committed_reference_is_authenticated_and_claim_limited() -> None:
         "061f99b459e54a0bef821880f43049bb2120d5ff427439067950141286d533dd"
     )
     assert validated["static_verifier"] == {
-        "sha256": "49d83f7c08256677e9b9aed993a7db59c46875aa96ab08791e0b1d60ad06acd9",
-        "size_bytes": 15_299_456,
+        "sha256": "8836f22431e2ce241eec9e6503f741b92673e2fec054208b0c36dea4f1bcf146",
+        "size_bytes": 15_339_184,
     }
     assert validated["verified_transcript"]["sha256"] == (
         "af2a660f10f3b4eb01811cb4215f01546679618296dcd369e3f6d542bfae5c8a"
@@ -810,3 +810,120 @@ def test_cli_returns_nonzero_and_stable_json_on_drift(
     assert output["error_codes"] == ["ROOT_PROOF_SHA256_MISMATCH"]
     assert output["pinned_rebuild_artifact_match"] is False
     assert output["same_host_clean_rebuild"] is False
+
+
+@pytest.mark.parametrize("raw_path", ["bad\x00path", "bad\ud800path"])
+def test_regular_path_rejects_unencodable_or_nul_path(raw_path: str) -> None:
+    with pytest.raises(checker.EvidenceError) as rejected:
+        checker._read_regular_path(
+            Path(raw_path),
+            label="evidence",
+            max_bytes=1,
+        )
+
+    assert rejected.value.code == "FILE_PATH_INVALID"
+
+
+@pytest.mark.parametrize("raw_path", ["bad\x00directory", "bad\ud800directory"])
+def test_directory_rejects_unencodable_or_nul_path(raw_path: str) -> None:
+    with pytest.raises(checker.EvidenceError) as rejected:
+        checker._canonical_directory(Path(raw_path), label="workspace")
+
+    assert rejected.value.code == "DIRECTORY_INVALID"
+
+
+def test_regular_path_rejects_path_normalization_oserror(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unavailable_working_directory(_path: str) -> str:
+        raise FileNotFoundError("working directory was removed")
+
+    monkeypatch.setattr(checker.os.path, "abspath", unavailable_working_directory)
+
+    with pytest.raises(checker.EvidenceError) as rejected:
+        checker._read_regular_path(
+            Path("relative-evidence.json"),
+            label="evidence",
+            max_bytes=1,
+        )
+
+    assert rejected.value.code == "FILE_PATH_INVALID"
+
+
+def test_regular_path_converts_descriptor_close_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence = _write(tmp_path / "evidence.json", b"{}")
+    real_close = checker.os.close
+
+    def close_then_fail(descriptor: int) -> None:
+        real_close(descriptor)
+        raise OSError("injected close failure")
+
+    monkeypatch.setattr(checker.os, "close", close_then_fail)
+
+    with pytest.raises(checker.EvidenceError) as rejected:
+        checker._read_regular_path(
+            evidence,
+            label="evidence",
+            max_bytes=2,
+        )
+
+    assert rejected.value.code == "FILE_CLOSE_FAILED"
+
+
+def test_regular_path_preserves_read_failure_when_cleanup_also_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence = _write(tmp_path / "evidence.json", b"{}")
+    real_close = checker.os.close
+
+    def fail_read(_descriptor: int, _size: int) -> bytes:
+        raise OSError("injected read failure")
+
+    def close_then_fail(descriptor: int) -> None:
+        real_close(descriptor)
+        raise OSError("injected close failure")
+
+    monkeypatch.setattr(checker.os, "read", fail_read)
+    monkeypatch.setattr(checker.os, "close", close_then_fail)
+
+    with pytest.raises(checker.EvidenceError) as rejected:
+        checker._read_regular_path(
+            evidence,
+            label="evidence",
+            max_bytes=2,
+        )
+
+    assert rejected.value.code == "FILE_OPEN_FAILED"
+    assert "cleanup_failure=FILE_CLOSE_FAILED" in str(rejected.value)
+
+
+def test_regular_path_does_not_suppress_close_failure_inside_outer_handler(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence = _write(tmp_path / "evidence.json", b"{}")
+    real_close = checker.os.close
+
+    def close_then_fail(descriptor: int) -> None:
+        real_close(descriptor)
+        raise OSError("injected close failure")
+
+    monkeypatch.setattr(checker.os, "close", close_then_fail)
+    outer_error = RuntimeError("unrelated outer failure")
+
+    try:
+        raise outer_error
+    except RuntimeError:
+        with pytest.raises(checker.EvidenceError) as rejected:
+            checker._read_regular_path(
+                evidence,
+                label="evidence",
+                max_bytes=2,
+            )
+
+    assert rejected.value.code == "FILE_CLOSE_FAILED"
+    assert getattr(outer_error, "__notes__", []) == []

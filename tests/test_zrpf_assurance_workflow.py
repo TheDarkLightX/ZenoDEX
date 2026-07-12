@@ -58,6 +58,20 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "--manifest-path zk/state_proof_risc0/Cargo.toml" in cargo_acquisition
     assert "tools/check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
     assert "tests/test_check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
+    assert "tools/check_risc0_recursive_rebuild_evidence.py" in python_assurance
+    assert "tests/test_check_risc0_recursive_rebuild_evidence.py" in python_assurance
+    assert "tools/check_risc0_recursive_live_replay.py" in python_assurance
+    assert "tools/check_risc0_recursive_live_replay_evidence.py" in python_assurance
+    assert "tools/risc0_recursive_live_replay_support.py" in python_assurance
+    assert "tests/test_check_risc0_recursive_live_replay.py" in python_assurance
+    assert "tests/test_check_risc0_recursive_live_replay_evidence.py" in python_assurance
+    assert "python3 tools/check_risc0_recursive_live_replay_evidence.py --json" in (
+        python_assurance
+    )
+    assert (
+        "--artifact docs/research/RISC0_RECURSIVE_V1_LIVE_REPLAY_EVIDENCE_20260712.json"
+        in python_assurance
+    )
     assert "tools/check_recursive_stark_cbc_spec.py" in python_assurance
     assert "tests/test_check_recursive_stark_cbc_spec.py" in python_assurance
     assert "tools/check_zrpf_semantic_epoch_v1_local_evidence.py" in python_assurance
@@ -109,6 +123,10 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     ):
         assert required_path in ruff_assurance
         assert required_path in mypy_assurance
+    assert "tools/check_risc0_recursive_rebuild_evidence.py" in ruff_assurance
+    assert "tools/check_risc0_recursive_rebuild_evidence.py" in mypy_assurance
+    assert "tests/test_check_risc0_recursive_rebuild_evidence.py" in ruff_assurance
+    assert "tests/test_check_risc0_recursive_rebuild_evidence.py" in pytest_assurance
     assert "zrpf-v3-firecracker-elf-source-v2-20260712" in raw
     assert "25032924eb4fca7f156a9ec4eedd39afeade9623" in raw
     assert "tools/check_zrpf_v3_firecracker_direct_replay_evidence.py" in (python_assurance)

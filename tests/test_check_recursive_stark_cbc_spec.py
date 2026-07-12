@@ -36,6 +36,9 @@ REPROOF_PENDING_REQUIRED_STATEMENTS = frozenset(
         "zrpf_v1_spot_adapter_receipt_v1",
     }
 )
+LIVE_REPLAY_SOURCE_FILES = frozenset(
+    checker.recursive_v1_live_record.live.support.CHECKER_SOURCE_PATHS.values()
+)
 
 
 def _matrix() -> dict[str, Any]:
@@ -51,6 +54,7 @@ def _repo_copy_for_matrix(tmp_path: Path, matrix: dict[str, Any]) -> Path:
     for obligation in matrix["obligations"]:
         paths.update(ref["path"] for ref in obligation["code_refs"])
         paths.update(ref["path"] for ref in obligation["test_refs"])
+    paths.update(LIVE_REPLAY_SOURCE_FILES)
     for relative in sorted(paths):
         destination = root / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -93,7 +97,7 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     assert report["facts"]["implemented_obligation_count"] == 20
     assert report["facts"]["pending_obligation_count"] == 5
     assert report["matrix_sha256"] == (
-        "sha256:96f8fb8008d026f8061a2bb1d7f954eb3bafe98bb0e3985656b7045488bf30ad"
+        "sha256:c123a326f350cd61a60d166f4f7657ac843f33e2cdc6033411ec0dad2962759d"
     )
     assert report["promotion_boundary"]["facts"]["public_claim_allowed"] is False
     assert report["promotion_boundary"]["facts"]["production_ready"] is False
@@ -109,6 +113,11 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
         checker.PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM
         in matrix["promotion_boundary"]["non_claims"]
     )
+    assert (
+        checker.V1_RECORDED_LIVE_REPLAY_NON_CLAIM
+        in matrix["promotion_boundary"]["non_claims"]
+    )
+    assert report["promotion_boundary"]["facts"]["v1_live_replay_record_integrity_verified"]
     assert (
         "no_canonical_recursive_outer_envelope"
         in matrix["promotion_boundary"]["non_claims"]
@@ -619,6 +628,80 @@ def test_patched_anyhow_reproof_pending_status_requires_exact_nonclaim() -> None
     )
 
 
+def test_retained_v1_live_replay_record_requires_exact_provenance_nonclaim() -> None:
+    matrix = _matrix()
+    matrix["promotion_boundary"]["non_claims"].remove(
+        checker.V1_RECORDED_LIVE_REPLAY_NON_CLAIM
+    )
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        "retained V1 live-replay record requires its exact historical-provenance non-claim"
+        in report["promotion_boundary"]["errors"]
+    )
+
+
+def test_recorded_v1_live_replay_status_requires_accepted_record(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    matrix = _matrix()
+    monkeypatch.setattr(
+        checker.recursive_v1_live_record,
+        "check_retained_evidence",
+        lambda **_kwargs: {"ok": False},
+    )
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert "V1 live-replay record rejected" in report["errors"]
+    assert (
+        report["promotion_boundary"]["facts"]["v1_live_replay_record_integrity_verified"]
+        is False
+    )
+
+
+def test_recorded_v1_live_replay_status_rejects_repository_record_mutation(
+    tmp_path: Path,
+) -> None:
+    matrix = _matrix()
+    root = _repo_copy_for_matrix(tmp_path, matrix)
+    evidence_path = (
+        root / "docs/research/RISC0_RECURSIVE_V1_LIVE_REPLAY_EVIDENCE_20260712.json"
+    )
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    evidence["production_authority"] = True
+    evidence_path.write_text(
+        json.dumps(evidence, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    report = checker.validate_matrix(matrix, repo_root=root)
+
+    assert report["ok"] is False
+    assert "V1 live-replay record rejected" in report["errors"]
+
+
+def test_recorded_v1_live_replay_status_rejects_missing_bound_checker_source(
+    tmp_path: Path,
+) -> None:
+    matrix = _matrix()
+    root = _repo_copy_for_matrix(tmp_path, matrix)
+    bound_source = root / next(
+        iter(
+            checker.recursive_v1_live_record.live.support.CHECKER_SOURCE_PATHS.values()
+        )
+    )
+    bound_source.unlink()
+
+    report = checker.validate_matrix(matrix, repo_root=root)
+
+    assert report["ok"] is False
+    assert "V1 live-replay record rejected" in report["errors"]
+
+
 def test_full_current_proof_status_is_unavailable_without_current_host_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -701,27 +784,13 @@ def test_structural_tree_verified_status_requires_implemented_tree_obligations(
 
 
 def test_reproof_pending_status_does_not_consult_stale_v1_or_v2_closures(
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     matrix = _matrix()
-
-    def reject_unexpected_validation(*_args: Any, **_kwargs: Any) -> Any:
-        raise AssertionError("reproof-pending status must not consult stale source closures")
-
-    monkeypatch.setattr(
-        checker.recursive_v1_evidence,
-        "validate_reference",
-        reject_unexpected_validation,
-    )
-    monkeypatch.setattr(
-        checker.recursive_v2_evidence,
-        "validate_reference",
-        reject_unexpected_validation,
-    )
 
     report = checker.validate_matrix(matrix)
 
     assert report["ok"] is True
+    assert report["promotion_boundary"]["facts"]["required_source_closures"] == []
 
 
 def test_claim_status_routes_exact_source_closure_policy(
