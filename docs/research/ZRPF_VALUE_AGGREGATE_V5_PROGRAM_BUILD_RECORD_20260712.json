@@ -1,0 +1,73 @@
+{
+  "schema": "zenodex/zrpf_value_aggregate_v5_program_build_record/v1",
+  "recorded_at": "2026-07-12",
+  "profile": "experimental_bounded_value_aggregate_v5",
+  "toolchain": {
+    "rustc": "rustc 1.94.1-dev (06e01cb0d 2026-04-09)",
+    "cargo": "cargo 1.94.1-dev (29ea6fb6a 2026-03-24)",
+    "r0vm": "risc0-r0vm 3.0.5",
+    "risc0_zkvm": "3.0.5",
+    "risc0_binfmt": "3.0.4",
+    "risc0_zkos_v1compat": "2.2.2",
+    "cargo_lock_sha256": "93b4c0cbb25eb9fc7da1f59c89259672a9eb249c20bb7087db53484888530271",
+    "target": "riscv32im-risc0-zkvm-elf",
+    "cargo_build_jobs": 2,
+    "offline": true,
+    "locked": true
+  },
+  "level_one": {
+    "source_commit": "3e9f3878e6246117a568e5bf3d7cbac65b706ce9",
+    "source_tree": "2e009b0adcade9a233bbf523d7cb006370cadff9",
+    "package": "zenodex-zrpf-risc0-value-aggregate-l1",
+    "raw_elf_bytes": 499340,
+    "raw_elf_sha256": "31793bb9983b38e9b5a37c24a690b81541c07fcacd00fa30df748c51ba82e1e5",
+    "combined_program_binary_bytes": 531764,
+    "combined_program_binary_sha256": "0e61080921f60fc7290d691268c90816478dad954d7b6c80abf157d2804b5e83",
+    "image_id_hex": "0e54e3390694406b1ae0b8fd082e387c335bf508ffa5d5a8e88078ccd36d788f",
+    "image_id_words_le": [
+      971199502,
+      1799394310,
+      4256751642,
+      2084056584,
+      150297395,
+      2832573951,
+      3430449384,
+      2407034323
+    ],
+    "self_identity_absent_from_normal_build_dev_closure": true
+  },
+  "level_two": {
+    "source_commit": "5a03c7c3db9684ac0ac46d507ef079b6567b5331",
+    "source_tree": "e6754f44ceffe7c73844d0e31c4b4f75e8ee7498",
+    "package": "zenodex-zrpf-risc0-value-aggregate-l2",
+    "raw_elf_bytes": 413948,
+    "raw_elf_sha256": "3c1ed643841fc9c94635d38cb280aaa623688d219c5a1f1fd69fe663c34d995f",
+    "combined_program_binary_bytes": 446372,
+    "combined_program_binary_sha256": "e6faa4c37997ad83ed89f9a928d98389dd5c249dec15c50a8f8fc50e9f17cb6c",
+    "image_id_hex": "05d847cec32d12bbc1065ee517b48cb25d53f93a527c3b41e62f64f244735e8b",
+    "image_id_words_le": [
+      3460814853,
+      3138530755,
+      3848144577,
+      2995565591,
+      989418333,
+      1094417490,
+      4066652134,
+      2338222916
+    ],
+    "pinned_level_one_image_id": "0e54e3390694406b1ae0b8fd082e387c335bf508ffa5d5a8e88078ccd36d788f"
+  },
+  "claims": {
+    "cycle_free_level_one_image_built": true,
+    "level_two_image_built_against_pinned_level_one": true,
+    "same_host_clean_build_recorded": true,
+    "cross_host_reproducible_build": false,
+    "level_one_receipt_generated": false,
+    "level_two_receipt_generated": false,
+    "settlement_semantics_verified": false,
+    "durable_atomic_admission_verified": false,
+    "release_authority": false,
+    "settlement_authority": false,
+    "production_authority": false
+  }
+}
