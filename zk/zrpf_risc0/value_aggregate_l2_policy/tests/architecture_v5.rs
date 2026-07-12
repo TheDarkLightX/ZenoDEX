@@ -4,10 +4,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const POLICY_PACKAGE: &str = "zenodex-zrpf-risc0-value-aggregate-l2-policy";
-const PROVISIONAL_IMAGE_SYMBOL: &str = "PROVISIONAL_VALUE_AGGREGATE_L1_IMAGE_ID_V5";
-const PROVISIONAL_IMAGE_HEX: &str =
-    "0e54e3390694406b1ae0b8fd082e387c335bf508ffa5d5a8e88078ccd36d788f";
-const PROVISIONAL_FIRST_WORD: &str = "971_199_502";
+const PINNED_IMAGE_SYMBOL: &str = "PINNED_VALUE_AGGREGATE_L1_IMAGE_ID_V5";
+const PINNED_IMAGE_HEX: &str = "0e54e3390694406b1ae0b8fd082e387c335bf508ffa5d5a8e88078ccd36d788f";
+const PINNED_FIRST_WORD: &str = "971_199_502";
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -49,10 +48,10 @@ fn assert_sources_exclude_identity(root: &Path) {
         let source = fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
         for forbidden in [
-            PROVISIONAL_IMAGE_SYMBOL,
-            PROVISIONAL_IMAGE_HEX,
-            PROVISIONAL_FIRST_WORD,
-            "provisional_value_aggregate_level_one_identity_v5",
+            PINNED_IMAGE_SYMBOL,
+            PINNED_IMAGE_HEX,
+            PINNED_FIRST_WORD,
+            "pinned_value_aggregate_level_one_identity_v5",
             "value_aggregate_level_one_manifest_root_v5",
             "value_aggregate_level_one_profile_id_v5",
         ] {
@@ -107,14 +106,14 @@ fn l1_and_shared_compiler_sources_exclude_l1_self_identity() {
 }
 
 #[test]
-fn l2_policy_alone_owns_the_provisional_l1_identity() {
+fn l2_policy_alone_owns_the_pinned_l1_identity() {
     let root = workspace_root();
     let policy_source = fs::read_to_string(root.join("value_aggregate_l2_policy/src/lib.rs"))
         .expect("read L2 policy source");
     let l2_manifest = fs::read_to_string(root.join("methods/value_aggregate_l2/Cargo.toml"))
         .expect("read L2 manifest");
 
-    assert!(policy_source.contains(PROVISIONAL_IMAGE_SYMBOL));
-    assert!(policy_source.contains(PROVISIONAL_FIRST_WORD));
+    assert!(policy_source.contains(PINNED_IMAGE_SYMBOL));
+    assert!(policy_source.contains(PINNED_FIRST_WORD));
     assert!(l2_manifest.contains(POLICY_PACKAGE));
 }

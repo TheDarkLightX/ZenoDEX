@@ -9,9 +9,11 @@ use zenodex_zrpf_risc0_value_aggregate_shared::{
     GovernedValueChildIdentityV5, ValueAggregateRecompositionErrorV5,
 };
 
-/// Provisional image identity produced before the final post-cycle-break L1
-/// rebuild. Replace this single constant before generating an L2 ELF or proof.
-pub const PROVISIONAL_VALUE_AGGREGATE_L1_IMAGE_ID_V5: [u32; 8] = [
+/// Pinned image identity from the final cycle-free L1 build.
+///
+/// The L1 normal, build, and dev dependency closure excludes this crate, so
+/// updating this L2 policy cannot alter the L1 image that it identifies.
+pub const PINNED_VALUE_AGGREGATE_L1_IMAGE_ID_V5: [u32; 8] = [
     971_199_502,
     1_799_394_310,
     4_256_751_642,
@@ -54,12 +56,12 @@ pub fn value_aggregate_level_one_manifest_root_v5(
 }
 
 /// Construct the L1 identity governed by the V5 L2 guest policy.
-pub fn provisional_value_aggregate_level_one_identity_v5(
+pub fn pinned_value_aggregate_level_one_identity_v5(
 ) -> Result<GovernedValueChildIdentityV5, ValueAggregateRecompositionErrorV5> {
-    let program_id = program_id_from_risc0_words_v3(PROVISIONAL_VALUE_AGGREGATE_L1_IMAGE_ID_V5)
+    let program_id = program_id_from_risc0_words_v3(PINNED_VALUE_AGGREGATE_L1_IMAGE_ID_V5)
         .map_err(|_| ValueAggregateRecompositionErrorV5::InvalidPolicy("l1_program"))?;
     GovernedValueChildIdentityV5::new(
-        PROVISIONAL_VALUE_AGGREGATE_L1_IMAGE_ID_V5,
+        PINNED_VALUE_AGGREGATE_L1_IMAGE_ID_V5,
         program_id,
         value_aggregate_level_one_profile_id_v5()?,
         value_aggregate_level_one_manifest_root_v5(program_id)?,

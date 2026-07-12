@@ -4,7 +4,7 @@ mod support;
 use zenodex_zrpf_protocol_v3::{
     decode_exact_value_aggregate_proposal_v5, encode_value_aggregate_proposal_v5,
 };
-use zenodex_zrpf_risc0_value_aggregate_l2_policy::provisional_value_aggregate_level_one_identity_v5;
+use zenodex_zrpf_risc0_value_aggregate_l2_policy::pinned_value_aggregate_level_one_identity_v5;
 use zenodex_zrpf_risc0_value_aggregate_shared::{
     compose_value_aggregate_level_two_after_receipt_verification_v5,
     recompose_expected_value_aggregate_level_one_v5,
@@ -66,7 +66,7 @@ fn guest_source_verifies_every_exact_l1_child_before_decode_or_composition() {
     let compose = &GUEST_SOURCE[compose_start..compose_end];
 
     assert!(authenticate.contains("for child_proposal_bytes in input.child_proposal_bytes()"));
-    assert!(authenticate.contains("PROVISIONAL_VALUE_AGGREGATE_L1_IMAGE_ID_V5"));
+    assert!(authenticate.contains("PINNED_VALUE_AGGREGATE_L1_IMAGE_ID_V5"));
     assert!(authenticate.contains("child_proposal_bytes.as_slice()"));
     assert!(verify < constructed);
     assert!(!authenticate.contains("decode_exact_value_aggregate_proposal_v5"));
@@ -75,7 +75,7 @@ fn guest_source_verifies_every_exact_l1_child_before_decode_or_composition() {
     assert!(compose.contains(
         "compose_value_aggregate_level_two_after_receipt_verification_v5(&self.input, &policy)"
     ));
-    assert!(GUEST_SOURCE.contains("provisional_value_aggregate_level_one_identity_v5()?"));
+    assert!(GUEST_SOURCE.contains("pinned_value_aggregate_level_one_identity_v5()?"));
     assert_eq!(GUEST_SOURCE.matches("env::verify(").count(), 1);
 }
 
@@ -127,7 +127,7 @@ fn level_two_method_and_l2_only_policy_are_registered() {
 
 #[test]
 fn proof_neutral_governed_l1_identity_matches_level_two_recomposition() {
-    let identity = provisional_value_aggregate_level_one_identity_v5().unwrap();
+    let identity = pinned_value_aggregate_level_one_identity_v5().unwrap();
     let input =
         ValueAggregateLevelTwoInputV5::new(vec![level_one_bytes(0), level_one_bytes(2)]).unwrap();
     let policy = ValueAggregateRecompositionPolicyV5::new(

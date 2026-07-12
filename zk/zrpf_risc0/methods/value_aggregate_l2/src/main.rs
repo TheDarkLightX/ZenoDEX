@@ -32,8 +32,7 @@ mod receipt_verified {
         decode_exact_value_aggregate_proposal_v5, ProposedValueAggregateV5,
     };
     use zenodex_zrpf_risc0_value_aggregate_l2_policy::{
-        provisional_value_aggregate_level_one_identity_v5,
-        PROVISIONAL_VALUE_AGGREGATE_L1_IMAGE_ID_V5,
+        pinned_value_aggregate_level_one_identity_v5, PINNED_VALUE_AGGREGATE_L1_IMAGE_ID_V5,
     };
     use zenodex_zrpf_risc0_value_aggregate_shared::{
         compose_value_aggregate_level_two_after_receipt_verification_v5,
@@ -51,7 +50,7 @@ mod receipt_verified {
         pub(super) fn authenticate(input: ValueAggregateLevelTwoInputV5) -> Self {
             for child_proposal_bytes in input.child_proposal_bytes() {
                 match env::verify(
-                    PROVISIONAL_VALUE_AGGREGATE_L1_IMAGE_ID_V5,
+                    PINNED_VALUE_AGGREGATE_L1_IMAGE_ID_V5,
                     child_proposal_bytes.as_slice(),
                 ) {
                     Ok(()) => {}
@@ -79,7 +78,7 @@ mod receipt_verified {
         )?;
         let first_proposal = decode_exact_value_aggregate_proposal_v5(first_bytes)
             .map_err(|_| ValueAggregateRecompositionErrorV5::ChildV5ProposalDecode(0))?;
-        let identity = provisional_value_aggregate_level_one_identity_v5()?;
+        let identity = pinned_value_aggregate_level_one_identity_v5()?;
         let identities = vec![identity; input.child_proposal_bytes().len()];
         ValueAggregateRecompositionPolicyV5::new(first_proposal.scope().clone(), identities)
     }
