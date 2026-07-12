@@ -12,6 +12,11 @@ use zenodex_zrpf_protocol_v3::{
 
 mod error;
 pub use error::SpotSettlementProjectionErrorV1;
+mod state_v2;
+pub use state_v2::{
+    derive_spot_settlement_state_projection_v2, propose_spot_settlement_state_projection_v2,
+    SpotSettlementStateProjectionV2,
+};
 
 use crate::{
     spot_accounting_domain_id_v1, spot_atoms_unit_id_v1, spot_represented_value_profile_id_v1,
@@ -80,8 +85,16 @@ pub fn derive_spot_settlement_projection_v1(
 ) -> Result<SpotSettlementProjectionV1, SpotSettlementProjectionErrorV1> {
     proposal.validate_self_consistency()?;
     require_ordinary_spot_profile(proposal)?;
-    let action = derive_action_projection(proposal, authorization)?;
-    let settlement_plan = derive_settlement_plan(proposal, &action)?;
+    let action = derive_action_projection_for_state(
+        proposal,
+        authorization,
+        proposal.semantic_subtree().raw_subtree_pre_state_root(),
+    )?;
+    let settlement_plan = derive_settlement_plan_for_state(
+        proposal,
+        &action,
+        proposal.semantic_subtree().raw_subtree_post_state_root(),
+    )?;
     Ok(SpotSettlementProjectionV1 {
         action_semantics_hash: action.action_semantics_hash,
         effect_commitment: action.effect_commitment,
@@ -100,9 +113,10 @@ struct SpotActionProjectionV1 {
     action_batch: EconomicActionBatchV1,
 }
 
-fn derive_action_projection(
+fn derive_action_projection_for_state(
     proposal: &ProposedValueAggregateV5,
     authorization: SpotSettlementAuthorizationInputV1,
+    ledger_pre_state_root: CommitmentV3,
 ) -> Result<SpotActionProjectionV1, SpotSettlementProjectionErrorV1> {
     let subtree = proposal.semantic_subtree();
     let epoch = proposal.scope().epoch_start();
@@ -124,17 +138,13 @@ fn derive_action_projection(
         authorization_nonce: authorization.authorization_nonce,
         valid_from_epoch: epoch,
         valid_through_epoch: epoch,
-        pre_state_root: subtree.raw_subtree_pre_state_root(),
+        pre_state_root: ledger_pre_state_root,
         action_semantics_hash,
         effect_commitment,
         consumed_object_ids,
     })?;
     let authorized = AuthorizedEconomicActionV1::new(record, authorization.authorization_grant_id)?;
-    let action_batch = EconomicActionBatchV1::new(
-        epoch,
-        subtree.raw_subtree_pre_state_root(),
-        vec![authorized],
-    )?;
+    let action_batch = EconomicActionBatchV1::new(epoch, ledger_pre_state_root, vec![authorized])?;
     Ok(SpotActionProjectionV1 {
         action_semantics_hash,
         effect_commitment,
@@ -144,9 +154,10 @@ fn derive_action_projection(
     })
 }
 
-fn derive_settlement_plan(
+fn derive_settlement_plan_for_state(
     proposal: &ProposedValueAggregateV5,
     action: &SpotActionProjectionV1,
+    ledger_post_state_root: CommitmentV3,
 ) -> Result<SettlementEffectPlanV2, SpotSettlementProjectionErrorV1> {
     let subtree = proposal.semantic_subtree();
     let action_batch = &action.action_batch;
@@ -177,7 +188,7 @@ fn derive_settlement_plan(
     let settlement_plan = SettlementEffectPlanV2::new(SettlementEffectPlanInputV2 {
         source_semantic_journal_hash: action.source_semantic_journal_hash,
         public_policy_hash: proposal.scope().public_policy_hash(),
-        post_state_root: subtree.raw_subtree_post_state_root(),
+        post_state_root: ledger_post_state_root,
         economic_action_batch: action.action_batch.clone(),
         ledger_cell_writes: vec![cell_write],
         asset_effects,

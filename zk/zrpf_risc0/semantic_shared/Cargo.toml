@@ -50,6 +50,10 @@ name = "spot_settlement_v1"
 path = "tests/spot_settlement_v1.rs"
 
 [[test]]
+name = "spot_settlement_state_v2"
+path = "tests/spot_settlement_state_v2.rs"
+
+[[test]]
 name = "spot_certificate_v1"
 path = "tests/spot_certificate_v1.rs"
 
