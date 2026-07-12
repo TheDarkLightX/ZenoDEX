@@ -55,7 +55,8 @@ struct SemanticStatementMaterialV4<'a> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-/// Proof-system-neutral V4 proposal; receipt authentication is a later boundary.
+/// Historical backend-bound V4 proposal; receipt authentication is a later
+/// boundary.
 pub struct NodeJournalV4 {
     journal_version: u16,
     structural: NodeJournalV3,

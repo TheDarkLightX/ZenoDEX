@@ -7,9 +7,10 @@ Date: 2026-07-12
 
 ## Purpose
 
-This evidence lane connects the proof-neutral V4 value-node protocol to one
-real RISC0 Succinct receipt. It establishes an executable reference for the
-smallest V4 node before recursive V4 aggregation is introduced.
+This evidence lane connects the historical backend-bound V4 value-node
+protocol to one real RISC0 Succinct receipt. It establishes an executable
+reference for the smallest V4 node before recursive V4 aggregation is
+introduced.
 
 The represented source transition is intentionally narrow. It is ordinal zero
 from the retained Spot evidence, contains zero asset rows, and leaves the raw
