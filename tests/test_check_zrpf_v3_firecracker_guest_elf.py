@@ -99,16 +99,25 @@ def test_image_builder_uses_hash_bound_native_checker_without_readelf() -> None:
     assert _checker_source_sha256() in raw
     assert raw.count('"$captured_checker" --guest-elf "$captured_guest"') == 2
     assert raw.count("env -i -- LC_ALL=C TZ=UTC") == 2
-    assert "--expected-guest-elf-checker-sha256" in raw
+    assert "--expected-guest-elf-checker-sha256" not in raw
+    assert "--expected-guest-sha256" not in raw
+    assert "--expected-receipt-set-sha256" not in raw
+    assert "--expected-mksquashfs-sha256" not in raw
+    assert (
+        "readonly GUEST_ELF_CHECKER_BINARY_SHA256="
+        "015ad4f9406a1683ee23fe4a1ad991c8f30f418366fee1881722512a1711092d"
+        in raw
+    )
     assert "python3 -I" not in raw
     assert "command -v mksquashfs" not in raw
     assert "readonly MKSQUASHFS_BINARY=/usr/bin/mksquashfs" in raw
     assert raw.splitlines().count('  "$MKSQUASHFS_BINARY" \\') == 2
     assert raw.startswith("#!/bin/bash -p\n")
     assert "error: privileged bash mode required" in raw
-    assert '"captured_guest_sha256=$expected_guest_sha256"' in raw
+    assert '"captured_guest_sha256=$GUEST_BINARY_SHA256"' in raw
     assert '"captured_receipt_set_sha256=$after_receipt_set"' in raw
-    assert '"guest_sha256=$expected_guest_sha256"' not in raw
+    assert "status=non_authoritative_image_build_proposal" in raw
+    assert "packed_contents_independently_verified=false" in raw
 
 
 @pytest.mark.parametrize(
@@ -147,7 +156,7 @@ def test_image_builder_rejects_bash_invocation_without_privileged_mode() -> None
     assert completed.stderr == b"error: privileged bash mode required\n"
 
 
-def test_image_builder_rejects_wrong_native_checker_identity_before_execution(
+def test_image_builder_rejects_caller_supplied_checker_identity(
     tmp_path: Path,
 ) -> None:
     guest = tmp_path / "guest"
@@ -167,12 +176,6 @@ def test_image_builder_rejects_wrong_native_checker_identity_before_execution(
             receipts.as_posix(),
             "--output-dir",
             (tmp_path / "output").as_posix(),
-            "--expected-guest-sha256",
-            hashlib.sha256(b"guest").hexdigest(),
-            "--expected-receipt-set-sha256",
-            "11" * 32,
-            "--expected-mksquashfs-sha256",
-            _mksquashfs_sha256(),
             "--guest-elf-checker-binary",
             native_checker.as_posix(),
             "--expected-guest-elf-checker-sha256",
@@ -186,7 +189,8 @@ def test_image_builder_rejects_wrong_native_checker_identity_before_execution(
 
     assert completed.returncode == 2
     assert completed.stdout == b""
-    assert completed.stderr == b"error: guest ELF checker identity mismatch\n"
+    assert completed.stderr == b"error: unknown, duplicate, or incomplete argument\n"
+    assert not (tmp_path / "output").exists()
 
 
 def test_image_builder_rejects_path_searched_native_checker(tmp_path: Path) -> None:
@@ -207,16 +211,8 @@ def test_image_builder_rejects_path_searched_native_checker(tmp_path: Path) -> N
             receipts.as_posix(),
             "--output-dir",
             (tmp_path / "output").as_posix(),
-            "--expected-guest-sha256",
-            hashlib.sha256(b"guest").hexdigest(),
-            "--expected-receipt-set-sha256",
-            "11" * 32,
-            "--expected-mksquashfs-sha256",
-            "22" * 32,
             "--guest-elf-checker-binary",
             "true",
-            "--expected-guest-elf-checker-sha256",
-            hashlib.sha256(native_checker.read_bytes()).hexdigest(),
         ],
         cwd=tmp_path,
         check=False,
@@ -252,16 +248,8 @@ def test_image_builder_rejects_find_expression_receipt_path_without_side_effects
             hostile_directory.name,
             "--output-dir",
             (tmp_path / "output").as_posix(),
-            "--expected-guest-sha256",
-            hashlib.sha256(b"guest").hexdigest(),
-            "--expected-receipt-set-sha256",
-            "11" * 32,
-            "--expected-mksquashfs-sha256",
-            _mksquashfs_sha256(),
             "--guest-elf-checker-binary",
             native_checker.as_posix(),
-            "--expected-guest-elf-checker-sha256",
-            hashlib.sha256(native_checker.read_bytes()).hexdigest(),
         ],
         cwd=tmp_path,
         check=False,
@@ -1053,7 +1041,3 @@ def _assert_rejects(raw: bytes, code: str) -> None:
 
 def _checker_source_sha256() -> str:
     return hashlib.sha256(Path(checker.__file__).read_bytes()).hexdigest()
-
-
-def _mksquashfs_sha256() -> str:
-    return hashlib.sha256(Path("/usr/bin/mksquashfs").read_bytes()).hexdigest()

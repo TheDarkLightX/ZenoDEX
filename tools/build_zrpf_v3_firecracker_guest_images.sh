@@ -27,8 +27,12 @@ export PATH
 # This build helper creates artifacts only. It grants no launch or proof authority.
 
 readonly EXPECTED_RECEIPT_COUNT=8
+readonly GUEST_BINARY_SHA256=6f0efc78966813444cc157f2e9c856e71da91c19538318cdb2e8be520214a150
+readonly GUEST_ELF_CHECKER_BINARY_SHA256=015ad4f9406a1683ee23fe4a1ad991c8f30f418366fee1881722512a1711092d
 readonly GUEST_ELF_REFERENCE_SHA256=7abd685b3cb5d88a9678c1cdd303ec95d8844607b8c39b1ba12e06a4c350cfeb
 readonly IMAGE_EPOCH=1780396050
+readonly MKSQUASHFS_BINARY_SHA256=47d5c1af3da11864e64c9dc6bb4e568719dcc315e6a744e79381ce3374fb7393
+readonly RECEIPT_SET_SHA256=d5ecd5494318e21fa3da227409fdb5285c85ff8ae10815df5bcf0eb22fa1027f
 readonly SQUASHFS_BLOCK_BYTES=131072
 readonly MKSQUASHFS_BINARY=/usr/bin/mksquashfs
 SCRIPT_DIRECTORY=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
@@ -39,11 +43,7 @@ readonly GUEST_ELF_REFERENCE
 guest_binary=""
 receipt_directory=""
 output_directory=""
-expected_guest_sha256=""
-expected_receipt_set_sha256=""
-expected_mksquashfs_sha256=""
 guest_elf_checker_binary=""
-expected_guest_elf_checker_sha256=""
 declare -A seen_options=()
 
 while (($#)); do
@@ -66,24 +66,8 @@ while (($#)); do
       output_directory=${2-}
       shift 2
       ;;
-    --expected-guest-sha256)
-      expected_guest_sha256=${2-}
-      shift 2
-      ;;
-    --expected-receipt-set-sha256)
-      expected_receipt_set_sha256=${2-}
-      shift 2
-      ;;
-    --expected-mksquashfs-sha256)
-      expected_mksquashfs_sha256=${2-}
-      shift 2
-      ;;
     --guest-elf-checker-binary)
       guest_elf_checker_binary=${2-}
-      shift 2
-      ;;
-    --expected-guest-elf-checker-sha256)
-      expected_guest_elf_checker_sha256=${2-}
       shift 2
       ;;
     *)
@@ -97,11 +81,7 @@ for value in \
   "$guest_binary" \
   "$receipt_directory" \
   "$output_directory" \
-  "$expected_guest_sha256" \
-  "$expected_receipt_set_sha256" \
-  "$expected_mksquashfs_sha256" \
-  "$guest_elf_checker_binary" \
-  "$expected_guest_elf_checker_sha256"; do
+  "$guest_elf_checker_binary"; do
   [[ -n "$value" ]] || { echo "error: required argument missing" >&2; exit 2; }
 done
 
@@ -144,7 +124,7 @@ output_parent=$(dirname -- "$output_directory")
   exit 2
 }
 mksquashfs_sha256_before=$(sha256sum "$MKSQUASHFS_BINARY" | cut -d' ' -f1)
-[[ "$mksquashfs_sha256_before" == "$expected_mksquashfs_sha256" ]] || {
+[[ "$mksquashfs_sha256_before" == "$MKSQUASHFS_BINARY_SHA256" ]] || {
   echo "error: mksquashfs identity mismatch" >&2
   exit 2
 }
@@ -194,12 +174,12 @@ captured_guest="$capture_directory/guest-init"
 captured_checker="$capture_directory/guest-elf-checker"
 captured_receipts="$capture_directory/receipts"
 mkdir -m 0700 "$captured_receipts"
-capture_regular "$guest_binary" "$captured_guest" 0555 "$expected_guest_sha256" "guest"
+capture_regular "$guest_binary" "$captured_guest" 0555 "$GUEST_BINARY_SHA256" "guest"
 capture_regular \
   "$guest_elf_checker_binary" \
   "$captured_checker" \
   0555 \
-  "$expected_guest_elf_checker_sha256" \
+  "$GUEST_ELF_CHECKER_BINARY_SHA256" \
   "guest ELF checker"
 
 mapfile -d '' -t receipt_paths < <(
@@ -223,7 +203,7 @@ for local_path in "${receipt_paths[@]}"; do
   exec {descriptor}<&-
 done
 captured_receipt_set=$(receipt_set_sha256 "$captured_receipts")
-[[ "$captured_receipt_set" == "$expected_receipt_set_sha256" ]] || {
+[[ "$captured_receipt_set" == "$RECEIPT_SET_SHA256" ]] || {
   echo "error: receipt-set identity mismatch" >&2
   exit 2
 }
@@ -289,7 +269,7 @@ after_receipt_set=$(receipt_set_sha256 "$captured_receipts")
   echo "error: captured receipt set changed during build" >&2
   exit 2
 }
-[[ $(sha256sum -- "$captured_guest" | cut -d' ' -f1) == "$expected_guest_sha256" ]] || {
+[[ $(sha256sum -- "$captured_guest" | cut -d' ' -f1) == "$GUEST_BINARY_SHA256" ]] || {
   echo "error: captured guest identity changed during build" >&2
   exit 2
 }
@@ -297,7 +277,7 @@ after_receipt_set=$(receipt_set_sha256 "$captured_receipts")
   echo "error: guest ELF reference identity changed during build" >&2
   exit 2
 }
-[[ $(sha256sum -- "$captured_checker" | cut -d' ' -f1) == "$expected_guest_elf_checker_sha256" ]] || {
+[[ $(sha256sum -- "$captured_checker" | cut -d' ' -f1) == "$GUEST_ELF_CHECKER_BINARY_SHA256" ]] || {
   echo "error: captured guest ELF checker identity changed during build" >&2
   exit 2
 }
@@ -315,9 +295,17 @@ rootfs_size=$(stat -c %s "$output_directory/zrpf-replay-rootfs.squashfs")
 input_size=$(stat -c %s "$output_directory/zrpf-replay-input.squashfs")
 
 printf '%s\n' \
-  "captured_guest_sha256=$expected_guest_sha256" \
+  "schema=zenodex/zrpf_firecracker_image_build_proposal/v1" \
+  "status=non_authoritative_image_build_proposal" \
+  "complete_build_input_closure_verified=false" \
+  "packed_contents_independently_verified=false" \
+  "same_uid_resistance_verified=false" \
+  "captured_guest_sha256=$GUEST_BINARY_SHA256" \
+  "guest_elf_checker_sha256=$GUEST_ELF_CHECKER_BINARY_SHA256" \
+  "guest_elf_reference_sha256=$GUEST_ELF_REFERENCE_SHA256" \
   "input_sha256=$input_sha256" \
   "input_size_bytes=$input_size" \
   "captured_receipt_set_sha256=$after_receipt_set" \
+  "mksquashfs_binary_sha256=$MKSQUASHFS_BINARY_SHA256" \
   "rootfs_sha256=$rootfs_sha256" \
   "rootfs_size_bytes=$rootfs_size"
