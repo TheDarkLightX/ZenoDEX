@@ -525,6 +525,20 @@ Acceptance:
 - Production claim remains false until release profile, manifest, and public
   replay requirements are satisfied.
 
+The outer verifier must authenticate one submitted recursive root receipt
+exactly once per request. The production authenticator returns a module-private
+receipt/profile pair whose fields have no production constructor outside that
+boundary. The verifier checks metadata, ledger-owned expectations, and exact
+disclosure recomposition before constructing `VerifiedRecursiveFacts`.
+Response rendering consumes only those facts and cannot reopen, decode, or
+cryptographically verify the receipt. The Rust test
+`recursive_request_authenticates_receipt_once_and_preserves_response_schema`
+uses a test-only `FnOnce` authenticator port to enforce one boundary invocation
+while preserving the existing response schema. The separate
+`recursive_production_path_has_one_cryptographic_verify_call_site` ratchet
+requires one production root authenticator call, one profile-decoder call, and
+one `Receipt::verify(image_id)` call site.
+
 Local proof command shape:
 
 ```bash

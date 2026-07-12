@@ -30,6 +30,25 @@ RECURSIVE_REBUILD_REFERENCES = (
     "config/proof_profiles/risc0_recursive_rebuild_reference.json",
     "config/proof_profiles/risc0_recursive_v2_rebuild_reference.json",
 )
+FULL_REQUIRED_STATEMENTS = frozenset(
+    {
+        "recursive_epoch_v1",
+        "recursive_effect_summary_v1",
+        "recursive_spot_leaf_v1",
+        "recursive_zusd_leaf_v1",
+        "recursive_perps_np_leaf_v1",
+        "recursive_node_v2",
+        "zrpf_node_v3_structural",
+        "zrpf_v1_spot_adapter_receipt_v1",
+    }
+)
+DEGRADED_REQUIRED_STATEMENTS = frozenset(
+    {
+        "recursive_node_v2",
+        "zrpf_node_v3_structural",
+        "zrpf_v1_spot_adapter_receipt_v1",
+    }
+)
 
 
 def _matrix() -> dict[str, Any]:
@@ -37,6 +56,16 @@ def _matrix() -> dict[str, Any]:
     assert errors == []
     assert isinstance(matrix, dict)
     return matrix
+
+
+def _set_full_current_proof_status(matrix: dict[str, Any]) -> None:
+    promotion = matrix["promotion_boundary"]
+    promotion["claim_status"] = checker.FULL_CURRENT_PROOF_CLAIM_STATUS
+    promotion["non_claims"].remove(checker.V1_HOST_REPLAY_PENDING_NON_CLAIM)
+    obligation = next(
+        item for item in matrix["obligations"] if item["id"] == "RS-CBC-014"
+    )
+    obligation["status"] = "implemented"
 
 
 def _repo_copy_for_matrix(tmp_path: Path, matrix: dict[str, Any]) -> Path:
@@ -87,13 +116,21 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     assert report["facts"]["implemented_obligation_count"] == 18
     assert report["facts"]["pending_obligation_count"] == 5
     assert report["matrix_sha256"] == (
-        "sha256:4c3674cb45cea94e5799b0caddc3bf4dcf3bdbd68fba6d66f2e81f9779cd7eb9"
+        "sha256:635a922be20603f7b7a4bf994f8c245408db9d654ff01cd8bbd86279ee8f23d0"
     )
     assert report["promotion_boundary"]["facts"]["public_claim_allowed"] is False
     assert report["promotion_boundary"]["facts"]["production_ready"] is False
     assert (
         report["promotion_boundary"]["facts"]["claim_status"]
-        == "v1_v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified"
+        == checker.V1_HOST_REPLAY_PENDING_CLAIM_STATUS
+    )
+    assert report["promotion_boundary"]["facts"]["required_source_closures"] == ["v2"]
+    assert report["promotion_boundary"]["facts"]["required_implemented_statements"] == sorted(
+        DEGRADED_REQUIRED_STATEMENTS
+    )
+    assert (
+        checker.V1_HOST_REPLAY_PENDING_NON_CLAIM
+        in matrix["promotion_boundary"]["non_claims"]
     )
     assert (
         "no_canonical_recursive_outer_envelope"
@@ -128,6 +165,10 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     assert adapter_receipt["code_refs"]
     assert adapter_receipt["test_refs"]
     assert adapter_receipt["external_commands"]
+    fresh_proof = next(
+        item for item in matrix["obligations"] if item["id"] == "RS-CBC-014"
+    )
+    assert fresh_proof["status"] == "implemented"
     for obligation_id in ("RS-CBC-023",):
         obligation = next(
             item for item in matrix["obligations"] if item["id"] == obligation_id
@@ -540,8 +581,16 @@ def test_same_profile_two_spot_evidence_is_exact_and_claim_limited() -> None:
         assert forbidden not in public_text
 
 
-def test_post_repair_verified_status_requires_fresh_proof_obligation_implemented() -> None:
+@pytest.mark.parametrize(
+    "claim_status",
+    [checker.FULL_CURRENT_PROOF_CLAIM_STATUS, checker.V1_HOST_REPLAY_PENDING_CLAIM_STATUS],
+)
+def test_current_recursive_proof_status_requires_fresh_proof_obligation_implemented(
+    claim_status: str,
+) -> None:
     matrix = _matrix()
+    if claim_status == checker.FULL_CURRENT_PROOF_CLAIM_STATUS:
+        _set_full_current_proof_status(matrix)
     for obligation in matrix["obligations"]:
         if obligation["id"] == "RS-CBC-014":
             obligation["status"] = "pending"
@@ -551,13 +600,53 @@ def test_post_repair_verified_status_requires_fresh_proof_obligation_implemented
 
     assert report["ok"] is False
     assert (
-        "post-repair local-proof-verified status requires RS-CBC-014 implemented"
+        "current local-recursive-proof status requires RS-CBC-014 implemented"
         in report["errors"]
     )
 
 
-def test_post_repair_verified_status_rejects_stale_proof_absence_nonclaim() -> None:
+def test_v1_host_replay_pending_status_requires_exact_nonclaim() -> None:
     matrix = _matrix()
+    matrix["promotion_boundary"]["non_claims"].remove(
+        checker.V1_HOST_REPLAY_PENDING_NON_CLAIM
+    )
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        "V1-host-replay-pending status requires its exact current-host replay non-claim"
+        in report["promotion_boundary"]["errors"]
+    )
+
+
+def test_full_current_proof_status_rejects_pending_v1_host_replay_nonclaim() -> None:
+    matrix = _matrix()
+    matrix["promotion_boundary"]["claim_status"] = checker.FULL_CURRENT_PROOF_CLAIM_STATUS
+    obligation = next(
+        item for item in matrix["obligations"] if item["id"] == "RS-CBC-014"
+    )
+    obligation["status"] = "implemented"
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        "full current-proof status retains stale V1 host replay non-claim"
+        in report["promotion_boundary"]["errors"]
+    )
+
+
+@pytest.mark.parametrize(
+    "claim_status",
+    [checker.FULL_CURRENT_PROOF_CLAIM_STATUS, checker.V1_HOST_REPLAY_PENDING_CLAIM_STATUS],
+)
+def test_current_recursive_proof_status_rejects_stale_proof_absence_nonclaim(
+    claim_status: str,
+) -> None:
+    matrix = _matrix()
+    if claim_status == checker.FULL_CURRENT_PROOF_CLAIM_STATUS:
+        _set_full_current_proof_status(matrix)
     matrix["promotion_boundary"]["non_claims"].append(
         "no_current_image_recursive_proof_after_composition_repair"
     )
@@ -571,8 +660,16 @@ def test_post_repair_verified_status_rejects_stale_proof_absence_nonclaim() -> N
     )
 
 
-def test_structural_tree_verified_status_rejects_stale_tree_absence_nonclaim() -> None:
+@pytest.mark.parametrize(
+    "claim_status",
+    [checker.FULL_CURRENT_PROOF_CLAIM_STATUS, checker.V1_HOST_REPLAY_PENDING_CLAIM_STATUS],
+)
+def test_structural_tree_verified_status_rejects_stale_tree_absence_nonclaim(
+    claim_status: str,
+) -> None:
     matrix = _matrix()
+    if claim_status == checker.FULL_CURRENT_PROOF_CLAIM_STATUS:
+        _set_full_current_proof_status(matrix)
     matrix["promotion_boundary"]["non_claims"].append(
         "no_v3_receipt_authenticated_tree"
     )
@@ -587,10 +684,17 @@ def test_structural_tree_verified_status_rejects_stale_tree_absence_nonclaim() -
 
 
 @pytest.mark.parametrize("obligation_id", ["RS-CBC-016", "RS-CBC-022"])
+@pytest.mark.parametrize(
+    "claim_status",
+    [checker.FULL_CURRENT_PROOF_CLAIM_STATUS, checker.V1_HOST_REPLAY_PENDING_CLAIM_STATUS],
+)
 def test_structural_tree_verified_status_requires_implemented_tree_obligations(
     obligation_id: str,
+    claim_status: str,
 ) -> None:
     matrix = _matrix()
+    if claim_status == checker.FULL_CURRENT_PROOF_CLAIM_STATUS:
+        _set_full_current_proof_status(matrix)
     obligation = next(
         item for item in matrix["obligations"] if item["id"] == obligation_id
     )
@@ -608,30 +712,141 @@ def test_structural_tree_verified_status_requires_implemented_tree_obligations(
     ) in report["errors"]
 
 
-@pytest.mark.parametrize(
-    "relative",
-    [
-        "zk/state_proof_risc0/shared/src/recursive.rs",
-        "zk/recursive_stark_v2_risc0/shared/src/lib.rs",
-    ],
-)
-def test_post_repair_verified_status_rejects_source_closure_mutation(
+def test_v1_host_replay_pending_status_rejects_v2_source_closure_mutation(
     tmp_path: Path,
-    relative: str,
 ) -> None:
     matrix = _matrix()
     root = _repo_copy_for_matrix(tmp_path, matrix)
-    path = root / relative
+    path = root / "zk/recursive_stark_v2_risc0/shared/src/lib.rs"
     path.write_bytes(path.read_bytes() + b"\n// guest-linked mutation\n")
 
     report = checker.validate_matrix(matrix, repo_root=root)
 
     assert report["ok"] is False
     assert any(
-        error.startswith("promoted V1 source closure rejected:")
-        or error.startswith("promoted V2 source closure rejected:")
+        error.startswith("promoted V2 source closure rejected:")
         for error in report["errors"]
     )
+
+
+def test_v1_host_replay_pending_status_does_not_consult_stale_v1_closure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    matrix = _matrix()
+
+    def reject_unexpected_v1_validation(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("degraded status must not consult the stale V1 source closure")
+
+    monkeypatch.setattr(
+        checker.recursive_v1_evidence,
+        "validate_reference",
+        reject_unexpected_v1_validation,
+    )
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is True
+
+
+def test_full_current_proof_status_rejects_current_v1_host_source_drift() -> None:
+    matrix = _matrix()
+    _set_full_current_proof_status(matrix)
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert any(
+        error.startswith("promoted V1 source closure rejected:")
+        for error in report["errors"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("claim_status", "expected_closures", "expected_statements"),
+    [
+        (
+            checker.FULL_CURRENT_PROOF_CLAIM_STATUS,
+            frozenset({"v1", "v2"}),
+            FULL_REQUIRED_STATEMENTS,
+        ),
+        (
+            checker.V1_HOST_REPLAY_PENDING_CLAIM_STATUS,
+            frozenset({"v2"}),
+            DEGRADED_REQUIRED_STATEMENTS,
+        ),
+    ],
+)
+def test_claim_status_routes_exact_source_closure_policy(
+    monkeypatch: pytest.MonkeyPatch,
+    claim_status: str,
+    expected_closures: frozenset[str],
+    expected_statements: frozenset[str],
+) -> None:
+    matrix = _matrix()
+    if claim_status == checker.FULL_CURRENT_PROOF_CLAIM_STATUS:
+        _set_full_current_proof_status(matrix)
+    captured: list[frozenset[str]] = []
+
+    def capture_policy(
+        _repo_root: Path | None,
+        _errors: list[str],
+        *,
+        required_closures: frozenset[str],
+    ) -> None:
+        captured.append(required_closures)
+
+    monkeypatch.setattr(checker, "_validate_promoted_source_closures", capture_policy)
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is True
+    assert captured == [expected_closures]
+    assert report["promotion_boundary"]["facts"]["required_source_closures"] == sorted(
+        expected_closures
+    )
+    assert report["promotion_boundary"]["facts"]["required_implemented_statements"] == sorted(
+        expected_statements
+    )
+
+
+@pytest.mark.parametrize(
+    ("claim_status", "statement_id"),
+    [
+        *(
+            (checker.FULL_CURRENT_PROOF_CLAIM_STATUS, statement_id)
+            for statement_id in sorted(FULL_REQUIRED_STATEMENTS)
+        ),
+        *(
+            (checker.V1_HOST_REPLAY_PENDING_CLAIM_STATUS, statement_id)
+            for statement_id in sorted(DEGRADED_REQUIRED_STATEMENTS)
+        ),
+    ],
+)
+def test_claim_status_rejects_pending_required_typed_statement(
+    monkeypatch: pytest.MonkeyPatch,
+    claim_status: str,
+    statement_id: str,
+) -> None:
+    matrix = _matrix()
+    if claim_status == checker.FULL_CURRENT_PROOF_CLAIM_STATUS:
+        _set_full_current_proof_status(matrix)
+    statement = next(
+        item for item in matrix["typed_statements"] if item["id"] == statement_id
+    )
+    statement["status"] = "pending"
+    monkeypatch.setattr(
+        checker,
+        "_validate_promoted_source_closures",
+        lambda *_args, **_kwargs: None,
+    )
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        f"{claim_status} requires typed statement {statement_id} "
+        "implemented or implemented_partial"
+    ) in report["errors"]
 
 
 def test_post_repair_verified_status_rejects_extra_compile_source(tmp_path: Path) -> None:
