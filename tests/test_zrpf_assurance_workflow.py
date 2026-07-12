@@ -68,6 +68,8 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tools/zrpf_v4_spot_value_leaf_evidence_support.py" in python_assurance
     assert "tools/zrpf_evidence_boundary_concolic.py" in python_assurance
     assert "tests/test_check_zrpf_v4_spot_value_leaf_local_evidence.py" in python_assurance
+    assert "tools/check_zrpf_value_aggregate_v5_build_record.py" in python_assurance
+    assert "tests/test_check_zrpf_value_aggregate_v5_build_record.py" in python_assurance
     assert "tests/test_zrpf_evidence_boundary_concolic.py" in python_assurance
     ruff_assurance, after_ruff = python_assurance.split(
         "\nmypy --follow-imports=skip \\\n",
@@ -145,6 +147,8 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert rust_assurance.count("-p zenodex-zrpf-risc0-harness") == 2
     assert rust_assurance.count("-p zenodex-zrpf-risc0-semantic-shared") == 4
     assert rust_assurance.count("-p zenodex-zrpf-risc0-value-node-shared") == 2
+    assert rust_assurance.count("-p zenodex-zrpf-risc0-value-aggregate-shared") == 2
+    assert rust_assurance.count("-p zenodex-zrpf-risc0-value-aggregate-l2-policy") == 2
     assert "--locked --all-targets" in rust_assurance
     assert rust_assurance.count("--no-default-features --test semantic_v2") == 2
     assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 5
