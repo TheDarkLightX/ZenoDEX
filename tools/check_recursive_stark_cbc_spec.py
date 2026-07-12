@@ -263,6 +263,7 @@ PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM = (
 class ClaimStatusPolicy:
     required_source_closures: frozenset[str]
     required_implemented_statements: frozenset[str]
+    required_pending_obligations: frozenset[str]
 
 
 CLAIM_STATUS_POLICIES = {
@@ -274,6 +275,7 @@ CLAIM_STATUS_POLICIES = {
                 "zrpf_v1_spot_adapter_receipt_v1",
             }
         ),
+        required_pending_obligations=frozenset({"RS-CBC-014"}),
     ),
 }
 ACCEPTED_CLAIM_STATUSES = frozenset(CLAIM_STATUS_POLICIES)
@@ -328,8 +330,12 @@ def validate_matrix(matrix: Any, *, repo_root: Path = REPO_ROOT) -> dict[str, An
                     "implemented or implemented_partial"
                 )
         obligation_statuses = {item["id"]: item["status"] for item in obligations["items"]}
-        if obligation_statuses.get("RS-CBC-014") != "implemented":
-            errors.append("reviewed recursive claim status requires RS-CBC-014 implemented")
+        for obligation_id in sorted(policy.required_pending_obligations):
+            if obligation_statuses.get(obligation_id) not in PENDING_STATUSES:
+                errors.append(
+                    f"{claim_status} requires {obligation_id} pending until fresh current-image "
+                    "evidence exists"
+                )
         for obligation_id in ("RS-CBC-016", "RS-CBC-022"):
             if obligation_statuses.get(obligation_id) not in IMPLEMENTED_STATUSES:
                 errors.append(
@@ -341,9 +347,7 @@ def validate_matrix(matrix: Any, *, repo_root: Path = REPO_ROOT) -> dict[str, An
             errors,
             required_closures=policy.required_source_closures,
         )
-    promotion["facts"]["v1_live_replay_record_integrity_verified"] = (
-        live_record_integrity_verified
-    )
+    promotion["facts"]["v1_live_replay_record_integrity_verified"] = live_record_integrity_verified
 
     for section_name, section in (
         ("promotion_boundary", promotion),
@@ -467,15 +471,9 @@ def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
     missing_non_claims = sorted(REQUIRED_NON_CLAIMS - non_claims)
     if missing_non_claims:
         errors.append("promotion_boundary.non_claims missing required values")
-    if (
-        claim_status in ACCEPTED_CLAIM_STATUSES
-        and STALE_CURRENT_IMAGE_NON_CLAIM in non_claims
-    ):
+    if claim_status in ACCEPTED_CLAIM_STATUSES and STALE_CURRENT_IMAGE_NON_CLAIM in non_claims:
         errors.append("promotion_boundary.non_claims retains stale current-image proof absence")
-    if (
-        claim_status in ACCEPTED_CLAIM_STATUSES
-        and STALE_V3_TREE_ABSENCE_NON_CLAIM in non_claims
-    ):
+    if claim_status in ACCEPTED_CLAIM_STATUSES and STALE_V3_TREE_ABSENCE_NON_CLAIM in non_claims:
         errors.append("promotion_boundary.non_claims retains stale V3 structural-tree absence")
     if (
         claim_status == V1_HOST_REPLAY_PENDING_CLAIM_STATUS
@@ -489,13 +487,11 @@ def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
         and PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM not in non_claims
     ):
         errors.append(
-            "patched-anyhow reproof-pending status requires its exact current-proof "
-            "non-claim"
+            "patched-anyhow reproof-pending status requires its exact current-proof non-claim"
         )
     if V1_RECORDED_LIVE_REPLAY_NON_CLAIM not in non_claims:
         errors.append(
-            "retained V1 live-replay record requires its exact historical-provenance "
-            "non-claim"
+            "retained V1 live-replay record requires its exact historical-provenance non-claim"
         )
     return {
         "ok": not errors,
@@ -509,6 +505,9 @@ def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
             ),
             "required_implemented_statements": sorted(
                 claim_policy.required_implemented_statements if claim_policy else frozenset()
+            ),
+            "required_pending_obligations": sorted(
+                claim_policy.required_pending_obligations if claim_policy else frozenset()
             ),
             "missing_required_non_claims": missing_non_claims,
         },
@@ -913,9 +912,7 @@ def _reject_unknown_fields(
     if any(not isinstance(field, str) for field in value):
         errors.append(f"{name} field names must be strings")
     unknown_fields = sorted(
-        field
-        for field in value
-        if isinstance(field, str) and field not in allowed_fields
+        field for field in value if isinstance(field, str) and field not in allowed_fields
     )
     if unknown_fields:
         errors.append(f"{name} has unknown fields: {','.join(unknown_fields)}")

@@ -315,6 +315,22 @@ jobs:
             --manifest-path zk/state_proof_risc0/Cargo.toml \
             --locked --offline -p tau-state-proof-risc0-cli --all-targets -- -D warnings
 
+      - name: Build pinned current RISC0 guests
+        shell: bash
+        run: |
+          set -euo pipefail
+          pinned_bin="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin"
+          export CARGO="${pinned_bin}/cargo"
+          export CARGO_TARGET_DIR="${RUNNER_TEMP}/zrpf-current-guest-build"
+          export PATH="${pinned_bin}:/usr/bin:/bin"
+          export RUSTC="${pinned_bin}/rustc"
+          export RUSTDOC="${pinned_bin}/rustdoc_tool_binary"
+          unset RISC0_SKIP_BUILD
+          "${pinned_bin}/cargo" build \
+            --manifest-path zk/zrpf_risc0/Cargo.toml \
+            --frozen --offline --release \
+            -p zenodex-zrpf-risc0-methods
+
       - name: Build pinned replay container
         run: |
           docker build \

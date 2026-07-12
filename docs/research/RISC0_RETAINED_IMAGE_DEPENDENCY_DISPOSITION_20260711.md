@@ -81,7 +81,7 @@ Two isolated counterfactual rebuilds separated the dependencies:
 | V1 state proof | `1.0.100` | `0.11.15` | all six program bytes and image IDs matched the retained reference |
 | recursive v2 | `1.0.102` | `0.11.15` | program, raw ELF, image ID, and both verifier outputs matched the retained reference |
 
-The current lock identities are:
+The historical counterfactual lock identities were:
 
 ```text
 state_proof_risc0 Cargo.lock

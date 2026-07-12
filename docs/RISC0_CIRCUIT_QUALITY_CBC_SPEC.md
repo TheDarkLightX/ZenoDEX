@@ -151,6 +151,12 @@ records its integrity as historical evidence and requires the exact non-claim
 `no_authenticated_historical_execution_provenance_for_v1_live_replay_record`.
 The record does not restore current V1 image or receipt evidence after the
 `anyhow 1.0.103` migration.
+`config/proof_profiles/risc0_recursive_rebuild_reference.json` is frozen as
+the immutable historical V1 replay reference. Fresh active V1/V2 reproof work
+must use
+`config/proof_profiles/risc0_recursive_active_reproof_reference_v3.json` or a
+later separately reviewed path; it must not overwrite the historical trust
+root.
 Historical execution provenance, public replay, network isolation, sandbox,
 settlement, release, privacy, and production authority remain false.
 

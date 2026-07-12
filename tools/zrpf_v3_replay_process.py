@@ -17,12 +17,7 @@ from pathlib import Path
 from typing import IO
 
 _LIBC = ctypes.CDLL(None, use_errno=True)
-STDIN_SEALS = (
-    fcntl.F_SEAL_SEAL
-    | fcntl.F_SEAL_SHRINK
-    | fcntl.F_SEAL_GROW
-    | fcntl.F_SEAL_WRITE
-)
+STDIN_SEALS = fcntl.F_SEAL_SEAL | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_GROW | fcntl.F_SEAL_WRITE
 STDIN_TRANSPORT = "linux_memfd_full_seals_v1"
 
 
@@ -57,6 +52,8 @@ def run_bounded(request: ProcessRequest) -> subprocess.CompletedProcess[bytes]:
     if request.stdin_bytes is not None and len(request.stdin_bytes) > request.input_limit_bytes:
         raise ValueError("subprocess stdin exceeded cap")
     stdin_descriptor: int | None = None
+    process: subprocess.Popen[bytes] | None = None
+    spawn_error: BaseException | None = None
     try:
         if request.stdin_bytes is not None:
             stdin_descriptor = _sealed_stdin(request.stdin_bytes)
@@ -79,9 +76,28 @@ def run_bounded(request: ProcessRequest) -> subprocess.CompletedProcess[bytes]:
             ),
             start_new_session=True,
         )
+    except BaseException as exc:
+        spawn_error = exc
+        raise
     finally:
         if stdin_descriptor is not None:
-            os.close(stdin_descriptor)
+            try:
+                os.close(stdin_descriptor)
+            except OSError as exc:
+                close_error = RuntimeError("sealed stdin close failed")
+                if spawn_error is not None:
+                    spawn_error.add_note(str(close_error))
+                else:
+                    if process is not None:
+                        try:
+                            _kill_process_group(process)
+                        except BaseException as cleanup_error:
+                            close_error.add_note(
+                                f"process_cleanup_failure={type(cleanup_error).__name__}"
+                            )
+                    raise close_error from exc
+    if process is None:
+        raise RuntimeError("subprocess was not created")
     if process.stdout is None or process.stderr is None:
         _kill_process_group(process)
         raise RuntimeError("subprocess pipes were not created")
@@ -118,8 +134,11 @@ def _sealed_stdin(raw: bytes) -> int:
             raise RuntimeError("sealed stdin seal mismatch")
         os.lseek(descriptor, 0, os.SEEK_SET)
         return descriptor
-    except BaseException:
-        os.close(descriptor)
+    except BaseException as primary_error:
+        try:
+            os.close(descriptor)
+        except OSError:
+            primary_error.add_note("cleanup_failure=SEALED_STDIN_CLOSE_FAILED")
         raise
 
 
@@ -153,8 +172,8 @@ def _apply_process_profile(
 
 def _set_limit(kind: int, requested: int) -> None:
     _, inherited_hard = resource.getrlimit(kind)
-    bounded = requested if inherited_hard == resource.RLIM_INFINITY else min(
-        requested, inherited_hard
+    bounded = (
+        requested if inherited_hard == resource.RLIM_INFINITY else min(requested, inherited_hard)
     )
     resource.setrlimit(kind, (bounded, bounded))
 

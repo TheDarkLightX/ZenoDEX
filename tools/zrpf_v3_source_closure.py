@@ -1,4 +1,9 @@
-"""Exact compiler and verifier source closure for frozen ZRPF V3 evidence."""
+"""Exact governed-workspace source inventory for frozen ZRPF V3 evidence.
+
+This inventory binds repository files in the governed workspaces. It does not
+establish a complete compiler or build-input closure; ambient toolchain,
+dependency, build-script, and host inputs retain separate false claim fields.
+"""
 
 from __future__ import annotations
 
@@ -7,15 +12,148 @@ import json
 import os
 import stat
 import subprocess
+import tomllib
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 SCHEMA = "zenodex/zrpf_v3_frozen_source_closure/v1"
 MAX_SOURCE_BYTES = 16 * 1024 * 1024
+GOVERNED_WORKSPACE_ROOTS = (
+    "zk/state_proof_risc0",
+    "zk/zrpf_protocol",
+    "zk/zrpf_risc0",
+)
+
+WORKSPACE_AUXILIARY_ROWS: tuple[tuple[str, str], ...] = tuple(
+    ("governed_workspace_source", path)
+    for path in (
+        "zk/state_proof_risc0/Cargo.lock",
+        "zk/state_proof_risc0/README.md",
+        "zk/state_proof_risc0/cli/Cargo.toml",
+        "zk/state_proof_risc0/cli/examples/recursive_artifact_export.rs",
+        "zk/state_proof_risc0/cli/examples/recursive_missing_assumption_reject.rs",
+        "zk/state_proof_risc0/cli/examples/recursive_summary_leaf_smoke.rs",
+        "zk/state_proof_risc0/cli/src/main.rs",
+        "zk/state_proof_risc0/cli/src/recursive_wire.rs",
+        "zk/state_proof_risc0/cli/src/recursive_wire/application/mod.rs",
+        "zk/state_proof_risc0/cli/src/recursive_wire/application/perps.rs",
+        "zk/state_proof_risc0/cli/src/recursive_wire/application/spot.rs",
+        "zk/state_proof_risc0/cli/src/recursive_wire/application/zusd.rs",
+        "zk/state_proof_risc0/cli/src/strict_json.rs",
+        "zk/state_proof_risc0/methods/Cargo.toml",
+        "zk/state_proof_risc0/methods/aggregate/Cargo.toml",
+        "zk/state_proof_risc0/methods/aggregate/src/main.rs",
+        "zk/state_proof_risc0/methods/build.rs",
+        "zk/state_proof_risc0/methods/guest/Cargo.toml",
+        "zk/state_proof_risc0/methods/guest/src/main.rs",
+        "zk/state_proof_risc0/methods/perps_np_leaf/Cargo.toml",
+        "zk/state_proof_risc0/methods/perps_np_leaf/src/main.rs",
+        "zk/state_proof_risc0/methods/spot_leaf/Cargo.toml",
+        "zk/state_proof_risc0/methods/spot_leaf/src/main.rs",
+        "zk/state_proof_risc0/methods/src/lib.rs",
+        "zk/state_proof_risc0/methods/summary_leaf/Cargo.toml",
+        "zk/state_proof_risc0/methods/summary_leaf/src/main.rs",
+        "zk/state_proof_risc0/methods/zusd_leaf/Cargo.toml",
+        "zk/state_proof_risc0/methods/zusd_leaf/src/main.rs",
+        "zk/zrpf_protocol/Cargo.lock",
+        "zk/zrpf_protocol/README.md",
+        "zk/zrpf_protocol/perps_source_finality/Cargo.toml",
+        "zk/zrpf_protocol/perps_source_finality/src/codec.rs",
+        "zk/zrpf_protocol/perps_source_finality/src/derive.rs",
+        "zk/zrpf_protocol/perps_source_finality/src/error.rs",
+        "zk/zrpf_protocol/perps_source_finality/src/lib.rs",
+        "zk/zrpf_protocol/perps_source_finality/src/model.rs",
+        "zk/zrpf_protocol/perps_source_finality/tests/perps_source_finality_v1.rs",
+        "zk/zrpf_protocol/zusd_value_flow/Cargo.toml",
+        "zk/zrpf_protocol/zusd_value_flow/src/bounded.rs",
+        "zk/zrpf_protocol/zusd_value_flow/src/codec.rs",
+        "zk/zrpf_protocol/zusd_value_flow/src/context.rs",
+        "zk/zrpf_protocol/zusd_value_flow/src/derive.rs",
+        "zk/zrpf_protocol/zusd_value_flow/src/error.rs",
+        "zk/zrpf_protocol/zusd_value_flow/src/hash.rs",
+        "zk/zrpf_protocol/zusd_value_flow/src/lib.rs",
+        "zk/zrpf_protocol/zusd_value_flow/src/operation.rs",
+        "zk/zrpf_protocol/zusd_value_flow/src/proposal.rs",
+        "zk/zrpf_protocol/zusd_value_flow/src/row.rs",
+        "zk/zrpf_protocol/zusd_value_flow/tests/zusd_value_flow_v1.rs",
+        "zk/zrpf_risc0/README.md",
+        "zk/zrpf_risc0/replay_verifier/Cargo.toml",
+        "zk/zrpf_risc0/replay_verifier/src/bin/zrpf_firecracker_guest_elf_checker.rs",
+        "zk/zrpf_risc0/replay_verifier/src/bin/zrpf_firecracker_guest_init.rs",
+        "zk/zrpf_risc0/replay_verifier/src/bundle.rs",
+        "zk/zrpf_risc0/replay_verifier/src/error.rs",
+        "zk/zrpf_risc0/replay_verifier/src/firecracker_protocol.rs",
+        "zk/zrpf_risc0/replay_verifier/src/lib.rs",
+        "zk/zrpf_risc0/replay_verifier/src/main.rs",
+        "zk/zrpf_risc0/replay_verifier/src/profile.rs",
+        "zk/zrpf_risc0/replay_verifier/src/tests.rs",
+    )
+)
+
+AUXILIARY_RUST_ROWS: tuple[tuple[str, str], ...] = tuple(
+    ("assurance_compiler_source", path)
+    for path in (
+        "zk/zrpf_protocol/protocol/tests/economic_action_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/full_blob_da_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/node_v3.rs",
+        "zk/zrpf_protocol/protocol/tests/semantic_epoch_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/settlement_certificate_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/settlement_effect_v2.rs",
+        "zk/zrpf_protocol/protocol/tests/sparse_merkle_batch_support.rs",
+        "zk/zrpf_protocol/protocol/tests/sparse_merkle_batch_transition_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/sparse_merkle_cell_transition_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/support/value_aggregate_v5_mirror.rs",
+        "zk/zrpf_protocol/protocol/tests/task_manifest_assignment_policy_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/task_manifest_compatibility_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/task_manifest_hash_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/task_manifest_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/value_aggregate_v5.rs",
+        "zk/zrpf_protocol/protocol/tests/value_aggregate_v5_operational.rs",
+        "zk/zrpf_protocol/protocol/tests/value_node_v4.rs",
+        "zk/zrpf_protocol/protocol/tests/value_transfer_v2.rs",
+        "zk/zrpf_risc0/aggregate_shared/tests/structural_v1.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/bind_v1.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/codec_v1.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/epoch_v1.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/recompose_v1.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/semantic_v2.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/spot_certificate_mutation_v1.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/spot_certificate_state_v2.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/spot_certificate_v1.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/spot_full_blob_da_v1.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/spot_guest_input_v2.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/spot_guest_receipt_boundary_v2.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/spot_guest_source_contract_v2.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/spot_replay_data_v1.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/spot_replay_data_v2.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/spot_settlement_state_v2.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/spot_settlement_v1.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/support/spot_certificate_fixture.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/support/spot_certificate_state_v2_fixture.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/support/spot_certificate_state_v2_hashes.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/support/spot_certificate_vectors.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/support/spot_guest_input_v2_wire.rs",
+        "zk/zrpf_risc0/semantic_shared/tests/value_v1.rs",
+        "zk/zrpf_risc0/shared/tests/v1_leaf_adapter.rs",
+        "zk/zrpf_risc0/value_aggregate_l2_policy/tests/architecture_v5.rs",
+        "zk/zrpf_risc0/value_aggregate_l2_policy/tests/identity_v5.rs",
+        "zk/zrpf_risc0/value_aggregate_l2_policy/tests/level_two_guest_v5.rs",
+        "zk/zrpf_risc0/value_aggregate_root_policy/tests/architecture_v5.rs",
+        "zk/zrpf_risc0/value_aggregate_root_policy/tests/identity_v5.rs",
+        "zk/zrpf_risc0/value_aggregate_shared/tests/guest_input_v5.rs",
+        "zk/zrpf_risc0/value_aggregate_shared/tests/level_one_guest_v5.rs",
+        "zk/zrpf_risc0/value_aggregate_shared/tests/level_one_v5.rs",
+        "zk/zrpf_risc0/value_aggregate_shared/tests/level_two_v5.rs",
+        "zk/zrpf_risc0/value_aggregate_shared/tests/support/mod.rs",
+        "zk/zrpf_risc0/value_node_shared/tests/leaf_v4.rs",
+    )
+)
 
 SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
     sorted(
         (
+            *AUXILIARY_RUST_ROWS,
+            *WORKSPACE_AUXILIARY_ROWS,
             (
                 "economic_action_protocol_v1",
                 "zk/zrpf_protocol/protocol/src/economic_action_v1/batch.rs",
@@ -378,6 +516,35 @@ SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
             ),
             ("verification_harness_v5", "zk/zrpf_risc0/verifier/src/value_aggregate_v5.rs"),
             ("verification_harness_v5", "zk/zrpf_risc0/verifier/src/value_aggregate_v5/tests.rs"),
+            (
+                "value_aggregate_guest_v5",
+                "zk/zrpf_risc0/methods/ordinary_spot_settlement/Cargo.toml",
+            ),
+            ("value_aggregate_guest_v5", "zk/zrpf_risc0/methods/value_aggregate_l1/Cargo.toml"),
+            ("value_aggregate_guest_v5", "zk/zrpf_risc0/methods/value_aggregate_l2/Cargo.toml"),
+            ("value_aggregate_l2_policy_v5", "zk/zrpf_risc0/value_aggregate_l2_policy/Cargo.toml"),
+            ("value_aggregate_l2_policy_v5", "zk/zrpf_risc0/value_aggregate_l2_policy/src/lib.rs"),
+            (
+                "value_aggregate_root_policy_v5",
+                "zk/zrpf_risc0/value_aggregate_root_policy/Cargo.toml",
+            ),
+            (
+                "value_aggregate_root_policy_v5",
+                "zk/zrpf_risc0/value_aggregate_root_policy/src/lib.rs",
+            ),
+            ("value_aggregate_mapping_v5", "zk/zrpf_risc0/value_aggregate_shared/Cargo.toml"),
+            ("value_aggregate_mapping_v5", "zk/zrpf_risc0/value_aggregate_shared/src/child.rs"),
+            ("value_aggregate_mapping_v5", "zk/zrpf_risc0/value_aggregate_shared/src/error.rs"),
+            (
+                "value_aggregate_mapping_v5",
+                "zk/zrpf_risc0/value_aggregate_shared/src/guest_input.rs",
+            ),
+            ("value_aggregate_mapping_v5", "zk/zrpf_risc0/value_aggregate_shared/src/input.rs"),
+            ("value_aggregate_mapping_v5", "zk/zrpf_risc0/value_aggregate_shared/src/level_one.rs"),
+            ("value_aggregate_mapping_v5", "zk/zrpf_risc0/value_aggregate_shared/src/level_two.rs"),
+            ("value_aggregate_mapping_v5", "zk/zrpf_risc0/value_aggregate_shared/src/lib.rs"),
+            ("value_aggregate_mapping_v5", "zk/zrpf_risc0/value_aggregate_shared/src/policy.rs"),
+            ("workspace_build", "zk/state_proof_risc0/.cargo/config.toml"),
             ("workspace_build", "zk/state_proof_risc0/Cargo.toml"),
             ("source_journal_dependency", "zk/state_proof_risc0/shared/Cargo.toml"),
             ("source_journal_dependency", "zk/state_proof_risc0/shared/src/lib.rs"),
@@ -533,18 +700,6 @@ SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
     )
 )
 
-SCAN_DIRECTORIES = (
-    "zk/state_proof_risc0/shared/src",
-    "zk/zrpf_protocol/protocol/src",
-    "zk/zrpf_risc0/aggregate_shared/src",
-    "zk/zrpf_risc0/harness/src",
-    "zk/zrpf_risc0/methods",
-    "zk/zrpf_risc0/semantic_shared/src",
-    "zk/zrpf_risc0/shared/src",
-    "zk/zrpf_risc0/value_node_shared/src",
-    "zk/zrpf_risc0/verifier/src",
-)
-
 
 class SourceClosureError(ValueError):
     """Raised when a source tree cannot satisfy the frozen closure contract."""
@@ -553,7 +708,7 @@ class SourceClosureError(ValueError):
 def build_source_closure(repository_root: Path) -> dict[str, Any]:
     root = _resolved_repository_root(repository_root)
     _reject_target_directories(root)
-    _validate_compiler_source_inventory(root)
+    _validate_governed_workspace_inventory(root)
 
     files: list[dict[str, Any]] = []
     closure_hasher = hashlib.sha256()
@@ -706,28 +861,112 @@ def _source_identity(metadata: os.stat_result) -> tuple[int, ...]:
     )
 
 
-def _validate_compiler_source_inventory(root: Path) -> None:
-    expected_rs = {path for _, path in SOURCE_ROWS if path.endswith(".rs")}
+def _validate_governed_workspace_inventory(root: Path) -> None:
+    _validate_cargo_control_inventory(root)
+    expected = {path for _, path in SOURCE_ROWS}
     discovered: set[str] = set()
-    for relative_root in SCAN_DIRECTORIES:
+    for relative_root in GOVERNED_WORKSPACE_ROOTS:
         directory = root / relative_root
         if not directory.is_dir() or directory.is_symlink():
-            raise SourceClosureError(f"compiler source directory unavailable: {relative_root}")
-        for path in directory.rglob("*.rs"):
-            if path.is_symlink() or not path.is_file():
-                raise SourceClosureError("compiler source inventory contains a non-regular path")
+            raise SourceClosureError(f"governed workspace unavailable: {relative_root}")
+        for path in directory.rglob("*"):
+            if path.is_symlink():
+                raise SourceClosureError("governed workspace inventory contains a symlink")
+            if path.is_dir():
+                continue
+            if not path.is_file():
+                raise SourceClosureError("governed workspace inventory contains a non-regular path")
             discovered.add(path.relative_to(root).as_posix())
-    if discovered != expected_rs:
-        missing = sorted(expected_rs - discovered)
-        extra = sorted(discovered - expected_rs)
+    if discovered != expected:
+        missing = sorted(expected - discovered)
+        extra = sorted(discovered - expected)
         raise SourceClosureError(
-            f"compiler Rust source inventory mismatch: missing={missing}, extra={extra}"
+            f"governed workspace source inventory mismatch: missing={missing}, extra={extra}"
         )
+
+
+def _validate_cargo_control_inventory(root: Path) -> None:
+    expected = {
+        path for _, path in SOURCE_ROWS if path.endswith("/build.rs") or "/.cargo/config" in path
+    }
+    discovered: set[str] = set()
+    manifests = sorted(path for _, path in SOURCE_ROWS if path.endswith("/Cargo.toml"))
+    for manifest in manifests:
+        manifest_path = PurePosixPath(manifest)
+        document = _load_governed_cargo_manifest(root, manifest)
+        package = document.get("package")
+        if package is not None and not isinstance(package, dict):
+            raise SourceClosureError(f"invalid governed Cargo package table: {manifest}")
+        if isinstance(package, dict):
+            build = package.get("build")
+            if build is not False:
+                relative_build = "build.rs" if build is None else build
+                if not isinstance(relative_build, str) or not relative_build:
+                    raise SourceClosureError(f"invalid governed Cargo build path: {manifest}")
+                build_path = PurePosixPath(relative_build)
+                if build_path.is_absolute() or ".." in build_path.parts:
+                    raise SourceClosureError(f"unsafe governed Cargo build path: {manifest}")
+                candidate = (manifest_path.parent / build_path).as_posix()
+                present = _record_cargo_control(root, candidate, discovered)
+                if build is not None and not present:
+                    raise SourceClosureError(
+                        f"governed Cargo build script unavailable: {candidate}"
+                    )
+        for directory in _cargo_config_ancestors(manifest_path.parent):
+            for name in ("config", "config.toml"):
+                _record_cargo_control(
+                    root,
+                    (directory / ".cargo" / name).as_posix(),
+                    discovered,
+                )
+    if discovered != expected:
+        missing = sorted(expected - discovered)
+        extra = sorted(discovered - expected)
+        raise SourceClosureError(
+            f"Cargo compiler control inventory mismatch: missing={missing}, extra={extra}"
+        )
+
+
+def _load_governed_cargo_manifest(root: Path, manifest: str) -> dict[str, Any]:
+    try:
+        document = tomllib.loads(_read_source(root, manifest).decode("utf-8"))
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+        raise SourceClosureError(f"invalid governed Cargo manifest: {manifest}") from exc
+    if not isinstance(document, dict):
+        raise SourceClosureError(f"invalid governed Cargo manifest: {manifest}")
+    return document
+
+
+def _cargo_config_ancestors(directory: PurePosixPath) -> tuple[PurePosixPath, ...]:
+    ancestors: list[PurePosixPath] = []
+    current = directory
+    while True:
+        ancestors.append(current)
+        if current == PurePosixPath("."):
+            return tuple(ancestors)
+        current = current.parent
+
+
+def _record_cargo_control(root: Path, relative: str, discovered: set[str]) -> bool:
+    candidate = root / relative
+    if candidate.is_symlink():
+        raise SourceClosureError(f"Cargo compiler control is symlinked: {relative}")
+    try:
+        metadata = candidate.lstat()
+    except FileNotFoundError:
+        return False
+    except OSError as exc:
+        raise SourceClosureError(f"Cargo compiler control unavailable: {relative}") from exc
+    if not stat.S_ISREG(metadata.st_mode):
+        raise SourceClosureError(f"Cargo compiler control is not regular: {relative}")
+    _read_source(root, relative)
+    discovered.add(relative)
+    return True
 
 
 def _reject_target_directories(root: Path) -> None:
     for relative in (
-        "zk/state_proof_risc0/shared",
+        "zk/state_proof_risc0",
         "zk/zrpf_protocol",
         "zk/zrpf_risc0",
     ):

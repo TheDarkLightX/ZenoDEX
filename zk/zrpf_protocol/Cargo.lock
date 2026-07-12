@@ -259,6 +259,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "zenodex-zrpf-zusd-value-flow-reference-v1"
+version = "0.1.0"
+dependencies = [
+ "postcard",
+ "serde",
+ "serde_json",
+ "sha2",
+ "zenodex-zrpf-protocol-v3",
+]
+
+[[package]]
 name = "zmij"
 version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"

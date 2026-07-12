@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -39,9 +41,7 @@ def test_expected_evidence_pins_source_receipts_and_authority_boundary() -> None
     assert evidence["replay_source_closure"]["file_count"] == 44
     assert evidence["retained_receipt_set"]["artifact_count"] == 8
     assert evidence["retained_receipt_set"]["total_bytes"] == 4_746_064
-    assert evidence["recorded_execution"]["stdout_sha256"] == (
-        support.EXPECTED_STDOUT_SHA256
-    )
+    assert evidence["recorded_execution"]["stdout_sha256"] == (support.EXPECTED_STDOUT_SHA256)
     assert evidence["claims"]["same_host_source_built_host_verifier_replay"] is True
     assert evidence["claims"]["executing_binary_identity_authenticated"] is True
     assert evidence["claims"]["network_disabled"] is False
@@ -85,11 +85,7 @@ def test_anchor_inventory_rejects_an_unexpected_compiler_visible_file(
         raw = original(repo_root, arguments, output_limit)
         if arguments[0] != "ls-tree":
             return raw
-        return raw + (
-            b"100644 blob "
-            + b"0" * 40
-            + b"\tzk/zrpf_risc0/replay_verifier/build.rs\0"
-        )
+        return raw + (b"100644 blob " + b"0" * 40 + b"\tzk/zrpf_risc0/replay_verifier/build.rs\0")
 
     monkeypatch.setattr(support, "_run_git_read", add_build_script)
 
@@ -229,9 +225,7 @@ def test_build_environment_drops_parent_authority_and_secret_inputs(
 
     env = replay_environment.build_environment(tool_paths, tmp_path / "target")
 
-    assert {
-        key for key in poisoned if key != "CARGO_ENCODED_RUSTFLAGS"
-    }.isdisjoint(env)
+    assert {key for key in poisoned if key != "CARGO_ENCODED_RUSTFLAGS"}.isdisjoint(env)
     assert env["CARGO_ENCODED_RUSTFLAGS"] == "\x1f".join(
         (
             "--remap-path-prefix",
@@ -311,7 +305,11 @@ def test_bounded_process_rejects_output_before_unbounded_buffering(
 
 def test_bounded_process_supplies_exact_bounded_stdin(tmp_path: Path) -> None:
     request = replay_process.ProcessRequest(
-        command=(sys.executable, "-c", "import sys; sys.stdout.buffer.write(sys.stdin.buffer.read())"),
+        command=(
+            sys.executable,
+            "-c",
+            "import sys; sys.stdout.buffer.write(sys.stdin.buffer.read())",
+        ),
         cwd=tmp_path,
         env={"PATH": replay_environment.SYSTEM_PATH},
         timeout_seconds=5,
@@ -326,6 +324,78 @@ def test_bounded_process_supplies_exact_bounded_stdin(tmp_path: Path) -> None:
     assert process.returncode == 0
     assert process.stdout == b"governed replay request"
     assert process.stderr == b""
+
+
+def test_bounded_process_kills_spawned_child_when_parent_stdin_close_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    descriptor = os.memfd_create("close-failure-test", os.MFD_CLOEXEC)
+    real_close = replay_process.os.close
+    real_popen = replay_process.subprocess.Popen
+    real_kill = replay_process._kill_process_group
+    spawned: list[subprocess.Popen[bytes]] = []
+    killed: list[int] = []
+    close_failed = False
+
+    def record_popen(*args: Any, **kwargs: Any) -> subprocess.Popen[bytes]:
+        process = real_popen(*args, **kwargs)
+        spawned.append(process)
+        return process
+
+    def close_then_fail_once(target: int) -> None:
+        nonlocal close_failed
+        real_close(target)
+        if target == descriptor and not close_failed:
+            close_failed = True
+            raise OSError("injected stdin close failure")
+
+    def record_kill(process: subprocess.Popen[bytes]) -> None:
+        killed.append(process.pid)
+        real_kill(process)
+
+    monkeypatch.setattr(replay_process, "_sealed_stdin", lambda _raw: descriptor)
+    monkeypatch.setattr(replay_process.subprocess, "Popen", record_popen)
+    monkeypatch.setattr(replay_process.os, "close", close_then_fail_once)
+    monkeypatch.setattr(replay_process, "_kill_process_group", record_kill)
+
+    request = replay_process.ProcessRequest(
+        command=(sys.executable, "-c", "import time; time.sleep(30)"),
+        cwd=tmp_path,
+        env={"PATH": replay_environment.SYSTEM_PATH},
+        timeout_seconds=5,
+        output_limit_bytes=1_024,
+        profile=replay_process.ProcessProfile.TOOL,
+        stdin_bytes=b"governed",
+    )
+
+    with pytest.raises(RuntimeError, match="sealed stdin close failed"):
+        replay_process.run_bounded(request)
+
+    assert len(spawned) == 1
+    assert killed == [spawned[0].pid]
+    assert spawned[0].poll() is not None
+
+
+def test_sealed_stdin_cleanup_failure_preserves_primary_write_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_close = replay_process.os.close
+
+    def reject_write(_descriptor: int, _raw: object) -> int:
+        raise RuntimeError("primary sealed stdin write failure")
+
+    def close_then_reject(descriptor: int) -> None:
+        real_close(descriptor)
+        raise OSError("injected cleanup close failure")
+
+    monkeypatch.setattr(replay_process.os, "write", reject_write)
+    monkeypatch.setattr(replay_process.os, "close", close_then_reject)
+
+    with pytest.raises(RuntimeError, match="primary sealed stdin write failure") as rejected:
+        replay_process._sealed_stdin(b"governed")
+
+    assert rejected.value.__notes__ == ["cleanup_failure=SEALED_STDIN_CLOSE_FAILED"]
 
 
 def test_bounded_process_child_observes_fully_sealed_stdin(tmp_path: Path) -> None:
@@ -570,9 +640,7 @@ def test_live_facts_distinguish_fresh_binary_from_recorded_parity(
     assert facts["recorded_dependency_graph_identity_match"] is True
     assert facts["recorded_execution_identity_match"] is False
     assert facts["recorded_evidence_parity"] is False
-    assert facts["status"] == (
-        "source_built_structural_replay_with_fresh_measured_identity"
-    )
+    assert facts["status"] == ("source_built_structural_replay_with_fresh_measured_identity")
 
 
 def test_dependency_graph_identity_is_private_snapshot_path_independent(
@@ -583,12 +651,10 @@ def test_dependency_graph_identity_is_private_snapshot_path_independent(
     source_a.mkdir(parents=True)
     source_b.mkdir(parents=True)
     rows_a = (
-        "serde v1.0.228\n"
-        f"zenodex-zrpf-protocol-v3 v0.1.0 ({source_a}/zk/zrpf_protocol/protocol)\n"
+        f"serde v1.0.228\nzenodex-zrpf-protocol-v3 v0.1.0 ({source_a}/zk/zrpf_protocol/protocol)\n"
     ).encode()
     rows_b = (
-        f"zenodex-zrpf-protocol-v3 v0.1.0 ({source_b}/zk/zrpf_protocol/protocol)\n"
-        "serde v1.0.228\n"
+        f"zenodex-zrpf-protocol-v3 v0.1.0 ({source_b}/zk/zrpf_protocol/protocol)\nserde v1.0.228\n"
     ).encode()
 
     first = checker._canonical_dependency_graph(rows_a, source_a)
@@ -711,9 +777,7 @@ def _synthetic_exact_report() -> dict:
     return {
         "authority": dict(support.EXPECTED_REPORT_AUTHORITY),
         "expected_images": dict(support.EXPECTED_REPORT_IMAGES),
-        "leaf_receipts": [
-            {"receipt_sha256": digest} for _, _, digest in support.RECEIPTS[:4]
-        ],
+        "leaf_receipts": [{"receipt_sha256": digest} for _, _, digest in support.RECEIPTS[:4]],
         "level_one_receipts": [
             {"receipt_sha256": digest} for _, _, digest in support.RECEIPTS[4:6]
         ],
@@ -744,9 +808,7 @@ def _synthetic_live_facts() -> dict:
     return {
         **TEST_EXECUTION_IDENTITY,
         "executed": True,
-        "negative_controls": [
-            row | {"passed": True} for row in recorded["negative_controls"]
-        ],
+        "negative_controls": [row | {"passed": True} for row in recorded["negative_controls"]],
         "normal_and_dev_stdout_identical": True,
         "stdout_sha256": recorded["stdout_sha256"],
         "stdout_size_bytes": recorded["stdout_size_bytes"],

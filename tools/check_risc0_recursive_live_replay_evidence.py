@@ -19,10 +19,14 @@ from tools import check_risc0_recursive_rebuild_evidence as rebuild
 
 ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE_PATH = ROOT / "docs/research/RISC0_RECURSIVE_V1_LIVE_REPLAY_EVIDENCE_20260712.json"
+HISTORICAL_REFERENCE_RELATIVE_PATH = "config/proof_profiles/risc0_recursive_rebuild_reference.json"
+FUTURE_ACTIVE_REFERENCE_RELATIVE_PATH = (
+    "config/proof_profiles/risc0_recursive_active_reproof_reference_v3.json"
+)
 REPORT_SCHEMA = "zenodex/risc0_recursive_v1_live_replay_evidence_check/v1"
 ACCEPTED_STATUS = "retained_same_host_v1_live_replay_record_accepted"
 EXPECTED_EVIDENCE_CANONICAL_SHA256 = (
-    "7b33cea014263fe0841fc291d9ce8097fcfa3a85cc7d1f18b832a52380df43c6"
+    "f37dbefb27899b06c8ee3bc51f345335a748e0b3d6a1d6a23028b8c32925cc86"
 )
 MAX_EVIDENCE_BYTES = 64 * 1024
 
@@ -196,12 +200,12 @@ def _validate_artifact_evidence(
         "malformed_reject_transcript_sha256": reference["malformed_proof_reject"][
             "reject_transcript"
         ]["sha256"],
-        "malformed_root_proof_sha256": reference["malformed_proof_reject"][
-            "mutated_root_proof"
-        ]["sha256"],
-        "malformed_verify_request_sha256": reference["malformed_proof_reject"][
-            "verify_request"
-        ]["sha256"],
+        "malformed_root_proof_sha256": reference["malformed_proof_reject"]["mutated_root_proof"][
+            "sha256"
+        ],
+        "malformed_verify_request_sha256": reference["malformed_proof_reject"]["verify_request"][
+            "sha256"
+        ],
         "positive_verify_request_sha256": reference["positive_verify_request"]["sha256"],
         "reference_canonical_sha256": rebuild.EXPECTED_REFERENCE_CANONICAL_SHA256,
         "root_proof_sha256": reference["root_proof"]["sha256"],
@@ -271,7 +275,7 @@ def validate_evidence(
     }:
         raise _reject("RUNTIME_TRANSPORTS", "runtime transports mismatch")
     reference = live.support.authenticated_reference(
-        repository_root / "config/proof_profiles/risc0_recursive_rebuild_reference.json"
+        repository_root / HISTORICAL_REFERENCE_RELATIVE_PATH
     )
     if evidence.get("verifier_identity") != {
         "sha256": reference["static_verifier"]["sha256"],
@@ -300,8 +304,7 @@ def check_retained_evidence(
     }
     try:
         evidence_path = (
-            repository_root
-            / "docs/research/RISC0_RECURSIVE_V1_LIVE_REPLAY_EVIDENCE_20260712.json"
+            repository_root / "docs/research/RISC0_RECURSIVE_V1_LIVE_REPLAY_EVIDENCE_20260712.json"
             if path is None
             else path
         )

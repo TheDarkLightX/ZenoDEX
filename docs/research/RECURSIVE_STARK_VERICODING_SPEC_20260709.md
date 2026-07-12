@@ -1,9 +1,9 @@
 # Recursive STARK Vericoding Spec
 
 Date: 2026-07-09
-Status: post-composition-repair current-image local recursive proofs and one
-current-source exact retained V3 host-verifier replay verified; release and
-production pending
+Status: active V1/V2 workspaces migrated to `anyhow 1.0.103`; fresh image and
+receipt evidence pending; retained recursive proofs are historical regression
+evidence; release and production pending
 
 Related artifacts:
 
@@ -39,6 +39,14 @@ referenced from the CBC matrix.
 
 Current status:
 
+- On 2026-07-12, both active V1 and recursive-v2 workspaces migrated to
+  `anyhow 1.0.103`. That migration changes their build closures and image
+  identities. Every V1/V2 proof and image identity described below predates the
+  migration and is historical regression evidence. Restoring a current-image
+  claim requires fresh active-source ELFs, image IDs, positive receipts, and
+  cryptographic negative controls under a new active reference. The immutable
+  retained V1 replay continues to establish static record integrity only.
+
 - On 2026-07-10, adversarial fanout tests found and repaired receipt-ID merge
   ordering, host verified-facts ordering, repeated-verifier-set construction,
   and v2 partition-bound parity. These changes touched guest-linked source.
@@ -46,14 +54,14 @@ Current status:
   were subsequently rebuilt, generated, verified, and pinned atomically. The
   explicitly labeled pre-repair values below remain historical evidence.
 
-- The current aggregate-v2 image ID is
+- The historical pre-migration aggregate-v2 image ID is
   `fe131b0ec697a9bd703218f3733e44b84c8e347eb8ebfc8776be2200958fbe53`.
   Its local pair verifier accepted the one-leaf inner/root pair and rejected
   swapped levels, wrong outer image metadata, authenticated journal mutation,
   and noncanonical outer JSON in the recorded local negative-evidence run.
   Missing child-assumption execution also rejected. This supplies the pinned
-  one-leaf part of the current-image, fixed-height, local
-  computational-integrity evidence for `RS-CBC-014`.
+  one-leaf part of the historical fixed-height local evidence. `RS-CBC-014`
+  is reopened pending fresh active-source proof evidence.
 
 - A separate unpromoted same-host experiment used the same aggregate-v2 image
   to prove a current spot leaf and a current zUSD leaf as two immediate children
@@ -87,8 +95,9 @@ Current status:
   swapped node levels, and requires the one-leaf policy and missing-assumption
   controls. Its success status retains all release and production non-claims.
 
-- A second source-pinned fixed-height run proves two spot leaves with one
-  current image/profile and two distinct authenticated statement/source IDs.
+- A second historical source-pinned fixed-height run proved two spot leaves
+  with one pre-migration image/profile and two distinct authenticated
+  statement/source IDs.
   The specialized verifier recomputes source and scoped lane-assignment roots,
   rejects an exact duplicate lane and a same-statement lane alias, and verifies
   a one-word Succinct seal mutation fails cryptographically. The evidence record
@@ -625,7 +634,7 @@ release, public replay, source or builder
 authenticity, separately governed authority, settlement authorization, or
 production readiness.
 
-Current post-host-hardening v1 local artifact and replay evidence:
+Historical post-host-hardening v1 local artifact and replay evidence:
 
 - spot and aggregate image IDs:
   `1275ef413f6513e7671bce019d22fbdcf10bffe1b71dcf68731a056e710a7403`
@@ -654,9 +663,9 @@ Current post-host-hardening v1 local artifact and replay evidence:
   `7c6016e43f80b1b1f4af15a34ed990085e8676edf9f95a2e5b48e65f0173839f`;
 - retained live-replay report raw and canonical SHA-256 values:
   `3bd705cc321148d6ff06ebb809f30e682b01a24c053909a451454f189cf33670`
-  and `7b33cea014263fe0841fc291d9ce8097fcfa3a85cc7d1f18b832a52380df43c6`.
+  and `f37dbefb27899b06c8ee3bc51f345335a748e0b3d6a1d6a23028b8c32925cc86`.
 
-The current static verifier was built with the pinned RISC0 3.0.5 and Rust
+The retained historical static verifier was built with the pinned RISC0 3.0.5 and Rust
 1.94.1 toolchains in frozen, offline, real-method mode. Its six exported guest
 programs matched the retained reference byte-for-byte. Direct execution under
 an allowlisted environment reproduced the accepted transcript exactly, with
@@ -671,7 +680,7 @@ runner, sealed-executable transport, and numeric runtime limits by SHA-256.
 
 The V1 adapter separately retains the historical proof-generation source root
 `7a3bed2a1d8fff3ad2e93f2d406df435a9990d1a9c0462ff3323fb028327564e`.
-That immutable compatibility provenance is distinct from the current rebuild
+That immutable compatibility provenance is distinct from the historical rebuild
 closure above; both resolve to the same pinned Spot guest program and image ID.
 
 The malformed proof flips only bit zero of Succinct seal word 27,833
@@ -682,7 +691,7 @@ the exact cryptographic-invalid response with process exit code zero. The
 checker therefore treats the response object as the decision and binds the
 mutation shape, request parity, and response bytes independently.
 
-Independent `r0vm --id` checks matched all six current combined programs. The
+Independent `r0vm --id` checks matched all six retained combined programs. The
 strict verifier first rejected the root helper's child-derived receipt control
 ID, then accepted when supplied the pinned aggregate receipt profile. This is
 fail-closed behavior and exposes a fixture-bootstrap boundary: request metadata
@@ -720,7 +729,7 @@ image allowlist has no registry authority. The guest journal's `self_image_id`
 is host supplied, so every external verifier must bind the actual receipt image
 ID to the authenticated journal before admission.
 
-Current post-composition-repair fixed-height recursive-v2 local evidence:
+Historical post-composition-repair fixed-height recursive-v2 local evidence:
 
 - aggregate-v2 combined-program SHA-256:
   `3fc45f1cfc7ffd401119ad8eb3779db19d4a060942de70e25c7c9b706e1c8376`;
@@ -758,7 +767,7 @@ replay, cross-host or reproducible-release equality, source or builder
 authenticity, release authority, settlement authority, ledger admission,
 privacy, or production readiness.
 
-The current fixed-height smoke uses a spot leaf with empty recursive
+The retained historical fixed-height smoke uses a spot leaf with empty recursive
 accepted and rejected receipt-ID partitions. Nonempty partition interleavings
 have source-level and host-boundary regression tests, while real-proof evidence
 for that witness branch remains pending.
@@ -944,7 +953,7 @@ Acceptance evidence:
 | 6 | Add perps source-finality row design | missing-counterparty negative tests |
 | 7 | Add zUSD full lifecycle row extractors | lifecycle row tests |
 | 8 | Complete: receipt kind/profile policy | receipt-kind mismatch tests |
-| 9 | Complete: current-image one-level and fixed-height two-level local proof smokes on pinned RISC0 3.0.5 | pinned proof hashes, negative transcripts, and pair-verifier report |
+| 9 | Reopened: regenerate current-image one-level and fixed-height two-level proof smokes after the `anyhow 1.0.103` migration | fresh pinned proof hashes, negative transcripts, and pair-verifier report |
 | 10 | Partial: prove canonical receipt-set composition; extend Lean coverage to framing, exact-once, and conservation | current module and full `lake build` with no `sorry`; runtime refinement remains pending |
 | 11 | Run external Fable/Codex review on final packet | disposition matrix |
 | 12 | Update release manifest and claims registry | production gate output |

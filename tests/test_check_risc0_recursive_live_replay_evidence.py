@@ -40,6 +40,18 @@ def test_committed_live_replay_record_is_exact_and_non_authoritative() -> None:
     assert report["production_authority"] is False
 
 
+def test_historical_reference_is_separate_from_future_active_reproof_path() -> None:
+    assert checker.HISTORICAL_REFERENCE_RELATIVE_PATH == (
+        "config/proof_profiles/risc0_recursive_rebuild_reference.json"
+    )
+    assert checker.FUTURE_ACTIVE_REFERENCE_RELATIVE_PATH == (
+        "config/proof_profiles/risc0_recursive_active_reproof_reference_v3.json"
+    )
+    assert (
+        checker.HISTORICAL_REFERENCE_RELATIVE_PATH != checker.FUTURE_ACTIVE_REFERENCE_RELATIVE_PATH
+    )
+
+
 def test_unknown_field_rejects_even_with_coherently_updated_digest(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -179,9 +191,7 @@ def test_bound_source_read_failure_returns_rejected_report(
     evidence = root / checker.EVIDENCE_PATH.relative_to(checker.ROOT)
     evidence.parent.mkdir(parents=True)
     shutil.copyfile(checker.EVIDENCE_PATH, evidence)
-    bound_source = root / next(
-        iter(checker.live.support.CHECKER_SOURCE_PATHS.values())
-    )
+    bound_source = root / next(iter(checker.live.support.CHECKER_SOURCE_PATHS.values()))
     if source_state == "symlink":
         bound_source.parent.mkdir(parents=True)
         bound_source.symlink_to(

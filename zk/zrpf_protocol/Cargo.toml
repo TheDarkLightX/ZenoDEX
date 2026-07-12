@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["protocol", "perps_source_finality"]
+members = ["protocol", "perps_source_finality", "zusd_value_flow"]
 
 [profile.release]
 lto = true

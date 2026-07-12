@@ -221,6 +221,32 @@ def test_live_replay_accepts_only_after_all_exact_controls(
     assert not (tmp_path / "runtime").exists()
 
 
+def test_runtime_cleanup_failure_preserves_primary_replay_rejection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths, payloads = _paths(tmp_path)
+    _install_artifact_boundary(monkeypatch, payloads)
+
+    def reject_controls(*_args: object, **_kwargs: object) -> object:
+        raise checker.support.reject("PRIMARY_REPLAY_ERROR", "governed control")
+
+    def reject_cleanup(_path: Path) -> None:
+        raise OSError("injected cleanup failure")
+
+    monkeypatch.setattr(checker.support, "_run_controls", reject_controls)
+    monkeypatch.setattr(checker.support.shutil, "rmtree", reject_cleanup)
+
+    report = checker.check_risc0_recursive_live_replay(
+        paths,
+        runtime_directory=tmp_path / "runtime",
+    )
+
+    assert report["ok"] is False
+    assert report["error_codes"] == ["PRIMARY_REPLAY_ERROR"]
+    assert "cleanup_failure=RUNTIME_CLEANUP_FAILED" in report["errors"][0]
+
+
 def test_artifact_rejection_prevents_runtime_creation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

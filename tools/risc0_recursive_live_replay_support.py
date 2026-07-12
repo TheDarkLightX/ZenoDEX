@@ -341,6 +341,7 @@ def execute_controls(
     runtime_directory: Path,
 ) -> ExecutionEvidence:
     runtime = replay_environment.create_private_target(runtime_directory)
+    primary_error: BaseException | None = None
     try:
         with sealed_executable.SealedExecutable(paths.static_verifier) as executable:
             if executable.identity.sha256 != artifact_report.get("static_verifier_sha256"):
@@ -355,5 +356,18 @@ def execute_controls(
                     "transport": executable.identity.transport,
                 },
             )
+    except BaseException as exc:
+        primary_error = exc
+        raise
     finally:
-        shutil.rmtree(runtime)
+        try:
+            shutil.rmtree(runtime)
+        except OSError as exc:
+            cleanup_error = reject("RUNTIME_CLEANUP_FAILED", "private runtime directory")
+            if primary_error is None:
+                raise cleanup_error from exc
+            detail = f"cleanup_failure={cleanup_error.code}: private runtime directory"
+            if isinstance(primary_error, LiveReplayError):
+                primary_error.args = (f"{primary_error}; {detail}",)
+            else:
+                primary_error.add_note(detail)
