@@ -236,6 +236,10 @@ fn finalize_projection(
     if summary.represented_row_count == 0 {
         return Err(SpotSemanticValueErrorV1::EmptyRepresentedRows);
     }
+    let scope_hash = base_proposal
+        .scope()
+        .canonical_hash()
+        .map_err(SpotSemanticValueErrorV1::Structural)?;
     let commitments = SpotSemanticValueCommitmentsV1 {
         base_semantic_epoch_root: base_proposal.semantic_epoch_root(),
         value_profile_id: spot_represented_value_profile_id_v1()?,
@@ -265,6 +269,7 @@ fn finalize_projection(
         policy.authority_grants_root,
     )?;
     Ok(SpotSemanticValueProjectionV1 {
+        scope_hash,
         lane_id_hash: summary.lane_id_hash,
         raw_epoch_pre_state_root: summary.raw_subtree_pre_state_root,
         raw_epoch_post_state_root: summary.raw_subtree_post_state_root,

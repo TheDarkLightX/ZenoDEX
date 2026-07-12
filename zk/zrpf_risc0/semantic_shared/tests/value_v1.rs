@@ -9,17 +9,20 @@ use tau_state_proof_risc0_shared::{
     RECURSIVE_SPOT_LEAF_PROFILE_V1,
 };
 use zenodex_zrpf_protocol_v3::{
-    CommitmentV3, ExpectedV1AdapterLeafIdentityV1, ProgramIdV3, ProposedSemanticEpochV1,
-    ProposedSemanticLeafV1, SemanticEpochProposalInputV1, V1AdapterSemanticLeafOpeningV1,
+    ApplicationIdV3, CommitmentV3, DomainIdV3, ExpectedV1AdapterLeafIdentityV1, NodeScopeInputV3,
+    NodeScopeV3, ProgramIdV3, ProposedSemanticEpochV1, ProposedSemanticLeafV1,
+    SemanticEpochProposalInputV1, V1AdapterSemanticLeafOpeningV1,
 };
 use zenodex_zrpf_risc0_semantic_shared::{
     canonical_spot_asset_name_v1, close_spot_represented_value_epoch_v1,
-    compose_spot_represented_value_v1, merge_spot_value_subtrees_v2, propose_spot_value_subtree_v2,
-    spot_accounting_domain_id_v1, spot_atoms_unit_id_v1, spot_represented_value_profile_id_v1,
-    spot_state_root_scheme_id_v1, SpotMintAuthorityGrantV1, SpotRepresentedValuePolicyV1,
-    SpotSemanticValueErrorV1, SpotValueLeafOpeningV1, CANONICAL_SPOT_ASSET_NAME_BYTES_V1,
-    MAX_SPOT_ASSET_ROWS_PER_LEAF_V1, MAX_SPOT_LANE_ID_BYTES_V1, MAX_SPOT_MINT_GRANTS_V1,
-    MAX_SPOT_REPRESENTED_ROWS_PER_SUMMARY_V2, MAX_SPOT_VALUE_LEAVES_V1,
+    compose_spot_represented_value_v1, match_expected_spot_semantic_value_v1,
+    merge_spot_value_subtrees_v2, propose_spot_value_subtree_v2, spot_accounting_domain_id_v1,
+    spot_atoms_unit_id_v1, spot_represented_value_profile_id_v1, spot_state_root_scheme_id_v1,
+    ExpectedSpotSemanticValueFieldV1, ExpectedSpotSemanticValueInputV1,
+    ExpectedSpotSemanticValueV1, SpotMintAuthorityGrantV1, SpotRepresentedValuePolicyV1,
+    SpotSemanticValueErrorV1, SpotSemanticValueProjectionV1, SpotValueLeafOpeningV1,
+    CANONICAL_SPOT_ASSET_NAME_BYTES_V1, MAX_SPOT_ASSET_ROWS_PER_LEAF_V1, MAX_SPOT_LANE_ID_BYTES_V1,
+    MAX_SPOT_MINT_GRANTS_V1, MAX_SPOT_REPRESENTED_ROWS_PER_SUMMARY_V2, MAX_SPOT_VALUE_LEAVES_V1,
     MAX_SPOT_VALUE_SUBTREE_LEAVES_V2,
 };
 use zenodex_zrpf_risc0_shared::{
@@ -284,6 +287,35 @@ fn mirror_value_profile_id() -> [u8; 32] {
     hasher.finalize().into()
 }
 
+fn mirror_expected_statement_hash(input: &ExpectedSpotSemanticValueInputV1) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    write_mirror_domain(&mut hasher, b"zenodex.zrpf.spot_expected_semantic_value.v1");
+    hasher.update(input.scope.canonical_hash().unwrap().as_bytes());
+    for value in [
+        input.lane_id_hash,
+        input.value_profile_id,
+        input.accounting_domain_id,
+        input.atoms_unit_id,
+        input.state_root_scheme_id,
+        input.ordered_transaction_roots_root,
+        input.state_chain_root,
+    ] {
+        hasher.update(value.as_bytes());
+    }
+    hasher.update(input.raw_pre_state_root);
+    hasher.update(input.raw_post_state_root);
+    hasher.update(input.leaf_count.to_be_bytes());
+    hasher.update(input.represented_row_count.to_be_bytes());
+    for value in [
+        input.authority_grants_root,
+        input.base_semantic_epoch_root,
+        input.semantic_value_root,
+    ] {
+        hasher.update(value.as_bytes());
+    }
+    hasher.finalize().into()
+}
+
 fn hex32(value: [u8; 32]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut output = String::with_capacity(64);
@@ -348,6 +380,68 @@ fn compose(
         &openings,
         policy,
     )
+}
+
+fn balanced_projection() -> (SpotSemanticValueProjectionV1, NodeScopeV3) {
+    let native = [0; 32];
+    let fixtures = [
+        fixture(1, 0, 10, 11, vec![ordinary_row(native, 10, 0)]),
+        fixture(2, 1, 11, 12, vec![ordinary_row(native, 0, 10)]),
+    ];
+    let scope = fixtures[0].leaf.scope().clone();
+    (compose(&fixtures, 92, &policy(vec![])).unwrap(), scope)
+}
+
+fn expected_input(
+    scope: NodeScopeV3,
+    projection: &SpotSemanticValueProjectionV1,
+) -> ExpectedSpotSemanticValueInputV1 {
+    let commitments = projection.commitments();
+    ExpectedSpotSemanticValueInputV1 {
+        scope,
+        lane_id_hash: projection.lane_id_hash(),
+        value_profile_id: commitments.value_profile_id(),
+        accounting_domain_id: commitments.accounting_domain_id(),
+        atoms_unit_id: commitments.atoms_unit_id(),
+        state_root_scheme_id: commitments.state_root_scheme_id(),
+        ordered_transaction_roots_root: commitments.ordered_transaction_roots_root(),
+        state_chain_root: commitments.state_chain_root(),
+        raw_pre_state_root: projection.raw_epoch_pre_state_root(),
+        raw_post_state_root: projection.raw_epoch_post_state_root(),
+        leaf_count: projection.leaf_count(),
+        represented_row_count: projection.represented_row_count(),
+        authority_grants_root: commitments.authority_grants_root(),
+        base_semantic_epoch_root: commitments.base_semantic_epoch_root(),
+        semantic_value_root: projection.semantic_value_root(),
+    }
+}
+
+fn unrelated_scope(epoch_start: u64, epoch_end: u64) -> NodeScopeV3 {
+    NodeScopeV3::new(NodeScopeInputV3 {
+        application_id: ApplicationIdV3::new(root(181)).unwrap(),
+        chain_or_domain_id: DomainIdV3::new(root(182)).unwrap(),
+        epoch_start,
+        epoch_end,
+        public_policy_hash: CommitmentV3::new(POLICY_HASH).unwrap(),
+        feature_suite_hash: CommitmentV3::new(root(183)).unwrap(),
+        dependency_lock_hash: CommitmentV3::new(root(184)).unwrap(),
+        toolchain_lock_hash: CommitmentV3::new(root(185)).unwrap(),
+    })
+    .unwrap()
+}
+
+fn assert_expected_mismatch(
+    projection: &SpotSemanticValueProjectionV1,
+    baseline_hash: CommitmentV3,
+    input: ExpectedSpotSemanticValueInputV1,
+    field: ExpectedSpotSemanticValueFieldV1,
+) {
+    let expected = ExpectedSpotSemanticValueV1::new(input).unwrap();
+    assert_ne!(expected.statement_hash(), baseline_hash);
+    assert_eq!(
+        match_expected_spot_semantic_value_v1(projection.clone(), &expected),
+        Err(SpotSemanticValueErrorV1::ExpectedProjectionMismatch(field))
+    );
 }
 
 #[test]
@@ -1304,5 +1398,243 @@ fn value_profile_and_closed_root_vectors_are_stable() {
     assert_eq!(
         hex32(*projection.proposal_hash().as_bytes()),
         "8880d620c7e8763b2ea45ffaed6bb302d9d36bd81743199d8b0134fb5a028fce"
+    );
+}
+
+#[test]
+fn exact_expected_statement_match_is_a_distinct_sealed_transition() {
+    let (projection, scope) = balanced_projection();
+    let input = expected_input(scope, &projection);
+    let mirror_hash = mirror_expected_statement_hash(&input);
+    let expected = ExpectedSpotSemanticValueV1::new(input).unwrap();
+
+    assert_eq!(*expected.statement_hash().as_bytes(), mirror_hash);
+    let matched = match_expected_spot_semantic_value_v1(projection.clone(), &expected).unwrap();
+    assert_eq!(matched.projection(), &projection);
+    assert_eq!(matched.expected_statement_hash(), expected.statement_hash());
+    assert_eq!(
+        hex32(*expected.statement_hash().as_bytes()),
+        "2db123542625f35539a98a811091e4aa2140bdcc132f29f1fc48d8c185ea6bca"
+    );
+}
+
+#[test]
+fn expected_scope_lane_and_ordering_reject_independent_substitution() {
+    let (projection, scope) = balanced_projection();
+    let baseline = expected_input(scope, &projection);
+    let baseline_hash = ExpectedSpotSemanticValueV1::new(baseline.clone())
+        .unwrap()
+        .statement_hash();
+
+    let mut input = baseline.clone();
+    input.scope = unrelated_scope(71, 71);
+    assert_expected_mismatch(
+        &projection,
+        baseline_hash,
+        input,
+        ExpectedSpotSemanticValueFieldV1::ScopeHash,
+    );
+
+    let mut input = baseline.clone();
+    input.lane_id_hash = CommitmentV3::new(root(190)).unwrap();
+    assert_expected_mismatch(
+        &projection,
+        baseline_hash,
+        input,
+        ExpectedSpotSemanticValueFieldV1::LaneIdHash,
+    );
+
+    let mut input = baseline.clone();
+    input.ordered_transaction_roots_root = CommitmentV3::new(root(191)).unwrap();
+    assert_expected_mismatch(
+        &projection,
+        baseline_hash,
+        input,
+        ExpectedSpotSemanticValueFieldV1::OrderedTransactionRootsRoot,
+    );
+
+    let mut input = baseline.clone();
+    input.state_chain_root = CommitmentV3::new(root(192)).unwrap();
+    assert_expected_mismatch(
+        &projection,
+        baseline_hash,
+        input,
+        ExpectedSpotSemanticValueFieldV1::StateChainRoot,
+    );
+}
+
+#[test]
+fn expected_endpoints_and_counts_reject_independent_substitution() {
+    let (projection, scope) = balanced_projection();
+    let baseline = expected_input(scope, &projection);
+    let baseline_hash = ExpectedSpotSemanticValueV1::new(baseline.clone())
+        .unwrap()
+        .statement_hash();
+
+    let mut input = baseline.clone();
+    input.raw_pre_state_root = root(193);
+    assert_expected_mismatch(
+        &projection,
+        baseline_hash,
+        input,
+        ExpectedSpotSemanticValueFieldV1::RawPreStateRoot,
+    );
+
+    let mut input = baseline.clone();
+    input.raw_post_state_root = root(194);
+    assert_expected_mismatch(
+        &projection,
+        baseline_hash,
+        input,
+        ExpectedSpotSemanticValueFieldV1::RawPostStateRoot,
+    );
+
+    let mut input = baseline.clone();
+    input.leaf_count += 1;
+    assert_expected_mismatch(
+        &projection,
+        baseline_hash,
+        input,
+        ExpectedSpotSemanticValueFieldV1::LeafCount,
+    );
+
+    let mut input = baseline.clone();
+    input.represented_row_count += 1;
+    assert_expected_mismatch(
+        &projection,
+        baseline_hash,
+        input,
+        ExpectedSpotSemanticValueFieldV1::RepresentedRowCount,
+    );
+}
+
+#[test]
+fn expected_policy_and_terminal_roots_reject_independent_substitution() {
+    let (projection, scope) = balanced_projection();
+    let baseline = expected_input(scope, &projection);
+    let baseline_hash = ExpectedSpotSemanticValueV1::new(baseline.clone())
+        .unwrap()
+        .statement_hash();
+
+    let mut input = baseline.clone();
+    input.authority_grants_root = CommitmentV3::new(root(195)).unwrap();
+    assert_expected_mismatch(
+        &projection,
+        baseline_hash,
+        input,
+        ExpectedSpotSemanticValueFieldV1::AuthorityGrantsRoot,
+    );
+
+    let mut input = baseline.clone();
+    input.base_semantic_epoch_root = CommitmentV3::new(root(196)).unwrap();
+    assert_expected_mismatch(
+        &projection,
+        baseline_hash,
+        input,
+        ExpectedSpotSemanticValueFieldV1::BaseSemanticEpochRoot,
+    );
+
+    let mut input = baseline;
+    input.semantic_value_root = CommitmentV3::new(root(197)).unwrap();
+    assert_expected_mismatch(
+        &projection,
+        baseline_hash,
+        input,
+        ExpectedSpotSemanticValueFieldV1::SemanticValueRoot,
+    );
+}
+
+#[test]
+fn expected_statement_rejects_profile_relabeling_before_matching() {
+    let (projection, scope) = balanced_projection();
+    let baseline = expected_input(scope, &projection);
+
+    let mut input = baseline.clone();
+    input.value_profile_id = CommitmentV3::new(root(200)).unwrap();
+    assert_eq!(
+        ExpectedSpotSemanticValueV1::new(input),
+        Err(SpotSemanticValueErrorV1::ExpectedProfileMismatch(
+            ExpectedSpotSemanticValueFieldV1::ValueProfileId
+        ))
+    );
+
+    let mut input = baseline.clone();
+    input.accounting_domain_id = CommitmentV3::new(root(201)).unwrap();
+    assert_eq!(
+        ExpectedSpotSemanticValueV1::new(input),
+        Err(SpotSemanticValueErrorV1::ExpectedProfileMismatch(
+            ExpectedSpotSemanticValueFieldV1::AccountingDomainId
+        ))
+    );
+
+    let mut input = baseline.clone();
+    input.atoms_unit_id = CommitmentV3::new(root(202)).unwrap();
+    assert_eq!(
+        ExpectedSpotSemanticValueV1::new(input),
+        Err(SpotSemanticValueErrorV1::ExpectedProfileMismatch(
+            ExpectedSpotSemanticValueFieldV1::AtomsUnitId
+        ))
+    );
+
+    let mut input = baseline;
+    input.state_root_scheme_id = CommitmentV3::new(root(203)).unwrap();
+    assert_eq!(
+        ExpectedSpotSemanticValueV1::new(input),
+        Err(SpotSemanticValueErrorV1::ExpectedProfileMismatch(
+            ExpectedSpotSemanticValueFieldV1::StateRootSchemeId
+        ))
+    );
+}
+
+#[test]
+fn expected_statement_shape_is_bounded_and_single_epoch() {
+    let (projection, scope) = balanced_projection();
+    let baseline = expected_input(scope, &projection);
+
+    let mut input = baseline.clone();
+    input.raw_pre_state_root = [0; 32];
+    assert_eq!(
+        ExpectedSpotSemanticValueV1::new(input),
+        Err(SpotSemanticValueErrorV1::ExpectedStatementShape(
+            ExpectedSpotSemanticValueFieldV1::RawPreStateRoot
+        ))
+    );
+
+    let mut input = baseline.clone();
+    input.raw_post_state_root = [0; 32];
+    assert_eq!(
+        ExpectedSpotSemanticValueV1::new(input),
+        Err(SpotSemanticValueErrorV1::ExpectedStatementShape(
+            ExpectedSpotSemanticValueFieldV1::RawPostStateRoot
+        ))
+    );
+
+    for leaf_count in [0, MAX_SPOT_VALUE_LEAVES_V1 as u64 + 1] {
+        let mut input = baseline.clone();
+        input.leaf_count = leaf_count;
+        assert_eq!(
+            ExpectedSpotSemanticValueV1::new(input),
+            Err(SpotSemanticValueErrorV1::ExpectedStatementShape(
+                ExpectedSpotSemanticValueFieldV1::LeafCount
+            ))
+        );
+    }
+
+    for represented_row_count in [0, MAX_SPOT_REPRESENTED_ROWS_PER_SUMMARY_V2 as u64 + 1] {
+        let mut input = baseline.clone();
+        input.represented_row_count = represented_row_count;
+        assert_eq!(
+            ExpectedSpotSemanticValueV1::new(input),
+            Err(SpotSemanticValueErrorV1::ExpectedStatementShape(
+                ExpectedSpotSemanticValueFieldV1::RepresentedRowCount
+            ))
+        );
+    }
+
+    let mut input = baseline;
+    input.scope = unrelated_scope(70, 71);
+    assert_eq!(
+        ExpectedSpotSemanticValueV1::new(input),
+        Err(SpotSemanticValueErrorV1::EpochRangeUnsupported)
     );
 }
