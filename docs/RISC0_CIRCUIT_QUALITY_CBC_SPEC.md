@@ -102,14 +102,24 @@ That binary reproduced the retained positive transcript and the exact
 cryptographic-invalid response for the one-bit seal mutation with empty
 stderr and process exit code zero.
 
-The committed artifact checker validates the pinned bytes and mutation shape;
-it does not execute the verifier or authenticate the local run's provenance.
-The CBC matrix therefore requires the exact non-claim
-`no_governed_current_v1_host_replay_evidence_after_host_cli_changes` and
-validates only the unaffected V2 source closure for its scoped current-proof
-status. Restoring the combined V1-and-V2 status requires a bounded execution
-record plus an executable checker that runs the exact source-built verifier
-against both retained requests.
+The executable live checker first requires the complete pinned artifact check,
+seals the exact verifier into a fully sealed Linux memfd, and applies bounded
+stdin, stdout, stderr, CPU, address-space, file, descriptor, process, and stack
+limits before execution. It reproduced the accepted transcript with
+`RISC0_DEV_MODE` absent and set to `0`; it rejected enabled aliases `1`,
+`true`, `yes`, and `on`; and it reproduced the exact cryptographic-invalid
+response for the one-bit seal mutation. The retained report has canonical
+SHA-256
+`a544b06b8da4747c5917d8a7479b2d2a062b9c9467d19f1613f0abf6079f6e22`
+and binds the exact checker-source closure and numeric runtime limits.
+
+The required workflow validates this retained record, its source closure, and
+its bounded privacy scan without re-executing the V1 verifier. The CBC matrix
+therefore permits only the scoped recorded same-host replay status and requires
+the exact non-claim
+`no_authenticated_historical_execution_provenance_for_v1_live_replay_record`.
+Historical execution provenance, public replay, network isolation, sandbox,
+settlement, release, privacy, and production authority remain false.
 
 The additive ZRPF V3 candidate under `zk/zrpf_protocol` now implements a
 proof-system-neutral, bounded 8-by-8 structural journal nucleus. It provides a

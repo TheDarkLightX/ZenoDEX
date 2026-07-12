@@ -30,12 +30,8 @@ RECURSIVE_REBUILD_REFERENCES = (
     "config/proof_profiles/risc0_recursive_rebuild_reference.json",
     "config/proof_profiles/risc0_recursive_v2_rebuild_reference.json",
 )
-DEGRADED_REQUIRED_STATEMENTS = frozenset(
-    {
-        "recursive_node_v2",
-        "zrpf_node_v3_structural",
-        "zrpf_v1_spot_adapter_receipt_v1",
-    }
+LIVE_REPLAY_SOURCE_FILES = frozenset(
+    checker.recursive_v1_live_record.live.support.CHECKER_SOURCE_PATHS.values()
 )
 
 
@@ -52,6 +48,7 @@ def _repo_copy_for_matrix(tmp_path: Path, matrix: dict[str, Any]) -> Path:
     for obligation in matrix["obligations"]:
         paths.update(ref["path"] for ref in obligation["code_refs"])
         paths.update(ref["path"] for ref in obligation["test_refs"])
+    paths.update(LIVE_REPLAY_SOURCE_FILES)
     for relative in sorted(paths):
         destination = root / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -94,22 +91,23 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     assert report["facts"]["implemented_obligation_count"] == 20
     assert report["facts"]["pending_obligation_count"] == 5
     assert report["matrix_sha256"] == (
-        "sha256:9345f2ad54064375d7898e8494dd38c0d6839b8078ba0ff6d6bd0c0272f382f8"
+        "sha256:7a1df802a4ac37807f338926a962fdea4fb88bffd785d380c7786582cb993c82"
     )
     assert report["promotion_boundary"]["facts"]["public_claim_allowed"] is False
     assert report["promotion_boundary"]["facts"]["production_ready"] is False
     assert (
         report["promotion_boundary"]["facts"]["claim_status"]
-        == checker.V1_HOST_REPLAY_PENDING_CLAIM_STATUS
+        == checker.V1_RECORDED_LIVE_REPLAY_CLAIM_STATUS
     )
-    assert report["promotion_boundary"]["facts"]["required_source_closures"] == ["v2"]
+    assert report["promotion_boundary"]["facts"]["required_source_closures"] == ["v1", "v2"]
     assert report["promotion_boundary"]["facts"]["required_implemented_statements"] == sorted(
-        DEGRADED_REQUIRED_STATEMENTS
+        checker.REQUIRED_STATEMENTS
     )
     assert (
-        checker.V1_HOST_REPLAY_PENDING_NON_CLAIM
+        checker.V1_RECORDED_LIVE_REPLAY_NON_CLAIM
         in matrix["promotion_boundary"]["non_claims"]
     )
+    assert report["promotion_boundary"]["facts"]["v1_live_replay_record_integrity_verified"]
     assert (
         "no_canonical_recursive_outer_envelope"
         in matrix["promotion_boundary"]["non_claims"]
@@ -607,8 +605,11 @@ def test_current_recursive_proof_status_requires_fresh_proof_obligation_implemen
 
 def test_v1_host_replay_pending_status_requires_exact_nonclaim() -> None:
     matrix = _matrix()
+    matrix["promotion_boundary"]["claim_status"] = (
+        checker.V1_HOST_REPLAY_PENDING_CLAIM_STATUS
+    )
     matrix["promotion_boundary"]["non_claims"].remove(
-        checker.V1_HOST_REPLAY_PENDING_NON_CLAIM
+        checker.V1_RECORDED_LIVE_REPLAY_NON_CLAIM
     )
 
     report = checker.validate_matrix(matrix)
@@ -620,13 +621,69 @@ def test_v1_host_replay_pending_status_requires_exact_nonclaim() -> None:
     )
 
 
+def test_recorded_v1_live_replay_status_requires_exact_provenance_nonclaim() -> None:
+    matrix = _matrix()
+    matrix["promotion_boundary"]["non_claims"].remove(
+        checker.V1_RECORDED_LIVE_REPLAY_NON_CLAIM
+    )
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        "recorded V1 live-replay status requires its exact historical-provenance non-claim"
+        in report["promotion_boundary"]["errors"]
+    )
+
+
+def test_recorded_v1_live_replay_status_requires_accepted_record(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    matrix = _matrix()
+    monkeypatch.setattr(
+        checker.recursive_v1_live_record,
+        "check_retained_evidence",
+        lambda **_kwargs: {"ok": False},
+    )
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert "V1 live-replay record rejected" in report["errors"]
+    assert (
+        report["promotion_boundary"]["facts"]["v1_live_replay_record_integrity_verified"]
+        is False
+    )
+
+
+def test_recorded_v1_live_replay_status_rejects_repository_record_mutation(
+    tmp_path: Path,
+) -> None:
+    matrix = _matrix()
+    root = _repo_copy_for_matrix(tmp_path, matrix)
+    evidence_path = (
+        root / "docs/research/RISC0_RECURSIVE_V1_LIVE_REPLAY_EVIDENCE_20260712.json"
+    )
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    evidence["production_authority"] = True
+    evidence_path.write_text(
+        json.dumps(evidence, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    report = checker.validate_matrix(matrix, repo_root=root)
+
+    assert report["ok"] is False
+    assert "V1 live-replay record rejected" in report["errors"]
+
+
 def test_full_current_proof_status_is_unavailable_without_current_host_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     matrix = _matrix()
     matrix["promotion_boundary"]["claim_status"] = checker.FULL_CURRENT_PROOF_CLAIM_STATUS
     matrix["promotion_boundary"]["non_claims"].remove(
-        checker.V1_HOST_REPLAY_PENDING_NON_CLAIM
+        checker.V1_RECORDED_LIVE_REPLAY_NON_CLAIM
     )
     obligation = next(
         item for item in matrix["obligations"] if item["id"] == "RS-CBC-014"
@@ -722,6 +779,15 @@ def test_v1_host_replay_pending_status_does_not_consult_stale_v1_closure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     matrix = _matrix()
+    matrix["promotion_boundary"]["claim_status"] = (
+        checker.V1_HOST_REPLAY_PENDING_CLAIM_STATUS
+    )
+    matrix["promotion_boundary"]["non_claims"].remove(
+        checker.V1_RECORDED_LIVE_REPLAY_NON_CLAIM
+    )
+    matrix["promotion_boundary"]["non_claims"].append(
+        checker.V1_HOST_REPLAY_PENDING_NON_CLAIM
+    )
 
     def reject_unexpected_v1_validation(*_args: Any, **_kwargs: Any) -> Any:
         raise AssertionError("pending status must not consult the stale V1 source closure")
@@ -756,16 +822,16 @@ def test_claim_status_routes_exact_source_closure_policy(
     report = checker.validate_matrix(matrix)
 
     assert report["ok"] is True
-    assert captured == [frozenset({"v2"})]
-    assert report["promotion_boundary"]["facts"]["required_source_closures"] == ["v2"]
+    assert captured == [frozenset({"v1", "v2"})]
+    assert report["promotion_boundary"]["facts"]["required_source_closures"] == ["v1", "v2"]
     assert report["promotion_boundary"]["facts"]["required_implemented_statements"] == sorted(
-        DEGRADED_REQUIRED_STATEMENTS
+        checker.REQUIRED_STATEMENTS
     )
 
 
 @pytest.mark.parametrize(
     "statement_id",
-    sorted(DEGRADED_REQUIRED_STATEMENTS),
+    sorted(checker.REQUIRED_STATEMENTS),
 )
 def test_claim_status_rejects_pending_required_typed_statement(
     monkeypatch: pytest.MonkeyPatch,
@@ -786,7 +852,7 @@ def test_claim_status_rejects_pending_required_typed_statement(
 
     assert report["ok"] is False
     assert (
-        f"{checker.V1_HOST_REPLAY_PENDING_CLAIM_STATUS} requires typed statement {statement_id} "
+        f"{checker.V1_RECORDED_LIVE_REPLAY_CLAIM_STATUS} requires typed statement {statement_id} "
         "implemented or implemented_partial"
     ) in report["errors"]
 
