@@ -7,6 +7,7 @@ mod semantic_epoch_v1;
 mod semantic_epoch_v2;
 mod settlement_effect_v2;
 mod task_manifest_v1;
+mod value_aggregate_v5;
 mod value_node_v4;
 
 pub use economic_action_v1::*;
@@ -14,6 +15,7 @@ pub use semantic_epoch_v1::*;
 pub use semantic_epoch_v2::*;
 pub use settlement_effect_v2::*;
 pub use task_manifest_v1::*;
+pub use value_aggregate_v5::*;
 pub use value_node_v4::*;
 
 use alloc::vec::Vec;
@@ -261,6 +263,14 @@ impl NodeScopeV3 {
         write_domain(&mut hasher, NODE_SCOPE_HASH_DOMAIN_V3)?;
         self.update_hasher(&mut hasher);
         CommitmentV3::new(hasher.finalize().into())
+    }
+
+    pub const fn application_id(&self) -> ApplicationIdV3 {
+        self.application_id
+    }
+
+    pub const fn chain_or_domain_id(&self) -> DomainIdV3 {
+        self.chain_or_domain_id
     }
 
     pub const fn epoch_start(&self) -> u64 {
