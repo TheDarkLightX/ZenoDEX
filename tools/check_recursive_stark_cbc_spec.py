@@ -101,6 +101,7 @@ REQUIRED_NON_CLAIMS = {
     "no_release_backed_v3_receipt_authenticated_tree",
     "no_complete_v3_semantic_composition",
     "no_fresh_zrpf_semantic_v2_receipt_evidence",
+    "no_generic_v4_runtime_identity_authority",
     "no_zrpf_16x4_profile",
 }
 REQUIRED_STATEMENTS = {

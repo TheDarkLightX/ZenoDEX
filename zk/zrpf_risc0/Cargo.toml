@@ -3,6 +3,7 @@ members = [
   "shared",
   "aggregate_shared",
   "semantic_shared",
+  "value_node_shared",
   "verifier",
   "replay_verifier",
   "methods",
@@ -10,6 +11,7 @@ members = [
   "methods/structural_aggregate_l1",
   "methods/structural_aggregate_l2",
   "methods/semantic_epoch",
+  "methods/spot_value_leaf_v4",
   "harness",
 ]
 resolver = "2"

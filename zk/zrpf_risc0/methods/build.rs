@@ -27,6 +27,8 @@ pub const ZENODEX_ZRPF_RISC0_STRUCTURAL_AGGREGATE_L2_ELF: &[u8] = &[];
 pub const ZENODEX_ZRPF_RISC0_STRUCTURAL_AGGREGATE_L2_ID: [u32; 8] = [0; 8];
 pub const ZENODEX_ZRPF_RISC0_SEMANTIC_EPOCH_ELF: &[u8] = &[];
 pub const ZENODEX_ZRPF_RISC0_SEMANTIC_EPOCH_ID: [u32; 8] = [0; 8];
+pub const ZENODEX_ZRPF_RISC0_SPOT_VALUE_LEAF_V4_ELF: &[u8] = &[];
+pub const ZENODEX_ZRPF_RISC0_SPOT_VALUE_LEAF_V4_ID: [u32; 8] = [0; 8];
 "#;
     fs::write(methods_rs, stub).expect("write placeholder methods.rs");
 }

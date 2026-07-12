@@ -1115,3 +1115,14 @@ movements. zUSD still only exposes the current Rust
 `DepositMint` lifecycle verb; later zUSD repay, redeem, or liquidation verbs must
 add exhaustive row extractors before they can share the same recursive
 asset-conservation claim.
+
+Historical Spot Value Node V4 contributes bounded value disclosures and exact
+retained-receipt replay. Its guest ABI also carries a host-declared self image.
+Only the exact historical sealed verifier compares that declaration with the
+image used for receipt authentication. Generic V4 journal decoding therefore
+has no runtime-identity authority. The active value successor must follow the
+Semantic V2 pattern: the guest commits a proof-neutral proposal, and a sealed
+verifier attaches program identity, backend manifest, receipt-security profile,
+and claim binding after cryptographic verification. Economic admission also
+requires a canonical authorization-consumption nullifier independent of proof
+program, receipt encoding, intent salt, and signature representation.

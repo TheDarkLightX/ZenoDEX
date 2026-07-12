@@ -4,9 +4,11 @@ extern crate alloc;
 
 mod semantic_epoch_v1;
 mod semantic_epoch_v2;
+mod value_node_v4;
 
 pub use semantic_epoch_v1::*;
 pub use semantic_epoch_v2::*;
+pub use value_node_v4::*;
 
 use alloc::vec::Vec;
 use core::fmt;
@@ -253,6 +255,18 @@ impl NodeScopeV3 {
         write_domain(&mut hasher, NODE_SCOPE_HASH_DOMAIN_V3)?;
         self.update_hasher(&mut hasher);
         CommitmentV3::new(hasher.finalize().into())
+    }
+
+    pub const fn epoch_start(&self) -> u64 {
+        self.epoch_start
+    }
+
+    pub const fn epoch_end(&self) -> u64 {
+        self.epoch_end
+    }
+
+    pub const fn public_policy_hash(&self) -> CommitmentV3 {
+        self.public_policy_hash
     }
 
     fn update_hasher(&self, hasher: &mut Sha256) {

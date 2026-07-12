@@ -247,11 +247,16 @@ throughput, or production authority.
   and deterministic V1-to-V3 projection;
 - `aggregate_shared`: guest-safe structural policies, strict aggregate codec,
   and deterministic parent composition;
+- `value_node_shared`: bounded proof-neutral Spot value-leaf input codec,
+  backend identity derivation, and deterministic V4 leaf proposal;
 - `methods/v1_leaf_adapter`: receipt-authenticated compatibility guest;
+- `methods/spot_value_leaf_v4`: verifies one exact pinned adapter receipt before
+  interpreting its semantic witness and committing `NodeJournalV4`;
 - `methods/structural_aggregate_l1`: adapter-to-level-one guest;
 - `methods/structural_aggregate_l2`: level-one-to-level-two guest;
 - `methods`: generated ELF and image-ID constants;
-- `verifier`: sealed host receipt-verification boundary;
+- `verifier`: sealed host receipt-verification boundary, including distinct
+  authenticated and exact-expected V4 Spot leaf typestates;
 - `replay_verifier`: source-only exact retained-receipt replay boundary with no
   methods, guest, harness, Bonsai, client, or `risc0-build` dependency path;
 - `harness`: adapter proof, controls, structural-tree proving, and verifier-only
@@ -323,6 +328,87 @@ The required `.github/workflows/zrpf-assurance.yml` lane repeats these checks
 and runs the real source-built replay in a non-root, read-only, networkless
 container. Local `--live` runs accurately retain the weaker
 `unsandboxed_preexec_limited_subprocess_v1` profile.
+
+## Replay The Historical Fixed V4 Spot Value Leaf
+
+The historical V4 Spot value-leaf lane adds value semantics to one already
+authenticated V1 adapter leaf. Its authority order is:
+
+```text
+exact retained Spot source receipt
+  -> exact retained adapter receipt and source projection
+  -> internally derived lane, state, row, policy, and source openings
+  -> V4 guest verifies the adapter receipt before witness interpretation
+  -> bounded NodeJournalV4 residual statement
+  -> Succinct receipt
+  -> exact host receipt and expected-journal typestate
+  -> create-new temporary output
+```
+
+The first fixed lane intentionally uses retained ordinal zero. That source has
+zero asset rows and equal raw pre/post state roots. It demonstrates the complete
+recursive receipt and semantic-opening plumbing. It does not demonstrate value
+movement or closed-epoch conservation.
+
+V4 also carries a host-declared self image in its guest input and journal. The
+exact `historical_spot_value_leaf_v4` verifier binds that declaration to the
+image used for cryptographic receipt verification. Generic receipt verification
+and journal decoding do not establish the declaration. V4 is retained for exact
+historical replay and cannot enter generic admission. An active successor must
+remove runtime self identity from the guest proposal and attach it only inside a
+sealed verifier after receipt authentication.
+
+Build the reviewed temporary-path image and harness in an external target:
+
+```bash
+export CARGO_TARGET_DIR="<ABSOLUTE_EXTERNAL_TARGET>"
+unset RISC0_SKIP_BUILD
+cargo build --locked --release \
+  -p zenodex-zrpf-risc0-harness \
+  --bin prove_spot_value_leaf_v4
+```
+
+Prove the fixed retained leaf. The output path must not exist:
+
+```bash
+V4_LEAF="$CARGO_TARGET_DIR/release/prove_spot_value_leaf_v4"
+SOURCE="evidence/zrpf-semantic-epoch-v1-local-proof-v1/source-inputs/source-ordinal-0.receipt.json"
+ADAPTER="evidence/zrpf-semantic-epoch-v1-local-proof-v1/receipts/adapter-ordinal-0.receipt.json"
+VALUE_RECEIPT="<NEW_TEMPORARY_V4_RECEIPT_PATH>"
+
+"$V4_LEAF" \
+  --receipt-out "$VALUE_RECEIPT" \
+  --source-proof "$SOURCE" \
+  --adapter-receipt "$ADAPTER"
+```
+
+Replay the persisted receipt without proving again:
+
+```bash
+"$V4_LEAF" \
+  --verify-receipt "$VALUE_RECEIPT" \
+  --source-proof "$SOURCE" \
+  --adapter-receipt "$ADAPTER"
+```
+
+The harness pins the exact source wrapper, inner source receipt, adapter
+receipt, adapter journal, semantic opening, V4 guest ELF, and V4 image ID. It
+recomputes the empty asset-row root, authenticates the adapter before using its
+journal, derives every witness field internally, rederives the expected V4
+journal on the host, and persists only after
+`ExactSpotValueLeafReceiptV4` succeeds. Output uses create-new semantics,
+`fsync`, and a same-descriptor byte-for-byte reread.
+
+A local run on July 11, 2026 produced a 601,394-byte Succinct receipt with
+SHA-256
+`794a69746b3f833f56e15c968c16ab7d4ee9089f555eb210d38a1c0ea37d18c7`.
+Independent replay succeeded. A canonical seal-word-1 XOR-1 mutation with
+SHA-256
+`2772e497dc94d937e5840bae87f2e606122269ffc8cb2a1d38667216747d2530`
+rejected at cryptographic receipt verification. These are temporary local
+facts. The guest path is not release-governed, the retained child receipts were
+not regenerated, and no DA, ledger, settlement, privacy, reproducible-build,
+or production authority follows.
 
 ## Build And Prove A Four-Leaf Tree
 

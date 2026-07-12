@@ -20,9 +20,27 @@ use zenodex_zrpf_risc0_shared::{
 /// ```
 #[path = "semantic_epoch_v1.rs"]
 pub mod historical_semantic_epoch_v1;
+/// Historical V4 remains available for exact retained-receipt replay.
+///
+/// Its guest ABI carries a host-declared self image. The sealed verifier in
+/// this module checks that declaration against the image used for receipt
+/// verification, but generic receipt consumers do not get that guarantee.
+/// New authority-bearing integrations must use a proof-neutral successor whose
+/// runtime identity is attached only after cryptographic verification.
+#[path = "spot_value_leaf_v4.rs"]
+pub mod historical_spot_value_leaf_v4;
 mod semantic_epoch_v2;
 
 pub use semantic_epoch_v2::{VerifiedSemanticEpochReceiptErrorV2, VerifiedSemanticEpochReceiptV2};
+
+/// Historical V4 verified types are deliberately unavailable at the crate
+/// root, so downstream code must acknowledge the legacy authority boundary.
+///
+/// ```compile_fail
+/// use zenodex_zrpf_risc0_verifier::AuthenticatedSpotValueLeafReceiptV4;
+/// let _ = core::mem::size_of::<AuthenticatedSpotValueLeafReceiptV4>();
+/// ```
+const _: () = ();
 
 pub const ZRPF_RISC0_SUCCINCT_RECEIPT_PROFILE_ID_V1: &str =
     "risc0_succinct_poseidon2_resolve_3_0_5_v1";

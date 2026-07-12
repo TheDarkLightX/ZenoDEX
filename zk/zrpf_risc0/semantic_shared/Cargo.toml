@@ -2,7 +2,7 @@
 name = "zenodex-zrpf-risc0-semantic-shared"
 version = "0.1.0"
 edition = "2021"
-description = "Guest-safe structural-to-semantic proposal recomposition for ZRPF V3"
+description = "Guest-safe semantic and represented-value reference kernels for ZRPF V3"
 publish = false
 build = false
 autobins = false
@@ -41,11 +41,16 @@ path = "tests/semantic_v2.rs"
 default = ["historical-v1"]
 historical-v1 = []
 
+[[test]]
+name = "value_v1"
+path = "tests/value_v1.rs"
+
 [dependencies]
+sha2 = { version = "0.10.9", default-features = false }
+tau-state-proof-risc0-shared = { path = "../../state_proof_risc0/shared", default-features = false }
 zenodex-zrpf-protocol-v3 = { path = "../../zrpf_protocol/protocol", default-features = false }
 zenodex-zrpf-risc0-aggregate-shared = { path = "../aggregate_shared", default-features = false }
 zenodex-zrpf-risc0-shared = { path = "../shared", default-features = false }
 
 [dev-dependencies]
 postcard = { version = "1.1.3", features = ["alloc"] }
-tau-state-proof-risc0-shared = { path = "../../state_proof_risc0/shared" }

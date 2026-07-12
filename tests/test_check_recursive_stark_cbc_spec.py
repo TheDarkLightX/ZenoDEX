@@ -87,7 +87,7 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     assert report["facts"]["implemented_obligation_count"] == 20
     assert report["facts"]["pending_obligation_count"] == 5
     assert report["matrix_sha256"] == (
-        "sha256:9a80c8015863af93c211310ab19b8c420fc8022619b4217a7110e8f13dac3b87"
+        "sha256:d476dae71a1806c4bdbd3b5a3d6b9d1c9f05e583a5e7d7e8636113fce7b42c84"
     )
     assert report["promotion_boundary"]["facts"]["public_claim_allowed"] is False
     assert report["promotion_boundary"]["facts"]["production_ready"] is False
@@ -108,6 +108,9 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
         in matrix["promotion_boundary"]["non_claims"]
     )
     assert "no_complete_v3_semantic_composition" in matrix["promotion_boundary"]["non_claims"]
+    assert "no_generic_v4_runtime_identity_authority" in (
+        matrix["promotion_boundary"]["non_claims"]
+    )
     assert "no_zrpf_16x4_profile" in matrix["promotion_boundary"]["non_claims"]
     assert (
         "no_durable_atomic_recursive_admission_with_value_moving_effects"

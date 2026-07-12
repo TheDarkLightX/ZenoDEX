@@ -31,6 +31,7 @@
       "no_release_backed_v3_receipt_authenticated_tree",
       "no_complete_v3_semantic_composition",
       "no_fresh_zrpf_semantic_v2_receipt_evidence",
+      "no_generic_v4_runtime_identity_authority",
       "no_zrpf_16x4_profile"
     ]
   },
@@ -1295,8 +1296,8 @@
         "cd zk/zrpf_risc0 && env PATH=\"$HOME/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin:/usr/bin:/bin\" RUSTC=\"$HOME/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin/rustc\" RUSTDOC=\"$HOME/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin/rustdoc_tool_binary\" RISC0_SKIP_BUILD=1 \"$HOME/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin/cargo\" test --locked -p zenodex-zrpf-risc0-semantic-shared --no-default-features --test semantic_v2",
         "python3 -m pytest -q tests/test_zrpf_semantic_guest_source_contract.py"
       ],
-      "next_action": "build the V2 guest under the pinned RISC0 toolchain, recompute D, generate a fresh positive V2 receipt, and persist wrong-D, dependency-substitution, and exact-seal-mutation rejection evidence before any admission integration",
-      "non_claim": "the V2 statement ABI and sealed host boundary are implemented and host-tested, while no fresh V2 guest ELF, image ID, RISC0 receipt, receipt-authenticated dependency substitution, wrong-D, exact proposal substitution, exact seal-mutation replay, proof-generation replay, source-built replay, durable admission, settlement, release, privacy, throughput, or production authority is claimed; V1 evidence remains immutable historical evidence and transfers no authority to V2"
+      "next_action": "build the V2 guest under the pinned RISC0 toolchain, recompute D, generate a fresh positive V2 receipt, and persist wrong-D, dependency-substitution, and exact-seal-mutation rejection evidence; define a proof-neutral successor to historical V4 whose guest proposal carries no runtime self-image before any value admission integration",
+      "non_claim": "the V2 statement ABI and sealed host boundary are implemented and host-tested, while no fresh V2 guest ELF, image ID, RISC0 receipt, receipt-authenticated dependency substitution, wrong-D, exact proposal substitution, exact seal-mutation replay, proof-generation replay, source-built replay, durable admission, settlement, release, privacy, throughput, or production authority is claimed; V1 evidence remains immutable historical evidence and transfers no authority to V2; V4 remains historical because its guest ABI carries a host-declared self image, so ordinary V4 receipt verification and journal decoding establish no generic runtime-identity authority"
     },
     {
       "id": "RS-CBC-025",
