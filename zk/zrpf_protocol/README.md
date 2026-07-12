@@ -24,6 +24,9 @@ The crate currently provides:
   domain, grant, and nonce for durable single-use enforcement;
 - a bounded `EconomicActionBatchV1` that rejects duplicate actions,
   grant-and-nonce spends, and cross-action consumed objects;
+- a bounded canonical `SettlementEpochCertificateV1` proof-neutral journal
+  that binds semantic, action, effect-plan, state, policy, certificate, and
+  dependency roots without runtime verifier identity;
 - a bounded `ProgramManifestV1` that commits proof backend, program, declared
   build identity inputs, verifier policy, receipt codec, security level, and
   privacy claim;
@@ -59,6 +62,13 @@ action-bound compatibility identity is not a single-use grant key. The
 grant-spend nullifier supplies that key, while this crate does not verify a
 signature or grant, derive ZenoDEX effect semantics, persist uniqueness state,
 or authorize value movement.
+
+The settlement certificate is a canonical proof-neutral journal. Its source
+claim binding and DA, schedule, carry, plan, and state roots remain
+unauthenticated data until a guest verifies their source obligations and a
+sealed host verifier authenticates the exact receipt, runtime image, receipt
+profile, and governed manifest. Decoding or hashing the certificate grants no
+ledger authority.
 
 The manifest and task objects are canonical proposals. A manifest becomes
 eligible only after a separately governed release policy authorizes its exact

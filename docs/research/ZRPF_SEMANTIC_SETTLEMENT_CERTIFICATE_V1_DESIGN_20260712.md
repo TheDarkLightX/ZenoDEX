@@ -2,9 +2,9 @@
 
 Date: 2026-07-12
 
-Status: proof-neutral action batch and SettlementEffectPlanV2 implemented and
-host-tested; proof-neutral ordinary Spot effect projection implemented; guest,
-receipt, and ledger authority pending
+Status: proof-neutral action batch, SettlementEffectPlanV2, ordinary Spot
+effect projection, and settlement certificate ABI implemented and host-tested;
+guest, receipt, and ledger authority pending
 
 ## Goal and bounded domain
 
@@ -205,7 +205,7 @@ semantic_profile_id
 semantic_journal_hash
 semantic_claim_binding
 proof_tree_root
-semantic_epoch_root or value_subtree_root
+semantic_root: SemanticEpoch(root) or ValueSubtree(root)
 economic_action_batch_commitment
 economic_action_ids_root
 action_authorization_bindings_root
@@ -225,6 +225,37 @@ schedule_certificate_root
 carry_continuity_certificate_root
 dependency_manifest_root
 ```
+
+The implemented ABI uses a closed `SettlementSemanticRootV1` enum. Exactly one
+semantic epoch root or value subtree root is present. Its canonical journal
+hash uses the fixed-width field order above under:
+
+```text
+zenodex.zrpf.settlement_epoch_certificate_journal.v1
+```
+
+The hash preimage frames the domain with a big-endian `u16` length, encodes the
+certificate version as big-endian `u16`, the epoch as big-endian `u64`, the
+semantic-root variant as tag `0` or `1`, and every identifier or root as its
+exact 32 bytes. The exact Postcard codec is bounded to 1,024 bytes and rejects
+empty, truncated, trailing, oversized, stale-version, and nonminimal inputs.
+
+All identifiers and roots use nonzero types. Construction rejects equal
+pre-state and post-state roots. Private certificate state can arise only from
+the checked constructor or validated deserialization. These checks establish
+shape and scope binding in the canonical hash. They do not validate the
+meaning of any supplied commitment.
+
+`semantic_claim_binding` remains an opaque proof-neutral field at this layer.
+The future guest and sealed verifier must derive and authenticate it from the
+verified semantic runtime image and exact semantic journal bytes. The ABI does
+not accept or derive runtime image identity, receipt-security profile, verifier
+parameters, or a governed runtime manifest.
+
+The certificate constructor does not receive the source journal, economic
+action batch, or settlement plan. Cross-object equality remains a future guest
+obligation. The DA, schedule, and carry-continuity roots are mandatory nonzero
+commitments whose certificate semantics remain unvalidated.
 
 Runtime program identity remains outside this proof-neutral journal. The sealed
 host verifier attaches the actual verified image ID, receipt-security profile,
@@ -297,6 +328,10 @@ correspondence, semantic row-normalization result, source finality, release
 authority, settlement authority, privacy claim, throughput result, or
 production claim.
 
+The proof-neutral certificate ABI also supplies no source-journal, action-batch,
+settlement-plan, state-tree, DA, schedule, carry, or dependency-manifest
+validation. A canonical journal hash authenticates no input by itself.
+
 Promotion requires the implemented protocol and guest, current-image proof
 evidence, sealed verifier, atomic ledger tests, governed release binding, and
 the exact negative controls above.
@@ -312,6 +347,11 @@ invariance, exact codec rejection, oversized declared row sets, and record-level
 decode revalidation. Minimized tests retain the detached action-effect
 commitment and row-partition alias cases as explicit pending non-authority
 evidence.
+The ordinary Spot projection supplies a non-circular effect normal form for its
+restricted no-supply profile. Certificate coverage adds closed semantic-root
+variants, every-fixed-field journal-hash separation, typed nonzero wire
+rejection, unchanged-state rejection, exact codec negatives, and a fixed
+independent hash vector.
 
 Run from `zk/zrpf_protocol`:
 

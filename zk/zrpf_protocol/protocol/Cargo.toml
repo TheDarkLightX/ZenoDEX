@@ -38,6 +38,10 @@ name = "settlement_effect_v2"
 path = "tests/settlement_effect_v2.rs"
 
 [[test]]
+name = "settlement_certificate_v1"
+path = "tests/settlement_certificate_v1.rs"
+
+[[test]]
 name = "task_manifest_v1"
 path = "tests/task_manifest_v1.rs"
 
