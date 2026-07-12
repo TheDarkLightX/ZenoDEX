@@ -235,9 +235,14 @@ fn two_leaf_subtree() -> SemanticSubtreeV2 {
 }
 
 fn v4_leaf_with_proof_system(proof_system_seed: u8) -> NodeJournalV4 {
+    v4_leaf_with_statement(proof_system_seed, 226)
+}
+
+fn v4_leaf_with_statement(proof_system_seed: u8, statement_seed: u8) -> NodeJournalV4 {
     NodeJournalV4::new(NodeJournalInputV4 {
         structural: structural_leaf(0, 1),
         semantic_subtree: one_leaf_subtree(),
+        application_statement_hash: commitment(statement_seed),
         proof_profile_id: profile(217),
         actual_program_id: program(218),
         proof_system_id: commitment(proof_system_seed),
@@ -255,6 +260,7 @@ fn v4_aggregate() -> NodeJournalV4 {
     NodeJournalV4::new(NodeJournalInputV4 {
         structural: structural_aggregate(vec![left, right], 41),
         semantic_subtree: two_leaf_subtree(),
+        application_statement_hash: commitment(226),
         proof_profile_id: profile(217),
         actual_program_id: program(218),
         proof_system_id: commitment(219),
@@ -305,6 +311,7 @@ fn mirror_v4_statement_hash(journal: &NodeJournalV4) -> CommitmentV3 {
         &mut hasher,
         journal.semantic_subtree().canonical_hash().unwrap(),
     );
+    mirror_commitment(&mut hasher, journal.application_statement_hash());
     hasher.update(journal.proof_profile_id().as_bytes());
     hasher.update(journal.actual_program_id().as_bytes());
     for value in [
@@ -328,6 +335,7 @@ fn mirror_v4_journal_hash(journal: &NodeJournalV4) -> CommitmentV3 {
         &mut hasher,
         journal.semantic_subtree().canonical_hash().unwrap(),
     );
+    mirror_commitment(&mut hasher, journal.application_statement_hash());
     hasher.update(journal.proof_profile_id().as_bytes());
     hasher.update(journal.actual_program_id().as_bytes());
     for value in [
@@ -492,6 +500,16 @@ fn v4_leaf_binds_structural_semantic_and_receipt_security_identity() {
     assert_ne!(journal.verifier_id().into_bytes(), [0; 32]);
     assert_ne!(journal.semantic_statement_hash().into_bytes(), [0; 32]);
 
+    let changed_application_statement = v4_leaf_with_statement(219, 227);
+    assert_ne!(
+        journal.semantic_statement_hash(),
+        changed_application_statement.semantic_statement_hash()
+    );
+    assert_ne!(
+        journal.canonical_hash().unwrap(),
+        changed_application_statement.canonical_hash().unwrap()
+    );
+
     let changed_system = v4_leaf_with_proof_system(225);
     assert_ne!(journal.verifier_id(), changed_system.verifier_id());
     assert_ne!(
@@ -509,6 +527,7 @@ fn v4_child_hash_count_and_uniqueness_are_structural_invariants() {
     let leaf = NodeJournalV4::new(NodeJournalInputV4 {
         structural: structural_leaf(0, 1),
         semantic_subtree: one_leaf_subtree(),
+        application_statement_hash: commitment(226),
         proof_profile_id: profile(217),
         actual_program_id: program(218),
         proof_system_id: commitment(219),
@@ -530,6 +549,7 @@ fn v4_child_hash_count_and_uniqueness_are_structural_invariants() {
     let duplicate = NodeJournalV4::new(NodeJournalInputV4 {
         structural: structural_aggregate(vec![left, right], 41),
         semantic_subtree: two_leaf_subtree(),
+        application_statement_hash: commitment(226),
         proof_profile_id: profile(217),
         actual_program_id: program(218),
         proof_system_id: commitment(219),
@@ -549,6 +569,7 @@ fn v4_rejects_structural_semantic_partition_and_scope_relabeling() {
     let wrong_partition = NodeJournalV4::new(NodeJournalInputV4 {
         structural: structural_leaf(1, 1),
         semantic_subtree: one_leaf_subtree(),
+        application_statement_hash: commitment(226),
         proof_profile_id: profile(217),
         actual_program_id: program(218),
         proof_system_id: commitment(219),
@@ -587,9 +608,10 @@ fn decoded_v4_cannot_relabel_verifier_statement_or_child_root() {
 }
 
 #[test]
-fn every_v4_verifier_identity_component_is_fail_closed_on_decode() {
+fn every_v4_statement_identity_component_is_fail_closed_on_decode() {
     let journal = v4_aggregate();
     for field in [
+        "application_statement_hash",
         "proof_profile_id",
         "actual_program_id",
         "proof_system_id",
@@ -609,6 +631,7 @@ fn semantic_root_is_topology_independent_while_v4_statement_binds_child_order() 
     let swapped = NodeJournalV4::new(NodeJournalInputV4 {
         structural: original.structural().clone(),
         semantic_subtree: original.semantic_subtree().clone(),
+        application_statement_hash: original.application_statement_hash(),
         proof_profile_id: original.proof_profile_id(),
         actual_program_id: original.actual_program_id(),
         proof_system_id: original.proof_system_id(),
@@ -704,6 +727,7 @@ fn maximum_semantic_summary_and_v4_journal_fit_the_governed_byte_caps() {
     let journal = NodeJournalV4::new(NodeJournalInputV4 {
         structural: root,
         semantic_subtree: subtree,
+        application_statement_hash: commitment(226),
         proof_profile_id: profile(217),
         actual_program_id: program(218),
         proof_system_id: commitment(219),
@@ -738,11 +762,11 @@ fn semantic_subtree_and_v4_journal_hash_vectors_are_stable() {
     );
     assert_eq!(
         hex(journal.semantic_statement_hash().into_bytes()),
-        "3f0a3f286c5e1a14695c38d466d94daa594eec8eba4c6aa86b1acd096b2e7c95"
+        "2e39deccf78b15d00e9a4bb093885d10a230e0fc9aa6b221c6be28de11780d75"
     );
     assert_eq!(
         hex(journal.canonical_hash().unwrap().into_bytes()),
-        "19c0d7013710587455ea536857d99e778da1217e90f441d748d68df6196cd8e9"
+        "210af1ef25c1f027ec0e0823df534fd6a1932cf73e5df959139157b7f1e35028"
     );
     assert_eq!(journal.verifier_id(), mirror_v4_verifier_id(&journal));
     assert_eq!(

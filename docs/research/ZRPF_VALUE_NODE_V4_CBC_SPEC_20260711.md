@@ -175,6 +175,7 @@ skip record validation.
 journal_version = 4
 exact validated NodeJournalV3 structural value
 exact validated SemanticSubtreeV2
+application_statement_hash
 proof_profile_id
 actual_program_id
 proof_system_id
@@ -220,6 +221,7 @@ The semantic statement additionally binds:
 ```text
 V3 structural journal hash
 V2 semantic subtree hash
+application statement hash
 V4 proof and verifier identity
 program manifest root
 child semantic journal root
@@ -253,6 +255,7 @@ length with an excessive encoded count and require decode rejection.
 | issuance without an authority-use record | exact per-asset issuance/use equality |
 | child V4 omission or duplication | exact immediate count and duplicate rejection |
 | structural scope or partition relabeling | V3/V2 equality checks |
+| application statement hash relabeled after construction | semantic-statement and canonical-hash recomposition reject |
 | verifier backend or parameters relabeled | V4 verifier-ID derivation |
 | stored derived root differs from records | decode-time root recomposition |
 | hostile sequence length triggers large allocation | bounded sequence visitor |
@@ -273,12 +276,16 @@ The focused protocol suite covers:
 - duplicate source, semantic, task, and transaction identities;
 - flow and authority-use order, bounds, source binding, and issuance totals;
 - V3/V2 partition, leaf-count, and scope equality;
+- application-statement hash changes alter both derived V4 hashes;
 - child count, child duplication, child order, and child-root binding;
 - proof-system, receipt-security-profile, verifier-parameter, program,
   profile, and manifest relabeling;
 - bounded byte mutation with the rule that any accepted mutation changes the
   canonical journal hash;
 - independent mirror checks for V4 verifier, statement, and journal hashing;
+- exact V1/V4 root parity for ordinary flows and governed mint authority uses;
+- wrong-projection and off-origin subtree rejection before sealed matching;
+- sealed expected-statement hash wiring into a pure V4 journal proposal;
 - fixed hash vectors;
 - a saturated maximum-size construction.
 
@@ -292,9 +299,9 @@ semantic_subtree_hash
 verifier_id
   0d0ffc1ab18d49281d24178730b65efd5bf5e6f4c08098eaa9d2b3e2814422f1
 semantic_statement_hash
-  3f0a3f286c5e1a14695c38d466d94daa594eec8eba4c6aa86b1acd096b2e7c95
+  2e39deccf78b15d00e9a4bb093885d10a230e0fc9aa6b221c6be28de11780d75
 node_journal_hash
-  19c0d7013710587455ea536857d99e778da1217e90f441d748d68df6196cd8e9
+  210af1ef25c1f027ec0e0823df534fd6a1932cf73e5df959139157b7f1e35028
 ```
 
 ## Explicit non-claims
@@ -313,18 +320,25 @@ This tranche does not establish:
 
 All corresponding authority claims remain false.
 
+The codec accepts any structurally valid nonzero application statement hash.
+A future outer verifier and atomic admission boundary must compare that exact
+hash with the ledger-owned expected statement before it gains authority.
+
 ## Next executable step
 
-After the independently owned expected-statement lane is committed and pushed:
+The expected-statement lane is merged without rewriting either history. The
+receipt-neutral bridge now derives `SemanticSubtreeV2` from the sealed Spot V1
+summary, requires exact equality for every independently derived component
+root, and consumes the sealed expected-projection match before exposing the
+application statement hash.
 
-1. merge the expected type without rewriting either history;
-2. add semantic-shared conversion parity from Spot Represented Value V1 into
-   exact `SemanticSubtreeV2`;
-3. define the V4 leaf and aggregate witness codecs with the same bounded
+The next executable sequence is:
+
+1. define the V4 leaf and aggregate witness codecs with the same bounded
    sequence discipline;
-4. implement a leaf guest that verifies the governed adapter receipt before
+2. implement a leaf guest that verifies the governed adapter receipt before
    constructing a V4 leaf;
-5. implement an aggregate guest that verifies every exact V4 child receipt
+3. implement an aggregate guest that verifies every exact V4 child receipt
    before semantic merge;
-6. close the complete root against the ledger-owned expected statement;
-7. generate fresh Succinct receipts and exact negative controls.
+4. close the complete root against the ledger-owned expected statement;
+5. generate fresh Succinct receipts and exact negative controls.

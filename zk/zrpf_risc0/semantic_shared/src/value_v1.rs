@@ -283,6 +283,10 @@ impl SpotSemanticValueCommitmentsV1 {
         self.state_root_scheme_id
     }
 
+    pub const fn semantic_leaf_records_root(&self) -> CommitmentV3 {
+        self.semantic_leaf_records_root
+    }
+
     pub const fn ordered_transaction_roots_root(&self) -> CommitmentV3 {
         self.ordered_transaction_roots_root
     }
@@ -301,6 +305,10 @@ impl SpotSemanticValueCommitmentsV1 {
 
     pub const fn authority_uses_root(&self) -> CommitmentV3 {
         self.authority_uses_root
+    }
+
+    pub const fn value_subtree_root(&self) -> CommitmentV3 {
+        self.value_subtree_root
     }
 
     fn canonical_hash(&self) -> Result<CommitmentV3, SpotSemanticValueErrorV1> {
@@ -510,6 +518,7 @@ mod expected;
 pub use self::expected::*;
 mod hash;
 mod validate;
+mod wire_v4;
 use self::hash::{
     authority_grants_root, commitment, domain_hasher, valid_lane_id, validate_grants, write_bytes32,
 };
@@ -517,3 +526,4 @@ pub use self::hash::{
     canonical_spot_asset_name_v1, spot_accounting_domain_id_v1, spot_atoms_unit_id_v1,
     spot_represented_value_profile_id_v1, spot_state_root_scheme_id_v1,
 };
+pub use self::wire_v4::*;

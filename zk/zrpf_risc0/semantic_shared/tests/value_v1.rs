@@ -9,18 +9,23 @@ use tau_state_proof_risc0_shared::{
     RECURSIVE_SPOT_LEAF_PROFILE_V1,
 };
 use zenodex_zrpf_protocol_v3::{
-    ApplicationIdV3, CommitmentV3, DomainIdV3, ExpectedV1AdapterLeafIdentityV1, NodeScopeInputV3,
-    NodeScopeV3, ProgramIdV3, ProposedSemanticEpochV1, ProposedSemanticLeafV1,
-    SemanticEpochProposalInputV1, V1AdapterSemanticLeafOpeningV1,
+    decode_exact_semantic_subtree_v2, encode_node_journal_v3, encode_semantic_subtree_v2,
+    AggregateNodeInputV3, ApplicationIdV3, CommitmentV3, DomainIdV3,
+    ExpectedV1AdapterLeafIdentityV1, NodeJournalInputV4, NodeJournalV3, NodeJournalV4,
+    NodeScopeInputV3, NodeScopeV3, ProfileIdV3, ProgramIdV3, ProjectedChildDescriptorV3,
+    ProposedSemanticEpochV1, ProposedSemanticLeafV1, SemanticEpochProposalInputV1, TaskIdV3,
+    V1AdapterSemanticLeafOpeningV1,
 };
 use zenodex_zrpf_risc0_semantic_shared::{
-    canonical_spot_asset_name_v1, close_spot_represented_value_epoch_v1,
-    compose_spot_represented_value_v1, match_expected_spot_semantic_value_v1,
-    merge_spot_value_subtrees_v2, propose_spot_value_subtree_v2, spot_accounting_domain_id_v1,
-    spot_atoms_unit_id_v1, spot_represented_value_profile_id_v1, spot_state_root_scheme_id_v1,
-    ExpectedSpotSemanticValueFieldV1, ExpectedSpotSemanticValueInputV1,
-    ExpectedSpotSemanticValueV1, SpotMintAuthorityGrantV1, SpotRepresentedValuePolicyV1,
-    SpotSemanticValueErrorV1, SpotSemanticValueProjectionV1, SpotValueLeafOpeningV1,
+    bind_expected_spot_semantic_subtree_v4, canonical_spot_asset_name_v1,
+    close_spot_represented_value_epoch_v1, compose_spot_represented_value_v1,
+    match_expected_spot_semantic_value_v1, merge_spot_value_subtrees_v2,
+    propose_spot_value_subtree_v2, semantic_subtree_v2_from_spot_summary,
+    spot_accounting_domain_id_v1, spot_atoms_unit_id_v1, spot_represented_value_profile_id_v1,
+    spot_state_root_scheme_id_v1, ExpectedSpotSemanticValueFieldV1,
+    ExpectedSpotSemanticValueInputV1, ExpectedSpotSemanticValueV1, SpotMintAuthorityGrantV1,
+    SpotRepresentedValuePolicyV1, SpotSemanticValueErrorV1, SpotSemanticValueProjectionV1,
+    SpotValueLeafOpeningV1, SpotValueSubtreeSummaryV2, SpotValueWireErrorV4, SpotValueWireFieldV4,
     CANONICAL_SPOT_ASSET_NAME_BYTES_V1, MAX_SPOT_ASSET_ROWS_PER_LEAF_V1, MAX_SPOT_LANE_ID_BYTES_V1,
     MAX_SPOT_MINT_GRANTS_V1, MAX_SPOT_REPRESENTED_ROWS_PER_SUMMARY_V2, MAX_SPOT_VALUE_LEAVES_V1,
     MAX_SPOT_VALUE_SUBTREE_LEAVES_V2,
@@ -100,6 +105,7 @@ fn policy(grants: Vec<SpotMintAuthorityGrantV1>) -> SpotRepresentedValuePolicyV1
 struct LeafFixture {
     leaf: ProposedSemanticLeafV1,
     opening: SpotValueLeafOpeningV1,
+    structural: NodeJournalV3,
 }
 
 struct LeafInput {
@@ -161,12 +167,10 @@ fn adapt_summary(
         V1AdapterSemanticLeafOpeningV1::new(projection.source_binding.canonical_hash().unwrap());
     let expected =
         ExpectedV1AdapterLeafIdentityV1::new(projection.journal.actual_program_id()).unwrap();
-    let semantic_leaf = ProposedSemanticLeafV1::bind_v1_adapter_journal(
-        &projection.journal,
-        semantic_opening,
-        &expected,
-    )
-    .unwrap();
+    let structural = projection.journal;
+    let semantic_leaf =
+        ProposedSemanticLeafV1::bind_v1_adapter_journal(&structural, semantic_opening, &expected)
+            .unwrap();
     LeafFixture {
         leaf: semantic_leaf,
         opening: SpotValueLeafOpeningV1::new(
@@ -176,6 +180,7 @@ fn adapt_summary(
             rows,
         )
         .unwrap(),
+        structural,
     }
 }
 
@@ -382,6 +387,57 @@ fn compose(
     )
 }
 
+fn closed_summary_and_projection(
+    fixtures: &[LeafFixture],
+    proof_tree_seed: u8,
+    policy: &SpotRepresentedValuePolicyV1,
+) -> (
+    SpotValueSubtreeSummaryV2,
+    SpotSemanticValueProjectionV1,
+    NodeScopeV3,
+) {
+    let leaves = fixtures
+        .iter()
+        .map(|fixture| fixture.leaf.clone())
+        .collect::<Vec<_>>();
+    let openings = fixtures
+        .iter()
+        .map(|fixture| fixture.opening.clone())
+        .collect::<Vec<_>>();
+    let summary = propose_spot_value_subtree_v2(&leaves, &openings, policy).unwrap();
+    let proposal = base_proposal(&leaves, proof_tree_seed);
+    let scope = proposal.scope().clone();
+    let projection = close_spot_represented_value_epoch_v1(&proposal, &summary, policy).unwrap();
+    (summary, projection, scope)
+}
+
+fn structural_parent(fixtures: &[LeafFixture]) -> NodeJournalV3 {
+    let children = fixtures
+        .iter()
+        .enumerate()
+        .map(|(index, fixture)| {
+            let bytes = encode_node_journal_v3(&fixture.structural).unwrap();
+            ProjectedChildDescriptorV3::project_canonical_journal(
+                CommitmentV3::new(root(210 + index as u8)).unwrap(),
+                &bytes,
+            )
+            .unwrap()
+        })
+        .collect();
+    NodeJournalV3::new_aggregate(AggregateNodeInputV3 {
+        children,
+        task_id: TaskIdV3::new(root(220)).unwrap(),
+        count_unit_id: fixtures[0].structural.count_unit_id(),
+        scope: fixtures[0].structural.scope().clone(),
+        proof_profile_id: ProfileIdV3::new(root(221)).unwrap(),
+        actual_program_id: ProgramIdV3::new(root(222)).unwrap(),
+        node_statement_hash: CommitmentV3::new(root(223)).unwrap(),
+        program_manifest_root: CommitmentV3::new(root(224)).unwrap(),
+        commitments: fixtures[0].structural.commitments().clone(),
+    })
+    .unwrap()
+}
+
 fn balanced_projection() -> (SpotSemanticValueProjectionV1, NodeScopeV3) {
     let native = [0; 32];
     let fixtures = [
@@ -564,6 +620,7 @@ fn asset_row_mutation_rejects_before_accounting() {
             vec![ordinary_row(native, 5, 4)],
         )
         .unwrap(),
+        structural: original.structural.clone(),
     };
 
     assert_eq!(
@@ -753,6 +810,7 @@ fn state_opening_must_recompose_the_authenticated_commitment() {
             vec![ordinary_row(native, 2, 2)],
         )
         .unwrap(),
+        structural: original.structural,
     };
 
     assert_eq!(
@@ -1165,6 +1223,7 @@ fn post_lane_base_and_opening_substitutions_fail_closed() {
             vec![ordinary_row(native, 2, 2)],
         )
         .unwrap(),
+        structural: original.structural.clone(),
     };
     assert_eq!(
         compose(&[post_substituted], 92, &policy(vec![])),
@@ -1183,6 +1242,7 @@ fn post_lane_base_and_opening_substitutions_fail_closed() {
             vec![ordinary_row(native, 2, 2)],
         )
         .unwrap(),
+        structural: original.structural.clone(),
     };
     assert_eq!(
         compose(&[lane_substituted], 92, &policy(vec![])),
@@ -1415,6 +1475,158 @@ fn exact_expected_statement_match_is_a_distinct_sealed_transition() {
     assert_eq!(
         hex32(*expected.statement_hash().as_bytes()),
         "2db123542625f35539a98a811091e4aa2140bdcc132f29f1fc48d8c185ea6bca"
+    );
+}
+
+#[test]
+fn ordinary_spot_summary_has_exact_v1_v4_root_and_statement_parity() {
+    let native = [0; 32];
+    let fixtures = [
+        fixture(1, 0, 10, 11, vec![ordinary_row(native, 10, 0)]),
+        fixture(2, 1, 11, 12, vec![ordinary_row(native, 0, 10)]),
+    ];
+    let (summary, projection, scope) =
+        closed_summary_and_projection(&fixtures, 92, &policy(vec![]));
+    let subtree = semantic_subtree_v2_from_spot_summary(&summary).unwrap();
+
+    assert_eq!(subtree.value_subtree_root(), summary.subtree_root());
+    assert_eq!(
+        subtree.value_subtree_root(),
+        projection.commitments().value_subtree_root()
+    );
+    assert_eq!(
+        decode_exact_semantic_subtree_v2(&encode_semantic_subtree_v2(&subtree).unwrap()).unwrap(),
+        subtree
+    );
+
+    let expected = ExpectedSpotSemanticValueV1::new(expected_input(scope, &projection)).unwrap();
+    let expected_hash = expected.statement_hash();
+    let matched = match_expected_spot_semantic_value_v1(projection, &expected).unwrap();
+    let bound = bind_expected_spot_semantic_subtree_v4(&summary, matched).unwrap();
+    assert_eq!(bound.semantic_subtree(), &subtree);
+    assert_eq!(bound.application_statement_hash(), expected_hash);
+    assert_eq!(bound.semantic_value_root(), expected.semantic_value_root());
+}
+
+#[test]
+fn sealed_spot_match_supplies_the_v4_application_statement_hash() {
+    let native = [0; 32];
+    let fixtures = [
+        fixture(1, 0, 10, 11, vec![ordinary_row(native, 10, 0)]),
+        fixture(2, 1, 11, 12, vec![ordinary_row(native, 0, 10)]),
+    ];
+    let (summary, projection, scope) =
+        closed_summary_and_projection(&fixtures, 92, &policy(vec![]));
+    let expected = ExpectedSpotSemanticValueV1::new(expected_input(scope, &projection)).unwrap();
+    let expected_hash = expected.statement_hash();
+    let matched = match_expected_spot_semantic_value_v1(projection, &expected).unwrap();
+    let bound = bind_expected_spot_semantic_subtree_v4(&summary, matched).unwrap();
+
+    let journal = NodeJournalV4::new(NodeJournalInputV4 {
+        structural: structural_parent(&fixtures),
+        semantic_subtree: bound.semantic_subtree().clone(),
+        application_statement_hash: bound.application_statement_hash(),
+        proof_profile_id: ProfileIdV3::new(root(225)).unwrap(),
+        actual_program_id: ProgramIdV3::new(root(226)).unwrap(),
+        proof_system_id: CommitmentV3::new(root(227)).unwrap(),
+        receipt_security_profile_id: CommitmentV3::new(root(228)).unwrap(),
+        verifier_parameters_root: CommitmentV3::new(root(229)).unwrap(),
+        program_manifest_root: CommitmentV3::new(root(230)).unwrap(),
+        child_semantic_journal_hashes: vec![
+            CommitmentV3::new(root(231)).unwrap(),
+            CommitmentV3::new(root(232)).unwrap(),
+        ],
+    })
+    .unwrap();
+
+    assert_eq!(journal.application_statement_hash(), expected_hash);
+    assert_eq!(journal.semantic_subtree(), bound.semantic_subtree());
+    assert_ne!(journal.semantic_statement_hash(), expected_hash);
+}
+
+#[test]
+fn governed_spot_mint_has_exact_v1_v4_flow_and_authority_parity() {
+    let minted_asset = asset(7);
+    let fixtures = [fixture(
+        5,
+        0,
+        30,
+        31,
+        vec![mint_row(minted_asset, 25, POLICY_HASH)],
+    )];
+    let governed = policy(vec![grant(minted_asset, 25)]);
+    let (summary, projection, scope) = closed_summary_and_projection(&fixtures, 93, &governed);
+    let expected = ExpectedSpotSemanticValueV1::new(expected_input(scope, &projection)).unwrap();
+    let matched = match_expected_spot_semantic_value_v1(projection, &expected).unwrap();
+    let bound = bind_expected_spot_semantic_subtree_v4(&summary, matched).unwrap();
+    let subtree = bound.semantic_subtree();
+
+    assert_eq!(subtree.value_subtree_root(), summary.subtree_root());
+    assert_eq!(subtree.asset_flows().len(), 1);
+    assert_eq!(subtree.asset_flows()[0].asset_id(), minted_asset);
+    assert_eq!(subtree.asset_flows()[0].issued_atoms(), 25);
+    assert_eq!(subtree.authority_uses().len(), 1);
+    assert_eq!(subtree.authority_uses()[0].asset_id(), minted_asset);
+    assert_eq!(subtree.authority_uses()[0].atoms(), 25);
+}
+
+#[test]
+fn v4_subtree_rejects_a_valid_summary_from_an_unmatched_projection() {
+    let native = [0; 32];
+    let expected_fixtures = [
+        fixture(1, 0, 10, 11, vec![ordinary_row(native, 10, 0)]),
+        fixture(2, 1, 11, 12, vec![ordinary_row(native, 0, 10)]),
+    ];
+    let substituted_fixtures = [
+        fixture(3, 0, 10, 11, vec![ordinary_row(native, 10, 0)]),
+        fixture(4, 1, 11, 12, vec![ordinary_row(native, 0, 10)]),
+    ];
+    let governed = policy(vec![]);
+    let (_, projection, scope) = closed_summary_and_projection(&expected_fixtures, 92, &governed);
+    let (substituted_summary, _, _) =
+        closed_summary_and_projection(&substituted_fixtures, 93, &governed);
+    let expected = ExpectedSpotSemanticValueV1::new(expected_input(scope, &projection)).unwrap();
+    let matched = match_expected_spot_semantic_value_v1(projection, &expected).unwrap();
+
+    assert_eq!(
+        bind_expected_spot_semantic_subtree_v4(&substituted_summary, matched),
+        Err(SpotValueWireErrorV4::ExpectedProjectionMismatch(
+            SpotValueWireFieldV4::SemanticLeafRecordsRoot,
+        ))
+    );
+}
+
+#[test]
+fn expected_spot_projection_rejects_an_off_origin_v4_subtree() {
+    let native = [0; 32];
+    let expected_fixtures = [
+        fixture(1, 0, 10, 11, vec![ordinary_row(native, 10, 0)]),
+        fixture(2, 1, 11, 12, vec![ordinary_row(native, 0, 10)]),
+    ];
+    let off_origin_fixtures = [
+        fixture(3, 2, 10, 11, vec![ordinary_row(native, 10, 0)]),
+        fixture(4, 3, 11, 12, vec![ordinary_row(native, 0, 10)]),
+    ];
+    let governed = policy(vec![]);
+    let (_, projection, scope) = closed_summary_and_projection(&expected_fixtures, 92, &governed);
+    let off_origin_leaves = off_origin_fixtures
+        .iter()
+        .map(|fixture| fixture.leaf.clone())
+        .collect::<Vec<_>>();
+    let off_origin_openings = off_origin_fixtures
+        .iter()
+        .map(|fixture| fixture.opening.clone())
+        .collect::<Vec<_>>();
+    let off_origin_summary =
+        propose_spot_value_subtree_v2(&off_origin_leaves, &off_origin_openings, &governed).unwrap();
+    let expected = ExpectedSpotSemanticValueV1::new(expected_input(scope, &projection)).unwrap();
+    let matched = match_expected_spot_semantic_value_v1(projection, &expected).unwrap();
+
+    assert_eq!(
+        bind_expected_spot_semantic_subtree_v4(&off_origin_summary, matched),
+        Err(SpotValueWireErrorV4::ExpectedProjectionMismatch(
+            SpotValueWireFieldV4::Partition,
+        ))
     );
 }
 

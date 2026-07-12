@@ -25,6 +25,7 @@ const NODE_JOURNAL_HASH_DOMAIN_V4: &[u8] = b"zenodex.zrpf.node_journal_hash.v4";
 pub struct NodeJournalInputV4 {
     pub structural: NodeJournalV3,
     pub semantic_subtree: SemanticSubtreeV2,
+    pub application_statement_hash: CommitmentV3,
     pub proof_profile_id: ProfileIdV3,
     pub actual_program_id: ProgramIdV3,
     pub proof_system_id: CommitmentV3,
@@ -47,6 +48,7 @@ pub struct VerifierIdentityInputV4 {
 struct SemanticStatementMaterialV4<'a> {
     structural: &'a NodeJournalV3,
     semantic_subtree: &'a SemanticSubtreeV2,
+    application_statement_hash: CommitmentV3,
     verifier_identity: VerifierIdentityInputV4,
     program_manifest_root: CommitmentV3,
     child_semantic_journals_root: CommitmentV3,
@@ -58,6 +60,7 @@ pub struct NodeJournalV4 {
     journal_version: u16,
     structural: NodeJournalV3,
     semantic_subtree: SemanticSubtreeV2,
+    application_statement_hash: CommitmentV3,
     proof_profile_id: ProfileIdV3,
     actual_program_id: ProgramIdV3,
     proof_system_id: CommitmentV3,
@@ -76,6 +79,7 @@ struct NodeJournalWireV4 {
     journal_version: u16,
     structural: NodeJournalV3,
     semantic_subtree: SemanticSubtreeV2,
+    application_statement_hash: CommitmentV3,
     proof_profile_id: ProfileIdV3,
     actual_program_id: ProgramIdV3,
     proof_system_id: CommitmentV3,
@@ -123,6 +127,7 @@ impl NodeJournalV4 {
             derive_semantic_statement_hash_v4(SemanticStatementMaterialV4 {
                 structural: &input.structural,
                 semantic_subtree: &input.semantic_subtree,
+                application_statement_hash: input.application_statement_hash,
                 verifier_identity,
                 program_manifest_root: input.program_manifest_root,
                 child_semantic_journals_root,
@@ -131,6 +136,7 @@ impl NodeJournalV4 {
             journal_version: NODE_JOURNAL_VERSION_V4,
             structural: input.structural,
             semantic_subtree: input.semantic_subtree,
+            application_statement_hash: input.application_statement_hash,
             proof_profile_id: input.proof_profile_id,
             actual_program_id: input.actual_program_id,
             proof_system_id: input.proof_system_id,
@@ -177,6 +183,7 @@ impl NodeJournalV4 {
         let expected_statement = derive_semantic_statement_hash_v4(SemanticStatementMaterialV4 {
             structural: &self.structural,
             semantic_subtree: &self.semantic_subtree,
+            application_statement_hash: self.application_statement_hash,
             verifier_identity,
             program_manifest_root: self.program_manifest_root,
             child_semantic_journals_root: self.child_semantic_journals_root,
@@ -193,6 +200,7 @@ impl NodeJournalV4 {
         write_u16(&mut hasher, self.journal_version);
         write_commitment(&mut hasher, self.structural.canonical_hash()?);
         write_commitment(&mut hasher, self.semantic_subtree.canonical_hash()?);
+        write_commitment(&mut hasher, self.application_statement_hash);
         hasher.update(self.proof_profile_id.as_bytes());
         hasher.update(self.actual_program_id.as_bytes());
         for value in [
@@ -225,6 +233,10 @@ impl NodeJournalV4 {
 
     pub const fn semantic_subtree(&self) -> &SemanticSubtreeV2 {
         &self.semantic_subtree
+    }
+
+    pub const fn application_statement_hash(&self) -> CommitmentV3 {
+        self.application_statement_hash
     }
 
     pub const fn proof_profile_id(&self) -> ProfileIdV3 {
@@ -272,6 +284,7 @@ impl NodeJournalV4 {
             journal_version: wire.journal_version,
             structural: wire.structural,
             semantic_subtree: wire.semantic_subtree,
+            application_statement_hash: wire.application_statement_hash,
             proof_profile_id: wire.proof_profile_id,
             actual_program_id: wire.actual_program_id,
             proof_system_id: wire.proof_system_id,
@@ -316,6 +329,7 @@ fn derive_semantic_statement_hash_v4(
     let mut hasher = domain_hasher(SEMANTIC_STATEMENT_HASH_DOMAIN_V4)?;
     write_commitment(&mut hasher, material.structural.canonical_hash()?);
     write_commitment(&mut hasher, material.semantic_subtree.canonical_hash()?);
+    write_commitment(&mut hasher, material.application_statement_hash);
     hasher.update(material.verifier_identity.proof_profile_id.as_bytes());
     hasher.update(material.verifier_identity.program_id.as_bytes());
     for value in [
