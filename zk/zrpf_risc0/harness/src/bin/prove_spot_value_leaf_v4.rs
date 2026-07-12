@@ -12,7 +12,9 @@ use zenodex_zrpf_risc0_value_node_shared::{
     propose_spot_value_leaf_v4, RawSpotValueLeafInputV4, SpotValueLeafWitnessV4,
     PINNED_V1_ADAPTER_IMAGE_ID_A,
 };
-use zenodex_zrpf_risc0_verifier::{ExactSpotValueLeafReceiptV4, VerifiedNodeReceiptV3};
+use zenodex_zrpf_risc0_verifier::{
+    ExactSpotValueLeafReceiptV4, VerifiedNodeReceiptV3, VerifiedSpotValueLeafReceiptErrorV4,
+};
 
 #[path = "prove_spot_value_leaf_v4/artifact_io.rs"]
 mod artifact_io;
@@ -89,7 +91,13 @@ fn main() {
 
 fn run() -> Result<(), String> {
     let options = parse_options(env::args().skip(1))?;
-    validate_value_leaf_method()?;
+    let guest_artifact_loaded_and_matched = match options.mode {
+        Mode::Prove => {
+            validate_value_leaf_method()?;
+            true
+        }
+        Mode::Verify => false,
+    };
     let source = load_verified_source(&options.source_path)?;
     let adapter = load_exact_adapter(&options.adapter_path, &source)?;
     let prepared = prepare_leaf(&source, &adapter)?;
@@ -108,12 +116,13 @@ fn run() -> Result<(), String> {
         }
         Mode::Verify => {
             let receipt_bytes = read_bounded_regular_file(&options.receipt_path, "V4 receipt")?;
+            let receipt_sha256 = sha256_hex(&receipt_bytes);
             let verified = ExactSpotValueLeafReceiptV4::verify_exact_succinct_bytes(
                 &receipt_bytes,
-                ZENODEX_ZRPF_RISC0_SPOT_VALUE_LEAF_V4_ID,
+                EXPECTED_V4_IMAGE_ID,
                 &prepared.expected_journal,
             )
-            .map_err(|error| format!("V4 receipt verification failed: {error}"))?;
+            .map_err(|error| receipt_reject_json(&receipt_sha256, error))?;
             (
                 verified,
                 receipt_bytes,
@@ -130,8 +139,30 @@ fn run() -> Result<(), String> {
         verified: &verified,
         receipt_bytes: &receipt_bytes,
         receipt_written,
+        guest_artifact_loaded_and_matched,
         status,
     })
+}
+
+fn receipt_reject_json(receipt_sha256: &str, error: VerifiedSpotValueLeafReceiptErrorV4) -> String {
+    let code = match error {
+        VerifiedSpotValueLeafReceiptErrorV4::ReceiptArtifact(inner) => inner.code(),
+        _ => error.code(),
+    };
+    serde_json::json!({
+        "candidate_accepted": false,
+        "ok": false,
+        "receipt_sha256": receipt_sha256,
+        "reject": {
+            "boundary": "ExactSpotValueLeafReceiptV4::verify_exact_succinct_bytes",
+            "code": code,
+            "outer_code": error.code(),
+            "variant": format!("{error:?}"),
+        },
+        "schema": "zenodex/zrpf_spot_value_leaf_v4_receipt_reject/v1",
+        "status": "persisted_v4_spot_value_leaf_receipt_rejected",
+    })
+    .to_string()
 }
 
 fn parse_options(args: impl IntoIterator<Item = String>) -> Result<Options, String> {
@@ -246,7 +277,7 @@ fn prepare_leaf(
     let witness_bytes = encode_spot_value_leaf_witness_v4(&witness)
         .map_err(|error| format!("V4 witness encode failed: {error}"))?;
     let input = RawSpotValueLeafInputV4::new(
-        ZENODEX_ZRPF_RISC0_SPOT_VALUE_LEAF_V4_ID,
+        EXPECTED_V4_IMAGE_ID,
         adapter.receipt.receipt().journal.bytes.clone(),
         witness_bytes,
     )
@@ -285,7 +316,7 @@ fn prove_exact_leaf(
     let receipt_bytes = canonical_receipt_bytes(&receipt)?;
     ExactSpotValueLeafReceiptV4::verify_exact_succinct_bytes(
         &receipt_bytes,
-        ZENODEX_ZRPF_RISC0_SPOT_VALUE_LEAF_V4_ID,
+        EXPECTED_V4_IMAGE_ID,
         &prepared.expected_journal,
     )
     .map_err(|error| format!("fresh V4 receipt verification failed: {error}"))

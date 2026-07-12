@@ -1,10 +1,14 @@
 use std::{fs, path::PathBuf};
 
 use super::artifact_io::persist_receipt;
+use super::report::guest_artifact_report;
 use super::source::load_verified_source;
 use super::{
-    load_exact_adapter, parse_options, Mode, RETAINED_ADAPTER_RECEIPT_SHA256,
+    load_exact_adapter, parse_options, receipt_reject_json, Mode, RETAINED_ADAPTER_RECEIPT_SHA256,
     RETAINED_SEMANTIC_OPENING,
+};
+use zenodex_zrpf_risc0_verifier::{
+    VerifiedNodeReceiptErrorV3, VerifiedSpotValueLeafReceiptErrorV4,
 };
 
 fn args(values: &[&str]) -> Vec<String> {
@@ -112,5 +116,53 @@ fn receipt_persistence_is_create_new_and_rereads_exact_bytes() -> Result<(), Str
     );
     assert!(persist_receipt(&path, b"replacement").is_err());
     fs::remove_dir_all(&scratch).map_err(|error| format!("remove scratch: {error}"))?;
+    Ok(())
+}
+
+#[test]
+fn verifier_only_report_cannot_emit_observed_guest_artifact_facts() {
+    let report = guest_artifact_report(false);
+    assert_eq!(report["loaded_and_matched"], false);
+    assert!(report["observed_elf_bytes"].is_null());
+    assert!(report["observed_elf_sha256"].is_null());
+    assert_eq!(report["source_to_elf_provenance_verified"], false);
+}
+
+#[test]
+fn prove_report_emits_observed_guest_artifact_facts_after_exact_match() {
+    let report = guest_artifact_report(true);
+    assert_eq!(report["loaded_and_matched"], true);
+    assert_eq!(report["observed_elf_bytes"], 499_312);
+    assert_eq!(
+        report["observed_elf_sha256"],
+        "195f1cd4bd4b6b4ddc4765d9ab33664834e64d58ee6c468dd0b254ea0012fa6e"
+    );
+    assert_eq!(report["source_to_elf_provenance_verified"], false);
+}
+
+#[test]
+fn receipt_reject_report_preserves_exact_typed_verifier_boundary() -> Result<(), String> {
+    let raw = receipt_reject_json(
+        "ab",
+        VerifiedSpotValueLeafReceiptErrorV4::ReceiptArtifact(
+            VerifiedNodeReceiptErrorV3::ReceiptVerificationFailed,
+        ),
+    );
+    let report: serde_json::Value =
+        serde_json::from_str(&raw).map_err(|error| format!("decode reject report: {error}"))?;
+    assert_eq!(report["candidate_accepted"], false);
+    assert_eq!(
+        report["reject"]["boundary"],
+        "ExactSpotValueLeafReceiptV4::verify_exact_succinct_bytes"
+    );
+    assert_eq!(report["reject"]["code"], "receipt_verification_failed");
+    assert_eq!(
+        report["reject"]["outer_code"],
+        "spot_value_leaf_receipt_artifact_rejected"
+    );
+    assert_eq!(
+        report["reject"]["variant"],
+        "ReceiptArtifact(ReceiptVerificationFailed)"
+    );
     Ok(())
 }
