@@ -2,8 +2,8 @@
 
 Date: 2026-07-12
 
-Status: selected implementation design; protocol, guest, receipt, and ledger
-authority pending
+Status: proof-neutral action batch and SettlementEffectPlanV2 implemented and
+host-tested; guest, receipt, and ledger authority pending
 
 ## Goal and bounded domain
 
@@ -71,7 +71,7 @@ V2 will be the cross-language canonical plan. The existing Python
 `SettlementEffectPlanV1` remains an authority-neutral reference until it is
 replaced by a byte-for-byte mirror of V2.
 
-V2 must accept the exact `EconomicActionBatchV1`, derive its application,
+V2 contains the exact `EconomicActionBatchV1`, derives its application,
 domain, epoch, pre-state, action identities, action-bound authorization
 identities, and grant-spend identities from that batch, and accept only these
 additional fields:
@@ -115,6 +115,21 @@ post_state_root is nonzero and different
 The plan commitment must bind the complete canonical plan, every collection
 root, and the exact economic-action batch commitment.
 
+Construction remains proof-neutral. V2 does not establish that applying the
+cell writes to an authenticated state tree produces `post_state_root`, that a
+recipient cell encodes the stated reward amount, that an authorization grant
+exists in governed policy, or that any source semantic receipt authenticated
+the plan. Those are certificate-guest and ledger obligations.
+
+The implemented V2 profile uses fixed-width domain-separated SHA-256 for every
+referenceable record, collection root, and plan commitment. It uses a bounded
+exact Postcard codec. The retained ordinary-transfer fixture derives:
+
+```text
+settlement_effect_plan_v2 =
+da34e94f4a45ca88957e1a403d36c650b3addbf901e0aa2a785d19ffb706bd75
+```
+
 ## Settlement-certificate guest
 
 The guest authority progression is:
@@ -123,9 +138,8 @@ The guest authority progression is:
 bounded raw input
   -> verify exact governed semantic/value receipt assumption
   -> decode its exact canonical journal
-  -> decode EconomicActionBatchV1
   -> decode SettlementEffectPlanV2
-  -> require plan.batch_commitment == action_batch.commitment
+  -> obtain and revalidate its embedded EconomicActionBatchV1
   -> require plan source hash, scope, epoch, pre/post/effect roots to match the
      authenticated semantic/value journal under one explicit profile adapter
   -> derive governed release/program manifest
@@ -243,3 +257,24 @@ production claim.
 Promotion requires the implemented protocol and guest, current-image proof
 evidence, sealed verifier, atomic ledger tests, governed release binding, and
 the exact negative controls above.
+
+## Executed protocol evidence
+
+The proof-neutral implementation currently covers canonical construction,
+independent hash-preimage reconstruction, action and consumed-object replay
+closure, authorization matching, mint and burn shape, reward binding, checked
+per-asset conservation, message/carry pairing, permutation invariance, exact
+codec rejection, oversized declared row sets, and record-level decode
+revalidation.
+
+Run from `zk/zrpf_protocol`:
+
+```bash
+cargo +1.94.1 fmt --all -- --check
+cargo +1.94.1 test --locked --offline --all-targets
+cargo +1.94.1 clippy --locked --offline --all-targets -- -D warnings
+cargo +1.94.1 test --locked --offline --doc
+```
+
+These commands establish deterministic host behavior for the proof-neutral
+types. They do not establish guest execution or receipt authority.
