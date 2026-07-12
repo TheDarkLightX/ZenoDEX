@@ -1,0 +1,30 @@
+[package]
+name = "zenodex-zrpf-risc0-value-aggregate-shared"
+version = "0.1.0"
+edition = "2021"
+description = "Guest-safe proof-neutral V5 value aggregate recomposition for ZRPF"
+publish = false
+build = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+path = "src/lib.rs"
+
+[[test]]
+name = "level_one_v5"
+path = "tests/level_one_v5.rs"
+
+[[test]]
+name = "level_two_v5"
+path = "tests/level_two_v5.rs"
+
+[[test]]
+name = "guest_input_v5"
+path = "tests/guest_input_v5.rs"
+
+[dependencies]
+zenodex-zrpf-protocol-v3 = { path = "../../zrpf_protocol/protocol", default-features = false }
+zenodex-zrpf-risc0-shared = { path = "../shared", default-features = false }

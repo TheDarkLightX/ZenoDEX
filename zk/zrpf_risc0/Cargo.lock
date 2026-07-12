@@ -3608,6 +3608,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "zenodex-zrpf-risc0-value-aggregate-shared"
+version = "0.1.0"
+dependencies = [
+ "zenodex-zrpf-protocol-v3",
+ "zenodex-zrpf-risc0-shared",
+]
+
+[[package]]
 name = "zenodex-zrpf-risc0-value-node-shared"
 version = "0.1.0"
 dependencies = [
