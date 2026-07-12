@@ -35,6 +35,16 @@ def test_committed_evidence_reports_replay_without_claiming_execution_provenance
     assert document["claims"]["retained_execution_record_integrity_verified"] is True
 
 
+def test_v2_is_the_only_active_direct_replay_evidence_record() -> None:
+    active = sorted(
+        checker.EVIDENCE_PATH.parent.glob(
+            "ZRPF_V3_FIRECRACKER_GOVERNED_DIRECT_REPLAY_EVIDENCE_*.json"
+        )
+    )
+
+    assert active == [checker.EVIDENCE_PATH]
+
+
 def test_legacy_direct_replay_verified_claim_rejects(tmp_path: Path) -> None:
     document = _committed_document()
     document["claims"]["direct_local_microvm_replay_verified"] = document["claims"].pop(

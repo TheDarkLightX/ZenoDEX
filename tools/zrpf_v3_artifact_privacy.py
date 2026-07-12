@@ -56,10 +56,6 @@ FIRECRACKER_RUNTIME_PUBLIC_ARTIFACTS: tuple[ArtifactSpec, ...] = (
         "runtime_artifact_manifest",
     ),
     ArtifactSpec(
-        "docs/research/ZRPF_V3_FIRECRACKER_GOVERNED_DIRECT_REPLAY_EVIDENCE_20260711.json",
-        "historical_governed_direct_replay_evidence",
-    ),
-    ArtifactSpec(
         "docs/research/ZRPF_V3_FIRECRACKER_GOVERNED_DIRECT_REPLAY_EVIDENCE_20260712.json",
         "governed_direct_replay_evidence",
     ),
