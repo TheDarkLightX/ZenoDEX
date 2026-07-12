@@ -255,6 +255,8 @@ jobs:
             -p zenodex-zrpf-risc0-value-node-shared \
             -p zenodex-zrpf-risc0-value-aggregate-shared \
             -p zenodex-zrpf-risc0-value-aggregate-l2-policy \
+            -p zenodex-zrpf-risc0-value-aggregate-root-policy \
+            -p zenodex-zrpf-risc0-methods \
             -p zenodex-zrpf-risc0-harness \
             -p zenodex-zrpf-risc0-verifier \
             -p zenodex-zrpf-risc0-replay-verifier
@@ -267,6 +269,8 @@ jobs:
             -p zenodex-zrpf-risc0-value-node-shared \
             -p zenodex-zrpf-risc0-value-aggregate-shared \
             -p zenodex-zrpf-risc0-value-aggregate-l2-policy \
+            -p zenodex-zrpf-risc0-value-aggregate-root-policy \
+            -p zenodex-zrpf-risc0-methods \
             -p zenodex-zrpf-risc0-harness \
             -p zenodex-zrpf-risc0-verifier \
             -p zenodex-zrpf-risc0-replay-verifier \
@@ -297,6 +301,33 @@ jobs:
           "${pinned_bin}/cargo-clippy" clippy \
             --manifest-path zk/state_proof_risc0/Cargo.toml \
             --locked --offline -p tau-state-proof-risc0-cli --all-targets -- -D warnings
+
+      - name: Check every ZRPF guest on the zkVM target
+        shell: bash
+        run: |
+          set -euo pipefail
+          pinned_bin="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin"
+          export CARGO="${pinned_bin}/cargo"
+          export CARGO_BUILD_JOBS=2
+          export CARGO_ENCODED_RUSTFLAGS=$'-C\x1fpasses=lower-atomic\x1f-C\x1flink-arg=-Ttext=0x00200800\x1f-C\x1flink-arg=--fatal-warnings\x1f-C\x1fpanic=abort\x1f--cfg\x1fgetrandom_backend="custom"'
+          export PATH="${pinned_bin}:/usr/bin:/bin"
+          export RISC0_FEATURE_bigint2=''
+          export RISC0_SKIP_BUILD=1
+          export RUSTC="${pinned_bin}/rustc"
+          export RUSTDOC="${pinned_bin}/rustdoc_tool_binary"
+          "${pinned_bin}/cargo" check \
+            --manifest-path zk/zrpf_risc0/Cargo.toml \
+            --locked --offline \
+            --target riscv32im-risc0-zkvm-elf \
+            --target-dir "${RUNNER_TEMP}/zrpf-guest-check" \
+            -p zenodex-zrpf-risc0-v1-leaf-adapter \
+            -p zenodex-zrpf-risc0-structural-aggregate-l1 \
+            -p zenodex-zrpf-risc0-structural-aggregate-l2 \
+            -p zenodex-zrpf-risc0-semantic-epoch \
+            -p zenodex-zrpf-risc0-spot-value-leaf-v4 \
+            -p zenodex-zrpf-risc0-value-aggregate-l1 \
+            -p zenodex-zrpf-risc0-value-aggregate-l2 \
+            -p zenodex-zrpf-risc0-ordinary-spot-settlement
 
       - name: Build pinned replay container
         run: |
