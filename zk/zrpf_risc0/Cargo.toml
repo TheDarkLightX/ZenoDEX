@@ -17,6 +17,7 @@ members = [
   "methods/spot_value_leaf_v4",
   "methods/value_aggregate_l1",
   "methods/value_aggregate_l2",
+  "methods/ordinary_spot_settlement",
   "harness",
 ]
 resolver = "2"

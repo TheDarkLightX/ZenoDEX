@@ -8,8 +8,8 @@ use zenodex_zrpf_protocol_v3::{
 };
 
 use super::{
-    OrdinarySpotSettlementGuestInputErrorV2, OrdinarySpotSettlementGuestInputV2,
-    ORDINARY_SPOT_SETTLEMENT_GUEST_INPUT_VERSION_V2,
+    OrdinarySpotSettlementGuestEnvelopeV2, OrdinarySpotSettlementGuestInputErrorV2,
+    OrdinarySpotSettlementGuestInputV2, ORDINARY_SPOT_SETTLEMENT_GUEST_INPUT_VERSION_V2,
 };
 use crate::spot_certificate_v1::wire_v2::{
     read_authorization_v2, write_authorization_v2, ExactCursorV2, AUTHORIZATION_BYTES_V2,
@@ -28,22 +28,64 @@ pub fn encode_ordinary_spot_settlement_guest_input_v2(
     input: &OrdinarySpotSettlementGuestInputV2,
 ) -> Result<Vec<u8>, OrdinarySpotSettlementGuestInputErrorV2> {
     input.validate_self_consistency()?;
-    let witness_bytes = encode_sparse_merkle_cell_transition_witness_v1(input.witness())?;
-    let certificate_bytes =
-        encode_full_blob_da_certificate_v1(input.data_availability_certificate())?;
+    encode_parts(
+        input.proposal_bytes(),
+        input.authorization(),
+        input.witness(),
+        input.data_availability_certificate(),
+    )
+}
+
+pub fn decode_exact_ordinary_spot_settlement_guest_envelope_v2(
+    bytes: &[u8],
+) -> Result<OrdinarySpotSettlementGuestEnvelopeV2, OrdinarySpotSettlementGuestInputErrorV2> {
+    let envelope = decode_envelope_parts(bytes)?;
+    if encode_envelope(&envelope)?.as_slice() != bytes {
+        return Err(OrdinarySpotSettlementGuestInputErrorV2::NonCanonicalEncoding);
+    }
+    Ok(envelope)
+}
+
+pub fn decode_exact_ordinary_spot_settlement_guest_input_v2(
+    bytes: &[u8],
+) -> Result<OrdinarySpotSettlementGuestInputV2, OrdinarySpotSettlementGuestInputErrorV2> {
+    let envelope = decode_exact_ordinary_spot_settlement_guest_envelope_v2(bytes)?;
+    envelope.into_validated()
+}
+
+fn encode_envelope(
+    envelope: &OrdinarySpotSettlementGuestEnvelopeV2,
+) -> Result<Vec<u8>, OrdinarySpotSettlementGuestInputErrorV2> {
+    envelope.validate_without_proposal_interpretation()?;
+    encode_parts(
+        envelope.proposal_bytes(),
+        envelope.authorization(),
+        envelope.witness(),
+        envelope.data_availability_certificate(),
+    )
+}
+
+fn encode_parts(
+    proposal_bytes: &[u8],
+    authorization: crate::SpotSettlementAuthorizationInputV1,
+    witness: &zenodex_zrpf_protocol_v3::SparseMerkleCellTransitionWitnessV1,
+    certificate: &zenodex_zrpf_protocol_v3::FullBlobDataAvailabilityCertificateV1,
+) -> Result<Vec<u8>, OrdinarySpotSettlementGuestInputErrorV2> {
+    let witness_bytes = encode_sparse_merkle_cell_transition_witness_v1(witness)?;
+    let certificate_bytes = encode_full_blob_da_certificate_v1(certificate)?;
     let total = require_part_lengths(
-        input.proposal_bytes().len(),
+        proposal_bytes.len(),
         witness_bytes.len(),
         certificate_bytes.len(),
     )?;
-    let proposal_length = length_to_u32(input.proposal_bytes().len(), "proposal_length")?;
+    let proposal_length = length_to_u32(proposal_bytes.len(), "proposal_length")?;
     let witness_length = length_to_u32(witness_bytes.len(), "witness_length")?;
     let certificate_length = length_to_u32(certificate_bytes.len(), "certificate_length")?;
     let mut bytes = Vec::with_capacity(total);
     bytes.extend_from_slice(&ORDINARY_SPOT_SETTLEMENT_GUEST_INPUT_VERSION_V2.to_be_bytes());
     bytes.extend_from_slice(&proposal_length.to_be_bytes());
-    bytes.extend_from_slice(input.proposal_bytes());
-    write_authorization_v2(&mut bytes, input.authorization())?;
+    bytes.extend_from_slice(proposal_bytes);
+    write_authorization_v2(&mut bytes, authorization)?;
     bytes.extend_from_slice(&witness_length.to_be_bytes());
     bytes.extend_from_slice(&witness_bytes);
     bytes.extend_from_slice(&certificate_length.to_be_bytes());
@@ -51,9 +93,9 @@ pub fn encode_ordinary_spot_settlement_guest_input_v2(
     Ok(bytes)
 }
 
-pub fn decode_exact_ordinary_spot_settlement_guest_input_v2(
+fn decode_envelope_parts(
     bytes: &[u8],
-) -> Result<OrdinarySpotSettlementGuestInputV2, OrdinarySpotSettlementGuestInputErrorV2> {
+) -> Result<OrdinarySpotSettlementGuestEnvelopeV2, OrdinarySpotSettlementGuestInputErrorV2> {
     require_input_size(bytes.len())?;
     let mut cursor = ExactCursorV2::new(bytes);
     let version = cursor.read_u16("guest_input_version")?;
@@ -78,16 +120,12 @@ pub fn decode_exact_ordinary_spot_settlement_guest_input_v2(
     }
     let witness = decode_exact_sparse_merkle_cell_transition_witness_v1(witness_bytes)?;
     let certificate = decode_exact_full_blob_da_certificate_v1(certificate_bytes)?;
-    let input = OrdinarySpotSettlementGuestInputV2::new(
+    OrdinarySpotSettlementGuestEnvelopeV2::from_parts(
         proposal_bytes.to_vec(),
         authorization,
         witness,
         certificate,
-    )?;
-    if encode_ordinary_spot_settlement_guest_input_v2(&input)?.as_slice() != bytes {
-        return Err(OrdinarySpotSettlementGuestInputErrorV2::NonCanonicalEncoding);
-    }
-    Ok(input)
+    )
 }
 
 pub(super) fn require_part_lengths(

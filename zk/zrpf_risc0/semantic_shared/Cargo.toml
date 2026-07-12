@@ -81,6 +81,14 @@ path = "tests/spot_guest_input_v2.rs"
 name = "spot_certificate_state_v2"
 path = "tests/spot_certificate_state_v2.rs"
 
+[[test]]
+name = "spot_guest_receipt_boundary_v2"
+path = "tests/spot_guest_receipt_boundary_v2.rs"
+
+[[test]]
+name = "spot_guest_source_contract_v2"
+path = "tests/spot_guest_source_contract_v2.rs"
+
 [dependencies]
 sha2 = { version = "0.10.9", default-features = false }
 tau-state-proof-risc0-shared = { path = "../../state_proof_risc0/shared", default-features = false }
