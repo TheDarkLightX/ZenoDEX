@@ -201,6 +201,22 @@ impl ProofTaskV1 {
     pub const fn privacy_policy(&self) -> ProofTaskPrivacyPolicyV1 {
         self.privacy_policy
     }
+
+    pub const fn max_input_bytes(&self) -> u64 {
+        self.max_input_bytes
+    }
+
+    pub const fn max_cycles_or_trace_rows(&self) -> u64 {
+        self.max_cycles_or_trace_rows
+    }
+
+    pub const fn max_memory_bytes(&self) -> u64 {
+        self.max_memory_bytes
+    }
+
+    pub const fn redundancy_policy(&self) -> RedundancyPolicyV1 {
+        self.redundancy_policy
+    }
 }
 
 impl<'de> Deserialize<'de> for ProofTaskV1 {

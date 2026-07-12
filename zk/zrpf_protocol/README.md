@@ -29,7 +29,10 @@ The crate currently provides:
   privacy claim;
 - a bounded `ProofTaskV1` whose derived task ID commits scope, statement,
   manifest, inputs, DA root, resource ceilings, reward ceiling, redundancy,
-  privacy, and deterministic sequence deadlines.
+  privacy, and deterministic sequence deadlines;
+- a bounded `ProofAssignmentPolicyV1` and deterministic compatibility verdict
+  for task, manifest, profile, codec, policy-root, security, epoch, privacy,
+  resource, and redundancy checks.
 
 ## Authority Boundary
 
@@ -63,15 +66,18 @@ root. A task becomes payable only after an assigned proof verifies and the
 ledger admits the governed result. Sequence deadlines are explicit protocol
 inputs; these objects never read a wall clock.
 
-The protocol crate does not establish that a task's accepted proof systems,
-proof profile, or privacy policy are compatible with the referenced manifest.
-Governed assignment and admission must decode both objects and enforce those
-cross-object policies.
+The task and manifest objects alone do not establish cross-object compatibility.
+`evaluate_proof_assignment_compatibility_v1` checks them against an explicit
+assignment policy and preserves standby-diversity ambiguity as a typed pending
+verdict. The supplied policy still requires external governance authentication,
+and a compatible snapshot carries no proof, payment, or admission authority.
 
 The full claim boundary and next steps are documented in
 `docs/research/ZRPF_V3_CORRECT_BY_CONSTRUCTION_SPEC_20260710.md` from the
 repository root. The action and grant-spend formulas are specified in
-`docs/research/ZRPF_ECONOMIC_ACTION_NULLIFIER_V1_CBC_SPEC_20260712.md`.
+`docs/research/ZRPF_ECONOMIC_ACTION_NULLIFIER_V1_CBC_SPEC_20260712.md`. Assignment
+compatibility is specified in
+`docs/research/ZRPF_PROOF_ASSIGNMENT_COMPATIBILITY_V1_CBC_SPEC_20260712.md`.
 
 ## Verification
 

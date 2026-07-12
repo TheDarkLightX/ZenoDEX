@@ -147,20 +147,16 @@ aggregate_task_id      = 8414b0c77fbbe029ed69084766a3ccc09360de8640561dd79d15f64
 
 ## Non-claims
 
-These objects do not establish:
+These two objects alone do not establish:
 
 - source-to-binary reproducibility or completeness of declared build inputs;
 - that a manifest root is governed, unrevoked, or eligible for release;
 - that a declared security level is achieved by the proof system or verifier;
-- compatibility between a task's accepted proof systems and the manifest's
-  single `proof_system_id`;
-- compatibility between task `proof_profile_id`, the manifest verifier policy,
-  and the manifest receipt codec;
-- compatibility between task privacy policy and the manifest privacy claim;
+- compatibility without an explicit validated assignment policy;
 - that a task input or DA root is available;
 - that a prover is assigned, bonded, independent, or capable;
-- feasibility of the requested primary, standby, and proof-system diversity
-  combination beyond the local numeric and accepted-set bounds;
+- resolution of whether standby provers count toward requested proof-system
+  diversity;
 - that a proof was produced, verified, included, admitted, or paid;
 - confidentiality solely from a privacy label;
 - economic action validity, settlement, ledger admission, finality, throughput,
@@ -168,9 +164,10 @@ These objects do not establish:
 
 ## Next boundary
 
-A governed registry must authorize exact manifest roots and revocations. A
-proof-market assignment must cross-check proof-system, profile, codec, privacy,
-and redundancy compatibility before binding an exact task ID, bid, bond,
-deadline, and prover set. Payment may occur only after the verifier emits an
-authenticated receipt for that task and ZenoLedger atomically admits the result
-and payout.
+`ProofAssignmentPolicyV1` and
+`evaluate_proof_assignment_compatibility_v1` implement the local compatibility
+checks described in
+`ZRPF_PROOF_ASSIGNMENT_COMPATIBILITY_V1_CBC_SPEC_20260712.md`. A governed
+registry must still authenticate the exact policy, manifest root, and
+revocations. Payment may occur only after the verifier emits an authenticated
+receipt for the task and ZenoLedger atomically admits the result and payout.

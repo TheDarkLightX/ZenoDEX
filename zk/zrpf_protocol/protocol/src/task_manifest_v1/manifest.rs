@@ -164,6 +164,14 @@ impl ProgramManifestV1 {
     pub const fn privacy_claim(&self) -> PrivacyClaimV1 {
         self.privacy_claim
     }
+
+    pub const fn security_level_bits(&self) -> u16 {
+        self.security_level_bits
+    }
+
+    pub const fn revocation_epoch(&self) -> Option<u64> {
+        self.revocation_epoch
+    }
 }
 
 impl<'de> Deserialize<'de> for ProgramManifestV1 {
