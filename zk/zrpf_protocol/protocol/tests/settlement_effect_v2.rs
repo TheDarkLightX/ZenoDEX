@@ -118,6 +118,37 @@ fn authorized_effect(
     .unwrap()
 }
 
+fn message_carry_pair(
+    action: &AuthorizedEconomicActionV1,
+    effect: &AssetEffectV2,
+    message_kind: MessageEffectKindV2,
+    amount_atoms: u128,
+) -> (MessageEffectV2, CarryEffectV2) {
+    let (source, destination, carry_kind) = match message_kind {
+        MessageEffectKindV2::OutboxEnqueue => ([2; 32], [60; 32], CarryEffectKindV2::Lock),
+        MessageEffectKindV2::InboxConsume => ([60; 32], [2; 32], CarryEffectKindV2::Release),
+    };
+    let message = MessageEffectV2::new(MessageEffectInputV2 {
+        economic_action_id: action.action_id().unwrap(),
+        asset_effect_id: effect.canonical_id().unwrap(),
+        source_domain_id: DomainIdV3::new(source).unwrap(),
+        destination_domain_id: DomainIdV3::new(destination).unwrap(),
+        asset_id: effect.asset_id(),
+        amount_atoms,
+        kind: message_kind,
+    })
+    .unwrap();
+    let carry = CarryEffectV2::new(CarryEffectInputV2 {
+        economic_action_id: action.action_id().unwrap(),
+        message_id: message.canonical_id().unwrap(),
+        asset_id: effect.asset_id(),
+        amount_atoms,
+        kind: carry_kind,
+    })
+    .unwrap();
+    (message, carry)
+}
+
 fn plan_input(
     actions: Vec<AuthorizedEconomicActionV1>,
     writes: Vec<LedgerCellWriteV2>,
@@ -368,24 +399,8 @@ fn one_atom_imbalance_and_u128_accumulation_overflow_reject() {
 fn message_and_carry_pair_exactly() {
     let action = authorized_action(17, 7, 8);
     let effect = ordinary_effect(&action, 40, 10);
-    let message = MessageEffectV2::new(MessageEffectInputV2 {
-        economic_action_id: action.action_id().unwrap(),
-        asset_effect_id: effect.canonical_id().unwrap(),
-        source_domain_id: DomainIdV3::new([2; 32]).unwrap(),
-        destination_domain_id: DomainIdV3::new([60; 32]).unwrap(),
-        asset_id: commitment(40),
-        amount_atoms: 10,
-        kind: MessageEffectKindV2::OutboxEnqueue,
-    })
-    .unwrap();
-    let carry = CarryEffectV2::new(CarryEffectInputV2 {
-        economic_action_id: action.action_id().unwrap(),
-        message_id: message.canonical_id().unwrap(),
-        asset_id: commitment(40),
-        amount_atoms: 10,
-        kind: CarryEffectKindV2::Lock,
-    })
-    .unwrap();
+    let (message, carry) =
+        message_carry_pair(&action, &effect, MessageEffectKindV2::OutboxEnqueue, 10);
     let mut input = plan_input(
         vec![action.clone()],
         vec![cell_write(&action, 30)],
@@ -404,6 +419,28 @@ fn message_and_carry_pair_exactly() {
     assert_eq!(
         SettlementEffectPlanV2::new(input).unwrap_err(),
         SettlementEffectErrorV2::MessageCarryMismatch
+    );
+}
+
+#[test]
+fn ordinary_inbox_release_pairs_exactly() {
+    let action = authorized_action(17, 7, 8);
+    let effect = ordinary_effect(&action, 40, 10);
+    let (message, carry) =
+        message_carry_pair(&action, &effect, MessageEffectKindV2::InboxConsume, 10);
+    let mut input = plan_input(
+        vec![action.clone()],
+        vec![cell_write(&action, 30)],
+        vec![effect],
+    );
+    input.message_effects = vec![message];
+    input.carry_effects = vec![carry];
+    assert_eq!(
+        SettlementEffectPlanV2::new(input)
+            .unwrap()
+            .message_effects()
+            .len(),
+        1
     );
 }
 
@@ -664,4 +701,150 @@ fn exact_decoder_rejects_noncanonical_row_order() {
     })
     .unwrap();
     assert!(decode_exact_settlement_effect_plan_v2(&bytes).is_err());
+}
+
+#[test]
+fn pending_non_authority_effect_commitment_detachment_is_explicit() {
+    // This pins a settlement blocker, not desired authority behavior. A future
+    // profile-specific normalizer must make the second plan reject without
+    // deriving an effect commitment circularly from its own action ID.
+    let action = authorized_action(17, 7, 8);
+    let batch = action_batch(vec![action.clone()]);
+    let first = SettlementEffectPlanV2::new(SettlementEffectPlanInputV2 {
+        source_semantic_journal_hash: commitment(50),
+        public_policy_hash: commitment(51),
+        post_state_root: commitment(52),
+        economic_action_batch: batch.clone(),
+        ledger_cell_writes: vec![cell_write(&action, 30)],
+        asset_effects: vec![ordinary_effect(&action, 40, 10)],
+        message_effects: Vec::new(),
+        carry_effects: Vec::new(),
+        reward_effects: Vec::new(),
+    })
+    .unwrap();
+    let second = SettlementEffectPlanV2::new(SettlementEffectPlanInputV2 {
+        source_semantic_journal_hash: commitment(50),
+        public_policy_hash: commitment(51),
+        post_state_root: commitment(52),
+        economic_action_batch: batch,
+        ledger_cell_writes: vec![cell_write(&action, 31)],
+        asset_effects: vec![ordinary_effect(&action, 41, 99)],
+        message_effects: Vec::new(),
+        carry_effects: Vec::new(),
+        reward_effects: Vec::new(),
+    })
+    .unwrap();
+    assert_eq!(
+        first.economic_action_batch().effect_commitments_root(),
+        second.economic_action_batch().effect_commitments_root()
+    );
+    assert_ne!(
+        first.canonical_commitment().unwrap(),
+        second.canonical_commitment().unwrap()
+    );
+}
+
+#[test]
+fn pending_non_authority_row_partition_alias_is_explicit() {
+    // Ordering and Postcard bytes are canonical for a chosen row set. They do
+    // not currently select one semantic partition of equivalent ordinary rows.
+    let action = authorized_action(17, 7, 8);
+    let single = SettlementEffectPlanV2::new(plan_input(
+        vec![action.clone()],
+        vec![cell_write(&action, 30)],
+        vec![ordinary_effect(&action, 40, 10)],
+    ))
+    .unwrap();
+    let split = SettlementEffectPlanV2::new(plan_input(
+        vec![action.clone()],
+        vec![cell_write(&action, 30)],
+        vec![
+            ordinary_effect(&action, 40, 4),
+            ordinary_effect(&action, 40, 6),
+        ],
+    ))
+    .unwrap();
+    assert_eq!(
+        single.economic_action_batch(),
+        split.economic_action_batch()
+    );
+    assert_ne!(
+        single.canonical_commitment().unwrap(),
+        split.canonical_commitment().unwrap()
+    );
+}
+
+#[test]
+fn supply_transform_effects_cannot_also_back_carry_messages() {
+    for (kind, message_kind) in [
+        (
+            AssetEffectKindV2::AuthorizedBurn,
+            MessageEffectKindV2::OutboxEnqueue,
+        ),
+        (
+            AssetEffectKindV2::AuthorizedMint,
+            MessageEffectKindV2::InboxConsume,
+        ),
+    ] {
+        let action = authorized_action(17, 7, 8);
+        let effect = authorized_effect(&action, kind, 40, 10);
+        let (message, carry) = message_carry_pair(&action, &effect, message_kind, 10);
+        let mut input = plan_input(
+            vec![action.clone()],
+            vec![cell_write(&action, 30)],
+            vec![effect],
+        );
+        input.message_effects = vec![message];
+        input.carry_effects = vec![carry];
+        assert_eq!(
+            SettlementEffectPlanV2::new(input).unwrap_err(),
+            SettlementEffectErrorV2::MessageCarryMismatch
+        );
+    }
+}
+
+#[test]
+fn message_backing_effect_rejects_unbound_opposite_side_amount() {
+    let action = authorized_action(17, 7, 8);
+    let message_effect = AssetEffectV2::new(AssetEffectInputV2 {
+        kind: AssetEffectKindV2::OrdinaryTransfer,
+        economic_action_id: action.action_id().unwrap(),
+        asset_id: commitment(40),
+        debit_atoms: 10,
+        credit_atoms: 99,
+        authorized_mint_atoms: 0,
+        authorized_burn_atoms: 0,
+        authority_scope_id: None,
+        action_authorization_binding: None,
+    })
+    .unwrap();
+    let balancing_effect = AssetEffectV2::new(AssetEffectInputV2 {
+        kind: AssetEffectKindV2::OrdinaryTransfer,
+        economic_action_id: action.action_id().unwrap(),
+        asset_id: commitment(40),
+        debit_atoms: 89,
+        credit_atoms: 0,
+        authorized_mint_atoms: 0,
+        authorized_burn_atoms: 0,
+        authority_scope_id: None,
+        action_authorization_binding: None,
+    })
+    .unwrap();
+    let (message, carry) = message_carry_pair(
+        &action,
+        &message_effect,
+        MessageEffectKindV2::OutboxEnqueue,
+        10,
+    );
+    let mut input = plan_input(
+        vec![action.clone()],
+        vec![cell_write(&action, 30)],
+        vec![message_effect, balancing_effect],
+    );
+    input.message_effects = vec![message];
+    input.carry_effects = vec![carry];
+    assert_eq!(
+        SettlementEffectPlanV2::new(input).unwrap_err(),
+        SettlementEffectErrorV2::MessageCarryMismatch
+    );
 }

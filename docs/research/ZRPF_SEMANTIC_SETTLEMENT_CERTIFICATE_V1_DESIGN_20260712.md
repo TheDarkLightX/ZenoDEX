@@ -28,10 +28,10 @@ epoch and authorization nonce u64
 ## Candidate ranking
 
 1. A separate settlement-certificate guest verifies one exact Semantic V2 or
-   Value V4 receipt, decodes canonical economic actions and settlement rows,
-   recomputes every root, and emits one settlement certificate. This keeps the
-   established structural and semantic receipts stable and gives the ledger
-   one exact authority object.
+   Value V4 receipt, decodes canonical economic actions and strictly ordered
+   settlement rows, recomputes every root, and emits one settlement
+   certificate. This keeps the established structural and semantic receipts
+   stable and gives the ledger one exact authority object.
 2. Extending the existing Semantic V2 journal with settlement fields creates a
    smaller proof stack, while coupling structural aggregation, value semantics,
    and ledger effect semantics into one guest revision. Existing V2 receipts
@@ -62,29 +62,32 @@ consumed_object_ids_root
 batch_commitment
 ```
 
-It rejects duplicate actions, grant-and-nonce spends, and globally repeated
-consumed objects before a batch exists.
+It rejects duplicate actions, grant-and-nonce spends, and consumed objects
+repeated anywhere within the proposed batch before that batch exists. Durable
+cross-batch uniqueness remains a ledger obligation.
 
 ### SettlementEffectPlanV2
 
-V2 will be the cross-language canonical plan. The existing Python
+V2 supplies a cross-language deterministic order and canonical byte encoding
+for one already-selected typed row set. The existing Python
 `SettlementEffectPlanV1` remains an authority-neutral reference until it is
-replaced by a byte-for-byte mirror of V2.
+replaced by a byte-for-byte mirror of V2. V2 does not yet normalize distinct
+row partitions that represent the same application-level effect.
 
 V2 contains the exact `EconomicActionBatchV1`, derives its application,
 domain, epoch, pre-state, action identities, action-bound authorization
-identities, and grant-spend identities from that batch, and accept only these
+identities, and grant-spend identities from that batch, and accepts only these
 additional fields:
 
 ```text
 source_semantic_journal_hash
 public_policy_hash
 post_state_root
-canonical ledger cell writes
-canonical asset effects
-canonical cross-domain messages
-canonical carry records
-canonical reward records
+strictly ordered ledger cell writes
+strictly ordered asset effects
+strictly ordered cross-domain messages
+strictly ordered carry records
+strictly ordered reward records
 ```
 
 Caller-supplied duplicate projections of application, domain, action,
@@ -105,21 +108,53 @@ ordinary transfers carry no supply authority material
 mint, burn, and reward rows use the action's exact authorization binding
 one authorization binding backs at most one authorized effect
 per-asset debit + authorized mint = credit + authorized burn
-message and carry rows pair exactly
+message and carry rows pair exactly and use dedicated balanced ordinary-transfer
+backing effects whose debit and credit both equal the message amount
 reward rows pair exactly with one typed funded effect and recipient write
 all u128 accumulation is checked
 pre_state_root comes from the batch
 post_state_root is nonzero and different
 ```
 
-The plan commitment must bind the complete canonical plan, every collection
-root, and the exact economic-action batch commitment.
+The plan commitment binds the complete encoded plan, every collection root,
+and the exact economic-action batch commitment.
+
+### Canonicality and effect-commitment boundary
+
+Current canonicality is syntactic and order-level:
+
+```text
+same header + economic-action batch + validated typed row multiset
+  -> same strict row order
+  -> same collection roots
+  -> same exact Postcard bytes and plan commitment
+```
+
+It does not currently establish semantic normal form. In particular:
+
+- one ordinary row of ten atoms and two ordinary rows of four and six atoms
+  can encode the same aggregate flow with different plan commitments;
+- one fixed `EconomicActionBatchV1` can be paired with more than one internally
+  valid settlement row set;
+- an action record's opaque `effect_commitment` is committed by the batch, but
+  V2 does not derive it from or compare it with the action's settlement rows.
+
+The last point cannot be closed by hashing the existing rows generically:
+settlement rows reference `economic_action_id`, while that action ID already
+contains `effect_commitment`. A generic derivation would be circular. Each
+authority-bearing application profile must instead define a non-circular
+effect projection or normal form, prove that it matches the authenticated
+action semantics, and reject alternative row partitions. Until that profile
+exists, effect-commitment correspondence and semantic row normalization remain
+settlement blockers.
 
 Construction remains proof-neutral. V2 does not establish that applying the
 cell writes to an authenticated state tree produces `post_state_root`, that a
 recipient cell encodes the stated reward amount, that an authorization grant
-exists in governed policy, or that any source semantic receipt authenticated
-the plan. Those are certificate-guest and ledger obligations.
+exists in governed policy, that an action's `effect_commitment` matches its
+settlement rows, that equivalent row partitions have one semantic normal form,
+or that any source semantic receipt authenticated the plan. Those are
+certificate-guest, application-profile, and ledger obligations.
 
 The implemented V2 profile uses fixed-width domain-separated SHA-256 for every
 referenceable record, collection root, and plan commitment. It uses a bounded
@@ -250,7 +285,8 @@ profile and cannot weaken this direct reference oracle.
 ## Explicit non-claims
 
 This design document supplies no receipt, image ID, proof, ledger authority,
-DA result, schedule result, carry-continuity result, source finality, release
+DA result, schedule result, carry-continuity result, action-to-effect
+correspondence, semantic row-normalization result, source finality, release
 authority, settlement authority, privacy claim, throughput result, or
 production claim.
 
@@ -260,12 +296,15 @@ the exact negative controls above.
 
 ## Executed protocol evidence
 
-The proof-neutral implementation currently covers canonical construction,
-independent hash-preimage reconstruction, action and consumed-object replay
-closure, authorization matching, mint and burn shape, reward binding, checked
-per-asset conservation, message/carry pairing, permutation invariance, exact
-codec rejection, oversized declared row sets, and record-level decode
-revalidation.
+The proof-neutral implementation currently covers deterministic ordering and
+canonical bytes for a fixed row set, independent hash-preimage reconstruction,
+within-batch action and consumed-object duplicate rejection, authorization
+matching, mint and burn shape, reward binding, checked per-asset conservation,
+dedicated balanced ordinary-transfer message/carry pairing, permutation
+invariance, exact codec rejection, oversized declared row sets, and record-level
+decode revalidation. Minimized tests retain the detached action-effect
+commitment and row-partition alias cases as explicit pending non-authority
+evidence.
 
 Run from `zk/zrpf_protocol`:
 

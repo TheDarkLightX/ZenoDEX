@@ -28,7 +28,11 @@ pub struct SettlementEffectPlanInputV2 {
     pub reward_effects: Vec<RewardEffectV2>,
 }
 
-/// Canonical proof-neutral settlement proposal.
+/// Deterministically ordered, proof-neutral settlement proposal.
+///
+/// Encoding is canonical for one validated row set. Construction does not
+/// normalize semantically equivalent row partitions or prove that an action's
+/// opaque `effect_commitment` was derived from these settlement rows.
 ///
 /// Construction supplies no receipt or ledger authority:
 ///

@@ -176,19 +176,25 @@ fn validate_messages(
             .get(&message.canonical_id()?)
             .ok_or(SettlementEffectErrorV2::MessageCarryMismatch)?;
         let local_domain = plan.economic_action_batch().chain_or_domain_id();
+        // Lock/release carry continuity models an ordinary asset transfer.
+        // Supply-changing bridge modes require a separate typed protocol so a
+        // burn or mint cannot also be interpreted as a carry lock or release.
+        let uses_supported_effect = effect.kind() == AssetEffectKindV2::OrdinaryTransfer;
+        let amount_matches_complete_effect = effect.debit_atoms() == message.amount_atoms()
+            && effect.credit_atoms() == message.amount_atoms();
         let direction_matches = match message.kind() {
             MessageEffectKindV2::OutboxEnqueue => {
                 message.source_domain_id() == local_domain
-                    && effect.debit_atoms() == message.amount_atoms()
                     && carry.kind() == CarryEffectKindV2::Lock
             }
             MessageEffectKindV2::InboxConsume => {
                 message.destination_domain_id() == local_domain
-                    && effect.credit_atoms() == message.amount_atoms()
                     && carry.kind() == CarryEffectKindV2::Release
             }
         };
         if !used_effects.insert(message.asset_effect_id())
+            || !uses_supported_effect
+            || !amount_matches_complete_effect
             || !direction_matches
             || effect.economic_action_id() != message.economic_action_id()
             || effect.asset_id() != message.asset_id()
