@@ -98,6 +98,7 @@ REQUIRED_NON_CLAIMS = {
     "no_v3_semantic_receipt_authenticated_tree",
     "no_release_backed_v3_receipt_authenticated_tree",
     "no_complete_v3_semantic_composition",
+    "no_fresh_zrpf_semantic_v2_receipt_evidence",
     "no_zrpf_16x4_profile",
 }
 REQUIRED_STATEMENTS = {
@@ -109,6 +110,7 @@ REQUIRED_STATEMENTS = {
     "recursive_node_v2",
     "zrpf_node_v3_structural",
     "zrpf_v1_spot_adapter_receipt_v1",
+    "zrpf_semantic_epoch_receipt_v2",
 }
 REQUIRED_STATEMENT_FIELDS = {
     "zrpf_node_v3_structural": frozenset(
@@ -157,6 +159,26 @@ REQUIRED_STATEMENT_FIELDS = {
             "outer_verified_adapter_image_equality",
         }
     ),
+    "zrpf_semantic_epoch_receipt_v2": frozenset(
+        {
+            "proposal_schema_version",
+            "semantic_statement_version",
+            "scope",
+            "semantic_profile_id",
+            "partition",
+            "leaf_count",
+            "operation_count",
+            "count_unit_id",
+            "proof_tree_root",
+            "commitments",
+            "semantic_epoch_root",
+            "dependency_manifest_root",
+            "outer_verified_receipt_profile",
+            "outer_verified_program_id",
+            "outer_verified_program_manifest_root",
+            "outer_claim_binding",
+        }
+    ),
 }
 REQUIRED_OBLIGATION_POLICY = {
     "RS-CBC-001": ("critical", "guarded_transition"),
@@ -182,9 +204,16 @@ REQUIRED_OBLIGATION_POLICY = {
     "RS-CBC-021": ("critical", "unrepresentable"),
     "RS-CBC-022": ("critical", "guarded_transition"),
     "RS-CBC-023": ("critical", "unrepresentable"),
+    "RS-CBC-024": ("critical", "unrepresentable"),
 }
 REQUIRED_OBLIGATIONS = frozenset(REQUIRED_OBLIGATION_POLICY)
 PINNED_PENDING_OBLIGATIONS = frozenset({"RS-CBC-021", "RS-CBC-023"})
+PINNED_STATEMENT_STATUSES = {
+    "zrpf_semantic_epoch_receipt_v2": "implemented_partial",
+}
+PINNED_OBLIGATION_STATUSES = {
+    "RS-CBC-024": "implemented_partial",
+}
 ALLOWED_STATUSES = {"implemented", "implemented_partial", "pending", "deferred_nonclaim"}
 ALLOWED_SEVERITIES = {"critical", "high", "medium", "low"}
 ALLOWED_DEFENSE_LAYERS = {
@@ -420,6 +449,9 @@ def _validate_typed_statements(value: Any, *, repo_root: Path | None) -> dict[st
             statement_ids.add(statement_id)
         if status is not None and status not in ALLOWED_STATUSES:
             item_errors.append("typed statement status unsupported")
+        expected_status = PINNED_STATEMENT_STATUSES.get(statement_id or "")
+        if expected_status is not None and status != expected_status:
+            item_errors.append("required typed statement status differs from pinned status")
         if owner_surface is not None:
             _validate_repo_file(
                 owner_surface,
@@ -531,6 +563,9 @@ def _validate_obligations(value: Any, *, repo_root: Path | None) -> dict[str, An
                 item_errors.append(
                     "pinned pending obligation must not cite implementation evidence"
                 )
+        expected_status = PINNED_OBLIGATION_STATUSES.get(obligation_id or "")
+        if expected_status is not None and status != expected_status:
+            item_errors.append("required obligation status differs from pinned status")
         if status in IMPLEMENTED_STATUSES:
             implemented_count += 1
             if not code_refs:

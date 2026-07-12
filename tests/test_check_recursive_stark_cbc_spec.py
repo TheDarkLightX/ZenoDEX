@@ -82,12 +82,12 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     assert report["ok"] is True
     assert report["facts"]["missing_required_statements"] == []
     assert report["facts"]["missing_required_obligations"] == []
-    assert report["facts"]["typed_statement_count"] == 8
-    assert report["facts"]["obligation_count"] == 23
-    assert report["facts"]["implemented_obligation_count"] == 18
+    assert report["facts"]["typed_statement_count"] == 9
+    assert report["facts"]["obligation_count"] == 24
+    assert report["facts"]["implemented_obligation_count"] == 19
     assert report["facts"]["pending_obligation_count"] == 5
     assert report["matrix_sha256"] == (
-        "sha256:3e0c621375a4faca996514b81321f99145ad03135fd2f71387501a5435bd516e"
+        "sha256:4867dd7213115fdd2935ca9aaf55fb3eb1af081d7893685078e21bb955761507"
     )
     assert report["promotion_boundary"]["facts"]["public_claim_allowed"] is False
     assert report["promotion_boundary"]["facts"]["production_ready"] is False
@@ -128,6 +128,22 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     assert adapter_receipt["code_refs"]
     assert adapter_receipt["test_refs"]
     assert adapter_receipt["external_commands"]
+    semantic_runtime_identity = next(
+        item for item in matrix["obligations"] if item["id"] == "RS-CBC-024"
+    )
+    assert semantic_runtime_identity["status"] == "implemented_partial"
+    assert semantic_runtime_identity["code_refs"]
+    assert semantic_runtime_identity["test_refs"]
+    assert semantic_runtime_identity["external_commands"]
+    assert "outer_verified_receipt_profile" in next(
+        item
+        for item in matrix["typed_statements"]
+        if item["id"] == "zrpf_semantic_epoch_receipt_v2"
+    )["required_fields"]
+    assert any(
+        "v1.94.1-rust-x86_64-unknown-linux-gnu" in command
+        for command in semantic_runtime_identity["external_commands"]
+    )
     for obligation_id in ("RS-CBC-023",):
         obligation = next(
             item for item in matrix["obligations"] if item["id"] == obligation_id
@@ -888,7 +904,7 @@ def test_recursive_stark_cbc_matrix_requires_outer_envelope_obligation() -> None
     assert "missing required obligations: RS-CBC-021" in report["obligations"]["errors"]
 
 
-@pytest.mark.parametrize("obligation_id", ["RS-CBC-022", "RS-CBC-023"])
+@pytest.mark.parametrize("obligation_id", ["RS-CBC-022", "RS-CBC-023", "RS-CBC-024"])
 def test_recursive_stark_cbc_matrix_requires_v3_authority_obligations(
     obligation_id: str,
 ) -> None:
@@ -901,6 +917,47 @@ def test_recursive_stark_cbc_matrix_requires_v3_authority_obligations(
 
     assert report["ok"] is False
     assert f"missing required obligations: {obligation_id}" in report["obligations"]["errors"]
+
+
+def test_semantic_v2_statuses_cannot_self_promote_without_fresh_receipt_evidence() -> None:
+    matrix = _matrix()
+    statement = next(
+        item
+        for item in matrix["typed_statements"]
+        if item["id"] == "zrpf_semantic_epoch_receipt_v2"
+    )
+    obligation = next(
+        item for item in matrix["obligations"] if item["id"] == "RS-CBC-024"
+    )
+    statement["status"] = "implemented"
+    obligation["status"] = "implemented"
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        "required typed statement status differs from pinned status"
+        in _statement_report(report, "zrpf_semantic_epoch_receipt_v2")["errors"]
+    )
+    assert (
+        "required obligation status differs from pinned status"
+        in _obligation_report(report, "RS-CBC-024")["errors"]
+    )
+
+
+def test_semantic_v2_fresh_receipt_nonclaim_is_required() -> None:
+    matrix = _matrix()
+    matrix["promotion_boundary"]["non_claims"].remove(
+        "no_fresh_zrpf_semantic_v2_receipt_evidence"
+    )
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        "promotion_boundary.non_claims missing required values"
+        in report["promotion_boundary"]["errors"]
+    )
 
 
 def test_outer_envelope_obligation_cannot_self_promote_with_unrelated_evidence() -> None:
@@ -1032,6 +1089,12 @@ def test_recursive_stark_cbc_matrix_rejects_unreviewed_claim_status() -> None:
         ),
         (
             "RS-CBC-023",
+            "defense_layer",
+            "guarded_transition",
+            "required obligation defense_layer differs from its pinned layer",
+        ),
+        (
+            "RS-CBC-024",
             "defense_layer",
             "guarded_transition",
             "required obligation defense_layer differs from its pinned layer",

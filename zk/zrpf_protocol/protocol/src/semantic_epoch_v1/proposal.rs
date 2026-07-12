@@ -356,17 +356,17 @@ pub fn decode_exact_semantic_epoch_proposal_v1(
     Ok(proposal)
 }
 
-struct SemanticRootInputV1<'a> {
-    scope: &'a NodeScopeV3,
-    semantic_profile_id: ProfileIdV3,
-    partition: PartitionV3,
-    leaf_count: u64,
-    operation_count: u64,
-    count_unit_id: CommitmentV3,
-    commitments: &'a SemanticEpochCommitmentsV1,
+pub(crate) struct SemanticRootInputV1<'a> {
+    pub(crate) scope: &'a NodeScopeV3,
+    pub(crate) semantic_profile_id: ProfileIdV3,
+    pub(crate) partition: PartitionV3,
+    pub(crate) leaf_count: u64,
+    pub(crate) operation_count: u64,
+    pub(crate) count_unit_id: CommitmentV3,
+    pub(crate) commitments: &'a SemanticEpochCommitmentsV1,
 }
 
-fn derive_semantic_epoch_root(
+pub(crate) fn derive_semantic_epoch_root(
     input: SemanticRootInputV1<'_>,
 ) -> Result<CommitmentV3, SemanticEpochErrorV1> {
     let scope_hash = input.scope.canonical_hash()?;

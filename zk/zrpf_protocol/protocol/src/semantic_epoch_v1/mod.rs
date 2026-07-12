@@ -4,6 +4,9 @@ mod leaf;
 mod proposal;
 mod sets;
 
+pub(crate) use proposal::{derive_semantic_epoch_root, SemanticRootInputV1};
+pub(crate) use sets::{derive_epoch_commitments, validate_leaf_set};
+
 use core::fmt;
 
 pub use hash::{

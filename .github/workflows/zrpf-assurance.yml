@@ -224,6 +224,14 @@ jobs:
             -p zenodex-zrpf-risc0-verifier \
             -p zenodex-zrpf-risc0-replay-verifier \
             -- -D warnings
+          "${pinned_bin}/cargo" test \
+            --manifest-path zk/zrpf_risc0/Cargo.toml \
+            --locked -p zenodex-zrpf-risc0-semantic-shared \
+            --no-default-features --test semantic_v2
+          "${pinned_bin}/cargo-clippy" clippy \
+            --manifest-path zk/zrpf_risc0/Cargo.toml \
+            --locked -p zenodex-zrpf-risc0-semantic-shared \
+            --no-default-features --test semantic_v2 -- -D warnings
           "${pinned_bin}/cargo" fmt \
             --manifest-path zk/recursive_stark_v2_risc0/Cargo.toml \
             --all -- --check

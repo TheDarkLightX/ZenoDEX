@@ -29,14 +29,14 @@ use zenodex_zrpf_risc0_methods::{
     ZENODEX_ZRPF_RISC0_V1_LEAF_ADAPTER_ELF, ZENODEX_ZRPF_RISC0_V1_LEAF_ADAPTER_ID,
 };
 use zenodex_zrpf_risc0_semantic_shared::{
-    bind_semantic_guest_input_after_level_one_verification_v1,
-    compose_semantic_epoch_after_level_one_verification_v1, encode_semantic_guest_input_v1,
-    SemanticEpochCompositionErrorV1, SemanticEpochCompositionPolicyV1,
-    SemanticEpochCompositionProjectionV1, SemanticGuestInputV1, SemanticGuestLeafDisclosureV1,
+    bind_semantic_guest_input_after_level_one_verification_v2,
+    compose_semantic_epoch_after_level_one_verification_v2, encode_semantic_guest_input_v2,
+    SemanticEpochCompositionErrorV2, SemanticEpochCompositionPolicyV2,
+    SemanticEpochCompositionProjectionV2, SemanticGuestInputV2, SemanticGuestLeafDisclosureV1,
     SemanticGuestLevelOneDisclosureV1, SemanticRecompositionErrorV1,
 };
 use zenodex_zrpf_risc0_shared::program_id_from_risc0_words_v3;
-use zenodex_zrpf_risc0_verifier::{VerifiedNodeReceiptV3, VerifiedSemanticEpochReceiptV1};
+use zenodex_zrpf_risc0_verifier::{VerifiedNodeReceiptV3, VerifiedSemanticEpochReceiptV2};
 
 const MAX_RECEIPT_BYTES: usize = 16 * 1_024 * 1_024;
 const MAX_RECEIPT_BYTES_U64: u64 = 16 * 1_024 * 1_024;
@@ -297,9 +297,9 @@ fn run_positive(options: Options) -> Result<(), String> {
     let groups = load_verified_groups(&options.groups)?;
     let raw_input = semantic_guest_input(&groups)?;
     let policy = semantic_policy()?;
-    let semantic_input = bind_semantic_guest_input_after_level_one_verification_v1(&raw_input)
+    let semantic_input = bind_semantic_guest_input_after_level_one_verification_v2(&raw_input)
         .map_err(|error| format!("host semantic disclosure binding rejected: {error}"))?;
-    let expected = compose_semantic_epoch_after_level_one_verification_v1(&semantic_input, policy)
+    let expected = compose_semantic_epoch_after_level_one_verification_v2(&semantic_input, policy)
         .map_err(|error| format!("host semantic composition rejected: {error}"))?;
     let dependencies = governed_dependency_programs()?;
     let verified = prove_semantic_epoch(&raw_input, &groups, &expected, &dependencies)?;
@@ -320,10 +320,10 @@ fn run_negative_duplicate_source(options: NegativeDuplicateSourceOptions) -> Res
         return Err("duplicate-source execution requires at least two level-one groups".to_owned());
     }
     let raw_input = semantic_guest_input(&groups)?;
-    let semantic_input = bind_semantic_guest_input_after_level_one_verification_v1(&raw_input)
+    let semantic_input = bind_semantic_guest_input_after_level_one_verification_v2(&raw_input)
         .map_err(|error| format!("host duplicate-source disclosure binding rejected: {error}"))?;
     require_exact_duplicate_source_host_reject(
-        compose_semantic_epoch_after_level_one_verification_v1(&semantic_input, semantic_policy()?),
+        compose_semantic_epoch_after_level_one_verification_v2(&semantic_input, semantic_policy()?),
     )?;
     execute_exact_duplicate_source_guest_reject(&raw_input, &groups, &mut governed_r0vm)?;
     print_negative_duplicate_source_report(&raw_input, &groups)
@@ -585,7 +585,7 @@ fn load_verified_node(
         .map_err(|error| format!("sealed node verification: {error}"))
 }
 
-fn semantic_guest_input(groups: &[VerifiedGroup]) -> Result<SemanticGuestInputV1, String> {
+fn semantic_guest_input(groups: &[VerifiedGroup]) -> Result<SemanticGuestInputV2, String> {
     let disclosures = groups
         .iter()
         .enumerate()
@@ -611,12 +611,12 @@ fn semantic_guest_input(groups: &[VerifiedGroup]) -> Result<SemanticGuestInputV1
             .map_err(|error| format!("semantic level-one disclosure {group_index}: {error}"))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    SemanticGuestInputV1::new(ZENODEX_ZRPF_RISC0_SEMANTIC_EPOCH_ID, disclosures)
+    SemanticGuestInputV2::new(disclosures)
         .map_err(|error| format!("semantic guest input rejected: {error}"))
 }
 
-fn semantic_policy() -> Result<SemanticEpochCompositionPolicyV1, String> {
-    SemanticEpochCompositionPolicyV1::new(
+fn semantic_policy() -> Result<SemanticEpochCompositionPolicyV2, String> {
+    SemanticEpochCompositionPolicyV2::new(
         ZENODEX_ZRPF_RISC0_V1_LEAF_ADAPTER_ID,
         ZENODEX_ZRPF_RISC0_STRUCTURAL_AGGREGATE_L1_ID,
         ZENODEX_ZRPF_RISC0_STRUCTURAL_AGGREGATE_L2_ID,
@@ -643,12 +643,12 @@ fn governed_dependency_programs() -> Result<SemanticEpochDependencyProgramsV1, S
 }
 
 fn prove_semantic_epoch(
-    raw_input: &SemanticGuestInputV1,
+    raw_input: &SemanticGuestInputV2,
     groups: &[VerifiedGroup],
-    expected: &SemanticEpochCompositionProjectionV1,
+    expected: &SemanticEpochCompositionProjectionV2,
     dependencies: &SemanticEpochDependencyProgramsV1,
-) -> Result<VerifiedSemanticEpochReceiptV1, String> {
-    let input_bytes = encode_semantic_guest_input_v1(raw_input)
+) -> Result<VerifiedSemanticEpochReceiptV2, String> {
+    let input_bytes = encode_semantic_guest_input_v2(raw_input)
         .map_err(|error| format!("semantic guest input encode: {error}"))?;
     let input_length =
         u32::try_from(input_bytes.len()).map_err(|_| "semantic input length exceeds u32")?;
@@ -674,7 +674,7 @@ fn prove_semantic_epoch(
         return Err("semantic epoch prover returned a non-Succinct receipt".to_owned());
     }
     let receipt_bytes = canonical_receipt_bytes(&receipt)?;
-    VerifiedSemanticEpochReceiptV1::verify_exact_succinct_bytes(
+    VerifiedSemanticEpochReceiptV2::verify_exact_succinct_bytes(
         &receipt_bytes,
         ZENODEX_ZRPF_RISC0_SEMANTIC_EPOCH_ID,
         dependencies,
@@ -684,10 +684,10 @@ fn prove_semantic_epoch(
 }
 
 fn require_exact_duplicate_source_host_reject(
-    result: Result<SemanticEpochCompositionProjectionV1, SemanticEpochCompositionErrorV1>,
+    result: Result<SemanticEpochCompositionProjectionV2, SemanticEpochCompositionErrorV2>,
 ) -> Result<(), String> {
     match result {
-        Err(SemanticEpochCompositionErrorV1::SemanticRecomposition(
+        Err(SemanticEpochCompositionErrorV2::SemanticRecomposition(
             SemanticRecompositionErrorV1::DuplicateSemanticSource,
         )) => Ok(()),
         Ok(_) => Err("host semantic mirror accepted the duplicate semantic source".to_owned()),
@@ -698,11 +698,11 @@ fn require_exact_duplicate_source_host_reject(
 }
 
 fn execute_exact_duplicate_source_guest_reject(
-    raw_input: &SemanticGuestInputV1,
+    raw_input: &SemanticGuestInputV2,
     groups: &[VerifiedGroup],
     governed_r0vm: &mut GovernedR0vm,
 ) -> Result<(), String> {
-    let input_bytes = encode_semantic_guest_input_v1(raw_input)
+    let input_bytes = encode_semantic_guest_input_v2(raw_input)
         .map_err(|error| format!("duplicate-source semantic input encode: {error}"))?;
     let input_length =
         u32::try_from(input_bytes.len()).map_err(|_| "semantic input length exceeds u32")?;
@@ -736,7 +736,7 @@ fn execute_exact_duplicate_source_guest_reject(
 }
 
 fn negative_duplicate_source_report_bytes(
-    raw_input: &SemanticGuestInputV1,
+    raw_input: &SemanticGuestInputV2,
     group_count: usize,
     leaf_count: usize,
 ) -> Result<Vec<u8>, String> {
@@ -746,7 +746,7 @@ fn negative_duplicate_source_report_bytes(
     {
         return Err("negative duplicate-source report counts are outside bounds".to_owned());
     }
-    let semantic_input_bytes = encode_semantic_guest_input_v1(raw_input)
+    let semantic_input_bytes = encode_semantic_guest_input_v2(raw_input)
         .map_err(|error| format!("negative report semantic input encode: {error}"))?;
     let report = json!({
         "adapter_image_id": Digest::from(ZENODEX_ZRPF_RISC0_V1_LEAF_ADAPTER_ID).to_string(),
@@ -779,12 +779,13 @@ fn negative_duplicate_source_report_bytes(
         ],
         "ok": true,
         "receipt_written": false,
+        "schema": "zenodex/zrpf_semantic_epoch_v2_duplicate_source_report/v1",
         "semantic_epoch_image_id": Digest::from(ZENODEX_ZRPF_RISC0_SEMANTIC_EPOCH_ID).to_string(),
         "semantic_input_bytes": semantic_input_bytes.len(),
         "semantic_input_sha256": sha256_hex(&semantic_input_bytes),
         "semantic_receipt_created": false,
         "same_uid_source_mutation_resistance": true,
-        "status": "bounded_v1_duplicate_semantic_source_guest_execution_rejected",
+        "status": "bounded_v2_duplicate_semantic_source_guest_execution_rejected",
     });
     let bytes =
         serde_json::to_vec(&report).map_err(|error| format!("negative report encode: {error}"))?;
@@ -795,7 +796,7 @@ fn negative_duplicate_source_report_bytes(
 }
 
 fn print_negative_duplicate_source_report(
-    raw_input: &SemanticGuestInputV1,
+    raw_input: &SemanticGuestInputV2,
     groups: &[VerifiedGroup],
 ) -> Result<(), String> {
     let leaf_count = groups.iter().try_fold(0usize, |count, group| {
@@ -812,7 +813,7 @@ fn print_negative_duplicate_source_report(
 }
 
 fn print_report(
-    verified: &VerifiedSemanticEpochReceiptV1,
+    verified: &VerifiedSemanticEpochReceiptV2,
     group_count: usize,
     receipt_bytes: &[u8],
 ) -> Result<(), String> {
@@ -833,15 +834,21 @@ fn print_report(
         ],
         "ok": true,
         "operation_count": proposal.operation_count(),
-        "program_manifest_root": hex::encode(proposal.program_manifest_root().as_bytes()),
+        "dependency_manifest_root": hex::encode(proposal.dependency_manifest_root().as_bytes()),
         "proof_tree_root": hex::encode(proposal.proof_tree_root().as_bytes()),
+        "proposal_schema_version": proposal.proposal_schema_version(),
         "proposal_hash": hex::encode(proposal_hash.as_bytes()),
         "receipt_bytes": receipt_bytes.len(),
+        "receipt_profile_id": verified.receipt_profile().profile_id(),
         "receipt_sha256": sha256_hex(receipt_bytes),
         "receipt_written": true,
+        "schema": "zenodex/zrpf_semantic_epoch_v2_proof_report/v1",
         "semantic_epoch_image_id": Digest::from(ZENODEX_ZRPF_RISC0_SEMANTIC_EPOCH_ID).to_string(),
         "semantic_epoch_root": hex::encode(proposal.semantic_epoch_root().as_bytes()),
-        "status": "bounded_v1_adapter_semantic_epoch_succinct_receipt_verified",
+        "semantic_statement_version": proposal.semantic_statement_version(),
+        "verified_program_id": hex::encode(verified.verified_program_id().as_bytes()),
+        "verified_program_manifest_root": hex::encode(verified.verified_program_manifest_root().as_bytes()),
+        "status": "bounded_v2_adapter_semantic_epoch_succinct_receipt_verified",
         "structural_level_two_journal_hash": hex::encode(proposal.proof_tree_root().as_bytes()),
     });
     writeln!(std::io::stdout().lock(), "{report}")
@@ -932,7 +939,7 @@ mod tests {
 
     use serde_json::Value;
     use zenodex_zrpf_risc0_semantic_shared::{
-        encode_semantic_guest_input_v1, SemanticEpochCompositionErrorV1, SemanticGuestInputV1,
+        encode_semantic_guest_input_v2, SemanticEpochCompositionErrorV2, SemanticGuestInputV2,
         SemanticGuestLeafDisclosureV1, SemanticGuestLevelOneDisclosureV1,
         SemanticRecompositionErrorV1,
     };
@@ -973,7 +980,7 @@ mod tests {
         }
     }
 
-    fn report_input() -> Result<SemanticGuestInputV1, String> {
+    fn report_input() -> Result<SemanticGuestInputV2, String> {
         let disclosures = (1..=2u8)
             .map(|value| {
                 let leaf = SemanticGuestLeafDisclosureV1::new(vec![value], [value; 32])
@@ -982,7 +989,7 @@ mod tests {
                     .map_err(|error| format!("test level-one disclosure: {error}"))
             })
             .collect::<Result<Vec<_>, String>>()?;
-        SemanticGuestInputV1::new([1; 8], disclosures)
+        SemanticGuestInputV2::new(disclosures)
             .map_err(|error| format!("test report input: {error}"))
     }
 
@@ -1059,12 +1066,12 @@ mod tests {
 
     #[test]
     fn duplicate_source_host_reject_must_match_exact_typed_error() {
-        let exact = Err(SemanticEpochCompositionErrorV1::SemanticRecomposition(
+        let exact = Err(SemanticEpochCompositionErrorV2::SemanticRecomposition(
             SemanticRecompositionErrorV1::DuplicateSemanticSource,
         ));
         assert!(require_exact_duplicate_source_host_reject(exact).is_ok());
 
-        let wrong = Err(SemanticEpochCompositionErrorV1::SemanticRecomposition(
+        let wrong = Err(SemanticEpochCompositionErrorV2::SemanticRecomposition(
             SemanticRecompositionErrorV1::DuplicateSourceClaim,
         ));
         assert!(require_exact_duplicate_source_host_reject(wrong)
@@ -1075,7 +1082,7 @@ mod tests {
     #[test]
     fn duplicate_source_report_is_bounded_canonical_and_records_no_receipt() -> Result<(), String> {
         let raw_input = report_input()?;
-        let input_bytes = encode_semantic_guest_input_v1(&raw_input)
+        let input_bytes = encode_semantic_guest_input_v2(&raw_input)
             .map_err(|error| format!("encode test report input: {error}"))?;
         let bytes = negative_duplicate_source_report_bytes(&raw_input, 2, 2)?;
         assert!(bytes.len() <= MAX_NEGATIVE_REPORT_BYTES);
@@ -1098,6 +1105,10 @@ mod tests {
         assert_eq!(report["executor_environment_exact"], true);
         assert_eq!(report["dynamic_loader_closure_verified"], false);
         assert_eq!(report["authoritative_negative_evidence"], false);
+        assert_eq!(
+            report["schema"],
+            "zenodex/zrpf_semantic_epoch_v2_duplicate_source_report/v1"
+        );
         assert_eq!(report["same_uid_source_mutation_resistance"], true);
         assert_eq!(report["semantic_input_bytes"], input_bytes.len());
         assert_eq!(report["semantic_input_sha256"], sha256_hex(&input_bytes));

@@ -1,4 +1,4 @@
-# ZRPF RISC0 Structural Proof Profile
+# ZRPF RISC0 Structural And Semantic Statement Profile
 
 This workspace is the RISC0 compatibility and structural-recursion profile for
 the Zeno Recursive Proof Fabric (ZRPF) used by ZenoDEX.
@@ -25,12 +25,14 @@ Each aggregate guest verifies its exact child receipts inside the zkVM before
 it decodes child journals or derives the parent. The same `NodeJournalV3` type
 therefore crosses both recursive levels.
 
-This profile proves receipt authentication, exact journal binding, bounded tree
-structure, deterministic structural root composition, and the execution of the
-adapter and aggregate guests. Application semantics remain outside the current
-aggregate relation. The parent commitment fields are field-specific roots over
-authenticated child commitments. They do not establish ZenoDEX conservation,
-data availability, carry continuity, conflict freedom, or settlement validity.
+The retained structural evidence proves receipt authentication, exact journal
+binding, bounded tree structure, deterministic structural root composition,
+and execution of the adapter and aggregate guests. The active Semantic Epoch V2
+statement additionally recomposes bounded V1 adapter semantic leaves without
+accepting its own runtime image from the host. V2 has source and host-test
+evidence; fresh V2 guest and receipt evidence remains pending. Neither layer
+establishes complete ZenoDEX conservation, data availability, carry continuity,
+conflict freedom, or settlement validity.
 
 ## Implemented Features
 
@@ -99,6 +101,42 @@ composition. The composer then enforces shared scope and count units, canonical
 dense partitions, unique immediate task/claim/journal identities, checked
 counts, and the protocol bounds. It derives the parent task, statement,
 manifest, all 23 parent commitment roots, and all child-set roots.
+
+### Semantic Epoch V2 runtime identity boundary
+
+The active semantic guest accepts `SemanticGuestInputV2`, whose canonical wire
+contains only bounded L1 disclosures and leaf semantic openings. It contains no
+semantic self-image or program manifest. After every exact L1 receipt is
+verified under compiled image B, the guest derives:
+
+```text
+dependency_manifest_root = H(
+  profile,
+  "adapter_program_id", A,
+  "level_one_program_id", B,
+  "level_two_program_id", C,
+  unreleased_semantic_epoch_dependency_manifest
+)
+```
+
+and commits `ProposedSemanticEpochV2`. The sealed
+`VerifiedSemanticEpochReceiptV2` verifies the receipt under governed runtime
+image D before decoding that proposal. It then checks the dependency manifest
+and privately attaches verified D, the A/B/C/D program manifest, and the claim
+binding over D plus the exact journal bytes. The verified receipt-security
+profile remains separate; authority consumers must bind the profile and
+program manifest together.
+
+The proof-neutral proposal exposes no `actual_program_id` or
+`program_manifest_root` accessor. The legacy V1 verifier remains available only
+under the explicit `historical_semantic_epoch_v1` namespace for retained
+evidence replay. See
+`docs/research/ZRPF_SEMANTIC_EPOCH_V2_CBC_SPEC_20260712.md`.
+
+The unversioned `prove_semantic_epoch` and `verify_semantic_epoch` binaries now
+implement V2. Historical V1 receipt replay uses the retained source-pinned V1
+revision and evidence checker; current binaries do not claim V1 replay
+compatibility.
 
 Each aggregate input carries its expected self image because a guest cannot
 derive its own image ID without a circular build. That field becomes trusted
@@ -484,7 +522,8 @@ authority remain pending. The full contract and usage guide is
 
 The following work remains outside the current authority boundary:
 
-- native V3 semantic leaves and parent semantic composition;
+- fresh V2 semantic guest image and receipt evidence;
+- complete native V3 semantic leaves and economic composition;
 - transaction-count claims for compatibility leaves;
 - nonempty receipt-set and cross-lane-message disclosures;
 - descendant-wide uniqueness and complete conflict schedules;

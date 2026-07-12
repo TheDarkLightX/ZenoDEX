@@ -1,15 +1,18 @@
 use sha2::{Digest, Sha256};
 use zenodex_zrpf_protocol_v3::{
-    decode_exact_semantic_epoch_proposal_v1, encode_semantic_epoch_proposal_v1,
-    semantic_epoch_manifest_root_v1, semantic_epoch_profile_id_v1, v1_adapter_count_unit_id_v1,
-    v1_adapter_manifest_root_v1, v1_adapter_profile_id_v1, v1_adapter_semantic_source_root_v1,
-    v1_adapter_task_set_root_v1, ApplicationIdV3, CommitmentV3, DomainIdV3,
-    ExpectedV1AdapterLeafIdentityV1, LeafNodeInputV3, NodeCommitmentsInputV3, NodeCommitmentsV3,
-    NodeJournalV3, NodeScopeInputV3, NodeScopeV3, PartitionV3, ProfileIdV3, ProgramIdV3,
-    ProposedSemanticEpochV1, ProposedSemanticLeafV1, SemanticEpochDependencyProgramsInputV1,
-    SemanticEpochDependencyProgramsV1, SemanticEpochErrorV1, SemanticEpochProposalInputV1,
-    TaskIdV3, V1AdapterSemanticLeafOpeningV1, MAX_LEAF_COUNT_V3,
-    MAX_SEMANTIC_EPOCH_PROPOSAL_BYTES_V1,
+    decode_exact_semantic_epoch_proposal_v1, decode_exact_semantic_epoch_proposal_v2,
+    encode_semantic_epoch_proposal_v1, encode_semantic_epoch_proposal_v2,
+    semantic_epoch_dependency_manifest_root_v2, semantic_epoch_manifest_root_v1,
+    semantic_epoch_profile_id_v1, v1_adapter_count_unit_id_v1, v1_adapter_manifest_root_v1,
+    v1_adapter_profile_id_v1, v1_adapter_semantic_source_root_v1, v1_adapter_task_set_root_v1,
+    ApplicationIdV3, CommitmentV3, DomainIdV3, ExpectedV1AdapterLeafIdentityV1, LeafNodeInputV3,
+    NodeCommitmentsInputV3, NodeCommitmentsV3, NodeJournalV3, NodeScopeInputV3, NodeScopeV3,
+    PartitionV3, ProfileIdV3, ProgramIdV3, ProposedSemanticEpochV1, ProposedSemanticEpochV2,
+    ProposedSemanticLeafV1, SemanticEpochDependencyProgramsInputV1,
+    SemanticEpochDependencyProgramsV1, SemanticEpochErrorV1, SemanticEpochErrorV2,
+    SemanticEpochProposalInputV1, SemanticEpochProposalInputV2, TaskIdV3,
+    V1AdapterSemanticLeafOpeningV1, MAX_LEAF_COUNT_V3, MAX_SEMANTIC_EPOCH_PROPOSAL_BYTES_V1,
+    MAX_SEMANTIC_EPOCH_PROPOSAL_BYTES_V2,
 };
 
 const PROFILE_ID_DOMAIN: &[u8] = b"zenodex.zrpf.profile_id.v3";
@@ -810,4 +813,125 @@ fn bounded_byte_mutation_atlas_cannot_change_semantic_root_silently() {
             }
         }
     }
+}
+
+#[test]
+fn v2_removes_runtime_identity_while_preserving_semantic_identity() {
+    let leaves = two_leaves();
+    let legacy = ProposedSemanticEpochV1::derive(proposal_input(leaves.clone(), 243)).unwrap();
+    let dependency_manifest_root =
+        semantic_epoch_dependency_manifest_root_v2(&semantic_dependencies()).unwrap();
+    let current = ProposedSemanticEpochV2::derive(SemanticEpochProposalInputV2 {
+        leaves,
+        proof_tree_root: commitment(243),
+        scope: scope(200),
+        dependency_manifest_root,
+    })
+    .unwrap();
+
+    assert_eq!(current.proposal_schema_version(), 2);
+    assert_eq!(current.semantic_statement_version(), 1);
+    assert_eq!(current.semantic_epoch_root(), legacy.semantic_epoch_root());
+    assert_eq!(current.proof_tree_root(), legacy.proof_tree_root());
+    assert_eq!(current.dependency_manifest_root(), dependency_manifest_root);
+    assert_eq!(
+        hex(dependency_manifest_root.into_bytes()),
+        "d986b7f2ab628cb1fbd0e3ad238fb7d10903e787988c084cafe8d908e671bacd"
+    );
+    let swapped = SemanticEpochDependencyProgramsV1::new(SemanticEpochDependencyProgramsInputV1 {
+        adapter_program_id: program(232),
+        level_one_program_id: program(231),
+        level_two_program_id: program(233),
+    });
+    assert_ne!(
+        dependency_manifest_root,
+        semantic_epoch_dependency_manifest_root_v2(&swapped).unwrap()
+    );
+}
+
+#[test]
+fn v1_and_v2_proposal_codecs_fail_closed_without_compatibility_fallback() {
+    let legacy = ProposedSemanticEpochV1::derive(proposal_input(two_leaves(), 243)).unwrap();
+    let current = ProposedSemanticEpochV2::derive(SemanticEpochProposalInputV2 {
+        leaves: two_leaves(),
+        proof_tree_root: commitment(243),
+        scope: scope(200),
+        dependency_manifest_root: semantic_epoch_dependency_manifest_root_v2(
+            &semantic_dependencies(),
+        )
+        .unwrap(),
+    })
+    .unwrap();
+    let legacy_bytes = encode_semantic_epoch_proposal_v1(&legacy).unwrap();
+    let current_bytes = encode_semantic_epoch_proposal_v2(&current).unwrap();
+
+    assert_eq!(
+        decode_exact_semantic_epoch_proposal_v2(&legacy_bytes),
+        Err(SemanticEpochErrorV2::PostcardDecode)
+    );
+    assert_eq!(
+        decode_exact_semantic_epoch_proposal_v1(&current_bytes),
+        Err(SemanticEpochErrorV1::PostcardDecode)
+    );
+    assert_eq!(
+        decode_exact_semantic_epoch_proposal_v2(&current_bytes).unwrap(),
+        current
+    );
+}
+
+#[test]
+fn v2_exact_codec_rejects_truncation_trailing_oversize_and_root_substitution() {
+    let proposal = ProposedSemanticEpochV2::derive(SemanticEpochProposalInputV2 {
+        leaves: two_leaves(),
+        proof_tree_root: commitment(243),
+        scope: scope(200),
+        dependency_manifest_root: semantic_epoch_dependency_manifest_root_v2(
+            &semantic_dependencies(),
+        )
+        .unwrap(),
+    })
+    .unwrap();
+    let encoded = encode_semantic_epoch_proposal_v2(&proposal).unwrap();
+
+    for length in 0..encoded.len() {
+        assert!(decode_exact_semantic_epoch_proposal_v2(&encoded[..length]).is_err());
+    }
+
+    let mut trailing = encoded.clone();
+    trailing.push(0);
+    assert_eq!(
+        decode_exact_semantic_epoch_proposal_v2(&trailing),
+        Err(SemanticEpochErrorV2::TrailingBytes)
+    );
+
+    let mut noncanonical_schema = Vec::with_capacity(encoded.len() + 1);
+    noncanonical_schema.extend_from_slice(&[0x82, 0x00]);
+    noncanonical_schema.extend_from_slice(&encoded[1..]);
+    assert_eq!(
+        decode_exact_semantic_epoch_proposal_v2(&noncanonical_schema),
+        Err(SemanticEpochErrorV2::NonCanonicalEncoding)
+    );
+
+    let oversized = vec![0_u8; MAX_SEMANTIC_EPOCH_PROPOSAL_BYTES_V2 + 1];
+    assert_eq!(
+        decode_exact_semantic_epoch_proposal_v2(&oversized),
+        Err(SemanticEpochErrorV2::InputTooLarge {
+            actual: MAX_SEMANTIC_EPOCH_PROPOSAL_BYTES_V2 + 1,
+            maximum: MAX_SEMANTIC_EPOCH_PROPOSAL_BYTES_V2,
+        })
+    );
+
+    let semantic_root = proposal.semantic_epoch_root();
+    let offsets = encoded
+        .windows(semantic_root.as_bytes().len())
+        .enumerate()
+        .filter_map(|(offset, window)| (window == semantic_root.as_bytes()).then_some(offset))
+        .collect::<Vec<_>>();
+    assert_eq!(offsets.len(), 1);
+    let mut substituted = encoded;
+    substituted[offsets[0]..offsets[0] + 32].copy_from_slice(commitment(99).as_bytes());
+    assert_eq!(
+        decode_exact_semantic_epoch_proposal_v2(&substituted),
+        Err(SemanticEpochErrorV2::SemanticRootMismatch)
+    );
 }

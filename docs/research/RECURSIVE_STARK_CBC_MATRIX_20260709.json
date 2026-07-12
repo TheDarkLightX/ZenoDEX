@@ -28,6 +28,7 @@
       "no_v3_semantic_receipt_authenticated_tree",
       "no_release_backed_v3_receipt_authenticated_tree",
       "no_complete_v3_semantic_composition",
+      "no_fresh_zrpf_semantic_v2_receipt_evidence",
       "no_zrpf_16x4_profile"
     ]
   },
@@ -218,6 +219,32 @@
         "governed_source_image_id",
         "canonical_node_journal_v3",
         "outer_verified_adapter_image_equality"
+      ]
+    },
+    {
+      "id": "zrpf_semantic_epoch_receipt_v2",
+      "status": "implemented_partial",
+      "statement": "canonical ProposedSemanticEpochV2 + governed semantic image D + governed dependency programs A/B/C",
+      "journal": "ProposedSemanticEpochV2",
+      "owner_surface": "zk/zrpf_risc0/verifier/src/semantic_epoch_v2.rs",
+      "authority_boundary": "guest input and proposal contain no D; the sealed verifier enforces the exact pinned RISC0 3.0.5 Succinct receipt-security profile and cryptographically verifies the receipt under governed D before strict proposal decoding, checks the dependency manifest, and privately attaches D, the A/B/C/D program manifest, and the exact claim binding; authority consumers must bind the verified receipt profile and program manifest together",
+      "required_fields": [
+        "proposal_schema_version",
+        "semantic_statement_version",
+        "scope",
+        "semantic_profile_id",
+        "partition",
+        "leaf_count",
+        "operation_count",
+        "count_unit_id",
+        "proof_tree_root",
+        "commitments",
+        "semantic_epoch_root",
+        "dependency_manifest_root",
+        "outer_verified_receipt_profile",
+        "outer_verified_program_id",
+        "outer_verified_program_manifest_root",
+        "outer_claim_binding"
       ]
     }
   ],
@@ -1207,6 +1234,63 @@
       "external_commands": [],
       "next_action": "retain the verified duplicate-descendant semantic sub-obligation, then add authenticated asset-row openings, global asset conservation, authorized mint and burn, pre-state to post-state continuity, nonempty receipt and message composition, schedule and carry verification, and data-availability certificate policy",
       "non_claim": "fresh local RISC0 3.0.5 evidence verifies one three-leaf, two-L1-group V1 adapter semantic epoch and rejects one repeated semantic source across distinct authenticated subtrees; the profile has empty receipt and message sets and does not establish complete ZenoDEX economic semantics, asset conservation, state continuity, schedules, carry, data availability, durable admission, public replay, release, settlement, privacy, throughput, or production authority"
+    },
+    {
+      "id": "RS-CBC-024",
+      "title": "Semantic runtime identity is absent from guest proposals and attached after receipt verification",
+      "severity": "critical",
+      "status": "implemented_partial",
+      "defense_layer": "unrepresentable",
+      "disaster_state": "a host-declared semantic self-image is emitted as an actual program identity and trusted by a generic receipt consumer without the exact governed outer binding",
+      "construction_rule": "the active V2 guest input and proof-neutral proposal contain no semantic runtime image; the guest derives only the A/B/C dependency manifest; the sealed V2 verifier enforces the exact pinned RISC0 3.0.5 Succinct receipt-security profile, authenticates the exact receipt under governed D before proposal decoding, requires the governed dependency manifest, then privately attaches verified D, the A/B/C/D program manifest, and the D-plus-journal claim binding; admission must bind the verified receipt profile and program manifest as a pair",
+      "code_refs": [
+        {
+          "path": "zk/zrpf_protocol/protocol/src/semantic_epoch_v2/proposal.rs",
+          "symbol": "ProposedSemanticEpochV2"
+        },
+        {
+          "path": "zk/zrpf_risc0/semantic_shared/src/codec_v2.rs",
+          "symbol": "SemanticGuestInputV2"
+        },
+        {
+          "path": "zk/zrpf_risc0/methods/semantic_epoch/src/main.rs",
+          "symbol": "main"
+        },
+        {
+          "path": "zk/zrpf_risc0/verifier/src/semantic_epoch_v2.rs",
+          "symbol": "VerifiedSemanticEpochReceiptV2"
+        },
+        {
+          "path": "docs/research/ZRPF_SEMANTIC_EPOCH_V2_CBC_SPEC_20260712.md",
+          "symbol": "Authority flow"
+        }
+      ],
+      "test_refs": [
+        {
+          "path": "zk/zrpf_protocol/protocol/tests/semantic_epoch_v1.rs",
+          "symbol": "v1_and_v2_proposal_codecs_fail_closed_without_compatibility_fallback"
+        },
+        {
+          "path": "zk/zrpf_risc0/semantic_shared/tests/semantic_v2.rs",
+          "symbol": "v2_composition_preserves_v1_semantic_root_without_accepting_runtime_identity"
+        },
+        {
+          "path": "zk/zrpf_risc0/verifier/src/semantic_epoch_v2.rs",
+          "symbol": "dependency_substitution_rejects_before_runtime_identity_attachment"
+        },
+        {
+          "path": "tests/test_zrpf_semantic_guest_source_contract.py",
+          "symbol": "test_active_v2_reachable_identity_surface_has_no_runtime_self_field"
+        }
+      ],
+      "external_commands": [
+        "cd zk/zrpf_protocol && cargo test --locked --all-targets",
+        "cd zk/zrpf_risc0 && env PATH=\"$HOME/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin:/usr/bin:/bin\" RUSTC=\"$HOME/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin/rustc\" RUSTDOC=\"$HOME/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin/rustdoc_tool_binary\" RISC0_SKIP_BUILD=1 \"$HOME/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin/cargo\" test --locked -p zenodex-zrpf-risc0-semantic-shared -p zenodex-zrpf-risc0-verifier -p zenodex-zrpf-risc0-harness --all-targets",
+        "cd zk/zrpf_risc0 && env PATH=\"$HOME/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin:/usr/bin:/bin\" RUSTC=\"$HOME/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin/rustc\" RUSTDOC=\"$HOME/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin/rustdoc_tool_binary\" RISC0_SKIP_BUILD=1 \"$HOME/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin/cargo\" test --locked -p zenodex-zrpf-risc0-semantic-shared --no-default-features --test semantic_v2",
+        "python3 -m pytest -q tests/test_zrpf_semantic_guest_source_contract.py"
+      ],
+      "next_action": "build the V2 guest under the pinned RISC0 toolchain, recompute D, generate a fresh positive V2 receipt, and persist wrong-D, dependency-substitution, and exact-seal-mutation rejection evidence before any admission integration",
+      "non_claim": "the V2 statement ABI and sealed host boundary are implemented and host-tested, while no fresh V2 guest ELF, image ID, RISC0 receipt, receipt-authenticated dependency substitution, wrong-D, exact proposal substitution, exact seal-mutation replay, proof-generation replay, source-built replay, durable admission, settlement, release, privacy, throughput, or production authority is claimed; V1 evidence remains immutable historical evidence and transfers no authority to V2"
     }
   ]
 }

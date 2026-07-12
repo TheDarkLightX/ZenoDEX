@@ -13,7 +13,7 @@ use super::hash::{
 use super::proposal::SemanticEpochCommitmentsV1;
 use super::{ProposedSemanticLeafV1, SemanticEpochErrorV1, SemanticSourceIdV1, SourceClaimIdV1};
 
-pub(super) fn validate_leaf_set(
+pub(crate) fn validate_leaf_set(
     leaves: &[ProposedSemanticLeafV1],
     scope: &NodeScopeV3,
 ) -> Result<(), SemanticEpochErrorV1> {
@@ -149,7 +149,7 @@ struct LeafAlignedRootsV1 {
     asset_deltas: CommitmentV3,
 }
 
-pub(super) fn derive_epoch_commitments(
+pub(crate) fn derive_epoch_commitments(
     leaves: &[ProposedSemanticLeafV1],
 ) -> Result<SemanticEpochCommitmentsV1, SemanticEpochErrorV1> {
     let aligned = derive_leaf_aligned_roots(leaves)?;

@@ -1,5 +1,12 @@
 # ZRPF Semantic Epoch V1 Specification
 
+> Historical status (2026-07-12): V1 remains an immutable retained-receipt
+> replay profile. Its guest accepted a host-declared semantic self-image and
+> relied on the exact outer verifier to authenticate that declaration. New
+> semantic proof work uses the V2 statement in
+> `ZRPF_SEMANTIC_EPOCH_V2_CBC_SPEC_20260712.md`. V1 grants no V2, admission,
+> release, settlement, or production authority.
+
 Status: experimental bounded local semantic proof evidence
 Date: 2026-07-11
 
@@ -30,7 +37,7 @@ implementations, leaf numbering, or semantically equivalent leaf encodings.
 Leaf program, profile, statement, manifest, partition, and complete commitment
 identities are included in `leaf_records_root`.
 
-## Current scoped claim
+## Historical scoped claim
 
 The Rust protocol constructs and exactly encodes a bounded
 `ProposedSemanticEpochV1`. The `semantic_shared` crate adds an exact raw guest
@@ -67,7 +74,7 @@ bounded canonical receipt bytes and verifies the pinned Succinct profile,
 semantic guest image, exact proposal, governed A/B/C dependency manifest, and
 claim binding before exposing an authenticated proposal.
 
-The current local evidence authenticates one three-leaf, two-L1-group instance
+The retained local evidence authenticates one three-leaf, two-L1-group instance
 under the fresh A/B/C/D image ladder. It also executes one cross-subtree
 duplicate-semantic-source control after both L1 assumptions are verified. The
 guest rejects that control at the typed semantic-composition boundary. This is
@@ -188,7 +195,7 @@ task_ids_root
 ```
 
 Accepted/rejected receipt IDs, messages, and nullifiers are absent from this
-profile. Current V1 adapter leaves authenticate only empty receipt and message
+profile. Retained V1 adapter leaves authenticate only empty receipt and message
 sets, and `NodeJournalV3` has no nullifier commitment. A future nonempty profile
 requires per-leaf authenticated openings before adding those roots.
 
@@ -220,7 +227,7 @@ program ID, fixed semantic profile ID, pinned adapter/L1/L2 program IDs, and the
 typed input so swapping L1 and L2 identities changes the manifest. It is never
 a free host-selected semantic field.
 
-Current fixed vectors:
+Historical fixed vectors:
 
 ```text
 semantic profile ID
@@ -418,6 +425,6 @@ Add the first value-bearing semantic profile. Its leaf disclosure must open
 authenticated asset rows and state transitions, and its composer must prove
 global asset conservation, authorized mint and burn transformations, and exact
 pre-state to post-state continuity across the canonical leaf order. Preserve
-the current structural and semantic roots as separate identities. Add nonempty
+the retained structural and semantic roots as separate identities. Add nonempty
 receipt, message, schedule, carry, and data-availability profiles only after
 their authenticated opening languages and global composition laws are defined.

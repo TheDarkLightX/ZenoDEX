@@ -14,7 +14,45 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def test_current_clean_checkout_matches_exact_source_inventory() -> None:
     document = closure.build_source_closure(REPO_ROOT)
     assert document["schema"] == closure.SCHEMA
-    assert document["file_count"] == 57
+    assert document["file_count"] == 65
+    assert {
+        (row["role"], row["path"])
+        for row in document["files"]
+        if row["role"].endswith("_v2")
+    } == {
+        (
+            "semantic_mapping_v2",
+            "zk/zrpf_risc0/semantic_shared/src/bind_v2.rs",
+        ),
+        (
+            "semantic_mapping_v2",
+            "zk/zrpf_risc0/semantic_shared/src/codec_v2.rs",
+        ),
+        (
+            "semantic_mapping_v2",
+            "zk/zrpf_risc0/semantic_shared/src/disclosure_v1.rs",
+        ),
+        (
+            "semantic_mapping_v2",
+            "zk/zrpf_risc0/semantic_shared/src/epoch_v2.rs",
+        ),
+        (
+            "semantic_protocol_v2",
+            "zk/zrpf_protocol/protocol/src/semantic_epoch_v2/hash.rs",
+        ),
+        (
+            "semantic_protocol_v2",
+            "zk/zrpf_protocol/protocol/src/semantic_epoch_v2/mod.rs",
+        ),
+        (
+            "semantic_protocol_v2",
+            "zk/zrpf_protocol/protocol/src/semantic_epoch_v2/proposal.rs",
+        ),
+        (
+            "verification_harness_v2",
+            "zk/zrpf_risc0/verifier/src/semantic_epoch_v2.rs",
+        ),
+    }
     assert document["worktree_clean"] is True
     assert [row["path"] for row in document["files"]] == sorted(
         row["path"] for row in document["files"]

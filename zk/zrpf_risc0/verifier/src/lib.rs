@@ -12,9 +12,17 @@ use zenodex_zrpf_risc0_shared::{
     derive_risc0_verified_claim_binding_v1, risc0_image_words_to_bytes,
 };
 
-mod semantic_epoch_v1;
+/// Historical V1 is deliberately unavailable at the crate root.
+///
+/// ```compile_fail
+/// use zenodex_zrpf_risc0_verifier::VerifiedSemanticEpochReceiptV1;
+/// let _ = core::mem::size_of::<VerifiedSemanticEpochReceiptV1>();
+/// ```
+#[path = "semantic_epoch_v1.rs"]
+pub mod historical_semantic_epoch_v1;
+mod semantic_epoch_v2;
 
-pub use semantic_epoch_v1::{VerifiedSemanticEpochReceiptErrorV1, VerifiedSemanticEpochReceiptV1};
+pub use semantic_epoch_v2::{VerifiedSemanticEpochReceiptErrorV2, VerifiedSemanticEpochReceiptV2};
 
 pub const ZRPF_RISC0_SUCCINCT_RECEIPT_PROFILE_ID_V1: &str =
     "risc0_succinct_poseidon2_resolve_3_0_5_v1";

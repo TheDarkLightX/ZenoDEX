@@ -16,18 +16,30 @@ path = "src/lib.rs"
 [[test]]
 name = "recompose_v1"
 path = "tests/recompose_v1.rs"
+required-features = ["historical-v1"]
 
 [[test]]
 name = "codec_v1"
 path = "tests/codec_v1.rs"
+required-features = ["historical-v1"]
 
 [[test]]
 name = "bind_v1"
 path = "tests/bind_v1.rs"
+required-features = ["historical-v1"]
 
 [[test]]
 name = "epoch_v1"
 path = "tests/epoch_v1.rs"
+required-features = ["historical-v1"]
+
+[[test]]
+name = "semantic_v2"
+path = "tests/semantic_v2.rs"
+
+[features]
+default = ["historical-v1"]
+historical-v1 = []
 
 [dependencies]
 zenodex-zrpf-protocol-v3 = { path = "../../zrpf_protocol/protocol", default-features = false }

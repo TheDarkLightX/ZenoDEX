@@ -20,15 +20,15 @@ use zenodex_zrpf_risc0_methods::{
     ZENODEX_ZRPF_RISC0_V1_LEAF_ADAPTER_ELF, ZENODEX_ZRPF_RISC0_V1_LEAF_ADAPTER_ID,
 };
 use zenodex_zrpf_risc0_semantic_shared::{
-    bind_semantic_guest_input_after_level_one_verification_v1,
-    compose_semantic_epoch_after_level_one_verification_v1, SemanticEpochCompositionPolicyV1,
-    SemanticEpochCompositionProjectionV1, SemanticGuestInputV1, SemanticGuestLeafDisclosureV1,
+    bind_semantic_guest_input_after_level_one_verification_v2,
+    compose_semantic_epoch_after_level_one_verification_v2, SemanticEpochCompositionPolicyV2,
+    SemanticEpochCompositionProjectionV2, SemanticGuestInputV2, SemanticGuestLeafDisclosureV1,
     SemanticGuestLevelOneDisclosureV1,
 };
 use zenodex_zrpf_risc0_shared::program_id_from_risc0_words_v3;
 use zenodex_zrpf_risc0_verifier::{
-    VerifiedNodeReceiptErrorV3, VerifiedNodeReceiptV3, VerifiedSemanticEpochReceiptErrorV1,
-    VerifiedSemanticEpochReceiptV1,
+    VerifiedNodeReceiptErrorV3, VerifiedNodeReceiptV3, VerifiedSemanticEpochReceiptErrorV2,
+    VerifiedSemanticEpochReceiptV2,
 };
 
 const MAX_RECEIPT_BYTES: usize = 16 * 1_024 * 1_024;
@@ -75,9 +75,9 @@ struct VerifiedLeaf {
 
 struct VerifiedBaseline {
     groups: Vec<VerifiedGroup>,
-    projection: SemanticEpochCompositionProjectionV1,
+    projection: SemanticEpochCompositionProjectionV2,
     receipt_bytes: Vec<u8>,
-    verified: VerifiedSemanticEpochReceiptV1,
+    verified: VerifiedSemanticEpochReceiptV2,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -118,16 +118,20 @@ struct BaselineReport<'a> {
     nonclaims: [&'a str; 4],
     ok: bool,
     operation_count: u64,
-    program_manifest_root: String,
+    dependency_manifest_root: String,
     proof_tree_root: String,
+    proposal_schema_version: u16,
     proposal_hash: String,
     receipt_profile_id: &'a str,
     schema: &'a str,
     semantic_epoch_image_id: String,
     semantic_epoch_root: String,
+    semantic_statement_version: u16,
     semantic_receipt: ReceiptIdentity,
     status: &'a str,
     structural_level_two_journal_hash: String,
+    verified_program_id: String,
+    verified_program_manifest_root: String,
 }
 
 #[derive(Serialize)]
@@ -379,13 +383,13 @@ fn verify_baseline(options: &Options) -> Result<VerifiedBaseline, String> {
     // Succinct receipts cross the sealed verifier boundary.
     let groups = load_verified_groups(&options.groups)?;
     let raw_input = semantic_guest_input(&groups)?;
-    let semantic_input = bind_semantic_guest_input_after_level_one_verification_v1(&raw_input)
+    let semantic_input = bind_semantic_guest_input_after_level_one_verification_v2(&raw_input)
         .map_err(|error| format!("host semantic disclosure binding rejected: {error}"))?;
     let projection =
-        compose_semantic_epoch_after_level_one_verification_v1(&semantic_input, semantic_policy()?)
+        compose_semantic_epoch_after_level_one_verification_v2(&semantic_input, semantic_policy()?)
             .map_err(|error| format!("host semantic composition rejected: {error}"))?;
     let receipt_bytes = read_bounded_regular_file(&options.semantic_receipt_path)?;
-    let verified = VerifiedSemanticEpochReceiptV1::verify_exact_succinct_bytes(
+    let verified = VerifiedSemanticEpochReceiptV2::verify_exact_succinct_bytes(
         &receipt_bytes,
         ZENODEX_ZRPF_RISC0_SEMANTIC_EPOCH_ID,
         &governed_dependency_programs()?,
@@ -442,7 +446,7 @@ fn load_verified_node(
         .map_err(|error| format!("sealed node verification: {error}"))
 }
 
-fn semantic_guest_input(groups: &[VerifiedGroup]) -> Result<SemanticGuestInputV1, String> {
+fn semantic_guest_input(groups: &[VerifiedGroup]) -> Result<SemanticGuestInputV2, String> {
     let disclosures = groups
         .iter()
         .enumerate()
@@ -468,12 +472,12 @@ fn semantic_guest_input(groups: &[VerifiedGroup]) -> Result<SemanticGuestInputV1
             .map_err(|error| format!("semantic level-one disclosure {group_index}: {error}"))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    SemanticGuestInputV1::new(ZENODEX_ZRPF_RISC0_SEMANTIC_EPOCH_ID, disclosures)
+    SemanticGuestInputV2::new(disclosures)
         .map_err(|error| format!("semantic guest input rejected: {error}"))
 }
 
-fn semantic_policy() -> Result<SemanticEpochCompositionPolicyV1, String> {
-    SemanticEpochCompositionPolicyV1::new(
+fn semantic_policy() -> Result<SemanticEpochCompositionPolicyV2, String> {
+    SemanticEpochCompositionPolicyV2::new(
         ZENODEX_ZRPF_RISC0_V1_LEAF_ADAPTER_ID,
         ZENODEX_ZRPF_RISC0_STRUCTURAL_AGGREGATE_L1_ID,
         ZENODEX_ZRPF_RISC0_STRUCTURAL_AGGREGATE_L2_ID,
@@ -530,21 +534,27 @@ fn baseline_report_bytes(baseline: &VerifiedBaseline) -> Result<Vec<u8>, String>
         nonclaims: semantic_nonclaims(),
         ok: true,
         operation_count: proposal.operation_count(),
-        program_manifest_root: commitment_hex(proposal.program_manifest_root()),
+        dependency_manifest_root: commitment_hex(proposal.dependency_manifest_root()),
         proof_tree_root: commitment_hex(proposal.proof_tree_root()),
+        proposal_schema_version: proposal.proposal_schema_version(),
         proposal_hash: commitment_hex(proposal_hash),
         receipt_profile_id: baseline.verified.receipt_profile().profile_id(),
-        schema: "zenodex/zrpf_semantic_epoch_persisted_verification/v1",
+        schema: "zenodex/zrpf_semantic_epoch_persisted_verification/v2",
         semantic_epoch_image_id: image_id_string(ZENODEX_ZRPF_RISC0_SEMANTIC_EPOCH_ID),
         semantic_epoch_root: commitment_hex(proposal.semantic_epoch_root()),
+        semantic_statement_version: proposal.semantic_statement_version(),
         semantic_receipt: receipt_identity(baseline.verified.receipt(), &baseline.receipt_bytes)?,
-        status: "persisted_bounded_v1_semantic_epoch_exact_receipt_verified",
+        status: "persisted_bounded_v2_semantic_epoch_exact_receipt_verified",
         structural_level_two_journal_hash: commitment_hex(
             baseline
                 .projection
                 .structural_level_two_journal()
                 .canonical_hash()
                 .map_err(|error| format!("structural level-two journal hash: {error}"))?,
+        ),
+        verified_program_id: hex::encode(baseline.verified.verified_program_id().as_bytes()),
+        verified_program_manifest_root: commitment_hex(
+            baseline.verified.verified_program_manifest_root(),
         ),
     };
     encode_bounded_report(&report)
@@ -558,7 +568,7 @@ fn mutation_reject_report_bytes(
     let candidate = decode_canonical_receipt(candidate_bytes)?;
     let mutation = require_exact_semantic_seal_mutation(baseline.verified.receipt(), &candidate)?;
     let dependencies = governed_dependency_programs()?;
-    let reject = VerifiedSemanticEpochReceiptV1::verify_exact_succinct_bytes(
+    let reject = VerifiedSemanticEpochReceiptV2::verify_exact_succinct_bytes(
         candidate_bytes,
         ZENODEX_ZRPF_RISC0_SEMANTIC_EPOCH_ID,
         &dependencies,
@@ -595,15 +605,15 @@ fn mutation_reject_report_bytes(
         nonclaims: mutation_nonclaims(),
         ok: true,
         reject: TypedRejectReport {
-            boundary: "VerifiedSemanticEpochReceiptV1::verify_exact_succinct_bytes",
+            boundary: "VerifiedSemanticEpochReceiptV2::verify_exact_succinct_bytes",
             code: reject.code(),
-            outer_code: VerifiedSemanticEpochReceiptErrorV1::ReceiptArtifact(reject).code(),
+            outer_code: VerifiedSemanticEpochReceiptErrorV2::ReceiptArtifact(reject).code(),
             variant: "ReceiptArtifact(ReceiptVerificationFailed)",
         },
-        schema: "zenodex/zrpf_semantic_epoch_succinct_seal_mutation_reject/v1",
+        schema: "zenodex/zrpf_semantic_epoch_succinct_seal_mutation_reject/v2",
         semantic_epoch_root: commitment_hex(baseline.verified.proposal().semantic_epoch_root()),
         source_receipt_sha256: sha256_hex(&baseline.receipt_bytes),
-        status: "persisted_semantic_epoch_succinct_seal_mutation_rejected",
+        status: "persisted_semantic_epoch_v2_succinct_seal_mutation_rejected",
     };
     encode_bounded_report(&report)
 }
@@ -661,10 +671,10 @@ fn exact_seal_mutation_candidate_bytes(source: &Receipt) -> Result<Vec<u8>, Stri
 }
 
 fn require_exact_receipt_verification_reject(
-    result: Result<VerifiedSemanticEpochReceiptV1, VerifiedSemanticEpochReceiptErrorV1>,
+    result: Result<VerifiedSemanticEpochReceiptV2, VerifiedSemanticEpochReceiptErrorV2>,
 ) -> Result<VerifiedNodeReceiptErrorV3, String> {
     match result {
-        Err(VerifiedSemanticEpochReceiptErrorV1::ReceiptArtifact(
+        Err(VerifiedSemanticEpochReceiptErrorV2::ReceiptArtifact(
             VerifiedNodeReceiptErrorV3::ReceiptVerificationFailed,
         )) => Ok(VerifiedNodeReceiptErrorV3::ReceiptVerificationFailed),
         Ok(_) => Err("mutated semantic Succinct seal was accepted".to_owned()),
@@ -897,7 +907,7 @@ mod tests {
         MAX_REPORT_BYTES,
     };
     use zenodex_zrpf_risc0_verifier::{
-        VerifiedNodeReceiptErrorV3, VerifiedSemanticEpochReceiptErrorV1,
+        VerifiedNodeReceiptErrorV3, VerifiedSemanticEpochReceiptErrorV2,
     };
 
     fn opening(byte: u8) -> String {
@@ -1087,20 +1097,20 @@ mod tests {
     #[test]
     fn only_nested_receipt_verification_failed_is_the_expected_reject() -> Result<(), String> {
         let exact = require_exact_receipt_verification_reject(Err(
-            VerifiedSemanticEpochReceiptErrorV1::ReceiptArtifact(
+            VerifiedSemanticEpochReceiptErrorV2::ReceiptArtifact(
                 VerifiedNodeReceiptErrorV3::ReceiptVerificationFailed,
             ),
         ))?;
         assert_eq!(exact, VerifiedNodeReceiptErrorV3::ReceiptVerificationFailed);
 
         assert!(require_exact_receipt_verification_reject(Err(
-            VerifiedSemanticEpochReceiptErrorV1::ReceiptArtifact(
+            VerifiedSemanticEpochReceiptErrorV2::ReceiptArtifact(
                 VerifiedNodeReceiptErrorV3::ReceiptProfileMismatch("hash function"),
             ),
         ))
         .is_err());
         assert!(require_exact_receipt_verification_reject(Err(
-            VerifiedSemanticEpochReceiptErrorV1::ProposalBytesMismatch,
+            VerifiedSemanticEpochReceiptErrorV2::ProposalBytesMismatch,
         ))
         .is_err());
         Ok(())

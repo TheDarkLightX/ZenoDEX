@@ -3,6 +3,11 @@ use core::fmt;
 
 use zenodex_zrpf_protocol_v3::{MAX_IMMEDIATE_CHILDREN_V3, MAX_NODE_JOURNAL_BYTES_V3};
 
+use crate::{
+    SemanticGuestDisclosureErrorV1, SemanticGuestLeafDisclosureV1,
+    SemanticGuestLevelOneDisclosureV1,
+};
+
 pub const SEMANTIC_GUEST_INPUT_SCHEMA_VERSION_V1: u16 = 1;
 
 const INPUT_HEADER_BYTES_V1: usize = 2 + (8 * 4) + 1;
@@ -16,63 +21,6 @@ pub const MAX_SEMANTIC_GUEST_INPUT_BYTES_V1: usize = INPUT_HEADER_BYTES_V1
             + MAX_IMMEDIATE_CHILDREN_V3 * (LEAF_FIXED_BYTES_V1 + MAX_NODE_JOURNAL_BYTES_V3));
 
 const _: () = assert!(MAX_SEMANTIC_GUEST_INPUT_BYTES_V1 == 297_147);
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SemanticGuestLeafDisclosureV1 {
-    journal_bytes: Vec<u8>,
-    semantic_opening: [u8; 32],
-}
-
-impl SemanticGuestLeafDisclosureV1 {
-    pub fn new(
-        journal_bytes: Vec<u8>,
-        semantic_opening: [u8; 32],
-    ) -> Result<Self, SemanticGuestInputErrorV1> {
-        validate_journal_length(&journal_bytes)
-            .map_err(|length| SemanticGuestInputErrorV1::InvalidLeafJournalLength { length })?;
-        Ok(Self {
-            journal_bytes,
-            semantic_opening,
-        })
-    }
-
-    pub fn journal_bytes(&self) -> &[u8] {
-        &self.journal_bytes
-    }
-
-    pub const fn semantic_opening(&self) -> [u8; 32] {
-        self.semantic_opening
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SemanticGuestLevelOneDisclosureV1 {
-    journal_bytes: Vec<u8>,
-    leaves: Vec<SemanticGuestLeafDisclosureV1>,
-}
-
-impl SemanticGuestLevelOneDisclosureV1 {
-    pub fn new(
-        journal_bytes: Vec<u8>,
-        leaves: Vec<SemanticGuestLeafDisclosureV1>,
-    ) -> Result<Self, SemanticGuestInputErrorV1> {
-        validate_journal_length(&journal_bytes)
-            .map_err(|length| SemanticGuestInputErrorV1::InvalidLevelOneJournalLength { length })?;
-        validate_count(leaves.len()).map_err(SemanticGuestInputErrorV1::InvalidLeafCount)?;
-        Ok(Self {
-            journal_bytes,
-            leaves,
-        })
-    }
-
-    pub fn journal_bytes(&self) -> &[u8] {
-        &self.journal_bytes
-    }
-
-    pub fn leaves(&self) -> &[SemanticGuestLeafDisclosureV1] {
-        &self.leaves
-    }
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SemanticGuestInputV1 {
@@ -280,12 +228,26 @@ fn read_level_one_disclosure(
     for _ in 0..leaf_count {
         let leaf_journal = read_journal(bytes, cursor, JournalKindV1::Leaf)?;
         let semantic_opening = read_array::<32>(bytes, cursor)?;
-        leaves.push(SemanticGuestLeafDisclosureV1::new(
-            leaf_journal,
-            semantic_opening,
-        )?);
+        leaves.push(
+            SemanticGuestLeafDisclosureV1::new(leaf_journal, semantic_opening)
+                .map_err(map_disclosure_error)?,
+        );
     }
-    SemanticGuestLevelOneDisclosureV1::new(journal, leaves)
+    SemanticGuestLevelOneDisclosureV1::new(journal, leaves).map_err(map_disclosure_error)
+}
+
+fn map_disclosure_error(error: SemanticGuestDisclosureErrorV1) -> SemanticGuestInputErrorV1 {
+    match error {
+        SemanticGuestDisclosureErrorV1::InvalidLevelOneJournalLength { length } => {
+            SemanticGuestInputErrorV1::InvalidLevelOneJournalLength { length }
+        }
+        SemanticGuestDisclosureErrorV1::InvalidLeafJournalLength { length } => {
+            SemanticGuestInputErrorV1::InvalidLeafJournalLength { length }
+        }
+        SemanticGuestDisclosureErrorV1::InvalidLeafCount(count) => {
+            SemanticGuestInputErrorV1::InvalidLeafCount(count)
+        }
+    }
 }
 
 #[derive(Clone, Copy)]

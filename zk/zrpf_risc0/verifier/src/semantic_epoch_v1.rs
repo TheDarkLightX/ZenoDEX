@@ -1,3 +1,10 @@
+//! Historical V1 retained-receipt verifier.
+//!
+//! V1 accepted a host-declared semantic self-image inside the guest statement.
+//! Its exact outer binding remains useful for immutable historical replay, but
+//! this module grants no current admission, release, settlement, or production
+//! authority. New consumers must use `VerifiedSemanticEpochReceiptV2`.
+
 use core::fmt;
 
 use risc0_zkvm::Receipt;
@@ -88,7 +95,7 @@ impl fmt::Display for VerifiedSemanticEpochReceiptErrorV1 {
 ///
 /// ```compile_fail
 /// use zenodex_zrpf_protocol_v3::ProposedSemanticEpochV1;
-/// use zenodex_zrpf_risc0_verifier::VerifiedSemanticEpochReceiptV1;
+/// use zenodex_zrpf_risc0_verifier::historical_semantic_epoch_v1::VerifiedSemanticEpochReceiptV1;
 /// let proposal: ProposedSemanticEpochV1 = unimplemented!();
 /// let _: VerifiedSemanticEpochReceiptV1 = proposal.into();
 /// ```
