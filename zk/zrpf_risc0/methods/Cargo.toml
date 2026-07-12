@@ -20,4 +20,5 @@ methods = [
   "structural_aggregate_l2",
   "semantic_epoch",
   "spot_value_leaf_v4",
+  "value_aggregate_l1",
 ]

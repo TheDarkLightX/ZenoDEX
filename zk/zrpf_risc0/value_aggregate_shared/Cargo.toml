@@ -25,6 +25,13 @@ path = "tests/level_two_v5.rs"
 name = "guest_input_v5"
 path = "tests/guest_input_v5.rs"
 
+[[test]]
+name = "level_one_guest_v5"
+path = "tests/level_one_guest_v5.rs"
+
 [dependencies]
 zenodex-zrpf-protocol-v3 = { path = "../../zrpf_protocol/protocol", default-features = false }
 zenodex-zrpf-risc0-shared = { path = "../shared", default-features = false }
+
+[dev-dependencies]
+zenodex-zrpf-risc0-value-node-shared = { path = "../value_node_shared", default-features = false }

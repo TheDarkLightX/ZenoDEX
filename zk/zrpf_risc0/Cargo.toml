@@ -13,6 +13,7 @@ members = [
   "methods/structural_aggregate_l2",
   "methods/semantic_epoch",
   "methods/spot_value_leaf_v4",
+  "methods/value_aggregate_l1",
   "harness",
 ]
 resolver = "2"
