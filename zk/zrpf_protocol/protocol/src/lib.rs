@@ -3,8 +3,10 @@
 extern crate alloc;
 
 mod semantic_epoch_v1;
+mod value_node_v4;
 
 pub use semantic_epoch_v1::*;
+pub use value_node_v4::*;
 
 use alloc::vec::Vec;
 use core::fmt;
