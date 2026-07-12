@@ -34,6 +34,7 @@ use zenodex_zrpf_risc0_value_node_shared::{
 const POLICY_HASH: [u8; 32] = [80; 32];
 const SELF_IMAGE_ID: [u32; 8] = [91, 92, 93, 94, 95, 96, 97, 98];
 const LANE_ID: &str = "spot-value-lane-0";
+const GUEST_SOURCE: &str = include_str!("../../methods/spot_value_leaf_v4/src/main.rs");
 
 struct LeafFixture {
     structural: NodeJournalV3,
@@ -212,6 +213,61 @@ fn exact_codecs_round_trip_and_reject_every_truncated_prefix() {
     for end in 0..raw_bytes.len() {
         assert!(decode_exact_raw_spot_value_leaf_input_v4(&raw_bytes[..end]).is_err());
     }
+}
+
+#[test]
+fn outer_frame_keeps_journal_and_witness_bytes_opaque() {
+    let raw = RawSpotValueLeafInputV4::new(SELF_IMAGE_ID, vec![0xaa], vec![0xbb]).unwrap();
+    let bytes = encode_raw_spot_value_leaf_input_v4(&raw).unwrap();
+
+    assert_eq!(
+        decode_exact_raw_spot_value_leaf_input_v4(&bytes).unwrap(),
+        raw
+    );
+    assert!(decode_exact_spot_value_leaf_witness_v4(raw.witness_bytes()).is_err());
+}
+
+#[test]
+fn guest_source_ratchets_verify_before_semantic_proposal() {
+    let authenticate_start = GUEST_SOURCE
+        .find("fn authenticate(raw: RawSpotValueLeafInputV4) -> Self")
+        .unwrap();
+    let verify = GUEST_SOURCE[authenticate_start..]
+        .find("env::verify(")
+        .map(|offset| authenticate_start + offset)
+        .unwrap();
+    let verified_constructor = GUEST_SOURCE[verify..]
+        .find("Self { raw }")
+        .map(|offset| verify + offset)
+        .unwrap();
+    let proposal = GUEST_SOURCE
+        .find("propose_spot_value_leaf_v4(&self.raw)")
+        .unwrap();
+    let main_authenticate = GUEST_SOURCE
+        .find("ReceiptVerifiedSpotValueLeafInputV4::authenticate(raw)")
+        .unwrap();
+    let main_proposal = GUEST_SOURCE.find("verified.propose()").unwrap();
+
+    assert!(authenticate_start < verify);
+    assert!(verify < verified_constructor);
+    assert!(verified_constructor < proposal);
+    assert!(main_authenticate < main_proposal);
+    assert_eq!(GUEST_SOURCE.matches("env::verify(").count(), 1);
+    assert_eq!(
+        GUEST_SOURCE.matches("propose_spot_value_leaf_v4").count(),
+        2
+    );
+    assert_eq!(
+        GUEST_SOURCE
+            .matches("propose_spot_value_leaf_v4(&self.raw)")
+            .count(),
+        1
+    );
+    assert!(GUEST_SOURCE[authenticate_start..verified_constructor]
+        .contains("PINNED_V1_ADAPTER_IMAGE_ID_A"));
+    assert!(GUEST_SOURCE[authenticate_start..verified_constructor]
+        .contains("raw.adapter_journal_bytes()"));
+    assert!(!GUEST_SOURCE.contains("decode_exact_spot_value_leaf_witness_v4"));
 }
 
 #[test]
