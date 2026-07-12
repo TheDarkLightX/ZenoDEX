@@ -205,7 +205,7 @@ def test_manifest_rejects_profile_payload_and_artifact_set_drift() -> None:
     assert set_error.value.code == "runtime_manifest_artifact_set_id_mismatch"
 
 
-def test_manifest_rejects_ungoverned_elf_checker_provenance() -> None:
+def test_manifest_rejects_ungoverned_elf_checker_schema_and_pins_separate_sources() -> None:
     schema = build_manifest_document()
     schema["provenance"]["guest_elf_checker_schema"] = "evil/unreviewed/v999"
     with pytest.raises(runtime.RuntimeManifestError) as schema_error:
@@ -214,9 +214,10 @@ def test_manifest_rejects_ungoverned_elf_checker_provenance() -> None:
 
     source = build_manifest_document()
     source["provenance"]["guest_elf_checker_source_commit"] = "99" * 20
-    with pytest.raises(runtime.RuntimeManifestError) as source_error:
-        runtime.parse_runtime_manifest_bytes(manifest_bytes(source))
-    assert source_error.value.code == "runtime_manifest_guest_elf_source_commit_mismatch"
+    parsed = runtime.parse_runtime_manifest_bytes(manifest_bytes(source))
+
+    assert parsed.provenance.guest_elf_checker_source_commit == "99" * 20
+    assert parsed.provenance.guest_payload_source_commit == "34" * 20
 
 
 def test_manifest_rejects_unsafe_and_ambiguous_payload_inventory() -> None:

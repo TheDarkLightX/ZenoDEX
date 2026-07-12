@@ -9,23 +9,28 @@
   },
   "build_recipe": {
     "path": "tools/build_zrpf_v3_firecracker_guest_images.sh",
-    "sha256": "b3363c124fe40cd22e36e7943cb3cfe92e78c8739d935155d8e55b0eb59c0bbd"
+    "sha256": "4240d4a835fe1db188d1475644a39fc0c12c042ae514066d1424016d747afd2f"
   },
   "guest_binary": {
     "artifact_privacy": {
-      "generic_toolchain_builder_paths_present": true,
-      "private_project_names_present": false,
-      "user_or_workspace_paths_present": false
+      "complete_guest_binary_path_privacy_verified": false,
+      "confidential_name_policy_evaluated": false,
+      "public_privacy_rule_scan_applied_to_guest_binary": false
     },
     "direct_non_pid1_exit_code": 125,
     "dt_needed_present": false,
-    "guest_source_commit": "b37b741520e95f50236f6a9f0825c23ae3487374",
+    "guest_source_commit": "54f374bf9f61d3f1846f3d492941f3499a27de93",
     "image_format": "static_pie_glibc_no_pt_interp_no_dt_needed",
     "pt_interp_present": false,
-    "sha256": "08f99e4d6262f0028ec87a1b4fb7ee86be466244f33fce4713948dd695cec7dc",
-    "size_bytes": 3366800
+    "sha256": "6f0efc78966813444cc157f2e9c856e71da91c19538318cdb2e8be520214a150",
+    "size_bytes": 3768056
   },
   "image_builder": {
+    "guest_elf_checker_schema": "zenodex/zrpf_firecracker_guest_elf_native_check/v2",
+    "guest_elf_checker_sha256": "015ad4f9406a1683ee23fe4a1ad991c8f30f418366fee1881722512a1711092d",
+    "guest_elf_checker_source_commit": "25032924eb4fca7f156a9ec4eedd39afeade9623",
+    "guest_elf_reference_schema": "zenodex/zrpf_firecracker_guest_elf_check/v2",
+    "guest_elf_reference_sha256": "7abd685b3cb5d88a9678c1cdd303ec95d8844607b8c39b1ba12e06a4c350cfeb",
     "mksquashfs_binary_sha256": "47d5c1af3da11864e64c9dc6bb4e568719dcc315e6a744e79381ce3374fb7393",
     "mksquashfs_version": "4.6.1",
     "squashfs_block_size_bytes": 131072,
@@ -146,14 +151,14 @@
           "kind": "file",
           "mode": "0555",
           "path": "/sbin/zrpf-replay-init",
-          "sha256": "08f99e4d6262f0028ec87a1b4fb7ee86be466244f33fce4713948dd695cec7dc",
-          "size_bytes": 3366800
+          "sha256": "6f0efc78966813444cc157f2e9c856e71da91c19538318cdb2e8be520214a150",
+          "size_bytes": 3768056
         }
       ]
     },
-    "filesystem_inventory_root": "3c67d052f4a61ef3a4ac1559ed91dce7b0aa408505319f4ce6d215e5f0fc7678",
-    "sha256": "a96822b5273e01e555b99db22c014b981d51a0c8940d9823cea4f54e9d84f59b",
-    "size_bytes": 1024000
+    "filesystem_inventory_root": "d9a790169f5607b612dcc4c654e4a712146105a52fa63a94afcf343bb9a6d37e",
+    "sha256": "981d76279eeba3cfb9c23e7a142a78393743422afb0659e0b65d247bcc971931",
+    "size_bytes": 1114112
   },
   "schema": "zenodex/zrpf_firecracker_runtime_image_build_record/v1",
   "status": "same_host_byte_identical_candidate_images_non_authoritative"

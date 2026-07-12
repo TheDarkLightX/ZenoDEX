@@ -29,6 +29,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     }
     tag_check = steps["Verify durable source-anchor tags"]["run"]
     assert "zrpf-v3-source-anchor-20260711" in tag_check
+    assert "zrpf-v3-source-anchor-v7-20260712" in tag_check
     assert "zrpf-v1-retained-source-anchor-20260710" in tag_check
     assert "--network none" in replay_command
     assert "--read-only" in replay_command
@@ -46,9 +47,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert 'checkout --detach "${source_head}"' in replay_command
     assert "--live" in replay_command
     broad_cargo_mount = '"${HOME}/.cargo:/home/' + 'zrpf/.cargo:ro"'
-    exact_registry_mount = (
-        '"${HOME}/.cargo/registry:/home/' + 'zrpf/.cargo/registry:ro"'
-    )
+    exact_registry_mount = '"${HOME}/.cargo/registry:/home/' + 'zrpf/.cargo/registry:ro"'
     assert broad_cargo_mount not in replay_command
     assert '"${HOME}/.risc0:/risc0:ro"' not in replay_command
     assert exact_registry_mount in replay_command
@@ -59,12 +58,10 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tests/test_check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
     assert "tools/check_recursive_stark_cbc_spec.py" in python_assurance
     assert "tests/test_check_recursive_stark_cbc_spec.py" in python_assurance
-    assert "tools/check_zrpf_v3_firecracker_direct_replay_evidence.py" in (
-        python_assurance
-    )
-    assert "tests/test_check_zrpf_v3_firecracker_direct_replay_evidence.py" in (
-        python_assurance
-    )
+    assert "zrpf-v3-firecracker-elf-source-v2-20260712" in raw
+    assert "25032924eb4fca7f156a9ec4eedd39afeade9623" in raw
+    assert "tools/check_zrpf_v3_firecracker_direct_replay_evidence.py" in (python_assurance)
+    assert "tests/test_check_zrpf_v3_firecracker_direct_replay_evidence.py" in (python_assurance)
     assert "tests/test_check_zrpf_v3_firecracker_guest_elf.py" in python_assurance
     assert "tools/check_zrpf_v3_firecracker_guest_elf.py" in python_assurance
     assert "tools/check_zrpf_v3_firecracker_replay_profile.py" in python_assurance
@@ -73,31 +70,23 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tools/check_zrpf_v3_firecracker_launch_preflight.py" in python_assurance
     assert "tools/zrpf_v3_firecracker_host_probe.py" in python_assurance
     assert "tests/test_check_zrpf_v3_firecracker_replay_profile.py" in python_assurance
-    assert "tests/test_zrpf_v3_firecracker_profile_boundary_atlas.py" in (
-        python_assurance
-    )
+    assert "tests/test_zrpf_v3_firecracker_profile_boundary_atlas.py" in (python_assurance)
     assert "tests/test_zrpf_v3_firecracker_host_probe.py" in python_assurance
     assert "tests/test_check_zrpf_v3_firecracker_protocol_binding.py" in python_assurance
     assert "tests/test_check_zrpf_v3_firecracker_runtime_artifacts.py" in python_assurance
     assert "tests/test_check_zrpf_v3_firecracker_launch_preflight.py" in python_assurance
     assert "tests/test_zrpf_v3_firecracker_launch_boundary_atlas.py" in python_assurance
-    assert "python3 -I tools/check_zrpf_v3_firecracker_replay_profile.py" in (
-        python_assurance
-    )
-    assert "python3 -I tools/check_zrpf_v3_firecracker_protocol_binding.py" in (
-        python_assurance
-    )
+    assert "python3 -I tools/check_zrpf_v3_firecracker_replay_profile.py" in (python_assurance)
+    assert "python3 -I tools/check_zrpf_v3_firecracker_protocol_binding.py" in (python_assurance)
     assert "python3 -I tools/check_zrpf_v3_firecracker_direct_replay_evidence.py" in (
         python_assurance
     )
     assert "check_zrpf_v3_firecracker_runtime_artifacts.py" in python_assurance
     assert "--evidence-date" not in python_assurance
-    assert 'current_release_date="$(date -u +%F)"' in python_assurance
-    assert '--current-release-date "${current_release_date}"' in python_assurance
-    assert "--require-current-runtime-eligible" in python_assurance
-    assert "bash -n tools/build_zrpf_v3_firecracker_guest_images.sh" in (
-        python_assurance
-    )
+    assert "date -u" not in python_assurance
+    assert "--current-release-date" not in python_assurance
+    assert "--require-current-runtime-eligible" not in python_assurance
+    assert "bash -n tools/build_zrpf_v3_firecracker_guest_images.sh" in (python_assurance)
     assert "check_zrpf_v3_firecracker_replay_profile.py --probe-host" not in raw
     assert "--manifest-path zk/recursive_stark_v2_risc0/Cargo.toml" in rust_assurance
     assert rust_assurance.count("-p zenodex-zrpf-risc0-harness") == 2
@@ -119,8 +108,7 @@ def test_zrpf_assurance_container_is_digest_pinned_and_nonroot() -> None:
     raw = DOCKERFILE.read_text(encoding="utf-8")
 
     assert raw.startswith(
-        "FROM ubuntu@sha256:"
-        "4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90\n"
+        "FROM ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90\n"
     )
     assert "USER 10001:10001" in raw
     assert "COPY " not in raw

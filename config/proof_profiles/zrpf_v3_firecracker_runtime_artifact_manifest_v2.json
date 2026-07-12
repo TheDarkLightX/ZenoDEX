@@ -1,0 +1,108 @@
+{
+  "architecture": "x86_64",
+  "artifact_set_id": "52b77249230ab31cdd6dc1d00c5f0b5fd5172cc396a919532ae76ccc82136532",
+  "authority": {
+    "artifact_format_verified": false,
+    "guest_boot_verified": false,
+    "microvm_replay_verified": false,
+    "production_authority": false,
+    "release_authority": false,
+    "root_launcher_ready": false,
+    "runtime_artifacts_locally_verified": false,
+    "sandbox_escape_resistance": false,
+    "settlement_authority": false,
+    "witness_privacy": false,
+    "zero_knowledge_privacy": false
+  },
+  "boot_contract": {
+    "init_guest_path": "/sbin/zrpf-replay-init",
+    "kernel_cmdline": "reboot=k panic=0 nomodule 8250.nr_uarts=0 i8042.noaux i8042.nomux i8042.dumbkbd swiotlb=noforce init=/sbin/zrpf-replay-init rootfstype=squashfs quiet loglevel=0 oops=panic panic_on_oops=1",
+    "panic_policy": "panic=0_host_watchdog_reboot=k",
+    "root_device": "/dev/vda",
+    "rootfs_read_only": true,
+    "serial_policy": "8250_disabled"
+  },
+  "firecracker_profile_canonical_sha256": "e7ab29b1327cd89dd7180cd45aed9663fdb9234d738f7acb51412bb576c8c88e",
+  "guest_kernel": {
+    "artifact_name": "zrpf-vmlinux-6.1.174",
+    "base_config_sha256": "adbc70ab5e89213ba00594b12d25e09bdf8bb1ed3c252d7449326bb14c22963b",
+    "build_container_image_id": "sha256:894899337e3e5c3cb32bb26673c036676da9417c873f68671bdd14785327349b",
+    "build_recipe_sha256": "c2d007adbde38855a24fbd80d574097d8892086ec5924051d977b0c08bc5c373",
+    "byte_identical_local_rebuild": true,
+    "ci_config_sha256": "c379bcb1dedc9378f2e948b5259c6d467df0540cf2ae832dd9d2d1ff6b240303",
+    "hardening_fragment_sha256": "7b09b4d0e6cc3cfbbec6dd72d0fe18314f081644a55075ee0bb5b1c939b69da6",
+    "image_format": "linux_uncompressed_vmlinux_x86_64",
+    "kernel_config_sha256": "717469b88aa0e51492e4f3adad4e2dd65aa81e66a8a638c5b333de73a3b14fd5",
+    "kernel_release": "6.1.174",
+    "sha256": "c14602c653c76072ad17feef737edbf37e4ed3ae991148c1471a5270c9c4a94a",
+    "size_bytes": 32217024,
+    "source_commit": "3cd94355d352d212ddf85bfcd02b4cc0cbdf01c1",
+    "source_repository": "https://github.com/amazonlinux/linux",
+    "source_tag": "microvm-kernel-6.1.174-37.345.amzn2023",
+    "source_tag_object": "2997a6ddd99bfc73323763f2f8556b9312d554e1",
+    "source_tree": "0dbc304b81f73446219f256481403b8c97fbc0c2",
+    "support_minimum_end_date": "2026-09-02"
+  },
+  "guest_payload": {
+    "entrypoint_guest_path": "/sbin/zrpf-replay-init",
+    "files": [
+      {
+        "guest_path": "/sbin/zrpf-replay-init",
+        "mode": "0555",
+        "role": "pid1_replay_verifier",
+        "sha256": "6f0efc78966813444cc157f2e9c856e71da91c19538318cdb2e8be520214a150",
+        "size_bytes": 3768056
+      }
+    ],
+    "input_protocol_id": "zenodex/zrpf_firecracker_input_squashfs/v1",
+    "output_protocol_id": "zenodex/zrpf_firecracker_output/v1",
+    "output_size_bytes": 16777216,
+    "payload_cap_bytes": 65536,
+    "request_protocol_id": "zenodex/zrpf_firecracker_request/v1",
+    "runtime_linkage": "static_pie_glibc_no_pt_interp_no_dt_needed"
+  },
+  "input_image": {
+    "artifact_name": "zrpf-replay-input.squashfs",
+    "compression": "zstd",
+    "filesystem_block_size_bytes": 131072,
+    "filesystem_inventory_root": "fde6d2cfa764450632fc8b838f5ab4b318fa96239a22c11a5dd9855e4579ca68",
+    "image_format": "squashfs_v4_zstd",
+    "input_bundle_root": "d5ecd5494318e21fa3da227409fdb5285c85ff8ae10815df5bcf0eb22fa1027f",
+    "mkfs_epoch": 1780396050,
+    "receipt_count": 8,
+    "sha256": "504c3a4c38e5109567d9d21f07bbc054324f3955fb4d5b07216f3c90e89e3af8",
+    "size_bytes": 2068480
+  },
+  "non_claims": [
+    "no artifact source authenticity or reproducible-build claim",
+    "no root-owned launcher, sandbox, microVM replay, or escape-resistance claim",
+    "no release, settlement, ledger-admission, production, privacy, or zero-knowledge claim"
+  ],
+  "provenance": {
+    "guest_elf_checker_schema": "zenodex/zrpf_firecracker_guest_elf_native_check/v2",
+    "guest_elf_checker_sha256": "015ad4f9406a1683ee23fe4a1ad991c8f30f418366fee1881722512a1711092d",
+    "guest_elf_checker_source_commit": "25032924eb4fca7f156a9ec4eedd39afeade9623",
+    "guest_elf_reference_schema": "zenodex/zrpf_firecracker_guest_elf_check/v2",
+    "guest_elf_reference_sha256": "7abd685b3cb5d88a9678c1cdd303ec95d8844607b8c39b1ba12e06a4c350cfeb",
+    "guest_payload_source_commit": "54f374bf9f61d3f1846f3d492941f3499a27de93",
+    "input_build_recipe_sha256": "4240d4a835fe1db188d1475644a39fc0c12c042ae514066d1424016d747afd2f",
+    "kernel_source_repository": "https://github.com/amazonlinux/linux",
+    "mksquashfs_binary_sha256": "47d5c1af3da11864e64c9dc6bb4e568719dcc315e6a744e79381ce3374fb7393",
+    "mksquashfs_version": "mksquashfs_4.6.1",
+    "rootfs_build_recipe_sha256": "4240d4a835fe1db188d1475644a39fc0c12c042ae514066d1424016d747afd2f",
+    "status": "identity_pinned_source_build_not_reproduced"
+  },
+  "rootfs": {
+    "artifact_name": "zrpf-replay-rootfs.squashfs",
+    "compression": "zstd",
+    "filesystem_block_size_bytes": 131072,
+    "filesystem_inventory_root": "d9a790169f5607b612dcc4c654e4a712146105a52fa63a94afcf343bb9a6d37e",
+    "guest_payload_manifest_sha256": "af0ffa197b75ee2db91688f4afd536fa7412dc3fbe09fc5c44c84427d820f09f",
+    "image_format": "squashfs_v4_zstd",
+    "mkfs_epoch": 1780396050,
+    "sha256": "981d76279eeba3cfb9c23e7a142a78393743422afb0659e0b65d247bcc971931",
+    "size_bytes": 1114112
+  },
+  "schema": "zenodex/zrpf_firecracker_runtime_artifact_manifest/v2",
+  "status": "candidate_frozen_identity_non_authoritative"
+}

@@ -134,7 +134,7 @@ Both retained adapter and structural-tree evidence records predate that host
 change, so both historical source-closure checkers continue to reject current
 source. Those records remain unchanged as stale regression gates.
 
-A separate hardened replay lane anchored at commit `b37b7415` builds a dedicated
+A separate hardened replay lane anchored at commit `ff76ff9c` builds a dedicated
 source-only verifier whose selected dependency graph excludes the methods,
 guests, harness, Bonsai, client, and `risc0-build` paths. It binds eight exact
 retained artifacts by fixed name, size, and SHA-256 through descriptor-relative
@@ -143,7 +143,7 @@ recomposes and exact-verifies both level-one journals and the level-two journal,
 binds the reviewed root topology and journal hash, and requires the exact
 single-word root-seal mutation to reject as `receipt_verification_failed`.
 The live gate builds from a mode-0700 detached worktree at the pinned commit,
-checks the 43-file closure before and after compilation, disables automatic
+checks the 44-file closure before and after compilation, disables automatic
 Cargo target discovery and checkout hooks, rejects unpinned ancestor Cargo
 config, isolates Cargo home config, remaps compiler-visible paths, and passes an
 allowlisted `execve` environment to the build and verifier processes.
@@ -151,11 +151,11 @@ Normal execution and `RISC0_DEV_MODE=1` execution produced byte-identical
 5,920-byte output with SHA-256
 `7751395663a33c1ae58fa403346dc90618e842dd1df2f2fdc37f18599e50c288`.
 The path-clean evidence record is
-`docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260711.json`,
+`docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260712.json`,
 SHA-256
-`9c6d80bdebb9bd7eb8ddfe49bd9797e4ad30de0022d59cd8b7e42f60d2d906dd`.
+`8bc75ace0cc0f699979efc40d3c93cab1fa7be57b2e471be829eeb203faa9a4d`.
 The recorded verifier bytes have SHA-256
-`57725f52473e027c55f71f17abddc2ee043a006232da762bfc10a066d120d5b9`
+`0e71d8f4ebb6e15d531bc367244e0ede33d0a9e76ba1c38be855cda30788e78f`
 and were executed from a fully sealed Linux memfd.
 Its live checker also rejects altered receipt bytes, swapped level-one nodes,
 extra and missing inventory, receipt symlinks, FIFO input, a directory symlink,

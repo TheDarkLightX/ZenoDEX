@@ -13,24 +13,24 @@ from typing import Any, cast
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE_PATH = (
     REPO_ROOT
-    / "docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260711.json"
+    / "docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260712.json"
 )
 RECEIPT_DIRECTORY = (
     REPO_ROOT / "evidence/zrpf-v3-retained-structural-replay-v1/receipts"
 )
 WORKSPACE = REPO_ROOT / "zk/zrpf_risc0"
 
-SCHEMA = "zenodex/zrpf_v3_retained_source_built_replay_evidence/v3"
+SCHEMA = "zenodex/zrpf_v3_retained_source_built_replay_evidence/v4"
 REPORT_SCHEMA = "zenodex/zrpf_v3_retained_structural_replay/v1"
-SOURCE_COMMIT = "b37b741520e95f50236f6a9f0825c23ae3487374"
-SOURCE_TREE = "fb7ca974330022793fa0fc89efe4caba5fef714f"
-SOURCE_TAG = "zrpf-v3-source-anchor-20260711"
+SOURCE_COMMIT = "ff76ff9c1dc307f0e7dc5afd009e2961f2e36f21"
+SOURCE_TREE = "2476e762907fb1f720f850e91b88bc06ac164259"
+SOURCE_TAG = "zrpf-v3-source-anchor-v7-20260712"
 EXPECTED_STDOUT_SHA256 = (
     "7751395663a33c1ae58fa403346dc90618e842dd1df2f2fdc37f18599e50c288"
 )
 EXPECTED_STDOUT_SIZE = 5_920
 EXPECTED_EVIDENCE_SHA256 = (
-    "9c6d80bdebb9bd7eb8ddfe49bd9797e4ad30de0022d59cd8b7e42f60d2d906dd"
+    "8bc75ace0cc0f699979efc40d3c93cab1fa7be57b2e471be829eeb203faa9a4d"
 )
 EXPECTED_BINARY_TRANSPORT = "linux_memfd_full_seals_v1"
 DEPENDENCY_GRAPH_CANONICAL_SOURCE_ROOT = "/zrpf/source"
@@ -44,10 +44,10 @@ EXECUTION_IDENTITY_FIELDS = frozenset(
         "dependency_graph_sha256",
     }
 )
-EXPECTED_SOURCE_CLOSURE_FILES = 43
-EXPECTED_SOURCE_CLOSURE_BYTES = 1_025_439
+EXPECTED_SOURCE_CLOSURE_FILES = 44
+EXPECTED_SOURCE_CLOSURE_BYTES = 1_069_983
 EXPECTED_SOURCE_CLOSURE_SHA256 = (
-    "019b0d2b60ad4f873009585e987720afca8a856a015ee2e8a9fd846115984059"
+    "4c634e32f1eb10ea9ae2c659272654cc80d0e0f14b0236f15844cfcd38c8f9d4"
 )
 EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
 ROOT_JOURNAL_HASH = (

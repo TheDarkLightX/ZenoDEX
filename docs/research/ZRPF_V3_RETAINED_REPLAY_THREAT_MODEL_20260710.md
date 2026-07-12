@@ -51,13 +51,13 @@ The source-built component is the native host replay verifier. The current
 lane does not rebuild the guest programs, recompute image IDs from fresh guest
 ELFs, regenerate proofs, or establish source-to-guest-image provenance.
 
-The annotated tag `zrpf-v3-source-anchor-20260711` preserves the exact source
+The annotated tag `zrpf-v3-source-anchor-v7-20260712` preserves the exact source
 commit used by the source-built replay. Required CI verifies the tag target
 before static validation or compilation. The separate
 `zrpf-v1-retained-source-anchor-20260710` tag preserves the historical adapter
-reference commit. The superseded `zrpf-v3-source-anchor-20260710` tag and its
-2026-07-10 evidence record remain historical regression artifacts. These tags
-must be pushed and retained with the branch.
+reference commit. The superseded 2026-07-10 and 2026-07-11 source tags and
+evidence records remain historical regression artifacts. These tags must be
+pushed and retained with the branch.
 
 ## Authority Progression
 
@@ -256,7 +256,7 @@ Current positive replay output has a strong direct-output bound:
 stdout size   = 5,920 bytes
 stdout SHA-256 = 7751395663a33c1ae58fa403346dc90618e842dd1df2f2fdc37f18599e50c288
 stderr size   = 0 bytes
-verifier SHA-256 = 57725f52473e027c55f71f17abddc2ee043a006232da762bfc10a066d120d5b9
+verifier SHA-256 = 0e71d8f4ebb6e15d531bc367244e0ede33d0a9e76ba1c38be855cda30788e78f
 ```
 
 That bound authenticates one public transcript. It does not constrain timing,
@@ -292,14 +292,15 @@ published.
 
 Durable current evidence includes:
 
-- `docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260711.json`;
+- `docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260712.json`;
 - `evidence/zrpf-v3-retained-structural-replay-v1/receipts/`;
 - `tools/check_zrpf_v3_replay_verifier_evidence.py`;
 - `tools/zrpf_v3_artifact_privacy.py`;
 - `tests/test_check_zrpf_v3_replay_verifier_evidence.py`.
 
-The 2026-07-10 source-built replay record remains a historical source-anchor
-artifact and is still included in the bounded public privacy scan.
+The 2026-07-10 and 2026-07-11 source-built replay records remain historical
+source-anchor artifacts and are still included in the bounded public privacy
+scan.
 
 Current tests cover environment-map filtering, private target creation, checkout
 hook suppression, selected source and receipt symlink rejection, output-cap

@@ -20,8 +20,8 @@ from tools import zrpf_v3_replay_source_snapshot as replay_snapshot
 from tools import zrpf_v3_replay_toolchain as replay_toolchain
 
 TEST_EXECUTION_IDENTITY = {
-    "binary_sha256": "57725f52473e027c55f71f17abddc2ee043a006232da762bfc10a066d120d5b9",
-    "binary_size_bytes": 2_821_920,
+    "binary_sha256": "0e71d8f4ebb6e15d531bc367244e0ede33d0a9e76ba1c38be855cda30788e78f",
+    "binary_size_bytes": 2_821_648,
     "binary_transport": support.EXPECTED_BINARY_TRANSPORT,
     "dependency_graph_package_count": 127,
     "dependency_graph_sha256": "419b73b822f65d326f3221b57f47e7ae1936c71323fe85b45d5181affc7d4b59",
@@ -36,7 +36,7 @@ def test_expected_evidence_pins_source_receipts_and_authority_boundary() -> None
         "commit": support.SOURCE_COMMIT,
         "tree": support.SOURCE_TREE,
     }
-    assert evidence["replay_source_closure"]["file_count"] == 43
+    assert evidence["replay_source_closure"]["file_count"] == 44
     assert evidence["retained_receipt_set"]["artifact_count"] == 8
     assert evidence["retained_receipt_set"]["total_bytes"] == 4_746_064
     assert evidence["recorded_execution"]["stdout_sha256"] == (
@@ -71,7 +71,7 @@ def test_verified_live_record_creation_passes_static_check_and_refuses_overwrite
     report = checker.validate_static(evidence_path)
 
     assert report["ok"] is True
-    assert report["facts"]["source_files_checked"] == 43
+    assert report["facts"]["source_files_checked"] == 44
     assert report["facts"]["receipt_artifacts_checked"] == 8
     with pytest.raises(FileExistsError):
         record_writer.write_after_verified_live(

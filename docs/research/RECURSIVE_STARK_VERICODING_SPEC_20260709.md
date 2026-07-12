@@ -15,7 +15,9 @@ Related artifacts:
 - `docs/research/RECURSIVE_STARK_V2_BOUNDED_FANOUT_GUIDE_20260710.md`
 - `docs/research/RECURSIVE_STARK_REBUILD_PATH_EXPERIMENT_20260709.json`
 - `docs/research/ZRPF_V3_CORRECT_BY_CONSTRUCTION_SPEC_20260710.md`
+- `docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260712.json`
 - `docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260711.json`
+  (historical)
 - `docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260710.json`
   (historical)
 - `config/proof_profiles/risc0_recursive_rebuild_reference.json`
@@ -137,7 +139,7 @@ Current status:
   non-claims stated there.
 
 - The ZRPF V3 structural lane now has a separate current-source, same-host
-  retained-byte replay verifier anchored at commit `b37b7415`. Its selected dependency
+  retained-byte replay verifier anchored at commit `ff76ff9c`. Its selected dependency
   graph excludes methods, guests, the harness, Bonsai, client, and
   `risc0-build`. It binds eight exact receipt artifacts, cryptographically
   verifies seven Succinct receipts under the expected images, recomposes both
@@ -146,9 +148,9 @@ Current status:
   and rejects the exact one-word root-seal mutation. Normal execution and
   `RISC0_DEV_MODE=1` execution produced byte-identical output. The evidence
   record SHA-256 is
-  `9c6d80bdebb9bd7eb8ddfe49bd9797e4ad30de0022d59cd8b7e42f60d2d906dd`.
+  `8bc75ace0cc0f699979efc40d3c93cab1fa7be57b2e471be829eeb203faa9a4d`.
   Its live build uses a private detached worktree at the pinned commit, checks
-  the exact 43-file source closure before and after compilation, disables
+  the exact 44-file source closure before and after compilation, disables
   automatic Cargo target discovery and checkout hooks, rejects unpinned
   ancestor Cargo config, remaps compiler-visible paths, and allowlists the
   `execve` environment. It executes exact freshly built verifier bytes from a

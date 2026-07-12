@@ -28,40 +28,46 @@ support = importlib.import_module(f"{_MODULE_PREFIX}zrpf_v3_replay_evidence_supp
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE_PATH = (
-    REPO_ROOT / "docs/research/ZRPF_V3_FIRECRACKER_GOVERNED_DIRECT_REPLAY_EVIDENCE_20260711.json"
+    REPO_ROOT / "docs/research/ZRPF_V3_FIRECRACKER_GOVERNED_DIRECT_REPLAY_EVIDENCE_20260712.json"
 )
 OUTPUT_PAYLOAD_PATH = (
     REPO_ROOT / "evidence/zrpf-v3-retained-structural-replay-v1/"
     "firecracker-governed-output-payload.json"
 )
+DIRECT_RECORD_ROOT = (
+    REPO_ROOT / "evidence/zrpf-v3-retained-structural-replay-v1/firecracker-direct-v2"
+)
+EXECUTED_CONFIG_PATH = DIRECT_RECORD_ROOT / "config.json"
+LOCAL_REPORT_PATH = DIRECT_RECORD_ROOT / "local-report.json"
+FIRECRACKER_STDOUT_PATH = DIRECT_RECORD_ROOT / "firecracker.stdout"
 MANIFEST_PATH = (
-    REPO_ROOT / "config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v1.json"
+    REPO_ROOT / "config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v2.json"
 )
 INTENT_PATH = REPO_ROOT / "config/proof_profiles/zrpf_v3_firecracker_replay_intent_v1.json"
 PROFILE_PATH = REPO_ROOT / "config/proof_profiles/zrpf_v3_firecracker_replay_profile_v1.json"
 
-EXPECTED_EVIDENCE_RAW_SHA256 = "abcbcf01f2f6df00f1fcc5eea5cb034fa2fc8c1edbfe0286b7d94d3ff163ece5"
+EXPECTED_EVIDENCE_RAW_SHA256 = "4f67cb91262f4451ab26c97d46f88cd1028b92841f2ab1ea196ae31126bc213f"
 EXPECTED_MANIFEST_CANONICAL_SHA256 = (
-    "cb19138eb6bb7dd404c860382e0c0f2b765d12ea8e734e9afb99caae381ff312"
+    "a4f1509fe13cdd3d6888bca12ffaddd368cd4b9dea7ab1c84783e466c245e405"
 )
 EXPECTED_PROFILE_CANONICAL_SHA256 = (
-    "3be22c7d06bc3c4a7f0d83065fe2cadbb7b284830a70797165e32e229a1bdd0f"
+    "e7ab29b1327cd89dd7180cd45aed9663fdb9234d738f7acb51412bb576c8c88e"
 )
-EXPECTED_CANDIDATE_PLAN_ID = "9d220f176211947f628459b419e6a3be60bfc1b84549974b6d194f1da292e19b"
+EXPECTED_CANDIDATE_PLAN_ID = "f182caf46a909a269f76781aeaa9b2e6a44e0282fe29f579ff8ff40108f465f4"
 EXPECTED_CANDIDATE_PLAN_CANONICAL_SHA256 = (
-    "80ccac9ee556f555e1b66cf43cf6c3c9b5f833299e89c096c1134177f1bb354e"
+    "000e5ebb324d29d3d63345dc4b0c0a5d4f85e937de29c49ba6db0bcf5d8e6a94"
 )
-EXPECTED_EXECUTED_CONFIG_SHA256 = "7d403fdf5cd196ef3dd08e2ed01019ed9e01554b66b19dc831f004b2ae393f64"
-EXPECTED_REQUEST_SHA256 = "684ae1116b9d6d8c7579606ebd5a0ba380f20823707fd45197b5d00debb58a43"
-EXPECTED_OUTPUT_SHA256 = "8268d791011ee818e80a9995db01f8e2274305e811693dadf8d35334384a843b"
-EXPECTED_COMMIT_MARKER = "d0e910d497169c4c89e89ccfca94d9a42f05aaedc2f6097abbf0fdf5889bd13b"
-EXPECTED_STDOUT_SHA256 = "b464f8befe2ec167af5f82b03ca5729c76ab11453ca077abb10b7d348bc980d1"
-EXPECTED_LOCAL_REPORT_SHA256 = "1a4ae9b7f2fd34aec89cf591d3b9bd0448b0dce15274a201eca2e58a062c65d4"
+EXPECTED_EXECUTED_CONFIG_SHA256 = "57ec01c81848cb388e88c51e4278ff1ab05af494e8e733eb7fe8653292f68f96"
+EXPECTED_REQUEST_SHA256 = "8b81d4cd696d12c73166ad7c66b32cc3f713ad97eec9693c3051a9025b0ef079"
+EXPECTED_OUTPUT_SHA256 = "c95d42b86acae77241cb683ef8c1863ade95e986752da58ba6c4d592a3cfd9ee"
+EXPECTED_COMMIT_MARKER = "c13a7b7cb689016a0f50a8e139819e219e6b6d6069d973a136b8e908734e5c01"
+EXPECTED_STDOUT_SHA256 = "44fae3c7478b249d1fe50d6578ccf323d5c32218ccce127f5e1959d45eed2294"
+EXPECTED_LOCAL_REPORT_SHA256 = "bd89f599026944c060d8717ea2a5ed17907413480c5d628d705f27064c6f5f9e"
 EXPECTED_OUTPUT_PAYLOAD_SHA256 = "7751395663a33c1ae58fa403346dc90618e842dd1df2f2fdc37f18599e50c288"
 EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
 MAX_EVIDENCE_BYTES = 64 * 1024
-REPORT_SCHEMA = "zenodex/zrpf_firecracker_direct_replay_evidence_check/v1"
-EVIDENCE_SCHEMA = "zenodex/zrpf_firecracker_governed_direct_replay_evidence/v1"
+REPORT_SCHEMA = "zenodex/zrpf_firecracker_direct_replay_evidence_check/v2"
+EVIDENCE_SCHEMA = "zenodex/zrpf_firecracker_governed_direct_replay_evidence/v2"
 
 _ROOT_FIELDS = {
     "artifacts",
@@ -70,6 +76,7 @@ _ROOT_FIELDS = {
     "configuration",
     "execution",
     "governed_bindings",
+    "historical_observation_basis",
     "non_claims",
     "output",
     "privacy_scan",
@@ -77,48 +84,53 @@ _ROOT_FIELDS = {
     "schema",
     "scope",
     "status",
-    "unpublished_local_report_identity",
+    "retained_local_report_identity",
 }
-_EXPECTED_CLAIMS = {
-    "artifact_privacy_scan_passed": False,
-    "cgroup_limits_installed": False,
-    "complete_build_input_closure_verified": False,
-    "covert_channel_freedom": False,
-    "cross_host_reproducible_build": False,
-    "data_availability_verified": False,
-    "direct_local_microvm_replay_verified": True,
-    "durable_atomic_admission_verified": False,
-    "governed_runtime_artifact_bytes_locally_matched": True,
-    "governed_runtime_artifact_manifest_integrity_verified": True,
-    "governed_runtime_intent_integrity_verified": True,
-    "guest_source_to_binary_verified": False,
-    "hardware_side_channel_resistance": False,
-    "historical_vm_execution_provenance_verified": False,
-    "jailer_execution_verified": False,
-    "microvm_replay_release_authority": False,
-    "output_protocol_verified": True,
-    "production_authority": False,
-    "proofs_regenerated": False,
-    "release_authority": False,
-    "root_owned_launcher_verified": False,
-    "sandbox_escape_resistance": False,
-    "semantic_composition_verified": False,
-    "settlement_authority": False,
-    "witness_privacy": False,
-    "zero_knowledge_privacy": False,
-}
-_FORBIDDEN_PROMOTION_TERMS = (
-    "authority",
-    "covert",
-    "privacy",
-    "reproducible",
-    "sandbox",
-    "side_channel",
+SCOPED_TRUE_CLAIMS = frozenset(
+    {
+        "direct_local_microvm_replay_reported",
+        "governed_runtime_artifact_manifest_integrity_verified",
+        "governed_runtime_intent_integrity_verified",
+        "publisher_reported_governed_runtime_artifact_bytes_locally_matched",
+        "reconstructed_output_protocol_verified",
+        "retained_execution_record_integrity_verified",
+    }
 )
+REQUIRED_FALSE_CLAIMS = frozenset(
+    {
+        "artifact_privacy_scan_passed",
+        "cgroup_limits_installed",
+        "coherent_repository_rewrite_resistance_verified",
+        "complete_build_input_closure_verified",
+        "covert_channel_freedom",
+        "cross_host_reproducible_build",
+        "data_availability_verified",
+        "durable_atomic_admission_verified",
+        "guest_source_to_binary_verified",
+        "hardware_side_channel_resistance",
+        "historical_vm_execution_provenance_verified",
+        "jailer_execution_verified",
+        "microvm_replay_release_authority",
+        "production_authority",
+        "proofs_regenerated",
+        "release_authority",
+        "root_owned_launcher_verified",
+        "sandbox_escape_resistance",
+        "semantic_composition_verified",
+        "settlement_authority",
+        "witness_privacy",
+        "zero_knowledge_privacy",
+    }
+)
+_EXPECTED_CLAIMS = {
+    **{name: True for name in SCOPED_TRUE_CLAIMS},
+    **{name: False for name in REQUIRED_FALSE_CLAIMS},
+}
+REPORT_AUTHORITY_FIELDS = tuple(sorted(REQUIRED_FALSE_CLAIMS))
 _EXPECTED_PRIVACY_SCAN = {
+    "confidential_name_policy_evaluated": False,
     "guest_binary_complete_path_privacy_scan_passed": False,
     "publishable_probe_records_private_path_scan_passed": True,
-    "secret_project_names_present": False,
     "user_or_workspace_paths_present_in_publishable_records": False,
 }
 _EXPECTED_NON_CLAIMS = (
@@ -130,31 +142,10 @@ _EXPECTED_NON_CLAIMS = (
     "no complete guest-binary path-privacy claim because generic toolchain builder paths remain",
     "no proof regeneration, semantic ZenoDEX composition, data availability, or durable ledger admission",
     "no release, settlement, production, witness-privacy, zero-knowledge, covert-channel, or hardware-side-channel authority",
-    "the exact payload is committed; the raw output image, executed configuration, and full local report are not committed",
-    "static checking establishes record integrity and internal binding, not historical VM execution provenance",
-)
-_AUTHORITY_REPORT_FIELDS = (
-    "artifact_privacy_scan_passed",
-    "cgroup_limits_installed",
-    "complete_build_input_closure_verified",
-    "covert_channel_freedom",
-    "cross_host_reproducible_build",
-    "data_availability_verified",
-    "durable_atomic_admission_verified",
-    "guest_source_to_binary_verified",
-    "hardware_side_channel_resistance",
-    "historical_vm_execution_provenance_verified",
-    "jailer_execution_verified",
-    "microvm_replay_release_authority",
-    "production_authority",
-    "proofs_regenerated",
-    "release_authority",
-    "root_owned_launcher_verified",
-    "sandbox_escape_resistance",
-    "semantic_composition_verified",
-    "settlement_authority",
-    "witness_privacy",
-    "zero_knowledge_privacy",
+    "the publisher reports the direct run; the raw output image is not committed, while the executed configuration, local report, and stdout are retained",
+    "static checking establishes retained-record integrity, reconstructed output protocol, and internal binding, not historical VM execution provenance",
+    "the pinned checker rejects evidence-only promotion; coherent evidence, checker-policy, test, and CI rewrites require separate review and an external trust anchor",
+    "no public confidential-name allowlist or absence claim; private pre-publication policy remains external",
 )
 
 
@@ -166,6 +157,7 @@ class GovernedReferences:
     profile_canonical_sha256: str
     intent: Any
     output_payload: bytes
+    plan: Any
 
 
 def build_report(*, evidence_path: Path = EVIDENCE_PATH) -> dict[str, Any]:
@@ -181,9 +173,11 @@ def build_report(*, evidence_path: Path = EVIDENCE_PATH) -> dict[str, Any]:
             _validate_artifacts(document, references, errors)
             _validate_request(document, references, errors)
             _validate_output(document, references, errors)
-        _validate_process_and_unpublished_report(document, errors)
+            _validate_retained_execution_records(document, references, errors)
+        _validate_process_and_retained_report(document, errors)
     return {
-        "authority": {name: False for name in _AUTHORITY_REPORT_FIELDS},
+        "authority": {name: False for name in REPORT_AUTHORITY_FIELDS},
+        "claim_policy_scope": "evidence_only_mutations_against_pinned_checker_policy",
         "errors": errors,
         "evidence_raw_sha256": evidence_raw_sha256,
         "ok": not errors,
@@ -258,6 +252,17 @@ def _load_governed_references(errors: list[str]) -> GovernedReferences | None:
         _append_once(errors, "governed_profile_rejected")
     if profile_sha256 != runtime.PROFILE_CANONICAL_SHA256:
         _append_once(errors, "governed_profile_rejected")
+    try:
+        plan = candidate_plan.compile_candidate_plan(manifest, intent)
+    except candidate_plan.CandidatePlanError:
+        _append_once(errors, "governed_candidate_plan_rejected")
+        return None
+    if (
+        plan.candidate_plan_id != EXPECTED_CANDIDATE_PLAN_ID
+        or hashlib.sha256(plan.canonical_bytes()).hexdigest()
+        != EXPECTED_CANDIDATE_PLAN_CANONICAL_SHA256
+    ):
+        _append_once(errors, "governed_candidate_plan_rejected")
     return GovernedReferences(
         manifest=manifest,
         manifest_raw_sha256=hashlib.sha256(manifest_raw).hexdigest(),
@@ -265,6 +270,7 @@ def _load_governed_references(errors: list[str]) -> GovernedReferences | None:
         profile_canonical_sha256=profile_sha256,
         intent=intent,
         output_payload=output_payload,
+        plan=plan,
     )
 
 
@@ -336,8 +342,13 @@ def _load_output_payload(errors: list[str]) -> bytes | None:
 def _validate_identity_and_claims(document: dict[str, Any], errors: list[str]) -> None:
     identity = {
         "schema": EVIDENCE_SCHEMA,
-        "scope": "direct_unjailed_firecracker_governed_artifact_and_intent_local_replay",
-        "status": "governed_direct_local_replay_accepted_without_launcher_or_settlement_authority",
+        "scope": (
+            "publisher_reported_direct_unjailed_firecracker_governed_artifact_and_"
+            "intent_local_replay"
+        ),
+        "status": (
+            "governed_direct_local_replay_report_recorded_without_launcher_or_settlement_authority"
+        ),
     }
     if any(
         type(document.get(key)) is not str or document.get(key) != value
@@ -346,12 +357,10 @@ def _validate_identity_and_claims(document: dict[str, Any], errors: list[str]) -
         _append_once(errors, "evidence_identity_mismatch")
     if not _exact_boolean_map(document.get("claims"), _EXPECTED_CLAIMS):
         _append_once(errors, "claim_boundary_mismatch")
-    claims = document.get("claims")
-    if type(claims) is dict and any(
-        any(term in name for term in _FORBIDDEN_PROMOTION_TERMS) and value is not False
-        for name, value in claims.items()
+    if document.get("historical_observation_basis") != (
+        "publisher_reported_retained_local_report_identity_only"
     ):
-        _append_once(errors, "claim_boundary_mismatch")
+        _append_once(errors, "historical_observation_basis_mismatch")
     if not _exact_boolean_map(document.get("privacy_scan"), _EXPECTED_PRIVACY_SCAN):
         _append_once(errors, "privacy_boundary_mismatch")
     non_claims = document.get("non_claims")
@@ -379,8 +388,8 @@ def _validate_governed_bindings(
     if not _exact_string_map(
         candidate,
         {
-            "candidate_plan_id": EXPECTED_CANDIDATE_PLAN_ID,
-            "canonical_sha256": EXPECTED_CANDIDATE_PLAN_CANONICAL_SHA256,
+            "candidate_plan_id": references.plan.candidate_plan_id,
+            "canonical_sha256": hashlib.sha256(references.plan.canonical_bytes()).hexdigest(),
         },
     ):
         _append_once(errors, "candidate_plan_binding_mismatch")
@@ -390,6 +399,10 @@ def _validate_governed_bindings(
         "drive_count": 3,
         "memory_mib": 256,
         "no_api": True,
+        "retained_path": (
+            "evidence/zrpf-v3-retained-structural-replay-v1/"
+            "firecracker-direct-v2/config.json"
+        ),
         "smt": False,
         "vcpu_count": 1,
     }
@@ -529,7 +542,119 @@ def _reconstruct_request(
     return request, encoded
 
 
-def _validate_process_and_unpublished_report(
+def _validate_retained_execution_records(
+    document: dict[str, Any],
+    references: GovernedReferences,
+    errors: list[str],
+) -> None:
+    try:
+        config_raw = runtime.read_bounded_regular(EXECUTED_CONFIG_PATH, maximum=64 * 1024)
+        config = support.strict_json_loads(config_raw)
+    except (
+        OSError,
+        RecursionError,
+        UnicodeDecodeError,
+        ValueError,
+        runtime.RuntimeManifestError,
+    ):
+        _append_once(errors, "retained_config_rejected")
+    else:
+        expected_config = references.plan.to_document()["microvm_configuration_template"]
+        expected_config["boot-source"]["kernel_image_path"] = "kernel"
+        expected_config["drives"][0]["path_on_host"] = "rootfs.squashfs"
+        expected_config["drives"][1]["path_on_host"] = "input.squashfs"
+        expected_config["drives"][2]["path_on_host"] = "output.raw"
+        if (
+            type(config) is not dict
+            or config != expected_config
+            or config_raw != runtime.canonical_document_bytes(config)
+            or hashlib.sha256(config_raw).hexdigest() != EXPECTED_EXECUTED_CONFIG_SHA256
+        ):
+            _append_once(errors, "retained_config_rejected")
+
+    try:
+        stdout = runtime.read_bounded_regular(FIRECRACKER_STDOUT_PATH, maximum=64 * 1024)
+    except (OSError, runtime.RuntimeManifestError):
+        _append_once(errors, "retained_stdout_rejected")
+    else:
+        if len(stdout) != 1_095 or hashlib.sha256(stdout).hexdigest() != EXPECTED_STDOUT_SHA256:
+            _append_once(errors, "retained_stdout_rejected")
+
+    try:
+        report_raw = runtime.read_bounded_regular(LOCAL_REPORT_PATH, maximum=64 * 1024)
+        report = support.strict_json_loads(report_raw)
+    except (
+        OSError,
+        RecursionError,
+        UnicodeDecodeError,
+        ValueError,
+        runtime.RuntimeManifestError,
+    ):
+        _append_once(errors, "retained_local_report_rejected")
+        return
+    expected_report = _expected_retained_report(document, references)
+    if (
+        type(report) is not dict
+        or report != expected_report
+        or report_raw != runtime.canonical_document_bytes(report)
+        or hashlib.sha256(report_raw).hexdigest() != EXPECTED_LOCAL_REPORT_SHA256
+    ):
+        _append_once(errors, "retained_local_report_rejected")
+
+
+def _expected_retained_report(
+    document: dict[str, Any],
+    references: GovernedReferences,
+) -> dict[str, Any]:
+    artifacts = document.get("artifacts")
+    execution = document.get("execution")
+    output = document.get("output")
+    request = document.get("request")
+    if (
+        type(artifacts) is not dict
+        or type(execution) is not dict
+        or type(output) is not dict
+        or type(request) is not dict
+    ):
+        return {}
+    local_artifacts = {
+        "firecracker": artifacts.get("firecracker"),
+        "input": artifacts.get("input_image"),
+        "kernel": artifacts.get("kernel"),
+        "rootfs": artifacts.get("rootfs"),
+    }
+    return {
+        "artifacts_after": local_artifacts,
+        "artifacts_before": local_artifacts,
+        "candidate_plan_canonical_sha256": hashlib.sha256(
+            references.plan.canonical_bytes()
+        ).hexdigest(),
+        "candidate_plan_id": references.plan.candidate_plan_id,
+        "configuration_sha256": EXPECTED_EXECUTED_CONFIG_SHA256,
+        "elapsed_monotonic_ns": execution.get("elapsed_monotonic_ns"),
+        "exit_code": execution.get("exit_code"),
+        "manifest_canonical_sha256": references.manifest.canonical_sha256,
+        "manifest_raw_sha256": references.manifest_raw_sha256,
+        "output_commit_marker": output.get("commit_marker_actual"),
+        "output_payload_sha256": output.get("payload_sha256"),
+        "output_payload_size_bytes": output.get("payload_size_bytes"),
+        "output_sha256": output.get("sha256"),
+        "output_size_bytes": output.get("size_bytes"),
+        "profile_canonical_sha256": references.profile_canonical_sha256,
+        "request_sha256": request.get("sha256"),
+        "request_size_bytes": request.get("size_bytes"),
+        "run_nonce_256": request.get("run_nonce_256"),
+        "schema": "zenodex/zrpf_firecracker_unjailed_local_report/v2",
+        "stable_output_read_after_exit": output.get("stable_read_after_exit"),
+        "stderr_sha256": execution.get("stderr_sha256"),
+        "stderr_size_bytes": execution.get("stderr_size_bytes"),
+        "stdout_sha256": execution.get("stdout_sha256"),
+        "stdout_size_bytes": execution.get("stdout_size_bytes"),
+        "timed_out": execution.get("timed_out"),
+    }
+
+
+def _validate_process_and_retained_report(
     document: dict[str, Any],
     errors: list[str],
 ) -> None:
@@ -540,22 +665,30 @@ def _validate_process_and_unpublished_report(
         "stderr_size_bytes": 0,
         "stdout_sha256": EXPECTED_STDOUT_SHA256,
         "stdout_size_bytes": 1_095,
+        "stdout_retained_path": (
+            "evidence/zrpf-v3-retained-structural-replay-v1/"
+            "firecracker-direct-v2/firecracker.stdout"
+        ),
         "timed_out": False,
     }
     if not _exact_subset(execution, expected_execution):
         _append_once(errors, "process_fact_mismatch")
     if type(execution) is not dict or not _positive_int(execution.get("elapsed_monotonic_ns")):
         _append_once(errors, "process_fact_mismatch")
-    unpublished = document.get("unpublished_local_report_identity")
+    retained = document.get("retained_local_report_identity")
     if not _exact_typed_map(
-        unpublished,
+        retained,
         {
             "canonical_sha256": EXPECTED_LOCAL_REPORT_SHA256,
-            "publicly_available": False,
-            "size_bytes": 10_631,
+            "path": (
+                "evidence/zrpf-v3-retained-structural-replay-v1/"
+                "firecracker-direct-v2/local-report.json"
+            ),
+            "publicly_available": True,
+            "size_bytes": 2_691,
         },
     ):
-        _append_once(errors, "unpublished_report_binding_mismatch")
+        _append_once(errors, "retained_report_binding_mismatch")
 
 
 def _artifact_identity(value: Any) -> dict[str, Any]:

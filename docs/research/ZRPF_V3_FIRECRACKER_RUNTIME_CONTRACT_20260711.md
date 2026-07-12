@@ -1,7 +1,8 @@
 # ZRPF V3 Firecracker Runtime Contract
 
 Date: 2026-07-11
-Status: bounded candidate implementation with direct local live evidence
+Updated: 2026-07-12
+Status: bounded candidate implementation with publisher-reported direct local replay
 Authority: experimental structural replay only
 
 ## Purpose
@@ -34,11 +35,11 @@ state.
 ## Frozen candidate artifacts
 
 The governed runtime manifest is
-`config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v1.json`.
+`config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v2.json`.
 Its canonical SHA-256 is:
 
 ```text
-cb19138eb6bb7dd404c860382e0c0f2b765d12ea8e734e9afb99caae381ff312
+a4f1509fe13cdd3d6888bca12ffaddd368cd4b9dea7ab1c84783e466c245e405
 ```
 
 It binds these candidate artifacts:
@@ -46,9 +47,9 @@ It binds these candidate artifacts:
 | Artifact | Bytes | SHA-256 |
 | --- | ---: | --- |
 | Amazon Linux `vmlinux` 6.1.174 | 32,217,024 | `c14602c653c76072ad17feef737edbf37e4ed3ae991148c1471a5270c9c4a94a` |
-| Read-only SquashFS root | 1,024,000 | `a96822b5273e01e555b99db22c014b981d51a0c8940d9823cea4f54e9d84f59b` |
+| Read-only SquashFS root | 1,114,112 | `981d76279eeba3cfb9c23e7a142a78393743422afb0659e0b65d247bcc971931` |
 | Read-only SquashFS receipt input | 2,068,480 | `504c3a4c38e5109567d9d21f07bbc054324f3955fb4d5b07216f3c90e89e3af8` |
-| Static PIE PID 1 and replay verifier | 3,366,800 | `08f99e4d6262f0028ec87a1b4fb7ee86be466244f33fce4713948dd695cec7dc` |
+| Static PIE PID 1 and replay verifier | 3,768,056 | `6f0efc78966813444cc157f2e9c856e71da91c19538318cdb2e8be520214a150` |
 
 The guest binary has no `PT_INTERP` and no `DT_NEEDED` entries. Direct
 execution outside PID 1 exits with status 125 and emits no output. The
@@ -93,9 +94,10 @@ networking, VirtIO PCI, VirtIO network, VirtIO vsock, VirtIO RNG, user
 namespaces, BPF syscalls, kexec, `/dev/mem`, and debugfs.
 
 Firecracker's documented minimum support window for guest kernel 6.1 ends on
-2026-09-02. The artifact checker rejects an evidence date after that boundary.
-A future operational launcher must use a governed current date and repin when
-the kernel line expires.
+2026-09-02. The artifact checker preserves the immutable statement that the
+kernel was supported on the recorded 2026-07-12 artifact-evidence date. Current
+runtime eligibility remains false until a release-owned date or logical epoch
+is governed. The pure checker never reads the wall clock implicitly.
 
 ## Exact microVM configuration
 
@@ -214,11 +216,11 @@ staging.
 
 ## Local live evidence
 
-A direct, unjailed Firecracker v1.16.1 `--no-api` run on 2026-07-11 verified:
+A direct, unjailed Firecracker v1.16.1 `--no-api` run on 2026-07-12 reported:
 
 ```text
 Firecracker exit code:         0
-elapsed monotonic time:        697,652,562 ns
+elapsed monotonic time:        1,030,612,756 ns
 payload bytes:                 5,920
 payload SHA-256:               7751395663a33c1ae58fa403346dc90618e842dd1df2f2fdc37f18599e50c288
 output bytes:                  16,777,216
@@ -227,18 +229,21 @@ trailing zero bytes:           16,771,008
 stable output read after exit: true
 ```
 
-This establishes one local boot, device-mapping, SquashFS mount, receipt
-verification, request/output, flush, and shutdown instance. The final governed
-manifest and intent rerun is recorded in
-`ZRPF_V3_FIRECRACKER_GOVERNED_DIRECT_REPLAY_EVIDENCE_20260711.json`. The
-evidence record is 6,070 pretty-canonical JSON bytes with SHA-256
-`abcbcf01f2f6df00f1fcc5eea5cb034fa2fc8c1edbfe0286b7d94d3ff163ece5`.
+The publisher record reports one local boot, device mapping, SquashFS mount,
+receipt verification, request/output, flush, and shutdown instance. The final
+governed manifest and intent report is recorded in
+`ZRPF_V3_FIRECRACKER_GOVERNED_DIRECT_REPLAY_EVIDENCE_20260712.json`. The
+evidence record is 7,021 pretty-canonical JSON bytes with SHA-256
+`4f67cb91262f4451ab26c97d46f88cd1028b92841f2ab1ea196ae31126bc213f`.
 The exact 5,920-byte output payload is committed separately. The checker uses
 it to reconstruct and validate the complete 16 MiB output bytes, including the
 header, zero padding, marker, and output SHA-256. The checker establishes
-static record integrity and internal binding. Historical VM execution
-provenance remains a false claim because the raw output, executed host-path
-configuration, and full local report are unpublished.
+retained-record integrity and internal binding. The exact relative-path
+configuration, publisher report, and Firecracker stdout are retained under
+`evidence/zrpf-v3-retained-structural-replay-v1/firecracker-direct-v2/`.
+Historical VM execution provenance remains false because those records are
+publisher-generated and unauthenticated, and the raw output image is not
+committed.
 
 ## Build and validation commands
 
@@ -247,19 +252,38 @@ Build both SquashFS images twice and require byte equality:
 ```bash
 tools/build_zrpf_v3_firecracker_guest_images.sh \
   --guest-binary /trusted/input/zrpf-replay-init \
-  --receipt-dir evidence/zrpf-v3-retained-structural-replay-v1/receipts \
+  --receipt-dir /trusted/input/receipts \
   --output-dir /private/output/zrpf-images \
-  --expected-guest-sha256 08f99e4d6262f0028ec87a1b4fb7ee86be466244f33fce4713948dd695cec7dc \
-  --expected-receipt-set-sha256 d5ecd5494318e21fa3da227409fdb5285c85ff8ae10815df5bcf0eb22fa1027f \
-  --expected-mksquashfs-sha256 47d5c1af3da11864e64c9dc6bb4e568719dcc315e6a744e79381ce3374fb7393
+  --guest-elf-checker-binary /trusted/input/zrpf-guest-elf-checker
 ```
 
-The helper consumes trusted private input paths. It rehashes the receipt set
-before and after two byte-equality builds, but it does not provide a
-descriptor-stable snapshot against a malicious local process that mutates and
-restores those paths during capture. Its output carries no authority until the
-resulting image sizes and SHA-256 identities exactly match the governed runtime
-manifest. Complete build-input closure remains false.
+The helper consumes trusted private input paths. It copies guest, checker, and
+receipt bytes from opened descriptors into a private capture directory and
+rehashes those captures around two byte-equality builds. The hash-bound native
+v2 checker validates the static-PIE load and relocation profile without a
+Python runtime or `readelf`. A malicious same-UID process can still mutate the
+captured checker or staged image trees. The stdout captured hashes therefore do
+not attest packed contents under that attacker. Independently extract both
+SquashFS images and compare their inventories before promotion. The native
+checker toolchain, core utilities, `mksquashfs`, and build environment remain
+outside a complete build-input closure, so same-UID resistance and complete
+build closure remain false.
+
+The image recipe pins the guest, checker, receipt-set, Python reference, and
+`mksquashfs` hashes directly. Callers cannot substitute those expectations.
+The ELF check covers bounded `PT_LOAD`, static-PIE, stack, and relocation-table
+properties. It does not model every Linux/glibc startup structure, including
+the complete TLS, RELRO, note, hash-table, and init-array contract. Complete
+loader semantics and guest boot remain false; the exact guest-binary hash is a
+separate required identity.
+
+The pinned GNU linker may reuse a boundary file page across adjacent load
+segments. The governed guest kernel maps ELF loads with `MAP_PRIVATE`, so a
+write through an RW mapping receives a private copy and cannot modify an RX
+mapping of the same file page. The v2 checker therefore enforces disjoint
+virtual load pages and rejects virtual W+X aliases while permitting this
+standard private file-page reuse. This relies on the pinned Linux loader and is
+not a portable claim about other executable loaders.
 
 Verify the resulting images explicitly:
 
@@ -273,11 +297,11 @@ stat --format='%n %s' \
 
 The expected values are the root and input identities in the table above.
 
-Check the governed identities and the kernel support date at evidence time:
+Check the governed identities and the fixed historical kernel support statement:
 
 ```bash
-python3 -I tools/check_zrpf_v3_firecracker_runtime_artifacts.py \
-  --evidence-date 2026-07-11
+python3 -I tools/check_zrpf_v3_firecracker_runtime_artifacts.py
+python3 -I tools/check_zrpf_v3_firecracker_protocol_binding.py
 python3 -I tools/check_zrpf_v3_firecracker_direct_replay_evidence.py
 ```
 
@@ -285,8 +309,8 @@ Compile a non-executable candidate plan:
 
 ```bash
 python3 -I tools/check_zrpf_v3_firecracker_launch_preflight.py \
-  --manifest config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v1.json \
-  --expected-manifest-sha256 cb19138eb6bb7dd404c860382e0c0f2b765d12ea8e734e9afb99caae381ff312 \
+  --manifest config/proof_profiles/zrpf_v3_firecracker_runtime_artifact_manifest_v2.json \
+  --expected-manifest-sha256 a4f1509fe13cdd3d6888bca12ffaddd368cd4b9dea7ab1c84783e466c245e405 \
   --intent config/proof_profiles/zrpf_v3_firecracker_replay_intent_v1.json
 ```
 
@@ -304,12 +328,15 @@ Established in this tranche:
 - cross-language fixed request/output ABI parity;
 - intent binding in the request;
 - verified-report typestate before output commitment;
-- one direct local Firecracker replay with clean exit and exact transcript;
-- fail-closed kernel-support-date checker.
+- one publisher-reported direct local Firecracker replay with a clean exit and
+  exact transcript;
+- fail-closed historical kernel support check for the recorded 2026-07-12
+  evidence date.
 
 Remaining false:
 
 - root-owned jailer launch;
+- current runtime kernel eligibility under a governed release date or epoch;
 - cgroup, namespace, and filesystem containment evidence;
 - sandbox escape controls;
 - malicious-host or hardware attestation;
