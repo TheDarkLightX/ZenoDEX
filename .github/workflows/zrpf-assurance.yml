@@ -84,6 +84,9 @@ jobs:
             tools/check_zrpf_v3_firecracker_replay_profile.py \
             tools/check_zrpf_v3_firecracker_runtime_artifacts.py \
             tools/check_zrpf_v3_replay_verifier_evidence.py \
+            tools/build_zrpf_semantic_epoch_v1_local_evidence.py \
+            tools/check_zrpf_semantic_epoch_v1_local_evidence.py \
+            tools/zrpf_semantic_epoch_v1_evidence_support.py \
             tools/zrpf_v3_artifact_privacy.py \
             tools/zrpf_v3_firecracker_host_probe.py \
             tools/zrpf_v3_firecracker_artifact_set.py \
@@ -98,6 +101,9 @@ jobs:
             tests/test_check_zrpf_v3_firecracker_replay_profile.py \
             tests/test_check_zrpf_v3_firecracker_runtime_artifacts.py \
             tests/test_check_zrpf_v3_replay_verifier_evidence.py \
+            tests/test_build_zrpf_semantic_epoch_v1_local_evidence.py \
+            tests/test_check_zrpf_semantic_epoch_v1_local_evidence.py \
+            tests/test_zrpf_semantic_guest_source_contract.py \
             tests/test_zrpf_v3_artifact_privacy.py \
             tests/test_zrpf_v3_firecracker_profile_boundary_atlas.py \
             tests/test_zrpf_v3_firecracker_host_probe.py \
@@ -115,6 +121,9 @@ jobs:
             tools/check_zrpf_v3_firecracker_replay_profile.py \
             tools/check_zrpf_v3_firecracker_runtime_artifacts.py \
             tools/check_zrpf_v3_replay_verifier_evidence.py \
+            tools/build_zrpf_semantic_epoch_v1_local_evidence.py \
+            tools/check_zrpf_semantic_epoch_v1_local_evidence.py \
+            tools/zrpf_semantic_epoch_v1_evidence_support.py \
             tools/zrpf_v3_artifact_privacy.py \
             tools/zrpf_v3_firecracker_host_probe.py \
             tools/zrpf_v3_firecracker_artifact_set.py \
@@ -133,6 +142,9 @@ jobs:
             tests/test_check_zrpf_v3_firecracker_replay_profile.py \
             tests/test_check_zrpf_v3_firecracker_runtime_artifacts.py \
             tests/test_check_zrpf_v3_replay_verifier_evidence.py \
+            tests/test_build_zrpf_semantic_epoch_v1_local_evidence.py \
+            tests/test_check_zrpf_semantic_epoch_v1_local_evidence.py \
+            tests/test_zrpf_semantic_guest_source_contract.py \
             tests/test_zrpf_v3_artifact_privacy.py \
             tests/test_zrpf_v3_firecracker_profile_boundary_atlas.py \
             tests/test_zrpf_v3_firecracker_host_probe.py \
@@ -148,6 +160,7 @@ jobs:
             tests/test_check_zrpf_v3_structural_tree_temporary_evidence.py
           python3 tools/check_zrpf_v1_leaf_adapter_source_policy.py
           python3 tools/check_recursive_stark_cbc_spec.py
+          python3 tools/check_zrpf_semantic_epoch_v1_local_evidence.py
           python3 -I tools/check_zrpf_v3_firecracker_direct_replay_evidence.py
           python3 -I tools/check_zrpf_v3_firecracker_replay_profile.py
           python3 -I tools/check_zrpf_v3_firecracker_protocol_binding.py
@@ -176,9 +189,10 @@ jobs:
           "${pinned_bin}/cargo" fmt --manifest-path zk/zrpf_risc0/Cargo.toml \
             --all -- --check
           "${pinned_bin}/cargo" test --manifest-path zk/zrpf_risc0/Cargo.toml \
-            --locked \
+            --locked --all-targets \
             -p zenodex-zrpf-risc0-shared \
             -p zenodex-zrpf-risc0-aggregate-shared \
+            -p zenodex-zrpf-risc0-semantic-shared \
             -p zenodex-zrpf-risc0-harness \
             -p zenodex-zrpf-risc0-verifier \
             -p zenodex-zrpf-risc0-replay-verifier
@@ -187,6 +201,7 @@ jobs:
             --locked --all-targets \
             -p zenodex-zrpf-risc0-shared \
             -p zenodex-zrpf-risc0-aggregate-shared \
+            -p zenodex-zrpf-risc0-semantic-shared \
             -p zenodex-zrpf-risc0-harness \
             -p zenodex-zrpf-risc0-verifier \
             -p zenodex-zrpf-risc0-replay-verifier \

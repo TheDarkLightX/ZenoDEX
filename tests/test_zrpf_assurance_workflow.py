@@ -58,6 +58,10 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tests/test_check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
     assert "tools/check_recursive_stark_cbc_spec.py" in python_assurance
     assert "tests/test_check_recursive_stark_cbc_spec.py" in python_assurance
+    assert "tools/check_zrpf_semantic_epoch_v1_local_evidence.py" in python_assurance
+    assert "tests/test_build_zrpf_semantic_epoch_v1_local_evidence.py" in python_assurance
+    assert "tests/test_check_zrpf_semantic_epoch_v1_local_evidence.py" in python_assurance
+    assert "tests/test_zrpf_semantic_guest_source_contract.py" in python_assurance
     assert "zrpf-v3-firecracker-elf-source-v2-20260712" in raw
     assert "25032924eb4fca7f156a9ec4eedd39afeade9623" in raw
     assert "tools/check_zrpf_v3_firecracker_direct_replay_evidence.py" in (python_assurance)
@@ -90,6 +94,8 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "check_zrpf_v3_firecracker_replay_profile.py --probe-host" not in raw
     assert "--manifest-path zk/recursive_stark_v2_risc0/Cargo.toml" in rust_assurance
     assert rust_assurance.count("-p zenodex-zrpf-risc0-harness") == 2
+    assert rust_assurance.count("-p zenodex-zrpf-risc0-semantic-shared") == 2
+    assert "--locked --all-targets" in rust_assurance
     assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 3
     assert '"${pinned_bin}/cargo" clippy' not in rust_assurance
     assert "ZENODEX_RUN_NATIVE_ZRPF_REPLAY" not in raw

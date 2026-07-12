@@ -93,6 +93,48 @@ FIRECRACKER_RUNTIME_PUBLIC_ARTIFACTS: tuple[ArtifactSpec, ...] = (
     ),
 )
 
+SEMANTIC_EPOCH_PUBLIC_ARTIFACTS: tuple[ArtifactSpec, ...] = (
+    ArtifactSpec(
+        "docs/research/ZRPF_SEMANTIC_EPOCH_V1_LOCAL_PROOF_EVIDENCE_20260711.json",
+        "semantic_epoch_evidence_manifest",
+    ),
+    *(
+        ArtifactSpec(
+            f"evidence/zrpf-semantic-epoch-v1-local-proof-v1/{relative}",
+            "semantic_epoch_retained_artifact",
+        )
+        for relative in (
+            "reports/duplicate-semantic-source.execution.json",
+            "provenance/final-independent-build-record.json",
+            "receipts/l1-left.receipt.json",
+            "reports/l1-left.prove.json",
+            "receipts/l1-right-duplicate.receipt.json",
+            "reports/l1-right-duplicate.prove.json",
+            "receipts/l1-right-positive.receipt.json",
+            "reports/l1-right-positive.prove.json",
+            "receipts/adapter-ordinal-0.receipt.json",
+            "reports/adapter-ordinal-0.prove.json",
+            "receipts/adapter-ordinal-1.receipt.json",
+            "reports/adapter-ordinal-1.prove.json",
+            "receipts/adapter-ordinal-2-duplicate.receipt.json",
+            "reports/adapter-ordinal-2-duplicate.prove.json",
+            "receipts/adapter-ordinal-2-fee.receipt.json",
+            "reports/adapter-ordinal-2-fee.prove.json",
+            "receipts/semantic-positive.receipt.json",
+            "reports/semantic-positive.prove.json",
+            "receipts/semantic-positive.seal-word-1-xor-lsb.receipt.json",
+            "reports/semantic-positive.seal-word-1-xor-lsb.verify.json",
+            "reports/semantic-positive.verify.json",
+            "source-inputs/source-ordinal-0.receipt.json",
+            "source-inputs/source-ordinal-1.receipt.json",
+            "source-inputs/source-ordinal-2-duplicate.receipt.json",
+            "source-inputs/source-ordinal-2-fee.receipt.json",
+            "provenance/stage-d2-source-closure.json",
+            "provenance/verifier-source-closure.json",
+        )
+    ),
+)
+
 
 DEFAULT_ARTIFACTS: tuple[ArtifactSpec, ...] = (
     ArtifactSpec(
@@ -182,6 +224,7 @@ DEFAULT_ARTIFACTS: tuple[ArtifactSpec, ...] = (
         "retained_receipt",
     ),
     *FIRECRACKER_RUNTIME_PUBLIC_ARTIFACTS,
+    *SEMANTIC_EPOCH_PUBLIC_ARTIFACTS,
 )
 PRE_RECORD_ARTIFACTS = tuple(
     artifact for artifact in DEFAULT_ARTIFACTS if artifact.relative_path != EVIDENCE_RELATIVE_PATH

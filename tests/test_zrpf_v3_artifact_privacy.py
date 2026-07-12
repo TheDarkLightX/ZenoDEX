@@ -22,8 +22,8 @@ def test_committed_zrpf_artifact_inventory_is_clean() -> None:
     report = scan_default_artifacts()
 
     assert report["ok"] is True
-    assert report["artifact_count_expected"] == len(DEFAULT_ARTIFACTS) == 36
-    assert report["artifact_count_scanned"] == 36
+    assert report["artifact_count_expected"] == len(DEFAULT_ARTIFACTS) == 64
+    assert report["artifact_count_scanned"] == 64
     assert report["complete_artifact_privacy_verified"] is False
     assert report["finding_count"] == 0
     assert report["error_count"] == 0
