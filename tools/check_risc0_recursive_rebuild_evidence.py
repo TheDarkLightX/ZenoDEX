@@ -211,11 +211,22 @@ def _required_flag(name: str) -> int:
     return value
 
 
+def _absolute_path(path: Path, *, code: str, label: str) -> Path:
+    try:
+        raw_path = os.fspath(path)
+        if "\x00" in raw_path:
+            raise ValueError("path contains NUL")
+        os.fsencode(raw_path)
+        return Path(os.path.abspath(raw_path))
+    except (OSError, TypeError, UnicodeError, ValueError) as exc:
+        raise _reject(code, label) from exc
+
+
 def _canonical_directory(path: Path, *, label: str) -> Path:
-    absolute = Path(os.path.abspath(os.fspath(path)))
+    absolute = _absolute_path(path, code="DIRECTORY_INVALID", label=label)
     try:
         resolved = absolute.resolve(strict=True)
-    except (OSError, RuntimeError) as exc:
+    except (OSError, RuntimeError, UnicodeError, ValueError) as exc:
         raise _reject("DIRECTORY_INVALID", label) from exc
     if resolved != absolute:
         raise _reject("SYMLINK_FORBIDDEN", label)
@@ -340,7 +351,7 @@ def _read_regular_under_root(
 
 
 def _read_regular_path(path: Path, *, label: str, max_bytes: int) -> FileDigest:
-    absolute = Path(os.path.abspath(os.fspath(path)))
+    absolute = _absolute_path(path, code="FILE_PATH_INVALID", label=label)
     parent = _canonical_directory(absolute.parent, label=f"{label}.parent")
     if not absolute.name:
         raise _reject("FILE_PATH_INVALID", label)

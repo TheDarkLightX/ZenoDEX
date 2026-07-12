@@ -210,3 +210,12 @@ def test_bound_reference_read_failure_returns_rejected_report(tmp_path: Path) ->
     assert report["ok"] is False
     assert report["status"] == "rejected"
     assert report["error_codes"] == ["REFERENCE"]
+
+
+@pytest.mark.parametrize("raw_path", ["bad\x00evidence", "bad\ud800evidence"])
+def test_malformed_evidence_path_returns_rejected_report(raw_path: str) -> None:
+    report = checker.check_retained_evidence(Path(raw_path))
+
+    assert report["ok"] is False
+    assert report["status"] == "rejected"
+    assert report["error_codes"] == ["EVIDENCE_READ"]

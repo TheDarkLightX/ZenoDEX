@@ -89,7 +89,7 @@
   },
   "artifact_evidence_verified": true,
   "checker_source_closure": {
-    "artifact_checker": "bece0dcdb90c86026b768b273877923ace5af2dac5bfcfc6e01c1e175732aa21",
+    "artifact_checker": "ed6a287ce692556a4ebfb845dcdbe50d2b77c4b5519055fe949ff5c3e68d7b47",
     "environment": "f2694fb1b36acd502d3b3b7d6724758daa741a04e56bc9a349445dfb6ce240f0",
     "live_replay_checker": "fed7a925c221b8046b703132f918776a9e06c5577eb3e7706b0589bea500aff5",
     "live_replay_support": "b19763604e06f17dc329b098e5d036e894f1ecd90d651f043bf50d947b79767a",

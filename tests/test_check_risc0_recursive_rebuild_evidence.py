@@ -810,3 +810,41 @@ def test_cli_returns_nonzero_and_stable_json_on_drift(
     assert output["error_codes"] == ["ROOT_PROOF_SHA256_MISMATCH"]
     assert output["pinned_rebuild_artifact_match"] is False
     assert output["same_host_clean_rebuild"] is False
+
+
+@pytest.mark.parametrize("raw_path", ["bad\x00path", "bad\ud800path"])
+def test_regular_path_rejects_unencodable_or_nul_path(raw_path: str) -> None:
+    with pytest.raises(checker.EvidenceError) as rejected:
+        checker._read_regular_path(
+            Path(raw_path),
+            label="evidence",
+            max_bytes=1,
+        )
+
+    assert rejected.value.code == "FILE_PATH_INVALID"
+
+
+@pytest.mark.parametrize("raw_path", ["bad\x00directory", "bad\ud800directory"])
+def test_directory_rejects_unencodable_or_nul_path(raw_path: str) -> None:
+    with pytest.raises(checker.EvidenceError) as rejected:
+        checker._canonical_directory(Path(raw_path), label="workspace")
+
+    assert rejected.value.code == "DIRECTORY_INVALID"
+
+
+def test_regular_path_rejects_path_normalization_oserror(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unavailable_working_directory(_path: str) -> str:
+        raise FileNotFoundError("working directory was removed")
+
+    monkeypatch.setattr(checker.os.path, "abspath", unavailable_working_directory)
+
+    with pytest.raises(checker.EvidenceError) as rejected:
+        checker._read_regular_path(
+            Path("relative-evidence.json"),
+            label="evidence",
+            max_bytes=1,
+        )
+
+    assert rejected.value.code == "FILE_PATH_INVALID"
