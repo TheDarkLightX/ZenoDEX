@@ -1086,6 +1086,53 @@ def _oracle_adapter_error_summary(result: Any) -> str:
     return "bridge verifier rejected"
 
 
+def _verify_oracle_adapter_bridge(
+    config: PerpEngineConfig,
+    *,
+    data: Mapping[str, Any],
+    consumer_module: str,
+    action_kind: str,
+    expected_query_id: Optional[str] = None,
+    expected_profile_id: Optional[str] = None,
+    expected_action_id: Optional[str] = None,
+    required: bool = False,
+) -> tuple[Optional[str], Any]:
+    if "oracle_adapter_bridge" not in data:
+        if required:
+            return f"{action_kind} requires oracle_adapter_bridge", None
+        return None, None
+
+    bridge = data.get("oracle_adapter_bridge")
+    if not isinstance(bridge, Mapping):
+        return "oracle_adapter_bridge must be an object", None
+    verifier = config.oracle_adapter_bridge_verifier
+    if verifier is None:
+        return "oracle_adapter_bridge verifier not configured", None
+    try:
+        result = verifier(bridge)
+    except Exception as exc:
+        return f"oracle_adapter_bridge verifier error: {_safe_error_str(exc)}", None
+
+    if _oracle_adapter_result_get(result, "status") != "accepted":
+        return f"oracle_adapter_bridge rejected: {_oracle_adapter_error_summary(result)}", None
+    result_consumer = _oracle_adapter_result_get(result, "consumer_module")
+    result_action = _oracle_adapter_result_get(result, "action_kind")
+    if result_consumer != consumer_module:
+        return "oracle_adapter_bridge consumer mismatch", None
+    if result_action != action_kind:
+        return "oracle_adapter_bridge action mismatch", None
+    result_query_id = _oracle_adapter_result_get(result, "query_id")
+    if expected_query_id is not None and result_query_id != expected_query_id:
+        return "oracle_adapter_bridge query mismatch", None
+    result_profile_id = _oracle_adapter_result_get(result, "profile_id")
+    if expected_profile_id is not None and result_profile_id != expected_profile_id:
+        return "oracle_adapter_bridge profile mismatch", None
+    result_action_id = _oracle_adapter_result_get(result, "action_id")
+    if expected_action_id is not None and result_action_id != expected_action_id:
+        return "oracle_adapter_bridge action_id mismatch", None
+    return None, result
+
+
 def _require_oracle_adapter_bridge(
     config: PerpEngineConfig,
     *,
@@ -1097,40 +1144,17 @@ def _require_oracle_adapter_bridge(
     expected_action_id: Optional[str] = None,
     required: bool = False,
 ) -> Optional[str]:
-    if "oracle_adapter_bridge" not in data:
-        if required:
-            return f"{action_kind} requires oracle_adapter_bridge"
-        return None
-
-    bridge = data.get("oracle_adapter_bridge")
-    if not isinstance(bridge, Mapping):
-        return "oracle_adapter_bridge must be an object"
-    verifier = config.oracle_adapter_bridge_verifier
-    if verifier is None:
-        return "oracle_adapter_bridge verifier not configured"
-    try:
-        result = verifier(bridge)
-    except Exception as exc:
-        return f"oracle_adapter_bridge verifier error: {_safe_error_str(exc)}"
-
-    if _oracle_adapter_result_get(result, "status") != "accepted":
-        return f"oracle_adapter_bridge rejected: {_oracle_adapter_error_summary(result)}"
-    result_consumer = _oracle_adapter_result_get(result, "consumer_module")
-    result_action = _oracle_adapter_result_get(result, "action_kind")
-    if result_consumer != consumer_module:
-        return "oracle_adapter_bridge consumer mismatch"
-    if result_action != action_kind:
-        return "oracle_adapter_bridge action mismatch"
-    result_query_id = _oracle_adapter_result_get(result, "query_id")
-    if expected_query_id is not None and result_query_id != expected_query_id:
-        return "oracle_adapter_bridge query mismatch"
-    result_profile_id = _oracle_adapter_result_get(result, "profile_id")
-    if expected_profile_id is not None and result_profile_id != expected_profile_id:
-        return "oracle_adapter_bridge profile mismatch"
-    result_action_id = _oracle_adapter_result_get(result, "action_id")
-    if expected_action_id is not None and result_action_id != expected_action_id:
-        return "oracle_adapter_bridge action_id mismatch"
-    return None
+    err, _result = _verify_oracle_adapter_bridge(
+        config,
+        data=data,
+        consumer_module=consumer_module,
+        action_kind=action_kind,
+        expected_query_id=expected_query_id,
+        expected_profile_id=expected_profile_id,
+        expected_action_id=expected_action_id,
+        required=required,
+    )
+    return err
 
 
 def _perps_runtime_oracle_action_id(
@@ -1284,6 +1308,27 @@ def _perps_clearinghouse_settle_oracle_runtime_facts(
     }
 
 
+def _authorization_payload(authorization: Mapping[str, Any]) -> Mapping[str, Any]:
+    nested = authorization.get("authorization")
+    if isinstance(nested, Mapping):
+        return nested
+    return authorization
+
+
+def _bind_clearinghouse_authorization_to_bridge(
+    authorization: Mapping[str, Any],
+    *,
+    bridge_result: Any,
+) -> Optional[str]:
+    # The aggregate adapter currently authenticates the query/action tuple and
+    # value hash. Bind only those verifier-owned outputs here; the typed oracle
+    # authorization verifier remains responsible for its receipt metadata.
+    auth = _authorization_payload(authorization)
+    if _oracle_adapter_result_get(bridge_result, "value_hash") != auth.get("value_hash"):
+        return "clearinghouse_settle_oracle_authorization_rejected: oracle_adapter_bridge value_hash mismatch"
+    return None
+
+
 def _check_clearinghouse_settle_oracle_authorization(
     config: PerpEngineConfig,
     *,
@@ -1293,6 +1338,7 @@ def _check_clearinghouse_settle_oracle_authorization(
     quote_asset: str,
     state: Mapping[str, Any],
     participant_pubkeys: tuple[str, ...],
+    bridge_result: Any = None,
 ) -> Optional[str]:
     authorization_required = bool(config.require_oracle_authorization_for_clearinghouse_settle_epoch)
     authorization = data.get("oracle_authorization")
@@ -1334,6 +1380,8 @@ def _check_clearinghouse_settle_oracle_authorization(
     if not bool(result.get("typed_ok", False)):
         errors = result.get("typed_errors") or result.get("opaque_errors") or ["typed authorization rejected"]
         return "clearinghouse_settle_oracle_authorization_rejected: " + "; ".join(str(err) for err in errors)
+    if authorization_required:
+        return _bind_clearinghouse_authorization_to_bridge(authorization, bridge_result=bridge_result)
     return None
 
 
@@ -1726,7 +1774,7 @@ def _apply_ch2p_op(
         if unknown is not None:
             return unknown
         participant_pubkeys = (ch2p_market.account_a_pubkey, ch2p_market.account_b_pubkey)
-        err = _require_oracle_adapter_bridge(
+        err, bridge_result = _verify_oracle_adapter_bridge(
             config,
             data=data,
             consumer_module="zenodex.perps",
@@ -1754,6 +1802,7 @@ def _apply_ch2p_op(
             quote_asset=ch2p_market.quote_asset,
             state=ch2p_market.state,
             participant_pubkeys=participant_pubkeys,
+            bridge_result=bridge_result,
         )
         if err is not None:
             return err
@@ -2089,7 +2138,7 @@ def _apply_ch3p_op(
             ch3p_market.account_b_pubkey,
             ch3p_market.account_c_pubkey,
         )
-        err = _require_oracle_adapter_bridge(
+        err, bridge_result = _verify_oracle_adapter_bridge(
             config,
             data=data,
             consumer_module="zenodex.perps",
@@ -2117,6 +2166,7 @@ def _apply_ch3p_op(
             quote_asset=ch3p_market.quote_asset,
             state=ch3p_market.state,
             participant_pubkeys=participant_pubkeys,
+            bridge_result=bridge_result,
         )
         if err is not None:
             return err
@@ -4543,7 +4593,7 @@ def _chnp_settle_oracle_bridge_error(
         state=state_for_oracle,
         participant_pubkeys=participant_pubkeys,
     )
-    err = _require_oracle_adapter_bridge(
+    err, bridge_result = _verify_oracle_adapter_bridge(
         config,
         data=data,
         consumer_module="zenodex.perps",
@@ -4563,6 +4613,7 @@ def _chnp_settle_oracle_bridge_error(
         quote_asset=market.quote_asset,
         state=state_for_oracle,
         participant_pubkeys=participant_pubkeys,
+        bridge_result=bridge_result,
     )
 
 

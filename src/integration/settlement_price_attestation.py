@@ -157,7 +157,10 @@ def verify_settlement_spot_price_attestation(
     if int(consumer_now_epoch) - int(attestation.signed_at_epoch) > int(max_attestation_age_epochs):
         return False, "settlement spot price attestation is stale"
 
-    normalized_allowlist = _canonical_allowed_signers(allowed_signers)
+    try:
+        normalized_allowlist = _canonical_allowed_signers(allowed_signers)
+    except Exception as exc:
+        return False, str(exc)
     cache_key = _price_attestation_verify_cache_key(
         attestation=attestation,
         consumer_now_epoch=int(consumer_now_epoch),
@@ -167,17 +170,16 @@ def verify_settlement_spot_price_attestation(
     cached = _PRICE_ATTESTATION_VERIFY_CACHE.get(cache_key)
     if cached is not None:
         return cached
-    if normalized_allowlist is not None:
-        allowed_sources = normalized_allowlist.get(attestation.signer_pubkey)
-        if allowed_sources is None:
-            result = (False, "signer_pubkey not allowlisted")
+    allowed_sources = normalized_allowlist.get(attestation.signer_pubkey)
+    if allowed_sources is None:
+        result = (False, "signer_pubkey not allowlisted")
+        _cache_attestation_verify_result(cache_key, result)
+        return result
+    for source_id in _packet_source_ids(attestation.packet):
+        if source_id not in allowed_sources:
+            result = (False, f"source_id not allowlisted for signer: {source_id}")
             _cache_attestation_verify_result(cache_key, result)
             return result
-        for source_id in _packet_source_ids(attestation.packet):
-            if source_id not in allowed_sources:
-                result = (False, f"source_id not allowlisted for signer: {source_id}")
-                _cache_attestation_verify_result(cache_key, result)
-                return result
 
     _require_bls()
     unsigned = attestation.to_unsigned_dict()
@@ -218,11 +220,20 @@ def verify_settlement_spot_price_attestation_payload(
 
 def _canonical_allowed_signers(
     allowed_signers: Mapping[str, Sequence[str]] | None,
-) -> dict[str, frozenset[str]] | None:
+) -> dict[str, frozenset[str]]:
+    """Normalize the required signer/source policy.
+
+    DbC:
+    - Precondition: callers must provide a non-empty signer allowlist.
+    - Invariant: each authorized signer maps to at least one source id.
+    - Postcondition: verifier success is always bound to explicit signer policy.
+    """
     if allowed_signers is None:
-        return None
+        raise ValueError("allowed_signers must be provided")
     if not isinstance(allowed_signers, Mapping):
         raise TypeError("allowed_signers must be a mapping when provided")
+    if not allowed_signers:
+        raise ValueError("allowed_signers must be non-empty")
     normalized: dict[str, frozenset[str]] = {}
     for raw_pubkey, raw_sources in allowed_signers.items():
         pubkey = canonical_hex_fixed_allow_0x(str(raw_pubkey), nbytes=48, name="allowed_signer_pubkey")
@@ -236,6 +247,8 @@ def _canonical_allowed_signers(
             if not source_id:
                 raise ValueError("allowed_signer source ids must be non-empty")
             source_ids.append(source_id)
+        if not source_ids:
+            raise ValueError("allowed_signer source ids must be non-empty")
         normalized[pubkey] = frozenset(source_ids)
     return normalized
 

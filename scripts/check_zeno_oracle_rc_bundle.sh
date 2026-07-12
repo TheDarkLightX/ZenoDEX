@@ -19,7 +19,7 @@ python3 tools/check_zeno_oracle_frontier_obligation_projection.py --format text
 python3 tools/check_zenoproof_production_governance_policy.py --format text
 python3 tools/check_claims_registry.py
 python3 tools/check_zeno_oracle_goal_completion_audit.py --format text --expect-blocked
-python3 tools/check_zeno_oracle_rc_package.py --package-dir "${root}"
+python3 tools/check_zeno_oracle_rc_package.py --package-dir "${root}" --local-only-manifest-check
 
 if command -v julia >/dev/null 2>&1; then
   julia tools/zeno_oracle_math_witness_sweep.jl --json >/tmp/zeno_oracle_rc_bundle_julia_math_witness.json

@@ -7,7 +7,6 @@ from typing import Any
 
 from tools.check_zeno_oracle_rc_package import check_package
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -102,3 +101,69 @@ def test_check_zeno_oracle_rc_package_rejects_missing_claims_registry_evidence(t
     assert report["status"] == "rejected"
     assert "manifest_file_missing_on_disk:tests/integration/test_dex_snapshot.py" in report["errors"]
     assert "claims_registry_file_missing_on_disk:tests/integration/test_dex_snapshot.py" in report["errors"]
+
+
+def test_check_zeno_oracle_rc_package_rejects_receipt_for_different_package() -> None:
+    _, receipt_path, sig_path = _build_package("zeno-oracle-package-auth-a-pytest-rc")
+    other_package_dir, _, _ = _build_package("zeno-oracle-package-auth-b-pytest-rc")
+
+    report = check_package(
+        package_dir=other_package_dir,
+        receipt_path=receipt_path,
+        sig_path=sig_path,
+    )
+
+    assert report["status"] == "rejected"
+    assert any(
+        error.startswith("authenticated_package_file_sha256_mismatch:")
+        for error in report["errors"]
+    )
+
+
+def test_check_zeno_oracle_rc_package_cli_rejects_missing_authentication() -> None:
+    package_dir, _, _ = _build_package("zeno-oracle-package-cli-auth-pytest-rc")
+
+    proc = subprocess.run(
+        [
+            "python3",
+            "tools/check_zeno_oracle_rc_package.py",
+            "--package-dir",
+            str(package_dir),
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert proc.returncode == 1
+    report = json.loads(proc.stdout)
+    assert report["status"] == "rejected"
+    assert report["authenticated_mode"] is True
+    assert "receipt_and_sig_required_unless_local_only" in report["errors"]
+
+
+def test_check_zeno_oracle_rc_package_cli_allows_explicit_local_only_manifest_check() -> None:
+    package_dir, _, _ = _build_package("zeno-oracle-package-cli-local-pytest-rc")
+
+    proc = subprocess.run(
+        [
+            "python3",
+            "tools/check_zeno_oracle_rc_package.py",
+            "--package-dir",
+            str(package_dir),
+            "--local-only-manifest-check",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert proc.returncode == 0
+    report = json.loads(proc.stdout)
+    assert report["status"] == "accepted"
+    assert report["authenticated_mode"] is False
+    assert report["receipt_checked"] is False
+    assert report["signature_checked"] is False
+    assert report["errors"] == []
