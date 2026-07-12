@@ -8,6 +8,7 @@ from typing import Any
 
 from src.core._zrpf_settlement_certificate_authority import (
     SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1,
+    SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6,
 )
 from src.core._zrpf_settlement_commit_authority import (
     SETTLEMENT_AUTHORITY_BLOCKED_REASON_V1,
@@ -20,6 +21,7 @@ from src.integration._zrpf_authenticated_certificate_store_engine import (
     _ACTION_LIST_DOMAIN,
     _CONSUMED_LIST_DOMAIN,
     _GRANT_LIST_DOMAIN,
+    _durable_certificate_binding_digest_v1,
     _identifier_list_digest,
     _read_identifier_sequence,
 )
@@ -200,6 +202,43 @@ def _validate_certificate_bytes_and_authority(row: sqlite3.Row) -> None:
         row["exact_effect_plan_sha256"]
     ):
         raise ValueError("exact settlement effect plan sha256 mismatch")
+    if hashlib.sha256(bytes(row["source_opened_replay"])).digest() != bytes(
+        row["source_opened_replay_sha256"]
+    ):
+        raise ValueError("source-opened settlement replay sha256 mismatch")
+    if hashlib.sha256(bytes(row["data_availability_certificate"])).digest() != bytes(
+        row["data_availability_certificate_sha256"]
+    ):
+        raise ValueError("data-availability certificate sha256 mismatch")
+    for column in (
+        "proof_tree_root",
+        "dependency_manifest_root",
+        "data_availability_certificate_root",
+        "schedule_certificate_root",
+        "carry_continuity_certificate_root",
+    ):
+        if bytes(row[column]) == bytes(32):
+            raise ValueError(f"certificate {column} must remain nonzero")
+    expected_binding = _durable_certificate_binding_digest_v1(
+        certificate_journal_hash=bytes(row["certificate_journal_hash"]),
+        settlement_profile_id=str(row["settlement_profile_id"]),
+        consumed_object_ids_root=bytes(row["consumed_object_ids_root"]),
+        action_nullifier_list_sha256=bytes(row["action_nullifier_list_sha256"]),
+        consumed_object_id_list_sha256=bytes(row["consumed_object_id_list_sha256"]),
+        proof_tree_root=bytes(row["proof_tree_root"]),
+        dependency_manifest_root=bytes(row["dependency_manifest_root"]),
+        data_availability_certificate_root=bytes(row["data_availability_certificate_root"]),
+        schedule_certificate_root=bytes(row["schedule_certificate_root"]),
+        carry_continuity_certificate_root=bytes(row["carry_continuity_certificate_root"]),
+        source_opened_replay_sha256=bytes(row["source_opened_replay_sha256"]),
+        data_availability_certificate_sha256=bytes(
+            row["data_availability_certificate_sha256"]
+        ),
+        canonical_certificate_sha256=bytes(row["canonical_certificate_sha256"]),
+        exact_effect_plan_sha256=bytes(row["exact_effect_plan_sha256"]),
+    )
+    if expected_binding != bytes(row["durable_certificate_binding_sha256"]):
+        raise ValueError("durable certificate binding sha256 mismatch")
     if int(row["settlement_authority"]) != 0:
         raise ValueError("authenticated certificate authority must remain false")
     if (
@@ -234,6 +273,11 @@ def _validate_certificate_identifier_lists(
         row["consumed_object_id_list_sha256"]
     ):
         raise ValueError("stored consumed object list digest mismatch")
+    if str(row["settlement_profile_id"]) == SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6:
+        if len(action_nullifiers) != 1 or action_nullifiers != consumed_objects:
+            raise ValueError(
+                "source-opened V6 action nullifier must equal the sole consumed object"
+            )
 
     grant_rows = connection.execute(
         """

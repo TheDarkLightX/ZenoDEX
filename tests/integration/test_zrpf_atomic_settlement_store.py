@@ -13,9 +13,12 @@ from typing import Callable
 import pytest
 
 import src.core._zrpf_settlement_commit_authority as settlement_authority_module
+import src.integration._zrpf_atomic_settlement_store_schema as settlement_schema_module
+import src.integration._zrpf_authenticated_certificate_store_engine as certificate_engine_module
 import src.integration.zrpf_atomic_settlement_store as settlement_store_module
 from src.core._zrpf_settlement_certificate_authority import (
     SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1,
+    SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6,
     _AuthenticatedSettlementCertificateV1,
 )
 from src.core._zrpf_settlement_commit_authority import (
@@ -174,6 +177,62 @@ def _plan(
         reward_effects=(),
     )
     return build_settlement_effect_plan_v1(proposal)
+
+
+def _singleton_spot_plan(
+    *,
+    root: int = 130,
+    epoch: int = 9,
+    pre_state: int = 3,
+    post_state: int = 4,
+    action: int = 110,
+    cell_base: int = 140,
+) -> SettlementEffectPlanV1:
+    action_id = _hash(action)
+    return build_settlement_effect_plan_v1(
+        ProposedSettlementEffectPlanV1(
+            application_id=_hash(1),
+            chain_or_domain_id=_hash(2),
+            epoch_id=epoch,
+            source_root_journal_hash=_hash(root),
+            public_policy_hash=_hash(31),
+            pre_state_root=_hash(pre_state),
+            post_state_root=_hash(post_state),
+            economic_action_ids=(action_id,),
+            ledger_cell_writes=(
+                LedgerCellWriteV1(
+                    economic_action_id=action_id,
+                    cell_key=_hash(cell_base),
+                    pre_value_hash=_hash(cell_base + 1),
+                    post_value_hash=_hash(cell_base + 2),
+                ),
+            ),
+            asset_effects=(
+                AssetEffectV1(
+                    kind=AssetEffectKindV1.ORDINARY_TRANSFER,
+                    economic_action_id=action_id,
+                    asset_id=_hash(160),
+                    debit_atoms=100,
+                    credit_atoms=100,
+                    authorized_mint_atoms=0,
+                    authorized_burn_atoms=0,
+                ),
+                AssetEffectV1(
+                    kind=AssetEffectKindV1.ORDINARY_TRANSFER,
+                    economic_action_id=action_id,
+                    asset_id=_hash(161),
+                    debit_atoms=90,
+                    credit_atoms=90,
+                    authorized_mint_atoms=0,
+                    authorized_burn_atoms=0,
+                ),
+            ),
+            authorization_consumptions=(),
+            message_effects=(),
+            carry_effects=(),
+            reward_effects=(),
+        )
+    )
 
 
 def _facts(plan: SettlementEffectPlanV1) -> RecursiveStarkRootFacts:
@@ -930,10 +989,13 @@ def _verified_certificate_response(
     action_nullifiers: tuple[str, ...] | None = None,
     consumed_object_ids: tuple[str, ...] | None = None,
     proof_profile: str = "settlement_epoch_certificate_v1",
+    settlement_profile_id: str = "zrpf_state_bound_settlement_v2",
 ) -> dict[str, object]:
     base = 100_000 + seed * 100
     canonical_certificate = f"canonical-settlement-certificate-{seed}".encode("ascii")
     exact_effect_plan = f"exact-postcard-effect-plan-{seed}".encode("ascii")
+    source_opened_replay = f"source-opened-settlement-replay-{seed}".encode("ascii")
+    data_availability_certificate = f"full-blob-da-certificate-{seed}".encode("ascii")
     action_ids = action_nullifiers or tuple(
         _hash(base + 1 + index) for index, _action in enumerate(plan.economic_action_ids)
     )
@@ -957,7 +1019,7 @@ def _verified_certificate_response(
         "settlement_manifest_sha256": hashlib.sha256(
             f"settlement-manifest-{seed}".encode("ascii")
         ).hexdigest(),
-        "settlement_profile_id": "zrpf_state_bound_settlement_v2",
+        "settlement_profile_id": settlement_profile_id,
         "semantic_root_journal_hash": plan.source_root_journal_hash,
         "semantic_claim_hash": _hash(base + 8),
         "certificate_journal_hash": _hash(base + 9),
@@ -968,6 +1030,11 @@ def _verified_certificate_response(
         "economic_action_ids_root": plan.economic_action_ids_root,
         "ledger_cell_writes_root": plan.ledger_cell_writes_root,
         "asset_effects_root": plan.asset_effects_root,
+        "proof_tree_root": _hash(base + 16),
+        "dependency_manifest_root": _hash(base + 17),
+        "data_availability_certificate_root": _hash(base + 18),
+        "schedule_certificate_root": _hash(base + 19),
+        "carry_continuity_certificate_root": _hash(base + 20),
         "action_authorization_bindings_root": _hash(base + 12),
         "authorization_grant_spend_nullifiers_root": _hash(base + 13),
         "consumed_object_ids_root": _hash(base + 14),
@@ -979,6 +1046,12 @@ def _verified_certificate_response(
         "canonical_certificate_sha256": hashlib.sha256(canonical_certificate).hexdigest(),
         "exact_effect_plan_hex": exact_effect_plan.hex(),
         "exact_effect_plan_sha256": hashlib.sha256(exact_effect_plan).hexdigest(),
+        "source_opened_replay_hex": source_opened_replay.hex(),
+        "source_opened_replay_sha256": hashlib.sha256(source_opened_replay).hexdigest(),
+        "data_availability_certificate_hex": data_availability_certificate.hex(),
+        "data_availability_certificate_sha256": hashlib.sha256(
+            data_availability_certificate
+        ).hexdigest(),
         "action_nullifiers": list(action_ids),
         "consumed_object_ids": list(consumed_ids),
         "authorization_grant_spend_nullifiers": [
@@ -1091,6 +1164,19 @@ def test_pinned_settlement_verifier_atomically_commits_state_bound_certificate(
     assert result.certificate_receipt.authority_blocked_reason == (
         SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1
     )
+    values = response["verified_settlement_certificate"]
+    assert isinstance(values, dict)
+    assert result.certificate_receipt.proof_tree_root == values["proof_tree_root"]
+    assert result.certificate_receipt.dependency_manifest_root == values["dependency_manifest_root"]
+    assert result.certificate_receipt.data_availability_certificate_root == values[
+        "data_availability_certificate_root"
+    ]
+    assert result.certificate_receipt.schedule_certificate_root == values[
+        "schedule_certificate_root"
+    ]
+    assert result.certificate_receipt.carry_continuity_certificate_root == values[
+        "carry_continuity_certificate_root"
+    ]
     with sqlite3.connect(store.path) as connection:
         counts = {
             table: int(connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
@@ -1102,6 +1188,14 @@ def test_pinned_settlement_verifier_atomically_commits_state_bound_certificate(
                 "zrpf_settlement_consumed_objects",
             )
         }
+        durable_blobs = connection.execute(
+            "SELECT source_opened_replay, data_availability_certificate, "
+            "settlement_authority FROM zrpf_settlement_certificates"
+        ).fetchone()
+        assert durable_blobs is not None
+        assert bytes(durable_blobs[0]).hex() == values["source_opened_replay_hex"]
+        assert bytes(durable_blobs[1]).hex() == values["data_availability_certificate_hex"]
+        assert durable_blobs[2] == 0
     assert counts == {
         "zrpf_admissions": 1,
         "zrpf_settlement_plans": 1,
@@ -1117,6 +1211,118 @@ def test_pinned_settlement_verifier_atomically_commits_state_bound_certificate(
     replay = _verify_and_commit_certificate(adapter, restarted)
     assert replay.idempotent_replay is True
     assert replay.certificate_receipt == receipt
+
+
+def test_source_opened_v6_binds_one_nullifier_to_one_consumed_object(tmp_path: Path) -> None:
+    plan = _singleton_spot_plan()
+    nullifier = _hash(300_001)
+    response = _verified_certificate_response(
+        plan,
+        seed=2,
+        action_nullifiers=(nullifier,),
+        consumed_object_ids=(nullifier,),
+        settlement_profile_id=SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6,
+    )
+    store = _store(tmp_path)
+    adapter = _certificate_adapter(tmp_path, response, name="source-opened-v6-verifier")
+
+    result = _verify_and_commit_certificate(adapter, store)
+
+    assert result.committed
+    assert result.settlement_authority is False
+    with sqlite3.connect(store.path) as connection:
+        action = connection.execute(
+            "SELECT action_nullifier FROM zrpf_settlement_action_nullifiers"
+        ).fetchone()
+        consumed = connection.execute(
+            "SELECT consumed_object_id FROM zrpf_settlement_consumed_objects"
+        ).fetchone()
+    assert action is not None and consumed is not None
+    assert bytes(action[0]) == bytes(consumed[0]) == bytes.fromhex(nullifier[2:])
+    assert _store(tmp_path).read_settlement_cursor().revision == 1
+
+
+def test_source_opened_v6_rejects_detached_nullifier_list_before_commit(tmp_path: Path) -> None:
+    plan = _singleton_spot_plan()
+    response = _verified_certificate_response(
+        plan,
+        seed=3,
+        action_nullifiers=(_hash(300_010),),
+        consumed_object_ids=(_hash(300_011),),
+        settlement_profile_id=SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6,
+    )
+    store = _store(tmp_path)
+    adapter = _certificate_adapter(tmp_path, response, name="detached-v6-verifier")
+
+    with pytest.raises(
+        SettlementCertificateVerificationError,
+        match="capability binding is invalid",
+    ):
+        _verify_and_commit_certificate(adapter, store)
+
+    assert store.read_admission_cursor().revision == 0
+    assert store.read_settlement_cursor().revision == 0
+
+
+def test_restart_rejects_v6_nullifier_detached_from_consumed_object(tmp_path: Path) -> None:
+    plan = _singleton_spot_plan()
+    nullifier = _hash(300_020)
+    response = _verified_certificate_response(
+        plan,
+        seed=4,
+        action_nullifiers=(nullifier,),
+        consumed_object_ids=(nullifier,),
+        settlement_profile_id=SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6,
+    )
+    store = _store(tmp_path)
+    adapter = _certificate_adapter(tmp_path, response, name="restart-v6-verifier")
+    assert _verify_and_commit_certificate(adapter, store).committed
+    replacement = _hash(300_021)
+    replacement_digest = certificate_engine_module._identifier_list_digest(
+        certificate_engine_module._ACTION_LIST_DOMAIN,
+        (replacement,),
+    )
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            "UPDATE zrpf_settlement_action_nullifiers SET action_nullifier = ?",
+            (bytes.fromhex(replacement[2:]),),
+        )
+        connection.execute(
+            "UPDATE zrpf_settlement_certificates SET action_nullifier_list_sha256 = ?",
+            (replacement_digest,),
+        )
+
+    with pytest.raises(
+        ZrpfAtomicSettlementStoreErrorV1,
+        match="durable certificate binding sha256 mismatch",
+    ):
+        _store(tmp_path)
+
+
+def test_restart_rejects_v6_profile_downgrade(tmp_path: Path) -> None:
+    plan = _singleton_spot_plan()
+    nullifier = _hash(300_030)
+    response = _verified_certificate_response(
+        plan,
+        seed=5,
+        action_nullifiers=(nullifier,),
+        consumed_object_ids=(nullifier,),
+        settlement_profile_id=SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6,
+    )
+    store = _store(tmp_path)
+    adapter = _certificate_adapter(tmp_path, response, name="profile-downgrade-verifier")
+    assert _verify_and_commit_certificate(adapter, store).committed
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            "UPDATE zrpf_settlement_certificates SET settlement_profile_id = ?",
+            ("zrpf_state_bound_settlement_v2",),
+        )
+
+    with pytest.raises(
+        ZrpfAtomicSettlementStoreErrorV1,
+        match="durable certificate binding sha256 mismatch",
+    ):
+        _store(tmp_path)
 
 
 def test_raw_plan_and_forged_certificate_cannot_reach_private_admission(
@@ -1318,6 +1524,15 @@ def test_two_state_bound_writers_commit_exactly_one_transaction(tmp_path: Path) 
         assert connection.execute(
             "SELECT count(*) FROM zrpf_settlement_certificates"
         ).fetchone()[0] == 1
+        durable = connection.execute(
+            "SELECT source_opened_replay, source_opened_replay_sha256, "
+            "data_availability_certificate, data_availability_certificate_sha256, "
+            "settlement_authority FROM zrpf_settlement_certificates"
+        ).fetchone()
+    assert durable is not None
+    assert hashlib.sha256(bytes(durable[0])).digest() == bytes(durable[1])
+    assert hashlib.sha256(bytes(durable[2])).digest() == bytes(durable[3])
+    assert durable[4] == 0
 
 
 @pytest.mark.parametrize(
@@ -1381,6 +1596,25 @@ def test_failure_after_certificate_stage_rolls_back_every_row(
             "canonical settlement certificate sha256 mismatch",
         ),
         (
+            "UPDATE zrpf_settlement_certificates "
+            "SET source_opened_replay = CAST(source_opened_replay || x'00' AS BLOB)",
+            "source-opened settlement replay sha256 mismatch",
+        ),
+        (
+            "UPDATE zrpf_settlement_certificates SET data_availability_certificate = "
+            "CAST(data_availability_certificate || x'00' AS BLOB)",
+            "data-availability certificate sha256 mismatch",
+        ),
+        (
+            f"UPDATE zrpf_settlement_certificates SET proof_tree_root = x'{888881:064x}'",
+            "durable certificate binding sha256 mismatch",
+        ),
+        (
+            "UPDATE zrpf_settlement_certificates "
+            "SET carry_continuity_certificate_root = zeroblob(32)",
+            "certificate carry_continuity_certificate_root must remain nonzero",
+        ),
+        (
             f"UPDATE zrpf_settlement_action_nullifiers "
             f"SET action_nullifier = x'{999999:064x}' WHERE ordinal = 0",
             "stored action nullifier list digest mismatch",
@@ -1442,7 +1676,9 @@ def test_legacy_atomic_schema_migrates_only_certificate_side_tables(tmp_path: Pa
 
     assert restarted.read_settlement_cursor().revision == 1
     with sqlite3.connect(store.path) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == (
+            ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V1
+        )
         names = {
             str(row[0])
             for row in connection.execute(
@@ -1455,3 +1691,108 @@ def test_legacy_atomic_schema_migrates_only_certificate_side_tables(tmp_path: Pa
         "zrpf_settlement_action_nullifiers",
         "zrpf_settlement_consumed_objects",
     } <= names
+
+
+def _replace_empty_certificate_tables_with_v2(path: Path) -> None:
+    with sqlite3.connect(path) as connection:
+        for table in reversed(settlement_schema_module._CERTIFICATE_TABLE_NAMES[1:]):
+            connection.execute(f"DROP TABLE {table}")
+        for statement in settlement_schema_module._CERTIFICATE_SCHEMA_STATEMENTS_V2[1:]:
+            connection.execute(statement)
+        connection.execute("PRAGMA user_version = 2")
+
+
+def test_empty_v2_certificate_schema_migrates_to_durable_v3(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    _replace_empty_certificate_tables_with_v2(store.path)
+
+    restarted = _store(tmp_path)
+
+    assert restarted.read_admission_cursor().revision == 0
+    assert restarted.read_settlement_cursor().revision == 0
+    with sqlite3.connect(store.path) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == (
+            ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V1
+        )
+        columns = {
+            str(row[1])
+            for row in connection.execute("PRAGMA table_info(zrpf_settlement_certificates)")
+        }
+    assert {
+        "proof_tree_root",
+        "dependency_manifest_root",
+        "data_availability_certificate_root",
+        "schedule_certificate_root",
+        "carry_continuity_certificate_root",
+        "source_opened_replay",
+        "data_availability_certificate",
+        "durable_certificate_binding_sha256",
+    } <= columns
+
+
+def test_v2_history_without_durable_bytes_rejects_and_rolls_back_migration(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    _replace_empty_certificate_tables_with_v2(store.path)
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            "UPDATE zrpf_settlement_certificate_meta SET certificate_count = 1, "
+            "last_settlement_revision = 1, last_epoch_id_be = ?, "
+            "last_certificate_journal_hash = ? WHERE singleton = 1",
+            ((1).to_bytes(8, "big"), bytes.fromhex("11" * 32)),
+        )
+
+    with pytest.raises(
+        ZrpfAtomicSettlementStoreErrorV1,
+        match="cannot migrate without exact replay and DA bytes",
+    ):
+        _store(tmp_path)
+
+    with sqlite3.connect(store.path) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 2
+        columns = {
+            str(row[1])
+            for row in connection.execute("PRAGMA table_info(zrpf_settlement_certificates)")
+        }
+        meta = connection.execute(
+            "SELECT certificate_count, settlement_authority "
+            "FROM zrpf_settlement_certificate_meta WHERE singleton = 1"
+        ).fetchone()
+    assert "source_opened_replay" not in columns
+    assert meta == (1, 0)
+
+
+def test_v2_to_v3_ddl_failure_rolls_back_migration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path)
+    _replace_empty_certificate_tables_with_v2(store.path)
+    statements = settlement_schema_module._CERTIFICATE_SCHEMA_STATEMENTS
+    monkeypatch.setattr(
+        settlement_schema_module,
+        "_CERTIFICATE_SCHEMA_STATEMENTS",
+        (statements[0], statements[1], "CREATE TABLE intentionally_invalid (", statements[3]),
+    )
+
+    with pytest.raises(
+        ZrpfAtomicSettlementStoreErrorV1,
+        match="ATOMIC_SETTLEMENT_STORE_OPEN_FAILED",
+    ):
+        _store(tmp_path)
+
+    with sqlite3.connect(store.path) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 2
+        columns = {
+            str(row[1])
+            for row in connection.execute("PRAGMA table_info(zrpf_settlement_certificates)")
+        }
+        table_names = {
+            str(row[0])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+    assert "source_opened_replay" not in columns
+    assert set(settlement_schema_module._CERTIFICATE_TABLE_NAMES) <= table_names

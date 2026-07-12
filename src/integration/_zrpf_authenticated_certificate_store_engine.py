@@ -8,6 +8,7 @@ import sqlite3
 from src.core._zrpf_settlement_certificate_authority import (
     SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1,
     _AuthenticatedSettlementCertificateV1,
+    _VerifiedSettlementEpochCertificateV1,
 )
 from src.integration.recursive_stark_admission_store_types import _hash_bytes, _hex_hash
 from src.integration.zrpf_atomic_settlement_store_types import (
@@ -20,6 +21,7 @@ from src.integration.zrpf_atomic_settlement_store_types import (
 _ACTION_LIST_DOMAIN = b"zenodex.zrpf.persisted_action_nullifier_list.v1"
 _CONSUMED_LIST_DOMAIN = b"zenodex.zrpf.persisted_consumed_object_list.v1"
 _GRANT_LIST_DOMAIN = b"zenodex.zrpf.persisted_grant_spend_list.v1"
+_DURABLE_CERTIFICATE_BINDING_DOMAIN = b"zenodex.zrpf.durable_certificate_binding.v1"
 
 _CERTIFICATE_INSERT_SQL = """
     INSERT INTO zrpf_settlement_certificates (
@@ -30,11 +32,17 @@ _CERTIFICATE_INSERT_SQL = """
         application_id, chain_or_domain_id, public_policy_hash,
         pre_state_root, post_state_root, economic_action_ids_root,
         ledger_cell_writes_root, asset_effects_root,
+        proof_tree_root, dependency_manifest_root,
+        data_availability_certificate_root, schedule_certificate_root,
+        carry_continuity_certificate_root,
         action_authorization_bindings_root, action_nullifier_list_sha256,
         authorization_grant_spend_nullifiers_root,
         authorization_grant_spend_list_sha256, consumed_object_ids_root,
         consumed_object_id_list_sha256, message_effects_root,
         carry_effects_root, reward_effects_root, effect_plan_commitment,
+        source_opened_replay_sha256, source_opened_replay,
+        data_availability_certificate_sha256, data_availability_certificate,
+        durable_certificate_binding_sha256,
         canonical_certificate_sha256, canonical_certificate,
         exact_effect_plan_sha256, exact_effect_plan,
         authority_manifest_sha256, admission_policy_binding_sha256,
@@ -42,7 +50,8 @@ _CERTIFICATE_INSERT_SQL = """
         settlement_authority, authority_blocked_reason
     ) VALUES (
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?, ?, 0, ?
     )
 """
 
@@ -88,6 +97,13 @@ def _authenticated_certificate_idempotent_match(
         "economic_action_ids_root": certificate.economic_action_ids_root,
         "ledger_cell_writes_root": certificate.ledger_cell_writes_root,
         "asset_effects_root": certificate.asset_effects_root,
+        "proof_tree_root": certificate.proof_tree_root,
+        "dependency_manifest_root": certificate.dependency_manifest_root,
+        "data_availability_certificate_root": (
+            certificate.data_availability_certificate_root
+        ),
+        "schedule_certificate_root": certificate.schedule_certificate_root,
+        "carry_continuity_certificate_root": certificate.carry_continuity_certificate_root,
         "action_authorization_bindings_root": (
             certificate.action_authorization_bindings_root
         ),
@@ -107,6 +123,13 @@ def _authenticated_certificate_idempotent_match(
         "settlement_manifest_sha256": certificate.settlement_manifest_sha256,
         "canonical_certificate_sha256": certificate.canonical_certificate_sha256,
         "exact_effect_plan_sha256": certificate.exact_effect_plan_sha256,
+        "source_opened_replay_sha256": certificate.source_opened_replay_sha256,
+        "data_availability_certificate_sha256": (
+            certificate.data_availability_certificate_sha256
+        ),
+        "durable_certificate_binding_sha256": _certificate_durable_binding_digest(
+            certificate
+        ).hex(),
         "authority_manifest_sha256": provenance.authority_manifest_sha256,
         "admission_policy_binding_sha256": provenance.admission_policy_binding_sha256,
         "verifier_executable_sha256": provenance.verifier_executable_sha256,
@@ -121,6 +144,9 @@ def _authenticated_certificate_idempotent_match(
         or str(row["settlement_profile_id"]) != certificate.settlement_profile_id
         or bytes(row["canonical_certificate"]) != certificate.canonical_certificate
         or bytes(row["exact_effect_plan"]) != certificate.exact_effect_plan
+        or bytes(row["source_opened_replay"]) != certificate.source_opened_replay
+        or bytes(row["data_availability_certificate"])
+        != certificate.data_availability_certificate
         or int(row["settlement_authority"]) != 0
         or str(row["authority_blocked_reason"])
         != SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1
@@ -244,6 +270,17 @@ def _persist_authenticated_certificate(
             _hash_bytes(certificate.economic_action_ids_root, name="action IDs root"),
             _hash_bytes(certificate.ledger_cell_writes_root, name="cell writes root"),
             _hash_bytes(certificate.asset_effects_root, name="asset effects root"),
+            _hash_bytes(certificate.proof_tree_root, name="proof tree root"),
+            _hash_bytes(certificate.dependency_manifest_root, name="dependency manifest root"),
+            _hash_bytes(
+                certificate.data_availability_certificate_root,
+                name="data-availability certificate root",
+            ),
+            _hash_bytes(certificate.schedule_certificate_root, name="schedule certificate root"),
+            _hash_bytes(
+                certificate.carry_continuity_certificate_root,
+                name="carry-continuity certificate root",
+            ),
             _hash_bytes(
                 certificate.action_authorization_bindings_root,
                 name="action authorization bindings root",
@@ -263,6 +300,11 @@ def _persist_authenticated_certificate(
             _hash_bytes(certificate.carry_effects_root, name="carry effects root"),
             _hash_bytes(certificate.reward_effects_root, name="reward effects root"),
             _hash_bytes(certificate.effect_plan_commitment, name="effect plan commitment"),
+            bytes.fromhex(certificate.source_opened_replay_sha256),
+            certificate.source_opened_replay,
+            bytes.fromhex(certificate.data_availability_certificate_sha256),
+            certificate.data_availability_certificate,
+            _certificate_durable_binding_digest(certificate),
             bytes.fromhex(certificate.canonical_certificate_sha256),
             certificate.canonical_certificate,
             bytes.fromhex(certificate.exact_effect_plan_sha256),
@@ -341,6 +383,19 @@ def _certificate_receipt_from_row(
         semantic_root_journal_hash=_hex_hash(bytes(row["semantic_root_journal_hash"])),
         normalized_plan_commitment=_hex_hash(bytes(row["plan_commitment"])),
         effect_plan_commitment=_hex_hash(bytes(row["effect_plan_commitment"])),
+        proof_tree_root=_hex_hash(bytes(row["proof_tree_root"])),
+        dependency_manifest_root=_hex_hash(bytes(row["dependency_manifest_root"])),
+        data_availability_certificate_root=_hex_hash(
+            bytes(row["data_availability_certificate_root"])
+        ),
+        schedule_certificate_root=_hex_hash(bytes(row["schedule_certificate_root"])),
+        carry_continuity_certificate_root=_hex_hash(
+            bytes(row["carry_continuity_certificate_root"])
+        ),
+        source_opened_replay_sha256=bytes(row["source_opened_replay_sha256"]).hex(),
+        data_availability_certificate_sha256=bytes(
+            row["data_availability_certificate_sha256"]
+        ).hex(),
         settlement_receipt_id=_hex_hash(bytes(row["settlement_receipt_id"])),
         settlement_claim_hash=_hex_hash(bytes(row["settlement_claim_hash"])),
         settlement_image_id=_hex_hash(bytes(row["settlement_image_id"])),
@@ -384,4 +439,101 @@ def _identifier_list_digest(domain: bytes, identifiers: tuple[str, ...]) -> byte
     digest.update(len(identifiers).to_bytes(4, "big"))
     for identifier in identifiers:
         digest.update(_hash_bytes(identifier, name="persisted identifier"))
+    return digest.digest()
+
+
+def _certificate_durable_binding_digest(
+    certificate: _VerifiedSettlementEpochCertificateV1,
+) -> bytes:
+    return _durable_certificate_binding_digest_v1(
+        certificate_journal_hash=_hash_bytes(
+            certificate.certificate_journal_hash,
+            name="certificate journal",
+        ),
+        settlement_profile_id=certificate.settlement_profile_id,
+        consumed_object_ids_root=_hash_bytes(
+            certificate.consumed_object_ids_root,
+            name="consumed object IDs root",
+        ),
+        action_nullifier_list_sha256=_identifier_list_digest(
+            _ACTION_LIST_DOMAIN,
+            certificate.action_nullifiers,
+        ),
+        consumed_object_id_list_sha256=_identifier_list_digest(
+            _CONSUMED_LIST_DOMAIN,
+            certificate.consumed_object_ids,
+        ),
+        proof_tree_root=_hash_bytes(certificate.proof_tree_root, name="proof tree"),
+        dependency_manifest_root=_hash_bytes(
+            certificate.dependency_manifest_root,
+            name="dependency manifest",
+        ),
+        data_availability_certificate_root=_hash_bytes(
+            certificate.data_availability_certificate_root,
+            name="data-availability certificate root",
+        ),
+        schedule_certificate_root=_hash_bytes(
+            certificate.schedule_certificate_root,
+            name="schedule certificate root",
+        ),
+        carry_continuity_certificate_root=_hash_bytes(
+            certificate.carry_continuity_certificate_root,
+            name="carry-continuity certificate root",
+        ),
+        source_opened_replay_sha256=bytes.fromhex(certificate.source_opened_replay_sha256),
+        data_availability_certificate_sha256=bytes.fromhex(
+            certificate.data_availability_certificate_sha256
+        ),
+        canonical_certificate_sha256=bytes.fromhex(certificate.canonical_certificate_sha256),
+        exact_effect_plan_sha256=bytes.fromhex(certificate.exact_effect_plan_sha256),
+    )
+
+
+def _durable_certificate_binding_digest_v1(
+    *,
+    certificate_journal_hash: bytes,
+    settlement_profile_id: str,
+    consumed_object_ids_root: bytes,
+    action_nullifier_list_sha256: bytes,
+    consumed_object_id_list_sha256: bytes,
+    proof_tree_root: bytes,
+    dependency_manifest_root: bytes,
+    data_availability_certificate_root: bytes,
+    schedule_certificate_root: bytes,
+    carry_continuity_certificate_root: bytes,
+    source_opened_replay_sha256: bytes,
+    data_availability_certificate_sha256: bytes,
+    canonical_certificate_sha256: bytes,
+    exact_effect_plan_sha256: bytes,
+) -> bytes:
+    if type(settlement_profile_id) is not str or not settlement_profile_id:
+        raise ValueError("durable certificate settlement profile must be nonempty")
+    profile_bytes = settlement_profile_id.encode("ascii")
+    if len(profile_bytes) > 128:
+        raise ValueError("durable certificate settlement profile is too long")
+    fields = (
+        certificate_journal_hash,
+        consumed_object_ids_root,
+        action_nullifier_list_sha256,
+        consumed_object_id_list_sha256,
+        proof_tree_root,
+        dependency_manifest_root,
+        data_availability_certificate_root,
+        schedule_certificate_root,
+        carry_continuity_certificate_root,
+        source_opened_replay_sha256,
+        data_availability_certificate_sha256,
+        canonical_certificate_sha256,
+        exact_effect_plan_sha256,
+    )
+    if any(type(field) is not bytes or len(field) != 32 for field in fields):
+        raise ValueError("durable certificate binding fields must be 32-byte values")
+    digest = hashlib.sha256()
+    digest.update(len(_DURABLE_CERTIFICATE_BINDING_DOMAIN).to_bytes(2, "big"))
+    digest.update(_DURABLE_CERTIFICATE_BINDING_DOMAIN)
+    digest.update((1).to_bytes(2, "big"))
+    digest.update(len(profile_bytes).to_bytes(2, "big"))
+    digest.update(profile_bytes)
+    for field in fields:
+        digest.update(field)
     return digest.digest()

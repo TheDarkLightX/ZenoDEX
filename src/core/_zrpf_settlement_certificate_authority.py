@@ -29,6 +29,12 @@ SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1 = (
 
 MAX_CANONICAL_SETTLEMENT_CERTIFICATE_BYTES_V1 = 1024 * 1024
 MAX_EXACT_SETTLEMENT_EFFECT_PLAN_BYTES_V1 = 128 * 1024 * 1024
+MAX_SOURCE_OPENED_SETTLEMENT_REPLAY_BYTES_V1 = 8 * 1024 * 1024
+MAX_DATA_AVAILABILITY_CERTIFICATE_BYTES_V1 = 512
+
+SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6 = (
+    "zrpf_source_opened_ordinary_spot_settlement_v6"
+)
 
 _AUTHENTICATED_SETTLEMENT_CERTIFICATE_SEAL_V1 = object()
 _TOKEN_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-")
@@ -75,6 +81,11 @@ class _VerifiedSettlementEpochCertificateV1:
     economic_action_ids_root: str
     ledger_cell_writes_root: str
     asset_effects_root: str
+    proof_tree_root: str
+    dependency_manifest_root: str
+    data_availability_certificate_root: str
+    schedule_certificate_root: str
+    carry_continuity_certificate_root: str
     action_authorization_bindings_root: str
     authorization_grant_spend_nullifiers_root: str
     consumed_object_ids_root: str
@@ -86,6 +97,10 @@ class _VerifiedSettlementEpochCertificateV1:
     canonical_certificate_sha256: str
     exact_effect_plan: bytes
     exact_effect_plan_sha256: str
+    source_opened_replay: bytes
+    source_opened_replay_sha256: str
+    data_availability_certificate: bytes
+    data_availability_certificate_sha256: str
     action_nullifiers: tuple[str, ...]
     consumed_object_ids: tuple[str, ...]
     authorization_grant_spend_nullifiers: tuple[str, ...]
@@ -121,6 +136,11 @@ class _VerifiedSettlementEpochCertificateV1:
             "economic_action_ids_root",
             "ledger_cell_writes_root",
             "asset_effects_root",
+            "proof_tree_root",
+            "dependency_manifest_root",
+            "data_availability_certificate_root",
+            "schedule_certificate_root",
+            "carry_continuity_certificate_root",
             "action_authorization_bindings_root",
             "authorization_grant_spend_nullifiers_root",
             "consumed_object_ids_root",
@@ -141,6 +161,18 @@ class _VerifiedSettlementEpochCertificateV1:
             self.exact_effect_plan_sha256,
             name="exact effect plan",
             maximum=MAX_EXACT_SETTLEMENT_EFFECT_PLAN_BYTES_V1,
+        )
+        _require_exact_bytes(
+            self.source_opened_replay,
+            self.source_opened_replay_sha256,
+            name="source-opened settlement replay",
+            maximum=MAX_SOURCE_OPENED_SETTLEMENT_REPLAY_BYTES_V1,
+        )
+        _require_exact_bytes(
+            self.data_availability_certificate,
+            self.data_availability_certificate_sha256,
+            name="data-availability certificate",
+            maximum=MAX_DATA_AVAILABILITY_CERTIFICATE_BYTES_V1,
         )
         _require_unique_hashes(self.action_nullifiers, name="action_nullifiers")
         _require_unique_hashes(self.consumed_object_ids, name="consumed_object_ids")
@@ -279,6 +311,16 @@ def _validate_authenticated_certificate_binding(
         raise ValueError("plan message identities do not match authenticated root facts")
     if len(certificate.action_nullifiers) != len(plan.economic_action_ids):
         raise ValueError("certificate requires exactly one nullifier per economic action")
+    if certificate.settlement_profile_id == SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6:
+        if len(plan.economic_action_ids) != 1:
+            raise ValueError("source-opened V6 settlement requires exactly one economic action")
+        if (
+            len(certificate.action_nullifiers) != 1
+            or certificate.action_nullifiers != certificate.consumed_object_ids
+        ):
+            raise ValueError(
+                "source-opened V6 action nullifier must equal the sole consumed object"
+            )
     grant_spends = tuple(
         row.authorization_grant_spend_nullifier for row in plan.authorization_consumptions
     )

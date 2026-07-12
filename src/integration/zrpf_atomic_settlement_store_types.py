@@ -173,6 +173,13 @@ class DurableAuthenticatedSettlementCertificateReceiptV1:
     semantic_root_journal_hash: str
     normalized_plan_commitment: str
     effect_plan_commitment: str
+    proof_tree_root: str
+    dependency_manifest_root: str
+    data_availability_certificate_root: str
+    schedule_certificate_root: str
+    carry_continuity_certificate_root: str
+    source_opened_replay_sha256: str
+    data_availability_certificate_sha256: str
     settlement_receipt_id: str
     settlement_claim_hash: str
     settlement_image_id: str
@@ -190,6 +197,11 @@ class DurableAuthenticatedSettlementCertificateReceiptV1:
             "semantic_root_journal_hash",
             "normalized_plan_commitment",
             "effect_plan_commitment",
+            "proof_tree_root",
+            "dependency_manifest_root",
+            "data_availability_certificate_root",
+            "schedule_certificate_root",
+            "carry_continuity_certificate_root",
             "settlement_receipt_id",
             "settlement_claim_hash",
             "settlement_image_id",
@@ -197,6 +209,15 @@ class DurableAuthenticatedSettlementCertificateReceiptV1:
             "result_state_root",
         ):
             _hash_bytes(getattr(self, name), name=f"certificate receipt {name}")
+        for name in (
+            "source_opened_replay_sha256",
+            "data_availability_certificate_sha256",
+        ):
+            value = getattr(self, name)
+            if type(value) is not str or len(value) != 64:
+                raise ValueError(f"certificate receipt {name} must be lowercase SHA-256 hex")
+            if any(character not in "0123456789abcdef" for character in value):
+                raise ValueError(f"certificate receipt {name} must be lowercase SHA-256 hex")
         if (
             type(self.settlement_revision) is not int
             or not 1 <= self.settlement_revision <= MAX_SETTLEMENT_REVISION_V1
