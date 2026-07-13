@@ -4970,6 +4970,51 @@ mod tests {
         }
     }
 
+    #[test]
+    fn pool_identity_fixture_passes_host_codec_and_shared_validation() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/pool_identity_conformance_v1.json"
+        ))
+        .unwrap();
+        assert_eq!(fixture["claim_boundary"]["risc0_proof_generated"], false);
+        assert_eq!(fixture["claim_boundary"]["settlement_authority"], false);
+
+        let identity = fixture["pool_identity"].as_object().unwrap();
+        let expected_pool_id = identity["pool_id"].as_str().unwrap();
+        let guest_snapshot = fixture["guest_snapshot_v1"].clone();
+        let encoded = serde_json::to_string(&guest_snapshot).unwrap();
+        let parsed = parse_dex_snapshot_json(&encoded).unwrap();
+        assert_eq!(parsed.pools.len(), 1);
+        assert_eq!(parsed.pools[0].pool_id, expected_pool_id);
+        assert_eq!(
+            tau_state_proof_risc0_shared::compute_pool_id(
+                identity["asset0"].as_str().unwrap(),
+                identity["asset1"].as_str().unwrap(),
+                u32::try_from(identity["fee_bps"].as_u64().unwrap()).unwrap(),
+                identity["curve_tag"].as_str().unwrap(),
+                identity["curve_params"].as_str().unwrap(),
+            ),
+            expected_pool_id
+        );
+
+        let state = DexStateV1::from_snapshot(parsed).unwrap();
+        let roundtrip = state.to_snapshot();
+        assert_eq!(roundtrip.pools[0].pool_id, expected_pool_id);
+
+        let mut mutated = guest_snapshot;
+        mutated["pools"][0]["fee_bps"] = json!(31);
+        let parsed_mutation =
+            parse_dex_snapshot_json(&serde_json::to_string(&mutated).unwrap()).unwrap();
+        let error = match DexStateV1::from_snapshot(parsed_mutation) {
+            Ok(_) => panic!("parameter mutation must reject before guest execution"),
+            Err(error) => error,
+        };
+        assert_eq!(
+            transition_error_str(error),
+            "snapshot pool_id does not match canonical pool identity"
+        );
+    }
+
     fn recursive_expectations(journal: &RecursiveEpochJournalV1) -> Value {
         let receipt_profile = recursive_receipt_profile();
         json!({
