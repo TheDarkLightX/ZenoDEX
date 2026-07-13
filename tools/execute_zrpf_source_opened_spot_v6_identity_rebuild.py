@@ -27,6 +27,7 @@ from tools.zrpf_v6_identity_executor_types import (  # noqa: E402
     BuildResult,
     BuildRunner,
     ExecutionError,
+    IncompleteContainerCleanupError,
 )
 from tools.zrpf_v6_identity_run_root import (  # noqa: E402
     prepare_run_root,
@@ -112,6 +113,10 @@ def execute_plan(
         write_new(run_root / CANDIDATE_REPORT_FILE, planner.canonical_bytes(report))
         source_state.require_current("after candidate report writes")
         return observations
+    except IncompleteContainerCleanupError:
+        # The target directory contains the private CID file needed to inspect
+        # and remove the exact owned container.  Preserve it for recovery.
+        raise
     except BaseException:
         shutil.rmtree(run_root, ignore_errors=True)
         raise

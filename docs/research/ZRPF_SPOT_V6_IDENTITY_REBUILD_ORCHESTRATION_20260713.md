@@ -2,8 +2,8 @@
 
 Date: 2026-07-13
 
-Status: deterministic plan, fail-closed executor, and candidate-observation
-checker implemented
+Status: deterministic plan, fail-closed executor, candidate-observation
+checker, and exact checkout materializer implemented
 
 Authority: none
 
@@ -59,11 +59,18 @@ Every planned pass uses:
 - the same pinned Cargo executable for outer and nested Cargo;
 - RISC0 3.0.5 `r0vm` and `cargo-risczero` identities;
 - `--locked`, `--offline`, and a network-disabled runtime;
-- two build jobs, two CPUs, and a 6 GiB memory ceiling;
-- a fresh 3 GiB executable in-container target tmpfs and 160 MiB non-executable
+- two build jobs, two CPUs, and a 24 GiB memory ceiling with swap disabled;
+- a fresh 12 GiB executable in-container target tmpfs and 256 MiB non-executable
   output tmpfs; Docker defaults tmpfs mounts to `noexec`, so the target contract
   requires an explicit `exec` override while every auxiliary/output tmpfs keeps
   an explicit `noexec` policy;
+- bounded auxiliary tmpfs mounts: 512 MiB for `/tmp`, 64 MiB for `/cargo`,
+  8 MiB for `HOME`, and 8 MiB for the `/risc0` mountpoint;
+- at least 8 GiB of in-cgroup process and page-cache headroom after every
+  writable tmpfs reaches its maximum;
+- one exclusive host build lease acquired before the memory preflight and held
+  through container cleanup, followed by a fail-closed requirement for at
+  least 32 GiB in Linux `MemAvailable` immediately before each heavy pass;
 - canonical bounded-base64 transport into fresh host output files;
 - exact R0BF program byte length, SHA-256, image ID, and little-endian image-ID
   words;
@@ -77,6 +84,15 @@ removes only the exact 64-hex container ID read from that file, then verifies
 both the ID and governed name are absent. If Docker creates a named container
 without producing the private ID file, the runner reports an ownership failure
 and leaves that container untouched rather than deleting by name.
+If a primary build failure and owned-container cleanup failure occur together,
+the executor raises an explicit incomplete-cleanup error and retains the run
+root and private CID file for exact operator recovery. It does not silently
+delete the only ownership record for a potentially live container.
+The host lease retains its already-fsynced active record in that case. New
+heavy passes reject until
+`tools/recover_zrpf_v6_identity_build_lease.py` uses the exact recorded name
+and CID file to prove the governed container is absent, then clears the poison
+record while holding the exclusive lease.
 
 The plan pins the existing no-network build image and its Ubuntu parent. The
 executor directly applies these controls to its local candidate run. The
@@ -230,6 +246,72 @@ python3 tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py check \
 
 Both input JSON documents must be exact canonical JSON with unique keys,
 bounded depth, bounded node count, no floats, and no unknown fields.
+
+## Exact checkout materialization
+
+The build snapshot is mutable by the executor UID and is therefore never a
+source of checkout bytes. The materializer independently reconstructs the
+expected transition from the exact input commit, revalidates the plan and
+observations, requires byte-equality with the independently recomputed report,
+and compares every snapshot entry with that reconstruction.
+
+The transition is exactly eight files:
+
+```text
+zk/zrpf_risc0/shared/src/source_policy_v2.rs
+zk/zrpf_risc0/spot_value_leaf_v6_shared/src/lib.rs
+zk/zrpf_risc0/spot_value_aggregate_l1_policy_v6/src/lib.rs
+zk/zrpf_risc0/spot_value_aggregate_l2_policy_v6/src/lib.rs
+zk/zrpf_risc0/spot_value_aggregate_root_policy_v6/src/lib.rs
+zk/zrpf_risc0/spot_settlement_root_policy_v6/src/lib.rs
+config/proof_profiles/zrpf_current_source_anchor_v2.json
+config/proof_profiles/zrpf_v2_leaf_adapter_source_policy_v2.json
+```
+
+Run this only in a clean dedicated worktree whose `HEAD` is the plan's exact
+input commit. First require the independently generated report to be identical
+to the executor report:
+
+```bash
+cmp \
+  /absolute/external/independent-rebuild-candidate-report.json \
+  /absolute/external/zrpf-v6-identity-run/rebuild-candidate-report.json
+
+python3 tools/materialize_zrpf_source_opened_spot_v6_identity.py check \
+  --plan /absolute/external/rebuild-plan.json \
+  --observations /absolute/external/zrpf-v6-identity-run/rebuild-observations.json \
+  --report /absolute/external/zrpf-v6-identity-run/rebuild-candidate-report.json \
+  --run-source-snapshot /absolute/external/zrpf-v6-identity-run/source-snapshot
+```
+
+The apply command generates the same bounded patch in a private temporary Git
+repository, runs `git apply --check --index`, applies it with `git apply
+--index`, and requires the index and worktree bytes to equal the independent
+reconstruction. It rejects every extra staged, unstaged, or non-ignored
+untracked path. Git replace refs are independently forbidden and Git object
+replacement is disabled for every source-inventory, snapshot, and
+materialization command.
+
+```bash
+python3 tools/materialize_zrpf_source_opened_spot_v6_identity.py apply \
+  --plan /absolute/external/rebuild-plan.json \
+  --observations /absolute/external/zrpf-v6-identity-run/rebuild-observations.json \
+  --report /absolute/external/zrpf-v6-identity-run/rebuild-candidate-report.json \
+  --run-source-snapshot /absolute/external/zrpf-v6-identity-run/source-snapshot \
+  --manifest-out /absolute/external/absent/materialization-manifest.json
+```
+
+The source transition is forward-only:
+
+```text
+C0 input commit -> final content root R1 -> materialization commit C1
+```
+
+The candidate documents continue to bind C0 and R1. Rewriting them to name C1
+would create a self-reference through the input anchor. A later release
+manifest may bind C1, R1, and the candidate-report digest outside the compiled
+source closure. Materialization remains authority-neutral and does not verify
+or generate a receipt.
 
 ## Host mutation boundary
 

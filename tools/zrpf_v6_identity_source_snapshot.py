@@ -276,6 +276,7 @@ def _hash_entries(
 
 
 def _snapshot_entries(repo_root: Path, source_commit: str) -> tuple[SnapshotEntry, ...]:
+    planner.require_no_git_replace_refs(repo_root)
     pathspecs = tuple(
         dict.fromkeys(
             (

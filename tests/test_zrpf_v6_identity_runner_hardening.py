@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import contextlib
 import hashlib
 import os
 import stat
@@ -17,6 +18,7 @@ from tools.zrpf_v6_identity_executor_types import (
     BuildKind,
     BuildRequest,
     ExecutionError,
+    IncompleteContainerCleanupError,
 )
 
 
@@ -233,6 +235,128 @@ def test_memory_and_tmpfs_budget_rejects_missing_process_headroom(
         runner_module._validate_resource_policy()
 
 
+def test_resource_profile_reserves_build_and_host_headroom() -> None:
+    assert planner.BUILD_MEMORY_BYTES == 24 * 1024 * 1024 * 1024
+    assert resources.TARGET_TMPFS_QUOTA_BYTES == 12 * 1024 * 1024 * 1024
+    assert resources.OUTPUT_TMPFS_QUOTA_BYTES == 256 * 1024 * 1024
+    assert resources.TMP_TMPFS_QUOTA_BYTES == 512 * 1024 * 1024
+    assert resources.CARGO_TMPFS_QUOTA_BYTES == 64 * 1024 * 1024
+    assert resources.HOME_TMPFS_QUOTA_BYTES == 8 * 1024 * 1024
+    assert resources.RISC0_TMPFS_QUOTA_BYTES == 8 * 1024 * 1024
+    assert resources.MINIMUM_PROCESS_MEMORY_HEADROOM_BYTES == 8 * 1024 * 1024 * 1024
+    assert resources.MINIMUM_HOST_MEM_AVAILABLE_BYTES == 32 * 1024 * 1024 * 1024
+
+
+def test_mem_available_parser_is_exact_and_fail_closed() -> None:
+    exact = b"MemTotal: 65536 kB\nMemAvailable: 33554432 kB\n"
+    assert resources.parse_mem_available_bytes(exact) == 32 * 1024 * 1024 * 1024
+
+    for malformed in (
+        b"MemTotal: 65536 kB\n",
+        b"MemAvailable: 1 MB\n",
+        b"MemAvailable: -1 kB\n",
+        b"MemAvailable: 1 kB trailing\n",
+        b"MemAvailable: 1 kB\nMemAvailable: 2 kB\n",
+    ):
+        with pytest.raises(ExecutionError, match="MemAvailable"):
+            resources.parse_mem_available_bytes(malformed)
+
+
+def test_host_memory_preflight_rejects_below_governed_minimum(tmp_path: Path) -> None:
+    meminfo = tmp_path / "meminfo"
+    meminfo.write_bytes(b"MemAvailable: 33554431 kB\n")
+
+    with pytest.raises(ExecutionError, match="below the governed build minimum"):
+        resources.require_host_memory_available(meminfo)
+
+    meminfo.write_bytes(b"MemAvailable: 33554432 kB\n")
+    assert resources.require_host_memory_available(meminfo) == (
+        resources.MINIMUM_HOST_MEM_AVAILABLE_BYTES
+    )
+
+
+def test_host_build_lease_serializes_heavy_runs(tmp_path: Path) -> None:
+    lease_path = tmp_path / "identity-build.lock"
+    cidfile = tmp_path / "run" / runner_module.CONTAINER_ID_FILE
+    name = "zrpf-v6-" + "a" * 20
+
+    with resources.acquire_host_build_lease(name, cidfile, lease_path):
+        with pytest.raises(ExecutionError, match="holds the host lease"):
+            resources.acquire_host_build_lease(name, cidfile, lease_path)
+
+    with resources.acquire_host_build_lease(name, cidfile, lease_path):
+        assert '"state":"active"' in lease_path.read_text(encoding="utf-8")
+
+
+def test_incomplete_cleanup_poison_requires_exact_recovery(tmp_path: Path) -> None:
+    lease_path = tmp_path / "identity-build.lock"
+    cidfile = tmp_path / "run" / runner_module.CONTAINER_ID_FILE
+    name = "zrpf-v6-" + "b" * 20
+
+    with resources.acquire_host_build_lease(name, cidfile, lease_path) as lease:
+        lease.mark_cleanup_incomplete()
+
+    with pytest.raises(ExecutionError, match="poisoned"):
+        resources.acquire_host_build_lease(name, cidfile, lease_path)
+
+    with resources.acquire_host_build_recovery_lease(lease_path) as recovery:
+        assert recovery.record.container_name == name
+        assert recovery.record.container_id_file == cidfile
+        recovery.mark_recovered()
+
+    with resources.acquire_host_build_lease(name, cidfile, lease_path):
+        pass
+
+
+def test_cleanup_poison_retains_fsynced_active_record_without_rewrite(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lease_path = tmp_path / "identity-build.lock"
+    cidfile = tmp_path / "run" / runner_module.CONTAINER_ID_FILE
+    name = "zrpf-v6-" + "c" * 20
+
+    with resources.acquire_host_build_lease(name, cidfile, lease_path) as lease:
+        active = lease_path.read_bytes()
+        monkeypatch.setattr(
+            resources,
+            "_write_lease_record",
+            lambda *_args: (_ for _ in ()).throw(OSError("injected I/O failure")),
+        )
+        lease.mark_cleanup_incomplete()
+
+    assert lease_path.read_bytes() == active
+    assert active
+
+
+def test_runner_recovery_cleans_exact_record_before_clearing_poison(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lease_path = tmp_path / "identity-build.lock"
+    cidfile = tmp_path / "run" / runner_module.CONTAINER_ID_FILE
+    name = "zrpf-v6-" + "d" * 20
+    with resources.acquire_host_build_lease(name, cidfile, lease_path) as lease:
+        lease.mark_cleanup_incomplete()
+    runner = object.__new__(runner_module.DockerBuildRunner)
+    cleaned: list[tuple[str, Path]] = []
+    monkeypatch.setattr(
+        runner,
+        "_cleanup_owned_container",
+        lambda observed_name, observed_cid: cleaned.append(
+            (observed_name, observed_cid)
+        ),
+    )
+
+    record = runner.recover_host_build_lease(lease_path)
+
+    assert record.container_name == name
+    assert record.container_id_file == cidfile
+    assert cleaned == [(name, cidfile)]
+    with resources.acquire_host_build_lease(name, cidfile, lease_path):
+        pass
+
+
 def test_build_request_rejects_outer_job_or_target_override(tmp_path: Path) -> None:
     request = _request(tmp_path)
     wrong_jobs = _replace_command_value(request, "--jobs", "8")
@@ -257,6 +381,7 @@ def test_base64_transport_rehashes_materializes_and_rejects_trailing_bytes(
     runner_module._materialize_runner_payload(request, payload)
 
     assert (request.output_directory / request.artifact_file).read_bytes() == artifact
+    assert request.companion_artifact_file is not None
     assert (request.output_directory / request.companion_artifact_file).read_bytes() == companion
     assert stat.S_IMODE((request.output_directory / request.artifact_file).stat().st_mode) == 0o444
     with pytest.raises(ExecutionError, match="trailing framing"):
@@ -277,6 +402,12 @@ def test_quota_exhaustion_rejects_and_runs_cleanup(
     runner = object.__new__(runner_module.DockerBuildRunner)
     monkeypatch.setattr(runner, "_require_external_inputs_unchanged", lambda _label: None)
     monkeypatch.setattr(runner, "_require_container_absent", lambda _name: None)
+    monkeypatch.setattr(resources, "require_host_memory_available", lambda: 2**63)
+    monkeypatch.setattr(
+        resources,
+        "acquire_host_build_lease",
+        lambda *_args: contextlib.nullcontext(),
+    )
     monkeypatch.setattr(
         runner,
         "_docker_command",
@@ -305,6 +436,61 @@ def test_quota_exhaustion_rejects_and_runs_cleanup(
     assert len(cleaned) == 1
     assert cleaned[0][0].startswith("zrpf-v6-")
     assert cleaned[0][1].name == runner_module.CONTAINER_ID_FILE
+
+
+def test_primary_failure_and_cleanup_failure_preserve_recovery_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _request(tmp_path)
+    request.source_snapshot.mkdir()
+    runner = object.__new__(runner_module.DockerBuildRunner)
+    monkeypatch.setattr(runner, "_require_external_inputs_unchanged", lambda _label: None)
+    monkeypatch.setattr(runner, "_require_container_absent", lambda _name: None)
+    monkeypatch.setattr(resources, "require_host_memory_available", lambda: 2**63)
+    class FakeLease:
+        poisoned = False
+
+        def __enter__(self) -> FakeLease:
+            return self
+
+        def __exit__(self, *_exc: object) -> None:
+            return None
+
+        def mark_cleanup_incomplete(self) -> None:
+            self.poisoned = True
+
+    lease = FakeLease()
+    monkeypatch.setattr(resources, "acquire_host_build_lease", lambda *_args: lease)
+    monkeypatch.setattr(
+        runner,
+        "_docker_command",
+        lambda _request, _name, _wrapper, _cidfile: ["docker", "run"],
+    )
+
+    def failed_build(_request: object) -> subprocess.CompletedProcess[bytes]:
+        cid = request.target_directory / runner_module.CONTAINER_ID_FILE
+        cid.write_bytes(b"a" * 64)
+        cid.chmod(0o600)
+        return subprocess.CompletedProcess(["docker", "run"], 1, b"", b"failed\n")
+
+    monkeypatch.setattr(runner_module.process_runner, "run_bounded", failed_build)
+    monkeypatch.setattr(
+        runner,
+        "_cleanup_owned_container",
+        lambda _name, _cid: (_ for _ in ()).throw(ExecutionError("orphan remains")),
+    )
+
+    with pytest.raises(
+        IncompleteContainerCleanupError,
+        match="orphan remains.*recovery state must be retained",
+    ):
+        runner.run(request)
+
+    assert (request.target_directory / runner_module.CONTAINER_ID_FILE).read_bytes() == (
+        b"a" * 64
+    )
+    assert lease.poisoned is True
 
 
 def test_cleanup_accepts_absent_and_removes_present_container(

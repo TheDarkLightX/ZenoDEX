@@ -21,6 +21,7 @@ from tools.zrpf_v6_identity_executor_types import (
     BuildRequest,
     BuildResult,
     ExecutionError,
+    IncompleteContainerCleanupError,
 )
 from tools.zrpf_v6_identity_runner_integrity import (
     StableFileIdentity,
@@ -92,6 +93,27 @@ class DockerBuildRunner:
         if request.target_directory.exists() or request.output_directory.exists():
             raise ExecutionError("runner target and output must begin absent")
         runner_resources.validate_build_request(request)
+        container_name = _container_name(request)
+        container_id_file = request.target_directory / CONTAINER_ID_FILE
+        with runner_resources.acquire_host_build_lease(
+            container_name,
+            container_id_file,
+        ) as lease:
+            runner_resources.require_host_memory_available()
+            return self._run_with_host_lease(
+                request,
+                container_name,
+                container_id_file,
+                lease,
+            )
+
+    def _run_with_host_lease(
+        self,
+        request: BuildRequest,
+        container_name: str,
+        container_id_file: Path,
+        lease: runner_resources.HostBuildLease,
+    ) -> BuildResult:
         self._require_external_inputs_unchanged(f"before {request.pass_id}")
         _create_private_directory(request.target_directory)
         _create_private_directory(request.output_directory)
@@ -102,8 +124,6 @@ class DockerBuildRunner:
             "nested Cargo wrapper",
             NESTED_CARGO_WRAPPER_SHA256,
         )
-        container_id_file = request.target_directory / CONTAINER_ID_FILE
-        container_name = _container_name(request)
         self._require_container_absent(container_name)
         command = self._docker_command(
             request,
@@ -145,6 +165,7 @@ class DockerBuildRunner:
                 wrapper,
                 wrapper_identity,
                 primary_error,
+                lease,
             )
 
     def _finalize_run(
@@ -155,6 +176,7 @@ class DockerBuildRunner:
         wrapper: Path,
         wrapper_identity: StableFileIdentity,
         primary_error: BaseException | None,
+        lease: runner_resources.HostBuildLease,
     ) -> None:
         cleanup_error = _capture_failure(
             lambda: self._cleanup_owned_container(container_name, container_id_file)
@@ -166,15 +188,41 @@ class DockerBuildRunner:
             lambda: _require_wrapper_unchanged(wrapper, wrapper_identity, pass_id)
         )
         integrity_error = _combine_failures(integrity_error, wrapper_error)
+        if cleanup_error is not None:
+            lease.mark_cleanup_incomplete()
         if primary_error is not None:
-            _add_failure_note(primary_error, cleanup_error)
-            _add_failure_note(primary_error, integrity_error)
+            if cleanup_error is not None:
+                raise IncompleteContainerCleanupError(
+                    f"{pass_id} failed and owned-container cleanup is incomplete: "
+                    f"{cleanup_error}; recovery state must be retained"
+                ) from primary_error
+            if integrity_error is not None:
+                raise ExecutionError(
+                    f"{pass_id} failed and post-run integrity verification also failed: "
+                    f"{integrity_error}"
+                ) from primary_error
             return
         if cleanup_error is not None:
-            _add_failure_note(cleanup_error, integrity_error)
-            raise cleanup_error
+            raise IncompleteContainerCleanupError(
+                f"{pass_id} completed but owned-container cleanup is incomplete: "
+                f"{cleanup_error}; recovery state must be retained"
+            ) from cleanup_error
         if integrity_error is not None:
             raise integrity_error
+
+    def recover_host_build_lease(
+        self,
+        lease_path: Path = runner_resources.HOST_BUILD_LEASE_PATH,
+    ) -> runner_resources.HostBuildRecoveryRecord:
+        """Remove the exact recorded owned container and clear the poisoned lease."""
+
+        with runner_resources.acquire_host_build_recovery_lease(lease_path) as recovery:
+            self._cleanup_owned_container(
+                recovery.record.container_name,
+                recovery.record.container_id_file,
+            )
+            recovery.mark_recovered()
+            return recovery.record
 
     def _capture_tool_identities(self) -> dict[str, StableFileIdentity]:
         tools = {

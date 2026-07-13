@@ -19,6 +19,7 @@ from tools import (
     plan_zrpf_source_opened_spot_v6_identity_rebuild as planner,
 )
 from tools import zrpf_v6_identity_docker_runner as docker_runner
+from tools.zrpf_v6_identity_executor_types import IncompleteContainerCleanupError
 
 SOURCE_COMMIT = subprocess.check_output(
     ["git", "-C", str(planner.REPO_ROOT), "rev-parse", "HEAD"],
@@ -268,6 +269,33 @@ def test_runner_source_mutation_rejects_and_removes_partial_run(tmp_path: Path) 
         )
 
     assert not run_root.exists()
+
+
+def test_incomplete_container_cleanup_retains_private_recovery_state(
+    tmp_path: Path,
+) -> None:
+    class OrphaningRunner(FakeRunner):
+        def run(self, request: executor.BuildRequest) -> executor.BuildResult:
+            request.target_directory.mkdir(mode=0o700)
+            request.output_directory.mkdir(mode=0o700)
+            cid = request.target_directory / docker_runner.CONTAINER_ID_FILE
+            cid.write_bytes(b"b" * 64)
+            cid.chmod(0o600)
+            raise IncompleteContainerCleanupError(
+                "owned-container cleanup is incomplete; recovery state must be retained"
+            )
+
+    run_root = tmp_path / "run"
+
+    with pytest.raises(
+        IncompleteContainerCleanupError,
+        match="recovery state must be retained",
+    ):
+        executor.execute_plan(_plan(run_root), runner=OrphaningRunner())
+
+    retained = tuple(run_root.rglob(docker_runner.CONTAINER_ID_FILE))
+    assert len(retained) == 1
+    assert retained[0].read_bytes() == b"b" * 64
 
 
 def test_repin_transition_rejects_persistent_mutation_of_another_source(

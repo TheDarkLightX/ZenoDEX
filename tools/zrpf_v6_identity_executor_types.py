@@ -12,6 +12,10 @@ class ExecutionError(ValueError):
     """A deterministic execution or artifact boundary rejected."""
 
 
+class IncompleteContainerCleanupError(ExecutionError):
+    """A failed build may retain an owned container and recovery evidence."""
+
+
 class BuildKind(str, Enum):
     GUEST = "guest"
     HOST_VERIFIER = "host_verifier"

@@ -56,9 +56,15 @@ MAX_TRACKED_SOURCE_FILES = 8_192
 MAX_TRACKED_SOURCE_BYTES = 64 * 1024 * 1024
 BUILD_JOBS = 2
 BUILD_CPUS = 2
-BUILD_MEMORY_BYTES = 6 * 1024 * 1024 * 1024
-TARGET_TMPFS_QUOTA_BYTES = 3 * 1024 * 1024 * 1024
-OUTPUT_TMPFS_QUOTA_BYTES = 160 * 1024 * 1024
+BUILD_MEMORY_BYTES = 24 * 1024 * 1024 * 1024
+TARGET_TMPFS_QUOTA_BYTES = 12 * 1024 * 1024 * 1024
+OUTPUT_TMPFS_QUOTA_BYTES = 256 * 1024 * 1024
+TMP_TMPFS_QUOTA_BYTES = 512 * 1024 * 1024
+CARGO_TMPFS_QUOTA_BYTES = 64 * 1024 * 1024
+HOME_TMPFS_QUOTA_BYTES = 8 * 1024 * 1024
+RISC0_TMPFS_QUOTA_BYTES = 8 * 1024 * 1024
+MINIMUM_PROCESS_MEMORY_HEADROOM_BYTES = 8 * 1024 * 1024 * 1024
+MINIMUM_HOST_MEM_AVAILABLE_BYTES = 32 * 1024 * 1024 * 1024
 MAX_PINNED_TOOL_BYTES = 256 * 1024 * 1024
 MAX_CARGO_REGISTRY_FILES = 100_000
 MAX_CARGO_REGISTRY_BYTES = 2 * 1024 * 1024 * 1024
@@ -80,6 +86,16 @@ RUNNER_RESOURCE_POLICY = {
     "output_storage": "container_tmpfs",
     "output_and_auxiliary_mount_execution": "noexec_required",
     "output_quota_bytes": OUTPUT_TMPFS_QUOTA_BYTES,
+    "temporary_quota_bytes": TMP_TMPFS_QUOTA_BYTES,
+    "cargo_home_quota_bytes": CARGO_TMPFS_QUOTA_BYTES,
+    "home_quota_bytes": HOME_TMPFS_QUOTA_BYTES,
+    "risc0_mountpoint_quota_bytes": RISC0_TMPFS_QUOTA_BYTES,
+    "minimum_process_memory_headroom_bytes": MINIMUM_PROCESS_MEMORY_HEADROOM_BYTES,
+    "minimum_host_mem_available_bytes": MINIMUM_HOST_MEM_AVAILABLE_BYTES,
+    "host_build_lease": "exclusive_flock_same_uid_v1",
+    "host_memory_preflight": "exclusive_lease_then_memavailable_v1",
+    "container_memory_bytes": BUILD_MEMORY_BYTES,
+    "container_memory_swap_bytes": BUILD_MEMORY_BYTES,
     "output_transport": "bounded_base64_stdout_v1",
     "container_cleanup_identity": "private_cidfile_exact_id_v1",
 }
@@ -354,6 +370,7 @@ def build_plan(
     _require_hex(source_commit, 40, "source commit")
     _require_absolute_path(run_root, "run root")
     _validate_static_topology()
+    require_no_git_replace_refs(repo_root)
     workspace_coverage = audit_tracked_workspace_source(repo_root, source_commit)
     source_guest_coverage = audit_source_guest_workspace(repo_root, source_commit)
     stage_rows = [_stage_plan(spec, run_root) for spec in STAGES]
@@ -376,6 +393,16 @@ def build_plan(
             "target_quota_bytes": TARGET_TMPFS_QUOTA_BYTES,
             "output_storage": RUNNER_RESOURCE_POLICY["output_storage"],
             "output_quota_bytes": OUTPUT_TMPFS_QUOTA_BYTES,
+            "temporary_quota_bytes": TMP_TMPFS_QUOTA_BYTES,
+            "cargo_home_quota_bytes": CARGO_TMPFS_QUOTA_BYTES,
+            "home_quota_bytes": HOME_TMPFS_QUOTA_BYTES,
+            "risc0_mountpoint_quota_bytes": RISC0_TMPFS_QUOTA_BYTES,
+            "minimum_process_memory_headroom_bytes": (
+                MINIMUM_PROCESS_MEMORY_HEADROOM_BYTES
+            ),
+            "minimum_host_mem_available_bytes": MINIMUM_HOST_MEM_AVAILABLE_BYTES,
+            "host_build_lease": RUNNER_RESOURCE_POLICY["host_build_lease"],
+            "host_memory_preflight": RUNNER_RESOURCE_POLICY["host_memory_preflight"],
             "output_transport": RUNNER_RESOURCE_POLICY["output_transport"],
             "nested_cargo_wrapper_sha256": NESTED_CARGO_WRAPPER_SHA256,
             "cargo_locked": True,
@@ -523,11 +550,14 @@ def _host_verifier_command() -> list[str]:
 
 
 def check_observations(
-    plan: dict[str, Any], observations: dict[str, Any]
+    plan: dict[str, Any],
+    observations: dict[str, Any],
+    *,
+    repo_root: Path = REPO_ROOT,
 ) -> dict[str, Any]:
     """Validate one complete candidate observation bundle."""
 
-    _validate_plan(plan)
+    _validate_plan(plan, repo_root=repo_root)
     _require_exact_fields(
         observations,
         {
@@ -690,8 +720,12 @@ def check_runner_security_posture(value: Any) -> dict[str, Any]:
     return json.loads(canonical_bytes(value))
 
 
-def _validate_plan(plan: dict[str, Any]) -> None:
-    expected = build_plan(plan.get("source_commit", ""), plan.get("host_run_root", ""))
+def _validate_plan(plan: dict[str, Any], *, repo_root: Path = REPO_ROOT) -> None:
+    expected = build_plan(
+        plan.get("source_commit", ""),
+        plan.get("host_run_root", ""),
+        repo_root=repo_root,
+    )
     if plan != expected:
         raise RebuildPlanError("rebuild plan differs from the deterministic plan")
 
@@ -1294,6 +1328,7 @@ def _tracked_files_for_roots(
 ) -> list[tuple[str, str, int, str]]:
     _require_hex(source_commit, 40, "source commit")
     root = repo_root.resolve(strict=True)
+    require_no_git_replace_refs(root)
     completed = _run_git(
         root,
         ["ls-tree", "-r", "-z", source_commit, "--", *workspace_roots],
@@ -1315,6 +1350,7 @@ def _run_git(
     environment = {
         "GIT_CONFIG_GLOBAL": "/dev/null",
         "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_NO_REPLACE_OBJECTS": "1",
         "HOME": "/nonexistent",
         "LC_ALL": "C",
         "PATH": "/usr/bin:/bin",
@@ -1337,6 +1373,19 @@ def _run_git(
     if len(completed.stdout) > maximum_stdout:
         raise RebuildPlanError("bounded Git source inventory output exceeds its cap")
     return completed
+
+
+def require_no_git_replace_refs(repo_root: Path) -> None:
+    """Reject local object-replacement state before naming a source commit."""
+
+    root = repo_root.resolve(strict=True)
+    refs = _run_git(
+        root,
+        ["for-each-ref", "--format=%(refname)", "refs/replace"],
+        maximum_stdout=64 * 1024,
+    ).stdout
+    if refs:
+        raise RebuildPlanError("Git replace refs are forbidden for source identity")
 
 
 def _parse_ls_tree(raw: bytes) -> list[tuple[str, str, str]]:
