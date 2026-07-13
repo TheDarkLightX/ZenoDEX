@@ -1328,6 +1328,14 @@
         {
           "path": "docs/research/ZRPF_DURABLE_REPLAY_ADMISSION_CBC_SPEC_20260712.md",
           "symbol": "Scoped positive claim"
+        },
+        {
+          "path": "src/integration/zrpf_source_opened_spot_v6_verifier_adapter.py",
+          "symbol": "PinnedSourceOpenedSpotSettlementVerifierV6"
+        },
+        {
+          "path": "src/integration/zrpf_atomic_settlement_store.py",
+          "symbol": "SQLiteZrpfAtomicSettlementStoreV1"
         }
       ],
       "test_refs": [
@@ -1366,14 +1374,23 @@
         {
           "path": "tests/integration/test_recursive_stark_admission_authority_boundary.py",
           "symbol": "test_private_durable_commit_has_one_production_caller"
+        },
+        {
+          "path": "tests/integration/test_zrpf_source_opened_spot_v6_verifier_adapter.py",
+          "symbol": "test_real_cli_schema_projects_and_atomically_persists_every_exact_artifact"
+        },
+        {
+          "path": "tests/integration/test_zrpf_atomic_settlement_store.py",
+          "symbol": "test_restart_rejects_v6_profile_downgrade"
         }
       ],
       "external_commands": [
         "python3 -m pytest -q tests/core/test_recursive_stark_exact_once_admission.py tests/integration/test_recursive_stark_verifier_adapter.py tests/integration/test_recursive_stark_durable_admission_store.py tests/integration/test_recursive_stark_admission_authority_boundary.py",
+        "python3 -m pytest -q tests/integration/test_zrpf_settlement_admission_journal_codec.py tests/integration/test_zrpf_source_opened_spot_v6_verifier_adapter.py tests/integration/test_zrpf_atomic_settlement_store.py",
         "python3 tools/check_recursive_stark_cbc_spec.py"
       ],
-      "next_action": "integrate the fresh receipt-authenticated semantic V2 authority pair and independently derived economic effect plan into one ZenoLedger transaction sharing this replay commit point; add power-loss and storage-rollback fault injection, an external head-anchor policy, large-history resource benchmarks, and a governed live release config source",
-      "non_claim": "the implemented store commits local replay indexes and a canonical recovery outcome only; it does not commit balances, collateral, mint or burn, fees, rewards, carry, message delivery, application state, semantic V2 authority pairs, or settlement effects; hostile same-UID access, storage rollback, network filesystems, public release authority, and production readiness remain outside the claim"
+      "next_action": "connect the receipt-authenticated V6 settlement-admission association to one live ZenoLedger transaction that verifies the current pre-state root, applies typed cell and balance transitions, advances the governed epoch, and commits finality and external data-availability policy; add power-loss and storage-rollback fault injection, an external head-anchor policy, large-history resource benchmarks, and a governed release config source",
+      "non_claim": "SQLite schema V4 atomically commits the exact V6 receipt, guest input, admission journal, replay blob, content certificate, settlement certificate, effect plan, governed identities, Python projection binding, replay indexes, and one recoverable outcome; it does not mutate live ZenoLedger balances or application state, establish provider retrievability or external finality, validate an end-user signature or grant registry, resist hostile same-UID code or storage rollback, support network filesystems, or grant release, settlement, or production authority"
     }
   ]
 }
