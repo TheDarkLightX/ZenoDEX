@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from src.integration.proof_toolchain_lock import proof_toolchain_lock_hash_v0
 from src.integration.zeno_ledger_v0 import (
     BATCH_CUTOFF_SCHEMA_V0,
@@ -22,6 +24,8 @@ from src.integration.zeno_ledger_v0 import (
     hash_v0,
     validate_proof_metadata_header_binding_v0,
 )
+from tools.zeno_ledger_risc0_proof_metadata import build_risc0_proof_metadata_v0
+from tools.zeno_ledger_verify import validate_proof_verification_report_v0
 
 ROOT = Path(__file__).resolve().parents[2]
 ADAPTER_SCRIPT = ROOT / "tools" / "zeno_ledger_risc0_proof_metadata.py"
@@ -253,6 +257,13 @@ def test_risc0_adapter_builds_metadata_and_validates_bound_header(tmp_path: Path
     assert first.returncode == 0, first.stderr or first.stdout
     first_report = json.loads(first.stdout)
     assert first_report["ok"] is True
+    assert first_report["schema"] == "zenodex.zeno_ledger.risc0_proof_metadata_diagnostic.v0"
+    assert first_report["status"] == "non_authoritative_header_derived_metadata"
+    assert first_report["authority_scope"] == "none"
+    assert first_report["metadata_roots_authenticated_by_risc0"] is False
+    assert first_report["proof_authority_satisfied"] is False
+    assert first_report["settlement_authority"] is False
+    assert first_report["production_authority"] is False
     assert first_report["header_bound"] is False
     assert first_report["body_checked"] is True
     assert first_report["toolchain_lock_hash"] == _root("toolchain-lock")
@@ -614,7 +625,10 @@ def test_risc0_adapter_can_require_external_verifier(tmp_path: Path) -> None:
     )
     assert proc.returncode == 0, proc.stderr or proc.stdout
     report = json.loads(proc.stdout)
-    assert report["risc0_verified"] is True
+    assert report["caller_selected_verifier_accepted"] is True
+    assert report["metadata_roots_authenticated_by_risc0"] is False
+    assert report["proof_authority_satisfied"] is False
+    assert report["production_authority"] is False
     assert metadata_path.is_file()
 
 
@@ -673,3 +687,102 @@ def test_risc0_adapter_rejects_required_verifier_without_command(tmp_path: Path)
     )
     assert proc.returncode == 1
     assert "--require-risc0-verifier requires --risc0-verify-cmd" in proc.stdout
+
+
+def test_ambiguous_legacy_builder_rejects_header_derived_authority() -> None:
+    body = _body(1)
+    header = _header(body)
+    proof = _proof(post_app_hash=str(header["app_hash"])[2:])
+
+    with pytest.raises(ValueError, match="ProofMetadataV0 ledger roots are header-derived"):
+        build_risc0_proof_metadata_v0(
+            proof_envelope=proof,
+            header=header,
+            conflict_schedule_hash=_root("schedule"),
+            feature_suite_hash=_root("feature-suite"),
+            dependency_lock_hash=_root("dependency-lock"),
+            toolchain_lock_hash=_root("toolchain-lock"),
+        )
+
+
+def test_echo_verifier_cannot_promote_header_copied_roots(tmp_path: Path) -> None:
+    body = _body(1)
+    pre_state_root = _root("header-selected-pre-state")
+    post_state_root = _root("header-selected-post-state")
+    unbound_header = _header(
+        body,
+        pre_state_root=pre_state_root,
+        post_state_root=post_state_root,
+    )
+    proof = _proof(post_app_hash=post_state_root[2:])
+    body_path = tmp_path / "body.json"
+    proof_path = tmp_path / "proof.json"
+    unbound_header_path = tmp_path / "header_unbound.json"
+    bound_header_path = tmp_path / "header_bound.json"
+    metadata_path = tmp_path / "metadata.json"
+    verifier_path = _verifier_script(tmp_path / "echo_verifier.py", ok=True)
+    _write_json(body_path, body)
+    _write_json(proof_path, proof)
+    _write_json(unbound_header_path, unbound_header)
+
+    common_args = (
+        "--proof",
+        str(proof_path),
+        "--body",
+        str(body_path),
+        "--conflict-schedule-hash",
+        _root("schedule"),
+        "--feature-suite-hash",
+        _root("feature-suite"),
+        "--dependency-lock-hash",
+        _root("dependency-lock"),
+        "--toolchain-lock-hash",
+        _root("toolchain-lock"),
+        "--require-post-app-hash-header-post-state-root",
+        "--require-risc0-verifier",
+        "--risc0-verify-cmd",
+        str(verifier_path),
+    )
+    first = _run_adapter("--header", str(unbound_header_path), *common_args)
+    assert first.returncode == 0, first.stderr or first.stdout
+    first_report = json.loads(first.stdout)
+    bound_header = _header(
+        body,
+        proof_journal_hash=str(first_report["proof_journal_hash"]),
+        pre_state_root=pre_state_root,
+        post_state_root=post_state_root,
+    )
+    _write_json(bound_header_path, bound_header)
+
+    second = _run_adapter(
+        "--header",
+        str(bound_header_path),
+        "--out",
+        str(metadata_path),
+        "--require-bound-header",
+        *common_args,
+    )
+    assert second.returncode == 0, second.stderr or second.stdout
+    report = json.loads(second.stdout)
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+
+    assert metadata["pre_state_root"] == pre_state_root
+    assert metadata["post_state_root"] == post_state_root
+    assert metadata["tx_root"] == bound_header["tx_root"]
+    assert metadata["evidence_root"] == bound_header["evidence_root"]
+    assert metadata["body_root"] == bound_header["body_root"]
+    assert report["header_bound"] is True
+    assert report["caller_selected_verifier_accepted"] is True
+    assert report["status"] == "non_authoritative_header_derived_metadata"
+    assert report["authority_scope"] == "none"
+    assert report["metadata_roots_authenticated_by_risc0"] is False
+    assert report["proof_authority_satisfied"] is False
+    assert report["settlement_authority"] is False
+    assert report["production_authority"] is False
+
+    with pytest.raises(ValueError, match="schema is not supported"):
+        validate_proof_verification_report_v0(
+            report=report,
+            proof_metadata=metadata,
+            header=bound_header,
+        )
