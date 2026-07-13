@@ -31,6 +31,8 @@ export PATH
 readonly BUILD_IMAGE='sha256:de7091a181792417fbd5eaf6b3aff77d8a26ae0f2ae7ce298c01bf4ad9cd4b9c'
 readonly BUILD_IMAGE_PARENT='ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90'
 readonly CANONICAL_SOURCE_ROOT=/src/zenodex
+readonly CANONICAL_CARGO_HOME=/cargo
+readonly CANONICAL_RUNTIME_HOME=/sandbox-home
 readonly CONTAINER_OUTPUT_ROOT=/build/output
 readonly CONTAINER_TARGET_ROOT=/build/target
 readonly PROGRAM_BINARY_MAGIC_HEX=52304246
@@ -276,18 +278,21 @@ read -r -d '' CONTAINER_SCRIPT <<'CONTAINER_SCRIPT_EOF' || :
 set -euo pipefail
 umask 077
 export PATH="/risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin:/usr/bin:/bin"
-export HOME=/home/zrpf
-export CARGO_HOME=/home/zrpf/.cargo
+# risc0-build replaces CARGO_ENCODED_RUSTFLAGS when it launches guest Cargo.
+# A canonical non-home Cargo root therefore removes this build's host identity
+# without depending on an ambient remap flag that the nested build can ignore.
+export HOME=/sandbox-home
+export CARGO_HOME=/cargo
 export CARGO_NET_OFFLINE=true
 export CARGO_TARGET_DIR=/build/target
 export RISC0_BUILD_LOCKED=1
 export RISC0_HOME=/risc0
-unset RISC0_SKIP_BUILD RUSTUP_TOOLCHAIN
+unset CARGO_ENCODED_RUSTFLAGS RISC0_SKIP_BUILD RUSTFLAGS RUSTUP_TOOLCHAIN
 
-install -d -m 0700 /home/zrpf/.cargo
+install -d -m 0700 /cargo /sandbox-home
 [[ -d /risc0/toolchains && ! -L /risc0/toolchains ]]
-ln -s /opt/cargo-registry /home/zrpf/.cargo/registry
-ln -s /risc0 /home/zrpf/.risc0
+ln -s /opt/cargo-registry /cargo/registry
+ln -s /risc0 /sandbox-home/.risc0
 printf '%s\n' \
   '[build]' \
   'jobs = 2' \
@@ -297,7 +302,7 @@ printf '%s\n' \
   '' \
   '[target.x86_64-unknown-linux-gnu]' \
   'linker = "/usr/bin/cc"' \
-  > /home/zrpf/.cargo/config.toml
+  > /cargo/config.toml
 printf '%s\n' \
   '[default_versions]' \
   'rust = "1.94.1"' \
@@ -376,7 +381,8 @@ readonly CONTAINER_SCRIPT
   --user "$HOST_UID:$HOST_GID" \
   --hostname zrpf-v6-program-build \
   --tmpfs "/tmp:rw,nosuid,nodev,noexec,size=256m,mode=1777,uid=$HOST_UID,gid=$HOST_GID" \
-  --tmpfs "/home/zrpf:rw,nosuid,nodev,noexec,size=512m,mode=0700,uid=$HOST_UID,gid=$HOST_GID" \
+  --tmpfs "$CANONICAL_CARGO_HOME:rw,nosuid,nodev,noexec,size=512m,mode=0700,uid=$HOST_UID,gid=$HOST_GID" \
+  --tmpfs "$CANONICAL_RUNTIME_HOME:rw,nosuid,nodev,noexec,size=2m,mode=0700,uid=$HOST_UID,gid=$HOST_GID" \
   --tmpfs "/risc0:rw,nosuid,nodev,noexec,size=2m,mode=0700,uid=$HOST_UID,gid=$HOST_GID" \
   --mount "type=bind,source=$SOURCE_SNAPSHOT,target=$CANONICAL_SOURCE_ROOT,readonly" \
   --mount "type=bind,source=$risc0_toolchain_dir,target=/risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu,readonly" \

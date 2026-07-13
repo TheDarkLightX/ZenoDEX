@@ -25,6 +25,8 @@ def test_recipe_pins_image_canonical_source_and_bounded_container() -> None:
         in source
     )
     assert "readonly CANONICAL_SOURCE_ROOT=/src/zenodex" in source
+    assert "readonly CANONICAL_CARGO_HOME=/cargo" in source
+    assert "readonly CANONICAL_RUNTIME_HOME=/sandbox-home" in source
     assert '"$DOCKER" image inspect "$BUILD_IMAGE"' in source
     assert "docker pull" not in source
     for required_option in (
@@ -76,7 +78,13 @@ def test_recipe_mounts_only_pinned_inputs_read_only_and_writes_externally() -> N
     assert "target=$CONTAINER_OUTPUT_ROOT" in source
     assert '"$HOME/.cargo' not in source
     assert '"$HOME/.risc0' not in source
-    assert "ln -s /risc0 /home/zrpf/.risc0" in source
+    assert "export HOME=/sandbox-home" in source
+    assert "export CARGO_HOME=/cargo" in source
+    assert "A canonical non-home Cargo root" in source
+    assert "ln -s /opt/cargo-registry /cargo/registry" in source
+    assert "ln -s /risc0 /sandbox-home/.risc0" in source
+    assert "/home/zrpf" not in source
+    assert "unset CARGO_ENCODED_RUSTFLAGS RISC0_SKIP_BUILD RUSTFLAGS RUSTUP_TOOLCHAIN" in source
     assert "[[ -d /risc0/toolchains && ! -L /risc0/toolchains ]]" in source
     assert "ln -s \\\n  /opt/risc0-toolchain" not in source
     assert "CARGO_NET_OFFLINE=true" in source
@@ -102,7 +110,10 @@ def test_recipe_builds_one_exact_package_with_locked_offline_cargo() -> None:
     for fragment in expected_command_fragments:
         assert fragment in source
     assert "RISC0_SKIP_BUILD" in source
-    assert "unset RISC0_SKIP_BUILD RUSTUP_TOOLCHAIN" in source
+    assert (
+        "unset CARGO_ENCODED_RUSTFLAGS RISC0_SKIP_BUILD RUSTFLAGS "
+        "RUSTUP_TOOLCHAIN"
+    ) in source
     assert "cargo test" not in source
     assert "cargo clippy" not in source
 
