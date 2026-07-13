@@ -160,6 +160,22 @@ CURRENT_ZRPF_ROWS: tuple[tuple[str, str], ...] = (
     ),
     (
         "current_source_adapter_v2",
+        "zk/zrpf_risc0/harness/src/bin/prove_v2_leaf_adapter.rs",
+    ),
+    (
+        "current_source_adapter_v2",
+        "zk/zrpf_risc0/harness/src/bin/prove_v2_leaf_adapter/cli.rs",
+    ),
+    (
+        "current_source_adapter_v2",
+        "zk/zrpf_risc0/harness/src/bin/prove_v2_leaf_adapter/source.rs",
+    ),
+    (
+        "current_source_adapter_v2",
+        "zk/zrpf_risc0/harness/src/bin/prove_v2_leaf_adapter/tests.rs",
+    ),
+    (
+        "current_source_adapter_v2",
         "zk/zrpf_risc0/shared/src/adapter_input_v2.rs",
     ),
     (

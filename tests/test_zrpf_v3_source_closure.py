@@ -15,12 +15,16 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def test_current_clean_checkout_matches_exact_source_inventory() -> None:
     document = closure.build_source_closure(REPO_ROOT)
     assert document["schema"] == closure.SCHEMA
-    assert document["file_count"] == 393
+    assert document["file_count"] == 397
     assert {
         row["path"]
         for row in document["files"]
         if row["role"] == "current_source_adapter_v2"
     } == {
+        "zk/zrpf_risc0/harness/src/bin/prove_v2_leaf_adapter.rs",
+        "zk/zrpf_risc0/harness/src/bin/prove_v2_leaf_adapter/cli.rs",
+        "zk/zrpf_risc0/harness/src/bin/prove_v2_leaf_adapter/source.rs",
+        "zk/zrpf_risc0/harness/src/bin/prove_v2_leaf_adapter/tests.rs",
         "zk/zrpf_risc0/methods/v2_leaf_adapter/Cargo.toml",
         "zk/zrpf_risc0/methods/v2_leaf_adapter/src/main.rs",
         "zk/zrpf_risc0/shared/src/adapter_input_v2.rs",
