@@ -500,6 +500,8 @@ jobs:
           value = json.loads(report_path.read_text(encoding="utf-8"))
           if not isinstance(value, dict):
               raise SystemExit("live replay report must be a JSON object")
+          if value.get("ok") is not True:
+              raise SystemExit("live replay report must record ok=true")
           PY
           mv "${live_report}" internal/zrpf-ci-live-replay.json
 
