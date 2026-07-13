@@ -31,6 +31,8 @@ from src.state.canonical import canonical_hex_fixed_allow_0x
 GOVERNED_PROOF_AUTHORITY_BINDING_SCHEMA_V1 = (
     "zenodex.zeno_ledger.governed_proof_authority_binding.v1"
 )
+SPOT_AUTHORITY_RESULT_SCHEMA_V1 = "zenodex.zeno_ledger.authenticated_spot_proof_facts.v1"
+SPOT_PROOF_PROFILE_V1 = "risc0_spot_state_transition_v1"
 PROOF_AUTHORITY_PENDING_SCHEMA_V1 = "zenodex.zeno_ledger.proof_authority_pending.v1"
 PROOF_AUTHORITY_OBLIGATION_ID_V1 = "zeno_ledger.proof_authority.consumer_binding.v1"
 
@@ -109,11 +111,11 @@ class GovernedProofAuthorityBindingV1:
     schema: str
     policy_id: str
     chain_id: str
-    profile_id: str
     authority_manifest_sha256: str
     verifier_registry_id: str
     verifier_registry_entry_id: str
     strict_result_schema: str
+    proof_profile: str
     valid_from_height: int
     valid_until_height: int | None
 
@@ -122,7 +124,6 @@ class GovernedProofAuthorityBindingV1:
             raise ValueError("governed proof-authority binding schema mismatch")
         _require_root(self.policy_id, name="policy_id")
         _require_token(self.chain_id, name="chain_id")
-        _require_root(self.profile_id, name="profile_id")
         _require_bare_sha256(
             self.authority_manifest_sha256,
             name="authority_manifest_sha256",
@@ -132,7 +133,10 @@ class GovernedProofAuthorityBindingV1:
             self.verifier_registry_entry_id,
             name="verifier_registry_entry_id",
         )
-        _require_token(self.strict_result_schema, name="strict_result_schema")
+        if self.strict_result_schema != SPOT_AUTHORITY_RESULT_SCHEMA_V1:
+            raise ValueError("governed proof-authority strict result schema mismatch")
+        if self.proof_profile != SPOT_PROOF_PROFILE_V1:
+            raise ValueError("governed proof-authority proof profile mismatch")
         _require_height(self.valid_from_height, name="valid_from_height")
         if self.valid_until_height is not None:
             _require_height(self.valid_until_height, name="valid_until_height")
@@ -381,11 +385,9 @@ def resolve_proof_authority_v1(
 def make_governed_proof_authority_binding_v1(
     *,
     chain_id: str,
-    profile_id: str,
     authority_manifest_sha256: str,
     verifier_registry_id: str,
     verifier_registry_entry_id: str,
-    strict_result_schema: str,
     valid_from_height: int,
     valid_until_height: int | None,
 ) -> GovernedProofAuthorityBindingV1:
@@ -394,11 +396,11 @@ def make_governed_proof_authority_binding_v1(
     values = {
         "schema": GOVERNED_PROOF_AUTHORITY_BINDING_SCHEMA_V1,
         "chain_id": chain_id,
-        "profile_id": profile_id,
         "authority_manifest_sha256": authority_manifest_sha256,
         "verifier_registry_id": verifier_registry_id,
         "verifier_registry_entry_id": verifier_registry_entry_id,
-        "strict_result_schema": strict_result_schema,
+        "strict_result_schema": SPOT_AUTHORITY_RESULT_SCHEMA_V1,
+        "proof_profile": SPOT_PROOF_PROFILE_V1,
         "valid_from_height": valid_from_height,
         "valid_until_height": valid_until_height,
     }
@@ -407,11 +409,11 @@ def make_governed_proof_authority_binding_v1(
         schema=GOVERNED_PROOF_AUTHORITY_BINDING_SCHEMA_V1,
         policy_id=policy_id,
         chain_id=chain_id,
-        profile_id=profile_id,
         authority_manifest_sha256=authority_manifest_sha256,
         verifier_registry_id=verifier_registry_id,
         verifier_registry_entry_id=verifier_registry_entry_id,
-        strict_result_schema=strict_result_schema,
+        strict_result_schema=SPOT_AUTHORITY_RESULT_SCHEMA_V1,
+        proof_profile=SPOT_PROOF_PROFILE_V1,
         valid_from_height=valid_from_height,
         valid_until_height=valid_until_height,
     )
@@ -427,11 +429,11 @@ def governed_proof_authority_binding_id_v1(
         {
             "schema": binding.schema,
             "chain_id": binding.chain_id,
-            "profile_id": binding.profile_id,
             "authority_manifest_sha256": binding.authority_manifest_sha256,
             "verifier_registry_id": binding.verifier_registry_id,
             "verifier_registry_entry_id": binding.verifier_registry_entry_id,
             "strict_result_schema": binding.strict_result_schema,
+            "proof_profile": binding.proof_profile,
             "valid_from_height": binding.valid_from_height,
             "valid_until_height": binding.valid_until_height,
         },
@@ -451,7 +453,6 @@ def _validate_governed_binding(
     if (
         binding.policy_id != requirement.expected_policy_id
         or binding.chain_id != requirement.chain_id
-        or binding.profile_id != requirement.profile_id
     ):
         raise ProofAuthorityConsumerError(
             ProofAuthorityConsumerRejectReasonV1.POLICY_MISMATCH,

@@ -55,10 +55,10 @@ decision. The range verifier still rejects proof-required replay.
 ```text
 policy ID
 chain ID
-profile ID
 authority-manifest SHA-256
 verifier-registry ID and entry ID
 strict authenticated-result schema
+proof profile
 valid-from and optional valid-until heights
 ```
 
@@ -82,6 +82,58 @@ height, canonical header, config, receipt security profile, exact receipt and
 journal, Spot transaction commitment, and ZenoLedger transaction root. Its
 own non-claims for ledger state-root equivalence, settlement, and production
 remain in force.
+
+The strict result also records
+`serialized_facts_are_opaque_capability=false` and
+`governed_policy_registry_join_verified=false`. These are required non-claims:
+the JSON result is untrusted transport data, and the strict verifier does not
+decide whether governance admitted its manifest, registry entry, or policy.
+
+## Required Cycle-Free Config Upgrade
+
+The positive join requires a new exact config schema:
+
+```text
+zenodex/zeno_ledger/replay_engine_config/v1
+```
+
+Its canonical document must add one `proof_authority_policy` object containing
+the complete `GovernedProofAuthorityBindingV1`. The V1 config digest must hash
+that object using a versioned `zeno_ledger_replay_engine_config_v1` domain. The
+header's `config_digest` and the profile's accepted config-digest set then bind
+the policy without adding an independent caller-selected policy input.
+
+The governed policy ID deliberately excludes `profile_id`. Including it would
+create a hash cycle:
+
+```text
+profile_id
+  -> accepted config digest
+  -> proof-authority policy ID
+  -> profile_id
+```
+
+The final consumer still binds the selected profile independently through the
+validated profile and its accepted config digest. The policy itself commits:
+
+```text
+chain ID
+authority-manifest SHA-256
+verifier-registry ID and entry ID
+strict result schema
+proof profile
+validity interval
+```
+
+The V1 config parser must reject V0 documents with an injected policy field,
+unknown policy keys, a noncanonical policy ID, or a policy whose recomputed ID
+differs. V0 remains supported only as a non-authoritative diagnostic config.
+
+After that config exists, the consumer adapter must build the strict request
+itself, execute the pinned verifier directly, parse its output inside the same
+private module, and compare every returned policy, manifest, registry, header,
+height, proof-metadata, proof-envelope, and config identity. Accepting an
+already parsed caller result would recreate the boolean-authority defect.
 
 ## Evidence
 

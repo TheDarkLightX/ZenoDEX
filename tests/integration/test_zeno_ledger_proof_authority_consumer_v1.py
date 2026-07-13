@@ -44,11 +44,9 @@ def _binding(
 ) -> GovernedProofAuthorityBindingV1:
     return make_governed_proof_authority_binding_v1(
         chain_id=str(profile["chain_id"]),
-        profile_id=str(profile["profile_id"]),
         authority_manifest_sha256="11" * 32,
         verifier_registry_id=_root("registry"),
         verifier_registry_entry_id=_root("registry-entry"),
-        strict_result_schema="zenodex.zeno_ledger.authenticated_spot_proof_facts.v1",
         valid_from_height=valid_from_height,
         valid_until_height=valid_until_height,
     )
@@ -251,6 +249,15 @@ def test_policy_id_tamper_rejects_during_construction() -> None:
 
     with pytest.raises(ValueError, match="policy_id mismatch"):
         dataclasses.replace(binding, policy_id=_root("tampered-policy"))
+
+
+def test_governed_binding_rejects_schema_or_profile_substitution() -> None:
+    binding = _binding(_profile(proof_required=True))
+
+    with pytest.raises(ValueError, match="strict result schema mismatch"):
+        dataclasses.replace(binding, strict_result_schema="caller.result.v1")
+    with pytest.raises(ValueError, match="proof profile mismatch"):
+        dataclasses.replace(binding, proof_profile="caller_proof_profile")
 
 
 def test_decision_has_no_public_construction_path() -> None:
