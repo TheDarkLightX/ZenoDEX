@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from tools import check_zrpf_source_opened_spot_v6_artifact_privacy as checker
+from tools import check_zrpf_source_opened_spot_v6_build_record as build_checker
 from tools import check_zrpf_source_opened_spot_v6_local_evidence as evidence
 from tools import zrpf_v3_artifact_privacy as privacy
 
@@ -51,10 +52,10 @@ def _write_candidate_build_record(path: Path, artifact_root: Path) -> None:
     record = {
         "schema": checker.BUILD_RECORD_SCHEMA,
         "recorded_at": "2026-07-12",
-        "source_snapshot": {},
+        "source_observation": {},
         "toolchain": {},
         "programs": programs,
-        "executed_commands": {},
+        "publisher_reported_observations": {},
         "claims": {
             "release_authority": False,
             "settlement_authority": False,
@@ -76,6 +77,11 @@ def test_governed_inventory_matches_the_evidence_artifacts() -> None:
     assert [artifact.role for artifact in checker.FINAL_ARTIFACTS] == [
         artifact_id for artifact_id, _path, _kind in evidence.ARTIFACT_SPECS
     ]
+
+
+def test_candidate_build_record_schema_tracks_v3_checker() -> None:
+    assert checker.BUILD_RECORD_SCHEMA == build_checker.RECORD_SCHEMA
+    assert checker.BUILD_RECORD_SCHEMA.endswith("/v3")
 
 
 def test_clean_binary_and_json_inventory_has_deterministic_hashes(
@@ -288,6 +294,32 @@ def test_candidate_build_record_cannot_promote_authority(tmp_path: Path) -> None
     assert report["build_record_sha256"] is None
     assert report["upstream_path_exception_policy_anchored"] is False
     assert report["upstream_path_exception_policy_authority"] is False
+    assert "build_record_binding_rejected" in {
+        row["code"] for row in report["errors"]
+    }
+
+
+def test_legacy_v2_candidate_build_record_is_rejected(tmp_path: Path) -> None:
+    _populate_clean_inventory(tmp_path)
+    target = _artifact_for_role("leaf_program_binary")
+    exception = checker.UPSTREAM_PATH_EXCEPTIONS[0]
+    (tmp_path / target.relative_path).write_bytes(
+        b"R0BF\x01\x00" + exception.exact_path + b"\x00"
+    )
+    build_record = _candidate_build_record_path(tmp_path)
+    _write_candidate_build_record(build_record, tmp_path)
+    document = json.loads(build_record.read_bytes())
+    document["schema"] = "zenodex/zrpf_source_opened_spot_v6_build_record/v2"
+    build_record.write_text(json.dumps(document, indent=2, sort_keys=False) + "\n")
+
+    report = checker.scan_artifact_directory(
+        tmp_path,
+        build_record_path=build_record,
+    )
+
+    assert report["ok"] is False
+    assert report["allowed_upstream_path_exception_count"] == 0
+    assert report["build_record_sha256"] is None
     assert "build_record_binding_rejected" in {
         row["code"] for row in report["errors"]
     }

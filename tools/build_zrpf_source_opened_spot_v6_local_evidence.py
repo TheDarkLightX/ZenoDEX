@@ -3,11 +3,11 @@
 
 Every input path is explicit. Inputs are snapshotted through bounded regular
 file descriptors before any output is created. The resulting evidence is
-validated for internal consistency by the V2 checker, including fresh image-ID
-recomputation through the pinned r0vm. A digest computed during generation is
-never treated as an independently governed anchor. This builder cannot enable
-scoped replay, ledger, release, settlement, privacy, general-scaling, or
-production authority.
+validated for internal consistency by the V2 local-evidence checker, including
+fresh image-ID recomputation through the pinned r0vm. A digest computed during
+generation is never treated as an independently governed anchor. This builder
+cannot enable scoped replay, ledger, release, settlement, privacy,
+general-scaling, or production authority.
 
 The supplied proof and replay reports propose execution history. This builder
 does not execute either sealed verifier, so its successful result remains a
@@ -47,7 +47,7 @@ MAX_TOTAL_REPORT_BYTES = 8 * 1024 * 1024
 READ_CHUNK_BYTES = 1024 * 1024
 
 EXPECTED_EVIDENCE_SCHEMA = "zenodex/zrpf_source_opened_spot_v6_local_evidence/v2"
-EXPECTED_BUILD_RECORD_SCHEMA = "zenodex/zrpf_source_opened_spot_v6_build_record/v2"
+EXPECTED_BUILD_RECORD_SCHEMA = "zenodex/zrpf_source_opened_spot_v6_build_record/v3"
 EXPECTED_ARTIFACT_SPECS = (
     ("source_request", "source_request.json", "canonical_json"),
     ("source_proof", "source_proof.json", "canonical_json"),
@@ -544,7 +544,7 @@ def _require_checker_contract() -> None:
     if evidence_checker.EVIDENCE_SCHEMA != EXPECTED_EVIDENCE_SCHEMA:
         raise EvidenceBuildError("V2 evidence checker schema changed")
     if build_checker.RECORD_SCHEMA != EXPECTED_BUILD_RECORD_SCHEMA:
-        raise EvidenceBuildError("V2 build-record checker schema changed")
+        raise EvidenceBuildError("V3 build-record checker schema changed")
     if evidence_checker.ARTIFACT_SPECS != EXPECTED_ARTIFACT_SPECS:
         raise EvidenceBuildError("V2 evidence artifact contract changed")
     if evidence_checker.EXECUTED_COMMAND_FIELDS != EXPECTED_EXECUTED_COMMAND_FIELDS:

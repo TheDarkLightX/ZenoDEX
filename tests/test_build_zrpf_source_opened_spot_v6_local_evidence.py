@@ -107,31 +107,40 @@ def _build_record(program_raw: dict[str, bytes], r0vm: Path) -> dict:
     return {
         "schema": build_checker.RECORD_SCHEMA,
         "recorded_at": "2026-07-12",
-        "source_snapshot": {
+        "source_observation": {
             "repository_commit": commit,
             "repository_tree": tree,
-            "repository_dirty": False,
             "source_root_sha256": source_root,
             "source_file_count": source_count,
             "source_bytes": source_bytes,
         },
         "toolchain": {
-            "rustc": "rustc 1.88.0",
-            "cargo": "cargo 1.88.0",
-            "r0vm": "risc0-r0vm 3.0.5 sha256:" + _sha256(r0vm.read_bytes()),
-            "cargo_risczero": "cargo-risczero 3.0.5 sha256:" + "6" * 64,
-            "risc0_zkvm": "3.0.5",
+            "rustc": build_checker.OFFICIAL_RUSTC_VERSION,
+            "cargo": build_checker.OFFICIAL_CARGO_VERSION,
+            "r0vm": (
+                f"{build_checker.OFFICIAL_R0VM_VERSION} sha256:"
+                + _sha256(r0vm.read_bytes())
+            ),
+            "cargo_risczero": (
+                f"{build_checker.OFFICIAL_CARGO_RISCZERO_VERSION} sha256:"
+                f"{build_checker.OFFICIAL_CARGO_RISCZERO_SHA256}"
+            ),
+            "risc0_zkvm": build_checker.OFFICIAL_RISC0_ZKVM_VERSION,
             "cargo_lock_sha256": _sha256(
                 (build_checker.REPO_ROOT / build_checker.CARGO_LOCK_RELATIVE).read_bytes()
             ),
-            "target": "riscv32im-risc0-zkvm-elf",
-            "build_jobs": 2,
+            "target": build_checker.OFFICIAL_RISC0_TARGET,
+            "build_jobs": build_checker.OFFICIAL_BUILD_JOBS,
             "offline": True,
             "locked": True,
         },
         "programs": programs,
-        "executed_commands": {
-            field: True for field in sorted(build_checker.EXECUTED_COMMAND_FIELDS)
+        "publisher_reported_observations": {
+            "commands_reported_executed": {
+                field: True
+                for field in sorted(build_checker.PUBLISHER_REPORTED_COMMAND_FIELDS)
+            },
+            "same_host_current_v6_images_built": True,
         },
         "claims": {
             **{field: True for field in sorted(build_checker.TRUE_CLAIMS)},
@@ -368,6 +377,27 @@ def _fixture(tmp_path: Path) -> _Fixture:
     return _Fixture(artifacts, reports, build_record, r0vm)
 
 
+@pytest.fixture
+def candidate_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> _Fixture:
+    fixture = _fixture(tmp_path)
+    build_raw = fixture.build_record.read_bytes()
+    build_document = json.loads(build_raw)
+    monkeypatch.setattr(
+        build_checker,
+        "OFFICIAL_R0VM_SHA256",
+        build_checker._tool_sha256(build_document["toolchain"]["r0vm"], "r0vm"),
+    )
+    monkeypatch.setattr(
+        build_checker,
+        "GOVERNED_RECORD_SHA256",
+        _sha256(build_raw),
+    )
+    return fixture
+
+
 def _run_build(tmp_path: Path, fixture: _Fixture, suffix: str = "one") -> builder.BuildResult:
     return builder.build_evidence(
         recorded_at="2026-07-12",
@@ -380,9 +410,11 @@ def _run_build(tmp_path: Path, fixture: _Fixture, suffix: str = "one") -> builde
     )
 
 
-def test_builder_emits_checker_accepted_exact_bundle_and_nonclaims(tmp_path: Path) -> None:
-    fixture = _fixture(tmp_path)
-
+def test_builder_emits_checker_accepted_exact_bundle_and_nonclaims(
+    tmp_path: Path,
+    candidate_fixture: _Fixture,
+) -> None:
+    fixture = candidate_fixture
     result = _run_build(tmp_path, fixture)
 
     assert result.artifact_count == len(evidence_checker.ARTIFACT_SPECS)
@@ -411,9 +443,16 @@ def test_builder_emits_checker_accepted_exact_bundle_and_nonclaims(tmp_path: Pat
     assert report["production_authority"] is False
 
 
-def test_same_inputs_produce_identical_evidence_and_bundle_bytes(tmp_path: Path) -> None:
-    fixture = _fixture(tmp_path)
+def test_build_record_schema_contract_tracks_v3_checker() -> None:
+    assert builder.EXPECTED_BUILD_RECORD_SCHEMA == build_checker.RECORD_SCHEMA
+    assert builder.EXPECTED_BUILD_RECORD_SCHEMA.endswith("/v3")
 
+
+def test_same_inputs_produce_identical_evidence_and_bundle_bytes(
+    tmp_path: Path,
+    candidate_fixture: _Fixture,
+) -> None:
+    fixture = candidate_fixture
     first = _run_build(tmp_path, fixture, "first")
     second = _run_build(tmp_path, fixture, "second")
 
@@ -426,9 +465,11 @@ def test_same_inputs_produce_identical_evidence_and_bundle_bytes(tmp_path: Path)
 
 
 def test_builder_never_uses_its_fresh_hash_as_a_governed_anchor(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    candidate_fixture: _Fixture,
 ) -> None:
-    fixture = _fixture(tmp_path)
+    fixture = candidate_fixture
     real_validate = evidence_checker.validate_evidence
     observed_anchors: list[str | None] = []
 
@@ -450,8 +491,9 @@ def test_builder_never_uses_its_fresh_hash_as_a_governed_anchor(
 
 def test_synthetic_candidate_cannot_promote_without_a_separate_anchor(
     tmp_path: Path,
+    candidate_fixture: _Fixture,
 ) -> None:
-    fixture = _fixture(tmp_path)
+    fixture = candidate_fixture
     result = _run_build(tmp_path, fixture)
 
     report = evidence_checker.check_evidence(
@@ -469,9 +511,11 @@ def test_synthetic_candidate_cannot_promote_without_a_separate_anchor(
 
 
 def test_failed_self_check_publishes_no_bundle_or_evidence(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    candidate_fixture: _Fixture,
 ) -> None:
-    fixture = _fixture(tmp_path)
+    fixture = candidate_fixture
 
     def reject_candidate(*_args, **_kwargs):
         raise evidence_checker.EvidenceError("synthetic self-check rejection")
@@ -487,9 +531,11 @@ def test_failed_self_check_publishes_no_bundle_or_evidence(
 
 
 def test_second_publication_failure_rolls_back_first_output(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    candidate_fixture: _Fixture,
 ) -> None:
-    fixture = _fixture(tmp_path)
+    fixture = candidate_fixture
     real_rename = builder._rename_no_replace
     rename_calls = 0
 
@@ -512,9 +558,11 @@ def test_second_publication_failure_rolls_back_first_output(
 
 
 def test_publication_race_cannot_replace_a_concurrent_destination(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    candidate_fixture: _Fixture,
 ) -> None:
-    fixture = _fixture(tmp_path)
+    fixture = candidate_fixture
     real_rename = builder._rename_no_replace
     injected = False
 
@@ -537,9 +585,11 @@ def test_publication_race_cannot_replace_a_concurrent_destination(
 
 
 def test_missing_atomic_no_replace_support_fails_before_publication(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    candidate_fixture: _Fixture,
 ) -> None:
-    fixture = _fixture(tmp_path)
+    fixture = candidate_fixture
 
     def reject_unsupported(_source: Path, _destination: Path) -> None:
         raise OSError(builder.errno.ENOSYS, "renameat2 unavailable")
@@ -555,8 +605,12 @@ def test_missing_atomic_no_replace_support_fails_before_publication(
 
 
 @pytest.mark.parametrize("kind", ["missing", "extra"])
-def test_artifact_inventory_must_be_exact(tmp_path: Path, kind: str) -> None:
-    fixture = _fixture(tmp_path)
+def test_artifact_inventory_must_be_exact(
+    tmp_path: Path,
+    kind: str,
+    candidate_fixture: _Fixture,
+) -> None:
+    fixture = candidate_fixture
     paths = dict(fixture.artifacts)
     if kind == "missing":
         paths.pop("source_request")
@@ -575,8 +629,11 @@ def test_artifact_inventory_must_be_exact(tmp_path: Path, kind: str) -> None:
         )
 
 
-def test_symlink_artifact_rejects_before_output(tmp_path: Path) -> None:
-    fixture = _fixture(tmp_path)
+def test_symlink_artifact_rejects_before_output(
+    tmp_path: Path,
+    candidate_fixture: _Fixture,
+) -> None:
+    fixture = candidate_fixture
     paths = dict(fixture.artifacts)
     target = paths["source_request"]
     link = tmp_path / "source-request-link"
@@ -597,8 +654,11 @@ def test_symlink_artifact_rejects_before_output(tmp_path: Path) -> None:
     assert not (tmp_path / "evidence.json").exists()
 
 
-def test_report_hash_drift_rejects_before_output(tmp_path: Path) -> None:
-    fixture = _fixture(tmp_path)
+def test_report_hash_drift_rejects_before_output(
+    tmp_path: Path,
+    candidate_fixture: _Fixture,
+) -> None:
+    fixture = candidate_fixture
     leaf_report = json.loads(fixture.reports["leaf"].read_bytes())
     leaf_report["receipt_sha256"] = "9" * 64
     fixture.reports["leaf"].write_bytes(_json_line(leaf_report))
@@ -609,8 +669,11 @@ def test_report_hash_drift_rejects_before_output(tmp_path: Path) -> None:
     assert not (tmp_path / "evidence-one.json").exists()
 
 
-def test_source_report_must_bind_the_build_r0vm(tmp_path: Path) -> None:
-    fixture = _fixture(tmp_path)
+def test_source_report_must_bind_the_build_r0vm(
+    tmp_path: Path,
+    candidate_fixture: _Fixture,
+) -> None:
+    fixture = candidate_fixture
     source_report = json.loads(fixture.reports["source_opening"].read_bytes())
     source_report["r0vm_sha256"] = "9" * 64
     fixture.reports["source_opening"].write_bytes(_json_line(source_report))
@@ -619,8 +682,11 @@ def test_source_report_must_bind_the_build_r0vm(tmp_path: Path) -> None:
         _run_build(tmp_path, fixture)
 
 
-def test_replay_report_cannot_promote_authority(tmp_path: Path) -> None:
-    fixture = _fixture(tmp_path)
+def test_replay_report_cannot_promote_authority(
+    tmp_path: Path,
+    candidate_fixture: _Fixture,
+) -> None:
+    fixture = candidate_fixture
     replay = json.loads(fixture.reports["retained_replay"].read_bytes())
     replay["settlement_authority"] = True
     fixture.reports["retained_replay"].write_bytes(_json_line(replay))
@@ -630,9 +696,11 @@ def test_replay_report_cannot_promote_authority(tmp_path: Path) -> None:
 
 
 def test_checker_contract_expansion_requires_builder_review(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    candidate_fixture: _Fixture,
 ) -> None:
-    fixture = _fixture(tmp_path)
+    fixture = candidate_fixture
     monkeypatch.setattr(
         evidence_checker,
         "TRUE_CLAIMS",
@@ -654,9 +722,11 @@ def test_checker_contract_expansion_requires_builder_review(
     ],
 )
 def test_report_json_must_be_unambiguous_integer_only_and_canonical(
-    tmp_path: Path, raw: bytes
+    tmp_path: Path,
+    raw: bytes,
+    candidate_fixture: _Fixture,
 ) -> None:
-    fixture = _fixture(tmp_path)
+    fixture = candidate_fixture
     fixture.reports["source_opening"].write_bytes(raw)
 
     with pytest.raises(builder.EvidenceBuildError, match="report|JSON|canonical"):
@@ -665,9 +735,11 @@ def test_report_json_must_be_unambiguous_integer_only_and_canonical(
 
 @pytest.mark.parametrize("existing_output", ["bundle", "evidence"])
 def test_failed_build_preserves_preexisting_output(
-    tmp_path: Path, existing_output: str
+    tmp_path: Path,
+    existing_output: str,
+    candidate_fixture: _Fixture,
 ) -> None:
-    fixture = _fixture(tmp_path)
+    fixture = candidate_fixture
     bundle = tmp_path / "bundle-one"
     evidence = tmp_path / "evidence-one.json"
     if existing_output == "bundle":
@@ -687,8 +759,11 @@ def test_failed_build_preserves_preexisting_output(
     assert not (tmp_path / ".evidence-one.json.candidate-staging").exists()
 
 
-def test_non_regular_input_rejects_without_blocking(tmp_path: Path) -> None:
-    fixture = _fixture(tmp_path)
+def test_non_regular_input_rejects_without_blocking(
+    tmp_path: Path,
+    candidate_fixture: _Fixture,
+) -> None:
+    fixture = candidate_fixture
     fifo = tmp_path / "artifact.fifo"
     os.mkfifo(fifo)
     paths = dict(fixture.artifacts)

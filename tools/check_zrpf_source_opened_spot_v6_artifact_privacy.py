@@ -28,7 +28,7 @@ DEFAULT_BUILD_RECORD = (
     REPO_ROOT
     / "docs/research/ZRPF_SOURCE_OPENED_SPOT_V6_BUILD_RECORD_20260712.json"
 )
-BUILD_RECORD_SCHEMA = "zenodex/zrpf_source_opened_spot_v6_build_record/v2"
+BUILD_RECORD_SCHEMA = "zenodex/zrpf_source_opened_spot_v6_build_record/v3"
 MAX_BUILD_RECORD_BYTES = 256 * 1024
 RISC0_PROGRAM_BINARY_MAGIC = b"R0BF"
 RISC0_PROGRAM_BINARY_ROLES = frozenset(
@@ -47,10 +47,10 @@ _PATH_CONTINUATION_BYTES = frozenset(
 _BUILD_RECORD_ROOT_FIELDS = {
     "schema",
     "recorded_at",
-    "source_snapshot",
+    "source_observation",
     "toolchain",
     "programs",
-    "executed_commands",
+    "publisher_reported_observations",
     "claims",
 }
 _BUILD_RECORD_PROGRAM_FIELDS = {

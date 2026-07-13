@@ -2,11 +2,12 @@
 """Build one deterministic source-opened Spot V6 program-build record.
 
 The builder accepts only explicit source, artifact, tool, and date inputs.  It
-derives the retained identities, then delegates final authority to the V2
-checker before atomically publishing any bytes.  The resulting record is a
-same-host program-build record.  It does not establish proof generation,
-reproducibility, release authority, settlement authority, or production
-authority.
+derives retained identities, then delegates candidate validation to the V3
+checker before atomically publishing any bytes. The builder cannot update or
+satisfy the checker's immutable governed-record anchor. The resulting record
+contains explicitly publisher-reported historical build observations. It does
+not independently establish build execution, proof generation, reproducibility,
+release authority, settlement authority, or production authority.
 """
 
 from __future__ import annotations
@@ -27,18 +28,18 @@ from typing import Any, Sequence
 try:
     from tools import check_zrpf_source_opened_spot_v6_build_record as checker
 except ModuleNotFoundError:  # pragma: no cover - direct script execution
-    import check_zrpf_source_opened_spot_v6_build_record as checker
+    import check_zrpf_source_opened_spot_v6_build_record as checker  # type: ignore[no-redef]
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = checker.DEFAULT_RECORD
-BUILD_REPORT_SCHEMA = "zenodex/zrpf_source_opened_spot_v6_build_record_build/v1"
-RUSTC_VERSION = "rustc 1.94.1-dev (06e01cb0d 2026-04-09)"
-CARGO_VERSION = "cargo 1.94.1-dev (29ea6fb6a 2026-03-24)"
-R0VM_VERSION = "risc0-r0vm 3.0.5"
-CARGO_RISCZERO_VERSION = "cargo-risczero 3.0.5"
-RISC0_ZKVM_VERSION = "3.0.5"
-RISC0_TARGET = "riscv32im-risc0-zkvm-elf"
+BUILD_REPORT_SCHEMA = "zenodex/zrpf_source_opened_spot_v6_build_record_build/v2"
+RUSTC_VERSION = checker.OFFICIAL_RUSTC_VERSION
+CARGO_VERSION = checker.OFFICIAL_CARGO_VERSION
+R0VM_VERSION = checker.OFFICIAL_R0VM_VERSION
+CARGO_RISCZERO_VERSION = checker.OFFICIAL_CARGO_RISCZERO_VERSION
+RISC0_ZKVM_VERSION = checker.OFFICIAL_RISC0_ZKVM_VERSION
+RISC0_TARGET = checker.OFFICIAL_RISC0_TARGET
 MAX_TOOL_BYTES = checker.MAX_R0VM_BYTES
 
 
@@ -48,7 +49,7 @@ class BuildRecordBuildError(ValueError):
 
 @dataclass(frozen=True)
 class BuildResult:
-    """Authenticated candidate bytes and the checker report that admitted them."""
+    """Candidate bytes and the non-governing checker report that validated them."""
 
     document: dict[str, Any]
     raw: bytes
@@ -65,10 +66,10 @@ def build_record(
     recorded_at: str,
     repo_root: Path = REPO_ROOT,
 ) -> BuildResult:
-    """Derive and authenticate one exact V6 program-build record.
+    """Derive and validate one exact V6 candidate program-build record.
 
-    Unrelated worktree changes are outside this record.  Every compiler-visible
-    source byte in the checker's bounded closure must equal ``source_commit``.
+    Unrelated worktree changes are outside this record. Every selected source
+    byte in the checker's bounded closure must equal ``source_commit``.
     The four program binaries and both tools are captured through sealed memfd
     snapshots before their identities are used.
     """
@@ -84,7 +85,7 @@ def build_record(
     )
     _require_exact_artifact_inventory(artifacts)
 
-    source_snapshot, cargo_lock_sha256 = _source_snapshot(
+    source_observation, cargo_lock_sha256 = _source_observation(
         repository,
         source_commit,
     )
@@ -94,25 +95,29 @@ def build_record(
         cargo_risczero,
         cargo_lock_sha256,
     )
-    document = _record_document(recorded_at, source_snapshot, toolchain, programs)
+    document = _record_document(
+        recorded_at,
+        source_observation,
+        toolchain,
+        programs,
+    )
     raw = checker.canonical_bytes(document)
     record_sha256 = hashlib.sha256(raw).hexdigest()
 
     # The checker reopens every external input and recomputes all four image
-    # IDs.  No output write is reachable until this independent pass succeeds.
-    report = checker.validate_record(
+    # IDs. No output write is reachable until this separate pass succeeds.
+    report = checker.validate_candidate_record(
         document,
         raw,
         repo_root=repository,
         artifact_directory=artifacts,
         r0vm_path=r0vm,
-        expected_record_sha256=record_sha256,
     )
-    _require_scoped_checker_report(report, record_sha256)
+    _require_candidate_checker_report(report, record_sha256)
     return BuildResult(document, raw, record_sha256, report)
 
 
-def _source_snapshot(
+def _source_observation(
     repository: Path,
     source_commit: str,
 ) -> tuple[dict[str, Any], str]:
@@ -120,7 +125,7 @@ def _source_snapshot(
     committed = checker.compute_git_source_closure(repository, source_commit)
     if checker.compute_source_closure(repository) != committed:
         raise BuildRecordBuildError(
-            "current compiler-visible source closure differs from source commit"
+            "current selected source closure differs from source commit"
         )
     source_root_sha256, source_file_count, source_bytes = committed
     cargo_lock_sha256 = checker._verified_cargo_lock_sha256(
@@ -131,9 +136,6 @@ def _source_snapshot(
         {
             "repository_commit": source_commit,
             "repository_tree": repository_tree,
-            # This means the bounded compiler-visible closure matches the
-            # commit.  The schema does not claim a globally clean worktree.
-            "repository_dirty": False,
             "source_root_sha256": source_root_sha256,
             "source_file_count": source_file_count,
             "source_bytes": source_bytes,
@@ -153,6 +155,7 @@ def _toolchain_and_program_records(
         label="r0vm",
         arguments=("--version",),
         expected_version=R0VM_VERSION,
+        expected_sha256=checker.OFFICIAL_R0VM_SHA256,
     )
     cargo_descriptor: int | None = None
     try:
@@ -161,6 +164,7 @@ def _toolchain_and_program_records(
             label="cargo-risczero",
             arguments=("risczero", "--version"),
             expected_version=CARGO_RISCZERO_VERSION,
+            expected_sha256=checker.OFFICIAL_CARGO_RISCZERO_SHA256,
         )
         programs = _program_records(artifacts, r0vm_descriptor)
     finally:
@@ -176,7 +180,7 @@ def _toolchain_and_program_records(
             "risc0_zkvm": RISC0_ZKVM_VERSION,
             "cargo_lock_sha256": cargo_lock_sha256,
             "target": RISC0_TARGET,
-            "build_jobs": 2,
+            "build_jobs": checker.OFFICIAL_BUILD_JOBS,
             "offline": True,
             "locked": True,
         },
@@ -186,18 +190,22 @@ def _toolchain_and_program_records(
 
 def _record_document(
     recorded_at: str,
-    source_snapshot: dict[str, Any],
+    source_observation: dict[str, Any],
     toolchain: dict[str, Any],
     programs: list[dict[str, Any]],
 ) -> dict[str, Any]:
     return {
         "schema": checker.RECORD_SCHEMA,
         "recorded_at": recorded_at,
-        "source_snapshot": source_snapshot,
+        "source_observation": source_observation,
         "toolchain": toolchain,
         "programs": programs,
-        "executed_commands": {
-            field: True for field in sorted(checker.EXECUTED_COMMAND_FIELDS)
+        "publisher_reported_observations": {
+            "commands_reported_executed": {
+                field: True
+                for field in sorted(checker.PUBLISHER_REPORTED_COMMAND_FIELDS)
+            },
+            "same_host_current_v6_images_built": True,
         },
         "claims": {
             **{field: True for field in sorted(checker.TRUE_CLAIMS)},
@@ -296,8 +304,16 @@ def _canonical_executable(path: Path, label: str) -> Path:
 
 def _require_exact_artifact_inventory(directory: Path) -> None:
     expected = {spec[2] for spec in checker.PROGRAM_SPECS}
+    entries: list[os.DirEntry[str]] = []
     try:
-        entries = list(os.scandir(directory))
+        with os.scandir(directory) as iterator:
+            for entry in iterator:
+                entries.append(entry)
+                if len(entries) > len(expected):
+                    raise BuildRecordBuildError(
+                        "artifact directory must contain exactly the four "
+                        "governed program binaries"
+                    )
     except OSError as exc:
         raise BuildRecordBuildError("artifact directory inventory failed") from exc
     observed = {entry.name for entry in entries}
@@ -319,24 +335,11 @@ def _require_exact_artifact_inventory(directory: Path) -> None:
 
 
 def _git_tree(repository: Path, source_commit: str) -> str:
-    try:
-        completed = subprocess.run(
-            [
-                "git",
-                "-C",
-                str(repository),
-                "rev-parse",
-                "--verify",
-                f"{source_commit}^{{tree}}",
-            ],
-            check=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=checker._git_environment(),
-            timeout=10,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise BuildRecordBuildError("source commit Git tree lookup failed") from exc
+    completed = checker._run_git_bounded(
+        repository,
+        ["rev-parse", "--verify", f"{source_commit}^{{tree}}"],
+        "source commit tree lookup",
+    )
     if (
         completed.returncode != 0
         or completed.stderr
@@ -360,6 +363,7 @@ def _capture_versioned_tool(
     label: str,
     arguments: tuple[str, ...],
     expected_version: str,
+    expected_sha256: str,
 ) -> tuple[int, str]:
     descriptor, _size, digest, _prefix = checker._sealed_file_snapshot(
         path,
@@ -373,6 +377,10 @@ def _capture_versioned_tool(
         if observed != expected_version:
             raise BuildRecordBuildError(
                 f"{label} version must be exactly {expected_version}"
+            )
+        if digest != expected_sha256:
+            raise BuildRecordBuildError(
+                f"{label} executable identity differs from checker-owned policy"
             )
         retained = True
         return descriptor, digest
@@ -457,24 +465,33 @@ def _program_records(directory: Path, r0vm_descriptor: int) -> list[dict[str, An
     return programs
 
 
-def _require_scoped_checker_report(
+def _require_candidate_checker_report(
     report: dict[str, Any],
     record_sha256: str,
 ) -> None:
     expected = {
         "ok": True,
         "record_sha256": record_sha256,
-        "governed_anchor_checked": True,
+        "candidate_record_validated": True,
+        "governed_record_anchor_checked": False,
         "external_artifact_files_checked": len(checker.PROGRAM_SPECS),
         "program_image_ids_recomputed": len(checker.PROGRAM_SPECS),
-        "scoped_same_host_build_record_allowed": True,
+        "local_path_dependency_crates_checked": len(
+            checker.GOVERNED_LOCAL_PATH_CRATE_DIRECTORIES
+        ),
+        "source_closure_final_recheck": True,
+        "live_governed_artifact_set_observed": False,
+        "global_worktree_cleanliness_verified": False,
+        "historical_build_commands_independently_verified": False,
+        "source_to_program_binary_provenance_verified": False,
         "proofs_generated": False,
         "release_authority": False,
+        "settlement_authority": False,
         "production_authority": False,
     }
     if any(report.get(field) != value for field, value in expected.items()):
         raise BuildRecordBuildError(
-            "V2 checker did not establish the exact scoped build-record claim"
+            "V3 checker did not validate the exact non-governing candidate record"
         )
 
 
@@ -628,7 +645,12 @@ def _success_report(result: BuildResult) -> dict[str, Any]:
         "program_image_ids_recomputed": result.checker_report[
             "program_image_ids_recomputed"
         ],
-        "scoped_same_host_build_record_allowed": True,
+        "candidate_record_validated": True,
+        "governed_record_anchor_checked": False,
+        "live_governed_artifact_set_observed": False,
+        "global_worktree_cleanliness_verified": False,
+        "historical_build_commands_independently_verified": False,
+        "source_to_program_binary_provenance_verified": False,
         "proofs_generated": False,
         "release_authority": False,
         "settlement_authority": False,
@@ -662,7 +684,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             "ok": False,
             "schema": BUILD_REPORT_SCHEMA,
             "errors": [str(exc)],
-            "scoped_same_host_build_record_allowed": False,
+            "candidate_record_validated": False,
+            "governed_record_anchor_checked": False,
+            "live_governed_artifact_set_observed": False,
+            "global_worktree_cleanliness_verified": False,
+            "historical_build_commands_independently_verified": False,
+            "source_to_program_binary_provenance_verified": False,
             "proofs_generated": False,
             "release_authority": False,
             "settlement_authority": False,

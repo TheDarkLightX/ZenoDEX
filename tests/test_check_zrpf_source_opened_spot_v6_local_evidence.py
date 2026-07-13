@@ -290,37 +290,63 @@ def valid_build_record() -> dict:
     return {
         "schema": build_checker.RECORD_SCHEMA,
         "recorded_at": "2026-07-12",
-        "source_snapshot": {
+        "source_observation": {
             "repository_commit": commit,
             "repository_tree": tree,
-            "repository_dirty": False,
             "source_root_sha256": source_root,
             "source_file_count": source_count,
             "source_bytes": source_bytes,
         },
         "toolchain": {
-            "rustc": "rustc 1.88.0",
-            "cargo": "cargo 1.88.0",
-            "r0vm": "risc0-r0vm 3.0.5 sha256:" + "5" * 64,
-            "cargo_risczero": "cargo-risczero 3.0.5 sha256:" + "6" * 64,
-            "risc0_zkvm": "3.0.5",
+            "rustc": build_checker.OFFICIAL_RUSTC_VERSION,
+            "cargo": build_checker.OFFICIAL_CARGO_VERSION,
+            "r0vm": (
+                f"{build_checker.OFFICIAL_R0VM_VERSION} sha256:"
+                f"{build_checker.OFFICIAL_R0VM_SHA256}"
+            ),
+            "cargo_risczero": (
+                f"{build_checker.OFFICIAL_CARGO_RISCZERO_VERSION} sha256:"
+                f"{build_checker.OFFICIAL_CARGO_RISCZERO_SHA256}"
+            ),
+            "risc0_zkvm": build_checker.OFFICIAL_RISC0_ZKVM_VERSION,
             "cargo_lock_sha256": hashlib.sha256(
                 (build_checker.REPO_ROOT / build_checker.CARGO_LOCK_RELATIVE).read_bytes()
             ).hexdigest(),
-            "target": "riscv32im-risc0-zkvm-elf",
-            "build_jobs": 2,
+            "target": build_checker.OFFICIAL_RISC0_TARGET,
+            "build_jobs": build_checker.OFFICIAL_BUILD_JOBS,
             "offline": True,
             "locked": True,
         },
         "programs": programs,
-        "executed_commands": {
-            field: True for field in sorted(build_checker.EXECUTED_COMMAND_FIELDS)
+        "publisher_reported_observations": {
+            "commands_reported_executed": {
+                field: True
+                for field in sorted(build_checker.PUBLISHER_REPORTED_COMMAND_FIELDS)
+            },
+            "same_host_current_v6_images_built": True,
         },
         "claims": {
             **{field: True for field in sorted(build_checker.TRUE_CLAIMS)},
             **{field: False for field in sorted(build_checker.FALSE_CLAIMS)},
         },
     }
+
+
+def _govern_synthetic_build_record(
+    monkeypatch: pytest.MonkeyPatch,
+    document: dict,
+    raw: bytes,
+) -> None:
+    monkeypatch.setattr(
+        build_checker,
+        "OFFICIAL_R0VM_SHA256",
+        build_checker._tool_sha256(document["toolchain"]["r0vm"], "r0vm"),
+    )
+    monkeypatch.setattr(
+        build_checker,
+        "GOVERNED_RECORD_SHA256",
+        hashlib.sha256(raw).hexdigest(),
+    )
 
 
 def test_valid_evidence_binds_complete_singleton_dependency_chain() -> None:
@@ -355,9 +381,13 @@ def test_optional_artifact_directory_rechecks_all_files(tmp_path: Path) -> None:
     assert report["mutation_rejected"] is True
 
 
-def test_optional_build_record_is_rechecked_and_hash_bound(tmp_path: Path) -> None:
+def test_optional_build_record_is_rechecked_and_hash_bound(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     build_document = valid_build_record()
     build_raw = build_checker.canonical_bytes(build_document)
+    _govern_synthetic_build_record(monkeypatch, build_document, build_raw)
     build_path = tmp_path / "build.json"
     build_path.write_bytes(build_raw)
     evidence = valid_evidence()
@@ -383,6 +413,7 @@ def test_scoped_claim_cross_binds_all_program_artifact_identities(
     build_document = valid_build_record()
     r0vm = _install_fake_r0vm(tmp_path, build_document)
     build_raw = build_checker.canonical_bytes(build_document)
+    _govern_synthetic_build_record(monkeypatch, build_document, build_raw)
     build_path = tmp_path / "build.json"
     build_path.write_bytes(build_raw)
     evidence = valid_evidence()
@@ -413,6 +444,7 @@ def test_program_set_swap_after_build_validation_cannot_promote(
     build_document = valid_build_record()
     r0vm = _install_fake_r0vm(tmp_path, build_document)
     build_raw = build_checker.canonical_bytes(build_document)
+    _govern_synthetic_build_record(monkeypatch, build_document, build_raw)
     build_path = tmp_path / "build.json"
     build_path.write_bytes(build_raw)
 

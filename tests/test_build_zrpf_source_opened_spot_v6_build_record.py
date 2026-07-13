@@ -34,17 +34,14 @@ def _write_executable(path: Path, source: str) -> Path:
     return path.resolve()
 
 
-def _fixture_inputs(tmp_path: Path) -> tuple[Path, Path, Path]:
-    artifacts = tmp_path / "artifacts"
-    artifacts.mkdir()
-    image_ids: dict[str, str] = {}
-    for stage, _package, filename, image_id, _child_stage, _child_id in (
-        checker.PROGRAM_SPECS
-    ):
-        (artifacts / filename).write_bytes(_artifact_bytes(stage))
-        image_ids[stage] = image_id
-    r0vm = _write_executable(
-        tmp_path / "r0vm",
+def _fake_r0vm_source() -> str:
+    image_ids = {
+        stage: image_id
+        for stage, _package, _filename, image_id, _child_stage, _child_id in (
+            checker.PROGRAM_SPECS
+        )
+    }
+    return (
         "#!/usr/bin/python3\n"
         "import sys\n"
         f"images = {image_ids!r}\n"
@@ -55,15 +52,34 @@ def _fixture_inputs(tmp_path: Path) -> tuple[Path, Path, Path]:
         "    stage = raw.split('bounded-test-program:', 1)[1].strip()\n"
         "    print(images[stage])\n"
         "else:\n"
-        "    raise SystemExit(2)\n",
+        "    raise SystemExit(2)\n"
     )
-    cargo_risczero = _write_executable(
-        tmp_path / "cargo-risczero",
+
+
+def _fake_cargo_risczero_source() -> str:
+    return (
         "#!/usr/bin/python3\n"
         "import sys\n"
         "if sys.argv[1:] != ['risczero', '--version']:\n"
         "    raise SystemExit(2)\n"
-        "print('cargo-risczero 3.0.5')\n",
+        "print('cargo-risczero 3.0.5')\n"
+    )
+
+
+def _fixture_inputs(tmp_path: Path) -> tuple[Path, Path, Path]:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    for stage, _package, filename, _image_id, _child_stage, _child_id in (
+        checker.PROGRAM_SPECS
+    ):
+        (artifacts / filename).write_bytes(_artifact_bytes(stage))
+    r0vm = _write_executable(
+        tmp_path / "r0vm",
+        _fake_r0vm_source(),
+    )
+    cargo_risczero = _write_executable(
+        tmp_path / "cargo-risczero",
+        _fake_cargo_risczero_source(),
     )
     return artifacts.resolve(), r0vm, cargo_risczero
 
@@ -76,6 +92,16 @@ def _stable_current_source_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     committed = checker.compute_git_source_closure(checker.REPO_ROOT, commit)
     monkeypatch.setattr(checker, "compute_source_closure", lambda _root: committed)
     monkeypatch.setattr(checker, "_validate_policy_sources", lambda _root: None)
+    monkeypatch.setattr(
+        checker,
+        "OFFICIAL_R0VM_SHA256",
+        hashlib.sha256(_fake_r0vm_source().encode("utf-8")).hexdigest(),
+    )
+    monkeypatch.setattr(
+        checker,
+        "OFFICIAL_CARGO_RISCZERO_SHA256",
+        hashlib.sha256(_fake_cargo_risczero_source().encode("utf-8")).hexdigest(),
+    )
 
 
 def _build(tmp_path: Path) -> tuple[builder.BuildResult, Path, Path, Path]:
@@ -104,14 +130,16 @@ def test_builder_derives_one_deterministic_checker_accepted_record(
 
     assert first.raw == second.raw == checker.canonical_bytes(first.document)
     assert first.record_sha256 == hashlib.sha256(first.raw).hexdigest()
-    assert first.checker_report["scoped_same_host_build_record_allowed"] is True
+    assert first.checker_report["candidate_record_validated"] is True
+    assert first.checker_report["governed_record_anchor_checked"] is False
+    assert first.checker_report["live_governed_artifact_set_observed"] is False
     assert first.checker_report["program_image_ids_recomputed"] == 4
-    assert first.document["source_snapshot"]["repository_commit"] == _source_commit()
+    assert first.document["source_observation"]["repository_commit"] == _source_commit()
     expected_tree = subprocess.check_output(
         ["git", "-C", str(checker.REPO_ROOT), "rev-parse", "HEAD^{tree}"],
         text=True,
     ).strip()
-    assert first.document["source_snapshot"]["repository_tree"] == expected_tree
+    assert first.document["source_observation"]["repository_tree"] == expected_tree
     assert first.document["toolchain"]["cargo_lock_sha256"] == hashlib.sha256(
         (checker.REPO_ROOT / checker.CARGO_LOCK_RELATIVE).read_bytes()
     ).hexdigest()
@@ -135,6 +163,11 @@ def test_builder_preserves_every_checker_false_claim(tmp_path: Path) -> None:
     assert result.checker_report["proofs_generated"] is False
     assert result.checker_report["release_authority"] is False
     assert result.checker_report["production_authority"] is False
+    assert "executed_commands" not in result.document
+    assert "repository_dirty" not in result.document["source_observation"]
+    assert result.document["publisher_reported_observations"][
+        "same_host_current_v6_images_built"
+    ] is True
 
 
 def test_build_and_write_validates_before_atomic_publication(
@@ -147,7 +180,7 @@ def test_build_and_write_validates_before_atomic_publication(
     def reject(*_args, **_kwargs):
         raise checker.BuildRecordError("governed checker rejection")
 
-    monkeypatch.setattr(checker, "validate_record", reject)
+    monkeypatch.setattr(checker, "validate_candidate_record", reject)
     with pytest.raises(checker.BuildRecordError, match="governed checker rejection"):
         builder.build_and_write_record(
             source_commit=_source_commit(),
@@ -193,7 +226,7 @@ def test_atomic_publication_refuses_overwrite_then_explicitly_replaces(
     assert raw == result.raw
 
 
-def test_current_compiler_visible_source_must_match_exact_commit(
+def test_current_selected_source_must_match_exact_commit(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -204,7 +237,7 @@ def test_current_compiler_visible_source_must_match_exact_commit(
         lambda _root: ("0" * 64, 1, 1),
     )
 
-    with pytest.raises(builder.BuildRecordBuildError, match="compiler-visible"):
+    with pytest.raises(builder.BuildRecordBuildError, match="selected source"):
         builder.build_record(
             source_commit=_source_commit(),
             artifact_directory=artifacts,
@@ -305,7 +338,10 @@ def test_tool_paths_are_absolute_non_symlink_and_version_pinned(
         )
 
 
-def test_wrong_recomputed_program_image_id_rejects(tmp_path: Path) -> None:
+def test_wrong_recomputed_program_image_id_rejects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     artifacts, _r0vm, cargo_risczero = _fixture_inputs(tmp_path)
     r0vm = _write_executable(
         tmp_path / "wrong-r0vm",
@@ -315,6 +351,11 @@ def test_wrong_recomputed_program_image_id_rejects(tmp_path: Path) -> None:
         "    print('risc0-r0vm 3.0.5')\n"
         "else:\n"
         "    print('0' * 64)\n",
+    )
+    monkeypatch.setattr(
+        checker,
+        "OFFICIAL_R0VM_SHA256",
+        hashlib.sha256(r0vm.read_bytes()).hexdigest(),
     )
 
     with pytest.raises(builder.BuildRecordBuildError, match="governed policy"):
@@ -371,7 +412,9 @@ def test_cli_requires_explicit_inputs_and_emits_bounded_nonclaims(
     assert status == 0
     report = json.loads(capsys.readouterr().out)
     assert report["ok"] is True
-    assert report["scoped_same_host_build_record_allowed"] is True
+    assert report["candidate_record_validated"] is True
+    assert report["governed_record_anchor_checked"] is False
+    assert report["live_governed_artifact_set_observed"] is False
     assert report["proofs_generated"] is False
     assert report["release_authority"] is False
     assert report["settlement_authority"] is False
