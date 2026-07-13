@@ -11,9 +11,18 @@ from src.integration.zeno_ledger_profile import (
 from src.integration.zeno_ledger_v0 import hash_v0
 from src.state.canonical import canonical_hex_fixed_allow_0x
 
-
 WATCHER_ATTESTATION_SCHEMA_V0 = "zenodex/zeno_ledger/watcher_attestation/v0"
 WATCHER_ATTESTATION_STATUS_V0 = "range_verified"
+REPLAY_BOUND_VERIFY_MODE_V0 = "replay_bound"
+REPLAY_BOUND_AUTHORITY_SCOPE_V0 = "replay_bound_range_v0"
+REPLAY_BOUND_FACTS_V0 = (
+    "range_verified",
+    "header_linkage_checked",
+    "state_continuity_checked",
+    "state_replay_checked",
+    "receipt_replay_checked",
+    "config_binding_checked",
+)
 
 
 def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
@@ -60,11 +69,20 @@ def _validate_successful_verify_report(verify_report: Mapping[str, Any]) -> tupl
     report = _require_mapping(verify_report, name="verify_report")
     if report.get("schema") != "zenodex.zeno_ledger.verify_report.v0":
         raise ValueError("verify_report schema mismatch")
-    if report.get("ok") is not True or report.get("status") != "accepted":
-        raise ValueError("verify_report must be accepted")
+    if (
+        report.get("ok") is not True
+        or report.get("status") != WATCHER_ATTESTATION_STATUS_V0
+        or report.get("mode") != REPLAY_BOUND_VERIFY_MODE_V0
+        or report.get("authority_scope") != REPLAY_BOUND_AUTHORITY_SCOPE_V0
+    ):
+        raise ValueError("verify_report must record replay-bound range verification")
+    for field in REPLAY_BOUND_FACTS_V0:
+        if report.get(field) is not True:
+            raise ValueError(f"verify_report.{field} must be true")
     errors = report.get("errors")
     if errors != []:
         raise ValueError("verify_report errors must be empty")
+    _require_root(report.get("replay_config_digest"), name="verify_report.replay_config_digest")
     _require_root(report.get("last_header_hash"), name="verify_report.last_header_hash")
     _require_root(report.get("last_post_state_root"), name="verify_report.last_post_state_root")
     _require_root(report.get("last_app_hash"), name="verify_report.last_app_hash")

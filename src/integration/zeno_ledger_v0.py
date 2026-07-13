@@ -24,7 +24,6 @@ from src.state.canonical import (
 )
 from src.state.state_root import compute_state_root
 
-
 HEADER_SCHEMA_V0 = "zenodex/zeno_ledger/header/v0"
 BODY_SCHEMA_V0 = "zenodex/zeno_ledger/body/v0"
 CHECKPOINT_SCHEMA_V0 = "zenodex/zeno_ledger/checkpoint/v0"
@@ -1158,17 +1157,15 @@ def validate_header_body_roots_v0(header: dict[str, Any], body: dict[str, Any]) 
         raise ValueError("header app_hash mismatch")
 
 
-def validate_block_state_transition_v0(
+def replay_block_state_transition_v0(
     *,
     pre_state: DexState,
     header: dict[str, Any],
     body: dict[str, Any],
     config: DexEngineConfig,
     default_block_timestamp: int | None = None,
-) -> None:
-    """Fail closed unless ``header.post_state_root`` equals the committed state root
-    obtained by deterministically re-executing ``body.transactions`` against
-    ``pre_state``.
+) -> tuple[DexState, dict[str, Any], list[dict[str, Any]]]:
+    """Replay one committed transition once and return its deterministic result.
 
     ``validate_header_body_roots_v0`` binds the header to the body's
     tx/ingress/evidence/body roots and ``app_hash``, but NOT to the resulting STATE:
@@ -1181,18 +1178,10 @@ def validate_block_state_transition_v0(
     yields an un-committable state, a deterministic REJECT instead of an unchecked
     commit or a producer stall.
 
-    SCOPE — this binds ONLY the pre/post committed STATE ROOTS to the supplied
-    pre-state and the re-executed body. It is one piece of full block validation, not
-    the whole. It deliberately does NOT verify: the body's ``evidence`` /
-    ``rejection_receipts`` against re-execution (``apply_body_transactions_v0``
-    deep-copies the body and APPENDS to its existing rejection receipts, so a naive
-    re-executed-vs-supplied comparison would double-count — a correct evidence
-    binding must re-run from cleared evidence and is tracked separately), the proof
-    metadata / proof verification, the ``config_digest``->config binding, or the
-    validator set / signatures. Those are enforced by their own validators
-    (``validate_proof_metadata_header_binding_v0``, signature/validator-set checks).
-    Compose this with those for full block acceptance; on its own it closes the
-    state-root forgery / un-rootable-state class only.
+    The returned executed body has deterministic rejection receipts rebuilt from an
+    empty list. Callers that authorize receipt commitments must compare that list to
+    the supplied body. Proof metadata, config binding, and signatures remain separate
+    validators.
     """
     if not isinstance(pre_state, DexState):
         raise TypeError("pre_state must be a DexState")
@@ -1229,6 +1218,26 @@ def validate_block_state_transition_v0(
         ) from exc
     if header["post_state_root"] != recomputed_post_state_root:
         raise ValueError("header post_state_root does not match re-executed body state")
+    return working_state, _executed_body, _receipts
+
+
+def validate_block_state_transition_v0(
+    *,
+    pre_state: DexState,
+    header: dict[str, Any],
+    body: dict[str, Any],
+    config: DexEngineConfig,
+    default_block_timestamp: int | None = None,
+) -> None:
+    """Fail closed unless one deterministic replay matches both committed state roots."""
+
+    replay_block_state_transition_v0(
+        pre_state=pre_state,
+        header=header,
+        body=body,
+        config=config,
+        default_block_timestamp=default_block_timestamp,
+    )
 
 
 def validate_proof_metadata_header_binding_v0(

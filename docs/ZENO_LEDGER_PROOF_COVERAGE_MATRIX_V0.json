@@ -26,6 +26,12 @@
       "proof_kind": "risc0_zkvm_v0"
     },
     {
+      "id": "replay_bound_range_verification",
+      "claim_id": "py:zeno_ledger:replay_bound_range_v0",
+      "coverage": "Strict ZenoLedger range verification anchors a canonical pre-state snapshot, binds a float-free governed engine configuration, carries replayed state across linked headers, executes each body exactly once, and requires exact post-state roots and rejection receipts. Structural diagnostics cannot authorize watcher attestations.",
+      "proof_kind": "deterministic_replay_v0"
+    },
+    {
       "id": "proof_required_range_replay",
       "claim_id": "py:zeno_ledger:proof_required_profile_metadata_replay_v0",
       "coverage": "ZenoLedger range verifier requires proof metadata per checked height when the active profile or bridge policy requires proof journals.",
@@ -40,8 +46,8 @@
     {
       "id": "light_client_checkpoint_quorum",
       "claim_id": "py:zeno_ledger:light_client_checkpoint_quorum_v0",
-      "coverage": "Local light-client checkpoint verifier binds verified header/body/checkpoint replay to a signer-registry signature-set root and BLS checkpoint quorum.",
-      "proof_kind": "checkpoint_quorum_replay"
+      "coverage": "Local light-client checkpoint verifier binds a structural header/body/checkpoint diagnostic to a signer-registry signature-set root and BLS checkpoint quorum; deterministic state-transition replay remains a gap.",
+      "proof_kind": "checkpoint_quorum_structural_binding"
     }
   ],
   "gap_surfaces": [
@@ -71,6 +77,11 @@
       "gap": "No real zkVM proof currently covers proof-mining manager rewards, claimability, or reward payout bridge execution."
     },
     {
+      "id": "light_client_state_transition_replay",
+      "required_for": "State-transition-backed light-client checkpoint authority",
+      "gap": "The local light-client checkpoint lane consumes a structural range diagnostic and does not yet carry governed pre-state snapshots and engine configuration through deterministic state replay."
+    },
+    {
       "id": "light_client_production_finality",
       "required_for": "Production light-client finality",
       "gap": "Local checkpoint quorum replay now binds one verified chain segment to a signer registry and BLS quorum, but production validator rotation, fork-choice, slashing, peer discovery, and adversarial network finality remain out of scope."
@@ -87,6 +98,7 @@
     "does_not_claim_oracle_truth_or_governance",
     "does_not_claim_zusd_or_perps_zk_execution",
     "does_not_claim_proof_market_zk_execution",
+    "does_not_claim_light_client_state_transition_replay",
     "does_not_claim_light_client_finality",
     "does_not_claim_recursive_epoch_proof_soundness"
   ]

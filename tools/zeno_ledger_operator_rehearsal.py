@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """Replay a public ZenoLedger bundle as an independent operator."""
 
 from __future__ import annotations
@@ -22,8 +23,7 @@ from src.integration.zeno_ledger_v0 import ZERO_ROOT_V0
 from src.integration.zeno_ledger_watcher import build_watcher_attestation_v0
 from tools.zeno_ledger_run_feature_suite import run_feature_suite_v0
 from tools.zeno_ledger_run_manifest import run_manifest_v0
-from tools.zeno_ledger_verify import verify_zeno_ledger_v0
-
+from tools.zeno_ledger_verify import REPLAY_BOUND_MODE, verify_zeno_ledger_v0
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.operator_rehearsal_report.v0"
 PUBLIC_MANIFEST_SCHEMA = "zenodex.zeno_ledger.public_testnet_bundle.v0"
@@ -278,6 +278,10 @@ def run_operator_rehearsal_v0(
         from_height=1,
         to_height=5,
         trusted_prev_header_hash=ZERO_ROOT_V0,
+        mode=REPLAY_BOUND_MODE,
+        pre_snapshots_dir=bootstrap_root / "ledger" / "pre_snapshots",
+        engine_config_path=bootstrap_root / "engine_config.json",
+        require_rejection_receipt_replay=True,
     )
     if verify_report.get("ok") is not True:
         raise ValueError("operator verify rejected")

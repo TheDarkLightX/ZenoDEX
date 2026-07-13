@@ -21,6 +21,7 @@ PATH_VALUE_FLAGS = {
     "--body",
     "--checkpoints-dir",
     "--confidential-state",
+    "--engine-config",
     "--headers-dir",
     "--index",
     "--manifest",
@@ -40,6 +41,7 @@ PATH_VALUE_FLAGS = {
     "--upba-state",
     "--zusd-state",
     "--pre-snapshot",
+    "--pre-snapshots-dir",
 }
 
 
@@ -171,7 +173,7 @@ def run_manifest_v0(*, manifest_path: Path, cwd: Path) -> dict[str, Any]:
         raise RuntimeError("verify command did not return ok=true")
 
     feature_gate_reports = []
-    for index, command in enumerate(feature_gate_commands):
+    for command in feature_gate_commands:
         report = _run_command(_resolve_command(command, manifest_dir=manifest_dir), cwd=cwd)
         feature_gate_reports.append(report)
         if report["returncode"] != 0:

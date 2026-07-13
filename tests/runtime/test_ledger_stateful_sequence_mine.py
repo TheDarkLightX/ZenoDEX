@@ -57,6 +57,7 @@ from hypothesis.stateful import (  # noqa: E402
     run_state_machine_as_test,
 )
 
+from src.integration import zeno_ledger_dynamic_peers_v0 as peers  # noqa: E402
 from src.integration.zeno_ledger_anti_equivocation_v0 import (  # noqa: E402
     build_checkpoint_equivocation_slashing_evidence_v0,
     build_watcher_attestation_equivocation_slashing_evidence_v0,
@@ -67,7 +68,6 @@ from src.integration.zeno_ledger_bonded_slashing_v0 import (  # noqa: E402
     build_slashing_policy_v0,
     validate_bond_registry_v0,
 )
-from src.integration import zeno_ledger_dynamic_peers_v0 as peers  # noqa: E402
 from src.integration.zeno_ledger_v0 import (  # noqa: E402
     build_checkpoint_v0,
     build_header_v0,
@@ -136,7 +136,16 @@ def _verify_report(*, from_height: int, to_height: int, tip: str) -> dict[str, o
     return {
         "schema": "zenodex.zeno_ledger.verify_report.v0",
         "ok": True,
-        "status": "accepted",
+        "status": "range_verified",
+        "mode": "replay_bound",
+        "authority_scope": "replay_bound_range_v0",
+        "range_verified": True,
+        "header_linkage_checked": True,
+        "state_continuity_checked": True,
+        "state_replay_checked": True,
+        "receipt_replay_checked": True,
+        "config_binding_checked": True,
+        "replay_config_digest": _root("replay-config"),
         "checked_heights": list(range(from_height, to_height + 1)),
         "proof_metadata_checked_heights": [],
         "proof_verification_checked_heights": [],
@@ -384,7 +393,7 @@ class BondedSlashingMachine(RuleBasedStateMachine):
         self.prev_entry_slashed[subject_key] = int(entry["slashed_amount"])
 
     def _apply(self, subject_key: str, evidence: dict[str, object], *, is_replay: bool) -> None:
-        pool = _EVIDENCE_POOLS[subject_key]
+        _pool = _EVIDENCE_POOLS[subject_key]
         policy = _POLICIES[subject_key]
         ev_hash = str(evidence["evidence_hash"])
         self.applied_hashes[subject_key].add(ev_hash)
