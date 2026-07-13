@@ -44,7 +44,13 @@ from ..state.canonical import (
 )
 from ..state.lp import LPTable
 from ..state.nonces import NonceTable
-from ..state.pools import PoolState, PoolStatus
+from ..state.pools import (
+    PoolState,
+    PoolStatus,
+    compute_pool_id,
+    validate_pool_id_format,
+    validate_pool_identity,
+)
 
 DEX_SNAPSHOT_VERSION = 4
 
@@ -335,11 +341,19 @@ def state_from_snapshot(
     max_perp_accounts: int = 200_000,
     max_str_len: int = 4096,
     require_lp_mint_timestamps: bool = False,
+    allow_symbolic_pool_ids: bool = False,
 ) -> DexState:
+    """Parse a bounded snapshot into state with strict pool identity binding.
+
+    ``allow_symbolic_pool_ids`` exists only for explicit local/test
+    compatibility. Hex-looking pool IDs remain strict in that mode.
+    """
     if not isinstance(snapshot, Mapping):
         raise TypeError("snapshot must be a mapping")
     if not isinstance(snapshot, dict):
         snapshot = dict(snapshot)
+    if not isinstance(allow_symbolic_pool_ids, bool):
+        raise TypeError("allow_symbolic_pool_ids must be a bool")
 
     for name, v in (
         ("max_snapshot_bytes", max_snapshot_bytes),
@@ -402,10 +416,12 @@ def state_from_snapshot(
     if len(pools_entries) > max_pools:
         raise ValueError(f"too many pools entries: {len(pools_entries)} > {max_pools}")
     seen_pool_ids: set[tuple[str, str]] = set()
+    seen_logical_pool_ids: set[str] = set()
     for entry in pools_entries:
         if not isinstance(entry, Mapping):
             raise TypeError("snapshot.pools entries must be objects")
         pool_id = _require_str(entry.get("pool_id"), name="pool.pool_id", non_empty=True, max_len=min(256, max_str_len))
+        validate_pool_id_format(pool_id, allow_symbolic=allow_symbolic_pool_ids)
         pool_key = _snapshot_identity_key(pool_id, nbytes=32, name="pool.pool_id")
         if pool_key in seen_pool_ids:
             raise ValueError("duplicate decoded pool entry (pool_id)")
@@ -422,7 +438,7 @@ def state_from_snapshot(
         fee_bps = _require_int(entry.get("fee_bps", 0), name="fee_bps")
         if fee_bps > 10_000:
             raise ValueError(f"fee_bps out of range for pool {pool_id}: {fee_bps}")
-        pools[pool_id] = PoolState(
+        pool = PoolState(
             pool_id=pool_id,
             asset0=asset0_s,
             asset1=asset1_s,
@@ -435,6 +451,18 @@ def state_from_snapshot(
             curve_tag=_require_str(entry.get("curve_tag", "CPMM"), name="pool.curve_tag", non_empty=True, max_len=min(256, max_str_len)),
             curve_params=_require_str(entry.get("curve_params", ""), name="pool.curve_params", non_empty=False, max_len=min(max_snapshot_bytes, max_str_len)),
         )
+        validate_pool_identity(pool, allow_symbolic=allow_symbolic_pool_ids)
+        logical_pool_id = compute_pool_id(
+            pool.asset0,
+            pool.asset1,
+            pool.fee_bps,
+            curve_tag=pool.curve_tag,
+            curve_params=pool.curve_params,
+        )
+        if logical_pool_id in seen_logical_pool_ids:
+            raise ValueError("duplicate logical pool entry (pool parameters)")
+        seen_logical_pool_ids.add(logical_pool_id)
+        pools[pool_id] = pool
 
     lp_balances = LPTable()
     lp_entries = snapshot.get("lp_balances")
@@ -453,6 +481,7 @@ def state_from_snapshot(
         amount = entry.get("amount")
         pk_s = _require_str(pk, name="lp.pubkey", non_empty=True, max_len=min(512, max_str_len))
         pool_id_s = _require_str(pool_id_raw, name="lp.pool_id", non_empty=True, max_len=min(256, max_str_len))
+        validate_pool_id_format(pool_id_s, allow_symbolic=allow_symbolic_pool_ids)
         if not isinstance(amount, int) or isinstance(amount, bool) or amount < 0:
             raise ValueError("invalid lp entry (amount)")
         key = (
@@ -489,6 +518,7 @@ def state_from_snapshot(
             non_empty=True,
             max_len=min(256, max_str_len),
         )
+        validate_pool_id_format(pool_id_s, allow_symbolic=allow_symbolic_pool_ids)
         if not isinstance(timestamp, int) or isinstance(timestamp, bool) or timestamp < 0:
             raise ValueError("invalid lp_mint_timestamps entry (last_mint_timestamp)")
         key = (
@@ -522,6 +552,7 @@ def state_from_snapshot(
             non_empty=True,
             max_len=min(256, max_str_len),
         )
+        validate_pool_id_format(pool_id_s, allow_symbolic=allow_symbolic_pool_ids)
         key = (
             _snapshot_identity_key(pk_s, nbytes=48, name="lp_duration.pubkey"),
             _snapshot_identity_key(pool_id_s, nbytes=32, name="lp_duration.pool_id"),
