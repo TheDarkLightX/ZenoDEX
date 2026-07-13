@@ -28,6 +28,9 @@ recursive_v2_evidence: Any = importlib.import_module(
 recursive_v1_live_record: Any = importlib.import_module(
     f"{_MODULE_PREFIX}check_risc0_recursive_live_replay_evidence"
 )
+active_reproof_v3: Any = importlib.import_module(
+    f"{_MODULE_PREFIX}check_risc0_recursive_active_reproof_v3"
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MATRIX = REPO_ROOT / "docs" / "research" / "RECURSIVE_STARK_CBC_MATRIX_20260709.json"
@@ -263,10 +266,24 @@ PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM = (
 class ClaimStatusPolicy:
     required_source_closures: frozenset[str]
     required_implemented_statements: frozenset[str]
+    required_implemented_obligations: frozenset[str]
     required_pending_obligations: frozenset[str]
 
 
 CLAIM_STATUS_POLICIES = {
+    FULL_CURRENT_PROOF_CLAIM_STATUS: ClaimStatusPolicy(
+        required_source_closures=frozenset({"active_v3"}),
+        required_implemented_statements=frozenset(
+            {
+                "recursive_epoch_v1",
+                "recursive_node_v2",
+                "zrpf_node_v3_structural",
+                "zrpf_v1_spot_adapter_receipt_v1",
+            }
+        ),
+        required_implemented_obligations=frozenset({"RS-CBC-014"}),
+        required_pending_obligations=frozenset(),
+    ),
     PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS: ClaimStatusPolicy(
         required_source_closures=frozenset(),
         required_implemented_statements=frozenset(
@@ -275,6 +292,7 @@ CLAIM_STATUS_POLICIES = {
                 "zrpf_v1_spot_adapter_receipt_v1",
             }
         ),
+        required_implemented_obligations=frozenset(),
         required_pending_obligations=frozenset({"RS-CBC-014"}),
     ),
 }
@@ -330,6 +348,12 @@ def validate_matrix(matrix: Any, *, repo_root: Path = REPO_ROOT) -> dict[str, An
                     "implemented or implemented_partial"
                 )
         obligation_statuses = {item["id"]: item["status"] for item in obligations["items"]}
+        for obligation_id in sorted(policy.required_implemented_obligations):
+            if obligation_statuses.get(obligation_id) not in IMPLEMENTED_STATUSES:
+                errors.append(
+                    f"{claim_status} requires {obligation_id} implemented under the active "
+                    "current-image reference"
+                )
         for obligation_id in sorted(policy.required_pending_obligations):
             if obligation_statuses.get(obligation_id) not in PENDING_STATUSES:
                 errors.append(
@@ -434,6 +458,11 @@ def _validate_promoted_source_closures(
         except (MatrixInputError, recursive_v2_evidence.EvidenceError) as exc:
             errors.append(f"promoted V2 source closure rejected: {exc}")
 
+    if "active_v3" in required_closures:
+        result = active_reproof_v3.check_reference(repository_root=repo_root)
+        if result.get("ok") is not True:
+            errors.append(f"promoted active V3 reference rejected: {result.get('error')}")
+
 
 def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
     errors: list[str] = []
@@ -505,6 +534,9 @@ def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
             ),
             "required_implemented_statements": sorted(
                 claim_policy.required_implemented_statements if claim_policy else frozenset()
+            ),
+            "required_implemented_obligations": sorted(
+                claim_policy.required_implemented_obligations if claim_policy else frozenset()
             ),
             "required_pending_obligations": sorted(
                 claim_policy.required_pending_obligations if claim_policy else frozenset()

@@ -1,9 +1,8 @@
 # Recursive STARK Vericoding Spec
 
 Date: 2026-07-09
-Status: active V1/V2 workspaces migrated to `anyhow 1.0.103`; fresh image and
-receipt evidence pending; retained recursive proofs are historical regression
-evidence; release and production pending
+Status: scoped same-host current-image V1/V2 reproof evidence implemented;
+release, settlement, public replay, and production authority pending
 
 Related artifacts:
 
@@ -13,6 +12,7 @@ Related artifacts:
 - `docs/research/RECURSIVE_STARK_V2_TWO_LEAF_EXPERIMENT_20260710.json`
 - `docs/research/RECURSIVE_STARK_V2_TWO_LEAF_SOURCE_PINNED_EVIDENCE_20260710.json`
 - `docs/research/RECURSIVE_STARK_V2_BOUNDED_FANOUT_GUIDE_20260710.md`
+- `docs/research/RECURSIVE_STARK_ACTIVE_REPROOF_V3_SPEC_20260712.md`
 - `docs/research/RECURSIVE_STARK_REBUILD_PATH_EXPERIMENT_20260709.json`
 - `docs/research/ZRPF_V3_CORRECT_BY_CONSTRUCTION_SPEC_20260710.md`
 - `docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260712.json`
@@ -39,13 +39,15 @@ referenced from the CBC matrix.
 
 Current status:
 
-- On 2026-07-12, both active V1 and recursive-v2 workspaces migrated to
-  `anyhow 1.0.103`. That migration changes their build closures and image
-  identities. Every V1/V2 proof and image identity described below predates the
-  migration and is historical regression evidence. Restoring a current-image
-  claim requires fresh active-source ELFs, image IDs, positive receipts, and
-  cryptographic negative controls under a new active reference. The immutable
-  retained V1 replay continues to establish static record integrity only.
+- On 2026-07-12, the active V1 and recursive-v2 workspaces migrated to
+  `anyhow 1.0.103`. The active reproof V3 profile subsequently regenerated and
+  verified a current V1 Spot leaf, V1 zUSD leaf, V1 two-leaf root, recursive-v2
+  two-leaf closed subtree, and recursive-v2 epoch root. Exact seal, image,
+  profile, journal, duplicate-leaf, missing-assumption, and order-parity
+  controls are retained under the active reference. This closes RS-CBC-014 for
+  the bounded same-host profile. Complete build-input closure, authenticated
+  proving provenance, public replay, cross-host reproducibility, release,
+  settlement, and production authority remain false.
 
 - On 2026-07-10, adversarial fanout tests found and repaired receipt-ID merge
   ordering, host verified-facts ordering, repeated-verifier-set construction,
@@ -60,8 +62,8 @@ Current status:
   swapped levels, wrong outer image metadata, authenticated journal mutation,
   and noncanonical outer JSON in the recorded local negative-evidence run.
   Missing child-assumption execution also rejected. This supplies the pinned
-  one-leaf part of the historical fixed-height local evidence. `RS-CBC-014`
-  is reopened pending fresh active-source proof evidence.
+  one-leaf part of the historical fixed-height local evidence. It remains a
+  historical regression artifact and does not replace the active V3 reproof.
 
 - A separate unpromoted same-host experiment used the same aggregate-v2 image
   to prove a current spot leaf and a current zUSD leaf as two immediate children
@@ -953,7 +955,7 @@ Acceptance evidence:
 | 6 | Add perps source-finality row design | missing-counterparty negative tests |
 | 7 | Add zUSD full lifecycle row extractors | lifecycle row tests |
 | 8 | Complete: receipt kind/profile policy | receipt-kind mismatch tests |
-| 9 | Reopened: regenerate current-image one-level and fixed-height two-level proof smokes after the `anyhow 1.0.103` migration | fresh pinned proof hashes, negative transcripts, and pair-verifier report |
+| 9 | Complete bounded lane: regenerate current-image one-level and fixed-height two-level proof smokes after the `anyhow 1.0.103` migration | active V3 reference, fresh pinned proof hashes, negative transcripts, and pair-verifier report |
 | 10 | Partial: prove canonical receipt-set composition; extend Lean coverage to framing, exact-once, and conservation | current module and full `lake build` with no `sorry`; runtime refinement remains pending |
 | 11 | Run external Fable/Codex review on final packet | disposition matrix |
 | 12 | Update release manifest and claims registry | production gate output |
