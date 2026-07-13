@@ -2,7 +2,8 @@
 
 Date: 2026-07-13
 
-Status: implemented dry-run plan and candidate-observation checker
+Status: deterministic plan, fail-closed executor, and candidate-observation
+checker implemented
 
 Authority: none
 
@@ -17,7 +18,7 @@ The deterministic rebuild order is:
 ```text
 source Spot guest and CLI
   -> source policy
-  -> V1 adapter
+  -> V2 adapter
   -> leaf expected-adapter pin
   -> V6 leaf
   -> L1 child pin
@@ -31,8 +32,16 @@ source Spot guest and CLI
 ```
 
 `tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py` emits this plan and
-checks a completed observation bundle. It performs no guest build, source edit,
-proof generation, evidence promotion, or authority update.
+checks a completed observation bundle.
+
+`tools/execute_zrpf_source_opened_spot_v6_identity_rebuild.py` captures a
+private, bounded source snapshot from the plan's exact Git commit and executes
+the plan through a pinned no-network Docker runner. It performs the declared
+repins inside that private snapshot, generates only the versioned V2 governance
+candidates, records exact binary observations, enforces the settlement
+two-pass control, and runs the final clean rebuild comparison. It never edits
+the checkout. It performs no proof generation, receipt verification, evidence
+promotion, or authority update.
 
 ## Build contract
 
@@ -49,8 +58,9 @@ Every planned pass uses:
   words.
 
 The plan pins the existing no-network build image and its Ubuntu parent. The
-candidate checker records these as plan requirements. It does not attest that a
-publisher actually executed them. The observation report therefore says
+executor directly applies these controls to its local candidate run. The
+result still lacks a complete build-input closure, independent execution
+attestation, and cross-host rebuild. The observation report therefore says
 `locked_offline_builds_reported` and leaves complete build provenance false.
 
 ## Acyclic repin rules
@@ -81,7 +91,7 @@ or non-reproducible same-environment build.
 
 ## Source inventory coverage
 
-The dry-run plan hashes every tracked regular file under:
+The plan hashes every tracked regular file under:
 
 ```text
 zk/state_proof_risc0
@@ -126,28 +136,42 @@ artifact in the repin set.
 
 ## Commands
 
-Choose an absent external run root. The command only emits a plan.
+Choose an absent external run root and absent plan path. The first command only
+emits a plan.
 
 ```bash
 python3 tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py plan \
   --source-commit "$(git rev-parse HEAD)" \
   --run-root /absolute/external/absent/zrpf-v6-identity-run \
-  > /absolute/external/absent/rebuild-plan.json
+  --output /absolute/external/absent/rebuild-plan.json
 ```
 
-The redirection above is an operator example. Automation should use an absent
-`--output` path so the tool creates the file with exclusive mode and refuses an
-overwrite.
+Run the exact plan with the locally pinned RISC0 toolchain, Cargo registry, and
+Docker image. Both the run root and every executor output must begin absent.
 
-After an isolated runner executes every planned stage, records the exact
-observations, performs the settlement two-pass control, and performs the final
-clean rebuild:
+```bash
+python3 tools/execute_zrpf_source_opened_spot_v6_identity_rebuild.py \
+  --plan /absolute/external/rebuild-plan.json \
+  --risc0-home /home/trevormoc/.risc0 \
+  --cargo-registry-dir /home/trevormoc/.cargo/registry
+```
+
+On success, the executor writes these exact canonical documents beneath the
+governed run root:
+
+```text
+rebuild-observations.json
+rebuild-candidate-report.json
+```
+
+The executor invokes the checker before committing either document. An
+independent consumer can repeat the check:
 
 ```bash
 python3 tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py check \
   --plan /absolute/external/rebuild-plan.json \
-  --observations /absolute/external/rebuild-observations.json \
-  --output /absolute/external/absent/rebuild-candidate-report.json
+  --observations /absolute/external/absent/zrpf-v6-identity-run/rebuild-observations.json \
+  --output /absolute/external/absent/independent-rebuild-candidate-report.json
 ```
 
 Both input JSON documents must be exact canonical JSON with unique keys,

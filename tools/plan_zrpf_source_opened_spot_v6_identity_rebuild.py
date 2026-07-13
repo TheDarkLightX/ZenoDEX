@@ -887,10 +887,37 @@ def _build_governance_candidates(
     source_stage: dict[str, Any],
     adapter_stage: dict[str, Any],
 ) -> dict[str, Any]:
+    anchor = build_current_source_anchor_candidate(plan, source_stage)
+    policy = build_v2_adapter_source_policy_candidate(
+        plan,
+        source_stage,
+        adapter_stage,
+        anchor,
+    )
+    return {
+        "current_source_anchor_v2": {
+            "path": "config/proof_profiles/zrpf_current_source_anchor_v2.json",
+            "canonical_sha256": canonical_sha256(anchor),
+            "document": anchor,
+        },
+        "v2_adapter_source_policy": {
+            "path": "config/proof_profiles/zrpf_v2_leaf_adapter_source_policy_v2.json",
+            "canonical_sha256": canonical_sha256(policy),
+            "document": policy,
+        },
+        "authority": {field: False for field in AUTHORITY_FLAGS},
+    }
+
+
+def build_current_source_anchor_candidate(
+    plan: dict[str, Any],
+    source_stage: dict[str, Any],
+) -> dict[str, Any]:
+    """Return the exact authority-neutral V2 source-anchor candidate."""
+
     source_program = source_stage["program"]
-    adapter_program = adapter_stage["program"]
     source_coverage = plan["source_guest_source_coverage"]
-    anchor = {
+    return {
         "schema": "zenodex/zrpf_current_source_anchor/v2",
         "status": "observed_unpromoted_candidate",
         "observation_binding": {
@@ -925,8 +952,20 @@ def _build_governance_candidates(
             "does_not_replace_receipt_verification",
         ],
     }
-    anchor_sha256 = canonical_sha256(anchor)
-    policy = {
+
+
+def build_v2_adapter_source_policy_candidate(
+    plan: dict[str, Any],
+    source_stage: dict[str, Any],
+    adapter_stage: dict[str, Any],
+    anchor: dict[str, Any],
+) -> dict[str, Any]:
+    """Return the exact authority-neutral V2 adapter-policy candidate."""
+
+    source_program = source_stage["program"]
+    adapter_program = adapter_stage["program"]
+    source_coverage = plan["source_guest_source_coverage"]
+    return {
         "schema": "zenodex/zrpf_v2_leaf_adapter_source_policy/v2",
         "status": "observed_unpromoted_candidate",
         "adapter_profile": "zrpf_v2_leaf_adapter_compatibility_v2",
@@ -934,7 +973,7 @@ def _build_governance_candidates(
         "source_reference": {
             "path": "config/proof_profiles/zrpf_current_source_anchor_v2.json",
             "schema": anchor["schema"],
-            "sha256": anchor_sha256,
+            "sha256": canonical_sha256(anchor),
         },
         "sources": [
             {
@@ -969,19 +1008,6 @@ def _build_governance_candidates(
             "no_settlement_or_ledger_admission_authority",
             "no_release_or_production_authority",
         ],
-    }
-    return {
-        "current_source_anchor_v2": {
-            "path": "config/proof_profiles/zrpf_current_source_anchor_v2.json",
-            "canonical_sha256": anchor_sha256,
-            "document": anchor,
-        },
-        "v2_adapter_source_policy": {
-            "path": "config/proof_profiles/zrpf_v2_leaf_adapter_source_policy_v2.json",
-            "canonical_sha256": canonical_sha256(policy),
-            "document": policy,
-        },
-        "authority": {field: False for field in AUTHORITY_FLAGS},
     }
 
 
