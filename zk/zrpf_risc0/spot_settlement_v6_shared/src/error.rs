@@ -27,6 +27,7 @@ pub enum SourceOpenedSpotSettlementErrorV6 {
     },
     Truncated(&'static str),
     TrailingBytes,
+    NonCanonicalReplay,
     LengthOverflow(&'static str),
     BaseInput(OrdinarySpotSettlementGuestInputErrorV2),
     SourceLeaf(SourceOpenedSpotValueLeafErrorV6),
@@ -102,6 +103,9 @@ impl fmt::Display for SourceOpenedSpotSettlementErrorV6 {
             Self::EmptyInput => formatter.write_str("source-opened settlement input is empty"),
             Self::TrailingBytes => {
                 formatter.write_str("source-opened settlement input has trailing bytes")
+            }
+            Self::NonCanonicalReplay => {
+                formatter.write_str("source-opened settlement replay is not canonical")
             }
         }
     }

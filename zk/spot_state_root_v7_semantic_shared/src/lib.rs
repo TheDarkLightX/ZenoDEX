@@ -3,9 +3,11 @@
 //! Proof-neutral preparation ABI for a future source-authenticated Spot V7 guest.
 //!
 //! The raw host input contains only one bounded canonical post-snapshot and two
-//! proposed ZenoLedger state-root-v5 commitments. A future guest must obtain
-//! the pre-snapshot, sender, ingress nonce, and four legacy commitments from an
-//! already verified source receipt before calling this kernel.
+//! proposed ZenoLedger state-root-v5 commitments. A future guest must verify
+//! the V6 settlement receipt, authenticate the exact full-blob replay opening
+//! against that receipt's journal, and derive the pre-snapshot, sender, ingress
+//! nonce, and four legacy commitments from that opening before calling this
+//! kernel. Receipt verification alone does not reveal a child guest's input.
 //!
 //! This crate verifies no receipt and contains no image ID. Its journal grants
 //! no source-authentication, receipt, ledger, release, or settlement authority.

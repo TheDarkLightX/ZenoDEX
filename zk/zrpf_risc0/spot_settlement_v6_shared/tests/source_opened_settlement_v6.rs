@@ -24,6 +24,7 @@ use zenodex_zrpf_risc0_shared::{project_policy_bound_v2_journal, source_policy_v
 use zenodex_zrpf_risc0_spot_settlement_v6_shared::{
     compose_source_opened_spot_settlement_output_after_l2_verification_v3,
     decode_exact_source_opened_spot_settlement_guest_envelope_v3,
+    decode_exact_source_opened_spot_settlement_replay_v3,
     encode_source_opened_spot_settlement_guest_input_v3,
     encode_source_opened_spot_settlement_replay_v3,
     source_opened_spot_settlement_replay_schema_id_v3,
@@ -129,6 +130,81 @@ fn exact_source_l1_l2_da_and_admission_journal_round_trip() {
             .consumed_object_ids(),
         &[fixture.statement.semantic_subtree().leaf_records()[0].transaction_root()]
     );
+}
+
+#[test]
+fn exact_replay_opening_round_trip_exposes_only_proposed_source_bytes() {
+    let fixture = Fixture::new();
+    let bytes = fixture.replay_bytes();
+    let replay = decode_exact_source_opened_spot_settlement_replay_v3(&bytes).unwrap();
+
+    assert_eq!(replay.source(), &fixture.source);
+    assert_eq!(replay.source().assigned_leaf_ordinal(), 0);
+    assert_eq!(
+        replay.source().source_input_bytes(),
+        fixture.source.source_input_bytes()
+    );
+    assert_eq!(
+        replay.source().source_journal_bytes(),
+        fixture.source.source_journal_bytes()
+    );
+    assert_eq!(
+        replay.base().settlement_effect_plan_bytes(),
+        OrdinarySpotSettlementReplayDataV2::recompose(
+            &fixture.proposal,
+            fixture.authorization,
+            &fixture.witness,
+        )
+        .unwrap()
+        .settlement_effect_plan_bytes()
+    );
+}
+
+#[test]
+fn replay_opening_framing_and_inner_mutations_fail_closed() {
+    let fixture = Fixture::new();
+    let canonical = fixture.replay_bytes();
+
+    for end in 0..canonical.len() {
+        assert!(decode_exact_source_opened_spot_settlement_replay_v3(&canonical[..end]).is_err());
+    }
+
+    let mut trailing = canonical.clone();
+    trailing.push(0);
+    assert!(matches!(
+        decode_exact_source_opened_spot_settlement_replay_v3(&trailing),
+        Err(SourceOpenedSpotSettlementErrorV6::TrailingBytes)
+    ));
+
+    let mut wrong_version = canonical.clone();
+    wrong_version[..2].copy_from_slice(&4_u16.to_be_bytes());
+    assert!(matches!(
+        decode_exact_source_opened_spot_settlement_replay_v3(&wrong_version),
+        Err(SourceOpenedSpotSettlementErrorV6::InvalidVersion(4))
+    ));
+
+    let mut empty_base = canonical.clone();
+    empty_base[2..6].copy_from_slice(&0_u32.to_be_bytes());
+    assert!(matches!(
+        decode_exact_source_opened_spot_settlement_replay_v3(&empty_base),
+        Err(SourceOpenedSpotSettlementErrorV6::EmptyComponent(
+            "base replay"
+        ))
+    ));
+
+    let mut changed_source = canonical;
+    let base_length = u32::from_be_bytes(changed_source[2..6].try_into().unwrap()) as usize;
+    let source_offset = 2 + 4 + base_length + 4;
+    changed_source[source_offset] ^= 1;
+    assert!(decode_exact_source_opened_spot_settlement_replay_v3(&changed_source).is_err());
+
+    assert!(matches!(
+        decode_exact_source_opened_spot_settlement_replay_v3(&vec![
+            0;
+            MAX_FULL_BLOB_DA_BYTES_V1 + 1
+        ]),
+        Err(SourceOpenedSpotSettlementErrorV6::InputTooLarge { .. })
+    ));
 }
 
 #[test]

@@ -72,15 +72,26 @@ impl SourceOpenedSpotValueLeafEnvelopeV6 {
         &self.adapter_journal_bytes
     }
 
-    pub(crate) const fn assigned_leaf_ordinal(&self) -> u64 {
+    /// Returns the ordinal carried by this proof-neutral replay envelope.
+    ///
+    /// Decoding or reading this value does not authenticate the source receipt.
+    pub const fn assigned_leaf_ordinal(&self) -> u64 {
         self.assigned_leaf_ordinal
     }
 
-    pub(crate) fn source_input_bytes(&self) -> &[u8] {
+    /// Returns the exact source-guest input bytes proposed by the envelope.
+    ///
+    /// A caller must first bind the enclosing replay blob to an authenticated
+    /// settlement journal before interpreting these bytes as source evidence.
+    pub fn source_input_bytes(&self) -> &[u8] {
         &self.source_input_bytes
     }
 
-    pub(crate) fn source_journal_bytes(&self) -> &[u8] {
+    /// Returns the exact source journal bytes proposed by the envelope.
+    ///
+    /// The bytes remain untrusted until the enclosing proof and replay binding
+    /// have been verified under the governed program identities.
+    pub fn source_journal_bytes(&self) -> &[u8] {
         &self.source_journal_bytes
     }
 }

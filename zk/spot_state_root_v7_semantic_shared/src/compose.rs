@@ -13,7 +13,8 @@ use crate::{
 };
 
 /// Source-side projection a future guest must derive only after verifying its
-/// governed V6 child. This proof-neutral type does not authenticate that step.
+/// governed V6 child and authenticating the child's full-blob replay opening.
+/// This proof-neutral type does not authenticate either step.
 pub struct LegacySpotSourceProjectionV7<'a> {
     pre_state: &'a DexSnapshotV1,
     sender_pubkey: &'a str,
@@ -38,7 +39,7 @@ impl<'a> LegacySpotSourceProjectionV7<'a> {
 }
 
 /// Compose the exact proof-neutral V7 journal after the caller has obtained the
-/// source projection from a verified child receipt.
+/// source projection from a verified child and its authenticated replay blob.
 ///
 /// The function name documents a caller obligation. This kernel performs no
 /// receipt verification and grants no source, receipt, or settlement authority.

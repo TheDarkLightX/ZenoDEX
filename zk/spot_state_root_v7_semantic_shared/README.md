@@ -11,7 +11,8 @@ The future guest has two inputs with different trust origins:
 
 ```text
 verified V6 child receipt
-  -> source pre-snapshot, sender, ingress nonce,
+  + exact full-blob certificate and replay opening
+  -> source pre/post snapshots, sender, ingress nonce,
      pre/post app hashes, pre/post nonce roots
 
 untrusted V7 host bytes
@@ -19,9 +20,17 @@ untrusted V7 host bytes
      proposed pre/post ZenoLedger state-root-v5 commitments
 ```
 
-This crate implements the second decoder and the pure relation between both
+The child receipt authenticates only its journal; RISC0 receipt verification
+does not expose the child guest's private input. The future V7 guest must
+require the supplied full-blob certificate root to equal the authenticated V6
+journal, validate the exact replay bytes against that certificate, and only
+then decode the source opening. The host post-snapshot remains a proposal and
+must equal the post-snapshot in that authenticated replay opening.
+
+This crate implements the host decoder and the pure relation between both
 inputs. `LegacySpotSourceProjectionV7` records the future caller precondition;
-its public constructor does not authenticate a source receipt.
+its public constructor authenticates neither a source receipt nor a replay
+opening.
 
 The host ABI omits every profile-fixed field. Snapshot version 1, active pool
 status, CPMM with empty parameters, empty LP duration-risk state, and absent
@@ -64,8 +73,9 @@ A promotion tranche must still:
 
 1. add this crate, the restricted bridge, and the legacy shared crate to an
    exact V7 source closure;
-2. implement a minimal V7 guest that verifies the governed V6 child receipt
-   before constructing `LegacySpotSourceProjectionV7`;
+2. implement a minimal V7 guest that verifies the governed V6 child receipt,
+   binds the exact full-blob certificate and replay bytes to the child journal,
+   and only then constructs `LegacySpotSourceProjectionV7`;
 3. commit the exact 310-byte journal;
 4. build and pin the real V7 image ID and receipt-security profile;
 5. produce a fresh positive receipt, exact seal mutation, source-built replay,
