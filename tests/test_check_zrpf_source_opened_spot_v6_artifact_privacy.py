@@ -431,18 +431,22 @@ def test_same_uid_root_directory_swap_fails_closed(
     _populate_clean_inventory(replacement)
     private_name = "private-project-hidden-after-inventory.txt"
     (replacement / private_name).write_bytes(b"researcher@example.invalid")
-    original_read = privacy._read_regular_bounded
+    original_read = checker._read_and_hold_regular_bounded
     swapped = False
 
-    def swap_then_read(descriptor: int, relative_path: str, maximum: int) -> bytes:
+    def swap_then_read(
+        descriptor: int,
+        artifact: privacy.ArtifactSpec,
+        maximum: int,
+    ) -> tuple[bytes, checker._HeldArtifactDescriptor]:
         nonlocal swapped
         if not swapped:
             root.rename(displaced)
             replacement.rename(root)
             swapped = True
-        return original_read(descriptor, relative_path, maximum)
+        return original_read(descriptor, artifact, maximum)
 
-    monkeypatch.setattr(privacy, "_read_regular_bounded", swap_then_read)
+    monkeypatch.setattr(checker, "_read_and_hold_regular_bounded", swap_then_read)
 
     report = checker.scan_artifact_directory(root)
     encoded = json.dumps(report, sort_keys=True)
@@ -453,6 +457,82 @@ def test_same_uid_root_directory_swap_fails_closed(
         row["code"] for row in report["errors"]
     }
     assert private_name not in encoded
+
+
+def test_same_uid_post_read_artifact_mutation_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _populate_clean_inventory(tmp_path)
+    target = checker.FINAL_ARTIFACTS[0]
+    target_path = tmp_path / target.relative_path
+    private_payload = b"researcher@example.invalid"
+    original_read = checker._read_and_hold_regular_bounded
+    mutated = False
+
+    def read_then_mutate(
+        descriptor: int,
+        artifact: privacy.ArtifactSpec,
+        maximum: int,
+    ) -> tuple[bytes, checker._HeldArtifactDescriptor]:
+        nonlocal mutated
+        result = original_read(descriptor, artifact, maximum)
+        if artifact == target and not mutated:
+            target_path.write_bytes(private_payload)
+            mutated = True
+        return result
+
+    monkeypatch.setattr(checker, "_read_and_hold_regular_bounded", read_then_mutate)
+
+    report = checker.scan_artifact_directory(tmp_path)
+    encoded = json.dumps(report, sort_keys=True).encode()
+
+    assert mutated is True
+    assert target_path.read_bytes() == private_payload
+    assert report["ok"] is False
+    assert report["snapshot_root_identity_verified"] is False
+    assert "artifact_changed_after_read" in {
+        row["code"] for row in report["errors"]
+    }
+    assert private_payload not in encoded
+
+
+def test_same_uid_post_read_artifact_name_rebind_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _populate_clean_inventory(tmp_path)
+    target = checker.FINAL_ARTIFACTS[0]
+    target_path = tmp_path / target.relative_path
+    displaced_path = tmp_path.parent / f"{tmp_path.name}-displaced-artifact"
+    private_payload = b"researcher@example.invalid"
+    original_read = checker._read_and_hold_regular_bounded
+    rebound = False
+
+    def read_then_rebind(
+        descriptor: int,
+        artifact: privacy.ArtifactSpec,
+        maximum: int,
+    ) -> tuple[bytes, checker._HeldArtifactDescriptor]:
+        nonlocal rebound
+        result = original_read(descriptor, artifact, maximum)
+        if artifact == target and not rebound:
+            target_path.rename(displaced_path)
+            target_path.write_bytes(private_payload)
+            rebound = True
+        return result
+
+    monkeypatch.setattr(checker, "_read_and_hold_regular_bounded", read_then_rebind)
+
+    report = checker.scan_artifact_directory(tmp_path)
+    encoded = json.dumps(report, sort_keys=True).encode()
+
+    assert rebound is True
+    assert target_path.read_bytes() == private_payload
+    assert report["ok"] is False
+    assert report["snapshot_root_identity_verified"] is False
+    assert "artifact_name_rebound" in {row["code"] for row in report["errors"]}
+    assert private_payload not in encoded
 
 
 def test_cli_emits_canonical_report_and_rejects_finding(

@@ -11,7 +11,7 @@ import re
 import stat
 import sys
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 if __package__:
@@ -99,6 +99,16 @@ class CandidateBuildRecordBinding:
 
     def program_for_role(self, role: str) -> ProgramArtifactBinding | None:
         return next((program for program in self.programs if program.role == role), None)
+
+
+@dataclass(frozen=True)
+class _HeldArtifactDescriptor:
+    """One governed artifact held open until snapshot finalization."""
+
+    descriptor: int
+    expected_identity: tuple[int, ...]
+    relative_path: str
+    role: str
 
 
 _V1COMPAT_COMPONENT_ID = "risc0_zkos_v1compat_2_2_2_elf"
@@ -270,6 +280,7 @@ def _capture_snapshot(
     except privacy.ArtifactReadError as exc:
         errors = [*specification_errors, _error(".", "inventory", exc.code)]
         return _base_scan([], [], errors, 0, False), {}, [], []
+    held_artifacts: list[_HeldArtifactDescriptor] = []
     try:
         before = os.fstat(root_descriptor)
         try:
@@ -282,15 +293,19 @@ def _capture_snapshot(
             root_descriptor,
             ordered,
             specification_errors,
+            held_artifacts,
         )
         snapshot_ok, snapshot_errors = _finish_snapshot(
             root,
             root_descriptor,
             before,
             observed_names,
+            held_artifacts,
         )
         errors.extend(snapshot_errors)
     finally:
+        for held in held_artifacts:
+            os.close(held.descriptor)
         os.close(root_descriptor)
     return (
         _base_scan(artifacts, findings, errors, total, snapshot_ok),
@@ -304,6 +319,7 @@ def _read_snapshot_artifacts(
     root_descriptor: int,
     artifacts: list[privacy.ArtifactSpec],
     specification_errors: list[dict[str, str]],
+    held_artifacts: list[_HeldArtifactDescriptor],
 ) -> tuple[
     list[dict[str, Any]],
     dict[str, bytes],
@@ -324,14 +340,15 @@ def _read_snapshot_artifacts(
             )
             continue
         try:
-            raw = privacy._read_regular_bounded(
+            raw, held = _read_and_hold_regular_bounded(
                 root_descriptor,
-                artifact.relative_path,
+                artifact,
                 min(privacy.MAX_ARTIFACT_BYTES, remaining),
             )
         except privacy.ArtifactReadError as exc:
             errors.append(_error(artifact.relative_path, artifact.role, exc.code))
             continue
+        held_artifacts.append(held)
         total += len(raw)
         raw_by_path[artifact.relative_path] = raw
         scanned.append(_artifact_identity(artifact, raw))
@@ -349,13 +366,59 @@ def _read_snapshot_artifacts(
     return scanned, raw_by_path, findings, errors, total
 
 
+def _read_and_hold_regular_bounded(
+    root_descriptor: int,
+    artifact: privacy.ArtifactSpec,
+    maximum: int,
+) -> tuple[bytes, _HeldArtifactDescriptor]:
+    descriptor = _open_artifact_at(root_descriptor, artifact.relative_path)
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode):
+            raise privacy.ArtifactReadError("artifact_not_regular")
+        if before.st_size <= 0 or before.st_size > maximum:
+            raise privacy.ArtifactReadError("artifact_size_out_of_bounds")
+        raw = privacy._read_descriptor_bounded(descriptor, maximum)
+        after = os.fstat(descriptor)
+        expected_identity = privacy._identity_tuple(after)
+        if (
+            privacy._identity_tuple(before) != expected_identity
+            or len(raw) != after.st_size
+        ):
+            raise privacy.ArtifactReadError("artifact_changed_during_read")
+        return raw, _HeldArtifactDescriptor(
+            descriptor=descriptor,
+            expected_identity=expected_identity,
+            relative_path=artifact.relative_path,
+            role=artifact.role,
+        )
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _open_artifact_at(root_descriptor: int, relative_path: str) -> int:
+    parts = PurePosixPath(relative_path).parts
+    directory_descriptor = os.dup(root_descriptor)
+    try:
+        for part in parts[:-1]:
+            next_descriptor = privacy._open_directory_at(directory_descriptor, part)
+            os.close(directory_descriptor)
+            directory_descriptor = next_descriptor
+        return privacy._open_file_at(directory_descriptor, parts[-1])
+    finally:
+        os.close(directory_descriptor)
+
+
 def _finish_snapshot(
     root: Path,
     root_descriptor: int,
     before: os.stat_result,
     observed_names: list[str],
+    held_artifacts: list[_HeldArtifactDescriptor],
 ) -> tuple[bool, list[dict[str, str]]]:
     errors: list[dict[str, str]] = []
+    errors.extend(_verify_held_artifact_bindings(root_descriptor, held_artifacts))
     try:
         final_names = _list_inventory(root_descriptor)
         after = os.fstat(root_descriptor)
@@ -368,6 +431,64 @@ def _finish_snapshot(
     if not _root_path_still_names_descriptor(root, after):
         errors.append(_error(".", "inventory", "root_path_replaced_during_snapshot"))
     return not errors, errors
+
+
+def _verify_held_artifact_bindings(
+    root_descriptor: int,
+    held_artifacts: list[_HeldArtifactDescriptor],
+) -> list[dict[str, str]]:
+    errors: list[dict[str, str]] = []
+    for held in held_artifacts:
+        try:
+            held_identity = privacy._identity_tuple(os.fstat(held.descriptor))
+        except OSError:
+            errors.append(
+                _error(held.relative_path, held.role, "artifact_finalization_unavailable")
+            )
+            continue
+        held_changed = held_identity != held.expected_identity
+        if held_changed:
+            errors.append(
+                _error(held.relative_path, held.role, "artifact_changed_after_read")
+            )
+        _verify_artifact_name_binding(
+            root_descriptor,
+            held,
+            held_changed=held_changed,
+            errors=errors,
+        )
+    return errors
+
+
+def _verify_artifact_name_binding(
+    root_descriptor: int,
+    held: _HeldArtifactDescriptor,
+    *,
+    held_changed: bool,
+    errors: list[dict[str, str]],
+) -> None:
+    try:
+        rebound_descriptor = _open_artifact_at(root_descriptor, held.relative_path)
+    except privacy.ArtifactReadError:
+        errors.append(
+            _error(held.relative_path, held.role, "artifact_name_binding_unavailable")
+        )
+        return
+    try:
+        rebound_identity = privacy._identity_tuple(os.fstat(rebound_descriptor))
+    except OSError:
+        errors.append(
+            _error(held.relative_path, held.role, "artifact_name_binding_unavailable")
+        )
+        return
+    finally:
+        os.close(rebound_descriptor)
+    if rebound_identity[:2] != held.expected_identity[:2]:
+        errors.append(_error(held.relative_path, held.role, "artifact_name_rebound"))
+    elif rebound_identity != held.expected_identity and not held_changed:
+        errors.append(
+            _error(held.relative_path, held.role, "artifact_changed_after_read")
+        )
 
 
 def _root_path_still_names_descriptor(root: Path, expected: os.stat_result) -> bool:
