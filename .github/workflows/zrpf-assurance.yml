@@ -458,6 +458,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          live_report="internal/zrpf-ci-live-replay.pending.json"
+          rm -f "${live_report}"
           docker run --rm \
             --network none \
             --read-only \
@@ -488,7 +490,18 @@ jobs:
                 --risc0-home /risc0 \
                 --target-dir /out/private/live \
                 --json
-            ' | tee internal/zrpf-ci-live-replay.json
+            ' | tee "${live_report}"
+          python3 - "${live_report}" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          report_path = Path(sys.argv[1])
+          value = json.loads(report_path.read_text(encoding="utf-8"))
+          if not isinstance(value, dict):
+              raise SystemExit("live replay report must be a JSON object")
+          PY
+          mv "${live_report}" internal/zrpf-ci-live-replay.json
 
       - name: Upload ZRPF assurance report
         if: always()
