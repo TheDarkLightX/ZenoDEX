@@ -51,6 +51,15 @@ The adapter path:
 - emits distinct nonzero unsupported sentinels for DA-certificate and carry
   fields that V1 cannot establish.
 
+The historical V1 guest and source policy remain frozen for retained evidence.
+The current-source successor is a distinct `methods/v2_leaf_adapter` guest
+under profile `zrpf_v2_leaf_adapter_compatibility_v2`. Its committed policy is
+intentionally unpinned: source image, program hash, and the acyclic
+`zk/state_proof_risc0` source-closure root are zero sentinels. The guest rejects
+before interpreting a source journal until the deterministic V6 rebuild records
+and repins all three values. The pending anchor and policy JSON set receipt,
+release, settlement, and production authority to false.
+
 ### Sealed receipt boundary
 
 `VerifiedNodeReceiptV3` has private fields and enforces this order:
@@ -256,7 +265,8 @@ throughput, or production authority.
   L2 image identity, excluded from the L2 compiler dependency closure;
 - `semantic_shared`: proof-neutral state-bound ordinary Spot certificate
   input, validation, and composition;
-- `methods/v1_leaf_adapter`: receipt-authenticated compatibility guest;
+- `methods/v1_leaf_adapter`: frozen retained-evidence compatibility guest;
+- `methods/v2_leaf_adapter`: fail-closed current-source compatibility guest;
 - `methods/spot_value_leaf_v4`: verifies one exact pinned adapter receipt before
   interpreting its semantic witness and committing `NodeJournalV4`;
 - `methods/structural_aggregate_l1`: adapter-to-level-one guest;

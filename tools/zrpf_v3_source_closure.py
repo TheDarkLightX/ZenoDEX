@@ -151,6 +151,26 @@ AUXILIARY_RUST_ROWS: tuple[tuple[str, str], ...] = tuple(
 
 CURRENT_ZRPF_ROWS: tuple[tuple[str, str], ...] = (
     (
+        "current_source_adapter_v2",
+        "zk/zrpf_risc0/methods/v2_leaf_adapter/Cargo.toml",
+    ),
+    (
+        "current_source_adapter_v2",
+        "zk/zrpf_risc0/methods/v2_leaf_adapter/src/main.rs",
+    ),
+    (
+        "current_source_adapter_v2",
+        "zk/zrpf_risc0/shared/src/adapter_input_v2.rs",
+    ),
+    (
+        "current_source_adapter_v2",
+        "zk/zrpf_risc0/shared/src/source_policy_v2.rs",
+    ),
+    (
+        "current_source_adapter_v2",
+        "zk/zrpf_risc0/shared/src/v2_leaf_adapter.rs",
+    ),
+    (
         "parallel_shard_epoch_protocol_v1",
         "zk/zrpf_protocol/protocol/src/parallel_shard_epoch_v1/codec.rs",
     ),

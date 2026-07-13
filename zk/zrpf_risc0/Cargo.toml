@@ -18,6 +18,7 @@ members = [
   "replay_verifier",
   "methods",
   "methods/v1_leaf_adapter",
+  "methods/v2_leaf_adapter",
   "methods/structural_aggregate_l1",
   "methods/structural_aggregate_l2",
   "methods/semantic_epoch",

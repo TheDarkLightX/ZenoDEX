@@ -1,9 +1,10 @@
 # ZRPF Source-Opened Ordinary Spot V6 CBC Specification
 
-Date: 2026-07-12
+Date: 2026-07-13
 
-Status: implementation present; governed V3 build-record checker present; final
-local proof-chain and retained replay evidence pending
+Status: implementation present; current-source V2 adapter contract pending its
+deterministic source observation; final local proof-chain and retained replay
+evidence pending
 
 ## Scope
 
@@ -11,7 +12,7 @@ This specification governs one bounded source-opened ordinary Spot path:
 
 ```text
 authenticated RISC0 Spot source receipt
-  -> governed V1 adapter receipt
+  -> current-source V2 adapter receipt
   -> source-opened Spot value leaf V6
   -> Value Aggregate L1 V6
   -> Value Aggregate L2 V6
@@ -43,9 +44,11 @@ untrusted bounded bytes
 No host Boolean, report field, artifact name, file path, or caller-selected
 program identifier creates proof authority.
 
-## Governed Program Chain
+## Historical Baseline Program Chain
 
-The current image IDs are:
+These image IDs describe the pre-PR426 baseline proof run. The source hardening
+change invalidated the source, adapter, leaf, L1, L2, and settlement identities.
+They must not be used as the final current-source chain:
 
 | Program | RISC0 image ID |
 | --- | --- |
@@ -66,6 +69,44 @@ host verifier pins settlement V6
 
 The settlement program manifest additionally binds the semantic profile and
 the fixed `ZRPFSAV1` settlement-admission journal contract.
+
+## Current-Source V2 Adapter Bootstrap
+
+The historical V1 source policy, adapter guest, anchor, policy JSON, and
+retained evidence remain byte-preserved. The successor uses a distinct guest
+and profile:
+
+```text
+source policy module   source_policy_v2.rs
+adapter guest          zenodex-zrpf-risc0-v2-leaf-adapter
+adapter profile        zrpf_v2_leaf_adapter_compatibility_v2
+anchor schema          zenodex/zrpf_current_source_anchor/v2
+policy schema          zenodex/zrpf_v2_leaf_adapter_source_policy/v2
+```
+
+The committed V2 Rust policy contains zero identity sentinels. Its governance
+documents contain `null` identity fields and set receipt, release, settlement,
+and production authority to false. The adapter therefore rejects before source
+journal interpretation until the deterministic build observes and repins all
+three source values:
+
+```text
+source image ID
+source program SHA-256
+state-proof workspace source-closure root
+```
+
+The source-closure root covers the tracked `zk/state_proof_risc0` workspace.
+It excludes `zk/zrpf_risc0`, including the V2 source policy and adapter guest.
+This prevents the policy from committing to a broad inventory that contains
+itself. The broader three-workspace inventory remains a separate repository
+superset observation.
+
+After stage 1, the planner emits an unpromoted anchor candidate from the exact
+source observation. After stage 2, it emits an unpromoted adapter-policy
+candidate from the exact V2 adapter observation. Both candidates retain every
+authority Boolean as false. The V6 leaf pin is updated only from the observed
+V2 adapter image ID. No image ID is predicted or copied from the baseline.
 
 ## Source Opening
 
@@ -214,7 +255,8 @@ balance tree or grant settlement authority.
 
 Promotion of the scoped local claim requires:
 
-1. a source-pinned build record for all four V6 guests;
+1. deterministic source and V2 adapter observations followed by a source-pinned
+   build record for all four V6 guests;
 2. independently recomputed RISC0 program-binary hashes, sizes, and image IDs;
 3. one real Succinct receipt at leaf, L1, L2, and settlement;
 4. exact source request/proof, adapter receipt, guest inputs, replay bytes,
@@ -286,6 +328,8 @@ The current V6 path does not establish:
   commands or clean external target;
 - global worktree cleanliness;
 - source-to-program-binary build provenance or reproducibility;
+- any current source or V2 adapter image identity before the deterministic
+  build observations are recorded;
 - Tau or external-chain finality;
 - governed release, settlement, or production authority;
 - witness privacy, zero knowledge, covert-channel freedom, or hardware

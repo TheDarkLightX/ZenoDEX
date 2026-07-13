@@ -15,7 +15,18 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def test_current_clean_checkout_matches_exact_source_inventory() -> None:
     document = closure.build_source_closure(REPO_ROOT)
     assert document["schema"] == closure.SCHEMA
-    assert document["file_count"] == 388
+    assert document["file_count"] == 393
+    assert {
+        row["path"]
+        for row in document["files"]
+        if row["role"] == "current_source_adapter_v2"
+    } == {
+        "zk/zrpf_risc0/methods/v2_leaf_adapter/Cargo.toml",
+        "zk/zrpf_risc0/methods/v2_leaf_adapter/src/main.rs",
+        "zk/zrpf_risc0/shared/src/adapter_input_v2.rs",
+        "zk/zrpf_risc0/shared/src/source_policy_v2.rs",
+        "zk/zrpf_risc0/shared/src/v2_leaf_adapter.rs",
+    }
     semantic_v2_roles = {
         "semantic_mapping_v2",
         "semantic_protocol_v2",

@@ -44,7 +44,7 @@ def _observations(plan: dict) -> dict:
     for spec in planner.STAGES:
         program = _program(spec)
         source_tree_root = (
-            plan["tracked_workspace_source_coverage"]["inventory_root_sha256"]
+            plan["source_guest_source_coverage"]["inventory_root_sha256"]
             if spec.stage_id == "source_spot"
             else None
         )
@@ -167,7 +167,7 @@ def test_plan_is_deterministic_acyclic_and_uses_pinned_build_contract() -> None:
     )
     assert [row["stage_id"] for row in first["stages"]] == [
         "source_spot",
-        "v1_adapter",
+        "v2_adapter",
         "v6_leaf",
         "v6_l1",
         "v6_l2",
@@ -193,7 +193,7 @@ def test_plan_is_deterministic_acyclic_and_uses_pinned_build_contract() -> None:
     assert all(value is False for value in first["authority"].values())
 
 
-def test_plan_preserves_historical_v1_anchor_and_requires_versioned_successor() -> None:
+def test_plan_preserves_historical_v1_and_uses_versioned_successor() -> None:
     plan = _plan()
     repin_paths = {
         repin["path"]
@@ -209,14 +209,11 @@ def test_plan_preserves_historical_v1_anchor_and_requires_versioned_successor() 
         "config/proof_profiles/zrpf_v1_leaf_adapter_source_policy_v1.json"
         not in repin_paths
     )
-    updates = set(plan["required_governance_updates_after_candidate"])
-    assert (
-        "create config/proof_profiles/zrpf_v1_current_source_anchor_v2.json"
-        in updates
+    assert plan["stages"][0]["repins_after_success"][0]["path"] == (
+        "zk/zrpf_risc0/shared/src/source_policy_v2.rs"
     )
-    assert (
-        "create config/proof_profiles/zrpf_v1_leaf_adapter_source_policy_v2.json"
-        in updates
+    assert plan["stages"][1]["guest_package"] == (
+        "zenodex-zrpf-risc0-v2-leaf-adapter"
     )
     assert plan["protected_historical_artifacts"] == list(
         planner.PROTECTED_HISTORICAL_ARTIFACTS
@@ -241,6 +238,24 @@ def test_tracked_workspace_source_audit_includes_parallel_shard_sources() -> Non
     )
 
 
+def test_source_policy_uses_acyclic_state_proof_workspace_closure() -> None:
+    plan = _plan()
+    source = plan["source_guest_source_coverage"]
+    broad = plan["tracked_workspace_source_coverage"]
+
+    assert source["workspace_roots"] == ["zk/state_proof_risc0"]
+    assert source["excludes_zrpf_policy_and_adapter_sources"] is True
+    assert source["complete_build_input_closure_verified"] is False
+    assert source["inventory_root_sha256"] != broad["inventory_root_sha256"]
+    source_repin = plan["stages"][0]["repins_after_success"][2]
+    assert source_repin == {
+        "path": "zk/zrpf_risc0/shared/src/source_policy_v2.rs",
+        "symbol": "PINNED_CURRENT_SPOT_SOURCE_CLOSURE_ROOT_V2",
+        "value_kind": "source_closure_root_bytes",
+        "visibility": "v2_adapter_guest",
+    }
+
+
 def test_complete_observations_emit_candidate_only_report() -> None:
     plan = _plan()
     report = planner.check_observations(plan, _observations(plan))
@@ -255,31 +270,39 @@ def test_complete_observations_emit_candidate_only_report() -> None:
         "locked_offline_builds_reported": True,
         "network_disabled_builds_reported": True,
         "settlement_host_only_two_pass_match": True,
-        "source_anchor_matches_tracked_workspace_inventory": True,
+        "source_anchor_matches_source_guest_inventory": True,
     }
     assert all(report["authority"][field] is False for field in planner.AUTHORITY_FLAGS)
     assert report["programs"][-1]["stage_id"] == "v6_settlement"
     assert report["source_spot_cli"]["binary_file"] == "tau-state-proof-risc0-cli"
     assert "host_run_root" not in report
+    candidates = report["governance_candidates"]
+    assert all(value is False for value in candidates["authority"].values())
+    assert candidates["current_source_anchor_v2"]["document"]["source_closure"][
+        "inventory_root_sha256"
+    ] == plan["source_guest_source_coverage"]["inventory_root_sha256"]
+    assert candidates["v2_adapter_source_policy"]["document"]["adapter_profile"] == (
+        "zrpf_v2_leaf_adapter_compatibility_v2"
+    )
     assert report["observations_sha256"] == planner.canonical_sha256(
         _observations(plan)
     )
 
 
-def test_source_stage_repins_image_program_hash_and_source_tree_root() -> None:
+def test_source_stage_repins_v2_image_program_hash_and_source_closure_root() -> None:
     plan = _plan()
     observations = _observations(plan)
     source = observations["stages"][0]
 
     planner.check_observations(plan, observations)
     values = {row["symbol"]: row["value"] for row in source["repins"]}
-    assert values["PINNED_SPOT_LEAF_IMAGE_ID_V1"] == source["program"][
+    assert values["PINNED_CURRENT_SPOT_LEAF_IMAGE_ID_V2"] == source["program"][
         "image_id_words"
     ]
-    assert values["PINNED_SPOT_LEAF_PROGRAM_SHA256_V1"] == list(
+    assert values["PINNED_CURRENT_SPOT_LEAF_PROGRAM_SHA256_V2"] == list(
         bytes.fromhex(source["program"]["program_binary_sha256"])
     )
-    assert values["PINNED_V1_LOCAL_SOURCE_TREE_ROOT"] == list(
+    assert values["PINNED_CURRENT_SPOT_SOURCE_CLOSURE_ROOT_V2"] == list(
         bytes.fromhex(source["source_tree_root_sha256"])
     )
 

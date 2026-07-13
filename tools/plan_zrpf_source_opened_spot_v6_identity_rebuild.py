@@ -128,35 +128,35 @@ STAGES = (
         "source_spot.bin",
         (
             RepinSpec(
-                "zk/zrpf_risc0/shared/src/source_policy_v1.rs",
-                "PINNED_SPOT_LEAF_IMAGE_ID_V1",
+                "zk/zrpf_risc0/shared/src/source_policy_v2.rs",
+                "PINNED_CURRENT_SPOT_LEAF_IMAGE_ID_V2",
                 "image_id_words_le",
-                "adapter_guest",
+                "v2_adapter_guest",
             ),
             RepinSpec(
-                "zk/zrpf_risc0/shared/src/source_policy_v1.rs",
-                "PINNED_SPOT_LEAF_PROGRAM_SHA256_V1",
+                "zk/zrpf_risc0/shared/src/source_policy_v2.rs",
+                "PINNED_CURRENT_SPOT_LEAF_PROGRAM_SHA256_V2",
                 "sha256_bytes",
-                "adapter_guest",
+                "v2_adapter_guest",
             ),
             RepinSpec(
-                "zk/zrpf_risc0/shared/src/source_policy_v1.rs",
-                "PINNED_V1_LOCAL_SOURCE_TREE_ROOT",
-                "source_tree_root_bytes",
-                "adapter_guest",
+                "zk/zrpf_risc0/shared/src/source_policy_v2.rs",
+                "PINNED_CURRENT_SPOT_SOURCE_CLOSURE_ROOT_V2",
+                "source_closure_root_bytes",
+                "v2_adapter_guest",
             ),
         ),
     ),
     StageSpec(
         2,
-        "v1_adapter",
-        "v1_adapter_guest",
+        "v2_adapter",
+        "v2_adapter_guest",
         "source_spot",
         "zk/zrpf_risc0",
         "zenodex-zrpf-risc0-methods",
         "zenodex-zrpf-risc0-methods",
-        "zenodex-zrpf-risc0-v1-leaf-adapter",
-        "v1_adapter.bin",
+        "zenodex-zrpf-risc0-v2-leaf-adapter",
+        "v2_adapter.bin",
         (
             RepinSpec(
                 "zk/zrpf_risc0/spot_value_leaf_v6_shared/src/lib.rs",
@@ -170,7 +170,7 @@ STAGES = (
         3,
         "v6_leaf",
         "v6_leaf_guest",
-        "v1_adapter",
+        "v2_adapter",
         "zk/zrpf_risc0",
         "zenodex-zrpf-risc0-spot-v6-methods",
         "zenodex-zrpf-risc0-spot-v6-methods",
@@ -246,8 +246,8 @@ STAGES = (
 
 TOPOLOGY_NODES = (
     "source_spot_guest_and_cli",
-    "source_policy",
-    "v1_adapter_guest",
+    "current_source_policy_v2",
+    "v2_adapter_guest",
     "leaf_expected_adapter_pin",
     "v6_leaf_guest",
     "l1_child_pin",
@@ -261,9 +261,9 @@ TOPOLOGY_NODES = (
 )
 
 TOPOLOGY_EDGES = (
-    ("source_spot_guest_and_cli", "source_policy"),
-    ("source_policy", "v1_adapter_guest"),
-    ("v1_adapter_guest", "leaf_expected_adapter_pin"),
+    ("source_spot_guest_and_cli", "current_source_policy_v2"),
+    ("current_source_policy_v2", "v2_adapter_guest"),
+    ("v2_adapter_guest", "leaf_expected_adapter_pin"),
     ("leaf_expected_adapter_pin", "v6_leaf_guest"),
     ("v6_leaf_guest", "l1_child_pin"),
     ("l1_child_pin", "v6_l1_guest"),
@@ -276,8 +276,8 @@ TOPOLOGY_EDGES = (
 )
 
 REQUIRED_GOVERNANCE_UPDATES = (
-    "create config/proof_profiles/zrpf_v1_current_source_anchor_v2.json",
-    "create config/proof_profiles/zrpf_v1_leaf_adapter_source_policy_v2.json",
+    "replace the pending current-source V2 anchor from the exact stage-1 candidate",
+    "replace the pending V2 adapter policy from the exact stage-2 candidate",
     "V6 program build record and governed checker anchor",
     "fresh source, adapter, leaf, L1, L2, and settlement receipts",
     "seal-mutation and exact-journal negative controls",
@@ -287,6 +287,8 @@ REQUIRED_GOVERNANCE_UPDATES = (
 PROTECTED_HISTORICAL_ARTIFACTS = (
     "config/proof_profiles/zrpf_v1_retained_source_anchor_v1.json",
     "config/proof_profiles/zrpf_v1_leaf_adapter_source_policy_v1.json",
+    "zk/zrpf_risc0/methods/v1_leaf_adapter/src/main.rs",
+    "zk/zrpf_risc0/shared/src/source_policy_v1.rs",
 )
 
 RELEVANT_WORKSPACE_ROOTS = (
@@ -294,6 +296,8 @@ RELEVANT_WORKSPACE_ROOTS = (
     "zk/zrpf_protocol",
     "zk/zrpf_risc0",
 )
+
+SOURCE_GUEST_WORKSPACE_ROOTS = ("zk/state_proof_risc0",)
 
 
 def canonical_bytes(document: Any) -> bytes:
@@ -317,7 +321,8 @@ def build_plan(
     _require_hex(source_commit, 40, "source commit")
     _require_absolute_path(run_root, "run root")
     _validate_static_topology()
-    source_coverage = audit_tracked_workspace_source(repo_root, source_commit)
+    workspace_coverage = audit_tracked_workspace_source(repo_root, source_commit)
+    source_guest_coverage = audit_source_guest_workspace(repo_root, source_commit)
     stage_rows = [_stage_plan(spec, run_root) for spec in STAGES]
     return {
         "schema": PLAN_SCHEMA,
@@ -325,7 +330,8 @@ def build_plan(
         "source_commit": source_commit,
         "host_run_root": run_root,
         "canonical_in_sandbox_source_root": CANONICAL_SOURCE_ROOT,
-        "tracked_workspace_source_coverage": source_coverage,
+        "tracked_workspace_source_coverage": workspace_coverage,
+        "source_guest_source_coverage": source_guest_coverage,
         "toolchain": dict(TOOLCHAIN),
         "resource_policy": {
             "build_image": BUILD_IMAGE,
@@ -501,7 +507,7 @@ def check_observations(
     _require_equal(observations["plan_sha256"], canonical_sha256(plan), "plan SHA-256")
     _require_equal(observations["source_commit"], plan["source_commit"], "source commit")
     _require_equal(observations["toolchain"], TOOLCHAIN, "toolchain")
-    expected_source_tree_root = plan["tracked_workspace_source_coverage"][
+    expected_source_tree_root = plan["source_guest_source_coverage"][
         "inventory_root_sha256"
     ]
     stage_programs = _check_stage_observations(
@@ -516,6 +522,11 @@ def check_observations(
     host_binary = _check_host_verifier(
         observations["host_verifier"], stage_programs[-1]
     )
+    governance_candidates = _build_governance_candidates(
+        plan,
+        observations["stages"][0],
+        observations["stages"][1],
+    )
     return _candidate_report(
         plan,
         stage_programs,
@@ -523,6 +534,7 @@ def check_observations(
         final_root,
         host_binary,
         canonical_sha256(observations),
+        governance_candidates,
     )
 
 
@@ -706,7 +718,7 @@ def _repin_value(
         return program["image_id_words"]
     if value_kind == "sha256_bytes":
         return list(bytes.fromhex(program["program_binary_sha256"]))
-    if value_kind == "source_tree_root_bytes" and source_tree_root is not None:
+    if value_kind == "source_closure_root_bytes" and source_tree_root is not None:
         return list(bytes.fromhex(source_tree_root))
     raise RebuildPlanError("unsupported or incomplete repin value")
 
@@ -832,6 +844,7 @@ def _candidate_report(
     final_root: str,
     host_binary: dict[str, Any],
     observations_sha256: str,
+    governance_candidates: dict[str, Any],
 ) -> dict[str, Any]:
     return {
         "schema": REPORT_SCHEMA,
@@ -842,6 +855,8 @@ def _candidate_report(
         "canonical_in_sandbox_source_root": CANONICAL_SOURCE_ROOT,
         "toolchain": dict(TOOLCHAIN),
         "tracked_workspace_source_coverage": plan["tracked_workspace_source_coverage"],
+        "source_guest_source_coverage": plan["source_guest_source_coverage"],
+        "governance_candidates": governance_candidates,
         "programs": [
             {"stage_id": spec.stage_id, **program}
             for spec, program in zip(STAGES, programs, strict=True)
@@ -858,12 +873,115 @@ def _candidate_report(
             "locked_offline_builds_reported": True,
             "network_disabled_builds_reported": True,
             "settlement_host_only_two_pass_match": True,
-            "source_anchor_matches_tracked_workspace_inventory": True,
+            "source_anchor_matches_source_guest_inventory": True,
         },
         "required_governance_updates_after_candidate": list(REQUIRED_GOVERNANCE_UPDATES),
         "protected_historical_artifacts": list(PROTECTED_HISTORICAL_ARTIFACTS),
         "authority": {field: False for field in AUTHORITY_FLAGS},
         "non_claims": list(NON_CLAIMS),
+    }
+
+
+def _build_governance_candidates(
+    plan: dict[str, Any],
+    source_stage: dict[str, Any],
+    adapter_stage: dict[str, Any],
+) -> dict[str, Any]:
+    source_program = source_stage["program"]
+    adapter_program = adapter_stage["program"]
+    source_coverage = plan["source_guest_source_coverage"]
+    anchor = {
+        "schema": "zenodex/zrpf_current_source_anchor/v2",
+        "status": "observed_unpromoted_candidate",
+        "observation_binding": {
+            "plan_schema": PLAN_SCHEMA,
+            "plan_sha256": canonical_sha256(plan),
+            "source_commit": plan["source_commit"],
+            "stage_id": "source_spot",
+            "source_snapshot_root_sha256": source_stage[
+                "source_snapshot_root_sha256"
+            ],
+        },
+        "source_closure": {
+            "kind": "tracked_state_proof_workspace_superset_v1",
+            "workspace_roots": list(SOURCE_GUEST_WORKSPACE_ROOTS),
+            "inventory_root_sha256": source_coverage["inventory_root_sha256"],
+            "tracked_file_count": source_coverage["tracked_file_count"],
+            "tracked_bytes": source_coverage["tracked_bytes"],
+            "complete_build_input_closure_verified": False,
+        },
+        "spot_program": {
+            "image_id": source_program["image_id"],
+            "image_id_words": source_program["image_id_words"],
+            "program_sha256": source_program["program_binary_sha256"],
+        },
+        "release_authority": False,
+        "production_authority": False,
+        "non_claims": [
+            "source_build_observation_is_candidate_only",
+            "no_complete_build_input_closure",
+            "no_release_authority",
+            "no_production_authority",
+            "does_not_replace_receipt_verification",
+        ],
+    }
+    anchor_sha256 = canonical_sha256(anchor)
+    policy = {
+        "schema": "zenodex/zrpf_v2_leaf_adapter_source_policy/v2",
+        "status": "observed_unpromoted_candidate",
+        "adapter_profile": "zrpf_v2_leaf_adapter_compatibility_v2",
+        "count_unit": "source_transition_receipt",
+        "source_reference": {
+            "path": "config/proof_profiles/zrpf_current_source_anchor_v2.json",
+            "schema": anchor["schema"],
+            "sha256": anchor_sha256,
+        },
+        "sources": [
+            {
+                "source_kind": "spot",
+                "proof_type": "risc0.zenodex_recursive_spot_leaf.v1",
+                "proof_profile": "recursive_spot_leaf_v1",
+                "lane_kind": "spot",
+                "image_id": source_program["image_id"],
+                "image_id_words": source_program["image_id_words"],
+                "program_sha256": source_program["program_binary_sha256"],
+                "source_closure_root": source_coverage["inventory_root_sha256"],
+            }
+        ],
+        "adapter_program": {
+            "image_id": adapter_program["image_id"],
+            "image_id_words": adapter_program["image_id_words"],
+            "program_sha256": adapter_program["program_binary_sha256"],
+        },
+        "receipt_authority": False,
+        "release_authority": False,
+        "production_authority": False,
+        "unsupported_compatibility_fields": [
+            "data_availability_certificate_root",
+            "carry_queue_pre_root",
+            "carry_queue_post_root",
+        ],
+        "non_claims": [
+            "pure_mapping_does_not_authenticate_receipts",
+            "candidate_adapter_identity_is_unpromoted",
+            "no_durable_data_availability",
+            "no_carry_queue_evidence",
+            "no_settlement_or_ledger_admission_authority",
+            "no_release_or_production_authority",
+        ],
+    }
+    return {
+        "current_source_anchor_v2": {
+            "path": "config/proof_profiles/zrpf_current_source_anchor_v2.json",
+            "canonical_sha256": anchor_sha256,
+            "document": anchor,
+        },
+        "v2_adapter_source_policy": {
+            "path": "config/proof_profiles/zrpf_v2_leaf_adapter_source_policy_v2.json",
+            "canonical_sha256": canonical_sha256(policy),
+            "document": policy,
+        },
+        "authority": {field: False for field in AUTHORITY_FLAGS},
     }
 
 
@@ -902,24 +1020,11 @@ def audit_tracked_workspace_source(
     source inventory, not a complete build-input closure.
     """
 
-    _require_hex(source_commit, 40, "source commit")
-    root = repo_root.resolve(strict=True)
-    completed = _run_git(
-        root,
-        [
-            "ls-tree",
-            "-r",
-            "-z",
-            source_commit,
-            "--",
-            *RELEVANT_WORKSPACE_ROOTS,
-        ],
-        maximum_stdout=8 * 1024 * 1024,
+    files = _tracked_files_for_roots(
+        repo_root,
+        source_commit,
+        RELEVANT_WORKSPACE_ROOTS,
     )
-    entries = _parse_ls_tree(completed.stdout)
-    if not entries or len(entries) > MAX_TRACKED_SOURCE_FILES:
-        raise RebuildPlanError("tracked workspace source inventory exceeds its file bound")
-    files = _git_blob_sha256_inventory(root, entries)
     parallel = sorted(
         path
         for path, _mode, _size, _sha256 in files
@@ -954,6 +1059,69 @@ def audit_tracked_workspace_source(
         "parallel_shard_epoch_v1_files": parallel,
         "complete_build_input_closure_verified": False,
     }
+
+
+def audit_source_guest_workspace(
+    repo_root: Path,
+    source_commit: str,
+) -> dict[str, Any]:
+    """Bind the source program workspace without any ZRPF policy input.
+
+    The current-source policy commits this acyclic source-specific superset.
+    The broader three-workspace inventory remains a separate repository
+    observation and must never be repinned into a guest that belongs to it.
+    """
+
+    files = _tracked_files_for_roots(
+        repo_root,
+        source_commit,
+        SOURCE_GUEST_WORKSPACE_ROOTS,
+    )
+    hasher = hashlib.sha256()
+    hasher.update(b"zenodex.zrpf.current_spot.source_workspace.v2\0")
+    total = 0
+    for path, mode, size, sha256 in files:
+        encoded = path.encode("utf-8")
+        encoded_mode = mode.encode("ascii")
+        total += size
+        hasher.update(len(encoded).to_bytes(4, "big"))
+        hasher.update(encoded)
+        hasher.update(len(encoded_mode).to_bytes(1, "big"))
+        hasher.update(encoded_mode)
+        hasher.update(size.to_bytes(8, "big"))
+        hasher.update(bytes.fromhex(sha256))
+    return {
+        "kind": "tracked_state_proof_workspace_superset_v1",
+        "workspace_roots": list(SOURCE_GUEST_WORKSPACE_ROOTS),
+        "tracked_file_count": len(files),
+        "tracked_bytes": total,
+        "inventory_root_sha256": hasher.hexdigest(),
+        "all_tracked_workspace_files_included": True,
+        "tracked_file_modes_included": True,
+        "explicitly_excluded_tracked_files": [],
+        "excludes_zrpf_policy_and_adapter_sources": all(
+            not path.startswith("zk/zrpf_risc0/") for path, _mode, _size, _sha256 in files
+        ),
+        "complete_build_input_closure_verified": False,
+    }
+
+
+def _tracked_files_for_roots(
+    repo_root: Path,
+    source_commit: str,
+    workspace_roots: tuple[str, ...],
+) -> list[tuple[str, str, int, str]]:
+    _require_hex(source_commit, 40, "source commit")
+    root = repo_root.resolve(strict=True)
+    completed = _run_git(
+        root,
+        ["ls-tree", "-r", "-z", source_commit, "--", *workspace_roots],
+        maximum_stdout=8 * 1024 * 1024,
+    )
+    entries = _parse_ls_tree(completed.stdout)
+    if not entries or len(entries) > MAX_TRACKED_SOURCE_FILES:
+        raise RebuildPlanError("tracked workspace source inventory exceeds its file bound")
+    return _git_blob_sha256_inventory(root, entries)
 
 
 def _run_git(
