@@ -14,14 +14,14 @@ use zenodex_zrpf_risc0_value_aggregate_shared::{
 };
 
 pub const PINNED_SOURCE_OPENED_SPOT_VALUE_AGGREGATE_L1_IMAGE_ID_V6: [u32; 8] = [
-    1_985_356_721,
-    2_887_947_481,
-    3_715_345_643,
-    144_994_049,
-    956_419_097,
-    906_659_609,
-    3_044_603_425,
-    4_209_604_419,
+    784_577_698,
+    2_164_944_119,
+    1_477_918_564,
+    570_193_604,
+    2_948_769_782,
+    1_848_253_905,
+    585_169_416,
+    355_372_609,
 ];
 
 const L2_PROFILE_V6: &str = "zrpf_source_opened_spot_value_aggregate_l2_v6";
