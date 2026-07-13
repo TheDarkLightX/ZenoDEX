@@ -74,6 +74,7 @@ MAX_STRICT_JOURNAL_BYTES = 1024 * 1024
 _MAX_U64 = (1 << 64) - 1
 
 _TOKEN_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:/-")
+_MAX_AUTHORITY_TOKEN_UTF8_BYTES = 256
 _BASE_REQUEST_KEYS = frozenset(
     {
         "state_hash",
@@ -927,7 +928,13 @@ def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
 
 
 def _require_token(value: object, *, name: str) -> str:
-    text = _require_bounded_string(value, name=name)
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{name} must be a non-empty string")
+    if len(value.encode("utf-8")) > _MAX_AUTHORITY_TOKEN_UTF8_BYTES:
+        raise ValueError(
+            f"{name} must be at most {_MAX_AUTHORITY_TOKEN_UTF8_BYTES} UTF-8 bytes"
+        )
+    text = value
     if any(char not in _TOKEN_CHARS for char in text):
         raise ValueError(f"{name} contains unsupported characters")
     return text

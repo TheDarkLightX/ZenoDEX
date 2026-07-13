@@ -39,6 +39,7 @@ from src.integration.zeno_ledger_strict_spot_authority_v1 import (
     _parse_and_bind_response,
     _prepare_request,
     _PreparedRequestV1,
+    _require_token,
     strict_spot_authority_manifest_bytes_v1,
 )
 from src.integration.zeno_ledger_v0 import (
@@ -646,3 +647,20 @@ def test_manifest_policy_graph_is_acyclic_and_config_owns_policy(tmp_path: Path)
         case.replay_config["proof_authority_policy"]["authority_manifest_sha256"]
         == case.manifest_sha256
     )
+
+
+def test_strict_token_parser_matches_rust_utf8_length_precedence() -> None:
+    assert _require_token("a" * 256, name="fixture.token") == "a" * 256
+
+    with pytest.raises(ValueError, match="at most 256 UTF-8 bytes"):
+        _require_token("a" * 257, name="fixture.token")
+
+    within_byte_cap = "é" * 128
+    assert len(within_byte_cap.encode("utf-8")) == 256
+    with pytest.raises(ValueError, match="contains unsupported characters"):
+        _require_token(within_byte_cap, name="fixture.token")
+
+    above_byte_cap = within_byte_cap + "a"
+    assert len(above_byte_cap.encode("utf-8")) == 257
+    with pytest.raises(ValueError, match="at most 256 UTF-8 bytes"):
+        _require_token(above_byte_cap, name="fixture.token")
