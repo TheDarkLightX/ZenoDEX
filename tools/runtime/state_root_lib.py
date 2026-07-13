@@ -26,7 +26,8 @@ Rust JSON view describe the *same* state):
   * sparse tables drop zero amounts — balances / lp_balances / nonces use >= 1;
   * lp_duration_risk entries must be "present" (a timestamp set or churn_tier>0),
     matching `get_all_duration_risk_metadata`'s filter;
-  * pools key == pool.pool_id; asset0 ordered <= asset1 for safety.
+  * pools key == pool.pool_id; pool IDs bind assets/fee/curve parameters;
+  * asset0 is ordered before asset1 in canonical byte order.
 """
 
 from __future__ import annotations
@@ -42,7 +43,7 @@ from src.core.fees import FeeAccumulatorState
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
 from src.state.nonces import NonceTable
-from src.state.pools import PoolState, PoolStatus
+from src.state.pools import PoolState, PoolStatus, compute_pool_id
 from src.state.state_root import compute_state_root
 
 KERNEL = "state_root"
@@ -207,7 +208,16 @@ def _id32(b: int) -> str:
 def static_states() -> list[dict]:
     pk1, pk2 = _pk(1), _pk(2)
     a0, a1 = _id32(0x10), _id32(0x20)
-    pool = _id32(0x44)
+    lp_pool = _id32(0x44)
+    cpmm_30_pool = compute_pool_id(a0, a1, 30)
+    cubic_pool = compute_pool_id(
+        a0,
+        a1,
+        0,
+        curve_tag="CUBIC_SUM_V1",
+        curve_params='{"p":3,"q":5}',
+    )
+    cpmm_10000_pool = compute_pool_id(a0, a1, 10_000)
     return [
         # Empty state.
         {},
@@ -222,7 +232,7 @@ def static_states() -> list[dict]:
         {
             "pools": [
                 {
-                    "pool_id": pool,
+                    "pool_id": cpmm_30_pool,
                     "asset0": a0,
                     "asset1": a1,
                     "reserve0": 500,
@@ -240,7 +250,7 @@ def static_states() -> list[dict]:
         {
             "pools": [
                 {
-                    "pool_id": pool,
+                    "pool_id": cubic_pool,
                     "asset0": a0,
                     "asset1": a1,
                     "reserve0": 1,
@@ -256,11 +266,11 @@ def static_states() -> list[dict]:
         },
         # LP balances + present duration-risk metadata (mixed optional fields).
         {
-            "lp_balances": [{"pubkey": pk1, "pool_id": pool, "amount": 42}],
+            "lp_balances": [{"pubkey": pk1, "pool_id": lp_pool, "amount": 42}],
             "lp_duration_risk": [
                 {
                     "pubkey": pk1,
-                    "pool_id": pool,
+                    "pool_id": lp_pool,
                     "last_mint_timestamp": 5,
                     "last_remove_timestamp": None,
                     "churn_tier": 2,
@@ -268,7 +278,7 @@ def static_states() -> list[dict]:
                 },
                 {
                     "pubkey": pk2,
-                    "pool_id": pool,
+                    "pool_id": lp_pool,
                     "last_mint_timestamp": None,
                     "last_remove_timestamp": 0,
                     "churn_tier": 0,
@@ -287,7 +297,7 @@ def static_states() -> list[dict]:
             "balances": [{"pubkey": pk1, "asset": a0, "amount": 1}],
             "pools": [
                 {
-                    "pool_id": pool,
+                    "pool_id": cpmm_10000_pool,
                     "asset0": a0,
                     "asset1": a1,
                     "reserve0": 9,
@@ -300,9 +310,9 @@ def static_states() -> list[dict]:
                     "curve_params": "",
                 }
             ],
-            "lp_balances": [{"pubkey": pk2, "pool_id": pool, "amount": 3}],
+            "lp_balances": [{"pubkey": pk2, "pool_id": cpmm_10000_pool, "amount": 3}],
             "lp_duration_risk": [
-                {"pubkey": pk2, "pool_id": pool, "churn_tier": 1,
+                {"pubkey": pk2, "pool_id": cpmm_10000_pool, "churn_tier": 1,
                  "last_mint_timestamp": None, "last_remove_timestamp": None,
                  "last_churn_update_timestamp": None}
             ],
@@ -323,7 +333,6 @@ def random_states(seed: int, n: int) -> list[dict]:
     for _ in range(n):
         pks = [_pk(rng.randint(1, 40)) for _ in range(rng.randint(0, 4))]
         ids = [_id32(rng.randint(1, 40)) for _ in range(rng.randint(1, 4))]
-        pools_ids = [_id32(rng.randint(60, 90)) for _ in range(rng.randint(0, 3))]
 
         balances, seen_b = [], set()
         for _ in range(rng.randint(0, 5)):
@@ -336,19 +345,21 @@ def random_states(seed: int, n: int) -> list[dict]:
             balances.append({"pubkey": pk, "asset": a, "amount": _rand_amount(rng)})
 
         pools, seen_p = [], set()
-        for pid in pools_ids:
-            if pid in seen_p:
-                continue
-            seen_p.add(pid)
+        for _ in range(rng.randint(0, 3)):
             # Two distinct asset bytes, strictly ordered (PoolState requires
             # asset0 < asset1 in canonical byte order).
             lo, hi = sorted(rng.sample(range(1, 41), 2))
             a0, a1 = _id32(lo), _id32(hi)
+            fee_bps = rng.randint(0, 10000)
+            pid = compute_pool_id(a0, a1, fee_bps)
+            if pid in seen_p:
+                continue
+            seen_p.add(pid)
             pools.append({
                 "pool_id": pid, "asset0": a0, "asset1": a1,
                 "reserve0": rng.randint(0, 3_000_000_000),
                 "reserve1": rng.randint(0, 3_000_000_000),
-                "fee_bps": rng.randint(0, 10000),
+                "fee_bps": fee_bps,
                 "lp_supply": rng.randint(0, 1_000_000),
                 "status": rng.choice(["active", "frozen", "disabled"]),
                 "created_at": rng.randint(0, 1_000_000),
@@ -359,11 +370,12 @@ def random_states(seed: int, n: int) -> list[dict]:
                 "curve_params": "",
             })
 
+        pool_ids: list[str] = [str(pool["pool_id"]) for pool in pools]
         lp_balances, seen_lp = [], set()
         for _ in range(rng.randint(0, 4)):
-            if not pks or not pools_ids:
+            if not pks or not pool_ids:
                 break
-            pk, pid = rng.choice(pks), rng.choice(pools_ids)
+            pk, pid = rng.choice(pks), rng.choice(pool_ids)
             if (pk, pid) in seen_lp:
                 continue
             seen_lp.add((pk, pid))
@@ -372,7 +384,10 @@ def random_states(seed: int, n: int) -> list[dict]:
         # Duration-risk metadata is keyed on LP positions. A mint timestamp may
         # only be set for a position with a live (non-zero) balance, so draw
         # duration entries from the lp_balances pairs.
-        balanced_pairs = [(e["pubkey"], e["pool_id"]) for e in lp_balances]
+        balanced_pairs: list[tuple[str, str]] = [
+            (str(entry["pubkey"]), str(entry["pool_id"]))
+            for entry in lp_balances
+        ]
         lp_dur, seen_d = [], set()
         for _ in range(min(len(balanced_pairs), rng.randint(0, 4))):
             pk, pid = rng.choice(balanced_pairs)

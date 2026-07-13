@@ -28,16 +28,9 @@ SCOPE / NON-CLAIMS:
   * Authority mode is PYTHON_AUTHORITY (the default), so this exercises the pure
     `_compute_state_root_python` path. No Rust subprocess and NO BLS/signature
     crypto is invoked by this surface, so `crypto_oracle_stubbed` is N/A here.
-  * This mine commits *decoded* identity equality, which is the consensus
-    identity (`hex_to_bytes_fixed` keys on 48/32 raw bytes). Non-canonical hex
-    *spelling* (an upper-case vs lower-case pubkey/asset/pool_id string that
-    decodes to the SAME bytes) is intentionally treated as the SAME logical
-    state and is expected to share a root — that is the spelling-independence
-    property the verifier relies on, NOT a collision. We do not claim anything
-    about whether upstream callers may construct a non-canonical pool_id; the
-    commitment of decoded bytes is correct, and the encoder already FAILS CLOSED
-    ("duplicate decoded ...") when two distinct spellings of one key collide
-    within a single table.
+  * Pubkey and asset hex spellings are compared by decoded identity. Pool IDs
+    are stricter: uppercase or otherwise noncanonical spellings are rejected,
+    and every pool entry is bound to its assets, fee, and curve configuration.
   * Out of scope: cross-module sequencing (apply_ops), the Python<->Rust bridge
     (covered by tests/runtime/test_state_root_disaster_state.py), and SHA-256
     pre-image resistance (assumed).
@@ -56,7 +49,7 @@ from src.state.balances import BalanceTable  # noqa: E402
 from src.state.canonical import sha256_hex  # noqa: E402
 from src.state.lp import LPTable  # noqa: E402
 from src.state.nonces import NonceTable  # noqa: E402
-from src.state.pools import PoolState, PoolStatus  # noqa: E402
+from src.state.pools import PoolState, PoolStatus, compute_pool_id  # noqa: E402
 
 
 # Small, BOUNDED canonical (lowercase) hex domains so the build-time constraints
@@ -154,18 +147,23 @@ def _build_lp(facts, order) -> LPTable:
 def _build_pools(facts, order):
     pools = {}
     for idx in order:
-        pool_i, a0_i, a1_i, r0, r1, fee, sup, status, created = facts[idx]
+        _pool_i, a0_i, a1_i, r0, r1, fee, sup, status, created = facts[idx]
         a0, a1 = _asset(a0_i), _asset(a1_i)
         if a0 == a1:  # self-pair rejected by normalize_pool_asset_pair
             continue
         if a0 > a1:
             a0, a1 = a1, a0
-        pid = _asset(pool_i)
+        pid = compute_pool_id(a0, a1, fee)
         pools[pid] = PoolState(
             pool_id=pid, asset0=a0, asset1=a1, reserve0=r0, reserve1=r1,
             fee_bps=fee, lp_supply=sup, status=status, created_at=created,
         )
     return pools
+
+
+def _pool_identity_key(fact):
+    _, a0_i, a1_i, _, _, fee, _, _, _ = fact
+    return min(a0_i, a1_i), max(a0_i, a1_i), fee
 
 
 def _build_nonces(facts, order) -> NonceTable:
@@ -327,7 +325,7 @@ def test_state_root_is_order_independent(bfacts, lpfacts, pfacts, nfacts, dust, 
     # would overwrite, making "same logical state" ill-defined).
     bfacts = _dedup_first(bfacts, key=lambda f: (f[0], f[1]))
     lpfacts = _dedup_first(lpfacts, key=lambda f: (f[0], f[1]))
-    pfacts = _dedup_first(pfacts, key=lambda f: f[0])
+    pfacts = _dedup_first(pfacts, key=_pool_identity_key)
     nfacts = _dedup_first(nfacts, key=lambda f: f[0])
 
     class _Acc:
@@ -385,7 +383,7 @@ _MUTABLE_FIELDS = [
 def test_single_field_mutation_changes_root(bfacts, lpfacts, pfacts, nfacts, dust, which, picker):
     bfacts = _dedup_first(bfacts, key=lambda f: (f[0], f[1]))
     lpfacts = _dedup_first(lpfacts, key=lambda f: (f[0], f[1]))
-    pfacts = _dedup_first(pfacts, key=lambda f: f[0])
+    pfacts = _dedup_first(pfacts, key=_pool_identity_key)
     nfacts = _dedup_first(nfacts, key=lambda f: f[0])
 
     # Drop self-pair pools (rejected at build) so a pool genuinely exists.

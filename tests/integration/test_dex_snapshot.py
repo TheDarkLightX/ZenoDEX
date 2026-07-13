@@ -18,8 +18,7 @@ from src.core.perps import (
 from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
-from src.state.pools import PoolState, PoolStatus
-
+from src.state.pools import PoolState, PoolStatus, compute_pool_id
 
 _PK = "0x" + "aa" * 48
 _PK_CASE = "0x" + "AA" * 48
@@ -52,7 +51,7 @@ def test_snapshot_roundtrip_is_deterministic() -> None:
     pk = "alice"
     asset0 = "0x" + "11" * 32
     asset1 = "0x" + "22" * 32
-    pool_id = "0x" + "aa" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30)
 
     balances.set(pk, asset0, 123)
     balances.set(pk, asset1, 456)
@@ -169,16 +168,17 @@ def test_state_from_snapshot_rejects_decoded_duplicate_balances() -> None:
 
 
 def test_state_from_snapshot_rejects_decoded_duplicate_pool_ids() -> None:
+    pool_id = compute_pool_id(_ASSET0, _ASSET1, 30)
     snap = _snapshot_base(
         pools=[
             {
-                "pool_id": _POOL_ID,
+                "pool_id": pool_id,
                 "asset0": _ASSET0,
                 "asset1": _ASSET1,
                 "fee_bps": 30,
             },
             {
-                "pool_id": _POOL_ID_CASE,
+                "pool_id": pool_id,
                 "asset0": _ASSET0,
                 "asset1": _ASSET1,
                 "fee_bps": 30,
@@ -188,6 +188,147 @@ def test_state_from_snapshot_rejects_decoded_duplicate_pool_ids() -> None:
 
     with pytest.raises(ValueError, match="duplicate decoded pool entry"):
         state_from_snapshot(snap)
+
+
+def test_state_from_snapshot_rejects_canonical_hex_pool_id_parameter_mismatch() -> None:
+    canonical_pool_id = compute_pool_id(_ASSET0, _ASSET1, 30)
+    mismatched_pool_id = "0x" + "ff" * 32
+    assert mismatched_pool_id != canonical_pool_id
+    snap = _snapshot_base(
+        pools=[
+            {
+                "pool_id": mismatched_pool_id,
+                "asset0": _ASSET0,
+                "asset1": _ASSET1,
+                "fee_bps": 30,
+            }
+        ],
+    )
+
+    with pytest.raises(ValueError, match="pool_id does not match canonical pool identity"):
+        state_from_snapshot(snap)
+
+
+@pytest.mark.parametrize(
+    "identity_overrides",
+    (
+        {"asset1": "0x" + "33" * 32},
+        {"fee_bps": 31},
+        {
+            "curve_tag": "SUM_BOOST_V1",
+            "curve_params": '{"mu_num":1,"mu_den":2}',
+        },
+    ),
+)
+def test_state_from_snapshot_rejects_pool_parameter_mutation_without_new_id(
+    identity_overrides: dict[str, object],
+) -> None:
+    canonical_pool_id = compute_pool_id(_ASSET0, _ASSET1, 30)
+    pool_entry: dict[str, object] = {
+        "pool_id": canonical_pool_id,
+        "asset0": _ASSET0,
+        "asset1": _ASSET1,
+        "fee_bps": 30,
+    }
+    pool_entry.update(identity_overrides)
+
+    with pytest.raises(ValueError, match="pool_id does not match canonical pool identity"):
+        state_from_snapshot(_snapshot_base(pools=[pool_entry]))
+
+
+@pytest.mark.parametrize(
+    "pool_id_variant",
+    (
+        lambda pool_id: "0X" + pool_id[2:],
+        lambda pool_id: "0x" + pool_id[2:].upper(),
+        lambda pool_id: pool_id[2:],
+    ),
+)
+def test_state_from_snapshot_rejects_noncanonical_hex_pool_id_variants(
+    pool_id_variant: object,
+) -> None:
+    canonical_pool_id = compute_pool_id(_ASSET0, _ASSET1, 30)
+    assert callable(pool_id_variant)
+    variant = pool_id_variant(canonical_pool_id)
+    snap = _snapshot_base(
+        pools=[
+            {
+                "pool_id": variant,
+                "asset0": _ASSET0,
+                "asset1": _ASSET1,
+                "fee_bps": 30,
+            }
+        ],
+    )
+
+    with pytest.raises(ValueError, match="canonical lowercase 0x-prefixed 32-byte hex"):
+        state_from_snapshot(snap, allow_symbolic_pool_ids=True)
+
+
+def test_state_from_snapshot_symbolic_pool_ids_require_explicit_local_compatibility() -> None:
+    symbolic_pool_id = "local-pool-a"
+    snap = _snapshot_base(
+        pools=[
+            {
+                "pool_id": symbolic_pool_id,
+                "asset0": _ASSET0,
+                "asset1": _ASSET1,
+                "fee_bps": 30,
+            }
+        ],
+    )
+
+    with pytest.raises(ValueError, match="canonical lowercase 0x-prefixed 32-byte hex"):
+        state_from_snapshot(snap)
+
+    restored = state_from_snapshot(snap, allow_symbolic_pool_ids=True)
+    assert restored.pools[symbolic_pool_id].pool_id == symbolic_pool_id
+
+
+def test_state_from_snapshot_symbolic_compatibility_rejects_malformed_hex() -> None:
+    snap = _snapshot_base(
+        pools=[
+            {
+                "pool_id": "0xlocal-pool-a",
+                "asset0": _ASSET0,
+                "asset1": _ASSET1,
+                "fee_bps": 30,
+            }
+        ],
+    )
+
+    with pytest.raises(ValueError, match="canonical lowercase 0x-prefixed 32-byte hex"):
+        state_from_snapshot(snap, allow_symbolic_pool_ids=True)
+
+
+def test_state_from_snapshot_rejects_duplicate_logical_symbolic_pools() -> None:
+    snap = _snapshot_base(
+        pools=[
+            {
+                "pool_id": "local-pool-a",
+                "asset0": _ASSET0,
+                "asset1": _ASSET1,
+                "fee_bps": 30,
+            },
+            {
+                "pool_id": "local-pool-b",
+                "asset0": _ASSET0,
+                "asset1": _ASSET1,
+                "fee_bps": 30,
+            },
+        ],
+    )
+
+    with pytest.raises(ValueError, match="duplicate logical pool entry"):
+        state_from_snapshot(snap, allow_symbolic_pool_ids=True)
+
+
+def test_state_from_snapshot_rejects_non_bool_symbolic_compatibility_flag() -> None:
+    with pytest.raises(TypeError, match="allow_symbolic_pool_ids must be a bool"):
+        state_from_snapshot(
+            _snapshot_base(),
+            allow_symbolic_pool_ids=1,  # type: ignore[arg-type]
+        )
 
 
 def test_state_from_snapshot_rejects_decoded_duplicate_lp_balances() -> None:
@@ -488,7 +629,14 @@ def test_state_from_snapshot_rejects_fee_bps_above_10000() -> None:
 def test_snapshot_roundtrip_preserves_curve_configuration() -> None:
     asset0 = "0x" + "11" * 32
     asset1 = "0x" + "22" * 32
-    pool_id = "0x" + "aa" * 32
+    curve_params = '{"mu_den":2,"mu_num":1}'
+    pool_id = compute_pool_id(
+        asset0,
+        asset1,
+        30,
+        curve_tag="SUM_BOOST_V1",
+        curve_params=curve_params,
+    )
     state = DexState(
         balances=BalanceTable(),
         pools={
@@ -513,4 +661,4 @@ def test_snapshot_roundtrip_preserves_curve_configuration() -> None:
     restored = state_from_snapshot(snap.data)
     restored_pool = restored.pools[pool_id]
     assert restored_pool.curve_tag == "SUM_BOOST_V1"
-    assert restored_pool.curve_params == '{"mu_den":2,"mu_num":1}'
+    assert restored_pool.curve_params == curve_params

@@ -1,0 +1,179 @@
+{
+  "schema": "zenodex/recursive_stark_v2_two_leaf_source_pinned_evidence/v1",
+  "version": 1,
+  "date": "2026-07-10",
+  "status": "same_host_source_frozen_two_leaf_receipts_regenerated_and_verified",
+  "aggregate_v2": {
+    "sdk_version": "3.0.5",
+    "image_id": "fe131b0ec697a9bd703218f3733e44b84c8e347eb8ebfc8776be2200958fbe53",
+    "program_sha256": "3fc45f1cfc7ffd401119ad8eb3779db19d4a060942de70e25c7c9b706e1c8376",
+    "program_size_bytes": 448324,
+    "raw_elf_sha256": "ccbfcf47f862bbfbc5f7647c8d13fb5d28d67b0a0542a06ca346d8feeec8f2ff",
+    "raw_elf_size_bytes": 415900
+  },
+  "source_frozen_build": {
+    "reference": {
+      "path": "config/proof_profiles/risc0_recursive_v2_rebuild_reference.json",
+      "file_sha256": "fe044c8fdef2f8e32e788c8d8d07bf2b82a77666bfb186f86e43f827db0dffec",
+      "canonical_json_sha256": "de542c96cca4f516bb481843d81bc0bc4dce94870f22ae8163908e1e16534823"
+    },
+    "source_closure": {
+      "file_count": 20,
+      "root_sha256": "20e5587e3ed7b8f6c561295a04f2cc2de92b90fd38c070de08a33d55b5f7572a",
+      "total_bytes": 923002,
+      "harness_main_sha256": "1aa69a4b7a3b0e6bf6100e956f7d6a68b74818ab51b6e241108eb8d068b7fb11",
+      "harness_main_size_bytes": 43105
+    },
+    "registry_source_closure": {
+      "package_count": 266,
+      "root_sha256": "5228316a53923c33e00ed1cf0974e5779aafd26bc50ea05c1773ad496df05830",
+      "verified_source_bytes": 175405359
+    },
+    "clean_rebuild_report": {
+      "sha256": "a366d6e0d00f963c061cd7c9be9bbc531d6502f49950834f4297b773db05aeb1",
+      "size_bytes": 2217,
+      "build_log_sha256": "ad482414d0e20970da320f0254b76a19d673b7eeb8458d18afe84552beb76ce9",
+      "status": "same_host_clean_recursive_v2_rebuild_match"
+    },
+    "release_harness_binary": {
+      "artifact_name": "tau-state-proof-risc0-recursive-v2-harness",
+      "sha256": "e8ff64089a6498f88c6fb1cb074f38109a363f7d4c34abd2b657efae2be3c4bf",
+      "size_bytes": 9759920
+    },
+    "build_pipeline_constrained": true,
+    "source_to_binary_cryptographic_attestation": false,
+    "cross_environment_reproducibility": false
+  },
+  "leaf_claims": [
+    {
+      "role": "spot",
+      "proof_type": "risc0.zenodex_recursive_spot_leaf.v1",
+      "profile": "recursive_spot_leaf_v1",
+      "lane_id": "spot-root-child-0001",
+      "image_id": "1275ef413f6513e7671bce019d22fbdcf10bffe1b71dcf68731a056e710a7403",
+      "artifact_file_sha256": "4ce7db31e6ae5e5af53b4ef67fb0cd6ebb1dcae9cf05ee9f73b4511c10db20b9",
+      "artifact_size_bytes": 784225,
+      "receipt_sha256": "c6f365df966c98ef28f05e59c3e36533d0c16ca06475348a7bbb2863e41d58f6"
+    },
+    {
+      "role": "zusd_deposit_mint",
+      "proof_type": "risc0.zenodex_recursive_zusd_leaf.v1",
+      "profile": "recursive_zusd_leaf_v1",
+      "lane_id": "zusd-root-child-0001",
+      "image_id": "3f3f2f0109eb090f1e648b574ef4e157d6a305d98f9514acea51ff819c97e64c",
+      "artifact_file_sha256": "f56b6679f0a7798f35ed6a1f21f04fd64fedc8264a580306eba57b77151e07ca",
+      "artifact_size_bytes": 785059,
+      "receipt_sha256": "c1c58995b3536b4e9d516c3c906b1660bf57625f826571a6384ab267d21394aa"
+    }
+  ],
+  "regenerated_proof_pair": {
+    "inner": {
+      "artifact_file_sha256": "cd00afde70c2672f3448963499d8c839dbcef3607b9568b8aaab9a9e0214ccb3",
+      "artifact_size_bytes": 795156,
+      "receipt_sha256": "df7d1f99975b68a74e9fc334d87845e4c53cef05f90e46addaabb6eed01fb2ba",
+      "journal_sha256": "07b01120d12cfab7dfa99d7085ff06ab1a7d652f8afb7163894b8ad6070723c2",
+      "protocol_journal_hash": "fba3aebf9799bb60691b41fd71bf9fdf5e965b4da8b4999f5906795e2938cbc9",
+      "profile": "recursive_closed_subtree_v2",
+      "immediate_child_count": 2,
+      "flat_leaf_count": 2,
+      "tree_height": 1,
+      "subtree_node_count": 3
+    },
+    "root": {
+      "artifact_file_sha256": "e789511e402ff0bf6ee46c89cedcc0f2edb451b529c4fba9aff738ae3fe5ce81",
+      "artifact_size_bytes": 795184,
+      "receipt_sha256": "ac54e6ce4d2191a67aef5210ea9a77f9c3ae5a0da705968646c4628420557227",
+      "journal_sha256": "0e0f4f650f7eccbf04a3baa9aa4a3f861bf95da142dbb1e16148555aa538bb6f",
+      "protocol_journal_hash": "5978c88b82265e64a72c876e1c17b452b2c0353f45c0f1f2340d75f13d77841b",
+      "profile": "recursive_epoch_root_v2",
+      "immediate_child_count": 1,
+      "flat_leaf_count": 2,
+      "tree_height": 2,
+      "subtree_node_count": 4
+    },
+    "shared_authenticated_roots": {
+      "aggregation_scope_hash": "092c7d46a1823faf9dac2deccf37e7108e17cfc1ee0a08c1ec504326be980258",
+      "assigned_leaf_ids_root": "7e167c61e5c6717dd02538975c09fcea0a532f9256ee46e3ba309d3ec0ab553a",
+      "descendant_claims_root": "5a9543ac8d47d76f2524479e4ab636b2f124994a128aac4a985511d80ba9abbb",
+      "flat_v1_post_state_root": "386645cfce45bca79458edfa60c714323053cbf180cdbf564117329674ae4d29",
+      "flat_v1_statement_hash": "40bb0072001722ddc2c9c2fae080ce7f5de90027329cafdd7f955994362036f0",
+      "leaf_disclosures_root": "b627120f781ca1521ef1a125d4fcef19e2c7265b43e630cd5aea591624dbe0eb"
+    }
+  },
+  "cross_run_comparison": {
+    "historical_experiment_manifest_sha256": "c225841cff999b30d0b076845a76b6c0a1ee95127a62504dc2d7c0f49280b73d",
+    "historical_inner_receipt_sha256": "e24113efcccf8ee36035a370ad3c69257a19e4e7aa5f1ce8ede3e0064d4ec624",
+    "historical_root_receipt_sha256": "c6fa386b519ba271d353a983f0c0cb642111be2d70b2ee6858b2998cca67f7b9",
+    "receipt_bytes_reproduced": false,
+    "authenticated_inner_journal_reproduced": true,
+    "authenticated_root_journal_reproduced": true,
+    "proof_regeneration_determinism": false
+  },
+  "verification": {
+    "producer_verified_both_generated_receipts_and_exact_journal_bytes": true,
+    "specialized_host_verifier": {
+      "repository_source_pinned": true,
+      "independent_proof_implementation": false,
+      "source_path": "zk/recursive_stark_v2_risc0/harness/src/bin/verify_recursive_v2_two_leaf_pair.rs",
+      "source_sha256": "f5c5fa63ea15cae952bd1f07b9157f82c98210c23840c81da96de9297760c587",
+      "binary_sha256": "ba2697c6d6f7e33e243f801e7713eedf548c9222596df1efbfaf51af0a82f350",
+      "binary_size_bytes": 2730280,
+      "transcript_sha256": "415d009dc1e208f1c3080171109b26a5b4915996648fc6f855e72edbc084acee",
+      "transcript_size_bytes": 488,
+      "status": "recursive_v2_two_leaf_pair_verified",
+      "reversed_leaf_order_same_result": true
+    },
+    "source_pinned_one_leaf_verifier_control": {
+      "binary_sha256": "79f16282cd5146a6407b995d32dbbfa9e9eea7fb7b5f6e7e6146c66b88d5360e",
+      "receipt_verification_precedes_policy_reject": true,
+      "exit_code": 1,
+      "reject": "authenticated journal surface mismatch",
+      "stderr_sha256": "c51c6a83b4e6c87e00785de0f0fc73fb3f4cfe64571f396b1f9e707e44c7f17b"
+    },
+    "missing_child_assumption_control": {
+      "exit_code": 0,
+      "transcript_sha256": "dc7fa4bbe2d0bca183d6bd38cc4a4973a6ebe3e82350b7e563dcc7d0e40a36e0",
+      "transcript_size_bytes": 148,
+      "status": "missing_child_assumption_rejected"
+    },
+    "swapped_node_levels_rejected": true,
+    "prior_one_leaf_pair_substitution_rejected": true
+  },
+  "claims": {
+    "bounded_host_fanout_constructor_source_pinned": true,
+    "current_image_two_leaf_receipts_regenerated": true,
+    "current_image_two_leaf_fixed_height_receipt_integrity": true,
+    "exact_leaf_and_node_binding_verified": true,
+    "same_host_source_frozen_build": true,
+    "arbitrary_depth_recursion": false,
+    "cross_environment_reproducibility": false,
+    "data_availability_verified": false,
+    "durable_atomic_admission": false,
+    "general_multi_leaf_profile_promoted": false,
+    "governed_statement_authority": false,
+    "nonempty_receipt_partition_merge_cryptographically_exercised": false,
+    "privacy": false,
+    "production_ready": false,
+    "public_claim_allowed": false,
+    "public_replay_available": false,
+    "release_authority": false,
+    "same_profile_verifier_set_cryptographically_exercised": false,
+    "settlement_authorization": false,
+    "throughput_claim_allowed": false,
+    "v1_outer_envelope_canonicality_verified": false
+  },
+  "nonclaims": [
+    "This evidence covers one same-host spot-plus-zUSD fanout-two fixed-height run; it does not establish all supported fanouts or arbitrary depth.",
+    "The source-frozen build constrains and observes the build pipeline. Source-to-binary cryptographic attestation and cross-host reproducibility remain absent.",
+    "Fresh receipts authenticate the same journals as the historical run. The receipt bytes differ, so proof-byte determinism is not established.",
+    "The repository-pinned specialized two-leaf verifier shares the RISC0 and recursive-v2 libraries with the prover and is not an independent proof implementation.",
+    "Both leaves have empty receipt-ID partitions, so nonempty accepted and rejected receipt-set composition remains unverified.",
+    "The zUSD evidence covers DepositMint only; repay, redeem, burn, liquidation, and stability-pool lifecycle coverage remain absent.",
+    "The generated node artifacts retain the historical one-leaf throughput nonclaim string and require this manifest for accurate standalone interpretation.",
+    "The V1 outer envelope does not yet reject duplicate keys or unknown nested fields.",
+    "Schedule, data-availability, and carry fields remain commitment-only for this profile.",
+    "No durable atomic ZenoLedger admission path consumed these receipts.",
+    "RISC0 receipt verification establishes computational integrity for the authenticated journals; it does not establish witness privacy or zero knowledge.",
+    "This evidence grants no release, governance, settlement, throughput, public replay, or production authority."
+  ]
+}

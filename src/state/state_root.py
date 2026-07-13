@@ -32,7 +32,7 @@ from .canonical import (
 )
 from .lp import LPDurationRiskMetadata, LPTable
 from .nonces import NonceTable
-from .pools import PoolState, PoolStatus
+from .pools import PoolState, PoolStatus, validate_pool_id_format, validate_pool_identity
 
 STATE_ROOT_VERSION = 5
 
@@ -71,6 +71,7 @@ def _sorted_lp_entries(lp_balances: LPTable) -> list[tuple[bytes, bytes, int]]:
     seen: set[tuple[bytes, bytes]] = set()
     for (pubkey, pool_id), amount in lp_balances.get_all_balances().items():
         pk_b = hex_to_bytes_fixed(pubkey, nbytes=48, name="pubkey")
+        validate_pool_id_format(pool_id, allow_symbolic=False)
         pool_b = hex_to_bytes_fixed(pool_id, nbytes=32, name="pool_id")
         key = (pk_b, pool_b)
         if key in seen:
@@ -90,6 +91,7 @@ def _sorted_lp_duration_risk_entries(
     seen: set[tuple[bytes, bytes]] = set()
     for (pubkey, pool_id), metadata in lp_balances.get_all_duration_risk_metadata().items():
         pk_b = hex_to_bytes_fixed(pubkey, nbytes=48, name="pubkey")
+        validate_pool_id_format(pool_id, allow_symbolic=False)
         pool_b = hex_to_bytes_fixed(pool_id, nbytes=32, name="pool_id")
         key = (pk_b, pool_b)
         if key in seen:
@@ -119,12 +121,15 @@ def _sorted_pool_entries(pools: Mapping[str, PoolState]) -> list[tuple[bytes, Po
     entries: list[tuple[bytes, PoolState]] = []
     seen: set[bytes] = set()
     for pool_id, pool in pools.items():
+        if not isinstance(pool, PoolState):
+            raise TypeError("pools values must be PoolState instances")
+        if pool.pool_id != pool_id:
+            raise ValueError(f"pool_id mismatch: key={pool_id} pool.pool_id={pool.pool_id}")
+        validate_pool_identity(pool, allow_symbolic=False)
         pool_b = hex_to_bytes_fixed(pool_id, nbytes=32, name="pool_id")
         if pool_b in seen:
             raise ValueError("duplicate decoded pool_id in pools")
         seen.add(pool_b)
-        if pool.pool_id != pool_id:
-            raise ValueError(f"pool_id mismatch: key={pool_id} pool.pool_id={pool.pool_id}")
         entries.append((pool_b, pool))
     entries.sort(key=lambda t: t[0])
     return entries
@@ -357,6 +362,12 @@ def compute_state_root(
     nonce_table = NonceTable() if nonces is None else nonces
     if not isinstance(nonce_table, NonceTable):
         raise TypeError("nonces must be a NonceTable")
+
+    # Validate the authority-neutral state before selecting Python or Rust. A
+    # Rust-authority mode must not bypass pool identity checks in the wrapper.
+    _sorted_pool_entries(pools)
+    _sorted_lp_entries(lp_balances)
+    _sorted_lp_duration_risk_entries(lp_balances)
 
     from src.runtime.authority import AuthorityMode, active_mode, decide
 

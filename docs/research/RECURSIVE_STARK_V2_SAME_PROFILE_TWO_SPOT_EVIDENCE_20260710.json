@@ -1,0 +1,227 @@
+{
+  "schema": "zenodex/recursive_stark_v2_same_profile_two_spot_evidence/v1",
+  "version": 1,
+  "date": "2026-07-10",
+  "status": "same_host_source_frozen_same_profile_two_spot_receipts_generated_and_verified",
+  "trust_roots": {
+    "recursive_v2_rebuild_reference": {
+      "path": "config/proof_profiles/risc0_recursive_v2_rebuild_reference.json",
+      "file_sha256": "fe044c8fdef2f8e32e788c8d8d07bf2b82a77666bfb186f86e43f827db0dffec",
+      "canonical_json_sha256": "de542c96cca4f516bb481843d81bc0bc4dce94870f22ae8163908e1e16534823"
+    },
+    "source_pinned_two_leaf_baseline": {
+      "path": "docs/research/RECURSIVE_STARK_V2_TWO_LEAF_SOURCE_PINNED_EVIDENCE_20260710.json",
+      "file_sha256": "9a98b947f76a599109f5238861d010fd3dbb8a8299ef6e3f03685b3cac51ad74",
+      "canonical_json_sha256": "56a821441a4d89228347a2ad6e4659c3d0a8c7b32130cbba8bec6749141b97f5"
+    }
+  },
+  "aggregate_v2": {
+    "sdk_version": "3.0.5",
+    "image_id": "fe131b0ec697a9bd703218f3733e44b84c8e347eb8ebfc8776be2200958fbe53",
+    "program_sha256": "3fc45f1cfc7ffd401119ad8eb3779db19d4a060942de70e25c7c9b706e1c8376",
+    "program_size_bytes": 448324
+  },
+  "specialized_host_verifier": {
+    "repository_source_pinned": true,
+    "independent_proof_implementation": false,
+    "source_path": "zk/recursive_stark_v2_risc0/harness/src/bin/verify_recursive_v2_two_leaf_pair.rs",
+    "source_sha256": "f5c5fa63ea15cae952bd1f07b9157f82c98210c23840c81da96de9297760c587",
+    "source_size_bytes": 24005,
+    "binary_sha256": "ba2697c6d6f7e33e243f801e7713eedf548c9222596df1efbfaf51af0a82f350",
+    "binary_size_bytes": 2730280,
+    "status": "recursive_v2_two_leaf_pair_verified"
+  },
+  "leaf_claims": [
+    {
+      "role": "spot_baseline",
+      "proof_type": "risc0.zenodex_recursive_spot_leaf.v1",
+      "profile": "recursive_spot_leaf_v1",
+      "lane_kind": "spot",
+      "lane_id": "spot-root-child-0001",
+      "image_id": "1275ef413f6513e7671bce019d22fbdcf10bffe1b71dcf68731a056e710a7403",
+      "statement_hash": "4baf0fa30c7600c623281f207904df7c3b341375bc671dc9accbcd646692b749",
+      "source_id": "7b41f48bd4729576e4515a4893b4f11ddb7db0dbfd3b0c1f9f938964ca008c7f",
+      "assigned_leaf_id": "cf87ed5a98a5977436ea3c24ee900b8b6903662ac15571c0cd0ddf1a25749c35",
+      "journal_sha256": "be01a5e44d07c30124c4e65f14cafa870500cd448a836627abf8602742d74ca8",
+      "protocol_child_journal_hash": "646b50f0c4bcbc3dbc388173b41140fec9891893a5e90fa3b9ada38f85880fb0",
+      "verification_claim_hash": "c75595863d5d4ba8cf3d8add508c368bf4865689c8667a36f9e0e8eb21e33c4e",
+      "artifact_file_sha256": "4ce7db31e6ae5e5af53b4ef67fb0cd6ebb1dcae9cf05ee9f73b4511c10db20b9",
+      "artifact_size_bytes": 784225,
+      "receipt_sha256": "c6f365df966c98ef28f05e59c3e36533d0c16ca06475348a7bbb2863e41d58f6"
+    },
+    {
+      "role": "spot_distinct_statement_variant",
+      "proof_type": "risc0.zenodex_recursive_spot_leaf.v1",
+      "profile": "recursive_spot_leaf_v1",
+      "lane_kind": "spot",
+      "lane_id": "spot-root-child-0002",
+      "image_id": "1275ef413f6513e7671bce019d22fbdcf10bffe1b71dcf68731a056e710a7403",
+      "statement_hash": "34faf68e6c3635d5b8db01c21a3bc55b57350a9d7170dd70a602f4c3fe495d6c",
+      "source_id": "06d085a6d4363a5b5b38e2dd858aee6aa628ae59e2af46139b181bd9a8e0b395",
+      "assigned_leaf_id": "8ca806ae148300eebeac61f70fb1be4a5cb448f37f0b22ef3219954b4fc84c67",
+      "journal_sha256": "c14693f3c011b9ffe01bb3edf4f519537e4087de62f592568f3a279b57966a21",
+      "protocol_child_journal_hash": "56ed4bd1541d8970330d6ef2414c191644ed4ca9548f98971d20d74483318d6a",
+      "verification_claim_hash": "cf54afbfac4b30450f05d94ed53b1524368b1b2bfd11ba3078667cba3eca3ebe",
+      "artifact_file_sha256": "ef08b980bfc73f6b900c159222120cc729ffbf0558f0c04db325392231d501bd",
+      "artifact_size_bytes": 784785,
+      "receipt_sha256": "3f0afc48419bd8bbba295a0398cf47ef87ae7c3f960416318f9d12dedbaba085"
+    }
+  ],
+  "same_profile_identity": {
+    "child_count": 2,
+    "unique_proof_type_count": 1,
+    "unique_profile_count": 1,
+    "unique_image_id_count": 1,
+    "unique_verifier_id_count": 1,
+    "distinct_lane_id_count": 2,
+    "distinct_statement_hash_count": 2,
+    "distinct_source_id_count": 2,
+    "derived_child_verifier_id": "e0a68fa82f2c45a252cd76b3b68dc4968b14f63eecf8a294dd79113c8d3aa536",
+    "inner_immediate_verifier_set_root": "c5ee6e71ac073d712886826c5a021ad5766e0175766d2a0816a171f59ca01560",
+    "inner_descendant_sources_root": "2b567154ed4a194269ec19fc9d9db51edcc1c1a4fe044187cdd6c6c775ef152f"
+  },
+  "proof_pair": {
+    "inner": {
+      "artifact_file_sha256": "ab338245b260c7d3ece14d6ece64d31104d73fbd1749ccf3bf74b82ffdd859e2",
+      "artifact_size_bytes": 795312,
+      "receipt_sha256": "306efeaa834fccc05a36f5a9dd0959e4a49e98e9f403e40b8c473d30da1a0acb",
+      "journal_sha256": "fa5298b68206e1e5f719cc4c5f7ff67d3f1a09c98a15631636f49b446bb8f199",
+      "protocol_journal_hash": "2c80d57221c3f47dbcb13dc46a790688dcae59d60e036b478315cf0e44a85a1a",
+      "statement_hash": "589f4042e31add3bdfb0bf18d721042d7099cf0509855e6ed2c455c657454567",
+      "profile": "recursive_closed_subtree_v2",
+      "immediate_child_count": 2,
+      "flat_leaf_count": 2,
+      "tree_height": 1,
+      "subtree_node_count": 3,
+      "immediate_verifier_set_root": "c5ee6e71ac073d712886826c5a021ad5766e0175766d2a0816a171f59ca01560",
+      "descendant_sources_root": "2b567154ed4a194269ec19fc9d9db51edcc1c1a4fe044187cdd6c6c775ef152f"
+    },
+    "root": {
+      "artifact_file_sha256": "cde1985a1a03557b650b3f4a6f48928df07221dc19877be7dca846ed02dc0c06",
+      "artifact_size_bytes": 795032,
+      "receipt_sha256": "8feacfe03238ec1a57d80184c5d07adcb682f2c589de19d449418a0bc7dfbb2b",
+      "journal_sha256": "74c41d5e4962ae658804b6e4985cba1a92c6e8728d10aa1415b89993f38b9c60",
+      "protocol_journal_hash": "4c27a7321d9a714875fc5676da5f700257fb4f232cb2a083341f473bdbaf8078",
+      "statement_hash": "92c3a574bf378b48037f7e67bdd8759f66c131a95b38031de1c36474eb532be6",
+      "profile": "recursive_epoch_root_v2",
+      "immediate_child_count": 1,
+      "flat_leaf_count": 2,
+      "tree_height": 2,
+      "subtree_node_count": 4,
+      "immediate_verifier_set_root": "5bedc81a20fc2d67f3cfa80e0fa5f20916ceedfb4a478b3640aa2abed7354363",
+      "descendant_sources_root": "2b567154ed4a194269ec19fc9d9db51edcc1c1a4fe044187cdd6c6c775ef152f"
+    },
+    "shared_authenticated_roots": {
+      "aggregation_scope_hash": "d877eb72562a83560859710c7ff76cd01a6b96638fa2bda76c1347dc1672880f",
+      "assigned_leaf_ids_root": "0d864648420f341856c17207275e4f6b50cd5e7850a6ef538a2099f1d87ecda1",
+      "descendant_claims_root": "2c9b4ef8e01124fe8373de3a90472732744ab6eae56c13cf572c54c7cfacf3f6",
+      "descendant_sources_root": "2b567154ed4a194269ec19fc9d9db51edcc1c1a4fe044187cdd6c6c775ef152f",
+      "flat_v1_post_state_root": "02465b71954c010b2ac6e1fef85f2ba92405b8cff441f818dcbf898fe331b429",
+      "flat_v1_statement_hash": "24d69249f70a41e0e1f52a4bdca255339c84d3d9de96a57856989dfd99cfaf42",
+      "leaf_disclosures_root": "ee811f47e6149106ab319e3291ed06fca7a413f600434e633d68f72d69eafb8b"
+    }
+  },
+  "negative_controls": {
+    "duplicate_lane_same_artifact": {
+      "exit_code": 1,
+      "stderr": "duplicate authenticated leaf lane ID\n",
+      "stderr_sha256": "d17c823f908497bc4fb4e9d83701051ab2506da0e319e42c8888236af412f93e"
+    },
+    "duplicate_source_lane_alias": {
+      "leaf": {
+        "role": "spot_lane_alias_control",
+        "proof_type": "risc0.zenodex_recursive_spot_leaf.v1",
+        "profile": "recursive_spot_leaf_v1",
+        "lane_kind": "spot",
+        "lane_id": "spot-root-child-0002",
+        "image_id": "1275ef413f6513e7671bce019d22fbdcf10bffe1b71dcf68731a056e710a7403",
+        "statement_hash": "4baf0fa30c7600c623281f207904df7c3b341375bc671dc9accbcd646692b749",
+        "source_id": "7b41f48bd4729576e4515a4893b4f11ddb7db0dbfd3b0c1f9f938964ca008c7f",
+        "assigned_leaf_id": "4d597823cce38db4bdcb344b23529f54a6ce111a105e440e45a010b77004bcdd",
+        "journal_sha256": "154f1afe346b1fff2c32c0dab1d7e14b3341aa692f85353fa21ab5f3713deb46",
+        "protocol_child_journal_hash": "2c590a26b422df7ae9d1cecfc26b3be56582266ee3ae2ea1ab9c4ad7f9bf59bb",
+        "verification_claim_hash": "0da9df9a6562ad52f9e7847ca4721f62add598e8d02866f94cbbed39b5b7be77",
+        "artifact_file_sha256": "a2e9df996c2bc0ee088abf20f0bb773a1d04a1d95b623f3887d347de7874cc1e",
+        "artifact_size_bytes": 784525,
+        "receipt_sha256": "fce56585da2af1c71f184a54a9b0467c5a1cb06b5fabf5ecbb55d21ca4302b65"
+      },
+      "harness_reject": {
+        "exit_code": 1,
+        "stderr": "derive node commitments: InvalidInput(\"descendant source IDs not unique\")\n",
+        "stderr_sha256": "c682050ff20a88f4f4bb23f44566c99efbc44eaf20c527b13ba65a684b25c9d0"
+      },
+      "verifier_reject": {
+        "exit_code": 1,
+        "stderr": "duplicate authenticated leaf semantic source ID\n",
+        "stderr_sha256": "54f152b4d46afe4f73ad5e76bc287c67006c98272f5afe35c256afd471ac1ecb"
+      }
+    },
+    "swapped_node_levels": {
+      "exit_code": 1,
+      "stderr": "two-leaf pair shape mismatch\n",
+      "stderr_sha256": "181b3619e34ca35e26a67e32262d68e9b2518c11df0195d1623962f0e945a116"
+    },
+    "distinct_leaf_receipt_seal_mutation": {
+      "mutation_kind": "succinct_seal_word_xor_lsb_v1",
+      "target_role": "spot_distinct_statement_variant",
+      "seal_word_index": 1,
+      "seal_word_original": 0,
+      "seal_word_mutated": 1,
+      "verifier_reject": {
+        "exit_code": 1,
+        "stderr": "leaf receipt verification failed: verification indicates proof is invalid\n",
+        "stderr_sha256": "e2ea6d7eb7643e21364a526bafe8ea59d8caa4f29d4e9908e71a1c513862f385"
+      }
+    }
+  },
+  "verification": {
+    "dry_run_order_invariant": true,
+    "duplicate_lane_reject_verified": true,
+    "duplicate_source_alias_reject_verified": true,
+    "producer_verified_generated_receipts_and_exact_journal_bytes": true,
+    "receipt_seal_mutation_reject_verified": true,
+    "specialized_verifier_order_invariant": true,
+    "swapped_node_reject_verified": true
+  },
+  "claims": {
+    "arbitrary_depth_recursion": false,
+    "bounded_host_fanout_constructor_source_pinned": true,
+    "cross_environment_reproducibility": false,
+    "current_image_same_profile_two_spot_receipts_generated": true,
+    "current_image_two_leaf_fixed_height_receipt_integrity": true,
+    "data_availability_verified": false,
+    "distinct_semantic_source_ids_cryptographically_exercised": true,
+    "duplicate_semantic_source_rejection_live_replayed": true,
+    "durable_atomic_admission": false,
+    "exact_leaf_and_node_binding_verified": true,
+    "general_multi_leaf_profile_promoted": false,
+    "governed_statement_authority": false,
+    "independent_proof_implementation": false,
+    "new_receipt_seal_mutation_rejected": true,
+    "nonempty_receipt_partition_merge_cryptographically_exercised": false,
+    "privacy": false,
+    "production_ready": false,
+    "proof_regeneration_determinism": false,
+    "public_claim_allowed": false,
+    "public_replay_available": false,
+    "release_authority": false,
+    "same_host_source_frozen_build": true,
+    "same_profile_verifier_set_cryptographically_exercised": true,
+    "settlement_authorization": false,
+    "throughput_claim_allowed": false,
+    "v1_outer_envelope_canonicality_verified": false
+  },
+  "nonclaims": [
+    "This evidence covers one same-host, source-frozen, fanout-two, fixed-height pair containing two distinct authenticated spot statements under one current image and profile.",
+    "The inner proof exercises two authenticated child receipts whose derived verifier set contains one unique verifier ID.",
+    "The accepted spot leaves have distinct authenticated statement hashes; this run does not exercise two value-moving spot batches or establish throughput.",
+    "The lane-alias control confirms that a distinct lane and assigned leaf ID cannot substitute for a distinct semantic source.",
+    "The specialized verifier shares RISC0 and recursive-v2 libraries with the prover and is not an independent proof implementation.",
+    "Both accepted leaves have empty receipt-ID partitions, so nonempty accepted and rejected receipt-set composition remains unverified.",
+    "Schedule, data-availability, and carry fields remain commitment-only for this profile.",
+    "The V1 outer envelope does not yet reject duplicate keys or unknown nested fields.",
+    "RISC0 receipt verification establishes computational integrity for the authenticated journals; it does not establish witness privacy or zero knowledge.",
+    "Arbitrary depth, multiple root subtrees, eight-leaf evidence, cross-host reproducibility, and a governed general fanout profile remain open.",
+    "This evidence grants no governance, release, settlement, ledger-admission, throughput, public-replay, or production authority."
+  ]
+}

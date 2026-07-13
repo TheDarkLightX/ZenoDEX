@@ -1,0 +1,105 @@
+{
+  "schema": "zenodex/risc0_route_price_intervals_abi/v1",
+  "domain_ascii": "zenodex.route_order.price_intervals_root.v1",
+  "hash": "sha256",
+  "string_encoding": "u32_be_length_prefixed_utf8",
+  "count_encoding": "u32_be",
+  "integer_encoding": "u128_be",
+  "max_intervals": 64,
+  "positive_cases": [
+    {
+      "name": "empty_vector",
+      "intervals": [],
+      "root": "a513634f09ff68fe307742862c87ec02dbb45c70d3d7b9a5da883295692549c5"
+    },
+    {
+      "name": "single_asset",
+      "intervals": [
+        {
+          "asset": "ASSET0",
+          "low_e8": 1,
+          "point_e8": 2,
+          "high_e8": 3
+        }
+      ],
+      "root": "a76f2851971ebf467b946bb10da4192b3bdbf3dba1a778fb933801a6d2f32fa8"
+    },
+    {
+      "name": "canonical_sort",
+      "intervals": [
+        {
+          "asset": "ASSET2",
+          "low_e8": 100000000,
+          "point_e8": 125000000,
+          "high_e8": 150000000
+        },
+        {
+          "asset": "ASSET0",
+          "low_e8": 200000000,
+          "point_e8": 200000000,
+          "high_e8": 200000000
+        }
+      ],
+      "root": "bdad6832268e91a82135574573c6d11bd15956efeae4fab5a713223f59bed572"
+    },
+    {
+      "name": "max_u128",
+      "intervals": [
+        {
+          "asset": "MAX",
+          "low_e8": 340282366920938463463374607431768211455,
+          "point_e8": 340282366920938463463374607431768211455,
+          "high_e8": 340282366920938463463374607431768211455
+        }
+      ],
+      "root": "3a5de2b3462aa27d5fe2ae2374380ba7762395653ba932d5906596d865bd1491"
+    }
+  ],
+  "negative_cases": [
+    {
+      "name": "duplicate_asset",
+      "intervals": [
+        {
+          "asset": "ASSET0",
+          "low_e8": 1,
+          "point_e8": 1,
+          "high_e8": 2
+        },
+        {
+          "asset": "ASSET0",
+          "low_e8": 2,
+          "point_e8": 2,
+          "high_e8": 3
+        }
+      ],
+      "error_type": "ValueError",
+      "error": "duplicate route price interval asset"
+    },
+    {
+      "name": "empty_asset",
+      "intervals": [
+        {
+          "asset": "",
+          "low_e8": 1,
+          "point_e8": 1,
+          "high_e8": 2
+        }
+      ],
+      "error_type": "ValueError",
+      "error": "route price interval asset empty"
+    },
+    {
+      "name": "invalid_bounds",
+      "intervals": [
+        {
+          "asset": "ASSET0",
+          "low_e8": 2,
+          "point_e8": 1,
+          "high_e8": 2
+        }
+      ],
+      "error_type": "ValueError",
+      "error": "route price interval bounds invalid"
+    }
+  ]
+}

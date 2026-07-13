@@ -1,0 +1,94 @@
+{
+  "schema": "zenodex/zrpf_value_aggregate_v5_program_build_record/v2",
+  "recorded_at": "2026-07-12",
+  "profile": "experimental_bounded_value_aggregate_v5",
+  "toolchain": {
+    "rustc": "rustc 1.94.1-dev (06e01cb0d 2026-04-09)",
+    "cargo": "cargo 1.94.1-dev (29ea6fb6a 2026-03-24)",
+    "r0vm": "risc0-r0vm 3.0.5",
+    "risc0_zkvm": "3.0.5",
+    "risc0_binfmt": "3.0.4",
+    "risc0_zkos_v1compat": "2.2.2",
+    "cargo_lock_sha256": "08b48d69d359a6f4134f4f1082c6fc17a52a8f4e3e85eba316ff406fbc28547f",
+    "target": "riscv32im-risc0-zkvm-elf",
+    "cargo_build_jobs": 2,
+    "offline": true,
+    "locked": true
+  },
+  "spot_value_leaf_v4": {
+    "source_commit": "a6520ede68ba020153cd9adba60f7ead03db6ff0",
+    "source_tree": "f0483aad6d48b55245198dffbd87b36d29198268",
+    "package": "zenodex-zrpf-risc0-value-node-v4",
+    "raw_elf_bytes": 467680,
+    "raw_elf_sha256": "6b0452db9c8f2adf6d82dc37884830f289ff3811e083c276e2ad0bda45d6babd",
+    "combined_program_binary_bytes": 500104,
+    "combined_program_binary_sha256": "1801e835035c7fd82356e8fe425679e991894dce45a7fb45a37e28349dc72abe",
+    "image_id_hex": "d81406cf27ff2f776aed9e20fee3128b859387e4475d517c75f25e8e564f6a70",
+    "image_id_words_le": [
+      3473282264,
+      1999634215,
+      547286378,
+      2333271038,
+      3834090373,
+      2085707079,
+      2388587125,
+      1886015318
+    ]
+  },
+  "level_one": {
+    "source_commit": "5987339949a2d261e4378dab6abd78fe5b1c7c29",
+    "source_tree": "1d8d2a1a43460ebd53c26f9d5369628d243fc24f",
+    "package": "zenodex-zrpf-risc0-value-aggregate-l1",
+    "raw_elf_bytes": 499340,
+    "raw_elf_sha256": "7a97f072a94868facc2302179dfa5fb07a092314cba36511ce6381b5c9832045",
+    "combined_program_binary_bytes": 531764,
+    "combined_program_binary_sha256": "5f3eb62192e400e4434cefb2f77a1a325042568b45b7782e13a90cbe9e13fb11",
+    "image_id_hex": "99027bd4ff71de02c86b10309a923d37c38d273c01049f08bccfa11412bdf97d",
+    "image_id_words_le": [
+      3564831385,
+      48132607,
+      806382536,
+      926782106,
+      1009225155,
+      144638977,
+      346148796,
+      2113518866
+    ],
+    "self_identity_absent_from_normal_build_dev_closure": true
+  },
+  "level_two": {
+    "source_commit": "4ef41cdf2f30d02615f0df9b34882c98accb3c61",
+    "source_tree": "3e8e5679ba8c5e8eaf2c8f800276cf301819bc63",
+    "package": "zenodex-zrpf-risc0-value-aggregate-l2",
+    "raw_elf_bytes": 413948,
+    "raw_elf_sha256": "9ed87d0b1fa212c1eb5194617e0e5c4e837a3baae82d445fb8e2a5218929517f",
+    "combined_program_binary_bytes": 446372,
+    "combined_program_binary_sha256": "34380a4ab149811dc90183ecc0071db9ae87d26ad3757f91957d23e8fefbecb4",
+    "image_id_hex": "49c94dc5618c5e82372265cc75ee77d0985d9ab1b7b223f036e513870d6742f8",
+    "image_id_words_le": [
+      3310209353,
+      2187234401,
+      3429179959,
+      3497520757,
+      2979683736,
+      4028871351,
+      2266228022,
+      4165101325
+    ],
+    "pinned_level_one_image_id": "99027bd4ff71de02c86b10309a923d37c38d273c01049f08bccfa11412bdf97d"
+  },
+  "claims": {
+    "spot_value_leaf_v4_image_built": true,
+    "cycle_free_level_one_image_built": true,
+    "level_two_image_built_against_pinned_level_one": true,
+    "same_host_clean_build_recorded": true,
+    "cross_host_reproducible_build": false,
+    "level_one_receipt_generated": false,
+    "level_two_receipt_generated": false,
+    "settlement_semantics_verified": false,
+    "durable_atomic_admission_verified": false,
+    "release_authority": false,
+    "settlement_authority": false,
+    "production_authority": false
+  }
+}

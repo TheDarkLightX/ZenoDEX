@@ -41,7 +41,7 @@ from src.core.batch_clearing import (  # noqa: E402
 )
 from src.state.balances import BalanceTable  # noqa: E402
 from src.state.intents import Intent, IntentKind  # noqa: E402
-from src.state.pools import PoolState, PoolStatus  # noqa: E402
+from src.state.pools import PoolState, PoolStatus, compute_pool_id  # noqa: E402
 
 
 def _cand(cid: str, amount_in: int, min_out: int, sender: str) -> _CowCandidateExactIn:
@@ -144,7 +144,7 @@ def _divergent_pair_netting_case():
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
     pool = PoolState(
-        pool_id="0x" + "aa" * 32,
+        pool_id=compute_pool_id(asset0, asset1, 30),
         asset0=asset0,
         asset1=asset1,
         reserve0=1_000_000_000_000,
@@ -239,7 +239,7 @@ def test_pair_netting_falls_back_when_exact_uncoupled_work_is_over_cap(monkeypat
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
     pool = PoolState(
-        pool_id="0x" + "aa" * 32,
+        pool_id=compute_pool_id(asset0, asset1, 30),
         asset0=asset0,
         asset1=asset1,
         reserve0=1_000_000,

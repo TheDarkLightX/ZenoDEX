@@ -29,8 +29,7 @@ from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.operations import create_settlement_operation, parse_intents
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
-from src.state.pools import PoolState, PoolStatus
-
+from src.state.pools import PoolState, PoolStatus, compute_pool_id
 
 RunnerFn = Callable[[object], str]
 
@@ -89,8 +88,8 @@ ASSET_A = "0x" + "11" * 32
 ASSET_B = "0x" + "22" * 32
 ASSET_C = "0x" + "33" * 32
 ASSET_D = "0x" + "44" * 32
-POOL_AB = "0x" + "33" * 32
-POOL_CD = "0x" + "55" * 32
+POOL_AB = compute_pool_id(ASSET_A, ASSET_B, 30)
+POOL_CD = compute_pool_id(ASSET_C, ASSET_D, 30)
 
 
 def _pool(*, pool_id: str, asset0: str, asset1: str) -> PoolState:

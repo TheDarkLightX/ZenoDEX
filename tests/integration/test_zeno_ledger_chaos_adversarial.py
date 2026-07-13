@@ -15,24 +15,29 @@ substitution.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import pytest
 
+from src.integration.zeno_ledger_signature import (
+    SIGNED_ARTIFACT_ALGORITHM_BLS12_381_G2_BASIC_V0,
+)
 from src.integration.zeno_ledger_signer_registry import (
     SIGNER_REGISTRY_SCHEMA_V0,
     build_signer_registry_v0,
     validate_signer_registry_v0,
     verify_signature_quorum_v0,
 )
-from src.integration.zeno_ledger_signature import (
-    SIGNED_ARTIFACT_ALGORITHM_BLS12_381_G2_BASIC_V0,
-)
-
+from src.integration.zeno_ledger_v0 import hash_v0
 
 _PK_A = "0x" + "a1" * 48
 _PK_B = "0x" + "b2" * 48
 _PK_C = "0x" + "c3" * 48
+_PUBLIC_KEY_DEDUPE_VECTORS = (
+    Path(__file__).resolve().parents[1] / "fixtures" / "zeno_bls_public_key_dedupe_v0.json"
+)
 
 
 def _signers(*specs: dict[str, Any]) -> list[dict[str, Any]]:
@@ -114,6 +119,45 @@ class TestSignerRegistryConstructionChaos:
                 signers=_signers(
                     _signer(signer_id="a", key_id="k1", public_key=_PK_A),
                     _signer(signer_id="a", key_id="k1", public_key=_PK_B),
+                ),
+            )
+
+    def test_fixed_public_key_dedupe_vectors_match_registry_contract(self) -> None:
+        vectors = json.loads(_PUBLIC_KEY_DEDUPE_VECTORS.read_text(encoding="utf-8"))
+        assert vectors["schema"] == "zenodex/test/zeno_bls_public_key_dedupe_vectors/v0"
+
+        for case in vectors["cases"]:
+            if case["expected_registry_status"] == "rejected":
+                with pytest.raises(ValueError, match=case["expected_error"]):
+                    build_signer_registry_v0(
+                        registry_id=case["registry_id"],
+                        payload_kind="checkpoint",
+                        threshold=case["threshold"],
+                        signers=case["signers"],
+                    )
+            else:
+                registry = build_signer_registry_v0(
+                    registry_id=case["registry_id"],
+                    payload_kind="checkpoint",
+                    threshold=case["threshold"],
+                    signers=case["signers"],
+                )
+                validate_signer_registry_v0(registry)
+
+    def test_rejects_duplicate_public_key_across_active_and_revoked_signers(self) -> None:
+        with pytest.raises(ValueError, match="duplicate signer public_key"):
+            build_signer_registry_v0(
+                registry_id="r",
+                payload_kind="checkpoint",
+                threshold=1,
+                signers=_signers(
+                    _signer(signer_id="a", key_id="active", public_key=_PK_A),
+                    _signer(
+                        signer_id="b",
+                        key_id="revoked",
+                        public_key=_PK_A,
+                        status="revoked",
+                    ),
                 ),
             )
 
@@ -301,6 +345,27 @@ class TestSignerRegistryTamperDetection:
         with pytest.raises(ValueError):
             validate_signer_registry_v0(reg)
 
+    def test_rejects_hash_consistent_registry_with_duplicate_public_key(self) -> None:
+        registry = self._build_reg()
+        signers = [dict(signer) for signer in registry["signers"]]
+        signers[1]["public_key"] = signers[0]["public_key"]
+        second_body = {key: value for key, value in signers[1].items() if key != "signer_hash"}
+        signers[1]["signer_hash"] = hash_v0("signer_registry_entry_v0", second_body)
+        body = {
+            "schema": registry["schema"],
+            "registry_id": registry["registry_id"],
+            "payload_kind": registry["payload_kind"],
+            "threshold": registry["threshold"],
+            "signers": signers,
+        }
+        malicious_registry = {
+            **body,
+            "registry_hash": hash_v0("signer_registry_v0", body),
+        }
+
+        with pytest.raises(ValueError, match="duplicate signer public_key"):
+            validate_signer_registry_v0(malicious_registry)
+
     def test_rejects_removed_signer(self) -> None:
         reg = self._build_reg()
         reg = dict(reg)
@@ -461,6 +526,49 @@ class TestQuorumVerificationChaos:
                 payload_kind="checkpoint",
                 payload_hash="0x" + "11" * 32,
                 envelopes=[envelope, envelope],
+            )
+
+    def test_quorum_defense_rejects_duplicate_public_key_before_weight(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        registry = build_signer_registry_v0(
+            registry_id="r",
+            payload_kind="checkpoint",
+            threshold=2,
+            signers=_signers(
+                _signer(signer_id="a", key_id="k-a", public_key=_PK_A),
+                _signer(signer_id="b", key_id="k-b", public_key=_PK_B),
+            ),
+        )
+        signers = [dict(signer) for signer in registry["signers"]]
+        signers[1]["public_key"] = signers[0]["public_key"]
+        registry = {**registry, "signers": signers}
+        monkeypatch.setattr(
+            "src.integration.zeno_ledger_signer_registry.validate_signer_registry_v0",
+            lambda _registry: None,
+        )
+        monkeypatch.setattr(
+            "src.integration.zeno_ledger_signer_registry.validate_bls_signed_artifact_envelope_v0",
+            lambda **_kwargs: None,
+        )
+        envelopes = [
+            {
+                "signer_id": signer["signer_id"],
+                "key_id": signer["key_id"],
+                "algorithm": SIGNED_ARTIFACT_ALGORITHM_BLS12_381_G2_BASIC_V0,
+                "public_key": signer["public_key"],
+                "envelope_hash": "0x" + f"{index + 1:064x}",
+            }
+            for index, signer in enumerate(signers)
+        ]
+
+        with pytest.raises(ValueError, match="duplicate envelope signer public_key"):
+            verify_signature_quorum_v0(
+                registry=registry,
+                payload_kind="checkpoint",
+                payload_hash="0x" + "11" * 32,
+                envelopes=envelopes,
             )
 
     def test_rejects_invalid_registry_first(self) -> None:

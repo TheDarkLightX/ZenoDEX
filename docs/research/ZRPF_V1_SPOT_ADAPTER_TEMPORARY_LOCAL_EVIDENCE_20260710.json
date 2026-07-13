@@ -1,0 +1,267 @@
+{
+  "schema": "zenodex/zrpf_v1_spot_adapter_temporary_local_evidence/v1",
+  "version": 1,
+  "evidence_date": "2026-07-10",
+  "scope": "current_v1_spot_receipt_to_zrpf_v3_leaf_adapter",
+  "status": "temporary_local_receipt_evidence",
+  "sanitization": {
+    "absolute_paths_included": false,
+    "private_project_names_included": false,
+    "public_safe_record": true
+  },
+  "build_scope": {
+    "compiler_visible_path_stable": false,
+    "cross_host_reproduced": false,
+    "release_authority": false
+  },
+  "toolchain": {
+    "risc0_zkvm_version": "3.0.5",
+    "rustc_version": "1.94.1-dev",
+    "rustc_commit": "06e01cb0d",
+    "cargo_version": "1.94.1-dev",
+    "cargo_commit": "29ea6fb6a"
+  },
+  "adapter": {
+    "profile": "zrpf_v1_leaf_adapter_compatibility_v1",
+    "source_kind": "spot",
+    "image_id": "71f282b5517fc6108988c1cc9b4601807a40ae331c0e0f0f5505d12b241e5574",
+    "image_id_words": [
+      3045257841,
+      281444177,
+      3435235465,
+      2147567259,
+      867057786,
+      252644892,
+      735118677,
+      1951735332
+    ],
+    "elf": {
+      "sha256": "545c832d0dbe54ed2379f7fa423e490177cf4e3475c208ce5edf2d6bd4cb9797",
+      "size_bytes": 255660
+    },
+    "receipt": {
+      "kind": "succinct",
+      "sha256": "cc65e529bd881b331531aa615298e46471e31a36d3b8d57af2290031969dda61",
+      "size_bytes": 593505
+    },
+    "journal": {
+      "protocol_hash": "d81782dbf7c324b7c7f08d7c3e7da3a4116be9a809f6e8da17c7c789da273e22",
+      "sha256": "4333dc78ca7db8d78a503f619a752d6c0b50d5a362ece524d9b6939af1c720d1"
+    }
+  },
+  "source_receipt": {
+    "proof_type": "risc0.zenodex_recursive_spot_leaf.v1",
+    "image_id": "1275ef413f6513e7671bce019d22fbdcf10bffe1b71dcf68731a056e710a7403",
+    "proof_artifact_sha256": "4ce7db31e6ae5e5af53b4ef67fb0cd6ebb1dcae9cf05ee9f73b4511c10db20b9",
+    "proof_artifact_size_bytes": 784225,
+    "receipt_sha256": "c6f365df966c98ef28f05e59c3e36533d0c16ca06475348a7bbb2863e41d58f6"
+  },
+  "receipt_verification": {
+    "performed_by": "Rust RISC0 harness",
+    "risc0_zkvm_version": "3.0.5",
+    "source_receipt_verified": true,
+    "adapter_receipt_verified": true,
+    "python_checker_verifies_seal": false,
+    "python_checker_scope": [
+      "strict_manifest_schema",
+      "pinned_evidence_facts",
+      "relative_source_sha256",
+      "optional_artifact_sha256_and_size"
+    ]
+  },
+  "negative_controls": [
+    {
+      "id": "missing_source_assumption_rejected",
+      "passed": true
+    },
+    {
+      "id": "substituted_source_journal_rejected",
+      "passed": true
+    },
+    {
+      "id": "proof_bearing_mislabeled_adapter_rejected",
+      "passed": true,
+      "control_receipt_sha256": "0d1c3d1b8e44c7778f741ad6a7e18bf1497cd3b72cd80d5b53c8908eaecca666",
+      "substituted_adapter_image_id": "70f282b5517fc6108988c1cc9b4601807a40ae331c0e0f0f5505d12b241e5574"
+    }
+  ],
+  "evidence_build_sources": {
+    "scope": "repository_source_snapshot_for_v1_adapter_guest_dependency_graph",
+    "finalized": true,
+    "definition": "sha256 of sorted role, path, and sha256 records with NUL field separators and LF record separators",
+    "file_count": 23,
+    "sha256": "3fbfc8281974175eadaf90c68efdd8611467295a6d45683832b37a31402059e3",
+    "files": [
+      {
+        "role": "source_journal_dependency",
+        "path": "zk/state_proof_risc0/shared/Cargo.toml",
+        "sha256": "6a21ba0c312f684df8ce8703facb4badec2f0f85721d30c83bdce30c192c299c"
+      },
+      {
+        "role": "source_journal_dependency",
+        "path": "zk/state_proof_risc0/shared/src/lib.rs",
+        "sha256": "2225db4754f6a868c307699b19a880bcd6471cfe6d91e885086fa0b58af2bc21"
+      },
+      {
+        "role": "source_journal_dependency",
+        "path": "zk/state_proof_risc0/shared/src/recursive.rs",
+        "sha256": "5d78c536c97cbf1767f6ddbb282a11da0d36ce262c8c42c0263b6cce33f1474a"
+      },
+      {
+        "role": "source_journal_dependency",
+        "path": "zk/state_proof_risc0/shared/src/surfaces.rs",
+        "sha256": "4ecf23abd29475fc0e024ce82123b96d7082cb74e0e2eaf5005f28e93737f215"
+      },
+      {
+        "role": "protocol_dependency",
+        "path": "zk/zrpf_protocol/Cargo.toml",
+        "sha256": "293028a74273ea21917e7ec7900f0f564947f7a771ec3ae1e82c29c3fea7a4d0"
+      },
+      {
+        "role": "protocol_dependency",
+        "path": "zk/zrpf_protocol/protocol/Cargo.toml",
+        "sha256": "391cd224acfe470bbf5f6192adcb6f9d5df2c2c80f16001c4da944c0927f8dfb"
+      },
+      {
+        "role": "protocol_dependency",
+        "path": "zk/zrpf_protocol/protocol/src/lib.rs",
+        "sha256": "04a787676c54b66795178fa22048430229bcac9ef4b0ea05cfe126059499cbe6"
+      },
+      {
+        "role": "adapter_build",
+        "path": "zk/zrpf_risc0/.cargo/config.toml",
+        "sha256": "cf2f909df3589fb51c1e63338d5b12a38e3591694cc416d5b30d48fc5fc90854"
+      },
+      {
+        "role": "adapter_build",
+        "path": "zk/zrpf_risc0/Cargo.lock",
+        "sha256": "b2c4d9981a120cd0e815f96d94037822ee741d2e15eb87fa4bcdb1f918747f93"
+      },
+      {
+        "role": "adapter_build",
+        "path": "zk/zrpf_risc0/Cargo.toml",
+        "sha256": "383b477ebd889870ac1cbb21fc91ec79d2e1c0677916b0c05b9018cb778ea820"
+      },
+      {
+        "role": "adapter_guest",
+        "path": "zk/zrpf_risc0/methods/Cargo.toml",
+        "sha256": "cffece1e78d0e4d10d4b2bc79d28ec44b4c3a0c654468f8d074e168aa68af9ab"
+      },
+      {
+        "role": "adapter_guest",
+        "path": "zk/zrpf_risc0/methods/build.rs",
+        "sha256": "a76e8508d7575e21a6da8d4e4da1099921651f0d5ca6441b9aa2cb859af0fb14"
+      },
+      {
+        "role": "adapter_guest",
+        "path": "zk/zrpf_risc0/methods/src/lib.rs",
+        "sha256": "902d56d952004dd42e65c148a4b537710f869054556528b25ed3e67d050bb255"
+      },
+      {
+        "role": "adapter_guest",
+        "path": "zk/zrpf_risc0/methods/v1_leaf_adapter/Cargo.toml",
+        "sha256": "5a66a5458eb9e2951c10c3927550e6cfb75dc69dbbe86ece467fc86f7cce57f6"
+      },
+      {
+        "role": "adapter_guest",
+        "path": "zk/zrpf_risc0/methods/v1_leaf_adapter/src/main.rs",
+        "sha256": "6e38a20e28b283a513c9fe541b8dd9a5442fea89a01b33d2c95baf461ed1f547"
+      },
+      {
+        "role": "adapter_mapping",
+        "path": "zk/zrpf_risc0/shared/Cargo.toml",
+        "sha256": "582e45f552a0da0790b40f7e251000655673b40b30e64788afd970e2b252c566"
+      },
+      {
+        "role": "adapter_mapping",
+        "path": "zk/zrpf_risc0/shared/src/adapter_input_v1.rs",
+        "sha256": "f5953aa9a77c221b55db7dc56f2aab2e2ac352137bddb170f0a6e5acf8d7066a"
+      },
+      {
+        "role": "adapter_mapping",
+        "path": "zk/zrpf_risc0/shared/src/hashing_v1.rs",
+        "sha256": "60296d7d22f2e8b3c4eed2ad688aa8d1fc3f308f02dba668348a08fcbded6a02"
+      },
+      {
+        "role": "adapter_mapping",
+        "path": "zk/zrpf_risc0/shared/src/lib.rs",
+        "sha256": "3b7ce1886ffa91dba5aa7b781a59c584f593c2e2a8d02b27865795f13d82ad5d"
+      },
+      {
+        "role": "adapter_mapping",
+        "path": "zk/zrpf_risc0/shared/src/risc0_binding_v1.rs",
+        "sha256": "fdb4c7aba37970c45d373eab25a5b76f1a9f4c6c8e7b0a0c9561a5999bbc063a"
+      },
+      {
+        "role": "adapter_mapping",
+        "path": "zk/zrpf_risc0/shared/src/source_binding_v3.rs",
+        "sha256": "ab5105749be7e39d01ec45cde2d9d8a76b9a096fbb5f49fd64a88d8c6677ab5d"
+      },
+      {
+        "role": "adapter_mapping",
+        "path": "zk/zrpf_risc0/shared/src/source_policy_v1.rs",
+        "sha256": "1292cdb2071443b67109d20ec96d565d0c8756a605510ff3cc1478db403bb433"
+      },
+      {
+        "role": "adapter_mapping",
+        "path": "zk/zrpf_risc0/shared/src/v1_leaf_adapter.rs",
+        "sha256": "0e1274b4268f381f08b0fcf7e30ad07fa015520344c81f8ae7254100f88e080b"
+      }
+    ]
+  },
+  "verification_sources": {
+    "scope": "host_harness_verifier_and_policy_sources_for_final_checks",
+    "finalized": true,
+    "definition": "sha256 of sorted role, path, and sha256 records with NUL field separators and LF record separators",
+    "file_count": 6,
+    "sha256": "db4f9a2139a7cbb7e1a8f3ec7d90951636661e0fd05bffa7a0375d7e6b2f8615",
+    "files": [
+      {
+        "role": "policy",
+        "path": "config/proof_profiles/risc0_recursive_rebuild_reference.json",
+        "sha256": "ae562f0ecca00d3eb106526199efb0712660d11c77350027b39f29d2281af8a9"
+      },
+      {
+        "role": "policy",
+        "path": "config/proof_profiles/zrpf_v1_leaf_adapter_source_policy_v1.json",
+        "sha256": "d785288e638f1883daa2a0668f317701399c4412a993579b6cfea76121ab00cd"
+      },
+      {
+        "role": "verification_harness",
+        "path": "zk/zrpf_risc0/harness/Cargo.toml",
+        "sha256": "bfad9f1de49a407b978058d9a27013427f664bd5637adecb6918440e120be96a"
+      },
+      {
+        "role": "verification_harness",
+        "path": "zk/zrpf_risc0/harness/src/main.rs",
+        "sha256": "9f2b08f53256aad7843b81b85027873c3b5d8fbc8c4a463ddf5dfc44ef1bac79"
+      },
+      {
+        "role": "verification_harness",
+        "path": "zk/zrpf_risc0/verifier/Cargo.toml",
+        "sha256": "f72889cdae4960c289c2f021618a09dcb63323a45da621c82f50a902406f0d4f"
+      },
+      {
+        "role": "verification_harness",
+        "path": "zk/zrpf_risc0/verifier/src/lib.rs",
+        "sha256": "baac655ec93d547ed12e7446d600c8c04f72ad4caadc53b14ef05502dad82a48"
+      }
+    ]
+  },
+  "claims": {
+    "rust_harness_verified_receipt_cryptography": true,
+    "temporary_local_computational_integrity_evidence": true,
+    "release_backed": false,
+    "public_replay": false,
+    "recursive_aggregate_evidence": false,
+    "full_zenodex_semantic_composition": false,
+    "ledger_or_settlement_admission_authority": false
+  },
+  "non_claims": [
+    "no_release_or_cross_host_reproducibility_claim",
+    "no_public_replay_claim",
+    "no_recursive_aggregate_claim",
+    "no_full_zenodex_semantic_composition_claim",
+    "no_zenoledger_or_settlement_admission_claim"
+  ]
+}

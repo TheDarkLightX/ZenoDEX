@@ -23,7 +23,11 @@ from tools.zeno_ledger_node import (  # noqa: E402
     _public_network_config_hash_v0,
     load_node_status_v0,
 )
-from tools.zeno_ledger_verify import ZERO_ROOT, verify_zeno_ledger_v0  # noqa: E402
+from tools.zeno_ledger_verify import (  # noqa: E402
+    STRUCTURAL_DIAGNOSTIC_MODE,
+    ZERO_ROOT,
+    verify_zeno_ledger_v0,
+)
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.node_evidence_input_report.v0"
 MACHINE_SCHEMA = "zenodex.zeno_ledger.node_evidence_input.v0"
@@ -219,6 +223,7 @@ def _verify_node_range(
             from_height=1,
             to_height=tip_height,
             trusted_prev_header_hash=ZERO_ROOT,
+            mode=STRUCTURAL_DIAGNOSTIC_MODE,
         )
 
 

@@ -1,0 +1,33 @@
+{
+  "historical_reference": {
+    "git_commit": "1d1559fd402cdb906d52e6d572d39aec99a5ebda",
+    "git_tag": "zrpf-v1-retained-source-anchor-20260710",
+    "path": "config/proof_profiles/risc0_recursive_rebuild_reference.json",
+    "schema": "zenodex/risc0_recursive_rebuild_reference/v2",
+    "sha256": "ae562f0ecca00d3eb106526199efb0712660d11c77350027b39f29d2281af8a9"
+  },
+  "non_claims": [
+    "does_not_embed_complete_historical_reference_bytes",
+    "does_not_assert_current_source_closure_identity",
+    "does_not_authorize_release_or_production",
+    "does_not_replace_retained_receipt_verification"
+  ],
+  "production_authority": false,
+  "schema": "zenodex/zrpf_v1_retained_source_anchor/v1",
+  "source_tree_root": "7a3bed2a1d8fff3ad2e93f2d406df435a9990d1a9c0462ff3323fb028327564e",
+  "spot_program": {
+    "image_id": "1275ef413f6513e7671bce019d22fbdcf10bffe1b71dcf68731a056e710a7403",
+    "image_id_words": [
+      1106212114,
+      3876807999,
+      30284647,
+      3707445917,
+      3791588337,
+      1758404023,
+      1845828211,
+      57936497
+    ],
+    "program_sha256": "d1fd8915a3c1650b42527e6b878f203679cd447b506916c6a9a56008ed0951a8"
+  },
+  "status": "historical_generation_record"
+}

@@ -1,0 +1,76 @@
+{
+  "authority": {
+    "complete_build_input_closure_verified": false,
+    "cross_host_reproducible_build": false,
+    "firecracker_ci_validated_hardened_kernel": false,
+    "kernel_source_provenance_verified": false,
+    "production_authority": false,
+    "release_authority": false
+  },
+  "builder": {
+    "base_oci_image_digest": "sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90",
+    "local_builder_image_id": "sha256:894899337e3e5c3cb32bb26673c036676da9417c873f68671bdd14785327349b",
+    "network_disabled_during_build": true,
+    "read_only_container_root": true,
+    "source_mount_read_only": true,
+    "status": "temporary_local_builder_not_release_authority"
+  },
+  "build_contract": {
+    "configuration_order": [
+      "firecracker_x86_64_6_1_config",
+      "firecracker_ci_config",
+      "zrpf_hardening_fragment",
+      "make_olddefconfig"
+    ],
+    "kernel_target": "vmlinux",
+    "output_path_remapping": {
+      "build": "/usr/src/linux-build",
+      "source": "/usr/src/linux"
+    },
+    "parallel_jobs": 16
+  },
+  "environment": {
+    "KBUILD_BUILD_HOST": "builder",
+    "KBUILD_BUILD_TIMESTAMP": "@1780396050",
+    "KBUILD_BUILD_USER": "zrpf",
+    "KBUILD_BUILD_VERSION": "1",
+    "SOURCE_DATE_EPOCH": "1780396050"
+  },
+  "inputs": {
+    "firecracker_ci_config_sha256": "c379bcb1dedc9378f2e948b5259c6d467df0540cf2ae832dd9d2d1ff6b240303",
+    "firecracker_x86_64_6_1_config_sha256": "adbc70ab5e89213ba00594b12d25e09bdf8bb1ed3c252d7449326bb14c22963b",
+    "kernel_source": {
+      "repository": "https://github.com/amazonlinux/linux",
+      "source_commit": "3cd94355d352d212ddf85bfcd02b4cc0cbdf01c1",
+      "source_tag": "microvm-kernel-6.1.174-37.345.amzn2023",
+      "source_tag_object": "2997a6ddd99bfc73323763f2f8556b9312d554e1",
+      "source_tree": "0dbc304b81f73446219f256481403b8c97fbc0c2",
+      "tag_signature_verified": false
+    },
+    "zrpf_hardening_fragment_sha256": "7b09b4d0e6cc3cfbbec6dd72d0fe18314f081644a55075ee0bb5b1c939b69da6"
+  },
+  "local_rebuild_evidence": {
+    "build_a_config_sha256": "717469b88aa0e51492e4f3adad4e2dd65aa81e66a8a638c5b333de73a3b14fd5",
+    "build_a_vmlinux_sha256": "c14602c653c76072ad17feef737edbf37e4ed3ae991148c1471a5270c9c4a94a",
+    "build_b_config_sha256": "717469b88aa0e51492e4f3adad4e2dd65aa81e66a8a638c5b333de73a3b14fd5",
+    "build_b_vmlinux_sha256": "c14602c653c76072ad17feef737edbf37e4ed3ae991148c1471a5270c9c4a94a",
+    "byte_identical": true,
+    "scope": "same_host_same_container_image_two_clean_output_directories"
+  },
+  "non_claims": [
+    "no independently authenticated Amazon Linux signing key or source RPM cross-check",
+    "no complete package-source or builder-image provenance closure",
+    "no independent cross-host reproduction",
+    "no Firecracker CI validation of the ZRPF hardening delta",
+    "no vulnerability-free, release, settlement, or production claim"
+  ],
+  "outputs": {
+    "kernel_config_sha256": "717469b88aa0e51492e4f3adad4e2dd65aa81e66a8a638c5b333de73a3b14fd5",
+    "kernel_release": "6.1.174",
+    "support_minimum_end_date": "2026-09-02",
+    "vmlinux_sha256": "c14602c653c76072ad17feef737edbf37e4ed3ae991148c1471a5270c9c4a94a",
+    "vmlinux_size_bytes": 32217024
+  },
+  "schema": "zenodex/zrpf_firecracker_guest_kernel_build_record/v1",
+  "status": "local_byte_identical_candidate_kernel_build_non_authoritative"
+}

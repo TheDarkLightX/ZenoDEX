@@ -1,0 +1,685 @@
+"""Exact static contract for the retained ZRPF V3 receipt replay lane."""
+
+from __future__ import annotations
+
+import hashlib
+import importlib
+import json
+import os
+import stat
+from collections.abc import Callable
+from pathlib import Path, PurePosixPath
+from typing import Any, cast
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+EVIDENCE_PATH = (
+    REPO_ROOT
+    / "docs/research/ZRPF_V3_RETAINED_SOURCE_BUILT_REPLAY_EVIDENCE_20260712.json"
+)
+RECEIPT_DIRECTORY = (
+    REPO_ROOT / "evidence/zrpf-v3-retained-structural-replay-v1/receipts"
+)
+WORKSPACE = REPO_ROOT / "zk/zrpf_risc0"
+
+SCHEMA = "zenodex/zrpf_v3_retained_source_built_replay_evidence/v4"
+REPORT_SCHEMA = "zenodex/zrpf_v3_retained_structural_replay/v1"
+SOURCE_COMMIT = "ff76ff9c1dc307f0e7dc5afd009e2961f2e36f21"
+SOURCE_TREE = "2476e762907fb1f720f850e91b88bc06ac164259"
+SOURCE_TAG = "zrpf-v3-source-anchor-v7-20260712"
+EXPECTED_STDOUT_SHA256 = (
+    "7751395663a33c1ae58fa403346dc90618e842dd1df2f2fdc37f18599e50c288"
+)
+EXPECTED_STDOUT_SIZE = 5_920
+EXPECTED_EVIDENCE_SHA256 = (
+    "8bc75ace0cc0f699979efc40d3c93cab1fa7be57b2e471be829eeb203faa9a4d"
+)
+EXPECTED_BINARY_TRANSPORT = "linux_memfd_full_seals_v1"
+DEPENDENCY_GRAPH_CANONICAL_SOURCE_ROOT = "/zrpf/source"
+DEPENDENCY_GRAPH_NORMALIZATION = "cargo_tree_unique_sorted_source_root_v1"
+EXECUTION_IDENTITY_FIELDS = frozenset(
+    {
+        "binary_sha256",
+        "binary_size_bytes",
+        "binary_transport",
+        "dependency_graph_package_count",
+        "dependency_graph_sha256",
+    }
+)
+EXPECTED_SOURCE_CLOSURE_FILES = 44
+EXPECTED_SOURCE_CLOSURE_BYTES = 1_069_983
+EXPECTED_SOURCE_CLOSURE_SHA256 = (
+    "4c634e32f1eb10ea9ae2c659272654cc80d0e0f14b0236f15844cfcd38c8f9d4"
+)
+EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
+ROOT_JOURNAL_HASH = (
+    "2089ecc187077d4b719c8539076651753c1ead1415724c9bc788758bddfa3768"
+)
+ROOT_RECEIPT_SHA256 = (
+    "edd25fca20b0205c2f778b866605b343922615623256abcc1a098957664c2d16"
+)
+MUTATION_RECEIPT_SHA256 = (
+    "27c71152044124762efd5398fa6206a9627a5eae2ed9db851b1bb33783c6e985"
+)
+TOOLCHAIN_LOCK_PATH = "config/proof_profiles/risc0_recursive_toolchain_lock.json"
+MAX_SOURCE_BYTES = 16 * 1024 * 1024
+MAX_RECEIPT_BYTES = 16 * 1024 * 1024
+MAX_GIT_TREE_BYTES = 4 * 1024 * 1024
+
+SOURCE_FILES: tuple[tuple[str, str], ...] = (
+    ("toolchain_policy", TOOLCHAIN_LOCK_PATH),
+    ("state_workspace_manifest", "zk/state_proof_risc0/Cargo.toml"),
+    ("state_shared_manifest", "zk/state_proof_risc0/shared/Cargo.toml"),
+    ("state_shared_source", "zk/state_proof_risc0/shared/src/lib.rs"),
+    ("state_shared_source", "zk/state_proof_risc0/shared/src/recursive.rs"),
+    ("state_shared_source", "zk/state_proof_risc0/shared/src/surfaces.rs"),
+    ("protocol_workspace_manifest", "zk/zrpf_protocol/Cargo.toml"),
+    ("protocol_manifest", "zk/zrpf_protocol/protocol/Cargo.toml"),
+    ("protocol_source", "zk/zrpf_protocol/protocol/src/lib.rs"),
+    ("replay_workspace_config", "zk/zrpf_risc0/.cargo/config.toml"),
+    ("replay_workspace_lock", "zk/zrpf_risc0/Cargo.lock"),
+    ("replay_workspace_manifest", "zk/zrpf_risc0/Cargo.toml"),
+    ("aggregate_manifest", "zk/zrpf_risc0/aggregate_shared/Cargo.toml"),
+    ("aggregate_source", "zk/zrpf_risc0/aggregate_shared/src/input_v1.rs"),
+    ("aggregate_source", "zk/zrpf_risc0/aggregate_shared/src/lib.rs"),
+    ("aggregate_source", "zk/zrpf_risc0/aggregate_shared/src/structural_v1.rs"),
+    ("aggregate_test_source", "zk/zrpf_risc0/aggregate_shared/tests/structural_v1.rs"),
+    ("excluded_member_manifest", "zk/zrpf_risc0/harness/Cargo.toml"),
+    ("excluded_member_manifest", "zk/zrpf_risc0/methods/Cargo.toml"),
+    (
+        "excluded_member_manifest",
+        "zk/zrpf_risc0/methods/structural_aggregate_l1/Cargo.toml",
+    ),
+    (
+        "excluded_member_manifest",
+        "zk/zrpf_risc0/methods/structural_aggregate_l2/Cargo.toml",
+    ),
+    (
+        "excluded_member_manifest",
+        "zk/zrpf_risc0/methods/v1_leaf_adapter/Cargo.toml",
+    ),
+    ("replay_manifest", "zk/zrpf_risc0/replay_verifier/Cargo.toml"),
+    ("replay_source", "zk/zrpf_risc0/replay_verifier/src/bundle.rs"),
+    (
+        "replay_source",
+        "zk/zrpf_risc0/replay_verifier/src/bin/zrpf_firecracker_guest_init.rs",
+    ),
+    (
+        "replay_source",
+        "zk/zrpf_risc0/replay_verifier/src/bin/zrpf_firecracker_guest_elf_checker.rs",
+    ),
+    ("replay_source", "zk/zrpf_risc0/replay_verifier/src/error.rs"),
+    ("replay_source", "zk/zrpf_risc0/replay_verifier/src/firecracker_protocol.rs"),
+    ("replay_source", "zk/zrpf_risc0/replay_verifier/src/lib.rs"),
+    ("replay_source", "zk/zrpf_risc0/replay_verifier/src/main.rs"),
+    ("replay_source", "zk/zrpf_risc0/replay_verifier/src/profile.rs"),
+    ("replay_test_source", "zk/zrpf_risc0/replay_verifier/src/tests.rs"),
+    ("shared_manifest", "zk/zrpf_risc0/shared/Cargo.toml"),
+    ("shared_source", "zk/zrpf_risc0/shared/src/adapter_input_v1.rs"),
+    ("shared_source", "zk/zrpf_risc0/shared/src/hashing_v1.rs"),
+    ("shared_source", "zk/zrpf_risc0/shared/src/lib.rs"),
+    ("shared_source", "zk/zrpf_risc0/shared/src/risc0_binding_v1.rs"),
+    ("shared_source", "zk/zrpf_risc0/shared/src/source_binding_v3.rs"),
+    ("shared_source", "zk/zrpf_risc0/shared/src/source_policy_v1.rs"),
+    ("shared_source", "zk/zrpf_risc0/shared/src/v1_leaf_adapter.rs"),
+    ("shared_test_source", "zk/zrpf_risc0/shared/tests/v1_leaf_adapter.rs"),
+    ("verifier_manifest", "zk/zrpf_risc0/verifier/Cargo.toml"),
+    ("verifier_source", "zk/zrpf_risc0/verifier/src/lib.rs"),
+    ("protocol_test_source", "zk/zrpf_protocol/protocol/tests/node_v3.rs"),
+)
+
+SOURCE_INVENTORY_PACKAGE_ROOTS: tuple[str, ...] = (
+    "zk/state_proof_risc0/shared",
+    "zk/zrpf_protocol/protocol",
+    "zk/zrpf_risc0/aggregate_shared",
+    "zk/zrpf_risc0/replay_verifier",
+    "zk/zrpf_risc0/shared",
+    "zk/zrpf_risc0/verifier",
+)
+SOURCE_INVENTORY_EXACT_FILES: tuple[str, ...] = (
+    TOOLCHAIN_LOCK_PATH,
+    "zk/state_proof_risc0/Cargo.toml",
+    "zk/zrpf_protocol/Cargo.toml",
+    "zk/zrpf_risc0/.cargo/config.toml",
+    "zk/zrpf_risc0/Cargo.lock",
+    "zk/zrpf_risc0/Cargo.toml",
+)
+
+RECEIPTS: tuple[tuple[str, int, str], ...] = (
+    (
+        "adapter-leaf-0.receipt.json",
+        593_416,
+        "219e389be6ff9d035f86b6d73de8c4f95fae230956382d2fd63823167047b63a",
+    ),
+    (
+        "adapter-leaf-1.receipt.json",
+        593_399,
+        "af45ec023d8939648c741389d9e766d5d1dd2945811652bae42e998d84bb3a82",
+    ),
+    (
+        "adapter-leaf-2.receipt.json",
+        593_136,
+        "4e09c872617143e9ac360ea8059b6f2a20ab6e5ce05eb7cf51eead70f974965a",
+    ),
+    (
+        "adapter-leaf-3.receipt.json",
+        593_032,
+        "7030c4a4818b31623fb137ebdac0eb8bb2af8cbeb9fdc1e8d3dcb75fc26ef8f4",
+    ),
+    (
+        "structural-l1-left.receipt.json",
+        593_161,
+        "47b850237585faeee953b04dae72d21c5d87adfb710d4e914314d4a72e6c1cd5",
+    ),
+    (
+        "structural-l1-right.receipt.json",
+        593_280,
+        "a6b8ceaa559bfe85fa9263fefcec9438e78ec721632fbd7a1cf651867d30348d",
+    ),
+    (
+        "structural-l2-root.receipt.json",
+        593_320,
+        ROOT_RECEIPT_SHA256,
+    ),
+    (
+        "structural-l2-root.seal-word-1-xor-lsb.receipt.json",
+        593_320,
+        MUTATION_RECEIPT_SHA256,
+    ),
+)
+
+TRUE_CLAIMS = frozenset(
+    {
+        "all_expected_image_ids_verified",
+        "artifact_privacy_scan_passed",
+        "automatic_cargo_targets_disabled",
+        "compiler_visible_paths_remapped_to_canonical_prefix",
+        "exact_source_inventory_enforced",
+        "exact_retained_artifact_bytes_bound",
+        "exact_seal_mutation_rejected",
+        "exact_l1_l2_journals_recomposed",
+        "execve_environment_map_allowlisted",
+        "executing_binary_identity_authenticated",
+        "fresh_verifier_bytes_sealed_before_exec",
+        "guest_binaries_required_by_replay_false",
+        "local_cargo_rustc_rustdoc_match_pinned_artifacts",
+        "no_new_privileges_installed",
+        "normal_and_risc0_dev_mode_one_stdout_identical",
+        "preexec_resource_limits_installed",
+        "private_source_snapshot_bound_to_anchor",
+        "replay_process_creation_bounded",
+        "root_journal_and_topology_bound",
+        "same_host_source_built_host_verifier_replay",
+        "selected_dependency_graph_excludes_guest_build_paths",
+        "seven_succinct_receipts_cryptographically_verified",
+    }
+)
+FALSE_CLAIMS = frozenset(
+    {
+        "build_network_disabled",
+        "cgroup_limits_installed",
+        "compiler_closure_identity_authenticated",
+        "complete_build_input_closure_verified",
+        "covert_channel_freedom",
+        "cross_host_reproducibility",
+        "data_availability_verified",
+        "dependency_cache_identity_authenticated",
+        "durable_atomic_admission_verified",
+        "guest_source_to_image_attested",
+        "guest_image_ids_recomputed",
+        "hardware_side_channel_resistance",
+        "host_filesystem_isolated",
+        "ledger_admission_authority",
+        "linker_identity_authenticated",
+        "network_disabled",
+        "parent_process_environment_inaccessible",
+        "privacy_or_zero_knowledge",
+        "production_authority",
+        "proof_generation_source_attested",
+        "proofs_regenerated",
+        "process_namespace_isolated",
+        "public_replay_promoted",
+        "receipt_byte_determinism",
+        "release_authority",
+        "reproducible_build",
+        "static_validation_reperforms_live_replay",
+        "runtime_rootfs_identity_authenticated",
+        "sandbox_escape_controls_passed",
+        "seccomp_policy_installed",
+        "semantic_composition_verified",
+        "semantic_aggregation_or_value_conservation",
+        "source_snapshot_immutable",
+        "settlement_authority",
+        "throughput_or_transaction_count",
+    }
+)
+NON_CLAIMS = (
+    "no proof-generation source or guest source-to-image provenance claim",
+    "no complete build-input, compiler, linker, dependency-cache, or runtime-rootfs authentication claim",
+    "the exact sealed verifier bytes are authenticated for the recorded execution",
+    "no cross-host, reproducible-build, release, or public-replay promotion claim",
+    "no semantic aggregation, conservation, data-availability, carry, or schedule claim",
+    "no ledger-admission, settlement, production, privacy, or zero-knowledge claim",
+    "no receipt-byte determinism claim",
+    "operation counts are source-transition receipt counts, not transaction counts",
+    "no TPS, throughput, latency, or proving-cost claim",
+    "static validation does not reperform live replay; --live is required for current execution evidence",
+)
+EXPECTED_REPORT_AUTHORITY = {
+    "guest_binaries_required_by_replay": False,
+    "guest_source_to_image_attested": False,
+    "ledger_admission_authority": False,
+    "production_authority": False,
+    "proof_generation_source_attested": False,
+    "release_authority": False,
+    "settlement_authority": False,
+}
+EXPECTED_REPORT_IMAGES = {
+    "adapter": "71f282b5517fc6108988c1cc9b4601807a40ae331c0e0f0f5505d12b241e5574",
+    "structural_l1": "4272be5165f65e29cb134f815d6c6fc40d7f492979f596082cac10c3f0d43c2b",
+    "structural_l2": "3b858d113cb155b2946e1c733fdf5fe5592b6bf46c903d0a3cfb322099845736",
+}
+EXPECTED_REPORT_PROFILE = {
+    "control_id": "53a7b23d07f99e5d5685e85874f5181e8486aa267a0ae607ffe9ba47c8bdda4a",
+    "hashfn": "poseidon2",
+    "profile_id": "risc0_succinct_poseidon2_resolve_3_0_5_v1",
+    "receipt_kind": "succinct",
+    "verifier_parameters": "ece5e9b8ae2cd6ea6b1827b464ff0348f9a7f4decd269c0087fdfd75098da013",
+}
+
+
+def sha256_bytes(raw: bytes) -> str:
+    return hashlib.sha256(raw).hexdigest()
+
+
+def canonical_sha256(value: Any) -> str:
+    raw = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("ascii")
+    return sha256_bytes(raw)
+
+
+def canonical_evidence_bytes(value: dict[str, Any]) -> bytes:
+    raw = json.dumps(value, indent=2, sort_keys=True, ensure_ascii=True) + "\n"
+    return raw.encode("ascii")
+
+
+def strict_json_loads(raw: bytes) -> Any:
+    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate JSON key: {key}")
+            result[key] = value
+        return result
+
+    def reject_constant(value: str) -> None:
+        raise ValueError(f"non-finite JSON number: {value}")
+
+    return json.loads(
+        raw.decode("utf-8"),
+        object_pairs_hook=unique_object,
+        parse_constant=reject_constant,
+    )
+
+
+def _safe_relative_path(value: str) -> bool:
+    path = PurePosixPath(value)
+    return all(
+        (
+            bool(value),
+            value != ".",
+            "\0" not in value,
+            "\\" not in value,
+            not path.is_absolute(),
+            bool(path.parts),
+            str(path) == value,
+            all(part not in {"", ".", ".."} for part in path.parts),
+        )
+    )
+
+
+def _regular_file_bytes(root: Path, relative: str, maximum: int) -> bytes:
+    if not _safe_relative_path(relative):
+        raise ValueError(f"unsafe relative path: {relative}")
+    parts = PurePosixPath(relative).parts
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+    directory_flags = flags | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    file_flags = flags | getattr(os, "O_NOFOLLOW", 0)
+    descriptors: list[int] = []
+    try:
+        descriptor = os.open(root, directory_flags)
+        descriptors.append(descriptor)
+        for part in parts[:-1]:
+            descriptor = os.open(part, directory_flags, dir_fd=descriptor)
+            descriptors.append(descriptor)
+        file_descriptor = os.open(parts[-1], file_flags, dir_fd=descriptor)
+        descriptors.append(file_descriptor)
+        before = os.fstat(file_descriptor)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_size <= 0
+            or before.st_size > maximum
+        ):
+            raise ValueError(f"unsafe or unbounded file: {relative}")
+        chunks: list[bytes] = []
+        remaining = before.st_size
+        while remaining:
+            chunk = os.read(file_descriptor, min(remaining, 1024 * 1024))
+            if not chunk:
+                raise ValueError(f"file changed while reading: {relative}")
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        if os.read(file_descriptor, 1):
+            raise ValueError(f"file changed while reading: {relative}")
+        after = os.fstat(file_descriptor)
+        if any(
+            (
+                after.st_dev != before.st_dev,
+                after.st_ino != before.st_ino,
+                after.st_mode != before.st_mode,
+                after.st_size != before.st_size,
+                after.st_mtime_ns != before.st_mtime_ns,
+                after.st_ctime_ns != before.st_ctime_ns,
+            )
+        ):
+            raise ValueError(f"file changed while reading: {relative}")
+        return b"".join(chunks)
+    except OSError as exc:
+        raise ValueError(f"source path is unavailable or symlinked: {relative}") from exc
+    finally:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+
+
+def source_closure(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
+    _require_exact_source_inventory(repo_root)
+    return _build_source_closure(
+        lambda relative: _regular_file_bytes(repo_root, relative, MAX_SOURCE_BYTES)
+    )
+
+
+def anchored_source_closure(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
+    """Recompute the governed closure from the immutable anchor commit."""
+
+    _require_exact_anchor_inventory(repo_root)
+    return _build_source_closure(
+        lambda relative: _anchor_blob_bytes(repo_root, relative)
+    )
+
+
+def _build_source_closure(
+    read_source: Callable[[str], bytes],
+) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    hasher = hashlib.sha256()
+    total_bytes = 0
+    for role, relative in sorted(SOURCE_FILES, key=lambda item: item[1]):
+        raw = read_source(relative)
+        digest = sha256_bytes(raw)
+        size = len(raw)
+        rows.append({"path": relative, "role": role, "sha256": digest, "size_bytes": size})
+        hasher.update(f"{role}\0{relative}\0{digest}\0{size}\n".encode("utf-8"))
+        total_bytes += size
+    return {
+        "definition": (
+            "sha256(rows ordered by path: "
+            "role\\0path\\0sha256\\0size_bytes\\n)"
+        ),
+        "file_count": len(rows),
+        "files": rows,
+        "sha256": hasher.hexdigest(),
+        "total_bytes": total_bytes,
+    }
+
+
+def _require_exact_anchor_inventory(repo_root: Path) -> None:
+    raw = _run_git_read(
+        repo_root,
+        (
+            "ls-tree",
+            "-r",
+            "-z",
+            "--full-tree",
+            SOURCE_COMMIT,
+            "--",
+            "config/proof_profiles/risc0_recursive_toolchain_lock.json",
+            "zk/state_proof_risc0/Cargo.toml",
+            "zk/state_proof_risc0/shared",
+            "zk/zrpf_protocol",
+            "zk/zrpf_risc0",
+        ),
+        MAX_GIT_TREE_BYTES,
+    )
+    discovered: set[str] = set()
+    for record in raw.split(b"\0"):
+        if not record:
+            continue
+        try:
+            metadata, path_bytes = record.split(b"\t", 1)
+            mode, object_type, _object_id = metadata.split(b" ", 2)
+            relative = path_bytes.decode("utf-8")
+        except (UnicodeDecodeError, ValueError) as exc:
+            raise ValueError("anchor source inventory is malformed") from exc
+        if not _anchor_inventory_path_is_relevant(relative):
+            continue
+        if relative in discovered:
+            raise ValueError("anchor source inventory contains a duplicate")
+        if object_type != b"blob" or mode not in {b"100644", b"100755"}:
+            raise ValueError("anchor source inventory contains a non-regular entry")
+        discovered.add(relative)
+    expected = {relative for _, relative in SOURCE_FILES}
+    if discovered != expected:
+        raise ValueError("anchor replay source inventory mismatch")
+
+
+def _anchor_inventory_path_is_relevant(relative: str) -> bool:
+    if relative in SOURCE_INVENTORY_EXACT_FILES:
+        return True
+    if relative.startswith("zk/zrpf_risc0/") and relative.endswith("/Cargo.toml"):
+        return True
+    return any(
+        relative.startswith(f"{package_root}/")
+        for package_root in SOURCE_INVENTORY_PACKAGE_ROOTS
+    )
+
+
+def _anchor_blob_bytes(repo_root: Path, relative: str) -> bytes:
+    if not _safe_relative_path(relative):
+        raise ValueError(f"unsafe relative path: {relative}")
+    raw = _run_git_read(
+        repo_root,
+        ("cat-file", "blob", f"{SOURCE_COMMIT}:{relative}"),
+        MAX_SOURCE_BYTES,
+    )
+    if not raw:
+        raise ValueError(f"empty anchor source file: {relative}")
+    return raw
+
+
+def _run_git_read(
+    repo_root: Path,
+    arguments: tuple[str, ...],
+    output_limit: int,
+) -> bytes:
+    module_prefix = "tools." if __package__ else ""
+    environment = importlib.import_module(f"{module_prefix}zrpf_v3_replay_environment")
+    process_runner = importlib.import_module(f"{module_prefix}zrpf_v3_replay_process")
+    process = process_runner.run_bounded(
+        process_runner.ProcessRequest(
+            command=("/usr/bin/git", *arguments),
+            cwd=repo_root,
+            env=environment.clean_environment(),
+            timeout_seconds=30,
+            output_limit_bytes=output_limit,
+            profile=process_runner.ProcessProfile.TOOL,
+        )
+    )
+    if process.returncode != 0 or process.stderr:
+        raise ValueError("anchor Git object read failed")
+    return cast(bytes, process.stdout)
+
+
+def _require_exact_source_inventory(repo_root: Path) -> None:
+    expected = {relative for _, relative in SOURCE_FILES}
+    discovered = set(SOURCE_INVENTORY_EXACT_FILES)
+    zrpf_workspace = repo_root / "zk/zrpf_risc0"
+    for manifest in zrpf_workspace.rglob("Cargo.toml"):
+        _require_inventory_regular(repo_root, manifest)
+        discovered.add(manifest.relative_to(repo_root).as_posix())
+    for relative_root in SOURCE_INVENTORY_PACKAGE_ROOTS:
+        package_root = repo_root / relative_root
+        _require_inventory_directory(package_root, relative_root)
+        for candidate in package_root.rglob("*"):
+            if candidate.is_dir() and not candidate.is_symlink():
+                continue
+            _require_inventory_regular(repo_root, candidate)
+            discovered.add(candidate.relative_to(repo_root).as_posix())
+    if discovered != expected:
+        raise ValueError("replay source inventory mismatch")
+
+
+def _require_inventory_directory(path: Path, label: str) -> None:
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        raise ValueError(f"source inventory root unavailable: {label}") from exc
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError(f"source inventory root is not a real directory: {label}")
+
+
+def _require_inventory_regular(repo_root: Path, path: Path) -> None:
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        raise ValueError("source inventory entry unavailable") from exc
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        raise ValueError("source inventory contains a symlink or special file")
+    try:
+        path.relative_to(repo_root)
+    except ValueError as exc:
+        raise ValueError("source inventory escaped repository root") from exc
+
+
+def retained_receipt_set(receipt_directory: Path = RECEIPT_DIRECTORY) -> dict[str, Any]:
+    if receipt_directory.is_symlink() or not receipt_directory.is_dir():
+        raise ValueError("retained receipt directory is not a real directory")
+    expected_names = {name for name, _, _ in RECEIPTS}
+    actual_names = {path.name for path in receipt_directory.iterdir()}
+    if actual_names != expected_names:
+        raise ValueError("retained receipt inventory mismatch")
+    rows: list[dict[str, Any]] = []
+    hasher = hashlib.sha256()
+    total_bytes = 0
+    for name, expected_size, expected_digest in RECEIPTS:
+        raw = _regular_file_bytes(receipt_directory, name, MAX_RECEIPT_BYTES)
+        digest = sha256_bytes(raw)
+        if len(raw) != expected_size or digest != expected_digest:
+            raise ValueError(f"retained receipt binding mismatch: {name}")
+        strict_json_loads(raw)
+        rows.append({"name": name, "sha256": digest, "size_bytes": len(raw)})
+        hasher.update(f"{name}\0{len(raw)}\0{digest}\n".encode("utf-8"))
+        total_bytes += len(raw)
+    return {
+        "artifact_count": len(rows),
+        "artifacts": rows,
+        "definition": "sha256(sorted name\\0size_bytes\\0sha256\\n)",
+        "sha256": hasher.hexdigest(),
+        "total_bytes": total_bytes,
+    }
+
+
+def exact_execution_identity(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != EXECUTION_IDENTITY_FIELDS:
+        raise ValueError("execution identity field set mismatch")
+    if value.get("binary_transport") != EXPECTED_BINARY_TRANSPORT:
+        raise ValueError("execution identity transport mismatch")
+    for field in ("binary_sha256", "dependency_graph_sha256"):
+        digest = value.get(field)
+        if not isinstance(digest, str) or len(digest) != 64 or any(
+            character not in "0123456789abcdef" for character in digest
+        ):
+            raise ValueError(f"execution identity digest malformed: {field}")
+    for field in ("binary_size_bytes", "dependency_graph_package_count"):
+        count = value.get(field)
+        if type(count) is not int or count <= 0:
+            raise ValueError(f"execution identity count malformed: {field}")
+    return dict(value)
+
+
+def expected_evidence(
+    execution_identity: dict[str, Any],
+    repo_root: Path = REPO_ROOT,
+) -> dict[str, Any]:
+    module_prefix = "tools." if __package__ else ""
+    manifest = importlib.import_module(
+        f"{module_prefix}zrpf_v3_replay_evidence_manifest"
+    )
+    return cast(
+        dict[str, Any],
+        manifest.expected_evidence(repo_root, exact_execution_identity(execution_identity)),
+    )
+
+
+def validate_replay_report(raw: bytes) -> tuple[dict[str, Any] | None, list[str]]:
+    errors: list[str] = []
+    if len(raw) != EXPECTED_STDOUT_SIZE or sha256_bytes(raw) != EXPECTED_STDOUT_SHA256:
+        errors.append("replay stdout binding mismatch")
+    try:
+        report = strict_json_loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        return None, errors + [f"replay stdout JSON rejected: {exc}"]
+    if not isinstance(report, dict):
+        return None, errors + ["replay stdout is not an object"]
+    if report.get("schema") != REPORT_SCHEMA or report.get("ok") is not True:
+        errors.append("replay report schema or acceptance mismatch")
+    if report.get("status") != "retained_exact_four_leaf_two_level_receipts_verified":
+        errors.append("replay report status mismatch")
+    if report.get("authority") != EXPECTED_REPORT_AUTHORITY:
+        errors.append("replay authority boundary mismatch")
+    if report.get("expected_images") != EXPECTED_REPORT_IMAGES:
+        errors.append("replay image boundary mismatch")
+    if report.get("receipt_security_profile") != EXPECTED_REPORT_PROFILE:
+        errors.append("replay receipt profile mismatch")
+    leaf_hashes = _receipt_hashes(report.get("leaf_receipts"))
+    level_one_hashes = _receipt_hashes(report.get("level_one_receipts"))
+    if leaf_hashes != [digest for _, _, digest in RECEIPTS[:4]]:
+        errors.append("leaf receipt report mismatch")
+    if level_one_hashes != [digest for _, _, digest in RECEIPTS[4:6]]:
+        errors.append("level-one receipt report mismatch")
+    root = report.get("root")
+    count_unit = root.get("count_unit") if isinstance(root, dict) else None
+    if (
+        not isinstance(root, dict)
+        or not isinstance(count_unit, dict)
+        or any(
+            (
+                root.get("journal_hash") != ROOT_JOURNAL_HASH,
+                root.get("receipt_sha256") != ROOT_RECEIPT_SHA256,
+                root.get("leaf_count") != 4,
+                root.get("operation_count") != 4,
+                root.get("subtree_node_count") != 7,
+                count_unit.get("label") != "source_transition_receipt_v3",
+            )
+        )
+    ):
+        errors.append("root report mismatch")
+    mutation = report.get("mutation_control")
+    if not isinstance(mutation, dict) or any(
+        (
+            mutation.get("candidate_accepted") is not False,
+            mutation.get("mutated_receipt_sha256") != MUTATION_RECEIPT_SHA256,
+            mutation.get("reject_code") != "receipt_verification_failed",
+            mutation.get("source_receipt_sha256") != ROOT_RECEIPT_SHA256,
+        )
+    ):
+        errors.append("mutation report mismatch")
+    return report, errors
+
+
+def _receipt_hashes(value: Any) -> list[Any] | None:
+    if not isinstance(value, list) or any(not isinstance(row, dict) for row in value):
+        return None
+    return [row.get("receipt_sha256") for row in value]

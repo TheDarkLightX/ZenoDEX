@@ -1,0 +1,115 @@
+{
+  "schema": "zenodex/risc0_tx_execution_order_abi/v1",
+  "domain_ascii": "tau_state_proof_tx_execution_order_v1:",
+  "hash": "sha256",
+  "length_encoding": "u32_be",
+  "index_encoding": "u32_be",
+  "proof_type": "risc0.zenodex_spot_transition.v1",
+  "receipt_schema": "zenodex/zeno_ledger/risc0_tx_execution_order_commitment/v0",
+  "positive_cases": [
+    {
+      "name": "empty_vector",
+      "tx_count": 0,
+      "raw_order": [],
+      "normalized_order": [],
+      "commitment": "2309466a94ea0e9c2275f10c09ad88cd207537b0d88c3bcee898c0db82730ccf",
+      "receipt": {
+        "schema": "zenodex/zeno_ledger/risc0_tx_execution_order_commitment/v0",
+        "proof_type": "risc0.zenodex_spot_transition.v1",
+        "tx_execution_order_commitment": "2309466a94ea0e9c2275f10c09ad88cd207537b0d88c3bcee898c0db82730ccf"
+      }
+    },
+    {
+      "name": "absent_context_two_txs",
+      "tx_count": 2,
+      "raw_order": null,
+      "normalized_order": [0, 1],
+      "commitment": "32ebc5ed26537e09a470f37863df8855d06afabb3db0a5499b13f0d52283787a",
+      "receipt": {
+        "schema": "zenodex/zeno_ledger/risc0_tx_execution_order_commitment/v0",
+        "proof_type": "risc0.zenodex_spot_transition.v1",
+        "tx_execution_order_commitment": "32ebc5ed26537e09a470f37863df8855d06afabb3db0a5499b13f0d52283787a"
+      }
+    },
+    {
+      "name": "explicit_empty_two_txs",
+      "tx_count": 2,
+      "raw_order": [],
+      "normalized_order": [0, 1],
+      "commitment": "32ebc5ed26537e09a470f37863df8855d06afabb3db0a5499b13f0d52283787a",
+      "receipt": {
+        "schema": "zenodex/zeno_ledger/risc0_tx_execution_order_commitment/v0",
+        "proof_type": "risc0.zenodex_spot_transition.v1",
+        "tx_execution_order_commitment": "32ebc5ed26537e09a470f37863df8855d06afabb3db0a5499b13f0d52283787a"
+      }
+    },
+    {
+      "name": "route_before_writer_two_txs",
+      "tx_count": 2,
+      "raw_order": [1, 0],
+      "normalized_order": [1, 0],
+      "commitment": "119fdae071d9a00562a44ef55cd0233774eb8bc3527036d64e8d97db23984280",
+      "receipt": {
+        "schema": "zenodex/zeno_ledger/risc0_tx_execution_order_commitment/v0",
+        "proof_type": "risc0.zenodex_spot_transition.v1",
+        "tx_execution_order_commitment": "119fdae071d9a00562a44ef55cd0233774eb8bc3527036d64e8d97db23984280"
+      }
+    },
+    {
+      "name": "three_tx_rotation",
+      "tx_count": 3,
+      "raw_order": [2, 0, 1],
+      "normalized_order": [2, 0, 1],
+      "commitment": "d22a7d96c7b2e466e5e693fc8aa16ffe06237fc75357f8958b9057e80daea902",
+      "receipt": {
+        "schema": "zenodex/zeno_ledger/risc0_tx_execution_order_commitment/v0",
+        "proof_type": "risc0.zenodex_spot_transition.v1",
+        "tx_execution_order_commitment": "d22a7d96c7b2e466e5e693fc8aa16ffe06237fc75357f8958b9057e80daea902"
+      }
+    }
+  ],
+  "negative_cases": [
+    {
+      "name": "length_mismatch",
+      "tx_count": 2,
+      "raw_order": [0],
+      "error_type": "ValueError",
+      "error": "tx_execution_order length mismatch"
+    },
+    {
+      "name": "duplicate_index",
+      "tx_count": 2,
+      "raw_order": [0, 0],
+      "error_type": "ValueError",
+      "error": "tx_execution_order duplicate index"
+    },
+    {
+      "name": "index_out_of_range",
+      "tx_count": 2,
+      "raw_order": [0, 2],
+      "error_type": "ValueError",
+      "error": "tx_execution_order index out of range"
+    },
+    {
+      "name": "negative_index",
+      "tx_count": 2,
+      "raw_order": [-1, 0],
+      "error_type": "ValueError",
+      "error": "tx_execution_order entries must be u32"
+    },
+    {
+      "name": "bool_index",
+      "tx_count": 2,
+      "raw_order": [true, 0],
+      "error_type": "TypeError",
+      "error": "tx_execution_order entries must be u32"
+    },
+    {
+      "name": "string_index",
+      "tx_count": 2,
+      "raw_order": ["1", 0],
+      "error_type": "TypeError",
+      "error": "tx_execution_order entries must be u32"
+    }
+  ]
+}

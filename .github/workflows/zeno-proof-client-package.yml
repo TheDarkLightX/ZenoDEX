@@ -11,6 +11,7 @@ on:
       - "packages/zeno-proof-client/**"
       - "tools/dex-ui/src/sdk/**"
       - "tools/sync_zeno_proof_client_package.sh"
+      - "tests/fixtures/zeno_bls_public_key_dedupe_v0.json"
       - "tests/integration/test_zeno_proof_client_package.py"
       - ".github/workflows/zeno-proof-client-package.yml"
   push:
@@ -21,6 +22,7 @@ on:
       - "packages/zeno-proof-client/**"
       - "tools/dex-ui/src/sdk/**"
       - "tools/sync_zeno_proof_client_package.sh"
+      - "tests/fixtures/zeno_bls_public_key_dedupe_v0.json"
       - "tests/integration/test_zeno_proof_client_package.py"
       - ".github/workflows/zeno-proof-client-package.yml"
   workflow_dispatch:

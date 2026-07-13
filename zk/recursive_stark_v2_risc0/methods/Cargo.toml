@@ -1,0 +1,17 @@
+[package]
+name = "tau-state-proof-risc0-recursive-v2-methods"
+version = "0.1.0"
+edition = "2021"
+description = "RISC0 aggregate-v2 guest method and image ID"
+publish = false
+
+[build-dependencies]
+risc0-build = "=3.0.5"
+
+[dependencies]
+
+[lib]
+doctest = false
+
+[package.metadata.risc0]
+methods = ["aggregate_v2"]

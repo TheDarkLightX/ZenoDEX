@@ -1,0 +1,12 @@
+[workspace]
+resolver = "2"
+members = [
+  "shared",
+  "methods",
+  "methods/aggregate_v2",
+  "harness",
+]
+
+[profile.release]
+lto = true
+opt-level = 3

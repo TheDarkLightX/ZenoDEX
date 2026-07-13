@@ -1,0 +1,27 @@
+[workspace]
+members = [
+  "shared",
+  "aggregate_shared",
+  "semantic_shared",
+  "value_node_shared",
+  "value_aggregate_shared",
+  "value_aggregate_l2_policy",
+  "value_aggregate_root_policy",
+  "verifier",
+  "replay_verifier",
+  "methods",
+  "methods/v1_leaf_adapter",
+  "methods/structural_aggregate_l1",
+  "methods/structural_aggregate_l2",
+  "methods/semantic_epoch",
+  "methods/spot_value_leaf_v4",
+  "methods/value_aggregate_l1",
+  "methods/value_aggregate_l2",
+  "methods/ordinary_spot_settlement",
+  "harness",
+]
+resolver = "2"
+
+[profile.release]
+lto = true
+opt-level = 3

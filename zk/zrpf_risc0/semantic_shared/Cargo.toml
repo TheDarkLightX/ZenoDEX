@@ -1,0 +1,100 @@
+[package]
+name = "zenodex-zrpf-risc0-semantic-shared"
+version = "0.1.0"
+edition = "2021"
+description = "Guest-safe semantic and represented-value reference kernels for ZRPF V3"
+publish = false
+build = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+path = "src/lib.rs"
+
+[[test]]
+name = "recompose_v1"
+path = "tests/recompose_v1.rs"
+required-features = ["historical-v1"]
+
+[[test]]
+name = "codec_v1"
+path = "tests/codec_v1.rs"
+required-features = ["historical-v1"]
+
+[[test]]
+name = "bind_v1"
+path = "tests/bind_v1.rs"
+required-features = ["historical-v1"]
+
+[[test]]
+name = "epoch_v1"
+path = "tests/epoch_v1.rs"
+required-features = ["historical-v1"]
+
+[[test]]
+name = "semantic_v2"
+path = "tests/semantic_v2.rs"
+
+[features]
+default = ["historical-v1"]
+historical-v1 = []
+
+[[test]]
+name = "value_v1"
+path = "tests/value_v1.rs"
+
+[[test]]
+name = "spot_settlement_v1"
+path = "tests/spot_settlement_v1.rs"
+
+[[test]]
+name = "spot_settlement_state_v2"
+path = "tests/spot_settlement_state_v2.rs"
+
+[[test]]
+name = "spot_certificate_v1"
+path = "tests/spot_certificate_v1.rs"
+
+[[test]]
+name = "spot_certificate_mutation_v1"
+path = "tests/spot_certificate_mutation_v1.rs"
+
+[[test]]
+name = "spot_replay_data_v1"
+path = "tests/spot_replay_data_v1.rs"
+
+[[test]]
+name = "spot_full_blob_da_v1"
+path = "tests/spot_full_blob_da_v1.rs"
+
+[[test]]
+name = "spot_replay_data_v2"
+path = "tests/spot_replay_data_v2.rs"
+
+[[test]]
+name = "spot_guest_input_v2"
+path = "tests/spot_guest_input_v2.rs"
+
+[[test]]
+name = "spot_certificate_state_v2"
+path = "tests/spot_certificate_state_v2.rs"
+
+[[test]]
+name = "spot_guest_receipt_boundary_v2"
+path = "tests/spot_guest_receipt_boundary_v2.rs"
+
+[[test]]
+name = "spot_guest_source_contract_v2"
+path = "tests/spot_guest_source_contract_v2.rs"
+
+[dependencies]
+sha2 = { version = "0.10.9", default-features = false }
+tau-state-proof-risc0-shared = { path = "../../state_proof_risc0/shared", default-features = false }
+zenodex-zrpf-protocol-v3 = { path = "../../zrpf_protocol/protocol", default-features = false }
+zenodex-zrpf-risc0-aggregate-shared = { path = "../aggregate_shared", default-features = false }
+zenodex-zrpf-risc0-shared = { path = "../shared", default-features = false }
+
+[dev-dependencies]
+postcard = { version = "1.1.3", features = ["alloc"] }

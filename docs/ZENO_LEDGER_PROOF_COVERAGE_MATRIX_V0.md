@@ -25,15 +25,19 @@ Current supported surfaces cover:
   spot liquidity-cycle block, with guest nonce sequencing, accepted-receipt
   roots, and emitted ZenoLedger body/header/proof-metadata bindings checked by
   the archive checker for `real_proof_smoke_report.json`;
+- strict replay-bound range verification from one canonical anchor snapshot,
+  with governed configuration binding, linked carried state, one deterministic
+  execution per body, and exact post-state-root and rejection-receipt checks;
 - proof-required range replay;
 - proof-verification report replay;
-- local light-client checkpoint quorum replay that binds verified
-  header/body/checkpoint replay to a signer-registry signature-set root and BLS
-  checkpoint quorum.
+- local light-client checkpoint quorum binding over a structural
+  header/body/checkpoint diagnostic, signer-registry signature-set root, and BLS
+  checkpoint quorum. This surface does not claim deterministic state replay.
 
 Current explicit gaps cover UPBA v2/v3 proof execution, Oracle critical-action
 proof execution, zUSD proof execution, perps proof execution, proof-market
-reward proof execution, production light-client finality, and real recursive
+reward proof execution, light-client state-transition replay, production
+light-client finality, and real recursive
 epoch proof aggregation. The light-client gap is now specifically production
 validator rotation, fork-choice, slashing, peer discovery, and adversarial
 network finality.

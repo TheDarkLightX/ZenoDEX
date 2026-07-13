@@ -14,7 +14,6 @@ from src.integration.zeno_ledger_signature import (
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
 from src.integration.zeno_ledger_v0 import build_checkpoint_v0, build_header_v0, hash_v0
 
-
 ZERO_ROOT = "0x" + "00" * 32
 TEST_BLS_PRIVATE_KEY_A = "0x" + "01" * 32
 TEST_BLS_PRIVATE_KEY_B = "0x" + "02" * 32
@@ -120,6 +119,48 @@ def test_live_checkpoint_quorum_admission_accepts_threshold() -> None:
         registry=registry,
         envelopes=envelopes,
     )
+
+
+def test_threshold_two_registry_rejects_two_identities_from_one_private_key() -> None:
+    payload_hash = _root("single-private-key-witness")
+    first_envelope = build_bls_signed_artifact_envelope_v0(
+        payload_kind="checkpoint",
+        payload_hash=payload_hash,
+        signer_id="validator-a",
+        key_id="bls-a",
+        private_key_hex=TEST_BLS_PRIVATE_KEY_A,
+    )
+    alias_envelope = build_bls_signed_artifact_envelope_v0(
+        payload_kind="checkpoint",
+        payload_hash=payload_hash,
+        signer_id="validator-a-alias",
+        key_id="bls-a-alias",
+        private_key_hex=TEST_BLS_PRIVATE_KEY_A,
+    )
+    assert first_envelope["public_key"] == alias_envelope["public_key"]
+
+    with pytest.raises(ValueError, match="duplicate signer public_key"):
+        build_signer_registry_v0(
+            registry_id="single-key-alias-witness-v0",
+            payload_kind="checkpoint",
+            threshold=2,
+            signers=[
+                {
+                    "signer_id": "validator-a",
+                    "key_id": "bls-a",
+                    "public_key": first_envelope["public_key"],
+                    "weight": 1,
+                    "status": "active",
+                },
+                {
+                    "signer_id": "validator-a-alias",
+                    "key_id": "bls-a-alias",
+                    "public_key": alias_envelope["public_key"],
+                    "weight": 1,
+                    "status": "active",
+                },
+            ],
+        )
 
 
 def test_live_checkpoint_quorum_admission_rejects_insufficient_weight() -> None:

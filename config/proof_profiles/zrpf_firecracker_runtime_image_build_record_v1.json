@@ -1,0 +1,165 @@
+{
+  "authority": {
+    "artifact_privacy_scan_passed": false,
+    "complete_build_input_closure_verified": false,
+    "cross_host_reproducible_build": false,
+    "guest_source_to_binary_verified": false,
+    "production_authority": false,
+    "release_authority": false
+  },
+  "build_recipe": {
+    "path": "tools/build_zrpf_v3_firecracker_guest_images.sh",
+    "sha256": "4240d4a835fe1db188d1475644a39fc0c12c042ae514066d1424016d747afd2f"
+  },
+  "guest_binary": {
+    "artifact_privacy": {
+      "complete_guest_binary_path_privacy_verified": false,
+      "confidential_name_policy_evaluated": false,
+      "public_privacy_rule_scan_applied_to_guest_binary": false
+    },
+    "direct_non_pid1_exit_code": 125,
+    "dt_needed_present": false,
+    "guest_source_commit": "54f374bf9f61d3f1846f3d492941f3499a27de93",
+    "image_format": "static_pie_glibc_no_pt_interp_no_dt_needed",
+    "pt_interp_present": false,
+    "sha256": "6f0efc78966813444cc157f2e9c856e71da91c19538318cdb2e8be520214a150",
+    "size_bytes": 3768056
+  },
+  "image_builder": {
+    "guest_elf_checker_schema": "zenodex/zrpf_firecracker_guest_elf_native_check/v2",
+    "guest_elf_checker_sha256": "015ad4f9406a1683ee23fe4a1ad991c8f30f418366fee1881722512a1711092d",
+    "guest_elf_checker_source_commit": "25032924eb4fca7f156a9ec4eedd39afeade9623",
+    "guest_elf_reference_schema": "zenodex/zrpf_firecracker_guest_elf_check/v2",
+    "guest_elf_reference_sha256": "7abd685b3cb5d88a9678c1cdd303ec95d8844607b8c39b1ba12e06a4c350cfeb",
+    "mksquashfs_binary_sha256": "47d5c1af3da11864e64c9dc6bb4e568719dcc315e6a744e79381ce3374fb7393",
+    "mksquashfs_version": "4.6.1",
+    "squashfs_block_size_bytes": 131072,
+    "squashfs_compression": "zstd",
+    "squashfs_epoch": 1780396050
+  },
+  "input_image": {
+    "byte_identical_two_builds": true,
+    "filesystem_inventory": {
+      "domain": "zenodex/zrpf_squashfs_inventory/v1",
+      "entries": [
+        {
+          "kind": "directory",
+          "mode": "0755",
+          "path": "/"
+        },
+        {
+          "kind": "directory",
+          "mode": "0555",
+          "path": "/receipts"
+        },
+        {
+          "kind": "file",
+          "mode": "0444",
+          "path": "/receipts/adapter-leaf-0.receipt.json",
+          "sha256": "219e389be6ff9d035f86b6d73de8c4f95fae230956382d2fd63823167047b63a",
+          "size_bytes": 593416
+        },
+        {
+          "kind": "file",
+          "mode": "0444",
+          "path": "/receipts/adapter-leaf-1.receipt.json",
+          "sha256": "af45ec023d8939648c741389d9e766d5d1dd2945811652bae42e998d84bb3a82",
+          "size_bytes": 593399
+        },
+        {
+          "kind": "file",
+          "mode": "0444",
+          "path": "/receipts/adapter-leaf-2.receipt.json",
+          "sha256": "4e09c872617143e9ac360ea8059b6f2a20ab6e5ce05eb7cf51eead70f974965a",
+          "size_bytes": 593136
+        },
+        {
+          "kind": "file",
+          "mode": "0444",
+          "path": "/receipts/adapter-leaf-3.receipt.json",
+          "sha256": "7030c4a4818b31623fb137ebdac0eb8bb2af8cbeb9fdc1e8d3dcb75fc26ef8f4",
+          "size_bytes": 593032
+        },
+        {
+          "kind": "file",
+          "mode": "0444",
+          "path": "/receipts/structural-l1-left.receipt.json",
+          "sha256": "47b850237585faeee953b04dae72d21c5d87adfb710d4e914314d4a72e6c1cd5",
+          "size_bytes": 593161
+        },
+        {
+          "kind": "file",
+          "mode": "0444",
+          "path": "/receipts/structural-l1-right.receipt.json",
+          "sha256": "a6b8ceaa559bfe85fa9263fefcec9438e78ec721632fbd7a1cf651867d30348d",
+          "size_bytes": 593280
+        },
+        {
+          "kind": "file",
+          "mode": "0444",
+          "path": "/receipts/structural-l2-root.receipt.json",
+          "sha256": "edd25fca20b0205c2f778b866605b343922615623256abcc1a098957664c2d16",
+          "size_bytes": 593320
+        },
+        {
+          "kind": "file",
+          "mode": "0444",
+          "path": "/receipts/structural-l2-root.seal-word-1-xor-lsb.receipt.json",
+          "sha256": "27c71152044124762efd5398fa6206a9627a5eae2ed9db851b1bb33783c6e985",
+          "size_bytes": 593320
+        }
+      ]
+    },
+    "filesystem_inventory_root": "fde6d2cfa764450632fc8b838f5ab4b318fa96239a22c11a5dd9855e4579ca68",
+    "receipt_set_root": "d5ecd5494318e21fa3da227409fdb5285c85ff8ae10815df5bcf0eb22fa1027f",
+    "sha256": "504c3a4c38e5109567d9d21f07bbc054324f3955fb4d5b07216f3c90e89e3af8",
+    "size_bytes": 2068480
+  },
+  "non_claims": [
+    "no complete Rust compiler or standard-library source closure",
+    "no independent cross-host build",
+    "no clean artifact-privacy claim because generic toolchain builder paths remain",
+    "no source-to-binary release attestation",
+    "no release, settlement, or production authority"
+  ],
+  "rootfs": {
+    "byte_identical_two_builds": true,
+    "filesystem_inventory": {
+      "domain": "zenodex/zrpf_squashfs_inventory/v1",
+      "entries": [
+        {
+          "kind": "directory",
+          "mode": "0755",
+          "path": "/"
+        },
+        {
+          "kind": "directory",
+          "mode": "0755",
+          "path": "/dev"
+        },
+        {
+          "kind": "directory",
+          "mode": "0755",
+          "path": "/input"
+        },
+        {
+          "kind": "directory",
+          "mode": "0755",
+          "path": "/sbin"
+        },
+        {
+          "kind": "file",
+          "mode": "0555",
+          "path": "/sbin/zrpf-replay-init",
+          "sha256": "6f0efc78966813444cc157f2e9c856e71da91c19538318cdb2e8be520214a150",
+          "size_bytes": 3768056
+        }
+      ]
+    },
+    "filesystem_inventory_root": "d9a790169f5607b612dcc4c654e4a712146105a52fa63a94afcf343bb9a6d37e",
+    "sha256": "981d76279eeba3cfb9c23e7a142a78393743422afb0659e0b65d247bcc971931",
+    "size_bytes": 1114112
+  },
+  "schema": "zenodex/zrpf_firecracker_runtime_image_build_record/v1",
+  "status": "same_host_byte_identical_candidate_images_non_authoritative"
+}
