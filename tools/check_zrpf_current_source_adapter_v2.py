@@ -6,8 +6,14 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any, NoReturn
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from tools import plan_zrpf_source_opened_spot_v6_identity_rebuild as planner  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ANCHOR = REPO_ROOT / "config/proof_profiles/zrpf_current_source_anchor_v2.json"
@@ -18,6 +24,7 @@ RUST_POLICY = REPO_ROOT / "zk/zrpf_risc0/shared/src/source_policy_v2.rs"
 V2_GUEST = REPO_ROOT / "zk/zrpf_risc0/methods/v2_leaf_adapter/src/main.rs"
 METHODS_MANIFEST = REPO_ROOT / "zk/zrpf_risc0/methods/Cargo.toml"
 MAX_DOCUMENT_BYTES = 64 * 1024
+PENDING_BOOTSTRAP_PLAN_SCHEMA = "zenodex/zrpf_spot_v6_identity_rebuild_plan/v1"
 
 PROTECTED_V1_SHA256 = {
     "config/proof_profiles/zrpf_v1_leaf_adapter_source_policy_v1.json": (
@@ -207,7 +214,8 @@ def _check_anchor(anchor: dict[str, Any]) -> bool:
         },
         "anchor observation",
     )
-    if observation["plan_schema"] != "zenodex/zrpf_spot_v6_identity_rebuild_plan/v1":
+    expected_plan_schema = PENDING_BOOTSTRAP_PLAN_SCHEMA if pending else planner.PLAN_SCHEMA
+    if observation["plan_schema"] != expected_plan_schema:
         raise ContractError("anchor plan schema mismatch")
     if observation["stage_id"] != "source_spot":
         raise ContractError("anchor source stage mismatch")

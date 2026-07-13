@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from tools import check_zrpf_current_source_adapter_v2 as checker
+from tools import plan_zrpf_source_opened_spot_v6_identity_rebuild as planner
 
 
 def _load(path: Path) -> dict:
@@ -33,6 +34,75 @@ def test_committed_v2_contract_is_pending_and_fail_closed() -> None:
             "production_authority": False,
         },
     }
+
+
+def test_current_planner_observed_candidates_use_only_current_plan_schema() -> None:
+    image_raw = bytes(range(32))
+    source_program = {
+        "image_id": image_raw.hex(),
+        "image_id_words": [
+            int.from_bytes(image_raw[index : index + 4], "little") for index in range(0, 32, 4)
+        ],
+        "program_binary_sha256": "a" * 64,
+    }
+    adapter_program = {
+        "image_id": (b"\x80" + bytes(range(1, 32))).hex(),
+        "image_id_words": [
+            int.from_bytes(
+                (b"\x80" + bytes(range(1, 32)))[index : index + 4],
+                "little",
+            )
+            for index in range(0, 32, 4)
+        ],
+        "program_binary_sha256": "b" * 64,
+    }
+    plan = {
+        "source_commit": "c" * 40,
+        "source_guest_source_coverage": {
+            "inventory_root_sha256": "d" * 64,
+            "tracked_file_count": 1,
+            "tracked_bytes": 1,
+        },
+    }
+    source_stage = {
+        "program": source_program,
+        "source_snapshot_root_sha256": "e" * 64,
+    }
+    adapter_stage = {"program": adapter_program}
+    anchor = planner.build_current_source_anchor_candidate(plan, source_stage)
+    policy = planner.build_v2_adapter_source_policy_candidate(
+        plan,
+        source_stage,
+        adapter_stage,
+        anchor,
+    )
+
+    assert checker._check_anchor(anchor) is False
+    checked_source = checker._program(
+        anchor["spot_program"],
+        allow_pending=False,
+        label="source",
+    )
+    checker._check_policy(
+        policy,
+        anchor,
+        checker._canonical_bytes(anchor),
+        checked_source,
+        False,
+    )
+
+    legacy = copy.deepcopy(anchor)
+    legacy["observation_binding"]["plan_schema"] = "zenodex/zrpf_spot_v6_identity_rebuild_plan/v1"
+    with pytest.raises(checker.ContractError, match="anchor plan schema mismatch"):
+        checker._check_anchor(legacy)
+
+
+def test_pending_anchor_rejects_current_observed_plan_schema() -> None:
+    anchor = _load(checker.DEFAULT_ANCHOR)
+    anchor["observation_binding"]["plan_schema"] = planner.PLAN_SCHEMA
+
+    with pytest.raises(checker.ContractError, match="anchor plan schema mismatch"):
+        checker._check_anchor(anchor)
 
 
 def test_pending_anchor_rejects_invented_or_partial_identity(tmp_path: Path) -> None:

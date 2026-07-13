@@ -171,6 +171,13 @@ config/proof_profiles/zrpf_current_source_anchor_v2.json
 config/proof_profiles/zrpf_v2_leaf_adapter_source_policy_v2.json
 ```
 
+The checked-in pending anchor retains the bootstrap V1 plan-schema marker only
+while every observed identity remains absent. A materialized
+`observed_unpromoted_candidate` must bind the planner's current V2 schema. The
+current-source adapter checker rejects a V1-labeled observed candidate and a
+V2-labeled pending sentinel, preventing the bootstrap compatibility marker from
+being reused as observed evidence.
+
 The checker rejects any static topology that places a protected historical
 artifact in the repin set.
 
