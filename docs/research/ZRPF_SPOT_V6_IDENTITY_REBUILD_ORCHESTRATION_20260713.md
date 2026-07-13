@@ -70,7 +70,7 @@ Each stage may update only the next edge:
 | Built stage | Compiler-visible successor pin |
 | --- | --- |
 | source Spot | source image ID, R0BF SHA-256, and source-tree root in the adapter source policy |
-| V1 adapter | adapter image ID in V6 leaf policy |
+| V2 adapter | adapter image ID in V6 leaf policy |
 | V6 leaf | leaf image ID in L1 policy |
 | V6 L1 | L1 image ID in L2 policy |
 | V6 L2 | L2 image ID in settlement guest policy |
@@ -127,8 +127,8 @@ config/proof_profiles/zrpf_v1_leaf_adapter_source_policy_v1.json
 The current source requires new versioned successors:
 
 ```text
-config/proof_profiles/zrpf_v1_current_source_anchor_v2.json
-config/proof_profiles/zrpf_v1_leaf_adapter_source_policy_v2.json
+config/proof_profiles/zrpf_current_source_anchor_v2.json
+config/proof_profiles/zrpf_v2_leaf_adapter_source_policy_v2.json
 ```
 
 The checker rejects any static topology that places a protected historical
