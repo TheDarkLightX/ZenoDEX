@@ -1,4 +1,4 @@
-"""Scoped authenticated RISC0 verification for ZenoLedger ProofMetadataV0.
+"""Scoped non-authoritative RISC0 observation for ZenoLedger ProofMetadataV0.
 
 This module closes the caller-boolean boundary for one direct verifier
 execution. It deliberately cannot promote ``ProofMetadataV0`` to production
@@ -7,14 +7,16 @@ config digest, authority manifest, registry snapshot, or receipt profile.
 
 Authority flow:
 
-    canonical artifact + metadata + header + governed manifest/registry
+    canonical artifact + metadata + header + caller-selected manifest/registry
       -> one pinned verifier execution
       -> independently recomposed exact facts
       -> private sealed capability
       -> header/checkpoint-bound non-authoritative observation
 
-The observation is suitable for diagnostics and integration plumbing. No
-admission API may accept it as a substitute for the private capability.
+The observation is suitable for diagnostics and integration plumbing. The
+authority manifest digest and registry ID are not committed by the current
+ledger profile or replay configuration. No admission API may accept this path
+as proof authority.
 """
 
 from __future__ import annotations
@@ -149,7 +151,7 @@ class ProofVerificationObservationV1:
     def __post_init__(self) -> None:
         if self.schema != OBSERVATION_SCHEMA_V1:
             raise ValueError("proof verification observation schema mismatch")
-        if self.status != "authenticated_metadata_v0_risc0_verification":
+        if self.status != "non_authoritative_metadata_v0_risc0_observation":
             raise ValueError("proof verification observation status mismatch")
         if self.production_promotable is not False:
             raise ValueError("ProofMetadataV0 observation cannot be production-promotable")
@@ -285,7 +287,7 @@ def _consume_authenticated_proof_verification_v1(
     provenance = object.__getattribute__(authenticated, "_provenance")
     return ProofVerificationObservationV1(
         schema=OBSERVATION_SCHEMA_V1,
-        status="authenticated_metadata_v0_risc0_verification",
+        status="non_authoritative_metadata_v0_risc0_observation",
         production_promotable=False,
         missing_production_bindings=_MISSING_PRODUCTION_BINDINGS,
         proof_metadata_schema=PROOF_METADATA_SCHEMA_V0,
@@ -342,7 +344,7 @@ def _validate_required_profile_binding_v1(
     return profile_obj, header_obj, checkpoint_obj
 
 
-def _consume_required_profile_proof_verification_v1(
+def _consume_profile_bound_proof_observation_v1(
     authenticated: _AuthenticatedProofVerificationV1,
     *,
     profile: Mapping[str, Any],
@@ -350,7 +352,7 @@ def _consume_required_profile_proof_verification_v1(
     checkpoint: Mapping[str, Any],
     replay_config_digest: str,
 ) -> ProofVerificationObservationV1:
-    """Consume the private capability under one exact non-production profile binding."""
+    """Project a sealed verifier result into a non-authoritative observation."""
 
     if type(authenticated) is not _AuthenticatedProofVerificationV1:
         raise TypeError("authenticated must be exactly _AuthenticatedProofVerificationV1")
@@ -383,7 +385,7 @@ def _consume_required_profile_proof_verification_v1(
 @final
 @dataclass(frozen=True)
 class PinnedZenoLedgerRisc0VerifierV1:
-    """One verifier executable governed by exact canonical manifest bytes."""
+    """One diagnostic verifier pinned by exact caller-selected manifest bytes."""
 
     executable: Path
     authority_manifest_json: bytes
@@ -421,7 +423,7 @@ class PinnedZenoLedgerRisc0VerifierV1:
         object.__setattr__(self, "executable_format", authority.executable_format)
         object.__setattr__(self, "_authority", authority)
 
-    def verify_and_bind_header(
+    def observe_and_bind_header(
         self,
         *,
         proof_artifact_json: bytes,
@@ -430,7 +432,7 @@ class PinnedZenoLedgerRisc0VerifierV1:
         checkpoint: Mapping[str, Any] | None,
         verifier_registry: Mapping[str, Any],
     ) -> ProofVerificationObservationV1:
-        """Verify exactly once and consume the sealed header-bound capability."""
+        """Execute once and return a header-bound non-authoritative observation."""
 
         authenticated = self._verify_authenticated(
             proof_artifact_json=proof_artifact_json,
@@ -441,7 +443,7 @@ class PinnedZenoLedgerRisc0VerifierV1:
         )
         return _consume_authenticated_proof_verification_v1(authenticated)
 
-    def verify_and_bind_required_profile(
+    def observe_and_bind_required_profile(
         self,
         *,
         proof_artifact_json: bytes,
@@ -452,10 +454,11 @@ class PinnedZenoLedgerRisc0VerifierV1:
         profile: Mapping[str, Any],
         replay_config_digest: str,
     ) -> ProofVerificationObservationV1:
-        """Verify once and consume the capability under an exact profile binding.
+        """Return an exact profile-bound non-authoritative observation.
 
-        The returned observation remains non-promotable. This method closes only
-        the caller-boolean boundary for the replay-bound range verifier.
+        The manifest and registry remain caller-selected because the current
+        profile does not commit either identity. Callers must not interpret this
+        result as proof authority.
         """
 
         profile_obj, header_obj, checkpoint_obj = _validate_required_profile_binding_v1(
@@ -471,7 +474,7 @@ class PinnedZenoLedgerRisc0VerifierV1:
             checkpoint=checkpoint_obj,
             verifier_registry=verifier_registry,
         )
-        return _consume_required_profile_proof_verification_v1(
+        return _consume_profile_bound_proof_observation_v1(
             authenticated,
             profile=profile_obj,
             header=header_obj,
@@ -494,7 +497,7 @@ class PinnedZenoLedgerRisc0VerifierV1:
             checkpoint=checkpoint,
         )
         authority = self._authority
-        registry_entry = _select_governed_registry_entry(
+        registry_entry = _select_registry_entry_for_observation(
             registry=verifier_registry,
             authority=authority,
             metadata=metadata,
@@ -605,7 +608,7 @@ def zeno_ledger_risc0_authority_manifest_bytes_v1(
     verifier_parameters_digest: str,
     control_id: str,
 ) -> bytes:
-    """Build canonical data for an externally governed verifier authority."""
+    """Build canonical data describing a candidate diagnostic verifier."""
 
     _require_bare_sha256(executable_sha256, name="executable_sha256")
     if not isinstance(executable_format, VerifierExecutableFormatV1):
@@ -749,7 +752,7 @@ def _validate_header_inputs(
     return metadata, header_obj, checkpoint_hash
 
 
-def _select_governed_registry_entry(
+def _select_registry_entry_for_observation(
     *,
     registry: Mapping[str, Any],
     authority: _AuthorityPolicyV1,

@@ -68,7 +68,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert 'checkout --detach "${source_head}"' in replay_command
     assert "--live" in replay_command
     assert 'live_report="internal/zrpf-ci-live-replay.pending.json"' in replay_command
-    assert "' | tee \"${live_report}\"" in replay_command
+    assert '\' | tee "${live_report}"' in replay_command
     assert 'mv "${live_report}" internal/zrpf-ci-live-replay.json' in replay_command
     assert "json.loads(report_path.read_text" in replay_command
     assert 'value.get("ok") is not True' in replay_command
@@ -135,6 +135,8 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "src/integration/recursive_stark_admission_store_types.py",
         "src/integration/recursive_stark_replay_manifest.py",
         "src/integration/recursive_stark_verifier_adapter.py",
+        "src/integration/zeno_ledger_authenticated_proof_verification_v1.py",
+        "tools/zeno_ledger_verify.py",
     ):
         assert required_path in ruff_assurance
         assert required_path in mypy_assurance
@@ -144,6 +146,8 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tests/integration/test_recursive_stark_durable_admission_store.py",
         "tests/integration/test_recursive_stark_replay_manifest.py",
         "tests/integration/test_recursive_stark_verifier_adapter.py",
+        "tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py",
+        "tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py",
     ):
         assert required_path in ruff_assurance
         assert required_path in mypy_assurance
@@ -247,7 +251,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "v1-root.seal-word-1-xor-lsb.proof.json" in active_replay
     assert 'metadata["proof"]["meta"]["public_policy_hash"]' in active_replay
     assert 'expectations["recursive_expectations"]["public_policy_hash"]' in active_replay
-    assert 'child_bytes[0] ^= 1' in active_replay
+    assert "child_bytes[0] ^= 1" in active_replay
     assert "v1-disclosure.verify.request.json" in active_replay
     assert 'unknown["recursive_input"]["unrecognized_but_canonical"]' in active_replay
     assert "v1-unknown.verify.request.json" in active_replay
@@ -257,10 +261,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "v2-pair.verify.json" in active_replay
     assert "unset RISC0_SKIP_BUILD" in current_guest_build
     assert "RISC0_SKIP_BUILD=1" not in current_guest_build
-    assert (
-        'CARGO_TARGET_DIR="${RUNNER_TEMP}/zrpf-current-guest-build"'
-        in current_guest_build
-    )
+    assert 'CARGO_TARGET_DIR="${RUNNER_TEMP}/zrpf-current-guest-build"' in current_guest_build
     assert "--frozen --offline --release" in current_guest_build
     assert "-p zenodex-zrpf-risc0-methods" in current_guest_build
     assert "ZENODEX_RUN_NATIVE_ZRPF_REPLAY" not in raw

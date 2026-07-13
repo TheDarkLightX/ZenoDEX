@@ -20,6 +20,7 @@ from src.integration.dex_engine import DexEngineConfig  # noqa: E402
 from src.integration.zeno_ledger_authenticated_proof_verification_v1 import (  # noqa: E402
     MAX_PROOF_ARTIFACT_BYTES,
     PinnedZenoLedgerRisc0VerifierV1,
+    VerifierExecutableFormatV1,
 )
 from src.integration.zeno_ledger_profile import (  # noqa: E402
     validate_checkpoint_admission_v0,
@@ -136,7 +137,7 @@ def verify_zeno_ledger_v0(
     checked_heights: list[int] = []
     proof_metadata_checked_heights: list[int] = []
     proof_verification_checked_heights: list[int] = []
-    scoped_authenticated_proof_checked_heights: list[int] = []
+    governed_proof_authority_checked_heights: list[int] = []
     last_header_hash: str | None = None
     last_post_state_root: str | None = None
     last_app_hash: str | None = None
@@ -169,10 +170,10 @@ def verify_zeno_ledger_v0(
                 replay_config_digest = replay_engine_config_digest_v0(config_document)
             except Exception as exc:
                 errors.append(f"engine_config_invalid:{exc}")
-    elif any(
-        value is not None
-        for value in (pre_snapshots_dir, engine_config_path)
-    ) or require_rejection_receipt_replay:
+    elif (
+        any(value is not None for value in (pre_snapshots_dir, engine_config_path))
+        or require_rejection_receipt_replay
+    ):
         errors.append("structural_diagnostic_rejects_replay_inputs")
 
     if from_height < 0:
@@ -197,7 +198,7 @@ def verify_zeno_ledger_v0(
         verifier_registry is not None,
     )
     if any(proof_authority_inputs) and not all(proof_authority_inputs):
-        errors.append("authenticated_proof_verification_inputs_incomplete")
+        errors.append("proof_observation_inputs_incomplete")
     if proof_artifacts_dir is not None and not proof_artifacts_dir.is_dir():
         errors.append("proof_artifacts_dir_missing")
     typed_proof_authority_verifier: PinnedZenoLedgerRisc0VerifierV1 | None = None
@@ -220,18 +221,18 @@ def verify_zeno_ledger_v0(
                 if proof_authority_required and proof_metadata_dir is None:
                     errors.append("profile_requires_proof_metadata_dir")
                 if proof_authority_required and replay_bound and not all(proof_authority_inputs):
-                    errors.append("profile_requires_authenticated_proof_verification")
+                    errors.append("profile_requires_governed_proof_authority_binding")
             except Exception as exc:
                 errors.append(f"profile_invalid:{exc}")
     if any(proof_authority_inputs) and (not replay_bound or not proof_authority_required):
-        errors.append("authenticated_proof_verification_requires_replay_bound_profile")
+        errors.append("proof_observation_inputs_require_replay_bound_profile")
     if errors:
         return _report(
             errors=errors,
             checked_heights=checked_heights,
             proof_metadata_checked_heights=proof_metadata_checked_heights,
             proof_verification_checked_heights=proof_verification_checked_heights,
-            scoped_authenticated_proof_checked_heights=(scoped_authenticated_proof_checked_heights),
+            governed_proof_authority_checked_heights=(governed_proof_authority_checked_heights),
             last_header_hash=last_header_hash,
             last_post_state_root=last_post_state_root,
             last_app_hash=last_app_hash,
@@ -261,7 +262,11 @@ def verify_zeno_ledger_v0(
             if header["prev_header_hash"] != expected_prev_hash:
                 raise ValueError(f"prev_header_hash mismatch at height {height}")
             if replay_bound:
-                if replay_config is None or replay_config_digest is None or pre_snapshots_dir is None:
+                if (
+                    replay_config is None
+                    or replay_config_digest is None
+                    or pre_snapshots_dir is None
+                ):
                     raise ValueError("replay-bound inputs unavailable")
                 snapshot_path = pre_snapshots_dir / f"{height}.json"
                 if replay_state is None and not snapshot_path.is_file():
@@ -314,19 +319,18 @@ def verify_zeno_ledger_v0(
                     or typed_proof_authority_verifier is None
                     or verifier_registry is None
                 ):
-                    raise ValueError("authenticated proof verification inputs unavailable")
-                proof_artifact_path = proof_artifacts_dir / f"{height}.json"
-                proof_artifact_json = _read_bounded_proof_artifact(proof_artifact_path)
-                typed_proof_authority_verifier.verify_and_bind_required_profile(
-                    proof_artifact_json=proof_artifact_json,
-                    proof_metadata=proof_metadata,
-                    header=header,
-                    checkpoint=checkpoint,
-                    verifier_registry=verifier_registry,
-                    profile=profile,
-                    replay_config_digest=replay_config_digest,
-                )
-                scoped_authenticated_proof_checked_heights.append(height)
+                    raise ValueError("governed proof authority inputs unavailable")
+                if (
+                    typed_proof_authority_verifier.executable_format
+                    is not VerifierExecutableFormatV1.STATIC_ELF_X86_64
+                ):
+                    raise ValueError("proof_authority_verifier_must_be_static_elf")
+                # The current profile and replay-config schemas commit neither
+                # the authority-manifest digest nor the registry ID. Even a
+                # pinned static ELF remains caller-selected at this boundary.
+                # Preserve proof authority as unavailable until a separately
+                # governed release binding is consensus/header bound.
+                raise ValueError("governed_proof_authority_binding_unavailable_v0")
             last_header_hash = canonical_header_hash_v0(header)
             last_post_state_root = str(header["post_state_root"])
             last_app_hash = str(header["app_hash"])
@@ -342,7 +346,7 @@ def verify_zeno_ledger_v0(
         checked_heights=checked_heights,
         proof_metadata_checked_heights=proof_metadata_checked_heights,
         proof_verification_checked_heights=proof_verification_checked_heights,
-        scoped_authenticated_proof_checked_heights=scoped_authenticated_proof_checked_heights,
+        governed_proof_authority_checked_heights=governed_proof_authority_checked_heights,
         last_header_hash=last_header_hash,
         last_post_state_root=last_post_state_root,
         last_app_hash=last_app_hash,
@@ -358,7 +362,7 @@ def _report(
     checked_heights: list[int],
     proof_metadata_checked_heights: list[int],
     proof_verification_checked_heights: list[int],
-    scoped_authenticated_proof_checked_heights: list[int],
+    governed_proof_authority_checked_heights: list[int],
     last_header_hash: str | None,
     last_post_state_root: str | None,
     last_app_hash: str | None,
@@ -372,16 +376,14 @@ def _report(
         checked_heights = []
         proof_metadata_checked_heights = []
         proof_verification_checked_heights = []
-        scoped_authenticated_proof_checked_heights = []
+        governed_proof_authority_checked_heights = []
         last_header_hash = None
         last_post_state_root = None
         last_app_hash = None
     range_verified = ok and replay_bound
-    proof_authority_satisfied = (
-        proof_authority_required
-        and range_verified
-        and scoped_authenticated_proof_checked_heights == checked_heights
-    )
+    # V0 has no independently governed binding for the authority-manifest
+    # digest and verifier-registry ID. Keep this claim false by construction.
+    proof_authority_satisfied = False
     return {
         "schema": REPORT_SCHEMA,
         "ok": ok,
@@ -404,7 +406,7 @@ def _report(
         "checked_heights": checked_heights,
         "proof_metadata_checked_heights": proof_metadata_checked_heights,
         "proof_verification_checked_heights": proof_verification_checked_heights,
-        "scoped_authenticated_proof_checked_heights": (scoped_authenticated_proof_checked_heights),
+        "governed_proof_authority_checked_heights": (governed_proof_authority_checked_heights),
         "proof_authority_required": proof_authority_required,
         "proof_authority_satisfied": proof_authority_satisfied,
         "settlement_authority": False,
@@ -431,7 +433,10 @@ def validate_proof_verification_report_v0(
         raise ValueError("proof_verification_report schema is not supported")
     if _require_bool(obj.get("ok"), name="proof_verification_report.ok") is not True:
         raise ValueError("proof_verification_report must be accepted")
-    if _require_bool(obj.get("header_bound"), name="proof_verification_report.header_bound") is not True:
+    if (
+        _require_bool(obj.get("header_bound"), name="proof_verification_report.header_bound")
+        is not True
+    ):
         raise ValueError("proof_verification_report must be header-bound")
     for key in ("proof_kind", "program_id", "verifier_id", "toolchain_lock_hash"):
         if obj.get(key) != metadata.get(key):
@@ -442,12 +447,20 @@ def validate_proof_verification_report_v0(
     if proof_kind == "risc0_zkvm_v0":
         if schema != RISC0_PROOF_METADATA_REPORT_SCHEMA:
             raise ValueError("risc0 proof metadata requires risc0 verification report")
-        if _require_bool(obj.get("risc0_verified"), name="proof_verification_report.risc0_verified") is not True:
+        if (
+            _require_bool(
+                obj.get("risc0_verified"), name="proof_verification_report.risc0_verified"
+            )
+            is not True
+        ):
             raise ValueError("risc0 proof verification report must be verifier-backed")
     elif proof_kind == "tee_attestation_v0":
         if schema != TEE_PROOF_METADATA_REPORT_SCHEMA:
             raise ValueError("TEE proof metadata requires TEE verification report")
-        if _require_bool(obj.get("tee_verified"), name="proof_verification_report.tee_verified") is not True:
+        if (
+            _require_bool(obj.get("tee_verified"), name="proof_verification_report.tee_verified")
+            is not True
+        ):
             raise ValueError("TEE proof verification report must be verifier-backed")
         if obj.get("tee_measurement_hash") != metadata.get("tee_measurement_hash"):
             raise ValueError("proof_verification_report/metadata tee_measurement_hash mismatch")

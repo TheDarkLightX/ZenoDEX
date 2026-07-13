@@ -261,7 +261,7 @@ def _verify(
     *,
     checkpoint: dict[str, Any] | None = None,
 ):
-    return verifier.verify_and_bind_header(
+    return verifier.observe_and_bind_header(
         proof_artifact_json=artifact,
         proof_metadata=metadata,
         header=header,
@@ -283,7 +283,7 @@ def test_verification_executes_once_and_emits_non_promotable_observation(tmp_pat
     )
 
     assert counter.read_text(encoding="utf-8") == "1"
-    assert observation.status == "authenticated_metadata_v0_risc0_verification"
+    assert observation.status == "non_authoritative_metadata_v0_risc0_observation"
     assert observation.production_promotable is False
     assert observation.proof_metadata_schema == "zenodex/zeno_ledger/proof_metadata/v0"
     assert observation.missing_production_bindings == (
@@ -298,6 +298,15 @@ def test_verification_executes_once_and_emits_non_promotable_observation(tmp_pat
     )
     assert observation.header_proof_journal_hash == header["proof_journal_hash"]
     assert observation.registry_id == registry["registry_id"]
+
+
+def test_diagnostic_verifier_exposes_no_authority_named_entrypoint(tmp_path: Path) -> None:
+    verifier, _metadata, _header, _registry, _artifact, _counter = _make_verifier(tmp_path)
+
+    assert not hasattr(verifier, "verify_and_bind_header")
+    assert not hasattr(verifier, "verify_and_bind_required_profile")
+    assert callable(verifier.observe_and_bind_header)
+    assert callable(verifier.observe_and_bind_required_profile)
 
 
 def test_private_authenticated_capability_requires_module_seal() -> None:

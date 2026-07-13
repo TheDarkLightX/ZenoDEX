@@ -53,6 +53,9 @@ from tools.zeno_ledger_verify import (
     STRUCTURAL_DIAGNOSTIC_MODE,
     verify_zeno_ledger_v0,
 )
+from tools.zeno_ledger_verify import (
+    main as verify_main,
+)
 
 
 def _root(label: str) -> str:
@@ -135,7 +138,11 @@ class _Case:
         )
 
 
-def _make_case(tmp_path: Path) -> _Case:
+def _make_case(
+    tmp_path: Path,
+    *,
+    executable_format: VerifierExecutableFormatV1 = VerifierExecutableFormatV1.TEST_SCRIPT,
+) -> _Case:
     headers_dir = tmp_path / "headers"
     bodies_dir = tmp_path / "bodies"
     checkpoints_dir = tmp_path / "checkpoints"
@@ -243,7 +250,7 @@ def _make_case(tmp_path: Path) -> _Case:
     executable_sha256 = hashlib.sha256(executable.read_bytes()).hexdigest()
     manifest = zeno_ledger_risc0_authority_manifest_bytes_v1(
         executable_sha256=executable_sha256,
-        executable_format=VerifierExecutableFormatV1.TEST_SCRIPT,
+        executable_format=executable_format,
         registry_id=str(registry["registry_id"]),
         registry_entry_id=str(entry["entry_id"]),
         program_id=program_id,
@@ -311,7 +318,7 @@ def test_proof_required_replay_rejects_metadata_without_authenticated_verifier(
     )
 
     assert report["ok"] is False
-    assert "profile_requires_authenticated_proof_verification" in report["errors"]
+    assert "profile_requires_governed_proof_authority_binding" in report["errors"]
     assert not case.counter_path.exists()
 
 
@@ -324,8 +331,8 @@ def test_proof_required_replay_rejects_fabricated_positive_report(
 
     assert report["ok"] is False
     assert report["proof_verification_checked_heights"] == []
-    assert report["scoped_authenticated_proof_checked_heights"] == []
-    assert "profile_requires_authenticated_proof_verification" in report["errors"]
+    assert report["governed_proof_authority_checked_heights"] == []
+    assert "profile_requires_governed_proof_authority_binding" in report["errors"]
 
 
 @pytest.mark.parametrize(
@@ -377,7 +384,7 @@ def test_authenticated_proof_rejects_wrong_profile_or_header_binding(
 
     assert report["ok"] is False
     assert any(expected_error in error for error in report["errors"]), report["errors"]
-    assert report["scoped_authenticated_proof_checked_heights"] == []
+    assert report["governed_proof_authority_checked_heights"] == []
     assert not case.counter_path.exists()
 
 
@@ -408,7 +415,7 @@ def test_proof_required_replay_rejects_duck_typed_verifier(
     assert not case.counter_path.exists()
 
 
-def test_exact_scoped_authenticated_path_is_accepted_once_without_authority_promotion(
+def test_caller_supplied_echo_verifier_cannot_satisfy_proof_authority(
     tmp_path: Path,
 ) -> None:
     case = _make_case(tmp_path)
@@ -419,15 +426,78 @@ def test_exact_scoped_authenticated_path_is_accepted_once_without_authority_prom
         include_report=False,
     )
 
-    assert report["ok"] is True
-    assert report["status"] == "range_verified"
+    assert report["ok"] is False
+    assert report["status"] == "rejected"
     assert report["proof_authority_required"] is True
-    assert report["proof_authority_satisfied"] is True
+    assert report["proof_authority_satisfied"] is False
     assert report["proof_verification_checked_heights"] == []
-    assert report["scoped_authenticated_proof_checked_heights"] == [1]
+    assert report["governed_proof_authority_checked_heights"] == []
     assert report["settlement_authority"] is False
     assert report["production_authority"] is False
-    assert case.counter_path.read_text(encoding="utf-8") == "1"
+    assert any("proof_authority_verifier_must_be_static_elf" in error for error in report["errors"])
+    assert not case.counter_path.exists()
+
+
+def test_caller_supplied_static_manifest_still_lacks_governed_binding(
+    tmp_path: Path,
+) -> None:
+    case = _make_case(
+        tmp_path,
+        executable_format=VerifierExecutableFormatV1.STATIC_ELF_X86_64,
+    )
+
+    report = case.verify(
+        mode=REPLAY_BOUND_MODE,
+        authenticated=True,
+        include_report=False,
+    )
+
+    assert report["ok"] is False
+    assert report["proof_authority_satisfied"] is False
+    assert report["governed_proof_authority_checked_heights"] == []
+    assert any(
+        "governed_proof_authority_binding_unavailable_v0" in error for error in report["errors"]
+    )
+    assert not case.counter_path.exists()
+
+
+def test_current_cli_cannot_reach_proof_authority_path(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    case = _make_case(tmp_path)
+
+    exit_code = verify_main(
+        [
+            "--headers-dir",
+            str(case.headers_dir),
+            "--bodies-dir",
+            str(case.bodies_dir),
+            "--checkpoints-dir",
+            str(case.checkpoints_dir),
+            "--proof-metadata-dir",
+            str(case.proof_metadata_dir),
+            "--profile",
+            str(case.profile_path),
+            "--from-height",
+            "1",
+            "--to-height",
+            "1",
+            "--require-state-replay",
+            "--pre-snapshots-dir",
+            str(case.snapshots_dir),
+            "--engine-config",
+            str(case.config_path),
+            "--require-rejection-receipt-replay",
+        ]
+    )
+    report = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 1
+    assert report["proof_authority_satisfied"] is False
+    assert report["governed_proof_authority_checked_heights"] == []
+    assert "profile_requires_governed_proof_authority_binding" in report["errors"]
+    assert not case.counter_path.exists()
 
 
 def test_structural_mode_remains_explicitly_non_authoritative(
@@ -442,6 +512,6 @@ def test_structural_mode_remains_explicitly_non_authoritative(
     assert report["authority_scope"] == "none"
     assert report["proof_authority_required"] is True
     assert report["proof_authority_satisfied"] is False
-    assert report["scoped_authenticated_proof_checked_heights"] == []
+    assert report["governed_proof_authority_checked_heights"] == []
     assert report["settlement_authority"] is False
     assert report["production_authority"] is False
