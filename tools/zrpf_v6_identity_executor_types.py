@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 
 class ExecutionError(ValueError):
@@ -44,6 +44,9 @@ class BuildResult:
 
 class BuildRunner(Protocol):
     """Narrow imperative shell used by the deterministic executor core."""
+
+    def security_posture(self) -> dict[str, Any]:
+        """Return the exact candidate-evidence posture before any build."""
 
     def run(self, request: BuildRequest) -> BuildResult:
         """Execute one exact build/extraction request."""

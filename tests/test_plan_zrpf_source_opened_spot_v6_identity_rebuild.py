@@ -38,6 +38,43 @@ def _program(spec: planner.StageSpec) -> dict:
     }
 
 
+def _runner_security_posture() -> dict:
+    return {
+        "schema": planner.RUNNER_SECURITY_POSTURE_SCHEMA,
+        "tool_identities": {
+            "cargo": {
+                "sha256": planner.TOOLCHAIN["outer_cargo_sha256"],
+                "bytes": 1,
+            },
+            "rustc": {
+                "sha256": planner.TOOLCHAIN["rustc_sha256"],
+                "bytes": 1,
+            },
+            "r0vm": {
+                "sha256": planner.TOOLCHAIN["r0vm_sha256"],
+                "bytes": 1,
+            },
+            "cargo_risczero": {
+                "sha256": planner.TOOLCHAIN["cargo_risczero_sha256"],
+                "bytes": 1,
+            },
+        },
+        "cargo_registry_identity": {
+            "schema": planner.CARGO_REGISTRY_IDENTITY_SCHEMA,
+            "root_sha256": "a" * 64,
+            "file_count": 1,
+            "total_bytes": 1,
+            "components": ["cache", "index", "src"],
+            "maximum_files": planner.MAX_CARGO_REGISTRY_FILES,
+            "maximum_total_bytes": planner.MAX_CARGO_REGISTRY_BYTES,
+            "maximum_file_bytes": planner.MAX_CARGO_REGISTRY_FILE_BYTES,
+        },
+        "resource_policy": dict(planner.RUNNER_RESOURCE_POLICY),
+        "same_uid_resistance": False,
+        "complete_build_input_closure_verified": False,
+    }
+
+
 def _observations(plan: dict) -> dict:
     stages = []
     programs: list[dict[str, object]] = []
@@ -108,6 +145,7 @@ def _observations(plan: dict) -> dict:
         "plan_sha256": planner.canonical_sha256(plan),
         "source_commit": SOURCE_COMMIT,
         "toolchain": copy.deepcopy(planner.TOOLCHAIN),
+        "runner_security_posture": _runner_security_posture(),
         "stages": stages,
         "settlement_self_image_two_pass": {
             "host_only_policy_path": planner.STAGES[-1].repins[0].path,
@@ -190,6 +228,15 @@ def test_plan_is_deterministic_acyclic_and_uses_pinned_build_contract() -> None:
     assert first["resource_policy"]["network_disabled"] is True
     assert first["resource_policy"]["build_image"] == planner.BUILD_IMAGE
     assert first["resource_policy"]["r0vm_path"] == planner.CANONICAL_R0VM
+    assert first["resource_policy"]["target_quota_bytes"] == (
+        planner.TARGET_TMPFS_QUOTA_BYTES
+    )
+    assert first["resource_policy"]["output_transport"] == (
+        "bounded_base64_stdout_v1"
+    )
+    assert first["resource_policy"]["nested_cargo_wrapper_sha256"] == (
+        planner.NESTED_CARGO_WRAPPER_SHA256
+    )
     assert all(value is False for value in first["authority"].values())
 
 
@@ -269,12 +316,16 @@ def test_complete_observations_emit_candidate_only_report() -> None:
         "fresh_external_target_and_output_reported": True,
         "locked_offline_builds_reported": True,
         "network_disabled_builds_reported": True,
+        "runner_tools_registry_and_resource_policy_recorded": True,
         "settlement_host_only_two_pass_match": True,
         "source_anchor_matches_source_guest_inventory": True,
     }
     assert all(report["authority"][field] is False for field in planner.AUTHORITY_FLAGS)
     assert report["programs"][-1]["stage_id"] == "v6_settlement"
     assert report["source_spot_cli"]["binary_file"] == "tau-state-proof-risc0-cli"
+    assert report["runner_security_posture"] == _runner_security_posture()
+    assert report["runner_security_posture"]["same_uid_resistance"] is False
+    assert "no_same_uid_resistance" in report["non_claims"]
     assert "host_run_root" not in report
     candidates = report["governance_candidates"]
     assert all(value is False for value in candidates["authority"].values())
@@ -383,6 +434,30 @@ def test_plan_mutation_rejects_before_observation_interpretation() -> None:
     plan["resource_policy"]["cargo_offline"] = False
 
     with pytest.raises(planner.RebuildPlanError, match="deterministic plan"):
+        planner.check_observations(plan, observations)
+
+
+def test_runner_posture_cannot_promote_same_uid_resistance() -> None:
+    plan = _plan()
+    observations = _observations(plan)
+    observations["runner_security_posture"]["same_uid_resistance"] = True
+
+    with pytest.raises(
+        planner.RebuildPlanError,
+        match="same-UID resistance non-claim mismatch",
+    ):
+        planner.check_observations(plan, observations)
+
+
+def test_runner_posture_rejects_unknown_authority_field() -> None:
+    plan = _plan()
+    observations = _observations(plan)
+    observations["runner_security_posture"]["production_authority"] = False
+
+    with pytest.raises(
+        planner.RebuildPlanError,
+        match="runner security posture fields mismatch",
+    ):
         planner.check_observations(plan, observations)
 
 

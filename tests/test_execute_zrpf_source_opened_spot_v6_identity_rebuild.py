@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import copy
 import hashlib
+import os
 import shlex
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
@@ -23,6 +26,43 @@ SOURCE_COMMIT = subprocess.check_output(
 ).strip()
 
 
+def _runner_security_posture() -> dict:
+    return {
+        "schema": planner.RUNNER_SECURITY_POSTURE_SCHEMA,
+        "tool_identities": {
+            "cargo": {
+                "sha256": planner.TOOLCHAIN["outer_cargo_sha256"],
+                "bytes": 1,
+            },
+            "rustc": {
+                "sha256": planner.TOOLCHAIN["rustc_sha256"],
+                "bytes": 1,
+            },
+            "r0vm": {
+                "sha256": planner.TOOLCHAIN["r0vm_sha256"],
+                "bytes": 1,
+            },
+            "cargo_risczero": {
+                "sha256": planner.TOOLCHAIN["cargo_risczero_sha256"],
+                "bytes": 1,
+            },
+        },
+        "cargo_registry_identity": {
+            "schema": planner.CARGO_REGISTRY_IDENTITY_SCHEMA,
+            "root_sha256": "a" * 64,
+            "file_count": 1,
+            "total_bytes": 1,
+            "components": ["cache", "index", "src"],
+            "maximum_files": planner.MAX_CARGO_REGISTRY_FILES,
+            "maximum_total_bytes": planner.MAX_CARGO_REGISTRY_BYTES,
+            "maximum_file_bytes": planner.MAX_CARGO_REGISTRY_FILE_BYTES,
+        },
+        "resource_policy": dict(planner.RUNNER_RESOURCE_POLICY),
+        "same_uid_resistance": False,
+        "complete_build_input_closure_verified": False,
+    }
+
+
 class FakeRunner:
     def __init__(
         self,
@@ -37,6 +77,9 @@ class FakeRunner:
         self.symlink_pass = symlink_pass
         self.mutate_source_pass = mutate_source_pass
         self.extra_output_pass = extra_output_pass
+
+    def security_posture(self) -> dict:
+        return _runner_security_posture()
 
     def run(self, request: executor.BuildRequest) -> executor.BuildResult:
         self.requests.append(request)
@@ -107,6 +150,9 @@ def test_fake_runner_executes_exact_primary_two_pass_final_and_host_order(
         "host-verifier",
     ]
     assert report["status"] == "candidate_repin_chain_observations_validated"
+    assert observations["runner_security_posture"] == _runner_security_posture()
+    assert report["runner_security_posture"] == _runner_security_posture()
+    assert "no_same_uid_resistance" in report["non_claims"]
     assert all(value is False for value in report["authority"].values())
     assert planner.check_observations(plan=_plan(run_root), observations=observations)
 
@@ -158,6 +204,46 @@ def test_mutated_plan_rejects_before_run_root_creation(tmp_path: Path) -> None:
     assert not run_root.exists()
 
 
+@pytest.mark.parametrize(
+    ("mutation", "error"),
+    [
+        (
+            lambda posture: posture.update({"same_uid_resistance": True}),
+            "same-UID resistance non-claim mismatch",
+        ),
+        (
+            lambda posture: posture.update({"production_authority": False}),
+            "runner security posture fields mismatch",
+        ),
+        (
+            lambda posture: posture["resource_policy"].update(
+                {"nested_cargo_wrapper_sha256": "0" * 64}
+            ),
+            "runner resource policy mismatch",
+        ),
+    ],
+)
+def test_runner_posture_promotion_or_schema_drift_rejects_before_build(
+    tmp_path: Path,
+    mutation: Callable[[dict], None],
+    error: str,
+) -> None:
+    class MutatedPostureRunner(FakeRunner):
+        def security_posture(self) -> dict:
+            posture = copy.deepcopy(_runner_security_posture())
+            mutation(posture)
+            return posture
+
+    runner = MutatedPostureRunner()
+    run_root = tmp_path / "run"
+
+    with pytest.raises(planner.RebuildPlanError, match=error):
+        executor.execute_plan(_plan(run_root), runner=runner)
+
+    assert runner.requests == []
+    assert not run_root.exists()
+
+
 def test_undeclared_repin_path_rejects_before_execution(tmp_path: Path) -> None:
     run_root = tmp_path / "run"
     plan = _plan(run_root)
@@ -180,6 +266,129 @@ def test_runner_source_mutation_rejects_and_removes_partial_run(tmp_path: Path) 
             plan,
             runner=FakeRunner(mutate_source_pass="primary:source_spot"),
         )
+
+    assert not run_root.exists()
+
+
+def test_repin_transition_rejects_persistent_mutation_of_another_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = executor.artifacts.repin_rust_constant
+    poisoned = False
+
+    def mutate_another_source(
+        path: Path,
+        symbol: str,
+        value_kind: str,
+        value: list[int],
+    ) -> None:
+        nonlocal poisoned
+        original(path, symbol, value_kind, value)
+        if not poisoned:
+            poisoned = True
+            sibling = path.parent / "lib.rs"
+            sibling.write_bytes(sibling.read_bytes() + b"\n")
+
+    monkeypatch.setattr(
+        executor.artifacts,
+        "repin_rust_constant",
+        mutate_another_source,
+    )
+    run_root = tmp_path / "run"
+
+    with pytest.raises(
+        executor.ExecutionError,
+        match="changed undeclared paths or bytes",
+    ):
+        executor.execute_plan(_plan(run_root), runner=FakeRunner())
+
+    assert not run_root.exists()
+
+
+def test_candidate_write_rejects_undeclared_compiler_visible_cargo_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = executor.artifacts.write_candidate_document
+
+    def add_undeclared_cargo_config(
+        snapshot_root: Path,
+        relative: str,
+        document: dict,
+    ) -> None:
+        original(snapshot_root, relative, document)
+        cargo = snapshot_root / "zk/zrpf_risc0/.cargo"
+        (cargo / "config.attacker.toml").write_text(
+            "[build]\nrustc-wrapper = '/tmp/attacker'\n",
+            encoding="utf-8",
+        )
+
+    monkeypatch.setattr(
+        executor.artifacts,
+        "write_candidate_document",
+        add_undeclared_cargo_config,
+    )
+    run_root = tmp_path / "run"
+
+    with pytest.raises(
+        executor.ExecutionError,
+        match="live inventory mismatch",
+    ):
+        executor.execute_plan(_plan(run_root), runner=FakeRunner())
+
+    assert not run_root.exists()
+
+
+def test_candidate_write_rejects_same_bytes_through_an_unsafe_hardlink(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = executor.artifacts.write_candidate_document
+    backing = tmp_path / "attacker-backing"
+
+    def substitute_hardlink(
+        snapshot_root: Path,
+        relative: str,
+        document: dict,
+    ) -> None:
+        original(snapshot_root, relative, document)
+        target = snapshot_root / relative
+        backing.write_bytes(target.read_bytes())
+        target.unlink()
+        os.link(backing, target)
+
+    monkeypatch.setattr(
+        executor.artifacts,
+        "write_candidate_document",
+        substitute_hardlink,
+    )
+    run_root = tmp_path / "run"
+
+    with pytest.raises(
+        executor.ExecutionError,
+        match="ownership or link count is unsafe",
+    ):
+        executor.execute_plan(_plan(run_root), runner=FakeRunner())
+
+    assert not run_root.exists()
+
+
+@pytest.mark.parametrize("unsafe_mode", [0o770, 0o707, 0o1700])
+def test_run_root_rejects_group_world_writable_or_sticky_parent(
+    tmp_path: Path,
+    unsafe_mode: int,
+) -> None:
+    unsafe_parent = tmp_path / "unsafe-parent"
+    unsafe_parent.mkdir(mode=0o700)
+    unsafe_parent.chmod(unsafe_mode)
+    run_root = unsafe_parent / "run"
+
+    with pytest.raises(
+        executor.ExecutionError,
+        match="parent ownership or permissions are unsafe",
+    ):
+        executor.execute_plan(_plan(run_root), runner=FakeRunner())
 
     assert not run_root.exists()
 

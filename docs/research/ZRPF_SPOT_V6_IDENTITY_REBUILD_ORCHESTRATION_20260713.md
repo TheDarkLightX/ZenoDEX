@@ -43,6 +43,13 @@ two-pass control, and runs the final clean rebuild comparison. It never edits
 the checkout. It performs no proof generation, receipt verification, evidence
 promotion, or authority update.
 
+The executor maintains an exact expected source-state machine after Git
+materialization. Before and after every build, declared repin, and candidate
+document write, it enumerates the complete live snapshot tree and requires the
+exact governed directory set, file set, file modes, bytes, and source root.
+Unknown files or directories, symlinks, special files, unsafe hardlinks, and
+persistent changes outside the one declared transition reject the run.
+
 ## Build contract
 
 Every planned pass uses:
@@ -53,15 +60,27 @@ Every planned pass uses:
 - RISC0 3.0.5 `r0vm` and `cargo-risczero` identities;
 - `--locked`, `--offline`, and a network-disabled runtime;
 - two build jobs, two CPUs, and a 6 GiB memory ceiling;
-- a fresh external target directory and fresh external output directory;
+- a fresh 3 GiB in-container target tmpfs and 160 MiB output tmpfs;
+- canonical bounded-base64 transport into fresh host output files;
 - exact R0BF program byte length, SHA-256, image ID, and little-endian image-ID
-  words.
+  words;
+- an absent run root beneath a current-user-owned, non-sticky parent with no
+  group or world write permission; root and report creation use stable
+  directory descriptors and relative creation.
 
 The plan pins the existing no-network build image and its Ubuntu parent. The
 executor directly applies these controls to its local candidate run. The
 result still lacks a complete build-input closure, independent execution
 attestation, and cross-host rebuild. The observation report therefore says
 `locked_offline_builds_reported` and leaves complete build provenance false.
+
+Before the first build, the executor requires one exact
+`zenodex/zrpf_v6_identity_runner_security_posture/v1` object. The observation and
+candidate report bind the four pinned tool byte lengths and SHA-256 values, a
+bounded deterministic Cargo-registry root, exact CPU/job/tmpfs policy, and the
+governed nested-Cargo wrapper digest. The checker rejects unknown fields,
+changed tool digests, resource-policy drift, and any attempt to set
+`same_uid_resistance` or `complete_build_input_closure_verified` to true.
 
 ## Acyclic repin rules
 
@@ -116,6 +135,13 @@ guest from committing a digest that includes the downstream policy which
 stores the digest. An independently reported source-tree digest cannot satisfy
 the checker.
 
+The execution-time live inventory is stricter than the frozen entry-list hash.
+It rejects an added compiler-visible file such as `.cargo/config.toml`, even
+when that file was absent from the Git entry list used to compute the planned
+root. Every allowed regular file must be owned by the executor UID and have a
+link count of one. Persistent replacement with the same bytes through a
+hardlink therefore also rejects.
+
 The prior exact V6 retained inventory predates the parallel-shard files. It must
 be regenerated for a future candidate and cannot support the new source tree.
 
@@ -141,12 +167,16 @@ artifact in the repin set.
 ## Commands
 
 Choose an absent external run root and absent plan path. The first command only
-emits a plan.
+emits a plan. Create a dedicated private parent first. Shared scratch parents,
+including sticky directories and group-writable project scratch directories,
+are intentionally rejected.
 
 ```bash
+install -d -m 0700 /absolute/external/private-zrpf-runs
+
 python3 tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py plan \
   --source-commit "$(git rev-parse HEAD)" \
-  --run-root /absolute/external/absent/zrpf-v6-identity-run \
+  --run-root /absolute/external/private-zrpf-runs/zrpf-v6-identity-run \
   --output /absolute/external/absent/rebuild-plan.json
 ```
 
@@ -168,6 +198,9 @@ rebuild-observations.json
 rebuild-candidate-report.json
 ```
 
+Their current schemas are the versioned V2 observation and candidate-report
+schemas. The embedded runner posture remains V1 and authority-neutral.
+
 The executor invokes the checker before committing either document. An
 independent consumer can repeat the check:
 
@@ -180,6 +213,16 @@ python3 tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py check \
 
 Both input JSON documents must be exact canonical JSON with unique keys,
 bounded depth, bounded node count, no floats, and no unknown fields.
+
+## Host mutation boundary
+
+The exact state checks detect persistent changes and narrow same-process races
+through stable descriptor reads and before/after identity checks. They do not
+make the snapshot immutable. Hostile code with the executor's UID can still
+mutate and restore a source, directory, toolchain, registry, target, or output
+entirely between observations. The source snapshot is path-mounted into the
+builder, so complete same-UID resistance remains false until a stronger
+root-owned immutable staging or isolated execution boundary is demonstrated.
 
 ## Candidate report boundary
 

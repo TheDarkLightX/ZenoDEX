@@ -27,9 +27,15 @@ from pathlib import Path, PurePosixPath
 from typing import Any, NoReturn, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PLAN_SCHEMA = "zenodex/zrpf_spot_v6_identity_rebuild_plan/v1"
-OBSERVATION_SCHEMA = "zenodex/zrpf_spot_v6_identity_rebuild_observations/v1"
-REPORT_SCHEMA = "zenodex/zrpf_spot_v6_identity_rebuild_candidate_report/v1"
+PLAN_SCHEMA = "zenodex/zrpf_spot_v6_identity_rebuild_plan/v2"
+OBSERVATION_SCHEMA = "zenodex/zrpf_spot_v6_identity_rebuild_observations/v2"
+REPORT_SCHEMA = "zenodex/zrpf_spot_v6_identity_rebuild_candidate_report/v2"
+RUNNER_SECURITY_POSTURE_SCHEMA = (
+    "zenodex/zrpf_v6_identity_runner_security_posture/v1"
+)
+CARGO_REGISTRY_IDENTITY_SCHEMA = (
+    "zenodex/zrpf_bounded_cargo_registry_identity/v1"
+)
 CANONICAL_SOURCE_ROOT = "/src/zenodex"
 CANONICAL_CARGO = "/risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin/cargo"
 CANONICAL_RUSTC = "/risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin/rustc"
@@ -51,6 +57,29 @@ MAX_TRACKED_SOURCE_BYTES = 64 * 1024 * 1024
 BUILD_JOBS = 2
 BUILD_CPUS = 2
 BUILD_MEMORY_BYTES = 6 * 1024 * 1024 * 1024
+TARGET_TMPFS_QUOTA_BYTES = 3 * 1024 * 1024 * 1024
+OUTPUT_TMPFS_QUOTA_BYTES = 160 * 1024 * 1024
+MAX_PINNED_TOOL_BYTES = 256 * 1024 * 1024
+MAX_CARGO_REGISTRY_FILES = 100_000
+MAX_CARGO_REGISTRY_BYTES = 2 * 1024 * 1024 * 1024
+MAX_CARGO_REGISTRY_FILE_BYTES = 64 * 1024 * 1024
+NESTED_CARGO_WRAPPER_BYTES = f"""#!/bin/bash
+set -euo pipefail
+export CARGO_BUILD_JOBS={BUILD_JOBS}
+exec {CANONICAL_CARGO} "$@"
+""".encode("ascii")
+NESTED_CARGO_WRAPPER_SHA256 = hashlib.sha256(NESTED_CARGO_WRAPPER_BYTES).hexdigest()
+RUNNER_RESOURCE_POLICY = {
+    "aggregate_container_cpu_quota": BUILD_CPUS,
+    "outer_cargo_jobs": BUILD_JOBS,
+    "nested_cargo_jobs": BUILD_JOBS,
+    "nested_cargo_wrapper_sha256": NESTED_CARGO_WRAPPER_SHA256,
+    "target_storage": "container_tmpfs",
+    "target_quota_bytes": TARGET_TMPFS_QUOTA_BYTES,
+    "output_storage": "container_tmpfs",
+    "output_quota_bytes": OUTPUT_TMPFS_QUOTA_BYTES,
+    "output_transport": "bounded_base64_stdout_v1",
+}
 
 TOOLCHAIN = {
     "cargo_version": "cargo 1.94.1-dev (29ea6fb6a 2026-03-24)",
@@ -85,6 +114,7 @@ NON_CLAIMS = (
     "no_release_authority",
     "no_settlement_authority",
     "no_source_to_binary_provenance_authority",
+    "no_same_uid_resistance",
     "no_production_authority",
 )
 
@@ -339,6 +369,12 @@ def build_plan(
             "build_cpus": BUILD_CPUS,
             "build_jobs": BUILD_JOBS,
             "build_memory_bytes": BUILD_MEMORY_BYTES,
+            "target_storage": RUNNER_RESOURCE_POLICY["target_storage"],
+            "target_quota_bytes": TARGET_TMPFS_QUOTA_BYTES,
+            "output_storage": RUNNER_RESOURCE_POLICY["output_storage"],
+            "output_quota_bytes": OUTPUT_TMPFS_QUOTA_BYTES,
+            "output_transport": RUNNER_RESOURCE_POLICY["output_transport"],
+            "nested_cargo_wrapper_sha256": NESTED_CARGO_WRAPPER_SHA256,
             "cargo_locked": True,
             "cargo_offline": True,
             "network_disabled": True,
@@ -496,6 +532,7 @@ def check_observations(
             "plan_sha256",
             "source_commit",
             "toolchain",
+            "runner_security_posture",
             "stages",
             "settlement_self_image_two_pass",
             "final_clean_rebuild",
@@ -507,6 +544,9 @@ def check_observations(
     _require_equal(observations["plan_sha256"], canonical_sha256(plan), "plan SHA-256")
     _require_equal(observations["source_commit"], plan["source_commit"], "source commit")
     _require_equal(observations["toolchain"], TOOLCHAIN, "toolchain")
+    runner_security_posture = check_runner_security_posture(
+        observations["runner_security_posture"]
+    )
     expected_source_tree_root = plan["source_guest_source_coverage"][
         "inventory_root_sha256"
     ]
@@ -533,9 +573,118 @@ def check_observations(
         observations["stages"][0]["companion_host_binary"],
         final_root,
         host_binary,
+        runner_security_posture,
         canonical_sha256(observations),
         governance_candidates,
     )
+
+
+def check_runner_security_posture(value: Any) -> dict[str, Any]:
+    """Validate and detach the exact authority-neutral runner posture."""
+
+    _validate_json_shape(value)
+    _require_exact_fields(
+        value,
+        {
+            "schema",
+            "tool_identities",
+            "cargo_registry_identity",
+            "resource_policy",
+            "same_uid_resistance",
+            "complete_build_input_closure_verified",
+        },
+        "runner security posture",
+    )
+    _require_equal(
+        value["schema"],
+        RUNNER_SECURITY_POSTURE_SCHEMA,
+        "runner security posture schema",
+    )
+    expected_tools = {
+        "cargo": TOOLCHAIN["outer_cargo_sha256"],
+        "rustc": TOOLCHAIN["rustc_sha256"],
+        "r0vm": TOOLCHAIN["r0vm_sha256"],
+        "cargo_risczero": TOOLCHAIN["cargo_risczero_sha256"],
+    }
+    _require_exact_fields(
+        value["tool_identities"],
+        set(expected_tools),
+        "runner tool identities",
+    )
+    for name, expected_sha256 in expected_tools.items():
+        row = value["tool_identities"][name]
+        _require_exact_fields(row, {"sha256", "bytes"}, f"runner tool {name}")
+        _require_equal(row["sha256"], expected_sha256, f"runner tool {name} SHA-256")
+        _require_bounded_positive_int(
+            row["bytes"],
+            MAX_PINNED_TOOL_BYTES,
+            f"runner tool {name} bytes",
+        )
+
+    registry = value["cargo_registry_identity"]
+    _require_exact_fields(
+        registry,
+        {
+            "schema",
+            "root_sha256",
+            "file_count",
+            "total_bytes",
+            "components",
+            "maximum_files",
+            "maximum_total_bytes",
+            "maximum_file_bytes",
+        },
+        "runner Cargo registry identity",
+    )
+    _require_equal(
+        registry["schema"],
+        CARGO_REGISTRY_IDENTITY_SCHEMA,
+        "runner Cargo registry schema",
+    )
+    _require_hex(registry["root_sha256"], 64, "runner Cargo registry root")
+    _require_bounded_positive_int(
+        registry["file_count"],
+        MAX_CARGO_REGISTRY_FILES,
+        "runner Cargo registry file count",
+    )
+    _require_bounded_positive_int(
+        registry["total_bytes"],
+        MAX_CARGO_REGISTRY_BYTES,
+        "runner Cargo registry bytes",
+    )
+    _require_equal(
+        registry["components"],
+        ["cache", "index", "src"],
+        "runner Cargo registry components",
+    )
+    for field, expected in (
+        ("maximum_files", MAX_CARGO_REGISTRY_FILES),
+        ("maximum_total_bytes", MAX_CARGO_REGISTRY_BYTES),
+        ("maximum_file_bytes", MAX_CARGO_REGISTRY_FILE_BYTES),
+    ):
+        _require_equal(registry[field], expected, f"runner Cargo registry {field}")
+
+    _require_exact_fields(
+        value["resource_policy"],
+        set(RUNNER_RESOURCE_POLICY),
+        "runner resource policy",
+    )
+    _require_equal(
+        value["resource_policy"],
+        RUNNER_RESOURCE_POLICY,
+        "runner resource policy",
+    )
+    _require_equal(
+        value["same_uid_resistance"],
+        False,
+        "runner same-UID resistance non-claim",
+    )
+    _require_equal(
+        value["complete_build_input_closure_verified"],
+        False,
+        "runner complete build-input closure non-claim",
+    )
+    return json.loads(canonical_bytes(value))
 
 
 def _validate_plan(plan: dict[str, Any]) -> None:
@@ -843,6 +992,7 @@ def _candidate_report(
     source_cli: dict[str, Any],
     final_root: str,
     host_binary: dict[str, Any],
+    runner_security_posture: dict[str, Any],
     observations_sha256: str,
     governance_candidates: dict[str, Any],
 ) -> dict[str, Any]:
@@ -854,6 +1004,7 @@ def _candidate_report(
         "observations_sha256": observations_sha256,
         "canonical_in_sandbox_source_root": CANONICAL_SOURCE_ROOT,
         "toolchain": dict(TOOLCHAIN),
+        "runner_security_posture": runner_security_posture,
         "tracked_workspace_source_coverage": plan["tracked_workspace_source_coverage"],
         "source_guest_source_coverage": plan["source_guest_source_coverage"],
         "governance_candidates": governance_candidates,
@@ -872,6 +1023,7 @@ def _candidate_report(
             "fresh_external_target_and_output_reported": True,
             "locked_offline_builds_reported": True,
             "network_disabled_builds_reported": True,
+            "runner_tools_registry_and_resource_policy_recorded": True,
             "settlement_host_only_two_pass_match": True,
             "source_anchor_matches_source_guest_inventory": True,
         },
@@ -1279,6 +1431,11 @@ def _require_equal(actual: Any, expected: Any, label: str) -> None:
 def _require_hex(value: Any, length: int, label: str) -> None:
     if type(value) is not str or re.fullmatch(rf"[0-9a-f]{{{length}}}", value) is None:
         raise RebuildPlanError(f"{label} must be {length} lowercase hexadecimal characters")
+
+
+def _require_bounded_positive_int(value: Any, maximum: int, label: str) -> None:
+    if type(value) is not int or not 0 < value <= maximum:
+        raise RebuildPlanError(f"{label} is outside its positive bound")
 
 
 def _require_absolute_path(value: Any, label: str) -> None:

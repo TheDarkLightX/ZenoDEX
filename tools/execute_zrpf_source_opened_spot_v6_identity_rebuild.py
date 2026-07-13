@@ -10,7 +10,6 @@ and grants no release, settlement, or production authority.
 from __future__ import annotations
 
 import argparse
-import os
 import shutil
 import sys
 from pathlib import Path, PurePosixPath
@@ -29,18 +28,23 @@ from tools.zrpf_v6_identity_executor_types import (  # noqa: E402
     BuildRunner,
     ExecutionError,
 )
+from tools.zrpf_v6_identity_run_root import (  # noqa: E402
+    prepare_run_root,
+    write_new,
+)
 from tools.zrpf_v6_identity_source_snapshot import (  # noqa: E402
     SOURCE_SNAPSHOT_DIRECTORY,
     V2_CANDIDATE_PATHS,
     GitSnapshotter,
     MaterializedSnapshot,
-    create_private_directory,
     protected_historical_hashes,
     require_historical_unchanged,
-    require_snapshot_unchanged,
     resolve_snapshot_path,
-    snapshot_root,
     validate_initial_snapshot,
+)
+from tools.zrpf_v6_identity_source_state import (  # noqa: E402
+    ExpectedSourceState,
+    render_expected_repin,
 )
 
 __all__ = [
@@ -69,7 +73,7 @@ def execute_plan(
     """Execute one deterministic plan and return checker-accepted observations."""
 
     planner._validate_plan(plan)
-    run_root = _prepare_run_root(Path(plan["host_run_root"]), repo_root)
+    run_root = prepare_run_root(Path(plan["host_run_root"]), repo_root)
     try:
         materialized = (snapshotter or GitSnapshotter()).materialize(
             repo_root,
@@ -77,25 +81,36 @@ def execute_plan(
             run_root / SOURCE_SNAPSHOT_DIRECTORY,
         )
         validate_initial_snapshot(materialized, plan)
+        source_state = ExpectedSourceState.capture(materialized)
+        runner_security_posture = planner.check_runner_security_posture(
+            runner.security_posture()
+        )
         protected = protected_historical_hashes(materialized.root)
         stages, programs = _execute_primary_stages(
             plan,
             materialized,
+            source_state,
             runner,
             run_root,
         )
         observations = _finish_observations(
             plan,
             materialized,
+            source_state,
+            runner_security_posture,
             runner,
             run_root,
             stages,
             programs,
         )
+        source_state.require_current("before historical-artifact validation")
         require_historical_unchanged(materialized.root, protected)
+        source_state.require_current("after historical-artifact validation")
         report = planner.check_observations(plan, observations)
-        _write_new(run_root / OBSERVATIONS_FILE, planner.canonical_bytes(observations))
-        _write_new(run_root / CANDIDATE_REPORT_FILE, planner.canonical_bytes(report))
+        source_state.require_current("before candidate report writes")
+        write_new(run_root / OBSERVATIONS_FILE, planner.canonical_bytes(observations))
+        write_new(run_root / CANDIDATE_REPORT_FILE, planner.canonical_bytes(report))
+        source_state.require_current("after candidate report writes")
         return observations
     except BaseException:
         shutil.rmtree(run_root, ignore_errors=True)
@@ -105,6 +120,8 @@ def execute_plan(
 def _finish_observations(
     plan: dict[str, Any],
     snapshot: MaterializedSnapshot,
+    source_state: ExpectedSourceState,
+    runner_security_posture: dict[str, Any],
     runner: BuildRunner,
     run_root: Path,
     stages: list[dict[str, Any]],
@@ -113,14 +130,22 @@ def _finish_observations(
     two_pass = _execute_settlement_second_pass(
         plan,
         snapshot,
+        source_state,
         runner,
         run_root,
         programs[-1],
     )
-    final_rebuild = _execute_final_rebuild(plan, snapshot, runner, run_root)
+    final_rebuild = _execute_final_rebuild(
+        plan,
+        snapshot,
+        source_state,
+        runner,
+        run_root,
+    )
     host_verifier = _execute_host_verifier(
         plan,
         snapshot,
+        source_state,
         runner,
         run_root,
         programs[-1],
@@ -130,6 +155,7 @@ def _finish_observations(
         "plan_sha256": planner.canonical_sha256(plan),
         "source_commit": plan["source_commit"],
         "toolchain": dict(planner.TOOLCHAIN),
+        "runner_security_posture": runner_security_posture,
         "stages": stages,
         "settlement_self_image_two_pass": two_pass,
         "final_clean_rebuild": final_rebuild,
@@ -140,6 +166,7 @@ def _finish_observations(
 def _execute_primary_stages(
     plan: dict[str, Any],
     snapshot: MaterializedSnapshot,
+    source_state: ExpectedSourceState,
     runner: BuildRunner,
     run_root: Path,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -150,6 +177,7 @@ def _execute_primary_stages(
         row = _run_primary_guest_stage(
             plan,
             snapshot,
+            source_state,
             runner,
             run_root,
             spec,
@@ -158,13 +186,14 @@ def _execute_primary_stages(
         )
         stages.append(row)
         programs.append(row["program"])
-        artifacts.apply_stage_repins(snapshot.root, spec, row)
+        _apply_stage_repin_transitions(source_state, spec, row)
         if spec.stage_id == "source_spot":
             anchor = planner.build_current_source_anchor_candidate(plan, row)
-            artifacts.write_candidate_document(
-                snapshot.root,
+            _write_candidate_transition(
+                source_state,
                 V2_CANDIDATE_PATHS[0],
                 anchor,
+                "source_spot current-source anchor",
             )
         elif spec.stage_id == "v2_adapter":
             if anchor is None:
@@ -175,10 +204,11 @@ def _execute_primary_stages(
                 row,
                 anchor,
             )
-            artifacts.write_candidate_document(
-                snapshot.root,
+            _write_candidate_transition(
+                source_state,
                 V2_CANDIDATE_PATHS[1],
                 policy,
+                "v2_adapter source policy",
             )
     return stages, programs
 
@@ -186,6 +216,7 @@ def _execute_primary_stages(
 def _run_primary_guest_stage(
     plan: dict[str, Any],
     snapshot: MaterializedSnapshot,
+    source_state: ExpectedSourceState,
     runner: BuildRunner,
     run_root: Path,
     spec: planner.StageSpec,
@@ -196,6 +227,7 @@ def _run_primary_guest_stage(
     program, companion, source_root = _run_guest_build(
         plan,
         snapshot,
+        source_state,
         runner,
         run_root,
         spec,
@@ -243,6 +275,7 @@ def _run_primary_guest_stage(
 def _run_guest_build(
     plan: dict[str, Any],
     snapshot: MaterializedSnapshot,
+    source_state: ExpectedSourceState,
     runner: BuildRunner,
     run_root: Path,
     spec: planner.StageSpec,
@@ -250,7 +283,7 @@ def _run_guest_build(
     pass_id: str,
     directory_name: str,
 ) -> tuple[dict[str, Any], dict[str, Any] | None, str]:
-    before = snapshot_root(snapshot)
+    before = source_state.require_current(f"before build {pass_id}")
     target = run_root / "targets" / directory_name
     output = run_root / "outputs" / directory_name
     request = _guest_request(
@@ -265,10 +298,75 @@ def _run_guest_build(
     result = runner.run(request)
     try:
         program, companion = artifacts.collect_guest_outputs(request, result)
-        require_snapshot_unchanged(snapshot, before, pass_id)
+        source_state.require_current(f"after build {pass_id}")
     finally:
         _remove_target(target)
     return program, companion, before
+
+
+def _apply_stage_repin_transitions(
+    source_state: ExpectedSourceState,
+    spec: planner.StageSpec,
+    row: dict[str, Any],
+) -> None:
+    observed = row["repins"]
+    if len(observed) != len(spec.repins):
+        raise ExecutionError("stage repin inventory mismatch")
+    for expected, candidate in zip(spec.repins, observed, strict=True):
+        if any(
+            candidate[field] != getattr(expected, field)
+            for field in ("path", "symbol", "value_kind", "visibility")
+        ):
+            raise ExecutionError("undeclared repin rejected")
+        _apply_one_repin(source_state, spec.stage_id, expected, candidate)
+
+
+def _apply_one_repin(
+    source_state: ExpectedSourceState,
+    stage_id: str,
+    expected: planner.RepinSpec,
+    candidate: dict[str, Any],
+) -> None:
+    expected_raw = render_expected_repin(
+        source_state.expected_bytes(expected.path),
+        expected.symbol,
+        expected.value_kind,
+        candidate["value"],
+    )
+
+    def apply() -> None:
+        artifacts.repin_rust_constant(
+            resolve_snapshot_path(source_state.snapshot.root, expected.path),
+            expected.symbol,
+            expected.value_kind,
+            candidate["value"],
+        )
+
+    source_state.apply_exact_transition(
+        expected.path,
+        expected_raw,
+        apply,
+        f"{stage_id} repin {expected.symbol}",
+    )
+
+
+def _write_candidate_transition(
+    source_state: ExpectedSourceState,
+    relative_path: str,
+    document: dict[str, Any],
+    transition: str,
+) -> None:
+    expected_raw = planner.canonical_bytes(document)
+    source_state.apply_exact_transition(
+        relative_path,
+        expected_raw,
+        lambda: artifacts.write_candidate_document(
+            source_state.snapshot.root,
+            relative_path,
+            document,
+        ),
+        transition,
+    )
 
 
 def _child_pin(
@@ -288,6 +386,7 @@ def _child_pin(
 def _execute_settlement_second_pass(
     plan: dict[str, Any],
     snapshot: MaterializedSnapshot,
+    source_state: ExpectedSourceState,
     runner: BuildRunner,
     run_root: Path,
     primary_settlement: dict[str, Any],
@@ -296,6 +395,7 @@ def _execute_settlement_second_pass(
     program, _companion, source_root = _run_guest_build(
         plan,
         snapshot,
+        source_state,
         runner,
         run_root,
         spec,
@@ -316,15 +416,17 @@ def _execute_settlement_second_pass(
 def _execute_final_rebuild(
     plan: dict[str, Any],
     snapshot: MaterializedSnapshot,
+    source_state: ExpectedSourceState,
     runner: BuildRunner,
     run_root: Path,
 ) -> dict[str, Any]:
-    root = snapshot_root(snapshot)
+    root = source_state.require_current("before final rebuild")
     programs: list[dict[str, Any]] = []
     for spec, stage_plan in zip(planner.STAGES, plan["stages"], strict=True):
         program, _companion, observed_root = _run_guest_build(
             plan,
             snapshot,
+            source_state,
             runner,
             run_root,
             spec,
@@ -350,11 +452,12 @@ def _execute_final_rebuild(
 def _execute_host_verifier(
     plan: dict[str, Any],
     snapshot: MaterializedSnapshot,
+    source_state: ExpectedSourceState,
     runner: BuildRunner,
     run_root: Path,
     settlement: dict[str, Any],
 ) -> dict[str, Any]:
-    before = snapshot_root(snapshot)
+    before = source_state.require_current("before build host-verifier")
     target = run_root / "targets" / "host-verifier"
     output = run_root / "outputs" / "host-verifier"
     host_plan = plan["host_verifier"]
@@ -375,7 +478,7 @@ def _execute_host_verifier(
     result = runner.run(request)
     try:
         binary = artifacts.collect_host_output(request, result)
-        require_snapshot_unchanged(snapshot, before, "host-verifier")
+        source_state.require_current("after build host-verifier")
     finally:
         _remove_target(target)
     return {
@@ -426,39 +529,11 @@ def _guest_request(
     )
 
 
-def _prepare_run_root(path: Path, repo_root: Path) -> Path:
-    if not path.is_absolute() or path.exists() or path.is_symlink():
-        raise ExecutionError("run root must be an absent absolute path")
-    try:
-        parent = path.parent.resolve(strict=True)
-        repository = repo_root.resolve(strict=True)
-    except OSError as exc:
-        raise ExecutionError("run root parent is unavailable") from exc
-    candidate = parent / path.name
-    if candidate != path or candidate == repository or repository in candidate.parents:
-        raise ExecutionError("run root must be canonical and external")
-    create_private_directory(candidate)
-    (candidate / "targets").mkdir(mode=0o700)
-    (candidate / "outputs").mkdir(mode=0o700)
-    return candidate
-
-
 def _remove_target(path: Path) -> None:
     try:
         shutil.rmtree(path)
     except OSError as exc:
         raise ExecutionError("fresh target cleanup failed") from exc
-
-
-def _write_new(path: Path, raw: bytes) -> None:
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    try:
-        with os.fdopen(descriptor, "wb", closefd=False) as stream:
-            stream.write(raw)
-            stream.flush()
-            os.fsync(stream.fileno())
-    finally:
-        os.close(descriptor)
 
 
 def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
