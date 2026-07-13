@@ -3,6 +3,7 @@
 extern crate alloc;
 
 mod checkpoint_finality_v1;
+mod checkpoint_finality_v2;
 mod economic_action_v1;
 mod full_blob_da_v1;
 mod parallel_shard_epoch_v1;
@@ -19,6 +20,7 @@ mod value_node_v4;
 mod value_transfer_v2;
 
 pub use checkpoint_finality_v1::*;
+pub use checkpoint_finality_v2::*;
 pub use economic_action_v1::*;
 pub use full_blob_da_v1::*;
 pub use parallel_shard_epoch_v1::*;

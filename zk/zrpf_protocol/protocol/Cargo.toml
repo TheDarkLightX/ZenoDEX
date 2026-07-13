@@ -50,6 +50,10 @@ name = "checkpoint_finality_v1"
 path = "tests/checkpoint_finality_v1.rs"
 
 [[test]]
+name = "checkpoint_finality_v2"
+path = "tests/checkpoint_finality_v2.rs"
+
+[[test]]
 name = "settlement_effect_v2"
 path = "tests/settlement_effect_v2.rs"
 
