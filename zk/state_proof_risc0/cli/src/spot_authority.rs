@@ -29,6 +29,7 @@ const REPLAY_CONFIG_SCHEMA_V1: &str = "zenodex/zeno_ledger/replay_engine_config/
 const REPLAY_CONFIG_PROFILE_V1: &str = "bounded_dex_engine_proof_authority_v1";
 const GOVERNED_PROOF_AUTHORITY_BINDING_SCHEMA_V1: &str =
     "zenodex.zeno_ledger.governed_proof_authority_binding.v1";
+const MAX_AUTHORITY_TOKEN_UTF8_BYTES: usize = 256;
 const PROOF_AUTHORITY_POLICY_KEYS: &[&str] = &[
     "schema",
     "policy_id",
@@ -1441,6 +1442,11 @@ fn required_nonempty_string(
 
 fn required_token(obj: &Map<String, Value>, key: &str, name: &str) -> Result<String, String> {
     let value = required_nonempty_string(obj, key, name)?;
+    if value.len() > MAX_AUTHORITY_TOKEN_UTF8_BYTES {
+        return Err(format!(
+            "{name}.{key} must be at most {MAX_AUTHORITY_TOKEN_UTF8_BYTES} UTF-8 bytes"
+        ));
+    }
     if !value
         .bytes()
         .all(|byte| byte.is_ascii_alphanumeric() || b"._:/-".contains(&byte))
@@ -1561,6 +1567,46 @@ fn header_u64(header: &Map<String, Value>, key: &str) -> Result<u64, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn required_token_accepts_256_ascii_bytes_and_rejects_257() {
+        let accepted = "a".repeat(MAX_AUTHORITY_TOKEN_UTF8_BYTES);
+        let mut object = Map::new();
+        object.insert("token".to_string(), json!(accepted));
+        assert_eq!(
+            required_token(&object, "token", "fixture"),
+            Ok("a".repeat(MAX_AUTHORITY_TOKEN_UTF8_BYTES))
+        );
+
+        object.insert(
+            "token".to_string(),
+            json!("a".repeat(MAX_AUTHORITY_TOKEN_UTF8_BYTES + 1)),
+        );
+        assert_eq!(
+            required_token(&object, "token", "fixture"),
+            Err("fixture.token must be at most 256 UTF-8 bytes".to_string())
+        );
+    }
+
+    #[test]
+    fn required_token_counts_utf8_bytes_before_enforcing_ascii_alphabet() {
+        let within_byte_cap = "é".repeat(MAX_AUTHORITY_TOKEN_UTF8_BYTES / 2);
+        assert_eq!(within_byte_cap.len(), MAX_AUTHORITY_TOKEN_UTF8_BYTES);
+        let mut object = Map::new();
+        object.insert("token".to_string(), json!(within_byte_cap));
+        assert_eq!(
+            required_token(&object, "token", "fixture"),
+            Err("fixture.token contains unsupported characters".to_string())
+        );
+
+        let above_byte_cap = format!("{}a", "é".repeat(MAX_AUTHORITY_TOKEN_UTF8_BYTES / 2));
+        assert_eq!(above_byte_cap.len(), MAX_AUTHORITY_TOKEN_UTF8_BYTES + 1);
+        object.insert("token".to_string(), json!(above_byte_cap));
+        assert_eq!(
+            required_token(&object, "token", "fixture"),
+            Err("fixture.token must be at most 256 UTF-8 bytes".to_string())
+        );
+    }
 
     #[test]
     fn transaction_bridge_matches_python_empty_root_vector() {
