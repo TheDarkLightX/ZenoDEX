@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import inspect
 import pickle
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
@@ -13,11 +14,21 @@ from unittest.mock import patch
 
 import pytest
 
+import src.integration._zrpf_spot_v7_firecracker_authority as firecracker_authority_module
 import src.integration.zrpf_spot_v7_atomic_settlement_store as store_module
 from src.integration._zrpf_spot_v7_atomic_settlement_capability import (
     _seal_test_only_spot_v7_settlement_v1,
     _SpotV7SettlementCandidateInputV1,
     _TestOnlySealedSpotV7SettlementV1,
+)
+from src.integration._zrpf_spot_v7_firecracker_authority import (
+    SPOT_V7_FIRECRACKER_AUTHORITY_MISSING_CONDITIONS_V1,
+    SpotV7FirecrackerAuthorityMissingConditionV1,
+    SpotV7FirecrackerAuthorityUnavailableV1,
+    _bind_governed_firecracker_spot_v7_settlement_v1,
+    _GovernedFirecrackerSpotV7SettlementV1,
+    _GovernedJailedFirecrackerExecutionV1,
+    _require_governed_firecracker_spot_v7_authority_available_v1,
 )
 from src.integration.zrpf_spot_v7_atomic_settlement_store import (
     SQLiteSpotV7AtomicSettlementStoreV1,
@@ -264,9 +275,229 @@ def test_given_raw_verifier_output_when_committing_then_no_authority_entrypoint_
     with pytest.raises(TypeError, match="test-only sealed Spot V7 candidate"):
         store._commit_test_only_sealed_candidate(
             expected_cursor=store.read_cursor(),
-            candidate=b"raw SpotSettlementV7VerifierOutputV1 bytes",  # type: ignore[arg-type]
+            candidate=b"raw SpotSettlementV7VerifierOutputV1 bytes",
         )
     assert store.read_cursor().revision == 0
+
+
+def test_governed_firecracker_authority_reports_the_exact_fail_closed_frontier() -> None:
+    assert SPOT_V7_FIRECRACKER_AUTHORITY_MISSING_CONDITIONS_V1 == (
+        SpotV7FirecrackerAuthorityMissingConditionV1.FINAL_V6_CHILD_IMAGE_ID,
+        SpotV7FirecrackerAuthorityMissingConditionV1.FINAL_V7_IMAGE_ID,
+        SpotV7FirecrackerAuthorityMissingConditionV1.CURRENT_V7_RECEIPT_EVIDENCE,
+        SpotV7FirecrackerAuthorityMissingConditionV1.GOVERNED_RELEASE_BINDING,
+        SpotV7FirecrackerAuthorityMissingConditionV1.ROOT_OWNED_IMMUTABLE_STAGING,
+        SpotV7FirecrackerAuthorityMissingConditionV1.EXACT_RUNTIME_ARTIFACT_SET,
+        SpotV7FirecrackerAuthorityMissingConditionV1.EXACT_REQUEST_OUTPUT_BINDING,
+        SpotV7FirecrackerAuthorityMissingConditionV1.LIVE_PRIVILEGED_JAILER,
+        SpotV7FirecrackerAuthorityMissingConditionV1.LIVE_CGROUP_LIFECYCLE,
+        SpotV7FirecrackerAuthorityMissingConditionV1.LIVE_EXCLUSIVE_NETWORK_NAMESPACE,
+        SpotV7FirecrackerAuthorityMissingConditionV1.EXACT_EXECUTION_RECORD_BINDING,
+        SpotV7FirecrackerAuthorityMissingConditionV1.EXACT_V7_PAYLOAD_BINDING,
+        SpotV7FirecrackerAuthorityMissingConditionV1.AUTHORITY_CAPABLE_STORE_SCHEMA,
+    )
+
+    with pytest.raises(SpotV7FirecrackerAuthorityUnavailableV1) as captured:
+        _require_governed_firecracker_spot_v7_authority_available_v1()
+
+    assert captured.value.code == "SPOT_V7_FIRECRACKER_AUTHORITY_UNAVAILABLE"
+    assert captured.value.missing_conditions == (
+        SPOT_V7_FIRECRACKER_AUTHORITY_MISSING_CONDITIONS_V1
+    )
+    assert tuple(item.value for item in captured.value.missing_conditions) == (
+        "final_v6_child_image_id_unmaterialized",
+        "final_v7_image_id_unmaterialized",
+        "current_v7_receipt_and_seal_mutation_evidence_missing",
+        "governed_v7_release_manifest_and_revocation_binding_missing",
+        "root_owned_immutable_artifact_staging_missing",
+        "exact_runtime_artifact_set_validation_missing",
+        "exact_request_output_device_binding_missing",
+        "live_privileged_jailer_execution_missing",
+        "live_cgroup_limits_membership_and_teardown_evidence_missing",
+        "live_exclusive_network_namespace_evidence_missing",
+        "canonical_execution_record_and_provenance_binding_missing",
+        "exact_firecracker_output_and_v7_payload_binding_missing",
+        "authority_capable_atomic_store_schema_missing",
+    )
+
+
+def test_unavailable_binder_source_contains_no_production_mint_path() -> None:
+    source = inspect.getsource(_bind_governed_firecracker_spot_v7_settlement_v1)
+
+    assert "_require_governed_firecracker_spot_v7_authority_available_v1()" in source
+    assert "_GovernedFirecrackerSpotV7SettlementV1(" not in source
+    assert "_GOVERNED_BINDER_SEAL_V1" not in source
+    assert tuple(inspect.signature(_bind_governed_firecracker_spot_v7_settlement_v1).parameters) == (
+        "runtime_execution",
+    )
+
+
+@pytest.mark.parametrize(
+    "untrusted_runtime_value",
+    (
+        b"raw Firecracker output",
+        {"firecracker_execution_verified": True},
+        {"docker_replay_verified": True},
+        True,
+        object(),
+    ),
+)
+def test_raw_output_reports_and_booleans_cannot_mint_governed_capability(
+    untrusted_runtime_value: object,
+) -> None:
+    with pytest.raises(TypeError, match="governed jailed Firecracker execution"):
+        _bind_governed_firecracker_spot_v7_settlement_v1(
+            runtime_execution=untrusted_runtime_value,
+        )
+
+
+def test_governed_runtime_owns_the_exact_candidate_and_rejects_a_b_rebinding() -> None:
+    candidate_a = _candidate(seed=100)
+    candidate_b = _candidate(seed=200)
+    runtime = _GovernedJailedFirecrackerExecutionV1(
+        candidate_a._input,
+        seal=firecracker_authority_module._GOVERNED_RUNTIME_SEAL_V1,
+    )
+    capability = _GovernedFirecrackerSpotV7SettlementV1(
+        runtime_execution=runtime,
+        seal=firecracker_authority_module._GOVERNED_BINDER_SEAL_V1,
+    )
+
+    assert capability._candidate_for_atomic_store() is candidate_a._input
+    assert capability._candidate_for_atomic_store() is not candidate_b._input
+    with pytest.raises(TypeError, match="unexpected keyword argument 'candidate_input'"):
+        _bind_governed_firecracker_spot_v7_settlement_v1(
+            runtime_execution=runtime,
+            **{"candidate_input": candidate_b._input},
+        )
+
+
+def test_direct_or_object_new_capability_construction_cannot_cross_private_seals() -> None:
+    candidate = _candidate()
+
+    with pytest.raises(TypeError, match="governed runtime seal"):
+        _GovernedJailedFirecrackerExecutionV1(
+            candidate._input,
+            seal=object(),  # type: ignore[arg-type]
+        )
+    forged_runtime = object.__new__(_GovernedJailedFirecrackerExecutionV1)
+    with pytest.raises(TypeError, match="governed jailed Firecracker execution"):
+        _bind_governed_firecracker_spot_v7_settlement_v1(
+            runtime_execution=forged_runtime,
+        )
+    with pytest.raises(TypeError, match="governed binder seal"):
+        _GovernedFirecrackerSpotV7SettlementV1(
+            runtime_execution=forged_runtime,
+            seal=object(),  # type: ignore[arg-type]
+        )
+
+
+def test_unminted_governed_capability_types_still_reject_copy_and_serialization() -> None:
+    forged_values = (
+        object.__new__(_GovernedJailedFirecrackerExecutionV1),
+        object.__new__(_GovernedFirecrackerSpotV7SettlementV1),
+    )
+
+    for forged in forged_values:
+        for operation in (copy.copy, copy.deepcopy, pickle.dumps):
+            with pytest.raises(TypeError):
+                operation(forged)
+
+
+def test_future_capability_defers_retry_and_exact_once_to_atomic_store() -> None:
+    source = inspect.getsource(_GovernedFirecrackerSpotV7SettlementV1)
+
+    assert "_OneShotSpotV7CapabilityUseV1" not in source
+    assert "_claim_once" not in source
+    assert "_consumed" not in source
+    assert "_candidate_for_atomic_store" in source
+
+
+@pytest.mark.parametrize(
+    "untrusted_capability",
+    (
+        b"raw SpotSettlementV7VerifierOutputV1 bytes",
+        {"settlement_authority": True},
+        {"docker_replay_verified": True},
+        True,
+        object(),
+    ),
+)
+def test_governed_store_sink_rejects_forgeable_values_without_mutating_state(
+    tmp_path: Path,
+    untrusted_capability: object,
+) -> None:
+    store = _store(tmp_path)
+    before_cursor = store.read_cursor()
+    before_rows = _database_rows(store.path)
+
+    with patch.object(
+        SQLiteSpotV7AtomicSettlementStoreV1,
+        "_connect",
+        side_effect=AssertionError("governed rejection must precede SQLite"),
+    ):
+        with pytest.raises(TypeError, match="governed Firecracker Spot V7 capability"):
+            store._commit_governed_firecracker_capability(
+                expected_cursor=before_cursor,
+                capability=untrusted_capability,
+            )
+
+    assert store.read_cursor() == before_cursor
+    assert _database_rows(store.path) == before_rows
+
+
+def test_object_new_forged_exact_capability_rejects_before_sqlite_mutation(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    before_cursor = store.read_cursor()
+    before_rows = _database_rows(store.path)
+    forged = object.__new__(_GovernedFirecrackerSpotV7SettlementV1)
+
+    with patch.object(
+        SQLiteSpotV7AtomicSettlementStoreV1,
+        "_connect",
+        side_effect=AssertionError("governed rejection must precede SQLite"),
+    ):
+        with pytest.raises(TypeError, match="module-private governed binder seal"):
+            store._commit_governed_firecracker_capability(
+                expected_cursor=before_cursor,
+                capability=forged,
+            )
+
+    assert store.read_cursor() == before_cursor
+    assert _database_rows(store.path) == before_rows
+
+
+def test_exact_sealed_but_unavailable_capability_rejects_before_sqlite_mutation(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    before_cursor = store.read_cursor()
+    before_rows = _database_rows(store.path)
+    candidate = _candidate()
+    runtime = _GovernedJailedFirecrackerExecutionV1(
+        candidate._input,
+        seal=firecracker_authority_module._GOVERNED_RUNTIME_SEAL_V1,
+    )
+    capability = _GovernedFirecrackerSpotV7SettlementV1(
+        runtime_execution=runtime,
+        seal=firecracker_authority_module._GOVERNED_BINDER_SEAL_V1,
+    )
+
+    with patch.object(
+        SQLiteSpotV7AtomicSettlementStoreV1,
+        "_connect",
+        side_effect=AssertionError("unavailable authority must precede SQLite"),
+    ):
+        with pytest.raises(SpotV7FirecrackerAuthorityUnavailableV1):
+            store._commit_governed_firecracker_capability(
+                expected_cursor=before_cursor,
+                capability=capability,
+            )
+
+    assert store.read_cursor() == before_cursor
+    assert _database_rows(store.path) == before_rows
 
 
 def test_python_cell_hashing_matches_the_reviewed_rust_v7_fixed_vector() -> None:

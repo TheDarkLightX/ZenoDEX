@@ -23,6 +23,12 @@ SETTLEMENT_VERIFIER_ADAPTER = (
 SOURCE_OPENED_V6_VERIFIER_ADAPTER = (
     ROOT / "src/integration/zrpf_source_opened_spot_v6_verifier_adapter.py"
 )
+SPOT_V7_FIRECRACKER_AUTHORITY = (
+    ROOT / "src/integration/_zrpf_spot_v7_firecracker_authority.py"
+)
+SPOT_V7_ATOMIC_STORE = (
+    ROOT / "src/integration/zrpf_spot_v7_atomic_settlement_store.py"
+)
 
 PRIVATE_CAPABILITY_TYPE = "_AuthenticatedRecursiveStarkRootFacts"
 PRIVATE_SEAL = "_AUTHENTICATED_FACTS_SEAL"
@@ -33,6 +39,21 @@ PRIVATE_SNAPSHOT = "_RecursiveStarkAdmissionIndexSnapshot"
 PRIVATE_PLANNER = "_plan_authenticated_recursive_stark_root"
 PRIVATE_DURABLE_COMMIT = "_commit_authenticated_recursive_stark_root"
 PRIVATE_SOURCE_OPENED_V6_SEAL = "_seal_verified_result"
+PRIVATE_FIRECRACKER_AUTHORITY_NAMES = frozenset(
+    {
+        "_GovernedRuntimeSealV1",
+        "_GovernedBinderSealV1",
+        "_GOVERNED_RUNTIME_SEAL_V1",
+        "_GOVERNED_BINDER_SEAL_V1",
+        "_GovernedJailedFirecrackerExecutionV1",
+        "_GovernedFirecrackerSpotV7SettlementV1",
+        "_bind_governed_firecracker_spot_v7_settlement_v1",
+        "_require_governed_firecracker_spot_v7_authority_available_v1",
+        "_commit_governed_firecracker_capability",
+        "_candidate_for_binder",
+        "_candidate_for_atomic_store",
+    }
+)
 PRIVATE_AUTHORITY_NAMES = frozenset(
     {
         PRIVATE_CAPABILITY_TYPE,
@@ -44,8 +65,10 @@ PRIVATE_AUTHORITY_NAMES = frozenset(
         PRIVATE_PLANNER,
     }
 )
-PROTECTED_AUTHORITY_NAMES = PRIVATE_AUTHORITY_NAMES | frozenset(
-    {PRIVATE_SOURCE_OPENED_V6_SEAL}
+PROTECTED_AUTHORITY_NAMES = (
+    PRIVATE_AUTHORITY_NAMES
+    | frozenset({PRIVATE_SOURCE_OPENED_V6_SEAL})
+    | PRIVATE_FIRECRACKER_AUTHORITY_NAMES
 )
 PRIVATE_ADAPTER_IMPORTS = frozenset(
     {
@@ -64,6 +87,12 @@ PRIVATE_SETTLEMENT_VERIFIER_IMPORTS = frozenset({PRIVATE_MINT, PRIVATE_PROVENANC
 PRIVATE_SOURCE_OPENED_V6_REFERENCES = PRIVATE_SETTLEMENT_VERIFIER_IMPORTS | frozenset(
     {PRIVATE_SOURCE_OPENED_V6_SEAL}
 )
+PRIVATE_FIRECRACKER_STORE_REFERENCES = frozenset(
+    {
+        "_GovernedFirecrackerSpotV7SettlementV1",
+        "_require_governed_firecracker_spot_v7_authority_available_v1",
+    }
+)
 RETIRED_PUBLIC_AUTHORITY_NAMES = frozenset(
     {
         "VerifiedRecursiveStarkRootFacts",
@@ -77,7 +106,7 @@ DATA_ONLY_ADMISSION_RESULT = "RecursiveStarkAdmissionResult"
 def test_private_admission_symbols_are_absent_from_other_production_modules() -> None:
     violations: list[str] = []
     for path in _production_python_paths():
-        if path == CORE:
+        if path in {CORE, SPOT_V7_FIRECRACKER_AUTHORITY}:
             continue
         allowed = {
             PINNED_ADAPTER: PRIVATE_ADAPTER_IMPORTS,
@@ -88,6 +117,7 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
             SETTLEMENT_CERTIFICATE_AUTHORITY: PRIVATE_SETTLEMENT_CERTIFICATE_IMPORTS,
             SETTLEMENT_VERIFIER_ADAPTER: PRIVATE_SETTLEMENT_VERIFIER_IMPORTS,
             SOURCE_OPENED_V6_VERIFIER_ADAPTER: PRIVATE_SOURCE_OPENED_V6_REFERENCES,
+            SPOT_V7_ATOMIC_STORE: PRIVATE_FIRECRACKER_STORE_REFERENCES,
         }.get(path, frozenset())
         tree = _parse(path)
         for node in ast.walk(tree):
@@ -96,6 +126,43 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
                 violations.append(f"{path.relative_to(ROOT)}:{_line(node)}:{name}")
 
     assert violations == []
+
+
+def test_firecracker_authority_symbols_have_no_public_alias_or_export() -> None:
+    tree = _parse(SPOT_V7_FIRECRACKER_AUTHORITY)
+
+    assert _public_authority_alias_violations(tree) == []
+    assert _private_authority_all_exports(tree) == []
+    assert _public_top_level_authority_reachability(tree) == []
+
+
+def test_firecracker_authority_ratchet_rejects_seal_and_binder_alias_mutants() -> None:
+    source = SPOT_V7_FIRECRACKER_AUTHORITY.read_text(encoding="utf-8")
+    mutant = ast.parse(
+        source
+        + "\npublic_runtime_seal = _GOVERNED_RUNTIME_SEAL_V1\n"
+        + "public_settlement_binder = _bind_governed_firecracker_spot_v7_settlement_v1\n",
+        filename=str(SPOT_V7_FIRECRACKER_AUTHORITY),
+    )
+
+    assert _public_authority_alias_violations(mutant) == [
+        "public_runtime_seal:_GOVERNED_RUNTIME_SEAL_V1",
+        "public_settlement_binder:_bind_governed_firecracker_spot_v7_settlement_v1",
+    ]
+
+    public_wrapper = ast.parse(
+        """
+def public_capability(runtime):
+    return _GovernedFirecrackerSpotV7SettlementV1(
+        runtime_execution=runtime,
+        seal=_GOVERNED_BINDER_SEAL_V1,
+    )
+""",
+        filename="public_firecracker_capability_wrapper.py",
+    )
+    assert _public_top_level_authority_reachability(public_wrapper) == [
+        "public_capability"
+    ]
 
 
 @pytest.mark.parametrize(
@@ -827,7 +894,7 @@ def _authority_reaching_top_level_function_names(tree: ast.Module) -> set[str]:
         for node in tree.body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
-    authority_reaching = set(PRIVATE_AUTHORITY_NAMES)
+    authority_reaching = set(PROTECTED_AUTHORITY_NAMES)
     while True:
         discovered = {
             name

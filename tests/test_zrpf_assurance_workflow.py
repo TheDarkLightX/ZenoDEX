@@ -165,6 +165,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "src/integration/recursive_stark_replay_manifest.py",
         "src/integration/recursive_stark_verifier_adapter.py",
         "src/integration/_zrpf_spot_v7_atomic_settlement_capability.py",
+        "src/integration/_zrpf_spot_v7_firecracker_authority.py",
         "src/integration/_zrpf_spot_v7_atomic_settlement_engine.py",
         "src/integration/_zrpf_spot_v7_atomic_settlement_history.py",
         "src/integration/_zrpf_spot_v7_atomic_settlement_records.py",

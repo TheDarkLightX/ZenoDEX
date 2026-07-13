@@ -43,6 +43,10 @@ from src.integration._zrpf_spot_v7_atomic_settlement_schema import (
     _read_spot_v7_cursor,
     _validate_spot_v7_schema,
 )
+from src.integration._zrpf_spot_v7_firecracker_authority import (
+    _GovernedFirecrackerSpotV7SettlementV1,
+    _require_governed_firecracker_spot_v7_authority_available_v1,
+)
 from src.integration.zrpf_spot_v7_atomic_settlement_types import (
     SPOT_V7_ATOMIC_SETTLEMENT_AUTHORITY_BLOCKED_REASON_V1,
     DurableSpotV7AtomicSettlementReceiptV1,
@@ -201,6 +205,27 @@ class SQLiteSpotV7AtomicSettlementStoreV1:
         finally:
             if connection is not None:
                 connection.close()
+
+    def _commit_governed_firecracker_capability(
+        self,
+        *,
+        expected_cursor: SpotV7AtomicSettlementCursorV1,
+        capability: object,
+    ) -> None:
+        """Fail closed until the jailed runner and authority-capable schema exist.
+
+        This deliberately performs no database open or write. Raw output,
+        reports, Docker results, caller booleans, and ``object.__new__`` forgeries
+        therefore reject before the SQLite transaction boundary.
+        """
+
+        if type(expected_cursor) is not SpotV7AtomicSettlementCursorV1:
+            raise TypeError("expected_cursor must be exact SpotV7AtomicSettlementCursorV1")
+        if type(capability) is not _GovernedFirecrackerSpotV7SettlementV1:
+            raise TypeError("capability must be a governed Firecracker Spot V7 capability")
+        if not capability._has_private_binder_seal():
+            raise TypeError("capability lacks the module-private governed binder seal")
+        _require_governed_firecracker_spot_v7_authority_available_v1()
 
     def _evaluate_and_commit_locked(
         self,
