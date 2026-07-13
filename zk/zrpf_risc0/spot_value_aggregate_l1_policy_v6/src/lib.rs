@@ -18,14 +18,14 @@ use zenodex_zrpf_risc0_value_aggregate_shared::{
 };
 
 pub const PINNED_SOURCE_OPENED_SPOT_VALUE_LEAF_IMAGE_ID_V6: [u32; 8] = [
-    521_780_439,
-    1_746_029_462,
-    3_039_308_085,
-    4_098_244_711,
-    3_250_819_727,
-    2_804_917_875,
-    1_420_521_270,
-    3_737_106_208,
+    1_095_387_495,
+    3_147_592_252,
+    60_121_163,
+    196_748_644,
+    818_736_518,
+    3_038_338_146,
+    2_392_801_317,
+    3_508_727_951,
 ];
 
 const L1_PROFILE_V6: &str = "zrpf_source_opened_spot_value_aggregate_l1_v6";
