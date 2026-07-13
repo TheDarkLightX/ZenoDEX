@@ -756,6 +756,38 @@ fn require_pool_domain(pool: &DexPoolEntryV1) -> Result<(), TransitionError> {
     )
 }
 
+fn require_canonical_pool_identity(pool: &DexPoolEntryV1) -> Result<(), TransitionError> {
+    let asset0 = canonical_pool_asset_id(&pool.asset0);
+    let asset1 = canonical_pool_asset_id(&pool.asset1);
+    if asset0.is_empty() || asset1.is_empty() {
+        return Err(TransitionError::InvalidInput(
+            "snapshot pool assets must be non-empty",
+        ));
+    }
+    if pool.asset0 != asset0 || pool.asset1 != asset1 {
+        return Err(TransitionError::InvalidInput(
+            "snapshot pool assets must use canonical encoding",
+        ));
+    }
+    if asset0 >= asset1 {
+        return Err(TransitionError::InvalidInput(
+            "snapshot pool assets must be in canonical order",
+        ));
+    }
+    if pool.fee_bps > 10_000 {
+        return Err(TransitionError::InvalidInput(
+            "snapshot pool fee_bps out of range",
+        ));
+    }
+    let expected = compute_pool_id(&asset0, &asset1, pool.fee_bps, CURVE_TAG, CURVE_PARAMS);
+    if pool.pool_id != expected {
+        return Err(TransitionError::InvalidInput(
+            "snapshot pool_id does not match canonical pool identity",
+        ));
+    }
+    Ok(())
+}
+
 /// Route conservation audit: verifies the full value chain balances.
 /// sender_debit -> pool_1_in -> pool_1_out -> pool_2_in -> ... -> recipient_credit
 /// No value created or destroyed at any hop.
@@ -854,6 +886,7 @@ impl DexStateV1 {
             if pool.pool_id.is_empty() {
                 return Err(TransitionError::InvalidInput("snapshot pool_id empty"));
             }
+            require_canonical_pool_identity(&pool)?;
             if pools.contains_key(&pool.pool_id) {
                 return Err(TransitionError::InvalidInput("duplicate snapshot pool_id"));
             }
@@ -5660,7 +5693,9 @@ mod tests {
     const PROTOCOL_FEE_RECIPIENT: &str =
         "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
     const POOL_ID: &str = "0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686";
-    const POOL_ID_2: &str = "0xdd9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686";
+    const POOL_ID_2: &str = "0xf19012291c8a7803ca9be5f88790e96faf893dfe57cbc475b3b43e2f35faa857";
+    const CHAIN_POOL_ID: &str =
+        "0x533f9c12407365b43940616e88019044bd6c607e1bb4a1f7efc0b9012896dd9b";
 
     fn empty_snapshot() -> DexSnapshotV1 {
         DexSnapshotV1 {
@@ -5821,7 +5856,7 @@ mod tests {
             amount: 0,
         });
         snapshot.pools.push(DexPoolEntryV1 {
-            pool_id: "CHAIN_POOL".to_string(),
+            pool_id: CHAIN_POOL_ID.to_string(),
             asset0: ASSET1.to_string(),
             asset1: ASSET2.to_string(),
             reserve0: 1_500_000,
@@ -5846,7 +5881,7 @@ mod tests {
             },
             RouteLegV1 {
                 hops: alloc::vec![RouteLegHopV1 {
-                    pool_id: "CHAIN_POOL".to_string(),
+                    pool_id: CHAIN_POOL_ID.to_string(),
                 }],
             },
         ];
@@ -5865,7 +5900,7 @@ mod tests {
             },
             RouteLegV1 {
                 hops: alloc::vec![RouteLegHopV1 {
-                    pool_id: "CHAIN_POOL".to_string(),
+                    pool_id: CHAIN_POOL_ID.to_string(),
                 }],
             },
         ];
@@ -7896,7 +7931,6 @@ mod tests {
             amount: 101,
         }];
         snapshot.pools = alloc::vec![pool_entry(DEX_POOL_RESERVE_MAX - 100, 10_000)];
-        snapshot.pools[0].fee_bps = 0;
         let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
         let before = state.canonical_app_hash_sha256();
         let intent = SwapExactInIntentV1 {
@@ -9531,11 +9565,14 @@ mod tests {
         let mut snapshot = sender_balance_snapshot(ASSET0, 10);
         let mut pool = pool_entry(1, 4);
         pool.fee_bps = 0;
+        let pool_id = compute_pool_id(ASSET0, ASSET1, 0, CURVE_TAG, CURVE_PARAMS);
+        pool.pool_id = pool_id.clone();
         snapshot.pools = alloc::vec![pool];
         let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
         let fee_config = ProtocolFeeConfig::default();
         let mut intent =
             default_route_intent("route-overdelivery-reserve", "ROUTE_EXACT_OUT", 0, 0, 1, 1);
+        intent.legs[0].hops[0].pool_id = pool_id;
         bind_route_hash(&mut intent, &state, &fee_config);
         let tx = route_tx(intent);
 
@@ -9746,9 +9783,16 @@ mod tests {
         let mut snapshot = sender_balance_snapshot(ASSET0, 10_000_000);
         let pool1 = pool_entry(1_000_000, 2_000_000);
         let mut pool2 = pool_entry(2_000_000, 1_000_000);
-        pool2.pool_id = "POOL2".to_string();
         pool2.asset0 = ASSET1.to_string();
         pool2.asset1 = "ASSET2".to_string();
+        let pool2_id = compute_pool_id(
+            &pool2.asset0,
+            &pool2.asset1,
+            pool2.fee_bps,
+            CURVE_TAG,
+            CURVE_PARAMS,
+        );
+        pool2.pool_id = pool2_id.clone();
         snapshot.pools = alloc::vec![pool1, pool2];
         let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
         let pre_state = state.clone();
@@ -9762,10 +9806,10 @@ mod tests {
             state.pools.insert(POOL_ID.to_string(), p1);
         }
         {
-            let mut p2 = state.pools.get("POOL2").cloned().unwrap();
+            let mut p2 = state.pools.get(&pool2_id).cloned().unwrap();
             p2.reserve0 += 50;
             p2.reserve1 -= 50;
-            state.pools.insert("POOL2".to_string(), p2);
+            state.pools.insert(pool2_id.clone(), p2);
         }
 
         let result = state.audit_route_conservation(RouteConservationAudit {
@@ -9787,7 +9831,7 @@ mod tests {
                     protocol_fee_credit_in: 0,
                 },
                 RoutePoolAudit {
-                    pool_id: "POOL2".to_string(),
+                    pool_id: pool2_id,
                     asset_in: ASSET1.to_string(),
                     asset_out: "ASSET2".to_string(),
                     reserve_in_delta: 50,
@@ -10099,7 +10143,7 @@ mod tests {
         let total_amount_in = intent.total_amount_in;
 
         let first_pool = state.pools.get(POOL_ID).cloned().unwrap();
-        let second_pool = state.pools.get("CHAIN_POOL").cloned().unwrap();
+        let second_pool = state.pools.get(CHAIN_POOL_ID).cloned().unwrap();
         let first_fee = ceil_div_u128(total_amount_in * first_pool.fee_bps as u128, 10_000);
         let first_protocol_fee = first_fee * fee_config.share_bps as u128 / 10_000;
         let first_net_in = total_amount_in - first_fee;
@@ -10128,7 +10172,7 @@ mod tests {
             first_pool.reserve0 + total_amount_in - first_protocol_fee
         );
         assert_eq!(post_first.reserve1, first_pool.reserve1 - first_out);
-        let post_second = state.pools.get("CHAIN_POOL").unwrap();
+        let post_second = state.pools.get(CHAIN_POOL_ID).unwrap();
         assert_eq!(
             post_second.reserve0,
             second_pool.reserve0 + first_out - second_protocol_fee
@@ -10206,7 +10250,7 @@ mod tests {
         let total_amount_out = intent.total_amount_out;
 
         // Reverse pass: compute required_in for second leg, then first leg.
-        let second_pool = state.pools.get("CHAIN_POOL").cloned().unwrap();
+        let second_pool = state.pools.get(CHAIN_POOL_ID).cloned().unwrap();
         let second_net_in = ceil_div_u128(
             second_pool.reserve0 * total_amount_out,
             second_pool.reserve1 - total_amount_out,
@@ -10253,7 +10297,7 @@ mod tests {
         );
         assert_eq!(post_first.reserve1, first_pool.reserve1 - second_target_out);
         // Second pool reserves updated (net of protocol fee).
-        let post_second = state.pools.get("CHAIN_POOL").unwrap();
+        let post_second = state.pools.get(CHAIN_POOL_ID).unwrap();
         assert_eq!(
             post_second.reserve0,
             second_pool.reserve0 + second_gross_in - second_protocol_fee
@@ -10289,6 +10333,69 @@ mod tests {
                 Err(TransitionError::InvalidInput(message)) if message == expected
             ));
         }
+    }
+
+    #[test]
+    fn snapshot_pool_identity_binds_assets_fee_and_canonical_encoding() {
+        let snapshot = sender_balance_snapshot(ASSET0, 1_000);
+        DexStateV1::from_snapshot(snapshot.clone()).unwrap();
+
+        let mut wrong_id = snapshot.clone();
+        wrong_id.pools[0].pool_id =
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string();
+        assert!(matches!(
+            DexStateV1::from_snapshot(wrong_id),
+            Err(TransitionError::InvalidInput(
+                "snapshot pool_id does not match canonical pool identity"
+            ))
+        ));
+
+        let mut uppercase_id = snapshot.clone();
+        uppercase_id.pools[0].pool_id = POOL_ID.to_ascii_uppercase().replacen("0X", "0x", 1);
+        assert!(matches!(
+            DexStateV1::from_snapshot(uppercase_id),
+            Err(TransitionError::InvalidInput(
+                "snapshot pool_id does not match canonical pool identity"
+            ))
+        ));
+
+        let mut wrong_fee = snapshot.clone();
+        wrong_fee.pools[0].fee_bps += 1;
+        assert!(matches!(
+            DexStateV1::from_snapshot(wrong_fee),
+            Err(TransitionError::InvalidInput(
+                "snapshot pool_id does not match canonical pool identity"
+            ))
+        ));
+
+        let mut invalid_fee = snapshot.clone();
+        invalid_fee.pools[0].fee_bps = 10_001;
+        assert!(matches!(
+            DexStateV1::from_snapshot(invalid_fee),
+            Err(TransitionError::InvalidInput(
+                "snapshot pool fee_bps out of range"
+            ))
+        ));
+
+        let mut uppercase_asset = snapshot.clone();
+        uppercase_asset.pools[0].asset0 =
+            "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".to_string();
+        assert!(matches!(
+            DexStateV1::from_snapshot(uppercase_asset),
+            Err(TransitionError::InvalidInput(
+                "snapshot pool assets must use canonical encoding"
+            ))
+        ));
+
+        let mut reversed_assets = snapshot;
+        reversed_assets.pools[0].asset0 = ASSET1.to_string();
+        reversed_assets.pools[0].asset1 = ASSET0.to_string();
+        assert!(matches!(
+            DexStateV1::from_snapshot(reversed_assets),
+            Err(TransitionError::InvalidInput(
+                "snapshot pool assets must be in canonical order"
+            ))
+        ));
     }
 
     #[test]
@@ -10335,7 +10442,6 @@ mod tests {
         let mut snapshot = sender_balance_snapshot(ASSET0, 101);
         snapshot.pools[0].reserve0 = DEX_POOL_RESERVE_MAX - 100;
         snapshot.pools[0].reserve1 = DEX_POOL_RESERVE_MAX;
-        snapshot.pools[0].fee_bps = 0;
         let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
         let before = state.canonical_app_hash_sha256();
         let fee_config = ProtocolFeeConfig::default();
