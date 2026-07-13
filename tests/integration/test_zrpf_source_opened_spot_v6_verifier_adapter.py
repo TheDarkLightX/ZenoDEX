@@ -25,6 +25,12 @@ from src.integration.zrpf_atomic_settlement_store import (
     SQLiteZrpfAtomicSettlementStoreV1,
 )
 from src.integration.zrpf_atomic_settlement_store_types import ZrpfAtomicSettlementStoreErrorV1
+from src.integration.zrpf_source_opened_spot_v6_live_ledger_gate import (
+    SOURCE_OPENED_SPOT_V6_LIVE_LEDGER_AUTHORITY_BLOCKED_REASON_V1,
+    SourceOpenedSpotV6LiveLedgerDispositionV1,
+    SourceOpenedSpotV6LiveLedgerRejectReasonV1,
+    _reject_authenticated_source_opened_spot_v6_live_ledger_value_movement,
+)
 from src.integration.zrpf_source_opened_spot_v6_verifier_adapter import (
     SOURCE_OPENED_SPOT_V6_AUTHORITY_MANIFEST_SCHEMA,
     SOURCE_OPENED_SPOT_V6_REQUEST_SCHEMA,
@@ -442,6 +448,85 @@ def test_two_v6_writers_have_one_commit_and_one_idempotent_replay(tmp_path: Path
         assert connection.execute(
             "SELECT count(*) FROM zrpf_source_opened_spot_v6_associations"
         ).fetchone()[0] == 1
+
+
+def test_authenticated_v6_live_ledger_value_movement_is_a_typed_no_op(
+    tmp_path: Path,
+) -> None:
+    adapter = _adapter(tmp_path)
+    store = _store(tmp_path)
+    database_before = store.path.read_bytes()
+    admission_before = store.read_admission_cursor()
+    settlement_before = store.read_settlement_cursor()
+
+    blocked = adapter.verify_live_ledger_value_movement(
+        settlement_receipt=_RECEIPT,
+        guest_input=_guest_input(),
+    )
+
+    assert blocked.disposition is SourceOpenedSpotV6LiveLedgerDispositionV1.BLOCKED
+    assert (
+        blocked.reject_reason
+        is SourceOpenedSpotV6LiveLedgerRejectReasonV1.VALUE_MOVEMENT_AUTHORITY_UNAVAILABLE
+    )
+    assert (
+        blocked.authority_blocked_reason
+        == SOURCE_OPENED_SPOT_V6_LIVE_LEDGER_AUTHORITY_BLOCKED_REASON_V1
+    )
+    assert blocked.epoch_id == 9
+    assert blocked.pre_state_root == _prefixed(16)
+    assert blocked.post_state_root == _prefixed(17)
+    assert blocked.state_changed is False
+    assert blocked.replay_indexes_changed is False
+    assert blocked.proof_association_changed is False
+    assert blocked.live_ledger_prestate_cas_verified is False
+    assert blocked.typed_value_transition_verified is False
+    assert blocked.durable_atomic_value_commit_verified is False
+    assert blocked.settlement_authority is False
+    assert blocked.signature_authority is False
+    assert blocked.grant_authority is False
+    assert blocked.provider_retrievability_verified is False
+    assert blocked.external_finality_verified is False
+    assert blocked.release_authority is False
+    assert blocked.production_authority is False
+    assert store.path.read_bytes() == database_before
+    assert store.read_admission_cursor() == admission_before
+    assert store.read_settlement_cursor() == settlement_before
+    with sqlite3.connect(store.path) as connection:
+        for table in (
+            "zrpf_admissions",
+            "zrpf_settlement_plans",
+            "zrpf_settlement_certificates",
+            "zrpf_source_opened_spot_v6_associations",
+            "zrpf_settlement_action_nullifiers",
+            "zrpf_settlement_consumed_objects",
+        ):
+            assert connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0] == 0
+
+
+def test_proof_only_result_cannot_enter_live_ledger_value_movement_gate(
+    tmp_path: Path,
+) -> None:
+    adapter = _adapter(tmp_path)
+    proof_store = _store(tmp_path)
+    proof_only_result = _commit(adapter, proof_store)
+    assert proof_only_result.committed is True
+    assert proof_only_result.settlement_authority is False
+
+    with pytest.raises(TypeError, match="receipt-authenticated V6 capability"):
+        _reject_authenticated_source_opened_spot_v6_live_ledger_value_movement(
+            proof_only_result  # type: ignore[arg-type]
+        )
+
+
+def test_unsealed_exact_v6_type_cannot_enter_live_ledger_value_movement_gate() -> None:
+    from src.core._zrpf_settlement_certificate_authority import (
+        _AuthenticatedSourceOpenedSpotV6SettlementV1,
+    )
+
+    forged = object.__new__(_AuthenticatedSourceOpenedSpotV6SettlementV1)
+    with pytest.raises(TypeError, match="sealed V6 capability"):
+        _reject_authenticated_source_opened_spot_v6_live_ledger_value_movement(forged)
 
 
 @pytest.mark.parametrize(

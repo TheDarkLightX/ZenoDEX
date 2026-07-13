@@ -69,6 +69,10 @@ from src.integration.recursive_stark_verifier_adapter import (
     _terminate_process_group,
     _verifier_environment,
 )
+from src.integration.zrpf_source_opened_spot_v6_live_ledger_gate import (
+    SourceOpenedSpotV6LiveLedgerBlockedV1,
+    _reject_authenticated_source_opened_spot_v6_live_ledger_value_movement,
+)
 from src.state.canonical import canonical_json_bytes
 
 if TYPE_CHECKING:
@@ -282,7 +286,7 @@ class PinnedSourceOpenedSpotSettlementVerifierV6:
         settlement_receipt: bytes,
         guest_input: bytes,
     ) -> DurableZrpfStateBoundSettlementResultV1:
-        """Verify exact bytes once and atomically persist the V4 association."""
+        """Verify exact bytes once and atomically persist the V6 association."""
 
         from src.integration.recursive_stark_admission_store_types import (
             DurableRecursiveStarkAdmissionCursor,
@@ -300,6 +304,34 @@ class PinnedSourceOpenedSpotSettlementVerifierV6:
             raise TypeError("expected_admission_cursor has the wrong type")
         if type(expected_settlement_cursor) is not DurableZrpfSettlementCursorV1:
             raise TypeError("expected_settlement_cursor has the wrong type")
+        authenticated = self._verify_and_seal(settlement_receipt, guest_input)
+        return store._commit_authenticated_source_opened_spot_v6(
+            expected_admission_cursor=expected_admission_cursor,
+            expected_settlement_cursor=expected_settlement_cursor,
+            authenticated_source_opened=authenticated,
+        )
+
+    def verify_live_ledger_value_movement(
+        self,
+        *,
+        settlement_receipt: bytes,
+        guest_input: bytes,
+    ) -> SourceOpenedSpotV6LiveLedgerBlockedV1:
+        """Authenticate V6 evidence and return the required value-movement no-op.
+
+        The authenticated plan has commitment-only cell writes and aggregate
+        asset totals.  Until it carries governed raw ledger values and a live
+        state transition authority, this path cannot open or mutate a store.
+        """
+
+        authenticated = self._verify_and_seal(settlement_receipt, guest_input)
+        return _reject_authenticated_source_opened_spot_v6_live_ledger_value_movement(authenticated)
+
+    def _verify_and_seal(
+        self,
+        settlement_receipt: bytes,
+        guest_input: bytes,
+    ) -> _AuthenticatedSourceOpenedSpotV6SettlementV1:
         if self.executable_format is not RecursiveVerifierExecutableFormat.STATIC_ELF_X86_64:
             raise SourceOpenedSpotV6VerificationError(
                 "source-opened V6 durable admission requires a static ELF verifier"
@@ -312,12 +344,7 @@ class PinnedSourceOpenedSpotSettlementVerifierV6:
             guest_input=guest_input,
             policy=self.policy,
         )
-        authenticated = self._seal_verified_result(parsed, request)
-        return store._commit_authenticated_source_opened_spot_v6(
-            expected_admission_cursor=expected_admission_cursor,
-            expected_settlement_cursor=expected_settlement_cursor,
-            authenticated_source_opened=authenticated,
-        )
+        return self._seal_verified_result(parsed, request)
 
     def _seal_verified_result(
         self,
