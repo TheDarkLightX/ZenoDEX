@@ -66,13 +66,18 @@ def test_recipe_mounts_only_pinned_inputs_read_only_and_writes_externally() -> N
     assert "v1.94.1-rust-x86_64-unknown-linux-gnu" in source
     assert "cargo 1.94.1-dev (29ea6fb6a 2026-03-24)" in source
     assert "rustc 1.94.1-dev (06e01cb0d 2026-04-09)" in source
-    assert "target=/opt/risc0-toolchain,readonly" in source
+    assert (
+        "target=/risc0/toolchains/"
+        "v1.94.1-rust-x86_64-unknown-linux-gnu,readonly"
+    ) in source
+    assert "target=/opt/risc0-toolchain" not in source
     assert "target=/opt/cargo-registry,readonly" in source
     assert "target=$CONTAINER_TARGET_ROOT" in source
     assert "target=$CONTAINER_OUTPUT_ROOT" in source
     assert '"$HOME/.cargo' not in source
     assert '"$HOME/.risc0' not in source
     assert "ln -s /risc0 /home/zrpf/.risc0" in source
+    assert "ln -s \\\n  /opt/risc0-toolchain" not in source
     assert "CARGO_NET_OFFLINE=true" in source
     assert "RISC0_BUILD_LOCKED=1" in source
     assert "jobs = 2" in source

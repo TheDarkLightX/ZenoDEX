@@ -287,9 +287,6 @@ unset RISC0_SKIP_BUILD RUSTUP_TOOLCHAIN
 install -d -m 0700 /home/zrpf/.cargo /risc0/toolchains
 ln -s /opt/cargo-registry /home/zrpf/.cargo/registry
 ln -s /risc0 /home/zrpf/.risc0
-ln -s \
-  /opt/risc0-toolchain \
-  /risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu
 printf '%s\n' \
   '[build]' \
   'jobs = 2' \
@@ -381,7 +378,7 @@ readonly CONTAINER_SCRIPT
   --tmpfs "/home/zrpf:rw,nosuid,nodev,noexec,size=512m,mode=0700,uid=$HOST_UID,gid=$HOST_GID" \
   --tmpfs "/risc0:rw,nosuid,nodev,noexec,size=2m,mode=0700,uid=$HOST_UID,gid=$HOST_GID" \
   --mount "type=bind,source=$SOURCE_SNAPSHOT,target=$CANONICAL_SOURCE_ROOT,readonly" \
-  --mount "type=bind,source=$risc0_toolchain_dir,target=/opt/risc0-toolchain,readonly" \
+  --mount "type=bind,source=$risc0_toolchain_dir,target=/risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu,readonly" \
   --mount "type=bind,source=$cargo_registry_dir,target=/opt/cargo-registry,readonly" \
   --mount "type=bind,source=$target_dir,target=$CONTAINER_TARGET_ROOT" \
   --mount "type=bind,source=$output_dir,target=$CONTAINER_OUTPUT_ROOT" \
