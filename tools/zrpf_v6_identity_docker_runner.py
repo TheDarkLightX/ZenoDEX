@@ -7,23 +7,38 @@ import os
 import re
 import shlex
 import stat
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from tools import plan_zrpf_source_opened_spot_v6_identity_rebuild as planner
 from tools import zrpf_v3_replay_environment as replay_environment
 from tools import zrpf_v3_replay_process as process_runner
+from tools import zrpf_v6_identity_runner_protocol as runner_protocol
+from tools import zrpf_v6_identity_runner_resources as runner_resources
 from tools.zrpf_v6_identity_executor_types import (
     BuildKind,
     BuildRequest,
     BuildResult,
     ExecutionError,
 )
-from tools.zrpf_v6_identity_source_snapshot import read_bounded_regular
+from tools.zrpf_v6_identity_runner_integrity import (
+    StableFileIdentity,
+    capture_cargo_registry,
+    capture_pinned_tool,
+)
 
-MAX_BUILD_OUTPUT_BYTES = 32 * 1024 * 1024
+RUNNER_SECURITY_POSTURE_SCHEMA = planner.RUNNER_SECURITY_POSTURE_SCHEMA
 BUILD_TIMEOUT_SECONDS = 4 * 60 * 60
-RISC0_TOOLCHAIN_DIRECTORY = "v1.94.1-rust-x86_64-unknown-linux-gnu"
+RISC0_TOOLCHAIN_DIRECTORY = runner_resources.RISC0_TOOLCHAIN_DIRECTORY
 RISC0_EXTENSION_DIRECTORY = "v3.0.5-cargo-risczero-x86_64-unknown-linux-gnu"
+TARGET_TMPFS_QUOTA_BYTES = runner_resources.TARGET_TMPFS_QUOTA_BYTES
+OUTPUT_TMPFS_QUOTA_BYTES = runner_resources.OUTPUT_TMPFS_QUOTA_BYTES
+MAX_BUILD_OUTPUT_BYTES = runner_protocol.MAX_BUILD_OUTPUT_BYTES
+NESTED_CARGO_WRAPPER_FILE = runner_resources.NESTED_CARGO_WRAPPER_FILE
+NESTED_CARGO_WRAPPER_CONTAINER_PATH = runner_resources.NESTED_CARGO_WRAPPER_CONTAINER_PATH
+NESTED_CARGO_WRAPPER_BYTES = runner_resources.NESTED_CARGO_WRAPPER_BYTES
+NESTED_CARGO_WRAPPER_SHA256 = runner_resources.NESTED_CARGO_WRAPPER_SHA256
 
 
 class DockerBuildRunner:
@@ -52,17 +67,43 @@ class DockerBuildRunner:
             "Cargo registry",
         )
         self._docker = _canonical_executable(docker, "Docker client")
-        self._validate_toolchain()
+        runner_resources.validate_resource_policy()
+        self._tool_identities = self._capture_tool_identities()
+        self._registry_identity = capture_cargo_registry(self._registry)
         self._validate_image()
+
+    def security_posture(self) -> dict[str, Any]:
+        """Return deterministic candidate-evidence facts and explicit non-claims."""
+
+        return {
+            "schema": RUNNER_SECURITY_POSTURE_SCHEMA,
+            "tool_identities": {
+                name: identity.evidence()
+                for name, identity in sorted(self._tool_identities.items())
+            },
+            "cargo_registry_identity": self._registry_identity.evidence(),
+            "resource_policy": runner_resources.security_resource_policy(),
+            "same_uid_resistance": False,
+            "complete_build_input_closure_verified": False,
+        }
 
     def run(self, request: BuildRequest) -> BuildResult:
         if request.target_directory.exists() or request.output_directory.exists():
             raise ExecutionError("runner target and output must begin absent")
+        runner_resources.validate_build_request(request)
+        self._require_external_inputs_unchanged(f"before {request.pass_id}")
         _create_private_directory(request.target_directory)
         _create_private_directory(request.output_directory)
+        wrapper = request.target_directory / NESTED_CARGO_WRAPPER_FILE
+        _write_new_output(wrapper, NESTED_CARGO_WRAPPER_BYTES, 0o555)
+        wrapper_identity = capture_pinned_tool(
+            wrapper,
+            "nested Cargo wrapper",
+            NESTED_CARGO_WRAPPER_SHA256,
+        )
         container_name = _container_name(request)
-        command = self._docker_command(request, container_name)
-        completed = False
+        command = self._docker_command(request, container_name, wrapper)
+        primary_error: BaseException | None = None
         try:
             result = process_runner.run_bounded(
                 process_runner.ProcessRequest(
@@ -78,30 +119,79 @@ class DockerBuildRunner:
                 raise ExecutionError(
                     f"{request.pass_id} container build rejected with exit {result.returncode}"
                 )
-            parsed = _parse_runner_result(result.stdout, request.kind)
-            completed = True
-            return parsed
+            payload = _parse_runner_payload(result.stdout, request)
+            _materialize_runner_payload(request, payload)
+            return payload.result
         except (OSError, RuntimeError) as exc:
-            raise ExecutionError(f"{request.pass_id} container build failed") from exc
+            wrapped = ExecutionError(f"{request.pass_id} container build failed")
+            primary_error = wrapped
+            raise wrapped from exc
+        except BaseException as exc:
+            primary_error = exc
+            raise
         finally:
-            if not completed:
-                self._force_remove_container(container_name)
+            self._finalize_run(
+                request.pass_id,
+                container_name,
+                wrapper,
+                wrapper_identity,
+                primary_error,
+            )
 
-    def _validate_toolchain(self) -> None:
-        expected = {
-            self._toolchain / "bin/cargo": planner.TOOLCHAIN["outer_cargo_sha256"],
-            self._toolchain / "bin/rustc": planner.TOOLCHAIN["rustc_sha256"],
-            self._extension / "r0vm": planner.TOOLCHAIN["r0vm_sha256"],
-            self._extension / "cargo-risczero": planner.TOOLCHAIN[
-                "cargo_risczero_sha256"
-            ],
+    def _finalize_run(
+        self,
+        pass_id: str,
+        container_name: str,
+        wrapper: Path,
+        wrapper_identity: StableFileIdentity,
+        primary_error: BaseException | None,
+    ) -> None:
+        cleanup_error = _capture_failure(lambda: self._force_remove_container(container_name))
+        integrity_error = _capture_failure(
+            lambda: self._require_external_inputs_unchanged(f"after {pass_id}")
+        )
+        wrapper_error = _capture_failure(
+            lambda: _require_wrapper_unchanged(wrapper, wrapper_identity, pass_id)
+        )
+        integrity_error = _combine_failures(integrity_error, wrapper_error)
+        if primary_error is not None:
+            _add_failure_note(primary_error, cleanup_error)
+            _add_failure_note(primary_error, integrity_error)
+            return
+        if cleanup_error is not None:
+            _add_failure_note(cleanup_error, integrity_error)
+            raise cleanup_error
+        if integrity_error is not None:
+            raise integrity_error
+
+    def _capture_tool_identities(self) -> dict[str, StableFileIdentity]:
+        tools = {
+            "cargo": (
+                self._toolchain / "bin/cargo",
+                planner.TOOLCHAIN["outer_cargo_sha256"],
+            ),
+            "rustc": (
+                self._toolchain / "bin/rustc",
+                planner.TOOLCHAIN["rustc_sha256"],
+            ),
+            "r0vm": (
+                self._extension / "r0vm",
+                planner.TOOLCHAIN["r0vm_sha256"],
+            ),
+            "cargo_risczero": (
+                self._extension / "cargo-risczero",
+                planner.TOOLCHAIN["cargo_risczero_sha256"],
+            ),
         }
-        for path, digest in expected.items():
-            raw = read_bounded_regular(path, f"pinned tool {path.name}", 256 << 20)
-            if hashlib.sha256(raw).hexdigest() != digest:
-                raise ExecutionError(f"pinned tool SHA-256 mismatch: {path.name}")
-        for component in ("cache", "index", "src"):
-            _canonical_directory(self._registry / component, f"Cargo registry {component}")
+        return {
+            name: capture_pinned_tool(path, name, digest) for name, (path, digest) in tools.items()
+        }
+
+    def _require_external_inputs_unchanged(self, transition: str) -> None:
+        if self._capture_tool_identities() != self._tool_identities:
+            raise ExecutionError(f"pinned tool identity changed {transition}")
+        if capture_cargo_registry(self._registry) != self._registry_identity:
+            raise ExecutionError(f"Cargo registry identity changed {transition}")
 
     def _validate_image(self) -> None:
         try:
@@ -124,12 +214,19 @@ class DockerBuildRunner:
             )
         except (OSError, RuntimeError) as exc:
             raise ExecutionError("pinned build image inspection failed") from exc
-        if result.returncode != 0 or result.stderr or result.stdout != (
-            planner.BUILD_IMAGE + "\n"
-        ).encode("ascii"):
+        if (
+            result.returncode != 0
+            or result.stderr
+            or result.stdout != (planner.BUILD_IMAGE + "\n").encode("ascii")
+        ):
             raise ExecutionError("pinned build image is unavailable or mismatched")
 
-    def _docker_command(self, request: BuildRequest, container_name: str) -> list[str]:
+    def _docker_command(
+        self,
+        request: BuildRequest,
+        container_name: str,
+        nested_cargo_wrapper: Path,
+    ) -> list[str]:
         for path in (
             request.source_snapshot,
             request.target_directory,
@@ -137,12 +234,12 @@ class DockerBuildRunner:
             self._toolchain,
             self._extension,
             self._registry,
+            nested_cargo_wrapper,
         ):
             _require_safe_mount_path(path)
         return [
             str(self._docker),
             "run",
-            "--rm",
             "--name",
             container_name,
             "--network",
@@ -164,8 +261,14 @@ class DockerBuildRunner:
             f"{os.getuid()}:{os.getgid()}",
             "--hostname",
             "zrpf-v6-candidate-build",
-            *_tmpfs_arguments(),
+            *_tmpfs_arguments(request),
             *_mount_arguments(request, self._toolchain, self._extension, self._registry),
+            "--mount",
+            _mount(
+                nested_cargo_wrapper,
+                NESTED_CARGO_WRAPPER_CONTAINER_PATH,
+                readonly=True,
+            ),
             "--env",
             "LC_ALL=C",
             "--env",
@@ -184,7 +287,16 @@ class DockerBuildRunner:
 
     def _force_remove_container(self, container_name: str) -> None:
         try:
-            process_runner.run_bounded(
+            before = self._inspect_container(container_name)
+            if _inspect_confirms_absent(before, container_name):
+                return
+            if (
+                before.returncode != 0
+                or before.stderr
+                or re.fullmatch(rb"[0-9a-f]{64}\n", before.stdout) is None
+            ):
+                raise ExecutionError(f"container pre-cleanup inspection failed: {container_name}")
+            removed = process_runner.run_bounded(
                 process_runner.ProcessRequest(
                     command=(str(self._docker), "rm", "--force", container_name),
                     cwd=self._risc0_home,
@@ -194,23 +306,83 @@ class DockerBuildRunner:
                     profile=process_runner.ProcessProfile.TOOL,
                 )
             )
-        except (OSError, RuntimeError):
-            pass
+            inspected = self._inspect_container(container_name)
+        except (OSError, RuntimeError) as exc:
+            raise ExecutionError(f"container cleanup command failed: {container_name}") from exc
+        if (
+            removed.returncode != 0
+            or removed.stderr
+            or removed.stdout != (container_name + "\n").encode("ascii")
+        ):
+            raise ExecutionError(f"container removal failed: {container_name}")
+        if not _inspect_confirms_absent(inspected, container_name):
+            raise ExecutionError(f"container remains after cleanup: {container_name}")
+
+    def _inspect_container(self, container_name: str) -> Any:
+        return process_runner.run_bounded(
+            process_runner.ProcessRequest(
+                command=(
+                    str(self._docker),
+                    "container",
+                    "inspect",
+                    "--format",
+                    "{{.Id}}",
+                    container_name,
+                ),
+                cwd=self._risc0_home,
+                env=replay_environment.clean_environment(),
+                timeout_seconds=30,
+                output_limit_bytes=4_096,
+                profile=process_runner.ProcessProfile.TOOL,
+            )
+        )
 
 
-def _tmpfs_arguments() -> list[str]:
-    uid = os.getuid()
-    gid = os.getgid()
-    return [
-        "--tmpfs",
-        f"/tmp:rw,nosuid,nodev,noexec,size=256m,mode=1777,uid={uid},gid={gid}",
-        "--tmpfs",
-        f"/cargo:rw,nosuid,nodev,noexec,size=512m,mode=0700,uid={uid},gid={gid}",
-        "--tmpfs",
-        f"/sandbox-home:rw,nosuid,nodev,noexec,size=4m,mode=0700,uid={uid},gid={gid}",
-        "--tmpfs",
-        f"/risc0:rw,nosuid,nodev,noexec,size=4m,mode=0700,uid={uid},gid={gid}",
-    ]
+def _capture_failure(action: Callable[[], None]) -> BaseException | None:
+    try:
+        action()
+    except BaseException as exc:
+        return exc
+    return None
+
+
+def _combine_failures(
+    first: BaseException | None,
+    second: BaseException | None,
+) -> BaseException | None:
+    if first is None:
+        return second
+    _add_failure_note(first, second)
+    return first
+
+
+def _add_failure_note(
+    primary: BaseException,
+    secondary: BaseException | None,
+) -> None:
+    if secondary is not None:
+        primary.add_note(str(secondary))
+
+
+def _require_wrapper_unchanged(
+    wrapper: Path,
+    expected: StableFileIdentity,
+    pass_id: str,
+) -> None:
+    actual = capture_pinned_tool(
+        wrapper,
+        "nested Cargo wrapper",
+        NESTED_CARGO_WRAPPER_SHA256,
+    )
+    if actual != expected:
+        raise ExecutionError(f"nested Cargo wrapper identity changed after {pass_id}")
+
+
+def _tmpfs_arguments(_request: BuildRequest) -> list[str]:
+    return runner_resources.auxiliary_tmpfs_arguments()
+
+
+_tmpfs = runner_resources.tmpfs
 
 
 def _mount_arguments(
@@ -232,17 +404,23 @@ def _mount_arguments(
         _mount(extension, "/risc0/bin", readonly=True),
         "--mount",
         _mount(registry, "/opt/cargo-registry", readonly=True),
-        "--mount",
-        _mount(
-            request.target_directory,
+        "--tmpfs",
+        _tmpfs(
             request.container_target_directory,
-            readonly=False,
+            TARGET_TMPFS_QUOTA_BYTES,
+            mode="0700",
+            uid=os.getuid(),
+            gid=os.getgid(),
+            noexec=False,
         ),
-        "--mount",
-        _mount(
-            request.output_directory,
+        "--tmpfs",
+        _tmpfs(
             request.container_output_directory,
-            readonly=False,
+            OUTPUT_TMPFS_QUOTA_BYTES,
+            mode="0700",
+            uid=os.getuid(),
+            gid=os.getgid(),
+            noexec=True,
         ),
     ]
 
@@ -250,9 +428,7 @@ def _mount_arguments(
 def _container_script(request: BuildRequest) -> str:
     command = shlex.join(request.command)
     source = shlex.quote(request.extraction_source)
-    destination = shlex.quote(
-        f"{request.container_output_directory}/{request.artifact_file}"
-    )
+    destination = shlex.quote(f"{request.container_output_directory}/{request.artifact_file}")
     artifact_mode = "0444" if request.kind is BuildKind.GUEST else "0555"
     magic_check, identity = _guest_specific_checks(request.kind)
     companion, expected_names = _companion_script(request)
@@ -265,9 +441,10 @@ def _container_script(request: BuildRequest) -> str:
     return f"""
 set -euo pipefail
 umask 077
-export PATH=/risc0/toolchains/{RISC0_TOOLCHAIN_DIRECTORY}/bin:/usr/bin:/bin
+export PATH=/pinned-bin:/risc0/toolchains/{RISC0_TOOLCHAIN_DIRECTORY}/bin:/usr/bin:/bin
 export HOME=/sandbox-home CARGO_HOME=/cargo CARGO_NET_OFFLINE=true
 export RISC0_BUILD_LOCKED=1 RISC0_HOME=/risc0
+export CARGO_BUILD_JOBS={planner.BUILD_JOBS} RAYON_NUM_THREADS={planner.BUILD_JOBS}
 unset CARGO_ENCODED_RUSTFLAGS RISC0_SKIP_BUILD RUSTFLAGS RUSTUP_TOOLCHAIN
 install -d -m 0700 /cargo /sandbox-home
 ln -s /opt/cargo-registry /cargo/registry
@@ -277,6 +454,10 @@ printf '%s\n' '[build]' 'jobs = 2' '' '[net]' 'offline = true' '' \
   '[target.x86_64-unknown-linux-gnu]' 'linker = "/usr/bin/cc"' > /cargo/config.toml
 printf '%s\n' '[default_versions]' 'rust = "1.94.1"' > /risc0/settings.toml
 [[ "$(pwd -P)" == {planner.CANONICAL_SOURCE_ROOT} ]]
+[[ -f {NESTED_CARGO_WRAPPER_CONTAINER_PATH} && -x {NESTED_CARGO_WRAPPER_CONTAINER_PATH} ]]
+[[ $(sha256sum -- {NESTED_CARGO_WRAPPER_CONTAINER_PATH} | cut -d' ' -f1) == {NESTED_CARGO_WRAPPER_SHA256} ]]
+[[ $CARGO_BUILD_JOBS == {planner.BUILD_JOBS} ]]
+[[ $RAYON_NUM_THREADS == {planner.BUILD_JOBS} ]]
 [[ -z "$(find {shlex.quote(request.container_target_directory)} -mindepth 1 -print -quit)" ]]
 [[ -z "$(find {shlex.quote(request.container_output_directory)} -mindepth 1 -print -quit)" ]]
 {command} 1>&2
@@ -295,17 +476,23 @@ actual_names=$(find {shlex.quote(request.container_output_directory)} \
   -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)
 [[ $actual_names == "$expected_names" ]]
 {identity}
-printf '%s %s %s\n' "$artifact_bytes" "$artifact_sha256" "$image_id"
+artifact_base64_bytes=$(( (artifact_bytes + 2) / 3 * 4 ))
+companion_base64_bytes=$(( (companion_bytes + 2) / 3 * 4 ))
+printf 'ZRPF_BUILD_RESULT_V2 {request.kind.value} %s %s %s %s %s %s %s\n' \
+  "$artifact_bytes" "$artifact_sha256" "$image_id" "$artifact_base64_bytes" \
+  "$companion_bytes" "$companion_sha256" "$companion_base64_bytes"
+base64 -w0 -- "$artifact"
+printf '\n'
+if [[ $companion != '-' ]]; then base64 -w0 -- "$companion"; fi
+printf '\nZRPF_END\n'
 """
 
 
 def _guest_specific_checks(kind: BuildKind) -> tuple[str, str]:
     if kind is BuildKind.GUEST:
         return (
-            "magic=$(od -An -tx1 -N4 -- \"$artifact\" | tr -d ' \\n'); "
-            "[[ $magic == 52304246 ]];",
-            "image_id=$(/risc0/bin/r0vm --elf \"$artifact\" --id); "
-            "[[ $image_id =~ ^[0-9a-f]{64}$ ]]",
+            "magic=$(od -An -tx1 -N4 -- \"$artifact\" | tr -d ' \\n'); [[ $magic == 52304246 ]];",
+            'image_id=$(/risc0/bin/r0vm --elf "$artifact" --id); [[ $image_id =~ ^[0-9a-f]{64}$ ]]',
         )
     return "", "image_id='-'"
 
@@ -313,7 +500,10 @@ def _guest_specific_checks(kind: BuildKind) -> tuple[str, str]:
 def _companion_script(request: BuildRequest) -> tuple[str, list[str]]:
     names = [request.artifact_file]
     if request.companion_artifact_file is None:
-        return "", names
+        return (
+            "companion='-'; companion_bytes=0; companion_sha256='-'",
+            names,
+        )
     if request.companion_extraction_source is None:
         raise ExecutionError("companion extraction source is absent")
     names.append(request.companion_artifact_file)
@@ -324,27 +514,36 @@ def _companion_script(request: BuildRequest) -> tuple[str, list[str]]:
     return (
         f"companion_source={source}; "
         "[[ -f $companion_source && ! -L $companion_source ]]; "
-        f"install -m 0555 -- \"$companion_source\" {destination};",
+        f'install -m 0555 -- "$companion_source" {destination}; '
+        f"companion={destination}; "
+        'companion_bytes=$(stat -c %s -- "$companion"); '
+        f"[[ $companion_bytes -gt 0 && $companion_bytes -le {planner.MAX_HOST_BINARY_BYTES} ]]; "
+        "companion_sha256=$(sha256sum -- \"$companion\" | cut -d' ' -f1)",
         names,
     )
 
 
-def _parse_runner_result(raw: bytes, kind: BuildKind) -> BuildResult:
-    pattern = rb"([1-9][0-9]{0,19}) ([0-9a-f]{64}) ([0-9a-f]{64}|-)\n"
-    match = re.fullmatch(pattern, raw)
-    if match is None:
-        raise ExecutionError("container runner result framing rejected")
-    size = int(match.group(1))
-    image = match.group(3).decode("ascii")
-    if kind is BuildKind.GUEST and image == "-":
-        raise ExecutionError("guest runner omitted image ID")
-    if kind is BuildKind.HOST_VERIFIER and image != "-":
-        raise ExecutionError("host runner returned an image ID")
-    return BuildResult(
-        artifact_bytes=size,
-        artifact_sha256=match.group(2).decode("ascii"),
-        image_id=None if image == "-" else image,
-    )
+_parse_runner_payload = runner_protocol.parse_runner_payload
+_parse_runner_result = runner_protocol.parse_runner_result
+_materialize_runner_payload = runner_protocol.materialize_runner_payload
+_write_new_output = runner_protocol.write_new_file
+_require_output_name = runner_protocol.require_output_name
+
+_validate_resource_policy = runner_resources.validate_resource_policy
+_validate_build_request_resources = runner_resources.validate_build_request
+
+
+def _inspect_confirms_absent(
+    result: Any,
+    container_name: str,
+) -> bool:
+    if result.returncode == 0 or result.stdout:
+        return False
+    expected = {
+        f"Error: No such container: {container_name}\n".encode("ascii"),
+        f"Error response from daemon: No such container: {container_name}\n".encode("ascii"),
+    }
+    return result.returncode == 1 and result.stderr in expected
 
 
 def _canonical_directory(path: Path, label: str) -> Path:
