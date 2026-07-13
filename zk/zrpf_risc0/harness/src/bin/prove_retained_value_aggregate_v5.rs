@@ -1,3 +1,8 @@
+#[cfg(any(feature = "legacy-methods", feature = "spot-v6-methods"))]
+compile_error!(
+    "the retained V5 aggregate harness cannot be compiled with method-build features enabled"
+);
+
 use std::path::Path;
 
 use risc0_zkvm::{default_prover, Digest, ExecutorEnv, InnerReceipt, ProverOpts, Receipt};

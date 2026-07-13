@@ -8,7 +8,13 @@ publish = false
 [features]
 default = ["legacy-methods", "spot-v6-methods"]
 legacy-methods = ["dep:zenodex-zrpf-risc0-methods"]
+retained-value-aggregate-v5-harness = []
 spot-v6-methods = ["dep:zenodex-zrpf-risc0-spot-v6-methods"]
+
+[[bin]]
+name = "prove_retained_value_aggregate_v5"
+path = "src/bin/prove_retained_value_aggregate_v5.rs"
+required-features = ["retained-value-aggregate-v5-harness"]
 
 [dependencies]
 base64 = "0.22.1"

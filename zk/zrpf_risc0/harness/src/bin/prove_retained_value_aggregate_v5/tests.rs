@@ -133,6 +133,7 @@ fn only_the_sdk_ipc_prover_name_is_admissible() {
 
 #[test]
 fn runtime_feature_guard_matches_the_compiled_method_feature_closure() {
+    assert!(cfg!(feature = "retained-value-aggregate-v5-harness"));
     let method_feature_enabled =
         cfg!(feature = "legacy-methods") || cfg!(feature = "spot-v6-methods");
     assert_eq!(
@@ -208,6 +209,7 @@ fn current_retained_v4_receipt_rejects_the_governed_child_image() -> Result<(), 
 fn source_contract_uses_retained_program_bytes_without_methods_feature() {
     let source = include_str!("../prove_retained_value_aggregate_v5.rs");
     assert!(!source.contains("zenodex_zrpf_risc0_methods"));
+    assert!(source.contains("cannot be compiled with method-build features enabled"));
     assert_eq!(source.matches("BoundProgram::load_once").count(), 2);
     assert!(source.contains("prove_with_opts(environment, program.bytes()"));
     assert!(source.contains("require_sdk_ipc_prover(&prover.get_name(), label)"));
