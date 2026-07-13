@@ -163,7 +163,8 @@ mod tests {
         RecursiveEffectSummaryV1,
     };
     use zenodex_zrpf_protocol_v3::{
-        ExpectedV1AdapterLeafIdentityV1, ExpectedV2AdapterLeafIdentityV2, NodeKindV3,
+        CommitmentV3, ExpectedV1AdapterLeafIdentityV1, ExpectedV2AdapterLeafIdentityV2,
+        LeafNodeInputV3, NodeCommitmentsV3, NodeJournalV3, NodeKindV3, PartitionV3, ProgramIdV3,
         ProposedSemanticLeafV1, SemanticEpochErrorV1, V1AdapterSemanticLeafOpeningV1,
         V2AdapterSemanticLeafOpeningV2,
     };
@@ -174,8 +175,115 @@ mod tests {
     const SOURCE_IMAGE: [u32; 8] = [11, 12, 13, 14, 15, 16, 17, 18];
     const ADAPTER_IMAGE: [u32; 8] = [21, 22, 23, 24, 25, 26, 27, 28];
 
+    #[derive(Clone, Copy, Debug)]
+    enum V2BindingMutation {
+        OperationCount,
+        CountUnit,
+        TaskSetRoot,
+        SemanticSourceRoot,
+        SemanticSourceOpening,
+        PartitionPlanRoot,
+        Partition,
+        ReceiptRoot,
+        AcceptedReceiptsRoot,
+        RejectedReceiptsRoot,
+        EffectRoot,
+        AssetDeltaRoot,
+        OutboxRoot,
+        InboxRoot,
+        MessageIdsRoot,
+        ConflictScheduleHash,
+        DataAvailabilityRoot,
+        DataAvailabilityCertificateRoot,
+        CarryQueuePreRoot,
+        CarryQueuePostRoot,
+        AdapterProgramIdentity,
+    }
+
     fn root(seed: u8) -> [u8; 32] {
         [seed; 32]
+    }
+
+    fn mutation_root(seed: u8) -> CommitmentV3 {
+        CommitmentV3::new(root(seed)).unwrap()
+    }
+
+    fn mutated_v2_journal(journal: &NodeJournalV3, mutation: V2BindingMutation) -> NodeJournalV3 {
+        let mut partition = journal.partition();
+        let mut operation_count = journal.operation_count();
+        let mut count_unit_id = journal.count_unit_id();
+        let mut actual_program_id = journal.actual_program_id();
+        let mut commitments = journal.commitments().to_input();
+
+        match mutation {
+            V2BindingMutation::OperationCount => operation_count = 2,
+            V2BindingMutation::CountUnit => count_unit_id = mutation_root(101),
+            V2BindingMutation::TaskSetRoot => commitments.task_set_root = mutation_root(102),
+            V2BindingMutation::SemanticSourceRoot => {
+                commitments.semantic_source_set_root = mutation_root(103);
+            }
+            V2BindingMutation::SemanticSourceOpening => {}
+            V2BindingMutation::PartitionPlanRoot => {
+                commitments.partition_plan_root = mutation_root(104);
+            }
+            V2BindingMutation::Partition => {
+                let start = partition.start().checked_add(1).unwrap();
+                let end_exclusive = partition.end_exclusive().checked_add(1).unwrap();
+                partition = PartitionV3::new(start, end_exclusive).unwrap();
+            }
+            V2BindingMutation::ReceiptRoot => commitments.receipt_root = mutation_root(105),
+            V2BindingMutation::AcceptedReceiptsRoot => {
+                commitments.accepted_receipts_root = mutation_root(106);
+            }
+            V2BindingMutation::RejectedReceiptsRoot => {
+                commitments.rejected_receipts_root = mutation_root(107);
+            }
+            V2BindingMutation::EffectRoot => commitments.effect_root = mutation_root(108),
+            V2BindingMutation::AssetDeltaRoot => {
+                commitments.asset_delta_root = mutation_root(109);
+            }
+            V2BindingMutation::OutboxRoot => {
+                commitments.cross_lane_outbox_root = mutation_root(110);
+            }
+            V2BindingMutation::InboxRoot => {
+                commitments.cross_lane_inbox_root = mutation_root(111);
+            }
+            V2BindingMutation::MessageIdsRoot => {
+                commitments.cross_lane_message_ids_root = mutation_root(112);
+            }
+            V2BindingMutation::ConflictScheduleHash => {
+                commitments.conflict_schedule_hash = mutation_root(113);
+            }
+            V2BindingMutation::DataAvailabilityRoot => {
+                commitments.data_availability_root = mutation_root(114);
+            }
+            V2BindingMutation::DataAvailabilityCertificateRoot => {
+                commitments.data_availability_certificate_root = mutation_root(115);
+            }
+            V2BindingMutation::CarryQueuePreRoot => {
+                commitments.carry_queue_pre_root = mutation_root(116);
+            }
+            V2BindingMutation::CarryQueuePostRoot => {
+                commitments.carry_queue_post_root = mutation_root(117);
+            }
+            V2BindingMutation::AdapterProgramIdentity => {
+                actual_program_id = ProgramIdV3::new(root(118)).unwrap();
+            }
+        }
+
+        NodeJournalV3::new_leaf(LeafNodeInputV3 {
+            task_id: journal.task_id(),
+            partition,
+            operation_count,
+            count_unit_id,
+            scope: journal.scope().clone(),
+            proof_profile_id: journal.proof_profile_id(),
+            actual_program_id,
+            node_statement_hash: journal.node_statement_hash(),
+            program_manifest_root: journal.program_manifest_root(),
+            commitments: NodeCommitmentsV3::new(commitments),
+        })
+        .unwrap()
     }
 
     fn policy() -> SourcePolicyV2 {
@@ -279,6 +387,129 @@ mod tests {
             ),
             Err(SemanticEpochErrorV1::V1AdapterProfileMismatch)
         );
+    }
+
+    #[test]
+    fn current_source_v2_semantic_binding_mutation_atlas_fails_closed() {
+        let source = postcard::to_allocvec(&summary()).unwrap();
+        let projection =
+            project_with_source_policy_v2(&policy(), &source, 7, ADAPTER_IMAGE).unwrap();
+        let source_binding_hash = projection.source_binding.canonical_hash().unwrap();
+        let expected =
+            ExpectedV2AdapterLeafIdentityV2::new(projection.journal.actual_program_id()).unwrap();
+        assert!(ProposedSemanticLeafV1::bind_v2_adapter_journal(
+            &projection.journal,
+            V2AdapterSemanticLeafOpeningV2::new(source_binding_hash),
+            &expected,
+        )
+        .is_ok());
+        // Compatibility-owned fields reach dedicated rejects. Source-derived
+        // opaque roots keep the original statement so byte substitution must
+        // reach the V2 statement mismatch. Receipt authentication remains the
+        // authority for any coherently re-proved adapter journal.
+        let cases = [
+            (
+                V2BindingMutation::OperationCount,
+                SemanticEpochErrorV1::InvalidLeafOperationCount,
+            ),
+            (
+                V2BindingMutation::CountUnit,
+                SemanticEpochErrorV1::V2AdapterCountUnitMismatch,
+            ),
+            (
+                V2BindingMutation::TaskSetRoot,
+                SemanticEpochErrorV1::V2AdapterTaskSetMismatch,
+            ),
+            (
+                V2BindingMutation::SemanticSourceRoot,
+                SemanticEpochErrorV1::V2AdapterSemanticSourceMismatch,
+            ),
+            (
+                V2BindingMutation::SemanticSourceOpening,
+                SemanticEpochErrorV1::V2AdapterProvenanceMismatch,
+            ),
+            (
+                V2BindingMutation::PartitionPlanRoot,
+                SemanticEpochErrorV1::V2AdapterPartitionPlanMismatch,
+            ),
+            (
+                V2BindingMutation::Partition,
+                SemanticEpochErrorV1::V2AdapterPartitionPlanMismatch,
+            ),
+            (
+                V2BindingMutation::ReceiptRoot,
+                SemanticEpochErrorV1::V2AdapterStatementMismatch,
+            ),
+            (
+                V2BindingMutation::AcceptedReceiptsRoot,
+                SemanticEpochErrorV1::V2AdapterAuxiliarySetMustBeEmpty("accepted_receipts_root"),
+            ),
+            (
+                V2BindingMutation::RejectedReceiptsRoot,
+                SemanticEpochErrorV1::V2AdapterAuxiliarySetMustBeEmpty("rejected_receipts_root"),
+            ),
+            (
+                V2BindingMutation::EffectRoot,
+                SemanticEpochErrorV1::V2AdapterStatementMismatch,
+            ),
+            (
+                V2BindingMutation::AssetDeltaRoot,
+                SemanticEpochErrorV1::V2AdapterStatementMismatch,
+            ),
+            (
+                V2BindingMutation::OutboxRoot,
+                SemanticEpochErrorV1::V2AdapterAuxiliarySetMustBeEmpty("cross_lane_outbox_root"),
+            ),
+            (
+                V2BindingMutation::InboxRoot,
+                SemanticEpochErrorV1::V2AdapterAuxiliarySetMustBeEmpty("cross_lane_inbox_root"),
+            ),
+            (
+                V2BindingMutation::MessageIdsRoot,
+                SemanticEpochErrorV1::V2AdapterAuxiliarySetMustBeEmpty(
+                    "cross_lane_message_ids_root",
+                ),
+            ),
+            (
+                V2BindingMutation::ConflictScheduleHash,
+                SemanticEpochErrorV1::V2AdapterStatementMismatch,
+            ),
+            (
+                V2BindingMutation::DataAvailabilityRoot,
+                SemanticEpochErrorV1::V2AdapterStatementMismatch,
+            ),
+            (
+                V2BindingMutation::DataAvailabilityCertificateRoot,
+                SemanticEpochErrorV1::V2AdapterStatementMismatch,
+            ),
+            (
+                V2BindingMutation::CarryQueuePreRoot,
+                SemanticEpochErrorV1::V2AdapterStatementMismatch,
+            ),
+            (
+                V2BindingMutation::CarryQueuePostRoot,
+                SemanticEpochErrorV1::V2AdapterStatementMismatch,
+            ),
+            (
+                V2BindingMutation::AdapterProgramIdentity,
+                SemanticEpochErrorV1::LeafProgramMismatch,
+            ),
+        ];
+
+        for (mutation, expected_error) in cases {
+            let journal = mutated_v2_journal(&projection.journal, mutation);
+            let opening = match mutation {
+                V2BindingMutation::SemanticSourceOpening => {
+                    V2AdapterSemanticLeafOpeningV2::new(mutation_root(119))
+                }
+                _ => V2AdapterSemanticLeafOpeningV2::new(source_binding_hash),
+            };
+            assert_eq!(
+                ProposedSemanticLeafV1::bind_v2_adapter_journal(&journal, opening, &expected),
+                Err(expected_error),
+                "mutation {mutation:?} did not fail at its governed boundary",
+            );
+        }
     }
 
     #[test]
