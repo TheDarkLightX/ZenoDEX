@@ -123,7 +123,10 @@ jobs:
             src/integration/zeno_sdk_browser_bundle_v0.py \
             tools/build_zeno_sdk_browser_bundle.py \
             tools/check_zeno_ledger_light_client_checkpoint.py \
+            tools/check_zeno_ledger_risc0_real_proof_smoke_report.py \
             tools/zeno_ledger_verify.py \
+            tools/zeno_ledger_risc0_proof_metadata.py \
+            tools/zeno_ledger_risc0_real_proof_smoke.py \
             tools/check_risc0_recursive_rebuild_evidence.py \
             tools/check_risc0_recursive_live_replay.py \
             tools/check_risc0_recursive_live_replay_evidence.py \
@@ -143,6 +146,8 @@ jobs:
             tools/check_zrpf_v4_spot_value_leaf_local_evidence.py \
             tools/zrpf_v4_spot_value_leaf_evidence_support.py \
             tools/check_zrpf_value_aggregate_v5_build_record.py \
+            tools/check_zrpf_current_source_adapter_v2.py \
+            tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py \
             tools/zrpf_evidence_boundary_concolic.py \
             tools/zrpf_v3_artifact_privacy.py \
             tools/zrpf_v3_firecracker_host_probe.py \
@@ -167,6 +172,8 @@ jobs:
             tests/test_check_zrpf_semantic_epoch_v1_local_evidence.py \
             tests/test_check_zrpf_v4_spot_value_leaf_local_evidence.py \
             tests/test_check_zrpf_value_aggregate_v5_build_record.py \
+            tests/test_check_zrpf_current_source_adapter_v2.py \
+            tests/test_plan_zrpf_source_opened_spot_v6_identity_rebuild.py \
             tests/test_zrpf_evidence_boundary_concolic.py \
             tests/test_zrpf_semantic_guest_source_contract.py \
             tests/test_zrpf_v3_artifact_privacy.py \
@@ -187,7 +194,9 @@ jobs:
             tests/integration/test_recursive_stark_verifier_adapter.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
             tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py \
+            tests/integration/test_zeno_ledger_risc0_proof_metadata.py \
             tests/integration/test_zeno_ledger_replay_bound_verify.py \
+            tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py \
             tests/test_check_zeno_ledger_light_client_checkpoint.py \
             tests/test_zeno_sdk_browser_bundle.py
           mypy --follow-imports=skip \
@@ -205,7 +214,9 @@ jobs:
             src/integration/zeno_sdk_browser_bundle_v0.py \
             tools/build_zeno_sdk_browser_bundle.py \
             tools/check_zeno_ledger_light_client_checkpoint.py \
+            tools/check_zeno_ledger_risc0_real_proof_smoke_report.py \
             tools/zeno_ledger_verify.py \
+            tools/zeno_ledger_risc0_proof_metadata.py \
             tools/check_risc0_recursive_rebuild_evidence.py \
             tools/check_risc0_recursive_live_replay.py \
             tools/check_risc0_recursive_live_replay_evidence.py \
@@ -225,6 +236,8 @@ jobs:
             tools/check_zrpf_v4_spot_value_leaf_local_evidence.py \
             tools/zrpf_v4_spot_value_leaf_evidence_support.py \
             tools/check_zrpf_value_aggregate_v5_build_record.py \
+            tools/check_zrpf_current_source_adapter_v2.py \
+            tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py \
             tools/zrpf_evidence_boundary_concolic.py \
             tools/zrpf_v3_artifact_privacy.py \
             tools/zrpf_v3_firecracker_host_probe.py \
@@ -246,6 +259,8 @@ jobs:
             tests/test_check_zrpf_v1_leaf_adapter_source_policy.py \
             tests/test_check_zrpf_v1_leaf_adapter_vector.py \
             tests/test_check_zrpf_v1_spot_adapter_temporary_evidence.py \
+            tests/test_check_zrpf_current_source_adapter_v2.py \
+            tests/test_plan_zrpf_source_opened_spot_v6_identity_rebuild.py \
             tests/test_check_risc0_recursive_rebuild_evidence.py \
             tests/test_check_risc0_recursive_live_replay.py \
             tests/test_check_risc0_recursive_live_replay_evidence.py \
@@ -284,10 +299,13 @@ jobs:
             tests/integration/test_recursive_stark_verifier_adapter.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
             tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py \
+            tests/integration/test_zeno_ledger_risc0_proof_metadata.py \
             tests/integration/test_zeno_ledger_replay_bound_verify.py \
+            tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py \
             tests/test_check_zeno_ledger_light_client_checkpoint.py \
             tests/test_zeno_sdk_browser_bundle.py
           python3 tools/check_zrpf_v1_leaf_adapter_source_policy.py
+          python3 tools/check_zrpf_current_source_adapter_v2.py
           python3 tools/check_risc0_recursive_live_replay_evidence.py --json
           python3 tools/check_risc0_recursive_active_reproof_v3.py
           python3 tools/check_recursive_stark_cbc_spec.py
@@ -519,6 +537,7 @@ jobs:
             --target riscv32im-risc0-zkvm-elf \
             --target-dir "${RUNNER_TEMP}/zrpf-guest-check" \
             -p zenodex-zrpf-risc0-v1-leaf-adapter \
+            -p zenodex-zrpf-risc0-v2-leaf-adapter \
             -p zenodex-zrpf-risc0-structural-aggregate-l1 \
             -p zenodex-zrpf-risc0-structural-aggregate-l2 \
             -p zenodex-zrpf-risc0-semantic-epoch \

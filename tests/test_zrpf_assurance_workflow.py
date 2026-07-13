@@ -102,6 +102,10 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "--manifest-path zk/state_proof_risc0/Cargo.toml" in cargo_acquisition
     assert "tools/check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
     assert "tests/test_check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
+    assert "tools/check_zrpf_current_source_adapter_v2.py" in python_assurance
+    assert "tests/test_check_zrpf_current_source_adapter_v2.py" in python_assurance
+    assert "tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py" in python_assurance
+    assert "tests/test_plan_zrpf_source_opened_spot_v6_identity_rebuild.py" in python_assurance
     assert "tools/check_risc0_recursive_rebuild_evidence.py" in python_assurance
     assert "tests/test_check_risc0_recursive_rebuild_evidence.py" in python_assurance
     assert "tools/check_risc0_recursive_live_replay.py" in python_assurance
@@ -153,7 +157,11 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "src/integration/zeno_sdk_browser_bundle_v0.py",
         "tools/build_zeno_sdk_browser_bundle.py",
         "tools/check_zeno_ledger_light_client_checkpoint.py",
+        "tools/check_zeno_ledger_risc0_real_proof_smoke_report.py",
         "tools/zeno_ledger_verify.py",
+        "tools/zeno_ledger_risc0_proof_metadata.py",
+        "tools/check_zrpf_current_source_adapter_v2.py",
+        "tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py",
     ):
         assert required_path in ruff_assurance
         assert required_path in mypy_assurance
@@ -173,9 +181,15 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tests/integration/test_zeno_ledger_replay_bound_verify.py",
         "tests/test_check_zeno_ledger_light_client_checkpoint.py",
         "tests/test_zeno_sdk_browser_bundle.py",
+        "tests/integration/test_zeno_ledger_risc0_proof_metadata.py",
+        "tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py",
+        "tests/test_check_zrpf_current_source_adapter_v2.py",
+        "tests/test_plan_zrpf_source_opened_spot_v6_identity_rebuild.py",
     ):
         assert required_path in ruff_assurance
         assert required_path in pytest_assurance
+    assert "tools/zeno_ledger_risc0_real_proof_smoke.py" in ruff_assurance
+    assert "tools/zeno_ledger_risc0_real_proof_smoke.py" not in mypy_assurance
     for required_path in (
         "tools/zrpf_v3_source_closure.py",
         "tests/test_zrpf_v3_source_closure.py",
@@ -261,6 +275,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "--target riscv32im-risc0-zkvm-elf" in guest_assurance
     assert '--target-dir "${RUNNER_TEMP}/zrpf-guest-check"' in guest_assurance
     assert "zenodex-zrpf-risc0-semantic-epoch" in guest_packages
+    assert "zenodex-zrpf-risc0-v2-leaf-adapter" in guest_packages
     assert "export RISC0_SKIP_BUILD=1" in active_replay
     assert "unset RISC0_SKIP_BUILD" not in active_replay
     assert "--manifest-path zk/state_proof_risc0/Cargo.toml" not in active_replay
