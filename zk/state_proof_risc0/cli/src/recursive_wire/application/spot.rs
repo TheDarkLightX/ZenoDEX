@@ -1,10 +1,13 @@
 use serde_json::Value;
+use tau_state_proof_risc0_shared::{
+    DEX_LP_AMOUNT_MAX, DEX_LP_SUPPLY_MAX, DEX_POOL_RESERVE_MAX, DEX_SWAP_AMOUNT_MAX,
+};
 
 use super::{
     require_array_field, require_bool_field, require_bytes32_field, require_object_field,
     require_optional_object_field, require_optional_string_field, require_optional_u64_field,
-    require_single_variant, require_string_field, require_u128_field, require_u32_array_field,
-    require_u32_field, require_u64_field, required_object,
+    require_single_variant, require_string_field, require_u128_field, require_u128_max_field,
+    require_u32_array_field, require_u32_field, require_u64_field, required_object,
 };
 
 const INPUT_FIELDS: &[&str] = &[
@@ -264,9 +267,9 @@ fn validate_pool(value: &Value, context: &str) -> Result<(), String> {
     for field in ["pool_id", "asset0", "asset1", "status"] {
         require_string_field(object, context, field)?;
     }
-    for field in ["reserve0", "reserve1", "lp_supply"] {
-        require_u128_field(object, context, field)?;
-    }
+    require_u128_max_field(object, context, "reserve0", DEX_POOL_RESERVE_MAX)?;
+    require_u128_max_field(object, context, "reserve1", DEX_POOL_RESERVE_MAX)?;
+    require_u128_max_field(object, context, "lp_supply", DEX_LP_SUPPLY_MAX)?;
     require_u32_field(object, context, "fee_bps")?;
     require_u64_field(object, context, "created_at")
 }
@@ -356,8 +359,8 @@ fn validate_create_pool(value: &Value, context: &str) -> Result<(), String> {
     require_string_field(object, context, "asset0")?;
     require_string_field(object, context, "asset1")?;
     require_u32_field(object, context, "fee_bps")?;
-    require_u128_field(object, context, "amount0")?;
-    require_u128_field(object, context, "amount1")?;
+    require_u128_max_field(object, context, "amount0", DEX_LP_AMOUNT_MAX)?;
+    require_u128_max_field(object, context, "amount1", DEX_LP_AMOUNT_MAX)?;
     require_optional_string_field(object, context, "salt")
 }
 
@@ -367,8 +370,8 @@ fn validate_swap_exact_in(value: &Value, context: &str) -> Result<(), String> {
     for field in ["pool_id", "asset_in", "asset_out", "recipient"] {
         require_string_field(object, context, field)?;
     }
-    require_u128_field(object, context, "amount_in")?;
-    require_u128_field(object, context, "min_amount_out")?;
+    require_u128_max_field(object, context, "amount_in", DEX_SWAP_AMOUNT_MAX)?;
+    require_u128_max_field(object, context, "min_amount_out", DEX_SWAP_AMOUNT_MAX)?;
     require_optional_string_field(object, context, "salt")
 }
 
@@ -383,7 +386,7 @@ fn validate_add_liquidity(value: &Value, context: &str) -> Result<(), String> {
         "amount0_min",
         "amount1_min",
     ] {
-        require_u128_field(object, context, field)?;
+        require_u128_max_field(object, context, field, DEX_LP_AMOUNT_MAX)?;
     }
     require_optional_string_field(object, context, "salt")
 }
@@ -393,9 +396,9 @@ fn validate_remove_liquidity(value: &Value, context: &str) -> Result<(), String>
     validate_intent_header(object, context)?;
     require_string_field(object, context, "pool_id")?;
     require_string_field(object, context, "recipient")?;
-    for field in ["lp_amount", "amount0_min", "amount1_min"] {
-        require_u128_field(object, context, field)?;
-    }
+    require_u128_max_field(object, context, "lp_amount", DEX_LP_SUPPLY_MAX)?;
+    require_u128_max_field(object, context, "amount0_min", DEX_POOL_RESERVE_MAX)?;
+    require_u128_max_field(object, context, "amount1_min", DEX_POOL_RESERVE_MAX)?;
     require_optional_string_field(object, context, "salt")
 }
 
@@ -405,8 +408,8 @@ fn validate_swap_exact_out(value: &Value, context: &str) -> Result<(), String> {
     for field in ["pool_id", "asset_in", "asset_out", "recipient"] {
         require_string_field(object, context, field)?;
     }
-    require_u128_field(object, context, "amount_out")?;
-    require_u128_field(object, context, "max_amount_in")?;
+    require_u128_max_field(object, context, "amount_out", DEX_SWAP_AMOUNT_MAX)?;
+    require_u128_max_field(object, context, "max_amount_in", DEX_SWAP_AMOUNT_MAX)?;
     require_optional_string_field(object, context, "salt")
 }
 
@@ -430,7 +433,7 @@ fn validate_route(value: &Value, context: &str) -> Result<(), String> {
         "total_amount_out",
         "total_max_amount_in",
     ] {
-        require_u128_field(object, context, field)?;
+        require_u128_max_field(object, context, field, DEX_SWAP_AMOUNT_MAX)?;
     }
     require_optional_string_field(object, context, "salt")
 }
