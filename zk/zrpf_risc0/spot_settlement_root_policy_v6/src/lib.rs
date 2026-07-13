@@ -15,14 +15,14 @@ use zenodex_zrpf_risc0_shared::{profile_id_v3, program_id_from_risc0_words_v3};
 use zenodex_zrpf_risc0_spot_value_aggregate_root_policy_v6::pinned_source_opened_spot_value_aggregate_l2_root_identity_v6;
 
 pub const PINNED_SOURCE_OPENED_SPOT_SETTLEMENT_IMAGE_ID_V6: [u32; 8] = [
-    1_712_383_248,
-    3_107_114_499,
-    1_413_108_939,
-    1_586_712_295,
-    1_061_365_681,
-    3_110_662_716,
-    3_576_620_169,
-    2_214_019_237,
+    3_267_731_827,
+    962_582_645,
+    2_154_315_588,
+    2_631_873_081,
+    3_027_289_770,
+    2_341_779_744,
+    4_281_170_814,
+    2_380_919_521,
 ];
 
 const SETTLEMENT_PROFILE_V6: &str = "zrpf_source_opened_spot_settlement_v6";
