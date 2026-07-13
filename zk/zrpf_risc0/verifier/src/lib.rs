@@ -780,6 +780,19 @@ mod tests {
     }
 
     #[test]
+    fn exact_maximum_malformed_receipt_rejects_during_json_preflight() {
+        let maximum_sized_malformed = vec![b' '; MAX_CANONICAL_RECEIPT_BYTES_V3];
+
+        assert!(matches!(
+            VerifiedNodeReceiptV3::verify_canonical_succinct_bytes(
+                &maximum_sized_malformed,
+                IMAGE_ID,
+            ),
+            Err(VerifiedNodeReceiptErrorV3::ReceiptJsonDecode)
+        ));
+    }
+
+    #[test]
     fn explicit_context_does_not_read_risc0_dev_mode_environment() {
         let output = Command::new(std::env::current_exe().expect("current test executable"))
             .env("RISC0_DEV_MODE", "1")

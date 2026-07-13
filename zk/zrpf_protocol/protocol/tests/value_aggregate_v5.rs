@@ -9,7 +9,8 @@ use zenodex_zrpf_protocol_v3::{
     SemanticValueLeafRecordV2, TaskIdV3, ValueAggregateChildDescriptorInputV5,
     ValueAggregateChildDescriptorV5, ValueAggregateErrorV5,
     ValueAggregateOperationalCommitmentsInputV5, ValueAggregateOperationalCommitmentsV5,
-    ValueAggregateProposalInputV5, MAX_VALUE_AGGREGATE_PROPOSAL_BYTES_V5,
+    ValueAggregateProposalInputV5, MAX_IMMEDIATE_CHILDREN_V3, MAX_LEAF_COUNT_V3,
+    MAX_SEMANTIC_VALUE_RECORDS_V2, MAX_VALUE_AGGREGATE_PROPOSAL_BYTES_V5,
     VALUE_AGGREGATE_PROPOSAL_VERSION_V5,
 };
 
@@ -62,7 +63,12 @@ fn record(index: u64, raw_pre: CommitmentV3, raw_post: CommitmentV3) -> Semantic
 }
 
 fn subtree(count: u64) -> SemanticSubtreeV2 {
-    let records = (0..count)
+    subtree_range(0, count)
+}
+
+fn subtree_range(start: u64, count: u64) -> SemanticSubtreeV2 {
+    let end = start.checked_add(count).unwrap();
+    let records = (start..end)
         .map(|index| record(index, indexed(30, index), indexed(30, index + 1)))
         .collect::<Vec<_>>();
     SemanticSubtreeV2::derive(SemanticSubtreeInputV2 {
@@ -72,9 +78,9 @@ fn subtree(count: u64) -> SemanticSubtreeV2 {
         state_root_scheme_id: commitment(34),
         scope_hash: scope().canonical_hash().unwrap(),
         lane_id_hash: commitment(35),
-        partition: PartitionV3::new(0, count).unwrap(),
-        raw_subtree_pre_state_root: indexed(30, 0),
-        raw_subtree_post_state_root: indexed(30, count),
+        partition: PartitionV3::new(start, end).unwrap(),
+        raw_subtree_pre_state_root: indexed(30, start),
+        raw_subtree_post_state_root: indexed(30, end),
         represented_row_count: count,
         leaf_records: records,
         authority_grants_root: commitment(36),
@@ -92,18 +98,68 @@ fn subtree(count: u64) -> SemanticSubtreeV2 {
 }
 
 fn child(index: u64, level: u8) -> ValueAggregateChildDescriptorV5 {
+    child_partition(index, index + 1, index, level)
+}
+
+fn child_partition(
+    start: u64,
+    end_exclusive: u64,
+    identity_index: u64,
+    level: u8,
+) -> ValueAggregateChildDescriptorV5 {
     ValueAggregateChildDescriptorV5::new(ValueAggregateChildDescriptorInputV5 {
         child_level: level,
-        partition: PartitionV3::new(index, index + 1).unwrap(),
+        partition: PartitionV3::new(start, end_exclusive).unwrap(),
         verified_program_id: ProgramIdV3::new([40; 32]).unwrap(),
         proof_profile_id: ProfileIdV3::new([41; 32]).unwrap(),
         program_manifest_root: commitment(42),
-        journal_hash: indexed(43, index),
-        claim_binding: indexed(44, index),
-        semantic_subtree_root: indexed(45, index),
-        operational_commitments: operational(index),
+        journal_hash: indexed(43, identity_index),
+        claim_binding: indexed(44, identity_index),
+        semantic_subtree_root: indexed(45, identity_index),
+        operational_commitments: operational(identity_index),
     })
     .unwrap()
+}
+
+fn saturated_eight_by_eight_proposals() -> (Vec<ProposedValueAggregateV5>, ProposedValueAggregateV5)
+{
+    let fanout = u64::try_from(MAX_IMMEDIATE_CHILDREN_V3).unwrap();
+    let mut level_one = Vec::with_capacity(MAX_IMMEDIATE_CHILDREN_V3);
+    let mut root_children = Vec::with_capacity(MAX_IMMEDIATE_CHILDREN_V3);
+    for subtree_index in 0..fanout {
+        let start = subtree_index * fanout;
+        let end = start + fanout;
+        let proposal = ProposedValueAggregateV5::derive(ValueAggregateProposalInputV5 {
+            aggregate_level: 1,
+            scope: scope(),
+            semantic_subtree: subtree_range(start, fanout),
+            children: (start..end).map(|index| child(index, 0)).collect(),
+        })
+        .unwrap();
+        root_children.push(
+            ValueAggregateChildDescriptorV5::new(ValueAggregateChildDescriptorInputV5 {
+                child_level: 1,
+                partition: PartitionV3::new(start, end).unwrap(),
+                verified_program_id: ProgramIdV3::new([60; 32]).unwrap(),
+                proof_profile_id: ProfileIdV3::new([61; 32]).unwrap(),
+                program_manifest_root: commitment(62),
+                journal_hash: proposal.proposal_commitment(),
+                claim_binding: indexed(63, subtree_index),
+                semantic_subtree_root: proposal.semantic_subtree().canonical_hash().unwrap(),
+                operational_commitments: proposal.operational_commitments(),
+            })
+            .unwrap(),
+        );
+        level_one.push(proposal);
+    }
+    let root = ProposedValueAggregateV5::derive(ValueAggregateProposalInputV5 {
+        aggregate_level: 2,
+        scope: scope(),
+        semantic_subtree: subtree_range(0, MAX_LEAF_COUNT_V3),
+        children: root_children,
+    })
+    .unwrap();
+    (level_one, root)
 }
 
 fn operational(index: u64) -> ValueAggregateOperationalCommitmentsV5 {
@@ -147,6 +203,49 @@ fn exact_codec_roundtrips_bounded_proof_neutral_proposal() {
     assert_eq!(proposal.children().len(), 2);
     assert_eq!(proposal.scope().application_id().into_bytes(), [1; 32]);
     assert_eq!(proposal.scope().chain_or_domain_id().into_bytes(), [2; 32]);
+}
+
+#[test]
+fn saturated_eight_by_eight_value_tree_is_deterministic_and_codec_bounded() {
+    assert_eq!(
+        usize::try_from(MAX_LEAF_COUNT_V3).unwrap(),
+        MAX_SEMANTIC_VALUE_RECORDS_V2
+    );
+    let (level_one, root) = saturated_eight_by_eight_proposals();
+    let (repeated_level_one, repeated_root) = saturated_eight_by_eight_proposals();
+
+    assert_eq!(level_one.len(), MAX_IMMEDIATE_CHILDREN_V3);
+    assert_eq!(level_one, repeated_level_one);
+    for proposal in &level_one {
+        assert_eq!(proposal.aggregate_level(), 1);
+        assert_eq!(proposal.children().len(), MAX_IMMEDIATE_CHILDREN_V3);
+        assert_eq!(
+            proposal.semantic_subtree().leaf_count(),
+            u64::try_from(MAX_IMMEDIATE_CHILDREN_V3).unwrap()
+        );
+    }
+    assert_eq!(root, repeated_root);
+    assert_eq!(root.aggregate_level(), 2);
+    assert_eq!(root.children().len(), MAX_IMMEDIATE_CHILDREN_V3);
+    assert_eq!(root.semantic_subtree().leaf_count(), MAX_LEAF_COUNT_V3);
+    assert_eq!(
+        root.semantic_subtree().represented_row_count(),
+        MAX_LEAF_COUNT_V3
+    );
+    assert_eq!(
+        root.semantic_subtree().partition(),
+        PartitionV3::new(0, MAX_LEAF_COUNT_V3).unwrap()
+    );
+    assert_eq!(root.proposal_commitment(), mirror_proposal(&root));
+
+    let encoded = encode_value_aggregate_proposal_v5(&root).unwrap();
+    let repeated_encoded = encode_value_aggregate_proposal_v5(&repeated_root).unwrap();
+    assert_eq!(encoded, repeated_encoded);
+    assert!(encoded.len() <= MAX_VALUE_AGGREGATE_PROPOSAL_BYTES_V5);
+    assert_eq!(
+        decode_exact_value_aggregate_proposal_v5(&encoded).unwrap(),
+        root
+    );
 }
 
 #[test]

@@ -323,10 +323,8 @@ fn require_exact_seal_mutation(source: &[u8], candidate: &[u8]) -> Result<(), Cl
     }
     let mut difference = None;
     for (index, (original, mutated)) in source_seal.iter().zip(candidate_seal).enumerate() {
-        if original != mutated {
-            if difference.replace((index, *original, *mutated)).is_some() {
-                return Err(CliError("mutation_relation_rejected"));
-            }
+        if original != mutated && difference.replace((index, *original, *mutated)).is_some() {
+            return Err(CliError("mutation_relation_rejected"));
         }
     }
     if difference
@@ -398,7 +396,10 @@ fn decode_lower_hex(
     maximum_bytes: usize,
     code: &'static str,
 ) -> Result<Vec<u8>, CliError> {
-    if value.is_empty() || value.len() > maximum_bytes.saturating_mul(2) || value.len() % 2 != 0 {
+    if value.is_empty()
+        || value.len() > maximum_bytes.saturating_mul(2)
+        || !value.len().is_multiple_of(2)
+    {
         return Err(CliError(code));
     }
     let mut decoded = Vec::with_capacity(value.len() / 2);
