@@ -293,7 +293,7 @@ printf '%s\n' \
   'offline = true' \
   '' \
   '[target.x86_64-unknown-linux-gnu]' \
-  'linker = "/opt/risc0-toolchain/bin/lld-wrapper"' \
+  'linker = "/opt/risc0-toolchain/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld/ld.lld"' \
   > /home/zrpf/.cargo/config.toml
 printf '%s\n' \
   '[default_versions]' \

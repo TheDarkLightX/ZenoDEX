@@ -71,6 +71,11 @@ def test_recipe_mounts_only_pinned_inputs_read_only_and_writes_externally() -> N
     assert "CARGO_NET_OFFLINE=true" in source
     assert "RISC0_BUILD_LOCKED=1" in source
     assert "jobs = 2" in source
+    assert (
+        'linker = "/opt/risc0-toolchain/lib/rustlib/'
+        'x86_64-unknown-linux-gnu/bin/gcc-ld/ld.lld"'
+    ) in source
+    assert 'linker = "/opt/risc0-toolchain/bin/lld-wrapper"' not in source
 
 
 def test_recipe_builds_one_exact_package_with_locked_offline_cargo() -> None:
