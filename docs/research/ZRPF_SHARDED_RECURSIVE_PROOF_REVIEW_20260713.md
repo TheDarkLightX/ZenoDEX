@@ -24,6 +24,41 @@ The source's numerical throughput, proof-size, verification-complexity, and
 privacy claims are not ZRPF evidence. ZRPF remains witness-public and makes no
 zero-knowledge privacy claim.
 
+## Technical cautions
+
+The post is an informal construction sketch rather than a complete security or
+performance argument. In particular:
+
+- Constant-size final proof bytes do not imply constant proving work. The
+  coordinator relation verifies every admitted shard proof and merges every
+  admitted shard summary, so coordinator proving work and input acquisition
+  remain at least linear in the number of immediate children unless another
+  evidenced aggregation layer changes that bound.
+- The stated `O(log shards)` final-verification cost is scheme- and statement-
+  dependent. A recursively wrapped proof can have verification cost independent
+  of the represented shard count; membership checks or a partially exposed tree
+  can add logarithmic work. The post does not derive which case applies.
+- The quoted transaction-throughput figures assume shard execution, proving,
+  aggregation, data availability, communication, and consensus all sustain the
+  selected parameters. They are capacity arithmetic rather than measurements.
+- The Verkle comparison counts neither the concrete polynomial-commitment
+  opening bytes nor multi-opening, transcript, field, and security-parameter
+  costs. It cannot support the claimed bit sizes or savings without a concrete
+  commitment scheme and benchmark.
+- The cross-shard relation does not fully specify message identities,
+  single-consumption nullifiers, delivery or cancellation, ordering, rollback,
+  or atomicity. A valid local transition proof alone cannot prevent duplicate
+  or inconsistent cross-shard economic effects.
+- Zero knowledge is a property of a concrete proving system and statement. The
+  post's honesty and privacy assertions do not account for public balance
+  vectors, shard assignment, timing, access patterns, coordinator metadata, or
+  data-availability leakage. They do not transfer to ZRPF's current
+  witness-public RISC0 receipt profile.
+
+These cautions do not invalidate the local-proof/global-merge decomposition.
+They define the additional obligations needed before the decomposition can
+support a ZRPF scaling, settlement, or privacy claim.
+
 ## Local shard statement
 
 A future recursive shard statement should bind at least:
