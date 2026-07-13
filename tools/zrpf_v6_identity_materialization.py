@@ -18,7 +18,7 @@ import hashlib
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from tools import plan_zrpf_source_opened_spot_v6_identity_rebuild as planner
 from tools import zrpf_v6_identity_artifacts as artifacts
@@ -253,10 +253,9 @@ def _apply_expected_transitions(
             state.apply_exact_transition(
                 expected.path,
                 raw,
-                lambda expected=expected, candidate=candidate: artifacts.repin_rust_constant(
-                    state.snapshot.root / expected.path,
-                    expected.symbol,
-                    expected.value_kind,
+                _repin_action(
+                    state.snapshot.root,
+                    expected,
                     candidate["value"],
                 ),
                 f"materialize {spec.stage_id} {expected.symbol}",
@@ -264,6 +263,24 @@ def _apply_expected_transitions(
     candidates = report["governance_candidates"]
     _apply_candidate_document(state, candidates["current_source_anchor_v2"])
     _apply_candidate_document(state, candidates["v2_adapter_source_policy"])
+
+
+def _repin_action(
+    snapshot_root: Path,
+    expected: planner.RepinSpec,
+    value: list[int],
+) -> Callable[[], None]:
+    """Bind one validated repin into an explicitly typed transition action."""
+
+    def apply() -> None:
+        artifacts.repin_rust_constant(
+            snapshot_root / expected.path,
+            expected.symbol,
+            expected.value_kind,
+            value,
+        )
+
+    return apply
 
 
 def _apply_candidate_document(

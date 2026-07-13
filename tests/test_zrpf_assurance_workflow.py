@@ -185,7 +185,23 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tools/zeno_ledger_verify.py",
         "tools/zeno_ledger_risc0_proof_metadata.py",
         "tools/check_zrpf_current_source_adapter_v2.py",
+        "tools/execute_zrpf_source_opened_spot_v6_identity_rebuild.py",
+        "tools/materialize_zrpf_source_opened_spot_v6_identity.py",
         "tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py",
+        "tools/recover_zrpf_v6_identity_build_lease.py",
+        "tools/zrpf_v6_identity_artifacts.py",
+        "tools/zrpf_v6_identity_docker_runner.py",
+        "tools/zrpf_v6_identity_executor_types.py",
+        "tools/zrpf_v6_identity_materialization.py",
+        "tools/zrpf_v6_identity_materialization_git.py",
+        "tools/zrpf_v6_identity_materialization_output.py",
+        "tools/zrpf_v6_identity_materialization_rollback.py",
+        "tools/zrpf_v6_identity_run_root.py",
+        "tools/zrpf_v6_identity_runner_integrity.py",
+        "tools/zrpf_v6_identity_runner_protocol.py",
+        "tools/zrpf_v6_identity_runner_resources.py",
+        "tools/zrpf_v6_identity_source_snapshot.py",
+        "tools/zrpf_v6_identity_source_state.py",
     ):
         assert required_path in ruff_assurance
         assert required_path in mypy_assurance
@@ -213,7 +229,10 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tests/integration/test_zeno_ledger_risc0_proof_metadata.py",
         "tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py",
         "tests/test_check_zrpf_current_source_adapter_v2.py",
+        "tests/test_execute_zrpf_source_opened_spot_v6_identity_rebuild.py",
+        "tests/test_materialize_zrpf_source_opened_spot_v6_identity.py",
         "tests/test_plan_zrpf_source_opened_spot_v6_identity_rebuild.py",
+        "tests/test_zrpf_v6_identity_runner_hardening.py",
     ):
         assert required_path in ruff_assurance
         assert required_path in pytest_assurance
