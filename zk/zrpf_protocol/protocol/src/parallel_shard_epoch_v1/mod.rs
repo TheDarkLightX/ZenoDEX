@@ -12,7 +12,7 @@ pub use hash::{
     canonical_empty_cross_shard_outbox_root_v1,
 };
 pub use shard::{
-    CanonicalShardStateMapV1, GovernedShardSetV1, ShardCompositionContextV1, ShardIdV1,
+    CanonicalShardStateMapV1, DeclaredShardSetV1, ShardCompositionContextV1, ShardIdV1,
     ShardTransitionInputV1, ShardTransitionV1,
 };
 

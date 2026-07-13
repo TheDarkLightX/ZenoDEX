@@ -4,7 +4,7 @@ use super::hash::{
     derive_proposal_hash_v1, derive_semantic_epoch_root_v1, SemanticEpochRootInputV1,
 };
 use super::{
-    CanonicalShardStateMapV1, GovernedShardSetV1, ParallelShardEpochErrorV1,
+    CanonicalShardStateMapV1, DeclaredShardSetV1, ParallelShardEpochErrorV1,
     ShardCompositionContextV1, ShardIdV1, ShardTransitionInputV1, PARALLEL_SHARD_COUNT_V1,
     PARALLEL_SHARD_EPOCH_VERSION_V1,
 };
@@ -15,7 +15,7 @@ pub struct ParallelShardEpochInputV1 {
     pub scope: NodeScopeV3,
     pub semantic_profile_id: ProfileIdV3,
     pub state_root_scheme_id: CommitmentV3,
-    pub governed_shard_ids: [ShardIdV1; PARALLEL_SHARD_COUNT_V1],
+    pub declared_shard_ids: [ShardIdV1; PARALLEL_SHARD_COUNT_V1],
     pub shard_transitions: [ShardTransitionInputV1; PARALLEL_SHARD_COUNT_V1],
     pub proof_tree_root: CommitmentV3,
 }
@@ -25,7 +25,8 @@ pub struct ParallelShardEpochInputV1 {
 /// `semantic_epoch_root` excludes `proof_tree_root`, so valid proof grouping
 /// changes cannot alter semantic identity. `proposal_hash` binds both roots.
 /// This type verifies no receipt, message cancellation, nullifier disjointness,
-/// data availability, finality, ledger commit, settlement, or privacy claim.
+/// data availability, finality, governance or release authority, ledger commit,
+/// settlement, or privacy claim.
 ///
 /// ```compile_fail
 /// use zenodex_zrpf_protocol_v3::ParallelShardEpochV1;
@@ -38,7 +39,7 @@ pub struct ParallelShardEpochV1 {
     scope: NodeScopeV3,
     semantic_profile_id: ProfileIdV3,
     state_root_scheme_id: CommitmentV3,
-    governed_shard_set: GovernedShardSetV1,
+    declared_shard_set: DeclaredShardSetV1,
     shard_state_map: CanonicalShardStateMapV1,
     proof_tree_root: CommitmentV3,
     semantic_epoch_root: CommitmentV3,
@@ -51,7 +52,7 @@ struct ParallelShardEpochWireV1 {
     scope: NodeScopeV3,
     semantic_profile_id: ProfileIdV3,
     state_root_scheme_id: CommitmentV3,
-    governed_shard_set: GovernedShardSetV1,
+    declared_shard_set: DeclaredShardSetV1,
     shard_state_map: CanonicalShardStateMapV1,
     proof_tree_root: CommitmentV3,
     semantic_epoch_root: CommitmentV3,
@@ -60,9 +61,9 @@ struct ParallelShardEpochWireV1 {
 impl ParallelShardEpochV1 {
     pub fn derive(input: ParallelShardEpochInputV1) -> Result<Self, ParallelShardEpochErrorV1> {
         let scope_hash = input.scope.canonical_hash()?;
-        let governed_shard_set = GovernedShardSetV1::new(input.governed_shard_ids)?;
+        let declared_shard_set = DeclaredShardSetV1::new(input.declared_shard_ids)?;
         let shard_state_map = CanonicalShardStateMapV1::new(
-            &governed_shard_set,
+            &declared_shard_set,
             ShardCompositionContextV1::new(
                 scope_hash,
                 input.semantic_profile_id,
@@ -74,7 +75,7 @@ impl ParallelShardEpochV1 {
             scope: &input.scope,
             semantic_profile_id: input.semantic_profile_id,
             state_root_scheme_id: input.state_root_scheme_id,
-            governed_shard_set: &governed_shard_set,
+            declared_shard_set: &declared_shard_set,
             state_map: &shard_state_map,
         })?;
         let epoch = Self {
@@ -82,7 +83,7 @@ impl ParallelShardEpochV1 {
             scope: input.scope,
             semantic_profile_id: input.semantic_profile_id,
             state_root_scheme_id: input.state_root_scheme_id,
-            governed_shard_set,
+            declared_shard_set,
             shard_state_map,
             proof_tree_root: input.proof_tree_root,
             semantic_epoch_root,
@@ -98,9 +99,9 @@ impl ParallelShardEpochV1 {
             ));
         }
         self.scope.validate()?;
-        self.governed_shard_set.validate()?;
+        self.declared_shard_set.validate()?;
         self.shard_state_map.validate_against(
-            &self.governed_shard_set,
+            &self.declared_shard_set,
             ShardCompositionContextV1::new(
                 self.scope.canonical_hash()?,
                 self.semantic_profile_id,
@@ -111,7 +112,7 @@ impl ParallelShardEpochV1 {
             scope: &self.scope,
             semantic_profile_id: self.semantic_profile_id,
             state_root_scheme_id: self.state_root_scheme_id,
-            governed_shard_set: &self.governed_shard_set,
+            declared_shard_set: &self.declared_shard_set,
             state_map: &self.shard_state_map,
         })?;
         if self.semantic_epoch_root != expected {
@@ -141,8 +142,9 @@ impl ParallelShardEpochV1 {
         self.state_root_scheme_id
     }
 
-    pub const fn governed_shard_set(&self) -> &GovernedShardSetV1 {
-        &self.governed_shard_set
+    /// Returns the proposal-declared set. External policy must authenticate it.
+    pub const fn declared_shard_set(&self) -> &DeclaredShardSetV1 {
+        &self.declared_shard_set
     }
 
     pub const fn shard_state_map(&self) -> &CanonicalShardStateMapV1 {
@@ -163,7 +165,7 @@ impl ParallelShardEpochV1 {
             scope: wire.scope,
             semantic_profile_id: wire.semantic_profile_id,
             state_root_scheme_id: wire.state_root_scheme_id,
-            governed_shard_set: wire.governed_shard_set,
+            declared_shard_set: wire.declared_shard_set,
             shard_state_map: wire.shard_state_map,
             proof_tree_root: wire.proof_tree_root,
             semantic_epoch_root: wire.semantic_epoch_root,

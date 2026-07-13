@@ -2,16 +2,16 @@ use serde::{de, Deserialize, Deserializer, Serialize};
 
 use super::hash::{
     canonical_empty_carry_queue_root_v1, canonical_empty_cross_shard_inbox_root_v1,
-    canonical_empty_cross_shard_outbox_root_v1, derive_global_carry_post_root_v1,
-    derive_global_carry_pre_root_v1, derive_global_inbox_root_v1, derive_global_outbox_root_v1,
-    derive_global_post_state_root_v1, derive_global_pre_state_root_v1,
-    derive_governed_shard_set_root_v1, derive_shard_action_nullifiers_root_v1,
+    canonical_empty_cross_shard_outbox_root_v1, derive_declared_shard_set_root_v1,
+    derive_global_carry_post_root_v1, derive_global_carry_pre_root_v1, derive_global_inbox_root_v1,
+    derive_global_outbox_root_v1, derive_global_post_state_root_v1,
+    derive_global_pre_state_root_v1, derive_shard_action_nullifiers_root_v1,
     derive_shard_semantic_values_root_v1,
 };
 use super::{ParallelShardEpochErrorV1, PARALLEL_SHARD_COUNT_V1};
 use crate::{CommitmentV3, ProfileIdV3};
 
-/// Nonzero key for one governed shard.
+/// Nonzero key for one declared shard.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ShardIdV1(CommitmentV3);
@@ -30,16 +30,16 @@ impl ShardIdV1 {
     }
 }
 
-/// Exact sorted set admitted by governance for the bounded V1 profile.
+/// Exact sorted shard set declared by the bounded V1 proposal.
 ///
 /// The array width makes missing and extra shards unrepresentable. Construction
 /// rejects duplicates and noncanonical ordering rather than sorting host input.
 /// Governance or release authority must supply and bind this set externally.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
-pub struct GovernedShardSetV1([ShardIdV1; PARALLEL_SHARD_COUNT_V1]);
+pub struct DeclaredShardSetV1([ShardIdV1; PARALLEL_SHARD_COUNT_V1]);
 
-impl GovernedShardSetV1 {
+impl DeclaredShardSetV1 {
     pub fn new(
         shard_ids: [ShardIdV1; PARALLEL_SHARD_COUNT_V1],
     ) -> Result<Self, ParallelShardEpochErrorV1> {
@@ -53,7 +53,7 @@ impl GovernedShardSetV1 {
 
     pub fn canonical_root(&self) -> Result<CommitmentV3, ParallelShardEpochErrorV1> {
         self.validate()?;
-        derive_governed_shard_set_root_v1(&self.0)
+        derive_declared_shard_set_root_v1(&self.0)
     }
 
     pub const fn shard_ids(&self) -> &[ShardIdV1; PARALLEL_SHARD_COUNT_V1] {
@@ -61,7 +61,7 @@ impl GovernedShardSetV1 {
     }
 }
 
-impl<'de> Deserialize<'de> for GovernedShardSetV1 {
+impl<'de> Deserialize<'de> for DeclaredShardSetV1 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -189,7 +189,7 @@ impl ShardTransitionV1 {
     }
 }
 
-/// Canonical complete map from two governed shard IDs to local transitions.
+/// Canonical complete map from two declared shard IDs to local transitions.
 ///
 /// Global roots hash each value together with its shard key. This prevents a
 /// bare list of state roots from changing meaning when assignments change.
@@ -199,12 +199,12 @@ pub struct CanonicalShardStateMapV1([ShardTransitionV1; PARALLEL_SHARD_COUNT_V1]
 
 impl CanonicalShardStateMapV1 {
     pub fn new(
-        governed_shards: &GovernedShardSetV1,
+        declared_shards: &DeclaredShardSetV1,
         context: ShardCompositionContextV1,
         transitions: [ShardTransitionInputV1; PARALLEL_SHARD_COUNT_V1],
     ) -> Result<Self, ParallelShardEpochErrorV1> {
         let state_map = Self::from_inputs(transitions)?;
-        state_map.validate_against(governed_shards, context)?;
+        state_map.validate_against(declared_shards, context)?;
         Ok(state_map)
     }
 
@@ -232,12 +232,12 @@ impl CanonicalShardStateMapV1 {
 
     pub fn validate_against(
         &self,
-        governed_shards: &GovernedShardSetV1,
+        declared_shards: &DeclaredShardSetV1,
         context: ShardCompositionContextV1,
     ) -> Result<(), ParallelShardEpochErrorV1> {
         self.validate()?;
-        if self.shard_ids() != *governed_shards.shard_ids() {
-            return Err(ParallelShardEpochErrorV1::GovernedShardMismatch);
+        if self.shard_ids() != *declared_shards.shard_ids() {
+            return Err(ParallelShardEpochErrorV1::DeclaredShardMismatch);
         }
         for (index, entry) in self.0.iter().enumerate() {
             if entry.scope_hash() != context.scope_hash {

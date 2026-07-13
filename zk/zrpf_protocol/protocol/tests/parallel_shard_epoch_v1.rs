@@ -1,9 +1,10 @@
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use zenodex_zrpf_protocol_v3::{
     canonical_empty_carry_queue_root_v1, canonical_empty_cross_shard_inbox_root_v1,
     canonical_empty_cross_shard_outbox_root_v1, decode_exact_parallel_shard_epoch_v1,
     encode_parallel_shard_epoch_v1, ApplicationIdV3, CanonicalShardStateMapV1, CommitmentV3,
-    DomainIdV3, GovernedShardSetV1, NodeScopeInputV3, NodeScopeV3, ParallelShardEpochErrorV1,
+    DeclaredShardSetV1, DomainIdV3, NodeScopeInputV3, NodeScopeV3, ParallelShardEpochErrorV1,
     ParallelShardEpochInputV1, ParallelShardEpochV1, ProfileIdV3, ShardIdV1,
     ShardTransitionInputV1, MAX_PARALLEL_SHARD_EPOCH_BYTES_V1,
 };
@@ -62,22 +63,22 @@ fn input(seed: u8, proof_tree_seed: u8) -> ParallelShardEpochInputV1 {
     let scope_hash = scope.canonical_hash().unwrap();
     let semantic_profile_id = profile(10);
     let state_root_scheme_id = commitment(11);
-    let governed_shard_ids = [shard(1), shard(2)];
+    let declared_shard_ids = [shard(1), shard(2)];
     ParallelShardEpochInputV1 {
         scope,
         semantic_profile_id,
         state_root_scheme_id,
-        governed_shard_ids,
+        declared_shard_ids,
         shard_transitions: [
             transition(
-                governed_shard_ids[0],
+                declared_shard_ids[0],
                 seed.wrapping_add(70),
                 scope_hash,
                 semantic_profile_id,
                 state_root_scheme_id,
             ),
             transition(
-                governed_shard_ids[1],
+                declared_shard_ids[1],
                 seed.wrapping_add(110),
                 scope_hash,
                 semantic_profile_id,
@@ -86,6 +87,46 @@ fn input(seed: u8, proof_tree_seed: u8) -> ParallelShardEpochInputV1 {
         ],
         proof_tree_root: commitment(proof_tree_seed),
     }
+}
+
+#[derive(Serialize)]
+struct ParallelShardEpochWireMirrorV1<'a> {
+    epoch_version: u16,
+    scope: &'a NodeScopeV3,
+    semantic_profile_id: ProfileIdV3,
+    state_root_scheme_id: CommitmentV3,
+    declared_shard_set: &'a DeclaredShardSetV1,
+    shard_state_map: &'a CanonicalShardStateMapV1,
+    proof_tree_root: CommitmentV3,
+    semantic_epoch_root: CommitmentV3,
+}
+
+fn encode_epoch_with_version(epoch: &ParallelShardEpochV1, epoch_version: u16) -> Vec<u8> {
+    postcard::to_allocvec(&ParallelShardEpochWireMirrorV1 {
+        epoch_version,
+        scope: epoch.scope(),
+        semantic_profile_id: epoch.semantic_profile_id(),
+        state_root_scheme_id: epoch.state_root_scheme_id(),
+        declared_shard_set: epoch.declared_shard_set(),
+        shard_state_map: epoch.shard_state_map(),
+        proof_tree_root: epoch.proof_tree_root(),
+        semantic_epoch_root: epoch.semantic_epoch_root(),
+    })
+    .unwrap()
+}
+
+fn replace_unique_window(bytes: &mut [u8], needle: &[u8; 32], replacement: &[u8; 32]) {
+    let offsets = bytes
+        .windows(needle.len())
+        .enumerate()
+        .filter_map(|(offset, window)| (window == needle).then_some(offset))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        offsets.len(),
+        1,
+        "test fixture must contain one exact window"
+    );
+    bytes[offsets[0]..offsets[0] + replacement.len()].copy_from_slice(replacement);
 }
 
 fn hex(bytes: &[u8; 32]) -> String {
@@ -123,8 +164,8 @@ fn derives_complete_keyed_map_and_exact_hash_fixture() {
         map.shard_semantic_values_root().unwrap()
     );
     assert_eq!(
-        epoch.governed_shard_set().canonical_root().unwrap(),
-        GovernedShardSetV1::new([shard(1), shard(2)])
+        epoch.declared_shard_set().canonical_root().unwrap(),
+        DeclaredShardSetV1::new([shard(1), shard(2)])
             .unwrap()
             .canonical_root()
             .unwrap()
@@ -161,21 +202,59 @@ fn derives_complete_keyed_map_and_exact_hash_fixture() {
 
     assert_eq!(
         hex(epoch.semantic_epoch_root().as_bytes()),
-        "2e834f1f594e60fc18a59558673ae85330ec780a6303634c29482f6a55202336"
+        "74a7c227c71f9d8ac07edd8085f810aaa34d46dd23bec054f38bc53432e9621e"
     );
     assert_eq!(
         hex(epoch.proposal_hash().unwrap().as_bytes()),
-        "abe385383302d94b5d81cb06746a520561d40f6cfa83957d76702126dfb31a33"
+        "9325512121f88dc45c1c59e31547ae886170a05259d3b5c0c89f060d2b76c787"
     );
 }
 
 #[test]
-fn exact_codec_round_trips_and_rejects_trailing_or_oversize_input() {
+fn exact_codec_rejects_truncation_stale_versions_nested_zeroes_and_nonminimal_integers() {
     let epoch = ParallelShardEpochV1::derive(input(2, 220)).unwrap();
     let encoded = encode_parallel_shard_epoch_v1(&epoch).unwrap();
     assert_eq!(
         decode_exact_parallel_shard_epoch_v1(&encoded).unwrap(),
         epoch
+    );
+
+    for end in 0..encoded.len() {
+        assert!(
+            decode_exact_parallel_shard_epoch_v1(&encoded[..end]).is_err(),
+            "truncated prefix ending at byte {end} must reject"
+        );
+    }
+
+    let stale_version = encode_epoch_with_version(&epoch, 2);
+    assert_eq!(
+        decode_exact_parallel_shard_epoch_v1(&stale_version).unwrap_err(),
+        ParallelShardEpochErrorV1::PostcardDecode
+    );
+
+    let mut nested_zero = encoded.clone();
+    replace_unique_window(
+        &mut nested_zero,
+        epoch.shard_state_map().entries()[0]
+            .local_pre_state_root()
+            .as_bytes(),
+        &[0; 32],
+    );
+    assert_eq!(
+        decode_exact_parallel_shard_epoch_v1(&nested_zero).unwrap_err(),
+        ParallelShardEpochErrorV1::PostcardDecode
+    );
+
+    assert_eq!(
+        encoded[0], 1,
+        "V1 epoch version must use one-byte Postcard form"
+    );
+    let mut nonminimal_version = Vec::with_capacity(encoded.len() + 1);
+    nonminimal_version.extend_from_slice(&[0x81, 0x00]);
+    nonminimal_version.extend_from_slice(&encoded[1..]);
+    assert_eq!(
+        decode_exact_parallel_shard_epoch_v1(&nonminimal_version).unwrap_err(),
+        ParallelShardEpochErrorV1::NonCanonicalEncoding
     );
 
     let mut trailing = encoded;
@@ -199,20 +278,20 @@ fn exact_codec_round_trips_and_rejects_trailing_or_oversize_input() {
 }
 
 #[test]
-fn governed_set_and_state_map_reject_noncanonical_or_incomplete_identity() {
+fn declared_set_and_state_map_reject_noncanonical_or_incomplete_identity() {
     assert_eq!(
-        GovernedShardSetV1::new([shard(2), shard(1)]).unwrap_err(),
+        DeclaredShardSetV1::new([shard(2), shard(1)]).unwrap_err(),
         ParallelShardEpochErrorV1::ShardIdsNotStrictlySorted
     );
     assert_eq!(
-        GovernedShardSetV1::new([shard(1), shard(1)]).unwrap_err(),
+        DeclaredShardSetV1::new([shard(1), shard(1)]).unwrap_err(),
         ParallelShardEpochErrorV1::ShardIdsNotStrictlySorted
     );
-    assert!(serde_json::from_value::<GovernedShardSetV1>(
+    assert!(serde_json::from_value::<DeclaredShardSetV1>(
         serde_json::to_value([shard(1)]).unwrap()
     )
     .is_err());
-    assert!(serde_json::from_value::<GovernedShardSetV1>(
+    assert!(serde_json::from_value::<DeclaredShardSetV1>(
         serde_json::to_value([shard(1), shard(2), shard(3)]).unwrap()
     )
     .is_err());
@@ -228,7 +307,7 @@ fn governed_set_and_state_map_reject_noncanonical_or_incomplete_identity() {
     wrong_shard.shard_transitions[1].shard_id = shard(3);
     assert_eq!(
         ParallelShardEpochV1::derive(wrong_shard).unwrap_err(),
-        ParallelShardEpochErrorV1::GovernedShardMismatch
+        ParallelShardEpochErrorV1::DeclaredShardMismatch
     );
 }
 

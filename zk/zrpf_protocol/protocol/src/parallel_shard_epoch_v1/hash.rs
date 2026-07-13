@@ -1,7 +1,7 @@
 use sha2::{Digest, Sha256};
 
 use super::{
-    CanonicalShardStateMapV1, GovernedShardSetV1, ParallelShardEpochErrorV1, ShardIdV1,
+    CanonicalShardStateMapV1, DeclaredShardSetV1, ParallelShardEpochErrorV1, ShardIdV1,
     ShardTransitionV1, PARALLEL_SHARD_COUNT_V1, PARALLEL_SHARD_EPOCH_VERSION_V1,
 };
 use crate::{CommitmentV3, NodeScopeV3, ProfileIdV3};
@@ -9,7 +9,7 @@ use crate::{CommitmentV3, NodeScopeV3, ProfileIdV3};
 const EMPTY_CROSS_SHARD_OUTBOX_DOMAIN_V1: &[u8] = b"zenodex.zrpf.parallel_shard.empty_outbox.v1";
 const EMPTY_CROSS_SHARD_INBOX_DOMAIN_V1: &[u8] = b"zenodex.zrpf.parallel_shard.empty_inbox.v1";
 const EMPTY_CARRY_QUEUE_DOMAIN_V1: &[u8] = b"zenodex.zrpf.parallel_shard.empty_carry_queue.v1";
-const GOVERNED_SHARD_SET_ROOT_DOMAIN_V1: &[u8] = b"zenodex.zrpf.parallel_shard.governed_set.v1";
+const DECLARED_SHARD_SET_ROOT_DOMAIN_V1: &[u8] = b"zenodex.zrpf.parallel_shard.declared_set.v1";
 const GLOBAL_PRE_STATE_ROOT_DOMAIN_V1: &[u8] = b"zenodex.zrpf.parallel_shard.global_pre_state.v1";
 const GLOBAL_POST_STATE_ROOT_DOMAIN_V1: &[u8] = b"zenodex.zrpf.parallel_shard.global_post_state.v1";
 const SHARD_SEMANTIC_VALUES_ROOT_DOMAIN_V1: &[u8] =
@@ -37,15 +37,15 @@ pub fn canonical_empty_carry_queue_root_v1() -> Result<CommitmentV3, ParallelSha
     empty_list_root(EMPTY_CARRY_QUEUE_DOMAIN_V1)
 }
 
-pub(super) fn derive_governed_shard_set_root_v1(
+pub(super) fn derive_declared_shard_set_root_v1(
     shard_ids: &[ShardIdV1; PARALLEL_SHARD_COUNT_V1],
 ) -> Result<CommitmentV3, ParallelShardEpochErrorV1> {
-    let mut hasher = domain_hasher(GOVERNED_SHARD_SET_ROOT_DOMAIN_V1)?;
+    let mut hasher = domain_hasher(DECLARED_SHARD_SET_ROOT_DOMAIN_V1)?;
     write_len(&mut hasher, shard_ids.len())?;
     for shard_id in shard_ids {
         hasher.update(shard_id.as_bytes());
     }
-    commitment(hasher, "governed_shard_set_root")
+    commitment(hasher, "declared_shard_set_root")
 }
 
 pub(super) fn derive_global_pre_state_root_v1(
@@ -116,7 +116,7 @@ pub(super) struct SemanticEpochRootInputV1<'a> {
     pub scope: &'a NodeScopeV3,
     pub semantic_profile_id: ProfileIdV3,
     pub state_root_scheme_id: CommitmentV3,
-    pub governed_shard_set: &'a GovernedShardSetV1,
+    pub declared_shard_set: &'a DeclaredShardSetV1,
     pub state_map: &'a CanonicalShardStateMapV1,
 }
 
@@ -128,7 +128,7 @@ pub(super) fn derive_semantic_epoch_root_v1(
     hasher.update(input.scope.canonical_hash()?.as_bytes());
     hasher.update(input.semantic_profile_id.as_bytes());
     hasher.update(input.state_root_scheme_id.as_bytes());
-    hasher.update(input.governed_shard_set.canonical_root()?.as_bytes());
+    hasher.update(input.declared_shard_set.canonical_root()?.as_bytes());
     for root in input.state_map.semantic_roots()? {
         hasher.update(root.as_bytes());
     }

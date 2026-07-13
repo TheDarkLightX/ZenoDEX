@@ -7,7 +7,7 @@ pub enum ParallelShardEpochErrorV1 {
     Structural(ZrpfErrorV3),
     InvalidVersion(u16),
     ShardIdsNotStrictlySorted,
-    GovernedShardMismatch,
+    DeclaredShardMismatch,
     ScopeMismatch { shard_index: usize },
     SemanticProfileMismatch { shard_index: usize },
     StateRootSchemeMismatch { shard_index: usize },
@@ -41,8 +41,8 @@ impl fmt::Display for ParallelShardEpochErrorV1 {
             Self::ShardIdsNotStrictlySorted => {
                 formatter.write_str("shard IDs are not strictly increasing")
             }
-            Self::GovernedShardMismatch => {
-                formatter.write_str("state-map shard IDs differ from the governed shard set")
+            Self::DeclaredShardMismatch => {
+                formatter.write_str("state-map shard IDs differ from the declared shard set")
             }
             Self::ScopeMismatch { shard_index } => {
                 write!(
