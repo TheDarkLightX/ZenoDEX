@@ -55,6 +55,17 @@ insufficient to update balances.
 
 All settlement and production authority constants remain `false`.
 
+## Accepted source-operation profile
+
+The V1 guest profile accepts exactly one ordinary `TauSwap` `v1`
+`SwapExactIn` intent from the transaction sender. The transaction must carry
+the intent marker, contain exactly one signed intent, and contain no faucet
+operation or faucet mint. Pool creation, liquidity changes, faucet framing,
+multi-intent transactions, and every other intent variant reject before the
+state opening can be composed. This restriction keeps the proved V7 state and
+effect relation identical to the first production Spot slice; expanding it
+requires a new governed profile and fresh proof evidence.
+
 ## Firecracker output
 
 Containers are limited to the hermetic, networkless build and CI layer. Native

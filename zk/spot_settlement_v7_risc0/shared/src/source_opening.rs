@@ -7,9 +7,9 @@ use tau_state_proof_risc0_shared::{
     recursive_cross_shard_messages_root_v1, recursive_receipt_ids_root_v1,
     spot_recursive_leaf_asset_delta_rows_v1, spot_recursive_leaf_evidence_root_v1,
     spot_recursive_leaf_statement_hash_v1, spot_recursive_leaf_write_set_root_v1,
-    validate_recursive_effect_summary_shape_v1, DexSnapshotV1, RecursiveCrossShardMessageV1,
-    RecursiveEffectSummaryV1, SpotRecursiveLeafInputV1, StateProofJournalV1,
-    RECURSIVE_EFFECT_SUMMARY_VERSION_V1, RECURSIVE_SPOT_LEAF_PROFILE_V1,
+    validate_recursive_effect_summary_shape_v1, DexIntentV1, DexSnapshotV1,
+    RecursiveCrossShardMessageV1, RecursiveEffectSummaryV1, SpotRecursiveLeafInputV1,
+    StateProofJournalV1, RECURSIVE_EFFECT_SUMMARY_VERSION_V1, RECURSIVE_SPOT_LEAF_PROFILE_V1,
     RECURSIVE_SUMMARY_TEXT_MAX_BYTES,
 };
 use zenodex_zrpf_protocol_v3::{
@@ -438,6 +438,34 @@ fn singleton_ingress(
             "sender and ingress",
         ));
     }
+    if transaction.app_ops.has_faucet || !transaction.app_ops.faucet_mint.is_empty() {
+        return Err(SpotSettlementV7ErrorV1::SourceProfileRejected(
+            "faucet operations are outside the ordinary Spot V7 profile",
+        ));
+    }
+    if !transaction.app_ops.has_intents {
+        return Err(SpotSettlementV7ErrorV1::SourceProfileRejected(
+            "ordinary Spot V7 intent marker",
+        ));
+    }
+    let [signed_intent] = transaction.app_ops.intents.as_slice() else {
+        return Err(SpotSettlementV7ErrorV1::SourceProfileRejected(
+            "exactly one ordinary Spot V7 intent",
+        ));
+    };
+    let DexIntentV1::SwapExactIn(intent) = &signed_intent.intent else {
+        return Err(SpotSettlementV7ErrorV1::SourceProfileRejected(
+            "ordinary Spot V7 SwapExactIn intent",
+        ));
+    };
+    if intent.module != "TauSwap"
+        || intent.version != "v1"
+        || intent.sender_pubkey != transaction.sender_pubkey
+    {
+        return Err(SpotSettlementV7ErrorV1::SourceProfileRejected(
+            "ordinary Spot V7 intent identity",
+        ));
+    }
     Ok((&transaction.sender_pubkey, ingress.nonce))
 }
 
@@ -481,6 +509,90 @@ mod tests {
             recompose_spot_recursive_leaf_summary_from_transition_v1(&input, &transition).unwrap();
         assert_eq!(actual, expected);
         assert_eq!(singleton_ingress(&input).unwrap(), ("sender-a", 0));
+    }
+
+    #[test]
+    fn ordinary_spot_profile_rejects_faucet_framing() {
+        let mut input = single_swap_spot_leaf_input();
+        input.spot_input.txs[0].app_ops.has_faucet = true;
+
+        assert_eq!(
+            singleton_ingress(&input),
+            Err(SpotSettlementV7ErrorV1::SourceProfileRejected(
+                "faucet operations are outside the ordinary Spot V7 profile",
+            ))
+        );
+    }
+
+    #[test]
+    fn ordinary_spot_profile_rejects_multiple_intents() {
+        let mut input = single_swap_spot_leaf_input();
+        let second = input.spot_input.txs[0].app_ops.intents[0].clone();
+        input.spot_input.txs[0].app_ops.intents.push(second);
+
+        assert_eq!(
+            singleton_ingress(&input),
+            Err(SpotSettlementV7ErrorV1::SourceProfileRejected(
+                "exactly one ordinary Spot V7 intent",
+            ))
+        );
+    }
+
+    #[test]
+    fn ordinary_spot_profile_rejects_missing_intent_marker() {
+        let mut input = single_swap_spot_leaf_input();
+        input.spot_input.txs[0].app_ops.has_intents = false;
+
+        assert_eq!(
+            singleton_ingress(&input),
+            Err(SpotSettlementV7ErrorV1::SourceProfileRejected(
+                "ordinary Spot V7 intent marker",
+            ))
+        );
+    }
+
+    #[test]
+    fn ordinary_spot_profile_rejects_non_swap_intent() {
+        let mut input = single_swap_spot_leaf_input();
+        input.spot_input.txs[0].app_ops.intents[0].intent =
+            DexIntentV1::CreatePool(tau_state_proof_risc0_shared::CreatePoolIntentV1 {
+                module: "TauSwap".to_string(),
+                version: "v1".to_string(),
+                intent_id: "not-an-ordinary-swap".to_string(),
+                sender_pubkey: "sender-a".to_string(),
+                deadline: 100,
+                asset0: "asset-a".to_string(),
+                asset1: "asset-b".to_string(),
+                fee_bps: 30,
+                amount0: 1_000,
+                amount1: 1_000,
+                salt: None,
+            });
+
+        assert_eq!(
+            singleton_ingress(&input),
+            Err(SpotSettlementV7ErrorV1::SourceProfileRejected(
+                "ordinary Spot V7 SwapExactIn intent",
+            ))
+        );
+    }
+
+    #[test]
+    fn ordinary_spot_profile_rejects_intent_sender_mismatch() {
+        let mut input = single_swap_spot_leaf_input();
+        let DexIntentV1::SwapExactIn(intent) =
+            &mut input.spot_input.txs[0].app_ops.intents[0].intent
+        else {
+            panic!("test fixture must contain SwapExactIn");
+        };
+        intent.sender_pubkey = "different-sender".to_string();
+
+        assert_eq!(
+            singleton_ingress(&input),
+            Err(SpotSettlementV7ErrorV1::SourceProfileRejected(
+                "ordinary Spot V7 intent identity",
+            ))
+        );
     }
 
     fn empty_spot_leaf_input() -> SpotRecursiveLeafInputV1 {
