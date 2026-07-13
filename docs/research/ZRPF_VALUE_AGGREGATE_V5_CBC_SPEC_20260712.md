@@ -2,8 +2,8 @@
 
 Date: 2026-07-12
 
-Status: protocol proposal in implementation; recursive guest, receipt evidence,
-and settlement authority pending
+Status: protocol and governed singleton V6 recursive guests implemented;
+checked retained full-chain evidence and settlement authority pending
 
 ## Purpose
 
@@ -15,6 +15,15 @@ subtree. Runtime self-image identity is intentionally absent.
 The first governed profile is bounded to two aggregate levels, eight children
 per node, and 64 represented leaves. It preserves the existing V4 state-chain,
 asset-flow, issuance-use, transaction-uniqueness, and source-uniqueness rules.
+
+The source-opened ordinary Spot V6 profile instantiates this proposal with a
+leaf guest, a level-one guest, and a level-two guest. Each successor pins the
+exact image of its predecessor, verifies every supplied child before decoding
+the child journal, and independently recomposes the expected proposal. The
+current proof harness exercises one child at each aggregate level. Local
+Succinct leaf, level-one, and level-two receipts have been generated; their
+checked retained evidence record remains pending. This status supplies no
+multi-leaf or maximum-topology claim.
 
 ## Authority progression
 
@@ -112,6 +121,13 @@ them from the images used by `env::verify`. It contains no parent runtime image
 or parent program manifest. The sealed outer verifier attaches those values
 after cryptographically verifying the parent receipt.
 
+For the governed V6 singleton profile, the sealed host verifier and the final
+settlement guest use distinct pinned identities for the leaf, level-one, and
+level-two programs. The protocol object remains proof-neutral: an encoded
+`ProposedValueAggregateV5` carries no authority unless it is obtained from an
+exact receipt verified under the appropriate governed image and independently
+recomposed.
+
 ## Required negative controls
 
 1. zero or excessive children;
@@ -129,13 +145,18 @@ after cryptographically verifying the parent receipt.
 
 ## Explicit non-claims
 
-This proposal supplies no receipt, recursive proof, image ID for the parent,
-source finality, data availability, data-availability certificate validity,
-conflict-schedule validity, cross-lane message uniqueness or cancellation,
-carry continuity, economic-action normalization, settlement plan binding,
-ledger admission, release authority, privacy, throughput, or production
-authority. Operational-root propagation alone advances none of these claims.
+The proof-neutral proposal itself supplies no receipt, recursive proof, or
+parent image identity. The governed V6 guests and verifiers supply those
+properties only for the current singleton source-opened ordinary Spot chain.
+Neither layer establishes source finality, provider retrievability,
+data-availability policy satisfaction, conflict-schedule validity, cross-lane
+message uniqueness or cancellation, carry continuity, general economic-action
+normalization, live ledger admission, external finality, release authority,
+privacy, throughput, or production authority. Operational-root propagation
+alone advances none of these claims.
 
-Promotion requires the two governed aggregate guests, sealed receipt verifier,
-current-image multi-leaf proof evidence, maximum-topology resource evidence,
-and exact negative replay corpus.
+Promotion beyond the singleton profile requires current-image distinct-leaf
+proof evidence, maximum-topology resource evidence, global duplicate controls,
+state-compatible fanout semantics, and an exact negative replay corpus. Live
+settlement additionally requires governed release and finality plus one atomic
+application-state transition.

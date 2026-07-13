@@ -171,6 +171,46 @@ only after receipt verification. V2 has source-level and host-test evidence;
 no fresh V2 guest ELF, image ID, receipt, seal-mutation replay, admission,
 release, settlement, or production authority is claimed.
 
+Status update, 2026-07-12: the additive source-opened ordinary Spot V6 profile
+implements one bounded source-to-settlement path under four pinned program
+identities:
+
+```text
+source-opened leaf V6  f2dcf75133ff7d0a909e47cb265ea46fc4b24edc80a485667089c22bccbcc89b
+aggregate L1 V6        b1235676d99422acebac73dd016fa40819cc013919870a3621f678b54377e9fa
+aggregate L2 V6        6fc6972b7ed5e1410f12ba68f627deafebfe96ba080415e7e02ac137e9f5f2ef
+settlement V6          10e5106603ce32b9cb543a54e74e935eb127433f3cf268b989e42ed5a540f783
+```
+
+The leaf host boundary verifies and independently recomposes the typed source
+transition and verifies the governed adapter receipt. Each aggregate guest
+verifies its exact child receipt before decoding and independently recomposes
+the V5 proposal. The settlement guest verifies the exact L2 receipt before
+interpretation, reconstructs the singleton source relation, derives one
+state-bound ordinary Spot certificate, full-blob replay content certificate, and
+exact effect plan, and commits them through the fixed `ZRPFSAV1` admission
+journal. The strict Rust verifier verifies the settlement receipt once and
+recomposes the expected journal from the exact guest input. The independent
+Python adapter checks the same frame and projects only the shared singleton
+ordinary Spot semantics.
+
+SQLite schema V4 atomically persists the exact receipt, guest input, admission
+journal, reconstructed replay, content certificate, settlement certificate,
+effect plan, governed proof identities, projection binding, replay rows, and
+nullifiers. This closes exact local proof-to-plan persistence for the bounded
+V6 profile. It does not apply a live ZenoLedger balance tree and fixes
+`settlement_authority=false`.
+
+Local Succinct receipts have been generated for the leaf, L1, and L2 programs.
+The settlement proof, external-verifier replay, checked retained inventory, and
+final evidence record remain the promotion gate for the complete local-chain
+claim. The current harness represents one action and uses deterministic
+synthetic sparse-Merkle siblings. Multi-leaf fanout, live authorization and
+state continuity, provider retrievability, external finality, governed release,
+cross-host reproducibility, privacy, throughput, settlement authority, and
+production authority remain unestablished. The bounded contract is documented
+in `docs/research/ZRPF_SOURCE_OPENED_SPOT_V6_CBC_SPEC_20260712.md`.
+
 The local durable replay-index profile implements a separate partial
 sub-obligation under `RS-CBC-012` and `RS-CBC-025`. A release-bound static
 verifier can pass authenticated root facts and exact verification provenance

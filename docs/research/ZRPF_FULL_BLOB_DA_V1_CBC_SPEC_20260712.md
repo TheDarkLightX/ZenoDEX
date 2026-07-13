@@ -2,8 +2,8 @@
 
 Date: 2026-07-12
 
-Status: proof-neutral full-blob content binding implemented; atomic persistence,
-replication, and public retrievability pending
+Status: proof-neutral full-blob content binding and bounded local V6 atomic
+persistence implemented; replication and public retrievability pending
 
 ## Scoped claim
 
@@ -69,8 +69,12 @@ trailing bytes, and noncanonical Postcard encodings reject.
 prove that any storage provider retained the bytes. The content-validated type
 also supplies no persistence or ledger authority.
 
-The initial settlement path may use this certificate only after one atomic
-ledger transaction:
+The source-opened Spot V6 settlement guest derives this certificate over the
+exact reconstructed replay bytes and commits it through the authenticated
+settlement certificate and admission journal. SQLite schema V4 persists the
+exact replay bytes, certificate bytes, settlement receipt, guest input,
+admission journal, certificate, effect plan, and replay indexes in one local
+`BEGIN IMMEDIATE` transaction:
 
 ```text
 validate exact blob content
@@ -79,6 +83,12 @@ persist certificate root
 persist settlement certificate and replay indexes
 commit all or roll back all
 ```
+
+Restart validation rehashes the replay bytes and certificate, revalidates their
+content relation, and checks their one-to-one association with the authenticated
+V6 settlement statement. This is local content persistence evidence. It does
+not show that a ZenoLedger validator set, storage provider, or remote reader can
+retrieve the bytes.
 
 A public availability claim additionally requires a governed replication or
 chain-native DA policy, provider/validator evidence, retrieval tests, and a
@@ -99,9 +109,17 @@ The protocol tests provide:
   validation;
 - a compile-fail check preventing direct construction of the validated type.
 
+The V6 integration tests additionally cover atomic association with the exact
+receipt and admission journal, exact retry, restart reconstruction,
+concurrency, deletion downgrade, and persisted replay/certificate mutation.
+The final retained real settlement-receipt record remains a separate evidence
+gate.
+
 ## Explicit non-claims
 
 V1 supplies no provider signature, replica quorum, erasure coding, sampling,
-network retrieval, consensus replication, durable atomic persistence, guest
-receipt, settlement authority, release authority, privacy, throughput, or
-production authority.
+network retrieval, consensus replication, externally anchored retention,
+general-purpose durable availability service, settlement authority, release
+authority, external finality, privacy, throughput, or production authority.
+The source-opened V6 profile's guest and local atomic store do not promote the
+content certificate into a provider-retrievability or availability claim.
