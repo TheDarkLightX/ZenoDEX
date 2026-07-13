@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def test_current_clean_checkout_matches_exact_source_inventory() -> None:
     document = closure.build_source_closure(REPO_ROOT)
     assert document["schema"] == closure.SCHEMA
-    assert document["file_count"] == 327
+    assert document["file_count"] == 388
     semantic_v2_roles = {
         "semantic_mapping_v2",
         "semantic_protocol_v2",
