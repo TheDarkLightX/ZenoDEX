@@ -143,7 +143,7 @@ enum AdapterProjectionKindV1 {
 /// Profile-specific semantic projection of one exact governed adapter journal.
 ///
 /// Fields are private and this type is intentionally not deserializable. The
-/// Its version-specific constructors validate the exact adapter profile,
+/// Version-specific constructors validate the exact adapter profile,
 /// manifest, count unit, task-set singleton, semantic-source singleton, and statement.
 /// Receipt authentication remains a later guest/verifier responsibility.
 ///

@@ -4,8 +4,8 @@ use serde::{de, Deserialize, Deserializer, Serialize};
 use sha2::{Digest, Sha256};
 use zenodex_zrpf_protocol_v3::{
     AuthorizationGrantIdV1, AuthorizationScopeIdV1, AuthorizationSubjectIdV1, CommitmentV3,
-    ExpectedV1AdapterLeafIdentityV1, NodeJournalV3, NodeKindV3, ProfileIdV3, ProgramIdV3,
-    ProposedSemanticLeafV1, SemanticSubtreeV2, V1AdapterSemanticLeafOpeningV1,
+    ExpectedV2AdapterLeafIdentityV2, NodeJournalV3, NodeKindV3, ProfileIdV3, ProgramIdV3,
+    ProposedSemanticLeafV1, SemanticSubtreeV2, V2AdapterSemanticLeafOpeningV2,
     ValueAggregateOperationalCommitmentsInputV5, ValueAggregateOperationalCommitmentsV5,
 };
 use zenodex_zrpf_risc0_shared::{profile_id_v3, program_id_from_risc0_words_v3};
@@ -421,11 +421,11 @@ fn validate_adapter_and_subtree_v6(
         ));
     }
     let record = &subtree.leaf_records()[0];
-    let expected_identity = ExpectedV1AdapterLeafIdentityV1::new(expected_adapter)
+    let expected_identity = ExpectedV2AdapterLeafIdentityV2::new(expected_adapter)
         .map_err(|_| SourceOpenedSpotValueLeafErrorV6::StatementShape("adapter identity"))?;
-    let semantic_leaf = ProposedSemanticLeafV1::bind_v1_adapter_journal(
+    let semantic_leaf = ProposedSemanticLeafV1::bind_v2_adapter_journal(
         adapter,
-        V1AdapterSemanticLeafOpeningV1::new(record.semantic_source_id()),
+        V2AdapterSemanticLeafOpeningV2::new(record.semantic_source_id()),
         &expected_identity,
     )
     .map_err(|_| SourceOpenedSpotValueLeafErrorV6::StatementShape("semantic source opening"))?;

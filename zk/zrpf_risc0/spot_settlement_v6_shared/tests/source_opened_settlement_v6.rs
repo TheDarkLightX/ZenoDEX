@@ -20,7 +20,7 @@ use zenodex_zrpf_risc0_semantic_shared::{
     OrdinarySpotSettlementGuestInputV2, OrdinarySpotSettlementReplayDataV2,
     SpotSettlementAuthorizationInputV1,
 };
-use zenodex_zrpf_risc0_shared::{project_policy_bound_v1_journal, source_policy_v1, SourceKindV1};
+use zenodex_zrpf_risc0_shared::{project_policy_bound_v2_journal, source_policy_v2, SourceKindV2};
 use zenodex_zrpf_risc0_spot_settlement_v6_shared::{
     compose_source_opened_spot_settlement_output_after_l2_verification_v3,
     decode_exact_source_opened_spot_settlement_guest_envelope_v3,
@@ -283,8 +283,8 @@ fn source_envelope() -> SourceOpenedSpotValueLeafEnvelopeV6 {
     let input = source_input();
     let summary = compose_spot_recursive_leaf_summary_v1(input.clone()).unwrap();
     let source_journal_bytes = postcard::to_allocvec(&summary).unwrap();
-    let adapter = project_policy_bound_v1_journal(
-        SourceKindV1::Spot,
+    let adapter = project_policy_bound_v2_journal(
+        SourceKindV2::Spot,
         &source_journal_bytes,
         0,
         PINNED_SOURCE_OPENED_V6_ADAPTER_IMAGE_ID,
@@ -360,7 +360,7 @@ fn source_input() -> SpotRecursiveLeafInputV1 {
         chain_id: "tau-devnet-zrpf-source-opened".into(),
         epoch_id: 1,
         lane_id: "spot-source-opened-lane-0001".into(),
-        risc0_image_id: source_policy_v1(SourceKindV1::Spot).image_id,
+        risc0_image_id: source_policy_v2(SourceKindV2::Spot).unwrap().image_id,
         public_policy_hash: [8; 32],
         feature_suite_hash: [9; 32],
         dependency_lock_hash: [10; 32],

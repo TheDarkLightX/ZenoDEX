@@ -8,7 +8,7 @@ use tau_state_proof_risc0_shared::{
     compose_spot_recursive_leaf_summary_v1, RecursiveEffectSummaryV1, SpotRecursiveLeafInputV1,
     PROOF_TYPE_RECURSIVE_SPOT_LEAF,
 };
-use zenodex_zrpf_risc0_shared::{project_policy_bound_v1_journal, source_policy_v1, SourceKindV1};
+use zenodex_zrpf_risc0_shared::{project_policy_bound_v2_journal, source_policy_v2, SourceKindV2};
 use zenodex_zrpf_risc0_spot_v6_methods::{
     ZENODEX_ZRPF_RISC0_SPOT_VALUE_LEAF_V6_ELF, ZENODEX_ZRPF_RISC0_SPOT_VALUE_LEAF_V6_ID,
 };
@@ -227,7 +227,8 @@ fn load_exact_source(
         return Err("source receipt JSON is not canonical".to_owned());
     }
     require_succinct(&receipt, "source")?;
-    let policy = source_policy_v1(SourceKindV1::Spot);
+    let policy = source_policy_v2(SourceKindV2::Spot)
+        .map_err(|error| format!("current source policy rejected: {error}"))?;
     receipt
         .verify(policy.image_id)
         .map_err(|error| format!("source receipt verification failed: {error}"))?;
@@ -251,8 +252,8 @@ fn load_exact_adapter(
     receipt_bytes: &[u8],
     source: &Receipt,
 ) -> Result<VerifiedNodeReceiptV3, String> {
-    let expected = project_policy_bound_v1_journal(
-        SourceKindV1::Spot,
+    let expected = project_policy_bound_v2_journal(
+        SourceKindV2::Spot,
         &source.journal.bytes,
         ASSIGNED_LEAF_ORDINAL,
         PINNED_SOURCE_OPENED_V6_ADAPTER_IMAGE_ID,

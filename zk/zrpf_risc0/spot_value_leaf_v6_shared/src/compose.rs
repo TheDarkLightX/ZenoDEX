@@ -9,10 +9,10 @@ use tau_state_proof_risc0_shared::{
 };
 use zenodex_zrpf_protocol_v3::{
     encode_node_journal_v3, AuthorizationGrantIdV1, AuthorizationScopeIdV1,
-    AuthorizationSubjectIdV1, CommitmentV3, ExpectedV1AdapterLeafIdentityV1,
+    AuthorizationSubjectIdV1, CommitmentV3, ExpectedV2AdapterLeafIdentityV2,
     ProposedSemanticLeafV1, SemanticAssetFlowInputV2, SemanticAssetFlowV2, SemanticSubtreeInputV2,
     SemanticSubtreeV2, SemanticValueLeafRecordInputV2, SemanticValueLeafRecordV2,
-    V1AdapterSemanticLeafOpeningV1,
+    V2AdapterSemanticLeafOpeningV2,
 };
 use zenodex_zrpf_risc0_semantic_shared::{
     spot_accounting_domain_id_v1, spot_atoms_unit_id_v1, spot_lane_id_hash_v1,
@@ -20,7 +20,7 @@ use zenodex_zrpf_risc0_semantic_shared::{
     SpotRepresentedValuePolicyV1,
 };
 use zenodex_zrpf_risc0_shared::{
-    program_id_from_risc0_words_v3, project_policy_bound_v1_journal, source_policy_v1, SourceKindV1,
+    program_id_from_risc0_words_v3, project_policy_bound_v2_journal, source_policy_v2, SourceKindV2,
 };
 
 use crate::statement::{
@@ -72,8 +72,8 @@ pub fn recompose_source_opened_spot_value_leaf_statement_v6(
     envelope: &SourceOpenedSpotValueLeafEnvelopeV6,
 ) -> Result<SourceOpenedSpotValueLeafStatementV6, SourceOpenedSpotValueLeafErrorV6> {
     let checked = check_source_opening(envelope)?;
-    let projection = project_policy_bound_v1_journal(
-        SourceKindV1::Spot,
+    let projection = project_policy_bound_v2_journal(
+        SourceKindV2::Spot,
         envelope.source_journal_bytes(),
         envelope.assigned_leaf_ordinal(),
         PINNED_SOURCE_OPENED_V6_ADAPTER_IMAGE_ID,
@@ -240,7 +240,9 @@ fn require_source_profile(
     input: &SpotRecursiveLeafInputV1,
     summary: &RecursiveEffectSummaryV1,
 ) -> Result<(), SourceOpenedSpotValueLeafErrorV6> {
-    let policy = source_policy_v1(SourceKindV1::Spot);
+    let policy = source_policy_v2(SourceKindV2::Spot).map_err(|_| {
+        SourceOpenedSpotValueLeafErrorV6::SourceProfileRejected("current source policy")
+    })?;
     for (field, matches) in [
         ("input image", input.risc0_image_id == policy.image_id),
         ("summary image", summary.risc0_image_id == policy.image_id),
@@ -486,7 +488,7 @@ fn ordinary_row(asset_id: &str, atoms: u128) -> RecursiveAssetDeltaRowV1 {
 }
 
 fn derive_semantic_subtree(
-    projection: &zenodex_zrpf_risc0_shared::V1LeafProjectionV3,
+    projection: &zenodex_zrpf_risc0_shared::V2LeafProjectionV3,
     checked: &CheckedSourceOpeningV6,
     effects: &CheckedSwapEffectsV6,
     canonical_tx_commitment: CommitmentV3,
@@ -499,11 +501,11 @@ fn derive_semantic_subtree(
         .map_err(|_| SourceOpenedSpotValueLeafErrorV6::AdapterProjectionRejected)?;
     let adapter_program = program_id_from_risc0_words_v3(PINNED_SOURCE_OPENED_V6_ADAPTER_IMAGE_ID)
         .map_err(|_| SourceOpenedSpotValueLeafErrorV6::AdapterProjectionRejected)?;
-    let expected_adapter = ExpectedV1AdapterLeafIdentityV1::new(adapter_program)
+    let expected_adapter = ExpectedV2AdapterLeafIdentityV2::new(adapter_program)
         .map_err(|_| SourceOpenedSpotValueLeafErrorV6::AdapterProjectionRejected)?;
-    let semantic_leaf = ProposedSemanticLeafV1::bind_v1_adapter_journal(
+    let semantic_leaf = ProposedSemanticLeafV1::bind_v2_adapter_journal(
         &projection.journal,
-        V1AdapterSemanticLeafOpeningV1::new(source_binding_hash),
+        V2AdapterSemanticLeafOpeningV2::new(source_binding_hash),
         &expected_adapter,
     )
     .map_err(|_| SourceOpenedSpotValueLeafErrorV6::AdapterProjectionRejected)?;
