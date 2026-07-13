@@ -11,6 +11,7 @@ import stat
 import struct
 import subprocess
 import tempfile
+import time
 from enum import Enum
 from pathlib import Path
 from typing import BinaryIO, NoReturn
@@ -93,26 +94,24 @@ def execute_pinned_verifier_once(
                 )
             return stdout
     except subprocess.TimeoutExpired as exc:
-        if process is not None:
-            _terminate_process_group(process)
         raise PinnedVerifierProcessError(
             PinnedVerifierProcessFailure.TIMEOUT,
             "pinned verifier timed out",
         ) from exc
     except PinnedVerifierProcessError:
-        if process is not None and process.poll() is None:
-            _terminate_process_group(process)
         raise
     except (OSError, ValueError) as exc:
-        if process is not None:
-            _terminate_process_group(process)
         raise PinnedVerifierProcessError(
             PinnedVerifierProcessFailure.PROCESS_FAILED,
             "pinned verifier process failed",
         ) from exc
     finally:
-        if executable_fd is not None:
-            os.close(executable_fd)
+        try:
+            if process is not None:
+                _terminate_process_group(process)
+        finally:
+            if executable_fd is not None:
+                os.close(executable_fd)
 
 
 def _start_verifier(
@@ -330,13 +329,35 @@ def _read_bounded_output(
 
 
 def _terminate_process_group(process: subprocess.Popen[bytes]) -> None:
-    if process.poll() is None:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
+    process_group_id = process.pid
+    try:
+        os.killpg(process_group_id, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
     try:
         process.wait(timeout=5)
     except subprocess.TimeoutExpired:
         process.kill()
-        process.wait()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired as exc:
+            raise PinnedVerifierProcessError(
+                PinnedVerifierProcessFailure.PROCESS_FAILED,
+                "pinned verifier leader did not terminate",
+            ) from exc
+    deadline = time.monotonic() + 5
+    while _process_group_exists(process_group_id):
+        if time.monotonic() >= deadline:
+            raise PinnedVerifierProcessError(
+                PinnedVerifierProcessFailure.PROCESS_FAILED,
+                "pinned verifier process group did not terminate",
+            )
+        time.sleep(0.01)
+
+
+def _process_group_exists(process_group_id: int) -> bool:
+    try:
+        os.killpg(process_group_id, 0)
+    except ProcessLookupError:
+        return False
+    return True

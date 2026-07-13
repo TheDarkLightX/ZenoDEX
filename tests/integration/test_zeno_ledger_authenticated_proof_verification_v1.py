@@ -5,12 +5,14 @@ import copy
 import hashlib
 import json
 import pickle
+import socket
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from src.integration import _zeno_ledger_pinned_verifier_process_v1 as pinned_process
 from src.integration.zeno_ledger_authenticated_proof_verification_v1 import (
     AUTHORITY_MANIFEST_SCHEMA_V1,
     RESPONSE_SCHEMA_V1,
@@ -119,17 +121,50 @@ def _verifier_script(
     response_mutation: tuple[str, object] | None = None,
     legacy_boolean_response: bool = False,
     noncanonical_journal: bool = False,
+    persistent_child_socket: Path | None = None,
+    persistent_child_sentinel: Path | None = None,
 ) -> Path:
+    if (persistent_child_socket is None) != (persistent_child_sentinel is None):
+        raise ValueError("persistent child socket and sentinel must be provided together")
     mutation_json = json.dumps(response_mutation)
+    child_socket_path = (
+        str(persistent_child_socket) if persistent_child_socket is not None else None
+    )
+    child_sentinel_path = (
+        str(persistent_child_sentinel) if persistent_child_sentinel is not None else None
+    )
     source = f"""#!/usr/bin/env python3
 import base64
 import json
+import os
 from pathlib import Path
+import socket
 import sys
 
 counter = Path({str(counter_path)!r})
 count = int(counter.read_text()) if counter.exists() else 0
 counter.write_text(str(count + 1))
+child_socket_path = {child_socket_path!r}
+if child_socket_path is not None:
+    ready_read, ready_write = os.pipe()
+    child_pid = os.fork()
+    if child_pid == 0:
+        os.close(ready_read)
+        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        server.bind(child_socket_path)
+        server.listen(1)
+        os.write(ready_write, b"1")
+        os.close(ready_write)
+        connection, _ = server.accept()
+        with connection:
+            connection.recv(1)
+            Path({child_sentinel_path!r}).write_text("leaked", encoding="utf-8")
+            connection.sendall(b"1")
+        os._exit(0)
+    os.close(ready_write)
+    if os.read(ready_read, 1) != b"1":
+        raise RuntimeError("persistent verifier child did not start")
+    os.close(ready_read)
 request = json.load(sys.stdin)
 if {legacy_boolean_response!r}:
     response = {{"ok": True, "risc0_verified": True}}
@@ -163,6 +198,8 @@ def _make_verifier(
     response_mutation: tuple[str, object] | None = None,
     legacy_boolean_response: bool = False,
     noncanonical_journal: bool = False,
+    persistent_child_socket: Path | None = None,
+    persistent_child_sentinel: Path | None = None,
 ) -> tuple[
     PinnedZenoLedgerRisc0VerifierV1,
     dict[str, Any],
@@ -189,6 +226,8 @@ def _make_verifier(
         response_mutation=response_mutation,
         legacy_boolean_response=legacy_boolean_response,
         noncanonical_journal=noncanonical_journal,
+        persistent_child_socket=persistent_child_socket,
+        persistent_child_sentinel=persistent_child_sentinel,
     )
     executable_sha256 = hashlib.sha256(executable.read_bytes()).hexdigest()
     manifest = zeno_ledger_risc0_authority_manifest_bytes_v1(
@@ -489,3 +528,43 @@ def test_noncanonical_journal_base64_rejects_after_one_execution(tmp_path: Path)
         is AuthenticatedProofVerificationRejectReason.VERIFIER_RESPONSE_INVALID
     )
     assert counter.read_text(encoding="utf-8") == "1"
+
+
+@pytest.mark.parametrize("legacy_boolean_response", [False, True])
+def test_verifier_descendant_is_terminated_after_leader_exit(
+    tmp_path: Path,
+    legacy_boolean_response: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def allow_child_processes(
+        _process_id: int,
+        *,
+        timeout_seconds: int,
+        max_address_space_bytes: int,
+        max_stack_bytes: int,
+    ) -> None:
+        del timeout_seconds, max_address_space_bytes, max_stack_bytes
+
+    monkeypatch.setattr(pinned_process, "_apply_resource_limits", allow_child_processes)
+    child_socket = tmp_path / "persistent-child.sock"
+    child_sentinel = tmp_path / "persistent-child-sentinel.txt"
+    verifier, metadata, header, registry, artifact, _counter = _make_verifier(
+        tmp_path,
+        legacy_boolean_response=legacy_boolean_response,
+        persistent_child_socket=child_socket,
+        persistent_child_sentinel=child_sentinel,
+    )
+
+    if legacy_boolean_response:
+        with pytest.raises(ProofVerificationError):
+            _verify(verifier, metadata, header, registry, artifact)
+    else:
+        _verify(verifier, metadata, header, registry, artifact)
+
+    probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        with pytest.raises((ConnectionRefusedError, FileNotFoundError)):
+            probe.connect(str(child_socket))
+    finally:
+        probe.close()
+    assert not child_sentinel.exists()
