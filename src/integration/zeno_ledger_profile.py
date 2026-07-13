@@ -12,7 +12,6 @@ from src.integration.zeno_ledger_v0 import (
 )
 from src.state.canonical import canonical_hex_fixed_allow_0x
 
-
 PROFILE_SCHEMA_V0 = "zenodex/zeno_ledger/testnet_profile/v0"
 
 DEPLOYMENT_MODE_LOCAL_SANDBOX_V0 = "local_sandbox"
@@ -253,6 +252,16 @@ def validate_zeno_ledger_profile_v0(profile: Mapping[str, Any]) -> None:
             raise ValueError("Tau-exclusive release forbids external minting")
         if non_tau_deployment_allowed:
             raise ValueError("Tau-exclusive release forbids non-Tau deployment")
+
+
+def zeno_ledger_profile_requires_proof_authority_v0(
+    profile: Mapping[str, Any],
+) -> bool:
+    """Return the validated profile's proof-authority requirement."""
+
+    validate_zeno_ledger_profile_v0(profile)
+    bridge_policy = _require_mapping(profile["bridge_policy"], name="bridge_policy")
+    return bool(profile["proof_required"]) or bool(bridge_policy["requires_proof_journal"])
 
 
 def validate_checkpoint_admission_v0(

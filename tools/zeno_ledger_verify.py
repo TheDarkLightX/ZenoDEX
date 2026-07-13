@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import stat
 import sys
 from pathlib import Path
 from typing import Any, Mapping
@@ -15,9 +17,14 @@ if str(ROOT) not in sys.path:
 
 from src.core.dex import DexState  # noqa: E402
 from src.integration.dex_engine import DexEngineConfig  # noqa: E402
+from src.integration.zeno_ledger_authenticated_proof_verification_v1 import (  # noqa: E402
+    MAX_PROOF_ARTIFACT_BYTES,
+    PinnedZenoLedgerRisc0VerifierV1,
+)
 from src.integration.zeno_ledger_profile import (  # noqa: E402
     validate_checkpoint_admission_v0,
     validate_zeno_ledger_profile_v0,
+    zeno_ledger_profile_requires_proof_authority_v0,
 )
 from src.integration.zeno_ledger_replay import (  # noqa: E402
     parse_replay_engine_config_v0,
@@ -61,6 +68,50 @@ def _require_str(value: object, *, name: str) -> str:
     return value
 
 
+def _read_bounded_proof_artifact(path: Path) -> bytes:
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if nofollow is None:
+        raise ValueError("platform lacks O_NOFOLLOW for proof artifact input")
+    flags = os.O_RDONLY | nofollow | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NONBLOCK", 0)
+    fd = os.open(path, flags)
+    try:
+        before = os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode):
+            raise ValueError("proof artifact must be a regular file")
+        if before.st_size <= 0 or before.st_size > MAX_PROOF_ARTIFACT_BYTES:
+            raise ValueError("proof artifact byte length is invalid")
+        chunks: list[bytes] = []
+        total = 0
+        while total <= MAX_PROOF_ARTIFACT_BYTES:
+            chunk = os.read(fd, min(64 * 1024, MAX_PROOF_ARTIFACT_BYTES + 1 - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+        raw = b"".join(chunks)
+        after = os.fstat(fd)
+    finally:
+        os.close(fd)
+    stable_identity = (
+        before.st_dev,
+        before.st_ino,
+        before.st_mode,
+        before.st_size,
+        before.st_mtime_ns,
+        before.st_ctime_ns,
+    ) == (
+        after.st_dev,
+        after.st_ino,
+        after.st_mode,
+        after.st_size,
+        after.st_mtime_ns,
+        after.st_ctime_ns,
+    )
+    if not stable_identity or len(raw) != before.st_size:
+        raise ValueError("proof artifact changed during bounded read")
+    return raw
+
+
 def verify_zeno_ledger_v0(
     *,
     headers_dir: Path,
@@ -73,6 +124,9 @@ def verify_zeno_ledger_v0(
     proof_metadata_dir: Path | None = None,
     proof_verification_report_dir: Path | None = None,
     require_proof_verification_report: bool = False,
+    proof_artifacts_dir: Path | None = None,
+    proof_authority_verifier: object | None = None,
+    verifier_registry: Mapping[str, Any] | None = None,
     mode: str,
     pre_snapshots_dir: Path | None = None,
     engine_config_path: Path | None = None,
@@ -82,6 +136,7 @@ def verify_zeno_ledger_v0(
     checked_heights: list[int] = []
     proof_metadata_checked_heights: list[int] = []
     proof_verification_checked_heights: list[int] = []
+    scoped_authenticated_proof_checked_heights: list[int] = []
     last_header_hash: str | None = None
     last_post_state_root: str | None = None
     last_app_hash: str | None = None
@@ -90,6 +145,7 @@ def verify_zeno_ledger_v0(
     replay_state: DexState | None = None
     replay_config: DexEngineConfig | None = None
     replay_config_digest: str | None = None
+    proof_authority_required = False
 
     if mode not in VERIFY_MODES:
         errors.append("verify_mode_invalid")
@@ -135,6 +191,21 @@ def verify_zeno_ledger_v0(
         errors.append("require_proof_verification_report_requires_dir")
     if proof_verification_report_dir is not None and proof_metadata_dir is None:
         errors.append("proof_verification_report_requires_proof_metadata_dir")
+    proof_authority_inputs = (
+        proof_artifacts_dir is not None,
+        proof_authority_verifier is not None,
+        verifier_registry is not None,
+    )
+    if any(proof_authority_inputs) and not all(proof_authority_inputs):
+        errors.append("authenticated_proof_verification_inputs_incomplete")
+    if proof_artifacts_dir is not None and not proof_artifacts_dir.is_dir():
+        errors.append("proof_artifacts_dir_missing")
+    typed_proof_authority_verifier: PinnedZenoLedgerRisc0VerifierV1 | None = None
+    if proof_authority_verifier is not None:
+        if type(proof_authority_verifier) is not PinnedZenoLedgerRisc0VerifierV1:
+            errors.append("proof_authority_verifier_type_invalid")
+        else:
+            typed_proof_authority_verifier = proof_authority_verifier
     profile: dict[str, Any] | None = None
     if profile_path is not None:
         if checkpoints_dir is None:
@@ -145,26 +216,28 @@ def verify_zeno_ledger_v0(
             try:
                 profile = dict(_load_json_object(profile_path))
                 validate_zeno_ledger_profile_v0(profile)
-                bridge_policy = profile.get("bridge_policy")
-                bridge_requires_proof = (
-                    isinstance(bridge_policy, Mapping)
-                    and bool(bridge_policy.get("requires_proof_journal"))
-                )
-                if (bool(profile.get("proof_required")) or bridge_requires_proof) and proof_metadata_dir is None:
+                proof_authority_required = zeno_ledger_profile_requires_proof_authority_v0(profile)
+                if proof_authority_required and proof_metadata_dir is None:
                     errors.append("profile_requires_proof_metadata_dir")
+                if proof_authority_required and replay_bound and not all(proof_authority_inputs):
+                    errors.append("profile_requires_authenticated_proof_verification")
             except Exception as exc:
                 errors.append(f"profile_invalid:{exc}")
+    if any(proof_authority_inputs) and (not replay_bound or not proof_authority_required):
+        errors.append("authenticated_proof_verification_requires_replay_bound_profile")
     if errors:
         return _report(
             errors=errors,
             checked_heights=checked_heights,
             proof_metadata_checked_heights=proof_metadata_checked_heights,
             proof_verification_checked_heights=proof_verification_checked_heights,
+            scoped_authenticated_proof_checked_heights=(scoped_authenticated_proof_checked_heights),
             last_header_hash=last_header_hash,
             last_post_state_root=last_post_state_root,
             last_app_hash=last_app_hash,
             mode=mode,
             replay_config_digest=replay_config_digest,
+            proof_authority_required=proof_authority_required,
         )
 
     for height in range(from_height, to_height + 1):
@@ -180,6 +253,8 @@ def verify_zeno_ledger_v0(
         try:
             header = dict(_load_json_object(header_path))
             body = dict(_load_json_object(body_path))
+            proof_metadata: dict[str, Any] | None = None
+            checkpoint: dict[str, Any] | None = None
             validate_header_v0(header)
             if header["height"] != height:
                 raise ValueError(f"header height mismatch for file {height}")
@@ -229,6 +304,29 @@ def verify_zeno_ledger_v0(
                 validate_checkpoint_header_binding_v0(checkpoint, header)
                 if profile is not None:
                     validate_checkpoint_admission_v0(checkpoint=checkpoint, profile=profile)
+            if proof_authority_required and replay_bound:
+                if (
+                    proof_metadata is None
+                    or checkpoint is None
+                    or profile is None
+                    or replay_config_digest is None
+                    or proof_artifacts_dir is None
+                    or typed_proof_authority_verifier is None
+                    or verifier_registry is None
+                ):
+                    raise ValueError("authenticated proof verification inputs unavailable")
+                proof_artifact_path = proof_artifacts_dir / f"{height}.json"
+                proof_artifact_json = _read_bounded_proof_artifact(proof_artifact_path)
+                typed_proof_authority_verifier.verify_and_bind_required_profile(
+                    proof_artifact_json=proof_artifact_json,
+                    proof_metadata=proof_metadata,
+                    header=header,
+                    checkpoint=checkpoint,
+                    verifier_registry=verifier_registry,
+                    profile=profile,
+                    replay_config_digest=replay_config_digest,
+                )
+                scoped_authenticated_proof_checked_heights.append(height)
             last_header_hash = canonical_header_hash_v0(header)
             last_post_state_root = str(header["post_state_root"])
             last_app_hash = str(header["app_hash"])
@@ -244,11 +342,13 @@ def verify_zeno_ledger_v0(
         checked_heights=checked_heights,
         proof_metadata_checked_heights=proof_metadata_checked_heights,
         proof_verification_checked_heights=proof_verification_checked_heights,
+        scoped_authenticated_proof_checked_heights=scoped_authenticated_proof_checked_heights,
         last_header_hash=last_header_hash,
         last_post_state_root=last_post_state_root,
         last_app_hash=last_app_hash,
         mode=mode,
         replay_config_digest=replay_config_digest,
+        proof_authority_required=proof_authority_required,
     )
 
 
@@ -258,11 +358,13 @@ def _report(
     checked_heights: list[int],
     proof_metadata_checked_heights: list[int],
     proof_verification_checked_heights: list[int],
+    scoped_authenticated_proof_checked_heights: list[int],
     last_header_hash: str | None,
     last_post_state_root: str | None,
     last_app_hash: str | None,
     mode: str,
     replay_config_digest: str | None,
+    proof_authority_required: bool,
 ) -> dict[str, Any]:
     ok = not errors
     replay_bound = mode == REPLAY_BOUND_MODE
@@ -270,10 +372,16 @@ def _report(
         checked_heights = []
         proof_metadata_checked_heights = []
         proof_verification_checked_heights = []
+        scoped_authenticated_proof_checked_heights = []
         last_header_hash = None
         last_post_state_root = None
         last_app_hash = None
     range_verified = ok and replay_bound
+    proof_authority_satisfied = (
+        proof_authority_required
+        and range_verified
+        and scoped_authenticated_proof_checked_heights == checked_heights
+    )
     return {
         "schema": REPORT_SCHEMA,
         "ok": ok,
@@ -296,6 +404,11 @@ def _report(
         "checked_heights": checked_heights,
         "proof_metadata_checked_heights": proof_metadata_checked_heights,
         "proof_verification_checked_heights": proof_verification_checked_heights,
+        "scoped_authenticated_proof_checked_heights": (scoped_authenticated_proof_checked_heights),
+        "proof_authority_required": proof_authority_required,
+        "proof_authority_satisfied": proof_authority_satisfied,
+        "settlement_authority": False,
+        "production_authority": False,
         "last_header_hash": last_header_hash,
         "last_post_state_root": last_post_state_root,
         "last_app_hash": last_app_hash,

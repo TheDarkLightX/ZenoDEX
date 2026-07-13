@@ -38,6 +38,10 @@ from src.integration._zeno_ledger_pinned_verifier_process_v1 import (
     VerifierExecutableFormatV1,
     execute_pinned_verifier_once,
 )
+from src.integration.zeno_ledger_profile import (
+    validate_checkpoint_admission_v0,
+    zeno_ledger_profile_requires_proof_authority_v0,
+)
 from src.integration.zeno_ledger_v0 import (
     PROOF_METADATA_SCHEMA_V0,
     canonical_header_hash_v0,
@@ -98,6 +102,7 @@ class AuthenticatedProofVerificationRejectReason(str, Enum):
     VERIFIER_RESPONSE_INVALID = "proof_verification.verifier_response_invalid"
     VERIFIER_REJECTED = "proof_verification.verifier_rejected"
     VERIFIER_BINDING_MISMATCH = "proof_verification.verifier_binding_mismatch"
+    PROFILE_BINDING_MISMATCH = "proof_verification.profile_binding_mismatch"
 
 
 class ProofVerificationError(ValueError):
@@ -306,6 +311,75 @@ def _consume_authenticated_proof_verification_v1(
     )
 
 
+def _validate_required_profile_binding_v1(
+    *,
+    profile: Mapping[str, Any],
+    header: Mapping[str, Any],
+    checkpoint: Mapping[str, Any],
+    replay_config_digest: str,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    profile_obj = dict(_require_mapping(profile, name="profile"))
+    header_obj = dict(_require_mapping(header, name="header"))
+    checkpoint_obj = dict(_require_mapping(checkpoint, name="checkpoint"))
+    try:
+        if not zeno_ledger_profile_requires_proof_authority_v0(profile_obj):
+            raise ValueError("profile does not require proof authority")
+        validate_checkpoint_header_binding_v0(checkpoint_obj, header_obj)
+        validate_checkpoint_admission_v0(checkpoint=checkpoint_obj, profile=profile_obj)
+        expected_config_digest = _require_root(
+            replay_config_digest,
+            name="replay_config_digest",
+        )
+        if header_obj["config_digest"] != expected_config_digest:
+            raise ValueError("header config_digest does not match replay config")
+        if header_obj["chain_id"] != profile_obj["chain_id"]:
+            raise ValueError("header chain_id does not match profile")
+    except (TypeError, ValueError, KeyError) as exc:
+        raise ProofVerificationError(
+            AuthenticatedProofVerificationRejectReason.PROFILE_BINDING_MISMATCH,
+            "authenticated proof is not exactly bound to the required profile",
+        ) from exc
+    return profile_obj, header_obj, checkpoint_obj
+
+
+def _consume_required_profile_proof_verification_v1(
+    authenticated: _AuthenticatedProofVerificationV1,
+    *,
+    profile: Mapping[str, Any],
+    header: Mapping[str, Any],
+    checkpoint: Mapping[str, Any],
+    replay_config_digest: str,
+) -> ProofVerificationObservationV1:
+    """Consume the private capability under one exact non-production profile binding."""
+
+    if type(authenticated) is not _AuthenticatedProofVerificationV1:
+        raise TypeError("authenticated must be exactly _AuthenticatedProofVerificationV1")
+    if not authenticated._has_private_seal():
+        raise TypeError("authenticated proof verification seal mismatch")
+    _profile_obj, header_obj, checkpoint_obj = _validate_required_profile_binding_v1(
+        profile=profile,
+        header=header,
+        checkpoint=checkpoint,
+        replay_config_digest=replay_config_digest,
+    )
+
+    binding = object.__getattribute__(authenticated, "_binding")
+    expected_checkpoint_hash = hash_v0("checkpoint_v0", checkpoint_obj)
+    expected_header_hash = canonical_header_hash_v0(header_obj)
+    if (
+        binding.chain_id != header_obj["chain_id"]
+        or binding.height != header_obj["height"]
+        or binding.canonical_header_hash != expected_header_hash
+        or binding.checkpoint_hash != expected_checkpoint_hash
+        or binding.header_proof_journal_hash != header_obj["proof_journal_hash"]
+    ):
+        raise ProofVerificationError(
+            AuthenticatedProofVerificationRejectReason.PROFILE_BINDING_MISMATCH,
+            "sealed proof binding does not match the required profile header",
+        )
+    return _consume_authenticated_proof_verification_v1(authenticated)
+
+
 @final
 @dataclass(frozen=True)
 class PinnedZenoLedgerRisc0VerifierV1:
@@ -358,6 +432,62 @@ class PinnedZenoLedgerRisc0VerifierV1:
     ) -> ProofVerificationObservationV1:
         """Verify exactly once and consume the sealed header-bound capability."""
 
+        authenticated = self._verify_authenticated(
+            proof_artifact_json=proof_artifact_json,
+            proof_metadata=proof_metadata,
+            header=header,
+            checkpoint=checkpoint,
+            verifier_registry=verifier_registry,
+        )
+        return _consume_authenticated_proof_verification_v1(authenticated)
+
+    def verify_and_bind_required_profile(
+        self,
+        *,
+        proof_artifact_json: bytes,
+        proof_metadata: Mapping[str, Any],
+        header: Mapping[str, Any],
+        checkpoint: Mapping[str, Any],
+        verifier_registry: Mapping[str, Any],
+        profile: Mapping[str, Any],
+        replay_config_digest: str,
+    ) -> ProofVerificationObservationV1:
+        """Verify once and consume the capability under an exact profile binding.
+
+        The returned observation remains non-promotable. This method closes only
+        the caller-boolean boundary for the replay-bound range verifier.
+        """
+
+        profile_obj, header_obj, checkpoint_obj = _validate_required_profile_binding_v1(
+            profile=profile,
+            header=header,
+            checkpoint=checkpoint,
+            replay_config_digest=replay_config_digest,
+        )
+        authenticated = self._verify_authenticated(
+            proof_artifact_json=proof_artifact_json,
+            proof_metadata=proof_metadata,
+            header=header_obj,
+            checkpoint=checkpoint_obj,
+            verifier_registry=verifier_registry,
+        )
+        return _consume_required_profile_proof_verification_v1(
+            authenticated,
+            profile=profile_obj,
+            header=header_obj,
+            checkpoint=checkpoint_obj,
+            replay_config_digest=replay_config_digest,
+        )
+
+    def _verify_authenticated(
+        self,
+        *,
+        proof_artifact_json: bytes,
+        proof_metadata: Mapping[str, Any],
+        header: Mapping[str, Any],
+        checkpoint: Mapping[str, Any] | None,
+        verifier_registry: Mapping[str, Any],
+    ) -> _AuthenticatedProofVerificationV1:
         metadata, header_obj, checkpoint_hash = _validate_header_inputs(
             proof_metadata=proof_metadata,
             header=header,
@@ -424,7 +554,7 @@ class PinnedZenoLedgerRisc0VerifierV1:
             binding=binding,
             provenance=provenance,
         )
-        return _consume_authenticated_proof_verification_v1(authenticated)
+        return authenticated
 
     def _execute_verifier_once(self, request_bytes: bytes) -> bytes:
         try:
