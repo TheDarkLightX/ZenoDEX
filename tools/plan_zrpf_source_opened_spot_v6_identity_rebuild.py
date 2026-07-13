@@ -75,10 +75,13 @@ RUNNER_RESOURCE_POLICY = {
     "nested_cargo_jobs": BUILD_JOBS,
     "nested_cargo_wrapper_sha256": NESTED_CARGO_WRAPPER_SHA256,
     "target_storage": "container_tmpfs",
+    "target_mount_execution": "exec_required",
     "target_quota_bytes": TARGET_TMPFS_QUOTA_BYTES,
     "output_storage": "container_tmpfs",
+    "output_and_auxiliary_mount_execution": "noexec_required",
     "output_quota_bytes": OUTPUT_TMPFS_QUOTA_BYTES,
     "output_transport": "bounded_base64_stdout_v1",
+    "container_cleanup_identity": "private_cidfile_exact_id_v1",
 }
 
 TOOLCHAIN = {

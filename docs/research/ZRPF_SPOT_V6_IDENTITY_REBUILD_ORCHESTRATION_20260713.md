@@ -60,13 +60,23 @@ Every planned pass uses:
 - RISC0 3.0.5 `r0vm` and `cargo-risczero` identities;
 - `--locked`, `--offline`, and a network-disabled runtime;
 - two build jobs, two CPUs, and a 6 GiB memory ceiling;
-- a fresh 3 GiB in-container target tmpfs and 160 MiB output tmpfs;
+- a fresh 3 GiB executable in-container target tmpfs and 160 MiB non-executable
+  output tmpfs; Docker defaults tmpfs mounts to `noexec`, so the target contract
+  requires an explicit `exec` override while every auxiliary/output tmpfs keeps
+  an explicit `noexec` policy;
 - canonical bounded-base64 transport into fresh host output files;
 - exact R0BF program byte length, SHA-256, image ID, and little-endian image-ID
   words;
 - an absent run root beneath a current-user-owned, non-sticky parent with no
   group or world write permission; root and report creation use stable
   directory descriptors and relative creation.
+
+The runner requires the deterministic container name to begin absent and passes
+Docker a fresh private `--cidfile` beneath the per-pass target directory. Cleanup
+removes only the exact 64-hex container ID read from that file, then verifies
+both the ID and governed name are absent. If Docker creates a named container
+without producing the private ID file, the runner reports an ownership failure
+and leaves that container untouched rather than deleting by name.
 
 The plan pins the existing no-network build image and its Ubuntu parent. The
 executor directly applies these controls to its local candidate run. The
@@ -223,6 +233,9 @@ mutate and restore a source, directory, toolchain, registry, target, or output
 entirely between observations. The source snapshot is path-mounted into the
 builder, so complete same-UID resistance remains false until a stronger
 root-owned immutable staging or isolated execution boundary is demonstrated.
+The private container-ID file prevents accidental name-only cleanup from
+claiming ownership. It does not protect against hostile same-UID code that can
+rewrite the private run directory while the runner is active.
 
 ## Candidate report boundary
 

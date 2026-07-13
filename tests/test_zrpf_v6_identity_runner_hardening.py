@@ -73,7 +73,7 @@ def test_registry_identity_rejects_nested_file_inserted_during_capture(
 
     def insert_during_read(*args: object, **kwargs: object) -> object:
         nonlocal inserted
-        result = original(*args, **kwargs)  # type: ignore[arg-type]
+        result = original(*args, **kwargs)
         if not inserted:
             inserted = True
             (registry / "src/crate/injected.rs").write_bytes(b"injected")
@@ -111,6 +111,9 @@ def test_runner_posture_keeps_same_uid_and_complete_closure_false(
     assert policy["aggregate_container_cpu_quota"] == 2
     assert policy["outer_cargo_jobs"] == 2
     assert policy["nested_cargo_jobs"] == 2
+    assert policy["target_mount_execution"] == "exec_required"
+    assert policy["output_and_auxiliary_mount_execution"] == "noexec_required"
+    assert policy["container_cleanup_identity"] == "private_cidfile_exact_id_v1"
     assert (
         policy["nested_cargo_wrapper_sha256"]
         == hashlib.sha256(runner_module.NESTED_CARGO_WRAPPER_BYTES).hexdigest()
@@ -164,7 +167,13 @@ def test_command_uses_cgroup_bounded_tmpfs_and_read_only_wrapper(
     runner._registry = registry
     monkeypatch.setattr(runner_module, "_source_commit_epoch", lambda *_args: "1")
 
-    command = runner._docker_command(request, "zrpf-v6-test", wrapper)
+    container_id_file = request.target_directory / runner_module.CONTAINER_ID_FILE
+    command = runner._docker_command(
+        request,
+        "zrpf-v6-test",
+        wrapper,
+        container_id_file,
+    )
     joined = "\n".join(command)
 
     assert "--cpus\n2" in joined
@@ -172,6 +181,7 @@ def test_command_uses_cgroup_bounded_tmpfs_and_read_only_wrapper(
     assert f"size={runner_module.TARGET_TMPFS_QUOTA_BYTES}" in joined
     assert f"size={runner_module.OUTPUT_TMPFS_QUOTA_BYTES}" in joined
     assert f"source={wrapper},target=/pinned-bin/cargo,readonly" in joined
+    assert f"--cidfile\n{container_id_file}" in joined
     assert f"source={request.target_directory}" not in joined
     assert f"source={request.output_directory}" not in joined
     assert "--rm" not in command
@@ -201,6 +211,13 @@ def test_command_uses_cgroup_bounded_tmpfs_and_read_only_wrapper(
     assert "export CARGO_BUILD_JOBS=2 RAYON_NUM_THREADS=2" in script
     assert "export PATH=/pinned-bin:" in script
     assert runner_module.NESTED_CARGO_WRAPPER_SHA256 in script
+    target_mount = next(
+        value for value in command if value.startswith(f"{request.container_target_directory}:")
+    )
+    assert ",exec," in target_mount
+    for value in command:
+        if value.startswith(("/tmp:", "/cargo:", "/sandbox-home:", "/risc0:")):
+            assert ",noexec," in value
 
 
 def test_memory_and_tmpfs_budget_rejects_missing_process_headroom(
@@ -259,13 +276,18 @@ def test_quota_exhaustion_rejects_and_runs_cleanup(
     request.source_snapshot.mkdir()
     runner = object.__new__(runner_module.DockerBuildRunner)
     monkeypatch.setattr(runner, "_require_external_inputs_unchanged", lambda _label: None)
+    monkeypatch.setattr(runner, "_require_container_absent", lambda _name: None)
     monkeypatch.setattr(
         runner,
         "_docker_command",
-        lambda _request, _name, _wrapper: ["docker", "run"],
+        lambda _request, _name, _wrapper, _cidfile: ["docker", "run"],
     )
-    cleaned: list[str] = []
-    monkeypatch.setattr(runner, "_force_remove_container", cleaned.append)
+    cleaned: list[tuple[str, Path]] = []
+    monkeypatch.setattr(
+        runner,
+        "_cleanup_owned_container",
+        lambda name, cidfile: cleaned.append((name, cidfile)),
+    )
     monkeypatch.setattr(
         runner_module.process_runner,
         "run_bounded",
@@ -281,7 +303,8 @@ def test_quota_exhaustion_rejects_and_runs_cleanup(
         runner.run(request)
 
     assert len(cleaned) == 1
-    assert cleaned[0].startswith("zrpf-v6-")
+    assert cleaned[0][0].startswith("zrpf-v6-")
+    assert cleaned[0][1].name == runner_module.CONTAINER_ID_FILE
 
 
 def test_cleanup_accepts_absent_and_removes_present_container(
@@ -291,6 +314,7 @@ def test_cleanup_accepts_absent_and_removes_present_container(
     runner = _cleanup_runner(tmp_path)
     name = "zrpf-v6-cleanup"
     absent = _absent(name)
+    cidfile = tmp_path / "container.cid"
     calls: list[tuple[str, ...]] = []
 
     def already_absent(request: object) -> subprocess.CompletedProcess[bytes]:
@@ -299,18 +323,21 @@ def test_cleanup_accepts_absent_and_removes_present_container(
         return absent
 
     monkeypatch.setattr(runner_module.process_runner, "run_bounded", already_absent)
-    runner._force_remove_container(name)
+    runner._cleanup_owned_container(name, cidfile)
     assert len(calls) == 1
 
-    present = subprocess.CompletedProcess([], 0, b"a" * 64 + b"\n", b"")
-    removed = subprocess.CompletedProcess([], 0, f"{name}\n".encode(), b"")
-    sequence = iter((present, removed, absent))
+    container_id = "a" * 64
+    cidfile.write_text(container_id, encoding="ascii")
+    cidfile.chmod(0o600)
+    present = subprocess.CompletedProcess([], 0, container_id.encode() + b"\n", b"")
+    removed = subprocess.CompletedProcess([], 0, container_id.encode() + b"\n", b"")
+    sequence = iter((present, removed, _absent(container_id), absent))
     monkeypatch.setattr(
         runner_module.process_runner,
         "run_bounded",
         lambda _request: next(sequence),
     )
-    runner._force_remove_container(name)
+    runner._cleanup_owned_container(name, cidfile)
 
 
 def test_cleanup_surfaces_rm_failure_or_orphan_with_container_name(
@@ -319,7 +346,11 @@ def test_cleanup_surfaces_rm_failure_or_orphan_with_container_name(
 ) -> None:
     runner = _cleanup_runner(tmp_path)
     name = "zrpf-v6-orphan"
-    present = subprocess.CompletedProcess([], 0, b"b" * 64 + b"\n", b"")
+    container_id = "b" * 64
+    cidfile = tmp_path / "container.cid"
+    cidfile.write_text(container_id, encoding="ascii")
+    cidfile.chmod(0o600)
+    present = subprocess.CompletedProcess([], 0, container_id.encode() + b"\n", b"")
     failed_rm = subprocess.CompletedProcess([], 1, b"", b"daemon rejected removal\n")
     sequence = iter((present, failed_rm, present))
     monkeypatch.setattr(
@@ -328,8 +359,8 @@ def test_cleanup_surfaces_rm_failure_or_orphan_with_container_name(
         lambda _request: next(sequence),
     )
 
-    with pytest.raises(ExecutionError, match=f"container removal failed: {name}"):
-        runner._force_remove_container(name)
+    with pytest.raises(ExecutionError, match=f"container removal failed: {container_id}"):
+        runner._cleanup_owned_container(name, cidfile)
 
 
 def test_cleanup_surfaces_inspection_failure_with_container_name(
@@ -344,8 +375,247 @@ def test_cleanup_surfaces_inspection_failure_with_container_name(
         lambda _request: subprocess.CompletedProcess([], 2, b"", b"daemon unavailable\n"),
     )
 
-    with pytest.raises(ExecutionError, match=f"pre-cleanup inspection failed: {name}"):
-        runner._force_remove_container(name)
+    with pytest.raises(ExecutionError, match=f"cleanup inspection failed: {name}"):
+        runner._cleanup_owned_container(name, tmp_path / "absent.cid")
+
+
+def test_preexisting_container_name_rejects_without_removal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = _cleanup_runner(tmp_path)
+    name = "zrpf-v6-preexisting"
+    present = subprocess.CompletedProcess([], 0, b"c" * 64 + b"\n", b"")
+    calls: list[tuple[str, ...]] = []
+
+    def inspect_only(request: object) -> subprocess.CompletedProcess[bytes]:
+        calls.append(request.command)  # type: ignore[attr-defined]
+        return present
+
+    monkeypatch.setattr(runner_module.process_runner, "run_bounded", inspect_only)
+
+    with pytest.raises(ExecutionError, match=f"name must begin absent: {name}"):
+        runner._require_container_absent(name)
+
+    assert len(calls) == 1
+    assert calls[0][1:3] == ("container", "inspect")
+
+
+def test_missing_cidfile_never_deletes_container_found_by_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = _cleanup_runner(tmp_path)
+    name = "zrpf-v6-unowned"
+    present = subprocess.CompletedProcess([], 0, b"d" * 64 + b"\n", b"")
+    commands: list[tuple[str, ...]] = []
+
+    def inspect_only(request: object) -> subprocess.CompletedProcess[bytes]:
+        commands.append(request.command)  # type: ignore[attr-defined]
+        return present
+
+    monkeypatch.setattr(runner_module.process_runner, "run_bounded", inspect_only)
+
+    with pytest.raises(ExecutionError, match=f"ownership unavailable: {name}"):
+        runner._cleanup_owned_container(name, tmp_path / "absent.cid")
+
+    assert len(commands) == 1
+    assert "rm" not in commands[0]
+
+
+def test_container_id_file_rejects_malformed_or_linked_identity(tmp_path: Path) -> None:
+    malformed = tmp_path / "malformed.cid"
+    malformed.write_bytes(b"e" * 64 + b"\n")
+    malformed.chmod(0o600)
+
+    with pytest.raises(ExecutionError, match="container ID file identity rejected"):
+        runner_module._read_container_id(malformed)
+
+    target = tmp_path / "target.cid"
+    target.write_bytes(b"f" * 64)
+    target.chmod(0o600)
+    linked = tmp_path / "linked.cid"
+    linked.symlink_to(target)
+
+    with pytest.raises(ExecutionError, match="container ID file is unavailable"):
+        runner_module._read_container_id(linked)
+
+
+@pytest.mark.skipif(
+    os.environ.get("ZENODEX_RUN_NATIVE_ZRPF_IDENTITY_RUNNER") != "1",
+    reason="live pinned-image target-exec probe is opt-in",
+)
+def test_live_pinned_image_target_exec_and_nested_job_wrapper(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    source = project / "src"
+    source.mkdir(parents=True)
+    (project / "Cargo.toml").write_text(
+        '[package]\nname="nested-wrapper-probe"\nversion="0.0.0"\n'
+        'edition="2021"\nbuild="build.rs"\n\n[dependencies]\n',
+        encoding="ascii",
+    )
+    (project / "Cargo.lock").write_text(
+        "# This file is automatically @generated by Cargo.\n"
+        "# It is not intended for manual editing.\n"
+        "version = 4\n\n"
+        '[[package]]\nname = "nested-wrapper-probe"\nversion = "0.0.0"\n',
+        encoding="ascii",
+    )
+    (project / "build.rs").write_text(
+        'fn main(){assert_eq!(std::env::var("NUM_JOBS").unwrap(),"2");'
+        'assert_eq!(std::env::var("CARGO_BUILD_JOBS").unwrap(),"2");}\n',
+        encoding="ascii",
+    )
+    (source / "main.rs").write_text("fn main(){}\n", encoding="ascii")
+    wrapper = tmp_path / "nested-cargo-wrapper"
+    wrapper.write_bytes(runner_module.NESTED_CARGO_WRAPPER_BYTES)
+    wrapper.chmod(0o555)
+
+    uid = os.getuid()
+    gid = os.getgid()
+    toolchain = (Path.home() / ".risc0/toolchains" / resources.RISC0_TOOLCHAIN_DIRECTORY).resolve(
+        strict=True
+    )
+    target_mount = resources.tmpfs(
+        "/build/target",
+        256 * 1024 * 1024,
+        "0700",
+        uid,
+        gid,
+        noexec=False,
+    )
+    command = (
+        "/usr/bin/docker",
+        "run",
+        "--rm",
+        "--network",
+        "none",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--pids-limit",
+        "512",
+        "--cpus",
+        str(planner.BUILD_CPUS),
+        "--memory",
+        str(planner.BUILD_MEMORY_BYTES),
+        "--memory-swap",
+        str(planner.BUILD_MEMORY_BYTES),
+        "--user",
+        f"{uid}:{gid}",
+        "--mount",
+        f"type=bind,source={project},target=/probe,readonly",
+        "--mount",
+        f"type=bind,source={toolchain},target=/risc0/toolchains/{resources.RISC0_TOOLCHAIN_DIRECTORY},readonly",
+        "--mount",
+        f"type=bind,source={wrapper},target=/pinned-bin/cargo,readonly",
+        "--tmpfs",
+        resources.tmpfs("/tmp", 64 * 1024 * 1024, "1777", uid, gid, noexec=True),
+        "--tmpfs",
+        target_mount,
+        "--tmpfs",
+        resources.tmpfs("/cargo", 16 * 1024 * 1024, "0700", uid, gid, noexec=True),
+        "--tmpfs",
+        resources.tmpfs(
+            "/sandbox-home",
+            4 * 1024 * 1024,
+            "0700",
+            uid,
+            gid,
+            noexec=True,
+        ),
+        "--env",
+        f"PATH=/pinned-bin:/risc0/toolchains/{resources.RISC0_TOOLCHAIN_DIRECTORY}/bin:/usr/bin:/bin",
+        "--env",
+        "HOME=/sandbox-home",
+        "--workdir",
+        "/probe",
+        "--entrypoint",
+        "/bin/bash",
+        planner.BUILD_IMAGE,
+        "-p",
+        "-ceu",
+        "install -d -m 0700 /cargo /sandbox-home; "
+        "ln -s /cargo /sandbox-home/.cargo; "
+        "printf '%s\\n' '[build]' 'jobs = 9' '' '[net]' 'offline = true' "
+        "> /cargo/config.toml; "
+        "unset CARGO_BUILD_JOBS CARGO_HOME CARGO_NET_OFFLINE; "
+        "cargo build --locked --offline --target-dir /build/target; "
+        "test -x /build/target/debug/nested-wrapper-probe",
+    )
+
+    completed = subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=180,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr.decode(errors="replace")
+
+
+@pytest.mark.skipif(
+    os.environ.get("ZENODEX_RUN_NATIVE_ZRPF_IDENTITY_RUNNER") != "1",
+    reason="live private-CID cleanup probe is opt-in",
+)
+def test_live_private_cidfile_binds_exact_container_cleanup(tmp_path: Path) -> None:
+    runner = _cleanup_runner(tmp_path)
+    suffix = hashlib.sha256(os.fsencode(tmp_path)).hexdigest()[:16]
+    name = f"zrpf-v6-cid-probe-{suffix}"
+    cidfile = tmp_path / "container.cid"
+    created = False
+
+    runner._require_container_absent(name)
+    try:
+        result = runner_module.process_runner.run_bounded(
+            runner_module.process_runner.ProcessRequest(
+                command=(
+                    str(runner._docker),
+                    "create",
+                    "--name",
+                    name,
+                    "--cidfile",
+                    str(cidfile),
+                    "--network",
+                    "none",
+                    "--read-only",
+                    "--cap-drop",
+                    "ALL",
+                    "--security-opt",
+                    "no-new-privileges",
+                    planner.BUILD_IMAGE,
+                    "/bin/true",
+                ),
+                cwd=tmp_path,
+                env=runner_module.replay_environment.clean_environment(),
+                timeout_seconds=60,
+                output_limit_bytes=4_096,
+                profile=runner_module.process_runner.ProcessProfile.TOOL,
+            )
+        )
+        assert result.returncode == 0, result.stderr.decode(errors="replace")
+        assert result.stderr == b""
+        created = True
+        container_id = runner_module._read_container_id(cidfile)
+        assert container_id is not None
+        assert result.stdout == (container_id + "\n").encode("ascii")
+        assert stat.S_IMODE(cidfile.stat().st_mode) == 0o600
+
+        runner._cleanup_owned_container(name, cidfile)
+        created = False
+        assert runner_module._inspect_confirms_absent(runner._inspect_container(name), name)
+    finally:
+        if created:
+            subprocess.run(
+                (str(runner._docker), "rm", "--force", name),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=30,
+                check=False,
+            )
 
 
 def _registry(tmp_path: Path) -> Path:
@@ -430,6 +700,6 @@ def _absent(name: str) -> subprocess.CompletedProcess[bytes]:
     return subprocess.CompletedProcess(
         [],
         1,
-        b"",
+        b"\n",
         f"Error: No such container: {name}\n".encode("ascii"),
     )

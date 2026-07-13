@@ -104,7 +104,10 @@ def tmpfs(
     *,
     noexec: bool,
 ) -> str:
-    execution = ",noexec" if noexec else ""
+    # Docker applies ``noexec`` to ``--tmpfs`` mounts by default.  The target
+    # directory must execute Cargo build scripts and freshly linked host tools,
+    # so the executable case needs an explicit ``exec`` override.
+    execution = ",noexec" if noexec else ",exec"
     return f"{target}:rw,nosuid,nodev{execution},size={size_bytes},mode={mode},uid={uid},gid={gid}"
 
 

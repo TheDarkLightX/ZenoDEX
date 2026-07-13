@@ -39,6 +39,7 @@ NESTED_CARGO_WRAPPER_FILE = runner_resources.NESTED_CARGO_WRAPPER_FILE
 NESTED_CARGO_WRAPPER_CONTAINER_PATH = runner_resources.NESTED_CARGO_WRAPPER_CONTAINER_PATH
 NESTED_CARGO_WRAPPER_BYTES = runner_resources.NESTED_CARGO_WRAPPER_BYTES
 NESTED_CARGO_WRAPPER_SHA256 = runner_resources.NESTED_CARGO_WRAPPER_SHA256
+CONTAINER_ID_FILE = "docker-container.cid"
 
 
 class DockerBuildRunner:
@@ -101,8 +102,15 @@ class DockerBuildRunner:
             "nested Cargo wrapper",
             NESTED_CARGO_WRAPPER_SHA256,
         )
+        container_id_file = request.target_directory / CONTAINER_ID_FILE
         container_name = _container_name(request)
-        command = self._docker_command(request, container_name, wrapper)
+        self._require_container_absent(container_name)
+        command = self._docker_command(
+            request,
+            container_name,
+            wrapper,
+            container_id_file,
+        )
         primary_error: BaseException | None = None
         try:
             result = process_runner.run_bounded(
@@ -133,6 +141,7 @@ class DockerBuildRunner:
             self._finalize_run(
                 request.pass_id,
                 container_name,
+                container_id_file,
                 wrapper,
                 wrapper_identity,
                 primary_error,
@@ -142,11 +151,14 @@ class DockerBuildRunner:
         self,
         pass_id: str,
         container_name: str,
+        container_id_file: Path,
         wrapper: Path,
         wrapper_identity: StableFileIdentity,
         primary_error: BaseException | None,
     ) -> None:
-        cleanup_error = _capture_failure(lambda: self._force_remove_container(container_name))
+        cleanup_error = _capture_failure(
+            lambda: self._cleanup_owned_container(container_name, container_id_file)
+        )
         integrity_error = _capture_failure(
             lambda: self._require_external_inputs_unchanged(f"after {pass_id}")
         )
@@ -226,6 +238,7 @@ class DockerBuildRunner:
         request: BuildRequest,
         container_name: str,
         nested_cargo_wrapper: Path,
+        container_id_file: Path,
     ) -> list[str]:
         for path in (
             request.source_snapshot,
@@ -235,13 +248,18 @@ class DockerBuildRunner:
             self._extension,
             self._registry,
             nested_cargo_wrapper,
+            container_id_file.parent,
         ):
             _require_safe_mount_path(path)
+        if container_id_file.exists() or container_id_file.is_symlink():
+            raise ExecutionError("container ID file must begin absent")
         return [
             str(self._docker),
             "run",
             "--name",
             container_name,
+            "--cidfile",
+            str(container_id_file),
             "--network",
             "none",
             "--read-only",
@@ -285,20 +303,50 @@ class DockerBuildRunner:
             _container_script(request),
         ]
 
-    def _force_remove_container(self, container_name: str) -> None:
+    def _require_container_absent(self, container_name: str) -> None:
         try:
-            before = self._inspect_container(container_name)
-            if _inspect_confirms_absent(before, container_name):
+            inspected = self._inspect_container(container_name)
+        except (OSError, RuntimeError) as exc:
+            raise ExecutionError(
+                f"container preflight inspection failed: {container_name}"
+            ) from exc
+        if _inspect_confirms_absent(inspected, container_name):
+            return
+        if _inspect_reports_one_id(inspected):
+            raise ExecutionError(f"container name must begin absent: {container_name}")
+        raise ExecutionError(f"container preflight inspection failed: {container_name}")
+
+    def _cleanup_owned_container(
+        self,
+        container_name: str,
+        container_id_file: Path,
+    ) -> None:
+        container_id = _read_container_id(container_id_file)
+        if container_id is None:
+            try:
+                inspected_name = self._inspect_container(container_name)
+            except (OSError, RuntimeError) as exc:
+                raise ExecutionError(
+                    f"container cleanup inspection failed: {container_name}"
+                ) from exc
+            if _inspect_confirms_absent(inspected_name, container_name):
                 return
-            if (
-                before.returncode != 0
-                or before.stderr
-                or re.fullmatch(rb"[0-9a-f]{64}\n", before.stdout) is None
-            ):
-                raise ExecutionError(f"container pre-cleanup inspection failed: {container_name}")
+            if _inspect_reports_one_id(inspected_name):
+                raise ExecutionError(f"container cleanup ownership unavailable: {container_name}")
+            raise ExecutionError(f"container cleanup inspection failed: {container_name}")
+
+        try:
+            before = self._inspect_container(container_id)
+            if _inspect_confirms_absent(before, container_id):
+                _require_name_absent_after_cleanup(self, container_name)
+                return
+            if not _inspect_confirms_exact_id(before, container_id):
+                raise ExecutionError(
+                    f"owned container pre-cleanup inspection failed: {container_id}"
+                )
             removed = process_runner.run_bounded(
                 process_runner.ProcessRequest(
-                    command=(str(self._docker), "rm", "--force", container_name),
+                    command=(str(self._docker), "rm", "--force", container_id),
                     cwd=self._risc0_home,
                     env=replay_environment.clean_environment(),
                     timeout_seconds=30,
@@ -306,17 +354,18 @@ class DockerBuildRunner:
                     profile=process_runner.ProcessProfile.TOOL,
                 )
             )
-            inspected = self._inspect_container(container_name)
+            inspected = self._inspect_container(container_id)
         except (OSError, RuntimeError) as exc:
-            raise ExecutionError(f"container cleanup command failed: {container_name}") from exc
+            raise ExecutionError(f"container cleanup command failed: {container_id}") from exc
         if (
             removed.returncode != 0
             or removed.stderr
-            or removed.stdout != (container_name + "\n").encode("ascii")
+            or removed.stdout != (container_id + "\n").encode("ascii")
         ):
-            raise ExecutionError(f"container removal failed: {container_name}")
-        if not _inspect_confirms_absent(inspected, container_name):
-            raise ExecutionError(f"container remains after cleanup: {container_name}")
+            raise ExecutionError(f"container removal failed: {container_id}")
+        if not _inspect_confirms_absent(inspected, container_id):
+            raise ExecutionError(f"container remains after cleanup: {container_id}")
+        _require_name_absent_after_cleanup(self, container_name)
 
     def _inspect_container(self, container_name: str) -> Any:
         return process_runner.run_bounded(
@@ -537,13 +586,93 @@ def _inspect_confirms_absent(
     result: Any,
     container_name: str,
 ) -> bool:
-    if result.returncode == 0 or result.stdout:
+    # Docker releases differ on whether a failed formatted inspect emits no
+    # stdout or the format template's terminating newline.  Accept only those
+    # two exact empty representations alongside the exact missing-container
+    # diagnostic.
+    if result.returncode == 0 or result.stdout not in (b"", b"\n"):
         return False
     expected = {
         f"Error: No such container: {container_name}\n".encode("ascii"),
         f"Error response from daemon: No such container: {container_name}\n".encode("ascii"),
     }
     return result.returncode == 1 and result.stderr in expected
+
+
+def _inspect_confirms_exact_id(result: Any, container_id: str) -> bool:
+    return (
+        result.returncode == 0
+        and not result.stderr
+        and result.stdout == (container_id + "\n").encode("ascii")
+    )
+
+
+def _inspect_reports_one_id(result: Any) -> bool:
+    return (
+        result.returncode == 0
+        and not result.stderr
+        and re.fullmatch(rb"[0-9a-f]{64}\n", result.stdout) is not None
+    )
+
+
+def _require_name_absent_after_cleanup(
+    runner: DockerBuildRunner,
+    container_name: str,
+) -> None:
+    try:
+        inspected = runner._inspect_container(container_name)
+    except (OSError, RuntimeError) as exc:
+        raise ExecutionError(f"container post-cleanup inspection failed: {container_name}") from exc
+    if not _inspect_confirms_absent(inspected, container_name):
+        raise ExecutionError(f"container name rebound during cleanup: {container_name}")
+
+
+def _read_container_id(path: Path) -> str | None:
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise ExecutionError("container ID file is unavailable") from exc
+    try:
+        before = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_uid != os.getuid()
+            or before.st_nlink != 1
+            or before.st_size != 64
+            or stat.S_IMODE(before.st_mode) & (stat.S_IWGRP | stat.S_IWOTH)
+        ):
+            raise ExecutionError("container ID file identity rejected")
+        raw = os.read(descriptor, 65)
+        after = os.fstat(descriptor)
+        path_after = path.lstat()
+    except OSError as exc:
+        raise ExecutionError("container ID file read failed") from exc
+    finally:
+        os.close(descriptor)
+    if (
+        _stable_container_id_file_facts(before) != _stable_container_id_file_facts(after)
+        or _stable_container_id_file_facts(before) != _stable_container_id_file_facts(path_after)
+        or re.fullmatch(rb"[0-9a-f]{64}", raw) is None
+    ):
+        raise ExecutionError("container ID file changed or is malformed")
+    return raw.decode("ascii")
+
+
+def _stable_container_id_file_facts(facts: os.stat_result) -> tuple[int, ...]:
+    return (
+        facts.st_dev,
+        facts.st_ino,
+        facts.st_mode,
+        facts.st_uid,
+        facts.st_gid,
+        facts.st_nlink,
+        facts.st_size,
+        facts.st_mtime_ns,
+        facts.st_ctime_ns,
+    )
 
 
 def _canonical_directory(path: Path, label: str) -> Path:
