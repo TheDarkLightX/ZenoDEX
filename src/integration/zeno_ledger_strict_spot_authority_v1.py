@@ -12,11 +12,13 @@ import base64
 import binascii
 import hashlib
 import json
+from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Mapping, NoReturn, final
 
+from src.core.dex import DexState
 from src.integration._zeno_ledger_pinned_verifier_process_v1 import (
     DEFAULT_VERIFIER_ADDRESS_SPACE_BYTES,
     DEFAULT_VERIFIER_STACK_BYTES,
@@ -42,6 +44,11 @@ from src.integration.zeno_ledger_proof_authority_consumer_v1 import (
 from src.integration.zeno_ledger_replay import (
     parse_replay_engine_config_v1,
     replay_engine_config_digest_v1,
+)
+from src.integration.zeno_ledger_spot_state_domain_bridge_v1 import (
+    SpotStateDomainBridgeErrorV1,
+    _AuthenticatedSpotLedgerStateDomainBridgeV1,
+    _derive_authenticated_spot_ledger_state_domain_bridge_v1,
 )
 from src.integration.zeno_ledger_v0 import (
     canonical_header_hash_v0,
@@ -85,6 +92,114 @@ _BASE_REQUEST_KEYS = frozenset(
         "trusted_route_price_interval_authority_policy_root",
     }
 )
+_PROOF_KEYS = frozenset(
+    {"schema", "schema_version", "state_hash", "proof_type", "proof", "meta"}
+)
+_SPOT_META_KEYS = frozenset(
+    {
+        "risc0_image_id",
+        "txs_commitment",
+        "tx_execution_order_commitment",
+        "ingress_commitment",
+        "pre_nonce_root",
+        "post_nonce_root",
+        "accepted_receipts_root",
+        "pre_app_hash",
+        "post_app_hash",
+        "protocol_fee_share_bps",
+        "protocol_fee_recipient_pubkey",
+        "route_price_interval_count",
+        "route_price_intervals_root",
+        "route_price_interval_authority_root",
+        "route_price_interval_authority_policy_root",
+        "route_price_interval_max_width_bps",
+        "shared_pool_frontier_signature_certificate_count",
+        "shared_pool_frontier_signature_certificates_root",
+        "receipt_codec",
+        "receipt_kind",
+        "receipt_verifier_parameters",
+        "receipt_hashfn",
+        "receipt_control_id",
+    }
+)
+_CONTEXT_KEYS = frozenset(
+    {
+        "app_hash_pre",
+        "block_timestamp",
+        "pre_nonces",
+        "protocol_fee_share_bps",
+        "protocol_fee_recipient_pubkey",
+        "tx_execution_order",
+        "route_price_intervals",
+        "route_price_interval_authority",
+        "route_price_interval_authority_policy",
+        "route_price_interval_max_width_bps",
+        "shared_pool_frontier_signature_certificates",
+    }
+)
+_TRANSACTION_KEYS = frozenset(
+    {
+        "tx_id",
+        "block_timestamp",
+        "tx_sender_pubkey",
+        "sender_pubkey",
+        "nonce",
+        "operations",
+    }
+)
+_BASE_INTENT_KEYS = frozenset(
+    {"module", "version", "kind", "intent_id", "sender_pubkey", "deadline", "salt"}
+)
+_INTENT_KIND_KEYS = {
+    "CREATE_POOL": frozenset({"asset0", "asset1", "fee_bps", "amount0", "amount1"}),
+    "SWAP_EXACT_IN": frozenset(
+        {"pool_id", "asset_in", "asset_out", "amount_in", "min_amount_out", "recipient"}
+    ),
+    "ADD_LIQUIDITY": frozenset(
+        {
+            "pool_id",
+            "amount0_desired",
+            "amount1_desired",
+            "amount0_min",
+            "amount1_min",
+            "recipient",
+        }
+    ),
+    "REMOVE_LIQUIDITY": frozenset(
+        {"pool_id", "lp_amount", "amount0_min", "amount1_min", "recipient"}
+    ),
+    "SWAP_EXACT_OUT": frozenset(
+        {"pool_id", "asset_in", "asset_out", "amount_out", "max_amount_in", "recipient"}
+    ),
+    "ROUTE_EXACT_IN": frozenset(
+        {
+            "quote_receipt_hash",
+            "asset_in",
+            "asset_out",
+            "leg_indices",
+            "legs",
+            "total_amount_in",
+            "total_min_amount_out",
+            "total_amount_out",
+            "total_max_amount_in",
+            "recipient",
+        }
+    ),
+    "ROUTE_EXACT_OUT": frozenset(
+        {
+            "quote_receipt_hash",
+            "asset_in",
+            "asset_out",
+            "leg_indices",
+            "legs",
+            "total_amount_in",
+            "total_min_amount_out",
+            "total_amount_out",
+            "total_max_amount_in",
+            "recipient",
+        }
+    ),
+}
 _MANIFEST_KEYS = frozenset(
     {
         "schema",
@@ -206,6 +321,7 @@ class StrictSpotAuthorityRejectReasonV1(str, Enum):
     RESPONSE_INVALID = "strict_spot_authority.response_invalid"
     RESPONSE_MISMATCH = "strict_spot_authority.response_mismatch"
     EXECUTABLE_POLICY_MISMATCH = "strict_spot_authority.executable_policy_mismatch"
+    STATE_DOMAIN_BRIDGE_MISMATCH = "strict_spot_authority.state_domain_bridge_mismatch"
 
 
 class StrictSpotAuthorityError(ValueError):
@@ -272,6 +388,29 @@ def strict_spot_authority_manifest_bytes_v1(
     return raw
 
 
+def parse_strict_spot_request_payload_bytes_v1(raw: bytes) -> dict[str, Any]:
+    """Parse one canonical, bounded file payload for the strict adapter.
+
+    This parser carries no proof authority.  It closes duplicate-key,
+    floating-point, non-canonical-byte, and outer-shape ambiguity before the
+    payload reaches the governed verifier join.
+    """
+
+    try:
+        payload = _parse_canonical_json_object(
+            raw,
+            max_bytes=MAX_STRICT_REQUEST_BYTES,
+            name="strict Spot request payload",
+        )
+        _validate_strict_spot_payload_shape_v1(payload)
+        return payload
+    except (TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise StrictSpotAuthorityError(
+            StrictSpotAuthorityRejectReasonV1.REQUEST_INVALID,
+            "strict Spot request payload file is invalid",
+        ) from exc
+
+
 @final
 @dataclass(frozen=True)
 class PinnedStrictSpotAuthorityVerifierV1:
@@ -325,17 +464,21 @@ class PinnedStrictSpotAuthorityVerifierV1:
         replay_config: Mapping[str, Any],
         profile: Mapping[str, Any],
         verifier_registry: Mapping[str, Any],
+        pre_state: DexState | None = None,
+        post_state: DexState | None = None,
     ) -> ProofAuthorityDecisionV1:
-        """Execute one pinned verifier and resolve one exact governed height."""
+        """Execute one verifier and optionally join exact replayed state roots."""
 
         if self._manifest.executable_format is not VerifierExecutableFormatV1.STATIC_ELF_X86_64:
             raise StrictSpotAuthorityError(
                 StrictSpotAuthorityRejectReasonV1.EXECUTABLE_POLICY_MISMATCH,
                 "authority-bearing strict Spot verification requires a static ELF",
             )
-        prepared = _prepare_request(
-            manifest=self._manifest,
-            authority_manifest_sha256=self.authority_manifest_sha256,
+        captured_state_pair = _capture_state_bridge_inputs(
+            pre_state=pre_state,
+            post_state=post_state,
+        )
+        captured_inputs = _capture_authority_inputs(
             spot_request_payload=spot_request_payload,
             proof_metadata=proof_metadata,
             header=header,
@@ -343,6 +486,17 @@ class PinnedStrictSpotAuthorityVerifierV1:
             replay_config=replay_config,
             profile=profile,
             verifier_registry=verifier_registry,
+        )
+        prepared = _prepare_request(
+            manifest=self._manifest,
+            authority_manifest_sha256=self.authority_manifest_sha256,
+            spot_request_payload=captured_inputs.spot_request_payload,
+            proof_metadata=captured_inputs.proof_metadata,
+            header=captured_inputs.header,
+            checkpoint=captured_inputs.checkpoint,
+            replay_config=captured_inputs.replay_config,
+            profile=captured_inputs.profile,
+            verifier_registry=captured_inputs.verifier_registry,
         )
         try:
             stdout = execute_pinned_verifier_once(
@@ -360,9 +514,14 @@ class PinnedStrictSpotAuthorityVerifierV1:
                 "pinned strict Spot verifier process rejected execution",
             ) from exc
         facts = _parse_and_bind_response(stdout, prepared=prepared, manifest=self._manifest)
-        # The strict result explicitly says that Spot app hashes have not been
-        # proven equal to ZenoLedger state roots.  Verification therefore
-        # advances evidence while authority remains pending.
+        state_domain_bridge = _derive_state_domain_bridge_after_verification(
+            captured_state_pair=captured_state_pair,
+            facts=facts,
+            prepared=prepared,
+        )
+        # The strict result continues to state that the two root domains are
+        # unequal. The optional private bridge instead proves that both domains
+        # encode the same replayed pre/post application state.
         observation = _mint_authenticated_strict_spot_observation_v1(
             policy_id=prepared.policy.policy_id,
             chain_id=prepared.policy.chain_id,
@@ -372,6 +531,7 @@ class PinnedStrictSpotAuthorityVerifierV1:
             verifier_registry_id=prepared.policy.verifier_registry_id,
             verifier_registry_entry_id=prepared.policy.verifier_registry_entry_id,
             strict_result_schema=str(facts["schema"]),
+            state_domain_bridge=state_domain_bridge,
         )
         return resolve_proof_authority_v1(
             requirement=prepared.requirement,
@@ -412,6 +572,131 @@ class _SpotPayloadContextV1:
     proof_commitment: str
     block_timestamp: int
     transaction_batch_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class _CapturedAuthorityInputsV1:
+    spot_request_payload: dict[str, Any]
+    proof_metadata: dict[str, Any]
+    header: dict[str, Any]
+    checkpoint: dict[str, Any]
+    replay_config: dict[str, Any]
+    profile: dict[str, Any]
+    verifier_registry: dict[str, Any]
+
+
+def _capture_authority_inputs(
+    *,
+    spot_request_payload: Mapping[str, Any],
+    proof_metadata: Mapping[str, Any],
+    header: Mapping[str, Any],
+    checkpoint: Mapping[str, Any],
+    replay_config: Mapping[str, Any],
+    profile: Mapping[str, Any],
+    verifier_registry: Mapping[str, Any],
+) -> _CapturedAuthorityInputsV1:
+    """Detach every nested authority input from caller-controlled objects."""
+
+    try:
+        return _CapturedAuthorityInputsV1(
+            spot_request_payload=_snapshot_mapping_v1(
+                spot_request_payload,
+                name="spot_request_payload",
+            ),
+            proof_metadata=_snapshot_mapping_v1(proof_metadata, name="proof_metadata"),
+            header=_snapshot_mapping_v1(header, name="header"),
+            checkpoint=_snapshot_mapping_v1(checkpoint, name="checkpoint"),
+            replay_config=_snapshot_mapping_v1(replay_config, name="replay_config"),
+            profile=_snapshot_mapping_v1(profile, name="profile"),
+            verifier_registry=_snapshot_mapping_v1(
+                verifier_registry,
+                name="verifier_registry",
+            ),
+        )
+    except (TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise StrictSpotAuthorityError(
+            StrictSpotAuthorityRejectReasonV1.REQUEST_INVALID,
+            "strict Spot authority inputs could not be captured canonically",
+        ) from exc
+
+
+def _snapshot_mapping_v1(value: Mapping[str, Any], *, name: str) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{name} must be a mapping")
+    raw = canonical_json_bytes(value)
+    return _parse_canonical_json_object(raw, max_bytes=MAX_STRICT_REQUEST_BYTES, name=name)
+
+
+def _capture_state_bridge_inputs(
+    *,
+    pre_state: DexState | None,
+    post_state: DexState | None,
+) -> tuple[DexState, DexState] | None:
+    if pre_state is None and post_state is None:
+        return None
+    if type(pre_state) is not DexState or type(post_state) is not DexState:
+        raise StrictSpotAuthorityError(
+            StrictSpotAuthorityRejectReasonV1.STATE_DOMAIN_BRIDGE_MISMATCH,
+            "state-domain bridge requires an exact pre_state/post_state pair",
+        )
+    try:
+        captured_pre = deepcopy(pre_state)
+        captured_post = deepcopy(post_state)
+    except Exception as exc:
+        raise StrictSpotAuthorityError(
+            StrictSpotAuthorityRejectReasonV1.STATE_DOMAIN_BRIDGE_MISMATCH,
+            "state-domain bridge inputs could not be captured",
+        ) from exc
+    if type(captured_pre) is not DexState or type(captured_post) is not DexState:
+        raise StrictSpotAuthorityError(
+            StrictSpotAuthorityRejectReasonV1.STATE_DOMAIN_BRIDGE_MISMATCH,
+            "state-domain bridge capture changed the state type",
+        )
+    return captured_pre, captured_post
+
+
+def _derive_state_domain_bridge_after_verification(
+    *,
+    captured_state_pair: tuple[DexState, DexState] | None,
+    facts: Mapping[str, Any],
+    prepared: _PreparedRequestV1,
+) -> _AuthenticatedSpotLedgerStateDomainBridgeV1 | None:
+    if captured_state_pair is None:
+        return None
+    if (
+        type(captured_state_pair) is not tuple
+        or len(captured_state_pair) != 2
+        or type(captured_state_pair[0]) is not DexState
+        or type(captured_state_pair[1]) is not DexState
+    ):
+        raise StrictSpotAuthorityError(
+            StrictSpotAuthorityRejectReasonV1.STATE_DOMAIN_BRIDGE_MISMATCH,
+            "state-domain bridge lost its exact captured state pair",
+        )
+    pre_state, post_state = captured_state_pair
+    transactions = prepared.request["block"]["transactions"]
+    if not isinstance(transactions, list):
+        raise StrictSpotAuthorityError(
+            StrictSpotAuthorityRejectReasonV1.STATE_DOMAIN_BRIDGE_MISMATCH,
+            "prepared transaction batch is not a list",
+        )
+    try:
+        return _derive_authenticated_spot_ledger_state_domain_bridge_v1(
+            pre_state=pre_state,
+            post_state=post_state,
+            transactions=transactions,
+            source_pre_app_hash=str(facts["spot_pre_app_hash"]),
+            source_post_app_hash=str(facts["spot_post_app_hash"]),
+            source_pre_nonce_root=str(facts["spot_pre_nonce_root"]),
+            source_post_nonce_root=str(facts["spot_post_nonce_root"]),
+            ledger_pre_state_root=str(facts["ledger_pre_state_root"]),
+            ledger_post_state_root=str(facts["ledger_post_state_root"]),
+        )
+    except SpotStateDomainBridgeErrorV1 as exc:
+        raise StrictSpotAuthorityError(
+            StrictSpotAuthorityRejectReasonV1.STATE_DOMAIN_BRIDGE_MISMATCH,
+            "authenticated Spot roots do not encode the replayed ledger state pair",
+        ) from exc
 
 
 def _prepare_request(
@@ -541,6 +826,285 @@ def _validate_governed_request_context(
     )
 
 
+def _validate_strict_spot_payload_shape_v1(payload: dict[str, Any]) -> None:
+    """Mirror the governed Rust verifier's exact untrusted payload shape.
+
+    This is a cheap fail-closed preflight only. Receipt verification and all
+    semantic bindings remain owned by the pinned Rust verifier.
+    """
+
+    _require_exact_dict(payload, name="spot_request_payload", keys=_BASE_REQUEST_KEYS)
+    proof = _require_exact_dict(payload["proof"], name="spot_request_payload.proof", keys=_PROOF_KEYS)
+    if proof["schema"] != "tau_state_proof" or proof["schema_version"] != 1:
+        raise ValueError("spot_request_payload.proof schema mismatch")
+    _require_root(proof["state_hash"], name="spot_request_payload.proof.state_hash")
+    if not isinstance(proof["proof_type"], str) or not proof["proof_type"]:
+        raise ValueError("spot_request_payload.proof.proof_type must be non-empty")
+    if not isinstance(proof["proof"], str) or not proof["proof"]:
+        raise ValueError("spot_request_payload.proof.proof must be non-empty")
+    _require_exact_dict(
+        proof["meta"],
+        name="spot_request_payload.proof.meta",
+        keys=_SPOT_META_KEYS,
+    )
+
+    block = _require_exact_dict(
+        payload["block"],
+        name="spot_request_payload.block",
+        keys=frozenset({"header", "transactions"}),
+    )
+    block_header = _require_exact_dict(
+        block["header"],
+        name="spot_request_payload.block.header",
+        keys=frozenset({"timestamp"}),
+    )
+    _require_height(
+        block_header["timestamp"],
+        name="spot_request_payload.block.header.timestamp",
+    )
+    transactions = _require_exact_list(
+        block["transactions"],
+        name="spot_request_payload.block.transactions",
+    )
+    _validate_strict_transactions_shape_v1(transactions)
+
+    tau_state = _require_exact_dict(
+        payload["tau_state"],
+        name="spot_request_payload.tau_state",
+        keys=frozenset({"app_hash"}),
+    )
+    _require_root(tau_state["app_hash"], name="spot_request_payload.tau_state.app_hash")
+    context = _require_exact_dict(
+        payload["context"],
+        name="spot_request_payload.context",
+        keys=_CONTEXT_KEYS,
+    )
+    _validate_strict_context_shape_v1(context)
+    _require_root(
+        payload["trusted_route_price_interval_authority_policy_root"],
+        name="spot_request_payload.trusted_route_price_interval_authority_policy_root",
+    )
+
+
+def _validate_strict_context_shape_v1(context: dict[str, Any]) -> None:
+    for key in ("pre_nonces", "tx_execution_order"):
+        _require_exact_list(context[key], name=f"spot_request_payload.context.{key}")
+    intervals = _require_exact_list(
+        context["route_price_intervals"],
+        name="spot_request_payload.context.route_price_intervals",
+    )
+    for index, interval in enumerate(intervals):
+        _require_exact_dict(
+            interval,
+            name=f"spot_request_payload.context.route_price_intervals[{index}]",
+            keys=frozenset({"asset", "low_e8", "point_e8", "high_e8"}),
+        )
+    authority = context["route_price_interval_authority"]
+    if authority is not None:
+        _require_exact_dict(
+            authority,
+            name="spot_request_payload.context.route_price_interval_authority",
+            keys=frozenset(
+                {
+                    "schema",
+                    "source_id",
+                    "source_root",
+                    "price_timestamp",
+                    "max_staleness_seconds",
+                    "route_price_intervals_root",
+                }
+            ),
+        )
+    policy = context["route_price_interval_authority_policy"]
+    if policy is not None:
+        policy_obj = _require_exact_dict(
+            policy,
+            name="spot_request_payload.context.route_price_interval_authority_policy",
+            keys=frozenset({"schema", "policy_id", "sources"}),
+        )
+        sources = _require_exact_list(
+            policy_obj["sources"],
+            name="spot_request_payload.context.route_price_interval_authority_policy.sources",
+        )
+        for index, source in enumerate(sources):
+            _require_exact_dict(
+                source,
+                name=(
+                    "spot_request_payload.context."
+                    f"route_price_interval_authority_policy.sources[{index}]"
+                ),
+                keys=frozenset(
+                    {"source_id", "source_root", "verification_root", "verification_status"}
+                ),
+            )
+    certificates = _require_exact_list(
+        context["shared_pool_frontier_signature_certificates"],
+        name="spot_request_payload.context.shared_pool_frontier_signature_certificates",
+    )
+    for index, certificate in enumerate(certificates):
+        _validate_frontier_certificate_shape_v1(certificate, index=index)
+
+
+def _validate_frontier_certificate_shape_v1(value: object, *, index: int) -> None:
+    name = f"spot_request_payload.context.shared_pool_frontier_signature_certificates[{index}]"
+    certificate = _require_exact_dict(
+        value,
+        name=name,
+        keys=frozenset(
+            {
+                "schema",
+                "pool_id",
+                "fee_bps",
+                "row_states",
+                "victims",
+                "signatures",
+                "claimed_frontier_states",
+            }
+        ),
+    )
+    for key in ("row_states", "claimed_frontier_states"):
+        states = _require_exact_list(certificate[key], name=f"{name}.{key}")
+        for state_index, state in enumerate(states):
+            _require_exact_dict(
+                state,
+                name=f"{name}.{key}[{state_index}]",
+                keys=frozenset({"reserve_a_atoms", "reserve_b_atoms"}),
+            )
+    victims = _require_exact_list(certificate["victims"], name=f"{name}.victims")
+    for victim_index, victim in enumerate(victims):
+        _require_exact_dict(
+            victim,
+            name=f"{name}.victims[{victim_index}]",
+            keys=frozenset({"direction", "amount_in_atoms", "min_out_atoms"}),
+        )
+    signatures = _require_exact_list(certificate["signatures"], name=f"{name}.signatures")
+    for signature_index, signature in enumerate(signatures):
+        signature_name = f"{name}.signatures[{signature_index}]"
+        signature_obj = _require_exact_dict(
+            signature,
+            name=signature_name,
+            keys=frozenset({"state", "suffix_signature_masks"}),
+        )
+        _require_exact_dict(
+            signature_obj["state"],
+            name=f"{signature_name}.state",
+            keys=frozenset({"reserve_a_atoms", "reserve_b_atoms"}),
+        )
+        _require_exact_list(
+            signature_obj["suffix_signature_masks"],
+            name=f"{signature_name}.suffix_signature_masks",
+        )
+
+
+def _validate_strict_transactions_shape_v1(transactions: list[Any]) -> None:
+    for index, transaction in enumerate(transactions):
+        name = f"spot_request_payload.block.transactions[{index}]"
+        tx = _require_allowed_dict(transaction, name=name, allowed=_TRANSACTION_KEYS)
+        if "tx_sender_pubkey" not in tx and "sender_pubkey" not in tx:
+            raise ValueError(f"{name} sender identity missing")
+        if "nonce" not in tx or "operations" not in tx:
+            raise ValueError(f"{name} nonce/operations missing")
+        operations = _require_allowed_dict(
+            tx["operations"],
+            name=f"{name}.operations",
+            allowed=frozenset({"2", "4"}),
+        )
+        if "2" in operations:
+            _validate_strict_intents_shape_v1(operations["2"], name=f"{name}.operations['2']")
+        if "4" in operations:
+            faucet = _require_exact_dict(
+                operations["4"],
+                name=f"{name}.operations['4']",
+                keys=frozenset({"mint"}),
+            )
+            mint = _require_exact_list(faucet["mint"], name=f"{name}.operations['4'].mint")
+            for mint_index, entry in enumerate(mint):
+                entry_name = f"{name}.operations['4'].mint[{mint_index}]"
+                if type(entry) is list:
+                    if len(entry) != 3:
+                        raise ValueError(f"{entry_name} tuple length mismatch")
+                else:
+                    _require_exact_dict(
+                        entry,
+                        name=entry_name,
+                        keys=frozenset({"pubkey", "asset", "amount"}),
+                    )
+
+
+def _validate_strict_intents_shape_v1(value: object, *, name: str) -> None:
+    entries = _require_exact_list(value, name=name)
+    for index, entry in enumerate(entries):
+        entry_name = f"{name}[{index}]"
+        intent_value = entry
+        if type(entry) is list:
+            if len(entry) != 2 or not (entry[1] is None or isinstance(entry[1], str)):
+                raise ValueError(f"{entry_name} signed pair schema mismatch")
+            intent_value = entry[0]
+        intent = _require_allowed_dict(
+            intent_value,
+            name=entry_name,
+            allowed=frozenset().union(_BASE_INTENT_KEYS, *_INTENT_KIND_KEYS.values()),
+        )
+        kind = intent.get("kind")
+        if not isinstance(kind, str) or kind not in _INTENT_KIND_KEYS:
+            raise ValueError(f"{entry_name}.kind unsupported")
+        allowed = _BASE_INTENT_KEYS | _INTENT_KIND_KEYS[kind]
+        unknown = set(intent).difference(allowed)
+        if unknown:
+            raise ValueError(f"{entry_name} unknown fields: {sorted(unknown)}")
+        if kind in {"ROUTE_EXACT_IN", "ROUTE_EXACT_OUT"}:
+            legs = _require_exact_list(intent.get("legs"), name=f"{entry_name}.legs")
+            for leg_index, leg in enumerate(legs):
+                leg_name = f"{entry_name}.legs[{leg_index}]"
+                leg_obj = _require_exact_dict(
+                    leg,
+                    name=leg_name,
+                    keys=frozenset({"hops"}),
+                )
+                hops = _require_exact_list(leg_obj["hops"], name=f"{leg_name}.hops")
+                for hop_index, hop in enumerate(hops):
+                    _require_exact_dict(
+                        hop,
+                        name=f"{leg_name}.hops[{hop_index}]",
+                        keys=frozenset({"pool_id"}),
+                    )
+
+
+def _require_exact_dict(
+    value: object,
+    *,
+    name: str,
+    keys: frozenset[str],
+) -> dict[str, Any]:
+    if type(value) is not dict:
+        raise TypeError(f"{name} must be an exact JSON object")
+    typed = value
+    if set(typed) != keys:
+        raise ValueError(f"{name} keys mismatch")
+    return typed
+
+
+def _require_allowed_dict(
+    value: object,
+    *,
+    name: str,
+    allowed: frozenset[str],
+) -> dict[str, Any]:
+    if type(value) is not dict:
+        raise TypeError(f"{name} must be an exact JSON object")
+    typed = value
+    unknown = set(typed).difference(allowed)
+    if unknown:
+        raise ValueError(f"{name} unknown fields: {sorted(unknown)}")
+    return typed
+
+
+def _require_exact_list(value: object, *, name: str) -> list[Any]:
+    if type(value) is not list:
+        raise TypeError(f"{name} must be an exact JSON list")
+    return value
+
+
 def _validate_spot_payload(
     spot_request_payload: Mapping[str, Any],
     *,
@@ -549,8 +1113,7 @@ def _validate_spot_payload(
     header_time_ms: int,
 ) -> _SpotPayloadContextV1:
     payload = dict(spot_request_payload)
-    if set(payload) != _BASE_REQUEST_KEYS:
-        raise ValueError("strict Spot request payload keys mismatch")
+    _validate_strict_spot_payload_shape_v1(payload)
     proof = _require_mapping(payload["proof"], name="spot_request_payload.proof")
     proof_commitment = hash_v0("risc0_tau_state_proof_envelope_v0", dict(proof))
     if metadata["proof_commitment"] != proof_commitment:

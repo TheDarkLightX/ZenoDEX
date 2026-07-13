@@ -166,6 +166,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "src/integration/recursive_stark_verifier_adapter.py",
         "src/integration/_zrpf_spot_v7_atomic_settlement_capability.py",
         "src/integration/_zrpf_spot_v7_firecracker_authority.py",
+        "src/integration/_zrpf_spot_v7_firecracker_output.py",
         "src/integration/_zrpf_spot_v7_atomic_settlement_engine.py",
         "src/integration/_zrpf_spot_v7_atomic_settlement_history.py",
         "src/integration/_zrpf_spot_v7_atomic_settlement_records.py",
@@ -173,6 +174,9 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "src/integration/zrpf_spot_v7_atomic_settlement_store.py",
         "src/integration/zrpf_spot_v7_atomic_settlement_types.py",
         "src/integration/zeno_ledger_authenticated_proof_verification_v1.py",
+        "src/integration/zeno_ledger_proof_authority_consumer_v1.py",
+        "src/integration/zeno_ledger_spot_state_domain_bridge_v1.py",
+        "src/integration/zeno_ledger_strict_spot_authority_v1.py",
         "src/integration/zeno_ledger_watcher.py",
         "src/integration/zeno_sdk_browser_bundle_v0.py",
         "tools/build_zeno_sdk_browser_bundle.py",
@@ -194,6 +198,10 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py",
         "tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py",
         "tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py",
+        "tests/integration/test_zeno_ledger_spot_outer_nonce_bridge_v1.py",
+        "tests/integration/test_zeno_ledger_spot_state_domain_bridge_v1.py",
+        "tests/integration/test_zeno_ledger_strict_spot_authority_v1.py",
+        "tests/integration/test_zeno_ledger_strict_spot_range_authority_v1.py",
     ):
         assert required_path in ruff_assurance
         assert required_path in mypy_assurance
@@ -211,6 +219,8 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         assert required_path in pytest_assurance
     assert "tools/zeno_ledger_risc0_real_proof_smoke.py" in ruff_assurance
     assert "tools/zeno_ledger_risc0_real_proof_smoke.py" not in mypy_assurance
+    assert "src/integration/zeno_ledger_v0.py" in ruff_assurance
+    assert "src/integration/zeno_ledger_v0.py" not in mypy_assurance
     for required_path in (
         "tools/zrpf_v3_source_closure.py",
         "tests/test_zrpf_v3_source_closure.py",

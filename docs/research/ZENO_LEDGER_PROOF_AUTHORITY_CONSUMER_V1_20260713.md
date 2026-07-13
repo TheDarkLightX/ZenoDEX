@@ -1,7 +1,8 @@
 # ZenoLedger Proof-Authority Consumer V1
 
 Date: 2026-07-13
-Status: implemented fail-closed consumer port; positive authority pending
+Status: restricted singleton V1 proof authority implemented; settlement and
+production authority remain disabled
 
 ## Scope
 
@@ -46,9 +47,11 @@ bindings:
 - a replay-config digest when structural diagnostic mode has no replay config.
 
 This replaces the prior ad hoc pending string with a deterministic typed
-decision. The range verifier still rejects proof-required replay.
+decision. The range verifier continues to reject proof-required V0 replay.
+An explicitly selected V1 singleton path can satisfy proof authority through
+the restricted state-domain bridge described below.
 
-## Future Positive Port
+## Restricted Positive Port
 
 `GovernedProofAuthorityBindingV1` defines the data-only policy surface:
 
@@ -66,12 +69,19 @@ The policy ID is recomputed from canonical fields. The consumer rejects a
 wrong policy, wrong chain/profile, a policy that is not yet valid, and a stale
 policy before considering any verifier result.
 
-The private authenticated range-result class has no minting function in V1.
-The strict verifier integration must be co-located with the consumer and mint
-it only after exact cryptographic verification. This prevents a caller from
-substituting a mapping or boolean-bearing nominal object.
+The strict adapter executes one pinned verifier process and privately mints an
+authenticated observation only after the complete response is rebound to the
+governed manifest, registry, policy, header, proof metadata, proof envelope,
+and replay config. The private observation has no public constructor and a
+caller mapping cannot replace it.
 
-The planned strict Spot verifier output schema is:
+The private seal prevents nominal and accidental construction. Arbitrary
+hostile code running in the same Python interpreter can reach module-private
+objects, so same-interpreter adversarial isolation is outside this claim. A
+production deployment requires a process-isolated verifier-to-admission
+handoff or a native unforgeable capability boundary.
+
+The strict Spot verifier output schema is:
 
 ```text
 zenodex.zeno_ledger.authenticated_spot_proof_facts.v1
@@ -89,9 +99,9 @@ The strict result also records
 the JSON result is untrusted transport data, and the strict verifier does not
 decide whether governance admitted its manifest, registry entry, or policy.
 
-## Required Cycle-Free Config Upgrade
+## Implemented Cycle-Free Config Upgrade
 
-The positive join requires a new exact config schema:
+The restricted positive join requires the exact config schema:
 
 ```text
 zenodex/zeno_ledger/replay_engine_config/v1
@@ -125,15 +135,41 @@ proof profile
 validity interval
 ```
 
-The V1 config parser must reject V0 documents with an injected policy field,
+The V1 config parser rejects V0 documents with an injected policy field,
 unknown policy keys, a noncanonical policy ID, or a policy whose recomputed ID
 differs. V0 remains supported only as a non-authoritative diagnostic config.
 
-After that config exists, the consumer adapter must build the strict request
-itself, execute the pinned verifier directly, parse its output inside the same
-private module, and compare every returned policy, manifest, registry, header,
-height, proof-metadata, proof-envelope, and config identity. Accepting an
-already parsed caller result would recreate the boolean-authority defect.
+The range verifier stable-reads one canonical strict payload, deterministically
+replays the committed block, and supplies the exact pre-state and post-state to
+the strict adapter. After the receipt is verified once, the adapter derives a
+private compatibility proof that all four authenticated legacy Spot roots and
+both ZenoLedger state-root-v5 values encode that same state pair. The accepted
+profile is deliberately closed:
+
+```text
+one ledger height
+one outer transaction
+source-guest-validated operation-2 TauSwap arrays or operation-4 faucet framing
+CPMM pools only
+no vault, oracle, perps, or LP-duration-risk state
+bounded canonical balance, pool, LP, fee, and nonce sections
+```
+
+The Spot and ZenoLedger root domains remain distinct. The bridge proves their
+typed relation and never asserts byte equality.
+
+This proof-authority profile does not reduce one outer transaction to one
+economic action. Operation-4 faucet framing and multi-intent operation-2 arrays
+remain inside the source guest's authenticated statement. Settlement promotion
+requires a separately governed allowed-operation profile and canonical
+per-action and nullifier semantics.
+
+This is an implementation claim. The new range test uses a protocol-faithful
+mock of the already reviewed strict process response; it does not regenerate a
+fresh RISC0 receipt for the complete range path. The public proof-coverage
+matrix therefore retains
+`does_not_claim_proof_required_cryptographic_authority` until a final-source
+real receipt is replayed through this exact join.
 
 ## Evidence
 
@@ -147,14 +183,22 @@ Focused tests cover:
 - not-yet-valid and stale policy rejection;
 - policy-ID tampering rejection;
 - private decision construction rejection;
-- existing fabricated positive verification reports remaining rejected.
+- existing fabricated positive verification reports remaining rejected;
+- cross-language state-root-v5 bridge vectors;
+- authenticated source-root substitutions rejecting after one verifier call;
+- duplicate-key strict payloads rejecting before verifier execution;
+- multi-height V1 ranges rejecting before verifier execution;
+- one successful singleton range invoking the governed verifier adapter once.
 
 Replay commands:
 
 ```bash
 python3 -m pytest -q \
   tests/integration/test_zeno_ledger_proof_authority_consumer_v1.py \
-  tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py
+  tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py \
+  tests/integration/test_zeno_ledger_spot_state_domain_bridge_v1.py \
+  tests/integration/test_zeno_ledger_strict_spot_authority_v1.py \
+  tests/integration/test_zeno_ledger_strict_spot_range_authority_v1.py
 
 python3 tools/check_zeno_ledger_proof_coverage_matrix.py --pretty
 ```
@@ -164,9 +208,10 @@ python3 tools/check_zeno_ledger_proof_coverage_matrix.py --pretty
 This lane does not claim:
 
 - cryptographic proof authority for V0 profiles;
-- a consensus-bound proof-authority policy;
-- that the strict Spot verifier result is connected to the consumer;
-- ledger state-root equivalence;
+- multi-height or general application proof authority;
+- general ledger/Spot state-domain equivalence outside the closed V1 profile;
+- single-action settlement eligibility or production admission of faucet operations;
+- hostile same-interpreter capability isolation;
 - settlement authority;
 - production authority;
 - data availability or finality.

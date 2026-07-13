@@ -10,11 +10,13 @@ from typing import Any, Mapping
 
 import pytest
 
+from src.core.dex import DexState
 from src.integration._zeno_ledger_pinned_verifier_process_v1 import (
     VerifierExecutableFormatV1,
     execute_pinned_verifier_once,
 )
 from src.integration.dex_engine import DexEngineConfig
+from src.integration.dex_snapshot import state_from_snapshot
 from src.integration.zeno_ledger_profile import (
     sample_zeno_sovereign_testnet_profile_v0,
 )
@@ -54,6 +56,7 @@ from src.integration.zeno_ledger_v0 import (
 from src.integration.zeno_ledger_verifier_registry_v0 import (
     make_verifier_registry_entry_v0,
     make_verifier_registry_v0,
+    validate_proof_metadata_against_verifier_registry_v0,
 )
 from src.state.canonical import canonical_json_bytes
 
@@ -62,6 +65,10 @@ _HEIGHT = 7
 _BLOCK_TIMESTAMP = 1_778_730_000
 _JOURNAL = b"strict-spot-protocol-fixture-journal-v1"
 _JOURNAL_SHA256 = hashlib.sha256(_JOURNAL).hexdigest()
+_STATE_BRIDGE_FIXTURE = (
+    Path(__file__).resolve().parents[2]
+    / "tests/fixtures/zrpf_spot_state_root_v5_bridge_v1.json"
+)
 _FALSE_FACT_FIELDS = (
     "block_timestamp_directly_committed_in_spot_journal",
     "chain_and_height_directly_committed_in_spot_journal",
@@ -79,7 +86,12 @@ def _root(label: str) -> str:
     return hash_v0("strict_spot_authority_protocol_test_v1", {"label": label})
 
 
-def _fake_response(request: Mapping[str, Any], *, mutation: str = "") -> bytes:
+def _fake_response(
+    request: Mapping[str, Any],
+    *,
+    mutation: str = "",
+    spot_state_roots: Mapping[str, str] | None = None,
+) -> bytes:
     expectations = request["authority_expectations"]
     header = request["ledger_header"]
     transactions = request["block"]["transactions"]
@@ -107,10 +119,26 @@ def _fake_response(request: Mapping[str, Any], *, mutation: str = "") -> bytes:
         "canonical_journal_sha256": _JOURNAL_SHA256,
         "canonical_journal_base64": base64.b64encode(_JOURNAL).decode("ascii"),
         "state_hash": request["state_hash"],
-        "spot_pre_app_hash": spot_root,
-        "spot_post_app_hash": spot_root,
-        "spot_pre_nonce_root": spot_root,
-        "spot_post_nonce_root": spot_root,
+        "spot_pre_app_hash": (
+            spot_root
+            if spot_state_roots is None
+            else spot_state_roots["source_pre_app_hash"]
+        ),
+        "spot_post_app_hash": (
+            spot_root
+            if spot_state_roots is None
+            else spot_state_roots["source_post_app_hash"]
+        ),
+        "spot_pre_nonce_root": (
+            spot_root
+            if spot_state_roots is None
+            else spot_state_roots["source_pre_nonce_root"]
+        ),
+        "spot_post_nonce_root": (
+            spot_root
+            if spot_state_roots is None
+            else spot_state_roots["source_post_nonce_root"]
+        ),
         "spot_ingress_commitment": spot_root,
         "spot_accepted_receipts_root": spot_root,
         "spot_tx_execution_order_commitment": spot_root,
@@ -283,6 +311,8 @@ class _Case:
     replay_config: dict[str, Any]
     profile: dict[str, Any]
     registry: dict[str, Any]
+    pre_state: DexState | None = None
+    post_state: DexState | None = None
 
     def prepare(self) -> _PreparedRequestV1:
         return _prepare_request(
@@ -306,6 +336,8 @@ class _Case:
             replay_config=self.replay_config,
             profile=self.profile,
             verifier_registry=self.registry,
+            pre_state=self.pre_state,
+            post_state=self.post_state,
         )
 
 
@@ -314,6 +346,7 @@ def _make_case(
     *,
     executable_format: VerifierExecutableFormatV1,
     response_mutation: str = "",
+    bridge_vector: bool = False,
 ) -> _Case:
     program_id = "risc0:spot:" + _root("program")[2:]
     verifier_id = "risc0:receipt-verifier:v1:spot"
@@ -359,18 +392,87 @@ def _make_case(
         proof_authority_policy=policy,
     )
     config_digest = replay_engine_config_digest_v1(replay_config)
+    pre_state = None
+    post_state = None
     transactions: list[object] = []
+    if bridge_vector:
+        vector = json.loads(_STATE_BRIDGE_FIXTURE.read_text(encoding="utf-8"))
+        sender = vector["sender_pubkey"]
+        ingress_nonce = vector["ingress_nonce"]
+        transactions = [
+            {
+                "tx_sender_pubkey": sender,
+                "nonce": ingress_nonce,
+                "operations": {},
+            }
+        ]
+        pre_state = state_from_snapshot(vector["pre_state"])
+        post_state = state_from_snapshot(vector["post_state"])
+        pre_state.nonces.set_last(sender, ingress_nonce - 1)
+        post_state.nonces.set_last(sender, ingress_nonce)
+    source_pre_app_hash = (
+        _root("spot-pre-app")
+        if not bridge_vector
+        else vector["expected"]["source_pre_app_hash"]
+    )
+    source_post_app_hash = (
+        _root("spot-post-app")
+        if not bridge_vector
+        else vector["expected"]["source_post_app_hash"]
+    )
+    source_pre_nonce_root = (
+        _root("spot-pre-nonce")
+        if not bridge_vector
+        else vector["expected"]["source_pre_nonce_root"]
+    )
+    source_post_nonce_root = (
+        _root("spot-post-nonce")
+        if not bridge_vector
+        else vector["expected"]["source_post_nonce_root"]
+    )
     proof = {
         "schema": "tau_state_proof",
         "schema_version": 1,
         "state_hash": _root("state-hash"),
         "proof_type": "risc0.zenodex_spot_transition.v1",
         "proof": base64.b64encode(b"protocol-only-retained-receipt").decode("ascii"),
-        "meta": {"fixture_scope": "protocol_only_no_real_receipt_evidence"},
+        "meta": {
+            "risc0_image_id": _root("expected-image"),
+            "txs_commitment": _root("spot-txs"),
+            "tx_execution_order_commitment": _root("spot-order"),
+            "ingress_commitment": _root("spot-ingress"),
+            "pre_nonce_root": source_pre_nonce_root,
+            "post_nonce_root": source_post_nonce_root,
+            "accepted_receipts_root": _root("spot-receipts"),
+            "pre_app_hash": source_pre_app_hash,
+            "post_app_hash": source_post_app_hash,
+            "protocol_fee_share_bps": 0,
+            "protocol_fee_recipient_pubkey": None,
+            "route_price_interval_count": 0,
+            "route_price_intervals_root": _root("spot-route-intervals"),
+            "route_price_interval_authority_root": _root("spot-route-authority"),
+            "route_price_interval_authority_policy_root": _root("public-policy"),
+            "route_price_interval_max_width_bps": 0,
+            "shared_pool_frontier_signature_certificate_count": 0,
+            "shared_pool_frontier_signature_certificates_root": _root("spot-frontier"),
+            "receipt_codec": "risc0_receipt_canonical_serde_json_depth128_v1",
+            "receipt_kind": "succinct",
+            "receipt_verifier_parameters": "risc0-3.0.5-poseidon2-v1",
+            "receipt_hashfn": "poseidon2",
+            "receipt_control_id": "resolve-zkr-control-v1",
+        },
     }
     shared_roots = {
-        "pre_state_root": _root("ledger-pre-state"),
-        "post_state_root": _root("ledger-post-state"),
+        "pre_state_root": (
+            _root("ledger-pre-state")
+            if not bridge_vector
+            else vector["expected"]["pre_state_root_v5"]
+        ),
+        "post_state_root": (
+            _root("ledger-post-state")
+            if not bridge_vector
+            else vector["expected"]["post_state_root_v5"]
+        ),
         "tx_root": compute_tx_root_v0(transactions),
         "evidence_root": _root("ledger-evidence"),
         "body_root": _root("ledger-body"),
@@ -420,8 +522,20 @@ def _make_case(
             "header": {"timestamp": _BLOCK_TIMESTAMP},
             "transactions": transactions,
         },
-        "tau_state": {"app_hash": _root("spot-post-app")},
-        "context": {"block_timestamp": _BLOCK_TIMESTAMP},
+        "tau_state": {"app_hash": source_post_app_hash},
+        "context": {
+            "app_hash_pre": source_pre_app_hash,
+            "block_timestamp": _BLOCK_TIMESTAMP,
+            "pre_nonces": [],
+            "protocol_fee_share_bps": 0,
+            "protocol_fee_recipient_pubkey": None,
+            "tx_execution_order": [],
+            "route_price_intervals": [],
+            "route_price_interval_authority": None,
+            "route_price_interval_authority_policy": None,
+            "route_price_interval_max_width_bps": 0,
+            "shared_pool_frontier_signature_certificates": [],
+        },
         "trusted_route_price_interval_authority_policy_root": _root("public-policy"),
     }
     verifier = PinnedStrictSpotAuthorityVerifierV1(
@@ -442,6 +556,8 @@ def _make_case(
         replay_config=replay_config,
         profile=profile,
         registry=registry,
+        pre_state=pre_state,
+        post_state=post_state,
     )
 
 
@@ -517,6 +633,245 @@ def test_static_orchestration_calls_verifier_once_but_state_bridge_stays_pending
     assert pending["missing_bindings"] == [
         "authenticated_spot_to_ledger_state_domain_bridge",
     ]
+
+
+def test_exact_replayed_state_bridge_satisfies_proof_authority_after_one_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The private bridge closes proof authority without promoting settlement."""
+
+    case = _make_case(
+        tmp_path,
+        executable_format=VerifierExecutableFormatV1.STATIC_ELF_X86_64,
+        bridge_vector=True,
+    )
+    vector = json.loads(_STATE_BRIDGE_FIXTURE.read_text(encoding="utf-8"))
+    expected = vector["expected"]
+    spot_state_roots = {
+        "source_pre_app_hash": expected["source_pre_app_hash"],
+        "source_post_app_hash": expected["source_post_app_hash"],
+        "source_pre_nonce_root": expected["source_pre_nonce_root"],
+        "source_post_nonce_root": expected["source_post_nonce_root"],
+    }
+    call_count = 0
+
+    def fake_execute(**kwargs: Any) -> bytes:
+        nonlocal call_count
+        call_count += 1
+        request = json.loads(kwargs["request_bytes"])
+        response = _fake_response(request, spot_state_roots=spot_state_roots)
+        facts = json.loads(response)["authenticated_spot_proof_facts"]
+        assert facts["settlement_authority"] is False
+        assert facts["production_authority"] is False
+        return response
+
+    monkeypatch.setattr(
+        "src.integration.zeno_ledger_strict_spot_authority_v1.execute_pinned_verifier_once",
+        fake_execute,
+    )
+
+    decision = case.verify_authority()
+
+    assert call_count == 1
+    assert decision.status is ProofAuthorityDecisionStatusV1.SATISFIED
+    assert decision.required is True
+    assert decision.satisfied is True
+    assert decision.pending_report() is None
+
+
+def test_state_bridge_uses_pre_execution_state_capture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verifier-side effects cannot change the replay state being joined."""
+
+    case = _make_case(
+        tmp_path,
+        executable_format=VerifierExecutableFormatV1.STATIC_ELF_X86_64,
+        bridge_vector=True,
+    )
+    assert case.pre_state is not None
+    assert case.post_state is not None
+    pre_state = case.pre_state
+    post_state = case.post_state
+    vector = json.loads(_STATE_BRIDGE_FIXTURE.read_text(encoding="utf-8"))
+    expected = vector["expected"]
+    sender = vector["sender_pubkey"]
+    ingress_nonce = vector["ingress_nonce"]
+    spot_state_roots = {
+        "source_pre_app_hash": expected["source_pre_app_hash"],
+        "source_post_app_hash": expected["source_post_app_hash"],
+        "source_pre_nonce_root": expected["source_pre_nonce_root"],
+        "source_post_nonce_root": expected["source_post_nonce_root"],
+    }
+    call_count = 0
+
+    def fake_execute(**kwargs: Any) -> bytes:
+        nonlocal call_count
+        call_count += 1
+        pre_state.nonces.set_last(sender, ingress_nonce + 100)
+        post_state.nonces.set_last(sender, ingress_nonce + 101)
+        return _fake_response(
+            json.loads(kwargs["request_bytes"]),
+            spot_state_roots=spot_state_roots,
+        )
+
+    monkeypatch.setattr(
+        "src.integration.zeno_ledger_strict_spot_authority_v1.execute_pinned_verifier_once",
+        fake_execute,
+    )
+
+    decision = case.verify_authority()
+
+    assert call_count == 1
+    assert pre_state.nonces.get_last(sender) == ingress_nonce + 100
+    assert post_state.nonces.get_last(sender) == ingress_nonce + 101
+    assert decision.status is ProofAuthorityDecisionStatusV1.SATISFIED
+    assert decision.satisfied is True
+
+
+def test_state_bridge_uses_pre_execution_transaction_capture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case = _make_case(
+        tmp_path,
+        executable_format=VerifierExecutableFormatV1.STATIC_ELF_X86_64,
+        bridge_vector=True,
+    )
+    vector = json.loads(_STATE_BRIDGE_FIXTURE.read_text(encoding="utf-8"))
+    expected = vector["expected"]
+    spot_state_roots = {
+        "source_pre_app_hash": expected["source_pre_app_hash"],
+        "source_post_app_hash": expected["source_post_app_hash"],
+        "source_pre_nonce_root": expected["source_pre_nonce_root"],
+        "source_post_nonce_root": expected["source_post_nonce_root"],
+    }
+    transaction = case.payload["block"]["transactions"][0]
+    original_nonce = transaction["nonce"]
+    call_count = 0
+
+    def fake_execute(**kwargs: Any) -> bytes:
+        nonlocal call_count
+        call_count += 1
+        transaction["nonce"] = original_nonce + 100
+        return _fake_response(
+            json.loads(kwargs["request_bytes"]),
+            spot_state_roots=spot_state_roots,
+        )
+
+    monkeypatch.setattr(
+        "src.integration.zeno_ledger_strict_spot_authority_v1.execute_pinned_verifier_once",
+        fake_execute,
+    )
+
+    decision = case.verify_authority()
+
+    assert call_count == 1
+    assert transaction["nonce"] == original_nonce + 100
+    assert decision.status is ProofAuthorityDecisionStatusV1.SATISFIED
+    assert decision.satisfied is True
+
+
+def test_registry_binding_uses_one_canonical_prevalidation_capture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case = _make_case(
+        tmp_path,
+        executable_format=VerifierExecutableFormatV1.STATIC_ELF_X86_64,
+        bridge_vector=True,
+    )
+    vector = json.loads(_STATE_BRIDGE_FIXTURE.read_text(encoding="utf-8"))
+    expected = vector["expected"]
+    spot_state_roots = {
+        "source_pre_app_hash": expected["source_pre_app_hash"],
+        "source_post_app_hash": expected["source_post_app_hash"],
+        "source_pre_nonce_root": expected["source_pre_nonce_root"],
+        "source_post_nonce_root": expected["source_post_nonce_root"],
+    }
+    original_program_id = case.registry["entries"][0]["program_id"]
+    validation_count = 0
+
+    def mutate_original_then_validate(*args: Any, **kwargs: Any) -> Any:
+        nonlocal validation_count
+        validation_count += 1
+        case.registry["entries"][0]["program_id"] = "risc0:spot:mutated"
+        return validate_proof_metadata_against_verifier_registry_v0(*args, **kwargs)
+
+    def fake_execute(**kwargs: Any) -> bytes:
+        return _fake_response(
+            json.loads(kwargs["request_bytes"]),
+            spot_state_roots=spot_state_roots,
+        )
+
+    monkeypatch.setattr(
+        "src.integration.zeno_ledger_strict_spot_authority_v1."
+        "validate_proof_metadata_against_verifier_registry_v0",
+        mutate_original_then_validate,
+    )
+    monkeypatch.setattr(
+        "src.integration.zeno_ledger_strict_spot_authority_v1.execute_pinned_verifier_once",
+        fake_execute,
+    )
+
+    decision = case.verify_authority()
+
+    assert validation_count == 1
+    assert case.registry["entries"][0]["program_id"] != original_program_id
+    assert decision.status is ProofAuthorityDecisionStatusV1.SATISFIED
+    assert decision.satisfied is True
+
+
+@pytest.mark.parametrize(
+    "mutated_field",
+    [
+        "source_pre_app_hash",
+        "source_post_app_hash",
+        "source_pre_nonce_root",
+        "source_post_nonce_root",
+    ],
+)
+def test_authenticated_source_root_mismatch_rejects_after_exactly_one_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutated_field: str,
+) -> None:
+    case = _make_case(
+        tmp_path,
+        executable_format=VerifierExecutableFormatV1.STATIC_ELF_X86_64,
+        bridge_vector=True,
+    )
+    vector = json.loads(_STATE_BRIDGE_FIXTURE.read_text(encoding="utf-8"))
+    expected = vector["expected"]
+    spot_state_roots = {
+        "source_pre_app_hash": expected["source_pre_app_hash"],
+        "source_post_app_hash": expected["source_post_app_hash"],
+        "source_pre_nonce_root": expected["source_pre_nonce_root"],
+        "source_post_nonce_root": expected["source_post_nonce_root"],
+    }
+    spot_state_roots[mutated_field] = "0x" + "ff" * 32
+    call_count = 0
+
+    def fake_execute(**kwargs: Any) -> bytes:
+        nonlocal call_count
+        call_count += 1
+        return _fake_response(
+            json.loads(kwargs["request_bytes"]),
+            spot_state_roots=spot_state_roots,
+        )
+
+    monkeypatch.setattr(
+        "src.integration.zeno_ledger_strict_spot_authority_v1.execute_pinned_verifier_once",
+        fake_execute,
+    )
+
+    with pytest.raises(StrictSpotAuthorityError) as caught:
+        case.verify_authority()
+
+    assert caught.value.reason is StrictSpotAuthorityRejectReasonV1.STATE_DOMAIN_BRIDGE_MISMATCH
+    assert call_count == 1
 
 
 @pytest.mark.parametrize(

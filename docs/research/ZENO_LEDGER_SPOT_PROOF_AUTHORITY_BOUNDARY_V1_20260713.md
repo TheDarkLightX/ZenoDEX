@@ -1,7 +1,7 @@
 # ZenoLedger Spot Proof Authority Boundary V1
 
-Status: implemented as a scoped verifier result; settlement and production
-authority remain disabled.
+Status: scoped verifier result and restricted singleton ledger-authority join
+implemented; settlement and production authority remain disabled.
 
 ## Purpose
 
@@ -175,6 +175,14 @@ In particular, the authenticated Spot `pre_app_hash` and `post_app_hash` are
 returned alongside the header's ZenoLedger state roots. The implementation does
 not relabel one root domain as the other.
 
+A restricted outer bridge can now join those domain-distinct roots after exact
+ledger replay. It independently derives the legacy Spot application and nonce
+roots and the ZenoLedger state-root-v5 pair from the same pre-state/post-state
+objects. This leaves
+`spot_app_hash_equals_zeno_ledger_state_root_verified=false`, because equality
+is still false, while proving a stronger typed compatibility relation for the
+closed singleton profile.
+
 The serialized result is untrusted data after it crosses the process boundary.
 It is not the private verified-receipt value and cannot serve as an opaque
 authentication capability. A pinned consumer adapter must execute the governed
@@ -185,11 +193,26 @@ identity to its own governed state. This V1 CLI therefore reports
 
 ## Remaining promotion work
 
-Settlement promotion requires a later guest/journal version that directly
-binds the missing execution context and a typed state-transition bridge that
-proves the exact relationship between Spot application state and ZenoLedger
-state. It also requires the governed consumer, data-availability gate, finality
-gate, and atomic application-state commit.
+The governed consumer and replay-bound singleton range path are now connected.
+The range path accepts only canonical config V1, an exact governed policy,
+stable-read strict payload bytes, one exact replayed state pair, and one private
+strict-verifier observation carrying the restricted bridge capability. A
+multi-height range rejects until a typed range-level authority capability is
+defined.
 
-This V1 lane closes the receipt-to-scoped-facts boundary and makes the remaining
-semantic gap executable and explicit. It does not close the settlement gap.
+The connection is covered by deterministic protocol tests. Fresh
+final-source receipt replay through the complete range path remains a separate
+promotion requirement, so the public proof-coverage matrix is unchanged.
+
+Settlement promotion still requires an exact guest-committed settlement-effect
+plan, typed cell-transition openings, data-availability and finality gates, and
+one atomic application-state commit. The current bridge excludes vault, oracle,
+perps, LP-duration-risk, non-CPMM, and multi-transaction state. It therefore
+closes one narrow proof-authority path without closing the settlement or
+production gap.
+
+The source guest's current transaction surface can still contain multiple
+operation-2 TauSwap intents or operation-4 faucet framing. Proof authority
+authenticates that governed source statement; it does not make those operations
+settlement-eligible. A later allowed-operation profile and canonical
+per-action/nullifier proof are mandatory before economic authority is enabled.

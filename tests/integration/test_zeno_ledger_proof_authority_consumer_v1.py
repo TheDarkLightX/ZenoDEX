@@ -15,10 +15,16 @@ from src.integration.zeno_ledger_proof_authority_consumer_v1 import (
     ProofAuthorityConsumerRejectReasonV1,
     ProofAuthorityDecisionStatusV1,
     ProofAuthorityDecisionV1,
+    _AuthenticatedStrictSpotObservationV1,
     _mint_authenticated_strict_spot_observation_v1,
     make_governed_proof_authority_binding_v1,
     make_proof_authority_requirement_v1,
     resolve_proof_authority_v1,
+)
+from src.integration.zeno_ledger_spot_state_domain_bridge_v1 import (
+    RESTRICTED_SPOT_STATE_DOMAIN_COMPATIBILITY_PROFILE_ID_V1,
+    RESTRICTED_SPOT_STATE_ROOT_SCHEME_ID_V5,
+    _AuthenticatedSpotLedgerStateDomainBridgeV1,
 )
 from src.integration.zeno_ledger_v0 import hash_v0
 
@@ -175,6 +181,56 @@ def test_fabricated_result_without_governed_binding_rejects() -> None:
             requirement=requirement,
             governed_binding=None,
             authenticated_result={"accepted": True},
+        )
+
+    assert (
+        caught.value.reason
+        is ProofAuthorityConsumerRejectReasonV1.AUTHENTICATED_RESULT_TYPE_INVALID
+    )
+
+
+def test_object_new_forged_observation_and_bridge_cannot_satisfy_authority() -> None:
+    profile = _profile(proof_required=True)
+    binding = _binding(profile, valid_from_height=4, valid_until_height=4)
+    requirement = make_proof_authority_requirement_v1(
+        profile=profile,
+        replay_config_digest=_root("config"),
+        expected_policy_id=binding.policy_id,
+        from_height=4,
+        to_height=4,
+    )
+    forged_bridge = object.__new__(_AuthenticatedSpotLedgerStateDomainBridgeV1)
+    for name, value in {
+        "_compatibility_profile_id": (
+            RESTRICTED_SPOT_STATE_DOMAIN_COMPATIBILITY_PROFILE_ID_V1
+        ),
+        "_state_root_scheme_id": RESTRICTED_SPOT_STATE_ROOT_SCHEME_ID_V5,
+        "_source_and_ledger_roots_verified": True,
+        "_seal": object(),
+    }.items():
+        object.__setattr__(forged_bridge, name, value)
+    forged_observation = object.__new__(_AuthenticatedStrictSpotObservationV1)
+    for name, value in {
+        "_policy_id": binding.policy_id,
+        "_chain_id": profile["chain_id"],
+        "_from_height": 4,
+        "_to_height": 4,
+        "_replay_config_digest": _root("config"),
+        "_authority_manifest_sha256": binding.authority_manifest_sha256,
+        "_verifier_registry_id": binding.verifier_registry_id,
+        "_verifier_registry_entry_id": binding.verifier_registry_entry_id,
+        "_strict_result_schema": binding.strict_result_schema,
+        "_state_domain_bridge": forged_bridge,
+        "_spot_ledger_state_domain_bridge_verified": True,
+        "_seal": object(),
+    }.items():
+        object.__setattr__(forged_observation, name, value)
+
+    with pytest.raises(ProofAuthorityConsumerError) as caught:
+        resolve_proof_authority_v1(
+            requirement=requirement,
+            governed_binding=binding,
+            authenticated_result=forged_observation,
         )
 
     assert (

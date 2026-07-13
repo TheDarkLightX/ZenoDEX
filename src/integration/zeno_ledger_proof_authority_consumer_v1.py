@@ -11,10 +11,11 @@ The future positive path needs three independent inputs:
 * a private authenticated result minted by the exact cryptographic verifier;
 * a typed proof that the authenticated Spot state equals the ledger state domain.
 
-The current strict Spot result does not prove that its application-state hash
-equals the ZenoLedger state-root domain.  No positive mint exists until a typed
-state-domain bridge closes that relation.  Proof-required decisions therefore
-remain pending even after the scoped receipt and outer bindings verify.
+The restricted positive path joins the authenticated legacy Spot roots to
+replayed application state and derives the ZenoLedger state-root-v5 pair from
+that same state.  The two root domains remain distinct.  A decision can become
+``SATISFIED`` only when the private strict-verifier observation contains that
+exact private bridge capability.
 """
 
 from __future__ import annotations
@@ -26,6 +27,11 @@ from typing import Any, Mapping, NoReturn, final
 from src.integration.zeno_ledger_profile import (
     validate_zeno_ledger_profile_v0,
     zeno_ledger_profile_requires_proof_authority_v0,
+)
+from src.integration.zeno_ledger_spot_state_domain_bridge_v1 import (
+    RESTRICTED_SPOT_STATE_DOMAIN_COMPATIBILITY_PROFILE_ID_V1,
+    RESTRICTED_SPOT_STATE_ROOT_SCHEME_ID_V5,
+    _AuthenticatedSpotLedgerStateDomainBridgeV1,
 )
 from src.integration.zeno_ledger_v0 import hash_v0
 from src.state.canonical import canonical_hex_fixed_allow_0x
@@ -274,7 +280,7 @@ _AUTHENTICATED_STRICT_SPOT_OBSERVATION_SEAL = object()
 
 @final
 class _AuthenticatedStrictSpotObservationV1:
-    """Private receipt observation that deliberately carries no authority."""
+    """Private receipt observation with an optional exact state-domain join."""
 
     __slots__ = (
         "_authority_manifest_sha256",
@@ -284,6 +290,7 @@ class _AuthenticatedStrictSpotObservationV1:
         "_replay_config_digest",
         "_seal",
         "_spot_ledger_state_domain_bridge_verified",
+        "_state_domain_bridge",
         "_strict_result_schema",
         "_to_height",
         "_verifier_registry_entry_id",
@@ -302,6 +309,7 @@ class _AuthenticatedStrictSpotObservationV1:
         verifier_registry_id: str,
         verifier_registry_entry_id: str,
         strict_result_schema: str,
+        state_domain_bridge: _AuthenticatedSpotLedgerStateDomainBridgeV1 | None,
         seal: object,
     ) -> None:
         if seal is not _AUTHENTICATED_STRICT_SPOT_OBSERVATION_SEAL:
@@ -339,11 +347,25 @@ class _AuthenticatedStrictSpotObservationV1:
         if strict_result_schema != SPOT_AUTHORITY_RESULT_SCHEMA_V1:
             raise ValueError("authenticated strict result schema mismatch")
         object.__setattr__(self, "_strict_result_schema", strict_result_schema)
-        object.__setattr__(self, "_spot_ledger_state_domain_bridge_verified", False)
+        if state_domain_bridge is not None and type(
+            state_domain_bridge
+        ) is not _AuthenticatedSpotLedgerStateDomainBridgeV1:
+            raise TypeError("state_domain_bridge must be the exact private bridge type")
+        object.__setattr__(self, "_state_domain_bridge", state_domain_bridge)
+        object.__setattr__(
+            self,
+            "_spot_ledger_state_domain_bridge_verified",
+            state_domain_bridge is not None,
+        )
         object.__setattr__(self, "_seal", seal)
 
     def __init_subclass__(cls, **_kwargs: object) -> NoReturn:
         raise TypeError("authenticated strict Spot observation cannot be subclassed")
+
+    def _has_private_seal(self) -> bool:
+        """Reject nominal instances that did not pass the private mint site."""
+
+        return getattr(self, "_seal", None) is _AUTHENTICATED_STRICT_SPOT_OBSERVATION_SEAL
 
     def __setattr__(self, _name: str, _value: object) -> None:
         raise AttributeError("authenticated strict Spot observation is immutable")
@@ -368,8 +390,9 @@ def _mint_authenticated_strict_spot_observation_v1(
     verifier_registry_id: str,
     verifier_registry_entry_id: str,
     strict_result_schema: str,
+    state_domain_bridge: _AuthenticatedSpotLedgerStateDomainBridgeV1 | None = None,
 ) -> _AuthenticatedStrictSpotObservationV1:
-    """Mint a non-authoritative observation after exact strict verification."""
+    """Mint only after exact strict verification and optional bridge derivation."""
 
     return _AuthenticatedStrictSpotObservationV1(
         policy_id=policy_id,
@@ -381,6 +404,7 @@ def _mint_authenticated_strict_spot_observation_v1(
         verifier_registry_id=verifier_registry_id,
         verifier_registry_entry_id=verifier_registry_entry_id,
         strict_result_schema=strict_result_schema,
+        state_domain_bridge=state_domain_bridge,
         seal=_AUTHENTICATED_STRICT_SPOT_OBSERVATION_SEAL,
     )
 
@@ -429,9 +453,9 @@ def resolve_proof_authority_v1(
 ) -> ProofAuthorityDecisionV1:
     """Resolve a range decision without accepting caller-declared success.
 
-    Supplying a mapping, Boolean, or duck-typed result fails closed.  No current
-    authenticated result can satisfy the decision because the Spot-to-ledger
-    state-domain bridge remains unproved.
+    Supplying a mapping, Boolean, or duck-typed result fails closed.  The only
+    satisfied path requires the consumer-private observation and its exact
+    private restricted state-domain bridge.
     """
 
     if type(requirement) is not ProofAuthorityRequirementV1:
@@ -475,6 +499,11 @@ def resolve_proof_authority_v1(
             ProofAuthorityConsumerRejectReasonV1.AUTHENTICATED_RESULT_TYPE_INVALID,
             "caller data cannot stand in for a private strict Spot observation",
         )
+    if not authenticated_result._has_private_seal():
+        raise ProofAuthorityConsumerError(
+            ProofAuthorityConsumerRejectReasonV1.AUTHENTICATED_RESULT_TYPE_INVALID,
+            "strict Spot observation lacks the private mint seal",
+        )
     authenticated_expectations = {
         "_policy_id": governed_binding.policy_id,
         "_chain_id": requirement.chain_id,
@@ -485,7 +514,6 @@ def resolve_proof_authority_v1(
         "_verifier_registry_id": governed_binding.verifier_registry_id,
         "_verifier_registry_entry_id": governed_binding.verifier_registry_entry_id,
         "_strict_result_schema": governed_binding.strict_result_schema,
-        "_spot_ledger_state_domain_bridge_verified": False,
     }
     if any(
         object.__getattribute__(authenticated_result, field) != expected
@@ -496,7 +524,41 @@ def resolve_proof_authority_v1(
             "strict Spot observation does not bind the governed range and policy",
         )
     missing.discard("authenticated_strict_verifier_result")
-    return _pending_decision(requirement, tuple(sorted(missing)))
+    state_domain_bridge = object.__getattribute__(
+        authenticated_result,
+        "_state_domain_bridge",
+    )
+    if state_domain_bridge is None:
+        return _pending_decision(requirement, tuple(sorted(missing)))
+    if (
+        type(state_domain_bridge) is not _AuthenticatedSpotLedgerStateDomainBridgeV1
+        or not state_domain_bridge._has_private_seal()
+        or object.__getattribute__(
+            authenticated_result,
+            "_spot_ledger_state_domain_bridge_verified",
+        )
+        is not True
+        or object.__getattribute__(
+            state_domain_bridge,
+            "_source_and_ledger_roots_verified",
+        )
+        is not True
+        or object.__getattribute__(
+            state_domain_bridge,
+            "_compatibility_profile_id",
+        )
+        != RESTRICTED_SPOT_STATE_DOMAIN_COMPATIBILITY_PROFILE_ID_V1
+        or object.__getattribute__(state_domain_bridge, "_state_root_scheme_id")
+        != RESTRICTED_SPOT_STATE_ROOT_SCHEME_ID_V5
+    ):
+        raise ProofAuthorityConsumerError(
+            ProofAuthorityConsumerRejectReasonV1.AUTHENTICATED_RESULT_TYPE_INVALID,
+            "strict Spot observation does not carry the governed bridge capability",
+        )
+    missing.discard("authenticated_spot_to_ledger_state_domain_bridge")
+    if missing:
+        return _pending_decision(requirement, tuple(sorted(missing)))
+    return _decision(ProofAuthorityDecisionStatusV1.SATISFIED)
 
 
 def make_governed_proof_authority_binding_v1(
