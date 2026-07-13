@@ -181,6 +181,13 @@ def _authenticated_certificate_idempotent_match(
             certificate_journal_hash=certificate.certificate_journal_hash,
         )
         == certificate.consumed_object_ids
+        and _read_identifier_sequence(
+            connection,
+            table="zrpf_settlement_certificate_grant_spends",
+            column="authorization_grant_spend_nullifier",
+            certificate_journal_hash=certificate.certificate_journal_hash,
+        )
+        == certificate.authorization_grant_spend_nullifiers
     )
 
 
@@ -261,6 +268,12 @@ def _certificate_reject_reason_locked(
             "consumed_object_id",
             ZrpfAtomicSettlementRejectReasonV1.DUPLICATE_CONSUMED_OBJECT,
         ),
+        (
+            3,
+            "zrpf_settlement_certificate_grant_spends",
+            "authorization_grant_spend_nullifier",
+            ZrpfAtomicSettlementRejectReasonV1.DUPLICATE_AUTHORIZATION_GRANT_SPEND,
+        ),
     )
     for kind, table, column, reason in overlap_specs:
         found = connection.execute(
@@ -295,6 +308,10 @@ def _stage_incoming_certificate_ids(
         *(
             (2, _hash_bytes(value, name="consumed object ID"))
             for value in certificate.consumed_object_ids
+        ),
+        *(
+            (3, _hash_bytes(value, name="authorization grant-spend nullifier"))
+            for value in certificate.authorization_grant_spend_nullifiers
         ),
     ]
     connection.executemany(
@@ -395,6 +412,21 @@ def _persist_authenticated_certificate(
         (
             (_hash_bytes(value, name="consumed object ID"), journal, ordinal)
             for ordinal, value in enumerate(certificate.consumed_object_ids)
+        ),
+    )
+    connection.executemany(
+        "INSERT INTO zrpf_settlement_certificate_grant_spends "
+        "(authorization_grant_spend_nullifier, certificate_journal_hash, ordinal) "
+        "VALUES (?, ?, ?)",
+        (
+            (
+                _hash_bytes(value, name="authorization grant-spend nullifier"),
+                journal,
+                ordinal,
+            )
+            for ordinal, value in enumerate(
+                certificate.authorization_grant_spend_nullifiers
+            )
         ),
     )
 
@@ -531,6 +563,10 @@ def _read_identifier_sequence(
     allowed = {
         ("zrpf_settlement_action_nullifiers", "action_nullifier"),
         ("zrpf_settlement_consumed_objects", "consumed_object_id"),
+        (
+            "zrpf_settlement_certificate_grant_spends",
+            "authorization_grant_spend_nullifier",
+        ),
     }
     if (table, column) not in allowed:
         raise ValueError("unsupported certificate identifier table")

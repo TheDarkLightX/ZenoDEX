@@ -10,9 +10,16 @@ from pathlib import Path
 
 import pytest
 
+from src.core._zrpf_settlement_certificate_authority import (
+    _source_opened_spot_v6_projection_binding_v1,
+)
 from src.core.zrpf_settlement_effect_plan import (
     AuthorizationConsumptionV1,
     authorization_consumption_nullifier_v1,
+)
+from src.integration._zrpf_authenticated_certificate_store_engine import (
+    _GRANT_LIST_DOMAIN,
+    _identifier_list_digest,
 )
 from src.integration._zrpf_settlement_admission_journal_codec import (
     SETTLEMENT_ADMISSION_FIXED_BYTES_V1,
@@ -24,7 +31,14 @@ from src.integration.recursive_stark_verifier_adapter import (
 from src.integration.zrpf_atomic_settlement_store import (
     SQLiteZrpfAtomicSettlementStoreV1,
 )
-from src.integration.zrpf_atomic_settlement_store_types import ZrpfAtomicSettlementStoreErrorV1
+from src.integration.zrpf_atomic_settlement_store_types import (
+    ZrpfAtomicSettlementDispositionV1,
+    ZrpfAtomicSettlementRejectReasonV1,
+    ZrpfAtomicSettlementStoreErrorV1,
+)
+from src.integration.zrpf_settlement_verifier_adapter import (
+    PinnedSettlementCertificateVerifierV1,
+)
 from src.integration.zrpf_source_opened_spot_v6_live_ledger_gate import (
     SOURCE_OPENED_SPOT_V6_LIVE_LEDGER_AUTHORITY_BLOCKED_REASON_V1,
     SourceOpenedSpotV6LiveLedgerDispositionV1,
@@ -41,6 +55,7 @@ from src.integration.zrpf_source_opened_spot_v6_verifier_adapter import (
     source_opened_spot_v6_authority_manifest_bytes,
     source_opened_spot_v6_request_bytes,
 )
+from tests.integration import test_zrpf_atomic_settlement_store as generic_test_support
 
 _RECEIPT = b"exact-risc0-succinct-receipt"
 _CERTIFICATE = b"exact-postcard-settlement-certificate-v1"
@@ -88,7 +103,11 @@ def _guest_input() -> bytes:
     )
 
 
-def _admission_frame() -> tuple[bytes, dict[str, object]]:
+def _admission_frame(
+    *,
+    pre_state: int = 16,
+    post_state: int = 17,
+) -> tuple[bytes, dict[str, object]]:
     total = SETTLEMENT_ADMISSION_FIXED_BYTES_V1 + len(_CERTIFICATE) + len(_EFFECT_PLAN)
     frame = bytearray()
     frame.extend(b"ZRPFSAV1")
@@ -115,7 +134,7 @@ def _admission_frame() -> tuple[bytes, dict[str, object]]:
         frame.extend(_root(index))
     frame.extend((1).to_bytes(4, "big"))
     frame.extend((1).to_bytes(4, "big"))
-    for index in range(16, 26):
+    for index in (pre_state, post_state, *range(18, 26)):
         frame.extend(_root(index))
     certificate_id = derive_settlement_certificate_id_v1(_CERTIFICATE)
     frame.extend(certificate_id)
@@ -144,8 +163,8 @@ def _admission_frame() -> tuple[bytes, dict[str, object]]:
         "consumed_object_ids_root": _bare(15),
         "action_count": 1,
         "consumed_object_count": 1,
-        "pre_state_root": _bare(16),
-        "post_state_root": _bare(17),
+        "pre_state_root": _bare(pre_state),
+        "post_state_root": _bare(post_state),
         "cell_writes_root": _bare(18),
         "asset_effects_root": _bare(19),
         "messages_root": _bare(20),
@@ -160,12 +179,16 @@ def _admission_frame() -> tuple[bytes, dict[str, object]]:
     return bytes(frame), projection
 
 
-def _execution_projection() -> dict[str, object]:
+def _execution_projection(
+    *,
+    pre_state_index: int = 16,
+    post_state_index: int = 17,
+) -> dict[str, object]:
     action_id = _prefixed(30)
     subject = _prefixed(31)
     scope = _prefixed(32)
     grant = _prefixed(33)
-    pre_state = _prefixed(16)
+    pre_state = _prefixed(pre_state_index)
     nullifier = authorization_consumption_nullifier_v1(
         application_id=_prefixed(1),
         chain_or_domain_id=_prefixed(2),
@@ -191,8 +214,8 @@ def _execution_projection() -> dict[str, object]:
         "application_id": _bare(1),
         "chain_or_domain_id": _bare(2),
         "epoch_id": 9,
-        "pre_state_root": _bare(16),
-        "post_state_root": _bare(17),
+        "pre_state_root": _bare(pre_state_index),
+        "post_state_root": _bare(post_state_index),
         "action": {
             "action_id": _bare(30),
             "action_type_id": _bare(34),
@@ -206,7 +229,7 @@ def _execution_projection() -> dict[str, object]:
             ),
             "valid_from_epoch": 8,
             "valid_through_epoch": 10,
-            "pre_state_root": _bare(16),
+            "pre_state_root": _bare(pre_state_index),
             "action_semantics_hash": _bare(36),
             "effect_commitment": _bare(37),
             "consumed_object_ids": [_bare(38)],
@@ -260,8 +283,12 @@ def _policy() -> dict[str, object]:
     }
 
 
-def _response() -> dict[str, object]:
-    journal, projection = _admission_frame()
+def _response(
+    *,
+    pre_state: int = 16,
+    post_state: int = 17,
+) -> dict[str, object]:
+    journal, projection = _admission_frame(pre_state=pre_state, post_state=post_state)
     guest = _guest_input()
     values = {
         "receipt_bytes": len(_RECEIPT),
@@ -283,7 +310,10 @@ def _response() -> dict[str, object]:
         "settlement_claim_binding": _bare(52),
         "receipt_security_profile": _receipt_profile(),
         "admission_projection": projection,
-        "execution_projection": _execution_projection(),
+        "execution_projection": _execution_projection(
+            pre_state_index=pre_state,
+            post_state_index=post_state,
+        ),
     }
     return {
         "ok": True,
@@ -402,7 +432,11 @@ def test_real_cli_schema_projects_and_atomically_persists_every_exact_artifact(
         certificate = connection.execute(
             "SELECT * FROM zrpf_settlement_certificates"
         ).fetchone()
-    assert association is not None and certificate is not None
+        global_grant = connection.execute(
+            "SELECT authorization_grant_spend_nullifier "
+            "FROM zrpf_settlement_certificate_grant_spends"
+        ).fetchone()
+    assert association is not None and certificate is not None and global_grant is not None
     assert bytes(association["settlement_receipt"]) == _RECEIPT
     assert bytes(association["guest_input"]) == _guest_input()
     assert bytes(association["admission_journal"]).hex() == _response()[
@@ -417,12 +451,148 @@ def test_real_cli_schema_projects_and_atomically_persists_every_exact_artifact(
     assert bytes(association["governed_program_id"]) == _root(50)
     assert bytes(association["governed_profile_id"]) == _root(3)
     assert bytes(association["governed_manifest_root"]) == _root(51)
+    assert bytes(global_grant[0]) == bytes(association["authorization_grant_spend_nullifier"])
     assert bytes(association["normalized_plan_commitment"]) == bytes(
         certificate["plan_commitment"]
     )
     assert _store(tmp_path).read_settlement_cursor().revision == 1
     replay = _commit(adapter, _store(tmp_path))
     assert replay.idempotent_replay is True
+
+
+def _generic_adapter_with_exact_v6_grant(
+    tmp_path: Path,
+    *,
+    v6_first: bool,
+) -> tuple[str, PinnedSettlementCertificateVerifierV1]:
+    plan = generic_test_support._plan(
+        root=231 if v6_first else 230,
+        epoch=10 if v6_first else 8,
+        pre_state=17 if v6_first else 16,
+        post_state=18 if v6_first else 17,
+        ordinary_action=212 if v6_first else 210,
+        authorized_action=213 if v6_first else 211,
+        grant=33,
+        cell_base=270 if v6_first else 240,
+    )
+    grant_spend = plan.authorization_consumptions[0].authorization_grant_spend_nullifier
+    action = _execution_projection()["action"]
+    assert isinstance(action, dict)
+    exact_grant_spend = "0x" + str(action["authorization_grant_spend_nullifier"])
+    assert grant_spend == exact_grant_spend
+    response = generic_test_support._verified_certificate_response(
+        plan,
+        seed=70 if v6_first else 71,
+    )
+    adapter = generic_test_support._certificate_adapter(
+        tmp_path,
+        response,
+        name=f"cross-profile-generic-{'after' if v6_first else 'before'}-v6",
+    )
+    return grant_spend, adapter
+
+
+@pytest.mark.parametrize("v6_first", (False, True))
+def test_global_grant_spend_rejects_generic_and_exact_v6_in_both_orders(
+    tmp_path: Path,
+    v6_first: bool,
+) -> None:
+    shared_grant_spend, generic_adapter = _generic_adapter_with_exact_v6_grant(
+        tmp_path,
+        v6_first=v6_first,
+    )
+    v6_adapter = _adapter(
+        tmp_path,
+        None if v6_first else _response(pre_state=17, post_state=18),
+    )
+    store = _store(tmp_path)
+
+    if v6_first:
+        assert _commit(v6_adapter, store).committed
+        rejected = generic_test_support._verify_and_commit_certificate(
+            generic_adapter,
+            store,
+        )
+    else:
+        assert generic_test_support._verify_and_commit_certificate(
+            generic_adapter,
+            store,
+        ).committed
+        rejected = _commit(v6_adapter, store)
+
+    assert rejected.disposition is ZrpfAtomicSettlementDispositionV1.REJECTED
+    assert (
+        rejected.settlement_reject_reason
+        is ZrpfAtomicSettlementRejectReasonV1.DUPLICATE_AUTHORIZATION_GRANT_SPEND
+    )
+    restarted = _store(tmp_path)
+    assert restarted.read_settlement_cursor().revision == 1
+    with sqlite3.connect(store.path) as connection:
+        rows = connection.execute(
+            "SELECT authorization_grant_spend_nullifier "
+            "FROM zrpf_settlement_certificate_grant_spends"
+        ).fetchall()
+    assert rows == [(bytes.fromhex(shared_grant_spend[2:]),)]
+
+
+def test_concurrent_generic_and_exact_v6_grant_spend_commit_exactly_once(
+    tmp_path: Path,
+) -> None:
+    plan = generic_test_support._plan(
+        root=232,
+        epoch=9,
+        pre_state=16,
+        post_state=18,
+        ordinary_action=214,
+        authorized_action=215,
+        grant=33,
+        cell_base=300,
+    )
+    shared_grant_spend = plan.authorization_consumptions[
+        0
+    ].authorization_grant_spend_nullifier
+    generic_adapter = generic_test_support._certificate_adapter(
+        tmp_path,
+        generic_test_support._verified_certificate_response(plan, seed=72),
+        name="concurrent-generic-exact-v6",
+    )
+    v6_adapter = _adapter(tmp_path)
+    stores = (_store(tmp_path), _store(tmp_path))
+    admission = stores[0].read_admission_cursor()
+    settlement = stores[0].read_settlement_cursor()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = (
+            pool.submit(
+                generic_test_support._verify_and_commit_certificate,
+                generic_adapter,
+                stores[0],
+                admission_cursor=admission,
+                settlement_cursor=settlement,
+            ),
+            pool.submit(
+                _commit,
+                v6_adapter,
+                stores[1],
+                admission_cursor=admission,
+                settlement_cursor=settlement,
+            ),
+        )
+    results = tuple(future.result() for future in futures)
+
+    assert sum(result.committed for result in results) == 1
+    assert sum(
+        result.disposition is ZrpfAtomicSettlementDispositionV1.REJECTED
+        for result in results
+    ) == 1
+    restarted = _store(tmp_path)
+    assert restarted.read_settlement_cursor().revision == 1
+    with sqlite3.connect(restarted.path) as connection:
+        rows = connection.execute(
+            "SELECT authorization_grant_spend_nullifier "
+            "FROM zrpf_settlement_certificate_grant_spends"
+        ).fetchall()
+    assert rows == [(bytes.fromhex(shared_grant_spend[2:]),)]
 
 
 def test_two_v6_writers_have_one_commit_and_one_idempotent_replay(tmp_path: Path) -> None:
@@ -616,15 +786,16 @@ def test_restart_rejects_v4_association_row_downgrade(tmp_path: Path) -> None:
         _store(tmp_path)
 
 
-def test_v3_to_v4_migration_is_empty_certificate_history_only(tmp_path: Path) -> None:
+def test_v3_to_v5_migration_is_empty_certificate_history_only(tmp_path: Path) -> None:
     empty = _store(tmp_path)
     with sqlite3.connect(empty.path) as connection:
         connection.execute("DROP TABLE zrpf_source_opened_spot_v6_associations")
         connection.execute("DROP TABLE zrpf_source_opened_spot_v6_association_meta")
+        connection.execute("DROP TABLE zrpf_settlement_certificate_grant_spends")
         connection.execute("PRAGMA user_version = 3")
     reopened = _store(tmp_path)
     with sqlite3.connect(reopened.path) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 5
         assert connection.execute(
             "SELECT count(*) FROM zrpf_source_opened_spot_v6_associations"
         ).fetchone()[0] == 0
@@ -640,6 +811,7 @@ def test_v3_to_v4_migration_is_empty_certificate_history_only(tmp_path: Path) ->
     with sqlite3.connect(nonempty.path) as connection:
         connection.execute("DROP TABLE zrpf_source_opened_spot_v6_associations")
         connection.execute("DROP TABLE zrpf_source_opened_spot_v6_association_meta")
+        connection.execute("DROP TABLE zrpf_settlement_certificate_grant_spends")
         connection.execute("PRAGMA user_version = 3")
     with pytest.raises(
         ZrpfAtomicSettlementStoreErrorV1,
@@ -651,6 +823,145 @@ def test_v3_to_v4_migration_is_empty_certificate_history_only(tmp_path: Path) ->
         )
     with sqlite3.connect(second_path) as connection:
         assert connection.execute("PRAGMA user_version").fetchone()[0] == 3
+
+
+def test_v4_to_v5_migration_backfills_exact_v6_association_grant(
+    tmp_path: Path,
+) -> None:
+    adapter = _adapter(tmp_path)
+    store = _store(tmp_path)
+    assert _commit(adapter, store).committed
+    with sqlite3.connect(store.path) as connection:
+        expected = connection.execute(
+            "SELECT authorization_grant_spend_nullifier "
+            "FROM zrpf_source_opened_spot_v6_associations"
+        ).fetchone()
+        assert expected is not None
+        connection.execute("DROP TABLE zrpf_settlement_certificate_grant_spends")
+        connection.execute("PRAGMA user_version = 4")
+
+    reopened = _store(tmp_path)
+
+    assert reopened.read_settlement_cursor().revision == 1
+    with sqlite3.connect(store.path) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 5
+        observed = connection.execute(
+            "SELECT authorization_grant_spend_nullifier "
+            "FROM zrpf_settlement_certificate_grant_spends"
+        ).fetchone()
+    assert observed == expected
+
+
+def _projection_binding_with_grant(row: sqlite3.Row, grant_spend: str) -> bytes:
+    prefixed_columns = (
+        "settlement_certificate_id",
+        "certificate_commitment",
+        "governed_program_id",
+        "governed_profile_id",
+        "governed_manifest_root",
+        "normalized_plan_commitment",
+    )
+    prefixed = {
+        column: "0x" + bytes(row[column]).hex()
+        for column in prefixed_columns
+    }
+    return bytes.fromhex(
+        _source_opened_spot_v6_projection_binding_v1(
+            admission_journal_sha256=bytes(row["admission_journal_sha256"]).hex(),
+            settlement_receipt_sha256=bytes(row["settlement_receipt_sha256"]).hex(),
+            guest_input_sha256=bytes(row["guest_input_sha256"]).hex(),
+            source_opened_replay_sha256=bytes(row["source_opened_replay_sha256"]).hex(),
+            settlement_certificate_id=prefixed["settlement_certificate_id"],
+            certificate_commitment=prefixed["certificate_commitment"],
+            governed_program_id=prefixed["governed_program_id"],
+            governed_profile_id=prefixed["governed_profile_id"],
+            governed_manifest_root=prefixed["governed_manifest_root"],
+            authorization_grant_spend_nullifier=grant_spend,
+            canonical_projection_sha256=bytes(row["canonical_projection_sha256"]).hex(),
+            normalized_plan_commitment=prefixed["normalized_plan_commitment"],
+        )
+    )
+
+
+def test_v4_cross_profile_grant_collision_rolls_back_v5_migration(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    generic_plan = generic_test_support._plan(
+        root=233,
+        epoch=8,
+        pre_state=16,
+        post_state=17,
+        ordinary_action=216,
+        authorized_action=217,
+        grant=34,
+        cell_base=330,
+    )
+    generic_adapter = generic_test_support._certificate_adapter(
+        tmp_path,
+        generic_test_support._verified_certificate_response(generic_plan, seed=73),
+        name="migration-valid-generic",
+    )
+    assert generic_test_support._verify_and_commit_certificate(
+        generic_adapter,
+        store,
+    ).committed
+    assert _commit(
+        _adapter(tmp_path, _response(pre_state=17, post_state=18)),
+        store,
+    ).committed
+    assert _store(tmp_path).read_settlement_cursor().revision == 2
+    shared_grant = generic_plan.authorization_consumptions[
+        0
+    ].authorization_grant_spend_nullifier
+
+    with sqlite3.connect(store.path) as connection:
+        connection.row_factory = sqlite3.Row
+        association = connection.execute(
+            "SELECT * FROM zrpf_source_opened_spot_v6_associations"
+        ).fetchone()
+        assert association is not None
+        replacement_binding = _projection_binding_with_grant(
+            association,
+            shared_grant,
+        )
+        connection.execute(
+            "UPDATE zrpf_source_opened_spot_v6_associations "
+            "SET authorization_grant_spend_nullifier = ?, "
+            "canonical_projection_binding_sha256 = ?",
+            (bytes.fromhex(shared_grant[2:]), replacement_binding),
+        )
+        connection.execute(
+            "UPDATE zrpf_settlement_certificates "
+            "SET authorization_grant_spend_list_sha256 = ? "
+            "WHERE certificate_journal_hash = ?",
+            (
+                _identifier_list_digest(_GRANT_LIST_DOMAIN, (shared_grant,)),
+                bytes(association["certificate_journal_hash"]),
+            ),
+        )
+        connection.execute("DROP TABLE zrpf_settlement_certificate_grant_spends")
+        connection.execute("PRAGMA user_version = 4")
+
+    with pytest.raises(
+        ZrpfAtomicSettlementStoreErrorV1,
+        match=(
+            "UNIQUE constraint failed: "
+            "zrpf_settlement_certificate_grant_spends"
+            r"\.authorization_grant_spend_nullifier"
+        ),
+    ):
+        _store(tmp_path)
+
+    with sqlite3.connect(store.path) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 4
+        names = {
+            str(row[0])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+    assert "zrpf_settlement_certificate_grant_spends" not in names
 
 
 def test_legacy_fake_adapter_requires_explicit_test_only_opt_in(tmp_path: Path) -> None:

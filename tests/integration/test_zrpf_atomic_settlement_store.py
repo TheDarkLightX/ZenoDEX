@@ -988,6 +988,7 @@ def _verified_certificate_response(
     seed: int,
     action_nullifiers: tuple[str, ...] | None = None,
     consumed_object_ids: tuple[str, ...] | None = None,
+    authorization_grant_spend_nullifiers: tuple[str, ...] | None = None,
     proof_profile: str = "settlement_epoch_certificate_v1",
     settlement_profile_id: str = "zrpf_state_bound_settlement_v2",
 ) -> dict[str, object]:
@@ -1054,10 +1055,14 @@ def _verified_certificate_response(
         ).hexdigest(),
         "action_nullifiers": list(action_ids),
         "consumed_object_ids": list(consumed_ids),
-        "authorization_grant_spend_nullifiers": [
-            row.authorization_grant_spend_nullifier
-            for row in plan.authorization_consumptions
-        ],
+        "authorization_grant_spend_nullifiers": list(
+            authorization_grant_spend_nullifiers
+            if authorization_grant_spend_nullifiers is not None
+            else tuple(
+                row.authorization_grant_spend_nullifier
+                for row in plan.authorization_consumptions
+            )
+        ),
         "normalized_effect_plan": plan.to_commitment_obj(),
     }
     return {"ok": True, "verified_settlement_certificate": values}
@@ -1186,6 +1191,7 @@ def test_pinned_settlement_verifier_atomically_commits_state_bound_certificate(
                 "zrpf_settlement_plans",
                 "zrpf_settlement_certificates",
                 "zrpf_settlement_action_nullifiers",
+                "zrpf_settlement_certificate_grant_spends",
                 "zrpf_settlement_consumed_objects",
             )
         }
@@ -1202,6 +1208,7 @@ def test_pinned_settlement_verifier_atomically_commits_state_bound_certificate(
         "zrpf_settlement_plans": 1,
         "zrpf_settlement_certificates": 1,
         "zrpf_settlement_action_nullifiers": 3,
+        "zrpf_settlement_certificate_grant_spends": 2,
         "zrpf_settlement_consumed_objects": 2,
     }
     restarted = _store(tmp_path)
@@ -1212,6 +1219,10 @@ def test_pinned_settlement_verifier_atomically_commits_state_bound_certificate(
     replay = _verify_and_commit_certificate(adapter, restarted)
     assert replay.idempotent_replay is True
     assert replay.certificate_receipt == receipt
+    with sqlite3.connect(store.path) as connection:
+        assert connection.execute(
+            "SELECT count(*) FROM zrpf_settlement_certificate_grant_spends"
+        ).fetchone()[0] == 2
 
 
 def test_source_opened_v6_binds_one_nullifier_to_one_consumed_object(tmp_path: Path) -> None:
@@ -1585,6 +1596,7 @@ def test_failure_after_certificate_stage_rolls_back_every_row(
             "zrpf_settlement_plans",
             "zrpf_settlement_certificates",
             "zrpf_settlement_action_nullifiers",
+            "zrpf_settlement_certificate_grant_spends",
             "zrpf_settlement_consumed_objects",
         ):
             assert connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0] == 0
@@ -1622,6 +1634,12 @@ def test_failure_after_certificate_stage_rolls_back_every_row(
             f"SET action_nullifier = x'{999999:064x}' WHERE ordinal = 0",
             "stored action nullifier list digest mismatch",
         ),
+        (
+            f"UPDATE zrpf_settlement_certificate_grant_spends "
+            f"SET authorization_grant_spend_nullifier = x'{999998:064x}' "
+            "WHERE ordinal = 0",
+            "stored authorization grant spend list digest mismatch",
+        ),
     ),
 )
 def test_restart_rejects_authenticated_certificate_tampering(
@@ -1654,6 +1672,7 @@ def test_restart_rejects_certificate_sidecar_downgrade(tmp_path: Path) -> None:
     assert _verify_and_commit_certificate(adapter, store).committed
     with sqlite3.connect(store.path) as connection:
         connection.execute("DELETE FROM zrpf_settlement_action_nullifiers")
+        connection.execute("DELETE FROM zrpf_settlement_certificate_grant_spends")
         connection.execute("DELETE FROM zrpf_settlement_consumed_objects")
         connection.execute("DELETE FROM zrpf_settlement_certificates")
 
@@ -1672,6 +1691,7 @@ def test_legacy_atomic_schema_migrates_only_certificate_side_tables(tmp_path: Pa
         connection.execute("DROP TABLE zrpf_source_opened_spot_v6_associations")
         connection.execute("DROP TABLE zrpf_source_opened_spot_v6_association_meta")
         connection.execute("DROP TABLE zrpf_settlement_action_nullifiers")
+        connection.execute("DROP TABLE zrpf_settlement_certificate_grant_spends")
         connection.execute("DROP TABLE zrpf_settlement_consumed_objects")
         connection.execute("DROP TABLE zrpf_settlement_certificates")
         connection.execute("DROP TABLE zrpf_settlement_certificate_meta")
@@ -1694,8 +1714,45 @@ def test_legacy_atomic_schema_migrates_only_certificate_side_tables(tmp_path: Pa
         "zrpf_settlement_certificates",
         "zrpf_settlement_certificate_meta",
         "zrpf_settlement_action_nullifiers",
+        "zrpf_settlement_certificate_grant_spends",
         "zrpf_settlement_consumed_objects",
     } <= names
+
+
+def test_v4_history_migrates_certificate_grant_spends_without_reinterpretation(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    plan = _plan_with_every_row_family()
+    expected = tuple(
+        row.authorization_grant_spend_nullifier
+        for row in plan.authorization_consumptions
+    )
+    adapter = _certificate_adapter(
+        tmp_path,
+        _verified_certificate_response(plan, seed=60),
+        name="v4-migration-verifier",
+    )
+    assert _verify_and_commit_certificate(adapter, store).committed
+    with sqlite3.connect(store.path) as connection:
+        connection.execute("DROP TABLE zrpf_settlement_certificate_grant_spends")
+        connection.execute("PRAGMA user_version = 4")
+
+    restarted = _store(tmp_path)
+
+    assert restarted.read_settlement_cursor().revision == 1
+    with sqlite3.connect(store.path) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == (
+            ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V1
+        )
+        rows = connection.execute(
+            "SELECT ordinal, authorization_grant_spend_nullifier "
+            "FROM zrpf_settlement_certificate_grant_spends"
+        ).fetchall()
+    assert rows == [
+        (ordinal, bytes.fromhex(grant_spend[2:]))
+        for ordinal, grant_spend in enumerate(expected)
+    ]
 
 
 def _replace_empty_certificate_tables_with_v2(path: Path) -> None:
@@ -1707,7 +1764,7 @@ def _replace_empty_certificate_tables_with_v2(path: Path) -> None:
         connection.execute("PRAGMA user_version = 2")
 
 
-def test_empty_v2_certificate_schema_migrates_to_durable_v3(tmp_path: Path) -> None:
+def test_empty_v2_certificate_schema_migrates_to_current_v5(tmp_path: Path) -> None:
     store = _store(tmp_path)
     _replace_empty_certificate_tables_with_v2(store.path)
 
@@ -1768,7 +1825,7 @@ def test_v2_history_without_durable_bytes_rejects_and_rolls_back_migration(
     assert meta == (1, 0)
 
 
-def test_v2_to_v3_ddl_failure_rolls_back_migration(
+def test_v2_to_v5_ddl_failure_rolls_back_migration(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -437,6 +437,12 @@ def _validate_certificate_identifier_lists(
         column="consumed_object_id",
         certificate_journal_hash=certificate_journal_hash,
     )
+    stored_grant_spends = _read_identifier_sequence(
+        connection,
+        table="zrpf_settlement_certificate_grant_spends",
+        column="authorization_grant_spend_nullifier",
+        certificate_journal_hash=certificate_journal_hash,
+    )
     if _identifier_list_digest(_ACTION_LIST_DOMAIN, action_nullifiers) != bytes(
         row["action_nullifier_list_sha256"]
     ):
@@ -445,6 +451,10 @@ def _validate_certificate_identifier_lists(
         row["consumed_object_id_list_sha256"]
     ):
         raise ValueError("stored consumed object list digest mismatch")
+    if _identifier_list_digest(_GRANT_LIST_DOMAIN, stored_grant_spends) != bytes(
+        row["authorization_grant_spend_list_sha256"]
+    ):
+        raise ValueError("stored authorization grant spend list digest mismatch")
     if str(row["settlement_profile_id"]) == SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6:
         if len(action_nullifiers) != 1 or action_nullifiers != consumed_objects:
             raise ValueError(
@@ -458,17 +468,15 @@ def _validate_certificate_identifier_lists(
             "WHERE certificate_journal_hash = ?",
             (bytes(row["certificate_journal_hash"]),),
         ).fetchone()
-        grant_spends = (
+        expected_grant_spends = (
             _legacy_plan_grant_spends(connection, row)
             if association is None
             else (_hex_hash(bytes(association["authorization_grant_spend_nullifier"])),)
         )
     else:
-        grant_spends = _legacy_plan_grant_spends(connection, row)
-    if _identifier_list_digest(_GRANT_LIST_DOMAIN, grant_spends) != bytes(
-        row["authorization_grant_spend_list_sha256"]
-    ):
-        raise ValueError("stored authorization grant spend list digest mismatch")
+        expected_grant_spends = _legacy_plan_grant_spends(connection, row)
+    if stored_grant_spends != expected_grant_spends:
+        raise ValueError("certificate grant spend source linkage mismatch")
 
 
 def _legacy_plan_grant_spends(

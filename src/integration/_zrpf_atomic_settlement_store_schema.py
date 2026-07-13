@@ -6,6 +6,7 @@ import sqlite3
 
 from src.core._zrpf_settlement_certificate_authority import (
     SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1,
+    SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6,
 )
 from src.core._zrpf_settlement_commit_authority import (
     SETTLEMENT_AUTHORITY_BLOCKED_REASON_V1,
@@ -25,9 +26,10 @@ ATOMIC_SETTLEMENT_STORE_LEGACY_SCHEMA_VERSION_V1 = 1
 ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V2 = 2
 ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V3 = 3
 ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V4 = 4
+ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V5 = 5
 # Compatibility export: the V1 store class now opens the minimally extended
 # physical schema so its existing atomic engine can host certificate rows.
-ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V1 = ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V4
+ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V1 = ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V5
 
 _BLOCKED_REASON_SQL = SETTLEMENT_AUTHORITY_BLOCKED_REASON_V1
 _CERTIFICATE_BLOCKED_REASON_SQL = SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1
@@ -363,6 +365,17 @@ _CERTIFICATE_SCHEMA_STATEMENTS = (
     _CERTIFICATE_SCHEMA_STATEMENTS_V2[3],
 )
 
+_CERTIFICATE_GRANT_SPEND_SCHEMA_STATEMENT = """
+    CREATE TABLE zrpf_settlement_certificate_grant_spends (
+        authorization_grant_spend_nullifier BLOB NOT NULL PRIMARY KEY
+            CHECK (length(authorization_grant_spend_nullifier) = 32),
+        certificate_journal_hash BLOB NOT NULL
+            REFERENCES zrpf_settlement_certificates(certificate_journal_hash) ON DELETE RESTRICT,
+        ordinal INTEGER NOT NULL CHECK (ordinal BETWEEN 0 AND 8191),
+        UNIQUE (certificate_journal_hash, ordinal)
+    ) STRICT, WITHOUT ROWID
+"""
+
 _SOURCE_OPENED_SPOT_V6_ASSOCIATION_META_SCHEMA_STATEMENT = """
     CREATE TABLE zrpf_source_opened_spot_v6_association_meta (
         singleton INTEGER NOT NULL PRIMARY KEY CHECK (singleton = 1),
@@ -417,9 +430,12 @@ _SOURCE_OPENED_SPOT_V6_ASSOCIATION_SCHEMA_STATEMENT = """
 _LEGACY_SCHEMA_STATEMENTS = _ADMISSION_SCHEMA_STATEMENTS + _SETTLEMENT_SCHEMA_STATEMENTS
 _V2_ALL_SCHEMA_STATEMENTS = _LEGACY_SCHEMA_STATEMENTS + _CERTIFICATE_SCHEMA_STATEMENTS_V2
 _V3_ALL_SCHEMA_STATEMENTS = _LEGACY_SCHEMA_STATEMENTS + _CERTIFICATE_SCHEMA_STATEMENTS
-_ALL_SCHEMA_STATEMENTS = _V3_ALL_SCHEMA_STATEMENTS + (
+_V4_ALL_SCHEMA_STATEMENTS = _V3_ALL_SCHEMA_STATEMENTS + (
     _SOURCE_OPENED_SPOT_V6_ASSOCIATION_META_SCHEMA_STATEMENT,
     _SOURCE_OPENED_SPOT_V6_ASSOCIATION_SCHEMA_STATEMENT,
+)
+_ALL_SCHEMA_STATEMENTS = _V4_ALL_SCHEMA_STATEMENTS + (
+    _CERTIFICATE_GRANT_SPEND_SCHEMA_STATEMENT,
 )
 _ADMISSION_TABLE_NAMES = (
     "zrpf_store_meta",
@@ -445,9 +461,12 @@ _CERTIFICATE_TABLE_NAMES_V3 = (
     "zrpf_settlement_action_nullifiers",
     "zrpf_settlement_consumed_objects",
 )
-_CERTIFICATE_TABLE_NAMES = _CERTIFICATE_TABLE_NAMES_V3 + (
+_CERTIFICATE_TABLE_NAMES_V4 = _CERTIFICATE_TABLE_NAMES_V3 + (
     "zrpf_source_opened_spot_v6_association_meta",
     "zrpf_source_opened_spot_v6_associations",
+)
+_CERTIFICATE_TABLE_NAMES = _CERTIFICATE_TABLE_NAMES_V4 + (
+    "zrpf_settlement_certificate_grant_spends",
 )
 _LEGACY_EXPECTED_SCHEMA_SQL = dict(
     zip(
@@ -467,6 +486,13 @@ _V3_EXPECTED_SCHEMA_SQL = dict(
     zip(
         _ADMISSION_TABLE_NAMES + _SETTLEMENT_TABLE_NAMES + _CERTIFICATE_TABLE_NAMES_V3,
         _V3_ALL_SCHEMA_STATEMENTS,
+        strict=True,
+    )
+)
+_V4_EXPECTED_SCHEMA_SQL = dict(
+    zip(
+        _ADMISSION_TABLE_NAMES + _SETTLEMENT_TABLE_NAMES + _CERTIFICATE_TABLE_NAMES_V4,
+        _V4_ALL_SCHEMA_STATEMENTS,
         strict=True,
     )
 )
@@ -495,7 +521,7 @@ def _initialize_or_validate_atomic_settlement_store(
         if connection.execute("PRAGMA user_version").fetchone()[0] != 0:
             raise ValueError("empty atomic settlement database has a user_version")
         connection.execute(f"PRAGMA application_id = {ATOMIC_SETTLEMENT_STORE_APPLICATION_ID_V1}")
-        connection.execute(f"PRAGMA user_version = {ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V4}")
+        connection.execute(f"PRAGMA user_version = {ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V5}")
         for statement in _ALL_SCHEMA_STATEMENTS:
             connection.execute(statement)
         connection.execute(
@@ -547,6 +573,7 @@ def _initialize_or_validate_atomic_settlement_store(
             *_CERTIFICATE_SCHEMA_STATEMENTS,
             _SOURCE_OPENED_SPOT_V6_ASSOCIATION_META_SCHEMA_STATEMENT,
             _SOURCE_OPENED_SPOT_V6_ASSOCIATION_SCHEMA_STATEMENT,
+            _CERTIFICATE_GRANT_SPEND_SCHEMA_STATEMENT,
         ):
             connection.execute(statement)
         connection.execute(
@@ -561,21 +588,28 @@ def _initialize_or_validate_atomic_settlement_store(
             (SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1,),
         )
         _insert_empty_source_opened_spot_v6_association_meta(connection)
-        connection.execute(f"PRAGMA user_version = {ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V4}")
+        connection.execute(f"PRAGMA user_version = {ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V5}")
     elif (
         connection.execute("PRAGMA application_id").fetchone()[0]
         == ATOMIC_SETTLEMENT_STORE_APPLICATION_ID_V1
         and connection.execute("PRAGMA user_version").fetchone()[0]
         == ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V2
     ):
-        _migrate_empty_certificate_history_v2_to_v4(connection)
+        _migrate_empty_certificate_history_v2_to_v5(connection)
     elif (
         connection.execute("PRAGMA application_id").fetchone()[0]
         == ATOMIC_SETTLEMENT_STORE_APPLICATION_ID_V1
         and connection.execute("PRAGMA user_version").fetchone()[0]
         == ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V3
     ):
-        _migrate_empty_certificate_history_v3_to_v4(connection)
+        _migrate_empty_certificate_history_v3_to_v5(connection)
+    elif (
+        connection.execute("PRAGMA application_id").fetchone()[0]
+        == ATOMIC_SETTLEMENT_STORE_APPLICATION_ID_V1
+        and connection.execute("PRAGMA user_version").fetchone()[0]
+        == ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V4
+    ):
+        _migrate_certificate_grant_spends_v4_to_v5(connection)
     _validate_atomic_settlement_schema(connection)
     _validate_admission_content(connection)
     _validate_settlement_meta(connection, genesis_settlement_state_root)
@@ -590,13 +624,13 @@ def _validate_atomic_settlement_schema(connection: sqlite3.Connection) -> None:
         raise ValueError("atomic settlement application_id mismatch")
     if (
         connection.execute("PRAGMA user_version").fetchone()[0]
-        != ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V4
+        != ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V5
     ):
         raise ValueError("atomic settlement user_version mismatch")
     _validate_schema_objects(connection, _EXPECTED_SCHEMA_SQL)
 
 
-def _migrate_empty_certificate_history_v2_to_v4(connection: sqlite3.Connection) -> None:
+def _migrate_empty_certificate_history_v2_to_v5(connection: sqlite3.Connection) -> None:
     """Replace V2 certificate tables only when no unverifiable history exists."""
 
     _validate_schema_objects(connection, _V2_EXPECTED_SCHEMA_SQL)
@@ -625,12 +659,13 @@ def _migrate_empty_certificate_history_v2_to_v4(connection: sqlite3.Connection) 
         connection.execute(statement)
     connection.execute(_SOURCE_OPENED_SPOT_V6_ASSOCIATION_SCHEMA_STATEMENT)
     connection.execute(_SOURCE_OPENED_SPOT_V6_ASSOCIATION_META_SCHEMA_STATEMENT)
+    connection.execute(_CERTIFICATE_GRANT_SPEND_SCHEMA_STATEMENT)
     _insert_empty_source_opened_spot_v6_association_meta(connection)
-    connection.execute(f"PRAGMA user_version = {ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V4}")
+    connection.execute(f"PRAGMA user_version = {ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V5}")
 
 
-def _migrate_empty_certificate_history_v3_to_v4(connection: sqlite3.Connection) -> None:
-    """Add the exact V6 association only when certificate history is empty."""
+def _migrate_empty_certificate_history_v3_to_v5(connection: sqlite3.Connection) -> None:
+    """Add exact V6 associations and global grant spends to an empty V3 history."""
 
     _validate_schema_objects(connection, _V3_EXPECTED_SCHEMA_SQL)
     _validate_admission_content(connection)
@@ -652,8 +687,62 @@ def _migrate_empty_certificate_history_v3_to_v4(connection: sqlite3.Connection) 
         raise ValueError("V3 certificate history cannot migrate without exact V6 associations")
     connection.execute(_SOURCE_OPENED_SPOT_V6_ASSOCIATION_META_SCHEMA_STATEMENT)
     connection.execute(_SOURCE_OPENED_SPOT_V6_ASSOCIATION_SCHEMA_STATEMENT)
+    connection.execute(_CERTIFICATE_GRANT_SPEND_SCHEMA_STATEMENT)
     _insert_empty_source_opened_spot_v6_association_meta(connection)
-    connection.execute(f"PRAGMA user_version = {ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V4}")
+    connection.execute(f"PRAGMA user_version = {ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V5}")
+
+
+def _migrate_certificate_grant_spends_v4_to_v5(connection: sqlite3.Connection) -> None:
+    """Backfill one globally unique certificate grant-spend index transactionally."""
+
+    _validate_schema_objects(connection, _V4_EXPECTED_SCHEMA_SQL)
+    _validate_admission_content(connection)
+    connection.execute(_CERTIFICATE_GRANT_SPEND_SCHEMA_STATEMENT)
+    certificates = connection.execute(
+        """
+        SELECT certificate.certificate_journal_hash,
+               certificate.plan_commitment,
+               certificate.settlement_profile_id,
+               association.authorization_grant_spend_nullifier
+                   AS associated_grant_spend
+        FROM zrpf_settlement_certificates AS certificate
+        LEFT JOIN zrpf_source_opened_spot_v6_associations AS association
+          ON association.certificate_journal_hash = certificate.certificate_journal_hash
+        ORDER BY certificate.settlement_revision
+        """
+    ).fetchall()
+    for certificate in certificates:
+        grant_spends = _v4_certificate_grant_spends(connection, certificate)
+        connection.executemany(
+            "INSERT INTO zrpf_settlement_certificate_grant_spends "
+            "(authorization_grant_spend_nullifier, certificate_journal_hash, ordinal) "
+            "VALUES (?, ?, ?)",
+            (
+                (grant_spend, bytes(certificate["certificate_journal_hash"]), ordinal)
+                for ordinal, grant_spend in enumerate(grant_spends)
+            ),
+        )
+    connection.execute(f"PRAGMA user_version = {ATOMIC_SETTLEMENT_STORE_SCHEMA_VERSION_V5}")
+
+
+def _v4_certificate_grant_spends(
+    connection: sqlite3.Connection,
+    certificate: sqlite3.Row,
+) -> tuple[bytes, ...]:
+    associated = certificate["associated_grant_spend"]
+    if (
+        str(certificate["settlement_profile_id"])
+        == SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6
+        and associated is not None
+    ):
+        return (bytes(associated),)
+    rows = connection.execute(
+        "SELECT authorization_grant_spend_nullifier "
+        "FROM zrpf_settlement_authorization_consumptions "
+        "WHERE plan_commitment = ? ORDER BY ordinal",
+        (bytes(certificate["plan_commitment"]),),
+    ).fetchall()
+    return tuple(bytes(row["authorization_grant_spend_nullifier"]) for row in rows)
 
 
 def _insert_empty_source_opened_spot_v6_association_meta(
