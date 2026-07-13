@@ -914,3 +914,47 @@ fn unsupported<T>(field: &'static str) -> Result<T, SpotSettlementV7EffectBindin
         field,
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        SpotLedgerCellOpeningV1, SpotLedgerCellRoleV1, SpotLedgerCellTransitionOpeningV1,
+        SpotSettlementV7EffectBindingErrorV1,
+    };
+
+    const ACCOUNT: [u8; 48] = [0x11; 48];
+    const ASSET: [u8; 32] = [0x22; 32];
+
+    #[test]
+    fn zero_amount_transition_is_unrepresentable() {
+        let unchanged = SpotLedgerCellOpeningV1::account(ACCOUNT, ASSET, 10).unwrap();
+        assert_eq!(
+            SpotLedgerCellTransitionOpeningV1::new(
+                SpotLedgerCellRoleV1::Debit,
+                unchanged,
+                unchanged,
+            )
+            .unwrap_err(),
+            SpotSettlementV7EffectBindingErrorV1::UnsupportedStateDelta(
+                "cell direction or zero amount"
+            )
+        );
+    }
+
+    #[test]
+    fn reversed_debit_and_credit_transitions_are_unrepresentable() {
+        let lower = SpotLedgerCellOpeningV1::account(ACCOUNT, ASSET, 10).unwrap();
+        let higher = SpotLedgerCellOpeningV1::account(ACCOUNT, ASSET, 11).unwrap();
+        for (role, pre, post) in [
+            (SpotLedgerCellRoleV1::Debit, lower, higher),
+            (SpotLedgerCellRoleV1::Credit, higher, lower),
+        ] {
+            assert_eq!(
+                SpotLedgerCellTransitionOpeningV1::new(role, pre, post).unwrap_err(),
+                SpotSettlementV7EffectBindingErrorV1::UnsupportedStateDelta(
+                    "cell direction or zero amount"
+                )
+            );
+        }
+    }
+}
