@@ -25,7 +25,11 @@ export PATH
 # This recipe only builds and extracts four bounded RISC0 program binaries. It
 # does not generate proofs or establish release, settlement, or production
 # authority.
-readonly BUILD_IMAGE='ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90'
+# This exact local image was built from `.docker/zrpf-assurance.Dockerfile`.
+# Its pinned Ubuntu parent is recorded separately. Cross-host image rebuild
+# reproducibility remains outside this recipe's claim.
+readonly BUILD_IMAGE='sha256:de7091a181792417fbd5eaf6b3aff77d8a26ae0f2ae7ce298c01bf4ad9cd4b9c'
+readonly BUILD_IMAGE_PARENT='ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90'
 readonly CANONICAL_SOURCE_ROOT=/src/zenodex
 readonly CONTAINER_OUTPUT_ROOT=/build/output
 readonly CONTAINER_TARGET_ROOT=/build/target
@@ -293,7 +297,7 @@ printf '%s\n' \
   'offline = true' \
   '' \
   '[target.x86_64-unknown-linux-gnu]' \
-  'linker = "/opt/risc0-toolchain/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld/ld.lld"' \
+  'linker = "/usr/bin/cc"' \
   > /home/zrpf/.cargo/config.toml
 printf '%s\n' \
   '[default_versions]' \
@@ -418,5 +422,7 @@ for index in "${!HOST_OUTPUTS[@]}"; do
 done
 
 build_completed=1
+builtin printf 'build_image=%s\n' "$BUILD_IMAGE"
+builtin printf 'build_image_parent=%s\n' "$BUILD_IMAGE_PARENT"
 builtin printf 'source_commit=%s\n' "$source_commit"
 sha256sum -- "${HOST_OUTPUTS[@]}"

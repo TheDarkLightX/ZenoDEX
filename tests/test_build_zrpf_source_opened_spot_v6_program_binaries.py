@@ -20,6 +20,10 @@ def test_recipe_pins_image_canonical_source_and_bounded_container() -> None:
         "ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90"
         in source
     )
+    assert (
+        "sha256:de7091a181792417fbd5eaf6b3aff77d8a26ae0f2ae7ce298c01bf4ad9cd4b9c"
+        in source
+    )
     assert "readonly CANONICAL_SOURCE_ROOT=/src/zenodex" in source
     assert '"$DOCKER" image inspect "$BUILD_IMAGE"' in source
     assert "docker pull" not in source
@@ -71,10 +75,7 @@ def test_recipe_mounts_only_pinned_inputs_read_only_and_writes_externally() -> N
     assert "CARGO_NET_OFFLINE=true" in source
     assert "RISC0_BUILD_LOCKED=1" in source
     assert "jobs = 2" in source
-    assert (
-        'linker = "/opt/risc0-toolchain/lib/rustlib/'
-        'x86_64-unknown-linux-gnu/bin/gcc-ld/ld.lld"'
-    ) in source
+    assert 'linker = "/usr/bin/cc"' in source
     assert 'linker = "/opt/risc0-toolchain/bin/lld-wrapper"' not in source
 
 
