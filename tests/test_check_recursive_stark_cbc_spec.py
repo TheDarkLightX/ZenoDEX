@@ -30,8 +30,10 @@ RECURSIVE_REBUILD_REFERENCES = (
     "config/proof_profiles/risc0_recursive_rebuild_reference.json",
     "config/proof_profiles/risc0_recursive_v2_rebuild_reference.json",
 )
-REPROOF_PENDING_REQUIRED_STATEMENTS = frozenset(
+CURRENT_PROOF_REQUIRED_STATEMENTS = frozenset(
     {
+        "recursive_epoch_v1",
+        "recursive_node_v2",
         "zrpf_node_v3_structural",
         "zrpf_v1_spot_adapter_receipt_v1",
     }
@@ -94,25 +96,28 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     assert report["facts"]["missing_required_obligations"] == []
     assert report["facts"]["typed_statement_count"] == 9
     assert report["facts"]["obligation_count"] == 25
-    assert report["facts"]["implemented_obligation_count"] == 19
-    assert report["facts"]["pending_obligation_count"] == 6
+    assert report["facts"]["implemented_obligation_count"] == 20
+    assert report["facts"]["pending_obligation_count"] == 5
     assert report["matrix_sha256"] == (
-        "sha256:bbfffb9ad05cedfcede3ca5230433ccf21f17061fa1d9dcf18370770a3134eaf"
+        "sha256:e6aa60a61f51f1d907e3801d6e5ac0d285050f4b527290923c2c93361358d136"
     )
     assert report["promotion_boundary"]["facts"]["public_claim_allowed"] is False
     assert report["promotion_boundary"]["facts"]["production_ready"] is False
     assert (
         report["promotion_boundary"]["facts"]["claim_status"]
-        == checker.PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS
+        == checker.FULL_CURRENT_PROOF_CLAIM_STATUS
     )
-    assert report["promotion_boundary"]["facts"]["required_source_closures"] == []
+    assert report["promotion_boundary"]["facts"]["required_source_closures"] == ["active_v3"]
     assert report["promotion_boundary"]["facts"]["required_implemented_statements"] == sorted(
-        REPROOF_PENDING_REQUIRED_STATEMENTS
+        CURRENT_PROOF_REQUIRED_STATEMENTS
     )
-    assert report["promotion_boundary"]["facts"]["required_pending_obligations"] == ["RS-CBC-014"]
+    assert report["promotion_boundary"]["facts"]["required_implemented_obligations"] == [
+        "RS-CBC-014"
+    ]
+    assert report["promotion_boundary"]["facts"]["required_pending_obligations"] == []
     assert (
         checker.PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM
-        in matrix["promotion_boundary"]["non_claims"]
+        not in matrix["promotion_boundary"]["non_claims"]
     )
     assert checker.V1_RECORDED_LIVE_REPLAY_NON_CLAIM in matrix["promotion_boundary"]["non_claims"]
     assert report["promotion_boundary"]["facts"]["v1_live_replay_record_integrity_verified"]
@@ -580,6 +585,12 @@ def test_same_profile_two_spot_evidence_is_exact_and_claim_limited() -> None:
 
 def test_reproof_pending_status_rejects_fresh_proof_obligation_promotion() -> None:
     matrix = _matrix()
+    matrix["promotion_boundary"]["claim_status"] = (
+        checker.PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS
+    )
+    matrix["promotion_boundary"]["non_claims"].append(
+        checker.PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM
+    )
     for obligation in matrix["obligations"]:
         if obligation["id"] == "RS-CBC-014":
             obligation["status"] = "implemented"
@@ -594,10 +605,24 @@ def test_reproof_pending_status_rejects_fresh_proof_obligation_promotion() -> No
     )
 
 
+def test_current_proof_status_requires_rscbc014_implemented() -> None:
+    matrix = _matrix()
+    obligation = next(item for item in matrix["obligations"] if item["id"] == "RS-CBC-014")
+    obligation["status"] = "pending"
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        f"{checker.FULL_CURRENT_PROOF_CLAIM_STATUS} requires RS-CBC-014 implemented "
+        "under the active current-image reference"
+    ) in report["errors"]
+
+
 def test_patched_anyhow_reproof_pending_status_requires_exact_nonclaim() -> None:
     matrix = _matrix()
-    matrix["promotion_boundary"]["non_claims"].remove(
-        checker.PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM
+    matrix["promotion_boundary"]["claim_status"] = (
+        checker.PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS
     )
 
     report = checker.validate_matrix(matrix)
@@ -676,31 +701,20 @@ def test_recorded_v1_live_replay_status_rejects_missing_bound_checker_source(
     assert "V1 live-replay record rejected" in report["errors"]
 
 
-def test_full_current_proof_status_is_unavailable_without_current_host_evidence(
+def test_full_current_proof_status_rejects_active_reference_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     matrix = _matrix()
-    matrix["promotion_boundary"]["claim_status"] = checker.FULL_CURRENT_PROOF_CLAIM_STATUS
-    matrix["promotion_boundary"]["non_claims"].remove(
-        checker.PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM
-    )
-    obligation = next(item for item in matrix["obligations"] if item["id"] == "RS-CBC-014")
-    obligation["status"] = "implemented"
     monkeypatch.setattr(
-        checker,
-        "_validate_promoted_source_closures",
-        lambda *_args, **_kwargs: None,
+        checker.active_reproof_v3,
+        "check_reference",
+        lambda **_kwargs: {"error": "mutated", "ok": False},
     )
 
     report = checker.validate_matrix(matrix)
 
     assert report["ok"] is False
-    assert (
-        "promotion_boundary.claim_status is not an accepted reviewed status"
-        in report["promotion_boundary"]["errors"]
-    )
-    assert report["promotion_boundary"]["facts"]["required_source_closures"] == []
-    assert report["promotion_boundary"]["facts"]["required_implemented_statements"] == []
+    assert "promoted active V3 reference rejected: mutated" in report["errors"]
 
 
 def test_post_repair_verified_status_rejects_stale_proof_absence_nonclaim() -> None:
@@ -751,13 +765,13 @@ def test_structural_tree_verified_status_requires_implemented_tree_obligations(
     ) in report["errors"]
 
 
-def test_reproof_pending_status_does_not_consult_stale_v1_or_v2_closures() -> None:
+def test_current_status_consults_active_v3_closure() -> None:
     matrix = _matrix()
 
     report = checker.validate_matrix(matrix)
 
     assert report["ok"] is True
-    assert report["promotion_boundary"]["facts"]["required_source_closures"] == []
+    assert report["promotion_boundary"]["facts"]["required_source_closures"] == ["active_v3"]
 
 
 def test_claim_status_routes_exact_source_closure_policy(
@@ -779,16 +793,16 @@ def test_claim_status_routes_exact_source_closure_policy(
     report = checker.validate_matrix(matrix)
 
     assert report["ok"] is True
-    assert captured == [frozenset()]
-    assert report["promotion_boundary"]["facts"]["required_source_closures"] == []
+    assert captured == [frozenset({"active_v3"})]
+    assert report["promotion_boundary"]["facts"]["required_source_closures"] == ["active_v3"]
     assert report["promotion_boundary"]["facts"]["required_implemented_statements"] == sorted(
-        REPROOF_PENDING_REQUIRED_STATEMENTS
+        CURRENT_PROOF_REQUIRED_STATEMENTS
     )
 
 
 @pytest.mark.parametrize(
     "statement_id",
-    sorted(REPROOF_PENDING_REQUIRED_STATEMENTS),
+    sorted(CURRENT_PROOF_REQUIRED_STATEMENTS),
 )
 def test_claim_status_rejects_pending_required_typed_statement(
     monkeypatch: pytest.MonkeyPatch,
@@ -807,7 +821,7 @@ def test_claim_status_rejects_pending_required_typed_statement(
 
     assert report["ok"] is False
     assert (
-        f"{checker.PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS} requires typed statement "
+        f"{checker.FULL_CURRENT_PROOF_CLAIM_STATUS} requires typed statement "
         f"{statement_id} "
         "implemented or implemented_partial"
     ) in report["errors"]

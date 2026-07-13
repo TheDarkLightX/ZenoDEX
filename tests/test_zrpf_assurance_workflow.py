@@ -54,6 +54,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "v1.94.1-rust-x86_64-unknown-linux-gnu:/risc0/toolchains/" in replay_command
     python_assurance = steps["Run Python and evidence assurance"]["run"]
     rust_assurance = steps["Run Rust protocol and verifier assurance"]["run"]
+    active_replay = steps["Rebuild and cryptographically replay active V1 and V2 roots"]["run"]
     guest_assurance = steps["Build pinned current RISC0 guests"]["run"]
     cargo_acquisition = steps["Acquire lockfile-bound Cargo sources"]["run"]
     assert "--manifest-path zk/state_proof_risc0/Cargo.toml" in cargo_acquisition
@@ -128,6 +129,15 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tools/check_risc0_recursive_rebuild_evidence.py" in mypy_assurance
     assert "tests/test_check_risc0_recursive_rebuild_evidence.py" in ruff_assurance
     assert "tests/test_check_risc0_recursive_rebuild_evidence.py" in pytest_assurance
+    for required_path in (
+        "tools/check_risc0_recursive_active_reproof_v3.py",
+        "tools/build_risc0_recursive_active_reproof_reference_v3.py",
+    ):
+        assert required_path in ruff_assurance
+        assert required_path in mypy_assurance
+    assert "tests/test_check_risc0_recursive_active_reproof_v3.py" in ruff_assurance
+    assert "tests/test_check_risc0_recursive_active_reproof_v3.py" in pytest_assurance
+    assert "python3 tools/check_risc0_recursive_active_reproof_v3.py" in python_assurance
     assert "zrpf-v3-firecracker-elf-source-v2-20260712" in raw
     assert "25032924eb4fca7f156a9ec4eedd39afeade9623" in raw
     assert "tools/check_zrpf_v3_firecracker_direct_replay_evidence.py" in (python_assurance)
@@ -159,6 +169,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "bash -n tools/build_zrpf_v3_firecracker_guest_images.sh" in (python_assurance)
     assert "check_zrpf_v3_firecracker_replay_profile.py --probe-host" not in raw
     assert "--manifest-path zk/recursive_stark_v2_risc0/Cargo.toml" in rust_assurance
+    assert "--manifest-path zk/recursive_stark_v2_active_reproof_risc0/Cargo.toml" in rust_assurance
     assert "--manifest-path zk/state_proof_risc0/Cargo.toml" in rust_assurance
     assert rust_assurance.count("--manifest-path zk/state_proof_risc0/Cargo.toml") == 3
     assert rust_assurance.count("-p tau-state-proof-risc0-cli --all-targets") == 2
@@ -170,8 +181,21 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert rust_assurance.count("-p zenodex-zrpf-risc0-value-aggregate-l2-policy") == 2
     assert "--locked --all-targets" in rust_assurance
     assert rust_assurance.count("--no-default-features --test semantic_v2") == 2
-    assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 5
+    assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 6
     assert '"${pinned_bin}/cargo" clippy' not in rust_assurance
+    assert "unset RISC0_SKIP_BUILD" in active_replay
+    assert "RISC0_SKIP_BUILD=1" not in active_replay
+    assert "--manifest-path zk/state_proof_risc0/Cargo.toml" in active_replay
+    assert "--manifest-path zk/recursive_stark_v2_active_reproof_risc0/Cargo.toml" in (
+        active_replay
+    )
+    assert "--frozen --offline --release -p tau-state-proof-risc0-cli" in active_replay
+    assert "--frozen --offline --release --bin verify_recursive_v2_pair" in active_replay
+    assert "v1-root.verify.request.json" in active_replay
+    assert "v1-root.verify.json" in active_replay
+    assert "v2-inner.proof.json" in active_replay
+    assert "v2-root.proof.json" in active_replay
+    assert "v2-pair.verify.json" in active_replay
     assert "unset RISC0_SKIP_BUILD" in guest_assurance
     assert "RISC0_SKIP_BUILD=1" not in guest_assurance
     assert 'CARGO_TARGET_DIR="${RUNNER_TEMP}/zrpf-current-guest-build"' in guest_assurance
