@@ -176,10 +176,10 @@ implements one bounded source-to-settlement path under four pinned program
 identities:
 
 ```text
-source-opened leaf V6  f2dcf75133ff7d0a909e47cb265ea46fc4b24edc80a485667089c22bccbcc89b
-aggregate L1 V6        b1235676d99422acebac73dd016fa40819cc013919870a3621f678b54377e9fa
-aggregate L2 V6        6fc6972b7ed5e1410f12ba68f627deafebfe96ba080415e7e02ac137e9f5f2ef
-settlement V6          10e5106603ce32b9cb543a54e74e935eb127433f3cf268b989e42ed5a540f783
+source-opened leaf V6  67494a413c729cbb4b6095036425ba0b86edcc30625c19b525409f8e8ff022d1
+aggregate L1 V6        a2b4c32ef76c0a81643f1758c476fc21f6a7c2afd11d2a6e08fae022418e2e15
+aggregate L2 V6        5c8f94b4ada70ad5ba0d6ac6bd6b0055a9e148c329372e7b24a81249ff07a76f
+settlement V6          73a1c5c275d85f39443f68803932df9caac670b420b9948b7e7b2dffe1f2e98d
 ```
 
 The leaf host boundary verifies and independently recomposes the typed source
