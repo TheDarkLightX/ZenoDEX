@@ -8,6 +8,7 @@ use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 
 mod recursive_wire;
+mod spot_authority;
 mod strict_json;
 
 use tau_state_proof_risc0_methods::{
@@ -105,6 +106,12 @@ struct ReceiptSecurityProfile {
 
 struct VerifiedRecursiveFacts(Value);
 
+struct VerifiedSpotReceipt {
+    receipt: Receipt,
+    journal: StateProofJournalV1,
+    security_profile: ReceiptSecurityProfile,
+}
+
 enum VerificationSuccess {
     Basic,
     Recursive(VerifiedRecursiveFacts),
@@ -158,6 +165,9 @@ fn main() {
         "tau_state_proof_request" => handle_generate(&req),
         "tau_state_proof_verify" => handle_verify(&req),
         "tau_state_proof_txs_commitment" => handle_txs_commitment(&req),
+        spot_authority::SPOT_AUTHORITY_REQUEST_SCHEMA_V1 => {
+            write_json_stdout(&spot_authority::verification_response(&req))
+        }
         _ => {
             eprintln!("unexpected schema");
             std::process::exit(2);
@@ -1048,11 +1058,22 @@ fn try_verify(req: &Value) -> Result<VerificationSuccess, String> {
     if proof_type != PROOF_TYPE {
         return Err("unsupported proof_type".into());
     }
+    try_verify_spot(req, proof, expected_state_hash)?;
+    Ok(VerificationSuccess::Basic)
+}
+
+fn try_verify_spot(
+    req: &Value,
+    proof: &Value,
+    expected_state_hash: [u8; 32],
+) -> Result<VerifiedSpotReceipt, String> {
     validate_embedded_methods();
     check_proof_meta_image_id(proof)?;
 
+    // This is the sole cryptographic receipt-verification call for this Spot
+    // request. Every later authority binding consumes this private value.
     let receipt = decode_verified_receipt_from_proof(proof)?;
-
+    let security_profile = receipt_security_profile(&receipt)?;
     let journal: StateProofJournalV1 = decode_postcard_journal(&receipt, "spot journal")?;
 
     if journal.state_hash != expected_state_hash {
@@ -1156,7 +1177,11 @@ fn try_verify(req: &Value) -> Result<VerificationSuccess, String> {
         check_nonce_roots(&journal, context_pre_nonces, verified_ingress.as_deref())?;
     }
 
-    Ok(VerificationSuccess::Basic)
+    Ok(VerifiedSpotReceipt {
+        receipt,
+        journal,
+        security_profile,
+    })
 }
 
 fn try_verify_perps_np(
