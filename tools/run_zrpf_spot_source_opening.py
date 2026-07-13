@@ -7,9 +7,10 @@ import argparse
 import hashlib
 import json
 import os
+import stat
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 SOURCE_IMAGE_ID = "1275ef413f6513e7671bce019d22fbdcf10bffe1b71dcf68731a056e710a7403"
 SOURCE_CLI_SHA256 = "8836f22431e2ce241eec9e6503f741b92673e2fec054208b0c36dea4f1bcf146"
@@ -44,17 +45,30 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
+def _reject_float(_value: str) -> NoReturn:
+    raise SourceOpeningError("floating-point JSON numbers are forbidden")
+
+
 def _decode_exact_json(raw: bytes, *, maximum: int, label: str) -> dict[str, Any]:
     if not raw or len(raw) > maximum:
         raise SourceOpeningError(f"{label} byte length out of bounds")
     try:
         text = raw.decode("utf-8")
-        value = json.loads(text, object_pairs_hook=_unique_object)
+        value = json.loads(
+            text,
+            object_pairs_hook=_unique_object,
+            parse_float=_reject_float,
+            parse_constant=_reject_float,
+        )
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise SourceOpeningError(f"{label} is not exact JSON: {exc}") from exc
     if type(value) is not dict:
         raise SourceOpeningError(f"{label} must be a JSON object")
     return value
+
+
+def _canonical_compact_json(value: dict[str, Any]) -> bytes:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
 def _run(
@@ -80,9 +94,7 @@ def _run(
         raise SourceOpeningError("subprocess stderr exceeds bound")
     if completed.returncode != 0:
         detail = completed.stderr.decode("utf-8", errors="replace")[-4_096:]
-        raise SourceOpeningError(
-            f"subprocess failed with exit {completed.returncode}: {detail}"
-        )
+        raise SourceOpeningError(f"subprocess failed with exit {completed.returncode}: {detail}")
     if completed.stderr:
         raise SourceOpeningError("successful subprocess emitted stderr")
     return completed.stdout
@@ -91,7 +103,7 @@ def _run(
 def _require_request(value: dict[str, Any]) -> None:
     if value.get("schema") != "tau_state_proof_request":
         raise SourceOpeningError("request schema mismatch")
-    if value.get("schema_version") != 1:
+    if type(value.get("schema_version")) is not int or value["schema_version"] != 1:
         raise SourceOpeningError("request schema version mismatch")
     if value.get("proof_type") != "risc0.zenodex_recursive_spot_leaf.v1":
         raise SourceOpeningError("request proof type mismatch")
@@ -113,7 +125,11 @@ def _require_request(value: dict[str, Any]) -> None:
 
 
 def _require_proof(value: dict[str, Any]) -> None:
-    if value.get("schema") != "tau_state_proof" or value.get("schema_version") != 1:
+    if (
+        value.get("schema") != "tau_state_proof"
+        or type(value.get("schema_version")) is not int
+        or value["schema_version"] != 1
+    ):
         raise SourceOpeningError("proof envelope schema mismatch")
     if value.get("proof_type") != "risc0.zenodex_recursive_spot_leaf.v1":
         raise SourceOpeningError("proof type mismatch")
@@ -140,6 +156,61 @@ def _write_new(path: Path, raw: bytes) -> None:
         os.close(descriptor)
 
 
+def _read_persisted_exact(
+    path: Path,
+    expected: bytes,
+    *,
+    maximum: int,
+    label: str,
+) -> bytes:
+    flags = os.O_RDONLY | os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as exc:
+        raise SourceOpeningError(f"persisted {label} bytes unavailable") from exc
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode):
+            raise SourceOpeningError(f"persisted {label} is not a regular file")
+        if before.st_size != len(expected) or before.st_size > maximum:
+            raise SourceOpeningError(f"persisted {label} bytes changed")
+        chunks: list[bytes] = []
+        remaining = before.st_size
+        while remaining:
+            chunk = os.read(descriptor, min(remaining, 1 << 20))
+            if not chunk:
+                raise SourceOpeningError(f"persisted {label} bytes changed")
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        if os.read(descriptor, 1):
+            raise SourceOpeningError(f"persisted {label} bytes changed")
+        after = os.fstat(descriptor)
+    finally:
+        os.close(descriptor)
+    identity_before = (
+        before.st_dev,
+        before.st_ino,
+        before.st_mode,
+        before.st_size,
+        before.st_mtime_ns,
+        before.st_ctime_ns,
+    )
+    identity_after = (
+        after.st_dev,
+        after.st_ino,
+        after.st_mode,
+        after.st_size,
+        after.st_mtime_ns,
+        after.st_ctime_ns,
+    )
+    persisted = b"".join(chunks)
+    if identity_after != identity_before or persisted != expected:
+        raise SourceOpeningError(f"persisted {label} bytes changed")
+    return persisted
+
+
 def run(
     *,
     generator: Path,
@@ -151,14 +222,20 @@ def run(
     if _sha256_file(source_cli) != SOURCE_CLI_SHA256:
         raise SourceOpeningError("source CLI digest mismatch")
     output_directory.mkdir(mode=0o700, parents=False, exist_ok=False)
-    request_raw = _run(
+    request_stdout = _run(
         [str(generator), "spot-swap", SOURCE_IMAGE_ID],
         input_bytes=None,
         timeout_seconds=60,
         maximum_stdout=MAX_REQUEST_BYTES,
     )
-    _require_request(_decode_exact_json(request_raw, maximum=MAX_REQUEST_BYTES, label="request"))
-    proof_raw = _run(
+    request = _decode_exact_json(
+        request_stdout,
+        maximum=MAX_REQUEST_BYTES,
+        label="request",
+    )
+    _require_request(request)
+    request_raw = _canonical_compact_json(request)
+    proof_stdout = _run(
         [str(source_cli)],
         input_bytes=request_raw,
         timeout_seconds=timeout_seconds,
@@ -170,11 +247,29 @@ def run(
             "TMPDIR": str(output_directory),
         },
     )
-    _require_proof(_decode_exact_json(proof_raw, maximum=MAX_PROOF_BYTES, label="proof"))
+    proof = _decode_exact_json(
+        proof_stdout,
+        maximum=MAX_PROOF_BYTES,
+        label="proof",
+    )
+    _require_proof(proof)
+    proof_raw = _canonical_compact_json(proof)
     request_path = output_directory / "spot-swap-source.request.json"
     proof_path = output_directory / "spot-swap-source.receipt.json"
     _write_new(request_path, request_raw)
     _write_new(proof_path, proof_raw)
+    persisted_request = _read_persisted_exact(
+        request_path,
+        request_raw,
+        maximum=MAX_REQUEST_BYTES,
+        label="request",
+    )
+    persisted_proof = _read_persisted_exact(
+        proof_path,
+        proof_raw,
+        maximum=MAX_PROOF_BYTES,
+        label="proof",
+    )
     report = {
         "schema": "zenodex/zrpf_spot_source_opening_run/v1",
         "ok": True,
@@ -183,10 +278,10 @@ def run(
         "source_cli_sha256": SOURCE_CLI_SHA256,
         "generator_sha256": _sha256_file(generator),
         "r0vm_sha256": _sha256_file(r0vm),
-        "request_bytes": len(request_raw),
-        "request_sha256": _sha256_bytes(request_raw),
-        "proof_bytes": len(proof_raw),
-        "proof_sha256": _sha256_bytes(proof_raw),
+        "request_bytes": len(persisted_request),
+        "request_sha256": _sha256_bytes(persisted_request),
+        "proof_bytes": len(persisted_proof),
+        "proof_sha256": _sha256_bytes(persisted_proof),
         "receipt_kind": "succinct",
         "nonclaims": [
             "this run supplies one retained source receipt and no aggregate authority",

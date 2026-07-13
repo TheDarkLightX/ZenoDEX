@@ -49,8 +49,8 @@ READ_CHUNK_BYTES = 1024 * 1024
 EXPECTED_EVIDENCE_SCHEMA = "zenodex/zrpf_source_opened_spot_v6_local_evidence/v2"
 EXPECTED_BUILD_RECORD_SCHEMA = "zenodex/zrpf_source_opened_spot_v6_build_record/v3"
 EXPECTED_ARTIFACT_SPECS = (
-    ("source_request", "source_request.json", "canonical_json"),
-    ("source_proof", "source_proof.json", "canonical_json"),
+    ("source_request", "source_request.json", "canonical_compact_json"),
+    ("source_proof", "source_proof.json", "canonical_compact_json"),
     ("adapter_receipt", "adapter_receipt.json", "canonical_receipt_json"),
     ("leaf_source_envelope", "leaf_source_envelope.bin", "binary"),
     ("leaf_receipt", "leaf_receipt.json", "canonical_receipt_json"),
@@ -85,8 +85,12 @@ EXPECTED_ARTIFACT_SPECS = (
         "source_opened_spot_settlement_v6.bin",
         "risc0_program_binary",
     ),
-    ("external_verifier_output", "external_verifier_output.json", "canonical_json"),
-    ("chain_verifier_output", "chain_verifier_output.json", "canonical_json"),
+    (
+        "external_verifier_output",
+        "external_verifier_output.json",
+        "canonical_json_line",
+    ),
+    ("chain_verifier_output", "chain_verifier_output.json", "canonical_json_line"),
 )
 EXPECTED_EXECUTED_COMMAND_FIELDS = {
     "all_positive_commands_exit_zero",
@@ -918,7 +922,12 @@ def _validate_build_program_bindings(
 
 
 def _validate_artifact_bytes(artifact_id: str, kind: str, raw: bytes) -> None:
-    if kind == "canonical_json":
+    if kind == "canonical_compact_json":
+        value = _load_canonical_compact_json(raw, f"artifact {artifact_id}")
+        if type(value) is not dict:
+            raise EvidenceBuildError(f"artifact {artifact_id} must be a JSON object")
+        return
+    if kind == "canonical_json_line":
         _load_canonical_json_line(raw, f"artifact {artifact_id}")
         return
     if kind == "canonical_receipt_json":

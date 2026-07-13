@@ -46,6 +46,23 @@ def _program(stage: str) -> bytes:
     return b"R0BF\x01\x00\x00\x00bounded-test-program:" + stage.encode() + b"\n"
 
 
+def test_artifact_json_framing_is_exact() -> None:
+    builder._validate_artifact_bytes(
+        "source_request", "canonical_compact_json", b'{"kind":"request"}'
+    )
+    builder._validate_artifact_bytes(
+        "external_verifier_output", "canonical_json_line", b'{"ok":true}\n'
+    )
+    with pytest.raises(builder.EvidenceBuildError, match="noncanonical"):
+        builder._validate_artifact_bytes(
+            "source_request", "canonical_compact_json", b'{"kind":"request"}\n'
+        )
+    with pytest.raises(builder.EvidenceBuildError, match="newline-terminated"):
+        builder._validate_artifact_bytes(
+            "external_verifier_output", "canonical_json_line", b'{"ok":true}'
+        )
+
+
 @dataclass(frozen=True)
 class _Fixture:
     artifacts: dict[str, Path]
@@ -152,8 +169,8 @@ def _build_record(program_raw: dict[str, bytes], r0vm: Path) -> dict:
 def _fixture(tmp_path: Path) -> _Fixture:
     source = tmp_path / "source"
     raw: dict[str, bytes] = {
-        "source_request": _json_line({"kind": "bounded-source-request"}),
-        "source_proof": _json_line({"kind": "bounded-source-proof"}),
+        "source_request": _json_compact({"kind": "bounded-source-request"}),
+        "source_proof": _json_compact({"kind": "bounded-source-proof"}),
         "adapter_receipt": _receipt("adapter"),
         "leaf_source_envelope": b"bounded-source-envelope\n",
         "leaf_receipt": _receipt("leaf"),

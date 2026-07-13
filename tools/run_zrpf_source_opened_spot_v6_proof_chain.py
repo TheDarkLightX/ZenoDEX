@@ -50,7 +50,7 @@ else:  # pragma: no cover - direct script execution
 
 REPORT_SCHEMA = "zenodex/zrpf_source_opened_spot_v6_proof_chain_candidate/v2"
 ERROR_SCHEMA = "zenodex/zrpf_source_opened_spot_v6_proof_chain_error/v1"
-SUCCINCT_PROFILE_ID = "risc0-succinct-poseidon2-v3.0.5-v1"
+SUCCINCT_PROFILE_ID = "risc0_succinct_poseidon2_resolve_3_0_5_v1"
 STAGE_ORDER = ("leaf", "level_one", "level_two", "settlement")
 EXECUTABLE_ROLES = (
     "r0vm",

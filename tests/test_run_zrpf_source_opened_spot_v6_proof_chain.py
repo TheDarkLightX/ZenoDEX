@@ -30,6 +30,13 @@ PROGRAM_NAMES = {
 }
 
 
+def test_receipt_profile_matches_the_governed_verifier_contract() -> None:
+    assert (
+        runner.SUCCINCT_PROFILE_ID
+        == "risc0_succinct_poseidon2_resolve_3_0_5_v1"
+    )
+
+
 def _sha256(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
@@ -205,7 +212,7 @@ def _prover_source(
                 ],
                 "ok": True,
                 "receipt_bytes": len(raw),
-                "receipt_profile_id": "risc0-succinct-poseidon2-v3.0.5-v1",
+                "receipt_profile_id": {runner.SUCCINCT_PROFILE_ID!r},
                 "receipt_sha256": hashlib.sha256(raw).hexdigest(),
                 "schema": "zenodex/zrpf_source_opened_spot_value_leaf_v6_proof_report/v2",
                 "source_envelope_bytes": len(envelope),
@@ -276,7 +283,7 @@ def _prover_source(
                 "settlement_program_manifest_root": "99" * 32,
                 "source_envelope_sha256": digest(options["--source-envelope"]),
                 "status": "source_opened_spot_settlement_v6_succinct_receipt_verified",
-                "succinct_receipt_profile_id": "risc0-succinct-poseidon2-v3.0.5-v1",
+                "succinct_receipt_profile_id": {runner.SUCCINCT_PROFILE_ID!r},
             }}
         if fault == "unknown_report_field":
             report["unexpected"] = True

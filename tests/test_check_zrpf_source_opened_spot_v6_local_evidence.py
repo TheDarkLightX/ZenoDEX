@@ -18,6 +18,15 @@ def artifact_bytes() -> dict[str, bytes]:
         for artifact_id, _path, _kind in checker.ARTIFACT_SPECS
     }
     for artifact_id, _path, kind in checker.ARTIFACT_SPECS:
+        if kind == "canonical_compact_json":
+            raw[artifact_id] = json.dumps(
+                {"artifact": artifact_id}, separators=(",", ":")
+            ).encode()
+        elif kind == "canonical_json_line":
+            raw[artifact_id] = (
+                json.dumps({"artifact": artifact_id}, separators=(",", ":")) + "\n"
+            ).encode()
+    for artifact_id, _path, kind in checker.ARTIFACT_SPECS:
         if kind == "risc0_program_binary":
             raw[artifact_id] = b"R0BF\x01\x00\x00\x00" + raw[artifact_id]
     receipt = {
@@ -30,6 +39,7 @@ def artifact_bytes() -> dict[str, bytes]:
     receipt_raw = json.dumps(receipt, separators=(",", ":")).encode()
     mutation_raw = json.dumps(mutation, separators=(",", ":")).encode()
     for artifact_id in (
+        "adapter_receipt",
         "leaf_receipt",
         "l1_receipt",
         "l2_receipt",
@@ -379,6 +389,29 @@ def test_optional_artifact_directory_rechecks_all_files(tmp_path: Path) -> None:
     assert report["exact_mutation_relations_checked"] == 4
     assert report["verifier_transcripts_checked"] == 2
     assert report["mutation_rejected"] is True
+
+
+def test_optional_artifact_directory_rejects_compact_json_with_newline(
+    tmp_path: Path,
+) -> None:
+    document = valid_evidence()
+    raw_artifacts = artifact_bytes()
+    raw_artifacts["source_request"] += b"\n"
+    for artifact_id, path, _kind in checker.ARTIFACT_SPECS:
+        raw = raw_artifacts[artifact_id]
+        (tmp_path / path).write_bytes(raw)
+        if artifact_id == "source_request":
+            row = next(item for item in document["artifacts"] if item["id"] == artifact_id)
+            row["size_bytes"] = len(raw)
+            row["sha256"] = hashlib.sha256(raw).hexdigest()
+            document["stages"]["source_opening"]["request_sha256"] = row["sha256"]
+
+    with pytest.raises(checker.EvidenceError, match="noncanonical"):
+        checker.validate_evidence(
+            document,
+            checker.canonical_bytes(document),
+            artifact_directory=tmp_path,
+        )
 
 
 def test_optional_build_record_is_rechecked_and_hash_bound(

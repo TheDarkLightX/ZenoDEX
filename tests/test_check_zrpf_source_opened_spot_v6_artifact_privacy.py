@@ -19,8 +19,11 @@ def _populate_clean_inventory(root: Path) -> None:
         path: kind for _artifact_id, path, kind in evidence.ARTIFACT_SPECS
     }
     for artifact in checker.FINAL_ARTIFACTS:
-        if kinds[artifact.relative_path] in {"canonical_json", "canonical_receipt_json"}:
+        kind = kinds[artifact.relative_path]
+        if kind == "canonical_json_line":
             raw = b'{"bounded_public_fixture":true}\n'
+        elif kind in {"canonical_compact_json", "canonical_receipt_json"}:
+            raw = b'{"bounded_public_fixture":true}'
         else:
             raw = b"\x00\x01\x02ZRPF-V6-public-binary\xff"
         (root / artifact.relative_path).write_bytes(raw)

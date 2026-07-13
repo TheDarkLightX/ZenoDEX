@@ -36,8 +36,8 @@ SUCCINCT_PROFILE_ID = "risc0_succinct_poseidon2_resolve_3_0_5_v1"
 MUTATION_ERROR_CODE = "source_opened_spot_settlement_v6_receipt_rejected"
 
 ARTIFACT_SPECS = (
-    ("source_request", "source_request.json", "canonical_json"),
-    ("source_proof", "source_proof.json", "canonical_json"),
+    ("source_request", "source_request.json", "canonical_compact_json"),
+    ("source_proof", "source_proof.json", "canonical_compact_json"),
     ("adapter_receipt", "adapter_receipt.json", "canonical_receipt_json"),
     ("leaf_source_envelope", "leaf_source_envelope.bin", "binary"),
     ("leaf_receipt", "leaf_receipt.json", "canonical_receipt_json"),
@@ -79,9 +79,9 @@ ARTIFACT_SPECS = (
     (
         "external_verifier_output",
         "external_verifier_output.json",
-        "canonical_json",
+        "canonical_json_line",
     ),
-    ("chain_verifier_output", "chain_verifier_output.json", "canonical_json"),
+    ("chain_verifier_output", "chain_verifier_output.json", "canonical_json_line"),
 )
 
 EXECUTED_COMMAND_FIELDS = {
@@ -680,6 +680,16 @@ def _validate_external_artifacts(
             raise EvidenceError(str(exc)) from exc
         if size != artifact["size_bytes"] or digest != artifact["sha256"]:
             raise EvidenceError(f"external artifact identity mismatch: {artifact_id}")
+        if kind in {
+            "canonical_compact_json",
+            "canonical_json_line",
+            "canonical_receipt_json",
+        }:
+            _validate_bound_json_artifact(
+                artifact_id,
+                kind,
+                _read_bound_artifact(root, artifact),
+            )
         checked += 1
     for source_id, mutation_id in (
         ("leaf_receipt", "leaf_mutation_receipt"),
@@ -711,6 +721,24 @@ def _read_bound_artifact(root: Path, artifact: dict[str, Any]) -> bytes:
     if len(raw) != artifact["size_bytes"] or hashlib.sha256(raw).hexdigest() != artifact["sha256"]:
         raise EvidenceError("bound artifact changed between identity and relation checks")
     return raw
+
+
+def _validate_bound_json_artifact(artifact_id: str, kind: str, raw: bytes) -> None:
+    if kind == "canonical_compact_json":
+        value = _load_canonical_compact_json(raw, f"artifact {artifact_id}")
+        if type(value) is not dict:
+            raise EvidenceError(f"artifact {artifact_id} must be a JSON object")
+        return
+    if kind == "canonical_json_line":
+        _load_canonical_json_line(raw, f"artifact {artifact_id}")
+        return
+    if kind == "canonical_receipt_json":
+        value = _load_canonical_compact_json(raw, f"artifact {artifact_id}")
+        if type(value) is not dict:
+            raise EvidenceError(f"artifact {artifact_id} receipt must be an object")
+        _succinct_seal(value, f"artifact {artifact_id}")
+        return
+    raise EvidenceError(f"artifact {artifact_id} has unknown JSON kind")
 
 
 def _validate_exact_succinct_seal_mutation(source_raw: bytes, mutation_raw: bytes) -> None:
