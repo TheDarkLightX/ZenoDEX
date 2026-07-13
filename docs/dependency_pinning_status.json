@@ -11,6 +11,8 @@
     "requirements-agents.txt:openai>=1.40.0",
     "requirements-agents.txt:python-dotenv>=1.0.0",
     "requirements-core.txt:canonicaljson>=1.6.0",
+    "requirements-core.txt:cbor2>=5.6.0",
+    "requirements-core.txt:cryptography>=42.0.0",
     "requirements-core.txt:py-ecc>=6.1.0",
     "requirements-core.txt:pyyaml>=6.0",
     "requirements-core.txt:typing-extensions>=4.8.0",
@@ -37,13 +39,13 @@
   ],
   "required_lock_artifact_sha256": {
     "requirements-core.lock.txt": "5eb655035d6277b1ce9819880bad15e612d06cb82ede7b7076413eac807581da",
-    "requirements-agents.lock.txt": "6873f7be8fe8ba655bba4fc475808e373e6d1bac7cb8b9007e70c92d0dec3fdf",
-    "requirements-dev.lock.txt": "fd1507a436a0bdcf1e393c1fae8ff7698bb96b471df49a72d311fb0dfb90d2b0",
+    "requirements-agents.lock.txt": "406222b9ca09f80bbc865c5f608a5d86d7d51af9e3a7db1ac7223ec1feae3f1a",
+    "requirements-dev.lock.txt": "8ae2a245984d66a60e7fde6c0504b79b1de8fbcc86027b2a42c4adb7164229d8",
     "lean-mathlib/lean-toolchain": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb",
     "lean-mathlib/lakefile.lean": "d34c0792dcb7073fcf4cbaf63fc582931f6bcd885c7df6ff9f3d8537d94a42d2",
-    "tools/confidential_attestation_verifier_rust/Cargo.lock": "a50820080531e3f60e075e050287279f808ad7a3daba0682399e2fa9c90a23f5",
+    "tools/confidential_attestation_verifier_rust/Cargo.lock": "61c0f121360aab1ecd80dfbc6efc3cc08955c6d87d5a3fb44bb03186ba7c7443",
     "tools/dex-ui/package-lock.json": "f3eb2cbe5d1809f61438a803b829de8188ba5eb2ce1230dabb932a745c7b4be2",
-    "zk/state_proof_risc0/Cargo.lock": "fe4f0f9bd29409f23b13e942b279d2e4e046dc06f5b84d2b3eb72f160fa9afb9"
+    "zk/state_proof_risc0/Cargo.lock": "d30f07417921c475d99826eb10a45c17ec059c88b53c3f835702f27b509442ba"
   },
   "exact_python_pins_required": [],
   "residual_limits": [
