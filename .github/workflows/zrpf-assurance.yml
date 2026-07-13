@@ -24,6 +24,15 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Initialize fail-closed ZRPF assurance report
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p internal
+          printf '%s\n' \
+            '{"accepted":false,"reason":"required_source_built_replay_did_not_complete","schema":"zenodex/zrpf/ci_live_replay_status/v1","status":"not_run"}' \
+            > internal/zrpf-ci-live-replay.json
+
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
@@ -449,7 +458,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p internal
           docker run --rm \
             --network none \
             --read-only \

@@ -219,9 +219,16 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert steps["Set up Python"]["uses"] == (
         "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1"
     )
+    initializer = steps["Initialize fail-closed ZRPF assurance report"]["run"]
+    assert '"accepted":false' in initializer
+    assert '"status":"not_run"' in initializer
+    assert '"reason":"required_source_built_replay_did_not_complete"' in initializer
+    assert "> internal/zrpf-ci-live-replay.json" in initializer
     assert steps["Upload ZRPF assurance report"]["uses"] == (
         "actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4"
     )
+    assert steps["Upload ZRPF assurance report"]["if"] == "always()"
+    assert steps["Upload ZRPF assurance report"]["with"]["if-no-files-found"] == "error"
 
 
 def test_zrpf_assurance_container_is_digest_pinned_and_nonroot() -> None:
