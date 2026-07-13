@@ -37,7 +37,7 @@ from contextlib import ExitStack
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, NoReturn, Sequence
 
 if __package__:
     from tools import zrpf_v3_replay_process as bounded_process
@@ -48,7 +48,7 @@ else:  # pragma: no cover - direct script execution
     from tools import zrpf_v3_replay_sealed_executable as sealed_executable
 
 
-REPORT_SCHEMA = "zenodex/zrpf_source_opened_spot_v6_proof_chain_candidate/v1"
+REPORT_SCHEMA = "zenodex/zrpf_source_opened_spot_v6_proof_chain_candidate/v2"
 ERROR_SCHEMA = "zenodex/zrpf_source_opened_spot_v6_proof_chain_error/v1"
 SUCCINCT_PROFILE_ID = "risc0-succinct-poseidon2-v3.0.5-v1"
 STAGE_ORDER = ("leaf", "level_one", "level_two", "settlement")
@@ -106,7 +106,7 @@ ENVIRONMENT_ALLOWLIST = (
 NONCLAIMS = (
     "candidate artifacts require a separate pinned-verifier replay before any scoped replay claim",
     "this runner grants no data-availability, finality, ledger, release, settlement, privacy, general-scaling, or production authority",
-    "proof-byte determinism, sandbox isolation, same-UID resistance, crash durability, and caller-supplied scratch encryption are not verified",
+    "proof-byte determinism, runtime resource containment, sandbox isolation, same-UID resistance, crash durability, and caller-supplied scratch encryption are not verified",
 )
 
 MAX_INPUT_BYTES = 16 * 1024 * 1024
@@ -115,6 +115,8 @@ MAX_STAGE_ARTIFACT_BYTES = 64 * 1024 * 1024
 MAX_TOTAL_AUTHORITY_INPUT_BYTES = 128 * 1024 * 1024
 MAX_TOTAL_CANDIDATE_ARTIFACT_BYTES = 256 * 1024 * 1024
 MAX_CAPTURE_BYTES = 128 * 1024
+MAX_JSON_NESTING = 64
+MAX_JSON_NODES = 1_000_000
 MIN_TIMEOUT_SECONDS = 1
 MAX_TIMEOUT_SECONDS = 6 * 60 * 60
 DEFAULT_TIMEOUT_SECONDS = 2 * 60 * 60
@@ -962,6 +964,7 @@ def _candidate_report(
         ],
         "independent_retained_replay_verified": False,
         "network_isolation_verified": False,
+        "runtime_resource_containment_verified": False,
         "nonclaims": list(NONCLAIMS),
         "positive_succinct_receipt_count": 4,
         "production_authority": False,
@@ -1080,7 +1083,14 @@ def _read_stage_outputs(
 def _read_bounded_regular_file(path: Path, label: str, maximum_bytes: int) -> bytes:
     path = _absolute(path)
     _reject_symlink_components(path.parent, f"{label} parent")
-    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    # O_NONBLOCK makes a hostile FIFO or device candidate observable to fstat
+    # without allowing open(2) to block outside the governed process timeout.
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
     try:
         descriptor = os.open(path, flags)
     except OSError as exc:
@@ -1142,10 +1152,38 @@ def _load_json(raw: bytes, label: str) -> Any:
             value[key] = item
         return value
 
+    def reject_noninteger_number(_value: str) -> NoReturn:
+        raise ProofChainError(f"{label} contains a non-integer JSON number")
+
     try:
-        return json.loads(raw, object_pairs_hook=reject_duplicates)
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        value = json.loads(
+            raw,
+            object_pairs_hook=reject_duplicates,
+            parse_float=reject_noninteger_number,
+            parse_constant=reject_noninteger_number,
+        )
+    except ProofChainError:
+        raise
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, ValueError) as exc:
         raise ProofChainError(f"{label} is not valid JSON") from exc
+    _require_bounded_json_shape(value, label)
+    return value
+
+
+def _require_bounded_json_shape(value: Any, label: str) -> None:
+    stack: list[tuple[Any, int]] = [(value, 0)]
+    nodes = 0
+    while stack:
+        node, depth = stack.pop()
+        nodes += 1
+        if nodes > MAX_JSON_NODES:
+            raise ProofChainError(f"{label} exceeds the JSON node bound")
+        if depth > MAX_JSON_NESTING:
+            raise ProofChainError(f"{label} exceeds the JSON nesting bound")
+        if type(node) is dict:
+            stack.extend((child, depth + 1) for child in node.values())
+        elif type(node) is list:
+            stack.extend((child, depth + 1) for child in node)
 
 
 def _load_exact_report(raw: bytes, fields: set[str], label: str) -> dict[str, Any]:
@@ -1286,9 +1324,24 @@ def _rename_noreplace(source: Path, destination: Path) -> None:
                 error = ctypes.get_errno()
                 raise OSError(error, os.strerror(error), destination)
         finally:
-            os.close(destination_parent)
+            _close_descriptor_noexcept(destination_parent)
     finally:
-        os.close(source_parent)
+        _close_descriptor_noexcept(source_parent)
+
+
+def _close_descriptor_noexcept(descriptor: int) -> None:
+    """Release a rename directory descriptor without changing commit outcome.
+
+    ``renameat2`` is the publication commit point. A close error after a
+    successful rename cannot turn a visible candidate into a reported reject.
+    The process is one-shot, so a rare ambiguous close may retain only a
+    bounded directory descriptor until process exit.
+    """
+
+    try:
+        os.close(descriptor)
+    except OSError:
+        pass
 
 
 def _fsync_directory(path: Path) -> None:

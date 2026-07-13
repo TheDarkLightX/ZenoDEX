@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import multiprocessing
+import os
 import stat
 import textwrap
 import time
 from dataclasses import replace
+from multiprocessing.connection import Connection
 from pathlib import Path
 
 import pytest
@@ -183,7 +186,10 @@ def _prover_source(
         raw = receipt(role)
         if role == "leaf":
             envelope = b"source-opened-leaf-envelope-v6"
-            write(options["--receipt-out"], raw)
+            if fault == "fifo_output":
+                os.mkfifo(options["--receipt-out"], 0o600)
+            else:
+                write(options["--receipt-out"], raw)
             write(options["--source-envelope-out"], envelope)
             if fault == "extra_output":
                 pathlib.Path(options["--receipt-out"]).with_name("unexpected").write_bytes(b"x")
@@ -355,6 +361,42 @@ class FakeChain:
         )
 
 
+def _run_chain_in_child(chain: FakeChain, sender: Connection) -> None:
+    try:
+        chain.run()
+    except BaseException as exc:
+        sender.send((type(exc).__name__, str(exc)))
+    else:
+        sender.send(("accepted", ""))
+    finally:
+        sender.close()
+
+
+def _assert_bounded_child_rejection(chain: FakeChain, expected_message: str) -> None:
+    context = multiprocessing.get_context("fork")
+    receiver, sender = context.Pipe(duplex=False)
+    process = context.Process(target=_run_chain_in_child, args=(chain, sender))
+    try:
+        process.start()
+        sender.close()
+        process.join(timeout=3.0)
+        if process.is_alive():
+            process.kill()
+            process.join(timeout=1.0)
+            pytest.fail("FIFO regression child exceeded its hard timeout")
+        assert process.exitcode == 0
+        assert receiver.poll(1.0)
+        error_type, message = receiver.recv()
+        assert error_type == "ProofChainError"
+        assert expected_message in message
+    finally:
+        if process.is_alive():
+            process.kill()
+            process.join(timeout=1.0)
+        sender.close()
+        receiver.close()
+
+
 def test_four_stage_candidate_is_exact_private_and_authority_false(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -396,6 +438,7 @@ def test_four_stage_candidate_is_exact_private_and_authority_false(
     assert report["scratch_parent_encryption_verified"] is False
     assert report["independent_retained_replay_verified"] is False
     assert report["network_isolation_verified"] is False
+    assert report["runtime_resource_containment_verified"] is False
     assert report["sandbox_authority"] is False
     assert report["same_uid_resistance_verified"] is False
     assert report["crash_durable_publication_verified"] is False
@@ -460,6 +503,7 @@ def test_r0vm_program_identity_mismatch_rejects_without_publication(tmp_path: Pa
     [
         ("leaf", "nonzero", "leaf prover returned nonzero"),
         ("leaf", "extra_output", "leaf output inventory mismatch"),
+        ("leaf", "fifo_output", "leaf output inventory contains a non-file"),
         ("level_one", "child_hash", "level_one child receipt SHA-256 mismatch"),
         ("settlement", "bad_mutation", "settlement mutation must XOR"),
         ("settlement", "unknown_report_field", "settlement report field set mismatch"),
@@ -549,6 +593,81 @@ def test_publication_race_preserves_racing_output(
 
     assert chain.output.joinpath("racer").read_bytes() == b"other-owner"
     assert list(chain.scratch.iterdir()) == []
+
+
+def test_fifo_authority_input_rejects_without_blocking(tmp_path: Path) -> None:
+    chain = FakeChain(tmp_path)
+    fifo = tmp_path / "source-request.fifo"
+    os.mkfifo(fifo, 0o600)
+    chain.source_request = fifo
+
+    _assert_bounded_child_rejection(chain, "not a bounded regular file")
+    assert not chain.output.exists()
+
+
+def test_fifo_program_rejects_without_blocking(tmp_path: Path) -> None:
+    chain = FakeChain(tmp_path)
+    fifo = tmp_path / "leaf-program.fifo"
+    os.mkfifo(fifo, 0o600)
+    chain.programs["leaf"] = replace(chain.programs["leaf"], path=fifo)
+
+    _assert_bounded_child_rejection(chain, "not a bounded regular file")
+    assert not chain.output.exists()
+
+
+def test_fifo_executable_rejects_without_blocking(tmp_path: Path) -> None:
+    chain = FakeChain(tmp_path)
+    fifo = tmp_path / "r0vm.fifo"
+    os.mkfifo(fifo, 0o600)
+    chain.r0vm = runner.ExecutablePin(path=fifo, sha256="aa" * 32)
+
+    _assert_bounded_child_rejection(chain, "r0vm executable snapshot failed")
+    assert not chain.output.exists()
+
+
+@pytest.mark.parametrize("raw", [b'{"x":NaN}', b'{"x":Infinity}', b'{"x":1.5}'])
+def test_noninteger_json_number_rejects_stably(raw: bytes) -> None:
+    with pytest.raises(runner.ProofChainError, match="non-integer JSON number"):
+        runner._require_json_object(raw, "authority input")
+
+
+def test_deep_json_rejects_with_stable_error() -> None:
+    raw = b'{"x":' + (b"[" * 80) + b"0" + (b"]" * 80) + b"}"
+
+    with pytest.raises(runner.ProofChainError, match="JSON nesting bound"):
+        runner._require_json_object(raw, "authority input")
+
+
+def test_json_node_bound_rejects_stably(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(runner, "MAX_JSON_NODES", 3)
+
+    with pytest.raises(runner.ProofChainError, match="JSON node bound"):
+        runner._require_json_object(b'{"a":[1,2,3]}', "authority input")
+
+
+def test_post_commit_descriptor_close_error_does_not_report_false_reject(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "candidate"
+    destination = tmp_path / "published"
+    source.mkdir()
+    source.joinpath("artifact").write_bytes(b"governed")
+    original_close = os.close
+    close_count = 0
+
+    def close_with_one_post_commit_error(descriptor: int) -> None:
+        nonlocal close_count
+        close_count += 1
+        original_close(descriptor)
+        if close_count == 2:
+            raise OSError("simulated close error after rename")
+
+    monkeypatch.setattr(runner.os, "close", close_with_one_post_commit_error)
+
+    runner._atomic_publish_candidate(source, destination)
+
+    assert not source.exists()
+    assert destination.joinpath("artifact").read_bytes() == b"governed"
 
 
 def test_scratch_parent_must_be_private(tmp_path: Path) -> None:
