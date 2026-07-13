@@ -181,7 +181,7 @@ def test_state_root_rejects_duplicate_decoded_balance_keys() -> None:
         compute_state_root(balances=balances, pools={}, lp_balances=LPTable())
 
 
-def test_state_root_rejects_duplicate_decoded_pool_ids() -> None:
+def test_state_root_rejects_noncanonical_duplicate_pool_alias() -> None:
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
@@ -198,7 +198,7 @@ def test_state_root_rejects_duplicate_decoded_pool_ids() -> None:
     pool_id_upper = "0x" + pool_id_lower[2:].upper()
 
     pool_state_upper = type(pool_state)(
-        pool_id=pool_id_upper,
+        pool_id=pool_id_lower,
         asset0=pool_state.asset0,
         asset1=pool_state.asset1,
         reserve0=pool_state.reserve0,
@@ -208,12 +208,13 @@ def test_state_root_rejects_duplicate_decoded_pool_ids() -> None:
         status=pool_state.status,
         created_at=pool_state.created_at,
     )
+    pool_state_upper.pool_id = pool_id_upper
 
     pools = {
         pool_id_lower: pool_state,
         pool_id_upper: pool_state_upper,
     }
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="canonical lowercase 0x-prefixed 32-byte hex"):
         compute_state_root(balances=BalanceTable(), pools=pools, lp_balances=LPTable())
 
 
@@ -338,7 +339,7 @@ def test_state_root_rejects_pool_id_mismatch_unknown_status_and_invalid_scalars(
     )
 
     mismatch = type(pool)(
-        pool_id="0x" + "ff" * 32,
+        pool_id=pool.pool_id,
         asset0=pool.asset0,
         asset1=pool.asset1,
         reserve0=pool.reserve0,
@@ -348,6 +349,7 @@ def test_state_root_rejects_pool_id_mismatch_unknown_status_and_invalid_scalars(
         status=pool.status,
         created_at=pool.created_at,
     )
+    mismatch.pool_id = "0x" + "ff" * 32
     with pytest.raises(ValueError, match="pool_id mismatch"):
         compute_state_root(balances=BalanceTable(), pools={pool_id: mismatch}, lp_balances=LPTable())
 
@@ -369,14 +371,55 @@ def test_state_root_rejects_pool_id_mismatch_unknown_status_and_invalid_scalars(
         compute_state_root(balances=BalanceTable(), pools={_pool_id2: bad_pool}, lp_balances=LPTable())
 
 
-def test_state_root_rejects_canonical_hex_pool_id_parameter_mismatch() -> None:
+def test_pool_state_rejects_canonical_hex_pool_id_parameter_mismatch() -> None:
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
     canonical_pool_id = compute_pool_id(asset0, asset1, 30)
     mismatched_pool_id = "0x" + "ff" * 32
     assert mismatched_pool_id != canonical_pool_id
+
+    with pytest.raises(ValueError, match="pool_id does not match canonical pool identity"):
+        PoolState(
+            pool_id=mismatched_pool_id,
+            asset0=asset0,
+            asset1=asset1,
+            reserve0=1_000,
+            reserve1=2_000,
+            fee_bps=30,
+            lp_supply=10,
+            status=PoolStatus.ACTIVE,
+            created_at=1,
+        )
+
+
+def test_pool_state_preserves_symbolic_id_as_non_authoritative_compatibility() -> None:
     pool = PoolState(
-        pool_id=mismatched_pool_id,
+        pool_id="local-pool-a",
+        asset0="0x" + "01" * 32,
+        asset1="0x" + "02" * 32,
+        reserve0=1_000,
+        reserve1=2_000,
+        fee_bps=30,
+        lp_supply=10,
+        status=PoolStatus.ACTIVE,
+        created_at=1,
+    )
+
+    assert pool.pool_id == "local-pool-a"
+    with pytest.raises(ValueError, match="canonical lowercase 0x-prefixed 32-byte hex"):
+        compute_state_root(
+            balances=BalanceTable(),
+            pools={pool.pool_id: pool},
+            lp_balances=LPTable(),
+        )
+
+
+def test_state_root_rejects_canonical_hex_pool_id_parameter_mismatch() -> None:
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30)
+    pool = PoolState(
+        pool_id=pool_id,
         asset0=asset0,
         asset1=asset1,
         reserve0=1_000,
@@ -386,11 +429,12 @@ def test_state_root_rejects_canonical_hex_pool_id_parameter_mismatch() -> None:
         status=PoolStatus.ACTIVE,
         created_at=1,
     )
+    pool.pool_id = "0x" + "ff" * 32
 
     with pytest.raises(ValueError, match="pool_id does not match canonical pool identity"):
         compute_state_root(
             balances=BalanceTable(),
-            pools={mismatched_pool_id: pool},
+            pools={pool.pool_id: pool},
             lp_balances=LPTable(),
         )
 
@@ -401,7 +445,7 @@ def test_state_root_rejects_noncanonical_pool_id_case() -> None:
     canonical_pool_id = compute_pool_id(asset0, asset1, 30)
     uppercase_pool_id = "0x" + canonical_pool_id[2:].upper()
     pool = PoolState(
-        pool_id=uppercase_pool_id,
+        pool_id=canonical_pool_id,
         asset0=asset0,
         asset1=asset1,
         reserve0=1_000,
@@ -411,6 +455,7 @@ def test_state_root_rejects_noncanonical_pool_id_case() -> None:
         status=PoolStatus.ACTIVE,
         created_at=1,
     )
+    pool.pool_id = uppercase_pool_id
 
     with pytest.raises(ValueError, match="canonical lowercase 0x-prefixed 32-byte hex"):
         compute_state_root(
@@ -442,8 +487,9 @@ def test_state_root_rejects_pool_identity_before_rust_authority(
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
     mismatched_pool_id = "0x" + "ff" * 32
+    canonical_pool_id = compute_pool_id(asset0, asset1, 30)
     pool = PoolState(
-        pool_id=mismatched_pool_id,
+        pool_id=canonical_pool_id,
         asset0=asset0,
         asset1=asset1,
         reserve0=1_000,
@@ -453,6 +499,7 @@ def test_state_root_rejects_pool_identity_before_rust_authority(
         status=PoolStatus.ACTIVE,
         created_at=1,
     )
+    pool.pool_id = mismatched_pool_id
     rust_called = False
 
     def fake_rust_root(_state: dict[str, object]) -> str:
@@ -504,8 +551,9 @@ def test_state_root_rejects_curve_configuration_change_without_new_pool_id() -> 
         status=pool_a.status,
         created_at=pool_a.created_at,
         curve_tag="SUM_BOOST_V1",
-        curve_params='{"mu_num":2,"mu_den":3}',
+        curve_params=pool_a.curve_params,
     )
+    pool_b.curve_params = '{"mu_den":3,"mu_num":2}'
 
     compute_state_root(balances=BalanceTable(), pools={pool_id: pool_a}, lp_balances=LPTable())
     with pytest.raises(ValueError, match="pool_id does not match canonical pool identity"):

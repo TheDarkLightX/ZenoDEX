@@ -27,7 +27,7 @@ from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
 from src.state.nonces import NonceTable
-from src.state.pools import PoolState, PoolStatus
+from src.state.pools import PoolState, PoolStatus, compute_pool_id
 
 
 def _create_pool_intent_dict(*, intent_id: str, sender: str, asset0: str, asset1: str) -> dict:
@@ -104,7 +104,7 @@ def test_engine_rejects_remove_liquidity_before_runtime_lp_age_lock_expires() ->
     sender = "0x" + "ab" * 48
     asset0 = "0x" + "13" * 32
     asset1 = "0x" + "14" * 32
-    pool_id = "0x" + "15" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30)
     lp = LPTable()
     lp.set(sender, pool_id, 100)
     lp.set_last_mint_timestamp(sender, pool_id, 10)
@@ -166,7 +166,7 @@ def test_engine_accepts_remove_liquidity_after_runtime_lp_age_lock_expires() -> 
     sender = "0x" + "ac" * 48
     asset0 = "0x" + "17" * 32
     asset1 = "0x" + "18" * 32
-    pool_id = "0x" + "19" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30)
     lp = LPTable()
     lp.set(sender, pool_id, 100)
     lp.set_last_mint_timestamp(sender, pool_id, 10)
@@ -230,7 +230,7 @@ def test_engine_rejects_same_batch_lp_add_remove_under_age_gate() -> None:
     sender = "0x" + "ad" * 48
     asset0 = "0x" + "1b" * 32
     asset1 = "0x" + "1c" * 32
-    pool_id = "0x" + "1d" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30)
     balances = BalanceTable()
     balances.set(sender, asset0, 1_000)
     balances.set(sender, asset1, 1_000)
@@ -540,7 +540,7 @@ def test_engine_accepts_provided_swap_settlement_with_reserve_witness_roundtrip(
     sender = "0x" + "aa" * 48
     asset0 = "0x" + "11" * 32
     asset1 = "0x" + "22" * 32
-    pool_id = "0x" + "33" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30)
     intent_id = "0x" + "05" * 32
 
     balances = BalanceTable()

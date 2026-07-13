@@ -370,7 +370,8 @@ class PoolState:
     State of a DEX liquidity pool.
     
     Attributes:
-        pool_id: 32-byte pool identifier (hex string)
+        pool_id: Canonical parameter-bound 32-byte hex identifier. Symbolic
+            values exist only for non-authoritative legacy compatibility.
         asset0: First asset identifier (must be < asset1 lexicographically)
         asset1: Second asset identifier
         reserve0: Reserve amount for asset0
@@ -416,6 +417,11 @@ class PoolState:
         # Validate non-negative LP supply
         if self.lp_supply < 0:
             raise ValueError(f"LP supply must be non-negative: {self.lp_supply}")
+
+        # Canonical hex IDs are authoritative and must bind the normalized pool
+        # identity at construction. Symbolic legacy objects remain constructible
+        # for local compatibility; snapshot/root boundaries reject them.
+        validate_pool_identity(self, allow_symbolic=True)
     
     def get_reserve(self, asset: AssetId) -> Amount:
         """

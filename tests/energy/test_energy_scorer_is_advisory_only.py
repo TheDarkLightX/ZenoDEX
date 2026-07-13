@@ -13,7 +13,7 @@ from src.energy.upba_v2_ranker import (
 )
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
-from src.state.pools import PoolState, PoolStatus
+from src.state.pools import PoolState, PoolStatus, compute_pool_id
 from src.state.state_root import compute_state_root
 from tools.generate_upba_energy_dataset import generate_synthetic_batch
 
@@ -147,7 +147,7 @@ def test_verified_checked_stop_certificate_rejects_nonwinner_when_better_suffix_
 def test_model_output_not_in_state_root() -> None:
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
-    pool_id = "0x" + "03" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30)
     pubkey = "0x" + "04" * 48
     balances = BalanceTable()
     balances.set(pubkey, asset0, 1_000)

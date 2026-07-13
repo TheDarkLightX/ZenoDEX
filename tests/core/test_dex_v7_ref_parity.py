@@ -150,7 +150,7 @@ def test_lp_ratio_calculator_v7_matches_core_add_liquidity_ratio() -> None:
 
     # Non-initial: match Python core ratio selection.
     pool_state = PoolState(
-        pool_id="0x00",
+        pool_id="local-pool",
         asset0="A",
         asset1="B",
         reserve0=100,
