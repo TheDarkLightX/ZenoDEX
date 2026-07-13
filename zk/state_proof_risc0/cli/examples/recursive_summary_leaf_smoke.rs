@@ -10,14 +10,16 @@ use tau_state_proof_risc0_shared::{
     recursive_cross_shard_messages_root_v1, recursive_effect_summary_hash_v1,
     recursive_lane_state_vector_root_v1, recursive_receipt_ids_root_v1,
     recursive_verifier_set_root_v1, sha256_canonical_perps_np_snapshot_v1,
-    sha256_canonical_zusd_snapshot_v1, DexStateV1, OracleBindingV1, PerpsAccountV1,
+    sha256_canonical_zusd_snapshot_v1, DexBalanceEntryV1, DexIntentV1, DexPoolEntryV1,
+    DexSnapshotV1, DexStateV1, FeeAccumulatorV1, OracleBindingV1, PerpsAccountV1,
     PerpsMarketParamsV1, PerpsNpActionV1, PerpsNpRecursiveLeafInputV1, PerpsNpSnapshotV1,
-    PerpsNpTransitionInputV1, RecursiveAssetDeltaRowV1, RecursiveChildDescriptorV1,
-    RecursiveChildEffectV1, RecursiveCompositionInputV1, RecursiveCompositionStatementV1,
-    RecursiveEffectSummaryV1, RecursiveEpochJournalV1, SpotRecursiveLeafInputV1, StateProofInputV1,
-    ZusdBalanceEntryV1, ZusdOperationV1, ZusdRecursiveLeafInputV1, ZusdSnapshotV1,
-    ZusdTransitionInputV1, ZusdVaultEntryV1, RECURSIVE_DOMAIN_SEPARATOR_V1,
-    RECURSIVE_EFFECT_SUMMARY_VERSION_V1, RECURSIVE_EPOCH_PROFILE_V1,
+    PerpsNpTransitionInputV1, ProtocolFeeConfig, RecursiveAssetDeltaRowV1,
+    RecursiveChildDescriptorV1, RecursiveChildEffectV1, RecursiveCompositionInputV1,
+    RecursiveCompositionStatementV1, RecursiveEffectSummaryV1, RecursiveEpochJournalV1,
+    SignedIntentV1, SpotRecursiveLeafInputV1, StateProofInputV1, SwapExactInIntentV1,
+    TauTxAppOpsV1, TauTxV1, TxIngressFactV1, ZusdBalanceEntryV1, ZusdOperationV1,
+    ZusdRecursiveLeafInputV1, ZusdSnapshotV1, ZusdTransitionInputV1, ZusdVaultEntryV1,
+    RECURSIVE_DOMAIN_SEPARATOR_V1, RECURSIVE_EFFECT_SUMMARY_VERSION_V1, RECURSIVE_EPOCH_PROFILE_V1,
     RECURSIVE_PERPS_NP_LEAF_MAX_INPUT_BYTES, RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES,
     RECURSIVE_STATEMENT_VERSION_V1, RECURSIVE_STRICT_CROSS_SHARD_MODE_V1,
     RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES, RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1,
@@ -187,6 +189,126 @@ fn print_spot_request(image_id_hex: &str) -> Result<(), String> {
             "spot_recursive_leaf_input": input,
         }))
         .map_err(|e| format!("spot request json: {e}"))?
+    );
+    Ok(())
+}
+
+fn print_spot_swap_request(image_id_hex: &str) -> Result<(), String> {
+    const ASSET0: &str = "0x1111111111111111111111111111111111111111111111111111111111111111";
+    const ASSET1: &str = "0x2222222222222222222222222222222222222222222222222222222222222222";
+    const SENDER: &str =
+        "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const RECIPIENT: &str =
+        "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    const POOL_ID: &str = "0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686";
+
+    let snapshot = DexSnapshotV1 {
+        version: 1,
+        balances: vec![DexBalanceEntryV1 {
+            pubkey: SENDER.to_string(),
+            asset: ASSET0.to_string(),
+            amount: 1_000,
+        }],
+        pools: vec![DexPoolEntryV1 {
+            pool_id: POOL_ID.to_string(),
+            asset0: ASSET0.to_string(),
+            asset1: ASSET1.to_string(),
+            reserve0: 10_000,
+            reserve1: 10_000,
+            fee_bps: 30,
+            lp_supply: 10_000,
+            status: "ACTIVE".to_string(),
+            created_at: 0,
+        }],
+        lp_balances: Vec::new(),
+        fee_accumulator: FeeAccumulatorV1 { dust: 0 },
+        vault: None,
+        oracle: None,
+    };
+    let pre_app_hash = DexStateV1::from_snapshot(snapshot.clone())
+        .map_err(|error| format!("spot swap pre-state rejected: {error:?}"))?
+        .canonical_app_hash_sha256();
+    let tx = TauTxV1 {
+        sender_pubkey: SENDER.to_string(),
+        app_ops: TauTxAppOpsV1 {
+            has_faucet: false,
+            faucet_mint: Vec::new(),
+            has_intents: true,
+            intents: vec![SignedIntentV1 {
+                signature: None,
+                intent: DexIntentV1::SwapExactIn(SwapExactInIntentV1 {
+                    module: "TauSwap".to_string(),
+                    version: "v1".to_string(),
+                    intent_id: "zrpf-source-opened-swap-0001".to_string(),
+                    sender_pubkey: SENDER.to_string(),
+                    deadline: 100,
+                    pool_id: POOL_ID.to_string(),
+                    asset_in: ASSET0.to_string(),
+                    asset_out: ASSET1.to_string(),
+                    amount_in: 1_000,
+                    min_amount_out: 900,
+                    recipient: RECIPIENT.to_string(),
+                    salt: None,
+                }),
+            }],
+        },
+    };
+    let mut post_state = DexStateV1::from_snapshot(snapshot.clone())
+        .map_err(|error| format!("spot swap pre-state rejected: {error:?}"))?;
+    post_state
+        .apply_tx(&tx, 1, &ProtocolFeeConfig::default())
+        .map_err(|error| format!("spot swap transition rejected: {error:?}"))?;
+    let post_app_hash = post_state.canonical_app_hash_sha256();
+    let input = SpotRecursiveLeafInputV1 {
+        chain_id: "tau-devnet-zrpf-source-opened".to_string(),
+        epoch_id: 1,
+        lane_id: "spot-source-opened-lane-0001".to_string(),
+        risc0_image_id: parse_image_id(image_id_hex)?,
+        public_policy_hash: root(8),
+        feature_suite_hash: root(9),
+        dependency_lock_hash: root(10),
+        toolchain_lock_hash: root(11),
+        spot_input: StateProofInputV1 {
+            state_hash: post_app_hash,
+            block_timestamp: 1,
+            pre_app_hash_present: true,
+            pre_app_hash,
+            pre_state: snapshot,
+            txs: vec![tx],
+            pre_nonces: Vec::new(),
+            tx_ingress: vec![TxIngressFactV1 {
+                sender_pubkey: SENDER.to_string(),
+                nonce: 0,
+            }],
+            chain_balances_post: Vec::new(),
+            expected_post_app_hash: post_app_hash,
+            protocol_fee_share_bps: 0,
+            protocol_fee_recipient_pubkey: None,
+            tx_execution_order: vec![0],
+            route_price_intervals: Vec::new(),
+            route_price_interval_authority: None,
+            route_price_interval_authority_policy: None,
+            route_price_interval_max_width_bps: None,
+            shared_pool_frontier_signature_certificates: Vec::new(),
+        },
+    };
+    let summary =
+        tau_state_proof_risc0_shared::compose_spot_recursive_leaf_summary_v1(input.clone())
+            .map_err(|error| format!("spot swap recursive summary rejected: {error:?}"))?;
+    if summary.pre_state_root != pre_app_hash || summary.post_state_root != post_app_hash {
+        return Err("spot swap recursive summary state binding mismatch".to_string());
+    }
+    println!(
+        "{}",
+        serde_json::to_string(&json!({
+            "schema": "tau_state_proof_request",
+            "schema_version": 1,
+            "state_hash": hex_bytes(&post_app_hash),
+            "proof_type": "risc0.zenodex_recursive_spot_leaf.v1",
+            "receipt_kind": "succinct",
+            "spot_recursive_leaf_input": input,
+        }))
+        .map_err(|error| format!("spot swap request json: {error}"))?
     );
     Ok(())
 }
@@ -945,11 +1067,14 @@ fn main() {
         [_, mode, image_id_hex] if mode == "summary" => print_summary_request(image_id_hex),
         [_, mode, image_id_hex] if mode == "perps" => print_perps_request(image_id_hex),
         [_, mode, image_id_hex] if mode == "spot" => print_spot_request(image_id_hex),
+        [_, mode, image_id_hex] if mode == "spot-swap" => {
+            print_spot_swap_request(image_id_hex)
+        }
         [_, mode, image_id_hex] if mode == "zusd" => print_zusd_request(image_id_hex),
         [_, mode, proof_paths @ ..] if mode == "root" && !proof_paths.is_empty() => {
             print_root_request(proof_paths)
         }
-        _ => Err("usage: recursive_summary_leaf_smoke summary <image-id-hex> | perps <image-id-hex> | spot <image-id-hex> | zusd <image-id-hex> | root <recursive-leaf-proof-json> [more-leaf-proof-json...]".to_string()),
+        _ => Err("usage: recursive_summary_leaf_smoke summary <image-id-hex> | perps <image-id-hex> | spot <image-id-hex> | spot-swap <image-id-hex> | zusd <image-id-hex> | root <recursive-leaf-proof-json> [more-leaf-proof-json...]".to_string()),
     };
     if let Err(err) = result {
         eprintln!("{err}");

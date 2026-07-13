@@ -20,6 +20,7 @@ pub enum ValueAggregateRecompositionErrorV5 {
         maximum: usize,
     },
     ChildV4JournalDecode(usize),
+    ChildV6StatementDecode(usize),
     ChildV5ProposalDecode(usize),
     ChildProgramMismatch(usize),
     ChildProfileMismatch(usize),
@@ -64,6 +65,12 @@ impl fmt::Display for ValueAggregateRecompositionErrorV5 {
             Self::ChildV4JournalDecode(child) => {
                 write!(formatter, "V4 child {child} exact journal decoding failed")
             }
+            Self::ChildV6StatementDecode(child) => {
+                write!(
+                    formatter,
+                    "V6 child {child} exact statement decoding failed"
+                )
+            }
             Self::ChildV5ProposalDecode(child) => {
                 write!(formatter, "V5 child {child} exact proposal decoding failed")
             }
@@ -83,7 +90,7 @@ impl fmt::Display for ValueAggregateRecompositionErrorV5 {
                 write!(formatter, "V5 child {child} has unexpected level {actual}")
             }
             Self::ChildNotSingletonLeaf(child) => {
-                write!(formatter, "V5 child {child} is not a singleton V4 leaf")
+                write!(formatter, "V5 child {child} is not a singleton value leaf")
             }
             Self::DuplicateChildClaim => formatter.write_str("duplicate derived V5 child claim"),
             Self::DuplicateChildJournal => {

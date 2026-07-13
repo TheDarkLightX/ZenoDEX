@@ -1,0 +1,22 @@
+[package]
+name = "zenodex-zrpf-risc0-spot-v6-methods"
+version = "0.1.0"
+edition = "2021"
+description = "Source-opened Spot V6 RISC0 guest methods"
+publish = false
+
+[build-dependencies]
+risc0-build = "=3.0.5"
+
+[dependencies]
+
+[lib]
+doctest = false
+
+[package.metadata.risc0]
+methods = [
+  "../methods/spot_value_leaf_v6",
+  "../methods/spot_value_aggregate_l1_v6",
+  "../methods/spot_value_aggregate_l2_v6",
+  "../methods/source_opened_spot_settlement_v6",
+]

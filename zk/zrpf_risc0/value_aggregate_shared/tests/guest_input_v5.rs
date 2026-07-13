@@ -6,13 +6,16 @@ use zenodex_zrpf_risc0_value_aggregate_shared::{
 };
 
 #[test]
-fn one_codec_roundtrips_both_child_wire_kinds() {
+fn one_codec_roundtrips_all_child_wire_kinds() {
     for input in [
         ValueAggregateGuestInputV5::LevelOne(
             ValueAggregateLevelOneInputV5::new(vec![vec![1, 2], vec![3]]).unwrap(),
         ),
         ValueAggregateGuestInputV5::LevelTwo(
             ValueAggregateLevelTwoInputV5::new(vec![vec![4], vec![5, 6]]).unwrap(),
+        ),
+        ValueAggregateGuestInputV5::LevelOneSourceOpenedSpotV6(
+            ValueAggregateLevelOneInputV5::new(vec![vec![7, 8]]).unwrap(),
         ),
     ] {
         let bytes = encode_value_aggregate_guest_input_v5(&input).unwrap();
@@ -76,8 +79,8 @@ fn malformed_schema_kind_truncation_trailing_and_total_size_fail_closed() {
         Err(ValueAggregateGuestInputErrorV5::InvalidSchema(2))
     );
     assert_eq!(
-        decode_exact_value_aggregate_guest_input_v5(&[0, 1, 3, 1]),
-        Err(ValueAggregateGuestInputErrorV5::InvalidChildWireKind(3))
+        decode_exact_value_aggregate_guest_input_v5(&[0, 1, 4, 1]),
+        Err(ValueAggregateGuestInputErrorV5::InvalidChildWireKind(4))
     );
     assert_eq!(
         decode_exact_value_aggregate_guest_input_v5(&[0, 1, 1, 1, 0, 0, 0, 2, 9]),

@@ -9,6 +9,7 @@ mod proposal_validation;
 pub use child::{ValueAggregateChildDescriptorInputV5, ValueAggregateChildDescriptorV5};
 pub use codec::{decode_exact_value_aggregate_proposal_v5, encode_value_aggregate_proposal_v5};
 pub use error::ValueAggregateErrorV5;
+pub use hash::aggregate_value_operational_commitments_v5;
 pub use operational::{
     ValueAggregateOperationalCommitmentsInputV5, ValueAggregateOperationalCommitmentsV5,
 };

@@ -524,6 +524,6 @@ use self::hash::{
 };
 pub use self::hash::{
     canonical_spot_asset_name_v1, spot_accounting_domain_id_v1, spot_atoms_unit_id_v1,
-    spot_represented_value_profile_id_v1, spot_state_root_scheme_id_v1,
+    spot_lane_id_hash_v1, spot_represented_value_profile_id_v1, spot_state_root_scheme_id_v1,
 };
 pub use self::wire_v4::*;

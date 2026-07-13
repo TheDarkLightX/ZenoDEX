@@ -19,7 +19,8 @@ pub use replay_data_v2::*;
 pub use state_v2::*;
 
 use hash::{
-    derive_empty_carry_continuity_root_v1, derive_proof_tree_root_v1, derive_schedule_root_v1,
+    derive_empty_carry_continuity_root_v1, derive_empty_carry_continuity_root_v2,
+    derive_proof_tree_root_v1, derive_schedule_root_v1,
 };
 
 use crate::{
@@ -147,6 +148,27 @@ fn derive_certificate_fields_after_empty_policy(
         plan,
     )?;
     let carry_continuity_certificate_root = derive_empty_carry_continuity_root_v1(plan)?;
+    let semantic_profile_id =
+        ProfileIdV3::new(proposal.semantic_subtree().value_profile_id().into_bytes())?;
+    Ok(CheckedSpotCertificateFieldsV1 {
+        semantic_profile_id,
+        proof_tree_root,
+        schedule_certificate_root,
+        carry_continuity_certificate_root,
+    })
+}
+
+fn derive_certificate_fields_with_operational_carry_v2(
+    proposal: &ProposedValueAggregateV5,
+    plan: &SettlementEffectPlanV2,
+) -> Result<CheckedSpotCertificateFieldsV1, OrdinarySpotSettlementCertificateErrorV1> {
+    let proof_tree_root = derive_proof_tree_root_v1(proposal)?;
+    let schedule_certificate_root = derive_schedule_root_v1(
+        proposal.operational_commitments().conflict_schedule_root(),
+        plan.economic_action_batch(),
+        plan,
+    )?;
+    let carry_continuity_certificate_root = derive_empty_carry_continuity_root_v2(proposal, plan)?;
     let semantic_profile_id =
         ProfileIdV3::new(proposal.semantic_subtree().value_profile_id().into_bytes())?;
     Ok(CheckedSpotCertificateFieldsV1 {
