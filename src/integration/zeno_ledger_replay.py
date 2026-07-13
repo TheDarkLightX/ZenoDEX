@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 from dataclasses import asdict
 from typing import Any, Mapping
 
@@ -10,10 +9,9 @@ from src.core.dex import DexConfig, DexState
 from src.integration.dex_engine import DexEngineConfig
 from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
 from src.integration.zeno_ledger_v0 import (
-    apply_body_transactions_v0,
     dex_state_root_v0,
     hash_v0,
-    validate_block_state_transition_v0,
+    replay_block_state_transition_v0,
     validate_header_chain_state_continuity_v0,
 )
 
@@ -51,9 +49,7 @@ def _canonical_config_projection(value: object) -> object:
     if value is None or isinstance(value, (bool, int, str)):
         return value
     if isinstance(value, float):
-        if not math.isfinite(value):
-            raise ValueError("engine config contains a non-finite float")
-        return {"float64_hex": value.hex()}
+        raise TypeError("engine config floats are not allowed")
     if isinstance(value, Mapping):
         if not all(isinstance(key, str) for key in value):
             raise TypeError("engine config mapping keys must be strings")
@@ -63,8 +59,19 @@ def _canonical_config_projection(value: object) -> object:
     raise TypeError(f"engine config contains unsupported value type: {type(value).__name__}")
 
 
+def _governed_config_projection(config: DexEngineConfig) -> object:
+    projection = asdict(config)
+    proof_config = projection.get("proof_config")
+    if not isinstance(proof_config, dict) or "timeout_s" not in proof_config:
+        raise ValueError("engine proof config projection is malformed")
+    # External tools are disabled by the bounded profile. Their wall-clock timeout
+    # is outside deterministic execution and therefore outside the governed digest.
+    del proof_config["timeout_s"]
+    return _canonical_config_projection(projection)
+
+
 def replay_engine_config_document_v0(config: DexEngineConfig) -> dict[str, Any]:
-    """Return the complete config commitment for the bounded replay profile."""
+    """Return the deterministic config commitment for the bounded replay profile."""
 
     if not isinstance(config, DexEngineConfig):
         raise TypeError("config must be a DexEngineConfig")
@@ -84,7 +91,7 @@ def replay_engine_config_document_v0(config: DexEngineConfig) -> dict[str, Any]:
     return {
         "schema": REPLAY_ENGINE_CONFIG_SCHEMA,
         "profile": REPLAY_ENGINE_CONFIG_PROFILE,
-        "config": _canonical_config_projection(asdict(config)),
+        "config": _governed_config_projection(config),
     }
 
 
@@ -103,6 +110,7 @@ def parse_replay_engine_config_v0(
     config_obj = obj.get("config")
     if not isinstance(config_obj, Mapping):
         raise TypeError("engine_config.config must be a JSON object")
+    _canonical_config_projection(config_obj)
     dex_config_obj = config_obj.get("dex_config")
     if not isinstance(dex_config_obj, Mapping):
         raise TypeError("engine_config.config.dex_config must be a JSON object")
@@ -172,7 +180,7 @@ def validate_replay_bound_block_v0(
     *,
     header: Mapping[str, Any],
     body: Mapping[str, Any],
-    pre_snapshot: Mapping[str, Any],
+    pre_snapshot: Mapping[str, Any] | None,
     config: DexEngineConfig,
     config_digest: str,
     parent_header: Mapping[str, Any] | None,
@@ -187,9 +195,14 @@ def validate_replay_bound_block_v0(
     if parent_header is not None:
         validate_header_chain_state_continuity_v0([parent_header, header])
 
-    snapshot_state, canonical_snapshot = load_replay_snapshot_v0(pre_snapshot)
-    replay_state = snapshot_state if carried_state is None else carried_state
-    if carried_state is not None:
+    if carried_state is None:
+        if pre_snapshot is None:
+            raise ValueError("anchor pre-state snapshot is required")
+        replay_state, _canonical_snapshot = load_replay_snapshot_v0(pre_snapshot)
+    else:
+        replay_state = carried_state
+    if carried_state is not None and pre_snapshot is not None:
+        snapshot_state, canonical_snapshot = load_replay_snapshot_v0(pre_snapshot)
         carried_root = dex_state_root_v0(carried_state)
         if dex_state_root_v0(snapshot_state) != carried_root:
             raise ValueError("pre-state snapshot root does not match carried replay state")
@@ -200,19 +213,12 @@ def validate_replay_bound_block_v0(
         if canonical_snapshot != carried_snapshot:
             raise ValueError("pre-state snapshot bytes do not match carried replay state")
 
-    validate_block_state_transition_v0(
+    next_state, replayed_body, _receipts = replay_block_state_transition_v0(
         pre_state=replay_state,
-        header=header,
-        body=body,
-        config=config,
-    )
-    next_state, replayed_body, _receipts = apply_body_transactions_v0(
-        state=replay_state,
-        body=body,
+        header=dict(header),
+        body=dict(body),
         config=config,
     )
     if body["evidence"]["rejection_receipts"] != replayed_body["evidence"]["rejection_receipts"]:
         raise ValueError("committed rejection receipts do not match deterministic replay")
-    if dex_state_root_v0(next_state) != header["post_state_root"]:
-        raise ValueError("carried replay state does not match header post_state_root")
     return next_state

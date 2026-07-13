@@ -9,10 +9,12 @@ from typing import Any
 
 import pytest
 
+import src.integration.zeno_ledger_v0 as zeno_ledger_v0
 from src.core.dex import DexState
 from src.integration.dex_engine import DexEngineConfig
 from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.zeno_ledger_replay import (
+    parse_replay_engine_config_v0,
     replay_engine_config_digest_v0,
     replay_engine_config_document_v0,
 )
@@ -187,7 +189,7 @@ def test_recomputed_child_pre_state_mismatch_is_only_structurally_accepted(
     for height, header, body in ((1, header_1, body_1), (2, header_2, body_2)):
         _write_json(headers_dir / f"{height}.json", header)
         _write_json(bodies_dir / f"{height}.json", body)
-        _write_json(snapshots_dir / f"{height}.json", snapshot_from_state(state).data)
+    _write_json(snapshots_dir / "1.json", snapshot_from_state(state).data)
     _write_json(config_path, config_document)
 
     structural = verify_zeno_ledger_v0(
@@ -225,6 +227,98 @@ def test_recomputed_child_pre_state_mismatch_is_only_structurally_accepted(
     assert replay_bound["last_post_state_root"] is None
     assert replay_bound["last_app_hash"] is None
     assert any("pre_state_root does not match parent post_state_root" in error for error in replay_bound["errors"])
+
+
+def test_replay_bound_range_uses_one_anchor_snapshot_and_one_body_replay_per_height(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers_dir = tmp_path / "headers"
+    bodies_dir = tmp_path / "bodies"
+    snapshots_dir = tmp_path / "pre_snapshots"
+    config_path = tmp_path / "engine_config.json"
+    config = DexEngineConfig(chain_id="zeno-ledger-devnet-0")
+    config_document = replay_engine_config_document_v0(config)
+    config_digest = replay_engine_config_digest_v0(config_document)
+    state = _empty_state()
+    state_root = dex_state_root_v0(state)
+    previous_hash = ZERO_ROOT
+    for height in (1, 2, 3):
+        body = _empty_body(height)
+        header = _header(
+            body=body,
+            prev_header_hash=previous_hash,
+            pre_state_root=state_root,
+            post_state_root=state_root,
+            config_digest=config_digest,
+        )
+        _write_json(headers_dir / f"{height}.json", header)
+        _write_json(bodies_dir / f"{height}.json", body)
+        previous_hash = canonical_header_hash_v0(header)
+    _write_json(snapshots_dir / "1.json", snapshot_from_state(state).data)
+    _write_json(config_path, config_document)
+
+    original_apply = zeno_ledger_v0.apply_body_transactions_v0
+    replayed_heights: list[int] = []
+
+    def counted_apply_body_transactions_v0(
+        *,
+        state: DexState,
+        body: dict[str, Any],
+        config: DexEngineConfig,
+        default_block_timestamp: int | None = None,
+    ) -> tuple[DexState, dict[str, Any], list[dict[str, Any]]]:
+        replayed_heights.append(int(body["height"]))
+        return original_apply(
+            state=state,
+            body=body,
+            config=config,
+            default_block_timestamp=default_block_timestamp,
+        )
+
+    monkeypatch.setattr(
+        zeno_ledger_v0,
+        "apply_body_transactions_v0",
+        counted_apply_body_transactions_v0,
+    )
+
+    report = _strict_verify(
+        headers_dir=headers_dir,
+        bodies_dir=bodies_dir,
+        snapshots_dir=snapshots_dir,
+        config_path=config_path,
+        to_height=3,
+    )
+
+    assert report["ok"] is True
+    assert report["checked_heights"] == [1, 2, 3]
+    assert replayed_heights == [1, 2, 3]
+
+    mismatched_balances = BalanceTable()
+    mismatched_balances.set("0x" + "11" * 48, "0x" + "22" * 32, 1)
+    mismatched_state = DexState(
+        balances=mismatched_balances,
+        pools={},
+        lp_balances=LPTable(),
+    )
+    _write_json(snapshots_dir / "2.json", snapshot_from_state(mismatched_state).data)
+    replayed_heights.clear()
+
+    mismatch_report = _strict_verify(
+        headers_dir=headers_dir,
+        bodies_dir=bodies_dir,
+        snapshots_dir=snapshots_dir,
+        config_path=config_path,
+        to_height=3,
+    )
+
+    assert mismatch_report["ok"] is False
+    assert mismatch_report["checked_heights"] == []
+    assert replayed_heights == [1]
+    assert any(
+        "snapshot root does not match carried replay state" in error
+        for error in mismatch_report["errors"]
+    )
 
 
 def test_replay_bound_range_accepts_only_with_all_authority_checks(tmp_path: Path) -> None:
@@ -423,6 +517,20 @@ def test_replay_bound_range_rejects_tampered_fixed_engine_config(tmp_path: Path)
     assert report["ok"] is False
     assert report["checked_heights"] == []
     assert any("engine_config_invalid" in error for error in report["errors"])
+
+
+def test_replay_engine_config_document_is_float_free_and_rejects_injected_float() -> None:
+    canonical_document = replay_engine_config_document_v0(
+        DexEngineConfig(chain_id="zeno-ledger-devnet-0")
+    )
+
+    assert "timeout_s" not in canonical_document["config"]["proof_config"]
+    assert "float64_hex" not in json.dumps(canonical_document, sort_keys=True)
+
+    tampered_document = deepcopy(canonical_document)
+    tampered_document["config"]["proof_config"]["timeout_s"] = 10.0
+    with pytest.raises((TypeError, ValueError), match="float"):
+        parse_replay_engine_config_v0(tampered_document)
 
 
 def test_verify_cli_requires_explicit_structural_or_replay_mode(tmp_path: Path) -> None:

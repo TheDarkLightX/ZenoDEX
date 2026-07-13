@@ -27,6 +27,7 @@ REQUIRED_SUPPORTED_IDS = frozenset(
         "risc0_spot_transition_metadata_adapter",
         "risc0_spot_fixture_equivalence",
         "risc0_supported_transition_real_proof_smoke",
+        "replay_bound_range_verification",
         "proof_required_range_replay",
         "proof_verification_report_replay",
         "light_client_checkpoint_quorum",

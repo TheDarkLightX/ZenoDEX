@@ -26,6 +26,12 @@
       "proof_kind": "risc0_zkvm_v0"
     },
     {
+      "id": "replay_bound_range_verification",
+      "claim_id": "py:zeno_ledger:replay_bound_range_v0",
+      "coverage": "Strict ZenoLedger range verification anchors a canonical pre-state snapshot, binds a float-free governed engine configuration, carries replayed state across linked headers, executes each body exactly once, and requires exact post-state roots and rejection receipts. Structural diagnostics cannot authorize watcher attestations.",
+      "proof_kind": "deterministic_replay_v0"
+    },
+    {
       "id": "proof_required_range_replay",
       "claim_id": "py:zeno_ledger:proof_required_profile_metadata_replay_v0",
       "coverage": "ZenoLedger range verifier requires proof metadata per checked height when the active profile or bridge policy requires proof journals.",

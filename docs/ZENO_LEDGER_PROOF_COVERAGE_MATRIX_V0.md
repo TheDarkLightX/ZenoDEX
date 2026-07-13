@@ -25,6 +25,9 @@ Current supported surfaces cover:
   spot liquidity-cycle block, with guest nonce sequencing, accepted-receipt
   roots, and emitted ZenoLedger body/header/proof-metadata bindings checked by
   the archive checker for `real_proof_smoke_report.json`;
+- strict replay-bound range verification from one canonical anchor snapshot,
+  with governed configuration binding, linked carried state, one deterministic
+  execution per body, and exact post-state-root and rejection-receipt checks;
 - proof-required range replay;
 - proof-verification report replay;
 - local light-client checkpoint quorum binding over a structural

@@ -1448,6 +1448,7 @@ def build_local_block_v0(
     protocol_fee_recipient_pubkey: str | None = None,
     min_lp_position_age_seconds: int = 0,
     lp_duration_risk_policy: object | None = None,
+    emit_pre_snapshot_output: bool = True,
 ) -> dict[str, Any]:
     body = dict(_load_json_object(body_path))
     validate_body_v0(body)
@@ -1697,7 +1698,7 @@ def build_local_block_v0(
     _write_json(receipts_path, receipts)
     if proof_metadata is not None:
         _write_json(proof_metadata_path, proof_metadata)
-    if canonical_pre_snapshot is not None:
+    if canonical_pre_snapshot is not None and emit_pre_snapshot_output:
         _write_json(pre_snapshot_output_path, canonical_pre_snapshot)
     if post_snapshot is not None:
         _write_json(post_snapshot_path, post_snapshot)
@@ -1737,7 +1738,7 @@ def build_local_block_v0(
     if proof_metadata is not None:
         report["proof_metadata_path"] = str(proof_metadata_path)
         report["proof_journal_hash"] = proof_journal_hash
-    if canonical_pre_snapshot is not None:
+    if canonical_pre_snapshot is not None and emit_pre_snapshot_output:
         report["pre_snapshot_path"] = str(pre_snapshot_output_path)
     if post_snapshot is not None:
         report["post_snapshot_path"] = str(post_snapshot_path)
@@ -1811,6 +1812,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out-dir", required=True, type=Path)
     parser.add_argument("--time-ms", required=True, type=int)
     parser.add_argument("--pre-snapshot", type=Path)
+    parser.add_argument("--omit-pre-snapshot-output", action="store_true")
     parser.add_argument("--tau-app-state", type=Path)
     parser.add_argument("--zusd-state", type=Path)
     parser.add_argument("--perp-state", type=Path)
@@ -1897,6 +1899,7 @@ def main(argv: list[str] | None = None) -> int:
             allow_unsigned_intents_if_tx_sender_matches=args.allow_unsigned_intents_if_tx_sender_matches,
             protocol_fee_share_bps=args.protocol_fee_share_bps,
             protocol_fee_recipient_pubkey=args.protocol_fee_recipient_pubkey,
+            emit_pre_snapshot_output=not args.omit_pre_snapshot_output,
         )
     except Exception as exc:
         result = {

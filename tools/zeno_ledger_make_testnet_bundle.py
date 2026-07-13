@@ -496,6 +496,7 @@ def build_testnet_bundle_v0(
                     _rel(out_dir, ledger_out_dir / "headers" / f"{prev_height}.json"),
                     "--pre-snapshot",
                     _rel(out_dir, ledger_out_dir / "snapshots" / f"{prev_height}.json"),
+                    "--omit-pre-snapshot-output",
                 ]
             )
         command.extend(

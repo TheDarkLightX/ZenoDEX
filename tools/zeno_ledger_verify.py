@@ -185,22 +185,24 @@ def verify_zeno_ledger_v0(
                 raise ValueError(f"header height mismatch for file {height}")
             if header["prev_header_hash"] != expected_prev_hash:
                 raise ValueError(f"prev_header_hash mismatch at height {height}")
-            validate_header_body_roots_v0(header, body)
             if replay_bound:
                 if replay_config is None or replay_config_digest is None or pre_snapshots_dir is None:
                     raise ValueError("replay-bound inputs unavailable")
                 snapshot_path = pre_snapshots_dir / f"{height}.json"
-                if not snapshot_path.is_file():
-                    raise ValueError(f"pre-state snapshot missing at height {height}")
+                if replay_state is None and not snapshot_path.is_file():
+                    raise ValueError(f"anchor pre-state snapshot missing at height {height}")
+                pre_snapshot = _load_json_object(snapshot_path) if snapshot_path.is_file() else None
                 replay_state = validate_replay_bound_block_v0(
                     header=header,
                     body=body,
-                    pre_snapshot=_load_json_object(snapshot_path),
+                    pre_snapshot=pre_snapshot,
                     config=replay_config,
                     config_digest=replay_config_digest,
                     parent_header=previous_header,
                     carried_state=replay_state,
                 )
+            else:
+                validate_header_body_roots_v0(header, body)
             if proof_metadata_dir is not None:
                 proof_metadata_path = proof_metadata_dir / f"{height}.json"
                 if not proof_metadata_path.is_file():

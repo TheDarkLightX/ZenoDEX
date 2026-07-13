@@ -1458,6 +1458,10 @@ def test_make_testnet_bundle_can_run_and_verify_bootstrap_scenario(tmp_path: Pat
     assert len(post_snapshot["pools"]) == 1
     assert receipts[0]["accepted"] is False
     assert receipts[0]["error_code"] == "transactions_0_operations_is_required"
+    assert "pre_snapshot_path" in run_reports[0]
+    assert all("pre_snapshot_path" not in item for item in run_reports[1:])
+    ledger_pre_snapshots_dir = Path(run_reports[0]["header_path"]).parents[1] / "pre_snapshots"
+    assert sorted(path.name for path in ledger_pre_snapshots_dir.glob("*.json")) == ["1.json"]
 
     verify = subprocess.run(
         _resolve_command_against_manifest(manifest_path, manifest["verify_command"]),
