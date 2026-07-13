@@ -5,14 +5,16 @@ authority policy.  This module makes that missing binding a typed pending
 obligation.  Caller mappings and caller booleans cannot produce a satisfied
 decision.
 
-The future positive path has two independent inputs:
+The future positive path needs three independent inputs:
 
 * a data-only governed binding whose policy ID is committed by ledger state;
-* a private authenticated result minted by the exact cryptographic verifier.
+* a private authenticated result minted by the exact cryptographic verifier;
+* a typed proof that the authenticated Spot state equals the ledger state domain.
 
-Only the consumer that owns the private result seal may join those inputs.  No
-positive factory exists in this version, so proof authority remains false by
-construction.
+The current strict Spot result does not prove that its application-state hash
+equals the ZenoLedger state-root domain.  No positive mint exists until a typed
+state-domain bridge closes that relation.  Proof-required decisions therefore
+remain pending even after the scoped receipt and outer bindings verify.
 """
 
 from __future__ import annotations
@@ -37,8 +39,24 @@ PROOF_AUTHORITY_PENDING_SCHEMA_V1 = "zenodex.zeno_ledger.proof_authority_pending
 PROOF_AUTHORITY_OBLIGATION_ID_V1 = "zeno_ledger.proof_authority.consumer_binding.v1"
 
 _TOKEN_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:/-")
+_MAX_U64 = (1 << 64) - 1
+_GOVERNED_BINDING_KEYS_V1 = frozenset(
+    {
+        "schema",
+        "policy_id",
+        "chain_id",
+        "authority_manifest_sha256",
+        "verifier_registry_id",
+        "verifier_registry_entry_id",
+        "strict_result_schema",
+        "proof_profile",
+        "valid_from_height",
+        "valid_until_height",
+    }
+)
 _CURRENT_V0_MISSING_BINDINGS = (
     "authenticated_strict_verifier_result",
+    "authenticated_spot_to_ledger_state_domain_bridge",
     "consensus_bound_authority_manifest_sha256",
     "consensus_bound_proof_authority_policy_id",
     "consensus_bound_verifier_registry_id",
@@ -117,7 +135,7 @@ class GovernedProofAuthorityBindingV1:
     strict_result_schema: str
     proof_profile: str
     valid_from_height: int
-    valid_until_height: int | None
+    valid_until_height: int
 
     def __post_init__(self) -> None:
         if self.schema != GOVERNED_PROOF_AUTHORITY_BINDING_SCHEMA_V1:
@@ -138,10 +156,9 @@ class GovernedProofAuthorityBindingV1:
         if self.proof_profile != SPOT_PROOF_PROFILE_V1:
             raise ValueError("governed proof-authority proof profile mismatch")
         _require_height(self.valid_from_height, name="valid_from_height")
-        if self.valid_until_height is not None:
-            _require_height(self.valid_until_height, name="valid_until_height")
-            if self.valid_until_height < self.valid_from_height:
-                raise ValueError("valid_until_height precedes valid_from_height")
+        _require_height(self.valid_until_height, name="valid_until_height")
+        if self.valid_until_height < self.valid_from_height:
+            raise ValueError("valid_until_height precedes valid_from_height")
         if self.policy_id != governed_proof_authority_binding_id_v1(self):
             raise ValueError("governed proof-authority policy_id mismatch")
 
@@ -252,31 +269,120 @@ class ProofAuthorityDecisionV1:
         return pending.to_report() if pending is not None else None
 
 
-_AUTHENTICATED_RANGE_RESULT_SEAL = object()
+_AUTHENTICATED_STRICT_SPOT_OBSERVATION_SEAL = object()
 
 
 @final
-class _AuthenticatedRangeProofAuthorityV1:
-    """Future private result accepted only after strict cryptographic verify.
+class _AuthenticatedStrictSpotObservationV1:
+    """Private receipt observation that deliberately carries no authority."""
 
-    This class intentionally has no minting function in V1.  A later verifier
-    adapter must be co-located with this consumer and mint it only after exact
-    receipt, journal, header, profile, policy, and registry verification.
-    """
+    __slots__ = (
+        "_authority_manifest_sha256",
+        "_chain_id",
+        "_from_height",
+        "_policy_id",
+        "_replay_config_digest",
+        "_seal",
+        "_spot_ledger_state_domain_bridge_verified",
+        "_strict_result_schema",
+        "_to_height",
+        "_verifier_registry_entry_id",
+        "_verifier_registry_id",
+    )
 
-    __slots__ = ("_policy_id", "_seal")
-
-    def __init__(self, policy_id: str, *, seal: object) -> None:
-        if seal is not _AUTHENTICATED_RANGE_RESULT_SEAL:
-            raise TypeError("authenticated range proof authority requires the private seal")
+    def __init__(
+        self,
+        *,
+        policy_id: str,
+        chain_id: str,
+        from_height: int,
+        to_height: int,
+        replay_config_digest: str,
+        authority_manifest_sha256: str,
+        verifier_registry_id: str,
+        verifier_registry_entry_id: str,
+        strict_result_schema: str,
+        seal: object,
+    ) -> None:
+        if seal is not _AUTHENTICATED_STRICT_SPOT_OBSERVATION_SEAL:
+            raise TypeError("authenticated strict Spot observation requires the private seal")
         object.__setattr__(self, "_policy_id", _require_root(policy_id, name="policy_id"))
+        object.__setattr__(self, "_chain_id", _require_token(chain_id, name="chain_id"))
+        object.__setattr__(self, "_from_height", _require_height(from_height, name="from_height"))
+        object.__setattr__(self, "_to_height", _require_height(to_height, name="to_height"))
+        object.__setattr__(
+            self,
+            "_replay_config_digest",
+            _require_root(replay_config_digest, name="replay_config_digest"),
+        )
+        object.__setattr__(
+            self,
+            "_authority_manifest_sha256",
+            _require_bare_sha256(
+                authority_manifest_sha256,
+                name="authority_manifest_sha256",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "_verifier_registry_id",
+            _require_root(verifier_registry_id, name="verifier_registry_id"),
+        )
+        object.__setattr__(
+            self,
+            "_verifier_registry_entry_id",
+            _require_root(
+                verifier_registry_entry_id,
+                name="verifier_registry_entry_id",
+            ),
+        )
+        if strict_result_schema != SPOT_AUTHORITY_RESULT_SCHEMA_V1:
+            raise ValueError("authenticated strict result schema mismatch")
+        object.__setattr__(self, "_strict_result_schema", strict_result_schema)
+        object.__setattr__(self, "_spot_ledger_state_domain_bridge_verified", False)
         object.__setattr__(self, "_seal", seal)
 
     def __init_subclass__(cls, **_kwargs: object) -> NoReturn:
-        raise TypeError("authenticated range proof authority cannot be subclassed")
+        raise TypeError("authenticated strict Spot observation cannot be subclassed")
 
     def __setattr__(self, _name: str, _value: object) -> None:
-        raise AttributeError("authenticated range proof authority is immutable")
+        raise AttributeError("authenticated strict Spot observation is immutable")
+
+    def __copy__(self) -> NoReturn:
+        raise TypeError("authenticated strict Spot observation cannot be copied")
+
+    def __deepcopy__(self, _memo: object) -> NoReturn:
+        raise TypeError("authenticated strict Spot observation cannot be copied")
+
+    def __reduce__(self) -> NoReturn:
+        raise TypeError("authenticated strict Spot observation cannot be serialized")
+
+
+def _mint_authenticated_strict_spot_observation_v1(
+    *,
+    policy_id: str,
+    chain_id: str,
+    height: int,
+    replay_config_digest: str,
+    authority_manifest_sha256: str,
+    verifier_registry_id: str,
+    verifier_registry_entry_id: str,
+    strict_result_schema: str,
+) -> _AuthenticatedStrictSpotObservationV1:
+    """Mint a non-authoritative observation after exact strict verification."""
+
+    return _AuthenticatedStrictSpotObservationV1(
+        policy_id=policy_id,
+        chain_id=chain_id,
+        from_height=height,
+        to_height=height,
+        replay_config_digest=replay_config_digest,
+        authority_manifest_sha256=authority_manifest_sha256,
+        verifier_registry_id=verifier_registry_id,
+        verifier_registry_entry_id=verifier_registry_entry_id,
+        strict_result_schema=strict_result_schema,
+        seal=_AUTHENTICATED_STRICT_SPOT_OBSERVATION_SEAL,
+    )
 
 
 def make_proof_authority_requirement_v1(
@@ -323,9 +429,9 @@ def resolve_proof_authority_v1(
 ) -> ProofAuthorityDecisionV1:
     """Resolve a range decision without accepting caller-declared success.
 
-    The current implementation can return only ``not_required`` or
-    ``required_pending``.  Supplying a mapping, boolean, or duck-typed result
-    fails closed at the exact-type boundary.
+    Supplying a mapping, Boolean, or duck-typed result fails closed.  No current
+    authenticated result can satisfy the decision because the Spot-to-ledger
+    state-domain bridge remains unproved.
     """
 
     if type(requirement) is not ProofAuthorityRequirementV1:
@@ -364,22 +470,33 @@ def resolve_proof_authority_v1(
 
     if authenticated_result is None:
         return _pending_decision(requirement, tuple(sorted(missing)))
-    if type(authenticated_result) is not _AuthenticatedRangeProofAuthorityV1:
+    if type(authenticated_result) is not _AuthenticatedStrictSpotObservationV1:
         raise ProofAuthorityConsumerError(
             ProofAuthorityConsumerRejectReasonV1.AUTHENTICATED_RESULT_TYPE_INVALID,
-            "caller data cannot stand in for a private authenticated result",
+            "caller data cannot stand in for a private strict Spot observation",
         )
-    if object.__getattribute__(authenticated_result, "_policy_id") != governed_binding.policy_id:
+    authenticated_expectations = {
+        "_policy_id": governed_binding.policy_id,
+        "_chain_id": requirement.chain_id,
+        "_from_height": requirement.from_height,
+        "_to_height": requirement.to_height,
+        "_replay_config_digest": requirement.replay_config_digest,
+        "_authority_manifest_sha256": governed_binding.authority_manifest_sha256,
+        "_verifier_registry_id": governed_binding.verifier_registry_id,
+        "_verifier_registry_entry_id": governed_binding.verifier_registry_entry_id,
+        "_strict_result_schema": governed_binding.strict_result_schema,
+        "_spot_ledger_state_domain_bridge_verified": False,
+    }
+    if any(
+        object.__getattribute__(authenticated_result, field) != expected
+        for field, expected in authenticated_expectations.items()
+    ):
         raise ProofAuthorityConsumerError(
             ProofAuthorityConsumerRejectReasonV1.POLICY_MISMATCH,
-            "authenticated result does not bind the governed policy",
+            "strict Spot observation does not bind the governed range and policy",
         )
-    # No V1 factory can mint this result.  Keep the positive join unavailable
-    # until the strict verifier contract is integrated in this module.
-    return _pending_decision(
-        requirement,
-        ("authenticated_strict_verifier_result",),
-    )
+    missing.discard("authenticated_strict_verifier_result")
+    return _pending_decision(requirement, tuple(sorted(missing)))
 
 
 def make_governed_proof_authority_binding_v1(
@@ -389,7 +506,7 @@ def make_governed_proof_authority_binding_v1(
     verifier_registry_id: str,
     verifier_registry_entry_id: str,
     valid_from_height: int,
-    valid_until_height: int | None,
+    valid_until_height: int,
 ) -> GovernedProofAuthorityBindingV1:
     """Build canonical data for a future consensus-bound authority policy."""
 
@@ -416,6 +533,49 @@ def make_governed_proof_authority_binding_v1(
         proof_profile=SPOT_PROOF_PROFILE_V1,
         valid_from_height=valid_from_height,
         valid_until_height=valid_until_height,
+    )
+
+
+def governed_proof_authority_binding_document_v1(
+    binding: GovernedProofAuthorityBindingV1,
+) -> dict[str, object]:
+    """Return the exact canonical data object committed by config V1."""
+
+    if type(binding) is not GovernedProofAuthorityBindingV1:
+        raise TypeError("binding must be exactly GovernedProofAuthorityBindingV1")
+    return {
+        "schema": binding.schema,
+        "policy_id": binding.policy_id,
+        "chain_id": binding.chain_id,
+        "authority_manifest_sha256": binding.authority_manifest_sha256,
+        "verifier_registry_id": binding.verifier_registry_id,
+        "verifier_registry_entry_id": binding.verifier_registry_entry_id,
+        "strict_result_schema": binding.strict_result_schema,
+        "proof_profile": binding.proof_profile,
+        "valid_from_height": binding.valid_from_height,
+        "valid_until_height": binding.valid_until_height,
+    }
+
+
+def parse_governed_proof_authority_binding_v1(
+    value: Mapping[str, Any],
+) -> GovernedProofAuthorityBindingV1:
+    """Parse an exact policy object and independently recompute its ID."""
+
+    obj = dict(value)
+    if set(obj) != _GOVERNED_BINDING_KEYS_V1:
+        raise ValueError("governed proof-authority binding keys mismatch")
+    return GovernedProofAuthorityBindingV1(
+        schema=obj["schema"],
+        policy_id=obj["policy_id"],
+        chain_id=obj["chain_id"],
+        authority_manifest_sha256=obj["authority_manifest_sha256"],
+        verifier_registry_id=obj["verifier_registry_id"],
+        verifier_registry_entry_id=obj["verifier_registry_entry_id"],
+        strict_result_schema=obj["strict_result_schema"],
+        proof_profile=obj["proof_profile"],
+        valid_from_height=obj["valid_from_height"],
+        valid_until_height=obj["valid_until_height"],
     )
 
 
@@ -463,10 +623,7 @@ def _validate_governed_binding(
             ProofAuthorityConsumerRejectReasonV1.POLICY_NOT_YET_VALID,
             "governed proof-authority policy is not yet valid",
         )
-    if (
-        binding.valid_until_height is not None
-        and requirement.to_height > binding.valid_until_height
-    ):
+    if requirement.to_height > binding.valid_until_height:
         raise ProofAuthorityConsumerError(
             ProofAuthorityConsumerRejectReasonV1.POLICY_STALE,
             "governed proof-authority policy is stale for the requested range",
@@ -526,6 +683,11 @@ def _require_token(value: object, *, name: str) -> str:
 
 
 def _require_height(value: object, *, name: str) -> int:
-    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-        raise ValueError(f"{name} must be a non-negative int")
+    if (
+        not isinstance(value, int)
+        or isinstance(value, bool)
+        or value < 0
+        or value > _MAX_U64
+    ):
+        raise ValueError(f"{name} must be a u64")
     return value

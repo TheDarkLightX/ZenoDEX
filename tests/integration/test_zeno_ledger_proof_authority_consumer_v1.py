@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+from pathlib import Path
 
 import pytest
 
@@ -14,6 +15,7 @@ from src.integration.zeno_ledger_proof_authority_consumer_v1 import (
     ProofAuthorityConsumerRejectReasonV1,
     ProofAuthorityDecisionStatusV1,
     ProofAuthorityDecisionV1,
+    _mint_authenticated_strict_spot_observation_v1,
     make_governed_proof_authority_binding_v1,
     make_proof_authority_requirement_v1,
     resolve_proof_authority_v1,
@@ -40,7 +42,7 @@ def _binding(
     profile: dict[str, object],
     *,
     valid_from_height: int = 4,
-    valid_until_height: int | None = 8,
+    valid_until_height: int = 8,
 ) -> GovernedProofAuthorityBindingV1:
     return make_governed_proof_authority_binding_v1(
         chain_id=str(profile["chain_id"]),
@@ -102,6 +104,7 @@ def test_proof_required_profile_returns_typed_pending_obligation() -> None:
     assert pending["from_height"] == 4
     assert pending["to_height"] == 8
     assert pending["missing_bindings"] == [
+        "authenticated_spot_to_ledger_state_domain_bridge",
         "authenticated_strict_verifier_result",
         "consensus_bound_authority_manifest_sha256",
         "consensus_bound_proof_authority_policy_id",
@@ -243,6 +246,66 @@ def test_governed_binding_rejects_not_yet_valid_policy_for_range() -> None:
     assert caught.value.reason is ProofAuthorityConsumerRejectReasonV1.POLICY_NOT_YET_VALID
 
 
+def test_governed_one_height_policy_cannot_promote_multiheight_range() -> None:
+    profile = _profile(proof_required=True)
+    binding = _binding(profile, valid_from_height=4, valid_until_height=8)
+    requirement = make_proof_authority_requirement_v1(
+        profile=profile,
+        replay_config_digest=_root("config"),
+        expected_policy_id=binding.policy_id,
+        from_height=4,
+        to_height=8,
+    )
+
+    decision = resolve_proof_authority_v1(
+        requirement=requirement,
+        governed_binding=binding,
+        authenticated_result=None,
+    )
+
+    assert decision.status is ProofAuthorityDecisionStatusV1.REQUIRED_PENDING
+    assert decision.satisfied is False
+    pending = decision.pending_report()
+    assert pending is not None
+    assert pending["from_height"] == 4
+    assert pending["to_height"] == 8
+    assert pending["missing_bindings"] == [
+        "authenticated_spot_to_ledger_state_domain_bridge",
+        "authenticated_strict_verifier_result",
+    ]
+
+
+def test_one_height_strict_observation_cannot_satisfy_multiheight_range() -> None:
+    profile = _profile(proof_required=True)
+    binding = _binding(profile, valid_from_height=4, valid_until_height=8)
+    requirement = make_proof_authority_requirement_v1(
+        profile=profile,
+        replay_config_digest=_root("config"),
+        expected_policy_id=binding.policy_id,
+        from_height=4,
+        to_height=8,
+    )
+    observation = _mint_authenticated_strict_spot_observation_v1(
+        policy_id=binding.policy_id,
+        chain_id=str(profile["chain_id"]),
+        height=4,
+        replay_config_digest=_root("config"),
+        authority_manifest_sha256=binding.authority_manifest_sha256,
+        verifier_registry_id=binding.verifier_registry_id,
+        verifier_registry_entry_id=binding.verifier_registry_entry_id,
+        strict_result_schema=binding.strict_result_schema,
+    )
+
+    with pytest.raises(ProofAuthorityConsumerError) as caught:
+        resolve_proof_authority_v1(
+            requirement=requirement,
+            governed_binding=binding,
+            authenticated_result=observation,
+        )
+
+    assert caught.value.reason is ProofAuthorityConsumerRejectReasonV1.POLICY_MISMATCH
+
+
 def test_policy_id_tamper_rejects_during_construction() -> None:
     profile = _profile(proof_required=True)
     binding = _binding(profile)
@@ -267,3 +330,18 @@ def test_decision_has_no_public_construction_path() -> None:
             None,
             seal=object(),
         )
+
+
+def test_private_observation_mint_has_one_production_consumer() -> None:
+    repository = Path(__file__).resolve().parents[2]
+    symbol = "_mint_authenticated_strict_spot_observation_v1"
+    users = {
+        path.relative_to(repository).as_posix()
+        for path in (repository / "src").rglob("*.py")
+        if symbol in path.read_text(encoding="utf-8")
+    }
+
+    assert users == {
+        "src/integration/zeno_ledger_proof_authority_consumer_v1.py",
+        "src/integration/zeno_ledger_strict_spot_authority_v1.py",
+    }
