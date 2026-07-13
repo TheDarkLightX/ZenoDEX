@@ -409,6 +409,7 @@ def _report(
         "governed_proof_authority_checked_heights": (governed_proof_authority_checked_heights),
         "proof_authority_required": proof_authority_required,
         "proof_authority_satisfied": proof_authority_satisfied,
+        "proof_authority_capable": False,
         "settlement_authority": False,
         "production_authority": False,
         "last_header_hash": last_header_hash,

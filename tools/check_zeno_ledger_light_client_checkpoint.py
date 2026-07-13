@@ -81,8 +81,34 @@ def validate_light_client_checkpoint_v0(
         require_proof_verification_report=require_proof_verification_report,
         mode=STRUCTURAL_DIAGNOSTIC_MODE,
     )
-    if verify_report.get("ok") is not True:
+    structural_diagnostic_verified = (
+        verify_report.get("ok") is True
+        and verify_report.get("status") == "structural_diagnostic_accepted"
+        and verify_report.get("mode") == STRUCTURAL_DIAGNOSTIC_MODE
+        and verify_report.get("range_verified") is False
+    )
+    if not structural_diagnostic_verified:
         errors.append("structural range diagnostic rejected")
+    required_value = verify_report.get("proof_authority_required")
+    satisfied_value = verify_report.get("proof_authority_satisfied")
+    capable_value = verify_report.get("proof_authority_capable")
+    if not isinstance(required_value, bool):
+        errors.append("proof_authority_required must be a bool")
+    if not isinstance(satisfied_value, bool):
+        errors.append("proof_authority_satisfied must be a bool")
+    if not isinstance(capable_value, bool):
+        errors.append("proof_authority_capable must be a bool")
+    proof_authority_required = required_value is True
+    proof_authority_satisfied = satisfied_value is True
+    if proof_authority_required:
+        errors.append("proof-required profile cannot be promoted by structural light-client verification")
+    if proof_authority_satisfied:
+        errors.append("structural light-client verification cannot authenticate proof authority")
+    if capable_value is not False:
+        errors.append("structural light-client verification cannot be proof-authority-capable")
+    for field in ("settlement_authority", "production_authority"):
+        if verify_report.get(field) is not False:
+            errors.append(f"structural light-client verification requires {field}=false")
 
     registry_obj = dict(registry)
     try:
@@ -128,7 +154,7 @@ def validate_light_client_checkpoint_v0(
     return {
         "schema": REPORT_SCHEMA,
         "ok": not errors,
-        "status": "accepted" if not errors else "rejected",
+        "status": "structural_diagnostic_accepted" if not errors else "rejected",
         "errors": errors,
         "from_height": from_height,
         "to_height": to_height,
@@ -139,6 +165,13 @@ def validate_light_client_checkpoint_v0(
         "checkpoint_hash": checkpoint_hash,
         "expected_signature_set_root": expected_signature_set_root,
         "quorum_report": quorum_report,
+        "structural_diagnostic_verified": structural_diagnostic_verified,
+        "range_replay_verified": False,
+        "proof_authority_required": proof_authority_required,
+        "proof_authority_satisfied": False,
+        "proof_authority_capable": False,
+        "settlement_authority": False,
+        "production_authority": False,
         "range_verify_report": verify_report,
     }
 

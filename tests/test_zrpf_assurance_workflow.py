@@ -48,6 +48,19 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "fetch-depth": 0,
         "persist-credentials": False,
     }
+    assert steps["Set up Node for browser-verifier assurance"]["uses"] == (
+        "actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e"
+    )
+    assert steps["Set up Node for browser-verifier assurance"]["with"] == {
+        "node-version": "22",
+        "cache": "npm",
+        "cache-dependency-path": "tools/dex-ui/package-lock.json",
+    }
+    assert steps["Install lockfile-bound browser-verifier dependencies"] == {
+        "name": "Install lockfile-bound browser-verifier dependencies",
+        "working-directory": "tools/dex-ui",
+        "run": "npm ci --ignore-scripts --no-audit --no-fund",
+    }
     tag_check = steps["Verify durable source-anchor tags"]["run"]
     assert "zrpf-v3-source-anchor-20260711" in tag_check
     assert "zrpf-v3-source-anchor-v7-20260712" in tag_check
@@ -136,6 +149,10 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "src/integration/recursive_stark_replay_manifest.py",
         "src/integration/recursive_stark_verifier_adapter.py",
         "src/integration/zeno_ledger_authenticated_proof_verification_v1.py",
+        "src/integration/zeno_ledger_watcher.py",
+        "src/integration/zeno_sdk_browser_bundle_v0.py",
+        "tools/build_zeno_sdk_browser_bundle.py",
+        "tools/check_zeno_ledger_light_client_checkpoint.py",
         "tools/zeno_ledger_verify.py",
     ):
         assert required_path in ruff_assurance
@@ -151,6 +168,13 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     ):
         assert required_path in ruff_assurance
         assert required_path in mypy_assurance
+        assert required_path in pytest_assurance
+    for required_path in (
+        "tests/integration/test_zeno_ledger_replay_bound_verify.py",
+        "tests/test_check_zeno_ledger_light_client_checkpoint.py",
+        "tests/test_zeno_sdk_browser_bundle.py",
+    ):
+        assert required_path in ruff_assurance
         assert required_path in pytest_assurance
     for required_path in (
         "tools/zrpf_v3_source_closure.py",

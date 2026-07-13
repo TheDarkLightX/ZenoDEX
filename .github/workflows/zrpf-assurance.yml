@@ -38,6 +38,17 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Set up Node for browser-verifier assurance
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tools/dex-ui/package-lock.json
+
+      - name: Install lockfile-bound browser-verifier dependencies
+        working-directory: tools/dex-ui
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
       - name: Verify durable source-anchor tags
         shell: bash
         run: |
@@ -108,6 +119,10 @@ jobs:
             src/integration/recursive_stark_replay_manifest.py \
             src/integration/recursive_stark_verifier_adapter.py \
             src/integration/zeno_ledger_authenticated_proof_verification_v1.py \
+            src/integration/zeno_ledger_watcher.py \
+            src/integration/zeno_sdk_browser_bundle_v0.py \
+            tools/build_zeno_sdk_browser_bundle.py \
+            tools/check_zeno_ledger_light_client_checkpoint.py \
             tools/zeno_ledger_verify.py \
             tools/check_risc0_recursive_rebuild_evidence.py \
             tools/check_risc0_recursive_live_replay.py \
@@ -171,7 +186,10 @@ jobs:
             tests/integration/test_recursive_stark_replay_manifest.py \
             tests/integration/test_recursive_stark_verifier_adapter.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
-            tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py
+            tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py \
+            tests/integration/test_zeno_ledger_replay_bound_verify.py \
+            tests/test_check_zeno_ledger_light_client_checkpoint.py \
+            tests/test_zeno_sdk_browser_bundle.py
           mypy --follow-imports=skip \
             src/core/recursive_stark_admission.py \
             src/integration/_recursive_stark_admission_store_engine.py \
@@ -183,6 +201,10 @@ jobs:
             src/integration/recursive_stark_replay_manifest.py \
             src/integration/recursive_stark_verifier_adapter.py \
             src/integration/zeno_ledger_authenticated_proof_verification_v1.py \
+            src/integration/zeno_ledger_watcher.py \
+            src/integration/zeno_sdk_browser_bundle_v0.py \
+            tools/build_zeno_sdk_browser_bundle.py \
+            tools/check_zeno_ledger_light_client_checkpoint.py \
             tools/zeno_ledger_verify.py \
             tools/check_risc0_recursive_rebuild_evidence.py \
             tools/check_risc0_recursive_live_replay.py \
@@ -261,7 +283,10 @@ jobs:
             tests/integration/test_recursive_stark_replay_manifest.py \
             tests/integration/test_recursive_stark_verifier_adapter.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
-            tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py
+            tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py \
+            tests/integration/test_zeno_ledger_replay_bound_verify.py \
+            tests/test_check_zeno_ledger_light_client_checkpoint.py \
+            tests/test_zeno_sdk_browser_bundle.py
           python3 tools/check_zrpf_v1_leaf_adapter_source_policy.py
           python3 tools/check_risc0_recursive_live_replay_evidence.py --json
           python3 tools/check_risc0_recursive_active_reproof_v3.py

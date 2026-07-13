@@ -1,4 +1,4 @@
-"""Proof-carrying browser bundle helpers for ZenoLedger light clients.
+"""Structural-diagnostic browser bundle helpers for ZenoLedger light clients.
 
 This module packages already-verified ZenoLedger checkpoint evidence for browser
 and wallet clients. It does not change ledger semantics and deliberately reuses
@@ -22,7 +22,6 @@ from src.integration.zeno_ledger_v0 import (
     validate_header_v0,
 )
 
-
 BROWSER_CHECKPOINT_BUNDLE_SCHEMA_V0 = "zenodex.zeno_sdk.browser_checkpoint_bundle.v0"
 BROWSER_CHECKPOINT_VERIFICATION_SUMMARY_SCHEMA_V0 = (
     "zenodex.zeno_sdk.browser_checkpoint_verification_summary.v0"
@@ -36,8 +35,16 @@ _MAX_HEADER_CHAIN_HEADERS_V0 = 4096
 _VERIFICATION_SUMMARY_KEYS_V0 = {
     "schema",
     "builder_id",
+    "proof_authority_required",
+    "proof_authority_satisfied",
+    "proof_authority_capable",
+    "settlement_authority",
+    "production_authority",
+    "python_structural_range_verified",
     "python_range_replay_verified",
     "python_bls_quorum_verified",
+    "browser_header_chain_verified",
+    "browser_header_chain_available",
     "browser_range_replay_verified",
     "browser_range_replay_available",
     "browser_bls_quorum_verified",
@@ -53,15 +60,27 @@ _VERIFICATION_SUMMARY_KEYS_V0 = {
     "range_summary_hash",
 }
 _CAPABILITY_KEYS_V0 = {
+    "proof_authority_satisfied",
+    "proof_authority_capable",
+    "settlement_authority",
+    "production_authority",
+    "python_structural_range_verified",
     "python_range_replay_verified",
     "python_bls_quorum_verified",
+    "browser_shape_and_hash_available",
     "browser_shape_and_hash_verified",
+    "browser_header_chain_verified",
+    "browser_header_chain_available",
     "browser_range_replay_verified",
     "browser_range_replay_available",
     "browser_bls_quorum_verified",
 }
 _RANGE_SUMMARY_KEYS_V0 = {
     "ok",
+    "verification_mode",
+    "structural_diagnostic_verified",
+    "range_replay_verified",
+    "proof_authority_satisfied",
     "checked_heights",
     "last_header_hash",
     "from_height",
@@ -175,12 +194,23 @@ def _normalize_header_chain_v0(
 def _portable_range_summary(report: Mapping[str, Any]) -> dict[str, Any]:
     range_report = report.get("range_verify_report")
     if not isinstance(range_report, Mapping):
-        return {"ok": False, "checked_heights": []}
+        return {
+            "ok": False,
+            "verification_mode": "structural_diagnostic",
+            "structural_diagnostic_verified": False,
+            "range_replay_verified": False,
+            "proof_authority_satisfied": False,
+            "checked_heights": [],
+        }
     checked = range_report.get("checked_heights", [])
     if not isinstance(checked, list):
         checked = []
     return {
         "ok": bool(range_report.get("ok")),
+        "verification_mode": "structural_diagnostic",
+        "structural_diagnostic_verified": report.get("structural_diagnostic_verified") is True,
+        "range_replay_verified": False,
+        "proof_authority_satisfied": False,
         "checked_heights": [int(item) for item in checked if isinstance(item, int) and not isinstance(item, bool)],
         "last_header_hash": range_report.get("last_header_hash"),
         "from_height": report.get("from_height"),
@@ -200,6 +230,14 @@ def _validate_range_summary_v0(
     _require_exact_keys(range_summary, _RANGE_SUMMARY_KEYS_V0, name="range_summary")
     if range_summary.get("ok") is not True:
         raise ValueError("range_summary must be accepted")
+    if range_summary.get("verification_mode") != "structural_diagnostic":
+        raise ValueError("range_summary verification_mode must be structural_diagnostic")
+    if range_summary.get("structural_diagnostic_verified") is not True:
+        raise ValueError("range_summary structural diagnostic must be verified")
+    if range_summary.get("range_replay_verified") is not False:
+        raise ValueError("range_summary cannot claim range replay verification")
+    if range_summary.get("proof_authority_satisfied") is not False:
+        raise ValueError("range_summary cannot claim proof authority")
     checked = range_summary.get("checked_heights")
     if not isinstance(checked, list) or any(not isinstance(item, int) or isinstance(item, bool) for item in checked):
         raise ValueError("range_summary checked_heights must be ints")
@@ -217,6 +255,82 @@ def _validate_range_summary_v0(
         raise ValueError("range_summary last_header_hash mismatch")
 
 
+def _validate_summary_authority_boundary_v0(summary: Mapping[str, Any]) -> None:
+    if _require_bool(summary.get("proof_authority_required"), name="proof_authority_required"):
+        raise ValueError("browser bundle v0 cannot represent a proof-required profile")
+    for field in (
+        "proof_authority_satisfied",
+        "proof_authority_capable",
+        "settlement_authority",
+        "production_authority",
+    ):
+        if _require_bool(summary.get(field), name=field):
+            raise ValueError(f"verification summary {field} must be false")
+
+
+def _validate_structural_summary_flags_v0(summary: Mapping[str, Any]) -> None:
+    if not _require_bool(
+        summary.get("python_structural_range_verified"),
+        name="python_structural_range_verified",
+    ):
+        raise ValueError("python structural range verification is required")
+    if _require_bool(summary.get("python_range_replay_verified"), name="python_range_replay_verified"):
+        raise ValueError("python range replay verification must remain false")
+    if not _require_bool(
+        summary.get("browser_header_chain_available"),
+        name="browser_header_chain_available",
+    ):
+        raise ValueError("browser header-chain verification must be available")
+    if _require_bool(summary.get("browser_header_chain_verified"), name="browser_header_chain_verified"):
+        raise ValueError("browser header-chain verification must be performed by the browser")
+    if _require_bool(summary.get("browser_range_replay_available"), name="browser_range_replay_available"):
+        raise ValueError("browser range replay is unavailable in bundle v0")
+    if _require_bool(summary.get("browser_range_replay_verified"), name="browser_range_replay_verified"):
+        raise ValueError("browser range replay verification must remain false")
+
+
+def _validate_structural_capability_flags_v0(capabilities: Mapping[str, Any]) -> None:
+    for field in (
+        "proof_authority_satisfied",
+        "proof_authority_capable",
+        "settlement_authority",
+        "production_authority",
+    ):
+        if _require_bool(capabilities.get(field), name=field):
+            raise ValueError(f"capabilities {field} must be false")
+    if not _require_bool(
+        capabilities.get("python_structural_range_verified"),
+        name="python_structural_range_verified",
+    ):
+        raise ValueError("python structural range capability is required")
+    if _require_bool(capabilities.get("python_range_replay_verified"), name="python_range_replay_verified"):
+        raise ValueError("python range replay capability must remain false")
+    if not _require_bool(
+        capabilities.get("browser_shape_and_hash_available"),
+        name="browser_shape_and_hash_available",
+    ):
+        raise ValueError("browser shape/hash capability must be available")
+    if _require_bool(
+        capabilities.get("browser_shape_and_hash_verified"),
+        name="browser_shape_and_hash_verified",
+    ):
+        raise ValueError("browser shape/hash capability must start false")
+    if not _require_bool(
+        capabilities.get("browser_header_chain_available"),
+        name="browser_header_chain_available",
+    ):
+        raise ValueError("browser header-chain capability is required")
+    if _require_bool(
+        capabilities.get("browser_header_chain_verified"),
+        name="browser_header_chain_verified",
+    ):
+        raise ValueError("browser header-chain capability must start false")
+    if _require_bool(capabilities.get("browser_range_replay_available"), name="browser_range_replay_available"):
+        raise ValueError("browser range replay capability must remain unavailable")
+    if _require_bool(capabilities.get("browser_range_replay_verified"), name="browser_range_replay_verified"):
+        raise ValueError("browser range replay capability must start false")
+
+
 def build_browser_checkpoint_bundle_v0(
     *,
     target_header: Mapping[str, Any],
@@ -227,10 +341,26 @@ def build_browser_checkpoint_bundle_v0(
     light_client_report: Mapping[str, Any],
     builder_id: str = "zenoctl",
 ) -> dict[str, Any]:
-    """Build a deterministic proof-carrying checkpoint bundle for SDK clients."""
+    """Build a deterministic structural checkpoint diagnostic for SDK clients."""
 
     if light_client_report.get("ok") is not True:
         raise ValueError("light client report must be accepted before bundling")
+    if light_client_report.get("status") != "structural_diagnostic_accepted":
+        raise ValueError("browser bundle v0 requires a structural diagnostic report")
+    if light_client_report.get("structural_diagnostic_verified") is not True:
+        raise ValueError("browser bundle v0 requires a verified structural diagnostic")
+    if light_client_report.get("range_replay_verified") is not False:
+        raise ValueError("browser bundle v0 cannot promote range replay authority")
+    if light_client_report.get("proof_authority_required") is not False:
+        raise ValueError("browser bundle v0 rejects proof-required light-client reports")
+    for field in (
+        "proof_authority_satisfied",
+        "proof_authority_capable",
+        "settlement_authority",
+        "production_authority",
+    ):
+        if light_client_report.get(field) is not False:
+            raise ValueError(f"light client report {field} must be false")
     checkpoint = dict(_require_mapping(target_checkpoint, name="target_checkpoint"))
     header = dict(_require_mapping(target_header, name="target_header"))
     registry = dict(_require_mapping(signer_registry, name="signer_registry"))
@@ -285,10 +415,18 @@ def build_browser_checkpoint_bundle_v0(
     verification_summary = {
         "schema": BROWSER_CHECKPOINT_VERIFICATION_SUMMARY_SCHEMA_V0,
         "builder_id": _require_str(builder_id, name="builder_id"),
-        "python_range_replay_verified": True,
+        "proof_authority_required": False,
+        "proof_authority_satisfied": False,
+        "proof_authority_capable": False,
+        "settlement_authority": False,
+        "production_authority": False,
+        "python_structural_range_verified": True,
+        "python_range_replay_verified": False,
         "python_bls_quorum_verified": True,
+        "browser_header_chain_verified": False,
+        "browser_header_chain_available": True,
         "browser_range_replay_verified": False,
-        "browser_range_replay_available": True,
+        "browser_range_replay_available": False,
         "browser_bls_quorum_verified": False,
         "browser_bls_quorum_available": False,
         "checkpoint_hash": checkpoint_hash,
@@ -314,14 +452,24 @@ def build_browser_checkpoint_bundle_v0(
         "signature_envelopes": envelopes,
         "verification_summary": verification_summary,
         "capabilities": {
-            "python_range_replay_verified": True,
+            "proof_authority_satisfied": False,
+            "proof_authority_capable": False,
+            "settlement_authority": False,
+            "production_authority": False,
+            "python_structural_range_verified": True,
+            "python_range_replay_verified": False,
             "python_bls_quorum_verified": True,
-            "browser_shape_and_hash_verified": True,
+            "browser_shape_and_hash_available": True,
+            "browser_shape_and_hash_verified": False,
+            "browser_header_chain_verified": False,
+            "browser_header_chain_available": True,
             "browser_range_replay_verified": False,
-            "browser_range_replay_available": True,
+            "browser_range_replay_available": False,
             "browser_bls_quorum_verified": False,
         },
         "non_claims": [
+            "browser package v0 has no proof, settlement, or production authority",
+            "browser package v0 packages structural diagnostics and header linkage only",
             "browser package v0 does not replay full ledger state transitions",
             "browser package v0 only verifies BLS signatures when requireIndependentBls is enabled",
             "wallet sync state is monotone checkpoint tracking, not transaction execution authority",
@@ -414,6 +562,7 @@ def validate_browser_checkpoint_bundle_v0(
 
     if summary.get("schema") != BROWSER_CHECKPOINT_VERIFICATION_SUMMARY_SCHEMA_V0:
         raise ValueError("verification summary schema mismatch")
+    _validate_summary_authority_boundary_v0(summary)
     if summary.get("checkpoint_hash") != checkpoint_hash:
         raise ValueError("verification summary checkpoint_hash mismatch")
     if summary.get("target_header_hash") != checkpoint["header_hash"]:
@@ -434,12 +583,7 @@ def validate_browser_checkpoint_bundle_v0(
         raise ValueError("verification summary accepted_weight mismatch")
     if threshold != int(registry["threshold"]):
         raise ValueError("verification summary threshold mismatch")
-    if _require_bool(summary.get("python_range_replay_verified"), name="python_range_replay_verified") is not True:
-        raise ValueError("python range replay verification is required")
-    if _require_bool(summary.get("browser_range_replay_available"), name="browser_range_replay_available") is not True:
-        raise ValueError("browser range replay must be available in bundle v0")
-    if _require_bool(summary.get("browser_range_replay_verified"), name="browser_range_replay_verified"):
-        raise ValueError("browser range replay must be performed by the browser")
+    _validate_structural_summary_flags_v0(summary)
     range_summary = _require_mapping(summary.get("range_summary"), name="range_summary")
     range_summary_hash = _require_root(summary.get("range_summary_hash"), name="range_summary_hash")
     if hash_v0("browser_checkpoint_range_summary_v0", range_summary) != range_summary_hash:
@@ -457,16 +601,9 @@ def validate_browser_checkpoint_bundle_v0(
         raise ValueError("browser BLS quorum must be performed by the browser")
     if _require_bool(summary.get("browser_bls_quorum_verified"), name="browser_bls_quorum_verified"):
         raise ValueError("browser BLS quorum verification is not available in bundle v0")
-    if _require_bool(capabilities.get("python_range_replay_verified"), name="python_range_replay_verified") is not True:
-        raise ValueError("python range replay capability is required")
+    _validate_structural_capability_flags_v0(capabilities)
     if _require_bool(capabilities.get("python_bls_quorum_verified"), name="python_bls_quorum_verified") is not True:
         raise ValueError("python BLS quorum capability is required")
-    if _require_bool(capabilities.get("browser_shape_and_hash_verified"), name="browser_shape_and_hash_verified") is not True:
-        raise ValueError("browser shape/hash capability is required")
-    if _require_bool(capabilities.get("browser_range_replay_available"), name="browser_range_replay_available") is not True:
-        raise ValueError("browser range replay capability is required")
-    if _require_bool(capabilities.get("browser_range_replay_verified"), name="browser_range_replay_verified"):
-        raise ValueError("browser range replay capability must start false")
     if _require_bool(capabilities.get("browser_bls_quorum_verified"), name="browser_bls_quorum_verified"):
         raise ValueError("browser BLS quorum verification is not available in bundle v0")
 

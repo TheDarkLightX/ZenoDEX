@@ -368,6 +368,7 @@ def test_replay_bound_range_accepts_only_with_all_authority_checks(tmp_path: Pat
         "config_binding_checked",
     ):
         assert report[field] is True
+    assert report["proof_authority_capable"] is False
     attestation = build_watcher_attestation_v0(
         verify_report=report,
         watcher_id="watcher-410",
@@ -375,6 +376,21 @@ def test_replay_bound_range_accepts_only_with_all_authority_checks(tmp_path: Pat
         verifier_ref="JAMES-410-20260713",
     )
     assert attestation["status"] == "range_verified"
+    assert attestation["proof_authority_required"] is False
+    assert attestation["proof_authority_satisfied"] is False
+    assert attestation["proof_authority_capable"] is False
+    assert attestation["settlement_authority"] is False
+    assert attestation["production_authority"] is False
+
+    forged_proof_required = deepcopy(report)
+    forged_proof_required["proof_authority_required"] = True
+    with pytest.raises(ValueError, match="proof-required report"):
+        build_watcher_attestation_v0(
+            verify_report=forged_proof_required,
+            watcher_id="watcher-410",
+            observed_time_ms=1_778_730_000_000,
+            verifier_ref="JAMES-410-20260713",
+        )
 
 
 def test_replay_bound_range_rejects_fabricated_post_state_root(tmp_path: Path) -> None:
