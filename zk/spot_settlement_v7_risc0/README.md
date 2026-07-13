@@ -71,7 +71,7 @@ the Firecracker payload. Its exact binary framing is:
 4 bytes   canonical V7 journal byte length
 4 bytes   exact Plan B byte length
 4 bytes   exact host state-opening input byte length
-18 x 32   fixed identities and commitments
+19 x 32   fixed identities and commitments
 N bytes   canonical V7 journal
 ```
 
@@ -88,26 +88,34 @@ The fixed fields, in order, are:
 9. DA certificate root;
 10. DA data root;
 11. exact Plan B commitment;
-12. economic pre-state root;
-13. economic post-state root;
-14. action IDs root;
-15. action-authorization bindings root;
-16. authorization-grant spends root;
-17. consumed-object IDs root;
-18. host state-opening input SHA-256.
+12. exact canonical Plan B bytes SHA-256;
+13. economic pre-state root;
+14. economic post-state root;
+15. action IDs root;
+16. action-authorization bindings root;
+17. authorization-grant spends root;
+18. consumed-object IDs root;
+19. host state-opening input SHA-256.
 
-Plan B occurs exactly once, inside the canonical V7 journal. The output decoder
-strictly decodes that journal and exposes the exact canonical Plan B bytes. It
-checks the declared Plan B length and every duplicated association. This keeps
-the complete payload below Firecracker's 64 KiB cap without weakening the
-binding.
+Plan B occurs exactly once, inside the canonical V7 journal. Both the journal
+and output fixed fields commit SHA-256 of those exact canonical bytes. The Rust
+verifier derives the digest after exact Plan B decode and canonical re-encode;
+the Python boundary hashes the exact bounded slice and requires both committed
+digests to agree before candidate binding. The superseded 18/12-field frame
+rejects. This keeps the complete payload below Firecracker's 64 KiB cap without
+reimplementing Postcard semantics in Python.
+
+This append-only V1 tightening occurred before any governed V7 image or receipt
+was materialized. `SPOT_SETTLEMENT_V7_ABI_V1_MATERIALIZATION_STATUS` records
+that source fact. After initial materialization, incompatible changes require a
+new ABI version.
 
 Proof-independent golden vectors freeze both canonical byte surfaces:
 
-- V7 journal: 2,706 bytes, SHA-256
-  `c5ee64c62a27f09f3966ab62c3de469e4c70bda8f20369cc4edeac6ae91c7e74`;
-- Firecracker output framing: 3,308 bytes, SHA-256
-  `e319bb78a5fd0aa11974ca70d9810f297bc3386e5de736b40e2bd025b613fd93`.
+- V7 journal: 2,738 bytes, SHA-256
+  `b406492100a3624fa41c0a3ba5694219f1dc609616f22d8e6fdfd775862546cf`;
+- Firecracker output framing: 3,372 bytes, SHA-256
+  `979b2e9cb4757de50ec935c55ca827c693ad5cb4e22ee8034bee9e7866de148c`.
 
 The Firecracker vector deliberately uses synthetic outer identities and is
 accepted only by the private proof-independent codec test. The public governed

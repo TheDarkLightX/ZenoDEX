@@ -54,7 +54,7 @@ const RECEIPT_CONTROL_ID_V1: &str =
     "53a7b23d07f99e5d5685e85874f5181e8486aa267a0ae607ffe9ba47c8bdda4a";
 const V7_PROFILE_DOMAIN_V1: &[u8] = b"zenodex.zrpf.spot_settlement_v7.profile.v1";
 const V7_MANIFEST_DOMAIN_V1: &[u8] = b"zenodex.zrpf.spot_settlement_v7.manifest.v1";
-const OUTPUT_FIXED_FIELD_COUNT_V1: usize = 18;
+const OUTPUT_FIXED_FIELD_COUNT_V1: usize = 19;
 const OUTPUT_HEADER_BYTES_V1: usize = 8 + 2 + 4 + 4 + 4 + 4 + OUTPUT_FIXED_FIELD_COUNT_V1 * 32;
 
 const _: [(); 1] = [(); (OUTPUT_HEADER_BYTES_V1 + MAX_SPOT_SETTLEMENT_V7_JOURNAL_BYTES_V1
@@ -274,6 +274,7 @@ pub struct SpotSettlementV7VerifierOutputV1 {
     data_availability_certificate_root: CommitmentV3,
     data_root: CommitmentV3,
     settlement_effect_plan_commitment: CommitmentV3,
+    settlement_effect_plan_bytes_sha256: CommitmentV3,
     pre_state_root: CommitmentV3,
     post_state_root: CommitmentV3,
     action_ids_root: CommitmentV3,
@@ -292,6 +293,9 @@ impl SpotSettlementV7VerifierOutputV1 {
     ) -> Result<Self, VerifiedSpotSettlementV7ErrorV1> {
         let journal = verified.journal();
         let plan = journal.settlement_effect_plan();
+        let exact_plan_b_bytes = encode_settlement_effect_plan_v2(plan)
+            .map_err(|_| VerifiedSpotSettlementV7ErrorV1::OutputEncoding)?;
+        let exact_plan_b_bytes_sha256 = sha256_commitment(&exact_plan_b_bytes)?;
         let batch = plan.economic_action_batch();
         let value = Self {
             verified_program_id: verified.verified_program_id,
@@ -306,6 +310,7 @@ impl SpotSettlementV7VerifierOutputV1 {
             data_availability_certificate_root: journal.data_availability_certificate_root(),
             data_root: journal.data_root(),
             settlement_effect_plan_commitment: journal.settlement_effect_plan_commitment(),
+            settlement_effect_plan_bytes_sha256: exact_plan_b_bytes_sha256,
             pre_state_root: journal.effect_binding_journal().pre_state_root(),
             post_state_root: journal.effect_binding_journal().post_state_root(),
             action_ids_root: journal.action_ids_root(),
@@ -361,6 +366,9 @@ impl SpotSettlementV7VerifierOutputV1 {
     }
     pub const fn settlement_effect_plan_commitment(&self) -> CommitmentV3 {
         self.settlement_effect_plan_commitment
+    }
+    pub const fn settlement_effect_plan_bytes_sha256(&self) -> CommitmentV3 {
+        self.settlement_effect_plan_bytes_sha256
     }
     pub const fn pre_state_root(&self) -> CommitmentV3 {
         self.pre_state_root
@@ -592,13 +600,14 @@ fn decode_canonical_output_fields_v1(
         data_availability_certificate_root: output_commitment(fixed[8])?,
         data_root: output_commitment(fixed[9])?,
         settlement_effect_plan_commitment: output_commitment(fixed[10])?,
-        pre_state_root: output_commitment(fixed[11])?,
-        post_state_root: output_commitment(fixed[12])?,
-        action_ids_root: output_commitment(fixed[13])?,
-        action_authorization_bindings_root: output_commitment(fixed[14])?,
-        authorization_grant_spends_root: output_commitment(fixed[15])?,
-        consumed_object_ids_root: output_commitment(fixed[16])?,
-        state_root_host_input_sha256: output_commitment(fixed[17])?,
+        settlement_effect_plan_bytes_sha256: output_commitment(fixed[11])?,
+        pre_state_root: output_commitment(fixed[12])?,
+        post_state_root: output_commitment(fixed[13])?,
+        action_ids_root: output_commitment(fixed[14])?,
+        action_authorization_bindings_root: output_commitment(fixed[15])?,
+        authorization_grant_spends_root: output_commitment(fixed[16])?,
+        consumed_object_ids_root: output_commitment(fixed[17])?,
+        state_root_host_input_sha256: output_commitment(fixed[18])?,
         state_root_host_input_length,
         journal_bytes,
     };
@@ -620,6 +629,7 @@ impl SpotSettlementV7VerifierOutputV1 {
             self.data_availability_certificate_root.into_bytes(),
             self.data_root.into_bytes(),
             self.settlement_effect_plan_commitment.into_bytes(),
+            self.settlement_effect_plan_bytes_sha256.into_bytes(),
             self.pre_state_root.into_bytes(),
             self.post_state_root.into_bytes(),
             self.action_ids_root.into_bytes(),
@@ -644,6 +654,9 @@ fn require_output_journal_associations_v1(
     journal: &SpotSettlementV7JournalV1,
 ) -> Result<(), VerifiedSpotSettlementV7ErrorV1> {
     let plan = journal.settlement_effect_plan();
+    let exact_plan_b_bytes = encode_settlement_effect_plan_v2(plan)
+        .map_err(|_| VerifiedSpotSettlementV7ErrorV1::OutputEncoding)?;
+    let exact_plan_b_bytes_sha256 = sha256_commitment(&exact_plan_b_bytes)?;
     let batch = plan.economic_action_batch();
     let journal_hash = sha256_commitment(&output.journal_bytes)?;
     let matches = output.journal_sha256 == journal_hash
@@ -656,6 +669,9 @@ fn require_output_journal_associations_v1(
             == journal.data_availability_certificate_root()
         && output.data_root == journal.data_root()
         && output.settlement_effect_plan_commitment == journal.settlement_effect_plan_commitment()
+        && output.settlement_effect_plan_bytes_sha256
+            == journal.settlement_effect_plan_bytes_sha256()
+        && output.settlement_effect_plan_bytes_sha256 == exact_plan_b_bytes_sha256
         && output.pre_state_root == journal.effect_binding_journal().pre_state_root()
         && output.post_state_root == journal.effect_binding_journal().post_state_root()
         && output.action_ids_root == journal.action_ids_root()
@@ -993,6 +1009,7 @@ mod tests {
             data_availability_certificate_root: journal.data_availability_certificate_root(),
             data_root: journal.data_root(),
             settlement_effect_plan_commitment: journal.settlement_effect_plan_commitment(),
+            settlement_effect_plan_bytes_sha256: journal.settlement_effect_plan_bytes_sha256(),
             pre_state_root: journal.effect_binding_journal().pre_state_root(),
             post_state_root: journal.effect_binding_journal().post_state_root(),
             action_ids_root: journal.action_ids_root(),
@@ -1009,9 +1026,9 @@ mod tests {
         assert_eq!(
             Sha256::digest(&bytes).as_slice(),
             &[
-                0xe3, 0x19, 0xbb, 0x78, 0xa5, 0xfd, 0x0a, 0xa1, 0x19, 0x74, 0xca, 0x70, 0xd9, 0x81,
-                0x0f, 0x29, 0x7b, 0xc3, 0x38, 0x6e, 0x5d, 0xe7, 0x36, 0xb4, 0x0e, 0x2b, 0xd0, 0x25,
-                0xb6, 0x13, 0xfd, 0x93,
+                0x97, 0x9b, 0x2e, 0x9c, 0xb4, 0x75, 0x7d, 0xe5, 0x0e, 0xc9, 0x35, 0xc5, 0x5c, 0xa8,
+                0x27, 0xc6, 0x93, 0xad, 0x5c, 0xb4, 0xe2, 0x2e, 0xe8, 0x03, 0x4b, 0xee, 0x9e, 0x78,
+                0x66, 0xde, 0x14, 0x8c,
             ]
         );
         let (decoded, declared_plan_length) = decode_canonical_output_fields_v1(&bytes).unwrap();

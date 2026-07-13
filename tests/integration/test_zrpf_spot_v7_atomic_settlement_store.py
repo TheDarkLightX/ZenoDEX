@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import inspect
 import pickle
 import sqlite3
+import struct
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
@@ -30,6 +32,14 @@ from src.integration._zrpf_spot_v7_firecracker_authority import (
     _GovernedJailedFirecrackerExecutionV1,
     _require_governed_firecracker_spot_v7_authority_available_v1,
 )
+from src.integration._zrpf_spot_v7_firecracker_output import (
+    SPOT_V7_COMMITTED_OUTPUT_UNBOUND_CANDIDATE_FIELDS_V1,
+    SpotV7CommittedOutputRejectV1,
+    _bind_decoded_spot_v7_output_to_candidate_v1,
+    _BoundCommittedSpotV7CandidateV1,
+    _decode_exact_committed_spot_v7_output_v1,
+    _decode_spot_v7_payload_v1,
+)
 from src.integration.zrpf_spot_v7_atomic_settlement_store import (
     SQLiteSpotV7AtomicSettlementStoreV1,
 )
@@ -45,6 +55,7 @@ from src.integration.zrpf_spot_v7_atomic_settlement_types import (
     SpotV7CellTransitionV1,
     spot_v7_cell_transitions_root_v1,
 )
+from tools import zrpf_v3_firecracker_output_protocol as firecracker_protocol
 
 
 def _hash(seed: int) -> str:
@@ -227,6 +238,198 @@ def _candidate(
     return _seal_test_only_spot_v7_settlement_v1(proposal)
 
 
+def _bound_committed_output(
+    *,
+    seed: int = 100,
+) -> tuple[
+    _BoundCommittedSpotV7CandidateV1,
+    bytes,
+    bytes,
+]:
+    sealed_candidate = _candidate(seed=seed)
+    candidate = sealed_candidate._input
+    plan = candidate.exact_plan_b_bytes
+    semantic = bytes([0x61]) * 310
+    source_child_program = _hash_bytes(_hash(seed + 101))
+    source_child_profile = _hash_bytes(_hash(seed + 102))
+    state_root_host_input_sha256 = _hash_bytes(_hash(seed + 103))
+    binding_fields = (
+        _hash_bytes(_hash(seed + 104)),
+        _hash_bytes(_hash(seed + 105)),
+        _hash_bytes(_hash(seed + 106)),
+        _hash_bytes(_hash(seed + 107)),
+        _hash_bytes(candidate.settlement_effect_plan_commitment),
+        _hash_bytes(candidate.cell_transitions_root),
+        _hash_bytes(candidate.pre_state_root),
+        _hash_bytes(candidate.post_state_root),
+        _hash_bytes(candidate.economic_action_id),
+        _hash_bytes(_hash(seed + 108)),
+        _hash_bytes(_hash(seed + 109)),
+        _hash_bytes(_hash(seed + 110)),
+    )
+    binding = b"\x00\x01" + b"".join(binding_fields)
+    binding_domain = b"zenodex.zrpf.spot_settlement_v7_effect_binding_journal.v1"
+    binding_commitment = hashlib.sha256(
+        len(binding_domain).to_bytes(2, "big") + binding_domain + binding
+    ).digest()
+    journal_fields = (
+        source_child_program,
+        source_child_profile,
+        _hash_bytes(candidate.source_child_claim_binding),
+        _hash_bytes(candidate.source_child_journal_sha256),
+        _hash_bytes(candidate.data_availability_certificate_root),
+        _hash_bytes(candidate.data_root),
+        _hash_bytes(_hash(seed + 111)),
+        state_root_host_input_sha256,
+        hashlib.sha256(semantic).digest(),
+        binding_commitment,
+        _hash_bytes(candidate.settlement_effect_plan_commitment),
+        hashlib.sha256(plan).digest(),
+        _hash_bytes(sealed_candidate.action_ids_root),
+    )
+    host_input_length = 1_024
+    journal_total = 26 + 13 * 32 + len(semantic) + len(binding) + len(plan)
+    journal = b"".join(
+        (
+            b"ZSPTV7J1",
+            (1).to_bytes(2, "big"),
+            journal_total.to_bytes(4, "big"),
+            host_input_length.to_bytes(4, "big"),
+            len(semantic).to_bytes(2, "big"),
+            len(binding).to_bytes(2, "big"),
+            len(plan).to_bytes(4, "big"),
+            *journal_fields,
+            semantic,
+            binding,
+            plan,
+        )
+    )
+    output_fields = (
+        _hash_bytes(candidate.verified_program_id),
+        _hash_bytes(candidate.verified_profile_id),
+        _hash_bytes(candidate.verified_program_manifest_root),
+        hashlib.sha256(journal).digest(),
+        source_child_program,
+        source_child_profile,
+        _hash_bytes(candidate.source_child_claim_binding),
+        _hash_bytes(candidate.source_child_journal_sha256),
+        _hash_bytes(candidate.data_availability_certificate_root),
+        _hash_bytes(candidate.data_root),
+        _hash_bytes(candidate.settlement_effect_plan_commitment),
+        hashlib.sha256(plan).digest(),
+        _hash_bytes(candidate.pre_state_root),
+        _hash_bytes(candidate.post_state_root),
+        _hash_bytes(sealed_candidate.action_ids_root),
+        _hash_bytes(sealed_candidate.action_authorization_bindings_root),
+        _hash_bytes(sealed_candidate.authorization_grant_spends_root),
+        _hash_bytes(sealed_candidate.consumed_object_ids_root),
+        state_root_host_input_sha256,
+    )
+    payload_total = 26 + 19 * 32 + len(journal)
+    payload = b"".join(
+        (
+            b"ZSPTV7O1",
+            (1).to_bytes(2, "big"),
+            payload_total.to_bytes(4, "big"),
+            len(journal).to_bytes(4, "big"),
+            len(plan).to_bytes(4, "big"),
+            host_input_length.to_bytes(4, "big"),
+            *output_fields,
+            journal,
+        )
+    )
+    candidate = replace(
+        candidate,
+        exact_v7_journal_bytes=journal,
+        exact_firecracker_output_bytes=payload,
+    )
+    request = firecracker_protocol.FirecrackerRequestV1.validated(
+        run_nonce_256=bytes([0x31]) * 32,
+        runtime_manifest_sha256=bytes([0x32]) * 32,
+        input_drive_sha256=bytes([0x33]) * 32,
+        replay_intent_sha256=bytes([0x34]) * 32,
+    )
+    output_device = firecracker_protocol.build_committed_output(
+        request,
+        observed_input_drive_sha256=request.input_drive_sha256,
+        payload=payload,
+    )
+    decoded = _decode_exact_committed_spot_v7_output_v1(
+        request_bytes=request.encode(),
+        output_device_bytes=output_device,
+    )
+    return (
+        _bind_decoded_spot_v7_output_to_candidate_v1(
+            decoded_output=decoded,
+            candidate=candidate,
+        ),
+        request.encode(),
+        output_device,
+    )
+
+
+def _mutate_nested_v7_plan_and_recommit(
+    request_bytes: bytes,
+    output_device: bytes,
+) -> bytes:
+    """Change Plan B while repairing every outer data-only commitment."""
+
+    payload_length = struct.unpack_from("<I", output_device, 16)[0]
+    payload = bytearray(output_device[256 : 256 + payload_length])
+    output_header_bytes = 26 + 19 * 32
+    journal_offset = output_header_bytes
+    semantic_length = int.from_bytes(payload[journal_offset + 18 : journal_offset + 20], "big")
+    binding_length = int.from_bytes(payload[journal_offset + 20 : journal_offset + 22], "big")
+    plan_length = int.from_bytes(payload[journal_offset + 22 : journal_offset + 26], "big")
+    plan_offset = journal_offset + 26 + 13 * 32 + semantic_length + binding_length
+    assert plan_length > 0
+    assert plan_offset + plan_length == len(payload)
+    payload[plan_offset] ^= 1
+    payload[26 + 3 * 32 : 26 + 4 * 32] = hashlib.sha256(payload[journal_offset:]).digest()
+    request = firecracker_protocol.decode_request(request_bytes)
+    return firecracker_protocol.build_committed_output(
+        request,
+        observed_input_drive_sha256=request.input_drive_sha256,
+        payload=bytes(payload),
+    )
+
+
+def _encode_prior_width_v7_output_and_recommit(
+    request_bytes: bytes,
+    output_device: bytes,
+) -> bytes:
+    """Recreate the superseded 18/12-field frame for rejection evidence."""
+
+    payload_length = struct.unpack_from("<I", output_device, 16)[0]
+    payload = output_device[256 : 256 + payload_length]
+    new_output_header_bytes = 26 + 19 * 32
+    journal = payload[new_output_header_bytes:]
+    new_journal_header_bytes = 26 + 13 * 32
+    old_journal = bytearray(
+        journal[: 26 + 11 * 32]
+        + journal[26 + 12 * 32 : new_journal_header_bytes]
+        + journal[new_journal_header_bytes:]
+    )
+    old_journal[10:14] = len(old_journal).to_bytes(4, "big")
+    old_output_fixed = bytearray(
+        payload[26 : 26 + 11 * 32] + payload[26 + 12 * 32 : new_output_header_bytes]
+    )
+    old_output_fixed[3 * 32 : 4 * 32] = hashlib.sha256(old_journal).digest()
+    old_payload = bytearray(payload[:26] + old_output_fixed + old_journal)
+    old_payload[10:14] = len(old_payload).to_bytes(4, "big")
+    old_payload[14:18] = len(old_journal).to_bytes(4, "big")
+    request = firecracker_protocol.decode_request(request_bytes)
+    return firecracker_protocol.build_committed_output(
+        request,
+        observed_input_drive_sha256=request.input_drive_sha256,
+        payload=bytes(old_payload),
+    )
+
+
+def _hash_bytes(value: str) -> bytes:
+    return bytes.fromhex(value[2:])
+
+
 def _store(tmp_path: Path) -> SQLiteSpotV7AtomicSettlementStoreV1:
     directory = tmp_path / "private"
     directory.mkdir(mode=0o700)
@@ -351,11 +554,126 @@ def test_raw_output_reports_and_booleans_cannot_mint_governed_capability(
         )
 
 
+def test_committed_output_decoder_matches_outer_protocol_and_exact_v7_payload() -> None:
+    bound, request_bytes, output_device = _bound_committed_output()
+
+    decoded = _decode_exact_committed_spot_v7_output_v1(
+        request_bytes=request_bytes,
+        output_device_bytes=output_device,
+    )
+
+    assert decoded == bound.decoded_output
+    assert decoded.output_payload_bytes == bound.candidate.exact_firecracker_output_bytes
+    assert decoded.journal_bytes == bound.candidate.exact_v7_journal_bytes
+    assert decoded.plan_b_bytes == bound.candidate.exact_plan_b_bytes
+    assert decoded.output_device_sha256 == hashlib.sha256(output_device).digest()
+    assert SPOT_V7_COMMITTED_OUTPUT_UNBOUND_CANDIDATE_FIELDS_V1 == (
+        "application_id",
+        "chain_or_domain_id",
+        "epoch_id",
+        "exact_v7_receipt_bytes",
+        "exact_firecracker_execution_record_bytes",
+    )
+
+
+def test_python_v7_payload_decoder_accepts_the_rust_golden_vector() -> None:
+    vector_path = (
+        Path(__file__).resolve().parents[2]
+        / "zk/spot_settlement_v7_risc0/verifier/tests/vectors/"
+        / "spot_settlement_v7_firecracker_output_v1.hex"
+    )
+    payload = bytes.fromhex(
+        "".join(
+            line.split("//", maxsplit=1)[0].strip()
+            for line in vector_path.read_text(encoding="utf-8").splitlines()
+        )
+    )
+
+    fixed, journal, plan, journal_fixed, binding_fixed, host_input_length = (
+        _decode_spot_v7_payload_v1(payload)
+    )
+
+    assert len(payload) == 3_372
+    assert hashlib.sha256(payload).hexdigest() == (
+        "979b2e9cb4757de50ec935c55ca827c693ad5cb4e22ee8034bee9e7866de148c"
+    )
+    assert len(fixed) == 19
+    assert len(journal) == 2_738
+    assert len(plan) == 1_600
+    assert len(journal_fixed) == 13
+    assert len(binding_fixed) == 12
+    assert host_input_length == 1_024
+
+
+def test_committed_output_decoder_rejects_recommitted_nested_plan_b_mutation() -> None:
+    _, request_bytes, output_device = _bound_committed_output()
+    mutated_output = _mutate_nested_v7_plan_and_recommit(request_bytes, output_device)
+
+    with pytest.raises(SpotV7CommittedOutputRejectV1) as captured:
+        _decode_exact_committed_spot_v7_output_v1(
+            request_bytes=request_bytes,
+            output_device_bytes=mutated_output,
+        )
+
+    assert captured.value.code == "v7_plan_bytes_sha256"
+
+
+def test_committed_output_decoder_rejects_prior_width_v1_frame() -> None:
+    _, request_bytes, output_device = _bound_committed_output()
+    prior_width_output = _encode_prior_width_v7_output_and_recommit(
+        request_bytes,
+        output_device,
+    )
+
+    with pytest.raises(SpotV7CommittedOutputRejectV1) as captured:
+        _decode_exact_committed_spot_v7_output_v1(
+            request_bytes=request_bytes,
+            output_device_bytes=prior_width_output,
+        )
+
+    assert captured.value.code == "v7_output_framing"
+
+
+@pytest.mark.parametrize(
+    ("mutation", "code"),
+    (
+        ("request_nonce", "output_binding"),
+        ("payload", "output_payload"),
+        ("trailing", "output_trailing_bytes"),
+        ("commit", "output_commit"),
+    ),
+)
+def test_committed_output_decoder_rejects_outer_binding_mutations(
+    mutation: str,
+    code: str,
+) -> None:
+    _, request_bytes, output_device = _bound_committed_output()
+    request = bytearray(request_bytes)
+    output = bytearray(output_device)
+    if mutation == "request_nonce":
+        request[16] ^= 1
+    elif mutation == "payload":
+        output[256] ^= 1
+    elif mutation == "trailing":
+        payload_length = struct.unpack_from("<I", output, 16)[0]
+        output[256 + payload_length] = 1
+    else:
+        output[-1] ^= 1
+
+    with pytest.raises(SpotV7CommittedOutputRejectV1) as captured:
+        _decode_exact_committed_spot_v7_output_v1(
+            request_bytes=bytes(request),
+            output_device_bytes=bytes(output),
+        )
+
+    assert captured.value.code == code
+
+
 def test_governed_runtime_owns_the_exact_candidate_and_rejects_a_b_rebinding() -> None:
-    candidate_a = _candidate(seed=100)
-    candidate_b = _candidate(seed=200)
+    bound_a, _, _ = _bound_committed_output(seed=100)
+    bound_b, _, _ = _bound_committed_output(seed=200)
     runtime = _GovernedJailedFirecrackerExecutionV1(
-        candidate_a._input,
+        bound_a,
         seal=firecracker_authority_module._GOVERNED_RUNTIME_SEAL_V1,
     )
     capability = _GovernedFirecrackerSpotV7SettlementV1(
@@ -363,21 +681,51 @@ def test_governed_runtime_owns_the_exact_candidate_and_rejects_a_b_rebinding() -
         seal=firecracker_authority_module._GOVERNED_BINDER_SEAL_V1,
     )
 
-    assert capability._candidate_for_atomic_store() is candidate_a._input
-    assert capability._candidate_for_atomic_store() is not candidate_b._input
+    assert capability._candidate_for_atomic_store() is bound_a.candidate
+    assert capability._candidate_for_atomic_store() is not bound_b.candidate
     with pytest.raises(TypeError, match="unexpected keyword argument 'candidate_input'"):
         _bind_governed_firecracker_spot_v7_settlement_v1(
             runtime_execution=runtime,
-            **{"candidate_input": candidate_b._input},
+            **{"candidate_input": bound_b.candidate},
         )
+
+    with pytest.raises(SpotV7CommittedOutputRejectV1) as captured:
+        _bind_decoded_spot_v7_output_to_candidate_v1(
+            decoded_output=bound_a.decoded_output,
+            candidate=bound_b.candidate,
+        )
+    assert captured.value.code == "candidate_output_binding"
+
+
+@pytest.mark.parametrize("mutation", ["action", "asset", "amount"])
+def test_committed_output_binding_rejects_asset_effect_semantic_mutation(
+    mutation: str,
+) -> None:
+    bound, _, _ = _bound_committed_output()
+    candidate = bound.candidate
+    first, second = candidate.asset_effects
+    mutated_first = SpotV7AssetEffectV1(
+        _hash(91) if mutation == "action" else first.economic_action_id,
+        _hash(92) if mutation == "asset" else first.asset_id,
+        first.amount_atoms + 1 if mutation == "amount" else first.amount_atoms,
+    )
+    mutated = replace(candidate, asset_effects=(mutated_first, second))
+
+    with pytest.raises(SpotV7CommittedOutputRejectV1) as captured:
+        _bind_decoded_spot_v7_output_to_candidate_v1(
+            decoded_output=bound.decoded_output,
+            candidate=mutated,
+        )
+
+    assert captured.value.code == "candidate_output_binding"
 
 
 def test_direct_or_object_new_capability_construction_cannot_cross_private_seals() -> None:
-    candidate = _candidate()
+    bound, _, _ = _bound_committed_output()
 
     with pytest.raises(TypeError, match="governed runtime seal"):
         _GovernedJailedFirecrackerExecutionV1(
-            candidate._input,
+            bound,
             seal=object(),  # type: ignore[arg-type]
         )
     forged_runtime = object.__new__(_GovernedJailedFirecrackerExecutionV1)
@@ -446,6 +794,33 @@ def test_governed_store_sink_rejects_forgeable_values_without_mutating_state(
     assert _database_rows(store.path) == before_rows
 
 
+def test_decoded_or_bound_unjailed_output_rejects_before_sqlite_mutation(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    before_cursor = store.read_cursor()
+    before_rows = _database_rows(store.path)
+    bound, _, _ = _bound_committed_output()
+
+    for unjailed_value in (bound.decoded_output, bound):
+        with patch.object(
+            SQLiteSpotV7AtomicSettlementStoreV1,
+            "_connect",
+            side_effect=AssertionError("unjailed output must reject before SQLite"),
+        ):
+            with pytest.raises(
+                TypeError,
+                match="governed Firecracker Spot V7 capability",
+            ):
+                store._commit_governed_firecracker_capability(
+                    expected_cursor=before_cursor,
+                    capability=unjailed_value,
+                )
+
+    assert store.read_cursor() == before_cursor
+    assert _database_rows(store.path) == before_rows
+
+
 def test_object_new_forged_exact_capability_rejects_before_sqlite_mutation(
     tmp_path: Path,
 ) -> None:
@@ -475,9 +850,9 @@ def test_exact_sealed_but_unavailable_capability_rejects_before_sqlite_mutation(
     store = _store(tmp_path)
     before_cursor = store.read_cursor()
     before_rows = _database_rows(store.path)
-    candidate = _candidate()
+    bound, _, _ = _bound_committed_output()
     runtime = _GovernedJailedFirecrackerExecutionV1(
-        candidate._input,
+        bound,
         seal=firecracker_authority_module._GOVERNED_RUNTIME_SEAL_V1,
     )
     capability = _GovernedFirecrackerSpotV7SettlementV1(

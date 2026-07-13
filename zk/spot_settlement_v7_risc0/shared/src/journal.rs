@@ -28,7 +28,7 @@ pub const SPOT_SETTLEMENT_V7_JOURNAL_VERSION_V1: u16 = 1;
 pub const MAX_SPOT_SETTLEMENT_V7_PLAN_B_BYTES_V1: usize = 48 * 1_024;
 pub const MAX_SPOT_SETTLEMENT_V7_FIRECRACKER_PAYLOAD_BYTES_V1: usize = 64 * 1_024;
 
-const FIXED_COMMITMENT_COUNT_V1: usize = 12;
+const FIXED_COMMITMENT_COUNT_V1: usize = 13;
 const JOURNAL_HEADER_BYTES_V1: usize = 8 + 2 + 4 + 4 + 2 + 2 + 4;
 const JOURNAL_FIXED_BYTES_V1: usize = JOURNAL_HEADER_BYTES_V1
     + FIXED_COMMITMENT_COUNT_V1 * 32
@@ -66,6 +66,7 @@ pub struct SpotSettlementV7JournalV1 {
     semantic_journal_sha256: CommitmentV3,
     effect_binding_journal_commitment: CommitmentV3,
     settlement_effect_plan_commitment: CommitmentV3,
+    settlement_effect_plan_bytes_sha256: CommitmentV3,
     action_ids_root: CommitmentV3,
     state_root_host_input_length: u32,
     semantic_journal: SpotStateRootV7SemanticJournalV1,
@@ -104,6 +105,10 @@ impl SpotSettlementV7JournalV1 {
             settlement_effect_plan_commitment: settlement_effect_plan
                 .canonical_commitment()
                 .map_err(|_| SpotSettlementV7ErrorV1::DerivedCommitment("settlement plan"))?,
+            settlement_effect_plan_bytes_sha256: sha256_commitment(
+                &plan_bytes,
+                "settlement plan bytes",
+            )?,
             action_ids_root: batch.action_ids_root(),
             state_root_host_input_length: opening.state_root_host_input_length(),
             semantic_journal: opening.state_journal().clone(),
@@ -141,6 +146,15 @@ impl SpotSettlementV7JournalV1 {
         self.settlement_effect_plan
             .validate_self_consistency()
             .map_err(|_| SpotSettlementV7ErrorV1::SettlementPlanDecode)?;
+        let plan_bytes = encode_settlement_effect_plan_v2(&self.settlement_effect_plan)
+            .map_err(|_| SpotSettlementV7ErrorV1::SettlementPlanEncoding)?;
+        if sha256_commitment(&plan_bytes, "settlement plan bytes")?
+            != self.settlement_effect_plan_bytes_sha256
+        {
+            return Err(SpotSettlementV7ErrorV1::JournalComponentHashMismatch(
+                "settlement plan bytes",
+            ));
+        }
         if self
             .settlement_effect_plan
             .canonical_commitment()
@@ -239,6 +253,9 @@ impl SpotSettlementV7JournalV1 {
     pub const fn settlement_effect_plan_commitment(&self) -> CommitmentV3 {
         self.settlement_effect_plan_commitment
     }
+    pub const fn settlement_effect_plan_bytes_sha256(&self) -> CommitmentV3 {
+        self.settlement_effect_plan_bytes_sha256
+    }
     pub const fn action_ids_root(&self) -> CommitmentV3 {
         self.action_ids_root
     }
@@ -296,6 +313,7 @@ pub fn encode_spot_settlement_v7_journal_v1(
         journal.semantic_journal_sha256.into_bytes(),
         journal.effect_binding_journal_commitment.into_bytes(),
         journal.settlement_effect_plan_commitment.into_bytes(),
+        journal.settlement_effect_plan_bytes_sha256.into_bytes(),
         journal.action_ids_root.into_bytes(),
     ] {
         output.extend_from_slice(&value);
@@ -358,6 +376,8 @@ pub fn decode_exact_spot_settlement_v7_journal_v1(
     let semantic_journal_sha256 = read_commitment(&mut cursor, "semantic journal")?;
     let effect_binding_journal_commitment = read_commitment(&mut cursor, "binding journal")?;
     let settlement_effect_plan_commitment = read_commitment(&mut cursor, "settlement plan")?;
+    let settlement_effect_plan_bytes_sha256 =
+        read_commitment(&mut cursor, "settlement plan bytes")?;
     let action_ids_root = read_commitment(&mut cursor, "action ids")?;
     let semantic_bytes = cursor.read(semantic_length, "semantic journal")?;
     let binding_bytes = cursor.read(binding_length, "binding journal")?;
@@ -377,6 +397,7 @@ pub fn decode_exact_spot_settlement_v7_journal_v1(
         semantic_journal_sha256,
         effect_binding_journal_commitment,
         settlement_effect_plan_commitment,
+        settlement_effect_plan_bytes_sha256,
         action_ids_root,
         state_root_host_input_length,
         semantic_journal: decode_exact_spot_state_root_v7_semantic_journal_v1(semantic_bytes)
@@ -514,9 +535,9 @@ mod tests {
         assert_eq!(
             Sha256::digest(&bytes).as_slice(),
             &[
-                0xc5, 0xee, 0x64, 0xc6, 0x2a, 0x27, 0xf0, 0x9f, 0x39, 0x66, 0xab, 0x62, 0xc3, 0xde,
-                0x46, 0x9e, 0x4c, 0x70, 0xbd, 0xa8, 0xf2, 0x03, 0x69, 0xcc, 0x4e, 0xde, 0xac, 0x6a,
-                0xe9, 0x1c, 0x7e, 0x74,
+                0xb4, 0x06, 0x49, 0x21, 0x00, 0xa3, 0x62, 0x4f, 0xa4, 0x1c, 0x0a, 0x3b, 0xa5, 0x69,
+                0x42, 0x19, 0xf1, 0xdc, 0x60, 0x96, 0x16, 0xf2, 0x2d, 0x8e, 0x6f, 0xdf, 0xd7, 0x75,
+                0x86, 0x25, 0x46, 0xcf,
             ]
         );
         assert_eq!(
@@ -542,6 +563,16 @@ mod tests {
             decode_exact_spot_settlement_v7_journal_v1(&semantic_hash),
             Err(SpotSettlementV7ErrorV1::JournalComponentHashMismatch(
                 "semantic journal"
+            ))
+        ));
+
+        let mut plan_bytes_hash = encode_spot_settlement_v7_journal_v1(&fixture_journal()).unwrap();
+        let plan_bytes_hash_offset = JOURNAL_HEADER_BYTES_V1 + 11 * 32;
+        plan_bytes_hash[plan_bytes_hash_offset] ^= 1;
+        assert!(matches!(
+            decode_exact_spot_settlement_v7_journal_v1(&plan_bytes_hash),
+            Err(SpotSettlementV7ErrorV1::JournalComponentHashMismatch(
+                "settlement plan bytes"
             ))
         ));
     }
@@ -572,6 +603,11 @@ mod tests {
                 .unwrap(),
             effect_binding_journal_commitment: bound.journal().canonical_commitment().unwrap(),
             settlement_effect_plan_commitment: plan.canonical_commitment().unwrap(),
+            settlement_effect_plan_bytes_sha256: sha256_commitment(
+                &encode_settlement_effect_plan_v2(&plan).unwrap(),
+                "settlement plan bytes",
+            )
+            .unwrap(),
             action_ids_root: plan.economic_action_batch().action_ids_root(),
             state_root_host_input_length: 1_024,
             semantic_journal,

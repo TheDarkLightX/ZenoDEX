@@ -178,7 +178,7 @@ class SpotV7AssetEffectV1:
 
     @property
     def effect_id(self) -> str:
-        """Local audit-row identity; the future binder validates exact Plan B."""
+        """Local audit identity derived from output-bound action, asset, and amount."""
 
         body = b"".join(
             (

@@ -272,25 +272,44 @@ class _TestOnlySealedSpotV7SettlementV1:
 
     @property
     def action_ids_root(self) -> str:
-        return _list_root(_ACTION_IDS_ROOT_DOMAIN_V1, (self.economic_action_id,))
+        return _candidate_action_ids_root(self._input)
 
     @property
     def action_authorization_bindings_root(self) -> str:
-        return _list_root(
-            _ACTION_BINDINGS_ROOT_DOMAIN_V1,
-            (self.authorization_nullifier,),
-        )
+        return _candidate_action_authorization_bindings_root(self._input)
 
     @property
     def authorization_grant_spends_root(self) -> str:
-        return _list_root(
-            _GRANT_SPENDS_ROOT_DOMAIN_V1,
-            (self.authorization_grant_spend_nullifier,),
-        )
+        return _candidate_authorization_grant_spends_root(self._input)
 
     @property
     def consumed_object_ids_root(self) -> str:
-        return _list_root(_CONSUMED_OBJECTS_ROOT_DOMAIN_V1, self.consumed_object_ids)
+        return _candidate_consumed_object_ids_root(self._input)
+
+
+def _candidate_action_ids_root(candidate: _SpotV7SettlementCandidateInputV1) -> str:
+    return _list_root(_ACTION_IDS_ROOT_DOMAIN_V1, (candidate.economic_action_id,))
+
+
+def _candidate_action_authorization_bindings_root(
+    candidate: _SpotV7SettlementCandidateInputV1,
+) -> str:
+    return _list_root(_ACTION_BINDINGS_ROOT_DOMAIN_V1, (candidate.authorization_nullifier,))
+
+
+def _candidate_authorization_grant_spends_root(
+    candidate: _SpotV7SettlementCandidateInputV1,
+) -> str:
+    return _list_root(
+        _GRANT_SPENDS_ROOT_DOMAIN_V1,
+        (candidate.authorization_grant_spend_nullifier,),
+    )
+
+
+def _candidate_consumed_object_ids_root(
+    candidate: _SpotV7SettlementCandidateInputV1,
+) -> str:
+    return _list_root(_CONSUMED_OBJECTS_ROOT_DOMAIN_V1, candidate.consumed_object_ids)
 
 
 def _seal_test_only_spot_v7_settlement_v1(

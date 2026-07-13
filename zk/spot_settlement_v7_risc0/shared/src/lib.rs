@@ -27,3 +27,8 @@ pub use source_opening::*;
 pub const SPOT_SETTLEMENT_V7_RECEIPT_AUTHORITY: bool = false;
 pub const SPOT_SETTLEMENT_V7_SETTLEMENT_AUTHORITY: bool = false;
 pub const SPOT_SETTLEMENT_V7_PRODUCTION_AUTHORITY: bool = false;
+/// This V1 ABI may be tightened before its first governed image and receipt.
+/// Once either artifact is materialized, this source assertion must be retired
+/// and subsequent incompatible changes require a new ABI version.
+pub const SPOT_SETTLEMENT_V7_ABI_V1_MATERIALIZATION_STATUS: &str =
+    "no_governed_v7_image_or_receipt_materialized";

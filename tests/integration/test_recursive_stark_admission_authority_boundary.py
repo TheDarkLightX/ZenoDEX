@@ -26,6 +26,9 @@ SOURCE_OPENED_V6_VERIFIER_ADAPTER = (
 SPOT_V7_FIRECRACKER_AUTHORITY = (
     ROOT / "src/integration/_zrpf_spot_v7_firecracker_authority.py"
 )
+SPOT_V7_FIRECRACKER_OUTPUT = (
+    ROOT / "src/integration/_zrpf_spot_v7_firecracker_output.py"
+)
 SPOT_V7_ATOMIC_STORE = (
     ROOT / "src/integration/zrpf_spot_v7_atomic_settlement_store.py"
 )
@@ -52,6 +55,11 @@ PRIVATE_FIRECRACKER_AUTHORITY_NAMES = frozenset(
         "_commit_governed_firecracker_capability",
         "_candidate_for_binder",
         "_candidate_for_atomic_store",
+        "_DecodedCommittedSpotV7OutputV1",
+        "_BoundCommittedSpotV7CandidateV1",
+        "_decode_exact_committed_spot_v7_output_v1",
+        "_bind_decoded_spot_v7_output_to_candidate_v1",
+        "_revalidate_bound_spot_v7_candidate_v1",
     }
 )
 PRIVATE_AUTHORITY_NAMES = frozenset(
@@ -106,7 +114,7 @@ DATA_ONLY_ADMISSION_RESULT = "RecursiveStarkAdmissionResult"
 def test_private_admission_symbols_are_absent_from_other_production_modules() -> None:
     violations: list[str] = []
     for path in _production_python_paths():
-        if path in {CORE, SPOT_V7_FIRECRACKER_AUTHORITY}:
+        if path in {CORE, SPOT_V7_FIRECRACKER_AUTHORITY, SPOT_V7_FIRECRACKER_OUTPUT}:
             continue
         allowed = {
             PINNED_ADAPTER: PRIVATE_ADAPTER_IMPORTS,
@@ -128,8 +136,12 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
     assert violations == []
 
 
-def test_firecracker_authority_symbols_have_no_public_alias_or_export() -> None:
-    tree = _parse(SPOT_V7_FIRECRACKER_AUTHORITY)
+@pytest.mark.parametrize(
+    "path",
+    (SPOT_V7_FIRECRACKER_AUTHORITY, SPOT_V7_FIRECRACKER_OUTPUT),
+)
+def test_firecracker_authority_symbols_have_no_public_alias_or_export(path: Path) -> None:
+    tree = _parse(path)
 
     assert _public_authority_alias_violations(tree) == []
     assert _private_authority_all_exports(tree) == []

@@ -18,6 +18,10 @@ from src.integration._zrpf_spot_v7_atomic_settlement_capability import (
     _SpotV7SettlementCandidateInputV1,
     _validate_candidate,
 )
+from src.integration._zrpf_spot_v7_firecracker_output import (
+    _BoundCommittedSpotV7CandidateV1,
+    _revalidate_bound_spot_v7_candidate_v1,
+)
 
 __all__ = [
     "SPOT_V7_FIRECRACKER_AUTHORITY_MISSING_CONDITIONS_V1",
@@ -97,21 +101,21 @@ class _GovernedJailedFirecrackerExecutionV1:
 
     There is deliberately no mint function while any condition in
     ``SPOT_V7_FIRECRACKER_AUTHORITY_MISSING_CONDITIONS_V1`` remains open.
-    The future sole mint site must derive ``candidate_input`` from the exact
-    decoded output inside the same checked jailed lifecycle. A later binder
-    receives no independent candidate argument, preventing an execution for run
-    A from authorizing candidate B. Observation dictionaries and committed-
-    output bytes cannot construct this type.
+    The future sole mint site must decode and bind the exact committed output
+    inside the same checked jailed lifecycle. A later binder receives no
+    independent candidate argument, preventing an execution for run A from
+    authorizing candidate B. Observation dictionaries and committed-output
+    bytes cannot construct this type.
     """
 
-    __slots__ = ("_candidate", "_seal")
+    __slots__ = ("_bound_output", "_seal")
 
-    _candidate: _SpotV7SettlementCandidateInputV1
+    _bound_output: _BoundCommittedSpotV7CandidateV1
     _seal: _GovernedRuntimeSealV1
 
     def __init__(
         self,
-        candidate_input: _SpotV7SettlementCandidateInputV1,
+        bound_output: _BoundCommittedSpotV7CandidateV1,
         *,
         seal: _GovernedRuntimeSealV1,
     ) -> None:
@@ -120,10 +124,10 @@ class _GovernedJailedFirecrackerExecutionV1:
                 "governed jailed Firecracker execution requires the module-private "
                 "governed runtime seal"
             )
-        if type(candidate_input) is not _SpotV7SettlementCandidateInputV1:
-            raise TypeError("candidate_input must be exact _SpotV7SettlementCandidateInputV1")
-        _validate_candidate(candidate_input)
-        object.__setattr__(self, "_candidate", candidate_input)
+        if type(bound_output) is not _BoundCommittedSpotV7CandidateV1:
+            raise TypeError("bound_output must be exact _BoundCommittedSpotV7CandidateV1")
+        _revalidate_bound_spot_v7_candidate_v1(bound_output)
+        object.__setattr__(self, "_bound_output", bound_output)
         object.__setattr__(self, "_seal", seal)
 
     def __init_subclass__(cls, **_kwargs: object) -> NoReturn:
@@ -150,9 +154,10 @@ class _GovernedJailedFirecrackerExecutionV1:
     def _candidate_for_binder(self) -> _SpotV7SettlementCandidateInputV1:
         if not self._has_private_runtime_seal():
             raise TypeError("runtime execution lacks the module-private governed runtime seal")
-        candidate = getattr(self, "_candidate", None)
-        if type(candidate) is not _SpotV7SettlementCandidateInputV1:
-            raise TypeError("runtime execution lacks an exact bound Spot V7 candidate")
+        bound_output = getattr(self, "_bound_output", None)
+        if type(bound_output) is not _BoundCommittedSpotV7CandidateV1:
+            raise TypeError("runtime execution lacks exact committed Spot V7 output binding")
+        candidate = _revalidate_bound_spot_v7_candidate_v1(bound_output)
         _validate_candidate(candidate)
         return candidate
 
