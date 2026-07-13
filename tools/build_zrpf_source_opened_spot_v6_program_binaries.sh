@@ -286,6 +286,7 @@ unset RISC0_SKIP_BUILD RUSTUP_TOOLCHAIN
 
 install -d -m 0700 /home/zrpf/.cargo /risc0/toolchains
 ln -s /opt/cargo-registry /home/zrpf/.cargo/registry
+ln -s /risc0 /home/zrpf/.risc0
 ln -s \
   /opt/risc0-toolchain \
   /risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu
