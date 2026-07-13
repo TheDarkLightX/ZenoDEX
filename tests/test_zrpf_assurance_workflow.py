@@ -50,6 +50,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "' | tee \"${live_report}\"" in replay_command
     assert 'mv "${live_report}" internal/zrpf-ci-live-replay.json' in replay_command
     assert "json.loads(report_path.read_text" in replay_command
+    assert 'value.get("ok") is not True' in replay_command
     broad_cargo_mount = '"${HOME}/.cargo:/home/' + 'zrpf/.cargo:ro"'
     exact_registry_mount = '"${HOME}/.cargo/registry:/home/' + 'zrpf/.cargo/registry:ro"'
     assert broad_cargo_mount not in replay_command
