@@ -284,7 +284,8 @@ export RISC0_BUILD_LOCKED=1
 export RISC0_HOME=/risc0
 unset RISC0_SKIP_BUILD RUSTUP_TOOLCHAIN
 
-install -d -m 0700 /home/zrpf/.cargo /risc0/toolchains
+install -d -m 0700 /home/zrpf/.cargo
+[[ -d /risc0/toolchains && ! -L /risc0/toolchains ]]
 ln -s /opt/cargo-registry /home/zrpf/.cargo/registry
 ln -s /risc0 /home/zrpf/.risc0
 printf '%s\n' \

@@ -77,6 +77,7 @@ def test_recipe_mounts_only_pinned_inputs_read_only_and_writes_externally() -> N
     assert '"$HOME/.cargo' not in source
     assert '"$HOME/.risc0' not in source
     assert "ln -s /risc0 /home/zrpf/.risc0" in source
+    assert "[[ -d /risc0/toolchains && ! -L /risc0/toolchains ]]" in source
     assert "ln -s \\\n  /opt/risc0-toolchain" not in source
     assert "CARGO_NET_OFFLINE=true" in source
     assert "RISC0_BUILD_LOCKED=1" in source
