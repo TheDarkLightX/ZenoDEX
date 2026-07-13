@@ -82,6 +82,8 @@ def test_recipe_mounts_only_pinned_inputs_read_only_and_writes_externally() -> N
     assert "export CARGO_HOME=/cargo" in source
     assert "A canonical non-home Cargo root" in source
     assert "ln -s /opt/cargo-registry /cargo/registry" in source
+    assert "risc0-build removes CARGO_HOME" in source
+    assert "ln -s /cargo /sandbox-home/.cargo" in source
     assert "ln -s /risc0 /sandbox-home/.risc0" in source
     assert "/home/zrpf" not in source
     assert "unset CARGO_ENCODED_RUSTFLAGS RISC0_SKIP_BUILD RUSTFLAGS RUSTUP_TOOLCHAIN" in source

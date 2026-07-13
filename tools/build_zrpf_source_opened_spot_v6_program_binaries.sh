@@ -292,6 +292,9 @@ unset CARGO_ENCODED_RUSTFLAGS RISC0_SKIP_BUILD RUSTFLAGS RUSTUP_TOOLCHAIN
 install -d -m 0700 /cargo /sandbox-home
 [[ -d /risc0/toolchains && ! -L /risc0/toolchains ]]
 ln -s /opt/cargo-registry /cargo/registry
+# risc0-build removes CARGO_HOME from its nested Cargo command. Keep the
+# fallback $HOME/.cargo lookup on the same canonical registry and config root.
+ln -s /cargo /sandbox-home/.cargo
 ln -s /risc0 /sandbox-home/.risc0
 printf '%s\n' \
   '[build]' \
