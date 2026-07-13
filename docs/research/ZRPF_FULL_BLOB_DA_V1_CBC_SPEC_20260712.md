@@ -2,8 +2,9 @@
 
 Date: 2026-07-12
 
-Status: proof-neutral full-blob content binding and bounded local V6 atomic
-persistence implemented; replication and public retrievability pending
+Status: proof-neutral full-blob content binding, governed local policy checking,
+and bounded local V6 atomic persistence implemented; replication and public
+retrievability pending
 
 ## Scoped claim
 
@@ -95,6 +96,52 @@ chain-native DA policy, provider/validator evidence, retrieval tests, and a
 retention enforcement mechanism. Those layers must bind this exact certificate
 root.
 
+## Governed local policy check
+
+`LocalFullBlobPolicyV1` defines a proof-neutral, fail-closed check over one
+exact blob that is present in the checker invocation. The policy binds:
+
+```text
+policy_version
+application_id
+chain_or_domain_id
+data_schema_id
+expected_storage_policy_hash
+minimum_retention_epochs
+minimum_remaining_epochs
+maximum_blob_bytes
+```
+
+Its `policy_root` hashes those fixed-width fields in that order under
+`zenodex.zrpf.local_full_blob_policy.root.v1`. The maximum must be in the
+closed interval `1..=8 MiB`.
+
+The checker receives the policy, certificate, exact blob bytes, the certificate
+epoch expected by the consuming transition, and a checked epoch supplied by a
+governed caller. It independently verifies:
+
+```text
+certificate self-consistency
+exact application, domain, schema, and storage-policy scope
+certificate epoch equals the consuming transition epoch
+checked epoch is not before the certificate epoch
+certificate blob length is within the policy maximum
+retention_through_epoch >= certificate_epoch + minimum_retention_epochs
+retention_through_epoch >= checked_epoch + minimum_remaining_epochs
+exact bytes reproduce the certificate data and chunk roots
+```
+
+All epoch additions are checked. Overflow rejects. The API contains no
+caller-provided acceptance Boolean and returns only `Result<(), E>`.
+
+A successful check establishes the scoped fact
+`local_full_blob_policy_satisfied` for the exact bytes and epochs supplied in
+that invocation. The checked epoch and retention metadata remain inputs. This
+checker does not authenticate a ledger cursor and does not prove that the
+declared future retention will occur. Policy provenance and governance are also
+external: successful evaluation does not establish that the supplied policy is
+the policy authorized by a ledger, release, or consensus process.
+
 ## Evidence
 
 The protocol tests provide:
@@ -107,7 +154,13 @@ The protocol tests provide:
 - unknown-field, stale-version, count, and root substitution rejection;
 - a coherent certificate for different bytes that fails exact content
   validation;
-- a compile-fail check preventing direct construction of the validated type.
+- a compile-fail check preventing direct construction of the validated type;
+- an independent local-policy-root mirror and separation of every policy field;
+- application, domain, schema, storage-policy, and epoch substitution rejection;
+- local blob mutation and policy byte-cap rejection;
+- exact-boundary acceptance for both retention horizons;
+- initial and remaining retention-horizon rejection, including both overflow
+  paths.
 
 The V6 integration tests additionally cover atomic association with the exact
 receipt and admission journal, exact retry, restart reconstruction,
