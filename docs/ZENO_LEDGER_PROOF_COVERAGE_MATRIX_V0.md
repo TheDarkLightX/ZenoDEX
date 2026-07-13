@@ -28,19 +28,21 @@ Current supported surfaces cover:
 - strict replay-bound range verification from one canonical anchor snapshot,
   with governed configuration binding, linked carried state, one deterministic
   execution per body, and exact post-state-root and rejection-receipt checks;
-- proof-required range replay;
+- proof-required metadata gating as a structural diagnostic. The range verifier
+  records a typed pending authority obligation and does not accept metadata or
+  report booleans as cryptographic proof authority;
 - proof-verification report replay;
 - local light-client checkpoint quorum binding over a structural
   header/body/checkpoint diagnostic, signer-registry signature-set root, and BLS
   checkpoint quorum. This surface does not claim deterministic state replay.
 
-Current explicit gaps cover UPBA v2/v3 proof execution, Oracle critical-action
-proof execution, zUSD proof execution, perps proof execution, proof-market
-reward proof execution, light-client state-transition replay, production
-light-client finality, and real recursive
-epoch proof aggregation. The light-client gap is now specifically production
-validator rotation, fork-choice, slashing, peer discovery, and adversarial
-network finality.
+Current explicit gaps cover consensus-bound proof-required authority, UPBA
+v2/v3 proof execution, Oracle critical-action proof execution, zUSD proof
+execution, perps proof execution, proof-market reward proof execution,
+light-client state-transition replay, production light-client finality, and real
+recursive epoch proof aggregation. The light-client gap is now specifically
+production validator rotation, fork-choice, slashing, peer discovery, and
+adversarial network finality.
 
 This matrix is a scope-control artifact. It does not add zkVM execution support
 for the listed gaps.

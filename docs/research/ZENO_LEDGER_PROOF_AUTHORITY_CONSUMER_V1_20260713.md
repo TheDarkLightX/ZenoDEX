@@ -1,0 +1,120 @@
+# ZenoLedger Proof-Authority Consumer V1
+
+Date: 2026-07-13
+Status: implemented fail-closed consumer port; positive authority pending
+
+## Scope
+
+This lane governs the final consumer of `proof_required` and
+`bridge_policy.requires_proof_journal`. It separates three objects:
+
+```text
+proof metadata or verifier report
+    -> diagnostic data only
+
+governed proof-authority binding
+    -> data-only policy identity committed by ledger state
+
+private authenticated verifier result
+    -> cryptographic result minted by the exact strict verifier
+```
+
+The positive authority decision requires the last two objects to agree on the
+same policy, chain, profile, height range, authority manifest, registry, and
+strict result schema. A JSON mapping containing `ok`, `header_bound`,
+`risc0_verified`, or similar booleans cannot enter that join.
+
+## Current V0 Result
+
+The current V0 profile and replay configuration do not commit a proof-authority
+policy ID. The consumer therefore returns:
+
+```text
+proof_authority_status = required_pending
+proof_authority_satisfied = false
+proof_authority_capable = false
+```
+
+It also emits the typed obligation
+`zeno_ledger.proof_authority.consumer_binding.v1`, which names the missing
+bindings:
+
+- a private authenticated strict-verifier result;
+- a consensus-bound authority-manifest SHA-256;
+- a consensus-bound proof-authority policy ID;
+- a consensus-bound verifier-registry ID;
+- a replay-config digest when structural diagnostic mode has no replay config.
+
+This replaces the prior ad hoc pending string with a deterministic typed
+decision. The range verifier still rejects proof-required replay.
+
+## Future Positive Port
+
+`GovernedProofAuthorityBindingV1` defines the data-only policy surface:
+
+```text
+policy ID
+chain ID
+profile ID
+authority-manifest SHA-256
+verifier-registry ID and entry ID
+strict authenticated-result schema
+valid-from and optional valid-until heights
+```
+
+The policy ID is recomputed from canonical fields. The consumer rejects a
+wrong policy, wrong chain/profile, a policy that is not yet valid, and a stale
+policy before considering any verifier result.
+
+The private authenticated range-result class has no minting function in V1.
+The strict verifier integration must be co-located with the consumer and mint
+it only after exact cryptographic verification. This prevents a caller from
+substituting a mapping or boolean-bearing nominal object.
+
+The planned strict Spot verifier output schema is:
+
+```text
+zenodex.zeno_ledger.authenticated_spot_proof_facts.v1
+```
+
+It is expected to bind the authority manifest, registry and entry, chain,
+height, canonical header, config, receipt security profile, exact receipt and
+journal, Spot transaction commitment, and ZenoLedger transaction root. Its
+own non-claims for ledger state-root equivalence, settlement, and production
+remain in force.
+
+## Evidence
+
+Focused tests cover:
+
+- non-proof profiles returning an exact `not_required` decision;
+- proof-required profiles returning the typed pending obligation;
+- structural mode naming the missing replay-config digest;
+- caller boolean mappings rejecting at the exact authenticated-result type;
+- wrong committed policy rejection;
+- not-yet-valid and stale policy rejection;
+- policy-ID tampering rejection;
+- private decision construction rejection;
+- existing fabricated positive verification reports remaining rejected.
+
+Replay commands:
+
+```bash
+python3 -m pytest -q \
+  tests/integration/test_zeno_ledger_proof_authority_consumer_v1.py \
+  tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py
+
+python3 tools/check_zeno_ledger_proof_coverage_matrix.py --pretty
+```
+
+## Non-Claims
+
+This lane does not claim:
+
+- cryptographic proof authority for V0 profiles;
+- a consensus-bound proof-authority policy;
+- that the strict Spot verifier result is connected to the consumer;
+- ledger state-root equivalence;
+- settlement authority;
+- production authority;
+- data availability or finality.

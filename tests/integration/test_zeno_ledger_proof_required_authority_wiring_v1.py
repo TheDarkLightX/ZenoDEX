@@ -318,6 +318,9 @@ def test_proof_required_replay_rejects_metadata_without_authenticated_verifier(
     )
 
     assert report["ok"] is False
+    assert report["proof_authority_status"] == "required_pending"
+    pending = report["proof_authority_pending_obligation"]
+    assert pending["obligation_id"] == "zeno_ledger.proof_authority.consumer_binding.v1"
     assert "profile_requires_governed_proof_authority_binding" in report["errors"]
     assert not case.counter_path.exists()
 
@@ -454,6 +457,8 @@ def test_caller_supplied_static_manifest_still_lacks_governed_binding(
 
     assert report["ok"] is False
     assert report["proof_authority_satisfied"] is False
+    assert report["proof_authority_status"] == "required_pending"
+    assert report["proof_authority_pending_obligation"] is not None
     assert report["governed_proof_authority_checked_heights"] == []
     assert any(
         "governed_proof_authority_binding_unavailable_v0" in error for error in report["errors"]

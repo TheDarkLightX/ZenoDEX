@@ -27,6 +27,12 @@ from src.integration.zeno_ledger_profile import (  # noqa: E402
     validate_zeno_ledger_profile_v0,
     zeno_ledger_profile_requires_proof_authority_v0,
 )
+from src.integration.zeno_ledger_proof_authority_consumer_v1 import (  # noqa: E402
+    ProofAuthorityDecisionV1,
+    make_proof_authority_requirement_v1,
+    proof_authority_not_required_v1,
+    resolve_proof_authority_v1,
+)
 from src.integration.zeno_ledger_replay import (  # noqa: E402
     parse_replay_engine_config_v0,
     replay_engine_config_digest_v0,
@@ -147,6 +153,7 @@ def verify_zeno_ledger_v0(
     replay_config: DexEngineConfig | None = None
     replay_config_digest: str | None = None
     proof_authority_required = False
+    proof_authority_decision = proof_authority_not_required_v1()
 
     if mode not in VERIFY_MODES:
         errors.append("verify_mode_invalid")
@@ -218,6 +225,17 @@ def verify_zeno_ledger_v0(
                 profile = dict(_load_json_object(profile_path))
                 validate_zeno_ledger_profile_v0(profile)
                 proof_authority_required = zeno_ledger_profile_requires_proof_authority_v0(profile)
+                proof_authority_decision = resolve_proof_authority_v1(
+                    requirement=make_proof_authority_requirement_v1(
+                        profile=profile,
+                        replay_config_digest=replay_config_digest,
+                        expected_policy_id=None,
+                        from_height=from_height,
+                        to_height=to_height,
+                    ),
+                    governed_binding=None,
+                    authenticated_result=None,
+                )
                 if proof_authority_required and proof_metadata_dir is None:
                     errors.append("profile_requires_proof_metadata_dir")
                 if proof_authority_required and replay_bound and not all(proof_authority_inputs):
@@ -238,7 +256,7 @@ def verify_zeno_ledger_v0(
             last_app_hash=last_app_hash,
             mode=mode,
             replay_config_digest=replay_config_digest,
-            proof_authority_required=proof_authority_required,
+            proof_authority_decision=proof_authority_decision,
         )
 
     for height in range(from_height, to_height + 1):
@@ -330,7 +348,13 @@ def verify_zeno_ledger_v0(
                 # pinned static ELF remains caller-selected at this boundary.
                 # Preserve proof authority as unavailable until a separately
                 # governed release binding is consensus/header bound.
-                raise ValueError("governed_proof_authority_binding_unavailable_v0")
+                pending = proof_authority_decision.pending_report()
+                obligation_id = (
+                    pending.get("obligation_id")
+                    if pending is not None
+                    else "proof_authority_pending_obligation_missing"
+                )
+                raise ValueError(f"governed_proof_authority_binding_unavailable_v0:{obligation_id}")
             last_header_hash = canonical_header_hash_v0(header)
             last_post_state_root = str(header["post_state_root"])
             last_app_hash = str(header["app_hash"])
@@ -352,7 +376,7 @@ def verify_zeno_ledger_v0(
         last_app_hash=last_app_hash,
         mode=mode,
         replay_config_digest=replay_config_digest,
-        proof_authority_required=proof_authority_required,
+        proof_authority_decision=proof_authority_decision,
     )
 
 
@@ -368,7 +392,7 @@ def _report(
     last_app_hash: str | None,
     mode: str,
     replay_config_digest: str | None,
-    proof_authority_required: bool,
+    proof_authority_decision: ProofAuthorityDecisionV1,
 ) -> dict[str, Any]:
     ok = not errors
     replay_bound = mode == REPLAY_BOUND_MODE
@@ -381,9 +405,6 @@ def _report(
         last_post_state_root = None
         last_app_hash = None
     range_verified = ok and replay_bound
-    # V0 has no independently governed binding for the authority-manifest
-    # digest and verifier-registry ID. Keep this claim false by construction.
-    proof_authority_satisfied = False
     return {
         "schema": REPORT_SCHEMA,
         "ok": ok,
@@ -407,9 +428,11 @@ def _report(
         "proof_metadata_checked_heights": proof_metadata_checked_heights,
         "proof_verification_checked_heights": proof_verification_checked_heights,
         "governed_proof_authority_checked_heights": (governed_proof_authority_checked_heights),
-        "proof_authority_required": proof_authority_required,
-        "proof_authority_satisfied": proof_authority_satisfied,
-        "proof_authority_capable": False,
+        "proof_authority_status": proof_authority_decision.status.value,
+        "proof_authority_pending_obligation": proof_authority_decision.pending_report(),
+        "proof_authority_required": proof_authority_decision.required,
+        "proof_authority_satisfied": proof_authority_decision.satisfied,
+        "proof_authority_capable": proof_authority_decision.capable,
         "settlement_authority": False,
         "production_authority": False,
         "last_header_hash": last_header_hash,
