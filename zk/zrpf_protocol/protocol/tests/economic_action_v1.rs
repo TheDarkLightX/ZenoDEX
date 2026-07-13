@@ -339,6 +339,110 @@ fn proof_receipt_salt_and_signature_representations_do_not_change_identity() {
     assert_eq!(first, second);
 }
 
+#[derive(Clone)]
+struct UntrustedL1SourceEncodingFixture {
+    partition_start: u32,
+    source_program_id: [u8; 32],
+    source_journal_hash: [u8; 32],
+    receipt_encoding: &'static str,
+    action: AuthorizedEconomicActionV1,
+}
+
+#[test]
+fn cross_l1_source_reencoding_of_one_action_rejects_at_the_canonical_batch_boundary() {
+    let canonical_action = authorized_action(
+        record(vec![indexed_commitment(0), indexed_commitment(1)]),
+        9,
+    );
+    let left = UntrustedL1SourceEncodingFixture {
+        partition_start: 0,
+        source_program_id: [61; 32],
+        source_journal_hash: [62; 32],
+        receipt_encoding: "risc0-succinct-postcard",
+        action: canonical_action.clone(),
+    };
+    let right = UntrustedL1SourceEncodingFixture {
+        partition_start: 1,
+        source_program_id: [71; 32],
+        source_journal_hash: [72; 32],
+        receipt_encoding: "independent-backend-envelope",
+        action: canonical_action,
+    };
+
+    assert_ne!(left.partition_start, right.partition_start);
+    assert_ne!(left.source_program_id, right.source_program_id);
+    assert_ne!(left.source_journal_hash, right.source_journal_hash);
+    assert_ne!(left.receipt_encoding, right.receipt_encoding);
+    assert_eq!(
+        left.action.action_id().unwrap(),
+        right.action.action_id().unwrap()
+    );
+
+    let left_batch = EconomicActionBatchV1::new(25, commitment(6), vec![left.action]).unwrap();
+    let right_batch = EconomicActionBatchV1::new(25, commitment(6), vec![right.action]).unwrap();
+    left_batch.validate_self_consistency().unwrap();
+    right_batch.validate_self_consistency().unwrap();
+
+    assert_eq!(
+        EconomicActionBatchV1::merge_subtree_batches(vec![left_batch, right_batch]).unwrap_err(),
+        EconomicActionBatchErrorV1::DuplicateAction
+    );
+}
+
+#[test]
+fn cross_l1_distinct_actions_reusing_one_grant_nonce_reject_at_the_nullifier_boundary() {
+    let left_action = authorized_action(varied_record(17, 7, 8, Vec::new()), 9);
+    let right_action = authorized_action(varied_record(17, 10, 11, Vec::new()), 9);
+    assert_ne!(
+        left_action.action_id().unwrap(),
+        right_action.action_id().unwrap()
+    );
+    assert_eq!(
+        left_action.authorization_grant_spend().unwrap(),
+        right_action.authorization_grant_spend().unwrap()
+    );
+
+    let left_batch = EconomicActionBatchV1::new(25, commitment(6), vec![left_action]).unwrap();
+    let right_batch = EconomicActionBatchV1::new(25, commitment(6), vec![right_action]).unwrap();
+
+    assert_eq!(
+        EconomicActionBatchV1::merge_subtree_batches(vec![left_batch, right_batch]).unwrap_err(),
+        EconomicActionBatchErrorV1::DuplicateAuthorizationGrantSpend
+    );
+}
+
+#[test]
+fn subtree_batch_merge_matches_direct_canonical_construction() {
+    let first = authorized_action(varied_record(17, 7, 8, vec![indexed_commitment(0)]), 9);
+    let second = authorized_action(varied_record(18, 10, 11, vec![indexed_commitment(1)]), 10);
+    let expected =
+        EconomicActionBatchV1::new(25, commitment(6), vec![first.clone(), second.clone()]).unwrap();
+    let merged = EconomicActionBatchV1::merge_subtree_batches(vec![
+        EconomicActionBatchV1::new(25, commitment(6), vec![second]).unwrap(),
+        EconomicActionBatchV1::new(25, commitment(6), vec![first]).unwrap(),
+    ])
+    .unwrap();
+
+    assert_eq!(merged, expected);
+    assert_eq!(
+        merged.canonical_commitment().unwrap(),
+        expected.canonical_commitment().unwrap()
+    );
+}
+
+#[test]
+fn subtree_batch_merge_rejects_epoch_relabeling() {
+    let first = authorized_action(varied_record(17, 7, 8, Vec::new()), 9);
+    let second = authorized_action(varied_record(18, 10, 11, Vec::new()), 10);
+    let first_batch = EconomicActionBatchV1::new(25, commitment(6), vec![first]).unwrap();
+    let second_batch = EconomicActionBatchV1::new(26, commitment(6), vec![second]).unwrap();
+
+    assert_eq!(
+        EconomicActionBatchV1::merge_subtree_batches(vec![first_batch, second_batch]).unwrap_err(),
+        EconomicActionBatchErrorV1::SubtreeEpochMismatch
+    );
+}
+
 #[test]
 fn consumed_objects_are_sorted_canonically_and_input_order_is_irrelevant() {
     let first = indexed_commitment(0);
